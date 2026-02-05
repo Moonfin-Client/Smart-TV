@@ -1,3 +1,4 @@
+/* global navigator */
 const LOG_LEVELS = {
 	DEBUG: 'Debug',
 	INFO: 'Information',

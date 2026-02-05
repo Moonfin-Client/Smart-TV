@@ -1,3 +1,4 @@
+/* global navigator */
 // webOS Video Service - Luna API interface for hardware video playback
 
 let lunaClient = null;
