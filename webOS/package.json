@@ -7,21 +7,19 @@
 	"scripts": {
 		"serve": "enact serve",
 		"pack": "enact pack",
-		"pack-p": "enact pack -p",
-		"pack-webos4": "enact pack -p --webos4",
+		"build": "./build.sh",
 		"watch": "enact pack --watch",
 		"clean": "enact clean",
 		"lint": "enact lint .",
 		"license": "enact license",
 		"test": "enact test",
 		"test-watch": "enact test --watch",
-		"package": "enact pack -p && cp resources/banner-dark.png dist/resources/ && cd dist/node_modules/ilib/locale && find . -mindepth 1 -maxdepth 1 -type d ! -name 'en*' -exec rm -rf {} + && cd ../../../.. && ares-package ./dist ./services -o ./build",
 		"install-tv": "ares-install ./build/*.ipk -d tv",
 		"launch-tv": "ares-launch org.moonfin.webos -d tv"
 	},
 	"license": "MPL-2.0",
 	"private": true,
-	"repository": "https://github.com/Moonfin-Client/WebOs",
+	"repository": "https://github.com/Moonfin-Client/webOS",
 	"enact": {
 		"theme": "sandstone",
 		"ri": {
