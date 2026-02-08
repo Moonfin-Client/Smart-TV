@@ -6,6 +6,18 @@
     <description>A beautiful Jellyfin media client for Samsung Smart TVs.</description>
     <author email="contact@moonfin.org" href="https://github.com/nicknsy/moonfin-tizen">Moonfin Contributors</author>
     <license>MPL-2.0</license>
+    <tizen:app-control>
+        <tizen:src name="index.html" reload="disable"/>
+        <tizen:operation name="http://samsung.com/appcontrol/operation/eden_resume"/>
+    </tizen:app-control>
+    <tizen:service id="Moonfin000.service">
+        <tizen:content src="service/service.js"/>
+        <tizen:name>moonfin_service</tizen:name>
+        <tizen:description>Moonfin Smarthub Preview Handler Service</tizen:description>
+        <tizen:metadata key="meta-key" value="meta-value"/>
+        <tizen:category name="http://tizen.org/category/service"/>
+    </tizen:service>
+    
     <icon src="icon.png"/>
     <tizen:profile name="tv-samsung"/>
     <feature name="http://tizen.org/feature/screen.size.all"/>
@@ -13,6 +25,7 @@
     <tizen:privilege name="http://tizen.org/privilege/internet"/>
     <tizen:privilege name="http://tizen.org/privilege/network.public"/>
     <tizen:privilege name="http://tizen.org/privilege/tv.inputdevice"/>
+    <tizen:metadata key="http://samsung.com/tv/metadata/use.preview" value="bg_service"/>
     <tizen:privilege name="http://tizen.org/privilege/application.launch"/>
     <tizen:setting screen-orientation="landscape" context-menu="enable" background-support="enable" encryption="disable" install-location="auto" hwkey-event="enable"/>
 </widget>

@@ -109,18 +109,23 @@ function copyDir(src, dest) {
 }
 
 function copyFiles(src, dest, pattern = null) {
-	if (!fs.existsSync(src)) return;
-	if (!fs.existsSync(dest)) fs.mkdirSync(dest, { recursive: true });
-	
-	const files = fs.readdirSync(src);
-	for (const file of files) {
-		if (pattern && !file.match(pattern)) continue;
-		const srcPath = path.join(src, file);
-		const destPath = path.join(dest, file);
-		if (!fs.statSync(srcPath).isDirectory()) {
-			fs.copyFileSync(srcPath, destPath);
-		}
-	}
+    if (!fs.existsSync(src)) return;
+    if (!fs.existsSync(dest)) fs.mkdirSync(dest, { recursive: true });
+
+    const files = fs.readdirSync(src);
+    for (const file of files) {
+        if (pattern && !file.match(pattern)) continue;
+        const srcPath = path.join(src, file);
+        const destPath = path.join(dest, file);
+        const stat = fs.statSync(srcPath);
+
+        if (stat.isDirectory()) {
+            if (!fs.existsSync(destPath)) fs.mkdirSync(destPath, { recursive: true });
+            copyFiles(srcPath, destPath, pattern);
+        } else {
+            fs.copyFileSync(srcPath, destPath);
+        }
+    }
 }
 
 async function main() {

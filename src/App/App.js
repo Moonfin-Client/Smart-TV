@@ -13,9 +13,11 @@ import {
 	setupTizenLifecycle,
 	cleanupVideoElement
 } from '../services/tizenVideo';
+
 import {SettingsProvider} from '../context/SettingsContext';
 import {JellyseerrProvider} from '../context/JellyseerrContext';
 import {useVersionCheck} from '../hooks/useVersionCheck';
+import { initSmartHub, runSmartViewUpdate } from '../services/smarthub';
 import UpdateNotification from '../components/UpdateNotification';
 import NavBar from '../components/NavBar';
 import LoadingSpinner from '../components/LoadingSpinner';
@@ -231,7 +233,16 @@ const AppContent = (props) => {
 	useEffect(() => {
 		registerKeys(ESSENTIAL_KEY_NAMES);
 	}, []);
-
+	// Initialize SmartHub module on Tizen
+	useEffect(() => {
+		if (isTizen()) {
+			try {
+				initSmartHub({ autoRefresh: true });
+			} catch (err) {
+				console.warn('[App] initSmartHub failed', err);
+			}
+		}
+	}, []);
 	const navigateTo = useCallback((panel, addToHistory = true) => {
 		if (addToHistory && panelIndex !== PANELS.LOGIN) {
 			setPanelHistory(prev => {
@@ -281,9 +292,21 @@ const AppContent = (props) => {
 			// Handle Tizen Exit key - close app
 			if (e.keyCode === TIZEN_KEYS.EXIT) {
 				if (typeof tizen !== 'undefined' && tizen.application) {
-					tizen.application.getCurrentApplication().exit();
+					try {
+						if (typeof runSmartViewUpdate === 'function') {
+							try {
+								runSmartViewUpdate();
+							} catch (err) {
+								console.warn('[App] runSmartViewUpdate failed', err);
+							}
+						}
+						tizen.application.getCurrentApplication().exit();
+					} catch (error) {
+						console.error('Error:', error.message);
+						tizen.application.getCurrentApplication().exit();
+					}
 				}
-			}
+		}
 		};
 
 		window.addEventListener('keydown', handleKeyDown, true);
