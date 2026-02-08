@@ -256,13 +256,8 @@ const extractChapters = (mediaSource) => {
 	}));
 };
 
-// Derive max streaming bitrate from device capabilities
-// Per LG AV format docs: 8K=100Mbps, UHD=60Mbps, FHD=40Mbps
-const getAutoMaxBitrate = (capabilities) => {
-	if (capabilities.uhd8K) return 100_000_000;
-	if (capabilities.uhd) return 60_000_000;
-	return 40_000_000;
-};
+// Default bitrate for transcoding: 20 Mbps (reasonable for 1080p content)
+const DEFAULT_MAX_BITRATE = 20000000;
 
 export const getPlaybackInfo = async (itemId, options = {}) => {
 	const deviceProfile = await getJellyfinDeviceProfile();
@@ -272,8 +267,7 @@ export const getPlaybackInfo = async (itemId, options = {}) => {
 	const api = options.item ? getApiForItem(options.item) : jellyfinApi.api;
 	const creds = options.item ? getServerCredentials(options.item) : null;
 
-	// maxBitrate: user-set value (>0), or auto-detect from device capabilities
-	const maxBitrate = options.maxBitrate > 0 ? options.maxBitrate : getAutoMaxBitrate(capabilities);
+	const maxBitrate = options.maxBitrate || DEFAULT_MAX_BITRATE;
 
 	const requestedStartTime = options.startPositionTicks || 0;
 	console.log('[playback] getPlaybackInfo called:', {
@@ -613,18 +607,9 @@ export const getNextEpisode = async (item) => {
 export const changeAudioStream = async (streamIndex) => {
 	if (!currentSession) return null;
 
-	// If we're currently transcoding, keep transcoding when switching audio.
-	// This prevents re-attempting DirectPlay after it already failed and fell back.
-	const forceTranscode = currentSession.playMethod === PlayMethod.Transcode;
-
 	const newInfo = await getPlaybackInfo(currentSession.itemId, {
 		...currentSession,
-		audioStreamIndex: streamIndex,
-		...(forceTranscode && {
-			enableDirectPlay: false,
-			enableDirectStream: false,
-			enableTranscoding: true
-		})
+		audioStreamIndex: streamIndex
 	});
 
 	return newInfo;
@@ -633,17 +618,9 @@ export const changeAudioStream = async (streamIndex) => {
 export const changeSubtitleStream = async (streamIndex) => {
 	if (!currentSession) return null;
 
-	// Preserve current play method aand don't re-attempt DirectPlay if already transcoding
-	const forceTranscode = currentSession.playMethod === PlayMethod.Transcode;
-
 	const newInfo = await getPlaybackInfo(currentSession.itemId, {
 		...currentSession,
-		subtitleStreamIndex: streamIndex,
-		...(forceTranscode && {
-			enableDirectPlay: false,
-			enableDirectStream: false,
-			enableTranscoding: true
-		})
+		subtitleStreamIndex: streamIndex
 	});
 
 	return newInfo;

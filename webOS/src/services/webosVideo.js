@@ -1,7 +1,5 @@
 /* global navigator */
 // webOS Video Service - Luna API interface for hardware video playback
-// Capability detection is handled by deviceProfile.js — this module focuses on
-// playback decisions, audio codec checks, and Luna hardware control.
 
 let lunaClient = null;
 let isLunaAvailable = false;
@@ -11,6 +9,24 @@ export const isWebOS = () => {
 	if (typeof window.webOS !== 'undefined') return true;
 	const ua = navigator.userAgent.toLowerCase();
 	return ua.includes('webos') || ua.includes('web0s');
+};
+
+export const getWebOSVersion = () => {
+	const ua = navigator.userAgent.toLowerCase();
+	const chromeMatch = /chrome\/(\d+)/.exec(ua);
+	if (chromeMatch) {
+		const chromeVersion = parseInt(chromeMatch[1], 10);
+		if (chromeVersion >= 120) return 25;
+		if (chromeVersion >= 108) return 24;
+		if (chromeVersion >= 94) return 23;
+		if (chromeVersion >= 87) return 22;
+		if (chromeVersion >= 79) return 6;
+		if (chromeVersion >= 68) return 5;
+		if (chromeVersion >= 53) return 4;
+		if (chromeVersion >= 38) return 3;
+		return 2;
+	}
+	return 4; // Default assumption
 };
 
 export const initLunaAPI = async () => {
@@ -49,10 +65,152 @@ const lunaCall = (service, method, parameters = {}) => {
 	});
 };
 
+// Per LG developer documentation, DTS support varies by webOS version AND container.
+// This mirrors getDtsContainerSupport() from deviceProfile.js for local use.
+const getDtsContainerSupportLocal = (webosVersion, lunaDts = null) => {
+	if (webosVersion >= 23) {
+		const dtsEnabled = lunaDts !== false;
+		return { mkv: dtsEnabled, mp4: dtsEnabled, ts: dtsEnabled, avi: false };
+	}
+	if (webosVersion >= 5) {
+		return { mkv: true, mp4: false, ts: false, avi: false };
+	}
+	return { mkv: true, mp4: false, ts: false, avi: true };
+};
+
+const getDefaultCapabilities = () => {
+	const webosVersion = getWebOSVersion();
+	return {
+		webosVersion,
+		modelName: 'Unknown',
+		uhd: true,
+		uhd8K: webosVersion >= 5,
+		oled: false,
+		hdr10: webosVersion >= 4,
+	hdr10Plus: webosVersion >= 6,
+		hlg: webosVersion >= 4,
+		dolbyVision: false,
+		dolbyAtmos: false,
+		hevc: webosVersion >= 4,
+		av1: webosVersion >= 5,
+		vp9: webosVersion >= 4,
+		dts: getDtsContainerSupportLocal(webosVersion, null),
+		ac3: true,
+		eac3: true, // DD+ supported on all webOS 4+
+		truehd: false,
+		mp4: true,
+		m4v: true,
+		ts: true,
+		mov: true,
+		avi: true,
+		'3gp': true,
+		mpg: true,
+		vob: true,
+		asf: true,
+		wmv: true,
+		mkv: webosVersion >= 4,
+		webm: webosVersion >= 5,
+		nativeHls: true,
+		nativeHlsFmp4: webosVersion >= 5,
+		hlsAc3: webosVersion >= 5,
+		hlsByteRange: webosVersion >= 4
+	};
+};
+
+export const getMediaCapabilities = async () => {
+	if (!isLunaAvailable) {
+		return getDefaultCapabilities();
+	}
+
+	try {
+		const result = await lunaCall('com.webos.service.config', 'getConfigs', {
+			configNames: [
+				'tv.model.modelName',
+				'tv.config.supportDolbyHDRContents',
+				'tv.model.supportHDR',
+				'tv.hw.supportCodecH265',
+				'tv.hw.supportCodecAV1',
+				'tv.hw.supportCodecVP9',
+				'tv.hw.panelResolution',
+				'tv.conti.supportDolbyAtmos',
+				'tv.config.supportDolbyAtmos',
+				'tv.model.oled',
+				'tv.hw.ddrSize',
+				'tv.nvm.support.edid.hdr10plus',
+				'tv.config.supportHLG',
+				'tv.config.supportDTS'
+			]
+		});
+
+		const cfg = result.configs || {};
+		const webosVersion = getWebOSVersion();
+
+		// HDR detection
+		// - All webOS 4+ TVs support HDR10 and HLG via HEVC Main10 profile
+		// - Dolby Vision only via Luna API confirmation
+		const hasHdr = cfg['tv.model.supportHDR'] === true || webosVersion >= 4;
+		const hasHlg = cfg['tv.config.supportHLG'] === true || hasHdr;
+		const hasDolbyVision = cfg['tv.config.supportDolbyHDRContents'] === true;
+
+		console.log('[webosVideo] HDR detection:', {
+			webosVersion,
+			'tv.model.supportHDR': cfg['tv.model.supportHDR'],
+			'tv.config.supportDolbyHDRContents': cfg['tv.config.supportDolbyHDRContents'],
+			resultHdr10: hasHdr,
+			resultHlg: hasHlg,
+			resultDolbyVision: hasDolbyVision
+		});
+
+		return {
+			webosVersion,
+			modelName: cfg['tv.model.modelName'] || 'Unknown',
+			uhd: cfg['tv.hw.panelResolution'] === 'UD' || cfg['tv.hw.panelResolution'] === '8K',
+			uhd8K: cfg['tv.hw.panelResolution'] === '8K',
+			oled: cfg['tv.model.oled'] === true,
+			hdr10: hasHdr,
+			hdr10Plus: cfg['tv.nvm.support.edid.hdr10plus'] === true || webosVersion >= 6,
+			hlg: hasHlg,
+			dolbyVision: hasDolbyVision,
+			dolbyAtmos: cfg['tv.conti.supportDolbyAtmos'] === true || cfg['tv.config.supportDolbyAtmos'] === true,
+			// Video codecs - use Luna API if available, fall back to version-based
+			hevc: cfg['tv.hw.supportCodecH265'] !== false && webosVersion >= 4,
+			av1: cfg['tv.hw.supportCodecAV1'] === true || (cfg['tv.hw.supportCodecAV1'] !== false && webosVersion >= 5),
+			vp9: cfg['tv.hw.supportCodecVP9'] === true || webosVersion >= 4,
+			dts: getDtsContainerSupportLocal(webosVersion, cfg['tv.config.supportDTS'] ?? null),
+			ac3: true,
+			eac3: true, // DD+ supported on all webOS 4+
+			// TrueHD/DTS-HD: webOS can only PASSTHROUGH these to AV receiver, not decode internally
+			truehd: false,
+			dtshd: false,
+			// Containers
+			mp4: true,
+			m4v: true,
+			ts: true,
+			mov: true,
+			avi: true,
+			'3gp': true,
+			mpg: true,
+			vob: true,
+			asf: true,
+			wmv: webosVersion < 25 || cfg['tv.hw.supportCodecVC1'] !== false, // webOS 25 model-specific
+			mkv: webosVersion >= 4,
+			webm: webosVersion >= 5,
+			// HLS
+			nativeHls: true,
+			nativeHlsFmp4: webosVersion >= 5,
+			hlsAc3: webosVersion >= 5,
+			hlsByteRange: webosVersion >= 4
+		};
+	} catch (e) {
+		console.warn('[webosVideo] Failed to get capabilities:', e.message);
+		return getDefaultCapabilities();
+	}
+};
+
 /**
  * Get the list of audio codecs supported by the TV hardware for a given container.
  * Container-specific restrictions (DTS per-container) are applied.
- * @param {object} capabilities - Device capabilities from getDeviceCapabilities()
+ * @param {object} capabilities - Device capabilities from getMediaCapabilities()
  * @param {string} [container=''] - Container format (e.g., 'mkv', 'mp4'). Empty = no container restriction.
  * @returns {string[]} Array of supported audio codec strings
  */
@@ -266,13 +424,9 @@ export const getPlayMethod = (mediaSource, capabilities) => {
 		return 'DirectPlay';
 	}
 
-	// DirectStream remuxes the container but does NOT re-encode any streams.
-	// Both video AND audio must be natively supported — DirectStream cannot
-	// transcode unsupported audio. When only audio is incompatible (e.g. TrueHD
-	// as the sole track), we must fall through to Transcode so the server uses
-	// its TranscodingUrl with video passthrough + audio-only transcode, preserving
-	// HDR/Dolby Vision metadata.
-	if (mediaSource.SupportsDirectStream && videoOk && audioOk && containerOk && hdrOk && bitrateOk) {
+	// DirectStream can remux the container and transcode audio while keeping video direct.
+	// This preserves HDR when only the audio track is incompatible.
+	if (mediaSource.SupportsDirectStream && videoOk && containerOk && bitrateOk) {
 		console.log('[webosVideo] Result: DirectStream');
 		return 'DirectStream';
 	}
@@ -513,7 +667,9 @@ export const setupWebOSLifecycle = (onRelaunch) => {
 
 export default {
 	isWebOS,
+	getWebOSVersion,
 	initLunaAPI,
+	getMediaCapabilities,
 	getPlayMethod,
 	getMimeType,
 	getSupportedAudioCodecs,

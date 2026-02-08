@@ -122,10 +122,10 @@ npm install
 npm run serve
 
 # Build for production
-npm run pack -p
+npm run pack-p
 
 # Package for webOS (creates IPK)
-npm run pack
+npm run package
 
 # Install to TV
 npm run install-tv
@@ -140,20 +140,20 @@ The webOS ares-cli tools are included as a dev dependency. After running `npm in
 
 ### Testing on TV
 
-Testing on a TV requires [registering a LG developer account](https://webostv.developer.lge.com/login) and [setting up the devmode app](https://webostv.developer.lge.com/develop/getting-started/developer-mode-app).
+Testing on a TV requires [registering a LG developer account](https://webostv.developer.lge.com/develop/app-test/preparing-account/) and [setting up the devmode app](https://webostv.developer.lge.com/develop/app-test/using-devmode-app/).
 
 Once you have installed the devmode app on your target TV and logged in with your LG developer account, you need to turn on the `Dev Mode Status` and `Key Server`.
 **Make sure** to take a note of the passphrase.
 
 ```bash
 # Add your TV
-ares-setup-device (manual) or ares-setup-device -s (network scan - set name to tv)
+ares-setup-device
 
 # Set up SSH key (Key Server must be running)
 ares-novacom --device tv --getkey
 
 # Verify connection
-ares-device -i -d tv
+ares-device-info -d tv
 
 # Install the app
 ares-install -d tv build/*.ipk

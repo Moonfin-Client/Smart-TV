@@ -191,7 +191,6 @@ const Player = ({item, resume, initialAudioIndex, initialSubtitleIndex, onEnded,
 	const runTimeRef = useRef(0);
 	const healthMonitorRef = useRef(null);
 	const nextEpisodeTimerRef = useRef(null);
-	const hasTriggeredNextEpisodeRef = useRef(false);
 	const unregisterAppStateRef = useRef(null);
 	const controlsTimeoutRef = useRef(null);
 	const hlsRecoveryRef = useRef({ attempts: 0, lastErrorTime: 0 });
@@ -914,9 +913,8 @@ const Player = ({item, resume, initialAudioIndex, initialSubtitleIndex, onEnded,
 			if (nextEpisode && runTimeRef.current > 0) {
 				const remaining = runTimeRef.current - ticks;
 				const nearEnd = remaining < 300000000;
-				if (nearEnd && !showNextEpisode && !showSkipCredits && !hasTriggeredNextEpisodeRef.current) {
+				if (nearEnd && !showNextEpisode && !showSkipCredits) {
 					setShowNextEpisode(true);
-					hasTriggeredNextEpisodeRef.current = true;
 					if (settings.autoPlay) {
 						startNextEpisodeCountdown();
 					}
@@ -1022,10 +1020,6 @@ const Player = ({item, resume, initialAudioIndex, initialSubtitleIndex, onEnded,
 		setError(errorMessage);
 	}, [hasTriedTranscode, playMethod, item, selectedQuality, settings.maxBitrate]);
 
-	const handleImageError = useCallback((e) => {
-		e.target.style.display = 'none';
-	}, []);
-
 	const handleBack = useCallback(async () => {
 		cancelNextEpisodeCountdown();
 		const currentPos = videoRef.current
@@ -1096,10 +1090,6 @@ const Player = ({item, resume, initialAudioIndex, initialSubtitleIndex, onEnded,
 		if (isNaN(index)) return;
 		setSelectedAudioIndex(index);
 		closeModal();
-
-		// Reset fallback flag so the DirectPlay→Transcode fallback can trigger again
-		// if the new audio track also fails at the decoder level.
-		setHasTriedTranscode(false);
 
 		// For both Transcode and DirectPlay, re-fetch playback info when switching audio.
 		// This ensures unsupported codecs (e.g. DTS on webOS 5+) trigger a transcode
@@ -1501,7 +1491,9 @@ const Player = ({item, resume, initialAudioIndex, initialSubtitleIndex, onEnded,
 								src={getImageUrl(getServerUrl(), nextEpisode.Id, 'Primary', {maxWidth: 400, quality: 80})}
 								alt={nextEpisode.Name}
 								className={css.nextThumbnailImg}
-								onError={handleImageError}
+								onError={(e) => {
+									e.target.style.display = 'none';
+								}}
 							/>
 							<div className={css.nextThumbnailGradient} />
 						</div>
@@ -1525,7 +1517,7 @@ const Player = ({item, resume, initialAudioIndex, initialSubtitleIndex, onEnded,
 									className={css.nextCancelBtn}
 									onClick={cancelNextEpisodeCountdown}
 								>
-									Hide
+									Cancel
 								</SpottableButton>
 							</div>
 						</div>

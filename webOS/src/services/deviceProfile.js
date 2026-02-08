@@ -83,26 +83,19 @@ export const testVp9Support = (lunaResult = null, webosVersion = 4) => {
 };
 
 // Per LG developer documentation, DTS support varies by webOS version AND container:
-//   webOS 4/4.5: DTS in AVI + MKV (unconditionally supported)
+//   webOS 4/4.5: DTS in AVI + MKV
 //   webOS 5/6/22: DTS in MKV only
-//   webOS 23+: DTS in MKV + MP4 + TS (model-specific, detected via tv.model.edidType)
-// The Luna API config key 'tv.model.edidType' indicates DTS support when it contains 'dts'.
-// e.g. "TrueHD+dts" means DTS is supported, plain "TrueHD" means no DTS.
-// This is how LG checks DTS capability in their own Chromium fork.
-//
-// Note on soundbars: When edidType reports DTS support, the TV can decode DTS internally.
-// However, if a soundbar is connected that doesn't support DTS, the TV decodes DTS and
-// sends only 2.0 PCM to the soundbar, losing surround channels. In that case, server-side
-// transcode to AAC/AC3 would be preferable to preserve channel layout, but there's no
-// reliable way to detect connected soundbar capabilities via Luna APIs.
-export const getDtsContainerSupport = (webosVersion, edidHasDts = false) => {
+//   webOS 23+: DTS in MKV + MP4 + TS (model-specific)
+// The Luna API config key 'tv.config.supportDTS' can override for model-specific detection.
+export const getDtsContainerSupport = (webosVersion, lunaDts = null) => {
 	if (webosVersion >= 23) {
-		// edidType is the authoritative source on webOS 23+.
-		// If the key is absent or doesn't contain 'dts', the TV cannot decode DTS.
+		// Use Luna API result if available, otherwise assume supported
+		// (Jellyfin will fall back to transcoding if model can't decode)
+		const dtsEnabled = lunaDts !== false;
 		return {
-			mkv: !!edidHasDts,
-			mp4: !!edidHasDts,
-			ts: !!edidHasDts,
+			mkv: dtsEnabled,
+			mp4: dtsEnabled,
+			ts: dtsEnabled,
 			avi: false
 		};
 	}
@@ -110,7 +103,7 @@ export const getDtsContainerSupport = (webosVersion, edidHasDts = false) => {
 		// webOS 5/6/22: DTS in MKV only
 		return { mkv: true, mp4: false, ts: false, avi: false };
 	}
-	// webOS 4/4.5: DTS unconditionally supported in AVI + MKV
+	// webOS 4/4.5: DTS in AVI + MKV
 	return { mkv: true, mp4: false, ts: false, avi: true };
 };
 
@@ -137,8 +130,21 @@ export const getDeviceCapabilities = async () => {
 				method: 'getConfigs',
 				parameters: {
 					configNames: [
-						'tv.model.*',
-						'tv.hw.*'
+						'tv.model.modelName',
+						'tv.model.serialnumber',
+						'tv.config.supportDolbyHDRContents',
+						'tv.model.supportHDR',
+						'tv.hw.supportCodecH265',
+						'tv.hw.supportCodecAV1',
+						'tv.hw.supportCodecVP9',
+						'tv.hw.panelResolution',
+						'tv.hw.ddrSize',
+						'tv.conti.supportDolbyAtmos',
+						'tv.config.supportDolbyAtmos',
+						'tv.model.oled',
+						'tv.nvm.support.edid.hdr10plus',
+						'tv.config.supportHLG',
+						'tv.config.supportDTS'
 					]
 				},
 				onSuccess: resolve,
@@ -153,17 +159,17 @@ export const getDeviceCapabilities = async () => {
 	// Get container support from documented webOS specifications
 	const containerSupport = getDocumentedContainerSupport(webosVersion);
 
-	// DTS detection: tv.model.edidType contains 'dts' when DTS is supported
-	// e.g. "TrueHD+dts" = DTS supported, plain "TrueHD" = no DTS
-	// If the key is absent or doesn't mention dts, the TV cannot decode DTS.
-	const rawEdidType = cfg['tv.model.edidType'];
-	const edidHasDts = rawEdidType != null && rawEdidType.toLowerCase().includes('dts');
+	// Get Luna API codec results (null if not available)
+	const lunaHevc = cfg['tv.hw.supportCodecH265'];
+	const lunaAv1 = cfg['tv.hw.supportCodecAV1'];
+	const lunaVp9 = cfg['tv.hw.supportCodecVP9'];
+	const lunaDts = cfg['tv.config.supportDTS'] ?? null;
 
-	// Per-container DTS support based on LG documentation + edidType detection
-	const dtsSupport = getDtsContainerSupport(webosVersion, edidHasDts);
+	// Per-container DTS support based on LG documentation + Luna API override
+	const dtsSupport = getDtsContainerSupport(webosVersion, lunaDts);
 
 	cachedCapabilities = {
-		modelName: deviceInfoData.modelName || cfg['tv.model.modelname'] || 'Unknown',
+		modelName: deviceInfoData.modelName || cfg['tv.model.modelName'] || 'Unknown',
 		modelNameAscii: deviceInfoData.modelNameAscii || '',
 		serialNumber: cfg['tv.model.serialnumber'] || '',
 		sdkVersion: deviceInfoData.sdkVersion || 'Unknown',
@@ -174,36 +180,34 @@ export const getDeviceCapabilities = async () => {
 
 		screenWidth: deviceInfoData.screenWidth || 1920,
 		screenHeight: deviceInfoData.screenHeight || 1080,
-		uhd: cfg['tv.hw.panelResolution'] === 'UD' || cfg['tv.hw.panelResolution'] === '8K' || deviceInfoData.uhd || false,
-		uhd8K: cfg['tv.hw.panelResolution'] === '8K' || cfg['tv.hw.bSupport_8K_resolution'] === true || deviceInfoData.uhd8K || false,
-		oled: cfg['tv.hw.displayType'] === 'OLED' || (cfg['tv.model.moduleBackLightType'] || '').toLowerCase() === 'oled' || deviceInfoData.oled || false,
+		uhd: cfg['tv.hw.panelResolution'] === 'UD' || deviceInfoData.uhd || false,
+		uhd8K: cfg['tv.hw.panelResolution'] === '8K' || deviceInfoData.uhd8K || false,
+		oled: cfg['tv.model.oled'] === true || deviceInfoData.oled || false,
 
 		// HDR10/HLG: All webOS 4+ TVs support HDR10 and HLG via HEVC Main10 profile
+		// webOS TVs are known to support HDR10
+		// Luna API tv.model.supportHDR may not be available on older models
 		hdr10: cfg['tv.model.supportHDR'] === true || webosVersion >= 4,
-		// webOS has no native HDR10+ support, but HDR10+ content plays fine on HDR10
-		// devices (dynamic metadata is simply ignored). Set to match hdr10 so we
-		// don't unnecessarily force a transcode for HDR10+ files.
-		hdr10Plus: cfg['tv.model.supportHDR'] === true || webosVersion >= 4,
-		hlg: cfg['tv.model.supportHDR'] === true || webosVersion >= 4,
+		hdr10Plus: cfg['tv.nvm.support.edid.hdr10plus'] === true || webosVersion >= 6,
+		hlg: cfg['tv.config.supportHLG'] === true || cfg['tv.model.supportHDR'] === true || webosVersion >= 4,
 
-		// Dolby Vision: tv.model.supportDolbyVisionHDR is the correct key
+		// Dolby Vision: Only enabled if Luna API confirms support
 		// webOS 4+ can play DV Profile 8 fallback layers (HDR10/SDR) even without native DV
-		dolbyVision: cfg['tv.model.supportDolbyVisionHDR'] === true,
+		dolbyVision: cfg['tv.config.supportDolbyHDRContents'] === true,
 
-		// Dolby Atmos: detected from tv.model.soundModeType containing "Dolby Atmos"
-		dolbyAtmos: (cfg['tv.model.soundModeType'] || '').includes('Dolby Atmos'),
-		// Per-container DTS support based on tv.model.edidType containing 'dts'
+		dolbyAtmos: cfg['tv.conti.supportDolbyAtmos'] === true || cfg['tv.config.supportDolbyAtmos'] === true,
+		// Per-container DTS support per LG docs
 		dts: dtsSupport,
 		ac3: testAc3Support(),
 		eac3: true, // DD+ supported on all webOS 4+
 		// TrueHD/DTS-HD: webOS can only PASSTHROUGH these to an AV receiver, not decode internally
-		// Note: tv.model.edidType may say "TrueHD" but this does NOT mean actual TrueHD decode support
+		// Setting to false by default - users with AV receivers would need a setting to enable. TODO: Add setting later probably
 		truehd: false,
 		dtshd: false,
 
-		hevc: testHevcSupport(null, webosVersion),
-		av1: testAv1Support(null, webosVersion),
-		vp9: testVp9Support(null, webosVersion),
+		hevc: lunaHevc === true || (lunaHevc !== false && testHevcSupport(null, webosVersion)),
+		av1: lunaAv1 === true || testAv1Support(null, webosVersion),
+		vp9: lunaVp9 === true || testVp9Support(null, webosVersion),
 
 		...containerSupport,
 
@@ -223,15 +227,14 @@ export const getDeviceCapabilities = async () => {
 	console.log('[deviceProfile] HDR detection:', {
 		webosVersion,
 		'tv.model.supportHDR': cfg['tv.model.supportHDR'],
-		'tv.model.supportDolbyVisionHDR': cfg['tv.model.supportDolbyVisionHDR'],
-		'tv.model.edidType': cfg['tv.model.edidType'],
-		'tv.model.soundModeType': cfg['tv.model.soundModeType'],
+		'tv.config.supportDolbyHDRContents': cfg['tv.config.supportDolbyHDRContents'],
+		'tv.config.supportHLG': cfg['tv.config.supportHLG'],
+		'tv.nvm.support.edid.hdr10plus': cfg['tv.nvm.support.edid.hdr10plus'],
 		resultHdr10: cachedCapabilities.hdr10,
 		resultHlg: cachedCapabilities.hlg,
 		resultHdr10Plus: cachedCapabilities.hdr10Plus,
 		resultDolbyVision: cachedCapabilities.dolbyVision,
-		resultDts: edidHasDts,
-		note: 'HDR10/HLG enabled for all webOS 4+ per HEVC Main10'
+		note: 'HDR10/HLG enabled for all webOS 4+ per'
 	});
 	console.log('[deviceProfile] Capabilities:', cachedCapabilities);
 	return cachedCapabilities;

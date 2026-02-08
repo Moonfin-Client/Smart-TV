@@ -68,7 +68,7 @@ const UpdateNotification = ({updateInfo, formattedNotes, onDismiss}) => {
 			spotlightRestrict="self-only"
 		>
 			<div className={css.overlay}>
-				<div
+				<div 
 					className={css.modal}
 					style={{
 						width: '1400px',
@@ -92,9 +92,9 @@ const UpdateNotification = ({updateInfo, formattedNotes, onDismiss}) => {
 						direction="vertical"
 						focusableScrollbar
 					>
-						<div
+						<div 
 							className={css.notes}
-							ref={(el) => { if (el) el.innerHTML = htmlNotes; }}
+							dangerouslySetInnerHTML={{__html: htmlNotes}}
 						/>
 					</Scroller>
 

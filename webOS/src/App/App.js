@@ -12,7 +12,6 @@ import {
 	setupWebOSLifecycle,
 	cleanupVideoElement
 } from '../services/webosVideo';
-import {platformBack} from '@enact/webos/application';
 import {SettingsProvider} from '../context/SettingsContext';
 import {JellyseerrProvider} from '../context/JellyseerrContext';
 import {useVersionCheck} from '../hooks/useVersionCheck';
@@ -264,9 +263,6 @@ const AppContent = (props) => {
 				e.stopPropagation();
 
 				if (panelIndex === PANELS.BROWSE || panelIndex === PANELS.LOGIN) {
-					// At root level — let the platform handle back (closes/minimizes app)
-					performAppCleanup();
-					platformBack();
 					return;
 				}
 				if (panelIndex === PANELS.PLAYER || panelIndex === PANELS.SETTINGS) {
@@ -278,7 +274,7 @@ const AppContent = (props) => {
 
 		window.addEventListener('keydown', handleKeyDown, true);
 		return () => window.removeEventListener('keydown', handleKeyDown, true);
-	}, [panelIndex, handleBack, performAppCleanup]);
+	}, [panelIndex, handleBack]);
 
 	const handleLoggedIn = useCallback(() => {
 		setPanelHistory([]);
@@ -289,10 +285,10 @@ const AppContent = (props) => {
 		try {
 			// Convert setting value to API format
 			const contentType = settings.shuffleContentType || 'both';
-			const includeItemTypes = contentType === 'movies' ? 'Movie'
-				: contentType === 'tv' ? 'Series'
+			const includeItemTypes = contentType === 'movies' ? 'Movie' 
+				: contentType === 'tv' ? 'Series' 
 				: 'Movie,Series';
-
+			
 			let item;
 			if (unifiedMode) {
 				// Get random items from all servers
@@ -306,7 +302,7 @@ const AppContent = (props) => {
 					item = result.Items[0];
 				}
 			}
-
+			
 			if (item) {
 				setSelectedItem(item);
 				navigateTo(PANELS.DETAILS);
