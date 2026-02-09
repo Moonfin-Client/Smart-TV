@@ -1,0 +1,78 @@
+{
+	"name": "moonfin-tizen",
+	"version": "2.0.0",
+	"description": "Jellyfin client for Samsung Tizen TV",
+	"author": "Moonfin Contributors",
+	"main": "src/index.js",
+	"scripts": {
+		"serve": "enact serve",
+		"pack": "enact pack",
+		"pack-p": "enact pack -p",
+		"watch": "enact pack --watch",
+		"clean": "enact clean",
+		"lint": "enact lint .",
+		"license": "enact license",
+		"test": "enact test",
+		"test-watch": "enact test --watch",
+		"build": "node scripts/build-wgt.js",
+		"build:dev": "node scripts/build-wgt.js --dev",
+		"build:signed": "node scripts/build-wgt.js --signed",
+		"install-tv": "node scripts/build-wgt.js --install",
+		"install-tv:dev": "node scripts/build-wgt.js --install --dev",
+		"launch-tv": "sdb shell app_launcher -s Moonfin000.moonfin"
+	},
+	"license": "MPL-2.0",
+	"private": true,
+	"repository": "https://github.com/nicknsy/moonfin-tizen",
+	"enact": {
+		"theme": "sandstone",
+		"ri": {
+			"baseSize": 24
+		},
+		"locales": [
+			"en-US"
+		],
+		"screenTypes": [
+			{
+				"name": "fhd",
+				"pxPerRem": 24,
+				"width": 1920,
+				"height": 1080
+			},
+			{
+				"name": "uhd",
+				"pxPerRem": 48,
+				"width": 3840,
+				"height": 2160
+			}
+		]
+	},
+	"eslintIgnore": [
+		"node_modules/*",
+		"build/*",
+		"dist/*"
+	],
+	"eslintConfig": {
+		"env": {
+			"browser": true,
+			"es2021": true
+		},
+		"globals": {
+			"tizen": "readonly",
+			"webapis": "readonly"
+		}
+	},
+	"dependencies": {
+		"@enact/core": "^4.8.0",
+		"@enact/sandstone": "^2.8.0",
+		"@enact/spotlight": "^4.8.0",
+		"@enact/ui": "^4.8.0",
+		"prop-types": "^15.8.1",
+		"react": "^18.2.0",
+		"react-dom": "^18.2.0"
+	},
+	"devDependencies": {
+		"@enact/cli": "^7.2.1",
+		"eslint-config-enact-proxy": "^1.0.7"
+	}
+}

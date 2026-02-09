@@ -1,0 +1,26 @@
+// Gap fallback mixins for Tizen compatibility
+// Older Tizen TVs use Chromium that may not fully support flexbox gap
+// These use margin-based spacing which works everywhere
+
+// For flex rows (items laid out horizontally)
+.flex-row-gap(@size) {
+	> * + * {
+		margin-left: @size;
+	}
+}
+
+// For flex columns (items laid out vertically)  
+.flex-col-gap(@size) {
+	> * + * {
+		margin-top: @size;
+	}
+}
+
+// For grid-like flex layouts (wrap enabled)
+.flex-gap(@size) {
+	margin: -(@size / 2);
+	
+	> * {
+		margin: (@size / 2);
+	}
+}

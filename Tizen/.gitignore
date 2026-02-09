@@ -1,0 +1,65 @@
+# See http://help.github.com/ignore-files/ for more about ignoring files.
+
+# Dependencies
+node_modules/
+.pnp/
+.pnp.js
+
+# Testing
+coverage/
+.nyc_output/
+
+# Production / Build
+build/
+dist/
+*.wgt
+
+# Enact
+.enact/
+
+# Tizen
+.sign/
+*.tpk
+tpkroot/
+
+# IDE - VS Code
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+
+# IDE - Tizen Studio / Eclipse
+.metadata/
+*.launch
+.buildpath
+.target
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Environment
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# OS
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Misc
+*.swp
+*.swo
+*~
+.cache/

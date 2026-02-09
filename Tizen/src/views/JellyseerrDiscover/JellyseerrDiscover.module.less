@@ -1,0 +1,542 @@
+.container {
+	position: fixed;
+	top: 0;
+	left: 0;
+	right: 0;
+	bottom: 0;
+	background: #0a0a0a;
+	overflow: hidden;
+	padding-top: 80px;
+}
+
+// Backdrop styling
+.backdrop {
+	position: fixed;
+	top: 0;
+	left: 0;
+	width: 100%;
+	height: 100%;
+	z-index: 0;
+	overflow: hidden;
+}
+
+.backdropImage {
+	position: absolute;
+	top: -5%;
+	left: -5%;
+	width: 110%;
+	height: 110%;
+	object-fit: cover;
+	opacity: 1;
+	transition: opacity 0.5s ease;
+}
+
+.backdropOverlay {
+	position: absolute;
+	top: 0;
+	left: 0;
+	width: 100%;
+	height: 100%;
+	background: rgba(10, 10, 10, 0.75);
+}
+
+// Main content - matches Browse layout
+.mainContent {
+	position: absolute;
+	top: 0;
+	left: 0;
+	right: 0;
+	bottom: 0;
+	display: flex;
+	flex-direction: column;
+	overflow: hidden;
+	padding-top: 0;
+	background: transparent;
+	z-index: 1;
+}
+
+// Detail section - matches Browse split view
+.detailSection {
+	position: relative;
+	flex-shrink: 0;
+	padding: 120px 60px 0px 60px;
+	z-index: 100;
+	height: 340px;
+	transition: opacity 0.3s ease, transform 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+	background: transparent;
+	overflow: hidden;
+}
+
+.detailTitle {
+	font-size: 56px;
+	font-weight: 700;
+	margin: 0 0 16px 0;
+	color: #fff;
+	text-shadow: 2px 2px 12px rgba(0, 0, 0, 0.9);
+	line-height: 1.1;
+	max-width: 70%;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.detailMeta {
+	display: flex;
+	align-items: center;
+	margin-bottom: 16px;
+	font-size: 20px;
+	color: rgba(255, 255, 255, 0.9);
+
+	> * + * {
+		margin-left: 15px;
+	}
+}
+
+.detailRating {
+	color: #fbbf24;
+}
+
+.detailYear {
+	color: rgba(255, 255, 255, 0.9);
+}
+
+.detailOverview {
+	font-size: 22px;
+	line-height: 1.5;
+	color: rgba(255, 255, 255, 0.95);
+	margin: 0;
+	text-shadow: 1px 1px 6px rgba(0, 0, 0, 0.9);
+	display: -webkit-box;
+	-webkit-line-clamp: 3;
+	-webkit-box-orient: vertical;
+	overflow: hidden;
+	max-width: 60%;
+}
+
+// Rows container - scrollable area
+.rowsContainer {
+	flex: 1;
+	overflow-y: auto;
+	overflow-x: hidden;
+	padding-bottom: 60px;
+	scrollbar-width: none;
+
+	&::-webkit-scrollbar {
+		display: none;
+	}
+}
+
+// Content row - matches MediaRow
+.contentRow {
+	margin-bottom: 30px;
+	overflow: visible;
+	padding-left: 60px;
+	padding-right: 60px;
+
+	&:first-child {
+		margin-top: 40px;
+	}
+}
+
+.rowTitle {
+	font-size: 28px;
+	font-weight: 600;
+	margin: 0 0 20px 0;
+	color: #ffffff;
+}
+
+// Row scroller container - handles horizontal scrolling
+.rowScroller {
+	overflow-x: auto;
+	overflow-y: visible;
+	scrollbar-width: none;
+	margin-left: -60px;
+	margin-right: -60px;
+	padding-top: 20px;
+	padding-bottom: 20px;
+
+	&::-webkit-scrollbar {
+		display: none;
+	}
+}
+
+.rowItems {
+	display: flex;
+	padding-left: 60px;
+	padding-right: 60px;
+
+	> * + * {
+		margin-left: 24px;
+	}
+}
+
+// Loading indicator at end of row
+.rowLoadingIndicator {
+	flex: 0 0 auto;
+	width: 120px;
+	height: 360px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	color: rgba(255, 255, 255, 0.6);
+	font-size: 18px;
+}
+
+// Media card - matches MediaCard portrait size (240x360)
+.mediaCard {
+	flex: 0 0 auto;
+	width: 240px;
+	cursor: pointer;
+	transition: transform 0.25s cubic-bezier(0.25, 0.1, 0.25, 1);
+	outline: none;
+	position: relative;
+	background: transparent;
+
+	&:focus {
+		transform: scale(1.08);
+		z-index: 10;
+
+		.posterContainer {
+			border-color: #ffffff;
+			border-width: 4px;
+		}
+	}
+}
+
+.posterContainer {
+	position: relative;
+	width: 100%;
+	height: 360px;
+	border-radius: 8px;
+	overflow: hidden;
+	border: 4px solid transparent;
+	transition: border-color 0.2s;
+}
+
+.poster {
+	width: 100%;
+	height: 100%;
+	object-fit: cover;
+	display: block;
+}
+
+.noPoster {
+	width: 100%;
+	height: 100%;
+	background: #2a2a4e;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	font-size: 64px;
+	color: #666;
+}
+
+// Status badges
+.statusBadge {
+	position: absolute;
+	top: 12px;
+	right: 12px;
+	padding: 6px 10px;
+	border-radius: 6px;
+	font-size: 14px;
+	font-weight: bold;
+	text-transform: uppercase;
+}
+
+.status5 {
+	background: linear-gradient(135deg, #22c55e, #16a34a);
+	color: #fff;
+}
+
+.status4 {
+	background: linear-gradient(135deg, #f59e0b, #d97706);
+	color: #fff;
+}
+
+.status3 {
+	background: linear-gradient(135deg, #6366f1, #4f46e5);
+	color: #fff;
+}
+
+.status2 {
+	background: linear-gradient(135deg, #ef4444, #dc2626);
+	color: #fff;
+}
+
+.mediaTypeBadge {
+	position: absolute;
+	top: 8px;
+	left: 8px;
+	padding: 4px 10px;
+	border-radius: 12px;
+	font-size: 11px;
+	font-weight: 700;
+	letter-spacing: 0.5px;
+	text-transform: uppercase;
+	z-index: 2;
+	backdrop-filter: blur(8px);
+	box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+.movieBadge {
+	background: rgba(37, 99, 235, 0.9);
+	color: #fff;
+}
+
+.seriesBadge {
+	background: rgba(124, 58, 237, 0.9);
+	color: #fff;
+}
+
+.availabilityBadge {
+	position: absolute;
+	top: 8px;
+	right: 8px;
+	width: 20px;
+	height: 20px;
+	border-radius: 50%;
+	z-index: 2;
+}
+
+.availability5 {
+	background: #22c55e;
+	border: 3px solid #fff;
+	box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+}
+
+.availability5::after {
+	content: '';
+	position: absolute;
+	top: 3px;
+	left: 6px;
+	width: 5px;
+	height: 8px;
+	border: solid #fff;
+	border-width: 0 2px 2px 0;
+	transform: rotate(45deg);
+}
+
+.availability4 {
+	background: #f59e0b;
+	box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+}
+
+.availability4::after {
+	content: '';
+	position: absolute;
+	top: 50%;
+	left: 50%;
+	width: 10px;
+	height: 2px;
+	background: #fff;
+	transform: translate(-50%, -50%);
+}
+
+.availability3 {
+	background: transparent;
+	border: 3px solid #6366f1;
+	border-top-color: transparent;
+	animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+	from {
+		transform: rotate(0deg);
+	}
+	to {
+		transform: rotate(360deg);
+	}
+}
+
+// Genre card - landscape style (384x216)
+.genreCard {
+	flex: 0 0 auto;
+	width: 384px;
+	height: 216px;
+	cursor: pointer;
+	transition: transform 0.25s cubic-bezier(0.25, 0.1, 0.25, 1), opacity 0.25s ease;
+	outline: none;
+	position: relative;
+	border-radius: 8px;
+	overflow: hidden;
+	border: 4px solid transparent;
+	opacity: 0.7;
+
+	&:focus {
+		transform: scale(1.08);
+		z-index: 10;
+		border-color: #ffffff;
+		opacity: 1;
+
+		.genreOverlay {
+			background: linear-gradient(transparent 30%, rgba(0, 0, 0, 0.85) 100%);
+		}
+	}
+}
+
+.genreBackdrop {
+	position: absolute;
+	top: 0;
+	left: 0;
+	width: 100%;
+	height: 100%;
+	object-fit: cover;
+}
+
+.genreOverlay {
+	position: absolute;
+	top: 0;
+	left: 0;
+	right: 0;
+	bottom: 0;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	background: linear-gradient(transparent 20%, rgba(0, 0, 0, 0.7) 100%);
+	transition: background 0.25s ease;
+}
+
+.genreTitle {
+	font-size: 26px;
+	font-weight: 700;
+	color: #fff;
+	text-shadow: 0 2px 8px rgba(0, 0, 0, 0.9);
+	text-align: center;
+	padding: 20px;
+}
+
+// Network/Studio card - landscape style
+.networkCard {
+	flex: 0 0 auto;
+	width: 280px;
+	height: 160px;
+	cursor: pointer;
+	transition: transform 0.25s cubic-bezier(0.25, 0.1, 0.25, 1), opacity 0.25s ease;
+	outline: none;
+	position: relative;
+	border-radius: 8px;
+	overflow: hidden;
+	background: rgba(255, 255, 255, 0.08);
+	border: 4px solid transparent;
+	opacity: 0.7;
+
+	&:focus {
+		transform: scale(1.08);
+		z-index: 10;
+		border-color: #ffffff;
+		background: rgba(255, 255, 255, 0.15);
+		opacity: 1;
+	}
+}
+
+.networkLogoContainer {
+	position: absolute;
+	top: 0;
+	left: 0;
+	right: 0;
+	bottom: 0;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	padding: 30px;
+}
+
+.networkLogo {
+	max-width: 100%;
+	max-height: 100%;
+	width: auto;
+	height: auto;
+	object-fit: contain;
+	filter: brightness(0) invert(1);
+	opacity: 0.9;
+}
+
+// Not configured state
+.notConfigured {
+	position: relative;
+	z-index: 1;
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	justify-content: center;
+	height: calc(100% - 80px);
+	margin-top: 80px;
+	font-size: 24px;
+	color: #888;
+	text-align: center;
+
+	> * + * {
+		margin-top: 16px;
+	}
+}
+
+// Request card
+.requestCard {
+	flex: 0 0 auto;
+	width: 240px;
+	cursor: pointer;
+	transition: transform 0.25s cubic-bezier(0.25, 0.1, 0.25, 1);
+	outline: none;
+	position: relative;
+	background: transparent;
+
+	&:focus {
+		transform: scale(1.08);
+		z-index: 10;
+
+		.requestPosterContainer {
+			border-color: #ffffff;
+			border-width: 4px;
+		}
+	}
+}
+
+.requestPosterContainer {
+	position: relative;
+	width: 100%;
+	height: 360px;
+	border-radius: 8px;
+	overflow: hidden;
+	border: 4px solid transparent;
+	transition: border-color 0.2s;
+}
+
+.requestPoster {
+	width: 100%;
+	height: 100%;
+	object-fit: cover;
+	display: block;
+}
+
+.requestStatusBadge {
+	position: absolute;
+	bottom: 0;
+	left: 0;
+	right: 0;
+	padding: 8px 12px;
+	font-size: 14px;
+	font-weight: 600;
+	text-align: center;
+	text-transform: uppercase;
+	letter-spacing: 0.5px;
+}
+
+.requestStatusPending {
+	background: rgba(234, 179, 8, 0.95);
+	color: #000;
+}
+
+.requestStatusApproved {
+	background: rgba(34, 197, 94, 0.95);
+	color: #fff;
+}
+
+.requestStatusDeclined {
+	background: rgba(239, 68, 68, 0.95);
+	color: #fff;
+}
+
+.requestStatusAvailable {
+	background: rgba(59, 130, 246, 0.95);
+	color: #fff;
+}

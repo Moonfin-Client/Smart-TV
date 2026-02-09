@@ -1,0 +1,584 @@
+.page {
+	position: relative;
+	width: 100%;
+	height: 100vh;
+	height: 100%;
+	min-height: 100vh;
+	overflow: hidden;
+	background: #0a0a0a;
+	padding-top: 80px;
+}
+
+.backdrop {
+	position: fixed;
+	top: 0;
+	left: 0;
+	right: 0;
+	bottom: 0;
+	z-index: 0;
+	overflow: hidden;
+}
+
+.backdropImage {
+	position: absolute;
+	top: -5%;
+	left: -5%;
+	width: 110%;
+	height: 110%;
+	object-fit: cover;
+	opacity: 0.8;
+}
+
+.backdropOverlay {
+	position: absolute;
+	top: 0;
+	left: 0;
+	right: 0;
+	bottom: 0;
+	background: rgba(10, 10, 10, 0.5);
+}
+
+.scroller {
+	position: relative;
+	z-index: 1;
+	height: 100vh;
+	height: 100%;
+	min-height: 100vh;
+}
+
+.content {
+	padding: 95px 60px 60px;
+}
+
+.header {
+	display: flex;
+	align-items: center;
+	margin-bottom: 20px;
+}
+
+.backButton {
+	background: rgba(255, 255, 255, 0.1);
+	border: none;
+	border-radius: 50%;
+	width: 56px;
+	height: 56px;
+	min-width: 56px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	cursor: pointer;
+	transition: all 0.2s ease;
+
+	&:focus {
+		outline: none;
+		background: rgba(255, 255, 255, 0.2);
+		transform: scale(1.1);
+		box-shadow: 0 0 0 4px rgba(0, 164, 220, 0.5);
+	}
+
+	svg {
+		width: 28px;
+		height: 28px;
+		fill: white;
+	}
+}
+
+.detailsHeader {
+	display: flex;
+	margin-bottom: 40px;
+	width: 100%;
+	gap: 50px;
+	align-items: flex-start;
+}
+
+.infoSection {
+	flex: 0 0 70%;
+	max-width: 70%;
+	display: flex;
+	flex-direction: column;
+	min-width: 0;
+
+	> * + * {
+		margin-top: 24px;
+	}
+}
+
+.logoSection {
+	flex: 0 0 30%;
+	max-width: 30%;
+	display: flex;
+	flex-direction: column;
+	align-items: flex-end;
+	justify-content: flex-start;
+	padding-top: 20px;
+	overflow: hidden;
+}
+
+.logoImage {
+	max-width: 100%;
+	max-height: 200px;
+	width: auto;
+	height: auto;
+	object-fit: contain;
+}
+
+.title {
+	font-size: 56px;
+	font-weight: 700;
+	margin: 0;
+	line-height: 1.2;
+	color: white;
+}
+
+.personContent {
+	display: flex;
+	margin-bottom: 30px;
+	align-items: flex-start;
+
+	> * + * {
+		margin-left: 30px;
+	}
+}
+
+.personPhoto {
+	max-width: 300px;
+	max-height: 450px;
+	min-width: 300px;
+	width: 300px;
+	height: auto;
+	border-radius: 8px;
+	object-fit: cover;
+	box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+	flex-shrink: 0;
+}
+
+.personOverview {
+	flex: 1;
+	font-size: 24px;
+	line-height: 1.6;
+	color: rgba(255, 255, 255, 0.9);
+	margin: 0;
+}
+
+.infoRow {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	margin-left: -9px;
+	margin-top: -9px;
+
+	> * {
+		margin-left: 9px;
+		margin-top: 9px;
+	}
+}
+
+.infoBadge {
+	display: inline-flex;
+	align-items: center;
+	font-size: 18px;
+	font-weight: 500;
+	color: rgba(255, 255, 255, 0.9);
+	padding: 0;
+
+	> * + * {
+		margin-left: 5px;
+	}
+}
+
+.pill {
+	background: rgba(255, 255, 255, 0.15);
+	border-radius: 4px;
+	padding: 4px 10px;
+	font-size: 14px;
+	font-weight: 600;
+	text-align: center;
+}
+
+.star {
+	color: #EECE55;
+}
+
+.critic {
+	font-size: 16px;
+}
+
+.tagline {
+	font-size: 20px;
+	font-style: italic;
+	color: rgba(255, 255, 255, 0.75);
+	font-weight: 400;
+	line-height: 1.4;
+	margin: 0;
+}
+
+.overview {
+	font-size: 22px;
+	line-height: 1.6;
+	color: rgba(255, 255, 255, 0.85);
+	margin: 0;
+	max-height: 200px;
+	overflow: hidden;
+	display: -webkit-box;
+	-webkit-line-clamp: 5;
+	-webkit-box-orient: vertical;
+}
+
+.metadataGroup {
+	display: flex;
+	flex-direction: column;
+	margin-bottom: 30px;
+	background: transparent;
+	border-radius: 6px;
+	overflow: hidden;
+	width: 100%;
+	max-width: 800px;
+}
+
+.metadataCell {
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+	padding: 14px 18px;
+	border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.metadataLabel {
+	font-size: 16px;
+	font-weight: 500;
+	color: rgba(255, 255, 255, 0.6);
+	min-width: 100px;
+}
+
+.metadataValue {
+	font-size: 16px;
+	color: rgba(255, 255, 255, 0.9);
+	text-align: right;
+	flex: 1;
+	margin-left: 20px;
+}
+
+.actionButtons {
+	display: flex;
+	margin-bottom: 50px;
+	flex-wrap: wrap;
+	gap: 20px;
+	justify-content: center;
+	max-width: 1400px;
+	margin-left: auto;
+	margin-right: auto;
+}
+
+.btnWrapper {
+	display: inline-flex;
+	flex-direction: column;
+	align-items: center;
+	gap: 16px;
+	background: transparent;
+	border: none;
+	padding: 0;
+	cursor: pointer;
+	transition: transform 0.2s ease;
+
+	&:focus {
+		outline: none;
+		transform: scale(1.05);
+
+		.btnAction {
+			background: rgba(96, 96, 96, 0.9);
+		}
+
+		.btnIcon {
+			color: #333333;
+			fill: #333333;
+		}
+	}
+}
+
+.btnAction {
+	width: 120px;
+	height: 120px;
+	border-radius: 16px;
+	border: none;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	background: transparent;
+	transition: background 0.2s ease;
+}
+
+.btnPrimary {
+	.btnAction {
+		background: transparent;
+	}
+}
+
+.btnSecondary {
+	.btnAction {
+		background: transparent;
+	}
+}
+
+.btnIcon {
+	font-size: 56px;
+	color: white;
+	width: 56px;
+	height: 56px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	fill: currentColor;
+}
+
+.favorited {
+	color: #ff4757;
+	fill: #ff4757;
+}
+
+.watched {
+	color: #ff4757;
+	fill: #ff4757;
+}
+
+.btnLabel {
+	font-size: 16px;
+	font-weight: 600;
+	color: rgba(255, 255, 255, 0.9);
+	text-align: center;
+	max-width: 140px;
+	line-height: 1.3;
+}
+
+.sectionsContainer {
+	display: flex;
+	flex-direction: column;
+	overflow: visible;
+	padding-top: 30px;
+
+	> * + * {
+		margin-top: 50px;
+	}
+}
+
+.sectionTitle {
+	font-size: 28px;
+	font-weight: 600;
+	color: white;
+	margin: 0 0 20px 0;
+}
+
+.seasonsSection {
+	margin-bottom: 20px;
+}
+
+.seasonsScroller {
+	overflow-x: auto;
+	overflow-y: visible;
+	padding-left: 60px;
+	padding-right: 60px;
+	scrollbar-width: none;
+	margin-left: -60px;
+	margin-right: -60px;
+	margin-bottom: 24px;
+	position: relative;
+
+	&::-webkit-scrollbar {
+		display: none;
+	}
+}
+
+.seasonsList {
+	display: flex;
+	padding: 20px 0;
+	width: max-content;
+	gap: 24px;
+}
+
+.seasonCard {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	cursor: pointer;
+	transition: transform 0.2s ease;
+	outline: none;
+	position: relative;
+	z-index: 1;
+
+	&:focus {
+		transform: scale(1.05);
+		z-index: 10;
+
+		.seasonPosterWrapper {
+			border-color: #ffffff;
+			box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6);
+		}
+	}
+}
+
+.seasonCardSelected {
+	.seasonPosterWrapper {
+		border-color: rgba(255, 255, 255, 0.6);
+	}
+
+	.seasonName {
+		color: #ffffff;
+		font-weight: 600;
+	}
+}
+
+.seasonPosterWrapper {
+	width: 180px;
+	height: 270px;
+	border-radius: 8px;
+	overflow: hidden;
+	border: 3px solid transparent;
+	transition: border-color 0.2s ease, box-shadow 0.2s ease;
+	background: rgba(255, 255, 255, 0.1);
+}
+
+.seasonPoster {
+	width: 100%;
+	height: 100%;
+	object-fit: cover;
+}
+
+.seasonPosterPlaceholder {
+	width: 100%;
+	height: 100%;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	text-align: center;
+	padding: 12px;
+	font-size: 14px;
+	color: rgba(255, 255, 255, 0.7);
+	background: linear-gradient(135deg, rgba(60, 60, 60, 0.8), rgba(40, 40, 40, 0.8));
+}
+
+.seasonName {
+	margin-top: 12px;
+	font-size: 18px;
+	color: rgba(255, 255, 255, 0.8);
+	text-align: center;
+	max-width: 180px;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.seasonTabs {
+	display: flex;
+	margin-bottom: 24px;
+	flex-wrap: wrap;
+	margin-left: -9px;
+	margin-top: -9px;
+
+	> * {
+		margin-left: 9px;
+		margin-top: 9px;
+	}
+}
+
+.seasonTab {
+	min-width: auto;
+}
+
+.castSection {
+	margin-bottom: 20px;
+	overflow: visible;
+}
+
+.castScroller {
+	overflow-x: auto;
+	overflow-y: visible;
+	padding-left: 60px;
+	padding-right: 60px;
+	scrollbar-width: none;
+	margin-left: -60px;
+	margin-right: -60px;
+
+	&::-webkit-scrollbar {
+		display: none;
+	}
+}
+
+.castList {
+	display: flex;
+	padding: 20px 0;
+	width: max-content;
+
+	> * + * {
+		margin-left: 30px;
+	}
+}
+
+.castCard {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	min-width: 200px;
+	max-width: 200px;
+	cursor: pointer;
+	transition: transform 0.25s cubic-bezier(0.25, 0.1, 0.25, 1);
+	outline: none;
+
+	&:focus {
+		outline: none;
+		transform: scale(1.08);
+		z-index: 10;
+
+		.castImageWrapper {
+			border-color: #ffffff;
+		}
+	}
+}
+
+.castImageWrapper {
+	width: 180px;
+	height: 180px;
+	border-radius: 50%;
+	overflow: hidden;
+	margin-bottom: 14px;
+	background: rgba(255, 255, 255, 0.1);
+	border: 4px solid transparent;
+	transition: border-color 0.2s;
+}
+
+.castImage {
+	width: 100%;
+	height: 100%;
+	object-fit: cover;
+}
+
+.castPlaceholder {
+	width: 100%;
+	height: 100%;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	font-size: 56px;
+	font-weight: 600;
+	color: rgba(255, 255, 255, 0.5);
+	background: rgba(255, 255, 255, 0.1);
+}
+
+.castName {
+	font-size: 16px;
+	font-weight: 500;
+	color: white;
+	text-align: center;
+	max-width: 100%;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.castRole {
+	font-size: 14px;
+	color: rgba(255, 255, 255, 0.6);
+	text-align: center;
+	max-width: 100%;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}

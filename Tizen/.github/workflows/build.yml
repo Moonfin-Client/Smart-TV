@@ -1,0 +1,47 @@
+name: Build & Test
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+          cache: npm
+
+      - name: Install dependencies
+        run: npm install --force
+
+      - name: Build
+        run: |
+          npx enact pack -p 2>&1 | while IFS= read -r line; do
+            if echo "$line" | grep -qiE "(\bfailed\b|\berror\b|\bfatal\b)"; then
+              echo "::error::$line"
+            elif echo "$line" | grep -qiE "(\bwarning\b|\bwarn\b)"; then
+              echo "::warning::$line"
+            else
+              echo "$line"
+            fi
+          done
+          exit ${PIPESTATUS[0]}
+
+      - name: Get version
+        id: version
+        run: echo "version=$(node -p "require('./package.json').version")" >> $GITHUB_OUTPUT
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        if: success()
+        with:
+          name: Moonfin-Tizen-v${{ steps.version.outputs.version }}
+          path: dist/

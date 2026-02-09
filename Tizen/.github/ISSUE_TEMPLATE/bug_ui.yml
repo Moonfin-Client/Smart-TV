@@ -1,0 +1,73 @@
+name: "Bug: UI"
+description: Report a UI/UX issue (navigation, screens, layout, focus, etc.)
+title: "[UI] "
+labels: ["bug", "ui"]
+body:
+  - type: input
+    id: app_version
+    attributes:
+      label: Moonfin version
+      description: The app version / release tag (e.g., v2.0.0)
+      placeholder: v2.0.0
+    validations:
+      required: true
+
+  - type: input
+    id: tizen_version
+    attributes:
+      label: Tizen version
+      description: "Example: Tizen 4 / 5.0 / 5.5 / 6.0 / 6.5 / 7.0 (whatever your TV reports)"
+      placeholder: Tizen 4
+    validations:
+      required: true
+
+  - type: input
+    id: tv_model
+    attributes:
+      label: TV model
+      description: "Example: UN55TU8000"
+      placeholder: 
+    validations:
+      required: true
+
+  - type: dropdown
+    id: screen
+    attributes:
+      label: Where does it happen?
+      options:
+        - Login
+        - Home
+        - Details page
+        - Settings
+        - Search
+        - Jellyseerr
+        - Player UI (controls/OSD)
+        - Other
+    validations:
+      required: true
+
+  - type: dropdown
+    id: input_method
+    attributes:
+      label: Input method
+      options:
+        - Standard remote (d-pad)
+        - Magic remote pointer
+        - Other / not sure
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+    validations:
+      required: true
+
+  - type: textarea
+    id: screenshots
+    attributes:
+      label: Screenshots / photos (optional)
+      description: Attach a photo of the TV screen if it helps.
+    validations:
+      required: false

@@ -1,0 +1,367 @@
+@accent: #00a4dc;
+@accentHover: #00b4ec;
+@bg1: #0a0a0a;
+@bg2: #1a1a2e;
+@bg3: #16213e;
+
+.page {
+	position: fixed;
+	top: 0;
+	left: 0;
+	right: 0;
+	bottom: 0;
+	background: linear-gradient(135deg, @bg1 0%, @bg2 50%, @bg3 100%);
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	overflow-y: auto;
+}
+
+.container {
+	width: 100%;
+	max-width: 800px;
+	padding: 40px;
+	text-align: center;
+}
+
+.logoSection {
+	margin-bottom: 40px;
+}
+
+.logo {
+	max-width: 360px;
+	height: auto;
+}
+
+.contentWrapper {
+	background: rgba(0, 0, 0, 0.5);
+	backdrop-filter: blur(10px);
+	border-radius: 20px;
+	padding: 50px 40px;
+	border: 3px solid rgba(255, 255, 255, 0.1);
+}
+
+.section {
+	h1 {
+		color: #fff;
+		font-size: 48px;
+		font-weight: 700;
+		margin: 0 0 10px 0;
+	}
+
+	h2 {
+		color: #fff;
+		font-size: 36px;
+		font-weight: 600;
+		margin: 0 0 20px 0;
+	}
+}
+
+.subtitle {
+	color: rgba(255, 255, 255, 0.7);
+	font-size: 24px;
+	margin: 0 0 30px 0;
+}
+
+.serverName {
+	color: rgba(255, 255, 255, 0.6);
+	font-size: 22px;
+	margin-bottom: 30px;
+}
+
+.formGroup {
+	margin-bottom: 24px;
+	text-align: left;
+
+	label {
+		display: block;
+		color: rgba(255, 255, 255, 0.8);
+		font-size: 20px;
+		margin-bottom: 10px;
+	}
+}
+
+.input {
+	width: 100%;
+	padding: 20px 24px;
+	font-size: 26px;
+	background: rgba(255, 255, 255, 0.1);
+	border: 4px solid transparent;
+	border-radius: 12px;
+	color: #fff;
+	outline: none;
+	box-sizing: border-box;
+	transition: all 0.2s ease;
+
+	&::placeholder {
+		color: rgba(255, 255, 255, 0.4);
+	}
+
+	&:focus {
+		border-color: @accent;
+		background: rgba(255, 255, 255, 0.15);
+		box-shadow: 0 0 0 4px rgba(0, 164, 220, 0.3);
+	}
+}
+
+.buttonGroup {
+	display: flex;
+	justify-content: center;
+	margin-top: 30px;
+	flex-wrap: wrap;
+	margin-left: -10px;
+	margin-right: -10px;
+
+	> * {
+		margin: 10px;
+	}
+}
+
+.btn {
+	padding: 18px 50px;
+	font-size: 24px;
+	font-weight: 600;
+	border: none;
+	border-radius: 12px;
+	cursor: pointer;
+	transition: all 0.2s ease;
+	outline: none;
+
+	&:focus {
+		box-shadow: 0 0 0 4px rgba(0, 164, 220, 0.5);
+		transform: scale(1.05);
+	}
+
+	&:disabled {
+		opacity: 0.5;
+		cursor: not-allowed;
+	}
+}
+
+.btnPrimary {
+	background: rgba(255, 255, 255, 0.15);
+	color: #fff;
+	border: 3px solid rgba(255, 255, 255, 0.2);
+
+	&:hover, &:focus {
+		background: @accent;
+		border-color: @accent;
+	}
+}
+
+.btnSecondary {
+	background: rgba(255, 255, 255, 0.15);
+	color: #fff;
+	border: 3px solid rgba(255, 255, 255, 0.2);
+
+	&:hover, &:focus {
+		background: rgba(255, 255, 255, 0.25);
+	}
+}
+
+.userGrid {
+	display: flex;
+	flex-wrap: nowrap;
+	margin: 30px 0;
+	overflow-x: auto;
+	overflow-y: hidden;
+	padding: 10px;
+	scroll-behavior: smooth;
+
+	> * + * {
+		margin-left: 30px;
+	}
+
+	&::-webkit-scrollbar {
+		height: 8px;
+	}
+
+	&::-webkit-scrollbar-track {
+		background: rgba(255, 255, 255, 0.1);
+		border-radius: 4px;
+	}
+
+	&::-webkit-scrollbar-thumb {
+		background: @accent;
+		border-radius: 4px;
+	}
+}
+
+.userCard {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	padding: 20px;
+	background: rgba(255, 255, 255, 0.08);
+	border-radius: 16px;
+	cursor: pointer;
+	transition: all 0.2s ease;
+	border: 4px solid transparent;
+	min-width: 160px;
+	outline: none;
+
+	&:hover, &:focus {
+		background: rgba(255, 255, 255, 0.15);
+		border-color: @accent;
+		transform: scale(1.05);
+		box-shadow: 0 0 0 4px rgba(0, 164, 220, 0.3);
+	}
+}
+
+.userAvatar, .userAvatarPlaceholder {
+	width: 100px;
+	height: 100px;
+	border-radius: 50%;
+	margin-bottom: 15px;
+}
+
+.userAvatar {
+	object-fit: cover;
+}
+
+.userAvatarPlaceholder {
+	background: linear-gradient(135deg, @accent, #6366f1);
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	font-size: 40px;
+	font-weight: 600;
+	color: #fff;
+}
+
+.userName {
+	color: #fff;
+	font-size: 22px;
+	font-weight: 500;
+}
+
+.selectedUserInfo {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	margin-bottom: 30px;
+}
+
+.selectedAvatar, .selectedAvatarPlaceholder {
+	width: 120px;
+	height: 120px;
+	border-radius: 50%;
+	margin-bottom: 15px;
+}
+
+.selectedAvatar {
+	object-fit: cover;
+	border: 3px solid @accent;
+}
+
+.selectedAvatarPlaceholder {
+	background: linear-gradient(135deg, @accent, #6366f1);
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	font-size: 48px;
+	font-weight: 600;
+	color: #fff;
+	border: 3px solid @accent;
+}
+
+.selectedName {
+	color: #fff;
+	font-size: 28px;
+	font-weight: 600;
+}
+
+.statusMessage {
+	background: rgba(0, 164, 220, 0.2);
+	border: 3px solid rgba(0, 164, 220, 0.4);
+	border-radius: 12px;
+	padding: 16px 24px;
+	margin-bottom: 20px;
+	color: @accent;
+	font-size: 20px;
+}
+
+.errorMessage {
+	background: rgba(239, 68, 68, 0.2);
+	border: 3px solid rgba(239, 68, 68, 0.4);
+	border-radius: 12px;
+	padding: 16px 24px;
+	margin-bottom: 20px;
+	color: #ef4444;
+	font-size: 20px;
+}
+
+.loading {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	justify-content: center;
+	height: 100%;
+	color: #fff;
+	font-size: 24px;
+
+	> * + * {
+		margin-top: 20px;
+	}
+}
+
+.spinner {
+	width: 60px;
+	height: 60px;
+	border: 4px solid rgba(255, 255, 255, 0.2);
+	border-top-color: @accent;
+	border-radius: 50%;
+	animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+	to { transform: rotate(360deg); }
+}
+
+.loginMethodButtons {
+	display: flex;
+	justify-content: center;
+	margin: 30px 0;
+	flex-wrap: wrap;
+	margin-left: -10px;
+	margin-right: -10px;
+
+	> * {
+		margin: 10px;
+	}
+}
+
+.quickConnectCodeDisplay {
+	margin: 30px 0;
+	padding: 30px;
+	background: rgba(255, 255, 255, 0.05);
+	border-radius: 16px;
+	border: 4px solid @accent;
+}
+
+.qcLabel {
+	color: rgba(255, 255, 255, 0.8);
+	font-size: 20px;
+	margin-bottom: 20px;
+}
+
+.qcCode {
+	font-size: 64px;
+	font-weight: 700;
+	color: @accent;
+	letter-spacing: 8px;
+	margin: 20px 0;
+	font-family: monospace;
+}
+
+.qcWaiting {
+	color: rgba(255, 255, 255, 0.6);
+	font-size: 22px;
+	margin-top: 20px;
+	animation: pulse 2s ease-in-out infinite;
+}
+
+@keyframes pulse {
+	0%, 100% { opacity: 0.6; }
+	50% { opacity: 1; }
+}
