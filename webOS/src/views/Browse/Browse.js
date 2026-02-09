@@ -48,12 +48,16 @@ const Browse = ({
 	const [featuredItems, setFeaturedItems] = useState([]);
 	const [currentFeaturedIndex, setCurrentFeaturedIndex] = useState(0);
 	const [backdropUrl, setBackdropUrl] = useState('');
+	const [backdropOpacity, setBackdropOpacity] = useState(1);	
+	const [prevBackdropUrl, setPrevBackdropUrl] = useState(null);
+	const [prevBackdropOpacity, setPrevBackdropOpacity] = useState(0);
 	const [browseMode, setBrowseMode] = useState('featured');
 	const [featuredFocused, setFeaturedFocused] = useState(false);
 	const [focusedItem, setFocusedItem] = useState(null);
 	const [allRowData, setAllRowData] = useState([]);
 	const mainContentRef = useRef(null);
 	const backdropTimeoutRef = useRef(null);
+	const backdropFadeIntervalRef = useRef(null);
 	const pendingBackdropRef = useRef(null);
 	const preloadedImagesRef = useRef(new Set());
 	const focusItemTimeoutRef = useRef(null);
@@ -714,6 +718,32 @@ const Browse = ({
 		return () => clearInterval(interval);
 	}, [featuredItems.length, featuredFocused, browseMode, settings.carouselSpeed, settings.showFeaturedBar]);
 
+	const crossFadeBackdrop = useCallback(() => {
+		if (backdropFadeIntervalRef.current) {
+			clearInterval(backdropFadeIntervalRef.current);
+		}
+
+		let inValue = 0;
+		let outValue = 1;
+
+		setBackdropOpacity(0);
+		setPrevBackdropOpacity(1);
+
+		backdropFadeIntervalRef.current = setInterval(() => {
+			inValue = Math.min(1, inValue + 0.1);
+			outValue = Math.max(0, outValue - 0.1);
+
+			setBackdropOpacity(inValue);
+			setPrevBackdropOpacity(outValue);
+
+			if (inValue >= 1 && outValue <= 0) {
+				clearInterval(backdropFadeIntervalRef.current);
+				backdropFadeIntervalRef.current = null;
+				setPrevBackdropUrl(null); // altes Bild aufräumen
+			}
+		}, 45); // ca. 300ms
+	}, []);
+
 	useEffect(() => {
 		let backdropId = null;
 		let itemForBackdrop = null;
@@ -740,7 +770,9 @@ const Browse = ({
 			pendingBackdropRef.current = url;
 			backdropTimeoutRef.current = setTimeout(() => {
 				window.requestAnimationFrame(() => {
+					setPrevBackdropUrl(backdropUrl);
 					setBackdropUrl(pendingBackdropRef.current);
+					crossFadeBackdrop();
 				});
 			}, BACKDROP_DEBOUNCE_MS);
 		}
@@ -872,12 +904,33 @@ const Browse = ({
 	return (
 		<div className={css.page}>
 			<div className={css.globalBackdrop}>
+				{prevBackdropUrl && (
+					<img
+						className={css.globalBackdropImage}
+						src={prevBackdropUrl}
+						alt=""
+						style={{
+							filter: settings.backdropBlurHome > 0
+								? `blur(${settings.backdropBlurHome}px)`
+								: 'none',
+							opacity: prevBackdropOpacity,
+							transition: 'none'
+						}}
+					/>
+				)}
+
 				{backdropUrl && (
 					<img
 						className={css.globalBackdropImage}
 						src={backdropUrl}
 						alt=""
-						style={{filter: settings.backdropBlurHome > 0 ? `blur(${settings.backdropBlurHome}px)` : 'none'}}
+						style={{
+							filter: settings.backdropBlurHome > 0
+								? `blur(${settings.backdropBlurHome}px)`
+								: 'none',
+							opacity: backdropOpacity,
+							transition: 'none'
+						}}
 					/>
 				)}
 				<div className={css.globalBackdropOverlay} />
