@@ -20,7 +20,8 @@ const MediaRow = ({
 	rowId,
 	onNavigateUp,
 	onNavigateDown,
-	showServerBadge = false
+	showServerBadge = false,
+	className
 }) => {
 	const scrollerRef = useRef(null);
 	const scrollTimeoutRef = useRef(null);
@@ -69,7 +70,7 @@ const MediaRow = ({
 
 	return (
 		<RowContainer
-			className={css.row}
+			className={`${css.row}${className ? ` ${className}` : ''}`}
 			spotlightId={`row-${rowIndex}`}
 			data-row-index={rowIndex}
 			onKeyDown={handleKeyDown}

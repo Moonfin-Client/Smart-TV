@@ -1,18 +1,27 @@
-.page {
-	position: relative;
-	width: 100%;
-	height: 100vh;
-	overflow: hidden;
-	background: #0a0a0a;
-	padding-top: 80px;
-}
+/* ============================================
+   Details Screen - Moonfin webOS
+   Matching Plugin design, Enact-ready
+   ============================================ */
 
-.backdrop {
+/* Page Container */
+.page {
 	position: fixed;
 	top: 0;
 	left: 0;
 	right: 0;
 	bottom: 0;
+	background: #0a0a0a;
+	z-index: 100;
+	overflow: hidden;
+}
+
+/* Backdrop */
+.backdrop {
+	position: fixed;
+	top: 0;
+	left: 0;
+	right: 0;
+	height: 75vh;
 	z-index: 0;
 	overflow: hidden;
 }
@@ -21,197 +30,290 @@
 	width: 100%;
 	height: 100%;
 	object-fit: cover;
-	transform: scale(1.1) translateZ(0);
-	opacity: 0.8;
-	will-change: filter;
+	object-position: center top;
 }
 
-.backdropOverlay {
-	position: absolute;
+.backdropGradient {
+	position: fixed;
 	top: 0;
 	left: 0;
 	right: 0;
 	bottom: 0;
-	background: rgba(10, 10, 10, 0.5);
+	background: linear-gradient(
+		to bottom,
+		rgba(0, 0, 0, 0.3) 0%,
+		rgba(0, 0, 0, 0.5) 30%,
+		rgba(0, 0, 0, 0.85) 60%,
+		rgba(0, 0, 0, 0.95) 80%,
+		rgba(0, 0, 0, 1) 100%
+	);
+	z-index: 1;
 }
 
+.personBackdrop {
+	height: 100%;
+	background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%) !important;
+}
+
+/* Scroller */
 .scroller {
 	position: relative;
-	z-index: 1;
-	height: 100vh;
+	z-index: 2;
+	height: 100%;
 }
 
+/* Content */
 .content {
-	padding: 95px 60px 60px;
+	padding: 140px 100px 80px;
+	min-height: 100vh;
 }
 
-.header {
-	display: flex;
-	align-items: center;
-	margin-bottom: 20px;
-}
-
-.backButton {
-	background: rgba(255, 255, 255, 0.1);
-	border: none;
-	border-radius: 50%;
-	width: 56px;
-	height: 56px;
-	min-width: 56px;
-	display: flex;
-	align-items: center;
-	justify-content: center;
-	cursor: pointer;
-	transition: all 0.2s ease;
-
-	&:focus {
-		outline: none;
-		background: rgba(255, 255, 255, 0.2);
-		transform: scale(1.1);
-		box-shadow: 0 0 0 4px rgba(0, 164, 220, 0.5);
-	}
-
-	svg {
-		width: 28px;
-		height: 28px;
-		fill: white;
-	}
-}
-
+/* ============================================
+   Details Header (info + poster)
+   ============================================ */
 .detailsHeader {
 	display: flex;
-	margin-bottom: 40px;
-	width: 100%;
-	gap: 50px;
+	position: relative;
+	margin-bottom: 0;
 	align-items: flex-start;
+	min-height: 480px;
 }
 
 .infoSection {
-	flex: 0 0 70%;
-	max-width: 70%;
-	display: flex;
-	flex-direction: column;
+	flex: 1;
 	min-width: 0;
+	max-width: calc(100% - 380px);
+}
 
-	> * + * {
-		margin-top: 24px;
+/* Poster Section */
+.posterSection {
+	position: absolute;
+	right: -20px;
+	top: 0;
+	flex-shrink: 0;
+	width: 320px;
+}
+
+.posterLandscape {
+	width: 520px;
+
+	.poster {
+		width: 520px;
+		height: 293px;
 	}
 }
 
-.logoSection {
-	flex: 0 0 30%;
-	max-width: 30%;
-	display: flex;
-	flex-direction: column;
-	align-items: flex-end;
-	justify-content: flex-start;
-	padding-top: 20px;
+.infoSectionWide {
+	max-width: calc(100% - 580px);
+}
+
+.poster {
+	width: 320px;
+	height: 480px;
+	border-radius: 12px;
 	overflow: hidden;
+	box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+	position: relative;
+	background: rgba(255, 255, 255, 0.05);
+
+	img {
+		width: 100%;
+		height: 100%;
+		object-fit: cover;
+	}
+}
+
+.posterPlaceholder {
+	width: 100%;
+	height: 100%;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+
+	svg {
+		width: 64px;
+		height: 64px;
+		color: rgba(255, 255, 255, 0.15);
+	}
+}
+
+/* ============================================
+   Episode Header
+   ============================================ */
+.episodeHeader {
+	display: flex;
+	align-items: center;
+	margin-bottom: 12px;
+
+	> * + * {
+		margin-left: 12px;
+	}
+}
+
+.seriesName {
+	font-size: 22px;
+	color: rgba(255, 255, 255, 0.7);
+	font-weight: 500;
+}
+
+.episodeNumber {
+	font-size: 17px;
+	color: rgba(255, 255, 255, 0.5);
+	background: rgba(255, 255, 255, 0.1);
+	padding: 2px 10px;
+	border-radius: 4px;
+}
+
+/* ============================================
+   Title Section
+   ============================================ */
+.titleSection {
+	margin-bottom: 24px;
 }
 
 .logoImage {
-	max-width: 100%;
-	max-height: 200px;
-	width: auto;
-	height: auto;
+	max-width: 400px;
+	max-height: 120px;
 	object-fit: contain;
+	display: block;
 }
 
 .title {
-	font-size: 56px;
+	font-size: 60px;
 	font-weight: 700;
-	margin: 0;
-	line-height: 1.2;
 	color: white;
-}
-
-.personContent {
-	display: flex;
-	margin-bottom: 30px;
-	align-items: flex-start;
-
-	> * + * {
-		margin-left: 30px;
-	}
-}
-
-.personPhoto {
-	max-width: 300px;
-	max-height: 450px;
-	min-width: 300px;
-	width: 300px;
-	height: auto;
-	border-radius: 8px;
-	object-fit: cover;
-	box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
-	flex-shrink: 0;
-}
-
-.personOverview {
-	flex: 1;
-	font-size: 24px;
-	line-height: 1.6;
-	color: rgba(255, 255, 255, 0.9);
 	margin: 0;
+	line-height: 1.1;
+	text-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
 }
 
+/* ============================================
+   Info Row & Badges
+   ============================================ */
 .infoRow {
 	display: flex;
+	align-items: center;
 	flex-wrap: wrap;
-	align-items: center;
-	margin-left: -9px;
-	margin-top: -9px;
-
-	> * {
-		margin-left: 9px;
-		margin-top: 9px;
-	}
-}
-
-.infoBadge {
-	display: inline-flex;
-	align-items: center;
-	font-size: 18px;
-	font-weight: 500;
-	color: rgba(255, 255, 255, 0.9);
-	padding: 0;
+	margin-bottom: 16px;
 
 	> * + * {
-		margin-left: 5px;
+		margin-left: 16px;
 	}
 }
 
-.pill {
-	background: rgba(255, 255, 255, 0.15);
+/* Text items group (year, rating, runtime) with bullet separators */
+.infoTextItems {
+	display: flex;
+	align-items: center;
+
+	> .infoItem + .infoItem::before {
+		content: '\2022';
+		margin: 0 10px;
+		color: rgba(255, 255, 255, 0.35);
+		font-size: 12px;
+	}
+}
+
+.infoItem {
+	font-size: 20px;
+	color: rgba(255, 255, 255, 0.7);
+	display: flex;
+	align-items: center;
+	white-space: nowrap;
+	font-weight: 500;
+}
+
+/* Badges group */
+.infoBadges {
+	display: flex;
+	align-items: center;
+	flex-wrap: wrap;
+
+	> * + * {
+		margin-left: 6px;
+	}
+}
+
+/* Ratings group */
+.infoRatings {
+	display: flex;
+	align-items: center;
+
+	> * + * {
+		margin-left: 14px;
+	}
+}
+
+.ratingItem {
+	display: flex;
+	align-items: center;
+	font-size: 16px;
+	font-weight: 700;
+	color: rgba(255, 255, 255, 0.85);
+	white-space: nowrap;
+	padding: 3px 10px;
 	border-radius: 4px;
-	padding: 4px 10px;
-	font-size: 14px;
-	font-weight: 600;
-	text-align: center;
+	background: rgba(255, 255, 255, 0.08);
+	border: 1px solid rgba(255, 255, 255, 0.15);
 }
 
 .star {
-	color: #EECE55;
+	color: #ffd700;
+	font-size: 26px;
+	margin-right: 5px;
+	line-height: 1;
 }
 
-.critic {
-	font-size: 16px;
+.tomatoIcon {
+	font-size: 22px;
+	margin-right: 5px;
+	line-height: 1;
 }
 
-.tagline {
-	font-size: 20px;
-	font-style: italic;
+/* Media Badges */
+.badge {
+	padding: 4px 12px;
+	border-radius: 4px;
+	font-size: 14px;
+	font-weight: 700;
+	letter-spacing: 0.5px;
+	text-transform: uppercase;
+	display: inline-flex;
+	align-items: center;
+}
+
+.badge4k,
+.badgeHd,
+.badgeHdr,
+.badgeDv,
+.badgeAtmos,
+.badgeDtsx,
+.badgeSurround,
+.badgeStereo,
+.badgeCodec,
+.badgeContainer,
+.badgeAudioCodec {
+	background: rgba(255, 255, 255, 0.08);
 	color: rgba(255, 255, 255, 0.75);
-	font-weight: 400;
+	border: 1px solid rgba(255, 255, 255, 0.15);
+}
+
+/* ============================================
+   Tagline & Overview
+   ============================================ */
+.tagline {
+	font-size: 24px;
+	font-style: italic;
+	color: rgba(255, 255, 255, 0.6);
+	margin: 0 0 16px 0;
 	line-height: 1.4;
-	margin: 0;
 }
 
 .overview {
 	font-size: 22px;
+	color: rgba(255, 255, 255, 0.8);
 	line-height: 1.6;
-	color: rgba(255, 255, 255, 0.85);
-	margin: 0;
+	margin: 0 0 32px 0;
 	max-height: 200px;
 	overflow: hidden;
 	display: -webkit-box;
@@ -219,110 +321,99 @@
 	-webkit-box-orient: vertical;
 }
 
-.metadataGroup {
-	display: flex;
-	flex-direction: column;
-	margin-bottom: 30px;
-	background: transparent;
-	border-radius: 6px;
-	overflow: hidden;
-	width: 100%;
-	max-width: 800px;
-}
-
-.metadataCell {
-	display: flex;
-	justify-content: space-between;
-	align-items: center;
-	padding: 14px 18px;
-	border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-}
-
-.metadataLabel {
-	font-size: 16px;
-	font-weight: 500;
-	color: rgba(255, 255, 255, 0.6);
-	min-width: 100px;
-}
-
-.metadataValue {
-	font-size: 16px;
-	color: rgba(255, 255, 255, 0.9);
-	text-align: right;
-	flex: 1;
-	margin-left: 20px;
-}
-
+/* ============================================
+   Action Buttons
+   ============================================ */
 .actionButtons {
 	display: flex;
-	margin-bottom: 50px;
-	flex-wrap: wrap;
-	gap: 20px;
+	align-items: flex-start;
 	justify-content: center;
-	max-width: 1400px;
-	margin-left: auto;
-	margin-right: auto;
+	margin-top: 12px;
+	margin-bottom: 36px;
+	flex-wrap: wrap;
+
+	> * {
+		margin: 0 12px;
+	}
 }
 
 .btnWrapper {
-	display: inline-flex;
+	display: flex;
 	flex-direction: column;
 	align-items: center;
-	gap: 16px;
-	background: transparent;
-	border: none;
-	padding: 0;
 	cursor: pointer;
-	transition: transform 0.2s ease;
+	outline: none;
+	width: 100px;
+
+	> * + * {
+		margin-top: 10px;
+	}
+
+	.btnDetail {
+		font-size: 13px;
+		color: rgba(255, 255, 255, 0.5);
+		text-align: center;
+		max-width: 100px;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+		margin-top: 2px;
+		transition: color 0.2s;
+	}
 
 	&:focus {
-		outline: none;
-		transform: scale(1.05);
+		.btnDetail {
+			color: rgba(255, 255, 255, 0.9);
+			max-width: 160px;
+			white-space: normal;
+			word-wrap: break-word;
+			overflow: visible;
+		}
 
 		.btnAction {
-			background: rgba(96, 96, 96, 0.9);
+			background: rgba(255, 255, 255, 0.95);
+			transform: scale(1.1);
+			border-color: #ffffff;
 		}
 
 		.btnIcon {
-			color: #333333;
-			fill: #333333;
+			color: #0a0a0a;
+			fill: #0a0a0a;
+		}
+
+		.favorited {
+			color: #ff4757;
+			fill: #ff4757;
+		}
+
+		.watched {
+			color: #00a4dc;
+			fill: #00a4dc;
 		}
 	}
 }
 
 .btnAction {
-	width: 120px;
-	height: 120px;
-	border-radius: 16px;
-	border: none;
+	width: 80px;
+	height: 80px;
+	border-radius: 18px;
+	background: rgba(255, 255, 255, 0.08);
+	border: 2px solid transparent;
 	display: flex;
 	align-items: center;
 	justify-content: center;
-	background: transparent;
-	transition: background 0.2s ease;
-}
-
-.btnPrimary {
-	.btnAction {
-		background: transparent;
-	}
-}
-
-.btnSecondary {
-	.btnAction {
-		background: transparent;
-	}
+	transition: background 0.2s, transform 0.2s, border-color 0.2s;
 }
 
 .btnIcon {
-	font-size: 56px;
+	width: 32px;
+	height: 32px;
 	color: white;
-	width: 56px;
-	height: 56px;
+	fill: currentColor;
 	display: flex;
 	align-items: center;
 	justify-content: center;
-	fill: currentColor;
+	font-size: 32px;
 }
 
 .favorited {
@@ -331,73 +422,138 @@
 }
 
 .watched {
-	color: #ff4757;
-	fill: #ff4757;
+	color: #00a4dc;
+	fill: #00a4dc;
 }
 
 .btnLabel {
-	font-size: 16px;
+	font-size: 15px;
 	font-weight: 600;
-	color: rgba(255, 255, 255, 0.9);
+	color: rgba(255, 255, 255, 0.8);
 	text-align: center;
-	max-width: 140px;
+	max-width: 100px;
 	line-height: 1.3;
+	white-space: nowrap;
 }
 
+/* ============================================
+   Metadata Group
+   ============================================ */
+.metadataGroup {
+	display: flex;
+	flex-wrap: wrap;
+	margin-bottom: 40px;
+	border-radius: 12px;
+	overflow: hidden;
+	background: rgba(255, 255, 255, 0.03);
+	border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.metadataCell {
+	display: flex;
+	flex-direction: column;
+	padding: 14px 20px;
+	border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+
+	> * + * {
+		margin-top: 4px;
+	}
+	flex: 1 1 auto;
+	min-width: 200px;
+}
+
+.metadataLabel {
+	font-size: 15px;
+	font-weight: 600;
+	color: rgba(255, 255, 255, 0.4);
+	text-transform: uppercase;
+	letter-spacing: 0.5px;
+}
+
+.metadataValue {
+	font-size: 19px;
+	color: rgba(255, 255, 255, 0.85);
+}
+
+/* ============================================
+   Sections Container
+   ============================================ */
 .sectionsContainer {
 	display: flex;
 	flex-direction: column;
-	overflow: visible;
-	padding-top: 30px;
+	padding-top: 8px;
 
 	> * + * {
-		margin-top: 50px;
+		margin-top: 36px;
 	}
+}
+
+/* Reset MediaRow padding when inside Details (content already provides padding) */
+.inlineRow {
+	padding-left: 0;
+	padding-right: 0;
+	margin-bottom: 0;
+	overflow: visible;
+	contain: none;
+	content-visibility: visible;
+
+	> div {
+		padding-left: 20px;
+		padding-right: 20px;
+		margin-left: -20px;
+		margin-right: -20px;
+		contain: none;
+		content-visibility: visible;
+	}
+}
+
+.section {
+	overflow: visible;
+}
+
+.sectionHeader {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	margin-bottom: 16px;
 }
 
 .sectionTitle {
 	font-size: 28px;
 	font-weight: 600;
 	color: white;
-	margin: 0 0 20px 0;
+	margin: 0;
 }
 
-.seasonsSection {
-	margin-bottom: 20px;
-}
-
-.seasonsScroller {
+.sectionScroll {
+	display: flex;
 	overflow-x: auto;
 	overflow-y: visible;
-	padding-left: 60px;
-	padding-right: 60px;
+	padding: 20px 20px 20px;
+	margin-left: -20px;
+	margin-right: -20px;
+
+	> * + * {
+		margin-left: 16px;
+	}
 	scrollbar-width: none;
-	margin-left: -60px;
-	margin-right: -60px;
-	margin-bottom: 24px;
-	position: relative;
 
 	&::-webkit-scrollbar {
 		display: none;
 	}
 }
 
-.seasonsList {
-	display: flex;
-	padding: 20px 0;
-	width: max-content;
-	gap: 24px;
-}
-
+/* ============================================
+   Season Cards (horizontal)
+   ============================================ */
 .seasonCard {
+	flex-shrink: 0;
 	display: flex;
 	flex-direction: column;
 	align-items: center;
 	cursor: pointer;
-	transition: transform 0.2s ease;
 	outline: none;
-	position: relative;
-	z-index: 1;
+	transition: transform 0.2s;
 
 	&:focus {
 		transform: scale(1.05);
@@ -410,31 +566,21 @@
 	}
 }
 
-.seasonCardSelected {
-	.seasonPosterWrapper {
-		border-color: rgba(255, 255, 255, 0.6);
-	}
-
-	.seasonName {
-		color: #ffffff;
-		font-weight: 600;
-	}
-}
-
 .seasonPosterWrapper {
-	width: 180px;
-	height: 270px;
+	position: relative;
+	width: 240px;
+	height: 360px;
 	border-radius: 8px;
 	overflow: hidden;
 	border: 3px solid transparent;
-	transition: border-color 0.2s ease, box-shadow 0.2s ease;
-	background: rgba(255, 255, 255, 0.1);
-}
+	transition: border-color 0.2s, box-shadow 0.2s;
+	background: rgba(255, 255, 255, 0.05);
 
-.seasonPoster {
-	width: 100%;
-	height: 100%;
-	object-fit: cover;
+	img {
+		width: 100%;
+		height: 100%;
+		object-fit: cover;
+	}
 }
 
 .seasonPosterPlaceholder {
@@ -445,15 +591,51 @@
 	justify-content: center;
 	text-align: center;
 	padding: 12px;
-	font-size: 14px;
+	font-size: 17px;
 	color: rgba(255, 255, 255, 0.7);
 	background: linear-gradient(135deg, rgba(60, 60, 60, 0.8), rgba(40, 40, 40, 0.8));
 }
 
+.watchedIndicator {
+	position: absolute;
+	top: 8px;
+	right: 8px;
+	width: 28px;
+	height: 28px;
+	background: rgba(0, 164, 220, 0.9);
+	border-radius: 50%;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+
+	svg {
+		width: 16px;
+		height: 16px;
+		fill: white;
+	}
+}
+
+.unplayedCount {
+	position: absolute;
+	top: 8px;
+	right: 8px;
+	min-width: 24px;
+	height: 24px;
+	padding: 0 6px;
+	background: #00a4dc;
+	border-radius: 12px;
+	font-size: 14px;
+	font-weight: 700;
+	color: white;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+}
+
 .seasonName {
-	margin-top: 12px;
+	margin-top: 10px;
 	font-size: 18px;
-	color: rgba(255, 255, 255, 0.8);
+	color: rgba(255, 255, 255, 0.9);
 	text-align: center;
 	max-width: 180px;
 	white-space: nowrap;
@@ -461,49 +643,306 @@
 	text-overflow: ellipsis;
 }
 
-.seasonTabs {
-	display: flex;
-	margin-bottom: 24px;
-	flex-wrap: wrap;
-	margin-left: -9px;
-	margin-top: -9px;
+/* ============================================
+   Episode Cards (horizontal, for Episode view)
+   ============================================ */
+.episodeCard {
+	flex-shrink: 0;
+	width: 300px;
+	cursor: pointer;
+	border-radius: 8px;
+	overflow: hidden;
+	background: transparent;
+	border: 2px solid transparent;
+	outline: none;
+	transition: transform 0.2s, border-color 0.2s;
 
-	> * {
-		margin-left: 9px;
-		margin-top: 9px;
+	&:focus {
+		transform: scale(1.03);
+		border-color: rgba(0, 164, 220, 0.5);
 	}
 }
 
-.seasonTab {
-	min-width: auto;
+.episodeCurrent {
+	border-color: rgba(0, 164, 220, 0.4);
+	background: rgba(0, 164, 220, 0.08);
 }
 
+.episodeThumb {
+	position: relative;
+	width: 100%;
+	height: 169px;
+	background: #111;
+	overflow: hidden;
+
+	img {
+		width: 100%;
+		height: 100%;
+		object-fit: cover;
+	}
+}
+
+.episodeThumbPlaceholder {
+	width: 100%;
+	height: 100%;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	background: #1a1a1a;
+
+	svg {
+		width: 40px;
+		height: 40px;
+		color: rgba(255, 255, 255, 0.15);
+	}
+}
+
+.episodeProgress {
+	position: absolute;
+	bottom: 0;
+	left: 0;
+	right: 0;
+	height: 3px;
+	background: rgba(0, 0, 0, 0.5);
+}
+
+.episodeProgressBar {
+	height: 100%;
+	background: #00a4dc;
+	border-radius: 0 2px 2px 0;
+}
+
+.episodeInfo {
+	padding: 10px 12px;
+	display: flex;
+	align-items: center;
+	min-width: 0;
+
+	> * + * {
+		margin-left: 8px;
+	}
+}
+
+.episodeEpNumber {
+	font-size: 15px;
+	font-weight: 700;
+	color: rgba(255, 255, 255, 0.5);
+	flex-shrink: 0;
+}
+
+.episodeEpTitle {
+	font-size: 17px;
+	color: rgba(255, 255, 255, 0.9);
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	flex: 1;
+	min-width: 0;
+}
+
+.episodeEpRuntime {
+	font-size: 14px;
+	color: rgba(255, 255, 255, 0.4);
+	flex-shrink: 0;
+}
+
+/* ============================================
+   Season Detail View (for Season type)
+   ============================================ */
+.seasonDetailHeader {
+	display: flex;
+	align-items: flex-end;
+	margin-bottom: 48px;
+
+	> * + * {
+		margin-left: 32px;
+	}
+}
+
+.seasonDetailPoster {
+	flex-shrink: 0;
+	width: 220px;
+
+	img {
+		width: 100%;
+		border-radius: 10px;
+		box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+	}
+}
+
+.seasonDetailInfo {
+	display: flex;
+	flex-direction: column;
+	padding-bottom: 8px;
+
+	> * + * {
+		margin-top: 4px;
+	}
+}
+
+.seasonDetailSeries {
+	font-size: 22px;
+	color: rgba(255, 255, 255, 0.6);
+	font-weight: 500;
+}
+
+.seasonDetailTitle {
+	font-size: 48px;
+	font-weight: 700;
+	color: #fff;
+	margin: 0;
+	line-height: 1.15;
+	text-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
+}
+
+.seasonDetailCount {
+	font-size: 18px;
+	color: rgba(255, 255, 255, 0.5);
+	margin-top: 4px;
+}
+
+.seasonEpisodesList {
+	display: flex;
+	flex-direction: column;
+
+	> * + * {
+		margin-top: 12px;
+	}
+}
+
+.seasonEp {
+	display: flex;
+	background: rgba(255, 255, 255, 0.04);
+	border-radius: 12px;
+	overflow: hidden;
+	cursor: pointer;
+	border: 2px solid transparent;
+	outline: none;
+	transition: background 0.2s, border-color 0.2s;
+
+	> * + * {
+		margin-left: 20px;
+	}
+
+	&:focus {
+		background: rgba(255, 255, 255, 0.08);
+		border-color: rgba(0, 164, 220, 0.4);
+	}
+}
+
+.seasonEpThumb {
+	position: relative;
+	width: 340px;
+	min-height: 190px;
+	flex-shrink: 0;
+	background: #111;
+	overflow: hidden;
+
+	img {
+		width: 100%;
+		height: 100%;
+		object-fit: cover;
+	}
+}
+
+.seasonEpThumbPlaceholder {
+	width: 100%;
+	height: 100%;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	background: #1a1a1a;
+
+	svg {
+		width: 40px;
+		height: 40px;
+		color: rgba(255, 255, 255, 0.15);
+	}
+}
+
+.seasonEpBody {
+	flex: 1;
+	padding: 16px 20px 16px 0;
+	display: flex;
+	flex-direction: column;
+	min-width: 0;
+}
+
+.seasonEpTop {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	margin-bottom: 6px;
+}
+
+.seasonEpNumber {
+	font-size: 16px;
+	font-weight: 600;
+	color: rgba(255, 255, 255, 0.5);
+	text-transform: uppercase;
+	letter-spacing: 0.5px;
+}
+
+.seasonEpMeta {
+	display: flex;
+	align-items: center;
+	font-size: 16px;
+	color: rgba(255, 255, 255, 0.4);
+
+	> * + * {
+		margin-left: 10px;
+	}
+}
+
+.seasonEpCheck {
+	width: 16px;
+	height: 16px;
+	color: #00a4dc;
+}
+
+.seasonEpTitle {
+	font-size: 24px;
+	font-weight: 600;
+	color: #fff;
+	margin-bottom: 8px;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.seasonEpOverview {
+	font-size: 20px;
+	color: rgba(255, 255, 255, 0.55);
+	line-height: 1.5;
+	margin: 0;
+	display: -webkit-box;
+	-webkit-line-clamp: 3;
+	-webkit-box-orient: vertical;
+	overflow: hidden;
+}
+
+/* ============================================
+   Cast Section
+   ============================================ */
 .castSection {
-	margin-bottom: 20px;
 	overflow: visible;
 }
 
 .castScroller {
+	display: flex;
 	overflow-x: auto;
 	overflow-y: visible;
-	padding-left: 60px;
-	padding-right: 60px;
+	padding: 20px 20px 20px;
+	margin-left: -20px;
+	margin-right: -20px;
+
+	> * + * {
+		margin-left: 24px;
+	}
 	scrollbar-width: none;
-	margin-left: -60px;
-	margin-right: -60px;
 
 	&::-webkit-scrollbar {
 		display: none;
-	}
-}
-
-.castList {
-	display: flex;
-	padding: 20px 0;
-	width: max-content;
-
-	> * + * {
-		margin-left: 30px;
 	}
 }
 
@@ -511,14 +950,13 @@
 	display: flex;
 	flex-direction: column;
 	align-items: center;
-	min-width: 200px;
-	max-width: 200px;
+	min-width: 160px;
+	max-width: 160px;
 	cursor: pointer;
-	transition: transform 0.25s cubic-bezier(0.25, 0.1, 0.25, 1);
 	outline: none;
+	transition: transform 0.2s;
 
 	&:focus {
-		outline: none;
 		transform: scale(1.08);
 		z-index: 10;
 
@@ -529,13 +967,13 @@
 }
 
 .castImageWrapper {
-	width: 180px;
-	height: 180px;
+	width: 140px;
+	height: 140px;
 	border-radius: 50%;
 	overflow: hidden;
-	margin-bottom: 14px;
-	background: rgba(255, 255, 255, 0.1);
-	border: 4px solid transparent;
+	margin-bottom: 10px;
+	background: rgba(255, 255, 255, 0.05);
+	border: 3px solid transparent;
 	transition: border-color 0.2s;
 }
 
@@ -551,14 +989,14 @@
 	display: flex;
 	align-items: center;
 	justify-content: center;
-	font-size: 56px;
+	font-size: 48px;
 	font-weight: 600;
-	color: rgba(255, 255, 255, 0.5);
-	background: rgba(255, 255, 255, 0.1);
+	color: rgba(255, 255, 255, 0.3);
+	background: rgba(255, 255, 255, 0.05);
 }
 
 .castName {
-	font-size: 16px;
+	font-size: 17px;
 	font-weight: 500;
 	color: white;
 	text-align: center;
@@ -569,11 +1007,315 @@
 }
 
 .castRole {
-	font-size: 14px;
-	color: rgba(255, 255, 255, 0.6);
+	font-size: 15px;
+	color: rgba(255, 255, 255, 0.5);
 	text-align: center;
 	max-width: 100%;
 	overflow: hidden;
 	text-overflow: ellipsis;
 	white-space: nowrap;
+}
+
+/* ============================================
+   Person Layout
+   ============================================ */
+.personHeader {
+	display: flex;
+	align-items: flex-start;
+	margin-bottom: 48px;
+
+	> * + * {
+		margin-left: 40px;
+	}
+}
+
+.personPhotoWrapper {
+	flex-shrink: 0;
+	width: 220px;
+}
+
+.personPhoto {
+	width: 100%;
+	height: 330px;
+	object-fit: cover;
+	border-radius: 12px;
+	box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+}
+
+.personPhotoPlaceholder {
+	width: 100%;
+	height: 330px;
+	background: rgba(255, 255, 255, 0.08);
+	border-radius: 12px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+
+	svg {
+		width: 64px;
+		height: 64px;
+		color: rgba(255, 255, 255, 0.25);
+	}
+}
+
+.personInfo {
+	flex: 1;
+	min-width: 0;
+	padding-top: 16px;
+
+	.title {
+		margin-bottom: 12px;
+	}
+
+	.overview {
+		max-height: 250px;
+		overflow-y: auto;
+		scrollbar-width: none;
+
+		&::-webkit-scrollbar {
+			display: none;
+		}
+	}
+}
+
+/* ============================================
+   Media Info Modal
+   ============================================ */
+.modalOverlay {
+	position: fixed;
+	top: 0;
+	left: 0;
+	right: 0;
+	bottom: 0;
+	background: rgba(0, 0, 0, 0.85);
+	z-index: 200;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	animation: fadeIn 0.2s ease;
+}
+
+.mediaInfoMenu {
+	background: #1a1a1a;
+	border-radius: 16px;
+	padding: 32px;
+	max-width: 700px;
+	width: 90%;
+	max-height: 80vh;
+	overflow-y: auto;
+	border: 1px solid rgba(255, 255, 255, 0.1);
+	scrollbar-width: none;
+
+	&::-webkit-scrollbar {
+		display: none;
+	}
+}
+
+.modalTitle {
+	font-size: 24px;
+	font-weight: 600;
+	color: white;
+	margin: 0 0 24px 0;
+}
+
+.mediaInfoContent {
+	display: flex;
+	flex-direction: column;
+
+	> * + * {
+		margin-top: 20px;
+	}
+}
+
+.mediaInfoStream {
+	border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+	padding-bottom: 16px;
+
+	&:last-child {
+		border-bottom: none;
+	}
+}
+
+.mediaInfoStreamHeader {
+	font-size: 19px;
+	font-weight: 600;
+	color: #00a4dc;
+	margin-bottom: 8px;
+	text-transform: uppercase;
+	letter-spacing: 0.5px;
+}
+
+.mediaInfoRow {
+	font-size: 18px;
+	color: rgba(255, 255, 255, 0.75);
+	line-height: 1.6;
+}
+
+.mediaInfoClose {
+	margin-top: 16px;
+	display: flex;
+	justify-content: center;
+}
+
+.mediaInfoCloseBtn {
+	padding: 12px 40px;
+	background: rgba(255, 255, 255, 0.08);
+	border: 1px solid rgba(255, 255, 255, 0.15);
+	border-radius: 8px;
+	color: white;
+	font-size: 19px;
+	font-weight: 600;
+	cursor: pointer;
+	outline: none;
+	transition: background 0.2s, border-color 0.2s;
+
+	&:focus {
+		background: rgba(0, 164, 220, 0.3);
+		border-color: #00a4dc;
+	}
+}
+
+/* ============================================
+   Loading
+   ============================================ */
+.loading {
+	position: absolute;
+	top: 50%;
+	left: 50%;
+	transform: translate(-50%, -50%);
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	color: rgba(255, 255, 255, 0.6);
+	font-size: 19px;
+	z-index: 5;
+
+	> * + * {
+		margin-top: 16px;
+	}
+}
+
+/* ============================================
+   Audio/Subtitle Track Modals
+   ============================================ */
+.trackModal {
+	position: fixed;
+	top: 0;
+	left: 0;
+	right: 0;
+	bottom: 0;
+	background: rgba(0, 0, 0, 0.95);
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	z-index: 2000;
+	animation: fadeIn 0.2s ease;
+}
+
+.trackModalPanel {
+	background: rgba(30, 30, 30, 0.98);
+	border-radius: 16px;
+	padding: 50px;
+	max-width: 900px;
+	width: 90%;
+	max-height: 80%;
+	overflow-y: auto;
+	border: 2px solid rgba(255, 255, 255, 0.15);
+	box-shadow: 0 15px 50px rgba(0, 0, 0, 0.8);
+	animation: slideUp 0.3s ease;
+	scrollbar-width: none;
+	-ms-overflow-style: none;
+
+	&::-webkit-scrollbar {
+		display: none;
+	}
+}
+
+@keyframes slideUp {
+	from {
+		transform: translateY(30px);
+		opacity: 0;
+	}
+	to {
+		transform: translateY(0);
+		opacity: 1;
+	}
+}
+
+.trackModalTitle {
+	font-size: 40px;
+	font-weight: 700;
+	color: #fff;
+	margin: 0 0 35px 0;
+	text-align: center;
+}
+
+.trackList {
+	display: flex;
+	flex-direction: column;
+
+	> * + * {
+		margin-top: 15px;
+	}
+}
+
+.trackItem {
+	background: rgba(255, 255, 255, 0.08);
+	border: 2px solid rgba(255, 255, 255, 0.15);
+	border-radius: 10px;
+	padding: 22px 32px;
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+	cursor: pointer;
+	transition: all 0.3s ease;
+	outline: none;
+
+	&:focus {
+		background: rgba(0, 164, 220, 0.3);
+		border-color: #00a4dc;
+		transform: translateX(12px) scale(1.02);
+		box-shadow: 0 4px 15px rgba(0, 164, 220, 0.4);
+	}
+}
+
+.selected {
+	background: rgba(0, 164, 220, 0.3);
+	border-color: #00a4dc;
+	border-width: 3px;
+
+	&::after {
+		content: '\2713';
+		font-size: 28px;
+		color: #00a4dc;
+		margin-left: 20px;
+		font-weight: 700;
+	}
+}
+
+.trackName {
+	font-size: 24px;
+	font-weight: 600;
+	color: #fff;
+}
+
+.trackInfo {
+	font-size: 20px;
+	color: rgba(255, 255, 255, 0.7);
+}
+
+.trackModalFooter {
+	text-align: center;
+	opacity: 0.7;
+	margin-top: 20px;
+	font-size: 20px;
+	color: rgba(255, 255, 255, 0.6);
+}
+
+/* ============================================
+   Animation
+   ============================================ */
+@keyframes fadeIn {
+	from { opacity: 0; }
+	to { opacity: 1; }
 }
