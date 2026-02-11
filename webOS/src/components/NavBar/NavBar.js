@@ -121,7 +121,7 @@ const NavBar = ({
 	const filteredLibraries = useMemo(() => {
 		return libraries.filter(lib => {
 			const type = lib.CollectionType?.toLowerCase();
-			return !['playlists', 'boxsets', 'books', 'musicvideos', 'homevideos', 'photos'].includes(type);
+			return !['playlists', 'books', 'musicvideos', 'homevideos', 'photos'].includes(type);
 		});
 	}, [libraries]);
 
