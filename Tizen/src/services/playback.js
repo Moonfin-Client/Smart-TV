@@ -245,7 +245,7 @@ export const getPlaybackInfo = async (itemId, options = {}) => {
 		EnableTranscoding: options.enableTranscoding !== false,
 		AudioStreamIndex: audioStreamIndex,
 		SubtitleStreamIndex: options.subtitleStreamIndex,
-		MaxStreamingBitrate: options.maxBitrate,
+		...(options.maxBitrate ? {MaxStreamingBitrate: options.maxBitrate} : {}),
 		MediaSourceId: options.mediaSourceId
 	});
 
@@ -278,7 +278,7 @@ export const getPlaybackInfo = async (itemId, options = {}) => {
 					EnableTranscoding: options.enableTranscoding !== false,
 					AudioStreamIndex: compatibleIndex,
 					SubtitleStreamIndex: options.subtitleStreamIndex,
-					MaxStreamingBitrate: options.maxBitrate,
+					...(options.maxBitrate ? {MaxStreamingBitrate: options.maxBitrate} : {}),
 					MediaSourceId: options.mediaSourceId || mediaSource.Id
 				});
 				if (retryInfo.MediaSources?.length) {

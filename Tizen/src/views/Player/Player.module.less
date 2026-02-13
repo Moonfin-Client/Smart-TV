@@ -1,28 +1,20 @@
-/* Player Container */
+/* Player Container - transparent background for AVPlay platform video layer */
 .container {
 	position: fixed;
 	top: 0;
 	left: 0;
 	right: 0;
 	bottom: 0;
-	background: #000;
+	background: transparent;
 	z-index: 1000;
 	font-family: inherit;
 }
 
-.videoPlayer {
-	position: fixed;
-	top: 0;
-	left: 0;
-	width: 100%;
-	height: 100%;
-	background: #000;
-	z-index: 0;
-	display: block !important;
-	visibility: visible !important;
-	opacity: 1 !important;
-	object-fit: contain;
-}
+/*
+ * AVPlay renders on the platform multimedia layer behind the web engine.
+ * No <video> element needed. The .container is transparent so video shows through.
+ * All UI overlays (controls, subtitles, modals) render on the web layer on top.
+ */
 
 /* Audio Mode - Album Art Display */
 .audioModeBackground {

@@ -413,6 +413,35 @@ export const avplaySetSpeed = (speed) => {
 	}
 };
 
+export const avplaySetDisplayMethod = (mode) => {
+	if (!isAVPlayAvailable) return;
+	try {
+		webapis.avplay.setDisplayMethod(mode);
+		console.log(`[tizenVideo] Display method set to: ${mode}`);
+	} catch (e) {
+		console.warn('[tizenVideo] setDisplayMethod failed:', e.message);
+	}
+};
+
+/**
+ * Fully stop and close AVPlay, releasing all hardware resources.
+ * Safe to call in any state.
+ */
+export const cleanupAVPlay = () => {
+	try {
+		const state = avplayGetState();
+		if (state !== 'NONE' && state !== 'IDLE') {
+			avplayStop();
+		}
+		if (state !== 'NONE') {
+			avplayClose();
+		}
+		console.log('[tizenVideo] AVPlay cleanup complete');
+	} catch (e) {
+		console.warn('[tizenVideo] AVPlay cleanup error:', e);
+	}
+};
+
 export const avplaySetDrm = (drmType, operation, drmData) => {
 	if (!isAVPlayAvailable) return;
 	webapis.avplay.setDrm(drmType, operation, drmData);
@@ -612,5 +641,7 @@ export default {
 	avplaySetDrm,
 	avplaySelectTrack,
 	avplaySetSilentSubtitle,
-	avplayGetTracks
+	avplayGetTracks,
+	avplaySetDisplayMethod,
+	cleanupAVPlay
 };

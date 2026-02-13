@@ -5,7 +5,13 @@ import Spotlight from '@enact/spotlight';
 import Button from '@enact/sandstone/Button';
 import Scroller from '@enact/sandstone/Scroller';
 import * as playback from '../../services/playback';
-import {initTizenAPI, registerAppStateObserver, keepScreenOn, cleanupVideoElement, avplaySelectTrack, avplaySetSilentSubtitle, avplayGetTracks} from '../../services/tizenVideo';
+import {
+	initTizenAPI, registerAppStateObserver, keepScreenOn,
+	avplayOpen, avplayPrepare, avplayPlay, avplayPause, avplayStop, avplayClose,
+	avplaySeek, avplayGetCurrentTime, avplayGetDuration, avplayGetState,
+	avplaySetListener, avplaySetSpeed, avplaySelectTrack, avplaySetSilentSubtitle,
+	avplayGetTracks, avplaySetDisplayMethod, setDisplayWindow, cleanupAVPlay
+} from '../../services/tizenVideo';
 import {useSettings} from '../../context/SettingsContext';
 import {TIZEN_KEYS, isBackKey} from '../../utils/tizenKeys';
 import {getImageUrl} from '../../utils/helpers';
@@ -47,7 +53,7 @@ const formatEndTime = (remainingSeconds) => {
 	return `Ends at ${h12}:${minutes.toString().padStart(2, '0')} ${ampm}`;
 };
 
-// Playback speed options
+// Playback speed options (AVPlay supports integer speeds; fractional speeds may not work)
 const PLAYBACK_RATES = [0.5, 0.75, 1, 1.25, 1.5, 2];
 
 // Quality presets (bitrate in bps)
@@ -137,10 +143,16 @@ const IconInfo = () => (
 	</svg>
 );
 
+/**
+ * AVPlay-based Player component for Samsung Tizen.
+ *
+ * Uses Samsung's native AVPlay API instead of HTML5 <video> for hardware-accelerated
+ * playback. AVPlay renders on a platform multimedia layer BEHIND the web engine;
+ * the web layer must be transparent in the video area for the content to show through.
+ */
 const Player = ({item, initialAudioIndex, initialSubtitleIndex, onEnded, onBack, onPlayNext, audioPlaylist}) => {
 	const {settings} = useSettings();
 
-	const [mediaUrl, setMediaUrl] = useState(null);
 	const [isLoading, setIsLoading] = useState(true);
 	const [isBuffering, setIsBuffering] = useState(false);
 	const [error, setError] = useState(null);
@@ -183,7 +195,6 @@ const Player = ({item, initialAudioIndex, initialSubtitleIndex, onEnded, onBack,
 	const hasNextTrack = audioPlaylist && audioPlaylistIndex >= 0 && audioPlaylistIndex < audioPlaylist.length - 1;
 	const hasPrevTrack = audioPlaylist && audioPlaylistIndex > 0;
 
-	const videoRef = useRef(null);
 	const positionRef = useRef(0);
 	const playSessionRef = useRef(null);
 	const runTimeRef = useRef(0);
@@ -192,6 +203,18 @@ const Player = ({item, initialAudioIndex, initialSubtitleIndex, onEnded, onBack,
 	const hasTriggeredNextEpisodeRef = useRef(false);
 	const unregisterAppStateRef = useRef(null);
 	const controlsTimeoutRef = useRef(null);
+	const timeUpdateIntervalRef = useRef(null);
+	const avplayReadyRef = useRef(false);
+	// Refs for stable callbacks inside AVPlay listener (avoids stale closures)
+	const handleEndedCallbackRef = useRef(null);
+	const handleErrorCallbackRef = useRef(null);
+	// Ref for time-update logic (reassigned each render to get fresh state)
+	const timeUpdateLogicRef = useRef(null);
+	// Deferred seek: only execute actual avplaySeek after user stops pressing arrows
+	const seekDebounceRef = useRef(null);
+	const pendingSeekMsRef = useRef(null);
+	// Ref for the Player container DOM element — used to walk up ancestors for transparency
+	const playerContainerRef = useRef(null);
 
 	const topButtons = useMemo(() => {
 		const buttons = [
@@ -229,25 +252,199 @@ const Player = ({item, initialAudioIndex, initialSubtitleIndex, onEnded, onBack,
 		];
 	}, [chapters.length, nextEpisode, isAudioMode]);
 
+	// ==============================
+	// AVPlay Time Update Polling
+	// ==============================
+	// This ref is reassigned every render so the interval always has fresh React state.
+	timeUpdateLogicRef.current = () => {
+		if (!avplayReadyRef.current) return;
+		const state = avplayGetState();
+		if (state !== 'PLAYING' && state !== 'PAUSED') return;
+
+		const ms = avplayGetCurrentTime();
+		const time = ms / 1000;
+		const ticks = Math.floor(ms * 10000);
+
+		setCurrentTime(time);
+		positionRef.current = ticks;
+
+		if (healthMonitorRef.current && state === 'PLAYING') {
+			healthMonitorRef.current.recordProgress();
+		}
+
+		// Update custom subtitle text - match current position to subtitle events
+		if (subtitleTrackEvents && subtitleTrackEvents.length > 0) {
+			const lookupTicks = ticks - (subtitleOffset * 10000000);
+			let foundSubtitle = null;
+			for (const event of subtitleTrackEvents) {
+				if (lookupTicks >= event.StartPositionTicks && lookupTicks <= event.EndPositionTicks) {
+					foundSubtitle = event.Text;
+					break;
+				}
+			}
+			setCurrentSubtitleText(foundSubtitle);
+		}
+
+		// Check for intro skip
+		if (mediaSegments && settings.skipIntro) {
+			const {introStart, introEnd, creditsStart} = mediaSegments;
+
+			if (introStart && introEnd) {
+				const inIntro = ticks >= introStart && ticks < introEnd;
+				setShowSkipIntro(inIntro);
+			}
+
+			if (creditsStart && nextEpisode) {
+				const inCredits = ticks >= creditsStart;
+				if (inCredits) {
+					setShowSkipCredits(prev => {
+						if (!prev) {
+							// Will start countdown via effect
+							return true;
+						}
+						return prev;
+					});
+				}
+			}
+		}
+
+		// Near end of video
+		if (nextEpisode && runTimeRef.current > 0) {
+			const remaining = runTimeRef.current - ticks;
+			const nearEnd = remaining < 300000000;
+			if (nearEnd && !hasTriggeredNextEpisodeRef.current) {
+				setShowNextEpisode(true);
+				hasTriggeredNextEpisodeRef.current = true;
+			}
+		}
+	};
+
+	const startTimeUpdatePolling = useCallback(() => {
+		if (timeUpdateIntervalRef.current) clearInterval(timeUpdateIntervalRef.current);
+		timeUpdateIntervalRef.current = setInterval(() => {
+			timeUpdateLogicRef.current?.();
+		}, 500);
+	}, []);
+
+	const stopTimeUpdatePolling = useCallback(() => {
+		if (timeUpdateIntervalRef.current) {
+			clearInterval(timeUpdateIntervalRef.current);
+			timeUpdateIntervalRef.current = null;
+		}
+	}, []);
+
+	// ==============================
+	// AVPlay Lifecycle Helpers
+	// ==============================
+
+	/**
+	 * Start AVPlay playback for a given URL.
+	 * Stops any existing session, opens the new URL, prepares, and plays.
+	 */
+	const startAVPlayback = useCallback(async (url, seekPositionTicks = 0) => {
+		stopTimeUpdatePolling();
+		cleanupAVPlay();
+		avplayReadyRef.current = false;
+
+		// Open new URL
+		avplayOpen(url);
+
+		// Set display to full screen - AVPlay renders on platform layer behind web
+		setDisplayWindow({x: 0, y: 0, width: 1920, height: 1080});
+		avplaySetDisplayMethod('PLAYER_DISPLAY_MODE_LETTER_BOX');
+
+		// Set AVPlay event listener
+		avplaySetListener({
+			onbufferingstart: () => { setIsBuffering(true); },
+			onbufferingcomplete: () => { setIsBuffering(false); },
+			onstreamcompleted: () => { handleEndedCallbackRef.current?.(); },
+			onerror: (eventType) => {
+				console.error('[Player] AVPlay error:', eventType);
+				handleErrorCallbackRef.current?.();
+			},
+			oncurrentplaytime: () => {},
+			onevent: (eventType, eventData) => {
+				console.log('[Player] AVPlay event:', eventType, eventData);
+			},
+			onsubtitlechange: () => {},
+			ondrmevent: () => {}
+		});
+
+		// Prepare (async)
+		await avplayPrepare();
+		avplayReadyRef.current = true;
+
+		// Get duration from AVPlay (returns ms)
+		const durationMs = avplayGetDuration();
+		if (durationMs > 0) {
+			setDuration(durationMs / 1000);
+		}
+
+		// Seek to position if resuming
+		if (seekPositionTicks > 0) {
+			const seekMs = Math.floor(seekPositionTicks / 10000);
+			await avplaySeek(seekMs);
+		}
+
+		// Play
+		avplayPlay();
+		setIsPaused(false);
+
+		// Start time update polling
+		startTimeUpdatePolling();
+	}, [startTimeUpdatePolling, stopTimeUpdatePolling]);
+
+	// ==============================
+	// Initialization
+	// ==============================
 	useEffect(() => {
 		const init = async () => {
 			await initTizenAPI();
 			await keepScreenOn(true);
 
+			// Make ALL ancestor backgrounds transparent so AVPlay video layer shows through.
+			// Enact's ThemeDecorator, Panels, and Panel components all inject opaque
+			// backgrounds that would otherwise block the native AVPlay layer behind the web engine.
+			document.body.style.background = 'transparent';
+			document.documentElement.style.background = 'transparent';
+			if (playerContainerRef.current) {
+				let el = playerContainerRef.current.parentElement;
+				while (el && el !== document.documentElement) {
+					el.style.background = 'transparent';
+					el.style.backgroundColor = 'transparent';
+					el = el.parentElement;
+				}
+			} else {
+				// Fallback: target known roots
+				const appRoot = document.getElementById('root') || document.getElementById('app');
+				if (appRoot) {
+					appRoot.style.background = 'transparent';
+					// Also walk its children upward from appRoot
+					let child = appRoot.firstElementChild;
+					while (child) {
+						child.style.background = 'transparent';
+						child.style.backgroundColor = 'transparent';
+						child = child.firstElementChild;
+					}
+				}
+			}
+
 			unregisterAppStateRef.current = registerAppStateObserver(
 				() => {
 					console.log('[Player] App resumed');
-					if (videoRef.current && !isPaused) {
-						videoRef.current.play();
+					if (avplayReadyRef.current && !isPaused) {
+						const state = avplayGetState();
+						if (state === 'PAUSED' || state === 'READY') {
+							try { avplayPlay(); } catch (e) { void e; }
+						}
 					}
 				},
 				() => {
 					console.log('[Player] App backgrounded - pausing and saving progress');
-					if (videoRef.current && !videoRef.current.paused) {
-						videoRef.current.pause();
+					const state = avplayGetState();
+					if (state === 'PLAYING') {
+						try { avplayPause(); } catch (e) { void e; }
 					}
-					// Report current progress when app is backgrounded
-					// This ensures position is saved if user doesn't return
 					if (positionRef.current > 0) {
 						playback.reportProgress(positionRef.current);
 					}
@@ -258,27 +455,51 @@ const Player = ({item, initialAudioIndex, initialSubtitleIndex, onEnded, onBack,
 
 		return () => {
 			keepScreenOn(false);
+			// Restore backgrounds on all ancestors
+			document.body.style.background = '';
+			document.documentElement.style.background = '';
+			if (playerContainerRef.current) {
+				let el = playerContainerRef.current.parentElement;
+				while (el && el !== document.documentElement) {
+					el.style.background = '';
+					el.style.backgroundColor = '';
+					el = el.parentElement;
+				}
+			} else {
+				const appRoot = document.getElementById('root') || document.getElementById('app');
+				if (appRoot) appRoot.style.background = '';
+			}
+
 			if (unregisterAppStateRef.current) {
 				unregisterAppStateRef.current();
 			}
 		};
 	}, [isPaused]);
 
+	// ==============================
+	// Load Media & Start AVPlay
+	// ==============================
 	useEffect(() => {
 		const loadMedia = async () => {
 			setIsLoading(true);
 			setError(null);
 
+			// Stop any previous playback
+			stopTimeUpdatePolling();
+			cleanupAVPlay();
+			avplayReadyRef.current = false;
+
 			try {
 				const startPosition = item.UserData?.PlaybackPositionTicks || 0;
+				const effectiveBitrate = selectedQuality || settings.maxBitrate || undefined;
 				const result = await playback.getPlaybackInfo(item.Id, {
 					startPositionTicks: startPosition,
-					maxBitrate: selectedQuality || settings.maxBitrate,
+					maxBitrate: effectiveBitrate,
 					preferTranscode: settings.preferTranscode,
-					item: item
+					item: item,
+					audioStreamIndex: initialAudioIndex != null ? initialAudioIndex : undefined
 				});
 
-				setMediaUrl(result.url);
 				setPlayMethod(result.playMethod);
 				setMediaSourceId(result.mediaSourceId);
 				playSessionRef.current = result.playSessionId;
@@ -299,20 +520,22 @@ const Player = ({item, initialAudioIndex, initialSubtitleIndex, onEnded, onBack,
 					if (defaultAudio) setSelectedAudioIndex(defaultAudio.index);
 				}
 
-				// Handle initial subtitle selection
-				// On Tizen, we fetch subtitle data as JSON and render via custom overlay
-				// because native <track> elements don't work reliably with AVPlay
+				// Track pending audio/subtitle setup (apply after AVPlay prepare)
+				let pendingAudioIndex = null;
+				if (initialAudioIndex != null) {
+					pendingAudioIndex = initialAudioIndex;
+				}
+
+				let pendingSubAction = null;
+
 				const loadSubtitleData = async (sub) => {
 					if (sub && sub.isEmbeddedNative) {
 						console.log('[Player] Initial: Using native embedded subtitle (codec:', sub.codec, ')');
 						const trackIndex = result.subtitleStreams ? result.subtitleStreams.indexOf(sub) : -1;
-						if (trackIndex >= 0) {
-							avplaySelectTrack('SUBTITLE', trackIndex);
-							avplaySetSilentSubtitle(false);
-						}
+						pendingSubAction = {type: 'native', trackIndex};
 						setSubtitleTrackEvents(null);
 					} else if (sub && sub.isTextBased) {
-						avplaySetSilentSubtitle(true);
+						pendingSubAction = {type: 'text'};
 						try {
 							const data = await playback.fetchSubtitleData(sub);
 							if (data && data.TrackEvents) {
@@ -326,7 +549,7 @@ const Player = ({item, initialAudioIndex, initialSubtitleIndex, onEnded, onBack,
 							setSubtitleTrackEvents(null);
 						}
 					} else {
-						avplaySetSilentSubtitle(true);
+						pendingSubAction = {type: 'off'};
 						setSubtitleTrackEvents(null);
 					}
 					setCurrentSubtitleText(null);
@@ -340,7 +563,6 @@ const Player = ({item, initialAudioIndex, initialSubtitleIndex, onEnded, onBack,
 							await loadSubtitleData(initialSub);
 						}
 					} else {
-						// -1 means subtitles off
 						setSelectedSubtitleIndex(-1);
 						setSubtitleTrackEvents(null);
 					}
@@ -350,7 +572,6 @@ const Player = ({item, initialAudioIndex, initialSubtitleIndex, onEnded, onBack,
 						setSelectedSubtitleIndex(defaultSub.index);
 						await loadSubtitleData(defaultSub);
 					} else if (result.subtitleStreams?.length > 0) {
-						// No default marked, use first available
 						const firstSub = result.subtitleStreams[0];
 						setSelectedSubtitleIndex(firstSub.index);
 						await loadSubtitleData(firstSub);
@@ -392,7 +613,78 @@ const Player = ({item, initialAudioIndex, initialSubtitleIndex, onEnded, onBack,
 						setNextEpisode(next);
 					}
 				}
-				console.log(`[Player] Loaded ${displayTitle} via ${result.playMethod}`);
+
+				// === Start AVPlay ===
+				avplayOpen(result.url);
+				setDisplayWindow({x: 0, y: 0, width: 1920, height: 1080});
+				avplaySetDisplayMethod('PLAYER_DISPLAY_MODE_LETTER_BOX');
+
+				avplaySetListener({
+					onbufferingstart: () => { setIsBuffering(true); },
+					onbufferingcomplete: () => { setIsBuffering(false); },
+					onstreamcompleted: () => { handleEndedCallbackRef.current?.(); },
+					onerror: (eventType) => {
+						console.error('[Player] AVPlay error:', eventType);
+						handleErrorCallbackRef.current?.();
+					},
+					oncurrentplaytime: () => {},
+					onevent: (eventType, eventData) => {
+						console.log('[Player] AVPlay event:', eventType, eventData);
+					},
+					onsubtitlechange: () => {},
+					ondrmevent: () => {}
+				});
+
+				await avplayPrepare();
+				avplayReadyRef.current = true;
+
+				// Get duration from AVPlay (returns ms)
+				const durationMs = avplayGetDuration();
+				if (durationMs > 0) {
+					setDuration(durationMs / 1000);
+					runTimeRef.current = Math.floor(durationMs * 10000);
+				}
+
+				// Apply pending audio track setup (AVPlay must be in READY state)
+				if (pendingAudioIndex != null && result.playMethod !== playback.PlayMethod.Transcode) {
+					try {
+						avplaySelectTrack('AUDIO', pendingAudioIndex);
+						console.log('[Player] Applied initial audio track via AVPlay, index:', pendingAudioIndex);
+					} catch (audioErr) {
+						console.warn('[Player] Failed to apply initial audio track:', audioErr.message);
+					}
+				}
+
+				// Apply pending subtitle setup (AVPlay must be in READY state)
+				if (pendingSubAction) {
+					if (pendingSubAction.type === 'native' && pendingSubAction.trackIndex >= 0) {
+						avplaySelectTrack('SUBTITLE', pendingSubAction.trackIndex);
+						avplaySetSilentSubtitle(false);
+					} else {
+						avplaySetSilentSubtitle(true);
+					}
+				}
+
+				// Seek to start position if resuming
+				if (startPosition > 0) {
+					const seekMs = Math.floor(startPosition / 10000);
+					await avplaySeek(seekMs);
+				}
+
+				// Play
+				avplayPlay();
+				setIsPaused(false);
+
+				// Report start and begin progress reporting
+				playback.reportStart(positionRef.current);
+				playback.startProgressReporting(() => positionRef.current);
+				playback.startHealthMonitoring(handleUnhealthy);
+				healthMonitorRef.current = playback.getHealthMonitor();
+
+				// Start time update polling
+				startTimeUpdatePolling();
+
+				console.log(`[Player] Loaded ${displayTitle} via ${result.playMethod} (AVPlay native)`);
 			} catch (err) {
 				console.error('[Player] Failed to load media:', err);
 				setError(err.message || 'Failed to load media');
@@ -403,17 +695,17 @@ const Player = ({item, initialAudioIndex, initialSubtitleIndex, onEnded, onBack,
 
 		loadMedia();
 
-		const videoElement = videoRef.current;
 		return () => {
 			// Report stop to server with current position
-			// This ensures the playback position is saved even if user exits unexpectedly
 			if (positionRef.current > 0) {
 				playback.reportStop(positionRef.current);
 			}
 
 			playback.stopProgressReporting();
 			playback.stopHealthMonitoring();
-			cleanupVideoElement(videoElement);
+			stopTimeUpdatePolling();
+			cleanupAVPlay();
+			avplayReadyRef.current = false;
 
 			if (nextEpisodeTimerRef.current) {
 				clearInterval(nextEpisodeTimerRef.current);
@@ -421,11 +713,18 @@ const Player = ({item, initialAudioIndex, initialSubtitleIndex, onEnded, onBack,
 			if (controlsTimeoutRef.current) {
 				clearTimeout(controlsTimeoutRef.current);
 			}
+			if (seekDebounceRef.current) {
+				clearTimeout(seekDebounceRef.current);
+				seekDebounceRef.current = null;
+			}
+			pendingSeekMsRef.current = null;
 		};
 	// eslint-disable-next-line react-hooks/exhaustive-deps
 	}, [item, selectedQuality, settings.maxBitrate, settings.preferTranscode, settings.subtitleMode, settings.skipIntro]);
 
-	// Controls auto-hide
+	// ==============================
+	// Controls Auto-hide
+	// ==============================
 	const showControls = useCallback(() => {
 		setControlsVisible(true);
 		if (controlsTimeoutRef.current) {
@@ -468,10 +767,13 @@ const Player = ({item, initialAudioIndex, initialSubtitleIndex, onEnded, onBack,
 	const handlePlayNextEpisode = useCallback(async () => {
 		if (nextEpisode && onPlayNext) {
 			cancelNextEpisodeCountdown();
+			stopTimeUpdatePolling();
 			await playback.reportStop(positionRef.current);
+			cleanupAVPlay();
+			avplayReadyRef.current = false;
 			onPlayNext(nextEpisode);
 		}
-	}, [nextEpisode, onPlayNext, cancelNextEpisodeCountdown]);
+	}, [nextEpisode, onPlayNext, cancelNextEpisodeCountdown, stopTimeUpdatePolling]);
 
 	// Audio playlist: next track
 	const handleNextTrack = useCallback(async () => {
@@ -483,11 +785,13 @@ const Player = ({item, initialAudioIndex, initialSubtitleIndex, onEnded, onBack,
 
 	// Audio playlist: previous track (or restart current if >3s in)
 	const handlePrevTrack = useCallback(async () => {
-		const video = videoRef.current;
-		if (video && video.currentTime > 3) {
-			// Restart current track
-			video.currentTime = 0;
-			return;
+		if (avplayReadyRef.current) {
+			const ms = avplayGetCurrentTime();
+			if (ms > 3000) {
+				// Restart current track
+				avplaySeek(0).catch(e => console.warn('[Player] Seek failed:', e));
+				return;
+			}
 		}
 		if (hasPrevTrack && onPlayNext) {
 			await playback.reportStop(positionRef.current);
@@ -514,112 +818,37 @@ const Player = ({item, initialAudioIndex, initialSubtitleIndex, onEnded, onBack,
 		}, 1000);
 	}, [handlePlayNextEpisode]);
 
-	// Video event handlers
-	const handleLoadedMetadata = useCallback(() => {
-		if (videoRef.current) {
-			setDuration(videoRef.current.duration);
-			// Seek to start position if resuming
-			if (positionRef.current > 0) {
-				videoRef.current.currentTime = positionRef.current / 10000000;
-			}
+	// Start next episode countdown when credits detected
+	useEffect(() => {
+		if (showSkipCredits && nextEpisode && settings.autoPlay) {
+			startNextEpisodeCountdown();
 		}
-	}, []);
+	}, [showSkipCredits, nextEpisode, settings.autoPlay, startNextEpisodeCountdown]);
 
-	const handlePlay = useCallback(() => {
-		setIsPaused(false);
-		playback.reportStart(positionRef.current);
-		playback.startProgressReporting(() => positionRef.current);
-		playback.startHealthMonitoring(handleUnhealthy);
-		healthMonitorRef.current = playback.getHealthMonitor();
-	}, [handleUnhealthy]);
-
-	const handlePause = useCallback(() => {
-		setIsPaused(true);
-	}, []);
-
-	const handleTimeUpdate = useCallback(() => {
-		if (videoRef.current) {
-			const time = videoRef.current.currentTime;
-			setCurrentTime(time);
-			const ticks = Math.floor(time * 10000000);
-			positionRef.current = ticks;
-
-			if (healthMonitorRef.current) {
-				healthMonitorRef.current.recordProgress();
-			}
-
-			// Update custom subtitle text - match current position to subtitle events
-			if (subtitleTrackEvents && subtitleTrackEvents.length > 0) {
-				// Apply offset: lookupTime = currentTime - offset
-				// If offset is positive (delay), we look at earlier time in the subtitle track
-				const lookupTicks = ticks - (subtitleOffset * 10000000);
-
-				let foundSubtitle = null;
-				for (const event of subtitleTrackEvents) {
-					if (lookupTicks >= event.StartPositionTicks && lookupTicks <= event.EndPositionTicks) {
-						foundSubtitle = event.Text;
-						break;
-					}
-				}
-				setCurrentSubtitleText(foundSubtitle);
-			}
-
-			// Check for intro skip
-			if (mediaSegments && settings.skipIntro) {
-				const {introStart, introEnd, creditsStart} = mediaSegments;
-
-				if (introStart && introEnd) {
-					const inIntro = ticks >= introStart && ticks < introEnd;
-					setShowSkipIntro(inIntro);
-				}
-
-				if (creditsStart && nextEpisode) {
-					const inCredits = ticks >= creditsStart;
-					if (inCredits && !showSkipCredits) {
-						setShowSkipCredits(true);
-						startNextEpisodeCountdown();
-					}
-				}
-			}
-
-			// Near end of video
-			if (nextEpisode && runTimeRef.current > 0) {
-				const remaining = runTimeRef.current - ticks;
-				const nearEnd = remaining < 300000000;
-				if (nearEnd && !showNextEpisode && !showSkipCredits && !hasTriggeredNextEpisodeRef.current) {
-					setShowNextEpisode(true);
-					hasTriggeredNextEpisodeRef.current = true;
-					if (settings.autoPlay) {
-						startNextEpisodeCountdown();
-					}
-				}
-			}
+	// Start next episode countdown when near end
+	useEffect(() => {
+		if (showNextEpisode && !showSkipCredits && nextEpisode && settings.autoPlay) {
+			startNextEpisodeCountdown();
 		}
-	}, [mediaSegments, settings.skipIntro, nextEpisode, showSkipCredits, showNextEpisode, startNextEpisodeCountdown, subtitleTrackEvents, subtitleOffset, settings.autoPlay]);
+	}, [showNextEpisode, showSkipCredits, nextEpisode, settings.autoPlay, startNextEpisodeCountdown]);
 
-	const handleWaiting = useCallback(() => {
-		setIsBuffering(true);
-		if (healthMonitorRef.current) {
-			healthMonitorRef.current.recordBuffer();
-		}
-	}, []);
-
-	const handlePlaying = useCallback(() => {
-		setIsBuffering(false);
-	}, []);
-
+	// ==============================
+	// Playback Event Handlers (via AVPlay listener refs)
+	// ==============================
 	const handleEnded = useCallback(async () => {
+		stopTimeUpdatePolling();
 		await playback.reportStop(positionRef.current);
+		cleanupAVPlay();
+		avplayReadyRef.current = false;
 		// Auto-advance to next track in audio playlist
 		if (hasNextTrack && onPlayNext) {
 			onPlayNext(audioPlaylist[audioPlaylistIndex + 1]);
 		} else if (nextEpisode && onPlayNext) {
 			onPlayNext(nextEpisode);
 		} else {
-			cleanupVideoElement(videoRef.current);
 			onEnded?.();
 		}
-	}, [onEnded, onPlayNext, nextEpisode, hasNextTrack, audioPlaylist, audioPlaylistIndex]);
+	}, [onEnded, onPlayNext, nextEpisode, stopTimeUpdatePolling, hasNextTrack, audioPlaylist, audioPlaylistIndex]);
 
 	const handleError = useCallback(async () => {
 		console.error('[Player] Playback error');
@@ -639,9 +868,17 @@ const Player = ({item, initialAudioIndex, initialSubtitleIndex, onEnded, onBack,
 				});
 
 				if (result.url) {
-					setMediaUrl(result.url);
 					setPlayMethod(result.playMethod);
 					playSessionRef.current = result.playSessionId;
+					// Restart AVPlay with transcode URL
+					try {
+						await startAVPlayback(result.url, positionRef.current);
+						playback.reportStart(positionRef.current);
+						playback.startProgressReporting(() => positionRef.current);
+					} catch (restartErr) {
+						console.error('[Player] AVPlay restart failed:', restartErr);
+						setError('Playback failed. The file format may not be supported.');
+					}
 					return;
 				}
 			} catch (fallbackErr) {
@@ -650,42 +887,54 @@ const Player = ({item, initialAudioIndex, initialSubtitleIndex, onEnded, onBack,
 		}
 
 		setError('Playback failed. The file format may not be supported.');
-	}, [hasTriedTranscode, playMethod, item, selectedQuality, settings.maxBitrate]);
+	}, [hasTriedTranscode, playMethod, item, selectedQuality, settings.maxBitrate, startAVPlayback]);
 
-	// Handle back button
+	// Keep callback refs in sync
+	handleEndedCallbackRef.current = handleEnded;
+	handleErrorCallbackRef.current = handleError;
+
+	// ==============================
+	// Control Actions (AVPlay-based)
+	// ==============================
 	const handleBack = useCallback(async () => {
 		cancelNextEpisodeCountdown();
+		stopTimeUpdatePolling();
 		await playback.reportStop(positionRef.current);
-		cleanupVideoElement(videoRef.current);
+		cleanupAVPlay();
+		avplayReadyRef.current = false;
 		onBack?.();
-	}, [onBack, cancelNextEpisodeCountdown]);
+	}, [onBack, cancelNextEpisodeCountdown, stopTimeUpdatePolling]);
 
-	// Control actions
 	const handlePlayPause = useCallback(() => {
-		if (videoRef.current) {
-			if (isPaused) {
-				videoRef.current.play();
-			} else {
-				videoRef.current.pause();
-			}
+		const state = avplayGetState();
+		if (state === 'PLAYING') {
+			avplayPause();
+			setIsPaused(true);
+		} else if (state === 'PAUSED' || state === 'READY') {
+			avplayPlay();
+			setIsPaused(false);
 		}
-	}, [isPaused]);
+	}, []);
 
 	const handleRewind = useCallback(() => {
-		if (videoRef.current) {
-			videoRef.current.currentTime = Math.max(0, videoRef.current.currentTime - settings.seekStep);
-		}
+		if (!avplayReadyRef.current) return;
+		const ms = avplayGetCurrentTime();
+		const newMs = Math.max(0, ms - settings.seekStep * 1000);
+		avplaySeek(newMs).catch(e => console.warn('[Player] Seek failed:', e));
 	}, [settings.seekStep]);
 
 	const handleForward = useCallback(() => {
-		if (videoRef.current) {
-			videoRef.current.currentTime = Math.min(duration, videoRef.current.currentTime + settings.seekStep);
-		}
-	}, [duration, settings.seekStep]);
+		if (!avplayReadyRef.current) return;
+		const ms = avplayGetCurrentTime();
+		const durationMs = avplayGetDuration();
+		const newMs = Math.min(durationMs, ms + settings.seekStep * 1000);
+		avplaySeek(newMs).catch(e => console.warn('[Player] Seek failed:', e));
+	}, [settings.seekStep]);
 
 	const handleSkipIntro = useCallback(() => {
-		if (mediaSegments?.introEnd && videoRef.current) {
-			videoRef.current.currentTime = mediaSegments.introEnd / 10000000;
+		if (mediaSegments?.introEnd && avplayReadyRef.current) {
+			const seekMs = Math.floor(mediaSegments.introEnd / 10000);
+			avplaySeek(seekMs).catch(e => console.warn('[Player] Seek failed:', e));
 		}
 		setShowSkipIntro(false);
 	}, [mediaSegments]);
@@ -726,48 +975,36 @@ const Player = ({item, initialAudioIndex, initialSubtitleIndex, onEnded, onBack,
 		closeModal();
 
 		try {
-			// DirectPlay: try switching audio track natively via audioTracks API
-			// Samsung Tizen supports this for MKV/MP4 containers without reloading
-			if (playMethod !== playback.PlayMethod.Transcode && videoRef.current?.audioTracks?.length > 1) {
-				const audioTrackList = videoRef.current.audioTracks;
-				// Map Jellyfin stream indices to audioTracks positions
-				const audioStreamIndices = audioStreams.map(s => s.index);
-				const trackPosition = audioStreamIndices.indexOf(index);
-
-				if (trackPosition >= 0 && trackPosition < audioTrackList.length) {
-					for (let i = 0; i < audioTrackList.length; i++) {
-						audioTrackList[i].enabled = (i === trackPosition);
-					}
-					console.log('[Player] Switched audio track natively via audioTracks API, track position:', trackPosition);
+			// AVPlay: try switching audio track natively first
+			if (playMethod !== playback.PlayMethod.Transcode && avplayReadyRef.current) {
+				try {
+					avplaySelectTrack('AUDIO', index);
+					console.log('[Player] Switched audio track natively via AVPlay, index:', index);
 					return;
+				} catch (nativeErr) {
+					console.log('[Player] Native audio switch failed, reloading:', nativeErr.message);
 				}
 			}
 
-			// Fallback: re-request playback info and reload video
-			const currentPositionTicks = videoRef.current
-				? Math.floor(videoRef.current.currentTime * 10000000)
-				: positionRef.current || 0;
+			// Fallback: re-request playback info and reload via AVPlay
+			const currentMs = avplayGetCurrentTime();
+			const currentPositionTicks = Math.floor(currentMs * 10000);
 
 			const result = await playback.changeAudioStream(index, currentPositionTicks);
 			if (result) {
 				console.log('[Player] Switching audio track via stream reload for', playMethod, '- resuming from', currentPositionTicks);
 				positionRef.current = currentPositionTicks;
-
-				// For DirectPlay, the static URL may be identical so append a cache-buster
-				// to force the video element to reload with the new playback session
-				let newUrl = result.url;
-				if (result.playMethod === playback.PlayMethod.DirectPlay) {
-					const separator = newUrl.includes('?') ? '&' : '?';
-					newUrl = `${newUrl}${separator}_audioSwitch=${Date.now()}`;
-				}
-
-				setMediaUrl(newUrl);
 				if (result.playMethod) setPlayMethod(result.playMethod);
+
+				// Restart AVPlay with new URL
+				await startAVPlayback(result.url, currentPositionTicks);
+				playback.reportStart(positionRef.current);
+				playback.startProgressReporting(() => positionRef.current);
 			}
 		} catch (err) {
 			console.error('[Player] Failed to change audio:', err);
 		}
-	}, [playMethod, closeModal, audioStreams]);
+	}, [playMethod, closeModal, startAVPlayback]);
 
 	const handleSelectSubtitle = useCallback(async (e) => {
 		const index = parseInt(e.currentTarget.dataset.index, 10);
@@ -776,7 +1013,7 @@ const Player = ({item, initialAudioIndex, initialSubtitleIndex, onEnded, onBack,
 			setSelectedSubtitleIndex(-1);
 			setSubtitleTrackEvents(null);
 			setCurrentSubtitleText(null);
-			avplaySetSilentSubtitle(true); // hide native subs when turning off
+			avplaySetSilentSubtitle(true);
 		} else {
 			setSelectedSubtitleIndex(index);
 			const stream = subtitleStreams.find(s => s.index === index);
@@ -828,7 +1065,6 @@ const Player = ({item, initialAudioIndex, initialSubtitleIndex, onEnded, onBack,
 					setSubtitleTrackEvents(null);
 				}
 			} else {
-				// PGS/image-based subtitles - cannot render client-side, need burn-in via transcode
 				console.log('[Player] Image-based subtitle (codec:', stream?.codec, ') - requires burn-in via transcode');
 				avplaySetSilentSubtitle(true);
 				setSubtitleTrackEvents(null);
@@ -842,8 +1078,9 @@ const Player = ({item, initialAudioIndex, initialSubtitleIndex, onEnded, onBack,
 		const rate = parseFloat(e.currentTarget.dataset.rate);
 		if (isNaN(rate)) return;
 		setPlaybackRate(rate);
-		if (videoRef.current) {
-			videoRef.current.playbackRate = rate;
+		// AVPlay supports integer speeds (1, 2, 4); fractional may not work
+		if (avplayReadyRef.current) {
+			avplaySetSpeed(rate);
 		}
 		closeModal();
 	}, [closeModal]);
@@ -858,53 +1095,90 @@ const Player = ({item, initialAudioIndex, initialSubtitleIndex, onEnded, onBack,
 	const handleSelectChapter = useCallback((e) => {
 		const ticks = parseInt(e.currentTarget.dataset.ticks, 10);
 		if (isNaN(ticks)) return;
-		if (videoRef.current && ticks >= 0) {
-			videoRef.current.currentTime = ticks / 10000000;
+		if (avplayReadyRef.current && ticks >= 0) {
+			const seekMs = Math.floor(ticks / 10000);
+			avplaySeek(seekMs).catch(err => console.warn('[Player] Chapter seek failed:', err));
 		}
 		closeModal();
 	}, [closeModal]);
 
 	// Progress bar seeking
 	const handleProgressClick = useCallback((e) => {
-		if (!videoRef.current) return;
+		if (!avplayReadyRef.current) return;
 		const rect = e.currentTarget.getBoundingClientRect();
 		const percent = (e.clientX - rect.left) / rect.width;
-		const newTime = percent * duration;
-		videoRef.current.currentTime = newTime;
+		const newTimeMs = percent * duration * 1000;
+		avplaySeek(newTimeMs).catch(err => console.warn('[Player] Seek failed:', err));
 	}, [duration]);
 
-	// Progress bar keyboard control
+	// Deferred seek helpers: only execute the actual avplaySeek after the user
+	// stops pressing arrow keys (debounce) or presses OK/Enter to confirm.
+	const executeDeferredSeek = useCallback(() => {
+		if (seekDebounceRef.current) {
+			clearTimeout(seekDebounceRef.current);
+			seekDebounceRef.current = null;
+		}
+		if (pendingSeekMsRef.current != null && avplayReadyRef.current) {
+			const seekMs = pendingSeekMsRef.current;
+			pendingSeekMsRef.current = null;
+			avplaySeek(seekMs).catch(err => console.warn('[Player] Deferred seek failed:', err));
+		}
+	}, []);
+
+	const scheduleDeferredSeek = useCallback((targetMs) => {
+		pendingSeekMsRef.current = targetMs;
+		if (seekDebounceRef.current) {
+			clearTimeout(seekDebounceRef.current);
+		}
+		seekDebounceRef.current = setTimeout(() => {
+			seekDebounceRef.current = null;
+			executeDeferredSeek();
+		}, 500);
+	}, [executeDeferredSeek]);
+
+	// Progress bar keyboard control — deferred seeking
 	const handleProgressKeyDown = useCallback((e) => {
-		if (!videoRef.current) return;
-		showControls(); // Reset OSD timer
+		if (!avplayReadyRef.current) return;
+		showControls();
 		const step = settings.seekStep;
 
 		if (e.key === 'ArrowLeft' || e.keyCode === 37) {
 			e.preventDefault();
 			setIsSeeking(true);
-			const newTime = Math.max(0, videoRef.current.currentTime - step);
-			setSeekPosition(Math.floor(newTime * 10000000));
-			videoRef.current.currentTime = newTime;
+			// Use pending position if user is still seeking, otherwise use current AVPlay time
+			const baseMs = pendingSeekMsRef.current != null ? pendingSeekMsRef.current : avplayGetCurrentTime();
+			const newMs = Math.max(0, baseMs - step * 1000);
+			setSeekPosition(Math.floor(newMs * 10000));
+			scheduleDeferredSeek(newMs);
 		} else if (e.key === 'ArrowRight' || e.keyCode === 39) {
 			e.preventDefault();
 			setIsSeeking(true);
-			const newTime = Math.min(duration, videoRef.current.currentTime + step);
-			setSeekPosition(Math.floor(newTime * 10000000));
-			videoRef.current.currentTime = newTime;
+			const baseMs = pendingSeekMsRef.current != null ? pendingSeekMsRef.current : avplayGetCurrentTime();
+			const durationMs = avplayGetDuration();
+			const newMs = Math.min(durationMs, baseMs + step * 1000);
+			setSeekPosition(Math.floor(newMs * 10000));
+			scheduleDeferredSeek(newMs);
+		} else if (e.key === 'Enter' || e.keyCode === 13) {
+			e.preventDefault();
+			executeDeferredSeek();
+			setIsSeeking(false);
 		} else if (e.key === 'ArrowUp' || e.keyCode === 38) {
 			e.preventDefault();
+			executeDeferredSeek();
 			setFocusRow('top');
 			setIsSeeking(false);
 		} else if (e.key === 'ArrowDown' || e.keyCode === 40) {
 			e.preventDefault();
+			executeDeferredSeek();
 			setFocusRow('bottom');
 			setIsSeeking(false);
 		}
-	}, [duration, settings.seekStep, showControls]);
+	}, [duration, settings.seekStep, showControls, scheduleDeferredSeek, executeDeferredSeek]);
 
 	const handleProgressBlur = useCallback(() => {
+		executeDeferredSeek();
 		setIsSeeking(false);
-	}, []);
+	}, [executeDeferredSeek]);
 
 	// Button action handler
 	const handleButtonAction = useCallback((action) => {
@@ -959,42 +1233,44 @@ const Player = ({item, initialAudioIndex, initialSubtitleIndex, onEnded, onBack,
 	const handleOpenSubtitleOffset = useCallback(() => openModal('subtitleOffset'), [openModal]);
 	const handleOpenSubtitleSettings = useCallback(() => openModal('subtitleSettings'), [openModal]);
 
-	// Global key handler
+	// ==============================
+	// Global Key Handler
+	// ==============================
 	useEffect(() => {
 		const handleKeyDown = (e) => {
 			const key = e.key || e.keyCode;
 
 			// Media playback keys (Tizen remote)
 			if (e.keyCode === TIZEN_KEYS.PLAY) {
-				// Play key
 				e.preventDefault();
 				e.stopPropagation();
-				showControls(); // Show OSD
-				if (videoRef.current && videoRef.current.paused) {
-					videoRef.current.play();
+				showControls();
+				const state = avplayGetState();
+				if (state === 'PAUSED' || state === 'READY') {
+					avplayPlay();
+					setIsPaused(false);
 				}
 				return;
 			}
 			if (e.keyCode === TIZEN_KEYS.PAUSE) {
-				// Pause key
 				e.preventDefault();
 				e.stopPropagation();
-				showControls(); // Show OSD
-				if (videoRef.current && !videoRef.current.paused) {
-					videoRef.current.pause();
+				showControls();
+				const state = avplayGetState();
+				if (state === 'PLAYING') {
+					avplayPause();
+					setIsPaused(true);
 				}
 				return;
 			}
 			if (e.keyCode === TIZEN_KEYS.PLAY_PAUSE) {
-				// Play/Pause key
 				e.preventDefault();
 				e.stopPropagation();
-				showControls(); // Show OSD
+				showControls();
 				handlePlayPause();
 				return;
 			}
 			if (e.keyCode === TIZEN_KEYS.FAST_FORWARD) {
-				// Fast-forward key
 				e.preventDefault();
 				e.stopPropagation();
 				handleForward();
@@ -1002,7 +1278,6 @@ const Player = ({item, initialAudioIndex, initialSubtitleIndex, onEnded, onBack,
 				return;
 			}
 			if (e.keyCode === TIZEN_KEYS.REWIND) {
-				// Rewind key
 				e.preventDefault();
 				e.stopPropagation();
 				handleRewind();
@@ -1010,7 +1285,6 @@ const Player = ({item, initialAudioIndex, initialSubtitleIndex, onEnded, onBack,
 				return;
 			}
 			if (e.keyCode === TIZEN_KEYS.STOP) {
-				// Stop key
 				e.preventDefault();
 				e.stopPropagation();
 				handleBack();
@@ -1040,17 +1314,19 @@ const Player = ({item, initialAudioIndex, initialSubtitleIndex, onEnded, onBack,
 					showControls();
 					setFocusRow('progress');
 					setIsSeeking(true);
-					setSeekPosition(Math.floor(currentTime * 10000000));
-					// Apply the seek step immediately
+					const ms = avplayGetCurrentTime();
+					setSeekPosition(Math.floor(ms * 10000));
+					// Apply deferred seek step
 					const step = settings.seekStep;
 					if (key === 'ArrowLeft' || e.keyCode === 37) {
-						const newTime = Math.max(0, currentTime - step);
-						setSeekPosition(Math.floor(newTime * 10000000));
-						if (videoRef.current) videoRef.current.currentTime = newTime;
+						const newMs = Math.max(0, ms - step * 1000);
+						setSeekPosition(Math.floor(newMs * 10000));
+						scheduleDeferredSeek(newMs);
 					} else {
-						const newTime = Math.min(duration, currentTime + step);
-						setSeekPosition(Math.floor(newTime * 10000000));
-						if (videoRef.current) videoRef.current.currentTime = newTime;
+						const durationMs = avplayGetDuration();
+						const newMs = Math.min(durationMs, ms + step * 1000);
+						setSeekPosition(Math.floor(newMs * 10000));
+						scheduleDeferredSeek(newMs);
 					}
 					return;
 				}
@@ -1069,7 +1345,7 @@ const Player = ({item, initialAudioIndex, initialSubtitleIndex, onEnded, onBack,
 					setFocusRow(prev => {
 						if (prev === 'bottom') return 'progress';
 						if (prev === 'progress') return 'top';
-						return 'top'; // Already at top, stay there
+						return 'top';
 					});
 					return;
 				}
@@ -1093,7 +1369,7 @@ const Player = ({item, initialAudioIndex, initialSubtitleIndex, onEnded, onBack,
 
 		window.addEventListener('keydown', handleKeyDown, true);
 		return () => window.removeEventListener('keydown', handleKeyDown, true);
-	}, [controlsVisible, activeModal, closeModal, hideControls, handleBack, showControls, handlePlayPause, handleForward, handleRewind, currentTime, duration, settings.seekStep, showNextEpisode, showSkipCredits, nextEpisode, cancelNextEpisodeCountdown, bottomButtons.length]);
+	}, [controlsVisible, activeModal, closeModal, hideControls, handleBack, showControls, handlePlayPause, handleForward, handleRewind, currentTime, duration, settings.seekStep, showNextEpisode, showSkipCredits, nextEpisode, cancelNextEpisodeCountdown, bottomButtons.length, scheduleDeferredSeek]);
 
 	// Calculate progress - use seekPosition when actively seeking for smooth scrubbing
 	const displayTime = isSeeking ? (seekPosition / 10000000) : currentTime;
@@ -1103,7 +1379,6 @@ const Player = ({item, initialAudioIndex, initialSubtitleIndex, onEnded, onBack,
 	useEffect(() => {
 		if (!controlsVisible) return;
 
-		// Small delay to ensure elements are rendered
 		const timer = setTimeout(() => {
 			if (focusRow === 'progress') {
 				Spotlight.focus('progress-bar');
@@ -1114,6 +1389,10 @@ const Player = ({item, initialAudioIndex, initialSubtitleIndex, onEnded, onBack,
 
 		return () => clearTimeout(timer);
 	}, [focusRow, controlsVisible]);
+
+	// ==============================
+	// Render
+	// ==============================
 
 	// Render loading
 	if (isLoading) {
@@ -1141,23 +1420,11 @@ const Player = ({item, initialAudioIndex, initialSubtitleIndex, onEnded, onBack,
 	}
 
 	return (
-		<div className={css.container} onClick={showControls}>
-			{/* Video Element - Hardware accelerated on Tizen */}
-			<video
-				ref={videoRef}
-				className={css.videoPlayer}
-				src={mediaUrl}
-				style={isAudioMode ? {opacity: 0, pointerEvents: 'none'} : undefined}
-				autoPlay
-				onLoadedMetadata={handleLoadedMetadata}
-				onPlay={handlePlay}
-				onPause={handlePause}
-				onTimeUpdate={handleTimeUpdate}
-				onWaiting={handleWaiting}
-				onPlaying={handlePlaying}
-				onEnded={handleEnded}
-				onError={handleError}
-			/>
+		<div className={css.container} ref={playerContainerRef} onClick={showControls}>
+			{/*
+			 * No <video> element - AVPlay renders on the platform multimedia layer
+			 * behind the web engine. The container is transparent so video shows through.
+			 */}
 
 			{/* Audio Mode: Album Art + Info */}
 			{isAudioMode && (
@@ -1193,8 +1460,7 @@ const Player = ({item, initialAudioIndex, initialSubtitleIndex, onEnded, onBack,
 				</div>
 			)}
 
-
-			{/* Custom Subtitle Overlay - Tizen doesn't support native <track> elements with AVPlay */}
+			{/* Custom Subtitle Overlay - rendered on web layer above AVPlay video */}
 			{currentSubtitleText && !isAudioMode && (
 				<div
 					className={css.subtitleOverlay}
@@ -1589,6 +1855,10 @@ const Player = ({item, initialAudioIndex, initialSubtitleIndex, onEnded, onBack,
 										<span className={css.infoValue}>{playMethod || 'Unknown'}</span>
 									</div>
 									<div className={css.infoRow}>
+										<span className={css.infoLabel}>Player</span>
+										<span className={css.infoValue}>AVPlay (Native)</span>
+									</div>
+									<div className={css.infoRow}>
 										<span className={css.infoLabel}>Container</span>
 										<span className={css.infoValue}>
 											{(mediaSource?.Container || 'Unknown').toUpperCase()}
@@ -1681,7 +1951,6 @@ const Player = ({item, initialAudioIndex, initialSubtitleIndex, onEnded, onBack,
 										</div>
 										<div className={css.infoRow}>
 											<span className={css.infoLabel}>Type</span>
-											{/* Subtitle Rendering */}
 											<span className={css.infoValue}>
 												{subtitleStream.IsExternal ? 'External' : 'Embedded'}
 											</span>

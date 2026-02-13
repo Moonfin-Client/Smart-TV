@@ -587,7 +587,7 @@ const AppContent = (props) => {
 		panelIndex !== PANELS.ADD_USER;
 
 	return (
-		<div className={css.app} {...props}>
+		<div className={panelIndex === PANELS.PLAYER ? css.appPlaying : css.app} {...props}>
 			{showNavBar && (
 				<NavBar
 					activeView={getActiveView()}
