@@ -43,7 +43,7 @@ const JellyseerrPerson = lazy(() => import('../views/JellyseerrPerson'));
 import css from './App.module.less';
 
 const MAX_HISTORY_LENGTH = 10;
-const EXCLUDED_COLLECTION_TYPES = ['playlists', 'books', 'musicvideos', 'homevideos', 'photos'];
+const EXCLUDED_COLLECTION_TYPES = ['books', 'musicvideos', 'homevideos', 'photos'];
 
 const PanelLoader = () => (
 	<div className={css.panelLoader}>

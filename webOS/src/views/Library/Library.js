@@ -98,6 +98,8 @@ case 'homevideos':
 return 'Video';
 case 'music':
 return 'MusicAlbum,MusicArtist';
+case 'playlists':
+return 'Playlist';
 default:
 return 'Movie,Series';
 }

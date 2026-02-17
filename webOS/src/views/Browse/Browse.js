@@ -33,7 +33,7 @@ let cacheTimestamp = null;
 
 let lastFocusState = null;
 
-const EXCLUDED_COLLECTION_TYPES = ['playlists', 'livetv', 'boxsets', 'books', 'musicvideos', 'homevideos', 'photos'];
+const EXCLUDED_COLLECTION_TYPES = ['livetv', 'boxsets', 'books', 'musicvideos', 'homevideos', 'photos'];
 
 const SpottableDiv = Spottable('div');
 const SpottableButton = Spottable('button');
