@@ -1,9 +1,0 @@
-{
-	"name": "org.moonfin.webos.service",
-	"version": "2.0.1",
-	"description": "Moonfin backend service for server discovery and Jellyseerr proxy",
-	"main": "service.js",
-	"engines": {
-		"node": ">=8.0.0"
-	}
-}

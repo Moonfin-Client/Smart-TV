@@ -1,0 +1,13 @@
+{
+	"name": "@moonfin/build-webos",
+	"version": "2.0.1",
+	"private": true,
+	"scripts": {
+		"build": "node build.js",
+		"install-tv": "ares-install ./build/*.ipk -d tv",
+		"launch-tv": "ares-launch org.moonfin.webos -d tv"
+	},
+	"devDependencies": {
+		"@webos-tools/cli": "^3.2.1"
+	}
+}
