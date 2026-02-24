@@ -1,5 +1,6 @@
 import {useState, useCallback, useEffect} from 'react';
 import Spottable from '@enact/spotlight/Spottable';
+import SpotlightContainerDecorator from '@enact/spotlight/SpotlightContainerDecorator';
 import Spotlight from '@enact/spotlight';
 import {useAuth} from '../../context/AuthContext';
 import * as jellyfinApi from '../../services/jellyfinApi';
@@ -10,6 +11,7 @@ import css from './Login.module.less';
 const SpottableInput = Spottable('input');
 const SpottableButton = Spottable('button');
 const SpottableDiv = Spottable('div');
+const UserGridContainer = SpotlightContainerDecorator({enterTo: 'last-focused', restrict: 'self-first'}, 'div');
 
 const Login = ({
 	onLoggedIn,
@@ -344,6 +346,10 @@ const Login = ({
 			const userId = e.currentTarget.dataset.userId;
 			const user = publicUsers.find(u => u.Id === userId);
 			if (user) handleUserSelect(user);
+		} else if (e.keyCode === KEYS.DOWN) {
+			e.stopPropagation();
+			e.preventDefault();
+			Spotlight.focus('[data-spotlight-id="manual-login-btn"]');
 		}
 	}, [publicUsers, handleUserSelect]);
 
@@ -443,9 +449,9 @@ const Login = ({
 
 					{step === 'users' && (
 						<div className={css.section}>
-							<h1>{serverInfo?.ServerName || 'Jellyfin'}</h1>
-							<p className={css.subtitle}>Who&apos;s watching?</p>
-							<div className={css.userGrid}>
+							<p className={css.serverLabel}>{serverInfo?.ServerName || 'Jellyfin'}</p>
+							<h1>Who&apos;s watching?</h1>
+							<UserGridContainer className={css.userGrid}>
 								{publicUsers.map((user, index) => (
 									<SpottableDiv
 										key={user.Id}
@@ -463,13 +469,15 @@ const Login = ({
 											/>
 										) : (
 											<div className={css.userAvatarPlaceholder}>
-												{user.Name.charAt(0).toUpperCase()}
+												<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 -960 960 960" fill="#FFFFFF" className={css.placeholderIcon}>
+													<path d="M480-480q-66 0-113-47t-47-113q0-66 47-113t113-47q66 0 113 47t47 113q0 66-47 113t-113 47ZM160-160v-112q0-34 17.5-62.5T224-378q62-31 126-46.5T480-440q66 0 130 15.5T736-378q29 15 46.5 43.5T800-272v112H160Z" />
+												</svg>
 											</div>
 										)}
 										<span className={css.userName}>{user.Name}</span>
 									</SpottableDiv>
 								))}
-							</div>
+							</UserGridContainer>
 							<div className={css.buttonGroup}>
 								<SpottableButton
 									data-spotlight-id="manual-login-btn"

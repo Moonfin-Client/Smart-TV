@@ -46,7 +46,7 @@
 .section {
 	h1 {
 		color: #fff;
-		font-size: 48px;
+		font-size: 42px;
 		font-weight: 700;
 		margin: 0 0 10px 0;
 	}
@@ -63,6 +63,14 @@
 	color: rgba(255, 255, 255, 0.7);
 	font-size: 24px;
 	margin: 0 0 30px 0;
+}
+
+.serverLabel {
+	color: rgba(255, 255, 255, 0.5);
+	font-size: 20px;
+	font-weight: 400;
+	margin: 0 0 6px 0;
+	letter-spacing: 0.5px;
 }
 
 .serverName {
@@ -130,7 +138,9 @@
 	outline: none;
 
 	&:focus {
-		box-shadow: 0 0 0 4px rgba(0, 164, 220, 0.5);
+		background: @accent;
+		border-color: @accent;
+		color: #fff;
 		transform: scale(1.05);
 	}
 
@@ -157,22 +167,21 @@
 	border: 3px solid rgba(255, 255, 255, 0.2);
 
 	&:hover, &:focus {
-		background: rgba(255, 255, 255, 0.25);
+		background: @accent;
+		border-color: @accent;
 	}
 }
 
 .userGrid {
 	display: flex;
 	flex-wrap: nowrap;
-	margin: 30px 0;
+	justify-content: center;
+	margin: 40px 0 20px;
 	overflow-x: auto;
 	overflow-y: hidden;
-	padding: 10px;
+	padding: 10px 0;
 	scroll-behavior: smooth;
-
-	> * + * {
-		margin-left: 30px;
-	}
+	gap: 40px;
 
 	&::-webkit-scrollbar {
 		height: 8px;
@@ -193,28 +202,33 @@
 	display: flex;
 	flex-direction: column;
 	align-items: center;
-	padding: 20px;
-	background: rgba(255, 255, 255, 0.08);
-	border-radius: 16px;
+	padding: 10px;
+	background: transparent;
+	border-radius: 12px;
 	cursor: pointer;
-	transition: all 0.2s ease;
-	border: 4px solid transparent;
-	min-width: 160px;
+	transition: all 0.25s ease;
+	border: none;
+	min-width: 120px;
 	outline: none;
 
 	&:hover, &:focus {
-		background: rgba(255, 255, 255, 0.15);
-		border-color: @accent;
-		transform: scale(1.05);
-		box-shadow: 0 0 0 4px rgba(0, 164, 220, 0.3);
+		background: transparent;
+		transform: scale(1.08);
+
+		.userAvatar, .userAvatarPlaceholder {
+			border-color: @accent;
+			box-shadow: 0 0 0 3px rgba(0, 164, 220, 0.4);
+		}
 	}
 }
 
 .userAvatar, .userAvatarPlaceholder {
-	width: 100px;
-	height: 100px;
+	width: 130px;
+	height: 130px;
 	border-radius: 50%;
-	margin-bottom: 15px;
+	margin-bottom: 14px;
+	border: 3px solid rgba(255, 255, 255, 0.25);
+	transition: all 0.25s ease;
 }
 
 .userAvatar {
@@ -222,19 +236,23 @@
 }
 
 .userAvatarPlaceholder {
-	background: linear-gradient(135deg, @accent, #6366f1);
+	background: transparent;
 	display: flex;
 	align-items: center;
 	justify-content: center;
-	font-size: 40px;
-	font-weight: 600;
-	color: #fff;
+}
+
+.placeholderIcon {
+	width: 80px;
+	height: 80px;
+	fill: #FFFFFF;
 }
 
 .userName {
-	color: #fff;
-	font-size: 22px;
+	color: rgba(255, 255, 255, 0.85);
+	font-size: 20px;
 	font-weight: 500;
+	margin-top: 2px;
 }
 
 .selectedUserInfo {
