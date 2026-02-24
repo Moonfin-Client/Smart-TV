@@ -1,249 +1,416 @@
-/* Favorites Container */
-.favoritesContainer {
-	position: absolute;
-	top: 0;
-	left: 0;
-	right: 0;
-	bottom: 0;
-	overflow-y: auto;
-	overflow-x: hidden;
-	background: #0a0a0a;
-	padding-top: 80px;
+@accent: #00a4dc;
+
+.page {
+position: fixed;
+top: 0;
+left: 0;
+right: 0;
+bottom: 0;
+overflow: hidden;
+background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
 }
 
-/* Header */
+.content {
+position: relative;
+height: 100%;
+display: flex;
+flex-direction: column;
+overflow: visible;
+}
+
 .header {
-	display: flex;
-	align-items: center;
-	padding: 40px 60px 20px;
-	background: linear-gradient(to bottom, rgba(10, 10, 10, 0.98) 0%, rgba(10, 10, 10, 0.8) 100%);
-	position: sticky;
-	top: 0;
-	z-index: 10;
-}
-
-.backButton {
-	background: rgba(255, 255, 255, 0.1);
-	border: 2px solid transparent;
-	border-radius: 50%;
-	width: 56px;
-	height: 56px;
-	min-width: 56px;
-	display: flex;
-	align-items: center;
-	justify-content: center;
-	cursor: pointer;
-	transition: all 0.2s ease;
-	margin-right: 20px;
-	
-	&:focus {
-		outline: none;
-		background: rgba(255, 255, 255, 0.2);
-		border-color: var(--accent-color, #00a4dc);
-		transform: scale(1.1);
-	}
-	
-	svg {
-		width: 28px;
-		height: 28px;
-		fill: white;
-	}
+display: flex;
+align-items: baseline;
+justify-content: center;
+padding: 28px 48px 0;
 }
 
 .title {
-	font-size: 42px;
-	font-weight: 700;
-	color: #ffffff;
-	margin: 0;
+font-size: 42px;
+font-weight: 700;
+color: white;
+letter-spacing: -0.5px;
 }
 
-/* Results */
-.favoritesResults {
-	padding: 20px 60px 60px;
+.itemCount {
+font-size: 18px;
+color: rgba(255, 255, 255, 0.5);
+margin-left: 16px;
+font-weight: 400;
 }
 
-/* Empty State & Loading */
-.emptyState,
-.loadingIndicator {
-	text-align: center;
-	padding: 80px 40px;
-
-	h2 {
-		font-size: 28px;
-		font-weight: 600;
-		margin: 0 0 10px 0;
-		color: rgba(255, 255, 255, 0.9);
-	}
-
-	p {
-		font-size: 18px;
-		color: rgba(255, 255, 255, 0.6);
-		margin: 20px 0 0 0;
-	}
+.toolbar {
+display: flex;
+align-items: center;
+padding: 12px 48px 14px;
 }
 
-/* Results Container */
-.resultsContainer {
-	margin-top: 20px;
+.toolbarBtn {
+background: rgba(255, 255, 255, 0.08);
+border: 2px solid transparent;
+border-radius: 50%;
+width: 52px;
+height: 52px;
+min-width: 52px;
+display: flex;
+align-items: center;
+justify-content: center;
+cursor: pointer;
+transition: all 0.2s ease;
+
+& + & {
+margin-left: 20px;
 }
 
-.resultRow {
-	margin-bottom: 50px;
+&:focus {
+outline: none;
+background: @accent;
+border-color: @accent;
+transform: scale(1.12);
+}
 }
 
-.rowTitle {
-	font-size: 24px;
-	font-weight: 600;
-	margin: 0 0 20px 0;
-	color: #ffffff;
+.toolbarIcon {
+width: 26px;
+height: 26px;
+fill: white;
 }
 
-.rowCount {
-	font-size: 16px;
-	font-weight: 400;
-	color: rgba(255, 255, 255, 0.5);
+.letterNav {
+display: flex;
+align-items: center;
+margin-left: 20px;
+flex: 1;
 }
 
-.rowScroller {
-	overflow: visible;
-	position: relative;
+.letterButton {
+background: none;
+border: 2px solid transparent;
+border-radius: 6px;
+padding: 8px 11px;
+color: rgba(255, 255, 255, 0.55);
+font-size: 17px;
+font-weight: 600;
+cursor: pointer;
+transition: all 0.15s ease;
+
+& + & {
+margin-left: 2px;
 }
 
-.resultItems {
-	display: flex;
-	overflow-x: auto;
-	overflow-y: visible;
-	scroll-behavior: smooth;
-	padding: 40px 0 40px 20px;
-
-	> * + * {
-		margin-left: 20px;
-	}
-
-	&::-webkit-scrollbar {
-		display: none;
-	}
+&:focus {
+outline: none;
+background: rgba(255, 255, 255, 0.15);
+border-color: @accent;
+color: white;
+transform: scale(1.1);
 }
 
-/* Result Card */
-.card {
-	flex-shrink: 0;
-	width: 200px;
-	cursor: pointer;
-	transition: transform 0.3s ease;
-	border-radius: 8px;
-	overflow: visible;
-	transform-origin: center center;
-
-	&:focus {
-		outline: none;
-		transform: scale(1.12);
-		z-index: 10;
-
-		.cardImage {
-			border-color: #ffffff;
-			border-width: 4px;
-		}
-	}
-
-	&:hover {
-		transform: scale(1.05);
-	}
+&.active {
+background: @accent;
+color: white;
+}
 }
 
-.cardImageWrapper {
-	position: relative;
-	width: 100%;
-	padding-top: 150%;
-	background: rgba(255, 255, 255, 0.1);
-	overflow: visible;
-	border-radius: 8px;
+.gridContainer {
+flex: 1;
+overflow: hidden;
+padding: 10px 28px 0;
+
+* {
+overflow: -moz-scrollbars-none;
+-ms-overflow-style: none;
+scrollbar-width: none;
+
+&::-webkit-scrollbar {
+display: none;
+width: 0;
+height: 0;
+}
+}
 }
 
-/* Server Badge for unified mode */
+.grid {
+height: 100%;
+padding: 10px 20px;
+overflow: -moz-scrollbars-none;
+-ms-overflow-style: none;
+scrollbar-width: none;
+
+&::-webkit-scrollbar {
+display: none;
+width: 0;
+height: 0;
+}
+}
+
+.itemCard {
+position: relative;
+cursor: pointer;
+transition: all 0.2s ease;
+border-radius: 8px;
+overflow: visible;
+background: transparent;
+margin: 10px;
+
+&:focus {
+outline: none;
+transform: scale(1.05);
+z-index: 10;
+
+.poster {
+border-color: white;
+}
+}
+}
+
+.poster {
+width: 100%;
+height: 270px;
+object-fit: cover;
+border: 3px solid transparent;
+border-radius: 8px;
+transition: border-color 0.2s ease;
+background: rgba(255, 255, 255, 0.05);
+}
+
+.personPoster {
+border-radius: 50%;
+}
+
 .serverBadge {
-	position: absolute;
-	top: 8px;
-	right: 8px;
-	padding: 4px 8px;
-	background: rgba(0, 0, 0, 0.75);
-	border-radius: 4px;
-	font-size: 12px;
-	color: #ffffff;
-	font-weight: 500;
-	max-width: 120px;
-	overflow: hidden;
-	text-overflow: ellipsis;
-	white-space: nowrap;
-	backdrop-filter: blur(4px);
-	-webkit-backdrop-filter: blur(4px);
-	z-index: 5;
+position: absolute;
+top: 8px;
+left: 8px;
+padding: 4px 8px;
+background: rgba(0, 0, 0, 0.75);
+border-radius: 4px;
+font-size: 12px;
+color: #ffffff;
+font-weight: 500;
+max-width: 120px;
+overflow: hidden;
+text-overflow: ellipsis;
+white-space: nowrap;
+backdrop-filter: blur(4px);
+-webkit-backdrop-filter: blur(4px);
+z-index: 5;
 }
 
-.cardImage {
-	position: absolute;
-	top: 0;
-	left: 0;
-	width: 100%;
-	height: 100%;
-	object-fit: cover;
-	border: 4px solid transparent;
-	border-radius: 8px;
-	transition: border-color 0.2s;
+.posterPlaceholder {
+width: 100%;
+height: 270px;
+border: 3px solid transparent;
+border-radius: 8px;
+background: rgba(255, 255, 255, 0.05);
+display: flex;
+align-items: center;
+justify-content: center;
 }
 
-.cardPlaceholder {
-	position: absolute;
-	top: 50%;
-	left: 50%;
-	transform: translate(-50%, -50%);
-	font-size: 48px;
-	color: rgba(255, 255, 255, 0.2);
+.placeholderIcon {
+width: 60px;
+height: 60px;
+fill: rgba(255, 255, 255, 0.3);
 }
 
-.cardInfo {
-	padding: 12px;
+.statusBar {
+display: flex;
+align-items: center;
+padding: 6px 48px 10px;
 }
 
-.cardTitle {
-	font-size: 16px;
-	font-weight: 600;
-	margin: 0 0 6px 0;
-	color: #ffffff;
-	overflow: hidden;
-	text-overflow: ellipsis;
-	display: -webkit-box;
-	-webkit-line-clamp: 2;
-	-webkit-box-orient: vertical;
-	line-height: 1.3;
+.statusText {
+flex: 1;
+font-size: 14px;
+color: rgba(255, 255, 255, 0.35);
 }
 
-.cardSubtitle {
-	font-size: 14px;
-	color: rgba(255, 255, 255, 0.6);
-	margin: 0;
-	overflow: hidden;
-	text-overflow: ellipsis;
-	white-space: nowrap;
+.statusCount {
+font-size: 14px;
+color: rgba(255, 255, 255, 0.35);
 }
 
-/* Episode Card */
-.episodeCard {
-	width: 350px;
+.loading {
+display: flex;
+align-items: center;
+justify-content: center;
+height: 100%;
 }
 
-.episodeImageWrapper {
-	padding-top: 56.25%; /* 16:9 aspect ratio */
+.empty {
+display: flex;
+flex-direction: column;
+align-items: center;
+justify-content: center;
+height: 100%;
+font-size: 24px;
+color: rgba(255, 255, 255, 0.5);
 }
 
-/* Person Card */
-.personCard {
-	.personImageWrapper {
-		padding-top: 100%;
-		border-radius: 50%;
-	}
+.sortPanelOverlay {
+position: fixed;
+top: 0;
+left: 0;
+right: 0;
+bottom: 0;
+background: rgba(0, 0, 0, 0.45);
+z-index: 100;
+display: flex;
+justify-content: flex-end;
+}
 
-	.personImage {
-		border-radius: 50%;
-	}
+.sortPanel {
+width: 380px;
+height: 100%;
+background: rgba(20, 20, 40, 0.92);
+backdrop-filter: blur(32px) saturate(1.3);
+-webkit-backdrop-filter: blur(32px) saturate(1.3);
+padding: 40px 32px;
+overflow-y: auto;
+scrollbar-width: none;
+-ms-overflow-style: none;
+
+&::-webkit-scrollbar {
+display: none;
+width: 0;
+}
+
+animation: slideIn 0.25s ease-out;
+border-left: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+@keyframes slideIn {
+from {
+transform: translateX(100%);
+}
+to {
+transform: translateX(0);
+}
+}
+
+.sortPanelTitle {
+font-size: 32px;
+font-weight: 700;
+color: white;
+margin: 0 0 32px 0;
+}
+
+.sortSection {
+margin-bottom: 28px;
+}
+
+.filterSection {
+margin-bottom: 28px;
+}
+
+.sortSectionLabel {
+font-size: 15px;
+font-weight: 600;
+color: rgba(255, 255, 255, 0.45);
+text-transform: uppercase;
+letter-spacing: 1px;
+margin-bottom: 16px;
+}
+
+.sortOption {
+display: flex;
+align-items: center;
+width: 100%;
+background: none;
+border: 2px solid transparent;
+border-radius: 8px;
+padding: 14px 16px;
+color: rgba(255, 255, 255, 0.8);
+font-size: 18px;
+cursor: pointer;
+transition: all 0.15s ease;
+
+& + & {
+margin-top: 4px;
+}
+
+&:focus {
+outline: none;
+background: rgba(255, 255, 255, 0.1);
+border-color: @accent;
+color: white;
+}
+
+&.sortOptionActive {
+color: white;
+}
+}
+
+.sortOptionLabel {
+margin-left: 14px;
+font-weight: 500;
+}
+
+.radioCircle {
+display: flex;
+align-items: center;
+justify-content: center;
+width: 22px;
+height: 22px;
+min-width: 22px;
+border-radius: 50%;
+border: 2px solid rgba(255, 255, 255, 0.35);
+transition: border-color 0.15s ease;
+
+.sortOptionActive & {
+border-color: @accent;
+}
+}
+
+.radioFill {
+display: block;
+width: 12px;
+height: 12px;
+border-radius: 50%;
+background: @accent;
+}
+
+.settingsHeader {
+font-size: 14px;
+font-weight: 600;
+color: rgba(255, 255, 255, 0.4);
+text-transform: uppercase;
+letter-spacing: 1.5px;
+margin-bottom: 4px;
+}
+
+.settingRow {
+display: flex;
+flex-direction: column;
+width: 100%;
+background: none;
+border: 2px solid transparent;
+border-radius: 8px;
+padding: 18px 16px;
+cursor: pointer;
+transition: all 0.15s ease;
+text-align: left;
+
+& + & {
+margin-top: 4px;
+}
+
+&:focus {
+outline: none;
+background: rgba(255, 255, 255, 0.1);
+border-color: @accent;
+}
+}
+
+.settingLabel {
+font-size: 19px;
+font-weight: 600;
+color: white;
+}
+
+.settingValue {
+font-size: 16px;
+color: rgba(255, 255, 255, 0.55);
+margin-top: 4px;
 }

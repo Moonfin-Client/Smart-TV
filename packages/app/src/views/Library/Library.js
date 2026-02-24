@@ -49,7 +49,7 @@ const MUSIC_CONTENT_TYPES = [
 
 const LETTERS = ['#', 'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z'];
 
-const Library = ({library, onSelectItem, onViewPhoto, onHome, backHandlerRef}) => {
+const Library = ({library, genreFilter, onSelectItem, onViewPhoto, onHome, backHandlerRef}) => {
 const {api, serverUrl} = useAuth();
 const {settings} = useSettings();
 
@@ -80,7 +80,7 @@ const [showSortPanel, setShowSortPanel] = useState(false);
 const [showSettingsPanel, setShowSettingsPanel] = useState(false);
 const [focusedItem, setFocusedItem] = useState(null);
 const [focusedRatings, setFocusedRatings] = useState([]);
-const libraryId = library?.Id || 'default';
+const libraryId = library?.Id || (genreFilter ? `genre-${genreFilter}` : 'default');
 const [imageSize, setImageSize] = useStorage(`library_imageSize_${libraryId}`, 'medium');
 const [imageType, setImageType] = useStorage(`library_imageType_${libraryId}`, isSquareDefault ? 'square' : 'poster');
 const [gridDirection, setGridDirection] = useStorage(`library_gridDirection_${libraryId}`, 'vertical');
@@ -88,6 +88,7 @@ const [folderView, setFolderView] = useStorage(`library_folderView_${libraryId}`
 const isFolderView = folderView === 'on';
 const [folderStack, setFolderStack] = useState([]);
 const currentFolderId = folderStack.length > 0 ? folderStack[folderStack.length - 1].id : library?.Id;
+const isGenreMode = !!genreFilter;
 
 const loadingMoreRef = useRef(false);
 const apiFetchIndexRef = useRef(0);
@@ -154,7 +155,7 @@ return '';
 }, [library]);
 
 const loadItems = useCallback(async (startIndex = 0, append = false) => {
-if (!library) return;
+if (!library && !genreFilter) return;
 
 if (append && loadingMoreRef.current) return;
 
@@ -188,7 +189,6 @@ if (isFolderView) {
 	setTotalCount(result.TotalRecordCount || 0);
 } else {
 	const params = {
-		ParentId: library.Id,
 		StartIndex: startIndex,
 		Limit: 150,
 		SortBy: sortOption.field,
@@ -198,13 +198,16 @@ if (isFolderView) {
 		Fields: 'ProductionYear,ImageTags,OfficialRating,CommunityRating,CriticRating,RunTimeTicks,ProviderIds,UserData'
 	};
 
+	if (library?.Id) params.ParentId = library.Id;
+	if (genreFilter) params.Genres = genreFilter;
+
 	const itemTypes = getItemTypeForLibrary();
 	if (itemTypes) params.IncludeItemTypes = itemTypes;
 
 	const excludeTypes = getExcludeItemTypes();
 	if (excludeTypes) params.ExcludeItemTypes = excludeTypes;
 
-	const collectionType = library.CollectionType?.toLowerCase();
+	const collectionType = library?.CollectionType?.toLowerCase();
 	if (collectionType === 'movies') params.CollapseBoxSetItems = false;
 
 	if (filters.length > 0) params.Filters = filters.join(',');
@@ -237,10 +240,10 @@ if (isFolderView) {
 setIsLoading(false);
 loadingMoreRef.current = false;
 }
-}, [effectiveApi, library, sortKey, favoritesOnly, watchedOnly, isFolderView, currentFolderId, isMusicLibrary, musicContentType, getItemTypeForLibrary, getExcludeItemTypes]);
+}, [effectiveApi, library, genreFilter, sortKey, favoritesOnly, watchedOnly, isFolderView, currentFolderId, isMusicLibrary, musicContentType, getItemTypeForLibrary, getExcludeItemTypes]);
 
 useEffect(() => {
-if (library) {
+if (library || genreFilter) {
 setIsLoading(true);
 setAllItems([]);
 loadingMoreRef.current = false;
@@ -544,11 +547,14 @@ if (favoritesOnly) filterParts.push('Favorites');
 if (watchedOnly) filterParts.push('Watched');
 const filterLabel = filterParts.length > 0 ? filterParts.join(' & ') : 'All items';
 const folderName = folderStack.length > 0 ? folderStack[folderStack.length - 1].name : library?.Name;
+const displayName = genreFilter || library?.Name || '';
 const statusText = isFolderView
 	? `Browsing folders in '${folderName}' sorted by ${sortLabel}`
-	: `Showing ${filterLabel} from '${library?.Name}' sorted by ${sortLabel}`;
+	: genreFilter
+		? `Showing ${filterLabel} from '${genreFilter}'${library ? ` in '${library.Name}'` : ''} sorted by ${sortLabel}`
+		: `Showing ${filterLabel} from '${library?.Name}' sorted by ${sortLabel}`;
 
-if (!library) {
+if (!library && !genreFilter) {
 return (
 <div className={css.page}>
 <div className={css.empty}>No library selected</div>
@@ -603,7 +609,7 @@ return (
 </div>
 ) : (
 <>
-<div className={css.libraryTitle}>{library.Name}</div>
+<div className={css.libraryTitle}>{displayName}</div>
 <div className={css.itemCount}>{totalCount} Items</div>
 </>
 )}
@@ -789,8 +795,8 @@ className={css.sortPanel}
 spotlightId="settings-panel"
 onClick={(e) => e.stopPropagation()}
 >
-<div className={css.settingsHeader}>LIBRARIES</div>
-<h2 className={css.sortPanelTitle}>{library.Name}</h2>
+<div className={css.settingsHeader}>{isGenreMode ? 'GENRE' : 'LIBRARIES'}</div>
+<h2 className={css.sortPanelTitle}>{displayName}</h2>
 
 <SpottableButton
 className={css.settingRow}
@@ -820,6 +826,7 @@ spotlightId="settings-grid-direction"
 <div className={css.settingLabel}>Grid direction</div>
 <div className={css.settingValue}>{capitalize(gridDirection)}</div>
 </SpottableButton>
+{!isGenreMode && (
 <SpottableButton
 	className={css.settingRow}
 	onClick={handleToggleFolderView}
@@ -828,6 +835,7 @@ spotlightId="settings-grid-direction"
 <div className={css.settingLabel}>Folder view</div>
 <div className={css.settingValue}>{isFolderView ? 'On' : 'Off'}</div>
 </SpottableButton>
+)}
 </SettingsPanelContainer>
 </div>
 )}

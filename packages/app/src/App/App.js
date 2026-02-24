@@ -84,7 +84,7 @@ const AppContent = (props) => {
 	const [selectedLibrary, setSelectedLibrary] = useState(null);
 	const [selectedPerson, setSelectedPerson] = useState(null);
 	const [selectedGenre, setSelectedGenre] = useState(null);
-	const [selectedGenreLibraryId, setSelectedGenreLibraryId] = useState(null);
+	const [genreFilter, setGenreFilter] = useState(null);
 	const [playingItem, setPlayingItem] = useState(null);
 	const [panelHistory, setPanelHistory] = useState([]);
 	const [jellyseerrItem, setJellyseerrItem] = useState(null);
@@ -404,6 +404,7 @@ const AppContent = (props) => {
 			return;
 		}
 		setSelectedLibrary(library);
+		setGenreFilter(null);
 		navigateTo(PANELS.LIBRARY);
 	}, [navigateTo]);
 
@@ -455,10 +456,24 @@ const AppContent = (props) => {
 		navigateTo(PANELS.GENRES);
 	}, [navigateTo]);
 
-	const handleSelectGenre = useCallback((genre, libraryId) => {
-		setSelectedGenre(genre);
-		setSelectedGenreLibraryId(libraryId);
-		navigateTo(PANELS.GENRE_BROWSE);
+	const handleSelectGenre = useCallback((genre, library) => {
+		setGenreFilter(genre.name);
+		if (library) {
+			setSelectedLibrary(library);
+		} else if (genre._serverUrl) {
+			setSelectedLibrary({
+				Id: null,
+				Name: genre.name,
+				_serverUrl: genre._serverUrl,
+				_serverAccessToken: genre._serverAccessToken,
+				_serverUserId: genre._serverUserId,
+				_serverName: genre._serverName,
+				_serverId: genre._serverId
+			});
+		} else {
+			setSelectedLibrary(null);
+		}
+		navigateTo(PANELS.LIBRARY);
 	}, [navigateTo]);
 
 	const handleSelectPerson = useCallback((person) => {
@@ -490,6 +505,7 @@ const AppContent = (props) => {
 		setSelectedLibrary(null);
 		setSelectedPerson(null);
 		setSelectedGenre(null);
+		setGenreFilter(null);
 		setJellyseerrItem(null);
 		setJellyseerrBrowse(null);
 		setJellyseerrPerson(null);
@@ -590,6 +606,8 @@ const AppContent = (props) => {
 		panelIndex !== PANELS.LIBRARY &&
 		panelIndex !== PANELS.ADD_SERVER &&
 		panelIndex !== PANELS.ADD_USER &&
+		panelIndex !== PANELS.GENRES &&
+		panelIndex !== PANELS.FAVORITES &&
 		!(panelIndex === PANELS.DETAILS && ['Playlist', 'MusicAlbum', 'MusicArtist'].includes(selectedItem?.Type));
 
 	return (
@@ -649,9 +667,11 @@ const AppContent = (props) => {
 					<Panel>
 						{panelIndex === PANELS.LIBRARY && (
 							<Library
-								library={selectedLibrary}
-								onSelectItem={handleSelectItem}
-								onViewPhoto={handleViewPhoto}							onHome={handleHome}
+							library={selectedLibrary}
+							genreFilter={genreFilter}
+							onSelectItem={handleSelectItem}
+							onViewPhoto={handleViewPhoto}
+							onHome={handleHome}
 								backHandlerRef={backHandlerRef}
 						/>
 						)}
@@ -682,12 +702,12 @@ const AppContent = (props) => {
 					</Panel>
 					<Panel>
 						{panelIndex === PANELS.FAVORITES && (
-							<Favorites onSelectItem={handleSelectItem} />
+							<Favorites onSelectItem={handleSelectItem} onSelectPerson={handleSelectPerson} onHome={handleHome} backHandlerRef={backHandlerRef} />
 						)}
 					</Panel>
 					<Panel>
 						{panelIndex === PANELS.GENRES && (
-							<Genres onSelectGenre={handleSelectGenre} backHandlerRef={backHandlerRef} />
+							<Genres onSelectGenre={handleSelectGenre} onHome={handleHome} backHandlerRef={backHandlerRef} />
 						)}
 					</Panel>
 					<Panel>
@@ -738,7 +758,6 @@ const AppContent = (props) => {
 						{panelIndex === PANELS.GENRE_BROWSE && (
 							<GenreBrowse
 								genre={selectedGenre}
-								libraryId={selectedGenreLibraryId}
 								onSelectItem={handleSelectItem}
 							backHandlerRef={backHandlerRef}
 						/>
