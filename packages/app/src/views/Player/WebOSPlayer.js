@@ -239,6 +239,9 @@ const Player = ({item, resume, initialAudioIndex, initialSubtitleIndex, onEnded,
 			setIsLoading(true);
 			setError(null);
 			setHasTriedTranscode(false);
+			setCurrentTime(0);
+			setSeekPosition(0);
+			setIsSeeking(false);
 
 			resetPopups();
 			setNextEpisode(null);
@@ -468,6 +471,9 @@ const Player = ({item, resume, initialAudioIndex, initialSubtitleIndex, onEnded,
 				try { videoElement.pause(); } catch (e) { /* ignore */ }
 				videoElement.src = '';
 				videoElement.removeAttribute('src');
+				if (videoElement.srcObject) {
+					videoElement.srcObject = null;
+				}
 			}
 		};
 	}, [item, resume, selectedQuality, settings.maxBitrate, settings.preferTranscode, settings.forceDirectPlay, settings.subtitleMode, settings.skipIntro, initialAudioIndex, initialSubtitleIndex]);
@@ -498,6 +504,14 @@ const Player = ({item, resume, initialAudioIndex, initialSubtitleIndex, onEnded,
 				console.warn('[Player] seekInTranscode: reportStop failed:', e);
 			}
 
+			destroyHlsPlayer();
+			const video = videoRef.current;
+			if (video) {
+				try { video.pause(); } catch (e) { /* ignore */ }
+				video.src = '';
+				video.removeAttribute('src');
+			}
+
 			const result = await playback.getPlaybackInfo(item.Id, {
 				startPositionTicks: seekPositionTicks,
 				maxBitrate: selectedQuality || settings.maxBitrate,
@@ -525,9 +539,9 @@ const Player = ({item, resume, initialAudioIndex, initialSubtitleIndex, onEnded,
 			}
 		} catch (err) {
 			console.error('[Player] seekInTranscode failed:', err);
-			sourceTransitionRef.current = false;
 			setError('Failed to seek - please try again');
 		} finally {
+			sourceTransitionRef.current = false;
 			seekingTranscodeRef.current = false;
 
 			if (lastSeekTargetRef.current !== null && lastSeekTargetRef.current !== seekPositionTicks) {
@@ -541,7 +555,8 @@ const Player = ({item, resume, initialAudioIndex, initialSubtitleIndex, onEnded,
 		const baseTime = (playMethod === 'Transcode')
 			? ((lastSeekTargetRef.current != null ? lastSeekTargetRef.current : positionRef.current) / 10000000)
 			: (videoRef.current ? videoRef.current.currentTime : 0);
-		const newTime = Math.max(0, Math.min(duration, baseTime + deltaSec));
+		const maxSeek = Math.max(0, duration - 1);
+		const newTime = Math.max(0, Math.min(maxSeek, baseTime + deltaSec));
 		const newTicks = Math.floor(newTime * 10000000);
 		if (updateSeekPosition) setSeekPosition(newTicks);
 		positionRef.current = newTicks;
@@ -553,18 +568,28 @@ const Player = ({item, resume, initialAudioIndex, initialSubtitleIndex, onEnded,
 				seekInTranscode(lastSeekTargetRef.current);
 			}, 600);
 		} else if (videoRef.current) {
-			videoRef.current.currentTime = newTime;
+			try {
+				videoRef.current.currentTime = newTime;
+			} catch (e) {
+				console.warn('[Player] seekByOffset: failed to set currentTime:', e);
+			}
 		}
 	}, [duration, playMethod, seekInTranscode]);
 
 	const seekToTicks = useCallback((ticks) => {
 		if (!videoRef.current) return;
-		positionRef.current = ticks;
-		lastSeekTargetRef.current = ticks;
+		const maxTicks = Math.max(0, runTimeRef.current - 10000000); // 1s before end
+		const clampedTicks = Math.max(0, Math.min(ticks, maxTicks));
+		positionRef.current = clampedTicks;
+		lastSeekTargetRef.current = clampedTicks;
 		if (playMethod === 'Transcode') {
-			seekInTranscode(ticks);
+			seekInTranscode(clampedTicks);
 		} else {
-			videoRef.current.currentTime = ticks / 10000000;
+			try {
+				videoRef.current.currentTime = clampedTicks / 10000000;
+			} catch (e) {
+				console.warn('[Player] seekToTicks: failed to set currentTime:', e);
+			}
 		}
 	}, [playMethod, seekInTranscode]);
 
@@ -1060,6 +1085,8 @@ const Player = ({item, resume, initialAudioIndex, initialSubtitleIndex, onEnded,
 			}
 		}
 
+		destroyHlsPlayer();
+		await cleanupVideoElement(videoRef.current);
 		setError(errorMessage);
 		} finally {
 			isHandlingErrorRef.current = false;
@@ -1426,6 +1453,9 @@ const Player = ({item, resume, initialAudioIndex, initialSubtitleIndex, onEnded,
 					}
 					return;
 				}
+				if ((key === 'Enter' || e.keyCode === 13) && (showSkipIntro || showSkipCredits || showNextEpisode)) {
+					return;
+				}
 				e.preventDefault();
 				showControls();
 				return;
@@ -1458,8 +1488,7 @@ const Player = ({item, resume, initialAudioIndex, initialSubtitleIndex, onEnded,
 				}
 			}
 
-			// Play/Pause with Enter when controls not focused
-			if ((key === 'Enter' || e.keyCode === 13) && !controlsVisible) {
+			if ((key === 'Enter' || e.keyCode === 13) && !controlsVisible && !showSkipIntro && !showSkipCredits && !showNextEpisode) {
 				handlePlayPause();
 				return;
 			}
@@ -1467,7 +1496,7 @@ const Player = ({item, resume, initialAudioIndex, initialSubtitleIndex, onEnded,
 
 		window.addEventListener('keydown', handleKeyDown, true);
 		return () => window.removeEventListener('keydown', handleKeyDown, true);
-	}, [controlsVisible, activeModal, closeModal, hideControls, handleBack, showControls, handlePlayPause, handleForward, handleRewind, currentTime, settings.seekStep, seekByOffset, handlePopupKeyDown, bottomButtons.length]);
+	}, [controlsVisible, activeModal, closeModal, hideControls, handleBack, showControls, handlePlayPause, handleForward, handleRewind, currentTime, settings.seekStep, seekByOffset, handlePopupKeyDown, bottomButtons.length, showSkipIntro, showSkipCredits, showNextEpisode]);
 
 	const displayTime = isSeeking ? (seekPosition / 10000000) : currentTime;
 	const progressPercent = duration > 0 ? (displayTime / duration) * 100 : 0;

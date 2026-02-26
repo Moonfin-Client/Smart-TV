@@ -390,7 +390,7 @@ export const getAudioOutputInfo = async () => {
 };
 
 let _lastCleanupTimestamp = 0;
-const DECODER_RELEASE_MS = 2000;
+const DECODER_RELEASE_MS = 3000;
 
 export const waitForDecoderRelease = async () => {
 	if (_lastCleanupTimestamp === 0) return;
