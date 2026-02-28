@@ -1463,7 +1463,13 @@ const Player = ({item, resume, initialAudioIndex, initialSubtitleIndex, onEnded,
 				handleBack();
 				return;
 			}
-
+			
+			if ((key === 'Enter' || e.keyCode === 13) && !controlsVisible && !showSkipIntro && !showSkipCredits && !showNextEpisode) {
+				e.preventDefault();
+				handlePlayPause();
+				return;
+			}
+			
 			// Left/Right when controls hidden -> show controls and focus on seekbar
 			if (!controlsVisible && !activeModal) {
 				if (key === 'ArrowLeft' || e.keyCode === 37 || key === 'ArrowRight' || e.keyCode === 39) {
@@ -1516,10 +1522,6 @@ const Player = ({item, resume, initialAudioIndex, initialSubtitleIndex, onEnded,
 				}
 			}
 
-			if ((key === 'Enter' || e.keyCode === 13) && !controlsVisible && !showSkipIntro && !showSkipCredits && !showNextEpisode) {
-				handlePlayPause();
-				return;
-			}
 		};
 
 		window.addEventListener('keydown', handleKeyDown, true);
