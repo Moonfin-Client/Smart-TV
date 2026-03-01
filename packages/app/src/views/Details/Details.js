@@ -823,13 +823,13 @@ const handleSectionKeyDown = useCallback((ev) => {
 		const endTime = new Date(Date.now() + item.RunTimeTicks / 10000);
 		const hours = endTime.getHours();
 		const minutes = endTime.getMinutes();
-		if (settings.clockDisplay === '12-hour'){
+		if (settings.clockDisplay === '12-hour') {
 			const ampm = hours >= 12 ? 'PM' : 'AM';
 			const h = hours % 12 || 12;
 			const m = minutes < 10 ? '0' + minutes : minutes;
 			return `Ends at ${h}:${m} ${ampm}`;
-		}else{
-			const h = hours;
+		} else {
+			const h = hours.toString().padStart(2, '0');
 			const m = minutes < 10 ? '0' + minutes : minutes;
 			return `Ends at ${h}:${m}`;
 		}

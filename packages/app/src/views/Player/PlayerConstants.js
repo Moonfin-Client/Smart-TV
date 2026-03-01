@@ -34,12 +34,12 @@ export const formatEndTime = (remainingSeconds, clockDisplay) => {
 	now.setSeconds(now.getSeconds() + remainingSeconds);
 	const hours = now.getHours();
 	const minutes = now.getMinutes();
-	if (clockDisplay === '12-hour'){
+	if (clockDisplay === '12-hour') {
 		const ampm = hours >= 12 ? 'PM' : 'AM';
 		const h12 = hours % 12 || 12;
 		return `Ends at ${h12}:${minutes.toString().padStart(2, '0')} ${ampm}`;
-	}else{
-		return `Ends at ${hours}:${minutes.toString().padStart(2, '0')}`;	
+	} else {
+		return `Ends at ${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
 	}
 };
 
