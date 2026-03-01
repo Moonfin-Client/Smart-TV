@@ -663,6 +663,7 @@ const Settings = ({onBack, onLibrariesChanged}) => {
 					() => openOptionDialog('Clock Display', CLOCK_DISPLAY_OPTIONS, 'clockDisplay'),
 					'setting-clockDisplay'
 				)}
+				{renderToggleItem('Show Clock', 'Show or hide Clock on Home Screen', 'showClock')}
 				{renderToggleItem('Auto Login', 'Automatically sign in on app launch', 'autoLogin')}
 			</div>
 			{hasMultipleServers && (
