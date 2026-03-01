@@ -47,7 +47,6 @@ const NavBar = ({
 
 	useEffect(() => {
 		if (settings.showClock === false) {
-			clearInterval(interval);
 			return;
 		}
 		const updateClock = () => {

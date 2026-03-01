@@ -30,7 +30,6 @@ export const formatTime = (seconds) => {
 };
 
 export const formatEndTime = (remainingSeconds, clockDisplay) => {
-	const { settings } = useSettings();
 	const now = new Date();
 	now.setSeconds(now.getSeconds() + remainingSeconds);
 	const hours = now.getHours();
