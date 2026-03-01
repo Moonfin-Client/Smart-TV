@@ -1,3 +1,5 @@
+import {buildQueryString} from './urlCompat';
+
 export const formatDuration = (ticks) => {
 	if (!ticks) return '';
 	const totalMinutes = Math.floor(ticks / 600000000);
@@ -17,13 +19,12 @@ export const formatDate = (dateString) => {
 
 export const getImageUrl = (serverUrl, itemId, imageType = 'Primary', options = {}) => {
 	if (!serverUrl || !itemId) return null;
-	// Build query string manually for Chromium 47 compat (no URLSearchParams)
-	const queryParts = [];
-	if (options.maxWidth) queryParts.push('maxWidth=' + encodeURIComponent(options.maxWidth));
-	if (options.maxHeight) queryParts.push('maxHeight=' + encodeURIComponent(options.maxHeight));
-	if (options.quality) queryParts.push('quality=' + encodeURIComponent(options.quality));
-	if (options.tag) queryParts.push('tag=' + encodeURIComponent(options.tag));
-	const queryString = queryParts.join('&');
+	const params = {};
+	if (options.maxWidth) params.maxWidth = options.maxWidth;
+	if (options.maxHeight) params.maxHeight = options.maxHeight;
+	if (options.quality) params.quality = options.quality;
+	if (options.tag) params.tag = options.tag;
+	const queryString = buildQueryString(params);
 	return `${serverUrl}/Items/${itemId}/Images/${imageType}${queryString ? '?' + queryString : ''}`;
 };
 

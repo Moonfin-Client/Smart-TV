@@ -9,12 +9,15 @@
 	"scripts": {
 		"build:webos": "cd packages/build-webos && node build.js",
 		"build:tizen": "cd packages/build-tizen && node scripts/build-wgt.js",
-		"build:tizen24": "cd packages/build-tizen && node scripts/build-wgt.js --tizen24",
+		"build:tizen:legacy": "cd packages/build-tizen && node scripts/build-wgt.js --legacy",
 		"dev:webos": "cd packages/app && npm run serve",
 		"dev:tizen": "cd packages/app && PLATFORM=tizen npm run serve"
 	},
 	"devDependencies": {
 		"@enact/cli": "^7.2.1",
 		"eslint-config-enact-proxy": "^1.0.7"
+	},
+	"dependencies": {
+		"whatwg-fetch": "^3.6.20"
 	}
 }

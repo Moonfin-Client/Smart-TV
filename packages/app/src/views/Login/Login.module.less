@@ -36,7 +36,7 @@
 }
 
 .contentWrapper {
-	background: rgba(0, 0, 0, 0.5);
+	background: rgba(0, 0, 0, 0.75);
 	backdrop-filter: blur(10px);
 	border-radius: 20px;
 	padding: 50px 40px;
@@ -181,7 +181,10 @@
 	overflow-y: hidden;
 	padding: 10px 0;
 	scroll-behavior: smooth;
-	gap: 40px;
+
+	> * + * {
+		margin-left: 40px;
+	}
 
 	&::-webkit-scrollbar {
 		height: 8px;

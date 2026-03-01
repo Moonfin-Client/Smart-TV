@@ -4,6 +4,7 @@ import {initStorage, getFromStorage, saveToStorage, removeFromStorage} from '../
 import * as multiServerManager from '../services/multiServerManager';
 import {clearImageCache} from '../services/imageProxy';
 import {clearProxiedImageCache} from '../hooks/useProxiedImage';
+import {parseUrl} from '../utils/urlCompat';
 
 // Clear all memory caches - call on logout or server switch
 const clearAllCaches = () => {
@@ -123,7 +124,7 @@ export const AuthProvider = ({children}) => {
 		let finalServerName = sName;
 		if (!finalServerName) {
 			try {
-				const url = new URL(server);
+				const url = parseUrl(server);
 				finalServerName = url.hostname;
 			} catch (e) {
 				finalServerName = 'Jellyfin Server';
@@ -178,7 +179,7 @@ export const AuthProvider = ({children}) => {
 		let finalServerName = sName;
 		if (!finalServerName) {
 			try {
-				const url = new URL(server);
+				const url = parseUrl(server);
 				finalServerName = url.hostname;
 			} catch (e) {
 				finalServerName = 'Jellyfin Server';

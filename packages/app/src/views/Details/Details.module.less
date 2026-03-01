@@ -1476,7 +1476,10 @@
 	align-items: center;
 	margin-left: 12px;
 	flex-shrink: 0;
-	gap: 2px;
+
+	> * + * {
+		margin-top: 2px;
+	}
 }
 
 .reorderArrow {

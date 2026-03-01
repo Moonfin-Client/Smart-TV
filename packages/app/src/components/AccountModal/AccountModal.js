@@ -3,6 +3,7 @@ import Spottable from '@enact/spotlight/Spottable';
 import Popup from '@enact/sandstone/Popup';
 import Button from '@enact/sandstone/Button';
 import {useAuth} from '../../context/AuthContext';
+import {parseUrl} from '../../utils/urlCompat';
 
 import css from './AccountModal.module.less';
 
@@ -142,6 +143,8 @@ const AccountModal = ({
 								{servers.map((server, index) => {
 									const isActive = activeServerInfo?.serverId === server.serverId &&
 										activeServerInfo?.userId === server.userId;
+									let displayHost = server.url;
+									try { displayHost = parseUrl(server.url).hostname; } catch (e) { /* keep raw URL */ }
 									return (
 										<div
 											key={`${server.serverId}-${server.userId}`}
@@ -163,7 +166,7 @@ const AccountModal = ({
 													<span className={css.serverItemUsername}>{server.username}</span>
 												</div>
 												<div className={css.serverItemServer}>
-													{server.name} ({new URL(server.url).hostname})
+													{server.name} ({displayHost})
 												</div>
 											</div>
 											<div className={css.serverItemActions}>

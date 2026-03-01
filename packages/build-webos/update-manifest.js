@@ -10,7 +10,8 @@ const version = packageJson.version;
 
 // Generate IPK filename
 const ipkFilename = `org.moonfin.webos_${version}_all.ipk`;
-const ipkPath = path.join('./build', ipkFilename);
+const rootDir = path.resolve(__dirname, '..', '..');
+const ipkPath = path.join(rootDir, ipkFilename);
 
 // Check if IPK exists
 if (!fs.existsSync(ipkPath)) {

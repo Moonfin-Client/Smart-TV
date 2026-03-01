@@ -1,10 +1,11 @@
 /**
- * Post-install patch for Tizen 2.4 (Chromium ~47) compatibility.
+ * Post-install patch for legacy smart TV compatibility.
+ * Targets: Tizen 2.4 (WebKit r152340), webOS 3.x (Chromium 38)
  *
  * Patches @enact/cli and @enact/ui to work without CSS custom properties support.
  *
- * Run automatically via: "postinstall": "node scripts/patch-enact-tizen24.js"
- * Or manually:           node scripts/patch-enact-tizen24.js
+ * Run automatically via: "postinstall": "node scripts/patch-enact-legacy.js"
+ * Or manually:           node scripts/patch-enact-legacy.js
  */
 
 const fs = require('fs');
@@ -243,27 +244,15 @@ console.log('\n[Patch 4] Slider — direct inline knob positioning');
 patchFile('@enact/ui/Slider/Slider.js', [
 	{
 		find: `      return _objectSpread(_objectSpread({}, _style), {}, {
-        '--ui-slider-proportion-end-knob': proportion
-      });`,
-		replace: `      return _objectSpread(_objectSpread({}, _style), {}, {
         '--ui-slider-proportion-end-knob': proportion,
         '--slider-knob-pct': (proportion * 100) + '%'
       });`,
-		description: 'Add computed knob percentage alongside CSS var'
+		replace: `      return _objectSpread(_objectSpread({}, _style), {}, {
+        '--ui-slider-proportion-end-knob': proportion
+      });`,
+		description: 'Remove dead --slider-knob-pct var; --ui-slider-proportion-end-knob retained for Enact internal use'
 	}
 ]);
-
-// Patch the Slider render to pass the knob position to the knob element.
-// First, let me read how the knob is rendered to patch it correctly.
-// The knob component gets its position from CSS. We need to make it use inline style instead.
-// The simplest approach: patch the Sandstone Slider CSS to not depend on the var,
-// and instead have the JS apply the style. But Sandstone's Slider.js wraps @enact/ui/Slider,
-// so let's check if we can patch at the Sandstone level.
-
-// Actually, the cleanest approach: patch the @enact/sandstone/Slider CSS to use a fallback
-// that works, and patch the @enact/ui/Slider render to pass knob position as inline style.
-
-// Let's read the ui/Slider render to see how the knob is rendered.
 
 // ─────────────────────────────────────────────────────────────────────────────
 // PATCH 5: Scrollbar — replace setCSSVariable with direct DOM style setting
@@ -356,4 +345,4 @@ patchFile('@enact/ui/useScroll/Scrollbar.js', [
 // ─────────────────────────────────────────────────────────────────────────────
 // Summary
 // ─────────────────────────────────────────────────────────────────────────────
-console.log(`\n✓ Tizen 2.4 patches complete: ${patchCount} files modified, ${skipCount} skipped\n`);
+console.log(`\n✓ Legacy patches complete: ${patchCount} files modified, ${skipCount} skipped\n`);

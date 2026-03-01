@@ -1,4 +1,11 @@
-/* global ENACT_PACK_ISOMORPHIC, Element */
+/* global ENACT_PACK_ISOMORPHIC, Element, NodeList */
+import 'whatwg-fetch';
+
+// NodeList.forEach polyfill for Tizen 2.4 WebKit (missing from babel-preset-enact's core-js exclusions)
+if (typeof NodeList !== 'undefined' && !NodeList.prototype.forEach) {
+	NodeList.prototype.forEach = Array.prototype.forEach;
+}
+
 import {createRoot, hydrateRoot} from 'react-dom/client';
 
 import App from './App';
@@ -19,7 +26,7 @@ if (typeof Element !== 'undefined' && !Element.prototype.scrollTo) {
 }
 
 // Polyfill: Slider knob positioning for browsers without CSS custom properties
-// (e.g. Tizen 2.4 / Chromium ~47). No-op on modern browsers.
+// (e.g. Tizen 2.4 / WebKit r152340). No-op on modern browsers.
 (function () {
 	if (typeof window === 'undefined') return;
 	if (window.CSS && window.CSS.supports && window.CSS.supports('--a', '0')) return;

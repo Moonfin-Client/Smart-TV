@@ -1,2 +1,5 @@
-# Browsers for Samsung Tizen compatibility
+# Legacy smart TV compatibility
+# Tizen 3.0+ / webOS 4.x+ use Chromium (M47+)
+# Tizen 2.4 uses WebKit r152340 (~Safari 9-10), webOS 3.x uses Chromium 38
 chrome >= 38
+safari >= 9

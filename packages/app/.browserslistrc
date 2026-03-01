@@ -1,2 +1,4 @@
-# Browsers for webOS 4 compatibility
+# Smart TV browser targets
+# Covers Tizen 2.4 (WebKit r152340), webOS 3.x (Chromium 38), and all newer models
 chrome >= 38
+safari >= 9

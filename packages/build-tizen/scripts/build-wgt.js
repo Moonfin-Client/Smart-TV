@@ -8,9 +8,8 @@
  *   npm run install-tv     - Build and install to connected TV
  *
  * Flags:
- *   --tizen24              - Target Tizen 2.4 (2016 K-series, Chromium ~47)
- *                            Applies CSS compatibility patches, strips Tizen 4+
- *                            service block and metadata from config.xml
+ *   --legacy               - Target Tizen 2.4 (strips Smart Hub Preview service
+ *                            and Tizen 4+ metadata from config.xml)
  */
 
 const { execSync, spawn } = require('child_process');
@@ -26,8 +25,8 @@ const TIZEN_DIR = path.join(ROOT, 'tizen');
 const args = process.argv.slice(2);
 const isSigned = args.includes('--signed');
 const shouldInstall = args.includes('--install');
-const isDev = args.includes('--dev');  // Use --dev for debug builds
-const isTizen24 = args.includes('--tizen24');  // Target Tizen 2.4 (2016 K-series, Chromium ~47)
+const isDev = args.includes('--dev');
+const isLegacy = args.includes('--legacy');
 
 // ── Optional version bump: npm run build:tizen -- 2.2.0 ──
 const versionArg = args.find(a => /^\d+\.\d+\.\d+$/.test(a));
@@ -165,7 +164,7 @@ function findDir(base, target) {
 async function main() {
 	console.log('\n' + cyan('═'.repeat(50)));
 	console.log(cyan('  Moonfin Tizen Build'));
-	if (isTizen24) console.log(cyan('  Target: Tizen 2.4 (2016 K-series)'));
+	if (isLegacy) console.log(cyan('  Target: Tizen 2.4 (no Smart Hub Preview)'));
 	console.log(cyan('═'.repeat(50)) + '\n');
 	
 	// Step 1: Find Tizen CLI
@@ -178,18 +177,14 @@ async function main() {
 	}
 	success(`Found Tizen CLI: ${tizenCLI}`);
 	
-	// Step 2: Apply Tizen 2.4 compatibility patches (only when --tizen24 flag is set)
-	if (isTizen24) {
-		log('Applying Tizen 2.4 compatibility patches...');
-		try {
-			require(path.join(REPO_ROOT, 'scripts', 'patch-enact-tizen24.js'));
-			success('Tizen 2.4 patches applied');
-		} catch (e) {
-			error('Failed to apply Tizen 2.4 patches: ' + e.message);
-			process.exit(1);
-		}
-	} else {
-		log('Skipping Tizen 2.4 patches (use --tizen24 to enable)');
+	// Step 2: Apply Enact compatibility patches
+	log('Applying Enact compatibility patches...');
+	try {
+		require(path.join(REPO_ROOT, 'scripts', 'patch-enact-legacy.js'));
+		success('Patches applied');
+	} catch (e) {
+		error('Failed to apply patches: ' + e.message);
+		process.exit(1);
 	}
 
 	// Step 3: Build Enact app
@@ -235,6 +230,8 @@ async function main() {
 		let html = fs.readFileSync(indexPath, 'utf8');
 		
 		// Add XHR patch script before the main.js script tag
+		// Note: whatwg-fetch polyfill uses XHR internally. This patch only intercepts
+		// URLs containing 'file://', 'ilib', or 'locale' which won't match Jellyfin API calls.
 		const xhrPatch = `<script>
 // Patch XMLHttpRequest for Tizen file:// protocol compatibility
 // ilib tries to load locale files via XHR which fails on file:// URLs
@@ -283,8 +280,8 @@ async function main() {
 	success('Copied config.xml and icons');
 	
 	// Step 3.5: Copy Smart Hub Preview background service (Tizen 4+ only)
-	if (isTizen24) {
-		log('Skipping Smart Hub Preview service (not supported on Tizen 2.4)');
+	if (isLegacy) {
+		log('Skipping Smart Hub Preview service (not supported on legacy targets)');
 	} else {
 		const serviceDir = path.join(TIZEN_DIR, 'service');
 		const distServiceDir = path.join(DIST, 'service');
@@ -296,8 +293,8 @@ async function main() {
 		}
 	}
 
-	// Step 3.6: Strip Tizen 4+ elements from config.xml for Tizen 2.4
-	if (isTizen24) {
+	// Step 3.6: Strip Tizen 4+ elements from config.xml for legacy targets
+	if (isLegacy) {
 		log('Stripping Tizen 4+ elements from config.xml...');
 		const configPath = path.join(DIST, 'config.xml');
 		if (fs.existsSync(configPath)) {

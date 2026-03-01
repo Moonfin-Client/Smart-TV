@@ -80,6 +80,10 @@ const ENACT_ALIAS = JSON.stringify({
 try {
 	console.log(' Building Moonfin for webOS...\n');
 
+	// Apply Enact compatibility patches
+	console.log('Applying Enact compatibility patches...');
+	require(path.join(ROOT_DIR, 'scripts', 'patch-enact-legacy.js'));
+
 	// Clean previous build
 	console.log('Cleaning previous build...');
 	run('npx enact clean', {cwd: APP_DIR});
@@ -170,8 +174,7 @@ try {
 			fs.copyFileSync(path.join(webosMeta, file), path.join(DIST_DIR, file));
 		}
 	}
-	fs.mkdirSync('build', {recursive: true});
-	run(`npx ares-package ${DIST_DIR} -o ./build --no-minify`);
+	run(`npx ares-package ${DIST_DIR} -o ${ROOT_DIR} --no-minify`);
 
 	// Update manifest with version and hash
 	console.log('\n Updating manifest...');

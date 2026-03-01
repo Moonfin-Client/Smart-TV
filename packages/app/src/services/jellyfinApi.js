@@ -1,4 +1,5 @@
 import packageJson from '../../package.json';
+import {parseUrl, buildQueryString} from '../utils/urlCompat';
 const APP_VERSION = packageJson.version;
 
 const APP_NAME = 'Moonfin for webOS';
@@ -21,9 +22,11 @@ export const setServer = (serverUrl) => {
 		url = 'http://' + url;
 	}
 
-	const urlObj = new URL(url);
+	const urlObj = parseUrl(url);
 	if (!urlObj.port && urlObj.protocol === 'http:') {
 		urlObj.port = '8096';
+		urlObj.host = urlObj.hostname + ':8096';
+		urlObj.origin = urlObj.protocol + '//' + urlObj.host;
 	}
 
 	currentServer = urlObj.toString().replace(/\/+$/, '');
@@ -304,12 +307,9 @@ export const api = {
 
 	// Music API methods
 	getAlbumArtists: (params = {}) => {
-		const query = new URLSearchParams({
-			userId: currentUser,
-			Recursive: 'true',
-			...Object.fromEntries(Object.entries(params).map(([k, v]) => [k, String(v)]))
-		});
-		return request(`/Artists/AlbumArtists?${query.toString()}`);
+		const merged = {userId: currentUser, Recursive: 'true'};
+		Object.keys(params).forEach(function (k) { merged[k] = String(params[k]); });
+		return request(`/Artists/AlbumArtists?${buildQueryString(merged)}`);
 	},
 
 	getAlbumsByArtist: (artistId, limit = 100) =>
@@ -490,12 +490,9 @@ export const createApiForServer = (serverUrl, token, userId) => {
 
 		// Music API methods
 		getAlbumArtists: (params = {}) => {
-			const query = new URLSearchParams({
-				userId: userId,
-				Recursive: 'true',
-				...Object.fromEntries(Object.entries(params).map(([k, v]) => [k, String(v)]))
-			});
-			return serverRequest(`/Artists/AlbumArtists?${query.toString()}`);
+			const merged = {userId: userId, Recursive: 'true'};
+			Object.keys(params).forEach(function (k) { merged[k] = String(params[k]); });
+			return serverRequest(`/Artists/AlbumArtists?${buildQueryString(merged)}`);
 		},
 
 		getAlbumsByArtist: (artistId, limit = 100) =>
