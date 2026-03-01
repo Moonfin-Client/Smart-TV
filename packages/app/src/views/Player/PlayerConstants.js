@@ -1,5 +1,6 @@
 import Spottable from '@enact/spotlight/Spottable';
 import SpotlightContainerDecorator from '@enact/spotlight/SpotlightContainerDecorator';
+import { useSettings } from '../../context/SettingsContext';
 
 export const SpottableButton = Spottable('button');
 export const SpottableDiv = Spottable('div');
@@ -29,14 +30,19 @@ export const formatTime = (seconds) => {
 	return `${m}:${s.toString().padStart(2, '0')}`;
 };
 
-export const formatEndTime = (remainingSeconds) => {
+export const useFormatEndTime = (remainingSeconds) => {
+	const { settings } = useSettings();
 	const now = new Date();
 	now.setSeconds(now.getSeconds() + remainingSeconds);
 	const hours = now.getHours();
 	const minutes = now.getMinutes();
-	const ampm = hours >= 12 ? 'PM' : 'AM';
-	const h12 = hours % 12 || 12;
-	return `Ends at ${h12}:${minutes.toString().padStart(2, '0')} ${ampm}`;
+	if (settings.clockDisplay === '12'){
+		const ampm = hours >= 12 ? 'PM' : 'AM';
+		const h12 = hours % 12 || 12;
+		return `Ends at ${h12}:${minutes.toString().padStart(2, '0')} ${ampm}`;
+	}else{
+		return `Ends at ${hours}:${minutes.toString().padStart(2, '0')}`;	
+	}
 };
 
 export const PLAYBACK_RATES = [0.5, 0.75, 1, 1.25, 1.5, 2];

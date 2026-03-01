@@ -823,10 +823,16 @@ const handleSectionKeyDown = useCallback((ev) => {
 		const endTime = new Date(Date.now() + item.RunTimeTicks / 10000);
 		const hours = endTime.getHours();
 		const minutes = endTime.getMinutes();
-		const ampm = hours >= 12 ? 'PM' : 'AM';
-		const h = hours % 12 || 12;
-		const m = minutes < 10 ? '0' + minutes : minutes;
-		return `Ends at ${h}:${m} ${ampm}`;
+		if (settings.clockDisplay === '12-hour'){
+			const ampm = hours >= 12 ? 'PM' : 'AM';
+			const h = hours % 12 || 12;
+			const m = minutes < 10 ? '0' + minutes : minutes;
+			return `Ends at ${h}:${m} ${ampm}`;
+		}else{
+			const h = hours;
+			const m = minutes < 10 ? '0' + minutes : minutes;
+			return `Ends at ${h}:${m}`;
+		}
 	})();
 	const officialRating = item.OfficialRating || '';
 	const communityRating = item.CommunityRating ? item.CommunityRating.toFixed(1) : '';
