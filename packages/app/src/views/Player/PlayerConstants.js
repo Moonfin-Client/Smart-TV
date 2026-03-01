@@ -30,13 +30,13 @@ export const formatTime = (seconds) => {
 	return `${m}:${s.toString().padStart(2, '0')}`;
 };
 
-export const useFormatEndTime = (remainingSeconds) => {
+export const formatEndTime = (remainingSeconds, clockDisplay) => {
 	const { settings } = useSettings();
 	const now = new Date();
 	now.setSeconds(now.getSeconds() + remainingSeconds);
 	const hours = now.getHours();
 	const minutes = now.getMinutes();
-	if (settings.clockDisplay === '12'){
+	if (clockDisplay === '12-hour'){
 		const ampm = hours >= 12 ? 'PM' : 'AM';
 		const h12 = hours % 12 || 12;
 		return `Ends at ${h12}:${minutes.toString().padStart(2, '0')} ${ampm}`;

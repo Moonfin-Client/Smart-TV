@@ -13,10 +13,11 @@ import SubtitleOffsetOverlay from './SubtitleOffsetOverlay';
 import SubtitleSettingsOverlay from './SubtitleSettingsOverlay';
 import {
 	SpottableButton, SpottableDiv, ModalContainer,
-	formatTime, useFormatEndTime, PLAYBACK_RATES, QUALITY_PRESETS,
+	formatTime, formatEndTime, PLAYBACK_RATES, QUALITY_PRESETS,
 	IconPlay, IconPause, IconRewind, IconForward, IconSubtitle, IconAudio,
 	IconChapters, IconPrevious, IconNext, IconSpeed, IconQuality, IconInfo
 } from './PlayerConstants';
+import { useSettings } from '../../context/SettingsContext';
 
 // ============================================================
 // usePlayerControls — shared button / state logic
@@ -190,6 +191,7 @@ const PlayerControls = ({
 	renderInfoPlaybackRows,
 	renderInfoVideoExtra
 }) => {
+	const { settings } = useSettings();
 	return (
 		<>
 			{/* Skip Intro Button */}
@@ -234,7 +236,7 @@ const PlayerControls = ({
 					{/* Progress Bar */}
 					<div className={css.progressContainer}>
 						<div className={css.timeInfoTop}>
-							<span className={css.timeEnd}>{useFormatEndTime(duration - displayTime)}</span>
+							<span className={css.timeEnd}>{formatEndTime(duration - displayTime, settings.clockDisplay)}</span>
 						</div>
 						<SpottableDiv
 							className={css.progressBar}
