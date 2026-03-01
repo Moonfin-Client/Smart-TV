@@ -1,6 +1,5 @@
 import Spottable from '@enact/spotlight/Spottable';
 import SpotlightContainerDecorator from '@enact/spotlight/SpotlightContainerDecorator';
-import { useSettings } from '../../context/SettingsContext';
 
 export const SpottableButton = Spottable('button');
 export const SpottableDiv = Spottable('div');
