@@ -46,6 +46,10 @@ const NavBar = ({
 	const librariesTimeoutRef = useRef(null);
 
 	useEffect(() => {
+		if (settings.showClock === false) {
+			clearInterval(interval);
+			return;
+		}
 		const updateClock = () => {
 			const now = new Date();
 			if (settings.clockDisplay === '12-hour') {
@@ -64,7 +68,7 @@ const NavBar = ({
 		updateClock();
 		const interval = setInterval(updateClock, 60000);
 		return () => clearInterval(interval);
-	}, [settings.clockDisplay]);
+	}, [settings.clockDisplay, settings.showClock]);
 
 	useEffect(() => {
 		return () => {
@@ -314,7 +318,9 @@ const NavBar = ({
 			</div>
 
 			<div className={css.navRight}>
+			{settings.showClock !== false && (
 				<div className={css.clock}>{clock}</div>
+			)}
 			</div>
 		</NavContainer>
 	);
