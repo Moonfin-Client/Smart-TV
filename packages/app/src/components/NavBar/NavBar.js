@@ -117,6 +117,12 @@ const NavBar = ({
 		setAvatarError(true);
 	}, []);
 
+	const userAvatarStyle = useMemo(() => {
+		return {
+			opacity: (settings.userOpacity ?? 85) / 100
+		};
+	}, [settings.userOpacity]);
+
 	const handleLibraryClick = useCallback((e) => {
 		const libId = e.currentTarget.dataset.libraryId;
 		const lib = libraries.find(l => l.Id === libId);
@@ -193,10 +199,11 @@ const NavBar = ({
 							className={css.userAvatarImg}
 							src={userAvatarUrl}
 							alt={user?.Name}
+							style={userAvatarStyle}
 							onError={handleAvatarError}
 						/>
 					) : (
-						<div className={css.userAvatar}>{user?.Name?.[0] || 'U'}</div>
+						<div className={css.userAvatar} style={userAvatarStyle}>{user?.Name?.[0] || 'U'}</div>
 					)}
 				</SpottableButton>
 			</div>

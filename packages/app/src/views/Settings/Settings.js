@@ -164,6 +164,15 @@ const UI_OPACITY_OPTIONS = [
 	{value: 95, label: '95%'}
 ];
 
+const USER_OPACITY_OPTIONS = [
+	{value: 0, label: '0%'},
+	{value: 50, label: '50%'},
+	{value: 65, label: '65%'},
+	{value: 75, label: '75%'},
+	{value: 85, label: '85%'},
+	{value: 95, label: '95%'}
+];
+
 const UI_COLOR_OPTIONS = [
 	{value: 'dark', label: 'Dark Gray', rgb: '40, 40, 40'},
 	{value: 'black', label: 'Black', rgb: '0, 0, 0'},
@@ -878,6 +887,11 @@ const Settings = ({onBack, onLibrariesChanged}) => {
 					getLabel(UI_OPACITY_OPTIONS, settings.uiOpacity, '85%'),
 					() => openOptionDialog('UI Opacity', UI_OPACITY_OPTIONS, 'uiOpacity'),
 					'setting-uiOpacity'
+				)}
+				{renderSettingItem('User Avatar Opacity', 'Opacity of User Avatar on top left',
+					getLabel(USER_OPACITY_OPTIONS, settings.userOpacity, '85%'),
+					() => openOptionDialog('User Avatar Opacity', USER_OPACITY_OPTIONS, 'userOpacity'),
+					'setting-userOpacity'
 				)}
 				{renderSettingItem('UI Color', 'Background color of navbar and UI panels',
 					getLabel(UI_COLOR_OPTIONS, settings.uiColor, 'Dark Gray'),
