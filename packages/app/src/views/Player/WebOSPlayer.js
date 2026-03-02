@@ -26,7 +26,7 @@ import {
 
 import css from './WebOSPlayer.module.less';
 
-const Player = ({item, resume, initialAudioIndex, initialSubtitleIndex, onEnded, onBack, onPlayNext, audioPlaylist}) => {
+const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialSubtitleIndex, onEnded, onBack, onPlayNext, audioPlaylist}) => {
 	const {settings} = useSettings();
 
 	const [mediaUrl, setMediaUrl] = useState(null);
@@ -267,6 +267,7 @@ const Player = ({item, resume, initialAudioIndex, initialSubtitleIndex, onEnded,
 					enableDirectPlay: !settings.preferTranscode,
 					enableDirectStream: !settings.preferTranscode,
 					forceDirectPlay: settings.forceDirectPlay,
+					mediaSourceId: initialMediaSourceId,
 					audioStreamIndex: initialAudioIndex,
 					subtitleStreamIndex: initialSubtitleIndex,
 					item: item
@@ -532,6 +533,7 @@ const Player = ({item, resume, initialAudioIndex, initialSubtitleIndex, onEnded,
 				enableDirectPlay: false,
 				enableDirectStream: false,
 				enableTranscoding: true,
+				mediaSourceId: mediaSourceId,
 				item: item
 			});
 
@@ -1080,6 +1082,7 @@ const Player = ({item, resume, initialAudioIndex, initialSubtitleIndex, onEnded,
 					enableDirectPlay: false,
 					enableDirectStream: false,
 					enableTranscoding: true,
+					mediaSourceId: mediaSourceId,
 					item: item
 				});
 
@@ -1115,6 +1118,7 @@ const Player = ({item, resume, initialAudioIndex, initialSubtitleIndex, onEnded,
 					enableDirectStream: false,
 					enableTranscoding: true,
 					deviceProfile: h264Profile,
+					mediaSourceId: mediaSourceId,
 					item: item
 				});
 

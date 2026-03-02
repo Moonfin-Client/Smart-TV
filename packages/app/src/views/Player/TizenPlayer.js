@@ -27,7 +27,7 @@ import css from './TizenPlayer.module.less';
  * playback. AVPlay renders on a platform multimedia layer BEHIND the web engine;
  * the web layer must be transparent in the video area for the content to show through.
  */
-const Player = ({item, resume, initialAudioIndex, initialSubtitleIndex, onEnded, onBack, onPlayNext, audioPlaylist}) => {
+const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialSubtitleIndex, onEnded, onBack, onPlayNext, audioPlaylist}) => {
 	const {settings} = useSettings();
 
 	const [isLoading, setIsLoading] = useState(true);
@@ -331,6 +331,7 @@ const Player = ({item, resume, initialAudioIndex, initialSubtitleIndex, onEnded,
 					maxBitrate: effectiveBitrate,
 					preferTranscode: settings.preferTranscode,
 					item: item,
+					mediaSourceId: initialMediaSourceId,
 					audioStreamIndex: initialAudioIndex != null ? initialAudioIndex : undefined
 				});
 
@@ -721,6 +722,7 @@ const Player = ({item, resume, initialAudioIndex, initialSubtitleIndex, onEnded,
 					enableDirectPlay: false,
 					enableDirectStream: false,
 					enableTranscoding: true,
+					mediaSourceId: mediaSourceId,
 					item: item
 				});
 

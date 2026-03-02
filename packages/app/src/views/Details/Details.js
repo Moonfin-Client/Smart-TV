@@ -148,6 +148,7 @@ const Details = ({itemId, initialItem, onPlay, onSelectItem, onSelectPerson, bac
 	const [artistAlbums, setArtistAlbums] = useState([]);
 	const [playlistItems, setPlaylistItems] = useState([]);
 	const [isLoading, setIsLoading] = useState(true);
+	const [selectedVersionIndex, setSelectedVersionIndex] = useState(0);
 	const [selectedAudioIndex, setSelectedAudioIndex] = useState(0);
 	const [selectedSubtitleIndex, setSelectedSubtitleIndex] = useState(-1);
 	const [showMediaInfo, setShowMediaInfo] = useState(false);
@@ -178,6 +179,7 @@ const Details = ({itemId, initialItem, onPlay, onSelectItem, onSelectPerson, bac
 				const data = await effectiveApi.getItem(itemId);
 				setItem(tagWithServerInfo(data));
 
+				setSelectedVersionIndex(0);
 				const ms = data.MediaSources?.[0];
 				if (ms) {
 					const audioStreams = ms.MediaStreams?.filter(s => s.Type === 'Audio') || [];
@@ -316,12 +318,13 @@ const Details = ({itemId, initialItem, onPlay, onSelectItem, onSelectPerson, bac
 
 		let playbackOptions = {};
 		if (supportsSelection) {
-			const playMediaSource = item.MediaSources[0];
+			const playMediaSource = item.MediaSources[selectedVersionIndex] || item.MediaSources[0];
 			const audioStreamsList = playMediaSource?.MediaStreams?.filter(s => s.Type === 'Audio') || [];
 			const subtitleStreamsList = playMediaSource?.MediaStreams?.filter(s => s.Type === 'Subtitle') || [];
 			const selectedAudio = audioStreamsList[selectedAudioIndex];
 			const subtitleStream = selectedSubtitleIndex >= 0 ? subtitleStreamsList[selectedSubtitleIndex] : null;
 			playbackOptions = {
+				mediaSourceId: playMediaSource.Id,
 				audioStreamIndex: selectedAudio?.Index ?? selectedAudioIndex,
 				subtitleStreamIndex: subtitleStream?.Index ?? selectedSubtitleIndex
 			};
@@ -354,7 +357,7 @@ const Details = ({itemId, initialItem, onPlay, onSelectItem, onSelectPerson, bac
 		} else {
 			onPlay?.(item, false, playbackOptions);
 		}
-	}, [item, episodes, nextUp, seasons, albumTracks, playlistItems, onPlay, onSelectItem, selectedAudioIndex, selectedSubtitleIndex]);
+	}, [item, episodes, nextUp, seasons, albumTracks, playlistItems, onPlay, onSelectItem, selectedAudioIndex, selectedSubtitleIndex, selectedVersionIndex]);
 
 	const handleResume = useCallback(() => {
 		if (!item) return;
@@ -365,19 +368,20 @@ const Details = ({itemId, initialItem, onPlay, onSelectItem, onSelectPerson, bac
 
 		let playbackOptions = {};
 		if (supportsSelection) {
-			const resumeMediaSource = item.MediaSources[0];
+			const resumeMediaSource = item.MediaSources[selectedVersionIndex] || item.MediaSources[0];
 			const audioStreamsList = resumeMediaSource?.MediaStreams?.filter(s => s.Type === 'Audio') || [];
 			const subtitleStreamsList = resumeMediaSource?.MediaStreams?.filter(s => s.Type === 'Subtitle') || [];
 			const selectedAudio = audioStreamsList[selectedAudioIndex];
 			const subtitleStream = selectedSubtitleIndex >= 0 ? subtitleStreamsList[selectedSubtitleIndex] : null;
 			playbackOptions = {
+				mediaSourceId: resumeMediaSource.Id,
 				audioStreamIndex: selectedAudio?.Index ?? selectedAudioIndex,
 				subtitleStreamIndex: subtitleStream?.Index ?? selectedSubtitleIndex
 			};
 		}
 
 		onPlay?.(item, true, playbackOptions);
-	}, [item, onPlay, selectedAudioIndex, selectedSubtitleIndex]);
+	}, [item, onPlay, selectedAudioIndex, selectedSubtitleIndex, selectedVersionIndex]);
 
 	const handleShuffle = useCallback(() => {
 		if (item) {
@@ -505,6 +509,7 @@ const Details = ({itemId, initialItem, onPlay, onSelectItem, onSelectPerson, bac
 
 	const handleOpenAudioModal = useCallback(() => openModal('audio'), [openModal]);
 	const handleOpenSubtitleModal = useCallback(() => openModal('subtitle'), [openModal]);
+	const handleOpenVersionModal = useCallback(() => openModal('version'), [openModal]);
 
 	const closeModal = useCallback(() => {
 		setActiveModal(null);
@@ -523,6 +528,28 @@ const Details = ({itemId, initialItem, onPlay, onSelectItem, onSelectPerson, bac
 		setSelectedSubtitleIndex(index);
 		closeModal();
 	}, [closeModal]);
+
+	const handleSelectVersion = useCallback((e) => {
+		const index = parseInt(e.currentTarget.dataset.index, 10);
+		if (isNaN(index) || !item?.MediaSources?.[index]) return;
+		setSelectedVersionIndex(index);
+		const ms = item.MediaSources[index];
+		const audioStreams = ms.MediaStreams?.filter(s => s.Type === 'Audio') || [];
+		const subtitleStreams = ms.MediaStreams?.filter(s => s.Type === 'Subtitle') || [];
+		if (ms.DefaultAudioStreamIndex != null) {
+			const idx = audioStreams.findIndex(s => s.Index === ms.DefaultAudioStreamIndex);
+			setSelectedAudioIndex(idx >= 0 ? idx : 0);
+		} else {
+			setSelectedAudioIndex(0);
+		}
+		if (ms.DefaultSubtitleStreamIndex != null) {
+			const idx = subtitleStreams.findIndex(s => s.Index === ms.DefaultSubtitleStreamIndex);
+			setSelectedSubtitleIndex(idx >= 0 ? idx : -1);
+		} else {
+			setSelectedSubtitleIndex(-1);
+		}
+		closeModal();
+	}, [item, closeModal]);
 
 	const handleSeasonSelect = useCallback((ev) => {
 		const seasonId = ev.currentTarget.dataset.seasonId;
@@ -877,12 +904,13 @@ const handleSectionKeyDown = useCallback((ev) => {
 	const seasonCount = item.ChildCount || seasons.length || 0;
 
 	// Media source info
-	const mediaSource = item.MediaSources?.[0];
+	const mediaSource = item.MediaSources?.[selectedVersionIndex] || item.MediaSources?.[0];
 	const audioStreams = mediaSource?.MediaStreams?.filter(s => s.Type === 'Audio') || [];
 	const subtitleStreams = mediaSource?.MediaStreams?.filter(s => s.Type === 'Subtitle') || [];
 	const supportsMediaSourceSelection = item.MediaType === 'Video' &&
 		item.MediaSources?.length > 0 &&
 		item.MediaSources[0].Type !== 'Placeholder';
+	const hasMultipleVersions = supportsMediaSourceSelection && (item.MediaSources?.length || 0) > 1;
 	const hasMultipleAudio = supportsMediaSourceSelection && audioStreams.length > 1;
 	const hasSubtitles = supportsMediaSourceSelection && subtitleStreams.length > 0;
 	const currentAudioStream = audioStreams[selectedAudioIndex];
@@ -1014,6 +1042,17 @@ const handleSectionKeyDown = useCallback((ev) => {
 						</svg>
 					</div>
 					<span className={css.btnLabel}>Shuffle</span>
+				</SpottableDiv>
+			)}
+			{hasMultipleVersions && (
+				<SpottableDiv className={css.btnWrapper} onClick={handleOpenVersionModal}>
+					<div className={css.btnAction}>
+						<svg className={css.btnIcon} viewBox="0 -960 960 960" fill="currentColor">
+							<path d="M320-240h320v-80H320v80Zm0-160h320v-80H320v80ZM240-80q-33 0-56.5-23.5T160-160v-640q0-33 23.5-56.5T240-880h320l240 240v480q0 33-23.5 56.5T740-80H240Zm280-520v-200H240v640h500v-440H520ZM240-800v200-200 640-640Z"/>
+						</svg>
+					</div>
+					<span className={css.btnLabel}>Version</span>
+					<span className={css.btnDetail}>{mediaSource?.Name || `Version ${selectedVersionIndex + 1}`}</span>
 				</SpottableDiv>
 			)}
 			{hasMultipleAudio && (
@@ -1944,7 +1983,33 @@ const handleSectionKeyDown = useCallback((ev) => {
 				</div>
 			</Scroller>
 
-			{/* Audio/Subtitle Track Modals */}
+			{/* Version / Audio / Subtitle Track Modals */}
+			{activeModal === 'version' && (
+				<div className={css.trackModal} onClick={closeModal}>
+					<ModalContainer className={css.trackModalPanel} onClick={handleStopPropagation} data-modal="version" spotlightId="version-modal">
+						<h2 className={css.trackModalTitle}>Select Version</h2>
+						<div className={css.trackList}>
+							{item.MediaSources.map((source, i) => {
+								const video = source.MediaStreams?.find(s => s.Type === 'Video');
+								const resLabel = video?.Width >= 3800 ? '4K' : video?.Width >= 1900 ? '1080p' : video?.Width >= 1260 ? '720p' : video?.Width ? `${video.Width}p` : '';
+								return (
+									<SpottableButton
+										key={source.Id}
+										className={`${css.trackItem} ${i === selectedVersionIndex ? css.selected : ''}`}
+										data-index={i}
+										data-selected={i === selectedVersionIndex ? 'true' : undefined}
+										onClick={handleSelectVersion}
+									>
+										<span className={css.trackName}>{source.Name || `Version ${i + 1}`}</span>
+										{resLabel && <span className={css.trackInfo}>{resLabel}</span>}
+									</SpottableButton>
+								);
+							})}
+						</div>
+						<p className={css.trackModalFooter}>Press BACK to close</p>
+					</ModalContainer>
+				</div>
+			)}
 			{activeModal === 'audio' && (
 				<div className={css.trackModal} onClick={closeModal}>
 					<ModalContainer className={css.trackModalPanel} onClick={handleStopPropagation} data-modal="audio" spotlightId="audio-modal">

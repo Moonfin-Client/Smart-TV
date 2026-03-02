@@ -715,6 +715,7 @@ const AppContent = (props) => {
 							<Player
 								item={playingItem}
 								resume={isResume}
+								initialMediaSourceId={playbackOptions?.mediaSourceId}
 								initialAudioIndex={playbackOptions?.audioStreamIndex}
 								initialSubtitleIndex={playbackOptions?.subtitleStreamIndex}
 								audioPlaylist={playbackOptions?.audioPlaylist}
