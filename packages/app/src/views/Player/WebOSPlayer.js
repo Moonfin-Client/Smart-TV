@@ -17,6 +17,7 @@ import {
 	setupWebOSLifecycle
 } from '@moonfin/platform-webos/video';
 import {useSettings} from '../../context/SettingsContext';
+import {getSubtitleOverlayStyle, getSubtitleTextStyle, sanitizeSubtitleHtml} from '../../utils/subtitleConstants';
 import PlayerControls, {usePlayerButtons} from './PlayerControls';
 import useSegmentPopups from './useSegmentPopups';
 import {
@@ -1614,30 +1615,13 @@ const Player = ({item, resume, initialAudioIndex, initialSubtitleIndex, onEnded,
 			{!isLoading && !error && currentSubtitleText && !isAudioMode && (
 				<div
 					className={css.subtitleOverlay}
-					style={{
-						bottom: settings.subtitlePosition === 'absolute'
-							? `${100 - settings.subtitlePositionAbsolute}%`
-							: `${settings.subtitlePosition === 'bottom' ? 10 : settings.subtitlePosition === 'lower' ? 20 : settings.subtitlePosition === 'middle' ? 30 : 40}%`,
-						opacity: (settings.subtitleOpacity || 100) / 100
-					}}
+					style={getSubtitleOverlayStyle(settings)}
 				>
 					<div
 						className={css.subtitleText}
-						style={{
-							fontSize: `${settings.subtitleSize === 'small' ? 36 : settings.subtitleSize === 'medium' ? 44 : settings.subtitleSize === 'large' ? 52 : 60}px`,
-							backgroundColor: `${settings.subtitleBackgroundColor || '#000000'}${Math.round(((settings.subtitleBackground !== undefined ? settings.subtitleBackground : 75) / 100) * 255).toString(16).padStart(2, '0')}`,
-							color: settings.subtitleColor || '#ffffff',
-							textShadow: `0 0 ${settings.subtitleShadowBlur || 0.1}em ${settings.subtitleShadowColor || '#000000'}${Math.round(((settings.subtitleShadowOpacity !== undefined ? settings.subtitleShadowOpacity : 50) / 100) * 255).toString(16).padStart(2, '0')}`
-						}}
+						style={getSubtitleTextStyle(settings)}
 						// eslint-disable-next-line react/no-danger
-						dangerouslySetInnerHTML={{
-							__html: currentSubtitleText
-								.replace(/\\N/gi, '<br/>')
-								.replace(/\r?\n/gi, '<br/>')
-								.replace(/{\\.*?}/gi, '') // Remove ASS/SSA style tags
-								.replace(/ {2,}/g, ' ')  // Collapse multiple spaces left by tag removal
-								.trim()
-						}}
+						dangerouslySetInnerHTML={{__html: sanitizeSubtitleHtml(currentSubtitleText)}}
 					/>
 				</div>
 			)}
