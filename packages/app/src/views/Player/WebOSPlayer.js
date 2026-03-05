@@ -424,10 +424,8 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 				if (result.isAudio) {
 					setControlsVisible(true);
 				} else {
-					if (settings.skipIntro) {
-						const segments = await playback.getMediaSegments(item.Id);
-						setMediaSegments(segments);
-					}
+					const segments = await playback.getMediaSegments(item.Id);
+					setMediaSegments(segments);
 
 					if (item.Type === 'Episode') {
 						const next = await playback.getNextEpisode(item);

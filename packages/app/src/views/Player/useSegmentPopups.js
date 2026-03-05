@@ -101,16 +101,22 @@ const useSegmentPopups = ({
 	// --- Segment checking (call from timeupdate) ---
 
 	const checkSegments = useCallback((ticks) => {
-		if (mediaSegments && settings.skipIntro) {
+		if (mediaSegments) {
 			const {introStart, introEnd, creditsStart} = mediaSegments;
 
 			if (introStart != null && introEnd != null) {
 				const inIntro = ticks >= introStart && ticks < introEnd;
-				if (!inIntro) {
-					skipIntroDismissedRef.current = false;
-					setShowSkipIntro(false);
-				} else if (!skipIntroDismissedRef.current) {
+				const nearIntro = ticks >= (introStart -1) && ticks < (introEnd + 1);
+				if (inIntro && settings.skipIntro && !skipIntroDismissedRef.current) {
+				  handleSkipIntro();
+          skipIntroDismissedRef.current = true;
+				}
+				if (inIntro && !settings.skipIntro && !skipIntroDismissedRef.current) {
 					setShowSkipIntro(true);
+				}
+				if (!nearIntro) {
+				  skipIntroDismissedRef.current = false;
+					setShowSkipIntro(false);
 				}
 			}
 
