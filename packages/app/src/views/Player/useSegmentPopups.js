@@ -45,6 +45,7 @@ const useSegmentPopups = ({
 			clearInterval(nextEpisodeTimerRef.current);
 			nextEpisodeTimerRef.current = null;
 		}
+		hasTriggeredNextEpisodeRef.current = true;
 		setNextEpisodeCountdown(null);
 		setShowNextEpisode(false);
 		setShowSkipCredits(false);
@@ -113,7 +114,7 @@ const useSegmentPopups = ({
 				}
 			}
 
-			if (creditsStart != null && nextEpisode) {
+			if (creditsStart != null && nextEpisode && !hasTriggeredNextEpisodeRef.current) {
 				const inCredits = ticks >= creditsStart;
 				if (inCredits) {
 					setShowSkipCredits(prev => {
@@ -136,7 +137,6 @@ const useSegmentPopups = ({
 			const nearEnd = remaining < 300000000;
 			if (nearEnd && !hasTriggeredNextEpisodeRef.current) {
 				setShowNextEpisode(true);
-				hasTriggeredNextEpisodeRef.current = true;
 			}
 		}
 	}, [mediaSegments, settings.skipIntro, settings.skipCredits, nextEpisode, runTimeRef, handlePlayNextEpisode]);
