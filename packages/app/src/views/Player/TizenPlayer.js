@@ -430,7 +430,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 				if (item.SeriesName) {
 					displayTitle = item.SeriesName;
 					displaySubtitle = `S${item.ParentIndexNumber}E${item.IndexNumber} - ${item.Name}`;
-					} else if (result.isAudio) {
+				} else if (result.isAudio) {
 					displayTitle = item.Name;
 					displaySubtitle = item.AlbumArtist || item.Artists?.[0] || item.Album || '';
 				}
@@ -442,10 +442,8 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 				if (result.isAudio) {
 					setControlsVisible(true);
 				} else {
-					if (settings.skipIntro) {
-						const segments = await playback.getMediaSegments(item.Id);
-						setMediaSegments(segments);
-					}
+					const segments = await playback.getMediaSegments(item.Id);
+					setMediaSegments(segments);
 
 					// Load next episode for TV shows
 					if (item.Type === 'Episode') {
@@ -1178,6 +1176,17 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 
 			// Left/Right when controls hidden -> show controls and focus on seekbar
 			if (!controlsVisible && !activeModal) {
+  			if ((key === 'Enter' || e.keyCode === 13) && (showSkipIntro || showSkipCredits || showNextEpisode)) {
+  				return;
+  			}
+  			if (key === 'Enter' || e.keyCode === 13) {
+  				e.preventDefault();
+  				handlePlayPause();
+  				return;
+  			}
+  			if ((key === 'ArrowLeft' || e.keyCode === 37 || key === 'ArrowRight' || e.keyCode === 39 ) && (showSkipCredits || showNextEpisode)) {
+  				return;
+  			}
 				if (key === 'ArrowLeft' || e.keyCode === 37 || key === 'ArrowRight' || e.keyCode === 39) {
 					e.preventDefault();
 					showControls();
@@ -1197,14 +1206,6 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 						setSeekPosition(Math.floor(newMs * 10000));
 						scheduleDeferredSeek(newMs);
 					}
-					return;
-				}
-				if ((key === 'Enter' || e.keyCode === 13) && (showSkipIntro || showSkipCredits || showNextEpisode)) {
-					return;
-				}
-				if (key === 'Enter' || e.keyCode === 13) {
-					e.preventDefault();
-					handlePlayPause();
 					return;
 				}
 				e.preventDefault();

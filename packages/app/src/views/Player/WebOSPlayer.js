@@ -424,10 +424,8 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 				if (result.isAudio) {
 					setControlsVisible(true);
 				} else {
-					if (settings.skipIntro) {
-						const segments = await playback.getMediaSegments(item.Id);
-						setMediaSegments(segments);
-					}
+					const segments = await playback.getMediaSegments(item.Id);
+					setMediaSegments(segments);
 
 					if (item.Type === 'Episode') {
 						const next = await playback.getNextEpisode(item);
@@ -1506,6 +1504,17 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 
 			// Left/Right when controls hidden -> show controls and focus on seekbar
 			if (!controlsVisible && !activeModal) {
+				if ((key === 'Enter' || e.keyCode === 13) && (showSkipIntro || showSkipCredits || showNextEpisode)) {
+					return;
+				}
+				if (key === 'Enter' || e.keyCode === 13) {
+					e.preventDefault();
+					handlePlayPause();
+					return;
+				}
+				if ((key === 'ArrowLeft' || e.keyCode === 37 || key === 'ArrowRight' || e.keyCode === 39 ) && (showSkipCredits || showNextEpisode)) {
+					return;
+				}
 				if (key === 'ArrowLeft' || e.keyCode === 37 || key === 'ArrowRight' || e.keyCode === 39) {
 					e.preventDefault();
 					showControls();
@@ -1518,14 +1527,6 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 					} else {
 						seekByOffset(step, true);
 					}
-					return;
-				}
-				if ((key === 'Enter' || e.keyCode === 13) && (showSkipIntro || showSkipCredits || showNextEpisode)) {
-					return;
-				}
-				if (key === 'Enter' || e.keyCode === 13) {
-					e.preventDefault();
-					handlePlayPause();
 					return;
 				}
 				e.preventDefault();

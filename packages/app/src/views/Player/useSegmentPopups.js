@@ -45,6 +45,7 @@ const useSegmentPopups = ({
 			clearInterval(nextEpisodeTimerRef.current);
 			nextEpisodeTimerRef.current = null;
 		}
+		hasTriggeredNextEpisodeRef.current = true;
 		setNextEpisodeCountdown(null);
 		setShowNextEpisode(false);
 		setShowSkipCredits(false);
@@ -100,20 +101,26 @@ const useSegmentPopups = ({
 	// --- Segment checking (call from timeupdate) ---
 
 	const checkSegments = useCallback((ticks) => {
-		if (mediaSegments && settings.skipIntro) {
+		if (mediaSegments) {
 			const {introStart, introEnd, creditsStart} = mediaSegments;
 
 			if (introStart != null && introEnd != null) {
 				const inIntro = ticks >= introStart && ticks < introEnd;
-				if (!inIntro) {
-					skipIntroDismissedRef.current = false;
-					setShowSkipIntro(false);
-				} else if (!skipIntroDismissedRef.current) {
+				const nearIntro = ticks >= (introStart -1) && ticks < (introEnd + 1);
+				if (inIntro && settings.skipIntro && !skipIntroDismissedRef.current) {
+				  handleSkipIntro();
+          skipIntroDismissedRef.current = true;
+				}
+				if (inIntro && !settings.skipIntro && !skipIntroDismissedRef.current) {
 					setShowSkipIntro(true);
+				}
+				if (!nearIntro) {
+				  skipIntroDismissedRef.current = false;
+					setShowSkipIntro(false);
 				}
 			}
 
-			if (creditsStart != null && nextEpisode) {
+			if (creditsStart != null && nextEpisode && !hasTriggeredNextEpisodeRef.current) {
 				const inCredits = ticks >= creditsStart;
 				if (inCredits) {
 					setShowSkipCredits(prev => {
@@ -136,7 +143,6 @@ const useSegmentPopups = ({
 			const nearEnd = remaining < 300000000;
 			if (nearEnd && !hasTriggeredNextEpisodeRef.current) {
 				setShowNextEpisode(true);
-				hasTriggeredNextEpisodeRef.current = true;
 			}
 		}
 	}, [mediaSegments, settings.skipIntro, settings.skipCredits, nextEpisode, runTimeRef, handlePlayNextEpisode]);
