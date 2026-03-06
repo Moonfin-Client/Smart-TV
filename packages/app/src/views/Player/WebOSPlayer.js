@@ -1529,7 +1529,6 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 					}
 					return;
 				}
-
 				e.preventDefault();
 				showControls();
 				return;
