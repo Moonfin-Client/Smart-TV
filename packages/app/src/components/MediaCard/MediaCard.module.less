@@ -80,13 +80,27 @@
 	background: #2a2a4e;
 	font-size: 64px;
 	color: #666;
-	border-radius: 8px;
+	border-radius: 20px;
 	border: 4px solid transparent;
 	box-sizing: border-box;
 }
 
 .imageContainer {
 	position: relative;
+	border-radius: 20px;
+	overflow: hidden;
+
+	&::after {
+		content: '';
+		position: absolute;
+		bottom: 4px;
+		left: 4px;
+		right: 4px;
+		height: 30%;
+		background: linear-gradient(to top, rgba(0, 0, 0, 0.75) 0%, transparent 100%);
+		pointer-events: none;
+		border-radius: 0 0 16px 16px;
+	}
 }
 
 .info {
@@ -123,19 +137,24 @@
 
 .progressBar {
 	position: absolute;
-	bottom: 0;
-	left: 0;
-	width: 100%;
-	height: 6px;
-	background: rgba(0, 0, 0, 0.6);
-	border-radius: 0 0 8px 8px;
+	bottom: 14px;
+	left: 30px;
+	right: 30px;
+	width: auto;
+	height: 8px;
+	background: rgba(100, 100, 100, 0.7);
+	border-radius: 999px;
 	overflow: hidden;
+	backdrop-filter: blur(4px);
+	-webkit-backdrop-filter: blur(4px);
+	z-index: 1;
 }
 
 .progress {
 	height: 100%;
-	background: @accent;
-	transition: width 0.3s ease;
+	background: rgb(255, 255, 255);
+	transition: width 0.25s ease;
+	border-radius: inherit;
 }
 
 .serverBadge {
