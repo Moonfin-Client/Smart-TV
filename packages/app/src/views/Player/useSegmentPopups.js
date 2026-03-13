@@ -145,7 +145,7 @@ const useSegmentPopups = ({
 				setShowNextEpisode(true);
 			}
 		}
-	}, [mediaSegments, settings.skipIntro, settings.skipCredits, nextEpisode, runTimeRef, handlePlayNextEpisode]);
+	}, [mediaSegments, settings.skipIntro, settings.skipCredits, nextEpisode, runTimeRef, handlePlayNextEpisode, handleSkipIntro]);
 
 	// --- Auto-focus effects ---
 
