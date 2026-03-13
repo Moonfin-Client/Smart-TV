@@ -4,8 +4,6 @@ import Spotlight from '@enact/spotlight';
 import {getImageUrl, getBackdropId, formatDuration} from '../../utils/helpers';
 import RatingsRow from '../../components/RatingsRow';
 import {KEYS} from '../../utils/keys';
-import {extractYouTubeId, fetchSponsorSegments, fetchVideoStreamUrl, getTrailerStartTime} from '../../services/youtubeTrailer';
-import {getSharedVideoElement, cleanupVideoElement} from '@moonfin/platform-webos/video';
 import css from './Browse.module.less';
 
 const FEATURED_GENRES_LIMIT = 3;
@@ -90,7 +88,7 @@ const FeaturedBanner = memo(({
 		return () => clearInterval(interval);
 	}, [isVisible, featuredItems.length, featuredFocused, settings.carouselSpeed, trailerActive]);
 
-	const stopTrailer = useCallback(() => {
+	const stopTrailer = useCallback(async () => {
 		if (trailerRevealTimerRef.current) {
 			clearTimeout(trailerRevealTimerRef.current);
 			trailerRevealTimerRef.current = null;
@@ -103,6 +101,7 @@ const FeaturedBanner = memo(({
 		const video = trailerVideoRef.current;
 		if (video) {
 			try { video.pause(); } catch (e) { /* ignore */ }
+			const {cleanupVideoElement} = await import('@moonfin/platform-webos/video');
 			cleanupVideoElement(video);
 			video.classList.remove(css.trailerVisible);
 			video.classList.remove(css.trailerVideo);
@@ -118,6 +117,11 @@ const FeaturedBanner = memo(({
 	const startTrailerPreview = useCallback(async (videoId) => {
 		trailerStateRef.current = 'resolving';
 		trailerVideoIdRef.current = videoId;
+
+		const [{fetchSponsorSegments, fetchVideoStreamUrl, getTrailerStartTime}, {getSharedVideoElement}] = await Promise.all([
+			import('../../services/youtubeTrailer'),
+			import('@moonfin/platform-webos/video')
+		]);
 
 		let segments = [];
 		let streamUrl = null;
@@ -215,13 +219,12 @@ const FeaturedBanner = memo(({
 			return;
 		}
 		stopTrailer();
-		const videoId = extractYouTubeId(currentFeatured);
-		if (videoId) {
-			const timer = setTimeout(() => {
+		import('../../services/youtubeTrailer').then(({extractYouTubeId}) => {
+			const videoId = extractYouTubeId(currentFeatured);
+			if (videoId) {
 				startTrailerPreview(videoId);
-			}, 5000);
-			return () => clearTimeout(timer);
-		}
+			}
+		});
 	}, [currentIndex, currentFeatured, isVisible, settings.featuredTrailerPreview, startTrailerPreview, stopTrailer]);
 
 	useEffect(() => {
