@@ -455,6 +455,7 @@ const AppContent = (props) => {
 
 	const handlePlayNext = useCallback((item) => {
 		setPlayingItem(item);
+		setPlaybackOptions(null);
 		setIsResume(false);
 	}, []);
 
