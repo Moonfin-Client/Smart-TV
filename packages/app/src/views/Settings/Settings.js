@@ -277,6 +277,24 @@ const getLabel = (options, value, fallback) => {
 	return option?.label || fallback;
 };
 
+const renderToggle = (isOn) => (
+	<div className={`${css.toggleTrack} ${isOn ? css.toggleOn : ''}`}>
+		<div className={css.toggleThumb} />
+	</div>
+);
+
+const renderRadio = (isSelected) => (
+	<div className={`${css.radioOuter} ${isSelected ? css.radioSelected : ''}`}>
+		<div className={css.radioInner} />
+	</div>
+);
+
+const renderChevron = () => (
+	<div className={css.chevronIcon}>
+		<IconChevron />
+	</div>
+);
+
 const Settings = ({ onBack, onLibrariesChanged }) => {
 	const { api, serverUrl, accessToken, hasMultipleServers } = useAuth();
 	const { settings, updateSetting } = useSettings();
@@ -572,35 +590,8 @@ const Settings = ({ onBack, onLibrariesChanged }) => {
 		popView
 	]);
 
-	const renderToggle = (isOn) => (
-		<div className={`${css.toggleTrack} ${isOn ? css.toggleOn : ''}`}>
-			<div className={css.toggleThumb} />
-		</div>
-	);
-
-	const renderRadio = (isSelected) => (
-		<div className={`${css.radioOuter} ${isSelected ? css.radioSelected : ''}`}>
-			<div className={css.radioInner} />
-		</div>
-	);
-
-	const renderChevron = () => (
-		<div className={css.chevronIcon}>
-			<IconChevron />
-		</div>
-	);
-
 	const handleListFocus = useCallback((e) => {
-		const target = e.target;
-		const scrollContainer = e.currentTarget;
-		if (!target || !scrollContainer) return;
-		const containerRect = scrollContainer.getBoundingClientRect();
-		const targetRect = target.getBoundingClientRect();
-		if (targetRect.bottom > containerRect.bottom - 20) {
-			scrollContainer.scrollTop += targetRect.bottom - containerRect.bottom + 60;
-		} else if (targetRect.top < containerRect.top + 20) {
-			scrollContainer.scrollTop -= containerRect.top - targetRect.top + 60;
-		}
+		if (e.target) e.target.scrollIntoView({block: 'nearest'});
 	}, []);
 
 	const renderSectionTitle = (title) => <div className={css.sectionTitle}>{title}</div>;

@@ -53,7 +53,7 @@ background: #141414;
 border-radius: 12px;
 margin-bottom: 4px;
 cursor: pointer;
-transition: all 0.15s ease;
+transition: background 0.15s ease, border-color 0.15s ease, transform 0.15s ease;
 border: 2px solid transparent;
 
 &:focus {
@@ -61,6 +61,7 @@ outline: none;
 background: #1e1e1e;
 border-color: var(--accent-color, #00a4dc);
 transform: scale(1.02);
+will-change: transform;
 }
 }
 
@@ -207,12 +208,13 @@ background: #141414;
 border-radius: 12px;
 margin-bottom: 4px;
 border: 2px solid transparent;
-transition: all 0.15s ease;
+transition: background 0.15s ease, border-color 0.15s ease, transform 0.15s ease;
 
 &:focus-within {
 background: #1e1e1e;
 border-color: var(--accent-color, #00a4dc);
 transform: scale(1.02);
+will-change: transform;
 }
 }
 
@@ -267,7 +269,7 @@ background: #141414;
 border: 2px solid #333;
 border-radius: 10px;
 color: #fff;
-transition: all 0.2s;
+transition: background 0.2s ease, border-color 0.2s ease;
 
 &:focus {
 outline: none;
@@ -309,7 +311,7 @@ color: #fff;
 border: 2px solid #333;
 border-radius: 10px;
 cursor: pointer;
-transition: all 0.2s;
+transition: background 0.2s ease, border-color 0.2s ease, transform 0.2s ease;
 
 &:focus {
 outline: none;
@@ -317,6 +319,7 @@ background: var(--accent-color, #00a4dc);
 border-color: var(--accent-color, #00a4dc);
 color: #fff;
 transform: scale(1.05);
+will-change: transform;
 }
 
 &:disabled {
