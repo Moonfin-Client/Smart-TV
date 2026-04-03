@@ -282,26 +282,52 @@
 	z-index: 2;
 }
 
+// Shared mixin for clock-hand indicator (::before = minute hand, ::after = hour hand)
+.clock-hands(@color) {
+	&::before {
+		content: '';
+		position: absolute;
+		top: 50%;
+		left: 50%;
+		width: 2px;
+		height: 5px;
+		background: @color;
+		transform: translate(-50%, -100%);
+		transform-origin: bottom center;
+	}
+
+	&::after {
+		content: '';
+		position: absolute;
+		top: 50%;
+		left: 50%;
+		width: 4px;
+		height: 2px;
+		background: @color;
+		transform: translate(-50%, -50%);
+	}
+}
+
 .availability5 {
-	background: #22c55e;
-	border: 3px solid #fff;
+	background: #fff;
+	border: 2px solid #22c55e;
 	box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
 }
 
 .availability5::after {
 	content: '';
 	position: absolute;
-	top: 3px;
-	left: 6px;
+	top: 2px;
+	left: 5px;
 	width: 5px;
 	height: 8px;
-	border: solid #fff;
+	border: solid #22c55e;
 	border-width: 0 2px 2px 0;
 	transform: rotate(45deg);
 }
 
 .availability4 {
-	background: #f59e0b;
+	background: #22c55e;
 	box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
 }
 
@@ -318,38 +344,16 @@
 
 .availability3 {
 	background: transparent;
-	border: 3px solid #6366f1;
-	border-top-color: transparent;
-	animation: spin 1s linear infinite;
+	border: 2px solid #9333ea;
+	box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+	.clock-hands(#9333ea);
 }
 
-@keyframes spin {
-	from {
-		transform: rotate(0deg);
-	}
-	to {
-		transform: rotate(360deg);
-	}
-}
-
-.status5 {
-	background: linear-gradient(135deg, #22c55e, #16a34a);
-	color: #fff;
-}
-
-.status4 {
-	background: linear-gradient(135deg, #f59e0b, #d97706);
-	color: #fff;
-}
-
-.status3 {
-	background: linear-gradient(135deg, #6366f1, #4f46e5);
-	color: #fff;
-}
-
-.status2 {
-	background: linear-gradient(135deg, #ef4444, #dc2626);
-	color: #fff;
+.availability2 {
+	background: #fff;
+	border: 2px solid #eab308;
+	box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+	.clock-hands(#eab308);
 }
 
 // Genre card - landscape style (384x216)
@@ -531,7 +535,7 @@
 }
 
 .requestStatusApproved {
-	background: rgba(34, 197, 94, 0.95);
+	background: rgba(59, 130, 246, 0.95);
 	color: #fff;
 }
 
@@ -541,7 +545,17 @@
 }
 
 .requestStatusAvailable {
-	background: rgba(59, 130, 246, 0.95);
+	background: rgba(34, 197, 94, 0.95);
+	color: #fff;
+}
+
+.requestStatusPartial {
+	background: rgba(245, 158, 11, 0.95);
+	color: #fff;
+}
+
+.requestStatusDownloading {
+	background: rgba(99, 102, 241, 0.95);
 	color: #fff;
 }
 

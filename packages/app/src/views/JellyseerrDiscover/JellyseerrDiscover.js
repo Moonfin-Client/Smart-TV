@@ -7,6 +7,7 @@ import {useSettings} from '../../context/SettingsContext';
 import jellyseerrApi from '../../services/jellyseerrApi';
 import LoadingSpinner from '../../components/LoadingSpinner';
 import {KEYS} from '../../utils/keys';
+import hydrateRequestMediaItems from '../../utils/jellyseerrHydration';
 
 import css from './JellyseerrDiscover.module.less';
 
@@ -86,7 +87,7 @@ const MediaCard = memo(function MediaCard({item, mediaType, onSelect, onFocus}) 
 						{itemMediaType === 'movie' ? 'MOVIE' : 'SERIES'}
 					</div>
 				)}
-				{status && [3, 4, 5].includes(status) && (
+				{status && [2, 3, 4, 5].includes(status) && (
 					<div className={`${css.availabilityBadge} ${css[`availability${status}`]}`} />
 				)}
 			</div>
@@ -153,28 +154,20 @@ const RequestCard = memo(function RequestCard({request, onSelect, onFocus}) {
 	const media = request.media;
 	const posterUrl = media?.posterPath ? jellyseerrApi.getImageUrl(media.posterPath, 'w342') : null;
 	const title = media?.title || media?.name || 'Unknown';
-	const status = request.status;
+	const requestStatus = request.status;
+	const mediaStatus = media?.status;
 	const mediaType = request.type;
 
-	const getStatusClass = () => {
-		switch (status) {
-			case 1: return css.requestStatusPending;
-			case 2: return css.requestStatusApproved;
-			case 3: return css.requestStatusDeclined;
-			case 4: return css.requestStatusAvailable;
-			default: return css.requestStatusPending;
-		}
+	const getStatusInfo = () => {
+		if (requestStatus === 3) return {text: 'Declined', cls: css.requestStatusDeclined};
+		if (mediaStatus === 5) return {text: 'Available', cls: css.requestStatusAvailable};
+		if (mediaStatus === 4) return {text: 'Partial', cls: css.requestStatusPartial};
+		if (mediaStatus === 3) return {text: 'Downloading', cls: css.requestStatusDownloading};
+		if (requestStatus === 2) return {text: 'Approved', cls: css.requestStatusApproved};
+		return {text: 'Unknown', cls: css.requestStatusPending};
 	};
 
-	const getStatusText = () => {
-		switch (status) {
-			case 1: return '⏳ Pending';
-			case 2: return '✓ Approved';
-			case 3: return '✗ Declined';
-			case 4: return '✓ Available';
-			default: return 'Unknown';
-		}
-	};
+	const {text: statusText, cls: statusClass} = requestStatus !== 1 ? getStatusInfo() : {};
 
 	const handleClick = useCallback(() => {
 		const item = {
@@ -212,9 +205,13 @@ const RequestCard = memo(function RequestCard({request, onSelect, onFocus}) {
 						{mediaType === 'movie' ? 'MOVIE' : 'SERIES'}
 					</div>
 				)}
-				<div className={`${css.requestStatusBadge} ${getStatusClass()}`}>
-					{getStatusText()}
-				</div>
+				{requestStatus === 1 ? (
+					<div className={`${css.availabilityBadge} ${css.availability2}`} />
+				) : (
+					<div className={`${css.requestStatusBadge} ${statusClass}`}>
+						{statusText}
+					</div>
+				)}
 			</div>
 		</SpottableDiv>
 	);
@@ -401,10 +398,10 @@ const JellyseerrDiscover = ({onSelectItem, onSelectGenre, onSelectNetwork, onSel
 					jellyseerrApi.upcomingTv(1).catch(() => ({results: []}))
 				]);
 
-				console.log('[JellyseerrDiscover] My requests loaded:', myRequestsData.results?.length || 0);
+				const hydratedMyRequests = await hydrateRequestMediaItems(myRequestsData.results || []);
 
 				setRows({
-					myRequests: myRequestsData.results || [],
+					myRequests: hydratedMyRequests,
 					trending: (trendingData.results || []).slice(0, ITEMS_PER_PAGE),
 					popularMovies: (moviesData.results || []).slice(0, ITEMS_PER_PAGE),
 					popularTv: (tvData.results || []).slice(0, ITEMS_PER_PAGE),

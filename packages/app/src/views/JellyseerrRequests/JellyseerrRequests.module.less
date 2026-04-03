@@ -54,53 +54,48 @@
 	font-size: 0.9rem;
 }
 
-.status {
+.statusChip {
 	padding: 0.25rem 0.5rem;
 	border-radius: 4px;
 	font-size: 0.8rem;
-	font-weight: bold;
-	text-transform: uppercase;
-
-	&[data-status="1"] {
-		background: #f5a623;
-		color: #000;
-	}
-
-	&[data-status="2"] {
-		background: #10b981;
-		color: #fff;
-	}
-
-	&[data-status="3"] {
-		background: #ef4444;
-		color: #fff;
-	}
+	font-weight: 600;
+	border: 1px solid;
 }
 
-.mediaStatus {
-	padding: 0.25rem 0.5rem;
-	border-radius: 4px;
-	font-size: 0.8rem;
+.chipPending {
+	background: rgba(156, 163, 175, 0.2);
+	border-color: rgba(156, 163, 175, 0.4);
+	color: #9ca3af;
+}
 
-	&[data-media-status="2"] {
-		background: rgba(245, 166, 35, 0.3);
-		color: #f5a623;
-	}
+.chipApproved {
+	background: rgba(59, 130, 246, 0.2);
+	border-color: rgba(59, 130, 246, 0.4);
+	color: #3b82f6;
+}
 
-	&[data-media-status="3"] {
-		background: rgba(59, 130, 246, 0.3);
-		color: #3b82f6;
-	}
+.chipDeclined {
+	background: rgba(239, 68, 68, 0.2);
+	border-color: rgba(239, 68, 68, 0.4);
+	color: #ef4444;
+}
 
-	&[data-media-status="4"] {
-		background: rgba(139, 92, 246, 0.3);
-		color: #8b5cf6;
-	}
+.chipAvailable {
+	background: rgba(34, 197, 94, 0.2);
+	border-color: rgba(34, 197, 94, 0.4);
+	color: #22c55e;
+}
 
-	&[data-media-status="5"] {
-		background: rgba(16, 185, 129, 0.3);
-		color: #10b981;
-	}
+.chipPartial {
+	background: rgba(245, 158, 11, 0.2);
+	border-color: rgba(245, 158, 11, 0.4);
+	color: #f59e0b;
+}
+
+.chipDownloading {
+	background: rgba(99, 102, 241, 0.2);
+	border-color: rgba(99, 102, 241, 0.4);
+	color: #6366f1;
 }
 
 .date {

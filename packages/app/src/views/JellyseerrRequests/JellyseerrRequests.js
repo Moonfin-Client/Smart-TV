@@ -11,24 +11,22 @@ import ri from '@enact/ui/resolution';
 import Spotlight from '@enact/spotlight';
 import Spottable from '@enact/spotlight/Spottable';
 import jellyseerrApi from '../../services/jellyseerrApi';
+import hydrateRequestMediaItems from '../../utils/jellyseerrHydration';
 import {useJellyseerr} from '../../context/JellyseerrContext';
 import {useSettings} from '../../context/SettingsContext';
 import css from './JellyseerrRequests.module.less';
 
 const SpottableRow = Spottable('div');
 
-const STATUS_LABELS = {
-	1: 'Pending Approval',
-	2: 'Approved',
-	3: 'Declined'
-};
-
-const MEDIA_STATUS_LABELS = {
-	1: 'Unknown',
-	2: 'Pending',
-	3: 'Processing',
-	4: 'Partially Available',
-	5: 'Available'
+const getStatusInfo = (request) => {
+	const mediaStatus = request.media?.status;
+	if (request.status === 1) return {label: 'Pending', variant: css.chipPending};
+	if (request.status === 3) return {label: 'Declined', variant: css.chipDeclined};
+	if (mediaStatus === 5) return {label: 'Available', variant: css.chipAvailable};
+	if (mediaStatus === 4) return {label: 'Partially Available', variant: css.chipPartial};
+	if (mediaStatus === 3) return {label: 'Downloading', variant: css.chipDownloading};
+	if (request.status === 2) return {label: 'Approved', variant: css.chipApproved};
+	return {label: 'Unknown', variant: css.chipPending};
 };
 
 // Memoized request item component to avoid arrow functions in JSX props
@@ -37,6 +35,7 @@ const RequestItem = memo(function RequestItem({request, index, onSelect, onCance
 	const posterUrl = media?.posterPath
 		? jellyseerrApi.getImageUrl(media.posterPath, 'w185')
 		: null;
+	const {label: statusLabel, variant: statusVariant} = getStatusInfo(request);
 
 	const handleClick = useCallback(() => {
 		onSelect(request);
@@ -63,20 +62,9 @@ const RequestItem = memo(function RequestItem({request, index, onSelect, onCance
 					<span className={css.type}>
 						{media?.mediaType === 'movie' ? 'Movie' : 'TV Show'}
 					</span>
-					<span
-						className={css.status}
-						data-status={request.status}
-					>
-						{STATUS_LABELS[request.status] || 'Unknown'}
+					<span className={`${css.statusChip} ${statusVariant}`}>
+						{statusLabel}
 					</span>
-					{media?.status && (
-						<span
-							className={css.mediaStatus}
-							data-media-status={media.status}
-						>
-							{MEDIA_STATUS_LABELS[media.status]}
-						</span>
-					)}
 				</Row>
 				<BodyText className={css.date}>
 					Requested: {new Date(request.createdAt).toLocaleDateString()}
@@ -111,7 +99,8 @@ const JellyseerrRequests = ({onSelectItem, onClose, ...rest}) => {
 		setError(null);
 		try {
 			const data = await jellyseerrApi.getRequests({take: 100});
-			setRequests(data.results || []);
+			const hydrated = await hydrateRequestMediaItems(data.results || []);
+			setRequests(hydrated);
 		} catch (err) {
 			console.error('Failed to load requests:', err);
 			setError(err.message || 'Failed to load requests');
