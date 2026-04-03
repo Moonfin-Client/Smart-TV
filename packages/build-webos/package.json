@@ -8,6 +8,6 @@
 		"launch-tv": "ares-launch org.moonfin.webos -d tv"
 	},
 	"devDependencies": {
-		"@webos-tools/cli": "^3.2.3"
+		"@webos-tools/cli": "^3.2.1"
 	}
 }
