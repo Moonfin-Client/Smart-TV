@@ -101,8 +101,9 @@ const request = async (endpoint, options = {}) => {
 		return null;
 	}
 
-	const buf = await response.arrayBuffer();
-	return JSON.parse(new TextDecoder('utf-8').decode(buf));
+	const text = await response.text();
+	if (!text) return null;
+	return JSON.parse(text);
 };
 
 export const api = {
@@ -422,8 +423,9 @@ export const createApiForServer = (serverUrl, token, userId) => {
 			return null;
 		}
 
-		const buf = await response.arrayBuffer();
-		return JSON.parse(new TextDecoder('utf-8').decode(buf));
+		const text = await response.text();
+		if (!text) return null;
+		return JSON.parse(text);
 	};
 
 	return {

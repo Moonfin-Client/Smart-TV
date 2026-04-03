@@ -64,6 +64,9 @@ const Login = ({
 		try {
 			jellyfinApi.setServer(serverUrl);
 			const info = await jellyfinApi.api.getPublicInfo();
+			if (!info) {
+				throw new Error('Server returned empty response - check if server is reachable');
+			}
 			setServerInfo(info);
 			setStatus(`Connected to ${info.ServerName}! Loading users...`);
 
