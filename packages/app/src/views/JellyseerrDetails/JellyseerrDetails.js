@@ -700,11 +700,14 @@ const JellyseerrDetails = ({mediaType, mediaId, onClose, onSelectItem, onPlayInM
 
 				setDetails(data);
 
-				// Use context user permissions (Moonfin) or API user permissions
-				if (contextUser?.permissions != null) {
-					setUserPermissions(contextUser.permissions);
-				} else if (userData?.permissions != null) {
-					setUserPermissions(userData.permissions);
+				const apiPermissions = userData?.permissions;
+				const contextPermissions = contextUser?.permissions;
+				if (apiPermissions != null) {
+					setUserPermissions(apiPermissions);
+				} else if (contextPermissions != null) {
+					setUserPermissions(contextPermissions);
+				} else {
+					setUserPermissions(null);
 				}
 
 				const serversList = Array.isArray(serversData) ? serversData : [];

@@ -35,7 +35,7 @@ if (status?.authenticated) {
 setUser({
 displayName: status.displayName,
 jellyseerrUserId: status.jellyseerrUserId,
-permissions: status.permissions || 0xFFFFFFFF
+permissions: status.permissions ?? 0xFFFFFFFF
 });
 setIsAuthenticated(true);
 setServerUrl(status.url || config.url || config.jellyfinServerUrl);
@@ -103,7 +103,7 @@ if (status?.authenticated) {
 const userData = {
 displayName: status.displayName,
 jellyseerrUserId: status.jellyseerrUserId,
-permissions: status.permissions || 0xFFFFFFFF
+permissions: status.permissions ?? 0xFFFFFFFF
 };
 setUser(userData);
 setIsAuthenticated(true);
@@ -142,7 +142,7 @@ if (status?.authenticated) {
 const userData = {
 displayName: status.displayName,
 jellyseerrUserId: status.jellyseerrUserId,
-permissions: status.permissions || 0xFFFFFFFF
+permissions: status.permissions ?? 0xFFFFFFFF
 };
 setUser(userData);
 setIsAuthenticated(true);

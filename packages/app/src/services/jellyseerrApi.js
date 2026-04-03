@@ -410,10 +410,17 @@ REQUEST_MOVIE: 262144,
 REQUEST_TV: 524288
 };
 
+const normalizePermissionValue = (userPermissions) => {
+if (userPermissions == null) return null;
+const numeric = Number(userPermissions);
+return Number.isFinite(numeric) ? numeric : null;
+};
+
 export const hasPermission = (userPermissions, permission) => {
-if (!userPermissions) return false;
-if ((userPermissions & PERMISSIONS.ADMIN) !== 0) return true;
-return (userPermissions & permission) !== 0;
+const normalizedPermissions = normalizePermissionValue(userPermissions);
+if (normalizedPermissions == null) return false;
+if ((normalizedPermissions & PERMISSIONS.ADMIN) !== 0) return true;
+return (normalizedPermissions & permission) !== 0;
 };
 
 export const canRequest4k = (userPermissions) => {
