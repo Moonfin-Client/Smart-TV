@@ -773,6 +773,8 @@ const Settings = ({ onBack, onLibrariesChanged }) => {
 			<div className={css.divider} />
 			{renderOptionItem('subtitleBackgroundColor', 'Background Color', SUBTITLE_BACKGROUND_COLOR_OPTIONS, 'Black')}
 			{renderSliderItem('subtitleBackground', 'Background Opacity', 0, 100, 5, (v) => `${v}%`)}
+			<div className={css.divider} />
+			{renderToggleItem('enablePgsRendering', 'Direct Play PGS Subtitles', 'Use client-side rendering for bitmap subtitles (PGS, DVB, DVD)')}
 		</>
 	);
 

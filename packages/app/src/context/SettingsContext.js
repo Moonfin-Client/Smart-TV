@@ -87,7 +87,8 @@ const defaultSettings = {
 	showRatingLabels: true,
 	screensaverAgeFilter: false,
 	screensaverMaxRating: 13,
-	uiScale: 1.0
+	uiScale: 1.0,
+	enablePgsRendering: true
 };
 
 export {DEFAULT_HOME_ROWS};

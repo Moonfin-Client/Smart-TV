@@ -240,9 +240,8 @@ const extractSubtitleStreams = (mediaSource) => {
 				isExternal: s.IsExternal,
 				isForced: s.IsForced,
 				isDefault: s.IsDefault,
-				// Text-based subtitle codecs that can be rendered client-side
-				// subrip = srt, webvtt = vtt, sami = smi
 				isTextBased: ['srt', 'subrip', 'vtt', 'webvtt', 'ass', 'ssa', 'sub', 'smi', 'sami'].includes(s.Codec?.toLowerCase()),
+				isImageBased: ['pgssub', 'hdmv_pgs', 'pgs', 'dvdsub', 'dvbsub', 'dvb_subtitle'].includes(s.Codec?.toLowerCase()),
 				deliveryUrl: deliveryUrl,
 				deliveryMethod: s.DeliveryMethod
 			};

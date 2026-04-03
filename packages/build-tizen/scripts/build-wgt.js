@@ -222,6 +222,16 @@ async function main() {
 	} else {
 		warn('banner-dark.png not found at ' + bannerSrc);
 	}
+
+	// Copy libpgs worker for PGS subtitle rendering
+	const libpgsWorkerSrc = path.join(REPO_ROOT, 'node_modules', 'libpgs', 'dist', 'libpgs.worker.js');
+	const libpgsWorkerDest = path.join(DIST, 'libpgs.worker.js');
+	if (fs.existsSync(libpgsWorkerSrc)) {
+		fs.copyFileSync(libpgsWorkerSrc, libpgsWorkerDest);
+		success('Copied libpgs.worker.js');
+	} else {
+		warn('libpgs.worker.js not found (PGS rendering may degrade)');
+	}
 	
 	// Step 2.5: Patch index.html for Tizen compatibility
 	log('Patching index.html for Tizen compatibility...');

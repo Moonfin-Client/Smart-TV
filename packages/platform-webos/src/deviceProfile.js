@@ -708,9 +708,9 @@ export const getJellyfinDeviceProfile = async () => {
 		{Format: 'sub', Method: 'Encode'},
 		{Format: 'smi', Method: 'Encode'},
 		{Format: 'ttml', Method: 'External'},
-		{Format: 'pgssub', Method: 'Encode'},
-		{Format: 'dvdsub', Method: 'Encode'},
-		{Format: 'dvbsub', Method: 'Encode'}
+		{Format: 'pgssub', Method: 'External'},
+		{Format: 'dvdsub', Method: 'External'},
+		{Format: 'dvbsub', Method: 'External'}
 	];
 
 	const responseProfiles = [

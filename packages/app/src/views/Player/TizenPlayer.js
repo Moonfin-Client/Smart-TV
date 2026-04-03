@@ -12,6 +12,7 @@ import {
 import {useSettings} from '../../context/SettingsContext';
 import {KEYS, isBackKey} from '../../utils/keys';
 import {getImageUrl} from '../../utils/helpers';
+import {initPgsParser, disposePgsParser, renderPgsFrame, clearPgsCanvas} from '../../utils/pgsRenderer';
 import {getSubtitleOverlayStyle, getSubtitleTextStyle, sanitizeSubtitleHtml} from '../../utils/subtitleConstants';
 import {getServerUrl} from '../../services/jellyfinApi';
 import PlayerControls, {usePlayerButtons} from './PlayerControls';
@@ -88,6 +89,8 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 	const useNativeSubtitleRef = useRef(false);
 	// Ref for the Player container DOM element — used to walk up ancestors for transparency
 	const playerContainerRef = useRef(null);
+	const pgsParserRef = useRef(null);
+	const pgsCanvasRef = useRef(null);
 
 	// Shared handler for AVPlay's onsubtitlechange callback
 	// setSilentSubtitle(true) hides native render and fires this with embedded subtitle text
@@ -137,6 +140,10 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 				}
 			}
 			setCurrentSubtitleText(matchingTexts.length > 0 ? matchingTexts.join('\n') : null);
+		} else if (pgsParserRef.current && pgsCanvasRef.current) {
+			setCurrentSubtitleText(null);
+			const pgsTime = time - (subtitleOffset || 0);
+			renderPgsFrame(pgsCanvasRef.current, pgsParserRef.current, Math.max(0, pgsTime));
 		}
 
 		checkSegments(ticks); // eslint-disable-line no-use-before-define
@@ -369,8 +376,15 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 				let pendingSubAction = null;
 
 				const loadSubtitleData = async (sub) => {
+					if (pgsParserRef.current) {
+						disposePgsParser(pgsParserRef.current);
+						pgsParserRef.current = null;
+					}
+					if (pgsCanvasRef.current) {
+						clearPgsCanvas(pgsCanvasRef.current);
+					}
+
 					if (sub && sub.isEmbeddedNative) {
-				console.log('[Player] Initial: Using native embedded subtitle (codec:', sub.codec, ')');
 						pendingSubAction = {type: 'native', stream: sub};
 						setSubtitleTrackEvents(null);
 					} else if (sub && sub.isTextBased) {
@@ -385,6 +399,22 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 							}
 						} catch (err) {
 							console.error('[Player] Error fetching subtitle data:', err);
+							setSubtitleTrackEvents(null);
+						}
+					} else if (sub && sub.isImageBased && settings.enablePgsRendering) {
+						try {
+							const parser = await initPgsParser(sub);
+							if (parser) {
+								pgsParserRef.current = parser;
+								pendingSubAction = {type: 'pgs'};
+								setSubtitleTrackEvents(null);
+							} else {
+								pendingSubAction = {type: 'off'};
+								setSubtitleTrackEvents(null);
+							}
+						} catch (err) {
+							console.error('[Player] Error initializing PGS parser:', err);
+							pendingSubAction = {type: 'off'};
 							setSubtitleTrackEvents(null);
 						}
 					} else {
@@ -592,6 +622,10 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 			playback.stopHealthMonitoring();
 			stopTimeUpdatePolling();
 			cleanupAVPlay();
+			if (pgsParserRef.current) {
+				disposePgsParser(pgsParserRef.current);
+				pgsParserRef.current = null;
+			}
 			avplayReadyRef.current = false;
 
 			resetPopups(); // eslint-disable-line no-use-before-define
@@ -880,6 +914,15 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 	const handleSelectSubtitle = useCallback(async (e) => {
 		const index = parseInt(e.currentTarget.dataset.index, 10);
 		if (isNaN(index)) return;
+
+		if (pgsParserRef.current) {
+			disposePgsParser(pgsParserRef.current);
+			pgsParserRef.current = null;
+		}
+		if (pgsCanvasRef.current) {
+			clearPgsCanvas(pgsCanvasRef.current);
+		}
+
 		if (index === -1) {
 			setSelectedSubtitleIndex(-1);
 			setSubtitleTrackEvents(null);
@@ -926,7 +969,6 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 					const data = await playback.fetchSubtitleData(stream);
 					if (data && data.TrackEvents) {
 						setSubtitleTrackEvents(data.TrackEvents);
-						console.log('[Player] Loaded', data.TrackEvents.length, 'subtitle events (Fallback/Extracted)');
 					} else {
 						setSubtitleTrackEvents(null);
 					}
@@ -934,15 +976,27 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 					console.error('[Player] Error fetching subtitle data:', err);
 					setSubtitleTrackEvents(null);
 				}
+			} else if (stream && stream.isImageBased && settings.enablePgsRendering) {
+				useNativeSubtitleRef.current = false;
+				avplaySetSilentSubtitle(true);
+				try {
+					const parser = await initPgsParser(stream);
+					if (parser) {
+						pgsParserRef.current = parser;
+					}
+					setSubtitleTrackEvents(null);
+				} catch (err) {
+					console.error('[Player] Error initializing PGS parser:', err);
+					setSubtitleTrackEvents(null);
+				}
 			} else {
-				console.log('[Player] Image-based subtitle (codec:', stream?.codec, ') - requires burn-in via transcode');
 				avplaySetSilentSubtitle(true);
 				setSubtitleTrackEvents(null);
 			}
 			setCurrentSubtitleText(null);
 		}
 		closeModal();
-	}, [subtitleStreams, closeModal]);
+	}, [subtitleStreams, closeModal, settings.enablePgsRendering]);
 
 	const handleSelectSpeed = useCallback((e) => {
 		const rate = parseFloat(e.currentTarget.dataset.rate);
@@ -1353,6 +1407,22 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 					/>
 					{/* eslint-enable react/no-danger */}
 				</div>
+			)}
+
+			{!isAudioMode && (
+				<canvas
+					ref={pgsCanvasRef}
+					className={css.pgsCanvasOverlay}
+					style={{
+						position: 'fixed',
+						top: 0,
+						left: 0,
+						width: '100%',
+						height: '100%',
+						zIndex: 100,
+						pointerEvents: 'none'
+					}}
+				/>
 			)}
 
 			{/* Video Dimmer - not needed for audio */}

@@ -130,6 +130,17 @@ try {
 		fs.copyFileSync(bannerSrc, bannerDest);
 	}
 
+	// Copy libpgs worker for PGS subtitle rendering
+	console.log('\n Copying libpgs worker asset...');
+	const libpgsWorkerSrc = path.join(ROOT_DIR, 'node_modules', 'libpgs', 'dist', 'libpgs.worker.js');
+	const libpgsWorkerDest = path.join(DIST_DIR, 'libpgs.worker.js');
+	if (fs.existsSync(libpgsWorkerSrc)) {
+		fs.copyFileSync(libpgsWorkerSrc, libpgsWorkerDest);
+		console.log('  ✓ Copied libpgs.worker.js');
+	} else {
+		console.warn('  ⚠ libpgs.worker.js not found (PGS rendering may degrade)');
+	}
+
 	// Find ilib locale directory (may be nested under _/_/ in mono-repo builds)
 	const ilibDir = findDir(DIST_DIR, 'ilib');
 	const localeDir = ilibDir ? path.join(ilibDir, 'locale') : null;

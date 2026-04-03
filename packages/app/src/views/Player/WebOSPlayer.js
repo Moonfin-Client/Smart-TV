@@ -6,6 +6,7 @@ import * as playback from '../../services/playback';
 import {getImageUrl} from '../../utils/helpers';
 import {getServerUrl} from '../../services/jellyfinApi';
 import {detectWebOSVersion, getH264FallbackProfile} from '@moonfin/platform-webos/deviceProfile';
+import {initPgsRenderer, disposePgsRenderer} from '../../utils/pgsRenderer';
 import {
 	initLunaAPI,
 	registerAppStateObserver,
@@ -96,6 +97,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 	const hasReportedStartRef = useRef(false);
 	const lastSeekTimeRef = useRef(0);
 	const mediaUrlRef = useRef(null);
+	const pgsRendererRef = useRef(null);
 
 	const destroyHlsPlayer = () => {
 		if (hlsPlayerRef.current) {
@@ -484,6 +486,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 				resetPopups(); // eslint-disable-line no-use-before-define
 				if (controlsTimeoutRef.current) clearTimeout(controlsTimeoutRef.current);
 				if (seekDebounceTimerRef.current) clearTimeout(seekDebounceTimerRef.current);
+				disposePgsRenderer(pgsRendererRef.current);
 				return;
 			}
 
@@ -1343,45 +1346,57 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 
 	const handleSelectSubtitle = useCallback(async (e) => {
 		const index = parseInt(e.currentTarget.dataset.index, 10);
-		console.log('[Player] handleSelectSubtitle called with index:', index);
 		if (isNaN(index)) return;
 		playback.updateCurrentSession({subtitleStreamIndex: index});
+
+		disposePgsRenderer(pgsRendererRef.current);
+		pgsRendererRef.current = null;
+
 		if (index === -1) {
-			console.log('[Player] Turning subtitles OFF');
 			setSelectedSubtitleIndex(-1);
 			setSubtitleTrackEvents(null);
 			setCurrentSubtitleText(null);
 		} else {
-			console.log('[Player] Selecting subtitle index:', index);
 			setSelectedSubtitleIndex(index);
 			const stream = subtitleStreams.find(s => s.index === index);
-			console.log('[Player] Found stream:', stream ? 'yes' : 'no', 'codec:', stream?.codec, 'isTextBased:', stream?.isTextBased);
-			// Fetch subtitle data as JSON for custom rendering (webOS doesn't support native <track>)
+
 			if (stream && stream.isTextBased) {
 				try {
-					console.log('[Player] Fetching subtitle data for text-based sub...');
 					const data = await playback.fetchSubtitleData(stream);
-					console.log('[Player] Got subtitle data:', data ? 'yes' : 'no', 'TrackEvents:', data?.TrackEvents?.length);
 					if (data && data.TrackEvents) {
 						setSubtitleTrackEvents(data.TrackEvents);
-						console.log('[Player] Manual select: Loaded', data.TrackEvents.length, 'subtitle events');
 					} else {
-						console.log('[Player] No TrackEvents in response');
 						setSubtitleTrackEvents(null);
 					}
 				} catch (err) {
 					console.error('[Player] Error fetching subtitle data:', err);
 					setSubtitleTrackEvents(null);
 				}
+			} else if (stream && stream.isImageBased && settings.enablePgsRendering) {
+				if (videoRef.current) {
+					try {
+						const renderer = await initPgsRenderer(videoRef.current, stream, {
+							opacity: settings.subtitleOpacity,
+							scale: 1.0
+						});
+						if (renderer) {
+							pgsRendererRef.current = renderer;
+							setSubtitleTrackEvents(null);
+						} else {
+							setSubtitleTrackEvents(null);
+						}
+					} catch (err) {
+						console.error('[Player] Error initializing PGS renderer:', err);
+						setSubtitleTrackEvents(null);
+					}
+				}
 			} else {
-				// PGS/image-based subtitles - cannot render client-side, need to burn in via transcode
-				console.log('[Player] Image-based subtitle (codec:', stream?.codec, ') - requires burn-in via transcode');
 				setSubtitleTrackEvents(null);
 			}
 			setCurrentSubtitleText(null);
 		}
 		closeModal();
-	}, [subtitleStreams, closeModal]);
+	}, [subtitleStreams, closeModal, settings.enablePgsRendering, settings.subtitleOpacity]);
 
 	const handleSelectSpeed = useCallback((e) => {
 		const rate = parseFloat(e.currentTarget.dataset.rate);
