@@ -48,6 +48,24 @@ import css from './App.module.less';
 
 const MAX_HISTORY_LENGTH = 10;
 
+const normalizeJellyseerrSelection = (item) => {
+	if (!item) return null;
+
+	const normalizedType = item.mediaType || item.media_type || item.type || item.Type;
+	const mediaType = normalizedType === 'movie' || normalizedType === 'Movie'
+		? 'movie'
+		: normalizedType === 'tv' || normalizedType === 'show' || normalizedType === 'Series' || normalizedType === 'Tv'
+			? 'tv'
+			: item.title
+				? 'movie'
+				: 'tv';
+
+	const mediaId = item.mediaId || item.tmdbId || item.id || item.Id || item.media?.tmdbId || item.media?.id;
+	if (mediaId == null) return null;
+
+	return {mediaId, mediaType};
+};
+
 const PanelLoader = () => (
 	<div className={css.panelLoader}>
 		<LoadingSpinner />
@@ -431,8 +449,10 @@ const AppContent = (props) => {
 
 	const handleSelectItem = useCallback((item) => {
 		if (item.isJellyseerr) {
-			const type = item.mediaType || item.media_type || (item.title ? 'movie' : 'tv');
-			const jellyseerrMapped = {mediaId: item.id || item.Id, mediaType: type};
+			const jellyseerrMapped = normalizeJellyseerrSelection(item);
+			if (!jellyseerrMapped) {
+				return;
+			}
 			if (panelIndex === PANELS.JELLYSEERR_DETAILS && jellyseerrItem) {
 				jellyseerrItemStackRef.current.push(jellyseerrItem);
 				setJellyseerrItem(jellyseerrMapped);
@@ -627,14 +647,10 @@ const AppContent = (props) => {
 	}, []);
 
 	const handleSelectJellyseerrItem = useCallback((item) => {
-		// Normalize: ensure mediaId and mediaType are set
-		const normalized = item.mediaId
-			? item
-			: {
-				...item,
-				mediaId: item.id,
-				mediaType: item.mediaType || item.media_type || (item.title ? 'movie' : 'tv')
-			};
+		const normalized = normalizeJellyseerrSelection(item);
+		if (!normalized) {
+			return;
+		}
 		if (panelIndex === PANELS.JELLYSEERR_DETAILS && jellyseerrItem) {
 			jellyseerrItemStackRef.current.push(jellyseerrItem);
 			setJellyseerrItem(normalized);
@@ -837,6 +853,7 @@ const AppContent = (props) => {
 								mediaType={jellyseerrItem?.mediaType}
 								mediaId={jellyseerrItem?.mediaId}
 								onSelectItem={handleSelectJellyseerrItem}
+								onPlayInMoonfin={handleSelectItem}
 								onSelectPerson={handleSelectJellyseerrPerson}
 								onSelectKeyword={handleSelectJellyseerrKeyword}
 							onClose={handleBack}

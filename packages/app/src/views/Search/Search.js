@@ -222,12 +222,15 @@ const Search = ({onSelectItem, onSelectPerson}) => {
 		if (isJellyseerr) {
 			const jellyseerrItem = results.jellyseerr.find(item => String(item.id) === itemId);
 			if (jellyseerrItem) {
+				const mediaType = jellyseerrItem.mediaType || jellyseerrItem.media_type || (jellyseerrItem.title ? 'movie' : 'tv');
 				onSelectItem?.({
 					...jellyseerrItem,
 					isJellyseerr: true,
+					mediaId: jellyseerrItem.mediaId || jellyseerrItem.tmdbId || jellyseerrItem.id || jellyseerrItem.Id,
+					mediaType,
 					Id: jellyseerrItem.id,
 					Name: jellyseerrItem.title || jellyseerrItem.name,
-					Type: jellyseerrItem.mediaType === 'movie' ? 'Movie' : 'Series'
+					Type: mediaType === 'movie' ? 'Movie' : 'Series'
 				});
 			}
 		} else {

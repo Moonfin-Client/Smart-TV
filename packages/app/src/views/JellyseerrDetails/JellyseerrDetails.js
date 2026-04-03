@@ -122,7 +122,16 @@ const formatDate = (dateStr) => {
 
 const formatCurrency = (amount) => {
 	if (!amount || amount <= 0) return null;
-	return new Intl.NumberFormat('en-US', {style: 'currency', currency: 'USD', maximumFractionDigits: 0}).format(amount);
+	try {
+		return new Intl.NumberFormat('en-US', {
+			style: 'currency',
+			currency: 'USD',
+			minimumFractionDigits: 0,
+			maximumFractionDigits: 0
+		}).format(amount);
+	} catch {
+		return `$${Math.round(amount).toLocaleString('en-US')}`;
+	}
 };
 
 const formatRuntime = (minutes) => {
@@ -634,7 +643,7 @@ const CancelRequestPopup = memo(({open, pendingRequests, title, onConfirm, onClo
 	);
 });
 
-const JellyseerrDetails = ({mediaType, mediaId, onClose, onSelectItem, onSelectPerson, onSelectKeyword, onBack, backHandlerRef}) => {
+const JellyseerrDetails = ({mediaType, mediaId, onClose, onSelectItem, onPlayInMoonfin, onSelectPerson, onSelectKeyword, onBack, backHandlerRef}) => {
 	const {isAuthenticated, user: contextUser} = useJellyseerr();
 	const [details, setDetails] = useState(null);
 	const [loading, setLoading] = useState(true);
@@ -958,10 +967,10 @@ const JellyseerrDetails = ({mediaType, mediaId, onClose, onSelectItem, onSelectP
 	}, [details]);
 
 	const handlePlay = useCallback(() => {
-		if (details?.mediaInfo?.jellyfinMediaId) {
-			console.log('Play content:', details.mediaInfo.jellyfinMediaId);
-		}
-	}, [details]);
+		const jellyfinMediaId = details?.mediaInfo?.jellyfinMediaId;
+		if (!jellyfinMediaId) return;
+		onPlayInMoonfin?.({Id: jellyfinMediaId});
+	}, [details, onPlayInMoonfin]);
 
 	const handleSelectRelated = useCallback((item) => {
 		const type = item.mediaType || item.media_type || (item.title ? 'movie' : 'tv');
@@ -1059,13 +1068,11 @@ const JellyseerrDetails = ({mediaType, mediaId, onClose, onSelectItem, onSelectP
 		if (!details) return [];
 		const facts = [];
 
-		// TMDB Score
-		const voteAverage = details.voteAverage;
-		if (voteAverage && voteAverage > 0) {
-			facts.push({label: 'TMDB Score', value: `${Math.round(voteAverage * 10)}%`});
+		const tmdbScore = Number(details.voteAverage);
+		if (Number.isFinite(tmdbScore) && tmdbScore > 0) {
+			facts.push({label: 'TMDB Score', value: `${Math.round(tmdbScore * 10)}%`});
 		}
 
-		// Status
 		const productionStatus = details.status;
 		if (productionStatus) {
 			facts.push({label: 'Status', value: productionStatus});
@@ -1150,6 +1157,8 @@ const JellyseerrDetails = ({mediaType, mediaId, onClose, onSelectItem, onSelectP
 		? jellyseerrApi.getImageUrl(details.backdropPath, 'w1280')
 		: null;
 	const title = details.title || details.name;
+	const voteAverage = Number(details.voteAverage);
+	const hasVoteAverage = Number.isFinite(voteAverage) && voteAverage > 0;
 	const year = details.releaseDate
 		? new Date(details.releaseDate).getFullYear()
 		: details.firstAirDate
@@ -1237,8 +1246,8 @@ const JellyseerrDetails = ({mediaType, mediaId, onClose, onSelectItem, onSelectP
 
 						{/* Metadata Row */}
 						<div className={css.metadataRow}>
-							{details.voteAverage > 0 && (
-								<span className={css.metadataItem}>★ {details.voteAverage.toFixed(1)}</span>
+							{hasVoteAverage && (
+								<span className={css.metadataItem}>★ {voteAverage.toFixed(1)}</span>
 							)}
 							{details.runtime && (
 								<span className={css.metadataItem}>{formatRuntime(details.runtime)}</span>

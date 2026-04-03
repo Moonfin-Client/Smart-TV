@@ -132,9 +132,10 @@ const JellyseerrRequests = ({onSelectItem, onClose, ...rest}) => {
 
 	const handleSelect = useCallback((request) => {
 		if (onSelectItem && request.media) {
+			const mediaType = request.media.mediaType || request.media.media_type || request.type;
 			onSelectItem({
-				mediaType: request.media.mediaType,
-				mediaId: request.media.tmdbId
+				mediaType,
+				mediaId: request.media.tmdbId || request.media.id
 			});
 		}
 	}, [onSelectItem]);
