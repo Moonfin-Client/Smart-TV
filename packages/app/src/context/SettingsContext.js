@@ -16,6 +16,7 @@ const defaultSettings = {
 	maxBitrate: 0,
 	audioLanguage: '',
 	subtitleLanguage: '',
+	uiLanguage: 'en-US',
 	subtitleMode: 'default',
 	subtitleSize: 'medium',
 	subtitlePosition: 'bottom',
@@ -170,7 +171,7 @@ const SYNCABLE_KEYS = [
 	'homeRowsImageType', 'showClock', 'clockDisplay',
 	'backdropBlurHome', 'backdropBlurDetail',
 	'mediaBarSourceType', 'mediaBarLibraryIds', 'mediaBarCollectionIds',
-	'homeRows',
+	'homeRows', 'uiLanguage',
 ];
 
 const profileToLocal = (serverProfile) => {

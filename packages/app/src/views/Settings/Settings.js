@@ -1,4 +1,5 @@
 import {useCallback, useState, useEffect, useRef} from 'react';
+import $L from '@enact/i18n/$L';
 import Spottable from '@enact/spotlight/Spottable';
 import SpotlightContainerDecorator from '@enact/spotlight/SpotlightContainerDecorator';
 import Spotlight from '@enact/spotlight';
@@ -55,16 +56,16 @@ const IconChevron = () => (
 	</svg>
 );
 
-const BASE_CATEGORIES = [
-	{ id: 'general', label: 'General', description: 'App behavior, navigation, and home screen', Icon: IconGeneral },
-	{ id: 'playback', label: 'Playback', description: 'Video, audio, and subtitle options', Icon: IconPlayback },
-	{ id: 'display', label: 'Display', description: 'Appearance, theme, and screensaver', Icon: IconDisplay },
-	{ id: 'plugin', label: 'Plugin', description: 'Moonfin plugin and integrations', Icon: IconPlugin },
-	{ id: 'about', label: 'About', description: 'App info and device capabilities', Icon: IconAbout }
+const getBaseCategories = () => [
+	{ id: 'general', label: $L('General'), description: $L('App behavior, navigation, and home screen'), Icon: IconGeneral },
+	{ id: 'playback', label: $L('Playback'), description: $L('Video, audio, and subtitle options'), Icon: IconPlayback },
+	{ id: 'display', label: $L('Display'), description: $L('Appearance, theme, and screensaver'), Icon: IconDisplay },
+	{ id: 'plugin', label: $L('Plugin'), description: $L('Moonfin plugin and integrations'), Icon: IconPlugin },
+	{ id: 'about', label: $L('About'), description: $L('App info and device capabilities'), Icon: IconAbout }
 ];
 
-const BITRATE_OPTIONS = [
-	{ value: 0, label: 'Auto (No limit)' },
+const getBitrateOptions = () => [
+	{ value: 0, label: $L('Auto (No limit)') },
 	{ value: 120000000, label: '120 Mbps' },
 	{ value: 80000000, label: '80 Mbps' },
 	{ value: 60000000, label: '60 Mbps' },
@@ -74,80 +75,80 @@ const BITRATE_OPTIONS = [
 	{ value: 5000000, label: '5 Mbps' }
 ];
 
-const CONTENT_TYPE_OPTIONS = [
-	{ value: 'both', label: 'Movies & TV Shows' },
-	{ value: 'movies', label: 'Movies Only' },
-	{ value: 'tv', label: 'TV Shows Only' }
+const getContentTypeOptions = () => [
+	{ value: 'both', label: $L('Movies & TV Shows') },
+	{ value: 'movies', label: $L('Movies Only') },
+	{ value: 'tv', label: $L('TV Shows Only') }
 ];
 
-const FEATURED_ITEM_COUNT_OPTIONS = [
-	{ value: 5, label: '5 items' },
-	{ value: 10, label: '10 items' },
-	{ value: 15, label: '15 items' }
+const getFeaturedItemCountOptions = () => [
+	{ value: 5, label: $L('5 items') },
+	{ value: 10, label: $L('10 items') },
+	{ value: 15, label: $L('15 items') }
 ];
 
-const MEDIA_BAR_SOURCE_OPTIONS = [
-	{ value: 'library', label: 'Libraries' },
-	{ value: 'collection', label: 'Collections' }
+const getMediaBarSourceOptions = () => [
+	{ value: 'library', label: $L('Libraries') },
+	{ value: 'collection', label: $L('Collections') }
 ];
 
-const BLUR_OPTIONS = [
-	{ value: 0, label: 'Off' },
-	{ value: 10, label: 'Light' },
-	{ value: 20, label: 'Medium' },
-	{ value: 30, label: 'Strong' },
-	{ value: 40, label: 'Heavy' }
+const getBlurOptions = () => [
+	{ value: 0, label: $L('Off') },
+	{ value: 10, label: $L('Light') },
+	{ value: 20, label: $L('Medium') },
+	{ value: 30, label: $L('Strong') },
+	{ value: 40, label: $L('Heavy') }
 ];
 
-const SUBTITLE_SIZE_OPTIONS = [
-	{ value: 'small', label: 'Small', fontSize: 36 },
-	{ value: 'medium', label: 'Medium', fontSize: 44 },
-	{ value: 'large', label: 'Large', fontSize: 52 },
-	{ value: 'xlarge', label: 'Extra Large', fontSize: 60 }
+const getSubtitleSizeOptions = () => [
+	{ value: 'small', label: $L('Small'), fontSize: 36 },
+	{ value: 'medium', label: $L('Medium'), fontSize: 44 },
+	{ value: 'large', label: $L('Large'), fontSize: 52 },
+	{ value: 'xlarge', label: $L('Extra Large'), fontSize: 60 }
 ];
 
-const SUBTITLE_POSITION_OPTIONS = [
-	{ value: 'bottom', label: 'Bottom', offset: 10 },
-	{ value: 'lower', label: 'Lower', offset: 20 },
-	{ value: 'middle', label: 'Middle', offset: 30 },
-	{ value: 'higher', label: 'Higher', offset: 40 },
-	{ value: 'absolute', label: 'Absolute', offset: 0 }
+const getSubtitlePositionOptions = () => [
+	{ value: 'bottom', label: $L('Bottom'), offset: 10 },
+	{ value: 'lower', label: $L('Lower'), offset: 20 },
+	{ value: 'middle', label: $L('Middle'), offset: 30 },
+	{ value: 'higher', label: $L('Higher'), offset: 40 },
+	{ value: 'absolute', label: $L('Absolute'), offset: 0 }
 ];
 
-const SUBTITLE_COLOR_OPTIONS = [
-	{ value: '#ffffff', label: 'White' },
-	{ value: '#ffff00', label: 'Yellow' },
-	{ value: '#00ffff', label: 'Cyan' },
-	{ value: '#ff00ff', label: 'Magenta' },
-	{ value: '#00ff00', label: 'Green' },
-	{ value: '#ff0000', label: 'Red' },
-	{ value: '#808080', label: 'Grey' },
-	{ value: '#404040', label: 'Dark Grey' }
+const getSubtitleColorOptions = () => [
+	{ value: '#ffffff', label: $L('White') },
+	{ value: '#ffff00', label: $L('Yellow') },
+	{ value: '#00ffff', label: $L('Cyan') },
+	{ value: '#ff00ff', label: $L('Magenta') },
+	{ value: '#00ff00', label: $L('Green') },
+	{ value: '#ff0000', label: $L('Red') },
+	{ value: '#808080', label: $L('Grey') },
+	{ value: '#404040', label: $L('Dark Grey') }
 ];
 
-const SUBTITLE_SHADOW_COLOR_OPTIONS = [
-	{ value: '#000000', label: 'Black' },
-	{ value: '#ffffff', label: 'White' },
-	{ value: '#808080', label: 'Grey' },
-	{ value: '#404040', label: 'Dark Grey' },
-	{ value: '#ff0000', label: 'Red' },
-	{ value: '#00ff00', label: 'Green' },
-	{ value: '#0000ff', label: 'Blue' }
+const getSubtitleShadowColorOptions = () => [
+	{ value: '#000000', label: $L('Black') },
+	{ value: '#ffffff', label: $L('White') },
+	{ value: '#808080', label: $L('Grey') },
+	{ value: '#404040', label: $L('Dark Grey') },
+	{ value: '#ff0000', label: $L('Red') },
+	{ value: '#00ff00', label: $L('Green') },
+	{ value: '#0000ff', label: $L('Blue') }
 ];
 
-const SUBTITLE_BACKGROUND_COLOR_OPTIONS = [
-	{ value: '#000000', label: 'Black' },
-	{ value: '#ffffff', label: 'White' },
-	{ value: '#808080', label: 'Grey' },
-	{ value: '#404040', label: 'Dark Grey' },
-	{ value: '#000080', label: 'Navy' }
+const getSubtitleBackgroundColorOptions = () => [
+	{ value: '#000000', label: $L('Black') },
+	{ value: '#ffffff', label: $L('White') },
+	{ value: '#808080', label: $L('Grey') },
+	{ value: '#404040', label: $L('Dark Grey') },
+	{ value: '#000080', label: $L('Navy') }
 ];
 
-const SEEK_STEP_OPTIONS = [
-	{ value: 5, label: '5 seconds' },
-	{ value: 10, label: '10 seconds' },
-	{ value: 20, label: '20 seconds' },
-	{ value: 30, label: '30 seconds' }
+const getSeekStepOptions = () => [
+	{ value: 5, label: $L('5 seconds') },
+	{ value: 10, label: $L('10 seconds') },
+	{ value: 20, label: $L('20 seconds') },
+	{ value: 30, label: $L('30 seconds') }
 ];
 
 const UI_OPACITY_OPTIONS = [
@@ -167,118 +168,124 @@ const USER_OPACITY_OPTIONS = [
 	{ value: 95, label: '95%' }
 ];
 
-const UI_COLOR_OPTIONS = [
-	{ value: 'gray', label: 'Gray', rgb: '128, 128, 128' },
-	{ value: 'black', label: 'Black', rgb: '0, 0, 0' },
-	{ value: 'dark_blue', label: 'Dark Blue', rgb: '26, 35, 50' },
-	{ value: 'purple', label: 'Purple', rgb: '74, 20, 140' },
-	{ value: 'teal', label: 'Teal', rgb: '0, 105, 92' },
-	{ value: 'navy', label: 'Navy', rgb: '13, 27, 42' },
-	{ value: 'charcoal', label: 'Charcoal', rgb: '54, 69, 79' },
-	{ value: 'brown', label: 'Brown', rgb: '62, 39, 35' },
-	{ value: 'dark_red', label: 'Dark Red', rgb: '139, 0, 0' },
-	{ value: 'dark_green', label: 'Dark Green', rgb: '11, 79, 15' },
-	{ value: 'slate', label: 'Slate', rgb: '71, 85, 105' },
-	{ value: 'indigo', label: 'Indigo', rgb: '30, 58, 138' }
+const getUiColorOptions = () => [
+	{ value: 'gray', label: $L('Gray'), rgb: '128, 128, 128' },
+	{ value: 'black', label: $L('Black'), rgb: '0, 0, 0' },
+	{ value: 'dark_blue', label: $L('Dark Blue'), rgb: '26, 35, 50' },
+	{ value: 'purple', label: $L('Purple'), rgb: '74, 20, 140' },
+	{ value: 'teal', label: $L('Teal'), rgb: '0, 105, 92' },
+	{ value: 'navy', label: $L('Navy'), rgb: '13, 27, 42' },
+	{ value: 'charcoal', label: $L('Charcoal'), rgb: '54, 69, 79' },
+	{ value: 'brown', label: $L('Brown'), rgb: '62, 39, 35' },
+	{ value: 'dark_red', label: $L('Dark Red'), rgb: '139, 0, 0' },
+	{ value: 'dark_green', label: $L('Dark Green'), rgb: '11, 79, 15' },
+	{ value: 'slate', label: $L('Slate'), rgb: '71, 85, 105' },
+	{ value: 'indigo', label: $L('Indigo'), rgb: '30, 58, 138' }
 ];
 
-const SCREENSAVER_MODE_OPTIONS = [
-	{ value: 'library', label: 'Library Backdrops' },
-	{ value: 'logo', label: 'Moonfin Logo' }
+const getScreensaverModeOptions = () => [
+	{ value: 'library', label: $L('Library Backdrops') },
+	{ value: 'logo', label: $L('Moonfin Logo') }
 ];
 
-const SCREENSAVER_TIMEOUT_OPTIONS = [
-	{ value: 30, label: '30 seconds' },
-	{ value: 60, label: '1 minute' },
-	{ value: 90, label: '90 seconds' },
-	{ value: 120, label: '2 minutes' },
-	{ value: 180, label: '3 minutes' },
-	{ value: 300, label: '5 minutes' }
+const getScreensaverTimeoutOptions = () => [
+	{ value: 30, label: $L('30 seconds') },
+	{ value: 60, label: $L('1 minute') },
+	{ value: 90, label: $L('90 seconds') },
+	{ value: 120, label: $L('2 minutes') },
+	{ value: 180, label: $L('3 minutes') },
+	{ value: 300, label: $L('5 minutes') }
 ];
 
-const SCREENSAVER_DIMMING_OPTIONS = [
-	{ value: 0, label: 'Off' },
+const getScreensaverDimmingOptions = () => [
+	{ value: 0, label: $L('Off') },
 	{ value: 25, label: '25%' },
 	{ value: 50, label: '50%' },
 	{ value: 75, label: '75%' },
 	{ value: 100, label: '100%' }
 ];
 
-const CLOCK_DISPLAY_OPTIONS = [
-	{ value: '12-hour', label: '12-Hour' },
-	{ value: '24-hour', label: '24-Hour' }
+const getClockDisplayOptions = () => [
+	{ value: '12-hour', label: $L('12-Hour') },
+	{ value: '24-hour', label: $L('24-Hour') }
 ];
 
-const NAV_POSITION_OPTIONS = [
-	{ value: 'top', label: 'Top Bar' },
-	{ value: 'left', label: 'Left Sidebar' }
+// Labels intentionally not wrapped with $L() — language names display in their native language regardless of current locale
+const LANGUAGE_OPTIONS = [
+	{value: 'en-US', label: 'English'},
+	{value: 'pl', label: 'Polski'}
 ];
 
-const WATCHED_INDICATOR_OPTIONS = [
-	{ value: 'always', label: 'Always' },
-	{ value: 'hideCount', label: 'Hide Unwatched Count' },
-	{ value: 'episodesOnly', label: 'Episodes Only' },
-	{ value: 'never', label: 'Never' }
+const getNavPositionOptions = () => [
+	{ value: 'top', label: $L('Top Bar') },
+	{ value: 'left', label: $L('Left Sidebar') }
 ];
 
-const POSTER_SIZE_OPTIONS = [
-	{ value: 'small', label: 'Small' },
-	{ value: 'default', label: 'Default' },
-	{ value: 'large', label: 'Large' },
-	{ value: 'xlarge', label: 'Extra Large' }
+const getWatchedIndicatorOptions = () => [
+	{ value: 'always', label: $L('Always') },
+	{ value: 'hideCount', label: $L('Hide Unwatched Count') },
+	{ value: 'episodesOnly', label: $L('Episodes Only') },
+	{ value: 'never', label: $L('Never') }
 ];
 
-const IMAGE_TYPE_OPTIONS = [
-	{ value: 'poster', label: 'Poster' },
-	{ value: 'backdrop', label: 'Backdrop' },
-	{ value: 'logo', label: 'Logo' },
-	{ value: 'thumb', label: 'Thumb' }
+const getPosterSizeOptions = () => [
+	{ value: 'small', label: $L('Small') },
+	{ value: 'default', label: $L('Default') },
+	{ value: 'large', label: $L('Large') },
+	{ value: 'xlarge', label: $L('Extra Large') }
 ];
 
-const UI_SCALE_OPTIONS = [
-	{ value: 0.85, label: 'Compact' },
-	{ value: 0.9, label: 'Small' },
-	{ value: 0.95, label: 'Slightly Small' },
-	{ value: 1.0, label: 'Default' },
-	{ value: 1.05, label: 'Slightly Large' },
-	{ value: 1.1, label: 'Large' },
-	{ value: 1.15, label: 'Extra Large' },
-	{ value: 1.2, label: 'Huge' },
-	{ value: 1.3, label: 'Maximum' }
+const getImageTypeOptions = () => [
+	{ value: 'poster', label: $L('Poster') },
+	{ value: 'backdrop', label: $L('Backdrop') },
+	{ value: 'logo', label: $L('Logo') },
+	{ value: 'thumb', label: $L('Thumb') }
 ];
 
-const FOCUS_COLOR_OPTIONS = [
-	{ value: '#00a4dc', label: 'Blue' },
-	{ value: '#ffffff', label: 'White' },
-	{ value: '#9b59b6', label: 'Purple' },
-	{ value: '#1abc9c', label: 'Teal' },
-	{ value: '#2c3e50', label: 'Navy' },
-	{ value: '#e74c3c', label: 'Red' },
-	{ value: '#2ecc71', label: 'Green' },
-	{ value: '#e67e22', label: 'Orange' },
-	{ value: '#e91e63', label: 'Pink' },
-	{ value: '#f1c40f', label: 'Yellow' }
+const getUiScaleOptions = () => [
+	{ value: 0.85, label: $L('Compact') },
+	{ value: 0.9, label: $L('Small') },
+	{ value: 0.95, label: $L('Slightly Small') },
+	{ value: 1.0, label: $L('Default') },
+	{ value: 1.05, label: $L('Slightly Large') },
+	{ value: 1.1, label: $L('Large') },
+	{ value: 1.15, label: $L('Extra Large') },
+	{ value: 1.2, label: $L('Huge') },
+	{ value: 1.3, label: $L('Maximum') }
 ];
 
-const NEXT_UP_BEHAVIOR_OPTIONS = [
-	{ value: 'extended', label: 'Extended' },
-	{ value: 'minimal', label: 'Minimal' },
-	{ value: 'disabled', label: 'Disabled' }
+const getFocusColorOptions = () => [
+	{ value: '#00a4dc', label: $L('Blue') },
+	{ value: '#ffffff', label: $L('White') },
+	{ value: '#9b59b6', label: $L('Purple') },
+	{ value: '#1abc9c', label: $L('Teal') },
+	{ value: '#2c3e50', label: $L('Navy') },
+	{ value: '#e74c3c', label: $L('Red') },
+	{ value: '#2ecc71', label: $L('Green') },
+	{ value: '#e67e22', label: $L('Orange') },
+	{ value: '#e91e63', label: $L('Pink') },
+	{ value: '#f1c40f', label: $L('Yellow') }
 ];
 
-const MEDIA_SEGMENT_ACTION_OPTIONS = [
-	{ value: 'ask', label: 'Ask to Skip' },
-	{ value: 'auto', label: 'Auto Skip' },
-	{ value: 'none', label: "Don't Skip" }
+const getNextUpBehaviorOptions = () => [
+	{ value: 'extended', label: $L('Extended') },
+	{ value: 'minimal', label: $L('Minimal') },
+	{ value: 'disabled', label: $L('Disabled') }
 ];
 
-const SEASONAL_THEME_OPTIONS = [
-	{ value: 'none', label: 'None' },
-	{ value: 'winter', label: 'Winter' },
-	{ value: 'spring', label: 'Spring' },
-	{ value: 'summer', label: 'Summer' },
-	{ value: 'fall', label: 'Fall' },
-	{ value: 'halloween', label: 'Halloween' }
+const getMediaSegmentActionOptions = () => [
+	{ value: 'ask', label: $L('Ask to Skip') },
+	{ value: 'auto', label: $L('Auto Skip') },
+	{ value: 'none', label: $L("Don't Skip") }
+];
+
+const getSeasonalThemeOptions = () => [
+	{ value: 'none', label: $L('None') },
+	{ value: 'winter', label: $L('Winter') },
+	{ value: 'spring', label: $L('Spring') },
+	{ value: 'summer', label: $L('Summer') },
+	{ value: 'fall', label: $L('Fall') },
+	{ value: 'halloween', label: $L('Halloween') }
 ];
 
 const AGE_RATING_OPTIONS = [
@@ -319,11 +326,13 @@ const Settings = ({ onBack, onLibrariesChanged }) => {
 	const jellyseerr = useJellyseerr();
 	const isSeerr = jellyseerr.isMoonfin && jellyseerr.variant === 'seerr';
 	const seerrLabel = isSeerr ? jellyseerr.displayName || 'Seerr' : 'Jellyseerr';
-	const categories = BASE_CATEGORIES;
+	const categories = getBaseCategories();
 
 	const [navStack, setNavStack] = useState([{ view: 'categories' }]);
 	const currentView = navStack[navStack.length - 1];
 	const pendingFocusRef = useRef(null);
+	const initialLanguageRef = useRef(settings.uiLanguage || 'en-US');
+	const languageChanged = settings.uiLanguage !== initialLanguageRef.current;
 
 	const pushView = useCallback((view) => {
 		setNavStack((prev) => [...prev, view]);
@@ -428,22 +437,22 @@ const Settings = ({ onBack, onLibrariesChanged }) => {
 		updateSetting('useMoonfinPlugin', enabling);
 		if (enabling) {
 			if (!serverUrl || !accessToken) {
-				setMoonfinStatus('Not connected to a Jellyfin server');
+				setMoonfinStatus($L('Not connected to a Jellyfin server'));
 				return;
 			}
 			setMoonfinConnecting(true);
-			setMoonfinStatus('Checking Moonfin plugin...');
+			setMoonfinStatus($L('Checking Moonfin plugin...'));
 			try {
 				const result = await jellyseerr.configureWithMoonfin(serverUrl, accessToken);
 				if (result.authenticated) {
-					setMoonfinStatus('Connected via Moonfin!');
+					setMoonfinStatus($L('Connected via Moonfin!'));
 					setMoonfinLoginMode(false);
 				} else {
-					setMoonfinStatus('Moonfin plugin found but no session. Please log in.');
+					setMoonfinStatus($L('Moonfin plugin found but no session. Please log in.'));
 					setMoonfinLoginMode(true);
 				}
 			} catch (err) {
-				setMoonfinStatus(`Moonfin connection failed: ${err.message}`);
+				setMoonfinStatus(`${$L('Moonfin connection failed:')} ${err.message}`);
 			} finally {
 				setMoonfinConnecting(false);
 			}
@@ -458,19 +467,19 @@ const Settings = ({ onBack, onLibrariesChanged }) => {
 
 	const handleMoonfinLogin = useCallback(async () => {
 		if (!moonfinUsername || !moonfinPassword) {
-			setMoonfinStatus('Please enter username and password');
+			setMoonfinStatus($L('Please enter username and password'));
 			return;
 		}
 		setMoonfinConnecting(true);
-		setMoonfinStatus('Logging in via Moonfin plugin...');
+		setMoonfinStatus($L('Logging in via Moonfin plugin...'));
 		try {
 			await jellyseerr.loginWithMoonfin(moonfinUsername, moonfinPassword);
-			setMoonfinStatus('Connected successfully!');
+			setMoonfinStatus($L('Connected successfully!'));
 			setMoonfinLoginMode(false);
 			setMoonfinUsername('');
 			setMoonfinPassword('');
 		} catch (err) {
-			setMoonfinStatus(`Login failed: ${err.message}`);
+			setMoonfinStatus(`${$L('Login failed:')} ${err.message}`);
 		} finally {
 			setMoonfinConnecting(false);
 		}
@@ -681,10 +690,19 @@ const Settings = ({ onBack, onLibrariesChanged }) => {
 
 	const renderGeneralApplication = () => (
 		<>
-			{renderOptionItem('clockDisplay', 'Clock Display', CLOCK_DISPLAY_OPTIONS, '24-Hour')}
-			{renderToggleItem('showClock', 'Show Clock', 'Show or hide clock on home screen')}
-			{renderToggleItem('autoLogin', 'Auto Login', 'Automatically sign in on app launch')}
-			{renderOptionItem('watchedIndicatorBehavior', 'Watched Indicators', WATCHED_INDICATOR_OPTIONS, 'Always')}
+			{/* Fallback 'English' is intentionally not wrapped with $L() — it matches the raw stored value, not a translated display string */}
+			{renderOptionItem('uiLanguage', $L('Language'), LANGUAGE_OPTIONS, 'English')}
+			{languageChanged && (
+				<div className={css.listItem}>
+					<div className={css.listItemBody}>
+						<div className={css.listItemCaption}>{$L('Restart the app to apply the new language')}</div>
+					</div>
+				</div>
+			)}
+			{renderOptionItem('clockDisplay', $L('Clock Display'), getClockDisplayOptions(), $L('24-Hour'))}
+			{renderToggleItem('showClock', $L('Show Clock'), $L('Show or hide clock on home screen'))}
+			{renderToggleItem('autoLogin', $L('Auto Login'), $L('Automatically sign in on app launch'))}
+			{renderOptionItem('watchedIndicatorBehavior', $L('Watched Indicators'), getWatchedIndicatorOptions(), $L('Always'))}
 		</>
 	);
 
@@ -692,24 +710,24 @@ const Settings = ({ onBack, onLibrariesChanged }) => {
 		<>
 			{renderToggleItem(
 				'unifiedLibraryMode',
-				'Unified Library Mode',
-				'Combine content from all servers into a single view'
+				$L('Unified Library Mode'),
+				$L('Combine content from all servers into a single view')
 			)}
 		</>
 	);
 
 	const renderGeneralNavbar = () => (
 		<>
-			{renderOptionItem('navbarPosition', 'Navigation Style', NAV_POSITION_OPTIONS, 'Top Bar')}
-			{renderToggleItem('showShuffleButton', 'Show Shuffle Button', 'Show shuffle button in navigation bar')}
+			{renderOptionItem('navbarPosition', $L('Navigation Style'), getNavPositionOptions(), $L('Top Bar'))}
+			{renderToggleItem('showShuffleButton', $L('Show Shuffle Button'), $L('Show shuffle button in navigation bar'))}
 			{settings.showShuffleButton &&
-				renderOptionItem('shuffleContentType', 'Shuffle Content Type', CONTENT_TYPE_OPTIONS, 'Movies & TV Shows')}
-			{renderToggleItem('showGenresButton', 'Show Genres Button', 'Show genres button in navigation bar')}
-			{renderToggleItem('showFavoritesButton', 'Show Favorites Button', 'Show favorites button in navigation bar')}
+				renderOptionItem('shuffleContentType', $L('Shuffle Content Type'), getContentTypeOptions(), $L('Movies & TV Shows'))}
+			{renderToggleItem('showGenresButton', $L('Show Genres Button'), $L('Show genres button in navigation bar'))}
+			{renderToggleItem('showFavoritesButton', $L('Show Favorites Button'), $L('Show favorites button in navigation bar'))}
 			{renderToggleItem(
 				'showLibrariesInToolbar',
-				'Show Libraries in Toolbar',
-				'Show library shortcuts in navigation bar'
+				$L('Show Libraries in Toolbar'),
+				$L('Show library shortcuts in navigation bar')
 			)}
 		</>
 	);
@@ -718,21 +736,21 @@ const Settings = ({ onBack, onLibrariesChanged }) => {
 		<>
 			{renderToggleItem(
 				'mergeContinueWatchingNextUp',
-				'Merge Continue Watching & Next Up',
-				'Combine into a single row'
+				$L('Merge Continue Watching & Next Up'),
+				$L('Combine into a single row')
 			)}
 			{renderToggleItem(
 				'useSeriesThumbnails',
-				'Use Series Thumbnails',
-				'Show series artwork instead of individual episode images'
+				$L('Use Series Thumbnails'),
+				$L('Show series artwork instead of individual episode images')
 			)}
-			{renderOptionItem('homeRowsPosterSize', 'Poster Size', POSTER_SIZE_OPTIONS, 'Default')}
-			{renderOptionItem('homeRowsImageType', 'Image Type', IMAGE_TYPE_OPTIONS, 'Poster')}
-			{renderNavItem('homeRows', 'Configure Home Rows', 'Customize which rows appear on home screen', openHomeRows)}
+			{renderOptionItem('homeRowsPosterSize', $L('Poster Size'), getPosterSizeOptions(), $L('Default'))}
+			{renderOptionItem('homeRowsImageType', $L('Image Type'), getImageTypeOptions(), $L('Poster'))}
+			{renderNavItem('homeRows', $L('Configure Home Rows'), $L('Customize which rows appear on home screen'), openHomeRows)}
 			{renderNavItem(
 				'hideLibraries',
-				'Hide Libraries',
-				'Choose which libraries to hide (syncs across all clients)',
+				$L('Hide Libraries'),
+				$L('Choose which libraries to hide (syncs across all clients)'),
 				openLibraries
 			)}
 		</>
@@ -740,41 +758,41 @@ const Settings = ({ onBack, onLibrariesChanged }) => {
 
 	const renderPlaybackVideo = () => (
 		<>
-			{renderOptionItem('introAction', 'Intro Action', MEDIA_SEGMENT_ACTION_OPTIONS, 'Ask to Skip')}
-			{renderOptionItem('outroAction', 'Outro Action', MEDIA_SEGMENT_ACTION_OPTIONS, 'Ask to Skip')}
-			{renderToggleItem('autoPlay', 'Auto Play Next', 'Automatically play the next episode')}
-			{renderOptionItem('maxBitrate', 'Maximum Bitrate', BITRATE_OPTIONS, 'Auto')}
-			{renderOptionItem('seekStep', 'Seek Step', SEEK_STEP_OPTIONS, '10 seconds')}
-			{renderSliderItem('skipForwardLength', 'Skip Forward Length', 5, 30, 5, (v) => `${v}s`)}
-			{renderSliderItem('unpauseRewind', 'Unpause Rewind', 0, 10, 1, (v) => (v === 0 ? 'Off' : `${v}s`))}
-			{renderToggleItem('showDescriptionOnPause', 'Show Description on Pause', 'Display item description when paused')}
+			{renderOptionItem('introAction', $L('Intro Action'), getMediaSegmentActionOptions(), $L('Ask to Skip'))}
+			{renderOptionItem('outroAction', $L('Outro Action'), getMediaSegmentActionOptions(), $L('Ask to Skip'))}
+			{renderToggleItem('autoPlay', $L('Auto Play Next'), $L('Automatically play the next episode'))}
+			{renderOptionItem('maxBitrate', $L('Maximum Bitrate'), getBitrateOptions(), $L('Auto (No limit)'))}
+			{renderOptionItem('seekStep', $L('Seek Step'), getSeekStepOptions(), $L('10 seconds'))}
+			{renderSliderItem('skipForwardLength', $L('Skip Forward Length'), 5, 30, 5, (v) => `${v}s`)}
+			{renderSliderItem('unpauseRewind', $L('Unpause Rewind'), 0, 10, 1, (v) => (v === 0 ? $L('Off') : `${v}s`))}
+			{renderToggleItem('showDescriptionOnPause', $L('Show Description on Pause'), $L('Display item description when paused'))}
 			<div className={css.divider} />
-			{renderToggleItem('preferTranscode', 'Prefer Transcoding', 'Request transcoded streams when available')}
+			{renderToggleItem('preferTranscode', $L('Prefer Transcoding'), $L('Request transcoded streams when available'))}
 			{renderToggleItem(
 				'forceDirectPlay',
-				'Force Direct Play',
-				'Skip codec checks and always attempt DirectPlay (debug)'
+				$L('Force Direct Play'),
+				$L('Skip codec checks and always attempt DirectPlay (debug)')
 			)}
 		</>
 	);
 
 	const renderPlaybackSubtitles = () => (
 		<>
-			{renderOptionItem('subtitleSize', 'Subtitle Size', SUBTITLE_SIZE_OPTIONS, 'Medium')}
-			{renderOptionItem('subtitlePosition', 'Subtitle Position', SUBTITLE_POSITION_OPTIONS, 'Bottom')}
+			{renderOptionItem('subtitleSize', $L('Subtitle Size'), getSubtitleSizeOptions(), $L('Medium'))}
+			{renderOptionItem('subtitlePosition', $L('Subtitle Position'), getSubtitlePositionOptions(), $L('Bottom'))}
 			{settings.subtitlePosition === 'absolute' &&
-				renderSliderItem('subtitlePositionAbsolute', 'Absolute Position', 0, 100, 5, (v) => `${v}%`)}
-			{renderSliderItem('subtitleOpacity', 'Text Opacity', 0, 100, 5, (v) => `${v}%`)}
-			{renderOptionItem('subtitleColor', 'Text Color', SUBTITLE_COLOR_OPTIONS, 'White')}
+				renderSliderItem('subtitlePositionAbsolute', $L('Absolute Position'), 0, 100, 5, (v) => `${v}%`)}
+			{renderSliderItem('subtitleOpacity', $L('Text Opacity'), 0, 100, 5, (v) => `${v}%`)}
+			{renderOptionItem('subtitleColor', $L('Text Color'), getSubtitleColorOptions(), $L('White'))}
 			<div className={css.divider} />
-			{renderOptionItem('subtitleShadowColor', 'Shadow Color', SUBTITLE_SHADOW_COLOR_OPTIONS, 'Black')}
-			{renderSliderItem('subtitleShadowOpacity', 'Shadow Opacity', 0, 100, 5, (v) => `${v}%`)}
-			{renderSliderItem('subtitleShadowBlur', 'Shadow Size (Blur)', 0, 1, 0.1, (v) => (v || 0.1).toFixed(1))}
+			{renderOptionItem('subtitleShadowColor', $L('Shadow Color'), getSubtitleShadowColorOptions(), $L('Black'))}
+			{renderSliderItem('subtitleShadowOpacity', $L('Shadow Opacity'), 0, 100, 5, (v) => `${v}%`)}
+			{renderSliderItem('subtitleShadowBlur', $L('Shadow Size (Blur)'), 0, 1, 0.1, (v) => (v || 0.1).toFixed(1))}
 			<div className={css.divider} />
-			{renderOptionItem('subtitleBackgroundColor', 'Background Color', SUBTITLE_BACKGROUND_COLOR_OPTIONS, 'Black')}
-			{renderSliderItem('subtitleBackground', 'Background Opacity', 0, 100, 5, (v) => `${v}%`)}
+			{renderOptionItem('subtitleBackgroundColor', $L('Background Color'), getSubtitleBackgroundColorOptions(), $L('Black'))}
+			{renderSliderItem('subtitleBackground', $L('Background Opacity'), 0, 100, 5, (v) => `${v}%`)}
 			<div className={css.divider} />
-			{renderToggleItem('enablePgsRendering', 'Direct Play PGS Subtitles', 'Use client-side rendering for bitmap subtitles (PGS, DVB, DVD)')}
+			{renderToggleItem('enablePgsRendering', $L('Direct Play PGS Subtitles'), $L('Use client-side rendering for bitmap subtitles (PGS, DVB, DVD)'))}
 		</>
 	);
 
@@ -782,60 +800,60 @@ const Settings = ({ onBack, onLibrariesChanged }) => {
 		<>
 			{renderToggleItem(
 				'showHomeBackdrop',
-				'Home Row Backdrops',
-				'Show background art when browsing rows on the home screen'
+				$L('Home Row Backdrops'),
+				$L('Show background art when browsing rows on the home screen')
 			)}
-			{renderOptionItem('backdropBlurHome', 'Home Backdrop Blur', BLUR_OPTIONS, 'Medium')}
-			{renderOptionItem('backdropBlurDetail', 'Details Backdrop Blur', BLUR_OPTIONS, 'Medium')}
+			{renderOptionItem('backdropBlurHome', $L('Home Backdrop Blur'), getBlurOptions(), $L('Medium'))}
+			{renderOptionItem('backdropBlurDetail', $L('Details Backdrop Blur'), getBlurOptions(), $L('Medium'))}
 		</>
 	);
 
 	const renderDisplayUI = () => (
 		<>
-			{renderOptionItem('uiScale', 'UI Scale', UI_SCALE_OPTIONS, 'Default')}
-			{renderOptionItem('uiOpacity', 'UI Opacity', UI_OPACITY_OPTIONS, '85%')}
-			{renderOptionItem('userOpacity', 'User Avatar Opacity', USER_OPACITY_OPTIONS, '85%')}
-			{renderOptionItem('uiColor', 'UI Color', UI_COLOR_OPTIONS, 'Gray')}
-			{renderOptionItem('focusColor', 'Focus Color', FOCUS_COLOR_OPTIONS, 'Blue')}
-			{renderToggleItem('cardFocusZoom', 'Card Focus Zoom', 'Slightly enlarge cards when focused')}
+			{renderOptionItem('uiScale', $L('UI Scale'), getUiScaleOptions(), $L('Default'))}
+			{renderOptionItem('uiOpacity', $L('UI Opacity'), UI_OPACITY_OPTIONS, '85%')}
+			{renderOptionItem('userOpacity', $L('User Avatar Opacity'), USER_OPACITY_OPTIONS, '85%')}
+			{renderOptionItem('uiColor', $L('UI Color'), getUiColorOptions(), $L('Gray'))}
+			{renderOptionItem('focusColor', $L('Focus Color'), getFocusColorOptions(), $L('Blue'))}
+			{renderToggleItem('cardFocusZoom', $L('Card Focus Zoom'), $L('Slightly enlarge cards when focused'))}
 		</>
 	);
 
 	const renderDisplayFeatured = () => (
 		<>
-			{renderToggleItem('showFeaturedBar', 'Show Featured Bar', 'Display the featured media bar on home screen')}
-			{renderOptionItem('featuredContentType', 'Content Type', CONTENT_TYPE_OPTIONS, 'Movies & TV Shows')}
-			{renderOptionItem('featuredItemCount', 'Item Count', FEATURED_ITEM_COUNT_OPTIONS, '10 items')}
-			{renderOptionItem('mediaBarSourceType', 'Source', MEDIA_BAR_SOURCE_OPTIONS, 'Libraries')}
+			{renderToggleItem('showFeaturedBar', $L('Show Featured Bar'), $L('Display the featured media bar on home screen'))}
+			{renderOptionItem('featuredContentType', $L('Content Type'), getContentTypeOptions(), $L('Movies & TV Shows'))}
+			{renderOptionItem('featuredItemCount', $L('Item Count'), getFeaturedItemCountOptions(), $L('10 items'))}
+			{renderOptionItem('mediaBarSourceType', $L('Source'), getMediaBarSourceOptions(), $L('Libraries'))}
 			{renderToggleItem(
 				'featuredTrailerPreview',
-				'Trailer Preview',
-				'Automatically play trailer previews in the featured media bar'
+				$L('Trailer Preview'),
+				$L('Automatically play trailer previews in the featured media bar')
 			)}
 			{settings.featuredTrailerPreview &&
-				renderToggleItem('featuredTrailerMuted', 'Mute Trailers', 'Mute trailer previews in the featured media bar')}
+				renderToggleItem('featuredTrailerMuted', $L('Mute Trailers'), $L('Mute trailer previews in the featured media bar'))}
 		</>
 	);
 
 	const renderPlaybackNextUp = () => (
 		<>
-			{renderOptionItem('nextUpBehavior', 'Next Up Behavior', NEXT_UP_BEHAVIOR_OPTIONS, 'Extended')}
+			{renderOptionItem('nextUpBehavior', $L('Next Up Behavior'), getNextUpBehaviorOptions(), $L('Extended'))}
 			{settings.nextUpBehavior !== 'disabled' &&
-				renderSliderItem('nextUpTimeout', 'Countdown Timer', 0, 30, 1, (v) => (v === 0 ? 'Instant' : `${v}s`))}
+				renderSliderItem('nextUpTimeout', $L('Countdown Timer'), 0, 30, 1, (v) => (v === 0 ? $L('Instant') : `${v}s`))}
 		</>
 	);
 
 	const renderDisplayThemes = () => (
 		<>
-			{renderOptionItem('seasonalTheme', 'Seasonal Effect', SEASONAL_THEME_OPTIONS, 'None')}
-			{renderToggleItem('themeMusicEnabled', 'Theme Music', 'Play background music on detail pages')}
+			{renderOptionItem('seasonalTheme', $L('Seasonal Effect'), getSeasonalThemeOptions(), $L('None'))}
+			{renderToggleItem('themeMusicEnabled', $L('Theme Music'), $L('Play background music on detail pages'))}
 			{settings.themeMusicEnabled &&
-				renderSliderItem('themeMusicVolume', 'Theme Music Volume', 0, 100, 5, (v) => `${v}%`)}
+				renderSliderItem('themeMusicVolume', $L('Theme Music Volume'), 0, 100, 5, (v) => `${v}%`)}
 			{settings.themeMusicEnabled &&
 				renderToggleItem(
 					'themeMusicOnHomeRows',
-					'Theme Music on Home Rows',
-					'Play theme music when browsing home screen items'
+					$L('Theme Music on Home Rows'),
+					$L('Play theme music when browsing home screen items')
 				)}
 		</>
 	);
@@ -844,22 +862,22 @@ const Settings = ({ onBack, onLibrariesChanged }) => {
 		<>
 			{renderToggleItem(
 				'screensaverEnabled',
-				'Enable Screensaver',
-				'Reduce brightness after inactivity to prevent screen burn-in'
+				$L('Enable Screensaver'),
+				$L('Reduce brightness after inactivity to prevent screen burn-in')
 			)}
 			{settings.screensaverEnabled &&
-				renderOptionItem('screensaverMode', 'Screensaver Type', SCREENSAVER_MODE_OPTIONS, 'Library Backdrops')}
+				renderOptionItem('screensaverMode', $L('Screensaver Type'), getScreensaverModeOptions(), $L('Library Backdrops'))}
 			{settings.screensaverEnabled &&
-				renderOptionItem('screensaverTimeout', 'Timeout', SCREENSAVER_TIMEOUT_OPTIONS, '90 seconds')}
+				renderOptionItem('screensaverTimeout', $L('Timeout'), getScreensaverTimeoutOptions(), $L('90 seconds'))}
 			{settings.screensaverEnabled &&
-				renderOptionItem('screensaverDimmingLevel', 'Dimming Level', SCREENSAVER_DIMMING_OPTIONS, '50%')}
+				renderOptionItem('screensaverDimmingLevel', $L('Dimming Level'), getScreensaverDimmingOptions(), '50%')}
 			{settings.screensaverEnabled &&
-				renderToggleItem('screensaverShowClock', 'Show Clock', 'Display a moving clock during screensaver')}
+				renderToggleItem('screensaverShowClock', $L('Show Clock'), $L('Display a moving clock during screensaver'))}
 			{settings.screensaverEnabled &&
-				renderToggleItem('screensaverAgeFilter', 'Age Rating Filter', 'Only show age-appropriate backdrops')}
+				renderToggleItem('screensaverAgeFilter', $L('Age Rating Filter'), $L('Only show age-appropriate backdrops'))}
 			{settings.screensaverEnabled &&
 				settings.screensaverAgeFilter &&
-				renderOptionItem('screensaverMaxRating', 'Max Rating', AGE_RATING_OPTIONS, 'PG-13')}
+				renderOptionItem('screensaverMaxRating', $L('Max Rating'), AGE_RATING_OPTIONS, 'PG-13')}
 		</>
 	);
 
@@ -867,8 +885,8 @@ const Settings = ({ onBack, onLibrariesChanged }) => {
 		<>
 			<SpottableDiv className={css.listItem} onClick={handleMoonfinToggle} spotlightId='setting-useMoonfinPlugin'>
 				<div className={css.listItemBody}>
-					<div className={css.listItemHeading}>Enable Plugin</div>
-					<div className={css.listItemCaption}>Connect for ratings, sync, and {seerrLabel} proxy</div>
+					<div className={css.listItemHeading}>{$L('Enable Plugin')}</div>
+					<div className={css.listItemCaption}>{$L('Connect for ratings, sync, and {seerrLabel} proxy').replace('{seerrLabel}', seerrLabel)}</div>
 				</div>
 				<div className={css.listItemTrailing}>{renderToggle(settings.useMoonfinPlugin)}</div>
 			</SpottableDiv>
@@ -876,10 +894,10 @@ const Settings = ({ onBack, onLibrariesChanged }) => {
 			{settings.useMoonfinPlugin && moonfinLoginMode && (
 				<>
 					<div className={css.inputGroup}>
-						<label>{seerrLabel} Username</label>
+						<label>{$L('{seerrLabel} Username').replace('{seerrLabel}', seerrLabel)}</label>
 						<SpottableInput
 							type='text'
-							placeholder={`Enter ${seerrLabel} username`}
+							placeholder={$L('Enter {seerrLabel} username').replace('{seerrLabel}', seerrLabel)}
 							value={moonfinUsername}
 							onChange={handleMoonfinUsernameChange}
 							className={css.input}
@@ -887,10 +905,10 @@ const Settings = ({ onBack, onLibrariesChanged }) => {
 						/>
 					</div>
 					<div className={css.inputGroup}>
-						<label>{seerrLabel} Password</label>
+						<label>{$L('{seerrLabel} Password').replace('{seerrLabel}', seerrLabel)}</label>
 						<SpottableInput
 							type='password'
-							placeholder={`Enter ${seerrLabel} password`}
+							placeholder={$L('Enter {seerrLabel} password').replace('{seerrLabel}', seerrLabel)}
 							value={moonfinPassword}
 							onChange={handleMoonfinPasswordChange}
 							className={css.input}
@@ -904,15 +922,14 @@ const Settings = ({ onBack, onLibrariesChanged }) => {
 							disabled={moonfinConnecting}
 							spotlightId='moonfin-login-submit'
 						>
-							{moonfinConnecting ? 'Logging in...' : 'Log In'}
+							{moonfinConnecting ? $L('Logging in...') : $L('Log In')}
 						</SpottableButton>
 					</div>
 				</>
 			)}
 			{!settings.useMoonfinPlugin && (
 				<div className={css.authHint}>
-					Enable the Moonfin plugin to access ratings, settings sync, and {seerrLabel} proxy features. The plugin must
-					be installed on your Jellyfin server.
+					{$L('Enable the Moonfin plugin to access ratings, settings sync, and {seerrLabel} proxy features. The plugin must be installed on your Jellyfin server.').replace('{seerrLabel}', seerrLabel)}
 				</div>
 			)}
 		</>
@@ -922,46 +939,46 @@ const Settings = ({ onBack, onLibrariesChanged }) => {
 		const info = jellyseerr.pluginInfo;
 		return (
 			<>
-				{renderInfoItem('pluginVersion', 'Plugin Version', info?.version || 'Unknown')}
-				{renderInfoItem('settingsSync', 'Settings Sync', info?.settingsSyncEnabled ? 'Available' : 'Not Available')}
-				{renderInfoItem('seerrStatus', seerrLabel, info?.jellyseerrEnabled ? 'Enabled by Admin' : 'Disabled by Admin')}
-				{isSeerr && renderInfoItem('seerrVariant', 'Detected Variant', `${seerrLabel} (Seerr v3+)`)}
+				{renderInfoItem('pluginVersion', $L('Plugin Version'), info?.version || $L('Unknown'))}
+				{renderInfoItem('settingsSync', $L('Settings Sync'), info?.settingsSyncEnabled ? $L('Available') : $L('Not Available'))}
+				{renderInfoItem('seerrStatus', seerrLabel, info?.jellyseerrEnabled ? $L('Enabled by Admin') : $L('Disabled by Admin'))}
+				{isSeerr && renderInfoItem('seerrVariant', $L('Detected Variant'), $L('{seerrLabel} (Seerr v3+)').replace('{seerrLabel}', seerrLabel))}
 			</>
 		);
 	};
 
 	const renderPluginMDBList = () => (
 		<>
-			{renderToggleItem('mdblistEnabled', 'Enable Ratings', 'Show MDBList ratings on media details and featured bar')}
+			{renderToggleItem('mdblistEnabled', $L('Enable Ratings'), $L('Show MDBList ratings on media details and featured bar'))}
 			{settings.mdblistEnabled &&
-				renderToggleItem('showRatingLabels', 'Show Rating Labels', 'Display source names below rating scores')}
+				renderToggleItem('showRatingLabels', $L('Show Rating Labels'), $L('Display source names below rating scores'))}
 		</>
 	);
 
 	const renderPluginTMDB = () => (
-		<>{renderToggleItem('tmdbEpisodeRatingsEnabled', 'Episode Ratings', 'Show TMDB ratings on individual episodes')}</>
+		<>{renderToggleItem('tmdbEpisodeRatingsEnabled', $L('Episode Ratings'), $L('Show TMDB ratings on individual episodes'))}</>
 	);
 
 	const renderPluginSeerr = () => (
 		<>
 			{jellyseerr.isEnabled && jellyseerr.isAuthenticated && jellyseerr.isMoonfin ? (
 				<>
-					{renderInfoItem('seerrConnStatus', 'Status', 'Connected via Moonfin')}
-					{jellyseerr.serverUrl && renderInfoItem('seerrUrl', `${seerrLabel} URL`, jellyseerr.serverUrl)}
-					{jellyseerr.user && renderInfoItem('seerrUser', 'User', jellyseerr.user.displayName || 'Moonfin User')}
+					{renderInfoItem('seerrConnStatus', $L('Status'), $L('Connected via Moonfin'))}
+					{jellyseerr.serverUrl && renderInfoItem('seerrUrl', $L('{seerrLabel} URL').replace('{seerrLabel}', seerrLabel), jellyseerr.serverUrl)}
+					{jellyseerr.user && renderInfoItem('seerrUser', $L('User'), jellyseerr.user.displayName || $L('Moonfin User'))}
 					<div className={css.actionBarInline}>
 						<SpottableButton
 							className={`${css.actionButton} ${css.dangerButton}`}
 							onClick={handleJellyseerrDisconnect}
 							spotlightId='jellyseerr-disconnect'
 						>
-							Disconnect
+							{$L('Disconnect')}
 						</SpottableButton>
 					</div>
 				</>
 			) : (
 				<div className={css.authHint}>
-					{seerrLabel} connection is managed through the Moonfin plugin. Log in above if prompted.
+					{$L('{seerrLabel} connection is managed through the Moonfin plugin. Log in above if prompted.').replace('{seerrLabel}', seerrLabel)}
 				</div>
 			)}
 		</>
@@ -969,39 +986,39 @@ const Settings = ({ onBack, onLibrariesChanged }) => {
 
 	const renderAboutApp = () => (
 		<>
-			{renderInfoItem('appVersion', 'App Version', process.env.REACT_APP_VERSION || '0.0.0')}
+			{renderInfoItem('appVersion', $L('App Version'), process.env.REACT_APP_VERSION || '0.0.0')}
 			{renderInfoItem(
 				'platform',
-				'Platform',
-				capabilities?.tizenVersionDisplay ? 'Tizen' : capabilities?.webosVersionDisplay ? 'webOS' : 'Unknown'
+				$L('Platform'),
+				capabilities?.tizenVersionDisplay ? 'Tizen' : capabilities?.webosVersionDisplay ? 'webOS' : $L('Unknown')
 			)}
 		</>
 	);
 
 	const renderAboutServer = () => (
 		<>
-			{renderInfoItem('serverUrl', 'Server URL', serverUrl || 'Not connected')}
-			{renderInfoItem('serverVersion', 'Server Version', serverVersion || 'Loading...')}
+			{renderInfoItem('serverUrl', $L('Server URL'), serverUrl || $L('Not connected'))}
+			{renderInfoItem('serverVersion', $L('Server Version'), serverVersion || $L('Loading...'))}
 		</>
 	);
 
 	const renderAboutDebugging = () => (
-		<>{renderToggleItem('serverLogging', 'Server Logging', 'Send logs to Jellyfin server for troubleshooting')}</>
+		<>{renderToggleItem('serverLogging', $L('Server Logging'), $L('Send logs to Jellyfin server for troubleshooting'))}</>
 	);
 
 	const renderAboutDevice = () => (
 		<>
-			{renderInfoItem('model', 'Model', capabilities?.modelName || 'Unknown')}
+			{renderInfoItem('model', $L('Model'), capabilities?.modelName || $L('Unknown'))}
 			{(capabilities?.tizenVersionDisplay || capabilities?.webosVersionDisplay) &&
 				renderInfoItem(
 					'osVersion',
-					capabilities.tizenVersionDisplay ? 'Tizen Version' : 'webOS Version',
+					capabilities.tizenVersionDisplay ? $L('Tizen Version') : $L('webOS Version'),
 					capabilities.tizenVersionDisplay || capabilities.webosVersionDisplay
 				)}
-			{capabilities?.firmwareVersion && renderInfoItem('firmware', 'Firmware', capabilities.firmwareVersion)}
+			{capabilities?.firmwareVersion && renderInfoItem('firmware', $L('Firmware'), capabilities.firmwareVersion)}
 			{renderInfoItem(
 				'resolution',
-				'Resolution',
+				$L('Resolution'),
 				`${capabilities?.uhd8K ? '7680x4320 (8K)' : capabilities?.uhd ? '3840x2160 (4K)' : '1920x1080 (HD)'}${capabilities?.oled ? ' OLED' : ''}`
 			)}
 		</>
@@ -1019,18 +1036,18 @@ const Settings = ({ onBack, onLibrariesChanged }) => {
 					capabilities?.dolbyVision && 'Dolby Vision'
 				]
 					.filter(Boolean)
-					.join(', ') || 'Not supported'
+					.join(', ') || $L('Not supported')
 			)}
 			{renderInfoItem(
 				'videoCodecs',
-				'Video Codecs',
+				$L('Video Codecs'),
 				['H.264', capabilities?.hevc && 'HEVC', capabilities?.vp9 && 'VP9', capabilities?.av1 && 'AV1']
 					.filter(Boolean)
 					.join(', ')
 			)}
 			{renderInfoItem(
 				'audioCodecs',
-				'Audio Codecs',
+				$L('Audio Codecs'),
 				[
 					'AAC',
 					capabilities?.ac3 && 'AC3',
@@ -1043,7 +1060,7 @@ const Settings = ({ onBack, onLibrariesChanged }) => {
 			)}
 			{renderInfoItem(
 				'containers',
-				'Containers',
+				$L('Containers'),
 				['MP4', capabilities?.mkv && 'MKV', 'TS', capabilities?.webm && 'WebM', capabilities?.asf && 'ASF']
 					.filter(Boolean)
 					.join(', ')
@@ -1056,52 +1073,52 @@ const Settings = ({ onBack, onLibrariesChanged }) => {
 		const isConnected = settings.useMoonfinPlugin && info;
 		switch (catId) {
 			case 'general': {
-				const subs = [{ id: 'application', label: 'Application', description: 'Clock, auto login' }];
+				const subs = [{ id: 'application', label: $L('Application'), description: $L('Clock, auto login') }];
 				if (hasMultipleServers) {
-					subs.push({ id: 'multiServer', label: 'Multi-Server', description: 'Unified library settings' });
+					subs.push({ id: 'multiServer', label: $L('Multi-Server'), description: $L('Unified library settings') });
 				}
 				subs.push(
-					{ id: 'navbar', label: 'Navigation Bar', description: 'Style, buttons, and shortcuts' },
-					{ id: 'homeScreen', label: 'Home Screen', description: 'Rows and library visibility' }
+					{ id: 'navbar', label: $L('Navigation Bar'), description: $L('Style, buttons, and shortcuts') },
+					{ id: 'homeScreen', label: $L('Home Screen'), description: $L('Rows and library visibility') }
 				);
 				return subs;
 			}
 			case 'playback':
 				return [
-					{ id: 'video', label: 'Video', description: 'Playback, bitrate, and seeking' },
-					{ id: 'nextUp', label: 'Next Up', description: 'Auto-play and next episode prompt' },
-					{ id: 'subtitles', label: 'Subtitles', description: 'Size, position, color, and background' }
+					{ id: 'video', label: $L('Video'), description: $L('Playback, bitrate, and seeking') },
+					{ id: 'nextUp', label: $L('Next Up'), description: $L('Auto-play and next episode prompt') },
+					{ id: 'subtitles', label: $L('Subtitles'), description: $L('Size, position, color, and background') }
 				];
 			case 'display':
 				return [
-					{ id: 'backdrop', label: 'Backdrop', description: 'Background art and blur' },
-					{ id: 'uiElements', label: 'UI Elements', description: 'Opacity, color, and avatar' },
-					{ id: 'featuredBar', label: 'Featured Media Bar', description: 'Featured content and trailers' },
-					{ id: 'themes', label: 'Themes & Effects', description: 'Seasonal effects and theme music' },
-					{ id: 'screensaver', label: 'Screensaver', description: 'Burn-in protection' }
+					{ id: 'backdrop', label: $L('Backdrop'), description: $L('Background art and blur') },
+					{ id: 'uiElements', label: $L('UI Elements'), description: $L('Opacity, color, and avatar') },
+					{ id: 'featuredBar', label: $L('Featured Media Bar'), description: $L('Featured content and trailers') },
+					{ id: 'themes', label: $L('Themes & Effects'), description: $L('Seasonal effects and theme music') },
+					{ id: 'screensaver', label: $L('Screensaver'), description: $L('Burn-in protection') }
 				];
 			case 'plugin': {
-				const subs = [{ id: 'moonfinPlugin', label: 'Moonfin Plugin', description: 'Plugin connection and login' }];
+				const subs = [{ id: 'moonfinPlugin', label: $L('Moonfin Plugin'), description: $L('Plugin connection and login') }];
 				if (isConnected) {
 					subs.push(
-						{ id: 'pluginStatus', label: 'Plugin Status', description: 'Version and sync info' },
-						{ id: 'mdblistRatings', label: 'MDBList Ratings', description: 'Rating display settings' },
-						{ id: 'tmdb', label: 'TMDB', description: 'Episode rating settings' },
-						{ id: 'seerr', label: seerrLabel, description: `${seerrLabel} connection status` }
+						{ id: 'pluginStatus', label: $L('Plugin Status'), description: $L('Version and sync info') },
+						{ id: 'mdblistRatings', label: $L('MDBList Ratings'), description: $L('Rating display settings') },
+						{ id: 'tmdb', label: 'TMDB', description: $L('Episode rating settings') },
+						{ id: 'seerr', label: seerrLabel, description: $L('{seerrLabel} connection status').replace('{seerrLabel}', seerrLabel) }
 					);
 				}
 				return subs;
 			}
 			case 'about': {
 				const subs = [
-					{ id: 'appInfo', label: 'Application', description: 'Version and platform' },
-					{ id: 'serverInfo', label: 'Server', description: 'Connection and version' },
-					{ id: 'debugging', label: 'Debugging', description: 'Logging options' }
+					{ id: 'appInfo', label: $L('Application'), description: $L('Version and platform') },
+					{ id: 'serverInfo', label: $L('Server'), description: $L('Connection and version') },
+					{ id: 'debugging', label: $L('Debugging'), description: $L('Logging options') }
 				];
 				if (capabilities) {
 					subs.push(
-						{ id: 'device', label: 'Device', description: 'Model and hardware info' },
-						{ id: 'capabilities', label: 'Capabilities', description: 'Supported formats and codecs' }
+						{ id: 'device', label: $L('Device'), description: $L('Model and hardware info') },
+						{ id: 'capabilities', label: $L('Capabilities'), description: $L('Supported formats and codecs') }
 					);
 				}
 				return subs;
@@ -1167,7 +1184,7 @@ const Settings = ({ onBack, onLibrariesChanged }) => {
 		<ViewContainer className={css.viewContainer} spotlightId='categories-view'>
 			<div className={css.listContent} onFocus={handleListFocus}>
 				<div className={css.listInner}>
-					{renderSectionTitle('Settings')}
+					{renderSectionTitle($L('Settings'))}
 					{categories.map((cat) => (
 						<SpottableDiv
 							key={cat.id}
@@ -1198,7 +1215,7 @@ const Settings = ({ onBack, onLibrariesChanged }) => {
 			<ViewContainer className={css.viewContainer} spotlightId='category-view'>
 				<div className={css.listContent} onFocus={handleListFocus}>
 					<div className={css.listInner}>
-						{renderSectionTitle(cat?.label || 'Settings')}
+						{renderSectionTitle(cat?.label || $L('Settings'))}
 						{subcats.map((sub) => (
 							<SpottableDiv
 								key={sub.id}
@@ -1260,7 +1277,7 @@ const Settings = ({ onBack, onLibrariesChanged }) => {
 			<ViewContainer className={css.viewContainer} spotlightId='subcategory-view'>
 				<div className={css.listContent} onFocus={handleListFocus}>
 					<div className={css.listInner}>
-						{renderSectionTitle(label || 'Settings')}
+						{renderSectionTitle(label || $L('Settings'))}
 						{getSubcategoryContent(categoryId, subcategoryId)}
 					</div>
 				</div>
@@ -1272,9 +1289,9 @@ const Settings = ({ onBack, onLibrariesChanged }) => {
 		<ViewContainer className={css.viewContainer} spotlightId='homerows-view'>
 			<div className={css.listContent} onFocus={handleListFocus}>
 				<div className={css.listInner}>
-					{renderSectionTitle('Configure Home Rows')}
+					{renderSectionTitle($L('Configure Home Rows'))}
 					<div className={css.viewDescription}>
-						Enable/disable and reorder the rows that appear on your home screen.
+						{$L('Enable/disable and reorder the rows that appear on your home screen.')}
 					</div>
 					{tempHomeRows.map((row, index) => (
 						<div key={row.id} className={css.homeRowItem}>
@@ -1284,7 +1301,7 @@ const Settings = ({ onBack, onLibrariesChanged }) => {
 								spotlightId={`homerow-${row.id}`}
 							>
 								<div className={css.listItemBody}>
-									<div className={css.listItemHeading}>{row.name}</div>
+									<div className={css.listItemHeading}>{$L(row.name)}</div>
 								</div>
 								<div className={css.listItemTrailing}>{renderToggle(row.enabled)}</div>
 							</SpottableDiv>
@@ -1308,10 +1325,10 @@ const Settings = ({ onBack, onLibrariesChanged }) => {
 					))}
 					<div className={css.actionBar}>
 						<Button onClick={resetHomeRows} size='small' spotlightId='homerow-reset'>
-							Reset to Default
+							{$L('Reset to Default')}
 						</Button>
 						<Button onClick={saveHomeRows} size='small' spotlightId='homerow-save'>
-							Save
+							{$L('Save')}
 						</Button>
 					</div>
 				</div>
@@ -1325,12 +1342,12 @@ const Settings = ({ onBack, onLibrariesChanged }) => {
 		<ViewContainer className={css.viewContainer} spotlightId='libraries-view'>
 			<div className={css.listContent} onFocus={handleListFocus}>
 				<div className={css.listInner}>
-					{renderSectionTitle('Hide Libraries')}
+					{renderSectionTitle($L('Hide Libraries'))}
 					<div className={css.viewDescription}>
-						Hidden libraries are removed from all Jellyfin clients. This is a server-level setting.
+						{$L('Hidden libraries are removed from all Jellyfin clients. This is a server-level setting.')}
 					</div>
 					{libraryLoading ? (
-						<div className={css.loadingMessage}>Loading libraries...</div>
+						<div className={css.loadingMessage}>{$L('Loading libraries...')}</div>
 					) : (
 						allLibraries.map((lib) => {
 							const isHidden = hiddenLibraries.includes(lib.Id);
@@ -1346,7 +1363,7 @@ const Settings = ({ onBack, onLibrariesChanged }) => {
 											{lib.Name}
 											{isUnifiedModal && lib._serverName ? ` (${lib._serverName})` : ''}
 										</div>
-										<div className={css.listItemCaption}>{isHidden ? 'Hidden' : 'Visible'}</div>
+										<div className={css.listItemCaption}>{isHidden ? $L('Hidden') : $L('Visible')}</div>
 									</div>
 									<div className={css.listItemTrailing}>{renderToggle(!isHidden)}</div>
 								</SpottableDiv>
@@ -1356,10 +1373,10 @@ const Settings = ({ onBack, onLibrariesChanged }) => {
 					{!libraryLoading && (
 						<div className={css.actionBar}>
 							<Button onClick={popView} size='small' spotlightId='lib-cancel'>
-								Cancel
+								{$L('Cancel')}
 							</Button>
 							<Button onClick={saveLibraryVisibility} size='small' disabled={librarySaving} spotlightId='lib-save'>
-								{librarySaving ? 'Saving...' : 'Save'}
+								{librarySaving ? $L('Saving...') : $L('Save')}
 							</Button>
 						</div>
 					)}

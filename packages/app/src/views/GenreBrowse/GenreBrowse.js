@@ -1,4 +1,5 @@
 import {useState, useEffect, useCallback, useRef} from 'react';
+import $L from '@enact/i18n/$L';
 import Spottable from '@enact/spotlight/Spottable';
 import SpotlightContainerDecorator from '@enact/spotlight/SpotlightContainerDecorator';
 import {VirtualGridList} from '@enact/sandstone/VirtualList';
@@ -377,7 +378,7 @@ const GenreBrowse = ({genre, libraryId, onSelectItem, backHandlerRef}) => {
 	if (!genre) {
 		return (
 			<div className={css.page}>
-				<div className={css.empty}>No genre selected</div>
+				<div className={css.empty}>{$L('No genre selected')}</div>
 			</div>
 		);
 	}
@@ -401,11 +402,11 @@ const GenreBrowse = ({genre, libraryId, onSelectItem, backHandlerRef}) => {
 					<div className={css.titleSection}>
 						<div className={css.title}>{genre.name}</div>
 						<div className={css.subtitle}>
-							{currentSort?.label} • {currentFilter?.label}
-							{startLetter && ` • Starting with "${startLetter}"`}
+							{currentSort ? $L(currentSort.label) : ''} • {currentFilter ? $L(currentFilter.label) : ''}
+							{startLetter && ` • ${$L('Starting with "{letter}"').replace('{letter}', startLetter)}`}
 						</div>
 					</div>
-					<div className={css.counter}>{serverTotalCount} items</div>
+					<div className={css.counter}>{serverTotalCount} {$L('items')}</div>
 				</div>
 
 				<ToolbarContainer className={css.toolbar} spotlightId="genre-toolbar">
@@ -416,7 +417,7 @@ const GenreBrowse = ({genre, libraryId, onSelectItem, backHandlerRef}) => {
 						<svg viewBox="0 0 24 24">
 							<path d="M3 18h6v-2H3v2zM3 6v2h18V6H3zm0 7h12v-2H3v2z" />
 						</svg>
-						{currentSort?.label}
+						{currentSort ? $L(currentSort.label) : ''}
 					</SpottableButton>
 
 					<SpottableButton
@@ -426,7 +427,7 @@ const GenreBrowse = ({genre, libraryId, onSelectItem, backHandlerRef}) => {
 						<svg viewBox="0 0 24 24">
 							<path d="M10 18h4v-2h-4v2zM3 6v2h18V6H3zm3 7h12v-2H6v2z" />
 						</svg>
-						{currentFilter?.label}
+						{currentFilter ? $L(currentFilter.label) : ''}
 					</SpottableButton>
 
 					<div className={css.letterNav}>
@@ -449,7 +450,7 @@ const GenreBrowse = ({genre, libraryId, onSelectItem, backHandlerRef}) => {
 							<LoadingSpinner />
 						</div>
 					) : items.length === 0 ? (
-						<div className={css.empty}>No items found</div>
+						<div className={css.empty}>{$L('No items found')}</div>
 					) : (
 						<div className={css.gridWrapper}>
 						<VirtualGridList
@@ -473,7 +474,7 @@ const GenreBrowse = ({genre, libraryId, onSelectItem, backHandlerRef}) => {
 				noAutoDismiss
 			>
 				<div className={css.popupContent}>
-					<div className={css.modalTitle}>Sort By</div>
+					<div className={css.modalTitle}>{$L('Sort By')}</div>
 					{SORT_OPTIONS.map((option) => (
 						<Button
 							key={option.key}
@@ -482,7 +483,7 @@ const GenreBrowse = ({genre, libraryId, onSelectItem, backHandlerRef}) => {
 							onClick={handleSortSelect}
 							data-sort-key={option.key}
 						>
-							{option.label}
+							{$L(option.label)}
 						</Button>
 					))}
 				</div>
@@ -496,7 +497,7 @@ const GenreBrowse = ({genre, libraryId, onSelectItem, backHandlerRef}) => {
 				noAutoDismiss
 			>
 				<div className={css.popupContent}>
-					<div className={css.modalTitle}>Filter</div>
+					<div className={css.modalTitle}>{$L('Filter')}</div>
 					{FILTER_OPTIONS.map((option) => (
 						<Button
 							key={option.key}
@@ -505,7 +506,7 @@ const GenreBrowse = ({genre, libraryId, onSelectItem, backHandlerRef}) => {
 							onClick={handleFilterSelect}
 							data-filter-key={option.key}
 						>
-							{option.label}
+							{$L(option.label)}
 						</Button>
 					))}
 				</div>

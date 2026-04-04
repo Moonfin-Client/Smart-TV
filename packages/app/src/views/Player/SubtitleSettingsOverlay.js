@@ -4,6 +4,7 @@ import Spotlight from '@enact/spotlight';
 import Scroller from '@enact/sandstone/Scroller';
 import Slider from '@enact/sandstone/Slider';
 import {useCallback, useEffect} from 'react';
+import $L from '@enact/i18n/$L';
 import {useSettings} from '../../context/SettingsContext';
 import {isBackKey} from '../../utils/keys';
 
@@ -18,48 +19,48 @@ const SettingsContainer = SpotlightContainerDecorator({
 	preserveId: true
 }, 'div');
 
-const SUBTITLE_SIZE_OPTIONS = [
-	{value: 'small', label: 'Small'},
-	{value: 'medium', label: 'Medium'},
-	{value: 'large', label: 'Large'},
-	{value: 'xlarge', label: 'Extra Large'}
+const getSubtitleSizeOptions = () => [
+	{value: 'small', label: $L('Small')},
+	{value: 'medium', label: $L('Medium')},
+	{value: 'large', label: $L('Large')},
+	{value: 'xlarge', label: $L('Extra Large')}
 ];
 
-const SUBTITLE_COLOR_OPTIONS = [
-	{value: '#ffffff', label: 'White'},
-	{value: '#ffff00', label: 'Yellow'},
-	{value: '#00ffff', label: 'Cyan'},
-	{value: '#ff00ff', label: 'Magenta'},
-	{value: '#00ff00', label: 'Green'},
-	{value: '#ff0000', label: 'Red'},
-	{value: '#808080', label: 'Grey'},
-	{value: '#404040', label: 'Dark Grey'}
+const getSubtitleColorOptions = () => [
+	{value: '#ffffff', label: $L('White')},
+	{value: '#ffff00', label: $L('Yellow')},
+	{value: '#00ffff', label: $L('Cyan')},
+	{value: '#ff00ff', label: $L('Magenta')},
+	{value: '#00ff00', label: $L('Green')},
+	{value: '#ff0000', label: $L('Red')},
+	{value: '#808080', label: $L('Grey')},
+	{value: '#404040', label: $L('Dark Grey')}
 ];
 
-const SUBTITLE_POSITION_OPTIONS = [
-	{value: 'bottom', label: 'Bottom'},
-	{value: 'lower', label: 'Lower'},
-	{value: 'middle', label: 'Middle'},
-	{value: 'higher', label: 'Higher'},
-	{value: 'absolute', label: 'Absolute'}
+const getSubtitlePositionOptions = () => [
+	{value: 'bottom', label: $L('Bottom')},
+	{value: 'lower', label: $L('Lower')},
+	{value: 'middle', label: $L('Middle')},
+	{value: 'higher', label: $L('Higher')},
+	{value: 'absolute', label: $L('Absolute')}
 ];
 
-const SUBTITLE_SHADOW_COLOR_OPTIONS = [
-	{value: '#000000', label: 'Black'},
-	{value: '#ffffff', label: 'White'},
-	{value: '#808080', label: 'Grey'},
-	{value: '#404040', label: 'Dark Grey'},
-	{value: '#ff0000', label: 'Red'},
-	{value: '#00ff00', label: 'Green'},
-	{value: '#0000ff', label: 'Blue'}
+const getSubtitleShadowColorOptions = () => [
+	{value: '#000000', label: $L('Black')},
+	{value: '#ffffff', label: $L('White')},
+	{value: '#808080', label: $L('Grey')},
+	{value: '#404040', label: $L('Dark Grey')},
+	{value: '#ff0000', label: $L('Red')},
+	{value: '#00ff00', label: $L('Green')},
+	{value: '#0000ff', label: $L('Blue')}
 ];
 
-const SUBTITLE_BACKGROUND_COLOR_OPTIONS = [
-	{value: '#000000', label: 'Black'},
-	{value: '#ffffff', label: 'White'},
-	{value: '#808080', label: 'Grey'},
-	{value: '#404040', label: 'Dark Grey'},
-	{value: '#000080', label: 'Navy'}
+const getSubtitleBackgroundColorOptions = () => [
+	{value: '#000000', label: $L('Black')},
+	{value: '#ffffff', label: $L('White')},
+	{value: '#808080', label: $L('Grey')},
+	{value: '#404040', label: $L('Dark Grey')},
+	{value: '#000080', label: $L('Navy')}
 ];
 
 const cycleOption = (options, currentValue, updateSetting, settingKey) => {
@@ -78,6 +79,12 @@ const stopPropagation = (e) => e.stopPropagation();
 
 const SubtitleSettingsOverlay = ({visible, onClose}) => {
 	const {settings, updateSetting} = useSettings();
+
+	const SUBTITLE_SIZE_OPTIONS = getSubtitleSizeOptions();
+	const SUBTITLE_COLOR_OPTIONS = getSubtitleColorOptions();
+	const SUBTITLE_POSITION_OPTIONS = getSubtitlePositionOptions();
+	const SUBTITLE_SHADOW_COLOR_OPTIONS = getSubtitleShadowColorOptions();
+	const SUBTITLE_BACKGROUND_COLOR_OPTIONS = getSubtitleBackgroundColorOptions();
 
 	useEffect(() => {
 		if (visible) {
@@ -103,23 +110,23 @@ const SubtitleSettingsOverlay = ({visible, onClose}) => {
 	}, [visible, onClose]);
 
 	const handleCycleSize = useCallback(() => {
-		cycleOption(SUBTITLE_SIZE_OPTIONS, settings.subtitleSize, updateSetting, 'subtitleSize');
+		cycleOption(getSubtitleSizeOptions(), settings.subtitleSize, updateSetting, 'subtitleSize');
 	}, [settings.subtitleSize, updateSetting]);
 
 	const handleCyclePosition = useCallback(() => {
-		cycleOption(SUBTITLE_POSITION_OPTIONS, settings.subtitlePosition, updateSetting, 'subtitlePosition');
+		cycleOption(getSubtitlePositionOptions(), settings.subtitlePosition, updateSetting, 'subtitlePosition');
 	}, [settings.subtitlePosition, updateSetting]);
 
 	const handleCycleColor = useCallback(() => {
-		cycleOption(SUBTITLE_COLOR_OPTIONS, settings.subtitleColor, updateSetting, 'subtitleColor');
+		cycleOption(getSubtitleColorOptions(), settings.subtitleColor, updateSetting, 'subtitleColor');
 	}, [settings.subtitleColor, updateSetting]);
 
 	const handleCycleShadowColor = useCallback(() => {
-		cycleOption(SUBTITLE_SHADOW_COLOR_OPTIONS, settings.subtitleShadowColor, updateSetting, 'subtitleShadowColor');
+		cycleOption(getSubtitleShadowColorOptions(), settings.subtitleShadowColor, updateSetting, 'subtitleShadowColor');
 	}, [settings.subtitleShadowColor, updateSetting]);
 
 	const handleCycleBackgroundColor = useCallback(() => {
-		cycleOption(SUBTITLE_BACKGROUND_COLOR_OPTIONS, settings.subtitleBackgroundColor, updateSetting, 'subtitleBackgroundColor');
+		cycleOption(getSubtitleBackgroundColorOptions(), settings.subtitleBackgroundColor, updateSetting, 'subtitleBackgroundColor');
 	}, [settings.subtitleBackgroundColor, updateSetting]);
 
 	const handlePositionAbsoluteChange = useCallback((e) => {
@@ -151,7 +158,7 @@ const SubtitleSettingsOverlay = ({visible, onClose}) => {
 				onClick={stopPropagation}
 				spotlightId="subtitle-settings-modal"
 			>
-				<h2 className={css.modalTitle}>Subtitle Appearance</h2>
+				<h2 className={css.modalTitle}>{$L('Subtitle Appearance')}</h2>
 				<Scroller
 					direction="vertical"
 					horizontalScrollbar="hidden"
@@ -165,9 +172,9 @@ const SubtitleSettingsOverlay = ({visible, onClose}) => {
 						spotlightId="sub-setting-size"
 						data-spot-default="true"
 					>
-						<span className={css.settingLabel}>Size</span>
+						<span className={css.settingLabel}>{$L('Size')}</span>
 						<span className={css.settingValue}>
-							{getLabel(SUBTITLE_SIZE_OPTIONS, settings.subtitleSize, 'Medium')}
+							{getLabel(SUBTITLE_SIZE_OPTIONS, settings.subtitleSize, $L('Medium'))}
 						</span>
 					</SpottableButton>
 
@@ -177,9 +184,9 @@ const SubtitleSettingsOverlay = ({visible, onClose}) => {
 						onClick={handleCyclePosition}
 						spotlightId="sub-setting-position"
 					>
-						<span className={css.settingLabel}>Position</span>
+						<span className={css.settingLabel}>{$L('Position')}</span>
 						<span className={css.settingValue}>
-							{getLabel(SUBTITLE_POSITION_OPTIONS, settings.subtitlePosition, 'Bottom')}
+							{getLabel(SUBTITLE_POSITION_OPTIONS, settings.subtitlePosition, $L('Bottom'))}
 						</span>
 					</SpottableButton>
 
@@ -187,7 +194,7 @@ const SubtitleSettingsOverlay = ({visible, onClose}) => {
 					{settings.subtitlePosition === 'absolute' && (
 						<div className={css.sliderItem}>
 							<div className={css.sliderLabel}>
-								<span>Absolute Position</span>
+								<span>{$L('Absolute Position')}</span>
 								<span className={css.sliderValue}>{settings.subtitlePositionAbsolute}%</span>
 							</div>
 							<Slider
@@ -208,7 +215,7 @@ const SubtitleSettingsOverlay = ({visible, onClose}) => {
 					{/* Opacity */}
 					<div className={css.sliderItem}>
 						<div className={css.sliderLabel}>
-							<span>Text Opacity</span>
+							<span>{$L('Text Opacity')}</span>
 							<span className={css.sliderValue}>{settings.subtitleOpacity}%</span>
 						</div>
 						<Slider
@@ -229,9 +236,9 @@ const SubtitleSettingsOverlay = ({visible, onClose}) => {
 						onClick={handleCycleColor}
 						spotlightId="sub-setting-color"
 					>
-						<span className={css.settingLabel}>Text Color</span>
+						<span className={css.settingLabel}>{$L('Text Color')}</span>
 						<span className={css.settingValue}>
-							{getLabel(SUBTITLE_COLOR_OPTIONS, settings.subtitleColor, 'White')}
+							{getLabel(SUBTITLE_COLOR_OPTIONS, settings.subtitleColor, $L('White'))}
 						</span>
 					</SpottableButton>
 
@@ -243,16 +250,16 @@ const SubtitleSettingsOverlay = ({visible, onClose}) => {
 						onClick={handleCycleShadowColor}
 						spotlightId="sub-setting-shadowColor"
 					>
-						<span className={css.settingLabel}>Shadow Color</span>
+						<span className={css.settingLabel}>{$L('Shadow Color')}</span>
 						<span className={css.settingValue}>
-							{getLabel(SUBTITLE_SHADOW_COLOR_OPTIONS, settings.subtitleShadowColor, 'Black')}
+							{getLabel(SUBTITLE_SHADOW_COLOR_OPTIONS, settings.subtitleShadowColor, $L('Black'))}
 						</span>
 					</SpottableButton>
 
 					{/* Shadow Opacity */}
 					<div className={css.sliderItem}>
 						<div className={css.sliderLabel}>
-							<span>Shadow Opacity</span>
+							<span>{$L('Shadow Opacity')}</span>
 							<span className={css.sliderValue}>{settings.subtitleShadowOpacity}%</span>
 						</div>
 						<Slider
@@ -270,7 +277,7 @@ const SubtitleSettingsOverlay = ({visible, onClose}) => {
 					{/* Shadow Blur */}
 					<div className={css.sliderItem}>
 						<div className={css.sliderLabel}>
-							<span>Shadow Size (Blur)</span>
+							<span>{$L('Shadow Size (Blur)')}</span>
 							<span className={css.sliderValue}>
 								{settings.subtitleShadowBlur ? settings.subtitleShadowBlur.toFixed(1) : '0.1'}
 							</span>
@@ -295,16 +302,16 @@ const SubtitleSettingsOverlay = ({visible, onClose}) => {
 						onClick={handleCycleBackgroundColor}
 						spotlightId="sub-setting-bgColor"
 					>
-						<span className={css.settingLabel}>Background Color</span>
+						<span className={css.settingLabel}>{$L('Background Color')}</span>
 						<span className={css.settingValue}>
-							{getLabel(SUBTITLE_BACKGROUND_COLOR_OPTIONS, settings.subtitleBackgroundColor, 'Black')}
+							{getLabel(SUBTITLE_BACKGROUND_COLOR_OPTIONS, settings.subtitleBackgroundColor, $L('Black'))}
 						</span>
 					</SpottableButton>
 
 					{/* Background Opacity */}
 					<div className={css.sliderItem}>
 						<div className={css.sliderLabel}>
-							<span>Background Opacity</span>
+							<span>{$L('Background Opacity')}</span>
 							<span className={css.sliderValue}>{settings.subtitleBackground}%</span>
 						</div>
 						<Slider
@@ -321,7 +328,7 @@ const SubtitleSettingsOverlay = ({visible, onClose}) => {
 				</Scroller>
 
 				<SpottableButton className={css.closeBtn} onClick={onClose} spotlightId="sub-settings-close">
-					Press BACK to close
+					{$L('Press BACK to close')}
 				</SpottableButton>
 			</SettingsContainer>
 		</div>

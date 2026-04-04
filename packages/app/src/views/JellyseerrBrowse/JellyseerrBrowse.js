@@ -3,6 +3,7 @@ import Spottable from '@enact/spotlight/Spottable';
 import {VirtualGridList} from '@enact/sandstone/VirtualList';
 import Popup from '@enact/sandstone/Popup';
 import Button from '@enact/sandstone/Button';
+import $L from '@enact/i18n/$L';
 import {useJellyseerr} from '../../context/JellyseerrContext';
 import {useSettings} from '../../context/SettingsContext';
 import LoadingSpinner from '../../components/LoadingSpinner';
@@ -13,10 +14,11 @@ import css from './JellyseerrBrowse.module.less';
 const SpottableDiv = Spottable('div');
 const SpottableButton = Spottable('button');
 
-const FILTER_OPTIONS = [
-	{key: 'movie', label: 'Movies'},
-	{key: 'tv', label: 'TV Shows'}
-];
+let _filterOptions;
+const getFilterOptions = () => (_filterOptions ??= [
+	{key: 'movie', label: $L('Movies')},
+	{key: 'tv', label: $L('TV Shows')}
+]);
 
 const BACKDROP_DEBOUNCE_MS = 300;
 const MAX_PAGES = 25;
@@ -253,7 +255,7 @@ const JellyseerrBrowse = ({browseType, item, mediaType: initialMediaType, onSele
 					{/* Media type badge - top left */}
 					{itemMediaType && (
 						<div className={`${css.mediaTypeBadge} ${itemMediaType === 'movie' ? css.movieBadge : css.seriesBadge}`}>
-							{itemMediaType === 'movie' ? 'MOVIE' : 'SERIES'}
+							{itemMediaType === 'movie' ? $L('MOVIE') : $L('SERIES')}
 						</div>
 					)}
 					{/* Availability badge - top right */}
@@ -271,25 +273,25 @@ const JellyseerrBrowse = ({browseType, item, mediaType: initialMediaType, onSele
 		);
 	}, [handleItemClick, updateBackdrop, loadItems, mediaType]);
 
-	const currentFilter = FILTER_OPTIONS.find(o => o.key === mediaType);
+	const currentFilter = getFilterOptions().find(o => o.key === mediaType);
 
 	// Check if we should show the filter (not for studio/network which are media-type specific)
 	const showMediaTypeFilter = browseType === 'genre' || browseType === 'keyword';
 
 	const getBrowseTypeLabel = () => {
 		switch (browseType) {
-			case 'genre': return 'Genre';
-			case 'studio': return 'Studio';
-			case 'network': return 'Network';
-			case 'keyword': return 'Keyword';
-			default: return 'Browse';
+			case 'genre': return $L('Genre');
+			case 'studio': return $L('Studio');
+			case 'network': return $L('Network');
+			case 'keyword': return $L('Keyword');
+			default: return $L('Browse');
 		}
 	};
 
 	if (!item) {
 		return (
 			<div className={css.page}>
-				<div className={css.empty}>No {getBrowseTypeLabel().toLowerCase()} selected</div>
+				<div className={css.empty}>{$L('Nothing selected')}</div>
 			</div>
 		);
 	}
@@ -297,7 +299,7 @@ const JellyseerrBrowse = ({browseType, item, mediaType: initialMediaType, onSele
 	if (!isEnabled) {
 		return (
 			<div className={css.page}>
-				<div className={css.empty}>Jellyseerr is not configured</div>
+				<div className={css.empty}>{$L('Jellyseerr is not configured')}</div>
 			</div>
 		);
 	}
@@ -323,7 +325,7 @@ const JellyseerrBrowse = ({browseType, item, mediaType: initialMediaType, onSele
 						<div className={css.title}>{item.name}</div>
 						<div className={css.subtitle}>
 							{currentFilter?.label}
-							{totalCount > 0 && ` • ${totalCount} items`}
+							{totalCount > 0 && ` • ${totalCount} ${$L('items')}`}
 						</div>
 					</div>
 				</div>
@@ -348,7 +350,7 @@ const JellyseerrBrowse = ({browseType, item, mediaType: initialMediaType, onSele
 							<LoadingSpinner />
 						</div>
 					) : items.length === 0 ? (
-						<div className={css.empty}>No items found</div>
+						<div className={css.empty}>{$L('No items found')}</div>
 					) : (
 						<div className={css.gridWrapper}>
 						<VirtualGridList
@@ -372,8 +374,8 @@ const JellyseerrBrowse = ({browseType, item, mediaType: initialMediaType, onSele
 				noAutoDismiss
 			>
 				<div className={css.popupContent}>
-					<div className={css.modalTitle}>Media Type</div>
-					{FILTER_OPTIONS.map((option) => (
+					<div className={css.modalTitle}>{$L('Media Type')}</div>
+					{getFilterOptions().map((option) => (
 						<Button
 							key={option.key}
 							className={css.popupOption}

@@ -1,4 +1,5 @@
 import {useState, useEffect, useCallback, useRef, useMemo} from 'react';
+import $L from '@enact/i18n/$L';
 import Spottable from '@enact/spotlight/Spottable';
 import SpotlightContainerDecorator from '@enact/spotlight/SpotlightContainerDecorator';
 import Spotlight from '@enact/spotlight';
@@ -375,16 +376,16 @@ loading="lazy"
 }, [serverUrl, handleItemClick, items.length, totalCount, isLoading, loadItems, imageType, posterHeight, unifiedMode]);
 
 const currentSort = SORT_OPTIONS.find(o => o.key === sortKey);
-const sortLabel = currentSort?.label || 'Name';
-const typeLabel = activeTypeFilter.key === 'all' ? '' : ` · ${activeTypeFilter.label}`;
-const statusText = `${totalCount} favorites sorted by ${sortLabel}${typeLabel}`;
+const sortLabel = currentSort ? $L(currentSort.label) : $L('Name');
+const typeLabel = activeTypeFilter.key === 'all' ? '' : ` · ${$L(activeTypeFilter.label)}`;
+const statusText = $L('{count} favorites sorted by {sortLabel}').replace('{count}', totalCount).replace('{sortLabel}', sortLabel) + typeLabel;
 
 return (
 <div className={css.page}>
 <div className={css.content}>
 <div className={css.header}>
-<div className={css.title}>Favorites</div>
-<div className={css.itemCount}>{totalCount} Items</div>
+<div className={css.title}>{$L('Favorites')}</div>
+<div className={css.itemCount}>{totalCount} {$L('Items')}</div>
 </div>
 
 <ToolbarContainer className={css.toolbar} spotlightId="favorites-toolbar" onKeyDown={handleToolbarKeyDown}>
@@ -427,7 +428,7 @@ spotlightId={index === 0 ? 'favorites-letter-hash' : undefined}
 <LoadingSpinner />
 </div>
 ) : items.length === 0 ? (
-<div className={css.empty}>No favorites found</div>
+<div className={css.empty}>{$L('No favorites found')}</div>
 ) : (
 <div className={css.gridWrapper}>
 <VirtualGridList
@@ -460,10 +461,10 @@ className={css.sortPanel}
 spotlightId="fav-sort-panel"
 onClick={stopPropagation}
 >
-<h2 className={css.sortPanelTitle}>Sort & Filter</h2>
+<h2 className={css.sortPanelTitle}>{$L('Sort & Filter')}</h2>
 
 <div className={css.sortSection}>
-<div className={css.sortSectionLabel}>Sort By</div>
+<div className={css.sortSectionLabel}>{$L('Sort By')}</div>
 {SORT_OPTIONS.map((option, index) => (
 <SpottableButton
 key={option.key}
@@ -475,13 +476,13 @@ spotlightId={`fav-sort-option-${index}`}
 <span className={css.radioCircle}>
 {sortKey === option.key && <span className={css.radioFill} />}
 </span>
-<span className={css.sortOptionLabel}>{option.label}</span>
+<span className={css.sortOptionLabel}>{$L(option.label)}</span>
 </SpottableButton>
 ))}
 </div>
 
 <div className={css.filterSection}>
-<div className={css.sortSectionLabel}>Type</div>
+<div className={css.sortSectionLabel}>{$L('Type')}</div>
 {TYPE_FILTERS.map((filter, index) => (
 <SpottableButton
 key={filter.key}
@@ -493,7 +494,7 @@ spotlightId={`fav-filter-option-${index}`}
 <span className={css.radioCircle}>
 {typeFilterKey === filter.key && <span className={css.radioFill} />}
 </span>
-<span className={css.sortOptionLabel}>{filter.label}</span>
+<span className={css.sortOptionLabel}>{$L(filter.label)}</span>
 </SpottableButton>
 ))}
 </div>
@@ -508,16 +509,16 @@ className={css.sortPanel}
 spotlightId="fav-settings-panel"
 onClick={stopPropagation}
 >
-<div className={css.settingsHeader}>FAVORITES</div>
-<h2 className={css.sortPanelTitle}>Settings</h2>
+<div className={css.settingsHeader}>{$L('FAVORITES')}</div>
+<h2 className={css.sortPanelTitle}>{$L('Settings')}</h2>
 
 <SpottableButton
 className={css.settingRow}
 onClick={handleCycleImageSize}
 spotlightId="fav-settings-image-size"
 >
-<div className={css.settingLabel}>Image size</div>
-<div className={css.settingValue}>{capitalize(imageSize)}</div>
+<div className={css.settingLabel}>{$L('Image size')}</div>
+<div className={css.settingValue}>{$L(capitalize(imageSize))}</div>
 </SpottableButton>
 
 <SpottableButton
@@ -525,8 +526,8 @@ className={css.settingRow}
 onClick={handleCycleImageType}
 spotlightId="fav-settings-image-type"
 >
-<div className={css.settingLabel}>Image type</div>
-<div className={css.settingValue}>{capitalize(imageType)}</div>
+<div className={css.settingLabel}>{$L('Image type')}</div>
+<div className={css.settingValue}>{$L(capitalize(imageType))}</div>
 </SpottableButton>
 
 <SpottableButton
@@ -534,8 +535,8 @@ className={css.settingRow}
 onClick={handleCycleGridDirection}
 spotlightId="fav-settings-grid-direction"
 >
-<div className={css.settingLabel}>Grid direction</div>
-<div className={css.settingValue}>{capitalize(gridDirection)}</div>
+<div className={css.settingLabel}>{$L('Grid direction')}</div>
+<div className={css.settingValue}>{$L(capitalize(gridDirection))}</div>
 </SpottableButton>
 </SettingsPanelContainer>
 </div>

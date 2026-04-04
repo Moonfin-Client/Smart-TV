@@ -2,6 +2,7 @@ import {useState, useEffect, useCallback, useRef, useMemo} from 'react';
 import Spottable from '@enact/spotlight/Spottable';
 import SpotlightContainerDecorator from '@enact/spotlight/SpotlightContainerDecorator';
 import Spotlight from '@enact/spotlight';
+import $L from '@enact/i18n/$L';
 import {useAuth} from '../../context/AuthContext';
 import LoadingSpinner from '../../components/LoadingSpinner';
 import {KEYS} from '../../utils/keys';
@@ -34,7 +35,7 @@ const ProgramCell = ({program, channel, style, isCurrent, onProgramClick}) => {
 			data-program-id={program.Id}
 		>
 			<div className={css.programTime}>
-				{new Date(program.StartDate).toLocaleTimeString('en-US', {
+				{new Date(program.StartDate).toLocaleTimeString(undefined, {
 					hour: 'numeric',
 					minute: '2-digit',
 					hour12: true
@@ -277,7 +278,7 @@ const LiveTV = ({onPlayChannel, onRecordings, backHandlerRef}) => {
 
 	const formatDate = useCallback((date) => {
 		const options = {weekday: 'long', year: 'numeric', month: 'long', day: 'numeric'};
-		return date.toLocaleDateString('en-US', options);
+		return date.toLocaleDateString(undefined, options);
 	}, []);
 
 	const timeSlots = useMemo(() => {
@@ -290,7 +291,7 @@ const LiveTV = ({onPlayChannel, onRecordings, backHandlerRef}) => {
 			slotTime.setMinutes(slotTime.getMinutes() + (i * 30));
 			slots.push({
 				time: slotTime,
-				label: slotTime.toLocaleTimeString('en-US', {
+				label: slotTime.toLocaleTimeString(undefined, {
 					hour: 'numeric',
 					minute: '2-digit',
 					hour12: true
@@ -349,7 +350,7 @@ const LiveTV = ({onPlayChannel, onRecordings, backHandlerRef}) => {
 			<div className={css.page}>
 				<div className={css.loadingContainer}>
 					<LoadingSpinner />
-					<p>Loading TV Guide...</p>
+					<p>{$L('Loading TV Guide...')}</p>
 				</div>
 			</div>
 		);
@@ -359,14 +360,14 @@ const LiveTV = ({onPlayChannel, onRecordings, backHandlerRef}) => {
 		<div className={css.page}>
 			<div className={css.guideContainer}>
 				<div className={css.guideHeader}>
-					<div className={css.guideTitle}>Live TV Guide</div>
+					<div className={css.guideTitle}>{$L('Live TV Guide')}</div>
 					<GuideControls className={css.guideControls} spotlightId="livetv-guide">
 						<SpottableButton
 							className={css.guideBtn}
 							onClick={handlePrevDay}
 							spotlightId="prev-day"
 						>
-							◀ Previous Day
+							{$L('◀ Previous Day')}
 						</SpottableButton>
 						<div className={css.guideDate}>{formatDate(currentDate)}</div>
 						<SpottableButton
@@ -374,28 +375,28 @@ const LiveTV = ({onPlayChannel, onRecordings, backHandlerRef}) => {
 							onClick={handleNextDay}
 							spotlightId="next-day"
 						>
-							Next Day ▶
+							{$L('Next Day ▶')}
 						</SpottableButton>
 						<SpottableButton
 							className={css.guideBtn}
 							onClick={goToToday}
 							spotlightId="today"
 						>
-							Today
+							{$L('Today')}
 						</SpottableButton>
 						<SpottableButton
 							className={`${css.guideBtn} ${showFavoritesOnly ? css.active : ''}`}
 							onClick={toggleFavorites}
 							spotlightId="filter"
 						>
-							{showFavoritesOnly ? 'All Channels' : 'Favorites'}
+							{showFavoritesOnly ? $L('All Channels') : $L('Favorites')}
 						</SpottableButton>
 						<SpottableButton
 							className={`${css.guideBtn} ${css.recordingsBtn}`}
 							onClick={onRecordings}
 							spotlightId="recordings"
 						>
-							Recordings
+							{$L('Recordings')}
 						</SpottableButton>
 					</GuideControls>
 				</div>
@@ -473,7 +474,7 @@ const LiveTV = ({onPlayChannel, onRecordings, backHandlerRef}) => {
 
 						{filteredChannels.length === 0 && (
 							<div className={css.empty}>
-								{showFavoritesOnly ? 'No favorite channels' : 'No channels available'}
+								{showFavoritesOnly ? $L('No favorite channels') : $L('No channels available')}
 							</div>
 						)}
 					</div>
@@ -500,13 +501,13 @@ const LiveTV = ({onPlayChannel, onRecordings, backHandlerRef}) => {
 								<div className={css.popupSubtitle}>{selectedProgram.program.EpisodeTitle}</div>
 							)}
 							<div className={css.popupTime}>
-								{new Date(selectedProgram.program.StartDate).toLocaleTimeString('en-US', {
+								{new Date(selectedProgram.program.StartDate).toLocaleTimeString(undefined, {
 									hour: 'numeric',
 									minute: '2-digit',
 									hour12: true
 								})}
 								{' - '}
-								{new Date(selectedProgram.program.EndDate).toLocaleTimeString('en-US', {
+								{new Date(selectedProgram.program.EndDate).toLocaleTimeString(undefined, {
 									hour: 'numeric',
 									minute: '2-digit',
 									hour12: true
@@ -525,28 +526,28 @@ const LiveTV = ({onPlayChannel, onRecordings, backHandlerRef}) => {
 							)}
 							<div className={css.popupInfo}>
 								<div className={css.popupOverview}>
-									{selectedProgram.program.Overview || 'No description available.'}
+									{selectedProgram.program.Overview || $L('No description available.')}
 								</div>
 								<div className={css.popupMetadata}>
 									<div className={css.metadataItem}>
-										<span className={css.metadataLabel}>Channel:</span>
+										<span className={css.metadataLabel}>{$L('Channel:')}</span>
 										<span className={css.metadataValue}>{selectedProgram.channel.Name}</span>
 									</div>
 									{selectedProgram.program.ProductionYear && (
 										<div className={css.metadataItem}>
-											<span className={css.metadataLabel}>Year:</span>
+											<span className={css.metadataLabel}>{$L('Year:')}</span>
 											<span className={css.metadataValue}>{selectedProgram.program.ProductionYear}</span>
 										</div>
 									)}
 									{selectedProgram.program.OfficialRating && (
 										<div className={css.metadataItem}>
-											<span className={css.metadataLabel}>Rating:</span>
+											<span className={css.metadataLabel}>{$L('Rating:')}</span>
 											<span className={css.metadataValue}>{selectedProgram.program.OfficialRating}</span>
 										</div>
 									)}
 									{selectedProgram.program.Genres?.length > 0 && (
 										<div className={css.metadataItem}>
-											<span className={css.metadataLabel}>Genres:</span>
+											<span className={css.metadataLabel}>{$L('Genres:')}</span>
 											<span className={css.metadataValue}>{selectedProgram.program.Genres.join(', ')}</span>
 										</div>
 									)}
@@ -561,7 +562,7 @@ const LiveTV = ({onPlayChannel, onRecordings, backHandlerRef}) => {
 									onClick={handleWatchChannel}
 									spotlightId="popup-watch"
 								>
-									Watch Now
+									{$L('Watch Now')}
 								</SpottableButton>
 							)}
 							<SpottableButton
@@ -569,7 +570,7 @@ const LiveTV = ({onPlayChannel, onRecordings, backHandlerRef}) => {
 								onClick={handleClosePopup}
 								spotlightId="popup-close"
 							>
-								Close
+								{$L('Close')}
 							</SpottableButton>
 						</div>
 					</PopupContainer>

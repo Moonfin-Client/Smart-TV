@@ -141,48 +141,10 @@ try {
 		console.warn('  ⚠ libpgs.worker.js not found (PGS rendering may degrade)');
 	}
 
-	// Find ilib locale directory (may be nested under _/_/ in mono-repo builds)
-	const ilibDir = findDir(DIST_DIR, 'ilib');
-	const localeDir = ilibDir ? path.join(ilibDir, 'locale') : null;
-
-	if (localeDir && fs.existsSync(localeDir)) {
-		console.log('\n Removing non-English locales due to size constraints...');
-		console.log(`  ilib found at: ${ilibDir}`);
-		removeDirs(localeDir, (name) => !name.startsWith('en'));
-
-		console.log('\n Removing unused ilib data files...');
-		const nonEngLocalefiles = ([
-			'currency.json',
-			'numplan.json',
-			'emergency.json',
-			'unitfmt.json',
-			'phoneloc.json',
-			'phonefmt.json',
-			'iddarea.json',
-			'idd.json',
-			'mnc.json',
-			'address.json',
-			'addressres.json',
-			'astro.json',
-			'pseudomap.json',
-			'collation.json',
-			'countries.json',
-			'nativecountries.json',
-			'ctrynames.json',
-			'ctryreverse.json',
-			'name.json',
-			'lang2charset.json',
-			'ccc.json'
-		]);
-		deleteFiles(localeDir, nonEngLocalefiles);
-
-		fs.rmSync(path.join(localeDir, 'en', 'Dsrt'), {recursive: true, force: true});
-
-		console.log('\n Removing non-essential files from en/ regional locale dirs...');
-		deleteFiles(path.join(localeDir, 'en'), nonEngLocalefiles);
-	} else {
-		console.log('\n No ilib locale directory found — skipping locale cleanup');
-	}
+	// Prune ilib locale data — keeps only plurals.json and localeinfo.json
+	// for configured locales, removing ~5.5 MB of unused formatting data.
+	console.log('\n Pruning ilib locale data...');
+	require(path.join(ROOT_DIR, 'scripts', 'prune-ilib-locales.js'))(DIST_DIR);
 
 	// Remove unused font weights to reduce size
 	const museoDir = findDir(DIST_DIR, 'MuseoSans');

@@ -1,4 +1,5 @@
 import {useState, useCallback, useEffect, lazy, Suspense, useRef} from 'react';
+import ilib from 'ilib';
 import ThemeDecorator from '@enact/sandstone/ThemeDecorator';
 import {Panels, Panel} from '@enact/sandstone/Panels';
 
@@ -974,6 +975,18 @@ const AppContent = (props) => {
 		</div>
 	);
 };
+
+// Set ilib locale from stored settings before React renders
+// Both Tizen (localStorage) and webOS (DB8 with localStorage mirror) store
+// data under the 'moonfin_' prefix, so 'moonfin_settings' is reliable on
+// both platforms at module-evaluation time.
+try {
+	const stored = JSON.parse(localStorage.getItem('moonfin_settings') || '{}');
+	const locale = stored.uiLanguage || 'en-US';
+	ilib.setLocale(locale);
+} catch (e) {
+	ilib.setLocale('en-US');
+}
 
 const AppBase = (props) => (
 	<SettingsProvider>

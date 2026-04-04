@@ -1,4 +1,5 @@
 import {useState, useEffect, useCallback, useRef, useMemo} from 'react';
+import $L from '@enact/i18n/$L';
 import Spottable from '@enact/spotlight/Spottable';
 import SpotlightContainerDecorator from '@enact/spotlight/SpotlightContainerDecorator';
 import Spotlight from '@enact/spotlight';
@@ -95,7 +96,7 @@ const getMediaBadges = (item) => {
 		} else if (audio.Channels === 6) {
 			badges.push({type: 'badgeSurround', label: '5.1'});
 		} else if (audio.Channels === 2) {
-			badges.push({type: 'badgeSurround', label: 'Stereo'});
+			badges.push({type: 'badgeSurround', label: $L('Stereo')});
 		}
 
 		// Audio codec badge
@@ -738,7 +739,7 @@ const Details = ({itemId, initialItem, onPlay, onSelectItem, onSelectPerson, bac
 		setPlaylistItems(prev => prev.filter(p => p.PlaylistItemId !== entryId));
 		try {
 			await effectiveApi.removeFromPlaylist(item.Id, [entryId]);
-			showToast('Removed from playlist');
+			showToast($L('Removed from playlist'));
 		} catch {
 			setPlaylistItems(prevItems);
 		}
@@ -970,11 +971,11 @@ const handleSectionKeyDown = useCallback((ev) => {
 			const ampm = hours >= 12 ? 'PM' : 'AM';
 			const h = hours % 12 || 12;
 			const m = minutes < 10 ? '0' + minutes : minutes;
-			return `Ends at ${h}:${m} ${ampm}`;
+			return $L('Ends at {time}').replace('{time}', `${h}:${m} ${ampm}`);
 		} else {
 			const h = hours.toString().padStart(2, '0');
 			const m = minutes < 10 ? '0' + minutes : minutes;
-			return `Ends at ${h}:${m}`;
+			return $L('Ends at {time}').replace('{time}', `${h}:${m}`);
 		}
 	})();
 	const officialRating = item.OfficialRating || '';
@@ -1035,9 +1036,9 @@ const handleSectionKeyDown = useCallback((ev) => {
 		return (
 			<div className={css.modalOverlay} onClick={handleCloseMediaInfo}>
 				<div className={css.mediaInfoMenu} onClick={handleStopPropagation}>
-					<h3 className={css.modalTitle}>Media Info</h3>
+					<h3 className={css.modalTitle}>{$L('Media Info')}</h3>
 					<div className={css.mediaInfoContent}>
-						{streams.length === 0 && <p className={css.mediaInfoRow}>No media info available</p>}
+						{streams.length === 0 && <p className={css.mediaInfoRow}>{$L('No media info available')}</p>}
 						{streams.map((stream, i) => (
 							<div key={i} className={css.mediaInfoStream}>
 								<div className={css.mediaInfoStreamHeader}>
@@ -1067,7 +1068,7 @@ const handleSectionKeyDown = useCallback((ev) => {
 								)}
 								{stream.Type === 'Subtitle' && (
 									<div className={css.mediaInfoRow}>
-										{[stream.Codec?.toUpperCase(), stream.IsExternal ? 'External' : 'Embedded'].filter(Boolean).join(' · ')}
+										{[stream.Codec?.toUpperCase(), stream.IsExternal ? $L('External') : $L('Embedded')].filter(Boolean).join(' · ')}
 									</div>
 								)}
 							</div>
@@ -1075,7 +1076,7 @@ const handleSectionKeyDown = useCallback((ev) => {
 					</div>
 					<div className={css.mediaInfoClose}>
 						<SpottableDiv className={css.mediaInfoCloseBtn} onClick={handleCloseMediaInfo} spotlightId="media-info-close">
-							Close
+							{$L('Close')}
 						</SpottableDiv>
 					</div>
 				</div>
@@ -1090,7 +1091,7 @@ const handleSectionKeyDown = useCallback((ev) => {
 					<div className={css.btnAction}>
 						<span className={css.btnIcon}>▶</span>
 					</div>
-					<span className={css.btnLabel}>Resume</span>
+					<span className={css.btnLabel}>{$L('Resume')}</span>
 					<span className={css.btnDetail}>{resumeTimeText}</span>
 				</SpottableDiv>
 			)}
@@ -1109,7 +1110,7 @@ const handleSectionKeyDown = useCallback((ev) => {
 							<span className={css.btnIcon}>▶</span>
 						)}
 					</div>
-					<span className={css.btnLabel}>{isBook ? 'Read' : hasPlaybackPosition ? 'Restart' : 'Play'}</span>
+					<span className={css.btnLabel}>{isBook ? $L('Read') : hasPlaybackPosition ? $L('Restart') : $L('Play')}</span>
 				</SpottableDiv>
 			)}
 			{(isSeries || isSeason) && (
@@ -1119,7 +1120,7 @@ const handleSectionKeyDown = useCallback((ev) => {
 							<path d="M560-160v-80h104L537-367l57-57 126 126v-102h80v240H560Zm-344 0-56-56 504-504H560v-80h240v240h-80v-104L216-160Zm151-377L160-744l56-56 207 207-56 56Z"/>
 						</svg>
 					</div>
-					<span className={css.btnLabel}>Shuffle</span>
+					<span className={css.btnLabel}>{$L('Shuffle')}</span>
 				</SpottableDiv>
 			)}
 			{hasMultipleVersions && (
@@ -1129,8 +1130,8 @@ const handleSectionKeyDown = useCallback((ev) => {
 							<path d="M320-240h320v-80H320v80Zm0-160h320v-80H320v80ZM240-80q-33 0-56.5-23.5T160-160v-640q0-33 23.5-56.5T240-880h320l240 240v480q0 33-23.5 56.5T740-80H240Zm280-520v-200H240v640h500v-440H520ZM240-800v200-200 640-640Z"/>
 						</svg>
 					</div>
-					<span className={css.btnLabel}>Version</span>
-					<span className={css.btnDetail}>{mediaSource?.Name || `Version ${selectedVersionIndex + 1}`}</span>
+					<span className={css.btnLabel}>{$L('Version')}</span>
+					<span className={css.btnDetail}>{mediaSource?.Name || `${$L('Version')} ${selectedVersionIndex + 1}`}</span>
 				</SpottableDiv>
 			)}
 			{hasMultipleAudio && (
@@ -1140,10 +1141,10 @@ const handleSectionKeyDown = useCallback((ev) => {
 							<path d="M400-120q-66 0-113-47t-47-113q0-66 47-113t113-47q23 0 42.5 5.5T480-418v-422h240v160H560v400q0 66-47 113t-113 47Z"/>
 						</svg>
 					</div>
-					<span className={css.btnLabel}>Audio</span>
+					<span className={css.btnLabel}>{$L('Audio')}</span>
 					{currentAudioStream && (
 						<span className={css.btnDetail}>
-							{currentAudioStream.DisplayTitle || currentAudioStream.Language || 'Track ' + (selectedAudioIndex + 1)}
+							{currentAudioStream.DisplayTitle || currentAudioStream.Language || `${$L('Track')} ${selectedAudioIndex + 1}`}
 						</span>
 					)}
 				</SpottableDiv>
@@ -1155,13 +1156,13 @@ const handleSectionKeyDown = useCallback((ev) => {
 							<path d="M200-160q-33 0-56.5-23.5T120-240v-480q0-33 23.5-56.5T200-800h560q33 0 56.5 23.5T840-720v480q0 33-23.5 56.5T760-160H200Zm0-80h560v-480H200v480Zm80-120h120q17 0 28.5-11.5T440-400v-40h-60v20h-80v-120h80v20h60v-40q0-17-11.5-28.5T400-600H280q-17 0-28.5 11.5T240-560v160q0 17 11.5 28.5T280-360Zm280 0h120q17 0 28.5-11.5T720-400v-40h-60v20h-80v-120h80v20h60v-40q0-17-11.5-28.5T680-600H560q-17 0-28.5 11.5T520-560v160q0 17 11.5 28.5T560-360ZM200-240v-480 480Z"/>
 						</svg>
 					</div>
-					<span className={css.btnLabel}>Subtitle</span>
+					<span className={css.btnLabel}>{$L('Subtitle')}</span>
 					{currentSubtitleStream ? (
 						<span className={css.btnDetail}>
-							{currentSubtitleStream.DisplayTitle || currentSubtitleStream.Language || 'Track ' + (selectedSubtitleIndex + 1)}
+							{currentSubtitleStream.DisplayTitle || currentSubtitleStream.Language || `${$L('Track')} ${selectedSubtitleIndex + 1}`}
 						</span>
 					) : (
-						<span className={css.btnDetail}>Off</span>
+						<span className={css.btnDetail}>{$L('Off')}</span>
 					)}
 				</SpottableDiv>
 			)}
@@ -1172,7 +1173,7 @@ const handleSectionKeyDown = useCallback((ev) => {
 							<path d="M160-120v-720h80v80h80v-80h320v80h80v-80h80v720h-80v-80h-80v80H320v-80h-80v80h-80Zm80-160h80v-80h-80v80Zm0-160h80v-80h-80v80Zm0-160h80v-80h-80v80Zm400 320h80v-80h-80v80Zm0-160h80v-80h-80v80Zm0-160h80v-80h-80v80ZM400-200h160v-560H400v560Zm0-560h160-160Z"/>
 						</svg>
 					</div>
-					<span className={css.btnLabel}>Trailer</span>
+					<span className={css.btnLabel}>{$L('Trailer')}</span>
 				</SpottableDiv>
 			)}
 			<SpottableDiv className={css.btnWrapper} onClick={handleToggleWatched} spotlightId="details-watched-btn">
@@ -1181,7 +1182,7 @@ const handleSectionKeyDown = useCallback((ev) => {
 						<path d="M382-240 154-468l57-57 171 171 367-367 57 57-424 424Z"/>
 					</svg>
 				</div>
-				<span className={css.btnLabel}>{item.UserData?.Played ? 'Watched' : 'Mark Watched'}</span>
+				<span className={css.btnLabel}>{item.UserData?.Played ? $L('Watched') : $L('Mark Watched')}</span>
 			</SpottableDiv>
 			<SpottableDiv className={css.btnWrapper} onClick={handleToggleFavorite} spotlightId="details-favorite-btn">
 				<div className={css.btnAction}>
@@ -1189,7 +1190,7 @@ const handleSectionKeyDown = useCallback((ev) => {
 						<path d="m480-120-58-52q-101-91-167-157T150-447.5Q111-500 95.5-544T80-634q0-94 63-157t157-63q52 0 99 22t81 62q34-40 81-62t99-22q94 0 157 63t63 157q0 46-15.5 90T810-447.5Q771-395 705-329T538-172l-58 52Z"/>
 					</svg>
 				</div>
-				<span className={css.btnLabel}>{item.UserData?.IsFavorite ? 'Favorited' : 'Favorite'}</span>
+				<span className={css.btnLabel}>{item.UserData?.IsFavorite ? $L('Favorited') : $L('Favorite')}</span>
 			</SpottableDiv>
 			{isEpisode && item.SeriesId && (
 				<SpottableDiv className={css.btnWrapper} onClick={handleGoToSeries}>
@@ -1198,7 +1199,7 @@ const handleSectionKeyDown = useCallback((ev) => {
 							<path d="M240-120v-80l40-40H160q-33 0-56.5-23.5T80-320v-440q0-33 23.5-56.5T160-840h640q33 0 56.5 23.5T880-760v440q0 33-23.5 56.5T800-240H680l40 40v80H240Zm-80-200h640v-440H160v440Zm0 0v-440 440Z"/>
 						</svg>
 					</div>
-					<span className={css.btnLabel}>Series</span>
+					<span className={css.btnLabel}>{$L('Series')}</span>
 				</SpottableDiv>
 			)}
 			{supportsMediaSourceSelection && (
@@ -1208,7 +1209,7 @@ const handleSectionKeyDown = useCallback((ev) => {
 							<path d="M440-280h80v-240h-80v240Zm40-320q17 0 28.5-11.5T520-640q0-17-11.5-28.5T480-680q-17 0-28.5 11.5T440-640q0 17 11.5 28.5T480-600Zm0 520q-83 0-156-31.5T197-197q-54-54-85.5-127T80-480q0-83 31.5-156T197-763q54-54 127-85.5T480-880q83 0 156 31.5T763-763q54 54 85.5 127T880-480q0 83-31.5 156T763-197q-54 54-127 85.5T480-80Z"/>
 						</svg>
 					</div>
-					<span className={css.btnLabel}>Media Info</span>
+					<span className={css.btnLabel}>{$L('Media Info')}</span>
 				</SpottableDiv>
 			)}
 			<SpottableDiv className={css.btnWrapper} onClick={handleOpenPlaylistModal}>
@@ -1217,17 +1218,17 @@ const handleSectionKeyDown = useCallback((ev) => {
 						<path d="M120-320v-80h480v80H120Zm0-160v-80h480v80H120Zm0-160v-80h480v80H120Zm520 480v-320l240 160-240 160Z"/>
 					</svg>
 				</div>
-				<span className={css.btnLabel}>Add to Playlist</span>
+				<span className={css.btnLabel}>{$L('Add to Playlist')}</span>
 			</SpottableDiv>
 		</HorizontalContainer>
 	);
 
 	const renderMetadata = () => {
 		const metaItems = [];
-		if (genres.length > 0) metaItems.push({label: 'Genres', value: genres.slice(0, 3).join(', ')});
-		if (directors.length > 0) metaItems.push({label: 'Director', value: directors.map(d => d.Name).join(', ')});
-		if (writers.length > 0) metaItems.push({label: 'Writers', value: writers.map(w => w.Name).join(', ')});
-		if (studios.length > 0) metaItems.push({label: 'Studio', value: studios.map(s => s.Name).join(', ')});
+		if (genres.length > 0) metaItems.push({label: $L('Genres'), value: genres.slice(0, 3).join(', ')});
+		if (directors.length > 0) metaItems.push({label: $L('Director'), value: directors.map(d => d.Name).join(', ')});
+		if (writers.length > 0) metaItems.push({label: $L('Writers'), value: writers.map(w => w.Name).join(', ')});
+		if (studios.length > 0) metaItems.push({label: $L('Studio'), value: studios.map(s => s.Name).join(', ')});
 		if (metaItems.length === 0) return null;
 		return (
 			<div className={css.metadataGroup}>
@@ -1268,8 +1269,8 @@ const handleSectionKeyDown = useCallback((ev) => {
 								<div className={css.infoRow}>
 									{birthDate && (
 										<span className={css.infoItem}>
-											Born {birthDate.toLocaleDateString()}
-											{' '}(age {Math.floor((Date.now() - birthDate.getTime()) / 31557600000)})
+											{$L('Born')} {birthDate.toLocaleDateString()}
+											{' '}({$L('age')} {Math.floor((Date.now() - birthDate.getTime()) / 31557600000)})
 										</span>
 									)}
 									{birthPlace && <span className={css.infoItem}>{birthPlace}</span>}
@@ -1282,7 +1283,7 @@ const handleSectionKeyDown = useCallback((ev) => {
 						<div className={css.sectionsContainer}>
 							{personMovies.length > 0 && (
 								<MediaRow
-									title={`Movies (${personMovies.length})`}
+									title={`${$L('Movies')} (${personMovies.length})`}
 									items={personMovies}
 									serverUrl={effectiveServerUrl}
 									onSelectItem={onSelectItem}
@@ -1291,7 +1292,7 @@ const handleSectionKeyDown = useCallback((ev) => {
 							)}
 							{personSeries.length > 0 && (
 								<MediaRow
-									title={`Series (${personSeries.length})`}
+									title={`${$L('TV Series')} (${personSeries.length})`}
 									items={personSeries}
 									serverUrl={effectiveServerUrl}
 									onSelectItem={onSelectItem}
@@ -1324,7 +1325,7 @@ const handleSectionKeyDown = useCallback((ev) => {
 								{item.SeriesName && <span className={css.seasonDetailSeries}>{item.SeriesName}</span>}
 								<h1 className={css.seasonDetailTitle}>{item.Name}</h1>
 								<span className={css.seasonDetailCount}>
-									{episodes.length} Episode{episodes.length !== 1 ? 's' : ''}
+									{episodes.length} {episodes.length !== 1 ? $L('Episodes') : $L('Episode')}
 								</span>
 								{settings.useMoonfinPlugin && settings.mdblistEnabled !== false && <RatingsRow item={item} serverUrl={effectiveServerUrl} />}
 							</div>
@@ -1336,7 +1337,7 @@ const handleSectionKeyDown = useCallback((ev) => {
 									<div className={css.btnAction}>
 										<span className={css.btnIcon}>▶</span>
 									</div>
-									<span className={css.btnLabel}>Play</span>
+									<span className={css.btnLabel}>{$L('Play')}</span>
 								</SpottableDiv>
 								<SpottableDiv className={css.btnWrapper} onClick={handleShuffle}>
 									<div className={css.btnAction}>
@@ -1344,7 +1345,7 @@ const handleSectionKeyDown = useCallback((ev) => {
 											<path d="M560-160v-80h104L537-367l57-57 126 126v-102h80v240H560Zm-344 0-56-56 504-504H560v-80h240v240h-80v-104L216-160Zm151-377L160-744l56-56 207 207-56 56Z"/>
 										</svg>
 									</div>
-									<span className={css.btnLabel}>Shuffle</span>
+									<span className={css.btnLabel}>{$L('Shuffle')}</span>
 								</SpottableDiv>
 								<SpottableDiv className={css.btnWrapper} onClick={handleToggleWatched} spotlightId="season-watched-btn">
 									<div className={css.btnAction}>
@@ -1352,7 +1353,7 @@ const handleSectionKeyDown = useCallback((ev) => {
 											<path d="M382-240 154-468l57-57 171 171 367-367 57 57-424 424Z"/>
 										</svg>
 									</div>
-									<span className={css.btnLabel}>{item.UserData?.Played ? 'Watched' : 'Unwatched'}</span>
+									<span className={css.btnLabel}>{item.UserData?.Played ? $L('Watched') : $L('Unwatched')}</span>
 								</SpottableDiv>
 								<SpottableDiv className={css.btnWrapper} onClick={handleToggleFavorite} spotlightId="season-favorite-btn">
 									<div className={css.btnAction}>
@@ -1360,7 +1361,7 @@ const handleSectionKeyDown = useCallback((ev) => {
 											<path d="m480-120-58-52q-101-91-167-157T150-447.5Q111-500 95.5-544T80-634q0-94 63-157t157-63q52 0 99 22t81 62q34-40 81-62t99-22q94 0 157 63t63 157q0 46-15.5 90T810-447.5Q771-395 705-329T538-172l-58 52Z"/>
 										</svg>
 									</div>
-									<span className={css.btnLabel}>{item.UserData?.IsFavorite ? 'Favorited' : 'Favorite'}</span>
+									<span className={css.btnLabel}>{item.UserData?.IsFavorite ? $L('Favorited') : $L('Favorite')}</span>
 								</SpottableDiv>
 							</HorizontalContainer>
 						)}
@@ -1402,7 +1403,7 @@ const handleSectionKeyDown = useCallback((ev) => {
 										</div>
 										<div className={css.seasonEpBody}>
 											<div className={css.seasonEpTop}>
-												<span className={css.seasonEpNumber}>Episode {ep.IndexNumber || '?'}</span>
+												<span className={css.seasonEpNumber}>{$L('Episode')} {ep.IndexNumber || '?'}</span>
 												<span className={css.seasonEpMeta}>
 													{epRuntime && <span>{epRuntime}</span>}
 												</span>
@@ -1439,7 +1440,7 @@ const handleSectionKeyDown = useCallback((ev) => {
 							<div className={css.seasonDetailInfo}>
 								<h1 className={css.seasonDetailTitle}>{item.Name}</h1>
 								<span className={css.seasonDetailCount}>
-									{playlistItemCount} Item{playlistItemCount !== 1 ? 's' : ''}
+									{playlistItemCount} {playlistItemCount !== 1 ? $L('Items') : $L('Item')}
 									{totalDuration > 0 ? ` · ${formatDuration(totalDuration)}` : ''}
 								</span>
 								{genres.length > 0 && (
@@ -1455,7 +1456,7 @@ const handleSectionKeyDown = useCallback((ev) => {
 									<div className={css.btnAction}>
 										<span className={css.btnIcon}>▶</span>
 									</div>
-									<span className={css.btnLabel}>Play</span>
+									<span className={css.btnLabel}>{$L('Play')}</span>
 								</SpottableDiv>
 							)}
 							{playlistItems.length > 1 && (
@@ -1465,7 +1466,7 @@ const handleSectionKeyDown = useCallback((ev) => {
 											<path d="M560-160v-80h104L537-367l57-57 126 126v-102h80v240H560Zm-344 0-56-56 504-504H560v-80h240v240h-80v-104L216-160Zm151-377L160-744l56-56 207 207-56 56Z"/>
 										</svg>
 									</div>
-									<span className={css.btnLabel}>Shuffle</span>
+									<span className={css.btnLabel}>{$L('Shuffle')}</span>
 								</SpottableDiv>
 							)}
 							<SpottableDiv className={css.btnWrapper} onClick={handleToggleFavorite} spotlightId="details-favorite-btn">
@@ -1474,11 +1475,11 @@ const handleSectionKeyDown = useCallback((ev) => {
 										<path d="m480-120-58-52q-101-91-167-157T150-447.5Q111-500 95.5-544T80-634q0-94 63-157t157-63q52 0 99 22t81 62q34-40 81-62t99-22q94 0 157 63t63 157q0 46-15.5 90T810-447.5Q771-395 705-329T538-172l-58 52Z"/>
 									</svg>
 								</div>
-								<span className={css.btnLabel}>{item.UserData?.IsFavorite ? 'Favorited' : 'Favorite'}</span>
+								<span className={css.btnLabel}>{item.UserData?.IsFavorite ? $L('Favorited') : $L('Favorite')}</span>
 							</SpottableDiv>
 						</HorizontalContainer>
 
-						<p className={css.playlistHint}>◀ ▶ to re-order · DEL to remove</p>
+						<p className={css.playlistHint}>{$L('◀ ▶ to re-order · DEL to remove')}</p>
 
 						<div className={`${css.trackList} ${css.playlistItemsList}`} onKeyDown={handlePlaylistItemKeyDown}>
 							{playlistItems.map((plItem, idx) => {
@@ -1550,7 +1551,7 @@ const handleSectionKeyDown = useCallback((ev) => {
 								{albumArtist && <span className={css.seasonDetailSeries}>{albumArtist}</span>}
 								<h1 className={css.seasonDetailTitle}>{item.Name}</h1>
 								<span className={css.seasonDetailCount}>
-									{year ? `${year} · ` : ''}{trackCount} Track{trackCount !== 1 ? 's' : ''}
+									{year ? `${year} · ` : ''}{trackCount} {trackCount !== 1 ? $L('Tracks') : $L('Track')}
 									{totalDuration > 0 ? ` · ${formatDuration(totalDuration)}` : ''}
 								</span>
 								{genres.length > 0 && (
@@ -1566,7 +1567,7 @@ const handleSectionKeyDown = useCallback((ev) => {
 									<div className={css.btnAction}>
 										<span className={css.btnIcon}>▶</span>
 									</div>
-									<span className={css.btnLabel}>Play</span>
+									<span className={css.btnLabel}>{$L('Play')}</span>
 								</SpottableDiv>
 							)}
 							{albumTracks.length > 1 && (
@@ -1576,7 +1577,7 @@ const handleSectionKeyDown = useCallback((ev) => {
 											<path d="M560-160v-80h104L537-367l57-57 126 126v-102h80v240H560Zm-344 0-56-56 504-504H560v-80h240v240h-80v-104L216-160Zm151-377L160-744l56-56 207 207-56 56Z"/>
 										</svg>
 									</div>
-									<span className={css.btnLabel}>Shuffle</span>
+									<span className={css.btnLabel}>{$L('Shuffle')}</span>
 								</SpottableDiv>
 							)}
 							<SpottableDiv className={css.btnWrapper} onClick={handleToggleFavorite} spotlightId="details-favorite-btn">
@@ -1585,7 +1586,7 @@ const handleSectionKeyDown = useCallback((ev) => {
 										<path d="m480-120-58-52q-101-91-167-157T150-447.5Q111-500 95.5-544T80-634q0-94 63-157t157-63q52 0 99 22t81 62q34-40 81-62t99-22q94 0 157 63t63 157q0 46-15.5 90T810-447.5Q771-395 705-329T538-172l-58 52Z"/>
 									</svg>
 								</div>
-								<span className={css.btnLabel}>{item.UserData?.IsFavorite ? 'Favorited' : 'Favorite'}</span>
+								<span className={css.btnLabel}>{item.UserData?.IsFavorite ? $L('Favorited') : $L('Favorite')}</span>
 							</SpottableDiv>
 						</HorizontalContainer>
 
@@ -1623,7 +1624,7 @@ const handleSectionKeyDown = useCallback((ev) => {
 						<div className={css.sectionsContainer}>
 							{similar.length > 0 && (
 								<MediaRow
-									title="More Like This"
+									title={$L('More Like This')}
 									items={similar}
 									serverUrl={effectiveServerUrl}
 									onSelectItem={onSelectItem}
@@ -1669,7 +1670,7 @@ const handleSectionKeyDown = useCallback((ev) => {
 											<div className={css.btnAction}>
 												<span className={css.btnIcon}>▶</span>
 											</div>
-											<span className={css.btnLabel}>Play</span>
+											<span className={css.btnLabel}>{$L('Play')}</span>
 										</SpottableDiv>
 									)}
 									{artistAlbums.length > 0 && (
@@ -1677,7 +1678,7 @@ const handleSectionKeyDown = useCallback((ev) => {
 											<div className={css.btnAction}>
 												<svg className={css.btnIcon} viewBox="0 -960 960 960" fill="currentColor"><path d="M560-160v-80h104L537-367l57-57 126 126v-102h80v240H560Zm-344 0-56-56 568-568H624v-80h240v240h-80v-104L216-160Zm151-377L160-744l56-56 207 207-56 56Z"/></svg>
 											</div>
-											<span className={css.btnLabel}>Shuffle</span>
+											<span className={css.btnLabel}>{$L('Shuffle')}</span>
 										</SpottableDiv>
 									)}
 									<SpottableDiv className={css.btnWrapper} onClick={handleToggleFavorite} spotlightId="details-favorite-btn">
@@ -1686,7 +1687,7 @@ const handleSectionKeyDown = useCallback((ev) => {
 												<path d="m480-120-58-52q-101-91-167-157T150-447.5Q111-500 95.5-544T80-634q0-94 63-157t157-63q52 0 99 22t81 62q34-40 81-62t99-22q94 0 157 63t63 157q0 46-15.5 90T810-447.5Q771-395 705-329T538-172l-58 52Z"/>
 											</svg>
 										</div>
-										<span className={css.btnLabel}>{item.UserData?.IsFavorite ? 'Favorited' : 'Favorite'}</span>
+										<span className={css.btnLabel}>{item.UserData?.IsFavorite ? $L('Favorited') : $L('Favorite')}</span>
 									</SpottableDiv>
 								</HorizontalContainer>
 							</div>
@@ -1696,7 +1697,7 @@ const handleSectionKeyDown = useCallback((ev) => {
 							{artistAlbums.length > 0 && (
 								<RowContainer className={css.section}>
 									<div className={css.sectionHeader}>
-										<h3 className={css.sectionTitle}>Discography ({artistAlbums.length})</h3>
+										<h3 className={css.sectionTitle}>{$L('Discography')} ({artistAlbums.length})</h3>
 									</div>
 									<div className={css.sectionScroll} onFocus={handleScrollerFocus}>
 										{artistAlbums.map(album => {
@@ -1726,7 +1727,7 @@ const handleSectionKeyDown = useCallback((ev) => {
 
 							{similar.length > 0 && (
 								<MediaRow
-									title="Similar Artists"
+									title={$L('Similar Artists')}
 									items={similar}
 									serverUrl={effectiveServerUrl}
 									onSelectItem={onSelectItem}
@@ -1788,7 +1789,7 @@ const handleSectionKeyDown = useCallback((ev) => {
 								<div className={css.btnAction}>
 									<span className={css.btnIcon}>▶</span>
 								</div>
-								<span className={css.btnLabel}>Play</span>
+								<span className={css.btnLabel}>{$L('Play')}</span>
 							</SpottableDiv>
 							<SpottableDiv className={css.btnWrapper} onClick={handleToggleFavorite} spotlightId="details-favorite-btn">
 								<div className={css.btnAction}>
@@ -1796,7 +1797,7 @@ const handleSectionKeyDown = useCallback((ev) => {
 										<path d="m480-120-58-52q-101-91-167-157T150-447.5Q111-500 95.5-544T80-634q0-94 63-157t157-63q52 0 99 22t81 62q34-40 81-62t99-22q94 0 157 63t63 157q0 46-15.5 90T810-447.5Q771-395 705-329T538-172l-58 52Z"/>
 									</svg>
 								</div>
-								<span className={css.btnLabel}>{item.UserData?.IsFavorite ? 'Favorited' : 'Favorite'}</span>
+								<span className={css.btnLabel}>{item.UserData?.IsFavorite ? $L('Favorited') : $L('Favorite')}</span>
 							</SpottableDiv>
 						</HorizontalContainer>
 					</div>
@@ -1844,7 +1845,7 @@ const handleSectionKeyDown = useCallback((ev) => {
 									{runtime && !isSeries && <span className={css.infoItem}>{runtime}</span>}
 									{endsAt && !isSeries && <span className={css.infoItem}>{endsAt}</span>}
 									{isSeries && seasonCount > 0 && (
-										<span className={css.infoItem}>{seasonCount} Season{seasonCount !== 1 ? 's' : ''}</span>
+										<span className={css.infoItem}>{seasonCount} {seasonCount !== 1 ? $L('Seasons') : $L('Season')}</span>
 									)}
 								</div>
 								{/* Media badges */}
@@ -1893,7 +1894,7 @@ const handleSectionKeyDown = useCallback((ev) => {
 						{/* Next Up (for Series) */}
 						{nextUp.length > 0 && (
 							<MediaRow
-								title="Next Up"
+								title={$L('Next Up')}
 								items={nextUp}
 								serverUrl={effectiveServerUrl}
 								onSelectItem={onSelectItem}
@@ -1906,7 +1907,7 @@ const handleSectionKeyDown = useCallback((ev) => {
 						{isSeries && seasons.length > 0 && (
 							<RowContainer className={css.section}>
 								<div className={css.sectionHeader}>
-									<h3 className={css.sectionTitle}>Seasons</h3>
+									<h3 className={css.sectionTitle}>{$L('Seasons')}</h3>
 								</div>
 								<div className={css.sectionScroll} onFocus={handleScrollerFocus}>
 									{seasons.map(season => {
@@ -1948,7 +1949,7 @@ const handleSectionKeyDown = useCallback((ev) => {
 							<RowContainer className={css.section}>
 								<div className={css.sectionHeader}>
 									<h3 className={css.sectionTitle}>
-										{item.ParentIndexNumber !== undefined ? `Season ${item.ParentIndexNumber} Episodes` : 'Episodes'}
+										{item.ParentIndexNumber !== undefined ? $L('Season {number} Episodes').replace('{number}', item.ParentIndexNumber) : $L('Episodes')}
 									</h3>
 								</div>
 								<div className={css.sectionScroll} onFocus={handleScrollerFocus}>
@@ -2006,7 +2007,7 @@ const handleSectionKeyDown = useCallback((ev) => {
 						{/* Collection items (for BoxSet) */}
 						{isBoxSet && collectionItems.length > 0 && (
 							<MediaRow
-								title="Items in Collection"
+								title={$L('Items in Collection')}
 								items={collectionItems}
 								serverUrl={effectiveServerUrl}
 								onSelectItem={onSelectItem}
@@ -2018,7 +2019,7 @@ const handleSectionKeyDown = useCallback((ev) => {
 						{cast.length > 0 && (
 							<RowContainer className={css.section}>
 								<div className={css.sectionHeader}>
-									<h3 className={css.sectionTitle}>Cast & Crew</h3>
+									<h3 className={css.sectionTitle}>{$L('Cast & Crew')}</h3>
 								</div>
 								<div className={css.castScroller} onFocus={handleScrollerFocus}>
 									{cast.map(person => (
@@ -2047,7 +2048,7 @@ const handleSectionKeyDown = useCallback((ev) => {
 						{/* More Like This */}
 						{similar.length > 0 && (
 							<MediaRow
-								title="More Like This"
+								title={$L('More Like This')}
 								items={similar}
 								serverUrl={effectiveServerUrl}
 								onSelectItem={onSelectItem}
@@ -2062,7 +2063,7 @@ const handleSectionKeyDown = useCallback((ev) => {
 			{activeModal === 'version' && (
 				<div className={css.trackModal} onClick={closeModal}>
 					<ModalContainer className={css.trackModalPanel} onClick={handleStopPropagation} data-modal="version" spotlightId="version-modal">
-						<h2 className={css.trackModalTitle}>Select Version</h2>
+						<h2 className={css.trackModalTitle}>{$L('Select Version')}</h2>
 						<div className={css.trackList}>
 							{item.MediaSources.map((source, i) => {
 								const video = source.MediaStreams?.find(s => s.Type === 'Video');
@@ -2075,20 +2076,20 @@ const handleSectionKeyDown = useCallback((ev) => {
 										data-selected={i === selectedVersionIndex ? 'true' : undefined}
 										onClick={handleSelectVersion}
 									>
-										<span className={css.trackName}>{source.Name || `Version ${i + 1}`}</span>
+										<span className={css.trackName}>{source.Name || `${$L('Version')} ${i + 1}`}</span>
 										{resLabel && <span className={css.trackInfo}>{resLabel}</span>}
 									</SpottableButton>
 								);
 							})}
 						</div>
-						<p className={css.trackModalFooter}>Press BACK to close</p>
+						<p className={css.trackModalFooter}>{$L('Press BACK to close')}</p>
 					</ModalContainer>
 				</div>
 			)}
 			{activeModal === 'audio' && (
 				<div className={css.trackModal} onClick={closeModal}>
 					<ModalContainer className={css.trackModalPanel} onClick={handleStopPropagation} data-modal="audio" spotlightId="audio-modal">
-						<h2 className={css.trackModalTitle}>Select Audio Track</h2>
+						<h2 className={css.trackModalTitle}>{$L('Select Audio Track')}</h2>
 						<div className={css.trackList}>
 							{audioStreams.map((stream, i) => (
 								<SpottableButton
@@ -2098,19 +2099,19 @@ const handleSectionKeyDown = useCallback((ev) => {
 									data-selected={i === selectedAudioIndex ? 'true' : undefined}
 									onClick={handleSelectAudio}
 								>
-									<span className={css.trackName}>{stream.DisplayTitle || stream.Language || `Track ${i + 1}`}</span>
+									<span className={css.trackName}>{stream.DisplayTitle || stream.Language || `${$L('Track')} ${i + 1}`}</span>
 									{stream.Channels && <span className={css.trackInfo}>{stream.Channels}ch</span>}
 								</SpottableButton>
 							))}
 						</div>
-						<p className={css.trackModalFooter}>Press BACK to close</p>
+						<p className={css.trackModalFooter}>{$L('Press BACK to close')}</p>
 					</ModalContainer>
 				</div>
 			)}
 			{activeModal === 'subtitle' && (
 				<div className={css.trackModal} onClick={closeModal}>
 					<ModalContainer className={css.trackModalPanel} onClick={handleStopPropagation} data-modal="subtitle" spotlightId="subtitle-modal">
-						<h2 className={css.trackModalTitle}>Select Subtitle</h2>
+						<h2 className={css.trackModalTitle}>{$L('Select Subtitle')}</h2>
 						<div className={css.trackList}>
 							<SpottableButton
 								className={`${css.trackItem} ${selectedSubtitleIndex === -1 ? css.selected : ''}`}
@@ -2118,7 +2119,7 @@ const handleSectionKeyDown = useCallback((ev) => {
 								data-selected={selectedSubtitleIndex === -1 ? 'true' : undefined}
 								onClick={handleSelectSubtitle}
 							>
-								<span className={css.trackName}>Off</span>
+								<span className={css.trackName}>{$L('Off')}</span>
 							</SpottableButton>
 							{subtitleStreams.map((stream, i) => (
 								<SpottableButton
@@ -2128,33 +2129,33 @@ const handleSectionKeyDown = useCallback((ev) => {
 									data-selected={i === selectedSubtitleIndex ? 'true' : undefined}
 									onClick={handleSelectSubtitle}
 								>
-									<span className={css.trackName}>{stream.DisplayTitle || stream.Language || `Track ${i + 1}`}</span>
-									{stream.IsForced && <span className={css.trackInfo}>Forced</span>}
+									<span className={css.trackName}>{stream.DisplayTitle || stream.Language || `${$L('Track')} ${i + 1}`}</span>
+									{stream.IsForced && <span className={css.trackInfo}>{$L('Forced')}</span>}
 								</SpottableButton>
 							))}
 						</div>
 						<p className={css.trackModalFooter}>
 							<SpottableButton spotlightId="btn-subtitle-download" className={css.actionBtn} onClick={handleOpenRemoteSubtitleSearch}>
-								Download
+								{$L('Download')}
 							</SpottableButton>
 						</p>
-						<p className={css.trackModalFooter} style={{marginTop: 5, fontSize: 14, opacity: 0.5}}>Press BACK to close</p>
+						<p className={css.trackModalFooter} style={{marginTop: 5, fontSize: 14, opacity: 0.5}}>{$L('Press BACK to close')}</p>
 					</ModalContainer>
 				</div>
 			)}
 			{activeModal === 'subtitleDownload' && (
 				<div className={css.trackModal} onClick={closeModal}>
 					<ModalContainer className={css.trackModalPanel} onClick={handleStopPropagation} data-modal="subtitleDownload" spotlightId="subtitleDownload-modal">
-						<h2 className={css.trackModalTitle}>Download Subtitles</h2>
+						<h2 className={css.trackModalTitle}>{$L('Download Subtitles')}</h2>
 						<div className={css.trackList}>
 							{isSearchingRemoteSubtitles && (
 								<SpottableDiv className={css.trackItem}>
-									<span className={css.trackName}>Searching...</span>
+									<span className={css.trackName}>{$L('Searching...')}</span>
 								</SpottableDiv>
 							)}
 							{!isSearchingRemoteSubtitles && remoteSubtitleResults.length === 0 && (
 								<SpottableDiv className={css.trackItem}>
-									<span className={css.trackName}>No remote subtitles found</span>
+									<span className={css.trackName}>{$L('No remote subtitles found')}</span>
 								</SpottableDiv>
 							)}
 							{!isSearchingRemoteSubtitles && remoteSubtitleResults.map((subtitle, idx) => (
@@ -2165,12 +2166,12 @@ const handleSectionKeyDown = useCallback((ev) => {
 									onClick={handleSelectRemoteSubtitle}
 									style={{flexDirection: 'column', alignItems: 'flex-start'}}
 								>
-									<span className={css.trackName}>{subtitle.name || 'Subtitle'}</span>
+									<span className={css.trackName}>{subtitle.name || $L('Subtitle')}</span>
 									{subtitle.info && <span className={css.trackInfo} style={{marginTop: 4}}>{subtitle.info}</span>}
 								</SpottableButton>
 							))}
 						</div>
-						<p className={css.trackModalFooter}>Press BACK to close</p>
+						<p className={css.trackModalFooter}>{$L('Press BACK to close')}</p>
 					</ModalContainer>
 				</div>
 			)}
@@ -2196,7 +2197,7 @@ const handleSectionKeyDown = useCallback((ev) => {
 							/>
 						) : (
 							<div className={css.trailerLoading}>
-								Loading trailer...
+								{$L('Loading trailer...')}
 							</div>
 						)}
 					</div>

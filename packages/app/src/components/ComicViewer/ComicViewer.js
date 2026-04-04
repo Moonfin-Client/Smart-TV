@@ -1,5 +1,6 @@
 import {useState, useEffect, useCallback, useRef} from 'react';
 import JSZip from 'jszip';
+import $L from '@enact/i18n/$L';
 import {KEYS} from '../../utils/keys';
 import css from './ComicViewer.module.less';
 
@@ -149,7 +150,7 @@ const ComicViewer = ({item, serverUrl, accessToken, onClose}) => {
 			<div className={css.viewer}>
 				<div className={css.loadingContainer}>
 					<div className={css.spinner} />
-					<div className={css.loadingText}>Opening comic...</div>
+					<div className={css.loadingText}>{$L('Opening comic...')}</div>
 				</div>
 			</div>
 		);
@@ -160,7 +161,7 @@ const ComicViewer = ({item, serverUrl, accessToken, onClose}) => {
 			<div className={css.viewer}>
 				<div className={css.loadingContainer}>
 					<div className={css.errorText}>{error}</div>
-					<div className={css.loadingText}>Press Back to close</div>
+					<div className={css.loadingText}>{$L('Press Back to close')}</div>
 				</div>
 			</div>
 		);
@@ -170,8 +171,8 @@ const ComicViewer = ({item, serverUrl, accessToken, onClose}) => {
 		return (
 			<div className={css.viewer}>
 				<div className={css.loadingContainer}>
-					<div className={css.errorText}>No pages found</div>
-					<div className={css.loadingText}>Press Back to close</div>
+					<div className={css.errorText}>{$L('No pages found')}</div>
+					<div className={css.loadingText}>{$L('Press Back to close')}</div>
 				</div>
 			</div>
 		);
@@ -183,7 +184,7 @@ const ComicViewer = ({item, serverUrl, accessToken, onClose}) => {
 				<img
 					key={currentPage}
 					src={pages[currentPage]}
-					alt={`Page ${currentPage + 1}`}
+					alt={$L('Page') + ' ' + (currentPage + 1)}
 					className={css.page + (imageLoaded ? ' ' + css.pageLoaded : '')}
 					onLoad={handleImageLoad}
 				/>
@@ -196,13 +197,13 @@ const ComicViewer = ({item, serverUrl, accessToken, onClose}) => {
 
 			<div className={css.infoOverlay + (showInfo ? ' ' + css.infoVisible : '')}>
 				<div className={css.topBar}>
-					<div className={css.title}>{item.Name || 'Comic'}</div>
+					<div className={css.title}>{item.Name || $L('Comic')}</div>
 				</div>
 				<div className={css.bottomBar}>
 					<div className={css.pageCounter}>
 						{currentPage + 1} / {pages.length}
 					</div>
-					<div className={css.navHint}>◀ ▶ Navigate &nbsp; OK Toggle info &nbsp; Back Close</div>
+					<div className={css.navHint}>{'◀ ▶ ' + $L('Navigate')} &nbsp; {'OK ' + $L('Toggle info')} &nbsp; {$L('Back') + ' ' + $L('Close')}</div>
 				</div>
 			</div>
 		</div>

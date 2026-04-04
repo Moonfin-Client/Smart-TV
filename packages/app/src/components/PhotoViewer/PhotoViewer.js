@@ -1,4 +1,5 @@
 import {useState, useEffect, useCallback, useRef, useMemo} from 'react';
+import $L from '@enact/i18n/$L';
 import {getImageUrl} from '../../utils/helpers';
 import {KEYS} from '../../utils/keys';
 import css from './PhotoViewer.module.less';
@@ -154,7 +155,7 @@ const PhotoViewer = ({item, items, serverUrl, onClose}) => {
 					{formattedDate && <div className={css.photoDate}>{formattedDate}</div>}
 					{dimensions && <div className={css.photoMeta}>{dimensions}</div>}
 					{photoItems.length > 1 && (
-						<div className={css.navHint}>◀ ▶ Navigate &nbsp; OK Toggle info &nbsp; Back Close</div>
+					<div className={css.navHint}>{$L('◀ ▶ Navigate')} &nbsp; {$L('OK Toggle info')} &nbsp; {$L('Back Close')}</div>
 					)}
 				</div>
 			</div>

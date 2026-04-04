@@ -10,6 +10,7 @@ import VirtualList from '@enact/sandstone/VirtualList';
 import ri from '@enact/ui/resolution';
 import Spotlight from '@enact/spotlight';
 import Spottable from '@enact/spotlight/Spottable';
+import $L from '@enact/i18n/$L';
 import jellyseerrApi from '../../services/jellyseerrApi';
 import hydrateRequestMediaItems from '../../utils/jellyseerrHydration';
 import {useJellyseerr} from '../../context/JellyseerrContext';
@@ -20,13 +21,13 @@ const SpottableRow = Spottable('div');
 
 const getStatusInfo = (request) => {
 	const mediaStatus = request.media?.status;
-	if (request.status === 1) return {label: 'Pending', variant: css.chipPending};
-	if (request.status === 3) return {label: 'Declined', variant: css.chipDeclined};
-	if (mediaStatus === 5) return {label: 'Available', variant: css.chipAvailable};
-	if (mediaStatus === 4) return {label: 'Partially Available', variant: css.chipPartial};
-	if (mediaStatus === 3) return {label: 'Downloading', variant: css.chipDownloading};
-	if (request.status === 2) return {label: 'Approved', variant: css.chipApproved};
-	return {label: 'Unknown', variant: css.chipPending};
+	if (request.status === 1) return {label: $L('Pending'), variant: css.chipPending};
+	if (request.status === 3) return {label: $L('Declined'), variant: css.chipDeclined};
+	if (mediaStatus === 5) return {label: $L('Available'), variant: css.chipAvailable};
+	if (mediaStatus === 4) return {label: $L('Partially Available'), variant: css.chipPartial};
+	if (mediaStatus === 3) return {label: $L('Downloading'), variant: css.chipDownloading};
+	if (request.status === 2) return {label: $L('Approved'), variant: css.chipApproved};
+	return {label: $L('Unknown'), variant: css.chipPending};
 };
 
 // Memoized request item component to avoid arrow functions in JSX props
@@ -56,18 +57,18 @@ const RequestItem = memo(function RequestItem({request, index, onSelect, onCance
 			)}
 			<Column className={css.requestInfo}>
 				<BodyText className={css.title}>
-					{media?.title || media?.name || 'Unknown'}
+					{media?.title || media?.name || $L('Unknown')}
 				</BodyText>
 				<Row className={css.meta}>
 					<span className={css.type}>
-						{media?.mediaType === 'movie' ? 'Movie' : 'TV Show'}
+						{media?.mediaType === 'movie' ? $L('Movie') : $L('TV Show')}
 					</span>
 					<span className={`${css.statusChip} ${statusVariant}`}>
 						{statusLabel}
 					</span>
 				</Row>
 				<BodyText className={css.date}>
-					Requested: {new Date(request.createdAt).toLocaleDateString()}
+					{$L('Requested:')} {new Date(request.createdAt).toLocaleDateString()}
 				</BodyText>
 			</Column>
 			{request.status === 1 && (
@@ -77,7 +78,7 @@ const RequestItem = memo(function RequestItem({request, index, onSelect, onCance
 					icon="trash"
 					onClick={handleCancelClick}
 				>
-					Cancel
+					{$L('Cancel')}
 				</Button>
 			)}
 		</SpottableRow>
@@ -103,7 +104,7 @@ const JellyseerrRequests = ({onSelectItem, onClose, ...rest}) => {
 			setRequests(hydrated);
 		} catch (err) {
 			console.error('Failed to load requests:', err);
-			setError(err.message || 'Failed to load requests');
+			setError(err.message || $L('Failed to load requests'));
 		} finally {
 			setLoading(false);
 		}
@@ -171,20 +172,20 @@ const JellyseerrRequests = ({onSelectItem, onClose, ...rest}) => {
 		if (!isAuthenticated) {
 			return (
 				<Column align="center center" className={css.message}>
-					<BodyText>Please configure Jellyseerr in Settings</BodyText>
+					<BodyText>{$L('Please configure Jellyseerr in Settings')}</BodyText>
 				</Column>
 			);
 		}
 
 		if (loading) {
-			return <Spinner centered>Loading requests...</Spinner>;
+			return <Spinner centered>{$L('Loading requests...')}</Spinner>;
 		}
 
 		if (error) {
 			return (
 				<Column align="center center" className={css.error}>
 					<BodyText>{error}</BodyText>
-					<Button onClick={loadRequests}>Retry</Button>
+					<Button onClick={loadRequests}>{$L('Retry')}</Button>
 				</Column>
 			);
 		}
@@ -192,7 +193,7 @@ const JellyseerrRequests = ({onSelectItem, onClose, ...rest}) => {
 		if (filteredRequests.length === 0) {
 			return (
 				<Column align="center center" className={css.message}>
-					<BodyText>No requests found</BodyText>
+					<BodyText>{$L('No requests found')}</BodyText>
 				</Column>
 			);
 		}
@@ -211,23 +212,23 @@ const JellyseerrRequests = ({onSelectItem, onClose, ...rest}) => {
 	return (
 		<Panel {...rest}>
 			<Header
-				title="My Requests"
+				title={$L('My Requests')}
 				onClose={onClose}
 				type="compact"
 			/>
 			<TabLayout
 				onSelect={handleTabSelect}
 			>
-				<Tab title="All">
+				<Tab title={$L('All')}>
 					{renderContent()}
 				</Tab>
-				<Tab title="Pending">
+				<Tab title={$L('Pending')}>
 					{renderContent()}
 				</Tab>
-				<Tab title="Approved">
+				<Tab title={$L('Approved')}>
 					{renderContent()}
 				</Tab>
-				<Tab title="Available">
+				<Tab title={$L('Available')}>
 					{renderContent()}
 				</Tab>
 			</TabLayout>

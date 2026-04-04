@@ -1,5 +1,6 @@
 import {useState, useEffect, useCallback} from 'react';
 import Spottable from '@enact/spotlight/Spottable';
+import $L from '@enact/i18n/$L';
 import {useAuth} from '../../context/AuthContext';
 import LoadingSpinner from '../../components/LoadingSpinner';
 import {formatDuration} from '../../utils/helpers';
@@ -176,7 +177,7 @@ const Recordings = ({onPlayRecording, backHandlerRef}) => {
 		const dateOpts = {weekday: 'short', month: 'short', day: 'numeric'};
 		const timeOpts = {hour: 'numeric', minute: '2-digit', hour12: true};
 
-		return `${start.toLocaleDateString('en-US', dateOpts)} ${start.toLocaleTimeString('en-US', timeOpts)} - ${end.toLocaleTimeString('en-US', timeOpts)}`;
+		return `${start.toLocaleDateString(undefined, dateOpts)} ${start.toLocaleTimeString(undefined, timeOpts)} - ${end.toLocaleTimeString(undefined, timeOpts)}`;
 	}, []);
 
 	if (isLoading) {
@@ -184,7 +185,7 @@ const Recordings = ({onPlayRecording, backHandlerRef}) => {
 			<div className={css.page}>
 				<div className={css.loadingContainer}>
 					<LoadingSpinner />
-					<p>Loading Recordings...</p>
+					<p>{$L('Loading Recordings...')}</p>
 				</div>
 			</div>
 		);
@@ -193,19 +194,19 @@ const Recordings = ({onPlayRecording, backHandlerRef}) => {
 	return (
 		<div className={css.page}>
 			<div className={css.header}>
-				<div className={css.title}>Recordings</div>
+				<div className={css.title}>{$L('Recordings')}</div>
 				<div className={css.tabs}>
 					<SpottableButton
 						className={`${css.tab} ${activeTab === 'recordings' ? css.active : ''}`}
 						onClick={handleSetRecordingsTab}
 					>
-						Recordings ({recordings.length})
+						{$L('Recordings')} ({recordings.length})
 					</SpottableButton>
 					<SpottableButton
 						className={`${css.tab} ${activeTab === 'scheduled' ? css.active : ''}`}
 						onClick={handleSetScheduledTab}
 					>
-						Scheduled ({timers.length})
+						{$L('Scheduled')} ({timers.length})
 					</SpottableButton>
 				</div>
 			</div>
@@ -214,7 +215,7 @@ const Recordings = ({onPlayRecording, backHandlerRef}) => {
 				{activeTab === 'recordings' && (
 					<div className={css.grid}>
 						{recordings.length === 0 ? (
-							<div className={css.empty}>No recordings found</div>
+							<div className={css.empty}>{$L('No recordings found')}</div>
 						) : (
 							recordings.map(recording => (
 								<RecordingCard
@@ -231,7 +232,7 @@ const Recordings = ({onPlayRecording, backHandlerRef}) => {
 				{activeTab === 'scheduled' && (
 					<div className={css.grid}>
 						{timers.length === 0 ? (
-							<div className={css.empty}>No scheduled recordings</div>
+							<div className={css.empty}>{$L('No scheduled recordings')}</div>
 						) : (
 							timers.map(timer => (
 								<TimerCard
@@ -262,14 +263,14 @@ const Recordings = ({onPlayRecording, backHandlerRef}) => {
 								<div className={css.popupOverview}>{selectedItem.item.Overview}</div>
 							)}
 							<div className={css.popupMeta}>
-								<div>Channel: {selectedItem.item.ChannelName}</div>
+								<div>{$L('Channel:')} {selectedItem.item.ChannelName}</div>
 								{selectedItem.type === 'timer' && (
 									<div>
-										Scheduled: {formatScheduledTime(selectedItem.item.StartDate, selectedItem.item.EndDate)}
+										{$L('Scheduled:')} {formatScheduledTime(selectedItem.item.StartDate, selectedItem.item.EndDate)}
 									</div>
 								)}
 								{selectedItem.type === 'recording' && selectedItem.item.RunTimeTicks && (
-									<div>Duration: {formatDuration(selectedItem.item.RunTimeTicks)}</div>
+									<div>{$L('Duration:')} {formatDuration(selectedItem.item.RunTimeTicks)}</div>
 								)}
 							</div>
 						</div>
@@ -281,13 +282,13 @@ const Recordings = ({onPlayRecording, backHandlerRef}) => {
 										className={css.popupBtn}
 										onClick={handlePlaySelectedRecording}
 									>
-										Play
+										{$L('Play')}
 									</SpottableButton>
 									<SpottableButton
 										className={`${css.popupBtn} ${css.danger}`}
 										onClick={handleDeleteSelectedRecording}
 									>
-										Delete
+										{$L('Delete')}
 									</SpottableButton>
 								</>
 							)}
@@ -296,14 +297,14 @@ const Recordings = ({onPlayRecording, backHandlerRef}) => {
 									className={`${css.popupBtn} ${css.danger}`}
 									onClick={handleCancelSelectedTimer}
 								>
-									Cancel Recording
+									{$L('Cancel Recording')}
 								</SpottableButton>
 							)}
 							<SpottableButton
 								className={css.popupBtn}
 								onClick={handleClosePopup}
 							>
-								Close
+								{$L('Close')}
 							</SpottableButton>
 						</div>
 					</div>

@@ -1,4 +1,5 @@
 import {useState, useEffect, useCallback} from 'react';
+import $L from '@enact/i18n/$L';
 import Spotlight from '@enact/spotlight';
 import SpotlightContainerDecorator from '@enact/spotlight/SpotlightContainerDecorator';
 import {VirtualGridList} from '@enact/sandstone/VirtualList';
@@ -83,7 +84,7 @@ const Person = ({personId, onSelectItem}) => {
 	if (!person) {
 		return (
 			<div className={css.page}>
-				<div className={css.empty}>Person not found</div>
+				<div className={css.empty}>{$L('Person not found')}</div>
 			</div>
 		);
 	}
@@ -105,7 +106,7 @@ const Person = ({personId, onSelectItem}) => {
 						<h1 className={css.name}>{person.Name}</h1>
 						{person.PremiereDate && (
 							<div className={css.meta}>
-								Born: {new Date(person.PremiereDate).toLocaleDateString()}
+								{$L('Born')}: {new Date(person.PremiereDate).toLocaleDateString()}
 							</div>
 						)}
 						{person.Overview && (
@@ -116,7 +117,7 @@ const Person = ({personId, onSelectItem}) => {
 
 				{items.length > 0 && (
 					<div className={css.filmography}>
-						<h2 className={css.sectionTitle}>Filmography ({items.length})</h2>
+						<h2 className={css.sectionTitle}>{$L('Filmography')} ({items.length})</h2>
 						<GridContainer className={css.gridContainer}>
 							<VirtualGridList
 								className={css.grid}

@@ -2,6 +2,7 @@ import {useState, useEffect, useCallback, useRef} from 'react';
 import Spottable from '@enact/spotlight/Spottable';
 import Spotlight from '@enact/spotlight';
 import SpotlightContainerDecorator from '@enact/spotlight/SpotlightContainerDecorator';
+import $L from '@enact/i18n/$L';
 import {isBackKey} from '../../utils/keys';
 
 import css from './AddToPlaylistModal.module.less';
@@ -72,7 +73,7 @@ const AddToPlaylistModal = ({open, itemId, api, onClose, onSuccess}) => {
 		setAdding(true);
 		try {
 			await api.addToPlaylist(playlistId, [itemId]);
-			onSuccess?.('Added to playlist');
+			onSuccess?.($L('Added to playlist'));
 			onClose?.();
 		} catch { /* no-op */ } finally {
 			setAdding(false);
@@ -95,7 +96,7 @@ const AddToPlaylistModal = ({open, itemId, api, onClose, onSuccess}) => {
 		setAdding(true);
 		try {
 			await api.createPlaylist(name, [itemId]);
-			onSuccess?.(`Created "${name}" and added item`);
+			onSuccess?.($L('Created "{name}" and added item').replace('{name}', name));
 			onClose?.();
 		} catch { /* no-op */ } finally {
 			setAdding(false);
@@ -123,10 +124,10 @@ const AddToPlaylistModal = ({open, itemId, api, onClose, onSuccess}) => {
 	return (
 		<div className={css.overlay}>
 			<DialogContainer className={css.dialog} spotlightId="playlist-modal">
-				<h2 className={css.title}>{creating ? 'New Playlist' : 'Add to Playlist'}</h2>
+				<h2 className={css.title}>{creating ? $L('New Playlist') : $L('Add to Playlist')}</h2>
 
 				{loading && (
-					<p className={css.message}>Loading playlists…</p>
+					<p className={css.message}>{$L('Loading playlists…')}</p>
 				)}
 
 				{creating && (
@@ -135,7 +136,7 @@ const AddToPlaylistModal = ({open, itemId, api, onClose, onSuccess}) => {
 							ref={inputRef}
 							className={css.input}
 							type="text"
-							placeholder="Playlist name"
+						placeholder={$L('Playlist name')}
 							value={newName}
 							onChange={handleInputChange}
 							onKeyDown={handleInputKeyDown}
@@ -148,14 +149,14 @@ const AddToPlaylistModal = ({open, itemId, api, onClose, onSuccess}) => {
 								spotlightId="playlist-create-confirm"
 								disabled={!newName.trim() || adding}
 							>
-								{adding ? 'Creating…' : 'Create'}
+							{adding ? $L('Creating…') : $L('Create')}
 							</SpottableButton>
 							<SpottableButton
 								className={css.btn}
 								onClick={() => setCreating(false)}
 								spotlightId="playlist-create-cancel"
 							>
-								Cancel
+							{$L('Cancel')}
 							</SpottableButton>
 						</div>
 					</div>
@@ -171,11 +172,11 @@ const AddToPlaylistModal = ({open, itemId, api, onClose, onSuccess}) => {
 							<div className={css.playlistIcon}>
 								<svg viewBox="0 0 24 24" fill="currentColor"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>
 							</div>
-							<span className={css.playlistName}>Create New Playlist</span>
+						<span className={css.playlistName}>{$L('Create New Playlist')}</span>
 						</SpottableDiv>
 
 						{playlists.length === 0 && (
-							<p className={css.message}>No playlists found</p>
+						<p className={css.message}>{$L('No playlists found')}</p>
 						)}
 
 						{playlists.map(pl => (
@@ -191,7 +192,7 @@ const AddToPlaylistModal = ({open, itemId, api, onClose, onSuccess}) => {
 								<div className={css.playlistInfo}>
 									<span className={css.playlistName}>{pl.Name}</span>
 									{pl.ChildCount != null && (
-										<span className={css.playlistCount}>{pl.ChildCount} item{pl.ChildCount !== 1 ? 's' : ''}</span>
+										<span className={css.playlistCount}>{$L('{count} items').replace('{count}', pl.ChildCount)}</span>
 									)}
 								</div>
 							</SpottableDiv>
@@ -199,7 +200,7 @@ const AddToPlaylistModal = ({open, itemId, api, onClose, onSuccess}) => {
 					</>
 				)}
 
-				{adding && <p className={css.message}>Adding…</p>}
+					{adding && <p className={css.message}>{$L('Adding…')}</p>}
 			</DialogContainer>
 		</div>
 	);

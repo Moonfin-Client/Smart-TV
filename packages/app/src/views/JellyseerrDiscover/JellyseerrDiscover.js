@@ -2,6 +2,7 @@ import {useState, useEffect, useCallback, useRef, useMemo, memo} from 'react';
 import Spottable from '@enact/spotlight/Spottable';
 import SpotlightContainerDecorator from '@enact/spotlight/SpotlightContainerDecorator';
 import Spotlight from '@enact/spotlight';
+import $L from '@enact/i18n/$L';
 import {useJellyseerr} from '../../context/JellyseerrContext';
 import {useSettings} from '../../context/SettingsContext';
 import jellyseerrApi from '../../services/jellyseerrApi';
@@ -44,18 +45,19 @@ const MOVIE_STUDIOS = [
 	{id: 41077, name: 'A24', logo: '1ZXsGaFPgrgS6ZZGS37AqD5uU12.png'}
 ];
 
-const ROW_CONFIGS = [
-	{id: 'myRequests', title: 'My Requests', type: 'request'},
-	{id: 'trending', title: 'Trending Now', type: 'media', fetchFn: 'trending'},
-	{id: 'popularMovies', title: 'Popular Movies', type: 'media', fetchFn: 'trendingMovies'},
-	{id: 'popularTv', title: 'Popular TV Shows', type: 'media', fetchFn: 'trendingTv'},
-	{id: 'genreMovies', title: 'Browse Movies by Genre', type: 'genre', mediaType: 'movie'},
-	{id: 'genreTv', title: 'Browse TV by Genre', type: 'genre', mediaType: 'tv'},
-	{id: 'studios', title: 'Browse by Studio', type: 'studio'},
-	{id: 'networks', title: 'Browse by Network', type: 'network'},
-	{id: 'upcomingMovies', title: 'Upcoming Movies', type: 'media', fetchFn: 'upcomingMovies'},
-	{id: 'upcomingTv', title: 'Upcoming TV Shows', type: 'media', fetchFn: 'upcomingTv'}
-];
+let _rowConfigs;
+const getRowConfigs = () => (_rowConfigs ??= [
+	{id: 'myRequests', title: $L('My Requests'), type: 'request'},
+	{id: 'trending', title: $L('Trending Now'), type: 'media', fetchFn: 'trending'},
+	{id: 'popularMovies', title: $L('Popular Movies'), type: 'media', fetchFn: 'trendingMovies'},
+	{id: 'popularTv', title: $L('Popular TV Shows'), type: 'media', fetchFn: 'trendingTv'},
+	{id: 'genreMovies', title: $L('Browse Movies by Genre'), type: 'genre', mediaType: 'movie'},
+	{id: 'genreTv', title: $L('Browse TV by Genre'), type: 'genre', mediaType: 'tv'},
+	{id: 'studios', title: $L('Browse by Studio'), type: 'studio'},
+	{id: 'networks', title: $L('Browse by Network'), type: 'network'},
+	{id: 'upcomingMovies', title: $L('Upcoming Movies'), type: 'media', fetchFn: 'upcomingMovies'},
+	{id: 'upcomingTv', title: $L('Upcoming TV Shows'), type: 'media', fetchFn: 'upcomingTv'}
+]);
 
 let lastFocusedRowIndex = null;
 
@@ -84,7 +86,7 @@ const MediaCard = memo(function MediaCard({item, mediaType, onSelect, onFocus}) 
 				)}
 				{itemMediaType && (
 					<div className={`${css.mediaTypeBadge} ${itemMediaType === 'movie' ? css.movieBadge : css.seriesBadge}`}>
-						{itemMediaType === 'movie' ? 'MOVIE' : 'SERIES'}
+						{itemMediaType === 'movie' ? $L('MOVIE') : $L('SERIES')}
 					</div>
 				)}
 				{status && [2, 3, 4, 5].includes(status) && (
@@ -159,12 +161,12 @@ const RequestCard = memo(function RequestCard({request, onSelect, onFocus}) {
 	const mediaType = request.type;
 
 	const getStatusInfo = () => {
-		if (requestStatus === 3) return {text: 'Declined', cls: css.requestStatusDeclined};
-		if (mediaStatus === 5) return {text: 'Available', cls: css.requestStatusAvailable};
-		if (mediaStatus === 4) return {text: 'Partial', cls: css.requestStatusPartial};
-		if (mediaStatus === 3) return {text: 'Downloading', cls: css.requestStatusDownloading};
-		if (requestStatus === 2) return {text: 'Approved', cls: css.requestStatusApproved};
-		return {text: 'Unknown', cls: css.requestStatusPending};
+		if (requestStatus === 3) return {text: $L('Declined'), cls: css.requestStatusDeclined};
+		if (mediaStatus === 5) return {text: $L('Available'), cls: css.requestStatusAvailable};
+		if (mediaStatus === 4) return {text: $L('Partial'), cls: css.requestStatusPartial};
+		if (mediaStatus === 3) return {text: $L('Downloading'), cls: css.requestStatusDownloading};
+		if (requestStatus === 2) return {text: $L('Approved'), cls: css.requestStatusApproved};
+		return {text: $L('Unknown'), cls: css.requestStatusPending};
 	};
 
 	const {text: statusText, cls: statusClass} = requestStatus !== 1 ? getStatusInfo() : {};
@@ -202,7 +204,7 @@ const RequestCard = memo(function RequestCard({request, onSelect, onFocus}) {
 				)}
 				{mediaType && (
 					<div className={`${css.mediaTypeBadge} ${mediaType === 'movie' ? css.movieBadge : css.seriesBadge}`}>
-						{mediaType === 'movie' ? 'MOVIE' : 'SERIES'}
+						{mediaType === 'movie' ? $L('MOVIE') : $L('SERIES')}
 					</div>
 				)}
 				{requestStatus === 1 ? (
@@ -337,7 +339,7 @@ const DiscoverRow = memo(function DiscoverRow({
 					{renderCards}
 					{isLoading && (
 						<div className={css.rowLoadingIndicator}>
-							<span>Loading...</span>
+							<span>{$L('Loading...')}</span>
 						</div>
 					)}
 				</RowContainer>
@@ -448,7 +450,7 @@ const JellyseerrDiscover = ({onSelectItem, onSelectGenre, onSelectNetwork, onSel
 	const loadMoreForRow = useCallback(async (rowId) => {
 		if (rowLoading[rowId] || !rowHasMore[rowId]) return;
 
-		const config = ROW_CONFIGS.find(r => r.id === rowId);
+		const config = getRowConfigs().find(r => r.id === rowId);
 		if (!config || !config.fetchFn) return;
 
 		setRowLoading(prev => ({...prev, [rowId]: true}));
@@ -521,7 +523,7 @@ const JellyseerrDiscover = ({onSelectItem, onSelectGenre, onSelectNetwork, onSel
 	}, [onSelectItem]);
 
 	const visibleRows = useMemo(() => {
-		return ROW_CONFIGS.filter(r => rows[r.id]?.length > 0);
+		return getRowConfigs().filter(r => rows[r.id]?.length > 0);
 	}, [rows]);
 
 	const handleNavigateUp = useCallback((fromRowIndex) => {
@@ -573,8 +575,8 @@ const JellyseerrDiscover = ({onSelectItem, onSelectGenre, onSelectNetwork, onSel
 		return (
 			<div className={css.container}>
 				<div className={css.notConfigured}>
-					<p>Jellyseerr is not enabled.</p>
-					<p>Go to Settings to configure Jellyseerr.</p>
+					<p>{$L('Jellyseerr is not enabled.')}</p>
+					<p>{$L('Go to Settings to configure Jellyseerr.')}</p>
 				</div>
 			</div>
 		);
@@ -584,8 +586,8 @@ const JellyseerrDiscover = ({onSelectItem, onSelectGenre, onSelectNetwork, onSel
 		return (
 			<div className={css.container}>
 				<div className={css.notConfigured}>
-					<p>Jellyseerr is not authenticated.</p>
-					<p>Go to Settings to log in to Jellyseerr.</p>
+					<p>{$L('Jellyseerr is not authenticated.')}</p>
+					<p>{$L('Go to Settings to log in to Jellyseerr.')}</p>
 				</div>
 			</div>
 		);
@@ -629,7 +631,7 @@ const JellyseerrDiscover = ({onSelectItem, onSelectGenre, onSelectNetwork, onSel
 								)}
 							</>
 						) : (
-							<h2 className={css.detailTitle}>Discover</h2>
+							<h2 className={css.detailTitle}>{$L('Discover')}</h2>
 						)}
 					</div>
 					<div className={css.rowsContainer}>

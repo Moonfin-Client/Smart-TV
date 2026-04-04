@@ -6,6 +6,7 @@
  * info-modal playback rows) are injected via props.
  */
 import {useMemo} from 'react';
+import $L from '@enact/i18n/$L';
 import Scroller from '@enact/sandstone/Scroller';
 import * as playback from '../../services/playback';
 import TrickplayPreview from '../../components/TrickplayPreview';
@@ -13,7 +14,7 @@ import SubtitleOffsetOverlay from './SubtitleOffsetOverlay';
 import SubtitleSettingsOverlay from './SubtitleSettingsOverlay';
 import {
 	SpottableButton, SpottableDiv, ModalContainer,
-	formatTime, formatEndTime, PLAYBACK_RATES, QUALITY_PRESETS,
+	formatTime, formatEndTime, PLAYBACK_RATES, getQualityPresets,
 	IconPlay, IconPause, IconRewind, IconForward, IconSubtitle, IconAudio,
 	IconChapters, IconPrevious, IconNext, IconSpeed, IconQuality, IconInfo
 } from './PlayerConstants';
@@ -33,21 +34,21 @@ export const usePlayerButtons = ({
 }) => {
 	const topButtons = useMemo(() => {
 		const buttons = [
-			{id: 'playPause', icon: isPaused ? <IconPlay /> : <IconPause />, label: isPaused ? 'Play' : 'Pause', action: 'playPause'}
+			{id: 'playPause', icon: isPaused ? <IconPlay /> : <IconPause />, label: isPaused ? $L('Play') : $L('Pause'), action: 'playPause'}
 		];
 		if (isAudioMode) {
 			buttons.unshift(
-				{id: 'previous', icon: <IconPrevious />, label: 'Previous', action: 'prevTrack', disabled: !hasPrevTrack}
+				{id: 'previous', icon: <IconPrevious />, label: $L('Previous'), action: 'prevTrack', disabled: !hasPrevTrack}
 			);
 			buttons.push(
-				{id: 'next', icon: <IconNext />, label: 'Next', action: 'nextTrack', disabled: !hasNextTrack}
+				{id: 'next', icon: <IconNext />, label: $L('Next'), action: 'nextTrack', disabled: !hasNextTrack}
 			);
 		} else {
 			buttons.push(
-				{id: 'rewind', icon: <IconRewind />, label: 'Rewind', action: 'rewind'},
-				{id: 'forward', icon: <IconForward />, label: 'Forward', action: 'forward'},
-				{id: 'audio', icon: <IconAudio />, label: 'Audio', action: 'audio', disabled: audioStreams.length === 0},
-				{id: 'subtitle', icon: <IconSubtitle />, label: 'Subtitles', action: 'subtitle', disabled: subtitleStreams.length === 0}
+				{id: 'rewind', icon: <IconRewind />, label: $L('Rewind'), action: 'rewind'},
+				{id: 'forward', icon: <IconForward />, label: $L('Forward'), action: 'forward'},
+				{id: 'audio', icon: <IconAudio />, label: $L('Audio'), action: 'audio', disabled: audioStreams.length === 0},
+				{id: 'subtitle', icon: <IconSubtitle />, label: $L('Subtitles'), action: 'subtitle', disabled: subtitleStreams.length === 0}
 			);
 		}
 		return buttons;
@@ -58,12 +59,12 @@ export const usePlayerButtons = ({
 			return [];
 		}
 		return [
-			{id: 'chapters', icon: <IconChapters />, label: 'Chapters', action: 'chapter', disabled: chapters.length === 0},
-			{id: 'previous', icon: <IconPrevious />, label: 'Previous', action: 'previous', disabled: true},
-			{id: 'next', icon: <IconNext />, label: 'Next', action: 'next', disabled: !nextEpisode},
-			{id: 'speed', icon: <IconSpeed />, label: 'Speed', action: 'speed'},
-			{id: 'quality', icon: <IconQuality />, label: 'Quality', action: 'quality'},
-			{id: 'info', icon: <IconInfo />, label: 'Info', action: 'info'}
+			{id: 'chapters', icon: <IconChapters />, label: $L('Chapters'), action: 'chapter', disabled: chapters.length === 0},
+			{id: 'previous', icon: <IconPrevious />, label: $L('Previous'), action: 'previous', disabled: true},
+			{id: 'next', icon: <IconNext />, label: $L('Next'), action: 'next', disabled: !nextEpisode},
+			{id: 'speed', icon: <IconSpeed />, label: $L('Speed'), action: 'speed'},
+			{id: 'quality', icon: <IconQuality />, label: $L('Quality'), action: 'quality'},
+			{id: 'info', icon: <IconInfo />, label: $L('Info'), action: 'info'}
 		];
 	}, [chapters.length, nextEpisode, isAudioMode]);
 
@@ -75,7 +76,7 @@ export const usePlayerButtons = ({
 // ============================================================
 
 export const formatBitrate = (bitrate) => {
-	if (!bitrate) return 'Unknown';
+	if (!bitrate) return $L('Unknown');
 	if (bitrate >= 1000000) return `${(bitrate / 1000000).toFixed(1)} Mbps`;
 	if (bitrate >= 1000) return `${(bitrate / 1000).toFixed(0)} Kbps`;
 	return `${bitrate} bps`;
@@ -93,7 +94,7 @@ export const getHdrType = (videoStream) => {
 };
 
 export const getVideoCodec = (videoStream) => {
-	if (!videoStream) return 'Unknown';
+	if (!videoStream) return $L('Unknown');
 	let codec = (videoStream.Codec || '').toUpperCase();
 	if (codec === 'HEVC') codec = 'HEVC (H.265)';
 	else if (codec === 'H264' || codec === 'AVC') codec = 'AVC (H.264)';
@@ -110,7 +111,7 @@ export const getVideoCodec = (videoStream) => {
 };
 
 export const getAudioCodec = (audioStream) => {
-	if (!audioStream) return 'Unknown';
+	if (!audioStream) return $L('Unknown');
 	let codec = (audioStream.Codec || '').toUpperCase();
 	if (codec === 'EAC3') codec = 'E-AC3 (Dolby Digital Plus)';
 	else if (codec === 'AC3') codec = 'AC3 (Dolby Digital)';
@@ -122,14 +123,14 @@ export const getAudioCodec = (audioStream) => {
 };
 
 export const getAudioChannels = (audioStream) => {
-	if (!audioStream) return 'Unknown';
+	if (!audioStream) return $L('Unknown');
 	const channels = audioStream.Channels;
-	if (!channels) return 'Unknown';
+	if (!channels) return $L('Unknown');
 	if (channels === 8) return '7.1';
 	if (channels === 6) return '5.1';
-	if (channels === 2) return 'Stereo';
-	if (channels === 1) return 'Mono';
-	return `${channels} channels`;
+	if (channels === 2) return $L('Stereo');
+	if (channels === 1) return $L('Mono');
+	return `${channels} ${$L('channels')}`;
 };
 
 // ============================================================
@@ -203,7 +204,7 @@ const PlayerControls = ({
 			{showSkipIntro && !isAudioMode && !activeModal && !controlsVisible && (
 				<div className={css.skipOverlay}>
 					<SpottableButton className={css.skipButton} onClick={handleSkipIntro} spotlightId="skip-intro-btn">
-						Skip Intro
+						{$L('Skip Intro')}
 					</SpottableButton>
 				</div>
 			)}
@@ -297,7 +298,7 @@ const PlayerControls = ({
 			{activeModal === 'audio' && (
 				<div className={css.trackModal} onClick={closeModal}>
 					<ModalContainer className={css.modalContent} onClick={stopPropagation} data-modal="audio" spotlightId="audio-modal">
-						<h2 className={css.modalTitle}>Select Audio Track</h2>
+						<h2 className={css.modalTitle}>{$L('Select Audio Track')}</h2>
 						<div className={css.trackList}>
 							{audioStreams.map((stream) => (
 								<SpottableButton
@@ -312,7 +313,7 @@ const PlayerControls = ({
 								</SpottableButton>
 							))}
 						</div>
-						<p className={css.modalFooter}>Press BACK to close</p>
+						<p className={css.modalFooter}>{$L('Press BACK to close')}</p>
 					</ModalContainer>
 				</div>
 			)}
@@ -321,7 +322,7 @@ const PlayerControls = ({
 			{activeModal === 'subtitle' && (
 				<div className={css.trackModal} onClick={closeModal}>
 					<ModalContainer className={css.modalContent} onClick={stopPropagation} data-modal="subtitle" spotlightId="subtitle-modal">
-						<h2 className={css.modalTitle}>Select Subtitle</h2>
+						<h2 className={css.modalTitle}>{$L('Select Subtitle')}</h2>
 						<div className={css.trackList}>
 							<SpottableButton
 								className={`${css.trackItem} ${selectedSubtitleIndex === -1 ? css.selected : ''}`}
@@ -330,7 +331,7 @@ const PlayerControls = ({
 								onClick={handleSelectSubtitle}
 								onKeyDown={handleSubtitleKeyDown}
 							>
-								<span className={css.trackName}>Off</span>
+								<span className={css.trackName}>{$L('Off')}</span>
 							</SpottableButton>
 							{subtitleStreams.map((stream) => (
 								<SpottableButton
@@ -342,20 +343,20 @@ const PlayerControls = ({
 									onKeyDown={handleSubtitleKeyDown}
 								>
 									<span className={css.trackName}>{stream.displayTitle}</span>
-									{stream.isForced && <span className={css.trackInfo}>Forced</span>}
+									{stream.isForced && <span className={css.trackInfo}>{$L('Forced')}</span>}
 								</SpottableButton>
 							))}
 						</div>
 						<p className={css.modalFooter}>
-							<SpottableButton spotlightId="btn-subtitle-offset" className={css.actionBtn} onClick={handleOpenSubtitleOffset}>Offset</SpottableButton>
-							<SpottableButton spotlightId="btn-subtitle-appearance" className={css.actionBtn} onClick={handleOpenSubtitleSettings} style={{marginLeft: 15}}>Appearance</SpottableButton>
+							<SpottableButton spotlightId="btn-subtitle-offset" className={css.actionBtn} onClick={handleOpenSubtitleOffset}>{$L('Offset')}</SpottableButton>
+							<SpottableButton spotlightId="btn-subtitle-appearance" className={css.actionBtn} onClick={handleOpenSubtitleSettings} style={{marginLeft: 15}}>{$L('Appearance')}</SpottableButton>
 							{canDownloadRemoteSubtitles && (
 								<SpottableButton spotlightId="btn-subtitle-download" className={css.actionBtn} onClick={handleOpenRemoteSubtitleSearch} style={{marginLeft: 15}}>
-									Download
+									{$L('Download')}
 								</SpottableButton>
 							)}
 						</p>
-						<p className={css.modalFooter} style={{marginTop: 5, fontSize: 14, opacity: 0.5}}>Press BACK to close</p>
+						<p className={css.modalFooter} style={{marginTop: 5, fontSize: 14, opacity: 0.5}}>{$L('Press BACK to close')}</p>
 					</ModalContainer>
 				</div>
 			)}
@@ -363,16 +364,16 @@ const PlayerControls = ({
 			{activeModal === 'subtitleDownload' && (
 				<div className={css.trackModal} onClick={closeModal}>
 					<ModalContainer className={css.modalContent} onClick={stopPropagation} data-modal="subtitleDownload" spotlightId="subtitleDownload-modal">
-						<h2 className={css.modalTitle}>Download Subtitles</h2>
+						<h2 className={css.modalTitle}>{$L('Download Subtitles')}</h2>
 						<div className={css.trackList}>
 							{isSearchingRemoteSubtitles && (
 								<SpottableDiv className={css.trackItem}>
-									<span className={css.trackName}>Searching...</span>
+									<span className={css.trackName}>{$L('Searching...')}</span>
 								</SpottableDiv>
 							)}
 							{!isSearchingRemoteSubtitles && remoteSubtitleResults.length === 0 && (
 								<SpottableDiv className={css.trackItem}>
-									<span className={css.trackName}>No remote subtitles found</span>
+									<span className={css.trackName}>{$L('No remote subtitles found')}</span>
 								</SpottableDiv>
 							)}
 							{!isSearchingRemoteSubtitles && remoteSubtitleResults.map((subtitle, idx) => (
@@ -383,12 +384,12 @@ const PlayerControls = ({
 									onClick={handleSelectRemoteSubtitle}
 									style={{flexDirection: 'column', alignItems: 'flex-start'}}
 								>
-									<span className={css.trackName}>{subtitle.name || 'Subtitle'}</span>
+									<span className={css.trackName}>{subtitle.name || $L('Subtitle')}</span>
 									{subtitle.info && <span className={css.trackInfo} style={{marginTop: 4}}>{subtitle.info}</span>}
 								</SpottableButton>
 							))}
 						</div>
-						<p className={css.modalFooter}>Press BACK to close</p>
+						<p className={css.modalFooter}>{$L('Press BACK to close')}</p>
 					</ModalContainer>
 				</div>
 			)}
@@ -397,7 +398,7 @@ const PlayerControls = ({
 			{activeModal === 'speed' && (
 				<div className={css.trackModal} onClick={closeModal}>
 					<ModalContainer className={css.modalContent} onClick={stopPropagation} data-modal="speed" spotlightId="speed-modal">
-						<h2 className={css.modalTitle}>Playback Speed</h2>
+						<h2 className={css.modalTitle}>{$L('Playback Speed')}</h2>
 						<div className={css.trackList}>
 							{PLAYBACK_RATES.map((rate) => (
 								<SpottableButton
@@ -407,11 +408,11 @@ const PlayerControls = ({
 									data-selected={rate === playbackRate ? 'true' : undefined}
 									onClick={handleSelectSpeed}
 								>
-									<span className={css.trackName}>{rate === 1 ? 'Normal' : `${rate}x`}</span>
+									<span className={css.trackName}>{rate === 1 ? $L('Normal') : `${rate}x`}</span>
 								</SpottableButton>
 							))}
 						</div>
-						<p className={css.modalFooter}>Press BACK to close</p>
+						<p className={css.modalFooter}>{$L('Press BACK to close')}</p>
 					</ModalContainer>
 				</div>
 			)}
@@ -420,11 +421,11 @@ const PlayerControls = ({
 			{activeModal === 'quality' && (
 				<div className={css.trackModal} onClick={closeModal}>
 					<ModalContainer className={css.modalContent} onClick={stopPropagation} data-modal="quality" spotlightId="quality-modal">
-						<h2 className={css.modalTitle}>Max Bitrate</h2>
+						<h2 className={css.modalTitle}>{$L('Max Bitrate')}</h2>
 						<div className={css.trackList}>
-							{QUALITY_PRESETS.map((preset) => (
+							{getQualityPresets().map((preset) => (
 								<SpottableButton
-									key={preset.label}
+									key={preset.value ?? 'auto'}
 									className={`${css.trackItem} ${selectedQuality === preset.value ? css.selected : ''}`}
 									data-value={preset.value === null ? 'null' : preset.value}
 									data-selected={selectedQuality === preset.value ? 'true' : undefined}
@@ -434,7 +435,7 @@ const PlayerControls = ({
 								</SpottableButton>
 							))}
 						</div>
-						<p className={css.modalFooter}>Current: {playMethod || 'Unknown'}</p>
+						<p className={css.modalFooter}>{$L('Current')}: {playMethod || $L('Unknown')}</p>
 					</ModalContainer>
 				</div>
 			)}
@@ -443,7 +444,7 @@ const PlayerControls = ({
 			{activeModal === 'chapter' && (
 				<div className={css.trackModal} onClick={closeModal}>
 					<ModalContainer className={`${css.modalContent} ${css.chaptersModal}`} onClick={stopPropagation} data-modal="chapter" spotlightId="chapter-modal">
-						<h2 className={css.modalTitle}>Chapters</h2>
+						<h2 className={css.modalTitle}>{$L('Chapters')}</h2>
 						<div className={css.trackList}>
 							{chapters.map((chapter) => {
 								const chapterTime = chapter.startPositionTicks / 10000000;
@@ -464,7 +465,7 @@ const PlayerControls = ({
 								);
 							})}
 						</div>
-						<p className={css.modalFooter}>Press BACK to close</p>
+						<p className={css.modalFooter}>{$L('Press BACK to close')}</p>
 					</ModalContainer>
 				</div>
 			)}
@@ -483,7 +484,7 @@ const PlayerControls = ({
 				return (
 					<div className={css.trackModal} onClick={closeModal}>
 						<div className={`${css.modalContent} ${css.videoInfoModal}`} onClick={stopPropagation}>
-							<h2 className={css.modalTitle}>Playback Information</h2>
+							<h2 className={css.modalTitle}>{$L('Playback Information')}</h2>
 							<Scroller
 								className={css.videoInfoContent}
 								direction="vertical"
@@ -492,21 +493,21 @@ const PlayerControls = ({
 							>
 								{/* Playback Section */}
 								<SpottableDiv className={css.infoSection} spotlightId="info-playback">
-									<h3 className={css.infoHeader}>Playback</h3>
+									<h3 className={css.infoHeader}>{$L('Playback')}</h3>
 									<div className={`${css.infoRow} ${css.infoHighlight}`}>
-										<span className={css.infoLabel}>Play Method</span>
-										<span className={css.infoValue}>{playMethod || 'Unknown'}</span>
+										<span className={css.infoLabel}>{$L('Play Method')}</span>
+										<span className={css.infoValue}>{playMethod || $L('Unknown')}</span>
 									</div>
 									{/* Platform-specific playback rows */}
 									{renderInfoPlaybackRows && renderInfoPlaybackRows({css, mediaSource, playMethod})}
 									<div className={css.infoRow}>
-										<span className={css.infoLabel}>Container</span>
+										<span className={css.infoLabel}>{$L('Container')}</span>
 										<span className={css.infoValue}>
-											{(mediaSource?.Container || 'Unknown').toUpperCase()}
+											{(mediaSource?.Container || $L('Unknown')).toUpperCase()}
 										</span>
 									</div>
 									<div className={css.infoRow}>
-										<span className={css.infoLabel}>Bitrate</span>
+										<span className={css.infoLabel}>{$L('Bitrate')}</span>
 										<span className={css.infoValue}>
 											{formatBitrate(mediaSource?.Bitrate)}
 										</span>
@@ -516,27 +517,27 @@ const PlayerControls = ({
 								{/* Video Section */}
 								{videoStream && (
 									<SpottableDiv className={css.infoSection} spotlightId="info-video">
-										<h3 className={css.infoHeader}>Video</h3>
+										<h3 className={css.infoHeader}>{$L('Video')}</h3>
 										<div className={css.infoRow}>
-											<span className={css.infoLabel}>Resolution</span>
+											<span className={css.infoLabel}>{$L('Resolution')}</span>
 											<span className={css.infoValue}>
 												{videoStream.Width}×{videoStream.Height}
 												{videoStream.RealFrameRate && ` @ ${Math.round(videoStream.RealFrameRate)}fps`}
 											</span>
 										</div>
 										<div className={css.infoRow}>
-											<span className={css.infoLabel}>HDR</span>
+											<span className={css.infoLabel}>{$L('HDR')}</span>
 											<span className={css.infoValue}>{getHdrType(videoStream)}</span>
 										</div>
 										<div className={css.infoRow}>
-											<span className={css.infoLabel}>Codec</span>
+											<span className={css.infoLabel}>{$L('Codec')}</span>
 											<span className={css.infoValue}>{getVideoCodec(videoStream)}</span>
 										</div>
 										{/* Platform-specific video rows */}
 										{renderInfoVideoExtra && renderInfoVideoExtra({css, videoStream})}
 										{videoStream.BitRate && (
 											<div className={css.infoRow}>
-												<span className={css.infoLabel}>Video Bitrate</span>
+												<span className={css.infoLabel}>{$L('Video Bitrate')}</span>
 												<span className={css.infoValue}>{formatBitrate(videoStream.BitRate)}</span>
 											</div>
 										)}
@@ -546,30 +547,30 @@ const PlayerControls = ({
 								{/* Audio Section */}
 								{audioStream && (
 									<SpottableDiv className={css.infoSection} spotlightId="info-audio">
-										<h3 className={css.infoHeader}>Audio</h3>
+										<h3 className={css.infoHeader}>{$L('Audio')}</h3>
 										<div className={css.infoRow}>
-											<span className={css.infoLabel}>Track</span>
+											<span className={css.infoLabel}>{$L('Track')}</span>
 											<span className={css.infoValue}>
-												{audioStream.DisplayTitle || audioStream.Language || 'Unknown'}
+												{audioStream.DisplayTitle || audioStream.Language || $L('Unknown')}
 											</span>
 										</div>
 										<div className={css.infoRow}>
-											<span className={css.infoLabel}>Codec</span>
+											<span className={css.infoLabel}>{$L('Codec')}</span>
 											<span className={css.infoValue}>{getAudioCodec(audioStream)}</span>
 										</div>
 										<div className={css.infoRow}>
-											<span className={css.infoLabel}>Channels</span>
+											<span className={css.infoLabel}>{$L('Channels')}</span>
 											<span className={css.infoValue}>{getAudioChannels(audioStream)}</span>
 										</div>
 										{audioStream.BitRate && (
 											<div className={css.infoRow}>
-												<span className={css.infoLabel}>Audio Bitrate</span>
+												<span className={css.infoLabel}>{$L('Audio Bitrate')}</span>
 												<span className={css.infoValue}>{formatBitrate(audioStream.BitRate)}</span>
 											</div>
 										)}
 										{audioStream.SampleRate && (
 											<div className={css.infoRow}>
-												<span className={css.infoLabel}>Sample Rate</span>
+												<span className={css.infoLabel}>{$L('Sample Rate')}</span>
 												<span className={css.infoValue}>{(audioStream.SampleRate / 1000).toFixed(1)} kHz</span>
 											</div>
 										)}
@@ -579,29 +580,29 @@ const PlayerControls = ({
 								{/* Subtitle Section */}
 								{subtitleStream && (
 									<SpottableDiv className={css.infoSection} spotlightId="info-subtitles">
-										<h3 className={css.infoHeader}>Subtitles</h3>
+										<h3 className={css.infoHeader}>{$L('Subtitles')}</h3>
 										<div className={css.infoRow}>
-											<span className={css.infoLabel}>Track</span>
+											<span className={css.infoLabel}>{$L('Track')}</span>
 											<span className={css.infoValue}>
-												{subtitleStream.DisplayTitle || subtitleStream.Language || 'Unknown'}
+												{subtitleStream.DisplayTitle || subtitleStream.Language || $L('Unknown')}
 											</span>
 										</div>
 										<div className={css.infoRow}>
-											<span className={css.infoLabel}>Format</span>
+											<span className={css.infoLabel}>{$L('Format')}</span>
 											<span className={css.infoValue}>
-												{(subtitleStream.Codec || 'Unknown').toUpperCase()}
+												{(subtitleStream.Codec || $L('Unknown')).toUpperCase()}
 											</span>
 										</div>
 										<div className={css.infoRow}>
-											<span className={css.infoLabel}>Type</span>
+											<span className={css.infoLabel}>{$L('Type')}</span>
 											<span className={css.infoValue}>
-												{subtitleStream.IsExternal ? 'External' : 'Embedded'}
+												{subtitleStream.IsExternal ? $L('External') : $L('Embedded')}
 											</span>
 										</div>
 									</SpottableDiv>
 								)}
 							</Scroller>
-							<p className={css.modalFooter}>Press BACK to close</p>
+							<p className={css.modalFooter}>{$L('Press BACK to close')}</p>
 						</div>
 					</div>
 				);

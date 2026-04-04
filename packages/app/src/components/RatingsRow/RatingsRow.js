@@ -1,4 +1,5 @@
 import {useState, useEffect, useRef, useMemo} from 'react';
+import $L from '@enact/i18n/$L';
 import {fetchRatings, buildDisplayRatings, getContentType, getTmdbId} from '../../services/mdblistApi';
 import {useSettings} from '../../context/SettingsContext';
 import {getRtFallbackIcon} from '../icons/rtIcons';
@@ -93,7 +94,7 @@ const RatingsRow = ({item, serverUrl, compact = false, pluginEnabled = true}) =>
 					<span className={css.communityStar}>{"\u2605"}</span>
 					<div className={css.ratingInfo}>
 						<span className={css.ratingValue}>{communityRating}</span>
-						{showLabels && <span className={css.ratingName}>Community</span>}
+						{showLabels && <span className={css.ratingName}>{$L('Community')}</span>}
 					</div>
 				</div>
 			)}

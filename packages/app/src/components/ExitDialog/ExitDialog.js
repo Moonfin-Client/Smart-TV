@@ -3,6 +3,7 @@ import {memo, useCallback, useEffect} from 'react';
 import Spottable from '@enact/spotlight/Spottable';
 import Spotlight from '@enact/spotlight';
 import SpotlightContainerDecorator from '@enact/spotlight/SpotlightContainerDecorator';
+import $L from '@enact/i18n/$L';
 import {isTizen} from '../../platform';
 import {isBackKey, KEYS} from '../../utils/keys';
 
@@ -71,22 +72,22 @@ const ExitDialog = ({open, onCancel, onExit}) => {
 	return (
 		<div className={css.overlay}>
 			<DialogContainer className={css.dialog} spotlightId="exit-dialog">
-				<h2 className={css.title}>Exit Moonfin?</h2>
-				<p className={css.message}>Are you sure you want to exit?</p>
+				<h2 className={css.title}>{$L('Exit Moonfin?')}</h2>
+				<p className={css.message}>{$L('Are you sure you want to exit?')}</p>
 				<div className={css.buttons}>
 					<SpottableButton
 						className={css.btn}
 						onClick={onCancel}
 						spotlightId="exit-cancel-btn"
 					>
-						Cancel
+					{$L('Cancel')}
 					</SpottableButton>
 					<SpottableButton
 						className={`${css.btn} ${css.exitBtn} spottable-default`}
 						onClick={handleExit}
 						spotlightId="exit-confirm-btn"
 					>
-						Exit
+					{$L('Exit')}
 					</SpottableButton>
 				</div>
 			</DialogContainer>

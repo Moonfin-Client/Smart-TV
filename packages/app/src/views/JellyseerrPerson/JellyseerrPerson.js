@@ -2,6 +2,7 @@ import {useCallback, useEffect, useState, useRef} from 'react';
 import Spottable from '@enact/spotlight/Spottable';
 import Spotlight from '@enact/spotlight';
 import Image from '@enact/sandstone/Image';
+import $L from '@enact/i18n/$L';
 import jellyseerrApi from '../../services/jellyseerrApi';
 import LoadingSpinner from '../../components/LoadingSpinner';
 import css from './JellyseerrPerson.module.less';
@@ -26,7 +27,7 @@ const JellyseerrPerson = ({personId, personName, onClose, onSelectItem, onBack})
 				setDetails(data);
 			} catch (err) {
 				console.error('Failed to load person details:', err);
-				setError(err.message || 'Failed to load details');
+				setError(err.message || $L('Failed to load details'));
 			} finally {
 				setLoading(false);
 			}
@@ -81,7 +82,7 @@ const JellyseerrPerson = ({personId, personName, onClose, onSelectItem, onBack})
 					{/* Media type badge - top left */}
 					{itemMediaType && (
 						<div className={`${css.mediaTypeBadge} ${itemMediaType === 'movie' ? css.movieBadge : css.seriesBadge}`}>
-							{itemMediaType === 'movie' ? 'MOVIE' : 'SERIES'}
+							{itemMediaType === 'movie' ? $L('MOVIE') : $L('SERIES')}
 						</div>
 					)}
 					{/* Availability badge - top right */}
@@ -112,7 +113,7 @@ const JellyseerrPerson = ({personId, personName, onClose, onSelectItem, onBack})
 				<div className={css.error}>
 					<p>{error}</p>
 					<SpottableDiv className={css.errorButton} onClick={onClose || onBack}>
-						Go Back
+						{$L('Go Back')}
 					</SpottableDiv>
 				</div>
 			</div>
@@ -123,7 +124,7 @@ const JellyseerrPerson = ({personId, personName, onClose, onSelectItem, onBack})
 		return (
 			<div className={css.container}>
 				<div className={css.error}>
-					<p>No details available</p>
+					<p>{$L('No details available')}</p>
 				</div>
 			</div>
 		);
@@ -170,14 +171,14 @@ const JellyseerrPerson = ({personId, personName, onClose, onSelectItem, onBack})
 						<div className={css.metaInfo}>
 							{birthYear && (
 								<span className={css.birthInfo}>
-									{deathYear ? `${birthYear} - ${deathYear}` : `Born ${birthYear}`}
+									{deathYear ? `${birthYear} - ${deathYear}` : `${$L('Born')} ${birthYear}`}
 								</span>
 							)}
 							{details.placeOfBirth && (
 								<span className={css.placeOfBirth}>{details.placeOfBirth}</span>
 							)}
 							{knownFor && (
-								<span className={css.knownFor}>Known for: {knownFor}</span>
+								<span className={css.knownFor}>{$L('Known for:')} {knownFor}</span>
 							)}
 						</div>
 					</div>
@@ -186,13 +187,13 @@ const JellyseerrPerson = ({personId, personName, onClose, onSelectItem, onBack})
 				{/* Biography Section */}
 				{biography && (
 					<div className={css.biographySection}>
-						<h2 className={css.sectionTitle}>Biography</h2>
+						<h2 className={css.sectionTitle}>{$L('Biography')}</h2>
 						<p className={`${css.biographyText} ${biographyExpanded ? css.expanded : ''}`}>
 							{biography}
 						</p>
 						{biography.length > 500 && (
 							<SpottableDiv className={css.biographyToggle} onClick={toggleBiography}>
-								{biographyExpanded ? 'Show Less' : 'Show More'}
+								{biographyExpanded ? $L('Show Less') : $L('Show More')}
 							</SpottableDiv>
 						)}
 					</div>
@@ -201,7 +202,7 @@ const JellyseerrPerson = ({personId, personName, onClose, onSelectItem, onBack})
 				{/* Appearances Section */}
 				{appearances.length > 0 && (
 					<div className={css.appearancesSection}>
-						<h2 className={css.sectionTitle}>Appearances ({appearances.length})</h2>
+						<h2 className={css.sectionTitle}>{$L('Appearances')} ({appearances.length})</h2>
 						<div className={css.appearancesList} data-spotlight-id="person-appearances">
 							{appearances.map((item, index) => renderAppearanceCard(item, index))}
 						</div>

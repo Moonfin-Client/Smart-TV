@@ -1,6 +1,7 @@
 import {useState, useEffect, useCallback, useRef, memo} from 'react';
 import Spottable from '@enact/spotlight/Spottable';
 import Spotlight from '@enact/spotlight';
+import $L from '@enact/i18n/$L';
 import {getImageUrl, getBackdropId, formatDuration} from '../../utils/helpers';
 import RatingsRow from '../../components/RatingsRow';
 import {KEYS} from '../../utils/keys';
@@ -396,7 +397,7 @@ const FeaturedBanner = memo(({
 						</div>
 						<RatingsRow item={currentFeatured} serverUrl={getItemServerUrl(currentFeatured)} compact pluginEnabled={settings.useMoonfinPlugin && settings.mdblistEnabled !== false} />
 						<p className={css.featuredOverview}>
-							{currentFeatured.Overview || 'No description available.'}
+							{currentFeatured.Overview || $L('No description available.')}
 						</p>
 					</div>
 

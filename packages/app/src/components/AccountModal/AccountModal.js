@@ -2,6 +2,7 @@ import {useCallback, useState} from 'react';
 import Spottable from '@enact/spotlight/Spottable';
 import Popup from '@enact/sandstone/Popup';
 import Button from '@enact/sandstone/Button';
+import $L from '@enact/i18n/$L';
 import {useAuth} from '../../context/AuthContext';
 import {parseUrl} from '../../utils/urlCompat';
 
@@ -107,7 +108,7 @@ const AccountModal = ({
 			>
 				<div className={css.modal}>
 					<div className={css.header}>
-						<h2 className={css.title}>Account</h2>
+						<h2 className={css.title}>{$L('Account')}</h2>
 						<SpottableButton className={css.closeBtn} onClick={onClose} spotlightId="account-close">
 							<svg viewBox="0 0 24 24" fill="currentColor" width="24" height="24">
 								<path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z" />
@@ -128,10 +129,10 @@ const AccountModal = ({
 							</div>
 						)}
 						<div className={css.userInfo}>
-							<div className={css.userName}>{user?.Name || 'Not logged in'}</div>
+							<div className={css.userName}>{user?.Name || $L('Not logged in')}</div>
 							<div className={css.serverDetails}>
 								{serverName && <span className={css.serverName}>{serverName}</span>}
-								<span className={css.serverUrl}>{serverUrl || 'Not connected'}</span>
+								<span className={css.serverUrl}>{serverUrl || $L('Not connected')}</span>
 							</div>
 						</div>
 					</div>
@@ -139,7 +140,7 @@ const AccountModal = ({
 					{servers.length > 1 && (
 						<div className={css.section}>
 							<h3 className={css.sectionTitle}>
-								Servers & Users ({servers.length})
+								{$L('Servers & Users')} ({servers.length})
 							</h3>
 							<div className={css.serverList}>
 								{servers.map((server, index) => {
@@ -180,7 +181,7 @@ const AccountModal = ({
 														onClick={handleSwitchUserClick}
 														spotlightId={`account-switch-${index}`}
 													>
-														Switch
+														{$L('Switch')}
 													</SpottableButton>
 												)}
 												{(servers.length > 1 || !isActive) && (
@@ -193,11 +194,11 @@ const AccountModal = ({
 														onClick={handleRemoveUserClick}
 														spotlightId={`account-remove-${index}`}
 													>
-														Remove
+														{$L('Remove')}
 													</SpottableButton>
 												)}
 												{isActive && (
-													<span className={css.activeLabel}>Active</span>
+													<span className={css.activeLabel}>{$L('Active')}</span>
 												)}
 											</div>
 										</div>
@@ -209,14 +210,14 @@ const AccountModal = ({
 
 					<div className={css.actions}>
 						<SpottableButton className={css.actionBtn} onClick={handleAddUser} spotlightId="account-add-user">
-							+ Add User
+							{$L('+ Add User')}
 						</SpottableButton>
 						<SpottableButton className={css.actionBtn} onClick={handleAddServer} spotlightId="account-add-server">
-							Change Server
+							{$L('Change Server')}
 						</SpottableButton>
 						<div className={css.divider} />
 						<SpottableButton className={css.actionBtn} onClick={handleLogout} spotlightId="account-logout">
-							Sign Out
+							{$L('Sign Out')}
 						</SpottableButton>
 						{hasMultipleUsers && (
 							<SpottableButton
@@ -224,7 +225,7 @@ const AccountModal = ({
 								onClick={handleLogoutAll}
 								spotlightId="account-logout-all"
 							>
-								Sign Out All Users
+								{$L('Sign Out All Users')}
 							</SpottableButton>
 						)}
 					</div>
@@ -240,17 +241,16 @@ const AccountModal = ({
 					noAutoDismiss
 				>
 					<div className={css.confirmModal}>
-						<h2 className={css.title}>Remove User</h2>
+						<h2 className={css.title}>{$L('Remove User')}</h2>
 						<p className={css.confirmText}>
-							Are you sure you want to remove <strong>{serverToRemove.username}</strong> from
-							<strong> {serverToRemove.serverName}</strong>?
+							{$L('Are you sure you want to remove {username} from {serverName}?').replace('{username}', serverToRemove.username).replace('{serverName}', serverToRemove.serverName)}
 						</p>
 						<p className={css.confirmWarning}>
-							You will need to sign in again to use this account.
+							{$L('You will need to sign in again to use this account.')}
 						</p>
 						<div className={css.confirmButtons}>
 							<Button onClick={handleCancelRemove} size="small" spotlightId="account-cancel-remove">
-								Cancel
+								{$L('Cancel')}
 							</Button>
 							<Button
 								onClick={handleConfirmRemove}
@@ -258,7 +258,7 @@ const AccountModal = ({
 								className={css.dangerBtn}
 								spotlightId="account-confirm-remove"
 							>
-								Remove
+								{$L('Remove')}
 							</Button>
 						</div>
 					</div>

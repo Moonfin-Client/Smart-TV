@@ -361,27 +361,11 @@ async function main() {
 		}
 	});
 	
-	// Clean up iLib locale data - keep only essential files
-	const ilibDir = findDir(DIST, 'ilib');
-	const ilibLocalePath = ilibDir ? path.join(ilibDir, 'locale') : null;
-	if (ilibLocalePath && fs.existsSync(ilibLocalePath)) {
-		log(`ilib found at: ${ilibDir}`);
-		const localeDirs = fs.readdirSync(ilibLocalePath);
-		let removedCount = 0;
-		localeDirs.forEach(item => {
-			const itemPath = path.join(ilibLocalePath, item);
-			if (item === 'ilibmanifest.json' || item === 'en' || item === 'und') {
-				return;
-			}
-			if (fs.statSync(itemPath).isDirectory()) {
-				fs.rmSync(itemPath, { recursive: true, force: true });
-				removedCount++;
-			}
-		});
-		success(`Removed ${removedCount} unused locale folders`);
-	} else {
-		warn('No ilib locale directory found — skipping locale cleanup');
-	}
+	// Prune ilib locale data — keeps only plurals.json and localeinfo.json
+	// for configured locales, removing ~5.5 MB of unused formatting data.
+	log('Pruning ilib locale data...');
+	require(path.join(REPO_ROOT, 'scripts', 'prune-ilib-locales.js'))(DIST);
+	success('Pruned ilib locale data');
 	
 	// Step 6: Clean up old .wgt files in repo root
 	log('Cleaning up old .wgt files...');

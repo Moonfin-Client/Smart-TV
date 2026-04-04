@@ -2,6 +2,7 @@ import {useState, useCallback, useEffect} from 'react';
 import Spottable from '@enact/spotlight/Spottable';
 import SpotlightContainerDecorator from '@enact/spotlight/SpotlightContainerDecorator';
 import Spotlight from '@enact/spotlight';
+import $L from '@enact/i18n/$L';
 import {useAuth} from '../../context/AuthContext';
 import * as jellyfinApi from '../../services/jellyfinApi';
 import {KEYS} from '../../utils/keys';
@@ -59,7 +60,7 @@ const Login = ({
 
 		setIsConnecting(true);
 		setError(null);
-		setStatus('Connecting to server...');
+		setStatus($L('Connecting to server...'));
 
 		try {
 			jellyfinApi.setServer(serverUrl);
@@ -68,7 +69,7 @@ const Login = ({
 				throw new Error('Server returned empty response - check if server is reachable');
 			}
 			setServerInfo(info);
-			setStatus(`Connected to ${info.ServerName}! Loading users...`);
+			setStatus($L('Connected to {serverName}! Loading users...').replace('{serverName}', info.ServerName));
 
 			try {
 				const users = await jellyfinApi.api.getPublicUsers();
@@ -88,7 +89,7 @@ const Login = ({
 				setTimeout(() => Spotlight.focus('[data-spotlight-id="username-input"]'), 100);
 			}
 		} catch (err) {
-			setError('Failed to connect to server. Check the address and try again.');
+			setError($L('Failed to connect to server. Check the address and try again.'));
 			setStatus(null);
 		} finally {
 			setIsConnecting(false);
@@ -136,7 +137,7 @@ const Login = ({
 			setIsConnecting(true);
 			setError(null);
 			const isAdding = isAddingServer || isAddingToExisting;
-			setStatus(isAdding ? 'Adding user...' : 'Signing in...');
+			setStatus(isAdding ? $L('Adding user...') : $L('Signing in...'));
 
 			try {
 				const result = await login(jellyfinApi.getServerUrl(), user.Name, '', {
@@ -175,7 +176,7 @@ const Login = ({
 		setIsConnecting(true);
 		setError(null);
 		const isAdding = isAddingServer || isAddingToExisting;
-		setStatus(isAdding ? 'Adding user...' : 'Signing in...');
+		setStatus(isAdding ? $L('Adding user...') : $L('Signing in...'));
 
 		try {
 			const result = await login(jellyfinApi.getServerUrl(), username, password, {
@@ -192,7 +193,7 @@ const Login = ({
 			}
 		} catch (err) {
 			console.error('Login error:', err);
-			setError(err.message || 'Login failed. Check your credentials.');
+			setError(err.message || $L('Login failed. Check your credentials.'));
 			setStatus(null);
 		} finally {
 			setIsConnecting(false);
@@ -246,7 +247,7 @@ const Login = ({
 	const handleManualQuickConnect = useCallback(async () => {
 		setIsConnecting(true);
 		setError(null);
-		setStatus('Initiating Quick Connect...');
+		setStatus($L('Initiating Quick Connect...'));
 		const isAdding = isAddingServer || isAddingToExisting;
 
 		try {
@@ -254,7 +255,7 @@ const Login = ({
 			setQuickConnectCode(result.Code);
 			setQuickConnectSecret(result.Secret);
 			setStep('quickconnect-manual');
-			setStatus('Enter the code on another device or authorize in the Jellyfin dashboard');
+			setStatus($L('Enter the code on another device or authorize in the Jellyfin dashboard'));
 
 			const intervalId = setInterval(async () => {
 				try {
@@ -262,7 +263,7 @@ const Login = ({
 					if (state.Authenticated) {
 						clearInterval(intervalId);
 						setQuickConnectInterval(null);
-						setStatus(isAdding ? 'Quick Connect authorized! Adding user...' : 'Quick Connect authorized! Signing in...');
+						setStatus(isAdding ? $L('Quick Connect authorized! Adding user...') : $L('Quick Connect authorized! Signing in...'));
 
 						const authResult = await jellyfinApi.api.authenticateQuickConnect(result.Secret);
 						const loginResult = await loginWithToken(jellyfinApi.getServerUrl(), authResult, {
@@ -287,7 +288,7 @@ const Login = ({
 			setTimeout(() => Spotlight.focus('[data-spotlight-id="qc-back-btn"]'), 100);
 		} catch (err) {
 			console.error('Quick Connect error:', err);
-			setError('Quick Connect is not available on this server. Use password login.');
+			setError($L('Quick Connect is not available on this server. Use password login.'));
 			setStatus(null);
 		} finally {
 			setIsConnecting(false);
@@ -299,7 +300,7 @@ const Login = ({
 		setUsername(user.Name);
 		setIsConnecting(true);
 		setError(null);
-		setStatus('Initiating Quick Connect...');
+		setStatus($L('Initiating Quick Connect...'));
 		const isAdding = isAddingServer || isAddingToExisting;
 
 		try {
@@ -307,7 +308,7 @@ const Login = ({
 			setQuickConnectCode(result.Code);
 			setQuickConnectSecret(result.Secret);
 			setStep('quickconnect');
-			setStatus('Enter the code on another device or authorize in the Jellyfin dashboard');
+			setStatus($L('Enter the code on another device or authorize in the Jellyfin dashboard'));
 
 			const intervalId = setInterval(async () => {
 				try {
@@ -315,7 +316,7 @@ const Login = ({
 					if (state.Authenticated) {
 						clearInterval(intervalId);
 						setQuickConnectInterval(null);
-						setStatus(isAdding ? 'Quick Connect authorized! Adding user...' : 'Quick Connect authorized! Signing in...');
+						setStatus(isAdding ? $L('Quick Connect authorized! Adding user...') : $L('Quick Connect authorized! Signing in...'));
 
 						const authResult = await jellyfinApi.api.authenticateQuickConnect(result.Secret);
 						const loginResult = await loginWithToken(jellyfinApi.getServerUrl(), authResult, {
@@ -340,7 +341,7 @@ const Login = ({
 			setTimeout(() => Spotlight.focus('[data-spotlight-id="qc-back-btn"]'), 100);
 		} catch (err) {
 			console.error('Quick Connect error:', err);
-			setError('Quick Connect failed. Try password login instead.');
+			setError($L('Quick Connect failed. Try password login instead.'));
 			setStatus(null);
 		} finally {
 			setIsConnecting(false);
@@ -428,7 +429,7 @@ const Login = ({
 			<div className={css.page}>
 				<div className={css.loading}>
 					<div className={css.spinner} />
-					<span>Loading...</span>
+					<span>{$L('Loading...')}</span>
 				</div>
 			</div>
 		);
@@ -447,9 +448,9 @@ const Login = ({
 				<div className={css.contentWrapper}>
 					{step === 'server' && (
 						<div className={css.section}>
-							<h2>{isAddingServer ? 'Add New Server' : 'Connect to Server'}</h2>
+							<h2>{isAddingServer ? $L('Add New Server') : $L('Connect to Server')}</h2>
 							<div className={css.formGroup}>
-								<label>Server Address</label>
+								<label>{$L('Server Address')}</label>
 								<SpottableInput
 									data-spotlight-id="server-input"
 									type="text"
@@ -467,7 +468,7 @@ const Login = ({
 										onClick={handleConnect}
 										disabled={isConnecting || !serverUrl.trim()}
 									>
-										{isConnecting ? 'Connecting...' : 'Connect'}
+										{isConnecting ? $L('Connecting...') : $L('Connect')}
 									</SpottableButton>
 									{isAddingServer && (
 										<SpottableButton
@@ -475,7 +476,7 @@ const Login = ({
 											className={`${css.btn} ${css.btnSecondary}`}
 											onClick={handleBack}
 										>
-											Cancel
+											{$L('Cancel')}
 										</SpottableButton>
 									)}
 								</div>
@@ -486,7 +487,7 @@ const Login = ({
 					{step === 'users' && (
 						<div className={css.section}>
 							<p className={css.serverLabel}>{serverInfo?.ServerName || 'Jellyfin'}</p>
-							<h1>Who&apos;s watching?</h1>
+							<h1>{$L("Who's watching?")}</h1>
 							<UserGridContainer className={css.userGrid}>
 								{publicUsers.map((user, index) => (
 									<SpottableDiv
@@ -520,14 +521,14 @@ const Login = ({
 									className={`${css.btn} ${css.btnSecondary}`}
 									onClick={handleManualLogin}
 								>
-									Manual Login
+									{$L('Manual Login')}
 								</SpottableButton>
 								<SpottableButton
 									data-spotlight-id="back-btn"
 									className={`${css.btn} ${css.btnSecondary}`}
 									onClick={handleBack}
 								>
-									Change Server
+									{$L('Change Server')}
 								</SpottableButton>
 							</div>
 						</div>
@@ -535,7 +536,7 @@ const Login = ({
 
 					{step === 'password' && selectedUser && (
 						<div className={css.section}>
-							<h2>Sign In As {selectedUser.Name}</h2>
+							<h2>{$L('Sign In As {name}').replace('{name}', selectedUser.Name)}</h2>
 							<div className={css.selectedUserInfo}>
 								{selectedUser.PrimaryImageTag ? (
 									<img
@@ -556,14 +557,14 @@ const Login = ({
 									className={`${css.btn} ${css.btnPrimary}`}
 									onClick={handleQuickConnectClick}
 								>
-									Quick Connect
+									{$L('Quick Connect')}
 								</SpottableButton>
 								<SpottableButton
 									data-spotlight-id="use-password-btn"
 									className={`${css.btn} ${css.btnSecondary}`}
 									onClick={handlePasswordMethodClick}
 								>
-									Password
+									{$L('Password')}
 								</SpottableButton>
 							</div>
 							<div className={css.buttonGroup}>
@@ -572,7 +573,7 @@ const Login = ({
 									className={`${css.btn} ${css.btnSecondary}`}
 									onClick={handleBack}
 								>
-									Back
+									{$L('Back')}
 								</SpottableButton>
 							</div>
 						</div>
@@ -580,7 +581,7 @@ const Login = ({
 
 					{step === 'passwordform' && selectedUser && (
 						<div className={css.section}>
-							<h2>Enter Password</h2>
+							<h2>{$L('Enter Password')}</h2>
 							<div className={css.selectedUserInfo}>
 								{selectedUser.PrimaryImageTag ? (
 									<img
@@ -600,7 +601,7 @@ const Login = ({
 									data-spotlight-id="password-input"
 									type="password"
 									className={css.input}
-									placeholder="Password (leave empty if none)"
+									placeholder={$L('Password (leave empty if none)')}
 									value={password}
 									onChange={handlePasswordChange}
 									onKeyDown={handlePasswordKeyDown}
@@ -613,14 +614,14 @@ const Login = ({
 										onClick={handleLogin}
 										disabled={isConnecting}
 									>
-										{isConnecting ? 'Signing in...' : 'Sign In'}
+										{isConnecting ? $L('Signing in...') : $L('Sign In')}
 									</SpottableButton>
 									<SpottableButton
 										data-spotlight-id="cancel-btn"
 										className={`${css.btn} ${css.btnSecondary}`}
 										onClick={handlePasswordFormCancel}
 									>
-										Back
+										{$L('Back')}
 									</SpottableButton>
 								</div>
 							</div>
@@ -629,7 +630,7 @@ const Login = ({
 
 					{step === 'quickconnect' && selectedUser && (
 						<div className={css.section}>
-							<h2>Quick Connect</h2>
+							<h2>{$L('Quick Connect')}</h2>
 							<div className={css.selectedUserInfo}>
 								{selectedUser.PrimaryImageTag ? (
 									<img
@@ -645,9 +646,9 @@ const Login = ({
 								<span className={css.selectedName}>{selectedUser.Name}</span>
 							</div>
 							<div className={css.quickConnectCodeDisplay}>
-								<div className={css.qcLabel}>Enter this code on another device or authorize in Jellyfin dashboard:</div>
+								<div className={css.qcLabel}>{$L('Enter this code on another device or authorize in Jellyfin dashboard:')}</div>
 								<div className={css.qcCode}>{quickConnectCode}</div>
-								<div className={css.qcWaiting}>Waiting for authorization...</div>
+								<div className={css.qcWaiting}>{$L('Waiting for authorization...')}</div>
 							</div>
 							<div className={css.buttonGroup}>
 								<SpottableButton
@@ -655,14 +656,14 @@ const Login = ({
 									className={`${css.btn} ${css.btnSecondary}`}
 									onClick={handleUsePasswordInstead}
 								>
-									Use Password Instead
+									{$L('Use Password Instead')}
 								</SpottableButton>
 								<SpottableButton
 									data-spotlight-id="qc-back-btn"
 									className={`${css.btn} ${css.btnSecondary}`}
 									onClick={cancelQuickConnect}
 								>
-									Cancel
+									{$L('Cancel')}
 								</SpottableButton>
 							</div>
 						</div>
@@ -670,27 +671,27 @@ const Login = ({
 
 					{step === 'manual' && (
 						<div className={css.section}>
-							<h2>Manual Login</h2>
+							<h2>{$L('Manual Login')}</h2>
 							{serverInfo && <div className={css.serverName}>{serverInfo.ServerName}</div>}
 							<div className={css.formGroup}>
-								<label>Username</label>
+								<label>{$L('Username')}</label>
 								<SpottableInput
 									data-spotlight-id="username-input"
 									type="text"
 									className={css.input}
-									placeholder="Username"
+									placeholder={$L('Username')}
 									value={username}
 									onChange={handleUsernameChange}
 									disabled={isConnecting}
 								/>
 							</div>
 							<div className={css.formGroup}>
-								<label>Password</label>
+								<label>{$L('Password')}</label>
 								<SpottableInput
 									data-spotlight-id="manual-password-input"
 									type="password"
 									className={css.input}
-									placeholder="Password"
+									placeholder={$L('Password')}
 									value={password}
 									onChange={handlePasswordChange}
 									onKeyDown={handlePasswordKeyDown}
@@ -705,7 +706,7 @@ const Login = ({
 										onClick={handleLogin}
 										disabled={isConnecting}
 									>
-										{isConnecting ? 'Signing in...' : 'Sign In'}
+										{isConnecting ? $L('Signing in...') : $L('Sign In')}
 									</SpottableButton>
 								) : (
 									<SpottableButton
@@ -714,7 +715,7 @@ const Login = ({
 										onClick={handleManualQuickConnect}
 										disabled={isConnecting}
 									>
-										{isConnecting ? 'Connecting...' : 'Quick Connect'}
+										{isConnecting ? $L('Connecting...') : $L('Quick Connect')}
 									</SpottableButton>
 								)}
 								<SpottableButton
@@ -722,7 +723,7 @@ const Login = ({
 									className={`${css.btn} ${css.btnSecondary}`}
 									onClick={handleBack}
 								>
-									Back
+									{$L('Back')}
 								</SpottableButton>
 							</div>
 						</div>
@@ -730,12 +731,12 @@ const Login = ({
 
 					{step === 'quickconnect-manual' && (
 						<div className={css.section}>
-							<h2>Quick Connect</h2>
+							<h2>{$L('Quick Connect')}</h2>
 							{serverInfo && <div className={css.serverName}>{serverInfo.ServerName}</div>}
 							<div className={css.quickConnectCodeDisplay}>
-								<div className={css.qcLabel}>Enter this code on another device or authorize in Jellyfin dashboard:</div>
+								<div className={css.qcLabel}>{$L('Enter this code on another device or authorize in Jellyfin dashboard:')}</div>
 								<div className={css.qcCode}>{quickConnectCode}</div>
-								<div className={css.qcWaiting}>Waiting for authorization...</div>
+								<div className={css.qcWaiting}>{$L('Waiting for authorization...')}</div>
 							</div>
 							<div className={css.buttonGroup}>
 								<SpottableButton
@@ -743,7 +744,7 @@ const Login = ({
 									className={`${css.btn} ${css.btnSecondary}`}
 									onClick={handleBack}
 								>
-									Cancel
+									{$L('Cancel')}
 								</SpottableButton>
 							</div>
 						</div>

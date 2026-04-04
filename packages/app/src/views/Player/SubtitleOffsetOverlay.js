@@ -2,6 +2,7 @@ import Spottable from '@enact/spotlight/Spottable';
 import SpotlightContainerDecorator from '@enact/spotlight/SpotlightContainerDecorator';
 import Spotlight from '@enact/spotlight';
 import {useCallback, useEffect} from 'react';
+import $L from '@enact/i18n/$L';
 import {isBackKey} from '../../utils/keys';
 
 import css from './Player.module.less';
@@ -62,7 +63,7 @@ const SubtitleOffsetOverlay = ({visible, currentOffset, onClose, onOffsetChange}
 				onClick={stopPropagation}
 				spotlightId="offset-modal"
 			>
-				<h2 className={css.modalTitle}>Subtitle Offset</h2>
+				<h2 className={css.modalTitle}>{$L('Subtitle Offset')}</h2>
 				<div className={css.offsetControls}>
 					<SpottableButton
 						className={css.offsetBtn}
@@ -89,11 +90,11 @@ const SubtitleOffsetOverlay = ({visible, currentOffset, onClose, onOffsetChange}
 						spotlightId="offset-reset"
 						data-spot-default="true"
 					>
-						Reset
+						{$L('Reset')}
 					</SpottableButton>
 				</div>
 				<SpottableButton className={css.closeBtn} onClick={onClose} spotlightId="offset-close">
-					Press BACK to close
+					{$L('Press BACK to close')}
 				</SpottableButton>
 			</OffsetContainer>
 		</div>

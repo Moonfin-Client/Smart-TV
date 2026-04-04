@@ -1,4 +1,5 @@
 import {useState, useCallback, useRef, useEffect, useMemo} from 'react';
+import $L from '@enact/i18n/$L';
 import Spottable from '@enact/spotlight/Spottable';
 import SpotlightContainerDecorator from '@enact/spotlight/SpotlightContainerDecorator';
 import Spotlight from '@enact/spotlight';
@@ -76,14 +77,14 @@ const Search = ({onSelectItem, onSelectPerson}) => {
 
 	const visibleRows = useMemo(() => {
 		const rows = [];
-		if (results.movies.length > 0) rows.push({id: 'movies', title: 'Movies', items: getVisibleItems(results.movies, 'movies'), totalCount: results.movies.length, type: 'jellyfin'});
-		if (results.shows.length > 0) rows.push({id: 'shows', title: 'TV Shows', items: getVisibleItems(results.shows, 'shows'), totalCount: results.shows.length, type: 'jellyfin'});
-		if (results.episodes.length > 0) rows.push({id: 'episodes', title: 'Episodes', items: getVisibleItems(results.episodes, 'episodes'), totalCount: results.episodes.length, type: 'jellyfin'});
-		if (results.artists.length > 0) rows.push({id: 'artists', title: 'Artists', items: getVisibleItems(results.artists, 'artists'), totalCount: results.artists.length, type: 'jellyfin'});
-		if (results.albums.length > 0) rows.push({id: 'albums', title: 'Albums', items: getVisibleItems(results.albums, 'albums'), totalCount: results.albums.length, type: 'jellyfin'});
-		if (results.songs.length > 0) rows.push({id: 'songs', title: 'Songs', items: getVisibleItems(results.songs, 'songs'), totalCount: results.songs.length, type: 'jellyfin'});
-		if (results.people.length > 0) rows.push({id: 'people', title: 'People', items: getVisibleItems(results.people, 'people'), totalCount: results.people.length, type: 'jellyfin'});
-		if (results.jellyseerr.length > 0) rows.push({id: 'jellyseerr', title: 'Jellyseerr', items: getVisibleItems(results.jellyseerr, 'jellyseerr'), totalCount: results.jellyseerr.length, type: 'jellyseerr'});
+		if (results.movies.length > 0) rows.push({id: 'movies', title: $L('Movies'), items: getVisibleItems(results.movies, 'movies'), totalCount: results.movies.length, type: 'jellyfin'});
+		if (results.shows.length > 0) rows.push({id: 'shows', title: $L('TV Shows'), items: getVisibleItems(results.shows, 'shows'), totalCount: results.shows.length, type: 'jellyfin'});
+		if (results.episodes.length > 0) rows.push({id: 'episodes', title: $L('Episodes'), items: getVisibleItems(results.episodes, 'episodes'), totalCount: results.episodes.length, type: 'jellyfin'});
+		if (results.artists.length > 0) rows.push({id: 'artists', title: $L('Artists'), items: getVisibleItems(results.artists, 'artists'), totalCount: results.artists.length, type: 'jellyfin'});
+		if (results.albums.length > 0) rows.push({id: 'albums', title: $L('Albums'), items: getVisibleItems(results.albums, 'albums'), totalCount: results.albums.length, type: 'jellyfin'});
+		if (results.songs.length > 0) rows.push({id: 'songs', title: $L('Songs'), items: getVisibleItems(results.songs, 'songs'), totalCount: results.songs.length, type: 'jellyfin'});
+		if (results.people.length > 0) rows.push({id: 'people', title: $L('People'), items: getVisibleItems(results.people, 'people'), totalCount: results.people.length, type: 'jellyfin'});
+		if (results.jellyseerr.length > 0) rows.push({id: 'jellyseerr', title: $L('Jellyseerr'), items: getVisibleItems(results.jellyseerr, 'jellyseerr'), totalCount: results.jellyseerr.length, type: 'jellyseerr'});
 		return rows;
 	}, [results, getVisibleItems]);
 
@@ -341,11 +342,11 @@ const Search = ({onSelectItem, onSelectPerson}) => {
 		if (isEpisode) {
 			subtitle = `${item.SeriesName || ''} S${item.ParentIndexNumber || '?'}E${item.IndexNumber || '?'}`;
 		} else if (isPerson) {
-			subtitle = 'Person';
+			subtitle = $L('Person');
 		} else if (isAlbum) {
 			subtitle = item.AlbumArtist || item.ProductionYear || '';
 		} else if (isArtist) {
-			subtitle = 'Artist';
+			subtitle = $L('Artist');
 		} else if (isSong) {
 			subtitle = item.AlbumArtist || item.Artists?.[0] || item.Album || '';
 		} else {
@@ -392,7 +393,7 @@ const Search = ({onSelectItem, onSelectPerson}) => {
 					<SpottableInput
 						type="text"
 						className={css.searchInput}
-						placeholder="Search movies, shows, music, and more..."
+						placeholder={$L('Search movies, shows, music, and more...')}
 						value={query}
 						onChange={handleInputChange}
 						onKeyDown={handleInputKeyDown}
@@ -411,18 +412,18 @@ const Search = ({onSelectItem, onSelectPerson}) => {
 				{isLoading ? (
 					<div className={css.loadingIndicator}>
 						<LoadingSpinner />
-						<p>Searching...</p>
+						<p>{$L('Searching...')}</p>
 					</div>
 				) : !query || query.length < MIN_SEARCH_LENGTH ? (
 					<div className={css.emptyState}>
 						<SearchIcon />
-						<h2>Search for content</h2>
-						<p>Find movies, TV shows, music, and more</p>
+						<h2>{$L('Search for content')}</h2>
+						<p>{$L('Find movies, TV shows, music, and more')}</p>
 					</div>
 				) : !hasResults ? (
 					<div className={css.noResults}>
-						<h2>No results found</h2>
-						<p>Try a different search term</p>
+						<h2>{$L('No results found')}</h2>
+						<p>{$L('Try a different search term')}</p>
 					</div>
 				) : (
 					<div className={css.resultsContainer}>

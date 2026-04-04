@@ -1,6 +1,7 @@
 import {useState, useEffect, useCallback, useRef, useMemo} from 'react';
 import Spotlight from '@enact/spotlight';
 import Button from '@enact/sandstone/Button';
+import $L from '@enact/i18n/$L';
 import * as playback from '../../services/playback';
 import {
 	initTizenAPI, registerAppStateObserver, keepScreenOn,
@@ -611,7 +612,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 				console.log(`[Player] Loaded ${displayTitle} via ${result.playMethod} (AVPlay native)`);
 			} catch (err) {
 				console.error('[Player] Failed to load media:', err);
-				setError(err.message || 'Failed to load media');
+				setError(err.message || $L('Failed to load media'));
 			} finally {
 				setIsLoading(false);
 			}
@@ -777,7 +778,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 						);
 					} catch (restartErr) {
 						console.error('[Player] AVPlay restart failed:', restartErr);
-						setError('Playback failed. The file format may not be supported.');
+						setError($L('Playback failed. The file format may not be supported.'));
 					}
 					return;
 				}
@@ -786,7 +787,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 			}
 		}
 
-		setError('Playback failed. The file format may not be supported.');
+		setError($L('Playback failed. The file format may not be supported.'));
 	}, [hasTriedTranscode, playMethod, item, selectedQuality, settings.maxBitrate, startAVPlayback, mediaSourceId]);
 
 	// Keep callback refs in sync
@@ -1408,7 +1409,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 			<div className={css.container}>
 				<div className={css.loadingIndicator}>
 					<div className={css.spinner} />
-					<p>Loading...</p>
+					<p>{$L('Loading...')}</p>
 				</div>
 			</div>
 		);
@@ -1419,9 +1420,9 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 		return (
 			<div className={css.container}>
 				<div className={css.error}>
-					<h2>Playback Error</h2>
+					<h2>{$L('Playback Error')}</h2>
 					<p>{error}</p>
-					<Button onClick={onBack}>Go Back</Button>
+					<Button onClick={onBack}>{$L('Go Back')}</Button>
 				</div>
 			</div>
 		);
@@ -1526,7 +1527,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 			{/* Next Episode Overlay */}
 			{(showSkipCredits || showNextEpisode) && nextEpisode && !isAudioMode && !activeModal && !controlsVisible && (
 				<div className={css.nextEpisodeOverlay}>
-					<div className={css.nextLabel}>Up Next</div>
+					<div className={css.nextLabel}>{$L('UP NEXT')}</div>
 					<div className={css.nextTitle}>{nextEpisode.Name}</div>
 					{nextEpisode.SeriesName && (
 						<div className={css.nextMeta}>
@@ -1535,12 +1536,12 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 					)}
 					{nextEpisodeCountdown !== null && (
 						<div className={css.nextCountdown}>
-							Starting in {nextEpisodeCountdown}s
+							{$L('Starting in {countdown}s').replace('{countdown}', nextEpisodeCountdown)}
 						</div>
 					)}
 					<div className={css.nextButtons}>
-						<Button onClick={handlePlayNextEpisode} spotlightId="next-episode-play-btn">Play Now</Button>
-						<Button onClick={cancelNextEpisodeCountdown}>Hide</Button>
+						<Button onClick={handlePlayNextEpisode} spotlightId="next-episode-play-btn">{$L('Play Now')}</Button>
+						<Button onClick={cancelNextEpisodeCountdown}>{$L('Hide')}</Button>
 					</div>
 				</div>
 			)}
@@ -1597,7 +1598,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 				// eslint-disable-next-line react/jsx-no-bind
 				renderInfoPlaybackRows={({css: c}) => (
 					<div className={c.infoRow}>
-						<span className={c.infoLabel}>Player</span>
+						<span className={c.infoLabel}>{$L('Player')}</span>
 						<span className={c.infoValue}>AVPlay (Native)</span>
 					</div>
 				)}

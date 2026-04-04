@@ -1,6 +1,7 @@
 import {useState, useEffect, useCallback, useRef, useMemo} from 'react';
 import Spotlight from '@enact/spotlight';
 import Button from '@enact/sandstone/Button';
+import $L from '@enact/i18n/$L';
 import Hls from 'hls.js';
 import * as playback from '../../services/playback';
 import {getImageUrl} from '../../utils/helpers';
@@ -475,7 +476,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 				console.log(`[Player] Loaded ${displayTitle} via ${result.playMethod}`);
 			} catch (err) {
 				console.error('[Player] Failed to load media:', err);
-				setError(err.message || 'Failed to load media');
+				setError(err.message || $L('Failed to load media'));
 			} finally {
 				setIsLoading(false);
 			}
@@ -592,7 +593,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 			mediaUrlRef.current = newUrl;
 		} catch (err) {
 			console.error('[Player] seekInTranscode failed:', err);
-			setError('Failed to seek - please try again');
+			setError($L('Failed to seek - please try again'));
 		} finally {
 			sourceTransitionRef.current = false;
 			seekingTranscodeRef.current = false;
@@ -1073,25 +1074,25 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 		isHandlingErrorRef.current = true;
 
 		const video = videoRef.current;
-		let errorMessage = 'Playback failed.';
+		let errorMessage = $L('Playback failed.');
 
 		try {
 		if (video?.error) {
 			switch (video.error.code) {
 				case 1:
-					errorMessage = 'Playback was aborted.';
+					errorMessage = $L('Playback was aborted.');
 					break;
 				case 2:
-					errorMessage = 'A network error occurred. Check your connection.';
+					errorMessage = $L('A network error occurred. Check your connection.');
 					break;
 				case 3:
-					errorMessage = 'The video format is not supported by this TV.';
+					errorMessage = $L('The video format is not supported by this TV.');
 					break;
 				case 4:
-					errorMessage = 'The video source is not supported.';
+					errorMessage = $L('The video source is not supported.');
 					break;
 				default:
-					errorMessage = 'An unknown playback error occurred.';
+					errorMessage = $L('An unknown playback error occurred.');
 			}
 			console.error('[Player] Playback error:', video.error.code, video.error.message);
 			console.error('[Player] Error details:', {
@@ -1137,7 +1138,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 				}
 			} catch (fallbackErr) {
 				console.error('[Player] Transcode fallback failed:', fallbackErr);
-				errorMessage = 'Transcoding failed. The server may not support this format.';
+				errorMessage = $L('Transcoding failed. The server may not support this format.');
 			}
 		} else if (playMethod === 'Transcode' && (!forceHlsJsRef.current || transcodeRetryCountRef.current < 1) && Hls.isSupported()) {
 			// Tier 2: native HEVC transcode failed → switch to hls.js H.264+AAC
@@ -1174,7 +1175,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 				}
 			} catch (fallbackErr) {
 				console.error('[Player] H.264 fallback failed:', fallbackErr);
-				errorMessage = isTier2 ? 'H.264 transcoding fallback failed.' : 'Transcoding failed after retry. Try restarting the app.';
+				errorMessage = isTier2 ? $L('H.264 transcoding fallback failed.') : $L('Transcoding failed after retry. Try restarting the app.');
 			}
 		}
 
@@ -1719,15 +1720,15 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 			{isLoading && (
 				<div className={css.loadingIndicator}>
 					<div className={css.spinner} />
-					<p>Loading...</p>
+					<p>{$L('Loading...')}</p>
 				</div>
 			)}
 
 			{error && (
 				<div className={css.error}>
-					<h2>Playback Error</h2>
+					<h2>{$L('Playback Error')}</h2>
 					<p>{error}</p>
-					<Button onClick={onBack}>Go Back</Button>
+					<Button onClick={onBack}>{$L('Go Back')}</Button>
 				</div>
 			)}
 
@@ -1818,7 +1819,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 							<div className={css.nextThumbnailGradient} />
 						</div>
 						<div className={css.nextInfo}>
-							<div className={css.nextLabel}>UP NEXT</div>
+							<div className={css.nextLabel}>{$L('UP NEXT')}</div>
 							<div className={css.nextTitle}>{nextEpisode.Name}</div>
 							{nextEpisode.SeriesName && (
 								<div className={css.nextMeta}>
@@ -1831,30 +1832,30 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 									onClick={handlePlayNextEpisode}
 									data-spot-default="true"
 								>
-									&#9654; Play Now
+									&#9654; {$L('Play Now')}
 								</SpottableButton>
 								<SpottableButton
 									className={css.nextCancelBtn}
 									onClick={cancelNextEpisodeCountdown}
 								>
-									Hide
+									{$L('Hide')}
 								</SpottableButton>
 							</div>
 						</div>
 					</div>
 					) : (
 					<div className={css.nextEpisodeMinimal}>
-						<div className={css.nextLabel}>UP NEXT</div>
+						<div className={css.nextLabel}>{$L('UP NEXT')}</div>
 						<div className={css.nextTitle}>{nextEpisode.Name}</div>
 						{nextEpisodeCountdown !== null && (
-							<div className={css.nextCountdownText}>Starting in {nextEpisodeCountdown}s</div>
+							<div className={css.nextCountdownText}>{$L('Starting in {countdown}s').replace('{countdown}', nextEpisodeCountdown)}</div>
 						)}
 						<div className={css.nextActions}>
 							<SpottableButton className={css.nextPlayBtn} onClick={handlePlayNextEpisode} data-spot-default="true">
-								&#9654; Play Now
+								&#9654; {$L('Play Now')}
 							</SpottableButton>
 							<SpottableButton className={css.nextCancelBtn} onClick={cancelNextEpisodeCountdown}>
-								Hide
+								{$L('Hide')}
 							</SpottableButton>
 						</div>
 					</div>
@@ -1932,11 +1933,11 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 									.join(', ');
 							}
 						}
-						return 'Unknown';
+						return $L('Unknown');
 					};
 					return pm === 'Transcode' ? (
 						<div className={`${c.infoRow} ${c.infoWarning}`}>
-							<span className={c.infoLabel}>Transcode Reason</span>
+							<span className={c.infoLabel}>{$L('Transcode Reason')}</span>
 							<span className={c.infoValue}>{getTranscodeReason()}</span>
 						</div>
 					) : null;
@@ -1945,7 +1946,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 				renderInfoVideoExtra={({css: c, videoStream}) => (
 					videoStream?.BitDepth ? (
 						<div className={c.infoRow}>
-							<span className={c.infoLabel}>Bit Depth</span>
+							<span className={c.infoLabel}>{$L('Bit Depth')}</span>
 							<span className={c.infoValue}>{videoStream.BitDepth}-bit</span>
 						</div>
 					) : null

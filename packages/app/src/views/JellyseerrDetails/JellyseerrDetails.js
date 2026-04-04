@@ -5,6 +5,7 @@ import Spotlight from '@enact/spotlight';
 import Image from '@enact/sandstone/Image';
 import Popup from '@enact/sandstone/Popup';
 import Button from '@enact/sandstone/Button';
+import $L from '@enact/i18n/$L';
 import jellyseerrApi, {canRequestMovies, canRequestTv, canRequest4kMovies, canRequest4kTv, hasAdvancedRequestPermission} from '../../services/jellyseerrApi';
 import {useJellyseerr} from '../../context/JellyseerrContext';
 import LoadingSpinner from '../../components/LoadingSpinner';
@@ -53,10 +54,10 @@ const REQUEST_STATUS = {
 
 const getSeasonStatusLabel = (status) => {
 	switch (status) {
-		case REQUEST_STATUS.PENDING: return 'Pending';
-		case REQUEST_STATUS.APPROVED: return 'Processing';
-		case REQUEST_STATUS.DECLINED: return 'Declined';
-		case REQUEST_STATUS.AVAILABLE: return 'Available';
+		case REQUEST_STATUS.PENDING: return $L('Pending');
+		case REQUEST_STATUS.APPROVED: return $L('Processing');
+		case REQUEST_STATUS.DECLINED: return $L('Declined');
+		case REQUEST_STATUS.AVAILABLE: return $L('Available');
 		default: return null;
 	}
 };
@@ -72,38 +73,38 @@ const getSeasonStatusColor = (status) => {
 };
 
 const getStatusBadge = (hdStatus, status4k, hdDeclined, fourKDeclined) => {
-	if (hdDeclined && fourKDeclined) return {text: 'DECLINED', color: 'red'};
-	if (fourKDeclined && hdStatus === STATUS.AVAILABLE) return {text: 'HD AVAILABLE • 4K DECLINED', color: 'mixed'};
-	if (hdDeclined && status4k === STATUS.AVAILABLE) return {text: 'HD DECLINED • 4K AVAILABLE', color: 'mixed'};
-	if (fourKDeclined) return {text: '4K DECLINED', color: 'red'};
-	if (hdDeclined) return {text: 'HD DECLINED', color: 'red'};
+	if (hdDeclined && fourKDeclined) return {text: $L('DECLINED'), color: 'red'};
+	if (fourKDeclined && hdStatus === STATUS.AVAILABLE) return {text: $L('HD AVAILABLE • 4K DECLINED'), color: 'mixed'};
+	if (hdDeclined && status4k === STATUS.AVAILABLE) return {text: $L('HD DECLINED • 4K AVAILABLE'), color: 'mixed'};
+	if (fourKDeclined) return {text: $L('4K DECLINED'), color: 'red'};
+	if (hdDeclined) return {text: $L('HD DECLINED'), color: 'red'};
 
-	if (hdStatus === STATUS.AVAILABLE && status4k === STATUS.AVAILABLE) return {text: 'HD + 4K AVAILABLE', color: 'green'};
+	if (hdStatus === STATUS.AVAILABLE && status4k === STATUS.AVAILABLE) return {text: $L('HD + 4K AVAILABLE'), color: 'green'};
 
-	if (status4k === STATUS.AVAILABLE) return {text: '4K AVAILABLE', color: 'green'};
-	if (hdStatus === STATUS.AVAILABLE) return {text: 'HD AVAILABLE', color: 'green'};
+	if (status4k === STATUS.AVAILABLE) return {text: $L('4K AVAILABLE'), color: 'green'};
+	if (hdStatus === STATUS.AVAILABLE) return {text: $L('HD AVAILABLE'), color: 'green'};
 
-	if (hdStatus === STATUS.PARTIALLY_AVAILABLE && status4k === STATUS.PARTIALLY_AVAILABLE) return {text: 'PARTIALLY AVAILABLE', color: 'purple'};
-	if (hdStatus === STATUS.PARTIALLY_AVAILABLE && status4k === STATUS.PROCESSING) return {text: 'HD PARTIAL • 4K PROCESSING', color: 'mixed'};
-	if (hdStatus === STATUS.PARTIALLY_AVAILABLE && status4k === STATUS.PENDING) return {text: 'HD PARTIAL • 4K PENDING', color: 'mixed'};
-	if (hdStatus === STATUS.PARTIALLY_AVAILABLE) return {text: 'HD PARTIALLY AVAILABLE', color: 'purple'};
-	if (status4k === STATUS.PARTIALLY_AVAILABLE && hdStatus === STATUS.PROCESSING) return {text: 'HD PROCESSING • 4K PARTIAL', color: 'mixed'};
-	if (status4k === STATUS.PARTIALLY_AVAILABLE && hdStatus === STATUS.PENDING) return {text: 'HD PENDING • 4K PARTIAL', color: 'mixed'};
-	if (status4k === STATUS.PARTIALLY_AVAILABLE) return {text: '4K PARTIALLY AVAILABLE', color: 'purple'};
+	if (hdStatus === STATUS.PARTIALLY_AVAILABLE && status4k === STATUS.PARTIALLY_AVAILABLE) return {text: $L('PARTIALLY AVAILABLE'), color: 'purple'};
+	if (hdStatus === STATUS.PARTIALLY_AVAILABLE && status4k === STATUS.PROCESSING) return {text: $L('HD PARTIAL • 4K PROCESSING'), color: 'mixed'};
+	if (hdStatus === STATUS.PARTIALLY_AVAILABLE && status4k === STATUS.PENDING) return {text: $L('HD PARTIAL • 4K PENDING'), color: 'mixed'};
+	if (hdStatus === STATUS.PARTIALLY_AVAILABLE) return {text: $L('HD PARTIALLY AVAILABLE'), color: 'purple'};
+	if (status4k === STATUS.PARTIALLY_AVAILABLE && hdStatus === STATUS.PROCESSING) return {text: $L('HD PROCESSING • 4K PARTIAL'), color: 'mixed'};
+	if (status4k === STATUS.PARTIALLY_AVAILABLE && hdStatus === STATUS.PENDING) return {text: $L('HD PENDING • 4K PARTIAL'), color: 'mixed'};
+	if (status4k === STATUS.PARTIALLY_AVAILABLE) return {text: $L('4K PARTIALLY AVAILABLE'), color: 'purple'};
 
-	if (hdStatus === STATUS.PROCESSING && status4k === STATUS.PROCESSING) return {text: 'PROCESSING', color: 'indigo'};
-	if (hdStatus === STATUS.PROCESSING && status4k === STATUS.PENDING) return {text: 'HD PROCESSING • 4K PENDING', color: 'mixed'};
-	if (status4k === STATUS.PROCESSING && hdStatus === STATUS.PENDING) return {text: 'HD PENDING • 4K PROCESSING', color: 'mixed'};
-	if (status4k === STATUS.PROCESSING) return {text: '4K PROCESSING', color: 'indigo'};
-	if (hdStatus === STATUS.PROCESSING) return {text: 'HD PROCESSING', color: 'indigo'};
+	if (hdStatus === STATUS.PROCESSING && status4k === STATUS.PROCESSING) return {text: $L('PROCESSING'), color: 'indigo'};
+	if (hdStatus === STATUS.PROCESSING && status4k === STATUS.PENDING) return {text: $L('HD PROCESSING • 4K PENDING'), color: 'mixed'};
+	if (status4k === STATUS.PROCESSING && hdStatus === STATUS.PENDING) return {text: $L('HD PENDING • 4K PROCESSING'), color: 'mixed'};
+	if (status4k === STATUS.PROCESSING) return {text: $L('4K PROCESSING'), color: 'indigo'};
+	if (hdStatus === STATUS.PROCESSING) return {text: $L('HD PROCESSING'), color: 'indigo'};
 
-	if (hdStatus === STATUS.PENDING && status4k === STATUS.PENDING) return {text: 'PENDING', color: 'yellow'};
-	if (status4k === STATUS.PENDING) return {text: '4K PENDING', color: 'yellow'};
-	if (hdStatus === STATUS.PENDING) return {text: 'HD PENDING', color: 'yellow'};
+	if (hdStatus === STATUS.PENDING && status4k === STATUS.PENDING) return {text: $L('PENDING'), color: 'yellow'};
+	if (status4k === STATUS.PENDING) return {text: $L('4K PENDING'), color: 'yellow'};
+	if (hdStatus === STATUS.PENDING) return {text: $L('HD PENDING'), color: 'yellow'};
 
-	if (hdStatus === STATUS.BLACKLISTED || status4k === STATUS.BLACKLISTED) return {text: 'BLACKLISTED', color: 'red'};
+	if (hdStatus === STATUS.BLACKLISTED || status4k === STATUS.BLACKLISTED) return {text: $L('BLACKLISTED'), color: 'red'};
 
-	return {text: 'NOT REQUESTED', color: 'gray'};
+	return {text: $L('NOT REQUESTED'), color: 'gray'};
 };
 
 const isStatusBlocked = (currentStatus) => {
@@ -114,7 +115,7 @@ const formatDate = (dateStr) => {
 	if (!dateStr) return null;
 	try {
 		const date = new Date(dateStr);
-		return date.toLocaleDateString('en-US', {year: 'numeric', month: 'long', day: 'numeric'});
+		return date.toLocaleDateString(undefined, {year: 'numeric', month: 'long', day: 'numeric'});
 	} catch {
 		return null;
 	}
@@ -123,14 +124,14 @@ const formatDate = (dateStr) => {
 const formatCurrency = (amount) => {
 	if (!amount || amount <= 0) return null;
 	try {
-		return new Intl.NumberFormat('en-US', {
+		return new Intl.NumberFormat(undefined, {
 			style: 'currency',
 			currency: 'USD',
 			minimumFractionDigits: 0,
 			maximumFractionDigits: 0
 		}).format(amount);
 	} catch {
-		return `$${Math.round(amount).toLocaleString('en-US')}`;
+		return `$${Math.round(amount).toLocaleString()}`;
 	}
 };
 
@@ -250,11 +251,11 @@ const HorizontalMediaRow = memo(({title, items, onSelect, rowIndex, onNavigateUp
 const QualitySelectionPopup = memo(({open, title, hdStatus, status4k, canRequestHd, canRequest4k, onSelect, onClose}) => {
 	const getButtonLabel = useCallback((is4k, currentStatus) => {
 		const quality = is4k ? '4K' : 'HD';
-		if (currentStatus === STATUS.PENDING) return `${quality} (Pending)`;
-		if (currentStatus === STATUS.PROCESSING) return `${quality} (Processing)`;
-		if (currentStatus === STATUS.AVAILABLE) return `${quality} (Available)`;
-		if (currentStatus === STATUS.PARTIALLY_AVAILABLE) return `Request More ${quality}`;
-		return `Request ${quality}`;
+		if (currentStatus === STATUS.PENDING) return `${quality} (${$L('Pending')})`;
+		if (currentStatus === STATUS.PROCESSING) return `${quality} (${$L('Processing')})`;
+		if (currentStatus === STATUS.AVAILABLE) return `${quality} (${$L('Available')})`;
+		if (currentStatus === STATUS.PARTIALLY_AVAILABLE) return `${$L('Request More')} ${quality}`;
+		return `${$L('Request')} ${quality}`;
 	}, []);
 
 	const handleHdClick = useCallback(() => {
@@ -268,8 +269,8 @@ const QualitySelectionPopup = memo(({open, title, hdStatus, status4k, canRequest
 	return (
 		<Popup open={open} onClose={onClose} position="center" className={css.qualityPopup}>
 			<div className={css.qualityPopupContent}>
-				<h2 className={css.qualityPopupTitle}>Request {title}</h2>
-				<p className={css.qualityPopupSubtitle}>Select quality to request</p>
+				<h2 className={css.qualityPopupTitle}>{$L('Request')} {title}</h2>
+				<p className={css.qualityPopupSubtitle}>{$L('Select quality to request')}</p>
 				<div className={css.qualityButtons}>
 					<Button
 						className={`${css.qualityButton} ${!canRequestHd ? css.qualityButtonDisabled : ''}`}
@@ -287,7 +288,7 @@ const QualitySelectionPopup = memo(({open, title, hdStatus, status4k, canRequest
 					</Button>
 				</div>
 				<Button className={css.qualityCancelButton} onClick={onClose}>
-					Cancel
+					{$L('Cancel')}
 				</Button>
 			</div>
 		</Popup>
@@ -388,7 +389,7 @@ const SeasonSelectionPopup = memo(({open, title, seasons, seasonStatusMap, onCon
 	return (
 		<Popup open={open} onClose={onClose} position="center" className={css.seasonPopup}>
 			<div className={css.seasonPopupContent}>
-				<h2 className={css.seasonPopupTitle}>Select Seasons</h2>
+				<h2 className={css.seasonPopupTitle}>{$L('Select Seasons')}</h2>
 				<p className={css.seasonPopupSubtitle}>{title}</p>
 
 				<SeasonSelectionContainer className={css.seasonsList} spotlightId="season-selection" onKeyDown={handleSeasonListKeyDown}>
@@ -400,7 +401,7 @@ const SeasonSelectionPopup = memo(({open, title, seasons, seasonStatusMap, onCon
 							<div className={`${css.seasonCheckbox} ${allSelected ? css.seasonCheckboxChecked : ''}`}>
 								{allSelected && '✓'}
 							</div>
-							<span className={css.seasonCheckLabel}>Select All</span>
+							<span className={css.seasonCheckLabel}>{$L('Select All')}</span>
 						</SpottableDiv>
 					)}
 
@@ -424,9 +425,9 @@ const SeasonSelectionPopup = memo(({open, title, seasons, seasonStatusMap, onCon
 									{isUnavailable && '—'}
 								</div>
 								<div className={css.seasonCheckInfo}>
-									<span className={css.seasonCheckLabel}>{season.name || `Season ${season.seasonNumber}`}</span>
+									<span className={css.seasonCheckLabel}>{season.name || `${$L('Season')} ${season.seasonNumber}`}</span>
 									<span className={css.seasonCheckMeta}>
-										{season.episodeCount} episode{season.episodeCount !== 1 ? 's' : ''}
+										{season.episodeCount} {season.episodeCount !== 1 ? $L('episodes') : $L('episode')}
 									</span>
 								</div>
 								{statusLabel && (
@@ -446,10 +447,10 @@ const SeasonSelectionPopup = memo(({open, title, seasons, seasonStatusMap, onCon
 							onKeyDown={handleSeasonButtonKeyDown}
 							disabled={!canConfirm}
 						>
-							Request {selectedSeasons.size} Season{selectedSeasons.size !== 1 ? 's' : ''}
+							{$L('Request')} {selectedSeasons.size} {selectedSeasons.size !== 1 ? $L('Seasons') : $L('Season')}
 						</Button>
 						<Button spotlightId="season-cancel-button" className={css.seasonCancelButton} onClick={onClose} onKeyDown={handleSeasonButtonKeyDown}>
-							Cancel
+							{$L('Cancel')}
 						</Button>
 					</div>
 				</SeasonSelectionContainer>
@@ -551,17 +552,17 @@ const AdvancedOptionsPopup = memo(({open, title, servers, is4k, onConfirm, onClo
 	return (
 		<Popup open={open} onClose={onClose} position="center" className={css.advancedPopup}>
 			<div className={css.advancedPopupContent}>
-				<h2 className={css.advancedPopupTitle}>Request Options</h2>
+				<h2 className={css.advancedPopupTitle}>{$L('Request Options')}</h2>
 				<p className={css.advancedPopupSubtitle}>{title} ({is4k ? '4K' : 'HD'})</p>
 
 				<AdvancedOptionsContainer className={css.advancedOptionsList} spotlightId="advanced-options">
 					{loadingDetails ? (
-						<div className={css.advancedLoading}>Loading server options...</div>
+						<div className={css.advancedLoading}>{$L('Loading server options...')}</div>
 					) : (
 						<>
 							{availableServers.length > 1 && (
 								<div className={css.advancedOptionGroup}>
-									<label className={css.advancedOptionLabel}>Server</label>
+									<label className={css.advancedOptionLabel}>{$L('Server')}</label>
 									<div className={css.advancedOptionButtons}>
 										{availableServers.map(server => (
 											<SpottableDiv
@@ -579,7 +580,7 @@ const AdvancedOptionsPopup = memo(({open, title, servers, is4k, onConfirm, onClo
 
 							{serverDetails?.profiles?.length > 0 && (
 								<div className={css.advancedOptionGroup}>
-									<label className={css.advancedOptionLabel}>Quality Profile</label>
+									<label className={css.advancedOptionLabel}>{$L('Quality Profile')}</label>
 									<div className={css.advancedOptionButtons}>
 										{serverDetails.profiles.map(profile => (
 											<SpottableDiv
@@ -597,7 +598,7 @@ const AdvancedOptionsPopup = memo(({open, title, servers, is4k, onConfirm, onClo
 
 							{serverDetails?.rootFolders?.length > 0 && (
 								<div className={css.advancedOptionGroup}>
-									<label className={css.advancedOptionLabel}>Download Location</label>
+									<label className={css.advancedOptionLabel}>{$L('Download Location')}</label>
 									<div className={css.advancedOptionButtons}>
 										{serverDetails.rootFolders.map(folder => (
 											<SpottableDiv
@@ -621,13 +622,13 @@ const AdvancedOptionsPopup = memo(({open, title, servers, is4k, onConfirm, onClo
 							onClick={handleConfirm}
 							disabled={!canConfirm || loadingDetails}
 						>
-							Continue with Options
+							{$L('Continue with Options')}
 						</Button>
 						<Button className={css.advancedSkipButton} onClick={handleSkip}>
-							Use Defaults
+							{$L('Use Defaults')}
 						</Button>
 						<Button className={css.advancedCancelButton} onClick={onClose}>
-							Cancel
+							{$L('Cancel')}
 						</Button>
 					</div>
 				</AdvancedOptionsContainer>
@@ -642,27 +643,28 @@ const CancelRequestPopup = memo(({open, pendingRequests, title, onConfirm, onClo
 		if (pendingRequests.length === 1) {
 			const req = pendingRequests[0];
 			const quality = req.is4k ? '4K' : 'HD';
-			return `Cancel ${quality} request for "${title}"?`;
+			return $L('Cancel {quality} request for "{title}"?').replace('{quality}', quality).replace('{title}', title);
 		}
 		const hdCount = pendingRequests.filter(r => !r.is4k).length;
 		const fourKCount = pendingRequests.filter(r => r.is4k).length;
 		const parts = [];
 		if (hdCount > 0) parts.push(`${hdCount} HD`);
 		if (fourKCount > 0) parts.push(`${fourKCount} 4K`);
-		return `Cancel ${parts.join(' and ')} request${pendingRequests.length > 1 ? 's' : ''} for "${title}"?`;
+		const partsStr = parts.join(` ${$L('and')} `);
+		return $L('Cancel {parts} requests for "{title}"?').replace('{parts}', partsStr).replace('{title}', title);
 	}, [pendingRequests, title]);
 
 	return (
 		<Popup open={open} onClose={onClose} position="center" className={css.cancelPopup}>
 			<div className={css.cancelPopupContent}>
-				<h2 className={css.cancelPopupTitle}>Cancel Request</h2>
+				<h2 className={css.cancelPopupTitle}>{$L('Cancel Request')}</h2>
 				<p className={css.cancelPopupDescription}>{description}</p>
 				<div className={css.cancelButtons}>
 					<Button className={css.cancelConfirmButton} onClick={onConfirm}>
-						Cancel Request
+						{$L('Cancel Request')}
 					</Button>
 					<Button className={css.cancelKeepButton} onClick={onClose}>
-						Keep Request
+						{$L('Keep Request')}
 					</Button>
 				</div>
 			</div>
@@ -773,7 +775,7 @@ const JellyseerrDetails = ({mediaType, mediaId, onClose, onSelectItem, onPlayInM
 				setSimilar(similarData.slice(0, 20));
 			} catch (err) {
 				console.error('Failed to load details:', err);
-				setError(err.message || 'Failed to load details');
+				setError(err.message || $L('Failed to load details'));
 			} finally {
 				setLoading(false);
 			}
@@ -858,23 +860,23 @@ const JellyseerrDetails = ({mediaType, mediaId, onClose, onSelectItem, onPlayInM
 
 	const requestButtonLabel = useMemo(() => {
 		if (!canRequestAny) {
-			if (hdDeclined && fourKDeclined) return 'Declined';
-			if (fourKDeclined) return '4K Declined';
-			if (hdDeclined) return 'HD Declined';
-			if (hdStatus === STATUS.AVAILABLE && status4k === STATUS.AVAILABLE) return 'Available';
-			if (status4k === STATUS.AVAILABLE) return '4K Available';
-			if (hdStatus === STATUS.AVAILABLE) return 'HD Available';
-			if (hdStatus === STATUS.PROCESSING && status4k === STATUS.PROCESSING) return 'Processing';
-			if (status4k === STATUS.PROCESSING) return '4K Processing';
-			if (hdStatus === STATUS.PROCESSING) return 'HD Processing';
-			if (hdStatus === STATUS.PENDING && status4k === STATUS.PENDING) return 'Pending';
-			if (status4k === STATUS.PENDING) return '4K Pending';
-			if (hdStatus === STATUS.PENDING) return 'HD Pending';
-			if (hdStatus === STATUS.BLACKLISTED || status4k === STATUS.BLACKLISTED) return 'Blacklisted';
-			return 'Unavailable';
+			if (hdDeclined && fourKDeclined) return $L('Declined');
+			if (fourKDeclined) return `4K ${$L('Declined')}`;
+			if (hdDeclined) return `HD ${$L('Declined')}`;
+			if (hdStatus === STATUS.AVAILABLE && status4k === STATUS.AVAILABLE) return $L('Available');
+			if (status4k === STATUS.AVAILABLE) return `4K ${$L('Available')}`;
+			if (hdStatus === STATUS.AVAILABLE) return `HD ${$L('Available')}`;
+			if (hdStatus === STATUS.PROCESSING && status4k === STATUS.PROCESSING) return $L('Processing');
+			if (status4k === STATUS.PROCESSING) return `4K ${$L('Processing')}`;
+			if (hdStatus === STATUS.PROCESSING) return `HD ${$L('Processing')}`;
+			if (hdStatus === STATUS.PENDING && status4k === STATUS.PENDING) return $L('Pending');
+			if (status4k === STATUS.PENDING) return `4K ${$L('Pending')}`;
+			if (hdStatus === STATUS.PENDING) return `HD ${$L('Pending')}`;
+			if (hdStatus === STATUS.BLACKLISTED || status4k === STATUS.BLACKLISTED) return $L('Blacklisted');
+			return $L('Unavailable');
 		}
-		if (hdStatus === STATUS.PARTIALLY_AVAILABLE || status4k === STATUS.PARTIALLY_AVAILABLE) return 'Request More';
-		return 'Request';
+		if (hdStatus === STATUS.PARTIALLY_AVAILABLE || status4k === STATUS.PARTIALLY_AVAILABLE) return $L('Request More');
+		return $L('Request');
 	}, [canRequestAny, hdStatus, status4k, hdDeclined, fourKDeclined]);
 
 	const handleRequest = useCallback(async (is4K = false, seasons = null, advancedOptions = null) => {
@@ -904,7 +906,7 @@ const JellyseerrDetails = ({mediaType, mediaId, onClose, onSelectItem, onPlayInM
 			setDetails(updated);
 		} catch (err) {
 			console.error('Request failed:', err);
-			setError(err.message || 'Request failed');
+			setError(err.message || $L('Request failed'));
 		} finally {
 			setRequesting(false);
 		}
@@ -942,8 +944,8 @@ const JellyseerrDetails = ({mediaType, mediaId, onClose, onSelectItem, onPlayInM
 		if (!canRequestAny) return;
 
 		if (!hasHdServer && !has4kServer) {
-			const mediaTypeName = mediaType === 'movie' ? 'movies' : 'TV shows';
-			setError(`No Radarr/Sonarr server configured for ${mediaTypeName} in Jellyseerr`);
+			const mediaTypeName = mediaType === 'movie' ? $L('movies') : $L('TV shows');
+			setError($L('No Radarr/Sonarr server configured for {mediaType} in Jellyseerr').replace('{mediaType}', mediaTypeName));
 			return;
 		}
 
@@ -984,7 +986,7 @@ const JellyseerrDetails = ({mediaType, mediaId, onClose, onSelectItem, onPlayInM
 			setDetails(updated);
 		} catch (err) {
 			console.error('Cancel failed:', err);
-			setError(err.message || 'Failed to cancel request');
+			setError(err.message || $L('Failed to cancel request'));
 		}
 	}, [pendingRequests, mediaId, mediaType]);
 
@@ -1100,30 +1102,30 @@ const JellyseerrDetails = ({mediaType, mediaId, onClose, onSelectItem, onPlayInM
 
 		const tmdbScore = Number(details.voteAverage);
 		if (Number.isFinite(tmdbScore) && tmdbScore > 0) {
-			facts.push({label: 'TMDB Score', value: `${Math.round(tmdbScore * 10)}%`});
+			facts.push({label: $L('TMDB Score'), value: `${Math.round(tmdbScore * 10)}%`});
 		}
 
 		const productionStatus = details.status;
 		if (productionStatus) {
-			facts.push({label: 'Status', value: productionStatus});
+			facts.push({label: $L('Status'), value: productionStatus});
 		}
 
 		// TV Show specific fields
 		if (mediaType === 'tv') {
 			if (details.firstAirDate) {
 				const formatted = formatDate(details.firstAirDate);
-				if (formatted) facts.push({label: 'First Air Date', value: formatted});
+				if (formatted) facts.push({label: $L('First Air Date'), value: formatted});
 			}
 			if (details.lastAirDate) {
 				const formatted = formatDate(details.lastAirDate);
-				if (formatted) facts.push({label: 'Last Air Date', value: formatted});
+				if (formatted) facts.push({label: $L('Last Air Date'), value: formatted});
 			}
 			if (details.numberOfSeasons) {
-				facts.push({label: 'Seasons', value: details.numberOfSeasons.toString()});
+				facts.push({label: $L('Seasons'), value: details.numberOfSeasons.toString()});
 			}
 			// Networks
 			if (details.networks?.length > 0) {
-				facts.push({label: 'Networks', value: details.networks.slice(0, 3).map(n => n.name).join(', ')});
+				facts.push({label: $L('Networks'), value: details.networks.slice(0, 3).map(n => n.name).join(', ')});
 			}
 		}
 
@@ -1131,18 +1133,18 @@ const JellyseerrDetails = ({mediaType, mediaId, onClose, onSelectItem, onPlayInM
 		if (mediaType === 'movie') {
 			if (details.releaseDate) {
 				const formatted = formatDate(details.releaseDate);
-				if (formatted) facts.push({label: 'Release Date', value: formatted});
+				if (formatted) facts.push({label: $L('Release Date'), value: formatted});
 			}
 			if (details.runtime) {
-				facts.push({label: 'Runtime', value: formatRuntime(details.runtime)});
+				facts.push({label: $L('Runtime'), value: formatRuntime(details.runtime)});
 			}
 			if (details.budget) {
 				const formatted = formatCurrency(details.budget);
-				if (formatted) facts.push({label: 'Budget', value: formatted});
+				if (formatted) facts.push({label: $L('Budget'), value: formatted});
 			}
 			if (details.revenue) {
 				const formatted = formatCurrency(details.revenue);
-				if (formatted) facts.push({label: 'Revenue', value: formatted});
+				if (formatted) facts.push({label: $L('Revenue'), value: formatted});
 			}
 		}
 
@@ -1163,7 +1165,7 @@ const JellyseerrDetails = ({mediaType, mediaId, onClose, onSelectItem, onPlayInM
 				<div className={css.error}>
 					<p>{error}</p>
 					<SpottableDiv className={css.errorButton} onClick={onClose || onBack}>
-						Go Back
+						{$L('Go Back')}
 					</SpottableDiv>
 				</div>
 			</div>
@@ -1174,7 +1176,7 @@ const JellyseerrDetails = ({mediaType, mediaId, onClose, onSelectItem, onPlayInM
 		return (
 			<div className={css.container}>
 				<div className={css.error}>
-					<p>No details available</p>
+					<p>{$L('No details available')}</p>
 				</div>
 			</div>
 		);
@@ -1284,7 +1286,7 @@ const JellyseerrDetails = ({mediaType, mediaId, onClose, onSelectItem, onPlayInM
 							)}
 							{details.numberOfSeasons && (
 								<span className={css.metadataItem}>
-									{details.numberOfSeasons} Season{details.numberOfSeasons > 1 ? 's' : ''}
+									{details.numberOfSeasons} {details.numberOfSeasons > 1 ? $L('Seasons') : $L('Season')}
 								</span>
 							)}
 						</div>
@@ -1307,8 +1309,8 @@ const JellyseerrDetails = ({mediaType, mediaId, onClose, onSelectItem, onPlayInM
 				<div className={css.overviewSection}>
 					{/* Left side - Overview text and action buttons */}
 					<div className={css.overviewLeft}>
-						<h2 className={css.overviewHeading}>Overview</h2>
-						<p className={css.overview}>{details.overview || 'Overview unavailable.'}</p>
+						<h2 className={css.overviewHeading}>{$L('Overview')}</h2>
+						<p className={css.overview}>{details.overview || $L('Overview unavailable.')}</p>
 
 						{/* Action Buttons */}
 						<ActionButtonsContainer
@@ -1342,7 +1344,7 @@ const JellyseerrDetails = ({mediaType, mediaId, onClose, onSelectItem, onPlayInM
 											</svg>
 										</span>
 									</SpottableDiv>
-									<span className={css.btnLabel}>Cancel Request</span>
+									<span className={css.btnLabel}>{$L('Cancel Request')}</span>
 								</div>
 							)}
 
@@ -1355,7 +1357,7 @@ const JellyseerrDetails = ({mediaType, mediaId, onClose, onSelectItem, onPlayInM
 										</svg>
 									</span>
 								</SpottableDiv>
-								<span className={css.btnLabel}>Watch Trailer</span>
+								<span className={css.btnLabel}>{$L('Watch Trailer')}</span>
 							</div>
 
 							{/* Play in Moonfin Button (if available) */}
@@ -1368,7 +1370,7 @@ const JellyseerrDetails = ({mediaType, mediaId, onClose, onSelectItem, onPlayInM
 											</svg>
 										</span>
 									</SpottableDiv>
-									<span className={css.btnLabel}>Play in Moonfin</span>
+									<span className={css.btnLabel}>{$L('Play in Moonfin')}</span>
 								</div>
 							)}
 						</ActionButtonsContainer>
@@ -1397,7 +1399,7 @@ const JellyseerrDetails = ({mediaType, mediaId, onClose, onSelectItem, onPlayInM
 						spotlightId="cast-section"
 						onKeyDown={handleCastSectionKeyDown}
 					>
-						<h2 className={css.sectionTitle}>Cast</h2>
+						<h2 className={css.sectionTitle}>{$L('Cast')}</h2>
 						<div className={css.castScroller}>
 							<div className={css.castList}>
 								{details.credits.cast.slice(0, 10).map(person => (
@@ -1411,7 +1413,7 @@ const JellyseerrDetails = ({mediaType, mediaId, onClose, onSelectItem, onPlayInM
 				{/* Recommendations Section */}
 				{recommendations.length > 0 && (
 					<HorizontalMediaRow
-						title="Recommendations"
+						title={$L('Recommendations')}
 						items={recommendations}
 						onSelect={handleSelectRelated}
 						rowIndex={0}
@@ -1424,7 +1426,7 @@ const JellyseerrDetails = ({mediaType, mediaId, onClose, onSelectItem, onPlayInM
 				{/* Similar Section */}
 				{similar.length > 0 && (
 					<HorizontalMediaRow
-						title={mediaType === 'tv' ? 'Similar Series' : 'Similar Titles'}
+						title={mediaType === 'tv' ? $L('Similar Series') : $L('Similar Titles')}
 						items={similar}
 						onSelect={handleSelectRelated}
 						rowIndex={1}
@@ -1441,7 +1443,7 @@ const JellyseerrDetails = ({mediaType, mediaId, onClose, onSelectItem, onPlayInM
 						spotlightId="keywords-section"
 						onKeyDown={handleKeywordsSectionKeyDown}
 					>
-						<h2 className={css.sectionTitle}>Keywords</h2>
+						<h2 className={css.sectionTitle}>{$L('Keywords')}</h2>
 						<div className={css.keywordsList}>
 							{keywords.map(keyword => (
 								<KeywordTag key={keyword.id} keyword={keyword} onSelect={handleSelectKeyword} />

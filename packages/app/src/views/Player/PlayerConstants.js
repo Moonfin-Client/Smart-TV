@@ -1,3 +1,4 @@
+import $L from '@enact/i18n/$L';
 import Spottable from '@enact/spotlight/Spottable';
 import SpotlightContainerDecorator from '@enact/spotlight/SpotlightContainerDecorator';
 
@@ -37,24 +38,27 @@ export const formatEndTime = (remainingSeconds, clockDisplay) => {
 	if (clockDisplay === '12-hour') {
 		const ampm = hours >= 12 ? 'PM' : 'AM';
 		const h12 = hours % 12 || 12;
-		return `Ends at ${h12}:${minutes.toString().padStart(2, '0')} ${ampm}`;
+		const timeString = `${h12}:${minutes.toString().padStart(2, '0')} ${ampm}`;
+		return $L('Ends at {time}').replace('{time}', timeString);
 	} else {
-		return `Ends at ${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
+		const timeString = `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
+		return $L('Ends at {time}').replace('{time}', timeString);
 	}
 };
 
 export const PLAYBACK_RATES = [0.5, 0.75, 1, 1.25, 1.5, 2];
 
-export const QUALITY_PRESETS = [
-	{label: 'Auto', value: null},
-	{label: '4K (60 Mbps)', value: 60000000, minRes: 3840},
-	{label: '1080p (20 Mbps)', value: 20000000, minRes: 1920},
-	{label: '1080p (10 Mbps)', value: 10000000, minRes: 1920},
-	{label: '720p (8 Mbps)', value: 8000000, minRes: 1280},
-	{label: '720p (4 Mbps)', value: 4000000, minRes: 1280},
-	{label: '480p (2 Mbps)', value: 2000000, minRes: 854},
-	{label: '360p (1 Mbps)', value: 1000000, minRes: 640}
-];
+let _qualityPresets;
+export const getQualityPresets = () => (_qualityPresets ??= [
+	{label: $L('Auto'), value: null},
+	{label: $L('4K (60 Mbps)'), value: 60000000, minRes: 3840},
+	{label: $L('1080p (20 Mbps)'), value: 20000000, minRes: 1920},
+	{label: $L('1080p (10 Mbps)'), value: 10000000, minRes: 1920},
+	{label: $L('720p (8 Mbps)'), value: 8000000, minRes: 1280},
+	{label: $L('720p (4 Mbps)'), value: 4000000, minRes: 1280},
+	{label: $L('480p (2 Mbps)'), value: 2000000, minRes: 854},
+	{label: $L('360p (1 Mbps)'), value: 1000000, minRes: 640}
+]);
 
 export const CONTROLS_HIDE_DELAY = 5000;
 

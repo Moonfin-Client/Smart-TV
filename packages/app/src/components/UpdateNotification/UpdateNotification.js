@@ -9,6 +9,7 @@ import Button from '@enact/sandstone/Button';
 import Heading from '@enact/sandstone/Heading';
 import Scroller from '@enact/sandstone/Scroller';
 import Spotlight from '@enact/spotlight';
+import $L from '@enact/i18n/$L';
 
 import css from './UpdateNotification.module.less';
 
@@ -77,13 +78,13 @@ const UpdateNotification = ({updateInfo, formattedNotes, onDismiss}) => {
 					}}
 				>
 					<Heading size="small" className={css.title}>
-						Update Available
+						{$L('Update Available')}
 					</Heading>
 
 					<div className={css.versionInfo}>
-						<span className={css.newVersion}>Version {updateInfo.latestVersion}</span>
+						<span className={css.newVersion}>{$L('Version')} {updateInfo.latestVersion}</span>
 						<span className={css.currentVersion}>
-							(Current: {updateInfo.currentVersion})
+							{$L('Current:')} {updateInfo.currentVersion}
 						</span>
 					</div>
 
@@ -104,7 +105,7 @@ const UpdateNotification = ({updateInfo, formattedNotes, onDismiss}) => {
 							size="small"
 							onClick={handleDismiss}
 						>
-							OK
+							{$L('OK')}
 						</Button>
 					</div>
 				</div>

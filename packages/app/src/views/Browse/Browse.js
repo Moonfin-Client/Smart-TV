@@ -1,5 +1,6 @@
 import {useState, useEffect, useCallback, useRef, useMemo, useReducer} from 'react';
 import Spotlight from '@enact/spotlight';
+import $L from '@enact/i18n/$L';
 import {useAuth} from '../../context/AuthContext';
 import {useSettings} from '../../context/SettingsContext';
 import MediaRow from '../../components/MediaRow';
@@ -301,7 +302,7 @@ const Browse = ({
 					if (enabledRowIds.includes('resume') || enabledRowIds.includes('nextup')) {
 						result = [{
 							id: 'continue-nextup',
-							title: 'Continue Watching',
+							title: $L('Continue Watching'),
 							items: combinedItems,
 							type: 'landscape'
 						}, ...result];
@@ -338,11 +339,27 @@ const Browse = ({
 				});
 		}
 
+		// Re-translate titles so cached rows pick up the current locale
+		result = result.map(row => {
+			let title;
+			if (row.id === 'resume' || row.id === 'continue-nextup') title = $L('Continue Watching');
+			else if (row.id === 'nextup') title = $L('Next Up');
+			else if (row.id === 'library-tiles') title = $L('My Media');
+			else if (row.id === 'collections') title = $L('Collections');
+			else if (row.isLatestRow && row.library) {
+				const libName = row.library._serverName
+					? `${row.library.Name} (${row.library._serverName})`
+					: row.library.Name;
+				title = $L('Latest in {libraryTitle}').replace('{libraryTitle}', libName);
+			}
+			return title && title !== row.title ? {...row, title} : row;
+		});
+
 		const prev = prevFilteredRowsRef.current;
 		if (prev.length === result.length) {
 			let unchanged = true;
 			for (let i = 0; i < result.length; i++) {
-				if (result[i].id !== prev[i].id || result[i].items.length !== prev[i].items.length) {
+				if (result[i].id !== prev[i].id || result[i].items.length !== prev[i].items.length || result[i].title !== prev[i].title) {
 					unchanged = false;
 					break;
 				}
@@ -570,7 +587,7 @@ const Browse = ({
 				if (resumeItems.Items?.length > 0) {
 					volatileRows.push({
 						id: 'resume',
-						title: 'Continue Watching',
+						title: $L('Continue Watching'),
 						items: resumeItems.Items,
 						type: 'landscape'
 					});
@@ -579,7 +596,7 @@ const Browse = ({
 				if (nextUp.Items?.length > 0) {
 					volatileRows.push({
 						id: 'nextup',
-						title: 'Next Up',
+						title: $L('Next Up'),
 						items: nextUp.Items,
 						type: 'landscape'
 					});
@@ -639,7 +656,7 @@ const Browse = ({
 				if (resumeItems.Items?.length > 0) {
 					rowData.push({
 						id: 'resume',
-						title: 'Continue Watching',
+						title: $L('Continue Watching'),
 						items: resumeItems.Items,
 						type: 'landscape'
 					});
@@ -648,7 +665,7 @@ const Browse = ({
 				if (nextUp.Items?.length > 0) {
 					rowData.push({
 						id: 'nextup',
-						title: 'Next Up',
+						title: $L('Next Up'),
 						items: nextUp.Items,
 						type: 'landscape'
 					});
@@ -659,7 +676,7 @@ const Browse = ({
 					if (visibleLibs.length > 0) {
 						rowData.push({
 							id: 'library-tiles',
-							title: 'My Media',
+							title: $L('My Media'),
 							items: visibleLibs.map(lib => ({
 								...lib,
 								Type: 'CollectionFolder',
@@ -725,7 +742,7 @@ const Browse = ({
 
 						newRows.push({
 							id: rowId,
-							title: `Latest in ${libraryTitle}`,
+							title: $L('Latest in {libraryTitle}').replace('{libraryTitle}', libraryTitle),
 							items: result.latest,
 							library: result.lib,
 							type: result.lib.CollectionType?.toLowerCase() === 'music' ? 'square' : 'portrait',
@@ -737,7 +754,7 @@ const Browse = ({
 				if (collectionsResult?.Items?.length > 0) {
 					newRows.push({
 						id: 'collections',
-						title: 'Collections',
+						title: $L('Collections'),
 						items: collectionsResult.Items,
 						type: 'portrait'
 					});
@@ -827,7 +844,7 @@ const Browse = ({
 			<div className={css.page}>
 				<div className={css.loadingContainer}>
 					<LoadingSpinner />
-					<p>Loading your library...</p>
+					<p>{$L('Loading your library...')}</p>
 				</div>
 			</div>
 		);
@@ -889,7 +906,7 @@ const Browse = ({
 						/>
 					))}
 					{filteredRows.length === 0 && (
-						<div className={css.empty}>No content found</div>
+						<div className={css.empty}>{$L('No content found')}</div>
 					)}
 				</div>
 			</div>

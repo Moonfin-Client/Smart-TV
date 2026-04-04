@@ -28,9 +28,10 @@
 		},
 
 		"locales": [
-			"en-US"
+			"en-US",
+			"pl"
 		],
-		"ilib": false,
+		"ilib": true,
 		"screenTypes": [
 			{
 				"name": "fhd",

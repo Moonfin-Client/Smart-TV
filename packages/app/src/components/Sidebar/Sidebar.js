@@ -1,4 +1,5 @@
 import {memo, useCallback, useState, useEffect, useRef} from 'react';
+import $L from '@enact/i18n/$L';
 import Spottable from '@enact/spotlight/Spottable';
 import SpotlightContainerDecorator, {spotlightDefaultClass} from '@enact/spotlight/SpotlightContainerDecorator';
 import Spotlight from '@enact/spotlight';
@@ -210,7 +211,7 @@ const Sidebar = ({
 							{user?.Name?.[0] || 'U'}
 						</div>
 					)}
-					<span className={css.sidebarLabel}>{user?.Name || 'User'}</span>
+					<span className={css.sidebarLabel}>{user?.Name || $L('User')}</span>
 				</SpottableButton>
 			</div>
 
@@ -223,7 +224,7 @@ const Sidebar = ({
 					<svg className={css.sidebarIcon} viewBox="0 0 24 24">
 						<path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z" />
 					</svg>
-					<span className={css.sidebarLabel}>Home</span>
+					<span className={css.sidebarLabel}>{$L('Home')}</span>
 				</SpottableButton>
 
 				<SpottableButton
@@ -233,7 +234,7 @@ const Sidebar = ({
 					<svg className={css.sidebarIcon} viewBox="0 0 24 24">
 						<path d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z" />
 					</svg>
-					<span className={css.sidebarLabel}>Search</span>
+					<span className={css.sidebarLabel}>{$L('Search')}</span>
 				</SpottableButton>
 
 				{settings.showShuffleButton !== false && (
@@ -244,7 +245,7 @@ const Sidebar = ({
 						<svg className={css.sidebarIcon} viewBox="0 0 24 24">
 							<path d="M10.59 9.17L5.41 4 4 5.41l5.17 5.17 1.42-1.41zM14.5 4l2.04 2.04L4 18.59 5.41 20 17.96 7.46 20 9.5V4h-5.5zm.33 9.41l-1.41 1.41 3.13 3.13L14.5 20H20v-5.5l-2.04 2.04-3.13-3.13z" />
 						</svg>
-						<span className={css.sidebarLabel}>Shuffle</span>
+						<span className={css.sidebarLabel}>{$L('Shuffle')}</span>
 					</SpottableButton>
 				)}
 
@@ -256,7 +257,7 @@ const Sidebar = ({
 						<svg className={css.sidebarIcon} viewBox="0 0 24 24">
 							<path d="M8.11,19.45C5.94,18.65 4.22,16.78 3.71,14.35L2.05,6.54C1.81,5.46 2.5,4.4 3.58,4.17L13.35,2.1L13.38,2.09C14.45,1.88 15.5,2.57 15.72,3.63L16.07,5.3L20.42,6.23H20.45C21.5,6.47 22.18,7.53 21.96,8.59L20.3,16.41C19.5,20.18 15.78,22.6 12,21.79C10.42,21.46 9.08,20.61 8.11,19.45V19.45M20,8.18L10.23,6.1L8.57,13.92V13.95C8,16.63 9.73,19.27 12.42,19.84C15.11,20.41 17.77,18.69 18.34,16L20,8.18M16,16.5C15.37,17.57 14.11,18.16 12.83,17.89C11.56,17.62 10.65,16.57 10.5,15.34L16,16.5M8.47,5.17L4,6.13L5.66,13.94L5.67,13.97C5.82,14.68 6.12,15.32 6.53,15.87C6.43,15.1 6.45,14.3 6.62,13.5L7.05,11.5C6.6,11.42 6.21,11.17 6,10.81C6.06,10.2 6.56,9.66 7.25,9.5C7.33,9.5 7.4,9.5 7.5,9.5L8.28,5.69C8.32,5.5 8.38,5.33 8.47,5.17M15.03,12.23C15.35,11.7 16.03,11.42 16.72,11.57C17.41,11.71 17.91,12.24 18,12.86C17.67,13.38 17,13.66 16.3,13.5C15.61,13.37 15.11,12.84 15.03,12.23M10.15,11.19C10.47,10.66 11.14,10.38 11.83,10.53C12.5,10.67 13.03,11.21 13.11,11.82C12.78,12.34 12.11,12.63 11.42,12.5C10.73,12.33 10.23,11.8 10.15,11.19M11.97,4.43L13.93,4.85L13.77,4.05L11.97,4.43Z" />
 						</svg>
-						<span className={css.sidebarLabel}>Genres</span>
+						<span className={css.sidebarLabel}>{$L('Genres')}</span>
 					</SpottableButton>
 				)}
 
@@ -268,7 +269,7 @@ const Sidebar = ({
 						<svg className={css.sidebarIcon} viewBox="0 0 24 24">
 							<path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z" />
 						</svg>
-						<span className={css.sidebarLabel}>Favorites</span>
+						<span className={css.sidebarLabel}>{$L('Favorites')}</span>
 					</SpottableButton>
 				)}
 
@@ -294,7 +295,7 @@ const Sidebar = ({
 							<svg className={css.sidebarIcon} viewBox="0 0 24 24">
 								<path d="M20.84 2.18L16.91 2.96L19.65 6.5L21.62 6.1L20.84 2.18M13.97 3.54L12 3.93L14.75 7.46L16.71 7.07L13.97 3.54M9.07 4.5L7.1 4.91L9.85 8.44L11.81 8.05L9.07 4.5M4.16 5.5L3.18 5.69A2 2 0 0 0 1.61 8.04L2 10L6.9 9.03L4.16 5.5M2 10V20C2 21.11 2.9 22 4 22H20C21.11 22 22 21.11 22 20V10H2Z" />
 							</svg>
-							<span className={css.sidebarLabel}>Libraries</span>
+							<span className={css.sidebarLabel}>{$L('Libraries')}</span>
 							<svg className={css.chevron} viewBox="0 0 24 24">
 								<path d="M7.41 8.59L12 13.17l4.59-4.58L18 10l-6 6-6-6z" />
 							</svg>
@@ -329,7 +330,7 @@ const Sidebar = ({
 					<svg className={css.sidebarIcon} viewBox="0 0 24 24">
 						<path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z" />
 					</svg>
-					<span className={css.sidebarLabel}>Settings</span>
+					<span className={css.sidebarLabel}>{$L('Settings')}</span>
 				</SpottableButton>
 
 				<div className={css.clock}>{clock}</div>

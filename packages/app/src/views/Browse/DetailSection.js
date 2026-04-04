@@ -1,4 +1,5 @@
 import {useState, useEffect, useRef, useCallback, forwardRef, useImperativeHandle} from 'react';
+import $L from '@enact/i18n/$L';
 import RatingsRow from '../../components/RatingsRow';
 import {formatDuration} from '../../utils/helpers';
 import css from './Browse.module.less';
@@ -91,12 +92,12 @@ const DetailSection = forwardRef(({
 					</div>
 					<RatingsRow item={focusedItem} serverUrl={getItemServerUrl(focusedItem)} compact pluginEnabled={settings.useMoonfinPlugin && settings.mdblistEnabled !== false} />
 					<p className={css.detailSummary}>
-						{focusedItem.Overview || 'No description available.'}
+						{focusedItem.Overview || $L('No description available.')}
 					</p>
 				</>
 			) : (
 				<div className={css.detailPlaceholder}>
-					<p>Navigate to an item to see details</p>
+					<p>{$L('Navigate to an item to see details')}</p>
 				</div>
 			)}
 		</div>

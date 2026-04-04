@@ -1,4 +1,5 @@
 import {useState, useEffect, useCallback, useRef, useMemo} from 'react';
+import $L from '@enact/i18n/$L';
 import Spottable from '@enact/spotlight/Spottable';
 import SpotlightContainerDecorator from '@enact/spotlight/SpotlightContainerDecorator';
 import Spotlight from '@enact/spotlight';
@@ -572,23 +573,25 @@ loading="lazy"
 }, [effectiveServerUrl, handleItemClick, items.length, totalCount, isLoading, loadItems, effectiveImageType, posterHeight, isSquareImage, isFolderView, settings]);
 
 const currentSort = activeSortOptions.find(o => o.key === sortKey);
-const sortLabel = currentSort?.label || 'Name';
+const sortLabel = currentSort ? $L(currentSort.label) : $L('Name');
 const filterParts = [];
-if (favoritesOnly) filterParts.push('Favorites');
-if (watchedOnly) filterParts.push('Watched');
-const filterLabel = filterParts.length > 0 ? filterParts.join(' & ') : 'All items';
+if (favoritesOnly) filterParts.push($L('Favorites'));
+if (watchedOnly) filterParts.push($L('Watched'));
+const filterLabel = filterParts.length > 0 ? filterParts.join(' & ') : $L('All items');
 const folderName = folderStack.length > 0 ? folderStack[folderStack.length - 1].name : library?.Name;
 const displayName = genreFilter || library?.Name || '';
 const statusText = isFolderView
-	? `Browsing folders in '${folderName}' sorted by ${sortLabel}`
+	? $L("Browsing folders in '{folderName}' sorted by {sortLabel}").replace('{folderName}', folderName).replace('{sortLabel}', sortLabel)
 	: genreFilter
-		? `Showing ${filterLabel} from '${genreFilter}'${library ? ` in '${library.Name}'` : ''} sorted by ${sortLabel}`
-		: `Showing ${filterLabel} from '${library?.Name}' sorted by ${sortLabel}`;
+		? (library
+			? $L("Showing {filterLabel} from '{genreFilter}' in '{libraryName}' sorted by {sortLabel}").replace('{filterLabel}', filterLabel).replace('{genreFilter}', genreFilter).replace('{libraryName}', library.Name).replace('{sortLabel}', sortLabel)
+			: $L("Showing {filterLabel} from '{genreFilter}' sorted by {sortLabel}").replace('{filterLabel}', filterLabel).replace('{genreFilter}', genreFilter).replace('{sortLabel}', sortLabel))
+		: $L("Showing {filterLabel} from '{libraryName}' sorted by {sortLabel}").replace('{filterLabel}', filterLabel).replace('{libraryName}', library?.Name).replace('{sortLabel}', sortLabel);
 
 if (!library && !genreFilter) {
 return (
 <div className={css.page}>
-<div className={css.empty}>No library selected</div>
+<div className={css.empty}>{$L('No library selected')}</div>
 </div>
 );
 }
@@ -660,12 +663,12 @@ return (
 	)}
 </span>
 ))}
-<div className={css.itemCount}>{totalCount} Items</div>
+<div className={css.itemCount}>{totalCount} {$L('Items')}</div>
 </div>
 ) : (
 <>
 <div className={css.libraryTitle}>{displayName}</div>
-<div className={css.itemCount}>{totalCount} Items</div>
+<div className={css.itemCount}>{totalCount} {$L('Items')}</div>
 </>
 )}
 </div>
@@ -737,7 +740,7 @@ spotlightId={index === 0 ? 'library-letter-hash' : undefined}
 <LoadingSpinner />
 </div>
 ) : items.length === 0 ? (
-<div className={css.empty}>No items found</div>
+<div className={css.empty}>{$L('No items found')}</div>
 ) : (
 <div className={css.gridWrapper}>
 <VirtualGridList
@@ -770,10 +773,10 @@ className={css.sortPanel}
 spotlightId="sort-panel"
 onClick={stopPropagation}
 >
-<h2 className={css.sortPanelTitle}>Sort & Filter</h2>
+<h2 className={css.sortPanelTitle}>{$L('Sort & Filter')}</h2>
 
 <div className={css.sortSection}>
-<div className={css.sortSectionLabel}>Sort By</div>
+<div className={css.sortSectionLabel}>{$L('Sort By')}</div>
 {activeSortOptions.map((option, index) => (
 <SpottableButton
 key={option.key}
@@ -785,14 +788,14 @@ spotlightId={`sort-option-${index}`}
 <span className={css.radioCircle}>
 {sortKey === option.key && <span className={css.radioFill} />}
 </span>
-<span className={css.sortOptionLabel}>{option.label}</span>
+<span className={css.sortOptionLabel}>{$L(option.label)}</span>
 </SpottableButton>
 ))}
 </div>
 
 {isMusicLibrary && (
 <div className={css.filterSection}>
-<div className={css.sortSectionLabel}>Show</div>
+<div className={css.sortSectionLabel}>{$L('Show')}</div>
 {MUSIC_CONTENT_TYPES.map((ct) => (
 <SpottableButton
 key={ct.key}
@@ -804,14 +807,14 @@ spotlightId={`music-content-${ct.key}`}
 <span className={css.radioCircle}>
 {musicContentType === ct.key && <span className={css.radioFill} />}
 </span>
-<span className={css.sortOptionLabel}>{ct.label}</span>
+<span className={css.sortOptionLabel}>{$L(ct.label)}</span>
 </SpottableButton>
 ))}
 </div>
 )}
 
 <div className={css.filterSection}>
-<div className={css.sortSectionLabel}>Filters</div>
+<div className={css.sortSectionLabel}>{$L('Filters')}</div>
 <SpottableButton
 className={`${css.sortOption} ${favoritesOnly ? css.sortOptionActive : ''}`}
 onClick={handleToggleFavorites}
@@ -824,7 +827,7 @@ spotlightId="filter-favorites"
 </svg>
 )}
 </span>
-<span className={css.sortOptionLabel}>Favorites Only</span>
+<span className={css.sortOptionLabel}>{$L('Favorites Only')}</span>
 </SpottableButton>
 <SpottableButton
 className={`${css.sortOption} ${watchedOnly ? css.sortOptionActive : ''}`}
@@ -838,7 +841,7 @@ spotlightId="filter-watched"
 </svg>
 )}
 </span>
-<span className={css.sortOptionLabel}>Watched Only</span>
+<span className={css.sortOptionLabel}>{$L('Watched Only')}</span>
 </SpottableButton>
 </div>
 </SortPanelContainer>
@@ -852,7 +855,7 @@ className={css.sortPanel}
 spotlightId="settings-panel"
 onClick={stopPropagation}
 >
-<div className={css.settingsHeader}>{isGenreMode ? 'GENRE' : 'LIBRARIES'}</div>
+<div className={css.settingsHeader}>{isGenreMode ? $L('GENRE') : $L('LIBRARIES')}</div>
 <h2 className={css.sortPanelTitle}>{displayName}</h2>
 
 <SpottableButton
@@ -860,8 +863,8 @@ className={css.settingRow}
 onClick={handleCycleImageSize}
 spotlightId="settings-image-size"
 >
-<div className={css.settingLabel}>Image size</div>
-<div className={css.settingValue}>{capitalize(imageSize)}</div>
+<div className={css.settingLabel}>{$L('Image size')}</div>
+<div className={css.settingValue}>{$L(capitalize(imageSize))}</div>
 </SpottableButton>
 
 {!isSquareDefault && (
@@ -870,8 +873,8 @@ className={css.settingRow}
 onClick={handleCycleImageType}
 spotlightId="settings-image-type"
 >
-<div className={css.settingLabel}>Image type</div>
-<div className={css.settingValue}>{capitalize(imageType)}</div>
+<div className={css.settingLabel}>{$L('Image type')}</div>
+<div className={css.settingValue}>{$L(capitalize(imageType))}</div>
 </SpottableButton>
 )}
 
@@ -880,8 +883,8 @@ className={css.settingRow}
 onClick={handleCycleGridDirection}
 spotlightId="settings-grid-direction"
 >
-<div className={css.settingLabel}>Grid direction</div>
-<div className={css.settingValue}>{capitalize(gridDirection)}</div>
+<div className={css.settingLabel}>{$L('Grid direction')}</div>
+<div className={css.settingValue}>{$L(capitalize(gridDirection))}</div>
 </SpottableButton>
 {!isGenreMode && (
 <SpottableButton
@@ -889,8 +892,8 @@ spotlightId="settings-grid-direction"
 	onClick={handleToggleFolderView}
 	spotlightId="settings-folder-view"
 >
-<div className={css.settingLabel}>Folder view</div>
-<div className={css.settingValue}>{isFolderView ? 'On' : 'Off'}</div>
+<div className={css.settingLabel}>{$L('Folder view')}</div>
+<div className={css.settingValue}>{isFolderView ? $L('On') : $L('Off')}</div>
 </SpottableButton>
 )}
 </SettingsPanelContainer>

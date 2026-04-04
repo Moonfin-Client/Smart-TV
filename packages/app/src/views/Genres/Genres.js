@@ -1,4 +1,5 @@
 import {useState, useEffect, useCallback, useMemo, useRef} from 'react';
+import $L from '@enact/i18n/$L';
 import Spottable from '@enact/spotlight/Spottable';
 import SpotlightContainerDecorator from '@enact/spotlight/SpotlightContainerDecorator';
 import Spotlight from '@enact/spotlight';
@@ -372,7 +373,7 @@ loading="lazy"
 <div className={css.genreInfo}>
 <div className={css.genreName}>{genre.name}</div>
 {genre.itemCount > 0 && (
-<div className={css.genreCount}>{genre.itemCount} items</div>
+<div className={css.genreCount}>{genre.itemCount} {$L('items')}</div>
 )}
 </div>
 </SpottableDiv>
@@ -381,16 +382,16 @@ loading="lazy"
 
 const currentSort = SORT_OPTIONS.find(o => o.key === sortOrder);
 const statusText = selectedLibrary
-? `${sortedGenres.length} genres in '${selectedLibrary.Name}' sorted by ${currentSort?.label}`
-: `${sortedGenres.length} genres sorted by ${currentSort?.label}`;
+? $L("{count} genres in '{libraryName}' sorted by {sortLabel}").replace('{count}', sortedGenres.length).replace('{libraryName}', selectedLibrary.Name).replace('{sortLabel}', currentSort ? $L(currentSort.label) : '')
+: $L('{count} genres sorted by {sortLabel}').replace('{count}', sortedGenres.length).replace('{sortLabel}', currentSort ? $L(currentSort.label) : '');
 
 return (
 <div className={css.page}>
 <div className={css.content}>
 <div className={css.header}>
-<div className={css.title}>Genres</div>
+<div className={css.title}>{$L('Genres')}</div>
 {selectedLibrary && <div className={css.subtitle}>{selectedLibrary.Name}</div>}
-<div className={css.counter}>{sortedGenres.length} genres</div>
+<div className={css.counter}>{sortedGenres.length} {$L('genres')}</div>
 </div>
 
 <ToolbarContainer className={css.toolbar} spotlightId="genres-toolbar" onKeyDown={handleToolbarKeyDown}>
@@ -417,7 +418,7 @@ return (
 {isLoading ? (
 <div className={css.loading}><LoadingSpinner /></div>
 ) : sortedGenres.length === 0 ? (
-<div className={css.empty}>No genres found</div>
+<div className={css.empty}>{$L('No genres found')}</div>
 ) : (
 <div className={css.gridWrapper}>
 <VirtualGridList
@@ -446,10 +447,10 @@ className={css.sortPanel}
 spotlightId="genres-sort-panel"
 onClick={stopPropagation}
 >
-<h2 className={css.sortPanelTitle}>Sort & Filter</h2>
+<h2 className={css.sortPanelTitle}>{$L('Sort & Filter')}</h2>
 
 <div className={css.sortSection}>
-<div className={css.sortSectionLabel}>Sort By</div>
+<div className={css.sortSectionLabel}>{$L('Sort By')}</div>
 {SORT_OPTIONS.map((option, index) => (
 <SpottableButton
 key={option.key}
@@ -461,14 +462,14 @@ spotlightId={`genre-sort-option-${index}`}
 <span className={css.radioCircle}>
 {sortOrder === option.key && <span className={css.radioFill} />}
 </span>
-<span className={css.sortOptionLabel}>{option.label}</span>
+<span className={css.sortOptionLabel}>{$L(option.label)}</span>
 </SpottableButton>
 ))}
 </div>
 
 {libraries.length > 0 && (
 <div className={css.filterSection}>
-<div className={css.sortSectionLabel}>Library</div>
+<div className={css.sortSectionLabel}>{$L('Library')}</div>
 <SpottableButton
 className={`${css.sortOption} ${!selectedLibrary ? css.sortOptionActive : ''}`}
 onClick={handleLibrarySelect}
@@ -478,7 +479,7 @@ spotlightId="genre-lib-all"
 <span className={css.radioCircle}>
 {!selectedLibrary && <span className={css.radioFill} />}
 </span>
-<span className={css.sortOptionLabel}>All Libraries</span>
+<span className={css.sortOptionLabel}>{$L('All Libraries')}</span>
 </SpottableButton>
 {libraries.map((lib, index) => (
 <SpottableButton
@@ -509,16 +510,16 @@ className={css.sortPanel}
 spotlightId="genres-settings-panel"
 onClick={stopPropagation}
 >
-<div className={css.settingsHeader}>GENRES</div>
-<h2 className={css.sortPanelTitle}>Settings</h2>
+<div className={css.settingsHeader}>{$L('GENRES')}</div>
+<h2 className={css.sortPanelTitle}>{$L('Settings')}</h2>
 
 <SpottableButton
 className={css.settingRow}
 onClick={handleCycleCardSize}
 spotlightId="genres-settings-card-size"
 >
-<div className={css.settingLabel}>Card size</div>
-<div className={css.settingValue}>{capitalize(cardSize)}</div>
+<div className={css.settingLabel}>{$L('Card size')}</div>
+<div className={css.settingValue}>{$L(capitalize(cardSize))}</div>
 </SpottableButton>
 </SettingsPanelContainer>
 </div>
