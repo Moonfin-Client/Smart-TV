@@ -13,6 +13,12 @@ const SpottableButton = Spottable('button');
 const SpottableDiv = Spottable('div');
 const UserGridContainer = SpotlightContainerDecorator({enterTo: 'last-focused', restrict: 'self-first'}, 'div');
 
+const parsePort = (url) => {
+	const m = url.match(/^((?:https?:\/\/)?[^/:]+)(?::(\d+))?(\/.*)?$/i);
+	if (!m) return {before: url, port: '', after: ''};
+	return {before: m[1], port: m[2] || '', after: m[3] || ''};
+};
+
 const Login = ({
 	onLoggedIn,
 	onServerAdded,
@@ -53,6 +59,7 @@ const Login = ({
 	const [error, setError] = useState(null);
 	const [status, setStatus] = useState(null);
 	const [isConnecting, setIsConnecting] = useState(false);
+	const [serverPort, setServerPort] = useState('');
 
 	const handleConnect = useCallback(async () => {
 		if (!serverUrl.trim()) return;
@@ -61,8 +68,11 @@ const Login = ({
 		setError(null);
 		setStatus('Connecting to server...');
 
+		const effectivePort = serverPort || '8096';
+		const urlToConnect = serverUrl.trim() + ':' + effectivePort;
+
 		try {
-			jellyfinApi.setServer(serverUrl);
+			jellyfinApi.setServer(urlToConnect);
 			const info = await jellyfinApi.api.getPublicInfo();
 			if (!info) {
 				throw new Error('Server returned empty response - check if server is reachable');
@@ -93,7 +103,7 @@ const Login = ({
 		} finally {
 			setIsConnecting(false);
 		}
-	}, [serverUrl]);
+	}, [serverUrl, serverPort]);
 
 	// If we have a pending server, adding user to existing, or a stored server (auto-login disabled), auto-connect
 	useEffect(() => {
@@ -117,7 +127,18 @@ const Login = ({
 	}, [isLoading, step]);
 
 	const handleServerUrlChange = useCallback((e) => {
-		setServerUrl(e.target.value);
+		const val = e.target.value;
+		const {before, port, after} = parsePort(val);
+		if (port) {
+			setServerPort(port);
+			setServerUrl(before + after);
+		} else {
+			setServerUrl(/^https?:$/i.test(val) ? val : val.replace(/:$/, ''));
+		}
+	}, []);
+
+	const handleServerPortChange = useCallback((e) => {
+		setServerPort(e.target.value.replace(/\D/g, ''));
 	}, []);
 
 	const handleUsernameChange = useCallback((e) => {
@@ -448,37 +469,65 @@ const Login = ({
 					{step === 'server' && (
 						<div className={css.section}>
 							<h2>{isAddingServer ? 'Add New Server' : 'Connect to Server'}</h2>
-							<div className={css.formGroup}>
-								<label>Server Address</label>
-								<SpottableInput
-									data-spotlight-id="server-input"
-									type="text"
-									className={css.input}
-									placeholder="192.168.1.100 or jellyfin.example.com"
-									value={serverUrl}
-									onChange={handleServerUrlChange}
-									onKeyDown={handleServerInputKeyDown}
-									disabled={isConnecting}
-								/>
-								<div className={css.buttonGroup}>
-									<SpottableButton
-										data-spotlight-id="connect-btn"
-										className={`${css.btn} ${css.btnPrimary}`}
-										onClick={handleConnect}
-										disabled={isConnecting || !serverUrl.trim()}
-									>
-										{isConnecting ? 'Connecting...' : 'Connect'}
-									</SpottableButton>
-									{isAddingServer && (
-										<SpottableButton
-											data-spotlight-id="cancel-add-btn"
-											className={`${css.btn} ${css.btnSecondary}`}
-											onClick={handleBack}
-										>
-											Cancel
-										</SpottableButton>
-									)}
+						<div className={css.formGroup}>
+							<div className={css.serverAddressRow}>
+								<div className={css.hostGroup}>
+									<label>Server Address</label>
+									<div className={css.inputWrapper}>
+										<div className={css.inputBackdrop} aria-hidden="true">
+											<span>{serverUrl}</span>
+											{serverUrl.trim() && (
+												<span className={css.portHighlight}>
+													:{serverPort || '8096'}
+												</span>
+											)}
+										</div>
+										<SpottableInput
+											data-spotlight-id="server-input"
+											type="text"
+											className={`${css.input} ${css.inputTransparent}`}
+											placeholder="192.168.1.100 or jellyfin.example.com"
+											value={serverUrl}
+											onChange={handleServerUrlChange}
+											onKeyDown={handleServerInputKeyDown}
+											disabled={isConnecting}
+										/>
+									</div>
 								</div>
+								<div className={css.portGroup}>
+									<label>Port</label>
+									<SpottableInput
+										data-spotlight-id="port-input"
+										type="text"
+										inputMode="numeric"
+										className={css.input}
+										placeholder="8096"
+										value={serverPort}
+										onChange={handleServerPortChange}
+										onKeyDown={handleServerInputKeyDown}
+										disabled={isConnecting}
+									/>
+								</div>
+							</div>
+							<div className={css.buttonGroup}>
+								<SpottableButton
+									data-spotlight-id="connect-btn"
+									className={`${css.btn} ${css.btnPrimary}`}
+									onClick={handleConnect}
+									disabled={isConnecting || !serverUrl.trim()}
+								>
+									{isConnecting ? 'Connecting...' : 'Connect'}
+								</SpottableButton>
+								{isAddingServer && (
+									<SpottableButton
+										data-spotlight-id="cancel-add-btn"
+										className={`${css.btn} ${css.btnSecondary}`}
+										onClick={handleBack}
+									>
+										Cancel
+									</SpottableButton>
+								)}
+							</div>
 							</div>
 						</div>
 					)}

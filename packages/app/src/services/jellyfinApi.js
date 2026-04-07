@@ -25,12 +25,6 @@ export const setServer = (serverUrl) => {
 	}
 
 	const urlObj = parseUrl(url);
-	if (!urlObj.port && urlObj.protocol === 'http:') {
-		urlObj.port = '8096';
-		urlObj.host = urlObj.hostname + ':8096';
-		urlObj.origin = urlObj.protocol + '//' + urlObj.host;
-	}
-
 	currentServer = urlObj.toString().replace(/\/+$/, '');
 };
 

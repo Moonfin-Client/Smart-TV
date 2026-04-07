@@ -116,10 +116,65 @@
 	}
 }
 
+.serverAddressRow {
+	display: flex;
+	gap: 12px;
+	align-items: flex-end;
+}
+
+.hostGroup {
+	flex: 1;
+	min-width: 0;
+
+	label {
+		display: block;
+		color: rgba(255, 255, 255, 0.8);
+		font-size: 20px;
+		margin-bottom: 10px;
+	}
+}
+
+.portGroup {
+	width: 140px;
+	flex-shrink: 0;
+
+	label {
+		display: block;
+		color: rgba(255, 255, 255, 0.8);
+		font-size: 20px;
+		margin-bottom: 10px;
+	}
+}
+
+.inputWrapper {
+	position: relative;
+}
+
+.inputBackdrop {
+	position: absolute;
+	top: 0;
+	left: 0;
+	right: 0;
+	bottom: 0;
+	padding: 20px 24px;
+	font-size: 26px;
+	color: #fff;
+	pointer-events: none;
+	overflow: hidden;
+	white-space: nowrap;
+	border: 4px solid transparent;
+	box-sizing: border-box;
+}
+
+.portHighlight {
+	color: rgba(255, 255, 255, 0.4);
+}
+
 .input {
 	width: 100%;
 	padding: 20px 24px;
 	font-size: 26px;
+	font-family: inherit;
 	background: rgba(255, 255, 255, 0.1);
 	border: 4px solid transparent;
 	border-radius: 12px;
@@ -137,6 +192,11 @@
 		background: rgba(255, 255, 255, 0.15);
 		box-shadow: 0 0 0 4px rgba(0, 164, 220, 0.3);
 	}
+}
+
+.inputTransparent {
+	color: transparent;
+	caret-color: #fff;
 }
 
 .buttonGroup {
