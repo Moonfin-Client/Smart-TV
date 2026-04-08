@@ -1,4 +1,4 @@
-import {isWebOS} from '../platform';
+import {isWebOS, isTizen} from '../platform';
 
 let jellyseerrUrl = null;
 let userId = null;
@@ -7,9 +7,17 @@ let moonfinMode = false;
 let jellyfinServerUrl = null;
 let jellyfinAccessToken = null;
 
-// webOS 4's outdated SSL certs can't validate image.tmdb.org over HTTPS,
-// so use HTTP there. Tizen works fine with HTTPS.
-const _useHttp = isWebOS();
+const isLegacyTizen = () => {
+if (!isTizen() || typeof navigator === 'undefined') return false;
+const match = (navigator.userAgent || '').match(/Tizen\s([0-9]+(?:\.[0-9]+)?)/i);
+if (!match) return false;
+const version = parseFloat(match[1]);
+return Number.isFinite(version) && version <= 2.4;
+};
+
+// webOS 4 and legacy Tizen builds can fail HTTPS validation for image.tmdb.org,
+// so use HTTP on those devices.
+const _useHttp = isWebOS() || isLegacyTizen();
 
 export const setConfig = (url, user) => {
 jellyseerrUrl = url?.replace(/\/+$/, '');
