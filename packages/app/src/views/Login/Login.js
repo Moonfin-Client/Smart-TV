@@ -73,7 +73,7 @@ const Login = ({
 		let connected = false;
 		let lastErrorType = null;
 		for (const candidate of candidates) {
-			setStatus($L('Trying') + ' ' + candidate + '...');
+			setStatus($L('Trying {url}...').replace('{url}', candidate));
 			jellyfinApi.setServer(candidate);
 
 			try {
@@ -87,7 +87,7 @@ const Login = ({
 
 				if (!isVersionSupported(info.Version)) {
 					lastErrorType = VERSION_UNSUPPORTED;
-					setError('Server version ' + info.Version + ' is not supported. Minimum: ' + MIN_SERVER_VERSION + '.');
+					setError($L('Server version {version} is not supported. Minimum: {minimum}.').replace('{version}', info.Version).replace('{minimum}', MIN_SERVER_VERSION));
 					setStatus(null);
 					setIsConnecting(false);
 					return;
@@ -95,7 +95,7 @@ const Login = ({
 
 				setServerUrl(candidate);
 				setServerInfo(info);
-				setStatus($L('Connected to') + ' ' + info.ServerName + '! ' + $L('Loading users...'));
+				setStatus($L('Connected to {serverName}! Loading users...').replace('{serverName}', info.ServerName));
 				connected = true;
 
 				try {
