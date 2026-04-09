@@ -1027,9 +1027,10 @@ try {
 
 // Pre-populate ilib.data with all locale strings so loadData() finds them
 // cached and skips synchronous XHR (which fails silently on Tizen).
+// ilib keys use underscores and path segments: pt-BR -> strings_pt_BR
 const localeContext = require.context('../../resources', true, /^\.[\/][a-z]{2}(-[A-Z]{2})?\/strings\.json$/);
 localeContext.keys().forEach((key) => {
-	const lang = key.split('/')[1];
+	const lang = key.split('/')[1].replace('-', '_').replace('/', '_');
 	ilib.data['strings_' + lang] = localeContext(key);
 });
 

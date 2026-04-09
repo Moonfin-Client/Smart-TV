@@ -30,6 +30,7 @@
 		"locales": [
 			"en-US",
 			"pl",
+			"pt-BR",
 			"ru"
 		],
 		"ilib": true,
