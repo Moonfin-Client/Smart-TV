@@ -141,6 +141,20 @@ try {
 		console.warn('  ⚠ libpgs.worker.js not found (PGS rendering may degrade)');
 	}
 
+	// Copy SubtitlesOctopus assets for ASS/SSA subtitle rendering
+	console.log('\n Copying SubtitlesOctopus assets...');
+	const octopusDir = path.join(ROOT_DIR, 'node_modules', 'libass-wasm', 'dist', 'js');
+	const octopusFiles = ['subtitles-octopus-worker.js', 'subtitles-octopus-worker-legacy.js', 'subtitles-octopus-worker.wasm'];
+	for (const file of octopusFiles) {
+		const src = path.join(octopusDir, file);
+		if (fs.existsSync(src)) {
+			fs.copyFileSync(src, path.join(DIST_DIR, file));
+			console.log(`  ✓ Copied ${file}`);
+		} else {
+			console.warn(`  ⚠ ${file} not found (ASS rendering may degrade)`);
+		}
+	}
+
 	// Prune ilib locale data — keeps only plurals.json and localeinfo.json
 	// for configured locales, removing ~5.5 MB of unused formatting data.
 	console.log('\n Pruning ilib locale data...');

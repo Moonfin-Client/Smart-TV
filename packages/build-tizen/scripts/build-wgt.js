@@ -232,6 +232,19 @@ async function main() {
 	} else {
 		warn('libpgs.worker.js not found (PGS rendering may degrade)');
 	}
+
+	// Copy SubtitlesOctopus assets for ASS/SSA subtitle rendering
+	const octopusDir = path.join(REPO_ROOT, 'node_modules', 'libass-wasm', 'dist', 'js');
+	const octopusFiles = ['subtitles-octopus-worker.js', 'subtitles-octopus-worker-legacy.js', 'subtitles-octopus-worker.wasm'];
+	for (const file of octopusFiles) {
+		const src = path.join(octopusDir, file);
+		if (fs.existsSync(src)) {
+			fs.copyFileSync(src, path.join(DIST, file));
+			success(`Copied ${file}`);
+		} else {
+			warn(`${file} not found (ASS rendering may degrade)`);
+		}
+	}
 	
 	// Step 2.5: Patch index.html for Tizen compatibility
 	log('Patching index.html for Tizen compatibility...');

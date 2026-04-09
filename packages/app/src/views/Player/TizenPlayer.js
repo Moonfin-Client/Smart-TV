@@ -16,6 +16,7 @@ import * as syncPlayService from '../../services/syncPlay';
 import {KEYS, isBackKey} from '../../utils/keys';
 import {getImageUrl} from '../../utils/helpers';
 import {initPgsParser, disposePgsParser, renderPgsFrame, clearPgsCanvas} from '../../utils/pgsRenderer';
+import {supportsAssRenderer, initAssCanvasRenderer, disposeAssRenderer, setAssTime} from '../../utils/assRenderer';
 import {getSubtitleOverlayStyle, getSubtitleTextStyle, sanitizeSubtitleHtml} from '../../utils/subtitleConstants';
 import {api as jellyfinApi, createApiForServer, getServerUrl} from '../../services/jellyfinApi';
 import PlayerControls, {usePlayerButtons} from './PlayerControls';
@@ -121,6 +122,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 	const playerContainerRef = useRef(null);
 	const pgsParserRef = useRef(null);
 	const pgsCanvasRef = useRef(null);
+	const assRendererRef = useRef(null);
 
 	// Shared handler for AVPlay's onsubtitlechange callback
 	// setSilentSubtitle(true) hides native render and fires this with embedded subtitle text
@@ -217,6 +219,10 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 			setCurrentSubtitleText(null);
 			const pgsTime = time - (subtitleOffset || 0);
 			renderPgsFrame(pgsCanvasRef.current, pgsParserRef.current, Math.max(0, pgsTime));
+		} else if (assRendererRef.current) {
+			setCurrentSubtitleText(null);
+			const assTime = time - (subtitleOffset || 0);
+			setAssTime(assRendererRef.current, Math.max(0, assTime));
 		}
 
 		checkSegments(ticks); // eslint-disable-line no-use-before-define
@@ -464,10 +470,47 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 					if (pgsCanvasRef.current) {
 						clearPgsCanvas(pgsCanvasRef.current);
 					}
+					if (assRendererRef.current) {
+						disposeAssRenderer(assRendererRef.current);
+						assRendererRef.current = null;
+					}
 
 					if (sub && sub.isEmbeddedNative) {
 						pendingSubAction = {type: 'native', stream: sub};
 						setSubtitleTrackEvents(null);
+					} else if (sub && sub.isAss && supportsAssRenderer()) {
+						pendingSubAction = {type: 'ass'};
+						try {
+							const assUrl = playback.getAssSubtitleUrl(sub);
+							if (assUrl && pgsCanvasRef.current) {
+								const assErrorHandler = (err) => {
+									console.error('[Player] ASS renderer error, falling back to text', err);
+									disposeAssRenderer(assRendererRef.current);
+									assRendererRef.current = null;
+									playback.fetchSubtitleData(sub).then(data => {
+										setSubtitleTrackEvents(data?.TrackEvents || null);
+									}).catch(() => setSubtitleTrackEvents(null));
+								};
+								const renderer = await initAssCanvasRenderer(pgsCanvasRef.current, assUrl, assErrorHandler);
+								if (renderer) {
+									assRendererRef.current = renderer;
+									setSubtitleTrackEvents(null);
+								} else {
+									pendingSubAction = {type: 'text'};
+									const data = await playback.fetchSubtitleData(sub);
+									setSubtitleTrackEvents(data?.TrackEvents || null);
+								}
+							}
+						} catch (err) {
+							console.error('[Player] ASS init failed, falling back to text', err);
+							pendingSubAction = {type: 'text'};
+							try {
+								const data = await playback.fetchSubtitleData(sub);
+								setSubtitleTrackEvents(data?.TrackEvents || null);
+							} catch (_e) {
+								setSubtitleTrackEvents(null);
+							}
+						}
 					} else if (sub && sub.isTextBased) {
 						pendingSubAction = {type: 'text'};
 						try {
@@ -733,6 +776,10 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 			if (pgsParserRef.current) {
 				disposePgsParser(pgsParserRef.current);
 				pgsParserRef.current = null;
+			}
+			if (assRendererRef.current) {
+				disposeAssRenderer(assRendererRef.current);
+				assRendererRef.current = null;
 			}
 			avplayReadyRef.current = false;
 
@@ -1097,6 +1144,10 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 		if (pgsCanvasRef.current) {
 			clearPgsCanvas(pgsCanvasRef.current);
 		}
+		if (assRendererRef.current) {
+			disposeAssRenderer(assRendererRef.current);
+			assRendererRef.current = null;
+		}
 
 		if (index === -1) {
 			setSelectedSubtitleIndex(-1);
@@ -1136,6 +1187,38 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 			if (nativeSuccess) {
 				setSubtitleTrackEvents(null);
 				setCurrentSubtitleText(null);
+			} else if (stream && stream.isAss && supportsAssRenderer()) {
+				useNativeSubtitleRef.current = false;
+				avplaySetSilentSubtitle(true);
+				try {
+					const assUrl = playback.getAssSubtitleUrl(stream);
+					if (assUrl && pgsCanvasRef.current) {
+						const assErrorHandler = (err) => {
+							console.error('[Player] ASS renderer error, falling back to text', err);
+							disposeAssRenderer(assRendererRef.current);
+							assRendererRef.current = null;
+							playback.fetchSubtitleData(stream).then(data => {
+								setSubtitleTrackEvents(data?.TrackEvents || null);
+							}).catch(() => setSubtitleTrackEvents(null));
+						};
+						const renderer = await initAssCanvasRenderer(pgsCanvasRef.current, assUrl, assErrorHandler);
+						if (renderer) {
+							assRendererRef.current = renderer;
+							setSubtitleTrackEvents(null);
+						} else {
+							const data = await playback.fetchSubtitleData(stream);
+							setSubtitleTrackEvents(data?.TrackEvents || null);
+						}
+					}
+				} catch (err) {
+					console.error('[Player] ASS init failed, falling back to text', err);
+					try {
+						const data = await playback.fetchSubtitleData(stream);
+						setSubtitleTrackEvents(data?.TrackEvents || null);
+					} catch (_e) {
+						setSubtitleTrackEvents(null);
+					}
+				}
 			} else if (stream && (stream.isTextBased || stream.isEmbeddedNative)) {
 				useNativeSubtitleRef.current = false;
 				avplaySetSilentSubtitle(true);

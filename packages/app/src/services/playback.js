@@ -251,6 +251,7 @@ const extractSubtitleStreams = (mediaSource) => {
 				isForced: s.IsForced,
 				isDefault: s.IsDefault,
 				isTextBased: ['srt', 'subrip', 'vtt', 'webvtt', 'ass', 'ssa', 'sub', 'smi', 'sami'].includes(s.Codec?.toLowerCase()),
+				isAss: ['ass', 'ssa'].includes(s.Codec?.toLowerCase()),
 				isImageBased: ['pgssub', 'hdmv_pgs', 'pgs', 'dvdsub', 'dvbsub', 'dvb_subtitle'].includes(s.Codec?.toLowerCase()),
 				deliveryUrl: deliveryUrl,
 				deliveryMethod: s.DeliveryMethod
@@ -589,6 +590,17 @@ export const getSubtitleUrl = (subtitleStream) => {
 	}
 
 	return null;
+};
+
+// Raw ASS/SSA subtitle URL that preserves styling (vs getSubtitleUrl which converts to VTT)
+export const getAssSubtitleUrl = (subtitleStream) => {
+	if (!subtitleStream?.isAss || !currentSession) return null;
+
+	const {itemId, mediaSourceId, serverCredentials} = currentSession;
+	const serverUrl = serverCredentials?.serverUrl || jellyfinApi.getServerUrl();
+	const apiKey = serverCredentials?.accessToken || jellyfinApi.getApiKey();
+
+	return `${serverUrl}/Videos/${itemId}/${mediaSourceId}/Subtitles/${subtitleStream.index}/Stream.ass?api_key=${apiKey}`;
 };
 
 /**

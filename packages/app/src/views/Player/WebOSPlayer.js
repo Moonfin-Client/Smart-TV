@@ -8,6 +8,7 @@ import {getImageUrl} from '../../utils/helpers';
 import {api as jellyfinApi, createApiForServer, getServerUrl} from '../../services/jellyfinApi';
 import {detectWebOSVersion, getH264FallbackProfile} from '@moonfin/platform-webos/deviceProfile';
 import {initPgsRenderer, disposePgsRenderer} from '../../utils/pgsRenderer';
+import {supportsAssRenderer, initAssRenderer, disposeAssRenderer} from '../../utils/assRenderer';
 import {
 	initLunaAPI,
 	registerAppStateObserver,
@@ -130,6 +131,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 	const lastSeekTimeRef = useRef(0);
 	const mediaUrlRef = useRef(null);
 	const pgsRendererRef = useRef(null);
+	const assRendererRef = useRef(null);
 
 	const destroyHlsPlayer = () => {
 		if (hlsPlayerRef.current) {
@@ -593,6 +595,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 				if (controlsTimeoutRef.current) clearTimeout(controlsTimeoutRef.current);
 				if (seekDebounceTimerRef.current) clearTimeout(seekDebounceTimerRef.current);
 				disposePgsRenderer(pgsRendererRef.current);
+				disposeAssRenderer(assRendererRef.current);
 				return;
 			}
 
@@ -1490,6 +1493,8 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 
 		disposePgsRenderer(pgsRendererRef.current);
 		pgsRendererRef.current = null;
+		disposeAssRenderer(assRendererRef.current);
+		assRendererRef.current = null;
 
 		if (index === -1) {
 			setSelectedSubtitleIndex(-1);
@@ -1499,7 +1504,42 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 			setSelectedSubtitleIndex(index);
 			const stream = streamList.find(s => s.index === index);
 
-			if (stream && stream.isTextBased) {
+			if (stream && stream.isAss && supportsAssRenderer()) {
+				if (videoRef.current) {
+					try {
+						const assUrl = playback.getAssSubtitleUrl(stream);
+						if (assUrl) {
+							const renderer = await initAssRenderer(videoRef.current, assUrl, (err) => {
+								console.error('[Player] ASS renderer error, falling back to text', err);
+								disposeAssRenderer(assRendererRef.current);
+								assRendererRef.current = null;
+								playback.fetchSubtitleData(stream).then(data => {
+									setSubtitleTrackEvents(data?.TrackEvents || null);
+								}).catch(() => setSubtitleTrackEvents(null));
+							});
+							if (renderer) {
+								assRendererRef.current = renderer;
+							}
+						}
+					} catch (err) {
+						console.error('[Player] ASS init failed, falling back to text', err);
+					}
+				}
+				if (!assRendererRef.current) {
+					try {
+						const data = await playback.fetchSubtitleData(stream);
+						if (data && data.TrackEvents) {
+							setSubtitleTrackEvents(data.TrackEvents);
+						} else {
+							setSubtitleTrackEvents(null);
+						}
+					} catch (err) {
+						setSubtitleTrackEvents(null);
+					}
+				} else {
+					setSubtitleTrackEvents(null);
+				}
+			} else if (stream && stream.isTextBased) {
 				try {
 					const data = await playback.fetchSubtitleData(stream);
 					if (data && data.TrackEvents) {

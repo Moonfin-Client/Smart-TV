@@ -20,6 +20,7 @@
 	},
 	"dependencies": {
 		"core-js": "^3.48.0",
+		"libass-wasm": "^4.1.0",
 		"whatwg-fetch": "^3.6.20"
 	}
 }
