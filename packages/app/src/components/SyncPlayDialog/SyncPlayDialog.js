@@ -4,6 +4,7 @@ import Spotlight from '@enact/spotlight';
 import SpotlightContainerDecorator from '@enact/spotlight/SpotlightContainerDecorator';
 import {useSyncPlay} from '../../context/SyncPlayContext';
 import {isBackKey} from '../../utils/keys';
+import SpottableInput from '../SpottableInput/SpottableInput';
 
 import css from './SyncPlayDialog.module.less';
 
@@ -18,7 +19,6 @@ const GroupsContainer = SpotlightContainerDecorator({
 }, 'div');
 
 const SpottableButton = Spottable('button');
-const SpottableInput = Spottable('input');
 
 const REPEAT_LABELS = {
 	RepeatNone: 'Off',

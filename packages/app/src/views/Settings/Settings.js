@@ -11,12 +11,12 @@ import {useDeviceInfo} from '../../hooks/useDeviceInfo';
 import serverLogger from '../../services/serverLogger';
 import connectionPool from '../../services/connectionPool';
 import {isBackKey} from '../../utils/keys';
+import SpottableInput from '../../components/SpottableInput/SpottableInput';
 
 import css from './Settings.module.less';
 
 const SpottableDiv = Spottable('div');
 const SpottableButton = Spottable('button');
-const SpottableInput = Spottable('input');
 const ViewContainer = SpotlightContainerDecorator({enterTo: 'last-focused', restrict: 'self-first'}, 'div');
 
 const IconGeneral = () => (

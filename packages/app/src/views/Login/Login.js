@@ -5,10 +5,10 @@ import Spotlight from '@enact/spotlight';
 import {useAuth} from '../../context/AuthContext';
 import * as jellyfinApi from '../../services/jellyfinApi';
 import {KEYS} from '../../utils/keys';
+import SpottableInput from '../../components/SpottableInput/SpottableInput';
 
 import css from './Login.module.less';
 
-const SpottableInput = Spottable('input');
 const SpottableButton = Spottable('button');
 const SpottableDiv = Spottable('div');
 const UserGridContainer = SpotlightContainerDecorator({enterTo: 'last-focused', restrict: 'self-first'}, 'div');

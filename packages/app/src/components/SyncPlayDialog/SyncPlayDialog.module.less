@@ -90,13 +90,16 @@
 	outline: none;
 	transition: border-color 0.2s;
 	font-family: inherit;
-	caret-color: @accent;
 
-	&::placeholder {
+	input {
+		caret-color: @accent;
+	}
+
+	input::placeholder {
 		color: rgba(255, 255, 255, 0.4);
 	}
 
-	&:focus {
+	&:focus, &[data-focused] {
 		border-color: @accent;
 	}
 }
