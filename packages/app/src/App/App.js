@@ -1,5 +1,5 @@
 import {useState, useCallback, useEffect, lazy, Suspense, useRef} from 'react';
-import ilib from 'ilib';
+import {updateLocale} from '@enact/i18n/locale';
 import ThemeDecorator from '@enact/sandstone/ThemeDecorator';
 import {Panels, Panel} from '@enact/sandstone/Panels';
 
@@ -1018,16 +1018,17 @@ const AppContent = (props) => {
 	);
 };
 
-// Set ilib locale from stored settings before React renders
-// Both Tizen (localStorage) and webOS (DB8 with localStorage mirror) store
-// data under the 'moonfin_' prefix, so 'moonfin_settings' is reliable on
-// both platforms at module-evaluation time.
+// Set ilib locale from stored settings before React renders.
+// updateLocale() clears ilib's platform cache, manifest loader, and
+// ResBundle strings cache — ilib.setLocale() alone does not, which
+// causes Tizen (detected as "browser" platform) to ignore the stored
+// locale and fall back to navigator.language.
 try {
 	const stored = JSON.parse(localStorage.getItem('moonfin_settings') || '{}');
 	const locale = stored.uiLanguage || 'en-US';
-	ilib.setLocale(locale);
+	updateLocale(locale);
 } catch (e) {
-	ilib.setLocale('en-US');
+	updateLocale('en-US');
 }
 
 const AppBase = (props) => (
