@@ -16,7 +16,8 @@ import {
 	SpottableButton, SpottableDiv, ModalContainer,
 	formatTime, formatEndTime, PLAYBACK_RATES, getQualityPresets,
 	IconPlay, IconPause, IconRewind, IconForward, IconSubtitle, IconAudio,
-	IconChapters, IconPrevious, IconNext, IconSpeed, IconQuality, IconInfo
+	IconChapters, IconPrevious, IconNext, IconSpeed, IconQuality, IconInfo,
+	IconShuffle, IconRepeat, IconRepeatOne, IconFavorite, IconFavoriteFilled
 } from './PlayerConstants';
 import { useSettings } from '../../context/SettingsContext';
 
@@ -30,9 +31,19 @@ import { useSettings } from '../../context/SettingsContext';
  */
 export const usePlayerButtons = ({
 	isPaused, audioStreams, subtitleStreams, chapters,
-	nextEpisode, isAudioMode, hasNextTrack, hasPrevTrack
+	nextEpisode, isAudioMode, hasNextTrack, hasPrevTrack,
+	shuffleMode, repeatMode, isFavorite
 }) => {
 	const topButtons = useMemo(() => {
+		if (isAudioMode) {
+			return [
+				{id: 'shuffle', icon: <IconShuffle />, label: 'Shuffle', action: 'shuffle', active: shuffleMode},
+				{id: 'previous', icon: <IconPrevious />, label: 'Previous', action: 'prevTrack', disabled: !hasPrevTrack && !shuffleMode},
+				{id: 'playPause', icon: isPaused ? <IconPlay /> : <IconPause />, label: isPaused ? 'Play' : 'Pause', action: 'playPause'},
+				{id: 'next', icon: <IconNext />, label: 'Next', action: 'nextTrack', disabled: !hasNextTrack && repeatMode === 'off' && !shuffleMode},
+				{id: 'repeat', icon: repeatMode === 'one' ? <IconRepeatOne /> : <IconRepeat />, label: 'Repeat', action: 'repeat', active: repeatMode !== 'off'}
+			];
+		}
 		const buttons = [
 			{id: 'playPause', icon: isPaused ? <IconPlay /> : <IconPause />, label: isPaused ? $L('Play') : $L('Pause'), action: 'playPause'}
 		];
@@ -52,7 +63,7 @@ export const usePlayerButtons = ({
 			);
 		}
 		return buttons;
-	}, [isPaused, audioStreams.length, subtitleStreams.length, isAudioMode, hasNextTrack, hasPrevTrack]);
+	}, [isPaused, audioStreams.length, subtitleStreams.length, isAudioMode, hasNextTrack, hasPrevTrack, shuffleMode, repeatMode]);
 
 	const bottomButtons = useMemo(() => {
 		if (isAudioMode) {
@@ -68,7 +79,12 @@ export const usePlayerButtons = ({
 		];
 	}, [chapters.length, nextEpisode, isAudioMode]);
 
-	return {topButtons, bottomButtons};
+	const favoriteButton = useMemo(() => {
+		if (!isAudioMode) return null;
+		return {id: 'favorite', icon: isFavorite ? <IconFavoriteFilled /> : <IconFavorite />, label: 'Favorite', action: 'favorite', active: isFavorite};
+	}, [isAudioMode, isFavorite]);
+
+	return {topButtons, bottomButtons, favoriteButton};
 };
 
 // ============================================================
@@ -150,6 +166,7 @@ const PlayerControls = ({
 	// Buttons
 	topButtons,
 	bottomButtons,
+	favoriteButton,
 	// Progress
 	displayTime,
 	duration,
@@ -198,6 +215,7 @@ const PlayerControls = ({
 	renderInfoVideoExtra
 }) => {
 	const { settings } = useSettings();
+
 	return (
 		<>
 			{/* Skip Intro Button */}
@@ -223,7 +241,24 @@ const PlayerControls = ({
 
 				{/* Bottom - Controls */}
 				<div className={css.controlsBottom}>
-					{/* Top Row Buttons */}
+					{/* Favorite button above seekbar (audio mode only) */}
+					{isAudioMode && favoriteButton && (
+						<div className={css.audioFavoriteRow}>
+							<SpottableButton
+								className={`${css.controlBtn} ${favoriteButton.active ? css.controlBtnActive : ''}`}
+								data-action={favoriteButton.action}
+								onClick={handleControlButtonClick}
+								aria-label={favoriteButton.label}
+								spotlightDisabled={focusRow !== 'top'}
+								spotlightId="favorite-btn"
+							>
+								{favoriteButton.icon}
+							</SpottableButton>
+						</div>
+					)}
+
+					{/* Top Row Buttons (video mode only) */}
+					{!isAudioMode && (
 					<div className={css.controlButtons}>
 						{topButtons.map((btn) => (
 							<SpottableButton
@@ -233,11 +268,14 @@ const PlayerControls = ({
 								onClick={btn.disabled ? undefined : handleControlButtonClick}
 								aria-label={btn.label}
 								aria-disabled={btn.disabled}
-								spotlightDisabled={focusRow !== 'top'}							spotlightId={btn.id === 'playPause' ? 'play-pause-btn' : undefined}							>
+								spotlightDisabled={focusRow !== 'top'}
+								spotlightId={btn.id === 'playPause' ? 'play-pause-btn' : undefined}
+							>
 								{btn.icon}
 							</SpottableButton>
 						))}
 					</div>
+					)}
 
 					{/* Progress Bar */}
 					<div className={css.progressContainer}>
@@ -272,7 +310,27 @@ const PlayerControls = ({
 						</div>
 					</div>
 
-					{/* Bottom Row Buttons */}
+					{/* Audio mode: Shuffle | Prev | Play/Pause | Next | Repeat below seekbar */}
+					{isAudioMode && (
+					<div className={css.audioTransportButtons}>
+						{topButtons.map((btn) => (
+							<SpottableButton
+								key={btn.id}
+								className={`${css.controlBtn} ${btn.disabled ? css.controlBtnDisabled : ''} ${btn.active ? css.controlBtnActive : ''}`}
+								data-action={btn.action}
+								onClick={btn.disabled ? undefined : handleControlButtonClick}
+								aria-label={btn.label}
+								aria-disabled={btn.disabled}
+								spotlightDisabled={focusRow !== 'bottom'}
+								spotlightId={btn.id === 'playPause' ? 'play-pause-btn' : undefined}
+							>
+								{btn.icon}
+							</SpottableButton>
+						))}
+					</div>
+					)}
+
+					{/* Bottom Row Buttons (video mode) */}
 					{bottomButtons.length > 0 && (
 					<div className={css.controlButtonsBottom}>
 						{bottomButtons.map((btn) => (
@@ -376,16 +434,16 @@ const PlayerControls = ({
 									<span className={css.trackName}>{$L('No remote subtitles found')}</span>
 								</SpottableDiv>
 							)}
-							{!isSearchingRemoteSubtitles && remoteSubtitleResults.map((subtitle, idx) => (
+							{!isSearchingRemoteSubtitles && remoteSubtitleResults.map((remoteSubtitle, idx) => (
 								<SpottableButton
-									key={subtitle.id || idx}
+									key={remoteSubtitle.id || idx}
 									className={css.trackItem}
 									data-index={idx}
 									onClick={handleSelectRemoteSubtitle}
 									style={{flexDirection: 'column', alignItems: 'flex-start'}}
 								>
-									<span className={css.trackName}>{subtitle.name || $L('Subtitle')}</span>
-									{subtitle.info && <span className={css.trackInfo} style={{marginTop: 4}}>{subtitle.info}</span>}
+											<span className={css.trackName}>{remoteSubtitle.name || $L('Subtitle')}</span>
+											{remoteSubtitle.info && <span className={css.trackInfo} style={{marginTop: 4}}>{remoteSubtitle.info}</span>}
 								</SpottableButton>
 							))}
 						</div>

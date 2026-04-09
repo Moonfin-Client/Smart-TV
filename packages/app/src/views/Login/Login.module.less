@@ -128,11 +128,11 @@
 	box-sizing: border-box;
 	transition: all 0.2s ease;
 
-	&::placeholder {
+	input::placeholder {
 		color: rgba(255, 255, 255, 0.4);
 	}
 
-	&:focus {
+	&:focus, &[data-focused] {
 		border-color: @accent;
 		background: rgba(255, 255, 255, 0.15);
 		box-shadow: 0 0 0 4px rgba(0, 164, 220, 0.3);

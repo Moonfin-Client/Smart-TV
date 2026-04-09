@@ -624,14 +624,6 @@ const Details = ({itemId, initialItem, onPlay, onSelectItem, onSelectPerson, bac
 		}
 	}, [albumTracks, onPlay]);
 
-	const handleAlbumSelect = useCallback((ev) => {
-		const albumId = ev.currentTarget.dataset.albumId;
-		const album = artistAlbums.find(a => a.Id === albumId);
-		if (album) {
-			onSelectItem?.(album);
-		}
-	}, [artistAlbums, onSelectItem]);
-
 	const handleArtistPlay = useCallback(async () => {
 		if (!item || item.Type !== 'MusicArtist') return;
 		try {
@@ -1591,6 +1583,9 @@ const handleSectionKeyDown = useCallback((ev) => {
 						</HorizontalContainer>
 
 						<div className={css.trackList}>
+							<div className={css.sectionHeader}>
+								<h3 className={css.sectionTitle}>Tracks ({trackCount})</h3>
+							</div>
 							{albumTracks.map((track, idx) => {
 								const trackDuration = track.RunTimeTicks ? formatDuration(track.RunTimeTicks) : '';
 								const isPlayed = track.UserData?.Played;
@@ -1627,8 +1622,10 @@ const handleSectionKeyDown = useCallback((ev) => {
 									title={$L('More Like This')}
 									items={similar}
 									serverUrl={effectiveServerUrl}
+									cardType="square"
 									onSelectItem={onSelectItem}
 									className={css.inlineRow}
+									rowIndex={0}
 								/>
 							)}
 						</div>
@@ -1695,34 +1692,15 @@ const handleSectionKeyDown = useCallback((ev) => {
 
 						<div className={css.sectionsContainer}>
 							{artistAlbums.length > 0 && (
-								<RowContainer className={css.section}>
-									<div className={css.sectionHeader}>
-										<h3 className={css.sectionTitle}>{$L('Discography')} ({artistAlbums.length})</h3>
-									</div>
-									<div className={css.sectionScroll} onFocus={handleScrollerFocus}>
-										{artistAlbums.map(album => {
-											const albumPosterUrl = album.ImageTags?.Primary
-												? getImageUrl(effectiveServerUrl, album.Id, 'Primary', {maxHeight: 350, quality: 80})
-												: null;
-
-											return (
-												<SpottableDiv key={album.Id} className={css.seasonCard} data-album-id={album.Id} onClick={handleAlbumSelect}>
-													<div className={css.seasonPosterWrapper}>
-														{albumPosterUrl ? (
-															<img src={albumPosterUrl} alt="" />
-														) : (
-															<div className={css.seasonPosterPlaceholder}>
-																<span>{album.Name}</span>
-															</div>
-														)}
-													</div>
-													<span className={css.seasonName}>{album.Name}</span>
-													{album.ProductionYear && <span className={css.albumYear}>{album.ProductionYear}</span>}
-												</SpottableDiv>
-											);
-										})}
-									</div>
-								</RowContainer>
+								<MediaRow
+									title={$L('Discography') + ' (' + artistAlbums.length + ')'}
+									items={artistAlbums}
+									serverUrl={effectiveServerUrl}
+									cardType="square"
+									onSelectItem={onSelectItem}
+									className={css.inlineRow}
+									rowIndex={0}
+								/>
 							)}
 
 							{similar.length > 0 && (
@@ -1730,8 +1708,10 @@ const handleSectionKeyDown = useCallback((ev) => {
 									title={$L('Similar Artists')}
 									items={similar}
 									serverUrl={effectiveServerUrl}
+									cardType="square"
 									onSelectItem={onSelectItem}
 									className={css.inlineRow}
+									rowIndex={1}
 								/>
 							)}
 						</div>

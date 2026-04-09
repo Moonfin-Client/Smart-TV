@@ -105,6 +105,16 @@ const determinePlayMethod = (mediaSource, capabilities, options = {}) => {
 		return PlayMethod.DirectPlay;
 	}
 
+	const mediaStreams = mediaSource?.MediaStreams || [];
+	const hasVideoStream = mediaStreams.some((s) => s.Type === 'Video');
+	const hasAudioStream = mediaStreams.some((s) => s.Type === 'Audio');
+	const isAudioOnly = hasAudioStream && !hasVideoStream;
+	if (isAudioOnly) {
+		if (mediaSource.SupportsDirectPlay) return PlayMethod.DirectPlay;
+		if (mediaSource.SupportsDirectStream) return PlayMethod.DirectStream;
+		return PlayMethod.Transcode;
+	}
+
 	// First check what our client-side capability check says
 	const computedMethod = getPlayMethod(mediaSource, capabilities);
 	console.log('[playback] determinePlayMethod - computed:', computedMethod,
@@ -412,7 +422,11 @@ export const getPlaybackInfo = async (itemId, options = {}) => {
 		console.log('[playback] After forcing transcode - TranscodingUrl:', mediaSource.TranscodingUrl ? 'present' : 'none');
 	}
 
-	const isAudio = options.item?.MediaType === 'Audio' || options.item?.Type === 'Audio';
+	const itemAudio = options.item?.MediaType === 'Audio' || options.item?.Type === 'Audio';
+	const hasVideoStream = (mediaSource.MediaStreams || []).some((s) => s.Type === 'Video');
+	const hasAudioStream = (mediaSource.MediaStreams || []).some((s) => s.Type === 'Audio');
+	const streamInferredAudio = hasAudioStream && !hasVideoStream;
+	const isAudio = itemAudio || streamInferredAudio;
 	const url = buildPlaybackUrl(itemId, mediaSource, playbackInfo.PlaySessionId, playMethod, creds, isAudio);
 
 	const audioStreams = extractAudioStreams(mediaSource);

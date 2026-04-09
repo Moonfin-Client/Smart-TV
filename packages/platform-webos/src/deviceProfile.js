@@ -256,7 +256,7 @@ const buildVideoRangeTypes = (caps) => {
 		rangeTypes.push('HDR10', 'HDR10Plus');
 
 		if (isWebOsWithoutDV) {
-			rangeTypes.push('DOVIWithHDR10', 'DOVIWithHDR10Plus', 'DOVIWithEL', 'DOVIWithELHDR10Plus', 'DOVIInvalid');
+			rangeTypes.push('DOVIWithHDR10', 'DOVIWithEL', 'DOVIInvalid');
 		}
 	}
 
@@ -269,8 +269,8 @@ const buildVideoRangeTypes = (caps) => {
 	}
 
 	if (caps.dolbyVision) {
-		rangeTypes.push('DOVI', 'DOVIWithHDR10', 'DOVIWithHLG', 'DOVIWithSDR', 'DOVIWithHDR10Plus');
-		rangeTypes.push('DOVIWithEL', 'DOVIWithELHDR10Plus', 'DOVIInvalid');
+		rangeTypes.push('DOVI', 'DOVIWithHDR10', 'DOVIWithHLG', 'DOVIWithSDR');
+		rangeTypes.push('DOVIWithEL', 'DOVIInvalid');
 	}
 
 	return rangeTypes.join('|');

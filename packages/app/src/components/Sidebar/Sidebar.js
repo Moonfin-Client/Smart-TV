@@ -6,7 +6,9 @@ import Spotlight from '@enact/spotlight';
 import {useAuth} from '../../context/AuthContext';
 import {useSettings} from '../../context/SettingsContext';
 import {useJellyseerr} from '../../context/JellyseerrContext';
+import {useSyncPlay} from '../../context/SyncPlayContext';
 import JellyseerrIcon from '../icons/JellyseerrIcon';
+import SyncPlayIcon from '../icons/SyncPlayIcon';
 import SeerrIcon from '../icons/SeerrIcon';
 import {KEYS} from '../../utils/keys';
 
@@ -33,11 +35,13 @@ const Sidebar = ({
 	onDiscover,
 	onSettings,
 	onSelectLibrary,
-	onUserMenu
+	onUserMenu,
+	onSyncPlay
 }) => {
 	const {user, serverUrl} = useAuth();
 	const {settings} = useSettings();
 	const {isEnabled: jellyseerrEnabled, isMoonfin, variant, displayName} = useJellyseerr();
+	const {isInGroup} = useSyncPlay();
 	const [clock, setClock] = useState('');
 	const [isHovered, setIsHovered] = useState(false);
 	const [isFocused, setIsFocused] = useState(false);
@@ -283,6 +287,16 @@ const Sidebar = ({
 							: <JellyseerrIcon className={css.sidebarIcon} />
 						}
 						<span className={css.sidebarLabel}>{displayName}</span>
+					</SpottableButton>
+				)}
+
+				{settings.showSyncPlayButton !== false && (
+					<SpottableButton
+						className={`${css.sidebarItem} ${isInGroup ? css.active : ''}`}
+						onClick={onSyncPlay}
+					>
+						<SyncPlayIcon className={css.sidebarIcon} />
+						<span className={css.sidebarLabel}>SyncPlay</span>
 					</SpottableButton>
 				)}
 

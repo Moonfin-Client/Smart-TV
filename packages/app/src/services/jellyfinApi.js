@@ -1,5 +1,7 @@
 import packageJson from '../../package.json';
-import {parseUrl, buildQueryString} from '../utils/urlCompat';
+import {buildQueryString} from '../utils/urlCompat';
+import {normalizeServerUrl} from '../utils/serverUrl';
+import {classifyError} from '../utils/connectionErrors';
 import {isTizen} from '../platform';
 const APP_VERSION = packageJson.version;
 
@@ -12,26 +14,7 @@ let currentUser = null;
 let accessToken = null;
 
 export const setServer = (serverUrl) => {
-	let url = serverUrl?.trim();
-	if (!url) {
-		currentServer = null;
-		return;
-	}
-
-	url = url.replace(/\/+$/, '');
-
-	if (!/^https?:\/\//i.test(url)) {
-		url = 'http://' + url;
-	}
-
-	const urlObj = parseUrl(url);
-	if (!urlObj.port && urlObj.protocol === 'http:') {
-		urlObj.port = '8096';
-		urlObj.host = urlObj.hostname + ':8096';
-		urlObj.origin = urlObj.protocol + '//' + urlObj.host;
-	}
-
-	currentServer = urlObj.toString().replace(/\/+$/, '');
+	currentServer = normalizeServerUrl(serverUrl);
 };
 
 export const setAuth = (userId, token) => {
@@ -74,26 +57,49 @@ export const initDeviceId = async () => {
 export const getServerUrl = () => currentServer;
 export const getUserId = () => currentUser;
 export const getApiKey = () => accessToken;
+
+const DEFAULT_TIMEOUT_MS = 15000;
+
+const fetchWithTimeout = (url, options = {}, timeoutMs = DEFAULT_TIMEOUT_MS) => {
+	return Promise.race([
+		fetch(url, options),
+		new Promise(function (_, reject) {
+			setTimeout(function () {
+				var err = new Error('The operation was aborted.');
+				err.name = 'AbortError';
+				reject(err);
+			}, timeoutMs);
+		})
+	]);
+};
 export const getDeviceId = () => deviceId;
 
 const request = async (endpoint, options = {}) => {
 	const url = `${currentServer}${endpoint}`;
 
-	const authHeader = getAuthHeader();
-	const response = await fetch(url, {
-		method: options.method || 'GET',
-		headers: {
-			'Authorization': authHeader,
-			'X-Emby-Authorization': authHeader,
-			'Content-Type': 'application/json',
-			...options.headers
-		},
-		body: options.body ? JSON.stringify(options.body) : undefined
-	});
+	let response;
+	try {
+		const authHeader = getAuthHeader();
+		response = await fetchWithTimeout(url, {
+			method: options.method || 'GET',
+			headers: {
+				'Authorization': authHeader,
+				'X-Emby-Authorization': authHeader,
+				'Content-Type': 'application/json',
+				...options.headers
+			},
+			body: options.body ? JSON.stringify(options.body) : undefined
+		});
+	} catch (err) {
+		const typed = new Error(err.message);
+		typed.connectionType = classifyError(err);
+		throw typed;
+	}
 
 	if (!response.ok) {
-		const error = new Error(`API Error: ${response.status}`);
+		const error = new Error('API Error: ' + response.status);
 		error.status = response.status;
+		error.connectionType = classifyError(error);
 		throw error;
 	}
 
@@ -217,6 +223,12 @@ export const api = {
 	getGenres: (libraryId) => {
 		const params = libraryId ? `&ParentId=${libraryId}` : '';
 		return request(`/Genres?UserId=${currentUser}&SortBy=SortName&Recursive=true&IncludeItemTypes=Movie,Series${params}`);
+	},
+
+	getMusicGenres: (params = {}) => {
+		const merged = {UserId: currentUser, SortBy: 'SortName', SortOrder: 'Ascending', Recursive: 'true'};
+		Object.keys(params).forEach(function (k) { merged[k] = String(params[k]); });
+		return request(`/Genres?${buildQueryString(merged)}`);
 	},
 
 	getItemsByGenre: (genreId, libraryId, limit = 50) =>
@@ -344,6 +356,9 @@ export const api = {
 	getAlbumTracks: (albumId) =>
 		request(`/Users/${currentUser}/Items?ParentId=${albumId}&IncludeItemTypes=Audio&SortBy=ParentIndexNumber,IndexNumber&SortOrder=Ascending&Fields=MediaSources,MediaStreams`),
 
+	getLyrics: (itemId) =>
+		request(`/Audio/${itemId}/Lyrics?UserId=${currentUser}`),
+
 	getArtistItems: (artistId, limit = 50) =>
 		request(`/Users/${currentUser}/Items?ArtistIds=${artistId}&IncludeItemTypes=Audio&Recursive=true&SortBy=Album,ParentIndexNumber,IndexNumber&SortOrder=Ascending&Limit=${limit}&Fields=PrimaryImageAspectRatio,ProductionYear,AlbumArtist`),
 
@@ -411,21 +426,29 @@ export const createApiForServer = (serverUrl, token, userId) => {
 	const serverRequest = async (endpoint, options = {}) => {
 		const requestUrl = `${url}${endpoint}`;
 
-		const authHeader = getServerAuthHeader();
-		const response = await fetch(requestUrl, {
-			method: options.method || 'GET',
-			headers: {
-				'Authorization': authHeader,
-				'X-Emby-Authorization': authHeader,
-				'Content-Type': 'application/json',
-				...options.headers
-			},
-			body: options.body ? JSON.stringify(options.body) : undefined
-		});
+		let response;
+		try {
+			const authHeader = getServerAuthHeader();
+			response = await fetchWithTimeout(requestUrl, {
+				method: options.method || 'GET',
+				headers: {
+					'Authorization': authHeader,
+					'X-Emby-Authorization': authHeader,
+					'Content-Type': 'application/json',
+					...options.headers
+				},
+				body: options.body ? JSON.stringify(options.body) : undefined
+			});
+		} catch (err) {
+			const typed = new Error(err.message);
+			typed.connectionType = classifyError(err);
+			throw typed;
+		}
 
 		if (!response.ok) {
-			const error = new Error(`API Error: ${response.status}`);
+			const error = new Error('API Error: ' + response.status);
 			error.status = response.status;
+			error.connectionType = classifyError(error);
 			throw error;
 		}
 
@@ -468,6 +491,12 @@ export const createApiForServer = (serverUrl, token, userId) => {
 		getGenres: (libraryId) => {
 			const params = libraryId ? `&ParentId=${libraryId}` : '';
 			return serverRequest(`/Genres?UserId=${userId}&SortBy=SortName&Recursive=true&IncludeItemTypes=Movie,Series${params}`);
+		},
+
+		getMusicGenres: (params = {}) => {
+			const merged = {UserId: userId, SortBy: 'SortName', SortOrder: 'Ascending', Recursive: 'true'};
+			Object.keys(params).forEach(function (k) { merged[k] = String(params[k]); });
+			return serverRequest(`/Genres?${buildQueryString(merged)}`);
 		},
 
 		getResumeItems: () =>
@@ -563,6 +592,9 @@ export const createApiForServer = (serverUrl, token, userId) => {
 
 		getAlbumTracks: (albumId) =>
 			serverRequest(`/Users/${userId}/Items?ParentId=${albumId}&IncludeItemTypes=Audio&SortBy=ParentIndexNumber,IndexNumber&SortOrder=Ascending&Fields=MediaSources,MediaStreams`),
+
+		getLyrics: (itemId) =>
+			serverRequest(`/Audio/${itemId}/Lyrics?UserId=${userId}`),
 
 		getArtistItems: (artistId, limit = 50) =>
 			serverRequest(`/Users/${userId}/Items?ArtistIds=${artistId}&IncludeItemTypes=Audio&Recursive=true&SortBy=Album,ParentIndexNumber,IndexNumber&SortOrder=Ascending&Limit=${limit}&Fields=PrimaryImageAspectRatio,ProductionYear,AlbumArtist`),

@@ -5,7 +5,7 @@ import $L from '@enact/i18n/$L';
 import Hls from 'hls.js';
 import * as playback from '../../services/playback';
 import {getImageUrl} from '../../utils/helpers';
-import {api as jellyfinApi, getServerUrl} from '../../services/jellyfinApi';
+import {api as jellyfinApi, createApiForServer, getServerUrl} from '../../services/jellyfinApi';
 import {detectWebOSVersion, getH264FallbackProfile} from '@moonfin/platform-webos/deviceProfile';
 import {initPgsRenderer, disposePgsRenderer} from '../../utils/pgsRenderer';
 import {
@@ -19,11 +19,14 @@ import {
 	setupWebOSLifecycle
 } from '@moonfin/platform-webos/video';
 import {useSettings} from '../../context/SettingsContext';
+import {useSyncPlay} from '../../context/SyncPlayContext';
+import * as syncPlayService from '../../services/syncPlay';
 import {getSubtitleOverlayStyle, getSubtitleTextStyle, sanitizeSubtitleHtml} from '../../utils/subtitleConstants';
 import PlayerControls, {usePlayerButtons} from './PlayerControls';
 import useSegmentPopups from './useSegmentPopups';
 import {
-	SpottableButton, NextEpisodeContainer, CONTROLS_HIDE_DELAY
+	SpottableButton, NextEpisodeContainer, CONTROLS_HIDE_DELAY,
+	parseLyricsResponse, withTimeout
 } from './PlayerConstants';
 import {
 	toSubtitleLanguage,
@@ -35,6 +38,9 @@ import css from './WebOSPlayer.module.less';
 
 const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialSubtitleIndex, onEnded, onBack, onPlayNext, audioPlaylist}) => {
 	const {settings} = useSettings();
+	const {isInGroup, lastCommand} = useSyncPlay();
+	const syncPlayCommandRef = useRef(false);
+	const lastProcessedCommandRef = useRef(null);
 
 	const [mediaUrl, setMediaUrl] = useState(null);
 	const [mimeType, setMimeType] = useState('video/mp4');
@@ -69,12 +75,29 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 	const [hasTriedTranscode, setHasTriedTranscode] = useState(false);
 	const [focusRow, setFocusRow] = useState('top');
 	const [isAudioMode, setIsAudioMode] = useState(false);
+	const [lyricsLines, setLyricsLines] = useState([]);
+	const [isLyricsLoading, setIsLyricsLoading] = useState(false);
+	const [lyricsError, setLyricsError] = useState(null);
+	const [shuffleMode, setShuffleMode] = useState(false);
+	const [repeatMode, setRepeatMode] = useState('off');
+	const [isFavorite, setIsFavorite] = useState(false);
 	const audioPlaylistIndex = useMemo(() => {
 		if (!audioPlaylist || !item) return -1;
 		return audioPlaylist.findIndex(t => t.Id === item.Id);
 	}, [audioPlaylist, item]);
 	const hasNextTrack = audioPlaylist && audioPlaylistIndex >= 0 && audioPlaylistIndex < audioPlaylist.length - 1;
 	const hasPrevTrack = audioPlaylist && audioPlaylistIndex > 0;
+	const activeLyricIndex = useMemo(() => {
+		if (!lyricsLines.length) return -1;
+		for (let i = lyricsLines.length - 1; i >= 0; i--) {
+			if (typeof lyricsLines[i].startSeconds === 'number' && currentTime >= lyricsLines[i].startSeconds) {
+				return i;
+			}
+		}
+		return -1;
+	}, [lyricsLines, currentTime]);
+
+	const lyricsScrollRef = useRef(null);
 
 
 
@@ -143,15 +166,68 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 		return -1;
 	};
 
-	const {topButtons, bottomButtons} = usePlayerButtons({
+	const {topButtons, bottomButtons, favoriteButton} = usePlayerButtons({
 		isPaused, audioStreams, subtitleStreams, chapters,
-		nextEpisode, isAudioMode, hasNextTrack, hasPrevTrack
+		nextEpisode, isAudioMode, hasNextTrack, hasPrevTrack,
+		shuffleMode, repeatMode, isFavorite
 	});
+
+	useEffect(() => {
+		let cancelled = false;
+
+		const loadLyrics = async () => {
+			if (!isAudioMode || !item?.Id) {
+				setLyricsLines([]);
+				setLyricsError(null);
+				setIsLyricsLoading(false);
+				return;
+			}
+
+			setIsLyricsLoading(true);
+			setLyricsError(null);
+
+			try {
+				const hasServerContext = item._serverUrl && item._serverAccessToken && item._serverUserId;
+				const apiClient = hasServerContext
+					? createApiForServer(item._serverUrl, item._serverAccessToken, item._serverUserId)
+					: jellyfinApi;
+				const response = await apiClient.getLyrics(item.Id);
+				if (cancelled) return;
+				setLyricsLines(parseLyricsResponse(response));
+			} catch (err) {
+				if (cancelled) return;
+				setLyricsLines([]);
+				if (err?.status && err.status !== 404) {
+					setLyricsError('Unable to load lyrics right now.');
+				}
+			} finally {
+				if (!cancelled) {
+					setIsLyricsLoading(false);
+				}
+			}
+		};
+
+		loadLyrics();
+
+		return () => {
+			cancelled = true;
+		};
+	}, [isAudioMode, item?.Id, item?._serverUrl, item?._serverAccessToken, item?._serverUserId]);
+
+	useEffect(() => {
+		if (activeLyricIndex < 0 || !lyricsScrollRef.current) return;
+		const el = lyricsScrollRef.current.querySelector(`[data-lyric-index="${activeLyricIndex}"]`);
+		if (el) {
+			// scrollIntoView options object unsupported on webOS 2 / old WebKit
+			const container = lyricsScrollRef.current;
+			container.scrollTop = el.offsetTop - (container.clientHeight / 2) + (el.offsetHeight / 2);
+		}
+	}, [activeLyricIndex]);
 
 	useEffect(() => {
 		const init = async () => {
 			await initLunaAPI();
-			await keepScreenOn(true);
+			await keepScreenOn(!isPaused);
 
 			unregisterAppStateRef.current = registerAppStateObserver(
 				() => {
@@ -292,6 +368,9 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 			setCurrentTime(0);
 			setSeekPosition(0);
 			setIsSeeking(false);
+			setSubtitleTrackEvents(null);
+			setCurrentSubtitleText(null);
+			setSelectedSubtitleIndex(-1);
 
 			resetPopups(); // eslint-disable-line no-use-before-define
 			setNextEpisode(null);
@@ -456,20 +535,32 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 					displayTitle = item.Name;
 					displaySubtitle = item.AlbumArtist || item.Artists?.[0] || item.Album || '';
 				}
+				const shouldUseAudioMode = !!result.isAudio || item?.MediaType === 'Audio' || item?.Type === 'Audio';
 				setTitle(displayTitle);
 				setSubtitle(displaySubtitle);
-				setIsAudioMode(!!result.isAudio);
+				setIsAudioMode(shouldUseAudioMode);
+				setIsFavorite(!!item.UserData?.IsFavorite);
 
 				// Audio mode: always show controls, skip video-only features
-				if (result.isAudio) {
+				if (shouldUseAudioMode) {
 					setControlsVisible(true);
 				} else {
-					const segments = await playback.getMediaSegments(item.Id);
-					setMediaSegments(segments);
+					try {
+						const segments = await withTimeout(playback.getMediaSegments(item.Id), 4000);
+						setMediaSegments(segments);
+					} catch (segmentErr) {
+						console.warn('[Player] Media segment fetch skipped:', segmentErr?.message || segmentErr);
+						setMediaSegments({introStart: null, introEnd: null, creditsStart: null});
+					}
 
 					if (item.Type === 'Episode') {
-						const next = await playback.getNextEpisode(item);
-						setNextEpisode(next);
+						try {
+							const next = await withTimeout(playback.getNextEpisode(item), 4000);
+							setNextEpisode(next);
+						} catch (nextErr) {
+							console.warn('[Player] Next episode lookup skipped:', nextErr?.message || nextErr);
+							setNextEpisode(null);
+						}
 					}
 				}
 
@@ -488,7 +579,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 			console.log('[Player] Cleanup running - unmounting or re-rendering');
 
 			if (isCleaningUpRef.current) {
-				console.log('[Player] Skipping cleanup — already handled by handleBack/handleEnded');
+				console.log('[Player] Skipping cleanup - already handled by handleBack/handleEnded');
 				playback.stopProgressReporting();
 				playback.stopHealthMonitoring();
 				resetPopups(); // eslint-disable-line no-use-before-define
@@ -722,7 +813,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 						p.then(() => console.log('[Player] hls.js play() resolved'))
 						 .catch(e => {
 							 if (e.name === 'AbortError') {
-								 console.log('[Player] hls.js play() aborted — expected');
+								 console.log('[Player] hls.js play() aborted - expected');
 							 } else {
 								 console.error('[Player] hls.js play() rejected:', e);
 							 }
@@ -743,10 +834,10 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 					)) {
 						stallCount++;
 						if (stallCount === 3 && video.currentTime < 1) {
-							console.log('[Player] hls.js persistent stall at', video.currentTime, '— force-seeking to 0.5s');
+							console.log('[Player] hls.js persistent stall at', video.currentTime, '- force-seeking to 0.5s');
 							video.currentTime = 0.5;
 						} else if (stallCount === 6 && video.currentTime < 2) {
-							console.log('[Player] hls.js still stalling at', video.currentTime, '— recovering media error');
+							console.log('[Player] hls.js still stalling at', video.currentTime, '- recovering media error');
 							hls.recoverMediaError();
 						}
 					}
@@ -754,15 +845,15 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 					if (data.fatal) {
 						switch (data.type) {
 							case Hls.ErrorTypes.NETWORK_ERROR:
-								console.log('[Player] hls.js fatal network error — attempting recovery');
+								console.log('[Player] hls.js fatal network error - attempting recovery');
 								hls.startLoad();
 								break;
 							case Hls.ErrorTypes.MEDIA_ERROR:
-								console.log('[Player] hls.js fatal media error — attempting recovery');
+								console.log('[Player] hls.js fatal media error - attempting recovery');
 								hls.recoverMediaError();
 								break;
 							default:
-								console.error('[Player] hls.js unrecoverable error — dispatching error event');
+								console.error('[Player] hls.js unrecoverable error - dispatching error event');
 								video.dispatchEvent(new Event('error'));
 								break;
 						}
@@ -783,34 +874,47 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 			if (playbackStartTimeoutRef.current) {
 				clearTimeout(playbackStartTimeoutRef.current);
 			}
+			let resumeHandled = false;
 			const onFirstTimeUpdate = () => {
-				clearTimeout(playbackStartTimeoutRef.current);
-				playbackStartTimeoutRef.current = null;
-				video.removeEventListener('timeupdate', onFirstTimeUpdate);
-				sourceTransitionRef.current = false;
-				transcodeRetryCountRef.current = 0;
-				if (pendingResumeTicksRef.current > 0) {
-					const seekSec = pendingResumeTicksRef.current / 10000000;
-					if (video.currentTime < seekSec * 0.5) {
-						console.log('[Player] #t= fragment did not seek — using currentTime fallback:', seekSec, 's');
-						video.currentTime = seekSec;
-					} else {
-						console.log('[Player] Resume via #t= fragment successful, position:', video.currentTime, 's');
+				if (!resumeHandled) {
+					resumeHandled = true;
+					clearTimeout(playbackStartTimeoutRef.current);
+					playbackStartTimeoutRef.current = null;
+					sourceTransitionRef.current = false;
+					transcodeRetryCountRef.current = 0;
+					if (pendingResumeTicksRef.current > 0) {
+						const seekSec = pendingResumeTicksRef.current / 10000000;
+						if (video.currentTime < seekSec * 0.5) {
+							console.log('[Player] #t= fragment did not seek - using currentTime fallback:', seekSec, 's');
+							video.currentTime = seekSec;
+						} else {
+							console.log('[Player] Resume via #t= fragment successful, position:', video.currentTime, 's');
+						}
+						pendingResumeTicksRef.current = 0;
 					}
-					pendingResumeTicksRef.current = 0;
 				}
 
-				// Apply initial audio track selection via audioTracks API
+				// audioTracks may not be populated on the first timeupdate,
+				// so retry on subsequent events until applied or no longer needed
 				const pending = pendingAudioRef.current;
-				if (pending && video.audioTracks?.length > 1) {
-					const matchIndex = matchAudioTrack(video.audioTracks, pending.audioStreams, pending.streamIndex);
-					if (matchIndex >= 0) {
-						for (let i = 0; i < video.audioTracks.length; i++) {
-							video.audioTracks[i].enabled = (i === matchIndex);
+				if (pending) {
+					if (video.audioTracks?.length > 1) {
+						const matchIndex = matchAudioTrack(video.audioTracks, pending.audioStreams, pending.streamIndex);
+						if (matchIndex >= 0) {
+							for (let i = 0; i < video.audioTracks.length; i++) {
+								video.audioTracks[i].enabled = (i === matchIndex);
+							}
+							console.log('[Player] Applied initial audio track via audioTracks API, index:', pending.streamIndex, 'matchIndex:', matchIndex);
 						}
-						console.log('[Player] Applied initial audio track via audioTracks API, index:', pending.streamIndex, 'matchIndex:', matchIndex);
+						pendingAudioRef.current = null;
+					} else if (video.audioTracks?.length > 0) {
+						// Single audio track, nothing to switch
+						pendingAudioRef.current = null;
 					}
-					pendingAudioRef.current = null;
+				}
+
+				if (!pendingAudioRef.current) {
+					video.removeEventListener('timeupdate', onFirstTimeUpdate);
 				}
 			};
 			video.addEventListener('timeupdate', onFirstTimeUpdate);
@@ -823,7 +927,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 					? (video.currentTime < expectedStart * 0.5 && (video.readyState < 3 || video.paused))
 					: (video.currentTime === 0 && (video.readyState < 3 || video.paused));
 				if (noProgress) {
-					console.warn('[Player] Playback start timeout — no timeupdate received in ' + (timeoutMs / 1000) + 's, triggering error handler');
+					console.warn('[Player] Playback start timeout - no timeupdate received in ' + (timeoutMs / 1000) + 's, triggering error handler');
 					console.warn('[Player] Video state:', { readyState: video.readyState, networkState: video.networkState, paused: video.paused, currentSrc: video.currentSrc });
 					video.dispatchEvent(new Event('error'));
 				}
@@ -836,7 +940,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 						console.log('[Player] play() promise resolved');
 					}).catch(err => {
 						if (err.name === 'AbortError') {
-							console.log('[Player] play() aborted (source transition) — expected');
+							console.log('[Player] play() aborted (source transition) - expected');
 						} else {
 							console.error('[Player] play() promise rejected:', err);
 						}
@@ -877,7 +981,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 		}
 	}, []);
 
-	// Handle playback health issues — if the health monitor detects stalled
+	// Handle playback health issues - if the health monitor detects stalled
 	// playback (no progress for extended period), fall back to transcoding.
 	const handleUnhealthy = useCallback(async () => {
 		if (Date.now() - lastSeekTimeRef.current < 15000 || videoRef.current?.paused) {
@@ -916,27 +1020,54 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 		onPlayNext: onPlayNextWithCleanup
 	});
 
-	// Audio playlist: next track
+	// Audio playlist: next track (respects shuffle, repeat)
 	const handleNextTrack = useCallback(async () => {
-		if (hasNextTrack && onPlayNext) {
+		if (!audioPlaylist || !onPlayNext) return;
+		if (repeatMode === 'one') {
+			const video = videoRef.current;
+			if (video) { video.currentTime = 0; video.play(); }
+			return;
+		}
+		if (shuffleMode) {
+			const candidates = audioPlaylist.filter((_, i) => i !== audioPlaylistIndex);
+			if (candidates.length > 0) {
+				await playback.reportStop(positionRef.current);
+				onPlayNext(candidates[Math.floor(Math.random() * candidates.length)]);
+			}
+			return;
+		}
+		if (hasNextTrack) {
 			await playback.reportStop(positionRef.current);
 			onPlayNext(audioPlaylist[audioPlaylistIndex + 1]);
+		} else if (repeatMode === 'all' && audioPlaylist.length > 0) {
+			await playback.reportStop(positionRef.current);
+			onPlayNext(audioPlaylist[0]);
 		}
-	}, [hasNextTrack, onPlayNext, audioPlaylist, audioPlaylistIndex]);
+	}, [hasNextTrack, onPlayNext, audioPlaylist, audioPlaylistIndex, shuffleMode, repeatMode]);
 
 	// Audio playlist: previous track (or restart current if >3s in)
 	const handlePrevTrack = useCallback(async () => {
 		const video = videoRef.current;
 		if (video && video.currentTime > 3) {
-			// Restart current track
 			video.currentTime = 0;
+			return;
+		}
+		if (shuffleMode && audioPlaylist && onPlayNext) {
+			const candidates = audioPlaylist.filter((_, i) => i !== audioPlaylistIndex);
+			if (candidates.length > 0) {
+				await playback.reportStop(positionRef.current);
+				onPlayNext(candidates[Math.floor(Math.random() * candidates.length)]);
+			}
 			return;
 		}
 		if (hasPrevTrack && onPlayNext) {
 			await playback.reportStop(positionRef.current);
 			onPlayNext(audioPlaylist[audioPlaylistIndex - 1]);
+		} else if (repeatMode === 'all' && audioPlaylist && audioPlaylist.length > 0 && onPlayNext) {
+			await playback.reportStop(positionRef.current);
+			onPlayNext(audioPlaylist[audioPlaylist.length - 1]);
 		}
-	}, [hasPrevTrack, onPlayNext, audioPlaylist, audioPlaylistIndex]);
+	}, [hasPrevTrack, onPlayNext, audioPlaylist, audioPlaylistIndex, shuffleMode, repeatMode]);
 
 	const handleLoadedMetadata = useCallback(() => {
 		if (videoRef.current) {
@@ -1042,18 +1173,39 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 
 		await playback.reportStop(positionRef.current);
 
+		if (repeatMode === 'one' && videoRef.current) {
+			videoRef.current.currentTime = 0;
+			videoRef.current.play();
+			return;
+		}
+
 		isCleaningUpRef.current = true;
 		destroyHlsPlayer();
 		await cleanupVideoElement(videoRef.current);
 
-		if (hasNextTrack && onPlayNext) {
-			onPlayNext(audioPlaylist[audioPlaylistIndex + 1]);
-		} else if (nextEpisode && onPlayNext) {
+		if (audioPlaylist && onPlayNext) {
+			if (shuffleMode) {
+				const candidates = audioPlaylist.filter((_, i) => i !== audioPlaylistIndex);
+				if (candidates.length > 0) {
+					onPlayNext(candidates[Math.floor(Math.random() * candidates.length)]);
+					return;
+				}
+			}
+			if (hasNextTrack) {
+				onPlayNext(audioPlaylist[audioPlaylistIndex + 1]);
+				return;
+			}
+			if (repeatMode === 'all' && audioPlaylist.length > 0) {
+				onPlayNext(audioPlaylist[0]);
+				return;
+			}
+		}
+		if (nextEpisode && onPlayNext) {
 			onPlayNext(nextEpisode);
 		} else {
 			onEnded?.();
 		}
-	}, [onEnded, onPlayNext, nextEpisode, hasNextTrack, audioPlaylist, audioPlaylistIndex]);
+	}, [onEnded, onPlayNext, nextEpisode, hasNextTrack, audioPlaylist, audioPlaylistIndex, shuffleMode, repeatMode]);
 
 	const handleError = useCallback(async () => {
 		// Ignore errors fired during cleanup (SDR reset video triggers error code 4)
@@ -1107,6 +1259,17 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 			console.error('[Player] Playback error (no error object)');
 		}
 
+		const session = playback.getCurrentSession();
+		const hasVideoStream = !!session?.mediaSource?.MediaStreams?.some((s) => s.Type === 'Video');
+		const isAudioOnlySession = !!session?.mediaSource && !hasVideoStream;
+		if (isAudioOnlySession) {
+			errorMessage = 'Audio playback failed for this track on this device.';
+			destroyHlsPlayer();
+			await cleanupVideoElement(videoRef.current);
+			setError(errorMessage);
+			return;
+		}
+
 		if (!hasTriedTranscode && playMethod !== playback.PlayMethod.Transcode) {
 			// Tier 1 → DirectPlay failed, try native HEVC transcode (Starfish)
 			console.log('[Player] DirectPlay failed, falling back to transcode...');
@@ -1145,7 +1308,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 			// Tier 3: hls.js H.264 retry (one attempt)
 			const isTier2 = !forceHlsJsRef.current;
 			if (!isTier2) transcodeRetryCountRef.current++;
-			console.log('[Player]', isTier2 ? 'Native transcode failed — switching to hls.js H.264' : 'hls.js H.264 failed, retrying...');
+			console.log('[Player]', isTier2 ? 'Native transcode failed - switching to hls.js H.264' : 'hls.js H.264 failed, retrying...');
 
 			try {
 				await playback.reportStop(positionRef.current);
@@ -1220,6 +1383,14 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 
 	const handlePlayPause = useCallback(() => {
 		if (videoRef.current) {
+			if (isInGroup && !syncPlayCommandRef.current) {
+				if (isPaused) {
+					syncPlayService.sendPlayRequest();
+				} else {
+					syncPlayService.sendPauseRequest();
+				}
+				return;
+			}
 			if (isPaused) {
 				const rewind = settings.unpauseRewind || 0;
 				if (rewind > 0) {
@@ -1231,15 +1402,29 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 				videoRef.current.pause();
 			}
 		}
-	}, [isPaused, settings.unpauseRewind]);
+	}, [isPaused, settings.unpauseRewind, isInGroup]);
 
 	const handleRewind = useCallback(() => {
-		if (videoRef.current) seekByOffset(-settings.seekStep);
-	}, [settings.seekStep, seekByOffset]);
+		if (videoRef.current) {
+			if (isInGroup && !syncPlayCommandRef.current) {
+				const newTicks = Math.max(0, positionRef.current - settings.seekStep * 10000000);
+				syncPlayService.sendSeekRequest(newTicks);
+				return;
+			}
+			seekByOffset(-settings.seekStep);
+		}
+	}, [settings.seekStep, seekByOffset, isInGroup]);
 
 	const handleForward = useCallback(() => {
-		if (videoRef.current) seekByOffset(settings.skipForwardLength || settings.seekStep);
-	}, [settings.skipForwardLength, settings.seekStep, seekByOffset]);
+		if (videoRef.current) {
+			if (isInGroup && !syncPlayCommandRef.current) {
+				const newTicks = Math.min(runTimeRef.current, positionRef.current + settings.seekStep * 10000000);
+				syncPlayService.sendSeekRequest(newTicks);
+				return;
+			}
+			seekByOffset(settings.skipForwardLength || settings.seekStep);
+		}
+	}, [settings.skipForwardLength, settings.seekStep, seekByOffset, isInGroup]);
 
 	const openModal = useCallback((modal) => {
 		setActiveModal(modal);
@@ -1523,17 +1708,46 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 			e.preventDefault();
 			setFocusRow('top');
 			setIsSeeking(false);
-			window.requestAnimationFrame(() => Spotlight.focus('play-pause-btn'));
+			window.requestAnimationFrame(() => Spotlight.focus(isAudioMode ? 'favorite-btn' : 'play-pause-btn'));
 		} else if (e.key === 'ArrowDown' || e.keyCode === 40) {
 			e.preventDefault();
 			setFocusRow('bottom');
 			setIsSeeking(false);
+			if (isAudioMode) {
+				window.requestAnimationFrame(() => Spotlight.focus('play-pause-btn'));
+			}
 		}
-	}, [settings.seekStep, seekByOffset, showControls]);
+	}, [settings.seekStep, seekByOffset, showControls, isAudioMode]);
 
 	const handleProgressBlur = useCallback(() => {
 		setIsSeeking(false);
 	}, []);
+
+	const handleToggleShuffle = useCallback(() => {
+		setShuffleMode(prev => !prev);
+	}, []);
+
+	const handleToggleRepeat = useCallback(() => {
+		setRepeatMode(prev => {
+			if (prev === 'off') return 'all';
+			if (prev === 'all') return 'one';
+			return 'off';
+		});
+	}, []);
+
+	const handleToggleFavorite = useCallback(async () => {
+		if (!item?.Id) return;
+		const newState = !isFavorite;
+		setIsFavorite(newState);
+		try {
+			const serverUrl = item._serverUrl || getServerUrl();
+			const serverApi = serverUrl ? createApiForServer(serverUrl) : jellyfinApi;
+			await serverApi.setFavorite(item.Id, newState);
+		} catch (err) {
+			console.error('[Player] Failed to toggle favorite:', err);
+			setIsFavorite(!newState);
+		}
+	}, [item, isFavorite]);
 
 	const handleButtonAction = useCallback((action) => {
 		showControls();
@@ -1550,9 +1764,12 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 			case 'next': handlePlayNextEpisode(); break;
 			case 'nextTrack': handleNextTrack(); break;
 			case 'prevTrack': handlePrevTrack(); break;
+			case 'shuffle': handleToggleShuffle(); break;
+			case 'repeat': handleToggleRepeat(); break;
+			case 'favorite': handleToggleFavorite(); break;
 			default: break;
 		}
-	}, [showControls, handlePlayPause, handleRewind, handleForward, openModal, handlePlayNextEpisode, handleNextTrack, handlePrevTrack]);
+	}, [showControls, handlePlayPause, handleRewind, handleForward, openModal, handlePlayNextEpisode, handleNextTrack, handlePrevTrack, handleToggleShuffle, handleToggleRepeat, handleToggleFavorite]);
 
 	const handleControlButtonClick = useCallback((e) => {
 		const action = e.currentTarget.dataset.action;
@@ -1568,6 +1785,78 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 	const stopPropagation = useCallback((e) => {
 		e.stopPropagation();
 	}, []);
+
+	useEffect(() => {
+		if (!lastCommand || !videoRef.current) return;
+		if (lastCommand === lastProcessedCommandRef.current) return;
+		lastProcessedCommandRef.current = lastCommand;
+
+		const {Command, PositionTicks, When} = lastCommand;
+
+		syncPlayCommandRef.current = true;
+
+		switch (Command) {
+			case 'Unpause': {
+				const delay = syncPlayService.getDelayToWhen(When);
+				if (PositionTicks != null) seekToTicks(PositionTicks);
+				if (delay > 0) {
+					const t = setTimeout(() => {
+						videoRef.current?.play()?.catch?.(() => {});
+						syncPlayCommandRef.current = false;
+					}, delay);
+					return () => clearTimeout(t);
+				}
+				videoRef.current.play()?.catch?.(() => {});
+				break;
+			}
+			case 'Pause': {
+				videoRef.current.pause();
+				if (PositionTicks != null) seekToTicks(PositionTicks);
+				break;
+			}
+			case 'Seek': {
+				if (PositionTicks != null) seekToTicks(PositionTicks);
+				break;
+			}
+			case 'Stop': {
+				handleBack();
+				break;
+			}
+			default:
+				break;
+		}
+
+		syncPlayCommandRef.current = false;
+	}, [lastCommand, seekToTicks, handleBack]);
+
+	useEffect(() => {
+		if (!isInGroup || !videoRef.current) return;
+
+		const reportBuffering = () => {
+			syncPlayService.sendBufferingRequest(
+				!videoRef.current.paused,
+				positionRef.current
+			);
+		};
+
+		const reportReady = () => {
+			syncPlayService.sendReadyRequest(
+				!videoRef.current.paused,
+				positionRef.current
+			);
+		};
+
+		const video = videoRef.current;
+		video.addEventListener('waiting', reportBuffering);
+		video.addEventListener('playing', reportReady);
+		video.addEventListener('canplay', reportReady);
+
+		return () => {
+			video.removeEventListener('waiting', reportBuffering);
+			video.removeEventListener('playing', reportReady);
+			video.removeEventListener('canplay', reportReady);
+		};
+	}, [isInGroup]);
 
 	useEffect(() => {
 		const handleKeyDown = (e) => {
@@ -1669,7 +1958,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 					setFocusRow(prev => {
 						if (prev === 'bottom') return 'progress';
 						if (prev === 'progress') {
-							window.requestAnimationFrame(() => Spotlight.focus('play-pause-btn'));
+							window.requestAnimationFrame(() => Spotlight.focus(isAudioMode ? 'favorite-btn' : 'play-pause-btn'));
 							return 'top';
 						}
 						return 'top';
@@ -1681,8 +1970,14 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 					showControls();
 					setFocusRow(prev => {
 						if (prev === 'top') return 'progress';
-						if (prev === 'progress') return bottomButtons.length > 0 ? 'bottom' : 'progress';
-						return 'bottom'; // Already at bottom, stay there
+						if (prev === 'progress') {
+							if (isAudioMode) {
+								window.requestAnimationFrame(() => Spotlight.focus('play-pause-btn'));
+								return 'bottom';
+							}
+							return bottomButtons.length > 0 ? 'bottom' : 'progress';
+						}
+						return 'bottom';
 					});
 					return;
 				}
@@ -1692,7 +1987,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 
 		window.addEventListener('keydown', handleKeyDown, true);
 		return () => window.removeEventListener('keydown', handleKeyDown, true);
-	}, [controlsVisible, activeModal, closeModal, hideControls, handleBack, showControls, handlePlayPause, handleForward, handleRewind, currentTime, settings.seekStep, seekByOffset, handlePopupKeyDown, bottomButtons.length, showSkipIntro, showSkipCredits, showNextEpisode]);
+	}, [controlsVisible, activeModal, closeModal, hideControls, handleBack, showControls, handlePlayPause, handleForward, handleRewind, currentTime, settings.seekStep, seekByOffset, handlePopupKeyDown, bottomButtons.length, isAudioMode, showSkipIntro, showSkipCredits, showNextEpisode]);
 
 	const displayTime = isSeeking ? (seekPosition / 10000000) : currentTime;
 	const progressPercent = duration > 0 ? (displayTime / duration) * 100 : 0;
@@ -1732,36 +2027,51 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 				</div>
 			)}
 
-			{/* Audio Mode: Album Art + Info */}
+			{/* Audio Mode: Album Art + Info + Lyrics */}
 			{!isLoading && !error && isAudioMode && (
 				<div className={css.audioModeBackground}>
-					<div className={css.audioModeContent}>
-						<div className={css.audioAlbumArt}>
-							{item.ImageTags?.Primary ? (
-								<img
-									src={getImageUrl(item._serverUrl || getServerUrl(), item.Id, 'Primary', {maxHeight: 500, quality: 90})}
-									alt={item.Name}
-									className={css.audioAlbumImg}
-								/>
-							) : item.AlbumId && item.AlbumPrimaryImageTag ? (
-								<img
-									src={getImageUrl(item._serverUrl || getServerUrl(), item.AlbumId, 'Primary', {maxHeight: 500, quality: 90})}
-									alt={item.Album || item.Name}
-									className={css.audioAlbumImg}
-								/>
-							) : (
-								<div className={css.audioAlbumPlaceholder}>
-									<svg viewBox="0 -960 960 960" fill="currentColor" width="120" height="120">
-										<path d="M400-120q-66 0-113-47t-47-113q0-66 47-113t113-47q23 0 42.5 5.5T480-418v-422h240v160H560v400q0 66-47 113t-113 47Z"/>
-									</svg>
-								</div>
-							)}
+					<div className={lyricsLines.length > 0 ? css.audioContentWithLyrics : css.audioModeContent}>
+						<div className={css.audioLeftPanel}>
+							<div className={css.audioAlbumArt}>
+								{item.ImageTags?.Primary ? (
+									<img
+										src={getImageUrl(item._serverUrl || getServerUrl(), item.Id, 'Primary', {maxHeight: 500, quality: 90})}
+										alt={item.Name}
+										className={css.audioAlbumImg}
+									/>
+								) : item.AlbumId && item.AlbumPrimaryImageTag ? (
+									<img
+										src={getImageUrl(item._serverUrl || getServerUrl(), item.AlbumId, 'Primary', {maxHeight: 500, quality: 90})}
+										alt={item.Album || item.Name}
+										className={css.audioAlbumImg}
+									/>
+								) : (
+									<div className={css.audioAlbumPlaceholder}>
+										<svg viewBox="0 -960 960 960" fill="currentColor" width="120" height="120">
+											<path d="M400-120q-66 0-113-47t-47-113q0-66 47-113t113-47q23 0 42.5 5.5T480-418v-422h240v160H560v400q0 66-47 113t-113 47Z"/>
+										</svg>
+									</div>
+								)}
+							</div>
+							<div className={css.audioTrackInfo}>
+								<h1 className={css.audioTrackTitle}>{title}</h1>
+								{subtitle && <p className={css.audioTrackArtist}>{subtitle}</p>}
+								{item.Album && <p className={css.audioTrackAlbum}>{item.Album}</p>}
+							</div>
 						</div>
-						<div className={css.audioTrackInfo}>
-							<h1 className={css.audioTrackTitle}>{title}</h1>
-							{subtitle && <p className={css.audioTrackArtist}>{subtitle}</p>}
-							{item.Album && <p className={css.audioTrackAlbum}>{item.Album}</p>}
-						</div>
+						{lyricsLines.length > 0 && (
+							<div className={css.audioLyricsPanel} ref={lyricsScrollRef}>
+								{lyricsLines.map((line, index) => (
+									<p
+										key={`${index}-${line.startSeconds ?? 'none'}`}
+										className={index === activeLyricIndex ? css.lyricLineActive : css.lyricLineInactive}
+										data-lyric-index={index}
+									>
+										{line.text}
+									</p>
+								))}
+							</div>
+						)}
 					</div>
 				</div>
 			)}
@@ -1881,6 +2191,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 				subtitle={subtitle}
 				topButtons={topButtons}
 				bottomButtons={bottomButtons}
+				favoriteButton={favoriteButton}
 				displayTime={displayTime}
 				duration={duration}
 				progressPercent={progressPercent}

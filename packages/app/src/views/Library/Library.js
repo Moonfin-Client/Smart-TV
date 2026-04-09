@@ -7,6 +7,7 @@ import {VirtualGridList} from '@enact/sandstone/VirtualList';
 import {useAuth} from '../../context/AuthContext';
 import {createApiForServer} from '../../services/jellyfinApi';
 import LoadingSpinner from '../../components/LoadingSpinner';
+import MediaRow from '../../components/MediaRow';
 import {getImageUrl, getPrimaryImageId, formatDuration} from '../../utils/helpers';
 import {useSettings} from '../../context/SettingsContext';
 import {fetchRatings, buildDisplayRatings} from '../../services/mdblistApi';
@@ -46,7 +47,21 @@ const MUSIC_SORT_OPTIONS = [
 
 const MUSIC_CONTENT_TYPES = [
 	{key: 'albums', label: 'Albums', itemType: 'MusicAlbum'},
-	{key: 'artists', label: 'Artists', itemType: 'MusicArtist'}
+	{key: 'albumArtists', label: 'Album Artists', itemType: 'AlbumArtist'},
+	{key: 'artists', label: 'Artists', itemType: 'MusicArtist'},
+	{key: 'genres', label: 'Genres', itemType: 'MusicGenre'}
+];
+
+const MUSIC_BROWSE_ROW_LIMIT = 30;
+
+const MusicViewIcon = ({d}) => (
+	<svg viewBox="0 -960 960 960" fill="currentColor" width="36" height="36"><path d={d} /></svg>
+);
+const MUSIC_VIEW_BUTTONS = [
+	{id: 'albums', label: 'Albums', icon: 'M480-269q88 0 149.5-61.5T691-480q0-88-61.5-149.5T480-691q-88 0-149.5 61.5T269-480q0 88 61.5 149.5T480-269Zm0-131q-33 0-56.5-23.5T400-480q0-33 23.5-56.5T480-560q33 0 56.5 23.5T560-480q0 33-23.5 56.5T480-400ZM480-80q-83 0-156-31.5T197-197q-54-54-85.5-127T80-480q0-83 31.5-156T197-763q54-54 127-85.5T480-880q83 0 156 31.5T763-763q54 54 85.5 127T880-480q0 83-31.5 156T763-197q-54 54-127 85.5T480-80Z'},
+	{id: 'albumArtists', label: 'Album Artists', icon: 'M480-480q-66 0-113-47t-47-113q0-66 47-113t113-47q66 0 113 47t47 113q0 66-47 113t-113 47ZM160-160v-112q0-34 17.5-62.5T224-378q62-31 126-46.5T480-440q66 0 130 15.5T736-378q29 15 46.5 43.5T800-272v112H160Z'},
+	{id: 'artists', label: 'Artists', icon: 'M0-240v-63q0-43 44-70t116-27q13 0 25 .5t23 2.5q-14 21-21 44t-7 48v65H0Zm240 0v-65q0-32 17.5-58.5T307-410q32-20 76.5-30t96.5-10q53 0 97.5 10t76.5 30q32 20 49 46.5t17 58.5v65H240Zm540 0v-65q0-26-6.5-49T754-397q11-2 22.5-2.5t23.5-.5q72 0 116 27t44 70v63H780ZM160-440q-33 0-56.5-23.5T80-520q0-34 23.5-57t56.5-23q34 0 57 23t23 57q0 33-23 56.5T160-440Zm640 0q-33 0-56.5-23.5T720-520q0-34 23.5-57t56.5-23q34 0 57 23t23 57q0 33-23 56.5T800-440Zm-320-40q-50 0-85-35t-35-85q0-51 35-85.5t85-34.5q51 0 85.5 34.5T570-600q0 50-34.5 85T480-480Z'},
+	{id: 'genres', label: 'Genres', icon: 'M400-120q-66 0-113-47t-47-113q0-66 47-113t113-47q23 0 42.5 5.5T480-418v-422h240v160H560v400q0 66-47 113t-113 47Z'}
 ];
 
 const LETTERS = ['#', 'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z'];
@@ -82,6 +97,9 @@ const [showSortPanel, setShowSortPanel] = useState(false);
 const [showSettingsPanel, setShowSettingsPanel] = useState(false);
 const [focusedItem, setFocusedItem] = useState(null);
 const [focusedRatings, setFocusedRatings] = useState([]);
+const [musicRows, setMusicRows] = useState([]);
+const [isLoadingMusicRows, setIsLoadingMusicRows] = useState(false);
+const [musicGridView, setMusicGridView] = useState(null);
 const libraryId = library?.Id || (genreFilter ? `genre-${genreFilter}` : 'default');
 const [imageSize, setImageSize] = useStorage(`library_imageSize_${libraryId}`, 'medium');
 const [imageType, setImageType] = useStorage(`library_imageType_${libraryId}`, isSquareDefault ? 'square' : 'poster');
@@ -97,6 +115,10 @@ const apiFetchIndexRef = useRef(0);
 const initialFocusDoneRef = useRef(false);
 const ratingsTimeoutRef = useRef(null);
 const ratingsAbortRef = useRef(null);
+const musicRowsContainerRef = useRef(null);
+const musicRowRefsMap = useRef(new Map());
+
+const isMusicBrowseHome = isMusicLibrary && !isGenreMode && !isFolderView && !musicGridView;
 
 const items = useMemo(() => {
 if (!startLetter) {
@@ -216,7 +238,7 @@ if (isFolderView) {
 
 	if (filters.length > 0) params.Filters = filters.join(',');
 
-	const result = isMusicLibrary && musicContentType === 'artists'
+	const result = isMusicLibrary && (musicContentType === 'artists' || musicContentType === 'albumArtists')
 		? await effectiveApi.getAlbumArtists({
 			ParentId: library.Id,
 			StartIndex: startIndex,
@@ -228,6 +250,16 @@ if (isFolderView) {
 			ImageTypeLimit: 1,
 			EnableImageTypes: 'Primary,Backdrop,Thumb',
 			...(filters.length > 0 ? {Filters: filters.join(',')} : {})
+		})
+		: isMusicLibrary && musicContentType === 'genres'
+		? await effectiveApi.getMusicGenres({
+			ParentId: library.Id,
+			StartIndex: startIndex,
+			Limit: 150,
+			SortBy: sortOption.field,
+			SortOrder: sortOption.order,
+			EnableTotalRecordCount: true,
+			Fields: 'PrimaryImageAspectRatio,ItemCounts'
 		})
 		: await effectiveApi.getItems(params);
 	let newItems = result.Items || [];
@@ -246,16 +278,161 @@ loadingMoreRef.current = false;
 }
 }, [effectiveApi, library, genreFilter, sortKey, favoritesOnly, watchedOnly, isFolderView, currentFolderId, isMusicLibrary, musicContentType, getItemTypeForLibrary, getExcludeItemTypes]);
 
+const loadMusicBrowseRows = useCallback(async () => {
+	if (!library?.Id || !isMusicBrowseHome) return;
+
+	setIsLoadingMusicRows(true);
+	try {
+		const fields = 'PrimaryImageAspectRatio,ProductionYear,ImageTags,UserData,AlbumArtist,AlbumArtists,Artists';
+		const [latestRes, recentRes, playlistsRes, albumArtistsRes] = await Promise.all([
+			effectiveApi.getItems({
+				ParentId: library.Id,
+				IncludeItemTypes: 'MusicAlbum',
+				Recursive: true,
+				SortBy: 'DateCreated',
+				SortOrder: 'Descending',
+				Limit: MUSIC_BROWSE_ROW_LIMIT,
+				Fields: fields
+			}),
+			effectiveApi.getItems({
+				ParentId: library.Id,
+				IncludeItemTypes: 'Audio,MusicAlbum',
+				Recursive: true,
+				SortBy: 'DatePlayed',
+				SortOrder: 'Descending',
+				Limit: MUSIC_BROWSE_ROW_LIMIT,
+				Fields: fields,
+				Filters: 'IsPlayed'
+			}),
+			effectiveApi.getItems({
+				IncludeItemTypes: 'Playlist',
+				Recursive: true,
+				SortBy: 'SortName',
+				SortOrder: 'Ascending',
+				Limit: MUSIC_BROWSE_ROW_LIMIT,
+				Fields: 'PrimaryImageAspectRatio,ImageTags,MediaType,ChildCount,RecursiveItemCount'
+			}),
+			effectiveApi.getAlbumArtists({
+				ParentId: library.Id,
+				Recursive: true,
+				SortBy: 'SortName',
+				SortOrder: 'Ascending',
+				Limit: MUSIC_BROWSE_ROW_LIMIT,
+				Fields: fields
+			})
+		]);
+
+		const playlists = playlistsRes?.Items || [];
+		const audioPlaylists = [];
+		const queue = playlists.slice();
+		const workerCount = Math.min(4, queue.length);
+		const workers = Array.from({length: workerCount}, async () => {
+			while (queue.length > 0) {
+				const playlist = queue.shift();
+				if (!playlist || playlist.Type !== 'Playlist' || !playlist.Id) continue;
+
+				const count = playlist.ChildCount != null ? playlist.ChildCount : playlist.RecursiveItemCount;
+				if (count != null && count <= 0) continue;
+
+				try {
+					const playlistItemsRes = await effectiveApi.getPlaylistItems(playlist.Id, 300);
+					const playlistItems = playlistItemsRes?.Items || [];
+					if (playlistItems.length === 0) continue;
+
+					const hasOnlyAudio = playlistItems.every((entry) => {
+						if (entry?.MediaType) return entry.MediaType === 'Audio';
+						return entry?.Type === 'Audio';
+					});
+
+					if (hasOnlyAudio) audioPlaylists.push(playlist);
+				} catch (err) {
+					if (playlist.MediaType === 'Audio') audioPlaylists.push(playlist);
+				}
+			}
+		});
+		await Promise.all(workers);
+
+		const nextRows = [
+			{id: 'latestMusic', title: 'Latest Music', items: latestRes?.Items || []},
+			{id: 'lastPlayed', title: 'Last Played', items: recentRes?.Items || []},
+			{id: 'playlists', title: 'Playlists', items: audioPlaylists},
+			{id: 'albumArtists', title: 'Album Artists', items: albumArtistsRes?.Items || []}
+		].filter(row => row.items.length > 0);
+
+		setMusicRows(nextRows);
+	} catch (err) {
+		console.error('[Library] loadMusicBrowseRows error:', err);
+		setMusicRows([]);
+	} finally {
+		setIsLoadingMusicRows(false);
+	}
+}, [effectiveApi, library?.Id, isMusicBrowseHome]);
+
 useEffect(() => {
-if (library || genreFilter) {
-setIsLoading(true);
-setAllItems([]);
-loadingMoreRef.current = false;
-apiFetchIndexRef.current = 0;
-initialFocusDoneRef.current = false;
-loadItems(0, false);
-}
-}, [library, sortKey, favoritesOnly, watchedOnly, musicContentType, isFolderView, currentFolderId, loadItems, genreFilter]);
+	if (isMusicBrowseHome) {
+		setIsLoading(false);
+		return;
+	}
+	if (library || genreFilter) {
+		setIsLoading(true);
+		setAllItems([]);
+		loadingMoreRef.current = false;
+		apiFetchIndexRef.current = 0;
+		initialFocusDoneRef.current = false;
+		loadItems(0, false);
+	}
+}, [library, sortKey, favoritesOnly, watchedOnly, musicContentType, isFolderView, currentFolderId, loadItems, genreFilter, isMusicBrowseHome]);
+
+useEffect(() => {
+	if (!isMusicBrowseHome) return;
+	loadMusicBrowseRows();
+}, [isMusicBrowseHome, loadMusicBrowseRows]);
+
+const registerMusicRowRef = useCallback((rowIndex, element) => {
+	if (element) {
+		musicRowRefsMap.current.set(rowIndex, element);
+	} else {
+		musicRowRefsMap.current.delete(rowIndex);
+	}
+}, []);
+
+const scrollToMusicRow = useCallback((rowIndex, thenFocus) => {
+	const rowEl = musicRowRefsMap.current.get(rowIndex);
+	const container = musicRowsContainerRef.current;
+	if (!rowEl || !container) {
+		if (thenFocus) Spotlight.focus('row-' + rowIndex);
+		return;
+	}
+	container.scrollTop = Math.max(0, rowEl.offsetTop - 16);
+	if (thenFocus) {
+		setTimeout(() => Spotlight.focus('row-' + rowIndex), 0);
+	}
+}, []);
+
+const handleMusicNavigateUp = useCallback((fromRowIndex) => {
+	if (fromRowIndex <= 0) {
+		Spotlight.focus('music-view-albums');
+		return;
+	}
+	scrollToMusicRow(fromRowIndex - 1, true);
+}, [scrollToMusicRow]);
+
+const handleMusicNavigateDown = useCallback((fromRowIndex) => {
+	const nextRow = fromRowIndex + 1;
+	if (nextRow >= musicRows.length) return;
+	scrollToMusicRow(nextRow, true);
+}, [musicRows.length, scrollToMusicRow]);
+
+const handleMusicViewJump = useCallback((e) => {
+	const viewId = e.currentTarget?.dataset?.rowId;
+	if (!viewId) return;
+	setMusicGridView(viewId);
+	setMusicContentType(viewId);
+	setSortKey('SortName');
+	setAllItems([]);
+	apiFetchIndexRef.current = 0;
+	initialFocusDoneRef.current = false;
+}, []);
 
 useEffect(() => {
 if (items.length > 0 && !isLoading && !initialFocusDoneRef.current) {
@@ -346,6 +523,10 @@ useEffect(() => {
 			setShowSortPanel(false);
 			return true;
 		}
+		if (musicGridView) {
+			setMusicGridView(null);
+			return true;
+		}
 		if (isFolderView && folderStack.length > 0) {
 			setFolderStack(prev => prev.slice(0, -1));
 			return true;
@@ -353,7 +534,7 @@ useEffect(() => {
 		return false;
 	};
 	return () => { if (backHandlerRef) backHandlerRef.current = null; };
-}, [backHandlerRef, showSortPanel, showSettingsPanel, isFolderView, folderStack]);
+}, [backHandlerRef, showSortPanel, showSettingsPanel, musicGridView, isFolderView, folderStack]);
 
 useEffect(() => {
 	return () => {
@@ -594,6 +775,62 @@ return (
 <div className={css.empty}>{$L('No library selected')}</div>
 </div>
 );
+}
+
+if (isMusicBrowseHome) {
+	return (
+		<div className={`${css.page} ${css.musicPage}`}>
+			<div className={`${css.content} ${css.musicContent}`}>
+				<div className={css.musicHeader}>
+					<div className={css.musicLibraryTitle}>{displayName}</div>
+				</div>
+
+				<SpottableButton className={css.musicHomeBtn} onClick={onHome} spotlightId="music-home-btn">
+					<svg viewBox="0 0 24 24" fill="currentColor" width="24" height="24"><path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z" /></svg>
+				</SpottableButton>
+
+				<div className={css.musicSectionTitle}>Views</div>
+				<div className={css.musicViews}>
+					{MUSIC_VIEW_BUTTONS.map((btn, idx) => (
+						<SpottableButton
+							key={btn.id}
+							className={css.musicViewBtn}
+							onClick={handleMusicViewJump}
+							data-row-id={btn.id}
+							spotlightId={idx === 0 ? 'music-view-albums' : `music-view-${btn.id}`}
+						>
+							<MusicViewIcon d={btn.icon} />
+							<span className={css.musicViewLabel}>{btn.label}</span>
+						</SpottableButton>
+					))}
+				</div>
+
+				<div className={css.musicRowsContainer} ref={musicRowsContainerRef}>
+					{isLoadingMusicRows ? (
+						<div className={css.loading}><LoadingSpinner /></div>
+					) : musicRows.length === 0 ? (
+						<div className={css.empty}>No music items found</div>
+					) : (
+						musicRows.map((row, index) => (
+							<MediaRow
+								key={row.id}
+								title={row.title}
+								items={row.items}
+								serverUrl={effectiveServerUrl}
+								cardType="square"
+								onSelectItem={onSelectItem}
+								rowIndex={index}
+								rowId={`music-${row.id}`}
+								onNavigateUp={handleMusicNavigateUp}
+								onNavigateDown={handleMusicNavigateDown}
+								registerRowRef={registerMusicRowRef}
+							/>
+						))
+					)}
+				</div>
+			</div>
+		</div>
+	);
 }
 
 const focusedInfoParts = [];

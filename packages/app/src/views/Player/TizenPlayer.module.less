@@ -100,8 +100,45 @@
 	font-style: italic;
 }
 
+.audioLyricsPreview {
+	margin-top: 18px;
+	max-width: 540px;
+	min-height: 56px;
+	padding: 12px 16px;
+	background: rgba(0, 0, 0, 0.3);
+	border: 1px solid rgba(255, 255, 255, 0.12);
+	border-radius: 10px;
+}
+
+.audioLyricsLine {
+	margin: 0;
+	font-size: 20px;
+	line-height: 1.4;
+	color: rgba(255, 255, 255, 0.92);
+	text-align: center;
+}
+
 .audioControls {
 	background: transparent;
+
+	.controlsBottom {
+		padding-bottom: 40px;
+	}
+
+	.progressContainer {
+		margin-bottom: 15px;
+	}
+}
+
+/* Audio transport buttons: evenly spaced below seekbar */
+.audioTransportButtons {
+	display: -webkit-flex;
+	display: flex;
+	-webkit-justify-content: space-between;
+	justify-content: space-between;
+	-webkit-align-items: center;
+	align-items: center;
+	padding: 0 8%;
 }
 
 /* Custom Subtitle Overlay - Tizen doesn't support native <track> elements */
@@ -349,6 +386,25 @@
 	transform: scale(1.05);
 	color: rgba(255, 255, 255, 0.5);
 	cursor: not-allowed;
+}
+
+/* Active state for toggle buttons (shuffle, repeat, favorite) */
+.controlBtnActive {
+	color: #00a4dc;
+}
+
+.controlBtnActive:hover,
+.controlBtnActive:focus {
+	color: #00a4dc;
+}
+
+/* Favorite button row above seekbar (audio mode) */
+.audioFavoriteRow {
+	display: -webkit-flex;
+	display: flex;
+	-webkit-justify-content: center;
+	justify-content: center;
+	margin-bottom: 10px;
 }
 
 /* Progress Container */
@@ -599,6 +655,65 @@
 .trackInfo {
 	font-size: 20px;
 	color: rgba(255, 255, 255, 0.7);
+}
+
+.lyricsModal {
+	max-width: 980px;
+}
+
+.lyricsList {
+	display: flex;
+	flex-direction: column;
+	max-height: 58vh;
+	overflow-y: auto;
+	padding-right: 8px;
+	scrollbar-width: none;
+	-ms-overflow-style: none;
+}
+
+.lyricsList::-webkit-scrollbar {
+	display: none;
+}
+
+.lyricLine {
+	padding: 14px 18px;
+	border-radius: 8px;
+	margin-top: 10px;
+
+	&:first-child {
+		margin-top: 0;
+	}
+	transition: background 0.2s ease, transform 0.2s ease;
+	outline: none;
+}
+
+.lyricLineActive {
+	background: rgba(0, 164, 220, 0.25);
+	border: 1px solid rgba(0, 164, 220, 0.6);
+	transform: scale(1.02);
+}
+
+.lyricLinePassive {
+	background: rgba(255, 255, 255, 0.04);
+	border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.lyricText {
+	font-size: 24px;
+	line-height: 1.45;
+	color: rgba(255, 255, 255, 0.92);
+	text-align: center;
+	white-space: pre-wrap;
+	word-break: break-word;
+}
+
+.lyricEmpty {
+	padding: 26px;
+	font-size: 22px;
+	text-align: center;
+	color: rgba(255, 255, 255, 0.7);
+	background: rgba(255, 255, 255, 0.04);
+	border-radius: 8px;
 }
 
 /* Chapters Modal */

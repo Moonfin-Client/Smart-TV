@@ -164,6 +164,7 @@ export const getPlayMethod = (mediaSource, capabilities) => {
 	// Build supported audio codecs list (with container-specific restrictions)
 	const audioCodec = (audioStream?.Codec || '').toLowerCase();
 	const supportedAudioCodecs = getSupportedAudioCodecs(capabilities, container);
+	const isAudioOnly = !videoStream && audioStreams.length > 0;
 
 	// Check if ANY audio stream is compatible (not just the default/first one).
 	// A file with TrueHD primary + AC3 secondary should still DirectPlay using the AC3 track.
@@ -177,8 +178,25 @@ export const getPlayMethod = (mediaSource, capabilities) => {
 		defaultAudioOk: !audioCodec || supportedAudioCodecs.includes(audioCodec),
 		hasCompatibleAudio,
 		compatibleStreams: audioStreams.filter(s => supportedAudioCodecs.includes((s.Codec || '').toLowerCase())).map(s => `${s.Index}:${s.Codec}`),
-		totalAudioStreams: audioStreams.length
+		totalAudioStreams: audioStreams.length,
+		isAudioOnly
 	});
+
+	if (isAudioOnly) {
+		const supportedAudioContainers = ['mp3', 'aac', 'm4a', 'm4b', 'flac', 'ogg', 'oga', 'opus', 'wav', 'wma', 'webma'];
+		const containerParts = container.split(',').map(c => c.trim());
+		const containerOk = !container || containerParts.some(c => supportedAudioContainers.includes(c));
+
+		if (mediaSource.SupportsDirectPlay && hasCompatibleAudio && containerOk) {
+			return 'DirectPlay';
+		}
+
+		if (mediaSource.SupportsDirectStream && hasCompatibleAudio) {
+			return 'DirectStream';
+		}
+
+		return 'Transcode';
+	}
 
 	// Build supported containers list
 	const supportedContainers = ['mp4', 'm4v', 'mov', 'ts', 'mpegts', 'mts', 'm2ts', '3gp', '3g2', 'mpg', 'mpeg', 'vob', 'dat'];

@@ -320,7 +320,7 @@
 .itemCard {
 	position: relative;
 	cursor: pointer;
-	transition: all 0.2s ease;
+	transition: transform 0.2s ease;
 	border-radius: 8px;
 	overflow: visible;
 	background: transparent;
@@ -624,6 +624,144 @@
 	text-transform: uppercase;
 	letter-spacing: 1.5px;
 	margin-bottom: 4px;
+}
+
+/* Music browse mode (Flutter parity) */
+.musicPage {
+	background: #101528;
+}
+
+.musicContent {
+	display: -webkit-flex;
+	display: flex;
+	-webkit-flex-direction: column;
+	flex-direction: column;
+	height: 100%;
+	padding: 16px 24px 0;
+}
+
+.musicHeader {
+	display: -webkit-flex;
+	display: flex;
+	-webkit-flex-direction: column;
+	flex-direction: column;
+	min-height: 44px;
+}
+
+.musicLibraryTitle {
+	font-size: 34px;
+	font-weight: 300;
+	color: #fff;
+	text-align: center;
+}
+
+.musicHomeBtn {
+	display: -webkit-flex;
+	display: flex;
+	-webkit-align-items: center;
+	align-items: center;
+	-webkit-justify-content: center;
+	justify-content: center;
+	width: 60px;
+	height: 60px;
+	border-radius: 50%;
+	border: 2px solid transparent;
+	background: rgba(255, 255, 255, 0.08);
+	color: rgba(255, 255, 255, 0.9);
+	margin: 4px 0 8px;
+	padding: 0;
+	cursor: pointer;
+	transition: background 0.15s ease, transform 0.15s ease;
+
+	svg {
+		width: 32px;
+		height: 32px;
+	}
+
+	&:focus {
+		outline: none;
+		background: rgba(255, 255, 255, 0.2);
+		border-color: @accent;
+		-webkit-transform: scale(1.08);
+		transform: scale(1.08);
+	}
+}
+
+.musicSectionTitle {
+	font-size: 18px;
+	font-weight: 600;
+	color: rgba(255, 255, 255, 0.9);
+	margin: 4px 0 8px 6px;
+}
+
+.musicViews {
+	display: -webkit-flex;
+	display: flex;
+	-webkit-align-items: stretch;
+	align-items: stretch;
+	padding: 6px 6px 14px 6px;
+	overflow: visible;
+	-webkit-flex-wrap: nowrap;
+	flex-wrap: nowrap;
+}
+
+.musicViewBtn {
+	display: -webkit-flex;
+	display: flex;
+	-webkit-flex-direction: column;
+	flex-direction: column;
+	-webkit-align-items: center;
+	align-items: center;
+	-webkit-justify-content: center;
+	justify-content: center;
+	min-width: 110px;
+	padding: 18px 24px 14px;
+	border: 2px solid transparent;
+	background: rgba(255, 255, 255, 0.06);
+	color: rgba(255, 255, 255, 0.88);
+	border-radius: 14px;
+	cursor: pointer;
+	transition: transform 0.15s ease, background 0.15s ease;
+
+	& + & {
+		margin-left: 36px;
+	}
+
+	svg {
+		width: 36px;
+		height: 36px;
+		margin-bottom: 8px;
+		opacity: 0.85;
+	}
+
+	&:focus {
+		outline: none;
+		background: rgba(255, 255, 255, 0.14);
+		border-color: @accent;
+		-webkit-transform: scale(1.06);
+		transform: scale(1.06);
+
+		svg {
+			opacity: 1;
+		}
+	}
+}
+
+.musicViewLabel {
+	font-size: 14px;
+	font-weight: 500;
+	white-space: nowrap;
+}
+
+.musicRowsContainer {
+	flex: 1;
+	overflow-y: auto;
+	overflow-x: hidden;
+	padding-bottom: 20px;
+
+	&::-webkit-scrollbar {
+		display: none;
+	}
 }
 
 .settingRow {

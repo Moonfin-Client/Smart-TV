@@ -247,3 +247,35 @@ export const removeFromStorage = async (key) => {
 	localStorageRemove(key);
 	return result;
 };
+
+export const clearAllStorage = async () => {
+	await waitForInit();
+	const LS2 = await loadLS2Request();
+
+	if (LS2 && !useLocalStorage && dbServiceUri) {
+		await ls2WithTimeout(LS2, {
+			service: dbServiceUri,
+			method: 'del',
+			parameters: {
+				query: {from: DB_KIND}
+			},
+			onSuccess: () => true,
+			fallback: false
+		}, LS2_TIMEOUT_MS);
+	}
+
+	try {
+		var keysToRemove = [];
+		for (var i = 0; i < localStorage.length; i++) {
+			var key = localStorage.key(i);
+			if (key && key.indexOf(LS_PREFIX) === 0) {
+				keysToRemove.push(key);
+			}
+		}
+		for (var j = 0; j < keysToRemove.length; j++) {
+			localStorage.removeItem(keysToRemove[j]);
+		}
+	} catch (e) { /* ignore */ }
+
+	return true;
+};

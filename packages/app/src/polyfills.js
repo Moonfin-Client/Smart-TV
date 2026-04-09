@@ -84,6 +84,43 @@ if (typeof Element !== 'undefined' && !Element.prototype.closest) {
 	};
 }
 
+// AbortController polyfill for webOS 2 (Chrome ~38) and other legacy browsers.
+if (typeof AbortController === 'undefined') {
+	var AbortSignalPolyfill = function () {
+		this.aborted = false;
+		this._listeners = [];
+	};
+	AbortSignalPolyfill.prototype.addEventListener = function (type, fn) {
+		if (type === 'abort') this._listeners.push(fn);
+	};
+	AbortSignalPolyfill.prototype.removeEventListener = function (type, fn) {
+		if (type === 'abort') {
+			this._listeners = this._listeners.filter(function (l) { return l !== fn; });
+		}
+	};
+	AbortSignalPolyfill.prototype._emit = function () {
+		this.aborted = true;
+		for (var i = 0; i < this._listeners.length; i++) {
+			try { this._listeners[i](); } catch (e) { /* ignore */ }
+		}
+	};
+
+	var AbortControllerPolyfill = function () {
+		this.signal = new AbortSignalPolyfill();
+	};
+	AbortControllerPolyfill.prototype.abort = function () {
+		this.signal._emit();
+	};
+
+	if (typeof self !== 'undefined') {
+		self.AbortController = AbortControllerPolyfill;
+		self.AbortSignal = AbortSignalPolyfill;
+	} else if (typeof window !== 'undefined') {
+		window.AbortController = AbortControllerPolyfill;
+		window.AbortSignal = AbortSignalPolyfill;
+	}
+}
+
 // Add 'legacy' class on Tizen 2.4 / webOS 2.x for CSS layout workarounds
 if (typeof document !== 'undefined') {
 	var ua = navigator.userAgent || '';

@@ -1,8 +1,11 @@
-import {createContext, useContext, useState, useEffect, useCallback, useMemo} from 'react';
+import {createContext, useContext, useState, useEffect, useCallback, useMemo, useRef} from 'react';
 import * as jellyfinApi from '../services/jellyfinApi';
 import {initStorage, getFromStorage, saveToStorage, removeFromStorage} from '../services/storage';
 import * as multiServerManager from '../services/multiServerManager';
 import {clearImageCache} from '../services/imageProxy';
+
+const REVALIDATE_INTERVAL = 5 * 60 * 1000;
+const BACKOFF_DELAYS = [5000, 10000, 20000];
 import {clearProxiedImageCache} from '../hooks/useProxiedImage';
 import {parseUrl} from '../utils/urlCompat';
 
@@ -78,11 +81,12 @@ export const AuthProvider = ({children}) => {
 						try {
 							const userInfo = await jellyfinApi.api.getUserConfiguration();
 							setUser(userInfo);
+							setIsAuthenticated(true);
 						} catch (e) {
-							setUser({Id: active.userId, Name: active.username});
+							console.warn('[AUTH] Token validation failed, requiring re-login');
+							jellyfinApi.setAuth(null, null);
+							setAccessToken(null);
 						}
-
-						setIsAuthenticated(true);
 					}
 				} else {
 					const storedAuth = await getFromStorage('auth');
@@ -92,10 +96,17 @@ export const AuthProvider = ({children}) => {
 						if (autoLogin) {
 							jellyfinApi.setServer(storedAuth.serverUrl);
 							jellyfinApi.setAuth(storedAuth.userId, storedAuth.token);
-							setServerUrl(storedAuth.serverUrl);
-							setAccessToken(storedAuth.token);
-							setUser(storedAuth.user);
-							setIsAuthenticated(true);
+
+							try {
+								const userInfo = await jellyfinApi.api.getUserConfiguration();
+								setServerUrl(storedAuth.serverUrl);
+								setAccessToken(storedAuth.token);
+								setUser(userInfo);
+								setIsAuthenticated(true);
+							} catch (e) {
+								console.warn('[AUTH] Stored token validation failed, requiring re-login');
+								jellyfinApi.setAuth(null, null);
+							}
 						}
 					}
 				}
@@ -375,6 +386,55 @@ export const AuthProvider = ({children}) => {
 		setIsAuthenticated(false);
 	}, []);
 
+	const [connectionState, setConnectionState] = useState('connected');
+	const lastRevalidateRef = useRef(0);
+
+	const revalidateSession = useCallback(async (force) => {
+		if (!isAuthenticated) return;
+
+		const now = Date.now();
+		if (!force && now - lastRevalidateRef.current < REVALIDATE_INTERVAL) return;
+		lastRevalidateRef.current = now;
+
+		let serverReachable = false;
+		for (let i = 0; i < BACKOFF_DELAYS.length; i++) {
+			try {
+				const info = await jellyfinApi.api.getPublicInfo();
+				if (info) {
+					serverReachable = true;
+					break;
+				}
+			} catch {
+				if (i < BACKOFF_DELAYS.length - 1) {
+					setConnectionState('reconnecting');
+					await new Promise(r => setTimeout(r, BACKOFF_DELAYS[i]));
+				}
+			}
+		}
+
+		if (!serverReachable) {
+			setConnectionState('disconnected');
+			return;
+		}
+
+		try {
+			await jellyfinApi.api.getUserConfiguration();
+			setConnectionState('connected');
+		} catch (e) {
+			const status = e?.status || e?.response?.status;
+			if (status === 401 || status === 403) {
+				console.warn('[AUTH] Session expired, requiring re-login');
+				jellyfinApi.setAuth(null, null);
+				setAccessToken(null);
+				setUser(null);
+				setIsAuthenticated(false);
+				setConnectionState('connected');
+			} else {
+				setConnectionState('disconnected');
+			}
+		}
+	}, [isAuthenticated]);
+
 	// Computed values
 	const serverCount = useMemo(() => uniqueServers.length, [uniqueServers]);
 	const totalUserCount = useMemo(() => servers.length, [servers]);
@@ -410,6 +470,10 @@ export const AuthProvider = ({children}) => {
 		lastServerUrl,
 		lastServerName,
 
+		// Connection state
+		connectionState,
+		revalidateSession,
+
 		// Actions
 		login,
 		loginWithToken,
@@ -442,6 +506,8 @@ export const AuthProvider = ({children}) => {
 		completeAddServerFlow,
 		lastServerUrl,
 		lastServerName,
+		connectionState,
+		revalidateSession,
 		login,
 		loginWithToken,
 		logout,

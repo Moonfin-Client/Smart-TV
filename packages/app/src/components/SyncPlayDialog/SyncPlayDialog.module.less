@@ -1,0 +1,385 @@
+@accent: #00a4dc;
+
+.overlay {
+	position: fixed;
+	top: 0;
+	left: 0;
+	right: 0;
+	bottom: 0;
+	z-index: 9999;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	background: rgba(0, 0, 0, 0.6);
+	animation: fadeIn 0.2s ease;
+}
+
+.dialog {
+	background: rgba(30, 30, 40, 0.85);
+	backdrop-filter: blur(32px) saturate(1.4);
+	-webkit-backdrop-filter: blur(32px) saturate(1.4);
+	border: 1px solid rgba(255, 255, 255, 0.12);
+	border-radius: 24px;
+	padding: 0;
+	width: 480px;
+	max-width: 90vw;
+	max-height: 80vh;
+	display: flex;
+	flex-direction: column;
+	box-shadow:
+		0 8px 32px rgba(0, 0, 0, 0.4),
+		inset 0 1px 0 rgba(255, 255, 255, 0.08);
+	animation: scaleIn 0.2s ease;
+	overflow: hidden;
+}
+
+.header {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	padding: 24px 28px 16px;
+	border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.title {
+	margin: 0;
+	font-size: 28px;
+	font-weight: 600;
+	color: #fff;
+}
+
+.closeBtn {
+	background: none;
+	border: none;
+	color: rgba(255, 255, 255, 0.6);
+	font-size: 36px;
+	cursor: pointer;
+	padding: 4px 10px;
+	border-radius: 8px;
+	line-height: 1;
+	transition: color 0.2s, background 0.2s;
+	outline: none !important;
+
+	&:focus {
+		color: #fff;
+		background: rgba(255, 255, 255, 0.15);
+		border: 2px solid @accent;
+	}
+}
+
+.content {
+	flex: 1;
+	overflow-y: auto;
+	padding: 20px 28px 28px;
+}
+
+.createSection {
+	display: flex;
+	gap: 10px;
+	margin-bottom: 20px;
+}
+
+.input {
+	flex: 1;
+	padding: 14px 18px;
+	background: rgba(255, 255, 255, 0.08);
+	border: 2px solid rgba(255, 255, 255, 0.15);
+	border-radius: 12px;
+	color: #fff;
+	font-size: 20px;
+	outline: none;
+	transition: border-color 0.2s;
+	font-family: inherit;
+
+	input {
+		caret-color: @accent;
+	}
+
+	input::placeholder {
+		color: rgba(255, 255, 255, 0.4);
+	}
+
+	&:focus, &[data-focused] {
+		border-color: @accent;
+	}
+}
+
+.btn {
+	padding: 14px 24px;
+	border: 2px solid transparent;
+	border-radius: 12px;
+	font-size: 20px;
+	font-weight: 500;
+	cursor: pointer;
+	transition: all 0.15s ease;
+	outline: none !important;
+	white-space: nowrap;
+	font-family: inherit;
+
+	&:disabled {
+		opacity: 0.5;
+		cursor: default;
+	}
+
+	&:focus {
+		border-color: @accent;
+		box-shadow: 0 0 0 2px rgba(0, 164, 220, 0.3);
+	}
+}
+
+.createBtn {
+	background: rgba(0, 164, 220, 0.85);
+	color: #fff;
+
+	&:focus:not(:disabled) {
+		background: rgba(0, 164, 220, 1);
+	}
+}
+
+.leaveBtn {
+	background: rgba(220, 50, 50, 0.75);
+	color: #fff;
+	width: 100%;
+	margin-top: 12px;
+
+	&:focus:not(:disabled) {
+		background: rgba(220, 50, 50, 1);
+	}
+}
+
+.divider {
+	display: flex;
+	align-items: center;
+	gap: 12px;
+	margin: 20px 0;
+	color: rgba(255, 255, 255, 0.35);
+	font-size: 18px;
+
+	&::before,
+	&::after {
+		content: '';
+		flex: 1;
+		height: 1px;
+		background: rgba(255, 255, 255, 0.1);
+	}
+}
+
+.groupsList {
+	display: flex;
+	flex-direction: column;
+	gap: 10px;
+}
+
+.emptyState {
+	text-align: center;
+	color: rgba(255, 255, 255, 0.4);
+	padding: 32px 0;
+	font-size: 20px;
+}
+
+.groupCard {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	padding: 16px 20px;
+	background: rgba(255, 255, 255, 0.06);
+	border: 2px solid rgba(255, 255, 255, 0.08);
+	border-radius: 12px;
+	cursor: pointer;
+	transition: background 0.2s, border-color 0.2s;
+	color: #fff;
+	text-align: left;
+	width: 100%;
+	font-family: inherit;
+	font-size: inherit;
+	outline: none !important;
+
+	&:focus {
+		background: rgba(255, 255, 255, 0.12);
+		border-color: @accent;
+		box-shadow: 0 0 0 2px rgba(0, 164, 220, 0.3);
+	}
+}
+
+.joining {
+	opacity: 0.6;
+	pointer-events: none;
+}
+
+.groupInfo {
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
+}
+
+.groupName {
+	font-weight: 500;
+	font-size: 22px;
+}
+
+.groupMeta {
+	font-size: 18px;
+	color: rgba(255, 255, 255, 0.5);
+}
+
+.joinLabel {
+	font-size: 20px;
+	color: rgba(0, 164, 220, 0.9);
+	font-weight: 500;
+}
+
+.groupView {
+	display: flex;
+	flex-direction: column;
+	gap: 20px;
+}
+
+.groupHeader {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 12px;
+}
+
+.groupTitle {
+	margin: 0;
+	font-size: 24px;
+	font-weight: 600;
+	color: #fff;
+}
+
+.stateBadge {
+	padding: 6px 14px;
+	border-radius: 16px;
+	font-size: 16px;
+	font-weight: 500;
+	text-transform: uppercase;
+	letter-spacing: 0.5px;
+}
+
+.stateIdle {
+	background: rgba(255, 255, 255, 0.1);
+	color: rgba(255, 255, 255, 0.6);
+}
+
+.stateWaiting {
+	background: rgba(255, 165, 0, 0.2);
+	color: #ffa500;
+}
+
+.statePaused {
+	background: rgba(255, 200, 0, 0.2);
+	color: #ffc800;
+}
+
+.statePlaying {
+	background: rgba(0, 200, 83, 0.2);
+	color: #00c853;
+}
+
+.sectionTitle {
+	margin: 0 0 10px 0;
+	font-size: 18px;
+	font-weight: 500;
+	color: rgba(255, 255, 255, 0.6);
+	text-transform: uppercase;
+	letter-spacing: 0.5px;
+}
+
+.nowPlaying {
+	padding-bottom: 16px;
+	border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.nowPlayingInfo {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	padding: 12px 16px;
+	background: rgba(0, 164, 220, 0.1);
+	border: 1px solid rgba(0, 164, 220, 0.2);
+	border-radius: 10px;
+}
+
+.nowPlayingTitle {
+	font-size: 20px;
+	font-weight: 500;
+	color: #fff;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	flex: 1;
+	margin-right: 12px;
+}
+
+.nowPlayingMeta {
+	font-size: 16px;
+	color: rgba(255, 255, 255, 0.5);
+	white-space: nowrap;
+}
+
+.queueControls {
+	display: -webkit-flex;
+	display: flex;
+	gap: 10px;
+}
+
+.controlBtn {
+	flex: 1;
+	padding: 10px 16px;
+	background: rgba(255, 255, 255, 0.06);
+	border: 2px solid rgba(255, 255, 255, 0.1);
+	border-radius: 10px;
+	color: rgba(255, 255, 255, 0.7);
+	font-size: 18px;
+	font-weight: 500;
+	cursor: pointer;
+	transition: all 0.15s ease;
+	outline: none !important;
+	font-family: inherit;
+	text-align: center;
+
+	&:focus {
+		border-color: @accent;
+		color: #fff;
+		background: rgba(255, 255, 255, 0.1);
+	}
+}
+
+.controlActive {
+	background: rgba(0, 164, 220, 0.15);
+	color: @accent;
+	border-color: rgba(0, 164, 220, 0.3);
+}
+
+.membersList {
+	list-style: none;
+	margin: 0;
+	padding: 0;
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
+}
+
+.member {
+	padding: 10px 16px;
+	background: rgba(255, 255, 255, 0.06);
+	border-radius: 8px;
+	font-size: 20px;
+	color: rgba(255, 255, 255, 0.85);
+}
+
+.controls {
+	border-top: 1px solid rgba(255, 255, 255, 0.1);
+	padding-top: 16px;
+}
+
+@keyframes fadeIn {
+	from { opacity: 0; }
+	to { opacity: 1; }
+}
+
+@keyframes scaleIn {
+	from { transform: scale(0.95); opacity: 0; }
+	to { transform: scale(1); opacity: 1; }
+}

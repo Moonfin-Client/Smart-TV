@@ -11,10 +11,10 @@ import LoadingSpinner from '../../components/LoadingSpinner';
 import ProxiedImage from '../../components/ProxiedImage';
 import {KEYS} from '../../utils/keys';
 import {getImageUrl} from '../../utils/helpers';
+import SpottableInput from '../../components/SpottableInput/SpottableInput';
 
 import css from './Search.module.less';
 
-const SpottableInput = Spottable('input');
 const SpottableDiv = Spottable('div');
 const RowContainer = SpotlightContainerDecorator({enterTo: 'last-focused', restrict: 'self-first'}, 'div');
 

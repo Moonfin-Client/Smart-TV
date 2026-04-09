@@ -6,7 +6,9 @@ import Spotlight from '@enact/spotlight';
 import {useAuth} from '../../context/AuthContext';
 import {useSettings} from '../../context/SettingsContext';
 import {useJellyseerr} from '../../context/JellyseerrContext';
+import {useSyncPlay} from '../../context/SyncPlayContext';
 import JellyseerrIcon from '../icons/JellyseerrIcon';
+import SyncPlayIcon from '../icons/SyncPlayIcon';
 import SeerrIcon from '../icons/SeerrIcon';
 import {KEYS} from '../../utils/keys';
 
@@ -35,11 +37,13 @@ const NavBar = ({
 	onDiscover,
 	onSettings,
 	onSelectLibrary,
-	onUserMenu
+	onUserMenu,
+	onSyncPlay
 }) => {
 	const {user, serverUrl} = useAuth();
 	const {settings} = useSettings();
 	const {isEnabled: jellyseerrEnabled, isMoonfin, variant, displayName} = useJellyseerr();
+	const {isInGroup} = useSyncPlay();
 	const [clock, setClock] = useState('');
 	const [librariesExpanded, setLibrariesExpanded] = useState(false);
 	const librariesTimeoutRef = useRef(null);
@@ -290,6 +294,16 @@ const NavBar = ({
 								: <JellyseerrIcon className={css.navIcon} />
 							}
 							<span className={css.expandLabel}>{displayName}</span>
+						</SpottableButton>
+					)}
+
+					{settings.showSyncPlayButton !== false && (
+						<SpottableButton
+							className={`${css.navBtn} ${css.navBtnIcon} ${css.expandableBtn} ${isInGroup ? css.active : ''}`}
+							onClick={onSyncPlay}
+						>
+							<SyncPlayIcon className={css.navIcon} />
+							<span className={css.expandLabel}>SyncPlay</span>
 						</SpottableButton>
 					)}
 

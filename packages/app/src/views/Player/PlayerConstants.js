@@ -133,3 +133,62 @@ export const IconInfo = () => (
 		<path d="M160-120v-720h80v80h80v-80h320v80h80v-80h80v720h-80v-80h-80v80H320v-80h-80v80h-80Zm80-160h80v-80h-80v80Zm0-160h80v-80h-80v80Zm0-160h80v-80h-80v80Zm400 320h80v-80h-80v80Zm0-160h80v-80h-80v80Zm0-160h80v-80h-80v80ZM400-200h160v-560H400v560Zm0-560h160-160Z"/>
 	</svg>
 );
+
+export const IconShuffle = () => (
+	<svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="currentColor">
+		<path d="M560-160v-80h104L537-367l57-57 126 126v-102h80v240H560Zm-344 0-56-56 584-584h-104v-80h240v240h-80v-104L216-160Zm151-377L160-744l56-56 207 207-56 56Z"/>
+	</svg>
+);
+
+export const IconRepeat = () => (
+	<svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="currentColor">
+		<path d="M280-80 120-240l160-160 56 58-62 62h406v-160h80v240H274l62 62-56 58Zm-80-440v-240h486l-62-62 56-58 160 160-160 160-56-58 62-62H280v160h-80Z"/>
+	</svg>
+);
+
+export const IconRepeatOne = () => (
+	<svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="currentColor">
+		<path d="M460-360v-180h-60v-60h120v240h-60ZM280-80 120-240l160-160 56 58-62 62h406v-160h80v240H274l62 62-56 58Zm-80-440v-240h486l-62-62 56-58 160 160-160 160-56-58 62-62H280v160h-80Z"/>
+	</svg>
+);
+
+export const IconFavorite = () => (
+	<svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="currentColor">
+		<path d="m480-120-58-52q-101-91-167-157T150-447.5Q111-500 95.5-544T80-634q0-94 63-157t157-63q52 0 99 22t81 62q34-40 81-62t99-22q94 0 157 63t63 157q0 46-15.5 90T806-447.5Q770-395 704-329T537-172l-57 52Zm0-108q96-86 158-147.5t98-107q36-45.5 50-81t14-70.5q0-60-40-100t-100-40q-47 0-87 26.5T518-680h-76q-15-41-55-67.5T300-774q-60 0-100 40t-40 100q0 35 14 70.5t50 81q36 45.5 98 107T480-228Zm0-273Z"/>
+	</svg>
+);
+
+export const IconFavoriteFilled = () => (
+	<svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="currentColor">
+		<path d="m480-120-58-52q-101-91-167-157T150-447.5Q111-500 95.5-544T80-634q0-94 63-157t157-63q52 0 99 22t81 62q34-40 81-62t99-22q94 0 157 63t63 157q0 46-15.5 90T806-447.5Q770-395 704-329T537-172l-57 52Z"/>
+	</svg>
+);
+
+export const parseLyricsResponse = (response) => {
+	const rawLines = Array.isArray(response?.Lyrics) ? response.Lyrics : [];
+	return rawLines
+		.map((line) => {
+			const startTicks = typeof line?.Start === 'number' ? line.Start : null;
+			return {
+				startSeconds: startTicks !== null ? (startTicks / 10000000) : null,
+				text: (line?.Text || '').replace(/\r/g, '').trim()
+			};
+		})
+		.filter((line) => line.text)
+		.sort((a, b) => {
+			const aTime = typeof a.startSeconds === 'number' ? a.startSeconds : Number.MAX_SAFE_INTEGER;
+			const bTime = typeof b.startSeconds === 'number' ? b.startSeconds : Number.MAX_SAFE_INTEGER;
+			return aTime - bTime;
+		});
+};
+
+export const withTimeout = (promise, timeoutMs) => {
+	let timeoutId;
+	const timeoutPromise = new Promise((_, reject) => {
+		timeoutId = setTimeout(() => reject(new Error('timeout')), timeoutMs);
+	});
+	return Promise.race([promise, timeoutPromise]).then(
+		function (val) { clearTimeout(timeoutId); return val; },
+		function (err) { clearTimeout(timeoutId); throw err; }
+	);
+};

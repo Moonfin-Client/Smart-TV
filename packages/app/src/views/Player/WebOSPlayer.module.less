@@ -41,6 +41,7 @@
 	justify-content: center;
 }
 
+/* Centered layout (no lyrics) */
 .audioModeContent {
 	display: -webkit-flex;
 	display: flex;
@@ -49,15 +50,43 @@
 	-webkit-align-items: center;
 	align-items: center;
 	max-width: 600px;
+	padding-bottom: 280px;
+}
+
+/* Two-column layout (with lyrics) */
+.audioContentWithLyrics {
+	display: -webkit-flex;
+	display: flex;
+	-webkit-flex-direction: row;
+	flex-direction: row;
+	-webkit-align-items: flex-start;
+	align-items: flex-start;
+	-webkit-justify-content: space-between;
+	justify-content: space-between;
+	width: 90%;
+	max-width: 1200px;
+	padding-bottom: 280px;
+}
+
+.audioLeftPanel {
+	display: -webkit-flex;
+	display: flex;
+	-webkit-flex-direction: column;
+	flex-direction: column;
+	-webkit-align-items: center;
+	align-items: center;
+	-webkit-flex-shrink: 0;
+	flex-shrink: 0;
+	width: 340px;
 }
 
 .audioAlbumArt {
-	width: 400px;
-	height: 400px;
+	width: 340px;
+	height: 340px;
 	border-radius: 12px;
 	overflow: hidden;
 	box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
-	margin-bottom: 40px;
+	margin-bottom: 30px;
 }
 
 .audioAlbumImg {
@@ -82,11 +111,11 @@
 
 .audioTrackInfo {
 	text-align: center;
-	max-width: 500px;
+	max-width: 340px;
 }
 
 .audioTrackTitle {
-	font-size: 32px;
+	font-size: 28px;
 	font-weight: 600;
 	color: #fff;
 	margin: 0 0 8px;
@@ -96,20 +125,77 @@
 }
 
 .audioTrackArtist {
-	font-size: 22px;
+	font-size: 20px;
 	color: rgba(255, 255, 255, 0.7);
 	margin: 0 0 4px;
 }
 
 .audioTrackAlbum {
-	font-size: 18px;
+	font-size: 17px;
 	color: rgba(255, 255, 255, 0.5);
 	margin: 0;
 	font-style: italic;
 }
 
+/* Inline lyrics panel (right column) */
+.audioLyricsPanel {
+	-webkit-flex: 1;
+	flex: 1;
+	max-height: 480px;
+	overflow-y: auto;
+	padding: 20px 0;
+	text-align: center;
+	scrollbar-width: none;
+	-ms-overflow-style: none;
+
+	&::-webkit-scrollbar {
+		display: none;
+	}
+}
+
+.lyricLineActive {
+	font-size: 24px;
+	font-weight: 700;
+	color: #fff;
+	margin: 0;
+	padding: 10px 0;
+	line-height: 1.5;
+	-webkit-transition: color 0.3s ease, font-size 0.3s ease;
+	transition: color 0.3s ease, font-size 0.3s ease;
+}
+
+.lyricLineInactive {
+	font-size: 21px;
+	font-weight: 400;
+	color: rgba(255, 255, 255, 0.4);
+	margin: 0;
+	padding: 8px 0;
+	line-height: 1.5;
+	-webkit-transition: color 0.3s ease, font-size 0.3s ease;
+	transition: color 0.3s ease, font-size 0.3s ease;
+}
+
 .audioControls {
 	background: transparent;
+
+	.controlsBottom {
+		padding-bottom: 40px;
+	}
+
+	.progressContainer {
+		margin-bottom: 15px;
+	}
+}
+
+/* Audio transport buttons: evenly spaced below seekbar */
+.audioTransportButtons {
+	display: -webkit-flex;
+	display: flex;
+	-webkit-justify-content: space-between;
+	justify-content: space-between;
+	-webkit-align-items: center;
+	align-items: center;
+	padding: 0 8%;
 }
 
 /* Custom Subtitle Overlay - webOS doesn't support native <track> elements */
@@ -357,6 +443,25 @@
 	transform: scale(1.05);
 	color: rgba(255, 255, 255, 0.5);
 	cursor: not-allowed;
+}
+
+/* Active state for toggle buttons (shuffle, repeat, favorite) */
+.controlBtnActive {
+	color: #00a4dc;
+}
+
+.controlBtnActive:hover,
+.controlBtnActive:focus {
+	color: #00a4dc;
+}
+
+/* Favorite button row above seekbar (audio mode) */
+.audioFavoriteRow {
+	display: -webkit-flex;
+	display: flex;
+	-webkit-justify-content: center;
+	justify-content: center;
+	margin-bottom: 0;
 }
 
 /* Progress Container */

@@ -271,13 +271,13 @@ border-radius: 10px;
 color: #fff;
 transition: background 0.2s ease, border-color 0.2s ease;
 
-&:focus {
+&:focus, &[data-focused] {
 outline: none;
 border-color: var(--accent-color, #00a4dc);
 background: #1e1e1e;
 }
 
-&::placeholder {
+input::placeholder {
 color: #555;
 }
 }

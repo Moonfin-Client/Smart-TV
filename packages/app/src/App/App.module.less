@@ -38,3 +38,34 @@
 	width: 100%;
 	background: #000b25;
 }
+
+.connectionBanner {
+	position: fixed;
+	top: 0;
+	left: 0;
+	right: 0;
+	padding: 12px;
+	background: rgba(200, 50, 50, 0.9);
+	color: #fff;
+	text-align: center;
+	font-size: 24px;
+	z-index: 99999;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+}
+
+.retryButton {
+	margin-left: 16px;
+	padding: 6px 20px;
+	background: rgba(255, 255, 255, 0.2);
+	color: #fff;
+	border: 1px solid rgba(255, 255, 255, 0.5);
+	border-radius: 4px;
+	font-size: 20px;
+	cursor: pointer;
+
+	&:hover, &:focus {
+		background: rgba(255, 255, 255, 0.35);
+	}
+}
