@@ -12,6 +12,8 @@ import serverLogger from '../../services/serverLogger';
 import connectionPool from '../../services/connectionPool';
 import {isBackKey} from '../../utils/keys';
 import SpottableInput from '../../components/SpottableInput/SpottableInput';
+import ClearDataDialog from '../../components/ClearDataDialog';
+import {clearAllStorage} from '../../services/storage';
 
 import css from './Settings.module.less';
 
@@ -313,8 +315,8 @@ const renderChevron = () => (
 );
 
 const Settings = ({ onBack, onLibrariesChanged }) => {
-	const { api, serverUrl, accessToken, hasMultipleServers } = useAuth();
-	const { settings, updateSetting } = useSettings();
+	const { api, serverUrl, accessToken, hasMultipleServers, logoutAll } = useAuth();
+	const { settings, updateSetting, resetSettings } = useSettings();
 	const { capabilities } = useDeviceInfo();
 	const jellyseerr = useJellyseerr();
 	const isSeerr = jellyseerr.isMoonfin && jellyseerr.variant === 'seerr';
@@ -353,6 +355,7 @@ const Settings = ({ onBack, onLibrariesChanged }) => {
 	const [libraryLoading, setLibraryLoading] = useState(false);
 	const [librarySaving, setLibrarySaving] = useState(false);
 	const [serverConfigs, setServerConfigs] = useState([]);
+	const [clearDataDialogOpen, setClearDataDialogOpen] = useState(false);
 
 	useEffect(() => {
 		const timer = setTimeout(() => {
@@ -989,6 +992,28 @@ const Settings = ({ onBack, onLibrariesChanged }) => {
 		<>{renderToggleItem('serverLogging', 'Server Logging', 'Send logs to Jellyfin server for troubleshooting')}</>
 	);
 
+	const handleClearAllData = useCallback(async () => {
+		setClearDataDialogOpen(false);
+		resetSettings();
+		await clearAllStorage();
+		await logoutAll();
+	}, [resetSettings, logoutAll]);
+
+	const renderAboutData = () => (
+		<>
+			<div className={css.viewDescription}>Remove all saved servers, login sessions, and settings. The app will restart as if freshly installed.</div>
+			<div className={css.actionBarInline}>
+				<SpottableButton
+					className={`${css.actionButton} ${css.dangerButton}`}
+					onClick={() => setClearDataDialogOpen(true)}
+					spotlightId='clear-all-data'
+				>
+					Clear All Data
+				</SpottableButton>
+			</div>
+		</>
+	);
+
 	const renderAboutDevice = () => (
 		<>
 			{renderInfoItem('model', 'Model', capabilities?.modelName || 'Unknown')}
@@ -1104,6 +1129,7 @@ const Settings = ({ onBack, onLibrariesChanged }) => {
 						{ id: 'capabilities', label: 'Capabilities', description: 'Supported formats and codecs' }
 					);
 				}
+				subs.push({ id: 'data', label: 'Data', description: 'Storage and reset' });
 				return subs;
 			}
 			default:
@@ -1158,6 +1184,8 @@ const Settings = ({ onBack, onLibrariesChanged }) => {
 				return renderAboutDevice();
 			case 'about.capabilities':
 				return renderAboutCapabilities();
+			case 'about.data':
+				return renderAboutData();
 			default:
 				return null;
 		}
@@ -1376,6 +1404,11 @@ const Settings = ({ onBack, onLibrariesChanged }) => {
 			{currentView.view === 'options' && renderOptionsView()}
 			{currentView.view === 'homeRows' && renderHomeRowsView()}
 			{currentView.view === 'libraries' && renderLibrariesView()}
+			<ClearDataDialog
+				open={clearDataDialogOpen}
+				onCancel={() => setClearDataDialogOpen(false)}
+				onConfirm={handleClearAllData}
+			/>
 		</div>
 	);
 };
