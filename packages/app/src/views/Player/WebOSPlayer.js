@@ -873,34 +873,47 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 			if (playbackStartTimeoutRef.current) {
 				clearTimeout(playbackStartTimeoutRef.current);
 			}
+			let resumeHandled = false;
 			const onFirstTimeUpdate = () => {
-				clearTimeout(playbackStartTimeoutRef.current);
-				playbackStartTimeoutRef.current = null;
-				video.removeEventListener('timeupdate', onFirstTimeUpdate);
-				sourceTransitionRef.current = false;
-				transcodeRetryCountRef.current = 0;
-				if (pendingResumeTicksRef.current > 0) {
-					const seekSec = pendingResumeTicksRef.current / 10000000;
-					if (video.currentTime < seekSec * 0.5) {
-						console.log('[Player] #t= fragment did not seek - using currentTime fallback:', seekSec, 's');
-						video.currentTime = seekSec;
-					} else {
-						console.log('[Player] Resume via #t= fragment successful, position:', video.currentTime, 's');
+				if (!resumeHandled) {
+					resumeHandled = true;
+					clearTimeout(playbackStartTimeoutRef.current);
+					playbackStartTimeoutRef.current = null;
+					sourceTransitionRef.current = false;
+					transcodeRetryCountRef.current = 0;
+					if (pendingResumeTicksRef.current > 0) {
+						const seekSec = pendingResumeTicksRef.current / 10000000;
+						if (video.currentTime < seekSec * 0.5) {
+							console.log('[Player] #t= fragment did not seek - using currentTime fallback:', seekSec, 's');
+							video.currentTime = seekSec;
+						} else {
+							console.log('[Player] Resume via #t= fragment successful, position:', video.currentTime, 's');
+						}
+						pendingResumeTicksRef.current = 0;
 					}
-					pendingResumeTicksRef.current = 0;
 				}
 
-				// Apply initial audio track selection via audioTracks API
+				// audioTracks may not be populated on the first timeupdate,
+				// so retry on subsequent events until applied or no longer needed
 				const pending = pendingAudioRef.current;
-				if (pending && video.audioTracks?.length > 1) {
-					const matchIndex = matchAudioTrack(video.audioTracks, pending.audioStreams, pending.streamIndex);
-					if (matchIndex >= 0) {
-						for (let i = 0; i < video.audioTracks.length; i++) {
-							video.audioTracks[i].enabled = (i === matchIndex);
+				if (pending) {
+					if (video.audioTracks?.length > 1) {
+						const matchIndex = matchAudioTrack(video.audioTracks, pending.audioStreams, pending.streamIndex);
+						if (matchIndex >= 0) {
+							for (let i = 0; i < video.audioTracks.length; i++) {
+								video.audioTracks[i].enabled = (i === matchIndex);
+							}
+							console.log('[Player] Applied initial audio track via audioTracks API, index:', pending.streamIndex, 'matchIndex:', matchIndex);
 						}
-						console.log('[Player] Applied initial audio track via audioTracks API, index:', pending.streamIndex, 'matchIndex:', matchIndex);
+						pendingAudioRef.current = null;
+					} else if (video.audioTracks?.length > 0) {
+						// Single audio track, nothing to switch
+						pendingAudioRef.current = null;
 					}
-					pendingAudioRef.current = null;
+				}
+
+				if (!pendingAudioRef.current) {
+					video.removeEventListener('timeupdate', onFirstTimeUpdate);
 				}
 			};
 			video.addEventListener('timeupdate', onFirstTimeUpdate);
