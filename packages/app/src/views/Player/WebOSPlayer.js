@@ -367,6 +367,9 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 			setCurrentTime(0);
 			setSeekPosition(0);
 			setIsSeeking(false);
+			setSubtitleTrackEvents(null);
+			setCurrentSubtitleText(null);
+			setSelectedSubtitleIndex(-1);
 
 			resetPopups(); // eslint-disable-line no-use-before-define
 			setNextEpisode(null);

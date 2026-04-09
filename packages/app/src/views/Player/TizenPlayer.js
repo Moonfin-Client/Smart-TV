@@ -391,6 +391,9 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 		const loadMedia = async () => {
 			setIsLoading(true);
 			setError(null);
+			setSubtitleTrackEvents(null);
+			setCurrentSubtitleText(null);
+			setSelectedSubtitleIndex(-1);
 			resetPopups(); // eslint-disable-line no-use-before-define
 
 			// Stop any previous playback
