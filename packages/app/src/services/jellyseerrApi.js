@@ -10,14 +10,14 @@ let jellyfinAccessToken = null;
 const isLegacyTizen = () => {
 if (!isTizen() || typeof navigator === 'undefined') return false;
 const match = (navigator.userAgent || '').match(/Tizen\s([0-9]+(?:\.[0-9]+)?)/i);
-if (!match) return false;
+if (!match) return true;
 const version = parseFloat(match[1]);
-return Number.isFinite(version) && version <= 2.4;
+return Number.isFinite(version) && version <= 3.0;
 };
 
-// webOS 4 and legacy Tizen builds can fail HTTPS validation for image.tmdb.org,
+// webOS 4 and legacy Tizen builds (<=3.0) can fail HTTPS validation for image.tmdb.org,
 // so use HTTP on those devices.
-const _useHttp = isWebOS() || isLegacyTizen();
+const shouldUseHttp = () => isWebOS() || isLegacyTizen();
 
 export const setConfig = (url, user) => {
 jellyseerrUrl = url?.replace(/\/+$/, '');
@@ -658,8 +658,38 @@ return getTv(tmdbId);
 
 export const getImageUrl = (path, size = 'w500') => {
 if (!path) return null;
-const proto = _useHttp ? 'http' : 'https';
-return `${proto}://image.tmdb.org/t/p/${size}${path}`;
+const proto = shouldUseHttp() ? 'http' : 'https';
+const normalizedPath = String(path).trim();
+
+if (!normalizedPath) return null;
+
+// If backend already returns an absolute URL, keep it but normalize protocol
+// for TMDB hosts on legacy devices.
+if (/^https?:\/\//i.test(normalizedPath)) {
+try {
+const parsed = new URL(normalizedPath);
+const host = parsed.hostname.toLowerCase();
+if (host === 'image.tmdb.org' || host.endsWith('.themoviedb.org')) {
+parsed.protocol = `${proto}:`;
+return parsed.toString();
+}
+return normalizedPath;
+} catch (e) {
+void e;
+return normalizedPath;
+}
+}
+
+if (normalizedPath.startsWith('//')) {
+return `${proto}:${normalizedPath}`;
+}
+
+if (normalizedPath.startsWith('/t/p/')) {
+return `${proto}://image.tmdb.org${normalizedPath}`;
+}
+
+const filePath = normalizedPath.startsWith('/') ? normalizedPath : `/${normalizedPath}`;
+return `${proto}://image.tmdb.org/t/p/${size}${filePath}`;
 };
 
 export const proxyImage = async (imageUrl) => {
