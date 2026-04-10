@@ -4,6 +4,7 @@
 	"private": true,
 	"scripts": {
 		"build": "node scripts/build-wgt.js",
+		"build:oblong": "node scripts/build-wgt.js --oblong",
 		"build:dev": "node scripts/build-wgt.js --dev",
 		"build:signed": "node scripts/build-wgt.js --signed",
 		"install-tv": "node scripts/build-wgt.js --install",

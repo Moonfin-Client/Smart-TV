@@ -9,6 +9,7 @@
 	"scripts": {
 		"build:webos": "cd packages/build-webos && node build.js",
 		"build:tizen": "cd packages/build-tizen && node scripts/build-wgt.js",
+		"build:tizen:oblong": "cd packages/build-tizen && node scripts/build-wgt.js --oblong",
 		"build:tizen:legacy": "cd packages/build-tizen && node scripts/build-wgt.js --legacy",
 		"dev:webos": "cd packages/app && cross-env REACT_APP_PLATFORM=webos npm run serve",
 		"dev:tizen": "cd packages/app && cross-env REACT_APP_PLATFORM=tizen npm run serve"

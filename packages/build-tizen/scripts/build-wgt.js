@@ -10,6 +10,7 @@
  * Flags:
  *   --legacy               - Target Tizen 2.4 (strips Smart Hub Preview service
  *                            and Tizen 4+ metadata from config.xml)
+ *   --oblong               - Use oblong (512x423) launcher icon instead of square
  */
 
 const { execSync, spawn } = require('child_process');
@@ -27,6 +28,7 @@ const isSigned = args.includes('--signed');
 const shouldInstall = args.includes('--install');
 const isDev = args.includes('--dev');
 const isLegacy = args.includes('--legacy');
+const isOblong = args.includes('--oblong');
 
 // ── Optional version bump: npm run build:tizen -- 2.3.0 ──
 const versionArg = args.find(a => /^\d+\.\d+\.\d+$/.test(a));
@@ -165,6 +167,7 @@ async function main() {
 	console.log('\n' + cyan('═'.repeat(50)));
 	console.log(cyan('  Moonfin Tizen Build'));
 	if (isLegacy) console.log(cyan('  Target: Tizen 2.4 (no Smart Hub Preview)'));
+	if (isOblong) console.log(cyan('  Icon: oblong (512x423)'));
 	console.log(cyan('═'.repeat(50)) + '\n');
 	
 	// Step 1: Find Tizen CLI
@@ -329,6 +332,17 @@ async function main() {
 	log('Copying Tizen configuration...');
 	copyFiles(TIZEN_DIR, DIST);
 	success('Copied config.xml and icons');
+
+	if (isOblong) {
+		const oblongSrc = path.join(TIZEN_DIR, 'icon-oblong.png');
+		const iconDest = path.join(DIST, 'icon.png');
+		if (fs.existsSync(oblongSrc)) {
+			fs.copyFileSync(oblongSrc, iconDest);
+			success('Replaced icon.png with oblong variant (512x423)');
+		} else {
+			warn('icon-oblong.png not found, keeping square icon');
+		}
+	}
 	
 	// Step 3.5: Copy Smart Hub Preview background service (Tizen 4+ only)
 	if (isLegacy) {
