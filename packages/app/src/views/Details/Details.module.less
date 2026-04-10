@@ -672,6 +672,97 @@
 }
 
 /* ============================================
+   Next Up / Next Episode Card
+   ============================================ */
+.nextUpCard {
+	display: flex;
+	align-items: center;
+	height: 169px;
+	background: rgba(255, 255, 255, 0.06);
+	border-radius: 8px;
+	overflow: hidden;
+	cursor: pointer;
+	border: 2px solid transparent;
+	outline: none;
+	transition: transform 0.2s, border-color 0.2s;
+
+	&:focus {
+		transform: scale(1.01);
+		border-color: rgba(0, 164, 220, 0.5);
+	}
+}
+
+.nextUpThumb {
+	position: relative;
+	width: 300px;
+	height: 100%;
+	flex-shrink: 0;
+	background: #111;
+	overflow: hidden;
+
+	img {
+		width: 100%;
+		height: 100%;
+		object-fit: cover;
+	}
+}
+
+.nextUpThumbPlaceholder {
+	width: 100%;
+	height: 100%;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	background: #1a1a1a;
+
+	svg {
+		width: 36px;
+		height: 36px;
+		color: rgba(255, 255, 255, 0.15);
+	}
+}
+
+.nextUpInfo {
+	flex: 1;
+	min-width: 0;
+	padding: 0 20px;
+	display: flex;
+	flex-direction: column;
+	justify-content: center;
+	gap: 6px;
+}
+
+.nextUpTitle {
+	font-size: 18px;
+	font-weight: 600;
+	color: rgba(255, 255, 255, 0.95);
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.nextUpOverview {
+	font-size: 18px;
+	color: rgba(255, 255, 255, 0.55);
+	display: -webkit-box;
+	-webkit-line-clamp: 3;
+	-webkit-box-orient: vertical;
+	overflow: hidden;
+	line-height: 1.35;
+}
+
+.nextUpPlayIcon {
+	flex-shrink: 0;
+	padding: 0 20px;
+
+	svg {
+		width: 40px;
+		height: 40px;
+		color: rgba(255, 255, 255, 0.4);
+	}
+}
+
+/* ============================================
    Episode Cards (horizontal, for Episode view)
    ============================================ */
 .episodeCard {

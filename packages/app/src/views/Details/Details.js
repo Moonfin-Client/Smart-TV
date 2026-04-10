@@ -1318,6 +1318,46 @@ const handleSectionKeyDown = useCallback((ev) => {
 		</HorizontalContainer>
 	);
 
+	const renderNextUpCard = (ep, title) => {
+		const thumbUrl = ep.ImageTags?.Primary
+			? getImageUrl(effectiveServerUrl, ep.Id, 'Primary', {maxWidth: 400, quality: 80})
+			: null;
+		const label = ep.ParentIndexNumber != null && ep.IndexNumber != null
+			? `S${ep.ParentIndexNumber}:E${ep.IndexNumber}`
+			: null;
+		const progress = ep.UserData?.PlayedPercentage || 0;
+		return (
+			<RowContainer className={css.section}>
+				<div className={css.sectionHeader}>
+					<h3 className={css.sectionTitle}>{$L(title)}</h3>
+				</div>
+				<SpottableDiv className={css.nextUpCard} onClick={() => onSelectItem?.(ep)}>
+					<div className={css.nextUpThumb}>
+						{thumbUrl ? (
+							<img src={thumbUrl} alt="" />
+						) : (
+							<div className={css.nextUpThumbPlaceholder}>
+								<svg viewBox="0 0 24 24" fill="currentColor"><path d="M21 3H3c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h18c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H3V5h18v14zM9.5 7.5l7 4.5-7 4.5z"/></svg>
+							</div>
+						)}
+						{progress > 0 && (
+							<div className={css.episodeProgress}>
+								<div className={css.episodeProgressBar} style={{width: `${Math.min(progress, 100)}%`}} />
+							</div>
+						)}
+					</div>
+					<div className={css.nextUpInfo}>
+						<span className={css.nextUpTitle}>{label ? `${label} - ${ep.Name}` : ep.Name}</span>
+						{ep.Overview && <span className={css.nextUpOverview}>{ep.Overview}</span>}
+					</div>
+					<div className={css.nextUpPlayIcon}>
+						<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 14.5v-9l6 4.5-6 4.5z"/></svg>
+					</div>
+				</SpottableDiv>
+			</RowContainer>
+		);
+	};
+
 	const renderMetadata = () => {
 		const metaItems = [];
 		if (genres.length > 0) metaItems.push({label: $L('Genres'), value: genres.slice(0, 3).join(', ')});
@@ -1980,17 +2020,7 @@ const handleSectionKeyDown = useCallback((ev) => {
 					{/* Sections */}
 					<div className={css.sectionsContainer} onKeyDown={handleSectionKeyDown}>
 						{/* Next Up (for Series) */}
-						{nextUp.length > 0 && (
-							<MediaRow
-								title={$L('Next Up')}
-								items={nextUp}
-								serverUrl={effectiveServerUrl}
-								onSelectItem={onSelectItem}
-								cardType="landscape"
-								showOverview
-								className={css.inlineRow}
-							/>
-						)}
+						{nextUp.length > 0 && renderNextUpCard(nextUp[0], 'Next Up')}
 
 						{/* Seasons (for Series) */}
 						{isSeries && seasons.length > 0 && (
@@ -2032,6 +2062,15 @@ const handleSectionKeyDown = useCallback((ev) => {
 								</div>
 							</RowContainer>
 						)}
+
+						{/* Next Episode (for Episode type) */}
+						{isEpisode && episodes.length > 0 && (() => {
+							const currentIndex = episodes.findIndex(ep => ep.Id === item.Id);
+							const nextEp = currentIndex >= 0 && currentIndex < episodes.length - 1
+								? episodes[currentIndex + 1]
+								: null;
+							return nextEp ? renderNextUpCard(nextEp, 'Next Episode') : null;
+						})()}
 
 						{/* Episodes (for Episode type - same season horizontal cards) */}
 						{isEpisode && episodes.length > 0 && (

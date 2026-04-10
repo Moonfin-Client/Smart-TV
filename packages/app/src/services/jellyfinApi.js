@@ -175,7 +175,7 @@ export const api = {
 		request(`/Users/${currentUser}/Items/Resume?Limit=${limit}&MediaTypes=Video&Fields=ImageTags,ParentThumbItemId,ParentBackdropItemId`),
 
 	getNextUp: (limit = 24, seriesId = null) => {
-		let url = `/Shows/NextUp?UserId=${currentUser}&Limit=${limit}&Fields=ImageTags,ParentThumbItemId,ParentBackdropItemId`;
+		let url = `/Shows/NextUp?UserId=${currentUser}&Limit=${limit}&Fields=Overview,ImageTags,ParentThumbItemId,ParentBackdropItemId`;
 		if (seriesId) url += `&SeriesId=${seriesId}`;
 		return request(url);
 	},
