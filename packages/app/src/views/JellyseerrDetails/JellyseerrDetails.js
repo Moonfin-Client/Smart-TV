@@ -674,9 +674,10 @@ const CancelRequestPopup = memo(({open, pendingRequests, title, onConfirm, onClo
 	);
 });
 
+const supportsExternalTrailerSearch = !isLegacyTizen();
+
 const JellyseerrDetails = ({mediaType, mediaId, onClose, onSelectItem, onPlayInMoonfin, onSelectPerson, onSelectKeyword, onBack, backHandlerRef}) => {
 	const {isAuthenticated, user: contextUser} = useJellyseerr();
-	const supportsExternalTrailerSearch = !isLegacyTizen();
 	const [details, setDetails] = useState(null);
 	const [loading, setLoading] = useState(true);
 	const [requesting, setRequesting] = useState(false);
@@ -994,13 +995,12 @@ const JellyseerrDetails = ({mediaType, mediaId, onClose, onSelectItem, onPlayInM
 	}, [pendingRequests, mediaId, mediaType]);
 
 	const handleTrailer = useCallback(() => {
-		if (!supportsExternalTrailerSearch) return;
 		const mediaTitle = details?.title || details?.name || 'Unknown';
 		const mediaYear = details?.releaseDate?.substring(0, 4) || details?.firstAirDate?.substring(0, 4) || '';
 		const searchQuery = `${mediaTitle} ${mediaYear} official trailer`;
 		const youtubeUrl = `https://www.youtube.com/results?search_query=${encodeURIComponent(searchQuery)}`;
 		window.open(youtubeUrl, '_blank');
-	}, [details, supportsExternalTrailerSearch]);
+	}, [details]);
 
 	const handlePlay = useCallback(() => {
 		const jellyfinMediaId = details?.mediaInfo?.jellyfinMediaId;

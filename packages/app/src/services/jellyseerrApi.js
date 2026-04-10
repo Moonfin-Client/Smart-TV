@@ -654,29 +654,6 @@ if (!path) return null;
 const proto = shouldUseHttp ? 'http' : 'https';
 const normalizedPath = String(path).trim();
 
-if (!normalizedPath) return null;
-
-// If backend already returns an absolute URL, keep it but normalize protocol
-// for TMDB hosts on legacy devices.
-if (/^https?:\/\//i.test(normalizedPath)) {
-try {
-const parsed = new URL(normalizedPath);
-const host = parsed.hostname.toLowerCase();
-if (host === 'image.tmdb.org' || host.endsWith('.themoviedb.org')) {
-parsed.protocol = `${proto}:`;
-return parsed.toString();
-}
-return normalizedPath;
-} catch (e) {
-void e;
-return normalizedPath;
-}
-}
-
-if (normalizedPath.startsWith('//')) {
-return `${proto}:${normalizedPath}`;
-}
-
 if (normalizedPath.startsWith('/t/p/')) {
 return `${proto}://image.tmdb.org${normalizedPath}`;
 }
