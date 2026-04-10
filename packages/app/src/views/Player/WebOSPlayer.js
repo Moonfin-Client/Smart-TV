@@ -405,7 +405,8 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 					audioStreamIndex: initialAudioIndex,
 					subtitleStreamIndex: initialSubtitleIndex,
 					item: item,
-					isLiveTV
+					isLiveTV,
+					stereoUpmixEnabled: settings.stereoUpmixEnabled
 				});
 
 				setMediaUrl(result.url);
@@ -1307,7 +1308,8 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 					enableDirectStream: false,
 					enableTranscoding: true,
 					mediaSourceId: mediaSourceId,
-					item: item
+					item: item,
+					stereoUpmixEnabled: settings.stereoUpmixEnabled
 				});
 
 				if (result.url) {
@@ -1343,7 +1345,8 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 					enableTranscoding: true,
 					deviceProfile: h264Profile,
 					mediaSourceId: mediaSourceId,
-					item: item
+					item: item,
+					stereoUpmixEnabled: settings.stereoUpmixEnabled
 				});
 
 				if (result.url) {

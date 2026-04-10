@@ -90,7 +90,8 @@ const defaultSettings = {
 	screensaverMaxRating: 13,
 	uiScale: 1.0,
 	enablePgsRendering: true,
-	showSyncPlayButton: true
+	showSyncPlayButton: true,
+	stereoUpmixEnabled: false
 };
 
 export {DEFAULT_HOME_ROWS};

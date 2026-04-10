@@ -426,7 +426,8 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 					item: item,
 					mediaSourceId: initialMediaSourceId,
 					audioStreamIndex: initialAudioIndex != null ? initialAudioIndex : undefined,
-					isLiveTV
+					isLiveTV,
+					stereoUpmixEnabled: settings.stereoUpmixEnabled
 				});
 
 				setPlayMethod(result.playMethod);
@@ -965,7 +966,8 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 					enableDirectStream: false,
 					enableTranscoding: true,
 					mediaSourceId: mediaSourceId,
-					item: item
+					item: item,
+					stereoUpmixEnabled: settings.stereoUpmixEnabled
 				});
 
 				if (result.url) {

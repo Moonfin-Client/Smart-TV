@@ -146,7 +146,7 @@ const determinePlayMethod = (mediaSource, capabilities, options = {}) => {
 	return PlayMethod.Transcode;
 };
 
-const buildPlaybackUrl = (itemId, mediaSource, playSessionId, playMethod, credentials = null, isAudio = false) => {
+const buildPlaybackUrl = (itemId, mediaSource, playSessionId, playMethod, credentials = null, isAudio = false, options = {}) => {
 	const serverUrl = credentials?.serverUrl || jellyfinApi.getServerUrl();
 	const apiKey = credentials?.accessToken || jellyfinApi.getApiKey();
 	const deviceId = jellyfinApi.getDeviceId();
@@ -202,6 +202,10 @@ const buildPlaybackUrl = (itemId, mediaSource, playSessionId, playMethod, creden
 
 		// Clean up any malformed query string (e.g., ?& or &&)
 		transcodeUrl = transcodeUrl.replace(/\?&/g, '?').replace(/&&/g, '&');
+
+		if (options.stereoUpmixEnabled) {
+			transcodeUrl += (transcodeUrl.includes('?') ? '&' : '?') + 'upmix=true';
+		}
 
 		const url = transcodeUrl.startsWith('http')
 			? transcodeUrl
@@ -342,7 +346,7 @@ export const getPlaybackInfo = async (itemId, options = {}) => {
 		const playMethod = mediaSource.TranscodingUrl
 			? PlayMethod.Transcode
 			: (mediaSource.SupportsDirectPlay ? PlayMethod.DirectPlay : PlayMethod.DirectStream);
-		const url = buildPlaybackUrl(itemId, mediaSource, playbackInfo.PlaySessionId, playMethod, creds, false);
+		const url = buildPlaybackUrl(itemId, mediaSource, playbackInfo.PlaySessionId, playMethod, creds, false, options);
 		const audioStreams = extractAudioStreams(mediaSource);
 		const subtitleStreams = extractSubtitleStreams(mediaSource);
 
@@ -490,7 +494,7 @@ export const getPlaybackInfo = async (itemId, options = {}) => {
 	const hasAudioStream = (mediaSource.MediaStreams || []).some((s) => s.Type === 'Audio');
 	const streamInferredAudio = hasAudioStream && !hasVideoStream;
 	const isAudio = itemAudio || streamInferredAudio;
-	const url = buildPlaybackUrl(itemId, mediaSource, playbackInfo.PlaySessionId, playMethod, creds, isAudio);
+	const url = buildPlaybackUrl(itemId, mediaSource, playbackInfo.PlaySessionId, playMethod, creds, isAudio, options);
 
 	const audioStreams = extractAudioStreams(mediaSource);
 	const subtitleStreams = extractSubtitleStreams(mediaSource);
