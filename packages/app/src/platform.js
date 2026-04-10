@@ -19,3 +19,11 @@ export const getPlatform = () => {
 	if (isTizen()) return 'tizen';
 	return 'unknown';
 };
+
+export const isLegacyTizen = () => {
+	if (!isTizen() || typeof navigator === 'undefined') return false;
+	const match = (navigator.userAgent || '').match(/Tizen\s([0-9]+(?:\.[0-9]+)?)/i);
+	if (!match) return true;
+	const version = parseFloat(match[1]);
+	return !Number.isFinite(version) || version <= 3.0;
+};

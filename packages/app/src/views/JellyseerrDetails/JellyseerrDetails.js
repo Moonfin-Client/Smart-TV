@@ -7,19 +7,12 @@ import Popup from '@enact/sandstone/Popup';
 import Button from '@enact/sandstone/Button';
 import $L from '@enact/i18n/$L';
 import jellyseerrApi, {canRequestMovies, canRequestTv, canRequest4kMovies, canRequest4kTv, hasAdvancedRequestPermission} from '../../services/jellyseerrApi';
-import {isTizen} from '../../platform';
+import {isLegacyTizen} from '../../platform';
 import {useJellyseerr} from '../../context/JellyseerrContext';
 import LoadingSpinner from '../../components/LoadingSpinner';
 import {KEYS} from '../../utils/keys';
 import css from './JellyseerrDetails.module.less';
 
-const isLegacyTizen = () => {
-	if (!isTizen() || typeof navigator === 'undefined') return false;
-	const match = (navigator.userAgent || '').match(/Tizen\s([0-9]+(?:\.[0-9]+)?)/i);
-	if (!match) return true;
-	const version = parseFloat(match[1]);
-	return !Number.isFinite(version) || version <= 3.0;
-};
 
 const safeFocus = (spotlightId) => {
 	try {
