@@ -22,6 +22,7 @@ const MediaRow = ({
 	onNavigateUp,
 	onNavigateDown,
 	showServerBadge = false,
+	showOverview = false,
 	className,
 	registerRowRef
 }) => {
@@ -96,6 +97,7 @@ const MediaRow = ({
 							onSelect={handleSelect}
 							onFocusItem={onFocusItem}
 							showServerBadge={showServerBadge}
+							showOverview={showOverview}
 							eagerLoad={rowIndex === 0}
 						/>
 					))}

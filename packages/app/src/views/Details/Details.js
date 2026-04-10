@@ -14,6 +14,7 @@ import RatingsRow from '../../components/RatingsRow';
 import {formatDuration, getImageUrl, getBackdropId, getLogoUrl} from '../../utils/helpers';
 import {KEYS, isBackKey} from '../../utils/keys';
 import {fetchVideoStreamUrl} from '../../services/youtubeTrailer';
+import {formatTime} from '../Player/PlayerConstants';
 import AddToPlaylistModal from '../../components/AddToPlaylistModal';
 import DeleteItemDialog from '../../components/DeleteItemDialog';
 import {toSubtitleLanguage, mapRemoteSubtitleOptions} from '../Player/remoteSubtitleUtils';
@@ -185,7 +186,7 @@ const Details = ({itemId, initialItem, onPlay, onSelectItem, onSelectPerson, onI
 			setShowMediaInfo(false);
 
 			try {
-				const data = await effectiveApi.getItem(itemId);
+				const data = await effectiveApi.getItemForDetail(itemId);
 				setItem(tagWithServerInfo(data));
 
 				setSelectedVersionIndex(0);
@@ -617,6 +618,12 @@ const Details = ({itemId, initialItem, onPlay, onSelectItem, onSelectPerson, onI
 			onSelectItem?.(episode);
 		}
 	}, [episodes, onSelectItem]);
+
+	const handleChapterSelect = useCallback((ev) => {
+		if (!item) return;
+		const startTicks = Number(ev.currentTarget.dataset.startTicks);
+		onPlay?.(item, false, {startPositionTicks: startTicks});
+	}, [item, onPlay]);
 
 	const handleTrackPlay = useCallback((ev) => {
 		const trackId = ev.currentTarget.dataset.trackId;
@@ -1168,7 +1175,7 @@ const handleSectionKeyDown = useCallback((ev) => {
 				<SpottableDiv className={css.btnWrapper} onClick={handleOpenSubtitleModal}>
 					<div className={css.btnAction}>
 						<svg className={css.btnIcon} viewBox="0 -960 960 960" fill="currentColor">
-							<path d="M200-160q-33 0-56.5-23.5T120-240v-480q0-33 23.5-56.5T200-800h560q33 0 56.5 23.5T840-720v480q0 33-23.5 56.5T760-160H200Zm0-80h560v-480H200v480Zm80-120h120q17 0 28.5-11.5T440-400v-40h-60v20h-80v-120h80v20h60v-40q0-17-11.5-28.5T400-600H280q-17 0-28.5 11.5T240-560v160q0 17 11.5 28.5T280-360Zm280 0h120q17 0 28.5-11.5T720-400v-40h-60v20h-80v-120h80v20h60v-40q0-17-11.5-28.5T680-600H560q-17 0-28.5 11.5T520-560v160q0 17 11.5 28.5T560-360ZM200-240v-480 480Z"/>
+							<path d="M240-350h360v-60H240v60Zm420 0h60v-60h-60v60ZM240-470h60v-60h-60v60Zm120 0h360v-60H360v60ZM140-160q-24 0-42-18t-18-42v-520q0-24 18-42t42-18h680q24 0 42 18t18 42v520q0 24-18 42t-42 18H140Zm0-60h680v-520H140v520Zm0 0v-520 520Z"/>
 						</svg>
 					</div>
 					<span className={css.btnLabel}>{$L('Subtitle')}</span>
@@ -1851,17 +1858,22 @@ const handleSectionKeyDown = useCallback((ev) => {
 
 							{/* Info row with badges */}
 							<div className={css.infoRow}>
-								{/* Text items with bullet separators */}
 								<div className={css.infoTextItems}>
 									{year && <span className={css.infoItem}>{year}</span>}
-									{officialRating && <span className={css.infoItem}>{officialRating}</span>}
 									{runtime && !isSeries && <span className={css.infoItem}>{runtime}</span>}
 									{endsAt && !isSeries && <span className={css.infoItem}>{endsAt}</span>}
 									{isSeries && seasonCount > 0 && (
-										<span className={css.infoItem}>{seasonCount} {seasonCount !== 1 ? $L('Seasons') : $L('Season')}</span>
+										<span className={css.infoItem}>{seasonCount}&nbsp;{seasonCount !== 1 ? $L('Seasons') : $L('Season')}</span>
 									)}
 								</div>
-								{/* Media badges */}
+								{isSeries && (item.Status === 'Continuing' || item.Status === 'Ended') && (
+									<span className={`${css.badge} ${item.Status === 'Continuing' ? css.badgeContinuing : css.badgeEnded}`}>
+										{item.Status === 'Continuing' ? $L('Continuing') : $L('Ended')}
+									</span>
+								)}
+								{officialRating && (
+									<span className={`${css.badge} ${css.badgeRating}`}>{officialRating}</span>
+								)}
 								{badges.length > 0 && (
 									<div className={css.infoBadges}>
 										{badges.map((badge, i) => (
@@ -1912,6 +1924,7 @@ const handleSectionKeyDown = useCallback((ev) => {
 								serverUrl={effectiveServerUrl}
 								onSelectItem={onSelectItem}
 								cardType="landscape"
+								showOverview
 								className={css.inlineRow}
 							/>
 						)}
@@ -2026,6 +2039,45 @@ const handleSectionKeyDown = useCallback((ev) => {
 								onSelectItem={onSelectItem}
 								className={css.inlineRow}
 							/>
+						)}
+
+						{/* Chapters */}
+						{item.Chapters?.length > 0 && (
+							<RowContainer className={css.section}>
+								<div className={css.sectionHeader}>
+									<h3 className={css.sectionTitle}>{$L('Chapters')}</h3>
+								</div>
+								<div className={css.sectionScroll} onFocus={handleScrollerFocus}>
+									{item.Chapters.map((chapter, index) => {
+										const chapterImageUrl = chapter.ImageTag
+											? `${effectiveServerUrl}/Items/${item.Id}/Images/Chapter/${index}?maxWidth=400&tag=${chapter.ImageTag}`
+											: null;
+
+										return (
+											<SpottableDiv
+												key={index}
+												className={css.chapterCard}
+												data-start-ticks={chapter.StartPositionTicks}
+												onClick={handleChapterSelect}
+											>
+												<div className={css.chapterThumb}>
+													{chapterImageUrl ? (
+														<img src={chapterImageUrl} alt="" />
+													) : (
+														<div className={css.chapterThumbPlaceholder}>
+															<svg viewBox="0 0 24 24" fill="currentColor"><path d="M4 6H2v14c0 1.1.9 2 2 2h14v-2H4V6zm16-4H8c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-8 12.5v-9l6 4.5-6 4.5z" /></svg>
+														</div>
+													)}
+												</div>
+												<div className={css.chapterInfo}>
+													<span className={css.chapterName}>{chapter.Name}</span>
+													<span className={css.chapterTime}>{formatTime(chapter.StartPositionTicks / 10000000)}</span>
+												</div>
+											</SpottableDiv>
+										);
+									})}
+								</div>
+							</RowContainer>
 						)}
 
 						{/* Cast & Crew */}

@@ -152,7 +152,7 @@ export const api = {
 	getItem: (itemId) => request(`/Users/${currentUser}/Items/${itemId}`),
 
 	getItemForDetail: (itemId) =>
-		request(`/Users/${currentUser}/Items/${itemId}?Fields=Overview,Genres,OfficialRating,BackdropImageTags,ParentBackdropImageTags,ParentBackdropItemId,ProviderIds,RunTimeTicks,ProductionYear`),
+		request(`/Users/${currentUser}/Items/${itemId}?Fields=Overview,Genres,OfficialRating,BackdropImageTags,ParentBackdropImageTags,ParentBackdropItemId,ProviderIds,RunTimeTicks,ProductionYear,Chapters`),
 
 	getItemWithChapters: (itemId) => request(`/Users/${currentUser}/Items/${itemId}?Fields=Chapters`),
 

@@ -842,6 +842,7 @@ const AppContent = (props) => {
 								initialMediaSourceId={playbackOptions?.mediaSourceId}
 								initialAudioIndex={playbackOptions?.audioStreamIndex}
 								initialSubtitleIndex={playbackOptions?.subtitleStreamIndex}
+								initialStartPositionTicks={playbackOptions?.startPositionTicks}
 								audioPlaylist={playbackOptions?.audioPlaylist}
 								onEnded={handlePlayerEnd}
 								onBack={handlePlayerEnd}

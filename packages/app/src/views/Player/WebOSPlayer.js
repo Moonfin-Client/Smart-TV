@@ -37,7 +37,7 @@ import {
 
 import css from './WebOSPlayer.module.less';
 
-const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialSubtitleIndex, onEnded, onBack, onPlayNext, audioPlaylist, onPausedChange}) => {
+const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialSubtitleIndex, initialStartPositionTicks, onEnded, onBack, onPlayNext, audioPlaylist, onPausedChange}) => {
 	const {settings} = useSettings();
 	const {isInGroup, lastCommand} = useSyncPlay();
 	const syncPlayCommandRef = useRef(false);
@@ -387,7 +387,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 			try {
 				const isLiveTV = item.Type === 'TvChannel';
 				const savedPosition = isLiveTV ? 0 : (item.UserData?.PlaybackPositionTicks || 0);
-				const startPosition = (!isLiveTV && resume !== false) ? savedPosition : 0;
+				const startPosition = initialStartPositionTicks != null ? initialStartPositionTicks : ((!isLiveTV && resume !== false) ? savedPosition : 0);
 				console.log('[Player] Start position:', {
 					resume,
 					savedPosition,
