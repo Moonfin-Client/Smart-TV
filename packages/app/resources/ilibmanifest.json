@@ -3,9 +3,10 @@
 		"strings.json",
 		"de/strings.json",
 		"es/strings.json",
+		"fr/strings.json",
 		"pl/strings.json",
 		"pt-BR/strings.json",
 		"ru/strings.json"
 	],
-	"locales": ["de", "en-US", "es", "pl", "pt-BR", "ru"]
+	"locales": ["de", "en-US", "es", "fr", "pl", "pt-BR", "ru"]
 }
