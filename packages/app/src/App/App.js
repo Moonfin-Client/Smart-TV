@@ -807,6 +807,7 @@ const AppContent = (props) => {
 								onPlay={handlePlay}
 								onSelectItem={handleSelectItem}
 								onSelectPerson={handleSelectPerson}
+								onItemDeleted={handleBack}
 							backHandlerRef={backHandlerRef}
 						/>
 						)}

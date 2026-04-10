@@ -15,6 +15,7 @@ import {formatDuration, getImageUrl, getBackdropId, getLogoUrl} from '../../util
 import {KEYS, isBackKey} from '../../utils/keys';
 import {fetchVideoStreamUrl} from '../../services/youtubeTrailer';
 import AddToPlaylistModal from '../../components/AddToPlaylistModal';
+import DeleteItemDialog from '../../components/DeleteItemDialog';
 import {toSubtitleLanguage, mapRemoteSubtitleOptions} from '../Player/remoteSubtitleUtils';
 
 import css from './Details.module.less';
@@ -110,7 +111,7 @@ const getMediaBadges = (item) => {
 	return badges;
 };
 
-const Details = ({itemId, initialItem, onPlay, onSelectItem, onSelectPerson, backHandlerRef}) => {
+const Details = ({itemId, initialItem, onPlay, onSelectItem, onSelectPerson, onItemDeleted, backHandlerRef}) => {
 	const {api, serverUrl} = useAuth();
 	const {settings} = useSettings();
 
@@ -161,6 +162,7 @@ const Details = ({itemId, initialItem, onPlay, onSelectItem, onSelectPerson, bac
 	const [trailerOverlay, setTrailerOverlay] = useState(null);
 	const [trailerStreamUrl, setTrailerStreamUrl] = useState(null);
 	const [showPlaylistModal, setShowPlaylistModal] = useState(false);
+	const [showDeleteDialog, setShowDeleteDialog] = useState(false);
 	const [toastMessage, setToastMessage] = useState(null);
 
 	// Refs
@@ -774,17 +776,38 @@ const Details = ({itemId, initialItem, onPlay, onSelectItem, onSelectPerson, bac
 		window.requestAnimationFrame(() => Spotlight.focus('details-action-buttons'));
 	}, []);
 
+	const handleOpenDeleteDialog = useCallback(() => {
+		setShowDeleteDialog(true);
+	}, []);
+
+	const handleCloseDeleteDialog = useCallback(() => {
+		setShowDeleteDialog(false);
+		window.requestAnimationFrame(() => Spotlight.focus('details-action-buttons'));
+	}, []);
+
+	const handleConfirmDelete = useCallback(async () => {
+		try {
+			await effectiveApi.deleteItem(item.Id);
+			setShowDeleteDialog(false);
+			onItemDeleted?.();
+		} catch {
+			setShowDeleteDialog(false);
+			setToastMessage($L('Failed to delete item'));
+		}
+	}, [effectiveApi, item?.Id, onItemDeleted]);
+
 	// Register back handler interceptor for modals
 	useEffect(() => {
 		if (!backHandlerRef) return;
 		backHandlerRef.current = () => {
+			if (showDeleteDialog) { handleCloseDeleteDialog(); return true; }
 			if (showPlaylistModal) { handleClosePlaylistModal(); return true; }
 			if (activeModal) { closeModal(); return true; }
 			if (showMediaInfo) { setShowMediaInfo(false); return true; }
 			return false;
 		};
 		return () => { if (backHandlerRef) backHandlerRef.current = null; };
-	}, [backHandlerRef, activeModal, showMediaInfo, showPlaylistModal, closeModal, handleClosePlaylistModal]);
+	}, [backHandlerRef, activeModal, showMediaInfo, showPlaylistModal, showDeleteDialog, closeModal, handleClosePlaylistModal, handleCloseDeleteDialog]);
 
 const handleSectionKeyDown = useCallback((ev) => {
 		const currentSpottable = ev.target.closest('.spottable');
@@ -1212,6 +1235,16 @@ const handleSectionKeyDown = useCallback((ev) => {
 				</div>
 				<span className={css.btnLabel}>{$L('Add to Playlist')}</span>
 			</SpottableDiv>
+			{item.CanDelete && (
+				<SpottableDiv className={css.btnWrapper} onClick={handleOpenDeleteDialog}>
+					<div className={css.btnAction}>
+						<svg className={css.btnIcon} viewBox="0 -960 960 960" fill="currentColor">
+							<path d="M280-120q-33 0-56.5-23.5T200-200v-520h-40v-80h200v-40h240v40h200v80h-40v520q0 33-23.5 56.5T700-120H280Zm400-600H280v520h400v-520ZM360-280h80v-360h-80v360Zm160 0h80v-360h-80v360ZM280-720v520-520Z"/>
+						</svg>
+					</div>
+					<span className={css.btnLabel}>{$L('Delete')}</span>
+				</SpottableDiv>
+			)}
 		</HorizontalContainer>
 	);
 
@@ -2190,6 +2223,13 @@ const handleSectionKeyDown = useCallback((ev) => {
 				api={effectiveApi}
 				onClose={handleClosePlaylistModal}
 				onSuccess={showToast}
+			/>
+
+			<DeleteItemDialog
+				open={showDeleteDialog}
+				itemName={item?.Name}
+				onCancel={handleCloseDeleteDialog}
+				onConfirm={handleConfirmDelete}
 			/>
 
 			{toastMessage && (
