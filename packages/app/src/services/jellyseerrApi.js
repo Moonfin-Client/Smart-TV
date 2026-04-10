@@ -10,7 +10,7 @@ let jellyfinAccessToken = null;
 
 // webOS 4 and legacy Tizen builds (<=3.0) can fail HTTPS validation for image.tmdb.org,
 // so use HTTP on those devices.
-const shouldUseHttp = () => isWebOS() || isLegacyTizen();
+const shouldUseHttp = isWebOS() || isLegacyTizen();
 
 export const setConfig = (url, user) => {
 jellyseerrUrl = url?.replace(/\/+$/, '');
@@ -651,7 +651,7 @@ return getTv(tmdbId);
 
 export const getImageUrl = (path, size = 'w500') => {
 if (!path) return null;
-const proto = shouldUseHttp() ? 'http' : 'https';
+const proto = shouldUseHttp ? 'http' : 'https';
 const normalizedPath = String(path).trim();
 
 if (!normalizedPath) return null;
