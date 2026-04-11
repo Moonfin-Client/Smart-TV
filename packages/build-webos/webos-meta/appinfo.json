@@ -1,6 +1,6 @@
 {
     "id": "org.moonfin.webos",
-    "version": "2.3.0",
+    "version": "2.4.0",
     "vendor": "Moonfin",
     "type": "web",
     "main": "index.html",

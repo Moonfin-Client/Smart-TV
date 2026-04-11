@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<widget xmlns="http://www.w3.org/ns/widgets" xmlns:tizen="http://tizen.org/ns/widgets" id="http://moonfin.org/tizen" version="2.3.0" viewmodes="maximized">
+<widget xmlns="http://www.w3.org/ns/widgets" xmlns:tizen="http://tizen.org/ns/widgets" id="http://moonfin.org/tizen" version="2.4.0" viewmodes="maximized">
     <tizen:application id="MoonfinApp.moonfin" package="MoonfinApp" required_version="2.4"/>
     <content src="index.html"/>
     <tizen:app-control>

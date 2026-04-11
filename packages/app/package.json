@@ -1,6 +1,6 @@
 {
 	"name": "@moonfin/app",
-	"version": "2.3.0",
+	"version": "2.4.0",
 	"description": "Jellyfin client for Smart TVs",
 	"author": "RadicalMuffinMan",
 	"main": "src/index.js",
