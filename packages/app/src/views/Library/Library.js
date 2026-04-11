@@ -66,6 +66,8 @@ const MUSIC_VIEW_BUTTONS = [
 
 const LETTERS = ['#', 'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z'];
 
+const FOLDER_DETAIL_TYPES = ['Series', 'BoxSet', 'Playlist', 'MusicAlbum', 'MusicArtist'];
+
 const Library = ({library, genreFilter, onSelectItem, onViewPhoto, onHome, backHandlerRef}) => {
 const {api, serverUrl} = useAuth();
 const {settings} = useSettings();
@@ -105,9 +107,11 @@ const [imageSize, setImageSize] = useStorage(`library_imageSize_${libraryId}`, '
 const [imageType, setImageType] = useStorage(`library_imageType_${libraryId}`, isSquareDefault ? 'square' : 'poster');
 const [gridDirection, setGridDirection] = useStorage(`library_gridDirection_${libraryId}`, 'vertical');
 const [folderView, setFolderView] = useStorage(`library_folderView_${libraryId}`, 'off');
-const isFolderView = folderView === 'on';
+const isMixedContentLibrary = library != null && (!library.CollectionType || library.CollectionType.toLowerCase() === 'folders');
+const isFolderView = folderView === 'on' || isMixedContentLibrary;
 const [folderStack, setFolderStack] = useState([]);
 const currentFolderId = folderStack.length > 0 ? folderStack[folderStack.length - 1].id : library?.Id;
+const currentFolderCollectionType = folderStack.length > 0 ? folderStack[folderStack.length - 1].collectionType?.toLowerCase() : null;
 const isGenreMode = !!genreFilter;
 
 const loadingMoreRef = useRef(false);
@@ -117,6 +121,8 @@ const ratingsTimeoutRef = useRef(null);
 const ratingsAbortRef = useRef(null);
 const musicRowsContainerRef = useRef(null);
 const musicRowRefsMap = useRef(new Map());
+const loadItemsRef = useRef(null);
+const fetchGenerationRef = useRef(0);
 
 const isMusicBrowseHome = isMusicLibrary && !isGenreMode && !isFolderView && !musicGridView;
 
@@ -185,6 +191,11 @@ if (!library && !genreFilter) return;
 
 if (append && loadingMoreRef.current) return;
 
+if (!append) {
+fetchGenerationRef.current++;
+}
+const generation = fetchGenerationRef.current;
+
 if (append) {
 loadingMoreRef.current = true;
 }
@@ -207,11 +218,19 @@ if (isFolderView) {
 		Fields: 'PrimaryImageAspectRatio,SortName,Path,ChildCount,MediaSourceCount,ProductionYear,ImageTags,OfficialRating,CommunityRating,CriticRating,RunTimeTicks,UserData'
 	};
 	if (filters.length > 0) params.Filters = filters.join(',');
-
 	const result = await effectiveApi.getItems(params);
-	const newItems = result.Items || [];
+	let newItems = result.Items || [];
+	if (currentFolderCollectionType === 'movies' || currentFolderCollectionType === 'tvshows') {
+		newItems = newItems.filter(i => i.Type !== 'BoxSet');
+	}
+	if (generation !== fetchGenerationRef.current) return;
 	apiFetchIndexRef.current = append ? apiFetchIndexRef.current + newItems.length : newItems.length;
-	setAllItems(prev => append ? [...prev, ...newItems] : newItems);
+	setAllItems(prev => {
+		if (!append) return newItems;
+		const combined = [...prev, ...newItems];
+		const seen = new Set();
+		return combined.filter(i => { if (seen.has(i.Id)) return false; seen.add(i.Id); return true; });
+	});
 	setTotalCount(result.TotalRecordCount || 0);
 } else {
 	const params = {
@@ -269,14 +288,22 @@ if (isFolderView) {
 	}
 
 	apiFetchIndexRef.current = append ? apiFetchIndexRef.current + (result.Items?.length || 0) : (result.Items?.length || 0);
-	setAllItems(prev => append ? [...prev, ...newItems] : newItems);
+	if (generation !== fetchGenerationRef.current) return;
+	setAllItems(prev => {
+		if (!append) return newItems;
+		const combined = [...prev, ...newItems];
+		const seen = new Set();
+		return combined.filter(i => { if (seen.has(i.Id)) return false; seen.add(i.Id); return true; });
+	});
 	setTotalCount(result.TotalRecordCount || 0);
 }
 } catch (err) { console.error('[Library] loadItems error:', err); } finally {
 setIsLoading(false);
 loadingMoreRef.current = false;
 }
-}, [effectiveApi, library, genreFilter, sortKey, favoritesOnly, watchedOnly, isFolderView, currentFolderId, isMusicLibrary, musicContentType, getItemTypeForLibrary, getExcludeItemTypes]);
+}, [effectiveApi, library, genreFilter, sortKey, favoritesOnly, watchedOnly, isFolderView, currentFolderId, currentFolderCollectionType, isMusicLibrary, musicContentType, getItemTypeForLibrary, getExcludeItemTypes]);
+
+loadItemsRef.current = loadItems;
 
 const loadMusicBrowseRows = useCallback(async () => {
 	if (!library?.Id || !isMusicBrowseHome) return;
@@ -376,12 +403,13 @@ useEffect(() => {
 	if (library || genreFilter) {
 		setIsLoading(true);
 		setAllItems([]);
+		setTotalCount(0);
 		loadingMoreRef.current = false;
 		apiFetchIndexRef.current = 0;
 		initialFocusDoneRef.current = false;
-		loadItems(0, false);
+		loadItemsRef.current(0, false);
 	}
-}, [library, sortKey, favoritesOnly, watchedOnly, musicContentType, isFolderView, currentFolderId, loadItems, genreFilter, isMusicBrowseHome]);
+}, [library, sortKey, favoritesOnly, watchedOnly, musicContentType, isFolderView, currentFolderId, genreFilter, isMusicBrowseHome]);
 
 useEffect(() => {
 	if (!isMusicBrowseHome) return;
@@ -457,8 +485,8 @@ if (itemIndex === undefined) return;
 
 const item = itemsRef.current[parseInt(itemIndex, 10)];
 if (item) {
-		if (isFolderView && item.IsFolder) {
-			setFolderStack(prev => [...prev, {id: item.Id, name: item.Name}]);
+		if (isFolderView && item.IsFolder && !FOLDER_DETAIL_TYPES.includes(item.Type)) {
+			setFolderStack(prev => [...prev, {id: item.Id, name: item.Name, collectionType: item.CollectionType}]);
 			return;
 		}
 		if (item.Type === 'Photo' && onViewPhoto) {
@@ -660,7 +688,7 @@ return (
 );
 }
 
-const isFolder = isFolderView && item.IsFolder;
+const isFolder = isFolderView && item.IsFolder && !FOLDER_DETAIL_TYPES.includes(item.Type);
 let imageId, imgApiType;
 if (effectiveImageType === 'thumbnail') {
 	if (item.ImageTags?.Thumb) {
