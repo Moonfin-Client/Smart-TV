@@ -415,7 +415,7 @@ const Details = ({itemId, initialItem, onPlay, onSelectItem, onSelectPerson, onI
 	}, [item, effectiveServerUrl]);
 
 	useEffect(() => {
-		if (!item || !logoUrl) {
+		if (!logoUrl) {
 			setInvertLogo(false);
 			return;
 		}
