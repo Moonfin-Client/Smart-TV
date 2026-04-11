@@ -49,6 +49,7 @@ export const getAllServersArray = async () => {
 						userId: userId,
 						username: user.username,
 						accessToken: user.accessToken,
+						primaryImageTag: user.primaryImageTag || null,
 						addedDate: server.addedDate,
 						lastConnected: user.lastConnected,
 						connected: user.connected
@@ -229,9 +230,10 @@ export const setActiveServer = async (serverId, userId) => {
  * @param {string} userId - User ID
  * @param {string} username - Username
  * @param {string} accessToken - Access token
+ * @param {string} [primaryImageTag] - User avatar image tag
  * @returns {Promise<Object>} Created server/user object
  */
-export const addServer = async (serverUrl, serverName, userId, username, accessToken) => {
+export const addServer = async (serverUrl, serverName, userId, username, accessToken, primaryImageTag) => {
 	const servers = await getAllServers();
 
 	// Check if server already exists by URL
@@ -265,6 +267,7 @@ export const addServer = async (serverUrl, serverName, userId, username, accessT
 		userId: userId,
 		username: username,
 		accessToken: accessToken,
+		primaryImageTag: primaryImageTag || null,
 		lastConnected: new Date().toISOString(),
 		connected: true,
 		addedDate: new Date().toISOString()

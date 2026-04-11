@@ -82,6 +82,11 @@ export const AuthProvider = ({children}) => {
 							const userInfo = await jellyfinApi.api.getUserConfiguration();
 							setUser(userInfo);
 							setIsAuthenticated(true);
+							if (userInfo.PrimaryImageTag && active.serverId) {
+								multiServerManager.updateServer(active.serverId, null, active.userId, {
+									primaryImageTag: userInfo.PrimaryImageTag
+								});
+							}
 						} catch (e) {
 							console.warn('[AUTH] Token validation failed, requiring re-login');
 							jellyfinApi.setAuth(null, null);
@@ -145,7 +150,8 @@ export const AuthProvider = ({children}) => {
 			finalServerName,
 			result.User.Id,
 			result.User.Name,
-			result.AccessToken
+			result.AccessToken,
+			result.User.PrimaryImageTag
 		);
 
 		// Always switch to the newly logged in user
@@ -199,7 +205,8 @@ export const AuthProvider = ({children}) => {
 			finalServerName,
 			authResult.User.Id,
 			authResult.User.Name,
-			authResult.AccessToken
+			authResult.AccessToken,
+			authResult.User.PrimaryImageTag
 		);
 
 		// Always switch to the newly logged in user
@@ -255,6 +262,11 @@ export const AuthProvider = ({children}) => {
 			try {
 				const userInfo = await jellyfinApi.api.getUserConfiguration();
 				setUser(userInfo);
+				if (userInfo.PrimaryImageTag) {
+					await multiServerManager.updateServer(serverId, null, userId, {
+						primaryImageTag: userInfo.PrimaryImageTag
+					});
+				}
 			} catch (e) {
 				setUser({Id: active.userId, Name: active.username});
 			}
