@@ -12,7 +12,6 @@ import {useDeviceInfo} from '../../hooks/useDeviceInfo';
 import serverLogger from '../../services/serverLogger';
 import connectionPool from '../../services/connectionPool';
 import {isBackKey} from '../../utils/keys';
-import SpottableInput from '../../components/SpottableInput/SpottableInput';
 import ClearDataDialog from '../../components/ClearDataDialog';
 import {clearAllStorage} from '../../services/storage';
 
@@ -358,7 +357,7 @@ const Settings = ({ onBack, onLibrariesChanged }) => {
 	}, [onBack]);
 
 	const [serverVersion, setServerVersion] = useState(null);
-	const [moonfinConnecting, setMoonfinConnecting] = useState(false);
+	const [, setMoonfinConnecting] = useState(false);
 	const [moonfinStatus, setMoonfinStatus] = useState('');
 	const [tempHomeRows, setTempHomeRows] = useState([]);
 	const [allLibraries, setAllLibraries] = useState([]);
@@ -379,7 +378,7 @@ const Settings = ({ onBack, onLibrariesChanged }) => {
 			if (cv.view === 'categories') {
 				Spotlight.focus('cat-general');
 			} else if (cv.view === 'category') {
-				const subcats = getSubcategories(cv.id);
+				const subcats = getSubcategories(cv.id); // eslint-disable-line no-use-before-define
 				Spotlight.focus(subcats.length > 0 ? `subcat-${subcats[0].id}` : 'category-view');
 			} else if (cv.view === 'subcategory') {
 				Spotlight.focus('subcategory-view');
@@ -597,6 +596,7 @@ const Settings = ({ onBack, onLibrariesChanged }) => {
 
 	const renderSectionTitle = (title) => <div className={css.sectionTitle}>{title}</div>;
 
+	/* eslint-disable react/jsx-no-bind */
 	const renderOptionItem = (settingKey, title, options, fallback) => (
 		<SpottableDiv
 			className={css.listItem}
@@ -1349,6 +1349,7 @@ const Settings = ({ onBack, onLibrariesChanged }) => {
 			</div>
 		</ViewContainer>
 	);
+	/* eslint-enable react/jsx-no-bind */
 
 	return (
 		<div className={css.page}>
@@ -1360,7 +1361,7 @@ const Settings = ({ onBack, onLibrariesChanged }) => {
 			{currentView.view === 'libraries' && renderLibrariesView()}
 			<ClearDataDialog
 				open={clearDataDialogOpen}
-				onCancel={() => setClearDataDialogOpen(false)}
+				onCancel={() => setClearDataDialogOpen(false)} // eslint-disable-line react/jsx-no-bind
 				onConfirm={handleClearAllData}
 			/>
 		</div>

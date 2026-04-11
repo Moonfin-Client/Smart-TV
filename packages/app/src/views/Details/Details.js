@@ -172,6 +172,8 @@ const Details = ({itemId, initialItem, onPlay, onSelectItem, onSelectPerson, onI
 	const [toastMessage, setToastMessage] = useState(null);
 	const [episodeRatings, setEpisodeRatings] = useState({});
 	const [logoFailed, setLogoFailed] = useState(false);
+	const handleLogoError = useCallback(() => setLogoFailed(true), []);
+	const handleToastEnd = useCallback(() => setToastMessage(null), []);
 
 	// Refs
 	const pageScrollerRef = useRef(null);
@@ -1103,7 +1105,6 @@ const handleSectionKeyDown = useCallback((ev) => {
 		item.MediaSources[0].Type !== 'Placeholder';
 	const hasMultipleVersions = supportsMediaSourceSelection && (item.MediaSources?.length || 0) > 1;
 	const hasMultipleAudio = supportsMediaSourceSelection && audioStreams.length > 1;
-	const hasSubtitles = supportsMediaSourceSelection && subtitleStreams.length > 0;
 	const currentAudioStream = audioStreams[selectedAudioIndex];
 	const currentSubtitleStream = selectedSubtitleIndex >= 0 ? subtitleStreams[selectedSubtitleIndex] : null;
 
@@ -1358,6 +1359,7 @@ const handleSectionKeyDown = useCallback((ev) => {
 				<div className={css.sectionHeader}>
 					<h3 className={css.sectionTitle}>{$L(title)}</h3>
 				</div>
+				{/* eslint-disable-next-line react/jsx-no-bind */}
 				<SpottableDiv className={css.nextUpCard} onClick={() => onSelectItem?.(ep)}>
 					<div className={css.nextUpThumb}>
 						{thumbUrl ? (
@@ -1690,7 +1692,7 @@ const handleSectionKeyDown = useCallback((ev) => {
 				</Scroller>
 
 				{toastMessage && (
-					<div className={css.toast} onAnimationEnd={() => setToastMessage(null)}>{toastMessage}</div>
+					<div className={css.toast} onAnimationEnd={handleToastEnd}>{toastMessage}</div>
 				)}
 			</div>
 		);
@@ -1986,7 +1988,7 @@ const handleSectionKeyDown = useCallback((ev) => {
 							{/* Title or Logo */}
 							<div className={css.titleSection}>
 								{logoUrl && !logoFailed ? (
-									<img src={logoUrl} className={css.logoImage} alt={item.Name} onError={() => setLogoFailed(true)} />
+									<img src={logoUrl} className={css.logoImage} alt={item.Name} onError={handleLogoError} />
 								) : (
 									<h1 className={css.title}>{item.Name}</h1>
 								)}
@@ -2496,7 +2498,7 @@ const handleSectionKeyDown = useCallback((ev) => {
 			/>
 
 			{toastMessage && (
-				<div className={css.toast} onAnimationEnd={() => setToastMessage(null)}>{toastMessage}</div>
+				<div className={css.toast} onAnimationEnd={handleToastEnd}>{toastMessage}</div>
 			)}
 		</div>
 	);

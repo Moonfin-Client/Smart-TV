@@ -20,6 +20,7 @@ const Person = ({personId, onSelectItem}) => {
 	const [items, setItems] = useState([]);
 	const [isLoading, setIsLoading] = useState(true);
 	const [overviewExpanded, setOverviewExpanded] = useState(false);
+	const handleToggleOverview = useCallback(() => setOverviewExpanded(prev => !prev), []);
 	const gridRef = useRef(null);
 
 	useEffect(() => {
@@ -72,7 +73,7 @@ const Person = ({personId, onSelectItem}) => {
 					if (card && Math.abs(card.offsetTop - firstCard.offsetTop) < 10) {
 						e.preventDefault();
 						e.stopPropagation();
-						Spotlight.focus('person-favorite-btn') || Spotlight.focus('person-overview') || Spotlight.focus('navbar');
+						Spotlight.focus('person-favorite-btn') || Spotlight.focus('person-overview') || Spotlight.focus('navbar'); // eslint-disable-line @babel/no-unused-expressions
 					}
 				}
 			}
@@ -97,7 +98,7 @@ const Person = ({personId, onSelectItem}) => {
 		if (e.keyCode === KEYS.UP) {
 			e.preventDefault();
 			e.stopPropagation();
-			Spotlight.focus('person-overview') || Spotlight.focus('navbar');
+			Spotlight.focus('person-overview') || Spotlight.focus('navbar'); // eslint-disable-line @babel/no-unused-expressions
 		} else if (e.keyCode === KEYS.DOWN) {
 			e.preventDefault();
 			e.stopPropagation();
@@ -156,7 +157,7 @@ const Person = ({personId, onSelectItem}) => {
 						{person.Overview && (
 							<SpottableDiv
 								className={`${css.overview} ${overviewExpanded ? css.overviewExpanded : ''}`}
-								onClick={() => setOverviewExpanded(prev => !prev)}
+								onClick={handleToggleOverview}
 								onKeyDown={handleOverviewKeyDown}
 								spotlightId="person-overview"
 							>

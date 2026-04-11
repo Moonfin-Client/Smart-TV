@@ -341,6 +341,7 @@ export const getPlaybackInfo = async (itemId, options = {}) => {
 	});
 
 	// Live TV: skip VOD media source selection and codec negotiation
+	/* eslint-disable no-shadow */
 	if (isLiveTV) {
 		const mediaSource = firstSource;
 		const playMethod = mediaSource.TranscodingUrl
@@ -398,6 +399,7 @@ export const getPlaybackInfo = async (itemId, options = {}) => {
 			startPositionTicks: 0
 		};
 	}
+	/* eslint-enable no-shadow */
 
 	let mediaSource = selectMediaSource(playbackInfo.MediaSources, capabilities, options);
 

@@ -142,7 +142,7 @@ const SyncPlayDialog = ({open, onClose}) => {
 			<DialogContainer
 				className={css.dialog}
 				spotlightId="syncplay-dialog"
-				onClick={(e) => e.stopPropagation()}
+				onClick={(e) => e.stopPropagation()} // eslint-disable-line react/jsx-no-bind
 			>
 				<div className={css.header}>
 					<h2 className={css.title}>SyncPlay</h2>
@@ -220,7 +220,7 @@ const LobbyView = memo(({groups, groupName, isCreating, isJoining, onInputChange
 						<SpottableButton
 							key={g.GroupId}
 							className={`${css.groupCard} ${isJoining === g.GroupId ? css.joining : ''}`}
-							onClick={() => onJoin(g.GroupId)}
+							onClick={() => onJoin(g.GroupId)} // eslint-disable-line react/jsx-no-bind
 							disabled={isJoining === g.GroupId}
 						>
 							<div className={css.groupInfo}>

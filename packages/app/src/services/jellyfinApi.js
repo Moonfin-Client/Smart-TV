@@ -65,7 +65,7 @@ const fetchWithTimeout = (url, options = {}, timeoutMs = DEFAULT_TIMEOUT_MS) => 
 		fetch(url, options),
 		new Promise(function (_, reject) {
 			setTimeout(function () {
-				var err = new Error('The operation was aborted.');
+				let err = new Error('The operation was aborted.');
 				err.name = 'AbortError';
 				reject(err);
 			}, timeoutMs);

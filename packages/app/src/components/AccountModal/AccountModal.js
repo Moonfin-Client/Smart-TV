@@ -18,6 +18,7 @@ const UserIcon = () => (
 
 const UserAvatar = ({url, userId, username, imageTag, className, placeholderClass}) => {
 	const [failed, setFailed] = useState(false);
+	const handleError = useCallback(() => setFailed(true), []);
 	const avatarUrl = `${url}/Users/${userId}/Images/Primary?quality=90&maxHeight=150${imageTag ? `&tag=${imageTag}` : ''}`;
 
 	if (failed) {
@@ -33,7 +34,7 @@ const UserAvatar = ({url, userId, username, imageTag, className, placeholderClas
 			src={avatarUrl}
 			alt={username}
 			className={className}
-			onError={() => setFailed(true)}
+			onError={handleError}
 		/>
 	);
 };
@@ -192,7 +193,7 @@ const AccountModal = ({
 									className={`${css.userCard} ${isActive ? css.activeCard : ''}`}
 									onClick={handleUserCardClick}
 									onSpotlightDown={handleGridDown}
-									onSpotlightFocus={() => handleUserCardFocus(index)}
+									onSpotlightFocus={() => handleUserCardFocus(index)} // eslint-disable-line react/jsx-no-bind
 								>
 									<UserAvatar
 										url={server.url}

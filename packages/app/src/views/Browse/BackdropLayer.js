@@ -46,7 +46,7 @@ const BackdropLayer = memo(({targetUrl, blurAmount}) => {
 				incoming.style.opacity = '0';
 				incoming.style.backgroundImage = `url(${targetUrl})`;
 
-				incoming.offsetHeight; // eslint-disable-line no-unused-expressions
+				incoming.offsetHeight; // eslint-disable-line @babel/no-unused-expressions
 				incoming.style.transition = '';
 				incoming.style.opacity = '1';
 				outgoing.style.opacity = '0';

@@ -119,6 +119,8 @@ const AddToPlaylistModal = ({open, itemId, api, onClose, onSuccess}) => {
 		setNewName(ev.target.value);
 	}, []);
 
+	const handleCancelCreate = useCallback(() => setCreating(false), []);
+
 	if (!open) return null;
 
 	return (
@@ -153,7 +155,7 @@ const AddToPlaylistModal = ({open, itemId, api, onClose, onSuccess}) => {
 							</SpottableButton>
 							<SpottableButton
 								className={css.btn}
-								onClick={() => setCreating(false)}
+								onClick={handleCancelCreate}
 								spotlightId="playlist-create-cancel"
 							>
 							{$L('Cancel')}

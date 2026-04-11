@@ -9,7 +9,6 @@ let reconnectTimeout = null;
 let listeners = [];
 let isConnecting = false;
 let currentPlaylistItemId = null;
-let currentPlayQueue = null;
 
 const emit = (event, data) => {
 	for (const listener of listeners) {
@@ -93,7 +92,6 @@ export const leaveGroup = async () => {
 	try {
 		await request('POST', 'Leave');
 		currentGroup = null;
-		currentPlayQueue = null;
 		emit('groupLeft', null);
 		return true;
 	} catch {
@@ -195,7 +193,7 @@ export const connectWebSocket = () => {
 		ws = new WebSocket(wsUrl);
 	} catch {
 		isConnecting = false;
-		scheduleReconnect();
+		scheduleReconnect(); // eslint-disable-line no-use-before-define
 		return;
 	}
 
@@ -209,7 +207,7 @@ export const connectWebSocket = () => {
 	ws.onmessage = (event) => {
 		try {
 			const msg = JSON.parse(event.data);
-			handleWebSocketMessage(msg);
+			handleWebSocketMessage(msg); // eslint-disable-line no-use-before-define
 		} catch {
 			// ignore
 		}
@@ -224,7 +222,7 @@ export const connectWebSocket = () => {
 			clearInterval(pingInterval);
 			pingInterval = null;
 		}
-		scheduleReconnect();
+		scheduleReconnect(); // eslint-disable-line no-use-before-define
 	};
 };
 
@@ -258,10 +256,10 @@ const handleWebSocketMessage = (msg) => {
 
 	switch (MessageType) {
 		case 'SyncPlayGroupUpdate':
-			handleGroupUpdate(Data);
+			handleGroupUpdate(Data); // eslint-disable-line no-use-before-define
 			break;
 		case 'SyncPlayCommand':
-			handlePlaybackCommand(Data);
+			handlePlaybackCommand(Data); // eslint-disable-line no-use-before-define
 			break;
 		case 'ForceKeepAlive':
 			break;
@@ -281,7 +279,6 @@ const handleGroupUpdate = (data) => {
 
 		case 'GroupLeft':
 			currentGroup = null;
-			currentPlayQueue = null;
 			emit('groupLeft', null);
 			break;
 
@@ -310,7 +307,6 @@ const handleGroupUpdate = (data) => {
 				if (queue[index]) {
 					currentPlaylistItemId = queue[index].PlaylistItemId || null;
 				}
-				currentPlayQueue = queueData;
 			}
 			emit('playQueue', queueData);
 			break;
@@ -319,7 +315,6 @@ const handleGroupUpdate = (data) => {
 		case 'NotInGroup':
 		case 'GroupDoesNotExist':
 			currentGroup = null;
-			currentPlayQueue = null;
 			emit('groupLeft', null);
 			break;
 

@@ -45,7 +45,7 @@ export const SyncPlayProvider = ({children}) => {
 					setGroup(prev => prev ? {...prev, State: data?.State} : null);
 					break;
 				case 'groupUpdated':
-					refreshGroups();
+					refreshGroups(); // eslint-disable-line no-use-before-define
 					break;
 				case 'playbackCommand':
 					setLastCommand(data);

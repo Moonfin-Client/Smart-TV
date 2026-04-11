@@ -77,8 +77,8 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 	const [focusRow, setFocusRow] = useState('top');
 	const [isAudioMode, setIsAudioMode] = useState(false);
 	const [lyricsLines, setLyricsLines] = useState([]);
-	const [isLyricsLoading, setIsLyricsLoading] = useState(false);
-	const [lyricsError, setLyricsError] = useState(null);
+	const [, setIsLyricsLoading] = useState(false);
+	const [, setLyricsError] = useState(null);
 	const [shuffleMode, setShuffleMode] = useState(false);
 	const [repeatMode, setRepeatMode] = useState('off');
 	const [isFavorite, setIsFavorite] = useState(false);
@@ -385,7 +385,6 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 			await waitForDecoderRelease();
 
 			try {
-				const isLiveTV = item.Type === 'TvChannel';
 				const savedPosition = isLiveTV ? 0 : (item.UserData?.PlaybackPositionTicks || 0);
 				const startPosition = initialStartPositionTicks != null ? initialStartPositionTicks : ((!isLiveTV && resume !== false) ? savedPosition : 0);
 				console.log('[Player] Start position:', {
@@ -1368,7 +1367,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 		} finally {
 			isHandlingErrorRef.current = false;
 		}
-	}, [hasTriedTranscode, playMethod, item, selectedQuality, settings.maxBitrate, mediaSourceId]);
+	}, [hasTriedTranscode, playMethod, item, selectedQuality, settings.maxBitrate, settings.stereoUpmixEnabled, mediaSourceId]);
 
 	useEffect(() => {
 		handlersRef.current = {
@@ -2045,7 +2044,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 
 		window.addEventListener('keydown', handleKeyDown, true);
 		return () => window.removeEventListener('keydown', handleKeyDown, true);
-	}, [controlsVisible, activeModal, closeModal, hideControls, handleBack, showControls, handlePlayPause, handleForward, handleRewind, currentTime, settings.seekStep, seekByOffset, handlePopupKeyDown, bottomButtons.length, isAudioMode, showSkipIntro, showSkipCredits, showNextEpisode]);
+	}, [controlsVisible, activeModal, closeModal, hideControls, handleBack, showControls, handlePlayPause, handleForward, handleRewind, currentTime, settings.seekStep, seekByOffset, handlePopupKeyDown, bottomButtons.length, isAudioMode, showSkipIntro, showSkipCredits, showNextEpisode, isLiveTV]);
 
 	const displayTime = isSeeking ? (seekPosition / 10000000) : currentTime;
 	const progressPercent = duration > 0 ? (displayTime / duration) * 100 : 0;

@@ -498,8 +498,8 @@ const AppContent = (props) => {
 		}
 		if (item.Type === 'Audio') {
 			setPlayingItem(item);
-			setPlaybackOptions(null);
-			setIsResume(false);
+			setPlaybackOptions(null); // eslint-disable-line no-use-before-define
+			setIsResume(false); // eslint-disable-line no-use-before-define
 			navigateTo(PANELS.PLAYER);
 			return;
 		}
@@ -1039,7 +1039,7 @@ const AppContent = (props) => {
 				<div className={css.connectionBanner}>
 					<span>{connectionState === 'reconnecting' ? 'Reconnecting to server...' : 'Lost connection to server'}</span>
 					{connectionState === 'disconnected' && (
-						<button className={css.retryButton} onClick={() => revalidateSession(true)}>Retry</button>
+						<button className={css.retryButton} onClick={() => revalidateSession(true)}>Retry</button> // eslint-disable-line react/jsx-no-bind
 					)}
 				</div>
 			)}

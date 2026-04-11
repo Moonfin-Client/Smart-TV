@@ -94,15 +94,15 @@ const FeaturedBanner = memo(({
 	}, [isVisible, featuredItems.length, featuredFocused, settings.carouselSpeed, trailerActive]);
 
 	useEffect(() => {
-	  if (!isVisible || featuredItems.length <= 1 || !featuredFocused || settings.carouselSpeed === 0 || trailerActive) return;
+		if (!isVisible || featuredItems.length <= 1 || !featuredFocused || settings.carouselSpeed === 0 || trailerActive) return;
 		startCarouselTimer();
 		return () => {
-		  if (carouselIntervalRef.current) {
-       	clearInterval(carouselIntervalRef.current);
-       	carouselIntervalRef.current = null;
+			if (carouselIntervalRef.current) {
+				clearInterval(carouselIntervalRef.current);
+				carouselIntervalRef.current = null;
 			}
-		}
-	}, [isVisible, featuredItems.length, featuredFocused, settings.carouselSpeed, trailerActive]);
+		};
+	}, [isVisible, featuredItems.length, featuredFocused, settings.carouselSpeed, trailerActive, startCarouselTimer]);
 
 	const stopTrailer = useCallback(async () => {
 		if (trailerRevealTimerRef.current) {

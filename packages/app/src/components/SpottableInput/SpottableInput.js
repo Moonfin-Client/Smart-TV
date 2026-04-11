@@ -76,7 +76,7 @@ const SpottableInput = ({
 		if (onKeyDown) {
 			onKeyDown(e);
 		}
-	}, [onKeyDown, activateInput, deactivateInput]);
+	}, [onKeyDown, activateInput, deactivateInput, spotlightId, dataSpotlightId]);
 
 	return (
 		<SpottableDiv

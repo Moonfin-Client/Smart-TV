@@ -428,7 +428,7 @@ const LiveTV = ({onPlayChannel, onRecordings, backHandlerRef}) => {
 							>
 								<SpottableDiv
 									className={css.channelInfo}
-									onClick={() => onPlayChannel?.(channel)}
+									onClick={() => onPlayChannel?.(channel)} // eslint-disable-line react/jsx-no-bind
 									data-channel-id={channel.Id}
 								>
 									<div className={css.channelNumber}>{channel.ChannelNumber}</div>

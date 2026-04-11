@@ -467,7 +467,6 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 			avplayReadyRef.current = false;
 
 			try {
-				const isLiveTV = item.Type === 'TvChannel';
 				const savedPosition = isLiveTV ? 0 : (item.UserData?.PlaybackPositionTicks || 0);
 				const startPosition = initialStartPositionTicks != null ? initialStartPositionTicks : ((!isLiveTV && resume !== false) ? savedPosition : 0);
 				const effectiveBitrate = selectedQuality || settings.maxBitrate || undefined;
@@ -1090,7 +1089,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 		}
 
 		setError($L('Playback failed. The file format may not be supported.'));
-	}, [hasTriedTranscode, playMethod, item, selectedQuality, settings.maxBitrate, startAVPlayback, mediaSourceId]);
+	}, [hasTriedTranscode, playMethod, item, selectedQuality, settings.maxBitrate, settings.stereoUpmixEnabled, startAVPlayback, mediaSourceId]);
 
 	// Keep callback refs in sync
 	handleEndedCallbackRef.current = handleEnded;
@@ -1787,17 +1786,17 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 
 			// Left/Right when controls hidden -> show controls and focus on seekbar
 			if (!controlsVisible && !activeModal) {
-  			if ((key === 'Enter' || e.keyCode === 13) && (showSkipIntro || showSkipCredits || showNextEpisode)) {
-  				return;
-  			}
-  			if (key === 'Enter' || e.keyCode === 13) {
-  				e.preventDefault();
-  				handlePlayPause();
-  				return;
-  			}
-  			if ((key === 'ArrowLeft' || e.keyCode === 37 || key === 'ArrowRight' || e.keyCode === 39 ) && (showSkipCredits || showNextEpisode)) {
-  				return;
-  			}
+				if ((key === 'Enter' || e.keyCode === 13) && (showSkipIntro || showSkipCredits || showNextEpisode)) {
+					return;
+				}
+				if (key === 'Enter' || e.keyCode === 13) {
+					e.preventDefault();
+					handlePlayPause();
+					return;
+				}
+				if ((key === 'ArrowLeft' || e.keyCode === 37 || key === 'ArrowRight' || e.keyCode === 39 ) && (showSkipCredits || showNextEpisode)) {
+					return;
+				}
 				if (key === 'ArrowLeft' || e.keyCode === 37 || key === 'ArrowRight' || e.keyCode === 39) {
 					e.preventDefault();
 					if (isLiveTV) { showControls(); return; }
@@ -1862,7 +1861,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 
 		window.addEventListener('keydown', handleKeyDown, true);
 		return () => window.removeEventListener('keydown', handleKeyDown, true);
-	}, [controlsVisible, activeModal, closeModal, hideControls, handleBack, showControls, handlePlayPause, handleForward, handleRewind, currentTime, duration, settings.seekStep, handlePopupKeyDown, bottomButtons.length, isAudioMode, scheduleDeferredSeek, showSkipIntro, showSkipCredits, showNextEpisode]);
+	}, [controlsVisible, activeModal, closeModal, hideControls, handleBack, showControls, handlePlayPause, handleForward, handleRewind, currentTime, duration, settings.seekStep, handlePopupKeyDown, bottomButtons.length, isAudioMode, scheduleDeferredSeek, showSkipIntro, showSkipCredits, showNextEpisode, isLiveTV]);
 
 	// Calculate progress - use seekPosition when actively seeking for smooth scrubbing
 	const displayTime = isSeeking ? (seekPosition / 10000000) : currentTime;

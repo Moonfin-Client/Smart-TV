@@ -72,6 +72,13 @@ export const disposePgsParser = (parser) => {
 	}
 };
 
+export const clearPgsCanvas = (canvas) => {
+	if (canvas) {
+		const ctx = canvas.getContext('2d');
+		if (ctx) ctx.clearRect(0, 0, canvas.width, canvas.height);
+	}
+};
+
 /**
  * Render a PGS frame to canvas using low-level parser
  * Returns true if frame was rendered, false if no subtitle at current time
@@ -110,12 +117,5 @@ export const renderPgsFrame = (canvas, parser, currentTimeSeconds) => {
 	} catch (err) {
 		console.error('[PgsRenderer] Failed to render frame', err);
 		return false;
-	}
-};
-
-export const clearPgsCanvas = (canvas) => {
-	if (canvas) {
-		const ctx = canvas.getContext('2d');
-		if (ctx) ctx.clearRect(0, 0, canvas.width, canvas.height);
 	}
 };

@@ -249,13 +249,13 @@ const Browse = ({
 				cachedRowData = [...volatileRows, ...filtered];
 				cacheTimestamp = Date.now();
 				if (!unifiedMode) {
-					saveBrowseCache(cachedRowData, cachedLibraries, cachedFeaturedItems);
+					saveBrowseCache(cachedRowData, cachedLibraries, cachedFeaturedItems); // eslint-disable-line no-use-before-define
 				}
 			}
 		} catch (e) {
 			console.warn('[Browse] Background refresh failed:', e);
 		}
-	}, [api, unifiedMode, saveBrowseCache]);
+	}, [api, unifiedMode, saveBrowseCache]); // eslint-disable-line no-use-before-define
 
 	const getUiColorRgb = useCallback((colorKey) => {
 		const colorMap = {
@@ -788,7 +788,7 @@ const Browse = ({
 		};
 
 		loadData();
-	}, [api, serverUrl, accessToken, settings.featuredContentType, settings.featuredItemCount, isCacheValid, loadBrowseCache, saveBrowseCache, fetchFreshFeaturedItems, unifiedMode, getItemServerUrl]);
+	}, [api, serverUrl, accessToken, settings.featuredContentType, settings.featuredItemCount, isCacheValid, loadBrowseCache, saveBrowseCache, fetchFreshFeaturedItems, unifiedMode, getItemServerUrl, refreshVolatileData]); // eslint-disable-line no-use-before-define
 
 	const targetBackdropUrl = useMemo(() => {
 		let itemForBackdrop = null;
