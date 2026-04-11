@@ -171,6 +171,7 @@ const Details = ({itemId, initialItem, onPlay, onSelectItem, onSelectPerson, onI
 	const [showDeleteDialog, setShowDeleteDialog] = useState(false);
 	const [toastMessage, setToastMessage] = useState(null);
 	const [episodeRatings, setEpisodeRatings] = useState({});
+	const [logoFailed, setLogoFailed] = useState(false);
 
 	// Refs
 	const pageScrollerRef = useRef(null);
@@ -184,6 +185,7 @@ const Details = ({itemId, initialItem, onPlay, onSelectItem, onSelectPerson, onI
 			setEpisodes([]);
 			setEpisodeRatings({});
 			setSimilar([]);
+			setLogoFailed(false);
 			setExtras([]);
 			setCast([]);
 			setNextUp([]);
@@ -1982,8 +1984,8 @@ const handleSectionKeyDown = useCallback((ev) => {
 
 							{/* Title or Logo */}
 							<div className={css.titleSection}>
-								{logoUrl ? (
-									<img src={logoUrl} className={css.logoImage} alt={item.Name} />
+								{logoUrl && !logoFailed ? (
+									<img src={logoUrl} className={css.logoImage} alt={item.Name} onError={() => setLogoFailed(true)} />
 								) : (
 									<h1 className={css.title}>{item.Name}</h1>
 								)}
