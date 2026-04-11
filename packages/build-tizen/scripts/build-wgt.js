@@ -30,6 +30,7 @@ const isDev = args.includes('--dev');
 const isLegacy = args.includes('--legacy');
 const isOblong = args.includes('--oblong');
 const skipTizenCLI = args.includes('--skip-tizen-cli') || process.env.CI_SKIP_TIZEN_CLI === '1' || process.env.CI === 'true';
+const skipLint = args.includes('--skip-lint');
 
 // ── Optional version bump: npm run build:tizen -- 2.3.0 ──
 const versionArg = args.find(a => /^\d+\.\d+\.\d+$/.test(a));
@@ -63,6 +64,20 @@ function run(cmd, options = {}) {
 	} catch (e) {
 		return false;
 	}
+}
+
+function runLintGate(cwd) {
+	log('Running: npx enact lint .');
+	const result = spawnSync('npx', ['enact', 'lint', '.'], {
+		cwd,
+		env: process.env,
+		encoding: 'utf8'
+	});
+	if (result.stdout) process.stdout.write(result.stdout);
+	if (result.stderr) process.stderr.write(result.stderr);
+	const output = `${result.stdout || ''}\n${result.stderr || ''}`;
+	const hasWarnings = /\bwarning\b/i.test(output);
+	return result.status === 0 && !hasWarnings;
 }
 
 function zipDirToFile(srcDir, outputFile) {
@@ -207,6 +222,15 @@ async function main() {
 	}
 
 	// Step 3: Build Enact app
+	if (!skipLint) {
+		log('Running lint checks...');
+		if (!runLintGate(APP_DIR)) {
+			error('Lint check failed!');
+			process.exit(1);
+		}
+		success('Lint checks passed');
+	}
+
 	log(`Building Enact app (${isDev ? 'development' : 'production'})...`);
 	const packCmd = isDev ? 'npx enact pack' : 'npx enact pack -p';
 	const browserslistConfig = path.join(ROOT, '.browserslistrc');
@@ -418,22 +442,22 @@ async function main() {
 	require(path.join(REPO_ROOT, 'scripts', 'prune-ilib-locales.js'))(DIST);
 	success('Pruned ilib locale data');
 	
-	// Step 6: Clean up old .wgt files in repo root
-	log('Cleaning up old .wgt files...');
-	const rootWgtFiles = fs.readdirSync(REPO_ROOT).filter(f => f.endsWith('.wgt'));
-	rootWgtFiles.forEach(f => {
-		fs.unlinkSync(path.join(REPO_ROOT, f));
-		log(`Removed ${f}`);
-	});
-	
-	// Step 7: Package WGT
+	// Step 6 & 7: Determine output filename and clean previous output
 	const pkg = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8'));
 	const version = pkg.version || '0.0.0';
-	const wgtName = `Moonfin-v${version}.wgt`;
+	const typeName = isLegacy ? 'Legacy' : isOblong ? 'Oblong' : 'Regular';
+	const wgtName = `Moonfin_Tizen_${typeName}_${version}.wgt`;
 	const finalWgt = path.join(REPO_ROOT, wgtName);
 
+	log('Cleaning up old output...');
+	if (fs.existsSync(finalWgt)) {
+		fs.unlinkSync(finalWgt);
+		log(`Removed ${wgtName}`);
+	}
+
+	// Step 7: Package WGT
+
 	if (!tizenCLI) {
-		if (fs.existsSync(finalWgt)) fs.unlinkSync(finalWgt);
 		log('Packaging fallback .wgt via zip (no Tizen CLI)...');
 		if (!zipDirToFile(DIST, finalWgt)) {
 			error('Fallback zip packaging failed! Ensure "zip" is available on PATH.');
@@ -490,8 +514,8 @@ async function main() {
 			process.exit(1);
 		}
 
-		// Find the generated wgt in repo root
-		const wgtFiles = fs.readdirSync(REPO_ROOT).filter(f => f.endsWith('.wgt'));
+		// Find the generated wgt in repo root (exclude already-named Moonfin_Tizen_* files)
+		const wgtFiles = fs.readdirSync(REPO_ROOT).filter(f => f.endsWith('.wgt') && !/^Moonfin_Tizen_/.test(f));
 		if (wgtFiles.length === 0) {
 			error('No .wgt file generated!');
 			process.exit(1);

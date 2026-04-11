@@ -1,5 +1,5 @@
 /* eslint-disable no-console */
-const {execSync} = require('child_process');
+const {execSync, spawnSync} = require('child_process');
 const fs = require('fs');
 const path = require('path');
 
@@ -10,6 +10,21 @@ const DIST_DIR = path.join(ROOT_DIR, 'dist');
 const run = (cmd, options = {}) => {
 	console.log(`> ${cmd}`);
 	execSync(cmd, {stdio: 'inherit', ...options});
+};
+
+const runLintGate = (cwd) => {
+	const cmd = 'npx enact lint .';
+	console.log(`> ${cmd}`);
+	const result = spawnSync('npx', ['enact', 'lint', '.'], {
+		cwd,
+		env: process.env,
+		encoding: 'utf8'
+	});
+	if (result.stdout) process.stdout.write(result.stdout);
+	if (result.stderr) process.stderr.write(result.stderr);
+	const output = `${result.stdout || ''}\n${result.stderr || ''}`;
+	const hasWarnings = /\bwarning\b/i.test(output);
+	return result.status === 0 && !hasWarnings;
 };
 
 // Recursively remove a directory (cross-platform alternative to rm -rf)
@@ -87,6 +102,13 @@ try {
 	// Clean previous build
 	console.log('Cleaning previous build...');
 	run('npx enact clean', {cwd: APP_DIR});
+
+	// Lint gate: fail build on any lint warning/error
+	console.log('\n Running lint checks...');
+	if (!runLintGate(APP_DIR)) {
+		console.error('Lint check failed: warnings/errors detected.');
+		process.exit(1);
+	}
 
 	// Production build with Enact
 	console.log('\n Building with Enact...');
@@ -183,7 +205,20 @@ try {
 		}
 	}
 
+	// Remove previous Moonfin_webOS_*.ipk files before packaging
+	for (const f of fs.readdirSync(ROOT_DIR).filter(f => /^Moonfin_webOS_.*\.ipk$/.test(f))) {
+		fs.unlinkSync(path.join(ROOT_DIR, f));
+	}
+
 	run(`npx ares-package ${DIST_DIR} -o ${ROOT_DIR} --no-minify`);
+
+	// Rename to Moonfin_webOS_<version>.ipk
+	const generatedIpk = path.join(ROOT_DIR, `org.moonfin.webos_${appPkg.version}_all.ipk`);
+	const finalIpk = path.join(ROOT_DIR, `Moonfin_webOS_${appPkg.version}.ipk`);
+	if (fs.existsSync(generatedIpk)) {
+		fs.renameSync(generatedIpk, finalIpk);
+		console.log(`  Renamed to Moonfin_webOS_${appPkg.version}.ipk`);
+	}
 
 	// Update manifest with version and hash
 	console.log('\n Updating manifest...');

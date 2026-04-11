@@ -7,8 +7,8 @@
   "iconUri": "https://raw.githubusercontent.com/Moonfin-Client/Smart-TV/main/packages/build-webos/webos-meta/icon-130.png",
   "sourceUrl": "https://github.com/Moonfin-Client/Smart-TV",
   "rootRequired": false,
-  "ipkUrl": "org.moonfin.webos_2.3.0_all.ipk",
+  "ipkUrl": "Moonfin_webOS_2.3.0.ipk",
   "ipkHash": {
-    "sha256": "8acd043b27f1cf2a6e31f6bf0c87c6a1d7a6ef6bfa3437b5d194b9beda4a6279"
+    "sha256": "856f7a6e2b63581d0d36243fcd23951ce2c2f08e34dce5483cbe02dd6944fb21"
   }
 }

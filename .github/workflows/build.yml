@@ -1,21 +1,29 @@
 name: Build
 
 on:
+  workflow_dispatch:
   push:
-    branches: [master]
+    tags:
+      - '[0-9]+.[0-9]+.[0-9]+*'
   pull_request:
-    branches: [master]
+    branches: [main]
+
+permissions:
+  contents: write
 
 jobs:
+  # ───────────────────────────────────────────────
+  # webOS IPK
+  # ───────────────────────────────────────────────
   build-webos:
-    name: Build webOS (IPK)
+    name: Build webOS
     runs-on: ubuntu-latest
-
+    outputs:
+      result: ${{ steps.build.outcome }}
     steps:
       - uses: actions/checkout@v4
 
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
+      - uses: actions/setup-node@v4
         with:
           node-version: lts/*
           cache: npm
@@ -24,24 +32,29 @@ jobs:
         run: npm ci --force
 
       - name: Build webOS
+        id: build
         run: npm run build:webos
 
-      - name: Upload webOS artifact
-        uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v4
         if: success()
         with:
-          name: moonfin_webos_ipk
-          path: packages/build-webos/build/org.moonfin.webos_*_all.ipk
+          name: webos
+          path: |
+            Moonfin_webOS_*.ipk
+            packages/build-webos/org.moonfin.webos.manifest.json
 
+  # ───────────────────────────────────────────────
+  # Tizen WGTs (Regular, Oblong, Legacy)
+  # ───────────────────────────────────────────────
   build-tizen:
-    name: Build Tizen (WGT)
+    name: Build Tizen
     runs-on: ubuntu-latest
-
+    outputs:
+      result: ${{ steps.build.outcome }}
     steps:
       - uses: actions/checkout@v4
 
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
+      - uses: actions/setup-node@v4
         with:
           node-version: lts/*
           cache: npm
@@ -49,12 +62,59 @@ jobs:
       - name: Install dependencies
         run: npm ci --force
 
-      - name: Build Tizen
-        run: npm run build:tizen
+      - name: Build Tizen (all variants)
+        id: build
+        run: npm run build:tizen:all
 
-      - name: Upload Tizen artifact
-        uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v4
         if: success()
         with:
-          name: moonfin_tizen_wgt
-          path: packages/build-tizen/*.wgt
+          name: tizen
+          path: Moonfin_Tizen_*.wgt
+
+  # ───────────────────────────────────────────────
+  # Save PR build outcomes for pr-comment workflow
+  # ───────────────────────────────────────────────
+  save-pr-results:
+    name: Save PR Build Results
+    if: github.event_name == 'pull_request'
+    needs: [build-webos, build-tizen]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Write outcomes.json
+        run: |
+          cat > outcomes.json <<EOF
+          {
+            "pr_number": ${{ github.event.pull_request.number }},
+            "sha": "${{ github.event.pull_request.head.sha }}",
+            "webos": "${{ needs.build-webos.outputs.result }}",
+            "tizen": "${{ needs.build-tizen.outputs.result }}"
+          }
+          EOF
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: build-results
+          path: outcomes.json
+
+  # ───────────────────────────────────────────────
+  # GitHub Draft Release (tags only)
+  # ───────────────────────────────────────────────
+  release:
+    name: Create Draft Release
+    if: startsWith(github.ref, 'refs/tags/')
+    needs: [build-webos, build-tizen]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          merge-multiple: true
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          draft: true
+          generate_release_notes: true
+          files: |
+            Moonfin_webOS_*.ipk
+            Moonfin_Tizen_*.wgt
+            org.moonfin.webos.manifest.json
