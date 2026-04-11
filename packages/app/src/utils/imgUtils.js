@@ -17,7 +17,7 @@ export const analyzeLogoBrightness = async (logoUrl) => {
 		canvas.height = img.height;
 		ctx.drawImage(img, 0, 0);
 		const {data} = ctx.getImageData(0, 0, canvas.width, canvas.height);
-
+		const darkThreshold = 30;
 		let blackPixelCount = 0;
 		let transparentPixelCount = 0;
 		const totalPixels = data.length / 4;
@@ -31,7 +31,8 @@ export const analyzeLogoBrightness = async (logoUrl) => {
 				transparentPixelCount++;
 				continue;
 			}
-			if (r === 0 && g === 0 && b === 0) {
+			const luminance = 0.2126 * r + 0.7152 * g + 0.0722 * b;
+			if (luminance <= darkThreshold) {
 				blackPixelCount++;
 			}
 		}
@@ -39,7 +40,7 @@ export const analyzeLogoBrightness = async (logoUrl) => {
 		if (visiblePixels === 0) return false;
 		return blackPixelCount / visiblePixels > 0.85;
 	} catch (err) {
-		console.error('[logoUtils] analyzeLogoBrightness failed', err);
+		console.error('[imgUtils] analyzeLogoBrightness failed', err);
 		return false;
 	}
 };
