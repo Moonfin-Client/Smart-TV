@@ -575,6 +575,8 @@ const AppContent = (props) => {
 	const handlePlayerEnd = useCallback(() => {
 		setIsPlayerPaused(false);
 		setPlayingItem(null);
+		setPlaybackOptions(null);
+		setIsResume(false);
 		handleBack();
 		window.dispatchEvent(new CustomEvent('moonfin:browseRefresh'));
 	}, [handleBack]);
@@ -634,6 +636,8 @@ const AppContent = (props) => {
 
 	const handlePlayChannel = useCallback((channel) => {
 		setPlayingItem(channel);
+		setPlaybackOptions(null);
+		setIsResume(false);
 		navigateTo(PANELS.PLAYER);
 	}, [navigateTo]);
 
@@ -643,6 +647,8 @@ const AppContent = (props) => {
 
 	const handlePlayRecording = useCallback((recording) => {
 		setPlayingItem(recording);
+		setPlaybackOptions(null);
+		setIsResume(false);
 		navigateTo(PANELS.PLAYER);
 	}, [navigateTo]);
 
