@@ -406,12 +406,12 @@ const Details = ({itemId, initialItem, onPlay, onSelectItem, onSelectPerson, onI
 	}, [isLoading, item]);
 
 	useEffect(() => {
-    if (!item) {
-      setLogoUrl(null);
-      return;
-    }
-    const url = getLogoUrl(effectiveServerUrl, item, {maxWidth: 400, quality: 90});
-    setLogoUrl(url);
+		if (!item) {
+		  setLogoUrl(null);
+		  return;
+		}
+		const url = getLogoUrl(effectiveServerUrl, item, {maxWidth: 400, quality: 90});
+		setLogoUrl(url);
 	}, [item, effectiveServerUrl]);
 
 	useEffect(() => {
