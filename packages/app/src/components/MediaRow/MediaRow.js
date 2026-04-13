@@ -3,6 +3,7 @@ import SpotlightContainerDecorator from '@enact/spotlight/SpotlightContainerDeco
 import Spotlight from '@enact/spotlight';
 import MediaCard from '../MediaCard';
 import {KEYS} from '../../utils/keys';
+import {useSettings} from '../../context/SettingsContext';
 
 import css from './MediaRow.module.less';
 
@@ -27,6 +28,7 @@ const MediaRow = ({
 	className,
 	registerRowRef
 }) => {
+	const {settings} = useSettings();
 	const scrollerRef = useRef(null);
 	const scrollTimeoutRef = useRef(null);
 	const rowElementRef = useRef(null);
@@ -77,10 +79,14 @@ const MediaRow = ({
 	}, [rowIndex, onNavigateUp, onNavigateDown]);
 
 	const handleWrapLeft = useCallback((e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        Spotlight.focus(`media-${keyPrefix}-${items[items.length - 1].Id}`);
-    }, [items, keyPrefix]);
+		e.preventDefault();
+		e.stopPropagation();
+		if (settings.navbarPosition === 'left') {
+			Spotlight.focus('navbar');
+		} else {
+			Spotlight.focus(`media-${keyPrefix}-${items[items.length - 1].Id}`);
+		}
+	}, [items, keyPrefix, settings.navbarPosition]);
 
     const handleWrapRight = useCallback((e) => {
         e.preventDefault();
