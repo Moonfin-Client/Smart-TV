@@ -6,26 +6,43 @@
  */
 
 // Worker files use ES6 arrows (Chrome 45+) and `let` in sloppy mode (Chrome 49+).
-// createImageBitmap (Chrome 50+) is a convenient proxy that excludes
-// webOS 2/3 and Tizen 2.4/3.0; those fall back to plain text.
-export const supportsAssRenderer = () => typeof createImageBitmap === 'function';
+// Gate support on actual worker/runtime capability instead of createImageBitmap.
+const getChromiumMajorVersion = () => {
+	const ua = navigator.userAgent || '';
+	const match = ua.match(/(?:Chrome|Chromium)\/(\d+)/i);
+	return match ? parseInt(match[1], 10) : null;
+};
+
+
+export const supportsAssRenderer = () => {
+	const chromiumMajor = getChromiumMajorVersion();
+	if (typeof Worker !== 'function') return false;
+	if (typeof Promise === 'undefined') return false;
+	if (typeof Uint8Array === 'undefined') return false;
+	if (chromiumMajor && chromiumMajor < 49) return false;
+	return true;
+};
 
 const createRenderer = async (options, onError) => {
 	try {
 		const mod = await import('libass-wasm');
 		const SubtitlesOctopus = mod.default || mod;
+		const workerUrl = 'subtitles-octopus-worker.js';
 
 		return new SubtitlesOctopus({
 			...options,
-			workerUrl: '/subtitles-octopus-worker.js',
-			legacyWorkerUrl: '/subtitles-octopus-worker-legacy.js',
+			workerUrl,
+			legacyWorkerUrl: workerUrl.replace('worker.js', 'worker-legacy.js'),
+			fallbackFont: 'ass-fallback-font.ttf',
 			onError: onError || null,
-			renderMode: 'wasm-blend',
-			targetFps: 24,
+			targetFps: 10,
+			renderMode: 'js-blend',
+			prescaleFactor: 0.5,
+			maxRenderHeight: 540,
 			debug: false
 		});
 	} catch (err) {
-		console.error('[AssRenderer] Failed to initialize', err);
+		console.error('[AssRenderer] Failed to initialize:', err);
 		return null;
 	}
 };

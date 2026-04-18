@@ -158,9 +158,9 @@ try {
 	const libpgsWorkerDest = path.join(DIST_DIR, 'libpgs.worker.js');
 	if (fs.existsSync(libpgsWorkerSrc)) {
 		fs.copyFileSync(libpgsWorkerSrc, libpgsWorkerDest);
-		console.log('  ✓ Copied libpgs.worker.js');
+		console.log('  Copied libpgs.worker.js');
 	} else {
-		console.warn('  ⚠ libpgs.worker.js not found (PGS rendering may degrade)');
+		console.warn('  libpgs.worker.js not found (PGS rendering may degrade)');
 	}
 
 	// Copy SubtitlesOctopus assets for ASS/SSA subtitle rendering
@@ -171,13 +171,23 @@ try {
 		const src = path.join(octopusDir, file);
 		if (fs.existsSync(src)) {
 			fs.copyFileSync(src, path.join(DIST_DIR, file));
-			console.log(`  ✓ Copied ${file}`);
+			console.log(`  Copied ${file}`);
 		} else {
-			console.warn(`  ⚠ ${file} not found (ASS rendering may degrade)`);
+			console.warn(`  ${file} not found (ASS rendering may degrade)`);
 		}
 	}
 
-	// Prune ilib locale data — keeps only plurals.json and localeinfo.json
+	// Copy fallback font for SubtitlesOctopus when ASS style fonts are unavailable.
+	const fallbackFontSrc = path.join(ROOT_DIR, 'node_modules', '@enact', 'sandstone', 'fonts', 'MuseoSans', 'MuseoSans-Light.ttf');
+	const fallbackFontDest = path.join(DIST_DIR, 'ass-fallback-font.ttf');
+	if (fs.existsSync(fallbackFontSrc)) {
+		fs.copyFileSync(fallbackFontSrc, fallbackFontDest);
+		console.log('  Copied ass-fallback-font.ttf (MuseoSans-Light)');
+	} else {
+		console.warn('  MuseoSans-Light.ttf not found; subtitle fallback font missing');
+	}
+
+	// Prune ilib locale data; keeps only plurals.json and localeinfo.json.
 	// for configured locales, removing ~5.5 MB of unused formatting data.
 	console.log('\n Pruning ilib locale data...');
 	require(path.join(ROOT_DIR, 'scripts', 'prune-ilib-locales.js'))(DIST_DIR);

@@ -132,6 +132,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 	const mediaUrlRef = useRef(null);
 	const pgsRendererRef = useRef(null);
 	const assRendererRef = useRef(null);
+	const pendingInitialAssSubtitleRef = useRef(null);
 
 	const destroyHlsPlayer = () => {
 		if (hlsPlayerRef.current) {
@@ -174,6 +175,49 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 		nextEpisode, isAudioMode, isLiveTV, hasNextTrack, hasPrevTrack,
 		shuffleMode, repeatMode, isFavorite
 	});
+
+	const initAssRendererForStream = useCallback(async (stream) => {
+		if (!stream?.isAss || !videoRef.current) {
+			return false;
+		}
+
+		try {
+			const assUrl = playback.getAssSubtitleUrl(stream);
+			if (!assUrl) {
+				return false;
+			}
+
+			const renderer = await initAssRenderer(videoRef.current, assUrl, (err) => {
+				console.error('[Player] ASS renderer error, falling back to text', err);
+				disposeAssRenderer(assRendererRef.current);
+				assRendererRef.current = null;
+				playback.fetchSubtitleData(stream).then(data => {
+					setSubtitleTrackEvents(data?.TrackEvents || null);
+				}).catch(() => setSubtitleTrackEvents(null));
+			});
+
+			if (renderer) {
+				assRendererRef.current = renderer;
+				setSubtitleTrackEvents(null);
+				return true;
+			}
+		} catch (err) {
+			console.error('[Player] ASS init failed, falling back to text', err);
+		}
+
+		try {
+			const data = await playback.fetchSubtitleData(stream);
+			if (data && data.TrackEvents) {
+				setSubtitleTrackEvents(data.TrackEvents);
+			} else {
+				setSubtitleTrackEvents(null);
+			}
+		} catch (err) {
+			setSubtitleTrackEvents(null);
+		}
+
+		return false;
+	}, []);
 
 	useEffect(() => {
 		let cancelled = false;
@@ -454,87 +498,87 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 					pendingAudioRef.current = null;
 				}
 
-				console.log('[Player] === SUBTITLE SELECTION START ===');
-				console.log('[Player] initialSubtitleIndex:', initialSubtitleIndex);
-				console.log('[Player] subtitleMode:', settings.subtitleMode);
-				console.log('[Player] availableSubtitles:', result.subtitleStreams?.length || 0);
-				if (result.subtitleStreams) {
-					result.subtitleStreams.forEach((s, i) => {
-						console.log('[Player] Subtitle ' + i + ': index=' + s.index + ' codec=' + s.codec + ' lang=' + s.language + ' default=' + s.isDefault + ' forced=' + s.isForced + ' text=' + s.isTextBased);
-					});
-				}
-
-				// Helper to load subtitle data
+				// Load subtitle data or renderer for the selected stream.
 				const loadSubtitleData = async (sub) => {
-					console.log('[Player] loadSubtitleData called for:', sub?.index, 'isTextBased:', sub?.isTextBased);
-					if (sub && sub.isTextBased) {
+					disposePgsRenderer(pgsRendererRef.current);
+					pgsRendererRef.current = null;
+					disposeAssRenderer(assRendererRef.current);
+					assRendererRef.current = null;
+					pendingInitialAssSubtitleRef.current = null;
+
+					const supportsAss = sub && sub.isAss && supportsAssRenderer();
+					if (supportsAss) {
+						const hasReadyVideoSource = !!(videoRef.current && (videoRef.current.currentSrc || videoRef.current.src));
+						if (!hasReadyVideoSource) {
+							pendingInitialAssSubtitleRef.current = sub;
+							setSubtitleTrackEvents(null);
+						} else {
+							await initAssRendererForStream(sub);
+						}
+					} else if (sub && sub.isTextBased) {
 						try {
-							console.log('[Player] Fetching subtitle JSON data...');
 							const data = await playback.fetchSubtitleData(sub);
-							console.log('[Player] fetchSubtitleData returned:', data ? 'data' : 'null', 'events:', data?.TrackEvents?.length);
 							if (data && data.TrackEvents) {
 								setSubtitleTrackEvents(data.TrackEvents);
-								console.log('[Player] Set subtitleTrackEvents with', data.TrackEvents.length, 'events');
 							} else {
-								console.log('[Player] No TrackEvents in response');
 								setSubtitleTrackEvents(null);
 							}
 						} catch (err) {
 							console.error('[Player] Error fetching subtitle data:', err);
 							setSubtitleTrackEvents(null);
 						}
+					} else if (sub && sub.isImageBased && settings.enablePgsRendering) {
+						if (videoRef.current) {
+							try {
+								const renderer = await initPgsRenderer(videoRef.current, sub, {
+									opacity: settings.subtitleOpacity,
+									scale: 1.0
+								});
+								if (renderer) {
+									pgsRendererRef.current = renderer;
+									setSubtitleTrackEvents(null);
+								} else {
+									setSubtitleTrackEvents(null);
+								}
+							} catch (err) {
+								setSubtitleTrackEvents(null);
+							}
+						}
 					} else {
-						console.log('[Player] Not loading subs - sub:', !!sub, 'isTextBased:', sub?.isTextBased);
 						setSubtitleTrackEvents(null);
 					}
+
 					setCurrentSubtitleText(null);
 				};
 
 				if (initialSubtitleIndex !== undefined && initialSubtitleIndex !== null) {
-					console.log('[Player] Using initialSubtitleIndex path');
 					if (initialSubtitleIndex >= 0) {
 						const selectedSub = result.subtitleStreams?.find(s => s.index === initialSubtitleIndex);
 						if (selectedSub) {
-							console.log('[Player] Using initial subtitle index:', initialSubtitleIndex);
 							setSelectedSubtitleIndex(initialSubtitleIndex);
 							await loadSubtitleData(selectedSub);
 						}
 					} else {
-						// -1 means subtitles off
-						console.log('[Player] initialSubtitleIndex is -1, subtitles off');
 						setSelectedSubtitleIndex(-1);
 						setSubtitleTrackEvents(null);
 					}
 				} else if (settings.subtitleMode === 'always') {
-					console.log('[Player] Using subtitleMode=always path');
 					const defaultSub = result.subtitleStreams?.find(s => s.isDefault);
 					if (defaultSub) {
-						console.log('[Player] Using default subtitle (always mode):', defaultSub.index);
 						setSelectedSubtitleIndex(defaultSub.index);
 						await loadSubtitleData(defaultSub);
 					} else if (result.subtitleStreams?.length > 0) {
-						// No default marked, use first available
 						const firstSub = result.subtitleStreams[0];
-						console.log('[Player] No default subtitle, using first:', firstSub.index);
 						setSelectedSubtitleIndex(firstSub.index);
 						await loadSubtitleData(firstSub);
-					} else {
-						console.log('[Player] subtitleMode=always but no subtitles available');
 					}
 				} else if (settings.subtitleMode === 'forced') {
-					console.log('[Player] Using subtitleMode=forced path');
 					const forcedSub = result.subtitleStreams?.find(s => s.isForced);
 					if (forcedSub) {
-						console.log('[Player] Using forced subtitle:', forcedSub.index);
 						setSelectedSubtitleIndex(forcedSub.index);
 						await loadSubtitleData(forcedSub);
-					} else {
-						console.log('[Player] No forced subtitle found');
 					}
-				} else {
-					console.log('[Player] No subtitle auto-selected - subtitleMode is:', settings.subtitleMode);
 				}
-				console.log('[Player] === SUBTITLE SELECTION END ===');
 
 				let displayTitle = item.Name;
 				let displaySubtitle = '';
@@ -1095,7 +1139,15 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 				});
 			}
 		}
-	}, [playMethod]);
+
+		const pendingInitialAssSub = pendingInitialAssSubtitleRef.current;
+		if (pendingInitialAssSub && supportsAssRenderer()) {
+			pendingInitialAssSubtitleRef.current = null;
+			initAssRendererForStream(pendingInitialAssSub).catch((err) => {
+				console.error('[Player] Deferred ASS init failed', err);
+			});
+		}
+	}, [playMethod, initAssRendererForStream]);
 
 	const handlePlay = useCallback(() => {
 		setIsPaused(false);
@@ -1499,6 +1551,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 		pgsRendererRef.current = null;
 		disposeAssRenderer(assRendererRef.current);
 		assRendererRef.current = null;
+		pendingInitialAssSubtitleRef.current = null;
 
 		if (index === -1) {
 			setSelectedSubtitleIndex(-1);
@@ -1509,40 +1562,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 			const stream = streamList.find(s => s.index === index);
 
 			if (stream && stream.isAss && supportsAssRenderer()) {
-				if (videoRef.current) {
-					try {
-						const assUrl = playback.getAssSubtitleUrl(stream);
-						if (assUrl) {
-							const renderer = await initAssRenderer(videoRef.current, assUrl, (err) => {
-								console.error('[Player] ASS renderer error, falling back to text', err);
-								disposeAssRenderer(assRendererRef.current);
-								assRendererRef.current = null;
-								playback.fetchSubtitleData(stream).then(data => {
-									setSubtitleTrackEvents(data?.TrackEvents || null);
-								}).catch(() => setSubtitleTrackEvents(null));
-							});
-							if (renderer) {
-								assRendererRef.current = renderer;
-							}
-						}
-					} catch (err) {
-						console.error('[Player] ASS init failed, falling back to text', err);
-					}
-				}
-				if (!assRendererRef.current) {
-					try {
-						const data = await playback.fetchSubtitleData(stream);
-						if (data && data.TrackEvents) {
-							setSubtitleTrackEvents(data.TrackEvents);
-						} else {
-							setSubtitleTrackEvents(null);
-						}
-					} catch (err) {
-						setSubtitleTrackEvents(null);
-					}
-				} else {
-					setSubtitleTrackEvents(null);
-				}
+				await initAssRendererForStream(stream);
 			} else if (stream && stream.isTextBased) {
 				try {
 					const data = await playback.fetchSubtitleData(stream);
@@ -1580,7 +1600,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 		if (shouldClose) {
 			closeModal();
 		}
-	}, [subtitleStreams, closeModal, settings.enablePgsRendering, settings.subtitleOpacity]);
+	}, [subtitleStreams, closeModal, settings.enablePgsRendering, settings.subtitleOpacity, initAssRendererForStream]);
 
 	const handleOpenRemoteSubtitleSearch = useCallback(async () => {
 		if (!item?.Id) return;
