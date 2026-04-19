@@ -595,18 +595,20 @@ const JellyseerrDiscover = ({onSelectItem, onSelectGenre, onSelectNetwork, onSel
 
 	return (
 		<div className={css.container}>
-			<div className={css.backdrop}>
-				{backdropUrl && (
-					<div
-						className={css.backdropImage}
-						style={{
-							backgroundImage: `url(${backdropUrl})`,
-							filter: settings.backdropBlurHome > 0 ? `blur(${settings.backdropBlurHome}px)` : 'none'
-						}}
-					/>
-				)}
-				<div className={css.backdropOverlay} />
-			</div>
+			{settings.showHomeBackdrop !== false && (
+				<div className={css.backdrop}>
+					{backdropUrl && (
+						<div
+							className={css.backdropImage}
+							style={{
+								backgroundImage: `url(${backdropUrl})`,
+								filter: settings.backdropBlurHome > 0 ? `blur(${settings.backdropBlurHome}px)` : 'none'
+							}}
+						/>
+					)}
+					<div className={css.backdropOverlay} />
+				</div>
+			)}
 			{isLoading ? (
 				<LoadingSpinner />
 			) : (

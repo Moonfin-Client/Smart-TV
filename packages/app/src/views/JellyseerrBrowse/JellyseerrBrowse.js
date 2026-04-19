@@ -306,17 +306,19 @@ const JellyseerrBrowse = ({browseType, item, mediaType: initialMediaType, onSele
 
 	return (
 		<div className={css.page}>
-			<div className={css.backdrop}>
-				{backdropUrl && (
-					<img
-						className={css.backdropImage}
-						src={backdropUrl}
-						alt=""
-						style={{filter: settings.backdropBlurHome > 0 ? `blur(${settings.backdropBlurHome}px)` : 'none'}}
-					/>
-				)}
-				<div className={css.backdropOverlay} />
-			</div>
+			{settings.showHomeBackdrop !== false && (
+				<div className={css.backdrop}>
+					{backdropUrl && (
+						<img
+							className={css.backdropImage}
+							src={backdropUrl}
+							alt=""
+							style={{filter: settings.backdropBlurHome > 0 ? `blur(${settings.backdropBlurHome}px)` : 'none'}}
+						/>
+					)}
+					<div className={css.backdropOverlay} />
+				</div>
+			)}
 
 			<div className={css.content}>
 				<div className={css.header}>
