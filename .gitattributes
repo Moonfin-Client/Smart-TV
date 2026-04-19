@@ -1,0 +1,14 @@
+# Enforce LF line endings on all platforms
+* text=auto eol=lf
+
+# Explicitly binary
+*.wgt binary
+*.ipk binary
+*.p12 binary
+*.wasm binary
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.webp binary

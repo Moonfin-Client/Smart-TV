@@ -71,7 +71,8 @@ function runLintGate(cwd) {
 	const result = spawnSync('npx', ['enact', 'lint', '.'], {
 		cwd,
 		env: process.env,
-		encoding: 'utf8'
+		encoding: 'utf8',
+		shell: true
 	});
 	if (result.stdout) process.stdout.write(result.stdout);
 	if (result.stderr) process.stderr.write(result.stderr);

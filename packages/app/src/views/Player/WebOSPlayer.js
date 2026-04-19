@@ -530,19 +530,21 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 					} else if (sub && sub.isImageBased && settings.enablePgsRendering) {
 						if (videoRef.current) {
 							try {
-								const renderer = await initPgsRenderer(videoRef.current, sub, {
-									opacity: settings.subtitleOpacity,
-									scale: 1.0
-								});
+								const renderer = await initPgsRenderer(videoRef.current, sub);
 								if (renderer) {
 									pgsRendererRef.current = renderer;
 									setSubtitleTrackEvents(null);
 								} else {
+									console.error('[Player] PGS renderer returned null');
 									setSubtitleTrackEvents(null);
 								}
 							} catch (err) {
+								console.error('[Player] PGS renderer failed:', err);
 								setSubtitleTrackEvents(null);
 							}
+						} else {
+							console.error('[Player] PGS: videoRef is null');
+							setSubtitleTrackEvents(null);
 						}
 					} else {
 						setSubtitleTrackEvents(null);
@@ -557,6 +559,8 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 						if (selectedSub) {
 							setSelectedSubtitleIndex(initialSubtitleIndex);
 							await loadSubtitleData(selectedSub);
+						} else {
+							console.error('[Player] initialSubtitleIndex', initialSubtitleIndex, 'not found in subtitleStreams');
 						}
 					} else {
 						setSelectedSubtitleIndex(-1);

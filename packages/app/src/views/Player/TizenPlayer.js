@@ -15,7 +15,7 @@ import {useSyncPlay} from '../../context/SyncPlayContext';
 import * as syncPlayService from '../../services/syncPlay';
 import {KEYS, isBackKey} from '../../utils/keys';
 import {getImageUrl} from '../../utils/helpers';
-import {initPgsParser, disposePgsParser, renderPgsFrame, clearPgsCanvas} from '../../utils/pgsRenderer';
+import {initPgsCanvasRenderer, disposePgsRenderer, clearPgsCanvas} from '../../utils/pgsRenderer';
 import {supportsAssRenderer, initAssCanvasRenderer, disposeAssRenderer, setAssTime} from '../../utils/assRenderer';
 import {getSubtitleOverlayStyle, getSubtitleTextStyle, sanitizeSubtitleHtml} from '../../utils/subtitleConstants';
 import {api as jellyfinApi, createApiForServer, getServerUrl} from '../../services/jellyfinApi';
@@ -151,7 +151,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 	const useNativeSubtitleRef = useRef(false);
 	// Ref for the Player container DOM element - used to walk up ancestors for transparency
 	const playerContainerRef = useRef(null);
-	const pgsParserRef = useRef(null);
+	const pgsRendererRef = useRef(null);
 	const pgsCanvasRef = useRef(null);
 	const assRendererRef = useRef(null);
 	const rootFontSizePxRef = useRef(null);
@@ -269,10 +269,10 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 				}
 			}
 			setCurrentSubtitleText(matchingTexts.length > 0 ? matchingTexts.join('\n') : null);
-		} else if (pgsParserRef.current && pgsCanvasRef.current) {
+		} else if (pgsRendererRef.current) {
 			setCurrentSubtitleText(null);
 			const pgsTime = time - (subtitleOffset || 0);
-			renderPgsFrame(pgsCanvasRef.current, pgsParserRef.current, Math.max(0, pgsTime));
+			pgsRendererRef.current.renderAtTimestamp(Math.max(0, pgsTime));
 		} else if (assRendererRef.current) {
 			setCurrentSubtitleText(null);
 			const assTime = time - (subtitleOffset || 0);
@@ -520,9 +520,9 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 				let pendingSubAction = null;
 
 				const loadSubtitleData = async (sub) => {
-					if (pgsParserRef.current) {
-						disposePgsParser(pgsParserRef.current);
-						pgsParserRef.current = null;
+					if (pgsRendererRef.current) {
+						disposePgsRenderer(pgsRendererRef.current);
+						pgsRendererRef.current = null;
 					}
 					if (pgsCanvasRef.current) {
 						clearPgsCanvas(pgsCanvasRef.current);
@@ -532,7 +532,20 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 						assRendererRef.current = null;
 					}
 
+					console.log('[Player] loadSubtitleData:', {
+						codec: sub?.codec,
+						isImageBased: sub?.isImageBased,
+						isTextBased: sub?.isTextBased,
+						isAss: sub?.isAss,
+						isEmbeddedNative: sub?.isEmbeddedNative,
+						deliveryUrl: sub?.deliveryUrl,
+						enablePgsRendering: settings.enablePgsRendering,
+						pgsCanvasReady: !!pgsCanvasRef.current
+					});
+
 					if (sub && sub.isEmbeddedNative) {
+						// Sets pendingSubAction so the post-ready callback can call setSelectTrack.
+						// Image-based (PGS) tracks use setSilentSubtitle(false) for native rendering.
 						pendingSubAction = {type: 'native', stream: sub};
 						setSubtitleTrackEvents(null);
 					} else if (sub && sub.isAss && supportsAssRenderer()) {
@@ -574,7 +587,6 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 							const data = await playback.fetchSubtitleData(sub);
 							if (data && data.TrackEvents) {
 								setSubtitleTrackEvents(data.TrackEvents);
-								console.log('[Player] Loaded', data.TrackEvents.length, 'subtitle events');
 							} else {
 								setSubtitleTrackEvents(null);
 							}
@@ -584,17 +596,18 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 						}
 					} else if (sub && sub.isImageBased && settings.enablePgsRendering) {
 						try {
-							const parser = await initPgsParser(sub);
-							if (parser) {
-								pgsParserRef.current = parser;
+							const renderer = await initPgsCanvasRenderer(pgsCanvasRef.current, sub);
+							if (renderer) {
+								pgsRendererRef.current = renderer;
 								pendingSubAction = {type: 'pgs'};
 								setSubtitleTrackEvents(null);
 							} else {
 								pendingSubAction = {type: 'off'};
+								console.error('[Player] PGS renderer returned null');
 								setSubtitleTrackEvents(null);
 							}
 						} catch (err) {
-							console.error('[Player] Error initializing PGS parser:', err);
+							console.error('[Player] Error initializing PGS renderer:', err);
 							pendingSubAction = {type: 'off'};
 							setSubtitleTrackEvents(null);
 						}
@@ -764,29 +777,36 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 								if (embeddedIndex >= 0 && embeddedIndex < subTracks.length) {
 									const tizenIndex = subTracks[embeddedIndex].index;
 									avplaySelectTrack('TEXT', tizenIndex);
-									// setSilentSubtitle(true) = hide native render + fire onsubtitlechange events
-									// setSilentSubtitle(false) = show native render + NO events (per Samsung docs)
-									avplaySetSilentSubtitle(true);
-									useNativeSubtitleRef.current = true;
+									if (pendingSubAction.stream.isImageBased) {
+										// PGS: AVPlay renders the bitmap overlay natively, no JS events.
+										avplaySetSilentSubtitle(false);
+										useNativeSubtitleRef.current = false;
+									} else {
+										// Text: suppress native render, receive text via onsubtitlechange.
+										avplaySetSilentSubtitle(true);
+										useNativeSubtitleRef.current = true;
+									}
 									nativeApplied = true;
-									console.log('[Player] Applied native embedded subtitle via TEXT track, tizenIndex:', tizenIndex);
 								}
 							}
 						} catch (err) {
 							console.warn('[Player] Native subtitle track mapping failed:', err);
 						}
 						if (!nativeApplied) {
-							console.log('[Player] Native subtitle failed, falling back to extraction');
 							useNativeSubtitleRef.current = false;
 							avplaySetSilentSubtitle(true);
-							try {
-								const data = await playback.fetchSubtitleData(pendingSubAction.stream);
-								if (data && data.TrackEvents) {
-									setSubtitleTrackEvents(data.TrackEvents);
-									console.log('[Player] Loaded', data.TrackEvents.length, 'subtitle events (fallback)');
+							if (pendingSubAction.stream.isImageBased && settings.enablePgsRendering) {
+								const renderer = await initPgsCanvasRenderer(pgsCanvasRef.current, pendingSubAction.stream);
+								if (renderer) pgsRendererRef.current = renderer;
+							} else {
+								try {
+									const data = await playback.fetchSubtitleData(pendingSubAction.stream);
+									if (data && data.TrackEvents) {
+										setSubtitleTrackEvents(data.TrackEvents);
+									}
+								} catch (fetchErr) {
+									console.error('[Player] Subtitle extraction fallback failed:', fetchErr);
 								}
-							} catch (fetchErr) {
-								console.error('[Player] Subtitle extraction fallback failed:', fetchErr);
 							}
 						}
 					} else if (pendingSubAction.type === 'text') {
@@ -829,9 +849,9 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 			playback.stopHealthMonitoring();
 			stopTimeUpdatePolling();
 			cleanupAVPlay();
-			if (pgsParserRef.current) {
-				disposePgsParser(pgsParserRef.current);
-				pgsParserRef.current = null;
+			if (pgsRendererRef.current) {
+				disposePgsRenderer(pgsRendererRef.current);
+				pgsRendererRef.current = null;
 			}
 			if (assRendererRef.current) {
 				disposeAssRenderer(assRendererRef.current);
@@ -1239,9 +1259,9 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 	}, [playMethod, closeModal, startAVPlayback, audioStreams]);
 
 	const applySubtitleSelection = useCallback(async (index, streamList = subtitleStreams, shouldClose = true) => {
-		if (pgsParserRef.current) {
-			disposePgsParser(pgsParserRef.current);
-			pgsParserRef.current = null;
+		if (pgsRendererRef.current) {
+			disposePgsRenderer(pgsRendererRef.current);
+			pgsRendererRef.current = null;
 		}
 		if (pgsCanvasRef.current) {
 			clearPgsCanvas(pgsCanvasRef.current);
@@ -1276,8 +1296,14 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 						if (embeddedIndex >= 0 && embeddedIndex < subTracks.length) {
 							const tizenIndex = subTracks[embeddedIndex].index;
 							avplaySelectTrack('TEXT', tizenIndex);
-							avplaySetSilentSubtitle(true);
-							useNativeSubtitleRef.current = true;
+							if (stream.isImageBased) {
+								// PGS: native bitmap overlay rendered by AVPlay. No JS events.
+								avplaySetSilentSubtitle(false);
+								useNativeSubtitleRef.current = false;
+							} else {
+								avplaySetSilentSubtitle(true);
+								useNativeSubtitleRef.current = true;
+							}
 							nativeSuccess = true;
 						}
 					}
@@ -1287,6 +1313,18 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 			}
 
 			if (nativeSuccess) {
+				setSubtitleTrackEvents(null);
+				setCurrentSubtitleText(null);
+			} else if (stream && stream.isEmbeddedNative && stream.isImageBased && settings.enablePgsRendering) {
+				// Native PGS track selection failed -- fall back to libpgs.
+				useNativeSubtitleRef.current = false;
+				avplaySetSilentSubtitle(true);
+				try {
+					const renderer = await initPgsCanvasRenderer(pgsCanvasRef.current, stream);
+					if (renderer) pgsRendererRef.current = renderer;
+				} catch (err) {
+					console.error('[Player] libpgs fallback failed:', err);
+				}
 				setSubtitleTrackEvents(null);
 				setCurrentSubtitleText(null);
 			} else if (stream && stream.isAss && supportsAssRenderer()) {
@@ -1338,12 +1376,15 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 				useNativeSubtitleRef.current = false;
 				avplaySetSilentSubtitle(true);
 				try {
-					const parser = await initPgsParser(stream);
-					if (parser) {
-						pgsParserRef.current = parser;
+					const renderer = await initPgsCanvasRenderer(pgsCanvasRef.current, stream);
+					if (renderer) {
+						pgsRendererRef.current = renderer;
+					} else {
+						console.error('[Player] PGS renderer returned null');
 					}
 					setSubtitleTrackEvents(null);
 				} catch (err) {
+					console.error('[Player] PGS init failed:', err);
 					setSubtitleTrackEvents(null);
 				}
 			} else {

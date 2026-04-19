@@ -403,7 +403,44 @@ export const avplaySeek = (timeMs) => {
 			reject(new Error('AVPlay not available'));
 			return;
 		}
-		webapis.avplay.seekTo(timeMs, resolve, reject);
+
+		const maxAttempts = 8;
+		const retryDelayMs = 120;
+		let attempts = 0;
+
+		const isSeekableState = (state) => state === 'PLAYING' || state === 'PAUSED' || state === 'READY';
+
+		const trySeek = () => {
+			let state = 'NONE';
+			try {
+				state = webapis.avplay.getState();
+			} catch (e) {
+				state = 'NONE';
+			}
+
+			if (!isSeekableState(state)) {
+				if (attempts < maxAttempts) {
+					attempts += 1;
+					setTimeout(trySeek, retryDelayMs);
+					return;
+				}
+				reject(new Error(`AVPlay not seekable (state=${state})`));
+				return;
+			}
+
+			webapis.avplay.seekTo(timeMs, resolve, (err) => {
+				const msg = String((err && (err.message || err.name)) || err || '');
+				const isInvalidState = /INVALID_STATE|InvalidState/i.test(msg);
+				if (isInvalidState && attempts < maxAttempts) {
+					attempts += 1;
+					setTimeout(trySeek, retryDelayMs);
+					return;
+				}
+				reject(err);
+			});
+		};
+
+		trySeek();
 	});
 };
 

@@ -62,12 +62,15 @@ export const mapSubtitleStreamsFromMediaSource = (mediaSource, serverUrl, option
 				isDefault: stream.IsDefault,
 				isTextBased: TEXT_SUBTITLE_CODECS.includes(codec),
 				isImageBased: IMAGE_SUBTITLE_CODECS.includes(codec),
+				isAss: ['ass', 'ssa'].includes(codec),
 				deliveryUrl,
 				deliveryMethod: stream.DeliveryMethod
 			};
 
 			if (includeEmbeddedNative) {
-				mapped.isEmbeddedNative = !stream.IsExternal && TEXT_SUBTITLE_CODECS.includes(codec);
+				// Image-based tracks with DeliveryMethod 'External' are server-extracted .sup files served via libpgs, not AVPlay native.
+				const isEmbeddedImage = IMAGE_SUBTITLE_CODECS.includes(codec) && !stream.IsExternal && stream.DeliveryMethod !== 'External';
+				mapped.isEmbeddedNative = !stream.IsExternal && (TEXT_SUBTITLE_CODECS.includes(codec) || isEmbeddedImage);
 			}
 
 			return mapped;
