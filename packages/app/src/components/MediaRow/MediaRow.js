@@ -1,7 +1,9 @@
 import {useCallback, useRef, useEffect, memo} from 'react';
 import SpotlightContainerDecorator from '@enact/spotlight/SpotlightContainerDecorator';
+import Spotlight from '@enact/spotlight';
 import MediaCard from '../MediaCard';
 import {KEYS} from '../../utils/keys';
+import {useSettings} from '../../context/SettingsContext';
 
 import css from './MediaRow.module.less';
 
@@ -26,6 +28,7 @@ const MediaRow = ({
 	className,
 	registerRowRef
 }) => {
+	const {settings} = useSettings();
 	const scrollerRef = useRef(null);
 	const scrollTimeoutRef = useRef(null);
 	const rowElementRef = useRef(null);
@@ -75,6 +78,24 @@ const MediaRow = ({
 		}
 	}, [rowIndex, onNavigateUp, onNavigateDown]);
 
+	const handleWrapLeft = useCallback((e) => {
+		e.preventDefault();
+		e.stopPropagation();
+		if (settings.navbarPosition === 'left') {
+			if (!Spotlight.focus('navbar')) {
+				Spotlight.move('left');
+			}
+		} else {
+			Spotlight.focus(`media-${keyPrefix}-${items[items.length - 1].Id}`);
+		}
+	}, [items, keyPrefix, settings.navbarPosition]);
+
+	const handleWrapRight = useCallback((e) => {
+		e.preventDefault();
+		e.stopPropagation();
+		Spotlight.focus(`media-${keyPrefix}-${items[0].Id}`);
+	}, [items, keyPrefix]);
+
 	if (!items || items.length === 0) return null;
 
 	return (
@@ -88,19 +109,28 @@ const MediaRow = ({
 			<h2 className={css.title}>{title}</h2>
 			<div className={css.scroller} ref={scrollerRef} onFocus={handleFocus}>
 				<div className={css.items}>
-					{items.map((item) => (
-						<MediaCard
-							key={`${keyPrefix}-${item.Id}`}
-							item={item}
-							serverUrl={serverUrl}
-							cardType={cardType}
-							onSelect={handleSelect}
-							onFocusItem={onFocusItem}
-							showServerBadge={showServerBadge}
-							showOverview={showOverview}
-							eagerLoad={rowIndex === 0}
-						/>
-					))}
+						{items.map((item, index) => {
+							const spotlightId = `media-${keyPrefix}-${item.Id}`;
+							const isFirst = index === 0;
+							const isLast = index === items.length - 1;
+
+							return (
+								<MediaCard
+									key={`${keyPrefix}-${item.Id}`}
+									item={item}
+									serverUrl={serverUrl}
+									cardType={cardType}
+									onSelect={handleSelect}
+									onFocusItem={onFocusItem}
+									showServerBadge={showServerBadge}
+									showOverview={showOverview}
+									eagerLoad={rowIndex === 0}
+									spotlightId={spotlightId}
+									onSpotlightLeft={isFirst ? handleWrapLeft : null}
+									onSpotlightRight={isLast ? handleWrapRight : null}
+								/>
+							);
+						})}
 				</div>
 			</div>
 		</RowContainer>
