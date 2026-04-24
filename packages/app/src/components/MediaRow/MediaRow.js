@@ -82,17 +82,19 @@ const MediaRow = ({
 		e.preventDefault();
 		e.stopPropagation();
 		if (settings.navbarPosition === 'left') {
-			Spotlight.focus('navbar');
+			if (!Spotlight.focus('navbar')) {
+				Spotlight.move('left');
+			}
 		} else {
 			Spotlight.focus(`media-${keyPrefix}-${items[items.length - 1].Id}`);
 		}
 	}, [items, keyPrefix, settings.navbarPosition]);
 
-    const handleWrapRight = useCallback((e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        Spotlight.focus(`media-${keyPrefix}-${items[0].Id}`);
-    }, [items, keyPrefix]);
+	const handleWrapRight = useCallback((e) => {
+		e.preventDefault();
+		e.stopPropagation();
+		Spotlight.focus(`media-${keyPrefix}-${items[0].Id}`);
+	}, [items, keyPrefix]);
 
 	if (!items || items.length === 0) return null;
 
