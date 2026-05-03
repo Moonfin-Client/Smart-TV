@@ -25,6 +25,7 @@ export const getTrickplayManifest = async (itemId, mediaSourceId) => {
 
 const calculateSpritePosition = (positionTicks, manifest, selectedWidth) => {
     if (!manifest || !selectedWidth) return null;
+
     const trickplayInfo = manifest[selectedWidth];
     if (!trickplayInfo) return null;
 
