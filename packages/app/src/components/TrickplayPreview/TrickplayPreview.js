@@ -13,7 +13,9 @@ export const getTrickplayManifest = async (itemId, mediaSourceId) => {
             `${serverUrl}/Users/${userId}/Items/${itemId}?Fields=Trickplay&api_key=${apiKey}`,
             {headers: {'X-Emby-Token': apiKey}}
         );
+
         if (!response.ok) return null;
+
         const data = await response.json();
         return data?.Trickplay?.[mediaSourceId] || null;
     } catch {
@@ -115,9 +117,9 @@ const TrickplayPreview = ({
 		return `${minutes}:${seconds.toString().padStart(2, '0')}`;
 	}, []);
 
-if (!visible || !currentImage || !position) {
-    return null;
-}
+	if (!visible || !currentImage || !position) {
+		return null;
+	}
 
 	return (
 		<div className={css.trickplayPreview}>
