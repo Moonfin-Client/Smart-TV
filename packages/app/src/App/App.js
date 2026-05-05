@@ -137,13 +137,12 @@ const AppContent = (props) => {
 		settings.screensaverEnabled &&
 		isAuthenticated &&
 		panelIndex !== PANELS.LOGIN &&
-		panelIndex !== PANELS.PLAYER &&
+		(panelIndex !== PANELS.PLAYER || isPlayerPaused) &&
 		!showExitDialog &&
 		!showSettingsPanel &&
 		!showAccountModal &&
 		!photoViewerItem &&
-		!comicViewerItem &&
-		!isPlayerPaused
+		!comicViewerItem
 	);
 	const {isInactive: showScreensaver, dismiss: dismissScreensaver} = useInactivityTimer(screensaverTimeout, screensaverEnabled);
 
