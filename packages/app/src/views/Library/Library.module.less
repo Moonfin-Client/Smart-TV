@@ -320,7 +320,6 @@
 .itemCard {
 	position: relative;
 	cursor: pointer;
-	transition: transform 0.2s ease;
 	border-radius: 8px;
 	overflow: visible;
 	background: transparent;
@@ -328,13 +327,23 @@
 
 	&:focus {
 		outline: none;
-		transform: scale(1.05);
 		z-index: 10;
+
+		.itemCardInner {
+			transform: scale(1.05);
+		}
 
 		.poster {
 			border-color: white;
 		}
 	}
+}
+
+.itemCardInner {
+	position: relative;
+	width: 100%;
+	height: 100%;
+	transition: transform 0.2s ease;
 }
 
 .poster {

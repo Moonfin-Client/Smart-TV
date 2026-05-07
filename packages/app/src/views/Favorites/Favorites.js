@@ -345,6 +345,7 @@ className={css.itemCard}
 onClick={handleItemClick}
 data-index={index}
 >
+<div className={css.itemCardInner}>
 {imageUrl ? (
 <img
 className={`${css.poster} ${isPerson ? css.personPoster : ''}`}
@@ -371,6 +372,7 @@ loading="lazy"
 <svg viewBox="0 0 24 24"><path fill="white" d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>
 </div>
 )}
+</div>
 </SpottableDiv>
 );
 }, [serverUrl, handleItemClick, items.length, totalCount, isLoading, loadItems, imageType, posterHeight, unifiedMode]);
