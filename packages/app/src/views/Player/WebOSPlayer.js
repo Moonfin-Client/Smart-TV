@@ -566,7 +566,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 			maxBitrate: settings.maxBitrate,
 			preferTranscode: settings.preferTranscode,
 			subtitleMode: settings.subtitleMode,
-			skipIntro: settings.skipIntro,
+			skipIntro: settings.introAction,
 			initialAudioIndex,
 			initialSubtitleIndex
 		});
@@ -859,7 +859,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 			}
 		};
 	// eslint-disable-next-line react-hooks/exhaustive-deps
-	}, [item, resume, selectedQuality, settings.maxBitrate, settings.preferTranscode, settings.forceDirectPlay, settings.subtitleMode, settings.skipIntro, initialAudioIndex, initialSubtitleIndex]);
+	}, [item, resume, selectedQuality, settings.maxBitrate, settings.preferTranscode, settings.forceDirectPlay, settings.subtitleMode, settings.introAction, settings.outroAction, initialAudioIndex, initialSubtitleIndex]);
 
 	useEffect(() => {
 		if (mediaUrl) {

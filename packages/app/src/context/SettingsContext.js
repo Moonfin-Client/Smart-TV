@@ -29,8 +29,6 @@ const defaultSettings = {
 	subtitleShadowBlur: 0.1,
 	subtitlePositionAbsolute: 90,
 	seekStep: 10,
-	skipIntro: true,
-	skipCredits: false,
 	autoPlay: true,
 	theme: 'dark',
 	homeRows: DEFAULT_HOME_ROWS,
