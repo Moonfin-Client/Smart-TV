@@ -64,7 +64,7 @@ const getMediaBadges = (item, versionIndex = 0) => {
 
 		// HDR/DV badges
 		const rangeType = video.VideoRangeType;
-		if (rangeType === 'DOVIWithHDR10' || rangeType === 'DOVI') {
+		if (rangeType === 'DOVIWithHDR10' || rangeType === 'DOVI' || rangeType === 'DOVIWithHDR10Plus') {
 			badges.push({type: 'badgeDv', label: 'DV'});
 		}
 		if (rangeType && rangeType !== 'SDR') {

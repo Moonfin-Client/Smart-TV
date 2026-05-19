@@ -339,8 +339,9 @@ const buildDirectPlayProfiles = (caps) => {
 	if (caps.mkv) {
 		// MKV supports broader video codecs per LG docs: MPEG-2, MPEG-4, H.264, VP8, VP9, HEVC, AV1
 		const mkvVideoCodecs = ['h264', 'mpeg4', 'mpeg2video', 'vp8'];
-		if (caps.hevc) mkvVideoCodecs.push('hevc', 'dvh1');
-		if (caps.dolbyVision) mkvVideoCodecs.push('dvhe');
+		if (caps.hevc) mkvVideoCodecs.push('hevc');
+		if (caps.webosVersion >= 25 && caps.hevc) mkvVideoCodecs.push('dvh1');
+		if (caps.webosVersion >= 25 && caps.dolbyVision) mkvVideoCodecs.push('dvhe');
 		if (caps.vp9) mkvVideoCodecs.push('vp9');
 		if (caps.av1) mkvVideoCodecs.push('av1');
 

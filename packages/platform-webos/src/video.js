@@ -182,15 +182,17 @@ export const getPlayMethod = (mediaSource, capabilities, options = {}) => {
 	const videoOk = !videoCodec || supportedVideoCodecs.includes(videoCodec);
 	const audioOk = hasCompatibleAudio;
 	// Container can be comma-separated (e.g., "mov,mp4,m4a,3gp,3g2,mj2") - check if ANY match
-	const containerOk = !container || containerParts.some(c => supportedContainers.includes(c));
+	let containerOk = !container || containerParts.some(c => supportedContainers.includes(c));
 
 	// HDR compatibility check
 	let hdrOk = true;
+	let isDolbyVision = false;
 	if (videoStream?.VideoRangeType) {
 		const rangeType = videoStream.VideoRangeType.toUpperCase();
 		if (rangeType === 'DOVI') {
 			// Pure DV with no fallback layer needs native DV support
 			hdrOk = capabilities.dolbyVision;
+			isDolbyVision = true;
 			if (!hdrOk) console.log('[webosVideo] Pure Dolby Vision not supported (no fallback layer)');
 		} else if (rangeType.includes('DOVIWITH')) {
 			// DV with fallback layer - check if we can play the fallback
@@ -209,10 +211,12 @@ export const getPlayMethod = (mediaSource, capabilities, options = {}) => {
 				hdrOk = false;
 				console.log('[webosVideo] DV fallback layer not supported:', rangeType);
 			}
+			isDolbyVision = true;
 		} else if (rangeType.includes('DOLBY') || rangeType.includes('DV')) {
 			// Generic DV/DOLBY reference, needs native DV
 			hdrOk = capabilities.dolbyVision;
 			if (!hdrOk) console.log('[webosVideo] Dolby Vision not supported');
+			isDolbyVision = true;
 		} else if (rangeType.includes('HDR10+') || rangeType === 'HDR10PLUS') {
 			hdrOk = capabilities.hdr10Plus || capabilities.hdr10;
 			if (!hdrOk) console.log('[webosVideo] HDR10+ not supported');
@@ -222,6 +226,15 @@ export const getPlayMethod = (mediaSource, capabilities, options = {}) => {
 		} else if (rangeType.includes('HLG')) {
 			hdrOk = capabilities.hlg || capabilities.hdr10;
 			if (!hdrOk) console.log('[webosVideo] HLG not supported');
+		}
+	}
+
+	if(hdrOk && isDolbyVision){
+		if(container.includes("mkv") || container.includes("matroska")){
+			//on webOS < 25, dolby vision isn't supported on mkv
+			if(capabilities.webosVersion<25){
+				containerOk = false;
+			}
 		}
 	}
 
