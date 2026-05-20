@@ -1029,7 +1029,7 @@ const Settings = ({ onBack, onLibrariesChanged, panelMode }) => {
 			{renderInfoItem(
 				'containers',
 				$L('Containers'),
-				['MP4', capabilities?.mkv && 'MKV', 'TS', capabilities?.webm && 'WebM', capabilities?.asf && 'ASF']
+				['MP4', capabilities?.mkv && 'MKV', 'TS', capabilities?.webm && 'WebM', capabilities?.asf && 'ASF', capabilities?.nativeHls && 'HLS', capabilities?.nativeHlsFmp4 && 'HLS-fMP4']
 					.filter(Boolean)
 					.join(', '),
 				'folder'

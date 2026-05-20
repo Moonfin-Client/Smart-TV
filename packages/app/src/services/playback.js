@@ -1018,21 +1018,7 @@ export const updateCurrentSession = (updates) => {
 
 export const isDirectPlay = () => currentSession?.playMethod === PlayMethod.DirectPlay;
 
-/**
- * Rewrite the StartTimeTicks parameter in an existing HLS transcode URL.
- * This allows seeking within the same transcode session without tearing down
- * the player pipeline or creating a new PlaySessionId.
- */
-export const rewriteTranscodeSeekUrl = (url, newStartTicks) => {
-	if (!url) return url;
-	// Replace existing StartTimeTicks value
-	if (url.includes('StartTimeTicks=')) {
-		return url.replace(/StartTimeTicks=\d+/, 'StartTimeTicks=' + Math.floor(newStartTicks));
-	}
-	// Append if not present
-	const separator = url.includes('?') ? '&' : '?';
-	return url + separator + 'StartTimeTicks=' + Math.floor(newStartTicks);
-};
+
 
 export const getPlaybackUrl = async (itemId, startPositionTicks = 0, options = {}) => {
 	return getPlaybackInfo(itemId, {...options, startPositionTicks});
@@ -1045,7 +1031,6 @@ export default {
 	getPlaybackInfo,
 	getPlaybackInfoWithFallback,
 	getPlaybackUrl,
-	rewriteTranscodeSeekUrl,
 	getSubtitleUrl,
 	fetchItemChapters,
 	getChapterImageUrl,
