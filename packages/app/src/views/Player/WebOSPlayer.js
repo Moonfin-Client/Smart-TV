@@ -136,8 +136,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 	}, [lyricsLines, currentTime]);
 
 	const lyricsScrollRef = useRef(null);
-
-
+	const lastFocusedElementRef = useRef(null);
 
 	const videoRef = useRef(null);
 	const containerRef = useRef(null);
@@ -1144,16 +1143,14 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 		};
 	}, [mediaUrl, isLoading, mimeType, playMethod, error]);
 
-	const showControls = useCallback(() => {
+	const showControls = useCallback((isModalOpen = activeModal) => {
 		setControlsVisible(true);
 		if (controlsTimeoutRef.current) {
 			clearTimeout(controlsTimeoutRef.current);
 		}
-		if (!isAudioMode) {
+		if (!isAudioMode && !isModalOpen) {
 			controlsTimeoutRef.current = setTimeout(() => {
-				if (!activeModal) {
-					setControlsVisible(false);
-				}
+			  setControlsVisible(false);
 			}, CONTROLS_HIDE_DELAY);
 		}
 	}, [activeModal, isAudioMode]);
@@ -1629,10 +1626,10 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 	}, [settings.skipForwardLength, settings.seekStep, seekByOffset, isInGroup]);
 
 	const openModal = useCallback((modal) => {
+	  lastFocusedElementRef.current = document.activeElement;
 		setActiveModal(modal);
 		window.requestAnimationFrame(() => {
 			const modalId = `${modal}-modal`;
-
 			const focusResult = Spotlight.focus(modalId);
 
 			if (!focusResult) {
@@ -1649,9 +1646,13 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 
 	const closeModal = useCallback(() => {
 		setActiveModal(null);
-		showControls();
+		showControls(false);
 		window.requestAnimationFrame(() => {
-			Spotlight.focus('player-controls');
+		  if (lastFocusedElementRef.current) {
+				Spotlight.focus(lastFocusedElementRef.current);
+			}else{
+			  Spotlight.focus('playerControls');
+			}
 		});
 	}, [showControls]);
 

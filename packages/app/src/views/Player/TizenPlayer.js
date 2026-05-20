@@ -143,6 +143,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 	const healthMonitorRef = useRef(null);
 	const unregisterAppStateRef = useRef(null);
 	const controlsTimeoutRef = useRef(null);
+	const lastFocusedElementRef = useRef(null);
 	const timeUpdateIntervalRef = useRef(null);
 	const avplayReadyRef = useRef(false);
 	// Refs for stable callbacks inside AVPlay listener (avoids stale closures)
@@ -968,11 +969,9 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 			clearTimeout(controlsTimeoutRef.current);
 		}
 		// Don't auto-hide controls in audio mode
-		if (!isAudioMode) {
+		if (!isAudioMode && !isModalOpen) {
 			controlsTimeoutRef.current = setTimeout(() => {
-				if (!activeModal) {
-					setControlsVisible(false);
-				}
+			  setControlsVisible(false);
 			}, CONTROLS_HIDE_DELAY);
 		}
 	}, [activeModal, isAudioMode]);
@@ -1232,10 +1231,10 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 
 	// Modal handlers
 	const openModal = useCallback((modal) => {
+	  lastFocusedElementRef.current = document.activeElement;
 		setActiveModal(modal);
 		window.requestAnimationFrame(() => {
 			const modalId = `${modal}-modal`;
-
 			const focusResult = Spotlight.focus(modalId);
 
 			if (!focusResult) {
@@ -1252,9 +1251,13 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 
 	const closeModal = useCallback(() => {
 		setActiveModal(null);
-		showControls();
+		showControls(false);
 		window.requestAnimationFrame(() => {
-			Spotlight.focus('player-controls');
+		  if (lastFocusedElementRef.current) {
+				Spotlight.focus(lastFocusedElementRef.current);
+			}else{
+			  Spotlight.focus('playerControls');
+			}
 		});
 	}, [showControls]);
 

@@ -178,6 +178,7 @@ const Details = ({itemId, initialItem, onPlay, onSelectItem, onSelectPerson, onI
 	// Refs
 	const pageScrollerRef = useRef(null);
 	const pageScrollToRef = useRef(null);
+	const lastFocusedElementRef = useRef(null);
 
 	// Data loading
 	useEffect(() => {
@@ -586,6 +587,7 @@ const Details = ({itemId, initialItem, onPlay, onSelectItem, onSelectPerson, onI
 	}, [trailerOverlay]);
 
 	const openModal = useCallback((modal) => {
+	  lastFocusedElementRef.current = document.activeElement;
 		setActiveModal(modal);
 		window.requestAnimationFrame(() => {
 			const modalId = `${modal}-modal`;
@@ -608,6 +610,11 @@ const Details = ({itemId, initialItem, onPlay, onSelectItem, onSelectPerson, onI
 
 	const closeModal = useCallback(() => {
 		setActiveModal(null);
+		window.requestAnimationFrame(() => {
+		  if (lastFocusedElementRef.current) {
+				Spotlight.focus(lastFocusedElementRef.current);
+			}
+		});
 	}, []);
 
 	const handleSelectAudio = useCallback((e) => {
