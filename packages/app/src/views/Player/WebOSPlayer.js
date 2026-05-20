@@ -644,7 +644,16 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 
 				setAudioStreams(result.audioStreams || []);
 				setSubtitleStreams(result.subtitleStreams || []);
-				setChapters(result.chapters || []);
+
+				// Chapters are an Item property, not MediaSource - result.chapters may be empty
+				let chapterList = [];
+					if (!isLiveTV) {
+						chapterList = result.chapters || [];
+						if (chapterList.length === 0) {
+							chapterList = await playback.fetchItemChapters(item.Id, item);
+						}
+					}
+				setChapters(chapterList);
 
 				const defaultAudio = result.audioStreams?.find(s => s.isDefault);
 				if (initialAudioIndex !== undefined && initialAudioIndex !== null) {
@@ -902,7 +911,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 			lastSeekTimeRef.current = Date.now();
 			if (healthMonitorRef.current) healthMonitorRef.current.reset();
 			try {
-				videoRef.current.currentTime = clampedTicks;
+				videoRef.current.currentTime = clampedTicks / 10000000;
 			} catch (e) {
 				console.warn('[Player] seekToTicks: failed to set currentTime:', e);
 			}
@@ -1883,7 +1892,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 		const percent = (e.clientX - rect.left) / rect.width;
 		const newTime = percent * duration;
 		const newTicks = Math.floor(newTime * 10000000);
-		seekToTicks(newTicks);
+		if(newTicks)seekToTicks(newTicks);
 	}, [duration, seekToTicks]);
 
 	const handleProgressKeyDown = useCallback((e) => {

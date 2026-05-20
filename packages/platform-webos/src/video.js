@@ -80,11 +80,12 @@ export const getSupportedAudioCodecs = (capabilities, container = '') => {
 		} else if (container === 'avi') {
 			dtsOk = !!dtsObj.avi;
 		}
-		if (dtsOk) codecs.push('dts', 'dca', 'dts-hd', 'dtshd');
+		if (dtsOk) codecs.push('dts', 'dca');
+		if (dtsOk && capabilities.dtshd) codecs.push('dts-hd', 'dtshd');
 	}
 
 	if (capabilities.truehd) codecs.push('truehd', 'mlp');
-	if (capabilities.webosVersion >= 24) codecs.push('opus');
+	if (capabilities.opus) codecs.push('opus');
 	codecs.push('vorbis', 'wma', 'amr', 'amrnb', 'amrwb');
 
 	return codecs;

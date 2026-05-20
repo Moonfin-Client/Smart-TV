@@ -367,6 +367,8 @@ export const getDeviceCapabilities = async () => {
 		ac3: testAc3Support(),
 		eac3: testEac3Support(),
 		truehd: testTruehdSupport(), // false - not in Samsung specs
+		dtshd: false,
+		opus: true,
 
 		// Video codec capabilities
 		hevc: testHevcSupport(),
@@ -411,9 +413,13 @@ export const getJellyfinDeviceProfile = async () => {
 	// FLAC: Listed in Samsung Music format table (media-specifications.html) as a supported codec
 	// ALAC: Also listed in Music table but omitted here (niche format, m4a container shared with AAC)
 	// NOT supported: DTS (explicitly stated), TrueHD (not documented)
-	const audioCodecs = ['aac', 'mp3', 'flac', 'opus', 'vorbis', 'pcm', 'wav'];
+	const audioCodecs = ['aac', 'mp3', 'flac','vorbis', 'pcm', 'wav'];
 	if (caps.ac3) audioCodecs.push('ac3');
 	if (caps.eac3) audioCodecs.push('eac3');
+	if (caps.opus) audioCodecs.push('opus');
+	if (caps.truehd) audioCodecs.push('truehd');
+	if (caps.dts) audioCodecs.push('dca', 'dts');
+	if (caps.dts && caps.dtshd) audioCodecs.push('dts-hd', 'dtshd');
 	// DTS intentionally excluded - Samsung docs: "DTS Audio codec is not supported"
 	// TrueHD intentionally excluded - not in Samsung specifications
 

@@ -1020,7 +1020,9 @@ const Settings = ({ onBack, onLibrariesChanged, panelMode }) => {
 					capabilities?.ac3 && 'AC3',
 					capabilities?.eac3 && 'E-AC3',
 					capabilities?.dts && 'DTS',
-					capabilities?.dolbyAtmos && 'Atmos'
+					capabilities?.dtshd && 'DTS-HD',
+					capabilities?.dolbyAtmos && 'Atmos',
+					capabilities?.opus && 'OPUS'
 				]
 					.filter(Boolean)
 					.join(', '),

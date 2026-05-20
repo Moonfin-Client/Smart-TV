@@ -66,7 +66,10 @@ const getDefaultCapabilities = () => {
 		mkv: true,
 		nativeHls: true,
 		nativeHlsFmp4: true,
-		hlsAc3: true
+    dts: false,
+    dtshd: false,
+		hlsAc3: true,
+		opus: true
 	};
 };
 
@@ -115,9 +118,12 @@ export const getMediaCapabilities = async () => {
  * Get the list of audio codecs supported by the TV hardware.
  */
 export const getSupportedAudioCodecs = (capabilities) => {
-	const codecs = ['aac', 'mp3', 'flac', 'opus', 'vorbis', 'pcm', 'wav'];
+	const codecs = ['aac', 'mp3', 'flac', 'vorbis', 'pcm', 'wav'];
 	if (capabilities.ac3) codecs.push('ac3');
 	if (capabilities.eac3) codecs.push('eac3');
+	if (capabilities.opus) codecs.push('opus');
+	if (capabilities.dts) codecs.push('dts', 'dca');
+	if (capabilities.dts && capabilities.dtshd) codecs.push('dts-hd', 'dtshd');
 	// DTS: Samsung explicitly states not supported on any TV (2018-2025)
 	// TrueHD: Not documented in Samsung specifications
 	return codecs;

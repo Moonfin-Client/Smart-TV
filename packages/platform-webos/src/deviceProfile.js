@@ -224,6 +224,7 @@ export const getDeviceCapabilities = async () => {
 		// webOS can only passthrough TrueHD/DTS-HD to an AV receiver, not decode internally
 		truehd: false,
 		dtshd: false,
+		opus: webosVersion >= 6,
 
 		hevc: testHevcSupport(null, webosVersion),
 		av1: testAv1Support(null, webosVersion),
@@ -277,37 +278,92 @@ const buildVideoRangeTypes = (caps) => {
 	return rangeTypes.join('|');
 };
 
-const buildDirectPlayProfiles = (caps) => {
-	const profiles = [];
-
+const buildMp4VideoCodecs = (caps) => {
 	const mp4VideoCodecs = ['h264'];
 	if (caps.hevc) mp4VideoCodecs.push('hevc', 'dvh1');
 	if (caps.dolbyVision) mp4VideoCodecs.push('dvhe');
 	if (caps.av1) mp4VideoCodecs.push('av1');
+	return mp4VideoCodecs;
+}
 
-	// Per-container audio codecs based on LG's official AV format docs.
-	// Different containers support different audio codecs on webOS.
+const buildMp4AudioCodecs = (caps) => {
 	const dts = caps.dts || {}; // Per-container DTS support object
-
 	// MP4/M4V/MOV: ac3, eac3, aac, mp3; DTS only on webOS 23+ (model-specific)
 	const mp4AudioCodecs = ['aac', 'mp3'];
 	if (caps.ac3) mp4AudioCodecs.push('ac3');
 	if (caps.eac3) mp4AudioCodecs.push('eac3');
 	if (dts.mp4) mp4AudioCodecs.push('dca', 'dts');
+	if (dts.mp4 && caps.dtshd) mp4AudioCodecs.push('dts-hd', 'dtshd');
+	if (caps.opus) mp4AudioCodecs.push('opus');
+	if (caps.truehd) mp4AudioCodecs.push('truehd');
+	return mp4AudioCodecs;
 
+}
+
+const buildTsVideoCodecs = (caps) => {
+	// TS per LG docs: H.264, HEVC, MPEG-2; VC-1 is only documented in ASF/WMV
+	const tsVideoCodecs = ['h264'];
+	if (caps.hevc) tsVideoCodecs.push('hevc', 'dvh1');
+	if (caps.dolbyVision) tsVideoCodecs.push('dvhe');
+	tsVideoCodecs.push('mpeg2video');
+	return tsVideoCodecs;
+}
+
+const buildTsAudioCodecs = (caps) => {
+	const dts = caps.dts || {}; // Per-container DTS support object
+	// TS: ac3, eac3, aac, mp2, pcm, mp3; DTS only on webOS 23+ (model-specific)
+	const tsAudioCodecs = ['aac', 'mp2', 'mp3', 'pcm_s16le', 'pcm_s24le'];
+	if (caps.ac3) tsAudioCodecs.push('ac3');
+	if (caps.eac3) tsAudioCodecs.push('eac3');
+	if (dts.ts) tsAudioCodecs.push('dca', 'dts');
+	if (dts.ts && caps.dtshd) tsAudioCodecs.push('dts-hd', 'dtshd');
+	if (caps.opus) tsAudioCodecs.push('opus');
+	if (caps.truehd) tsAudioCodecs.push('truehd');
+	return tsAudioCodecs;
+}
+
+const buildMkvVideoCodecs = (caps) => {
+	// MKV supports broader video codecs per LG docs: MPEG-2, MPEG-4, H.264, VP8, VP9, HEVC, AV1
+	const mkvVideoCodecs = ['h264', 'mpeg4', 'mpeg2video', 'vp8'];
+	if (caps.hevc) mkvVideoCodecs.push('hevc');
+	if (caps.webosVersion >= 25 && caps.hevc) mkvVideoCodecs.push('dvh1');
+	if (caps.webosVersion >= 25 && caps.dolbyVision) mkvVideoCodecs.push('dvhe');
+	if (caps.vp9) mkvVideoCodecs.push('vp9');
+	if (caps.av1) mkvVideoCodecs.push('av1');
+	return mkvVideoCodecs
+}
+
+const buildMkvAudioCodecs = (caps) => {
+	const dts = caps.dts || {}; // Per-container DTS support object
+	// MP4/M4V/MOV: ac3, eac3, aac, mp3; DTS only on webOS 23+ (model-specific)
 	// MKV: ac3, eac3, aac, mp2, pcm, mp3, opus (24+), dts (all versions per LG docs)
 	// FLAC and Vorbis are NOT listed in MKV by LG docs (standalone formats only)
 	const mkvAudioCodecs = ['aac', 'mp2', 'mp3', 'pcm_s16le', 'pcm_s24le'];
 	if (caps.ac3) mkvAudioCodecs.push('ac3');
 	if (caps.eac3) mkvAudioCodecs.push('eac3');
 	if (dts.mkv) mkvAudioCodecs.push('dca', 'dts');
-	if (caps.webosVersion >= 24) mkvAudioCodecs.push('opus');
+	if (dts.mkv && caps.dtshd) mkvAudioCodecs.push('dts-hd', 'dtshd');
+	if (caps.opus) mkvAudioCodecs.push('opus');
+	if (caps.truehd) mkvAudioCodecs.push('truehd');
+	return mkvAudioCodecs;
 
-	// TS: ac3, eac3, aac, mp2, pcm, mp3; DTS only on webOS 23+ (model-specific)
-	const tsAudioCodecs = ['aac', 'mp2', 'mp3', 'pcm_s16le', 'pcm_s24le'];
-	if (caps.ac3) tsAudioCodecs.push('ac3');
-	if (caps.eac3) tsAudioCodecs.push('eac3');
-	if (dts.ts) tsAudioCodecs.push('dca', 'dts');
+}
+
+const buildDirectPlayProfiles = (caps) => {
+	const profiles = [];
+
+	const mp4VideoCodecs = buildMp4VideoCodecs(caps);
+
+	// Per-container audio codecs based on LG's official AV format docs.
+	// Different containers support different audio codecs on webOS.
+	const dts = caps.dts || {}; // Per-container DTS support object
+
+	const mp4AudioCodecs = buildMp4AudioCodecs(caps);
+
+	const mkvAudioCodecs = buildMkvAudioCodecs(caps);
+
+	const tsAudioCodecs =  buildTsAudioCodecs(caps);
+
 
 	// AVI: ac3, mp2, mp3, lpcm, adpcm; DTS only on webOS 4/4.5
 	const aviAudioCodecs = ['mp2', 'mp3', 'pcm_s16le', 'pcm_s24le'];
@@ -318,7 +374,10 @@ const buildDirectPlayProfiles = (caps) => {
 	if (caps.vp9) webmVideoCodecs.push('vp9');
 	if (caps.av1) webmVideoCodecs.push('av1');
 	const webmAudioCodecs = ['vorbis'];
-	if (caps.webosVersion >= 24) webmAudioCodecs.push('opus');
+	if (caps.opus) webmAudioCodecs.push('opus');
+
+	
+	
 
 	if (caps.webm) {
 		profiles.push({
@@ -337,13 +396,7 @@ const buildDirectPlayProfiles = (caps) => {
 	});
 
 	if (caps.mkv) {
-		// MKV supports broader video codecs per LG docs: MPEG-2, MPEG-4, H.264, VP8, VP9, HEVC, AV1
-		const mkvVideoCodecs = ['h264', 'mpeg4', 'mpeg2video', 'vp8'];
-		if (caps.hevc) mkvVideoCodecs.push('hevc');
-		if (caps.webosVersion >= 25 && caps.hevc) mkvVideoCodecs.push('dvh1');
-		if (caps.webosVersion >= 25 && caps.dolbyVision) mkvVideoCodecs.push('dvhe');
-		if (caps.vp9) mkvVideoCodecs.push('vp9');
-		if (caps.av1) mkvVideoCodecs.push('av1');
+		const mkvVideoCodecs = buildMkvVideoCodecs(caps);
 
 		profiles.push({
 			Container: 'mkv',
@@ -354,11 +407,8 @@ const buildDirectPlayProfiles = (caps) => {
 	}
 
 	if (caps.ts) {
-		// TS per LG docs: H.264, HEVC, MPEG-2; VC-1 is only documented in ASF/WMV
-		const tsVideoCodecs = ['h264'];
-		if (caps.hevc) tsVideoCodecs.push('hevc', 'dvh1');
-		if (caps.dolbyVision) tsVideoCodecs.push('dvhe');
-		tsVideoCodecs.push('mpeg2video');
+		
+		const tsVideoCodecs = buildTsVideoCodecs(caps);
 
 		profiles.push({
 			Container: 'ts,mpegts',
@@ -451,7 +501,7 @@ const buildDirectPlayProfiles = (caps) => {
 		});
 	});
 
-	if (caps.webosVersion >= 24) {
+	if (caps.opus) {
 		profiles.push({
 			Container: 'webm',
 			AudioCodec: 'opus',
