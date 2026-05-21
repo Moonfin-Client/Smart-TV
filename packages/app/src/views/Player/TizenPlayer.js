@@ -963,7 +963,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 	// ==============================
 	// Controls Auto-hide
 	// ==============================
-	const showControls = useCallback(() => {
+	const showControls = useCallback((isModalOpen = activeModal) => {
 		setControlsVisible(true);
 		if (controlsTimeoutRef.current) {
 			clearTimeout(controlsTimeoutRef.current);
