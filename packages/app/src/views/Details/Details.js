@@ -20,6 +20,7 @@ import AddToPlaylistModal from '../../components/AddToPlaylistModal';
 import DeleteItemDialog from '../../components/DeleteItemDialog';
 import {toSubtitleLanguage, mapRemoteSubtitleOptions} from '../Player/remoteSubtitleUtils';
 import {getTmdbId, fetchTmdbSeasonRatings} from '../../services/mdblistApi';
+import {analyzeLogoBrightness} from '../../utils/imgUtils';
 
 import css from './Details.module.less';
 
@@ -174,6 +175,8 @@ const Details = ({itemId, initialItem, onPlay, onSelectItem, onSelectPerson, onI
 	const [logoFailed, setLogoFailed] = useState(false);
 	const handleLogoError = useCallback(() => setLogoFailed(true), []);
 	const handleToastEnd = useCallback(() => setToastMessage(null), []);
+	const [invertLogo, setInvertLogo] = useState(false);
+	const [logoUrl, setLogoUrl] = useState(null);
 
 	// Refs
 	const pageScrollerRef = useRef(null);
@@ -401,6 +404,31 @@ const Details = ({itemId, initialItem, onPlay, onSelectItem, onSelectPerson, onI
 			return () => clearTimeout(timer);
 		}
 	}, [isLoading, item]);
+
+	useEffect(() => {
+		if (!item) {
+		  setLogoUrl(null);
+		  return;
+		}
+		const url = getLogoUrl(effectiveServerUrl, item, {maxWidth: 400, quality: 90});
+		setLogoUrl(url);
+	}, [item, effectiveServerUrl]);
+
+	useEffect(() => {
+		if (!logoUrl) {
+			setInvertLogo(false);
+			return;
+		}
+		let cancelled = false;
+		analyzeLogoBrightness(logoUrl).then((isDark) => {
+			if (!cancelled) {
+				setInvertLogo(isDark);
+			}
+		});
+		return () => {
+			cancelled = true;
+		};
+	}, [logoUrl]);
 
 	// === HANDLERS ===
 
@@ -1047,7 +1075,6 @@ const handleSectionKeyDown = useCallback((ev) => {
 		? getImageUrl(effectiveServerUrl, backdropId, 'Backdrop', {maxWidth: 1920, quality: 90})
 		: null;
 
-	const logoUrl = getLogoUrl(effectiveServerUrl, item, {maxWidth: 400, quality: 90});
 
 	const isEpisode = item.Type === 'Episode';
 	const isSeries = item.Type === 'Series';
@@ -1988,7 +2015,15 @@ const handleSectionKeyDown = useCallback((ev) => {
 							{/* Title or Logo */}
 							<div className={css.titleSection}>
 								{logoUrl && !logoFailed ? (
-									<img src={logoUrl} className={css.logoImage} alt={item.Name} onError={handleLogoError} />
+									<img
+									  src={logoUrl}
+										className={css.logoImage}
+										alt={item.Name}
+										onError={handleLogoError}
+										style={{
+										  filter: invertLogo ? 'invert(1)' : 'none'
+										}}
+									/>
 								) : (
 									<h1 className={css.title}>{item.Name}</h1>
 								)}
