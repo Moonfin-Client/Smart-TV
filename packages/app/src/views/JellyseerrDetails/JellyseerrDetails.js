@@ -655,17 +655,28 @@ const CancelRequestPopup = memo(({open, pendingRequests, title, onConfirm, onClo
 		return $L('Cancel {parts} requests for "{title}"?').replace('{parts}', partsStr).replace('{title}', title);
 	}, [pendingRequests, title]);
 
+	useEffect(() => {
+		if (!open) return;
+		window.requestAnimationFrame(() => {
+			safeFocus('cancel-request-keep');
+		});
+	}, [open]);
+
 	return (
 		<Popup open={open} onClose={onClose} position="center" className={css.cancelPopup}>
 			<div className={css.cancelPopupContent}>
 				<h2 className={css.cancelPopupTitle}>{$L('Cancel Request')}</h2>
 				<p className={css.cancelPopupDescription}>{description}</p>
 				<div className={css.cancelButtons}>
+					<Button
+						className={css.cancelKeepButton}
+						spotlightId="cancel-request-keep"
+						onClick={onClose}
+					>
+						{$L('Keep Request')}
+					</Button>
 					<Button className={css.cancelConfirmButton} onClick={onConfirm}>
 						{$L('Cancel Request')}
-					</Button>
-					<Button className={css.cancelKeepButton} onClick={onClose}>
-						{$L('Keep Request')}
 					</Button>
 				</div>
 			</div>
