@@ -483,7 +483,7 @@ const AdvancedOptionsPopup = memo(({open, title, servers, is4k, onConfirm, onClo
 	}, [open, availableServers]);
 
 	useEffect(() => {
-		if (!selectedServerId || !open) return;
+		if (selectedServerId == null || !open) return;
 
 		const loadServerDetails = async () => {
 			setLoadingDetails(true);
