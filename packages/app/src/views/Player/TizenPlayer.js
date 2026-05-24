@@ -350,6 +350,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 			onbufferingcomplete: () => { setIsBuffering(false); },
 			onstreamcompleted: () => { handleEndedCallbackRef.current?.(); },
 			onerror: (eventType) => {
+				if (isPaused || avplayGetState() === 'PAUSED') return;
 				console.error('[Player] AVPlay error:', eventType);
 				handleErrorCallbackRef.current?.();
 			},
@@ -383,7 +384,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 
 		// Start time update polling
 		startTimeUpdatePolling();
-	}, [startTimeUpdatePolling, stopTimeUpdatePolling, handleSubtitleChange, applyDisplayWindow]);
+	}, [startTimeUpdatePolling, stopTimeUpdatePolling, handleSubtitleChange, applyDisplayWindow, isPaused]);
 
 	// ==============================
 	// Initialization
@@ -727,7 +728,13 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 				applyDisplayWindow();
 
 				if (isLiveTV || result.url.includes('.m3u8')) {
-					avplaySetStreamingProperty('ADAPTIVE_INFO', 'FIXED_MAX_RESOLUTION=1920x1080');
+					// Made birate buffer more dynamic
+					let adaptiveInfo = 'FIXED_MAX_RESOLUTION=1920x1080';
+					if (typeof effectiveBitrate !== 'undefined' && effectiveBitrate != null) {
+						// AVPlay expects bitrate in bps
+						adaptiveInfo += `;FIXED_MAX_BITRATE=${effectiveBitrate}`;
+					}
+					avplaySetStreamingProperty('ADAPTIVE_INFO', adaptiveInfo);
 				}
 
 				avplaySetListener({
@@ -1189,6 +1196,8 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 		if (state === 'PLAYING') {
 			avplayPause();
 			setIsPaused(true);
+			// Pause bug where the playe would thro erros when paused for longer
+			healthMonitorRef.current?.setPaused(true);
 			playback.reportProgress(positionRef.current, { isPaused: true, eventName: 'pause' });
 		} else if (state === 'PAUSED' || state === 'READY') {
 			const rewind = settings.unpauseRewind || 0;
@@ -1199,6 +1208,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 			}
 			avplayPlay();
 			setIsPaused(false);
+			healthMonitorRef.current?.setPaused(false);
 			playback.reportProgress(positionRef.current, { isPaused: false, eventName: 'unpause' });
 		}
 	}, [settings.unpauseRewind, isInGroup]);

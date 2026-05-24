@@ -15,6 +15,74 @@
 
 let cachedCapabilities = null;
 
+const DEFAULT_PASSTHROUGH_SETTINGS = {
+	passthroughEnabled: true,
+	ac3Passthrough: true,
+	eac3Passthrough: true,
+	dtsPassthrough: true,
+	dtshdPassthrough: true,
+	truehdPassthrough: true
+};
+
+const resolvePassthroughSettings = (options = {}) => ({
+	...DEFAULT_PASSTHROUGH_SETTINGS,
+	...(options?.passthroughSettings || {})
+});
+
+const probeTizenAudioCodecSupport = () => {
+	const support = {
+		ac3: testAc3Support(),
+		eac3: testEac3Support(),
+		truehd: testTruehdSupport(),
+		dts: testDtsSupport(),
+		dtshd: false
+	};
+
+	if (typeof webapis === 'undefined' || !webapis.systeminfo || typeof webapis.systeminfo.isSupportedAudioCodec !== 'function') {
+		return support;
+	}
+
+	const codecAliases = {
+		ac3: ['AC3'],
+		eac3: ['E-AC3'],
+		truehd: ['TrueHD'],
+		dts: ['DTS'],
+		dtshd: ['DTS-HD', 'DTSHD']
+	};
+
+	for (const [key, aliases] of Object.entries(codecAliases)) {
+		for (const alias of aliases) {
+			try {
+				if (webapis.systeminfo.isSupportedAudioCodec(alias) === true) {
+					support[key] = true;
+					break;
+				}
+			} catch (e) {
+				// Ignore unsupported alias errors and continue probing because yeet haw
+			}
+		}
+	}
+
+	if (support.dtshd) support.dts = true;
+
+	console.log('[deviceProfile] Tizen audio codec probe:', support);
+	return support;
+};
+
+const applyPassthroughSettings = (caps, options = {}) => {
+	const prefs = resolvePassthroughSettings(options);
+	const passthroughAllowed = prefs.passthroughEnabled;
+
+	return {
+		...caps,
+		ac3: !!caps.ac3 && !!prefs.ac3Passthrough,
+		eac3: !!caps.eac3 && !!prefs.eac3Passthrough,
+		truehd: !!caps.truehd && passthroughAllowed && !!prefs.truehdPassthrough,
+		dts: !!caps.dts && passthroughAllowed && !!prefs.dtsPassthrough,
+		dtshd: !!caps.dtshd && passthroughAllowed && !!prefs.dtshdPassthrough
+	};
+};
+
 export const clearCapabilitiesCache = () => {
 	cachedCapabilities = null;
 };
@@ -336,6 +404,8 @@ export const getDeviceCapabilities = async () => {
 		}
 	}
 
+	const audioProbe = probeTizenAudioCodecSupport();
+
 	cachedCapabilities = {
 		modelName,
 		modelNameAscii: modelName,
@@ -358,16 +428,14 @@ export const getDeviceCapabilities = async () => {
 		hdr10Plus: hdr10 && tizenVersion >= 5, // HDR10+ on 2019+ premium models
 		hlg: hdr10 && tizenVersion >= 4, // HLG on 2018+ HDR-capable models
 		dolbyVision,
-
-		// Audio capabilities - per Samsung documentation
 		// Samsung docs: "DD+: 5.1 channel supported" for all years
 		// No documentation supports 7.1/8-channel audio on Tizen TVs
-		dolbyAtmos: false, // Not documented in Samsung specs
-		dts: testDtsSupport(), // false - Samsung explicitly says not supported
-		ac3: testAc3Support(),
-		eac3: testEac3Support(),
-		truehd: testTruehdSupport(), // false - not in Samsung specs
-		dtshd: false,
+		dolbyAtmos: true, // MOK turned it on. Why? Because 7.1 comes sometimes iwth atmos and this stopps it from letting it play
+		dts: audioProbe.dts,
+		ac3: audioProbe.ac3,
+		eac3: audioProbe.eac3,
+		truehd: audioProbe.truehd,
+		dtshd: audioProbe.dtshd,
 		opus: true,
 
 		// Video codec capabilities
@@ -387,7 +455,8 @@ export const getDeviceCapabilities = async () => {
 };
 
 export const getJellyfinDeviceProfile = async () => {
-	const caps = await getDeviceCapabilities();
+	const baseCaps = await getDeviceCapabilities();
+	const caps = applyPassthroughSettings(baseCaps, arguments[0]);
 
 	// --- Video codecs per Samsung spec tables ---
 	// Samsung specs officially list VP9/AV1 as WebM-only, but in practice

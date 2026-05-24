@@ -2,6 +2,58 @@
 
 let cachedCapabilities = null;
 
+const DEFAULT_PASSTHROUGH_SETTINGS = {
+	passthroughEnabled: true,
+	ac3Passthrough: true,
+	eac3Passthrough: true,
+	dtsPassthrough: true,
+	dtshdPassthrough: true,
+	truehdPassthrough: true
+};
+
+const resolvePassthroughSettings = (options = {}) => ({
+	...DEFAULT_PASSTHROUGH_SETTINGS,
+	...(options?.passthroughSettings || {})
+});
+
+const emptyDtsSupport = {mkv: false, mp4: false, ts: false, avi: false};
+
+const isExternalAudioPath = (audioStatus = {}) => {
+	const payload = JSON.stringify(audioStatus || {}).toLowerCase();
+	return /(earc|arc|hdmi|receiver|external|spdif|optical)/.test(payload);
+};
+
+const getAudioOutputStatus = async () => {
+	try {
+		const LS2Request = (await import('@enact/webos/LS2Request')).default;
+		return await new Promise((resolve) => {
+			new LS2Request().send({
+				service: 'luna://com.webos.service.avoutput',
+				method: 'audio/getStatus',
+				onSuccess: resolve,
+				onFailure: () => resolve({})
+			});
+		});
+	} catch (e) {
+		return {};
+	}
+};
+
+const applyPassthroughSettings = (caps, options = {}) => {
+	const prefs = resolvePassthroughSettings(options);
+	const passthroughAllowed = prefs.passthroughEnabled;
+	const dtsSupport = passthroughAllowed && prefs.dtsPassthrough ? (caps.dts || emptyDtsSupport) : emptyDtsSupport;
+
+	return {
+		...caps,
+		ac3: !!caps.ac3 && !!prefs.ac3Passthrough,
+		eac3: !!caps.eac3 && !!prefs.eac3Passthrough,
+		truehd: !!caps.truehd && passthroughAllowed && !!prefs.truehdPassthrough,
+		dts: dtsSupport,
+		dtshd: !!caps.dtshd && passthroughAllowed && !!prefs.dtshdPassthrough
+	};
+};
+
 export const clearCapabilitiesCache = () => {
 	cachedCapabilities = null;
 };
@@ -179,9 +231,13 @@ export const getDeviceCapabilities = async () => {
 
 	// tv.model.edidType is undocumented and may be absent on some firmware.
 	const rawEdidType = cfg['tv.model.edidType'];
+	const audioOutputStatus = await getAudioOutputStatus();
+	const externalAudioPathActive = isExternalAudioPath(audioOutputStatus);
 
-	// Per-container DTS support based on LG documentation + edidType detection
-	const dtsSupport = getDtsContainerSupport(webosVersion, rawEdidType);
+	// This is kind obsolete, need to fix encoding bug first tho
+	const dtsSupport = externalAudioPathActive
+		? {mkv: true, mp4: true, ts: true, avi: false}
+		: getDtsContainerSupport(webosVersion, rawEdidType);
 
 	cachedCapabilities = {
 		modelName: deviceInfoData.modelName || cfg['tv.model.modelname'] || 'Unknown',
@@ -221,9 +277,8 @@ export const getDeviceCapabilities = async () => {
 		dts: dtsSupport,
 		ac3: testAc3Support(),
 		eac3: true,
-		// webOS can only passthrough TrueHD/DTS-HD to an AV receiver, not decode internally
-		truehd: false,
-		dtshd: false,
+		truehd: externalAudioPathActive,
+		dtshd: externalAudioPathActive && !!(dtsSupport.mkv || dtsSupport.mp4 || dtsSupport.ts),
 		opus: webosVersion >= 6,
 
 		hevc: testHevcSupport(null, webosVersion),
@@ -237,6 +292,8 @@ export const getDeviceCapabilities = async () => {
 		nativeHlsFmp4: webosVersion >= 5,
 		hlsAc3: webosVersion >= 5,
 		hlsByteRange: webosVersion >= 4,
+		audioOutputStatus,
+		externalAudioPathActive,
 
 		lunaConfig: cfg,
 		ddrSize: cfg['tv.hw.ddrSize'] || 0
@@ -534,14 +591,15 @@ const buildDirectPlayProfiles = (caps) => {
 	return profiles;
 };
 
-export const getJellyfinDeviceProfile = async () => {
-	const caps = await getDeviceCapabilities();
+export const getJellyfinDeviceProfile = async (options = {}) => {
+	const baseCaps = await getDeviceCapabilities();
+	const caps = applyPassthroughSettings(baseCaps, options);
 
 	const videoRangeTypes = buildVideoRangeTypes(caps);
 	const directPlayProfiles = buildDirectPlayProfiles(caps);
 
 	const maxStreamingBitrate = 120_000_000;
-	const maxAudioChannels = caps.dolbyAtmos ? '8' : '6';
+	const maxAudioChannels = caps.dolbyAtmos || caps.truehd || caps.dtshd ? '8' : '6';
 
 	// fMP4 preserves DV RPU metadata; MPEG-TS strips it. Use fMP4 on webOS 5+.
 	const hlsContainer = caps.nativeHlsFmp4 ? 'mp4' : 'ts';
@@ -803,8 +861,8 @@ export const getJellyfinDeviceProfile = async () => {
 };
 
 /** H.264+AAC-only profile for hls.js/MSE fallback when native HEVC decoding fails. */
-export const getH264FallbackProfile = async () => {
-	const profile = await getJellyfinDeviceProfile();
+export const getH264FallbackProfile = async (options = {}) => {
+	const profile = await getJellyfinDeviceProfile(options);
 
 	profile.TranscodingProfiles = [
 		{

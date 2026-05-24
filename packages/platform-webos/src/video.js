@@ -5,6 +5,20 @@
 let lunaClient = null;
 let isLunaAvailable = false;
 
+const DEFAULT_PASSTHROUGH_SETTINGS = {
+	passthroughEnabled: true,
+	ac3Passthrough: true,
+	eac3Passthrough: true,
+	dtsPassthrough: true,
+	dtshdPassthrough: true,
+	truehdPassthrough: true
+};
+
+const resolvePassthroughSettings = (options = {}) => ({
+	...DEFAULT_PASSTHROUGH_SETTINGS,
+	...(options || {})
+});
+
 export const isWebOS = () => {
 	if (typeof window === 'undefined') return false;
 	if (typeof window.webOS !== 'undefined') return true;
@@ -55,17 +69,19 @@ const lunaCall = (service, method, parameters = {}) => {
  * @param {string} [container=''] - Container format (e.g., 'mkv', 'mp4'). Empty = no container restriction.
  * @returns {string[]} Array of supported audio codec strings
  */
-export const getSupportedAudioCodecs = (capabilities, container = '') => {
+export const getSupportedAudioCodecs = (capabilities, container = '', passthroughOptions = {}) => {
+	const passthrough = resolvePassthroughSettings(passthroughOptions);
+	const passthroughAllowed = passthrough.passthroughEnabled;
 	const codecs = ['aac', 'mp3', 'mp2', 'mp1', 'flac', 'pcm_s16le', 'pcm_s24le', 'lpcm', 'wav'];
 
-	const ac3Ok = capabilities.ac3;
-	const eac3Ok = capabilities.eac3;
+	const ac3Ok = capabilities.ac3 && passthrough.ac3Passthrough;
+	const eac3Ok = capabilities.eac3 && passthrough.eac3Passthrough;
 
 	if (ac3Ok) codecs.push('ac3', 'dolby');
 	if (eac3Ok) codecs.push('eac3', 'ec3');
 
 	// DTS: per-container support based on webOS version
-	if (capabilities.dts) {
+	if (capabilities.dts && passthroughAllowed && passthrough.dtsPassthrough) {
 		const dtsObj = capabilities.dts;
 		let dtsOk = false;
 		if (!container) {
@@ -81,10 +97,10 @@ export const getSupportedAudioCodecs = (capabilities, container = '') => {
 			dtsOk = !!dtsObj.avi;
 		}
 		if (dtsOk) codecs.push('dts', 'dca');
-		if (dtsOk && capabilities.dtshd) codecs.push('dts-hd', 'dtshd');
+		if (dtsOk && capabilities.dtshd) codecs.push('dts-hd', 'dtshd', 'dtsx');
 	}
 
-	if (capabilities.truehd) codecs.push('truehd', 'mlp');
+	if (capabilities.truehd && passthroughAllowed && passthrough.truehdPassthrough) codecs.push('truehd', 'mlp');
 	if (capabilities.opus) codecs.push('opus');
 	codecs.push('vorbis', 'wma', 'amr', 'amrnb', 'amrwb');
 
@@ -96,10 +112,10 @@ export const getSupportedAudioCodecs = (capabilities, container = '') => {
  * Returns the index of the first audio stream whose codec is supported,
  * or -1 if no compatible audio stream exists.
  */
-export const findCompatibleAudioStreamIndex = (mediaSource, capabilities) => {
+export const findCompatibleAudioStreamIndex = (mediaSource, capabilities, passthroughOptions = {}) => {
 	if (!mediaSource?.MediaStreams) return -1;
 	const container = (mediaSource.Container || '').toLowerCase();
-	const supported = getSupportedAudioCodecs(capabilities, container);
+	const supported = getSupportedAudioCodecs(capabilities, container, passthroughOptions);
 	const audioStreams = mediaSource.MediaStreams.filter(s => s.Type === 'Audio');
 	for (const stream of audioStreams) {
 		const codec = (stream.Codec || '').toLowerCase();
@@ -110,7 +126,7 @@ export const findCompatibleAudioStreamIndex = (mediaSource, capabilities) => {
 	return -1;
 };
 
-export const getPlayMethod = (mediaSource, capabilities, options = {}) => {
+export const getPlayMethod = (mediaSource, capabilities, options = {}, passthroughOptions = {}) => {
 	if (!mediaSource) return 'Transcode';
 
 	const container = (mediaSource.Container || '').toLowerCase();
@@ -137,7 +153,7 @@ export const getPlayMethod = (mediaSource, capabilities, options = {}) => {
 	// dvh1 (DV Profile 8) has an HEVC base layer playable without native DV
 	if (!capabilities.dolbyVision && capabilities.hevc) supportedVideoCodecs.push('dvh1');
 
-	const supportedAudioCodecs = getSupportedAudioCodecs(capabilities, container);
+	const supportedAudioCodecs = getSupportedAudioCodecs(capabilities, container, passthroughOptions);
 	const isAudioOnly = !videoStream && audioStreams.length > 0;
 
 	// Check if ANY audio stream is compatible (not just the default/first one).

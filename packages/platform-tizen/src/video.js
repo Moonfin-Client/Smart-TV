@@ -6,6 +6,20 @@ import {detectTizenVersion as _detectTizenVersion} from './deviceProfile';
 
 let isAVPlayAvailable = false;
 
+const DEFAULT_PASSTHROUGH_SETTINGS = {
+	passthroughEnabled: true,
+	ac3Passthrough: true,
+	eac3Passthrough: true,
+	dtsPassthrough: true,
+	dtshdPassthrough: true,
+	truehdPassthrough: true
+};
+
+const resolvePassthroughSettings = (options = {}) => ({
+	...DEFAULT_PASSTHROUGH_SETTINGS,
+	...(options || {})
+});
+
 export const isTizen = () => {
 	if (typeof window === 'undefined') return false;
 	if (typeof window.tizen !== 'undefined') return true;
@@ -117,15 +131,15 @@ export const getMediaCapabilities = async () => {
 /**
  * Get the list of audio codecs supported by the TV hardware.
  */
-export const getSupportedAudioCodecs = (capabilities) => {
+export const getSupportedAudioCodecs = (capabilities, _container = '', passthroughOptions = {}) => {
+	const passthrough = resolvePassthroughSettings(passthroughOptions);
+	const passthroughAllowed = passthrough.passthroughEnabled;
 	const codecs = ['aac', 'mp3', 'flac', 'vorbis', 'pcm', 'wav'];
-	if (capabilities.ac3) codecs.push('ac3');
-	if (capabilities.eac3) codecs.push('eac3');
+	if (capabilities.ac3 && passthrough.ac3Passthrough) codecs.push('ac3');
+	if (capabilities.eac3 && passthrough.eac3Passthrough) codecs.push('eac3');
 	if (capabilities.opus) codecs.push('opus');
-	if (capabilities.dts) codecs.push('dts', 'dca');
-	if (capabilities.dts && capabilities.dtshd) codecs.push('dts-hd', 'dtshd');
+	if (capabilities.truehd && passthroughAllowed && passthrough.truehdPassthrough) codecs.push('truehd', 'mlp');
 	// DTS: Samsung explicitly states not supported on any TV (2018-2025)
-	// TrueHD: Not documented in Samsung specifications
 	return codecs;
 };
 
@@ -134,9 +148,9 @@ export const getSupportedAudioCodecs = (capabilities) => {
  * Returns the index of the first audio stream whose codec is supported,
  * or -1 if no compatible audio stream exists.
  */
-export const findCompatibleAudioStreamIndex = (mediaSource, capabilities) => {
+export const findCompatibleAudioStreamIndex = (mediaSource, capabilities, passthroughOptions = {}) => {
 	if (!mediaSource?.MediaStreams) return -1;
-	const supported = getSupportedAudioCodecs(capabilities);
+	const supported = getSupportedAudioCodecs(capabilities, mediaSource.Container, passthroughOptions);
 	const audioStreams = mediaSource.MediaStreams.filter(s => s.Type === 'Audio');
 	for (const stream of audioStreams) {
 		const codec = (stream.Codec || '').toLowerCase();
@@ -147,7 +161,7 @@ export const findCompatibleAudioStreamIndex = (mediaSource, capabilities) => {
 	return -1;
 };
 
-export const getPlayMethod = (mediaSource, capabilities) => {
+export const getPlayMethod = (mediaSource, capabilities, _options = {}, passthroughOptions = {}) => {
 	if (!mediaSource) return 'Transcode';
 
 	const container = (mediaSource.Container || '').toLowerCase();
@@ -160,8 +174,7 @@ export const getPlayMethod = (mediaSource, capabilities) => {
 	if (capabilities.vp9) supportedVideoCodecs.push('vp9');
 	if (capabilities.dolbyVision) supportedVideoCodecs.push('dvhe', 'dvh1');
 
-	// Audio codecs per Samsung spec tables — DTS and TrueHD intentionally excluded
-	const supportedAudioCodecs = getSupportedAudioCodecs(capabilities);
+	const supportedAudioCodecs = getSupportedAudioCodecs(capabilities, container, passthroughOptions);
 
 	// Check if ANY audio stream is compatible (not just the first/default one).
 	// Samsung TVs can select audio tracks from containers like MKV/MP4.

@@ -859,8 +859,10 @@ const Settings = ({ onBack, onLibrariesChanged, panelMode }) => {
 			{renderMissingItem('audio-night-mode', $L('Audio Night Mode'), undefined, 'light')}
 			{renderMissingItem('default-audio-language', $L('Default Audio Language'), undefined, 'language')}
 			{renderMissingItem('audio-behavior', $L('Audio Behavior'), undefined, 'sound')}
-			{renderMissingItem('ac3-passthrough', $L('AC3 Passthrough'), undefined, 'speaker')}
-			{renderMissingItem('truehd-support', $L('TrueHD Support'), undefined, 'speaker')}
+			{renderToggleItem('passthroughEnabled', $L('Audio Passthrough'), $L('Enable advanced bitstream passthrough for external audio devices'), 'speaker')}
+			{renderToggleItem('ac3Passthrough', $L('AC3 Passthrough'), $L('Allow Dolby Digital passthrough when available'), 'speaker')}
+			{renderToggleItem('eac3Passthrough', $L('E-AC3 Passthrough'), $L('Allow Dolby Digital Plus passthrough when available'), 'speaker')}
+			{renderToggleItem('truehdPassthrough', $L('TrueHD Passthrough'), $L('Allow Dolby TrueHD passthrough when available'), 'speaker')}
 		</>
 	);
 

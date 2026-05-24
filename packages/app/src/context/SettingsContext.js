@@ -90,6 +90,10 @@ const defaultSettings = {
 	enablePgsRendering: true,
 	showSyncPlayButton: true,
 	stereoUpmixEnabled: false,
+	passthroughEnabled: true,
+	ac3Passthrough: true,
+	eac3Passthrough: true,
+	truehdPassthrough: true,
 	blockedRatings: [],
 	jellyseerrRows: null
 };

@@ -1297,6 +1297,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 
 	const handlePlay = useCallback(() => {
 		setIsPaused(false);
+		healthMonitorRef.current?.setPaused(false);
 		if (!hasReportedStartRef.current) {
 			hasReportedStartRef.current = true;
 			playback.reportStart(positionRef.current);
@@ -1314,6 +1315,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 
 	const handlePause = useCallback(() => {
 		setIsPaused(true);
+		healthMonitorRef.current?.setPaused(true);
 		playback.reportProgress(positionRef.current, { isPaused: true, eventName: 'pause' });
 	}, []);
 
@@ -1405,6 +1407,11 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 	}, [onEnded, onPlayNext, nextEpisode, hasNextTrack, audioPlaylist, audioPlaylistIndex, shuffleMode, repeatMode]);
 
 	const handleError = useCallback(async () => {
+		if (isPaused || videoRef.current?.paused) {
+			console.log('[Player] Ignoring error while paused');
+			return;
+		}
+
 		// Ignore errors fired during cleanup (SDR reset video triggers error code 4)
 		if (isCleaningUpRef.current) {
 			console.log('[Player] Ignoring error during cleanup');
@@ -1547,7 +1554,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 		} finally {
 			isHandlingErrorRef.current = false;
 		}
-	}, [hasTriedTranscode, playMethod, item, selectedQuality, settings.maxBitrate, settings.stereoUpmixEnabled, mediaSourceId]);
+	}, [hasTriedTranscode, playMethod, item, selectedQuality, settings.maxBitrate, settings.stereoUpmixEnabled, mediaSourceId, isPaused]);
 
 	useEffect(() => {
 		handlersRef.current = {
@@ -1597,8 +1604,10 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 					videoRef.current.currentTime = newTime;
 				}
 				videoRef.current.play();
+				healthMonitorRef.current?.setPaused(false);
 			} else {
 				videoRef.current.pause();
+				healthMonitorRef.current?.setPaused(true);
 			}
 		}
 	}, [isPaused, settings.unpauseRewind, isInGroup]);
