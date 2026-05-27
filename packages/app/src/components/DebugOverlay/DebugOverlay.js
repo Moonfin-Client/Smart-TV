@@ -47,7 +47,6 @@ installHooks();
 const KEY_RED = 403;
 const KEY_GREEN = 404;
 const KEY_YELLOW = 405;
-const KEY_BLUE = 406;
 
 const colorForLevel = (level) => {
 	if (level === 'E') return '#ff6b6b';

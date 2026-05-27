@@ -1,6 +1,6 @@
 import * as jellyfinApi from './jellyfinApi';
 import {getJellyfinDeviceProfile, getDeviceCapabilities} from './deviceProfile';
-import {getPlayMethod, getMimeType, findCompatibleAudioStreamIndex, isAudioStreamPlayable} from './video';
+import {getPlayMethod, getMimeType, isAudioStreamPlayable} from './video';
 import {getFromStorage} from './storage';
 
 export const PlayMethod = {
