@@ -7,6 +7,7 @@ import {getServerUrl} from '../../services/jellyfinApi';
 import TrickplayPreview from '../../components/TrickplayPreview';
 import SubtitleOffsetOverlay from './SubtitleOffsetOverlay';
 import SubtitleSettingsOverlay from './SubtitleSettingsOverlay';
+import {getPlatform} from '../../platform';
 import {
 	SpottableButton, SpottableDiv, ModalContainer,
 	formatTime, formatEndTime, PLAYBACK_RATES, getQualityPresets,
@@ -208,6 +209,7 @@ const PlayerControls = ({
 	renderInfoVideoExtra
 }) => {
 	const { settings } = useSettings();
+	const isTizenPlatform = getPlatform() === 'tizen';
 	const [focusedTooltip, setFocusedTooltip] = useState(null);
 
 	const handleTooltipFocus = useCallback((e) => {
@@ -581,6 +583,12 @@ const PlayerControls = ({
 			{activeModal === 'info' && (() => {
 				const session = playback.getCurrentSession();
 				const mediaSource = session?.mediaSource;
+				const truehdCodecProbe = session?.capabilities?.truehdCodecSupported;
+				const truehdCodecProbeStatus = truehdCodecProbe === true
+					? $L('Supported')
+					: truehdCodecProbe === false
+						? $L('Not Supported')
+						: $L('Unknown');
 				const videoStream = mediaSource?.MediaStreams?.find(s => s.Type === 'Video');
 				const audioStream = mediaSource?.MediaStreams?.find(s => s.Index === selectedAudioIndex) ||
 					mediaSource?.MediaStreams?.find(s => s.Type === 'Audio');
@@ -617,6 +625,20 @@ const PlayerControls = ({
 											{formatBitrate(mediaSource?.Bitrate)}
 										</span>
 									</div>
+									{isTizenPlatform && (
+										<div className={css.infoRow}>
+											<span className={css.infoLabel}>{$L('Experimental TrueHD')}</span>
+											<span className={css.infoValue}>
+												{settings.experimentalTruehd ? $L('Enabled') : $L('Disabled')}
+											</span>
+										</div>
+									)}
+									{isTizenPlatform && (
+										<div className={css.infoRow}>
+											<span className={css.infoLabel}>{$L('TrueHD Codec Probe')}</span>
+											<span className={css.infoValue}>{truehdCodecProbeStatus}</span>
+										</div>
+									)}
 								</SpottableDiv>
 
 								{videoStream && (

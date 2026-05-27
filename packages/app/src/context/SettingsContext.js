@@ -13,6 +13,7 @@ const DEFAULT_HOME_ROWS = [
 const defaultSettings = {
 	preferTranscode: false,
 	forceDirectPlay: false,
+	experimentalTruehd: false,
 	maxBitrate: 0,
 	audioLanguage: '',
 	subtitleLanguage: '',
@@ -237,6 +238,7 @@ const pushTvProfile = (updated, credsRef) => {
 };
 
 const SettingsContext = createContext(null);
+const EXPERIMENTAL_TRUEHD_KEY = 'moonfin.experimentalTruehd';
 
 export function SettingsProvider({children}) {
 	const [settings, setSettings] = useState(defaultSettings);
@@ -264,6 +266,20 @@ export function SettingsProvider({children}) {
 			setLoaded(true);
 		});
 	}, []);
+
+	useEffect(() => {
+		if (!loaded) return;
+
+		try {
+			if (settings.experimentalTruehd) {
+				window.localStorage?.setItem(EXPERIMENTAL_TRUEHD_KEY, 'true');
+			} else {
+				window.localStorage?.removeItem(EXPERIMENTAL_TRUEHD_KEY);
+			}
+		} catch (e) {
+			void e;
+		}
+	}, [loaded, settings.experimentalTruehd]);
 
 	const updateSetting = useCallback((key, value) => {
 		setSettings(prev => {

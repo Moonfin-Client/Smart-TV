@@ -11,6 +11,7 @@ import {useJellyseerr} from '../../context/JellyseerrContext';
 import {useDeviceInfo} from '../../hooks/useDeviceInfo';
 import serverLogger from '../../services/serverLogger';
 import connectionPool from '../../services/connectionPool';
+import {clearCapabilitiesCache} from '../../services/deviceProfile';
 import {isBackKey} from '../../utils/keys';
 import ClearDataDialog from '../../components/ClearDataDialog';
 import {clearAllStorage} from '../../services/storage';
@@ -462,6 +463,11 @@ const Settings = ({ onBack, onLibrariesChanged, panelMode }) => {
 		[settings, updateSetting]
 	);
 
+	const toggleExperimentalTruehd = useCallback(() => {
+		updateSetting('experimentalTruehd', !settings.experimentalTruehd);
+		clearCapabilitiesCache();
+	}, [settings.experimentalTruehd, updateSetting]);
+
 	const handleOptionSelect = useCallback(
 		(settingKey, value) => {
 			updateSetting(settingKey, value);
@@ -613,10 +619,10 @@ const Settings = ({ onBack, onLibrariesChanged, panelMode }) => {
 		</SpottableDiv>
 	);
 
-	const renderToggleItem = (settingKey, title, desc, iconName) => (
+	const renderToggleItem = (settingKey, title, desc, iconName, onToggle) => (
 		<SpottableDiv
 			className={css.listItem}
-			onClick={() => toggleSetting(settingKey)}
+			onClick={() => (onToggle ? onToggle() : toggleSetting(settingKey))}
 			spotlightId={`setting-${settingKey}`}
 		>
 			{renderSettingsIcon(iconName)}
@@ -1021,6 +1027,7 @@ const Settings = ({ onBack, onLibrariesChanged, panelMode }) => {
 					'AAC',
 					capabilities?.ac3 && 'AC3',
 					capabilities?.eac3 && 'E-AC3',
+					capabilities?.truehd && 'TrueHD',
 					capabilities?.dts && 'DTS',
 					capabilities?.dtshd && 'DTS-HD',
 					capabilities?.dolbyAtmos && 'Atmos',

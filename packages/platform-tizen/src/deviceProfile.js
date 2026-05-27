@@ -1,4 +1,5 @@
 /* global webapis, tizen */
+import {isExperimentalTruehdEnabled, probeTruehdCodecSupport} from './truehd';
 /**
  * Device Profile Service - Detects Samsung Tizen TV hardware capabilities
  *
@@ -348,7 +349,11 @@ export const testEac3Support = () => true;
  * Samsung spec tables list: AAC, MP3, Vorbis, AC3, EAC3, WMA, Opus, etc.
  * TrueHD (lossless Dolby) is never mentioned.
  */
-export const testTruehdSupport = () => false;
+export const testTruehdSupport = (truehdCodecSupported = probeTruehdCodecSupport()) => {
+	if (!isExperimentalTruehdEnabled()) return false;
+
+	return truehdCodecSupported === true;
+};
 
 export const getDeviceCapabilities = async () => {
 	if (cachedCapabilities) return cachedCapabilities;
@@ -360,13 +365,14 @@ export const getDeviceCapabilities = async () => {
 	let modelName = 'Samsung TV';
 	let serialNumber = '';
 	let deviceId = '';
+	const truehdCodecSupported = probeTruehdCodecSupport();
 	let uhd = true;
 	let uhd8K = false;
 	// HDR10: Available on premium/standard UHD models from 2018+
 	// Runtime detection via avinfo API is more accurate
 	let hdr10 = tizenVersion >= 4;
 	// Dolby Vision: Hardware-dependent, detect via avinfo API
-	// Fallback to false — let runtime detection enable it
+	// Fallback to false; let runtime detection enable it
 	let dolbyVision = false;
 
 	// Use cached helpers for model name and firmware (already fetched during version detection)
@@ -511,7 +517,7 @@ export const getJellyfinDeviceProfile = async () => {
 	const maxBitrate = caps.uhd8K ? 100000000 : caps.uhd ? 80000000 : 40000000;
 
 	// Samsung docs: "DD+: 5.1 channel supported" for most models
-	// 8K adaptive streaming spec lists DD/DD+ (5.1, 7.1) — 8K models support 7.1
+	// 8K adaptive streaming spec lists DD/DD+ (5.1, 7.1). 8K models support 7.1
 	const maxAudioChannels = caps.uhd8K ? '8' : '6';
 
 	const directPlayProfiles = [
@@ -603,7 +609,7 @@ export const getJellyfinDeviceProfile = async () => {
 	if (caps.uhd8K) {
 		hevcLevel = '183'; // Level 6.1 (6.1 * 30 = 183 in Jellyfin encoding)
 	} else if (caps.uhd) {
-		// Use 5.1 (153) as safe default — premium models support 5.2 (156)
+		// Use 5.1 (153) as safe default. Premium models support 5.2 (156)
 		hevcLevel = '153'; // Level 5.1
 	} else {
 		hevcLevel = '123'; // Level 4.1
@@ -712,9 +718,9 @@ export const getJellyfinDeviceProfile = async () => {
 	//
 	// External: Jellyfin extracts text subtitles from the container and serves them
 	// via its API. This is lightweight (no video transcoding) and works with HTML5 <video>.
-	// Embed: Only for image-based subs — triggers burn-in (transcoding) when selected.
+	// Embed: Only for image-based subs. Triggers burn-in (transcoding) when selected.
 	const subtitleProfiles = [
-		// External method — server extracts and delivers subtitle tracks via API
+		// External method. Server extracts and delivers subtitle tracks via API
 		{Format: 'srt', Method: 'External'},
 		{Format: 'subrip', Method: 'External'},
 		{Format: 'vtt', Method: 'External'},
