@@ -7,6 +7,7 @@ const APP_VERSION = packageJson.version;
 
 const APP_NAME = isTizen() ? 'Moonfin for Tizen' : 'Moonfin for webOS';
 const DEVICE_NAME = isTizen() ? 'Samsung Smart TV' : 'LG Smart TV';
+const platformTag = isTizen() ? 'tizen' : 'webos';
 
 let deviceId = null;
 let currentServer = null;
@@ -42,7 +43,7 @@ export const initDeviceId = async () => {
 		// Storage not available
 	}
 
-	deviceId = 'moonfin_webos_' + Date.now().toString(36) + Math.random().toString(36).substring(2);
+	deviceId = `moonfin_${platformTag}_` + Date.now().toString(36) + Math.random().toString(36).substring(2);
 
 	try {
 		const {saveToStorage} = await import('./storage');

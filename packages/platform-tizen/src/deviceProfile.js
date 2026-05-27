@@ -487,10 +487,9 @@ export const getJellyfinDeviceProfile = async () => {
 	if (caps.eac3) audioCodecs.push('eac3');
 	if (caps.opus) audioCodecs.push('opus');
 	if (caps.truehd) audioCodecs.push('truehd');
-	if (caps.dts) audioCodecs.push('dca', 'dts');
-	if (caps.dts && caps.dtshd) audioCodecs.push('dts-hd', 'dtshd');
-	// DTS intentionally excluded - Samsung docs: "DTS Audio codec is not supported"
 	// TrueHD intentionally excluded - not in Samsung specifications
+	// TrueHD+Atmos is filtered out at the codec-profile level below.
+	// I might change it in the future so that pure TRueHD without atmos can be played as this is possible, but it was currently easier to just trancode it and yeeeeeeeeet
 
 	// General video containers per Samsung spec tables (for H.264/HEVC)
 	// Note: HEVC only works in MKV/MP4/TS per Samsung docs
@@ -549,11 +548,30 @@ export const getJellyfinDeviceProfile = async () => {
 		});
 	}
 
+	// fMP4 HLS is listed as first, so Jellyfin prefers it. fMP4 is required to allow
+	// AV1 video passthrough (TS container does not support AV1) — without it the
+	// server would re-encode AV1 → HEVC. With fMP4 + AV1 listed, the server emits
+	// `-c:v copy -c:a eac3` for AV1+TrueHD/DTS sources
+	// TS+HLS is kept as a fallback for HEVC/H.264 sources on firmwares
+	// that may have fMP4 quirks.
+	const v1AndH26x = caps.av1 ? 'av1,hevc,h264' : 'hevc,h264';
+	const tsAudio = caps.eac3 ? 'eac3,ac3,aac' : (caps.ac3 ? 'ac3,aac' : 'aac');
 	const transcodingProfiles = [
+		{
+			Container: 'mp4',
+			Type: 'Video',
+			AudioCodec: tsAudio,
+			VideoCodec: v1AndH26x,
+			Context: 'Streaming',
+			Protocol: 'hls',
+			MaxAudioChannels: maxAudioChannels,
+			MinSegments: '1',
+			SegmentLength: '3'
+		},
 		{
 			Container: 'ts',
 			Type: 'Video',
-			AudioCodec: caps.ac3 ? 'aac,ac3,eac3' : 'aac',
+			AudioCodec: tsAudio,
 			VideoCodec: caps.hevc ? 'hevc,h264' : 'h264',
 			Context: 'Streaming',
 			Protocol: 'hls',
@@ -561,13 +579,6 @@ export const getJellyfinDeviceProfile = async () => {
 			MinSegments: '1',
 			SegmentLength: '3',
 			BreakOnNonKeyFrames: true
-		},
-		{
-			Container: 'mp4',
-			Type: 'Video',
-			AudioCodec: 'aac,ac3',
-			VideoCodec: 'h264',
-			Context: 'Static'
 		},
 		{
 			Container: 'mp3',
@@ -659,6 +670,20 @@ export const getJellyfinDeviceProfile = async () => {
 			]
 		}
 	];
+
+	// Force any kind of DTS to be transcoded to E-AC3 
+	codecProfiles.push({
+		Type: 'VideoAudio',
+		Codec: 'dts,dca,dts-hd,dtshd,dts-ma,dtsma,dts-x,dtsx',
+		Conditions: [{ Condition: 'Equals', Property: 'AudioChannels', Value: '0', IsRequired: true }]
+	});
+
+	// Force a transcode to all TrueHD/MLP. Samsung AVPlay cannot decode TrueHD (with or without Atmos) reliably
+	codecProfiles.push({
+		Type: 'VideoAudio',
+		Codec: 'truehd,mlp',
+		Conditions: [{ Condition: 'Equals', Property: 'AudioChannels', Value: '0', IsRequired: true }]
+	});
 
 	if (caps.av1) {
 		codecProfiles.push({

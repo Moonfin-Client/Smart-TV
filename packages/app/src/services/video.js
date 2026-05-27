@@ -25,6 +25,7 @@ export const getPlayMethod = (...args) => impl.getPlayMethod(...args);
 export const getMimeType = (...args) => impl.getMimeType(...args);
 export const findCompatibleAudioStreamIndex = (...args) => impl.findCompatibleAudioStreamIndex(...args);
 export const getSupportedAudioCodecs = (...args) => impl.getSupportedAudioCodecs(...args);
+export const isAudioStreamPlayable = (...args) => impl.isAudioStreamPlayable(...args);
 export const setDisplayWindow = (...args) => impl.setDisplayWindow(...args);
 export const registerAppStateObserver = (...args) => impl.registerAppStateObserver(...args);
 export const keepScreenOn = (...args) => impl.keepScreenOn(...args);

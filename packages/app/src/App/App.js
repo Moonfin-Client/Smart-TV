@@ -15,6 +15,7 @@ import {JellyseerrProvider} from '../context/JellyseerrContext';
 import {SyncPlayProvider, useSyncPlay} from '../context/SyncPlayContext';
 import {useVersionCheck} from '../hooks/useVersionCheck';
 import UpdateNotification from '../components/UpdateNotification';
+import DebugOverlay from '../components/DebugOverlay'; // Red Button on TV remote toggles this
 import NavBar from '../components/NavBar';
 import Sidebar from '../components/Sidebar';
 import AccountModal from '../components/AccountModal';
@@ -1036,6 +1037,7 @@ const AppContent = (props) => {
 			/>
 			<SeasonalTheme theme={settings.seasonalTheme} />
 			<NoConnection />
+			<DebugOverlay />
 			{connectionState !== 'connected' && isAuthenticated && (
 				<div className={css.connectionBanner}>
 					<span>{connectionState === 'reconnecting' ? 'Reconnecting to server...' : 'Lost connection to server'}</span>

@@ -107,6 +107,15 @@ export const getSupportedAudioCodecs = (capabilities, container = '', passthroug
 	return codecs;
 };
 
+// WebOS handles it on its own i think
+export const isAudioStreamPlayable = (stream, capabilities, passthroughOptions = {}) => {
+	if (!stream) return false;
+	const codec = (stream.Codec || '').toLowerCase();
+	if (!codec) return true;
+	const supported = getSupportedAudioCodecs(capabilities, '', passthroughOptions);
+	return supported.includes(codec);
+};
+
 /**
  * Find the first compatible audio stream index for a media source.
  * Returns the index of the first audio stream whose codec is supported,
@@ -114,12 +123,9 @@ export const getSupportedAudioCodecs = (capabilities, container = '', passthroug
  */
 export const findCompatibleAudioStreamIndex = (mediaSource, capabilities, passthroughOptions = {}) => {
 	if (!mediaSource?.MediaStreams) return -1;
-	const container = (mediaSource.Container || '').toLowerCase();
-	const supported = getSupportedAudioCodecs(capabilities, container, passthroughOptions);
 	const audioStreams = mediaSource.MediaStreams.filter(s => s.Type === 'Audio');
 	for (const stream of audioStreams) {
-		const codec = (stream.Codec || '').toLowerCase();
-		if (!codec || supported.includes(codec)) {
+		if (isAudioStreamPlayable(stream, capabilities, passthroughOptions)) {
 			return stream.Index;
 		}
 	}
@@ -601,6 +607,7 @@ export default {
 	getMimeType,
 	getSupportedAudioCodecs,
 	findCompatibleAudioStreamIndex,
+	isAudioStreamPlayable,
 	setDisplayWindow,
 	registerAppStateObserver,
 	keepScreenOn,

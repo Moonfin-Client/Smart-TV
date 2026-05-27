@@ -143,6 +143,28 @@ export const getSupportedAudioCodecs = (capabilities, _container = '', passthrou
 	return codecs;
 };
 
+const DTS_FAMILY_CODECS = ['dts', 'dca', 'dts-hd', 'dtshd', 'dts-ma', 'dtsma', 'dts-x', 'dtsx'];
+
+const streamHasAtmos = (stream) => {
+	if (!stream) return false;
+	const fields = [stream.Profile, stream.Title, stream.DisplayTitle, stream.ChannelLayout];
+	if (fields.some(v => typeof v === 'string' && /atmos/i.test(v))) return true;
+	// legacy atmos detection, i might come back later for direct stream of atmos (In love MOK)
+	const codec = (stream.Codec || '').toLowerCase();
+	if ((codec === 'truehd' || codec === 'mlp') && (stream.Channels || 0) > 8) return true;
+	return false;
+};
+
+export const isAudioStreamPlayable = (stream, capabilities, passthroughOptions = {}) => {
+	if (!stream) return false;
+	const codec = (stream.Codec || '').toLowerCase();
+	if (!codec) return true;
+	if (DTS_FAMILY_CODECS.includes(codec)) return false;
+	if ((codec === 'truehd' || codec === 'mlp') && streamHasAtmos(stream)) return false;
+	const supported = getSupportedAudioCodecs(capabilities, '', passthroughOptions);
+	return supported.includes(codec);
+};
+
 /**
  * Find the first compatible audio stream index for a media source.
  * Returns the index of the first audio stream whose codec is supported,
@@ -150,11 +172,9 @@ export const getSupportedAudioCodecs = (capabilities, _container = '', passthrou
  */
 export const findCompatibleAudioStreamIndex = (mediaSource, capabilities, passthroughOptions = {}) => {
 	if (!mediaSource?.MediaStreams) return -1;
-	const supported = getSupportedAudioCodecs(capabilities, mediaSource.Container, passthroughOptions);
 	const audioStreams = mediaSource.MediaStreams.filter(s => s.Type === 'Audio');
 	for (const stream of audioStreams) {
-		const codec = (stream.Codec || '').toLowerCase();
-		if (!codec || supported.includes(codec)) {
+		if (isAudioStreamPlayable(stream, capabilities, passthroughOptions)) {
 			return stream.Index;
 		}
 	}
@@ -176,14 +196,23 @@ export const getPlayMethod = (mediaSource, capabilities, _options = {}, passthro
 
 	const supportedAudioCodecs = getSupportedAudioCodecs(capabilities, container, passthroughOptions);
 
-	// Check if ANY audio stream is compatible (not just the first/default one).
-	// Samsung TVs can select audio tracks from containers like MKV/MP4.
-	// A file with DTS primary + AC3 secondary should still DirectPlay.
+	// Check if ANY audio stream is compatible (informational only — see below).
 	const audioStreams = mediaSource.MediaStreams?.filter(s => s.Type === 'Audio') || [];
-	const hasCompatibleAudio = audioStreams.length === 0 || audioStreams.some(s => {
-		const codec = (s.Codec || '').toLowerCase();
-		return !codec || supportedAudioCodecs.includes(codec);
-	});
+	const hasCompatibleAudio = audioStreams.length === 0 || audioStreams.some(s =>
+		isAudioStreamPlayable(s, capabilities, passthroughOptions)
+	);
+
+	// AVPlay always decodes the file's default audio track and ignores the
+	// AudioStreamIndex hint passed in the stream URL. That means a multi-track
+	// file with TrueHD/DTS as the default and AC3 as a secondary cannot
+	// DirectPlay even though an alternate compatible track exists — AVPlay
+	// will still try to decode the default and fail with "codec not supported".
+	// So DirectPlay/DirectStream on the DEFAULT track being playable, and
+	// force audio remux whenever the default is unplayable.
+	const defaultStream = audioStreams.find(s => s.Index === mediaSource.DefaultAudioStreamIndex) || audioStreams[0];
+	const defaultPlayable = !defaultStream || isAudioStreamPlayable(defaultStream, capabilities, passthroughOptions);
+	const hasAlternatePlayable = audioStreams.some(s => s !== defaultStream && isAudioStreamPlayable(s, capabilities, passthroughOptions));
+	const needsAudioRemux = !defaultPlayable && audioStreams.length > 0;
 
 	const supportedContainers = ['mp4', 'm4v', 'mov', 'ts', 'mpegts', 'mkv', 'matroska', 'webm', 'avi',
 		// Audio containers
@@ -191,7 +220,7 @@ export const getPlayMethod = (mediaSource, capabilities, _options = {}, passthro
 	if (capabilities.nativeHls) supportedContainers.push('m3u8');
 
 	const videoOk = !videoCodec || supportedVideoCodecs.includes(videoCodec);
-	const audioOk = hasCompatibleAudio;
+	const audioOk = defaultPlayable;
 	const containerOk = !container || supportedContainers.includes(container);
 
 	// Samsung docs: "HEVC: Supported only for MKV/MP4/TS containers"
@@ -246,6 +275,12 @@ export const getPlayMethod = (mediaSource, capabilities, _options = {}, passthro
 	});
 
 	const codecContainerOk = hevcContainerOk && vp9ContainerOk && av1ContainerOk;
+
+	if (needsAudioRemux) {
+		// Default audio is unplayableso request a force remux
+		console.log('[tizenVideo] Default audio unplayable (TrueHD+Atmos/DTS) with no alternate \u2014 forcing Transcode for audio remux');
+		return 'Transcode';
+	}
 
 	if (mediaSource.SupportsDirectPlay && videoOk && audioOk && containerOk && hdrOk && codecContainerOk) {
 		return 'DirectPlay';
@@ -725,6 +760,7 @@ export default {
 	getMimeType,
 	getSupportedAudioCodecs,
 	findCompatibleAudioStreamIndex,
+	isAudioStreamPlayable,
 	setDisplayWindow,
 	registerAppStateObserver,
 	keepScreenOn,
