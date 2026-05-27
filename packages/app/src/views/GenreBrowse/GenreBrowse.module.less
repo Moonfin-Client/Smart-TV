@@ -363,3 +363,42 @@
 	margin-bottom: 10px;
 	text-align: center;
 }
+
+:global(html[data-theme-id='neon_pulse']) {
+	.title,
+	.modalTitle,
+	.itemName {
+		color: var(--theme-accent, #ff2e92);
+		text-shadow: var(--theme-text-glow, 0 0 8px rgba(255, 46, 146, 0.35));
+	}
+
+	.subtitle,
+	.counter,
+	.itemYear {
+		color: var(--theme-on-surface, #00e5ff);
+	}
+
+	.itemCard:focus .poster,
+	.itemCard:focus .posterPlaceholder {
+		border-color: var(--theme-accent, #ff2e92);
+		box-shadow: 0 0 12px rgba(var(--theme-accent-rgb, 255, 46, 146), 0.35);
+	}
+
+	.backButton:focus,
+	.sortButton:focus,
+	.filterButton:focus,
+	.letterButton:focus {
+		border-color: var(--theme-accent, #ff2e92);
+		background: rgba(var(--theme-accent-rgb, 255, 46, 146), 0.15);
+	}
+
+	.backButton:focus {
+		box-shadow: 0 0 0 4px rgba(var(--theme-accent-rgb, 255, 46, 146), 0.45);
+	}
+
+	.letterButton.active {
+		background: var(--theme-accent, #ff2e92);
+		color: var(--theme-on-accent, #fff);
+		box-shadow: 0 0 8px rgba(var(--theme-accent-rgb, 255, 46, 146), 0.35);
+	}
+}

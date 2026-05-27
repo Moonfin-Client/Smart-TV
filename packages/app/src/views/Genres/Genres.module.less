@@ -423,3 +423,46 @@ font-size: 16px;
 color: var(--theme-text-muted, rgba(255, 255, 255, 0.55));
 margin-top: 4px;
 }
+
+:global(html[data-theme-id='neon_pulse']) {
+.title,
+.genreName,
+.sortPanelTitle,
+.settingLabel {
+color: var(--theme-accent, #ff2e92);
+text-shadow: var(--theme-text-glow, 0 0 8px rgba(255, 46, 146, 0.35));
+}
+
+.subtitle,
+.counter,
+.genreCount,
+.statusText,
+.sortSectionLabel,
+.settingsHeader,
+.settingValue {
+color: var(--theme-on-surface, #00e5ff);
+}
+
+.genreCard:focus {
+box-shadow: 0 0 14px rgba(var(--theme-accent-rgb, 255, 46, 146), 0.35);
+}
+
+.genreCard:focus .genreBackdrop::after {
+border-color: var(--theme-accent, #ff2e92);
+}
+
+.toolbarBtn:focus,
+.sortOption:focus,
+.settingRow:focus {
+border-color: var(--theme-accent, #ff2e92);
+background: rgba(var(--theme-accent-rgb, 255, 46, 146), 0.15);
+}
+
+.sortOptionActive {
+background: rgba(var(--theme-accent-rgb, 255, 46, 146), 0.12);
+}
+
+.radioFill {
+background: var(--theme-accent, #ff2e92);
+}
+}

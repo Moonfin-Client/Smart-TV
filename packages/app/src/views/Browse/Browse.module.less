@@ -452,10 +452,16 @@
 		text-shadow: var(--theme-text-glow, 0 0 8px rgba(255, 46, 146, 0.35));
 	}
 
+	.featuredMeta,
 	.metaItem,
 	.detailSummary,
 	.featuredOverview {
 		color: var(--theme-on-surface, #00e5ff);
+	}
+
+	.carouselNav:focus {
+		border: 1px solid var(--theme-accent, #ff2e92);
+		box-shadow: 0 0 12px rgba(var(--theme-accent-rgb, 255, 46, 146), 0.35);
 	}
 
 	.infoBadge {

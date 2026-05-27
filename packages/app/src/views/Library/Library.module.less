@@ -809,3 +809,66 @@
 	color: var(--theme-text-muted, rgba(255, 255, 255, 0.55));
 	margin-top: 4px;
 }
+
+:global(html[data-theme-id='neon_pulse']) {
+	.libraryTitle,
+	.focusedName,
+	.sortPanelTitle,
+	.modalTitle,
+	.musicLibraryTitle,
+	.musicSectionTitle,
+	.settingLabel {
+		color: var(--theme-accent, #ff2e92);
+		text-shadow: var(--theme-text-glow, 0 0 8px rgba(255, 46, 146, 0.35));
+	}
+
+	.itemCount,
+	.focusedMeta,
+	.metaItem,
+	.statusText,
+	.statusCount,
+	.sortSectionLabel,
+	.settingsHeader,
+	.settingValue,
+	.folderLabel,
+	.pluginRating,
+	.musicViewLabel {
+		color: var(--theme-on-surface, #00e5ff);
+	}
+
+	.folderIcon,
+	.toolbarIcon {
+		fill: var(--theme-on-surface, #00e5ff);
+	}
+
+	.itemCard:focus .poster,
+	.itemCard:focus .posterPlaceholder {
+		border-color: var(--theme-accent, #ff2e92);
+		box-shadow: 0 0 12px rgba(var(--theme-accent-rgb, 255, 46, 146), 0.35);
+	}
+
+	.toolbarBtn:focus,
+	.musicHomeBtn:focus,
+	.musicViewBtn:focus,
+	.letterButton:focus,
+	.sortOption:focus,
+	.settingRow:focus,
+	.breadcrumbItem:focus {
+		border-color: var(--theme-accent, #ff2e92);
+		background: rgba(var(--theme-accent-rgb, 255, 46, 146), 0.15);
+	}
+
+	.letterButton.active {
+		background: var(--theme-accent, #ff2e92);
+		color: var(--theme-on-accent, #fff);
+		box-shadow: 0 0 8px rgba(var(--theme-accent-rgb, 255, 46, 146), 0.35);
+	}
+
+	.sortOption.sortOptionActive {
+		background: rgba(var(--theme-accent-rgb, 255, 46, 146), 0.12);
+	}
+
+	.radioFill {
+		background: var(--theme-accent, #ff2e92);
+	}
+}
