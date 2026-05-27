@@ -135,6 +135,7 @@ const SERVER_TO_LOCAL = {
 	backdropEnabled: 'showHomeBackdrop',
 	mediaBarTrailerAudio: 'featuredTrailerMuted',
 	focusColor: 'focusBorderColor',
+	homeImageUseSeriesImage: 'useSeriesThumbnails',
 	homeRowOrder: 'homeRows',
 };
 const LOCAL_TO_SERVER = Object.fromEntries(
@@ -199,6 +200,7 @@ const SYNCABLE_KEYS = [
 	'showRatingLabels',
 	'themeMusicEnabled', 'themeMusicVolume', 'themeMusicOnHomeRows',
 	'homeRowsImageType',
+	'useSeriesThumbnails',
 	'watchedIndicatorBehavior',
 	'cardFocusZoom',
 	'showHomeBackdrop',
