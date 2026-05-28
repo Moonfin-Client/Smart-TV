@@ -32,7 +32,7 @@ let cacheTimestamp = null;
 
 let lastFocusState = null;
 
-const EXCLUDED_COLLECTION_TYPES = ['livetv', 'boxsets', 'books', 'musicvideos', 'homevideos', 'photos'];
+const EXCLUDED_COLLECTION_TYPES = ['boxsets', 'books', 'musicvideos', 'homevideos', 'photos'];
 
 const FAVORITE_ROW_CONFIGS = [
 	{id: 'favoriteMovies', title: 'Favorite Movies', includeItemTypes: 'Movie', type: 'portrait'},
