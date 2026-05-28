@@ -44,6 +44,8 @@ const defaultSettings = {
 	visualTheme: 'moonfin',
 	customThemeId: '',
 	homeRows: DEFAULT_HOME_ROWS,
+	pluginRowsVisibility: {},
+	pluginRowsOrder: {},
 	showShuffleButton: true,
 	shuffleContentType: 'both',
 	showGenresButton: true,
@@ -80,6 +82,7 @@ const defaultSettings = {
 	showClock: true,
 	clockDisplay: '24-hour',
 	autoLogin: true,
+	confirmExit: true,
 	navbarPosition: 'top',
 	screensaverEnabled: true,
 	screensaverTimeout: 90,
@@ -91,6 +94,7 @@ const defaultSettings = {
 	useSeriesThumbnails: false,
 	homeRowsPosterSize: 'default',
 	homeRowsImageType: 'poster',
+	homeRowOverlay: false,
 	nextUpBehavior: 'extended',
 	nextUpTimeout: 7,
 	skipForwardLength: 30,
@@ -200,6 +204,7 @@ const SYNCABLE_KEYS = [
 	'showRatingLabels',
 	'themeMusicEnabled', 'themeMusicVolume', 'themeMusicOnHomeRows',
 	'homeRowsImageType',
+	'homeRowOverlay',
 	'useSeriesThumbnails',
 	'watchedIndicatorBehavior',
 	'cardFocusZoom',
@@ -536,6 +541,17 @@ export function SettingsProvider({children}) {
 		} catch (_) {}
 	}, [connectSettingsStream]);
 
+	const syncToServer = useCallback(async (serverUrl, token) => {
+		if (serverUrl && token) {
+			serverCredsRef.current = {serverUrl, token};
+		}
+		const creds = serverCredsRef.current;
+		if (!creds?.serverUrl || !creds?.token) {
+			throw new Error('Moonfin credentials unavailable');
+		}
+		await saveMoonfinProfile('tv', localToProfile(settings), creds.serverUrl, creds.token);
+	}, [settings]);
+
 	useEffect(() => {
 		syncFromServerRef.current = syncFromServer;
 	}, [syncFromServer]);
@@ -574,7 +590,8 @@ export function SettingsProvider({children}) {
 			resetSettings,
 			showServerMessage,
 			clearServerMessage,
-			syncFromServer
+			syncFromServer,
+			syncToServer
 		}}>
 			{children}
 		</SettingsContext.Provider>

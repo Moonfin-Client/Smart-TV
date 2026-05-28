@@ -9,6 +9,7 @@ import {getImageUrl, getBackdropId, getLogoUrl} from '../../utils/helpers';
 import {getFromStorage, saveToStorage} from '../../services/storage';
 import * as connectionPool from '../../services/connectionPool';
 import {getMoonfinMediaBar} from '../../services/jellyseerrApi';
+import {loadDiscoveredPluginRows} from '../../services/pluginIntegrationService';
 import {toCssColor} from '../../theme/themeSpec';
 import DetailSection from './DetailSection';
 import FeaturedBanner from './FeaturedBanner';
@@ -66,6 +67,10 @@ function browseReducer(state, action) {
 			return { ...state, browseMode: action.mode };
 		case 'SET_FEATURED_ITEMS':
 			return { ...state, featuredItems: action.items };
+		case 'SET_PLUGIN_ROWS': {
+			const baseRows = state.allRowData.filter((row) => !row.isPluginRow);
+			return { ...state, allRowData: [...baseRows, ...(action.rows || [])] };
+		}
 		default:
 			return state;
 	}
@@ -285,6 +290,8 @@ const Browse = ({
 
 	const filteredRows = useMemo(() => {
 		const enabledRowIds = homeRowsConfig.filter(r => r.enabled).map(r => r.id);
+		const pluginRowsVisibility = settings.pluginRowsVisibility || {};
+		const pluginRowsOrder = settings.pluginRowsOrder || {};
 
 		let result;
 
@@ -354,6 +361,7 @@ const Browse = ({
 
 			result = result.filter(row =>
 				row.id === 'continue-nextup' ||
+				(row.isPluginRow && pluginRowsVisibility[row.id] !== false) ||
 				enabledRowIds.includes(row.id) ||
 				(row.isLatestRow && enabledRowIds.includes('latest-media'))
 			);
@@ -371,6 +379,7 @@ const Browse = ({
 				})
 				.filter(row => {
 					if (!row) return false;
+					if (row.isPluginRow) return pluginRowsVisibility[row.id] !== false;
 					if (row.id === 'resume' || row.id === 'nextup') {
 						return enabledRowIds.includes(row.id);
 					}
@@ -397,6 +406,30 @@ const Browse = ({
 			return title && title !== row.title ? {...row, title} : row;
 		});
 
+		if (result.some((row) => row.isPluginRow)) {
+			const sortedPluginRows = result
+				.filter((row) => row.isPluginRow)
+				.map((row, index) => ({ row, index }))
+				.sort((a, b) => {
+					const aOrder = Number.isFinite(Number(pluginRowsOrder[a.row.id]))
+						? Number(pluginRowsOrder[a.row.id])
+						: a.index;
+					const bOrder = Number.isFinite(Number(pluginRowsOrder[b.row.id]))
+						? Number(pluginRowsOrder[b.row.id])
+						: b.index;
+					if (aOrder !== bOrder) return aOrder - bOrder;
+					return a.index - b.index;
+				})
+				.map((entry) => entry.row);
+
+			let pluginIndex = 0;
+			result = result.map((row) => (
+				row.isPluginRow
+					? sortedPluginRows[pluginIndex++]
+					: row
+			));
+		}
+
 		const prev = prevFilteredRowsRef.current;
 		if (prev.length === result.length) {
 			let unchanged = true;
@@ -417,7 +450,7 @@ const Browse = ({
 
 		prevFilteredRowsRef.current = result;
 		return result;
-	}, [allRowData, homeRowsConfig, settings.mergeContinueWatchingNextUp]);
+	}, [allRowData, homeRowsConfig, settings.mergeContinueWatchingNextUp, settings.pluginRowsVisibility, settings.pluginRowsOrder]);
 
 	const scrollToRow = useCallback((rowIndex, thenFocus) => {
 		if (scrollTimeoutRef.current) clearTimeout(scrollTimeoutRef.current);
@@ -567,6 +600,23 @@ const Browse = ({
 	}, [serverUrl, user?.Id]);
 
 	useEffect(() => {
+		const applyPluginRows = async (options = {}) => {
+			try {
+				const pluginRows = await loadDiscoveredPluginRows(options);
+				dispatch({type: 'SET_PLUGIN_ROWS', rows: pluginRows});
+				if (cachedRowData) {
+					const baseRows = cachedRowData.filter((row) => !row.isPluginRow);
+					cachedRowData = [...baseRows, ...pluginRows];
+					cacheTimestamp = Date.now();
+					if (!unifiedMode && cachedRowData.length > 0) {
+						saveBrowseCache(cachedRowData, cachedLibraries, cachedFeaturedItems);
+					}
+				}
+			} catch {
+				dispatch({type: 'SET_PLUGIN_ROWS', rows: []});
+			}
+		};
+
 		const loadData = async () => {
 			// In unified mode, skip cache and always fetch fresh from all servers
 			if (unifiedMode) {
@@ -580,6 +630,7 @@ const Browse = ({
 				dispatch({type: 'SET_ROW_DATA', rowData: cachedRowData});
 				await fetchFreshFeaturedItems(cachedFeaturedItems);
 				dispatch({type: 'SET_LOADING', value: false});
+				applyPluginRows();
 				return;
 			}
 
@@ -594,6 +645,7 @@ const Browse = ({
 				cachedRowData = persistedCache.rowData;
 				cacheTimestamp = persistedCache.timestamp;
 				dispatch({type: 'SET_LOADING', value: false});
+				applyPluginRows();
 
 				// If volatile data is stale, refresh in background
 				if (!isCacheValid(persistedCache.timestamp, CACHE_TTL_VOLATILE)) {
@@ -751,11 +803,20 @@ const Browse = ({
 					});
 				}
 
-				dispatch({type: 'APPEND_ROWS', rows: newRows});
-				cachedRowData = [...rowData, ...newRows];
+				let pluginRows = [];
+				try {
+					pluginRows = await loadDiscoveredPluginRows();
+				} catch {
+					pluginRows = [];
+				}
+
+				const appendedRows = [...newRows, ...pluginRows];
+
+				dispatch({type: 'APPEND_ROWS', rows: appendedRows});
+				cachedRowData = [...rowData, ...appendedRows];
 				cacheTimestamp = Date.now();
 
-				if (!unifiedMode && newRows.length > 0) {
+				if (!unifiedMode && cachedRowData.length > 0) {
 					saveBrowseCache(cachedRowData, libs, cachedFeaturedItems);
 				}
 
@@ -893,6 +954,7 @@ const Browse = ({
 							onNavigateUp={handleNavigateUp}
 							onNavigateDown={handleNavigateDown}
 							showServerBadge={unifiedMode}
+							showOverview={!!settings.homeRowOverlay}
 							registerRowRef={registerRowRef}
 						/>
 					))}

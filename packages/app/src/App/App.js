@@ -440,6 +440,10 @@ const AppContent = (props) => {
 				}
 
 				if (panelIndex === PANELS.BROWSE || panelIndex === PANELS.LOGIN) {
+					if (settings.confirmExit === false) {
+						performAppCleanup();
+						return;
+					}
 					setShowExitDialog(true);
 					return;
 				}
@@ -462,7 +466,7 @@ const AppContent = (props) => {
 
 		window.addEventListener('keydown', handleKeyDown, true);
 		return () => window.removeEventListener('keydown', handleKeyDown, true);
-	}, [panelIndex, handleBack, clearServerMessage, serverMessage, showAccountModal, showExitDialog, showSettingsPanel]);
+	}, [panelIndex, handleBack, clearServerMessage, serverMessage, showAccountModal, showExitDialog, showSettingsPanel, settings.confirmExit, performAppCleanup]);
 
 	const handleLoggedIn = useCallback(() => {
 		setPanelHistory([]);

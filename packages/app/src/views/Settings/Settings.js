@@ -13,7 +13,15 @@ import serverLogger from '../../services/serverLogger';
 import connectionPool from '../../services/connectionPool';
 import {isBackKey} from '../../utils/keys';
 import ClearDataDialog from '../../components/ClearDataDialog';
+import SpottableInput from '../../components/SpottableInput';
 import {clearAllStorage} from '../../services/storage';
+import {getMoonfinSettings} from '../../services/jellyseerrApi';
+import {
+	refreshPluginCapabilities as refreshPluginCapabilitiesService,
+	clearPluginProbeCache,
+	getPluginProbeCacheState,
+	loadDiscoveredPluginRows
+} from '../../services/pluginIntegrationService';
 
 import css from './Settings.module.less';
 
@@ -189,7 +197,6 @@ const getClockDisplayOptions = () => [
 	{ value: '24-hour', label: $L('24-Hour') }
 ];
 
-// Labels intentionally not wrapped with $L() — language names display in their native language regardless of current locale
 const LANGUAGE_OPTIONS = [
 	{value: 'de', label: 'Deutsch'},
 	{value: 'en-US', label: 'English'},
@@ -296,6 +303,49 @@ const AGE_RATING_OPTIONS = [
 	{ value: 18, label: 'NC-17' }
 ];
 
+const MDBLIST_RATING_SOURCE_OPTIONS = [
+	{ value: 'imdb', label: 'IMDb' },
+	{ value: 'tmdb', label: 'TMDB' },
+	{ value: 'tomatoes', label: 'Rotten Tomatoes' },
+	{ value: 'metacritic', label: 'Metacritic' }
+];
+
+const DEFAULT_JELLYSEERR_ROWS = {
+	trendingMovies: true,
+	trendingTv: true,
+	popularMovies: true,
+	popularTv: true,
+	upcomingMovies: true,
+	upcomingTv: true,
+	rowOrder: ['trendingMovies', 'trendingTv', 'popularMovies', 'popularTv', 'upcomingMovies', 'upcomingTv']
+};
+
+const JELLYSEERR_ROW_OPTIONS = [
+	{ key: 'trendingMovies', label: $L('Trending Movies') },
+	{ key: 'trendingTv', label: $L('Trending TV') },
+	{ key: 'popularMovies', label: $L('Popular Movies') },
+	{ key: 'popularTv', label: $L('Popular TV') },
+	{ key: 'upcomingMovies', label: $L('Upcoming Movies') },
+	{ key: 'upcomingTv', label: $L('Upcoming TV') }
+];
+
+const normalizeJellyseerrRows = (config) => {
+	const base = { ...DEFAULT_JELLYSEERR_ROWS, ...(config || {}) };
+	const order = Array.isArray(base.rowOrder) ? base.rowOrder : DEFAULT_JELLYSEERR_ROWS.rowOrder;
+	const dedupedOrder = [];
+	order.forEach((key) => {
+		if (!DEFAULT_JELLYSEERR_ROWS.rowOrder.includes(key)) return;
+		if (!dedupedOrder.includes(key)) dedupedOrder.push(key);
+	});
+	DEFAULT_JELLYSEERR_ROWS.rowOrder.forEach((key) => {
+		if (!dedupedOrder.includes(key)) dedupedOrder.push(key);
+	});
+	return {
+		...base,
+		rowOrder: dedupedOrder
+	};
+};
+
 const getLabel = (options, value, fallback) => {
 	const option = options.find((o) => o.value === value);
 	return option?.label || fallback;
@@ -321,7 +371,16 @@ const renderChevron = () => (
 
 const Settings = ({ onBack, onLibrariesChanged, panelMode }) => {
 	const { api, serverUrl, accessToken, hasMultipleServers, logoutAll } = useAuth();
-	const { settings, updateSetting, resetSettings, availableThemes, activeThemeId, selectThemeById } = useSettings();
+	const {
+		settings,
+		updateSetting,
+		resetSettings,
+		availableThemes,
+		activeThemeId,
+		selectThemeById,
+		syncFromServer,
+		syncToServer
+	} = useSettings();
 	const { capabilities } = useDeviceInfo();
 	const jellyseerr = useJellyseerr();
 	const isSeerr = jellyseerr.isMoonfin && jellyseerr.variant === 'seerr';
@@ -354,12 +413,29 @@ const Settings = ({ onBack, onLibrariesChanged, panelMode }) => {
 	const [, setMoonfinConnecting] = useState(false);
 	const [moonfinStatus, setMoonfinStatus] = useState('');
 	const [tempHomeRows, setTempHomeRows] = useState([]);
+	const [tempPluginRows, setTempPluginRows] = useState([]);
+	const [pluginRowsLoading, setPluginRowsLoading] = useState(false);
+	const [pluginRowsLoaded, setPluginRowsLoaded] = useState(false);
+	const [pluginRowsError, setPluginRowsError] = useState('');
 	const [allLibraries, setAllLibraries] = useState([]);
 	const [hiddenLibraries, setHiddenLibraries] = useState([]);
 	const [libraryLoading, setLibraryLoading] = useState(false);
 	const [librarySaving, setLibrarySaving] = useState(false);
 	const [serverConfigs, setServerConfigs] = useState([]);
 	const [clearDataDialogOpen, setClearDataDialogOpen] = useState(false);
+	const [tempJellyseerrRows, setTempJellyseerrRows] = useState(normalizeJellyseerrRows(settings.jellyseerrRows));
+	const [profileEnvelope, setProfileEnvelope] = useState(null);
+	const [profileLoading, setProfileLoading] = useState(false);
+	const [profileSaving, setProfileSaving] = useState(false);
+	const [integrationProbeLoading, setIntegrationProbeLoading] = useState(false);
+	const [integrationProbeStatus, setIntegrationProbeStatus] = useState('');
+	const [homeSectionsCapabilities, setHomeSectionsCapabilities] = useState([]);
+	const [kefinCapabilities, setKefinCapabilities] = useState([]);
+	const [homeProbeMeta, setHomeProbeMeta] = useState(null);
+	const [kefinProbeMeta, setKefinProbeMeta] = useState(null);
+	const [probeCacheInfo, setProbeCacheInfo] = useState(() => getPluginProbeCacheState());
+	const integrationProbeLoadingRef = useRef(false);
+	const homeRowsEditorLoadIdRef = useRef(0);
 
 	useEffect(() => {
 		const timer = setTimeout(() => {
@@ -386,10 +462,95 @@ const Settings = ({ onBack, onLibrariesChanged, panelMode }) => {
 				Spotlight.focus('homerows-view');
 			} else if (cv.view === 'libraries') {
 				Spotlight.focus('libraries-view');
+			} else if (cv.view === 'jellyseerrRows') {
+				Spotlight.focus('jellyseerr-rows-view');
+			} else if (cv.view === 'integrationDetails') {
+				Spotlight.focus('setting-integration-details-refresh');
 			}
 		}, 50);
 		return () => clearTimeout(timer);
 	}, [navStack]); // eslint-disable-line react-hooks/exhaustive-deps
+
+	const refreshProfileEnvelope = useCallback(async () => {
+		if (!settings.useMoonfinPlugin || !serverUrl || !accessToken) {
+			setProfileEnvelope(null);
+			return;
+		}
+		try {
+			const data = await getMoonfinSettings(serverUrl, accessToken);
+			setProfileEnvelope(data);
+		} catch (_) {
+			setProfileEnvelope(null);
+		}
+	}, [settings.useMoonfinPlugin, serverUrl, accessToken]);
+
+	useEffect(() => {
+		refreshProfileEnvelope();
+	}, [refreshProfileEnvelope]);
+
+	const updateProbeCacheInfo = useCallback(() => {
+		setProbeCacheInfo(getPluginProbeCacheState());
+	}, []);
+
+	const refreshPluginCapabilities = useCallback(async (focusTarget, options = {}) => {
+		const targetSpotlightId = typeof focusTarget === 'string' ? focusTarget : null;
+		if (integrationProbeLoadingRef.current) return;
+
+		integrationProbeLoadingRef.current = true;
+		setIntegrationProbeLoading(true);
+		setIntegrationProbeStatus($L('Refreshing plugin capabilities...'));
+
+		try {
+			const probeResult = await refreshPluginCapabilitiesService(options);
+			const hssCapabilities = probeResult.homeSectionsCapabilities || [];
+			const kefinProbeCapabilities = probeResult.kefinCapabilities || [];
+			const homeMeta = probeResult.meta?.home || null;
+			const kefinMeta = probeResult.meta?.kefin || null;
+
+			setHomeSectionsCapabilities(hssCapabilities);
+			setKefinCapabilities(kefinProbeCapabilities);
+			setHomeProbeMeta(homeMeta);
+			setKefinProbeMeta(kefinMeta);
+			updateProbeCacheInfo();
+
+			const availableHssCount = hssCapabilities.filter((entry) => entry.available).length;
+			const availableKefinCount = kefinProbeCapabilities.filter((entry) => entry.available).length;
+			const source = homeMeta?.source || kefinMeta?.source || 'network';
+			const summary = $L('Detected {hssCount} Home Screen Sections and {kefinCount} KefinTweaks integrations ({source}).')
+				.replace('{hssCount}', String(availableHssCount))
+				.replace('{kefinCount}', String(availableKefinCount))
+				.replace('{source}', source);
+			setIntegrationProbeStatus(summary);
+		} catch (error) {
+			setIntegrationProbeStatus(`${$L('Plugin capability refresh failed:')} ${error.message || $L('Unknown error')}`);
+			updateProbeCacheInfo();
+		} finally {
+			integrationProbeLoadingRef.current = false;
+			setIntegrationProbeLoading(false);
+			if (targetSpotlightId) {
+				setTimeout(() => Spotlight.focus(targetSpotlightId), 50);
+			}
+		}
+	}, [updateProbeCacheInfo]);
+
+	const forceRetryPluginCapabilities = useCallback((focusTarget) => {
+		refreshPluginCapabilities(focusTarget, {forceRefresh: true, bypassBackoff: true});
+	}, [refreshPluginCapabilities]);
+
+	const handleClearProbeCache = useCallback(async (focusTarget) => {
+		clearPluginProbeCache();
+		setHomeSectionsCapabilities([]);
+		setKefinCapabilities([]);
+		setHomeProbeMeta(null);
+		setKefinProbeMeta(null);
+		setIntegrationProbeStatus($L('Plugin probe cache cleared'));
+		updateProbeCacheInfo();
+		await refreshPluginCapabilities(focusTarget, {forceRefresh: true, bypassBackoff: true});
+	}, [refreshPluginCapabilities, updateProbeCacheInfo]);
+
+	useEffect(() => {
+		refreshPluginCapabilities();
+	}, [refreshPluginCapabilities, serverUrl, accessToken]);
 
 	useEffect(() => {
 		const handleKeyDown = (e) => {
@@ -471,26 +632,207 @@ const Settings = ({ onBack, onLibrariesChanged, panelMode }) => {
 		setMoonfinStatus('');
 	}, [jellyseerr]);
 
+	const handleLoadProfile = useCallback(async (focusTarget) => {
+		const targetSpotlightId = typeof focusTarget === 'string' ? focusTarget : 'setting-load-profile';
+		if (profileLoading) return;
+		if (!serverUrl || !accessToken) {
+			setMoonfinStatus($L('Not connected to a Jellyfin server'));
+			return;
+		}
+		setProfileLoading(true);
+		setMoonfinStatus($L('Loading profile...'));
+		try {
+			await syncFromServer(serverUrl, accessToken);
+			await refreshProfileEnvelope();
+			setMoonfinStatus($L('Profile loaded'));
+		} catch (err) {
+			setMoonfinStatus(`${$L('Profile load failed:')} ${err.message}`);
+		} finally {
+			setProfileLoading(false);
+			setTimeout(() => Spotlight.focus(targetSpotlightId), 50);
+		}
+	}, [profileLoading, serverUrl, accessToken, syncFromServer, refreshProfileEnvelope]);
+
+	const handleSaveProfile = useCallback(async (focusTarget) => {
+		const targetSpotlightId = typeof focusTarget === 'string' ? focusTarget : 'setting-save-profile';
+		if (profileSaving) return;
+		if (!settings.useMoonfinPlugin) {
+			setMoonfinStatus($L('Enable Plugin Sync first'));
+			return;
+		}
+		setProfileSaving(true);
+		setMoonfinStatus($L('Saving profile...'));
+		try {
+			await syncToServer(serverUrl, accessToken);
+			await refreshProfileEnvelope();
+			setMoonfinStatus($L('Profile saved'));
+		} catch (err) {
+			setMoonfinStatus(`${$L('Profile save failed:')} ${err.message}`);
+		} finally {
+			setProfileSaving(false);
+			setTimeout(() => Spotlight.focus(targetSpotlightId), 50);
+		}
+	}, [profileSaving, settings.useMoonfinPlugin, syncToServer, serverUrl, accessToken, refreshProfileEnvelope]);
+
+	const toggleRatingSource = useCallback((source) => {
+		const current = Array.isArray(settings.mdblistRatingSources) ? settings.mdblistRatingSources : [];
+		const next = current.includes(source)
+			? current.filter((entry) => entry !== source)
+			: [...current, source];
+		updateSetting('mdblistRatingSources', next);
+	}, [settings.mdblistRatingSources, updateSetting]);
+
 	const openThemes = useCallback(() => {
 		pushView({ view: 'themes', returnFocusTo: 'setting-themeSelection' });
 	}, [pushView]);
 
-	const openHomeRows = useCallback(() => {
+	const openHomeRowsEditor = useCallback((returnFocusTo = 'setting-homeRows') => {
 		setTempHomeRows([...(settings.homeRows || DEFAULT_HOME_ROWS)].sort((a, b) => a.order - b.order));
-		pushView({ view: 'homeRows', returnFocusTo: 'setting-homeRows' });
-	}, [settings.homeRows, pushView]);
+		setTempPluginRows([]);
+		setPluginRowsLoading(true);
+		setPluginRowsLoaded(false);
+		setPluginRowsError('');
+		pushView({ view: 'homeRows', returnFocusTo });
+
+		const visibilityMap = settings.pluginRowsVisibility || {};
+		const pluginOrderMap = settings.pluginRowsOrder || {};
+		const loadId = homeRowsEditorLoadIdRef.current + 1;
+		homeRowsEditorLoadIdRef.current = loadId;
+
+		loadDiscoveredPluginRows()
+			.then((rows) => {
+				if (homeRowsEditorLoadIdRef.current !== loadId) return;
+				const seenIds = new Set();
+				const normalizedRows = (Array.isArray(rows) ? rows : [])
+					.filter((row) => {
+						if (!row?.id || seenIds.has(row.id)) return false;
+						seenIds.add(row.id);
+						return true;
+					})
+					.map((row) => ({
+						id: row.id,
+						title: row.title || row.id,
+						source: row.pluginSource || 'plugin',
+						enabled: visibilityMap[row.id] !== false,
+						defaultOrder: Number.isFinite(Number(row.pluginOrder)) ? Number(row.pluginOrder) : 0,
+						order: Number.isFinite(Number(pluginOrderMap[row.id]))
+							? Number(pluginOrderMap[row.id])
+							: (Number.isFinite(Number(row.pluginOrder)) ? Number(row.pluginOrder) : Number.MAX_SAFE_INTEGER)
+					}))
+					.sort((a, b) => {
+						if (a.order !== b.order) return a.order - b.order;
+						if (a.defaultOrder !== b.defaultOrder) return a.defaultOrder - b.defaultOrder;
+						return a.title.localeCompare(b.title);
+					})
+					.map((row, index) => ({
+						...row,
+						order: index,
+						defaultOrder: Number.isFinite(row.defaultOrder) ? row.defaultOrder : index
+					}));
+				setTempPluginRows(normalizedRows);
+				setPluginRowsLoaded(true);
+			})
+			.catch((error) => {
+				if (homeRowsEditorLoadIdRef.current !== loadId) return;
+				setTempPluginRows([]);
+				setPluginRowsLoaded(false);
+				setPluginRowsError(`${$L('Plugin rows failed to load:')} ${error.message || $L('Unknown error')}`);
+			})
+			.finally(() => {
+				if (homeRowsEditorLoadIdRef.current !== loadId) return;
+				setPluginRowsLoading(false);
+			});
+	}, [settings.homeRows, settings.pluginRowsVisibility, settings.pluginRowsOrder, pushView]);
+
+	const openJellyseerrRows = useCallback((returnFocusTo = 'setting-jellyseerr-rows') => {
+		setTempJellyseerrRows(normalizeJellyseerrRows(settings.jellyseerrRows));
+		pushView({ view: 'jellyseerrRows', returnFocusTo });
+	}, [settings.jellyseerrRows, pushView]);
+
+	const openIntegrationDetails = useCallback((mode, returnFocusTo) => {
+		pushView({ view: 'integrationDetails', mode, returnFocusTo });
+	}, [pushView]);
 
 	const saveHomeRows = useCallback(() => {
 		updateSetting('homeRows', tempHomeRows);
+		if (pluginRowsLoaded) {
+			const pluginRowsVisibility = {};
+			const pluginRowsOrder = {};
+			tempPluginRows.forEach((row) => {
+				if (!row.enabled) {
+					pluginRowsVisibility[row.id] = false;
+				}
+				pluginRowsOrder[row.id] = Number.isFinite(Number(row.order)) ? Number(row.order) : 0;
+			});
+			updateSetting('pluginRowsVisibility', pluginRowsVisibility);
+			updateSetting('pluginRowsOrder', pluginRowsOrder);
+		}
 		popView();
-	}, [tempHomeRows, updateSetting, popView]);
+	}, [tempHomeRows, tempPluginRows, pluginRowsLoaded, updateSetting, popView]);
+
+	const saveJellyseerrRows = useCallback(() => {
+		updateSetting('jellyseerrRows', tempJellyseerrRows);
+		popView();
+	}, [tempJellyseerrRows, updateSetting, popView]);
 
 	const resetHomeRows = useCallback(() => {
 		setTempHomeRows([...DEFAULT_HOME_ROWS]);
+		setTempPluginRows((prev) => {
+			const ordered = [...prev]
+				.sort((a, b) => {
+					if (a.defaultOrder !== b.defaultOrder) return a.defaultOrder - b.defaultOrder;
+					return a.title.localeCompare(b.title);
+				})
+				.map((row, index) => ({
+					...row,
+					enabled: true,
+					order: index
+				}));
+			return ordered;
+		});
+	}, []);
+
+	const resetJellyseerrRows = useCallback(() => {
+		setTempJellyseerrRows({ ...DEFAULT_JELLYSEERR_ROWS, rowOrder: [...DEFAULT_JELLYSEERR_ROWS.rowOrder] });
 	}, []);
 
 	const toggleHomeRow = useCallback((rowId) => {
 		setTempHomeRows((prev) => prev.map((row) => (row.id === rowId ? { ...row, enabled: !row.enabled } : row)));
+	}, []);
+
+	const togglePluginRow = useCallback((rowId) => {
+		setTempPluginRows((prev) => prev.map((row) => (row.id === rowId ? { ...row, enabled: !row.enabled } : row)));
+	}, []);
+
+	const movePluginRowUp = useCallback((rowId) => {
+		setTempPluginRows((prev) => {
+			const index = prev.findIndex((row) => row.id === rowId);
+			if (index <= 0) return prev;
+			const next = [...prev];
+			const temp = next[index - 1];
+			next[index - 1] = next[index];
+			next[index] = temp;
+			return next.map((row, idx) => ({ ...row, order: idx }));
+		});
+	}, []);
+
+	const movePluginRowDown = useCallback((rowId) => {
+		setTempPluginRows((prev) => {
+			const index = prev.findIndex((row) => row.id === rowId);
+			if (index < 0 || index >= prev.length - 1) return prev;
+			const next = [...prev];
+			const temp = next[index + 1];
+			next[index + 1] = next[index];
+			next[index] = temp;
+			return next.map((row, idx) => ({ ...row, order: idx }));
+		});
+	}, []);
+
+	const toggleJellyseerrRow = useCallback((rowKey) => {
+		setTempJellyseerrRows((prev) => ({
+			...prev,
+			[rowKey]: !prev[rowKey]
+		}));
 	}, []);
 
 	const moveHomeRowUp = useCallback((rowId) => {
@@ -641,6 +983,35 @@ const Settings = ({ onBack, onLibrariesChanged, panelMode }) => {
 		</SpottableDiv>
 	);
 
+	const renderActionItem = (id, title, desc, onClick, value) => (
+		<SpottableDiv className={css.listItem} onClick={onClick} spotlightId={`setting-${id}`}>
+			<div className={css.listItemBody}>
+				<div className={css.listItemHeading}>{title}</div>
+				{desc && <div className={css.listItemCaption}>{desc}</div>}
+			</div>
+			<div className={css.listItemTrailing}>
+				{value ? <div className={css.listItemValue}>{value}</div> : renderChevron()}
+			</div>
+		</SpottableDiv>
+	);
+
+	const renderInputItem = (settingKey, title, desc, placeholder) => (
+		<div className={css.inputGroup}>
+			<label htmlFor={`input-${settingKey}`}>{title}</label>
+			{desc && <div className={css.listItemCaption}>{desc}</div>}
+			<SpottableInput
+				spotlightId={`setting-${settingKey}`}
+				data-spotlight-id={`setting-${settingKey}`}
+				className={css.input}
+				id={`input-${settingKey}`}
+				type='text'
+				placeholder={placeholder}
+				value={settings[settingKey] || ''}
+				onChange={(event) => updateSetting(settingKey, event.target.value)}
+			/>
+		</div>
+	);
+
 	const renderThemePreviewCards = () => (
 		<div className={css.themeCardList}>
 			{availableThemes.map((theme) => {
@@ -679,6 +1050,94 @@ const Settings = ({ onBack, onLibrariesChanged, panelMode }) => {
 		</SpottableDiv>
 	);
 
+	const formatCapabilityLabel = (capability, fallbackLabel) => {
+		if (!capability) return fallbackLabel;
+		if (capability.serverLabel) return capability.serverLabel;
+		const serverName = capability.serverName || fallbackLabel;
+		return capability.username ? `${serverName} (${capability.username})` : serverName;
+	};
+
+	const formatHomeSectionsCapabilityValue = (capability) => {
+		if (!capability?.installed) {
+			return $L('Not installed');
+		}
+		if (!capability.enabled) {
+			return $L('Installed but disabled');
+		}
+		let status = `${$L('Enabled')} - ${String(capability.sectionCount || 0)} ${$L('sections')}`;
+		if (capability.pluginVersion) {
+			status += ` - v${capability.pluginVersion}`;
+		}
+		if (capability.lastError) {
+			status += ` - ${capability.lastError}`;
+		}
+		return status;
+	};
+
+	const formatKefinCapabilityValue = (capability) => {
+		if (!capability?.installed) {
+			return capability?.lastError
+				? `${$L('Not detected')} - ${capability.lastError}`
+				: $L('Not detected');
+		}
+		if (!capability.enabled) {
+			return $L('Installed but Home Screen disabled');
+		}
+		let status = `${$L('Enabled')} - ${String(capability.sectionCount || 0)} ${$L('sections')}`;
+		if (capability.version) {
+			status += ` - v${capability.version}`;
+		}
+		if (capability.endpointUsed) {
+			status += ` - ${capability.endpointUsed}`;
+		}
+		if (capability.lastError) {
+			status += ` - ${capability.lastError}`;
+		}
+		return status;
+	};
+
+	const formatPluginRowSource = (source) => {
+		if (source === 'hss') return $L('Home Screen Sections');
+		if (source === 'kefin') return $L('KefinTweaks');
+		return $L('Plugin Row');
+	};
+
+	const formatDuration = (ms) => {
+		if (typeof ms !== 'number' || ms < 0) return $L('n/a');
+		const totalSeconds = Math.floor(ms / 1000);
+		if (totalSeconds < 60) return `${totalSeconds}s`;
+		const minutes = Math.floor(totalSeconds / 60);
+		const seconds = totalSeconds % 60;
+		return `${minutes}m ${seconds}s`;
+	};
+
+	const formatProbeMetaValue = (meta) => {
+		if (!meta) return $L('No probe yet');
+		const source = String(meta.source || 'unknown');
+		return `${source} | ${$L('Age')}: ${formatDuration(meta.cacheAgeMs)} | ${$L('Failures')}: ${String(meta.failureCount || 0)}`;
+	};
+
+	const formatProbeBackoffValue = (meta) => {
+		if (!meta?.nextRetryAt || meta.nextRetryAt <= Date.now()) {
+			return $L('Ready');
+		}
+		return `${$L('Retry in')} ${formatDuration(meta.nextRetryAt - Date.now())}`;
+	};
+
+	const formatRowsCacheValue = () => {
+		const rowsMeta = probeCacheInfo?.rows;
+		if (!rowsMeta) return $L('No cache');
+		return `${String(rowsMeta.rowCount || 0)} ${$L('rows')} | ${$L('Age')}: ${formatDuration(rowsMeta.cacheAgeMs)}`;
+	};
+
+	const formatKefinSpec = (spec) => {
+		if (!spec || typeof spec !== 'object') return '';
+		const serialized = JSON.stringify(spec);
+		if (!serialized) return '';
+		if (serialized.length <= 220) return serialized;
+		return `${serialized.slice(0, 217)}...`;
+	};
+
 	const renderMissingItem = (id, title, desc = $L('Not available on Smart-TV yet')) => (
 		<SpottableDiv className={css.listItem} spotlightId={`missing-${id}`}>
 			<div className={css.listItemBody}>
@@ -709,7 +1168,6 @@ const Settings = ({ onBack, onLibrariesChanged, panelMode }) => {
 
 	const renderGeneralApplication = () => ( // eslint-disable-line no-unused-vars
 		<>
-			{/* Fallback 'English' is intentionally not wrapped with $L() — it matches the raw stored value, not a translated display string */}
 			{renderOptionItem('uiLanguage', $L('Language'), LANGUAGE_OPTIONS, 'English')}
 			{languageChanged && (
 				<div className={css.listItem}>
@@ -765,7 +1223,7 @@ const Settings = ({ onBack, onLibrariesChanged, panelMode }) => {
 			)}
 			{renderOptionItem('homeRowsPosterSize', $L('Poster Size'), getPosterSizeOptions(), $L('Default'))}
 			{renderOptionItem('homeRowsImageType', $L('Image Type'), getImageTypeOptions(), $L('Poster'))}
-			{renderNavItem('homeRows', $L('Configure Home Rows'), $L('Customize which rows appear on home screen'), openHomeRows)}
+			{renderNavItem('homeRows', $L('Configure Home Rows'), $L('Customize which rows appear on home screen'), () => openHomeRowsEditor('setting-homeRows'))}
 			{renderNavItem(
 				'hideLibraries',
 				$L('Hide Libraries'),
@@ -901,16 +1359,13 @@ const Settings = ({ onBack, onLibrariesChanged, panelMode }) => {
 	const renderAccountAuthentication = () => (
 		<>
 			{renderToggleItem('autoLogin', $L('Auto Sign In'), $L('Automatically sign in on app launch'))}
-			{renderMissingItem('always-authenticate', $L('Always Authenticate'))}
-			{renderMissingItem('pin-code-protection', $L('PIN Code Protection'))}
-			{renderMissingItem('sort-servers-by', $L('Sort Servers By'))}
 		</>
 	);
 
 	const renderAccountPrivacySafety = () => (
 		<>
 			{renderMissingItem('blocked-ratings', $L('Blocked Ratings'))}
-			{renderMissingItem('exit-confirmation', $L('Exit Confirmation'))}
+			{renderToggleItem('confirmExit', $L('Exit Confirmation'), $L('Show confirmation dialog before exiting'))}
 		</>
 	);
 
@@ -924,7 +1379,6 @@ const Settings = ({ onBack, onLibrariesChanged, panelMode }) => {
 			)}
 			{renderOptionItem('focusBorderColor', $L('Focus Border Color'), ACCENT_COLOR_OPTIONS, $L('Theme Default'))}
 			{renderOptionItem('clockDisplay', $L('Clock Display'), getClockDisplayOptions(), $L('24-Hour'))}
-			{renderMissingItem('24-hour-clock', $L('24-Hour Clock'), $L('Handled via Clock Display on Smart-TV'))}
 			{renderToggleItem('cardFocusZoom', $L('Card Focus Expansion'), $L('Slightly enlarge cards when focused'))}
 			{renderToggleItem('showHomeBackdrop', $L('Show Backdrops'), $L('Show background art while browsing'))}
 			{renderOptionItem('backdropBlurHome', $L('Browsing Blur'), getBlurOptions(), $L('Medium'))}
@@ -953,12 +1407,12 @@ const Settings = ({ onBack, onLibrariesChanged, panelMode }) => {
 
 	const renderPersonalizationHomePage = () => (
 		<>
-			{renderNavItem('homeRows', $L('Home Sections'), $L('Configure which rows appear on home screen'), openHomeRows)}
+			{renderNavItem('homeRows', $L('Home Sections'), $L('Configure which rows appear on home screen'), () => openHomeRowsEditor('setting-homeRows'))}
 			{renderToggleItem('mergeContinueWatchingNextUp', $L('Merge Continue Watching'), $L('Combine Continue Watching and Next Up'))}
 			{renderOptionItem('homeRowsImageType', $L('Home Row Image Type'), getImageTypeOptions(), $L('Poster'))}
 			{renderToggleItem('useSeriesThumbnails', $L('Series Thumbnails'), $L('Use series artwork instead of episode images'))}
 			{renderOptionItem('homeRowsPosterSize', $L('Image Size'), getPosterSizeOptions(), $L('Default'))}
-			{renderMissingItem('home-row-overlay', $L('Home Row Overlay'))}
+			{renderToggleItem('homeRowOverlay', $L('Home Row Overlay'), $L('Show info overlay text on home row cards'))}
 			{renderToggleItem('themeMusicOnHomeRows', $L('Play Theme Music on Home Page'), $L('Play theme music while browsing home rows'))}
 		</>
 	);
@@ -966,7 +1420,7 @@ const Settings = ({ onBack, onLibrariesChanged, panelMode }) => {
 	const renderPersonalizationLibraries = () => (
 		<>
 			{renderNavItem('hideLibraries', $L('Library Visibility'), $L('Choose which libraries are hidden'), openLibraries)}
-			{renderMissingItem('folder-view', $L('Folder View'))}
+			{renderToggleItem('enableFolderView', $L('Folder View'), $L('Browse library content in folder layout'))}
 			{renderToggleItem('unifiedLibraryMode', $L('Multi-Server Libraries'), $L('Combine content from all servers into a single view'))}
 		</>
 	);
@@ -1006,32 +1460,268 @@ const Settings = ({ onBack, onLibrariesChanged, panelMode }) => {
 		</>
 	);
 
-	const renderIntegrationsPlugin = () => (
-		<>
-			{renderToggleItem('useMoonfinPlugin', $L('Plugin Sync Enabled'), $L('Enable Moonfin plugin integration'))}
-			{renderMissingItem('customization-profile', $L('Customization Profile'))}
-			{renderMissingItem('load-profile', $L('Load Profile'))}
-			{renderMissingItem('save-profile', $L('Save Profile'))}
-		</>
-	);
+	const renderIntegrationsPlugin = () => {
+		const rawUpdated = Number(profileEnvelope?.lastUpdated || 0);
+		const timestamp = rawUpdated > 9999999999 ? rawUpdated : rawUpdated > 0 ? rawUpdated * 1000 : 0;
+		const updatedAt = timestamp > 0 ? new Date(timestamp).toLocaleString() : $L('Never');
+		const updatedBy = profileEnvelope?.lastUpdatedBy || $L('Unknown');
+		const profileValue = timestamp > 0
+			? `${updatedAt} | ${updatedBy}`
+			: $L('Never synced');
+
+		return (
+			<>
+				<SpottableDiv className={css.listItem} onClick={handleMoonfinToggle} spotlightId='setting-useMoonfinPlugin'>
+					<div className={css.listItemBody}>
+						<div className={css.listItemHeading}>{$L('Plugin Sync Enabled')}</div>
+						<div className={css.listItemCaption}>{$L('Enable Moonfin plugin integration')}</div>
+					</div>
+					<div className={css.listItemTrailing}>{renderToggle(settings.useMoonfinPlugin)}</div>
+				</SpottableDiv>
+				{renderInfoItem('customization-profile', $L('Customization Profile'), profileValue)}
+				{renderActionItem(
+					'load-profile',
+					$L('Load Profile'),
+					$L('Pull TV settings profile from Moonfin plugin'),
+					() => handleLoadProfile('setting-load-profile'),
+					profileLoading ? $L('Loading...') : null
+				)}
+				{settings.useMoonfinPlugin &&
+					renderActionItem(
+						'save-profile',
+						$L('Save Profile'),
+						$L('Push current TV settings to Moonfin plugin'),
+						() => handleSaveProfile('setting-save-profile'),
+						profileSaving ? $L('Saving...') : null
+					)}
+				{moonfinStatus && <div className={css.statusMessage}>{moonfinStatus}</div>}
+			</>
+		);
+	};
 
 	const renderIntegrationsMetadataRatings = () => (
 		<>
 			{renderToggleItem('mdblistEnabled', $L('Fetch Additional Ratings'), $L('Enable MDBList ratings'))}
-			{renderMissingItem('enabled-rating-sources', $L('Enabled Rating Sources'))}
+			{settings.mdblistEnabled &&
+				renderInputItem('mdblistApiKey', $L('MDBList API Key'), $L('Required for custom MDBList ratings'), $L('Enter MDBList API key'))}
+			{settings.mdblistEnabled &&
+				MDBLIST_RATING_SOURCE_OPTIONS.map((source) => {
+					const enabledSources = Array.isArray(settings.mdblistRatingSources) ? settings.mdblistRatingSources : [];
+					const isEnabled = enabledSources.includes(source.value);
+					return (
+						<SpottableDiv
+							key={source.value}
+							className={css.listItem}
+							onClick={() => toggleRatingSource(source.value)}
+							spotlightId={`rating-source-${source.value}`}
+						>
+							<div className={css.listItemBody}>
+								<div className={css.listItemHeading}>{source.label}</div>
+								<div className={css.listItemCaption}>{$L('Enabled Rating Sources')}</div>
+							</div>
+							<div className={css.listItemTrailing}>{renderToggle(isEnabled)}</div>
+						</SpottableDiv>
+					);
+				})}
 			{renderToggleItem('tmdbEpisodeRatingsEnabled', $L('Show Episode Ratings'), $L('Show episode ratings from TMDB'))}
+			{renderInputItem('tmdbApiKey', $L('TMDB API Key'), $L('Optional override for TMDB requests'), $L('Enter TMDB API key'))}
 			{renderToggleItem('showRatingLabels', $L('Show Rating Text Labels'), $L('Display source labels under scores'))}
-			{renderMissingItem('show-rating-badges', $L('Show Rating Badges'))}
+			{renderToggleItem('mdblistShowRatingBadges', $L('Show Rating Badges'), $L('Display badge-style rating chips'))}
 		</>
 	);
 
 	const renderIntegrationsSeerr = () => (
 		<>
-			{renderMissingItem('enable-seerr', $L('Enable Seerr'))}
-			{renderMissingItem('nsfw-filter', $L('NSFW Filter'))}
-			{renderMissingItem('logged-in-as', $L('Logged In As'))}
-			{renderMissingItem('discover-rows', $L('Discover Rows'))}
+			{renderToggleItem('jellyseerrEnabled', $L('Enable Seerr'), $L('Enable Jellyseerr request integration'))}
+			{settings.jellyseerrEnabled &&
+				renderInputItem('jellyseerrApiKey', $L('Seerr API Key'), $L('Optional API key override'), $L('Enter Seerr API key'))}
+			{renderToggleItem('jellyseerrBlockNsfw', $L('NSFW Filter'), $L('Hide adult content in Seerr results'))}
+			{renderInfoItem('logged-in-as', $L('Logged In As'), jellyseerr.user?.displayName || $L('Not connected'))}
+			{renderNavItem('jellyseerr-rows', $L('Discover Rows'), $L('Choose which Seerr discover rows are visible'), openJellyseerrRows)}
 		</>
+	);
+
+	const renderIntegrationsHomeScreenSections = () => (
+		(() => {
+			const enabledRowsCount = (settings.homeRows || []).filter((row) => row.enabled).length;
+			const availableCapabilities = homeSectionsCapabilities.filter((capability) => capability.available).length;
+			const installedCapabilities = homeSectionsCapabilities.filter((capability) => capability.installed).length;
+			return (
+				<>
+					{renderInfoItem('home-sections-sync', $L('Sync Source'), settings.useMoonfinPlugin ? $L('Moonfin Plugin') : $L('Local Settings'))}
+					{renderInfoItem('home-sections-enabled', $L('Enabled Sections'), String(enabledRowsCount))}
+					{renderInfoItem('home-sections-detected', $L('Detected Servers'), `${availableCapabilities}/${Math.max(homeSectionsCapabilities.length, 0)}`)}
+					{renderInfoItem('home-sections-installed', $L('Plugin Installed'), `${installedCapabilities}/${Math.max(homeSectionsCapabilities.length, 0)}`)}
+					{renderInfoItem('home-sections-probe-cache', $L('Probe Cache'), formatProbeMetaValue(homeProbeMeta))}
+					{renderInfoItem('home-sections-backoff', $L('Backoff'), formatProbeBackoffValue(homeProbeMeta))}
+					{renderInfoItem('home-sections-row-cache', $L('Row Cache'), formatRowsCacheValue())}
+					{renderActionItem(
+						'home-sections-refresh-capabilities',
+						$L('Refresh Plugin Detection'),
+						$L('Probe all logged-in servers for Home Screen Sections plugin endpoints'),
+						() => refreshPluginCapabilities('setting-home-sections-refresh-capabilities'),
+						integrationProbeLoading ? $L('Refreshing...') : null
+					)}
+					{renderActionItem(
+						'home-sections-force-refresh',
+						$L('Force Retry Now'),
+						$L('Bypass cache and backoff for immediate re-probe'),
+						() => forceRetryPluginCapabilities('setting-home-sections-force-refresh'),
+						integrationProbeLoading ? $L('Refreshing...') : null
+					)}
+					{renderActionItem(
+						'home-sections-clear-cache',
+						$L('Clear Probe Cache'),
+						$L('Reset probe cache and backoff counters'),
+						() => handleClearProbeCache('setting-home-sections-clear-cache')
+					)}
+					{homeSectionsCapabilities.length === 0 &&
+						renderInfoItem('home-sections-no-servers', $L('Server Probe'), $L('No logged-in servers found'))}
+					{homeSectionsCapabilities.map((capability) =>
+						renderInfoItem(
+							`home-sections-cap-${capability.serverId}-${capability.userId}`,
+							formatCapabilityLabel(capability, $L('Server')),
+							formatHomeSectionsCapabilityValue(capability)
+						)
+					)}
+					{renderNavItem(
+						'home-sections-details',
+						$L('View Discovered Sections'),
+						$L('Inspect server sections, keys, and metadata'),
+						() => openIntegrationDetails('homeScreenSections', 'setting-home-sections-details')
+					)}
+					{renderActionItem(
+						'home-sections-editor',
+						$L('Edit Home Sections'),
+						$L('Open section toggle and ordering editor'),
+						() => openHomeRowsEditor('setting-home-sections-editor')
+					)}
+					{renderNavItem(
+						'home-sections-nav',
+						$L('Open Home Page Settings'),
+						$L('Configure rows and image behavior'),
+						() =>
+							pushView({
+								view: 'subcategory',
+								categoryId: 'personalization',
+								subcategoryId: 'homePage',
+								label: $L('Home Page'),
+								returnFocusTo: 'setting-home-sections-nav'
+							})
+					)}
+					{settings.useMoonfinPlugin &&
+						renderActionItem(
+							'home-sections-load',
+							$L('Load Sections From Server'),
+							$L('Pull latest section profile from Moonfin plugin'),
+							() => handleLoadProfile('setting-home-sections-load'),
+							profileLoading ? $L('Loading...') : null
+						)}
+					{settings.useMoonfinPlugin &&
+						renderActionItem(
+							'home-sections-save',
+							$L('Save Sections To Server'),
+							$L('Push current section layout to Moonfin plugin'),
+							() => handleSaveProfile('setting-home-sections-save'),
+							profileSaving ? $L('Saving...') : null
+						)}
+					{integrationProbeStatus && <div className={css.statusMessage}>{integrationProbeStatus}</div>}
+					{moonfinStatus && <div className={css.statusMessage}>{moonfinStatus}</div>}
+					<div className={css.viewDescription}>
+						{$L('Capability detection mirrors Mobile-Desktop plugin probing while keeping cross-platform profile sync controls for Tizen and webOS.')}
+					</div>
+				</>
+			);
+		})()
+	);
+
+	const renderIntegrationsKefinTweaks = () => (
+		(() => {
+			const rowsConfig = normalizeJellyseerrRows(settings.jellyseerrRows);
+			const enabledDiscoverRows = rowsConfig.rowOrder.filter((key) => rowsConfig[key]).length;
+			const availableCapabilities = kefinCapabilities.filter((capability) => capability.available).length;
+			const installedCapabilities = kefinCapabilities.filter((capability) => capability.installed).length;
+			return (
+				<>
+					{renderInfoItem('kefin-status', $L('KefinTweaks'), $L('JavaScript Injector probe'))}
+					{renderInfoItem('kefin-home-sections', $L('Enabled Home Sections'), String((settings.homeRows || []).filter((row) => row.enabled).length))}
+					{renderInfoItem('kefin-discover-sections', $L('Enabled Discover Rows'), String(enabledDiscoverRows))}
+					{renderInfoItem('kefin-detected', $L('Detected Servers'), `${availableCapabilities}/${Math.max(kefinCapabilities.length, 0)}`)}
+					{renderInfoItem('kefin-installed', $L('KefinTweaks Found'), `${installedCapabilities}/${Math.max(kefinCapabilities.length, 0)}`)}
+					{renderInfoItem('kefin-probe-cache', $L('Probe Cache'), formatProbeMetaValue(kefinProbeMeta))}
+					{renderInfoItem('kefin-backoff', $L('Backoff'), formatProbeBackoffValue(kefinProbeMeta))}
+					{renderInfoItem('kefin-row-cache', $L('Row Cache'), formatRowsCacheValue())}
+					{renderActionItem(
+						'kefin-refresh-capabilities',
+						$L('Refresh Plugin Detection'),
+						$L('Probe JavaScript Injector private/public endpoints on all logged-in servers'),
+						() => refreshPluginCapabilities('setting-kefin-refresh-capabilities'),
+						integrationProbeLoading ? $L('Refreshing...') : null
+					)}
+					{renderActionItem(
+						'kefin-force-refresh',
+						$L('Force Retry Now'),
+						$L('Bypass cache and backoff for immediate re-probe'),
+						() => forceRetryPluginCapabilities('setting-kefin-force-refresh'),
+						integrationProbeLoading ? $L('Refreshing...') : null
+					)}
+					{renderActionItem(
+						'kefin-clear-cache',
+						$L('Clear Probe Cache'),
+						$L('Reset probe cache and backoff counters'),
+						() => handleClearProbeCache('setting-kefin-clear-cache')
+					)}
+					{kefinCapabilities.length === 0 &&
+						renderInfoItem('kefin-no-servers', $L('Server Probe'), $L('No logged-in servers found'))}
+					{kefinCapabilities.map((capability) =>
+						renderInfoItem(
+							`kefin-cap-${capability.serverId}-${capability.userId}`,
+							formatCapabilityLabel(capability, $L('Server')),
+							formatKefinCapabilityValue(capability)
+						)
+					)}
+					{renderNavItem(
+						'kefin-details',
+						$L('View Discovered Sections'),
+						$L('Inspect server sections and parsed specs'),
+						() => openIntegrationDetails('kefinTweaks', 'setting-kefin-details')
+					)}
+					{renderActionItem(
+						'kefin-home-rows',
+						$L('Manage Home Sections'),
+						$L('Open local section editor used by both TV platforms'),
+						() => openHomeRowsEditor('setting-kefin-home-rows')
+					)}
+					{renderActionItem(
+						'kefin-discover-rows',
+						$L('Manage Discover Rows'),
+						$L('Configure Seerr discover row visibility'),
+						() => openJellyseerrRows('setting-kefin-discover-rows')
+					)}
+					{settings.useMoonfinPlugin &&
+						renderActionItem(
+							'kefin-load-profile',
+							$L('Load Server Tweaks'),
+							$L('Pull server-managed profile tweaks into this device'),
+							() => handleLoadProfile('setting-kefin-load-profile'),
+							profileLoading ? $L('Loading...') : null
+						)}
+					{settings.useMoonfinPlugin &&
+						renderActionItem(
+							'kefin-save-profile',
+							$L('Save Device Tweaks'),
+							$L('Push current tweaks to server profile for cross-platform use'),
+							() => handleSaveProfile('setting-kefin-save-profile'),
+							profileSaving ? $L('Saving...') : null
+						)}
+					{integrationProbeStatus && <div className={css.statusMessage}>{integrationProbeStatus}</div>}
+					{moonfinStatus && <div className={css.statusMessage}>{moonfinStatus}</div>}
+					<div className={css.viewDescription}>
+						{$L('Detection now follows Mobile-Desktop: read JavaScript Injector config, parse window.KefinTweaksConfig, then keep profile-compatible controls for cross-platform management.')}
+					</div>
+				</>
+			);
+		})()
 	);
 
 	const renderPlaybackAudio = () => (
@@ -1061,18 +1751,6 @@ const Settings = ({ onBack, onLibrariesChanged, panelMode }) => {
 			{renderOptionItem('nextUpBehavior', $L('Next Up Prompt'), getNextUpBehaviorOptions(), $L('Extended'))}
 			{settings.nextUpBehavior !== 'disabled' &&
 				renderSliderItem('nextUpTimeout', $L('Next Up Prompt Timeout'), 0, 30, 1, (v) => (v === 0 ? $L('Instant') : `${v}s`))}
-			{renderMissingItem('still-watching', $L('Still Watching Prompt'))}
-		</>
-	);
-
-	const renderPlaybackOfflineDownloads = () => (
-		<>
-			{renderMissingItem('default-download-quality', $L('Default Download Quality'))}
-			{renderMissingItem('wifi-only', $L('WiFi Only'))}
-			{renderMissingItem('storage-limit', $L('Storage Limit'))}
-			{renderMissingItem('download-location', $L('Download Location'))}
-			{renderMissingItem('save-to-downloads', $L('Save to Downloads Folder'))}
-			{renderMissingItem('concurrent-downloads', $L('Concurrent Downloads'))}
 		</>
 	);
 
@@ -1093,15 +1771,6 @@ const Settings = ({ onBack, onLibrariesChanged, panelMode }) => {
 		</>
 	);
 
-	const renderPlaybackAdvanced = () => (
-		<>
-			{renderMissingItem('video-start-delay', $L('Video Start Delay'))}
-			{renderMissingItem('custom-mpv-conf', $L('Custom MPV Conf'))}
-			{renderMissingItem('mpv-conf-path', $L('MPV Conf Path'))}
-			{renderMissingItem('unsafe-mpv-options', $L('Unsafe MPV Options'))}
-			{renderMissingItem('live-tv-direct', $L('Live TV Direct'))}
-		</>
-	);
 
 	const renderAboutApp = () => (
 		<>
@@ -1114,12 +1783,7 @@ const Settings = ({ onBack, onLibrariesChanged, panelMode }) => {
 		</>
 	);
 
-	const renderAboutAppInfo = () => (
-		<>
-			{renderAboutApp()}
-			{renderMissingItem('update-notifications', $L('Update Notifications'))}
-		</>
-	);
+	const renderAboutAppInfo = () => renderAboutApp();
 
 	const renderPluginMoonfin = () => ( // eslint-disable-line no-unused-vars
 		<>
@@ -1307,8 +1971,8 @@ const Settings = ({ onBack, onLibrariesChanged, panelMode }) => {
 					{ id: 'plugin', label: $L('Plugin'), description: $L('Plugin sync and profile integration') },
 					{ id: 'metadataRatings', label: $L('Metadata & Ratings'), description: $L('Ratings providers and display options') },
 					{ id: 'seerr', label: seerrLabel, description: $L('{seerrLabel} settings and status').replace('{seerrLabel}', seerrLabel) },
-					{ id: 'homeScreenSections', label: $L('Home Screen Sections'), description: $L('Plugin-backed home sections') },
-					{ id: 'kefinTweaks', label: $L('KefinTweaks'), description: $L('KefinTweaks integration and rows') }
+					{ id: 'homeScreenSections', label: $L('Home Screen Sections'), description: $L('Section sync and management info') },
+					{ id: 'kefinTweaks', label: $L('KefinTweaks'), description: $L('Server-side integration info') }
 				];
 			case 'playbackSyncPlay':
 				return [
@@ -1317,9 +1981,7 @@ const Settings = ({ onBack, onLibrariesChanged, panelMode }) => {
 					{ id: 'subtitles', label: $L('Subtitles'), description: $L('Subtitle defaults and direct-play options') },
 					{ id: 'subtitleCustomization', label: $L('Subtitle Customization'), description: $L('Text color, size, and position styling') },
 					{ id: 'automationQueue', label: $L('Automation & Queue'), description: $L('Next up, queueing, and prompt behavior') },
-					{ id: 'offlineDownloads', label: $L('Offline Downloads'), description: $L('Download quality, location, and limits') },
-					{ id: 'syncPlay', label: $L('SyncPlay'), description: $L('Group playback sync controls') },
-					{ id: 'advanced', label: $L('Advanced'), description: $L('Expert playback and MPV options') }
+					{ id: 'syncPlay', label: $L('SyncPlay'), description: $L('Group playback sync controls') }
 				];
 			case 'about': {
 				const subs = [
@@ -1367,9 +2029,9 @@ const Settings = ({ onBack, onLibrariesChanged, panelMode }) => {
 			case 'integrations.seerr':
 				return renderIntegrationsSeerr();
 			case 'integrations.homeScreenSections':
-				return renderMissingItem('home-screen-sections', $L('Home Screen Sections'));
+				return renderIntegrationsHomeScreenSections();
 			case 'integrations.kefinTweaks':
-				return renderMissingItem('kefin-tweaks', $L('KefinTweaks'));
+				return renderIntegrationsKefinTweaks();
 			case 'playbackSyncPlay.video':
 				return renderPlaybackVideo();
 			case 'playbackSyncPlay.audio':
@@ -1380,12 +2042,8 @@ const Settings = ({ onBack, onLibrariesChanged, panelMode }) => {
 				return renderPlaybackSubtitleCustomization();
 			case 'playbackSyncPlay.automationQueue':
 				return renderPlaybackAutomationQueue();
-			case 'playbackSyncPlay.offlineDownloads':
-				return renderPlaybackOfflineDownloads();
 			case 'playbackSyncPlay.syncPlay':
 				return renderPlaybackSyncPlay();
-			case 'playbackSyncPlay.advanced':
-				return renderPlaybackAdvanced();
 			case 'about.appInfo':
 				return renderAboutAppInfo();
 			case 'about.serverInfo':
@@ -1525,7 +2183,7 @@ const Settings = ({ onBack, onLibrariesChanged, panelMode }) => {
 				<div className={css.listInner}>
 					{renderSectionTitle($L('Configure Home Rows'))}
 					<div className={css.viewDescription}>
-						{$L('Enable/disable and reorder the rows that appear on your home screen.')}
+						{$L('Enable/disable and reorder the rows that appear on your home screen using the arrow buttons.')}
 					</div>
 					{tempHomeRows.map((row, index) => (
 						<div key={row.id} className={css.homeRowItem}>
@@ -1557,6 +2215,51 @@ const Settings = ({ onBack, onLibrariesChanged, panelMode }) => {
 							</div>
 						</div>
 					))}
+					{pluginRowsLoading && (
+						<div className={css.loadingMessage}>{$L('Loading discovered plugin rows...')}</div>
+					)}
+					{pluginRowsError && <div className={css.statusMessage}>{pluginRowsError}</div>}
+					{!pluginRowsLoading && tempPluginRows.length > 0 && (
+						<>
+							<div className={css.viewDescription}>
+								{$L('Discovered plugin rows can be toggled and reordered with the same arrow controls.')}
+							</div>
+							{tempPluginRows.map((row, index) => (
+								<div key={row.id} className={css.homeRowItem}>
+									<SpottableDiv
+										className={css.listItem}
+										onClick={() => togglePluginRow(row.id)}
+										spotlightId={`plugin-row-${index}`}
+									>
+										<div className={css.listItemBody}>
+											<div className={css.listItemHeading}>{row.title}</div>
+											<div className={css.listItemCaption}>{formatPluginRowSource(row.source)}</div>
+										</div>
+										<div className={css.listItemTrailing}>{renderToggle(row.enabled)}</div>
+									</SpottableDiv>
+									<div className={css.homeRowControls}>
+										<Button
+											onClick={() => movePluginRowUp(row.id)}
+											disabled={index === 0}
+											size='small'
+											icon='arrowlargeup'
+											spotlightId={`plugin-row-up-${row.id}`}
+										/>
+										<Button
+											onClick={() => movePluginRowDown(row.id)}
+											disabled={index === tempPluginRows.length - 1}
+											size='small'
+											icon='arrowlargedown'
+											spotlightId={`plugin-row-down-${row.id}`}
+										/>
+									</div>
+								</div>
+							))}
+						</>
+					)}
+					{!pluginRowsLoading && pluginRowsLoaded && !pluginRowsError && tempPluginRows.length === 0 && (
+						<div className={css.viewDescription}>{$L('No discovered plugin rows are currently available.')}</div>
+					)}
 					<div className={css.actionBar}>
 						<Button onClick={resetHomeRows} size='small' spotlightId='homerow-reset'>
 							{$L('Reset to Default')}
@@ -1569,6 +2272,129 @@ const Settings = ({ onBack, onLibrariesChanged, panelMode }) => {
 			</div>
 		</ViewContainer>
 	);
+
+	const renderJellyseerrRowsView = () => {
+		const config = normalizeJellyseerrRows(tempJellyseerrRows);
+		const orderedRows = config.rowOrder
+			.map((key) => ({ key, option: JELLYSEERR_ROW_OPTIONS.find((entry) => entry.key === key) }))
+			.filter((entry) => !!entry.option);
+
+		return (
+			<ViewContainer className={css.viewContainer} spotlightId='jellyseerr-rows-view'>
+				<div className={css.listContent} onFocus={handleListFocus}>
+					<div className={css.listInner}>
+						{renderSectionTitle($L('Discover Rows'))}
+						<div className={css.viewDescription}>
+							{$L('Choose which Seerr discovery rows are visible in the app.')}
+						</div>
+						{orderedRows.map(({ key, option }) => (
+							<SpottableDiv
+								key={key}
+								className={css.listItem}
+								onClick={() => toggleJellyseerrRow(key)}
+								spotlightId={`jellyseerr-row-${key}`}
+							>
+								<div className={css.listItemBody}>
+									<div className={css.listItemHeading}>{option.label}</div>
+								</div>
+								<div className={css.listItemTrailing}>{renderToggle(!!config[key])}</div>
+							</SpottableDiv>
+						))}
+						<div className={css.actionBar}>
+							<Button onClick={resetJellyseerrRows} size='small' spotlightId='jellyseerr-rows-reset'>
+								{$L('Reset to Default')}
+							</Button>
+							<Button onClick={saveJellyseerrRows} size='small' spotlightId='jellyseerr-rows-save'>
+								{$L('Save')}
+							</Button>
+						</div>
+					</div>
+				</div>
+			</ViewContainer>
+		);
+	};
+
+	const renderIntegrationDetailsView = () => {
+		const mode = currentView.mode;
+		const isHomeSections = mode === 'homeScreenSections';
+		const integrationCapabilities = isHomeSections ? homeSectionsCapabilities : kefinCapabilities;
+		const title = isHomeSections ? $L('Home Screen Sections Details') : $L('KefinTweaks Details');
+
+		return (
+			<ViewContainer className={css.viewContainer} spotlightId='integration-details-view'>
+				<div className={css.listContent} onFocus={handleListFocus}>
+					<div className={css.listInner}>
+						{renderSectionTitle(title)}
+						<div className={css.viewDescription}>
+							{isHomeSections
+								? $L('Per-server Home Screen plugin sections and endpoint keys discovered from active sessions.')
+								: $L('Per-server KefinTweaks sections discovered from JavaScript Injector configuration.')}
+						</div>
+						{renderActionItem(
+							'integration-details-refresh',
+							$L('Refresh Detection'),
+							$L('Run standard probe using cache and backoff policy'),
+							() => refreshPluginCapabilities('setting-integration-details-refresh'),
+							integrationProbeLoading ? $L('Refreshing...') : null
+						)}
+						{renderActionItem(
+							'integration-details-force-refresh',
+							$L('Force Retry Now'),
+							$L('Bypass cache and backoff for immediate re-probe'),
+							() => forceRetryPluginCapabilities('setting-integration-details-force-refresh'),
+							integrationProbeLoading ? $L('Refreshing...') : null
+						)}
+						{integrationCapabilities.length === 0 && (
+							<div className={css.loadingMessage}>{$L('No discovered sections for current servers')}</div>
+						)}
+						{integrationCapabilities.map((capability, capabilityIndex) => {
+							const sections = Array.isArray(capability.sections) ? capability.sections : [];
+							return (
+								<div
+									key={`integration-detail-${capability.serverId}-${capability.userId}-${capabilityIndex}`}
+									className={css.integrationServerBlock}
+								>
+									{renderInfoItem(
+										`integration-cap-${mode}-${capability.serverId}-${capability.userId}`,
+										formatCapabilityLabel(capability, $L('Server')),
+										isHomeSections ? formatHomeSectionsCapabilityValue(capability) : formatKefinCapabilityValue(capability)
+									)}
+									{sections.length === 0 &&
+										renderInfoItem(
+											`integration-cap-empty-${mode}-${capability.serverId}-${capability.userId}`,
+											$L('Discovered Sections'),
+											$L('None')
+										)}
+									{sections.map((section, sectionIndex) => {
+										const heading = section.displayText || section.section || section.id || $L('Section');
+										const keyText = isHomeSections
+											? `${$L('Section Key')}: ${section.section || $L('Unknown')}`
+											: `${$L('Section Id')}: ${section.id || $L('Unknown')}`;
+										const additionalText = isHomeSections
+											? (section.additionalData ? `${$L('Additional Data')}: ${section.additionalData}` : null)
+											: (section.spec ? formatKefinSpec(section.spec) : null);
+										return (
+											<SpottableDiv
+												key={`integration-sec-${mode}-${capability.serverId}-${capability.userId}-${sectionIndex}`}
+												className={css.listItem}
+												spotlightId={`integration-sec-${mode}-${capabilityIndex}-${sectionIndex}`}
+											>
+												<div className={css.listItemBody}>
+													<div className={css.listItemHeading}>{heading}</div>
+													<div className={css.listItemCaption}>{keyText}</div>
+													{additionalText && <div className={css.integrationSpec}>{additionalText}</div>}
+												</div>
+											</SpottableDiv>
+										);
+									})}
+								</div>
+							);
+						})}
+					</div>
+				</div>
+			</ViewContainer>
+		);
+	};
 
 	const isUnifiedModal = settings.unifiedLibraryMode && hasMultipleServers;
 
@@ -1628,6 +2454,8 @@ const Settings = ({ onBack, onLibrariesChanged, panelMode }) => {
 			{currentView.view === 'options' && renderOptionsView()}
 			{currentView.view === 'themes' && renderThemesView()}
 			{currentView.view === 'homeRows' && renderHomeRowsView()}
+			{currentView.view === 'jellyseerrRows' && renderJellyseerrRowsView()}
+			{currentView.view === 'integrationDetails' && renderIntegrationDetailsView()}
 			{currentView.view === 'libraries' && renderLibrariesView()}
 			<ClearDataDialog
 				open={clearDataDialogOpen}
