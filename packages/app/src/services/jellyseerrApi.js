@@ -199,10 +199,12 @@ throw new Error('Invalid response from Moonfin');
 }
 };
 
-export const moonfinLogin = async (username, password) => {
+export const moonfinLogin = async (username, password, authType = 'jellyfin') => {
 if (!jellyfinServerUrl || !jellyfinAccessToken) {
 throw new Error('Moonfin not configured');
 }
+
+const normalizedAuthType = authType === 'local' ? 'local' : 'jellyfin';
 
 return moonfinAuthRequest(
 `${jellyfinServerUrl}/Moonfin/Jellyseerr/Login`,
@@ -212,7 +214,7 @@ return moonfinAuthRequest(
 'Accept': 'application/json',
 'Authorization': `MediaBrowser Token="${jellyfinAccessToken}"`
 },
-JSON.stringify({username, password}),
+JSON.stringify({username, password, authType: normalizedAuthType}),
 30000
 );
 };

@@ -5,6 +5,8 @@ import {useSettings} from './SettingsContext';
 
 const JellyseerrContext = createContext(null);
 
+const normalizeMoonfinAuthType = (authType) => (authType === 'local' ? 'local' : 'jellyfin');
+
 export const JellyseerrProvider = ({children}) => {
 const {syncFromServer} = useSettings();
 const [isEnabled, setIsEnabled] = useState(false);
@@ -16,12 +18,15 @@ const [isMoonfin, setIsMoonfin] = useState(false);
 const [variant, setVariant] = useState('jellyseerr');
 const [displayName, setDisplayName] = useState('Jellyseerr');
 const [pluginInfo, setPluginInfo] = useState(null);
+const [moonfinAuthType, setMoonfinAuthTypeState] = useState('jellyfin');
 
 useEffect(() => {
 const init = async () => {
 try {
 const config = await getFromStorage('jellyseerr');
 if (config?.moonfin) {
+const initialAuthType = normalizeMoonfinAuthType(config.moonfinAuthType);
+setMoonfinAuthTypeState(initialAuthType);
 jellyseerrApi.setMoonfinConfig(config.jellyfinServerUrl, config.jellyfinAccessToken);
 jellyseerrApi.setMoonfinMode(true);
 jellyseerrApi.setConfig(config.url || config.jellyfinServerUrl, config.userId || 'moonfin-user');
@@ -32,6 +37,9 @@ setIsMoonfin(true);
 try {
 const status = await jellyseerrApi.getMoonfinStatus();
 if (status?.authenticated) {
+if (status.authType) {
+setMoonfinAuthTypeState(normalizeMoonfinAuthType(status.authType));
+}
 setUser({
 displayName: status.displayName,
 jellyseerrUserId: status.jellyseerrUserId,
@@ -76,6 +84,10 @@ init();
 }, []);
 
 const configureWithMoonfin = useCallback(async (jellyfinServer, token) => {
+const existingConfig = await getFromStorage('jellyseerr');
+const savedAuthType = normalizeMoonfinAuthType(existingConfig?.moonfinAuthType);
+setMoonfinAuthTypeState(savedAuthType);
+
 jellyseerrApi.setMoonfinConfig(jellyfinServer, token);
 jellyseerrApi.setMoonfinMode(true);
 jellyseerrApi.setConfig(jellyfinServer, 'moonfin-user');
@@ -100,6 +112,10 @@ console.log('[Jellyseerr] Settings sync failed:', e.message)
 );
 
 if (status?.authenticated) {
+const resolvedAuthType = normalizeMoonfinAuthType(status.authType || savedAuthType);
+if (status.authType) {
+setMoonfinAuthTypeState(normalizeMoonfinAuthType(status.authType));
+}
 const userData = {
 displayName: status.displayName,
 jellyseerrUserId: status.jellyseerrUserId,
@@ -116,7 +132,8 @@ moonfin: true,
 url: status.url || jellyfinServer,
 jellyfinServerUrl: jellyfinServer,
 jellyfinAccessToken: token,
-userId: status.jellyseerrUserId
+userId: status.jellyseerrUserId,
+moonfinAuthType: resolvedAuthType
 });
 
 return {authenticated: true, user: userData, url: status.url};
@@ -128,15 +145,17 @@ setIsMoonfin(true);
 await saveToStorage('jellyseerr', {
 moonfin: true,
 jellyfinServerUrl: jellyfinServer,
-jellyfinAccessToken: token
+jellyfinAccessToken: token,
+moonfinAuthType: savedAuthType
 });
 
 return {authenticated: false, url: status?.url};
 }
 }, [syncFromServer]);
 
-const loginWithMoonfin = useCallback(async (username, password) => {
-await jellyseerrApi.moonfinLogin(username, password);
+const loginWithMoonfin = useCallback(async (username, password, authType = 'jellyfin') => {
+const normalizedAuthType = normalizeMoonfinAuthType(authType);
+await jellyseerrApi.moonfinLogin(username, password, normalizedAuthType);
 const status = await jellyseerrApi.getMoonfinStatus();
 if (status?.authenticated) {
 const userData = {
@@ -144,15 +163,18 @@ displayName: status.displayName,
 jellyseerrUserId: status.jellyseerrUserId,
 permissions: status.permissions ?? 0xFFFFFFFF
 };
+setMoonfinAuthTypeState(normalizedAuthType);
+const config = await getFromStorage('jellyseerr');
+const resolvedUrl = status.url || config?.url || config?.jellyfinServerUrl || null;
 setUser(userData);
 setIsAuthenticated(true);
-setServerUrl(status.url);
+setServerUrl(resolvedUrl);
 
-const config = await getFromStorage('jellyseerr');
 await saveToStorage('jellyseerr', {
 ...config,
-url: status.url,
-userId: status.jellyseerrUserId
+url: resolvedUrl,
+userId: status.jellyseerrUserId,
+moonfinAuthType: normalizedAuthType
 });
 
 return userData;
@@ -160,11 +182,35 @@ return userData;
 throw new Error('Login succeeded but session not established');
 }, []);
 
+const setMoonfinAuthType = useCallback(async (authType) => {
+const normalizedAuthType = normalizeMoonfinAuthType(authType);
+setMoonfinAuthTypeState(normalizedAuthType);
+
+const config = await getFromStorage('jellyseerr');
+if (config?.moonfin) {
+await saveToStorage('jellyseerr', {
+...config,
+moonfinAuthType: normalizedAuthType
+});
+}
+}, []);
+
 const logout = useCallback(async () => {
 try { await jellyseerrApi.moonfinLogout(); } catch (e) { void e; }
 setUser(null);
 setIsAuthenticated(false);
-}, []);
+
+const config = await getFromStorage('jellyseerr');
+if (config?.moonfin) {
+await saveToStorage('jellyseerr', {
+...config,
+url: config.jellyfinServerUrl || config.url,
+userId: null,
+moonfinAuthType: normalizeMoonfinAuthType(config.moonfinAuthType || moonfinAuthType)
+});
+setServerUrl(config.jellyfinServerUrl || config.url || null);
+}
+}, [moonfinAuthType]);
 
 const disable = useCallback(async () => {
 await removeFromStorage('jellyseerr');
@@ -179,6 +225,7 @@ setIsMoonfin(false);
 setVariant('jellyseerr');
 setDisplayName('Jellyseerr');
 setPluginInfo(null);
+setMoonfinAuthTypeState('jellyfin');
 }, []);
 
 return (
@@ -192,9 +239,11 @@ isMoonfin,
 variant,
 displayName,
 pluginInfo,
+moonfinAuthType,
 api: jellyseerrApi,
 configureWithMoonfin,
 loginWithMoonfin,
+setMoonfinAuthType,
 logout,
 disable
 }}>
