@@ -4,6 +4,7 @@ import Spottable from '@enact/spotlight/Spottable';
 import SpotlightContainerDecorator from '@enact/spotlight/SpotlightContainerDecorator';
 import Spotlight from '@enact/spotlight';
 import {Scroller} from '@enact/sandstone/Scroller';
+import {createPortal} from 'react-dom';
 
 import {useAuth} from '../../context/AuthContext';
 import {useSettings} from '../../context/SettingsContext';
@@ -14,7 +15,7 @@ import LoadingSpinner from '../../components/LoadingSpinner';
 import RatingsRow from '../../components/RatingsRow';
 import {formatDuration, getImageUrl, getBackdropId, getLogoUrl} from '../../utils/helpers';
 import {KEYS, isBackKey} from '../../utils/keys';
-import {fetchVideoStreamUrl} from '../../services/youtubeTrailer';
+import {fetchVideoStreamUrl, extractYouTubeIdFromUrl} from '../../services/youtubeTrailer';
 import {formatTime} from '../Player/PlayerConstants';
 import AddToPlaylistModal from '../../components/AddToPlaylistModal';
 import DeleteItemDialog from '../../components/DeleteItemDialog';
@@ -499,20 +500,19 @@ const Details = ({itemId, initialItem, onPlay, onSelectItem, onSelectPerson, onI
 	}, [item, onPlay]);
 
 	const handleTrailer = useCallback(() => {
-		// Trailers disabled — isolating decoder exhaustion issue
-		// if (item?.LocalTrailerCount > 0) {
-		// 	onPlay?.(item, false, false, true);
-		// } else if (item?.RemoteTrailers?.length > 0) {
-		// 	const trailerUrl = item.RemoteTrailers[0].Url || '';
-		// 	const videoId = extractYouTubeIdFromUrl(trailerUrl);
-		// 	if (videoId) {
-		// 		setTrailerOverlay(videoId);
-		// 		window.requestAnimationFrame(() => Spotlight.focus('trailer-close-btn'));
-		// 	} else if (trailerUrl) {
-		// 		window.open(trailerUrl, '_blank');
-		// 	}
-		// }
-	}, []);
+		if (item?.LocalTrailerCount > 0) {
+			onPlay?.(item, false, false, true);
+		} else if (item?.RemoteTrailers?.length > 0) {
+			const trailerUrl = item.RemoteTrailers[0].Url || '';
+			const videoId = extractYouTubeIdFromUrl(trailerUrl);
+			if (videoId) {
+				setTrailerOverlay(videoId);
+				window.requestAnimationFrame(() => Spotlight.focus('trailer-close-btn'));
+			} else if (trailerUrl) {
+				window.open(trailerUrl, '_blank');
+			}
+		}
+	}, [item, onPlay]);
 
 	const handleToggleFavorite = useCallback(async () => {
 		if (!item) return;
@@ -598,6 +598,15 @@ const Details = ({itemId, initialItem, onPlay, onSelectItem, onSelectPerson, onI
 		resolveStream();
 		return () => { cancelled = true; };
 	}, [trailerOverlay]);
+
+	useEffect(() => {
+		if (!trailerOverlay || !trailerVideoRef.current) return;
+		const video = trailerVideoRef.current;
+		const muted = !!settings.featuredTrailerMuted;
+		video.muted = muted;
+		video.defaultMuted = muted;
+		video.volume = muted ? 0 : 1;
+	}, [settings.featuredTrailerMuted, trailerOverlay, trailerStreamUrl]);
 
 	const openModal = useCallback((modal) => {
 	  lastFocusedElementRef.current = document.activeElement;
@@ -1986,6 +1995,39 @@ const handleSectionKeyDown = useCallback((ev) => {
 
 	// === MAIN DETAILS RENDER (Movie / Series / Episode / BoxSet) ===
 
+	const trailerOverlayContent = trailerOverlay && (
+		<div className={css.trailerOverlay} onClick={handleCloseTrailer} onKeyDown={handleTrailerOverlayKeyDown}>
+			<SpottableButton className={css.trailerCloseBtn} onClick={handleCloseTrailer} spotlightId="trailer-close-btn">
+				<svg viewBox="0 0 24 24" width="32" height="32" fill="currentColor">
+					<path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
+				</svg>
+			</SpottableButton>
+			<div className={css.trailerIframeWrap} onClick={handleStopPropagation}>
+				{trailerStreamUrl ? (
+					<video
+						ref={trailerVideoRef}
+						className={css.trailerIframe}
+						src={trailerStreamUrl}
+						autoPlay
+						controls
+						playsInline
+						muted={settings.featuredTrailerMuted}
+					/>
+				) : (
+					<div className={css.trailerLoading}>
+						{$L('Loading trailer...')}
+					</div>
+				)}
+			</div>
+		</div>
+	);
+
+	const trailerOverlayLayer = trailerOverlayContent
+		? (typeof document !== 'undefined' && document.body
+			? createPortal(trailerOverlayContent, document.body)
+			: trailerOverlayContent)
+		: null;
+
 	return (
 		<div className={css.page}>
 			{renderBackdrop()}
@@ -2476,31 +2518,7 @@ const handleSectionKeyDown = useCallback((ev) => {
 
 			{renderMediaInfoModal()}
 
-			{trailerOverlay && (
-				<div className={css.trailerOverlay} onClick={handleCloseTrailer} onKeyDown={handleTrailerOverlayKeyDown}>
-					<SpottableButton className={css.trailerCloseBtn} onClick={handleCloseTrailer} spotlightId="trailer-close-btn">
-						<svg viewBox="0 0 24 24" width="32" height="32" fill="currentColor">
-							<path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
-						</svg>
-					</SpottableButton>
-					<div className={css.trailerIframeWrap} onClick={handleStopPropagation}>
-						{trailerStreamUrl ? (
-							<video
-								ref={trailerVideoRef}
-								className={css.trailerIframe}
-								src={trailerStreamUrl}
-								autoPlay
-								controls
-								playsInline
-							/>
-						) : (
-							<div className={css.trailerLoading}>
-								{$L('Loading trailer...')}
-							</div>
-						)}
-					</div>
-				</div>
-			)}
+			{trailerOverlayLayer}
 
 			<AddToPlaylistModal
 				open={showPlaylistModal}

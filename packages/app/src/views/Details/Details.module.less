@@ -1822,7 +1822,7 @@
 	left: 0;
 	right: 0;
 	bottom: 0;
-	z-index: 9999;
+	z-index: 120000;
 	background: rgba(0, 0, 0, 0.92);
 	display: flex;
 	align-items: center;
@@ -1854,11 +1854,14 @@
 }
 
 .trailerIframeWrap {
-	width: 85%;
-	max-width: 1600px;
-	height: 0;
-	padding-bottom: 47.8125%; /* 85% * 9/16 = 16:9 aspect ratio */
-	position: relative;
+	width: 100vw;
+	height: 100vh;
+	max-width: none;
+	max-height: none;
+	padding-bottom: 0;
+	position: absolute;
+	top: 0;
+	left: 0;
 }
 
 .trailerIframe {
@@ -1869,6 +1872,7 @@
 	height: 100%;
 	border: none;
 	background: #000;
+	object-fit: contain;
 }
 
 .trailerLoading {

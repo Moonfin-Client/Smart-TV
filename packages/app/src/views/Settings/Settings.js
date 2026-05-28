@@ -1348,7 +1348,7 @@ const Settings = ({ onBack, onLibrariesChanged, panelMode }) => {
 				$L('Automatically play trailer previews in the featured media bar')
 			)}
 			{settings.featuredTrailerPreview &&
-				renderToggleItem('featuredTrailerMuted', $L('Mute Trailers'), $L('Mute trailer previews in the featured media bar'))}
+				renderToggleItem('featuredTrailerMuted', $L('Mute Trailer Audio'), $L('Mute trailer previews in the featured media bar and details screen trailer overlay'))}
 		</>
 	);
 

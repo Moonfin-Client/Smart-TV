@@ -4,6 +4,7 @@ import Spotlight from '@enact/spotlight';
 import $L from '@enact/i18n/$L';
 import {getImageUrl, getBackdropId, formatDuration} from '../../utils/helpers';
 import RatingsRow from '../../components/RatingsRow';
+import {createApiForServer} from '../../services/jellyfinApi';
 import {KEYS} from '../../utils/keys';
 import css from './Browse.module.less';
 
@@ -18,6 +19,7 @@ const FeaturedBanner = memo(({
 	isVisible,
 	featuredItems,
 	serverUrl,
+	api,
 	settings,
 	getItemServerUrl,
 	onSelectItem,
@@ -104,7 +106,7 @@ const FeaturedBanner = memo(({
 		};
 	}, [isVisible, featuredItems.length, featuredFocused, settings.carouselSpeed, trailerActive, startCarouselTimer]);
 
-	const stopTrailer = useCallback(async () => {
+	const stopTrailer = useCallback(() => {
 		if (trailerRevealTimerRef.current) {
 			clearTimeout(trailerRevealTimerRef.current);
 			trailerRevealTimerRef.current = null;
@@ -117,8 +119,11 @@ const FeaturedBanner = memo(({
 		const video = trailerVideoRef.current;
 		if (video) {
 			try { video.pause(); } catch (e) { /* ignore */ }
-			const {cleanupVideoElement} = await import('@moonfin/platform-webos/video');
-			cleanupVideoElement(video);
+			try {
+				video.src = '';
+				video.removeAttribute('src');
+				if (video.srcObject) video.srcObject = null;
+			} catch (e) { /* ignore */ }
 			video.classList.remove(css.trailerVisible);
 			video.classList.remove(css.trailerVideo);
 			video.onplaying = null;
@@ -130,9 +135,28 @@ const FeaturedBanner = memo(({
 		sponsorSegmentsRef.current = [];
 	}, []);
 
-	const startTrailerPreview = useCallback(async (videoId) => {
+	const getRemoteTrailersForItem = useCallback(async (item) => {
+		if (!item?.Id) return [];
+
+		const initialTrailers = Array.isArray(item.RemoteTrailers) ? item.RemoteTrailers : [];
+		if (initialTrailers.length > 0) return initialTrailers;
+
+		try {
+			const serverApi = item._serverUrl && item._serverAccessToken
+				? createApiForServer(item._serverUrl, item._serverAccessToken, item._serverUserId)
+				: api;
+			if (!serverApi?.getItem) return [];
+			const detailed = await serverApi.getItem(item.Id);
+			return Array.isArray(detailed?.RemoteTrailers) ? detailed.RemoteTrailers : [];
+		} catch {
+			return [];
+		}
+	}, [api]);
+
+	const startTrailerPreview = useCallback(async (videoId, directUrl = null) => {
+		const requestId = videoId || directUrl || null;
 		trailerStateRef.current = 'resolving';
-		trailerVideoIdRef.current = videoId;
+		trailerVideoIdRef.current = requestId;
 
 		const [{fetchSponsorSegments, fetchVideoStreamUrl, getTrailerStartTime}, {getSharedVideoElement}] = await Promise.all([
 			import('../../services/youtubeTrailer'),
@@ -140,28 +164,31 @@ const FeaturedBanner = memo(({
 		]);
 
 		let segments = [];
-		let streamUrl = null;
+		let streamUrl = directUrl || null;
+		let startTime = 0;
 		try {
-			const results = await Promise.all([
-				fetchSponsorSegments(videoId).catch(() => []),
-				fetchVideoStreamUrl(videoId, false)
-			]);
-			segments = results[0];
-			streamUrl = results[1];
+			if (!streamUrl && videoId) {
+				const results = await Promise.all([
+					fetchSponsorSegments(videoId).catch(() => []),
+					fetchVideoStreamUrl(videoId, false)
+				]);
+				segments = results[0];
+				streamUrl = results[1];
+				startTime = getTrailerStartTime(segments);
+			}
 		} catch (e) { /* ignore */ }
 
-		if (trailerStateRef.current !== 'resolving' || trailerVideoIdRef.current !== videoId) return;
+		if (trailerStateRef.current !== 'resolving' || trailerVideoIdRef.current !== requestId) return;
 		if (!streamUrl) {
 			trailerStateRef.current = 'unavailable';
 			return;
 		}
 		sponsorSegmentsRef.current = segments;
 
-		const startTime = getTrailerStartTime(segments);
 		const container = trailerContainerRef.current;
 		if (!container) return;
 
-		const isMuted = settings.featuredTrailerMuted;
+		const preferMuted = settings.featuredTrailerMuted;
 
 		let video = trailerVideoRef.current;
 		if (!video) {
@@ -172,8 +199,8 @@ const FeaturedBanner = memo(({
 		video.playsInline = true;
 		video.controls = false;
 
-		video.muted = isMuted;
-		video.volume = isMuted ? 0 : 1;
+		video.muted = preferMuted;
+		video.volume = preferMuted ? 0 : 1;
 		video.autoplay = true;
 		video.classList.remove(css.trailerVisible);
 
@@ -200,10 +227,10 @@ const FeaturedBanner = memo(({
 		}
 
 		video.onplaying = () => {
-			if (trailerStateRef.current === 'resolving' && trailerVideoIdRef.current === videoId) {
+			if (trailerStateRef.current === 'resolving' && trailerVideoIdRef.current === requestId) {
 				trailerStateRef.current = 'playing';
 				trailerRevealTimerRef.current = setTimeout(() => {
-					if (trailerStateRef.current === 'playing' && trailerVideoIdRef.current === videoId) {
+					if (trailerStateRef.current === 'playing' && trailerVideoIdRef.current === requestId) {
 						video.classList.add(css.trailerVisible);
 						setTrailerActive(true);
 					}
@@ -223,25 +250,71 @@ const FeaturedBanner = memo(({
 		video.src = streamUrl;
 		if (startTime > 0) video.currentTime = startTime;
 		const playPromise = video.play();
-		if (playPromise) playPromise.catch(() => {});
+		if (playPromise) {
+			playPromise.catch(() => {
+				// Autoplay with audio can be blocked; retry muted to keep previews working.
+				if (!video || video.muted) return;
+				video.muted = true;
+				video.volume = 0;
+				const retryPromise = video.play();
+				if (retryPromise) retryPromise.catch(() => {});
+			});
+		}
 	}, [stopTrailer, settings.featuredTrailerMuted]);
 
 	useEffect(() => {
-		stopTrailer();
-		return;
-		/* eslint-disable no-unreachable */
 		if (!settings.featuredTrailerPreview || !isVisible || !currentFeatured) {
 			stopTrailer();
 			return;
 		}
+
 		stopTrailer();
-		import('../../services/youtubeTrailer').then(({extractYouTubeId}) => {
-			const videoId = extractYouTubeId(currentFeatured);
-			if (videoId) {
-				startTrailerPreview(videoId);
+		let cancelled = false;
+
+		const resolveAndStartTrailer = async () => {
+			try {
+				const {extractYouTubeId, extractYouTubeIdFromUrl} = await import('../../services/youtubeTrailer');
+				if (cancelled) return;
+
+				let resolvedVideoId = extractYouTubeId(currentFeatured);
+				let directUrl = null;
+				const remoteTrailers = await getRemoteTrailersForItem(currentFeatured);
+				if (cancelled) return;
+
+				if (!resolvedVideoId && remoteTrailers.length > 0) {
+					for (let i = 0; i < remoteTrailers.length; i++) {
+						const trailerUrl = remoteTrailers[i]?.Url || remoteTrailers[i]?.url || '';
+						if (!trailerUrl) continue;
+
+						const trailerVideoId = extractYouTubeIdFromUrl(trailerUrl);
+						if (trailerVideoId) {
+							resolvedVideoId = trailerVideoId;
+							break;
+						}
+
+						if (!directUrl) {
+							directUrl = trailerUrl;
+						}
+					}
+				}
+
+				if (cancelled) return;
+
+				if (resolvedVideoId || directUrl) {
+					startTrailerPreview(resolvedVideoId, directUrl);
+				}
+			} catch (e) {
+				if (!cancelled) stopTrailer();
 			}
-		});
-	}, [currentIndex, currentFeatured, isVisible, settings.featuredTrailerPreview, startTrailerPreview, stopTrailer]);
+		};
+
+		resolveAndStartTrailer();
+
+		return () => {
+			cancelled = true;
+			stopTrailer();
+		};
+	}, [currentIndex, currentFeatured, isVisible, settings.featuredTrailerPreview, getRemoteTrailersForItem, startTrailerPreview, stopTrailer]);
 
 	useEffect(() => {
 		const handleVisibility = () => {

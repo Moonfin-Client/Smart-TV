@@ -1360,6 +1360,7 @@ const Browse = ({
 							isVisible={browseMode === 'featured'}
 							featuredItems={featuredItems}
 							serverUrl={serverUrl}
+							api={api}
 							settings={settings}
 							getItemServerUrl={getItemServerUrl}
 							onSelectItem={handleSelectItem}
