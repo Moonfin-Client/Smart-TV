@@ -799,9 +799,9 @@ const Settings = ({ onBack, onLibrariesChanged, panelMode }) => {
 
 	const handleSeerrLogin = useCallback(async () => {
 		const username = seerrUsername.trim();
-		if (!username || !seerrPassword) {
+		if (!username) {
 			setSeerrAuthMessage('');
-			setSeerrAuthError($L('Enter username/email and password.'));
+			setSeerrAuthError($L('Enter username/email.'));
 			return;
 		}
 
@@ -1679,7 +1679,7 @@ const Settings = ({ onBack, onLibrariesChanged, panelMode }) => {
 			{renderToggleItem('passthroughEnabled', $L('Audio Passthrough'), $L('Enable advanced bitstream passthrough for external audio devices'), 'speaker')}
 			{renderToggleItem('ac3Passthrough', $L('AC3 Passthrough'), $L('Allow Dolby Digital passthrough when available'), 'speaker')}
 			{renderToggleItem('eac3Passthrough', $L('E-AC3 Passthrough'), $L('Allow Dolby Digital Plus passthrough when available'), 'speaker')}
-			{renderToggleItem('truehdPassthrough', $L('TrueHD Passthrough'), $L('Allow Dolby TrueHD passthrough when available'), 'speaker')}
+			{renderToggleItem('truehdPassthrough', $L('TrueHD Passthrough (Experimental)'), $L('Allow Dolby TrueHD passthrough when available'), 'speaker')}
 		</>
 	);
 
@@ -1869,7 +1869,7 @@ const Settings = ({ onBack, onLibrariesChanged, panelMode }) => {
 						<SpottableButton
 							className={css.actionButton}
 							onClick={handleSeerrLogin}
-							disabled={seerrAuthSubmitting || !seerrUsername.trim() || !seerrPassword}
+							disabled={seerrAuthSubmitting || !seerrUsername.trim()}
 							spotlightId='seerr-signin'
 						>
 							{seerrAuthSubmitting ? $L('Signing In...') : $L('Sign In')}

@@ -525,6 +525,11 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 		video.onerror = null;
 		video.className = '';
 
+		video.muted = false;
+		video.defaultMuted = false;
+		video.volume = 1;
+		video.removeAttribute('muted');
+
 		if (containerRef.current && !containerRef.current.contains(video)) {
 			containerRef.current.appendChild(video);
 		}
@@ -944,6 +949,11 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 
 		// autoplay must be re-set because hls.js path overrides it to false
 		video.autoplay = true;
+
+		video.muted = false;
+		video.defaultMuted = false;
+		video.volume = 1;
+		video.removeAttribute('muted');
 
 		const setSourceAndPlay = () => {
 			console.log('[Player] Setting video source now');
