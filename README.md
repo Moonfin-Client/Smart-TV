@@ -140,7 +140,7 @@ Seerr/Jellyseerr integration uses the **Moonfin Jellyfin Plugin** to proxy reque
 
 1. Install the [Moonfin Plugin](https://github.com/Moonfin-Client/Plugin) on your Jellyfin server
 2. Configure the plugin with your Seerr/Jellyseerr server URL and API key in the Jellyfin admin dashboard
-3. In Moonfin on your TV, go to **Settings → PLugin** and enable the integration — no additional URL or key entry is needed on the TV side, it connects through your Jellyfin server automatically
+3. In Moonfin on your TV, go to **Settings → Plugin** and enable the integration — no additional URL or key entry is needed on the TV side, it connects through your Jellyfin server automatically
 
 > **Note:** The plugin acts as a server-side proxy, so your TV only needs to reach your Jellyfin server. Seerr/Jellyseerr does not need to be directly accessible from the TV.
 ---
