@@ -405,6 +405,17 @@ const getNextUpBehaviorOptions = () => [
 	{ value: 'disabled', label: $L('Disabled') }
 ];
 
+const getUiLanguageOptions = () => [
+	{ value: 'en-US', label: $L('English') },
+	{ value: 'de', label: $L('German') },
+	{ value: 'es', label: $L('Spanish') },
+	{ value: 'fr', label: $L('French') },
+	{ value: 'hu', label: $L('Hungarian') },
+	{ value: 'pl', label: $L('Polish') },
+	{ value: 'pt-BR', label: $L('Portuguese (Brazil)') },
+	{ value: 'ru', label: $L('Russian') }
+];
+
 const getMediaSegmentActionOptions = () => [
 	{ value: 'ask', label: $L('Ask to Skip') },
 	{ value: 'auto', label: $L('Auto Skip') },
@@ -1425,6 +1436,7 @@ const Settings = ({ onBack, onLibrariesChanged, panelMode }) => {
 
 	const renderPersonalizationGeneralStyle = () => (
 		<>
+			{renderOptionItem('uiLanguage', $L('App Language'), getUiLanguageOptions(), $L('English'), 'language')}
 			{renderNavItem(
 				'themeSelection',
 				$L('Theme'),
