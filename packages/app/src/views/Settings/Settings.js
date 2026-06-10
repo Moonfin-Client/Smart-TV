@@ -177,7 +177,8 @@ const getFeaturedBarStyleOptions = () => [
 	{ value: 'moonfin', label: $L('Moonfin') },
 	{ value: 'makd', label: $L('MakD') },
 	{ value: 'gallery', label: $L('Gallery') },
-	{ value: 'banner', label: $L('Banner') }
+	{ value: 'banner', label: $L('Banner') },
+	{ value: 'bookshelf', label: $L('Bookshelf') }
 ];
 
 const getFeaturedItemCountOptions = () => [
@@ -918,7 +919,7 @@ const Settings = ({ onBack, onLibrariesChanged, panelMode }) => {
 		setTempMediaBarLibraryIds(Array.isArray(settings.mediaBarLibraryIds) ? [...settings.mediaBarLibraryIds] : []);
 		try {
 			const viewsResult = await api.getAllLibraries();
-			const libs = (viewsResult?.Items || []).filter((lib) => lib?.CollectionType);
+			const libs = (viewsResult?.Items || []).filter((lib) => lib?.CollectionType === 'movies' || lib?.CollectionType === 'tvshows');
 			setMediaBarLibraries(libs);
 		} catch (err) {
 			void err;

@@ -953,6 +953,228 @@
 	background: var(--theme-text-primary, #fff);
 }
 
+.bookshelfBanner {
+	position: relative;
+	width: 100%;
+	height: 100vh;
+	overflow: hidden;
+	z-index: 10;
+	flex-shrink: 0;
+	background: linear-gradient(to right, #130905, #23150d 22%, #1c100a 50%, #23150d 78%, #130905);
+	transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.4s ease, height 0.4s ease;
+}
+
+.bookshelfInner {
+	position: absolute;
+	top: 0;
+	left: 0;
+	right: 0;
+	bottom: 0;
+	cursor: pointer;
+	outline: none;
+}
+
+.bookshelfRow {
+	position: absolute;
+	top: 0;
+	left: 0;
+	right: 0;
+	bottom: 12px;
+	display: -webkit-flex;
+	display: flex;
+	-webkit-align-items: stretch;
+	align-items: stretch;
+}
+
+.bookshelfSide {
+	-webkit-flex: 1;
+	flex: 1;
+	display: -webkit-flex;
+	display: flex;
+	-webkit-align-items: flex-end;
+	align-items: flex-end;
+	overflow: hidden;
+}
+
+.bookshelfSideLeft {
+	-webkit-justify-content: flex-end;
+	justify-content: flex-end;
+}
+
+.bookshelfSideRight {
+	-webkit-justify-content: flex-start;
+	justify-content: flex-start;
+}
+
+.bookshelfCenter {
+	display: -webkit-flex;
+	display: flex;
+	-webkit-align-items: flex-end;
+	align-items: flex-end;
+	-webkit-justify-content: center;
+	justify-content: center;
+	padding: 0 28px;
+	box-sizing: border-box;
+	background: #1c100a;
+	border-left: 8px solid #382314;
+	border-right: 8px solid #382314;
+}
+
+.bookshelfBook {
+	position: relative;
+	height: 84vh;
+	width: 60.5vh;
+	border-radius: 3px 8px 8px 3px;
+	box-shadow: 0 6px 14px rgba(0, 0, 0, 0.75);
+}
+
+.bookshelfBookPoster {
+	position: absolute;
+	top: 0;
+	bottom: 0;
+	left: 12%;
+	right: 0;
+	overflow: hidden;
+	border-radius: 0 8px 8px 0;
+
+	img {
+		width: 100%;
+		height: 100%;
+		object-fit: cover;
+		-webkit-filter: saturate(0.75);
+		filter: saturate(0.75);
+	}
+}
+
+.bookshelfPaperTint {
+	position: absolute;
+	top: 0;
+	left: 0;
+	right: 0;
+	bottom: 0;
+	background: rgba(196, 178, 147, 0.18);
+	mix-blend-mode: multiply;
+	pointer-events: none;
+}
+
+.bookshelfBookShading {
+	position: absolute;
+	top: 0;
+	left: 0;
+	right: 0;
+	bottom: 0;
+	border-radius: 3px 8px 8px 3px;
+	pointer-events: none;
+	background: linear-gradient(
+		to right,
+		rgba(0, 0, 0, 0.35) 0%,
+		rgba(255, 255, 255, 0.1) 5%,
+		rgba(0, 0, 0, 0.5) 8%,
+		rgba(0, 0, 0, 0) 11%,
+		rgba(255, 255, 255, 0.06) 14%,
+		rgba(0, 0, 0, 0.25) 100%
+	);
+}
+
+.bookshelfSpine {
+	position: relative;
+	-webkit-flex: 0 0 auto;
+	flex: 0 0 auto;
+	width: 44px;
+	height: 76vh;
+	margin: 0 2px;
+	border-radius: 6px;
+	box-shadow: 0 3px 6px rgba(0, 0, 0, 0.55);
+	cursor: pointer;
+}
+
+.bookshelfSpineLight {
+	position: absolute;
+	top: 0;
+	left: 0;
+	right: 0;
+	bottom: 0;
+	border-radius: 6px;
+	pointer-events: none;
+	background: linear-gradient(
+		to right,
+		rgba(0, 0, 0, 0.35) 0%,
+		rgba(255, 255, 255, 0.12) 25%,
+		rgba(0, 0, 0, 0) 60%,
+		rgba(0, 0, 0, 0.45) 100%
+	);
+}
+
+.bookshelfSpineContent {
+	position: absolute;
+	top: 0;
+	left: 0;
+	right: 0;
+	bottom: 0;
+	display: -webkit-flex;
+	display: flex;
+	-webkit-flex-direction: column;
+	flex-direction: column;
+	-webkit-align-items: center;
+	align-items: center;
+	padding: 10px 0;
+}
+
+.bookshelfSpineIndex {
+	-webkit-flex: 0 0 auto;
+	flex: 0 0 auto;
+	font-size: 14px;
+	font-weight: 800;
+	letter-spacing: 0.5px;
+	color: rgba(229, 213, 184, 0.9);
+	text-shadow: -0.8px -0.8px 1.2px #000, 0.8px -0.8px 1.2px #000, 0.8px 0.8px 1.2px #000, -0.8px 0.8px 1.2px #000;
+}
+
+.bookshelfSpineDivider {
+	-webkit-flex: 0 0 auto;
+	flex: 0 0 auto;
+	width: 1px;
+	height: 16px;
+	margin: 4px 0;
+	background: rgba(229, 213, 184, 0.25);
+}
+
+.bookshelfSpineTitleWrap {
+	-webkit-flex: 1 1 auto;
+	flex: 1 1 auto;
+	position: relative;
+	width: 100%;
+}
+
+.bookshelfSpineTitle {
+	position: absolute;
+	top: 50%;
+	left: 50%;
+	transform: translate(-50%, -50%) rotate(-90deg);
+	transform-origin: center;
+	max-width: 62vh;
+	text-transform: uppercase;
+	font-size: 16px;
+	font-weight: 700;
+	letter-spacing: 1.2px;
+	color: #e5d5b8;
+	text-shadow: -0.8px -0.8px 1.2px #000, 0.8px -0.8px 1.2px #000, 0.8px 0.8px 1.2px #000, -0.8px 0.8px 1.2px #000;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.bookshelfLedge {
+	position: absolute;
+	left: 0;
+	right: 0;
+	bottom: 0;
+	height: 12px;
+	background: linear-gradient(to bottom, #5a3d28, #26180e);
+	border-top: 1.5px solid rgba(255, 255, 255, 0.08);
+	box-shadow: 0 -2px 5px rgba(0, 0, 0, 0.65);
+}
+
 /* Detail Section - split view layout for rows mode */
 .detailSection {
 	position: relative;
