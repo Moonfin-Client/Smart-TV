@@ -15,6 +15,7 @@ import DetailSection from './DetailSection';
 import FeaturedBanner from './FeaturedBanner';
 import MakdBanner from './MakdBanner';
 import GalleryBanner from './GalleryBanner';
+import BannerBar from './BannerBar';
 import BackdropLayer from './BackdropLayer';
 
 import css from './Browse.module.less';
@@ -1376,6 +1377,16 @@ const Browse = ({
 							isVisible={browseMode === 'featured'}
 							featuredItems={featuredItems}
 							api={api}
+							settings={settings}
+							getItemServerUrl={getItemServerUrl}
+							onSelectItem={handleSelectItem}
+							onNavigateDown={handleNavigateDownFromFeatured}
+							onFeaturedFocus={handleFeaturedFocusCallback}
+						/>
+					) : settings.featuredBarStyle === 'banner' ? (
+						<BannerBar
+							isVisible={browseMode === 'featured'}
+							featuredItems={featuredItems}
 							settings={settings}
 							getItemServerUrl={getItemServerUrl}
 							onSelectItem={handleSelectItem}
