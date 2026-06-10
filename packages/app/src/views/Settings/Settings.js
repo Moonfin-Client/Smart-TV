@@ -176,7 +176,8 @@ const getContentTypeOptions = () => [
 const getFeaturedBarStyleOptions = () => [
 	{ value: 'moonfin', label: $L('Moonfin') },
 	{ value: 'makd', label: $L('MakD') },
-	{ value: 'gallery', label: $L('Gallery') }
+	{ value: 'gallery', label: $L('Gallery') },
+	{ value: 'banner', label: $L('Banner') }
 ];
 
 const getFeaturedItemCountOptions = () => [

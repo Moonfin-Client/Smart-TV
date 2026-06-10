@@ -820,6 +820,139 @@
 	}
 }
 
+.bannerBanner {
+	position: relative;
+	width: 100%;
+	height: 34vh;
+	min-height: 300px;
+	overflow: hidden;
+	z-index: 10;
+	flex-shrink: 0;
+	transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.4s ease, height 0.4s ease;
+}
+
+.bannerCard {
+	position: absolute;
+	top: 20px;
+	bottom: 20px;
+	left: 60px;
+	right: 60px;
+	border-radius: 16px;
+	overflow: hidden;
+	cursor: pointer;
+	outline: none;
+	border: 2.5px solid transparent;
+	transition: border-color 0.18s ease, box-shadow 0.18s ease;
+}
+
+.bannerCard:focus {
+	border-color: var(--theme-focus-border-color, #00a4dc);
+	box-shadow: var(--theme-focus-glow, 0 0 18px rgba(var(--theme-accent-rgb, 0, 164, 220), 0.4));
+}
+
+.bannerBackdrop {
+	position: absolute;
+	top: 0;
+	left: 0;
+	right: 0;
+	bottom: 0;
+
+	img {
+		width: 100%;
+		height: 100%;
+		object-fit: cover;
+	}
+}
+
+.bannerGradient {
+	position: absolute;
+	top: 0;
+	left: 0;
+	right: 0;
+	bottom: 0;
+	background: linear-gradient(
+		to right,
+		rgba(var(--theme-scrim-rgb, 0, 0, 0), 0.9),
+		rgba(var(--theme-scrim-rgb, 0, 0, 0), 0)
+	);
+	pointer-events: none;
+}
+
+.bannerContent {
+	position: absolute;
+	left: 44px;
+	right: 44px;
+	bottom: 28px;
+	display: -webkit-flex;
+	display: flex;
+	-webkit-flex-direction: column;
+	flex-direction: column;
+	-webkit-align-items: flex-start;
+	align-items: flex-start;
+	z-index: 2;
+}
+
+.bannerLogo {
+	max-width: 340px;
+	max-height: 90px;
+	margin-bottom: 10px;
+
+	img {
+		max-width: 100%;
+		max-height: 90px;
+		object-fit: contain;
+	}
+}
+
+.bannerTitle {
+	margin: 0 0 8px 0;
+	font-size: 38px;
+	font-weight: 800;
+	line-height: 1.05;
+	color: var(--theme-text-primary, #fff);
+	text-shadow: 0 2px 12px rgba(0, 0, 0, 0.8);
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	max-width: 100%;
+}
+
+.bannerMeta {
+	margin-bottom: 8px;
+	font-size: 20px;
+	font-weight: 600;
+	color: var(--theme-text-secondary, rgba(255, 255, 255, 0.75));
+	text-shadow: 0 1px 8px rgba(0, 0, 0, 0.8);
+}
+
+.bannerDots {
+	position: absolute;
+	top: 18px;
+	right: 26px;
+	display: -webkit-flex;
+	display: flex;
+	-webkit-align-items: center;
+	align-items: center;
+	z-index: 3;
+
+	> * + * {
+		margin-left: 6px;
+	}
+}
+
+.bannerDot {
+	width: 8px;
+	height: 8px;
+	border-radius: 4px;
+	background: rgba(var(--theme-on-surface-rgb, 255, 255, 255), 0.4);
+	transition: width 0.25s ease, background 0.25s ease;
+}
+
+.bannerDotActive {
+	width: 22px;
+	background: var(--theme-text-primary, #fff);
+}
+
 /* Detail Section - split view layout for rows mode */
 .detailSection {
 	position: relative;
