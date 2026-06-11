@@ -55,6 +55,7 @@ const SeerrTileRow = ({
 }) => {
 	const {settings} = useSettings();
 	const scrollerRef = useRef(null);
+	const scrollerRectRef = useRef(null);
 	const scrollTimeoutRef = useRef(null);
 	const rowElementRef = useRef(null);
 
@@ -65,6 +66,15 @@ const SeerrTileRow = ({
 		registerRowRef?.(rowIndex, el);
 		return () => registerRowRef?.(rowIndex, null);
 	}, [rowIndex, registerRowRef]);
+
+	useEffect(() => {
+		scrollerRectRef.current = null;
+		const invalidate = () => {
+			scrollerRectRef.current = null;
+		};
+		window.addEventListener('resize', invalidate);
+		return () => window.removeEventListener('resize', invalidate);
+	}, [settings.navbarPosition]);
 
 	const handleSelect = useCallback((item) => {
 		onSelectItem?.(item);
@@ -81,7 +91,10 @@ const SeerrTileRow = ({
 			}
 			scrollTimeoutRef.current = window.requestAnimationFrame(() => {
 				const cardRect = card.getBoundingClientRect();
-				const scrollerRect = scroller.getBoundingClientRect();
+				if (!scrollerRectRef.current) {
+					scrollerRectRef.current = scroller.getBoundingClientRect();
+				}
+				const scrollerRect = scrollerRectRef.current;
 				if (cardRect.left < scrollerRect.left) {
 					scroller.scrollLeft -= (scrollerRect.left - cardRect.left + 50);
 				} else if (cardRect.right > scrollerRect.right) {

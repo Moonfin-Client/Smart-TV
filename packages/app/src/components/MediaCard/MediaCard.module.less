@@ -146,11 +146,9 @@
 	right: 30px;
 	width: auto;
 	height: 8px;
-	background: rgba(100, 100, 100, 0.7);
+	background: rgba(80, 80, 80, 0.85);
 	border-radius: 999px;
 	overflow: hidden;
-	backdrop-filter: blur(4px);
-	-webkit-backdrop-filter: blur(4px);
 	z-index: 1;
 }
 
@@ -159,6 +157,10 @@
 	background: var(--theme-range-progress, #ffffff);
 	transition: width 0.25s ease;
 	border-radius: inherit;
+
+	:global(.perf-low) & {
+		transition: none;
+	}
 }
 
 .serverBadge {
@@ -175,8 +177,6 @@
 	overflow: hidden;
 	text-overflow: ellipsis;
 	white-space: nowrap;
-	backdrop-filter: blur(4px);
-	-webkit-backdrop-filter: blur(4px);
 }
 
 .seerrBadge {

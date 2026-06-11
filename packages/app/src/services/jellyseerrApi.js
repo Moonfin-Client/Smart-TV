@@ -1,4 +1,5 @@
 import {isWebOS, isLegacyTizen} from '../platform';
+import {fetchWithTimeout} from '../utils/fetchTimeout';
 
 let jellyseerrUrl = null;
 let userId = null;
@@ -36,20 +37,14 @@ export const isMoonfinMode = () => moonfinMode;
 export const getConfig = () => ({jellyseerrUrl, userId, moonfinMode, jellyfinServerUrl});
 
 const fetchRequest = async (params) => {
-const {url, method = 'GET', headers = {}, body, timeout = 30000} = params;
+const {url, method = 'GET', headers = {}, body, timeout = 15000} = params;
 
 try {
-const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
-const timeoutId = controller ? setTimeout(() => controller.abort(), timeout) : null;
-
-const response = await fetch(url, {
+const response = await fetchWithTimeout(url, {
 method,
 headers,
-body: body || undefined,
-signal: controller?.signal
-});
-
-if (timeoutId) clearTimeout(timeoutId);
+body: body || undefined
+}, timeout);
 
 const responseBody = await response.text();
 

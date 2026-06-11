@@ -148,6 +148,7 @@ const defaultSettings = {
 	blockedRatings: [],
 	seerrHomeRows: DEFAULT_SEERR_HOME_ROWS,
 	showSeerrButton: true,
+	performanceMode: 'auto',
 	focusBorderColor: '',
 	navbarOpacity: 100,
 	navbarColor: ''

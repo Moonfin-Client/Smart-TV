@@ -56,14 +56,20 @@ const startBounce = (ref, animRef, width, height) => {
 			ref.current.style.webkitTransform = ref.current.style.transform;
 		}
 
-		animRef.current = setTimeout(animate, FRAME_DELAY);
+		animRef.current = window.requestAnimationFrame ? window.requestAnimationFrame(animate) : setTimeout(animate, FRAME_DELAY);
 	};
 
 	animate();
 
 	return () => {
 		running = false;
-		if (animRef.current) clearTimeout(animRef.current);
+		if (animRef.current) {
+			if (window.requestAnimationFrame) {
+				window.cancelAnimationFrame(animRef.current);
+			} else {
+				clearTimeout(animRef.current);
+			}
+		}
 	};
 };
 

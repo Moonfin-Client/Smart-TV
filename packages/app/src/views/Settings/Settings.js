@@ -196,6 +196,13 @@ const getBlurOptions = () => [
 	{ value: 40, label: $L('Heavy') }
 ];
 
+const getPerformanceModeOptions = () => [
+	{ value: 'auto', label: $L('Auto') },
+	{ value: 'high', label: $L('High Quality') },
+	{ value: 'mid', label: $L('Balanced') },
+	{ value: 'low', label: $L('Performance') }
+];
+
 const getSubtitleSizeOptions = () => [
 	{ value: 'small', label: $L('Small'), fontSize: 36 },
 	{ value: 'medium', label: $L('Medium'), fontSize: 44 },
@@ -1450,6 +1457,7 @@ const Settings = ({ onBack, onLibrariesChanged, panelMode }) => {
 				openThemes
 			)}
 			{renderOptionItem('focusBorderColor', $L('Focus Border Color'), ACCENT_COLOR_OPTIONS, $L('Theme Default'))}
+			{renderOptionItem('performanceMode', $L('Performance Mode'), getPerformanceModeOptions(), $L('Auto'), 'gear')}
 			{renderOptionItem('clockDisplay', $L('Clock Display'), getClockDisplayOptions(), $L('24-Hour'))}
 			{renderToggleItem('cardFocusZoom', $L('Card Focus Expansion'), $L('Slightly enlarge cards when focused'))}
 			{renderToggleItem('showHomeBackdrop', $L('Show Backdrops'), $L('Show background art while browsing'))}

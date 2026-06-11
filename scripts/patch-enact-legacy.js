@@ -16,11 +16,21 @@ const NODE_MODULES = path.join(ROOT, 'node_modules');
 
 let patchCount = 0;
 let skipCount = 0;
+let failCount = 0;
+const failures = [];
+
+function recordFailure(description, relPath, reason) {
+	failCount++;
+	failures.push(`${description} (${relPath}): ${reason}`);
+	console.warn(`  [FAIL] ${description} — ${reason} in ${relPath}`);
+}
 
 function patchFile(relPath, patches) {
 	const filePath = path.join(NODE_MODULES, relPath);
 	if (!fs.existsSync(filePath)) {
-		console.warn(`  [SKIP] ${relPath} — file not found`);
+		failCount++;
+		failures.push(`${relPath}: file not found`);
+		console.warn(`  [FAIL] ${relPath} — file not found`);
 		skipCount++;
 		return;
 	}
@@ -28,16 +38,18 @@ function patchFile(relPath, patches) {
 	let content = fs.readFileSync(filePath, 'utf8');
 	let modified = false;
 
-	for (const {find, replace, description} of patches) {
+	for (const {find, replace, description, applied} of patches) {
+		const alreadyApplied = (applied && content.includes(applied)) ||
+			(typeof replace === 'string' && content.includes(replace));
 		if (typeof find === 'string') {
 			if (content.includes(find)) {
 				content = content.replace(find, replace);
 				console.log(`  [OK]   ${description}`);
 				modified = true;
-			} else if (content.includes(replace)) {
+			} else if (alreadyApplied) {
 				console.log(`  [SKIP] ${description} — already patched`);
 			} else {
-				console.warn(`  [FAIL] ${description} — search string not found in ${relPath}`);
+				recordFailure(description, relPath, 'search string not found');
 			}
 		} else {
 			// Regex
@@ -45,10 +57,10 @@ function patchFile(relPath, patches) {
 				content = content.replace(find, replace);
 				console.log(`  [OK]   ${description}`);
 				modified = true;
-			} else if (typeof replace === 'string' && content.includes(replace)) {
+			} else if (alreadyApplied) {
 				console.log(`  [SKIP] ${description} — already patched`);
 			} else {
-				console.warn(`  [FAIL] ${description} — pattern not found in ${relPath}`);
+				recordFailure(description, relPath, 'pattern not found');
 			}
 		}
 	}
@@ -354,6 +366,7 @@ patchFile('@enact/ui/useScroll/Scrollbar.js', [
     }
   }
 };`,
+		applied: '_scrollVars',
 		description: 'Replace setCSSVariable with real DOM element fallback for scrollbar thumb'
 	}
 ]);
@@ -532,6 +545,7 @@ patchFile('@enact/cli/config/webpack.config.js', [
 	{
 		find: /babelrc: false,\n(\s*)\/\/ This is a feature/,
 		replace: "babelrc: false,\n$1sourceType: 'unambiguous',\n$1// This is a feature",
+		applied: "sourceType: 'unambiguous'",
 		description: 'Add sourceType unambiguous so CJS node_modules use require() not import for helpers'
 	}
 ]);
@@ -745,4 +759,11 @@ patchFile('@enact/sandstone/internal/Panels/Arrangers.js', [
 // ─────────────────────────────────────────────────────────────────────────────
 // Summary
 // ─────────────────────────────────────────────────────────────────────────────
+if (failCount > 0) {
+	console.error(`\n✗ Legacy patching FAILED: ${failCount} patch(es) did not apply.`);
+	console.error('  A dependency update has likely changed the patched code. The legacy build');
+	console.error('  would silently break on Tizen 2.4 / webOS 3.x. Fix the patterns below:');
+	failures.forEach((f) => console.error(`  - ${f}`));
+	process.exit(1);
+}
 console.log(`\n✓ Legacy patches complete: ${patchCount} files modified, ${skipCount} skipped\n`);

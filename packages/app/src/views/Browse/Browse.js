@@ -7,6 +7,7 @@ import {useJellyseerr} from '../../context/JellyseerrContext';
 import {ClassicMediaRow, ModernMediaRow} from '../../components/MediaRow';
 import SeerrTileRow from '../../components/SeerrTileRow';
 import {getSeerrHomeRowConfigs, fetchSeerrHomeRow} from '../../utils/seerrHomeRows';
+import {mergeRowPreservingRefs} from '../../utils/volatileRows';
 import LoadingSpinner from '../../components/LoadingSpinner';
 import {getImageUrl, getBackdropId, getLogoUrl} from '../../utils/helpers';
 import {getFromStorage, saveToStorage} from '../../services/storage';
@@ -30,6 +31,8 @@ const TRANSITION_DELAY_MS = 450;
 // Cache TTL in milliseconds (5 minutes for volatile data, 30 minutes for libraries)
 const CACHE_TTL_VOLATILE = 5 * 60 * 1000;
 const CACHE_TTL_LIBRARIES = 30 * 60 * 1000;
+const VOLATILE_REFRESH_COOLDOWN_MS = 60 * 1000;
+const CACHE_SAVE_DEBOUNCE_MS = 3000;
 const STORAGE_KEY_BROWSE = 'browse_cache_v2';
 
 let cachedRowData = null;
@@ -184,8 +187,24 @@ function browseReducer(state, action) {
 			if (action.rows.length === 0) return state;
 			return { ...state, allRowData: [...state.allRowData, ...action.rows] };
 		case 'REFRESH_VOLATILE': {
+			const prevVolatile = new Map();
+			state.allRowData.forEach((row) => {
+				if (row.id === 'resume' || row.id === 'nextup') prevVolatile.set(row.id, row);
+			});
+			const mergedVolatile = action.volatileRows.map((row) => mergeRowPreservingRefs(prevVolatile.get(row.id), row));
 			const filtered = state.allRowData.filter(r => r.id !== 'resume' && r.id !== 'nextup');
-			return { ...state, allRowData: [...action.volatileRows, ...filtered] };
+			const next = [...mergedVolatile, ...filtered];
+			if (next.length === state.allRowData.length) {
+				let unchanged = true;
+				for (let i = 0; i < next.length; i++) {
+					if (next[i] !== state.allRowData[i]) {
+						unchanged = false;
+						break;
+					}
+				}
+				if (unchanged) return state;
+			}
+			return { ...state, allRowData: next };
 		}
 		case 'SET_ROW_DATA':
 			return { ...state, allRowData: action.rowData };
@@ -254,6 +273,9 @@ const Browse = ({
 	const detailSectionRef = useRef(null);
 	const lastFocusedRowRef = useRef(null);
 	const wasVisibleRef = useRef(true);
+	const lastVolatileRefreshRef = useRef(0);
+	const cacheSaveTimerRef = useRef(null);
+	const lastCacheSignatureRef = useRef('');
 	const prevFilteredRowsRef = useRef([]);
 	const filteredRowsLengthRef = useRef(0);
 	const filteredRowsRef = useRef([]);
@@ -348,7 +370,9 @@ const Browse = ({
 		return null;
 	}, [api, serverUrl, accessToken, unifiedMode, getItemServerUrl]);
 
-	const refreshVolatileData = useCallback(async () => {
+	const refreshVolatileData = useCallback(async (force = false) => {
+		if (!force && Date.now() - lastVolatileRefreshRef.current < VOLATILE_REFRESH_COOLDOWN_MS) return;
+		lastVolatileRefreshRef.current = Date.now();
 		try {
 			let resumeItems, nextUp;
 
@@ -756,25 +780,47 @@ const Browse = ({
 		return Date.now() - timestamp < ttl;
 	}, []);
 
-	const saveBrowseCache = useCallback(async (rowData, libs, featured) => {
-		try {
-			const strippedRows = rowData.map(row => ({
-				...row,
-				items: row.items.map(stripItemForCache)
-			}));
-			const cacheData = {
-				rowData: strippedRows,
-				libraries: libs,
-				featuredItems: featured,
-				timestamp: Date.now(),
-				serverUrl,
-				userId: user?.Id || null
-			};
-			await saveToStorage(STORAGE_KEY_BROWSE, cacheData);
-		} catch (e) {
-			console.warn('[Browse] Failed to save cache:', e);
-		}
+	const saveBrowseCache = useCallback((rowData, libs, featured) => {
+		const signature = rowData.map((row) => {
+			let progressSum = 0;
+			if (row.id === 'resume' || row.id === 'nextup') {
+				row.items.forEach((item) => {
+					progressSum += item.UserData?.PlayedPercentage || 0;
+				});
+			}
+			return `${row.id}:${row.items.length}:${row.items[0]?.Id || ''}:${Math.round(progressSum)}`;
+		}).join('|');
+		if (signature === lastCacheSignatureRef.current) return;
+
+		if (cacheSaveTimerRef.current) clearTimeout(cacheSaveTimerRef.current);
+		cacheSaveTimerRef.current = setTimeout(async () => {
+			cacheSaveTimerRef.current = null;
+			try {
+				const strippedRows = rowData.map(row => ({
+					...row,
+					items: row.items.map(stripItemForCache)
+				}));
+				const cacheData = {
+					rowData: strippedRows,
+					libraries: libs,
+					featuredItems: featured,
+					timestamp: Date.now(),
+					serverUrl,
+					userId: user?.Id || null
+				};
+				await saveToStorage(STORAGE_KEY_BROWSE, cacheData);
+				lastCacheSignatureRef.current = signature;
+			} catch (e) {
+				console.warn('[Browse] Failed to save cache:', e);
+			}
+		}, CACHE_SAVE_DEBOUNCE_MS);
 	}, [serverUrl, user?.Id]);
+
+	useEffect(() => {
+		return () => {
+			if (cacheSaveTimerRef.current) clearTimeout(cacheSaveTimerRef.current);
+		};
+	}, []);
 
 	const loadBrowseCache = useCallback(async () => {
 		try {
@@ -821,7 +867,7 @@ const Browse = ({
 				dispatch({type: 'SET_LOADING', value: false});
 
 				if (!isCacheValid(persistedCache.timestamp, CACHE_TTL_VOLATILE)) {
-					refreshVolatileData();
+					refreshVolatileData(true);
 				}
 				return;
 			}

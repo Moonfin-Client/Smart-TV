@@ -29,6 +29,7 @@ const ModernMediaRow = ({
 }) => {
 	const {settings} = useSettings();
 	const scrollerRef = useRef(null);
+	const scrollerRectRef = useRef(null);
 	const scrollTimeoutRef = useRef(null);
 	const rowElementRef = useRef(null);
 	const [focusedItemId, setFocusedItemId] = useState(null);
@@ -41,6 +42,15 @@ const ModernMediaRow = ({
 		registerRowRef?.(rowIndex, el);
 		return () => registerRowRef?.(rowIndex, null);
 	}, [rowIndex, registerRowRef]);
+
+	useEffect(() => {
+		scrollerRectRef.current = null;
+		const invalidate = () => {
+			scrollerRectRef.current = null;
+		};
+		window.addEventListener('resize', invalidate);
+		return () => window.removeEventListener('resize', invalidate);
+	}, [settings.navbarPosition]);
 
 	useEffect(() => {
 		if (!focusedItemId) return;
@@ -73,7 +83,10 @@ const ModernMediaRow = ({
 			}
 			scrollTimeoutRef.current = window.requestAnimationFrame(() => {
 				const cardRect = card.getBoundingClientRect();
-				const scrollerRect = scroller.getBoundingClientRect();
+				if (!scrollerRectRef.current) {
+					scrollerRectRef.current = scroller.getBoundingClientRect();
+				}
+				const scrollerRect = scrollerRectRef.current;
 				const leftPadding = 80;
 				const rightPadding = 120;
 				if (cardRect.left < scrollerRect.left + leftPadding) {

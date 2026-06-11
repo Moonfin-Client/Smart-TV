@@ -7,6 +7,8 @@
 /* global self, NodeList, HTMLCollection, Element */
 /* eslint-disable no-var */
 
+import {applyPerfTier} from './utils/perfTier';
+
 // @enact/core/platform references globalThis directly without a typeof guard.
 // Missing on Tizen 2.4 (WebKit r152340), webOS 3–5 (Chromium <71).
 if (typeof globalThis === 'undefined') {
@@ -130,4 +132,5 @@ if (typeof document !== 'undefined') {
 	if (isLegacyTizen || isLegacyWebOS) {
 		document.documentElement.className = (document.documentElement.className ? document.documentElement.className + ' ' : '') + 'legacy';
 	}
+	applyPerfTier(null);
 }

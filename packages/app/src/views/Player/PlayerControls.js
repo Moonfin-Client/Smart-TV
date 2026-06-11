@@ -318,8 +318,8 @@ const PlayerControls = ({
 							spotlightDisabled={focusRow !== 'progress'}
 							spotlightId="progress-bar"
 						>
-							<div className={css.progressBuffered} style={{width: `${clampedBuffered}%`}} />
-							<div className={css.progressFill} style={{width: `${clampedProgress}%`}} />
+							<div className={css.progressBuffered} style={{transform: `scaleX(${clampedBuffered / 100})`, WebkitTransform: `scaleX(${clampedBuffered / 100})`}} />
+							<div className={css.progressFill} style={{transform: `scaleX(${clampedProgress / 100})`, WebkitTransform: `scaleX(${clampedProgress / 100})`}} />
 							<div className={css.seekIndicator} style={{left: `${clampedProgress}%`}} />
 							{isSeeking && !isAudioMode && (
 								<TrickplayPreview

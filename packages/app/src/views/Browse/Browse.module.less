@@ -353,6 +353,11 @@
 		object-fit: cover;
 		transform-origin: center center;
 		animation: makdKenBurns 12s ease-in-out infinite alternate;
+
+		:global(.perf-low) &,
+		:global(.perf-mid) & {
+			animation: none;
+		}
 	}
 }
 
@@ -808,6 +813,12 @@
 		background: rgba(var(--theme-on-surface-rgb, 255, 255, 255), 0.1);
 		-webkit-animation: galleryShimmerPulse 1.2s ease-in-out infinite alternate;
 		animation: galleryShimmerPulse 1.2s ease-in-out infinite alternate;
+
+		:global(.perf-low) & {
+			-webkit-animation: none;
+			animation: none;
+			background: rgba(var(--theme-on-surface-rgb, 255, 255, 255), 0.14);
+		}
 	}
 }
 

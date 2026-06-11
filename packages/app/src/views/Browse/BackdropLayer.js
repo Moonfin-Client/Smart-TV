@@ -1,7 +1,15 @@
 import {useEffect, useRef, memo} from 'react';
+import {getPerfTier} from '../../utils/perfTier';
 import css from './Browse.module.less';
 
 const BACKDROP_DEBOUNCE_MS = 500;
+
+const TIER_BLUR_CAPS = {low: 0, mid: 8, high: 20};
+
+const clampBlur = (amount) => {
+	const cap = TIER_BLUR_CAPS[getPerfTier()];
+	return Math.min(amount || 0, cap);
+};
 
 const BackdropLayer = memo(({targetUrl, blurAmount}) => {
 	const layerARef = useRef(null);
@@ -60,19 +68,22 @@ const BackdropLayer = memo(({targetUrl, blurAmount}) => {
 		}, BACKDROP_DEBOUNCE_MS);
 	}, [targetUrl]);
 
-	const blurFilter = blurAmount > 0 ? `blur(${blurAmount}px)` : 'none';
+	const effectiveBlur = clampBlur(blurAmount);
+	const layerStyle = effectiveBlur > 0
+		? {WebkitFilter: `blur(${effectiveBlur}px)`, filter: `blur(${effectiveBlur}px)`}
+		: {WebkitFilter: 'none', filter: 'none', top: 0, left: 0, width: '100%', height: '100%'};
 
 	return (
 		<div className={css.globalBackdrop}>
 			<div
 				ref={layerARef}
 				className={css.globalBackdropImage}
-				style={{WebkitFilter: blurFilter, filter: blurFilter}}
+				style={layerStyle}
 			/>
 			<div
 				ref={layerBRef}
 				className={css.globalBackdropImage}
-				style={{WebkitFilter: blurFilter, filter: blurFilter}}
+				style={layerStyle}
 			/>
 			<div className={css.globalBackdropOverlay} />
 		</div>

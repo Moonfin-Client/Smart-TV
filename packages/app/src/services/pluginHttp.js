@@ -1,3 +1,5 @@
+import {fetchWithTimeout as sharedFetchWithTimeout} from '../utils/fetchTimeout';
+
 const DEFAULT_ACCEPT = 'application/json';
 const DEFAULT_TIMEOUT_MS = 15000;
 
@@ -17,21 +19,8 @@ export const createAuthHeaders = (token, accept = DEFAULT_ACCEPT) => {
 	return headers;
 };
 
-export const fetchWithTimeout = async (url, options = {}, timeoutMs = DEFAULT_TIMEOUT_MS) => {
-	if (typeof AbortController === 'undefined') {
-		return fetch(url, options);
-	}
-	const controller = new AbortController();
-	const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
-	try {
-		return await fetch(url, {
-			...options,
-			signal: controller.signal
-		});
-	} finally {
-		clearTimeout(timeoutId);
-	}
-};
+export const fetchWithTimeout = (url, options = {}, timeoutMs = DEFAULT_TIMEOUT_MS) =>
+	sharedFetchWithTimeout(url, options, timeoutMs);
 
 export const createHttpError = (status, body) => {
 	const error = new Error(`API Error: ${status}`);

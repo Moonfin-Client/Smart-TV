@@ -9,6 +9,11 @@
 	transition: width 0.14s ease-out;
 	--modern-card-expanded-width: 520px;
 	--modern-card-image-height: 360px;
+
+	:global(.perf-low) &,
+	:global(.perf-mid) & {
+		transition: none;
+	}
 }
 
 .focused {
@@ -124,6 +129,10 @@
 	background: var(--theme-range-progress, #ffffff);
 	transition: width 0.25s ease;
 	border-radius: inherit;
+
+	:global(.perf-low) & {
+		transition: none;
+	}
 }
 
 .serverBadge {
