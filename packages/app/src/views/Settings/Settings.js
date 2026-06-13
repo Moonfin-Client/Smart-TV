@@ -113,6 +113,7 @@ const MATERIAL_ICON_NAME_MAP = {
 	refresh: 'sync',
 	replay: 'replay',
 	scheduler: 'schedule',
+	seerr: 'seerr',
 	screenpower: 'tv',
 	shuffle: 'shuffle',
 	show: 'visibility',
@@ -1484,7 +1485,13 @@ const Settings = ({ onBack, onLibrariesChanged, panelMode }) => {
 	const renderPersonalizationHomePage = () => (
 		<>
 			{renderNavItem('homeRows', $L('Home Sections'), $L('Configure which rows appear on home screen'), openHomeRows, 'list')}
-			{jellyseerr.isEnabled &&
+			{jellyseerr.isEnabled && renderToggleItem(
+				'displaySeerrRows',
+				$L('Display Seerr Discovery Rows'),
+				$L('Show Seerr discovery rows in Home Sections.'),
+				'seerr'
+			)}
+			{settings.displaySeerrRows &&
 				renderNavItem('seerrHomeRows', `${seerrLabel} ${$L('Rows')}`, $L('Choose which Seerr discover rows appear on home'), openSeerrHomeRows, 'list')}
 			{renderToggleItem(
 				'displayFavoritesRows',
