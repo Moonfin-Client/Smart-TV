@@ -651,7 +651,7 @@ export const getAssFontsUrl = (subtitleStream) => {
 	const apiKey = serverCredentials?.accessToken || jellyfinApi.getApiKey();
 	const embeddedFonts = (mediaSource?.MediaAttachments || [])
 		.filter((attachment) => supportedAssFontMimeTypes.includes(attachment.MimeType))
-		.map((attachment) => attachment.DeliveryUrl ? `${serverUrl}${attachment.DeliveryUrl}` : '')
+		.map((attachment) => attachment.DeliveryUrl ? `${serverUrl}${attachment.DeliveryUrl}?api_key=${apiKey}` : '')
 		.filter(Boolean);
 
 	return embeddedFonts;
