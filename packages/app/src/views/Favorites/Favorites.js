@@ -67,7 +67,7 @@ const initialFocusDoneRef = useRef(false);
 const items = useMemo(() => {
 if (!startLetter) return allItems;
 return allItems.filter(item => {
-const name = item.Name || '';
+const name = item.SortName || '';
 const firstChar = name.charAt(0).toUpperCase();
 if (startLetter === '#') return !/[A-Z]/.test(firstChar);
 return firstChar === startLetter;
@@ -123,7 +123,7 @@ SortOrder: sortOption.order,
 StartIndex: startIndex,
 Limit: 150,
 EnableTotalRecordCount: true,
-Fields: 'ProductionYear,ImageTags,OfficialRating,CommunityRating,CriticRating,RunTimeTicks,UserData,SortName'
+Fields: 'SortName,ProductionYear,ImageTags,OfficialRating,CommunityRating,CriticRating,RunTimeTicks,UserData,SortName'
 };
 
 const result = await api.getItems(params);
