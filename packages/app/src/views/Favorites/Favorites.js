@@ -123,7 +123,7 @@ SortOrder: sortOption.order,
 StartIndex: startIndex,
 Limit: 150,
 EnableTotalRecordCount: true,
-Fields: 'SortName,ProductionYear,ImageTags,OfficialRating,CommunityRating,CriticRating,RunTimeTicks,UserData,SortName'
+Fields: 'ProductionYear,ImageTags,OfficialRating,CommunityRating,CriticRating,RunTimeTicks,UserData,SortName'
 };
 
 const result = await api.getItems(params);
