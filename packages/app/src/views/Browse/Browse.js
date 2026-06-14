@@ -1354,7 +1354,7 @@ const Browse = ({
 	}, [onSelectSeerrItem, onSelectSeerrGenre, onSelectSeerrStudio, onSelectSeerrNetwork]);
 
 	useEffect(() => {
-		if (!jellyseerrEnabled || !jellyseerrAuthenticated) {
+		if (!jellyseerrEnabled || !jellyseerrAuthenticated || !settings.displaySeerrRows) {
 			setSeerrRows([]);
 			return;
 		}
@@ -1388,7 +1388,7 @@ const Browse = ({
 		return () => {
 			cancelled = true;
 		};
-	}, [jellyseerrEnabled, jellyseerrAuthenticated, seerrUserId, settings.seerrHomeRows]);
+	}, [jellyseerrEnabled, jellyseerrAuthenticated, seerrUserId, settings.seerrHomeRows, settings.displaySeerrRows]);
 
 	const handleNavigateDownFromFeatured = useCallback(() => {
 		dispatch({type: 'SET_BROWSE_MODE', mode: 'rows'});
