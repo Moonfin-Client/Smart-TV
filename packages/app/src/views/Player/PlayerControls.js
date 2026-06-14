@@ -68,7 +68,7 @@ export const usePlayerButtons = ({
 		}
 		if (isLiveTV) {
 			return [
-				...(subtitleStreams.length > 0 ? [{id: 'subtitle', icon: <IconSubtitle />, label: $L('Subtitles'), action: 'subtitle'}] : []),
+				...(subtitleStreams.length > 0 ? [{id: 'subtitle', icon: (selectedSubtitleIndex >= 0 ? <IconSubtitle /> : <IconSubtitleOff />), label: $L('Subtitles'), action: 'subtitle'}] : []),
 				...(audioStreams.length > 1 ? [{id: 'audio', icon: <IconAudio />, label: $L('Audio'), action: 'audio'}] : []),
 				{id: 'quality', icon: <IconQuality />, label: $L('Playback Quality'), action: 'quality'},
 				{id: 'zoom', icon: <IconZoom />, label: $L('Zoom').concat(` (${zoomModeLabel})`), action: 'zoom', active: zoomModeKey !== 'fit'},
