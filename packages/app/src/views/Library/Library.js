@@ -135,7 +135,7 @@ if (!startLetter) {
 return allItems;
 }
 return allItems.filter(item => {
-const name = item.SortName || '';
+const name = item.SortName || item.Name || '';
 const firstChar = name.charAt(0).toUpperCase();
 if (startLetter === '#') {
 return !/[A-Z]/.test(firstChar);
