@@ -598,6 +598,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 						try {
 							const assUrl = playback.getAssSubtitleUrl(sub);
 							if (assUrl && pgsCanvasRef.current) {
+								const assFontsUrl = playback.getAssFontsUrl(sub);
 								const assErrorHandler = (err) => {
 									console.error('[Player] ASS renderer error, falling back to text', err);
 									disposeAssRenderer(assRendererRef.current);
@@ -606,7 +607,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 										setSubtitleTrackEvents(data?.TrackEvents || null);
 									}).catch(() => setSubtitleTrackEvents(null));
 								};
-								const renderer = await initAssCanvasRenderer(pgsCanvasRef.current, assUrl, assErrorHandler);
+								const renderer = await initAssCanvasRenderer(pgsCanvasRef.current, assUrl, assFontsUrl, assErrorHandler);
 								if (renderer) {
 									assRendererRef.current = renderer;
 									setSubtitleTrackEvents(null);
@@ -1453,6 +1454,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 				try {
 					const assUrl = playback.getAssSubtitleUrl(stream);
 					if (assUrl && pgsCanvasRef.current) {
+						const assFontsUrl = playback.getAssFontsUrl(sub);
 						const assErrorHandler = (err) => {
 							console.error('[Player] ASS renderer error, falling back to text', err);
 							disposeAssRenderer(assRendererRef.current);
@@ -1461,7 +1463,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 								setSubtitleTrackEvents(data?.TrackEvents || null);
 							}).catch(() => setSubtitleTrackEvents(null));
 						};
-						const renderer = await initAssCanvasRenderer(pgsCanvasRef.current, assUrl, assErrorHandler);
+						const renderer = await initAssCanvasRenderer(pgsCanvasRef.current, assUrl, assFontsUrl, assErrorHandler);
 						if (renderer) {
 							assRendererRef.current = renderer;
 							setSubtitleTrackEvents(null);
