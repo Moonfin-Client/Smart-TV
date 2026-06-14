@@ -23,11 +23,20 @@ export const supportsAssRenderer = () => {
 	return true;
 };
 
+const supportsWasmBlend = () => {
+	const chromiumMajor = getChromiumMajorVersion();
+	if (chromiumMajor && chromiumMajor < 57) return false;
+	return true;
+};
+
 const createRenderer = async (options, onError) => {
 	try {
 		const mod = await import('libass-wasm');
 		const SubtitlesOctopus = mod.default || mod;
 		const workerUrl = 'subtitles-octopus-worker.js';
+		const qualityOptions = supportsWasmBlend()
+			? { targetFps: 24, renderMode: 'wasm-blend', prescaleFactor: 0.8, maxRenderHeight: 2160}
+			: { targetFps: 10, renderMode: 'js-blend', prescaleFactor: 0.5, maxRenderHeight: 540};
 
 		return new SubtitlesOctopus({
 			...options,
@@ -35,10 +44,7 @@ const createRenderer = async (options, onError) => {
 			legacyWorkerUrl: workerUrl.replace('worker.js', 'worker-legacy.js'),
 			fallbackFont: 'ass-fallback-font.ttf',
 			onError: onError || null,
-			targetFps: 10,
-			renderMode: 'js-blend',
-			prescaleFactor: 0.5,
-			maxRenderHeight: 540,
+			...qualityOptions,
 			debug: false
 		});
 	} catch (err) {
