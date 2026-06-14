@@ -25,8 +25,8 @@ export const supportsAssRenderer = () => {
 
 const supportsWasmBlend = () => {
 	const chromiumMajor = getChromiumMajorVersion();
-	if (chromiumMajor && chromiumMajor < 57) return false;
-	return true;
+	if (chromiumMajor && chromiumMajor >= 57) return true;
+	return false;
 };
 
 const createRenderer = async (options, onError) => {
