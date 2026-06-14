@@ -47,16 +47,16 @@ const createRenderer = async (options, onError) => {
 	}
 };
 
-export const initAssRenderer = async (videoElement, subtitleUrl, onError) => {
+export const initAssRenderer = async (videoElement, subtitleUrl, fontsUrl, onError) => {
 	if (!videoElement || !subtitleUrl) return null;
-	return createRenderer({video: videoElement, subUrl: subtitleUrl}, onError);
+	return createRenderer({video: videoElement, subUrl: subtitleUrl, fonts: fontsUrl}, onError);
 };
 
-export const initAssCanvasRenderer = async (canvasElement, subtitleUrl, onError) => {
+export const initAssCanvasRenderer = async (canvasElement, subtitleUrl, fontsUrl, onError) => {
 	if (!canvasElement || !subtitleUrl) return null;
 	canvasElement.width = window.innerWidth || canvasElement.clientWidth || 1920;
 	canvasElement.height = window.innerHeight || canvasElement.clientHeight || 1080;
-	return createRenderer({canvas: canvasElement, subUrl: subtitleUrl}, onError);
+	return createRenderer({canvas: canvasElement, subUrl: subtitleUrl, fonts: fontsUrl}, onError);
 };
 
 export const disposeAssRenderer = (renderer) => {
