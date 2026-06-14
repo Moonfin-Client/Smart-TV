@@ -452,15 +452,28 @@ const Browse = ({
 		if (settings.mergeContinueWatchingNextUp) {
 			const mergeResumeRow = allRowData.find(r => r.id === 'resume');
 			const nextUpRow = allRowData.find(r => r.id === 'nextup');
+			const recentlyPlayed = allRowData.find(r => r.id === 'recentlyplayed');
 
 			result = allRowData.filter(r => r.id !== 'resume' && r.id !== 'nextup');
 
 			if (mergeResumeRow || nextUpRow) {
 				const resumeItems = mergeResumeRow?.items || [];
 				const nextUpItems = nextUpRow?.items || [];
+				const recentlyPlayedItems = recentlyPlayed?.items || [];
 
 				const seriesLastPlayedMap = new Map();
 				resumeItems.forEach(item => {
+					const seriesId = item.SeriesId;
+					const lastPlayed = item.UserData?.LastPlayedDate;
+					if (seriesId && lastPlayed) {
+						const existing = seriesLastPlayedMap.get(seriesId);
+						if (!existing || lastPlayed > existing) {
+							seriesLastPlayedMap.set(seriesId, lastPlayed);
+						}
+					}
+				});
+
+				recentlyPlayedItems.forEach(item => {
 					const seriesId = item.SeriesId;
 					const lastPlayed = item.UserData?.LastPlayedDate;
 					if (seriesId && lastPlayed) {
@@ -832,7 +845,7 @@ const Browse = ({
 
 		const fetchAllData = async () => {
 			try {
-				let libs, resumeItems, nextUp, userConfig, randomItems;
+				let libs, resumeItems, nextUp, userConfig, randomItems, recentlyPlayed;
 
 				if (unifiedMode) {
 					const [libsArray, resumeArray, nextUpArray, randomArray] = await Promise.all([
@@ -846,19 +859,30 @@ const Browse = ({
 					nextUp = {Items: nextUpArray};
 					userConfig = null; // Not supported in unified mode
 					randomItems = {Items: randomArray};
+					recentlyPlayed = null;
 				} else {
 					const results = await Promise.all([
 						api.getLibraries(),
 						api.getResumeItems(),
 						api.getNextUp(),
 						api.getUserConfiguration().catch(() => null),
-						api.getRandomItems(settings.featuredContentType, settings.featuredItemCount)
+						api.getRandomItems(settings.featuredContentType, settings.featuredItemCount),
+						api.getItems({
+							IncludeItemTypes: 'Episode',
+							Filters: 'IsPlayed',
+							Recursive: true,
+							SortBy: 'DatePlayed',
+							SortOrder: 'Descending',
+							Limit: 100,
+							Fields: 'UserData,SeriesId'
+						})
 					]);
 					libs = results[0].Items || [];
 					resumeItems = results[1];
 					nextUp = results[2];
 					userConfig = results[3];
 					randomItems = results[4];
+					recentlyPlayed = results[5];
 				}
 
 				cachedLibraries = libs;
@@ -910,6 +934,13 @@ const Browse = ({
 						LogoUrl: getLogoUrl(getItemServerUrl(item), item, {maxWidth: 800, quality: 90})
 					}));
 					cachedFeaturedItems = featuredWithLogos;
+				}
+
+				if (recentlyPlayed.Items?.length > 0) {
+					rowData.push({
+						id: 'recentlyplayed',
+						items: recentlyPlayed.Items
+					});
 				}
 
 				dispatch({type: 'SET_INITIAL_DATA', rowData, featuredItems: cachedFeaturedItems});
