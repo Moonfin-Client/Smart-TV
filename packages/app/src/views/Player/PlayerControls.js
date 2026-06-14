@@ -68,8 +68,8 @@ export const usePlayerButtons = ({
 		}
 		if (isLiveTV) {
 			return [
-				{id: 'subtitle', icon: <IconSubtitle />, label: $L('Subtitles'), action: 'subtitle', disabled: subtitleStreams.length === 0},
-				{id: 'audio', icon: <IconAudio />, label: $L('Audio'), action: 'audio', disabled: audioStreams.length === 0},
+				...(subtitleStreams.length > 0 ? [{id: 'subtitle', icon: <IconSubtitle />, label: $L('Subtitles'), action: 'subtitle'}] : []),
+				...(audioStreams.length > 1 ? [{id: 'audio', icon: <IconAudio />, label: $L('Audio'), action: 'audio'}] : []),
 				{id: 'quality', icon: <IconQuality />, label: $L('Playback Quality'), action: 'quality'},
 				{id: 'zoom', icon: <IconZoom />, label: $L('Zoom').concat(` (${zoomModeLabel})`), action: 'zoom', active: zoomModeKey !== 'fit'},
 				{id: 'info', icon: <IconInfo />, label: $L('Playback Information'), action: 'info'}
@@ -77,9 +77,9 @@ export const usePlayerButtons = ({
 		}
 		return [
 			{id: 'speed', icon: <PlaybackRateLabel value={playbackRate} />, label: $L('Playback Speed'), action: 'speed', active: playbackRate !== 1},
-			{id: 'chapters', icon: <IconChapters />, label: $L('Chapters'), action: 'chapter', disabled: chapters.length === 0},
-			{id: 'subtitle', icon: <IconSubtitle />, label: $L('Subtitles'), action: 'subtitle', disabled: subtitleStreams.length === 0},
-			{id: 'audio', icon: <IconAudio />, label: $L('Audio'), action: 'audio', disabled: audioStreams.length === 0},
+			...(chapters.length > 0 ? [{id: 'chapters', icon: <IconChapters />, label: $L('Chapters'), action: 'chapter'}] : []),
+			...(subtitleStreams.length > 0 ? [{id: 'subtitle', icon: <IconSubtitle />, label: $L('Subtitles'), action: 'subtitle'}] : []),
+			...(audioStreams.length > 1 ? [{id: 'audio', icon: <IconAudio />, label: $L('Audio'), action: 'audio'}] : []),
 			{id: 'cast', icon: <IconCast />, label: $L('Cast and Crew'), action: 'cast', disabled: !hasCastMembers},
 			{id: 'quality', icon: <IconQuality />, label: $L('Playback Quality'), action: 'quality', active: selectedQuality != null},
 			{id: 'zoom', icon: <IconZoom />, label: $L('Zoom').concat(` (${zoomModeLabel})`), action: 'zoom', active: zoomModeKey !== 'fit'},
