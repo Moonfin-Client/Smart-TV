@@ -351,8 +351,9 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 			if (!assUrl) {
 				return false;
 			}
+			const assFontsUrl = playback.getAssFontsUrl(stream);
 
-			const renderer = await initAssRenderer(videoRef.current, assUrl, (err) => {
+			const renderer = await initAssRenderer(videoRef.current, assUrl, assFontsUrl, (err) => {
 				console.error('[Player] ASS renderer error, falling back to text', err);
 				disposeAssRenderer(assRendererRef.current);
 				assRendererRef.current = null;
