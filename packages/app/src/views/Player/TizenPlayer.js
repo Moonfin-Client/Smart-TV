@@ -1454,7 +1454,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 				try {
 					const assUrl = playback.getAssSubtitleUrl(stream);
 					if (assUrl && pgsCanvasRef.current) {
-						const assFontsUrl = playback.getAssFontsUrl(sub);
+						const assFontsUrl = playback.getAssFontsUrl(stream);
 						const assErrorHandler = (err) => {
 							console.error('[Player] ASS renderer error, falling back to text', err);
 							disposeAssRenderer(assRendererRef.current);
