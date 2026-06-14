@@ -135,7 +135,7 @@ if (!startLetter) {
 return allItems;
 }
 return allItems.filter(item => {
-const name = item.Name || '';
+const name = item.SortName || item.Name || '';
 const firstChar = name.charAt(0).toUpperCase();
 if (startLetter === '#') {
 return !/[A-Z]/.test(firstChar);
@@ -244,7 +244,7 @@ if (isFolderView) {
 		SortOrder: sortOption.order,
 		Recursive: true,
 		EnableTotalRecordCount: true,
-		Fields: 'ProductionYear,ImageTags,OfficialRating,CommunityRating,CriticRating,RunTimeTicks,ProviderIds,UserData'
+		Fields: 'SortName,ProductionYear,ImageTags,OfficialRating,CommunityRating,CriticRating,RunTimeTicks,ProviderIds,UserData'
 	};
 
 	if (library?.Id) params.ParentId = library.Id;

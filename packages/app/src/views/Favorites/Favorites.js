@@ -67,7 +67,7 @@ const initialFocusDoneRef = useRef(false);
 const items = useMemo(() => {
 if (!startLetter) return allItems;
 return allItems.filter(item => {
-const name = item.Name || '';
+const name = item.SortName || '';
 const firstChar = name.charAt(0).toUpperCase();
 if (startLetter === '#') return !/[A-Z]/.test(firstChar);
 return firstChar === startLetter;
