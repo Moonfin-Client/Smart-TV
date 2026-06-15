@@ -191,7 +191,6 @@ const Details = ({itemId, initialItem, onPlay, onSelectItem, onSelectPerson, onI
 	const handleLogoError = useCallback(() => setLogoFailed(true), []);
 	const handleToastEnd = useCallback(() => setToastMessage(null), []);
 	const [invertLogo, setInvertLogo] = useState(false);
-	const [logoUrl, setLogoUrl] = useState(null);
 
 	// Refs
 	const pageScrollerRef = useRef(null);
@@ -422,14 +421,10 @@ const Details = ({itemId, initialItem, onPlay, onSelectItem, onSelectPerson, onI
 		}
 	}, [isLoading, item]);
 
-	useEffect(() => {
-		if (!item) {
-		  setLogoUrl(null);
-		  return;
-		}
-		const url = getLogoUrl(effectiveServerUrl, item, {maxWidth: 400, quality: 90});
-		setLogoUrl(url);
-	}, [item, effectiveServerUrl]);
+	const logoUrl = useMemo(
+			() => (item ? getLogoUrl(effectiveServerUrl, item, {maxWidth: 400, quality: 90}) : null),
+			[item, effectiveServerUrl]
+		);
 
 	useEffect(() => {
 		if (!logoUrl) {
