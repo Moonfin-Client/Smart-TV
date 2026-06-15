@@ -1515,6 +1515,12 @@ const Settings = ({ onBack, onLibrariesChanged, panelMode }) => {
 			{renderToggleItem('mergeContinueWatchingNextUp', $L('Merge Continue Watching'), $L('Combine Continue Watching and Next Up'), 'arrowupdown')}
 			{renderOptionItem('homeRowsStyle', $L('Rows Type'), getHomeRowsStyleOptions(), $L('Modern'), 'appscontents')}
 			{renderOptionItem('homeRowsImageType', $L('Home Row Image Type'), getImageTypeOptions(), $L('Poster'), 'picture')}
+			{settings.homeRowsStyle === 'modern' && renderToggleItem(
+				'fullScreenRows',
+				$L('Expanded Home Rows'),
+				$L('Limit home rows to 1 row per screen'),
+				'aspectratio'
+			)}
 			{renderToggleItem('useSeriesThumbnails', $L('Series Thumbnails'), $L('Use series artwork instead of episode images'), 'aspectratio')}
 			{renderOptionItem('homeRowsPosterSize', $L('Image Size'), getPosterSizeOptions(), $L('Default'), 'aspectratio')}
 			{renderOptionItem('homeRowOverlay', $L('Home Row Overlay'), getHomeRowOverlayOptions(), $L('Off'), 'info')}
