@@ -23,11 +23,20 @@ export const supportsAssRenderer = () => {
 	return true;
 };
 
+const supportsWasmBlend = () => {
+	const chromiumMajor = getChromiumMajorVersion();
+	if (chromiumMajor && chromiumMajor >= 57) return true;
+	return false;
+};
+
 const createRenderer = async (options, onError) => {
 	try {
 		const mod = await import('libass-wasm');
 		const SubtitlesOctopus = mod.default || mod;
 		const workerUrl = 'subtitles-octopus-worker.js';
+		const qualityOptions = supportsWasmBlend()
+			? { targetFps: 24, renderMode: 'wasm-blend', prescaleFactor: 0.8, maxRenderHeight: 2160}
+			: { targetFps: 10, renderMode: 'js-blend', prescaleFactor: 0.5, maxRenderHeight: 540};
 
 		return new SubtitlesOctopus({
 			...options,
@@ -35,10 +44,7 @@ const createRenderer = async (options, onError) => {
 			legacyWorkerUrl: workerUrl.replace('worker.js', 'worker-legacy.js'),
 			fallbackFont: 'ass-fallback-font.ttf',
 			onError: onError || null,
-			targetFps: 10,
-			renderMode: 'js-blend',
-			prescaleFactor: 0.5,
-			maxRenderHeight: 540,
+			...qualityOptions,
 			debug: false
 		});
 	} catch (err) {
@@ -47,16 +53,16 @@ const createRenderer = async (options, onError) => {
 	}
 };
 
-export const initAssRenderer = async (videoElement, subtitleUrl, onError) => {
+export const initAssRenderer = async (videoElement, subtitleUrl, fontsUrl, onError) => {
 	if (!videoElement || !subtitleUrl) return null;
-	return createRenderer({video: videoElement, subUrl: subtitleUrl}, onError);
+	return createRenderer({video: videoElement, subUrl: subtitleUrl, fonts: fontsUrl}, onError);
 };
 
-export const initAssCanvasRenderer = async (canvasElement, subtitleUrl, onError) => {
+export const initAssCanvasRenderer = async (canvasElement, subtitleUrl, fontsUrl, onError) => {
 	if (!canvasElement || !subtitleUrl) return null;
 	canvasElement.width = window.innerWidth || canvasElement.clientWidth || 1920;
 	canvasElement.height = window.innerHeight || canvasElement.clientHeight || 1080;
-	return createRenderer({canvas: canvasElement, subUrl: subtitleUrl}, onError);
+	return createRenderer({canvas: canvasElement, subUrl: subtitleUrl, fonts: fontsUrl}, onError);
 };
 
 export const disposeAssRenderer = (renderer) => {

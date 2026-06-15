@@ -634,6 +634,33 @@ export const getAssSubtitleUrl = (subtitleStream) => {
 	return `${serverUrl}/Videos/${itemId}/${mediaSourceId}/Subtitles/${subtitleStream.index}/Stream.ass?api_key=${apiKey}`;
 };
 
+const supportedAssFontMimeTypes = [
+	'application/vnd.ms-opentype',
+	'application/font-sfnt',
+	'application/x-font-ttf',
+	'application/x-truetype-font',
+	'font/collection',
+	'font/sfnt',
+	'font/otf',
+	'font/ttf',
+	'font/woff',
+	'font/woff2'
+];
+
+export const getAssFontsUrl = (subtitleStream) => {
+	if (!subtitleStream?.isAss || !currentSession) return [];
+
+	const {mediaSource, serverCredentials} = currentSession;
+	const serverUrl = serverCredentials?.serverUrl || jellyfinApi.getServerUrl();
+	const apiKey = serverCredentials?.accessToken || jellyfinApi.getApiKey();
+	const embeddedFonts = (mediaSource?.MediaAttachments || [])
+		.filter((attachment) => supportedAssFontMimeTypes.includes(attachment.MimeType))
+		.map((attachment) => attachment.DeliveryUrl ? `${serverUrl}${attachment.DeliveryUrl}?api_key=${apiKey}` : '')
+		.filter(Boolean);
+
+	return embeddedFonts;
+};
+
 /**
  * Fetch subtitle track events as JSON data for custom rendering
  * This is required on webOS because native <track> elements don't work reliably
