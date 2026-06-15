@@ -35,7 +35,9 @@ const Login = ({
 		completeAddServerFlow,
 		cancelAddServerFlow,
 		lastServerUrl: storedServerUrl,
-		lastServerName: storedServerName
+		lastServerName: storedServerName,
+		servers: savedAccounts,
+		switchUser
 	} = useAuth();
 
 	// Determine if we're in "add server" mode (either adding new server or adding user to current)
@@ -132,8 +134,20 @@ const Login = ({
 
 	// If we have a pending server, adding user to existing, or a stored server (auto-login disabled), auto-connect
 	useEffect(() => {
-		if ((pendingServer?.url && step === 'server') || (isAddingToExisting && step === 'connecting') || (storedServerUrl && !isAuthenticated && !isAddingServer && !isAddingToExisting && step === 'server')) {
+		if ((pendingServer?.url && step === 'server') || (isAddingToExisting && step === 'connecting')) {
 			handleConnect();
+			return;
+		}
+		if (storedServerUrl && !isAuthenticated && !isAddingServer && !isAddingToExisting && step === 'server') {
+			// Prefer the saved-account picker so disabling autologin still lets you
+			// pick an already authenticated account, even when the server has public
+			// users disabled (#200). Only auto-connect when nothing is saved.
+			if (savedAccounts.length > 0) {
+				setStep('accounts');
+				setTimeout(() => Spotlight.focus('[data-spotlight-id="account-0"]'), 100);
+			} else {
+				handleConnect();
+			}
 		}
 	// eslint-disable-next-line react-hooks/exhaustive-deps
 	}, []);
@@ -267,8 +281,11 @@ const Login = ({
 		} else if (step === 'server' && isAdding) {
 			cancelAddServerFlow?.();
 			onServerAdded?.(null);
+		} else if (step === 'server' && savedAccounts.length > 0) {
+			setStep('accounts');
+			setTimeout(() => Spotlight.focus('[data-spotlight-id="account-0"]'), 100);
 		}
-	}, [step, quickConnectInterval, isAddingServer, isAddingToExisting, cancelAddServerFlow, onServerAdded]);
+	}, [step, quickConnectInterval, isAddingServer, isAddingToExisting, cancelAddServerFlow, onServerAdded, savedAccounts.length]);
 
 	const handleManualLogin = useCallback(() => {
 		setStep('manual');
@@ -424,6 +441,46 @@ const Login = ({
 		}
 	}, [publicUsers, handleUserSelect]);
 
+	const handleSavedAccountSelect = useCallback(async (account) => {
+		setIsConnecting(true);
+		setError(null);
+		setStatus($L('Signing in...'));
+		const ok = await switchUser(account.serverId, account.userId);
+		setIsConnecting(false);
+		if (ok) {
+			onLoggedIn?.();
+			return;
+		}
+		// Stored session was rejected, fall back to a normal sign-in on that server. womp womp
+		setStatus(null);
+		setServerUrl(account.url);
+		setServerInfo({ServerName: account.name});
+		setStep('server');
+		setTimeout(() => Spotlight.focus('[data-spotlight-id="connect-btn"]'), 100);
+	}, [switchUser, onLoggedIn]);
+
+	const handleAccountCardClick = useCallback((e) => {
+		const {serverId, userId} = e.currentTarget.dataset;
+		const account = savedAccounts.find(a => a.serverId === serverId && a.userId === userId);
+		if (account) handleSavedAccountSelect(account);
+	}, [savedAccounts, handleSavedAccountSelect]);
+
+	const handleAccountCardKeyDown = useCallback((e) => {
+		if (e.keyCode === KEYS.ENTER) {
+			handleAccountCardClick(e);
+		} else if (e.keyCode === KEYS.DOWN) {
+			e.stopPropagation();
+			e.preventDefault();
+			Spotlight.focus('[data-spotlight-id="add-account-btn"]');
+		}
+	}, [handleAccountCardClick]);
+
+	const handleAddAccount = useCallback(() => {
+		setServerUrl(storedServerUrl || '');
+		setStep('server');
+		setTimeout(() => Spotlight.focus('[data-spotlight-id="server-input"]'), 100);
+	}, [storedServerUrl]);
+
 	const handleQuickConnectClick = useCallback(() => {
 		if (selectedUser) handleQuickConnect(selectedUser);
 	}, [selectedUser, handleQuickConnect]);
@@ -480,6 +537,49 @@ const Login = ({
 				{error && <div className={css.errorMessage}>{error}</div>}
 
 				<div className={css.contentWrapper}>
+					{step === 'accounts' && (
+						<div className={css.section}>
+							<h1>{$L("Who's watching?")}</h1>
+							<UserGridContainer className={css.userGrid}>
+								{savedAccounts.map((account, index) => (
+									<SpottableDiv
+										key={`${account.serverId}-${account.userId}`}
+										data-spotlight-id={`account-${index}`}
+										data-server-id={account.serverId}
+										data-user-id={account.userId}
+										className={css.userCard}
+										onClick={handleAccountCardClick}
+										onKeyDown={handleAccountCardKeyDown}
+									>
+										{account.primaryImageTag ? (
+											<img
+												src={`${account.url}/Users/${account.userId}/Images/Primary?tag=${account.primaryImageTag}&quality=90&maxHeight=150`}
+												alt={account.username}
+												className={css.userAvatar}
+											/>
+										) : (
+											<div className={css.userAvatarPlaceholder}>
+												<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 -960 960 960" fill="#FFFFFF" className={css.placeholderIcon}>
+													<path d="M480-480q-66 0-113-47t-47-113q0-66 47-113t113-47q66 0 113 47t47 113q0 66-47 113t-113 47ZM160-160v-112q0-34 17.5-62.5T224-378q62-31 126-46.5T480-440q66 0 130 15.5T736-378q29 15 46.5 43.5T800-272v112H160Z" />
+												</svg>
+											</div>
+										)}
+										<span className={css.userName}>{account.username}</span>
+									</SpottableDiv>
+								))}
+							</UserGridContainer>
+							<div className={css.buttonGroup}>
+								<SpottableButton
+									data-spotlight-id="add-account-btn"
+									className={`${css.btn} ${css.btnSecondary}`}
+									onClick={handleAddAccount}
+								>
+									{$L('Add Account')}
+								</SpottableButton>
+							</div>
+						</div>
+					)}
+
 					{step === 'server' && (
 						<div className={css.section}>
 							<h2>{isAddingServer ? $L('Add New Server') : $L('Connect to Server')}</h2>
