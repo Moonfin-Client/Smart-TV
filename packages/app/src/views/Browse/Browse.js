@@ -936,7 +936,7 @@ const Browse = ({
 					cachedFeaturedItems = featuredWithLogos;
 				}
 
-				if (recentlyPlayed.Items?.length > 0) {
+				if (recentlyPlayed?.Items?.length > 0) {
 					rowData.push({
 						id: 'recentlyplayed',
 						items: recentlyPlayed.Items
