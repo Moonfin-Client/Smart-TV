@@ -1514,7 +1514,7 @@ const Browse = ({
 
 				<div
 					ref={contentRowsRef}
-					className={`${css.contentRows} ${browseMode === 'rows' ? css.rowsMode : ''}`}
+					className={`${css.contentRows} ${browseMode === 'rows' ? css.rowsMode : ''} ${(settings.fullScreenRows && settings.homeRowsStyle === 'modern') ? css.fullScreenRows : ''}`}
 				>
 					{filteredRows.map((row, index) => {
 						if (row.isTileRow) {
