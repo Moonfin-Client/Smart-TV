@@ -256,6 +256,18 @@ const UI_OPACITY_OPTIONS = [
 	{ value: 95, label: $L('95%') }
 ];
 
+const UI_SCALE_OPTIONS = [
+	{ value: 0.85, label: $L('Compact') },
+	{ value: 0.9, label: $L('Small') },
+	{ value: 0.95, label: $L('Slightly Small') },
+	{ value: 1.0, label: $L('Default') },
+	{ value: 1.05, label: $L('Slightly Large') },
+	{ value: 1.1, label: $L('Large') },
+	{ value: 1.15, label: $L('Extra Large') },
+	{ value: 1.2, label: $L('Huge') },
+	{ value: 1.3, label: $L('Maximum') }
+];
+
 const getUiColorOptions = () => [
 	{ value: 'gray', label: $L('Gray'), rgb: '128, 128, 128' },
 	{ value: 'black', label: $L('Black'), rgb: '0, 0, 0' },
@@ -1450,6 +1462,7 @@ const Settings = ({ onBack, onLibrariesChanged, panelMode }) => {
 				availableThemes.find((t) => t.id === activeThemeId)?.displayName || $L('Default'),
 				openThemes
 			)}
+			{renderOptionItem('uiScale', $L('UI Scale'), UI_SCALE_OPTIONS, $L('Default'))}
 			{renderOptionItem('focusBorderColor', $L('Focus Border Color'), ACCENT_COLOR_OPTIONS, $L('Theme Default'))}
 			{renderOptionItem('clockDisplay', $L('Clock Display'), getClockDisplayOptions(), $L('24-Hour'))}
 			{renderToggleItem('cardFocusZoom', $L('Card Focus Expansion'), $L('Slightly enlarge cards when focused'))}
@@ -2057,7 +2070,7 @@ const Settings = ({ onBack, onLibrariesChanged, panelMode }) => {
 					{ id: 'automationQueue', label: $L('Automation & Queue'), description: $L('Next up, queueing, and prompt behavior') },
 					{ id: 'offlineDownloads', label: $L('Offline Downloads'), description: $L('Download quality, location, and limits') },
 					{ id: 'syncPlay', label: $L('SyncPlay'), description: $L('Group playback sync controls') },
-					{ id: 'advanced', label: $L('Advanced'), description: $L('Expert playback and MPV options') }
+					{ id: 'advanced', label: $L('Advanced'), description: $L('Advanced playback options') }
 				];
 			case 'about': {
 				const subs = [
