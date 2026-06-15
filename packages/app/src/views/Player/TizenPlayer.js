@@ -222,7 +222,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 		isPaused, audioStreams, subtitleStreams, chapters,
 		nextEpisode, isAudioMode, isLiveTV, hasNextTrack, hasPrevTrack,
 		shuffleMode, repeatMode, isFavorite, playbackRate, selectedQuality,
-		hasCastMembers, zoomModeLabel, zoomModeKey: zoomMode
+		selectedSubtitleIndex, canDownloadRemoteSubtitles: !isAudioMode && Boolean(item?.Id), hasCastMembers, zoomModeLabel, zoomModeKey: zoomMode
 	});
 
 	useEffect(() => {
