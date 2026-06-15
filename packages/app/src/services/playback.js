@@ -636,7 +636,11 @@ export const getAssSubtitleUrl = (subtitleStream) => {
 
 const supportedAssFontMimeTypes = [
 	'application/vnd.ms-opentype',
+	'application/font-sfnt',
+	'application/x-font-ttf',
 	'application/x-truetype-font',
+	'font/collection',
+	'font/sfnt',
 	'font/otf',
 	'font/ttf',
 	'font/woff',
