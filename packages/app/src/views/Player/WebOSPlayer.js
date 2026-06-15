@@ -8,7 +8,7 @@ import {getImageUrl} from '../../utils/helpers';
 import {api as jellyfinApi, createApiForServer, getServerUrl} from '../../services/jellyfinApi';
 import {detectWebOSVersion, getH264FallbackProfile} from '@moonfin/platform-webos/deviceProfile';
 import {initPgsRenderer, disposePgsRenderer} from '../../utils/pgsRenderer';
-import {supportsAssRenderer, initAssRenderer, disposeAssRenderer} from '../../utils/assRenderer';
+import {supportsAssRenderer, initAssCanvasRenderer, disposeAssRenderer, setAssTime, clearAssCanvas} from '../../utils/assRenderer';
 import {
 	initLunaAPI,
 	registerAppStateObserver,
@@ -169,6 +169,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 	const mediaUrlRef = useRef(null);
 	const pgsRendererRef = useRef(null);
 	const assRendererRef = useRef(null);
+	const assCanvasRef = useRef(null);
 	const pendingInitialAssSubtitleRef = useRef(null);
 
 	const destroyHlsPlayer = () => {
@@ -270,66 +271,60 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 		setCastMembers(people);
 	}, [item]);
 
-	useEffect(() => {
+	const applyVideoAndAssGeometry = useCallback(() => {
 		const video = videoRef.current;
 		if (!video) return;
 
 		const sw = window.innerWidth || 1920;
 		const sh = window.innerHeight || 1080;
+		const screenAspect = sw / sh;
 
 		const decodedAspect = Number.isFinite(decodedAspectRatio) && decodedAspectRatio > 0
 			? decodedAspectRatio : null;
 		const targetAspect = (Number.isFinite(videoDisplayAspectRatio) && videoDisplayAspectRatio > 0
-			? videoDisplayAspectRatio : decodedAspect) || (sw / sh);
+			? videoDisplayAspectRatio : decodedAspect) || screenAspect;
+
+		// Content width when scaled to full height, and height when scaled to full width.
+		const wAtFullHeight = Math.round(sh * targetAspect);
+		const hAtFullWidth = Math.round(sw / targetAspect);
+		// Letter/pillar-box rect (fit) and the cropped rect (fill).
+		const fitRect = targetAspect >= screenAspect
+			? {x: 0, y: Math.round((sh - hAtFullWidth) / 2), w: sw, h: hAtFullWidth}
+			: {x: Math.round((sw - wAtFullHeight) / 2), y: 0, w: wAtFullHeight, h: sh};
+		const fillRect = targetAspect >= screenAspect
+			? {x: -Math.round((wAtFullHeight - sw) / 2), y: 0, w: wAtFullHeight, h: sh}
+			: {x: 0, y: -Math.round((hAtFullWidth - sh) / 2), w: sw, h: hAtFullWidth};
 
 		video.style.position = 'absolute';
 		video.style.objectFit = 'fill';
 		video.style.transform = 'none';
 		video.style.transformOrigin = 'center center';
 
-		if (zoomMode === 'stretch') {
-			video.style.width = `${sw}px`;
-			video.style.height = `${sh}px`;
-			video.style.left = '0px';
-			video.style.top = '0px';
-		} else if (zoomMode === 'fill') {
-			const screenAspect = sw / sh;
-			let vw, vh, vx, vy;
-			if (targetAspect >= screenAspect) {
-				vh = sh;
-				vw = Math.round(sh * targetAspect);
-				vx = -Math.round((vw - sw) / 2);
-				vy = 0;
-			} else {
-				vw = sw;
-				vh = Math.round(sw / targetAspect);
-				vx = 0;
-				vy = -Math.round((vh - sh) / 2);
-			}
-			video.style.width = `${vw}px`;
-			video.style.height = `${vh}px`;
-			video.style.left = `${vx}px`;
-			video.style.top = `${vy}px`;
-		} else {
-			const screenAspect = sw / sh;
-			let vw, vh, vx, vy;
-			if (targetAspect >= screenAspect) {
-				vw = sw;
-				vh = Math.round(sw / targetAspect);
-				vx = 0;
-				vy = Math.round((sh - vh) / 2);
-			} else {
-				vh = sh;
-				vw = Math.round(sh * targetAspect);
-				vx = Math.round((sw - vw) / 2);
-				vy = 0;
-			}
-			video.style.width = `${vw}px`;
-			video.style.height = `${vh}px`;
-			video.style.left = `${vx}px`;
-			video.style.top = `${vy}px`;
+		const videoRect = zoomMode === 'stretch' ? {x: 0, y: 0, w: sw, h: sh}
+			: zoomMode === 'fill' ? fillRect : fitRect;
+		video.style.width = `${videoRect.w}px`;
+		video.style.height = `${videoRect.h}px`;
+		video.style.left = `${videoRect.x}px`;
+		video.style.top = `${videoRect.y}px`;
+
+		// Track the content rect (fit for fit/stretch, fill for crop) so the ASS
+		// overlay aligns to the video in every zoom mode (#235).
+		const assRect = zoomMode === 'fill' ? fillRect : fitRect;
+		const canvas = assCanvasRef.current;
+		if (canvas) {
+			canvas.style.left = `${assRect.x}px`;
+			canvas.style.top = `${assRect.y}px`;
+			canvas.style.width = `${assRect.w}px`;
+			canvas.style.height = `${assRect.h}px`;
+		}
+		if (assRendererRef.current?.resize) {
+			assRendererRef.current.resize(Math.max(1, assRect.w), Math.max(1, assRect.h));
 		}
 	}, [zoomMode, videoDisplayAspectRatio, decodedAspectRatio]);
+
+	useEffect(() => {
+		applyVideoAndAssGeometry();
+	}, [applyVideoAndAssGeometry]);
 
 	useEffect(() => {
 		applyWebOSZoomWindow();
@@ -343,7 +338,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 	}, [applyWebOSZoomWindow]);
 
 	const initAssRendererForStream = useCallback(async (stream) => {
-		if (!stream?.isAss || !videoRef.current) {
+		if (!stream?.isAss || !assCanvasRef.current) {
 			return false;
 		}
 
@@ -354,10 +349,13 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 			}
 			const assFontsUrl = playback.getAssFontsUrl(stream);
 
-			const renderer = await initAssRenderer(videoRef.current, assUrl, assFontsUrl, (err) => {
+			// Canvas mode (not video-auto-sync): we position the overlay ourselves to
+			// the video's display rect so subtitles stay aligned in every zoom mode (#235).
+			const renderer = await initAssCanvasRenderer(assCanvasRef.current, assUrl, assFontsUrl, (err) => {
 				console.error('[Player] ASS renderer error, falling back to text', err);
 				disposeAssRenderer(assRendererRef.current);
 				assRendererRef.current = null;
+				clearAssCanvas(assCanvasRef.current);
 				playback.fetchSubtitleData(stream).then(data => {
 					setSubtitleTrackEvents(data?.TrackEvents || null);
 				}).catch(() => setSubtitleTrackEvents(null));
@@ -366,6 +364,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 			if (renderer) {
 				assRendererRef.current = renderer;
 				setSubtitleTrackEvents(null);
+				applyVideoAndAssGeometry();
 				return true;
 			}
 		} catch (err) {
@@ -384,7 +383,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 		}
 
 		return false;
-	}, []);
+	}, [applyVideoAndAssGeometry]);
 
 	useEffect(() => {
 		let cancelled = false;
@@ -571,6 +570,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 
 	useEffect(() => {
 		const videoElement = videoRef.current;
+		const assCanvas = assCanvasRef.current;
 		console.log('[Player] Main useEffect running with deps:', {
 			itemId: item?.Id,
 			selectedQuality,
@@ -695,6 +695,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 					pgsRendererRef.current = null;
 					disposeAssRenderer(assRendererRef.current);
 					assRendererRef.current = null;
+					clearAssCanvas(assCanvasRef.current);
 					pendingInitialAssSubtitleRef.current = null;
 
 					const supportsAss = sub && sub.isAss && supportsAssRenderer();
@@ -849,6 +850,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 				if (seekDebounceTimerRef.current) clearTimeout(seekDebounceTimerRef.current);
 				disposePgsRenderer(pgsRendererRef.current);
 				disposeAssRenderer(assRendererRef.current);
+				clearAssCanvas(assCanvas);
 				return;
 			}
 
@@ -1380,6 +1382,11 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 			const ticks = Math.floor(time * 10000000);
 			positionRef.current = ticks;
 
+			// Canvas-mode ASS isn't auto-synced to the video, so drive its clock here.
+			if (assRendererRef.current) {
+				setAssTime(assRendererRef.current, time - subtitleOffset);
+			}
+
 			if (healthMonitorRef.current) {
 				healthMonitorRef.current.recordProgress();
 			}
@@ -1746,6 +1753,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 		pgsRendererRef.current = null;
 		disposeAssRenderer(assRendererRef.current);
 		assRendererRef.current = null;
+		clearAssCanvas(assCanvasRef.current);
 		pendingInitialAssSubtitleRef.current = null;
 
 		if (index === -1) {
@@ -2346,6 +2354,8 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 				className={css.videoPlayer}
 				style={isLoading || isAudioMode ? {opacity: 0, pointerEvents: 'none'} : undefined}
 			/>
+
+			<canvas ref={assCanvasRef} className={css.assCanvas} />
 
 			{isLoading && (
 				<div className={css.loadingIndicator}>

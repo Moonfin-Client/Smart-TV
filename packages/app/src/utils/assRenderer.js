@@ -80,3 +80,9 @@ export const setAssTime = (renderer, currentTimeSeconds) => {
 		renderer.setCurrentTime(Math.max(0, currentTimeSeconds));
 	}
 };
+
+export const clearAssCanvas = (canvas) => {
+	if (!canvas) return;
+	const ctx = canvas.getContext('2d');
+	if (ctx) ctx.clearRect(0, 0, canvas.width, canvas.height);
+};

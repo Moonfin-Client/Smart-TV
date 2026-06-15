@@ -24,6 +24,16 @@
 	object-fit: contain;
 }
 
+/* ASS/SSA overlay. left/top/width/height are set per-frame in JS to track the
+   video's display (zoom-aware), so subtitles stay aligned (#235). */
+.assCanvas {
+	position: fixed;
+	left: 0;
+	top: 0;
+	z-index: 2;
+	pointer-events: none;
+}
+
 /* Audio Mode - Album Art Display */
 .audioModeBackground {
 	position: fixed;
