@@ -1389,6 +1389,8 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 
 	const handlePlaying = useCallback(() => {
 		setIsBuffering(false);
+		setIsPaused(false);
+		healthMonitorRef.current?.setPaused(false);
 		if (!seekDebounceTimerRef.current && !seekingTranscodeRef.current) {
 			lastSeekTargetRef.current = null;
 		}
