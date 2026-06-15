@@ -875,7 +875,7 @@ const Browse = ({
 							SortOrder: 'Descending',
 							Limit: 100,
 							Fields: 'UserData,SeriesId'
-						})
+						}) : Promise.resolve(null)
 					]);
 					libs = results[0].Items || [];
 					resumeItems = results[1];
