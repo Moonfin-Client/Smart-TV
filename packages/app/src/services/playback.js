@@ -948,6 +948,39 @@ export const reportProgress = async (positionTicks, options = {}) => {
 	} catch (e) { void e; }
 };
 
+export const reportProgressBeacon = (positionTicks, options = {}) => {
+	if (!currentSession) return false;
+	if (typeof navigator === 'undefined' || typeof navigator.sendBeacon !== 'function') return false;
+
+	const creds = currentSession.serverCredentials;
+	let serverUrl = creds?.serverUrl || jellyfinApi.getServerUrl();
+	const token = creds?.accessToken || jellyfinApi.getApiKey();
+	if (!serverUrl || !token) return false;
+
+	serverUrl = serverUrl.trim().replace(/\/+$/, '');
+	if (!/^https?:\/\//i.test(serverUrl)) serverUrl = 'http://' + serverUrl;
+
+	const endpoint = `${serverUrl}/Sessions/Playing/Progress?api_key=${encodeURIComponent(token)}`;
+	const body = new Blob([JSON.stringify({
+		ItemId: currentSession.itemId,
+		PlaySessionId: currentSession.playSessionId,
+		MediaSourceId: currentSession.mediaSourceId,
+		PositionTicks: positionTicks,
+		CanSeek: true,
+		IsPaused: options.isPaused !== false,
+		PlayMethod: currentSession.reportedPlayMethod || currentSession.playMethod,
+		AudioStreamIndex: currentSession.audioStreamIndex,
+		SubtitleStreamIndex: currentSession.subtitleStreamIndex
+	})], {type: 'application/json'});
+
+	try {
+		return navigator.sendBeacon(endpoint, body);
+	} catch (e) {
+		void e;
+		return false;
+	}
+};
+
 export const stopProgressReporting = () => {
 	if (progressInterval) {
 		clearInterval(progressInterval);
@@ -1149,6 +1182,7 @@ export default {
 	updateCurrentSession,
 	reportStart,
 	reportProgress,
+	reportProgressBeacon,
 	reportStop,
 	startProgressReporting,
 	stopProgressReporting,

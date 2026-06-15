@@ -480,10 +480,14 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 					videoRef.current.pause();
 				}
 			}
-			// Report current progress when app is backgrounded
-			// This ensures position is saved if user doesn't return
+			// Report current progress when app is backgrounded. The TV may be
+			// powering off, which cancels a normal async report mid-flight and
+			// loses watch progress, instead use a beacon, which the OS delivers
+			// after teardown, and fall back to the async path if unavailable.
 			if (positionRef.current > 0) {
-				playback.reportProgress(positionRef.current);
+				if (!playback.reportProgressBeacon(positionRef.current, {isPaused: true})) {
+					playback.reportProgress(positionRef.current);
+				}
 			}
 		};
 
