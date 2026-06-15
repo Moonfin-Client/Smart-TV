@@ -37,7 +37,7 @@ const {settings} = useSettings();
 const unifiedMode = settings.unifiedLibraryMode && hasMultipleServers;
 const [genres, setGenres] = useState([]);
 const [isLoading, setIsLoading] = useState(true);
-const [sortOrder, setSortOrder] = useState('name-asc');
+const [sortOrder, setSortOrder] = useStorage('genres_sortOrder', 'name-asc');
 const [selectedLibrary, setSelectedLibrary] = useState(null);
 const [libraries, setLibraries] = useState([]);
 const [showSortPanel, setShowSortPanel] = useState(false);
@@ -310,7 +310,7 @@ setSortOrder(key);
 setShowSortPanel(false);
 setTimeout(() => Spotlight.focus('genres-grid'), 100);
 }
-}, []);
+}, [setSortOrder]);
 
 const handleLibrarySelect = useCallback((ev) => {
 const libIndex = ev.currentTarget?.dataset?.libIndex;
