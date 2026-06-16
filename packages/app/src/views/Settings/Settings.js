@@ -408,10 +408,18 @@ const getAudioLanguageOptions = () => [
 ];
 
 const RATING_SOURCE_OPTIONS = [
+	{ value: 'stars', label: $L('Community Rating') },
 	{ value: 'imdb', label: $L('IMDb') },
 	{ value: 'tmdb', label: $L('TMDB') },
-	{ value: 'tomatoes', label: $L('Rotten Tomatoes') },
-	{ value: 'metacritic', label: $L('Metacritic') }
+	{ value: 'tomatoes', label: $L('Rotten Tomatoes (Critics)') },
+	{ value: 'popcorn', label: $L('Rotten Tomatoes (Audience)') },
+	{ value: 'metacritic', label: $L('Metacritic') },
+	{ value: 'metacriticuser', label: $L('Metacritic User') },
+	{ value: 'trakt', label: $L('Trakt') },
+	{ value: 'letterboxd', label: $L('Letterboxd') },
+	{ value: 'rogerebert', label: $L('Roger Ebert') },
+	{ value: 'myanimelist', label: $L('MyAnimeList') },
+	{ value: 'anilist', label: $L('AniList') }
 ];
 
 const getEnabledRatingSourcesSummary = (sources) => {

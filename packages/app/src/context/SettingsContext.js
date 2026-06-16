@@ -91,7 +91,7 @@ const defaultSettings = {
 	unifiedLibraryMode: false,
 	useMoonfinPlugin: false,
 	mdblistEnabled: true,
-	mdblistRatingSources: ['imdb', 'tmdb', 'tomatoes', 'metacritic'],
+	mdblistRatingSources: ['stars', 'imdb', 'tmdb', 'tomatoes', 'metacritic'],
 	tmdbEpisodeRatingsEnabled: true,
 	showClock: true,
 	clockDisplay: '24-hour',
@@ -414,6 +414,12 @@ export function SettingsProvider({children}) {
 				if ('skipCredits' in stored) {
 					stored.outroAction = stored.skipCredits === true ? 'auto' : 'ask';
 					delete stored.skipCredits;
+					migrated = true;
+				}
+				if (Array.isArray(stored.mdblistRatingSources) && !stored.mdblistRatingSources.includes('stars')) {
+					// Community rating was always shown before it became toggleable, so
+					// preserve that for existing users by enabling 'stars' once.
+					stored.mdblistRatingSources = ['stars', ...stored.mdblistRatingSources];
 					migrated = true;
 				}
 				const merged = {...defaultSettings, ...stored};

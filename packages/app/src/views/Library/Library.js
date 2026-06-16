@@ -878,7 +878,8 @@ if (focusedItem) {
 }
 
 const ratingElements = [];
-if (focusedItem && focusedItem.CommunityRating) {
+const showCommunityRating = !Array.isArray(settings?.mdblistRatingSources) || settings.mdblistRatingSources.includes('stars');
+if (focusedItem && focusedItem.CommunityRating && showCommunityRating) {
 	ratingElements.push(
 		<span key="community" className={css.pluginRating}>
 			<span className={css.communityStar}>{"\u2605"}</span>

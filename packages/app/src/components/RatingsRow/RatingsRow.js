@@ -52,7 +52,8 @@ const RatingsRow = ({item, serverUrl, compact = false, pluginEnabled = true}) =>
 
 	if (!showRatingBadges) return null;
 
-	const communityRating = item && item.CommunityRating ? item.CommunityRating.toFixed(1) : null;
+	const showCommunity = !Array.isArray(enabledSources) || enabledSources.includes('stars');
+	const communityRating = showCommunity && item && item.CommunityRating ? item.CommunityRating.toFixed(1) : null;
 	const hasContent = communityRating || displayRatings.length > 0 || (!pluginEnabled && item && item.CriticRating);
 	if (!hasContent) return null;
 
