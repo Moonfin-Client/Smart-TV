@@ -174,7 +174,8 @@ const SERVER_TO_LOCAL = {
 	theme: 'visualTheme',
 	focusColor: 'focusBorderColor',
 	watchedIndicator: 'watchedIndicatorBehavior',
-	posterSize: 'homeRowsPosterSize'
+	posterSize: 'homeRowsPosterSize',
+	homeImageUseSeriesImage: 'useSeriesThumbnails'
 };
 const LOCAL_TO_SERVER = Object.fromEntries(
 	Object.entries(SERVER_TO_LOCAL).map(([s, l]) => [l, s])
@@ -288,7 +289,7 @@ const SYNCABLE_KEYS = [
 	'stillWatchingPrompt', 'watchedIndicatorBehavior',
 	'backdropBlurHome', 'backdropBlurDetail',
 	'mediaBarSourceType', 'mediaBarLibraryIds', 'mediaBarCollectionIds',
-	'homeRows', 'homeRowsStyle', 'fullScreenRows', 'homeRowsPosterSize',
+	'homeRows', 'homeRowsStyle', 'fullScreenRows', 'homeRowsPosterSize', 'useSeriesThumbnails',
 	'syncplayEnabled', 'syncplayAutoOpen',
 	'showSyncPlayButton',
 	'videoStartDelay', 'liveTvDirect',
