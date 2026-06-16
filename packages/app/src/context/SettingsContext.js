@@ -161,16 +161,20 @@ export {DEFAULT_HOME_ROWS, DEFAULT_SEERR_HOME_ROWS};
 
 const SERVER_TO_LOCAL = {
 	mediaBarEnabled: 'showFeaturedBar',
-	mediaBarContentType: 'featuredContentType',
+	mediaBarMode: 'featuredContentType',
 	mediaBarItemCount: 'featuredItemCount',
 	mediaBarTrailerPreview: 'featuredTrailerPreview',
 	enableMultiServerLibraries: 'unifiedLibraryMode',
 	seasonalSurprise: 'seasonalTheme',
 	detailsScreenBlur: 'backdropBlurDetail',
+	detailsBackdropBlur: 'backdropBlurDetail',
 	browsingBlur: 'backdropBlurHome',
 	use24HourClock: 'clockDisplay',
 	homeRowOrder: 'homeRows',
 	theme: 'visualTheme',
+	focusColor: 'focusBorderColor',
+	watchedIndicator: 'watchedIndicatorBehavior',
+	posterSize: 'homeRowsPosterSize'
 };
 const LOCAL_TO_SERVER = Object.fromEntries(
 	Object.entries(SERVER_TO_LOCAL).map(([s, l]) => [l, s])
@@ -281,10 +285,10 @@ const SYNCABLE_KEYS = [
 	'autoAdvance', 'autoAdvanceInterval',
 	'displayFavoritesRows', 'displayCollectionsRows', 'displayGenresRows', 'displaySeerrRows',
 	'favoritesRowSortBy', 'collectionsRowSortBy', 'genresRowSortBy', 'genresRowItemFilter',
-	'stillWatchingPrompt',
+	'stillWatchingPrompt', 'watchedIndicatorBehavior',
 	'backdropBlurHome', 'backdropBlurDetail',
 	'mediaBarSourceType', 'mediaBarLibraryIds', 'mediaBarCollectionIds',
-	'homeRows', 'homeRowsStyle', 'fullScreenRows',
+	'homeRows', 'homeRowsStyle', 'fullScreenRows', 'homeRowsPosterSize',
 	'syncplayEnabled', 'syncplayAutoOpen',
 	'showSyncPlayButton',
 	'videoStartDelay', 'liveTvDirect',
