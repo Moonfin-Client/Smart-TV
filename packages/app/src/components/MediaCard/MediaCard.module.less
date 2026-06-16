@@ -146,11 +146,9 @@
 	right: 30px;
 	width: auto;
 	height: 8px;
-	background: rgba(100, 100, 100, 0.7);
+	background: rgba(80, 80, 80, 0.85);
 	border-radius: 999px;
 	overflow: hidden;
-	backdrop-filter: blur(4px);
-	-webkit-backdrop-filter: blur(4px);
 	z-index: 1;
 }
 
@@ -159,6 +157,10 @@
 	background: var(--theme-range-progress, #ffffff);
 	transition: width 0.25s ease;
 	border-radius: inherit;
+
+	:global(.perf-low) & {
+		transition: none;
+	}
 }
 
 .serverBadge {
@@ -175,8 +177,36 @@
 	overflow: hidden;
 	text-overflow: ellipsis;
 	white-space: nowrap;
-	backdrop-filter: blur(4px);
-	-webkit-backdrop-filter: blur(4px);
+}
+
+.seerrBadge {
+	position: absolute;
+	top: 8px;
+	right: 8px;
+	width: 22px;
+	height: 22px;
+	border-radius: 50%;
+	z-index: 2;
+	box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+}
+
+.seerr5 {
+	background: var(--theme-on-surface, #fff);
+	border: 3px solid var(--theme-status-available, #22c55e);
+}
+
+.seerr4 {
+	background: var(--theme-status-available, #22c55e);
+}
+
+.seerr3 {
+	background: transparent;
+	border: 3px solid var(--theme-accent, #9333ea);
+}
+
+.seerr2 {
+	background: var(--theme-on-surface, #fff);
+	border: 3px solid var(--theme-status-pending, #eab308);
 }
 
 .overview {

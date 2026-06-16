@@ -21,6 +21,19 @@ const DEFAULT_HOME_ROWS = [
 	{id: 'genres', name: 'Genres', enabled: false, order: 13}
 ];
 
+const DEFAULT_SEERR_HOME_ROWS = [
+	{id: 'myRequests', enabled: false},
+	{id: 'trending', enabled: false},
+	{id: 'popularMovies', enabled: false},
+	{id: 'popularTv', enabled: false},
+	{id: 'upcomingMovies', enabled: false},
+	{id: 'upcomingTv', enabled: false},
+	{id: 'genreMovies', enabled: false},
+	{id: 'genreTv', enabled: false},
+	{id: 'studios', enabled: false},
+	{id: 'networks', enabled: false}
+];
+
 const defaultSettings = {
 	preferTranscode: false,
 	forceDirectPlay: false,
@@ -50,10 +63,12 @@ const defaultSettings = {
 	displayFavoritesRows: false,
 	displayCollectionsRows: false,
 	displayGenresRows: false,
+	displaySeerrRows: false,
 	favoritesRowSortBy: 'SortName',
 	collectionsRowSortBy: 'SortName',
 	genresRowSortBy: 'SortName',
 	genresRowItemFilter: 'all',
+	fullScreenRows: false,
 	showShuffleButton: true,
 	shuffleContentType: 'both',
 	showGenresButton: true,
@@ -105,6 +120,7 @@ const defaultSettings = {
 	autoAdvance: true,
 	autoAdvanceInterval: 8,
 	nextUpBehavior: 'extended',
+	nextUpCountdownStyle: 'both',
 	nextUpTimeout: 7,
 	stillWatchingPrompt: true,
 	skipForwardLength: 30,
@@ -133,13 +149,15 @@ const defaultSettings = {
 	eac3Passthrough: true,
 	truehdPassthrough: true,
 	blockedRatings: [],
-	jellyseerrRows: null,
+	seerrHomeRows: DEFAULT_SEERR_HOME_ROWS,
+	showSeerrButton: true,
+	performanceMode: 'auto',
 	focusBorderColor: '',
 	navbarOpacity: 100,
 	navbarColor: ''
 };
 
-export {DEFAULT_HOME_ROWS};
+export {DEFAULT_HOME_ROWS, DEFAULT_SEERR_HOME_ROWS};
 
 const SERVER_TO_LOCAL = {
 	mediaBarEnabled: 'showFeaturedBar',
@@ -261,18 +279,19 @@ const SYNCABLE_KEYS = [
 	'homeRowOverlay', 'folderViewMode',
 	'excludedGenres',
 	'autoAdvance', 'autoAdvanceInterval',
-	'displayFavoritesRows', 'displayCollectionsRows', 'displayGenresRows',
+	'displayFavoritesRows', 'displayCollectionsRows', 'displayGenresRows', 'displaySeerrRows',
 	'favoritesRowSortBy', 'collectionsRowSortBy', 'genresRowSortBy', 'genresRowItemFilter',
 	'stillWatchingPrompt',
 	'backdropBlurHome', 'backdropBlurDetail',
 	'mediaBarSourceType', 'mediaBarLibraryIds', 'mediaBarCollectionIds',
-	'homeRows',
+	'homeRows', 'homeRowsStyle', 'fullScreenRows',
 	'syncplayEnabled', 'syncplayAutoOpen',
 	'showSyncPlayButton',
 	'videoStartDelay', 'liveTvDirect',
 	'uiLanguage',
 	'blockedRatings',
-	'jellyseerrRows',
+	'seerrHomeRows',
+	'showSeerrButton',
 	'focusBorderColor',
 	'navbarOpacity',
 	'navbarColor',

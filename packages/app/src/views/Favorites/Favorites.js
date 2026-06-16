@@ -51,7 +51,7 @@ const unifiedMode = settings.unifiedLibraryMode && hasMultipleServers;
 const [allItems, setAllItems] = useState([]);
 const [isLoading, setIsLoading] = useState(true);
 const [totalCount, setTotalCount] = useState(0);
-const [sortKey, setSortKey] = useState('SortName');
+const [sortKey, setSortKey] = useStorage('favorites_sortKey', 'SortName');
 const [typeFilterKey, setTypeFilterKey] = useState('all');
 const [startLetter, setStartLetter] = useState(null);
 const [showSortPanel, setShowSortPanel] = useState(false);
@@ -67,7 +67,7 @@ const initialFocusDoneRef = useRef(false);
 const items = useMemo(() => {
 if (!startLetter) return allItems;
 return allItems.filter(item => {
-const name = item.Name || '';
+const name = item.SortName || '';
 const firstChar = name.charAt(0).toUpperCase();
 if (startLetter === '#') return !/[A-Z]/.test(firstChar);
 return firstChar === startLetter;
@@ -266,7 +266,7 @@ setSortKey(key);
 setShowSortPanel(false);
 setTimeout(() => Spotlight.focus('favorites-grid'), 100);
 }
-}, []);
+}, [setSortKey]);
 
 const handleTypeFilterSelect = useCallback((ev) => {
 const key = ev.currentTarget?.dataset?.filterKey;

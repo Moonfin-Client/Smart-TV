@@ -16,8 +16,13 @@
 
 .dialog {
 	background: rgba(var(--theme-surface-rgb, 30, 30, 40), 0.85);
-	backdrop-filter: blur(32px) saturate(1.4);
-	-webkit-backdrop-filter: blur(32px) saturate(1.4);
+	backdrop-filter: blur(16px) saturate(1.4);
+	-webkit-backdrop-filter: blur(16px) saturate(1.4);
+
+	:global(.perf-low) &,
+	:global(.perf-mid) & {
+		background: rgba(var(--theme-surface-rgb, 30, 30, 40), 0.97);
+	}
 	border: 1px solid rgba(var(--theme-on-surface-rgb, 255, 255, 255), 0.12);
 	border-radius: 24px;
 	padding: 0;

@@ -21,6 +21,9 @@ const PopupContainer = SpotlightContainerDecorator({
 
 const HOURS_TO_DISPLAY = 6;
 const PIXELS_PER_HOUR = 600;
+const CHANNEL_ROW_HEIGHT = 80;
+const OVERSCAN_ROWS = 6;
+const VISIBLE_ROWS = 16;
 const MINUTES_PER_PIXEL = 60 / PIXELS_PER_HOUR;
 const CHANNELS_PER_BATCH = 50;
 const GUIDE_CONTROL_IDS = ['prev-day', 'next-day', 'today', 'filter', 'recordings'];
@@ -62,6 +65,9 @@ const LiveTV = ({onPlayChannel, onRecordings, backHandlerRef}) => {
 	const {api, serverUrl} = useAuth();
 	const [channels, setChannels] = useState([]);
 	const [programs, setPrograms] = useState({});
+	const [channelWindowStart, setChannelWindowStart] = useState(0);
+	const channelWindowStartRef = useRef(0);
+	const filteredChannelsRef = useRef([]);
 	const [currentDate, setCurrentDate] = useState(new Date());
 	const [isLoading, setIsLoading] = useState(true);
 	const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
@@ -159,18 +165,22 @@ const LiveTV = ({onPlayChannel, onRecordings, backHandlerRef}) => {
 
 		channelNumberTimeoutRef.current = setTimeout(() => {
 			const channelNum = channelNumberBuffer + digit;
-			const channel = channels.find(ch => ch.ChannelNumber === channelNum);
-			if (channel) {
-				const row = document.querySelector(`[data-channel-id="${channel.Id}"]`);
-				if (row) {
-					row.scrollIntoView({behavior: 'smooth', block: 'center'});
-					const spottable = row.querySelector('[tabindex]');
-					if (spottable) spottable.focus();
+			const channelIndex = filteredChannelsRef.current.findIndex(ch => ch.ChannelNumber === channelNum);
+			if (channelIndex >= 0) {
+				const channel = filteredChannelsRef.current[channelIndex];
+				const guideContent = guideContentRef.current;
+				if (guideContent) {
+					guideContent.scrollTop = Math.max(0, channelIndex * CHANNEL_ROW_HEIGHT - guideContent.clientHeight / 2);
 				}
+				setTimeout(() => {
+					const row = document.querySelector(`[data-channel-id="${channel.Id}"]`);
+					const spottable = row && row.querySelector('[tabindex]');
+					if (spottable) spottable.focus();
+				}, 100);
 			}
 			setChannelNumberBuffer('');
 		}, 1500);
-	}, [channelNumberBuffer, channels]);
+	}, [channelNumberBuffer]);
 
 	useEffect(() => {
 		if (!backHandlerRef) return;
@@ -224,6 +234,13 @@ const LiveTV = ({onPlayChannel, onRecordings, backHandlerRef}) => {
 
 		if (scrollPosition >= scrollHeight - 500 && hasMoreChannelsRef.current && !isLoading) {
 			loadChannels();
+		}
+
+		const firstVisibleIndex = Math.floor(guideContent.scrollTop / CHANNEL_ROW_HEIGHT);
+		const nextWindowStart = Math.max(0, firstVisibleIndex - OVERSCAN_ROWS);
+		if (nextWindowStart !== channelWindowStartRef.current) {
+			channelWindowStartRef.current = nextWindowStart;
+			setChannelWindowStart(nextWindowStart);
 		}
 
 		if (timeSlotsRef.current) {
@@ -301,6 +318,23 @@ const LiveTV = ({onPlayChannel, onRecordings, backHandlerRef}) => {
 		if (!showFavoritesOnly) return channels;
 		return channels.filter(ch => ch.UserData?.IsFavorite);
 	}, [channels, showFavoritesOnly]);
+	filteredChannelsRef.current = filteredChannels;
+
+	useEffect(() => {
+		if (channelWindowStartRef.current >= filteredChannels.length) {
+			channelWindowStartRef.current = 0;
+			setChannelWindowStart(0);
+			if (guideContentRef.current) guideContentRef.current.scrollTop = 0;
+		}
+	}, [filteredChannels.length]);
+
+	const windowEnd = Math.min(filteredChannels.length, channelWindowStart + VISIBLE_ROWS + OVERSCAN_ROWS * 2);
+	const visibleChannels = useMemo(
+		() => filteredChannels.slice(channelWindowStart, windowEnd),
+		[filteredChannels, channelWindowStart, windowEnd]
+	);
+	const topSpacerHeight = channelWindowStart * CHANNEL_ROW_HEIGHT;
+	const bottomSpacerHeight = Math.max(0, (filteredChannels.length - windowEnd) * CHANNEL_ROW_HEIGHT);
 
 	const calculateProgramStyle = useCallback((program) => {
 		const startTime = getGuideStartTime();
@@ -419,7 +453,8 @@ const LiveTV = ({onPlayChannel, onRecordings, backHandlerRef}) => {
 						onScroll={handleScroll}
 						spotlightId="program-grid"
 					>
-						{filteredChannels.map(channel => (
+						{topSpacerHeight > 0 && <div style={{height: `${topSpacerHeight}px`, flexShrink: 0}} />}
+						{visibleChannels.map(channel => (
 							<ChannelRowContainer
 								key={channel.Id}
 								className={css.channelRow}
@@ -471,6 +506,7 @@ const LiveTV = ({onPlayChannel, onRecordings, backHandlerRef}) => {
 								</div>
 							</ChannelRowContainer>
 						))}
+						{bottomSpacerHeight > 0 && <div style={{height: `${bottomSpacerHeight}px`, flexShrink: 0}} />}
 
 						{filteredChannels.length === 0 && (
 							<div className={css.empty}>

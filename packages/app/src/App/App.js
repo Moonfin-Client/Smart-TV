@@ -11,6 +11,7 @@ import {AuthProvider, useAuth} from '../context/AuthContext';
 import {useSettings} from '../context/SettingsContext';
 import * as connectionPool from '../services/connectionPool';
 import {isBackKey, KEYS} from '../utils/keys';
+import {applyPerfTier} from '../utils/perfTier';
 import {isTizen, isWebOS} from '../platform';
 import {initVideo, cleanupVideoElement, setupVisibilityHandler, setupPlatformLifecycle} from '../services/video';
 import {SettingsProvider} from '../context/SettingsContext';
@@ -56,6 +57,7 @@ const JellyseerrRequests = lazy(() => import('../views/JellyseerrRequests'));
 const JellyseerrBrowse = lazy(() => import('../views/JellyseerrBrowse'));
 const JellyseerrPerson = lazy(() => import('../views/JellyseerrPerson'));
 
+import '../styles/perf-overrides.less';
 import css from './App.module.less';
 
 const MAX_HISTORY_LENGTH = 10;
@@ -169,6 +171,10 @@ const AppContent = (props) => {
 	const {isInactive: showScreensaver, dismiss: dismissScreensaver} = useInactivityTimer(screensaverTimeout, screensaverEnabled);
 
 	useEffect(() => {
+		window.dispatchEvent(new CustomEvent('moonfin:screensaver', {detail: {active: showScreensaver}}));
+	}, [showScreensaver]);
+
+	useEffect(() => {
 		if (!isAuthenticated) {
 			setIsPinUnlocked(false);
 			setPinCodeInput('');
@@ -238,6 +244,10 @@ const AppContent = (props) => {
 			root.setAttribute('data-theme-id', activeTheme.id);
 		}
 	}, [activeTheme]);
+
+	useEffect(() => {
+		applyPerfTier(settings.performanceMode === 'auto' ? null : settings.performanceMode);
+	}, [settings.performanceMode]);
 
 	useEffect(() => {
 		const root = document.documentElement;
@@ -634,7 +644,12 @@ const AppContent = (props) => {
 
 	const handlePlayNext = useCallback((item, trackOptions) => {
 		setPlayingItem(item);
-		setPlaybackOptions(trackOptions || null);
+		setPlaybackOptions(prev => {
+			if (!trackOptions && prev?.audioPlaylist?.some(t => t.Id === item.Id)) {
+				return {audioPlaylist: prev.audioPlaylist};
+			}
+			return trackOptions || null;
+		});
 		setIsResume(false);
 	}, []);
 
@@ -972,6 +987,10 @@ const AppContent = (props) => {
 							onSelectItem={handleSelectItem}
 							onSelectLibrary={handleSelectLibrary}
 							onSelectGenre={handleSelectGenreFromBrowse}
+							onSelectSeerrItem={handleSelectJellyseerrItem}
+							onSelectSeerrGenre={handleSelectJellyseerrGenre}
+							onSelectSeerrStudio={handleSelectJellyseerrStudio}
+							onSelectSeerrNetwork={handleSelectJellyseerrNetwork}
 							isVisible={panelIndex === PANELS.BROWSE && !showSettingsPanel}
 							onFocusItemThemeMusic={themeMusic.playThemeMusicDelayed}
 							onBlurItemThemeMusic={themeMusic.cancelDelayed}

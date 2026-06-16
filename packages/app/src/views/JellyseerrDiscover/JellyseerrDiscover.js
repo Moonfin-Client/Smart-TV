@@ -9,6 +9,7 @@ import jellyseerrApi from '../../services/jellyseerrApi';
 import LoadingSpinner from '../../components/LoadingSpinner';
 import {KEYS} from '../../utils/keys';
 import hydrateRequestMediaItems from '../../utils/jellyseerrHydration';
+import {STREAMING_NETWORKS, MOVIE_STUDIOS} from '../../utils/seerrHomeRows';
 
 import css from './JellyseerrDiscover.module.less';
 
@@ -19,31 +20,6 @@ const RowContainer = SpotlightContainerDecorator({
 }, 'div');
 
 const ITEMS_PER_PAGE = 9;
-
-// Hardcoded streaming networks
-const STREAMING_NETWORKS = [
-	{id: 213, name: 'Netflix', logo: 'wwemzKWzjKYJFfCeiB57q3r4Bcm.png'},
-	{id: 2739, name: 'Disney+', logo: 'gJ8VX6JSu3ciXHuC2dDGAo2lvwM.png'},
-	{id: 1024, name: 'Prime Video', logo: 'ifhbNuuVnlwYy5oXA5VIb2YR8AZ.png'},
-	{id: 2552, name: 'Apple TV+', logo: '4KAy34EHvRM25Ih8wb82AuGU7zJ.png'},
-	{id: 453, name: 'Hulu', logo: 'pqUTCleNUiTLAVlelGxUgWn1ELh.png'},
-	{id: 49, name: 'HBO', logo: 'tuomPhY2UtuPTqqFnKMVHvSb724.png'},
-	{id: 4330, name: 'Paramount+', logo: 'fi83B1oztoS47xxcemFdPMhIzK.png'},
-	{id: 3353, name: 'Peacock', logo: 'gIAcGTjKKr0KOHL5s4O36roJ8p7.png'}
-];
-
-// Hardcoded movie studios
-const MOVIE_STUDIOS = [
-	{id: 2, name: 'Disney', logo: 'wdrCwmRnLFJhEoH8GSfymY85KHT.png'},
-	{id: 127928, name: '20th Century', logo: 'h0rjX5vjW5r8yEnUBStFarjcLT4.png'},
-	{id: 34, name: 'Sony Pictures', logo: 'GagSvqWlyPdkFHMfQ3pNq6ix9P.png'},
-	{id: 174, name: 'Warner Bros.', logo: 'ky0xOc5OrhzkZ1N6KyUxacfQsCk.png'},
-	{id: 33, name: 'Universal', logo: '8lvHyhjr8oUKOOy2dKXoALWKdp0.png'},
-	{id: 4, name: 'Paramount', logo: 'fycMZt242LVjagMByZOLUGbCvv3.png'},
-	{id: 420, name: 'Marvel', logo: 'hUzeosd33nzE5MCNsZxCGEKTXaQ.png'},
-	{id: 9993, name: 'DC', logo: '2Tc1P3Ac8M479naPp1kYT3izLS5.png'},
-	{id: 41077, name: 'A24', logo: '1ZXsGaFPgrgS6ZZGS37AqD5uU12.png'}
-];
 
 let _rowConfigs;
 const getRowConfigs = () => (_rowConfigs ??= [

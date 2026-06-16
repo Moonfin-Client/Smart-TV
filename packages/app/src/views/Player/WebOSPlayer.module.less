@@ -24,6 +24,16 @@
 	object-fit: contain;
 }
 
+/* ASS/SSA overlay. left/top/width/height are set per-frame in JS to track the
+   video's display (zoom-aware), so subtitles stay aligned (#235). */
+.assCanvas {
+	position: fixed;
+	left: 0;
+	top: 0;
+	z-index: 2;
+	pointer-events: none;
+}
+
 /* Audio Mode - Album Art Display */
 .audioModeBackground {
 	position: fixed;
@@ -404,8 +414,11 @@
 	flex-direction: row;
 	align-items: center;
 	justify-content: flex-start;
-	gap: 18px;
 	width: 100%;
+
+	> * + * {
+		margin-left: 18px;
+	}
 }
 
 .transportButtons {
@@ -556,8 +569,12 @@
 .progressFill {
 	height: 100%;
 	background: var(--accent-color, #00a4dc);
-	width: 0%;
-	transition: width 0.1s linear;
+	width: 100%;
+	transform: scaleX(0);
+	-webkit-transform: scaleX(0);
+	transform-origin: left center;
+	-webkit-transform-origin: left center;
+	transition: transform 0.1s linear, -webkit-transform 0.1s linear;
 	border-radius: 4px;
 }
 
@@ -571,7 +588,6 @@
 	border-radius: 50%;
 	transform: translate(-50%, -50%);
 	box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
-	transition: left 0.1s linear;
 	pointer-events: none;
 	z-index: 2;
 }
@@ -1033,6 +1049,13 @@
 	padding: 16px 20px 20px;
 }
 
+.nextLabelRow {
+	display: flex;
+	align-items: baseline;
+	justify-content: space-between;
+	margin-bottom: 6px;
+}
+
 .nextLabel {
 	font-size: 13px;
 	color: rgba(255, 255, 255, 0.5);
@@ -1040,6 +1063,25 @@
 	letter-spacing: 2px;
 	font-weight: 700;
 	margin-bottom: 6px;
+}
+
+.nextLabelRow .nextLabel {
+	margin-bottom: 0;
+}
+
+.nextCountdownInline {
+	font-size: 13px;
+	color: rgba(255, 255, 255, 0.7);
+	font-weight: 600;
+	white-space: nowrap;
+}
+
+.nextProgressBarMinimal {
+	height: 6px;
+	margin-top: 16px;
+	background: rgba(255, 255, 255, 0.15);
+	border-radius: 3px;
+	overflow: hidden;
 }
 
 .nextTitle {

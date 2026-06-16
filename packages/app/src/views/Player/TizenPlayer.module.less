@@ -347,8 +347,11 @@
 	flex-direction: row;
 	align-items: center;
 	justify-content: flex-start;
-	gap: 18px;
 	width: 100%;
+
+	> * + * {
+		margin-left: 18px;
+	}
 }
 
 .transportButtons {
@@ -499,8 +502,12 @@
 .progressFill {
 	height: 100%;
 	background: var(--accent-color, #00a4dc);
-	width: 0%;
-	transition: width 0.1s linear;
+	width: 100%;
+	transform: scaleX(0);
+	-webkit-transform: scaleX(0);
+	transform-origin: left center;
+	-webkit-transform-origin: left center;
+	transition: transform 0.1s linear, -webkit-transform 0.1s linear;
 	border-radius: 4px;
 }
 
@@ -514,7 +521,6 @@
 	border-radius: 50%;
 	transform: translate(-50%, -50%);
 	box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
-	transition: left 0.1s linear;
 	pointer-events: none;
 	z-index: 2;
 }
@@ -986,7 +992,7 @@
 	bottom: 200px;
 	right: 60px;
 	z-index: 200;
-	width: 400px;
+	width: 380px;
 	animation: nextSlideIn 0.4s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
@@ -1002,16 +1008,29 @@
 }
 
 .nextEpisodeCard {
-	background: rgba(20, 20, 20, 0.95);
-	border-radius: 8px;
+	background: var(--theme-surface, rgba(20, 20, 20, 0.95));
+	border-radius: 12px;
 	overflow: hidden;
 	box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6);
+}
+
+.nextEpisodeMinimal {
+	background: var(--theme-surface, rgba(20, 20, 20, 0.95));
+	border-radius: 12px;
+	padding: 20px 24px;
+	box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6);
+}
+
+.nextCountdownText {
+	font-size: 18px;
+	color: rgba(255, 255, 255, 0.7);
+	margin: 8px 0;
 }
 
 .nextThumbnail {
 	position: relative;
 	width: 100%;
-	height: 200px;
+	height: 190px;
 	overflow: hidden;
 	background: #1a1a1a;
 }
@@ -1035,6 +1054,13 @@
 	padding: 16px 20px 20px;
 }
 
+.nextLabelRow {
+	display: flex;
+	align-items: baseline;
+	justify-content: space-between;
+	margin-bottom: 6px;
+}
+
 .nextLabel {
 	font-size: 13px;
 	color: rgba(255, 255, 255, 0.5);
@@ -1042,6 +1068,25 @@
 	letter-spacing: 2px;
 	font-weight: 700;
 	margin-bottom: 6px;
+}
+
+.nextLabelRow .nextLabel {
+	margin-bottom: 0;
+}
+
+.nextCountdownInline {
+	font-size: 13px;
+	color: rgba(255, 255, 255, 0.7);
+	font-weight: 600;
+	white-space: nowrap;
+}
+
+.nextProgressBarMinimal {
+	height: 6px;
+	margin-top: 16px;
+	background: rgba(255, 255, 255, 0.15);
+	border-radius: 3px;
+	overflow: hidden;
 }
 
 .nextTitle {
@@ -1103,16 +1148,16 @@
 }
 
 .nextProgressBar {
-	height: 4px;
+	height: 6px;
 	background: rgba(255, 255, 255, 0.15);
-	border-radius: 0 0 8px 8px;
+	border-radius: 0 0 12px 12px;
 	overflow: hidden;
 }
 
 .nextProgressFill {
 	height: 100%;
 	background: var(--accent-color, #00a4dc);
-	border-radius: 0 0 0 8px;
+	border-radius: 0 0 0 12px;
 	animation: fillProgress var(--countdown-duration, 7s) linear forwards;
 }
 

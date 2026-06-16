@@ -303,7 +303,7 @@ const NavBar = ({
 						</SpottableButton>
 					)}
 
-					{jellyseerrEnabled && (
+					{jellyseerrEnabled && settings.showSeerrButton !== false && (
 						<SpottableButton
 							className={`${css.navBtn} ${css.navBtnIcon} ${css.expandableBtn}`}
 							onClick={onDiscover}

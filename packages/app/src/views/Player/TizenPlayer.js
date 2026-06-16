@@ -22,7 +22,7 @@ import {findPreferredAudioStream} from '../../utils/audioLanguage';
 import {api as jellyfinApi, createApiForServer, getServerUrl} from '../../services/jellyfinApi';
 import PlayerControls, {usePlayerButtons} from './PlayerControls';
 import useSegmentPopups from './useSegmentPopups';
-import {CONTROLS_HIDE_DELAY, parseLyricsResponse, withTimeout} from './PlayerConstants';
+import {SpottableButton, NextEpisodeContainer, CONTROLS_HIDE_DELAY, parseLyricsResponse, withTimeout} from './PlayerConstants';
 import {
 	toSubtitleLanguage,
 	mapSubtitleStreamsFromMediaSource,
@@ -222,7 +222,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 		isPaused, audioStreams, subtitleStreams, chapters,
 		nextEpisode, isAudioMode, isLiveTV, hasNextTrack, hasPrevTrack,
 		shuffleMode, repeatMode, isFavorite, playbackRate, selectedQuality,
-		hasCastMembers, zoomModeLabel, zoomModeKey: zoomMode
+		selectedSubtitleIndex, canDownloadRemoteSubtitles: !isAudioMode && Boolean(item?.Id), hasCastMembers, zoomModeLabel, zoomModeKey: zoomMode
 	});
 
 	useEffect(() => {
@@ -445,7 +445,10 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 						try { avplayPause(); } catch (e) { void e; }
 					}
 					if (positionRef.current > 0) {
-						playback.reportProgress(positionRef.current);
+						if (!playback.reportProgressBeacon(positionRef.current, {isPaused: true})) {
+							playback.reportProgress(positionRef.current);
+						}
+						playback.reportStopBeacon(positionRef.current);
 					}
 				}
 			);
@@ -542,24 +545,27 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 				}
 				setChapters(chapterList);
 
-				// Handle initial audio selection
+				// Handle initial audio selection. A local language override wins;
+				// otherwise honor the Jellyfin user's preferred audio language via the
+				// server-computed defaultAudioStreamIndex (#186), then the file default.
 				const preferredAudio = findPreferredAudioStream(result.audioStreams, settings.audioLanguage);
+				const serverAudio = result.audioStreams?.find(s => s.index === result.defaultAudioStreamIndex);
+				const fileDefaultAudio = result.audioStreams?.find(s => s.isDefault);
+				const autoAudio = preferredAudio || serverAudio || fileDefaultAudio;
 				if (initialAudioIndex !== undefined && initialAudioIndex !== null) {
 					setSelectedAudioIndex(initialAudioIndex);
-				} else {
-					if (preferredAudio) {
-						setSelectedAudioIndex(preferredAudio.index);
-					}
-					const defaultAudio = result.audioStreams?.find(s => s.isDefault);
-					if (!preferredAudio && defaultAudio) setSelectedAudioIndex(defaultAudio.index);
+				} else if (autoAudio) {
+					setSelectedAudioIndex(autoAudio.index);
 				}
 
-				// Track pending audio/subtitle setup (apply after AVPlay prepare)
+				// Track pending audio/subtitle setup (apply after AVPlay prepare).
+				// Only actively switch tracks when the choice isn't the one AVPlay
+				// plays natively (the file default).
 				let pendingAudioIndex = null;
 				if (initialAudioIndex != null) {
 					pendingAudioIndex = initialAudioIndex;
-				} else if (preferredAudio) {
-					pendingAudioIndex = preferredAudio.index;
+				} else if (autoAudio && autoAudio.index !== fileDefaultAudio?.index) {
+					pendingAudioIndex = autoAudio.index;
 				}
 
 				let pendingSubAction = null;
@@ -598,6 +604,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 						try {
 							const assUrl = playback.getAssSubtitleUrl(sub);
 							if (assUrl && pgsCanvasRef.current) {
+								const assFontsUrl = playback.getAssFontsUrl(sub);
 								const assErrorHandler = (err) => {
 									console.error('[Player] ASS renderer error, falling back to text', err);
 									disposeAssRenderer(assRendererRef.current);
@@ -606,7 +613,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 										setSubtitleTrackEvents(data?.TrackEvents || null);
 									}).catch(() => setSubtitleTrackEvents(null));
 								};
-								const renderer = await initAssCanvasRenderer(pgsCanvasRef.current, assUrl, assErrorHandler);
+								const renderer = await initAssCanvasRenderer(pgsCanvasRef.current, assUrl, assFontsUrl, assErrorHandler);
 								if (renderer) {
 									assRendererRef.current = renderer;
 									setSubtitleTrackEvents(null);
@@ -690,6 +697,15 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 						setSelectedSubtitleIndex(forcedSub.index);
 						await loadSubtitleData(forcedSub);
 					}
+				} else if (settings.subtitleMode === 'default' &&
+						result.defaultSubtitleStreamIndex != null && result.defaultSubtitleStreamIndex >= 0) {
+					// Honor the Jellyfin user's subtitle preference, computed server-side
+					// from their SubtitleMode + SubtitleLanguagePreference (#186).
+					const serverSub = result.subtitleStreams?.find(s => s.index === result.defaultSubtitleStreamIndex);
+					if (serverSub) {
+						setSelectedSubtitleIndex(serverSub.index);
+						await loadSubtitleData(serverSub);
+					}
 				}
 
 				// Build title and subtitle
@@ -762,15 +778,11 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 				}
 
 				if (isLiveTV || result.url.includes('.m3u8')) {
-					const maxRes = is4K ? '3840x2160' : '1920x1080';
-					const props = [
-						`FIXED_MAX_RESOLUTION=${maxRes}`,
-						'STARTBITRATE=HIGHEST',
-						'USER_AGENT=JellyfinTizenClient'
-					];
-					if (typeof effectiveBitrate !== 'undefined' && effectiveBitrate != null) {
-						props.push(`FIXED_MAX_BITRATE=${effectiveBitrate}`);
-					}
+					// ADAPTIVE_INFO only accepts BITRATES/STARTBITRATE/SKIPBITRATE/
+					// FIXED_MAX_RESOLUTION. The FIXED_MAX_BITRATE key #222 added is
+					// invalid and breaks transcoded HLS on 2020-era Tizen (#232).
+					const props = [`FIXED_MAX_RESOLUTION=${is4K ? '3840x2160' : '1920x1080'}`];
+					if (is4K) props.push('STARTBITRATE=HIGHEST');
 					avplaySetStreamingProperty('ADAPTIVE_INFO', props.join('|'));
 				}
 
@@ -910,6 +922,9 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 					} else {
 						avplaySetSilentSubtitle(true);
 					}
+				} else {
+					avplaySetSilentSubtitle(true);
+					useNativeSubtitleRef.current = false;
 				}
 
 				playback.reportStart(positionRef.current);
@@ -1453,6 +1468,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 				try {
 					const assUrl = playback.getAssSubtitleUrl(stream);
 					if (assUrl && pgsCanvasRef.current) {
+						const assFontsUrl = playback.getAssFontsUrl(stream);
 						const assErrorHandler = (err) => {
 							console.error('[Player] ASS renderer error, falling back to text', err);
 							disposeAssRenderer(assRendererRef.current);
@@ -1461,7 +1477,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 								setSubtitleTrackEvents(data?.TrackEvents || null);
 							}).catch(() => setSubtitleTrackEvents(null));
 						};
-						const renderer = await initAssCanvasRenderer(pgsCanvasRef.current, assUrl, assErrorHandler);
+						const renderer = await initAssCanvasRenderer(pgsCanvasRef.current, assUrl, assFontsUrl, assErrorHandler);
 						if (renderer) {
 							assRendererRef.current = renderer;
 							setSubtitleTrackEvents(null);
@@ -2109,6 +2125,10 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 		);
 	}
 
+	const nextCountdownStyle = settings.nextUpCountdownStyle ?? 'both';
+	const showNextCountdownTimer = nextEpisodeCountdown !== null && nextCountdownStyle !== 'progressBar';
+	const showNextCountdownBar = nextEpisodeCountdown !== null && nextCountdownStyle !== 'timer';
+
 	return (
 		<div className={css.container} ref={playerContainerRef} onClick={showControls}>
 			{/*
@@ -2220,24 +2240,60 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 
 			{/* Next Episode Overlay */}
 			{(showSkipCredits || showNextEpisode) && nextEpisode && !isAudioMode && !activeModal && !controlsVisible && (
-				<div className={css.nextEpisodeOverlay}>
-					<div className={css.nextLabel}>{$L('UP NEXT')}</div>
-					<div className={css.nextTitle}>{nextEpisode.Name}</div>
-					{nextEpisode.SeriesName && (
-						<div className={css.nextMeta}>
-							S{nextEpisode.ParentIndexNumber}E{nextEpisode.IndexNumber}
+				<NextEpisodeContainer className={css.nextEpisodeOverlay} spotlightRestrict="self-only">
+					{settings.nextUpBehavior !== 'minimal' ? (
+						<div className={css.nextEpisodeCard}>
+							<div className={css.nextThumbnail}>
+								<img
+									src={getImageUrl(item._serverUrl || getServerUrl(), nextEpisode.Id, 'Primary', {maxWidth: 400, quality: 80})}
+									alt={nextEpisode.Name}
+									className={css.nextThumbnailImg}
+								/>
+								<div className={css.nextThumbnailGradient} />
+							</div>
+							<div className={css.nextInfo}>
+								<div className={css.nextLabelRow}>
+									<div className={css.nextLabel}>{$L('UP NEXT')}</div>
+									{showNextCountdownTimer && (
+										<div className={css.nextCountdownInline}>{$L('Starting in {countdown}s').replace('{countdown}', nextEpisodeCountdown)}</div>
+									)}
+								</div>
+								<div className={css.nextTitle}>{nextEpisode.Name}</div>
+								{nextEpisode.SeriesName && (
+									<div className={css.nextMeta}>
+										S{nextEpisode.ParentIndexNumber} E{nextEpisode.IndexNumber} &middot; {nextEpisode.SeriesName}
+									</div>
+								)}
+								<div className={css.nextActions}>
+									<SpottableButton className={css.nextPlayBtn} onClick={handlePlayNextEpisode} spotlightId="next-episode-play-btn" data-spot-default="true">{$L('Play Now')}</SpottableButton>
+									<SpottableButton className={css.nextCancelBtn} onClick={cancelNextEpisodeCountdown}>{$L('Hide')}</SpottableButton>
+								</div>
+							</div>
+							{showNextCountdownBar && (
+								<div className={css.nextProgressBar}>
+									<div className={css.nextProgressFill} style={{'--countdown-duration': `${settings.nextUpTimeout ?? 7}s`}} />
+								</div>
+							)}
+						</div>
+					) : (
+						<div className={css.nextEpisodeMinimal}>
+							<div className={css.nextLabel}>{$L('UP NEXT')}</div>
+							<div className={css.nextTitle}>{nextEpisode.Name}</div>
+							{showNextCountdownTimer && (
+								<div className={css.nextCountdownText}>{$L('Starting in {countdown}s').replace('{countdown}', nextEpisodeCountdown)}</div>
+							)}
+							<div className={css.nextActions}>
+								<SpottableButton className={css.nextPlayBtn} onClick={handlePlayNextEpisode} spotlightId="next-episode-play-btn" data-spot-default="true">{$L('Play Now')}</SpottableButton>
+								<SpottableButton className={css.nextCancelBtn} onClick={cancelNextEpisodeCountdown}>{$L('Hide')}</SpottableButton>
+							</div>
+							{showNextCountdownBar && (
+								<div className={css.nextProgressBarMinimal}>
+									<div className={css.nextProgressFill} style={{'--countdown-duration': `${settings.nextUpTimeout ?? 7}s`}} />
+								</div>
+							)}
 						</div>
 					)}
-					{nextEpisodeCountdown !== null && (
-						<div className={css.nextCountdown}>
-							{$L('Starting in {countdown}s').replace('{countdown}', nextEpisodeCountdown)}
-						</div>
-					)}
-					<div className={css.nextButtons}>
-						<Button onClick={handlePlayNextEpisode} spotlightId="next-episode-play-btn">{$L('Play Now')}</Button>
-						<Button onClick={cancelNextEpisodeCountdown}>{$L('Hide')}</Button>
-					</div>
-				</div>
+				</NextEpisodeContainer>
 			)}
 
 			<PlayerControls

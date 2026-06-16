@@ -90,7 +90,6 @@ const isSquareDefault = isMusicLibrary || isPlaylistLibrary;
 const [allItems, setAllItems] = useState([]);
 const [isLoading, setIsLoading] = useState(true);
 const [totalCount, setTotalCount] = useState(0);
-const [sortKey, setSortKey] = useState('SortName');
 const [favoritesOnly, setFavoritesOnly] = useState(false);
 const [watchedOnly, setWatchedOnly] = useState(false);
 const [musicContentType, setMusicContentType] = useState('albums');
@@ -107,6 +106,7 @@ const [imageSize, setImageSize] = useStorage(`library_imageSize_${libraryId}`, '
 const [imageType, setImageType] = useStorage(`library_imageType_${libraryId}`, isSquareDefault ? 'square' : 'poster');
 const [gridDirection, setGridDirection] = useStorage(`library_gridDirection_${libraryId}`, 'vertical');
 const [folderView, setFolderView] = useStorage(`library_folderView_${libraryId}`, 'off');
+const [sortKey, setSortKey] = useStorage(`library_sortKey_${libraryId}`, 'SortName');
 const isMixedContentLibrary = library != null && (!library.CollectionType || library.CollectionType.toLowerCase() === 'folders');
 const folderViewMode = settings.folderViewMode || 'local';
 const isFolderView =
@@ -135,7 +135,7 @@ if (!startLetter) {
 return allItems;
 }
 return allItems.filter(item => {
-const name = item.Name || '';
+const name = item.SortName || item.Name || '';
 const firstChar = name.charAt(0).toUpperCase();
 if (startLetter === '#') {
 return !/[A-Z]/.test(firstChar);
@@ -244,7 +244,7 @@ if (isFolderView) {
 		SortOrder: sortOption.order,
 		Recursive: true,
 		EnableTotalRecordCount: true,
-		Fields: 'ProductionYear,ImageTags,OfficialRating,CommunityRating,CriticRating,RunTimeTicks,ProviderIds,UserData'
+		Fields: 'SortName,ProductionYear,ImageTags,OfficialRating,CommunityRating,CriticRating,RunTimeTicks,ProviderIds,UserData'
 	};
 
 	if (library?.Id) params.ParentId = library.Id;
@@ -460,7 +460,6 @@ const handleMusicViewJump = useCallback((e) => {
 	if (!viewId) return;
 	setMusicGridView(viewId);
 	setMusicContentType(viewId);
-	setSortKey('SortName');
 	setAllItems([]);
 	apiFetchIndexRef.current = 0;
 	initialFocusDoneRef.current = false;
@@ -598,7 +597,7 @@ setSortKey(key);
 setShowSortPanel(false);
 setTimeout(() => Spotlight.focus('library-grid'), 100);
 }
-}, []);
+}, [setSortKey]);
 
 const handleToggleFavorites = useCallback(() => {
 setFavoritesOnly(prev => !prev);

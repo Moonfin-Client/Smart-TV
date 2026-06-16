@@ -2,6 +2,7 @@ import packageJson from '../../package.json';
 import {buildQueryString} from '../utils/urlCompat';
 import {normalizeServerUrl} from '../utils/serverUrl';
 import {classifyError} from '../utils/connectionErrors';
+import {fetchWithTimeout as sharedFetchWithTimeout} from '../utils/fetchTimeout';
 import {isTizen} from '../platform';
 const APP_VERSION = packageJson.version;
 
@@ -21,6 +22,7 @@ export const setServer = (serverUrl) => {
 export const setAuth = (userId, token) => {
 	currentUser = userId;
 	accessToken = token;
+	if (token) reportCapabilities();
 };
 
 export const getAuthHeader = () => {
@@ -59,21 +61,12 @@ export const getServerUrl = () => currentServer;
 export const getUserId = () => currentUser;
 export const getApiKey = () => accessToken;
 
-const DEFAULT_TIMEOUT_MS = 30000;
+const DEFAULT_TIMEOUT_MS = 15000;
+const PLAYBACK_TIMEOUT_MS = 30000;
 export const HOME_ROW_ITEM_FIELDS = 'PrimaryImageAspectRatio,Overview,Genres,GenreItems,ProductionYear,RunTimeTicks,CommunityRating,CriticRating,ProviderIds,ImageTags,BackdropImageTags,ParentBackdropImageTags,ParentBackdropItemId,ParentThumbItemId,SeriesPrimaryImageTag,SeriesName,ParentIndexNumber,IndexNumber,UserData,AlbumArtist,AlbumId,AlbumPrimaryImageTag';
 
-const fetchWithTimeout = (url, options = {}, timeoutMs = DEFAULT_TIMEOUT_MS) => {
-	return Promise.race([
-		fetch(url, options),
-		new Promise(function (_, reject) {
-			setTimeout(function () {
-				let err = new Error('The operation was aborted.');
-				err.name = 'AbortError';
-				reject(err);
-			}, timeoutMs);
-		})
-	]);
-};
+const fetchWithTimeout = (url, options = {}, timeoutMs = DEFAULT_TIMEOUT_MS) =>
+	sharedFetchWithTimeout(url, options, timeoutMs);
 export const getDeviceId = () => deviceId;
 
 const request = async (endpoint, options = {}) => {
@@ -113,6 +106,19 @@ const request = async (endpoint, options = {}) => {
 	if (!text) return null;
 	return JSON.parse(text);
 };
+
+export function reportCapabilities() {
+	if (!currentServer || !accessToken) return;
+	request('/Sessions/Capabilities/Full', {
+		method: 'POST',
+		body: {
+			PlayableMediaTypes: ['Video', 'Audio'],
+			SupportedCommands: [],
+			SupportsMediaControl: false,
+			SupportsPersistentIdentifier: false
+		}
+	}).catch(() => {});
+}
 
 export const api = {
 	getPublicInfo: () => request('/System/Info/Public'),
@@ -186,7 +192,8 @@ export const api = {
 
 	getPlaybackInfo: (itemId, body = {}) => request(`/Items/${itemId}/PlaybackInfo`, {
 		method: 'POST',
-		body: {UserId: currentUser, ...body}
+		body: {UserId: currentUser, ...body},
+		timeoutMs: PLAYBACK_TIMEOUT_MS
 	}),
 
 	reportPlaybackStart: (data) => request('/Sessions/Playing', {
@@ -587,7 +594,7 @@ export const createApiForServer = (serverUrl, token, userId) => {
 			serverRequest(`/Shows/${seriesId}/Episodes?UserId=${userId}&SeasonId=${seasonId}&Fields=Overview,PrimaryImageAspectRatio,MediaSources,MediaStreams`),
 
 		getPlaybackInfo: (itemId) =>
-			serverRequest(`/Items/${itemId}/PlaybackInfo?UserId=${userId}`),
+			serverRequest(`/Items/${itemId}/PlaybackInfo?UserId=${userId}`, {timeoutMs: PLAYBACK_TIMEOUT_MS}),
 
 		getLocalTrailers: (itemId) =>
 			serverRequest(`/Users/${userId}/Items/${itemId}/LocalTrailers`),

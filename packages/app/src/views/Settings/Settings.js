@@ -17,6 +17,7 @@ import {isBackKey} from '../../utils/keys';
 import ClearDataDialog from '../../components/ClearDataDialog';
 import SpottableInput from '../../components/SpottableInput/SpottableInput';
 import {clearAllStorage} from '../../services/storage';
+import {getSeerrHomeRowConfigs} from '../../utils/seerrHomeRows';
 import {MATERIAL_ICON_PATHS} from './materialIconMap';
 
 import css from './Settings.module.less';
@@ -112,6 +113,7 @@ const MATERIAL_ICON_NAME_MAP = {
 	refresh: 'sync',
 	replay: 'replay',
 	scheduler: 'schedule',
+	seerr: 'seerr',
 	screenpower: 'tv',
 	shuffle: 'shuffle',
 	show: 'visibility',
@@ -175,7 +177,10 @@ const getContentTypeOptions = () => [
 
 const getFeaturedBarStyleOptions = () => [
 	{ value: 'moonfin', label: $L('Moonfin') },
-	{ value: 'makd', label: $L('MakD') }
+	{ value: 'makd', label: $L('MakD') },
+	{ value: 'gallery', label: $L('Gallery') },
+	{ value: 'banner', label: $L('Banner') },
+	{ value: 'bookshelf', label: $L('Bookshelf') }
 ];
 
 const getFeaturedItemCountOptions = () => [
@@ -190,6 +195,13 @@ const getBlurOptions = () => [
 	{ value: 20, label: $L('Medium') },
 	{ value: 30, label: $L('Strong') },
 	{ value: 40, label: $L('Heavy') }
+];
+
+const getPerformanceModeOptions = () => [
+	{ value: 'auto', label: $L('Auto') },
+	{ value: 'high', label: $L('High Quality') },
+	{ value: 'mid', label: $L('Balanced') },
+	{ value: 'low', label: $L('Performance') }
 ];
 
 const getSubtitleSizeOptions = () => [
@@ -249,6 +261,18 @@ const UI_OPACITY_OPTIONS = [
 	{ value: 75, label: $L('75%') },
 	{ value: 85, label: $L('85%') },
 	{ value: 95, label: $L('95%') }
+];
+
+const UI_SCALE_OPTIONS = [
+	{ value: 0.85, label: $L('Compact') },
+	{ value: 0.9, label: $L('Small') },
+	{ value: 0.95, label: $L('Slightly Small') },
+	{ value: 1.0, label: $L('Default') },
+	{ value: 1.05, label: $L('Slightly Large') },
+	{ value: 1.1, label: $L('Large') },
+	{ value: 1.15, label: $L('Extra Large') },
+	{ value: 1.2, label: $L('Huge') },
+	{ value: 1.3, label: $L('Maximum') }
 ];
 
 const getUiColorOptions = () => [
@@ -414,6 +438,12 @@ const getUiLanguageOptions = () => [
 	{ value: 'pl', label: $L('Polish') },
 	{ value: 'pt-BR', label: $L('Portuguese (Brazil)') },
 	{ value: 'ru', label: $L('Russian') }
+];
+
+const getNextUpCountdownStyleOptions = () => [
+	{ value: 'progressBar', label: $L('Progress Bar') },
+	{ value: 'timer', label: $L('Timer') },
+	{ value: 'both', label: $L('Both') }
 ];
 
 const getMediaSegmentActionOptions = () => [
@@ -697,6 +727,8 @@ const Settings = ({ onBack, onLibrariesChanged, panelMode }) => {
 				Spotlight.focus(selectedId ? `theme-card-${selectedId}` : 'themes-view');
 			} else if (cv.view === 'homeRows') {
 				Spotlight.focus('homerows-view');
+			} else if (cv.view === 'seerrHomeRows') {
+				Spotlight.focus('seerr-home-rows-view');
 			} else if (cv.view === 'libraries') {
 				Spotlight.focus('libraries-view');
 			} else if (cv.view === 'ratingSources') {
@@ -817,9 +849,9 @@ const Settings = ({ onBack, onLibrariesChanged, panelMode }) => {
 
 	const handleSeerrLogin = useCallback(async () => {
 		const username = seerrUsername.trim();
-		if (!username || !seerrPassword) {
+		if (!username) {
 			setSeerrAuthMessage('');
-			setSeerrAuthError($L('Enter username/email and password.'));
+			setSeerrAuthError($L('Enter username/email.'));
 			return;
 		}
 
@@ -934,7 +966,7 @@ const Settings = ({ onBack, onLibrariesChanged, panelMode }) => {
 		setTempMediaBarLibraryIds(Array.isArray(settings.mediaBarLibraryIds) ? [...settings.mediaBarLibraryIds] : []);
 		try {
 			const viewsResult = await api.getAllLibraries();
-			const libs = (viewsResult?.Items || []).filter((lib) => lib?.CollectionType);
+			const libs = (viewsResult?.Items || []).filter((lib) => lib?.CollectionType === 'movies' || lib?.CollectionType === 'tvshows');
 			setMediaBarLibraries(libs);
 		} catch (err) {
 			void err;
@@ -1043,6 +1075,18 @@ const Settings = ({ onBack, onLibrariesChanged, panelMode }) => {
 
 		return [...mergedSections].sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
 	}, [settings.pluginSections, kefinProbeState.data, hssProbeState.data]);
+
+	const openSeerrHomeRows = useCallback(() => {
+		pushView({view: 'seerrHomeRows', returnFocusTo: 'setting-seerrHomeRows'});
+	}, [pushView]);
+
+	const toggleSeerrHomeRow = useCallback((rowId) => {
+		const current = Array.isArray(settings.seerrHomeRows) ? settings.seerrHomeRows : [];
+		const next = current.some((r) => r.id === rowId)
+			? current.map((r) => (r.id === rowId ? {...r, enabled: !r.enabled} : r))
+			: [...current, {id: rowId, enabled: true}];
+		updateSetting('seerrHomeRows', next);
+	}, [settings.seerrHomeRows, updateSetting]);
 
 	const openHomeRows = useCallback(() => {
 		setTempHomeRows([...(settings.homeRows || DEFAULT_HOME_ROWS)].sort((a, b) => a.order - b.order));
@@ -1450,7 +1494,9 @@ const Settings = ({ onBack, onLibrariesChanged, panelMode }) => {
 				availableThemes.find((t) => t.id === activeThemeId)?.displayName || $L('Default'),
 				openThemes
 			)}
+			{renderOptionItem('uiScale', $L('UI Scale'), UI_SCALE_OPTIONS, $L('Default'))}
 			{renderOptionItem('focusBorderColor', $L('Focus Border Color'), ACCENT_COLOR_OPTIONS, $L('Theme Default'))}
+			{renderOptionItem('performanceMode', $L('Performance Mode'), getPerformanceModeOptions(), $L('Auto'), 'gear')}
 			{renderOptionItem('clockDisplay', $L('Clock Display'), getClockDisplayOptions(), $L('24-Hour'))}
 			{renderToggleItem('cardFocusZoom', $L('Card Focus Expansion'), $L('Slightly enlarge cards when focused'))}
 			{renderToggleItem('showHomeBackdrop', $L('Show Backdrops'), $L('Show background art while browsing'))}
@@ -1477,12 +1523,22 @@ const Settings = ({ onBack, onLibrariesChanged, panelMode }) => {
 			{renderToggleItem('showFavoritesButton', $L('Favorites Button'), $L('Show favorites button in navigation bar'), 'heart')}
 			{renderToggleItem('showLibrariesInToolbar', $L('Libraries Button'), $L('Show library shortcuts in navigation bar'), 'folder')}
 			{renderToggleItem('showSyncPlayButton', $L('SyncPlay Button'), $L('Show SyncPlay button in navigation bar'), 'check')}
+			{jellyseerr.isEnabled &&
+				renderToggleItem('showSeerrButton', `${seerrLabel} ${$L('Button')}`, $L('Show Seerr button in navigation bar'))}
 		</>
 	);
 
 	const renderPersonalizationHomePage = () => (
 		<>
 			{renderNavItem('homeRows', $L('Home Sections'), $L('Configure which rows appear on home screen'), openHomeRows, 'list')}
+			{jellyseerr.isEnabled && renderToggleItem(
+				'displaySeerrRows',
+				$L('Display Seerr Discovery Rows'),
+				$L('Show Seerr discovery rows in Home Sections.'),
+				'seerr'
+			)}
+			{settings.displaySeerrRows &&
+				renderNavItem('seerrHomeRows', `${seerrLabel} ${$L('Rows')}`, $L('Choose which Seerr discover rows appear on home'), openSeerrHomeRows, 'list')}
 			{renderToggleItem(
 				'displayFavoritesRows',
 				$L('Display Favorites Rows'),
@@ -1512,6 +1568,12 @@ const Settings = ({ onBack, onLibrariesChanged, panelMode }) => {
 			{renderToggleItem('mergeContinueWatchingNextUp', $L('Merge Continue Watching'), $L('Combine Continue Watching and Next Up'), 'arrowupdown')}
 			{renderOptionItem('homeRowsStyle', $L('Rows Type'), getHomeRowsStyleOptions(), $L('Modern'), 'appscontents')}
 			{renderOptionItem('homeRowsImageType', $L('Home Row Image Type'), getImageTypeOptions(), $L('Poster'), 'picture')}
+			{renderToggleItem(
+				'fullScreenRows',
+				$L('Expanded Home Rows'),
+				$L('Limit home rows to 1 row per screen'),
+				'aspectratio'
+			)}
 			{renderToggleItem('useSeriesThumbnails', $L('Series Thumbnails'), $L('Use series artwork instead of episode images'), 'aspectratio')}
 			{renderOptionItem('homeRowsPosterSize', $L('Image Size'), getPosterSizeOptions(), $L('Default'), 'aspectratio')}
 			{renderOptionItem('homeRowOverlay', $L('Home Row Overlay'), getHomeRowOverlayOptions(), $L('Off'), 'info')}
@@ -1698,7 +1760,7 @@ const Settings = ({ onBack, onLibrariesChanged, panelMode }) => {
 			{renderToggleItem('passthroughEnabled', $L('Audio Passthrough'), $L('Enable advanced bitstream passthrough for external audio devices'), 'speaker')}
 			{renderToggleItem('ac3Passthrough', $L('AC3 Passthrough'), $L('Allow Dolby Digital passthrough when available'), 'speaker')}
 			{renderToggleItem('eac3Passthrough', $L('E-AC3 Passthrough'), $L('Allow Dolby Digital Plus passthrough when available'), 'speaker')}
-			{renderToggleItem('truehdPassthrough', $L('TrueHD Passthrough'), $L('Allow Dolby TrueHD passthrough when available'), 'speaker')}
+			{renderToggleItem('truehdPassthrough', $L('TrueHD Passthrough (Experimental)'), $L('Allow Dolby TrueHD passthrough when available'), 'speaker')}
 		</>
 	);
 
@@ -1716,6 +1778,8 @@ const Settings = ({ onBack, onLibrariesChanged, panelMode }) => {
 		<>
 			{renderToggleItem('autoPlay', $L('Episode Queuing'), $L('Automatically play the next episode'), 'list')}
 			{renderOptionItem('nextUpBehavior', $L('Next Up Prompt'), getNextUpBehaviorOptions(), $L('Extended'), 'skip')}
+			{settings.nextUpBehavior !== 'disabled' &&
+				renderOptionItem('nextUpCountdownStyle', $L('Next Up Countdown'), getNextUpCountdownStyleOptions(), $L('Both'), 'timer')}
 			{settings.nextUpBehavior !== 'disabled' &&
 				renderSliderItem('nextUpTimeout', $L('Next Up Prompt Timeout'), 0, 30, 1, (v) => (v === 0 ? $L('Instant') : `${v}s`), 'timer')}
 			{renderToggleItem('stillWatchingPrompt', $L('Still Watching Prompt'), $L('Show continuation prompts before auto-playing the next episode'), 'show')}
@@ -1888,7 +1952,7 @@ const Settings = ({ onBack, onLibrariesChanged, panelMode }) => {
 						<SpottableButton
 							className={css.actionButton}
 							onClick={handleSeerrLogin}
-							disabled={seerrAuthSubmitting || !seerrUsername.trim() || !seerrPassword}
+							disabled={seerrAuthSubmitting || !seerrUsername.trim()}
 							spotlightId='seerr-signin'
 						>
 							{seerrAuthSubmitting ? $L('Signing In...') : $L('Sign In')}
@@ -2041,7 +2105,7 @@ const Settings = ({ onBack, onLibrariesChanged, panelMode }) => {
 					{ id: 'automationQueue', label: $L('Automation & Queue'), description: $L('Next up, queueing, and prompt behavior') },
 					{ id: 'offlineDownloads', label: $L('Offline Downloads'), description: $L('Download quality, location, and limits') },
 					{ id: 'syncPlay', label: $L('SyncPlay'), description: $L('Group playback sync controls') },
-					{ id: 'advanced', label: $L('Advanced'), description: $L('Expert playback and MPV options') }
+					{ id: 'advanced', label: $L('Advanced'), description: $L('Advanced playback options') }
 				];
 			case 'about': {
 				const subs = [
@@ -2240,6 +2304,35 @@ const Settings = ({ onBack, onLibrariesChanged, panelMode }) => {
 			</div>
 		</ViewContainer>
 	);
+
+	const renderSeerrHomeRowsView = () => {
+		const enabledMap = new Map((settings.seerrHomeRows || []).map((r) => [r.id, r.enabled]));
+		return (
+			<ViewContainer className={css.viewContainer} spotlightId='seerr-home-rows-view'>
+				<div className={css.listContent} onFocus={handleListFocus}>
+					<div className={css.listInner}>
+						{renderSectionTitle(`${seerrLabel} ${$L('Home Rows')}`)}
+						<div className={css.viewDescription}>
+							{$L('Choose which Seerr discover rows appear on the home screen.')}
+						</div>
+						{getSeerrHomeRowConfigs().map((cfg) => (
+							<SpottableDiv
+								key={cfg.id}
+								className={css.listItem}
+								onClick={() => toggleSeerrHomeRow(cfg.id)}
+								spotlightId={`seerrrow-${cfg.id}`}
+							>
+								<div className={css.listItemBody}>
+									<div className={css.listItemHeading}>{cfg.title}</div>
+								</div>
+								<div className={css.listItemTrailing}>{renderToggle(enabledMap.get(cfg.id) === true)}</div>
+							</SpottableDiv>
+						))}
+					</div>
+				</div>
+			</ViewContainer>
+		);
+	};
 
 	const renderHomeRowsView = () => (
 		<ViewContainer className={css.viewContainer} spotlightId='homerows-view'>
@@ -2602,6 +2695,7 @@ const Settings = ({ onBack, onLibrariesChanged, panelMode }) => {
 			{currentView.view === 'options' && renderOptionsView()}
 			{currentView.view === 'themes' && renderThemesView()}
 			{currentView.view === 'homeRows' && renderHomeRowsView()}
+			{currentView.view === 'seerrHomeRows' && renderSeerrHomeRowsView()}
 			{currentView.view === 'ratingSources' && renderRatingSourcesView()}
 			{currentView.view === 'excludedGenres' && renderExcludedGenresView()}
 			{currentView.view === 'pinCode' && renderPinCodeView()}

@@ -1,21 +1,48 @@
 import {useCallback, useRef, useEffect, memo} from 'react';
+import Spottable from '@enact/spotlight/Spottable';
 import SpotlightContainerDecorator from '@enact/spotlight/SpotlightContainerDecorator';
 import Spotlight from '@enact/spotlight';
-import MediaCard from '../MediaCard';
 import {KEYS} from '../../utils/keys';
 import {useSettings} from '../../context/SettingsContext';
 
-import css from './MediaRow.module.less';
+import css from './SeerrTileRow.module.less';
 
 const RowContainer = SpotlightContainerDecorator({
 	enterTo: 'last-focused'
 }, 'div');
 
-const MediaRow = ({
+const SpottableDiv = Spottable('div');
+
+const TileCard = memo(function TileCard({item, cardType, spotlightId, onSelect, onFocusItem, onSpotlightLeft, onSpotlightRight}) {
+	const handleClick = useCallback(() => onSelect?.(item), [item, onSelect]);
+	const handleFocus = useCallback(() => onFocusItem?.(item), [item, onFocusItem]);
+
+	const isLogo = cardType === 'logo';
+	const image = isLogo ? item._externalLogoUrl : item._externalBackdropUrl;
+
+	return (
+		<SpottableDiv
+			className={`${css.tile} ${isLogo ? css.logoTile : css.genreTile}`}
+			spotlightId={spotlightId}
+			onClick={handleClick}
+			onFocus={handleFocus}
+			onSpotlightLeft={onSpotlightLeft}
+			onSpotlightRight={onSpotlightRight}
+		>
+			{image && <img className={isLogo ? css.logo : css.backdrop} src={image} alt={item.Name} loading="lazy" />}
+			{!isLogo && (
+				<div className={css.overlay}>
+					<span className={css.label}>{item.Name}</span>
+				</div>
+			)}
+		</SpottableDiv>
+	);
+});
+
+const SeerrTileRow = ({
 	title,
 	items,
-	serverUrl,
-	cardType = 'portrait',
+	cardType = 'landscape',
 	onSelectItem,
 	onFocus,
 	onFocusItem,
@@ -23,8 +50,6 @@ const MediaRow = ({
 	rowId,
 	onNavigateUp,
 	onNavigateDown,
-	showServerBadge = false,
-	showOverview = false,
 	className,
 	registerRowRef
 }) => {
@@ -111,16 +136,10 @@ const MediaRow = ({
 
 	if (!items || items.length === 0) return null;
 
-	const rowClassName = [
-		css.row,
-		className || '',
-		settings.fullScreenRows === true ? css.fullScreenRows : ''
-	].filter(Boolean).join(' ');
-
 	return (
 		<RowContainer
 			ref={rowElementRef}
-			className={rowClassName}
+			className={`${css.row}${className ? ` ${className}` : ''}`}
 			spotlightId={`row-${rowIndex}`}
 			data-row-index={rowIndex}
 			onKeyDown={handleKeyDown}
@@ -128,50 +147,22 @@ const MediaRow = ({
 			<h2 className={css.title}>{title}</h2>
 			<div className={css.scroller} ref={scrollerRef} onFocus={handleFocus}>
 				<div className={css.items}>
-						{items.map((item, index) => {
-							const spotlightId = `media-${keyPrefix}-${item.Id}`;
-							const isFirst = index === 0;
-							const isLast = index === items.length - 1;
-
-							return (
-								<MediaCard
-									key={`${keyPrefix}-${item.Id}`}
-									item={item}
-									serverUrl={serverUrl}
-									cardType={cardType}
-									onSelect={handleSelect}
-									onFocusItem={onFocusItem}
-									showServerBadge={showServerBadge}
-									showOverview={showOverview}
-									eagerLoad={rowIndex === 0}
-									spotlightId={spotlightId}
-									onSpotlightLeft={isFirst ? handleWrapLeft : null}
-									onSpotlightRight={isLast ? handleWrapRight : null}
-								/>
-							);
-						})}
+					{items.map((item, index) => (
+						<TileCard
+							key={`${keyPrefix}-${item.Id}`}
+							item={item}
+							cardType={cardType}
+							spotlightId={`media-${keyPrefix}-${item.Id}`}
+							onSelect={handleSelect}
+							onFocusItem={onFocusItem}
+							onSpotlightLeft={index === 0 ? handleWrapLeft : null}
+							onSpotlightRight={index === items.length - 1 ? handleWrapRight : null}
+						/>
+					))}
 				</div>
 			</div>
 		</RowContainer>
 	);
 };
 
-const areRowPropsEqual = (prev, next) => {
-	if (prev.rowId !== next.rowId) return false;
-	if (prev.title !== next.title) return false;
-	if (prev.cardType !== next.cardType) return false;
-	if (prev.serverUrl !== next.serverUrl) return false;
-	if (prev.rowIndex !== next.rowIndex) return false;
-	if (prev.showServerBadge !== next.showServerBadge) return false;
-	if (prev.className !== next.className) return false;
-	if (prev.items === next.items) return true;
-	if (prev.items?.length !== next.items?.length) return false;
-	for (let i = 0; i < prev.items.length; i++) {
-		if (prev.items[i].Id !== next.items[i].Id) return false;
-		if (prev.items[i].UserData?.PlayedPercentage !== next.items[i].UserData?.PlayedPercentage) return false;
-		if (prev.items[i].UserData?.Played !== next.items[i].UserData?.Played) return false;
-	}
-	return true;
-};
-
-export default memo(MediaRow, areRowPropsEqual);
+export default memo(SeerrTileRow);

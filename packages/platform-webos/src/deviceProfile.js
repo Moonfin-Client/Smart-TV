@@ -18,12 +18,20 @@ const resolvePassthroughSettings = (options = {}) => ({
 
 const emptyDtsSupport = {mkv: false, mp4: false, ts: false, avi: false};
 
-const isExternalAudioPath = (audioStatus = {}) => {
-	const payload = JSON.stringify(audioStatus || {}).toLowerCase();
-	return /(earc|arc|hdmi|receiver|external|spdif|optical)/.test(payload);
+const LOSSLESS_PASSTHROUGH_OUTPUTS = new Set(['external_arc']);
+
+const getActiveSoundOutput = (audioStatus = {}) =>
+	(audioStatus?.soundOutput || '').toString().toLowerCase().trim();
+
+const isLosslessPassthroughOutput = (audioStatus = {}) => {
+	if (!LOSSLESS_PASSTHROUGH_OUTPUTS.has(getActiveSoundOutput(audioStatus))) return false;
+	const digital = (audioStatus?.soundOutputDigital || '').toString().toLowerCase();
+	return digital !== 'pcm';
 };
 
-const getAudioOutputStatus = async () => {
+const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+const queryAudioOutputStatus = async () => {
 	try {
 		const LS2Request = (await import('@enact/webos/LS2Request')).default;
 		return await new Promise((resolve) => {
@@ -37,6 +45,33 @@ const getAudioOutputStatus = async () => {
 	} catch (e) {
 		return {};
 	}
+};
+
+const getAudioOutputStatus = async () => {
+	for (let attempt = 0; attempt < 4; attempt++) {
+		const status = await queryAudioOutputStatus();
+		if (getActiveSoundOutput(status)) return status;
+		await delay(150);
+	}
+	return queryAudioOutputStatus();
+};
+
+const applyAudioOutputPath = async (baseCaps) => {
+	const audioOutputStatus = await getAudioOutputStatus();
+	const receiverPassthrough = isLosslessPassthroughOutput(audioOutputStatus);
+
+	const dts = receiverPassthrough
+		? {mkv: true, mp4: true, ts: true, avi: false}
+		: (baseCaps.dtsBase || baseCaps.dts || emptyDtsSupport);
+
+	return {
+		...baseCaps,
+		dts,
+		truehd: receiverPassthrough,
+		dtshd: receiverPassthrough && !!(dts.mkv || dts.mp4 || dts.ts),
+		audioOutputStatus,
+		externalAudioPathActive: receiverPassthrough
+	};
 };
 
 const applyPassthroughSettings = (caps, options = {}) => {
@@ -191,7 +226,7 @@ export const getDtsContainerSupport = (webosVersion, rawEdidType = null) => {
 export const testAc3Support = () => true;
 
 export const getDeviceCapabilities = async () => {
-	if (cachedCapabilities) return cachedCapabilities;
+	if (cachedCapabilities) return applyAudioOutputPath(cachedCapabilities);
 
 	let deviceInfoData = {};
 	let configData = {};
@@ -231,13 +266,7 @@ export const getDeviceCapabilities = async () => {
 
 	// tv.model.edidType is undocumented and may be absent on some firmware.
 	const rawEdidType = cfg['tv.model.edidType'];
-	const audioOutputStatus = await getAudioOutputStatus();
-	const externalAudioPathActive = isExternalAudioPath(audioOutputStatus);
-
-	// This is kind obsolete, need to fix encoding bug first tho
-	const dtsSupport = externalAudioPathActive
-		? {mkv: true, mp4: true, ts: true, avi: false}
-		: getDtsContainerSupport(webosVersion, rawEdidType);
+	const dtsBase = getDtsContainerSupport(webosVersion, rawEdidType);
 
 	cachedCapabilities = {
 		modelName: deviceInfoData.modelName || cfg['tv.model.modelname'] || 'Unknown',
@@ -274,11 +303,12 @@ export const getDeviceCapabilities = async () => {
 		})(),
 
 		dolbyAtmos: (cfg['tv.model.soundModeType'] || '').includes('Dolby Atmos'),
-		dts: dtsSupport,
+		dts: dtsBase,
+		dtsBase,
 		ac3: testAc3Support(),
 		eac3: true,
-		truehd: externalAudioPathActive,
-		dtshd: externalAudioPathActive && !!(dtsSupport.mkv || dtsSupport.mp4 || dtsSupport.ts),
+		truehd: false,
+		dtshd: false,
 		opus: webosVersion >= 6,
 
 		hevc: testHevcSupport(null, webosVersion),
@@ -292,15 +322,13 @@ export const getDeviceCapabilities = async () => {
 		nativeHlsFmp4: webosVersion >= 5,
 		hlsAc3: webosVersion >= 5,
 		hlsByteRange: webosVersion >= 4,
-		audioOutputStatus,
-		externalAudioPathActive,
 
 		lunaConfig: cfg,
 		ddrSize: cfg['tv.hw.ddrSize'] || 0
 	};
 
 	console.log('[deviceProfile] Capabilities:', cachedCapabilities);
-	return cachedCapabilities;
+	return applyAudioOutputPath(cachedCapabilities);
 };
 
 const buildVideoRangeTypes = (caps) => {

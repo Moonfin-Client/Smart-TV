@@ -9,6 +9,11 @@
 	transition: width 0.14s ease-out;
 	--modern-card-expanded-width: 520px;
 	--modern-card-image-height: 360px;
+
+	:global(.perf-low) &,
+	:global(.perf-mid) & {
+		transition: none;
+	}
 }
 
 .focused {
@@ -124,6 +129,10 @@
 	background: var(--theme-range-progress, #ffffff);
 	transition: width 0.25s ease;
 	border-radius: inherit;
+
+	:global(.perf-low) & {
+		transition: none;
+	}
 }
 
 .serverBadge {
@@ -140,6 +149,36 @@
 	overflow: hidden;
 	text-overflow: ellipsis;
 	white-space: nowrap;
+}
+
+.seerrBadge {
+	position: absolute;
+	top: 8px;
+	right: 8px;
+	width: 22px;
+	height: 22px;
+	border-radius: 50%;
+	z-index: 2;
+	box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+}
+
+.seerr5 {
+	background: var(--theme-on-surface, #fff);
+	border: 3px solid var(--theme-status-available, #22c55e);
+}
+
+.seerr4 {
+	background: var(--theme-status-available, #22c55e);
+}
+
+.seerr3 {
+	background: transparent;
+	border: 3px solid var(--theme-accent, #9333ea);
+}
+
+.seerr2 {
+	background: var(--theme-on-surface, #fff);
+	border: 3px solid var(--theme-status-pending, #eab308);
 }
 
 .platformWebos .image {

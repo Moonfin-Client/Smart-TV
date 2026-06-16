@@ -25,6 +25,7 @@ const useSegmentPopups = ({
 	const skipIntroDismissedRef = useRef(false);
 	const hasTriggeredNextEpisodeRef = useRef(false);
 	const nextEpisodeTimerRef = useRef(null);
+	const nextEpisodeTimeoutRef = useRef(null);
 
 	// --- Countdown ---
 
@@ -32,6 +33,10 @@ const useSegmentPopups = ({
 		if (nextEpisodeTimerRef.current) {
 			clearInterval(nextEpisodeTimerRef.current);
 			nextEpisodeTimerRef.current = null;
+		}
+		if (nextEpisodeTimeoutRef.current) {
+			clearTimeout(nextEpisodeTimeoutRef.current);
+			nextEpisodeTimeoutRef.current = null;
 		}
 		hasTriggeredNextEpisodeRef.current = true;
 		setNextEpisodeCountdown(null);
@@ -47,27 +52,36 @@ const useSegmentPopups = ({
 	}, [nextEpisode, onPlayNext, cancelNextEpisodeCountdown]);
 
 	const startNextEpisodeCountdown = useCallback(() => {
-		if (nextEpisodeTimerRef.current) return;
+		if (nextEpisodeTimeoutRef.current) return;
 
 		const timeout = settings.nextUpTimeout ?? 7;
 		if (timeout === 0) {
 			handlePlayNextEpisode();
 			return;
 		}
-		let countdown = timeout;
-		setNextEpisodeCountdown(countdown);
+		setNextEpisodeCountdown(timeout);
 
-		nextEpisodeTimerRef.current = setInterval(() => {
-			countdown--;
-			setNextEpisodeCountdown(countdown);
+		// A single timer drives the auto-advance; the progress bar animates purely
+		// in CSS, so no per-second re-render is needed for it.
+		nextEpisodeTimeoutRef.current = setTimeout(() => {
+			nextEpisodeTimeoutRef.current = null;
+			handlePlayNextEpisode();
+		}, timeout * 1000);
 
-			if (countdown <= 0) {
-				clearInterval(nextEpisodeTimerRef.current);
-				nextEpisodeTimerRef.current = null;
-				handlePlayNextEpisode();
-			}
-		}, 1000);
-	}, [handlePlayNextEpisode, settings.nextUpTimeout]);
+		// Tick the numeric countdown only when the timer text is actually shown.
+		const style = settings.nextUpCountdownStyle ?? 'both';
+		if (style === 'timer' || style === 'both') {
+			let countdown = timeout;
+			nextEpisodeTimerRef.current = setInterval(() => {
+				countdown--;
+				setNextEpisodeCountdown(countdown);
+				if (countdown <= 0) {
+					clearInterval(nextEpisodeTimerRef.current);
+					nextEpisodeTimerRef.current = null;
+				}
+			}, 1000);
+		}
+	}, [handlePlayNextEpisode, settings.nextUpTimeout, settings.nextUpCountdownStyle]);
 
 	// --- Skip Intro ---
 
@@ -90,6 +104,10 @@ const useSegmentPopups = ({
 		if (nextEpisodeTimerRef.current) {
 			clearInterval(nextEpisodeTimerRef.current);
 			nextEpisodeTimerRef.current = null;
+		}
+		if (nextEpisodeTimeoutRef.current) {
+			clearTimeout(nextEpisodeTimeoutRef.current);
+			nextEpisodeTimeoutRef.current = null;
 		}
 	}, []);
 

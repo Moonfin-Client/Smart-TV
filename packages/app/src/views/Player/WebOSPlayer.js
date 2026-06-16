@@ -8,7 +8,7 @@ import {getImageUrl} from '../../utils/helpers';
 import {api as jellyfinApi, createApiForServer, getServerUrl} from '../../services/jellyfinApi';
 import {detectWebOSVersion, getH264FallbackProfile} from '@moonfin/platform-webos/deviceProfile';
 import {initPgsRenderer, disposePgsRenderer} from '../../utils/pgsRenderer';
-import {supportsAssRenderer, initAssRenderer, disposeAssRenderer} from '../../utils/assRenderer';
+import {supportsAssRenderer, initAssCanvasRenderer, disposeAssRenderer, setAssTime, clearAssCanvas} from '../../utils/assRenderer';
 import {
 	initLunaAPI,
 	registerAppStateObserver,
@@ -162,12 +162,14 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 	const pendingAudioRef = useRef(null);
 
 	const playbackStartTimeoutRef = useRef(null);
+	const playbackStartTimedOutRef = useRef(false);
 	const pendingResumeTicksRef = useRef(0);
 	const hasReportedStartRef = useRef(false);
 	const lastSeekTimeRef = useRef(0);
 	const mediaUrlRef = useRef(null);
 	const pgsRendererRef = useRef(null);
 	const assRendererRef = useRef(null);
+	const assCanvasRef = useRef(null);
 	const pendingInitialAssSubtitleRef = useRef(null);
 
 	const destroyHlsPlayer = () => {
@@ -261,7 +263,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 		isPaused, audioStreams, subtitleStreams, chapters,
 		nextEpisode, isAudioMode, isLiveTV, hasNextTrack, hasPrevTrack,
 		shuffleMode, repeatMode, isFavorite, playbackRate, selectedQuality,
-		hasCastMembers, zoomModeLabel, zoomModeKey: zoomMode
+		selectedSubtitleIndex, canDownloadRemoteSubtitles: !isAudioMode && Boolean(item?.Id), hasCastMembers, zoomModeLabel, zoomModeKey: zoomMode
 	});
 
 	useEffect(() => {
@@ -269,66 +271,60 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 		setCastMembers(people);
 	}, [item]);
 
-	useEffect(() => {
+	const applyVideoAndAssGeometry = useCallback(() => {
 		const video = videoRef.current;
 		if (!video) return;
 
 		const sw = window.innerWidth || 1920;
 		const sh = window.innerHeight || 1080;
+		const screenAspect = sw / sh;
 
 		const decodedAspect = Number.isFinite(decodedAspectRatio) && decodedAspectRatio > 0
 			? decodedAspectRatio : null;
 		const targetAspect = (Number.isFinite(videoDisplayAspectRatio) && videoDisplayAspectRatio > 0
-			? videoDisplayAspectRatio : decodedAspect) || (sw / sh);
+			? videoDisplayAspectRatio : decodedAspect) || screenAspect;
+
+		// Content width when scaled to full height, and height when scaled to full width.
+		const wAtFullHeight = Math.round(sh * targetAspect);
+		const hAtFullWidth = Math.round(sw / targetAspect);
+		// Letter/pillar-box rect (fit) and the cropped rect (fill).
+		const fitRect = targetAspect >= screenAspect
+			? {x: 0, y: Math.round((sh - hAtFullWidth) / 2), w: sw, h: hAtFullWidth}
+			: {x: Math.round((sw - wAtFullHeight) / 2), y: 0, w: wAtFullHeight, h: sh};
+		const fillRect = targetAspect >= screenAspect
+			? {x: -Math.round((wAtFullHeight - sw) / 2), y: 0, w: wAtFullHeight, h: sh}
+			: {x: 0, y: -Math.round((hAtFullWidth - sh) / 2), w: sw, h: hAtFullWidth};
 
 		video.style.position = 'absolute';
 		video.style.objectFit = 'fill';
 		video.style.transform = 'none';
 		video.style.transformOrigin = 'center center';
 
-		if (zoomMode === 'stretch') {
-			video.style.width = `${sw}px`;
-			video.style.height = `${sh}px`;
-			video.style.left = '0px';
-			video.style.top = '0px';
-		} else if (zoomMode === 'fill') {
-			const screenAspect = sw / sh;
-			let vw, vh, vx, vy;
-			if (targetAspect >= screenAspect) {
-				vh = sh;
-				vw = Math.round(sh * targetAspect);
-				vx = -Math.round((vw - sw) / 2);
-				vy = 0;
-			} else {
-				vw = sw;
-				vh = Math.round(sw / targetAspect);
-				vx = 0;
-				vy = -Math.round((vh - sh) / 2);
-			}
-			video.style.width = `${vw}px`;
-			video.style.height = `${vh}px`;
-			video.style.left = `${vx}px`;
-			video.style.top = `${vy}px`;
-		} else {
-			const screenAspect = sw / sh;
-			let vw, vh, vx, vy;
-			if (targetAspect >= screenAspect) {
-				vw = sw;
-				vh = Math.round(sw / targetAspect);
-				vx = 0;
-				vy = Math.round((sh - vh) / 2);
-			} else {
-				vh = sh;
-				vw = Math.round(sh * targetAspect);
-				vx = Math.round((sw - vw) / 2);
-				vy = 0;
-			}
-			video.style.width = `${vw}px`;
-			video.style.height = `${vh}px`;
-			video.style.left = `${vx}px`;
-			video.style.top = `${vy}px`;
+		const videoRect = zoomMode === 'stretch' ? {x: 0, y: 0, w: sw, h: sh}
+			: zoomMode === 'fill' ? fillRect : fitRect;
+		video.style.width = `${videoRect.w}px`;
+		video.style.height = `${videoRect.h}px`;
+		video.style.left = `${videoRect.x}px`;
+		video.style.top = `${videoRect.y}px`;
+
+		// Track the content rect (fit for fit/stretch, fill for crop) so the ASS
+		// overlay aligns to the video in every zoom mode (#235).
+		const assRect = zoomMode === 'fill' ? fillRect : fitRect;
+		const canvas = assCanvasRef.current;
+		if (canvas) {
+			canvas.style.left = `${assRect.x}px`;
+			canvas.style.top = `${assRect.y}px`;
+			canvas.style.width = `${assRect.w}px`;
+			canvas.style.height = `${assRect.h}px`;
+		}
+		if (assRendererRef.current?.resize) {
+			assRendererRef.current.resize(Math.max(1, assRect.w), Math.max(1, assRect.h));
 		}
 	}, [zoomMode, videoDisplayAspectRatio, decodedAspectRatio]);
+
+	useEffect(() => {
+		applyVideoAndAssGeometry();
+	}, [applyVideoAndAssGeometry]);
 
 	useEffect(() => {
 		applyWebOSZoomWindow();
@@ -342,7 +338,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 	}, [applyWebOSZoomWindow]);
 
 	const initAssRendererForStream = useCallback(async (stream) => {
-		if (!stream?.isAss || !videoRef.current) {
+		if (!stream?.isAss || !assCanvasRef.current) {
 			return false;
 		}
 
@@ -351,11 +347,15 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 			if (!assUrl) {
 				return false;
 			}
+			const assFontsUrl = playback.getAssFontsUrl(stream);
 
-			const renderer = await initAssRenderer(videoRef.current, assUrl, (err) => {
+			// Canvas mode (not video-auto-sync): we position the overlay ourselves to
+			// the video's display rect so subtitles stay aligned in every zoom mode (#235).
+			const renderer = await initAssCanvasRenderer(assCanvasRef.current, assUrl, assFontsUrl, (err) => {
 				console.error('[Player] ASS renderer error, falling back to text', err);
 				disposeAssRenderer(assRendererRef.current);
 				assRendererRef.current = null;
+				clearAssCanvas(assCanvasRef.current);
 				playback.fetchSubtitleData(stream).then(data => {
 					setSubtitleTrackEvents(data?.TrackEvents || null);
 				}).catch(() => setSubtitleTrackEvents(null));
@@ -364,6 +364,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 			if (renderer) {
 				assRendererRef.current = renderer;
 				setSubtitleTrackEvents(null);
+				applyVideoAndAssGeometry();
 				return true;
 			}
 		} catch (err) {
@@ -382,7 +383,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 		}
 
 		return false;
-	}, []);
+	}, [applyVideoAndAssGeometry]);
 
 	useEffect(() => {
 		let cancelled = false;
@@ -479,10 +480,15 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 					videoRef.current.pause();
 				}
 			}
-			// Report current progress when app is backgrounded
-			// This ensures position is saved if user doesn't return
+			// Report current progress when app is backgrounded. The TV may be
+			// powering off, which cancels a normal async report mid-flight and
+			// loses watch progress, instead use a beacon, which the OS delivers
+			// after teardown, and fall back to the async path if unavailable.
 			if (positionRef.current > 0) {
-				playback.reportProgress(positionRef.current);
+				if (!playback.reportProgressBeacon(positionRef.current, {isPaused: true})) {
+					playback.reportProgress(positionRef.current);
+				}
+				playback.reportStopBeacon(positionRef.current);
 			}
 		};
 
@@ -525,6 +531,11 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 		video.onerror = null;
 		video.className = '';
 
+		video.muted = false;
+		video.defaultMuted = false;
+		video.volume = 1;
+		video.removeAttribute('muted');
+
 		if (containerRef.current && !containerRef.current.contains(video)) {
 			containerRef.current.appendChild(video);
 		}
@@ -559,6 +570,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 
 	useEffect(() => {
 		const videoElement = videoRef.current;
+		const assCanvas = assCanvasRef.current;
 		console.log('[Player] Main useEffect running with deps:', {
 			itemId: item?.Id,
 			selectedQuality,
@@ -612,7 +624,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 					enableDirectStream: !settings.preferTranscode,
 					forceDirectPlay: isLiveTV ? false : settings.forceDirectPlay,
 					mediaSourceId: initialMediaSourceId,
-					audioStreamIndex: initialAudioIndex,
+					audioStreamIndex: initialAudioIndex != null ? initialAudioIndex : undefined,
 					subtitleStreamIndex: initialSubtitleIndex,
 					item: item,
 					isLiveTV,
@@ -655,8 +667,13 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 					}
 				setChapters(chapterList);
 
+				// A local language override wins; otherwise honor the Jellyfin user's
+				// preferred audio language via the server-computed defaultAudioStreamIndex
+				// (#186), then the file's default track.
 				const defaultAudio = result.audioStreams?.find(s => s.isDefault);
 				const preferredAudio = findPreferredAudioStream(result.audioStreams, settings.audioLanguage);
+				const serverAudio = result.audioStreams?.find(s => s.index === result.defaultAudioStreamIndex);
+				const autoAudio = preferredAudio || serverAudio || defaultAudio;
 				if (initialAudioIndex !== undefined && initialAudioIndex !== null) {
 					setSelectedAudioIndex(initialAudioIndex);
 					// Store for onFirstTimeUpdate to apply via audioTracks API
@@ -664,15 +681,12 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 						streamIndex: initialAudioIndex,
 						audioStreams: result.audioStreams || []
 					};
-				} else if (preferredAudio) {
-					setSelectedAudioIndex(preferredAudio.index);
-					pendingAudioRef.current = {
-						streamIndex: preferredAudio.index,
-						audioStreams: result.audioStreams || []
-					};
-				} else if (defaultAudio) {
-					setSelectedAudioIndex(defaultAudio.index);
-					pendingAudioRef.current = null;
+				} else if (autoAudio) {
+					setSelectedAudioIndex(autoAudio.index);
+					// Only switch via the audioTracks API when it isn't the file's native default
+					pendingAudioRef.current = autoAudio.index !== defaultAudio?.index
+						? {streamIndex: autoAudio.index, audioStreams: result.audioStreams || []}
+						: null;
 				}
 
 				// Load subtitle data or renderer for the selected stream.
@@ -681,6 +695,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 					pgsRendererRef.current = null;
 					disposeAssRenderer(assRendererRef.current);
 					assRendererRef.current = null;
+					clearAssCanvas(assCanvasRef.current);
 					pendingInitialAssSubtitleRef.current = null;
 
 					const supportsAss = sub && sub.isAss && supportsAssRenderer();
@@ -759,6 +774,15 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 						setSelectedSubtitleIndex(forcedSub.index);
 						await loadSubtitleData(forcedSub);
 					}
+				} else if (settings.subtitleMode === 'default' &&
+						result.defaultSubtitleStreamIndex != null && result.defaultSubtitleStreamIndex >= 0) {
+					// Honor the Jellyfin user's subtitle preference, computed server-side
+					// from their SubtitleMode + SubtitleLanguagePreference (#186).
+					const serverSub = result.subtitleStreams?.find(s => s.index === result.defaultSubtitleStreamIndex);
+					if (serverSub) {
+						setSelectedSubtitleIndex(serverSub.index);
+						await loadSubtitleData(serverSub);
+					}
 				}
 
 				let displayTitle = item.Name;
@@ -826,6 +850,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 				if (seekDebounceTimerRef.current) clearTimeout(seekDebounceTimerRef.current);
 				disposePgsRenderer(pgsRendererRef.current);
 				disposeAssRenderer(assRendererRef.current);
+				clearAssCanvas(assCanvas);
 				return;
 			}
 
@@ -945,6 +970,11 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 		// autoplay must be re-set because hls.js path overrides it to false
 		video.autoplay = true;
 
+		video.muted = false;
+		video.defaultMuted = false;
+		video.volume = 1;
+		video.removeAttribute('muted');
+
 		const setSourceAndPlay = () => {
 			console.log('[Player] Setting video source now');
 
@@ -990,11 +1020,12 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 					console.log('[Player] hls.js manifest parsed, levels:', data.levels?.length, 'waiting for first fragment...');
 				});
 
+				const fragStartThreshold = isLiveTV ? 1 : 2;
 				hls.on(Hls.Events.FRAG_BUFFERED, () => {
 					fragBufferedCount++;
 					if (hlsPlayStarted) return;
-					if (fragBufferedCount < 2) {
-						console.log('[Player] hls.js fragment buffered (' + fragBufferedCount + '/2), waiting for more data...');
+					if (fragBufferedCount < fragStartThreshold) {
+						console.log('[Player] hls.js fragment buffered (' + fragBufferedCount + '/' + fragStartThreshold + '), waiting for more data...');
 						return;
 					}
 					hlsPlayStarted = true;
@@ -1071,6 +1102,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 					resumeHandled = true;
 					clearTimeout(playbackStartTimeoutRef.current);
 					playbackStartTimeoutRef.current = null;
+					playbackStartTimedOutRef.current = false;
 					sourceTransitionRef.current = false;
 					transcodeRetryCountRef.current = 0;
 					if (pendingResumeTicksRef.current > 0) {
@@ -1120,6 +1152,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 				if (noProgress) {
 					console.warn('[Player] Playback start timeout - no timeupdate received in ' + (timeoutMs / 1000) + 's, triggering error handler');
 					console.warn('[Player] Video state:', { readyState: video.readyState, networkState: video.networkState, paused: video.paused, currentSrc: video.currentSrc });
+					playbackStartTimedOutRef.current = true;
 					video.dispatchEvent(new Event('error'));
 				}
 			}, timeoutMs);
@@ -1160,7 +1193,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 			}
 			destroyHlsPlayer();
 		};
-	}, [mediaUrl, isLoading, mimeType, playMethod, error, settings.videoStartDelay]);
+	}, [mediaUrl, isLoading, mimeType, playMethod, error, settings.videoStartDelay, isLiveTV]);
 
 	const showControls = useCallback((isModalOpen = activeModal) => {
 		setControlsVisible(true);
@@ -1349,6 +1382,11 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 			const ticks = Math.floor(time * 10000000);
 			positionRef.current = ticks;
 
+			// Canvas-mode ASS isn't auto-synced to the video, so drive its clock here.
+			if (assRendererRef.current) {
+				setAssTime(assRendererRef.current, time - subtitleOffset);
+			}
+
 			if (healthMonitorRef.current) {
 				healthMonitorRef.current.recordProgress();
 			}
@@ -1378,6 +1416,8 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 
 	const handlePlaying = useCallback(() => {
 		setIsBuffering(false);
+		setIsPaused(false);
+		healthMonitorRef.current?.setPaused(false);
 		if (!seekDebounceTimerRef.current && !seekingTranscodeRef.current) {
 			lastSeekTargetRef.current = null;
 		}
@@ -1426,10 +1466,12 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 	}, [onEnded, onPlayNext, nextEpisode, hasNextTrack, audioPlaylist, audioPlaylistIndex, shuffleMode, repeatMode]);
 
 	const handleError = useCallback(async () => {
-		if (isPaused || videoRef.current?.paused) {
+		const startFailure = playbackStartTimedOutRef.current && !isPaused;
+		if ((isPaused || videoRef.current?.paused) && !startFailure) {
 			console.log('[Player] Ignoring error while paused');
 			return;
 		}
+		playbackStartTimedOutRef.current = false;
 
 		// Ignore errors fired during cleanup (SDR reset video triggers error code 4)
 		if (isCleaningUpRef.current) {
@@ -1711,6 +1753,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 		pgsRendererRef.current = null;
 		disposeAssRenderer(assRendererRef.current);
 		assRendererRef.current = null;
+		clearAssCanvas(assCanvasRef.current);
 		pendingInitialAssSubtitleRef.current = null;
 
 		if (index === -1) {
@@ -2300,6 +2343,10 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 		});
 	}, [focusRow, controlsVisible]);
 
+	const nextCountdownStyle = settings.nextUpCountdownStyle ?? 'both';
+	const showNextCountdownTimer = nextEpisodeCountdown !== null && nextCountdownStyle !== 'progressBar';
+	const showNextCountdownBar = nextEpisodeCountdown !== null && nextCountdownStyle !== 'timer';
+
 	return (
 		<div className={css.container} onClick={!isLoading && !error ? showControls : undefined}>
 			<div
@@ -2307,6 +2354,8 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 				className={css.videoPlayer}
 				style={isLoading || isAudioMode ? {opacity: 0, pointerEvents: 'none'} : undefined}
 			/>
+
+			<canvas ref={assCanvasRef} className={css.assCanvas} />
 
 			{isLoading && (
 				<div className={css.loadingIndicator}>
@@ -2425,7 +2474,12 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 							<div className={css.nextThumbnailGradient} />
 						</div>
 						<div className={css.nextInfo}>
-							<div className={css.nextLabel}>{$L('UP NEXT')}</div>
+							<div className={css.nextLabelRow}>
+								<div className={css.nextLabel}>{$L('UP NEXT')}</div>
+								{showNextCountdownTimer && (
+									<div className={css.nextCountdownInline}>{$L('Starting in {countdown}s').replace('{countdown}', nextEpisodeCountdown)}</div>
+								)}
+							</div>
 							<div className={css.nextTitle}>{nextEpisode.Name}</div>
 							{nextEpisode.SeriesName && (
 								<div className={css.nextMeta}>
@@ -2448,12 +2502,17 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 								</SpottableButton>
 							</div>
 						</div>
+						{showNextCountdownBar && (
+							<div className={css.nextProgressBar}>
+								<div className={css.nextProgressFill} style={{'--countdown-duration': `${settings.nextUpTimeout ?? 7}s`}} />
+							</div>
+						)}
 					</div>
 					) : (
 					<div className={css.nextEpisodeMinimal}>
 						<div className={css.nextLabel}>{$L('UP NEXT')}</div>
 						<div className={css.nextTitle}>{nextEpisode.Name}</div>
-						{nextEpisodeCountdown !== null && (
+						{showNextCountdownTimer && (
 							<div className={css.nextCountdownText}>{$L('Starting in {countdown}s').replace('{countdown}', nextEpisodeCountdown)}</div>
 						)}
 						<div className={css.nextActions}>
@@ -2464,15 +2523,12 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 								{$L('Hide')}
 							</SpottableButton>
 						</div>
+						{showNextCountdownBar && (
+							<div className={css.nextProgressBarMinimal}>
+								<div className={css.nextProgressFill} style={{'--countdown-duration': `${settings.nextUpTimeout ?? 7}s`}} />
+							</div>
+						)}
 					</div>
-					)}
-					{nextEpisodeCountdown !== null && settings.nextUpBehavior !== 'minimal' && (
-						<div className={css.nextProgressBar}>
-							<div
-								className={css.nextProgressFill}
-								style={{'--countdown-duration': `${settings.nextUpTimeout ?? 7}s`}}
-							/>
-						</div>
 					)}
 				</NextEpisodeContainer>
 			)}

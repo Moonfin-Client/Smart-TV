@@ -554,26 +554,28 @@ export const getJellyfinDeviceProfile = async () => {
 		});
 	}
 
-	// fMP4 HLS is listed as first, so Jellyfin prefers it. fMP4 is required to allow
-	// AV1 video passthrough (TS container does not support AV1) — without it the
-	// server would re-encode AV1 → HEVC. With fMP4 + AV1 listed, the server emits
-	// `-c:v copy -c:a eac3` for AV1+TrueHD/DTS sources
-	// TS+HLS is kept as a fallback for HEVC/H.264 sources on firmwares
-	// that may have fMP4 quirks.
-	const v1AndH26x = caps.av1 ? 'av1,hevc,h264' : 'hevc,h264';
+	// fMP4 HLS is only for AV1 passthrough (TS cannot carry AV1). HEVC/H.264 use TS:
+	// copying HEVC (especially Dolby Vision) into fMP4-HLS fails on several Tizen
+	// firmwares with PLAYER_ERROR_NOT_SUPPORTED_FILE (#179), so they must not match
+	// the fMP4 profile.
 	const tsAudio = caps.eac3 ? 'eac3,ac3,aac' : (caps.ac3 ? 'ac3,aac' : 'aac');
-	const transcodingProfiles = [
-		{
+	const transcodingProfiles = [];
+
+	if (caps.av1) {
+		transcodingProfiles.push({
 			Container: 'mp4',
 			Type: 'Video',
 			AudioCodec: tsAudio,
-			VideoCodec: v1AndH26x,
+			VideoCodec: 'av1',
 			Context: 'Streaming',
 			Protocol: 'hls',
 			MaxAudioChannels: maxAudioChannels,
 			MinSegments: '1',
 			SegmentLength: '3'
-		},
+		});
+	}
+
+	transcodingProfiles.push(
 		{
 			Container: 'ts',
 			Type: 'Video',
@@ -593,7 +595,7 @@ export const getJellyfinDeviceProfile = async () => {
 			Context: 'Streaming',
 			Protocol: 'http'
 		}
-	];
+	);
 
 	// H.264 Level per Samsung spec tables:
 	// 2018-2019: FHD Level 4.1, UHD Level 5.1

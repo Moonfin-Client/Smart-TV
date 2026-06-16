@@ -3,7 +3,11 @@ import Spotlight from '@enact/spotlight';
 import $L from '@enact/i18n/$L';
 import {useAuth} from '../../context/AuthContext';
 import {useSettings} from '../../context/SettingsContext';
+import {useJellyseerr} from '../../context/JellyseerrContext';
 import {ClassicMediaRow, ModernMediaRow} from '../../components/MediaRow';
+import SeerrTileRow from '../../components/SeerrTileRow';
+import {getSeerrHomeRowConfigs, fetchSeerrHomeRow} from '../../utils/seerrHomeRows';
+import {mergeRowPreservingRefs} from '../../utils/volatileRows';
 import LoadingSpinner from '../../components/LoadingSpinner';
 import {getImageUrl, getBackdropId, getLogoUrl} from '../../utils/helpers';
 import {getFromStorage, saveToStorage} from '../../services/storage';
@@ -14,6 +18,9 @@ import {toCssColor} from '../../theme/themeSpec';
 import DetailSection from './DetailSection';
 import FeaturedBanner from './FeaturedBanner';
 import MakdBanner from './MakdBanner';
+import GalleryBanner from './GalleryBanner';
+import BannerBar from './BannerBar';
+import BookshelfBar from './BookshelfBar';
 import BackdropLayer from './BackdropLayer';
 
 import css from './Browse.module.less';
@@ -24,6 +31,8 @@ const TRANSITION_DELAY_MS = 450;
 // Cache TTL in milliseconds (5 minutes for volatile data, 30 minutes for libraries)
 const CACHE_TTL_VOLATILE = 5 * 60 * 1000;
 const CACHE_TTL_LIBRARIES = 30 * 60 * 1000;
+const VOLATILE_REFRESH_COOLDOWN_MS = 60 * 1000;
+const CACHE_SAVE_DEBOUNCE_MS = 3000;
 const STORAGE_KEY_BROWSE = 'browse_cache_v2';
 
 let cachedRowData = null;
@@ -178,8 +187,24 @@ function browseReducer(state, action) {
 			if (action.rows.length === 0) return state;
 			return { ...state, allRowData: [...state.allRowData, ...action.rows] };
 		case 'REFRESH_VOLATILE': {
+			const prevVolatile = new Map();
+			state.allRowData.forEach((row) => {
+				if (row.id === 'resume' || row.id === 'nextup') prevVolatile.set(row.id, row);
+			});
+			const mergedVolatile = action.volatileRows.map((row) => mergeRowPreservingRefs(prevVolatile.get(row.id), row));
 			const filtered = state.allRowData.filter(r => r.id !== 'resume' && r.id !== 'nextup');
-			return { ...state, allRowData: [...action.volatileRows, ...filtered] };
+			const next = [...mergedVolatile, ...filtered];
+			if (next.length === state.allRowData.length) {
+				let unchanged = true;
+				for (let i = 0; i < next.length; i++) {
+					if (next[i] !== state.allRowData[i]) {
+						unchanged = false;
+						break;
+					}
+				}
+				if (unchanged) return state;
+			}
+			return { ...state, allRowData: next };
 		}
 		case 'SET_ROW_DATA':
 			return { ...state, allRowData: action.rowData };
@@ -225,6 +250,10 @@ const Browse = ({
 	onSelectItem,
 	onSelectLibrary,
 	onSelectGenre,
+	onSelectSeerrItem,
+	onSelectSeerrGenre,
+	onSelectSeerrStudio,
+	onSelectSeerrNetwork,
 	isVisible = true,
 	onFocusItemThemeMusic,
 	onBlurItemThemeMusic,
@@ -232,16 +261,21 @@ const Browse = ({
 }) => {
 	const {api, serverUrl, accessToken, hasMultipleServers, user} = useAuth();
 	const {settings, activeTheme} = useSettings();
+	const {isEnabled: jellyseerrEnabled, isAuthenticated: jellyseerrAuthenticated, user: jellyseerrUser} = useJellyseerr();
+	const seerrUserId = jellyseerrUser?.jellyseerrUserId;
+	const [seerrRows, setSeerrRows] = useState([]);
 	const unifiedMode = settings.unifiedLibraryMode && hasMultipleServers;
 	const isLegacy = typeof document !== 'undefined' && (' ' + document.documentElement.className + ' ').indexOf(' legacy ') >= 0;
 	const [state, dispatch] = useReducer(browseReducer, browseInitialState);
 	const {isLoading, browseMode, allRowData, featuredItems} = state;
 	const [focusedItemForBackdrop, setFocusedItemForBackdrop] = useState(null);
-	const [currentFeaturedItem, setCurrentFeaturedItem] = useState(null);
 	const mainContentRef = useRef(null);
 	const detailSectionRef = useRef(null);
 	const lastFocusedRowRef = useRef(null);
 	const wasVisibleRef = useRef(true);
+	const lastVolatileRefreshRef = useRef(0);
+	const cacheSaveTimerRef = useRef(null);
+	const lastCacheSignatureRef = useRef('');
 	const prevFilteredRowsRef = useRef([]);
 	const filteredRowsLengthRef = useRef(0);
 	const filteredRowsRef = useRef([]);
@@ -336,7 +370,9 @@ const Browse = ({
 		return null;
 	}, [api, serverUrl, accessToken, unifiedMode, getItemServerUrl]);
 
-	const refreshVolatileData = useCallback(async () => {
+	const refreshVolatileData = useCallback(async (force = false) => {
+		if (!force && Date.now() - lastVolatileRefreshRef.current < VOLATILE_REFRESH_COOLDOWN_MS) return;
+		lastVolatileRefreshRef.current = Date.now();
 		try {
 			let resumeItems, nextUp;
 
@@ -440,15 +476,28 @@ const Browse = ({
 		if (settings.mergeContinueWatchingNextUp) {
 			const mergeResumeRow = allRowData.find(r => r.id === 'resume');
 			const nextUpRow = allRowData.find(r => r.id === 'nextup');
+			const recentlyPlayed = allRowData.find(r => r.id === 'recentlyplayed');
 
 			result = allRowData.filter(r => r.id !== 'resume' && r.id !== 'nextup');
 
 			if (mergeResumeRow || nextUpRow) {
 				const resumeItems = mergeResumeRow?.items || [];
 				const nextUpItems = nextUpRow?.items || [];
+				const recentlyPlayedItems = recentlyPlayed?.items || [];
 
 				const seriesLastPlayedMap = new Map();
 				resumeItems.forEach(item => {
+					const seriesId = item.SeriesId;
+					const lastPlayed = item.UserData?.LastPlayedDate;
+					if (seriesId && lastPlayed) {
+						const existing = seriesLastPlayedMap.get(seriesId);
+						if (!existing || lastPlayed > existing) {
+							seriesLastPlayedMap.set(seriesId, lastPlayed);
+						}
+					}
+				});
+
+				recentlyPlayedItems.forEach(item => {
 					const seriesId = item.SeriesId;
 					const lastPlayed = item.UserData?.LastPlayedDate;
 					if (seriesId && lastPlayed) {
@@ -557,6 +606,8 @@ const Browse = ({
 			return title && title !== row.title ? {...row, title} : row;
 		});
 
+		result = [...result, ...seerrRows];
+
 		const resumeOrder = rowOrderMap.get('resume');
 		const nextUpOrder = rowOrderMap.get('nextup');
 		const continueOrder = Math.min(
@@ -571,6 +622,8 @@ const Browse = ({
 					order = Number.isFinite(continueOrder) ? continueOrder : 0;
 				} else if (row.isLatestRow) {
 					order = rowOrderMap.get('latest-media');
+				} else if (row.isSeerrRow) {
+					order = 3000 + index;
 				}
 				if (!Number.isFinite(order)) {
 					order = row.isPluginRow ? 2000 + index : 1000 + index;
@@ -600,7 +653,7 @@ const Browse = ({
 
 		prevFilteredRowsRef.current = result;
 		return result;
-	}, [allRowData, homeRowsConfig, pluginSectionsConfig, settings.mergeContinueWatchingNextUp, isRowVisibleByGates]);
+	}, [allRowData, seerrRows, homeRowsConfig, pluginSectionsConfig, settings.mergeContinueWatchingNextUp, isRowVisibleByGates]);
 
 	const focusRow = useCallback((rowIndex) => {
 		const row = filteredRowsRef.current[rowIndex];
@@ -740,25 +793,47 @@ const Browse = ({
 		return Date.now() - timestamp < ttl;
 	}, []);
 
-	const saveBrowseCache = useCallback(async (rowData, libs, featured) => {
-		try {
-			const strippedRows = rowData.map(row => ({
-				...row,
-				items: row.items.map(stripItemForCache)
-			}));
-			const cacheData = {
-				rowData: strippedRows,
-				libraries: libs,
-				featuredItems: featured,
-				timestamp: Date.now(),
-				serverUrl,
-				userId: user?.Id || null
-			};
-			await saveToStorage(STORAGE_KEY_BROWSE, cacheData);
-		} catch (e) {
-			console.warn('[Browse] Failed to save cache:', e);
-		}
+	const saveBrowseCache = useCallback((rowData, libs, featured) => {
+		const signature = rowData.map((row) => {
+			let progressSum = 0;
+			if (row.id === 'resume' || row.id === 'nextup') {
+				row.items.forEach((item) => {
+					progressSum += item.UserData?.PlayedPercentage || 0;
+				});
+			}
+			return `${row.id}:${row.items.length}:${row.items[0]?.Id || ''}:${Math.round(progressSum)}`;
+		}).join('|');
+		if (signature === lastCacheSignatureRef.current) return;
+
+		if (cacheSaveTimerRef.current) clearTimeout(cacheSaveTimerRef.current);
+		cacheSaveTimerRef.current = setTimeout(async () => {
+			cacheSaveTimerRef.current = null;
+			try {
+				const strippedRows = rowData.map(row => ({
+					...row,
+					items: row.items.map(stripItemForCache)
+				}));
+				const cacheData = {
+					rowData: strippedRows,
+					libraries: libs,
+					featuredItems: featured,
+					timestamp: Date.now(),
+					serverUrl,
+					userId: user?.Id || null
+				};
+				await saveToStorage(STORAGE_KEY_BROWSE, cacheData);
+				lastCacheSignatureRef.current = signature;
+			} catch (e) {
+				console.warn('[Browse] Failed to save cache:', e);
+			}
+		}, CACHE_SAVE_DEBOUNCE_MS);
 	}, [serverUrl, user?.Id]);
+
+	useEffect(() => {
+		return () => {
+			if (cacheSaveTimerRef.current) clearTimeout(cacheSaveTimerRef.current);
+		};
+	}, []);
 
 	const loadBrowseCache = useCallback(async () => {
 		try {
@@ -805,7 +880,7 @@ const Browse = ({
 				dispatch({type: 'SET_LOADING', value: false});
 
 				if (!isCacheValid(persistedCache.timestamp, CACHE_TTL_VOLATILE)) {
-					refreshVolatileData();
+					refreshVolatileData(true);
 				}
 				return;
 			}
@@ -816,7 +891,7 @@ const Browse = ({
 
 		const fetchAllData = async () => {
 			try {
-				let libs, resumeItems, nextUp, userConfig, randomItems;
+				let libs, resumeItems, nextUp, userConfig, randomItems, recentlyPlayed;
 
 				if (unifiedMode) {
 					const [libsArray, resumeArray, nextUpArray, randomArray] = await Promise.all([
@@ -830,19 +905,30 @@ const Browse = ({
 					nextUp = {Items: nextUpArray};
 					userConfig = null; // Not supported in unified mode
 					randomItems = {Items: randomArray};
+					recentlyPlayed = null;
 				} else {
 					const results = await Promise.all([
 						api.getLibraries(),
 						api.getResumeItems(),
 						api.getNextUp(),
 						api.getUserConfiguration().catch(() => null),
-						api.getRandomItems(settings.featuredContentType, settings.featuredItemCount)
+						api.getRandomItems(settings.featuredContentType, settings.featuredItemCount),
+						settings.mergeContinueWatchingNextUp ? api.getItems({
+							IncludeItemTypes: 'Episode',
+							Filters: 'IsPlayed',
+							Recursive: true,
+							SortBy: 'DatePlayed',
+							SortOrder: 'Descending',
+							Limit: 100,
+							Fields: 'UserData,SeriesId'
+						}) : Promise.resolve(null)
 					]);
 					libs = results[0].Items || [];
 					resumeItems = results[1];
 					nextUp = results[2];
 					userConfig = results[3];
 					randomItems = results[4];
+					recentlyPlayed = results[5];
 				}
 
 				cachedLibraries = libs;
@@ -894,6 +980,13 @@ const Browse = ({
 						LogoUrl: getLogoUrl(getItemServerUrl(item), item, {maxWidth: 800, quality: 90})
 					}));
 					cachedFeaturedItems = featuredWithLogos;
+				}
+
+				if (recentlyPlayed?.Items?.length > 0) {
+					rowData.push({
+						id: 'recentlyplayed',
+						items: recentlyPlayed.Items
+					});
 				}
 
 				dispatch({type: 'SET_INITIAL_DATA', rowData, featuredItems: cachedFeaturedItems});
@@ -1266,6 +1359,7 @@ const Browse = ({
 		settings.genresRowItemFilter,
 		settings.uiLanguage,
 		settings.pluginSections,
+		settings.mergeContinueWatchingNextUp,
 		isCacheValid,
 		loadBrowseCache,
 		saveBrowseCache,
@@ -1276,20 +1370,14 @@ const Browse = ({
 	]); // eslint-disable-line no-use-before-define
 
 	const targetBackdropUrl = useMemo(() => {
-		let itemForBackdrop = null;
+		if (browseMode === 'featured') return '';
+		if (!focusedItemForBackdrop || isLegacy || settings.showHomeBackdrop === false) return '';
 
-		if (browseMode === 'featured') {
-			itemForBackdrop = currentFeaturedItem;
-		} else if (focusedItemForBackdrop && !isLegacy && settings.showHomeBackdrop !== false) {
-			itemForBackdrop = focusedItemForBackdrop;
-		}
-
-		if (!itemForBackdrop) return '';
-		const backdropId = getBackdropId(itemForBackdrop);
+		const backdropId = getBackdropId(focusedItemForBackdrop);
 		if (!backdropId) return '';
-		const itemUrl = getItemServerUrl(itemForBackdrop);
+		const itemUrl = getItemServerUrl(focusedItemForBackdrop);
 		return getImageUrl(itemUrl, backdropId, 'Backdrop', {maxWidth: 1280, quality: 80});
-	}, [browseMode, currentFeaturedItem, focusedItemForBackdrop, isLegacy, settings.showHomeBackdrop, getItemServerUrl]);
+	}, [browseMode, focusedItemForBackdrop, isLegacy, settings.showHomeBackdrop, getItemServerUrl]);
 
 	const handleSelectItem = useCallback((item) => {
 		onBlurItemThemeMusic?.();
@@ -1324,6 +1412,61 @@ const Browse = ({
 			_serverId: item._serverId
 		});
 	}, [onSelectGenre, onBlurItemThemeMusic, onLeaveThemeMusic]);
+
+	const handleSelectSeerrItem = useCallback((item) => {
+		const raw = item._seerrRaw || {};
+		switch (item._seerrType) {
+			case 'genre':
+				onSelectSeerrGenre?.(raw.genreId, raw.genreName, raw.mediaType);
+				break;
+			case 'studio':
+				onSelectSeerrStudio?.(raw.studioId, raw.studioName);
+				break;
+			case 'network':
+				onSelectSeerrNetwork?.(raw.networkId, raw.networkName);
+				break;
+			default:
+				onSelectSeerrItem?.(raw);
+				break;
+		}
+	}, [onSelectSeerrItem, onSelectSeerrGenre, onSelectSeerrStudio, onSelectSeerrNetwork]);
+
+	useEffect(() => {
+		if (!jellyseerrEnabled || !jellyseerrAuthenticated || !settings.displaySeerrRows) {
+			setSeerrRows([]);
+			return;
+		}
+		const enabledIds = (settings.seerrHomeRows || []).filter((r) => r.enabled).map((r) => r.id);
+		if (enabledIds.length === 0) {
+			setSeerrRows([]);
+			return;
+		}
+
+		let cancelled = false;
+		const configs = getSeerrHomeRowConfigs();
+
+		(async () => {
+			const built = await Promise.all(enabledIds.map(async (id) => {
+				const cfg = configs.find((c) => c.id === id);
+				if (!cfg) return null;
+				const items = await fetchSeerrHomeRow(id, {userId: seerrUserId});
+				if (!items.length) return null;
+				return {
+					id: `seerr-${id}`,
+					title: cfg.title,
+					items,
+					type: cfg.cardType,
+					isSeerrRow: true,
+					isTileRow: cfg.type === 'genre' || cfg.type === 'studio' || cfg.type === 'network'
+				};
+			}));
+			if (!cancelled) setSeerrRows(built.filter(Boolean));
+		})();
+
+		return () => {
+			cancelled = true;
+		};
+	}, [jellyseerrEnabled, jellyseerrAuthenticated, seerrUserId, settings.seerrHomeRows, settings.displaySeerrRows]);
 
 	const handleNavigateDownFromFeatured = useCallback(() => {
 		dispatch({type: 'SET_BROWSE_MODE', mode: 'rows'});
@@ -1370,14 +1513,45 @@ const Browse = ({
 
 	return (
 		<div className={css.page}>
-			<div className={`${css.mainContent} ${settings.navbarPosition === 'left' ? css.sidebarOffset : ''}`} ref={mainContentRef}>
+			<div className={`${css.mainContent} ${settings.navbarPosition === 'left' ? css.sidebarOffset : css.topbarOffset}`} ref={mainContentRef}>
 				<BackdropLayer
 					targetUrl={targetBackdropUrl}
 					blurAmount={settings.backdropBlurHome}
 				/>
 
 				{featuredItems.length > 0 && settings.showFeaturedBar !== false && (
-					settings.featuredBarStyle === 'makd' ? (
+					settings.featuredBarStyle === 'gallery' ? (
+						<GalleryBanner
+							isVisible={browseMode === 'featured'}
+							featuredItems={featuredItems}
+							api={api}
+							settings={settings}
+							getItemServerUrl={getItemServerUrl}
+							onSelectItem={handleSelectItem}
+							onNavigateDown={handleNavigateDownFromFeatured}
+							onFeaturedFocus={handleFeaturedFocusCallback}
+						/>
+					) : settings.featuredBarStyle === 'banner' ? (
+						<BannerBar
+							isVisible={browseMode === 'featured'}
+							featuredItems={featuredItems}
+							settings={settings}
+							getItemServerUrl={getItemServerUrl}
+							onSelectItem={handleSelectItem}
+							onNavigateDown={handleNavigateDownFromFeatured}
+							onFeaturedFocus={handleFeaturedFocusCallback}
+						/>
+					) : settings.featuredBarStyle === 'bookshelf' ? (
+						<BookshelfBar
+							isVisible={browseMode === 'featured'}
+							featuredItems={featuredItems}
+							settings={settings}
+							getItemServerUrl={getItemServerUrl}
+							onSelectItem={handleSelectItem}
+							onNavigateDown={handleNavigateDownFromFeatured}
+							onFeaturedFocus={handleFeaturedFocusCallback}
+						/>
+					) : settings.featuredBarStyle === 'makd' ? (
 						<MakdBanner
 							isVisible={browseMode === 'featured'}
 							featuredItems={featuredItems}
@@ -1387,7 +1561,6 @@ const Browse = ({
 							onSelectItem={handleSelectItem}
 							onNavigateDown={handleNavigateDownFromFeatured}
 							onFeaturedFocus={handleFeaturedFocusCallback}
-							onCurrentItemChange={setCurrentFeaturedItem}
 						/>
 					) : (
 						<FeaturedBanner
@@ -1402,7 +1575,6 @@ const Browse = ({
 							onFeaturedFocus={handleFeaturedFocusCallback}
 							uiPanelStyle={uiPanelStyle}
 							uiButtonStyle={uiButtonStyle}
-							onCurrentItemChange={setCurrentFeaturedItem}
 						/>
 					)
 				)}
@@ -1422,25 +1594,48 @@ const Browse = ({
 					ref={contentRowsRef}
 					className={`${css.contentRows} ${browseMode === 'rows' ? css.rowsMode : ''}`}
 				>
-					{filteredRows.map((row, index) => (
-						<RowComponent
-							key={row.id}
-							rowId={row.id}
-							title={row.title}
-							items={row.items}
-							serverUrl={serverUrl}
-							cardType={row.type}
-							onSelectItem={row.isGenreRow ? handleSelectGenreItem : handleSelectItem}
-							onFocus={handleRowFocus}
-							onFocusItem={handleFocusItem}
-							rowIndex={index}
-							onNavigateUp={handleNavigateUp}
-							onNavigateDown={handleNavigateDown}
-							showServerBadge={unifiedMode}
-							showOverview={settings.homeRowOverlay === 'on'}
-							registerRowRef={registerRowRef}
-						/>
-					))}
+					{filteredRows.map((row, index) => {
+						if (row.isTileRow) {
+							return (
+								<SeerrTileRow
+									key={row.id}
+									rowId={row.id}
+									title={row.title}
+									items={row.items}
+									cardType={row.type}
+									onSelectItem={handleSelectSeerrItem}
+									onFocus={handleRowFocus}
+									onFocusItem={handleFocusItem}
+									rowIndex={index}
+									onNavigateUp={handleNavigateUp}
+									onNavigateDown={handleNavigateDown}
+									registerRowRef={registerRowRef}
+								/>
+							);
+						}
+						let selectHandler = handleSelectItem;
+						if (row.isSeerrRow) selectHandler = handleSelectSeerrItem;
+						else if (row.isGenreRow) selectHandler = handleSelectGenreItem;
+						return (
+							<RowComponent
+								key={row.id}
+								rowId={row.id}
+								title={row.title}
+								items={row.items}
+								serverUrl={serverUrl}
+								cardType={row.type}
+								onSelectItem={selectHandler}
+								onFocus={handleRowFocus}
+								onFocusItem={handleFocusItem}
+								rowIndex={index}
+								onNavigateUp={handleNavigateUp}
+								onNavigateDown={handleNavigateDown}
+								showServerBadge={unifiedMode}
+								showOverview={settings.homeRowOverlay === 'on'}
+								registerRowRef={registerRowRef}
+							/>
+						);
+					})}
 					{filteredRows.length === 0 && (
 						<div className={css.empty}>{$L('No content found')}</div>
 					)}

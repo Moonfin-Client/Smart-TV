@@ -178,6 +178,10 @@ const MediaCard = ({item, serverUrl, cardType = 'portrait', onSelect, onFocusIte
 					<div className={css.serverBadge}>{item._serverName}</div>
 				)}
 
+				{item._seerr && [2, 3, 4, 5].includes(item.mediaInfo?.status) && (
+					<div className={`${css.seerrBadge} ${css[`seerr${item.mediaInfo.status}`]}`} />
+				)}
+
 				{showIndicators && item.UserData?.Played && (
 					<div className={css.watchedBadge}>
 						<svg viewBox="0 0 24 24"><path fill="white" d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>

@@ -239,6 +239,10 @@ const ModernMediaCard = ({
 				{showServerBadge && item?._serverName && (
 					<div className={css.serverBadge}>{item._serverName}</div>
 				)}
+
+				{item?._seerr && [2, 3, 4, 5].includes(item?.mediaInfo?.status) && (
+					<div className={`${css.seerrBadge} ${css[`seerr${item.mediaInfo.status}`]}`} />
+				)}
 			</div>
 
 			<div className={css.title}>{displayTitle}</div>

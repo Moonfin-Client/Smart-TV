@@ -9,6 +9,19 @@ export const PlayMethod = {
 	Transcode: 'Transcode'
 };
 
+// Image-based subtitles are rendered client-side via libpgs, never by the server.
+const IMAGE_SUBTITLE_CODECS = ['pgssub', 'hdmv_pgs', 'pgs', 'dvdsub', 'dvbsub', 'dvb_subtitle'];
+
+const findSubtitleStreamByIndex = (index, ...streamSets) => {
+	if (index == null || index < 0) return null;
+	for (const streams of streamSets) {
+		if (!Array.isArray(streams)) continue;
+		const found = streams.find(s => s.Type === 'Subtitle' && s.Index === index);
+		if (found) return found;
+	}
+	return null;
+};
+
 // This is for the TranscodeKillr Plugin witch needs a Tag or else the audio remux only will be killed aftr 10 seconds
 const isAudioOnlyRemuxTranscode = (mediaSource) => {
 	if (!mediaSource?.TranscodingUrl) return false;
@@ -252,17 +265,22 @@ const extractAudioStreams = (mediaSource) => {
 		}));
 };
 
-const extractSubtitleStreams = (mediaSource) => {
+const extractSubtitleStreams = (mediaSource, itemId = null, creds = null) => {
 	if (!mediaSource.MediaStreams) return [];
-	const serverUrl = jellyfinApi.getServerUrl();
+	const serverUrl = creds?.serverUrl || jellyfinApi.getServerUrl();
+	const apiKey = creds?.accessToken || jellyfinApi.getApiKey();
 
 	return mediaSource.MediaStreams
 		.filter(s => s.Type === 'Subtitle')
 		.map(s => {
+			const codec = s.Codec?.toLowerCase();
+			const isImageBased = IMAGE_SUBTITLE_CODECS.includes(codec);
 			let deliveryUrl = null;
 			if (s.DeliveryUrl) {
 				// External URLs are used as-is, internal URLs need server prefix
 				deliveryUrl = s.IsExternalUrl ? s.DeliveryUrl : `${serverUrl}${s.DeliveryUrl}`;
+			} else if (isImageBased && itemId && !s.IsExternal) {
+				deliveryUrl = `${serverUrl}/Videos/${itemId}/${mediaSource.Id}/Subtitles/${s.Index}/0/Stream.sup?api_key=${apiKey}`;
 			}
 			return {
 				index: s.Index,
@@ -272,9 +290,9 @@ const extractSubtitleStreams = (mediaSource) => {
 				isExternal: s.IsExternal,
 				isForced: s.IsForced,
 				isDefault: s.IsDefault,
-				isTextBased: ['srt', 'subrip', 'vtt', 'webvtt', 'ass', 'ssa', 'sub', 'smi', 'sami'].includes(s.Codec?.toLowerCase()),
-				isAss: ['ass', 'ssa'].includes(s.Codec?.toLowerCase()),
-				isImageBased: ['pgssub', 'hdmv_pgs', 'pgs', 'dvdsub', 'dvbsub', 'dvb_subtitle'].includes(s.Codec?.toLowerCase()),
+				isTextBased: ['srt', 'subrip', 'vtt', 'webvtt', 'ass', 'ssa', 'sub', 'smi', 'sami'].includes(codec),
+				isAss: ['ass', 'ssa'].includes(codec),
+				isImageBased,
 				deliveryUrl: deliveryUrl,
 				deliveryMethod: s.DeliveryMethod
 			};
@@ -316,7 +334,27 @@ export const getPlaybackInfo = async (itemId, options = {}) => {
 	const maxBitrate = options.maxBitrate > 0 ? options.maxBitrate : getAutoMaxBitrate(capabilities);
 
 	const requestedStartTime = isLiveTV ? 0 : (options.startPositionTicks || 0);
-	const subtitleStreamIndex = options.subtitleStreamIndex != null ? options.subtitleStreamIndex : -1;
+	const hasExplicitSubtitle = options.subtitleStreamIndex != null;
+	const requestedSubtitleStreamIndex = hasExplicitSubtitle ? options.subtitleStreamIndex : -1;
+	// Image-based subtitles (PGS/DVD) are rendered client-side via libpgs. Never send
+	// their index to the server: during transcode it burns them into the video, which
+	// is far too slow for large/4K sources and times out behind a reverse proxy (#218).
+	// We still track the real index in the session so the player renders it client-side.
+	const requestedSubStream = findSubtitleStreamByIndex(
+		requestedSubtitleStreamIndex,
+		options.mediaSource?.MediaStreams,
+		options.item?.MediaStreams,
+		currentSession?.mediaSource?.MediaStreams
+	);
+	const subtitleIsImageBased = !!requestedSubStream &&
+		IMAGE_SUBTITLE_CODECS.includes((requestedSubStream.Codec || '').toLowerCase());
+	const subtitleStreamIndex = subtitleIsImageBased ? -1 : requestedSubtitleStreamIndex;
+	// When the user hasn't explicitly picked a subtitle, omit the index entirely so
+	// the server applies their preferred-subtitle-language / SubtitleMode default.
+	const sentSubtitleStreamIndex = hasExplicitSubtitle ? subtitleStreamIndex : undefined;
+	if (subtitleIsImageBased) {
+		console.log('[playback] Image-based subtitle selected — negotiating without it to avoid server burn-in (#218)');
+	}
 	console.log('[playback] getPlaybackInfo called:', {
 		itemId,
 		isLiveTV,
@@ -340,7 +378,7 @@ export const getPlaybackInfo = async (itemId, options = {}) => {
 		EnableDirectStream: options.enableDirectStream !== false,
 		EnableTranscoding: options.enableTranscoding !== false,
 		AudioStreamIndex: options.audioStreamIndex,
-		SubtitleStreamIndex: subtitleStreamIndex,
+		SubtitleStreamIndex: sentSubtitleStreamIndex,
 		MaxStreamingBitrate: maxBitrate,
 		MediaSourceId: options.mediaSourceId
 	});
@@ -370,7 +408,7 @@ export const getPlaybackInfo = async (itemId, options = {}) => {
 			: (mediaSource.SupportsDirectPlay ? PlayMethod.DirectPlay : PlayMethod.DirectStream);
 		const url = buildPlaybackUrl(itemId, mediaSource, playbackInfo.PlaySessionId, playMethod, creds, false, options);
 		const audioStreams = extractAudioStreams(mediaSource);
-		const subtitleStreams = extractSubtitleStreams(mediaSource);
+		const subtitleStreams = extractSubtitleStreams(mediaSource, itemId, creds);
 
 		currentSession = {
 			itemId,
@@ -382,7 +420,7 @@ export const getPlaybackInfo = async (itemId, options = {}) => {
 			startPositionTicks: 0,
 			capabilities,
 			audioStreamIndex: mediaSource.DefaultAudioStreamIndex,
-			subtitleStreamIndex,
+			subtitleStreamIndex: requestedSubtitleStreamIndex,
 			maxBitrate: options.maxBitrate,
 			serverCredentials: creds
 		};
@@ -435,32 +473,98 @@ export const getPlaybackInfo = async (itemId, options = {}) => {
 		const defaultPlayable = isAudioStreamPlayable(defaultAudioStream, capabilities, passthroughSettings);
 
 		if (defaultAudioStream && !defaultPlayable) {
-			// Force Transcode if audio stream is unplayable
-			console.log(`[playback] Default audio (${defaultCodec}) unplayable \u2014 forcing transcode (audio-only remux, video copied)`);
-			const retryInfo = await api.getPlaybackInfo(itemId, {
-				DeviceProfile: deviceProfile,
-				StartTimeTicks: requestedStartTime,
-				AutoOpenLiveStream: true,
-				EnableDirectPlay: false,
-				EnableDirectStream: false,
-				EnableTranscoding: true,
-				AudioStreamIndex: mediaSource.DefaultAudioStreamIndex,
-				SubtitleStreamIndex: subtitleStreamIndex,
-				MaxStreamingBitrate: maxBitrate,
-				MediaSourceId: options.mediaSourceId || mediaSource.Id
-			});
-			if (retryInfo.MediaSources?.length) {
-				mediaSource = retryInfo.MediaSources[0];
-				audioStreamIndex = mediaSource.DefaultAudioStreamIndex;
-				playbackInfo = retryInfo;
-				mediaSource.SupportsDirectPlay = false;
-				mediaSource.SupportsDirectStream = false;
-				console.log(`[playback] After audio-remux retry \u2014 TranscodingUrl: ${mediaSource.TranscodingUrl ? 'present' : 'MISSING'}`);
+			// The default audio can't be played, but the file may carry a compatible
+			// alternate in the SAME language (e.g. TrueHD default + E-AC3 secondary).
+			// Prefer that so the server keeps direct-playing the video instead of
+			// transcoding, which just hangs on Dolby Vision files on webOS (#191).
+			// Restrict to the default's language (never switch to a foreign track)
+			// and pick the highest channel count (the main mix, not a commentary or
+			// descriptive downmix). With no same-language match we transcode as before.
+			const defaultLang = defaultAudioStream.Language;
+			const altStream = (mediaSource.MediaStreams || [])
+				.filter(s => s.Type === 'Audio' && s.Index !== defaultAudioStream.Index &&
+					(!defaultLang || s.Language === defaultLang) &&
+					isAudioStreamPlayable(s, capabilities, passthroughSettings))
+				.sort((a, b) => (b.Channels || 0) - (a.Channels || 0))[0] || null;
+
+			if (altStream) {
+				console.log(`[playback] Default audio (${defaultCodec}) unplayable \u2014 selecting compatible track ${altStream.Index} (${altStream.Codec}) to keep direct play`);
+				const altInfo = await api.getPlaybackInfo(itemId, {
+					DeviceProfile: deviceProfile,
+					StartTimeTicks: requestedStartTime,
+					AutoOpenLiveStream: true,
+					EnableDirectPlay: options.enableDirectPlay !== false,
+					EnableDirectStream: options.enableDirectStream !== false,
+					EnableTranscoding: options.enableTranscoding !== false,
+					AudioStreamIndex: altStream.Index,
+					SubtitleStreamIndex: sentSubtitleStreamIndex,
+					MaxStreamingBitrate: maxBitrate,
+					MediaSourceId: options.mediaSourceId || mediaSource.Id
+				});
+				if (altInfo.MediaSources?.length) {
+					mediaSource = altInfo.MediaSources[0];
+					audioStreamIndex = altStream.Index;
+					playbackInfo = altInfo;
+				}
+			} else {
+				// No compatible alternate track \u2014 force an audio-only remux transcode.
+				console.log(`[playback] Default audio (${defaultCodec}) unplayable \u2014 forcing transcode (audio-only remux, video copied)`);
+				const retryInfo = await api.getPlaybackInfo(itemId, {
+					DeviceProfile: deviceProfile,
+					StartTimeTicks: requestedStartTime,
+					AutoOpenLiveStream: true,
+					EnableDirectPlay: false,
+					EnableDirectStream: false,
+					EnableTranscoding: true,
+					AudioStreamIndex: mediaSource.DefaultAudioStreamIndex,
+					SubtitleStreamIndex: sentSubtitleStreamIndex,
+					MaxStreamingBitrate: maxBitrate,
+					MediaSourceId: options.mediaSourceId || mediaSource.Id
+				});
+				if (retryInfo.MediaSources?.length) {
+					mediaSource = retryInfo.MediaSources[0];
+					audioStreamIndex = mediaSource.DefaultAudioStreamIndex;
+					playbackInfo = retryInfo;
+					mediaSource.SupportsDirectPlay = false;
+					mediaSource.SupportsDirectStream = false;
+					console.log(`[playback] After audio-remux retry \u2014 TranscodingUrl: ${mediaSource.TranscodingUrl ? 'present' : 'MISSING'}`);
+				}
 			}
 		}
 	}
 
 	let playMethod = determinePlayMethod(mediaSource, capabilities, options, passthroughSettings);
+
+	// #186 + #218 safety: when we let the server pick the user's preferred subtitle
+	// (no explicit index) and it resolved to an image-based track on a transcode, the
+	// server would burn it into the video — the slow path #218 fixed. Re-negotiate
+	// without it and let the player render the image sub client-side from its .sup URL.
+	if (!hasExplicitSubtitle && playMethod === PlayMethod.Transcode &&
+			mediaSource.DefaultSubtitleStreamIndex != null && mediaSource.DefaultSubtitleStreamIndex >= 0) {
+		const resolvedSub = findSubtitleStreamByIndex(mediaSource.DefaultSubtitleStreamIndex, mediaSource.MediaStreams);
+		if (resolvedSub && IMAGE_SUBTITLE_CODECS.includes((resolvedSub.Codec || '').toLowerCase())) {
+			console.log('[playback] Server default subtitle is image-based on transcode — re-negotiating without burn-in (#218)');
+			const noBurnInfo = await api.getPlaybackInfo(itemId, {
+				DeviceProfile: deviceProfile,
+				StartTimeTicks: requestedStartTime,
+				AutoOpenLiveStream: true,
+				EnableDirectPlay: options.enableDirectPlay !== false,
+				EnableDirectStream: options.enableDirectStream !== false,
+				EnableTranscoding: options.enableTranscoding !== false,
+				AudioStreamIndex: audioStreamIndex,
+				SubtitleStreamIndex: -1,
+				MaxStreamingBitrate: maxBitrate,
+				MediaSourceId: options.mediaSourceId || mediaSource.Id
+			});
+			if (noBurnInfo.MediaSources?.length) {
+				mediaSource = noBurnInfo.MediaSources[0];
+				// Keep the resolved index so the player still renders it client-side.
+				mediaSource.DefaultSubtitleStreamIndex = resolvedSub.Index;
+				playbackInfo = noBurnInfo;
+				playMethod = determinePlayMethod(mediaSource, capabilities, options, passthroughSettings);
+			}
+		}
+	}
 
 	// Log video stream info including HDR type
 	const videoStream = mediaSource.MediaStreams?.find(s => s.Type === 'Video');
@@ -494,7 +598,7 @@ export const getPlaybackInfo = async (itemId, options = {}) => {
 			EnableDirectStream: false,
 			EnableTranscoding: true,
 			AudioStreamIndex: audioStreamIndex,
-			SubtitleStreamIndex: subtitleStreamIndex,
+			SubtitleStreamIndex: sentSubtitleStreamIndex,
 			MaxStreamingBitrate: maxBitrate,
 			MediaSourceId: options.mediaSourceId
 		});
@@ -516,7 +620,7 @@ export const getPlaybackInfo = async (itemId, options = {}) => {
 	const url = buildPlaybackUrl(itemId, mediaSource, playbackInfo.PlaySessionId, playMethod, creds, isAudio, options);
 
 	const audioStreams = extractAudioStreams(mediaSource);
-	const subtitleStreams = extractSubtitleStreams(mediaSource);
+	const subtitleStreams = extractSubtitleStreams(mediaSource, itemId, creds);
 	const chapters = extractChapters(mediaSource);
 
 	const audioOnlyRemux = playMethod === PlayMethod.Transcode && isAudioOnlyRemuxTranscode(mediaSource);
@@ -533,7 +637,7 @@ export const getPlaybackInfo = async (itemId, options = {}) => {
 		startPositionTicks: options.startPositionTicks || 0,
 		capabilities,
 		audioStreamIndex: audioStreamIndex ?? mediaSource.DefaultAudioStreamIndex,
-		subtitleStreamIndex: subtitleStreamIndex,
+		subtitleStreamIndex: requestedSubtitleStreamIndex,
 		maxBitrate: options.maxBitrate,
 		serverCredentials: creds
 	};
@@ -632,6 +736,33 @@ export const getAssSubtitleUrl = (subtitleStream) => {
 	const apiKey = serverCredentials?.accessToken || jellyfinApi.getApiKey();
 
 	return `${serverUrl}/Videos/${itemId}/${mediaSourceId}/Subtitles/${subtitleStream.index}/Stream.ass?api_key=${apiKey}`;
+};
+
+const supportedAssFontMimeTypes = [
+	'application/vnd.ms-opentype',
+	'application/font-sfnt',
+	'application/x-font-ttf',
+	'application/x-truetype-font',
+	'font/collection',
+	'font/sfnt',
+	'font/otf',
+	'font/ttf',
+	'font/woff',
+	'font/woff2'
+];
+
+export const getAssFontsUrl = (subtitleStream) => {
+	if (!subtitleStream?.isAss || !currentSession) return [];
+
+	const {mediaSource, serverCredentials} = currentSession;
+	const serverUrl = serverCredentials?.serverUrl || jellyfinApi.getServerUrl();
+	const apiKey = serverCredentials?.accessToken || jellyfinApi.getApiKey();
+	const embeddedFonts = (mediaSource?.MediaAttachments || [])
+		.filter((attachment) => supportedAssFontMimeTypes.includes(attachment.MimeType))
+		.map((attachment) => attachment.DeliveryUrl ? `${serverUrl}${attachment.DeliveryUrl}?api_key=${apiKey}` : '')
+		.filter(Boolean);
+
+	return embeddedFonts;
 };
 
 /**
@@ -921,6 +1052,57 @@ export const reportProgress = async (positionTicks, options = {}) => {
 	} catch (e) { void e; }
 };
 
+const sendSessionBeacon = (path, payload) => {
+	if (!currentSession) return false;
+	if (typeof navigator === 'undefined' || typeof navigator.sendBeacon !== 'function') return false;
+
+	const creds = currentSession.serverCredentials;
+	let serverUrl = creds?.serverUrl || jellyfinApi.getServerUrl();
+	const token = creds?.accessToken || jellyfinApi.getApiKey();
+	if (!serverUrl || !token) return false;
+
+	serverUrl = serverUrl.trim().replace(/\/+$/, '');
+	if (!/^https?:\/\//i.test(serverUrl)) serverUrl = 'http://' + serverUrl;
+
+	const endpoint = `${serverUrl}${path}?api_key=${encodeURIComponent(token)}`;
+	const body = new Blob([JSON.stringify(payload)], {type: 'application/json'});
+
+	try {
+		return navigator.sendBeacon(endpoint, body);
+	} catch (e) {
+		void e;
+		return false;
+	}
+};
+
+export const reportProgressBeacon = (positionTicks, options = {}) => {
+	if (!currentSession) return false;
+	return sendSessionBeacon('/Sessions/Playing/Progress', {
+		ItemId: currentSession.itemId,
+		PlaySessionId: currentSession.playSessionId,
+		MediaSourceId: currentSession.mediaSourceId,
+		PositionTicks: positionTicks,
+		CanSeek: true,
+		IsPaused: options.isPaused !== false,
+		PlayMethod: currentSession.reportedPlayMethod || currentSession.playMethod,
+		AudioStreamIndex: currentSession.audioStreamIndex,
+		SubtitleStreamIndex: currentSession.subtitleStreamIndex
+	});
+};
+
+export const reportStopBeacon = (positionTicks) => {
+	if (!currentSession) return false;
+	return sendSessionBeacon('/Sessions/Playing/Stopped', {
+		ItemId: currentSession.itemId,
+		PlaySessionId: currentSession.playSessionId,
+		MediaSourceId: currentSession.mediaSourceId,
+		PositionTicks: positionTicks || 0,
+		PlayMethod: currentSession.reportedPlayMethod || currentSession.playMethod,
+		AudioStreamIndex: currentSession.audioStreamIndex,
+		SubtitleStreamIndex: currentSession.subtitleStreamIndex
+	});
+};
+
 export const stopProgressReporting = () => {
 	if (progressInterval) {
 		clearInterval(progressInterval);
@@ -1122,6 +1304,8 @@ export default {
 	updateCurrentSession,
 	reportStart,
 	reportProgress,
+	reportProgressBeacon,
+	reportStopBeacon,
 	reportStop,
 	startProgressReporting,
 	stopProgressReporting,

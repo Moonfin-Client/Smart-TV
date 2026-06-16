@@ -284,7 +284,7 @@ const Sidebar = ({
 					</SpottableButton>
 				)}
 
-				{jellyseerrEnabled && (
+				{jellyseerrEnabled && settings.showSeerrButton !== false && (
 					<SpottableButton
 						className={css.sidebarItem}
 						onClick={onDiscover}
