@@ -681,5 +681,15 @@
   "{seerrLabel} connection status": "{seerrLabel} kapcsolat állapota",
   "◀ Previous Day": "◀ Előző nap",
   "◀ ▶ Navigate": "◀ ▶ Navigálás",
-  "◀ ▶ to re-order · DEL to remove": "◀ ▶ átrendezéshez · DEL az eltávolításhoz"
+  "◀ ▶ to re-order · DEL to remove": "◀ ▶ átrendezéshez · DEL az eltávolításhoz",
+  "App Language": "Alkalmazás nyelve",
+  "English": "Angol",
+  "German": "Német",
+  "Spanish": "Spanyol",
+  "French": "Francia",
+  "Hungarian": "Magyar",
+  "Polish": "Lengyel",
+  "Portuguese (Brazil)": "Portugál (Brazil)",
+  "Russian": "Orosz",
+  "+ Add User": "+ Felhasználó hozzáadása"
 }
