@@ -614,6 +614,13 @@ const Settings = ({ onBack, onLibrariesChanged, panelMode }) => {
 	const { capabilities } = useDeviceInfo();
 	const jellyseerr = useJellyseerr();
 	const isSeerr = jellyseerr.isMoonfin && jellyseerr.variant === 'seerr';
+	const bootLocaleRef = useRef(settings.uiLanguage);
+	useEffect(() => {
+		if (settings.uiLanguage !== bootLocaleRef.current &&
+			typeof window !== 'undefined' && window.location) {
+			window.location.reload();
+		}
+	}, [settings.uiLanguage]);
 	const seerrLabel = isSeerr ? jellyseerr.displayName || $L('Seerr') : $L('Jellyseerr');
 	const categories = getBaseCategories();
 
