@@ -255,14 +255,6 @@ const getSeekStepOptions = () => [
 	{ value: 30, label: $L('30 seconds') }
 ];
 
-const UI_OPACITY_OPTIONS = [
-	{ value: 50, label: $L('50%') },
-	{ value: 65, label: $L('65%') },
-	{ value: 75, label: $L('75%') },
-	{ value: 85, label: $L('85%') },
-	{ value: 95, label: $L('95%') }
-];
-
 const UI_SCALE_OPTIONS = [
 	{ value: 0.85, label: $L('Compact') },
 	{ value: 0.9, label: $L('Small') },
@@ -273,21 +265,6 @@ const UI_SCALE_OPTIONS = [
 	{ value: 1.15, label: $L('Extra Large') },
 	{ value: 1.2, label: $L('Huge') },
 	{ value: 1.3, label: $L('Maximum') }
-];
-
-const getUiColorOptions = () => [
-	{ value: 'gray', label: $L('Gray'), rgb: '128, 128, 128' },
-	{ value: 'black', label: $L('Black'), rgb: '0, 0, 0' },
-	{ value: 'dark_blue', label: $L('Dark Blue'), rgb: '26, 35, 50' },
-	{ value: 'purple', label: $L('Purple'), rgb: '74, 20, 140' },
-	{ value: 'teal', label: $L('Teal'), rgb: '0, 105, 92' },
-	{ value: 'navy', label: $L('Navy'), rgb: '13, 27, 42' },
-	{ value: 'charcoal', label: $L('Charcoal'), rgb: '54, 69, 79' },
-	{ value: 'brown', label: $L('Brown'), rgb: '62, 39, 35' },
-	{ value: 'dark_red', label: $L('Dark Red'), rgb: '139, 0, 0' },
-	{ value: 'dark_green', label: $L('Dark Green'), rgb: '11, 79, 15' },
-	{ value: 'slate', label: $L('Slate'), rgb: '71, 85, 105' },
-	{ value: 'indigo', label: $L('Indigo'), rgb: '30, 58, 138' }
 ];
 
 const getScreensaverModeOptions = () => [
@@ -1520,10 +1497,8 @@ const Settings = ({ onBack, onLibrariesChanged, panelMode }) => {
 	const renderPersonalizationNavigation = () => (
 		<>
 			{renderOptionItem('navbarPosition', $L('Navbar Position'), getNavPositionOptions(), $L('Top Bar'), 'browser')}
-			{renderOptionItem('uiColor', $L('Navbar Color'), getUiColorOptions(), $L('Gray'), 'colorpicker')}
-			{renderOptionItem('uiOpacity', $L('Navbar Opacity'), UI_OPACITY_OPTIONS, '85%', 'contrast')}
+			{renderOptionItem('navbarColor', $L('Navbar Color'), ACCENT_COLOR_OPTIONS, $L('Theme Default'), 'colorpicker')}
 			{renderSliderItem('navbarOpacity', $L('Navbar Opacity'), 0, 100, 5, (v) => `${v}%`)}
-			{renderOptionItem('navbarColor', $L('Navbar Color'), ACCENT_COLOR_OPTIONS, $L('Theme Default'))}
 			{renderToggleItem('showShuffleButton', $L('Shuffle Button'), $L('Show shuffle button in navigation bar'))}
 			{settings.showShuffleButton &&
 				renderOptionItem('shuffleContentType', $L('Shuffle Content Type'), getContentTypeOptions(), $L('Movies & TV Shows'), 'shuffle')}
