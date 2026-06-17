@@ -10,7 +10,7 @@ import {useSyncPlay} from '../../context/SyncPlayContext';
 import JellyseerrIcon from '../icons/JellyseerrIcon';
 import SyncPlayIcon from '../icons/SyncPlayIcon';
 import SeerrIcon from '../icons/SeerrIcon';
-import {toCssColor} from '../../theme/themeSpec';
+//import {toCssColor} from '../../theme/themeSpec';
 import {KEYS} from '../../utils/keys';
 
 import css from './NavBar.module.less';
@@ -42,7 +42,7 @@ const NavBar = ({
 	onSyncPlay
 }) => {
 	const {user, serverUrl} = useAuth();
-	const {settings, activeTheme} = useSettings();
+	const settings = useSettings();
 	const {isEnabled: jellyseerrEnabled, isMoonfin, variant, displayName} = useJellyseerr();
 	const {isInGroup} = useSyncPlay();
 	const [clock, setClock] = useState('');
@@ -81,18 +81,18 @@ const NavBar = ({
 		};
 	}, []);
 
-	const navPillStyle = useMemo(() => {
-		return {
-			background: activeTheme.transparentNavbarSurface ? 'transparent' : toCssColor(activeTheme.colors.surface),
-			backdropFilter: 'none',
-			WebkitBackdropFilter: 'none',
-			borderBottom: activeTheme.borders.navBorder
-				? `${activeTheme.borders.navBorder.width}px solid ${toCssColor(activeTheme.borders.navBorder.color)}`
-				: 'none',
-			color: toCssColor(activeTheme.colors.onSurface),
-			textShadow: activeTheme.textGlow.length ? 'var(--theme-text-glow)' : 'none'
-		};
-	}, [activeTheme]);
+	//const navPillStyle = useMemo(() => {
+	//	return {
+	//		background: activeTheme.transparentNavbarSurface ? 'transparent' : toCssColor(activeTheme.colors.surface),
+	//		backdropFilter: 'none',
+	//		WebkitBackdropFilter: 'none',
+	//		borderBottom: activeTheme.borders.navBorder
+	//			? `${activeTheme.borders.navBorder.width}px solid ${toCssColor(activeTheme.borders.navBorder.color)}`
+	//			: 'none',
+	//		color: toCssColor(activeTheme.colors.onSurface),
+	//		textShadow: activeTheme.textGlow.length ? 'var(--theme-text-glow)' : 'none'
+	//	};
+	//}, [activeTheme]);
 
 	const userAvatarUrl = user?.PrimaryImageTag
 		? `${serverUrl}/Users/${user.Id}/Images/Primary?tag=${user.PrimaryImageTag}&quality=90&maxHeight=100`
@@ -241,7 +241,7 @@ const NavBar = ({
 			</div>
 
 			<div className={css.navCenter}>
-				<div className={css.navPill} style={navPillStyle} onFocus={handlePillFocus}>
+				<div className={css.navPill} onFocus={handlePillFocus}>
 					<SpottableButton
 						className={`${css.navBtn} ${css.navBtnIcon} ${css.expandableBtn} spottable-default`}
 						onClick={onHome}
