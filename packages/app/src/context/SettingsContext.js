@@ -285,6 +285,7 @@ const SYNCABLE_KEYS = [
 	'backdropBlurHome', 'backdropBlurDetail',
 	'mediaBarSourceType', 'mediaBarLibraryIds', 'mediaBarCollectionIds',
 	'homeRows', 'homeRowsStyle', 'fullScreenRows',
+	'useDetailedSubHeadings',
 	'syncplayEnabled', 'syncplayAutoOpen',
 	'showSyncPlayButton',
 	'videoStartDelay', 'liveTvDirect',
