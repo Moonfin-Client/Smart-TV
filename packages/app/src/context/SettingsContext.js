@@ -241,6 +241,10 @@ const VALUE_CONVERSIONS = {
 		toServer: v => v === '24-hour',
 		fromServer: v => v ? '24-hour' : '12-hour'
 	},
+	featuredTrailerMuted: {
+		toServer: v => !v,
+		fromServer: v => !v
+	},
 	mediaBarLibraryIds: {
 		fromServer: normalizeGuidArray
 	},
