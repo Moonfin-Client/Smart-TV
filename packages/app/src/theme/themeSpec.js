@@ -234,7 +234,7 @@ export const parseThemeSpec = (json) => {
 	};
 };
 
-const toCssColorWithAlpha = (hex, alphaMultiplier) => {
+export const toCssColorWithAlpha = (hex, alphaMultiplier) => {
 	const normalized = normalizeHexColor(hex, 'color');
 	const value = normalized.slice(1);
 	const alpha = Number.parseInt(value.slice(0, 2), 16) / 255;
@@ -326,7 +326,8 @@ export const buildThemeCssVars = (theme) => ({
 	'--theme-focus-glow': theme.borders.focusGlow.length ? theme.borders.focusGlow.map(shadowToCss).join(', ') : 'none',
 	'--theme-text-glow': theme.textGlow.length ? theme.textGlow.map(shadowToCss).join(', ') : 'none',
 	'--theme-font-family': theme.fontFamily || 'inherit',
-	'--theme-nav-surface': theme.transparentNavbarSurface ? 'transparent' : toCssColor(theme.colors.surface),
+	'--theme-navbar-color-rgb': theme.transparentNavbarSurface ? 'transparent' : toCssColor(theme.colors.surface),
+	'--theme-navbar-opacity': theme.transparentNavbarSurface ? 0 : 1,
 	'--theme-nav-color-1': theme.navColorCycle[0] ? toCssColor(theme.navColorCycle[0]) : toCssColor(theme.colors.onSurface),
 	'--theme-nav-color-2': theme.navColorCycle[1] ? toCssColor(theme.navColorCycle[1]) : toCssColor(theme.colors.onSurface),
 	'--theme-status-available': toCssColor(theme.semantic.statusAvailable),
