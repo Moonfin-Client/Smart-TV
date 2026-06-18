@@ -108,6 +108,7 @@ const result = await serverApi.getGenres(selectedLibrary.Id);
 genreList = (result.Items || []).map(g => ({
 ...g,
 _serverUrl: selectedLibrary._serverUrl,
+_serverType: selectedLibrary._serverType,
 _serverAccessToken: selectedLibrary._serverAccessToken,
 _serverUserId: selectedLibrary._serverUserId,
 _serverName: selectedLibrary._serverName,
@@ -145,7 +146,8 @@ if (serverApi) {
 const result = await serverApi.getItems(itemParams);
 items = (result.Items || []).map(item => ({
 ...item,
-_serverUrl: selectedLibrary._serverUrl
+_serverUrl: selectedLibrary._serverUrl,
+_serverType: selectedLibrary._serverType
 }));
 itemCount = result.TotalRecordCount || 0;
 } else {
@@ -176,6 +178,7 @@ name: genre.Name,
 itemCount,
 backdropUrl,
 _serverUrl: genre._serverUrl,
+_serverType: genre._serverType,
 _serverName: genre._serverName,
 _serverId: genre._serverId,
 _serverAccessToken: genre._serverAccessToken,

@@ -14,10 +14,17 @@ let deviceId = null;
 let currentServer = null;
 let currentUser = null;
 let accessToken = null;
+let serverType = 'jellyfin';
 
 export const setServer = (serverUrl) => {
 	currentServer = normalizeServerUrl(serverUrl);
 };
+
+export const setServerType = (type) => {
+	serverType = type === 'emby' ? 'emby' : 'jellyfin';
+};
+
+export const getServerType = () => serverType;
 
 export const setAuth = (userId, token) => {
 	currentUser = userId;
@@ -25,13 +32,22 @@ export const setAuth = (userId, token) => {
 	if (token) reportCapabilities();
 };
 
-export const getAuthHeader = () => {
-	let header = `MediaBrowser Client="${APP_NAME}", Device="${DEVICE_NAME}", DeviceId="${deviceId}", Version="${APP_VERSION}"`;
-	if (accessToken) {
-		header += `, Token="${accessToken}"`;
+const sanitizeHeaderValue = (value) => {
+	const str = String(value == null ? '' : value);
+	const cleaned = str.replace(/[^\x20-\x7E]/g, ' ').replace(/["\\,]/g, ' ').replace(/\s+/g, ' ').trim();
+	return cleaned || 'Unknown';
+};
+
+const buildAuthHeader = (type, token) => {
+	const scheme = type === 'emby' ? 'Emby' : 'MediaBrowser';
+	let header = `${scheme} Client="${APP_NAME}", Device="${DEVICE_NAME}", DeviceId="${deviceId}", Version="${APP_VERSION}"`;
+	if (token) {
+		header += `, Token="${sanitizeHeaderValue(token)}"`;
 	}
 	return header;
 };
+
+export const getAuthHeader = () => buildAuthHeader(serverType, accessToken);
 
 export const initDeviceId = async () => {
 	try {
@@ -60,6 +76,8 @@ export const initDeviceId = async () => {
 export const getServerUrl = () => currentServer;
 export const getUserId = () => currentUser;
 export const getApiKey = () => accessToken;
+export const getDeviceInfo = () => ({appName: APP_NAME, appVersion: APP_VERSION, deviceName: DEVICE_NAME, deviceId});
+export const buildEmbyAuthHeader = (token) => buildAuthHeader('emby', token);
 
 const DEFAULT_TIMEOUT_MS = 15000;
 const PLAYBACK_TIMEOUT_MS = 30000;
@@ -130,9 +148,10 @@ export const api = {
 		body: {Username: username, Pw: password}
 	}),
 
-	initiateQuickConnect: () => request('/QuickConnect/Initiate', {
-		method: 'POST'
-	}),
+	initiateQuickConnect: () => {
+		if (serverType === 'emby') return Promise.reject(new Error('Quick Connect is not supported on Emby'));
+		return request('/QuickConnect/Initiate', {method: 'POST'});
+	},
 
 	getQuickConnectState: (secret) => request(`/QuickConnect/Connect?Secret=${secret}`),
 
@@ -190,11 +209,25 @@ export const api = {
 		return request(url);
 	},
 
-	getPlaybackInfo: (itemId, body = {}) => request(`/Items/${itemId}/PlaybackInfo`, {
-		method: 'POST',
-		body: {UserId: currentUser, ...body},
-		timeoutMs: PLAYBACK_TIMEOUT_MS
-	}),
+	getPlaybackInfo: (itemId, body = {}) => {
+		let endpoint = `/Items/${itemId}/PlaybackInfo`;
+		if (serverType === 'emby') {
+			// Emby also reads these from the query string (see emby_playback_api.dart)
+			const qp = [`UserId=${encodeURIComponent(currentUser)}`];
+			const map = {AudioStreamIndex: 'audioStreamIndex', SubtitleStreamIndex: 'subtitleStreamIndex', MediaSourceId: 'mediaSourceId', MaxStreamingBitrate: 'maxStreamingBitrate', StartTimeTicks: 'startTimeTicks'};
+			for (const [bodyKey, queryKey] of Object.entries(map)) {
+				if (body[bodyKey] !== undefined && body[bodyKey] !== null) {
+					qp.push(`${queryKey}=${encodeURIComponent(body[bodyKey])}`);
+				}
+			}
+			endpoint += `?${qp.join('&')}`;
+		}
+		return request(endpoint, {
+			method: 'POST',
+			body: {UserId: currentUser, ...body},
+			timeoutMs: PLAYBACK_TIMEOUT_MS
+		});
+	},
 
 	reportPlaybackStart: (data) => request('/Sessions/Playing', {
 		method: 'POST',
@@ -447,7 +480,7 @@ export const api = {
  * @param {string} userId - User ID
  * @returns {Object} API object with all methods bound to the specified server
  */
-export const createApiForServer = (serverUrl, token, userId) => {
+export const createApiForServer = (serverUrl, token, userId, serverTypeOverride = 'jellyfin') => {
 	// Normalize server URL
 	let url = serverUrl?.trim();
 	if (url) {
@@ -457,13 +490,7 @@ export const createApiForServer = (serverUrl, token, userId) => {
 		}
 	}
 
-	const getServerAuthHeader = () => {
-		let header = `MediaBrowser Client="${APP_NAME}", Device="${DEVICE_NAME}", DeviceId="${deviceId}", Version="${APP_VERSION}"`;
-		if (token) {
-			header += `, Token="${token}"`;
-		}
-		return header;
-	};
+	const getServerAuthHeader = () => buildAuthHeader(serverTypeOverride, token);
 
 	const serverRequest = async (endpoint, options = {}) => {
 		const requestUrl = `${url}${endpoint}`;

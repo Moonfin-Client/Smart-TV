@@ -120,7 +120,8 @@ const tagItemsWithServer = (items, session) => {
 		_serverId: session.serverId,
 		_serverName: session.name,
 		_serverUrl: session.url,
-		_serverUserId: session.userId
+		_serverUserId: session.userId,
+		_serverType: session.serverType || 'jellyfin'
 	}));
 };
 

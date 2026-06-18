@@ -2058,6 +2058,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 			...person,
 			Type: 'Person',
 			_serverUrl: item?._serverUrl,
+			_serverType: item?._serverType,
 			_serverAccessToken: item?._serverAccessToken,
 			_serverUserId: item?._serverUserId
 		});

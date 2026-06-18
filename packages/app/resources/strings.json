@@ -681,5 +681,16 @@
 	"{seerrLabel} connection status": "{seerrLabel} connection status",
 	"◀ Previous Day": "◀ Previous Day",
 	"◀ ▶ Navigate": "◀ ▶ Navigate",
-	"◀ ▶ to re-order · DEL to remove": "◀ ▶ to re-order · DEL to remove"
+	"◀ ▶ to re-order · DEL to remove": "◀ ▶ to re-order · DEL to remove",
+	"Connecting to server...": "Connecting to server...",
+	"Email or Username": "Email or Username",
+	"Emby Connect": "Emby Connect",
+	"Invalid Emby Connect credentials": "Invalid Emby Connect credentials",
+	"Invalid Emby Connect username or password": "Invalid Emby Connect username or password",
+	"Network error while contacting Emby Connect or the selected server": "Network error while contacting Emby Connect or the selected server",
+	"No reachable address provided": "No reachable address provided",
+	"No servers linked to this Emby Connect account": "No servers linked to this Emby Connect account",
+	"Select a server": "Select a server",
+	"Sign in with your Emby Connect account": "Sign in with your Emby Connect account",
+	"Unable to connect to the selected server": "Unable to connect to the selected server"
 }
