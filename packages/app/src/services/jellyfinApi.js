@@ -263,7 +263,7 @@ export const api = {
 		return request(`/HomeScreen/Section/${encodeURIComponent(String(sectionType))}?${params.join('&')}`);
 	},
 
-	getKefinTweaksConfig: () => request('/KefinTweaks/ClientConfig'),
+	//getKefinTweaksConfig: () => request('/KefinTweaks/ClientConfig'),
 
 	getMusicGenres: (params = {}) => {
 		const merged = {UserId: currentUser, SortBy: 'SortName', SortOrder: 'Ascending', Recursive: 'true'};
@@ -622,7 +622,7 @@ export const createApiForServer = (serverUrl, token, userId) => {
 			return serverRequest(`/HomeScreen/Section/${encodeURIComponent(String(sectionType))}?${params.join('&')}`);
 		},
 
-		getKefinTweaksConfig: () => serverRequest('/KefinTweaks/ClientConfig'),
+		//getKefinTweaksConfig: () => serverRequest('/KefinTweaks/ClientConfig'),
 
 		searchRemoteSubtitles: (itemId, language = 'eng', isPerfectMatch = null) => {
 			const query = isPerfectMatch === null ? '' : `?IsPerfectMatch=${isPerfectMatch}`;

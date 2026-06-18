@@ -11,7 +11,7 @@ import {useJellyseerr} from '../../context/JellyseerrContext';
 import {useDeviceInfo} from '../../hooks/useDeviceInfo';
 import serverLogger from '../../services/serverLogger';
 import connectionPool from '../../services/connectionPool';
-import {probeKefinTweaks, kefinSectionToPluginSection} from '../../services/kefinTweaksService';
+//import {probeKefinTweaks, kefinSectionToPluginSection} from '../../services/kefinTweaksService';
 import {probeHomeScreenSections, hssSectionToPluginSection} from '../../services/homeScreenSectionsService';
 import {isBackKey} from '../../utils/keys';
 import ClearDataDialog from '../../components/ClearDataDialog';
@@ -600,7 +600,7 @@ const builtInSectionToPluginSection = (section, existingSection = null, fallback
 });
 
 const getPluginSectionSourceLabel = (source) => {
-	if (source === 'kefinTweaks') return $L('KefinTweaks');
+	//if (source === 'kefinTweaks') return $L('KefinTweaks');
 	if (source === COLLECTIONS_SECTION_SOURCE) return $L('Collections');
 	if (source === GENRES_SECTION_SOURCE) return $L('Genres');
 	return $L('Home Screen Sections');
@@ -677,7 +677,7 @@ const Settings = ({ onBack, onLibrariesChanged, panelMode }) => {
 	const [seerrAuthSubmitting, setSeerrAuthSubmitting] = useState(false);
 	const [seerrAuthMessage, setSeerrAuthMessage] = useState('');
 	const [seerrAuthError, setSeerrAuthError] = useState('');
-	const [kefinProbeState, setKefinProbeState] = useState({loading: false, data: null, error: ''});
+	//const [kefinProbeState, setKefinProbeState] = useState({loading: false, data: null, error: ''});
 	const [hssProbeState, setHssProbeState] = useState({loading: false, data: null, error: ''});
 	const [tempRatingSources, setTempRatingSources] = useState([]);
 	const [tempExcludedGenresText, setTempExcludedGenresText] = useState('');
@@ -1039,15 +1039,15 @@ const Settings = ({ onBack, onLibrariesChanged, panelMode }) => {
 	const getMergedPluginSectionsForEditor = useCallback(() => {
 		let mergedSections = [...(settings.pluginSections || [])].sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
 
-		const kefinSections = kefinProbeState.data?.sections || [];
-		if (kefinSections.length > 0) {
-			mergedSections = mergeDiscoveredPluginSections(
-				mergedSections,
-				kefinSections,
-				'kefinTweaks',
-				kefinSectionToPluginSection
-			);
-		}
+		//const kefinSections = kefinProbeState.data?.sections || [];
+		//if (kefinSections.length > 0) {
+		//	mergedSections = mergeDiscoveredPluginSections(
+		//		mergedSections,
+		//		kefinSections,
+		//		'kefinTweaks',
+		//		kefinSectionToPluginSection
+		//	);
+		//}
 
 		const hssSections = hssProbeState.data?.sections || [];
 		if (hssSections.length > 0) {
@@ -1060,7 +1060,7 @@ const Settings = ({ onBack, onLibrariesChanged, panelMode }) => {
 		}
 
 		return [...mergedSections].sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
-	}, [settings.pluginSections, kefinProbeState.data, hssProbeState.data]);
+	}, [settings.pluginSections, hssProbeState.data]);
 
 	const openSeerrHomeRows = useCallback(() => {
 		pushView({view: 'seerrHomeRows', returnFocusTo: 'setting-seerrHomeRows'});
@@ -1181,18 +1181,18 @@ const Settings = ({ onBack, onLibrariesChanged, panelMode }) => {
 		});
 	}, []);
 
-	const refreshKefinTweaks = useCallback(async () => {
-		setKefinProbeState((prev) => ({...prev, loading: true, error: ''}));
-		try {
-			const data = await probeKefinTweaks(api);
-			const errorMessage = typeof data?.error === 'string'
-				? data.error
-				: (data?.error?.message || '');
-			setKefinProbeState({loading: false, data, error: errorMessage});
-		} catch (error) {
-			setKefinProbeState({loading: false, data: null, error: error?.message || $L('Failed to refresh KefinTweaks')});
-		}
-	}, [api]);
+	//const refreshKefinTweaks = useCallback(async () => {
+	//	setKefinProbeState((prev) => ({...prev, loading: true, error: ''}));
+	//	try {
+	//		const data = await probeKefinTweaks(api);
+	//		const errorMessage = typeof data?.error === 'string'
+	//			? data.error
+	//			: (data?.error?.message || '');
+	//		setKefinProbeState({loading: false, data, error: errorMessage});
+	//	} catch (error) {
+	//		setKefinProbeState({loading: false, data: null, error: error?.message || $L('Failed to refresh KefinTweaks')});
+	//	}
+	//}, [api]);
 
 	const refreshHomeScreenSections = useCallback(async () => {
 		setHssProbeState((prev) => ({...prev, loading: true, error: ''}));
@@ -1209,13 +1209,13 @@ const Settings = ({ onBack, onLibrariesChanged, panelMode }) => {
 
 	useEffect(() => {
 		if (currentView.view !== 'subcategory' || currentView.categoryId !== 'integrations') return;
-		if (currentView.subcategoryId === 'kefinTweaks' && !kefinProbeState.loading && !kefinProbeState.data) {
-			refreshKefinTweaks();
-		}
+		//if (currentView.subcategoryId === 'kefinTweaks' && !kefinProbeState.loading && !kefinProbeState.data) {
+		//	refreshKefinTweaks();
+		//}
 		if (currentView.subcategoryId === 'homeScreenSections' && !hssProbeState.loading && !hssProbeState.data) {
 			refreshHomeScreenSections();
 		}
-	}, [currentView, kefinProbeState.loading, kefinProbeState.data, hssProbeState.loading, hssProbeState.data, refreshKefinTweaks, refreshHomeScreenSections]);
+	}, [currentView, hssProbeState.loading, hssProbeState.data, refreshHomeScreenSections]);
 
 	const openLibraries = useCallback(async () => {
 		pushView({ view: 'libraries', returnFocusTo: 'setting-hideLibraries' });
@@ -1704,41 +1704,41 @@ const Settings = ({ onBack, onLibrariesChanged, panelMode }) => {
 		);
 	};
 
-	const renderIntegrationsKefinTweaks = () => {
-		const data = kefinProbeState.data;
-		const mergedSections = mergeDiscoveredPluginSections(
-			settings.pluginSections,
-			data?.sections || [],
-			'kefinTweaks',
-			kefinSectionToPluginSection
-		);
-		const mergedCount = mergedSections.filter((section) => section.source === 'kefinTweaks').length;
-		const hasSections = mergedCount > 0;
-		return (
-			<>
-				{renderInfoItem('kefin-installed', $L('Installed'), data ? (data.installed ? $L('Yes') : $L('No')) : $L('Unknown'), 'plug')}
-				{renderInfoItem('kefin-enabled', $L('Enabled'), data ? (data.enabled ? $L('Yes') : $L('No')) : $L('Unknown'), 'check')}
-				{renderInfoItem('kefin-version', $L('Version'), data?.version || $L('Unknown'), 'info')}
-				{renderInfoItem('kefin-sections', $L('Discovered Sections'), String(mergedCount), 'list')}
-				{kefinProbeState.error && <div className={css.statusMessage}>{kefinProbeState.error}</div>}
-				<div className={css.actionBarInline}>
-					<SpottableButton
-						className={css.actionButton}
-						onClick={refreshKefinTweaks}
-						disabled={kefinProbeState.loading}
-						spotlightId='kefin-refresh'
-					>
-						{kefinProbeState.loading ? $L('Refreshing...') : $L('Refresh')}
-					</SpottableButton>
-					{hasSections && (
-						<SpottableButton className={css.actionButton} onClick={openHomeRows} spotlightId='kefin-configure'>
-							{$L('Configure Home Sections')}
-						</SpottableButton>
-					)}
-				</div>
-			</>
-		);
-	};
+	//const renderIntegrationsKefinTweaks = () => {
+	//	const data = kefinProbeState.data;
+	//	const mergedSections = mergeDiscoveredPluginSections(
+	//		settings.pluginSections,
+	//		data?.sections || [],
+	//		'kefinTweaks',
+	//		kefinSectionToPluginSection
+	//	);
+	//	const mergedCount = mergedSections.filter((section) => section.source === 'kefinTweaks').length;
+	//	const hasSections = mergedCount > 0;
+	//	return (
+	//		<>
+	//			{renderInfoItem('kefin-installed', $L('Installed'), data ? (data.installed ? $L('Yes') : $L('No')) : $L('Unknown'), 'plug')}
+	//			{renderInfoItem('kefin-enabled', $L('Enabled'), data ? (data.enabled ? $L('Yes') : $L('No')) : $L('Unknown'), 'check')}
+	//			{renderInfoItem('kefin-version', $L('Version'), data?.version || $L('Unknown'), 'info')}
+	//			{renderInfoItem('kefin-sections', $L('Discovered Sections'), String(mergedCount), 'list')}
+	//			{kefinProbeState.error && <div className={css.statusMessage}>{kefinProbeState.error}</div>}
+	//			<div className={css.actionBarInline}>
+	//				<SpottableButton
+	//					className={css.actionButton}
+	//					onClick={refreshKefinTweaks}
+	//					disabled={kefinProbeState.loading}
+	//					spotlightId='kefin-refresh'
+	//				>
+	//					{kefinProbeState.loading ? $L('Refreshing...') : $L('Refresh')}
+	//				</SpottableButton>
+	//				{hasSections && (
+	//					<SpottableButton className={css.actionButton} onClick={openHomeRows} spotlightId='kefin-configure'>
+	//						{$L('Configure Home Sections')}
+	//					</SpottableButton>
+	//				)}
+	//			</div>
+	//		</>
+	//	);
+	//};
 
 	const renderPlaybackAudio = () => (
 		<>
@@ -2080,7 +2080,7 @@ const Settings = ({ onBack, onLibrariesChanged, panelMode }) => {
 					{ id: 'metadataRatings', label: $L('Metadata & Ratings'), description: $L('Ratings providers and display options') },
 					{ id: 'seerr', label: seerrLabel, description: $L('{seerrLabel} settings and status').replace('{seerrLabel}', seerrLabel) },
 					{ id: 'homeScreenSections', label: $L('Home Screen Sections'), description: $L('Plugin-backed home sections') },
-					{ id: 'kefinTweaks', label: $L('KefinTweaks'), description: $L('KefinTweaks integration and rows') }
+					//{ id: 'kefinTweaks', label: $L('KefinTweaks'), description: $L('KefinTweaks integration and rows') }
 				];
 			case 'playbackSyncPlay':
 				return [
@@ -2140,8 +2140,8 @@ const Settings = ({ onBack, onLibrariesChanged, panelMode }) => {
 				return renderIntegrationsSeerr();
 			case 'integrations.homeScreenSections':
 				return renderIntegrationsHomeScreenSections();
-			case 'integrations.kefinTweaks':
-				return renderIntegrationsKefinTweaks();
+			//case 'integrations.kefinTweaks':
+			//	return renderIntegrationsKefinTweaks();
 			case 'playbackSyncPlay.video':
 				return renderPlaybackVideo();
 			case 'playbackSyncPlay.audio':

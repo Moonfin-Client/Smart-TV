@@ -1,11 +1,11 @@
 import * as multiServerManager from './multiServerManager';
-import {probeHomeScreenSectionsCapabilities, probeKefinTweaksCapabilities} from './pluginCapabilityProbe';
+import {probeHomeScreenSectionsCapabilities} from './pluginCapabilityProbe';
 import {formatErrorMessage, requestJsonForSession} from './pluginHttp';
 
 const PROBE_CACHE_TTL_MS = 90 * 1000;
 const ROWS_CACHE_TTL_MS = 90 * 1000;
 const BACKOFF_STEPS_MS = [0, 5000, 15000, 30000, 60000];
-const ITEM_FIELDS = 'PrimaryImageAspectRatio,Overview,BackdropImageTags,ParentBackdropImageTags,ParentBackdropItemId,ProviderIds,ProductionYear';
+//const ITEM_FIELDS = 'PrimaryImageAspectRatio,Overview,BackdropImageTags,ParentBackdropImageTags,ParentBackdropItemId,ProviderIds,ProductionYear';
 const SECTION_FETCH_CONCURRENCY = 4;
 
 const createProbeState = () => ({
@@ -20,7 +20,7 @@ const createProbeState = () => ({
 
 const probeCacheState = {
 	home: createProbeState(),
-	kefin: createProbeState()
+	//kefin: createProbeState()
 };
 
 const pluginRowsCacheState = {
@@ -132,111 +132,111 @@ const getLoggedInSessions = async () => {
 	return sessions.filter((entry) => !!(entry?.url && entry?.accessToken && entry?.userId));
 };
 
-const queryUserItems = async (session, params) => {
-	const query = buildQueryString(params);
-	const payload = await requestJsonForSession(session, `/Users/${encodeURIComponent(session.userId)}/Items?${query}`);
-	return extractItems(payload);
-};
+//const queryUserItems = async (session, params) => {
+//	const query = buildQueryString(params);
+//	const payload = await requestJsonForSession(session, `/Users/${encodeURIComponent(session.userId)}/Items?${query}`);
+//	return extractItems(payload);
+//};
+//
+//const queryLatestForLibrary = async (session, libraryId, limit) => {
+//	const query = buildQueryString({
+//		ParentId: libraryId,
+//		Limit: limit,
+//		Fields: ITEM_FIELDS
+//	});
+//	const payload = await requestJsonForSession(session, `/Users/${encodeURIComponent(session.userId)}/Items/Latest?${query}`);
+//	return extractItems(payload);
+//};
 
-const queryLatestForLibrary = async (session, libraryId, limit) => {
-	const query = buildQueryString({
-		ParentId: libraryId,
-		Limit: limit,
-		Fields: ITEM_FIELDS
-	});
-	const payload = await requestJsonForSession(session, `/Users/${encodeURIComponent(session.userId)}/Items/Latest?${query}`);
-	return extractItems(payload);
-};
-
-const runKefinSpec = async (session, spec = {}) => {
-	const kind = String(spec.kind || '');
-	const limit = Number.isFinite(Number(spec.limit)) ? Math.max(1, Math.trunc(Number(spec.limit))) : 16;
-	const sevenDaysAgo = new Date(Date.now() - (7 * 24 * 60 * 60 * 1000)).toISOString();
-
-	if (kind === 'recentlyReleasedMovies') {
-		return queryUserItems(session, {
-			IncludeItemTypes: 'Movie',
-			Recursive: 'true',
-			SortBy: 'PremiereDate',
-			SortOrder: 'Descending',
-			MinPremiereDate: sevenDaysAgo,
-			Limit: limit,
-			Fields: ITEM_FIELDS
-		});
-	}
-
-	if (kind === 'recentlyReleasedEpisodes') {
-		return queryUserItems(session, {
-			IncludeItemTypes: 'Episode',
-			Recursive: 'true',
-			SortBy: 'PremiereDate',
-			SortOrder: 'Descending',
-			MinPremiereDate: sevenDaysAgo,
-			Limit: limit,
-			Fields: ITEM_FIELDS
-		});
-	}
-
-	if (kind === 'watchAgain') {
-		return queryUserItems(session, {
-			IncludeItemTypes: 'Movie,Series',
-			Recursive: 'true',
-			Filters: 'IsPlayed',
-			SortBy: 'DatePlayed',
-			SortOrder: 'Descending',
-			Limit: limit,
-			Fields: ITEM_FIELDS
-		});
-	}
-
-	if (kind === 'recentlyAddedInLibrary') {
-		const libraryIds = Array.isArray(spec.libraryIds)
-			? spec.libraryIds.map((value) => String(value)).filter(Boolean)
-			: [];
-		if (libraryIds.length === 0) return [];
-
-		const results = await Promise.all(
-			libraryIds.map((libraryId) => queryLatestForLibrary(session, libraryId, limit).catch(() => []))
-		);
-		const merged = [];
-		const seen = new Set();
-		results.forEach((items) => {
-			items.forEach((item) => {
-				if (!item?.Id || seen.has(item.Id)) return;
-				seen.add(item.Id);
-				merged.push(item);
-			});
-		});
-		return merged.slice(0, limit);
-	}
-
-	if (kind === 'custom') {
-		const includeTypes = Array.isArray(spec.includeItemTypes)
-			? spec.includeItemTypes.map((value) => String(value)).filter(Boolean).join(',')
-			: 'Movie,Series';
-		const type = String(spec.type || 'genre').toLowerCase();
-		const source = String(spec.source || '');
-		const params = {
-			IncludeItemTypes: includeTypes,
-			Recursive: 'true',
-			SortBy: String(spec.sortBy || 'Random'),
-			SortOrder: String(spec.sortOrderDirection || 'Ascending'),
-			Limit: limit,
-			Fields: ITEM_FIELDS
-		};
-
-		if (type === 'genre' && source) params.Genres = source;
-		else if (type === 'tag' && source) params.Tags = source;
-		else if (type === 'studio' && source) params.StudioIds = source;
-		else if (type === 'person' && source) params.PersonIds = source;
-		else if ((type === 'library' || type === 'collection') && source) params.ParentId = source;
-		else if (source) params.SearchTerm = source;
-
-		return queryUserItems(session, params);
-	}
-
-	return [];
-};
+//const runKefinSpec = async (session, spec = {}) => {
+//	const kind = String(spec.kind || '');
+//	const limit = Number.isFinite(Number(spec.limit)) ? Math.max(1, Math.trunc(Number(spec.limit))) : 16;
+//	const sevenDaysAgo = new Date(Date.now() - (7 * 24 * 60 * 60 * 1000)).toISOString();
+//
+//	if (kind === 'recentlyReleasedMovies') {
+//		return queryUserItems(session, {
+//			IncludeItemTypes: 'Movie',
+//			Recursive: 'true',
+//			SortBy: 'PremiereDate',
+//			SortOrder: 'Descending',
+//			MinPremiereDate: sevenDaysAgo,
+//			Limit: limit,
+//			Fields: ITEM_FIELDS
+//		});
+//	}
+//
+//	if (kind === 'recentlyReleasedEpisodes') {
+//		return queryUserItems(session, {
+//			IncludeItemTypes: 'Episode',
+//			Recursive: 'true',
+//			SortBy: 'PremiereDate',
+//			SortOrder: 'Descending',
+//			MinPremiereDate: sevenDaysAgo,
+//			Limit: limit,
+//			Fields: ITEM_FIELDS
+//		});
+//	}
+//
+//	if (kind === 'watchAgain') {
+//		return queryUserItems(session, {
+//			IncludeItemTypes: 'Movie,Series',
+//			Recursive: 'true',
+//			Filters: 'IsPlayed',
+//			SortBy: 'DatePlayed',
+//			SortOrder: 'Descending',
+//			Limit: limit,
+//			Fields: ITEM_FIELDS
+//		});
+//	}
+//
+//	if (kind === 'recentlyAddedInLibrary') {
+//		const libraryIds = Array.isArray(spec.libraryIds)
+//			? spec.libraryIds.map((value) => String(value)).filter(Boolean)
+//			: [];
+//		if (libraryIds.length === 0) return [];
+//
+//		const results = await Promise.all(
+//			libraryIds.map((libraryId) => queryLatestForLibrary(session, libraryId, limit).catch(() => []))
+//		);
+//		const merged = [];
+//		const seen = new Set();
+//		results.forEach((items) => {
+//			items.forEach((item) => {
+//				if (!item?.Id || seen.has(item.Id)) return;
+//				seen.add(item.Id);
+//				merged.push(item);
+//			});
+//		});
+//		return merged.slice(0, limit);
+//	}
+//
+//	if (kind === 'custom') {
+//		const includeTypes = Array.isArray(spec.includeItemTypes)
+//			? spec.includeItemTypes.map((value) => String(value)).filter(Boolean).join(',')
+//			: 'Movie,Series';
+//		const type = String(spec.type || 'genre').toLowerCase();
+//		const source = String(spec.source || '');
+//		const params = {
+//			IncludeItemTypes: includeTypes,
+//			Recursive: 'true',
+//			SortBy: String(spec.sortBy || 'Random'),
+//			SortOrder: String(spec.sortOrderDirection || 'Ascending'),
+//			Limit: limit,
+//			Fields: ITEM_FIELDS
+//		};
+//
+//		if (type === 'genre' && source) params.Genres = source;
+//		else if (type === 'tag' && source) params.Tags = source;
+//		else if (type === 'studio' && source) params.StudioIds = source;
+//		else if (type === 'person' && source) params.PersonIds = source;
+//		else if ((type === 'library' || type === 'collection') && source) params.ParentId = source;
+//		else if (source) params.SearchTerm = source;
+//
+//		return queryUserItems(session, params);
+//	}
+//
+//	return [];
+//};
 
 const sortRows = (rows) => {
 	return [...rows].sort((a, b) => {
@@ -303,54 +303,54 @@ const loadHomeSectionRows = async (capabilities, sessionsByKey) => {
 		}));
 };
 
-const loadKefinRows = async (capabilities, sessionsByKey) => {
-	const includeServerName = sessionsByKey.size > 1;
-	const tasks = [];
-
-	for (const capability of capabilities) {
-		if (!capability?.available || !Array.isArray(capability.sections)) continue;
-		const session = sessionsByKey.get(identityKey(capability.serverId, capability.userId));
-		if (!session) continue;
-
-		for (const section of capability.sections) {
-			tasks.push({capability, session, section});
-		}
-	}
-
-	const rows = await mapWithConcurrency(tasks, SECTION_FETCH_CONCURRENCY, async (task) => {
-		const {capability, session, section} = task;
-		const sectionKey = String(section.id || section.displayText || 'section');
-		const sectionOrder = Number(section.order);
-
-		try {
-			const items = tagItemsWithServer(await runKefinSpec(session, section.spec || {}), session);
-			if (items.length === 0) return null;
-			const titleBase = section.displayText || section.id || 'KefinTweaks Section';
-			const title = includeServerName ? `${titleBase} (${capability.serverLabel || session.name})` : titleBase;
-			return {
-				id: `plugin-kefin-${sanitizeKey(session.serverId)}-${sanitizeKey(session.userId)}-${sanitizeKey(sectionKey)}`,
-				title,
-				items,
-				type: rowTypeFromItems(items),
-				isPluginRow: true,
-				pluginSource: 'kefin',
-				pluginOrder: Number.isFinite(sectionOrder) ? sectionOrder : null,
-				pluginServerId: session.serverId,
-				pluginUserId: session.userId,
-				pluginSectionKey: sectionKey
-			};
-		} catch {
-			return null;
-		}
-	});
-
-	return rows
-		.filter((row) => !!row)
-		.map((row, index) => ({
-			...row,
-			pluginOrder: Number.isFinite(row.pluginOrder) ? row.pluginOrder : index
-		}));
-};
+//const loadKefinRows = async (capabilities, sessionsByKey) => {
+//	const includeServerName = sessionsByKey.size > 1;
+//	const tasks = [];
+//
+//	for (const capability of capabilities) {
+//		if (!capability?.available || !Array.isArray(capability.sections)) continue;
+//		const session = sessionsByKey.get(identityKey(capability.serverId, capability.userId));
+//		if (!session) continue;
+//
+//		for (const section of capability.sections) {
+//			tasks.push({capability, session, section});
+//		}
+//	}
+//
+//	const rows = await mapWithConcurrency(tasks, SECTION_FETCH_CONCURRENCY, async (task) => {
+//		const {capability, session, section} = task;
+//		const sectionKey = String(section.id || section.displayText || 'section');
+//		const sectionOrder = Number(section.order);
+//
+//		try {
+//			const items = tagItemsWithServer(await runKefinSpec(session, section.spec || {}), session);
+//			if (items.length === 0) return null;
+//			const titleBase = section.displayText || section.id || 'KefinTweaks Section';
+//			const title = includeServerName ? `${titleBase} (${capability.serverLabel || session.name})` : titleBase;
+//			return {
+//				id: `plugin-kefin-${sanitizeKey(session.serverId)}-${sanitizeKey(session.userId)}-${sanitizeKey(sectionKey)}`,
+//				title,
+//				items,
+//				type: rowTypeFromItems(items),
+//				isPluginRow: true,
+//				pluginSource: 'kefin',
+//				pluginOrder: Number.isFinite(sectionOrder) ? sectionOrder : null,
+//				pluginServerId: session.serverId,
+//				pluginUserId: session.userId,
+//				pluginSectionKey: sectionKey
+//			};
+//		} catch {
+//			return null;
+//		}
+//	});
+//
+//	return rows
+//		.filter((row) => !!row)
+//		.map((row, index) => ({
+//			...row,
+//			pluginOrder: Number.isFinite(row.pluginOrder) ? row.pluginOrder : index
+//		}));
+//};
 
 const refreshProbeGroup = async (key, fetcher, options = {}) => {
 	const state = probeCacheState[key];
@@ -417,7 +417,7 @@ const snapshotProbeCacheState = () => {
 
 	return {
 		home: mapState(probeCacheState.home),
-		kefin: mapState(probeCacheState.kefin),
+		//kefin: mapState(probeCacheState.kefin),
 		rows: {
 			updatedAt: pluginRowsCacheState.updatedAt || null,
 			cacheAgeMs: pluginRowsCacheState.updatedAt ? Math.max(0, now - pluginRowsCacheState.updatedAt) : null,
@@ -430,17 +430,17 @@ const snapshotProbeCacheState = () => {
 };
 
 export const refreshPluginCapabilities = async (options = {}) => {
-	const [homeResult, kefinResult] = await Promise.all([
+	const [homeResult] = await Promise.all([
 		refreshProbeGroup('home', () => probeHomeScreenSectionsCapabilities(), options),
-		refreshProbeGroup('kefin', () => probeKefinTweaksCapabilities(), options)
+		//refreshProbeGroup('kefin', () => probeKefinTweaksCapabilities(), options)
 	]);
 
 	return {
 		homeSectionsCapabilities: homeResult.capabilities,
-		kefinCapabilities: kefinResult.capabilities,
+		//kefinCapabilities: kefinResult.capabilities,
 		meta: {
 			home: homeResult.meta,
-			kefin: kefinResult.meta,
+			//kefin: kefinResult.meta,
 			cache: snapshotProbeCacheState()
 		}
 	};
@@ -461,11 +461,11 @@ export const loadDiscoveredPluginRows = async (options = {}) => {
 	});
 
 	try {
-		const [homeRows, kefinRows] = await Promise.all([
+		const [homeRows] = await Promise.all([
 			loadHomeSectionRows(capabilityResult.homeSectionsCapabilities, sessionsByKey),
-			loadKefinRows(capabilityResult.kefinCapabilities, sessionsByKey)
+			//loadKefinRows(capabilityResult.kefinCapabilities, sessionsByKey)
 		]);
-		const rows = sortRows([...homeRows, ...kefinRows]);
+		const rows = sortRows([...homeRows]);
 		pluginRowsCacheState.rows = rows;
 		pluginRowsCacheState.updatedAt = nowMs();
 		pluginRowsCacheState.lastError = null;
@@ -481,7 +481,7 @@ export const loadDiscoveredPluginRows = async (options = {}) => {
 
 export const clearPluginProbeCache = () => {
 	resetProbeState(probeCacheState.home);
-	resetProbeState(probeCacheState.kefin);
+	//resetProbeState(probeCacheState.kefin);
 	pluginRowsCacheState.rows = [];
 	pluginRowsCacheState.updatedAt = 0;
 	pluginRowsCacheState.lastError = null;
