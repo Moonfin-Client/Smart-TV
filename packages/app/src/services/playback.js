@@ -839,6 +839,7 @@ export const getChapterImageUrl = (itemId, chapterIndex, width = 320) => {
 };
 
 export const getTrickplayInfo = async (itemId) => {
+	if (jellyfinApi.getServerType() === 'emby') return null;
 	try {
 		const serverUrl = jellyfinApi.getServerUrl();
 		const apiKey = jellyfinApi.getApiKey();
@@ -857,9 +858,10 @@ export const getMediaSegments = async (itemId) => {
 		creditsStart: null
 	};
 
-	// Try the Media Segments API first (uses authenticated request)
+	// Try the Media Segments API first (uses authenticated request). Emby has no
+	// /MediaSegments endpoint, so skip straight to the chapter fallback there.
 	try {
-		const data = await jellyfinApi.api.getMediaSegments(itemId);
+		const data = jellyfinApi.getServerType() === 'emby' ? null : await jellyfinApi.api.getMediaSegments(itemId);
 		if (data?.Items && data.Items.length > 0) {
 			for (const seg of data.Items) {
 				const type = seg.Type?.toLowerCase();

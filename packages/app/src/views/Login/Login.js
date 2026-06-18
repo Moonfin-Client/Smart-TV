@@ -17,6 +17,16 @@ const SpottableButton = Spottable('button');
 const SpottableDiv = Spottable('div');
 const UserGridContainer = SpotlightContainerDecorator({enterTo: 'last-focused', restrict: 'self-first'}, 'div');
 
+const detectServerType = (info) => {
+	const productName = (info.ProductName || '').toLowerCase();
+	if (productName.includes('jellyfin')) return 'jellyfin';
+	if (productName.includes('emby')) return 'emby';
+	const parts = String(info.Version || '').split('.');
+	const major = parseInt(parts[0], 10);
+	if (!Number.isNaN(major) && parts.length >= 4 && major < 10) return 'emby';
+	return null;
+};
+
 const Login = ({
 	onLoggedIn,
 	onServerAdded,
@@ -86,8 +96,7 @@ const Login = ({
 				const info = await jellyfinApi.api.getPublicInfo();
 				if (!info) continue;
 
-				const productName = (info.ProductName || '').toLowerCase();
-				const detectedType = productName.includes('emby') ? 'emby' : productName.includes('jellyfin') ? 'jellyfin' : null;
+				const detectedType = detectServerType(info);
 				if (!detectedType) {
 					lastErrorType = SERVER_NOT_JELLYFIN;
 					continue;

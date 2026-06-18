@@ -432,7 +432,7 @@ export const api = {
 		request(`/Users/${currentUser}/Items?ParentId=${albumId}&IncludeItemTypes=Audio&SortBy=ParentIndexNumber,IndexNumber&SortOrder=Ascending&Fields=MediaSources,MediaStreams`),
 
 	getLyrics: (itemId) =>
-		request(`/Audio/${itemId}/Lyrics?UserId=${currentUser}`),
+		serverType === 'emby' ? Promise.resolve(null) : request(`/Audio/${itemId}/Lyrics?UserId=${currentUser}`),
 
 	getArtistItems: (artistId, limit = 50) =>
 		request(`/Users/${currentUser}/Items?ArtistIds=${artistId}&IncludeItemTypes=Audio&Recursive=true&SortBy=Album,ParentIndexNumber,IndexNumber&SortOrder=Ascending&Limit=${limit}&Fields=PrimaryImageAspectRatio,ProductionYear,AlbumArtist`),
@@ -698,7 +698,7 @@ export const createApiForServer = (serverUrl, token, userId, serverTypeOverride 
 			serverRequest(`/Users/${userId}/Items?ParentId=${albumId}&IncludeItemTypes=Audio&SortBy=ParentIndexNumber,IndexNumber&SortOrder=Ascending&Fields=MediaSources,MediaStreams`),
 
 		getLyrics: (itemId) =>
-			serverRequest(`/Audio/${itemId}/Lyrics?UserId=${userId}`),
+			serverTypeOverride === 'emby' ? Promise.resolve(null) : serverRequest(`/Audio/${itemId}/Lyrics?UserId=${userId}`),
 
 		getArtistItems: (artistId, limit = 50) =>
 			serverRequest(`/Users/${userId}/Items?ArtistIds=${artistId}&IncludeItemTypes=Audio&Recursive=true&SortBy=Album,ParentIndexNumber,IndexNumber&SortOrder=Ascending&Limit=${limit}&Fields=PrimaryImageAspectRatio,ProductionYear,AlbumArtist`),

@@ -9,7 +9,7 @@ const SyncPlayContext = createContext(null);
 export const useSyncPlay = () => useContext(SyncPlayContext);
 
 export const SyncPlayProvider = ({children}) => {
-	const {isAuthenticated} = useAuth();
+	const {isAuthenticated, serverType} = useAuth();
 	const {settings} = useSettings();
 	const [group, setGroup] = useState(null);
 	const [groups, setGroups] = useState([]);
@@ -21,7 +21,8 @@ export const SyncPlayProvider = ({children}) => {
 	const listenerRef = useRef(null);
 
 	useEffect(() => {
-		if (isAuthenticated && settings.syncplayEnabled !== false) {
+		// Emby has no SyncPlay; opening the socket just spams /SyncPlay/Ping with 404s.
+		if (isAuthenticated && serverType !== 'emby' && settings.syncplayEnabled !== false) {
 			syncPlayService.connectWebSocket();
 		} else {
 			syncPlayService.disconnectWebSocket();
@@ -29,7 +30,7 @@ export const SyncPlayProvider = ({children}) => {
 		return () => {
 			syncPlayService.disconnectWebSocket();
 		};
-	}, [isAuthenticated, settings.syncplayEnabled]);
+	}, [isAuthenticated, serverType, settings.syncplayEnabled]);
 
 	useEffect(() => {
 		if (settings.syncplayEnabled !== false) return;
