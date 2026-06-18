@@ -17,9 +17,13 @@ export const getDeviceCapabilities = async (...args) => {
 	return impl.getDeviceCapabilities(...args);
 };
 
-export const getJellyfinDeviceProfile = async (...args) => {
+// Server-type-aware profile. The DirectPlay/Transcoding/Subtitle profile schema is
+// shared between Jellyfin and Emby (Emby originated it), so both return the same
+// profile today. This is the single seam to diverge from if Emby ever needs different
+// codec/subtitle handling.
+export const getDeviceProfile = async (serverType, options) => {
 	await loadImpl();
-	return impl.getJellyfinDeviceProfile(...args);
+	return impl.getJellyfinDeviceProfile(options);
 };
 
 export const getH264FallbackProfile = async (...args) => {

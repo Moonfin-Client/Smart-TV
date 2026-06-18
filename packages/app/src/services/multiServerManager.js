@@ -45,6 +45,7 @@ export const getAllServersArray = async () => {
 						id: serverId,
 						name: server.name,
 						url: server.url,
+						serverType: server.serverType || 'jellyfin',
 						serverId: serverId,
 						userId: userId,
 						username: user.username,
@@ -80,6 +81,7 @@ export const getUniqueServers = async () => {
 				serverId: serverId,
 				name: server.name,
 				url: server.url,
+				serverType: server.serverType || 'jellyfin',
 				addedDate: server.addedDate,
 				userCount: userCount
 			});
@@ -148,6 +150,7 @@ export const getActiveServer = async () => {
 		id: activeServerId,
 		name: server.name,
 		url: server.url,
+		serverType: server.serverType || 'jellyfin',
 		serverId: activeServerId,
 		userId: activeUserId,
 		username: user.username,
@@ -231,9 +234,10 @@ export const setActiveServer = async (serverId, userId) => {
  * @param {string} username - Username
  * @param {string} accessToken - Access token
  * @param {string} [primaryImageTag] - User avatar image tag
+ * @param {string} [serverType] - 'jellyfin' or 'emby'
  * @returns {Promise<Object>} Created server/user object
  */
-export const addServer = async (serverUrl, serverName, userId, username, accessToken, primaryImageTag) => {
+export const addServer = async (serverUrl, serverName, userId, username, accessToken, primaryImageTag, serverType = 'jellyfin') => {
 	const servers = await getAllServers();
 
 	// Check if server already exists by URL
@@ -254,11 +258,14 @@ export const addServer = async (serverUrl, serverName, userId, username, accessT
 			id: serverId,
 			name: serverName,
 			url: serverUrl,
+			serverType: serverType || 'jellyfin',
 			addedDate: new Date().toISOString(),
 			users: {}
 		};
 		console.log('[MULTI-SERVER] Added new server:', serverName);
 	} else {
+		// Backfill type on a pre-existing entry that predates serverType
+		servers[serverId].serverType = servers[serverId].serverType || serverType || 'jellyfin';
 		console.log('[MULTI-SERVER] Server already exists, adding user');
 	}
 
@@ -384,6 +391,7 @@ export const getServer = async (serverId, userId) => {
 			serverId: serverId,
 			name: server.name,
 			url: server.url,
+			serverType: server.serverType || 'jellyfin',
 			addedDate: server.addedDate,
 			userId: userId,
 			username: user.username,
@@ -399,6 +407,7 @@ export const getServer = async (serverId, userId) => {
 		serverId: serverId,
 		name: server.name,
 		url: server.url,
+		serverType: server.serverType || 'jellyfin',
 		addedDate: server.addedDate,
 		users: server.users
 	};
@@ -429,7 +438,8 @@ export const getServerAuth = async (serverId, userId) => {
 		username: server.username,
 		accessToken: server.accessToken,
 		serverId: server.serverId || server.id,
-		serverName: server.name
+		serverName: server.name,
+		serverType: server.serverType || 'jellyfin'
 	};
 };
 

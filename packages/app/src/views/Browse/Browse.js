@@ -242,6 +242,7 @@ const stripItemForCache = (item) => ({
 		LastPlayedDate: item.UserData.LastPlayedDate,
 	} : undefined,
 	_serverUrl: item._serverUrl,
+	_serverType: item._serverType,
 	_serverName: item._serverName,
 	isLibraryTile: item.isLibraryTile,
 });
@@ -1408,6 +1409,7 @@ const Browse = ({
 			id: item.Id,
 			name: item.Name,
 			_serverUrl: item._serverUrl,
+			_serverType: item._serverType,
 			_serverName: item._serverName,
 			_serverAccessToken: item._serverAccessToken,
 			_serverUserId: item._serverUserId,

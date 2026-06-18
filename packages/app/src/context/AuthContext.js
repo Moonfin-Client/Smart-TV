@@ -25,6 +25,7 @@ export const AuthProvider = ({children}) => {
 	const [serverUrl, setServerUrl] = useState(null);
 	const [serverName, setServerName] = useState(null);
 	const [accessToken, setAccessToken] = useState(null);
+	const [serverType, setServerType] = useState('jellyfin');
 
 	// Multi-server state
 	const [servers, setServers] = useState([]);
@@ -73,10 +74,12 @@ export const AuthProvider = ({children}) => {
 
 					if (autoLogin) {
 						jellyfinApi.setServer(active.url);
+						jellyfinApi.setServerType(active.serverType || 'jellyfin');
 						jellyfinApi.setAuth(active.userId, active.accessToken);
 						setServerUrl(active.url);
 						setServerName(active.name);
 						setAccessToken(active.accessToken);
+						setServerType(active.serverType || 'jellyfin');
 
 						try {
 							const userInfo = await jellyfinApi.api.getUserConfiguration();
@@ -100,6 +103,7 @@ export const AuthProvider = ({children}) => {
 
 						if (autoLogin) {
 							jellyfinApi.setServer(storedAuth.serverUrl);
+							jellyfinApi.setServerType('jellyfin');
 							jellyfinApi.setAuth(storedAuth.userId, storedAuth.token);
 
 							try {
@@ -125,9 +129,10 @@ export const AuthProvider = ({children}) => {
 	}, [loadServers]);
 
 	const login = useCallback(async (server, username, password, options = {}) => {
-		const {serverName: sName, isAddingNewServer = false, switchToNewUser = true} = options;
+		const {serverName: sName, serverType: sType = 'jellyfin', isAddingNewServer = false, switchToNewUser = true} = options;
 
 		jellyfinApi.setServer(server);
+		jellyfinApi.setServerType(sType);
 
 		const result = await jellyfinApi.api.authenticateByName(username, password);
 
@@ -140,7 +145,7 @@ export const AuthProvider = ({children}) => {
 				const url = parseUrl(server);
 				finalServerName = url.hostname;
 			} catch (e) {
-				finalServerName = 'Jellyfin Server';
+				finalServerName = 'Media Server';
 			}
 		}
 
@@ -151,7 +156,8 @@ export const AuthProvider = ({children}) => {
 			result.User.Id,
 			result.User.Name,
 			result.AccessToken,
-			result.User.PrimaryImageTag
+			result.User.PrimaryImageTag,
+			sType
 		);
 
 		// Always switch to the newly logged in user
@@ -176,6 +182,7 @@ export const AuthProvider = ({children}) => {
 			setServerUrl(server);
 			setServerName(finalServerName);
 			setAccessToken(result.AccessToken);
+			setServerType(sType);
 			setUser(result.User);
 			setIsAuthenticated(true);
 		}
@@ -184,9 +191,10 @@ export const AuthProvider = ({children}) => {
 	}, [loadServers]);
 
 	const loginWithToken = useCallback(async (server, authResult, options = {}) => {
-		const {serverName: sName, isAddingNewServer = false, switchToNewUser = true} = options;
+		const {serverName: sName, serverType: sType = 'jellyfin', isAddingNewServer = false, switchToNewUser = true} = options;
 
 		jellyfinApi.setServer(server);
+		jellyfinApi.setServerType(sType);
 		jellyfinApi.setAuth(authResult.User.Id, authResult.AccessToken);
 
 		// Use provided server name or extract from URL
@@ -196,7 +204,7 @@ export const AuthProvider = ({children}) => {
 				const url = parseUrl(server);
 				finalServerName = url.hostname;
 			} catch (e) {
-				finalServerName = 'Jellyfin Server';
+				finalServerName = 'Media Server';
 			}
 		}
 
@@ -206,7 +214,8 @@ export const AuthProvider = ({children}) => {
 			authResult.User.Id,
 			authResult.User.Name,
 			authResult.AccessToken,
-			authResult.User.PrimaryImageTag
+			authResult.User.PrimaryImageTag,
+			sType
 		);
 
 		// Always switch to the newly logged in user
@@ -231,6 +240,7 @@ export const AuthProvider = ({children}) => {
 			setServerUrl(server);
 			setServerName(finalServerName);
 			setAccessToken(authResult.AccessToken);
+			setServerType(sType);
 			setUser(authResult.User);
 			setIsAuthenticated(true);
 		}
@@ -251,12 +261,14 @@ export const AuthProvider = ({children}) => {
 
 			// Update API
 			jellyfinApi.setServer(active.url);
+			jellyfinApi.setServerType(active.serverType || 'jellyfin');
 			jellyfinApi.setAuth(active.userId, active.accessToken);
 
 			// Update state
 			setServerUrl(active.url);
 			setServerName(active.name);
 			setAccessToken(active.accessToken);
+			setServerType(active.serverType || 'jellyfin');
 
 			// Get fresh user info
 			try {
@@ -461,6 +473,7 @@ export const AuthProvider = ({children}) => {
 		serverUrl,
 		serverName,
 		accessToken,
+		serverType,
 
 		// Multi-server state
 		servers,
@@ -504,6 +517,7 @@ export const AuthProvider = ({children}) => {
 		serverUrl,
 		serverName,
 		accessToken,
+		serverType,
 		servers,
 		uniqueServers,
 		activeServerInfo,

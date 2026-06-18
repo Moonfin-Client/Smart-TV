@@ -12,7 +12,7 @@ const MESSAGES = {
 	[TIMEOUT]: 'Connection timed out. Check the address and your network.',
 	[DNS_OR_NETWORK]: 'Could not reach server. Check the address and that the server is running.',
 	[INVALID_ADDRESS]: 'Invalid server address format.',
-	[SERVER_NOT_JELLYFIN]: 'Server responded but does not appear to be Jellyfin.',
+	[SERVER_NOT_JELLYFIN]: 'Server responded but does not appear to be Jellyfin or Emby.',
 	[VERSION_UNSUPPORTED]: 'Server version is not supported. Minimum: ' + MIN_SERVER_VERSION + '.',
 	[AUTH_FAILED]: 'Invalid username or password.',
 	[SERVER_ERROR]: 'Server error. Please try again later.'

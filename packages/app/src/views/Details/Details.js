@@ -151,13 +151,14 @@ const Details = ({itemId, initialItem, onPlay, onSelectItem, onSelectPerson, onI
 		const tagSingleItem = (singleItem) => ({
 			...singleItem,
 			_serverUrl: initialItem._serverUrl,
+			_serverType: initialItem._serverType,
 			_serverAccessToken: initialItem._serverAccessToken,
 			_serverUserId: initialItem._serverUserId,
 			_serverName: initialItem._serverName,
 			_serverId: initialItem._serverId
 		});
 		return Array.isArray(items) ? items.map(tagSingleItem) : tagSingleItem(items);
-	}, [initialItem?._serverUrl, initialItem?._serverAccessToken, initialItem?._serverUserId, initialItem?._serverName, initialItem?._serverId]);
+	}, [initialItem?._serverUrl, initialItem?._serverType, initialItem?._serverAccessToken, initialItem?._serverUserId, initialItem?._serverName, initialItem?._serverId]);
 
 	// State
 	const [item, setItem] = useState(null);
@@ -499,6 +500,7 @@ const Details = ({itemId, initialItem, onPlay, onSelectItem, onSelectPerson, onI
 						const trailerItem = {
 							...localTrailer,
 							_serverUrl: item._serverUrl,
+							_serverType: item._serverType,
 							_serverAccessToken: item._serverAccessToken,
 							_serverUserId: item._serverUserId,
 							_serverName: item._serverName,

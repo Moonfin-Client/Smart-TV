@@ -5,6 +5,7 @@ import Spotlight from '@enact/spotlight';
 import $L from '@enact/i18n/$L';
 import {useAuth} from '../../context/AuthContext';
 import * as jellyfinApi from '../../services/jellyfinApi';
+import * as embyConnect from '../../services/embyConnect';
 import {generateCandidates} from '../../utils/serverUrl';
 import {classifyError, getConnectionMessage, getLoginMessage, isVersionSupported, INVALID_ADDRESS, SERVER_NOT_JELLYFIN, VERSION_UNSUPPORTED, MIN_SERVER_VERSION} from '../../utils/connectionErrors';
 import {KEYS} from '../../utils/keys';
@@ -15,6 +16,16 @@ import css from './Login.module.less';
 const SpottableButton = Spottable('button');
 const SpottableDiv = Spottable('div');
 const UserGridContainer = SpotlightContainerDecorator({enterTo: 'last-focused', restrict: 'self-first'}, 'div');
+
+const detectServerType = (info) => {
+	const productName = (info.ProductName || '').toLowerCase();
+	if (productName.includes('jellyfin')) return 'jellyfin';
+	if (productName.includes('emby')) return 'emby';
+	const parts = String(info.Version || '').split('.');
+	const major = parseInt(parts[0], 10);
+	if (!Number.isNaN(major) && parts.length >= 4 && major < 10) return 'emby';
+	return null;
+};
 
 const Login = ({
 	onLoggedIn,
@@ -58,6 +69,9 @@ const Login = ({
 	const [error, setError] = useState(null);
 	const [status, setStatus] = useState(null);
 	const [isConnecting, setIsConnecting] = useState(false);
+	const [serverType, setServerType] = useState('jellyfin');
+	const [connectServers, setConnectServers] = useState([]);
+	const [connectSession, setConnectSession] = useState(null);
 
 	const handleConnect = useCallback(async () => {
 		if (!serverUrl.trim()) return;
@@ -82,12 +96,14 @@ const Login = ({
 				const info = await jellyfinApi.api.getPublicInfo();
 				if (!info) continue;
 
-				if (!info.ProductName || !info.ProductName.toLowerCase().includes('jellyfin')) {
+				const detectedType = detectServerType(info);
+				if (!detectedType) {
 					lastErrorType = SERVER_NOT_JELLYFIN;
 					continue;
 				}
 
-				if (!isVersionSupported(info.Version)) {
+				// Emby reports a 4.x version that has nothing to do with the Jellyfin minimum
+				if (detectedType === 'jellyfin' && !isVersionSupported(info.Version)) {
 					lastErrorType = VERSION_UNSUPPORTED;
 					setError($L('Server version {version} is not supported. Minimum: {minimum}.').replace('{version}', info.Version).replace('{minimum}', MIN_SERVER_VERSION));
 					setStatus(null);
@@ -95,6 +111,8 @@ const Login = ({
 					return;
 				}
 
+				setServerType(detectedType);
+				jellyfinApi.setServerType(detectedType);
 				setServerUrl(candidate);
 				setServerInfo(info);
 				setStatus($L('Connected to {serverName}! Loading users...').replace('{serverName}', info.ServerName));
@@ -190,6 +208,7 @@ const Login = ({
 			try {
 				const result = await login(jellyfinApi.getServerUrl(), user.Name, '', {
 					serverName: serverInfo?.ServerName,
+					serverType,
 					isAddingNewServer: isAdding,
 					switchToNewUser: true
 				});
@@ -216,7 +235,7 @@ const Login = ({
 		setPassword('');
 		setStep('password');
 		setTimeout(() => Spotlight.focus('[data-spotlight-id="password-input"]'), 100);
-	}, [login, onLoggedIn, isAddingServer, isAddingToExisting, serverInfo, completeAddServerFlow, onServerAdded]);
+	}, [login, onLoggedIn, isAddingServer, isAddingToExisting, serverInfo, serverType, completeAddServerFlow, onServerAdded]);
 
 	const handleLogin = useCallback(async () => {
 		if (!username) return;
@@ -229,6 +248,7 @@ const Login = ({
 		try {
 			const result = await login(jellyfinApi.getServerUrl(), username, password, {
 				serverName: serverInfo?.ServerName,
+				serverType,
 				isAddingNewServer: isAdding,
 				switchToNewUser: true
 			});
@@ -246,7 +266,7 @@ const Login = ({
 		} finally {
 			setIsConnecting(false);
 		}
-	}, [username, password, login, onLoggedIn, isAddingServer, isAddingToExisting, serverInfo, completeAddServerFlow, onServerAdded]);
+	}, [username, password, login, onLoggedIn, isAddingServer, isAddingToExisting, serverInfo, serverType, completeAddServerFlow, onServerAdded]);
 
 	const handleBack = useCallback(() => {
 		setError(null);
@@ -256,7 +276,20 @@ const Login = ({
 			clearInterval(quickConnectInterval);
 			setQuickConnectInterval(null);
 		}
-		if (step === 'quickconnect-manual') {
+		if (step === 'embyconnect-servers') {
+			setStep('embyconnect');
+			setConnectServers([]);
+			setConnectSession(null);
+			setTimeout(() => Spotlight.focus('[data-spotlight-id="emby-username-input"]'), 100);
+		} else if (step === 'embyconnect') {
+			if (isAdding) {
+				cancelAddServerFlow?.();
+				onServerAdded?.(null);
+				return;
+			}
+			setStep('server');
+			setTimeout(() => Spotlight.focus('[data-spotlight-id="server-input"]'), 100);
+		} else if (step === 'quickconnect-manual') {
 			setStep('manual');
 			setQuickConnectCode('');
 			setQuickConnectSecret(null);
@@ -294,6 +327,104 @@ const Login = ({
 		setPassword('');
 		setTimeout(() => Spotlight.focus('[data-spotlight-id="username-input"]'), 100);
 	}, []);
+
+	const embyConnectErrorMessage = useCallback((err) => {
+		switch (err?.reason) {
+			case 'invalidCredentials': return $L('Invalid Emby Connect username or password');
+			case 'invalidAuthResponse': return $L('Invalid Emby Connect credentials');
+			case 'noLinkedServers': return $L('No servers linked to this Emby Connect account');
+			case 'noReachableAddress': return $L('No reachable address provided');
+			case 'unableToConnectServer': return $L('Unable to connect to the selected server');
+			default: return $L('Network error while contacting Emby Connect or the selected server');
+		}
+	}, []);
+
+	const handleEmbyConnectStart = useCallback(() => {
+		setError(null);
+		setStatus(null);
+		setUsername('');
+		setPassword('');
+		setConnectServers([]);
+		setConnectSession(null);
+		setStep('embyconnect');
+		setTimeout(() => Spotlight.focus('[data-spotlight-id="emby-username-input"]'), 100);
+	}, []);
+
+	const finishEmbyLogin = useCallback((server, session) => {
+		const isAdding = isAddingServer || isAddingToExisting;
+		return embyConnect.connectToServer(server, session.userId).then((exchange) => loginWithToken(
+			exchange.resolvedBaseUrl,
+			{User: {Id: exchange.localUserId, Name: session.userName || username}, AccessToken: exchange.accessToken},
+			{serverName: server.name, serverType: 'emby', isAddingNewServer: isAdding, switchToNewUser: true}
+		)).then((result) => {
+			setIsConnecting(false);
+			setStatus(null);
+			if (isAdding) {
+				completeAddServerFlow?.();
+				onServerAdded?.(result);
+			} else {
+				onLoggedIn?.();
+			}
+		});
+	}, [isAddingServer, isAddingToExisting, loginWithToken, username, completeAddServerFlow, onServerAdded, onLoggedIn]);
+
+	const handleEmbyConnectSignIn = useCallback(async () => {
+		if (!username.trim() || !password) return;
+		setError(null);
+		setIsConnecting(true);
+		setStatus($L('Signing in...'));
+		try {
+			const {session, servers} = await embyConnect.authenticateAndLoadServers(username.trim(), password);
+			if (!servers.length) {
+				const err = new Error('No linked servers');
+				err.reason = 'noLinkedServers';
+				throw err;
+			}
+			if (servers.length === 1) {
+				setStatus($L('Connecting to server...'));
+				await finishEmbyLogin(servers[0], session);
+				return;
+			}
+			setConnectSession(session);
+			setConnectServers(servers);
+			setStep('embyconnect-servers');
+			setStatus(null);
+			setIsConnecting(false);
+			setTimeout(() => Spotlight.focus('[data-spotlight-id="emby-server-0"]'), 100);
+		} catch (err) {
+			setIsConnecting(false);
+			setStatus(null);
+			setError(embyConnectErrorMessage(err));
+		}
+	}, [username, password, finishEmbyLogin, embyConnectErrorMessage]);
+
+	const handleEmbyServerSelect = useCallback(async (server) => {
+		if (!connectSession) return;
+		setError(null);
+		setIsConnecting(true);
+		setStatus($L('Connecting to server...'));
+		try {
+			await finishEmbyLogin(server, connectSession);
+		} catch (err) {
+			setIsConnecting(false);
+			setStatus(null);
+			setError(embyConnectErrorMessage(err));
+		}
+	}, [connectSession, finishEmbyLogin, embyConnectErrorMessage]);
+
+	const handleEmbyServerCardClick = useCallback((e) => {
+		const index = parseInt(e.currentTarget.dataset.serverIndex, 10);
+		const server = connectServers[index];
+		if (server) handleEmbyServerSelect(server);
+	}, [connectServers, handleEmbyServerSelect]);
+
+	const handleEmbyServerCardKeyDown = useCallback((e) => {
+		if (e.keyCode === KEYS.ENTER) handleEmbyServerCardClick(e);
+	}, [handleEmbyServerCardClick]);
+
+	const handleEmbyPasswordKeyDown = useCallback((e) => {
+		if (e.keyCode === KEYS.ENTER) handleEmbyConnectSignIn();
+	}, [handleEmbyConnectSignIn]);
 
 	const handleManualQuickConnect = useCallback(async () => {
 		setIsConnecting(true);
@@ -425,14 +556,14 @@ const Login = ({
 
 	const handleUserCardClick = useCallback((e) => {
 		const userId = e.currentTarget.dataset.userId;
-		const user = publicUsers.find(u => u.Id === userId);
+		const user = publicUsers.find(u => String(u.Id) === String(userId));
 		if (user) handleUserSelect(user);
 	}, [publicUsers, handleUserSelect]);
 
 	const handleUserCardKeyDown = useCallback((e) => {
 		if (e.keyCode === KEYS.ENTER) {
 			const userId = e.currentTarget.dataset.userId;
-			const user = publicUsers.find(u => u.Id === userId);
+			const user = publicUsers.find(u => String(u.Id) === String(userId));
 			if (user) handleUserSelect(user);
 		} else if (e.keyCode === KEYS.DOWN) {
 			e.stopPropagation();
@@ -604,6 +735,14 @@ const Login = ({
 									>
 										{isConnecting ? $L('Connecting...') : $L('Connect')}
 									</SpottableButton>
+									<SpottableButton
+										data-spotlight-id="emby-connect-btn"
+										className={`${css.btn} ${css.btnSecondary}`}
+										onClick={handleEmbyConnectStart}
+										disabled={isConnecting}
+									>
+										{$L('Emby Connect')}
+									</SpottableButton>
 									{isAddingServer && (
 										<SpottableButton
 											data-spotlight-id="cancel-add-btn"
@@ -620,7 +759,7 @@ const Login = ({
 
 					{step === 'users' && (
 						<div className={css.section}>
-							<p className={css.serverLabel}>{serverInfo?.ServerName || 'Jellyfin'}</p>
+							<p className={css.serverLabel}>{serverInfo?.ServerName || (serverType === 'emby' ? 'Emby' : 'Jellyfin')}</p>
 							<h1>{$L("Who's watching?")}</h1>
 							<UserGridContainer className={css.userGrid}>
 								{publicUsers.map((user, index) => (
@@ -686,13 +825,15 @@ const Login = ({
 								<span className={css.selectedName}>{selectedUser.Name}</span>
 							</div>
 							<div className={css.loginMethodButtons}>
-								<SpottableButton
-									data-spotlight-id="use-qc-btn"
-									className={`${css.btn} ${css.btnPrimary}`}
-									onClick={handleQuickConnectClick}
-								>
-									{$L('Quick Connect')}
-								</SpottableButton>
+								{serverType !== 'emby' && (
+									<SpottableButton
+										data-spotlight-id="use-qc-btn"
+										className={`${css.btn} ${css.btnPrimary}`}
+										onClick={handleQuickConnectClick}
+									>
+										{$L('Quick Connect')}
+									</SpottableButton>
+								)}
 								<SpottableButton
 									data-spotlight-id="use-password-btn"
 									className={`${css.btn} ${css.btnSecondary}`}
@@ -833,12 +974,12 @@ const Login = ({
 								/>
 							</div>
 							<div className={css.buttonGroup}>
-								{username.trim() ? (
+								{(username.trim() || serverType === 'emby') ? (
 									<SpottableButton
 										data-spotlight-id="manual-submit-btn"
 										className={`${css.btn} ${css.btnPrimary}`}
 										onClick={handleLogin}
-										disabled={isConnecting}
+										disabled={isConnecting || !username.trim()}
 									>
 										{isConnecting ? $L('Signing in...') : $L('Sign In')}
 									</SpottableButton>
@@ -879,6 +1020,89 @@ const Login = ({
 									onClick={handleBack}
 								>
 									{$L('Cancel')}
+								</SpottableButton>
+							</div>
+						</div>
+					)}
+
+					{step === 'embyconnect' && (
+						<div className={css.section}>
+							<h2>{$L('Emby Connect')}</h2>
+							<p className={css.serverLabel}>{$L('Sign in with your Emby Connect account')}</p>
+							<div className={css.formGroup}>
+								<label>{$L('Email or Username')}</label>
+								<SpottableInput
+									data-spotlight-id="emby-username-input"
+									type="text"
+									className={css.input}
+									placeholder={$L('Email or Username')}
+									value={username}
+									onChange={handleUsernameChange}
+									disabled={isConnecting}
+								/>
+							</div>
+							<div className={css.formGroup}>
+								<label>{$L('Password')}</label>
+								<SpottableInput
+									data-spotlight-id="emby-password-input"
+									type="password"
+									className={css.input}
+									placeholder={$L('Password')}
+									value={password}
+									onChange={handlePasswordChange}
+									onKeyDown={handleEmbyPasswordKeyDown}
+									disabled={isConnecting}
+								/>
+							</div>
+							<div className={css.buttonGroup}>
+								<SpottableButton
+									data-spotlight-id="emby-signin-btn"
+									className={`${css.btn} ${css.btnPrimary}`}
+									onClick={handleEmbyConnectSignIn}
+									disabled={isConnecting || !username.trim() || !password}
+								>
+									{isConnecting ? $L('Signing in...') : $L('Sign In')}
+								</SpottableButton>
+								<SpottableButton
+									data-spotlight-id="emby-back-btn"
+									className={`${css.btn} ${css.btnSecondary}`}
+									onClick={handleBack}
+									disabled={isConnecting}
+								>
+									{$L('Back')}
+								</SpottableButton>
+							</div>
+						</div>
+					)}
+
+					{step === 'embyconnect-servers' && (
+						<div className={css.section}>
+							<h2>{$L('Select a server')}</h2>
+							<UserGridContainer className={css.userGrid}>
+								{connectServers.map((server, index) => (
+									<SpottableDiv
+										key={server.systemId || index}
+										data-spotlight-id={`emby-server-${index}`}
+										data-server-index={index}
+										className={css.userCard}
+										onClick={handleEmbyServerCardClick}
+										onKeyDown={handleEmbyServerCardKeyDown}
+									>
+										<span className={css.userName}>{server.name}</span>
+										{server.candidateAddresses[0] && (
+											<span className={css.serverName}>{server.candidateAddresses[0]}</span>
+										)}
+									</SpottableDiv>
+								))}
+							</UserGridContainer>
+							<div className={css.buttonGroup}>
+								<SpottableButton
+									data-spotlight-id="emby-retry-btn"
+									className={`${css.btn} ${css.btnSecondary}`}
+									onClick={handleBack}
+									disabled={isConnecting}
+								>
+									{$L('Back')}
 								</SpottableButton>
 							</div>
 						</div>

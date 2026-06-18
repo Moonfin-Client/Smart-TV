@@ -33,7 +33,7 @@ export const executeAll = async (apiFn, options = {}) => {
 	// Execute requests to all servers in parallel
 	const promises = servers.map(async (server) => {
 		try {
-			const api = createApiForServer(server.url, server.accessToken, server.userId);
+			const api = createApiForServer(server.url, server.accessToken, server.userId, server.serverType || 'jellyfin');
 			const data = await apiFn(api, server);
 
 			// Tag results with server info
@@ -44,7 +44,8 @@ export const executeAll = async (apiFn, options = {}) => {
 					_serverName: server.name,
 					_serverUrl: server.url,
 					_serverUserId: server.userId,
-					_serverAccessToken: server.accessToken
+					_serverAccessToken: server.accessToken,
+					_serverType: server.serverType || 'jellyfin'
 				}));
 			} else if (data && typeof data === 'object') {
 				return [{
@@ -53,7 +54,8 @@ export const executeAll = async (apiFn, options = {}) => {
 					_serverName: server.name,
 					_serverUrl: server.url,
 					_serverUserId: server.userId,
-					_serverAccessToken: server.accessToken
+					_serverAccessToken: server.accessToken,
+					_serverType: server.serverType || 'jellyfin'
 				}];
 			}
 			return [];
@@ -210,7 +212,7 @@ export const getLatestPerLibraryFromAllServers = async (excludedLibraryIds = [],
 	// Fetch libraries and latest items from each server
 	await Promise.all(servers.map(async (server) => {
 		try {
-			const api = createApiForServer(server.url, server.accessToken, server.userId);
+			const api = createApiForServer(server.url, server.accessToken, server.userId, server.serverType || 'jellyfin');
 			const librariesResult = await api.getLibraries();
 			const libraries = librariesResult.Items || [];
 
@@ -235,7 +237,8 @@ export const getLatestPerLibraryFromAllServers = async (excludedLibraryIds = [],
 							_serverName: server.name,
 							_serverUrl: server.url,
 							_serverUserId: server.userId,
-							_serverAccessToken: server.accessToken
+							_serverAccessToken: server.accessToken,
+							_serverType: server.serverType || 'jellyfin'
 						}));
 
 						results.push({
@@ -435,7 +438,7 @@ export const getGenreItemsFromAllServers = async (params) => {
 	const results = await Promise.all(
 		servers.map(async (server) => {
 			try {
-				const api = createApiForServer(server.url, server.accessToken, server.userId);
+				const api = createApiForServer(server.url, server.accessToken, server.userId, server.serverType || 'jellyfin');
 				const result = await api.getItems(params);
 				const items = (result.Items || []).map(item => ({
 					...item,
@@ -443,7 +446,8 @@ export const getGenreItemsFromAllServers = async (params) => {
 					_serverName: server.name,
 					_serverUrl: server.url,
 					_serverUserId: server.userId,
-					_serverAccessToken: server.accessToken
+					_serverAccessToken: server.accessToken,
+					_serverType: server.serverType || 'jellyfin'
 				}));
 				return {
 					items,
@@ -495,7 +499,7 @@ export const getUserConfigFromAllServers = async () => {
 	const results = [];
 	for (const server of servers) {
 		try {
-			const api = createApiForServer(server.url, server.accessToken, server.userId);
+			const api = createApiForServer(server.url, server.accessToken, server.userId, server.serverType || 'jellyfin');
 			const userData = await api.getUserConfiguration();
 			results.push({
 				serverUrl: server.url,

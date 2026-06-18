@@ -708,6 +708,7 @@ const AppContent = (props) => {
 				Id: null,
 				Name: genre.name,
 				_serverUrl: genre._serverUrl,
+				_serverType: genre._serverType,
 				_serverAccessToken: genre._serverAccessToken,
 				_serverUserId: genre._serverUserId,
 				_serverName: genre._serverName,

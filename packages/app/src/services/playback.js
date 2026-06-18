@@ -1,5 +1,5 @@
 import * as jellyfinApi from './jellyfinApi';
-import {getJellyfinDeviceProfile, getDeviceCapabilities} from './deviceProfile';
+import {getDeviceProfile, getDeviceCapabilities} from './deviceProfile';
 import {getPlayMethod, getMimeType, isAudioStreamPlayable} from './video';
 import {getFromStorage} from './storage';
 
@@ -66,7 +66,7 @@ const getPlaybackAudioSettings = async (options = {}) => {
 // Cross-server support: get API instance based on item or options
 const getApiForItem = (item) => {
 	if (item?._serverUrl && item?._serverAccessToken && item?._serverUserId) {
-		return jellyfinApi.createApiForServer(item._serverUrl, item._serverAccessToken, item._serverUserId);
+		return jellyfinApi.createApiForServer(item._serverUrl, item._serverAccessToken, item._serverUserId, item._serverType || 'jellyfin');
 	}
 	return jellyfinApi.api;
 };
@@ -77,7 +77,8 @@ const getServerCredentials = (item) => {
 		return {
 			serverUrl: item._serverUrl,
 			accessToken: item._serverAccessToken,
-			userId: item._serverUserId
+			userId: item._serverUserId,
+			serverType: item._serverType || 'jellyfin'
 		};
 	}
 	return null;
@@ -180,6 +181,7 @@ const buildPlaybackUrl = (itemId, mediaSource, playSessionId, playMethod, creden
 	const deviceId = jellyfinApi.getDeviceId();
 	const container = (mediaSource.Container || '').toLowerCase();
 	const streamType = isAudio ? 'Audio' : 'Videos';
+	const serverType = options.serverType || credentials?.serverType || jellyfinApi.getServerType();
 
 	console.log('[playback] buildPlaybackUrl:', {
 		itemId,
@@ -210,8 +212,11 @@ const buildPlaybackUrl = (itemId, mediaSource, playSessionId, playMethod, creden
 		if (mediaSource.LiveStreamId) {
 			queryParts.push('LiveStreamId=' + encodeURIComponent(mediaSource.LiveStreamId));
 		}
-		// Include container extension for proper MIME type detection
-		const url = `${serverUrl}/${streamType}/${itemId}/stream.${container}?${queryParts.join('&')}`;
+		// Emby's DirectPlay endpoint has no container extension; Jellyfin uses it for MIME detection
+		const streamPath = serverType === 'emby'
+			? `${serverUrl}/${streamType}/${itemId}/stream`
+			: `${serverUrl}/${streamType}/${itemId}/stream.${container}`;
+		const url = `${streamPath}?${queryParts.join('&')}`;
 		console.log('[playback] DirectPlay URL:', url);
 		return url;
 	}
@@ -319,9 +324,10 @@ const getAutoMaxBitrate = (capabilities) => {
 };
 
 export const getPlaybackInfo = async (itemId, options = {}) => {
+	const serverType = options.serverType || options.item?._serverType || jellyfinApi.getServerType();
 	const passthroughSettings = await getPlaybackAudioSettings(options);
 	const profileOptions = {...options, passthroughSettings};
-	const deviceProfile = options.deviceProfile || await getJellyfinDeviceProfile(profileOptions);
+	const deviceProfile = options.deviceProfile || await getDeviceProfile(serverType, profileOptions);
 	const capabilities = await getDeviceCapabilities(profileOptions);
 
 	// Cross-server: use item's server if available
@@ -833,6 +839,7 @@ export const getChapterImageUrl = (itemId, chapterIndex, width = 320) => {
 };
 
 export const getTrickplayInfo = async (itemId) => {
+	if (jellyfinApi.getServerType() === 'emby') return null;
 	try {
 		const serverUrl = jellyfinApi.getServerUrl();
 		const apiKey = jellyfinApi.getApiKey();
@@ -851,9 +858,10 @@ export const getMediaSegments = async (itemId) => {
 		creditsStart: null
 	};
 
-	// Try the Media Segments API first (uses authenticated request)
+	// Try the Media Segments API first (uses authenticated request). Emby has no
+	// /MediaSegments endpoint, so skip straight to the chapter fallback there.
 	try {
-		const data = await jellyfinApi.api.getMediaSegments(itemId);
+		const data = jellyfinApi.getServerType() === 'emby' ? null : await jellyfinApi.api.getMediaSegments(itemId);
 		if (data?.Items && data.Items.length > 0) {
 			for (const seg of data.Items) {
 				const type = seg.Type?.toLowerCase();
