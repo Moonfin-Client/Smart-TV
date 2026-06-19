@@ -412,9 +412,6 @@ export const api = {
 			method: 'POST'
 		}),
 
-	getNextEpisode: (seriesId, currentEpisodeId) =>
-		request(`/Shows/NextUp?UserId=${currentUser}&SeriesId=${seriesId}&StartItemId=${currentEpisodeId}&Limit=1`),
-
 	getAdjacentEpisodes: (itemId) =>
 		request(`/Users/${currentUser}/Items/${itemId}?Fields=Overview,MediaStreams,Chapters`),
 

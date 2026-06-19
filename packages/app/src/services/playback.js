@@ -921,33 +921,25 @@ export const getMediaSegments = async (itemId) => {
 export const getNextEpisode = async (item) => {
 	if (item.Type !== 'Episode' || !item.SeriesId) return null;
 	try {
-		// Try NextUp API first - returns the next unwatched episode
-		const result = await jellyfinApi.api.getNextEpisode(item.SeriesId, item.Id);
-		const nextUp = result.Items?.[0];
-
-		// If NextUp returned a different episode, use it
-		if (nextUp && nextUp.Id !== item.Id) {
-			return nextUp;
-		}
-
-		// NextUp returned the same episode (current episode not marked as watched yet)
-		// or returned nothing. Fall back to fetching episodes sequentially.
+		// Autoplay the episode that immediately follows the current one in air order.
+		// Do NOT use /Shows/NextUp here: that returns the series' first UNWATCHED
+		// episode, so finishing a later episode jumps backward to earlier gaps.
 		const seasonId = item.SeasonId || item.ParentId;
 		if (!seasonId) return null;
 
 		const episodesResult = await jellyfinApi.api.getEpisodes(item.SeriesId, seasonId);
 		const episodes = episodesResult.Items || [];
-		const currentIndex = episodes.findIndex(ep => ep.Id === item.Id);
+		// String-coerce ids: Emby returns numeric ids, so a raw === can miss.
+		const currentIndex = episodes.findIndex(ep => String(ep.Id) === String(item.Id));
 
 		if (currentIndex >= 0 && currentIndex < episodes.length - 1) {
-			// Return the next episode in the same season
 			return episodes[currentIndex + 1];
 		}
 
-		// At end of season - try the next season
+		// End of season - roll into the first episode of the next season.
 		const seasonsResult = await jellyfinApi.api.getSeasons(item.SeriesId);
 		const seasons = seasonsResult.Items || [];
-		const currentSeasonIndex = seasons.findIndex(s => s.Id === seasonId);
+		const currentSeasonIndex = seasons.findIndex(s => String(s.Id) === String(seasonId));
 
 		if (currentSeasonIndex >= 0 && currentSeasonIndex < seasons.length - 1) {
 			const nextSeason = seasons[currentSeasonIndex + 1];
