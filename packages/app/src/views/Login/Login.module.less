@@ -413,3 +413,82 @@
 	0%, 100% { opacity: 0.6; }
 	50% { opacity: 1; }
 }
+
+.discoverSection {
+	margin-top: 36px;
+	text-align: left;
+}
+
+.discoverHeader {
+	display: flex;
+	align-items: center;
+	margin-bottom: 16px;
+
+	> * + * {
+		margin-left: 14px;
+	}
+}
+
+.discoverTitle {
+	color: var(--theme-text-muted, rgba(255, 255, 255, 0.5));
+	font-size: 20px;
+	font-weight: 500;
+	letter-spacing: 0.5px;
+	text-transform: uppercase;
+}
+
+.discoverSpinner {
+	display: inline-block;
+	width: 24px;
+	height: 24px;
+	border: 3px solid rgba(var(--theme-on-surface-rgb, 255, 255, 255), 0.2);
+	border-top-color: @accent;
+	border-radius: 50%;
+	animation: spin 1s linear infinite;
+}
+
+.discoverList {
+	display: flex;
+	flex-direction: column;
+
+	> * + * {
+		margin-top: 12px;
+	}
+}
+
+.discoverItem {
+	display: flex;
+	flex-direction: column;
+	padding: 16px 24px;
+	background: rgba(var(--theme-on-surface-rgb, 255, 255, 255), 0.08);
+	border: 4px solid transparent;
+	border-radius: 12px;
+	cursor: pointer;
+	outline: none;
+	transition: all 0.2s ease;
+
+	&:hover, &:focus {
+		border-color: @accent;
+		background: var(--theme-input-focused, rgba(255, 255, 255, 0.15));
+		box-shadow: var(--theme-focus-glow, 0 0 0 4px rgba(0, 164, 220, 0.3));
+		transform: scale(1.02);
+	}
+}
+
+.discoverName {
+	color: var(--theme-text-primary, #fff);
+	font-size: 24px;
+	font-weight: 600;
+}
+
+.discoverAddress {
+	color: var(--theme-text-secondary, rgba(255, 255, 255, 0.6));
+	font-size: 18px;
+	margin-top: 4px;
+}
+
+.discoverEmpty {
+	color: var(--theme-text-muted, rgba(255, 255, 255, 0.4));
+	font-size: 20px;
+	margin: 0;
+}

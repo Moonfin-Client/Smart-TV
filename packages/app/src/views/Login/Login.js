@@ -7,6 +7,7 @@ import {useAuth} from '../../context/AuthContext';
 import * as jellyfinApi from '../../services/jellyfinApi';
 import * as embyConnect from '../../services/embyConnect';
 import {generateCandidates} from '../../utils/serverUrl';
+import {scanLocalServers} from '../../services/serverScan';
 import {classifyError, getConnectionMessage, getLoginMessage, isVersionSupported, INVALID_ADDRESS, SERVER_NOT_JELLYFIN, VERSION_UNSUPPORTED, MIN_SERVER_VERSION} from '../../utils/connectionErrors';
 import {KEYS} from '../../utils/keys';
 import SpottableInput from '../../components/SpottableInput/SpottableInput';
@@ -72,14 +73,18 @@ const Login = ({
 	const [serverType, setServerType] = useState('jellyfin');
 	const [connectServers, setConnectServers] = useState([]);
 	const [connectSession, setConnectSession] = useState(null);
+	const [discoveredServers, setDiscoveredServers] = useState([]);
+	const [isScanning, setIsScanning] = useState(false);
 
-	const handleConnect = useCallback(async () => {
-		if (!serverUrl.trim()) return;
+	const handleConnect = useCallback(async (urlOverride) => {
+		// onClick passes an event object; only treat a real string as an override
+		const target = (typeof urlOverride === 'string' && urlOverride.trim()) ? urlOverride : serverUrl;
+		if (!target.trim()) return;
 
 		setIsConnecting(true);
 		setError(null);
 
-		const candidates = generateCandidates(serverUrl);
+		const candidates = generateCandidates(target);
 		if (candidates.length === 0) {
 			setError(getConnectionMessage(INVALID_ADDRESS));
 			setIsConnecting(false);
@@ -149,6 +154,35 @@ const Login = ({
 
 		setIsConnecting(false);
 	}, [serverUrl]);
+
+	const handleDiscoveredClick = useCallback((ev) => {
+		const address = ev.currentTarget.getAttribute('data-server-address');
+		if (!address) return;
+		setServerUrl(address);
+		handleConnect(address);
+	}, [handleConnect]);
+
+	// Scan the LAN for servers whenever we're on the server-entry step
+	useEffect(() => {
+		if (step !== 'server') return undefined;
+
+		const controller = new AbortController();
+		setDiscoveredServers([]);
+		setIsScanning(true);
+
+		scanLocalServers({
+			signal: controller.signal,
+			onFound: (server) => {
+				setDiscoveredServers(prev => (
+					prev.some(s => s.Address === server.Address) ? prev : [...prev, server]
+				));
+			}
+		}).catch(() => {}).finally(() => {
+			if (!controller.signal.aborted) setIsScanning(false);
+		});
+
+		return () => controller.abort();
+	}, [step]);
 
 	// If we have a pending server, adding user to existing, or a stored server (auto-login disabled), auto-connect
 	useEffect(() => {
@@ -753,6 +787,32 @@ const Login = ({
 										</SpottableButton>
 									)}
 								</div>
+							</div>
+							<div className={css.discoverSection}>
+								<div className={css.discoverHeader}>
+									<span className={css.discoverTitle}>{$L('Servers on your network')}</span>
+									{isScanning && <span className={css.discoverSpinner} />}
+								</div>
+								{discoveredServers.length > 0 ? (
+									<div className={css.discoverList}>
+										{discoveredServers.map((server, index) => (
+											<SpottableDiv
+												key={server.Address}
+												data-spotlight-id={`discovered-${index}`}
+												data-server-address={server.Address}
+												className={css.discoverItem}
+												onClick={handleDiscoveredClick}
+											>
+												<span className={css.discoverName}>{server.Name || server.Address}</span>
+												<span className={css.discoverAddress}>{server.Address}</span>
+											</SpottableDiv>
+										))}
+									</div>
+								) : (
+									<p className={css.discoverEmpty}>
+										{isScanning ? $L('Searching your network…') : $L('No servers found nearby')}
+									</p>
+								)}
 							</div>
 						</div>
 					)}
