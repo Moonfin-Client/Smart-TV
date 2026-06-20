@@ -29,7 +29,6 @@ const initialAuthType = normalizeMoonfinAuthType(config.moonfinAuthType);
 setMoonfinAuthTypeState(initialAuthType);
 jellyseerrApi.setMoonfinConfig(config.jellyfinServerUrl, config.jellyfinAccessToken);
 jellyseerrApi.setMoonfinMode(true);
-jellyseerrApi.setConfig(config.url || config.jellyfinServerUrl, config.userId || 'moonfin-user');
 setServerUrl(config.url || config.jellyfinServerUrl);
 setIsEnabled(true);
 setIsMoonfin(true);
@@ -90,7 +89,6 @@ setMoonfinAuthTypeState(savedAuthType);
 
 jellyseerrApi.setMoonfinConfig(jellyfinServer, token);
 jellyseerrApi.setMoonfinMode(true);
-jellyseerrApi.setConfig(jellyfinServer, 'moonfin-user');
 
 const [status, pingResult, configResult] = await Promise.all([
 jellyseerrApi.getMoonfinStatus(),
@@ -214,7 +212,6 @@ setServerUrl(config.jellyfinServerUrl || config.url || null);
 
 const disable = useCallback(async () => {
 await removeFromStorage('jellyseerr');
-jellyseerrApi.setConfig(null, null);
 jellyseerrApi.setMoonfinMode(false);
 jellyseerrApi.setMoonfinConfig(null, null);
 setServerUrl(null);

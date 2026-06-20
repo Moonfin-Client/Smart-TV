@@ -1,9 +1,6 @@
 import {isWebOS, isLegacyTizen} from '../platform';
 import {fetchWithTimeout} from '../utils/fetchTimeout';
 
-let jellyseerrUrl = null;
-let userId = null;
-
 let moonfinMode = false;
 let jellyfinServerUrl = null;
 let jellyfinAccessToken = null;
@@ -11,12 +8,6 @@ let jellyfinAccessToken = null;
 // webOS 4 and legacy Tizen builds (<=3.0) can fail HTTPS validation for image.tmdb.org,
 // so use HTTP on those devices.
 const shouldUseHttp = isWebOS() || isLegacyTizen();
-
-export const setConfig = (url, user) => {
-jellyseerrUrl = url?.replace(/\/+$/, '');
-userId = user;
-console.log('[Jellyseerr] Config set:', {url: jellyseerrUrl, userId, moonfinMode});
-};
 
 export const setMoonfinConfig = (serverUrl, token) => {
 jellyfinServerUrl = serverUrl?.replace(/\/+$/, '');
@@ -33,8 +24,6 @@ console.log('[Jellyseerr] Moonfin mode:', moonfinMode ? 'enabled' : 'disabled');
 };
 
 export const isMoonfinMode = () => moonfinMode;
-
-export const getConfig = () => ({jellyseerrUrl, userId, moonfinMode, jellyfinServerUrl});
 
 const fetchRequest = async (params) => {
 const {url, method = 'GET', headers = {}, body, timeout = 15000} = params;
@@ -100,21 +89,27 @@ console.log('[Jellyseerr/Moonfin] Response:', result.status, endpoint);
 
 if (result.status >= 400) {
 let errorMessage = `Moonfin proxy error: ${result.status}`;
+let errorCode = null;
 if (result.body) {
 try {
 const errorBody = JSON.parse(result.body);
+let payload = errorBody;
 if (errorBody.FileContents) {
 try {
-const decoded = JSON.parse(decodeURIComponent(escape(atob(errorBody.FileContents))));
-errorMessage = decoded.message || decoded.error || errorMessage;
-} catch (e2) { void e2; }
-} else {
-errorMessage = errorBody.message || errorBody.error || errorMessage;
+payload = JSON.parse(decodeURIComponent(escape(atob(errorBody.FileContents))));
+} catch (e2) { void e2; payload = null; }
+}
+if (payload) {
+errorMessage = payload.message || payload.error || errorMessage;
+// Surface the plugin's structured reason (UPSTREAM_REDIRECT / UPSTREAM_HTML /
+// SESSION_EXPIRED) so the UI can explain why instead of showing an empty row.
+errorCode = payload.code || null;
 }
 } catch (e) { void e; }
 }
 const error = new Error(errorMessage);
 error.status = result.status;
+if (errorCode) error.code = errorCode;
 throw error;
 }
 
@@ -897,8 +892,6 @@ return null;
 };
 
 export default {
-setConfig,
-getConfig,
 setMoonfinConfig,
 setMoonfinMode,
 isMoonfinMode,
