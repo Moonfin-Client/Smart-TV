@@ -191,6 +191,7 @@ const LOCAL_TO_SERVER = Object.fromEntries(
 
 const TV_TO_SERVER_ROW = {
 	'latest-media': 'latestmedia',
+	'recently-released': 'recentlyreleased',
 	'library-tiles': 'smalllibrarytiles',
 	'favoriteMovies': 'favoritemovies',
 	'favoriteSeries': 'favoriteseries',
@@ -204,6 +205,7 @@ const TV_TO_SERVER_ROW = {
 };
 const SERVER_TO_TV_ROW = {
 	'latestmedia': 'latest-media',
+	'recentlyreleased': 'recently-released',
 	'smalllibrarytiles': 'library-tiles',
 	'favoritemovies': 'favoriteMovies',
 	'favoriteseries': 'favoriteSeries',
