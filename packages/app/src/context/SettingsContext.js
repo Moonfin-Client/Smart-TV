@@ -7,7 +7,7 @@ import {getAvailableThemeList, getAvailableThemes, isBuiltInThemeId, registerSto
 const DEFAULT_HOME_ROWS = [
 	{id: 'resume', name: 'Continue Watching', enabled: true, order: 0},
 	{id: 'nextup', name: 'Next Up', enabled: true, order: 1},
-	{id: 'latest-media', name: 'Latest Media', enabled: true, order: 2},
+	{id: 'latest-media', name: 'Recently Added Media', enabled: true, order: 2},
 	{id: 'collections', name: 'Collections', enabled: false, order: 3},
 	{id: 'library-tiles', name: 'My Media', enabled: false, order: 4},
 	{id: 'favoriteMovies', name: 'Favorite Movies', enabled: false, order: 5},
@@ -18,7 +18,8 @@ const DEFAULT_HOME_ROWS = [
 	{id: 'favoriteMusicVideos', name: 'Favorite Music Videos', enabled: false, order: 10},
 	{id: 'favoriteAlbums', name: 'Favorite Albums', enabled: false, order: 11},
 	{id: 'favoriteSongs', name: 'Favorite Songs', enabled: false, order: 12},
-	{id: 'genres', name: 'Genres', enabled: false, order: 13}
+	{id: 'genres', name: 'Genres', enabled: false, order: 13},
+	{id: 'recently-released', name: 'Recently Released', enabled: false, order: 14}
 ];
 
 const DEFAULT_SEERR_HOME_ROWS = [
