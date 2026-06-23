@@ -124,16 +124,7 @@ Moonfin is the first smart TV client with native Jellyseerr support.
 ### Performance
 - **Automatic Performance Tuning**: Detects how capable your TV is and dials the heaviest visual effects up or down to match, so older sets stay responsive while newer ones keep the full look
 - **Performance Mode**: Choose between Auto, High Quality, Balanced, and Performance to control the tradeoff yourself
-- **Lighter visuals on weaker hardware**: Background blur is reduced or disabled where it would otherwise slow things down
-
-### Localization
-Moonfin speaks your language. Switch the app language right from Settings, with English, German, Spanish, French, Hungarian, Polish, Portuguese (Brazil), and Russian available.
-
-Translations are managed on [Weblate](https://hosted.weblate.org/projects/moonfin/smart-tv/), so anyone can help translate Moonfin into their language and new strings are picked up automatically. Want to see your language here? [Jump in and start translating.](https://hosted.weblate.org/engage/moonfin/)
-
-<a href="https://hosted.weblate.org/engage/moonfin/">
-  <img src="https://hosted.weblate.org/widgets/moonfin/-/smart-tv/multi-auto.svg" alt="Translation status" />
-</a>
+- **Lighter visuals on weaker hardware**: Background blur is reduced or disabled where it would otherwise slow things dow
 
 ---
 
