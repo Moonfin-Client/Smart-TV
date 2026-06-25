@@ -1265,7 +1265,7 @@ const Browse = ({
 						Promise.all(
 							eligibleLibraries.map(lib =>
 								api.getRecentlyReleased(lib.Id, 16)
-									.then(result => ({lib, result}))
+									.then(latest => ({lib, latest}))
 									.catch(() => null)
 							)
 						),
@@ -1317,7 +1317,7 @@ const Browse = ({
 				}
 
 				for (const result of recentlyReleasedResults) {
-					if (result && result.result?.length > 0) {
+					if (result && result.latest.Items?.length > 0) {
 						const libraryTitle = unifiedMode && result.lib._serverName
 							? `${result.lib.Name} (${result.lib._serverName})`
 							: result.lib.Name;
@@ -1326,7 +1326,7 @@ const Browse = ({
 						newRows.push({
 							id: rowId,
 							title: $L('Recently Released in {libraryTitle}').replace('{libraryTitle}', libraryTitle),
-							items: result.result,
+							items: result.latest.Items,
 							library: result.lib,
 							type: result.lib.CollectionType?.toLowerCase() === 'music' ? 'square' : 'portrait',
 							isRecentlyReleasedRow: true
