@@ -1508,6 +1508,19 @@ const Browse = ({
 		} else {
 			onBlurItemThemeMusic?.();
 		}
+		// After the card expands, scroll the container down if the row bottom is clipped
+		const rowIndex = lastFocusedRowRef.current;
+				if (typeof rowIndex !== 'number') return;
+		window.requestAnimationFrame(() => {
+			const rowEl = rowRefsMap.current.get(rowIndex);
+			const container = contentRowsRef.current;
+			if (!rowEl || !container) return;
+			const rowBottom = rowEl.offsetTop + rowEl.offsetHeight;
+			const containerBottom = container.scrollTop + container.clientHeight;
+			if (rowBottom > containerBottom) {
+				container.scrollTop = rowBottom - container.clientHeight;
+			}
+		});
 	}, [onFocusItemThemeMusic, onBlurItemThemeMusic, showTopInfoArea]);
 
 	if (isLoading) {
