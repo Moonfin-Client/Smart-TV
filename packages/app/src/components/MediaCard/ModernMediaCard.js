@@ -55,7 +55,10 @@ const getMetadataLine = (item) => {
 const getEpisodeLabel = (item) => {
 	if (!item || item.Type !== 'Episode') return '';
 	if (!Number.isFinite(item.ParentIndexNumber) || !Number.isFinite(item.IndexNumber)) return '';
-	return `S${item.ParentIndexNumber} E${item.IndexNumber}`;
+	const epInfo = `S${item.ParentIndexNumber} E${item.IndexNumber}`;
+	return [epInfo, item.Name]
+		.filter((s) => s != null && s !== '')
+		.join(' — ');
 };
 
 const ModernMediaCard = ({
