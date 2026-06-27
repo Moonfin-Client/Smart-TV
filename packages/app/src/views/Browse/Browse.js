@@ -665,6 +665,10 @@ const Browse = ({
 	}, [allRowData, seerrRows, homeRowsConfig, pluginSectionsConfig, settings.mergeContinueWatchingNextUp, isRowVisibleByGates]);
 
 	const focusRow = useCallback((rowIndex) => {
+		if (Spotlight.focus(`row-${rowIndex}`)) {
+			return true;
+		}
+
 		const row = filteredRowsRef.current[rowIndex];
 		const firstItemId = row?.items?.[0]?.Id;
 		const keyPrefix = row?.id || rowIndex;
@@ -676,7 +680,7 @@ const Browse = ({
 			}
 		}
 
-		return Spotlight.focus('row-' + rowIndex);
+		return false;
 	}, []);
 
 	const scrollToRow = useCallback((rowIndex, thenFocus) => {
@@ -1508,19 +1512,6 @@ const Browse = ({
 		} else {
 			onBlurItemThemeMusic?.();
 		}
-		// After the card expands, scroll the container down if the row bottom is clipped
-		const rowIndex = lastFocusedRowRef.current;
-				if (typeof rowIndex !== 'number') return;
-		window.requestAnimationFrame(() => {
-			const rowEl = rowRefsMap.current.get(rowIndex);
-			const container = contentRowsRef.current;
-			if (!rowEl || !container) return;
-			const rowBottom = rowEl.offsetTop + rowEl.offsetHeight;
-			const containerBottom = container.scrollTop + container.clientHeight;
-			if (rowBottom > containerBottom) {
-				container.scrollTop = rowBottom - container.clientHeight;
-			}
-		});
 	}, [onFocusItemThemeMusic, onBlurItemThemeMusic, showTopInfoArea]);
 
 	if (isLoading) {
