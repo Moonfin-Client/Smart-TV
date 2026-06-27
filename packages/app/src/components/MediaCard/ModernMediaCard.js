@@ -55,7 +55,10 @@ const getMetadataLine = (item) => {
 const getEpisodeLabel = (item) => {
 	if (!item || item.Type !== 'Episode') return '';
 	if (!Number.isFinite(item.ParentIndexNumber) || !Number.isFinite(item.IndexNumber)) return '';
-	return `S${item.ParentIndexNumber} E${item.IndexNumber}`;
+	const epInfo = `S${item.ParentIndexNumber} E${item.IndexNumber}`;
+	return [epInfo, item.Name]
+		.filter((s) => s != null && s !== '')
+		.join(' — ');
 };
 
 const ModernMediaCard = ({
@@ -186,10 +189,11 @@ const ModernMediaCard = ({
 
 	const sizeMultiplier = POSTER_SIZE_MULTIPLIERS[settings.homeRowsPosterSize] || 1;
 	const imageHeight = Math.round(360 * sizeMultiplier);
-	const cardWidth = Math.round((imageHeight * 2) / 3);
+	const isSquareItem = item?.Type === 'MusicAlbum' || item?.Type === 'Audio';
+	const cardWidth = isSquareItem ? imageHeight : Math.round((imageHeight * 2) / 3);
 	const expandedWidthFactor = platform === 'tizen' ? 1.5 : 1.65;
 	const expandedWidth = Math.max(cardWidth, Math.round(imageHeight * expandedWidthFactor));
-	const canRenderExpanded = Boolean(metadata || item?.CommunityRating || shouldShowOverview);
+	const canRenderExpanded = !isSquareItem && Boolean(metadata || item?.CommunityRating || shouldShowOverview);
 
 	const cardClassName = [
 		css.card,

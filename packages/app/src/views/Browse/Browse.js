@@ -232,6 +232,12 @@ const stripItemForCache = (item) => ({
 	IndexNumber: item.IndexNumber,
 	ParentThumbItemId: item.ParentThumbItemId,
 	ParentBackdropItemId: item.ParentBackdropItemId,
+	CommunityRating: item.CommunityRating,
+	Genres: item.Genres,
+	GenreItems: item.GenreItems,
+	Overview: item.Overview,
+	ProductionYear: item.ProductionYear,
+	RunTimeTicks: item.RunTimeTicks,
 	AlbumId: item.AlbumId,
 	AlbumPrimaryImageTag: item.AlbumPrimaryImageTag,
 	AlbumArtist: item.AlbumArtist,
@@ -659,6 +665,10 @@ const Browse = ({
 	}, [allRowData, seerrRows, homeRowsConfig, pluginSectionsConfig, settings.mergeContinueWatchingNextUp, isRowVisibleByGates]);
 
 	const focusRow = useCallback((rowIndex) => {
+		if (Spotlight.focus(`row-${rowIndex}`)) {
+			return true;
+		}
+
 		const row = filteredRowsRef.current[rowIndex];
 		const firstItemId = row?.items?.[0]?.Id;
 		const keyPrefix = row?.id || rowIndex;
@@ -670,7 +680,7 @@ const Browse = ({
 			}
 		}
 
-		return Spotlight.focus('row-' + rowIndex);
+		return false;
 	}, []);
 
 	const scrollToRow = useCallback((rowIndex, thenFocus) => {
