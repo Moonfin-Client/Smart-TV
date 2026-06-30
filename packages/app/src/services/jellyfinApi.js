@@ -16,6 +16,15 @@ let currentUser = null;
 let accessToken = null;
 let serverType = 'jellyfin';
 
+// ParentIds that returned 401/403 (no library access) this session. Requests
+// for them are skipped so a restricted user does not repeatedly hit the server
+// with 401s, which can trip reverse-proxy Fail2Ban jails (#272).
+const accessDeniedParentIds = new Set();
+const parentIdOf = (endpoint) => {
+	const match = /[?&]ParentId=([^&]+)/.exec(endpoint);
+	return match ? match[1] : null;
+};
+
 export const setServer = (serverUrl) => {
 	currentServer = normalizeServerUrl(serverUrl);
 };
@@ -29,6 +38,7 @@ export const getServerType = () => serverType;
 export const setAuth = (userId, token) => {
 	currentUser = userId;
 	accessToken = token;
+	accessDeniedParentIds.clear();
 	if (token) reportCapabilities();
 };
 
@@ -91,6 +101,12 @@ export const getDeviceId = () => deviceId;
 
 const request = async (endpoint, options = {}) => {
 	const url = `${currentServer}${endpoint}`;
+	const parentId = parentIdOf(endpoint);
+	if (parentId && accessDeniedParentIds.has(parentId)) {
+		const error = new Error('Access denied (cached): ' + parentId);
+		error.status = 403;
+		throw error;
+	}
 
 	let response;
 	try {
@@ -112,6 +128,9 @@ const request = async (endpoint, options = {}) => {
 	}
 
 	if (!response.ok) {
+		if ((response.status === 401 || response.status === 403) && parentId) {
+			accessDeniedParentIds.add(parentId);
+		}
 		const error = new Error('API Error: ' + response.status);
 		error.status = response.status;
 		error.connectionType = classifyError(error);
@@ -493,6 +512,13 @@ export const createApiForServer = (serverUrl, token, userId, serverTypeOverride 
 
 	const serverRequest = async (endpoint, options = {}) => {
 		const requestUrl = `${url}${endpoint}`;
+		const deniedParentId = parentIdOf(endpoint);
+		const deniedKey = deniedParentId ? `${url}|${deniedParentId}` : null;
+		if (deniedKey && accessDeniedParentIds.has(deniedKey)) {
+			const error = new Error('Access denied (cached): ' + deniedParentId);
+			error.status = 403;
+			throw error;
+		}
 
 		let response;
 		try {
@@ -514,6 +540,9 @@ export const createApiForServer = (serverUrl, token, userId, serverTypeOverride 
 		}
 
 		if (!response.ok) {
+			if ((response.status === 401 || response.status === 403) && deniedKey) {
+				accessDeniedParentIds.add(deniedKey);
+			}
 			const error = new Error('API Error: ' + response.status);
 			error.status = response.status;
 			error.connectionType = classifyError(error);
