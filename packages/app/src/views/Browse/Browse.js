@@ -992,7 +992,11 @@ const Browse = ({
 					});
 				}
 
-				dispatch({type: 'SET_INITIAL_DATA', rowData, featuredItems: cachedFeaturedItems});
+				dispatch({type: 'SET_INITIAL_DATA', rowData});
+				// Populate the Mediabar via the settings-aware loader so it honors
+				// the selected libraries; the server-wide random items are only a
+				// fallback (otherwise excluded libraries leak in).
+				fetchFreshFeaturedItems(cachedFeaturedItems);
 
 				const eligibleLibraries = libs.filter(lib => {
 					if (EXCLUDED_COLLECTION_TYPES.includes(lib.CollectionType?.toLowerCase())) {
