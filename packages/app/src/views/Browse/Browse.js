@@ -558,6 +558,7 @@ const Browse = ({
 				if (row.isPluginRow) return enabledPluginIds.includes(row.id);
 				if (!isRowVisibleByGates(row.id)) return false;
 				if (row.isLatestRow) return enabledRowIds.includes('latest-media');
+				if (row.isRecentlyReleasedRow) return enabledRowIds.includes('recently-released');
 				return enabledRowIds.includes(row.id);
 			});
 		} else {
@@ -583,6 +584,9 @@ const Browse = ({
 					if (row.isLatestRow) {
 						return enabledRowIds.includes('latest-media');
 					}
+					if (row.isRecentlyReleasedRow) {
+						return enabledRowIds.includes('recently-released');
+					}
 					if (!isRowVisibleByGates(row.id)) {
 						return false;
 					}
@@ -604,7 +608,12 @@ const Browse = ({
 				const libName = row.library._serverName
 					? `${row.library.Name} (${row.library._serverName})`
 					: row.library.Name;
-				title = $L('Latest in {libraryTitle}').replace('{libraryTitle}', libName);
+				title = $L('Recently Added in {libraryTitle}').replace('{libraryTitle}', libName);
+			} else if (row.isRecentlyReleasedRow && row.library) {
+				const libName = row.library._serverName
+				? `${row.library.Name} (${row.library._serverName})`
+				: row.library.Name;
+				title = $L('Recently Released in {libraryTitle}').replace('{libraryTitle}', libName);
 			}
 			return title && title !== row.title ? {...row, title} : row;
 		});
@@ -625,6 +634,8 @@ const Browse = ({
 					order = Number.isFinite(continueOrder) ? continueOrder : 0;
 				} else if (row.isLatestRow) {
 					order = rowOrderMap.get('latest-media');
+				} else if (row.isRecentlyReleasedRow) {
+					order = rowOrderMap.get('recently-released');
 				} else if (row.isSeerrRow) {
 					order = 3000 + index;
 				}
@@ -1009,6 +1020,7 @@ const Browse = ({
 				});
 
 				let latestResults;
+				let recentlyReleasedResults;
 				let collectionsResult = null;
 				let favoriteResults = [];
 				let genresResult = null;
@@ -1246,10 +1258,17 @@ const Browse = ({
 					const genresIncludeTypes = getGenresIncludeTypes(settings.genresRowItemFilter);
 					const enabledPluginSections = (settings.pluginSections || []).filter((section) => section.enabled);
 
-					[latestResults, collectionsResult, favoriteResults, genresResult, pluginRows] = await Promise.all([
+					[latestResults, recentlyReleasedResults, collectionsResult, favoriteResults, genresResult, pluginRows] = await Promise.all([
 						Promise.all(
 							eligibleLibraries.map(lib =>
 								api.getLatest(lib.Id, 16)
+									.then(latest => ({lib, latest}))
+									.catch(() => null)
+							)
+						),
+						Promise.all(
+							eligibleLibraries.map(lib =>
+								api.getRecentlyReleased(lib.Id, 16)
 									.then(latest => ({lib, latest}))
 									.catch(() => null)
 							)
@@ -1292,11 +1311,29 @@ const Browse = ({
 
 						newRows.push({
 							id: rowId,
-							title: $L('Latest in {libraryTitle}').replace('{libraryTitle}', libraryTitle),
+							title: $L('Recently Added in {libraryTitle}').replace('{libraryTitle}', libraryTitle),
 							items: result.latest,
 							library: result.lib,
 							type: result.lib.CollectionType?.toLowerCase() === 'music' ? 'square' : 'portrait',
 							isLatestRow: true
+						});
+					}
+				}
+
+				for (const result of recentlyReleasedResults) {
+					if (result && result.latest.Items?.length > 0) {
+						const libraryTitle = unifiedMode && result.lib._serverName
+							? `${result.lib.Name} (${result.lib._serverName})`
+							: result.lib.Name;
+						const rowId = `recently-released-${result.lib.Id}${result.lib._serverName ? '-' + result.lib._serverName : ''}`;
+
+						newRows.push({
+							id: rowId,
+							title: $L('Recently Released in {libraryTitle}').replace('{libraryTitle}', libraryTitle),
+							items: result.latest.Items,
+							library: result.lib,
+							type: result.lib.CollectionType?.toLowerCase() === 'music' ? 'square' : 'portrait',
+							isRecentlyReleasedRow: true
 						});
 					}
 				}
