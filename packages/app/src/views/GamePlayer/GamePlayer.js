@@ -1,4 +1,4 @@
-import {useState, useEffect, useRef, useCallback} from 'react';
+import {memo, useState, useEffect, useRef, useCallback} from 'react';
 import $L from '@enact/i18n/$L';
 import Spotlight from '@enact/spotlight';
 import Spottable from '@enact/spotlight/Spottable';
@@ -12,6 +12,25 @@ import css from './GamePlayer.module.less';
 
 const SpottableRow = Spottable('div');
 const OverlayContainer = SpotlightContainerDecorator({enterTo: 'default-element', restrict: 'self-only'}, 'div');
+
+// One emulator-setting row. OK / right cycles the value forward, left cycles back.
+const SettingRow = memo(({opt, first, onChange}) => {
+	const cur = opt.choices.find((c) => c.value === opt.current);
+	const next = useCallback(() => onChange(opt, 1), [onChange, opt]);
+	const prev = useCallback(() => onChange(opt, -1), [onChange, opt]);
+	return (
+		<SpottableRow
+			spotlightId={first ? 'game-setting-0' : undefined}
+			className={css.settingRow}
+			onClick={next}
+			onSpotlightLeft={prev}
+			onSpotlightRight={next}
+		>
+			<span className={css.settingLabel}>{opt.label}</span>
+			<span className={css.settingValue}>{cur ? cur.label : opt.current}</span>
+		</SpottableRow>
+	);
+});
 
 const GamePlayer = ({library, game, startFresh, onBack, backHandlerRef}) => {
 	const [ready, setReady] = useState(false);
@@ -182,22 +201,9 @@ const GamePlayer = ({library, game, startFresh, onBack, backHandlerRef}) => {
 						<div className={css.panelTitle}>{$L('Emulator settings')}</div>
 						{options.length === 0 ? (
 							<div className={css.empty}>{$L('This core has no adjustable options.')}</div>
-						) : options.map((opt, i) => {
-							const cur = opt.choices.find((c) => c.value === opt.current);
-							return (
-								<SpottableRow
-									key={opt.id}
-									spotlightId={i === 0 ? 'game-setting-0' : undefined}
-									className={css.settingRow}
-									onClick={() => changeOption(opt, 1)}
-									onSpotlightLeft={() => changeOption(opt, -1)}
-									onSpotlightRight={() => changeOption(opt, 1)}
-								>
-									<span className={css.settingLabel}>{opt.label}</span>
-									<span className={css.settingValue}>{cur ? cur.label : opt.current}</span>
-								</SpottableRow>
-							);
-						})}
+						) : options.map((opt, i) => (
+							<SettingRow key={opt.id} opt={opt} first={i === 0} onChange={changeOption} />
+						))}
 					</OverlayContainer>
 				</div>
 			) : null}

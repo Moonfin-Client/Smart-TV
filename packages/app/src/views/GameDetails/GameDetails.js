@@ -54,6 +54,8 @@ const GameDetails = ({library, gameId, initialGame, onPlay, onSelectGame, backHa
 	}, [game]);
 
 	const play = useCallback((fresh) => onPlay && onPlay(library, game, {fresh}), [onPlay, library, game]);
+	const handlePlay = useCallback(() => play(false), [play]);
+	const handleRestart = useCallback(() => play(true), [play]);
 	const openRelated = useCallback((g) => onSelectGame && onSelectGame(library, g), [onSelectGame, library]);
 
 	if (loading) return <div className={css.center}><LoadingSpinner /></div>;
@@ -80,11 +82,11 @@ const GameDetails = ({library, gameId, initialGame, onPlay, onSelectGame, backHa
 					<div className={css.meta}>{metaLine(game)}</div>
 					{game.overview ? <div className={css.overview}>{game.overview}</div> : null}
 					<div className={css.actions}>
-						<Button spotlightId="game-play-btn" icon="play" onClick={() => play(false)}>
+						<Button spotlightId="game-play-btn" icon="play" onClick={handlePlay}>
 							{hasSave ? $L('Continue') : $L('Play')}
 						</Button>
 						{hasSave ? (
-							<Button icon="refresh" onClick={() => play(true)}>{$L('Restart')}</Button>
+							<Button icon="refresh" onClick={handleRestart}>{$L('Restart')}</Button>
 						) : null}
 					</div>
 				</div>

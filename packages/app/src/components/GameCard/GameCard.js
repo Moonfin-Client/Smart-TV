@@ -15,6 +15,7 @@ const GameCard = ({game, width = 200, spotlightId, onSelect}) => {
 	const title = gameDisplayTitle(game.title, game.fileName);
 
 	const handleSelect = useCallback(() => onSelect && onSelect(game), [onSelect, game]);
+	const handleError = useCallback(() => setFailed(true), []);
 
 	return (
 		<SpottableDiv
@@ -31,7 +32,7 @@ const GameCard = ({game, width = 200, spotlightId, onSelect}) => {
 						</svg>
 					</div>
 				) : (
-					<img className={css.image} src={url} alt="" onError={() => setFailed(true)} />
+					<img className={css.image} src={url} alt="" onError={handleError} />
 				)}
 			</div>
 			<div className={css.title}>{title}</div>
