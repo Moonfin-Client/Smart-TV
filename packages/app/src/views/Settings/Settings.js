@@ -322,8 +322,8 @@ const getImageTypeOptions = () => [
 ];
 
 const getHomeRowsStyleOptions = () => [
-	{ value: 'modern', label: $L('Modern') },
-	{ value: 'classic', label: $L('Classic') }
+	{ value: 'v2', label: $L('Modern') },
+	{ value: 'v1', label: $L('Classic') }
 ];
 
 const getHomeRowSortOptions = () => [
