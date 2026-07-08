@@ -415,7 +415,7 @@ const Browse = ({
 		};
 	}, [activeTheme]);
 
-	const useModernRows = settings.homeRowsStyle !== 'classic';
+	const useModernRows = settings.homeRowsStyle !== 'v1';
 	const RowComponent = useModernRows ? ModernMediaRow : ClassicMediaRow;
 	const showTopInfoArea = !useModernRows;
 
