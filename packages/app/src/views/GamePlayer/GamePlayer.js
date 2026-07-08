@@ -44,9 +44,13 @@ const GamePlayer = ({library, game, startFresh, onBack, backHandlerRef}) => {
 	const blobs = useRef([]);
 	const exiting = useRef(false);
 	const stateRef = useRef({overlayOpen: false, settingsOpen: false});
-	stateRef.current = {overlayOpen, settingsOpen};
+	stateRef.current = {overlayOpen, settingsOpen, error};
 
 	useEffect(() => {
+		if (!ejs.isSupported()) {
+			setError($L('Games require webOS 5 or Tizen 5 and newer.'));
+			return undefined;
+		}
 		let cancelled = false;
 		const libraryId = library?.Id;
 		(async () => {
@@ -123,13 +127,14 @@ const GamePlayer = ({library, game, startFresh, onBack, backHandlerRef}) => {
 		if (!backHandlerRef) return undefined;
 		backHandlerRef.current = () => {
 			const s = stateRef.current;
-			if (s.settingsOpen) { setSettingsOpen(false); setTimeout(() => Spotlight.focus('game-overlay-first'), 0); }
+			if (s.error) { if (onBack) onBack(); }
+			else if (s.settingsOpen) { setSettingsOpen(false); setTimeout(() => Spotlight.focus('game-overlay-first'), 0); }
 			else if (s.overlayOpen) { closeOverlay(); }
 			else { openOverlay(); }
 			return true;
 		};
 		return () => { backHandlerRef.current = null; };
-	}, [backHandlerRef, openOverlay, closeOverlay]);
+	}, [backHandlerRef, openOverlay, closeOverlay, onBack]);
 
 	// Pause Spotlight once the game is running (resumed by the overlay).
 	useEffect(() => {

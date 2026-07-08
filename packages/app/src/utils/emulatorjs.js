@@ -8,9 +8,18 @@ const CDN = 'https://cdn.emulatorjs.org/stable/data/';
 
 let loaderScript = null;
 
+// EmulatorJS cores are WebAssembly, which needs Chromium 57+. Older WebViews (webOS 3/4,
+// Tizen 2.4/3) lack it entirely, so games cannot run there no matter the polyfills.
+export const isSupported = () =>
+	typeof WebAssembly === 'object' && typeof WebAssembly.instantiate === 'function';
+
+// The core needs a modern WebView (async/await, object spread); older ones fail to parse it and
+// EJS_ready never fires. Reject after this so the caller can show an error instead of hanging.
+const READY_TIMEOUT = 40000;
+
 // Starts EmulatorJS in the element matching `selector` and resolves once the core is ready.
 export const startEmulator = ({selector, core, gameUrl, biosUrl, gameName, settingsJson}) =>
-	new Promise((resolve) => {
+	new Promise((resolve, reject) => {
 		if (settingsJson) {
 			try { window.localStorage.setItem('ejs-settings', settingsJson); } catch (e) { /* ignore */ }
 		}
@@ -20,11 +29,14 @@ export const startEmulator = ({selector, core, gameUrl, biosUrl, gameName, setti
 		if (biosUrl) window.EJS_biosUrl = biosUrl;
 		if (gameName) window.EJS_gameName = gameName;
 		window.EJS_pathtodata = CDN;
+		window.EJS_language = 'en-US';
 		window.EJS_startOnLoaded = true;
 		window.EJS_threads = false;
 		// No touch screen on TV; keep the on-screen pad off.
 		window.EJS_defaultOptions = Object.assign({}, window.EJS_defaultOptions, {'virtual-gamepad': 'disabled'});
-		window.EJS_ready = () => resolve();
+
+		const timer = setTimeout(() => reject(new Error('emulator-load-timeout')), READY_TIMEOUT);
+		window.EJS_ready = () => { clearTimeout(timer); resolve(); };
 
 		loaderScript = document.createElement('script');
 		loaderScript.src = CDN + 'loader.js';

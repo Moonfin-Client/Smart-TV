@@ -82,11 +82,11 @@ const GameDetails = ({library, gameId, initialGame, onPlay, onSelectGame, backHa
 					<div className={css.meta}>{metaLine(game)}</div>
 					{game.overview ? <div className={css.overview}>{game.overview}</div> : null}
 					<div className={css.actions}>
-						<Button spotlightId="game-play-btn" icon="play" onClick={handlePlay}>
+						<Button spotlightId="game-play-btn" onClick={handlePlay}>
 							{hasSave ? $L('Continue') : $L('Play')}
 						</Button>
 						{hasSave ? (
-							<Button icon="refresh" onClick={handleRestart}>{$L('Restart')}</Button>
+							<Button onClick={handleRestart}>{$L('Restart')}</Button>
 						) : null}
 					</div>
 				</div>
