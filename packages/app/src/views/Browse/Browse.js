@@ -38,6 +38,39 @@ const STORAGE_KEY_BROWSE = 'browse_cache_v2';
 let cachedRowData = null;
 let cachedLibraries = null;
 let cachedFeaturedItems = null;
+
+const parseHiddenMap = (val) => {
+	if (!val) return {};
+	try {
+		return typeof val === 'string' ? JSON.parse(val) : val;
+	} catch (e) {
+		return {};
+	}
+};
+
+const isItemHiddenFromCW = (item, hiddenCWMap) => {
+	const id = item.SeriesId || item.Id;
+	if (!id || !hiddenCWMap[id]) return false;
+	const hideTime = hiddenCWMap[id];
+	const lastPlayed = item.UserData?.LastPlayedDate;
+	if (lastPlayed) {
+		const lastPlayedMs = Date.parse(lastPlayed);
+		if (lastPlayedMs > hideTime) return false;
+	}
+	return true;
+};
+
+const isSeriesHiddenFromNextUp = (item, hiddenNUMap) => {
+	const seriesId = item.SeriesId;
+	if (!seriesId || !hiddenNUMap[seriesId]) return false;
+	const hideTime = hiddenNUMap[seriesId];
+	const lastPlayed = item.UserData?.LastPlayedDate;
+	if (lastPlayed) {
+		const lastPlayedMs = Date.parse(lastPlayed);
+		if (lastPlayedMs > hideTime) return false;
+	}
+	return true;
+};
 let cacheTimestamp = null;
 
 let lastFocusState = null;
@@ -474,6 +507,9 @@ const Browse = ({
 		homeRowsConfig.forEach((row) => rowOrderMap.set(row.id, row.order));
 		pluginSectionsConfig.forEach((section, index) => rowOrderMap.set(section.id, (section.order ?? index) + 1000));
 
+		const hiddenCWMap = parseHiddenMap(settings.hiddenContinueWatchingItems);
+		const hiddenNUMap = parseHiddenMap(settings.hiddenNextUpSeries);
+
 		let result;
 
 		if (settings.mergeContinueWatchingNextUp) {
@@ -484,8 +520,8 @@ const Browse = ({
 			result = allRowData.filter(r => r.id !== 'resume' && r.id !== 'nextup');
 
 			if (mergeResumeRow || nextUpRow) {
-				const resumeItems = mergeResumeRow?.items || [];
-				const nextUpItems = nextUpRow?.items || [];
+				const resumeItems = (mergeResumeRow?.items || []).filter(item => !isItemHiddenFromCW(item, hiddenCWMap));
+				const nextUpItems = (nextUpRow?.items || []).filter(item => !isSeriesHiddenFromNextUp(item, hiddenNUMap) && !isItemHiddenFromCW(item, hiddenCWMap));
 				const recentlyPlayedItems = recentlyPlayed?.items || [];
 
 				const seriesLastPlayedMap = new Map();
@@ -562,12 +598,16 @@ const Browse = ({
 			});
 		} else {
 			const resumeRow = allRowData.find(r => r.id === 'resume');
-			const resumeItemIds = new Set((resumeRow?.items || []).map(item => item.Id));
+			const resumeItems = (resumeRow?.items || []).filter(item => !isItemHiddenFromCW(item, hiddenCWMap));
+			const resumeItemIds = new Set(resumeItems.map(item => item.Id));
 
 			result = allRowData
 				.map(row => {
-					if (row.id === 'nextup' && resumeItemIds.size > 0) {
-						const filteredItems = row.items.filter(item => !resumeItemIds.has(item.Id));
+					if (row.id === 'resume') {
+						return {...row, items: resumeItems};
+					}
+					if (row.id === 'nextup') {
+						const filteredItems = row.items.filter(item => !resumeItemIds.has(item.Id) && !isSeriesHiddenFromNextUp(item, hiddenNUMap) && !isItemHiddenFromCW(item, hiddenCWMap));
 						return filteredItems.length > 0 ? {...row, items: filteredItems} : null;
 					}
 					return row;
@@ -656,7 +696,7 @@ const Browse = ({
 
 		prevFilteredRowsRef.current = result;
 		return result;
-	}, [allRowData, seerrRows, homeRowsConfig, pluginSectionsConfig, settings.mergeContinueWatchingNextUp, isRowVisibleByGates]);
+	}, [allRowData, seerrRows, homeRowsConfig, pluginSectionsConfig, settings.mergeContinueWatchingNextUp, settings.hiddenContinueWatchingItems, settings.hiddenNextUpSeries, isRowVisibleByGates]);
 
 	const focusRow = useCallback((rowIndex) => {
 		const row = filteredRowsRef.current[rowIndex];
