@@ -115,7 +115,7 @@ const defaultSettings = {
 	useSeriesThumbnails: false,
 	homeRowsPosterSize: 'default',
 	homeRowsImageType: 'poster',
-	homeRowsStyle: 'modern',
+	homeRowsStyle: 'v2',
 	homeRowOverlay: 'off',
 	folderViewMode: 'local',
 	excludedGenres: [],
@@ -235,7 +235,7 @@ const mergeHomeRows = (rows) => {
 	return merged;
 };
 
-const normalizeHomeRowsStyle = (value) => (value === 'classic' || value === 'modern' ? value : 'modern');
+const normalizeHomeRowsStyle = (value) => (value === 'v1' || value === 'v2' ? value : 'v2');
 
 const normalizeGuid = (id) => {
 	if (!id || typeof id !== 'string') return id;
@@ -403,7 +403,7 @@ export function SettingsProvider({children}) {
 					migrated = true;
 				}
 				if (!hasExplicitHomeRowsStyle) {
-					stored.homeRowsStyle = 'modern';
+					stored.homeRowsStyle = 'v2';
 					migrated = true;
 				} else {
 					const normalizedStyle = normalizeHomeRowsStyle(stored.homeRowsStyle);
