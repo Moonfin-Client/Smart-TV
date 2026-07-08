@@ -187,7 +187,7 @@ export const connectWebSocket = () => {
 
 	const wsProto = serverUrl.startsWith('https') ? 'wss' : 'ws';
 	const host = serverUrl.replace(/^https?:\/\//, '');
-	const wsUrl = `${wsProto}://${host}/socket?api_key=${encodeURIComponent(getApiKey())}&deviceId=${encodeURIComponent(getDeviceId())}`;
+	const wsUrl = `${wsProto}://${host}/socket?ApiKey=${encodeURIComponent(getApiKey())}&deviceId=${encodeURIComponent(getDeviceId())}`;
 
 	try {
 		ws = new WebSocket(wsUrl);

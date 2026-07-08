@@ -6,6 +6,7 @@ import SpotlightContainerDecorator from '@enact/spotlight/SpotlightContainerDeco
 import {useSettings} from '../../context/SettingsContext';
 import {isBackKey, KEYS} from '../../utils/keys';
 import {fetchShuffleGenres, fetchShuffleLibraries, fetchRandomItems} from '../../services/shuffleOverlayService';
+import {getTokenParam} from '../../services/jellyfinApi';
 import RatingsRow from '../RatingsRow';
 
 import css from './ShuffleOverlay.module.less';
@@ -36,7 +37,7 @@ const buildItemImageUrl = (item, fallbackServerUrl, fallbackAccessToken) => {
 	const parentTag = item.ParentThumbImageTag;
 	const tag = primaryTag || seriesTag || parentTag || '';
 	const tagParam = tag ? `&tag=${encodeURIComponent(tag)}` : '';
-	const tokenParam = accessToken ? `&X-Emby-Token=${encodeURIComponent(accessToken)}` : '';
+	const tokenParam = accessToken ? `&${getTokenParam(item._serverType)}=${encodeURIComponent(accessToken)}` : '';
 
 	return `${serverUrl}/Items/${item.Id}/Images/Primary?fillWidth=320&fillHeight=480&quality=80${tagParam}${tokenParam}`;
 };

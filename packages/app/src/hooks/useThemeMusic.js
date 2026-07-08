@@ -9,7 +9,7 @@ const HOME_ROW_DELAY = 1500;
 const buildAudioUrl = (itemId) => {
 	const server = jellyfinApi.getServerUrl();
 	const token = jellyfinApi.getApiKey();
-	return `${server}/Audio/${encodeURIComponent(itemId)}/stream?static=true&audioCodec=mp3&audioBitrate=128000&api_key=${encodeURIComponent(token)}`;
+	return `${server}/Audio/${encodeURIComponent(itemId)}/stream?static=true&audioCodec=mp3&audioBitrate=128000&${jellyfinApi.getTokenParam()}=${encodeURIComponent(token)}`;
 };
 
 export const useThemeMusic = () => {

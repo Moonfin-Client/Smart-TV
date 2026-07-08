@@ -202,7 +202,7 @@ const buildPlaybackUrl = (itemId, mediaSource, playSessionId, playMethod, creden
 			'Static=true',
 			'mediaSourceId=' + encodeURIComponent(mediaSource.Id),
 			'deviceId=' + encodeURIComponent(deviceId),
-			'api_key=' + encodeURIComponent(apiKey)
+			jellyfinApi.getTokenParam(serverType) + '=' + encodeURIComponent(apiKey)
 		];
 		// Include ETag if available
 		if (mediaSource.ETag) {
@@ -226,7 +226,7 @@ const buildPlaybackUrl = (itemId, mediaSource, playSessionId, playMethod, creden
 			const url = mediaSource.DirectStreamUrl.startsWith('http')
 				? mediaSource.DirectStreamUrl
 				: `${serverUrl}${mediaSource.DirectStreamUrl}`;
-			return url.includes('api_key') ? url : `${url}&api_key=${apiKey}`;
+			return /api_?key=/i.test(url) ? url : `${url}&${jellyfinApi.getTokenParam(serverType)}=${apiKey}`;
 		}
 	}
 
@@ -246,7 +246,7 @@ const buildPlaybackUrl = (itemId, mediaSource, playSessionId, playMethod, creden
 		const url = transcodeUrl.startsWith('http')
 			? transcodeUrl
 			: `${serverUrl}${transcodeUrl}`;
-		return url.includes('api_key') ? url : `${url}&api_key=${apiKey}`;
+		return /api_?key=/i.test(url) ? url : `${url}&${jellyfinApi.getTokenParam(serverType)}=${apiKey}`;
 	}
 
 	throw new Error('No playback URL available');
@@ -274,6 +274,7 @@ const extractSubtitleStreams = (mediaSource, itemId = null, creds = null) => {
 	if (!mediaSource.MediaStreams) return [];
 	const serverUrl = creds?.serverUrl || jellyfinApi.getServerUrl();
 	const apiKey = creds?.accessToken || jellyfinApi.getApiKey();
+	const tokenParam = jellyfinApi.getTokenParam(creds?.serverType);
 
 	return mediaSource.MediaStreams
 		.filter(s => s.Type === 'Subtitle')
@@ -285,7 +286,7 @@ const extractSubtitleStreams = (mediaSource, itemId = null, creds = null) => {
 				// External URLs are used as-is, internal URLs need server prefix
 				deliveryUrl = s.IsExternalUrl ? s.DeliveryUrl : `${serverUrl}${s.DeliveryUrl}`;
 			} else if (isImageBased && itemId && !s.IsExternal) {
-				deliveryUrl = `${serverUrl}/Videos/${itemId}/${mediaSource.Id}/Subtitles/${s.Index}/0/Stream.sup?api_key=${apiKey}`;
+				deliveryUrl = `${serverUrl}/Videos/${itemId}/${mediaSource.Id}/Subtitles/${s.Index}/0/Stream.sup?${tokenParam}=${apiKey}`;
 			}
 			return {
 				index: s.Index,
@@ -727,7 +728,7 @@ export const getSubtitleUrl = (subtitleStream) => {
 
 	// Request WebVTT for any text-based subtitle - server converts ASS/SSA/SRT as needed
 	if (subtitleStream.isTextBased) {
-		return `${serverUrl}/Videos/${itemId}/${mediaSourceId}/Subtitles/${subtitleStream.index}/Stream.vtt?api_key=${apiKey}`;
+		return `${serverUrl}/Videos/${itemId}/${mediaSourceId}/Subtitles/${subtitleStream.index}/Stream.vtt?${jellyfinApi.getTokenParam(serverCredentials?.serverType)}=${apiKey}`;
 	}
 
 	return null;
@@ -741,7 +742,7 @@ export const getAssSubtitleUrl = (subtitleStream) => {
 	const serverUrl = serverCredentials?.serverUrl || jellyfinApi.getServerUrl();
 	const apiKey = serverCredentials?.accessToken || jellyfinApi.getApiKey();
 
-	return `${serverUrl}/Videos/${itemId}/${mediaSourceId}/Subtitles/${subtitleStream.index}/Stream.ass?api_key=${apiKey}`;
+	return `${serverUrl}/Videos/${itemId}/${mediaSourceId}/Subtitles/${subtitleStream.index}/Stream.ass?${jellyfinApi.getTokenParam(serverCredentials?.serverType)}=${apiKey}`;
 };
 
 const supportedAssFontMimeTypes = [
@@ -763,9 +764,10 @@ export const getAssFontsUrl = (subtitleStream) => {
 	const {mediaSource, serverCredentials} = currentSession;
 	const serverUrl = serverCredentials?.serverUrl || jellyfinApi.getServerUrl();
 	const apiKey = serverCredentials?.accessToken || jellyfinApi.getApiKey();
+	const tokenParam = jellyfinApi.getTokenParam(serverCredentials?.serverType);
 	const embeddedFonts = (mediaSource?.MediaAttachments || [])
 		.filter((attachment) => supportedAssFontMimeTypes.includes(attachment.MimeType))
-		.map((attachment) => attachment.DeliveryUrl ? `${serverUrl}${attachment.DeliveryUrl}?api_key=${apiKey}` : '')
+		.map((attachment) => attachment.DeliveryUrl ? `${serverUrl}${attachment.DeliveryUrl}?${tokenParam}=${apiKey}` : '')
 		.filter(Boolean);
 
 	return embeddedFonts;
@@ -789,7 +791,7 @@ export const fetchSubtitleData = async (subtitleStream) => {
 	}
 
 	// Jellyfin returns JSON when requesting .js format instead of .vtt
-	const url = `${serverUrl}/Videos/${itemId}/${mediaSourceId}/Subtitles/${subtitleStream.index}/Stream.js?api_key=${apiKey}`;
+	const url = `${serverUrl}/Videos/${itemId}/${mediaSourceId}/Subtitles/${subtitleStream.index}/Stream.js?${jellyfinApi.getTokenParam(serverCredentials?.serverType)}=${apiKey}`;
 
 	try {
 		console.log('[Playback] Fetching subtitle data from:', url);
@@ -835,7 +837,7 @@ export const fetchItemChapters = async (itemId, item) => {
 export const getChapterImageUrl = (itemId, chapterIndex, width = 320) => {
 	const serverUrl = jellyfinApi.getServerUrl();
 	const apiKey = jellyfinApi.getApiKey();
-	return `${serverUrl}/Items/${itemId}/Images/Chapter/${chapterIndex}?maxWidth=${width}&api_key=${apiKey}`;
+	return `${serverUrl}/Items/${itemId}/Images/Chapter/${chapterIndex}?maxWidth=${width}&${jellyfinApi.getTokenParam()}=${apiKey}`;
 };
 
 export const getTrickplayInfo = async (itemId) => {
@@ -843,7 +845,7 @@ export const getTrickplayInfo = async (itemId) => {
 	try {
 		const serverUrl = jellyfinApi.getServerUrl();
 		const apiKey = jellyfinApi.getApiKey();
-		const response = await fetch(`${serverUrl}/Videos/${itemId}/Trickplay?api_key=${apiKey}`);
+		const response = await fetch(`${serverUrl}/Videos/${itemId}/Trickplay?ApiKey=${apiKey}`);
 		if (response.ok) {
 			return response.json();
 		}
@@ -1064,7 +1066,7 @@ const sendSessionBeacon = (path, payload) => {
 	serverUrl = serverUrl.trim().replace(/\/+$/, '');
 	if (!/^https?:\/\//i.test(serverUrl)) serverUrl = 'http://' + serverUrl;
 
-	const endpoint = `${serverUrl}${path}?api_key=${encodeURIComponent(token)}`;
+	const endpoint = `${serverUrl}${path}?${jellyfinApi.getTokenParam(creds?.serverType)}=${encodeURIComponent(token)}`;
 	const body = new Blob([JSON.stringify(payload)], {type: 'application/json'});
 
 	try {

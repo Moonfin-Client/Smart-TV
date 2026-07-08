@@ -2,6 +2,7 @@ import {useState, useEffect, useCallback, useRef} from 'react';
 import JSZip from 'jszip';
 import $L from '@enact/i18n/$L';
 import {KEYS} from '../../utils/keys';
+import {getTokenParam} from '../../services/jellyfinApi';
 import css from './ComicViewer.module.less';
 
 const IMAGE_EXTENSIONS = ['jpg', 'jpeg', 'jpe', 'jif', 'jfif', 'png', 'avif', 'gif', 'bmp', 'tiff', 'tif', 'webp'];
@@ -27,7 +28,7 @@ const ComicViewer = ({item, serverUrl, accessToken, onClose}) => {
 
 				const baseUrl = item._serverUrl || serverUrl;
 				const token = item._serverAccessToken || accessToken;
-				const downloadUrl = `${baseUrl}/Items/${item.Id}/Download?api_key=${encodeURIComponent(token)}`;
+				const downloadUrl = `${baseUrl}/Items/${item.Id}/Download?${getTokenParam(item._serverType)}=${encodeURIComponent(token)}`;
 
 				const response = await fetch(downloadUrl);
 				if (!response.ok) throw new Error('Download failed');

@@ -10,8 +10,7 @@ export const getTrickplayManifest = async (itemId, mediaSourceId) => {
         const userId = jellyfinApi.getUserId();
 
         const response = await fetch(
-            `${serverUrl}/Users/${userId}/Items/${itemId}?Fields=Trickplay&api_key=${apiKey}`,
-            {headers: {'X-Emby-Token': apiKey}}
+            `${serverUrl}/Users/${userId}/Items/${itemId}?Fields=Trickplay&ApiKey=${apiKey}`
         );
 
         if (!response.ok) return null;
@@ -101,7 +100,7 @@ const TrickplayPreview = ({
 
 			const serverUrl = jellyfinApi.getServerUrl();
 			const apiKey = jellyfinApi.getApiKey();
-			const imageUrl = `${serverUrl}/Videos/${itemId}/Trickplay/${selectedWidth}/${newPosition.imageIndex}.jpg?MediaSourceId=${mediaSourceId}&api_key=${apiKey}`;
+			const imageUrl = `${serverUrl}/Videos/${itemId}/Trickplay/${selectedWidth}/${newPosition.imageIndex}.jpg?MediaSourceId=${mediaSourceId}&ApiKey=${apiKey}`;
 			setCurrentImage(imageUrl);
 		}
 	}, [positionTicks, manifest, selectedWidth, visible, itemId, mediaSourceId]);

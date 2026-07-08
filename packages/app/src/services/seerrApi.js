@@ -454,7 +454,7 @@ if (typeof EventSourceCtor === 'undefined') {
 return false;
 }
 
-const streamUrl = `${sUrl}/Moonfin/Settings/Stream?api_key=${encodeURIComponent(sToken)}`;
+const streamUrl = `${sUrl}/Moonfin/Settings/Stream?ApiKey=${encodeURIComponent(sToken)}`;
 try {
 eventSource = new EventSourceCtor(streamUrl);
 } catch (error) {

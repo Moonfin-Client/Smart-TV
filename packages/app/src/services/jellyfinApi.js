@@ -35,6 +35,9 @@ export const setServerType = (type) => {
 
 export const getServerType = () => serverType;
 
+// Jellyfin 12 drops the lowercase api_key param while Emby still requires it
+export const getTokenParam = (type) => ((type || serverType) === 'emby' ? 'api_key' : 'ApiKey');
+
 export const setAuth = (userId, token) => {
 	currentUser = userId;
 	accessToken = token;
