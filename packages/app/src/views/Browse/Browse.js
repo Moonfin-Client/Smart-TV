@@ -48,26 +48,16 @@ const parseHiddenMap = (val) => {
 	}
 };
 
-const isItemHiddenFromCW = (item, hiddenCWMap) => {
-	const id = item.SeriesId || item.Id;
-	if (!id || !hiddenCWMap[id]) return false;
-	const hideTime = hiddenCWMap[id];
+// seriesOnly keys on the series id only, otherwise it falls back to the item id.
+const isHiddenByMap = (item, hiddenMap, seriesOnly) => {
+	const key = seriesOnly ? item.SeriesId : (item.SeriesId || item.Id);
+	if (!key || !hiddenMap[key]) return false;
+	// Hide timestamps are stored as ISO strings, so parse before comparing.
+	const hideTimeMs = Date.parse(hiddenMap[key]);
 	const lastPlayed = item.UserData?.LastPlayedDate;
 	if (lastPlayed) {
 		const lastPlayedMs = Date.parse(lastPlayed);
-		if (lastPlayedMs > hideTime) return false;
-	}
-	return true;
-};
-
-const isSeriesHiddenFromNextUp = (item, hiddenNUMap) => {
-	const seriesId = item.SeriesId;
-	if (!seriesId || !hiddenNUMap[seriesId]) return false;
-	const hideTime = hiddenNUMap[seriesId];
-	const lastPlayed = item.UserData?.LastPlayedDate;
-	if (lastPlayed) {
-		const lastPlayedMs = Date.parse(lastPlayed);
-		if (lastPlayedMs > hideTime) return false;
+		if (lastPlayedMs > hideTimeMs) return false;
 	}
 	return true;
 };
@@ -461,8 +451,8 @@ const Browse = ({
 			result = allRowData.filter(r => r.id !== 'resume' && r.id !== 'nextup');
 
 			if (mergeResumeRow || nextUpRow) {
-				const resumeItems = (mergeResumeRow?.items || []).filter(item => !isItemHiddenFromCW(item, hiddenCWMap));
-				const nextUpItems = (nextUpRow?.items || []).filter(item => !isSeriesHiddenFromNextUp(item, hiddenNUMap) && !isItemHiddenFromCW(item, hiddenCWMap));
+				const resumeItems = (mergeResumeRow?.items || []).filter(item => !isHiddenByMap(item, hiddenCWMap, false));
+				const nextUpItems = (nextUpRow?.items || []).filter(item => !isHiddenByMap(item, hiddenNUMap, true));
 				const recentlyPlayedItems = recentlyPlayed?.items || [];
 
 				const seriesLastPlayedMap = new Map();
@@ -540,7 +530,7 @@ const Browse = ({
 			});
 		} else {
 			const resumeRow = allRowData.find(r => r.id === 'resume');
-			const resumeItems = (resumeRow?.items || []).filter(item => !isItemHiddenFromCW(item, hiddenCWMap));
+			const resumeItems = (resumeRow?.items || []).filter(item => !isHiddenByMap(item, hiddenCWMap, false));
 			const resumeItemIds = new Set(resumeItems.map(item => item.Id));
 
 			result = allRowData
@@ -549,7 +539,7 @@ const Browse = ({
 						return {...row, items: resumeItems};
 					}
 					if (row.id === 'nextup') {
-						const filteredItems = row.items.filter(item => !resumeItemIds.has(item.Id) && !isSeriesHiddenFromNextUp(item, hiddenNUMap) && !isItemHiddenFromCW(item, hiddenCWMap));
+						const filteredItems = row.items.filter(item => !resumeItemIds.has(item.Id) && !isHiddenByMap(item, hiddenNUMap, true));
 						return filteredItems.length > 0 ? {...row, items: filteredItems} : null;
 					}
 					return row;
