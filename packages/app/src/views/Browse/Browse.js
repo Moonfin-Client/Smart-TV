@@ -211,6 +211,9 @@ const stripItemForCache = (item) => ({
 	_serverUrl: item._serverUrl,
 	_serverType: item._serverType,
 	_serverName: item._serverName,
+	_serverAccessToken: item._serverAccessToken,
+	_serverUserId: item._serverUserId,
+	_serverId: item._serverId,
 	isLibraryTile: item.isLibraryTile,
 });
 
