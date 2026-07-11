@@ -230,7 +230,11 @@ const mergeHomeRows = (rows) => {
 	return merged;
 };
 
-const normalizeHomeRowsStyle = (value) => (value === 'v1' || value === 'v2' ? value : 'v2');
+const normalizeHomeRowsStyle = (value) => {
+	if (value === 'classic') return 'v1';
+	if (value === 'modern') return 'v2';
+	return value === 'v1' || value === 'v2' ? value : 'v2';
+};
 
 const normalizeGuid = (id) => {
 	if (!id || typeof id !== 'string') return id;
