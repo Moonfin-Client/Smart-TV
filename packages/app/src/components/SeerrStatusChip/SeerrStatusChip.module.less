@@ -1,0 +1,41 @@
+.chip {
+	display: inline-block;
+	font-size: 18px;
+	font-weight: 600;
+	letter-spacing: 0.4px;
+	text-transform: uppercase;
+	border-radius: 6px;
+	padding: 4px 12px;
+	border: 1px solid;
+	white-space: nowrap;
+}
+
+.pending {
+	color: var(--theme-status-pending, #eab308);
+	border-color: rgba(234, 179, 8, 0.4);
+	background: rgba(234, 179, 8, 0.14);
+}
+
+.requested {
+	color: var(--theme-status-requested, #8b8dfa);
+	border-color: rgba(99, 102, 241, 0.4);
+	background: rgba(99, 102, 241, 0.14);
+}
+
+.available {
+	color: var(--theme-status-available, #22c55e);
+	border-color: rgba(34, 197, 94, 0.4);
+	background: rgba(34, 197, 94, 0.14);
+}
+
+.error {
+	color: var(--theme-recording-active, #ef4444);
+	border-color: rgba(239, 68, 68, 0.4);
+	background: rgba(239, 68, 68, 0.12);
+}
+
+.approved {
+	color: var(--theme-accent, #00a4dc);
+	border-color: rgba(0, 164, 220, 0.4);
+	background: rgba(0, 164, 220, 0.14);
+}

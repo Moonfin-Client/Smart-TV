@@ -59,6 +59,7 @@ const SeerrDetails = lazy(() => import('../views/SeerrDetails'));
 const SeerrRequests = lazy(() => import('../views/SeerrRequests'));
 const SeerrBrowse = lazy(() => import('../views/SeerrBrowse'));
 const SeerrPerson = lazy(() => import('../views/SeerrPerson'));
+const SeerrCollection = lazy(() => import('../views/SeerrCollection'));
 const Games = lazy(() => import('../views/Games'));
 const GameDetails = lazy(() => import('../views/GameDetails'));
 const GamePlayer = lazy(() => import('../views/GamePlayer'));
@@ -116,7 +117,8 @@ const PANELS = {
 	ADD_USER: 19,
 	GAMES: 20,
 	GAME_DETAILS: 21,
-	GAME_PLAYER: 22
+	GAME_PLAYER: 22,
+	SEERR_COLLECTION: 23
 };
 
 const AppContent = (props) => {
@@ -157,6 +159,7 @@ const AppContent = (props) => {
 	const backHandlerRef = useRef(null);
 	const detailsItemStackRef = useRef([]);
 	const seerrItemStackRef = useRef([]);
+	const [seerrCollection, setSeerrCollection] = useState(null);
 	const prevUserIdRef = useRef(null);
 	const [photoViewerItem, setPhotoViewerItem] = useState(null);
 	const [photoViewerItems, setPhotoViewerItems] = useState([]);
@@ -875,6 +878,11 @@ const AppContent = (props) => {
 		navigateTo(PANELS.SEERR_BROWSE);
 	}, [navigateTo]);
 
+	const handleOpenSeerrCollection = useCallback((collectionId) => {
+		setSeerrCollection({collectionId});
+		navigateTo(PANELS.SEERR_COLLECTION);
+	}, [navigateTo]);
+
 	const handleSelectSeerrPerson = useCallback((personId, personName) => {
 		setSeerrPerson({id: personId, name: personName});
 		navigateTo(PANELS.SEERR_PERSON);
@@ -1123,6 +1131,7 @@ const AppContent = (props) => {
 								onPlayInMoonfin={handleSelectItem}
 								onSelectPerson={handleSelectSeerrPerson}
 								onSelectKeyword={handleSelectSeerrKeyword}
+								onOpenCollection={handleOpenSeerrCollection}
 							onClose={handleBack}
 							onBack={handleBack}
 							backHandlerRef={backHandlerRef}
@@ -1134,6 +1143,16 @@ const AppContent = (props) => {
 							<SeerrRequests
 								onSelectItem={handleSelectSeerrItem}
 								onClose={handleBack}
+								backHandlerRef={backHandlerRef}
+							/>
+						)}
+					</Panel>
+					<Panel>
+						{panelIndex === PANELS.SEERR_COLLECTION && (
+							<SeerrCollection
+								collectionId={seerrCollection?.collectionId}
+								onSelectItem={handleSelectSeerrItem}
+								backHandlerRef={backHandlerRef}
 							/>
 						)}
 					</Panel>

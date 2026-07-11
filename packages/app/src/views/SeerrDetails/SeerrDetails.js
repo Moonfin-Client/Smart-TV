@@ -6,10 +6,13 @@ import Image from '@enact/sandstone/Image';
 import Popup from '@enact/sandstone/Popup';
 import Button from '@enact/sandstone/Button';
 import $L from '@enact/i18n/$L';
-import seerrApi, {canRequestMovies, canRequestTv, canRequest4kMovies, canRequest4kTv, hasAdvancedRequestPermission} from '../../services/seerrApi';
+import seerrApi, {canRequestMovies, canRequestTv, canRequest4kMovies, canRequest4kTv, hasAdvancedRequestPermission, canCreateIssues} from '../../services/seerrApi';
 import {isLegacyTizen} from '../../platform';
 import {useSeerr} from '../../context/SeerrContext';
 import LoadingSpinner from '../../components/LoadingSpinner';
+import SeerrDownloadProgress from '../../components/SeerrDownloadProgress';
+import SpottableInput from '../../components/SpottableInput/SpottableInput';
+import {ISSUE_TYPE, getIssueTypeLabel, getMediaDownloadSummary, isUnlimitedQuota} from '../../utils/seerrStatus';
 import {KEYS} from '../../utils/keys';
 import css from './SeerrDetails.module.less';
 
@@ -50,7 +53,8 @@ const REQUEST_STATUS = {
 	PENDING: 1,
 	APPROVED: 2,
 	DECLINED: 3,
-	AVAILABLE: 4
+	FAILED: 4,
+	COMPLETED: 5
 };
 
 const getSeasonStatusLabel = (status) => {
@@ -58,7 +62,8 @@ const getSeasonStatusLabel = (status) => {
 		case REQUEST_STATUS.PENDING: return $L('Pending');
 		case REQUEST_STATUS.APPROVED: return $L('Processing');
 		case REQUEST_STATUS.DECLINED: return $L('Declined');
-		case REQUEST_STATUS.AVAILABLE: return $L('Available');
+		case REQUEST_STATUS.FAILED: return $L('Failed');
+		case REQUEST_STATUS.COMPLETED: return $L('Available');
 		default: return null;
 	}
 };
@@ -68,10 +73,15 @@ const getSeasonStatusColor = (status) => {
 		case REQUEST_STATUS.PENDING: return 'yellow';
 		case REQUEST_STATUS.APPROVED: return 'indigo';
 		case REQUEST_STATUS.DECLINED: return 'red';
-		case REQUEST_STATUS.AVAILABLE: return 'green';
+		case REQUEST_STATUS.FAILED: return 'red';
+		case REQUEST_STATUS.COMPLETED: return 'green';
 		default: return 'gray';
 	}
 };
+
+// Declined and failed seasons can be requested again.
+const isSeasonRerequestable = (status) =>
+	status === REQUEST_STATUS.DECLINED || status === REQUEST_STATUS.FAILED;
 
 const getStatusBadge = (hdStatus, status4k, hdDeclined, fourKDeclined) => {
 	if (hdDeclined && fourKDeclined) return {text: $L('DECLINED'), color: 'red'};
@@ -249,7 +259,7 @@ const HorizontalMediaRow = memo(({title, items, onSelect, rowIndex, onNavigateUp
 	);
 });
 
-const QualitySelectionPopup = memo(({open, title, hdStatus, status4k, canRequestHd, canRequest4k, onSelect, onClose}) => {
+const QualitySelectionPopup = memo(({open, title, hdStatus, status4k, canRequestHd, canRequest4k, quota, isTv, onSelect, onClose}) => {
 	const getButtonLabel = useCallback((is4k, currentStatus) => {
 		const quality = is4k ? '4K' : 'HD';
 		if (currentStatus === STATUS.PENDING) return `${quality} (${$L('Pending')})`;
@@ -259,13 +269,16 @@ const QualitySelectionPopup = memo(({open, title, hdStatus, status4k, canRequest
 		return `${$L('Request')} ${quality}`;
 	}, []);
 
+	const quotaBlocked = !isUnlimitedQuota(quota) &&
+		(quota.restricted || (quota.remaining || 0) <= 0);
+
 	const handleHdClick = useCallback(() => {
-		if (canRequestHd) onSelect(false);
-	}, [canRequestHd, onSelect]);
+		if (canRequestHd && !quotaBlocked) onSelect(false);
+	}, [canRequestHd, quotaBlocked, onSelect]);
 
 	const handleFourKClick = useCallback(() => {
-		if (canRequest4k) onSelect(true);
-	}, [canRequest4k, onSelect]);
+		if (canRequest4k && !quotaBlocked) onSelect(true);
+	}, [canRequest4k, quotaBlocked, onSelect]);
 
 	return (
 		<Popup open={open} onClose={onClose} position="center" className={css.qualityPopup}>
@@ -274,20 +287,29 @@ const QualitySelectionPopup = memo(({open, title, hdStatus, status4k, canRequest
 				<p className={css.qualityPopupSubtitle}>{$L('Select quality to request')}</p>
 				<div className={css.qualityButtons}>
 					<Button
-						className={`${css.qualityButton} ${!canRequestHd ? css.qualityButtonDisabled : ''}`}
+						className={`${css.qualityButton} ${(!canRequestHd || quotaBlocked) ? css.qualityButtonDisabled : ''}`}
 						onClick={handleHdClick}
-						disabled={!canRequestHd}
+						disabled={!canRequestHd || quotaBlocked}
 					>
 						{getButtonLabel(false, hdStatus)}
 					</Button>
 					<Button
-						className={`${css.qualityButton} ${!canRequest4k ? css.qualityButtonDisabled : ''}`}
+						className={`${css.qualityButton} ${(!canRequest4k || quotaBlocked) ? css.qualityButtonDisabled : ''}`}
 						onClick={handleFourKClick}
-						disabled={!canRequest4k}
+						disabled={!canRequest4k || quotaBlocked}
 					>
 						{getButtonLabel(true, status4k)}
 					</Button>
 				</div>
+				{!isUnlimitedQuota(quota) && (
+					<p className={`${css.quotaLine} ${quotaBlocked ? css.quotaLineBlocked : ''}`}>
+						{quotaBlocked
+							? $L('Request limit reached')
+							: (isTv
+								? $L('{count} seasons remaining').replace('{count}', Math.max(quota.remaining || 0, 0))
+								: $L('{count} requests remaining').replace('{count}', Math.max(quota.remaining || 0, 0)))}
+					</p>
+				)}
 				<Button className={css.qualityCancelButton} onClick={onClose}>
 					{$L('Cancel')}
 				</Button>
@@ -300,7 +322,7 @@ const SeasonSelectionContainer = SpotlightContainerDecorator({
 	enterTo: 'last-focused'
 }, 'div');
 
-const SeasonSelectionPopup = memo(({open, title, seasons, seasonStatusMap, onConfirm, onClose}) => {
+const SeasonSelectionPopup = memo(({open, title, seasons, seasonStatusMap, quota, onConfirm, onClose}) => {
 	const [selectedSeasons, setSelectedSeasons] = useState(new Set());
 
 	const availableSeasons = useMemo(() =>
@@ -309,7 +331,7 @@ const SeasonSelectionPopup = memo(({open, title, seasons, seasonStatusMap, onCon
 
 	const isSeasonUnavailable = useCallback((seasonNumber) => {
 		const status = seasonStatusMap?.get(seasonNumber);
-		return status != null && status !== REQUEST_STATUS.DECLINED;
+		return status != null && !isSeasonRerequestable(status);
 	}, [seasonStatusMap]);
 
 	useEffect(() => {
@@ -385,13 +407,24 @@ const SeasonSelectionPopup = memo(({open, title, seasons, seasonStatusMap, onCon
 		safeFocus('season-selection');
 	}, []);
 
-	const canConfirm = selectedSeasons.size > 0;
+	// TV quota counts seasons, so the selection is capped at what remains.
+	const seasonCap = isUnlimitedQuota(quota) ? Infinity : Math.max(quota.remaining || 0, 0);
+	const quotaBlocked = !isUnlimitedQuota(quota) && (quota.restricted || seasonCap === 0);
+	const overCap = selectedSeasons.size > seasonCap;
+	const canConfirm = selectedSeasons.size > 0 && !quotaBlocked && !overCap;
 
 	return (
 		<Popup open={open} onClose={onClose} position="center" className={css.seasonPopup}>
 			<div className={css.seasonPopupContent}>
 				<h2 className={css.seasonPopupTitle}>{$L('Select Seasons')}</h2>
 				<p className={css.seasonPopupSubtitle}>{title}</p>
+				{!isUnlimitedQuota(quota) && (
+					<p className={`${css.quotaLine} ${(quotaBlocked || overCap) ? css.quotaLineBlocked : ''}`}>
+						{quotaBlocked
+							? $L('Request limit reached')
+							: $L('{count} seasons remaining').replace('{count}', Math.max(quota.remaining || 0, 0))}
+					</p>
+				)}
 
 				<SeasonSelectionContainer className={css.seasonsList} spotlightId="season-selection" onKeyDown={handleSeasonListKeyDown}>
 					{allSelectableSeasons.length > 1 && (
@@ -686,7 +719,174 @@ const CancelRequestPopup = memo(({open, pendingRequests, title, onConfirm, onClo
 
 const supportsExternalTrailerSearch = !isLegacyTizen();
 
-const SeerrDetails = ({mediaType, mediaId, onClose, onSelectItem, onPlayInMoonfin, onSelectPerson, onSelectKeyword, onBack, backHandlerRef}) => {
+const ReportIssueContainer = SpotlightContainerDecorator({
+	enterTo: 'last-focused'
+}, 'div');
+
+const ISSUE_TYPES = [ISSUE_TYPE.VIDEO, ISSUE_TYPE.AUDIO, ISSUE_TYPE.SUBTITLES, ISSUE_TYPE.OTHER];
+
+const ReportIssuePopup = memo(({open, title, isTv, seasons, onSubmit, onClose}) => {
+	const [issueType, setIssueType] = useState(ISSUE_TYPE.VIDEO);
+	const [season, setSeason] = useState(0);
+	const [episode, setEpisode] = useState(0);
+	const [message, setMessage] = useState('');
+	const [submitting, setSubmitting] = useState(false);
+
+	const seasonNumbers = useMemo(() =>
+		(seasons || []).filter(s => s.seasonNumber > 0).map(s => s.seasonNumber),
+	[seasons]);
+
+	const episodeCount = useMemo(() => {
+		if (season <= 0) return 0;
+		const match = (seasons || []).find(s => s.seasonNumber === season);
+		return match?.episodeCount || 0;
+	}, [seasons, season]);
+
+	useEffect(() => {
+		if (open) {
+			setIssueType(ISSUE_TYPE.VIDEO);
+			setSeason(isTv && seasonNumbers.length === 1 ? seasonNumbers[0] : 0);
+			setEpisode(0);
+			setMessage('');
+			setSubmitting(false);
+		}
+	}, [open, isTv, seasonNumbers]);
+
+	const handleTypeClick = useCallback((e) => {
+		const value = parseInt(e.currentTarget.dataset.type, 10);
+		if (!isNaN(value)) setIssueType(value);
+	}, []);
+
+	const handleSeasonClick = useCallback((e) => {
+		const value = parseInt(e.currentTarget.dataset.season, 10);
+		if (isNaN(value)) return;
+		setSeason(value);
+		setEpisode(0);
+	}, []);
+
+	const handleEpisodeClick = useCallback((e) => {
+		const value = parseInt(e.currentTarget.dataset.episode, 10);
+		if (!isNaN(value)) setEpisode(value);
+	}, []);
+
+	const handleMessageChange = useCallback((e) => setMessage(e.target.value), []);
+
+	const handleSubmit = useCallback(async () => {
+		const text = message.trim();
+		if (!text || submitting) return;
+		setSubmitting(true);
+		try {
+			await onSubmit({
+				issueType,
+				message: text,
+				problemSeason: isTv ? season : 0,
+				problemEpisode: isTv && season > 0 ? episode : 0
+			});
+		} finally {
+			setSubmitting(false);
+		}
+	}, [message, submitting, issueType, isTv, season, episode, onSubmit]);
+
+	const canSubmit = message.trim().length > 0 && !submitting;
+
+	return (
+		<Popup open={open} onClose={onClose} position="center" className={css.reportPopup}>
+			<div className={css.reportPopupContent}>
+				<h2 className={css.seasonPopupTitle}>{$L('Report Issue')}</h2>
+				<p className={css.seasonPopupSubtitle}>{title}</p>
+
+				<ReportIssueContainer spotlightId="report-issue-form">
+					<div className={css.reportChipRow}>
+						{ISSUE_TYPES.map((type) => (
+							<SpottableDiv
+								key={type}
+								className={`${css.reportChip} ${issueType === type ? css.reportChipSelected : ''}`}
+								data-type={type}
+								onClick={handleTypeClick}
+							>
+								{getIssueTypeLabel(type)}
+							</SpottableDiv>
+						))}
+					</div>
+
+					{isTv && seasonNumbers.length > 0 && (
+						<>
+							<p className={css.reportLabel}>{$L('Season')}</p>
+							<div className={css.reportChipRow}>
+								<SpottableDiv
+									className={`${css.reportChip} ${season === 0 ? css.reportChipSelected : ''}`}
+									data-season={0}
+									onClick={handleSeasonClick}
+								>
+									{$L('All')}
+								</SpottableDiv>
+								{seasonNumbers.map((num) => (
+									<SpottableDiv
+										key={num}
+										className={`${css.reportChip} ${season === num ? css.reportChipSelected : ''}`}
+										data-season={num}
+										onClick={handleSeasonClick}
+									>
+										{`S${num}`}
+									</SpottableDiv>
+								))}
+							</div>
+						</>
+					)}
+
+					{isTv && season > 0 && episodeCount > 0 && (
+						<>
+							<p className={css.reportLabel}>{$L('Episode')}</p>
+							<div className={css.reportChipRow}>
+								<SpottableDiv
+									className={`${css.reportChip} ${episode === 0 ? css.reportChipSelected : ''}`}
+									data-episode={0}
+									onClick={handleEpisodeClick}
+								>
+									{$L('All')}
+								</SpottableDiv>
+								{Array.from({length: episodeCount}, (_, i) => i + 1).map((num) => (
+									<SpottableDiv
+										key={num}
+										className={`${css.reportChip} ${episode === num ? css.reportChipSelected : ''}`}
+										data-episode={num}
+										onClick={handleEpisodeClick}
+									>
+										{`E${num}`}
+									</SpottableDiv>
+								))}
+							</div>
+						</>
+					)}
+
+					<SpottableInput
+						className={css.reportInput}
+						spotlightId="report-issue-message"
+						placeholder={$L('Describe the issue...')}
+						value={message}
+						onChange={handleMessageChange}
+						disabled={submitting}
+					/>
+
+					<div className={css.seasonPopupButtons}>
+						<Button
+							className={`${css.seasonConfirmButton} ${!canSubmit ? css.seasonButtonDisabled : ''}`}
+							onClick={handleSubmit}
+							disabled={!canSubmit}
+						>
+							{$L('Submit')}
+						</Button>
+						<Button className={css.seasonCancelButton} onClick={onClose}>
+							{$L('Cancel')}
+						</Button>
+					</div>
+				</ReportIssueContainer>
+			</div>
+		</Popup>
+	);
+});
+
+const SeerrDetails = ({mediaType, mediaId, onClose, onSelectItem, onPlayInMoonfin, onSelectPerson, onSelectKeyword, onBack, onOpenCollection, backHandlerRef}) => {
 	const {isAuthenticated, user: contextUser} = useSeerr();
 	const [details, setDetails] = useState(null);
 	const [loading, setLoading] = useState(true);
@@ -700,6 +900,8 @@ const SeerrDetails = ({mediaType, mediaId, onClose, onSelectItem, onPlayInMoonfi
 	const [pendingIs4k, setPendingIs4k] = useState(false);
 	const [pendingSeasons, setPendingSeasons] = useState(null);
 	const [showCancelPopup, setShowCancelPopup] = useState(false);
+	const [showReportPopup, setShowReportPopup] = useState(false);
+	const [quota, setQuota] = useState(null);
 	const [userPermissions, setUserPermissions] = useState(null);
 	const [has4kServer, setHas4kServer] = useState(false);
 	const [hasHdServer, setHasHdServer] = useState(false);
@@ -710,10 +912,12 @@ const SeerrDetails = ({mediaType, mediaId, onClose, onSelectItem, onPlayInMoonfi
 	const handleCloseSeasonPopup = useCallback(() => setShowSeasonPopup(false), []);
 	const handleCloseAdvancedPopup = useCallback(() => setShowAdvancedPopup(false), []);
 	const handleCloseCancelPopup = useCallback(() => setShowCancelPopup(false), []);
+	const handleCloseReportPopup = useCallback(() => setShowReportPopup(false), []);
 
 	useEffect(() => {
 		if (!backHandlerRef) return;
 		backHandlerRef.current = () => {
+			if (showReportPopup) { setShowReportPopup(false); return true; }
 			if (showAdvancedPopup) { setShowAdvancedPopup(false); return true; }
 			if (showSeasonPopup) { setShowSeasonPopup(false); return true; }
 			if (showQualityPopup) { setShowQualityPopup(false); return true; }
@@ -721,7 +925,7 @@ const SeerrDetails = ({mediaType, mediaId, onClose, onSelectItem, onPlayInMoonfi
 			return false;
 		};
 		return () => { if (backHandlerRef) backHandlerRef.current = null; };
-	}, [backHandlerRef, showQualityPopup, showSeasonPopup, showAdvancedPopup, showCancelPopup]);
+	}, [backHandlerRef, showQualityPopup, showSeasonPopup, showAdvancedPopup, showCancelPopup, showReportPopup]);
 
 	useEffect(() => {
 		if (!mediaId || !mediaType) return;
@@ -751,6 +955,14 @@ const SeerrDetails = ({mediaType, mediaId, onClose, onSelectItem, onPlayInMoonfi
 					setUserPermissions(contextPermissions);
 				} else {
 					setUserPermissions(null);
+				}
+
+				// Quota is display only and the server still enforces it, so
+				// a failed fetch just hides the quota lines.
+				if (userData?.id != null) {
+					seerrApi.getUserQuota(userData.id)
+						.then((q) => setQuota(q || null))
+						.catch(() => setQuota(null));
 				}
 
 				const serversList = Array.isArray(serversData) ? serversData : [];
@@ -808,6 +1020,81 @@ const SeerrDetails = ({mediaType, mediaId, onClose, onSelectItem, onPlayInMoonfi
 
 	const hdStatus = useMemo(() => details?.mediaInfo?.status ?? null, [details]);
 	const status4k = useMemo(() => details?.mediaInfo?.status4k ?? null, [details]);
+
+	const hdDownload = useMemo(() =>
+		getMediaDownloadSummary(details?.mediaInfo, false),
+	[details]
+	);
+	const download4k = useMemo(() =>
+		getMediaDownloadSummary(details?.mediaInfo, true),
+	[details]
+	);
+
+	// Poll the details while a download is active so the progress bars
+	// advance. Quiet refetch: only the details payload is swapped, and a
+	// failed tick is ignored instead of surfacing the error UI.
+	useEffect(() => {
+		if (loading || !mediaId || !mediaType || (!hdDownload && !download4k)) return;
+		const id = setInterval(() => {
+			(mediaType === 'movie'
+				? seerrApi.getMovie(mediaId)
+				: seerrApi.getTv(mediaId)
+			).then((data) => {
+				if (data) setDetails(data);
+			}).catch(() => {});
+		}, 30000);
+		return () => clearInterval(id);
+	}, [loading, hdDownload, download4k, mediaId, mediaType]);
+
+	// Issue reports need the seerr internal media id, so the title has to be
+	// at least partially available on the server.
+	const canReportIssue = useMemo(() => {
+		if (!canCreateIssues(userPermissions)) return false;
+		if (details?.mediaInfo?.id == null) return false;
+		const watchable = [STATUS.PARTIALLY_AVAILABLE, STATUS.AVAILABLE];
+		return watchable.indexOf(hdStatus) !== -1 || watchable.indexOf(status4k) !== -1;
+	}, [userPermissions, details, hdStatus, status4k]);
+
+	const handleReportIssueClick = useCallback(() => setShowReportPopup(true), []);
+
+	const handleReportSubmit = useCallback(async ({issueType, message, problemSeason, problemEpisode}) => {
+		try {
+			await seerrApi.createIssue({
+				issueType,
+				message,
+				mediaId: details.mediaInfo.id,
+				problemSeason,
+				problemEpisode
+			});
+			setShowReportPopup(false);
+		} catch (err) {
+			console.error('[SeerrDetails] Issue report failed:', err.message);
+		}
+	}, [details]);
+
+	const handleOpenCollection = useCallback(() => {
+		if (details?.collection?.id != null) {
+			onOpenCollection?.(details.collection.id);
+		}
+	}, [details, onOpenCollection]);
+
+	const handleCollectionBannerKeyDown = useCallback((e) => {
+		if (e.keyCode === KEYS.UP) {
+			e.preventDefault();
+			e.stopPropagation();
+			safeFocus('action-buttons');
+		} else if (e.keyCode === KEYS.DOWN) {
+			e.preventDefault();
+			e.stopPropagation();
+			const castFocused = safeFocus('cast-section');
+			if (!castFocused) {
+				const recFocused = safeFocus('details-row-0');
+				if (!recFocused) {
+					safeFocus('details-row-1');
+				}
+			}
+		}
+	}, []);
 	const requests = useMemo(() => details?.mediaInfo?.requests ?? [], [details]);
 	const hdDeclined = useMemo(() => requests.some(r => !r.is4k && r.status === 3), [requests]);
 	const fourKDeclined = useMemo(() => requests.some(r => r.is4k && r.status === 3), [requests]);
@@ -823,8 +1110,8 @@ const SeerrDetails = ({mediaType, mediaId, onClose, onSelectItem, onPlayInMoonfi
 					const existingStatus = statusMap.get(seasonReq.seasonNumber);
 					const newStatus = seasonReq.status;
 					if (!existingStatus ||
-						(existingStatus === REQUEST_STATUS.DECLINED && newStatus !== REQUEST_STATUS.DECLINED) ||
-						(newStatus === REQUEST_STATUS.AVAILABLE) ||
+						(isSeasonRerequestable(existingStatus) && !isSeasonRerequestable(newStatus)) ||
+						(newStatus === REQUEST_STATUS.COMPLETED) ||
 						(newStatus === REQUEST_STATUS.APPROVED && existingStatus === REQUEST_STATUS.PENDING)) {
 						statusMap.set(seasonReq.seasonNumber, newStatus);
 					}
@@ -1035,6 +1322,8 @@ const SeerrDetails = ({mediaType, mediaId, onClose, onSelectItem, onPlayInMoonfi
 		if (e.keyCode === KEYS.DOWN) {
 			e.preventDefault();
 			e.stopPropagation();
+			const bannerFocused = safeFocus('collection-banner');
+			if (bannerFocused) return;
 			const castFocused = safeFocus('cast-section');
 			if (!castFocused) {
 				const recFocused = safeFocus('details-row-0');
@@ -1078,7 +1367,10 @@ const SeerrDetails = ({mediaType, mediaId, onClose, onSelectItem, onPlayInMoonfi
 		if (e.keyCode === KEYS.UP) {
 			e.preventDefault();
 			e.stopPropagation();
-			safeFocus('action-buttons');
+			const bannerFocused = safeFocus('collection-banner');
+			if (!bannerFocused) {
+				safeFocus('action-buttons');
+			}
 		} else if (e.keyCode === KEYS.DOWN) {
 			e.preventDefault();
 			e.stopPropagation();
@@ -1223,6 +1515,8 @@ const SeerrDetails = ({mediaType, mediaId, onClose, onSelectItem, onPlayInMoonfi
 				status4k={status4k}
 				canRequestHd={canRequestHd}
 				canRequest4k={canRequest4k}
+				quota={mediaType === 'tv' ? quota?.tv : quota?.movie}
+				isTv={mediaType === 'tv'}
 				onSelect={handleQualitySelect}
 				onClose={handleCloseQualityPopup}
 			/>
@@ -1234,8 +1528,21 @@ const SeerrDetails = ({mediaType, mediaId, onClose, onSelectItem, onPlayInMoonfi
 					title={title}
 					seasons={details?.seasons}
 					seasonStatusMap={pendingIs4k ? seasonStatusMap4k : seasonStatusMapHd}
+					quota={quota?.tv}
 					onConfirm={handleSeasonConfirm}
 					onClose={handleCloseSeasonPopup}
+				/>
+			)}
+
+			{/* Report Issue Popup */}
+			{canReportIssue && (
+				<ReportIssuePopup
+					open={showReportPopup}
+					title={title}
+					isTv={mediaType === 'tv'}
+					seasons={details?.seasons}
+					onSubmit={handleReportSubmit}
+					onClose={handleCloseReportPopup}
 				/>
 			)}
 
@@ -1289,6 +1596,20 @@ const SeerrDetails = ({mediaType, mediaId, onClose, onSelectItem, onPlayInMoonfi
 						<div className={`${css.statusBadge} ${css[`badge${statusBadge.color}`]}`}>
 							{statusBadge.text}
 						</div>
+
+						{hdDownload && (
+							<div className={css.downloadProgressRow}>
+								<SeerrDownloadProgress
+									summary={hdDownload}
+									prefix={download4k ? 'HD' : null}
+								/>
+							</div>
+						)}
+						{download4k && (
+							<div className={css.downloadProgressRow}>
+								<SeerrDownloadProgress summary={download4k} prefix="4K" />
+							</div>
+						)}
 
 						{/* Metadata Row */}
 						<div className={css.metadataRow}>
@@ -1389,6 +1710,20 @@ const SeerrDetails = ({mediaType, mediaId, onClose, onSelectItem, onPlayInMoonfi
 									<span className={css.btnLabel}>{$L('Play in Moonfin')}</span>
 								</div>
 							)}
+
+							{/* Report Issue Button */}
+							{canReportIssue && (
+								<div className={css.btnWrapper}>
+									<SpottableDiv className={css.btnAction} onClick={handleReportIssueClick}>
+										<span className={css.btnIcon}>
+											<svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px">
+												<path d="m40-120 440-760 440 760H40Zm138-80h604L480-720 178-200Zm302-40q17 0 28.5-11.5T520-280q0-17-11.5-28.5T480-320q-17 0-28.5 11.5T440-280q0 17 11.5 28.5T480-240Zm-40-120h80v-200h-80v200Zm40-100Z"/>
+											</svg>
+										</span>
+									</SpottableDiv>
+									<span className={css.btnLabel}>{$L('Report Issue')}</span>
+								</div>
+							)}
 						</ActionButtonsContainer>
 					</div>
 
@@ -1407,6 +1742,25 @@ const SeerrDetails = ({mediaType, mediaId, onClose, onSelectItem, onPlayInMoonfi
 						</div>
 					)}
 				</div>
+
+				{/* Collection Banner (movies that belong to a collection) */}
+				{mediaType === 'movie' && details.collection && onOpenCollection && (
+					<SpottableDiv
+						className={css.collectionBanner}
+						spotlightId="collection-banner"
+						onClick={handleOpenCollection}
+						onKeyDown={handleCollectionBannerKeyDown}
+						style={details.collection.backdropPath ? {
+							backgroundImage: `url(${seerrApi.getImageUrl(details.collection.backdropPath, 'w780')})`
+						} : undefined}
+					>
+						<div className={css.collectionBannerScrim} />
+						<span className={css.collectionBannerText}>
+							{$L('Part of {name}').replace('{name}', details.collection.name || '')}
+						</span>
+						<span className={css.collectionBannerCta}>{$L('View Collection')} ›</span>
+					</SpottableDiv>
+				)}
 
 				{/* Cast Section */}
 				{details.credits?.cast?.length > 0 && (

@@ -128,6 +128,11 @@
 	width: fit-content;
 }
 
+.downloadProgressRow {
+	max-width: 420px;
+	margin-bottom: 12px;
+}
+
 // Status badge colors
 .badgegreen {
 	background: rgba(34, 197, 94, 0.2);
@@ -1336,4 +1341,127 @@
 	.seasonCheckItem {
 		background: rgba(var(--theme-on-surface-rgb, 0, 229, 255), 0.12);
 	}
+}
+
+.quotaLine {
+	margin: 12px 0 0;
+	font-size: 19px;
+	color: var(--theme-text-secondary, rgba(255, 255, 255, 0.65));
+}
+
+.quotaLineBlocked {
+	color: var(--theme-recording-active, #ef4444);
+}
+
+.reportPopup {
+	width: 880px;
+}
+
+.reportPopupContent {
+	padding: 10px 16px;
+}
+
+.reportLabel {
+	margin: 16px 2px 8px;
+	font-size: 18px;
+	color: var(--theme-text-secondary, rgba(255, 255, 255, 0.6));
+}
+
+.reportChipRow {
+	display: -webkit-box;
+	display: -webkit-flex;
+	display: flex;
+	-webkit-flex-wrap: wrap;
+	flex-wrap: wrap;
+
+	> * {
+		margin-right: 10px;
+		margin-bottom: 10px;
+	}
+}
+
+.reportChip {
+	display: inline-block;
+	background: var(--theme-chip-background, rgba(255, 255, 255, 0.06));
+	border: 2px solid var(--theme-chip-border, rgba(255, 255, 255, 0.18));
+	border-radius: 999px;
+	padding: 8px 20px;
+	font-size: 19px;
+	color: var(--theme-text-secondary, rgba(255, 255, 255, 0.65));
+	cursor: pointer;
+
+	&:focus {
+		border-color: var(--theme-focus-border-color, #ffffff);
+		color: var(--theme-text-primary, #ffffff);
+		outline: none;
+	}
+}
+
+.reportChipSelected {
+	background: rgba(var(--theme-accent-rgb, 0, 164, 220), 0.16);
+	border-color: rgba(var(--theme-accent-rgb, 0, 164, 220), 0.6);
+	color: var(--theme-text-primary, #ffffff);
+}
+
+.reportInput {
+	margin-top: 16px;
+	width: 100%;
+}
+
+.collectionBanner {
+	position: relative;
+	display: -webkit-box;
+	display: -webkit-flex;
+	display: flex;
+	-webkit-box-align: center;
+	-webkit-align-items: center;
+	align-items: center;
+	max-width: 1100px;
+	margin: 30px 0 6px;
+	padding: 22px 28px;
+	border-radius: 12px;
+	border: 3px solid var(--theme-card-border, rgba(255, 255, 255, 0.12));
+	background-color: var(--theme-surface, #181818);
+	background-size: cover;
+	background-position: center;
+	overflow: hidden;
+	cursor: pointer;
+
+	&:focus {
+		border-color: var(--theme-focus-border-color, #ffffff);
+		outline: none;
+		transform: scale(1.01);
+	}
+}
+
+.collectionBannerScrim {
+	position: absolute;
+	top: 0;
+	left: 0;
+	right: 0;
+	bottom: 0;
+	background: -webkit-linear-gradient(left, rgba(0, 0, 0, 0.82), rgba(0, 0, 0, 0.55));
+	background: linear-gradient(to right, rgba(0, 0, 0, 0.82), rgba(0, 0, 0, 0.55));
+}
+
+.collectionBannerText {
+	position: relative;
+	-webkit-box-flex: 1;
+	-webkit-flex: 1;
+	flex: 1;
+	font-size: 24px;
+	font-weight: 600;
+	color: #ffffff;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.collectionBannerCta {
+	position: relative;
+	font-size: 20px;
+	font-weight: 600;
+	color: var(--theme-accent, #00a4dc);
+	margin-left: 20px;
+	white-space: nowrap;
 }

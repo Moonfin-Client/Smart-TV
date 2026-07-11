@@ -549,14 +549,46 @@
 	color: var(--theme-on-accent, #fff);
 }
 
-.requestStatusPartial {
-	background: var(--theme-status-available, #22c55e);
-	color: var(--theme-on-accent, #fff);
-}
-
 .requestStatusDownloading {
 	background: var(--theme-status-downloading, #6366f1);
 	color: var(--theme-on-accent, #fff);
 }
 
 
+
+.requestsPill {
+	position: absolute;
+	top: 36px;
+	right: 48px;
+	z-index: 20;
+	display: -webkit-inline-box;
+	display: -webkit-inline-flex;
+	display: inline-flex;
+	-webkit-box-align: center;
+	-webkit-align-items: center;
+	align-items: center;
+	background: rgba(var(--theme-surface-rgb, 24, 24, 24), 0.82);
+	border: 2px solid rgba(var(--theme-on-surface-rgb, 255, 255, 255), 0.24);
+	border-radius: 999px;
+	padding: 10px 24px;
+	font-size: 21px;
+	color: var(--theme-text-primary, #ffffff);
+	cursor: pointer;
+
+	&:focus {
+		border-color: var(--theme-focus-border-color, #ffffff);
+		outline: none;
+		transform: scale(1.05);
+	}
+}
+
+.requestsPillBadge {
+	display: inline-block;
+	margin-left: 10px;
+	background: var(--theme-accent, #00a4dc);
+	color: var(--theme-on-accent, #ffffff);
+	border-radius: 999px;
+	font-size: 16px;
+	font-weight: 700;
+	padding: 2px 9px;
+}
