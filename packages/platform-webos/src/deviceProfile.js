@@ -309,6 +309,9 @@ export const getDeviceCapabilities = async () => {
 		eac3: true,
 		truehd: false,
 		dtshd: false,
+		// the TV decodes FLAC to LPCM, so it direct plays in a video container
+		// on modern webOS even though LG only lists it as a standalone format
+		flac: webosVersion >= 5,
 		opus: webosVersion >= 6,
 
 		hevc: testHevcSupport(null, webosVersion),
@@ -380,6 +383,7 @@ const buildMp4AudioCodecs = (caps) => {
 	if (dts.mp4) mp4AudioCodecs.push('dca', 'dts');
 	if (dts.mp4 && caps.dtshd) mp4AudioCodecs.push('dts-hd', 'dtshd');
 	if (caps.opus) mp4AudioCodecs.push('opus');
+	if (caps.flac) mp4AudioCodecs.push('flac');
 	if (caps.truehd) mp4AudioCodecs.push('truehd');
 	return mp4AudioCodecs;
 
@@ -420,15 +424,17 @@ const buildMkvVideoCodecs = (caps) => {
 
 const buildMkvAudioCodecs = (caps) => {
 	const dts = caps.dts || {}; // Per-container DTS support object
-	// MP4/M4V/MOV: ac3, eac3, aac, mp3; DTS only on webOS 23+ (model-specific)
-	// MKV: ac3, eac3, aac, mp2, pcm, mp3, opus (24+), dts (all versions per LG docs)
-	// FLAC and Vorbis are NOT listed in MKV by LG docs (standalone formats only)
+	// MKV: ac3, eac3, aac, mp2, pcm, mp3, opus (24+), dts (all versions per LG docs).
+	// FLAC decodes fine here on modern webOS even though LG only documents it as a
+	// standalone format, so a DV HEVC file with FLAC audio direct plays and keeps
+	// its Dolby Vision instead of transcoding. Vorbis stays out.
 	const mkvAudioCodecs = ['aac', 'mp2', 'mp3', 'pcm_s16le', 'pcm_s24le'];
 	if (caps.ac3) mkvAudioCodecs.push('ac3');
 	if (caps.eac3) mkvAudioCodecs.push('eac3');
 	if (dts.mkv) mkvAudioCodecs.push('dca', 'dts');
 	if (dts.mkv && caps.dtshd) mkvAudioCodecs.push('dts-hd', 'dtshd');
 	if (caps.opus) mkvAudioCodecs.push('opus');
+	if (caps.flac) mkvAudioCodecs.push('flac');
 	if (caps.truehd) mkvAudioCodecs.push('truehd');
 	return mkvAudioCodecs;
 
@@ -825,13 +831,15 @@ export const getJellyfinDeviceProfile = async (options = {}) => {
 			]
 		},
 		{
+			// the FLAC decoder handles up to 7.1 and downmixes for the output,
+			// so allow multichannel rather than forcing a transcode past stereo
 			Type: 'VideoAudio',
 			Codec: 'flac',
 			Conditions: [
 				{
 					Condition: 'LessThanEqual',
 					Property: 'AudioChannels',
-					Value: '2',
+					Value: '8',
 					IsRequired: false
 				}
 			]
