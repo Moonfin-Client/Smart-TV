@@ -194,7 +194,7 @@ const ModernMediaCard = ({
 	const imageHeight = Math.round(360 * sizeMultiplier);
 	const isSquareItem = item?.Type === 'MusicAlbum' || item?.Type === 'Audio';
 	const cardWidth = isSquareItem ? imageHeight : Math.round((imageHeight * 2) / 3);
-	const expandedWidthFactor = platform === 'tizen' ? 1.5 : 1.65;
+	const expandedWidthFactor = platform === 'tizen' ? 16 / 9 : 1.65;
 	const expandedWidth = Math.max(cardWidth, Math.round(imageHeight * expandedWidthFactor));
 	const canRenderExpanded = !isSquareItem && Boolean(metadata || item?.CommunityRating || shouldShowOverview);
 
