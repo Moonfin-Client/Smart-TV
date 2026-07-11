@@ -1348,8 +1348,13 @@ const AppContent = (props) => {
 
 let storedLocale = 'en-US';
 try {
-	const stored = JSON.parse(localStorage.getItem('moonfin_settings') || '{}');
-	storedLocale = stored.uiLanguage || 'en-US';
+	const bootLocale = localStorage.getItem('moonfin_uiLanguage');
+	if (bootLocale) {
+		storedLocale = bootLocale;
+	} else {
+		const stored = JSON.parse(localStorage.getItem('moonfin_settings') || '{}');
+		storedLocale = stored.uiLanguage || 'en-US';
+	}
 } catch (e) { /* use default */ }
 
 // Pre-populate ilib.data with all locale strings so loadData() finds them

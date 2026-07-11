@@ -417,6 +417,17 @@ const extractThemeObjects = (payload) => {
 
 const SettingsContext = createContext(null);
 const EXPERIMENTAL_TRUEHD_KEY = 'moonfin.experimentalTruehd';
+// App boots before the async settings store loads, and on webOS that store is
+// DB8 which the reload after a language change beats. Mirror the language into
+// localStorage synchronously so the next boot reads the chosen one.
+const BOOT_LOCALE_KEY = 'moonfin_uiLanguage';
+const persistBootLocale = (locale) => {
+	try {
+		if (locale) window.localStorage?.setItem(BOOT_LOCALE_KEY, locale);
+	} catch (e) {
+		void e;
+	}
+};
 
 export function SettingsProvider({children}) {
 	const [settings, setSettings] = useState(defaultSettings);
@@ -484,6 +495,9 @@ export function SettingsProvider({children}) {
 				const merged = {...defaultSettings, ...stored};
 				setSettings(merged);
 				if (migrated) saveToStorage('settings', merged);
+				// seed the boot key for anyone whose language only lived in the
+				// async store, so the next boot picks it up
+				persistBootLocale(merged.uiLanguage);
 			}
 			setLoaded(true);
 		});
@@ -530,6 +544,7 @@ export function SettingsProvider({children}) {
 	const activeTheme = useMemo(() => resolveThemeById(activeThemeId), [activeThemeId, themeCatalogVersion]); // eslint-disable-line react-hooks/exhaustive-deps
 
 	const updateSetting = useCallback((key, value) => {
+		if (key === 'uiLanguage') persistBootLocale(value);
 		setSettings(prev => {
 			const updated = {...prev, [key]: value};
 			saveToStorage('settings', updated);
@@ -539,6 +554,7 @@ export function SettingsProvider({children}) {
 	}, []);
 
 	const updateSettings = useCallback((newSettings) => {
+		if ('uiLanguage' in newSettings) persistBootLocale(newSettings.uiLanguage);
 		setSettings(prev => {
 			const updated = {...prev, ...newSettings};
 			saveToStorage('settings', updated);
