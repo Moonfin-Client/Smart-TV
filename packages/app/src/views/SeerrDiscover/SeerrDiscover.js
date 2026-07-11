@@ -136,11 +136,14 @@ const RequestCard = memo(function RequestCard({request, onSelect, onFocus}) {
 	const mediaStatus = media?.status;
 	const mediaType = request.type;
 
+	// Request status wins only for declined and failed.
 	const getStatusInfo = () => {
 		if (requestStatus === 3) return {text: $L('Declined'), cls: css.requestStatusDeclined};
+		if (requestStatus === 4) return {text: $L('Failed'), cls: css.requestStatusDeclined};
+		if (requestStatus === 5) return {text: $L('Available'), cls: css.requestStatusAvailable};
 		if (mediaStatus === 5) return {text: $L('Available'), cls: css.requestStatusAvailable};
-		if (mediaStatus === 4) return {text: $L('Partial'), cls: css.requestStatusPartial};
-		if (mediaStatus === 3) return {text: $L('Downloading'), cls: css.requestStatusDownloading};
+		if (mediaStatus === 4) return {text: $L('Partial'), cls: css.requestStatusAvailable};
+		if (mediaStatus === 3) return {text: $L('Requested'), cls: css.requestStatusDownloading};
 		if (requestStatus === 2) return {text: $L('Approved'), cls: css.requestStatusApproved};
 		return {text: $L('Unknown'), cls: css.requestStatusPending};
 	};
@@ -324,7 +327,12 @@ const DiscoverRow = memo(function DiscoverRow({
 	);
 });
 
-const SeerrDiscover = ({onSelectItem, onSelectGenre, onSelectNetwork, onSelectStudio}) => {
+// Badge count survives panel switches for a short while so revisiting
+// discover doesn't refetch the counts every time.
+let cachedBadge = {count: 0, at: 0};
+const BADGE_TTL_MS = 60000;
+
+const SeerrDiscover = ({onSelectItem, onSelectGenre, onSelectNetwork, onSelectStudio, onOpenRequests}) => {
 	const {isAuthenticated, isEnabled, user: contextUser} = useSeerr();
 	const {settings} = useSettings();
 	const [rows, setRows] = useState({});
@@ -334,7 +342,35 @@ const SeerrDiscover = ({onSelectItem, onSelectGenre, onSelectNetwork, onSelectSt
 	const [isLoading, setIsLoading] = useState(true);
 	const [backdropUrl, setBackdropUrl] = useState('');
 	const [focusedItem, setFocusedItem] = useState(null);
+	const [requestsBadge, setRequestsBadge] = useState(cachedBadge.count);
 	const backdropTimeoutRef = useRef(null);
+
+	useEffect(() => {
+		if (!isAuthenticated) return;
+		if (Date.now() - cachedBadge.at < BADGE_TTL_MS) {
+			setRequestsBadge(cachedBadge.count);
+			return;
+		}
+		let stale = false;
+		seerrApi.getUser().catch(() => null).then(async (u) => {
+			if (stale) return;
+			const perms = u?.permissions;
+			let count = 0;
+			if (seerrApi.canManageRequests(perms)) {
+				count += await seerrApi.getRequestCount().then(c => c?.pending || 0).catch(() => 0);
+			}
+			if (seerrApi.canManageIssues(perms)) {
+				count += await seerrApi.getIssueCount().then(c => c?.open || 0).catch(() => 0);
+			}
+			if (!stale) {
+				cachedBadge = {count, at: Date.now()};
+				setRequestsBadge(count);
+			}
+		});
+		return () => {
+			stale = true;
+		};
+	}, [isAuthenticated]);
 
 	useEffect(() => {
 		return () => {
@@ -501,8 +537,24 @@ const SeerrDiscover = ({onSelectItem, onSelectGenre, onSelectNetwork, onSelectSt
 		return getRowConfigs().filter(r => rows[r.id]?.length > 0);
 	}, [rows]);
 
+	const handleRequestsPillKeyDown = useCallback((e) => {
+		if (e.keyCode === KEYS.UP || e.keyCode === KEYS.LEFT) {
+			e.preventDefault();
+			e.stopPropagation();
+			Spotlight.focus('navbar');
+		} else if (e.keyCode === KEYS.DOWN) {
+			e.preventDefault();
+			e.stopPropagation();
+			Spotlight.focus('discover-row-0');
+		}
+	}, []);
+
 	const handleNavigateUp = useCallback((fromRowIndex) => {
 		if (fromRowIndex === 0) {
+			// The requests pill sits between the rows and the navbar.
+			if (Spotlight.focus('discover-requests-pill')) {
+				return;
+			}
 			Spotlight.focus('navbar');
 			return;
 		}
@@ -583,6 +635,17 @@ const SeerrDiscover = ({onSelectItem, onSelectGenre, onSelectNetwork, onSelectSt
 					)}
 					<div className={css.backdropOverlay} />
 				</div>
+			)}
+			{!isLoading && isAuthenticated && onOpenRequests && (
+				<SpottableDiv
+					className={css.requestsPill}
+					spotlightId="discover-requests-pill"
+					onClick={onOpenRequests}
+					onKeyDown={handleRequestsPillKeyDown}
+				>
+					{$L('Requests')}
+					{requestsBadge > 0 && <span className={css.requestsPillBadge}>{requestsBadge}</span>}
+				</SpottableDiv>
 			)}
 			{isLoading ? (
 				<LoadingSpinner />

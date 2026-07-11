@@ -2,7 +2,7 @@ import {useState, useEffect, useCallback, useRef, useMemo, useReducer} from 'rea
 import Spotlight from '@enact/spotlight';
 import $L from '@enact/i18n/$L';
 import {useAuth} from '../../context/AuthContext';
-import {useSettings} from '../../context/SettingsContext';
+import {useSettings, TV_TO_SERVER_ROW} from '../../context/SettingsContext';
 import {useSeerr} from '../../context/SeerrContext';
 import {ClassicMediaRow, ModernMediaRow} from '../../components/MediaRow';
 import SeerrTileRow from '../../components/SeerrTileRow';
@@ -33,7 +33,7 @@ const CACHE_TTL_VOLATILE = 5 * 60 * 1000;
 const CACHE_TTL_LIBRARIES = 30 * 60 * 1000;
 const VOLATILE_REFRESH_COOLDOWN_MS = 60 * 1000;
 const CACHE_SAVE_DEBOUNCE_MS = 3000;
-const STORAGE_KEY_BROWSE = 'browse_cache_v2';
+const STORAGE_KEY_BROWSE = 'browse_cache_v3';
 
 let cachedRowData = null;
 let cachedLibraries = null;
@@ -41,6 +41,32 @@ let cachedFeaturedItems = null;
 let cacheTimestamp = null;
 
 let lastFocusState = null;
+
+const parseHiddenMap = (val) => {
+	if (!val) return {};
+	try {
+		return typeof val === 'string' ? JSON.parse(val) : val;
+	} catch (e) {
+		return {};
+	}
+};
+
+// seriesOnly keys on the series id only, otherwise it falls back to the item id.
+const isHiddenByMap = (item, hiddenMap, seriesOnly) => {
+	const key = seriesOnly ? item.SeriesId : (item.SeriesId || item.Id);
+	if (!key || !hiddenMap[key]) return false;
+	// Hide timestamps are stored as ISO strings, so parse before comparing.
+	const hideTimeMs = Date.parse(hiddenMap[key]);
+	// An unparseable hide timestamp can't be reasoned about; treat it as not hidden
+	// rather than hiding the item permanently (NaN comparisons below are always false).
+	if (!Number.isFinite(hideTimeMs)) return false;
+	const lastPlayed = item.UserData?.LastPlayedDate;
+	if (lastPlayed) {
+		const lastPlayedMs = Date.parse(lastPlayed);
+		if (lastPlayedMs > hideTimeMs) return false;
+	}
+	return true;
+};
 
 const EXCLUDED_COLLECTION_TYPES = ['boxsets', 'books', 'musicvideos', 'homevideos', 'photos'];
 
@@ -100,71 +126,6 @@ const parsePluginSpec = (specJson) => {
 	} catch (e) {
 		return null;
 	}
-};
-
-const EMPTY_GUID = '00000000-0000-0000-0000-000000000000';
-
-const getResultItems = (result) => {
-	if (Array.isArray(result)) return result;
-	if (Array.isArray(result?.Items)) return result.Items;
-	if (Array.isArray(result?.items)) return result.items;
-	return [];
-};
-
-const getHssProviderIds = (item) => {
-	if (item?.ProviderIds && typeof item.ProviderIds === 'object') return item.ProviderIds;
-	if (item?.providerIds && typeof item.providerIds === 'object') return item.providerIds;
-	return {};
-};
-
-const normalizeHssItemId = (item, sectionType, additionalData, index) => {
-	const rawId = item?.Id || item?.id || '';
-	const normalizedRawId = String(rawId).trim();
-	if (normalizedRawId && normalizedRawId !== EMPTY_GUID) {
-		return normalizedRawId;
-	}
-
-	const providerIds = getHssProviderIds(item);
-	const syntheticSource =
-		providerIds.Seerr ||
-		providerIds.SonarrSeriesId ||
-		providerIds.RadarrMovieId ||
-		providerIds.LidarrAlbumId ||
-		providerIds.ReadarrBookId ||
-		item?.Name ||
-		item?.OriginalTitle ||
-		index;
-
-	const sectionToken = String(sectionType || 'section').toLowerCase().replace(/[^a-z0-9_-]+/g, '-');
-	const additionalToken = String(additionalData || 'default').toLowerCase().replace(/[^a-z0-9_-]+/g, '-');
-	const sourceToken = String(syntheticSource).toLowerCase().replace(/[^a-z0-9_-]+/g, '-');
-
-	return `hss-${sectionToken}-${additionalToken}-${sourceToken}-${index}`;
-};
-
-const getHssPosterUrl = (item) => {
-	const providerIds = getHssProviderIds(item);
-	return (
-		providerIds.SeerrPoster ||
-		providerIds.SonarrPoster ||
-		providerIds.RadarrPoster ||
-		providerIds.LidarrPoster ||
-		providerIds.ReadarrPoster ||
-		null
-	);
-};
-
-const normalizeHssItems = (items, sectionType, additionalData) => {
-	if (!Array.isArray(items) || items.length === 0) return [];
-	return items.map((item, index) => {
-		const normalizedId = normalizeHssItemId(item, sectionType, additionalData, index);
-		const posterUrl = getHssPosterUrl(item);
-		return {
-			...item,
-			Id: normalizedId,
-			_externalPosterUrl: item?._externalPosterUrl || posterUrl || null
-		};
-	});
 };
 
 const browseInitialState = {
@@ -232,6 +193,12 @@ const stripItemForCache = (item) => ({
 	IndexNumber: item.IndexNumber,
 	ParentThumbItemId: item.ParentThumbItemId,
 	ParentBackdropItemId: item.ParentBackdropItemId,
+	CommunityRating: item.CommunityRating,
+	Genres: item.Genres,
+	GenreItems: item.GenreItems,
+	Overview: item.Overview,
+	ProductionYear: item.ProductionYear,
+	RunTimeTicks: item.RunTimeTicks,
 	AlbumId: item.AlbumId,
 	AlbumPrimaryImageTag: item.AlbumPrimaryImageTag,
 	AlbumArtist: item.AlbumArtist,
@@ -448,7 +415,7 @@ const Browse = ({
 		};
 	}, [activeTheme]);
 
-	const useModernRows = settings.homeRowsStyle !== 'classic';
+	const useModernRows = settings.homeRowsStyle !== 'v1';
 	const RowComponent = useModernRows ? ModernMediaRow : ClassicMediaRow;
 	const showTopInfoArea = !useModernRows;
 
@@ -464,8 +431,16 @@ const Browse = ({
 		if (FAVORITE_ROW_IDS.includes(rowId)) return settings.displayFavoritesRows;
 		if (rowId === 'collections') return settings.displayCollectionsRows;
 		if (rowId === 'genres') return settings.displayGenresRows;
+		if (rowId === 'imdb-top250-movies') return settings.imdbTop250MoviesEnabled;
+		if (rowId === 'imdb-top250-tv') return settings.imdbTop250TvShowsEnabled;
+		if (rowId === 'imdb-popular-movies') return settings.imdbMostPopularMoviesEnabled;
+		if (rowId === 'imdb-popular-tv') return settings.imdbMostPopularTvShowsEnabled;
+		if (rowId === 'imdb-lowest-rated') return settings.imdbLowestRatedMoviesEnabled;
+		if (rowId === 'imdb-top-english') return settings.imdbTopEnglishMoviesEnabled;
 		return true;
-	}, [settings.displayFavoritesRows, settings.displayCollectionsRows, settings.displayGenresRows]);
+	}, [settings.displayFavoritesRows, settings.displayCollectionsRows, settings.displayGenresRows,
+		settings.imdbTop250MoviesEnabled, settings.imdbTop250TvShowsEnabled, settings.imdbMostPopularMoviesEnabled,
+		settings.imdbMostPopularTvShowsEnabled, settings.imdbLowestRatedMoviesEnabled, settings.imdbTopEnglishMoviesEnabled]);
 
 	const filteredRows = useMemo(() => {
 		const enabledRowIds = homeRowsConfig.filter(r => r.enabled).map(r => r.id);
@@ -473,6 +448,9 @@ const Browse = ({
 		const rowOrderMap = new Map();
 		homeRowsConfig.forEach((row) => rowOrderMap.set(row.id, row.order));
 		pluginSectionsConfig.forEach((section, index) => rowOrderMap.set(section.id, (section.order ?? index) + 1000));
+
+		const hiddenCWMap = parseHiddenMap(settings.hiddenContinueWatchingItems);
+		const hiddenNUMap = parseHiddenMap(settings.hiddenNextUpSeries);
 
 		let result;
 
@@ -484,8 +462,8 @@ const Browse = ({
 			result = allRowData.filter(r => r.id !== 'resume' && r.id !== 'nextup');
 
 			if (mergeResumeRow || nextUpRow) {
-				const resumeItems = mergeResumeRow?.items || [];
-				const nextUpItems = nextUpRow?.items || [];
+				const resumeItems = (mergeResumeRow?.items || []).filter(item => !isHiddenByMap(item, hiddenCWMap, false));
+				const nextUpItems = (nextUpRow?.items || []).filter(item => !isHiddenByMap(item, hiddenNUMap, true));
 				const recentlyPlayedItems = recentlyPlayed?.items || [];
 
 				const seriesLastPlayedMap = new Map();
@@ -558,16 +536,21 @@ const Browse = ({
 				if (row.isPluginRow) return enabledPluginIds.includes(row.id);
 				if (!isRowVisibleByGates(row.id)) return false;
 				if (row.isLatestRow) return enabledRowIds.includes('latest-media');
+				if (row.isRecentlyReleasedRow) return enabledRowIds.includes('recently-released');
 				return enabledRowIds.includes(row.id);
 			});
 		} else {
 			const resumeRow = allRowData.find(r => r.id === 'resume');
-			const resumeItemIds = new Set((resumeRow?.items || []).map(item => item.Id));
+			const resumeItems = (resumeRow?.items || []).filter(item => !isHiddenByMap(item, hiddenCWMap, false));
+			const resumeItemIds = new Set(resumeItems.map(item => item.Id));
 
 			result = allRowData
 				.map(row => {
-					if (row.id === 'nextup' && resumeItemIds.size > 0) {
-						const filteredItems = row.items.filter(item => !resumeItemIds.has(item.Id));
+					if (row.id === 'resume') {
+						return resumeItems.length > 0 ? {...row, items: resumeItems} : null;
+					}
+					if (row.id === 'nextup') {
+						const filteredItems = row.items.filter(item => !resumeItemIds.has(item.Id) && !isHiddenByMap(item, hiddenNUMap, true));
 						return filteredItems.length > 0 ? {...row, items: filteredItems} : null;
 					}
 					return row;
@@ -582,6 +565,9 @@ const Browse = ({
 					}
 					if (row.isLatestRow) {
 						return enabledRowIds.includes('latest-media');
+					}
+					if (row.isRecentlyReleasedRow) {
+						return enabledRowIds.includes('recently-released');
 					}
 					if (!isRowVisibleByGates(row.id)) {
 						return false;
@@ -604,7 +590,12 @@ const Browse = ({
 				const libName = row.library._serverName
 					? `${row.library.Name} (${row.library._serverName})`
 					: row.library.Name;
-				title = $L('Latest in {libraryTitle}').replace('{libraryTitle}', libName);
+				title = $L('Recently Added in {libraryTitle}').replace('{libraryTitle}', libName);
+			} else if (row.isRecentlyReleasedRow && row.library) {
+				const libName = row.library._serverName
+					? `${row.library.Name} (${row.library._serverName})`
+					: row.library.Name;
+				title = $L('Recently Released in {libraryTitle}').replace('{libraryTitle}', libName);
 			}
 			return title && title !== row.title ? {...row, title} : row;
 		});
@@ -625,6 +616,8 @@ const Browse = ({
 					order = Number.isFinite(continueOrder) ? continueOrder : 0;
 				} else if (row.isLatestRow) {
 					order = rowOrderMap.get('latest-media');
+				} else if (row.isRecentlyReleasedRow) {
+					order = rowOrderMap.get('recently-released');
 				} else if (row.isSeerrRow) {
 					order = 3000 + index;
 				}
@@ -656,9 +649,13 @@ const Browse = ({
 
 		prevFilteredRowsRef.current = result;
 		return result;
-	}, [allRowData, seerrRows, homeRowsConfig, pluginSectionsConfig, settings.mergeContinueWatchingNextUp, isRowVisibleByGates]);
+	}, [allRowData, seerrRows, homeRowsConfig, pluginSectionsConfig, settings.mergeContinueWatchingNextUp, settings.hiddenContinueWatchingItems, settings.hiddenNextUpSeries, isRowVisibleByGates]);
 
 	const focusRow = useCallback((rowIndex) => {
+		if (Spotlight.focus(`row-${rowIndex}`)) {
+			return true;
+		}
+
 		const row = filteredRowsRef.current[rowIndex];
 		const firstItemId = row?.items?.[0]?.Id;
 		const keyPrefix = row?.id || rowIndex;
@@ -670,7 +667,7 @@ const Browse = ({
 			}
 		}
 
-		return Spotlight.focus('row-' + rowIndex);
+		return false;
 	}, []);
 
 	const scrollToRow = useCallback((rowIndex, thenFocus) => {
@@ -852,10 +849,16 @@ const Browse = ({
 
 	useEffect(() => {
 		const loadData = async () => {
+			// IMDb rows are only fetched by fetchAllData, so treat an enabled IMDb list as
+			// dynamic config. Otherwise enabling one shows nothing until the browse cache expires.
+			const hasEnabledImdbRow = homeRowsConfig.some(
+				(row) => row.enabled && row.id.startsWith('imdb-')
+			);
 			const hasDynamicRowConfig =
 				settings.displayFavoritesRows ||
 				settings.displayCollectionsRows ||
 				settings.displayGenresRows ||
+				hasEnabledImdbRow ||
 				(settings.pluginSections || []).some((section) => section?.enabled);
 
 			if (hasDynamicRowConfig || unifiedMode) {
@@ -894,7 +897,7 @@ const Browse = ({
 
 		const fetchAllData = async () => {
 			try {
-				let libs, resumeItems, nextUp, userConfig, randomItems, recentlyPlayed;
+				let libs, resumeItems, nextUp, userConfig, randomItems, recentlyPlayed, imdbResults = [];
 
 				if (unifiedMode) {
 					const [libsArray, resumeArray, nextUpArray, randomArray] = await Promise.all([
@@ -909,22 +912,54 @@ const Browse = ({
 					userConfig = null; // Not supported in unified mode
 					randomItems = {Items: randomArray};
 					recentlyPlayed = null;
+					// IMDb custom rows are single-server only, so imdbResults stays empty in unified mode.
 				} else {
-					const results = await Promise.all([
-						api.getLibraries(),
-						api.getResumeItems(),
-						api.getNextUp(),
-						api.getUserConfiguration().catch(() => null),
-						api.getRandomItems(settings.featuredContentType, settings.featuredItemCount),
-						settings.mergeContinueWatchingNextUp ? api.getItems({
-							IncludeItemTypes: 'Episode',
-							Filters: 'IsPlayed',
-							Recursive: true,
-							SortBy: 'DatePlayed',
-							SortOrder: 'Descending',
-							Limit: 100,
-							Fields: 'UserData,SeriesId'
-						}) : Promise.resolve(null)
+					const enabledImdbRows = homeRowsConfig.filter(
+						(row) => row.enabled && row.id.startsWith('imdb-')
+					);
+					const [results, imdbListResults] = await Promise.all([
+						Promise.all([
+							api.getLibraries(),
+							api.getResumeItems(),
+							api.getNextUp(),
+							api.getUserConfiguration().catch(() => null),
+							api.getRandomItems(settings.featuredContentType, settings.featuredItemCount),
+							settings.mergeContinueWatchingNextUp ? api.getItems({
+								IncludeItemTypes: 'Episode',
+								Filters: 'IsPlayed',
+								Recursive: true,
+								SortBy: 'DatePlayed',
+								SortOrder: 'Descending',
+								Limit: 100,
+								Fields: 'UserData,SeriesId'
+							}) : Promise.resolve(null)
+						]),
+						Promise.all(
+							enabledImdbRows.map((row) => {
+								const serverId = TV_TO_SERVER_ROW[row.id] || row.id;
+								return api.getCustomRow('imdb', serverId)
+									.then((res) => {
+										if (!res || res.success !== true || !Array.isArray(res.items)) {
+											return { row, items: [] };
+										}
+										// These are external discovery items (no library Id / ImageTags),
+										// so map them to what the media card can render via _externalPosterUrl.
+										const items = res.items.map((it) => {
+											const imdbId = it.providerIds?.Imdb || null;
+											return {
+												Id: `imdb-${imdbId || `${serverId}-${it.rank}`}`,
+												Name: it.name,
+												Type: it.type,
+												ProductionYear: it.productionYear,
+												ProviderIds: {Imdb: imdbId},
+												_externalPosterUrl: it.posterUrl || null
+											};
+										});
+										return { row, items };
+									})
+									.catch(() => ({ row, items: [] }));
+							})
+						)
 					]);
 					libs = results[0].Items || [];
 					resumeItems = results[1];
@@ -932,6 +967,7 @@ const Browse = ({
 					userConfig = results[3];
 					randomItems = results[4];
 					recentlyPlayed = results[5];
+					imdbResults = imdbListResults;
 				}
 
 				cachedLibraries = libs;
@@ -1009,6 +1045,7 @@ const Browse = ({
 				});
 
 				let latestResults;
+				let recentlyReleasedResults;
 				let collectionsResult = null;
 				let favoriteResults = [];
 				let genresResult = null;
@@ -1128,72 +1165,6 @@ const Browse = ({
 								items = result?.Items || [];
 								break;
 							}
-							case 'hssSection': {
-								const sectionType = spec.sectionType || spec.section || spec.sectionName || null;
-								if (!sectionType) {
-									items = [];
-									break;
-								}
-								const additionalData = spec.additionalData ?? null;
-								const hssLanguage = spec.language || settings.uiLanguage || null;
-								const result = await api.getHomeScreenSectionContent(
-									sectionType,
-									additionalData,
-									hssLanguage
-								);
-								items = normalizeHssItems(getResultItems(result), sectionType, additionalData);
-								break;
-							}
-							case 'hssRaw': {
-								const rawSection = spec.section && typeof spec.section === 'object' ? spec.section : {};
-								const rawSectionType = rawSection.Section || rawSection.section || null;
-								const rawAdditionalData = rawSection.AdditionalData || rawSection.additionalData || null;
-
-								const directItems = Array.isArray(rawSection.Items)
-									? rawSection.Items
-									: (Array.isArray(rawSection.items) ? rawSection.items : []);
-								if (directItems.length > 0) {
-									items = normalizeHssItems(directItems, rawSectionType, rawAdditionalData);
-									break;
-								}
-
-								const query = rawSection.Query || rawSection.query || rawSection.ItemQuery || rawSection.itemQuery || null;
-								if (query && typeof query === 'object') {
-									const params = {
-										...query,
-										Limit: query.Limit ?? query.limit ?? limit,
-										Fields: query.Fields || query.fields || fields
-									};
-									const result = await api.getItems(params);
-									items = getResultItems(result);
-									break;
-								}
-
-								const itemIds = (Array.isArray(rawSection.ItemIds)
-									? rawSection.ItemIds
-									: (Array.isArray(rawSection.itemIds) ? rawSection.itemIds : []))
-									.map((id) => String(id))
-									.filter(Boolean);
-								if (itemIds.length > 0) {
-									const result = await api.getItems({
-										Ids: itemIds.join(','),
-										Recursive: true,
-										Limit: limit,
-										Fields: fields
-									});
-									items = getResultItems(result);
-								} else if (rawSectionType) {
-									const result = await api.getHomeScreenSectionContent(
-										rawSectionType,
-										rawAdditionalData,
-										rawSection.Language || rawSection.language || spec.language || settings.uiLanguage || null
-									);
-									items = normalizeHssItems(getResultItems(result), rawSectionType, rawAdditionalData);
-								} else {
-									items = [];
-								}
-								break;
-							}
 							default:
 								items = [];
 						}
@@ -1246,10 +1217,17 @@ const Browse = ({
 					const genresIncludeTypes = getGenresIncludeTypes(settings.genresRowItemFilter);
 					const enabledPluginSections = (settings.pluginSections || []).filter((section) => section.enabled);
 
-					[latestResults, collectionsResult, favoriteResults, genresResult, pluginRows] = await Promise.all([
+					[latestResults, recentlyReleasedResults, collectionsResult, favoriteResults, genresResult, pluginRows] = await Promise.all([
 						Promise.all(
 							eligibleLibraries.map(lib =>
 								api.getLatest(lib.Id, 16)
+									.then(latest => ({lib, latest}))
+									.catch(() => null)
+							)
+						),
+						Promise.all(
+							eligibleLibraries.map(lib =>
+								api.getRecentlyReleased(lib.Id, 16)
 									.then(latest => ({lib, latest}))
 									.catch(() => null)
 							)
@@ -1292,11 +1270,29 @@ const Browse = ({
 
 						newRows.push({
 							id: rowId,
-							title: $L('Latest in {libraryTitle}').replace('{libraryTitle}', libraryTitle),
+							title: $L('Recently Added in {libraryTitle}').replace('{libraryTitle}', libraryTitle),
 							items: result.latest,
 							library: result.lib,
 							type: result.lib.CollectionType?.toLowerCase() === 'music' ? 'square' : 'portrait',
 							isLatestRow: true
+						});
+					}
+				}
+
+				for (const result of recentlyReleasedResults) {
+					if (result && result.latest.Items?.length > 0) {
+						const libraryTitle = unifiedMode && result.lib._serverName
+							? `${result.lib.Name} (${result.lib._serverName})`
+							: result.lib.Name;
+						const rowId = `recently-released-${result.lib.Id}${result.lib._serverName ? '-' + result.lib._serverName : ''}`;
+
+						newRows.push({
+							id: rowId,
+							title: $L('Recently Released in {libraryTitle}').replace('{libraryTitle}', libraryTitle),
+							items: result.latest.Items,
+							library: result.lib,
+							type: result.lib.CollectionType?.toLowerCase() === 'music' ? 'square' : 'portrait',
+							isRecentlyReleasedRow: true
 						});
 					}
 				}
@@ -1332,6 +1328,17 @@ const Browse = ({
 						isGenreRow: true
 					});
 				}
+
+				imdbResults.forEach((res) => {
+					if (res.items?.length > 0) {
+						newRows.push({
+							id: res.row.id,
+							title: $L(res.row.name),
+							items: res.items,
+							type: 'portrait'
+						});
+					}
+				});
 
 				pluginRows.filter(Boolean).forEach((pluginRow) => newRows.push(pluginRow));
 
@@ -1373,7 +1380,8 @@ const Browse = ({
 		fetchFreshFeaturedItems,
 		unifiedMode,
 		getItemServerUrl,
-		refreshVolatileData
+		refreshVolatileData,
+		homeRowsConfig
 	]); // eslint-disable-line no-use-before-define
 
 	const targetBackdropUrl = useMemo(() => {

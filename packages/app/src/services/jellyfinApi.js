@@ -221,14 +221,17 @@ export const api = {
 	getLatest: (libraryId, limit = 20) =>
 		request(`/Users/${currentUser}/Items/Latest?ParentId=${libraryId}&Limit=${limit}&Fields=${encodeURIComponent(HOME_ROW_ITEM_FIELDS)}&ImageTypeLimit=1&GroupItems=true`),
 
+	getRecentlyReleased: (libraryId, limit = 20) =>
+		request(`/Users/${currentUser}/Items?IncludeItemTypes=Movie,Series&Recursive=true&ParentId=${libraryId}&Limit=${limit}&Fields=${encodeURIComponent(HOME_ROW_ITEM_FIELDS)}&ImageTypeLimit=1&SortBy=PremiereDate&SortOrder=Descending&MaxPremiereDate=${encodeURIComponent(new Date().toISOString())}`),
+
 	getCollections: (limit = 50, sortBy = 'SortName', sortOrder = 'Ascending') =>
 		request(`/Users/${currentUser}/Items?IncludeItemTypes=BoxSet&Recursive=true&SortBy=${encodeURIComponent(sortBy)}&SortOrder=${encodeURIComponent(sortOrder)}&Limit=${limit}&Fields=PrimaryImageAspectRatio,ProductionYear`),
 
 	getResumeItems: (limit = 12) =>
-		request(`/Users/${currentUser}/Items/Resume?Limit=${limit}&MediaTypes=Video&Fields=ImageTags,ParentThumbItemId,ParentBackdropItemId`),
+		request(`/Users/${currentUser}/Items/Resume?Limit=${limit}&MediaTypes=Video&Fields=${encodeURIComponent(HOME_ROW_ITEM_FIELDS)}`),
 
 	getNextUp: (limit = 24, seriesId = null) => {
-		let url = `/Shows/NextUp?UserId=${currentUser}&Limit=${limit}&Fields=Overview,ImageTags,ParentThumbItemId,ParentBackdropItemId`;
+		let url = `/Shows/NextUp?UserId=${currentUser}&Limit=${limit}&Fields=${encodeURIComponent(HOME_ROW_ITEM_FIELDS)}`;
 		if (seriesId) url += `&SeriesId=${seriesId}`;
 		return request(url);
 	},
@@ -297,27 +300,10 @@ export const api = {
 		return request(`/Genres?UserId=${currentUser}&SortBy=${encodeURIComponent(sortBy)}&SortOrder=${encodeURIComponent(sortOrder)}&Recursive=true&IncludeItemTypes=${encodeURIComponent(includeItemTypes)}${params}`);
 	},
 
-	getInstalledPlugins: () => request('/Plugins'),
-
-	getHomeScreenMeta: () => request('/HomeScreen/Meta'),
-
-	getHomeScreenSections: (language = null) => {
-		const params = [`UserId=${currentUser}`];
-		if (language) {
-			params.push(`Language=${encodeURIComponent(String(language))}`);
-		}
-		return request(`/HomeScreen/Sections?${params.join('&')}`);
-	},
-
-	getHomeScreenSectionContent: (sectionType, additionalData = null, language = null) => {
-		const params = [`UserId=${currentUser}`];
-		if (additionalData !== null && additionalData !== undefined && String(additionalData) !== '') {
-			params.push(`AdditionalData=${encodeURIComponent(String(additionalData))}`);
-		}
-		if (language) {
-			params.push(`Language=${encodeURIComponent(String(language))}`);
-		}
-		return request(`/HomeScreen/Section/${encodeURIComponent(String(sectionType))}?${params.join('&')}`);
+	getCustomRow: (source, type) => {
+		// The backend returns 400 without a non-empty params JSON, so send a minimal one.
+		const params = encodeURIComponent(JSON.stringify({source: String(source), type: String(type)}));
+		return request(`/Moonfin/CustomRows/Items?source=${encodeURIComponent(String(source))}&type=${encodeURIComponent(String(type))}&params=${params}`);
 	},
 
 	getMusicGenres: (params = {}) => {
@@ -655,27 +641,10 @@ export const createApiForServer = (serverUrl, token, userId, serverTypeOverride 
 		getLocalTrailers: (itemId) =>
 			serverRequest(`/Users/${userId}/Items/${itemId}/LocalTrailers`),
 
-		getInstalledPlugins: () => serverRequest('/Plugins'),
-
-		getHomeScreenMeta: () => serverRequest('/HomeScreen/Meta'),
-
-		getHomeScreenSections: (language = null) => {
-			const params = [`UserId=${userId}`];
-			if (language) {
-				params.push(`Language=${encodeURIComponent(String(language))}`);
-			}
-			return serverRequest(`/HomeScreen/Sections?${params.join('&')}`);
-		},
-
-		getHomeScreenSectionContent: (sectionType, additionalData = null, language = null) => {
-			const params = [`UserId=${userId}`];
-			if (additionalData !== null && additionalData !== undefined && String(additionalData) !== '') {
-				params.push(`AdditionalData=${encodeURIComponent(String(additionalData))}`);
-			}
-			if (language) {
-				params.push(`Language=${encodeURIComponent(String(language))}`);
-			}
-			return serverRequest(`/HomeScreen/Section/${encodeURIComponent(String(sectionType))}?${params.join('&')}`);
+		getCustomRow: (source, type) => {
+			// The backend returns 400 without a non-empty params JSON, so send a minimal one.
+			const params = encodeURIComponent(JSON.stringify({source: String(source), type: String(type)}));
+			return serverRequest(`/Moonfin/CustomRows/Items?source=${encodeURIComponent(String(source))}&type=${encodeURIComponent(String(type))}&params=${params}`);
 		},
 
 		searchRemoteSubtitles: (itemId, language = 'eng', isPerfectMatch = null) => {

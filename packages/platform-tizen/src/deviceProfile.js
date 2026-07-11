@@ -497,6 +497,11 @@ export const getJellyfinDeviceProfile = async () => {
 	// TrueHD+Atmos is filtered out at the codec-profile level below.
 	// I might change it in the future so that pure TRueHD without atmos can be played as this is possible, but it was currently easier to just trancode it and yeeeeeeeeet
 
+	// FLAC inside a video container plays with a noticeable audio delay here,
+	// so video profiles leave it out and let the server transcode the track.
+	// Music files keep direct playing FLAC
+	const videoAudioCodecs = audioCodecs.filter((codec) => codec !== 'flac');
+
 	// General video containers per Samsung spec tables (for H.264/HEVC)
 	// Note: HEVC only works in MKV/MP4/TS per Samsung docs
 	const generalContainers = [];
@@ -526,7 +531,7 @@ export const getJellyfinDeviceProfile = async () => {
 			Container: generalContainers.join(','),
 			Type: 'Video',
 			VideoCodec: generalVideoCodecs.join(','),
-			AudioCodec: audioCodecs.join(',')
+			AudioCodec: videoAudioCodecs.join(',')
 		}
 	];
 
@@ -550,14 +555,13 @@ export const getJellyfinDeviceProfile = async () => {
 			Container: 'm3u8',
 			Type: 'Video',
 			VideoCodec: allVideoCodecs.join(','),
-			AudioCodec: audioCodecs.join(',')
+			AudioCodec: videoAudioCodecs.join(',')
 		});
 	}
 
-	// fMP4 HLS is only for AV1 passthrough (TS cannot carry AV1). HEVC/H.264 use TS:
-	// copying HEVC (especially Dolby Vision) into fMP4-HLS fails on several Tizen
-	// firmwares with PLAYER_ERROR_NOT_SUPPORTED_FILE (#179), so they must not match
-	// the fMP4 profile.
+	// fMP4 HLS is only for AV1 passthrough since TS cant carry AV1. HEVC/H.264
+	// use TS because copying HEVC (especially Dolby Vision) into fMP4 HLS fails
+	// on several Tizen firmwares, so they must not match the fMP4 profile
 	const tsAudio = caps.eac3 ? 'eac3,ac3,aac' : (caps.ac3 ? 'ac3,aac' : 'aac');
 	const transcodingProfiles = [];
 
@@ -570,23 +574,28 @@ export const getJellyfinDeviceProfile = async () => {
 			Context: 'Streaming',
 			Protocol: 'hls',
 			MaxAudioChannels: maxAudioChannels,
-			MinSegments: '1',
-			SegmentLength: '3'
+			MinSegments: '2',
+			SegmentLength: '6'
 		});
 	}
 
+	// hevc inside HLS TS only demuxes reliably from Tizen 6 up. Short segments
+	// and non keyframe breaks stall AVPlay on segment boundaries, so use longer
+	// keyframe aligned ones. VBR AAC in TS comes out LATM framed, which older
+	// firmware refuses, so keep the encoder on CBR
 	transcodingProfiles.push(
 		{
 			Container: 'ts',
 			Type: 'Video',
 			AudioCodec: tsAudio,
-			VideoCodec: caps.hevc ? 'hevc,h264' : 'h264',
+			VideoCodec: caps.hevc && caps.tizenVersion >= 6 ? 'hevc,h264' : 'h264',
 			Context: 'Streaming',
 			Protocol: 'hls',
 			MaxAudioChannels: maxAudioChannels,
-			MinSegments: '1',
-			SegmentLength: '3',
-			BreakOnNonKeyFrames: true
+			MinSegments: '2',
+			SegmentLength: '6',
+			BreakOnNonKeyFrames: false,
+			EnableAudioVbrEncoding: false
 		},
 		{
 			Container: 'mp3',
@@ -617,6 +626,16 @@ export const getJellyfinDeviceProfile = async () => {
 		hevcLevel = '123'; // Level 4.1
 	}
 
+	// Dual layer Dolby Vision files carry a compatible base layer, so an HDR10
+	// panel can direct play them as HDR10 while the server strips the DV boxes.
+	// Raw single layer DOVI stays out unless the panel really supports it,
+	// advertising it makes the server hand over streams AVPlay cant parse
+	const hevcRangeTypes = ['SDR', 'DOVIWithSDR'];
+	if (caps.hdr10) hevcRangeTypes.push('HDR10', 'DOVIWithHDR10', 'DOVIWithEL', 'DOVIInvalid');
+	if (caps.hdr10Plus) hevcRangeTypes.push('HDR10Plus', 'DOVIWithHDR10Plus', 'DOVIWithELHDR10Plus');
+	if (caps.hlg) hevcRangeTypes.push('HLG', 'DOVIWithHLG');
+	if (caps.dolbyVision) hevcRangeTypes.push('DOVI');
+
 	const codecProfiles = [
 		{
 			Type: 'Video',
@@ -625,6 +644,12 @@ export const getJellyfinDeviceProfile = async () => {
 				{
 					Condition: 'NotEquals',
 					Property: 'IsAnamorphic',
+					Value: 'true',
+					IsRequired: false
+				},
+				{
+					Condition: 'NotEquals',
+					Property: 'IsInterlaced',
 					Value: 'true',
 					IsRequired: false
 				},
@@ -663,6 +688,12 @@ export const getJellyfinDeviceProfile = async () => {
 					Property: 'VideoBitDepth',
 					Value: caps.hdr10 || caps.dolbyVision ? '10' : '8',
 					IsRequired: false
+				},
+				{
+					Condition: 'EqualsAny',
+					Property: 'VideoRangeType',
+					Value: hevcRangeTypes.join('|'),
+					IsRequired: false
 				}
 			]
 		},
@@ -679,6 +710,15 @@ export const getJellyfinDeviceProfile = async () => {
 		}
 	];
 
+	// multichannel AAC in a TS stream crashes the decoder on these sets
+	if (caps.tizenVersion < 6) {
+		codecProfiles.push({
+			Type: 'VideoAudio',
+			Codec: 'aac',
+			Conditions: [{ Condition: 'LessThanEqual', Property: 'AudioChannels', Value: '2', IsRequired: true }]
+		});
+	}
+
 	// Force any kind of DTS to be transcoded to E-AC3 
 	codecProfiles.push({
 		Type: 'VideoAudio',
@@ -686,7 +726,7 @@ export const getJellyfinDeviceProfile = async () => {
 		Conditions: [{ Condition: 'Equals', Property: 'AudioChannels', Value: '0', IsRequired: true }]
 	});
 
-	// Force a transcode to all TrueHD/MLP. Samsung AVPlay cannot decode TrueHD (with or without Atmos) reliably
+	// Force a transcode to all TrueHD/MLP. Samsung AVPlay cant decode TrueHD (with or without Atmos) reliably
 	codecProfiles.push({
 		Type: 'VideoAudio',
 		Codec: 'truehd,mlp',
@@ -734,12 +774,21 @@ export const getJellyfinDeviceProfile = async () => {
 		// Embed method - allows direct play of embedded subtitles without extraction
 		{Format: 'srt', Method: 'Embed'},
 		{Format: 'subrip', Method: 'Embed'},
-		// Image-based: client-side rendering via canvas
+		// PGS renders client-side via canvas
 		{Format: 'pgs', Method: 'External'},
 		{Format: 'pgssub', Method: 'External'},
-		{Format: 'dvdsub', Method: 'External'},
-		{Format: 'dvbsub', Method: 'External'}
+		{Format: 'dvdsub', Method: 'Encode'},
+		{Format: 'dvbsub', Method: 'Encode'}
 	];
+
+	const containerProfiles = [];
+	if (caps.tizenVersion < 6.5) {
+		// these sets refuse files carrying more than 32 streams
+		containerProfiles.push({
+			Type: 'Video',
+			Conditions: [{ Condition: 'LessThanEqual', Property: 'NumStreams', Value: '32', IsRequired: false }]
+		});
+	}
 
 	const responseProfiles = [
 		{
@@ -763,6 +812,7 @@ export const getJellyfinDeviceProfile = async () => {
 		DirectPlayProfiles: directPlayProfiles,
 		TranscodingProfiles: transcodingProfiles,
 		CodecProfiles: codecProfiles,
+		ContainerProfiles: containerProfiles,
 		SubtitleProfiles: subtitleProfiles,
 		ResponseProfiles: responseProfiles
 	};

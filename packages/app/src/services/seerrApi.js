@@ -607,7 +607,10 @@ REQUEST_4K_MOVIE: 2048,
 REQUEST_4K_TV: 4096,
 REQUEST_ADVANCED: 8192,
 REQUEST_MOVIE: 262144,
-REQUEST_TV: 524288
+REQUEST_TV: 524288,
+MANAGE_ISSUES: 1048576,
+VIEW_ISSUES: 2097152,
+CREATE_ISSUES: 4194304
 };
 
 const normalizePermissionValue = (userPermissions) => {
@@ -658,6 +661,19 @@ hasPermission(userPermissions, PERMISSIONS.REQUEST_TV);
 export const hasAdvancedRequestPermission = (userPermissions) => {
 return hasPermission(userPermissions, PERMISSIONS.REQUEST_ADVANCED) ||
 hasPermission(userPermissions, PERMISSIONS.MANAGE_REQUESTS);
+};
+
+export const canManageRequests = (userPermissions) => {
+return hasPermission(userPermissions, PERMISSIONS.MANAGE_REQUESTS);
+};
+
+export const canManageIssues = (userPermissions) => {
+return hasPermission(userPermissions, PERMISSIONS.MANAGE_ISSUES);
+};
+
+export const canCreateIssues = (userPermissions) => {
+return hasPermission(userPermissions, PERMISSIONS.CREATE_ISSUES) ||
+hasPermission(userPermissions, PERMISSIONS.MANAGE_ISSUES);
 };
 
 export const getSettings = async () => {
@@ -770,8 +786,28 @@ export const getPerson = async (tmdbId) => {
 return request(`/person/${tmdbId}`);
 };
 
-export const getRequests = async (filter = 'all', take = 20, skip = 0) => {
-return request(`/request?filter=${filter}&take=${take}&skip=${skip}`);
+export const getRequests = async (filter = 'all', take = 20, skip = 0, sort = 'added') => {
+return request(`/request?filter=${filter}&take=${take}&skip=${skip}&sort=${sort}`);
+};
+
+export const getRequest = async (requestId) => {
+return request(`/request/${requestId}`);
+};
+
+export const getRequestCount = async () => {
+return request('/request/count');
+};
+
+export const approveRequest = async (requestId) => {
+return request(`/request/${requestId}/approve`, {method: 'POST'});
+};
+
+export const declineRequest = async (requestId) => {
+return request(`/request/${requestId}/decline`, {method: 'POST'});
+};
+
+export const retryRequest = async (requestId) => {
+return request(`/request/${requestId}/retry`, {method: 'POST'});
 };
 
 export const getMyRequests = async (requestedByUserId, take = 50, skip = 0) => {
@@ -783,7 +819,8 @@ export const REQUEST_STATUS = {
 PENDING: 1,
 APPROVED: 2,
 DECLINED: 3,
-AVAILABLE: 4
+FAILED: 4,
+COMPLETED: 5
 };
 
 export const getRequestStatusText = (status) => {
@@ -791,7 +828,8 @@ switch (status) {
 case REQUEST_STATUS.PENDING: return 'Pending';
 case REQUEST_STATUS.APPROVED: return 'Approved';
 case REQUEST_STATUS.DECLINED: return 'Declined';
-case REQUEST_STATUS.AVAILABLE: return 'Available';
+case REQUEST_STATUS.FAILED: return 'Failed';
+case REQUEST_STATUS.COMPLETED: return 'Available';
 default: return 'Unknown';
 }
 };
@@ -837,6 +875,49 @@ body
 
 export const cancelRequest = async (requestId) => {
 return request(`/request/${requestId}`, {method: 'DELETE'});
+};
+
+export const getIssues = async (filter = 'open', take = 20, skip = 0) => {
+return request(`/issue?filter=${filter}&take=${take}&skip=${skip}`);
+};
+
+export const getIssueCount = async () => {
+return request('/issue/count');
+};
+
+export const getIssue = async (issueId) => {
+return request(`/issue/${issueId}`);
+};
+
+// mediaId is the seerr internal media id from details.mediaInfo.id, not the tmdb id.
+export const createIssue = async ({issueType, message, mediaId, problemSeason = 0, problemEpisode = 0}) => {
+return request('/issue', {
+method: 'POST',
+body: {issueType, message, mediaId, problemSeason, problemEpisode}
+});
+};
+
+export const commentOnIssue = async (issueId, message) => {
+return request(`/issue/${issueId}/comment`, {
+method: 'POST',
+body: {message}
+});
+};
+
+export const setIssueStatus = async (issueId, status) => {
+return request(`/issue/${issueId}/${status}`, {method: 'POST'});
+};
+
+export const deleteIssue = async (issueId) => {
+return request(`/issue/${issueId}`, {method: 'DELETE'});
+};
+
+export const getCollection = async (collectionId) => {
+return request(`/collection/${collectionId}`);
+};
+
+export const getUserQuota = async (userId) => {
+return request(`/user/${userId}/quota`);
 };
 
 export const getMediaStatus = async (mediaType, tmdbId) => {
@@ -901,6 +982,9 @@ canRequest4k,
 canRequest4kMovies,
 canRequest4kTv,
 hasAdvancedRequestPermission,
+canManageRequests,
+canManageIssues,
+canCreateIssues,
 getSettings,
 getBlacklist,
 getRadarrServers,
@@ -930,12 +1014,26 @@ getTv,
 getPerson,
 getMediaStatus,
 getRequests,
+getRequest,
+getRequestCount,
+approveRequest,
+declineRequest,
+retryRequest,
 getMyRequests,
 REQUEST_STATUS,
 getRequestStatusText,
 requestMovie,
 requestTv,
 cancelRequest,
+getIssues,
+getIssueCount,
+getIssue,
+createIssue,
+commentOnIssue,
+setIssueStatus,
+deleteIssue,
+getCollection,
+getUserQuota,
 getImageUrl,
 proxyImage
 };

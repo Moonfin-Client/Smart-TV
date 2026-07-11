@@ -1,6 +1,128 @@
-.requestItem {
+.hub {
+	height: 100%;
+	display: -webkit-box;
+	display: -webkit-flex;
 	display: flex;
+	-webkit-box-orient: vertical;
+	-webkit-flex-direction: column;
+	flex-direction: column;
+}
+
+.tabRow {
+	display: -webkit-box;
+	display: -webkit-flex;
+	display: flex;
+	padding: 0 1rem;
+
+	> * + * {
+		margin-left: 0.75rem;
+	}
+}
+
+.tabPill {
+	display: -webkit-inline-box;
+	display: -webkit-inline-flex;
+	display: inline-flex;
+	-webkit-box-align: center;
+	-webkit-align-items: center;
+	align-items: center;
+	background: rgba(var(--theme-on-surface-rgb, 255, 255, 255), 0.06);
+	border: 2px solid transparent;
+	border-radius: 999px;
+	padding: 0.5rem 1.4rem;
+	font-size: 1.1rem;
+	color: var(--theme-text-secondary, rgba(255, 255, 255, 0.65));
+	cursor: pointer;
+
+	&:focus {
+		border-color: var(--theme-focus-border-color, #ffffff);
+		color: var(--theme-text-primary, #ffffff);
+		outline: none;
+	}
+}
+
+.tabPillSelected {
+	background: rgba(var(--theme-accent-rgb, 0, 164, 220), 0.18);
+	border-color: rgba(var(--theme-accent-rgb, 0, 164, 220), 0.6);
+	color: var(--theme-text-primary, #ffffff);
+}
+
+.tabCount {
+	display: inline-block;
+	margin-left: 0.5rem;
+	background: var(--theme-accent, #00a4dc);
+	color: var(--theme-on-accent, #ffffff);
+	border-radius: 999px;
+	font-size: 0.75rem;
+	font-weight: 700;
+	padding: 0.1rem 0.45rem;
+}
+
+.filterRow {
+	display: -webkit-box;
+	display: -webkit-flex;
+	display: flex;
+	-webkit-flex-wrap: wrap;
+	flex-wrap: wrap;
+	padding: 0.75rem 1rem 0.5rem;
+
+	> * {
+		margin-right: 0.5rem;
+		margin-bottom: 0.5rem;
+	}
+}
+
+.chip {
+	display: -webkit-inline-box;
+	display: -webkit-inline-flex;
+	display: inline-flex;
+	-webkit-box-align: center;
+	-webkit-align-items: center;
+	align-items: center;
+	background: var(--theme-chip-background, rgba(255, 255, 255, 0.06));
+	border: 2px solid var(--theme-chip-border, rgba(255, 255, 255, 0.18));
+	border-radius: 999px;
+	padding: 0.3rem 0.9rem;
+	font-size: 0.9rem;
+	color: var(--theme-text-secondary, rgba(255, 255, 255, 0.65));
+	cursor: pointer;
+
+	&:focus {
+		border-color: var(--theme-focus-border-color, #ffffff);
+		color: var(--theme-text-primary, #ffffff);
+		outline: none;
+	}
+}
+
+.chipSelected {
+	background: rgba(var(--theme-accent-rgb, 0, 164, 220), 0.16);
+	border-color: rgba(var(--theme-accent-rgb, 0, 164, 220), 0.6);
+	color: var(--theme-text-primary, #ffffff);
+}
+
+.chipCount {
+	display: inline-block;
+	margin-left: 0.4rem;
+	color: var(--theme-accent, #00a4dc);
+	font-weight: 700;
+}
+
+.listArea {
+	-webkit-box-flex: 1;
+	-webkit-flex: 1;
+	flex: 1;
+	min-height: 0;
+}
+
+.requestItem {
+	display: -webkit-box;
+	display: -webkit-flex;
+	display: flex;
+	-webkit-box-orient: horizontal;
+	-webkit-flex-direction: row;
 	flex-direction: row;
+	-webkit-box-align: center;
+	-webkit-align-items: center;
 	align-items: center;
 	padding: 1rem;
 	background: rgba(var(--theme-on-surface-rgb, 255, 255, 255), 0.05);
@@ -28,7 +150,10 @@
 }
 
 .requestInfo {
+	-webkit-box-flex: 1;
+	-webkit-flex: 1;
 	flex: 1;
+	min-width: 0;
 
 	> * + * {
 		margin-top: 0.5rem;
@@ -39,9 +164,14 @@
 	font-size: 1.2rem;
 	font-weight: bold;
 	margin: 0;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
 }
 
 .meta {
+	-webkit-box-align: center;
+	-webkit-align-items: center;
 	align-items: center;
 
 	> * + * {
@@ -54,58 +184,60 @@
 	font-size: 0.9rem;
 }
 
-.statusChip {
-	padding: 0.25rem 0.5rem;
-	border-radius: 4px;
-	font-size: 0.8rem;
-	font-weight: 600;
-	border: 1px solid;
-}
-
-.chipPending {
-	background: rgba(156, 163, 175, 0.2);
-	border-color: rgba(156, 163, 175, 0.4);
-	color: var(--theme-text-secondary, #9ca3af);
-}
-
-.chipApproved {
-	background: rgba(59, 130, 246, 0.2);
-	border-color: rgba(59, 130, 246, 0.4);
-	color: var(--theme-status-downloading, #3b82f6);
-}
-
-.chipDeclined {
-	background: rgba(239, 68, 68, 0.2);
-	border-color: rgba(239, 68, 68, 0.4);
-	color: var(--theme-recording-active, #ef4444);
-}
-
-.chipAvailable {
-	background: rgba(34, 197, 94, 0.2);
-	border-color: rgba(34, 197, 94, 0.4);
-	color: var(--theme-status-available, #22c55e);
-}
-
-.chipPartial {
-	background: rgba(245, 158, 11, 0.2);
-	border-color: rgba(245, 158, 11, 0.4);
-	color: var(--theme-status-pending, #f59e0b);
-}
-
-.chipDownloading {
-	background: rgba(99, 102, 241, 0.2);
-	border-color: rgba(99, 102, 241, 0.4);
-	color: var(--theme-status-downloading, #6366f1);
-}
-
 .date {
 	font-size: 0.85rem;
 	opacity: 0.6;
 	margin: 0;
 }
 
-.cancelBtn {
+.rowActions {
+	display: -webkit-box;
+	display: -webkit-flex;
+	display: flex;
+	-webkit-box-align: center;
+	-webkit-align-items: center;
+	align-items: center;
 	flex-shrink: 0;
+
+	> * + * {
+		margin-left: 0.5rem;
+	}
+}
+
+.actionBtn {
+	border: 2px solid transparent;
+	border-radius: 8px;
+	padding: 0.5rem 1rem;
+	font-size: 0.95rem;
+	font-weight: 600;
+	white-space: nowrap;
+	cursor: pointer;
+
+	&:focus {
+		border-color: var(--theme-focus-border-color, #ffffff);
+		outline: none;
+		transform: scale(1.05);
+	}
+}
+
+.approveBtn {
+	background: rgba(34, 197, 94, 0.16);
+	color: var(--theme-status-available, #22c55e);
+}
+
+.declineBtn {
+	background: rgba(239, 68, 68, 0.14);
+	color: var(--theme-recording-active, #ef4444);
+}
+
+.retryBtn {
+	background: rgba(234, 179, 8, 0.16);
+	color: var(--theme-status-pending, #eab308);
+}
+
+.cancelBtnPlain {
+	background: rgba(var(--theme-on-surface-rgb, 255, 255, 255), 0.08);
+	color: var(--theme-text-primary, #ffffff);
 }
 
 .message,

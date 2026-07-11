@@ -64,6 +64,8 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 	const {isInGroup, lastCommand} = useSyncPlay();
 	const syncPlayCommandRef = useRef(false);
 	const lastProcessedCommandRef = useRef(null);
+	const suppressBufferingUntilRef = useRef(0);
+	const stallRecheckTimerRef = useRef(null);
 
 	const [mediaUrl, setMediaUrl] = useState(null);
 	const [mimeType, setMimeType] = useState('video/mp4');
@@ -171,6 +173,8 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 	const assRendererRef = useRef(null);
 	const assCanvasRef = useRef(null);
 	const pendingInitialAssSubtitleRef = useRef(null);
+	// index of a subtitle the server is currently burning into the stream
+	const burnInSubtitleRef = useRef(null);
 
 	const destroyHlsPlayer = () => {
 		if (hlsPlayerRef.current) {
@@ -601,6 +605,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 			setSelectedSubtitleIndex(-1);
 			setVideoDisplayAspectRatio(null);
 			setDecodedAspectRatio(null);
+			burnInSubtitleRef.current = null;
 
 			resetPopups(); // eslint-disable-line no-use-before-define
 			setNextEpisode(null);
@@ -750,6 +755,9 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 						const selectedSub = result.subtitleStreams?.find(s => s.index === initialSubtitleIndex);
 						if (selectedSub) {
 							setSelectedSubtitleIndex(initialSubtitleIndex);
+							// a preselected burn in track was already negotiated into the
+							// stream, remember it so deselecting later reloads without it
+							if (selectedSub.isBurnIn) burnInSubtitleRef.current = initialSubtitleIndex;
 							await loadSubtitleData(selectedSub);
 						} else {
 							console.error('[Player] initialSubtitleIndex', initialSubtitleIndex, 'not found in subtitleStreams');
@@ -1650,6 +1658,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 
 	const handlePlayPause = useCallback(() => {
 		if (videoRef.current) {
+			showControls();
 			if (isInGroup && !syncPlayCommandRef.current) {
 				if (isPaused) {
 					syncPlayService.sendPlayRequest();
@@ -1671,7 +1680,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 				healthMonitorRef.current?.setPaused(true);
 			}
 		}
-	}, [isPaused, settings.unpauseRewind, isInGroup]);
+	}, [isPaused, settings.unpauseRewind, isInGroup, showControls]);
 
 	const handleRewind = useCallback(() => {
 		if (videoRef.current) {
@@ -1746,6 +1755,24 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 		openModal('subtitleSettings');
 	}, [openModal]);
 
+	// dvd and dvb bitmaps have no client renderer, the server burns them into
+	// the video, which needs a stream reload whenever one is picked or dropped
+	const reloadWithSubtitleIndex = useCallback(async (subIndex) => {
+		const currentPositionTicks = videoRef.current
+			? Math.floor(videoRef.current.currentTime * 10000000)
+			: positionRef.current || 0;
+		const result = await playback.changeSubtitleStream(subIndex);
+		if (result?.url) {
+			positionRef.current = currentPositionTicks;
+			if (currentPositionTicks > 0) {
+				pendingResumeTicksRef.current = currentPositionTicks;
+			}
+			setMediaUrl(result.url);
+			if (result.playMethod) setPlayMethod(result.playMethod);
+			setMimeType(result.mimeType || 'video/mp4');
+		}
+	}, []);
+
 	const applySubtitleSelection = useCallback(async (index, streamList = subtitleStreams, shouldClose = true) => {
 		playback.updateCurrentSession({subtitleStreamIndex: index});
 
@@ -1760,11 +1787,39 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 			setSelectedSubtitleIndex(-1);
 			setSubtitleTrackEvents(null);
 			setCurrentSubtitleText(null);
+			if (burnInSubtitleRef.current != null) {
+				burnInSubtitleRef.current = null;
+				try {
+					await reloadWithSubtitleIndex(-1);
+				} catch (err) {
+					console.error('[Player] Subtitle reload failed:', err);
+				}
+			}
 		} else {
 			setSelectedSubtitleIndex(index);
 			const stream = streamList.find(s => s.index === index);
 
-			if (stream && stream.isAss && supportsAssRenderer()) {
+			if (burnInSubtitleRef.current != null && !(stream && stream.isBurnIn)) {
+				burnInSubtitleRef.current = null;
+				try {
+					await reloadWithSubtitleIndex(index);
+				} catch (err) {
+					console.error('[Player] Subtitle reload failed:', err);
+				}
+			}
+
+			if (stream && stream.isBurnIn) {
+				setSubtitleTrackEvents(null);
+				setCurrentSubtitleText(null);
+				if (burnInSubtitleRef.current !== index) {
+					try {
+						await reloadWithSubtitleIndex(index);
+						burnInSubtitleRef.current = index;
+					} catch (err) {
+						console.error('[Player] Burn in subtitle reload failed:', err);
+					}
+				}
+			} else if (stream && stream.isAss && supportsAssRenderer()) {
 				await initAssRendererForStream(stream);
 			} else if (stream && stream.isTextBased) {
 				try {
@@ -1803,7 +1858,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 		if (shouldClose) {
 			closeModal();
 		}
-	}, [subtitleStreams, closeModal, settings.enablePgsRendering, settings.subtitleOpacity, initAssRendererForStream]);
+	}, [subtitleStreams, closeModal, settings.enablePgsRendering, settings.subtitleOpacity, initAssRendererForStream, reloadWithSubtitleIndex]);
 
 	const handleOpenRemoteSubtitleSearch = useCallback(async () => {
 		if (!item?.Id) return;
@@ -2109,47 +2164,68 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 		lastProcessedCommandRef.current = lastCommand;
 
 		const {Command, PositionTicks, When} = lastCommand;
+		const delay = syncPlayService.getDelayToWhen(When);
 
-		syncPlayCommandRef.current = true;
+		const execute = () => {
+			if (!videoRef.current) return;
+			syncPlayCommandRef.current = true;
+			suppressBufferingUntilRef.current = Date.now() + syncPlayService.BUFFERING_SUPPRESS_MS;
 
-		switch (Command) {
-			case 'Unpause': {
-				const delay = syncPlayService.getDelayToWhen(When);
-				if (PositionTicks != null) seekToTicks(PositionTicks);
-				if (delay > 0) {
-					const t = setTimeout(() => {
-						videoRef.current?.play()?.catch?.(() => {});
-						syncPlayCommandRef.current = false;
-					}, delay);
-					return () => clearTimeout(t);
+			switch (Command) {
+				case 'Unpause': {
+					// Executing on time seeks to the commanded position. A late
+					// arrival seeks ahead by the elapsed time to catch up.
+					const target = delay > 0 ? PositionTicks : syncPlayService.getAdjustedPosition(PositionTicks, When);
+					if (target != null) seekToTicks(target);
+					videoRef.current.play()?.catch?.(() => {});
+					break;
 				}
-				videoRef.current.play()?.catch?.(() => {});
-				break;
+				case 'Pause': {
+					videoRef.current.pause();
+					if (PositionTicks != null) seekToTicks(PositionTicks);
+					break;
+				}
+				case 'Seek': {
+					if (PositionTicks != null) seekToTicks(PositionTicks);
+					break;
+				}
+				default:
+					break;
 			}
-			case 'Pause': {
-				videoRef.current.pause();
-				if (PositionTicks != null) seekToTicks(PositionTicks);
-				break;
-			}
-			case 'Seek': {
-				if (PositionTicks != null) seekToTicks(PositionTicks);
-				break;
-			}
-			case 'Stop': {
-				handleBack();
-				break;
-			}
-			default:
-				break;
+
+			syncPlayCommandRef.current = false;
+		};
+
+		if (Command === 'Stop') {
+			handleBack();
+			return;
 		}
 
-		syncPlayCommandRef.current = false;
+		if (delay > 50) {
+			const t = setTimeout(execute, delay);
+			return () => clearTimeout(t);
+		}
+		execute();
 	}, [lastCommand, seekToTicks, handleBack]);
 
 	useEffect(() => {
 		if (!isInGroup || !videoRef.current) return;
 
 		const reportBuffering = () => {
+			const remaining = suppressBufferingUntilRef.current - Date.now();
+			if (remaining > 0) {
+				// This 'waiting' came from our own command-driven seek. A genuine
+				// stall must still reach the server eventually, so re-check once
+				// the window expires ('waiting' won't fire again for it).
+				clearTimeout(stallRecheckTimerRef.current);
+				stallRecheckTimerRef.current = setTimeout(() => {
+					const v = videoRef.current;
+					if (v && v.readyState < 3 && !v.paused) {
+						syncPlayService.sendBufferingRequest(true, positionRef.current);
+					}
+				}, remaining + 100);
+				return;
+			}
 			syncPlayService.sendBufferingRequest(
 				!videoRef.current.paused,
 				positionRef.current
@@ -2157,6 +2233,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 		};
 
 		const reportReady = () => {
+			clearTimeout(stallRecheckTimerRef.current);
 			syncPlayService.sendReadyRequest(
 				!videoRef.current.paused,
 				positionRef.current
@@ -2169,6 +2246,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 		video.addEventListener('canplay', reportReady);
 
 		return () => {
+			clearTimeout(stallRecheckTimerRef.current);
 			video.removeEventListener('waiting', reportBuffering);
 			video.removeEventListener('playing', reportReady);
 			video.removeEventListener('canplay', reportReady);
@@ -2186,7 +2264,14 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 			if (e.keyCode === 415) {
 				e.preventDefault();
 				e.stopPropagation();
+				showControls();
 				if (videoRef.current && videoRef.current.paused) {
+					// In a group the request goes to the server because acting
+					// locally would silently desync this client.
+					if (isInGroup && !syncPlayCommandRef.current) {
+						syncPlayService.sendPlayRequest();
+						return;
+					}
 					videoRef.current.play();
 				}
 				return;
@@ -2194,7 +2279,12 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 			if (e.keyCode === 19) {
 				e.preventDefault();
 				e.stopPropagation();
+				showControls();
 				if (videoRef.current && !videoRef.current.paused) {
+					if (isInGroup && !syncPlayCommandRef.current) {
+						syncPlayService.sendPauseRequest();
+						return;
+					}
 					videoRef.current.pause();
 				}
 				return;
@@ -2305,7 +2395,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 
 		window.addEventListener('keydown', handleKeyDown, true);
 		return () => window.removeEventListener('keydown', handleKeyDown, true);
-	}, [controlsVisible, activeModal, closeModal, hideControls, handleBack, showControls, handlePlayPause, handleForward, handleRewind, currentTime, settings.seekStep, seekByOffset, handlePopupKeyDown, bottomButtons.length, isAudioMode, showSkipIntro, showSkipCredits, showNextEpisode, isLiveTV]);
+	}, [controlsVisible, activeModal, closeModal, hideControls, handleBack, showControls, handlePlayPause, handleForward, handleRewind, currentTime, settings.seekStep, seekByOffset, handlePopupKeyDown, bottomButtons.length, isAudioMode, showSkipIntro, showSkipCredits, showNextEpisode, isLiveTV, isInGroup]);
 
 	const displayTime = isSeeking ? (seekPosition / 10000000) : currentTime;
 	const progressPercent = duration > 0 ? (displayTime / duration) * 100 : 0;

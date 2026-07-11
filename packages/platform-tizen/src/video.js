@@ -149,7 +149,7 @@ export const getSupportedAudioCodecs = (capabilities, _container = '', passthrou
 	return codecs;
 };
 
-const DTS_FAMILY_CODECS = ['dts', 'dca', 'dts-hd', 'dtshd', 'dts-ma', 'dtsma', 'dts-x', 'dtsx'];
+export const DTS_FAMILY_CODECS = ['dts', 'dca', 'dts-hd', 'dtshd', 'dts-ma', 'dtsma', 'dts-x', 'dtsx'];
 
 const streamHasAtmos = (stream) => {
 	if (!stream) return false;
@@ -202,22 +202,24 @@ export const getPlayMethod = (mediaSource, capabilities, _options = {}, passthro
 
 	const supportedAudioCodecs = getSupportedAudioCodecs(capabilities, container, passthroughOptions);
 
-	// Check if ANY audio stream is compatible (informational only — see below).
 	const audioStreams = mediaSource.MediaStreams?.filter(s => s.Type === 'Audio') || [];
-	const hasCompatibleAudio = audioStreams.length === 0 || audioStreams.some(s =>
-		isAudioStreamPlayable(s, capabilities, passthroughOptions)
-	);
+
+	// FLAC inside a video container plays with an audio delay and the device
+	// profile makes the server transcode it, so the local decision has to agree
+	const audioPlayableHere = (s) => {
+		if (videoStream && (s?.Codec || '').toLowerCase() === 'flac') return false;
+		return isAudioStreamPlayable(s, capabilities, passthroughOptions);
+	};
 
 	// AVPlay always decodes the file's default audio track and ignores the
 	// AudioStreamIndex hint passed in the stream URL. That means a multi-track
-	// file with TrueHD/DTS as the default and AC3 as a secondary cannot
-	// DirectPlay even though an alternate compatible track exists — AVPlay
+	// file with TrueHD/DTS as the default and AC3 as a secondary cant
+	// DirectPlay even though an alternate compatible track exists, AVPlay
 	// will still try to decode the default and fail with "codec not supported".
 	// So DirectPlay/DirectStream on the DEFAULT track being playable, and
 	// force audio remux whenever the default is unplayable.
 	const defaultStream = audioStreams.find(s => s.Index === mediaSource.DefaultAudioStreamIndex) || audioStreams[0];
-	const defaultPlayable = !defaultStream || isAudioStreamPlayable(defaultStream, capabilities, passthroughOptions);
-	const hasAlternatePlayable = audioStreams.some(s => s !== defaultStream && isAudioStreamPlayable(s, capabilities, passthroughOptions));
+	const defaultPlayable = !defaultStream || audioPlayableHere(defaultStream);
 	const needsAudioRemux = !defaultPlayable && audioStreams.length > 0;
 
 	const supportedContainers = ['mp4', 'm4v', 'mov', 'ts', 'mpegts', 'mkv', 'matroska', 'webm', 'avi',
@@ -235,16 +237,15 @@ export const getPlayMethod = (mediaSource, capabilities, _options = {}, passthro
 		: true;
 
 	// VP9 container support:
-	// Samsung spec tables officially list WebM only, but the official Jellyfin
-	// Web client (jellyfin-web) allows VP9 in MP4, MKV, and WebM on Tizen.
-	// The hardware VP9 decoder is container-agnostic; Tizen's media framework
-	// demuxes MKV/MP4/WebM equally well for VP9 content.
+	// Samsung spec tables officially list WebM only, but the hardware VP9
+	// decoder is container agnostic and Tizen's media framework demuxes
+	// MKV/MP4/WebM equally well for VP9 content.
 	const vp9ContainerOk = videoCodec === 'vp9'
 		? ['webm', 'mkv', 'matroska', 'mp4', 'm4v'].includes(container)
 		: true;
 
 	// AV1 container support:
-	// Same as VP9. The official Jellyfin client allows AV1 in MP4, MKV, and WebM.
+	// Same as VP9, plays fine from MP4, MKV, and WebM.
 	// 8K Premium 2022+ models additionally support TS/AVI containers.
 	const av1GeneralContainers = capabilities.uhd8K && capabilities.tizenVersion >= 6.5;
 	const av1ContainerOk = videoCodec === 'av1'
@@ -255,7 +256,11 @@ export const getPlayMethod = (mediaSource, capabilities, _options = {}, passthro
 	let hdrOk = true;
 	if (videoStream?.VideoRangeType) {
 		const rangeType = videoStream.VideoRangeType.toUpperCase();
-		if (rangeType.includes('DOLBY') || rangeType.includes('DV')) {
+		if (rangeType.includes('DOVIWITH')) {
+			// dual layer Dolby Vision has a compatible base layer, an HDR10
+			// panel plays that layer directly and an SDR fallback plays anywhere
+			hdrOk = rangeType.includes('SDR') ? true : (capabilities.hdr10 || capabilities.dolbyVision);
+		} else if (rangeType.includes('DOLBY') || rangeType.includes('DV')) {
 			hdrOk = capabilities.dolbyVision;
 		} else if (rangeType.includes('HDR')) {
 			hdrOk = capabilities.hdr10;
@@ -444,6 +449,146 @@ export const avplayOpen = (url) => {
 	webapis.avplay.open(url);
 };
 
+/**
+ * Set hardware buffering thresholds. Must be called in IDLE, between open and prepare.
+ * Falls back through the older byte based APIs on firmware that lacks setBufferingParam.
+ * Never throws so it cant abort an open sequence.
+ */
+export const avplaySetBufferingParams = (opts = {}) => {
+	if (!isAVPlayAvailable) return false;
+	// Samsung docs set 4 seconds as the minimum accepted value
+	const initialSeconds = Math.max(4, opts.initialSeconds ?? 6);
+	const resumeSeconds = Math.max(4, opts.resumeSeconds ?? 4);
+	let applied = false;
+
+	try {
+		webapis.avplay.setBufferingParam('PLAYER_BUFFER_FOR_PLAY', 'PLAYER_BUFFER_SIZE_IN_SECOND', initialSeconds);
+		webapis.avplay.setBufferingParam('PLAYER_BUFFER_FOR_RESUME', 'PLAYER_BUFFER_SIZE_IN_SECOND', resumeSeconds);
+		applied = true;
+		console.log(`[tizenVideo] Buffering params set: play=${initialSeconds}s resume=${resumeSeconds}s`);
+	} catch (e) {
+		console.warn('[tizenVideo] setBufferingParam unavailable:', e.message);
+	}
+
+	if (!applied) {
+		const bytes = Math.max(15 * 1024 * 1024, Math.floor(((opts.bitrate || 0) / 8) * initialSeconds));
+		try {
+			webapis.avplay.setBufferSize(bytes);
+			applied = true;
+			console.log(`[tizenVideo] Buffer size set: ${bytes} bytes`);
+		} catch (e) {
+			try {
+				webapis.avplay.setStreamingProperty('SET_BUFFER_SIZE', String(initialSeconds));
+				applied = true;
+			} catch (e2) {
+				console.warn('[tizenVideo] No buffering configuration supported on this firmware');
+			}
+		}
+	}
+
+	try {
+		webapis.avplay.setTimeoutForBuffering(opts.timeoutSeconds ?? 8);
+	} catch (e) { /* ignore */ }
+
+	return applied;
+};
+
+export const avplaySuspend = () => {
+	if (!isAVPlayAvailable) return false;
+	// a seek still in flight would leave the deferral queue wedged after restore
+	resetSeekState();
+	try {
+		const state = webapis.avplay.getState();
+		if (state === 'NONE' || state === 'IDLE') return false;
+		webapis.avplay.suspend();
+		console.log('[tizenVideo] AVPlay suspended');
+		return true;
+	} catch (e) {
+		console.warn('[tizenVideo] suspend failed:', e.message);
+		return false;
+	}
+};
+
+export const avplayRestore = (url, resumeMs = 0) => {
+	return new Promise((resolve) => {
+		if (!isAVPlayAvailable) {
+			resolve(false);
+			return;
+		}
+		resetSeekState();
+		const timeMs = Math.max(0, Math.floor(resumeMs));
+		if (typeof webapis.avplay.restoreAsync === 'function') {
+			try {
+				webapis.avplay.restoreAsync(url, timeMs, true, () => resolve(true), () => resolve(false));
+				return;
+			} catch (e) {
+				console.warn('[tizenVideo] restoreAsync failed, trying restore:', e.message);
+			}
+		}
+		try {
+			webapis.avplay.restore(url, timeMs, true);
+			resolve(true);
+		} catch (e) {
+			console.warn('[tizenVideo] restore failed:', e.message);
+			resolve(false);
+		}
+	});
+};
+
+/**
+ * Poll a transcode playlist until the server has actually written it.
+ * Opening AVPlay against a not yet existing manifest errors out the whole pipeline.
+ * Resolves false on timeout, never rejects.
+ */
+export const waitForHlsManifest = (url, options = {}) => {
+	const intervalMs = options.intervalMs || 500;
+	const timeoutMs = options.timeoutMs || 15000;
+
+	const fetchText = (target) => new Promise((resolve) => {
+		// a hung request must not stall the poll loop past its deadline
+		const requestTimer = setTimeout(() => resolve(''), 5000);
+		const done = (text) => {
+			clearTimeout(requestTimer);
+			resolve(text);
+		};
+		if (typeof fetch === 'function') {
+			fetch(target, {cache: 'no-store'})
+				.then((res) => (res.ok ? res.text() : ''))
+				.then(done)
+				.catch(() => done(''));
+			return;
+		}
+		try {
+			const xhr = new XMLHttpRequest();
+			xhr.open('GET', target, true);
+			xhr.onload = () => done(xhr.status >= 200 && xhr.status < 300 ? xhr.responseText : '');
+			xhr.onerror = () => done('');
+			xhr.send();
+		} catch (e) {
+			done('');
+		}
+	});
+
+	return new Promise((resolve) => {
+		const deadline = Date.now() + timeoutMs;
+		const poll = () => {
+			fetchText(url).then((body) => {
+				if (body && body.indexOf('#EXTM3U') !== -1) {
+					resolve(true);
+					return;
+				}
+				if (Date.now() >= deadline) {
+					console.warn('[tizenVideo] HLS manifest not ready after timeout, opening anyway');
+					resolve(false);
+					return;
+				}
+				setTimeout(poll, intervalMs);
+			});
+		};
+		poll();
+	});
+};
+
 export const avplayPrepare = () => {
 	return new Promise((resolve, reject) => {
 		if (!isAVPlayAvailable) {
@@ -454,18 +599,79 @@ export const avplayPrepare = () => {
 	});
 };
 
-export const avplayPlay = () => {
+// Samsung forbids issuing any other AVPlay call while a seekTo is still in flight.
+// Overlapping calls are what leave the playhead stuck or throw INVALID_OPERATION,
+// so play, pause, and further seeks are queued here until the active seek lands.
+let seekInFlight = false;
+let queuedSeek = null;
+let activeSeekSettlers = null;
+let pendingOpAfterSeek = null;
+let postSeekHook = null;
+let expectPlayingAfterSeek = false;
+let seekSafetyTimer = null;
+let seekRetryTimer = null;
+// bumped on stop, close, suspend, and restore so callbacks and retry timers
+// from a torn down session cant fire into the next one
+let seekEpoch = 0;
+
+const resetSeekState = () => {
+	seekEpoch += 1;
+	if (seekSafetyTimer) {
+		clearTimeout(seekSafetyTimer);
+		seekSafetyTimer = null;
+	}
+	if (seekRetryTimer) {
+		clearTimeout(seekRetryTimer);
+		seekRetryTimer = null;
+	}
+	if (activeSeekSettlers) {
+		activeSeekSettlers.forEach((s) => s.resolve());
+		activeSeekSettlers = null;
+	}
+	if (queuedSeek) {
+		queuedSeek.settlers.forEach((s) => s.resolve());
+		queuedSeek = null;
+	}
+	pendingOpAfterSeek = null;
+	seekInFlight = false;
+	expectPlayingAfterSeek = false;
+};
+
+export const avplaySetPostSeekHook = (fn) => {
+	postSeekHook = typeof fn === 'function' ? fn : null;
+};
+
+const rawPlay = () => {
 	if (!isAVPlayAvailable) return;
 	webapis.avplay.play();
 };
 
-export const avplayPause = () => {
+const rawPause = () => {
 	if (!isAVPlayAvailable) return;
 	webapis.avplay.pause();
 };
 
+export const avplayPlay = () => {
+	if (seekInFlight) {
+		pendingOpAfterSeek = 'play';
+		expectPlayingAfterSeek = true;
+		return;
+	}
+	rawPlay();
+};
+
+export const avplayPause = () => {
+	if (seekInFlight) {
+		pendingOpAfterSeek = 'pause';
+		expectPlayingAfterSeek = false;
+		return;
+	}
+	rawPause();
+};
+
 export const avplayStop = () => {
 	if (!isAVPlayAvailable) return;
+	resetSeekState();
 	try {
 		const state = webapis.avplay.getState();
 		if (state !== 'NONE' && state !== 'IDLE') {
@@ -478,11 +684,132 @@ export const avplayStop = () => {
 
 export const avplayClose = () => {
 	if (!isAVPlayAvailable) return;
+	resetSeekState();
 	try {
 		webapis.avplay.close();
 	} catch (e) {
 		// Ignore
 	}
+};
+
+/**
+ * Set the start position while still in IDLE, before prepare, so playback
+ * begins right at the resume point instead of starting at zero and jumping.
+ * Returns false when it cant be applied so the caller can seek after play instead.
+ */
+export const avplaySeekIdle = (timeMs) => {
+	if (!isAVPlayAvailable) return false;
+	try {
+		if (webapis.avplay.getState() !== 'IDLE') return false;
+		webapis.avplay.seekTo(Math.max(1000, Math.floor(timeMs)), () => {}, () => {});
+		return true;
+	} catch (e) {
+		console.warn('[tizenVideo] IDLE seek failed:', e.message);
+		return false;
+	}
+};
+
+const finishSeek = () => {
+	seekInFlight = false;
+	activeSeekSettlers = null;
+	const op = pendingOpAfterSeek;
+	pendingOpAfterSeek = null;
+	if (op) {
+		try {
+			if (op === 'play') rawPlay();
+			else rawPause();
+		} catch (e) { /* ignore */ }
+	}
+	if (queuedSeek) {
+		const next = queuedSeek;
+		queuedSeek = null;
+		runSeek(next.timeMs, next.settlers); // eslint-disable-line no-use-before-define
+	}
+};
+
+const runSeek = (timeMs, settlers) => {
+	const maxAttempts = 8;
+	const retryDelayMs = 120;
+	const epoch = seekEpoch;
+	let attempts = 0;
+
+	seekInFlight = true;
+	activeSeekSettlers = settlers;
+	expectPlayingAfterSeek = avplayGetState() === 'PLAYING'; // eslint-disable-line no-use-before-define
+
+	const settle = (ok, err) => {
+		if (activeSeekSettlers !== settlers) return;
+		activeSeekSettlers = null;
+		settlers.forEach((s) => (ok ? s.resolve() : s.reject(err)));
+	};
+
+	const isSeekableState = (state) => state === 'PLAYING' || state === 'PAUSED' || state === 'READY';
+
+	// seeking into the very last second races the stream completed event
+	let target = Math.max(0, Math.floor(timeMs));
+	let duration = 0;
+	try {
+		duration = webapis.avplay.getDuration();
+	} catch (e) { /* ignore */ }
+	if (duration > 2000) {
+		target = Math.min(target, duration - 1000);
+	}
+
+	const trySeek = () => {
+		if (epoch !== seekEpoch) return;
+
+		let state = 'NONE';
+		try {
+			state = webapis.avplay.getState();
+		} catch (e) {
+			state = 'NONE';
+		}
+
+		if (!isSeekableState(state)) {
+			if (attempts < maxAttempts) {
+				attempts += 1;
+				seekRetryTimer = setTimeout(trySeek, retryDelayMs);
+				return;
+			}
+			settle(false, new Error(`AVPlay not seekable (state=${state})`));
+			finishSeek();
+			return;
+		}
+
+		webapis.avplay.seekTo(target, () => {
+			if (epoch !== seekEpoch) return;
+			if (postSeekHook) {
+				try { postSeekHook(); } catch (e) { /* ignore */ }
+			}
+			// some firmware never fires buffering events after the seek flush and
+			// leaves the pipeline parked, so nudge play back on shortly after
+			if (seekSafetyTimer) clearTimeout(seekSafetyTimer);
+			seekSafetyTimer = setTimeout(() => {
+				seekSafetyTimer = null;
+				try {
+					const s = webapis.avplay.getState();
+					if (expectPlayingAfterSeek && (s === 'READY' || s === 'PAUSED')) {
+						rawPlay();
+					}
+				} catch (e) { /* ignore */ }
+			}, 250);
+			settle(true);
+			finishSeek();
+		}, (err) => {
+			if (epoch !== seekEpoch) return;
+			const msg = String((err && (err.message || err.name)) || err || '');
+			const isInvalidState = /INVALID_STATE|InvalidState/i.test(msg);
+			if (isInvalidState && attempts < maxAttempts) {
+				attempts += 1;
+				seekRetryTimer = setTimeout(trySeek, retryDelayMs);
+				return;
+			}
+			settle(false, err);
+			finishSeek();
+		});
+	};
+
+	trySeek();
 };
 
 export const avplaySeek = (timeMs) => {
@@ -492,43 +819,19 @@ export const avplaySeek = (timeMs) => {
 			return;
 		}
 
-		const maxAttempts = 8;
-		const retryDelayMs = 120;
-		let attempts = 0;
-
-		const isSeekableState = (state) => state === 'PLAYING' || state === 'PAUSED' || state === 'READY';
-
-		const trySeek = () => {
-			let state = 'NONE';
-			try {
-				state = webapis.avplay.getState();
-			} catch (e) {
-				state = 'NONE';
+		if (seekInFlight) {
+			// coalesce rapid scrubbing, the newest target wins and everyone
+			// waiting settles when it lands
+			if (queuedSeek) {
+				queuedSeek.timeMs = timeMs;
+				queuedSeek.settlers.push({resolve, reject});
+			} else {
+				queuedSeek = {timeMs, settlers: [{resolve, reject}]};
 			}
+			return;
+		}
 
-			if (!isSeekableState(state)) {
-				if (attempts < maxAttempts) {
-					attempts += 1;
-					setTimeout(trySeek, retryDelayMs);
-					return;
-				}
-				reject(new Error(`AVPlay not seekable (state=${state})`));
-				return;
-			}
-
-			webapis.avplay.seekTo(timeMs, resolve, (err) => {
-				const msg = String((err && (err.message || err.name)) || err || '');
-				const isInvalidState = /INVALID_STATE|InvalidState/i.test(msg);
-				if (isInvalidState && attempts < maxAttempts) {
-					attempts += 1;
-					setTimeout(trySeek, retryDelayMs);
-					return;
-				}
-				reject(err);
-			});
-		};
-
-		trySeek();
+		runSeek(timeMs, [{resolve, reject}]);
 	});
 };
 
@@ -565,11 +868,13 @@ export const avplaySetListener = (listener) => {
 };
 
 export const avplaySetSpeed = (speed) => {
-	if (!isAVPlayAvailable) return;
+	if (!isAVPlayAvailable) return false;
 	try {
 		webapis.avplay.setSpeed(speed);
+		return true;
 	} catch (e) {
 		console.log('[tizenVideo] setSpeed not supported:', e);
+		return false;
 	}
 };
 
@@ -610,9 +915,7 @@ export const avplaySetDrm = (drmType, operation, drmData) => {
 export const avplayGetTracks = () => {
 	if (!isAVPlayAvailable) return [];
 	try {
-		const trackInfo = webapis.avplay.getTotalTrackInfo();
-		console.log('[tizenVideo] Track Info:', JSON.stringify(trackInfo));
-		return trackInfo;
+		return webapis.avplay.getTotalTrackInfo();
 	} catch (e) {
 		console.warn('[tizenVideo] Failed to get track info:', e);
 		return [];
@@ -806,6 +1109,12 @@ export default {
 	avplayStop,
 	avplayClose,
 	avplaySeek,
+	avplaySeekIdle,
+	avplaySetPostSeekHook,
+	avplaySetBufferingParams,
+	avplaySuspend,
+	avplayRestore,
+	waitForHlsManifest,
 	avplayGetCurrentTime,
 	avplayGetDuration,
 	avplayGetState,

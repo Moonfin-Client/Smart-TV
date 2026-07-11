@@ -9,6 +9,19 @@ let reconnectTimeout = null;
 let listeners = [];
 let isConnecting = false;
 let currentPlaylistItemId = null;
+let timeSyncMeasurements = [];
+let timeSyncInterval = null;
+let timeSyncBurstActive = false;
+
+const MAX_TIME_SYNC_MEASUREMENTS = 8;
+const TIME_SYNC_INTERVAL_MS = 30000;
+const TIME_SYNC_BURST_COUNT = 5;
+const TIME_SYNC_BURST_SPACING_MS = 1000;
+
+// Buffering fired this soon after executing a SyncPlay command is the seek
+// itself, not a stall. Reporting it would bounce the whole group into Waiting
+// because the server has no rate limit on buffering reports.
+export const BUFFERING_SUPPRESS_MS = 5000;
 
 const emit = (event, data) => {
 	for (const listener of listeners) {
@@ -107,9 +120,11 @@ export const sendStopRequest = () => request('POST', 'Stop').catch(() => {});
 
 export const sendSeekRequest = (positionTicks) => request('POST', 'Seek', {PositionTicks: positionTicks}).catch(() => {});
 
+export const serverNow = () => Date.now() + serverTimeOffset;
+
 export const sendBufferingRequest = (isPlaying, positionTicks) =>
 	request('POST', 'Buffering', {
-		When: new Date(Date.now() + serverTimeOffset).toISOString(),
+		When: new Date(serverNow()).toISOString(),
 		PositionTicks: positionTicks,
 		IsPlaying: isPlaying,
 		PlaylistItemId: currentPlaylistItemId || '00000000-0000-0000-0000-000000000000'
@@ -117,22 +132,78 @@ export const sendBufferingRequest = (isPlaying, positionTicks) =>
 
 export const sendReadyRequest = (isPlaying, positionTicks) =>
 	request('POST', 'Ready', {
-		When: new Date(Date.now() + serverTimeOffset).toISOString(),
+		When: new Date(serverNow()).toISOString(),
 		PositionTicks: positionTicks,
 		IsPlaying: isPlaying,
 		PlaylistItemId: currentPlaylistItemId || '00000000-0000-0000-0000-000000000000'
 	}).catch(() => {});
 
-export const sendPingRequest = async () => {
+export const sendPingRequest = () => request('POST', 'Ping', {Ping: lastPing}).catch(() => {});
+
+// NTP-style clock sync against /GetUtcTime. The server rejects Ready/Buffering
+// timing when When is more than 2s off its clock, and every scheduled command
+// depends on knowing the server's clock, so the wall clocks can't be assumed
+// to match.
+const measureTimeSync = async () => {
+	const serverUrl = getServerUrl();
+	if (!serverUrl) return;
 	try {
-		const sentAt = Date.now();
-		await request('POST', 'Ping', {Ping: lastPing});
-		const rtt = Date.now() - sentAt;
-		lastPing = rtt;
-		serverTimeOffset = Math.round(rtt / 2);
+		const t0 = Date.now();
+		const response = await fetch(`${serverUrl}/GetUtcTime`, {
+			headers: {
+				'Authorization': getAuthHeader(),
+				'X-Emby-Authorization': getAuthHeader()
+			}
+		});
+		const t3 = Date.now();
+		if (!response.ok) return;
+		const json = await response.json();
+		const t1 = new Date(json.RequestReceptionTime).getTime();
+		const t2 = new Date(json.ResponseTransmissionTime).getTime();
+		if (isNaN(t1) || isNaN(t2)) return;
+
+		const rtt = (t3 - t0) - (t2 - t1);
+		const offset = ((t1 - t0) + (t2 - t3)) / 2;
+		if (rtt < 0) return;
+
+		timeSyncMeasurements.push({offset, rtt});
+		if (timeSyncMeasurements.length > MAX_TIME_SYNC_MEASUREMENTS) {
+			timeSyncMeasurements.shift();
+		}
+
+		let best = timeSyncMeasurements[0];
+		for (const m of timeSyncMeasurements) {
+			if (m.rtt < best.rtt) best = m;
+		}
+		serverTimeOffset = Math.round(best.offset);
+		lastPing = Math.max(0, Math.round(best.rtt / 2));
 	} catch {
 		// ignore
 	}
+};
+
+const startTimeSync = async () => {
+	if (timeSyncBurstActive) return;
+	timeSyncBurstActive = true;
+	try {
+		for (let i = 0; i < TIME_SYNC_BURST_COUNT; i++) {
+			await measureTimeSync();
+			if (!ws) return;
+			await new Promise(resolve => setTimeout(resolve, TIME_SYNC_BURST_SPACING_MS));
+		}
+	} finally {
+		timeSyncBurstActive = false;
+	}
+	if (timeSyncInterval) clearInterval(timeSyncInterval);
+	timeSyncInterval = setInterval(measureTimeSync, TIME_SYNC_INTERVAL_MS);
+};
+
+const stopTimeSync = () => {
+	if (timeSyncInterval) {
+		clearInterval(timeSyncInterval);
+		timeSyncInterval = null;
+	}
+	timeSyncMeasurements = [];
 };
 
 export const setNewQueue = (itemIds, startIndex = 0, startPositionTicks = 0) =>
@@ -202,6 +273,7 @@ export const connectWebSocket = () => {
 		if (pingInterval) clearInterval(pingInterval);
 		pingInterval = setInterval(sendPingRequest, 10000);
 		sendPingRequest();
+		startTimeSync();
 	};
 
 	ws.onmessage = (event) => {
@@ -222,6 +294,7 @@ export const connectWebSocket = () => {
 			clearInterval(pingInterval);
 			pingInterval = null;
 		}
+		stopTimeSync();
 		scheduleReconnect(); // eslint-disable-line no-use-before-define
 	};
 };
@@ -243,6 +316,7 @@ export const disconnectWebSocket = () => {
 		clearInterval(pingInterval);
 		pingInterval = null;
 	}
+	stopTimeSync();
 	if (ws) {
 		ws.onclose = null;
 		ws.close();
@@ -365,14 +439,13 @@ const handleGeneralCommand = (data) => {
 
 export const getDelayToWhen = (when) => {
 	if (!when) return 0;
-	const serverNow = Date.now() + serverTimeOffset;
 	const whenMs = new Date(when).getTime();
-	return Math.max(0, whenMs - serverNow);
+	return Math.max(0, whenMs - serverNow());
 };
 
 export const getAdjustedPosition = (positionTicks, when) => {
 	if (positionTicks == null) return null;
 	if (!when) return positionTicks;
-	const elapsedMs = Math.max(0, Date.now() + serverTimeOffset - new Date(when).getTime());
+	const elapsedMs = Math.max(0, serverNow() - new Date(when).getTime());
 	return positionTicks + Math.floor(elapsedMs * 10000);
 };

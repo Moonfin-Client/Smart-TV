@@ -1,0 +1,62 @@
+.card {
+	display: inline-block;
+	vertical-align: top;
+	margin: 12px;
+	border-radius: 12px;
+	transition: transform 120ms ease;
+	cursor: pointer;
+
+	&:global(.spottable):focus {
+		outline: none;
+		transform: scale(1.06);
+
+		.poster {
+			box-shadow: 0 0 0 4px var(--theme-accent, #00a4dc);
+		}
+
+		.title {
+			color: var(--theme-on-background, #fff);
+		}
+	}
+}
+
+.poster {
+	width: 100%;
+	border-radius: 12px;
+	overflow: hidden;
+	background: var(--theme-surface, #1c1c1c);
+}
+
+.image {
+	width: 100%;
+	height: 100%;
+	object-fit: cover;
+	display: block;
+}
+
+.fallback {
+	width: 100%;
+	height: 100%;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+}
+
+.glyph {
+	width: 40%;
+	height: 40%;
+	color: rgba(255, 255, 255, 0.7);
+}
+
+.title {
+	margin-top: 8px;
+	font-size: 22px;
+	line-height: 1.2;
+	color: var(--theme-on-surface-variant, #cfd6e0);
+	max-height: 2.4em;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	display: -webkit-box;
+	-webkit-line-clamp: 2;
+	-webkit-box-orient: vertical;
+}

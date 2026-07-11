@@ -11,7 +11,6 @@ import {useSeerr} from '../../context/SeerrContext';
 import {useDeviceInfo} from '../../hooks/useDeviceInfo';
 import serverLogger from '../../services/serverLogger';
 import connectionPool from '../../services/connectionPool';
-import {probeHomeScreenSections, hssSectionToPluginSection} from '../../services/homeScreenSectionsService';
 import {isBackKey} from '../../utils/keys';
 import {isWebOS} from '../../platform';
 import ClearDataDialog from '../../components/ClearDataDialog';
@@ -322,8 +321,8 @@ const getImageTypeOptions = () => [
 ];
 
 const getHomeRowsStyleOptions = () => [
-	{ value: 'modern', label: $L('Modern') },
-	{ value: 'classic', label: $L('Classic') }
+	{ value: 'v2', label: $L('Modern') },
+	{ value: 'v1', label: $L('Classic') }
 ];
 
 const getHomeRowSortOptions = () => [
@@ -507,6 +506,12 @@ const isHomeRowVisibleByGates = (rowId, currentSettings) => {
 	if (FAVORITES_ROW_IDS.includes(rowId)) return currentSettings.displayFavoritesRows;
 	if (rowId === 'collections') return currentSettings.displayCollectionsRows;
 	if (rowId === 'genres') return currentSettings.displayGenresRows;
+	if (rowId === 'imdb-top250-movies') return currentSettings.imdbTop250MoviesEnabled;
+	if (rowId === 'imdb-top250-tv') return currentSettings.imdbTop250TvShowsEnabled;
+	if (rowId === 'imdb-popular-movies') return currentSettings.imdbMostPopularMoviesEnabled;
+	if (rowId === 'imdb-popular-tv') return currentSettings.imdbMostPopularTvShowsEnabled;
+	if (rowId === 'imdb-lowest-rated') return currentSettings.imdbLowestRatedMoviesEnabled;
+	if (rowId === 'imdb-top-english') return currentSettings.imdbTopEnglishMoviesEnabled;
 	return true;
 };
 
@@ -680,7 +685,6 @@ const Settings = ({ onBack, onLibrariesChanged, panelMode }) => {
 	const [seerrAuthSubmitting, setSeerrAuthSubmitting] = useState(false);
 	const [seerrAuthMessage, setSeerrAuthMessage] = useState('');
 	const [seerrAuthError, setSeerrAuthError] = useState('');
-	const [hssProbeState, setHssProbeState] = useState({loading: false, data: null, error: ''});
 	const [tempRatingSources, setTempRatingSources] = useState([]);
 	const [tempExcludedGenresText, setTempExcludedGenresText] = useState('');
 	const [tempPinCode, setTempPinCode] = useState('0000');
@@ -719,6 +723,8 @@ const Settings = ({ onBack, onLibrariesChanged, panelMode }) => {
 				Spotlight.focus('homerows-view');
 			} else if (cv.view === 'seerrHomeRows') {
 				Spotlight.focus('seerr-home-rows-view');
+			} else if (cv.view === 'imdbLists') {
+				Spotlight.focus('imdb-lists-view');
 			} else if (cv.view === 'libraries') {
 				Spotlight.focus('libraries-view');
 			} else if (cv.view === 'ratingSources') {
@@ -1074,22 +1080,6 @@ const Settings = ({ onBack, onLibrariesChanged, panelMode }) => {
 		settings.genresRowSortBy
 	]);
 
-	const getMergedPluginSectionsForEditor = useCallback(() => {
-		let mergedSections = [...(settings.pluginSections || [])].sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
-
-		const hssSections = hssProbeState.data?.sections || [];
-		if (hssSections.length > 0) {
-			mergedSections = mergeDiscoveredPluginSections(
-				mergedSections,
-				hssSections,
-				'hss',
-				hssSectionToPluginSection
-			);
-		}
-
-		return [...mergedSections].sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
-	}, [settings.pluginSections, hssProbeState.data]);
-
 	const openSeerrHomeRows = useCallback(() => {
 		pushView({view: 'seerrHomeRows', returnFocusTo: 'setting-seerrHomeRows'});
 	}, [pushView]);
@@ -1102,9 +1092,12 @@ const Settings = ({ onBack, onLibrariesChanged, panelMode }) => {
 		updateSetting('seerrHomeRows', next);
 	}, [settings.seerrHomeRows, updateSetting]);
 
+	const openImdbLists = useCallback(() => {
+		pushView({ view: 'imdbLists', returnFocusTo: 'setting-imdbLists' });
+	}, [pushView]);
+
 	const openHomeRows = useCallback(() => {
 		setTempHomeRows([...(settings.homeRows || DEFAULT_HOME_ROWS)].sort((a, b) => a.order - b.order));
-		setTempPluginSections(getMergedPluginSectionsForEditor());
 		setPluginSectionRenderLimit(INITIAL_PLUGIN_SECTION_RENDER_COUNT);
 		pushView({ view: 'homeRows', returnFocusTo: 'setting-homeRows' });
 
@@ -1132,10 +1125,25 @@ const Settings = ({ onBack, onLibrariesChanged, panelMode }) => {
 				});
 			})
 			.catch(() => {});
-	}, [settings.homeRows, pushView, getMergedPluginSectionsForEditor, refreshBuiltInCollectionGenreSections]);
+	}, [settings.homeRows, pushView, refreshBuiltInCollectionGenreSections]);
 
 	const saveHomeRows = useCallback(() => {
-		updateSettings({homeRows: tempHomeRows, pluginSections: tempPluginSections});
+		const updates = {homeRows: tempHomeRows, pluginSections: tempPluginSections};
+		const imdbMap = {
+			'imdb-top250-movies': 'imdbTop250MoviesEnabled',
+			'imdb-top250-tv': 'imdbTop250TvShowsEnabled',
+			'imdb-popular-movies': 'imdbMostPopularMoviesEnabled',
+			'imdb-popular-tv': 'imdbMostPopularTvShowsEnabled',
+			'imdb-lowest-rated': 'imdbLowestRatedMoviesEnabled',
+			'imdb-top-english': 'imdbTopEnglishMoviesEnabled'
+		};
+		tempHomeRows.forEach((row) => {
+			const settingKey = imdbMap[row.id];
+			if (settingKey) {
+				updates[settingKey] = row.enabled;
+			}
+		});
+		updateSettings(updates);
 		popView();
 	}, [tempHomeRows, tempPluginSections, updateSettings, popView]);
 
@@ -1208,26 +1216,6 @@ const Settings = ({ onBack, onLibrariesChanged, panelMode }) => {
 			return next.sort((a, b) => a.order - b.order);
 		});
 	}, []);
-
-	const refreshHomeScreenSections = useCallback(async () => {
-		setHssProbeState((prev) => ({...prev, loading: true, error: ''}));
-		try {
-			const data = await probeHomeScreenSections(api);
-			const errorMessage = typeof data?.error === 'string'
-				? data.error
-				: (data?.error?.message || '');
-			setHssProbeState({loading: false, data, error: errorMessage});
-		} catch (error) {
-			setHssProbeState({loading: false, data: null, error: error?.message || $L('Failed to refresh Home Screen Sections')});
-		}
-	}, [api]);
-
-	useEffect(() => {
-		if (currentView.view !== 'subcategory' || currentView.categoryId !== 'integrations') return;
-		if (currentView.subcategoryId === 'homeScreenSections' && !hssProbeState.loading && !hssProbeState.data) {
-			refreshHomeScreenSections();
-		}
-	}, [currentView, hssProbeState.loading, hssProbeState.data, refreshHomeScreenSections]);
 
 	const openLibraries = useCallback(async () => {
 		pushView({ view: 'libraries', returnFocusTo: 'setting-hideLibraries' });
@@ -1550,6 +1538,7 @@ const Settings = ({ onBack, onLibrariesChanged, panelMode }) => {
 			{renderOptionItem('homeRowsPosterSize', $L('Home Row Car Display Size'), getPosterSizeOptions(), $L('Default'), 'aspectratio')}
 			{renderOptionItem('homeRowOverlay', $L('Home Row Info Overlay'), getHomeRowOverlayOptions(), $L('Off'), 'info')}
 			{renderNavItem('homeRows', $L('Home Sections'), $L('Reorder and toggle home rows'), openHomeRows, 'list')}
+			{renderNavItem('imdbLists', $L('IMDb Lists'), $L('Choose which IMDb lists are active'), openImdbLists, 'list')}
 			{seerr.isEnabled && renderToggleItem(
 				'displaySeerrRows',
 				$L('Display Seerr Discovery Rows'),
@@ -1699,42 +1688,6 @@ const Settings = ({ onBack, onLibrariesChanged, panelMode }) => {
 			{renderPluginSeerr()}
 		</>
 	);
-
-	const renderIntegrationsHomeScreenSections = () => {
-		const data = hssProbeState.data;
-		const mergedSections = mergeDiscoveredPluginSections(
-			settings.pluginSections,
-			data?.sections || [],
-			'hss',
-			hssSectionToPluginSection
-		);
-		const mergedCount = mergedSections.filter((section) => section.source === 'hss').length;
-		const hasSections = mergedCount > 0;
-		return (
-			<>
-				{renderInfoItem('hss-installed', $L('Installed'), data ? (data.installed ? $L('Yes') : $L('No')) : $L('Unknown'), 'plug')}
-				{renderInfoItem('hss-enabled', $L('Enabled'), data ? (data.enabled ? $L('Yes') : $L('No')) : $L('Unknown'), 'check')}
-				{renderInfoItem('hss-version', $L('Version'), data?.version || $L('Unknown'), 'info')}
-				{renderInfoItem('hss-sections', $L('Discovered Sections'), String(mergedCount), 'list')}
-				{hssProbeState.error && <div className={css.statusMessage}>{hssProbeState.error}</div>}
-				<div className={css.actionBarInline}>
-					<SpottableButton
-						className={css.actionButton}
-						onClick={refreshHomeScreenSections}
-						disabled={hssProbeState.loading}
-						spotlightId='hss-refresh'
-					>
-						{hssProbeState.loading ? $L('Refreshing...') : $L('Refresh')}
-					</SpottableButton>
-					{hasSections && (
-						<SpottableButton className={css.actionButton} onClick={openHomeRows} spotlightId='hss-configure'>
-							{$L('Configure Home Sections')}
-						</SpottableButton>
-					)}
-				</div>
-			</>
-		);
-	};
 
 	const renderPlaybackAudio = () => (
 		<>
@@ -2075,7 +2028,6 @@ const Settings = ({ onBack, onLibrariesChanged, panelMode }) => {
 					{ id: 'plugin', label: $L('Plugin'), description: $L('Plugin sync and profile integration') },
 					{ id: 'metadataRatings', label: $L('Metadata & Ratings'), description: $L('Ratings providers and display options') },
 					{ id: 'seerr', label: seerrLabel, description: $L('{seerrLabel} settings and status').replace('{seerrLabel}', seerrLabel) },
-					{ id: 'homeScreenSections', label: $L('Home Screen Sections'), description: $L('Plugin-backed home sections') },
 				];
 			case 'playbackSyncPlay':
 				return [
@@ -2139,8 +2091,6 @@ const Settings = ({ onBack, onLibrariesChanged, panelMode }) => {
 				return renderIntegrationsMetadataRatings();
 			case 'integrations.seerr':
 				return renderIntegrationsSeerr();
-			case 'integrations.homeScreenSections':
-				return renderIntegrationsHomeScreenSections();
 			case 'playbackSyncPlay.video':
 				return renderPlaybackVideo();
 			case 'playbackSyncPlay.audio':
@@ -2354,6 +2304,54 @@ const Settings = ({ onBack, onLibrariesChanged, panelMode }) => {
 									<div className={css.listItemHeading}>{cfg.title}</div>
 								</div>
 								<div className={css.listItemTrailing}>{renderToggle(enabledMap.get(cfg.id) === true)}</div>
+							</SpottableDiv>
+						))}
+					</div>
+				</div>
+			</ViewContainer>
+		);
+	};
+
+	const renderImdbListsView = () => {
+		const configs = [
+			{ id: 'imdbTop250MoviesEnabled', rowId: 'imdb-top250-movies', title: $L('IMDb Top 250 Movies') },
+			{ id: 'imdbTop250TvShowsEnabled', rowId: 'imdb-top250-tv', title: $L('IMDb Top 250 TV Shows') },
+			{ id: 'imdbMostPopularMoviesEnabled', rowId: 'imdb-popular-movies', title: $L('IMDb Most Popular Movies') },
+			{ id: 'imdbMostPopularTvShowsEnabled', rowId: 'imdb-popular-tv', title: $L('IMDb Most Popular TV Shows') },
+			{ id: 'imdbLowestRatedMoviesEnabled', rowId: 'imdb-lowest-rated', title: $L('IMDb Lowest Rated Movies') },
+			{ id: 'imdbTopEnglishMoviesEnabled', rowId: 'imdb-top-english', title: $L('IMDb Top Rated English Movies') }
+		];
+
+		const toggleImdbList = (settingKey, rowId) => {
+			const nextValue = !settings[settingKey];
+			const updatedHomeRows = (settings.homeRows || []).map((row) =>
+				row.id === rowId ? { ...row, enabled: nextValue } : row
+			);
+			updateSettings({
+				[settingKey]: nextValue,
+				homeRows: updatedHomeRows
+			});
+		};
+
+		return (
+			<ViewContainer className={css.viewContainer} spotlightId='imdb-lists-view'>
+				<div className={css.listContent} onFocus={handleListFocus}>
+					<div className={css.listInner}>
+						{renderSectionTitle($L('IMDb Lists'))}
+						<div className={css.viewDescription}>
+							{$L('Choose which IMDb lists are active. Activating a list adds it to your Home Sections.')}
+						</div>
+						{configs.map((cfg) => (
+							<SpottableDiv
+								key={cfg.id}
+								className={css.listItem}
+								onClick={() => toggleImdbList(cfg.id, cfg.rowId)}
+								spotlightId={`imdblist-${cfg.id}`}
+							>
+								<div className={css.listItemBody}>
+									<div className={css.listItemHeading}>{cfg.title}</div>
+								</div>
+								<div className={css.listItemTrailing}>{renderToggle(settings[cfg.id] === true)}</div>
 							</SpottableDiv>
 						))}
 					</div>
@@ -2725,6 +2723,7 @@ const Settings = ({ onBack, onLibrariesChanged, panelMode }) => {
 			{currentView.view === 'themeStore' && renderThemeStoreView()}
 			{currentView.view === 'homeRows' && renderHomeRowsView()}
 			{currentView.view === 'seerrHomeRows' && renderSeerrHomeRowsView()}
+			{currentView.view === 'imdbLists' && renderImdbListsView()}
 			{currentView.view === 'ratingSources' && renderRatingSourcesView()}
 			{currentView.view === 'excludedGenres' && renderExcludedGenresView()}
 			{currentView.view === 'pinCode' && renderPinCodeView()}

@@ -1,3 +1,5 @@
+import {TEXT_SUBTITLE_CODECS, isAssSubtitleCodec, isPgsSubtitleCodec, isBurnInSubtitleCodec} from '../../utils/subtitleCodecs';
+
 const LANGUAGE_MAP = {
 	english: 'eng',
 	en: 'eng',
@@ -23,9 +25,6 @@ const LANGUAGE_MAP = {
 	zh: 'zho',
 	zho: 'zho'
 };
-
-const TEXT_SUBTITLE_CODECS = ['srt', 'subrip', 'vtt', 'webvtt', 'ass', 'ssa', 'sub', 'smi', 'sami'];
-const IMAGE_SUBTITLE_CODECS = ['pgssub', 'hdmv_pgs', 'pgs', 'dvdsub', 'dvbsub', 'dvb_subtitle'];
 
 export const toSubtitleLanguage = (...languages) => {
 	for (const value of languages) {
@@ -61,16 +60,17 @@ export const mapSubtitleStreamsFromMediaSource = (mediaSource, serverUrl, option
 				isForced: stream.IsForced,
 				isDefault: stream.IsDefault,
 				isTextBased: TEXT_SUBTITLE_CODECS.includes(codec),
-				isImageBased: IMAGE_SUBTITLE_CODECS.includes(codec),
-				isAss: ['ass', 'ssa'].includes(codec),
+				isImageBased: isPgsSubtitleCodec(codec),
+				isBurnIn: isBurnInSubtitleCodec(codec),
+				isAss: isAssSubtitleCodec(codec),
 				deliveryUrl,
 				deliveryMethod: stream.DeliveryMethod
 			};
 
 			if (includeEmbeddedNative) {
-				// Image-based tracks with DeliveryMethod 'External' are server-extracted .sup files served via libpgs, not AVPlay native.
-				const isEmbeddedImage = IMAGE_SUBTITLE_CODECS.includes(codec) && !stream.IsExternal && stream.DeliveryMethod !== 'External';
-				mapped.isEmbeddedNative = !stream.IsExternal && (TEXT_SUBTITLE_CODECS.includes(codec) || isEmbeddedImage);
+				// PGS tracks with DeliveryMethod 'External' are server-extracted .sup files served via libpgs, not AVPlay native
+				const isEmbeddedImage = mapped.isImageBased && !stream.IsExternal && stream.DeliveryMethod !== 'External';
+				mapped.isEmbeddedNative = !stream.IsExternal && (mapped.isTextBased || isEmbeddedImage);
 			}
 
 			return mapped;

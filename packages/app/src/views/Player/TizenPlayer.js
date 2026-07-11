@@ -4,11 +4,12 @@ import Button from '@enact/sandstone/Button';
 import $L from '@enact/i18n/$L';
 import * as playback from '../../services/playback';
 import {
-	initTizenAPI, registerAppStateObserver, keepScreenOn,
+	initTizenAPI, registerAppStateObserver, keepScreenOn, getTizenVersion,
 	avplayOpen, avplayPrepare, avplayPlay, avplayPause,
-	avplaySeek, avplayGetCurrentTime, avplayGetDuration, avplayGetState,
+	avplaySeek, avplaySeekIdle, avplaySetPostSeekHook, avplayGetCurrentTime, avplayGetDuration, avplayGetState,
 	avplaySetListener, avplaySetSpeed, avplaySelectTrack, avplaySetSilentSubtitle,
-	avplayGetTracks, avplaySetDisplayMethod, avplaySetStreamingProperty, setDisplayWindow, cleanupAVPlay
+	avplayGetTracks, avplaySetDisplayMethod, avplaySetStreamingProperty, setDisplayWindow, cleanupAVPlay,
+	avplaySetBufferingParams, avplaySuspend, avplayRestore, waitForHlsManifest
 } from '@moonfin/platform-tizen/video';
 import {useSettings} from '../../context/SettingsContext';
 import {useSyncPlay} from '../../context/SyncPlayContext';
@@ -29,30 +30,23 @@ import {
 	mapRemoteSubtitleOptions
 } from './remoteSubtitleUtils';
 import {getVideoDisplayAspectRatio} from './aspectRatioUtils';
+import {mapJellyfinTrackToTizen} from './tizenTrackUtils';
 
 import css from './TizenPlayer.module.less';
 
+// setDisplayRect works in the app coordinate space, not panel pixels. Handing it
+// the panel resolution on a 4K set makes the video plane four times the visible
+// area, which is why the display method modes all looked identical.
 const getTizenFullscreenRect = () => {
 	if (typeof window === 'undefined') {
 		return {x: 0, y: 0, width: 1920, height: 1080};
 	}
 
-	const cssWidth = Math.max(1, Math.round(window.innerWidth || 1920));
-	const cssHeight = Math.max(1, Math.round(window.innerHeight || 1080));
-	const dpr = Math.max(1, window.devicePixelRatio || 1);
-
-	const physicalWidth = Math.round(cssWidth * dpr);
-	const physicalHeight = Math.round(cssHeight * dpr);
-
-	const screenWidth = Math.round(window.screen?.width || physicalWidth || 1920);
-	const screenHeight = Math.round(window.screen?.height || physicalHeight || 1080);
-
 	return {
 		x: 0,
 		y: 0,
-		// Prefer panel resolution when available to avoid cropped/zoomed AVPlay output
-		width: Math.max(screenWidth, physicalWidth),
-		height: Math.max(screenHeight, physicalHeight)
+		width: Math.max(1, Math.round(window.innerWidth || 1920)),
+		height: Math.max(1, Math.round(window.innerHeight || 1080))
 	};
 };
 
@@ -75,6 +69,9 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 	const {isInGroup, lastCommand} = useSyncPlay();
 	const syncPlayCommandRef = useRef(false);
 	const lastProcessedCommandRef = useRef(null);
+	const suppressBufferingUntilRef = useRef(0);
+	const stallRecheckTimerRef = useRef(null);
+	const isBufferingRef = useRef(false);
 
 	const [isLoading, setIsLoading] = useState(true);
 	const [isBuffering, setIsBuffering] = useState(false);
@@ -164,10 +161,24 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 	const assRendererRef = useRef(null);
 	const rootFontSizePxRef = useRef(null);
 	const prevInlineRootFontSizeRef = useRef('');
+	const isPausedRef = useRef(false);
+	// a fatal error can arrive while parked in pause and must resurface on resume
+	const pausedErrorRef = useRef(null);
+	const deferredResumeSeekRef = useRef(null);
+	// tracks queued before prepare and applied once AVPlay reaches a state that accepts them
+	const pendingTracksRef = useRef(null);
+	const lastTrackAttemptRef = useRef(0);
+	const applyPendingTracksRef = useRef(null);
+	const activeNativeSubRef = useRef(null);
+	const trackConfirmTimerRef = useRef(null);
+	const currentUrlRef = useRef(null);
+	const suspendedRef = useRef(null);
+	const loadGenerationRef = useRef(0);
+	const reloadPlaybackRef = useRef(null);
+	// index of a subtitle the server is currently burning into the stream
+	const burnInSubtitleRef = useRef(null);
 
 	const applyDisplayWindow = useCallback(() => {
-		const screenRect = getTizenFullscreenRect();
-		setDisplayWindow(screenRect);
 		const mode = zoomModeRef.current;
 		if (mode === 'stretch') {
 			avplaySetDisplayMethod('PLAYER_DISPLAY_MODE_FULL_SCREEN');
@@ -176,6 +187,9 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 		} else {
 			avplaySetDisplayMethod('PLAYER_DISPLAY_MODE_LETTER_BOX');
 		}
+		// setting the rect after the method is what makes the scaler pick up a
+		// mid playback mode change
+		setDisplayWindow(getTizenFullscreenRect());
 	}, []);
 
 	const enforceRootFontSize = useCallback(() => {
@@ -337,31 +351,199 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 	// ==============================
 
 	/**
-	 * Start AVPlay playback for a given URL.
-	 * Stops any existing session, opens the new URL, prepares, and plays.
+	 * Select an embedded track natively via AVPlay's TEXT track list.
+	 * Returns false when the stream cant be mapped to an AVPlay track.
 	 */
-	const startAVPlayback = useCallback(async (url, seekPositionTicks = 0) => {
-		stopTimeUpdatePolling();
-		cleanupAVPlay();
-		avplayReadyRef.current = false;
+	const applyNativeSubtitleTrack = useCallback((stream, streamList, trackInfo = null) => {
+		const embedded = (streamList || []).filter((s) => s.isEmbeddedNative);
+		const tizenIndex = mapJellyfinTrackToTizen(trackInfo || avplayGetTracks(), embedded, 'TEXT', stream.index);
+		if (tizenIndex == null) return false;
+		avplaySelectTrack('TEXT', tizenIndex);
+		// flip the silent flag once so the cue engine actually starts delivering,
+		// selections made early are otherwise silently ignored on older firmware
+		if (stream.isImageBased) {
+			// PGS renders as a native bitmap overlay, no JS events
+			avplaySetSilentSubtitle(true);
+			avplaySetSilentSubtitle(false);
+			useNativeSubtitleRef.current = false;
+		} else {
+			// text arrives through onsubtitlechange and renders on the web layer
+			avplaySetSilentSubtitle(false);
+			avplaySetSilentSubtitle(true);
+			useNativeSubtitleRef.current = true;
+		}
+		activeNativeSubRef.current = {stream, streams: streamList};
+		return true;
+	}, []);
 
-		// Open new URL
+	// firmware drops the native selection after buffer flushes and sometimes
+	// ignores selections made early, both recover by re-applying it
+	const reassertNativeSubtitle = useCallback(() => {
+		const active = activeNativeSubRef.current;
+		if (!active) return;
+		try { applyNativeSubtitleTrack(active.stream, active.streams); } catch (e) { void e; }
+	}, [applyNativeSubtitleTrack]);
+
+	/**
+	 * Apply queued audio and subtitle selections. Audio only takes while PLAYING,
+	 * text also while PAUSED, and track lists can be incomplete right after play
+	 * on older firmware, so this retries from several playback events until the
+	 * selection lands or the deadline passes.
+	 */
+	const applyPendingTracks = useCallback(() => {
+		const pending = pendingTracksRef.current;
+		if (!pending || (pending.audioApplied && pending.subApplied)) return;
+		const state = avplayGetState();
+		if (state !== 'PLAYING' && state !== 'PAUSED') return;
+		const expired = pending.deadline != null && Date.now() > pending.deadline;
+		const trackInfo = avplayGetTracks();
+
+		if (!pending.audioApplied && state === 'PLAYING') {
+			try {
+				const tizenIndex = mapJellyfinTrackToTizen(trackInfo, pending.audioStreams, 'AUDIO', pending.audioIndex);
+				if (tizenIndex != null) {
+					avplaySelectTrack('AUDIO', tizenIndex);
+					pending.audioApplied = true;
+					console.log('[Player] Applied initial audio track, jellyfinIndex:', pending.audioIndex, 'tizenIndex:', tizenIndex);
+				} else if (expired) {
+					console.warn('[Player] No matching AVPlay audio track for index', pending.audioIndex);
+					pending.audioApplied = true;
+				}
+			} catch (e) {
+				if (expired) pending.audioApplied = true;
+			}
+		}
+
+		if (!pending.subApplied && pending.subStream) {
+			try {
+				if (applyNativeSubtitleTrack(pending.subStream, pending.subtitleStreams, trackInfo)) {
+					pending.subApplied = true;
+				} else if (expired) {
+					pending.subApplied = true;
+					pending.onNativeFallback?.(pending.subStream);
+				}
+			} catch (e) {
+				if (expired) {
+					pending.subApplied = true;
+					pending.onNativeFallback?.(pending.subStream);
+				}
+			}
+		}
+	}, [applyNativeSubtitleTrack]);
+	applyPendingTracksRef.current = applyPendingTracks;
+
+	/**
+	 * Shared open to play sequence used by the initial load and every stream
+	 * reload. Configures buffering and adaptive properties in IDLE, prepares,
+	 * then holds play until the first buffer fill so startup opens on a moving
+	 * picture instead of a stall.
+	 */
+	const openAndPrepare = useCallback(async ({url, playMethod: method, mediaSource, resumeTicks = 0, hasNativePendingSub = false, shouldAbort = null}) => {
+		const isHls = typeof url === 'string' && url.includes('.m3u8');
+		const isTranscode = method === playback.PlayMethod.Transcode;
+
+		// opening against a playlist the server hasnt written yet errors out
+		// the whole pipeline, so wait for it to exist first
+		if (isTranscode && isHls) {
+			await waitForHlsManifest(url);
+			if (shouldAbort?.()) return;
+		}
+
 		avplayOpen(url);
-
-		// Set display to full screen - AVPlay renders on platform layer behind web
+		currentUrlRef.current = url;
 		applyDisplayWindow();
+		avplaySetBufferingParams({bitrate: mediaSource?.Bitrate});
 
-		// Set AVPlay event listener
+		// Samsung AVPlay rejects some Jellyfin transcode endpoints with the
+		// default system User-Agent. USER_AGENT first, USERAGENT fallback for older firmwares.
+		try {
+			avplaySetStreamingProperty('USER_AGENT', 'JellyfinTizenClient');
+		} catch {
+			try { avplaySetStreamingProperty('USERAGENT', 'JellyfinTizenClient'); } catch { /* ignore */ }
+		}
+
+		const videoStream = mediaSource?.MediaStreams?.find((s) => s.Type === 'Video');
+		const sourceWidth = videoStream?.Width || 0;
+		const sourceHeight = videoStream?.Height || 0;
+		const sourceBitrate = mediaSource?.Bitrate || 0;
+		const is4K = sourceWidth > 1920 || sourceBitrate > 20000000;
+
+		// deprecated since Tizen 5, newer firmware takes the cap through
+		// FIXED_MAX_RESOLUTION instead
+		if (isTranscode && is4K && getTizenVersion() < 5) {
+			try { avplaySetStreamingProperty('SET_MODE_4K', 'TRUE'); } catch { /* ignore */ }
+		}
+
+		if (isLiveTV || isHls) {
+			// ADAPTIVE_INFO only accepts BITRATES/STARTBITRATE/SKIPBITRATE/
+			// FIXED_MAX_RESOLUTION, unknown keys break playback on older firmware
+			const caps = playback.getCurrentSession()?.capabilities;
+			const panelWidth = caps?.screenWidth || 3840;
+			const panelHeight = caps?.screenHeight || 2160;
+			const maxWidth = sourceWidth > 0 ? Math.min(sourceWidth, panelWidth) : panelWidth;
+			const maxHeight = sourceHeight > 0 ? Math.min(sourceHeight, panelHeight) : panelHeight;
+			avplaySetStreamingProperty('ADAPTIVE_INFO',
+				`FIXED_MAX_RESOLUTION=${maxWidth}x${maxHeight}|STARTBITRATE=HIGHEST|SKIPBITRATE=LOWEST`);
+		}
+
+		// resume strategy: set the start position while still in IDLE where the
+		// platform accepts it reliably. A fresh HLS transcode refuses seeks until
+		// playback is moving, and a pending native subtitle needs play from zero
+		// or its cue parser stays stuck at the start, so those defer instead.
+		let postPlaySeekMs = 0;
+		deferredResumeSeekRef.current = null;
+		if (!isLiveTV && resumeTicks > 0) {
+			const seekMs = Math.floor(resumeTicks / 10000);
+			if (isTranscode && isHls) {
+				deferredResumeSeekRef.current = seekMs;
+			} else if (hasNativePendingSub || !avplaySeekIdle(seekMs)) {
+				postPlaySeekMs = seekMs;
+			}
+		}
+
+		let latchResolve;
+		const bufferingLatch = new Promise((resolve) => { latchResolve = resolve; });
+		// a fresh HLS session refuses seeks until playback is actually moving,
+		// so the deferred resume seek must never fire before play is issued
+		let playIssued = false;
+
+		const runDeferredResumeSeek = () => {
+			if (!playIssued) return;
+			const ms = deferredResumeSeekRef.current;
+			if (ms == null) return;
+			deferredResumeSeekRef.current = null;
+			avplaySeek(ms).catch((e) => {
+				console.warn('[Player] Deferred resume seek failed:', e?.message || e);
+			});
+		};
+
 		avplaySetListener({
 			onbufferingstart: () => { setIsBuffering(true); },
-			onbufferingcomplete: () => { setIsBuffering(false); },
+			onbufferingcomplete: () => {
+				setIsBuffering(false);
+				latchResolve();
+				runDeferredResumeSeek();
+				applyPendingTracksRef.current?.();
+			},
 			onstreamcompleted: () => { handleEndedCallbackRef.current?.(); },
 			onerror: (eventType) => {
-				if (isPaused || avplayGetState() === 'PAUSED') return;
+				// the platform throws spurious errors after sitting in pause,
+				// remember them so a dead pipeline still surfaces on resume
+				if (isPausedRef.current || avplayGetState() === 'PAUSED') {
+					pausedErrorRef.current = eventType;
+					return;
+				}
 				console.error('[Player] AVPlay error:', eventType);
 				handleErrorCallbackRef.current?.();
 			},
-			oncurrentplaytime: () => {},
+			oncurrentplaytime: () => {
+				if (pausedErrorRef.current) pausedErrorRef.current = null;
+				const now = Date.now();
+				if (now - lastTrackAttemptRef.current >= 500) {
+					lastTrackAttemptRef.current = now;
+					applyPendingTracksRef.current?.();
+				}
+			},
 			onevent: (eventType, eventData) => {
 				console.log('[Player] AVPlay event:', eventType, eventData);
 			},
@@ -369,29 +551,113 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 			ondrmevent: () => {}
 		});
 
-		// Prepare (async)
-		await avplayPrepare();
+		const prepareTimeout = isLiveTV ? 30000 : 60000;
+		let prepareTimer;
+		await Promise.race([
+			avplayPrepare(),
+			new Promise((_, reject) => {
+				prepareTimer = setTimeout(() => reject(new Error('Stream preparation timed out')), prepareTimeout);
+			})
+		]);
+		clearTimeout(prepareTimer);
 		avplayReadyRef.current = true;
 
-		// Get duration from AVPlay (returns ms)
+		// some firmware resets display state during prepare
+		applyDisplayWindow();
+
 		const durationMs = avplayGetDuration();
 		if (durationMs > 0) {
 			setDuration(durationMs / 1000);
+			runTimeRef.current = Math.floor(durationMs * 10000);
 		}
 
-		// Seek to position if resuming
-		if (seekPositionTicks > 0) {
-			const seekMs = Math.floor(seekPositionTicks / 10000);
-			await avplaySeek(seekMs);
+		// network streams open on a moving picture when play waits for the first
+		// buffer fill, capped since buffering events are not guaranteed.
+		// DirectPlay starts immediately like it always has
+		if (isTranscode || isHls) {
+			await Promise.race([
+				bufferingLatch,
+				new Promise((resolve) => setTimeout(resolve, 3000))
+			]);
 		}
 
-		// Play
+		const startDelayMs = Math.max(0, Number(settings.videoStartDelay || 0) * 1000);
+		if (startDelayMs > 0) {
+			await new Promise((resolve) => setTimeout(resolve, startDelayMs));
+		}
+
+		playIssued = true;
 		avplayPlay();
 		setIsPaused(false);
+		if (pendingTracksRef.current) {
+			pendingTracksRef.current.deadline = Date.now() + 5000;
+		}
 
-		// Start time update polling
+		if (deferredResumeSeekRef.current != null) {
+			setTimeout(runDeferredResumeSeek, 1500);
+		}
+		if (postPlaySeekMs > 0) {
+			avplaySeek(postPlaySeekMs).catch((e) => {
+				console.warn('[Player] Post play resume seek failed:', e?.message || e);
+			});
+		}
+
+		applyPendingTracksRef.current?.();
+
+		// one confirmation pass, some firmware silently drops selections made
+		// this early in the session
+		if (trackConfirmTimerRef.current) clearTimeout(trackConfirmTimerRef.current);
+		trackConfirmTimerRef.current = setTimeout(() => {
+			trackConfirmTimerRef.current = null;
+			reassertNativeSubtitle();
+			applyPendingTracksRef.current?.();
+		}, 4000);
+	}, [isLiveTV, applyDisplayWindow, handleSubtitleChange, reassertNativeSubtitle, settings.videoStartDelay]);
+
+	/**
+	 * Start AVPlay playback for a given URL.
+	 * Stops any existing session, opens the new URL, prepares, and plays.
+	 */
+	const startAVPlayback = useCallback(async (url, seekPositionTicks = 0, options = {}) => {
+		stopTimeUpdatePolling();
+		cleanupAVPlay();
+		avplayReadyRef.current = false;
+		// pending selections belong to the previous session, an active native
+		// subtitle re-applies through the confirmation pass instead
+		pendingTracksRef.current = null;
+
+		const session = playback.getCurrentSession();
+		await openAndPrepare({
+			url,
+			playMethod: options.playMethod || session?.playMethod,
+			mediaSource: options.mediaSource || session?.mediaSource,
+			resumeTicks: seekPositionTicks
+		});
+
 		startTimeUpdatePolling();
-	}, [startTimeUpdatePolling, stopTimeUpdatePolling, handleSubtitleChange, applyDisplayWindow, isPaused]);
+	}, [startTimeUpdatePolling, stopTimeUpdatePolling, openAndPrepare]);
+
+	// every stream reload restarts playback and session reporting the same way
+	const restartFromResult = useCallback(async (result, positionTicks) => {
+		if (!result?.url) return false;
+		positionRef.current = positionTicks;
+		if (result.playMethod) setPlayMethod(result.playMethod);
+		if (result.playSessionId) playSessionRef.current = result.playSessionId;
+		await startAVPlayback(result.url, positionTicks, {playMethod: result.playMethod, mediaSource: result.mediaSource});
+		playback.reportStart(positionRef.current);
+		playback.startProgressReporting(
+			() => positionRef.current,
+			10000,
+			() => ({ isPaused: avplayGetState() !== 'PLAYING' })
+		);
+		return true;
+	}, [startAVPlayback]);
+
+	const reloadWithSubtitleIndex = useCallback(async (subIndex) => {
+		const currentPositionTicks = Math.floor(avplayGetCurrentTime() * 10000);
+		const result = await playback.changeSubtitleStream(subIndex);
+		await restartFromResult(result, currentPositionTicks);
+	}, [restartFromResult]);
 
 	// ==============================
 	// Initialization
@@ -431,6 +697,23 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 			unregisterAppStateRef.current = registerAppStateObserver(
 				() => {
 					console.log('[Player] App resumed');
+					const suspended = suspendedRef.current;
+					suspendedRef.current = null;
+					if (suspended) {
+						avplayRestore(suspended.url, suspended.positionMs).then((ok) => {
+							if (ok) {
+								if (suspended.wasPlaying) {
+									try { avplayPlay(); } catch (e) { void e; }
+									playback.reportProgress(positionRef.current, {isPaused: false, eventName: 'unpause'});
+								}
+							} else {
+								// the transcode session likely expired while backgrounded
+								console.warn('[Player] AVPlay restore failed, reloading stream');
+								reloadPlaybackRef.current?.();
+							}
+						});
+						return;
+					}
 					if (avplayReadyRef.current && !isPaused) {
 						const state = avplayGetState();
 						if (state === 'PAUSED' || state === 'READY') {
@@ -439,16 +722,24 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 					}
 				},
 				() => {
-					console.log('[Player] App backgrounded - pausing and saving progress');
-					const state = avplayGetState();
-					if (state === 'PLAYING') {
-						try { avplayPause(); } catch (e) { void e; }
-					}
+					console.log('[Player] App backgrounded - suspending and saving progress');
+					// report paused progress, not stopped. A stop here strands the
+					// session on the server side while the client resumes later
 					if (positionRef.current > 0) {
 						if (!playback.reportProgressBeacon(positionRef.current, {isPaused: true})) {
-							playback.reportProgress(positionRef.current);
+							playback.reportProgress(positionRef.current, {isPaused: true});
 						}
-						playback.reportStopBeacon(positionRef.current);
+					}
+					const state = avplayGetState();
+					const wasPlaying = state === 'PLAYING';
+					if (wasPlaying) {
+						try { avplayPause(); } catch (e) { void e; }
+					}
+					if (avplayReadyRef.current && currentUrlRef.current) {
+						const positionMs = avplayGetCurrentTime();
+						if (avplaySuspend()) {
+							suspendedRef.current = {url: currentUrlRef.current, positionMs, wasPlaying};
+						}
 					}
 				}
 			);
@@ -484,6 +775,33 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 		onPausedChange?.(isPaused);
 	}, [isPaused, onPausedChange]);
 
+	useEffect(() => {
+		isPausedRef.current = isPaused;
+	}, [isPaused]);
+
+	useEffect(() => {
+		// the buffer flush from a seek drops the native subtitle selection on
+		// some firmware, so re-assert it whenever a seek lands
+		avplaySetPostSeekHook(reassertNativeSubtitle);
+
+		// backing out of the app entirely never reaches the unmount cleanup, so
+		// the session would sit open on the server forever
+		const handleAppExit = () => {
+			if (positionRef.current > 0) {
+				playback.reportStopBeacon(positionRef.current);
+			}
+			cleanupAVPlay();
+		};
+		window.addEventListener('pagehide', handleAppExit);
+		window.addEventListener('beforeunload', handleAppExit);
+
+		return () => {
+			avplaySetPostSeekHook(null);
+			window.removeEventListener('pagehide', handleAppExit);
+			window.removeEventListener('beforeunload', handleAppExit);
+		};
+	}, [reassertNativeSubtitle]);
+
 	// Handle playback health issues
 	const handleUnhealthy = useCallback(async () => {
 		console.log('[Player] Playback unhealthy, falling back to transcode');
@@ -494,6 +812,8 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 	// ==============================
 	useEffect(() => {
 		const loadMedia = async () => {
+			const generation = ++loadGenerationRef.current;
+			const stillCurrent = () => generation === loadGenerationRef.current;
 			setIsLoading(true);
 			setError(null);
 			setSubtitleTrackEvents(null);
@@ -506,6 +826,8 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 			stopTimeUpdatePolling();
 			cleanupAVPlay();
 			avplayReadyRef.current = false;
+			burnInSubtitleRef.current = null;
+			pausedErrorRef.current = null;
 
 			try {
 				const savedPosition = isLiveTV ? 0 : (item.UserData?.PlaybackPositionTicks || 0);
@@ -519,9 +841,11 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 					item: item,
 					mediaSourceId: initialMediaSourceId,
 					audioStreamIndex: initialAudioIndex != null ? initialAudioIndex : undefined,
+					subtitleStreamIndex: initialSubtitleIndex != null ? initialSubtitleIndex : undefined,
 					isLiveTV,
 					stereoUpmixEnabled: settings.stereoUpmixEnabled
 				});
+				if (!stillCurrent()) return;
 
 				setPlayMethod(result.playMethod);
 				setMediaSourceId(result.mediaSourceId);
@@ -535,19 +859,18 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 				setAudioStreams(result.audioStreams || []);
 				setSubtitleStreams(result.subtitleStreams || []);
 
-				// Chapters are an Item property, not MediaSource - result.chapters may be empty
-				let chapterList = [];
-				if (!isLiveTV) {
-					chapterList = result.chapters || [];
-					if (chapterList.length === 0) {
-						chapterList = await playback.fetchItemChapters(item.Id, item);
-					}
+				// Chapters are an Item property, not MediaSource - result.chapters may be empty.
+				// Fetched off the critical path, they only feed the chapter picker
+				setChapters(!isLiveTV ? (result.chapters || []) : []);
+				if (!isLiveTV && (result.chapters || []).length === 0) {
+					playback.fetchItemChapters(item.Id, item).then((chapterList) => {
+						if (stillCurrent()) setChapters(chapterList);
+					}).catch(() => {});
 				}
-				setChapters(chapterList);
 
-				// Handle initial audio selection. A local language override wins;
+				// Handle initial audio selection. A local language override wins,
 				// otherwise honor the Jellyfin user's preferred audio language via the
-				// server-computed defaultAudioStreamIndex (#186), then the file default.
+				// server computed defaultAudioStreamIndex, then the file default.
 				const preferredAudio = findPreferredAudioStream(result.audioStreams, settings.audioLanguage);
 				const serverAudio = result.audioStreams?.find(s => s.index === result.defaultAudioStreamIndex);
 				const fileDefaultAudio = result.audioStreams?.find(s => s.isDefault);
@@ -570,37 +893,32 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 
 				let pendingSubAction = null;
 
-				const loadSubtitleData = async (sub) => {
-					if (pgsRendererRef.current) {
-						disposePgsRenderer(pgsRendererRef.current);
-						pgsRendererRef.current = null;
-					}
-					if (pgsCanvasRef.current) {
-						clearPgsCanvas(pgsCanvasRef.current);
-					}
-					if (assRendererRef.current) {
-						disposeAssRenderer(assRendererRef.current);
-						assRendererRef.current = null;
-					}
+				// pick the render path synchronously so playback never waits on
+				// subtitle downloads or server side extraction. The actual data
+				// loads in the background once video is running
+				const decideSubtitleAction = (sub) => {
+					if (!sub) return {type: 'off'};
+					if (sub.isEmbeddedNative) return {type: 'native', stream: sub};
+					if (sub.isAss && supportsAssRenderer()) return {type: 'ass', stream: sub};
+					if (sub.isTextBased) return {type: 'text', stream: sub};
+					if (sub.isImageBased && settings.enablePgsRendering) return {type: 'pgs', stream: sub};
+					return {type: 'off'};
+				};
 
-					console.log('[Player] loadSubtitleData:', {
-						codec: sub?.codec,
-						isImageBased: sub?.isImageBased,
-						isTextBased: sub?.isTextBased,
-						isAss: sub?.isAss,
-						isEmbeddedNative: sub?.isEmbeddedNative,
-						deliveryUrl: sub?.deliveryUrl,
-						enablePgsRendering: settings.enablePgsRendering,
-						pgsCanvasReady: !!pgsCanvasRef.current
-					});
+				const selectInitialSubtitle = (sub) => {
+					if (!sub) return;
+					setSelectedSubtitleIndex(sub.index);
+					pendingSubAction = decideSubtitleAction(sub);
+					// a preselected burn in track was already negotiated into the
+					// stream, remember it so deselecting later reloads without it
+					if (sub.isBurnIn) burnInSubtitleRef.current = sub.index;
+					console.log('[Player] Initial subtitle action:', pendingSubAction.type, 'codec:', sub.codec);
+				};
 
-					if (sub && sub.isEmbeddedNative) {
-						// Sets pendingSubAction so the post-ready callback can call setSelectTrack.
-						// Image-based (PGS) tracks use setSilentSubtitle(false) for native rendering.
-						pendingSubAction = {type: 'native', stream: sub};
-						setSubtitleTrackEvents(null);
-					} else if (sub && sub.isAss && supportsAssRenderer()) {
-						pendingSubAction = {type: 'ass'};
+				const loadSubtitleAssets = async (action) => {
+					const sub = action?.stream;
+					if (!sub) return;
+					if (action.type === 'ass') {
 						try {
 							const assUrl = playback.getAssSubtitleUrl(sub);
 							if (assUrl && pgsCanvasRef.current) {
@@ -610,102 +928,89 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 									disposeAssRenderer(assRendererRef.current);
 									assRendererRef.current = null;
 									playback.fetchSubtitleData(sub).then(data => {
-										setSubtitleTrackEvents(data?.TrackEvents || null);
-									}).catch(() => setSubtitleTrackEvents(null));
+										if (stillCurrent()) setSubtitleTrackEvents(data?.TrackEvents || null);
+									}).catch(() => stillCurrent() && setSubtitleTrackEvents(null));
 								};
 								const renderer = await initAssCanvasRenderer(pgsCanvasRef.current, assUrl, assFontsUrl, assErrorHandler);
+								if (!stillCurrent()) {
+									if (renderer) disposeAssRenderer(renderer);
+									return;
+								}
 								if (renderer) {
 									assRendererRef.current = renderer;
 									setSubtitleTrackEvents(null);
 								} else {
-									pendingSubAction = {type: 'text'};
 									const data = await playback.fetchSubtitleData(sub);
-									setSubtitleTrackEvents(data?.TrackEvents || null);
+									if (stillCurrent()) setSubtitleTrackEvents(data?.TrackEvents || null);
 								}
 							}
 						} catch (err) {
 							console.error('[Player] ASS init failed, falling back to text', err);
-							pendingSubAction = {type: 'text'};
 							try {
 								const data = await playback.fetchSubtitleData(sub);
-								setSubtitleTrackEvents(data?.TrackEvents || null);
+								if (stillCurrent()) setSubtitleTrackEvents(data?.TrackEvents || null);
 							} catch (_e) {
-								setSubtitleTrackEvents(null);
+								if (stillCurrent()) setSubtitleTrackEvents(null);
 							}
 						}
-					} else if (sub && sub.isTextBased) {
-						pendingSubAction = {type: 'text'};
+					} else if (action.type === 'text') {
 						try {
 							const data = await playback.fetchSubtitleData(sub);
-							if (data && data.TrackEvents) {
-								setSubtitleTrackEvents(data.TrackEvents);
-							} else {
-								setSubtitleTrackEvents(null);
-							}
+							if (stillCurrent()) setSubtitleTrackEvents(data?.TrackEvents || null);
 						} catch (err) {
 							console.error('[Player] Error fetching subtitle data:', err);
-							setSubtitleTrackEvents(null);
+							if (stillCurrent()) setSubtitleTrackEvents(null);
 						}
-					} else if (sub && sub.isImageBased && settings.enablePgsRendering) {
+					} else if (action.type === 'pgs') {
 						try {
 							const renderer = await initPgsCanvasRenderer(pgsCanvasRef.current, sub);
+							if (!stillCurrent()) {
+								if (renderer) disposePgsRenderer(renderer);
+								return;
+							}
 							if (renderer) {
 								pgsRendererRef.current = renderer;
-								pendingSubAction = {type: 'pgs'};
-								setSubtitleTrackEvents(null);
 							} else {
-								pendingSubAction = {type: 'off'};
 								console.error('[Player] PGS renderer returned null');
-								setSubtitleTrackEvents(null);
 							}
+							setSubtitleTrackEvents(null);
 						} catch (err) {
 							console.error('[Player] Error initializing PGS renderer:', err);
-							pendingSubAction = {type: 'off'};
-							setSubtitleTrackEvents(null);
+							if (stillCurrent()) setSubtitleTrackEvents(null);
 						}
-					} else {
-						pendingSubAction = {type: 'off'};
-						setSubtitleTrackEvents(null);
 					}
-					setCurrentSubtitleText(null);
+				};
+
+				// when a native selection never lands, render the same track
+				// client side instead
+				const nativeSubtitleFallback = (stream) => {
+					if (!stillCurrent()) return;
+					useNativeSubtitleRef.current = false;
+					avplaySetSilentSubtitle(true);
+					if (stream.isImageBased && settings.enablePgsRendering) {
+						loadSubtitleAssets({type: 'pgs', stream});
+					} else if (stream.isTextBased) {
+						loadSubtitleAssets({type: 'text', stream});
+					}
 				};
 
 				if (initialSubtitleIndex !== undefined && initialSubtitleIndex !== null) {
 					if (initialSubtitleIndex >= 0) {
-						const initialSub = result.subtitleStreams?.find(s => s.index === initialSubtitleIndex);
-						if (initialSub) {
-							setSelectedSubtitleIndex(initialSubtitleIndex);
-							await loadSubtitleData(initialSub);
-						}
+						selectInitialSubtitle(result.subtitleStreams?.find(s => s.index === initialSubtitleIndex));
 					} else {
 						setSelectedSubtitleIndex(-1);
 						setSubtitleTrackEvents(null);
 					}
 				} else if (settings.subtitleMode === 'always') {
-					const defaultSub = result.subtitleStreams?.find(s => s.isDefault);
-					if (defaultSub) {
-						setSelectedSubtitleIndex(defaultSub.index);
-						await loadSubtitleData(defaultSub);
-					} else if (result.subtitleStreams?.length > 0) {
-						const firstSub = result.subtitleStreams[0];
-						setSelectedSubtitleIndex(firstSub.index);
-						await loadSubtitleData(firstSub);
-					}
+					const defaultSub = result.subtitleStreams?.find(s => s.isDefault) || result.subtitleStreams?.[0];
+					selectInitialSubtitle(defaultSub);
 				} else if (settings.subtitleMode === 'forced') {
-					const forcedSub = result.subtitleStreams?.find(s => s.isForced);
-					if (forcedSub) {
-						setSelectedSubtitleIndex(forcedSub.index);
-						await loadSubtitleData(forcedSub);
-					}
+					selectInitialSubtitle(result.subtitleStreams?.find(s => s.isForced));
 				} else if (settings.subtitleMode === 'default' &&
 						result.defaultSubtitleStreamIndex != null && result.defaultSubtitleStreamIndex >= 0) {
-					// Honor the Jellyfin user's subtitle preference, computed server-side
-					// from their SubtitleMode + SubtitleLanguagePreference (#186).
-					const serverSub = result.subtitleStreams?.find(s => s.index === result.defaultSubtitleStreamIndex);
-					if (serverSub) {
-						setSelectedSubtitleIndex(serverSub.index);
-						await loadSubtitleData(serverSub);
-					}
+					// Honor the Jellyfin user's subtitle preference, computed server side
+					// from their SubtitleMode and SubtitleLanguagePreference
+					selectInitialSubtitle(result.subtitleStreams?.find(s => s.index === result.defaultSubtitleStreamIndex));
 				}
 
 				// Build title and subtitle
@@ -728,203 +1033,66 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 				setFocusRow(shouldUseAudioMode ? 'top' : 'bottom');
 				setIsFavorite(!!item.UserData?.IsFavorite);
 
-				// Audio mode: always show controls, skip video-only features
+				// Audio mode: always show controls, skip video-only features.
+				// Segment and next episode lookups only feed overlays, so they run
+				// in the background instead of holding up playback
 				if (shouldUseAudioMode) {
 					setControlsVisible(true);
 				} else if (!isLiveTV) {
-					try {
-						const segments = await withTimeout(playback.getMediaSegments(item.Id), 4000);
-						setMediaSegments(segments);
-					} catch (segmentErr) {
+					withTimeout(playback.getMediaSegments(item.Id), 4000).then((segments) => {
+						if (stillCurrent()) setMediaSegments(segments);
+					}).catch((segmentErr) => {
 						console.warn('[Player] Media segment fetch skipped:', segmentErr?.message || segmentErr);
-						setMediaSegments({introStart: null, introEnd: null, creditsStart: null});
-					}
+						if (stillCurrent()) setMediaSegments({introStart: null, introEnd: null, creditsStart: null});
+					});
 
-					// Load next episode for TV shows
 					if (item.Type === 'Episode') {
-						try {
-							const next = await withTimeout(playback.getNextEpisode(item), 4000);
-							setNextEpisode(next);
-						} catch (nextErr) {
+						withTimeout(playback.getNextEpisode(item), 4000).then((next) => {
+							if (stillCurrent()) setNextEpisode(next);
+						}).catch((nextErr) => {
 							console.warn('[Player] Next episode lookup skipped:', nextErr?.message || nextErr);
-							setNextEpisode(null);
-						}
+							if (stillCurrent()) setNextEpisode(null);
+						});
 					}
 				}
 
 				// === Start AVPlay ===
 				console.log('[Player] avplayOpen URL:', result.url);
 				console.log('[Player] playMethod:', result.playMethod, 'mimeType:', result.mimeType, 'container:', result.mediaSource?.Container, 'transcodingContainer:', result.mediaSource?.TranscodingContainer);
-				avplayOpen(result.url);
-				applyDisplayWindow();
 
-				// Samsung AVPlay rejects some Jellyfin transcode endpoints with the
-				// default system User-Agent;
-				// PLAYER_ERROR_CONNECTION_FAILED on Tizen 6+ (i think). USER_AGENT first, USERAGENT fallback for older firmwares.
-				try {
-					avplaySetStreamingProperty('USER_AGENT', 'JellyfinTizenClient');
-				} catch {
-					try { avplaySetStreamingProperty('USERAGENT', 'JellyfinTizenClient'); } catch { /* ignore */ }
-				}
+				const wantsNativeAudio = pendingAudioIndex != null && result.playMethod !== playback.PlayMethod.Transcode;
+				const wantsNativeSub = pendingSubAction?.type === 'native' && !!pendingSubAction.stream;
+				pendingTracksRef.current = {
+					audioIndex: wantsNativeAudio ? pendingAudioIndex : null,
+					audioApplied: !wantsNativeAudio,
+					subStream: wantsNativeSub ? pendingSubAction.stream : null,
+					subApplied: !wantsNativeSub,
+					audioStreams: result.audioStreams || [],
+					subtitleStreams: result.subtitleStreams || [],
+					onNativeFallback: nativeSubtitleFallback,
+					deadline: null
+				};
+				activeNativeSubRef.current = null;
 
-				const videoStream = result.mediaSource?.MediaStreams?.find((s) => s.Type === 'Video');
-				const sourceWidth = videoStream?.Width || 0;
-				const sourceBitrate = result.mediaSource?.Bitrate || 0;
-				const is4K = sourceWidth > 1920 || sourceBitrate > 20000000;
-				const isTranscode = result.playMethod === 'Transcode';
+				await openAndPrepare({
+					url: result.url,
+					playMethod: result.playMethod,
+					mediaSource: result.mediaSource,
+					resumeTicks: startPosition,
+					hasNativePendingSub: wantsNativeSub,
+					shouldAbort: () => !stillCurrent()
+				});
+				if (!stillCurrent()) return;
 
-				if (isTranscode && is4K) {
-					try { avplaySetStreamingProperty('SET_MODE_4K', 'TRUE'); } catch { /* ignore */ }
-				}
-
-				if (isLiveTV || result.url.includes('.m3u8')) {
-					// ADAPTIVE_INFO only accepts BITRATES/STARTBITRATE/SKIPBITRATE/
-					// FIXED_MAX_RESOLUTION. The FIXED_MAX_BITRATE key #222 added is
-					// invalid and breaks transcoded HLS on 2020-era Tizen (#232).
-					const props = [`FIXED_MAX_RESOLUTION=${is4K ? '3840x2160' : '1920x1080'}`];
-					if (is4K) props.push('STARTBITRATE=HIGHEST');
-					avplaySetStreamingProperty('ADAPTIVE_INFO', props.join('|'));
-				}
-
-				avplaySetListener({
-					onbufferingstart: () => { setIsBuffering(true); },
-					onbufferingcomplete: () => { setIsBuffering(false); },
-					onstreamcompleted: () => { handleEndedCallbackRef.current?.(); },
-					onerror: (eventType) => {
-						console.error('[Player] AVPlay error:', eventType);
-						handleErrorCallbackRef.current?.();
-					},
-					oncurrentplaytime: () => {},
-					onevent: (eventType, eventData) => {
-						console.log('[Player] AVPlay event:', eventType, eventData);
-					},
-					onsubtitlechange: handleSubtitleChange,
-				ondrmevent: () => {}
-			});
-
-				const prepareTimeout = isLiveTV ? 30000 : 60000;
-				let prepareTimer;
-				await Promise.race([
-					avplayPrepare(),
-					new Promise((_, reject) => {
-						prepareTimer = setTimeout(() => reject(new Error('Stream preparation timed out')), prepareTimeout);
-					})
-				]);
-				clearTimeout(prepareTimer);
-				avplayReadyRef.current = true;
-
-				// Get duration from AVPlay (returns ms)
-				const durationMs = avplayGetDuration();
-				if (durationMs > 0) {
-					setDuration(durationMs / 1000);
-					runTimeRef.current = Math.floor(durationMs * 10000);
-				}
-
-				// Seek to start position if resuming. For HLS-transcode we defer the
-				// seek until AFTER play() has started - calling seekTo() in the READY
-				// state on a fresh HLS session yields PLAYER_ERROR_SEEK_FAILED.
-				const isHlsTranscode = result.playMethod === playback.PlayMethod.Transcode && result.url?.includes('.m3u8');
-				let deferredSeekMs = 0;
-				if (!isLiveTV && startPosition > 0) {
-					const seekMs = Math.floor(startPosition / 10000);
-					if (isHlsTranscode) {
-						deferredSeekMs = seekMs;
-					} else {
-						await avplaySeek(seekMs);
-					}
-				}
-
-				// Play - must be called BEFORE setSelectTrack, which requires PLAYING or PAUSED state
-				const startDelayMs = Math.max(0, Number(settings.videoStartDelay || 0) * 1000);
-				if (startDelayMs > 0) {
-					await new Promise((resolve) => setTimeout(resolve, startDelayMs));
-				}
-				avplayPlay();
-				setIsPaused(false);
-
-				if (deferredSeekMs > 0) {
-					setTimeout(() => {
-						avplaySeek(deferredSeekMs).catch((e) => {
-							console.warn('[Player] Deferred HLS resume seek failed:', e?.message || e);
-						});
-					}, 1500);
-				}
-
-				// Apply pending track selections (AVPlay must be in PLAYING/PAUSED state)
-				const trackInfo = (pendingAudioIndex != null || pendingSubAction) ? avplayGetTracks() : [];
-				const allTracks = Array.isArray(trackInfo) ? trackInfo : [];
-
-				if (pendingAudioIndex != null && result.playMethod !== playback.PlayMethod.Transcode) {
-					try {
-						// Map Jellyfin stream Index → AVPlay audio track index
-						const audioTracks = allTracks.filter(t => t.type === 'AUDIO');
-						const jellyfinAudioStreams = result.audioStreams || [];
-						const jellyfinPos = jellyfinAudioStreams.findIndex(s => s.index === pendingAudioIndex);
-						if (jellyfinPos >= 0 && jellyfinPos < audioTracks.length) {
-							const tizenAudioIndex = audioTracks[jellyfinPos].index;
-							avplaySelectTrack('AUDIO', tizenAudioIndex);
-							console.log('[Player] Applied initial audio track via AVPlay, jellyfinIndex:', pendingAudioIndex, 'tizenIndex:', tizenAudioIndex);
-						} else if (audioTracks.length > 0) {
-							avplaySelectTrack('AUDIO', pendingAudioIndex);
-							console.log('[Player] Applied initial audio track via AVPlay (direct), index:', pendingAudioIndex);
-						}
-					} catch (audioErr) {
-						console.warn('[Player] Failed to apply initial audio track:', audioErr.message);
-					}
-				}
-
-				if (pendingSubAction) {
-					if (pendingSubAction.type === 'native' && pendingSubAction.stream) {
-						let nativeApplied = false;
-						try {
-							// Samsung AVPlay API uses 'TEXT' (not 'SUBTITLE') for subtitle tracks
-							const subTracks = allTracks.filter(t => t.type === 'TEXT');
-							if (subTracks.length > 0) {
-								const embeddedStreams = (result.subtitleStreams || []).filter(s => s.isEmbeddedNative);
-								const embeddedIndex = embeddedStreams.indexOf(pendingSubAction.stream);
-								if (embeddedIndex >= 0 && embeddedIndex < subTracks.length) {
-									const tizenIndex = subTracks[embeddedIndex].index;
-									avplaySelectTrack('TEXT', tizenIndex);
-									if (pendingSubAction.stream.isImageBased) {
-										// PGS: AVPlay renders the bitmap overlay natively, no JS events.
-										avplaySetSilentSubtitle(false);
-										useNativeSubtitleRef.current = false;
-									} else {
-										// Text: suppress native render, receive text via onsubtitlechange.
-										avplaySetSilentSubtitle(true);
-										useNativeSubtitleRef.current = true;
-									}
-									nativeApplied = true;
-								}
-							}
-						} catch (err) {
-							console.warn('[Player] Native subtitle track mapping failed:', err);
-						}
-						if (!nativeApplied) {
-							useNativeSubtitleRef.current = false;
-							avplaySetSilentSubtitle(true);
-							if (pendingSubAction.stream.isImageBased && settings.enablePgsRendering) {
-								const renderer = await initPgsCanvasRenderer(pgsCanvasRef.current, pendingSubAction.stream);
-								if (renderer) pgsRendererRef.current = renderer;
-							} else {
-								try {
-									const data = await playback.fetchSubtitleData(pendingSubAction.stream);
-									if (data && data.TrackEvents) {
-										setSubtitleTrackEvents(data.TrackEvents);
-									}
-								} catch (fetchErr) {
-									console.error('[Player] Subtitle extraction fallback failed:', fetchErr);
-								}
-							}
-						}
-					} else if (pendingSubAction.type === 'text') {
-						avplaySetSilentSubtitle(true);
-					} else {
-						avplaySetSilentSubtitle(true);
-					}
-				} else {
+				// keep firmware from auto enabling the first embedded track when
+				// nothing renders natively
+				if (!wantsNativeSub) {
 					avplaySetSilentSubtitle(true);
 					useNativeSubtitleRef.current = false;
+				}
+
+				if (pendingSubAction && !wantsNativeSub) {
+					loadSubtitleAssets(pendingSubAction);
 				}
 
 				playback.reportStart(positionRef.current);
@@ -942,9 +1110,9 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 				console.log(`[Player] Loaded ${displayTitle} via ${result.playMethod} (AVPlay native)${isLiveTV ? ' [Live TV]' : ''}`);
 			} catch (err) {
 				console.error('[Player] Failed to load media:', err);
-				setError(err.message || $L('Failed to load media'));
+				if (stillCurrent()) setError(err.message || $L('Failed to load media'));
 			} finally {
-				setIsLoading(false);
+				if (stillCurrent()) setIsLoading(false);
 			}
 		};
 
@@ -982,8 +1150,19 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 				clearTimeout(subtitleTimeoutRef.current);
 				subtitleTimeoutRef.current = null;
 			}
+			if (trackConfirmTimerRef.current) {
+				clearTimeout(trackConfirmTimerRef.current);
+				trackConfirmTimerRef.current = null;
+			}
 			useNativeSubtitleRef.current = false;
 			pendingSeekMsRef.current = null;
+			pendingTracksRef.current = null;
+			activeNativeSubRef.current = null;
+			suspendedRef.current = null;
+			currentUrlRef.current = null;
+			deferredResumeSeekRef.current = null;
+			pausedErrorRef.current = null;
+			burnInSubtitleRef.current = null;
 		};
 	// eslint-disable-next-line react-hooks/exhaustive-deps
 	}, [item, resume, selectedQuality, settings.maxBitrate, settings.preferTranscode, settings.forceDirectPlay, settings.subtitleMode, settings.introAction, settings.outroAction]);
@@ -1215,16 +1394,8 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 				});
 
 				if (result.url) {
-					setPlayMethod(result.playMethod);
-					playSessionRef.current = result.playSessionId;
 					try {
-						await startAVPlayback(result.url, positionRef.current);
-						playback.reportStart(positionRef.current);
-						playback.startProgressReporting(
-							() => positionRef.current,
-							10000,
-							() => ({ isPaused: avplayGetState() !== 'PLAYING' })
-						);
+						await restartFromResult(result, positionRef.current);
 					} catch (restartErr) {
 						console.error('[Player] AVPlay restart failed:', restartErr);
 						setError($L('Playback failed. The file format may not be supported.'));
@@ -1237,11 +1408,31 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 		}
 
 		setError($L('Playback failed. The file format may not be supported.'));
-	}, [hasTriedTranscode, playMethod, item, selectedQuality, settings.maxBitrate, settings.stereoUpmixEnabled, startAVPlayback, mediaSourceId]);
+	}, [hasTriedTranscode, playMethod, item, selectedQuality, settings.maxBitrate, settings.stereoUpmixEnabled, restartFromResult, mediaSourceId]);
+
+	// Reload the current item from its last position, used when a suspended
+	// session cant be restored after the app returns to the foreground
+	const reloadCurrentPlayback = useCallback(async () => {
+		try {
+			const result = await playback.getPlaybackInfo(item.Id, {
+				startPositionTicks: positionRef.current,
+				maxBitrate: selectedQuality || settings.maxBitrate,
+				mediaSourceId,
+				audioStreamIndex: selectedAudioIndex != null ? selectedAudioIndex : undefined,
+				item,
+				stereoUpmixEnabled: settings.stereoUpmixEnabled
+			});
+			await restartFromResult(result, positionRef.current);
+		} catch (err) {
+			console.error('[Player] Stream reload failed:', err);
+			setError($L('Playback failed. The file format may not be supported.'));
+		}
+	}, [item, selectedQuality, settings.maxBitrate, settings.stereoUpmixEnabled, mediaSourceId, selectedAudioIndex, restartFromResult]);
 
 	// Keep callback refs in sync
 	handleEndedCallbackRef.current = handleEnded;
 	handleErrorCallbackRef.current = handleError;
+	reloadPlaybackRef.current = reloadCurrentPlayback;
 
 	// ==============================
 	// Control Actions (AVPlay-based)
@@ -1254,6 +1445,18 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 		avplayReadyRef.current = false;
 		onBack?.();
 	}, [onBack, cancelNextEpisodeCountdown, stopTimeUpdatePolling]);
+
+	// an error swallowed during pause means the pipeline may be dead, so after
+	// resuming check that playback actually moves and recover if it doesnt
+	const verifyResumeHealthy = useCallback(() => {
+		if (!pausedErrorRef.current) return;
+		setTimeout(() => {
+			if (pausedErrorRef.current && avplayGetState() !== 'PLAYING') {
+				pausedErrorRef.current = null;
+				handleErrorCallbackRef.current?.();
+			}
+		}, 1500);
+	}, []);
 
 	const handlePlayPause = useCallback(() => {
 		const state = avplayGetState();
@@ -1281,9 +1484,10 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 			avplayPlay();
 			setIsPaused(false);
 			healthMonitorRef.current?.setPaused(false);
+			verifyResumeHealthy();
 			playback.reportProgress(positionRef.current, { isPaused: false, eventName: 'unpause' });
 		}
-	}, [settings.unpauseRewind, isInGroup]);
+	}, [settings.unpauseRewind, isInGroup, verifyResumeHealthy]);
 
 	const handleRewind = useCallback(() => {
 		if (!avplayReadyRef.current) return;
@@ -1354,19 +1558,14 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 			// AVPlay: try switching audio track natively first
 			if (playMethod !== playback.PlayMethod.Transcode && avplayReadyRef.current) {
 				try {
-					// Map Jellyfin stream Index to AVPlay's audio track index
-					const trackInfo = avplayGetTracks();
-					const audioTracks = Array.isArray(trackInfo) ? trackInfo.filter(t => t.type === 'AUDIO') : [];
-					const jellyfinPos = audioStreams.findIndex(s => s.index === index);
-					if (jellyfinPos >= 0 && jellyfinPos < audioTracks.length) {
-						const tizenAudioIndex = audioTracks[jellyfinPos].index;
+					const tizenAudioIndex = mapJellyfinTrackToTizen(avplayGetTracks(), audioStreams, 'AUDIO', index);
+					if (tizenAudioIndex != null) {
 						avplaySelectTrack('AUDIO', tizenAudioIndex);
+						playback.updateCurrentSession({audioStreamIndex: index});
 						console.log('[Player] Switched audio track natively, jellyfinIndex:', index, 'tizenIndex:', tizenAudioIndex);
 						return;
 					}
-						avplaySelectTrack('AUDIO', index);
-					console.log('[Player] Switched audio track natively (direct), index:', index);
-					return;
+					console.log('[Player] No matching native audio track, reloading');
 				} catch (nativeErr) {
 					console.log('[Player] Native audio switch failed, reloading:', nativeErr.message);
 				}
@@ -1378,20 +1577,12 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 			const result = await playback.changeAudioStream(index, currentPositionTicks);
 			if (result) {
 				console.log('[Player] Switching audio track via stream reload for', playMethod, '- resuming from', currentPositionTicks);
-				positionRef.current = currentPositionTicks;
-				if (result.playMethod) setPlayMethod(result.playMethod);
-				await startAVPlayback(result.url, currentPositionTicks);
-				playback.reportStart(positionRef.current);
-				playback.startProgressReporting(
-					() => positionRef.current,
-					10000,
-					() => ({ isPaused: avplayGetState() !== 'PLAYING' })
-				);
+				await restartFromResult(result, currentPositionTicks);
 			}
 		} catch (err) {
 			console.error('[Player] Failed to change audio:', err);
 		}
-	}, [playMethod, closeModal, startAVPlayback, audioStreams]);
+	}, [playMethod, closeModal, restartFromResult, audioStreams]);
 
 	const applySubtitleSelection = useCallback(async (index, streamList = subtitleStreams, shouldClose = true) => {
 		if (pgsRendererRef.current) {
@@ -1411,37 +1602,38 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 			setSubtitleTrackEvents(null);
 			setCurrentSubtitleText(null);
 			useNativeSubtitleRef.current = false;
+			activeNativeSubRef.current = null;
 			if (subtitleTimeoutRef.current) clearTimeout(subtitleTimeoutRef.current);
 			avplaySetSilentSubtitle(true);
+			if (burnInSubtitleRef.current != null) {
+				burnInSubtitleRef.current = null;
+				try {
+					await reloadWithSubtitleIndex(-1);
+				} catch (err) {
+					console.error('[Player] Subtitle reload failed:', err);
+				}
+			}
 		} else {
 			setSelectedSubtitleIndex(index);
 			const stream = streamList.find((s) => s.index === index);
 
+			// leaving a burned in track needs a fresh stream without it, or the
+			// old subtitle stays baked into the video under the new selection
+			if (burnInSubtitleRef.current != null && !(stream && stream.isBurnIn)) {
+				burnInSubtitleRef.current = null;
+				try {
+					await reloadWithSubtitleIndex(index);
+				} catch (err) {
+					console.error('[Player] Subtitle reload failed:', err);
+				}
+			}
+
 			let nativeSuccess = false;
+			activeNativeSubRef.current = null;
 
 			if (stream && stream.isEmbeddedNative) {
 				try {
-					const trackInfo = avplayGetTracks();
-					const subTracks = Array.isArray(trackInfo) ? trackInfo.filter((t) => t.type === 'TEXT') : [];
-
-					if (subTracks.length > 0) {
-						const embeddedStreams = streamList.filter((s) => s.isEmbeddedNative);
-						const embeddedIndex = embeddedStreams.indexOf(stream);
-
-						if (embeddedIndex >= 0 && embeddedIndex < subTracks.length) {
-							const tizenIndex = subTracks[embeddedIndex].index;
-							avplaySelectTrack('TEXT', tizenIndex);
-							if (stream.isImageBased) {
-								// PGS: native bitmap overlay rendered by AVPlay. No JS events.
-								avplaySetSilentSubtitle(false);
-								useNativeSubtitleRef.current = false;
-							} else {
-								avplaySetSilentSubtitle(true);
-								useNativeSubtitleRef.current = true;
-							}
-							nativeSuccess = true;
-						}
-					}
+					nativeSuccess = applyNativeSubtitleTrack(stream, streamList);
 				} catch (err) {
 					console.warn('[Player] Error selecting native track:', err);
 				}
@@ -1450,6 +1642,21 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 			if (nativeSuccess) {
 				setSubtitleTrackEvents(null);
 				setCurrentSubtitleText(null);
+			} else if (stream && stream.isBurnIn) {
+				// the server burns these formats into the video, so the stream
+				// has to reload with the subtitle index in the negotiation
+				useNativeSubtitleRef.current = false;
+				avplaySetSilentSubtitle(true);
+				setSubtitleTrackEvents(null);
+				setCurrentSubtitleText(null);
+				if (burnInSubtitleRef.current !== index) {
+					try {
+						await reloadWithSubtitleIndex(index);
+						burnInSubtitleRef.current = index;
+					} catch (err) {
+						console.error('[Player] Burn in subtitle reload failed:', err);
+					}
+				}
 			} else if (stream && stream.isEmbeddedNative && stream.isImageBased && settings.enablePgsRendering) {
 				// Native PGS track selection failed -- fall back to libpgs.
 				useNativeSubtitleRef.current = false;
@@ -1534,7 +1741,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 		if (shouldClose) {
 			closeModal();
 		}
-	}, [subtitleStreams, closeModal, settings.enablePgsRendering]);
+	}, [subtitleStreams, closeModal, settings.enablePgsRendering, applyNativeSubtitleTrack, reloadWithSubtitleIndex]);
 
 	const handleSelectSubtitle = useCallback(async (e) => {
 		const index = parseInt(e.currentTarget.dataset.index, 10);
@@ -1545,11 +1752,14 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 	const handleSelectSpeed = useCallback((e) => {
 		const rate = parseFloat(e.currentTarget.dataset.rate);
 		if (isNaN(rate)) return;
-		setPlaybackRate(rate);
-		// AVPlay supports integer speeds (1, 2, 4); fractional may not work
-		if (avplayReadyRef.current) {
-			avplaySetSpeed(rate);
+		if (avplayReadyRef.current && !avplaySetSpeed(rate)) {
+			// the platform refused the rate, put both the player and the UI back
+			avplaySetSpeed(1);
+			setPlaybackRate(1);
+			closeModal();
+			return;
 		}
+		setPlaybackRate(rate);
 		closeModal();
 	}, [closeModal]);
 
@@ -1843,50 +2053,56 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 		lastProcessedCommandRef.current = lastCommand;
 
 		const {Command, PositionTicks, When} = lastCommand;
+		const delay = syncPlayService.getDelayToWhen(When);
 
-		syncPlayCommandRef.current = true;
+		const execute = () => {
+			syncPlayCommandRef.current = true;
+			suppressBufferingUntilRef.current = Date.now() + syncPlayService.BUFFERING_SUPPRESS_MS;
 
-		switch (Command) {
-			case 'Unpause': {
-				const delay = syncPlayService.getDelayToWhen(When);
-				if (PositionTicks != null) {
-					avplaySeek(Math.floor(PositionTicks / 10000)).catch(() => {});
+			switch (Command) {
+				case 'Unpause': {
+					// Executing on time seeks to the commanded position. A late
+					// arrival seeks ahead by the elapsed time to catch up.
+					let target = delay > 0 ? PositionTicks : syncPlayService.getAdjustedPosition(PositionTicks, When);
+					if (target != null) {
+						if (runTimeRef.current > 0) target = Math.min(runTimeRef.current, target);
+						avplaySeek(Math.floor(target / 10000)).catch(() => {});
+					}
+					avplayPlay();
+					setIsPaused(false);
+					break;
 				}
-				if (delay > 0) {
-					const t = setTimeout(() => {
-						avplayPlay();
-						setIsPaused(false);
-						syncPlayCommandRef.current = false;
-					}, delay);
-					return () => clearTimeout(t);
+				case 'Pause': {
+					avplayPause();
+					setIsPaused(true);
+					if (PositionTicks != null) {
+						avplaySeek(Math.floor(PositionTicks / 10000)).catch(() => {});
+					}
+					break;
 				}
-				avplayPlay();
-				setIsPaused(false);
-				break;
-			}
-			case 'Pause': {
-				avplayPause();
-				setIsPaused(true);
-				if (PositionTicks != null) {
-					avplaySeek(Math.floor(PositionTicks / 10000)).catch(() => {});
+				case 'Seek': {
+					if (PositionTicks != null) {
+						avplaySeek(Math.floor(PositionTicks / 10000)).catch(() => {});
+					}
+					break;
 				}
-				break;
+				default:
+					break;
 			}
-			case 'Seek': {
-				if (PositionTicks != null) {
-					avplaySeek(Math.floor(PositionTicks / 10000)).catch(() => {});
-				}
-				break;
-			}
-			case 'Stop': {
-				handleBack();
-				break;
-			}
-			default:
-				break;
+
+			syncPlayCommandRef.current = false;
+		};
+
+		if (Command === 'Stop') {
+			handleBack();
+			return;
 		}
 
-		syncPlayCommandRef.current = false;
+		if (delay > 50) {
+			const t = setTimeout(execute, delay);
+			return () => clearTimeout(t);
+		}
+		execute();
 	}, [lastCommand, handleBack]);
 
 	useEffect(() => {
@@ -1908,20 +2124,37 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 	}, [isInGroup]);
 
 	useEffect(() => {
+		isBufferingRef.current = isBuffering;
 		if (!isInGroup) return;
 		if (isBuffering) {
-			const state = avplayGetState();
-			syncPlayService.sendBufferingRequest(
-				state === 'PLAYING',
-				positionRef.current
-			);
+			const remaining = suppressBufferingUntilRef.current - Date.now();
+			if (remaining > 0) {
+				// This buffering came from our own command-driven seek. A genuine
+				// stall must still reach the server eventually, so re-check once
+				// the window expires (the state edge won't fire again for it).
+				clearTimeout(stallRecheckTimerRef.current);
+				stallRecheckTimerRef.current = setTimeout(() => {
+					if (isBufferingRef.current) {
+						syncPlayService.sendBufferingRequest(
+							avplayGetState() === 'PLAYING',
+							positionRef.current
+						);
+					}
+				}, remaining + 100);
+			} else {
+				syncPlayService.sendBufferingRequest(
+					avplayGetState() === 'PLAYING',
+					positionRef.current
+				);
+			}
 		} else if (avplayReadyRef.current) {
-			const state = avplayGetState();
+			clearTimeout(stallRecheckTimerRef.current);
 			syncPlayService.sendReadyRequest(
-				state === 'PLAYING',
+				avplayGetState() === 'PLAYING',
 				positionRef.current
 			);
 		}
+		return () => clearTimeout(stallRecheckTimerRef.current);
 	}, [isInGroup, isBuffering]);
 
 	// ==============================
@@ -1938,8 +2171,15 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 				showControls();
 				const state = avplayGetState();
 				if (state === 'PAUSED' || state === 'READY') {
+					// In a group the request goes to the server because acting
+					// locally would silently desync this client.
+					if (isInGroup && !syncPlayCommandRef.current) {
+						syncPlayService.sendPlayRequest();
+						return;
+					}
 					avplayPlay();
 					setIsPaused(false);
+					verifyResumeHealthy();
 				}
 				return;
 			}
@@ -1949,6 +2189,10 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 				showControls();
 				const state = avplayGetState();
 				if (state === 'PLAYING') {
+					if (isInGroup && !syncPlayCommandRef.current) {
+						syncPlayService.sendPauseRequest();
+						return;
+					}
 					avplayPause();
 					setIsPaused(true);
 				}
@@ -2077,7 +2321,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 
 		window.addEventListener('keydown', handleKeyDown, true);
 		return () => window.removeEventListener('keydown', handleKeyDown, true);
-	}, [controlsVisible, activeModal, closeModal, hideControls, handleBack, showControls, handlePlayPause, handleForward, handleRewind, currentTime, duration, settings.seekStep, handlePopupKeyDown, bottomButtons.length, isAudioMode, scheduleDeferredSeek, showSkipIntro, showSkipCredits, showNextEpisode, isLiveTV]);
+	}, [controlsVisible, activeModal, closeModal, hideControls, handleBack, showControls, handlePlayPause, handleForward, handleRewind, currentTime, duration, settings.seekStep, handlePopupKeyDown, bottomButtons.length, isAudioMode, scheduleDeferredSeek, showSkipIntro, showSkipCredits, showNextEpisode, isLiveTV, isInGroup, verifyResumeHealthy]);
 
 	// Calculate progress - use seekPosition when actively seeking for smooth scrubbing
 	const displayTime = isSeeking ? (seekPosition / 10000000) : currentTime;
@@ -2337,6 +2581,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 				handleSelectSubtitle={handleSelectSubtitle}
 				handleSubtitleKeyDown={handleSubtitleItemKeyDown}
 				handleSelectSpeed={handleSelectSpeed}
+				speedCaveat={$L('Audio is muted at speeds other than 1x on most Samsung TVs')}
 				handleSelectQuality={handleSelectQuality}
 				handleSelectChapter={handleSelectChapter}
 				handleSelectCastMember={handleSelectCastMember}
