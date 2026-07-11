@@ -1538,7 +1538,12 @@ const Settings = ({ onBack, onLibrariesChanged, panelMode }) => {
 			{renderOptionItem('homeRowsPosterSize', $L('Home Row Car Display Size'), getPosterSizeOptions(), $L('Default'), 'aspectratio')}
 			{renderOptionItem('homeRowOverlay', $L('Home Row Info Overlay'), getHomeRowOverlayOptions(), $L('Off'), 'info')}
 			{renderNavItem('homeRows', $L('Home Sections'), $L('Reorder and toggle home rows'), openHomeRows, 'list')}
-			{renderNavItem('imdbLists', $L('IMDb Lists'), $L('Choose which IMDb lists are active'), openImdbLists, 'list')}
+			{settings.useMoonfinPlugin && renderNavItem(
+				'imdbLists', $L('IMDb Lists'), 
+				$L('Choose which IMDb lists are active'), 
+				openImdbLists, 
+				'list'
+			)}
 			{seerr.isEnabled && renderToggleItem(
 				'displaySeerrRows',
 				$L('Display Seerr Discovery Rows'),
