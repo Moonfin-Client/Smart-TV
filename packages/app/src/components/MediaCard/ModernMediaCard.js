@@ -95,24 +95,22 @@ const ModernMediaCard = ({
 		if (!item) return null;
 
 		if (item.Type === 'Episode') {
-			if (!isFocused && item.SeriesId && item.SeriesPrimaryImageTag) {
-				return getImageUrl(itemServerUrl, item.SeriesId, 'Primary', {maxHeight: 360, quality: 80});
-			}
-			if (isFocused && item.ImageTags?.Primary) {
-				return getImageUrl(itemServerUrl, item.Id, 'Primary', {maxHeight: 360, quality: 80});
-			}
-			if (item.SeriesId && item.SeriesPrimaryImageTag) {
-				return getImageUrl(itemServerUrl, item.SeriesId, 'Primary', {maxHeight: 360, quality: 80});
-			}
-			if (item.ImageTags?.Primary) {
-				return getImageUrl(itemServerUrl, item.Id, 'Primary', {maxHeight: 360, quality: 80});
-			}
-			if (item.ParentThumbItemId) {
-				return getImageUrl(itemServerUrl, item.ParentThumbItemId, 'Thumb', {maxWidth: 400, quality: 80});
-			}
-			if (item.ParentBackdropItemId) {
-				return getImageUrl(itemServerUrl, item.ParentBackdropItemId, 'Backdrop', {maxWidth: 600, quality: 80});
-			}
+			const seriesPoster = item.SeriesId && item.SeriesPrimaryImageTag
+				? getImageUrl(itemServerUrl, item.SeriesId, 'Primary', {maxHeight: 360, quality: 80})
+				: null;
+			const episodeThumb = item.ImageTags?.Primary
+				? getImageUrl(itemServerUrl, item.Id, 'Primary', {maxWidth: 600, quality: 80})
+				: item.ParentThumbItemId
+					? getImageUrl(itemServerUrl, item.ParentThumbItemId, 'Thumb', {maxWidth: 600, quality: 80})
+					: item.ParentBackdropItemId
+						? getImageUrl(itemServerUrl, item.ParentBackdropItemId, 'Backdrop', {maxWidth: 600, quality: 80})
+						: null;
+			// the series poster keeps the row a uniform portrait grid, the
+			// landscape episode thumbnail shows once the card expands
+			const episodeImage = isFocused
+				? (episodeThumb || seriesPoster)
+				: (settings.useSeriesThumbnails && seriesPoster) ? seriesPoster : (episodeThumb || seriesPoster);
+			if (episodeImage) return episodeImage;
 		}
 
 		if (item.Type === 'Movie' || item.Type === 'Series') {
@@ -155,7 +153,7 @@ const ModernMediaCard = ({
 			return toAbsoluteImageUrl(externalPoster, itemServerUrl);
 		}
 		return null;
-	}, [item, itemServerUrl, isFocused]);
+	}, [item, itemServerUrl, isFocused, settings.useSeriesThumbnails]);
 
 	const handleClick = useCallback(() => {
 		onSelect?.(item);
@@ -234,7 +232,15 @@ const ModernMediaCard = ({
 						style={{height: `${imageHeight}px`}}
 					/>
 				) : (
-					<div className={css.placeholder} style={{height: `${imageHeight}px`}}>{item?.Name?.[0]}</div>
+					<div className={css.placeholder} style={{height: `${imageHeight}px`}}>
+						{item?.Type === 'Person' ? (
+							<svg className={css.placeholderIcon} viewBox="0 -960 960 960" fill="currentColor" aria-hidden="true">
+								<path d="M480-480q-66 0-113-47t-47-113q0-66 47-113t113-47q66 0 113 47t47 113q0 66-47 113t-113 47ZM160-160v-112q0-34 17.5-62.5T224-378q62-31 126-46.5T480-440q66 0 130 15.5T736-378q29 15 46.5 43.5T800-272v112H160Z"/>
+							</svg>
+						) : (
+							<span className={css.placeholderTitle}>{item?.Name}</span>
+						)}
+					</div>
 				)}
 
 				{showIndicators && progress > 0 && (

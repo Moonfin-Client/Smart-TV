@@ -50,12 +50,40 @@
 	display: flex;
 	align-items: center;
 	justify-content: center;
-	background: var(--theme-surface-variant, #2a2a4e);
-	font-size: 64px;
-	color: var(--theme-text-muted, #666);
+	padding: 12px;
+	background:
+		linear-gradient(135deg,
+			rgba(var(--theme-accent-rgb, 0, 164, 220), 0.25) 0%,
+			rgba(var(--theme-accent-rgb, 0, 164, 220), 0.05) 50%,
+			transparent 100%),
+		var(--theme-surface-variant, #2a2a4e);
 	border-radius: var(--theme-card-radius, 20px);
 	border: var(--theme-card-border, 4px solid transparent);
 	box-sizing: border-box;
+	overflow: hidden;
+}
+
+.placeholderTitle {
+	text-transform: uppercase;
+	font-weight: 700;
+	letter-spacing: 0.15em;
+	text-align: center;
+	color: var(--theme-text-primary, #fff);
+	opacity: 0.5;
+	font-size: 20px;
+	line-height: 1.3;
+	display: -webkit-box;
+	-webkit-box-orient: vertical;
+	-webkit-line-clamp: 4;
+	overflow: hidden;
+	word-break: break-word;
+}
+
+.placeholderIcon {
+	width: 38%;
+	height: 38%;
+	color: var(--theme-text-muted, #666);
+	opacity: 0.5;
 }
 
 .title {

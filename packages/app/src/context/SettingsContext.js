@@ -124,7 +124,7 @@ const defaultSettings = {
 	screensaverMode: 'library',
 	watchedIndicatorBehavior: 'always',
 	cardFocusZoom: false,
-	useSeriesThumbnails: false,
+	useSeriesThumbnails: true,
 	homeRowsPosterSize: 'default',
 	homeRowsImageType: 'poster',
 	homeRowsStyle: 'v2',
