@@ -1,4 +1,4 @@
-import {createContext, useContext, useState, useEffect, useCallback} from 'react';
+import {createContext, useContext, useState, useEffect, useCallback, useRef} from 'react';
 import * as seerrApi from '../services/seerrApi';
 import {getFromStorage, saveToStorage, removeFromStorage} from '../services/storage';
 import {useSettings} from './SettingsContext';
@@ -6,6 +6,9 @@ import {useSettings} from './SettingsContext';
 const SeerrContext = createContext(null);
 
 const normalizeMoonfinAuthType = (authType) => (authType === 'local' ? 'local' : 'jellyfin');
+
+const STREAM_RECONNECT_MIN_MS = 5000;
+const STREAM_RECONNECT_MAX_MS = 60000;
 
 export const SeerrProvider = ({children}) => {
 const {syncFromServer} = useSettings();
@@ -18,7 +21,80 @@ const [isMoonfin, setIsMoonfin] = useState(false);
 const [variant, setVariant] = useState('seerr');
 const [displayName, setDisplayName] = useState('Seerr');
 const [pluginInfo, setPluginInfo] = useState(null);
+const [streamNotification, setStreamNotification] = useState(null);
+const [adminMessage, setAdminMessage] = useState(null);
+const streamRef = useRef({subscription: null, retryTimer: null, retryDelay: STREAM_RECONNECT_MIN_MS});
 const [moonfinAuthType, setMoonfinAuthTypeState] = useState('jellyfin');
+
+const dismissStreamNotification = useCallback(() => setStreamNotification(null), []);
+const dismissAdminMessage = useCallback(() => setAdminMessage(null), []);
+
+const handleStreamEvent = useCallback((event) => {
+// Any event proves the connection is healthy, so reset the backoff.
+streamRef.current.retryDelay = STREAM_RECONNECT_MIN_MS;
+if (!event || typeof event !== 'object') return;
+
+if (event.type === 'seerrNotification') {
+const title = typeof event.title === 'string' ? event.title : '';
+const body = typeof event.body === 'string' ? event.body : '';
+if (title || body) {
+setStreamNotification({title, body, key: Date.now()});
+}
+return;
+}
+
+if (event.type === 'adminMessage') {
+const text = typeof event.text === 'string' ? event.text.trim() : '';
+if (text) {
+setAdminMessage(text);
+}
+}
+}, []);
+
+const stopSettingsStream = useCallback(() => {
+const stream = streamRef.current;
+if (stream.retryTimer) {
+clearTimeout(stream.retryTimer);
+stream.retryTimer = null;
+}
+if (stream.subscription) {
+stream.subscription.abort();
+stream.subscription = null;
+}
+stream.retryDelay = STREAM_RECONNECT_MIN_MS;
+}, []);
+
+const startSettingsStream = useCallback((jellyfinServer, token) => {
+if (!jellyfinServer || !token) return;
+stopSettingsStream();
+
+const connect = () => {
+const stream = streamRef.current;
+stream.retryTimer = null;
+try {
+stream.subscription = seerrApi.subscribeMoonfinSettingsStream(
+jellyfinServer,
+token,
+handleStreamEvent,
+(error) => {
+stream.subscription = null;
+// A rejected token won't heal by retrying. The stream restarts
+// when the Moonfin config is established again.
+if (error?.status === 401) return;
+const delay = stream.retryDelay;
+stream.retryDelay = Math.min(delay * 2, STREAM_RECONNECT_MAX_MS);
+stream.retryTimer = setTimeout(connect, delay);
+}
+);
+} catch (e) {
+console.log('[Seerr] Settings stream failed to start:', e.message);
+}
+};
+
+connect();
+}, [handleStreamEvent, stopSettingsStream]);
+
+useEffect(() => () => stopSettingsStream(), [stopSettingsStream]);
 
 useEffect(() => {
 const init = async () => {
@@ -79,6 +155,8 @@ console.log('[Seerr] Plugin info fetch failed:', e.message);
 syncFromServer(config.jellyfinServerUrl, config.jellyfinAccessToken).catch(e =>
 console.log('[Seerr] Settings sync failed:', e.message)
 );
+
+startSettingsStream(config.jellyfinServerUrl, config.jellyfinAccessToken);
 }
 } catch (e) {
 console.error('[Seerr] Init failed:', e);
@@ -116,6 +194,8 @@ setDisplayName(configResult.displayName || 'Seerr');
 syncFromServer(jellyfinServer, token).catch(e =>
 console.log('[Seerr] Settings sync failed:', e.message)
 );
+
+startSettingsStream(jellyfinServer, token);
 
 if (status?.authenticated) {
 const resolvedAuthType = normalizeMoonfinAuthType(status.authType || savedAuthType);
@@ -157,7 +237,7 @@ moonfinAuthType: savedAuthType
 
 return {authenticated: false, url: status?.url};
 }
-}, [syncFromServer]);
+}, [syncFromServer, startSettingsStream]);
 
 const loginWithMoonfin = useCallback(async (username, password, authType = 'jellyfin') => {
 const normalizedAuthType = normalizeMoonfinAuthType(authType);
@@ -219,6 +299,7 @@ setServerUrl(config.jellyfinServerUrl || config.url || null);
 }, [moonfinAuthType]);
 
 const disable = useCallback(async () => {
+stopSettingsStream();
 await removeFromStorage('seerr');
 seerrApi.setMoonfinMode(false);
 seerrApi.setMoonfinConfig(null, null);
@@ -231,7 +312,7 @@ setVariant('seerr');
 setDisplayName('Seerr');
 setPluginInfo(null);
 setMoonfinAuthTypeState('jellyfin');
-}, []);
+}, [stopSettingsStream]);
 
 return (
 <SeerrContext.Provider value={{
@@ -250,7 +331,11 @@ configureWithMoonfin,
 loginWithMoonfin,
 setMoonfinAuthType,
 logout,
-disable
+disable,
+streamNotification,
+dismissStreamNotification,
+adminMessage,
+dismissAdminMessage
 }}>
 {children}
 </SeerrContext.Provider>

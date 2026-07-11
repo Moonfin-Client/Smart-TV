@@ -7,7 +7,7 @@ import {getAvailableThemeList, getAvailableThemes, isBuiltInThemeId, registerSto
 const DEFAULT_HOME_ROWS = [
 	{id: 'resume', name: 'Continue Watching', enabled: true, order: 0},
 	{id: 'nextup', name: 'Next Up', enabled: true, order: 1},
-	{id: 'latest-media', name: 'Latest Media', enabled: true, order: 2},
+	{id: 'latest-media', name: 'Recently Added Media', enabled: true, order: 2},
 	{id: 'collections', name: 'Collections', enabled: false, order: 3},
 	{id: 'library-tiles', name: 'My Media', enabled: false, order: 4},
 	{id: 'favoriteMovies', name: 'Favorite Movies', enabled: false, order: 5},
@@ -19,12 +19,13 @@ const DEFAULT_HOME_ROWS = [
 	{id: 'favoriteAlbums', name: 'Favorite Albums', enabled: false, order: 11},
 	{id: 'favoriteSongs', name: 'Favorite Songs', enabled: false, order: 12},
 	{id: 'genres', name: 'Genres', enabled: false, order: 13},
-	{id: 'imdb-top250-movies', name: 'IMDb Top 250 Movies', enabled: false, order: 14},
-	{id: 'imdb-top250-tv', name: 'IMDb Top 250 TV Shows', enabled: false, order: 15},
-	{id: 'imdb-popular-movies', name: 'IMDb Most Popular Movies', enabled: false, order: 16},
-	{id: 'imdb-popular-tv', name: 'IMDb Most Popular TV Shows', enabled: false, order: 17},
-	{id: 'imdb-lowest-rated', name: 'IMDb Lowest Rated Movies', enabled: false, order: 18},
-	{id: 'imdb-top-english', name: 'IMDb Top Rated English Movies', enabled: false, order: 19}
+	{id: 'recently-released', name: 'Recently Released', enabled: false, order: 14},
+	{id: 'imdb-top250-movies', name: 'IMDb Top 250 Movies', enabled: false, order: 15},
+	{id: 'imdb-top250-tv', name: 'IMDb Top 250 TV Shows', enabled: false, order: 16},
+	{id: 'imdb-popular-movies', name: 'IMDb Most Popular Movies', enabled: false, order: 17},
+	{id: 'imdb-popular-tv', name: 'IMDb Most Popular TV Shows', enabled: false, order: 18},
+	{id: 'imdb-lowest-rated', name: 'IMDb Lowest Rated Movies', enabled: false, order: 19},
+	{id: 'imdb-top-english', name: 'IMDb Top Rated English Movies', enabled: false, order: 20}
 ];
 
 const DEFAULT_SEERR_HOME_ROWS = [
@@ -81,6 +82,8 @@ const defaultSettings = {
 	showFavoritesButton: true,
 	showLibrariesInToolbar: true,
 	mergeContinueWatchingNextUp: false,
+	hiddenContinueWatchingItems: null,
+	hiddenNextUpSeries: null,
 	showHomeBackdrop: true,
 	backdropBlurHome: 20,
 	backdropBlurDetail: 20,
@@ -124,7 +127,7 @@ const defaultSettings = {
 	useSeriesThumbnails: false,
 	homeRowsPosterSize: 'default',
 	homeRowsImageType: 'poster',
-	homeRowsStyle: 'modern',
+	homeRowsStyle: 'v2',
 	homeRowOverlay: 'off',
 	folderViewMode: 'local',
 	excludedGenres: [],
@@ -202,6 +205,7 @@ const LOCAL_TO_SERVER = Object.fromEntries(
 
 const TV_TO_SERVER_ROW = {
 	'latest-media': 'latestmedia',
+	'recently-released': 'recentlyreleased',
 	'library-tiles': 'smalllibrarytiles',
 	'favoriteMovies': 'favoritemovies',
 	'favoriteSeries': 'favoriteseries',
@@ -221,6 +225,7 @@ const TV_TO_SERVER_ROW = {
 };
 const SERVER_TO_TV_ROW = {
 	'latestmedia': 'latest-media',
+	'recentlyreleased': 'recently-released',
 	'smalllibrarytiles': 'library-tiles',
 	'favoritemovies': 'favoriteMovies',
 	'favoriteseries': 'favoriteSeries',
@@ -256,7 +261,11 @@ const mergeHomeRows = (rows) => {
 	return merged;
 };
 
-const normalizeHomeRowsStyle = (value) => (value === 'classic' || value === 'modern' ? value : 'modern');
+const normalizeHomeRowsStyle = (value) => {
+	if (value === 'classic') return 'v1';
+	if (value === 'modern') return 'v2';
+	return value === 'v1' || value === 'v2' ? value : 'v2';
+};
 
 const normalizeGuid = (id) => {
 	if (!id || typeof id !== 'string') return id;
@@ -310,6 +319,7 @@ const VALUE_CONVERSIONS = {
 const SYNCABLE_KEYS = [
 	'showShuffleButton', 'shuffleContentType', 'showGenresButton',
 	'showFavoritesButton', 'showLibrariesInToolbar', 'mergeContinueWatchingNextUp',
+	'hiddenContinueWatchingItems', 'hiddenNextUpSeries',
 	'mdblistEnabled', 'mdblistRatingSources', 'tmdbEpisodeRatingsEnabled',
 	'imdbTop250MoviesEnabled', 'imdbTop250TvShowsEnabled', 'imdbMostPopularMoviesEnabled',
 	'imdbMostPopularTvShowsEnabled', 'imdbLowestRatedMoviesEnabled', 'imdbTopEnglishMoviesEnabled',
@@ -360,7 +370,7 @@ const localToProfile = (localSettings) => {
 	const profile = {};
 	for (const key of SYNCABLE_KEYS) {
 		const value = localSettings[key];
-		if (value === undefined) continue;
+		if (value === undefined || value === null) continue;
 		const serverKey = LOCAL_TO_SERVER[key] || key;
 		const conv = VALUE_CONVERSIONS[key];
 		profile[serverKey] = conv?.toServer ? conv.toServer(value) : value;
@@ -425,7 +435,7 @@ export function SettingsProvider({children}) {
 					migrated = true;
 				}
 				if (!hasExplicitHomeRowsStyle) {
-					stored.homeRowsStyle = 'modern';
+					stored.homeRowsStyle = 'v2';
 					migrated = true;
 				} else {
 					const normalizedStyle = normalizeHomeRowsStyle(stored.homeRowsStyle);

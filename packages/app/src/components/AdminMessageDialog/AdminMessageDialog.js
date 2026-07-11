@@ -15,7 +15,7 @@ const DialogContainer = SpotlightContainerDecorator({
 
 const SpottableButton = Spottable('button');
 
-const AdminMessageDialog = ({open, message, onDismiss}) => {
+const AdminMessageDialog = ({open, title, message, onDismiss}) => {
 	useEffect(() => {
 		if (!open) return;
 		const t = setTimeout(() => Spotlight.focus('server-message-ok-btn'), 100);
@@ -50,7 +50,7 @@ const AdminMessageDialog = ({open, message, onDismiss}) => {
 	return (
 		<div className={css.overlay}>
 			<DialogContainer className={css.dialog} spotlightId="server-message-dialog">
-				<h2 className={css.title}>{$L('Server Message')}</h2>
+				<h2 className={css.title}>{title || $L('Server Message')}</h2>
 				<p className={`${css.message} ${css.preWrap}`}>{message}</p>
 				<div className={css.buttons}>
 					<SpottableButton

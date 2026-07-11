@@ -1,0 +1,97 @@
+.root {
+	position: relative;
+	height: 100%;
+	overflow: hidden;
+	background: var(--theme-background, #0b0f14);
+}
+
+.backdrop {
+	position: absolute;
+	inset: 0;
+	background-size: cover;
+	background-position: center right;
+	opacity: 0.5;
+}
+
+.scrim {
+	position: absolute;
+	inset: 0;
+	background: linear-gradient(90deg, var(--theme-background, #0b0f14) 30%, rgba(11, 15, 20, 0.4) 65%, transparent 95%),
+		linear-gradient(to top, var(--theme-background, #0b0f14) 8%, transparent 60%);
+}
+
+.content {
+	position: relative;
+	display: flex;
+	gap: 40px;
+	padding: 72px 0 0 72px;
+}
+
+.poster {
+	width: 260px;
+	height: 348px;
+	flex: 0 0 auto;
+	border-radius: 14px;
+	background-size: cover;
+	background-position: center;
+	box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+}
+
+.info {
+	max-width: 900px;
+	color: var(--theme-on-background, #fff);
+}
+
+.title {
+	font-size: 52px;
+	font-weight: 600;
+	margin: 0;
+}
+
+.meta {
+	font-size: 24px;
+	color: var(--theme-on-surface-variant, #cfd6e0);
+	margin: 12px 0;
+}
+
+.overview {
+	font-size: 22px;
+	line-height: 1.5;
+	color: var(--theme-on-surface-variant, #cfd6e0);
+	max-height: 6em;
+	overflow: hidden;
+	margin-bottom: 20px;
+}
+
+.actions {
+	display: flex;
+	gap: 16px;
+	margin-top: 8px;
+}
+
+.related {
+	position: relative;
+	margin-top: 24px;
+	padding-left: 72px;
+}
+
+.relatedTitle {
+	font-size: 26px;
+	font-weight: 500;
+	color: var(--theme-on-background, #fff);
+	margin-bottom: 8px;
+}
+
+.relatedRow {
+	white-space: nowrap;
+	overflow: hidden;
+}
+
+.center {
+	height: 100%;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	color: var(--theme-on-surface-variant, #cfd6e0);
+	font-size: 28px;
+}
