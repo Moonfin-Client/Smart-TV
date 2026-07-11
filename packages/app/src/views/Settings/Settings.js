@@ -1539,9 +1539,9 @@ const Settings = ({ onBack, onLibrariesChanged, panelMode }) => {
 			{renderOptionItem('homeRowOverlay', $L('Home Row Info Overlay'), getHomeRowOverlayOptions(), $L('Off'), 'info')}
 			{renderNavItem('homeRows', $L('Home Sections'), $L('Reorder and toggle home rows'), openHomeRows, 'list')}
 			{settings.useMoonfinPlugin && renderNavItem(
-				'imdbLists', $L('IMDb Lists'), 
-				$L('Choose which IMDb lists are active'), 
-				openImdbLists, 
+				'imdbLists', $L('IMDb Lists'),
+				$L('Choose which IMDb lists are active'),
+				openImdbLists,
 				'list'
 			)}
 			{seerr.isEnabled && renderToggleItem(
