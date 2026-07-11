@@ -3,25 +3,13 @@ import Spottable from '@enact/spotlight/Spottable';
 import Spotlight from '@enact/spotlight';
 import $L from '@enact/i18n/$L';
 import {getImageUrl, getBackdropId, formatDuration} from '../../utils/helpers';
-import {buildQueryString} from '../../utils/urlCompat';
-import {stopPlaybackForTrailer} from '../../utils/trailerPlayback';
 import RatingsRow from '../../components/RatingsRow';
-import {createApiForServer, getApiKey, getServerUrl as getDefaultServerUrl} from '../../services/jellyfinApi';
 import {KEYS} from '../../utils/keys';
+import useTrailerPreview from './useTrailerPreview';
 import css from './Browse.module.less';
 
 const FEATURED_GENRES_LIMIT = 3;
 const PRELOAD_ADJACENT_SLIDES = 2;
-const TRAILER_REVEAL_MS = 4000;
-const LOCAL_TRAILER_STREAM_PARAMS = {
-	Static: 'false',
-	videoCodec: 'h264',
-	audioCodec: 'aac',
-	maxVideoBitDepth: '8',
-	audioBitRate: '128000',
-	audioChannels: '2',
-	subtitleMethod: 'Drop'
-};
 
 const SpottableDiv = Spottable('div');
 const SpottableButton = Spottable('button');
@@ -41,21 +29,21 @@ const FeaturedBanner = memo(({
 	onCurrentItemChange
 }) => {
 	const [currentIndex, setCurrentIndex] = useState(0);
-	const [trailerActive, setTrailerActive] = useState(false);
 	const [featuredFocused, setFeaturedFocused] = useState(false);
-	const [screensaverActive, setScreensaverActive] = useState(false);
 
 	const preloadedImagesRef = useRef(new Set());
-	const trailerContainerRef = useRef(null);
-	const trailerVideoRef = useRef(null);
-	const trailerSkipIntervalRef = useRef(null);
-	const trailerStateRef = useRef('idle');
-	const trailerVideoIdRef = useRef(null);
-	const trailerRevealTimerRef = useRef(null);
-	const sponsorSegmentsRef = useRef([]);
 	const carouselIntervalRef = useRef(null);
 
 	const currentFeatured = featuredItems[currentIndex];
+
+	const {trailerActive, trailerContainerRef} = useTrailerPreview({
+		currentItem: currentFeatured,
+		isVisible,
+		enabled: settings.featuredTrailerPreview,
+		preferMuted: settings.featuredTrailerMuted,
+		api,
+		getItemServerUrl
+	});
 
 	useEffect(() => {
 		if (featuredItems[currentIndex]) {
@@ -126,269 +114,6 @@ const FeaturedBanner = memo(({
 			}
 		};
 	}, [isVisible, featuredItems.length, featuredFocused, settings.autoAdvance, settings.autoAdvanceInterval, settings.carouselSpeed, trailerActive, startCarouselTimer]);
-
-	const stopTrailer = useCallback(() => {
-		if (trailerRevealTimerRef.current) {
-			clearTimeout(trailerRevealTimerRef.current);
-			trailerRevealTimerRef.current = null;
-		}
-		if (trailerSkipIntervalRef.current) {
-			clearInterval(trailerSkipIntervalRef.current);
-			trailerSkipIntervalRef.current = null;
-		}
-		setTrailerActive(false);
-		const video = trailerVideoRef.current;
-		if (video) {
-			try { video.pause(); } catch (e) { /* ignore */ }
-			try {
-				video.src = '';
-				video.removeAttribute('src');
-				if (video.srcObject) video.srcObject = null;
-			} catch (e) { /* ignore */ }
-			video.classList.remove(css.trailerVisible);
-			video.classList.remove(css.trailerVideo);
-			video.onplaying = null;
-			video.onended = null;
-			video.onerror = null;
-		}
-		trailerStateRef.current = 'idle';
-		trailerVideoIdRef.current = null;
-		sponsorSegmentsRef.current = [];
-	}, []);
-
-	const getRemoteTrailersForItem = useCallback(async (item) => {
-		if (!item?.Id) return [];
-
-		const initialTrailers = Array.isArray(item.RemoteTrailers) ? item.RemoteTrailers : [];
-		if (initialTrailers.length > 0) return initialTrailers;
-
-		try {
-			const serverApi = item._serverUrl && item._serverAccessToken
-				? createApiForServer(item._serverUrl, item._serverAccessToken, item._serverUserId)
-				: api;
-			if (!serverApi?.getItem) return [];
-			const detailed = await serverApi.getItem(item.Id);
-			return Array.isArray(detailed?.RemoteTrailers) ? detailed.RemoteTrailers : [];
-		} catch {
-			return [];
-		}
-	}, [api]);
-
-	const getLocalTrailerStreamUrlForItem = useCallback(async (item) => {
-		if (!item?.Id) return null;
-
-		try {
-			const serverApi = item._serverUrl && item._serverAccessToken
-				? createApiForServer(item._serverUrl, item._serverAccessToken, item._serverUserId)
-				: api;
-			if (!serverApi?.getLocalTrailers) return null;
-
-			const trailers = await serverApi.getLocalTrailers(item.Id);
-			const trailerItems = Array.isArray(trailers?.Items) ? trailers.Items : Array.isArray(trailers) ? trailers : [];
-			const trailerId = trailerItems.find((t) => t?.Id)?.Id;
-			if (!trailerId) return null;
-
-			const resolvedServerUrl = item._serverUrl || serverUrl || getDefaultServerUrl();
-			if (!resolvedServerUrl) return null;
-
-			const resolvedToken = item._serverAccessToken || getApiKey();
-			const params = {
-				...LOCAL_TRAILER_STREAM_PARAMS,
-				...(resolvedToken ? {ApiKey: resolvedToken} : {})
-			};
-			return `${resolvedServerUrl}/Videos/${encodeURIComponent(trailerId)}/stream?${buildQueryString(params)}`;
-		} catch {
-			return null;
-		}
-	}, [api, serverUrl]);
-
-	const startTrailerPreview = useCallback(async (videoId, directUrl = null) => {
-		const requestId = videoId || directUrl || null;
-		trailerStateRef.current = 'resolving';
-		trailerVideoIdRef.current = requestId;
-		await stopPlaybackForTrailer(trailerVideoRef.current);
-
-		const [{fetchSponsorSegments, fetchVideoStreamUrl, getTrailerStartTime}, {getSharedVideoElement}] = await Promise.all([
-			import('../../services/youtubeTrailer'),
-			import('@moonfin/platform-webos/video')
-		]);
-
-		let segments = [];
-		let streamUrl = directUrl || null;
-		let startTime = 0;
-		try {
-			if (!streamUrl && videoId) {
-				const results = await Promise.all([
-					fetchSponsorSegments(videoId).catch(() => []),
-					fetchVideoStreamUrl(videoId, false)
-				]);
-				segments = results[0];
-				streamUrl = results[1];
-				startTime = getTrailerStartTime(segments);
-			}
-		} catch (e) { /* ignore */ }
-
-		if (trailerStateRef.current !== 'resolving' || trailerVideoIdRef.current !== requestId) return;
-		if (!streamUrl) {
-			trailerStateRef.current = 'unavailable';
-			return;
-		}
-		sponsorSegmentsRef.current = segments;
-
-		const container = trailerContainerRef.current;
-		if (!container) return;
-
-		const preferMuted = settings.featuredTrailerMuted;
-
-		let video = trailerVideoRef.current;
-		if (!video) {
-			video = getSharedVideoElement();
-			trailerVideoRef.current = video;
-		}
-		video.className = css.trailerVideo;
-		video.playsInline = true;
-		video.controls = false;
-
-		video.muted = preferMuted;
-		video.volume = preferMuted ? 0 : 1;
-		video.autoplay = true;
-		video.classList.remove(css.trailerVisible);
-
-		if (!container.contains(video)) {
-			container.appendChild(video);
-		}
-
-		if (trailerSkipIntervalRef.current) {
-			clearInterval(trailerSkipIntervalRef.current);
-			trailerSkipIntervalRef.current = null;
-		}
-
-		if (segments.length > 0) {
-			trailerSkipIntervalRef.current = setInterval(() => {
-				if (!video || video.paused) return;
-				const t = video.currentTime;
-				for (let i = 0; i < segments.length; i++) {
-					if (t >= segments[i].start && t < segments[i].end - 0.5) {
-						video.currentTime = segments[i].end;
-						break;
-					}
-				}
-			}, 500);
-		}
-
-		video.onplaying = () => {
-			if (trailerStateRef.current === 'resolving' && trailerVideoIdRef.current === requestId) {
-				trailerStateRef.current = 'playing';
-				trailerRevealTimerRef.current = setTimeout(() => {
-					if (trailerStateRef.current === 'playing' && trailerVideoIdRef.current === requestId) {
-						video.classList.add(css.trailerVisible);
-						setTrailerActive(true);
-					}
-				}, TRAILER_REVEAL_MS);
-			}
-		};
-
-		video.onended = () => {
-			stopTrailer();
-		};
-
-		video.onerror = () => {
-			trailerStateRef.current = 'unavailable';
-			video.classList.remove(css.trailerVisible);
-		};
-
-		video.src = streamUrl;
-		if (startTime > 0) video.currentTime = startTime;
-		const playPromise = video.play();
-		if (playPromise) {
-			playPromise.catch(() => {
-				// Autoplay with audio can be blocked; retry muted to keep previews working.
-				if (!video || video.muted) return;
-				video.muted = true;
-				video.volume = 0;
-				const retryPromise = video.play();
-				if (retryPromise) retryPromise.catch(() => {});
-			});
-		}
-	}, [stopTrailer, settings.featuredTrailerMuted]);
-
-	useEffect(() => {
-		if (!settings.featuredTrailerPreview || !isVisible || !currentFeatured || screensaverActive) {
-			stopTrailer();
-			return;
-		}
-
-		stopTrailer();
-		let cancelled = false;
-
-		const resolveAndStartTrailer = async () => {
-			try {
-				const {extractYouTubeId, extractYouTubeIdFromUrl} = await import('../../services/youtubeTrailer');
-				if (cancelled) return;
-
-				let resolvedVideoId = null;
-				let directUrl = await getLocalTrailerStreamUrlForItem(currentFeatured);
-				if (cancelled) return;
-
-				if (!directUrl) {
-					resolvedVideoId = extractYouTubeId(currentFeatured);
-				}
-
-				if (!directUrl && !resolvedVideoId) {
-					const remoteTrailers = await getRemoteTrailersForItem(currentFeatured);
-					if (cancelled) return;
-
-					for (let i = 0; i < remoteTrailers.length; i++) {
-						const trailerUrl = remoteTrailers[i]?.Url || remoteTrailers[i]?.url || '';
-						if (!trailerUrl) continue;
-
-						const trailerVideoId = extractYouTubeIdFromUrl(trailerUrl);
-						if (trailerVideoId) {
-							resolvedVideoId = trailerVideoId;
-							break;
-						}
-
-						if (!directUrl) {
-							directUrl = trailerUrl;
-						}
-					}
-				}
-
-				if (cancelled) return;
-
-				if (resolvedVideoId || directUrl) {
-					startTrailerPreview(resolvedVideoId, directUrl);
-				}
-			} catch (e) {
-				if (!cancelled) stopTrailer();
-			}
-		};
-
-		resolveAndStartTrailer();
-
-		return () => {
-			cancelled = true;
-			stopTrailer();
-		};
-	}, [currentIndex, currentFeatured, isVisible, screensaverActive, settings.featuredTrailerPreview, getLocalTrailerStreamUrlForItem, getRemoteTrailersForItem, startTrailerPreview, stopTrailer]);
-
-	useEffect(() => {
-		const handleScreensaver = (e) => setScreensaverActive(!!e.detail?.active);
-		window.addEventListener('moonfin:screensaver', handleScreensaver);
-		return () => window.removeEventListener('moonfin:screensaver', handleScreensaver);
-	}, []);
-
-	useEffect(() => {
-		const handleVisibility = () => {
-			if (document.hidden) stopTrailer();
-		};
-		document.addEventListener('visibilitychange', handleVisibility);
-		return () => document.removeEventListener('visibilitychange', handleVisibility);
-	}, [stopTrailer]);
-
-	useEffect(() => {
-		return () => stopTrailer();
-	}, [stopTrailer]);
 
 	const handleFeaturedPrev = useCallback(() => {
 		if (featuredItems.length <= 1) return;
