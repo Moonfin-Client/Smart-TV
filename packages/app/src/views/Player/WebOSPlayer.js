@@ -173,6 +173,8 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 	const assRendererRef = useRef(null);
 	const assCanvasRef = useRef(null);
 	const pendingInitialAssSubtitleRef = useRef(null);
+	// index of a subtitle the server is currently burning into the stream
+	const burnInSubtitleRef = useRef(null);
 
 	const destroyHlsPlayer = () => {
 		if (hlsPlayerRef.current) {
@@ -603,6 +605,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 			setSelectedSubtitleIndex(-1);
 			setVideoDisplayAspectRatio(null);
 			setDecodedAspectRatio(null);
+			burnInSubtitleRef.current = null;
 
 			resetPopups(); // eslint-disable-line no-use-before-define
 			setNextEpisode(null);
@@ -752,6 +755,9 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 						const selectedSub = result.subtitleStreams?.find(s => s.index === initialSubtitleIndex);
 						if (selectedSub) {
 							setSelectedSubtitleIndex(initialSubtitleIndex);
+							// a preselected burn in track was already negotiated into the
+							// stream, remember it so deselecting later reloads without it
+							if (selectedSub.isBurnIn) burnInSubtitleRef.current = initialSubtitleIndex;
 							await loadSubtitleData(selectedSub);
 						} else {
 							console.error('[Player] initialSubtitleIndex', initialSubtitleIndex, 'not found in subtitleStreams');
@@ -1748,6 +1754,24 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 		openModal('subtitleSettings');
 	}, [openModal]);
 
+	// dvd and dvb bitmaps have no client renderer, the server burns them into
+	// the video, which needs a stream reload whenever one is picked or dropped
+	const reloadWithSubtitleIndex = useCallback(async (subIndex) => {
+		const currentPositionTicks = videoRef.current
+			? Math.floor(videoRef.current.currentTime * 10000000)
+			: positionRef.current || 0;
+		const result = await playback.changeSubtitleStream(subIndex);
+		if (result?.url) {
+			positionRef.current = currentPositionTicks;
+			if (currentPositionTicks > 0) {
+				pendingResumeTicksRef.current = currentPositionTicks;
+			}
+			setMediaUrl(result.url);
+			if (result.playMethod) setPlayMethod(result.playMethod);
+			setMimeType(result.mimeType || 'video/mp4');
+		}
+	}, []);
+
 	const applySubtitleSelection = useCallback(async (index, streamList = subtitleStreams, shouldClose = true) => {
 		playback.updateCurrentSession({subtitleStreamIndex: index});
 
@@ -1762,11 +1786,39 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 			setSelectedSubtitleIndex(-1);
 			setSubtitleTrackEvents(null);
 			setCurrentSubtitleText(null);
+			if (burnInSubtitleRef.current != null) {
+				burnInSubtitleRef.current = null;
+				try {
+					await reloadWithSubtitleIndex(-1);
+				} catch (err) {
+					console.error('[Player] Subtitle reload failed:', err);
+				}
+			}
 		} else {
 			setSelectedSubtitleIndex(index);
 			const stream = streamList.find(s => s.index === index);
 
-			if (stream && stream.isAss && supportsAssRenderer()) {
+			if (burnInSubtitleRef.current != null && !(stream && stream.isBurnIn)) {
+				burnInSubtitleRef.current = null;
+				try {
+					await reloadWithSubtitleIndex(index);
+				} catch (err) {
+					console.error('[Player] Subtitle reload failed:', err);
+				}
+			}
+
+			if (stream && stream.isBurnIn) {
+				setSubtitleTrackEvents(null);
+				setCurrentSubtitleText(null);
+				if (burnInSubtitleRef.current !== index) {
+					try {
+						await reloadWithSubtitleIndex(index);
+						burnInSubtitleRef.current = index;
+					} catch (err) {
+						console.error('[Player] Burn in subtitle reload failed:', err);
+					}
+				}
+			} else if (stream && stream.isAss && supportsAssRenderer()) {
 				await initAssRendererForStream(stream);
 			} else if (stream && stream.isTextBased) {
 				try {
@@ -1805,7 +1857,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 		if (shouldClose) {
 			closeModal();
 		}
-	}, [subtitleStreams, closeModal, settings.enablePgsRendering, settings.subtitleOpacity, initAssRendererForStream]);
+	}, [subtitleStreams, closeModal, settings.enablePgsRendering, settings.subtitleOpacity, initAssRendererForStream, reloadWithSubtitleIndex]);
 
 	const handleOpenRemoteSubtitleSearch = useCallback(async () => {
 		if (!item?.Id) return;

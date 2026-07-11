@@ -2,15 +2,13 @@ import * as jellyfinApi from './jellyfinApi';
 import {getDeviceProfile, getDeviceCapabilities} from './deviceProfile';
 import {getPlayMethod, getMimeType, isAudioStreamPlayable} from './video';
 import {getFromStorage} from './storage';
+import {TEXT_SUBTITLE_CODECS, isAssSubtitleCodec, isPgsSubtitleCodec, isBurnInSubtitleCodec} from '../utils/subtitleCodecs';
 
 export const PlayMethod = {
 	DirectPlay: 'DirectPlay',
 	DirectStream: 'DirectStream',
 	Transcode: 'Transcode'
 };
-
-// Image-based subtitles are rendered client-side via libpgs, never by the server.
-const IMAGE_SUBTITLE_CODECS = ['pgssub', 'hdmv_pgs', 'pgs', 'dvdsub', 'dvbsub', 'dvb_subtitle'];
 
 const findSubtitleStreamByIndex = (index, ...streamSets) => {
 	if (index == null || index < 0) return null;
@@ -128,7 +126,7 @@ const selectMediaSource = (mediaSources, capabilities, options, passthroughSetti
 			}, {stream: null, score: 0});
 			score += bestAudio.score;
 		} else if (sourceAudioStreams.length > 0) {
-			// No compatible audio streams at all — penalize
+			// No compatible audio streams at all, penalize
 			score -= 10;
 		}
 
@@ -280,7 +278,8 @@ const extractSubtitleStreams = (mediaSource, itemId = null, creds = null) => {
 		.filter(s => s.Type === 'Subtitle')
 		.map(s => {
 			const codec = s.Codec?.toLowerCase();
-			const isImageBased = IMAGE_SUBTITLE_CODECS.includes(codec);
+			const isTextBased = TEXT_SUBTITLE_CODECS.includes(codec);
+			const isImageBased = isPgsSubtitleCodec(codec);
 			let deliveryUrl = null;
 			if (s.DeliveryUrl) {
 				// External URLs are used as-is, internal URLs need server prefix
@@ -296,9 +295,13 @@ const extractSubtitleStreams = (mediaSource, itemId = null, creds = null) => {
 				isExternal: s.IsExternal,
 				isForced: s.IsForced,
 				isDefault: s.IsDefault,
-				isTextBased: ['srt', 'subrip', 'vtt', 'webvtt', 'ass', 'ssa', 'sub', 'smi', 'sami'].includes(codec),
-				isAss: ['ass', 'ssa'].includes(codec),
+				isTextBased,
+				isAss: isAssSubtitleCodec(codec),
 				isImageBased,
+				isBurnIn: isBurnInSubtitleCodec(codec),
+				// embedded tracks AVPlay can select natively. Image tracks the server
+				// already extracts for delivery dont count
+				isEmbeddedNative: !s.IsExternal && (isTextBased || (isImageBased && s.DeliveryMethod !== 'External')),
 				deliveryUrl: deliveryUrl,
 				deliveryMethod: s.DeliveryMethod
 			};
@@ -343,24 +346,25 @@ export const getPlaybackInfo = async (itemId, options = {}) => {
 	const requestedStartTime = isLiveTV ? 0 : (options.startPositionTicks || 0);
 	const hasExplicitSubtitle = options.subtitleStreamIndex != null;
 	const requestedSubtitleStreamIndex = hasExplicitSubtitle ? options.subtitleStreamIndex : -1;
-	// Image-based subtitles (PGS/DVD) are rendered client-side via libpgs. Never send
-	// their index to the server: during transcode it burns them into the video, which
-	// is far too slow for large/4K sources and times out behind a reverse proxy (#218).
-	// We still track the real index in the session so the player renders it client-side.
+	// PGS subtitles are rendered client-side via libpgs. Never send their index
+	// to the server: during transcode it burns them into the video, which is far
+	// too slow for large/4K sources and times out behind a reverse proxy. We
+	// still track the real index in the session so the player renders it
+	// client-side. dvd and dvb bitmaps have no client renderer, so their index
+	// goes through and the server burns them in.
 	const requestedSubStream = findSubtitleStreamByIndex(
 		requestedSubtitleStreamIndex,
 		options.mediaSource?.MediaStreams,
 		options.item?.MediaStreams,
 		currentSession?.mediaSource?.MediaStreams
 	);
-	const subtitleIsImageBased = !!requestedSubStream &&
-		IMAGE_SUBTITLE_CODECS.includes((requestedSubStream.Codec || '').toLowerCase());
-	const subtitleStreamIndex = subtitleIsImageBased ? -1 : requestedSubtitleStreamIndex;
+	const subtitleIsPgs = !!requestedSubStream && isPgsSubtitleCodec(requestedSubStream.Codec);
+	const subtitleStreamIndex = subtitleIsPgs ? -1 : requestedSubtitleStreamIndex;
 	// When the user hasn't explicitly picked a subtitle, omit the index entirely so
 	// the server applies their preferred-subtitle-language / SubtitleMode default.
 	const sentSubtitleStreamIndex = hasExplicitSubtitle ? subtitleStreamIndex : undefined;
-	if (subtitleIsImageBased) {
-		console.log('[playback] Image-based subtitle selected — negotiating without it to avoid server burn-in (#218)');
+	if (subtitleIsPgs) {
+		console.log('[playback] PGS subtitle selected, negotiating without it to avoid server burn-in');
 	}
 	console.log('[playback] getPlaybackInfo called:', {
 		itemId,
@@ -480,10 +484,10 @@ export const getPlaybackInfo = async (itemId, options = {}) => {
 		const defaultPlayable = isAudioStreamPlayable(defaultAudioStream, capabilities, passthroughSettings);
 
 		if (defaultAudioStream && !defaultPlayable) {
-			// The default audio can't be played, but the file may carry a compatible
+			// The default audio cant be played, but the file may carry a compatible
 			// alternate in the SAME language (e.g. TrueHD default + E-AC3 secondary).
 			// Prefer that so the server keeps direct-playing the video instead of
-			// transcoding, which just hangs on Dolby Vision files on webOS (#191).
+			// transcoding, which just hangs on Dolby Vision files on webOS.
 			// Restrict to the default's language (never switch to a foreign track)
 			// and pick the highest channel count (the main mix, not a commentary or
 			// descriptive downmix). With no same-language match we transcode as before.
@@ -542,15 +546,16 @@ export const getPlaybackInfo = async (itemId, options = {}) => {
 
 	let playMethod = determinePlayMethod(mediaSource, capabilities, options, passthroughSettings);
 
-	// #186 + #218 safety: when we let the server pick the user's preferred subtitle
-	// (no explicit index) and it resolved to an image-based track on a transcode, the
-	// server would burn it into the video — the slow path #218 fixed. Re-negotiate
-	// without it and let the player render the image sub client-side from its .sup URL.
+	// When we let the server pick the user's preferred subtitle (no explicit
+	// index) and it resolved to a bitmap track on a transcode, the server would
+	// burn it into the video, far too slow for a source the user never asked to
+	// re-encode. Re-negotiate without it, PGS still renders client-side from its
+	// .sup URL and burn-in stays an explicit choice.
 	if (!hasExplicitSubtitle && playMethod === PlayMethod.Transcode &&
 			mediaSource.DefaultSubtitleStreamIndex != null && mediaSource.DefaultSubtitleStreamIndex >= 0) {
 		const resolvedSub = findSubtitleStreamByIndex(mediaSource.DefaultSubtitleStreamIndex, mediaSource.MediaStreams);
-		if (resolvedSub && IMAGE_SUBTITLE_CODECS.includes((resolvedSub.Codec || '').toLowerCase())) {
-			console.log('[playback] Server default subtitle is image-based on transcode — re-negotiating without burn-in (#218)');
+		if (resolvedSub && (isPgsSubtitleCodec(resolvedSub.Codec) || isBurnInSubtitleCodec(resolvedSub.Codec))) {
+			console.log('[playback] Server default subtitle is bitmap based on transcode, re-negotiating without burn-in');
 			const noBurnInfo = await api.getPlaybackInfo(itemId, {
 				DeviceProfile: deviceProfile,
 				StartTimeTicks: requestedStartTime,

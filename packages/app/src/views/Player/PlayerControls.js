@@ -191,6 +191,7 @@ const PlayerControls = ({
 	handleSelectSubtitle,
 	handleSubtitleKeyDown,
 	handleSelectSpeed,
+	speedCaveat,
 	handleSelectQuality,
 	handleSelectChapter,
 	handleSelectCastMember,
@@ -478,6 +479,7 @@ const PlayerControls = ({
 								</SpottableButton>
 							))}
 						</div>
+						{speedCaveat && <p className={css.modalFooter}>{speedCaveat}</p>}
 						<p className={css.modalFooter}>{$L('Press BACK to close')}</p>
 					</ModalContainer>
 				</div>
