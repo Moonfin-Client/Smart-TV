@@ -56,7 +56,10 @@ const getEpisodeLabel = (item) => {
 	if (!item || item.Type !== 'Episode') return '';
 	if (!Number.isFinite(item.ParentIndexNumber) || !Number.isFinite(item.IndexNumber)) return '';
 	const epInfo = `S${item.ParentIndexNumber} E${item.IndexNumber}`;
-	return [epInfo, item.Name]
+	// Only append the episode title when the series name occupies the main title;
+	// without a SeriesName the title falls back to item.Name and would be duplicated here.
+	const epName = item.SeriesName ? item.Name : '';
+	return [epInfo, epName]
 		.filter((s) => s != null && s !== '')
 		.join(' — ');
 };

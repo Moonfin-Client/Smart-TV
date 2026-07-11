@@ -33,7 +33,7 @@ const CACHE_TTL_VOLATILE = 5 * 60 * 1000;
 const CACHE_TTL_LIBRARIES = 30 * 60 * 1000;
 const VOLATILE_REFRESH_COOLDOWN_MS = 60 * 1000;
 const CACHE_SAVE_DEBOUNCE_MS = 3000;
-const STORAGE_KEY_BROWSE = 'browse_cache_v2';
+const STORAGE_KEY_BROWSE = 'browse_cache_v3';
 
 let cachedRowData = null;
 let cachedLibraries = null;
