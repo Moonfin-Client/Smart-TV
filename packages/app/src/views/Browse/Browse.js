@@ -611,8 +611,8 @@ const Browse = ({
 				title = $L('Recently Added in {libraryTitle}').replace('{libraryTitle}', libName);
 			} else if (row.isRecentlyReleasedRow && row.library) {
 				const libName = row.library._serverName
-				? `${row.library.Name} (${row.library._serverName})`
-				: row.library.Name;
+					? `${row.library.Name} (${row.library._serverName})`
+					: row.library.Name;
 				title = $L('Recently Released in {libraryTitle}').replace('{libraryTitle}', libName);
 			}
 			return title && title !== row.title ? {...row, title} : row;
