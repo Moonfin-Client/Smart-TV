@@ -153,7 +153,6 @@ const renderSettingsIcon = (iconName) => {
 const getBaseCategories = () => [
 	{ id: 'accountSecurity', label: $L('Account & Security'), description: $L('Authentication, PIN, and safety controls'), Icon: IconGeneral },
 	{ id: 'personalization', label: $L('Personalization'), description: $L('Style, navigation, home, and libraries'), Icon: IconDisplay },
-	{ id: 'dynamicContent', label: $L('Dynamic Content'), description: $L('Visual overlays and media bar content'), Icon: IconPlayback },
 	{ id: 'integrations', label: $L('Integrations'), description: $L('Plugin sync, ratings, Seerr, and plugin integrations'), Icon: IconPlugin },
 	{ id: 'playbackSyncPlay', label: $L('Playback & SyncPlay'), description: $L('Video, audio, subtitles, queue, and sync settings'), Icon: IconPlayback },
 	{ id: 'about', label: $L('About'), description: $L('App version, device info, and diagnostics'), Icon: IconAbout }
@@ -1492,44 +1491,46 @@ const Settings = ({ onBack, onLibrariesChanged, panelMode }) => {
 		<>
 			{renderOptionItem('uiLanguage', $L('App Language'), getUiLanguageOptions(), $L('English'), 'language')}
 			{renderNavItem(
+				'themeSelection',
+				$L('App Theme'),
+						   availableThemes.find((t) => t.id === activeThemeId)?.displayName || $L('Default'),
+						   openThemes
+			)}
+			{renderNavItem(
 				'themeStore',
 				$L('Theme Store'),
 				$L('Browse and save community themes'),
 				openThemeStore
 			)}
-			{renderNavItem(
-				'themeSelection',
-				$L('Theme'),
-				availableThemes.find((t) => t.id === activeThemeId)?.displayName || $L('Default'),
-				openThemes
-			)}
-			{renderOptionItem('uiScale', $L('UI Scale'), UI_SCALE_OPTIONS, $L('Default'))}
 			{renderOptionItem('focusBorderColor', $L('Focus Border Color'), ACCENT_COLOR_OPTIONS, $L('Theme Default'))}
-			{renderOptionItem('performanceMode', $L('Performance Mode'), getPerformanceModeOptions(), $L('Auto'), 'gear')}
 			{renderOptionItem('clockDisplay', $L('Clock Display'), getClockDisplayOptions(), $L('24-Hour'))}
-			{renderToggleItem('cardFocusZoom', $L('Card Focus Expansion'), $L('Slightly enlarge cards when focused'))}
-			{renderToggleItem('showHomeBackdrop', $L('Show Backdrops'), $L('Show background art while browsing'))}
-			{renderOptionItem('backdropBlurHome', $L('Browsing Blur'), getBlurOptions(), $L('Medium'))}
-			{renderOptionItem('backdropBlurDetail', $L('Details Blur'), getBlurOptions(), $L('Medium'))}
+			{renderToggleItem('cardFocusZoom', $L('Focus Expansion Animation'), $L('Scale Focused or hovered cards and tiles'))}
+			{renderOptionItem('uiScale', $L('UI Scaling'), UI_SCALE_OPTIONS, $L('Default'))}
+			{renderOptionItem('performanceMode', $L('Performance Mode'), getPerformanceModeOptions(), $L('Auto'), 'gear')}
+			{renderToggleItem('showHomeBackdrop', $L('Background Backdrops'), $L('Show background image behind content'))}
+			{renderOptionItem('backdropBlurHome', $L('Browsing Background Blur'), getBlurOptions(), $L('Medium'))}
 			{renderOptionItem('watchedIndicatorBehavior', $L('Watched Indicators'), getWatchedIndicatorOptions(), $L('Always'))}
-			{renderToggleItem('themeMusicEnabled', $L('Theme Music'), $L('Play background music on detail pages'))}
-			{settings.themeMusicEnabled &&
-				renderSliderItem('themeMusicVolume', $L('Theme Music Volume'), 0, 100, 5, (v) => `${v}%`, 'sound')}
 		</>
 	);
+
+	const renderPersonalizationDetailsScreen = () => (
+		<>
+			{renderOptionItem('backdropBlurDetail', $L('Details Background Blur'), getBlurOptions(), $L('Medium'))}
+		</>
+	)
 
 	const renderPersonalizationNavigation = () => (
 		<>
 			{renderOptionItem('navbarPosition', $L('Navbar Position'), getNavPositionOptions(), $L('Top Bar'), 'browser')}
 			{renderOptionItem('navbarColor', $L('Navbar Color'), ACCENT_COLOR_OPTIONS, $L('Theme Default'), 'colorpicker')}
 			{renderSliderItem('navbarOpacity', $L('Navbar Opacity'), 0, 100, 5, (v) => `${v}%`)}
-			{renderToggleItem('showShuffleButton', $L('Shuffle Button'), $L('Show shuffle button in navigation bar'))}
+			{renderToggleItem('showShuffleButton', $L('Show Shuffle Button'), $L('Show shuffle button in navigation bar'))}
 			{settings.showShuffleButton &&
-				renderOptionItem('shuffleContentType', $L('Shuffle Content Type'), getContentTypeOptions(), $L('Movies & TV Shows'), 'shuffle')}
-			{renderToggleItem('showGenresButton', $L('Genres Button'), $L('Show genres button in navigation bar'), 'movies')}
-			{renderToggleItem('showFavoritesButton', $L('Favorites Button'), $L('Show favorites button in navigation bar'), 'heart')}
-			{renderToggleItem('showLibrariesInToolbar', $L('Libraries Button'), $L('Show library shortcuts in navigation bar'), 'folder')}
-			{renderToggleItem('showSyncPlayButton', $L('SyncPlay Button'), $L('Show SyncPlay button in navigation bar'), 'check')}
+				renderOptionItem('shuffleContentType', $L('Shuffle Content Type Filter'), getContentTypeOptions(), $L('Movies & TV Shows'), 'shuffle')}
+			{renderToggleItem('showGenresButton', $L('Show Genres Button'), $L('Show genres button in navigation bar'), 'movies')}
+			{renderToggleItem('showFavoritesButton', $L('Show Favorites Button'), $L('Show favorites button in navigation bar'), 'heart')}
+			{renderToggleItem('showLibrariesInToolbar', $L('Show Libraries in Toolbar'), $L('Show library button in navigation bar'), 'folder')}
+			{renderToggleItem('showSyncPlayButton', $L('Show SyncPlay Button'), $L('Show SyncPlay button in navigation bar'), 'check')}
 			{seerr.isEnabled &&
 				renderToggleItem('showSeerrButton', `${seerrLabel} ${$L('Button')}`, $L('Show Seerr button in navigation bar'))}
 		</>
@@ -1537,7 +1538,18 @@ const Settings = ({ onBack, onLibrariesChanged, panelMode }) => {
 
 	const renderPersonalizationHomePage = () => (
 		<>
-			{renderNavItem('homeRows', $L('Home Sections'), $L('Configure which rows appear on home screen'), openHomeRows, 'list')}
+			{renderOptionItem('homeRowsStyle', $L('Row Type'), getHomeRowsStyleOptions(), $L('Modern'), 'appscontents')}
+			{renderToggleItem('mergeContinueWatchingNextUp', $L('Merge Continue Watching and Next Up'), $L('Combine both rows into a single home section'), 'arrowupdown')}
+			{renderToggleItem('useSeriesThumbnails', $L('Display Series Thumbnails'), $L('For TV series, use the main series artwork instead of the episode thumbnail'), 'aspectratio')}
+			{renderToggleItem(
+				'fullScreenRows',
+				$L('Expanded Home Rows'),
+							  $L('Limit home rows to 1 row per screen'),
+							  'aspectratio'
+			)}
+			{renderOptionItem('homeRowsPosterSize', $L('Home Row Car Display Size'), getPosterSizeOptions(), $L('Default'), 'aspectratio')}
+			{renderOptionItem('homeRowOverlay', $L('Home Row Info Overlay'), getHomeRowOverlayOptions(), $L('Off'), 'info')}
+			{renderNavItem('homeRows', $L('Home Sections'), $L('Reorder and toggle home rows'), openHomeRows, 'list')}
 			{seerr.isEnabled && renderToggleItem(
 				'displaySeerrRows',
 				$L('Display Seerr Discovery Rows'),
@@ -1572,26 +1584,14 @@ const Settings = ({ onBack, onLibrariesChanged, panelMode }) => {
 				renderOptionItem('genresRowSortBy', $L('Genres Row Sorting'), getHomeRowSortOptions(), $L('Name'), 'arrowupdown')}
 			{settings.displayGenresRows &&
 				renderOptionItem('genresRowItemFilter', $L('Genres Row Items'), getGenresRowItemFilterOptions(), $L('Movies & TV Shows'), 'filter')}
-			{renderToggleItem('mergeContinueWatchingNextUp', $L('Merge Continue Watching'), $L('Combine Continue Watching and Next Up'), 'arrowupdown')}
-			{renderOptionItem('homeRowsStyle', $L('Rows Type'), getHomeRowsStyleOptions(), $L('Modern'), 'appscontents')}
-			{renderOptionItem('homeRowsImageType', $L('Home Row Image Type'), getImageTypeOptions(), $L('Poster'), 'picture')}
-			{renderToggleItem(
-				'fullScreenRows',
-				$L('Expanded Home Rows'),
-				$L('Limit home rows to 1 row per screen'),
-				'aspectratio'
-			)}
-			{renderToggleItem('useSeriesThumbnails', $L('Series Thumbnails'), $L('Use series artwork instead of episode images'), 'aspectratio')}
-			{renderOptionItem('homeRowsPosterSize', $L('Image Size'), getPosterSizeOptions(), $L('Default'), 'aspectratio')}
-			{renderOptionItem('homeRowOverlay', $L('Home Row Overlay'), getHomeRowOverlayOptions(), $L('Off'), 'info')}
-			{renderToggleItem('themeMusicOnHomeRows', $L('Play Theme Music on Home Page'), $L('Play theme music while browsing home rows'), 'music')}
+			{renderOptionItem('homeRowsImageType', $L('Per Row Image Type Selection'), getImageTypeOptions(), $L('Poster'), 'picture')}
 		</>
 	);
 
 	const renderPersonalizationLibraries = () => (
 		<>
-			{renderNavItem('hideLibraries', $L('Library Visibility'), $L('Choose which libraries are hidden'), openLibraries, 'show')}
-			{renderOptionItem('folderViewMode', $L('Folder View'), getFolderViewModeOptions(), $L('Per Library'), 'folder')}
+			{renderNavItem('hideLibraries', $L('Library Visibility'), $L('Toggle home page visibility per library'), openLibraries, 'show')}
+			{renderOptionItem('folderViewMode', $L('Enable Folder View'), getFolderViewModeOptions(), $L('Show folder browsing option'), 'folder')}
 			{renderToggleItem('unifiedLibraryMode', $L('Multi-Server Libraries'), $L('Combine content from all servers into a single view'), 'dns')}
 		</>
 	);
@@ -1617,7 +1617,7 @@ const Settings = ({ onBack, onLibrariesChanged, panelMode }) => {
 
 	const renderDynamicMediaBar = () => (
 		<>
-			{renderOptionItem('featuredBarStyle', $L('Media Bar Mode'), getFeaturedBarStyleOptions(), $L('Moonfin'), 'appscontents')}
+			{renderOptionItem('featuredBarStyle', $L('Media Bar Style'), getFeaturedBarStyleOptions(), $L('Moonfin'), 'appscontents')}
 			{renderOptionItem('featuredContentType', $L('Content Type'), getContentTypeOptions(), $L('Movies & TV Shows'), 'list')}
 			{renderOptionItem('featuredItemCount', $L('Item Count'), getFeaturedItemCountOptions(), $L('10 items'), 'list')}
 			{renderNavItem(
@@ -1650,9 +1650,21 @@ const Settings = ({ onBack, onLibrariesChanged, panelMode }) => {
 			{renderToggleItem('autoAdvance', $L('Auto Advance'), $L('Automatically cycle featured media items'), 'skip')}
 			{settings.autoAdvance &&
 				renderSliderItem('autoAdvanceInterval', $L('Auto Advance Interval'), 2, 20, 1, (v) => `${v}s`, 'timer')}
+		</>
+	);
+
+	const renderDynamicLocalPreviews = () => (
+		<>
 			{renderToggleItem('featuredTrailerPreview', $L('Trailer Preview'), $L('Automatically play trailer previews in media bar'), 'movies')}
 			{settings.featuredTrailerPreview &&
-				renderToggleItem('featuredTrailerMuted', $L('Mute Trailer Audio'), $L('Mute trailer previews in the featured media bar and details screen trailer overlay'), 'sound')}
+			renderToggleItem('featuredTrailerMuted', $L('Mute Trailer Audio'), $L('Mute trailer previews in the featured media bar and details screen trailer overlay'), 'sound')}
+		</>
+	);
+
+	const renderDynamicThemeMusic = () => (
+		<>
+			{renderToggleItem('themeMusicEnabled', $L('Theme Music'), $L('Play background music on detail pages'), 'music')}
+			{renderToggleItem('themeMusicOnHomeRows', $L('Play Theme Music on Home Page'), $L('Play theme music while browsing home rows'), 'music')}
 		</>
 	);
 
@@ -2049,14 +2061,14 @@ const Settings = ({ onBack, onLibrariesChanged, panelMode }) => {
 			case 'personalization':
 				return [
 					{ id: 'generalStyle', label: $L('General Style'), description: $L('Theme, blur, and visual style') },
+					{ id: 'detailsScreen', label: $L('Details Screen'), description: $L('Style, background blur, and tab behavior')},
 					{ id: 'navigation', label: $L('Navigation'), description: $L('Navbar layout and shortcut controls') },
 					{ id: 'homePage', label: $L('Home Page'), description: $L('Rows and home screen behavior') },
-					{ id: 'libraries', label: $L('Libraries'), description: $L('Library visibility and server grouping') }
-				];
-			case 'dynamicContent':
-				return [
+					{ id: 'libraries', label: $L('Libraries'), description: $L('Library visibility and server grouping') },
+					{ id: 'mediaBarLocalPreviews', label: $L('Media Bar'), description: $L('Featured content, appearance') },
+					{ id: 'localPreviews', label: $L('Local Previews'), description: $L('Configure trailer previews')},
 					{ id: 'visualOverlays', label: $L('Visual Overlays'), description: $L('Seasonal effects and screensaver controls') },
-					{ id: 'mediaBarLocalPreviews', label: $L('Media Bar & Local Previews'), description: $L('Featured media bar content and previews') }
+					{ id: 'themeMusic', label: $L('Theme Music'), description: $L('Detail Pages, home rows')}
 				];
 			case 'integrations':
 				return [
@@ -2105,16 +2117,22 @@ const Settings = ({ onBack, onLibrariesChanged, panelMode }) => {
 				return renderAccountPrivacySafety();
 			case 'personalization.generalStyle':
 				return renderPersonalizationGeneralStyle();
+			case 'personalization.detailsScreen':
+				return renderPersonalizationDetailsScreen();
 			case 'personalization.navigation':
 				return renderPersonalizationNavigation();
 			case 'personalization.homePage':
 				return renderPersonalizationHomePage();
 			case 'personalization.libraries':
 				return renderPersonalizationLibraries();
-			case 'dynamicContent.visualOverlays':
+			case 'personalization.visualOverlays':
 				return renderDynamicVisualOverlays();
-			case 'dynamicContent.mediaBarLocalPreviews':
+			case 'personalization.mediaBarLocalPreviews':
 				return renderDynamicMediaBar();
+			case 'personalization.localPreviews':
+				return renderDynamicLocalPreviews();
+			case 'personalization.themeMusic':
+				return renderDynamicThemeMusic();
 			case 'integrations.plugin':
 				return renderIntegrationsPlugin();
 			case 'integrations.metadataRatings':
