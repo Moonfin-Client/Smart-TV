@@ -1658,6 +1658,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 
 	const handlePlayPause = useCallback(() => {
 		if (videoRef.current) {
+			showControls();
 			if (isInGroup && !syncPlayCommandRef.current) {
 				if (isPaused) {
 					syncPlayService.sendPlayRequest();
@@ -1679,7 +1680,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 				healthMonitorRef.current?.setPaused(true);
 			}
 		}
-	}, [isPaused, settings.unpauseRewind, isInGroup]);
+	}, [isPaused, settings.unpauseRewind, isInGroup, showControls]);
 
 	const handleRewind = useCallback(() => {
 		if (videoRef.current) {
@@ -2263,6 +2264,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 			if (e.keyCode === 415) {
 				e.preventDefault();
 				e.stopPropagation();
+				showControls();
 				if (videoRef.current && videoRef.current.paused) {
 					// In a group the request goes to the server because acting
 					// locally would silently desync this client.
@@ -2277,6 +2279,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 			if (e.keyCode === 19) {
 				e.preventDefault();
 				e.stopPropagation();
+				showControls();
 				if (videoRef.current && !videoRef.current.paused) {
 					if (isInGroup && !syncPlayCommandRef.current) {
 						syncPlayService.sendPauseRequest();
