@@ -365,7 +365,7 @@ export const getItemFromServer = async (item) => {
 		throw new Error('Item missing server info');
 	}
 
-	const api = createApiForServer(item._serverUrl, item._serverAccessToken, item._serverUserId);
+	const api = createApiForServer(item._serverUrl, item._serverAccessToken, item._serverUserId, item._serverType || 'jellyfin');
 	return api.getItem(item.Id);
 };
 
@@ -387,7 +387,7 @@ export const getApiForItem = (item) => {
 	if (!hasCrossServerInfo(item)) {
 		return null;
 	}
-	return createApiForServer(item._serverUrl, item._serverAccessToken, item._serverUserId);
+	return createApiForServer(item._serverUrl, item._serverAccessToken, item._serverUserId, item._serverType || 'jellyfin');
 };
 
 /**
