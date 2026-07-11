@@ -38,6 +38,9 @@ const STORAGE_KEY_BROWSE = 'browse_cache_v2';
 let cachedRowData = null;
 let cachedLibraries = null;
 let cachedFeaturedItems = null;
+let cacheTimestamp = null;
+
+let lastFocusState = null;
 
 const parseHiddenMap = (val) => {
 	if (!val) return {};
@@ -54,6 +57,9 @@ const isHiddenByMap = (item, hiddenMap, seriesOnly) => {
 	if (!key || !hiddenMap[key]) return false;
 	// Hide timestamps are stored as ISO strings, so parse before comparing.
 	const hideTimeMs = Date.parse(hiddenMap[key]);
+	// An unparseable hide timestamp can't be reasoned about; treat it as not hidden
+	// rather than hiding the item permanently (NaN comparisons below are always false).
+	if (!Number.isFinite(hideTimeMs)) return false;
 	const lastPlayed = item.UserData?.LastPlayedDate;
 	if (lastPlayed) {
 		const lastPlayedMs = Date.parse(lastPlayed);
@@ -61,9 +67,6 @@ const isHiddenByMap = (item, hiddenMap, seriesOnly) => {
 	}
 	return true;
 };
-let cacheTimestamp = null;
-
-let lastFocusState = null;
 
 const EXCLUDED_COLLECTION_TYPES = ['boxsets', 'books', 'musicvideos', 'homevideos', 'photos'];
 
@@ -594,7 +597,7 @@ const Browse = ({
 			result = allRowData
 				.map(row => {
 					if (row.id === 'resume') {
-						return {...row, items: resumeItems};
+						return resumeItems.length > 0 ? {...row, items: resumeItems} : null;
 					}
 					if (row.id === 'nextup') {
 						const filteredItems = row.items.filter(item => !resumeItemIds.has(item.Id) && !isHiddenByMap(item, hiddenNUMap, true));

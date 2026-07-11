@@ -335,7 +335,7 @@ const localToProfile = (localSettings) => {
 	const profile = {};
 	for (const key of SYNCABLE_KEYS) {
 		const value = localSettings[key];
-		if (value === undefined) continue;
+		if (value === undefined || value === null) continue;
 		const serverKey = LOCAL_TO_SERVER[key] || key;
 		const conv = VALUE_CONVERSIONS[key];
 		profile[serverKey] = conv?.toServer ? conv.toServer(value) : value;
