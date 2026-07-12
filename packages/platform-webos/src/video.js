@@ -397,8 +397,47 @@ export const registerAppStateObserver = (onForeground, onBackground) => {
 
 let _keepScreenActivityId = null;
 
+// The activity manager keepalive prevents system suspend but not the LG firmware
+// screensaver. We subscribe to its screensaver requests and answer with ack false
+// while video is playing so the clock overlay never appears mid stream.
+const SCREENSAVER_CLIENT = 'moonfin';
+let _screenSaverBlocked = false;
+let _screenSaverRegistered = false;
+
+const respondScreenSaver = (timestamp) => {
+	if (typeof window.webOS?.service?.request !== 'function') return;
+	try {
+		window.webOS.service.request('luna://com.webos.service.tvpower/power', {
+			method: 'responseScreenSaverRequest',
+			parameters: {clientName: SCREENSAVER_CLIENT, ack: !_screenSaverBlocked, timestamp}
+		});
+	} catch {}
+};
+
+const registerScreenSaverGuard = () => {
+	if (_screenSaverRegistered) return;
+	if (typeof window.webOS?.service?.request !== 'function') return;
+	try {
+		window.webOS.service.request('luna://com.webos.service.tvpower/power', {
+			method: 'registerScreenSaverRequest',
+			parameters: {subscribe: true, clientName: SCREENSAVER_CLIENT},
+			subscribe: true,
+			onSuccess: (res) => {
+				if (res && res.state === 'Active') respondScreenSaver(res.timestamp);
+			},
+			onFailure: () => {
+				_screenSaverRegistered = false;
+			}
+		});
+		_screenSaverRegistered = true;
+	} catch {}
+};
+
 export const keepScreenOn = async (enable) => {
+	_screenSaverBlocked = enable;
+
 	if (enable) {
+		registerScreenSaverGuard();
 		// https://webostv.developer.lge.com/develop/references/activity-manager#type
 		if (typeof window.webOS?.service?.request === 'function') {
 			try {
