@@ -1498,8 +1498,8 @@ const Settings = ({ onBack, onLibrariesChanged, panelMode }) => {
 			{renderNavItem(
 				'themeSelection',
 				$L('App Theme'),
-						   availableThemes.find((t) => t.id === activeThemeId)?.displayName || $L('Default'),
-						   openThemes
+				availableThemes.find((t) => t.id === activeThemeId)?.displayName || $L('Default'),
+				openThemes
 			)}
 			{renderNavItem(
 				'themeStore',
@@ -1549,10 +1549,10 @@ const Settings = ({ onBack, onLibrariesChanged, panelMode }) => {
 			{renderToggleItem(
 				'fullScreenRows',
 				$L('Expanded Home Rows'),
-							  $L('Limit home rows to 1 row per screen'),
-							  'aspectratio'
+				$L('Limit home rows to 1 row per screen'),
+				'aspectratio'
 			)}
-			{renderOptionItem('homeRowsPosterSize', $L('Home Row Car Display Size'), getPosterSizeOptions(), $L('Default'), 'aspectratio')}
+			{renderOptionItem('homeRowsPosterSize', $L('Home Row Card Display Size'), getPosterSizeOptions(), $L('Default'), 'aspectratio')}
 			{renderOptionItem('homeRowOverlay', $L('Home Row Info Overlay'), getHomeRowOverlayOptions(), $L('Off'), 'info')}
 			{renderNavItem('homeRows', $L('Home Sections'), $L('Reorder and toggle home rows'), openHomeRows, 'list')}
 			{settings.useMoonfinPlugin && renderNavItem(
@@ -1560,6 +1560,7 @@ const Settings = ({ onBack, onLibrariesChanged, panelMode }) => {
 				$L('Choose which IMDb lists are active'),
 				openImdbLists,
 				'list'
+			)}
 			{(settings.homeRows || []).some((row) => row.enabled && row.id.startsWith('since-you-watched-')) && (
 				<>
 					{renderOptionItem('sinceYouWatchedSourceItem', $L('Since You Watched Source'), getSinceYouWatchedSourceItemOptions(), $L('Recently Watched'), 'playcircle')}
@@ -1616,7 +1617,7 @@ const Settings = ({ onBack, onLibrariesChanged, panelMode }) => {
 	const renderPersonalizationLibraries = () => (
 		<>
 			{renderNavItem('hideLibraries', $L('Library Visibility'), $L('Toggle home page visibility per library'), openLibraries, 'show')}
-			{renderOptionItem('folderViewMode', $L('Enable Folder View'), getFolderViewModeOptions(), $L('Show folder browsing option'), 'folder')}
+			{renderOptionItem('folderViewMode', $L('Enable Folder View'), getFolderViewModeOptions(), $L('Per Library'), 'folder')}
 			{renderToggleItem('unifiedLibraryMode', $L('Multi-Server Libraries'), $L('Combine content from all servers into a single view'), 'dns')}
 		</>
 	);
@@ -1682,7 +1683,7 @@ const Settings = ({ onBack, onLibrariesChanged, panelMode }) => {
 		<>
 			{renderToggleItem('featuredTrailerPreview', $L('Trailer Preview'), $L('Automatically play trailer previews in media bar'), 'movies')}
 			{settings.featuredTrailerPreview &&
-			renderToggleItem('featuredTrailerMuted', $L('Mute Trailer Audio'), $L('Mute trailer previews in the featured media bar and details screen trailer overlay'), 'sound')}
+				renderToggleItem('featuredTrailerMuted', $L('Mute Trailer Audio'), $L('Mute trailer previews in the featured media bar and details screen trailer overlay'), 'sound')}
 		</>
 	);
 
