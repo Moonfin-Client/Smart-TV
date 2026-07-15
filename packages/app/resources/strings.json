@@ -761,6 +761,13 @@
 	"requested": "requested",
 	"failed": "failed",
 	"Request in 4K": "Request in 4K",
-	"Requests": "Requests"
+	"Requests": "Requests",
+	"Change Artwork": "Change Artwork",
+	"Sources": "Sources",
+	"Only show interface language": "Only show interface language",
+	"Clear All Artwork": "Clear All Artwork",
+	"High (1080p+)": "High (1080p+)",
+	"Medium (720p)": "Medium (720p)",
+	"Low (<720p)": "Low (<720p)"
 }
 
