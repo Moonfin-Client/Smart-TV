@@ -162,6 +162,51 @@ export function reportCapabilities() {
 	}).catch(() => {});
 }
 
+// Resolves external list items (carrying TMDB/IMDb provider ids) against the
+// local library. Owned titles are swapped for the real Jellyfin item so they
+// are playable, unowned ones are returned unchanged for the Seerr fallback.
+// Queries are batched with anyProviderIdEquals to avoid one request per item.
+export const resolveItemsByProviderIds = async (items) => {
+	if (!Array.isArray(items) || items.length === 0 || !currentUser) return items || [];
+
+	const keyFor = (ids) => {
+		if (!ids) return null;
+		if (ids.Tmdb) return `tmdb.${ids.Tmdb}`;
+		if (ids.Imdb) return `imdb.${ids.Imdb}`;
+		return null;
+	};
+
+	const pairs = [];
+	for (const it of items) {
+		const key = keyFor(it.ProviderIds);
+		if (key && !pairs.includes(key)) pairs.push(key);
+	}
+	if (pairs.length === 0) return items;
+
+	const found = {};
+	const CHUNK = 40;
+	for (let i = 0; i < pairs.length; i += CHUNK) {
+		const chunk = pairs.slice(i, i + CHUNK);
+		try {
+			const query = chunk.map((p) => encodeURIComponent(p)).join(',');
+			const res = await request(`/Users/${currentUser}/Items?Recursive=true&anyProviderIdEquals=${query}&Fields=${HOME_ROW_ITEM_FIELDS}&Limit=${chunk.length * 2}`);
+			for (const jf of (res?.Items || [])) {
+				const p = jf.ProviderIds || {};
+				if (p.Tmdb) found[`tmdb.${p.Tmdb}`] = jf;
+				if (p.Imdb) found[`imdb.${p.Imdb}`] = jf;
+			}
+		} catch (e) {
+			void e;
+		}
+	}
+
+	return items.map((it) => {
+		const key = keyFor(it.ProviderIds);
+		const jf = key ? found[key] : null;
+		return jf ? {...jf, _resolvedFromExternal: true} : it;
+	});
+};
+
 export const api = {
 	getPublicInfo: () => request('/System/Info/Public'),
 

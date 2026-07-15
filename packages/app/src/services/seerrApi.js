@@ -700,6 +700,17 @@ export const getSonarrServerDetails = async (serverId) => {
 return request(`/service/sonarr/${serverId}`);
 };
 
+// Full Radarr/Sonarr connection settings (hostname, port, apiKey, useSsl,
+// baseUrl) used to fetch upcoming calendars directly from the arr servers.
+// These are Seerr admin settings, so they require an admin Seerr session.
+export const getRadarrSettings = async () => {
+return request('/settings/radarr');
+};
+
+export const getSonarrSettings = async () => {
+return request('/settings/sonarr');
+};
+
 export const discover = async (page = 1) => {
 return request(`/discover/movies?page=${page}`);
 };
@@ -991,6 +1002,8 @@ getRadarrServers,
 getRadarrServerDetails,
 getSonarrServers,
 getSonarrServerDetails,
+getRadarrSettings,
+getSonarrSettings,
 discover,
 discoverTv,
 trending,

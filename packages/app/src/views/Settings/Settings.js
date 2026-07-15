@@ -18,6 +18,7 @@ import SpottableInput from '../../components/SpottableInput/SpottableInput';
 import {clearAllStorage} from '../../services/storage';
 import {fetchThemeStoreCatalog, fetchThemeJson} from '../../services/themeStoreApi';
 import {getSeerrHomeRowConfigs} from '../../utils/seerrHomeRows';
+import {TMDB_PRESETS, detectCustomSource, validateCustomRow} from '../../utils/externalHomeRows';
 import {MATERIAL_ICON_PATHS} from './materialIconMap';
 
 import css from './Settings.module.less';
@@ -714,6 +715,10 @@ const Settings = ({ onBack, onLibrariesChanged, panelMode }) => {
 	const [seerrAuthError, setSeerrAuthError] = useState('');
 	const [tempRatingSources, setTempRatingSources] = useState([]);
 	const [tempExcludedGenresText, setTempExcludedGenresText] = useState('');
+	const [customRowUrl, setCustomRowUrl] = useState('');
+	const [customRowName, setCustomRowName] = useState('');
+	const [customRowError, setCustomRowError] = useState('');
+	const [customRowSaving, setCustomRowSaving] = useState(false);
 	const [tempPinCode, setTempPinCode] = useState('0000');
 	const [pinCodeError, setPinCodeError] = useState('');
 	const [pluginSectionRenderLimit, setPluginSectionRenderLimit] = useState(INITIAL_PLUGIN_SECTION_RENDER_COUNT);
@@ -752,6 +757,12 @@ const Settings = ({ onBack, onLibrariesChanged, panelMode }) => {
 				Spotlight.focus('seerr-home-rows-view');
 			} else if (cv.view === 'imdbLists') {
 				Spotlight.focus('imdb-lists-view');
+			} else if (cv.view === 'externalTmdbLists') {
+				Spotlight.focus('external-tmdb-lists-view');
+			} else if (cv.view === 'externalCalendars') {
+				Spotlight.focus('external-calendars-view');
+			} else if (cv.view === 'externalCustomRows') {
+				Spotlight.focus('external-custom-rows-view');
 			} else if (cv.view === 'libraries') {
 				Spotlight.focus('libraries-view');
 			} else if (cv.view === 'ratingSources') {
@@ -1122,6 +1133,26 @@ const Settings = ({ onBack, onLibrariesChanged, panelMode }) => {
 	const openImdbLists = useCallback(() => {
 		pushView({ view: 'imdbLists', returnFocusTo: 'setting-imdbLists' });
 	}, [pushView]);
+
+	const openExternalTmdbLists = useCallback(() => {
+		pushView({view: 'externalTmdbLists', returnFocusTo: 'setting-externalTmdbLists'});
+	}, [pushView]);
+
+	const openExternalCalendars = useCallback(() => {
+		pushView({view: 'externalCalendars', returnFocusTo: 'setting-externalCalendars'});
+	}, [pushView]);
+
+	const openExternalCustomRows = useCallback(() => {
+		pushView({view: 'externalCustomRows', returnFocusTo: 'setting-externalCustomRows'});
+	}, [pushView]);
+
+	const toggleExternalHomeRow = useCallback((rowId) => {
+		const current = Array.isArray(settings.externalHomeRows) ? settings.externalHomeRows : [];
+		const next = current.some((r) => r.id === rowId)
+			? current.map((r) => (r.id === rowId ? {...r, enabled: !r.enabled} : r))
+			: [...current, {id: rowId, enabled: true}];
+		updateSetting('externalHomeRows', next);
+	}, [settings.externalHomeRows, updateSetting]);
 
 	const openHomeRows = useCallback(() => {
 		setTempHomeRows([...(settings.homeRows || DEFAULT_HOME_ROWS)].sort((a, b) => a.order - b.order));
@@ -1569,12 +1600,6 @@ const Settings = ({ onBack, onLibrariesChanged, panelMode }) => {
 			{renderOptionItem('homeRowsPosterSize', $L('Home Row Card Display Size'), getPosterSizeOptions(), $L('Default'), 'aspectratio')}
 			{renderOptionItem('homeRowOverlay', $L('Home Row Info Overlay'), getHomeRowOverlayOptions(), $L('Off'), 'info')}
 			{renderNavItem('homeRows', $L('Home Sections'), $L('Reorder and toggle home rows'), openHomeRows, 'list')}
-			{settings.useMoonfinPlugin && renderNavItem(
-				'imdbLists', $L('IMDb Lists'),
-				$L('Choose which IMDb lists are active'),
-				openImdbLists,
-				'list'
-			)}
 			{(settings.homeRows || []).some((row) => row.enabled && row.id.startsWith('since-you-watched-')) && (
 				<>
 					{renderOptionItem('sinceYouWatchedSource', $L('Since You Watched Source'), getSinceYouWatchedSourceOptions(), $L('Local'), 'browser')}
@@ -1591,14 +1616,6 @@ const Settings = ({ onBack, onLibrariesChanged, panelMode }) => {
 					{renderOptionItem('rewatchSortBy', $L('Rewatch Sorting'), getRewatchSortOptions(), $L('Recently Watched'), 'arrowupdown')}
 				</>
 			)}
-			{seerr.isEnabled && renderToggleItem(
-				'displaySeerrRows',
-				$L('Display Seerr Discovery Rows'),
-				$L('Show Seerr discovery rows in Home Sections.'),
-				'seerr'
-			)}
-			{settings.displaySeerrRows &&
-				renderNavItem('seerrHomeRows', `${seerrLabel} ${$L('Rows')}`, $L('Choose which Seerr discover rows appear on home'), openSeerrHomeRows, 'list')}
 			{renderToggleItem(
 				'displayFavoritesRows',
 				$L('Display Favorites Rows'),
@@ -1739,6 +1756,188 @@ const Settings = ({ onBack, onLibrariesChanged, panelMode }) => {
 			{/* eslint-disable-next-line no-use-before-define */}
 			{renderPluginSeerr()}
 		</>
+	);
+
+	const renderIntegrationsExternalRows = () => {
+		if (!settings.useMoonfinPlugin) {
+			return (
+				<div className={css.viewDescription}>
+					{$L('Enable the Moonfin plugin under Integrations to use external home rows.')}
+				</div>
+			);
+		}
+		const customCount = (settings.customHomeRows || []).length;
+		const showCalendars = settings.enableRadarrCalendar || settings.enableSonarrCalendar || seerr.isEnabled;
+		return (
+			<>
+				{renderSectionTitle($L('Home Row Maintenance'))}
+				{renderNavItem('homeRows', $L('Home Sections'), $L('Reorder and toggle home rows'), openHomeRows, 'list')}
+				{renderSectionTitle($L('External Home Row Configurations'))}
+				{renderNavItem('imdbLists', $L('IMDb Lists'), $L('Configure IMDb Top 250, Popular, and other charts'), openImdbLists, 'movie')}
+				{renderNavItem('externalTmdbLists', $L('TMDB Lists'), $L('Configure Popular, Top Rated, and Trending TMDB lists'), openExternalTmdbLists, 'list')}
+				{showCalendars && renderNavItem('externalCalendars', $L('Upcoming Calendars'), $L('Toggle upcoming calendars from Radarr and Sonarr'), openExternalCalendars, 'list')}
+				{seerr.isEnabled && renderNavItem('seerrHomeRows', `${seerrLabel} ${$L('Lists')}`, $L('Configure Seerr discovery rows'), openSeerrHomeRows, 'list')}
+				{renderNavItem('externalCustomRows', $L('Custom Home Rows Wizard'), $L('{count} configured').replace('{count}', String(customCount)), openExternalCustomRows, 'list')}
+			</>
+		);
+	};
+
+	const renderExternalTmdbListsView = () => {
+		const enabledMap = new Map((settings.externalHomeRows || []).map((r) => [r.id, r.enabled]));
+		return (
+			<ViewContainer className={css.viewContainer} spotlightId='external-tmdb-lists-view'>
+				<div className={css.listContent} onFocus={handleListFocus}>
+					<div className={css.listInner}>
+						{renderSectionTitle($L('TMDB Lists'))}
+						<div className={css.viewDescription}>
+							{$L('Choose which TMDB chart rows appear on the home screen.')}
+						</div>
+						{TMDB_PRESETS.map((cfg) => (
+							<SpottableDiv
+								key={cfg.id}
+								className={css.listItem}
+								onClick={() => toggleExternalHomeRow(cfg.id)}
+								spotlightId={`tmdbrow-${cfg.id}`}
+							>
+								<div className={css.listItemBody}>
+									<div className={css.listItemHeading}>{cfg.title}</div>
+								</div>
+								<div className={css.listItemTrailing}>{renderToggle(enabledMap.get(cfg.id) === true)}</div>
+							</SpottableDiv>
+						))}
+					</div>
+				</div>
+			</ViewContainer>
+		);
+	};
+
+	const renderExternalCalendarsView = () => (
+		<ViewContainer className={css.viewContainer} spotlightId='external-calendars-view'>
+			<div className={css.listContent} onFocus={handleListFocus}>
+				<div className={css.listInner}>
+					{renderSectionTitle($L('Upcoming Calendars'))}
+					<div className={css.viewDescription}>
+						{$L('Show upcoming releases from Radarr and Sonarr. Requires the servers to be configured in Seerr.')}
+					</div>
+					{renderToggleItem('enableRadarrCalendar', $L('Radarr Upcoming'), $L('Upcoming movie releases'), 'movie')}
+					{settings.enableRadarrCalendar && renderToggleItem('radarrCalendarShowCinema', $L('Show Cinema Releases'), '', 'movie')}
+					{settings.enableRadarrCalendar && renderToggleItem('radarrCalendarShowDigital', $L('Show Digital Releases'), '', 'movie')}
+					{settings.enableRadarrCalendar && renderToggleItem('radarrCalendarShowPhysical', $L('Show Physical Releases'), '', 'movie')}
+					{settings.enableRadarrCalendar && renderToggleItem('radarrCalendarShowDate', $L('Show Release Date'), '', 'movie')}
+					{renderToggleItem('enableSonarrCalendar', $L('Sonarr Upcoming'), $L('Upcoming episode releases'), 'tv')}
+					{settings.enableSonarrCalendar && renderToggleItem('sonarrCalendarShowEpisodeInfo', $L('Show Episode Information'), '', 'tv')}
+					{settings.enableSonarrCalendar && renderToggleItem('sonarrCalendarShowDate', $L('Show Release Date'), '', 'tv')}
+					{settings.enableRadarrCalendar && settings.enableSonarrCalendar &&
+						renderToggleItem('mergeRadarrSonarrCalendars', $L('Merge Into One Row'), $L('Combine Radarr and Sonarr into a single upcoming row'), 'list')}
+				</div>
+			</div>
+		</ViewContainer>
+	);
+
+	const getSourceLabel = (source) => {
+		if (source === 'tmdb') return $L('TMDB');
+		if (source === 'mdblist') return $L('MDBList');
+		if (source === 'letterboxd') return $L('Letterboxd');
+		if (source === 'imdb') return $L('IMDb');
+		return source;
+	};
+
+	const addCustomRow = async () => {
+		setCustomRowError('');
+		const detected = detectCustomSource(customRowUrl);
+		if (detected.error) {
+			setCustomRowError(detected.error);
+			return;
+		}
+		const row = {
+			id: `custom_${Date.now()}`,
+			name: customRowName.trim() || detected.params.id || detected.params.listname || detected.params.user || $L('Custom List'),
+			source: detected.source,
+			type: detected.type,
+			params: detected.params,
+			enabled: true
+		};
+		setCustomRowSaving(true);
+		const result = await validateCustomRow(row);
+		setCustomRowSaving(false);
+		if (result.error) {
+			setCustomRowError(result.error);
+			return;
+		}
+		updateSetting('customHomeRows', [...(settings.customHomeRows || []), row]);
+		setCustomRowUrl('');
+		setCustomRowName('');
+	};
+
+	const deleteCustomRow = (id) => {
+		updateSetting('customHomeRows', (settings.customHomeRows || []).filter((r) => r.id !== id));
+	};
+
+	const toggleCustomRow = (id) => {
+		updateSetting('customHomeRows', (settings.customHomeRows || []).map((r) => (r.id === id ? {...r, enabled: !r.enabled} : r)));
+	};
+
+	const renderExternalCustomRowsView = () => (
+		<ViewContainer className={css.viewContainer} spotlightId='external-custom-rows-view'>
+			<div className={css.listContent} onFocus={handleListFocus}>
+				<div className={css.listInner}>
+					{renderSectionTitle($L('Custom Home Rows'))}
+					<div className={css.viewDescription}>
+						{$L('Add a home row from a TMDB list or collection, an MDBList list, or a Letterboxd profile by pasting its URL.')}
+					</div>
+					{(settings.customHomeRows || []).map((row) => (
+						<div key={row.id} className={css.listItem}>
+							<SpottableDiv
+								className={css.listItemBody}
+								onClick={() => toggleCustomRow(row.id)}
+								spotlightId={`customrow-${row.id}`}
+							>
+								<div className={css.listItemHeading}>{row.name}</div>
+								<div className={css.listItemCaption}>{getSourceLabel(row.source)}</div>
+							</SpottableDiv>
+							<div className={css.listItemTrailing}>{renderToggle(row.enabled === true)}</div>
+							<SpottableDiv
+								className={css.listItem}
+								onClick={() => deleteCustomRow(row.id)}
+								spotlightId={`customrow-del-${row.id}`}
+							>
+								<div className={css.listItemHeading}>{$L('Delete')}</div>
+							</SpottableDiv>
+						</div>
+					))}
+					<div className={css.inputGroup}>
+						<label>{$L('List URL')}</label>
+						<SpottableInput
+							className={css.input}
+							type='text'
+							value={customRowUrl}
+							onChange={(e) => { setCustomRowUrl(e.target.value); setCustomRowError(''); }}
+							placeholder={$L('Paste a TMDB, MDBList, or Letterboxd URL')}
+							spotlightId='custom-row-url-input'
+						/>
+					</div>
+					<div className={css.inputGroup}>
+						<label>{$L('Row Name (optional)')}</label>
+						<SpottableInput
+							className={css.input}
+							type='text'
+							value={customRowName}
+							onChange={(e) => setCustomRowName(e.target.value)}
+							placeholder={$L('Home row title')}
+							spotlightId='custom-row-name-input'
+						/>
+					</div>
+					{customRowError && <div className={css.viewDescription}>{customRowError}</div>}
+					<SpottableDiv
+						className={css.listItem}
+						onClick={customRowSaving ? undefined : addCustomRow}
+						spotlightId='custom-row-add'
+					>
+						<div className={css.listItemHeading}>{customRowSaving ? $L('Checking...') : $L('Add Row')}</div>
+					</SpottableDiv>
+				</div>
+			</div>
+		</ViewContainer>
 	);
 
 	const renderPlaybackAudio = () => (
@@ -2080,6 +2279,7 @@ const Settings = ({ onBack, onLibrariesChanged, panelMode }) => {
 					{ id: 'plugin', label: $L('Plugin'), description: $L('Plugin sync and profile integration') },
 					{ id: 'metadataRatings', label: $L('Metadata & Ratings'), description: $L('Ratings providers and display options') },
 					{ id: 'seerr', label: seerrLabel, description: $L('{seerrLabel} settings and status').replace('{seerrLabel}', seerrLabel) },
+					{ id: 'externalRows', label: $L('External Home Row Lists'), description: $L('TMDB, IMDb, custom, Seerr, and calendar rows for the home screen') },
 				];
 			case 'playbackSyncPlay':
 				return [
@@ -2143,6 +2343,8 @@ const Settings = ({ onBack, onLibrariesChanged, panelMode }) => {
 				return renderIntegrationsMetadataRatings();
 			case 'integrations.seerr':
 				return renderIntegrationsSeerr();
+			case 'integrations.externalRows':
+				return renderIntegrationsExternalRows();
 			case 'playbackSyncPlay.video':
 				return renderPlaybackVideo();
 			case 'playbackSyncPlay.audio':
@@ -2345,7 +2547,8 @@ const Settings = ({ onBack, onLibrariesChanged, panelMode }) => {
 						<div className={css.viewDescription}>
 							{$L('Choose which Seerr discover rows appear on the home screen.')}
 						</div>
-						{getSeerrHomeRowConfigs().map((cfg) => (
+						{renderToggleItem('displaySeerrRows', $L('Show Seerr Rows'), $L('Display Seerr discovery rows on the home screen'), 'list')}
+						{settings.displaySeerrRows && getSeerrHomeRowConfigs().map((cfg) => (
 							<SpottableDiv
 								key={cfg.id}
 								className={css.listItem}
@@ -2776,6 +2979,9 @@ const Settings = ({ onBack, onLibrariesChanged, panelMode }) => {
 			{currentView.view === 'homeRows' && renderHomeRowsView()}
 			{currentView.view === 'seerrHomeRows' && renderSeerrHomeRowsView()}
 			{currentView.view === 'imdbLists' && renderImdbListsView()}
+			{currentView.view === 'externalTmdbLists' && renderExternalTmdbListsView()}
+			{currentView.view === 'externalCalendars' && renderExternalCalendarsView()}
+			{currentView.view === 'externalCustomRows' && renderExternalCustomRowsView()}
 			{currentView.view === 'ratingSources' && renderRatingSourcesView()}
 			{currentView.view === 'excludedGenres' && renderExcludedGenresView()}
 			{currentView.view === 'pinCode' && renderPinCodeView()}

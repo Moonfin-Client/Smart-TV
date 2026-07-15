@@ -47,6 +47,18 @@ const DEFAULT_SEERR_HOME_ROWS = [
 	{id: 'networks', enabled: false}
 ];
 
+// External home rows (TMDB and IMDb chart presets), all off by default. Custom
+// rows and calendars are configured separately.
+// IMDb chart rows already exist under Personalization (they use the same
+// source=imdb plugin endpoint), so they are not duplicated here.
+const EXTERNAL_ROW_PRESET_IDS = [
+	'tmdb_popular_movies', 'tmdb_top_rated_movies', 'tmdb_now_playing_movies', 'tmdb_upcoming_movies',
+	'tmdb_popular_tv', 'tmdb_top_rated_tv', 'tmdb_airing_today_tv', 'tmdb_on_the_air_tv',
+	'tmdb_trending_movie_daily', 'tmdb_trending_movie_weekly', 'tmdb_trending_tv_daily',
+	'tmdb_trending_tv_weekly', 'tmdb_trending_all_weekly'
+];
+const DEFAULT_EXTERNAL_HOME_ROWS = EXTERNAL_ROW_PRESET_IDS.map((id) => ({id, enabled: false}));
+
 const defaultSettings = {
 	preferTranscode: false,
 	forceDirectPlay: false,
@@ -77,6 +89,17 @@ const defaultSettings = {
 	displayCollectionsRows: false,
 	displayGenresRows: false,
 	displaySeerrRows: false,
+	externalHomeRows: DEFAULT_EXTERNAL_HOME_ROWS,
+	customHomeRows: [],
+	enableRadarrCalendar: false,
+	enableSonarrCalendar: false,
+	mergeRadarrSonarrCalendars: false,
+	radarrCalendarShowCinema: true,
+	radarrCalendarShowDigital: true,
+	radarrCalendarShowPhysical: true,
+	radarrCalendarShowDate: true,
+	sonarrCalendarShowDate: true,
+	sonarrCalendarShowEpisodeInfo: true,
 	favoritesRowSortBy: 'SortName',
 	collectionsRowSortBy: 'SortName',
 	genresRowSortBy: 'SortName',
@@ -279,6 +302,21 @@ const mergeHomeRows = (rows) => {
 	return merged;
 };
 
+// Backfills newly added external row presets while keeping the user's enabled
+// state, mirroring mergeHomeRows.
+const mergeExternalHomeRows = (rows) => {
+	if (!Array.isArray(rows)) return [...DEFAULT_EXTERNAL_HOME_ROWS];
+	const merged = [...rows];
+	let added = false;
+	for (const def of DEFAULT_EXTERNAL_HOME_ROWS) {
+		if (!merged.find((row) => row.id === def.id)) {
+			merged.push({...def});
+			added = true;
+		}
+	}
+	return added ? merged : rows;
+};
+
 const normalizeHomeRowsStyle = (value) => {
 	if (value === 'classic') return 'v1';
 	if (value === 'modern') return 'v2';
@@ -372,6 +410,10 @@ const SYNCABLE_KEYS = [
 	'uiLanguage',
 	'blockedRatings',
 	'seerrHomeRows',
+	'externalHomeRows', 'customHomeRows',
+	'enableRadarrCalendar', 'enableSonarrCalendar', 'mergeRadarrSonarrCalendars',
+	'radarrCalendarShowCinema', 'radarrCalendarShowDigital', 'radarrCalendarShowPhysical',
+	'radarrCalendarShowDate', 'sonarrCalendarShowDate', 'sonarrCalendarShowEpisodeInfo',
 	'showSeerrButton',
 	'focusBorderColor',
 	'navbarOpacity',
@@ -497,6 +539,15 @@ export function SettingsProvider({children}) {
 				}
 				if (!Array.isArray(stored.pluginSections)) {
 					stored.pluginSections = [];
+					migrated = true;
+				}
+				if (!Array.isArray(stored.customHomeRows)) {
+					stored.customHomeRows = [];
+					migrated = true;
+				}
+				const mergedExternalRows = mergeExternalHomeRows(stored.externalHomeRows);
+				if (mergedExternalRows !== stored.externalHomeRows) {
+					stored.externalHomeRows = mergedExternalRows;
 					migrated = true;
 				}
 				if (!stored.visualTheme) {
