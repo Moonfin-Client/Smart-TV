@@ -267,7 +267,12 @@ const TV_TO_SERVER_ROW = {
 	'imdb-popular-movies': 'imdb_most_popular_movies',
 	'imdb-popular-tv': 'imdb_most_popular_tv_shows',
 	'imdb-lowest-rated': 'imdb_lowest_rated_movies',
-	'imdb-top-english': 'imdb_top_english_movies'
+	'imdb-top-english': 'imdb_top_english_movies',
+	'since-you-watched-1': 'sinceyouwatched1',
+	'since-you-watched-2': 'sinceyouwatched2',
+	'since-you-watched-3': 'sinceyouwatched3',
+	'since-you-watched-4': 'sinceyouwatched4',
+	'since-you-watched-5': 'sinceyouwatched5'
 };
 const SERVER_TO_TV_ROW = {
 	'latestmedia': 'latest-media',
@@ -288,7 +293,12 @@ const SERVER_TO_TV_ROW = {
 	'imdb_most_popular_movies': 'imdb-popular-movies',
 	'imdb_most_popular_tv_shows': 'imdb-popular-tv',
 	'imdb_lowest_rated_movies': 'imdb-lowest-rated',
-	'imdb_top_english_movies': 'imdb-top-english'
+	'imdb_top_english_movies': 'imdb-top-english',
+	'sinceyouwatched1': 'since-you-watched-1',
+	'sinceyouwatched2': 'since-you-watched-2',
+	'sinceyouwatched3': 'since-you-watched-3',
+	'sinceyouwatched4': 'since-you-watched-4',
+	'sinceyouwatched5': 'since-you-watched-5'
 };
 
 export {TV_TO_SERVER_ROW};
