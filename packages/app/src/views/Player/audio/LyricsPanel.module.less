@@ -1,0 +1,78 @@
+.panel {
+	height: 100%;
+	overflow-y: auto;
+	// Owns the offset parent so a line's offsetTop is measured against the scroller
+	position: relative;
+	padding: 48px 24px;
+	box-sizing: border-box;
+	text-align: center;
+	// Fades the lines in and out at the edges instead of clipping them flat
+	-webkit-mask-image: linear-gradient(to bottom, transparent 0%, #fff 12%, #fff 88%, transparent 100%);
+	mask-image: linear-gradient(to bottom, transparent 0%, #fff 12%, #fff 88%, transparent 100%);
+
+	&::-webkit-scrollbar {
+		display: none;
+	}
+}
+
+// With focus inside, the fade would hide the line the user is on
+.panelCursor {
+	-webkit-mask-image: none;
+	mask-image: none;
+	padding: 12px 8px;
+}
+
+// The active line grows by transform rather than font size. Animating the size
+// would relayout every line below it on each frame, and it would also shift the
+// offsets the scroll follow is measuring against mid animation.
+.line {
+	margin: 0 0 10px 0;
+	font-size: 18px;
+	font-weight: 600;
+	line-height: 1.35;
+	color: rgba(var(--theme-on-surface-rgb, 255, 255, 255), 0.38);
+	transition: color 0.22s ease-out, transform 0.22s ease-out;
+}
+
+.lineActive {
+	transform: scale(1.333);
+	font-weight: 800;
+	color: var(--theme-accent, #00a4dc);
+	text-shadow: 0 0 18px rgba(var(--theme-accent-rgb, 0, 164, 220), 0.55);
+}
+
+// Without timings there is no line to highlight, so keep them all readable
+.lineUnsynced {
+	color: rgba(var(--theme-on-surface-rgb, 255, 255, 255), 0.8);
+	font-size: 16px;
+	font-weight: 500;
+}
+
+.cursorLine {
+	display: block;
+	margin: 2px 8px;
+	padding: 6px 12px;
+	border-radius: 10px;
+	border: 2px solid transparent;
+	font-size: 18px;
+	font-weight: 500;
+	color: rgba(var(--theme-on-surface-rgb, 255, 255, 255), 0.7);
+	cursor: pointer;
+
+	&:focus {
+		outline: none;
+		background: rgba(var(--theme-accent-rgb, 0, 164, 220), 0.22);
+		border-color: var(--theme-accent, #00a4dc);
+		color: var(--theme-on-surface, #ffffff);
+		font-weight: 700;
+	}
+}
+
+.message {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	height: 100%;
+	font-size: 16px;
+	color: rgba(var(--theme-on-surface-rgb, 255, 255, 255), 0.5);
+}

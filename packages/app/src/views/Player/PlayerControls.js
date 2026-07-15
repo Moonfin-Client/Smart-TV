@@ -13,14 +13,14 @@ import {
 	formatTime, formatEndTime, PLAYBACK_RATES, getQualityPresets,
 	IconPlay, IconPause, IconRewind, IconForward, IconSubtitle, IconSubtitleOff, IconAudio,
 	IconChapters, IconPrevious, IconNext, PlaybackRateLabel, IconQuality, IconInfo, IconCast, IconZoom,
-	IconShuffle, IconRepeat, IconRepeatOne, IconFavorite, IconFavoriteFilled
+	IconShuffle, IconRepeat, IconRepeatOne
 } from './PlayerConstants';
 import { useSettings } from '../../context/SettingsContext';
 
 export const usePlayerButtons = ({
 	isPaused, audioStreams, subtitleStreams, chapters,
 	nextEpisode, isAudioMode, isLiveTV, hasNextTrack, hasPrevTrack,
-	shuffleMode, repeatMode, isFavorite, playbackRate, selectedQuality,
+	shuffleMode, repeatMode, playbackRate, selectedQuality,
 	selectedSubtitleIndex, canDownloadRemoteSubtitles, hasCastMembers, zoomModeLabel, zoomModeKey
 }) => {
 	const topButtons = useMemo(() => {
@@ -87,12 +87,7 @@ export const usePlayerButtons = ({
 		];
 	}, [audioStreams.length, chapters.length, subtitleStreams.length, isAudioMode, isLiveTV, playbackRate, selectedQuality, selectedSubtitleIndex, canDownloadRemoteSubtitles, hasCastMembers, zoomModeLabel, zoomModeKey]);
 
-	const favoriteButton = useMemo(() => {
-		if (!isAudioMode) return null;
-		return {id: 'favorite', icon: isFavorite ? <IconFavoriteFilled /> : <IconFavorite />, label: $L('Favorite'), action: 'favorite', active: isFavorite};
-	}, [isAudioMode, isFavorite]);
-
-	return {topButtons, bottomButtons, favoriteButton};
+	return {topButtons, bottomButtons};
 };
 
 export const formatBitrate = (bitrate) => {
@@ -162,7 +157,6 @@ const PlayerControls = ({
 	subtitle,
 	topButtons,
 	bottomButtons,
-	favoriteButton,
 	displayTime,
 	duration,
 	progressPercent,
@@ -282,29 +276,6 @@ const PlayerControls = ({
 				)}
 
 				<div className={css.controlsBottom}>
-					{isAudioMode && favoriteButton && (
-						<div className={css.audioFavoriteRow}>
-							<div className={css.controlBtnWrapper}>
-								<SpottableButton
-									className={`${css.controlBtn} ${favoriteButton.active ? css.controlBtnActive : ''}`}
-									data-action={favoriteButton.action}
-									data-tooltip={favoriteButton.label}
-									onClick={handleControlButtonClick}
-									onFocus={handleTooltipFocus}
-									onBlur={handleTooltipBlur}
-									aria-label={favoriteButton.label}
-									spotlightDisabled={focusRow !== 'top'}
-									spotlightId="favorite-btn"
-								>
-									{favoriteButton.icon}
-								</SpottableButton>
-								{focusedTooltip === favoriteButton.label && (
-									<div className={css.focusTooltip}>{favoriteButton.label}</div>
-								)}
-							</div>
-						</div>
-					)}
-
 					{!isLiveTV && (
 					<div className={css.progressContainer}>
 						<div className={css.timeInfoTop}>

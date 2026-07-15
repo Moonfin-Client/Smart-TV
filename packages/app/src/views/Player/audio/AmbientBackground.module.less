@@ -1,0 +1,76 @@
+.ambient {
+	position: fixed;
+	top: 0;
+	left: 0;
+	right: 0;
+	bottom: 0;
+	overflow: hidden;
+	background: var(--theme-background, #0a0a0a);
+	z-index: 1;
+}
+
+// Each blob is a full size layer holding one radial gradient. Only the
+// transform animates, so the gradient itself is never repainted. The 110vmin
+// radius tracks the shorter side of the screen.
+.blob {
+	position: absolute;
+	top: 0;
+	left: 0;
+	right: 0;
+	bottom: 0;
+	will-change: transform;
+}
+
+.blob0 {
+	background: radial-gradient(circle 110vmin at 15% 12.5%, rgba(var(--ambient-c0), 0.55) 0%, rgba(var(--ambient-c0), 0) 100%);
+	animation: drift0 24s linear infinite alternate;
+}
+
+.blob1 {
+	background: radial-gradient(circle 110vmin at 90% 32.5%, rgba(var(--ambient-c1), 0.55) 0%, rgba(var(--ambient-c1), 0) 100%);
+	animation: drift1 24s linear infinite alternate;
+}
+
+.blob2 {
+	background: radial-gradient(circle 110vmin at 40% 92.5%, rgba(var(--ambient-c2), 0.55) 0%, rgba(var(--ambient-c2), 0) 100%);
+	animation: drift2 24s linear infinite alternate;
+}
+
+@keyframes drift0 {
+	from { transform: translate(0, 0); }
+	to { transform: translate(12.5%, 10%); }
+}
+
+@keyframes drift1 {
+	from { transform: translate(0, 0); }
+	to { transform: translate(-10%, 15%); }
+}
+
+@keyframes drift2 {
+	from { transform: translate(0, 0); }
+	to { transform: translate(15%, -12.5%); }
+}
+
+.scrim {
+	position: absolute;
+	top: 0;
+	left: 0;
+	right: 0;
+	bottom: 0;
+	background: linear-gradient(
+		to bottom,
+		rgba(var(--theme-background-rgb, 10, 10, 10), 0.15) 0%,
+		rgba(var(--theme-background-rgb, 10, 10, 10), 0.4) 55%,
+		rgba(var(--theme-background-rgb, 10, 10, 10), 0.86) 100%
+	);
+}
+
+.content {
+	position: absolute;
+	top: 0;
+	left: 0;
+	right: 0;
+	bottom: 0;
+	display: flex;
+	flex-direction: column;
+}

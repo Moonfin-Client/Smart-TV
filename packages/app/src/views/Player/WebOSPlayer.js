@@ -6,6 +6,10 @@ import Hls from 'hls.js';
 import * as playback from '../../services/playback';
 import {getImageUrl} from '../../utils/helpers';
 import {api as jellyfinApi, createApiForServer, getServerUrl} from '../../services/jellyfinApi';
+import AudioMode from './audio/AudioMode';
+import useAudioTransport from './audio/useAudioTransport';
+import useLyrics from './audio/useLyrics';
+import {handleAudioFocusKey, exitAudioPanel, nextAudioFocusRow, AUDIO_FOCUS_IDS} from './audio/audioFocus';
 import {detectWebOSVersion, getH264FallbackProfile} from '@moonfin/platform-webos/deviceProfile';
 import {initPgsRenderer, disposePgsRenderer} from '../../utils/pgsRenderer';
 import {supportsAssRenderer, initAssCanvasRenderer, disposeAssRenderer, setAssTime, clearAssCanvas} from '../../utils/assRenderer';
@@ -29,7 +33,7 @@ import PlayerControls, {usePlayerButtons} from './PlayerControls';
 import useSegmentPopups from './useSegmentPopups';
 import {
 	SpottableButton, NextEpisodeContainer, CONTROLS_HIDE_DELAY,
-	parseLyricsResponse, withTimeout
+	withTimeout
 } from './PlayerConstants';
 import {
 	toSubtitleLanguage,
@@ -100,11 +104,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 	const [hasTriedTranscode, setHasTriedTranscode] = useState(false);
 	const [focusRow, setFocusRow] = useState('bottom');
 	const [isAudioMode, setIsAudioMode] = useState(false);
-	const [lyricsLines, setLyricsLines] = useState([]);
-	const [, setIsLyricsLoading] = useState(false);
-	const [, setLyricsError] = useState(null);
-	const [shuffleMode, setShuffleMode] = useState(false);
-	const [repeatMode, setRepeatMode] = useState('off');
+	const [audioTab, setAudioTab] = useState('queue');
 	const [isFavorite, setIsFavorite] = useState(false);
 	const [zoomMode, setZoomMode] = useState('fit');
 	const [videoDisplayAspectRatio, setVideoDisplayAspectRatio] = useState(null);
@@ -122,23 +122,8 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 		return item?.Type === 'Episode' && Boolean(item?.SeriesId);
 	}, [castMembers.length, item]);
 
-	const audioPlaylistIndex = useMemo(() => {
-		if (!audioPlaylist || !item) return -1;
-		return audioPlaylist.findIndex(t => t.Id === item.Id);
-	}, [audioPlaylist, item]);
-	const hasNextTrack = audioPlaylist && audioPlaylistIndex >= 0 && audioPlaylistIndex < audioPlaylist.length - 1;
-	const hasPrevTrack = audioPlaylist && audioPlaylistIndex > 0;
-	const activeLyricIndex = useMemo(() => {
-		if (!lyricsLines.length) return -1;
-		for (let i = lyricsLines.length - 1; i >= 0; i--) {
-			if (typeof lyricsLines[i].startSeconds === 'number' && currentTime >= lyricsLines[i].startSeconds) {
-				return i;
-			}
-		}
-		return -1;
-	}, [lyricsLines, currentTime]);
+	const lyrics = useLyrics(item, isAudioMode, currentTime);
 
-	const lyricsScrollRef = useRef(null);
 	const lastFocusedElementRef = useRef(null);
 
 	const videoRef = useRef(null);
@@ -175,6 +160,25 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 	const pendingInitialAssSubtitleRef = useRef(null);
 	// index of a subtitle the server is currently burning into the stream
 	const burnInSubtitleRef = useRef(null);
+
+	const restartCurrent = useCallback(() => {
+		const video = videoRef.current;
+		if (video) { video.currentTime = 0; video.play(); }
+	}, []);
+	const seekTo = useCallback((seconds) => {
+		const video = videoRef.current;
+		if (video) video.currentTime = seconds;
+	}, []);
+	const getPositionSeconds = useCallback(() => videoRef.current?.currentTime || 0, []);
+
+	const {
+		shuffleMode, repeatMode, hasNextTrack, hasPrevTrack,
+		handleToggleShuffle, handleToggleRepeat, handleNextTrack, handlePrevTrack,
+		handleSelectQueueTrack, handleSeekToLyric, handleEnterAudioPanel, getNextStep
+	} = useAudioTransport({
+		item, audioPlaylist, isAudioMode, onPlayNext, positionRef,
+		restartCurrent, seekTo, getPositionSeconds, setFocusRow
+	});
 
 	const destroyHlsPlayer = () => {
 		if (hlsPlayerRef.current) {
@@ -263,10 +267,10 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 		return -1;
 	};
 
-	const {topButtons, bottomButtons, favoriteButton} = usePlayerButtons({
+	const {topButtons, bottomButtons} = usePlayerButtons({
 		isPaused, audioStreams, subtitleStreams, chapters,
 		nextEpisode, isAudioMode, isLiveTV, hasNextTrack, hasPrevTrack,
-		shuffleMode, repeatMode, isFavorite, playbackRate, selectedQuality,
+		shuffleMode, repeatMode, playbackRate, selectedQuality,
 		selectedSubtitleIndex, canDownloadRemoteSubtitles: !isAudioMode && Boolean(item?.Id), hasCastMembers, zoomModeLabel, zoomModeKey: zoomMode
 	});
 
@@ -388,58 +392,6 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 
 		return false;
 	}, [applyVideoAndAssGeometry]);
-
-	useEffect(() => {
-		let cancelled = false;
-
-		const loadLyrics = async () => {
-			if (!isAudioMode || !item?.Id) {
-				setLyricsLines([]);
-				setLyricsError(null);
-				setIsLyricsLoading(false);
-				return;
-			}
-
-			setIsLyricsLoading(true);
-			setLyricsError(null);
-
-			try {
-				const hasServerContext = item._serverUrl && item._serverAccessToken && item._serverUserId;
-				const apiClient = hasServerContext
-					? createApiForServer(item._serverUrl, item._serverAccessToken, item._serverUserId)
-					: jellyfinApi;
-				const response = await apiClient.getLyrics(item.Id);
-				if (cancelled) return;
-				setLyricsLines(parseLyricsResponse(response));
-			} catch (err) {
-				if (cancelled) return;
-				setLyricsLines([]);
-				if (err?.status && err.status !== 404) {
-					setLyricsError('Unable to load lyrics right now.');
-				}
-			} finally {
-				if (!cancelled) {
-					setIsLyricsLoading(false);
-				}
-			}
-		};
-
-		loadLyrics();
-
-		return () => {
-			cancelled = true;
-		};
-	}, [isAudioMode, item?.Id, item?._serverUrl, item?._serverAccessToken, item?._serverUserId]);
-
-	useEffect(() => {
-		if (activeLyricIndex < 0 || !lyricsScrollRef.current) return;
-		const el = lyricsScrollRef.current.querySelector(`[data-lyric-index="${activeLyricIndex}"]`);
-		if (el) {
-			// scrollIntoView options object unsupported on webOS 2 / old WebKit
-			const container = lyricsScrollRef.current;
-			container.scrollTop = el.offsetTop - (container.clientHeight / 2) + (el.offsetHeight / 2);
-		}
-	}, [activeLyricIndex]);
 
 	useEffect(() => {
 		const init = async () => {
@@ -820,7 +772,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 				setTitle(displayTitle);
 				setSubtitle(displaySubtitle);
 				setIsAudioMode(shouldUseAudioMode);
-				setFocusRow(shouldUseAudioMode ? 'top' : 'bottom');
+				setFocusRow('bottom');
 				setIsFavorite(!!item.UserData?.IsFavorite);
 
 				// Audio mode: always show controls, skip video-only features
@@ -1277,68 +1229,6 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 		onPlayNext: onPlayNextWithCleanup
 	});
 
-	const handleNextTrack = useCallback(async () => {
-		if (!audioPlaylist || !onPlayNext) return;
-		if (!isAudioMode) {
-			if (hasNextTrack) {
-				await playback.reportStop(positionRef.current);
-				onPlayNext(audioPlaylist[audioPlaylistIndex + 1]);
-			}
-			return;
-		}
-		if (repeatMode === 'one') {
-			const video = videoRef.current;
-			if (video) { video.currentTime = 0; video.play(); }
-			return;
-		}
-		if (shuffleMode) {
-			const candidates = audioPlaylist.filter((_, i) => i !== audioPlaylistIndex);
-			if (candidates.length > 0) {
-				await playback.reportStop(positionRef.current);
-				onPlayNext(candidates[Math.floor(Math.random() * candidates.length)]);
-			}
-			return;
-		}
-		if (hasNextTrack) {
-			await playback.reportStop(positionRef.current);
-			onPlayNext(audioPlaylist[audioPlaylistIndex + 1]);
-		} else if (repeatMode === 'all' && audioPlaylist.length > 0) {
-			await playback.reportStop(positionRef.current);
-			onPlayNext(audioPlaylist[0]);
-		}
-	}, [hasNextTrack, onPlayNext, audioPlaylist, audioPlaylistIndex, shuffleMode, repeatMode, isAudioMode]);
-
-	const handlePrevTrack = useCallback(async () => {
-		if (!audioPlaylist || !onPlayNext) return;
-		if (!isAudioMode) {
-			if (hasPrevTrack) {
-				await playback.reportStop(positionRef.current);
-				onPlayNext(audioPlaylist[audioPlaylistIndex - 1]);
-			}
-			return;
-		}
-		const video = videoRef.current;
-		if (video && video.currentTime > 3) {
-			video.currentTime = 0;
-			return;
-		}
-		if (shuffleMode && audioPlaylist && onPlayNext) {
-			const candidates = audioPlaylist.filter((_, i) => i !== audioPlaylistIndex);
-			if (candidates.length > 0) {
-				await playback.reportStop(positionRef.current);
-				onPlayNext(candidates[Math.floor(Math.random() * candidates.length)]);
-			}
-			return;
-		}
-		if (hasPrevTrack && onPlayNext) {
-			await playback.reportStop(positionRef.current);
-			onPlayNext(audioPlaylist[audioPlaylistIndex - 1]);
-		} else if (repeatMode === 'all' && audioPlaylist && audioPlaylist.length > 0 && onPlayNext) {
-			await playback.reportStop(positionRef.current);
-			onPlayNext(audioPlaylist[audioPlaylist.length - 1]);
-		}
-	}, [hasPrevTrack, onPlayNext, audioPlaylist, audioPlaylistIndex, shuffleMode, repeatMode, isAudioMode]);
-
 	const handleLoadedMetadata = useCallback(() => {
 		if (videoRef.current) {
 			const width = Number(videoRef.current.videoWidth);
@@ -1450,9 +1340,8 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 
 		await playback.reportStop(positionRef.current);
 
-		if (repeatMode === 'one' && videoRef.current) {
-			videoRef.current.currentTime = 0;
-			videoRef.current.play();
+		if (repeatMode === 'one') {
+			restartCurrent();
 			return;
 		}
 
@@ -1460,29 +1349,17 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 		destroyHlsPlayer();
 		await cleanupVideoElement(videoRef.current);
 
-		if (audioPlaylist && onPlayNext) {
-			if (shuffleMode) {
-				const candidates = audioPlaylist.filter((_, i) => i !== audioPlaylistIndex);
-				if (candidates.length > 0) {
-					onPlayNext(candidates[Math.floor(Math.random() * candidates.length)]);
-					return;
-				}
-			}
-			if (hasNextTrack) {
-				onPlayNext(audioPlaylist[audioPlaylistIndex + 1]);
-				return;
-			}
-			if (repeatMode === 'all' && audioPlaylist.length > 0) {
-				onPlayNext(audioPlaylist[0]);
-				return;
-			}
+		const step = audioPlaylist && onPlayNext ? getNextStep() : null;
+		if (step?.type === 'play') {
+			onPlayNext(step.track);
+			return;
 		}
 		if (nextEpisode && onPlayNext) {
 			onPlayNext(nextEpisode);
 		} else {
 			onEnded?.();
 		}
-	}, [onEnded, onPlayNext, nextEpisode, hasNextTrack, audioPlaylist, audioPlaylistIndex, shuffleMode, repeatMode]);
+	}, [onEnded, onPlayNext, nextEpisode, audioPlaylist, repeatMode, restartCurrent, getNextStep]);
 
 	const handleError = useCallback(async () => {
 		const startFailure = playbackStartTimedOutRef.current && !isPaused;
@@ -2050,9 +1927,10 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 			seekByOffset(step, true);
 		} else if (e.key === 'ArrowUp' || e.keyCode === 38) {
 			e.preventDefault();
-			setFocusRow(isAudioMode ? 'top' : 'bottom');
+			const next = isAudioMode ? nextAudioFocusRow('progress', 'up') : 'bottom';
+			setFocusRow(next);
 			setIsSeeking(false);
-			window.requestAnimationFrame(() => Spotlight.focus(isAudioMode ? 'favorite-btn' : 'play-pause-btn'));
+			window.requestAnimationFrame(() => Spotlight.focus(isAudioMode ? AUDIO_FOCUS_IDS[next] : 'play-pause-btn'));
 		} else if (e.key === 'ArrowDown' || e.keyCode === 40) {
 			e.preventDefault();
 			setFocusRow('bottom');
@@ -2065,18 +1943,6 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 
 	const handleProgressBlur = useCallback(() => {
 		setIsSeeking(false);
-	}, []);
-
-	const handleToggleShuffle = useCallback(() => {
-		setShuffleMode(prev => !prev);
-	}, []);
-
-	const handleToggleRepeat = useCallback(() => {
-		setRepeatMode(prev => {
-			if (prev === 'off') return 'all';
-			if (prev === 'all') return 'one';
-			return 'off';
-		});
 	}, []);
 
 	const handleToggleFavorite = useCallback(async () => {
@@ -2330,6 +2196,11 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 					closeModal();
 					return;
 				}
+				// Back leaves the queue or lyrics panel before it leaves the player
+				if (isAudioMode && focusRow === 'panel') {
+					exitAudioPanel(setFocusRow);
+					return;
+				}
 				if (controlsVisible) {
 					hideControls();
 					return;
@@ -2371,18 +2242,23 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 				return;
 			}
 
+			if (isAudioMode && controlsVisible && !activeModal &&
+				handleAudioFocusKey(e, {focusRow, setFocusRow, showControls})) {
+				return;
+			}
+
 			// Up/Down arrow navigation between rows when controls are visible
 			if (controlsVisible && !activeModal) {
 				if (key === 'ArrowUp' || e.keyCode === 38) {
 					e.preventDefault();
 					showControls();
 					setFocusRow(prev => {
-						if (prev === 'bottom') return !isLiveTV ? 'progress' : (isAudioMode ? 'top' : 'bottom');
+						if (prev === 'bottom') return !isLiveTV ? 'progress' : 'bottom';
 						if (prev === 'progress') {
-							window.requestAnimationFrame(() => Spotlight.focus(isAudioMode ? 'favorite-btn' : 'play-pause-btn'));
-							return isAudioMode ? 'top' : 'bottom';
+							window.requestAnimationFrame(() => Spotlight.focus('play-pause-btn'));
+							return 'bottom';
 						}
-						return isAudioMode ? 'top' : 'bottom';
+						return 'bottom';
 					});
 					return;
 				}
@@ -2392,10 +2268,6 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 					setFocusRow(prev => {
 						if (prev === 'top') return isLiveTV ? (bottomButtons.length > 0 ? 'bottom' : 'top') : 'progress';
 						if (prev === 'progress') {
-							if (isAudioMode) {
-								window.requestAnimationFrame(() => Spotlight.focus('play-pause-btn'));
-								return 'bottom';
-							}
 							return bottomButtons.length > 0 ? 'bottom' : 'progress';
 						}
 						return 'bottom';
@@ -2408,7 +2280,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 
 		window.addEventListener('keydown', handleKeyDown, true);
 		return () => window.removeEventListener('keydown', handleKeyDown, true);
-	}, [controlsVisible, activeModal, closeModal, hideControls, handleBack, showControls, handlePlayPause, handleForward, handleRewind, currentTime, settings.seekStep, seekByOffset, handlePopupKeyDown, bottomButtons.length, isAudioMode, showSkipIntro, showSkipCredits, showNextEpisode, isLiveTV, isInGroup]);
+	}, [controlsVisible, activeModal, closeModal, hideControls, handleBack, showControls, handlePlayPause, handleForward, handleRewind, currentTime, settings.seekStep, seekByOffset, handlePopupKeyDown, bottomButtons.length, isAudioMode, focusRow, showSkipIntro, showSkipCredits, showNextEpisode, isLiveTV, isInGroup]);
 
 	const displayTime = isSeeking ? (seekPosition / 10000000) : currentTime;
 	const progressPercent = duration > 0 ? (displayTime / duration) * 100 : 0;
@@ -2476,53 +2348,23 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 				</div>
 			)}
 
-			{/* Audio Mode: Album Art + Info + Lyrics */}
 			{!isLoading && !error && isAudioMode && (
-				<div className={css.audioModeBackground}>
-					<div className={lyricsLines.length > 0 ? css.audioContentWithLyrics : css.audioModeContent}>
-						<div className={css.audioLeftPanel}>
-							<div className={css.audioAlbumArt}>
-								{item.ImageTags?.Primary ? (
-									<img
-										src={getImageUrl(item._serverUrl || getServerUrl(), item.Id, 'Primary', {maxHeight: 500, quality: 90})}
-										alt={item.Name}
-										className={css.audioAlbumImg}
-									/>
-								) : item.AlbumId && item.AlbumPrimaryImageTag ? (
-									<img
-										src={getImageUrl(item._serverUrl || getServerUrl(), item.AlbumId, 'Primary', {maxHeight: 500, quality: 90})}
-										alt={item.Album || item.Name}
-										className={css.audioAlbumImg}
-									/>
-								) : (
-									<div className={css.audioAlbumPlaceholder}>
-										<svg viewBox="0 -960 960 960" fill="currentColor" width="120" height="120">
-											<path d="M400-120q-66 0-113-47t-47-113q0-66 47-113t113-47q23 0 42.5 5.5T480-418v-422h240v160H560v400q0 66-47 113t-113 47Z"/>
-										</svg>
-									</div>
-								)}
-							</div>
-							<div className={css.audioTrackInfo}>
-								<h1 className={css.audioTrackTitle}>{title}</h1>
-								{subtitle && <p className={css.audioTrackArtist}>{subtitle}</p>}
-								{item.Album && <p className={css.audioTrackAlbum}>{item.Album}</p>}
-							</div>
-						</div>
-						{lyricsLines.length > 0 && (
-							<div className={css.audioLyricsPanel} ref={lyricsScrollRef}>
-								{lyricsLines.map((line, index) => (
-									<p
-										key={`${index}-${line.startSeconds ?? 'none'}`}
-										className={index === activeLyricIndex ? css.lyricLineActive : css.lyricLineInactive}
-										data-lyric-index={index}
-									>
-										{line.text}
-									</p>
-								))}
-							</div>
-						)}
-					</div>
-				</div>
+				<AudioMode
+					item={item}
+					title={title}
+					subtitle={subtitle}
+					serverUrl={getServerUrl()}
+					isFavorite={isFavorite}
+					onToggleFavorite={handleToggleFavorite}
+					focusRow={focusRow}
+					activeTab={audioTab}
+					onSelectTab={setAudioTab}
+					onEnterPanel={handleEnterAudioPanel}
+					audioPlaylist={audioPlaylist}
+					onSelectTrack={handleSelectQueueTrack}
+					lyrics={lyrics}
+					onSeekToLine={handleSeekToLyric}
+				/>
 			)}
 
 			{/* Custom Subtitle Overlay - webOS doesn't support native <track> elements */}
@@ -2647,7 +2489,6 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 				subtitle={subtitle}
 				topButtons={topButtons}
 				bottomButtons={bottomButtons}
-				favoriteButton={favoriteButton}
 				displayTime={displayTime}
 				duration={duration}
 				progressPercent={progressPercent}
