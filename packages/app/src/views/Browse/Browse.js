@@ -217,11 +217,14 @@ const stripItemForCache = (item) => ({
 	_serverUserId: item._serverUserId,
 	_serverId: item._serverId,
 	isLibraryTile: item.isLibraryTile,
+	isRecordingsShortcut: item.isRecordingsShortcut,
 });
 
 const Browse = ({
 	onSelectItem,
 	onSelectLibrary,
+	onOpenRecordings,
+	onPlayRecording,
 	onSelectGenre,
 	onSelectSeerrItem,
 	onSelectSeerrGenre,
@@ -593,6 +596,12 @@ const Browse = ({
 			else if (row.id === 'collections') title = $L('Collections');
 			else if (row.id === 'genres') title = $L('Genres');
 			else if (row.id === 'playlists') title = $L('Playlists');
+			else if (row.id === 'audioartists') title = $L('Music Artists');
+			else if (row.id === 'audioalbums') title = $L('Music Albums');
+			else if (row.id === 'audioplaylists') title = $L('Music Playlists');
+			else if (row.id === 'resumeaudio') title = $L('Continue Listening');
+			else if (row.id === 'activerecordings') title = $L('Recordings');
+			else if (row.id === 'livetv') title = $L('Live TV');
 			else if (favoriteLabelMap.has(row.id)) title = favoriteLabelMap.get(row.id);
 			else if (row.isLatestRow && row.library) {
 				const libName = row.library._serverName
@@ -869,6 +878,9 @@ const Browse = ({
 			const hasEnabledRecommendationRow = homeRowsConfig.some(
 				(row) => row.enabled && (row.id.startsWith('since-you-watched-') || row.id === 'rewatch')
 			);
+			const hasEnabledMediaSectionRow = homeRowsConfig.some(
+				(row) => row.enabled && ['audioartists', 'audioalbums', 'audioplaylists', 'resumeaudio', 'activerecordings'].includes(row.id)
+			);
 			const hasDynamicRowConfig =
 				settings.displayFavoritesRows ||
 				settings.displayCollectionsRows ||
@@ -876,6 +888,7 @@ const Browse = ({
 				settings.displayPlaylistsRows ||
 				hasEnabledImdbRow ||
 				hasEnabledRecommendationRow ||
+				hasEnabledMediaSectionRow ||
 				(settings.pluginSections || []).some((section) => section?.enabled);
 
 			if (hasDynamicRowConfig || unifiedMode) {
@@ -1026,6 +1039,20 @@ const Browse = ({
 							isLibraryRow: true
 						});
 					}
+
+					const liveTvLibrary = libs.find(lib => lib.CollectionType?.toLowerCase() === 'livetv');
+					if (liveTvLibrary) {
+						rowData.push({
+							id: 'livetv',
+							title: $L('Live TV'),
+							items: [
+								{...liveTvLibrary, Name: $L('Guide'), Type: 'CollectionFolder', isLibraryTile: true},
+								{Id: 'livetv-recordings', Name: $L('Recordings'), Type: 'CollectionFolder', isRecordingsShortcut: true}
+							],
+							type: 'landscape',
+							isLiveTvRow: true
+						});
+					}
 				}
 
 				if (randomItems?.Items?.length > 0) {
@@ -1067,6 +1094,11 @@ const Browse = ({
 				let favoriteResults = [];
 				let genresResult = null;
 				let playlistsResult = null;
+				let audioArtistsResult = null;
+				let audioAlbumsResult = null;
+				let audioPlaylistsResult = null;
+				let resumeAudioResult = null;
+				let recordingsResult = null;
 				let pluginRows = [];
 				let sinceYouWatchedRows = [];
 				let rewatchItems = null;
@@ -1237,6 +1269,13 @@ const Browse = ({
 					const genresIncludeTypes = getGenresIncludeTypes(settings.genresRowItemFilter);
 					const playlistsSortBy = settings.playlistsRowSortBy || 'SortName';
 					const playlistsSortOrder = getSortOrderFromSortBy(playlistsSortBy);
+					const audioRowsSortBy = settings.audioRowsSortBy || 'SortName';
+					const audioRowsSortOrder = getSortOrderFromSortBy(audioRowsSortBy);
+					const audioArtistsEnabled = homeRowsConfig.some((row) => row.enabled && row.id === 'audioartists');
+					const audioAlbumsEnabled = homeRowsConfig.some((row) => row.enabled && row.id === 'audioalbums');
+					const audioPlaylistsEnabled = homeRowsConfig.some((row) => row.enabled && row.id === 'audioplaylists');
+					const resumeAudioEnabled = homeRowsConfig.some((row) => row.enabled && row.id === 'resumeaudio');
+					const recordingsEnabled = homeRowsConfig.some((row) => row.enabled && row.id === 'activerecordings');
 					const enabledPluginSections = (settings.pluginSections || []).filter((section) => section.enabled);
 					const sinceYouWatchedIndexes = homeRowsConfig
 						.filter((row) => row.enabled && row.id.startsWith('since-you-watched-'))
@@ -1245,7 +1284,7 @@ const Browse = ({
 						.sort((a, b) => a - b);
 					const rewatchEnabled = homeRowsConfig.some((row) => row.enabled && row.id === 'rewatch');
 
-					[latestResults, recentlyReleasedResults, collectionsResult, favoriteResults, genresResult, playlistsResult, pluginRows, sinceYouWatchedRows, rewatchItems] = await Promise.all([
+					[latestResults, recentlyReleasedResults, collectionsResult, favoriteResults, genresResult, playlistsResult, audioArtistsResult, audioAlbumsResult, audioPlaylistsResult, resumeAudioResult, recordingsResult, pluginRows, sinceYouWatchedRows, rewatchItems] = await Promise.all([
 						Promise.all(
 							eligibleLibraries.map(lib =>
 								api.getLatest(lib.Id, 16)
@@ -1285,6 +1324,21 @@ const Browse = ({
 							: Promise.resolve(null),
 						settings.displayPlaylistsRows
 							? api.getPlaylists(playlistsSortBy, playlistsSortOrder).catch(() => null)
+							: Promise.resolve(null),
+						audioArtistsEnabled
+							? api.getAlbumArtists({Limit: 20, SortBy: audioRowsSortBy, SortOrder: audioRowsSortOrder, Fields: HOME_ROW_ITEM_FIELDS}).catch(() => null)
+							: Promise.resolve(null),
+						audioAlbumsEnabled
+							? api.getItems({IncludeItemTypes: 'MusicAlbum', Recursive: true, SortBy: audioRowsSortBy, SortOrder: audioRowsSortOrder, Limit: 20, Fields: HOME_ROW_ITEM_FIELDS}).catch(() => null)
+							: Promise.resolve(null),
+						audioPlaylistsEnabled
+							? api.getPlaylists(audioRowsSortBy, audioRowsSortOrder).catch(() => null)
+							: Promise.resolve(null),
+						resumeAudioEnabled
+							? api.getResumeAudioItems(20).catch(() => null)
+							: Promise.resolve(null),
+						recordingsEnabled
+							? api.getLiveTvRecordings().catch(() => null)
 							: Promise.resolve(null),
 						Promise.all(enabledPluginSections.map((section) => fetchPluginSectionRow(section))),
 						sinceYouWatchedIndexes.length
@@ -1386,6 +1440,54 @@ const Browse = ({
 					});
 				}
 
+				if (audioArtistsResult?.Items?.length > 0) {
+					newRows.push({
+						id: 'audioartists',
+						title: $L('Music Artists'),
+						items: audioArtistsResult.Items,
+						type: 'square'
+					});
+				}
+
+				if (audioAlbumsResult?.Items?.length > 0) {
+					newRows.push({
+						id: 'audioalbums',
+						title: $L('Music Albums'),
+						items: audioAlbumsResult.Items,
+						type: 'square'
+					});
+				}
+
+				if (audioPlaylistsResult?.Items?.length > 0) {
+					const audioPlaylists = audioPlaylistsResult.Items.filter(item => item.MediaType === 'Audio');
+					if (audioPlaylists.length > 0) {
+						newRows.push({
+							id: 'audioplaylists',
+							title: $L('Music Playlists'),
+							items: audioPlaylists,
+							type: 'square'
+						});
+					}
+				}
+
+				if (resumeAudioResult?.Items?.length > 0) {
+					newRows.push({
+						id: 'resumeaudio',
+						title: $L('Continue Listening'),
+						items: resumeAudioResult.Items,
+						type: 'square'
+					});
+				}
+
+				if (recordingsResult?.Items?.length > 0) {
+					newRows.push({
+						id: 'activerecordings',
+						title: $L('Recordings'),
+						items: recordingsResult.Items,
+						type: 'landscape'
+					});
+				}
+
 				imdbResults.forEach((res) => {
 					if (res.items?.length > 0) {
 						newRows.push({
@@ -1449,6 +1551,7 @@ const Browse = ({
 		settings.genresRowSortBy,
 		settings.genresRowItemFilter,
 		settings.playlistsRowSortBy,
+		settings.audioRowsSortBy,
 		settings.uiLanguage,
 		settings.pluginSections,
 		settings.mergeContinueWatchingNextUp,
@@ -1491,12 +1594,16 @@ const Browse = ({
 				rowIndex: lastFocusedRowRef.current
 			};
 		}
-		if (item.isLibraryTile) {
+		if (item.isRecordingsShortcut) {
+			onOpenRecordings?.();
+		} else if (item.isLibraryTile) {
 			onSelectLibrary?.(item);
+		} else if (item.Type === 'Recording') {
+			onPlayRecording?.(item);
 		} else {
 			onSelectItem?.(item);
 		}
-	}, [onSelectItem, onSelectLibrary, onBlurItemThemeMusic, onLeaveThemeMusic]);
+	}, [onSelectItem, onSelectLibrary, onOpenRecordings, onPlayRecording, onBlurItemThemeMusic, onLeaveThemeMusic]);
 
 	const handleSelectGenreItem = useCallback((item) => {
 		onBlurItemThemeMusic?.();

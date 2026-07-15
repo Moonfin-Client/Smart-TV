@@ -32,7 +32,13 @@ const DEFAULT_HOME_ROWS = [
 	{id: 'since-you-watched-4', name: 'Since You Watched Row 4', enabled: false, order: 24},
 	{id: 'since-you-watched-5', name: 'Since You Watched Row 5', enabled: false, order: 25},
 	{id: 'rewatch', name: 'Rewatch', enabled: false, order: 26},
-	{id: 'playlists', name: 'Playlists', enabled: false, order: 27}
+	{id: 'playlists', name: 'Playlists', enabled: false, order: 27},
+	{id: 'audioartists', name: 'Music Artists', enabled: false, order: 28},
+	{id: 'audioalbums', name: 'Music Albums', enabled: false, order: 29},
+	{id: 'audioplaylists', name: 'Music Playlists', enabled: false, order: 30},
+	{id: 'resumeaudio', name: 'Continue Listening', enabled: false, order: 31},
+	{id: 'activerecordings', name: 'Recordings', enabled: false, order: 32},
+	{id: 'livetv', name: 'Live TV', enabled: false, order: 33}
 ];
 
 const DEFAULT_SEERR_HOME_ROWS = [
@@ -107,6 +113,7 @@ const defaultSettings = {
 	genresRowSortBy: 'SortName',
 	genresRowItemFilter: 'all',
 	playlistsRowSortBy: 'SortName',
+	audioRowsSortBy: 'SortName',
 	fullScreenRows: false,
 	showShuffleButton: true,
 	shuffleContentType: 'both',

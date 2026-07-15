@@ -1651,6 +1651,7 @@ const Settings = ({ onBack, onLibrariesChanged, panelMode }) => {
 			)}
 			{settings.displayPlaylistsRows &&
 				renderOptionItem('playlistsRowSortBy', $L('Playlists Row Sorting'), getHomeRowSortOptions(), $L('Name'), 'arrowupdown')}
+			{renderOptionItem('audioRowsSortBy', $L('Music Rows Sorting'), getHomeRowSortOptions(), $L('Name'), 'arrowupdown')}
 			{renderOptionItem('homeRowsImageType', $L('Per Row Image Type Selection'), getImageTypeOptions(), $L('Poster'), 'picture')}
 		</>
 	);

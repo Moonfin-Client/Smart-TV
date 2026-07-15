@@ -1046,6 +1046,8 @@ const AppContent = (props) => {
 						<Browse
 							onSelectItem={handleSelectItem}
 							onSelectLibrary={handleSelectLibrary}
+							onOpenRecordings={handleOpenRecordings}
+							onPlayRecording={handlePlayRecording}
 							onSelectGenre={handleSelectGenreFromBrowse}
 							onSelectSeerrItem={handleSelectSeerrItem}
 							onSelectSeerrGenre={handleSelectSeerrGenre}
