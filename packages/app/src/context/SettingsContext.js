@@ -38,33 +38,33 @@ const DEFAULT_HOME_ROWS = [
 	{id: 'audioplaylists', name: 'Music Playlists', enabled: false, order: 30},
 	{id: 'resumeaudio', name: 'Continue Listening', enabled: false, order: 31},
 	{id: 'activerecordings', name: 'Recordings', enabled: false, order: 32},
-	{id: 'livetv', name: 'Live TV', enabled: false, order: 33}
+	{id: 'livetv', name: 'Live TV', enabled: false, order: 33},
+	{id: 'seerr_recent_requests', name: 'My Requests', enabled: false, order: 34},
+	{id: 'seerr_trending', name: 'Trending Now', enabled: false, order: 35},
+	{id: 'seerr_popular_movies', name: 'Popular Movies', enabled: false, order: 36},
+	{id: 'seerr_popular_series', name: 'Popular TV Shows', enabled: false, order: 37},
+	{id: 'seerr_upcoming_movies', name: 'Upcoming Movies', enabled: false, order: 38},
+	{id: 'seerr_upcoming_series', name: 'Upcoming TV Shows', enabled: false, order: 39},
+	{id: 'seerr_movie_genres', name: 'Browse Movies by Genre', enabled: false, order: 40},
+	{id: 'seerr_series_genres', name: 'Browse TV by Genre', enabled: false, order: 41},
+	{id: 'seerr_studios', name: 'Browse by Studio', enabled: false, order: 42},
+	{id: 'seerr_networks', name: 'Browse by Network', enabled: false, order: 43},
+	{id: 'tmdb_popular_movies', name: 'TMDB Popular Movies', enabled: false, order: 44},
+	{id: 'tmdb_top_rated_movies', name: 'TMDB Top Rated Movies', enabled: false, order: 45},
+	{id: 'tmdb_now_playing_movies', name: 'TMDB Now Playing Movies', enabled: false, order: 46},
+	{id: 'tmdb_upcoming_movies', name: 'TMDB Upcoming Movies', enabled: false, order: 47},
+	{id: 'tmdb_popular_tv', name: 'TMDB Popular TV', enabled: false, order: 48},
+	{id: 'tmdb_top_rated_tv', name: 'TMDB Top Rated TV', enabled: false, order: 49},
+	{id: 'tmdb_airing_today_tv', name: 'TMDB Airing Today TV', enabled: false, order: 50},
+	{id: 'tmdb_on_the_air_tv', name: 'TMDB On The Air TV', enabled: false, order: 51},
+	{id: 'tmdb_trending_movie_daily', name: 'TMDB Trending Movies (Daily)', enabled: false, order: 52},
+	{id: 'tmdb_trending_movie_weekly', name: 'TMDB Trending Movies (Weekly)', enabled: false, order: 53},
+	{id: 'tmdb_trending_tv_daily', name: 'TMDB Trending TV (Daily)', enabled: false, order: 54},
+	{id: 'tmdb_trending_tv_weekly', name: 'TMDB Trending TV (Weekly)', enabled: false, order: 55},
+	{id: 'tmdb_trending_all_weekly', name: 'TMDB Trending All (Weekly)', enabled: false, order: 56},
+	{id: 'radarr_calendar', name: 'Radarr Upcoming', enabled: false, order: 57},
+	{id: 'sonarr_calendar', name: 'Sonarr Upcoming', enabled: false, order: 58}
 ];
-
-const DEFAULT_SEERR_HOME_ROWS = [
-	{id: 'myRequests', enabled: false},
-	{id: 'trending', enabled: false},
-	{id: 'popularMovies', enabled: false},
-	{id: 'popularTv', enabled: false},
-	{id: 'upcomingMovies', enabled: false},
-	{id: 'upcomingTv', enabled: false},
-	{id: 'genreMovies', enabled: false},
-	{id: 'genreTv', enabled: false},
-	{id: 'studios', enabled: false},
-	{id: 'networks', enabled: false}
-];
-
-// External home rows (TMDB and IMDb chart presets), all off by default. Custom
-// rows and calendars are configured separately.
-// IMDb chart rows already exist under Personalization (they use the same
-// source=imdb plugin endpoint), so they are not duplicated here.
-const EXTERNAL_ROW_PRESET_IDS = [
-	'tmdb_popular_movies', 'tmdb_top_rated_movies', 'tmdb_now_playing_movies', 'tmdb_upcoming_movies',
-	'tmdb_popular_tv', 'tmdb_top_rated_tv', 'tmdb_airing_today_tv', 'tmdb_on_the_air_tv',
-	'tmdb_trending_movie_daily', 'tmdb_trending_movie_weekly', 'tmdb_trending_tv_daily',
-	'tmdb_trending_tv_weekly', 'tmdb_trending_all_weekly'
-];
-const DEFAULT_EXTERNAL_HOME_ROWS = EXTERNAL_ROW_PRESET_IDS.map((id) => ({id, enabled: false}));
 
 const defaultSettings = {
 	preferTranscode: false,
@@ -96,11 +96,7 @@ const defaultSettings = {
 	displayCollectionsRows: false,
 	displayGenresRows: false,
 	displayPlaylistsRows: false,
-	displaySeerrRows: false,
-	externalHomeRows: DEFAULT_EXTERNAL_HOME_ROWS,
 	customHomeRows: [],
-	enableRadarrCalendar: false,
-	enableSonarrCalendar: false,
 	mergeRadarrSonarrCalendars: false,
 	radarrCalendarShowCinema: true,
 	radarrCalendarShowDigital: true,
@@ -214,7 +210,6 @@ const defaultSettings = {
 	eac3Passthrough: true,
 	truehdPassthrough: true,
 	blockedRatings: [],
-	seerrHomeRows: DEFAULT_SEERR_HOME_ROWS,
 	showSeerrButton: true,
 	performanceMode: 'auto',
 	focusBorderColor: '',
@@ -226,7 +221,7 @@ const defaultSettings = {
 	allowInsecureCerts: false
 };
 
-export {DEFAULT_HOME_ROWS, DEFAULT_SEERR_HOME_ROWS};
+export {DEFAULT_HOME_ROWS};
 
 const SERVER_TO_LOCAL = {
 	mediaBarMode: 'featuredBarStyle',
@@ -312,21 +307,6 @@ const mergeHomeRows = (rows) => {
 	return merged;
 };
 
-// Backfills newly added external row presets while keeping the user's enabled
-// state, mirroring mergeHomeRows.
-const mergeExternalHomeRows = (rows) => {
-	if (!Array.isArray(rows)) return [...DEFAULT_EXTERNAL_HOME_ROWS];
-	const merged = [...rows];
-	let added = false;
-	for (const def of DEFAULT_EXTERNAL_HOME_ROWS) {
-		if (!merged.find((row) => row.id === def.id)) {
-			merged.push({...def});
-			added = true;
-		}
-	}
-	return added ? merged : rows;
-};
-
 const normalizeHomeRowsStyle = (value) => {
 	if (value === 'classic') return 'v1';
 	if (value === 'modern') return 'v2';
@@ -407,7 +387,7 @@ const SYNCABLE_KEYS = [
 	'homeRowOverlay', 'folderViewMode',
 	'excludedGenres',
 	'autoAdvance', 'autoAdvanceInterval',
-	'displayFavoritesRows', 'displayCollectionsRows', 'displayGenresRows', 'displayPlaylistsRows', 'displaySeerrRows',
+	'displayFavoritesRows', 'displayCollectionsRows', 'displayGenresRows', 'displayPlaylistsRows',
 	'favoritesRowSortBy', 'collectionsRowSortBy', 'genresRowSortBy', 'genresRowItemFilter',
 	'stillWatchingPrompt', 'watchedIndicatorBehavior',
 	'backdropBlurHome', 'backdropBlurDetail',
@@ -419,9 +399,8 @@ const SYNCABLE_KEYS = [
 	'videoStartDelay', 'liveTvDirect',
 	'uiLanguage',
 	'blockedRatings',
-	'seerrHomeRows',
-	'externalHomeRows', 'customHomeRows',
-	'enableRadarrCalendar', 'enableSonarrCalendar', 'mergeRadarrSonarrCalendars',
+	'customHomeRows',
+	'mergeRadarrSonarrCalendars',
 	'radarrCalendarShowCinema', 'radarrCalendarShowDigital', 'radarrCalendarShowPhysical',
 	'radarrCalendarShowDate', 'sonarrCalendarShowDate', 'sonarrCalendarShowEpisodeInfo',
 	'showSeerrButton',
@@ -553,11 +532,6 @@ export function SettingsProvider({children}) {
 				}
 				if (!Array.isArray(stored.customHomeRows)) {
 					stored.customHomeRows = [];
-					migrated = true;
-				}
-				const mergedExternalRows = mergeExternalHomeRows(stored.externalHomeRows);
-				if (mergedExternalRows !== stored.externalHomeRows) {
-					stored.externalHomeRows = mergedExternalRows;
 					migrated = true;
 				}
 				if (!stored.visualTheme) {

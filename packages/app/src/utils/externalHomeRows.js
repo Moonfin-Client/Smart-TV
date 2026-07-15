@@ -278,20 +278,22 @@ const fetchSonarrItems = async (settings) => {
 
 const byCalendarDate = (a, b) => new Date(a._calendarDate) - new Date(b._calendarDate);
 
-// Builds the upcoming calendar rows from settings, honoring the merge option.
-export const fetchCalendarRows = async (settings) => {
+// Builds the upcoming calendar rows, honoring the merge option. The radarr and
+// sonarr enable flags come from the unified home layout. Row ids match the plugin
+// section names so they share the layout ordering with the built-in rows.
+export const fetchCalendarRows = async (settings, {radarrEnabled = false, sonarrEnabled = false} = {}) => {
 	const rows = [];
-	const radarrItems = settings.enableRadarrCalendar ? await fetchRadarrItems(settings) : [];
-	const sonarrItems = settings.enableSonarrCalendar ? await fetchSonarrItems(settings) : [];
+	const radarrItems = radarrEnabled ? await fetchRadarrItems(settings) : [];
+	const sonarrItems = sonarrEnabled ? await fetchSonarrItems(settings) : [];
 
-	if (settings.enableRadarrCalendar && settings.enableSonarrCalendar && settings.mergeRadarrSonarrCalendars) {
+	if (radarrEnabled && sonarrEnabled && settings.mergeRadarrSonarrCalendars) {
 		const merged = [...radarrItems, ...sonarrItems].sort(byCalendarDate);
-		if (merged.length) rows.push({id: 'external-calendar-merged', title: $L('Upcoming Releases'), items: merged, isExternalRow: true});
+		if (merged.length) rows.push({id: 'radarr_calendar', title: $L('Upcoming Releases'), items: merged, isExternalRow: true, isCalendarMerged: true});
 		return rows;
 	}
 
-	if (radarrItems.length) rows.push({id: 'external-calendar-radarr', title: $L('Upcoming Movies'), items: radarrItems.sort(byCalendarDate), isExternalRow: true});
-	if (sonarrItems.length) rows.push({id: 'external-calendar-sonarr', title: $L('Upcoming Episodes'), items: sonarrItems.sort(byCalendarDate), isExternalRow: true});
+	if (radarrItems.length) rows.push({id: 'radarr_calendar', title: $L('Upcoming Movies'), items: radarrItems.sort(byCalendarDate), isExternalRow: true});
+	if (sonarrItems.length) rows.push({id: 'sonarr_calendar', title: $L('Upcoming Episodes'), items: sonarrItems.sort(byCalendarDate), isExternalRow: true});
 	return rows;
 };
 

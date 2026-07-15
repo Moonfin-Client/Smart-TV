@@ -40,6 +40,25 @@ export const getSeerrHomeRowConfigs = () => [
 	{id: 'networks', title: $L('Browse by Network'), type: 'network', cardType: 'logo'}
 ];
 
+// Maps the plugin home section serialized names to the local seerr row config ids
+// so seerr rows share the unified home layout with the built-in rows.
+export const SEERR_SECTION_TO_CONFIG = {
+	seerr_recent_requests: 'myRequests',
+	seerr_trending: 'trending',
+	seerr_popular_movies: 'popularMovies',
+	seerr_popular_series: 'popularTv',
+	seerr_upcoming_movies: 'upcomingMovies',
+	seerr_upcoming_series: 'upcomingTv',
+	seerr_movie_genres: 'genreMovies',
+	seerr_series_genres: 'genreTv',
+	seerr_studios: 'studios',
+	seerr_networks: 'networks'
+};
+
+export const SEERR_CONFIG_TO_SECTION = Object.fromEntries(
+	Object.entries(SEERR_SECTION_TO_CONFIG).map(([section, config]) => [config, section])
+);
+
 const yearOf = (item) => {
 	const date = item.release_date || item.releaseDate || item.first_air_date || item.firstAirDate || '';
 	const year = parseInt(String(date).slice(0, 4), 10);

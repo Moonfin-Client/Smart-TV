@@ -6,7 +6,7 @@ import {useSettings, TV_TO_SERVER_ROW} from '../../context/SettingsContext';
 import {useSeerr} from '../../context/SeerrContext';
 import {ClassicMediaRow, ModernMediaRow} from '../../components/MediaRow';
 import SeerrTileRow from '../../components/SeerrTileRow';
-import {getSeerrHomeRowConfigs, fetchSeerrHomeRow} from '../../utils/seerrHomeRows';
+import {getSeerrHomeRowConfigs, fetchSeerrHomeRow, SEERR_SECTION_TO_CONFIG} from '../../utils/seerrHomeRows';
 import {getExternalHomeRowConfigs, fetchExternalPresetRow, fetchCustomHomeRow, fetchCalendarRows} from '../../utils/externalHomeRows';
 import {mergeRowPreservingRefs} from '../../utils/volatileRows';
 import LoadingSpinner from '../../components/LoadingSpinner';
@@ -635,10 +635,15 @@ const Browse = ({
 					order = rowOrderMap.get('latest-media');
 				} else if (row.isRecentlyReleasedRow) {
 					order = rowOrderMap.get('recently-released');
-				} else if (row.isSeerrRow) {
-					order = 3000 + index;
-				} else if (row.isExternalRow) {
-					order = 5000 + index;
+				} else if (row.isCalendarMerged) {
+					const radarrOrder = rowOrderMap.get('radarr_calendar');
+					const sonarrOrder = rowOrderMap.get('sonarr_calendar');
+					order = Math.min(
+						Number.isFinite(radarrOrder) ? radarrOrder : Number.MAX_SAFE_INTEGER,
+						Number.isFinite(sonarrOrder) ? sonarrOrder : Number.MAX_SAFE_INTEGER
+					);
+				} else if (row.isCustomRow) {
+					order = 6000 + index;
 				}
 				if (!Number.isFinite(order)) {
 					order = row.isPluginRow ? 2000 + index : 1000 + index;
@@ -1654,12 +1659,12 @@ const Browse = ({
 	}, [handleSelectSeerrItem, handleSelectItem]);
 
 	useEffect(() => {
-		if (!seerrEnabled || !seerrAuthenticated || !settings.displaySeerrRows) {
+		if (!seerrEnabled || !seerrAuthenticated) {
 			setSeerrRows([]);
 			return;
 		}
-		const enabledIds = (settings.seerrHomeRows || []).filter((r) => r.enabled).map((r) => r.id);
-		if (enabledIds.length === 0) {
+		const enabledSections = (settings.homeRows || []).filter((r) => r.enabled && SEERR_SECTION_TO_CONFIG[r.id]);
+		if (enabledSections.length === 0) {
 			setSeerrRows([]);
 			return;
 		}
@@ -1668,13 +1673,14 @@ const Browse = ({
 		const configs = getSeerrHomeRowConfigs();
 
 		(async () => {
-			const built = await Promise.all(enabledIds.map(async (id) => {
-				const cfg = configs.find((c) => c.id === id);
+			const built = await Promise.all(enabledSections.map(async (section) => {
+				const configId = SEERR_SECTION_TO_CONFIG[section.id];
+				const cfg = configs.find((c) => c.id === configId);
 				if (!cfg) return null;
-				const items = await fetchSeerrHomeRow(id, {userId: seerrUserId});
+				const items = await fetchSeerrHomeRow(configId, {userId: seerrUserId});
 				if (!items.length) return null;
 				return {
-					id: `seerr-${id}`,
+					id: section.id,
 					title: cfg.title,
 					items,
 					type: cfg.cardType,
@@ -1688,7 +1694,7 @@ const Browse = ({
 		return () => {
 			cancelled = true;
 		};
-	}, [seerrEnabled, seerrAuthenticated, seerrUserId, settings.seerrHomeRows, settings.displaySeerrRows]);
+	}, [seerrEnabled, seerrAuthenticated, seerrUserId, settings.homeRows]);
 
 	// External home rows (TMDB/IMDb presets and user custom rows). Items come back
 	// as provider ids, so each row is resolved against the local library before
@@ -1698,9 +1704,11 @@ const Browse = ({
 			setExternalRows([]);
 			return;
 		}
-		const enabledPresets = (settings.externalHomeRows || []).filter((r) => r.enabled).map((r) => r.id);
+		const enabledPresets = (settings.homeRows || []).filter((r) => r.enabled && r.id.startsWith('tmdb_')).map((r) => r.id);
 		const customRows = (settings.customHomeRows || []).filter((r) => r.enabled);
-		const calendarsEnabled = settings.enableRadarrCalendar || settings.enableSonarrCalendar;
+		const radarrEnabled = (settings.homeRows || []).some((r) => r.enabled && r.id === 'radarr_calendar');
+		const sonarrEnabled = (settings.homeRows || []).some((r) => r.enabled && r.id === 'sonarr_calendar');
+		const calendarsEnabled = radarrEnabled || sonarrEnabled;
 		if (enabledPresets.length === 0 && customRows.length === 0 && !calendarsEnabled) {
 			setExternalRows([]);
 			return;
@@ -1716,19 +1724,17 @@ const Browse = ({
 				const items = await fetchExternalPresetRow(id);
 				if (!items.length) return null;
 				const resolved = await resolveItemsByProviderIds(items);
-				return {id: `external-${id}`, title: cfg.title, items: resolved, isExternalRow: true};
+				return {id, title: cfg.title, items: resolved, isExternalRow: true};
 			}));
 
 			const builtCustomRows = await Promise.all(customRows.map(async (row) => {
 				const items = await fetchCustomHomeRow(row);
 				if (!items.length) return null;
 				const resolved = await resolveItemsByProviderIds(items);
-				return {id: `external-${row.id}`, title: row.name || row.title || $L('Custom'), items: resolved, isExternalRow: true};
+				return {id: `external-${row.id}`, title: row.name || row.title || $L('Custom'), items: resolved, isExternalRow: true, isCustomRow: true};
 			}));
 
 			const calendarSettings = {
-				enableRadarrCalendar: settings.enableRadarrCalendar,
-				enableSonarrCalendar: settings.enableSonarrCalendar,
 				mergeRadarrSonarrCalendars: settings.mergeRadarrSonarrCalendars,
 				radarrCalendarShowCinema: settings.radarrCalendarShowCinema,
 				radarrCalendarShowDigital: settings.radarrCalendarShowDigital,
@@ -1737,7 +1743,7 @@ const Browse = ({
 				sonarrCalendarShowDate: settings.sonarrCalendarShowDate,
 				sonarrCalendarShowEpisodeInfo: settings.sonarrCalendarShowEpisodeInfo
 			};
-			const calendarRows = calendarsEnabled ? await fetchCalendarRows(calendarSettings) : [];
+			const calendarRows = calendarsEnabled ? await fetchCalendarRows(calendarSettings, {radarrEnabled, sonarrEnabled}) : [];
 			const resolvedCalendarRows = await Promise.all(calendarRows.map(async (row) => ({
 				...row,
 				items: await resolveItemsByProviderIds(row.items)
@@ -1749,8 +1755,8 @@ const Browse = ({
 		return () => {
 			cancelled = true;
 		};
-	}, [settings.useMoonfinPlugin, settings.externalHomeRows, settings.customHomeRows,
-		settings.enableRadarrCalendar, settings.enableSonarrCalendar, settings.mergeRadarrSonarrCalendars,
+	}, [settings.useMoonfinPlugin, settings.homeRows, settings.customHomeRows,
+		settings.mergeRadarrSonarrCalendars,
 		settings.radarrCalendarShowCinema, settings.radarrCalendarShowDigital, settings.radarrCalendarShowPhysical,
 		settings.radarrCalendarShowDate, settings.sonarrCalendarShowDate, settings.sonarrCalendarShowEpisodeInfo]);
 

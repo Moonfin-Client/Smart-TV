@@ -17,7 +17,7 @@ import ClearDataDialog from '../../components/ClearDataDialog';
 import SpottableInput from '../../components/SpottableInput/SpottableInput';
 import {clearAllStorage} from '../../services/storage';
 import {fetchThemeStoreCatalog, fetchThemeJson} from '../../services/themeStoreApi';
-import {getSeerrHomeRowConfigs} from '../../utils/seerrHomeRows';
+import {getSeerrHomeRowConfigs, SEERR_CONFIG_TO_SECTION} from '../../utils/seerrHomeRows';
 import {TMDB_PRESETS, detectCustomSource, validateCustomRow} from '../../utils/externalHomeRows';
 import {MATERIAL_ICON_PATHS} from './materialIconMap';
 
@@ -541,6 +541,9 @@ const isHomeRowVisibleByGates = (rowId, currentSettings) => {
 	if (rowId === 'imdb-popular-tv') return currentSettings.imdbMostPopularTvShowsEnabled;
 	if (rowId === 'imdb-lowest-rated') return currentSettings.imdbLowestRatedMoviesEnabled;
 	if (rowId === 'imdb-top-english') return currentSettings.imdbTopEnglishMoviesEnabled;
+	if (rowId.startsWith('seerr_') || rowId.startsWith('tmdb_') || rowId === 'radarr_calendar' || rowId === 'sonarr_calendar') {
+		return currentSettings.useMoonfinPlugin;
+	}
 	return true;
 };
 
@@ -1123,13 +1126,15 @@ const Settings = ({ onBack, onLibrariesChanged, panelMode }) => {
 		pushView({view: 'seerrHomeRows', returnFocusTo: 'setting-seerrHomeRows'});
 	}, [pushView]);
 
+	const toggleHomeRowEnabled = useCallback((sectionId) => {
+		const current = Array.isArray(settings.homeRows) ? settings.homeRows : [];
+		const next = current.map((row) => (row.id === sectionId ? {...row, enabled: !row.enabled} : row));
+		updateSetting('homeRows', next);
+	}, [settings.homeRows, updateSetting]);
+
 	const toggleSeerrHomeRow = useCallback((rowId) => {
-		const current = Array.isArray(settings.seerrHomeRows) ? settings.seerrHomeRows : [];
-		const next = current.some((r) => r.id === rowId)
-			? current.map((r) => (r.id === rowId ? {...r, enabled: !r.enabled} : r))
-			: [...current, {id: rowId, enabled: true}];
-		updateSetting('seerrHomeRows', next);
-	}, [settings.seerrHomeRows, updateSetting]);
+		toggleHomeRowEnabled(SEERR_CONFIG_TO_SECTION[rowId] || rowId);
+	}, [toggleHomeRowEnabled]);
 
 	const openImdbLists = useCallback(() => {
 		pushView({ view: 'imdbLists', returnFocusTo: 'setting-imdbLists' });
@@ -1146,14 +1151,6 @@ const Settings = ({ onBack, onLibrariesChanged, panelMode }) => {
 	const openExternalCustomRows = useCallback(() => {
 		pushView({view: 'externalCustomRows', returnFocusTo: 'setting-externalCustomRows'});
 	}, [pushView]);
-
-	const toggleExternalHomeRow = useCallback((rowId) => {
-		const current = Array.isArray(settings.externalHomeRows) ? settings.externalHomeRows : [];
-		const next = current.some((r) => r.id === rowId)
-			? current.map((r) => (r.id === rowId ? {...r, enabled: !r.enabled} : r))
-			: [...current, {id: rowId, enabled: true}];
-		updateSetting('externalHomeRows', next);
-	}, [settings.externalHomeRows, updateSetting]);
 
 	const openHomeRows = useCallback(() => {
 		setTempHomeRows([...(settings.homeRows || DEFAULT_HOME_ROWS)].sort((a, b) => a.order - b.order));
@@ -1777,7 +1774,7 @@ const Settings = ({ onBack, onLibrariesChanged, panelMode }) => {
 			);
 		}
 		const customCount = (settings.customHomeRows || []).length;
-		const showCalendars = settings.enableRadarrCalendar || settings.enableSonarrCalendar || seerr.isEnabled;
+		const showCalendars = seerr.isEnabled;
 		return (
 			<>
 				{renderSectionTitle($L('Home Row Maintenance'))}
@@ -1793,7 +1790,7 @@ const Settings = ({ onBack, onLibrariesChanged, panelMode }) => {
 	};
 
 	const renderExternalTmdbListsView = () => {
-		const enabledMap = new Map((settings.externalHomeRows || []).map((r) => [r.id, r.enabled]));
+		const enabledMap = new Map((settings.homeRows || []).map((r) => [r.id, r.enabled]));
 		return (
 			<ViewContainer className={css.viewContainer} spotlightId='external-tmdb-lists-view'>
 				<div className={css.listContent} onFocus={handleListFocus}>
@@ -1806,7 +1803,7 @@ const Settings = ({ onBack, onLibrariesChanged, panelMode }) => {
 							<SpottableDiv
 								key={cfg.id}
 								className={css.listItem}
-								onClick={() => toggleExternalHomeRow(cfg.id)}
+								onClick={() => toggleHomeRowEnabled(cfg.id)}
 								spotlightId={`tmdbrow-${cfg.id}`}
 							>
 								<div className={css.listItemBody}>
@@ -1821,28 +1818,47 @@ const Settings = ({ onBack, onLibrariesChanged, panelMode }) => {
 		);
 	};
 
-	const renderExternalCalendarsView = () => (
-		<ViewContainer className={css.viewContainer} spotlightId='external-calendars-view'>
-			<div className={css.listContent} onFocus={handleListFocus}>
-				<div className={css.listInner}>
-					{renderSectionTitle($L('Upcoming Calendars'))}
-					<div className={css.viewDescription}>
-						{$L('Show upcoming releases from Radarr and Sonarr. Requires the servers to be configured in Seerr.')}
+	const renderExternalCalendarsView = () => {
+		const enabledMap = new Map((settings.homeRows || []).map((r) => [r.id, r.enabled]));
+		const radarrOn = enabledMap.get('radarr_calendar') === true;
+		const sonarrOn = enabledMap.get('sonarr_calendar') === true;
+		return (
+			<ViewContainer className={css.viewContainer} spotlightId='external-calendars-view'>
+				<div className={css.listContent} onFocus={handleListFocus}>
+					<div className={css.listInner}>
+						{renderSectionTitle($L('Upcoming Calendars'))}
+						<div className={css.viewDescription}>
+							{$L('Show upcoming releases from Radarr and Sonarr. Requires the servers to be configured in Seerr.')}
+						</div>
+						<SpottableDiv className={css.listItem} onClick={() => toggleHomeRowEnabled('radarr_calendar')} spotlightId='calendar-radarr'>
+							{renderSettingsIcon('movie')}
+							<div className={css.listItemBody}>
+								<div className={css.listItemHeading}>{$L('Radarr Upcoming')}</div>
+								<div className={css.listItemCaption}>{$L('Upcoming movie releases')}</div>
+							</div>
+							<div className={css.listItemTrailing}>{renderToggle(radarrOn)}</div>
+						</SpottableDiv>
+						{radarrOn && renderToggleItem('radarrCalendarShowCinema', $L('Show Cinema Releases'), '', 'movie')}
+						{radarrOn && renderToggleItem('radarrCalendarShowDigital', $L('Show Digital Releases'), '', 'movie')}
+						{radarrOn && renderToggleItem('radarrCalendarShowPhysical', $L('Show Physical Releases'), '', 'movie')}
+						{radarrOn && renderToggleItem('radarrCalendarShowDate', $L('Show Release Date'), '', 'movie')}
+						<SpottableDiv className={css.listItem} onClick={() => toggleHomeRowEnabled('sonarr_calendar')} spotlightId='calendar-sonarr'>
+							{renderSettingsIcon('tv')}
+							<div className={css.listItemBody}>
+								<div className={css.listItemHeading}>{$L('Sonarr Upcoming')}</div>
+								<div className={css.listItemCaption}>{$L('Upcoming episode releases')}</div>
+							</div>
+							<div className={css.listItemTrailing}>{renderToggle(sonarrOn)}</div>
+						</SpottableDiv>
+						{sonarrOn && renderToggleItem('sonarrCalendarShowEpisodeInfo', $L('Show Episode Information'), '', 'tv')}
+						{sonarrOn && renderToggleItem('sonarrCalendarShowDate', $L('Show Release Date'), '', 'tv')}
+						{radarrOn && sonarrOn &&
+							renderToggleItem('mergeRadarrSonarrCalendars', $L('Merge Into One Row'), $L('Combine Radarr and Sonarr into a single upcoming row'), 'list')}
 					</div>
-					{renderToggleItem('enableRadarrCalendar', $L('Radarr Upcoming'), $L('Upcoming movie releases'), 'movie')}
-					{settings.enableRadarrCalendar && renderToggleItem('radarrCalendarShowCinema', $L('Show Cinema Releases'), '', 'movie')}
-					{settings.enableRadarrCalendar && renderToggleItem('radarrCalendarShowDigital', $L('Show Digital Releases'), '', 'movie')}
-					{settings.enableRadarrCalendar && renderToggleItem('radarrCalendarShowPhysical', $L('Show Physical Releases'), '', 'movie')}
-					{settings.enableRadarrCalendar && renderToggleItem('radarrCalendarShowDate', $L('Show Release Date'), '', 'movie')}
-					{renderToggleItem('enableSonarrCalendar', $L('Sonarr Upcoming'), $L('Upcoming episode releases'), 'tv')}
-					{settings.enableSonarrCalendar && renderToggleItem('sonarrCalendarShowEpisodeInfo', $L('Show Episode Information'), '', 'tv')}
-					{settings.enableSonarrCalendar && renderToggleItem('sonarrCalendarShowDate', $L('Show Release Date'), '', 'tv')}
-					{settings.enableRadarrCalendar && settings.enableSonarrCalendar &&
-						renderToggleItem('mergeRadarrSonarrCalendars', $L('Merge Into One Row'), $L('Combine Radarr and Sonarr into a single upcoming row'), 'list')}
 				</div>
-			</div>
-		</ViewContainer>
-	);
+			</ViewContainer>
+		);
+	};
 
 	const getSourceLabel = (source) => {
 		if (source === 'tmdb') return $L('TMDB');
@@ -2548,7 +2564,7 @@ const Settings = ({ onBack, onLibrariesChanged, panelMode }) => {
 	);
 
 	const renderSeerrHomeRowsView = () => {
-		const enabledMap = new Map((settings.seerrHomeRows || []).map((r) => [r.id, r.enabled]));
+		const enabledMap = new Map((settings.homeRows || []).map((r) => [r.id, r.enabled]));
 		return (
 			<ViewContainer className={css.viewContainer} spotlightId='seerr-home-rows-view'>
 				<div className={css.listContent} onFocus={handleListFocus}>
@@ -2557,8 +2573,7 @@ const Settings = ({ onBack, onLibrariesChanged, panelMode }) => {
 						<div className={css.viewDescription}>
 							{$L('Choose which Seerr discover rows appear on the home screen.')}
 						</div>
-						{renderToggleItem('displaySeerrRows', $L('Show Seerr Rows'), $L('Display Seerr discovery rows on the home screen'), 'list')}
-						{settings.displaySeerrRows && getSeerrHomeRowConfigs().map((cfg) => (
+						{getSeerrHomeRowConfigs().map((cfg) => (
 							<SpottableDiv
 								key={cfg.id}
 								className={css.listItem}
@@ -2568,7 +2583,7 @@ const Settings = ({ onBack, onLibrariesChanged, panelMode }) => {
 								<div className={css.listItemBody}>
 									<div className={css.listItemHeading}>{cfg.title}</div>
 								</div>
-								<div className={css.listItemTrailing}>{renderToggle(enabledMap.get(cfg.id) === true)}</div>
+								<div className={css.listItemTrailing}>{renderToggle(enabledMap.get(SEERR_CONFIG_TO_SECTION[cfg.id]) === true)}</div>
 							</SpottableDiv>
 						))}
 					</div>
