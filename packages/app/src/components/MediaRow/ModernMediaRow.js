@@ -38,7 +38,7 @@ const ModernMediaRow = ({
 	const keyPrefix = rowId || title || rowIndex || '';
 
 	useEffect(() => {
-		const el = rowElementRef.current;
+		const el = document.querySelector(`[data-row-index="${rowIndex}"]`) || rowElementRef.current;
 		registerRowRef?.(rowIndex, el);
 		return () => registerRowRef?.(rowIndex, null);
 	}, [rowIndex, registerRowRef]);
@@ -100,10 +100,10 @@ const ModernMediaRow = ({
 
 	const handleBlur = useCallback((e) => {
 		const nextTarget = e.relatedTarget;
-		const rowNode = rowElementRef.current;
-		if (rowNode && nextTarget && rowNode.contains(nextTarget)) return;
+		const rowNode = document.querySelector(`[data-row-index="${rowIndex}"]`) || rowElementRef.current;
+		if (rowNode && nextTarget && typeof rowNode.contains === 'function' && rowNode.contains(nextTarget)) return;
 		setFocusedItemId(null);
-	}, []);
+	}, [rowIndex]);
 
 	const handleFocusedChange = useCallback((itemId) => {
 		setFocusedItemId(itemId || null);
