@@ -222,6 +222,7 @@ const Details = ({itemId, initialItem, onPlay, onSelectItem, onSelectPerson, onS
 
 	// Refs
 	const pageScrollerRef = useRef(null);
+	const artworkModalBackRef = useRef(null);
 	const pageScrollToRef = useRef(null);
 	const lastFocusedElementRef = useRef(null);
 	const trailerVideoRef = useRef(null);
@@ -993,7 +994,11 @@ const Details = ({itemId, initialItem, onPlay, onSelectItem, onSelectPerson, onS
 	useEffect(() => {
 		if (!backHandlerRef) return;
 		backHandlerRef.current = () => {
-			if (showArtworkModal) { handleCloseArtworkModal(); return true; }
+			if (showArtworkModal) {
+				if (artworkModalBackRef.current?.()) return true;
+				handleCloseArtworkModal();
+				return true;
+			}
 			if (showDeleteDialog) { handleCloseDeleteDialog(); return true; }
 			if (showPlaylistModal) { handleClosePlaylistModal(); return true; }
 			if (activeModal) { closeModal(); return true; }
@@ -1680,6 +1685,7 @@ const handleSectionKeyDown = useCallback((ev) => {
 				serverUrl={effectiveServerUrl}
 				onClose={handleCloseArtworkModal}
 				onSuccess={showToast}
+				backHandlerRef={artworkModalBackRef}
 			/>
 
 			{toastMessage && (

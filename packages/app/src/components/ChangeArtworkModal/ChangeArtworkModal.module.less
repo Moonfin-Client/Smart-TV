@@ -332,6 +332,33 @@
 	font-size: 14px;
 }
 
+// Card dimensions per image category, kept in CSS so the cards do not build
+// inline style objects on every render.
+.sizePoster {
+	width: 160px;
+	height: 240px;
+}
+
+.sizeWide {
+	width: 280px;
+	height: 158px;
+}
+
+.sizeBanner {
+	width: 350px;
+	height: 70px;
+}
+
+.sizeLogo {
+	width: 200px;
+	height: 80px;
+}
+
+.sizeSquare {
+	width: 160px;
+	height: 160px;
+}
+
 .spinner {
 	width: 24px;
 	height: 24px;
@@ -375,6 +402,12 @@
 	&:focus {
 		background: var(--theme-accent, @accent);
 	}
+}
+
+.backBtnIcon {
+	width: 24px;
+	height: 24px;
+	margin-right: 8px;
 }
 
 .gridTitle {

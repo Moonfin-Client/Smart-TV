@@ -275,6 +275,9 @@ export const api = {
 	getResumeItems: (limit = 12) =>
 		request(`/Users/${currentUser}/Items/Resume?Limit=${limit}&MediaTypes=Video&Fields=${encodeURIComponent(HOME_ROW_ITEM_FIELDS)}`),
 
+	getResumeAudioItems: (limit = 20) =>
+		request(`/Users/${currentUser}/Items/Resume?Limit=${limit}&MediaTypes=Audio&Fields=${encodeURIComponent(HOME_ROW_ITEM_FIELDS)}`),
+
 	getNextUp: (limit = 24, seriesId = null) => {
 		let url = `/Shows/NextUp?UserId=${currentUser}&Limit=${limit}&Fields=${encodeURIComponent(HOME_ROW_ITEM_FIELDS)}`;
 		if (seriesId) url += `&SeriesId=${seriesId}`;

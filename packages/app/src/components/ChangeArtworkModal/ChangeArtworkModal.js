@@ -5,7 +5,7 @@ import SpotlightContainerDecorator from '@enact/spotlight/SpotlightContainerDeco
 import $L from '@enact/i18n/$L';
 import {Scroller} from '@enact/sandstone/Scroller';
 import {getImageUrl} from '../../utils/helpers';
-import {isBackKey} from '../../utils/keys';
+import {useSettings} from '../../context/SettingsContext';
 
 import css from './ChangeArtworkModal.module.less';
 
@@ -109,6 +109,30 @@ const getImageDimensions = (category, itemType) => {
 	}
 };
 
+// The matching css dimension class, so card sizing lives in css rather than
+// inline style objects. Widths still come from getImageDimensions for the
+// remote image fetch url.
+const getCardSizeClass = (category, itemType) => {
+	if (category === 'Primary') {
+		return itemType?.toLowerCase() === 'episode' ? 'sizeWide' : 'sizePoster';
+	}
+	switch (category) {
+		case 'Backdrop':
+		case 'Thumb':
+		case 'Screenshot':
+			return 'sizeWide';
+		case 'Banner':
+			return 'sizeBanner';
+		case 'Logo':
+		case 'Art':
+			return 'sizeLogo';
+		case 'Disc':
+			return 'sizeSquare';
+		default:
+			return 'sizePoster';
+	}
+};
+
 const getCurrentTags = (item, category) => {
 	if (category === 'Backdrop') {
 		return item.BackdropImageTags || [];
@@ -145,7 +169,8 @@ const getOptimizedRemoteImageUrl = (url, category, targetWidth) => {
 	return url;
 };
 
-const ChangeArtworkModal = ({open, item: initialItem, api, serverUrl, onClose, onSuccess}) => {
+const ChangeArtworkModal = ({open, item: initialItem, api, serverUrl, onClose, onSuccess, backHandlerRef}) => {
+	const {settings} = useSettings();
 	const [activeItem, setActiveItem] = useState(initialItem);
 	const [history, setHistory] = useState([initialItem]);
 	const [historyIndex, setHistoryIndex] = useState(0);
@@ -169,43 +194,50 @@ const ChangeArtworkModal = ({open, item: initialItem, api, serverUrl, onClose, o
 	const [clearAllConfirm, setClearAllConfirm] = useState(false);
 	const [writeAccessWarning, setWriteAccessWarning] = useState(null); // error string
 
-	// Flag to avoid checking write access multiple times per session
-	const hasCheckedWriteAccess = useRef(false);
+	// Server write access reports cover every library, so fetch them once and
+	// match the current item's path each load.
+	const writeAccessReportsRef = useRef(null);
+	// Bumped on each load so stale async responses from a previous item are ignored.
+	const loadIdRef = useRef(0);
 
 	// Initialize / load item details
 	const loadItem = useCallback(async (itemToLoad) => {
+		const loadId = ++loadIdRef.current;
 		setActiveItem(itemToLoad);
 		const categories = getSupportedImageTypes(itemToLoad.Type);
 		setSupportedCategories(categories);
 		setRemoteImages({});
 		setLoadingCategories({});
 		setFocusedCategory(null);
+		setWriteAccessWarning(null);
 
 		// Fetch remote images for each category
 		categories.forEach(async (category) => {
 			if (itemToLoad.Type?.toLowerCase() === 'genre' || itemToLoad.Type?.toLowerCase() === 'musicgenre') {
-				setRemoteImages(prev => ({...prev, [category]: []}));
+				if (loadIdRef.current === loadId) setRemoteImages(prev => ({...prev, [category]: []}));
 				return;
 			}
 			setLoadingCategories(prev => ({...prev, [category]: true}));
 			try {
 				const result = await api.getRemoteImages(itemToLoad.Id, category);
 				const list = result?.Images || [];
-				setRemoteImages(prev => ({...prev, [category]: list}));
+				if (loadIdRef.current === loadId) setRemoteImages(prev => ({...prev, [category]: list}));
 			} catch (e) {
 				console.warn(`Failed to fetch remote images for ${category}:`, e);
 			} finally {
-				setLoadingCategories(prev => ({...prev, [category]: false}));
+				if (loadIdRef.current === loadId) setLoadingCategories(prev => ({...prev, [category]: false}));
 			}
 		});
 
-		// Proactively check write access once
-		if (!hasCheckedWriteAccess.current && api.checkWriteAccess) {
+		// Warn when the server cannot write to this item's library path
+		if (api.checkWriteAccess) {
 			try {
-				const reports = await api.checkWriteAccess();
-				hasCheckedWriteAccess.current = true;
+				if (!writeAccessReportsRef.current) {
+					writeAccessReportsRef.current = await api.checkWriteAccess();
+				}
+				const reports = writeAccessReportsRef.current;
 				const itemPath = itemToLoad.Path;
-				if (itemPath && Array.isArray(reports)) {
+				if (loadIdRef.current === loadId && itemPath && Array.isArray(reports)) {
 					const matchingReport = reports.find(report =>
 						report.FailedPaths?.some(path => itemPath.startsWith(path))
 					);
@@ -232,45 +264,48 @@ const ChangeArtworkModal = ({open, item: initialItem, api, serverUrl, onClose, o
 			setDeselectedSources(new Set());
 			setOnlyShowInterfaceLanguage(true);
 			setSelectedResolution('All');
+			setDeleteConfirm(null);
+			setPreviewImage(null);
+			setClearAllConfirm(false);
+			setShowSourcesPopup(false);
+			setWriteAccessWarning(null);
+			setActionInProgress(new Set());
+			writeAccessReportsRef.current = null;
 			loadItem(initialItem);
 		}
 	}, [open, initialItem, loadItem]);
 
-	// Spotlight focus on mount
+	// Move d-pad focus into whichever overlay or view is active, and back to the
+	// modal when one closes, so focus is never stranded on the covered content.
 	useEffect(() => {
-		if (open) {
-			const t = setTimeout(() => Spotlight.focus('change-artwork-modal'), 150);
-			return () => clearTimeout(t);
-		}
-	}, [open]);
+		if (!open) return undefined;
+		let target = 'change-artwork-modal';
+		if (previewImage) target = 'zoom-preview';
+		else if (deleteConfirm) target = 'delete-confirm';
+		else if (clearAllConfirm) target = 'clear-all-confirm';
+		else if (showSourcesPopup) target = 'sources-popup';
+		else if (writeAccessWarning) target = 'write-access-warning';
+		else if (focusedCategory) target = 'grid-back-btn';
+		const t = setTimeout(() => Spotlight.focus(target), 100);
+		return () => clearTimeout(t);
+	}, [open, previewImage, deleteConfirm, clearAllConfirm, showSourcesPopup, writeAccessWarning, focusedCategory]);
 
-	// BACK Key Handling
+	// Back is driven by the parent through backHandlerRef so it composes with the
+	// app back stack. Returns true when a sub view was closed, false when nothing
+	// is left, letting the parent close the modal.
 	useEffect(() => {
-		if (!open) return;
-		const handleKey = (e) => {
-			if (isBackKey(e)) {
-				e.preventDefault();
-				e.stopPropagation();
-				if (previewImage) {
-					setPreviewImage(null);
-				} else if (deleteConfirm) {
-					setDeleteConfirm(null);
-				} else if (clearAllConfirm) {
-					setClearAllConfirm(false);
-				} else if (showSourcesPopup) {
-					setShowSourcesPopup(false);
-				} else if (writeAccessWarning) {
-					setWriteAccessWarning(null);
-				} else if (focusedCategory) {
-					setFocusedCategory(null);
-				} else {
-					onClose?.(hasChanged);
-				}
-			}
+		if (!backHandlerRef) return undefined;
+		backHandlerRef.current = () => {
+			if (previewImage) { setPreviewImage(null); return true; }
+			if (deleteConfirm) { setDeleteConfirm(null); return true; }
+			if (clearAllConfirm) { setClearAllConfirm(false); return true; }
+			if (showSourcesPopup) { setShowSourcesPopup(false); return true; }
+			if (writeAccessWarning) { setWriteAccessWarning(null); return true; }
+			if (focusedCategory) { setFocusedCategory(null); return true; }
+			return false;
 		};
-		window.addEventListener('keydown', handleKey, true);
-		return () => window.removeEventListener('keydown', handleKey, true);
-	}, [open, focusedCategory, previewImage, deleteConfirm, clearAllConfirm, showSourcesPopup, writeAccessWarning, hasChanged, onClose]);
+		return () => { if (backHandlerRef) backHandlerRef.current = null; };
+	}, [backHandlerRef, previewImage, deleteConfirm, clearAllConfirm, showSourcesPopup, writeAccessWarning, focusedCategory]);
 
 	// History Navigation
 	const navigateToItem = useCallback(async (itemId) => {
@@ -438,7 +473,7 @@ const ChangeArtworkModal = ({open, item: initialItem, api, serverUrl, onClose, o
 
 		if (onlyShowInterfaceLanguage) {
 			const lang = img.Language?.toLowerCase();
-			const currentLang = (typeof navigator !== 'undefined' ? (navigator.language || 'en').split('-')[0] : 'en').toLowerCase();
+			const currentLang = (settings.uiLanguage || 'en').split('-')[0].toLowerCase();
 			if (lang && lang !== 'all' && lang !== 'none' && lang !== 'mul' && lang !== currentLang) {
 				return false;
 			}
@@ -455,7 +490,22 @@ const ChangeArtworkModal = ({open, item: initialItem, api, serverUrl, onClose, o
 		}
 
 		return true;
-	}, [deselectedSources, onlyShowInterfaceLanguage, selectedResolution]);
+	}, [deselectedSources, onlyShowInterfaceLanguage, selectedResolution, settings.uiLanguage]);
+
+	// Filtered remote images and the size class for the expanded grid, computed
+	// once rather than per card.
+	const gridRemoteImages = useMemo(
+		() => (focusedCategory ? (remoteImages[focusedCategory] || []).filter(shouldShowImage) : []),
+		[focusedCategory, remoteImages, shouldShowImage]
+	);
+	const gridSizeClass = useMemo(
+		() => (focusedCategory ? css[getCardSizeClass(focusedCategory, activeItem?.Type)] : ''),
+		[focusedCategory, activeItem]
+	);
+	const gridImageWidth = useMemo(
+		() => (focusedCategory ? getImageDimensions(focusedCategory, activeItem?.Type).width : 0),
+		[focusedCategory, activeItem]
+	);
 
 	// Toggle filters
 	const toggleLanguageFilter = useCallback(() => {
@@ -706,6 +756,7 @@ const ChangeArtworkModal = ({open, item: initialItem, api, serverUrl, onClose, o
 								const remoteList = (remoteImages[category] || []).filter(shouldShowImage);
 								const loading = loadingCategories[category];
 								const dims = getImageDimensions(category, activeItem.Type);
+								const sizeClass = css[getCardSizeClass(category, activeItem.Type)];
 
 								return (
 									<div key={category} className={css.categorySection}>
@@ -730,8 +781,7 @@ const ChangeArtworkModal = ({open, item: initialItem, api, serverUrl, onClose, o
 												{currentTags.map((tag, idx) => (
 													<SpottableDiv
 														key={`current-${tag}-${idx}`}
-														className={css.cardWrapper}
-														style={{width: dims.width, height: dims.height}}
+														className={`${css.cardWrapper} ${sizeClass}`}
 													>
 														<img
 															src={getImageUrl(serverUrl, activeItem.Id, category, {maxWidth: 400, tag})}
@@ -752,7 +802,7 @@ const ChangeArtworkModal = ({open, item: initialItem, api, serverUrl, onClose, o
 
 												{/* Remote Images (subset for list view) */}
 												{loading && (
-													<div className={css.loaderCard} style={{width: dims.width, height: dims.height}}>
+													<div className={`${css.loaderCard} ${sizeClass}`}>
 														<div className={css.spinner} />
 													</div>
 												)}
@@ -761,9 +811,8 @@ const ChangeArtworkModal = ({open, item: initialItem, api, serverUrl, onClose, o
 													const optimizedUrl = getOptimizedRemoteImageUrl(img.ThumbnailUrl || img.Url, category, dims.width);
 													return (
 														<SpottableDiv
-															key={`remote-${idx}`}
-															className={css.cardWrapper}
-															style={{width: dims.width, height: dims.height}}
+															key={`remote-${img.Url || idx}`}
+															className={`${css.cardWrapper} ${sizeClass}`}
 															data-category={category}
 															data-index={idx}
 															onClick={handleRemoteCardClick}
@@ -780,7 +829,7 @@ const ChangeArtworkModal = ({open, item: initialItem, api, serverUrl, onClose, o
 												})}
 
 												{!loading && currentTags.length === 0 && remoteList.length === 0 && (
-													<div className={css.emptyCard} style={{width: dims.width, height: dims.height}}>
+													<div className={`${css.emptyCard} ${sizeClass}`}>
 														<span>{$L('No artwork found')}</span>
 													</div>
 												)}
@@ -799,7 +848,7 @@ const ChangeArtworkModal = ({open, item: initialItem, api, serverUrl, onClose, o
 									onClick={handleCloseGridClick}
 									spotlightId="grid-back-btn"
 								>
-									<svg viewBox="0 0 24 24" style={{width: 24, height: 24, marginRight: 8}}><path fill="currentColor" d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/></svg>
+									<svg viewBox="0 0 24 24" className={css.backBtnIcon}><path fill="currentColor" d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/></svg>
 									{$L('Back')}
 								</SpottableButton>
 								<h2 className={css.gridTitle}>
@@ -825,12 +874,10 @@ const ChangeArtworkModal = ({open, item: initialItem, api, serverUrl, onClose, o
 								<div className={css.gridContent}>
 									{/* Current Images */}
 									{getCurrentTags(activeItem, focusedCategory).map((tag, idx) => {
-										const dims = getImageDimensions(focusedCategory, activeItem.Type);
 										return (
 											<SpottableDiv
 												key={`grid-current-${tag}-${idx}`}
-												className={css.cardWrapper}
-												style={{width: dims.width, height: dims.height}}
+												className={`${css.cardWrapper} ${gridSizeClass}`}
 											>
 												<img
 													src={getImageUrl(serverUrl, activeItem.Id, focusedCategory, {maxWidth: 400, tag})}
@@ -851,14 +898,12 @@ const ChangeArtworkModal = ({open, item: initialItem, api, serverUrl, onClose, o
 									})}
 
 									{/* Remote Images in Grid */}
-									{(remoteImages[focusedCategory] || []).filter(shouldShowImage).map((img, idx) => {
-										const dims = getImageDimensions(focusedCategory, activeItem.Type);
-										const optimizedUrl = getOptimizedRemoteImageUrl(img.ThumbnailUrl || img.Url, focusedCategory, dims.width);
+									{gridRemoteImages.map((img, idx) => {
+										const optimizedUrl = getOptimizedRemoteImageUrl(img.ThumbnailUrl || img.Url, focusedCategory, gridImageWidth);
 										return (
 											<SpottableDiv
-												key={`grid-remote-${idx}`}
-												className={css.cardWrapper}
-												style={{width: dims.width, height: dims.height}}
+												key={`grid-remote-${img.Url || idx}`}
+												className={`${css.cardWrapper} ${gridSizeClass}`}
 												data-category={focusedCategory}
 												data-index={idx}
 												onClick={handleRemoteCardClick}
@@ -873,6 +918,12 @@ const ChangeArtworkModal = ({open, item: initialItem, api, serverUrl, onClose, o
 											</SpottableDiv>
 										);
 									})}
+
+									{getCurrentTags(activeItem, focusedCategory).length === 0 && gridRemoteImages.length === 0 && (
+										<div className={css.emptyCard}>
+											<span>{$L('No artwork found')}</span>
+										</div>
+									)}
 								</div>
 							</Scroller>
 						</div>
