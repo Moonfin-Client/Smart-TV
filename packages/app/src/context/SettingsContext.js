@@ -39,31 +39,32 @@ const DEFAULT_HOME_ROWS = [
 	{id: 'resumeaudio', name: 'Continue Listening', enabled: false, order: 31},
 	{id: 'activerecordings', name: 'Recordings', enabled: false, order: 32},
 	{id: 'livetv', name: 'Live TV', enabled: false, order: 33},
-	{id: 'seerr_recent_requests', name: 'My Requests', enabled: false, order: 34},
-	{id: 'seerr_trending', name: 'Trending Now', enabled: false, order: 35},
-	{id: 'seerr_popular_movies', name: 'Popular Movies', enabled: false, order: 36},
-	{id: 'seerr_popular_series', name: 'Popular TV Shows', enabled: false, order: 37},
-	{id: 'seerr_upcoming_movies', name: 'Upcoming Movies', enabled: false, order: 38},
-	{id: 'seerr_upcoming_series', name: 'Upcoming TV Shows', enabled: false, order: 39},
-	{id: 'seerr_movie_genres', name: 'Browse Movies by Genre', enabled: false, order: 40},
-	{id: 'seerr_series_genres', name: 'Browse TV by Genre', enabled: false, order: 41},
-	{id: 'seerr_studios', name: 'Browse by Studio', enabled: false, order: 42},
-	{id: 'seerr_networks', name: 'Browse by Network', enabled: false, order: 43},
-	{id: 'tmdb_popular_movies', name: 'TMDB Popular Movies', enabled: false, order: 44},
-	{id: 'tmdb_top_rated_movies', name: 'TMDB Top Rated Movies', enabled: false, order: 45},
-	{id: 'tmdb_now_playing_movies', name: 'TMDB Now Playing Movies', enabled: false, order: 46},
-	{id: 'tmdb_upcoming_movies', name: 'TMDB Upcoming Movies', enabled: false, order: 47},
-	{id: 'tmdb_popular_tv', name: 'TMDB Popular TV', enabled: false, order: 48},
-	{id: 'tmdb_top_rated_tv', name: 'TMDB Top Rated TV', enabled: false, order: 49},
-	{id: 'tmdb_airing_today_tv', name: 'TMDB Airing Today TV', enabled: false, order: 50},
-	{id: 'tmdb_on_the_air_tv', name: 'TMDB On The Air TV', enabled: false, order: 51},
-	{id: 'tmdb_trending_movie_daily', name: 'TMDB Trending Movies (Daily)', enabled: false, order: 52},
-	{id: 'tmdb_trending_movie_weekly', name: 'TMDB Trending Movies (Weekly)', enabled: false, order: 53},
-	{id: 'tmdb_trending_tv_daily', name: 'TMDB Trending TV (Daily)', enabled: false, order: 54},
-	{id: 'tmdb_trending_tv_weekly', name: 'TMDB Trending TV (Weekly)', enabled: false, order: 55},
-	{id: 'tmdb_trending_all_weekly', name: 'TMDB Trending All (Weekly)', enabled: false, order: 56},
-	{id: 'radarr_calendar', name: 'Radarr Upcoming', enabled: false, order: 57},
-	{id: 'sonarr_calendar', name: 'Sonarr Upcoming', enabled: false, order: 58}
+	{id: 'seerr_recent_requests', name: 'Recent Requests', enabled: false, order: 34},
+	{id: 'seerr_recently_added', name: 'Recently Added', enabled: false, order: 35},
+	{id: 'seerr_trending', name: 'Trending Now', enabled: false, order: 36},
+	{id: 'seerr_popular_movies', name: 'Popular Movies', enabled: false, order: 37},
+	{id: 'seerr_popular_series', name: 'Popular TV Shows', enabled: false, order: 38},
+	{id: 'seerr_upcoming_movies', name: 'Upcoming Movies', enabled: false, order: 39},
+	{id: 'seerr_upcoming_series', name: 'Upcoming TV Shows', enabled: false, order: 40},
+	{id: 'seerr_movie_genres', name: 'Browse Movies by Genre', enabled: false, order: 41},
+	{id: 'seerr_series_genres', name: 'Browse TV by Genre', enabled: false, order: 42},
+	{id: 'seerr_studios', name: 'Browse by Studio', enabled: false, order: 43},
+	{id: 'seerr_networks', name: 'Browse by Network', enabled: false, order: 44},
+	{id: 'tmdb_popular_movies', name: 'TMDB Popular Movies', enabled: false, order: 45},
+	{id: 'tmdb_top_rated_movies', name: 'TMDB Top Rated Movies', enabled: false, order: 46},
+	{id: 'tmdb_now_playing_movies', name: 'TMDB Now Playing Movies', enabled: false, order: 47},
+	{id: 'tmdb_upcoming_movies', name: 'TMDB Upcoming Movies', enabled: false, order: 48},
+	{id: 'tmdb_popular_tv', name: 'TMDB Popular TV', enabled: false, order: 49},
+	{id: 'tmdb_top_rated_tv', name: 'TMDB Top Rated TV', enabled: false, order: 50},
+	{id: 'tmdb_airing_today_tv', name: 'TMDB Airing Today TV', enabled: false, order: 51},
+	{id: 'tmdb_on_the_air_tv', name: 'TMDB On The Air TV', enabled: false, order: 52},
+	{id: 'tmdb_trending_movie_daily', name: 'TMDB Trending Movies (Daily)', enabled: false, order: 53},
+	{id: 'tmdb_trending_movie_weekly', name: 'TMDB Trending Movies (Weekly)', enabled: false, order: 54},
+	{id: 'tmdb_trending_tv_daily', name: 'TMDB Trending TV (Daily)', enabled: false, order: 55},
+	{id: 'tmdb_trending_tv_weekly', name: 'TMDB Trending TV (Weekly)', enabled: false, order: 56},
+	{id: 'tmdb_trending_all_weekly', name: 'TMDB Trending All (Weekly)', enabled: false, order: 57},
+	{id: 'radarr_calendar', name: 'Radarr Upcoming', enabled: false, order: 58},
+	{id: 'sonarr_calendar', name: 'Sonarr Upcoming', enabled: false, order: 59}
 ];
 
 const defaultSettings = {
@@ -291,7 +292,7 @@ const SERVER_TO_TV_ROW = {
 	'imdb_top_english_movies': 'imdb-top-english'
 };
 
-export {TV_TO_SERVER_ROW};
+export {TV_TO_SERVER_ROW, SERVER_TO_TV_ROW};
 
 const mergeHomeRows = (rows) => {
 	if (!Array.isArray(rows)) return [...DEFAULT_HOME_ROWS];
@@ -688,9 +689,13 @@ export function SettingsProvider({children}) {
 			serverCredsRef.current = {serverUrl, token};
 
 			let adminDefaults = null;
+			let pluginDetected = false;
 			try {
 				const ping = await moonfinPing(serverUrl, token);
-				if (ping?.defaultSettings) adminDefaults = ping.defaultSettings;
+				if (ping) {
+					pluginDetected = true;
+					if (ping.defaultSettings) adminDefaults = ping.defaultSettings;
+				}
 			} catch (e) { /* non-critical */ }
 
 			let themesPayload = null;
@@ -715,12 +720,21 @@ export function SettingsProvider({children}) {
 			const serverData = await getMoonfinSettings(serverUrl, token);
 			if (!serverData) {
 				setSettings((prev) => {
-					if (!prev.customThemeId || getAvailableThemes()[prev.customThemeId]) {
-						return prev;
+					let changed = false;
+					const updated = {...prev};
+					if (pluginDetected && !prev.useMoonfinPlugin) {
+						updated.useMoonfinPlugin = true;
+						changed = true;
 					}
-					const updated = {...prev, customThemeId: ''};
-					saveToStorage('settings', updated);
-					return updated;
+					if (prev.customThemeId && !getAvailableThemes()[prev.customThemeId]) {
+						updated.customThemeId = '';
+						changed = true;
+					}
+					if (changed) {
+						saveToStorage('settings', updated);
+						return updated;
+					}
+					return prev;
 				});
 				return;
 			}
@@ -728,26 +742,66 @@ export function SettingsProvider({children}) {
 			const resolved = resolveFromEnvelope(serverData, adminDefaults);
 
 			const hasServerValues = resolved.tmdbApiKey !== undefined || SYNCABLE_KEYS.some(key => resolved[key] !== undefined);
-			if (!hasServerValues) return;
-
+			if (!hasServerValues && !pluginDetected) return;
 			setSettings(prev => {
-				const updated = {...prev};
+				const nextValues = {};
+				let useMoonfinPlugin = prev.useMoonfinPlugin;
+				if (pluginDetected) {
+					useMoonfinPlugin = true;
+				}
 				for (const key of SYNCABLE_KEYS) {
-					if (resolved[key] !== undefined) updated[key] = resolved[key];
+					nextValues[key] = resolved[key] !== undefined ? resolved[key] : prev[key];
 				}
-				if (resolved.tmdbApiKey !== undefined) updated.tmdbApiKey = resolved.tmdbApiKey;
-				updated.homeRowsStyle = normalizeHomeRowsStyle(updated.homeRowsStyle);
-				updated.detailScreenStyle = normalizeDetailScreenStyle(updated.detailScreenStyle);
-				if (updated.customThemeId && !getAvailableThemes()[updated.customThemeId]) {
-					updated.customThemeId = '';
-				}
-				if (!isBuiltInThemeId(updated.visualTheme)) {
-					updated.visualTheme = 'moonfin';
-				}
-				saveToStorage('settings', updated);
-				return updated;
-			});
+				const tmdbApiKey = resolved.tmdbApiKey !== undefined ? resolved.tmdbApiKey : prev.tmdbApiKey;
+				const homeRowsStyle = normalizeHomeRowsStyle(nextValues.homeRowsStyle !== undefined ? nextValues.homeRowsStyle : prev.homeRowsStyle);
+				const detailScreenStyle = normalizeDetailScreenStyle(nextValues.detailScreenStyle !== undefined ? nextValues.detailScreenStyle : prev.detailScreenStyle);
 
+				let customThemeId = nextValues.customThemeId !== undefined ? nextValues.customThemeId : prev.customThemeId;
+				if (customThemeId && !getAvailableThemes()[customThemeId]) {
+					customThemeId = '';
+				}
+				let visualTheme = nextValues.visualTheme !== undefined ? nextValues.visualTheme : prev.visualTheme;
+				if (!isBuiltInThemeId(visualTheme)) {
+					visualTheme = 'moonfin';
+				}
+
+				// Check changes
+				let changed = false;
+				if (useMoonfinPlugin !== prev.useMoonfinPlugin) changed = true;
+				if (tmdbApiKey !== prev.tmdbApiKey) changed = true;
+				if (homeRowsStyle !== prev.homeRowsStyle) changed = true;
+				if (detailScreenStyle !== prev.detailScreenStyle) changed = true;
+				if (customThemeId !== prev.customThemeId) changed = true;
+				if (visualTheme !== prev.visualTheme) changed = true;
+
+				for (const key of SYNCABLE_KEYS) {
+					const newVal = nextValues[key];
+					const oldVal = prev[key];
+					if (Array.isArray(newVal) && Array.isArray(oldVal)) {
+						if (JSON.stringify(newVal) !== JSON.stringify(oldVal)) {
+							changed = true;
+						}
+					} else if (newVal !== oldVal) {
+						changed = true;
+					}
+				}
+
+				if (changed) {
+					const updated = {
+						...prev,
+						...nextValues,
+						useMoonfinPlugin,
+						tmdbApiKey,
+						homeRowsStyle,
+						detailScreenStyle,
+						customThemeId,
+						visualTheme
+					};
+					saveToStorage('settings', updated);
+					return updated;
+				}
+				return prev;
+			});
 		} catch (e) {
 			console.warn('[Settings] Server sync failed:', e.message);
 		}

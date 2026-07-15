@@ -168,7 +168,7 @@ const ModernMediaRow = ({
 						const isLast = index === items.length - 1;
 						return (
 							<ModernMediaCard
-								key={`${keyPrefix}-${item.Id}`}
+								key={`${keyPrefix}-${item.Id}-${index}`}
 								item={item}
 								serverUrl={serverUrl}
 								onSelect={handleSelect}

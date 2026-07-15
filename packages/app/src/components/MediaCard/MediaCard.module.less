@@ -227,3 +227,35 @@
 	@import '../../styles/mixins.less';
 	.watched-badge();
 }
+
+.genreOverlay {
+	position: absolute;
+	top: 0;
+	left: 0;
+	right: 0;
+	bottom: 0;
+	background-color: rgba(0, 0, 0, 0.45);
+	z-index: 1;
+	border-radius: var(--theme-card-radius, 20px);
+}
+
+.genreTitle {
+	position: absolute;
+	top: 0;
+	left: 0;
+	right: 0;
+	bottom: 0;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	padding: 12px;
+	z-index: 2;
+	color: rgba(255, 255, 255, 0.9);
+	font-size: 26px;
+	font-weight: 700;
+	letter-spacing: 0.15em;
+	text-align: center;
+	text-transform: uppercase;
+	pointer-events: none;
+	word-break: break-word;
+}

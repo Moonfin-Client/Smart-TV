@@ -41,6 +41,20 @@ const MediaCard = ({item, serverUrl, cardType = 'portrait', onSelect, onFocusIte
 		const imageType = settings.homeRowsImageType || 'poster';
 		const providerIds = item.ProviderIds || {};
 
+		if (item.Type === 'Genre' && item._representative) {
+			const rep = item._representative;
+			const repServerUrl = itemServerUrl;
+			if (imageType === 'thumb' && rep.ImageTags?.Thumb) {
+				return getImageUrl(repServerUrl, rep.Id, 'Thumb', {maxWidth: 400, quality: 80});
+			}
+			if (imageType === 'backdrop' && rep.BackdropImageTags?.length > 0) {
+				return getImageUrl(repServerUrl, rep.Id, 'Backdrop', {maxWidth: 400, quality: 80});
+			}
+			if (rep.ImageTags?.Primary) {
+				return getImageUrl(repServerUrl, rep.Id, 'Primary', {maxHeight: 300, quality: 80});
+			}
+		}
+
 		if (isLandscape && item.Type === 'Episode') {
 			if (settings.useSeriesThumbnails && item.SeriesId && item.SeriesPrimaryImageTag) {
 				return getImageUrl(itemServerUrl, item.SeriesId, 'Primary', {maxHeight: 300, quality: 80});
@@ -98,7 +112,7 @@ const MediaCard = ({item, serverUrl, cardType = 'portrait', onSelect, onFocusIte
 		}
 
 		return null;
-	}, [isLandscape, item.Type, item.ImageTags?.Primary, item.ImageTags?.Thumb, item.ImageTags?.Logo, item.Id, item.ParentThumbItemId, item.ParentBackdropItemId, item.BackdropImageTags, item.ParentLogoItemId, item.AlbumId, item.AlbumPrimaryImageTag, item.SeriesId, item.SeriesPrimaryImageTag, item.ProviderIds, item._externalPosterUrl, itemServerUrl, settings.homeRowsImageType, settings.useSeriesThumbnails]);
+	}, [isLandscape, item.Type, item.ImageTags?.Primary, item.ImageTags?.Thumb, item.ImageTags?.Logo, item.Id, item.ParentThumbItemId, item.ParentBackdropItemId, item.BackdropImageTags, item.ParentLogoItemId, item.AlbumId, item.AlbumPrimaryImageTag, item.SeriesId, item.SeriesPrimaryImageTag, item.ProviderIds, item._externalPosterUrl, itemServerUrl, settings.homeRowsImageType, settings.useSeriesThumbnails, item._representative]);
 
 	const handleClick = useCallback(() => {
 		onSelect?.(item);
@@ -155,15 +169,23 @@ const MediaCard = ({item, serverUrl, cardType = 'portrait', onSelect, onFocusIte
 		<SpottableDiv className={cardClass} onClick={handleClick} onFocus={handleFocus} style={sizeStyle} spotlightId={spotlightId} onSpotlightLeft={onSpotlightLeft} onSpotlightRight={onSpotlightRight}>
 			<div className={css.imageContainer}>
 				{imageUrl ? (
-					<img
-						className={css.image}
-						src={imageUrl}
-						alt={item.Name}
-						loading={eagerLoad ? 'eager' : 'lazy'}
-						width={cardWidth}
-						height={cardHeight}
-						style={imgSizeStyle}
-					/>
+					<>
+						<img
+							className={css.image}
+							src={imageUrl}
+							alt={item.Name}
+							loading={eagerLoad ? 'eager' : 'lazy'}
+							width={cardWidth}
+							height={cardHeight}
+							style={imgSizeStyle}
+						/>
+						{(item?.Type === 'Genre' || item?.Type === 'MusicGenre') && (
+							<>
+								<div className={css.genreOverlay} />
+								<div className={css.genreTitle}>{item.Name?.toUpperCase()}</div>
+							</>
+						)}
+					</>
 				) : (
 					<div className={css.placeholder} style={imgSizeStyle}>{item.Name?.[0]}</div>
 				)}
@@ -174,7 +196,7 @@ const MediaCard = ({item, serverUrl, cardType = 'portrait', onSelect, onFocusIte
 					</div>
 				)}
 
-				{showServerBadge && item._serverName && (
+				{(showServerBadge || item._external) && item._serverName && (
 					<div className={css.serverBadge}>{item._serverName}</div>
 				)}
 
@@ -202,6 +224,11 @@ const MediaCard = ({item, serverUrl, cardType = 'portrait', onSelect, onFocusIte
 					<>
 						<div className={css.title}>{displayTitle}</div>
 						<div className={css.episodeInfo}>{musicInfo}</div>
+					</>
+				) : item.Subtitle ? (
+					<>
+						<div className={css.title}>{displayTitle}</div>
+						<div className={css.episodeInfo}>{item.Subtitle}</div>
 					</>
 				) : (
 					<div className={css.title}>{displayTitle}</div>

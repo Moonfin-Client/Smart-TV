@@ -117,7 +117,7 @@ const proxyRequest = (url, options, timeoutMs, allowInsecure) => new Promise((re
 		method: options.method || 'GET',
 		headers: options.headers || {},
 		body: options.body,
-		timeoutMs: timeoutMs || 15000,
+		timeoutMs: timeoutMs || 30000,
 		insecure: !!allowInsecure
 	}));
 });

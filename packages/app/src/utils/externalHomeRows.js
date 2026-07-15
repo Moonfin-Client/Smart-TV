@@ -1,6 +1,7 @@
 import $L from '@enact/i18n/$L';
 import seerrApi from '../services/seerrApi';
 import {fetchCustomRow, constructSourceUrl} from '../services/externalRowsApi';
+import {fetchWithTimeout} from './fetchTimeout';
 
 const HOME_ROW_LIMIT = 20;
 
@@ -36,10 +37,23 @@ const yearOf = (item) => {
 	return Number.isFinite(year) ? year : undefined;
 };
 
+const getSourceName = (source, rowId) => {
+	const src = String(source || rowId || '').toLowerCase();
+	if (src.includes('tmdb')) return 'TMDb';
+	if (src.includes('imdb')) return 'IMDb';
+	if (src.includes('letterboxd')) return 'Letterboxd';
+	if (src.includes('trakt')) return 'Trakt';
+	if (src.includes('mdblist')) return 'MDBList';
+	if (src.includes('radarr')) return 'Radarr';
+	if (src.includes('sonarr')) return 'Sonarr';
+	if (src.includes('seerr')) return 'Seerr';
+	return source || rowId || '';
+};
+
 // Maps a plugin CustomRows item into a pseudo Jellyfin item. It carries
 // ProviderIds so it can be resolved to a real library item, and _seerr markers
 // so unresolved items fall back to the Seerr request detail.
-const normalizeExternalItem = (item, rowId) => {
+const normalizeExternalItem = (item, rowId, source) => {
 	const mediaType = item.type === 'Series' ? 'tv' : 'movie';
 	const tmdbId = item.providerIds?.Tmdb || null;
 	const imdbId = item.providerIds?.Imdb || null;
@@ -51,9 +65,11 @@ const normalizeExternalItem = (item, rowId) => {
 		ProductionYear: yearOf(item),
 		ProviderIds: item.providerIds,
 		UserRating: item.userRating,
+		Overview: item.overview || null,
 		_externalPosterUrl: item.posterUrl ? seerrApi.getImageUrl(item.posterUrl, 'w342') : null,
 		_externalBackdropUrl: item.backdropUrl ? seerrApi.getImageUrl(item.backdropUrl, 'w780') : null,
 		_external: true,
+		_serverName: getSourceName(source, rowId),
 		mediaInfo: {},
 		_seerr: true,
 		_seerrType: 'item',
@@ -96,7 +112,7 @@ export const fetchExternalPresetRow = async (rowId, options = {}) => {
 	const cfg = findPreset(rowId);
 	if (!cfg) return [];
 	const items = await fetchCustomRow({source: cfg.source, type: cfg.type, params: {}}, options);
-	return items.slice(0, HOME_ROW_LIMIT).map((it) => normalizeExternalItem(it, rowId));
+	return items.slice(0, HOME_ROW_LIMIT).map((it) => normalizeExternalItem(it, rowId, cfg.source));
 };
 
 // Fetches a user configured custom row. `row` is the stored config
@@ -105,8 +121,8 @@ export const fetchCustomHomeRow = async (row, options = {}) => {
 	const items = await fetchCustomRow({source: row.source, type: row.type, params: row.params}, options);
 	const sorted = applySorting(items, row.sortBy, row.sortOrder);
 	return sorted.slice(0, HOME_ROW_LIMIT).map((it) => {
-		const norm = normalizeExternalItem(it, row.id);
-		if (!row.showUserRatings) norm.UserRating = null;
+		const norm = normalizeExternalItem(it, row.id, row.source);
+		if (row.showUserRatings === false) norm.UserRating = null;
 		return norm;
 	});
 };
@@ -168,7 +184,7 @@ const formatCalendarDate = (dateStr) => {
 
 const arrGet = async (url) => {
 	try {
-		const res = await fetch(url);
+		const res = await fetchWithTimeout(url, {}, 5000);
 		if (!res.ok) return [];
 		const data = await res.json();
 		return Array.isArray(data) ? data : [];
@@ -202,6 +218,21 @@ const fetchRadarrItems = async (settings) => {
 		if (!upcoming.length) continue;
 		const soonest = upcoming.sort((a, b) => a - b)[0];
 		const tmdbId = m.tmdbId ? String(m.tmdbId) : null;
+
+		let releaseType = '';
+		const soonestTime = soonest.getTime();
+		if (m.inCinemas && new Date(m.inCinemas).getTime() === soonestTime) {
+			releaseType = $L('Cinema: ');
+		} else if (m.digitalRelease && new Date(m.digitalRelease).getTime() === soonestTime) {
+			releaseType = $L('Digital: ');
+		} else if (m.physicalRelease && new Date(m.physicalRelease).getTime() === soonestTime) {
+			releaseType = $L('Physical: ');
+		}
+
+		const dateStr = settings.radarrCalendarShowDate ? formatCalendarDate(soonest.toISOString()) : '';
+		const subtitle = dateStr ? `${releaseType}${dateStr}` : '';
+		const fanart = m.images?.find((i) => i.coverType === 'fanart');
+
 		results.push({
 			Id: `cal-radarr-${tmdbId || m.id}`,
 			Name: m.title,
@@ -209,9 +240,12 @@ const fetchRadarrItems = async (settings) => {
 			ProductionYear: m.year || undefined,
 			ProviderIds: {Tmdb: tmdbId},
 			_externalPosterUrl: posterFrom(m.images),
+			_externalBackdropUrl: fanart ? (fanart.remoteUrl || fanart.url || null) : null,
 			_external: true,
 			_calendarDate: soonest.toISOString(),
-			Subtitle: settings.radarrCalendarShowDate ? formatCalendarDate(soonest.toISOString()) : '',
+			Subtitle: subtitle,
+			Overview: m.overview || '',
+			_serverName: 'Radarr',
 			mediaInfo: {},
 			_seerr: true,
 			_seerrType: 'item',
@@ -257,6 +291,8 @@ const fetchSonarrItems = async (settings) => {
 			? `S${ep.seasonNumber}E${ep.episodeNumber}` : '';
 		const dateStr = settings.sonarrCalendarShowDate ? formatCalendarDate(air) : '';
 		const subtitle = [epInfo, dateStr].filter(Boolean).join(' - ');
+		const fanart = series.images?.find((i) => i.coverType === 'fanart');
+
 		return {
 			Id: `cal-sonarr-${tmdbId || series.id}`,
 			Name: series.title,
@@ -264,9 +300,12 @@ const fetchSonarrItems = async (settings) => {
 			ProductionYear: series.year || undefined,
 			ProviderIds: {Tmdb: tmdbId},
 			_externalPosterUrl: posterFrom(series.images),
+			_externalBackdropUrl: fanart ? (fanart.remoteUrl || fanart.url || null) : null,
 			_external: true,
 			_calendarDate: new Date(air).toISOString(),
 			Subtitle: subtitle,
+			Overview: series.overview || ep.overview || '',
+			_serverName: 'Sonarr',
 			mediaInfo: {},
 			_seerr: true,
 			_seerrType: 'item',

@@ -10,7 +10,7 @@ const headers = {
 // Fetches the Theme Store catalog (index.json). Returns an array of
 // {id, displayName, description, file}.
 export const fetchThemeStoreCatalog = async () => {
-	const response = await fetchWithTimeout(`${BASE_URL}index.json`, {headers}, 15000);
+	const response = await fetchWithTimeout(`${BASE_URL}index.json`, {headers}, 30000);
 	if (!response.ok) throw new Error(`HTTP ${response.status}`);
 	const data = JSON.parse(await response.text());
 	const themes = Array.isArray(data?.themes) ? data.themes : [];
@@ -27,7 +27,7 @@ export const fetchThemeStoreCatalog = async () => {
 // Fetches a single theme JSON by its catalog file path. Returns the raw object;
 // caller validates via parseThemeSpec.
 export const fetchThemeJson = async (file) => {
-	const response = await fetchWithTimeout(`${BASE_URL}${file}`, {headers}, 10000);
+	const response = await fetchWithTimeout(`${BASE_URL}${file}`, {headers}, 30000);
 	if (!response.ok) throw new Error(`HTTP ${response.status}`);
 	return JSON.parse(await response.text());
 };

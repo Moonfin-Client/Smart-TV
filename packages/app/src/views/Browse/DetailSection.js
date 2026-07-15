@@ -36,6 +36,9 @@ const DetailSection = forwardRef(({
 		focusItemTimeoutRef.current = setTimeout(() => {
 			setFocusedItem(item);
 			onFocusedItemChange?.(item);
+			if (item._seerr || item._external || item._resolvedFromExternal) {
+				return;
+			}
 			const needsBackdrop = !item.BackdropImageTags?.length && !item.ParentBackdropImageTags?.length;
 			const needsProviderIds = !item.ProviderIds;
 			if (needsBackdrop || needsProviderIds) {
@@ -70,6 +73,9 @@ const DetailSection = forwardRef(({
 						{focusedItem.Type === 'Episode' ? focusedItem.SeriesName : focusedItem.Name}
 					</h2>
 					<div className={css.detailInfoRow}>
+						{focusedItem.UserRating && (
+							<span className={css.infoBadge}>{focusedItem.UserRating}</span>
+						)}
 						{focusedItem.ProductionYear && (
 							<span className={css.infoBadge}>{focusedItem.ProductionYear}</span>
 						)}

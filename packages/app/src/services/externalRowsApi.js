@@ -1,4 +1,5 @@
 import {getAuthHeader, getServerUrl} from './jellyfinApi';
+import {fetchWithTimeout} from '../utils/fetchTimeout';
 
 // Thin client for the Moonfin plugin external home row endpoints. Everything
 // except the Radarr and Sonarr calendars comes from one generic endpoint,
@@ -22,6 +23,7 @@ const normalizeItem = (raw) => {
 		backdropUrl: raw.backdropUrl ?? raw.BackdropUrl ?? null,
 		userRating: raw.userRating ?? raw.UserRating ?? null,
 		rating: raw.rating ?? raw.Rating ?? null,
+		overview: raw.overview ?? raw.Overview ?? raw.description ?? raw.Description ?? '',
 		providerIds: {
 			Tmdb: providerIds.Tmdb ?? providerIds.tmdb ?? null,
 			Imdb: providerIds.Imdb ?? providerIds.imdb ?? null,
@@ -48,7 +50,7 @@ export const fetchCustomRow = async ({source, type, params = {}}, options = {}) 
 
 	// The plugin caches on source:type:sha256(params), so a nocache marker forces
 	// a fresh fetch when the user asks to refresh.
-	const sentParams = options.forceRefresh ? {...params, _nocache: Date.now()} : params;
+	const sentParams = options.forceRefresh ? {...params, _nocache: String(Date.now())} : params;
 
 	try {
 		const url = `${baseUrl}/Moonfin/CustomRows/Items`
@@ -59,7 +61,7 @@ export const fetchCustomRow = async ({source, type, params = {}}, options = {}) 
 		const fetchOptions = {headers: {'Authorization': getAuthHeader()}};
 		if (options.signal) fetchOptions.signal = options.signal;
 
-		const response = await fetch(url, fetchOptions);
+		const response = await fetchWithTimeout(url, fetchOptions, options.timeoutMs || 10000);
 		if (!response.ok) return cache[key]?.items || [];
 
 		const data = await response.json();

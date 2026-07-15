@@ -605,7 +605,12 @@ const buildCollectionPluginSections = (collections, sortBy, sortOrder) => {
 };
 
 const buildGenrePluginSections = (genres, includeItemTypes, sortBy, sortOrder) => {
-	const items = Array.isArray(genres) ? genres : [];
+	let items = Array.isArray(genres) ? genres : [];
+	if (sortBy === 'SortName' || sortBy === 'Name') {
+		items = [...items].sort((a, b) => (a.Name || '').localeCompare(b.Name || ''));
+	} else if (sortBy === 'Random') {
+		items = [...items].sort(() => Math.random() - 0.5);
+	}
 	return items.map((genre, index) => {
 		const genreId = genre?.Id || genre?.Name || `genre-${index + 1}`;
 		const genreName = genre?.Name || $L('Genre {index}').replace('{index}', String(index + 1));

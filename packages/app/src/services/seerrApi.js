@@ -826,6 +826,10 @@ const result = await request(`/request?filter=all&requestedBy=${requestedByUserI
 return result;
 };
 
+export const getRecentlyAdded = async (take = 20) => {
+return request(`/media?filter=allavailable&sort=mediaAdded&take=${take}`);
+};
+
 export const REQUEST_STATUS = {
 PENDING: 1,
 APPROVED: 2,
@@ -1033,6 +1037,7 @@ approveRequest,
 declineRequest,
 retryRequest,
 getMyRequests,
+getRecentlyAdded,
 REQUEST_STATUS,
 getRequestStatusText,
 requestMovie,

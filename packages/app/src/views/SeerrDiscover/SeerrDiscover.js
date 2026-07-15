@@ -23,7 +23,7 @@ const ITEMS_PER_PAGE = 9;
 
 let _rowConfigs;
 const getRowConfigs = () => (_rowConfigs ??= [
-	{id: 'myRequests', title: $L('My Requests'), type: 'request'},
+	{id: 'myRequests', title: $L('Recent Requests'), type: 'request'},
 	{id: 'trending', title: $L('Trending Now'), type: 'media', fetchFn: 'trending'},
 	{id: 'popularMovies', title: $L('Popular Movies'), type: 'media', fetchFn: 'trendingMovies'},
 	{id: 'popularTv', title: $L('Popular TV Shows'), type: 'media', fetchFn: 'trendingTv'},

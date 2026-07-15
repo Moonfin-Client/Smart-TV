@@ -135,7 +135,7 @@ const MediaRow = ({
 
 							return (
 								<MediaCard
-									key={`${keyPrefix}-${item.Id}`}
+									key={`${keyPrefix}-${item.Id}-${index}`}
 									item={item}
 									serverUrl={serverUrl}
 									cardType={cardType}
