@@ -21,6 +21,7 @@ import {fetchVideoStreamUrl, extractYouTubeIdFromUrl} from '../../services/youtu
 import {formatTime} from '../Player/PlayerConstants';
 import AddToPlaylistModal from '../../components/AddToPlaylistModal';
 import DeleteItemDialog from '../../components/DeleteItemDialog';
+import ChangeArtworkModal from '../../components/ChangeArtworkModal';
 import {toSubtitleLanguage, mapRemoteSubtitleOptions} from '../Player/remoteSubtitleUtils';
 import {getTmdbId, fetchTmdbSeasonRatings} from '../../services/mdblistApi';
 import {analyzeLogoBrightness} from '../../utils/imgUtils';
@@ -132,7 +133,7 @@ const getMediaBadges = (item, versionIndex = 0) => {
 };
 
 const Details = ({itemId, initialItem, onPlay, onSelectItem, onSelectPerson, onSelectStudio, onItemDeleted, backHandlerRef}) => {
-	const {api, serverUrl} = useAuth();
+	const {api, serverUrl, user} = useAuth();
 	const {settings} = useSettings();
 
 	// Cross-server support
@@ -146,6 +147,7 @@ const Details = ({itemId, initialItem, onPlay, onSelectItem, onSelectPerson, onS
 	const effectiveServerUrl = useMemo(() => {
 		return initialItem?._serverUrl || serverUrl;
 	}, [initialItem?._serverUrl, serverUrl]);
+
 
 	const tagWithServerInfo = useCallback((items) => {
 		if (!initialItem?._serverUrl) return items;
@@ -187,12 +189,36 @@ const Details = ({itemId, initialItem, onPlay, onSelectItem, onSelectPerson, onS
 	const [trailerStreamUrl, setTrailerStreamUrl] = useState(null);
 	const [showPlaylistModal, setShowPlaylistModal] = useState(false);
 	const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+	const [showArtworkModal, setShowArtworkModal] = useState(false);
 	const [toastMessage, setToastMessage] = useState(null);
 	const [episodeRatings, setEpisodeRatings] = useState({});
 	const [logoFailed, setLogoFailed] = useState(false);
 	const handleLogoError = useCallback(() => setLogoFailed(true), []);
 	const handleToastEnd = useCallback(() => setToastMessage(null), []);
 	const [invertLogo, setInvertLogo] = useState(false);
+
+	const canChangeArtwork = useMemo(() => {
+		if (!item) return false;
+		const type = item.Type;
+		const isMediaType =
+			type === 'Movie' ||
+			type === 'Episode' ||
+			type === 'Series' ||
+			type === 'Season' ||
+			type === 'Audio' ||
+			type === 'MusicAlbum' ||
+			type === 'BoxSet';
+		const isFolder =
+			type === 'Folder' ||
+			type === 'CollectionFolder' ||
+			type === 'UserView' ||
+			type === 'Genre' ||
+			type === 'MusicGenre';
+
+		return (isMediaType || isFolder) &&
+			jellyfinApi.getServerType() === 'jellyfin' &&
+			user?.Policy?.IsAdministrator;
+	}, [item, user]);
 
 	// Refs
 	const pageScrollerRef = useRef(null);
@@ -931,6 +957,27 @@ const Details = ({itemId, initialItem, onPlay, onSelectItem, onSelectPerson, onS
 		window.requestAnimationFrame(() => Spotlight.focus('details-action-buttons'));
 	}, []);
 
+	const refreshItem = useCallback(async () => {
+		try {
+			const data = await effectiveApi.getItemForDetail(itemId);
+			if (data) {
+				setItem(tagWithServerInfo(data));
+			}
+		} catch (err) {
+			console.error('[Details] Error refreshing item', err);
+		}
+	}, [effectiveApi, itemId, tagWithServerInfo]);
+
+	const handleOpenArtworkModal = useCallback(() => {
+		setShowArtworkModal(true);
+	}, []);
+
+	const handleCloseArtworkModal = useCallback(() => {
+		setShowArtworkModal(false);
+		refreshItem();
+		window.requestAnimationFrame(() => Spotlight.focus('details-action-buttons'));
+	}, [refreshItem]);
+
 	const handleConfirmDelete = useCallback(async () => {
 		try {
 			await effectiveApi.deleteItem(item.Id);
@@ -946,6 +993,7 @@ const Details = ({itemId, initialItem, onPlay, onSelectItem, onSelectPerson, onS
 	useEffect(() => {
 		if (!backHandlerRef) return;
 		backHandlerRef.current = () => {
+			if (showArtworkModal) { handleCloseArtworkModal(); return true; }
 			if (showDeleteDialog) { handleCloseDeleteDialog(); return true; }
 			if (showPlaylistModal) { handleClosePlaylistModal(); return true; }
 			if (activeModal) { closeModal(); return true; }
@@ -953,7 +1001,7 @@ const Details = ({itemId, initialItem, onPlay, onSelectItem, onSelectPerson, onS
 			return false;
 		};
 		return () => { if (backHandlerRef) backHandlerRef.current = null; };
-	}, [backHandlerRef, activeModal, showMediaInfo, showPlaylistModal, showDeleteDialog, closeModal, handleClosePlaylistModal, handleCloseDeleteDialog]);
+	}, [backHandlerRef, activeModal, showMediaInfo, showPlaylistModal, showDeleteDialog, showArtworkModal, closeModal, handleClosePlaylistModal, handleCloseDeleteDialog, handleCloseArtworkModal]);
 
 const handleSectionKeyDown = useCallback((ev) => {
 		const currentSpottable = ev.target.closest('.spottable');
@@ -1625,6 +1673,15 @@ const handleSectionKeyDown = useCallback((ev) => {
 				onConfirm={handleConfirmDelete}
 			/>
 
+			<ChangeArtworkModal
+				open={showArtworkModal}
+				item={item}
+				api={effectiveApi}
+				serverUrl={effectiveServerUrl}
+				onClose={handleCloseArtworkModal}
+				onSuccess={showToast}
+			/>
+
 			{toastMessage && (
 				<div className={css.toast} onAnimationEnd={handleToastEnd}>{toastMessage}</div>
 			)}
@@ -1640,6 +1697,8 @@ const handleSectionKeyDown = useCallback((ev) => {
 					key={item.Id}
 					item={item}
 					settings={settings}
+					canChangeArtwork={canChangeArtwork}
+					handleOpenArtworkModal={handleOpenArtworkModal}
 					effectiveApi={effectiveApi}
 					serverToken={initialItem?._serverAccessToken || jellyfinApi.getApiKey()}
 					effectiveServerUrl={effectiveServerUrl}

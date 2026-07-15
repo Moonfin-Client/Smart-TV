@@ -275,9 +275,6 @@ export const api = {
 	getResumeItems: (limit = 12) =>
 		request(`/Users/${currentUser}/Items/Resume?Limit=${limit}&MediaTypes=Video&Fields=${encodeURIComponent(HOME_ROW_ITEM_FIELDS)}`),
 
-	getResumeAudioItems: (limit = 20) =>
-		request(`/Users/${currentUser}/Items/Resume?Limit=${limit}&MediaTypes=Audio&Fields=${encodeURIComponent(HOME_ROW_ITEM_FIELDS)}`),
-
 	getNextUp: (limit = 24, seriesId = null) => {
 		let url = `/Shows/NextUp?UserId=${currentUser}&Limit=${limit}&Fields=${encodeURIComponent(HOME_ROW_ITEM_FIELDS)}`;
 		if (seriesId) url += `&SeriesId=${seriesId}`;
@@ -527,7 +524,28 @@ export const api = {
 	removeFromPlaylist: (playlistId, entryIds) =>
 		request(`/Playlists/${playlistId}/Items?EntryIds=${entryIds.join(',')}`, {
 			method: 'DELETE'
-		})
+		}),
+
+	getRemoteImages: (itemId, imageType) =>
+		request(`/Items/${itemId}/RemoteImages?Type=${imageType}&IncludeAllLanguages=true`),
+
+	downloadRemoteImage: (itemId, imageType, imageUrl) =>
+		request(`/Items/${itemId}/RemoteImages/Download?Type=${imageType}&ImageUrl=${encodeURIComponent(imageUrl)}`, {
+			method: 'POST'
+		}),
+
+	deleteItemImage: (itemId, imageType, imageIndex) => {
+		const indexSuffix = imageIndex !== undefined && imageIndex !== null ? `/${imageIndex}` : '';
+		return request(`/Items/${itemId}/Images/${imageType}${indexSuffix}`, {
+			method: 'DELETE'
+		});
+	},
+
+	getVirtualFolders: () =>
+		request('/Library/VirtualFolders'),
+
+	checkWriteAccess: () =>
+		request('/Moonfin/Libraries/CheckWriteAccess')
 };
 
 /**
@@ -799,6 +817,27 @@ export const createApiForServer = (serverUrl, token, userId, serverTypeOverride 
 
 		getThemeSongs: (itemId, inheritFromParent = true) =>
 			serverRequest(`/Items/${itemId}/ThemeSongs?UserId=${userId}&InheritFromParent=${inheritFromParent}`),
+
+		getRemoteImages: (itemId, imageType) =>
+			serverRequest(`/Items/${itemId}/RemoteImages?Type=${imageType}&IncludeAllLanguages=true`),
+
+		downloadRemoteImage: (itemId, imageType, imageUrl) =>
+			serverRequest(`/Items/${itemId}/RemoteImages/Download?Type=${imageType}&ImageUrl=${encodeURIComponent(imageUrl)}`, {
+				method: 'POST'
+			}),
+
+		deleteItemImage: (itemId, imageType, imageIndex) => {
+			const indexSuffix = imageIndex !== undefined && imageIndex !== null ? `/${imageIndex}` : '';
+			return serverRequest(`/Items/${itemId}/Images/${imageType}${indexSuffix}`, {
+				method: 'DELETE'
+			});
+		},
+
+		getVirtualFolders: () =>
+			serverRequest('/Library/VirtualFolders'),
+
+		checkWriteAccess: () =>
+			serverRequest('/Moonfin/Libraries/CheckWriteAccess'),
 
 		// Return server info for playback routing
 		getServerInfo: () => ({

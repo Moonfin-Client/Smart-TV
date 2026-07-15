@@ -50,7 +50,8 @@ const ModernDetailContent = (props) => {
 		handlePlay, handleResume, handleShuffle, handleTrailer, handleToggleWatched, handleToggleFavorite, handleGoToSeries,
 		handleOpenVersionModal, handleOpenAudioModal, handleOpenSubtitleModal, handleOpenMediaInfo, handleOpenPlaylistModal, handleOpenDeleteDialog,
 		handleChapterSelect, handleExtraSelect, handleTrackPlay,
-		onSelectItem, onSelectPerson, onSelectStudio
+		onSelectItem, onSelectPerson, onSelectStudio,
+		canChangeArtwork, handleOpenArtworkModal
 	} = props;
 
 	const hasTrailer = item.LocalTrailerCount > 0 || (item.RemoteTrailers?.length > 0) || isSeries;
@@ -440,6 +441,7 @@ const ModernDetailContent = (props) => {
 			{supportsMediaSourceSelection && <ActionButton path={DETAIL_ICON_PATHS.mediaInfo} label={$L('Media Info')} onClick={handleOpenMediaInfo} />}
 			<ActionButton path={DETAIL_ICON_PATHS.playlist} label={$L('Add to Playlist')} onClick={handleOpenPlaylistModal} />
 			{item.CanDelete && <ActionButton path={DETAIL_ICON_PATHS.delete} label={$L('Delete')} onClick={handleOpenDeleteDialog} />}
+			{canChangeArtwork && <ActionButton path={DETAIL_ICON_PATHS.artwork} label={$L('Change Artwork')} onClick={handleOpenArtworkModal} spotlightId="details-artwork-btn" />}
 		</RowContainer>
 	);
 
