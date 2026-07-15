@@ -2,7 +2,7 @@ import {useState, useEffect, useCallback, useRef, useMemo, useReducer} from 'rea
 import Spotlight from '@enact/spotlight';
 import $L from '@enact/i18n/$L';
 import {useAuth} from '../../context/AuthContext';
-import {useSettings, TV_TO_SERVER_ROW} from '../../context/SettingsContext';
+import {useSettings, TV_TO_SERVER_ROW, SERVER_TO_TV_ROW} from '../../context/SettingsContext';
 import {useSeerr} from '../../context/SeerrContext';
 import {ClassicMediaRow, ModernMediaRow} from '../../components/MediaRow';
 import SeerrTileRow from '../../components/SeerrTileRow';
@@ -15,7 +15,7 @@ import {getFromStorage, saveToStorage} from '../../services/storage';
 import {HOME_ROW_ITEM_FIELDS, resolveItemsByProviderIds} from '../../services/jellyfinApi';
 import {loadSinceYouWatchedRows, loadRewatchItems} from '../../services/homeRecommendations';
 import * as connectionPool from '../../services/connectionPool';
-import {getMoonfinMediaBar} from '../../services/seerrApi';
+import * as seerrApi from '../../services/seerrApi';
 import {toCssColor} from '../../theme/themeSpec';
 import DetailSection from './DetailSection';
 import FeaturedBanner from './FeaturedBanner';
@@ -35,7 +35,7 @@ const CACHE_TTL_VOLATILE = 5 * 60 * 1000;
 const CACHE_TTL_LIBRARIES = 30 * 60 * 1000;
 const VOLATILE_REFRESH_COOLDOWN_MS = 60 * 1000;
 const CACHE_SAVE_DEBOUNCE_MS = 3000;
-const STORAGE_KEY_BROWSE = 'browse_cache_v3';
+const STORAGE_KEY_BROWSE = 'browse_cache_v4';
 
 let cachedRowData = null;
 let cachedLibraries = null;
@@ -86,8 +86,9 @@ const FAVORITE_ROW_CONFIGS = [
 const FAVORITE_ROW_IDS = FAVORITE_ROW_CONFIGS.map((row) => row.id);
 
 const getSortOrderFromSortBy = (sortBy) => {
-	if (sortBy === 'SortName') return 'Ascending';
-	if (sortBy === 'Random') return 'Ascending';
+	const lower = (sortBy || '').toLowerCase();
+	if (lower === 'sortname' || lower === 'name') return 'Ascending';
+	if (lower === 'random') return 'Ascending';
 	return 'Descending';
 };
 
@@ -106,6 +107,14 @@ const getItemGenreNames = (item) => {
 	return [...directGenres, ...genreItems]
 		.map((name) => String(name).trim().toLowerCase())
 		.filter(Boolean);
+};
+
+const resolveExternalImageUrl = (url, width) => {
+	if (!url) return null;
+	if (url.startsWith('/')) {
+		return seerrApi.getImageUrl(url, width);
+	}
+	return url;
 };
 
 const filterItemsByExcludedGenres = (items, excludedGenres) => {
@@ -139,16 +148,35 @@ const browseInitialState = {
 
 function browseReducer(state, action) {
 	switch (action.type) {
-		case 'SET_INITIAL_DATA':
+		case 'SET_INITIAL_DATA': {
+			const unique = [];
+			const seen = new Set();
+			(action.rowData || []).forEach(row => {
+				if (row && row.id && !seen.has(row.id)) {
+					seen.add(row.id);
+					unique.push(row);
+				}
+			});
 			return {
 				...state,
 				isLoading: false,
-				allRowData: action.rowData,
+				allRowData: unique,
 				featuredItems: action.featuredItems || state.featuredItems,
 			};
-		case 'APPEND_ROWS':
+		}
+		case 'APPEND_ROWS': {
 			if (action.rows.length === 0) return state;
-			return { ...state, allRowData: [...state.allRowData, ...action.rows] };
+			const nextData = [...state.allRowData, ...action.rows];
+			const unique = [];
+			const seen = new Set();
+			nextData.forEach(row => {
+				if (row && row.id && !seen.has(row.id)) {
+					seen.add(row.id);
+					unique.push(row);
+				}
+			});
+			return { ...state, allRowData: unique };
+		}
 		case 'REFRESH_VOLATILE': {
 			const prevVolatile = new Map();
 			state.allRowData.forEach((row) => {
@@ -169,8 +197,17 @@ function browseReducer(state, action) {
 			}
 			return { ...state, allRowData: next };
 		}
-		case 'SET_ROW_DATA':
-			return { ...state, allRowData: action.rowData };
+		case 'SET_ROW_DATA': {
+			const unique = [];
+			const seen = new Set();
+			(action.rowData || []).forEach(row => {
+				if (row && row.id && !seen.has(row.id)) {
+					seen.add(row.id);
+					unique.push(row);
+				}
+			});
+			return { ...state, allRowData: unique };
+		}
 		case 'SET_LOADING':
 			if (state.isLoading === action.value) return state;
 			return { ...state, isLoading: action.value };
@@ -284,7 +321,7 @@ const Browse = ({
 			const s = settingsRef.current;
 
 			if (s.useMoonfinPlugin) {
-				const mediaBarResult = await getMoonfinMediaBar(serverUrl, accessToken, 'tv');
+				const mediaBarResult = await seerrApi.getMoonfinMediaBar(serverUrl, accessToken, 'tv');
 				if (mediaBarResult?.Items?.length) {
 					items = mediaBarResult.Items;
 				}
@@ -454,9 +491,18 @@ const Browse = ({
 
 	const filteredRows = useMemo(() => {
 		const enabledRowIds = homeRowsConfig.filter(r => r.enabled).map(r => r.id);
+		const enabledRowIdsSet = new Set(enabledRowIds);
+		enabledRowIds.forEach((id) => {
+			const mappedId = TV_TO_SERVER_ROW[id] || SERVER_TO_TV_ROW[id];
+			if (mappedId) enabledRowIdsSet.add(mappedId);
+		});
 		const enabledPluginIds = pluginSectionsConfig.filter((section) => section.enabled).map((section) => section.id);
 		const rowOrderMap = new Map();
-		homeRowsConfig.forEach((row) => rowOrderMap.set(row.id, row.order));
+		homeRowsConfig.forEach((row) => {
+			rowOrderMap.set(row.id, row.order);
+			const mappedId = TV_TO_SERVER_ROW[row.id] || SERVER_TO_TV_ROW[row.id];
+			if (mappedId) rowOrderMap.set(mappedId, row.order);
+		});
 		pluginSectionsConfig.forEach((section, index) => rowOrderMap.set(section.id, (section.order ?? index) + 1000));
 
 		const hiddenCWMap = parseHiddenMap(settings.hiddenContinueWatchingItems);
@@ -530,7 +576,7 @@ const Browse = ({
 				});
 
 				if (combinedItems.length > 0) {
-					if (enabledRowIds.includes('resume') || enabledRowIds.includes('nextup')) {
+					if (enabledRowIdsSet.has('resume') || enabledRowIdsSet.has('nextup')) {
 						result = [{
 							id: 'continue-nextup',
 							title: $L('Continue Watching'),
@@ -545,9 +591,9 @@ const Browse = ({
 				if (row.id === 'continue-nextup') return true;
 				if (row.isPluginRow) return enabledPluginIds.includes(row.id);
 				if (!isRowVisibleByGates(row.id)) return false;
-				if (row.isLatestRow) return enabledRowIds.includes('latest-media');
-				if (row.isRecentlyReleasedRow) return enabledRowIds.includes('recently-released');
-				return enabledRowIds.includes(row.id);
+				if (row.isLatestRow) return enabledRowIdsSet.has('latest-media') || enabledRowIdsSet.has('latestmedia');
+				if (row.isRecentlyReleasedRow) return enabledRowIdsSet.has('recently-released') || enabledRowIdsSet.has('recentlyreleased');
+				return enabledRowIdsSet.has(row.id) || enabledRowIdsSet.has(TV_TO_SERVER_ROW[row.id]) || enabledRowIdsSet.has(SERVER_TO_TV_ROW[row.id]);
 			});
 		} else {
 			const resumeRow = allRowData.find(r => r.id === 'resume');
@@ -571,18 +617,18 @@ const Browse = ({
 						return enabledPluginIds.includes(row.id);
 					}
 					if (row.id === 'resume' || row.id === 'nextup') {
-						return enabledRowIds.includes(row.id);
+						return enabledRowIdsSet.has(row.id);
 					}
 					if (row.isLatestRow) {
-						return enabledRowIds.includes('latest-media');
+						return enabledRowIdsSet.has('latest-media') || enabledRowIdsSet.has('latestmedia');
 					}
 					if (row.isRecentlyReleasedRow) {
-						return enabledRowIds.includes('recently-released');
+						return enabledRowIdsSet.has('recently-released') || enabledRowIdsSet.has('recentlyreleased');
 					}
 					if (!isRowVisibleByGates(row.id)) {
 						return false;
 					}
-					return enabledRowIds.includes(row.id);
+					return enabledRowIdsSet.has(row.id) || enabledRowIdsSet.has(TV_TO_SERVER_ROW[row.id]) || enabledRowIdsSet.has(SERVER_TO_TV_ROW[row.id]);
 				});
 		}
 
@@ -872,6 +918,7 @@ const Browse = ({
 	}, [serverUrl, user?.Id]);
 
 	useEffect(() => {
+		let cancelled = false;
 		const loadData = async () => {
 			// IMDb rows are only fetched by fetchAllData, so treat an enabled IMDb list as
 			// dynamic config. Otherwise enabling one shows nothing until the browse cache expires.
@@ -910,7 +957,10 @@ const Browse = ({
 			}
 
 			const persistedCache = await loadBrowseCache();
-			const hasValidPersistedCache = persistedCache && isCacheValid(persistedCache.timestamp, CACHE_TTL_LIBRARIES);
+			const hasValidPersistedCache = persistedCache &&
+				isCacheValid(persistedCache.timestamp, CACHE_TTL_LIBRARIES) &&
+				Array.isArray(persistedCache.libraries) &&
+				persistedCache.libraries.length > 0;
 
 			if (hasValidPersistedCache) {
 				dispatch({type: 'SET_ROW_DATA', rowData: persistedCache.rowData});
@@ -932,7 +982,7 @@ const Browse = ({
 
 		const fetchAllData = async () => {
 			try {
-				let libs, resumeItems, nextUp, userConfig, randomItems, recentlyPlayed, imdbResults = [];
+				let libs, resumeItems, nextUp, userConfig, randomItems, recentlyPlayed;
 
 				if (unifiedMode) {
 					const [libsArray, resumeArray, nextUpArray, randomArray] = await Promise.all([
@@ -949,52 +999,21 @@ const Browse = ({
 					recentlyPlayed = null;
 					// IMDb custom rows are single-server only, so imdbResults stays empty in unified mode.
 				} else {
-					const enabledImdbRows = homeRowsConfig.filter(
-						(row) => row.enabled && row.id.startsWith('imdb-')
-					);
-					const [results, imdbListResults] = await Promise.all([
-						Promise.all([
-							api.getLibraries(),
-							api.getResumeItems(),
-							api.getNextUp(),
-							api.getUserConfiguration().catch(() => null),
-							api.getRandomItems(settings.featuredContentType, settings.featuredItemCount).catch(() => null),
-							settings.mergeContinueWatchingNextUp ? api.getItems({
-								IncludeItemTypes: 'Episode',
-								Filters: 'IsPlayed',
-								Recursive: true,
-								SortBy: 'DatePlayed',
-								SortOrder: 'Descending',
-								Limit: 100,
-								Fields: 'UserData,SeriesId'
-							}) : Promise.resolve(null)
-						]),
-						Promise.all(
-							enabledImdbRows.map((row) => {
-								const serverId = TV_TO_SERVER_ROW[row.id] || row.id;
-								return api.getCustomRow('imdb', serverId)
-									.then((res) => {
-										if (!res || res.success !== true || !Array.isArray(res.items)) {
-											return { row, items: [] };
-										}
-										// These are external discovery items (no library Id / ImageTags),
-										// so map them to what the media card can render via _externalPosterUrl.
-										const items = res.items.map((it) => {
-											const imdbId = it.providerIds?.Imdb || null;
-											return {
-												Id: `imdb-${imdbId || `${serverId}-${it.rank}`}`,
-												Name: it.name,
-												Type: it.type,
-												ProductionYear: it.productionYear,
-												ProviderIds: {Imdb: imdbId},
-												_externalPosterUrl: it.posterUrl || null
-											};
-										});
-										return { row, items };
-									})
-									.catch(() => ({ row, items: [] }));
-							})
-						)
+					const results = await Promise.all([
+						api.getLibraries().catch(() => ({Items: []})),
+						api.getResumeItems().catch(() => ({Items: []})),
+						api.getNextUp().catch(() => ({Items: []})),
+						api.getUserConfiguration().catch(() => null),
+						api.getRandomItems(settings.featuredContentType, settings.featuredItemCount).catch(() => null),
+						settings.mergeContinueWatchingNextUp ? api.getItems({
+							IncludeItemTypes: 'Episode',
+							Filters: 'IsPlayed',
+							Recursive: true,
+							SortBy: 'DatePlayed',
+							SortOrder: 'Descending',
+							Limit: 100,
+							Fields: 'UserData,SeriesId'
+						}).catch(() => null) : Promise.resolve(null)
 					]);
 					libs = results[0].Items || [];
 					resumeItems = results[1];
@@ -1002,7 +1021,6 @@ const Browse = ({
 					userConfig = results[3];
 					randomItems = results[4];
 					recentlyPlayed = results[5];
-					imdbResults = imdbListResults;
 				}
 
 				cachedLibraries = libs;
@@ -1078,6 +1096,7 @@ const Browse = ({
 				}
 
 				dispatch({type: 'SET_INITIAL_DATA', rowData});
+				cachedRowData = [...rowData];
 				// Populate the Mediabar via the settings-aware loader so it honors
 				// the selected libraries; the server-wide random items are only a
 				// fallback (otherwise excluded libraries leak in).
@@ -1093,445 +1112,618 @@ const Browse = ({
 					return true;
 				});
 
-				let latestResults;
-				let recentlyReleasedResults;
-				let collectionsResult = null;
-				let favoriteResults = [];
-				let genresResult = null;
-				let playlistsResult = null;
-				let audioArtistsResult = null;
-				let audioAlbumsResult = null;
-				let audioPlaylistsResult = null;
-				let resumeAudioResult = null;
-				let recordingsResult = null;
-				let pluginRows = [];
-				let sinceYouWatchedRows = [];
-				let rewatchItems = null;
+				if (unifiedMode) {
+					const latestResults = await connectionPool.getLatestPerLibraryFromAllServers(
+						latestItemsExcludes,
+						EXCLUDED_COLLECTION_TYPES
+					);
+					const newRows = [];
+					for (const result of latestResults) {
+						if (result && result.latest?.length > 0) {
+							const libraryTitle = result.lib._serverName
+								? `${result.lib.Name} (${result.lib._serverName})`
+								: result.lib.Name;
+							const rowId = `latest-${result.lib.Id}${result.lib._serverName ? '-' + result.lib._serverName : ''}`;
 
-				const fetchPluginSectionRow = async (section) => {
-					if (!section?.enabled) return null;
-					const spec = parsePluginSpec(section.specJson);
-					if (!spec || typeof spec !== 'object') return null;
-					const limit = Number.isFinite(Number(spec.limit)) ? Number(spec.limit) : 20;
-					const title = section.name || section.displayText || $L('Plugin Section');
-					const fields = HOME_ROW_ITEM_FIELDS;
+							newRows.push({
+								id: rowId,
+								title: $L('Recently Added in {libraryTitle}').replace('{libraryTitle}', libraryTitle),
+								items: result.latest,
+								library: result.lib,
+								type: result.lib.CollectionType?.toLowerCase() === 'music' ? 'square' : 'portrait',
+								isLatestRow: true
+							});
+						}
+					}
+					dispatch({type: 'APPEND_ROWS', rows: newRows});
+					cachedRowData = [...rowData, ...newRows];
+					cacheTimestamp = Date.now();
+					dispatch({type: 'SET_LOADING', value: false});
+					return;
+				}
 
+				const favoriteSortBy = settings.favoritesRowSortBy || 'SortName';
+				const favoriteSortOrder = getSortOrderFromSortBy(favoriteSortBy);
+				const collectionsSortBy = settings.collectionsRowSortBy || 'SortName';
+				const collectionsSortOrder = getSortOrderFromSortBy(collectionsSortBy);
+				const genresSortBy = settings.genresRowSortBy || 'SortName';
+				const genresSortOrder = getSortOrderFromSortBy(genresSortBy);
+				const genresIncludeTypes = getGenresIncludeTypes(settings.genresRowItemFilter);
+				const playlistsSortBy = settings.playlistsRowSortBy || 'SortName';
+				const playlistsSortOrder = getSortOrderFromSortBy(playlistsSortBy);
+				const audioRowsSortBy = settings.audioRowsSortBy || 'SortName';
+				const audioRowsSortOrder = getSortOrderFromSortBy(audioRowsSortBy);
+				const audioArtistsEnabled = homeRowsConfig.some((row) => row.enabled && row.id === 'audioartists');
+				const audioAlbumsEnabled = homeRowsConfig.some((row) => row.enabled && row.id === 'audioalbums');
+				const audioPlaylistsEnabled = homeRowsConfig.some((row) => row.enabled && row.id === 'audioplaylists');
+				const resumeAudioEnabled = homeRowsConfig.some((row) => row.enabled && row.id === 'resumeaudio');
+				const recordingsEnabled = homeRowsConfig.some((row) => row.enabled && row.id === 'activerecordings');
+				const enabledPluginSections = (settings.pluginSections || []).filter((section) => section.enabled);
+				const sinceYouWatchedIndexes = homeRowsConfig
+					.filter((row) => row.enabled && row.id.startsWith('sinceyouwatched'))
+					.map((row) => parseInt(row.id.replace('sinceyouwatched', ''), 10))
+					.filter((idx) => idx >= 1)
+					.sort((a, b) => a - b);
+				const rewatchEnabled = homeRowsConfig.some((row) => row.enabled && row.id === 'rewatch');
+
+				const appendRows = (rows) => {
+					if (cancelled) return;
+					dispatch({type: 'APPEND_ROWS', rows});
+					cachedRowData = [...(cachedRowData || []), ...rows];
+					cacheTimestamp = Date.now();
+					saveBrowseCache(cachedRowData, libs, cachedFeaturedItems);
+				};
+
+				const loadLatestAndRecentlyReleased = async () => {
 					try {
-						let items = [];
-						switch (spec.kind) {
-							case 'recentlyReleasedMovies': {
-								const result = await api.getItems({
-									IncludeItemTypes: 'Movie',
-									SortBy: 'PremiereDate',
-									SortOrder: 'Descending',
-									Recursive: true,
-									Limit: limit,
-									Fields: fields
+						const [latestResults, recentlyReleasedResults] = await Promise.all([
+							Promise.all(
+								eligibleLibraries.map(lib =>
+									api.getLatest(lib.Id, 16)
+										.then(latest => ({lib, latest}))
+										.catch(() => null)
+								)
+							),
+							Promise.all(
+								eligibleLibraries.map(lib =>
+									api.getRecentlyReleased(lib.Id, 16)
+										.then(latest => ({lib, latest}))
+										.catch(() => null)
+								)
+							)
+						]);
+
+						const rows = [];
+						for (const result of latestResults) {
+							if (result && result.latest?.length > 0) {
+								const libraryTitle = result.lib.Name;
+								const rowId = `latest-${result.lib.Id}`;
+								rows.push({
+									id: rowId,
+									title: $L('Recently Added in {libraryTitle}').replace('{libraryTitle}', libraryTitle),
+									items: result.latest,
+									library: result.lib,
+									type: result.lib.CollectionType?.toLowerCase() === 'music' ? 'square' : 'portrait',
+									isLatestRow: true
 								});
-								items = result?.Items || [];
-								break;
 							}
-							case 'recentlyReleasedEpisodes': {
-								const result = await api.getItems({
-									IncludeItemTypes: 'Episode',
-									SortBy: 'PremiereDate',
-									SortOrder: 'Descending',
-									Recursive: true,
-									Limit: limit,
-									Fields: fields
+						}
+						for (const result of recentlyReleasedResults) {
+							if (result && result.latest?.Items?.length > 0) {
+								const libraryTitle = result.lib.Name;
+								const rowId = `recently-released-${result.lib.Id}`;
+								rows.push({
+									id: rowId,
+									title: $L('Recently Released in {libraryTitle}').replace('{libraryTitle}', libraryTitle),
+									items: result.latest.Items,
+									library: result.lib,
+									type: result.lib.CollectionType?.toLowerCase() === 'music' ? 'square' : 'portrait',
+									isRecentlyReleasedRow: true
 								});
-								items = result?.Items || [];
-								break;
 							}
-							case 'watchAgain': {
-								const result = await api.getItems({
-									IncludeItemTypes: 'Movie,Series',
-									Filters: 'IsPlayed',
-									SortBy: 'DatePlayed',
-									SortOrder: 'Descending',
+						}
+						appendRows(rows);
+					} catch (e) {
+						console.warn('[Browse] Failed to load latest items:', e);
+					}
+				};
+
+				const loadCollections = async () => {
+					if (!settings.displayCollectionsRows) return;
+					try {
+						const collectionsResult = await api.getCollections(20, collectionsSortBy, collectionsSortOrder).catch(() => null);
+						if (collectionsResult?.Items?.length > 0) {
+							appendRows([{
+								id: 'collections',
+								title: $L('Collections'),
+								items: collectionsResult.Items,
+								type: 'portrait'
+							}]);
+						}
+					} catch (e) {
+						console.warn('[Browse] Failed to load collections:', e);
+					}
+				};
+
+				const loadFavorites = async () => {
+					if (!settings.displayFavoritesRows) return;
+					try {
+						const favoriteResults = await Promise.all(
+							FAVORITE_ROW_CONFIGS.map((rowConfig) =>
+								api.getItems({
+									IncludeItemTypes: rowConfig.includeItemTypes,
+									Filters: 'IsFavorite',
+									SortBy: favoriteSortBy,
+									SortOrder: favoriteSortOrder,
 									Recursive: true,
-									Limit: limit,
-									Fields: fields
-								});
-								items = result?.Items || [];
-								break;
+									Limit: 20,
+									Fields: HOME_ROW_ITEM_FIELDS
+								})
+								.then((result) => ({rowConfig, result}))
+								.catch(() => null)
+							)
+						);
+						const rows = [];
+						favoriteResults.filter(Boolean).forEach((favoriteResult) => {
+							const items = favoriteResult?.result?.Items || [];
+							if (items.length === 0) return;
+							rows.push({
+								id: favoriteResult.rowConfig.id,
+								title: $L(favoriteResult.rowConfig.title),
+								items,
+								type: favoriteResult.rowConfig.type
+							});
+						});
+						appendRows(rows);
+					} catch (e) {
+						console.warn('[Browse] Failed to load favorites:', e);
+					}
+				};
+
+				const loadGenres = async () => {
+					if (!settings.displayGenresRows) return;
+					try {
+						const genresResult = await api.getGenres(undefined, genresIncludeTypes, genresSortBy, genresSortOrder).catch(() => null);
+						if (genresResult?.Items?.length > 0) {
+							let enrichedItems = genresResult.Items;
+							const genresSortByLower = (settings.genresRowSortBy || 'SortName').toLowerCase();
+							if (genresSortByLower === 'sortname' || genresSortByLower === 'name') {
+								enrichedItems = [...enrichedItems].sort((a, b) => (a.Name || '').localeCompare(b.Name || ''));
+							} else if (genresSortByLower === 'random') {
+								enrichedItems = [...enrichedItems].sort(() => Math.random() - 0.5);
 							}
-							case 'recentlyAddedInLibrary': {
-								const libraryIds = Array.isArray(spec.libraryIds) ? spec.libraryIds : [];
-								const responses = await Promise.all(
-									libraryIds.map((libraryId) => api.getItems({
-										ParentId: libraryId,
-										IncludeItemTypes: 'Movie,Series',
-										SortBy: 'DateCreated',
+
+							try {
+								const repResult = await api.getItems({
+									IncludeItemTypes: genresIncludeTypes,
+									Recursive: true,
+									Fields: 'PrimaryImageAspectRatio,Genres,ImageTags,BackdropImageTags',
+									Limit: 200,
+									SortBy: 'Random'
+								});
+								const repItems = repResult?.Items || [];
+
+								const unmatchedGenres = enrichedItems.filter(genre => {
+									const genreLower = genre.Name.toLowerCase();
+									return !repItems.some(item => getItemGenreNames(item).includes(genreLower));
+								});
+
+								const unmatchedRepsMap = {};
+								if (unmatchedGenres.length > 0) {
+									try {
+										const unmatchedNames = unmatchedGenres.map(g => g.Name);
+										const res = await api.getItems({
+											IncludeItemTypes: genresIncludeTypes,
+											Recursive: true,
+											Fields: 'PrimaryImageAspectRatio,Genres,ImageTags,BackdropImageTags',
+											Genres: unmatchedNames.join('|'),
+											Limit: unmatchedNames.length * 3,
+											SortBy: 'Random'
+										});
+										const backupItems = res?.Items || [];
+										for (const genre of unmatchedGenres) {
+											const genreLower = genre.Name.toLowerCase();
+											const matches = backupItems.filter(item => getItemGenreNames(item).includes(genreLower));
+											const matchesWithBackdrop = matches.filter(item =>
+												item.BackdropImageTags?.length > 0 || item.ImageTags?.Thumb
+											);
+											if (matchesWithBackdrop.length > 0) {
+												unmatchedRepsMap[genre.Name] = matchesWithBackdrop[Math.floor(Math.random() * matchesWithBackdrop.length)];
+											} else if (matches.length > 0) {
+												unmatchedRepsMap[genre.Name] = matches[Math.floor(Math.random() * matches.length)];
+											}
+										}
+									} catch (err) {
+										console.warn('[Browse] Failed to fetch unmatched representatives in batch:', err);
+									}
+								}
+
+								enrichedItems = enrichedItems.map(genre => {
+									const genreLower = genre.Name.toLowerCase();
+									const matchingItems = repItems.filter(item =>
+										getItemGenreNames(item).includes(genreLower)
+									);
+									const matchingWithBackdrop = matchingItems.filter(item =>
+										item.BackdropImageTags?.length > 0 || item.ImageTags?.Thumb
+									);
+									let rep = null;
+									if (matchingWithBackdrop.length > 0) {
+										rep = matchingWithBackdrop[Math.floor(Math.random() * matchingWithBackdrop.length)];
+									} else if (matchingItems.length > 0) {
+										rep = matchingItems[Math.floor(Math.random() * matchingItems.length)];
+									} else {
+										rep = unmatchedRepsMap[genre.Name] || null;
+									}
+
+									if (rep) {
+										return {
+											...genre,
+											Type: 'Genre',
+											_representative: rep
+										};
+									}
+									return {
+										...genre,
+										Type: 'Genre'
+									};
+								});
+							} catch (e) {
+								console.warn('[Browse] Failed to enrich genres:', e);
+							}
+
+							appendRows([{
+								id: 'genres',
+								title: $L('Genres'),
+								items: enrichedItems,
+								type: 'portrait',
+								isGenreRow: true
+							}]);
+						}
+					} catch (e) {
+						console.warn('[Browse] Failed to load genres:', e);
+					}
+				};
+
+				const loadPlaylistsAndMusic = async () => {
+					try {
+						const [playlistsResult, audioArtistsResult, audioAlbumsResult, audioPlaylistsResult, resumeAudioResult, recordingsResult] = await Promise.all([
+							settings.displayPlaylistsRows ? api.getPlaylists(playlistsSortBy, playlistsSortOrder).catch(() => null) : Promise.resolve(null),
+							audioArtistsEnabled ? api.getAlbumArtists({Limit: 20, SortBy: audioRowsSortBy, SortOrder: audioRowsSortOrder, Fields: HOME_ROW_ITEM_FIELDS}).catch(() => null) : Promise.resolve(null),
+							audioAlbumsEnabled ? api.getItems({IncludeItemTypes: 'MusicAlbum', Recursive: true, SortBy: audioRowsSortBy, SortOrder: audioRowsSortOrder, Limit: 20, Fields: HOME_ROW_ITEM_FIELDS}).catch(() => null) : Promise.resolve(null),
+							audioPlaylistsEnabled ? api.getPlaylists(audioRowsSortBy, audioRowsSortOrder).catch(() => null) : Promise.resolve(null),
+							resumeAudioEnabled ? api.getResumeAudioItems(20).catch(() => null) : Promise.resolve(null),
+							recordingsEnabled ? api.getLiveTvRecordings().catch(() => null) : Promise.resolve(null)
+						]);
+
+						const rows = [];
+						if (playlistsResult?.Items?.length > 0) {
+							rows.push({
+								id: 'playlists',
+								title: $L('Playlists'),
+								items: playlistsResult.Items,
+								type: 'square'
+							});
+						}
+						if (audioArtistsResult?.Items?.length > 0) {
+							rows.push({
+								id: 'audioartists',
+								title: $L('Music Artists'),
+								items: audioArtistsResult.Items,
+								type: 'square'
+							});
+						}
+						if (audioAlbumsResult?.Items?.length > 0) {
+							rows.push({
+								id: 'audioalbums',
+								title: $L('Music Albums'),
+								items: audioAlbumsResult.Items,
+								type: 'square'
+							});
+						}
+						if (audioPlaylistsResult?.Items?.length > 0) {
+							const audioPlaylists = audioPlaylistsResult.Items.filter(item => item.MediaType === 'Audio');
+							if (audioPlaylists.length > 0) {
+								rows.push({
+									id: 'audioplaylists',
+									title: $L('Music Playlists'),
+									items: audioPlaylists,
+									type: 'square'
+								});
+							}
+						}
+						if (resumeAudioResult?.Items?.length > 0) {
+							rows.push({
+								id: 'resumeaudio',
+								title: $L('Continue Listening'),
+								items: resumeAudioResult.Items,
+								type: 'square'
+							});
+						}
+						if (recordingsResult?.Items?.length > 0) {
+							rows.push({
+								id: 'activerecordings',
+								title: $L('Recordings'),
+								items: recordingsResult.Items,
+								type: 'landscape'
+							});
+						}
+						appendRows(rows);
+					} catch (e) {
+						console.warn('[Browse] Failed to load playlists/music:', e);
+					}
+				};
+
+				const loadImdbRows = async () => {
+					try {
+						const enabledImdbRows = homeRowsConfig.filter(
+							(row) => row.enabled && (row.id.startsWith('imdb-') || row.id.startsWith('imdb_'))
+						);
+						if (enabledImdbRows.length === 0) return;
+						const imdbListResults = await Promise.all(
+							enabledImdbRows.map((row) => {
+								const serverId = TV_TO_SERVER_ROW[row.id] || row.id;
+								return api.getCustomRow('imdb', serverId)
+									.then((res) => {
+										if (!res || res.success !== true || !Array.isArray(res.items)) {
+											return { row, items: [] };
+										}
+										const items = res.items.map((it) => {
+											const imdbId = it.providerIds?.Imdb || null;
+											const mediaType = it.type === 'Series' ? 'tv' : 'movie';
+											return {
+												Id: `imdb-${imdbId || `${serverId}-${it.rank}`}`,
+												Name: it.name,
+												Type: it.type === 'Series' ? 'Series' : 'Movie',
+												ProductionYear: it.productionYear,
+												ProviderIds: {Imdb: imdbId, Tmdb: it.providerIds?.Tmdb},
+												Overview: it.overview || null,
+												_externalPosterUrl: resolveExternalImageUrl(it.posterUrl, 'w342'),
+												_externalBackdropUrl: resolveExternalImageUrl(it.backdropUrl, 'w780'),
+												_external: true,
+												_serverName: 'IMDb',
+												mediaInfo: {},
+												_seerr: true,
+												_seerrType: 'item',
+												_seerrMediaType: mediaType,
+												_seerrRaw: it.providerIds?.Tmdb ? {mediaId: Number(it.providerIds.Tmdb), mediaType} : null
+											};
+										});
+										return { row, items };
+									})
+									.catch(() => ({ row, items: [] }));
+							})
+						);
+						const rows = [];
+						imdbListResults.forEach((res) => {
+							if (res.items?.length > 0) {
+								rows.push({
+									id: res.row.id,
+									title: $L(res.row.name),
+									items: res.items,
+									type: 'portrait'
+								});
+							}
+						});
+						appendRows(rows);
+					} catch (e) {
+						console.warn('[Browse] Failed to load IMDb rows:', e);
+					}
+				};
+
+				const loadPluginsAndRecos = async () => {
+					const fetchPluginSectionRow = async (section) => {
+						if (!section?.enabled) return null;
+						const spec = parsePluginSpec(section.specJson);
+						if (!spec || typeof spec !== 'object') return null;
+						const limit = Number.isFinite(Number(spec.limit)) ? Number(spec.limit) : 20;
+						const title = section.name || section.displayText || $L('Plugin Section');
+						const fields = HOME_ROW_ITEM_FIELDS;
+
+						try {
+							let items = [];
+							switch (spec.kind) {
+								case 'recentlyReleasedMovies': {
+									const result = await api.getItems({
+										IncludeItemTypes: 'Movie',
+										SortBy: 'PremiereDate',
 										SortOrder: 'Descending',
 										Recursive: true,
 										Limit: limit,
 										Fields: fields
-									}).catch(() => null))
-								);
-								items = responses.flatMap((response) => response?.Items || []).slice(0, limit);
-								break;
-							}
-							case 'custom': {
-								const includeItemTypes = Array.isArray(spec.includeItemTypes)
-									? spec.includeItemTypes.join(',')
-									: 'Movie,Series';
-								const sortBy = spec.sortBy || 'Random';
-								const sortOrder = spec.sortOrderDirection || 'Ascending';
-								const params = {
-									IncludeItemTypes: includeItemTypes,
-									SortBy: sortBy,
-									SortOrder: sortOrder,
-									Recursive: true,
-									Limit: limit,
-									Fields: fields
-								};
-								if (spec.type === 'genre' && spec.source) params.Genres = spec.source;
-								if (spec.type === 'person' && spec.source) params.PersonIds = spec.source;
-								if (spec.type === 'studio' && spec.source) params.StudioIds = spec.source;
-								if (spec.type === 'collection' && spec.source) params.ParentId = spec.source;
-								const result = await api.getItems(params);
-								items = result?.Items || [];
-								break;
-							}
-							case 'collection': {
-								const collectionId = spec.collectionId || null;
-								if (!collectionId) {
-									items = [];
+									});
+									items = result?.Items || [];
 									break;
 								}
-								const result = await api.getCollectionItems(collectionId, limit);
-								items = result?.Items || [];
-								break;
-							}
-							case 'genre': {
-								const params = {
-									IncludeItemTypes: spec.includeItemTypes || 'Movie,Series',
-									SortBy: spec.sortBy || 'SortName',
-									SortOrder: spec.sortOrder || 'Ascending',
-									Recursive: true,
-									Limit: limit,
-									Fields: fields
-								};
-								if (spec.genreId) {
-									params.GenreIds = spec.genreId;
-								} else if (spec.genreName) {
-									params.Genres = spec.genreName;
+								case 'recentlyReleasedEpisodes': {
+									const result = await api.getItems({
+										IncludeItemTypes: 'Episode',
+										SortBy: 'PremiereDate',
+										SortOrder: 'Descending',
+										Recursive: true,
+										Limit: limit,
+										Fields: fields
+									});
+									items = result?.Items || [];
+									break;
 								}
-								const result = await api.getItems(params);
-								items = result?.Items || [];
-								break;
+								case 'watchAgain': {
+									const result = await api.getItems({
+										IncludeItemTypes: 'Movie,Series',
+										Filters: 'IsPlayed',
+										SortBy: 'DatePlayed',
+										SortOrder: 'Descending',
+										Recursive: true,
+										Limit: limit,
+										Fields: fields
+									});
+									items = result?.Items || [];
+									break;
+								}
+								case 'recentlyAddedInLibrary': {
+									const libraryIds = Array.isArray(spec.libraryIds) ? spec.libraryIds : [];
+									const responses = await Promise.all(
+										libraryIds.map((libraryId) => api.getItems({
+											ParentId: libraryId,
+											IncludeItemTypes: 'Movie,Series',
+											SortBy: 'DateCreated',
+											SortOrder: 'Descending',
+											Recursive: true,
+											Limit: limit,
+											Fields: fields
+										}).catch(() => null))
+									);
+									items = responses.flatMap((response) => response?.Items || []).slice(0, limit);
+									break;
+								}
+								case 'custom': {
+									const includeItemTypes = Array.isArray(spec.includeItemTypes)
+										? spec.includeItemTypes.join(',')
+										: 'Movie,Series';
+									const sortBy = spec.sortBy || 'Random';
+									const sortOrder = spec.sortOrderDirection || 'Ascending';
+									const params = {
+										IncludeItemTypes: includeItemTypes,
+										SortBy: sortBy,
+										SortOrder: sortOrder,
+										Recursive: true,
+										Limit: limit,
+										Fields: fields
+									};
+									if (spec.type === 'genre' && spec.source) params.Genres = spec.source;
+									if (spec.type === 'person' && spec.source) params.PersonIds = spec.source;
+									if (spec.type === 'studio' && spec.source) params.StudioIds = spec.source;
+									if (spec.type === 'collection' && spec.source) params.ParentId = spec.source;
+									const result = await api.getItems(params);
+									items = result?.Items || [];
+									break;
+								}
+								case 'collection': {
+									const collectionId = spec.collectionId || null;
+									if (!collectionId) {
+										items = [];
+										break;
+									}
+									const result = await api.getCollectionItems(collectionId, limit);
+									items = result?.Items || [];
+									break;
+								}
+								case 'genre': {
+									const params = {
+										IncludeItemTypes: spec.includeItemTypes || 'Movie,Series',
+										SortBy: spec.sortBy || 'SortName',
+										SortOrder: spec.sortOrder || 'Ascending',
+										Recursive: true,
+										Limit: limit,
+										Fields: fields
+									};
+									if (spec.genreId) {
+										params.GenreIds = spec.genreId;
+									} else if (spec.genreName) {
+										params.Genres = spec.genreName;
+									}
+									const result = await api.getItems(params);
+									items = result?.Items || [];
+									break;
+								}
+								default:
+									items = [];
 							}
-							default:
-								items = [];
-						}
 
-						if (items.length === 0) return null;
-						const cardTypeHint = spec.cardType || spec.section?.CardType || spec.section?.cardType || spec.section?.Layout || spec.section?.layout;
-						const normalizedCardType = typeof cardTypeHint === 'string' ? cardTypeHint.toLowerCase() : '';
-						const viewModeHint = spec.viewMode || spec.section?.ViewMode || spec.section?.viewMode || '';
-						const normalizedViewMode = typeof viewModeHint === 'string' ? viewModeHint.toLowerCase() : '';
-						let rowType = 'portrait';
-						if (normalizedViewMode.includes('portrait')) {
-							rowType = 'portrait';
-						} else if (normalizedViewMode.includes('square')) {
-							rowType = 'square';
-						} else if (
-							normalizedViewMode.includes('landscape') ||
-							normalizedViewMode.includes('small') ||
-							normalizedViewMode.includes('backdrop') ||
-							normalizedCardType.includes('landscape') ||
-							normalizedCardType.includes('thumb') ||
-							spec.kind === 'recentlyReleasedEpisodes'
-						) {
-							rowType = 'landscape';
+							if (items.length === 0) return null;
+							const cardTypeHint = spec.cardType || spec.section?.CardType || spec.section?.cardType || spec.section?.Layout || spec.section?.layout;
+							const normalizedCardType = typeof cardTypeHint === 'string' ? cardTypeHint.toLowerCase() : '';
+							const viewModeHint = spec.viewMode || spec.section?.ViewMode || spec.section?.viewMode || '';
+							const normalizedViewMode = typeof viewModeHint === 'string' ? viewModeHint.toLowerCase() : '';
+							let rowType = 'portrait';
+							if (normalizedViewMode.includes('portrait')) {
+								rowType = 'portrait';
+							} else if (normalizedViewMode.includes('square')) {
+								rowType = 'square';
+							} else if (
+								normalizedViewMode.includes('landscape') ||
+								normalizedViewMode.includes('small') ||
+								normalizedViewMode.includes('backdrop') ||
+								normalizedCardType.includes('landscape') ||
+								normalizedCardType.includes('thumb') ||
+								spec.kind === 'recentlyReleasedEpisodes'
+							) {
+								rowType = 'landscape';
+							}
+							return {
+								id: section.id,
+								title,
+								items,
+								type: rowType,
+								isPluginRow: true,
+								pluginSource: section.source
+							};
+						} catch (_error) {
+							return null;
 						}
-						return {
-							id: section.id,
-							title,
-							items,
-							type: rowType,
-							isPluginRow: true,
-							pluginSource: section.source
-						};
-					} catch (_error) {
-						return null;
+					};
+
+					try {
+						const [pluginRows, sinceYouWatchedRows, rewatchItems] = await Promise.all([
+							Promise.all(enabledPluginSections.map((section) => fetchPluginSectionRow(section))),
+							sinceYouWatchedIndexes.length
+								? loadSinceYouWatchedRows(api, {
+									sinceYouWatchedSource: settings.sinceYouWatchedSource,
+									sinceYouWatchedSourceItem: settings.sinceYouWatchedSourceItem,
+									sinceYouWatchedSourceType: settings.sinceYouWatchedSourceType,
+									sinceYouWatchedIncludeWatched: settings.sinceYouWatchedIncludeWatched,
+									tmdbApiKey: settings.tmdbApiKey
+								}, sinceYouWatchedIndexes, seerrEnabled && seerrAuthenticated).catch(() => [])
+								: Promise.resolve([]),
+							rewatchEnabled
+								? loadRewatchItems(api, {
+									rewatchIncludeMovies: settings.rewatchIncludeMovies,
+									rewatchIncludeShows: settings.rewatchIncludeShows,
+									rewatchIncludeCollections: settings.rewatchIncludeCollections,
+									rewatchSortBy: settings.rewatchSortBy
+								}).catch(() => null)
+								: Promise.resolve(null)
+						]);
+
+						const rows = [];
+						pluginRows.filter(Boolean).forEach((pluginRow) => rows.push(pluginRow));
+						sinceYouWatchedRows.forEach((row) => {
+							rows.push({
+								id: row.id,
+								title: $L('Because you watched {name}').replace('{name}', row.seedName),
+								items: row.items,
+								type: 'portrait',
+								isOnlineRecoRow: row.isSeerr === true
+							});
+						});
+						if (rewatchItems && rewatchItems.length > 0) {
+							rows.push({
+								id: 'rewatch',
+								title: $L('Rewatch'),
+								items: rewatchItems,
+								type: 'portrait'
+							});
+						}
+						appendRows(rows);
+					} catch (e) {
+						console.warn('[Browse] Failed to load plugins/recos:', e);
 					}
 				};
 
-				if (unifiedMode) {
-					latestResults = await connectionPool.getLatestPerLibraryFromAllServers(
-						latestItemsExcludes,
-						EXCLUDED_COLLECTION_TYPES
-					);
-				} else {
-					const favoriteSortBy = settings.favoritesRowSortBy || 'SortName';
-					const favoriteSortOrder = getSortOrderFromSortBy(favoriteSortBy);
-					const collectionsSortBy = settings.collectionsRowSortBy || 'SortName';
-					const collectionsSortOrder = getSortOrderFromSortBy(collectionsSortBy);
-					const genresSortBy = settings.genresRowSortBy || 'SortName';
-					const genresSortOrder = getSortOrderFromSortBy(genresSortBy);
-					const genresIncludeTypes = getGenresIncludeTypes(settings.genresRowItemFilter);
-					const playlistsSortBy = settings.playlistsRowSortBy || 'SortName';
-					const playlistsSortOrder = getSortOrderFromSortBy(playlistsSortBy);
-					const audioRowsSortBy = settings.audioRowsSortBy || 'SortName';
-					const audioRowsSortOrder = getSortOrderFromSortBy(audioRowsSortBy);
-					const audioArtistsEnabled = homeRowsConfig.some((row) => row.enabled && row.id === 'audioartists');
-					const audioAlbumsEnabled = homeRowsConfig.some((row) => row.enabled && row.id === 'audioalbums');
-					const audioPlaylistsEnabled = homeRowsConfig.some((row) => row.enabled && row.id === 'audioplaylists');
-					const resumeAudioEnabled = homeRowsConfig.some((row) => row.enabled && row.id === 'resumeaudio');
-					const recordingsEnabled = homeRowsConfig.some((row) => row.enabled && row.id === 'activerecordings');
-					const enabledPluginSections = (settings.pluginSections || []).filter((section) => section.enabled);
-					const sinceYouWatchedIndexes = homeRowsConfig
-						.filter((row) => row.enabled && row.id.startsWith('sinceyouwatched'))
-						.map((row) => parseInt(row.id.replace('sinceyouwatched', ''), 10))
-						.filter((idx) => idx >= 1)
-						.sort((a, b) => a - b);
-					const rewatchEnabled = homeRowsConfig.some((row) => row.enabled && row.id === 'rewatch');
-
-					[latestResults, recentlyReleasedResults, collectionsResult, favoriteResults, genresResult, playlistsResult, audioArtistsResult, audioAlbumsResult, audioPlaylistsResult, resumeAudioResult, recordingsResult, pluginRows, sinceYouWatchedRows, rewatchItems] = await Promise.all([
-						Promise.all(
-							eligibleLibraries.map(lib =>
-								api.getLatest(lib.Id, 16)
-									.then(latest => ({lib, latest}))
-									.catch(() => null)
-							)
-						),
-						Promise.all(
-							eligibleLibraries.map(lib =>
-								api.getRecentlyReleased(lib.Id, 16)
-									.then(latest => ({lib, latest}))
-									.catch(() => null)
-							)
-						),
-						settings.displayCollectionsRows
-							? api.getCollections(20, collectionsSortBy, collectionsSortOrder).catch(() => null)
-							: Promise.resolve(null),
-						settings.displayFavoritesRows
-							? Promise.all(
-								FAVORITE_ROW_CONFIGS.map((rowConfig) =>
-									api.getItems({
-										IncludeItemTypes: rowConfig.includeItemTypes,
-										Filters: 'IsFavorite',
-										SortBy: favoriteSortBy,
-										SortOrder: favoriteSortOrder,
-										Recursive: true,
-										Limit: 20,
-										Fields: HOME_ROW_ITEM_FIELDS
-									})
-										.then((result) => ({rowConfig, result}))
-										.catch(() => null)
-								)
-							)
-							: Promise.resolve([]),
-						settings.displayGenresRows
-							? api.getGenres(undefined, genresIncludeTypes, genresSortBy, genresSortOrder).catch(() => null)
-							: Promise.resolve(null),
-						settings.displayPlaylistsRows
-							? api.getPlaylists(playlistsSortBy, playlistsSortOrder).catch(() => null)
-							: Promise.resolve(null),
-						audioArtistsEnabled
-							? api.getAlbumArtists({Limit: 20, SortBy: audioRowsSortBy, SortOrder: audioRowsSortOrder, Fields: HOME_ROW_ITEM_FIELDS}).catch(() => null)
-							: Promise.resolve(null),
-						audioAlbumsEnabled
-							? api.getItems({IncludeItemTypes: 'MusicAlbum', Recursive: true, SortBy: audioRowsSortBy, SortOrder: audioRowsSortOrder, Limit: 20, Fields: HOME_ROW_ITEM_FIELDS}).catch(() => null)
-							: Promise.resolve(null),
-						audioPlaylistsEnabled
-							? api.getPlaylists(audioRowsSortBy, audioRowsSortOrder).catch(() => null)
-							: Promise.resolve(null),
-						resumeAudioEnabled
-							? api.getResumeAudioItems(20).catch(() => null)
-							: Promise.resolve(null),
-						recordingsEnabled
-							? api.getLiveTvRecordings().catch(() => null)
-							: Promise.resolve(null),
-						Promise.all(enabledPluginSections.map((section) => fetchPluginSectionRow(section))),
-						sinceYouWatchedIndexes.length
-							? loadSinceYouWatchedRows(api, {
-								sinceYouWatchedSource: settings.sinceYouWatchedSource,
-								sinceYouWatchedSourceItem: settings.sinceYouWatchedSourceItem,
-								sinceYouWatchedSourceType: settings.sinceYouWatchedSourceType,
-								sinceYouWatchedIncludeWatched: settings.sinceYouWatchedIncludeWatched,
-								tmdbApiKey: settings.tmdbApiKey
-							}, sinceYouWatchedIndexes, seerrEnabled && seerrAuthenticated).catch(() => [])
-							: Promise.resolve([]),
-						rewatchEnabled
-							? loadRewatchItems(api, {
-								rewatchIncludeMovies: settings.rewatchIncludeMovies,
-								rewatchIncludeShows: settings.rewatchIncludeShows,
-								rewatchIncludeCollections: settings.rewatchIncludeCollections,
-								rewatchSortBy: settings.rewatchSortBy
-							}).catch(() => null)
-							: Promise.resolve(null)
-					]);
-				}
-
-				const newRows = [];
-
-				for (const result of latestResults) {
-					if (result && result.latest?.length > 0) {
-						const libraryTitle = unifiedMode && result.lib._serverName
-							? `${result.lib.Name} (${result.lib._serverName})`
-							: result.lib.Name;
-						const rowId = `latest-${result.lib.Id}${result.lib._serverName ? '-' + result.lib._serverName : ''}`;
-
-						newRows.push({
-							id: rowId,
-							title: $L('Recently Added in {libraryTitle}').replace('{libraryTitle}', libraryTitle),
-							items: result.latest,
-							library: result.lib,
-							type: result.lib.CollectionType?.toLowerCase() === 'music' ? 'square' : 'portrait',
-							isLatestRow: true
-						});
-					}
-				}
-
-				for (const result of recentlyReleasedResults) {
-					if (result && result.latest.Items?.length > 0) {
-						const libraryTitle = unifiedMode && result.lib._serverName
-							? `${result.lib.Name} (${result.lib._serverName})`
-							: result.lib.Name;
-						const rowId = `recently-released-${result.lib.Id}${result.lib._serverName ? '-' + result.lib._serverName : ''}`;
-
-						newRows.push({
-							id: rowId,
-							title: $L('Recently Released in {libraryTitle}').replace('{libraryTitle}', libraryTitle),
-							items: result.latest.Items,
-							library: result.lib,
-							type: result.lib.CollectionType?.toLowerCase() === 'music' ? 'square' : 'portrait',
-							isRecentlyReleasedRow: true
-						});
-					}
-				}
-
-				if (collectionsResult?.Items?.length > 0) {
-					newRows.push({
-						id: 'collections',
-						title: $L('Collections'),
-						items: collectionsResult.Items,
-						type: 'portrait'
-					});
-				}
-
-				favoriteResults
-					.filter(Boolean)
-					.forEach((favoriteResult) => {
-						const items = favoriteResult?.result?.Items || [];
-						if (items.length === 0) return;
-						newRows.push({
-							id: favoriteResult.rowConfig.id,
-							title: $L(favoriteResult.rowConfig.title),
-							items,
-							type: favoriteResult.rowConfig.type
-						});
-					});
-
-				if (genresResult?.Items?.length > 0) {
-					newRows.push({
-						id: 'genres',
-						title: $L('Genres'),
-						items: genresResult.Items,
-						type: 'portrait',
-						isGenreRow: true
-					});
-				}
-
-				if (playlistsResult?.Items?.length > 0) {
-					newRows.push({
-						id: 'playlists',
-						title: $L('Playlists'),
-						items: playlistsResult.Items,
-						type: 'square'
-					});
-				}
-
-				if (audioArtistsResult?.Items?.length > 0) {
-					newRows.push({
-						id: 'audioartists',
-						title: $L('Music Artists'),
-						items: audioArtistsResult.Items,
-						type: 'square'
-					});
-				}
-
-				if (audioAlbumsResult?.Items?.length > 0) {
-					newRows.push({
-						id: 'audioalbums',
-						title: $L('Music Albums'),
-						items: audioAlbumsResult.Items,
-						type: 'square'
-					});
-				}
-
-				if (audioPlaylistsResult?.Items?.length > 0) {
-					const audioPlaylists = audioPlaylistsResult.Items.filter(item => item.MediaType === 'Audio');
-					if (audioPlaylists.length > 0) {
-						newRows.push({
-							id: 'audioplaylists',
-							title: $L('Music Playlists'),
-							items: audioPlaylists,
-							type: 'square'
-						});
-					}
-				}
-
-				if (resumeAudioResult?.Items?.length > 0) {
-					newRows.push({
-						id: 'resumeaudio',
-						title: $L('Continue Listening'),
-						items: resumeAudioResult.Items,
-						type: 'square'
-					});
-				}
-
-				if (recordingsResult?.Items?.length > 0) {
-					newRows.push({
-						id: 'activerecordings',
-						title: $L('Recordings'),
-						items: recordingsResult.Items,
-						type: 'landscape'
-					});
-				}
-
-				imdbResults.forEach((res) => {
-					if (res.items?.length > 0) {
-						newRows.push({
-							id: res.row.id,
-							title: $L(res.row.name),
-							items: res.items,
-							type: 'portrait'
-						});
-					}
+				dispatch({type: 'SET_LOADING', value: false});
+				const loaders = [
+					loadLatestAndRecentlyReleased,
+					loadCollections,
+					loadFavorites,
+					loadGenres,
+					loadPlaylistsAndMusic,
+					loadImdbRows,
+					loadPluginsAndRecos
+				];
+				loaders.forEach((loader, idx) => {
+					setTimeout(() => {
+						if (!cancelled) loader();
+					}, idx * 300);
 				});
-
-				pluginRows.filter(Boolean).forEach((pluginRow) => newRows.push(pluginRow));
-
-				sinceYouWatchedRows.forEach((row) => {
-					newRows.push({
-						id: row.id,
-						title: $L('Because you watched {name}').replace('{name}', row.seedName),
-						items: row.items,
-						type: 'portrait',
-						isOnlineRecoRow: row.isSeerr === true
-					});
-				});
-
-				if (rewatchItems && rewatchItems.length > 0) {
-					newRows.push({
-						id: 'rewatch',
-						title: $L('Rewatch'),
-						items: rewatchItems,
-						type: 'portrait'
-					});
-				}
-
-				dispatch({type: 'APPEND_ROWS', rows: newRows});
-				cachedRowData = [...rowData, ...newRows];
-				cacheTimestamp = Date.now();
-
-				if (!unifiedMode && newRows.length > 0) {
-					saveBrowseCache(cachedRowData, libs, cachedFeaturedItems);
-				}
 
 			} catch (err) {
 				console.error('Failed to load browse data:', err);
@@ -1541,6 +1733,9 @@ const Browse = ({
 		};
 
 		loadData();
+		return () => {
+			cancelled = true;
+		};
 	}, [
 		api,
 		serverUrl,
@@ -1584,6 +1779,10 @@ const Browse = ({
 	const targetBackdropUrl = useMemo(() => {
 		if (browseMode === 'featured') return '';
 		if (!focusedItemForBackdrop || isLegacy || settings.showHomeBackdrop === false) return '';
+
+		if (focusedItemForBackdrop._externalBackdropUrl) {
+			return focusedItemForBackdrop._externalBackdropUrl;
+		}
 
 		const backdropId = getBackdropId(focusedItemForBackdrop);
 		if (!backdropId) return '';
@@ -1718,38 +1917,84 @@ const Browse = ({
 		const presetConfigs = getExternalHomeRowConfigs();
 
 		(async () => {
-			const presetRows = await Promise.all(enabledPresets.map(async (id) => {
-				const cfg = presetConfigs.find((c) => c.id === id);
-				if (!cfg) return null;
-				const items = await fetchExternalPresetRow(id);
-				if (!items.length) return null;
-				const resolved = await resolveItemsByProviderIds(items);
-				return {id, title: cfg.title, items: resolved, isExternalRow: true};
-			}));
+			try {
+				const presetData = await Promise.all(enabledPresets.map(async (id) => {
+					const cfg = presetConfigs.find((c) => c.id === id);
+					if (!cfg) return null;
+					const items = await fetchExternalPresetRow(id);
+					return {id, title: cfg.title, items: items || []};
+				}));
 
-			const builtCustomRows = await Promise.all(customRows.map(async (row) => {
-				const items = await fetchCustomHomeRow(row);
-				if (!items.length) return null;
-				const resolved = await resolveItemsByProviderIds(items);
-				return {id: `external-${row.id}`, title: row.name || row.title || $L('Custom'), items: resolved, isExternalRow: true, isCustomRow: true};
-			}));
+				const customData = await Promise.all(customRows.map(async (row) => {
+					const items = await fetchCustomHomeRow(row);
+					return {id: `external-${row.id}`, title: row.name || row.title || $L('Custom'), items: items || [], isCustomRow: true};
+				}));
 
-			const calendarSettings = {
-				mergeRadarrSonarrCalendars: settings.mergeRadarrSonarrCalendars,
-				radarrCalendarShowCinema: settings.radarrCalendarShowCinema,
-				radarrCalendarShowDigital: settings.radarrCalendarShowDigital,
-				radarrCalendarShowPhysical: settings.radarrCalendarShowPhysical,
-				radarrCalendarShowDate: settings.radarrCalendarShowDate,
-				sonarrCalendarShowDate: settings.sonarrCalendarShowDate,
-				sonarrCalendarShowEpisodeInfo: settings.sonarrCalendarShowEpisodeInfo
-			};
-			const calendarRows = calendarsEnabled ? await fetchCalendarRows(calendarSettings, {radarrEnabled, sonarrEnabled}) : [];
-			const resolvedCalendarRows = await Promise.all(calendarRows.map(async (row) => ({
-				...row,
-				items: await resolveItemsByProviderIds(row.items)
-			})));
+				const calendarSettings = {
+					mergeRadarrSonarrCalendars: settings.mergeRadarrSonarrCalendars,
+					radarrCalendarShowCinema: settings.radarrCalendarShowCinema,
+					radarrCalendarShowDigital: settings.radarrCalendarShowDigital,
+					radarrCalendarShowPhysical: settings.radarrCalendarShowPhysical,
+					radarrCalendarShowDate: settings.radarrCalendarShowDate,
+					sonarrCalendarShowDate: settings.sonarrCalendarShowDate,
+					sonarrCalendarShowEpisodeInfo: settings.sonarrCalendarShowEpisodeInfo
+				};
+				const calendarRows = calendarsEnabled ? await fetchCalendarRows(calendarSettings, {radarrEnabled, sonarrEnabled}) : [];
 
-			if (!cancelled) setExternalRows([...presetRows, ...builtCustomRows, ...resolvedCalendarRows].filter(Boolean));
+				const allRows = [
+					...presetData,
+					...customData,
+					...calendarRows.map(r => ({...r, isCalendarRow: true}))
+				].filter(r => r && r.items && r.items.length > 0);
+
+				const allItemsToResolve = [];
+				const rowIndices = [];
+				for (const r of allRows) {
+					rowIndices.push({
+						start: allItemsToResolve.length,
+						count: r.items.length
+					});
+					allItemsToResolve.push(...r.items);
+				}
+
+				const resolvedAllItems = await resolveItemsByProviderIds(allItemsToResolve);
+
+				const presetRows = [];
+				const builtCustomRows = [];
+				const resolvedCalendarRows = [];
+
+				for (let i = 0; i < allRows.length; i++) {
+					const r = allRows[i];
+					const sliceInfo = rowIndices[i];
+					const resolvedItems = resolvedAllItems.slice(sliceInfo.start, sliceInfo.start + sliceInfo.count);
+
+					if (r.isCalendarRow) {
+						resolvedCalendarRows.push({
+							...r,
+							items: resolvedItems
+						});
+					} else {
+						const resolvedRow = {
+							id: r.id,
+							title: r.title,
+							items: resolvedItems,
+							isExternalRow: true,
+							isCustomRow: r.isCustomRow
+						};
+						if (r.isCustomRow) {
+							builtCustomRows.push(resolvedRow);
+						} else {
+							presetRows.push(resolvedRow);
+						}
+					}
+				}
+
+				if (!cancelled) {
+					setExternalRows([...presetRows, ...builtCustomRows, ...resolvedCalendarRows].filter(Boolean));
+				}
+			} catch (err) {
+				console.warn('[Browse] Failed to fetch and resolve external rows:', err);
+			}
 		})();
 
 		return () => {

@@ -44,6 +44,7 @@ const getGenreNames = (item) => {
 const getMetadataLine = (item) => {
 	if (!item) return '';
 	const parts = [];
+	if (item.UserRating) parts.push(item.UserRating);
 	if (item.ProductionYear) parts.push(String(item.ProductionYear));
 	const genres = getGenreNames(item).slice(0, 3);
 	if (genres.length) parts.push(genres.join(' • '));
@@ -113,7 +114,24 @@ const ModernMediaCard = ({
 			if (episodeImage) return episodeImage;
 		}
 
-		if (item.Type === 'Movie' || item.Type === 'Series') {
+		if (item.Type === 'Genre' && item._representative) {
+			const rep = item._representative;
+			const repServerUrl = itemServerUrl;
+			if (isFocused) {
+				if (rep.ImageTags?.Thumb) {
+					return getImageUrl(repServerUrl, rep.Id, 'Thumb', {maxWidth: 600, quality: 80});
+				}
+				if (rep.BackdropImageTags?.length > 0) {
+					return getImageUrl(repServerUrl, rep.Id, 'Backdrop', {maxWidth: 600, quality: 80});
+				}
+			}
+			if (rep.ImageTags?.Primary) {
+				return getImageUrl(repServerUrl, rep.Id, 'Primary', {maxHeight: 360, quality: 80});
+			}
+		}
+
+		if (item.Type === 'Movie' || item.Type === 'Series' || item.Type === 'BoxSet') {
+			const imageType = settings.homeRowsImageType || 'poster';
 			if (isFocused) {
 				if (item.ImageTags?.Thumb) {
 					return getImageUrl(itemServerUrl, item.Id, 'Thumb', {maxWidth: 600, quality: 80});
@@ -121,7 +139,18 @@ const ModernMediaCard = ({
 				if (item.BackdropImageTags?.length > 0) {
 					return getImageUrl(itemServerUrl, item.Id, 'Backdrop', {maxWidth: 600, quality: 80});
 				}
+				if (item._externalBackdropUrl) {
+					return toAbsoluteImageUrl(item._externalBackdropUrl, itemServerUrl);
+				}
 			}
+
+			if (imageType === 'thumb' && item.ImageTags?.Thumb) {
+				return getImageUrl(itemServerUrl, item.Id, 'Thumb', {maxWidth: 600, quality: 80});
+			}
+			if (imageType === 'backdrop' && item.BackdropImageTags?.length > 0) {
+				return getImageUrl(itemServerUrl, item.Id, 'Backdrop', {maxWidth: 600, quality: 80});
+			}
+
 			if (item.ImageTags?.Primary) {
 				return getImageUrl(itemServerUrl, item.Id, 'Primary', {maxHeight: 360, quality: 80});
 			}
@@ -153,7 +182,7 @@ const ModernMediaCard = ({
 			return toAbsoluteImageUrl(externalPoster, itemServerUrl);
 		}
 		return null;
-	}, [item, itemServerUrl, isFocused, settings.useSeriesThumbnails]);
+	}, [item, itemServerUrl, isFocused, settings.useSeriesThumbnails, settings.homeRowsImageType]);
 
 	const handleClick = useCallback(() => {
 		onSelect?.(item);
@@ -185,8 +214,9 @@ const ModernMediaCard = ({
 	const overviewText = useMemo(() => {
 		if (!shouldShowOverview) return '';
 		const rawOverview = typeof item?.Overview === 'string' ? item.Overview.trim() : '';
+		if (item?._external && !rawOverview) return '';
 		return rawOverview || $L('No description available.');
-	}, [item?.Overview, shouldShowOverview]);
+	}, [item?.Overview, shouldShowOverview, item?._external]);
 
 	const sizeMultiplier = POSTER_SIZE_MULTIPLIERS[settings.homeRowsPosterSize] || 1;
 	const imageHeight = Math.round(360 * sizeMultiplier);
@@ -194,7 +224,12 @@ const ModernMediaCard = ({
 	const cardWidth = isSquareItem ? imageHeight : Math.round((imageHeight * 2) / 3);
 	const expandedWidthFactor = platform === 'tizen' ? 16 / 9 : 1.65;
 	const expandedWidth = Math.max(cardWidth, Math.round(imageHeight * expandedWidthFactor));
-	const canRenderExpanded = !isSquareItem && Boolean(metadata || item?.CommunityRating || shouldShowOverview);
+	const canRenderExpanded = !isSquareItem && (
+		Boolean(metadata || item?.CommunityRating || (shouldShowOverview && overviewText)) ||
+		item?.Type === 'Genre' ||
+		item?._external === true ||
+		item?._seerr === true
+	);
 
 	const cardClassName = [
 		css.card,
@@ -222,15 +257,23 @@ const ModernMediaCard = ({
 		>
 			<div className={css.imageContainer}>
 				{imageUrl ? (
-					<img
-						className={css.image}
-						src={imageUrl}
-						alt={item?.Name}
-						loading={eagerLoad ? 'eager' : 'lazy'}
-						width={cardWidth}
-						height={imageHeight}
-						style={{height: `${imageHeight}px`}}
-					/>
+					<>
+						<img
+							className={css.image}
+							src={imageUrl}
+							alt={item?.Name}
+							loading={eagerLoad ? 'eager' : 'lazy'}
+							width={cardWidth}
+							height={imageHeight}
+							style={{height: `${imageHeight}px`}}
+						/>
+						{(item?.Type === 'Genre' || item?.Type === 'MusicGenre') && (
+							<>
+								<div className={css.genreOverlay} />
+								<div className={css.genreTitle}>{item?.Name?.toUpperCase()}</div>
+							</>
+						)}
+					</>
 				) : (
 					<div className={css.placeholder} style={{height: `${imageHeight}px`}}>
 						{item?.Type === 'Person' ? (
@@ -249,7 +292,7 @@ const ModernMediaCard = ({
 					</div>
 				)}
 
-				{showServerBadge && item?._serverName && (
+				{(showServerBadge || item?._external) && item?._serverName && (
 					<div className={css.serverBadge}>{item._serverName}</div>
 				)}
 
@@ -259,7 +302,9 @@ const ModernMediaCard = ({
 			</div>
 
 			<div className={css.title}>{displayTitle}</div>
-			{episodeLabel && <div className={css.secondaryTitle}>{episodeLabel}</div>}
+			{(episodeLabel || item?.Subtitle) && (
+				<div className={css.secondaryTitle}>{episodeLabel || item.Subtitle}</div>
+			)}
 
 			{isFocused && canRenderExpanded && (
 				<div className={css.extendedSection}>

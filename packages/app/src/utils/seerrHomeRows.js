@@ -28,7 +28,8 @@ export const MOVIE_STUDIOS = [
 ];
 
 export const getSeerrHomeRowConfigs = () => [
-	{id: 'myRequests', title: $L('My Requests'), type: 'request', cardType: 'portrait'},
+	{id: 'myRequests', title: $L('Recent Requests'), type: 'request', cardType: 'portrait'},
+	{id: 'recentlyAdded', title: $L('Recently Added'), type: 'media', cardType: 'portrait'},
 	{id: 'trending', title: $L('Trending Now'), type: 'media', cardType: 'portrait'},
 	{id: 'popularMovies', title: $L('Popular Movies'), type: 'media', cardType: 'portrait'},
 	{id: 'popularTv', title: $L('Popular TV Shows'), type: 'media', cardType: 'portrait'},
@@ -44,6 +45,7 @@ export const getSeerrHomeRowConfigs = () => [
 // so seerr rows share the unified home layout with the built-in rows.
 export const SEERR_SECTION_TO_CONFIG = {
 	seerr_recent_requests: 'myRequests',
+	seerr_recently_added: 'recentlyAdded',
 	seerr_trending: 'trending',
 	seerr_popular_movies: 'popularMovies',
 	seerr_popular_series: 'popularTv',
@@ -68,12 +70,15 @@ const yearOf = (item) => {
 export const normalizeMediaItem = (item) => {
 	const mediaType = item.media_type || item.mediaType || (item.title ? 'movie' : 'tv');
 	const poster = item.poster_path || item.posterPath;
+	const backdrop = item.backdrop_path || item.backdropPath;
 	return {
 		Id: `seerr-${mediaType}-${item.id}`,
 		Name: item.title || item.name,
 		Type: mediaType === 'movie' ? 'Movie' : 'Series',
 		ProductionYear: yearOf(item),
+		Overview: item.overview || '',
 		_externalPosterUrl: poster ? seerrApi.getImageUrl(poster, 'w342') : null,
+		_externalBackdropUrl: backdrop ? seerrApi.getImageUrl(backdrop, 'w1280') : null,
 		mediaInfo: {status: item.mediaInfo?.status},
 		_seerr: true,
 		_seerrType: 'item',
@@ -86,11 +91,14 @@ const normalizeRequestItem = (request) => {
 	const media = request.media || {};
 	const mediaType = request.type || media.mediaType || 'movie';
 	const poster = media.posterPath || media.poster_path;
+	const backdrop = media.backdropPath || media.backdrop_path;
 	return {
 		Id: `seerr-${mediaType}-${media.tmdbId}`,
 		Name: media.title || media.name || $L('Unknown'),
 		Type: mediaType === 'movie' ? 'Movie' : 'Series',
+		Overview: media.overview || request.overview || '',
 		_externalPosterUrl: poster ? seerrApi.getImageUrl(poster, 'w342') : null,
+		_externalBackdropUrl: backdrop ? seerrApi.getImageUrl(backdrop, 'w1280') : null,
 		mediaInfo: {status: media.status},
 		_seerr: true,
 		_seerrType: 'item',
@@ -132,6 +140,8 @@ export const fetchSeerrHomeRow = async (rowId, {userId} = {}) => {
 		switch (rowId) {
 			case 'trending':
 				return ((await seerrApi.trending(1)).results || []).slice(0, HOME_ROW_LIMIT).map(normalizeMediaItem);
+			case 'recentlyAdded':
+				return ((await seerrApi.getRecentlyAdded(HOME_ROW_LIMIT)).results || []).map(normalizeMediaItem);
 			case 'popularMovies':
 				return ((await seerrApi.trendingMovies(1)).results || []).slice(0, HOME_ROW_LIMIT).map(normalizeMediaItem);
 			case 'popularTv':
