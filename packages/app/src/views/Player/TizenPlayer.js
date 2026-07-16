@@ -20,6 +20,7 @@ import {initPgsCanvasRenderer, disposePgsRenderer, clearPgsCanvas} from '../../u
 import {supportsAssRenderer, initAssCanvasRenderer, disposeAssRenderer, setAssTime} from '../../utils/assRenderer';
 import {getSubtitleOverlayStyle, getSubtitleTextStyle, sanitizeSubtitleHtml} from '../../utils/subtitleConstants';
 import {findPreferredAudioStream} from '../../utils/audioLanguage';
+import {saveSubtitlePref, getItemSubtitlePref, getSeriesSubtitlePref} from '../../services/subtitlePrefs';
 import {api as jellyfinApi, createApiForServer, getServerUrl} from '../../services/jellyfinApi';
 import PlayerControls, {usePlayerButtons} from './PlayerControls';
 import AudioMode from './audio/AudioMode';
@@ -958,12 +959,52 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 					}
 				};
 
-				if (initialSubtitleIndex !== undefined && initialSubtitleIndex !== null) {
+				const turnSubtitlesOff = () => {
+					setSelectedSubtitleIndex(-1);
+					setSubtitleTrackEvents(null);
+				};
+
+				// A remembered pick wins so a chosen track survives across plays and
+				// episodes. The per-item index restores the exact track on a replay, and
+				// the per-series language carries to other episodes, matched by language
+				// because the same track sits at a different index in each episode.
+				let subtitleResolved = false;
+				const savedItemIndex = await getItemSubtitlePref(item.Id);
+				if (savedItemIndex !== undefined) {
+					if (savedItemIndex < 0) {
+						turnSubtitlesOff();
+						subtitleResolved = true;
+					} else {
+						const savedStream = result.subtitleStreams?.find(s => s.index === savedItemIndex);
+						if (savedStream) {
+							selectInitialSubtitle(savedStream);
+							subtitleResolved = true;
+						}
+					}
+				}
+				if (!subtitleResolved && item.SeriesId) {
+					const savedLanguage = await getSeriesSubtitlePref(item.SeriesId);
+					if (savedLanguage !== undefined) {
+						if (!savedLanguage) {
+							turnSubtitlesOff();
+							subtitleResolved = true;
+						} else {
+							const savedStream = result.subtitleStreams?.find(s => s.language === savedLanguage);
+							if (savedStream) {
+								selectInitialSubtitle(savedStream);
+								subtitleResolved = true;
+							}
+						}
+					}
+				}
+
+				if (subtitleResolved) {
+					// already applied from the remembered pick
+				} else if (initialSubtitleIndex !== undefined && initialSubtitleIndex !== null) {
 					if (initialSubtitleIndex >= 0) {
 						selectInitialSubtitle(result.subtitleStreams?.find(s => s.index === initialSubtitleIndex));
 					} else {
-						setSelectedSubtitleIndex(-1);
-						setSubtitleTrackEvents(null);
+						turnSubtitlesOff();
 					}
 				} else if (settings.subtitleMode === 'always') {
 					const defaultSub = result.subtitleStreams?.find(s => s.isDefault) || result.subtitleStreams?.[0];
@@ -1634,10 +1675,12 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 		}
 
 		playback.updateCurrentSession({subtitleStreamIndex: index});
+		const chosenLanguage = index >= 0 ? streamList?.find(s => s.index === index)?.language : '';
+		saveSubtitlePref(item, index, chosenLanguage);
 		if (shouldClose) {
 			closeModal();
 		}
-	}, [subtitleStreams, closeModal, settings.enablePgsRendering, applyNativeSubtitleTrack, reloadWithSubtitleIndex]);
+	}, [item, subtitleStreams, closeModal, settings.enablePgsRendering, applyNativeSubtitleTrack, reloadWithSubtitleIndex]);
 
 	const handleSelectSubtitle = useCallback(async (e) => {
 		const index = parseInt(e.currentTarget.dataset.index, 10);

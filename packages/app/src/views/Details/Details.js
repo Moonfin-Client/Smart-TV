@@ -24,6 +24,7 @@ import DeleteItemDialog from '../../components/DeleteItemDialog';
 import ChangeArtworkModal from '../../components/ChangeArtworkModal';
 import {toSubtitleLanguage, mapRemoteSubtitleOptions} from '../Player/remoteSubtitleUtils';
 import {getTmdbId, fetchTmdbSeasonRatings} from '../../services/mdblistApi';
+import {getItemSubtitlePref, getSeriesSubtitlePref} from '../../services/subtitlePrefs';
 import {analyzeLogoBrightness} from '../../utils/imgUtils';
 
 import css from './Details.module.less';
@@ -275,7 +276,33 @@ const Details = ({itemId, initialItem, onPlay, onSelectItem, onSelectPerson, onS
 					const idx = initAudioStreams.findIndex(s => s.Index === ms.DefaultAudioStreamIndex);
 					if (idx >= 0) setSelectedAudioIndex(idx);
 				}
-				if (ms.DefaultSubtitleStreamIndex != null) {
+				// Show the remembered pick as active so it doesn't look like it needs
+				// reselecting. The per-item index restores the exact track, and an episode
+				// otherwise inherits its series' remembered language.
+				let savedSubtitlePos = null;
+				const savedItemIndex = await getItemSubtitlePref(itemId);
+				if (savedItemIndex !== undefined) {
+					if (savedItemIndex < 0) {
+						savedSubtitlePos = -1;
+					} else {
+						const pos = initSubtitleStreams.findIndex(s => s.Index === savedItemIndex);
+						if (pos >= 0) savedSubtitlePos = pos;
+					}
+				}
+				if (savedSubtitlePos === null && data.SeriesId) {
+					const savedLanguage = await getSeriesSubtitlePref(data.SeriesId);
+					if (savedLanguage !== undefined) {
+						if (!savedLanguage) {
+							savedSubtitlePos = -1;
+						} else {
+							const pos = initSubtitleStreams.findIndex(s => s.Language === savedLanguage);
+							if (pos >= 0) savedSubtitlePos = pos;
+						}
+					}
+				}
+				if (savedSubtitlePos !== null) {
+					setSelectedSubtitleIndex(savedSubtitlePos);
+				} else if (ms.DefaultSubtitleStreamIndex != null) {
 					const idx = initSubtitleStreams.findIndex(s => s.Index === ms.DefaultSubtitleStreamIndex);
 					if (idx >= 0) setSelectedSubtitleIndex(idx);
 				} else {
