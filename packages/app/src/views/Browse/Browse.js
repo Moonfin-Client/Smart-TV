@@ -1380,6 +1380,41 @@ const Browse = ({
 										Type: 'Genre'
 									};
 								});
+
+								// Fallback resolution for any genres that missed the bulk query
+								const missingGenres = enrichedItems.filter(g => !g._representative);
+								if (missingGenres.length > 0) {
+									const fallbackResults = await Promise.all(
+										missingGenres.map(async (genre) => {
+											try {
+												const res = await api.getItems({
+													IncludeItemTypes: genresIncludeTypes,
+													Recursive: true,
+													Fields: 'PrimaryImageAspectRatio,Genres,ImageTags,BackdropImageTags',
+													Genres: genre.Name,
+													Limit: 1,
+													SortBy: 'SortName'
+												});
+												return { genreId: genre.Id, rep: res?.Items?.[0] || null };
+											} catch (err) {
+												return { genreId: genre.Id, rep: null };
+											}
+										})
+									);
+
+									enrichedItems = enrichedItems.map(genre => {
+										if (genre._representative) return genre;
+										const found = fallbackResults.find(r => r.genreId === genre.Id);
+										if (found && found.rep) {
+											return {
+												...genre,
+												Type: 'Genre',
+												_representative: found.rep
+											};
+										}
+										return genre;
+									});
+								}
 							} catch (e) {
 								console.warn('[Browse] Failed to enrich genres:', e);
 							}
@@ -1797,9 +1832,14 @@ const Browse = ({
 			return focusedItemForBackdrop._externalBackdropUrl;
 		}
 
-		const backdropId = getBackdropId(focusedItemForBackdrop);
+		let targetItem = focusedItemForBackdrop;
+		if (focusedItemForBackdrop.Type === 'Genre' && focusedItemForBackdrop._representative) {
+			targetItem = focusedItemForBackdrop._representative;
+		}
+
+		const backdropId = getBackdropId(targetItem);
 		if (!backdropId) return '';
-		const itemUrl = getItemServerUrl(focusedItemForBackdrop);
+		const itemUrl = getItemServerUrl(targetItem);
 		return getImageUrl(itemUrl, backdropId, 'Backdrop', {maxWidth: 1280, quality: 80});
 	}, [browseMode, focusedItemForBackdrop, isLegacy, settings.showHomeBackdrop, getItemServerUrl]);
 
