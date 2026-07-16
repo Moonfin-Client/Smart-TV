@@ -383,6 +383,28 @@ const extractThemeObjects = (payload) => {
 
 const SettingsContext = createContext(null);
 const EXPERIMENTAL_TRUEHD_KEY = 'moonfin.experimentalTruehd';
+// Tracks which servers have already gone through the first plugin-detection sync, so
+// a server without the plugin isn't probed on every login and settings are only
+// auto-pulled once per server.
+const PLUGIN_SYNC_INIT_KEY = 'pluginSyncInitialized';
+const normalizeServerKey = (serverUrl) => (serverUrl || '')
+	.replace(/^https?:\/\//i, '')
+	.replace(/\/+$/, '')
+	.toLowerCase();
+const isServerSyncInitialized = async (serverUrl) => {
+	const key = normalizeServerKey(serverUrl);
+	if (!key) return false;
+	const map = await getFromStorage(PLUGIN_SYNC_INIT_KEY);
+	return Boolean(map && map[key]);
+};
+const markServerSyncInitialized = async (serverUrl) => {
+	const key = normalizeServerKey(serverUrl);
+	if (!key) return;
+	const map = (await getFromStorage(PLUGIN_SYNC_INIT_KEY)) || {};
+	if (map[key]) return;
+	map[key] = true;
+	await saveToStorage(PLUGIN_SYNC_INIT_KEY, map);
+};
 // App boots before the async settings store loads, and on webOS that store is
 // DB8 which the reload after a language change beats. Mirror the language into
 // localStorage synchronously so the next boot reads the chosen one.
@@ -400,6 +422,11 @@ export function SettingsProvider({children}) {
 	const [loaded, setLoaded] = useState(false);
 	const [themeCatalogVersion, setThemeCatalogVersion] = useState(0);
 	const serverCredsRef = useRef(null);
+	// Lets the login-sync path read the current plugin flag without depending on the
+	// whole settings object, which would rebuild its callback on every change.
+	const settingsRef = useRef(settings);
+	settingsRef.current = settings;
+	const syncOnLoginRef = useRef({});
 
 	useEffect(() => {
 		getFromStorage('settings').then((stored) => {
@@ -624,13 +651,13 @@ export function SettingsProvider({children}) {
 					saveToStorage('settings', updated);
 					return updated;
 				});
-				return;
+				return 'empty';
 			}
 
 			const resolved = resolveFromEnvelope(serverData, adminDefaults);
 
 			const hasServerValues = resolved.tmdbApiKey !== undefined || SYNCABLE_KEYS.some(key => resolved[key] !== undefined);
-			if (!hasServerValues) return;
+			if (!hasServerValues) return 'empty';
 			setSettings(prev => {
 				const nextValues = {};
 				for (const key of SYNCABLE_KEYS) {
@@ -679,10 +706,41 @@ export function SettingsProvider({children}) {
 				}
 				return prev;
 			});
+			return 'applied';
 		} catch (e) {
 			console.warn('[Settings] Server sync failed:', e.message);
+			return 'error';
 		}
 	}, []);
+
+	// Mirrors Moonfin-Core's syncOnLogin. The first time a server is seen it detects
+	// the plugin and, if it answers with a profile, turns sync on and pulls it. A
+	// reachable server without the plugin is marked so it isn't probed again, and a
+	// network failure is left unmarked to retry on the next login. After that first
+	// pass the pull only runs while the user keeps the plugin enabled.
+	const syncOnLogin = useCallback(async (serverUrl, token) => {
+		if (!serverUrl || !token) return;
+		const key = normalizeServerKey(serverUrl);
+		if (!key || syncOnLoginRef.current[key]) return;
+		syncOnLoginRef.current[key] = true;
+		try {
+			if (await isServerSyncInitialized(serverUrl)) {
+				if (settingsRef.current.useMoonfinPlugin) {
+					await syncFromServer(serverUrl, token);
+				}
+				return;
+			}
+			const outcome = await syncFromServer(serverUrl, token);
+			if (outcome === 'applied') {
+				updateSetting('useMoonfinPlugin', true);
+				await markServerSyncInitialized(serverUrl);
+			} else if (outcome === 'empty') {
+				await markServerSyncInitialized(serverUrl);
+			}
+		} finally {
+			syncOnLoginRef.current[key] = false;
+		}
+	}, [syncFromServer, updateSetting]);
 
 	return (
 		<SettingsContext.Provider value={{
@@ -696,6 +754,7 @@ export function SettingsProvider({children}) {
 			selectThemeById,
 			resetSettings,
 			syncFromServer,
+			syncOnLogin,
 			saveStoreTheme,
 			deleteStoreTheme
 		}}>
