@@ -58,6 +58,28 @@ const ModernDetailContent = (props) => {
 	const played = item.UserData?.Played;
 	const isFavorite = item.UserData?.IsFavorite;
 
+	const [canToggle, setCanToggle] = useState(false);
+	const [isExpanded, setIsExpanded] = useState(false);
+	const descriptionRef = useRef(null);
+
+	// Reset expanded state when item changes
+	useEffect(() => {
+		setIsExpanded(false);
+		setCanToggle(false);
+	}, [item]);
+
+	// Detect if description text overflows 4 lines
+	useEffect(() => {
+		const el = descriptionRef.current;
+		if (el && !isExpanded) {
+			setCanToggle(el.scrollHeight > el.clientHeight);
+		}
+	}, [item?.Overview, isExpanded]);
+
+	const handleToggleExpand = useCallback(() => {
+		setIsExpanded(prev => !prev);
+	}, []);
+
 	const scrollToRef = useRef(null);
 	const handleScrollTo = useCallback((fn) => {
 		scrollToRef.current = fn;
@@ -507,7 +529,18 @@ const ModernDetailContent = (props) => {
 							)}
 							{!isPerson && <RatingsRow item={item} serverUrl={effectiveServerUrl} pluginEnabled={settings.useMoonfinPlugin && settings.mdblistEnabled !== false} />}
 							{tagline && <div className={css.tagline}>{tagline}</div>}
-							{item.Overview && <p className={css.overview}>{item.Overview}</p>}
+							{item.Overview && (
+								<SpottableDiv
+									className={`${css.descriptionContainer} ${canToggle ? css.descriptionContainerSpottable : ''}`}
+									onClick={canToggle ? handleToggleExpand : null}
+									spotlightDisabled={!canToggle}
+								>
+									<p ref={descriptionRef} className={`${css.overview} ${!isExpanded ? css.overviewCollapsed : ''}`}>
+										{item.Overview}
+									</p>
+									{canToggle && !isExpanded && <div className={css.readMoreBtn}>{$L('Read More')}</div>}
+								</SpottableDiv>
+							)}
 						</div>
 						{renderUpNext()}
 					</div>
