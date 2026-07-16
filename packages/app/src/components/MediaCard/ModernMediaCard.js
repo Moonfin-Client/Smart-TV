@@ -156,6 +156,24 @@ const ModernMediaCard = ({
 			}
 		}
 
+		if (item.Type === 'CollectionFolder' || item.isLibraryTile) {
+			if (isFocused) {
+				if (item.ImageTags?.Thumb) {
+					return getImageUrl(itemServerUrl, item.Id, 'Thumb', {maxWidth: 600, quality: 80});
+				}
+				if (item.BackdropImageTags?.length > 0) {
+					return getImageUrl(itemServerUrl, item.Id, 'Backdrop', {maxWidth: 600, quality: 80});
+				}
+			}
+
+			if (item.ImageTags?.Primary) {
+				return getImageUrl(itemServerUrl, item.Id, 'Primary', {maxHeight: 360, quality: 80});
+			}
+			if (item.ImageTags?.Thumb) {
+				return getImageUrl(itemServerUrl, item.Id, 'Thumb', {maxWidth: 600, quality: 80});
+			}
+		}
+
 		if (item.Type === 'Audio' && item.AlbumId && item.AlbumPrimaryImageTag) {
 			return getImageUrl(itemServerUrl, item.AlbumId, 'Primary', {maxHeight: 360, quality: 80});
 		}
@@ -227,6 +245,8 @@ const ModernMediaCard = ({
 	const canRenderExpanded = !isSquareItem && (
 		Boolean(metadata || item?.CommunityRating || (shouldShowOverview && overviewText)) ||
 		item?.Type === 'Genre' ||
+		item?.Type === 'CollectionFolder' ||
+		item?.isLibraryTile ||
 		item?._external === true ||
 		item?._seerr === true
 	);
