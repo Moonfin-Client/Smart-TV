@@ -80,25 +80,26 @@ const LiveTV = ({onPlayChannel, onRecordings, backHandlerRef}) => {
 	const currentChannelIndexRef = useRef(0);
 	const hasMoreChannelsRef = useRef(true);
 
-	const getGuideStartTime = useCallback(() => {
+	// The window is captured once per day rather than recomputed from the live clock
+	// on every render. If it drifted mid-navigation the fetched programs would all
+	// fall outside it and the whole grid would render empty.
+	const guideStartTime = useMemo(() => {
 		const start = new Date(currentDate);
-		const currentHour = new Date().getHours();
-		start.setHours(currentHour, 0, 0, 0);
+		start.setHours(new Date().getHours(), 0, 0, 0);
 		return start;
 	}, [currentDate]);
 
-	const getGuideEndTime = useCallback(() => {
-		const end = new Date(getGuideStartTime());
+	const guideEndTime = useMemo(() => {
+		const end = new Date(guideStartTime);
 		end.setHours(end.getHours() + HOURS_TO_DISPLAY);
 		return end;
-	}, [getGuideStartTime]);
+	}, [guideStartTime]);
 
 	const getCurrentTimePosition = useCallback(() => {
-		const startTime = getGuideStartTime();
 		const now = new Date();
-		const minutesSinceStart = (now - startTime) / (1000 * 60);
+		const minutesSinceStart = (now - guideStartTime) / (1000 * 60);
 		return minutesSinceStart / MINUTES_PER_PIXEL;
-	}, [getGuideStartTime]);
+	}, [guideStartTime]);
 
 	const loadChannels = useCallback(async (reset = false) => {
 		if (reset) {
@@ -119,11 +120,9 @@ const LiveTV = ({onPlayChannel, onRecordings, backHandlerRef}) => {
 				return;
 			}
 
-			const startTime = getGuideStartTime();
-			const endTime = getGuideEndTime();
 			const channelIds = newChannels.map(ch => ch.Id);
 
-			const programsResult = await api.getLiveTvPrograms(channelIds, startTime, endTime);
+			const programsResult = await api.getLiveTvPrograms(channelIds, guideStartTime, guideEndTime);
 			const allPrograms = programsResult.Items || [];
 
 			const programsByChannel = {};
@@ -145,7 +144,7 @@ const LiveTV = ({onPlayChannel, onRecordings, backHandlerRef}) => {
 		} catch (err) {
 			console.error('Failed to load channels:', err);
 		}
-	}, [api, getGuideStartTime, getGuideEndTime]);
+	}, [api, guideStartTime, guideEndTime]);
 
 	useEffect(() => {
 		const init = async () => {
@@ -296,11 +295,10 @@ const LiveTV = ({onPlayChannel, onRecordings, backHandlerRef}) => {
 
 	const timeSlots = useMemo(() => {
 		const slots = [];
-		const startTime = getGuideStartTime();
 		const totalSlots = HOURS_TO_DISPLAY * 2;
 
 		for (let i = 0; i < totalSlots; i++) {
-			const slotTime = new Date(startTime);
+			const slotTime = new Date(guideStartTime);
 			slotTime.setMinutes(slotTime.getMinutes() + (i * 30));
 			slots.push({
 				time: slotTime,
@@ -312,7 +310,7 @@ const LiveTV = ({onPlayChannel, onRecordings, backHandlerRef}) => {
 			});
 		}
 		return slots;
-	}, [getGuideStartTime]);
+	}, [guideStartTime]);
 
 	const filteredChannels = useMemo(() => {
 		if (!showFavoritesOnly) return channels;
@@ -328,23 +326,24 @@ const LiveTV = ({onPlayChannel, onRecordings, backHandlerRef}) => {
 		}
 	}, [filteredChannels.length]);
 
-	const windowEnd = Math.min(filteredChannels.length, channelWindowStart + VISIBLE_ROWS + OVERSCAN_ROWS * 2);
+	// Clamp the row window so a stale index from scrolling can never slice the
+	// channel list down to nothing and blank the whole grid.
+	const safeWindowStart = Math.min(channelWindowStart, Math.max(0, filteredChannels.length - 1));
+	const windowEnd = Math.min(filteredChannels.length, safeWindowStart + VISIBLE_ROWS + OVERSCAN_ROWS * 2);
 	const visibleChannels = useMemo(
-		() => filteredChannels.slice(channelWindowStart, windowEnd),
-		[filteredChannels, channelWindowStart, windowEnd]
+		() => filteredChannels.slice(safeWindowStart, windowEnd),
+		[filteredChannels, safeWindowStart, windowEnd]
 	);
-	const topSpacerHeight = channelWindowStart * CHANNEL_ROW_HEIGHT;
+	const topSpacerHeight = safeWindowStart * CHANNEL_ROW_HEIGHT;
 	const bottomSpacerHeight = Math.max(0, (filteredChannels.length - windowEnd) * CHANNEL_ROW_HEIGHT);
 
 	const calculateProgramStyle = useCallback((program) => {
-		const startTime = getGuideStartTime();
-		const guideEndTime = getGuideEndTime();
 		const programStart = new Date(program.StartDate);
 		const programEnd = new Date(program.EndDate);
 
-		if (programEnd <= startTime || programStart >= guideEndTime) return null;
+		if (programEnd <= guideStartTime || programStart >= guideEndTime) return null;
 
-		const minutesFromStart = (programStart - startTime) / (1000 * 60);
+		const minutesFromStart = (programStart - guideStartTime) / (1000 * 60);
 		const durationMinutes = (programEnd - programStart) / (1000 * 60);
 
 		let left = minutesFromStart / MINUTES_PER_PIXEL;
@@ -355,13 +354,20 @@ const LiveTV = ({onPlayChannel, onRecordings, backHandlerRef}) => {
 			left = 0;
 		}
 
+		// Clamp the right edge to the window so a program that runs past it doesn't
+		// overflow the container and send scrollIntoView past the guide's content.
+		const containerWidth = HOURS_TO_DISPLAY * PIXELS_PER_HOUR;
+		if (left + width > containerWidth) {
+			width = containerWidth - left;
+		}
+
 		if (width < 10) return null;
 
 		return {
 			left: `${left}px`,
 			width: `${width - 6}px`
 		};
-	}, [getGuideStartTime, getGuideEndTime]);
+	}, [guideStartTime, guideEndTime]);
 
 	const isCurrentProgram = useCallback((program) => {
 		const now = new Date();
