@@ -1,0 +1,103 @@
+.hero {
+	height: 220px;
+	margin: 8px 60px 12px;
+	display: -webkit-flex;
+	display: flex;
+	-webkit-align-items: center;
+	align-items: center;
+	border-radius: 16px;
+	overflow: hidden;
+	background: rgba(var(--theme-on-surface-rgb, 255, 255, 255), 0.07);
+	border: 2px solid transparent;
+	cursor: pointer;
+
+	&:focus {
+		outline: none;
+		background: rgba(var(--theme-on-surface-rgb, 255, 255, 255), 0.15);
+		border-color: var(--theme-accent, #00a4dc);
+		box-shadow: 0 0 18px 1px rgba(var(--theme-accent-rgb, 0, 164, 220), 0.47);
+	}
+}
+
+// Square, and as tall as the banner
+.art {
+	width: 220px;
+	height: 220px;
+	-webkit-flex: 0 0 auto;
+	flex: 0 0 auto;
+	background: rgba(var(--theme-on-surface-rgb, 255, 255, 255), 0.08);
+}
+
+.artImg {
+	width: 100%;
+	height: 100%;
+	object-fit: cover;
+	display: block;
+}
+
+.artPlaceholder {
+	width: 100%;
+	height: 100%;
+	display: -webkit-flex;
+	display: flex;
+	-webkit-align-items: center;
+	align-items: center;
+	-webkit-justify-content: center;
+	justify-content: center;
+	color: rgba(var(--theme-on-surface-rgb, 255, 255, 255), 0.38);
+}
+
+.info {
+	-webkit-flex: 1;
+	flex: 1;
+	min-width: 0;
+	padding: 0 24px;
+}
+
+.kicker {
+	font-size: 11px;
+	font-weight: 700;
+	letter-spacing: 1.2px;
+	color: var(--theme-accent, #00a4dc);
+}
+
+.name {
+	margin-top: 6px;
+	font-size: 24px;
+	font-weight: 800;
+	color: var(--theme-on-surface, #ffffff);
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.subtitle {
+	margin-top: 4px;
+	font-size: 15px;
+	color: rgba(var(--theme-on-surface-rgb, 255, 255, 255), 0.7);
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+// Not spottable: the hero is one target, so this only reacts to the hero's focus
+.play {
+	-webkit-flex: 0 0 auto;
+	flex: 0 0 auto;
+	width: 52px;
+	height: 52px;
+	margin-right: 24px;
+	border-radius: 26px;
+	display: -webkit-flex;
+	display: flex;
+	-webkit-align-items: center;
+	align-items: center;
+	-webkit-justify-content: center;
+	justify-content: center;
+	background: var(--theme-accent, #00a4dc);
+	color: var(--theme-on-accent, #ffffff);
+}
+
+.hero:focus .play {
+	box-shadow: 0 0 14px 1px rgba(var(--theme-accent-rgb, 0, 164, 220), 0.6);
+}

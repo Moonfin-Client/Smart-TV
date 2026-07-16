@@ -483,6 +483,14 @@ export const api = {
 		return request(`/Artists/AlbumArtists?${buildQueryString(merged)}`);
 	},
 
+	// Every artist, including ones who only appear on someone else's album.
+	// AlbumArtists is the narrower list of artists credited with an album.
+	getArtists: (params = {}) => {
+		const merged = {userId: currentUser, Recursive: 'true'};
+		Object.keys(params).forEach(function (k) { merged[k] = String(params[k]); });
+		return request(`/Artists?${buildQueryString(merged)}`);
+	},
+
 	getAlbumsByArtist: (artistId, limit = 100) =>
 		request(`/Users/${currentUser}/Items?AlbumArtistIds=${artistId}&IncludeItemTypes=MusicAlbum&Recursive=true&SortBy=ProductionYear,SortName&SortOrder=Descending&Limit=${limit}&Fields=PrimaryImageAspectRatio,ProductionYear`),
 
@@ -764,6 +772,14 @@ export const createApiForServer = (serverUrl, token, userId, serverTypeOverride 
 			const merged = {userId: userId, Recursive: 'true'};
 			Object.keys(params).forEach(function (k) { merged[k] = String(params[k]); });
 			return serverRequest(`/Artists/AlbumArtists?${buildQueryString(merged)}`);
+		},
+
+		// Every artist, including ones who only appear on someone else's album.
+		// AlbumArtists is the narrower list of artists credited with an album.
+		getArtists: (params = {}) => {
+			const merged = {userId: userId, Recursive: 'true'};
+			Object.keys(params).forEach(function (k) { merged[k] = String(params[k]); });
+			return serverRequest(`/Artists?${buildQueryString(merged)}`);
 		},
 
 		getAlbumsByArtist: (artistId, limit = 100) =>

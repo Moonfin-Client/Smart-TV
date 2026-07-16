@@ -1,14 +1,20 @@
 import {useCallback, useRef, useEffect, memo} from 'react';
 import SpotlightContainerDecorator from '@enact/spotlight/SpotlightContainerDecorator';
 import Spotlight from '@enact/spotlight';
+import Spottable from '@enact/spotlight/Spottable';
 import MediaCard from '../MediaCard';
 import {KEYS} from '../../utils/keys';
 import {useSettings} from '../../context/SettingsContext';
 
 import css from './MediaRow.module.less';
 
+const SpottableDiv = Spottable('div');
+
 const RowContainer = SpotlightContainerDecorator({
-	enterTo: 'last-focused'
+	enterTo: 'last-focused',
+	// Entering a row for the first time should land on a card, not on the See All
+	// tile that sits ahead of them.
+	defaultElement: '[data-media-card]'
 }, 'div');
 
 const MediaRow = ({
@@ -26,7 +32,9 @@ const MediaRow = ({
 	showServerBadge = false,
 	showOverview = false,
 	className,
-	registerRowRef
+	registerRowRef,
+	onSeeAll,
+	seeAllLabel
 }) => {
 	const {settings} = useSettings();
 	const scrollerRef = useRef(null);
@@ -128,6 +136,17 @@ const MediaRow = ({
 			<h2 className={css.title}>{title}</h2>
 			<div className={css.scroller} ref={scrollerRef} onFocus={handleFocus}>
 				<div className={css.items}>
+						{onSeeAll && (
+							<SpottableDiv
+								className={css.seeAll}
+								data-row-id={rowId}
+								onClick={onSeeAll}
+								onSpotlightLeft={handleWrapLeft}
+							>
+								<span className={css.seeAllChevron}>{'\u203A'}</span>
+								<span className={css.seeAllLabel}>{seeAllLabel}</span>
+							</SpottableDiv>
+						)}
 						{items.map((item, index) => {
 							const spotlightId = `media-${keyPrefix}-${item.Id}`;
 							const isFirst = index === 0;
@@ -145,7 +164,7 @@ const MediaRow = ({
 									showOverview={showOverview}
 									eagerLoad={rowIndex === 0}
 									spotlightId={spotlightId}
-									onSpotlightLeft={isFirst ? handleWrapLeft : null}
+									onSpotlightLeft={isFirst && !onSeeAll ? handleWrapLeft : null}
 									onSpotlightRight={isLast ? handleWrapRight : null}
 								/>
 							);
@@ -164,6 +183,10 @@ const areRowPropsEqual = (prev, next) => {
 	if (prev.rowIndex !== next.rowIndex) return false;
 	if (prev.showServerBadge !== next.showServerBadge) return false;
 	if (prev.className !== next.className) return false;
+	if (prev.seeAllLabel !== next.seeAllLabel) return false;
+	// Compare presence, not identity: an inline arrow from a caller would defeat
+	// the whole comparator.
+	if (!prev.onSeeAll !== !next.onSeeAll) return false;
 	if (prev.items === next.items) return true;
 	if (prev.items?.length !== next.items?.length) return false;
 	for (let i = 0; i < prev.items.length; i++) {

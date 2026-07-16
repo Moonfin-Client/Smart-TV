@@ -7,7 +7,7 @@ import {VirtualGridList} from '@enact/sandstone/VirtualList';
 import {useAuth} from '../../context/AuthContext';
 import {createApiForServer} from '../../services/jellyfinApi';
 import LoadingSpinner from '../../components/LoadingSpinner';
-import MediaRow from '../../components/MediaRow';
+import MusicBrowse from '../MusicBrowse';
 import {getImageUrl, getPrimaryImageId, formatDuration} from '../../utils/helpers';
 import {useSettings} from '../../context/SettingsContext';
 import {fetchRatings, buildDisplayRatings} from '../../services/mdblistApi';
@@ -49,19 +49,8 @@ const MUSIC_CONTENT_TYPES = [
 	{key: 'albums', label: $L('Albums'), itemType: 'MusicAlbum'},
 	{key: 'albumArtists', label: $L('Album Artists'), itemType: 'AlbumArtist'},
 	{key: 'artists', label: $L('Artists'), itemType: 'MusicArtist'},
+	{key: 'playlists', label: $L('Playlists'), itemType: 'Playlist'},
 	{key: 'genres', label: $L('Genres'), itemType: 'MusicGenre'}
-];
-
-const MUSIC_BROWSE_ROW_LIMIT = 30;
-
-const MusicViewIcon = ({d}) => (
-	<svg viewBox="0 -960 960 960" fill="currentColor" width="36" height="36"><path d={d} /></svg>
-);
-const MUSIC_VIEW_BUTTONS = [
-	{id: 'albums', label: $L('Albums'), icon: 'M480-269q88 0 149.5-61.5T691-480q0-88-61.5-149.5T480-691q-88 0-149.5 61.5T269-480q0 88 61.5 149.5T480-269Zm0-131q-33 0-56.5-23.5T400-480q0-33 23.5-56.5T480-560q33 0 56.5 23.5T560-480q0 33-23.5 56.5T480-400ZM480-80q-83 0-156-31.5T197-197q-54-54-85.5-127T80-480q0-83 31.5-156T197-763q54-54 127-85.5T480-880q83 0 156 31.5T763-763q54 54 85.5 127T880-480q0 83-31.5 156T763-197q-54 54-127 85.5T480-80Z'},
-	{id: 'albumArtists', label: $L('Album Artists'), icon: 'M480-480q-66 0-113-47t-47-113q0-66 47-113t113-47q66 0 113 47t47 113q0 66-47 113t-113 47ZM160-160v-112q0-34 17.5-62.5T224-378q62-31 126-46.5T480-440q66 0 130 15.5T736-378q29 15 46.5 43.5T800-272v112H160Z'},
-	{id: 'artists', label: $L('Artists'), icon: 'M0-240v-63q0-43 44-70t116-27q13 0 25 .5t23 2.5q-14 21-21 44t-7 48v65H0Zm240 0v-65q0-32 17.5-58.5T307-410q32-20 76.5-30t96.5-10q53 0 97.5 10t76.5 30q32 20 49 46.5t17 58.5v65H240Zm540 0v-65q0-26-6.5-49T754-397q11-2 22.5-2.5t23.5-.5q72 0 116 27t44 70v63H780ZM160-440q-33 0-56.5-23.5T80-520q0-34 23.5-57t56.5-23q34 0 57 23t23 57q0 33-23 56.5T160-440Zm640 0q-33 0-56.5-23.5T720-520q0-34 23.5-57t56.5-23q34 0 57 23t23 57q0 33-23 56.5T800-440Zm-320-40q-50 0-85-35t-35-85q0-51 35-85.5t85-34.5q51 0 85.5 34.5T570-600q0 50-34.5 85T480-480Z'},
-	{id: 'genres', label: $L('Genres'), icon: 'M400-120q-66 0-113-47t-47-113q0-66 47-113t113-47q23 0 42.5 5.5T480-418v-422h240v160H560v400q0 66-47 113t-113 47Z'}
 ];
 
 const LETTERS = ['#', 'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z'];
@@ -98,8 +87,6 @@ const [showSortPanel, setShowSortPanel] = useState(false);
 const [showSettingsPanel, setShowSettingsPanel] = useState(false);
 const [focusedItem, setFocusedItem] = useState(null);
 const [focusedRatings, setFocusedRatings] = useState([]);
-const [musicRows, setMusicRows] = useState([]);
-const [isLoadingMusicRows, setIsLoadingMusicRows] = useState(false);
 const [musicGridView, setMusicGridView] = useState(null);
 const libraryId = library?.Id || (genreFilter ? `genre-${genreFilter}` : studioFilter ? `studio-${studioFilter}` : 'default');
 const [imageSize, setImageSize] = useStorage(`library_imageSize_${libraryId}`, 'medium');
@@ -125,8 +112,6 @@ const apiFetchIndexRef = useRef(0);
 const initialFocusDoneRef = useRef(false);
 const ratingsTimeoutRef = useRef(null);
 const ratingsAbortRef = useRef(null);
-const musicRowsContainerRef = useRef(null);
-const musicRowRefsMap = useRef(new Map());
 const loadItemsRef = useRef(null);
 const fetchGenerationRef = useRef(0);
 
@@ -264,30 +249,43 @@ if (isFolderView) {
 
 	if (filters.length > 0) params.Filters = filters.join(',');
 
-	const result = isMusicLibrary && (musicContentType === 'artists' || musicContentType === 'albumArtists')
-		? await effectiveApi.getAlbumArtists({
-			ParentId: library.Id,
-			StartIndex: startIndex,
-			Limit: 150,
-			SortBy: sortOption.field,
-			SortOrder: sortOption.order,
-			EnableTotalRecordCount: true,
-			Fields: 'PrimaryImageAspectRatio,SortName,ProductionYear,ImageTags,UserData',
-			ImageTypeLimit: 1,
-			EnableImageTypes: 'Primary,Backdrop,Thumb',
-			...(filters.length > 0 ? {Filters: filters.join(',')} : {})
-		})
-		: isMusicLibrary && musicContentType === 'genres'
-		? await effectiveApi.getMusicGenres({
-			ParentId: library.Id,
+	// Playlists are not children of the music library, so they are fetched without
+	// a parent. Artists and album artists are different lists behind different
+	// endpoints.
+	if (isMusicLibrary && musicContentType === 'playlists') delete params.ParentId;
+
+	const artistParams = {
+		ParentId: library?.Id,
+		StartIndex: startIndex,
+		Limit: 150,
+		SortBy: sortOption.field,
+		SortOrder: sortOption.order,
+		EnableTotalRecordCount: true,
+		Fields: 'PrimaryImageAspectRatio,SortName,ProductionYear,ImageTags,UserData',
+		ImageTypeLimit: 1,
+		EnableImageTypes: 'Primary,Backdrop,Thumb',
+		...(filters.length > 0 ? {Filters: filters.join(',')} : {})
+	};
+
+	let result;
+	if (isMusicLibrary && musicContentType === 'albumArtists') {
+		result = await effectiveApi.getAlbumArtists(artistParams);
+	} else if (isMusicLibrary && musicContentType === 'artists') {
+		result = await effectiveApi.getArtists(artistParams);
+	} else if (isMusicLibrary && musicContentType === 'genres') {
+		result = await effectiveApi.getMusicGenres({
+			ParentId: library?.Id,
 			StartIndex: startIndex,
 			Limit: 150,
 			SortBy: sortOption.field,
 			SortOrder: sortOption.order,
 			EnableTotalRecordCount: true,
 			Fields: 'PrimaryImageAspectRatio,ItemCounts'
-		})
-		: await effectiveApi.getItems(params);
+		});
+	} else {
+		result = await effectiveApi.getItems(params);
+	}
+
 	let newItems = result.Items || [];
 
 	if (excludeTypes && newItems.length > 0) {
@@ -312,96 +310,6 @@ loadingMoreRef.current = false;
 
 loadItemsRef.current = loadItems;
 
-const loadMusicBrowseRows = useCallback(async () => {
-	if (!library?.Id || !isMusicBrowseHome) return;
-
-	setIsLoadingMusicRows(true);
-	try {
-		const fields = 'PrimaryImageAspectRatio,ProductionYear,ImageTags,UserData,AlbumArtist,AlbumArtists,Artists';
-		const [latestRes, recentRes, playlistsRes, albumArtistsRes] = await Promise.all([
-			effectiveApi.getItems({
-				ParentId: library.Id,
-				IncludeItemTypes: 'MusicAlbum',
-				Recursive: true,
-				SortBy: 'DateCreated',
-				SortOrder: 'Descending',
-				Limit: MUSIC_BROWSE_ROW_LIMIT,
-				Fields: fields
-			}),
-			effectiveApi.getItems({
-				ParentId: library.Id,
-				IncludeItemTypes: 'Audio,MusicAlbum',
-				Recursive: true,
-				SortBy: 'DatePlayed',
-				SortOrder: 'Descending',
-				Limit: MUSIC_BROWSE_ROW_LIMIT,
-				Fields: fields,
-				Filters: 'IsPlayed'
-			}),
-			effectiveApi.getItems({
-				IncludeItemTypes: 'Playlist',
-				Recursive: true,
-				SortBy: 'SortName',
-				SortOrder: 'Ascending',
-				Limit: MUSIC_BROWSE_ROW_LIMIT,
-				Fields: 'PrimaryImageAspectRatio,ImageTags,MediaType,ChildCount,RecursiveItemCount'
-			}),
-			effectiveApi.getAlbumArtists({
-				ParentId: library.Id,
-				Recursive: true,
-				SortBy: 'SortName',
-				SortOrder: 'Ascending',
-				Limit: MUSIC_BROWSE_ROW_LIMIT,
-				Fields: fields
-			})
-		]);
-
-		const playlists = playlistsRes?.Items || [];
-		const audioPlaylists = [];
-		const queue = playlists.slice();
-		const workerCount = Math.min(4, queue.length);
-		const workers = Array.from({length: workerCount}, async () => {
-			while (queue.length > 0) {
-				const playlist = queue.shift();
-				if (!playlist || playlist.Type !== 'Playlist' || !playlist.Id) continue;
-
-				const count = playlist.ChildCount != null ? playlist.ChildCount : playlist.RecursiveItemCount;
-				if (count != null && count <= 0) continue;
-
-				try {
-					const playlistItemsRes = await effectiveApi.getPlaylistItems(playlist.Id, 300);
-					const playlistItems = playlistItemsRes?.Items || [];
-					if (playlistItems.length === 0) continue;
-
-					const hasOnlyAudio = playlistItems.every((entry) => {
-						if (entry?.MediaType) return entry.MediaType === 'Audio';
-						return entry?.Type === 'Audio';
-					});
-
-					if (hasOnlyAudio) audioPlaylists.push(playlist);
-				} catch (err) {
-					if (playlist.MediaType === 'Audio') audioPlaylists.push(playlist);
-				}
-			}
-		});
-		await Promise.all(workers);
-
-		const nextRows = [
-			{id: 'latestMusic', title: $L('Latest Music'), items: latestRes?.Items || []},
-			{id: 'lastPlayed', title: $L('Last Played'), items: recentRes?.Items || []},
-			{id: 'playlists', title: $L('Playlists'), items: audioPlaylists},
-			{id: 'albumArtists', title: $L('Album Artists'), items: albumArtistsRes?.Items || []}
-		].filter(row => row.items.length > 0);
-
-		setMusicRows(nextRows);
-	} catch (err) {
-		console.error('[Library] loadMusicBrowseRows error:', err);
-		setMusicRows([]);
-	} finally {
-		setIsLoadingMusicRows(false);
-	}
-}, [effectiveApi, library?.Id, isMusicBrowseHome]);
-
 useEffect(() => {
 	if (isMusicBrowseHome) {
 		setIsLoading(false);
@@ -418,51 +326,12 @@ useEffect(() => {
 	}
 }, [library, sortKey, favoritesOnly, watchedOnly, musicContentType, isFolderView, currentFolderId, genreFilter, studioFilter, isMusicBrowseHome]);
 
-useEffect(() => {
-	if (!isMusicBrowseHome) return;
-	loadMusicBrowseRows();
-}, [isMusicBrowseHome, loadMusicBrowseRows]);
-
-const registerMusicRowRef = useCallback((rowIndex, element) => {
-	if (element) {
-		musicRowRefsMap.current.set(rowIndex, element);
-	} else {
-		musicRowRefsMap.current.delete(rowIndex);
-	}
-}, []);
-
-const scrollToMusicRow = useCallback((rowIndex, thenFocus) => {
-	const rowEl = musicRowRefsMap.current.get(rowIndex);
-	const container = musicRowsContainerRef.current;
-	if (!rowEl || !container) {
-		if (thenFocus) Spotlight.focus('row-' + rowIndex);
-		return;
-	}
-	container.scrollTop = Math.max(0, rowEl.offsetTop - 16);
-	if (thenFocus) {
-		setTimeout(() => Spotlight.focus('row-' + rowIndex), 0);
-	}
-}, []);
-
-const handleMusicNavigateUp = useCallback((fromRowIndex) => {
-	if (fromRowIndex <= 0) {
-		Spotlight.focus('music-view-albums');
-		return;
-	}
-	scrollToMusicRow(fromRowIndex - 1, true);
-}, [scrollToMusicRow]);
-
-const handleMusicNavigateDown = useCallback((fromRowIndex) => {
-	const nextRow = fromRowIndex + 1;
-	if (nextRow >= musicRows.length) return;
-	scrollToMusicRow(nextRow, true);
-}, [musicRows.length, scrollToMusicRow]);
-
-const handleMusicViewJump = useCallback((e) => {
-	const viewId = e.currentTarget?.dataset?.rowId;
-	if (!viewId) return;
-	setMusicGridView(viewId);
-	setMusicContentType(viewId);
+// Favorites is the albums grid with the filter on rather than a type of its own.
+const handleOpenMusicGrid = useCallback((target) => {
+	if (!target) return;
+	setMusicGridView(target);
+	setMusicContentType(target === 'favorites' ? 'albums' : target);
+	setFavoritesOnly(target === 'favorites');
 	setAllItems([]);
 	apiFetchIndexRef.current = 0;
 	initialFocusDoneRef.current = false;
@@ -548,7 +417,11 @@ setShowSortPanel(false);
 
 useEffect(() => {
 	if (!backHandlerRef) return;
-	backHandlerRef.current = () => {
+	// There is one slot, and the music browse screen claims it while it is up.
+	// Nothing below would be true there anyway, since it only shows when there is
+	// no grid, no panel and no folder stack.
+	if (isMusicBrowseHome) return;
+	const handler = () => {
 		if (showSettingsPanel) {
 			setShowSettingsPanel(false);
 			return true;
@@ -559,6 +432,7 @@ useEffect(() => {
 		}
 		if (musicGridView) {
 			setMusicGridView(null);
+			setFavoritesOnly(false);
 			return true;
 		}
 		if (isFolderView && folderStack.length > 0) {
@@ -567,8 +441,11 @@ useEffect(() => {
 		}
 		return false;
 	};
-	return () => { if (backHandlerRef) backHandlerRef.current = null; };
-}, [backHandlerRef, showSortPanel, showSettingsPanel, musicGridView, isFolderView, folderStack]);
+	backHandlerRef.current = handler;
+	// Only hand the slot back if it's still ours, so a late cleanup can't null out
+	// whoever claimed it after us.
+	return () => { if (backHandlerRef.current === handler) backHandlerRef.current = null; };
+}, [backHandlerRef, showSortPanel, showSettingsPanel, musicGridView, isFolderView, folderStack, isMusicBrowseHome]);
 
 useEffect(() => {
 	return () => {
@@ -818,57 +695,15 @@ return (
 
 if (isMusicBrowseHome) {
 	return (
-		<div className={`${css.page} ${css.musicPage}`}>
-			<div className={`${css.content} ${css.musicContent}`}>
-				<div className={css.musicHeader}>
-					<div className={css.musicLibraryTitle}>{displayName}</div>
-				</div>
-
-				<SpottableButton className={css.musicHomeBtn} onClick={onHome} spotlightId="music-home-btn">
-					<svg viewBox="0 0 24 24" fill="currentColor" width="24" height="24"><path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z" /></svg>
-				</SpottableButton>
-
-				<div className={css.musicSectionTitle}>{$L('Views')}</div>
-				<div className={css.musicViews}>
-					{MUSIC_VIEW_BUTTONS.map((btn, idx) => (
-						<SpottableButton
-							key={btn.id}
-							className={css.musicViewBtn}
-							onClick={handleMusicViewJump}
-							data-row-id={btn.id}
-							spotlightId={idx === 0 ? 'music-view-albums' : `music-view-${btn.id}`}
-						>
-							<MusicViewIcon d={btn.icon} />
-							<span className={css.musicViewLabel}>{btn.label}</span>
-						</SpottableButton>
-					))}
-				</div>
-
-				<div className={css.musicRowsContainer} ref={musicRowsContainerRef}>
-					{isLoadingMusicRows ? (
-						<div className={css.loading}><LoadingSpinner /></div>
-					) : musicRows.length === 0 ? (
-						<div className={css.empty}>{$L('No music items found')}</div>
-					) : (
-						musicRows.map((row, index) => (
-							<MediaRow
-								key={row.id}
-								title={row.title}
-								items={row.items}
-								serverUrl={effectiveServerUrl}
-								cardType="square"
-								onSelectItem={onSelectItem}
-								rowIndex={index}
-								rowId={`music-${row.id}`}
-								onNavigateUp={handleMusicNavigateUp}
-								onNavigateDown={handleMusicNavigateDown}
-								registerRowRef={registerMusicRowRef}
-							/>
-						))
-					)}
-				</div>
-			</div>
-		</div>
+		<MusicBrowse
+			library={library}
+			api={effectiveApi}
+			serverUrl={effectiveServerUrl}
+			onSelectItem={onSelectItem}
+			onOpenGrid={handleOpenMusicGrid}
+			onHome={onHome}
+			backHandlerRef={backHandlerRef}
+		/>
 	);
 }
 

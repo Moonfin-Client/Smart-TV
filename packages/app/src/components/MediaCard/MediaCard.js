@@ -22,7 +22,10 @@ const toAbsoluteImageUrl = (url, serverUrl) => {
 const MediaCard = ({item, serverUrl, cardType = 'portrait', onSelect, onFocusItem, showServerBadge = false, showOverview = false, eagerLoad = false, spotlightId, onSpotlightLeft, onSpotlightRight}) => {
 	const {settings} = useSettings();
 	const isLandscape = cardType === 'landscape';
-	const isSquare = cardType === 'square' || (cardType === 'portrait' && (item.Type === 'MusicAlbum' || item.Type === 'MusicArtist' || item.Type === 'Audio'));
+	// Artists read as circles in the music library. It rides on the square path
+	// since the art is the same 1:1 either way, only the radius differs.
+	const isCircle = cardType === 'circle';
+	const isSquare = isCircle || cardType === 'square' || (cardType === 'portrait' && (item.Type === 'MusicAlbum' || item.Type === 'MusicArtist' || item.Type === 'Audio'));
 	const focusTimeoutRef = useRef(null);
 
 	useEffect(() => {
@@ -141,7 +144,7 @@ const MediaCard = ({item, serverUrl, cardType = 'portrait', onSelect, onFocusIte
 		return null;
 	}, [item.Type, item.AlbumArtist, item.AlbumArtists, item.Artists]);
 
-	const cardClass = `${css.card} ${isLandscape ? css.landscape : isSquare ? css.square : css.portrait}${settings.cardFocusZoom ? '' : ' ' + css.noZoom}`;
+	const cardClass = `${css.card} ${isLandscape ? css.landscape : isSquare ? css.square : css.portrait}${isCircle ? ' ' + css.circle : ''}${settings.cardFocusZoom ? '' : ' ' + css.noZoom}`;
 
 	const sizeMultiplier = POSTER_SIZE_MULTIPLIERS[settings.homeRowsPosterSize] || 1;
 	const shapeKey = isLandscape ? 'landscape' : isSquare ? 'square' : 'portrait';
@@ -152,7 +155,7 @@ const MediaCard = ({item, serverUrl, cardType = 'portrait', onSelect, onFocusIte
 	const imgSizeStyle = sizeMultiplier !== 1 ? {height: cardHeight + 'px'} : undefined;
 
 	return (
-		<SpottableDiv className={cardClass} onClick={handleClick} onFocus={handleFocus} style={sizeStyle} spotlightId={spotlightId} onSpotlightLeft={onSpotlightLeft} onSpotlightRight={onSpotlightRight}>
+		<SpottableDiv className={cardClass} data-media-card onClick={handleClick} onFocus={handleFocus} style={sizeStyle} spotlightId={spotlightId} onSpotlightLeft={onSpotlightLeft} onSpotlightRight={onSpotlightRight}>
 			<div className={css.imageContainer}>
 				{imageUrl ? (
 					<img

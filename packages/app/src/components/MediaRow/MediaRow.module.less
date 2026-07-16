@@ -44,6 +44,51 @@
 	}
 }
 
+// Sits ahead of the cards so left from the first card reaches it, which is the
+// only spot a remote can get to without stealing a press from the rows.
+.seeAll {
+	-webkit-flex: 0 0 auto;
+	flex: 0 0 auto;
+	width: 120px;
+	align-self: center;
+	display: -webkit-flex;
+	display: flex;
+	-webkit-flex-direction: column;
+	flex-direction: column;
+	-webkit-align-items: center;
+	align-items: center;
+	-webkit-justify-content: center;
+	justify-content: center;
+	padding: 24px 0;
+	border-radius: 16px;
+	border: 2px solid transparent;
+	background: rgba(var(--theme-on-surface-rgb, 255, 255, 255), 0.08);
+	color: rgba(var(--theme-on-surface-rgb, 255, 255, 255), 0.7);
+	cursor: pointer;
+
+	&:focus {
+		outline: none;
+		border-color: var(--theme-accent, #00a4dc);
+		background: rgba(var(--theme-accent-rgb, 0, 164, 220), 0.22);
+		color: var(--theme-on-surface, #ffffff);
+		box-shadow: 0 0 14px 1px rgba(var(--theme-accent-rgb, 0, 164, 220), 0.45);
+	}
+}
+
+.seeAllChevron {
+	font-size: 34px;
+	line-height: 1;
+	font-weight: 700;
+	color: var(--theme-accent, #00a4dc);
+}
+
+.seeAllLabel {
+	margin-top: 8px;
+	font-size: 15px;
+	font-weight: 600;
+	text-align: center;
+}
+
 .items {
 	display: flex;
 	display: -webkit-flex;
