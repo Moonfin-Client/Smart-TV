@@ -1,4 +1,4 @@
-import {createRequestQueue, DEFAULT_MAX_CONCURRENT} from './requestQueue';
+import {createRequestQueue, DEFAULT_MAX_CONCURRENT, mediaServerQueue} from './requestQueue';
 
 const deferred = () => {
 	let resolve, reject;
@@ -91,5 +91,27 @@ describe('createRequestQueue', () => {
 	test('ships a default limit that leaves room for image loads', () => {
 		expect(DEFAULT_MAX_CONCURRENT).toBeGreaterThan(0);
 		expect(DEFAULT_MAX_CONCURRENT).toBeLessThanOrEqual(6);
+	});
+});
+
+describe('mediaServerQueue', () => {
+	// A queue per service would let through as many bursts as there are services.
+	test('holds every caller to one shared cap', async () => {
+		let running = 0;
+		let peak = 0;
+		const gate = deferred();
+		const runs = Array.from({length: DEFAULT_MAX_CONCURRENT + 3}, () => mediaServerQueue.run(async () => {
+			running++;
+			peak = Math.max(peak, running);
+			await gate.promise;
+			running--;
+		}));
+
+		await flush();
+		expect(peak).toBe(DEFAULT_MAX_CONCURRENT);
+
+		gate.resolve();
+		await Promise.all(runs);
+		expect(mediaServerQueue.inFlight()).toBe(0);
 	});
 });

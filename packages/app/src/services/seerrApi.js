@@ -1,5 +1,6 @@
 import {isWebOS, isLegacyTizen} from '../platform';
 import {fetchWithTimeout} from '../utils/fetchTimeout';
+import {mediaServerQueue} from '../utils/requestQueue';
 
 let moonfinMode = false;
 let jellyfinServerUrl = null;
@@ -24,11 +25,11 @@ const fetchRequest = async (params) => {
 const {url, method = 'GET', headers = {}, body, timeout = 15000} = params;
 
 try {
-const response = await fetchWithTimeout(url, {
+const response = await mediaServerQueue.run(() => fetchWithTimeout(url, {
 method,
 headers,
 body: body || undefined
-}, timeout);
+}, timeout));
 
 const responseBody = await response.text();
 
