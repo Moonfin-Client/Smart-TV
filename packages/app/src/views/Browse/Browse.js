@@ -1758,20 +1758,20 @@ const Browse = ({
 				};
 
 				dispatch({type: 'SET_LOADING', value: false});
-				const loaders = [
-					loadLatestAndRecentlyReleased,
-					loadCollections,
-					loadFavorites,
-					loadGenres,
-					loadPlaylistsAndMusic,
-					loadImdbRows,
-					loadPluginsAndRecos
-				];
-				loaders.forEach((loader, idx) => {
-					setTimeout(() => {
-						if (!cancelled) loader();
-					}, idx * 300);
-				});
+				// Each loader appends its rows as it finishes. They start together and their
+				// requests line up in the media server queue, so holding the later ones back
+				// would only delay those rows without easing the load.
+				if (!cancelled) {
+					[
+						loadLatestAndRecentlyReleased,
+						loadCollections,
+						loadFavorites,
+						loadGenres,
+						loadPlaylistsAndMusic,
+						loadImdbRows,
+						loadPluginsAndRecos
+					].forEach((loader) => loader());
+				}
 
 			} catch (err) {
 				console.error('Failed to load browse data:', err);

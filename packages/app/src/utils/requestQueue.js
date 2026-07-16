@@ -47,3 +47,12 @@ export const createRequestQueue = (maxConcurrent = DEFAULT_MAX_CONCURRENT) => {
 		pending: () => waiting.length
 	};
 };
+
+// One queue for everything aimed at the media server, whether that is Jellyfin or Emby.
+// The home rows reach it two ways, through the item endpoints and through the plugin's
+// own endpoints, and both land on the same box, so capping one route on its own still
+// lets a burst through. Playback and images take other paths and stay unthrottled.
+//
+// Keep long lived connections out of it. Anything holding a connection open, a settings
+// stream for instance, would sit on its slot and starve everything waiting behind it.
+export const mediaServerQueue = createRequestQueue();

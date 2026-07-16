@@ -1,5 +1,6 @@
 import {getAuthHeader, getServerUrl} from './jellyfinApi';
 import {fetchWithTimeout} from '../utils/fetchTimeout';
+import {mediaServerQueue} from '../utils/requestQueue';
 
 // Thin client for the Moonfin plugin external home row endpoints. Everything
 // except the Radarr and Sonarr calendars comes from one generic endpoint,
@@ -61,7 +62,9 @@ export const fetchCustomRow = async ({source, type, params = {}}, options = {}) 
 		const fetchOptions = {headers: {'Authorization': getAuthHeader()}};
 		if (options.signal) fetchOptions.signal = options.signal;
 
-		const response = await fetchWithTimeout(url, fetchOptions, options.timeoutMs || 10000);
+		const response = await mediaServerQueue.run(
+			() => fetchWithTimeout(url, fetchOptions, options.timeoutMs || 10000)
+		);
 		if (!response.ok) return cache[key]?.items || [];
 
 		const data = await response.json();

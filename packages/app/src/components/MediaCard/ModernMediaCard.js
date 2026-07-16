@@ -124,9 +124,6 @@ const ModernMediaCard = ({
 				if (rep.BackdropImageTags?.length > 0) {
 					return getImageUrl(repServerUrl, rep.Id, 'Backdrop', {maxWidth: 600, quality: 80});
 				}
-				if (rep.ImageTags?.Primary) {
-					return getImageUrl(repServerUrl, rep.Id, 'Primary', {maxHeight: 360, quality: 80});
-				}
 			}
 			if (rep.ImageTags?.Primary) {
 				return getImageUrl(repServerUrl, rep.Id, 'Primary', {maxHeight: 360, quality: 80});

@@ -2,7 +2,7 @@ import packageJson from '../../package.json';
 import {buildQueryString} from '../utils/urlCompat';
 import {normalizeServerUrl} from '../utils/serverUrl';
 import {classifyError} from '../utils/connectionErrors';
-import {createRequestQueue} from '../utils/requestQueue';
+import {mediaServerQueue} from '../utils/requestQueue';
 import {platformFetch} from './secureFetch';
 import {isTizen} from '../platform';
 const APP_VERSION = packageJson.version;
@@ -97,15 +97,10 @@ const DEFAULT_TIMEOUT_MS = 15000;
 const PLAYBACK_TIMEOUT_MS = 30000;
 export const HOME_ROW_ITEM_FIELDS = 'PrimaryImageAspectRatio,Overview,Genres,GenreItems,ProductionYear,RunTimeTicks,CommunityRating,CriticRating,ProviderIds,ImageTags,BackdropImageTags,ParentBackdropImageTags,ParentBackdropItemId,ParentThumbItemId,SeriesPrimaryImageTag,SeriesName,ParentIndexNumber,IndexNumber,UserData,AlbumArtist,AlbumId,AlbumPrimaryImageTag';
 
-// Every call to the media server comes through here, which makes it the one place that
-// can bound how hard the home screen hits it. Playback and image loads take other paths
-// on purpose and stay unthrottled.
-const jellyfinQueue = createRequestQueue();
-
 // Routes through the webOS TLS proxy fallback (secureFetch) so Let's-Encrypt
 // servers work on old TVs whose CA store rejects them; native fetch elsewhere.
 const fetchWithTimeout = (url, options = {}, timeoutMs = DEFAULT_TIMEOUT_MS) =>
-	jellyfinQueue.run(() => platformFetch(url, options, timeoutMs));
+	mediaServerQueue.run(() => platformFetch(url, options, timeoutMs));
 export const getDeviceId = () => deviceId;
 
 const request = async (endpoint, options = {}) => {
