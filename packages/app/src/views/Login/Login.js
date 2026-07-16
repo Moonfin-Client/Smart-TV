@@ -398,6 +398,7 @@ const Login = ({
 			setIsConnecting(false);
 			setTimeout(() => Spotlight.focus('[data-spotlight-id="emby-server-0"]'), 100);
 		} catch (err) {
+			console.error('Emby Connect sign-in error:', err?.reason || err?.message || err);
 			setIsConnecting(false);
 			setStatus(null);
 			setError(embyConnectErrorMessage(err));

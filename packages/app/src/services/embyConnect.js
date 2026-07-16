@@ -1,4 +1,4 @@
-import {fetchWithTimeout} from '../utils/fetchTimeout';
+import {platformFetch} from './secureFetch';
 import {getDeviceInfo, buildEmbyAuthHeader} from './jellyfinApi';
 
 const CONNECT_BASE = 'https://connect.emby.media/service/';
@@ -43,33 +43,37 @@ const asList = (data) => {
 	return [];
 };
 
-// Authenticate against Emby Connect. Tries GET first (legacy compatible) and
-// falls back to POST, mirroring the Flutter client.
+// The form-urlencoded POST is the call the official Emby clients use and the
+// only one that authenticates. A GET is tried first, but its 401 isn't final
+// since it 401s even for valid credentials, so it falls through to the POST.
 export const authenticate = async (username, password) => {
 	const headers = {'X-Application': applicationHeader(), 'Accept': 'application/json'};
-	const query = `nameOrEmail=${encodeURIComponent(username)}&rawpw=${encodeURIComponent(password)}`;
+	const encoded = `nameOrEmail=${encodeURIComponent(username)}&rawpw=${encodeURIComponent(password)}`;
 
 	let response = null;
 	try {
-		response = await fetchWithTimeout(`${CONNECT_BASE}user/authenticate?${query}`, {method: 'GET', headers}, TIMEOUT_MS);
+		response = await platformFetch(`${CONNECT_BASE}user/authenticate?${encoded}`, {method: 'GET', headers}, TIMEOUT_MS);
 	} catch (e) {
+		console.warn('[EmbyConnect] authenticate GET failed:', e?.message || e);
 		response = null;
 	}
 
-	if (response && response.status === 401) {
-		throw connectError('Invalid Emby Connect username or password', 'invalidCredentials');
-	}
-
 	if (!response || !response.ok) {
-		response = await fetchWithTimeout(`${CONNECT_BASE}user/authenticate`, {
-			method: 'POST',
-			headers: {...headers, 'Content-Type': 'application/json'},
-			body: JSON.stringify({nameOrEmail: username, rawpw: password})
-		}, TIMEOUT_MS);
+		try {
+			response = await platformFetch(`${CONNECT_BASE}user/authenticate`, {
+				method: 'POST',
+				headers: {...headers, 'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8'},
+				body: encoded
+			}, TIMEOUT_MS);
+		} catch (e) {
+			console.error('[EmbyConnect] authenticate POST failed:', e?.message || e);
+			throw connectError('Network error while contacting Emby Connect', 'network');
+		}
 		if (response.status === 401) {
 			throw connectError('Invalid Emby Connect username or password', 'invalidCredentials');
 		}
 		if (!response.ok) {
+			console.error('[EmbyConnect] authenticate POST rejected:', response.status);
 			throw connectError('Network error while contacting Emby Connect', 'network');
 		}
 	}
@@ -111,7 +115,7 @@ const candidateAddresses = (server) => {
 };
 
 export const getServers = async (connectUserId, connectAccessToken) => {
-	const response = await fetchWithTimeout(`${CONNECT_BASE}servers?userId=${encodeURIComponent(connectUserId)}`, {
+	const response = await platformFetch(`${CONNECT_BASE}servers?userId=${encodeURIComponent(connectUserId)}`, {
 		method: 'GET',
 		headers: {
 			'X-Application': applicationHeader(),
@@ -121,6 +125,7 @@ export const getServers = async (connectUserId, connectAccessToken) => {
 	}, TIMEOUT_MS);
 
 	if (!response.ok) {
+		console.error('[EmbyConnect] getServers rejected:', response.status);
 		throw connectError('Network error while contacting Emby Connect', 'network');
 	}
 
@@ -156,7 +161,7 @@ const exchangeAtAddress = async (serverAddress, connectUserId, accessKey) => {
 	for (const attempt of attempts) {
 		try {
 			const query = `format=json&ConnectUserId=${encodeURIComponent(connectUserId)}`;
-			const response = await fetchWithTimeout(`${attempt.url}?${query}`, {
+			const response = await platformFetch(`${attempt.url}?${query}`, {
 				method: 'GET',
 				headers: {
 					'X-Emby-Token': accessKey,
