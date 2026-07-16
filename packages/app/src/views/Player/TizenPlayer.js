@@ -68,7 +68,7 @@ const getRootFontSizePx = () => {
  * playback. AVPlay renders on a platform multimedia layer BEHIND the web engine;
  * the web layer must be transparent in the video area for the content to show through.
  */
-const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialSubtitleIndex, initialStartPositionTicks, onEnded, onBack, onPlayNext, onSelectPerson, audioPlaylist, onPausedChange}) => {
+const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialSubtitleIndex, initialStartPositionTicks, onEnded, onBack, onPlayNext, onSelectPerson, audioPlaylist, videoQueue, onPausedChange}) => {
 	const {settings} = useSettings();
 	const {isInGroup, lastCommand} = useSyncPlay();
 	const syncPlayCommandRef = useRef(false);
@@ -1011,12 +1011,19 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 					});
 
 					if (item.Type === 'Episode') {
-						withTimeout(playback.getNextEpisode(item), 4000).then((next) => {
-							if (stillCurrent()) setNextEpisode(next);
-						}).catch((nextErr) => {
-							console.warn('[Player] Next episode lookup skipped:', nextErr?.message || nextErr);
-							if (stillCurrent()) setNextEpisode(null);
-						});
+						// A shuffle queue sets the order, so the next episode comes from
+						// it rather than the sequential air-order lookup.
+						if (videoQueue?.length) {
+							const idx = videoQueue.findIndex(e => String(e.Id) === String(item.Id));
+							if (stillCurrent()) setNextEpisode(idx >= 0 && idx < videoQueue.length - 1 ? videoQueue[idx + 1] : null);
+						} else {
+							withTimeout(playback.getNextEpisode(item), 4000).then((next) => {
+								if (stillCurrent()) setNextEpisode(next);
+							}).catch((nextErr) => {
+								console.warn('[Player] Next episode lookup skipped:', nextErr?.message || nextErr);
+								if (stillCurrent()) setNextEpisode(null);
+							});
+						}
 					}
 				}
 
@@ -1129,7 +1136,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 			burnInSubtitleRef.current = null;
 		};
 	// eslint-disable-next-line react-hooks/exhaustive-deps
-	}, [item, resume, selectedQuality, settings.maxBitrate, settings.preferTranscode, settings.forceDirectPlay, settings.subtitleMode, settings.introAction, settings.outroAction]);
+	}, [item, resume, videoQueue, selectedQuality, settings.maxBitrate, settings.preferTranscode, settings.forceDirectPlay, settings.subtitleMode, settings.introAction, settings.outroAction]);
 
 	useEffect(() => {
 		if (typeof window === 'undefined') return () => {};

@@ -707,6 +707,9 @@ const AppContent = (props) => {
 			if (!trackOptions && prev?.audioPlaylist?.some(t => t.Id === item.Id)) {
 				return {audioPlaylist: prev.audioPlaylist};
 			}
+			if (!trackOptions && prev?.videoQueue?.some(e => e.Id === item.Id)) {
+				return {videoQueue: prev.videoQueue};
+			}
 			return trackOptions || null;
 		});
 		setIsResume(false);
@@ -1114,6 +1117,7 @@ const AppContent = (props) => {
 								initialSubtitleIndex={playbackOptions?.subtitleStreamIndex}
 								initialStartPositionTicks={playbackOptions?.startPositionTicks}
 								audioPlaylist={playbackOptions?.audioPlaylist}
+								videoQueue={playbackOptions?.videoQueue}
 								onEnded={handlePlayerEnd}
 								onBack={handlePlayerEnd}
 								onPlayNext={handlePlayNext}

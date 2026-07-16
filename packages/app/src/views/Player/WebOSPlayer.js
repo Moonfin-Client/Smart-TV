@@ -63,7 +63,7 @@ const getWebOSFullscreenRect = () => {
 	};
 };
 
-const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialSubtitleIndex, initialStartPositionTicks, onEnded, onBack, onPlayNext, onSelectPerson, audioPlaylist, onPausedChange}) => {
+const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialSubtitleIndex, initialStartPositionTicks, onEnded, onBack, onPlayNext, onSelectPerson, audioPlaylist, videoQueue, onPausedChange}) => {
 	const {settings} = useSettings();
 	const {isInGroup, lastCommand} = useSyncPlay();
 	const syncPlayCommandRef = useRef(false);
@@ -788,12 +788,19 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 					}
 
 					if (item.Type === 'Episode') {
-						try {
-							const next = await withTimeout(playback.getNextEpisode(item), 4000);
-							setNextEpisode(next);
-						} catch (nextErr) {
-							console.warn('[Player] Next episode lookup skipped:', nextErr?.message || nextErr);
-							setNextEpisode(null);
+						// A shuffle queue sets the order, so the next episode comes from
+						// it rather than the sequential air-order lookup.
+						if (videoQueue?.length) {
+							const idx = videoQueue.findIndex(e => String(e.Id) === String(item.Id));
+							setNextEpisode(idx >= 0 && idx < videoQueue.length - 1 ? videoQueue[idx + 1] : null);
+						} else {
+							try {
+								const next = await withTimeout(playback.getNextEpisode(item), 4000);
+								setNextEpisode(next);
+							} catch (nextErr) {
+								console.warn('[Player] Next episode lookup skipped:', nextErr?.message || nextErr);
+								setNextEpisode(null);
+							}
 						}
 					}
 				}
@@ -863,7 +870,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 			}
 		};
 	// eslint-disable-next-line react-hooks/exhaustive-deps
-	}, [item, resume, selectedQuality, settings.maxBitrate, settings.preferTranscode, settings.forceDirectPlay, settings.subtitleMode, settings.introAction, settings.outroAction, initialAudioIndex, initialSubtitleIndex]);
+	}, [item, resume, videoQueue, selectedQuality, settings.maxBitrate, settings.preferTranscode, settings.forceDirectPlay, settings.subtitleMode, settings.introAction, settings.outroAction, initialAudioIndex, initialSubtitleIndex]);
 
 	useEffect(() => {
 		if (mediaUrl) {

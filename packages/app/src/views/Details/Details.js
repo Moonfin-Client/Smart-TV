@@ -39,6 +39,15 @@ const ModalContainer = SpotlightContainerDecorator({
 const HorizontalContainer = SpotlightContainerDecorator({restrict: 'self-first'}, 'div');
 const RowContainer = SpotlightContainerDecorator({enterTo: 'last-focused'}, 'div');
 
+const shuffleArray = (arr) => {
+	const out = [...arr];
+	for (let i = out.length - 1; i > 0; i--) {
+		const j = Math.floor(Math.random() * (i + 1));
+		[out[i], out[j]] = [out[j], out[i]];
+	}
+	return out;
+};
+
 const WATCHED_CHECK_PATH = 'M21 7L9 19l-5.5-5.5 1.41-1.41L9 16.17 19.59 5.59 21 7z';
 const WATCHED_CHECK_COMPACT_PATH = 'M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z';
 
@@ -505,11 +514,45 @@ const Details = ({itemId, initialItem, onPlay, onSelectItem, onSelectPerson, onS
 		onPlay?.(item, true, playbackOptions);
 	}, [item, onPlay, selectedAudioIndex, selectedSubtitleIndex, selectedVersionIndex]);
 
-	const handleShuffle = useCallback(() => {
-		if (item) {
-			onPlay?.(item, false, true);
+	const handleShuffle = useCallback(async () => {
+		if (!item) return;
+
+		// A series or season is not itself playable, so shuffle builds a randomized
+		// queue of its episodes and plays through them. Handing the series item
+		// straight to the player is what produced the playback error before.
+		if (item.Type === 'Series' || item.Type === 'Season') {
+			let episodeList = [];
+			if (item.Type === 'Season' && episodes.length > 0) {
+				episodeList = episodes;
+			} else {
+				const res = await effectiveApi.getItems({
+					ParentId: item.Id,
+					IncludeItemTypes: 'Episode',
+					Recursive: true,
+					Fields: 'MediaSources,MediaStreams',
+					Limit: 500
+				}).catch(() => null);
+				episodeList = tagWithServerInfo(res?.Items || []);
+			}
+
+			const playable = episodeList.filter(ep => ep?.Id);
+			if (playable.length === 0) return;
+
+			const shuffled = shuffleArray(playable);
+			onPlay?.(shuffled[0], false, {videoQueue: shuffled});
+			return;
 		}
-	}, [item, onPlay]);
+
+		// An album shuffles its own loaded tracks into the audio queue.
+		if (item.Type === 'MusicAlbum') {
+			if (albumTracks.length === 0) return;
+			const shuffled = shuffleArray(albumTracks);
+			onPlay?.(shuffled[0], false, {audioPlaylist: shuffled});
+			return;
+		}
+
+		onPlay?.(item, false, {});
+	}, [item, episodes, albumTracks, onPlay, effectiveApi, tagWithServerInfo]);
 
 	const handleTrailer = useCallback(() => {
 		const openTrailer = async () => {
@@ -820,12 +863,7 @@ const Details = ({itemId, initialItem, onPlay, onSelectItem, onSelectPerson, onS
 			const tracksData = await effectiveApi.getArtistItems(item.Id, 200);
 			const tracks = tracksData.Items || [];
 			if (tracks.length > 0) {
-				// Fisher-Yates shuffle
-				const shuffled = [...tracks];
-				for (let i = shuffled.length - 1; i > 0; i--) {
-					const j = Math.floor(Math.random() * (i + 1));
-					[shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
-				}
+				const shuffled = shuffleArray(tracks);
 				onPlay?.(shuffled[0], false, {audioPlaylist: shuffled});
 			}
 		} catch { /* ignore */ }
@@ -852,11 +890,7 @@ const Details = ({itemId, initialItem, onPlay, onSelectItem, onSelectPerson, onS
 
 	const handlePlaylistShuffle = useCallback(() => {
 		if (playlistItems.length < 2) return;
-		const shuffled = [...playlistItems];
-		for (let i = shuffled.length - 1; i > 0; i--) {
-			const j = Math.floor(Math.random() * (i + 1));
-			[shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
-		}
+		const shuffled = shuffleArray(playlistItems);
 		const firstItem = shuffled[0];
 		if (firstItem.MediaType === 'Audio') {
 			onPlay?.(firstItem, false, {audioPlaylist: shuffled});
