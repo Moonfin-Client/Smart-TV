@@ -2,6 +2,7 @@ import {createContext, useContext, useState, useEffect, useCallback, useRef} fro
 import * as seerrApi from '../services/seerrApi';
 import {getFromStorage, saveToStorage, removeFromStorage} from '../services/storage';
 import {useSettings} from './SettingsContext';
+import {useAuth} from './AuthContext';
 
 const SeerrContext = createContext(null);
 
@@ -12,6 +13,7 @@ const STREAM_RECONNECT_MAX_MS = 60000;
 
 export const SeerrProvider = ({children}) => {
 const {syncFromServer} = useSettings();
+const {serverUrl: authServerUrl, accessToken: authAccessToken} = useAuth();
 const [isEnabled, setIsEnabled] = useState(false);
 const [isAuthenticated, setIsAuthenticated] = useState(false);
 const [isLoading, setIsLoading] = useState(true);
@@ -24,6 +26,9 @@ const [pluginInfo, setPluginInfo] = useState(null);
 const [streamNotification, setStreamNotification] = useState(null);
 const [adminMessage, setAdminMessage] = useState(null);
 const streamRef = useRef({subscription: null, retryTimer: null, retryDelay: STREAM_RECONNECT_MIN_MS});
+// Tracks the Jellyfin token currently pushed into seerrApi so a user switch can
+// tell whether it still points at the previous account and needs reconfiguring.
+const configuredTokenRef = useRef(null);
 const [moonfinAuthType, setMoonfinAuthTypeState] = useState('jellyfin');
 
 const dismissStreamNotification = useCallback(() => setStreamNotification(null), []);
@@ -112,6 +117,7 @@ if (config?.moonfin) {
 const initialAuthType = normalizeMoonfinAuthType(config.moonfinAuthType);
 setMoonfinAuthTypeState(initialAuthType);
 seerrApi.setMoonfinConfig(config.jellyfinServerUrl, config.jellyfinAccessToken);
+configuredTokenRef.current = config.jellyfinAccessToken;
 seerrApi.setMoonfinMode(true);
 setServerUrl(config.url || config.jellyfinServerUrl);
 setIsEnabled(true);
@@ -174,6 +180,7 @@ const savedAuthType = normalizeMoonfinAuthType(existingConfig?.moonfinAuthType);
 setMoonfinAuthTypeState(savedAuthType);
 
 seerrApi.setMoonfinConfig(jellyfinServer, token);
+configuredTokenRef.current = token;
 seerrApi.setMoonfinMode(true);
 
 const [status, pingResult, configResult] = await Promise.all([
@@ -239,6 +246,18 @@ return {authenticated: false, url: status?.url};
 }
 }, [syncFromServer, startSettingsStream]);
 
+// The Seerr identity is decided by the Jellyfin token we hand the plugin, so a
+// user switch has to re-push the now-active token. Without this the previous
+// user's token stays configured and their requests show for everyone.
+useEffect(() => {
+if (!isEnabled || !isMoonfin) return;
+if (!authAccessToken || !authServerUrl) return;
+if (authAccessToken === configuredTokenRef.current) return;
+configureWithMoonfin(authServerUrl, authAccessToken).catch(e =>
+console.log('[Seerr] Reconfigure after user switch failed:', e.message)
+);
+}, [authAccessToken, authServerUrl, isEnabled, isMoonfin, configureWithMoonfin]);
+
 const loginWithMoonfin = useCallback(async (username, password, authType = 'jellyfin') => {
 const normalizedAuthType = normalizeMoonfinAuthType(authType);
 await seerrApi.moonfinLogin(username, password, normalizedAuthType);
@@ -303,6 +322,7 @@ stopSettingsStream();
 await removeFromStorage('seerr');
 seerrApi.setMoonfinMode(false);
 seerrApi.setMoonfinConfig(null, null);
+configuredTokenRef.current = null;
 setServerUrl(null);
 setUser(null);
 setIsEnabled(false);
