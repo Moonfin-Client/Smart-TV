@@ -220,12 +220,12 @@ const AppContent = (props) => {
 	}, [isAuthenticated, settings.pinCodeProtection, user?.Id]);
 
 	useEffect(() => {
-		if (isAuthenticated && serverUrl && accessToken) {
+		if (isAuthenticated && serverUrl && accessToken && settings.useMoonfinPlugin) {
 			syncFromServer(serverUrl, accessToken).catch((err) => {
 				console.warn('[App] Initial settings sync failed:', err.message);
 			});
 		}
-	}, [isAuthenticated, serverUrl, accessToken, syncFromServer]);
+	}, [isAuthenticated, serverUrl, accessToken, settings.useMoonfinPlugin, syncFromServer]);
 
 	useEffect(() => {
 		if (!isPinGateActive) return;

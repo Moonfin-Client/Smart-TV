@@ -109,6 +109,19 @@ const getItemGenreNames = (item) => {
 		.filter(Boolean);
 };
 
+// Picks an arbitrary but repeatable index for a name, so a genre lands on the same
+// representative item every load and the server can serve a thumbnail it has already
+// generated. Re-rolling at random asks it to decode and resize artwork it has never seen
+// before, every single time.
+const stableIndex = (seed, length) => {
+	if (length <= 0) return 0;
+	let hash = 0;
+	for (let i = 0; i < seed.length; i++) {
+		hash = (Math.imul(hash, 31) + seed.charCodeAt(i)) | 0;
+	}
+	return Math.abs(hash) % length;
+};
+
 const resolveExternalImageUrl = (url, width) => {
 	if (!url) return null;
 	if (url.startsWith('/')) {
@@ -146,6 +159,24 @@ const browseInitialState = {
 	featuredItems: [],
 };
 
+// Merges freshly loaded rows into an existing list by row id. An incoming row wins and
+// keeps the position of the row it replaces, and new ids go on the end. Rows arrive in
+// waves, the cache first and then each loader, so keeping the existing row would leave a
+// stale copy on screen and never let the fresh one through.
+function mergeRowsById(existingRows, incomingRows) {
+	const incoming = new Map();
+	incomingRows.forEach((row) => {
+		if (row && row.id) incoming.set(row.id, row);
+	});
+	const merged = existingRows.map((row) => {
+		if (!row || !incoming.has(row.id)) return row;
+		const replacement = incoming.get(row.id);
+		incoming.delete(row.id);
+		return replacement;
+	});
+	return [...merged, ...incoming.values()];
+}
+
 function browseReducer(state, action) {
 	switch (action.type) {
 		case 'SET_INITIAL_DATA': {
@@ -166,16 +197,7 @@ function browseReducer(state, action) {
 		}
 		case 'APPEND_ROWS': {
 			if (action.rows.length === 0) return state;
-			const nextData = [...state.allRowData, ...action.rows];
-			const unique = [];
-			const seen = new Set();
-			nextData.forEach(row => {
-				if (row && row.id && !seen.has(row.id)) {
-					seen.add(row.id);
-					unique.push(row);
-				}
-			});
-			return { ...state, allRowData: unique };
+			return { ...state, allRowData: mergeRowsById(state.allRowData, action.rows) };
 		}
 		case 'REFRESH_VOLATILE': {
 			const prevVolatile = new Map();
@@ -221,11 +243,34 @@ function browseReducer(state, action) {
 	}
 }
 
+// Genre tiles borrow a library item's artwork. Keeping only the fields the card reads
+// stops the cache growing for no gain on memory tight TVs.
+const stripRepresentativeForCache = (rep) => (rep ? {
+	Id: rep.Id,
+	ImageTags: rep.ImageTags,
+	BackdropImageTags: rep.BackdropImageTags
+} : undefined);
+
 const stripItemForCache = (item) => ({
 	Id: item.Id,
 	Name: item.Name,
 	Type: item.Type,
 	ImageTags: item.ImageTags,
+	// Everything below is needed to render a card. Anything left out is quietly gone on
+	// the next load, because a warm cache skips the fetch that would rebuild it.
+	BackdropImageTags: item.BackdropImageTags,
+	ProviderIds: item.ProviderIds,
+	UserRating: item.UserRating,
+	_representative: stripRepresentativeForCache(item._representative),
+	_external: item._external,
+	_externalPosterUrl: item._externalPosterUrl,
+	_externalBackdropUrl: item._externalBackdropUrl,
+	_resolvedFromExternal: item._resolvedFromExternal,
+	_seerr: item._seerr,
+	_seerrType: item._seerrType,
+	_seerrMediaType: item._seerrMediaType,
+	_seerrRaw: item._seerrRaw,
+	mediaInfo: item.mediaInfo,
 	SeriesName: item.SeriesName,
 	SeriesId: item.SeriesId,
 	ParentIndexNumber: item.ParentIndexNumber,
@@ -1167,11 +1212,14 @@ const Browse = ({
 				const rewatchEnabled = homeRowsConfig.some((row) => row.enabled && row.id === 'rewatch');
 
 				const appendRows = (rows) => {
-					if (cancelled) return;
+					if (cancelled || rows.length === 0) return;
 					dispatch({type: 'APPEND_ROWS', rows});
-					cachedRowData = [...(cachedRowData || []), ...rows];
+					cachedRowData = mergeRowsById(cachedRowData || [], rows);
 					cacheTimestamp = Date.now();
-					saveBrowseCache(cachedRowData, libs, cachedFeaturedItems);
+					// Unified mode spans several servers, so its rows never go to the disk cache.
+					if (!unifiedMode) {
+						saveBrowseCache(cachedRowData, libs, cachedFeaturedItems);
+					}
 				};
 
 				const loadLatestAndRecentlyReleased = async () => {
@@ -1294,49 +1342,20 @@ const Browse = ({
 							}
 
 							try {
+								const genreNames = enrichedItems.map((genre) => genre.Name).filter(Boolean);
+								// One query, filtered to the genres we actually have. Sorting at
+								// random turns into ORDER BY RANDOM() on the server, a full scan of
+								// the item table that no index can help, which is far too expensive
+								// to run on every home load. Any stable sort avoids it.
 								const repResult = await api.getItems({
 									IncludeItemTypes: genresIncludeTypes,
 									Recursive: true,
 									Fields: 'PrimaryImageAspectRatio,Genres,ImageTags,BackdropImageTags',
-									Limit: 200,
-									SortBy: 'Random'
+									Genres: genreNames.join('|'),
+									Limit: Math.min(Math.max(genreNames.length * 8, 50), 300),
+									SortBy: 'SortName'
 								});
 								const repItems = repResult?.Items || [];
-
-								const unmatchedGenres = enrichedItems.filter(genre => {
-									const genreLower = genre.Name.toLowerCase();
-									return !repItems.some(item => getItemGenreNames(item).includes(genreLower));
-								});
-
-								const unmatchedRepsMap = {};
-								if (unmatchedGenres.length > 0) {
-									try {
-										const unmatchedNames = unmatchedGenres.map(g => g.Name);
-										const res = await api.getItems({
-											IncludeItemTypes: genresIncludeTypes,
-											Recursive: true,
-											Fields: 'PrimaryImageAspectRatio,Genres,ImageTags,BackdropImageTags',
-											Genres: unmatchedNames.join('|'),
-											Limit: unmatchedNames.length * 3,
-											SortBy: 'Random'
-										});
-										const backupItems = res?.Items || [];
-										for (const genre of unmatchedGenres) {
-											const genreLower = genre.Name.toLowerCase();
-											const matches = backupItems.filter(item => getItemGenreNames(item).includes(genreLower));
-											const matchesWithBackdrop = matches.filter(item =>
-												item.BackdropImageTags?.length > 0 || item.ImageTags?.Thumb
-											);
-											if (matchesWithBackdrop.length > 0) {
-												unmatchedRepsMap[genre.Name] = matchesWithBackdrop[Math.floor(Math.random() * matchesWithBackdrop.length)];
-											} else if (matches.length > 0) {
-												unmatchedRepsMap[genre.Name] = matches[Math.floor(Math.random() * matches.length)];
-											}
-										}
-									} catch (err) {
-										console.warn('[Browse] Failed to fetch unmatched representatives in batch:', err);
-									}
-								}
 
 								enrichedItems = enrichedItems.map(genre => {
 									const genreLower = genre.Name.toLowerCase();
@@ -1346,14 +1365,8 @@ const Browse = ({
 									const matchingWithBackdrop = matchingItems.filter(item =>
 										item.BackdropImageTags?.length > 0 || item.ImageTags?.Thumb
 									);
-									let rep = null;
-									if (matchingWithBackdrop.length > 0) {
-										rep = matchingWithBackdrop[Math.floor(Math.random() * matchingWithBackdrop.length)];
-									} else if (matchingItems.length > 0) {
-										rep = matchingItems[Math.floor(Math.random() * matchingItems.length)];
-									} else {
-										rep = unmatchedRepsMap[genre.Name] || null;
-									}
+									const pool = matchingWithBackdrop.length > 0 ? matchingWithBackdrop : matchingItems;
+									const rep = pool.length > 0 ? pool[stableIndex(genre.Name, pool.length)] : null;
 
 									if (rep) {
 										return {
