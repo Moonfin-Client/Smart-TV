@@ -361,9 +361,14 @@ const Browse = ({
 	settingsRef.current = settings;
 
 	const fetchFreshFeaturedItems = useCallback(async (fallbackItems = null) => {
+		const s = settingsRef.current;
+		const sourceType = s.mediaBarSourceType || 'library';
+		const libraryIds = s.mediaBarLibraryIds || [];
+		const collectionIds = s.mediaBarCollectionIds || [];
+		const hasSourceFilter = (sourceType === 'collection' && collectionIds.length > 0) || libraryIds.length > 0;
+
 		try {
 			let items = [];
-			const s = settingsRef.current;
 
 			if (s.useMoonfinPlugin) {
 				const mediaBarResult = await seerrApi.getMoonfinMediaBar(serverUrl, accessToken, 'tv');
@@ -373,10 +378,6 @@ const Browse = ({
 			}
 
 			if (items.length === 0) {
-				const sourceType = s.mediaBarSourceType || 'library';
-				const libraryIds = s.mediaBarLibraryIds || [];
-				const collectionIds = s.mediaBarCollectionIds || [];
-
 				if (sourceType === 'collection' && collectionIds.length > 0) {
 					const results = await Promise.all(
 						collectionIds.map(cid => api.getCollectionItems(cid, 50).catch(() => null))
@@ -388,7 +389,7 @@ const Browse = ({
 						.sort(() => Math.random() - 0.5)
 						.slice(0, s.featuredItemCount);
 				} else if (unifiedMode) {
-					items = await connectionPool.getRandomItemsFromAllServers(s.featuredContentType, s.featuredItemCount);
+					items = await connectionPool.getRandomItemsFromAllServers(s.featuredContentType, s.featuredItemCount, libraryIds);
 				} else if (libraryIds.length > 0) {
 					const perLib = Math.ceil((s.featuredItemCount * 2) / libraryIds.length);
 					const results = await Promise.all(
@@ -415,14 +416,14 @@ const Browse = ({
 				dispatch({type: 'SET_FEATURED_ITEMS', items: featuredWithLogos});
 				cachedFeaturedItems = featuredWithLogos;
 				return featuredWithLogos;
-			} else if (fallbackItems) {
+			} else if (fallbackItems && !hasSourceFilter) {
 				dispatch({type: 'SET_FEATURED_ITEMS', items: fallbackItems});
 				cachedFeaturedItems = fallbackItems;
 				return fallbackItems;
 			}
 		} catch (e) {
 			console.warn('[Browse] Failed to fetch fresh featured items:', e);
-			if (fallbackItems) {
+			if (fallbackItems && !hasSourceFilter) {
 				dispatch({type: 'SET_FEATURED_ITEMS', items: fallbackItems});
 				cachedFeaturedItems = fallbackItems;
 				return fallbackItems;
@@ -1027,20 +1028,18 @@ const Browse = ({
 
 		const fetchAllData = async () => {
 			try {
-				let libs, resumeItems, nextUp, userConfig, randomItems, recentlyPlayed;
+				let libs, resumeItems, nextUp, userConfig, recentlyPlayed;
 
 				if (unifiedMode) {
-					const [libsArray, resumeArray, nextUpArray, randomArray] = await Promise.all([
+					const [libsArray, resumeArray, nextUpArray] = await Promise.all([
 						connectionPool.getLibrariesFromAllServers(),
 						connectionPool.getResumeItemsFromAllServers(),
-						connectionPool.getNextUpFromAllServers(),
-						connectionPool.getRandomItemsFromAllServers(settings.featuredContentType, settings.featuredItemCount)
+						connectionPool.getNextUpFromAllServers()
 					]);
 					libs = libsArray;
 					resumeItems = {Items: resumeArray};
 					nextUp = {Items: nextUpArray};
 					userConfig = null; // Not supported in unified mode
-					randomItems = {Items: randomArray};
 					recentlyPlayed = null;
 					// IMDb custom rows are single-server only, so imdbResults stays empty in unified mode.
 				} else {
@@ -1049,7 +1048,6 @@ const Browse = ({
 						api.getResumeItems().catch(() => ({Items: []})),
 						api.getNextUp().catch(() => ({Items: []})),
 						api.getUserConfiguration().catch(() => null),
-						api.getRandomItems(settings.featuredContentType, settings.featuredItemCount).catch(() => null),
 						settings.mergeContinueWatchingNextUp ? api.getItems({
 							IncludeItemTypes: 'Episode',
 							Filters: 'IsPlayed',
@@ -1064,8 +1062,7 @@ const Browse = ({
 					resumeItems = results[1];
 					nextUp = results[2];
 					userConfig = results[3];
-					randomItems = results[4];
-					recentlyPlayed = results[5];
+					recentlyPlayed = results[4];
 				}
 
 				cachedLibraries = libs;
@@ -1123,16 +1120,6 @@ const Browse = ({
 					}
 				}
 
-				if (randomItems?.Items?.length > 0) {
-					const filteredItems = randomItems.Items.filter(item => item.Type !== 'BoxSet');
-					const shuffled = [...filteredItems].sort(() => Math.random() - 0.5);
-					const featuredWithLogos = shuffled.map(item => ({
-						...item,
-						LogoUrl: getLogoUrl(getItemServerUrl(item), item, {maxWidth: 800, quality: 90})
-					}));
-					cachedFeaturedItems = featuredWithLogos;
-				}
-
 				if (recentlyPlayed?.Items?.length > 0) {
 					rowData.push({
 						id: 'recentlyplayed',
@@ -1142,10 +1129,9 @@ const Browse = ({
 
 				dispatch({type: 'SET_INITIAL_DATA', rowData});
 				cachedRowData = [...rowData];
-				// Populate the Mediabar via the settings-aware loader so it honors
-				// the selected libraries; the server-wide random items are only a
-				// fallback (otherwise excluded libraries leak in).
-				fetchFreshFeaturedItems(cachedFeaturedItems);
+				// The Mediabar is populated only by the settings-aware loader so it can
+				// never show a library outside the selected sources.
+				fetchFreshFeaturedItems();
 
 				const eligibleLibraries = libs.filter(lib => {
 					if (EXCLUDED_COLLECTION_TYPES.includes(lib.CollectionType?.toLowerCase())) {

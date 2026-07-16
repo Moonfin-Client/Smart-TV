@@ -275,17 +275,33 @@ export const getLatestPerLibraryFromAllServers = async (excludedLibraryIds = [],
  * @param {number} limit - Total max items to return (distributed across servers)
  * @returns {Promise<Array>} Random items from all servers
  */
-export const getRandomItemsFromAllServers = async (contentType = 'both', limit = 10) => {
+export const getRandomItemsFromAllServers = async (contentType = 'both', limit = 10, libraryIds = []) => {
 	// Calculate per-server limit to get roughly equal distribution
 	// Fetch a bit more from each to account for potential duplicates
 	const servers = await multiServerManager.getAllServersArray();
 	const serverCount = servers.length;
 	const perServerLimit = Math.ceil((limit * 1.5) / Math.max(serverCount, 1));
 
+	const wanted = new Set((libraryIds || []).map(id => String(id).replace(/-/g, '').toLowerCase()));
+	const bareId = id => String(id).replace(/-/g, '').toLowerCase();
+
 	return executeAll(
 		async (api) => {
-			const result = await api.getRandomItems(contentType, perServerLimit);
-			return result.Items || [];
+			if (wanted.size === 0) {
+				const result = await api.getRandomItems(contentType, perServerLimit);
+				return result.Items || [];
+			}
+			// With a selection, only pull from the chosen libraries this server has.
+			const libs = await api.getLibraries().catch(() => ({Items: []}));
+			const owned = (libs.Items || []).filter(lib => wanted.has(bareId(lib.Id)));
+			if (owned.length === 0) return [];
+			const perLib = Math.ceil(perServerLimit / owned.length) || 1;
+			const results = await Promise.all(
+				owned.map(lib => api.getRandomItems(contentType, perLib, lib.Id).catch(() => null))
+			);
+			const items = [];
+			results.forEach(r => { if (r?.Items) items.push(...r.Items); });
+			return items;
 		},
 		{
 			sortBy: () => Math.random() - 0.5,
