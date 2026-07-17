@@ -67,6 +67,20 @@ const IconChevron = () => (
 	</svg>
 );
 
+// The reorder buttons draw their arrows as inline SVG rather than Sandstone font
+// icons, which render on webOS but not Tizen.
+const IconArrowUp = () => (
+	<svg width='36' height='36' viewBox='0 -960 960 960' fill='currentColor' aria-hidden='true' focusable='false'>
+		<path d='M480-528 296-344l-56-56 240-240 240 240-56 56-184-184Z' />
+	</svg>
+);
+
+const IconArrowDown = () => (
+	<svg width='36' height='36' viewBox='0 -960 960 960' fill='currentColor' aria-hidden='true' focusable='false'>
+		<path d='M480-344 240-584l56-56 184 184 184-184 56 56-240 240Z' />
+	</svg>
+);
+
 const MATERIAL_ICON_NAME_MAP = {
 	alert02: 'warning',
 	appscontents: 'view_carousel',
@@ -2671,18 +2685,20 @@ const Settings = ({ onBack, onLibrariesChanged, panelMode }) => {
 									onClick={() => moveHomeRowUp(row.id)}
 									disabled={index === 0}
 									size='small'
-									icon='arrowlargeup'
 									aria-label={$L('Up')}
 									spotlightId={`homerow-up-${row.id}`}
-								/>
+								>
+									<IconArrowUp />
+								</Button>
 								<Button
 									onClick={() => moveHomeRowDown(row.id)}
 									disabled={index === visibleRows.length - 1}
 									size='small'
-									icon='arrowlargedown'
 									aria-label={$L('Down')}
 									spotlightId={`homerow-down-${row.id}`}
-								/>
+								>
+									<IconArrowDown />
+								</Button>
 							</div>
 						</div>
 					))}
@@ -2707,18 +2723,20 @@ const Settings = ({ onBack, onLibrariesChanged, panelMode }) => {
 											onClick={() => movePluginSectionUp(section.id)}
 											disabled={index === 0}
 											size='small'
-											icon='arrowlargeup'
 											aria-label={$L('Up')}
 											spotlightId={`pluginrow-up-${section.id}`}
-										/>
+										>
+											<IconArrowUp />
+										</Button>
 										<Button
 											onClick={() => movePluginSectionDown(section.id)}
 											disabled={index === tempPluginSections.length - 1}
 											size='small'
-											icon='arrowlargedown'
 											aria-label={$L('Down')}
 											spotlightId={`pluginrow-down-${section.id}`}
-										/>
+										>
+											<IconArrowDown />
+										</Button>
 									</div>
 								</div>
 							))}
