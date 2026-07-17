@@ -62,11 +62,12 @@ const ModernDetailContent = (props) => {
 	const [isExpanded, setIsExpanded] = useState(false);
 	const descriptionRef = useRef(null);
 
-	// Reset expanded state when item changes
+	// Reset expanded state when navigating to a different item. Keyed on the id so an
+	// in-place update to the same item doesn't collapse the text.
 	useEffect(() => {
 		setIsExpanded(false);
 		setCanToggle(false);
-	}, [item]);
+	}, [item?.Id]);
 
 	// Detect if description text overflows 4 lines
 	useEffect(() => {
@@ -538,7 +539,7 @@ const ModernDetailContent = (props) => {
 									<p ref={descriptionRef} className={`${css.overview} ${!isExpanded ? css.overviewCollapsed : ''}`}>
 										{item.Overview}
 									</p>
-									{canToggle && !isExpanded && <div className={css.readMoreBtn}>{$L('Read More')}</div>}
+									{canToggle && <div className={css.readMoreBtn}>{isExpanded ? $L('Read Less') : $L('Read More')}</div>}
 								</SpottableDiv>
 							)}
 						</div>
