@@ -574,7 +574,8 @@ const SeerrRequests = ({onSelectItem, onClose, backHandlerRef, ...rest}) => {
 			<VirtualList
 				dataSize={items.length}
 				itemRenderer={renderItem}
-				itemSize={ri.scale(120 * (settings.uiScale || 1.0))}
+				itemSize={ri.scale(168 * (settings.uiScale || 1.0))}
+				spacing={ri.scale(16 * (settings.uiScale || 1.0))}
 				direction="vertical"
 				spotlightId="hub-list"
 			/>
