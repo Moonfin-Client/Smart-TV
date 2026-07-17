@@ -1117,11 +1117,18 @@ const Browse = ({
 					});
 				}
 
-				dispatch({type: 'SET_INITIAL_DATA', rowData});
+				dispatch({type: 'SET_ROW_DATA', rowData});
 				cachedRowData = [...rowData];
 				// The Mediabar is populated only by the settings-aware loader so it can
-				// never show a library outside the selected sources.
-				fetchFreshFeaturedItems();
+				// never show a library outside the selected sources. When it is enabled,
+				// wait for it before clearing loading so the initial focus lands on the
+				// media bar rather than the first row, matching the cache path.
+				if (settingsRef.current.featuredBarStyle !== 'off') {
+					await fetchFreshFeaturedItems();
+				} else {
+					fetchFreshFeaturedItems();
+				}
+				dispatch({type: 'SET_LOADING', value: false});
 
 				const eligibleLibraries = libs.filter(lib => {
 					if (EXCLUDED_COLLECTION_TYPES.includes(lib.CollectionType?.toLowerCase())) {
