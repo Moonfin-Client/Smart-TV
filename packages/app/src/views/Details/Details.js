@@ -25,7 +25,6 @@ import ChangeArtworkModal from '../../components/ChangeArtworkModal';
 import {toSubtitleLanguage, mapRemoteSubtitleOptions} from '../Player/remoteSubtitleUtils';
 import {getTmdbId, fetchTmdbSeasonRatings} from '../../services/mdblistApi';
 import {getItemSubtitlePref, getSeriesSubtitlePref} from '../../services/subtitlePrefs';
-import {analyzeLogoBrightness} from '../../utils/imgUtils';
 
 import css from './Details.module.less';
 
@@ -205,7 +204,6 @@ const Details = ({itemId, initialItem, onPlay, onSelectItem, onSelectPerson, onS
 	const [logoFailed, setLogoFailed] = useState(false);
 	const handleLogoError = useCallback(() => setLogoFailed(true), []);
 	const handleToastEnd = useCallback(() => setToastMessage(null), []);
-	const [invertLogo, setInvertLogo] = useState(false);
 
 	const canChangeArtwork = useMemo(() => {
 		if (!item) return false;
@@ -448,22 +446,6 @@ const Details = ({itemId, initialItem, onPlay, onSelectItem, onSelectPerson, onS
 			() => (item ? getLogoUrl(effectiveServerUrl, item, {maxWidth: 400, quality: 90}) : null),
 			[item, effectiveServerUrl]
 		);
-
-	useEffect(() => {
-		if (!logoUrl) {
-			setInvertLogo(false);
-			return;
-		}
-		let cancelled = false;
-		analyzeLogoBrightness(logoUrl).then((isDark) => {
-			if (!cancelled) {
-				setInvertLogo(isDark);
-			}
-		});
-		return () => {
-			cancelled = true;
-		};
-	}, [logoUrl]);
 
 	// === HANDLERS ===
 
@@ -1782,7 +1764,6 @@ const handleSectionKeyDown = useCallback((ev) => {
 					backdropUrl={backdropUrl}
 					posterUrl={posterUrl}
 					logoUrl={logoUrl}
-					invertLogo={invertLogo}
 					onLogoError={handleLogoError}
 					year={year}
 					runtime={runtime}
@@ -2420,13 +2401,10 @@ const handleSectionKeyDown = useCallback((ev) => {
 							<div className={css.titleSection}>
 								{logoUrl && !logoFailed ? (
 									<img
-									  src={logoUrl}
+										src={logoUrl}
 										className={css.logoImage}
 										alt={item.Name}
 										onError={handleLogoError}
-										style={{
-										  filter: invertLogo ? 'invert(1)' : 'none'
-										}}
 									/>
 								) : (
 									<h1 className={css.title}>{item.Name}</h1>

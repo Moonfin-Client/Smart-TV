@@ -42,7 +42,7 @@ const ModernDetailContent = (props) => {
 	const {
 		item, effectiveServerUrl, effectiveApi, serverToken, settings,
 		isEpisode, isSeries, isSeason, isPerson, isBoxSet, isAlbum, isMusicArtist, isPlaylist, isBook, isReadableBook,
-		backdropUrl, posterUrl, logoUrl, invertLogo, onLogoError,
+		backdropUrl, posterUrl, logoUrl, onLogoError,
 		year, runtime, endsAt, officialRating, seasonCount, genres, tagline,
 		hasPlaybackPosition, resumeTimeText,
 		seasons, episodes, similar, extras, cast, nextUp, collectionItems, albumTracks, artistAlbums, playlistItems, personMovies, personSeries, birthDate, birthPlace, episodeRatings,
@@ -470,7 +470,7 @@ const ModernDetailContent = (props) => {
 
 	const heroTitle = () => {
 		if (logoUrl && !isPerson) {
-			return <img className={`${css.logo} ${invertLogo ? css.logoInvert : ''}`} src={logoUrl} alt={item.Name} onError={onLogoError} />;
+			return <img className={css.logo} src={logoUrl} alt={item.Name} onError={onLogoError} />;
 		}
 		const titleText = isEpisode && item.SeriesName ? item.SeriesName : item.Name;
 		return <h1 className={css.title}>{titleText}</h1>;
