@@ -122,14 +122,6 @@ const stableIndex = (seed, length) => {
 	return Math.abs(hash) % length;
 };
 
-const resolveExternalImageUrl = (url, width) => {
-	if (!url) return null;
-	if (url.startsWith('/')) {
-		return seerrApi.getImageUrl(url, width);
-	}
-	return url;
-};
-
 const filterItemsByExcludedGenres = (items, excludedGenres) => {
 	const excluded = Array.isArray(excludedGenres)
 		? excludedGenres.map((genre) => String(genre).trim().toLowerCase()).filter(Boolean)
@@ -970,11 +962,6 @@ const Browse = ({
 	useEffect(() => {
 		let cancelled = false;
 		const loadData = async () => {
-			// IMDb rows are only fetched by fetchAllData, so treat an enabled IMDb list as
-			// dynamic config. Otherwise enabling one shows nothing until the browse cache expires.
-			const hasEnabledImdbRow = homeRowsConfig.some(
-				(row) => row.enabled && row.id.startsWith('imdb-')
-			);
 			// Recommendation rows are only built by fetchAllData, so treat an enabled one
 			// as dynamic config. Otherwise enabling it shows nothing until the cache expires.
 			const hasEnabledRecommendationRow = homeRowsConfig.some(
@@ -988,7 +975,6 @@ const Browse = ({
 				settings.displayCollectionsRows ||
 				settings.displayGenresRows ||
 				settings.displayPlaylistsRows ||
-				hasEnabledImdbRow ||
 				hasEnabledRecommendationRow ||
 				hasEnabledMediaSectionRow ||
 				(settings.pluginSections || []).some((section) => section?.enabled);
@@ -1491,63 +1477,6 @@ const Browse = ({
 					}
 				};
 
-				const loadImdbRows = async () => {
-					try {
-						const enabledImdbRows = homeRowsConfig.filter(
-							(row) => row.enabled && (row.id.startsWith('imdb-') || row.id.startsWith('imdb_'))
-						);
-						if (enabledImdbRows.length === 0) return;
-						const imdbListResults = await Promise.all(
-							enabledImdbRows.map((row) => {
-								const serverId = TV_TO_SERVER_ROW[row.id] || row.id;
-								return api.getCustomRow('imdb', serverId)
-									.then((res) => {
-										if (!res || res.success !== true || !Array.isArray(res.items)) {
-											return { row, items: [] };
-										}
-										const items = res.items.map((it) => {
-											const imdbId = it.providerIds?.Imdb || null;
-											const mediaType = it.type === 'Series' ? 'tv' : 'movie';
-											return {
-												Id: `imdb-${imdbId || `${serverId}-${it.rank}`}`,
-												Name: it.name,
-												Type: it.type === 'Series' ? 'Series' : 'Movie',
-												ProductionYear: it.productionYear,
-												ProviderIds: {Imdb: imdbId, Tmdb: it.providerIds?.Tmdb},
-												Overview: it.overview || null,
-												_externalPosterUrl: resolveExternalImageUrl(it.posterUrl, 'w342'),
-												_externalBackdropUrl: resolveExternalImageUrl(it.backdropUrl, 'w780'),
-												_external: true,
-												_serverName: 'IMDb',
-												mediaInfo: {},
-												_seerr: true,
-												_seerrType: 'item',
-												_seerrMediaType: mediaType,
-												_seerrRaw: it.providerIds?.Tmdb ? {mediaId: Number(it.providerIds.Tmdb), mediaType} : null
-											};
-										});
-										return { row, items };
-									})
-									.catch(() => ({ row, items: [] }));
-							})
-						);
-						const rows = [];
-						imdbListResults.forEach((res) => {
-							if (res.items?.length > 0) {
-								rows.push({
-									id: res.row.id,
-									title: $L(res.row.name),
-									items: res.items,
-									type: 'portrait'
-								});
-							}
-						});
-						appendRows(rows);
-					} catch (e) {
-						console.warn('[Browse] Failed to load IMDb rows:', e);
-					}
-				};
-
 				const loadPluginsAndRecos = async () => {
 					const fetchPluginSectionRow = async (section) => {
 						if (!section?.enabled) return null;
@@ -1758,7 +1687,6 @@ const Browse = ({
 						loadFavorites,
 						loadGenres,
 						loadPlaylistsAndMusic,
-						loadImdbRows,
 						loadPluginsAndRecos
 					].forEach((loader) => loader());
 				}
@@ -1946,7 +1874,7 @@ const Browse = ({
 			setExternalRows([]);
 			return;
 		}
-		const enabledPresets = (settings.homeRows || []).filter((r) => r.enabled && r.id.startsWith('tmdb_')).map((r) => r.id);
+		const enabledPresets = (settings.homeRows || []).filter((r) => r.enabled && (r.id.startsWith('tmdb_') || r.id.startsWith('imdb-'))).map((r) => r.id);
 		const customRows = (settings.customHomeRows || []).filter((r) => r.enabled);
 		const radarrEnabled = (settings.homeRows || []).some((r) => r.enabled && r.id === 'radarr_calendar');
 		const sonarrEnabled = (settings.homeRows || []).some((r) => r.enabled && r.id === 'sonarr_calendar');

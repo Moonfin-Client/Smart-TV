@@ -36,11 +36,13 @@ const RatingsRow = ({item, serverUrl, compact = false, pluginEnabled = true}) =>
 		const currentItemId = item.Id;
 		itemIdRef.current = currentItemId;
 
-		fetchRatings(serverUrl, item).then(ratings => {
+		const controller = new AbortController();
+		fetchRatings(serverUrl, item, {signal: controller.signal}).then(ratings => {
 			if (mountedRef.current && itemIdRef.current === currentItemId) {
 				setAllRatings(buildDisplayRatings(ratings, serverUrl));
 			}
 		});
+		return () => controller.abort();
 	}, [item, serverUrl, pluginEnabled]);
 
 	const displayRatings = useMemo(() => {

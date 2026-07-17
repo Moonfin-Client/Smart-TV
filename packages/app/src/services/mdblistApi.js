@@ -1,4 +1,5 @@
 import {getAuthHeader, getServerUrl} from './jellyfinApi';
+import {mediaServerQueue} from '../utils/requestQueue';
 
 const cache = {};
 const CACHE_TTL_MS = 30 * 60 * 1000;
@@ -121,7 +122,9 @@ export const fetchRatings = async (serverUrl, item, options = {}) => {
 		if (options.signal) {
 			fetchOptions.signal = options.signal;
 		}
-		const response = await fetch(url, fetchOptions);
+		// Share the media server concurrency cap so arrowing across a row doesn't
+		// spawn a burst of uncapped requests competing with image loads.
+		const response = await mediaServerQueue.run(() => fetch(url, fetchOptions));
 
 		if (!response.ok) return [];
 

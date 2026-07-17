@@ -23,11 +23,20 @@ export const TMDB_PRESETS = [
 	{id: 'tmdb_trending_all_weekly', title: $L('Trending All (Weekly)'), type: 'trending/all/week'}
 ];
 
-// Descriptors for the preset toggle list. IMDb charts are handled separately by
-// the existing Personalization IMDb Lists, so they are not repeated here. Custom
-// rows and calendars are configured separately and carry their own descriptors.
+export const IMDB_PRESETS = [
+	{id: 'imdb-top250-movies', title: $L('IMDb Top 250 Movies'), type: 'imdb_top_250_movies'},
+	{id: 'imdb-top250-tv', title: $L('IMDb Top 250 TV Shows'), type: 'imdb_top_250_tv_shows'},
+	{id: 'imdb-popular-movies', title: $L('IMDb Most Popular Movies'), type: 'imdb_most_popular_movies'},
+	{id: 'imdb-popular-tv', title: $L('IMDb Most Popular TV Shows'), type: 'imdb_most_popular_tv_shows'},
+	{id: 'imdb-lowest-rated', title: $L('IMDb Lowest Rated Movies'), type: 'imdb_lowest_rated_movies'},
+	{id: 'imdb-top-english', title: $L('IMDb Top Rated English Movies'), type: 'imdb_top_english_movies'}
+];
+
+// Descriptors for the preset toggle list. Custom rows and calendars are configured
+// separately and carry their own descriptors.
 export const getExternalHomeRowConfigs = () => ([
-	...TMDB_PRESETS.map((p) => ({...p, source: 'tmdb_chart', section: 'tmdb'}))
+	...TMDB_PRESETS.map((p) => ({...p, source: 'tmdb_chart', section: 'tmdb'})),
+	...IMDB_PRESETS.map((p) => ({...p, source: 'imdb', section: 'imdb'}))
 ]);
 
 const findPreset = (id) => getExternalHomeRowConfigs().find((c) => c.id === id) || null;

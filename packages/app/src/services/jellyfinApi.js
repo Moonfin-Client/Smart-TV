@@ -357,12 +357,6 @@ export const api = {
 		return request(`/Genres?UserId=${currentUser}&SortBy=${encodeURIComponent(sortBy)}&SortOrder=${encodeURIComponent(sortOrder)}&Recursive=true&IncludeItemTypes=${encodeURIComponent(includeItemTypes)}${params}`);
 	},
 
-	getCustomRow: (source, type) => {
-		// The backend returns 400 without a non-empty params JSON, so send a minimal one.
-		const params = encodeURIComponent(JSON.stringify({source: String(source), type: String(type)}));
-		return request(`/Moonfin/CustomRows/Items?source=${encodeURIComponent(String(source))}&type=${encodeURIComponent(String(type))}&params=${params}`);
-	},
-
 	getStudioCompanies: (tmdbId, mediaType) =>
 		request(`/Moonfin/Tmdb/ProductionCompanies?tmdbId=${encodeURIComponent(tmdbId)}&type=${mediaType === 'tv' ? 'tv' : 'movie'}`),
 
@@ -729,12 +723,6 @@ export const createApiForServer = (serverUrl, token, userId, serverTypeOverride 
 
 		getLocalTrailers: (itemId) =>
 			serverRequest(`/Users/${userId}/Items/${itemId}/LocalTrailers`),
-
-		getCustomRow: (source, type) => {
-			// The backend returns 400 without a non-empty params JSON, so send a minimal one.
-			const params = encodeURIComponent(JSON.stringify({source: String(source), type: String(type)}));
-			return serverRequest(`/Moonfin/CustomRows/Items?source=${encodeURIComponent(String(source))}&type=${encodeURIComponent(String(type))}&params=${params}`);
-		},
 
 		getStudioCompanies: (tmdbId, mediaType) =>
 			serverRequest(`/Moonfin/Tmdb/ProductionCompanies?tmdbId=${encodeURIComponent(tmdbId)}&type=${mediaType === 'tv' ? 'tv' : 'movie'}`),
