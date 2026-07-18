@@ -128,6 +128,7 @@ const defaultSettings = {
 	screensaverMode: 'library',
 	watchedIndicatorBehavior: 'always',
 	cardFocusZoom: false,
+	useDetailedSubHeadings: true,
 	useSeriesThumbnails: true,
 	homeRowsPosterSize: 'default',
 	homeRowsImageType: 'poster',
@@ -195,11 +196,20 @@ const SERVER_TO_LOCAL = {
 	detailsBackdropBlur: 'backdropBlurDetail',
 	browsingBlur: 'backdropBlurHome',
 	use24HourClock: 'clockDisplay',
-	theme: 'visualTheme',
 	focusColor: 'focusBorderColor',
 	watchedIndicator: 'watchedIndicatorBehavior',
 	posterSize: 'homeRowsPosterSize',
-	homeImageUseSeriesImage: 'useSeriesThumbnails'
+	homeImageUseSeriesImage: 'useSeriesThumbnails',
+	mdblistShowRatingNames: 'showRatingLabels',
+	mdblistShowRatingBadges: 'showRatingBadges',
+	languageOverride: 'uiLanguage',
+	liveTvDirectPlayEnabled: 'liveTvDirect',
+	syncPlayEnabled: 'syncplayEnabled',
+	syncPlayAutoOpen: 'syncplayAutoOpen',
+	clockBehavior: 'showClock',
+	stillWatchingBehavior: 'stillWatchingPrompt',
+	enableFolderView: 'folderViewMode',
+	homeRowInfoOverlay: 'homeRowOverlay'
 };
 const LOCAL_TO_SERVER = Object.fromEntries(
 	Object.entries(SERVER_TO_LOCAL).map(([s, l]) => [l, s])
@@ -249,6 +259,29 @@ const VALUE_CONVERSIONS = {
 	},
 	mediaBarCollectionIds: {
 		fromServer: normalizeGuidArray
+	},
+	// The clock is a toggle here and a three way choice on the other clients. Anything that
+	// isn't "never" shows a clock, so the toggle reads as on.
+	showClock: {
+		toServer: v => v ? 'always' : 'never',
+		fromServer: v => v !== 'never'
+	},
+	// A toggle here, a duration elsewhere. Turning it off is exact. Turning it on can't say
+	// how long, so it picks the middle option rather than overwriting a chosen duration with
+	// something arbitrary.
+	stillWatchingPrompt: {
+		toServer: v => v ? 'medium' : 'disabled',
+		fromServer: v => v !== 'disabled'
+	},
+	// Three states here against a boolean elsewhere. "Per Library" has no equivalent, so it
+	// declines to push and leaves whatever the server holds.
+	folderViewMode: {
+		toServer: v => (v === 'local' ? undefined : v === 'on'),
+		fromServer: v => (v ? 'on' : 'off')
+	},
+	homeRowOverlay: {
+		toServer: v => v === 'on',
+		fromServer: v => (v ? 'on' : 'off')
 	}
 	// homeRows is missing on purpose. The home layout is two server fields that have to
 	// move together, so it gets resolved whole rather than a key at a time.
@@ -322,7 +355,11 @@ const localToProfile = (localSettings) => {
 		if (value === undefined || value === null) continue;
 		const serverKey = LOCAL_TO_SERVER[key] || key;
 		const conv = VALUE_CONVERSIONS[key];
-		profile[serverKey] = conv?.toServer ? conv.toServer(value) : value;
+		const converted = conv?.toServer ? conv.toServer(value) : value;
+		// A converter returns undefined when this client can't express the value. Leave the
+		// stored one alone rather than overwriting it with a guess.
+		if (converted === undefined) continue;
+		profile[serverKey] = converted;
 	}
 	// Send both views or neither. homeRowOrder on its own makes the server throw away the
 	// stored homeSections, whereas sending neither leaves the stored layout alone. That is
@@ -362,12 +399,29 @@ const resolveFromEnvelope = (envelope, adminDefaults) => {
 	return resolved;
 };
 
-const pushTvProfile = (updated, credsRef) => {
-	if (!credsRef.current) return;
-	const {serverUrl, token} = credsRef.current;
+// Every push sends the whole profile, and there are enough synced settings now that doing
+// that on each keystroke of a slider is wasteful. Coalesce a burst of changes into one
+// request, and keep only the newest state so nothing stale is sent.
+const PUSH_DEBOUNCE_MS = 1000;
+let pushTimer = null;
+let pendingPush = null;
+
+const flushTvProfile = () => {
+	pushTimer = null;
+	if (!pendingPush) return;
+	const {updated, serverUrl, token} = pendingPush;
+	pendingPush = null;
 	saveMoonfinProfile('tv', localToProfile(updated), serverUrl, token).catch(e =>
 		console.warn('[Settings] Failed to push TV profile:', e.message)
 	);
+};
+
+const pushTvProfile = (updated, credsRef) => {
+	if (!credsRef.current) return;
+	const {serverUrl, token} = credsRef.current;
+	pendingPush = {updated, serverUrl, token};
+	if (pushTimer) clearTimeout(pushTimer);
+	pushTimer = setTimeout(flushTvProfile, PUSH_DEBOUNCE_MS);
 };
 
 const extractThemeObjects = (payload) => {
