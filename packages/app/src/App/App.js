@@ -720,9 +720,18 @@ const AppContent = (props) => {
 		setPlayingItem(null);
 		setPlaybackOptions(null);
 		setIsResume(false);
-		handleBack();
+		// Return to the previous panel WITHOUT clearing the DETAILS/Seerr item breadcrumb.
+		// handleBack() resets detailsItemStackRef/seerrItemStackRef, which would lose the
+		// series -> season -> episode trail and make the next Back jump out of the show to Home.
+		if (panelHistory.length > 0) {
+			const prevPanel = panelHistory[panelHistory.length - 1];
+			setPanelHistory(prev => prev.slice(0, -1));
+			setPanelIndex(prevPanel);
+		} else if (panelIndex > PANELS.BROWSE) {
+			setPanelIndex(PANELS.BROWSE);
+		}
 		window.dispatchEvent(new CustomEvent('moonfin:browseRefresh'));
-	}, [handleBack]);
+	}, [panelHistory, panelIndex]);
 
 	const handleOpenSearch = useCallback(() => {
 		navigateTo(PANELS.SEARCH);
