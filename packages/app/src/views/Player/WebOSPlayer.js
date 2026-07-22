@@ -1165,7 +1165,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 				}
 			};
 			video.addEventListener('timeupdate', onFirstTimeUpdate);
-			const timeoutMs = useHlsJs ? 30000 : (playMethod === 'Transcode') ? 15000 : 8000;
+			const timeoutMs = 120000;
 			playbackStartTimeoutRef.current = setTimeout(() => {
 				video.removeEventListener('timeupdate', onFirstTimeUpdate);
 				sourceTransitionRef.current = false;

@@ -516,7 +516,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 			ondrmevent: () => {}
 		});
 
-		const prepareTimeout = isLiveTV ? 30000 : 60000;
+		const prepareTimeout = 120000;
 		let prepareTimer;
 		await Promise.race([
 			avplayPrepare(),

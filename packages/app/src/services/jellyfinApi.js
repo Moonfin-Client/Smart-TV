@@ -94,7 +94,7 @@ export const getDeviceInfo = () => ({appName: APP_NAME, appVersion: APP_VERSION,
 export const buildEmbyAuthHeader = (token) => buildAuthHeader('emby', token);
 
 const DEFAULT_TIMEOUT_MS = 15000;
-const PLAYBACK_TIMEOUT_MS = 30000;
+const PLAYBACK_TIMEOUT_MS = 120000;
 export const HOME_ROW_ITEM_FIELDS = 'PrimaryImageAspectRatio,Overview,Genres,GenreItems,ProductionYear,RunTimeTicks,CommunityRating,CriticRating,ProviderIds,ImageTags,BackdropImageTags,ParentBackdropImageTags,ParentBackdropItemId,ParentThumbItemId,SeriesPrimaryImageTag,SeriesName,ParentIndexNumber,IndexNumber,UserData,AlbumArtist,AlbumId,AlbumPrimaryImageTag';
 
 // Routes through the webOS TLS proxy fallback (secureFetch) so Let's-Encrypt
