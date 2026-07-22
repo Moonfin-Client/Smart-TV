@@ -256,7 +256,7 @@ export const api = {
 
 	getItem: (itemId) => request(`/Users/${currentUser}/Items/${itemId}`),
 
-	getLocalTrailers: (itemId) => request(`/Users/${currentUser}/Items/${itemId}/LocalTrailers`),
+	getLocalTrailers: (itemId) => request(`/Items/${itemId}/LocalTrailers?userId=${currentUser}`),
 
 	getItemForDetail: (itemId) =>
 		request(`/Users/${currentUser}/Items/${itemId}?Fields=Overview,Genres,OfficialRating,BackdropImageTags,ParentBackdropImageTags,ParentBackdropItemId,ProviderIds,RunTimeTicks,ProductionYear,Chapters,People,Studios,Taglines,RemoteTrailers,MediaSources,MediaSourceCount,CommunityRating,CriticRating`),
@@ -722,7 +722,7 @@ export const createApiForServer = (serverUrl, token, userId, serverTypeOverride 
 			serverRequest(`/Items/${itemId}/PlaybackInfo?UserId=${userId}`, {timeoutMs: PLAYBACK_TIMEOUT_MS}),
 
 		getLocalTrailers: (itemId) =>
-			serverRequest(`/Users/${userId}/Items/${itemId}/LocalTrailers`),
+			serverRequest(`/Items/${itemId}/LocalTrailers?userId=${userId}`),
 
 		getStudioCompanies: (tmdbId, mediaType) =>
 			serverRequest(`/Moonfin/Tmdb/ProductionCompanies?tmdbId=${encodeURIComponent(tmdbId)}&type=${mediaType === 'tv' ? 'tv' : 'movie'}`),
