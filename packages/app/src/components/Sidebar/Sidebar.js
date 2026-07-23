@@ -74,12 +74,14 @@ const Sidebar = ({
 
 	const navStyle = useMemo(() => {
 		let navbarColor = activeTheme.transparentNavbarSurface ? 'transparent' : `linear-gradient(to right, ${toCssColorWithAlpha(activeTheme.colors.surface, 0.96)}, ${toCssColorWithAlpha(activeTheme.colors.surface, 0.88)}, ${toCssColorWithAlpha(activeTheme.colors.surface, 0.66)}, transparent)`;
-		const c1 = toSafeCssColorWithAlpha(settings.navbarColor, settings.navbarOpacity/100);
-		const c2 = toSafeCssColorWithAlpha(settings.navbarColor, settings.navbarOpacity/105);
-		const c3 = toSafeCssColorWithAlpha(settings.navbarColor, settings.navbarOpacity/110);
-		const c4 = toSafeCssColorWithAlpha(settings.navbarColor, settings.navbarOpacity/115);
+		let normalizedNavbarOpacity = settings.navbarOpacity / 100;
+		const c1 = toSafeCssColorWithAlpha(settings.navbarColor, Math.pow(normalizedNavbarOpacity, 0.25));
+		const c2 = toSafeCssColorWithAlpha(settings.navbarColor, normalizedNavbarOpacity);
+		const c3 = toSafeCssColorWithAlpha(settings.navbarColor, Math.pow(normalizedNavbarOpacity, 2.0));
+		const c4 = toSafeCssColorWithAlpha(settings.navbarColor, Math.pow(normalizedNavbarOpacity, 4.0));
+		const c5 = normalizedNavbarOpacity < 1 ? ", transparent" : "";
 		if (c1 && c2 && c3 && c4) {
-			navbarColor = `linear-gradient(to right, ${c1}, ${c1}, ${c2}, ${c3}, ${c4}, transparent)`;
+			navbarColor = `linear-gradient(to right, ${c1}, ${c1}, ${c2}, ${c3}, ${c4}${c5})`;
 		}
 		return {
 			background: expanded ? navbarColor : 'transparent',
