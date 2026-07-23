@@ -1139,7 +1139,54 @@ export const stopHealthMonitoring = () => {
 	}
 };
 
+// When the app is backgrounded (TV input switched, home pressed, or the set
+// powered off in a way that only suspends the web process) we report paused
+// progress and keep the session so playback can resume. If the app never comes
+// back the server keeps the session marked playing until its own keepalive reaps
+// it. Schedule a real stop after a short grace period instead. cancelBackgroundStop
+// aborts it when the app resumes in time, and consumeBackgroundStopFired lets the
+// resume path re-establish the session if it already fired. A truly instant kill
+// still relies on the server keepalive since no timer can survive that.
+const BACKGROUND_STOP_GRACE_MS = 30000;
+let backgroundStopTimer = null;
+let backgroundStopFired = false;
+
+export const cancelBackgroundStop = () => {
+	if (backgroundStopTimer) {
+		clearTimeout(backgroundStopTimer);
+		backgroundStopTimer = null;
+	}
+};
+
+export const scheduleBackgroundStop = (getPositionTicks, graceMs = BACKGROUND_STOP_GRACE_MS) => {
+	cancelBackgroundStop();
+	if (!currentSession) return;
+	backgroundStopTimer = setTimeout(() => {
+		backgroundStopTimer = null;
+		if (!currentSession) return;
+		const ticks = typeof getPositionTicks === 'function' ? getPositionTicks() : getPositionTicks;
+		reportStopBeacon(ticks || 0);
+		// stop the local reporting loops so they can't revive the session we just
+		// told the server to end
+		stopProgressReporting();
+		stopHealthMonitoring();
+		backgroundStopFired = true;
+	}, graceMs);
+};
+
+// Returns true at most once per background stop, so the resume path knows it must
+// re-report start instead of assuming the session is still live on the server.
+export const consumeBackgroundStopFired = () => {
+	const fired = backgroundStopFired;
+	backgroundStopFired = false;
+	return fired;
+};
+
 export const reportStop = async (positionTicks) => {
+	// a normal stop supersedes any pending/elapsed background stop
+	cancelBackgroundStop();
+	backgroundStopFired = false;
+
 	if (!currentSession) return;
 
 	stopProgressReporting();

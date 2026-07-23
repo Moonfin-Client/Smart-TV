@@ -445,10 +445,21 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 					playback.reportProgress(positionRef.current, {isPaused: true});
 				}
 			}
+			// but if we never come back (TV powered off / app killed while
+			// suspended) report a real stop after a grace period so the session
+			// doesn't sit "playing" on the server forever
+			playback.scheduleBackgroundStop(() => positionRef.current);
 		};
 
 		const handleAppVisible = () => {
 			console.log('[Player] App visible - resuming if was playing');
+			playback.cancelBackgroundStop();
+			if (playback.consumeBackgroundStopFired()) {
+				// the session was stopped on the server while we were backgrounded,
+				// so let handlePlay re-report start and restart the reporting loops
+				// when playback resumes below
+				hasReportedStartRef.current = false;
+			}
 			if (videoRef.current && wasPlaying) {
 				const p = videoRef.current.play();
 				if (p && typeof p.catch === 'function') {
@@ -463,9 +474,10 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 		// backing out of the app entirely never reaches the unmount cleanup, so
 		// report the stop here or the session sits open on the server
 		const handleAppExit = () => {
-			if (positionRef.current > 0) {
-				playback.reportStopBeacon(positionRef.current);
-			}
+			// always report the stop, even at position 0 (live TV and freshly
+			// opened media start there), or the session lingers on the server
+			playback.cancelBackgroundStop();
+			playback.reportStopBeacon(positionRef.current);
 		};
 
 		const handleRelaunch = (params) => {
@@ -882,14 +894,11 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 			const videoTicks = Math.floor(videoTime * 10000000);
 			const currentPos = videoTicks > 0 ? videoTicks : positionRef.current;
 
-			const intendedStart = positionRef.current;
-			const playedMeaningfully = videoTicks > 100000000 || videoTicks > intendedStart + 100000000;
-			if (currentPos > 0 && (playedMeaningfully || intendedStart === 0)) {
-				console.log('[Player] Reporting stop at position:', currentPos, 'ticks');
+			// Report stop whenever a session is still open. A normal back-out has
+			// already stopped and cleared it. Don't gate on position, live TV and
+			// freshly opened media sit at 0 and would otherwise leak.
+			if (playback.getCurrentSession()) {
 				playback.reportStop(currentPos);
-			} else {
-				console.log('[Player] Skipping reportStop - position too small:', currentPos,
-					'videoTime:', videoTime, 'intendedStart:', intendedStart);
 			}
 
 			playback.stopProgressReporting();

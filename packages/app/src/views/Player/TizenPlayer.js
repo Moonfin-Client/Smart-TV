@@ -160,6 +160,8 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 	const suspendedRef = useRef(null);
 	const loadGenerationRef = useRef(0);
 	const reloadPlaybackRef = useRef(null);
+	// re-arms server reporting when playback resumes after a background stop
+	const resumeReportingRef = useRef(null);
 	// index of a subtitle the server is currently burning into the stream
 	const burnInSubtitleRef = useRef(null);
 
@@ -662,6 +664,12 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 			unregisterAppStateRef.current = registerAppStateObserver(
 				() => {
 					console.log('[Player] App resumed');
+					playback.cancelBackgroundStop();
+					if (playback.consumeBackgroundStopFired()) {
+						// the session was stopped on the server while we were
+						// backgrounded, so bring it back before we resume playback
+						resumeReportingRef.current?.();
+					}
 					const suspended = suspendedRef.current;
 					suspendedRef.current = null;
 					if (suspended) {
@@ -695,6 +703,10 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 							playback.reportProgress(positionRef.current, {isPaused: true});
 						}
 					}
+					// but if we never come back (TV powered off / app killed while
+					// suspended) report a real stop after a grace period so the
+					// session doesn't sit "playing" on the server forever
+					playback.scheduleBackgroundStop(() => positionRef.current);
 					const state = avplayGetState();
 					const wasPlaying = state === 'PLAYING';
 					if (wasPlaying) {
@@ -752,9 +764,10 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 		// backing out of the app entirely never reaches the unmount cleanup, so
 		// the session would sit open on the server forever
 		const handleAppExit = () => {
-			if (positionRef.current > 0) {
-				playback.reportStopBeacon(positionRef.current);
-			}
+			// always report the stop, even at position 0 (live TV and freshly
+			// opened media start there), or the session lingers on the server
+			playback.cancelBackgroundStop();
+			playback.reportStopBeacon(positionRef.current);
 			cleanupAVPlay();
 		};
 		window.addEventListener('pagehide', handleAppExit);
@@ -771,6 +784,19 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 	const handleUnhealthy = useCallback(async () => {
 		console.log('[Player] Playback unhealthy, falling back to transcode');
 	}, []);
+
+	// Re-report start and restart the reporting loops on the existing session
+	// when playback resumes after a background stop already reported it ended.
+	resumeReportingRef.current = () => {
+		playback.reportStart(positionRef.current);
+		playback.startProgressReporting(
+			() => positionRef.current,
+			10000,
+			() => ({ isPaused: avplayGetState() !== 'PLAYING' })
+		);
+		playback.startHealthMonitoring(handleUnhealthy);
+		healthMonitorRef.current = playback.getHealthMonitor();
+	};
 
 	// ==============================
 	// Load Media & Start AVPlay
@@ -1131,8 +1157,10 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 		loadMedia();
 
 		return () => {
-			// Report stop to server with current position
-			if (positionRef.current > 0) {
+			// Report stop whenever a session is still open. A normal back-out has
+			// already stopped and cleared it. Don't gate on position, live TV and
+			// freshly opened media sit at 0 and would otherwise leak.
+			if (playback.getCurrentSession()) {
 				playback.reportStop(positionRef.current);
 			}
 
