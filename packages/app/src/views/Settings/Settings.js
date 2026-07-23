@@ -212,6 +212,15 @@ const getBlurOptions = () => [
 	{ value: 40, label: $L('Heavy') }
 ];
 
+const getDetailsOpacityOptions = () => [
+	{ value: 0, label: '0%' },
+	{ value: 5, label: '20%' },
+	{ value: 10, label: '40%' },
+	{ value: 15, label: '60%' },
+	{ value: 20, label: '80%' },
+	{ value: 25, label: '100%' }
+];
+
 const getPerformanceModeOptions = () => [
 	{ value: 'auto', label: $L('Auto') },
 	{ value: 'high', label: $L('High Quality') },
@@ -1579,8 +1588,11 @@ const Settings = ({ onBack, onLibrariesChanged, panelMode }) => {
 	const renderPersonalizationDetailsScreen = () => (
 		<>
 			{renderOptionItem('detailScreenStyle', $L('Detail Screen Style'), getDetailScreenStyleOptions(), $L('Modern'), 'appscontents')}
-			{settings.detailScreenStyle === 'v1' &&
-				renderOptionItem('backdropBlurDetail', $L('Details Background Blur'), getBlurOptions(), $L('Medium'))}
+			{settings.detailScreenStyle === 'v1' ? (
+				renderOptionItem('backdropBlurDetail', $L('Details Background Blur'), getBlurOptions(), $L('Medium'))
+			) : (
+				renderOptionItem('backdropBlurDetail', $L('Details Background Opacity'), getDetailsOpacityOptions(), $L('80%'))
+			)}
 			{settings.detailScreenStyle !== 'v1' &&
 				renderToggleItem('detailExpandedTabs', $L('Expanded Tabs'), $L('Keep detail tabs expanded and follow focus'), 'appscontents')}
 		</>

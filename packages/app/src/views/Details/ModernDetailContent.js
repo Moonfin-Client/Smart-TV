@@ -54,6 +54,17 @@ const ModernDetailContent = (props) => {
 		canChangeArtwork, handleOpenArtworkModal
 	} = props;
 
+	const blurAmount = settings.backdropBlurDetail !== undefined ? Number(settings.backdropBlurDetail) : 10;
+	const opacityFactor = blurAmount / 25.0;
+	const maxAlpha = isPerson ? 0.40 : 0.80;
+	const alpha = opacityFactor * maxAlpha;
+	const gradientScale = 0.3 + 0.7 * opacityFactor;
+
+	const backdropStyle = {
+		'--opacity-alpha': alpha,
+		'--gradient-scale': gradientScale
+	};
+
 	const hasTrailer = item.LocalTrailerCount > 0 || (item.RemoteTrailers?.length > 0) || isSeries;
 	const played = item.UserData?.Played;
 	const isFavorite = item.UserData?.IsFavorite;
@@ -512,7 +523,7 @@ const ModernDetailContent = (props) => {
 
 	return (
 		<>
-			<div className={`${css.backdrop} ${isPerson ? css.backdropPerson : ''}`}>
+			<div className={`${css.backdrop} ${isPerson ? css.backdropPerson : ''}`} style={backdropStyle}>
 				{backdropUrl && !isPerson && <img className={css.backdropImage} src={backdropUrl} alt="" />}
 			</div>
 			<Scroller cbScrollTo={handleScrollTo} className={css.scroller} direction="vertical" horizontalScrollbar="hidden" verticalScrollbar="hidden">
