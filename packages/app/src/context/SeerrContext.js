@@ -231,6 +231,8 @@ moonfinAuthType: resolvedAuthType
 
 return {authenticated: true, user: userData, url: status.url};
 } else {
+setUser(null);
+setIsAuthenticated(false);
 setServerUrl(jellyfinServer);
 setIsEnabled(true);
 setIsMoonfin(true);
