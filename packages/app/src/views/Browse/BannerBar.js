@@ -1,4 +1,5 @@
 import {useState, useEffect, useCallback, useRef, memo} from 'react';
+import {isMdblistEnabled} from '../../services/mdblistApi';
 import Spottable from '@enact/spotlight/Spottable';
 import Spotlight from '@enact/spotlight';
 import {getImageUrl, getBackdropId, formatDuration} from '../../utils/helpers';
@@ -189,7 +190,7 @@ const BannerBar = memo(({
 						item={currentFeatured}
 						serverUrl={getItemServerUrl(currentFeatured)}
 						compact
-						pluginEnabled={settings.useMoonfinPlugin && settings.mdblistEnabled !== false}
+						pluginEnabled={isMdblistEnabled(settings)}
 					/>
 				</div>
 

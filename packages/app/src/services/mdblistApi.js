@@ -1,12 +1,19 @@
-import {getAuthHeader, getServerUrl} from './jellyfinApi';
+import {getAuthHeader, getServerUrl, api} from './jellyfinApi';
 import {mediaServerQueue} from '../utils/requestQueue';
 
 const cache = {};
 const CACHE_TTL_MS = 30 * 60 * 1000;
 
+// Failed lookups (no key configured, rate limited, server hiccup) are remembered
+// briefly so focus-driven fetches don't storm the plugin while nothing can succeed.
+const negativeCache = {};
+const NEGATIVE_CACHE_TTL_MS = 3 * 60 * 1000;
+
+// tmdb_episode is the TMDB per-episode rating and shares the regular tmdb icon.
 export const RATING_SOURCES = {
 	imdb:           {name: 'IMDb',                     iconFile: 'imdb.svg',            color: '#F5C518', textColor: '#000'},
-	tmdb:           {name: 'TMDb',                     iconFile: 'tmdb.svg',            color: '#01D277', textColor: '#fff'},
+	tmdb:           {name: 'TMDB',                     iconFile: 'tmdb.svg',            color: '#01D277', textColor: '#fff'},
+	tmdb_episode:   {name: 'TMDB',                     iconFile: 'tmdb.svg',            color: '#01D277', textColor: '#fff'},
 	trakt:          {name: 'Trakt',                    iconFile: 'trakt.svg',           color: '#ED1C24', textColor: '#fff'},
 	tomatoes:       {name: 'Rotten Tomatoes (Critics)', iconFile: 'rt-fresh.svg',        color: '#FA320A', textColor: '#fff'},
 	tomatoes_audience: {name: 'Rotten Tomatoes (Audience)', iconFile: 'rt-audience-up.svg', color: '#FA320A', textColor: '#fff'},
@@ -14,8 +21,7 @@ export const RATING_SOURCES = {
 	metacriticuser: {name: 'Metacritic User',          iconFile: 'metacritic-user.svg', color: '#00CE7A', textColor: '#000'},
 	letterboxd:     {name: 'Letterboxd',               iconFile: 'letterboxd.svg',      color: '#00E054', textColor: '#fff'},
 	rogerebert:     {name: 'Roger Ebert',              iconFile: 'rogerebert.svg',      color: '#E50914', textColor: '#fff'},
-	myanimelist:    {name: 'MyAnimeList',              iconFile: 'mal.svg',             color: '#2E51A2', textColor: '#fff'},
-	anilist:        {name: 'AniList',                  iconFile: 'anilist.svg',         color: '#02A9FF', textColor: '#fff'}
+	myanimelist:    {name: 'MyAnimeList',              iconFile: 'mal.svg',             color: '#2E51A2', textColor: '#fff'}
 };
 
 /**
@@ -45,14 +51,22 @@ export const getIconUrl = (baseUrl, source, rating) => {
 };
 
 /**
- * Returns 'movie' or 'show', or null if unsupported type.
+ * Whether MDBList ratings should be shown at all.
+ */
+export const isMdblistEnabled = (settings) =>
+	!!settings?.useMoonfinPlugin && settings?.mdblistEnabled !== false;
+
+/**
+ * Returns 'movie' or 'show', or null for unsupported types. Episodes and
+ * Seasons are unsupported because MDBList has no ratings for them, and their
+ * TMDB provider ids live in a different id space than show ids. Episodes get
+ * a TMDB rating via fetchEpisodeRatings instead.
  */
 export const getContentType = (item) => {
 	if (!item) return null;
 	const type = item.Type;
 	if (type === 'Movie') return 'movie';
 	if (type === 'Series') return 'show';
-	if (type === 'Episode' || type === 'Season') return 'show';
 	return null;
 };
 
@@ -61,6 +75,26 @@ export const getTmdbId = (item) => {
 	const providerIds = item.ProviderIds;
 	if (!providerIds) return null;
 	return providerIds.Tmdb || providerIds.tmdb || null;
+};
+
+const seriesTmdbIdCache = {};
+
+/**
+ * Resolves the series TMDB id for an Episode/Season item, since the TMDB
+ * episode endpoints want the show id rather than the item's own provider id.
+ */
+export const resolveSeriesTmdbId = async (item) => {
+	if (!item) return null;
+	if (item.Type === 'Series') return getTmdbId(item);
+
+	const seriesId = item.SeriesId;
+	if (!seriesId) return null;
+	if (seriesId in seriesTmdbIdCache) return seriesTmdbIdCache[seriesId];
+
+	const series = await api.getItem(seriesId).catch(() => null);
+	const tmdbId = getTmdbId(series);
+	seriesTmdbIdCache[seriesId] = tmdbId;
+	return tmdbId;
 };
 
 export const formatRating = (rating) => {
@@ -84,16 +118,24 @@ export const formatRating = (rating) => {
 		case 'metacriticuser':
 			return score != null ? `${Number(score).toFixed(0)}%` : (value != null ? `${Number(value).toFixed(0)}%` : null);
 		case 'letterboxd':
-			return value != null ? Number(value).toFixed(1) : (score != null ? (score / 20).toFixed(1) : null);
+			// The plugin normalizes letterboxd to its native 0-5 scale.
+			return value != null ? `${Number(value).toFixed(1)}/5` : (score != null ? `${(score / 20).toFixed(1)}/5` : null);
 		case 'rogerebert':
 			return value != null ? `${Number(value).toFixed(1)}/4` : (score != null ? `${Number(score).toFixed(0)}%` : null);
 		case 'myanimelist':
 			return value != null ? Number(value).toFixed(1) : (score != null ? (score / 10).toFixed(1) : null);
-		case 'anilist':
-			return score != null ? `${Number(score).toFixed(0)}%` : null;
+		case 'tmdb_episode':
+			return value != null ? Number(value).toFixed(1) : null;
 		default:
 			return score != null ? `${Number(score).toFixed(0)}%` : (value != null ? String(value) : null);
 	}
+};
+
+const isNegativelyCached = (key) => {
+	const at = negativeCache[key];
+	if (at && (Date.now() - at) < NEGATIVE_CACHE_TTL_MS) return true;
+	if (at) delete negativeCache[key];
+	return false;
 };
 
 export const fetchRatings = async (serverUrl, item, options = {}) => {
@@ -102,12 +144,17 @@ export const fetchRatings = async (serverUrl, item, options = {}) => {
 
 	if (!contentType || !tmdbId) return [];
 
-	const cacheKey = `${contentType}:${tmdbId}`;
+	// The plugin filters ratings by the profile's enabled sources, so changing
+	// them must produce a different cache key or stale filtered results would
+	// stick around for the TTL.
+	const sourcesSalt = options.sourcesKey || '';
+	const cacheKey = `${contentType}:${tmdbId}:${sourcesSalt}`;
 
 	const cached = cache[cacheKey];
 	if (cached && (Date.now() - cached.fetchedAt) < CACHE_TTL_MS) {
 		return cached.ratings;
 	}
+	if (isNegativelyCached(cacheKey)) return [];
 
 	const baseUrl = serverUrl || getServerUrl();
 	if (!baseUrl) return [];
@@ -126,7 +173,10 @@ export const fetchRatings = async (serverUrl, item, options = {}) => {
 		// spawn a burst of uncapped requests competing with image loads.
 		const response = await mediaServerQueue.run(() => fetch(url, fetchOptions));
 
-		if (!response.ok) return [];
+		if (!response.ok) {
+			negativeCache[cacheKey] = Date.now();
+			return [];
+		}
 
 		const data = await response.json();
 		const ratingsArr = data.ratings || data.Ratings;
@@ -151,9 +201,62 @@ export const fetchRatings = async (serverUrl, item, options = {}) => {
 			cache[cacheKey] = {ratings, fetchedAt: Date.now()};
 			return ratings;
 		}
+
+		// success:false means no API key is configured or the rate limit was hit
+		negativeCache[cacheKey] = Date.now();
 		return [];
 	} catch (err) {
+		if (err && err.name === 'AbortError') return [];
 		console.warn('[MDBList] Fetch failed:', err);
+		negativeCache[cacheKey] = Date.now();
+		return [];
+	}
+};
+
+/**
+ * TMDB per-episode rating for an Episode item, returned in the same raw shape as
+ * fetchRatings entries (source `tmdb_episode`) so buildDisplayRatings applies.
+ */
+export const fetchEpisodeRatings = async (serverUrl, item, options = {}) => {
+	if (!item || item.Type !== 'Episode') return [];
+	const season = item.ParentIndexNumber;
+	const episode = item.IndexNumber;
+	if (season == null || episode == null) return [];
+
+	const seriesTmdbId = await resolveSeriesTmdbId(item);
+	if (!seriesTmdbId) return [];
+
+	const cacheKey = `episode:${seriesTmdbId}:${season}:${episode}`;
+	const cached = cache[cacheKey];
+	if (cached && (Date.now() - cached.fetchedAt) < CACHE_TTL_MS) {
+		return cached.ratings;
+	}
+	if (isNegativelyCached(cacheKey)) return [];
+
+	const baseUrl = serverUrl || getServerUrl();
+	if (!baseUrl) return [];
+
+	try {
+		const url = `${baseUrl}/Moonfin/Tmdb/EpisodeRating?tmdbId=${encodeURIComponent(seriesTmdbId)}&season=${encodeURIComponent(season)}&episode=${encodeURIComponent(episode)}`;
+		const fetchOptions = {headers: {'Authorization': getAuthHeader()}};
+		if (options.signal) fetchOptions.signal = options.signal;
+		const response = await mediaServerQueue.run(() => fetch(url, fetchOptions));
+		if (!response.ok) {
+			negativeCache[cacheKey] = Date.now();
+			return [];
+		}
+		const data = await response.json();
+		const voteAverage = data?.voteAverage ?? data?.VoteAverage;
+		if ((data?.success ?? data?.Success) !== false && voteAverage > 0) {
+			const ratings = [{source: 'tmdb_episode', value: voteAverage, score: Math.round(voteAverage * 10)}];
+			cache[cacheKey] = {ratings, fetchedAt: Date.now()};
+			return ratings;
+		}
+		negativeCache[cacheKey] = Date.now();
+		return [];
+	} catch (err) {
+		if (err && err.name === 'AbortError') return [];
+		negativeCache[cacheKey] = Date.now();
 		return [];
 	}
 };

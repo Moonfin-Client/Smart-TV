@@ -1,4 +1,5 @@
 import {useState, useEffect, useCallback, useRef, memo} from 'react';
+import {isMdblistEnabled} from '../../services/mdblistApi';
 import Spottable from '@enact/spotlight/Spottable';
 import Spotlight from '@enact/spotlight';
 import $L from '@enact/i18n/$L';
@@ -241,7 +242,7 @@ const MakdBanner = memo(({
 							item={currentFeatured}
 							serverUrl={getItemServerUrl(currentFeatured)}
 							compact
-							pluginEnabled={settings.useMoonfinPlugin && settings.mdblistEnabled !== false}
+							pluginEnabled={isMdblistEnabled(settings)}
 						/>
 
 						<p className={css.makdOverview}>

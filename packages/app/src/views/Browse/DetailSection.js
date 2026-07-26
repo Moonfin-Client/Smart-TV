@@ -1,4 +1,5 @@
 import {useState, useEffect, useRef, useCallback, forwardRef, useImperativeHandle} from 'react';
+import {isMdblistEnabled} from '../../services/mdblistApi';
 import $L from '@enact/i18n/$L';
 import RatingsRow from '../../components/RatingsRow';
 import {formatDuration} from '../../utils/helpers';
@@ -96,7 +97,7 @@ const DetailSection = forwardRef(({
 							<span key={i} className={css.infoBadge}>{g}</span>
 						))}
 					</div>
-					<RatingsRow item={focusedItem} serverUrl={getItemServerUrl(focusedItem)} compact pluginEnabled={settings.useMoonfinPlugin && settings.mdblistEnabled !== false} />
+					<RatingsRow item={focusedItem} serverUrl={getItemServerUrl(focusedItem)} compact pluginEnabled={isMdblistEnabled(settings)} />
 					<p className={css.detailSummary}>
 						{focusedItem.Overview || $L('No description available.')}
 					</p>

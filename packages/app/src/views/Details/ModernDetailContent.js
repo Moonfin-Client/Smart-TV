@@ -1,4 +1,5 @@
 import {useState, useMemo, useCallback, useRef, useEffect} from 'react';
+import {isMdblistEnabled} from '../../services/mdblistApi';
 import $L from '@enact/i18n/$L';
 import Spottable from '@enact/spotlight/Spottable';
 import SpotlightContainerDecorator from '@enact/spotlight/SpotlightContainerDecorator';
@@ -528,7 +529,7 @@ const ModernDetailContent = (props) => {
 									{metaPieces.map((piece, i) => <span key={i} className={css.metaItem}>{piece}</span>)}
 								</div>
 							)}
-							{!isPerson && <RatingsRow item={item} serverUrl={effectiveServerUrl} pluginEnabled={settings.useMoonfinPlugin && settings.mdblistEnabled !== false} />}
+							{!isPerson && <RatingsRow item={item} serverUrl={effectiveServerUrl} pluginEnabled={isMdblistEnabled(settings)} />}
 							{tagline && <div className={css.tagline}>{tagline}</div>}
 							{item.Overview && (
 								<SpottableDiv

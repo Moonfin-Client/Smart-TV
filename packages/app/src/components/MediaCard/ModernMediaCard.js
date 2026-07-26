@@ -1,4 +1,5 @@
 import {memo, useCallback, useMemo, useRef, useEffect} from 'react';
+import {isMdblistEnabled} from '../../services/mdblistApi';
 import Spottable from '@enact/spotlight/Spottable';
 import $L from '@enact/i18n/$L';
 import RatingsRow from '../RatingsRow';
@@ -333,7 +334,7 @@ const ModernMediaCard = ({
 						item={item}
 						serverUrl={itemServerUrl}
 						compact
-						pluginEnabled={settings.useMoonfinPlugin && settings.mdblistEnabled !== false}
+						pluginEnabled={isMdblistEnabled(settings)}
 					/>
 					{shouldShowOverview && <div className={css.overview}>{overviewText}</div>}
 				</div>

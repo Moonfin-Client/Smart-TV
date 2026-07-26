@@ -1,4 +1,5 @@
 import {useState, useEffect, useCallback, useRef, memo} from 'react';
+import {isMdblistEnabled} from '../../services/mdblistApi';
 import Spottable from '@enact/spotlight/Spottable';
 import Spotlight from '@enact/spotlight';
 import $L from '@enact/i18n/$L';
@@ -255,7 +256,7 @@ const FeaturedBanner = memo(({
 								<span key={i} className={css.metaItem}>{g}</span>
 							))}
 						</div>
-						<RatingsRow item={currentFeatured} serverUrl={getItemServerUrl(currentFeatured)} compact pluginEnabled={settings.useMoonfinPlugin && settings.mdblistEnabled !== false} />
+						<RatingsRow item={currentFeatured} serverUrl={getItemServerUrl(currentFeatured)} compact pluginEnabled={isMdblistEnabled(settings)} />
 						<p className={css.featuredOverview}>
 							{currentFeatured.Overview || $L('No description available.')}
 						</p>

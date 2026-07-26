@@ -10,7 +10,7 @@ import LoadingSpinner from '../../components/LoadingSpinner';
 import MusicBrowse from '../MusicBrowse';
 import {getImageUrl, getPrimaryImageId, formatDuration} from '../../utils/helpers';
 import {useSettings} from '../../context/SettingsContext';
-import {fetchRatings, buildDisplayRatings} from '../../services/mdblistApi';
+import {fetchRatings, fetchEpisodeRatings, buildDisplayRatings} from '../../services/mdblistApi';
 import {getRtFallbackIcon} from '../../components/icons/rtIcons';
 import {useStorage} from '../../hooks/useStorage';
 import {KEYS} from '../../utils/keys';
@@ -607,7 +607,17 @@ onFocus={() => {
 			const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
 			ratingsAbortRef.current = controller;
 			const signal = controller ? controller.signal : undefined;
-			fetchRatings(effectiveServerUrl, item, {signal}).then(r => {
+			const sourcesKey = Array.isArray(settings?.mdblistRatingSources)
+				? settings.mdblistRatingSources.join(',')
+				: '';
+			// Episodes have no MDBList ratings, so show the TMDB episode rating when
+			// that feature is on.
+			const fetchPromise = item.Type === 'Episode'
+				? (settings?.tmdbEpisodeRatingsEnabled
+					? fetchEpisodeRatings(effectiveServerUrl, item, {signal})
+					: Promise.resolve([]))
+				: fetchRatings(effectiveServerUrl, item, {signal, sourcesKey});
+			fetchPromise.then(r => {
 				if (!(controller && controller.signal.aborted)) {
 					const display = buildDisplayRatings(r, effectiveServerUrl);
 					setFocusedRatings(display);

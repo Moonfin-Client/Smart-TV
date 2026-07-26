@@ -48,7 +48,7 @@ const yearOf = (item) => {
 
 const getSourceName = (source, rowId) => {
 	const src = String(source || rowId || '').toLowerCase();
-	if (src.includes('tmdb')) return 'TMDb';
+	if (src.includes('tmdb')) return 'TMDB';
 	if (src.includes('imdb')) return 'IMDb';
 	if (src.includes('letterboxd')) return 'Letterboxd';
 	if (src.includes('trakt')) return 'Trakt';

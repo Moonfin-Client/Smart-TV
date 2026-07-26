@@ -1,4 +1,5 @@
 import {useState, useEffect, useCallback, useRef, memo} from 'react';
+import {isMdblistEnabled} from '../../services/mdblistApi';
 import Spottable from '@enact/spotlight/Spottable';
 import Spotlight from '@enact/spotlight';
 import $L from '@enact/i18n/$L';
@@ -271,7 +272,7 @@ const GalleryBanner = memo(({
 												item={item}
 												serverUrl={getItemServerUrl(item)}
 												compact
-												pluginEnabled={settings.useMoonfinPlugin && settings.mdblistEnabled !== false}
+												pluginEnabled={isMdblistEnabled(settings)}
 											/>
 
 											{item.Overview && (

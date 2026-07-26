@@ -1,4 +1,5 @@
 import {memo, useCallback, useEffect, useMemo, useRef, useState} from 'react';
+import {isMdblistEnabled} from '../../services/mdblistApi';
 import $L from '@enact/i18n/$L';
 import Spottable from '@enact/spotlight/Spottable';
 import Spotlight from '@enact/spotlight';
@@ -291,7 +292,7 @@ const ShuffleOverlay = ({
 		selectedItem?.Genres?.length ? selectedItem.Genres.slice(0, 3).join(', ') : ''
 	].filter(Boolean);
 	const selectedServerUrl = selectedItem?._serverUrl || serverUrl;
-	const mdblistPluginEnabled = settings.useMoonfinPlugin && settings.mdblistEnabled !== false;
+	const mdblistPluginEnabled = isMdblistEnabled(settings);
 
 	return (
 		<div className={css.overlay}>

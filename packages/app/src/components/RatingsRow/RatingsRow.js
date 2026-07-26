@@ -1,6 +1,6 @@
 import {useState, useEffect, useRef, useMemo} from 'react';
 import $L from '@enact/i18n/$L';
-import {fetchRatings, buildDisplayRatings, getContentType, getTmdbId} from '../../services/mdblistApi';
+import {fetchRatings, fetchEpisodeRatings, buildDisplayRatings, getContentType, getTmdbId} from '../../services/mdblistApi';
 import {useSettings} from '../../context/SettingsContext';
 import {getRtFallbackIcon} from '../icons/rtIcons';
 import css from './RatingsRow.module.less';
@@ -19,36 +19,53 @@ const RatingsRow = ({item, serverUrl, compact = false, pluginEnabled = true}) =>
 		return () => { mountedRef.current = false; };
 	}, []);
 
+	const sourcesKey = Array.isArray(enabledSources) ? enabledSources.join(',') : '';
+	const episodeRatingsEnabled = settings.tmdbEpisodeRatingsEnabled === true;
+
 	useEffect(() => {
 		if (!pluginEnabled || !item || !serverUrl) {
 			setAllRatings([]);
 			return;
 		}
 
+		const currentItemId = item.Id;
+		itemIdRef.current = currentItemId;
+		const controller = new AbortController();
+
+		const apply = (ratings) => {
+			if (mountedRef.current && itemIdRef.current === currentItemId) {
+				setAllRatings(buildDisplayRatings(ratings, serverUrl));
+			}
+		};
+
+		// Episodes have no MDBList ratings, so show the TMDB episode rating when
+		// that feature is on. Seasons show nothing.
+		if (item.Type === 'Episode') {
+			if (episodeRatingsEnabled) {
+				fetchEpisodeRatings(serverUrl, item, {signal: controller.signal}).then(apply);
+			} else {
+				setAllRatings([]);
+			}
+			return () => controller.abort();
+		}
+
 		const contentType = getContentType(item);
 		const tmdbId = getTmdbId(item);
-
 		if (!contentType || !tmdbId) {
 			setAllRatings([]);
 			return;
 		}
 
-		const currentItemId = item.Id;
-		itemIdRef.current = currentItemId;
-
-		const controller = new AbortController();
-		fetchRatings(serverUrl, item, {signal: controller.signal}).then(ratings => {
-			if (mountedRef.current && itemIdRef.current === currentItemId) {
-				setAllRatings(buildDisplayRatings(ratings, serverUrl));
-			}
-		});
+		fetchRatings(serverUrl, item, {signal: controller.signal, sourcesKey}).then(apply);
 		return () => controller.abort();
-	}, [item, serverUrl, pluginEnabled]);
+	}, [item, serverUrl, pluginEnabled, episodeRatingsEnabled, sourcesKey]);
 
 	const displayRatings = useMemo(() => {
 		if (!Array.isArray(enabledSources)) return allRatings;
 		return allRatings
-			.filter(r => enabledSources.includes(r.source))
+			// tmdb_episode is gated by its own toggle (the fetch only runs when it's
+			// on), so it bypasses the MDBList enabled-sources selection.
+			.filter(r => r.source === 'tmdb_episode' || enabledSources.includes(r.source))
 			.sort((a, b) => enabledSources.indexOf(a.source) - enabledSources.indexOf(b.source));
 	}, [allRatings, enabledSources]);
 

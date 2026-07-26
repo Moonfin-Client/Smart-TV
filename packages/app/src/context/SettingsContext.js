@@ -382,10 +382,9 @@ export function SettingsProvider({children}) {
 				}
 				if (Array.isArray(stored.mdblistRatingSources) &&
 					stored.mdblistRatingSources.some((s) => s === 'popcorn' || s === 'rtAudience')) {
-					// RT audience rating now uses the shared `tomatoes_audience` key.
-					// `popcorn` was the MDBList-native name; `rtAudience` is the legacy
-					// id Emby-family profiles can still sync down. Migrate both so they
-					// keep matching and sync consistently with the server.
+					// Stored selections can still hold the old `popcorn` or `rtAudience`
+					// ids. Map both to the shared `tomatoes_audience` key so they keep
+					// matching what the ratings row filters on.
 					stored.mdblistRatingSources = stored.mdblistRatingSources.map(
 						(s) => (s === 'popcorn' || s === 'rtAudience' ? 'tomatoes_audience' : s)
 					);
@@ -553,9 +552,9 @@ export function SettingsProvider({children}) {
 
 			const hasServerValues = resolved.tmdbApiKey !== undefined || SYNCABLE_KEYS.some(key => resolved[key] !== undefined);
 			if (!hasServerValues) return 'empty';
-			// Normalize legacy rating-source ids before applying: Emby-family profiles
-			// can still sync down `rtAudience`/`popcorn`, which would never match the
-			// `tomatoes_audience` key the ratings row filters on.
+			// Synced profiles can still contain the old `rtAudience`/`popcorn` ids,
+			// which would never match the `tomatoes_audience` key the ratings row
+			// filters on.
 			if (Array.isArray(resolved.mdblistRatingSources)) {
 				resolved.mdblistRatingSources = resolved.mdblistRatingSources.map(
 					(s) => (s === 'popcorn' || s === 'rtAudience' ? 'tomatoes_audience' : s)

@@ -49,15 +49,14 @@ export const fetchCustomRow = async ({source, type, params = {}}, options = {}) 
 	const baseUrl = getServerUrl();
 	if (!baseUrl) return [];
 
-	// The plugin caches on source:type:sha256(params), so a nocache marker forces
-	// a fresh fetch when the user asks to refresh.
-	const sentParams = options.forceRefresh ? {...params, _nocache: String(Date.now())} : params;
-
 	try {
+		// refresh=true makes the plugin bypass and overwrite its cached entry, so
+		// the refreshed list is what every other device sees too.
 		const url = `${baseUrl}/Moonfin/CustomRows/Items`
 			+ `?source=${encodeURIComponent(source)}`
 			+ `&type=${encodeURIComponent(type)}`
-			+ `&params=${encodeURIComponent(JSON.stringify(sentParams))}`;
+			+ `&params=${encodeURIComponent(JSON.stringify(params))}`
+			+ (options.forceRefresh ? '&refresh=true' : '');
 
 		const fetchOptions = {headers: {'Authorization': getAuthHeader()}};
 		if (options.signal) fetchOptions.signal = options.signal;
