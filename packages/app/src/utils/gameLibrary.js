@@ -14,6 +14,11 @@ const registry = new Map();
 let registryLoaded = false;
 let inFlightRefresh = null;
 
+// Two schemas meet in this file. Plugin responses under /Moonfin/Games use
+// camelCase fields (id, name), while the user-view libraries the rest of the
+// app passes in come from /Users/{id}/Views and are PascalCase (Id, Name).
+// The registry holds plugin objects, so reads from it are camelCase.
+
 // Concurrent callers share one request rather than each hitting the server. A failed refresh
 // keeps whatever was already cached so routing stays stable.
 export const refreshGameLibraries = () => {
@@ -22,9 +27,12 @@ export const refreshGameLibraries = () => {
 		.then((libs) => {
 			registry.clear();
 			(libs || []).forEach((lib) => {
-				if (lib?.Id) registry.set(String(lib.Id), lib);
+				if (lib?.id) registry.set(String(lib.id), lib);
 			});
-			registryLoaded = true;
+			// A response with entries the registry couldn't read means the wire
+			// shape wasn't understood. Leave the name fallback in charge rather
+			// than locking every library to a not-a-game-library answer.
+			registryLoaded = (libs || []).length === 0 || registry.size > 0;
 		})
 		.catch(() => {})
 		.then(() => { inFlightRefresh = null; });
@@ -45,7 +53,7 @@ const sameName = (a, b) =>
 // Falling back to the name is what bridges the two.
 const findLibrary = (id, name) => {
 	if (id && registry.has(String(id))) return registry.get(String(id));
-	return [...registry.values()].find((lib) => sameName(lib.Name, name));
+	return [...registry.values()].find((lib) => sameName(lib.name, name));
 };
 
 const looksLikeGameLibrary = (collectionType, name) => {
@@ -65,5 +73,5 @@ export const resolveGameLibraryId = (library) => {
 	const id = library?.Id;
 	if (!registryLoaded) return id;
 	const match = findLibrary(id, library?.Name);
-	return match ? match.Id : id;
+	return match ? match.id : id;
 };

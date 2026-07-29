@@ -28,8 +28,22 @@ describe('gameLibrary', () => {
 	});
 
 	describe('once the plugin list has loaded', () => {
+		// The plugin serializes camelCase (id, name), not the PascalCase the
+		// user-view objects use. Reading the wrong casing once left the registry
+		// permanently empty and routed every game library to the folder browser.
+		it('reads the plugin wire format, not user-view casing', async () => {
+			await load([{id: 'lib-1', name: 'Games'}]);
+			expect(isGameLibrary('lib-1', null, 'Games')).toBe(true);
+		});
+
+		it('keeps the name fallback when the wire shape is not understood', async () => {
+			await load([{Unexpected: 'lib-1'}]);
+			expect(isGameLibrary('lib-1', null, 'Games')).toBe(true);
+			expect(isGameLibrary('lib-2', 'movies', 'Movies')).toBe(false);
+		});
+
 		it('treats the list as the authority over the name', async () => {
-			await load([{Id: 'lib-1', Name: 'Retro Corner'}]);
+			await load([{id: 'lib-1', name: 'Retro Corner'}]);
 			// Picked by an admin, so it counts even though nothing in the name says game.
 			expect(isGameLibrary('lib-1', 'movies', 'Retro Corner')).toBe(true);
 			// Named like a game library but not in the list.
@@ -42,23 +56,23 @@ describe('gameLibrary', () => {
 		});
 
 		it('matches a library the plugin reports under a different id', async () => {
-			await load([{Id: 'folder-7', Name: 'Games'}]);
+			await load([{id: 'folder-7', name: 'Games'}]);
 			expect(isGameLibrary('view-7', null, 'Games')).toBe(true);
 			expect(resolveGameLibraryId({Id: 'view-7', Name: 'Games'})).toBe('folder-7');
 		});
 
 		it('matches names case insensitively and ignores surrounding space', async () => {
-			await load([{Id: 'folder-7', Name: 'Games'}]);
+			await load([{id: 'folder-7', name: 'Games'}]);
 			expect(resolveGameLibraryId({Id: 'view-7', Name: '  games '})).toBe('folder-7');
 		});
 
 		it('keeps the id when the plugin already agrees on it', async () => {
-			await load([{Id: 'view-7', Name: 'Games'}]);
+			await load([{id: 'view-7', name: 'Games'}]);
 			expect(resolveGameLibraryId({Id: 'view-7', Name: 'Games'})).toBe('view-7');
 		});
 
 		it('keeps the id when nothing matches', async () => {
-			await load([{Id: 'folder-7', Name: 'Games'}]);
+			await load([{id: 'folder-7', name: 'Games'}]);
 			expect(resolveGameLibraryId({Id: 'view-3', Name: 'Movies'})).toBe('view-3');
 		});
 	});
@@ -70,7 +84,7 @@ describe('gameLibrary', () => {
 	});
 
 	it('keeps the cached list when a refresh fails', async () => {
-		await load([{Id: 'lib-1', Name: 'Retro Corner'}]);
+		await load([{id: 'lib-1', name: 'Retro Corner'}]);
 		gamesApi.getLibraries.mockRejectedValue(new Error('offline'));
 		await refreshGameLibraries();
 		expect(isGameLibrary('lib-1', 'movies', 'Retro Corner')).toBe(true);
