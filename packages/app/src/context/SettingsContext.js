@@ -49,7 +49,23 @@ const SERVER_TO_LOCAL = {
 	enableFolderView: 'folderViewMode',
 	homeRowInfoOverlay: 'homeRowOverlay',
 	autoplayNextEpisode: 'autoPlay',
-	mediaSegmentCountdown: 'nextUpCountdownStyle'
+	mediaSegmentCountdown: 'nextUpCountdownStyle',
+	confirmExit: 'exitConfirmation',
+	cardFocusExpansion: 'cardFocusZoom',
+	desktopUiScale: 'uiScale',
+	backdropEnabled: 'showHomeBackdrop',
+	screensaverDimming: 'screensaverDimmingLevel',
+	screensaverClockMode: 'screensaverShowClock',
+	screensaverMaxAgeRating: 'screensaverMaxRating',
+	screensaverRequireRating: 'screensaverAgeFilter',
+	unpauseRewindDuration: 'unpauseRewind',
+	defaultAudioLanguage: 'audioLanguage',
+	subtitlesTextColor: 'subtitleColor',
+	subtitleTextStrokeColor: 'subtitleShadowColor',
+	subtitlesBackgroundColor: 'subtitleBackgroundColor',
+	subtitlesTextSize: 'subtitleSize',
+	diagnosticLoggingEnabled: 'serverLogging',
+	stillWatchingBehavior: 'stillWatchingPrompt'
 };
 const LOCAL_TO_SERVER = Object.fromEntries(
 	Object.entries(SERVER_TO_LOCAL).map(([s, l]) => [l, s])
@@ -158,8 +174,8 @@ const SYNCABLE_KEYS = [
 	'excludedGenres',
 	'autoAdvance', 'autoAdvanceInterval',
 	'displayFavoritesRows', 'displayCollectionsRows', 'displayGenresRows', 'displayPlaylistsRows',
-	'favoritesRowSortBy', 'collectionsRowSortBy', 'genresRowSortBy', 'genresRowItemFilter',
-	'stillWatchingBehavior', 'watchedIndicatorBehavior',
+	'favoritesRowSortBy', 'collectionsRowSortBy', 'genresRowSortBy', 'genresRowItemFilter', 'playlistsRowSortBy', 'audioRowsSortBy',
+	'watchedIndicatorBehavior', 'stillWatchingPrompt',
 	'autoPlay', 'nextUpBehavior', 'nextUpTimeout', 'nextUpCountdownStyle',
 	'replaceSkipOutroWithNextUp',
 	'backdropBlurHome', 'backdropBlurDetail',
@@ -179,8 +195,15 @@ const SYNCABLE_KEYS = [
 	'showSeerrButton',
 	'detailButtonOrderTv', 'hiddenDetailButtonsTv', 'osdButtonOrderTv', 'hiddenOsdButtonsTv',
 	'focusBorderColor',
-	'navbarOpacity',
-	'navbarColor',
+	'navbarOpacity', 'navbarColor',
+	'exitConfirmation', 'cardFocusZoom', 'uiScale', 'showHomeBackdrop', 
+	'screensaverDimmingLevel', 'screensaverShowClock', 'screensaverMaxRating', 'screensaverAgeFilter', 
+	'unpauseRewind', 'audioLanguage', 
+	'subtitleColor', 'subtitleShadowColor', 'subtitleBackgroundColor', 'subtitleSize', 
+	'serverLogging',
+	'screensaverEnabled', 'screensaverMode', 'screensaverTimeout', 
+	'showDescriptionOnPause', 'skipForwardLength', 'maxBitrate', 
+	'updateNotificationsEnabled', 'showClock'
 ];
 
 const profileToLocal = (serverProfile) => {
