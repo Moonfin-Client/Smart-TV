@@ -197,13 +197,13 @@ const SYNCABLE_KEYS = [
 	'detailButtonOrderTv', 'hiddenDetailButtonsTv', 'osdButtonOrderTv', 'hiddenOsdButtonsTv',
 	'focusBorderColor',
 	'navbarOpacity', 'navbarColor',
-	'exitConfirmation', 'cardFocusZoom', 'uiScale', 'showHomeBackdrop', 
-	'screensaverDimmingLevel', 'screensaverShowClock', 'screensaverMaxRating', 'screensaverAgeFilter', 
-	'unpauseRewind', 'audioLanguage', 
-	'subtitleColor', 'subtitleShadowColor', 'subtitleBackgroundColor', 'subtitleSize', 
+	'exitConfirmation', 'cardFocusZoom', 'uiScale', 'showHomeBackdrop',
+	'screensaverDimmingLevel', 'screensaverShowClock', 'screensaverMaxRating', 'screensaverAgeFilter',
+	'unpauseRewind', 'audioLanguage',
+	'subtitleColor', 'subtitleShadowColor', 'subtitleBackgroundColor', 'subtitleSize',
 	'diagnosticLoggingEnabled', 'seekStep', 'introAction',
-	'screensaverEnabled', 'screensaverMode', 'screensaverTimeout', 
-	'showDescriptionOnPause', 'skipForwardLength', 'maxBitrate', 
+	'screensaverEnabled', 'screensaverMode', 'screensaverTimeout',
+	'showDescriptionOnPause', 'skipForwardLength', 'maxBitrate',
 	'updateNotificationsEnabled', 'showClock'
 ];
 
