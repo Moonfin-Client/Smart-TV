@@ -64,8 +64,9 @@ const SERVER_TO_LOCAL = {
 	subtitleTextStrokeColor: 'subtitleShadowColor',
 	subtitlesBackgroundColor: 'subtitleBackgroundColor',
 	subtitlesTextSize: 'subtitleSize',
-	diagnosticLoggingEnabled: 'serverLogging',
-	stillWatchingBehavior: 'stillWatchingPrompt'
+	stillWatchingBehavior: 'stillWatchingPrompt',
+	skipBackLength: 'seekStep',
+	mediaSegmentActions: 'introAction'
 };
 const LOCAL_TO_SERVER = Object.fromEntries(
 	Object.entries(SERVER_TO_LOCAL).map(([s, l]) => [l, s])
@@ -200,7 +201,7 @@ const SYNCABLE_KEYS = [
 	'screensaverDimmingLevel', 'screensaverShowClock', 'screensaverMaxRating', 'screensaverAgeFilter', 
 	'unpauseRewind', 'audioLanguage', 
 	'subtitleColor', 'subtitleShadowColor', 'subtitleBackgroundColor', 'subtitleSize', 
-	'serverLogging',
+	'diagnosticLoggingEnabled', 'seekStep', 'introAction',
 	'screensaverEnabled', 'screensaverMode', 'screensaverTimeout', 
 	'showDescriptionOnPause', 'skipForwardLength', 'maxBitrate', 
 	'updateNotificationsEnabled', 'showClock'
