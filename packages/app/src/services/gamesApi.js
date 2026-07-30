@@ -4,7 +4,7 @@
 // a Blob URL (the proxy is text-only), so they inherit the same old-webOS+LE limitation as
 // video playback; cores are loaded from the trusted-cert CDN and work everywhere.
 
-import {getServerUrl, getAuthHeader} from './jellyfinApi';
+import {getServerUrl, getAuthHeader, getApiKey, getTokenParam} from './jellyfinApi';
 import {platformFetch} from './secureFetch';
 import {fetchWithTimeout} from '../utils/fetchTimeout';
 
@@ -39,6 +39,15 @@ export const getGames = (libraryId, system) =>
 	jsonRequest(`${enc(libraryId)}/Games${system ? `?system=${enc(system)}` : ''}`);
 export const getGame = (libraryId, gameId) =>
 	jsonRequest(`${enc(libraryId)}/Games/${enc(gameId)}`);
+
+// Image tags can't send auth headers, so the token rides in the query.
+// kind defaults to boxart but also accepts snap or title.
+export const gameThumbUrl = (libraryId, gameId, kind = 'boxart') => {
+	if (!libraryId || !gameId) return null;
+	const token = getApiKey();
+	const auth = token ? `&${getTokenParam()}=${enc(token)}` : '';
+	return `${base()}/Moonfin/Games/${enc(libraryId)}/Thumb/${enc(gameId)}?type=${enc(kind)}${auth}`;
+};
 
 // ROM / BIOS as a same-origin Blob URL (avoids CORS; EmulatorJS fetches the blob directly).
 const blobUrl = async (path) => {

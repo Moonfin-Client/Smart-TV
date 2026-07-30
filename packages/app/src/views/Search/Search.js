@@ -8,6 +8,7 @@ import {useAuth} from '../../context/AuthContext';
 import {useSettings} from '../../context/SettingsContext';
 import {useSeerr} from '../../context/SeerrContext';
 import * as connectionPool from '../../services/connectionPool';
+import * as gamesApi from '../../services/gamesApi';
 import LoadingSpinner from '../../components/LoadingSpinner';
 import ProxiedImage from '../../components/ProxiedImage';
 import DetailsTabBar from '../../components/DetailsTabBar';
@@ -432,6 +433,7 @@ const Search = ({onSelectItem, onSelectPerson, onSelectGame, onPlayChannel}) => 
 		<GameCard
 			key={`game-${game.id}`}
 			game={game}
+			artUrl={gamesApi.gameThumbUrl(resolveGameLibraryId(game._library), game.id)}
 			width={150}
 			spotlightId={spotlightId}
 			onSelect={handleGameSelect}

@@ -35,9 +35,13 @@ const DEFAULT_SEMANTIC = Object.freeze({
 	statusRequested: '#FF9333EA',
 	statusPending: '#FFEAB308',
 	statusDownloading: '#FF6366F1',
+	statusError: '#FFEF4444',
 	mediaTypeBadgeMovie: '#FF3B82F6',
 	mediaTypeBadgeShow: '#FF8B5CF6'
 });
+
+// What the other clients fall back to when a theme carries no error color.
+const DEFAULT_ERROR_COLOR = '#FFCF6679';
 
 const DEFAULT_BOOK_COLORS = Object.freeze({
 	background: '#FF0F182A',
@@ -204,6 +208,10 @@ export const parseThemeSpec = (json) => {
 	for (const key of REQUIRED_COLOR_KEYS) {
 		colors[key] = normalizeHexColor(colorsSource[key], `colors.${key}`);
 	}
+	// Optional on the other clients too, so a theme without one is not an error.
+	colors.error = colorsSource.error != null
+		? normalizeHexColor(colorsSource.error, 'colors.error')
+		: null;
 	const bordersSource = json.borders;
 	if (!bordersSource || typeof bordersSource !== 'object') {
 		throw new Error('Theme borders are required.');
@@ -219,6 +227,9 @@ export const parseThemeSpec = (json) => {
 			? json.navColorCycle.map((color, index) => normalizeHexColor(color, `navColorCycle[${index}]`))
 			: [],
 		transparentNavbarSurface: !!json.transparentNavbarSurface,
+		// The stair-step bevel chrome the other clients paint from this has no
+		// equivalent here, the tokens carry the look on their own.
+		isPixel: !!json.isPixel,
 		colors,
 		borders: {
 			cardBorder: parseBorderSide(bordersSource.cardBorder, 'borders.cardBorder'),
@@ -294,6 +305,19 @@ const shadowToCss = (shadow) => {
 	return `${offsetX}px ${offsetY}px ${blur}px ${spread}px ${toCssColor(shadow.color)}`;
 };
 
+// The nav slots read up to 16 of these. A theme without a cycle keeps the
+// first two pinned to onSurface so the slots always resolve.
+const buildNavColorVars = (theme) => {
+	const cycle = theme.navColorCycle.length > 0
+		? theme.navColorCycle
+		: [theme.colors.onSurface, theme.colors.onSurface];
+	const vars = {};
+	cycle.slice(0, 16).forEach((color, index) => {
+		vars[`--theme-nav-color-${index + 1}`] = toCssColor(color);
+	});
+	return vars;
+};
+
 export const buildThemeCssVars = (theme) => ({
 	'--accent-color': toCssColor(theme.borders.focusBorder.color),
 	'--theme-background': toCssColor(theme.colors.background),
@@ -336,8 +360,9 @@ export const buildThemeCssVars = (theme) => ({
 	'--theme-font-family': theme.fontFamily || 'inherit',
 	'--theme-navbar-color-rgb': theme.transparentNavbarSurface ? 'transparent' : toCssColor(theme.colors.surface),
 	'--theme-navbar-opacity': theme.transparentNavbarSurface ? 0 : 1,
-	'--theme-nav-color-1': theme.navColorCycle[0] ? toCssColor(theme.navColorCycle[0]) : toCssColor(theme.colors.onSurface),
-	'--theme-nav-color-2': theme.navColorCycle[1] ? toCssColor(theme.navColorCycle[1]) : toCssColor(theme.colors.onSurface),
+	...buildNavColorVars(theme),
+	'--theme-error': toCssColor(theme.colors.error || DEFAULT_ERROR_COLOR),
+	'--theme-status-error': toCssColor(theme.semantic.statusError),
 	'--theme-status-available': toCssColor(theme.semantic.statusAvailable),
 	'--theme-status-available-20': toCssColorWithAlpha(theme.semantic.statusAvailable, 0.2),
 	'--theme-status-requested': toCssColor(theme.semantic.statusRequested),

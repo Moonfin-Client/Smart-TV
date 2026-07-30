@@ -930,12 +930,18 @@ export const getMediaSegments = async (itemId) => {
 				}
 			}
 
-			const creditsChapter = item.Chapters.find(c =>
+			const creditsIndex = item.Chapters.findIndex(c =>
 				c.MarkerType === 'Credits' ||
 				c.Name?.toLowerCase().includes('credit')
 			);
-			if (creditsChapter) {
-				segments.creditsStart = creditsChapter.StartPositionTicks;
+			if (creditsIndex >= 0) {
+				segments.creditsStart = item.Chapters[creditsIndex].StartPositionTicks;
+				// A chapter marker carries no end, and the skip prompt only offers a
+				// segment it can seek past, so the credits run to the next chapter or
+				// to the end of the item.
+				segments.creditsEnd = creditsIndex + 1 < item.Chapters.length
+					? item.Chapters[creditsIndex + 1].StartPositionTicks
+					: (item.RunTimeTicks ?? null);
 			}
 
 			if (segments.introStart !== null) {

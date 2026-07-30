@@ -19,11 +19,15 @@
 	margin-bottom: 28px;
 }
 
+// gap needs newer Chrome, so spacing comes from a sibling margin for Tizen 5 / webOS 5.
 .sectionHeader {
 	display: flex;
 	align-items: baseline;
-	gap: 16px;
 	margin: 0 48px 8px 12px;
+}
+
+.sectionHeader > * + * {
+	margin-left: 16px;
 }
 
 .sectionTitle {

@@ -178,6 +178,9 @@ const useSegmentPopups = ({
 		);
 		if (ticks < nextUpFrom) hasTriggeredNextEpisodeRef.current = false;
 
+		// Set while a skip button is on screen, so the next episode card can hold back.
+		let skipPromptVisible = false;
+
 		if (mediaSegments) {
 			// End credits are worth skipping on a normal episode too, so the outro
 			// keeps its own prompt unless the viewer asked for the next episode card
@@ -199,6 +202,7 @@ const useSegmentPopups = ({
 				if (autoSkip) {
 					handleSkipSegment(active);
 				} else {
+					skipPromptVisible = true;
 					const total = Math.max(1, (active.end - active.start) / 10000000);
 					const remaining = Math.max(0, Math.round((active.end - ticks) / 10000000));
 					setSkipSegment((prev) => (
@@ -228,7 +232,12 @@ const useSegmentPopups = ({
 			}
 		}
 
-		if (nextEpisode && !currentIsPreroll && runTimeRef.current > 0 && settings.nextUpBehavior !== 'disabled') {
+		// The next episode card takes the remote the moment it appears and keeps 5-way
+		// movement to itself, so raising it over a skip button leaves that button
+		// unpressable. An outro nearly always falls inside this window, so wait until
+		// the segment is behind us or the viewer has dismissed it. An outro that runs
+		// to the very end still moves on, because the ended handler plays the next one.
+		if (nextEpisode && !currentIsPreroll && !skipPromptVisible && runTimeRef.current > 0 && settings.nextUpBehavior !== 'disabled') {
 			const remaining = runTimeRef.current - ticks;
 			const nearEnd = remaining < NEAR_END_TICKS;
 			if (nearEnd && !hasTriggeredNextEpisodeRef.current) {

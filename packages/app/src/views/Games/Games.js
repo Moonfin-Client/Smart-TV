@@ -97,6 +97,7 @@ const Games = ({library, onSelectGame, onHome, backHandlerRef}) => {
 										<GameCard
 											key={game.id}
 											game={game}
+											artUrl={gamesApi.gameThumbUrl(libraryId, game.id)}
 											spotlightId={isFirst ? 'games-first-card' : undefined}
 											onSelect={handleSelect}
 										/>

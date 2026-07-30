@@ -185,6 +185,7 @@ const Sidebar = ({
 				'discover-row-0',
 				'seerr-browse-grid',
 				'action-buttons',
+				'details-action-buttons',
 				'details-primary-btn',
 				'details-favorite-btn',
 				'person-overview',

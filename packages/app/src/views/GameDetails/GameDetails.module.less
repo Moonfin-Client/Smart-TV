@@ -5,9 +5,13 @@
 	background: var(--theme-background, #0b0f14);
 }
 
+// inset and gap need newer Chrome, so we spell these out for Tizen 5 / webOS 5.
 .backdrop {
 	position: absolute;
-	inset: 0;
+	top: 0;
+	right: 0;
+	bottom: 0;
+	left: 0;
 	background-size: cover;
 	background-position: center right;
 	opacity: 0.5;
@@ -15,7 +19,10 @@
 
 .scrim {
 	position: absolute;
-	inset: 0;
+	top: 0;
+	right: 0;
+	bottom: 0;
+	left: 0;
 	background: linear-gradient(90deg, var(--theme-background, #0b0f14) 30%, rgba(11, 15, 20, 0.4) 65%, transparent 95%),
 		linear-gradient(to top, var(--theme-background, #0b0f14) 8%, transparent 60%);
 }
@@ -23,8 +30,11 @@
 .content {
 	position: relative;
 	display: flex;
-	gap: 40px;
 	padding: 72px 0 0 72px;
+}
+
+.content > * + * {
+	margin-left: 40px;
 }
 
 .poster {
@@ -65,8 +75,11 @@
 
 .actions {
 	display: flex;
-	gap: 16px;
 	margin-top: 8px;
+}
+
+.actions > * + * {
+	margin-left: 16px;
 }
 
 .related {

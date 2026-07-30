@@ -344,6 +344,9 @@ export function SettingsProvider({children}) {
 	const [loaded, setLoaded] = useState(false);
 	const [themeCatalogVersion, setThemeCatalogVersion] = useState(0);
 	const serverCredsRef = useRef(null);
+	// Set once a sync has replaced the custom themes with a fresh set from the
+	// server, so the boot hydration below never puts a stale cache over it.
+	const serverThemesLoadedRef = useRef(false);
 	// Lets the login-sync path read the current plugin flag without depending on the
 	// whole settings object, which would rebuild its callback on every change.
 	const settingsRef = useRef(settings);
@@ -463,6 +466,26 @@ export function SettingsProvider({children}) {
 		});
 	}, []);
 
+	// Restore plugin-synced custom themes cached from the last successful sync.
+	// Without this a selected custom theme falls back to Moonfin on every boot
+	// until the server answers, and never comes back while it is unreachable.
+	useEffect(() => {
+		getFromStorage('customThemes').then((stored) => {
+			if (!stored || typeof stored !== 'object') return;
+			// A sync that finished before this resolved already holds a fresher set.
+			if (serverThemesLoadedRef.current) return;
+			const specs = [];
+			for (const raw of Object.values(stored)) {
+				try {
+					specs.push(parseThemeSpec(raw));
+				} catch (e) { void e; /* skip malformed */ }
+			}
+			if (specs.length === 0) return;
+			replaceCustomThemes(specs);
+			setThemeCatalogVersion((value) => value + 1);
+		});
+	}, []);
+
 	useEffect(() => {
 		if (!loaded) return;
 
@@ -570,22 +593,35 @@ export function SettingsProvider({children}) {
 				console.warn('[Settings] Theme sync failed:', e.message);
 			}
 
-			const specs = [];
-			for (const entry of extractThemeObjects(themesPayload)) {
-				if (!entry || typeof entry !== 'object') continue;
-				try {
-					specs.push(parseThemeSpec(entry));
-				} catch (e) {
-					console.warn('[Settings] Ignoring malformed theme entry:', e.message);
+			// Null means the fetch failed or the endpoint is missing, and only a
+			// real answer may replace the cached set.
+			const themesSynced = themesPayload != null;
+			if (themesSynced) {
+				const specs = [];
+				const raws = {};
+				for (const entry of extractThemeObjects(themesPayload)) {
+					if (!entry || typeof entry !== 'object') continue;
+					try {
+						const spec = parseThemeSpec(entry);
+						specs.push(spec);
+						raws[spec.id] = entry;
+					} catch (e) {
+						console.warn('[Settings] Ignoring malformed theme entry:', e.message);
+					}
 				}
+				replaceCustomThemes(specs);
+				serverThemesLoadedRef.current = true;
+				saveToStorage('customThemes', raws);
+				setThemeCatalogVersion((value) => value + 1);
 			}
-			replaceCustomThemes(specs);
-			setThemeCatalogVersion((value) => value + 1);
 
 			const serverData = await getMoonfinSettings(serverUrl, token);
 			if (!serverData) {
 				setSettings((prev) => {
-					if (!prev.customThemeId || getAvailableThemes()[prev.customThemeId]) {
+					// Only a synced list can say the selected theme is gone. A missing
+					// one may just not have loaded yet, and the fallback while it is
+					// unresolved is Moonfin anyway.
+					if (!prev.customThemeId || !themesSynced || getAvailableThemes()[prev.customThemeId]) {
 						return prev;
 					}
 					const updated = {...prev, customThemeId: ''};
@@ -625,7 +661,7 @@ export function SettingsProvider({children}) {
 				const detailScreenStyle = normalizeDetailScreenStyle(nextValues.detailScreenStyle);
 
 				let customThemeId = nextValues.customThemeId;
-				if (customThemeId && !getAvailableThemes()[customThemeId]) {
+				if (customThemeId && themesSynced && !getAvailableThemes()[customThemeId]) {
 					customThemeId = '';
 				}
 				let visualTheme = nextValues.visualTheme;

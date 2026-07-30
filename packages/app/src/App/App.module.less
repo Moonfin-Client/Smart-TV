@@ -1,6 +1,36 @@
+// The same faces the other clients bundle, so a theme looks like itself here too.
 @font-face {
 	font-family: 'NeonPulseDisplay';
-	src: url('../../resources/fonts/ScienceGothic-Regular.ttf') format('truetype');
+	src: url('../../resources/fonts/Orbitron-Regular.ttf') format('truetype');
+	font-weight: normal;
+	font-display: swap;
+}
+
+@font-face {
+	font-family: 'NeonPulseDisplay';
+	src: url('../../resources/fonts/Orbitron-Bold.ttf') format('truetype');
+	font-weight: bold;
+	font-display: swap;
+}
+
+@font-face {
+	font-family: 'NeonPulseBody';
+	src: url('../../resources/fonts/Rajdhani-Regular.ttf') format('truetype');
+	font-weight: normal;
+	font-display: swap;
+}
+
+@font-face {
+	font-family: 'NeonPulseBody';
+	src: url('../../resources/fonts/Rajdhani-Bold.ttf') format('truetype');
+	font-weight: bold;
+	font-display: swap;
+}
+
+@font-face {
+	font-family: 'EightBitHero';
+	src: url('../../resources/fonts/PressStart2P-Regular.ttf') format('truetype');
+	font-weight: normal;
 	font-display: swap;
 }
 
@@ -16,6 +46,15 @@
 	background: var(--theme-background, #000b25);
 	color: var(--theme-on-background, #fff);
 	font-family: var(--theme-font-family, inherit);
+}
+
+// Neon Pulse runs its body text in the condensed body face like the other
+// clients, with the display face kept for the titles that carry the glow.
+:global(html[data-theme-id='neon_pulse']),
+:global(html[data-theme-id='neon_pulse'] body),
+:global(html[data-theme-id='neon_pulse'] #root) {
+	font-family: 'NeonPulseBody', sans-serif;
+	letter-spacing: 0.6px;
 }
 
 .app {

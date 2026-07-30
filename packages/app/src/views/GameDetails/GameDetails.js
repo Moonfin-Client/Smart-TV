@@ -8,7 +8,7 @@ import GameCard from '../../components/GameCard';
 import LoadingSpinner from '../../components/LoadingSpinner';
 import * as gamesApi from '../../services/gamesApi';
 import {isSupported, unsupportedMessage} from '../../utils/emulatorjs';
-import {boxartUrl, snapUrl, titleScreenUrl, gameDisplayTitle, gameFallbackColor} from '../../utils/gameArt';
+import {gameDisplayTitle, gameFallbackColor} from '../../utils/gameArt';
 
 import css from './GameDetails.module.less';
 
@@ -75,8 +75,8 @@ const GameDetails = ({library, gameId, initialGame, onPlay, onSelectGame, backHa
 	if (loading) return <div className={css.center}><LoadingSpinner /></div>;
 	if (!game) return <div className={css.center}><div>{$L('Game not found.')}</div></div>;
 
-	const backdrop = snapUrl(game.core, game.fileName) || titleScreenUrl(game.core, game.fileName);
-	const poster = boxartUrl(game.core, game.fileName);
+	const backdrop = gamesApi.gameThumbUrl(libraryId, game.id, 'snap');
+	const poster = gamesApi.gameThumbUrl(libraryId, game.id);
 	const title = gameDisplayTitle(game.title, game.fileName);
 
 	return (
@@ -110,7 +110,7 @@ const GameDetails = ({library, gameId, initialGame, onPlay, onSelectGame, backHa
 					<div className={css.relatedTitle}>{$L('More in {system}').replace('{system}', game.system)}</div>
 					<div className={css.relatedRow}>
 						{related.map((g) => (
-							<GameCard key={g.id} game={g} width={150} onSelect={openRelated} />
+							<GameCard key={g.id} game={g} artUrl={gamesApi.gameThumbUrl(libraryId, g.id)} width={150} onSelect={openRelated} />
 						))}
 					</div>
 				</div>

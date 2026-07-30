@@ -64,7 +64,7 @@ const neonPulseTheme = parseThemeSpec({
 		accent: '#FFFF2E92',
 		onAccent: '#FFFFFFFF',
 		buttonNormal: '#00000000',
-		buttonFocused: '#33FF2E92',
+		buttonFocused: '#FF00E5FF',
 		buttonDisabled: '#22FFFFFF',
 		buttonActive: '#33FF2E92',
 		onButtonNormal: '#FFFF2E92',
@@ -81,9 +81,10 @@ const neonPulseTheme = parseThemeSpec({
 		badgeBackground: '#FFFF2E92',
 		onBadge: '#FFFFFFFF',
 		badgeUnplayed: '#FFFF2E92',
-		badgeWatched: '#FF00E5FF',
+		badgeWatched: '#FFFF2E92',
 		recordingActive: '#FFFF2E92',
-		recordingScheduled: '#FF00E5FF'
+		recordingScheduled: '#FF00E5FF',
+		error: '#FFFF003C'
 	},
 	borders: {
 		cardBorder: {color: '#66FF2E92', width: 1},
@@ -100,9 +101,73 @@ const neonPulseTheme = parseThemeSpec({
 	}
 });
 
+// Retro 8-bit theme on the "Sweetie 16" pixel-art palette, matching the other
+// clients token for token.
+const eightbitHeroTheme = parseThemeSpec({
+	schemaVersion: 1,
+	id: '8bit_hero',
+	displayName: '8-bit Hero',
+	fontFamily: 'EightBitHero',
+	isPixel: true,
+	navColorCycle: ['#FFEF7D57', '#FFFFCD75', '#FFA7F070', '#FF41A6F6'],
+	semantic: {
+		statusAvailable: '#FF38B764',
+		statusRequested: '#FF5D275D',
+		statusPending: '#FFFFCD75',
+		statusDownloading: '#FF41A6F6',
+		statusError: '#FFB13E53',
+		mediaTypeBadgeMovie: '#FF3B5DC9',
+		mediaTypeBadgeShow: '#FFB13E53'
+	},
+	colors: {
+		background: '#FF1A1C2C',
+		onBackground: '#FFF4F4F4',
+		surface: '#FF333C57',
+		onSurface: '#FFF4F4F4',
+		surfaceVariant: '#FF566C86',
+		scrim: '#CC1A1C2C',
+		accent: '#FFEF7D57',
+		onAccent: '#FF1A1C2C',
+		buttonNormal: '#FF29366F',
+		buttonFocused: '#FFFFCD75',
+		buttonDisabled: '#FF333C57',
+		buttonActive: '#FF41A6F6',
+		onButtonNormal: '#FFF4F4F4',
+		onButtonFocused: '#FF1A1C2C',
+		onButtonDisabled: '#FF566C86',
+		inputBackground: '#FF333C57',
+		inputFocused: '#FF3B5DC9',
+		inputBorder: '#FF566C86',
+		inputBorderFocused: '#FFFFCD75',
+		rangeTrack: '#FF333C57',
+		rangeProgress: '#FFA7F070',
+		rangeThumb: '#FFFFCD75',
+		seekbarBuffered: '#FF566C86',
+		badgeBackground: '#FFB13E53',
+		onBadge: '#FFF4F4F4',
+		badgeUnplayed: '#FF41A6F6',
+		badgeWatched: '#FF38B764',
+		recordingActive: '#FFB13E53',
+		recordingScheduled: '#FFFFCD75'
+	},
+	borders: {
+		cardBorder: {color: '#FF566C86', width: 2},
+		chipBorder: {color: '#FFF4F4F4', width: 2},
+		focusBorder: {color: '#FFFFCD75', width: 3},
+		cardRadius: 0,
+		chipRadius: 0,
+		chipBackground: '#FF29366F',
+		navBorder: {color: '#FF566C86', width: 2},
+		focusGlow: [
+			{color: '#99FFCD75', blurRadius: 0, spreadRadius: 0, offsetX: 4, offsetY: 4}
+		]
+	}
+});
+
 const builtInThemes = Object.freeze({
 	moonfin: moonfinTheme,
-	neon_pulse: neonPulseTheme
+	neon_pulse: neonPulseTheme,
+	'8bit_hero': eightbitHeroTheme
 });
 
 const builtInThemeIds = new Set(Object.keys(builtInThemes));

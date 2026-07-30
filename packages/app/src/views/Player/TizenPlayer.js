@@ -1291,7 +1291,11 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 
 	const onSeekToSegmentEnd = useCallback((endTicks) => {
 		if (endTicks && avplayReadyRef.current) {
-			avplaySeek(Math.floor(endTicks / 10000)).catch(e => console.warn('[Player] Seek failed:', e));
+			// An outro usually runs to the last frame and AVPlay won't seek there, so
+			// stop a second early and let playback finish on its own.
+			const limit = runTimeRef.current > 0 ? runTimeRef.current - 10000000 : endTicks;
+			const target = Math.max(0, Math.min(endTicks, limit));
+			avplaySeek(Math.floor(target / 10000)).catch(e => console.warn('[Player] Seek failed:', e));
 		}
 	}, []);
 
