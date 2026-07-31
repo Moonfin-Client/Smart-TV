@@ -790,7 +790,8 @@ const Browse = ({
 			return;
 		}
 
-		container.scrollTop = targetRow.offsetTop;
+		const topbarOffset = settings.navbarPosition !== 'left' ? 130 : 0;
+		container.scrollTop = Math.max(0, targetRow.offsetTop - topbarOffset);
 
 		if (thenFocus) {
 			let attempts = 0;
@@ -805,7 +806,7 @@ const Browse = ({
 			};
 			scrollTimeoutRef.current = setTimeout(tryFocus, 0);
 		}
-	}, [focusRow]);
+	}, [focusRow, settings.navbarPosition]);
 
 	const handleNavigateUp = useCallback((fromRowIndex) => {
 		if (fromRowIndex === 0) {

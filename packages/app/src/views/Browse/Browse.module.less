@@ -1278,7 +1278,7 @@
 	flex: 1;
 	overflow-y: auto;
 	overflow-x: hidden;
-	padding: 0 0 60px 0;
+	padding: 0 0 60vh 0;
 	scrollbar-width: none;
 	position: relative;
 
@@ -1292,7 +1292,9 @@
 }
 
 .topbarOffset .contentRows {
-	padding-top: 75px;
+	padding-top: 130px;
+	padding-bottom: 60vh;
+	scroll-padding-top: 130px;
 }
 
 .sidebarOffset .detailSection {
@@ -1304,8 +1306,12 @@
 }
 
 /* Rows mode - position rows below detail section */
-.rowsMode {
+.sidebarOffset .contentRows.rowsMode {
 	padding-top: 0;
+}
+
+.topbarOffset .contentRows.rowsMode {
+	padding-top: 130px;
 }
 
 .empty {
