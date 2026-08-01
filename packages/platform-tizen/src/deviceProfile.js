@@ -574,8 +574,11 @@ export const getJellyfinDeviceProfile = async () => {
 	// fMP4 HLS is only for AV1 passthrough since TS cant carry AV1. HEVC/H.264
 	// use TS because copying HEVC (especially Dolby Vision) into fMP4 HLS fails
 	// on several Tizen firmwares, so they must not match the fMP4 profile
-	const tsAudio = caps.eac3 ? 'eac3,ac3,aac' : (caps.ac3 ? 'ac3,aac' : 'aac');
-	const transcodingProfiles = [];
+	const isOldTizen = caps.tizenVersion < 6;
+	const tsAudio = isOldTizen
+	? (caps.eac3 ? 'eac3,ac3' : (caps.ac3 ? 'ac3' : 'aac'))
+	: (caps.eac3 ? 'eac3,ac3,aac' : (caps.ac3 ? 'ac3,aac' : 'aac'));
+  	const transcodingProfiles = [];
 
 	// hevc inside HLS TS only demuxes reliably from Tizen 6 up. Short segments
 	// and non keyframe breaks stall AVPlay on segment boundaries, so use longer
@@ -727,13 +730,13 @@ export const getJellyfinDeviceProfile = async () => {
 	];
 
 	// multichannel AAC in a TS stream crashes the decoder on these sets
-	if (caps.tizenVersion < 6) {
-		codecProfiles.push({
-			Type: 'VideoAudio',
-			Codec: 'aac',
-			Conditions: [{ Condition: 'LessThanEqual', Property: 'AudioChannels', Value: '2', IsRequired: true }]
-		});
-	}
+	// if (caps.tizenVersion < 6) {
+	// 	codecProfiles.push({
+	// 		Type: 'VideoAudio',
+	// 		Codec: 'aac',
+	// 		Conditions: [{ Condition: 'LessThanEqual', Property: 'AudioChannels', Value: '2', IsRequired: true }]
+	// 	});
+	// }
 
 	// Force any kind of DTS to be transcoded to E-AC3 
 	codecProfiles.push({
