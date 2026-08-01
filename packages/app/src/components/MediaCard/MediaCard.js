@@ -21,11 +21,12 @@ const toAbsoluteImageUrl = (url, serverUrl) => {
 
 const MediaCard = ({item, serverUrl, cardType = 'portrait', onSelect, onFocusItem, showServerBadge = false, showOverview = false, eagerLoad = false, spotlightId, onSpotlightLeft, onSpotlightRight}) => {
 	const {settings} = useSettings();
-	const isLandscape = cardType === 'landscape';
+	const imageType = settings.homeRowsImageType || 'poster';
+	const isLandscape = cardType === 'landscape' || (cardType === 'portrait' && (imageType === 'thumb' || imageType === 'backdrop' || imageType === 'logo'));
 	// Artists read as circles in the music library. It rides on the square path
 	// since the art is the same 1:1 either way, only the radius differs.
 	const isCircle = cardType === 'circle';
-	const isSquare = isCircle || cardType === 'square' || (cardType === 'portrait' && (item.Type === 'MusicAlbum' || item.Type === 'MusicArtist' || item.Type === 'Audio'));
+	const isSquare = isCircle || cardType === 'square' || (cardType === 'portrait' && !isLandscape && (item.Type === 'MusicAlbum' || item.Type === 'MusicArtist' || item.Type === 'Audio'));
 	const focusTimeoutRef = useRef(null);
 
 	useEffect(() => {
@@ -41,8 +42,17 @@ const MediaCard = ({item, serverUrl, cardType = 'portrait', onSelect, onFocusIte
 	}, [item._serverUrl, serverUrl]);
 
 	const imageUrl = useMemo(() => {
-		const imageType = settings.homeRowsImageType || 'poster';
 		const providerIds = item.ProviderIds || {};
+		const externalPoster = item._externalPosterUrl ||
+			providerIds.SeerrPoster ||
+			providerIds.SonarrPoster ||
+			providerIds.RadarrPoster ||
+			providerIds.LidarrPoster ||
+			providerIds.ReadarrPoster;
+
+		if (externalPoster && (item._external || !item.ImageTags?.Primary)) {
+			return toAbsoluteImageUrl(externalPoster, itemServerUrl);
+		}
 
 		if (item.Type === 'Genre' && item._representative) {
 			const rep = item._representative;
@@ -58,18 +68,80 @@ const MediaCard = ({item, serverUrl, cardType = 'portrait', onSelect, onFocusIte
 			}
 		}
 
-		if (isLandscape && item.Type === 'Episode') {
-			if (settings.useSeriesThumbnails && item.SeriesId && item.SeriesPrimaryImageTag) {
-				return getImageUrl(itemServerUrl, item.SeriesId, 'Primary', {maxHeight: 300, quality: 80});
+		if (imageType === 'backdrop') {
+			if (item.BackdropImageTags?.length > 0) {
+				return getImageUrl(itemServerUrl, item.Id, 'Backdrop', {maxWidth: 400, quality: 80});
 			}
-			if (item.ImageTags?.Primary) {
-				return getImageUrl(itemServerUrl, item.Id, 'Primary', {maxWidth: 400, quality: 80});
+			if (item.ParentBackdropItemId) {
+				return getImageUrl(itemServerUrl, item.ParentBackdropItemId, 'Backdrop', {maxWidth: 400, quality: 80});
+			}
+			if (item.ImageTags?.Thumb) {
+				return getImageUrl(itemServerUrl, item.Id, 'Thumb', {maxWidth: 400, quality: 80});
+			}
+		} else if (imageType === 'thumb') {
+			if (item.ImageTags?.Thumb) {
+				return getImageUrl(itemServerUrl, item.Id, 'Thumb', {maxWidth: 400, quality: 80});
 			}
 			if (item.ParentThumbItemId) {
 				return getImageUrl(itemServerUrl, item.ParentThumbItemId, 'Thumb', {maxWidth: 400, quality: 80});
 			}
-			if (item.ParentBackdropItemId) {
-				return getImageUrl(itemServerUrl, item.ParentBackdropItemId, 'Backdrop', {maxWidth: 400, quality: 80});
+			if (item.BackdropImageTags?.length > 0) {
+				return getImageUrl(itemServerUrl, item.Id, 'Backdrop', {maxWidth: 400, quality: 80});
+			}
+		} else if (imageType === 'logo') {
+			if (item.ImageTags?.Logo) {
+				return getImageUrl(itemServerUrl, item.Id, 'Logo', {maxWidth: 400, quality: 80});
+			}
+			if (item.ParentLogoItemId) {
+				return getImageUrl(itemServerUrl, item.ParentLogoItemId, 'Logo', {maxWidth: 400, quality: 80});
+			}
+		}
+
+		if (isLandscape) {
+			if (item.Type === 'Episode') {
+				const seriesId = item.SeriesId || item.SeriesPrimaryImageItemId || item.ParentPrimaryImageItemId;
+				if (settings.useSeriesThumbnails) {
+					if (item.ParentThumbItemId) {
+						return getImageUrl(itemServerUrl, item.ParentThumbItemId, 'Thumb', {maxWidth: 400, quality: 80});
+					}
+					if (seriesId) {
+						return getImageUrl(itemServerUrl, seriesId, 'Thumb', {maxWidth: 400, quality: 80});
+					}
+				}
+				if (item.ImageTags?.Thumb) {
+					return getImageUrl(itemServerUrl, item.Id, 'Thumb', {maxWidth: 400, quality: 80});
+				}
+				if (item.ParentThumbItemId) {
+					return getImageUrl(itemServerUrl, item.ParentThumbItemId, 'Thumb', {maxWidth: 400, quality: 80});
+				}
+				if (item.BackdropImageTags?.length > 0) {
+					return getImageUrl(itemServerUrl, item.Id, 'Backdrop', {maxWidth: 400, quality: 80});
+				}
+				if (item.ParentBackdropItemId) {
+					return getImageUrl(itemServerUrl, item.ParentBackdropItemId, 'Backdrop', {maxWidth: 400, quality: 80});
+				}
+				if (item.ImageTags?.Primary) {
+					return getImageUrl(itemServerUrl, item.Id, 'Primary', {maxWidth: 400, quality: 80});
+				}
+				if (seriesId) {
+					return getImageUrl(itemServerUrl, seriesId, 'Primary', {maxHeight: 300, quality: 80});
+				}
+			} else {
+				if (item.ImageTags?.Thumb) {
+					return getImageUrl(itemServerUrl, item.Id, 'Thumb', {maxWidth: 400, quality: 80});
+				}
+				if (item.ParentThumbItemId) {
+					return getImageUrl(itemServerUrl, item.ParentThumbItemId, 'Thumb', {maxWidth: 400, quality: 80});
+				}
+				if (item.BackdropImageTags?.length > 0) {
+					return getImageUrl(itemServerUrl, item.Id, 'Backdrop', {maxWidth: 400, quality: 80});
+				}
+				if (item.ParentBackdropItemId) {
+					return getImageUrl(itemServerUrl, item.ParentBackdropItemId, 'Backdrop', {maxWidth: 400, quality: 80});
+				}
+				if (item.ImageTags?.Primary) {
+					return getImageUrl(itemServerUrl, item.Id, 'Primary', {maxHeight: 300, quality: 80});
+				}
 			}
 		}
 
@@ -104,18 +176,16 @@ const MediaCard = ({item, serverUrl, cardType = 'portrait', onSelect, onFocusIte
 			return getImageUrl(itemServerUrl, item.AlbumId, 'Primary', {maxHeight: 300, quality: 80});
 		}
 
-		const externalPoster = item._externalPosterUrl ||
-			providerIds.SeerrPoster ||
-			providerIds.SonarrPoster ||
-			providerIds.RadarrPoster ||
-			providerIds.LidarrPoster ||
-			providerIds.ReadarrPoster;
 		if (externalPoster) {
 			return toAbsoluteImageUrl(externalPoster, itemServerUrl);
 		}
 
+		if (item.Id) {
+			return getImageUrl(itemServerUrl, item.Id, 'Primary', {maxHeight: 300, quality: 80});
+		}
+
 		return null;
-	}, [isLandscape, item.Type, item.ImageTags?.Primary, item.ImageTags?.Thumb, item.ImageTags?.Logo, item.Id, item.ParentThumbItemId, item.ParentBackdropItemId, item.BackdropImageTags, item.ParentLogoItemId, item.AlbumId, item.AlbumPrimaryImageTag, item.SeriesId, item.SeriesPrimaryImageTag, item.ProviderIds, item._externalPosterUrl, itemServerUrl, settings.homeRowsImageType, settings.useSeriesThumbnails, item._representative]);
+	}, [isLandscape, item, itemServerUrl, imageType, settings.useSeriesThumbnails]);
 
 	const handleClick = useCallback(() => {
 		onSelect?.(item);
@@ -180,7 +250,10 @@ const MediaCard = ({item, serverUrl, cardType = 'portrait', onSelect, onFocusIte
 							loading={eagerLoad ? 'eager' : 'lazy'}
 							width={cardWidth}
 							height={cardHeight}
-							style={imgSizeStyle}
+							style={{
+								...(imgSizeStyle || {}),
+								objectFit: imageType === 'logo' ? 'contain' : 'cover'
+							}}
 						/>
 						{(item?.Type === 'Genre' || item?.Type === 'MusicGenre') && (
 							<>

@@ -30,7 +30,6 @@ const formatRuntime = (ticks) => {
 	const minutes = totalMinutes % 60;
 	if (hours > 0 && minutes > 0) return `${hours}h ${minutes}m`;
 	if (hours > 0) return `${hours}h`;
-	return `${minutes}m`;
 };
 
 const getGenreNames = (item) => {
@@ -96,23 +95,50 @@ const ModernMediaCard = ({
 	const imageUrl = useMemo(() => {
 		if (!item) return null;
 
+		const providerIds = item.ProviderIds || {};
+		const externalPoster = item._externalPosterUrl ||
+			providerIds.SeerrPoster ||
+			providerIds.SonarrPoster ||
+			providerIds.RadarrPoster ||
+			providerIds.LidarrPoster ||
+			providerIds.ReadarrPoster;
+
+		if (item._external || externalPoster) {
+			if (isFocused && item._externalBackdropUrl) {
+				return toAbsoluteImageUrl(item._externalBackdropUrl, itemServerUrl);
+			}
+			if (externalPoster) {
+				return toAbsoluteImageUrl(externalPoster, itemServerUrl);
+			}
+		}
+
 		if (item.Type === 'Episode') {
-			const seriesPoster = item.SeriesId && item.SeriesPrimaryImageTag
-				? getImageUrl(itemServerUrl, item.SeriesId, 'Primary', {maxHeight: 360, quality: 80})
-				: null;
+			const seriesId = item.SeriesId || item.SeriesPrimaryImageItemId || item.ParentPrimaryImageItemId;
+			const seriesPoster = seriesId
+				? getImageUrl(itemServerUrl, seriesId, 'Primary', {maxHeight: 360, quality: 80})
+				: item.ImageTags?.Primary
+					? getImageUrl(itemServerUrl, item.Id, 'Primary', {maxHeight: 360, quality: 80})
+					: null;
+			const seriesThumb = item.ParentThumbItemId
+				? getImageUrl(itemServerUrl, item.ParentThumbItemId, 'Thumb', {maxWidth: 600, quality: 80})
+				: seriesId
+					? getImageUrl(itemServerUrl, seriesId, 'Thumb', {maxWidth: 600, quality: 80})
+					: null;
 			const episodeThumb = item.ImageTags?.Primary
 				? getImageUrl(itemServerUrl, item.Id, 'Primary', {maxWidth: 600, quality: 80})
-				: item.ParentThumbItemId
-					? getImageUrl(itemServerUrl, item.ParentThumbItemId, 'Thumb', {maxWidth: 600, quality: 80})
-					: item.ParentBackdropItemId
-						? getImageUrl(itemServerUrl, item.ParentBackdropItemId, 'Backdrop', {maxWidth: 600, quality: 80})
-						: null;
-			// the series poster keeps the row a uniform portrait grid, the
-			// landscape episode thumbnail shows once the card expands
-			const episodeImage = isFocused
-				? (episodeThumb || seriesPoster)
-				: (settings.useSeriesThumbnails && seriesPoster) ? seriesPoster : (episodeThumb || seriesPoster);
-			if (episodeImage) return episodeImage;
+				: item.ImageTags?.Thumb
+					? getImageUrl(itemServerUrl, item.Id, 'Thumb', {maxWidth: 600, quality: 80})
+					: item.BackdropImageTags?.length > 0
+						? getImageUrl(itemServerUrl, item.Id, 'Backdrop', {maxWidth: 600, quality: 80})
+						: item.ParentBackdropItemId
+							? getImageUrl(itemServerUrl, item.ParentBackdropItemId, 'Backdrop', {maxWidth: 600, quality: 80})
+							: null;
+
+			if (isFocused) {
+				return (settings.useSeriesThumbnails ? (seriesThumb || episodeThumb) : (episodeThumb || seriesThumb)) || seriesPoster;
+			} else {
+				return seriesPoster || episodeThumb || seriesThumb;
+			}
 		}
 
 		if (item.Type === 'Genre' && item._representative) {
@@ -132,28 +158,26 @@ const ModernMediaCard = ({
 		}
 
 		if (item.Type === 'Movie' || item.Type === 'Series' || item.Type === 'BoxSet') {
-			const imageType = settings.homeRowsImageType || 'poster';
 			if (isFocused) {
 				if (item.ImageTags?.Thumb) {
-					return getImageUrl(itemServerUrl, item.Id, 'Thumb', {maxWidth: 600, quality: 80});
+					return getImageUrl(itemServerUrl, item.Id, 'Thumb', {tag: item.ImageTags.Thumb, maxWidth: 600, quality: 80});
+				}
+				if (item.ParentThumbItemId) {
+					return getImageUrl(itemServerUrl, item.ParentThumbItemId, 'Thumb', {maxWidth: 600, quality: 80});
 				}
 				if (item.BackdropImageTags?.length > 0) {
-					return getImageUrl(itemServerUrl, item.Id, 'Backdrop', {maxWidth: 600, quality: 80});
+					return getImageUrl(itemServerUrl, item.Id, 'Backdrop', {tag: item.BackdropImageTags[0], maxWidth: 600, quality: 80});
 				}
 				if (item._externalBackdropUrl) {
 					return toAbsoluteImageUrl(item._externalBackdropUrl, itemServerUrl);
 				}
-			}
-
-			if (imageType === 'thumb' && item.ImageTags?.Thumb) {
-				return getImageUrl(itemServerUrl, item.Id, 'Thumb', {maxWidth: 600, quality: 80});
-			}
-			if (imageType === 'backdrop' && item.BackdropImageTags?.length > 0) {
-				return getImageUrl(itemServerUrl, item.Id, 'Backdrop', {maxWidth: 600, quality: 80});
-			}
-
-			if (item.ImageTags?.Primary) {
-				return getImageUrl(itemServerUrl, item.Id, 'Primary', {maxHeight: 360, quality: 80});
+				if (item.Id) {
+					return getImageUrl(itemServerUrl, item.Id, 'Backdrop', {maxWidth: 600, quality: 80});
+				}
+			} else {
+				if (item.Id) {
+					return getImageUrl(itemServerUrl, item.Id, 'Primary', {tag: item.ImageTags?.Primary, maxHeight: 360, quality: 80});
+				}
 			}
 		}
 
@@ -179,29 +203,28 @@ const ModernMediaCard = ({
 			return getImageUrl(itemServerUrl, item.AlbumId, 'Primary', {maxHeight: 360, quality: 80});
 		}
 
-		if (item.ImageTags?.Primary) {
-			return getImageUrl(itemServerUrl, item.Id, 'Primary', {maxHeight: 360, quality: 80});
+		if (isFocused) {
+			if (item.ImageTags?.Thumb) {
+				return getImageUrl(itemServerUrl, item.Id, 'Thumb', {maxWidth: 600, quality: 80});
+			}
+			if (item.ParentThumbItemId) {
+				return getImageUrl(itemServerUrl, item.ParentThumbItemId, 'Thumb', {maxWidth: 600, quality: 80});
+			}
+			if (item.Id) {
+				return getImageUrl(itemServerUrl, item.Id, 'Backdrop', {maxWidth: 600, quality: 80});
+			}
+		} else {
+			if (item.Id) {
+				return getImageUrl(itemServerUrl, item.Id, 'Primary', {maxHeight: 360, quality: 80});
+			}
 		}
 
-		if (item.ImageTags?.Thumb) {
-			return getImageUrl(itemServerUrl, item.Id, 'Thumb', {maxWidth: 600, quality: 80});
-		}
-
-		if (item.BackdropImageTags?.length > 0) {
-			return getImageUrl(itemServerUrl, item.Id, 'Backdrop', {maxWidth: 600, quality: 80});
-		}
-		const providerIds = item.ProviderIds || {};
-		const externalPoster = item._externalPosterUrl ||
-			providerIds.SeerrPoster ||
-			providerIds.SonarrPoster ||
-			providerIds.RadarrPoster ||
-			providerIds.LidarrPoster ||
-			providerIds.ReadarrPoster;
 		if (externalPoster) {
 			return toAbsoluteImageUrl(externalPoster, itemServerUrl);
 		}
+
 		return null;
-	}, [item, itemServerUrl, isFocused, settings.useSeriesThumbnails, settings.homeRowsImageType]);
+	}, [item, itemServerUrl, isFocused, settings.useSeriesThumbnails]);
 
 	const handleClick = useCallback(() => {
 		onSelect?.(item);
