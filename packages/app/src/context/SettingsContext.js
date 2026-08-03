@@ -65,7 +65,7 @@ const SERVER_TO_LOCAL = {
 	subtitlesBackgroundColor: 'subtitleBackgroundColor',
 	subtitlesTextSize: 'subtitleSize',
 	stillWatchingBehavior: 'stillWatchingPrompt',
-	skipBackLength: 'seekStep',
+	skipBackLength: 'seekStep'
 };
 const LOCAL_TO_SERVER = Object.fromEntries(
 	Object.entries(SERVER_TO_LOCAL).map(([s, l]) => [l, s])
