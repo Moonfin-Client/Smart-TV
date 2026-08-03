@@ -66,7 +66,6 @@ const SERVER_TO_LOCAL = {
 	subtitlesTextSize: 'subtitleSize',
 	stillWatchingBehavior: 'stillWatchingPrompt',
 	skipBackLength: 'seekStep',
-	mediaSegmentActions: 'introAction'
 };
 const LOCAL_TO_SERVER = Object.fromEntries(
 	Object.entries(SERVER_TO_LOCAL).map(([s, l]) => [l, s])
@@ -201,10 +200,10 @@ const SYNCABLE_KEYS = [
 	'screensaverDimmingLevel', 'screensaverShowClock', 'screensaverMaxRating', 'screensaverAgeFilter',
 	'unpauseRewind', 'audioLanguage',
 	'subtitleColor', 'subtitleShadowColor', 'subtitleBackgroundColor', 'subtitleSize',
-	'diagnosticLoggingEnabled', 'seekStep', 'introAction',
+	'diagnosticLoggingEnabled', 'seekStep', 
 	'screensaverEnabled', 'screensaverMode', 'screensaverTimeout',
 	'showDescriptionOnPause', 'skipForwardLength', 'maxBitrate',
-	'updateNotificationsEnabled', 'showClock'
+	'updateNotificationsEnabled'
 ];
 
 const profileToLocal = (serverProfile) => {
