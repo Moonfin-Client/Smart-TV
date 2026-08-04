@@ -696,6 +696,18 @@ const statusText = isFolderView
 			? $L("Showing {filterLabel} from '{genreFilter}' sorted by {sortLabel}").replace('{filterLabel}', filterLabel).replace('{genreFilter}', studioFilter).replace('{sortLabel}', sortLabel)
 			: $L("Showing {filterLabel} from '{libraryName}' sorted by {sortLabel}").replace('{filterLabel}', filterLabel).replace('{libraryName}', library?.Name).replace('{sortLabel}', sortLabel);
 
+const backdropId = focusedItem?.BackdropImageTags?.length
+	? focusedItem.Id
+	: (focusedItem?.ParentBackdropImageTags?.length ? focusedItem.ParentBackdropItemId : null);
+const backdropTag = focusedItem?.BackdropImageTags?.length
+	? focusedItem.BackdropImageTags[0]
+	: (focusedItem?.ParentBackdropImageTags?.length ? focusedItem.ParentBackdropImageTags[0] : null);
+
+const backdropUrl = useMemo(() => {
+	if (!focusedItem || !backdropId || settings?.hideBackdropsInLibraries || settings?.showHomeBackdrop === false) return '';
+	return getImageUrl(effectiveServerUrl, backdropId, 'Backdrop', {maxWidth: 1920, quality: 80, tag: backdropTag});
+}, [focusedItem, backdropId, backdropTag, effectiveServerUrl, settings]);
+
 if (!library && !genreFilter && !studioFilter) {
 return (
 <div className={css.page}>
@@ -760,6 +772,19 @@ for (let i = 0; i < focusedRatings.length; i++) {
 
 return (
 <div className={css.page}>
+{settings?.showHomeBackdrop !== false && !settings?.hideBackdropsInLibraries && (
+	<div className={css.backdrop}>
+		{backdropUrl && (
+			<img
+				className={css.backdropImage}
+				src={backdropUrl}
+				alt=""
+				style={{filter: settings?.backdropBlurHome > 0 ? `blur(${settings.backdropBlurHome}px)` : 'none'}}
+			/>
+		)}
+		<div className={css.backdropOverlay} />
+	</div>
+)}
 <div className={css.content}>
 <div className={css.header}>
 {isFolderView && folderStack.length > 0 ? (
@@ -798,7 +823,7 @@ return (
 )}
 </div>
 
-{focusedItem && (
+{focusedItem && settings?.showMediaDetailsOnLibraryPage !== false && (
 <div className={css.focusedInfo}>
 	<div className={css.focusedName}>{focusedItem.Name}</div>
 	<div className={css.focusedMeta}>
