@@ -8,6 +8,7 @@ import {useAuth} from '../../context/AuthContext';
 import {createApiForServer} from '../../services/jellyfinApi';
 import LoadingSpinner from '../../components/LoadingSpinner';
 import MusicBrowse from '../MusicBrowse';
+import BackdropLayer from '../Browse/BackdropLayer';
 import {getImageUrl, getPrimaryImageId, formatDuration} from '../../utils/helpers';
 import {useSettings} from '../../context/SettingsContext';
 import {fetchRatings, fetchEpisodeRatings, buildDisplayRatings, isRatingSourceEnabled} from '../../services/mdblistApi';
@@ -696,6 +697,8 @@ const statusText = isFolderView
 			? $L("Showing {filterLabel} from '{genreFilter}' sorted by {sortLabel}").replace('{filterLabel}', filterLabel).replace('{genreFilter}', studioFilter).replace('{sortLabel}', sortLabel)
 			: $L("Showing {filterLabel} from '{libraryName}' sorted by {sortLabel}").replace('{filterLabel}', filterLabel).replace('{libraryName}', library?.Name).replace('{sortLabel}', sortLabel);
 
+const backdropsEnabled = settings?.showHomeBackdrop !== false && !settings?.hideBackdropsInLibraries;
+
 const backdropId = focusedItem?.BackdropImageTags?.length
 	? focusedItem.Id
 	: (focusedItem?.ParentBackdropImageTags?.length ? focusedItem.ParentBackdropItemId : null);
@@ -704,9 +707,9 @@ const backdropTag = focusedItem?.BackdropImageTags?.length
 	: (focusedItem?.ParentBackdropImageTags?.length ? focusedItem.ParentBackdropImageTags[0] : null);
 
 const backdropUrl = useMemo(() => {
-	if (!focusedItem || !backdropId || settings?.hideBackdropsInLibraries || settings?.showHomeBackdrop === false) return '';
+	if (!backdropsEnabled || !backdropId) return '';
 	return getImageUrl(effectiveServerUrl, backdropId, 'Backdrop', {maxWidth: 1920, quality: 80, tag: backdropTag});
-}, [focusedItem, backdropId, backdropTag, effectiveServerUrl, settings]);
+}, [backdropsEnabled, backdropId, backdropTag, effectiveServerUrl]);
 
 if (!library && !genreFilter && !studioFilter) {
 return (
@@ -772,18 +775,8 @@ for (let i = 0; i < focusedRatings.length; i++) {
 
 return (
 <div className={css.page}>
-{settings?.showHomeBackdrop !== false && !settings?.hideBackdropsInLibraries && (
-	<div className={css.backdrop}>
-		{backdropUrl && (
-			<img
-				className={css.backdropImage}
-				src={backdropUrl}
-				alt=""
-				style={{filter: settings?.backdropBlurHome > 0 ? `blur(${settings.backdropBlurHome}px)` : 'none'}}
-			/>
-		)}
-		<div className={css.backdropOverlay} />
-	</div>
+{backdropsEnabled && (
+	<BackdropLayer targetUrl={backdropUrl} blurAmount={settings?.backdropBlurHome} />
 )}
 <div className={css.content}>
 <div className={css.header}>

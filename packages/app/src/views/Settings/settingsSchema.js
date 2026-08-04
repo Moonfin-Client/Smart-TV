@@ -251,7 +251,6 @@ export const SETTINGS_SCHEMA = [
 					{kind: KIND.NAV, id: 'hideLibraries', label: () => $L('Library Visibility'), desc: () => $L('Toggle home page visibility per library'), icon: 'show', action: (ctx) => ctx.actions.openLibraries()},
 					{kind: KIND.OPTION, key: 'folderViewMode', label: () => $L('Enable Folder View'), options: getFolderViewModeOptions, fallback: () => $L('Per Library'), icon: 'folder'},
 					{kind: KIND.TOGGLE, key: 'unifiedLibraryMode', label: () => $L('Multi-Server Libraries'), desc: () => $L('Combine content from all servers into a single view'), icon: 'dns'},
-					{kind: KIND.TOGGLE, key: 'mergeRecentRowsByType', label: () => $L('Merge Recently Added Libraries by Type'), desc: () => $L('Combine separate libraries of the same type into merged rows on the home page'), icon: 'arrowupdown'},
 					{kind: KIND.TOGGLE, key: 'showMediaDetailsOnLibraryPage', label: () => $L('Show Media Details'), desc: () => $L('Show details of the selected item at the top of Library pages'), icon: 'info'},
 					{kind: KIND.TOGGLE, key: 'hideBackdropsInLibraries', label: () => $L('Hide Backdrops while Browsing?'), desc: () => $L('Hide backdrops when browsing libraries'), icon: 'picture'}
 				]
