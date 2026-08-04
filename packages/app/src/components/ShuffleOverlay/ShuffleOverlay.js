@@ -63,13 +63,13 @@ const getFocusList = (items) => {
 	];
 };
 
-const PickerDialog = ({open, title, items, loading, emptyLabel, onClose, onPick}) => {
+const PickerDialog = ({open, title, items, loading, emptyLabel, onClose, onPick, pickerSpotlightId}) => {
 	const overlayClassName = `${css.pickerOverlay} ${open ? css.pickerOverlayOpen : css.pickerOverlayHidden}`;
 	const dialogClassName = `${css.pickerDialog} ${open ? css.pickerDialogOpen : css.pickerDialogClosed}`;
 
 	return (
 		<div aria-hidden={!open} className={overlayClassName}>
-			<PickerContainer className={dialogClassName} spotlightDisabled={!open} spotlightId="shuffle-picker-dialog">
+			<PickerContainer className={dialogClassName} spotlightDisabled={!open} spotlightId={pickerSpotlightId}>
 				<h3 className={css.pickerTitle}>{title}</h3>
 				{loading ? (
 					<div className={css.pickerLoading}>{$L('Loading...')}</div>
@@ -250,6 +250,7 @@ const ShuffleOverlay = ({
 		} finally {
 			setPickerLoading(false);
 		}
+		Spotlight.focus('shuffle-library-picker-dialog');
 	}, [api, contentType, unifiedMode]);
 
 	const openGenrePicker = useCallback(async () => {
@@ -262,6 +263,7 @@ const ShuffleOverlay = ({
 		} finally {
 			setPickerLoading(false);
 		}
+		Spotlight.focus('shuffle-genre-picker-dialog');
 	}, [api, contentType, unifiedMode]);
 
 	const handlePickLibrary = useCallback((library) => {
@@ -415,6 +417,7 @@ const ShuffleOverlay = ({
 				emptyLabel={$L('No libraries found')}
 				onClose={() => setPickerMode('')}
 				onPick={handlePickLibrary}
+				pickerSpotlightId={"shuffle-library-picker-dialog"}
 			/>
 			<PickerDialog
 				open={pickerMode === 'genre'}
@@ -424,6 +427,7 @@ const ShuffleOverlay = ({
 				emptyLabel={$L('No genres found')}
 				onClose={() => setPickerMode('')}
 				onPick={handlePickGenre}
+				pickerSpotlightId={"shuffle-genre-picker-dialog"}
 			/>
 		</div>
 	);
