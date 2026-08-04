@@ -30,6 +30,7 @@ const formatRuntime = (ticks) => {
 	const minutes = totalMinutes % 60;
 	if (hours > 0 && minutes > 0) return `${hours}h ${minutes}m`;
 	if (hours > 0) return `${hours}h`;
+	return `${minutes}m`;
 };
 
 const getGenreNames = (item) => {
@@ -113,7 +114,9 @@ const ModernMediaCard = ({
 		}
 
 		if (item.Type === 'Episode') {
-			const seriesId = item.SeriesId || item.SeriesPrimaryImageItemId || item.ParentPrimaryImageItemId;
+			// Both of these only appear once the series really holds the image, so an
+			// episode can follow them without guessing at what its series has.
+			const seriesId = item.SeriesPrimaryImageTag ? item.SeriesId : item.ParentPrimaryImageItemId;
 			const seriesPoster = seriesId
 				? getImageUrl(itemServerUrl, seriesId, 'Primary', {maxHeight: 360, quality: 80})
 				: item.ImageTags?.Primary
@@ -121,9 +124,7 @@ const ModernMediaCard = ({
 					: null;
 			const seriesThumb = item.ParentThumbItemId
 				? getImageUrl(itemServerUrl, item.ParentThumbItemId, 'Thumb', {maxWidth: 600, quality: 80})
-				: seriesId
-					? getImageUrl(itemServerUrl, seriesId, 'Thumb', {maxWidth: 600, quality: 80})
-					: null;
+				: null;
 			const episodeThumb = item.ImageTags?.Primary
 				? getImageUrl(itemServerUrl, item.Id, 'Primary', {maxWidth: 600, quality: 80})
 				: item.ImageTags?.Thumb
@@ -171,13 +172,9 @@ const ModernMediaCard = ({
 				if (item._externalBackdropUrl) {
 					return toAbsoluteImageUrl(item._externalBackdropUrl, itemServerUrl);
 				}
-				if (item.Id) {
-					return getImageUrl(itemServerUrl, item.Id, 'Backdrop', {maxWidth: 600, quality: 80});
-				}
-			} else {
-				if (item.Id) {
-					return getImageUrl(itemServerUrl, item.Id, 'Primary', {tag: item.ImageTags?.Primary, maxHeight: 360, quality: 80});
-				}
+			}
+			if (item.ImageTags?.Primary) {
+				return getImageUrl(itemServerUrl, item.Id, 'Primary', {tag: item.ImageTags.Primary, maxHeight: 360, quality: 80});
 			}
 		}
 
@@ -210,13 +207,13 @@ const ModernMediaCard = ({
 			if (item.ParentThumbItemId) {
 				return getImageUrl(itemServerUrl, item.ParentThumbItemId, 'Thumb', {maxWidth: 600, quality: 80});
 			}
-			if (item.Id) {
+			if (item.BackdropImageTags?.length > 0) {
 				return getImageUrl(itemServerUrl, item.Id, 'Backdrop', {maxWidth: 600, quality: 80});
 			}
-		} else {
-			if (item.Id) {
-				return getImageUrl(itemServerUrl, item.Id, 'Primary', {maxHeight: 360, quality: 80});
-			}
+		}
+
+		if (item.ImageTags?.Primary) {
+			return getImageUrl(itemServerUrl, item.Id, 'Primary', {maxHeight: 360, quality: 80});
 		}
 
 		if (externalPoster) {

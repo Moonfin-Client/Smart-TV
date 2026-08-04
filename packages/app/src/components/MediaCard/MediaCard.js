@@ -19,14 +19,45 @@ const toAbsoluteImageUrl = (url, serverUrl) => {
 	return `${serverUrl}/${url}`;
 };
 
-const MediaCard = ({item, serverUrl, cardType = 'portrait', onSelect, onFocusItem, showServerBadge = false, showOverview = false, eagerLoad = false, spotlightId, onSpotlightLeft, onSpotlightRight}) => {
+// The wide artwork a row asked for, or null when the item carries none of it. Handing
+// back the url rather than a yes or no is what keeps the card shape and the picture it
+// ends up holding from ever disagreeing.
+const requestedArtwork = (item, imageType, serverUrl) => {
+	if (imageType === 'backdrop') {
+		if (item.BackdropImageTags?.length > 0) {
+			return getImageUrl(serverUrl, item.Id, 'Backdrop', {maxWidth: 400, quality: 80});
+		}
+		if (item.ParentBackdropItemId) {
+			return getImageUrl(serverUrl, item.ParentBackdropItemId, 'Backdrop', {maxWidth: 400, quality: 80});
+		}
+		if (item.ImageTags?.Thumb) {
+			return getImageUrl(serverUrl, item.Id, 'Thumb', {maxWidth: 400, quality: 80});
+		}
+	}
+	if (imageType === 'thumb') {
+		if (item.ImageTags?.Thumb) {
+			return getImageUrl(serverUrl, item.Id, 'Thumb', {maxWidth: 400, quality: 80});
+		}
+		if (item.ParentThumbItemId) {
+			return getImageUrl(serverUrl, item.ParentThumbItemId, 'Thumb', {maxWidth: 400, quality: 80});
+		}
+		if (item.BackdropImageTags?.length > 0) {
+			return getImageUrl(serverUrl, item.Id, 'Backdrop', {maxWidth: 400, quality: 80});
+		}
+	}
+	if (imageType === 'logo') {
+		if (item.ImageTags?.Logo) {
+			return getImageUrl(serverUrl, item.Id, 'Logo', {maxWidth: 400, quality: 80});
+		}
+		if (item.ParentLogoItemId) {
+			return getImageUrl(serverUrl, item.ParentLogoItemId, 'Logo', {maxWidth: 400, quality: 80});
+		}
+	}
+	return null;
+};
+
+const MediaCard = ({item, serverUrl, cardType = 'portrait', rowImageType = 'poster', onSelect, onFocusItem, showServerBadge = false, showOverview = false, eagerLoad = false, spotlightId, onSpotlightLeft, onSpotlightRight}) => {
 	const {settings} = useSettings();
-	const imageType = settings.homeRowsImageType || 'poster';
-	const isLandscape = cardType === 'landscape' || (cardType === 'portrait' && (imageType === 'thumb' || imageType === 'backdrop' || imageType === 'logo'));
-	// Artists read as circles in the music library. It rides on the square path
-	// since the art is the same 1:1 either way, only the radius differs.
-	const isCircle = cardType === 'circle';
-	const isSquare = isCircle || cardType === 'square' || (cardType === 'portrait' && !isLandscape && (item.Type === 'MusicAlbum' || item.Type === 'MusicArtist' || item.Type === 'Audio'));
 	const focusTimeoutRef = useRef(null);
 
 	useEffect(() => {
@@ -41,6 +72,17 @@ const MediaCard = ({item, serverUrl, cardType = 'portrait', onSelect, onFocusIte
 		return item._serverUrl || serverUrl;
 	}, [item._serverUrl, serverUrl]);
 
+	// The row decides what its cards show, so anywhere else keeps posters. A genre card
+	// draws on one of its own items, so that is where its artwork has to be looked for.
+	const imageType = rowImageType || 'poster';
+	const artworkItem = (item.Type === 'Genre' && item._representative) || item;
+	const rowArtwork = requestedArtwork(artworkItem, imageType, itemServerUrl);
+	const isLandscape = cardType === 'landscape' || (cardType === 'portrait' && Boolean(rowArtwork));
+	// Artists read as circles in the music library. It rides on the square path
+	// since the art is the same 1:1 either way, only the radius differs.
+	const isCircle = cardType === 'circle';
+	const isSquare = isCircle || cardType === 'square' || (cardType === 'portrait' && !isLandscape && (item.Type === 'MusicAlbum' || item.Type === 'MusicArtist' || item.Type === 'Audio'));
+
 	const imageUrl = useMemo(() => {
 		const providerIds = item.ProviderIds || {};
 		const externalPoster = item._externalPosterUrl ||
@@ -54,59 +96,18 @@ const MediaCard = ({item, serverUrl, cardType = 'portrait', onSelect, onFocusIte
 			return toAbsoluteImageUrl(externalPoster, itemServerUrl);
 		}
 
-		if (item.Type === 'Genre' && item._representative) {
-			const rep = item._representative;
-			const repServerUrl = itemServerUrl;
-			if (imageType === 'thumb' && rep.ImageTags?.Thumb) {
-				return getImageUrl(repServerUrl, rep.Id, 'Thumb', {maxWidth: 400, quality: 80});
-			}
-			if (imageType === 'backdrop' && rep.BackdropImageTags?.length > 0) {
-				return getImageUrl(repServerUrl, rep.Id, 'Backdrop', {maxWidth: 400, quality: 80});
-			}
-			if (rep.ImageTags?.Primary) {
-				return getImageUrl(repServerUrl, rep.Id, 'Primary', {maxHeight: 300, quality: 80});
-			}
-		}
+		if (rowArtwork) return rowArtwork;
 
-		if (imageType === 'backdrop') {
-			if (item.BackdropImageTags?.length > 0) {
-				return getImageUrl(itemServerUrl, item.Id, 'Backdrop', {maxWidth: 400, quality: 80});
-			}
-			if (item.ParentBackdropItemId) {
-				return getImageUrl(itemServerUrl, item.ParentBackdropItemId, 'Backdrop', {maxWidth: 400, quality: 80});
-			}
-			if (item.ImageTags?.Thumb) {
-				return getImageUrl(itemServerUrl, item.Id, 'Thumb', {maxWidth: 400, quality: 80});
-			}
-		} else if (imageType === 'thumb') {
-			if (item.ImageTags?.Thumb) {
-				return getImageUrl(itemServerUrl, item.Id, 'Thumb', {maxWidth: 400, quality: 80});
-			}
-			if (item.ParentThumbItemId) {
-				return getImageUrl(itemServerUrl, item.ParentThumbItemId, 'Thumb', {maxWidth: 400, quality: 80});
-			}
-			if (item.BackdropImageTags?.length > 0) {
-				return getImageUrl(itemServerUrl, item.Id, 'Backdrop', {maxWidth: 400, quality: 80});
-			}
-		} else if (imageType === 'logo') {
-			if (item.ImageTags?.Logo) {
-				return getImageUrl(itemServerUrl, item.Id, 'Logo', {maxWidth: 400, quality: 80});
-			}
-			if (item.ParentLogoItemId) {
-				return getImageUrl(itemServerUrl, item.ParentLogoItemId, 'Logo', {maxWidth: 400, quality: 80});
-			}
+		if (item.Type === 'Genre' && item._representative && item._representative.ImageTags?.Primary) {
+			return getImageUrl(itemServerUrl, item._representative.Id, 'Primary', {maxHeight: 300, quality: 80});
 		}
 
 		if (isLandscape) {
 			if (item.Type === 'Episode') {
-				const seriesId = item.SeriesId || item.SeriesPrimaryImageItemId || item.ParentPrimaryImageItemId;
-				if (settings.useSeriesThumbnails) {
-					if (item.ParentThumbItemId) {
-						return getImageUrl(itemServerUrl, item.ParentThumbItemId, 'Thumb', {maxWidth: 400, quality: 80});
-					}
-					if (seriesId) {
-						return getImageUrl(itemServerUrl, seriesId, 'Thumb', {maxWidth: 400, quality: 80});
-					}
+				// A parent thumb id only arrives when the series really has one, so it is
+				// the series image an episode can ask for without guessing.
+				if (settings.useSeriesThumbnails && item.ParentThumbItemId) {
+					return getImageUrl(itemServerUrl, item.ParentThumbItemId, 'Thumb', {maxWidth: 400, quality: 80});
 				}
 				if (item.ImageTags?.Thumb) {
 					return getImageUrl(itemServerUrl, item.Id, 'Thumb', {maxWidth: 400, quality: 80});
@@ -123,8 +124,8 @@ const MediaCard = ({item, serverUrl, cardType = 'portrait', onSelect, onFocusIte
 				if (item.ImageTags?.Primary) {
 					return getImageUrl(itemServerUrl, item.Id, 'Primary', {maxWidth: 400, quality: 80});
 				}
-				if (seriesId) {
-					return getImageUrl(itemServerUrl, seriesId, 'Primary', {maxHeight: 300, quality: 80});
+				if (item.SeriesId && item.SeriesPrimaryImageTag) {
+					return getImageUrl(itemServerUrl, item.SeriesId, 'Primary', {maxHeight: 300, quality: 80});
 				}
 			} else {
 				if (item.ImageTags?.Thumb) {
@@ -145,29 +146,6 @@ const MediaCard = ({item, serverUrl, cardType = 'portrait', onSelect, onFocusIte
 			}
 		}
 
-		if (imageType === 'backdrop') {
-			if (item.BackdropImageTags?.length > 0) {
-				return getImageUrl(itemServerUrl, item.Id, 'Backdrop', {maxWidth: 400, quality: 80});
-			}
-			if (item.ParentBackdropItemId) {
-				return getImageUrl(itemServerUrl, item.ParentBackdropItemId, 'Backdrop', {maxWidth: 400, quality: 80});
-			}
-		} else if (imageType === 'thumb') {
-			if (item.ImageTags?.Thumb) {
-				return getImageUrl(itemServerUrl, item.Id, 'Thumb', {maxWidth: 400, quality: 80});
-			}
-			if (item.ParentThumbItemId) {
-				return getImageUrl(itemServerUrl, item.ParentThumbItemId, 'Thumb', {maxWidth: 400, quality: 80});
-			}
-		} else if (imageType === 'logo') {
-			if (item.ImageTags?.Logo) {
-				return getImageUrl(itemServerUrl, item.Id, 'Logo', {maxWidth: 400, quality: 80});
-			}
-			if (item.ParentLogoItemId) {
-				return getImageUrl(itemServerUrl, item.ParentLogoItemId, 'Logo', {maxWidth: 400, quality: 80});
-			}
-		}
-
 		if (item.ImageTags?.Primary) {
 			return getImageUrl(itemServerUrl, item.Id, 'Primary', {maxHeight: 300, quality: 80});
 		}
@@ -180,12 +158,10 @@ const MediaCard = ({item, serverUrl, cardType = 'portrait', onSelect, onFocusIte
 			return toAbsoluteImageUrl(externalPoster, itemServerUrl);
 		}
 
-		if (item.Id) {
-			return getImageUrl(itemServerUrl, item.Id, 'Primary', {maxHeight: 300, quality: 80});
-		}
-
+		// The card shows its lettered placeholder rather than guessing at a url the
+		// item already said it has nothing behind.
 		return null;
-	}, [isLandscape, item, itemServerUrl, imageType, settings.useSeriesThumbnails]);
+	}, [isLandscape, item, itemServerUrl, rowArtwork, settings.useSeriesThumbnails]);
 
 	const handleClick = useCallback(() => {
 		onSelect?.(item);
@@ -237,6 +213,11 @@ const MediaCard = ({item, serverUrl, cardType = 'portrait', onSelect, onFocusIte
 	const cardHeight = Math.round(baseH * sizeMultiplier);
 	const sizeStyle = sizeMultiplier !== 1 ? {width: cardWidth + 'px'} : undefined;
 	const imgSizeStyle = sizeMultiplier !== 1 ? {height: cardHeight + 'px'} : undefined;
+	// A logo has to sit inside the card whole. Everything else takes the cover the
+	// stylesheet already applies, so it stays out of the inline style.
+	const imgStyle = imageType === 'logo'
+		? {...imgSizeStyle, objectFit: 'contain'}
+		: imgSizeStyle;
 
 	return (
 		<SpottableDiv className={cardClass} data-media-card onClick={handleClick} onFocus={handleFocus} style={sizeStyle} spotlightId={spotlightId} onSpotlightLeft={onSpotlightLeft} onSpotlightRight={onSpotlightRight}>
@@ -250,10 +231,7 @@ const MediaCard = ({item, serverUrl, cardType = 'portrait', onSelect, onFocusIte
 							loading={eagerLoad ? 'eager' : 'lazy'}
 							width={cardWidth}
 							height={cardHeight}
-							style={{
-								...(imgSizeStyle || {}),
-								objectFit: imageType === 'logo' ? 'contain' : 'cover'
-							}}
+							style={imgStyle}
 						/>
 						{(item?.Type === 'Genre' || item?.Type === 'MusicGenre') && (
 							<>

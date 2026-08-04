@@ -22,6 +22,7 @@ const MediaRow = ({
 	items,
 	serverUrl,
 	cardType = 'portrait',
+	rowImageType = 'poster',
 	onSelectItem,
 	onFocus,
 	onFocusItem,
@@ -158,6 +159,7 @@ const MediaRow = ({
 									item={item}
 									serverUrl={serverUrl}
 									cardType={cardType}
+									rowImageType={rowImageType}
 									onSelect={handleSelect}
 									onFocusItem={onFocusItem}
 									showServerBadge={showServerBadge}
@@ -179,6 +181,7 @@ const areRowPropsEqual = (prev, next) => {
 	if (prev.rowId !== next.rowId) return false;
 	if (prev.title !== next.title) return false;
 	if (prev.cardType !== next.cardType) return false;
+	if (prev.rowImageType !== next.rowImageType) return false;
 	if (prev.serverUrl !== next.serverUrl) return false;
 	if (prev.rowIndex !== next.rowIndex) return false;
 	if (prev.showServerBadge !== next.showServerBadge) return false;
