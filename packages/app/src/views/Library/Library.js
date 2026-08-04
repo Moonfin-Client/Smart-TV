@@ -34,7 +34,8 @@ const SORT_OPTIONS = [
 	{key: 'CommunityRating', field: 'CommunityRating', order: 'Descending', label: $L('Community Rating')},
 	{key: 'CriticRating', field: 'CriticRating', order: 'Descending', label: $L('Critic Rating')},
 	{key: 'DatePlayed', field: 'DatePlayed', order: 'Descending', label: $L('Last Played')},
-	{key: 'Runtime', field: 'Runtime', order: 'Ascending', label: $L('Runtime')}
+	{key: 'Runtime', field: 'Runtime', order: 'Ascending', label: $L('Runtime')},
+	{key: 'Random', field: 'Random', order: 'Ascending', label: $L('Random')}
 ];
 
 const MUSIC_SORT_OPTIONS = [
