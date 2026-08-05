@@ -730,13 +730,16 @@ export const getJellyfinDeviceProfile = async () => {
 	];
 
 	// multichannel AAC in a TS stream crashes the decoder on these sets
-	// if (caps.tizenVersion < 6) {
-	// 	codecProfiles.push({
-	// 		Type: 'VideoAudio',
-	// 		Codec: 'aac',
-	// 		Conditions: [{ Condition: 'LessThanEqual', Property: 'AudioChannels', Value: '2', IsRequired: true }]
-	// 	});
-	// }
+	// 5.1 AAC in TS crashes these sets, so cap it there. Without the container it also
+	// caught MP4 and MKV, which is what forced the whole file to transcode.
+	if (isOldTizen) {
+		codecProfiles.push({
+			Type: 'VideoAudio',
+			Container: 'ts,mpegts',
+			Codec: 'aac',
+			Conditions: [{ Condition: 'LessThanEqual', Property: 'AudioChannels', Value: '2', IsRequired: true }]
+		});
+	}
 
 	// Force any kind of DTS to be transcoded to E-AC3 
 	codecProfiles.push({
