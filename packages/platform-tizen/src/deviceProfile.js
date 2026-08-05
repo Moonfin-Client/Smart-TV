@@ -576,9 +576,9 @@ export const getJellyfinDeviceProfile = async () => {
 	// on several Tizen firmwares, so they must not match the fMP4 profile
 	const isOldTizen = caps.tizenVersion < 6;
 	const tsAudio = isOldTizen
-	? (caps.eac3 ? 'eac3,ac3' : (caps.ac3 ? 'ac3' : 'aac'))
-	: (caps.eac3 ? 'eac3,ac3,aac' : (caps.ac3 ? 'ac3,aac' : 'aac'));
-  	const transcodingProfiles = [];
+		? (caps.eac3 ? 'eac3,ac3' : (caps.ac3 ? 'ac3' : 'mp3'))
+		: (caps.eac3 ? 'eac3,ac3,aac' : (caps.ac3 ? 'ac3,aac' : 'aac'));
+	const transcodingProfiles = [];
 
 	// hevc inside HLS TS only demuxes reliably from Tizen 6 up. Short segments
 	// and non keyframe breaks stall AVPlay on segment boundaries, so use longer
