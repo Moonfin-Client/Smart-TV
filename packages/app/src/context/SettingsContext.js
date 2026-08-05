@@ -49,7 +49,11 @@ const SERVER_TO_LOCAL = {
 	enableFolderView: 'folderViewMode',
 	homeRowInfoOverlay: 'homeRowOverlay',
 	autoplayNextEpisode: 'autoPlay',
-	mediaSegmentCountdown: 'nextUpCountdownStyle'
+	mediaSegmentCountdown: 'nextUpCountdownStyle',
+	detailButtonOrder: 'detailButtonOrderTv',
+	hiddenDetailButtons: 'hiddenDetailButtonsTv',
+	osdButtonOrderDesktop: 'osdButtonOrderTv',
+	hiddenOsdButtonsDesktop: 'hiddenOsdButtonsTv'
 };
 const LOCAL_TO_SERVER = Object.fromEntries(
 	Object.entries(SERVER_TO_LOCAL).map(([s, l]) => [l, s])
@@ -152,7 +156,7 @@ const SYNCABLE_KEYS = [
 	'visualTheme', 'customThemeId',
 	'showRatingLabels',
 	'showRatingBadges',
-	'themeMusicEnabled', 'themeMusicVolume', 'themeMusicOnHomeRows',
+	'themeMusicEnabled', 'themeMusicVolume', 'themeMusicOnHomeRows', 'themeMusicLoop',
 	'homeRowsImageType', 'showClock', 'clockDisplay',
 	'homeRowOverlay', 'folderViewMode',
 	'excludedGenres',
@@ -181,7 +185,12 @@ const SYNCABLE_KEYS = [
 	'mergeRadarrSonarrCalendars',
 	'radarrCalendarShowCinema', 'radarrCalendarShowDigital', 'radarrCalendarShowPhysical',
 	'radarrCalendarShowDate', 'sonarrCalendarShowDate', 'sonarrCalendarShowEpisodeInfo',
-	'showSeerrButton',
+	'showSeerrButton', 'showCastButton',
+	'classicHomeRowsPadding', 'modernHomeRowsPadding',
+	'detailShowTechnicalDetails',
+	'recommendationSystemSource', 'recommendationsApplyParentalRatingCap',
+	'screensaverMode',
+	'seerrRowOrder', 'hiddenSeerrRows',
 	'detailButtonOrderTv', 'hiddenDetailButtonsTv', 'osdButtonOrderTv', 'hiddenOsdButtonsTv',
 	'focusBorderColor',
 	'navbarOpacity',
@@ -214,7 +223,7 @@ const profileToLocal = (serverProfile) => {
 const localToProfile = (localSettings) => {
 	const profile = {};
 	for (const key of SYNCABLE_KEYS) {
-		if (key === 'homeRows') continue;
+		if (key === 'homeRows' || key === 'customHomeRows') continue;
 		const value = localSettings[key];
 		if (value === undefined || value === null) continue;
 		const serverKey = LOCAL_TO_SERVER[key] || key;
