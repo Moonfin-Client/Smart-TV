@@ -49,11 +49,7 @@ const SERVER_TO_LOCAL = {
 	enableFolderView: 'folderViewMode',
 	homeRowInfoOverlay: 'homeRowOverlay',
 	autoplayNextEpisode: 'autoPlay',
-	mediaSegmentCountdown: 'nextUpCountdownStyle',
-	detailButtonOrder: 'detailButtonOrderTv',
-	hiddenDetailButtons: 'hiddenDetailButtonsTv',
-	osdButtonOrderDesktop: 'osdButtonOrderTv',
-	hiddenOsdButtonsDesktop: 'hiddenOsdButtonsTv'
+	mediaSegmentCountdown: 'nextUpCountdownStyle'
 };
 const LOCAL_TO_SERVER = Object.fromEntries(
 	Object.entries(SERVER_TO_LOCAL).map(([s, l]) => [l, s])
@@ -117,6 +113,11 @@ const VALUE_CONVERSIONS = {
 		toServer: v => v ? 'always' : 'never',
 		fromServer: v => v !== 'never'
 	},
+	// The other clients offer off, logo or library, where this app keeps a separate toggle for
+	// turning it off. There is nothing to draw for "off", so leave the mode we already have.
+	screensaverMode: {
+		fromServer: v => (v === 'off' ? undefined : v)
+	},
 	// Three states here against a boolean elsewhere. "Per Library" has no equivalent, so it
 	// declines to push and leaves whatever the server holds.
 	folderViewMode: {
@@ -141,7 +142,7 @@ const VALUE_CONVERSIONS = {
 	// move together, so it gets resolved whole rather than a key at a time.
 };
 
-const SYNCABLE_KEYS = [
+export const SYNCABLE_KEYS = [
 	'showShuffleButton', 'shuffleContentType', 'showGenresButton',
 	'showFavoritesButton', 'showLibrariesInToolbar', 'mergeContinueWatchingNextUp',
 	'nextUpMaxDays',
@@ -156,7 +157,7 @@ const SYNCABLE_KEYS = [
 	'visualTheme', 'customThemeId',
 	'showRatingLabels',
 	'showRatingBadges',
-	'themeMusicEnabled', 'themeMusicVolume', 'themeMusicOnHomeRows', 'themeMusicLoop',
+	'themeMusicEnabled', 'themeMusicVolume', 'themeMusicOnHomeRows',
 	'homeRowsImageType', 'showClock', 'clockDisplay',
 	'homeRowOverlay', 'folderViewMode',
 	'excludedGenres',
@@ -181,23 +182,24 @@ const SYNCABLE_KEYS = [
 	'diagnosticLoggingEnabled',
 	'uiLanguage',
 	'blockedRatings',
-	'customHomeRows',
 	'mergeRadarrSonarrCalendars',
 	'radarrCalendarShowCinema', 'radarrCalendarShowDigital', 'radarrCalendarShowPhysical',
 	'radarrCalendarShowDate', 'sonarrCalendarShowDate', 'sonarrCalendarShowEpisodeInfo',
-	'showSeerrButton', 'showCastButton',
+	'showSeerrButton',
+	'screensaverMode',
+	// Settings this app has no screen for. They ride along so a value set on another client
+	// survives the profile the TV writes back.
+	'showCastButton', 'themeMusicLoop',
 	'classicHomeRowsPadding', 'modernHomeRowsPadding',
 	'detailShowTechnicalDetails',
 	'recommendationSystemSource', 'recommendationsApplyParentalRatingCap',
-	'screensaverMode',
-	'seerrRowOrder', 'hiddenSeerrRows',
 	'detailButtonOrderTv', 'hiddenDetailButtonsTv', 'osdButtonOrderTv', 'hiddenOsdButtonsTv',
 	'focusBorderColor',
 	'navbarOpacity',
 	'navbarColor',
 ];
 
-const profileToLocal = (serverProfile) => {
+export const profileToLocal = (serverProfile) => {
 	if (!serverProfile) return {};
 	const local = {};
 	for (const [key, value] of Object.entries(serverProfile)) {
@@ -220,10 +222,10 @@ const profileToLocal = (serverProfile) => {
 	return local;
 };
 
-const localToProfile = (localSettings) => {
+export const localToProfile = (localSettings) => {
 	const profile = {};
 	for (const key of SYNCABLE_KEYS) {
-		if (key === 'homeRows' || key === 'customHomeRows') continue;
+		if (key === 'homeRows') continue;
 		const value = localSettings[key];
 		if (value === undefined || value === null) continue;
 		const serverKey = LOCAL_TO_SERVER[key] || key;
