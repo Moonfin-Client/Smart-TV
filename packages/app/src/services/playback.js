@@ -43,7 +43,9 @@ const DEFAULT_PASSTHROUGH_SETTINGS = {
 	eac3Passthrough: true,
 	dtsPassthrough: true,
 	dtshdPassthrough: true,
-	truehdPassthrough: true
+	truehdPassthrough: true,
+	// Skip check and passtrough TueHD
+	forceTruehdPassthrough: false
 };
 
 const getPlaybackAudioSettings = async (options = {}) => {
@@ -58,7 +60,8 @@ const getPlaybackAudioSettings = async (options = {}) => {
 		eac3Passthrough: options.eac3Passthrough ?? stored.eac3Passthrough ?? DEFAULT_PASSTHROUGH_SETTINGS.eac3Passthrough,
 		dtsPassthrough: options.dtsPassthrough ?? stored.dtsPassthrough ?? DEFAULT_PASSTHROUGH_SETTINGS.dtsPassthrough,
 		dtshdPassthrough: options.dtshdPassthrough ?? stored.dtshdPassthrough ?? DEFAULT_PASSTHROUGH_SETTINGS.dtshdPassthrough,
-		truehdPassthrough: options.truehdPassthrough ?? stored.truehdPassthrough ?? DEFAULT_PASSTHROUGH_SETTINGS.truehdPassthrough
+		truehdPassthrough: options.truehdPassthrough ?? stored.truehdPassthrough ?? DEFAULT_PASSTHROUGH_SETTINGS.truehdPassthrough,
+		forceTruehdPassthrough: options.forceTruehdPassthrough ?? stored.forceTruehdPassthrough ?? DEFAULT_PASSTHROUGH_SETTINGS.forceTruehdPassthrough
 	};
 };
 

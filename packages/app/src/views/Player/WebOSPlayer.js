@@ -31,6 +31,7 @@ import {getSubtitleOverlayStyle, getSubtitleTextStyle, sanitizeSubtitleHtml, res
 import {isHdrOutput} from '../../utils/videoRange';
 import {findPreferredAudioStream} from '../../utils/audioLanguage';
 import {saveSubtitlePref} from '../../services/subtitlePrefs';
+import serverLogger from '../../services/serverLogger';
 import {resolveInitialSubtitle} from './initialSubtitle';
 import PlayerControls, {usePlayerButtons} from './PlayerControls';
 import NextUpOverlay from './NextUpOverlay';
@@ -53,6 +54,8 @@ import {
 import {getVideoDisplayAspectRatio, getZoomDisplayRect} from './aspectRatioUtils';
 
 import css from './WebOSPlayer.module.less';
+
+const TRUEHD_CODECS = ['truehd', 'mlp'];
 
 const getWebOSFullscreenRect = () => {
 	if (typeof window === 'undefined') {
@@ -625,12 +628,21 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 					isLiveTV,
 					hasUserData: !!item.UserData
 				});
+				// Force TrueHD passtrough if anabled.
+				const pinTruehdDirectPlay = Boolean(settings.forceTruehdPassthrough) &&
+					(item?.MediaSources || []).some((source) => (source?.MediaStreams || []).some(
+						(s) => s.Type === 'Audio' && TRUEHD_CODECS.includes((s.Codec || '').toLowerCase())
+					));
+
 				const playbackInfoOptions = {
 					startPositionTicks: startPosition,
 					maxBitrate: selectedQuality || settings.maxBitrate,
 					enableDirectPlay: !forceTranscode && !settings.preferTranscode,
 					enableDirectStream: !forceTranscode && !settings.preferTranscode,
-					forceDirectPlay: (isLiveTV || forceTranscode) ? false : settings.forceDirectPlay,
+					forceTruehdPassthrough: settings.forceTruehdPassthrough,
+					forceDirectPlay: (isLiveTV || forceTranscode)
+						? false
+						: (settings.forceDirectPlay || pinTruehdDirectPlay),
 					mediaSourceId: initialMediaSourceId,
 					audioStreamIndex: initialAudioIndex != null ? initialAudioIndex : undefined,
 					subtitleStreamIndex: initialSubtitleIndex,
@@ -718,6 +730,28 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 						? {streamIndex: autoAudio.index, audioStreams: result.audioStreams || []}
 						: null;
 				}
+
+				// For logging purpos to see what the audio path is
+				const audioCaps = playback.getCurrentSession()?.capabilities;
+				serverLogger.playback('Playback: media opened', {
+					itemId: item?.Id,
+					playMethod: result.playMethod,
+					container: result.mediaSource?.Container,
+					forceTruehdPassthrough: Boolean(settings.forceTruehdPassthrough),
+					pinTruehdDirectPlay,
+					audioOutputStatus: audioCaps?.audioOutputStatus,
+					defaultAudioStreamIndex: result.defaultAudioStreamIndex,
+					selectedAudioStreamIndex: result.selectedAudioStreamIndex,
+					audioLanguageSetting: settings.audioLanguage,
+					audioStreams: (result.audioStreams || []).map((s) => ({
+						index: s.index,
+						codec: s.codec,
+						profile: s.profile,
+						channels: s.channels,
+						language: s.language,
+						isDefault: s.isDefault
+					}))
+				});
 
 				// Load subtitle data or renderer for the selected stream.
 				const loadSubtitleData = async (sub) => {
@@ -897,7 +931,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 			}
 		};
 	// eslint-disable-next-line react-hooks/exhaustive-deps
-	}, [item, resume, videoQueue, onPlayNext, selectedQuality, settings.maxBitrate, settings.preferTranscode, settings.forceDirectPlay, forceTranscode, settings.subtitleMode, settings.introAction, settings.outroAction, initialAudioIndex, initialSubtitleIndex]);
+	}, [item, resume, videoQueue, onPlayNext, selectedQuality, settings.maxBitrate, settings.preferTranscode, settings.forceDirectPlay, settings.forceTruehdPassthrough, forceTranscode, settings.subtitleMode, settings.introAction, settings.outroAction, initialAudioIndex, initialSubtitleIndex]);
 
 	useEffect(() => {
 		if (mediaUrl) {

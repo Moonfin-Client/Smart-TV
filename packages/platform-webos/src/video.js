@@ -11,7 +11,8 @@ const DEFAULT_PASSTHROUGH_SETTINGS = {
 	eac3Passthrough: true,
 	dtsPassthrough: true,
 	dtshdPassthrough: true,
-	truehdPassthrough: true
+	truehdPassthrough: true,
+	forceTruehdPassthrough: false
 };
 
 const resolvePassthroughSettings = (options = {}) => ({
@@ -100,7 +101,9 @@ export const getSupportedAudioCodecs = (capabilities, container = '', passthroug
 		if (dtsOk && capabilities.dtshd) codecs.push('dts-hd', 'dtshd', 'dtsx');
 	}
 
-	if (capabilities.truehd && passthroughAllowed && passthrough.truehdPassthrough) codecs.push('truehd', 'mlp');
+	const truehdOk = passthrough.forceTruehdPassthrough ||
+		(capabilities.truehd && passthroughAllowed && passthrough.truehdPassthrough);
+	if (truehdOk) codecs.push('truehd', 'mlp');
 	if (capabilities.opus) codecs.push('opus');
 	codecs.push('vorbis', 'wma', 'amr', 'amrnb', 'amrwb');
 

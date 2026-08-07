@@ -186,6 +186,7 @@ export const defaultSettings = {
 	ac3Passthrough: true,
 	eac3Passthrough: true,
 	truehdPassthrough: true,
+	forceTruehdPassthrough: false,
 	blockedRatings: [],
 	showSeerrButton: true,
 	// Synced but not shown anywhere in this app, so null keeps the TV from stamping a default
