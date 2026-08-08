@@ -22,6 +22,7 @@
 		"eslint-config-enact-proxy": "^1.0.7"
 	},
 	"dependencies": {
+		"brace-expansion": "^1.1.16",
 		"core-js": "^3.48.0",
 		"libass-wasm": "^4.1.0",
 		"whatwg-fetch": "^3.6.20"
