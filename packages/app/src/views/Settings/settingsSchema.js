@@ -488,7 +488,7 @@ export const SETTINGS_SCHEMA = [
 					{kind: KIND.TOGGLE, key: 'ac3Passthrough', label: () => $L('AC3 Passthrough'), desc: () => $L('Allow Dolby Digital passthrough when available'), icon: 'speaker'},
 					{kind: KIND.TOGGLE, key: 'eac3Passthrough', label: () => $L('E-AC3 Passthrough'), desc: () => $L('Allow Dolby Digital Plus passthrough when available'), icon: 'speaker'},
 					{kind: KIND.TOGGLE, key: 'truehdPassthrough', label: () => $L('TrueHD Passthrough (Experimental)'), desc: () => $L('Allow Dolby TrueHD passthrough when available'), icon: 'speaker'},
-					{kind: KIND.TOGGLE, key: 'forceTruehdPassthrough', label: () => $L('Force TrueHD / Atmos Passthrough'), desc: () => $L('Send Dolby TrueHD and Atmos straight to your receiver. Make sure your receiver supports it.'), icon: 'speaker'}
+					{kind: KIND.TOGGLE, key: 'forceTruehdPassthrough', label: () => $L('Force TrueHD / Atmos Passthrough'), desc: () => $L('Send Dolby TrueHD and Atmos straight to your receiver. Make sure your receiver supports it.'), icon: 'speaker', when: (ctx) => ctx.isWebOS}
 				]
 			},
 			{

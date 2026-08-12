@@ -22,16 +22,10 @@ const emptyDtsSupport = {mkv: false, mp4: false, ts: false, avi: false};
 const getActiveSoundOutput = (audioStatus = {}) =>
 	(audioStatus?.soundOutput || '').toString().toLowerCase().trim();
 
-/**
- * Whether the audio path is an eARC/ARC connection to a receiver.
- */
-const isArcSoundOutput = (audioStatus = {}) => /e?arc/.test(getActiveSoundOutput(audioStatus));
-
-/**
- * Checks if Bitstream passthrough is active, which requires an eARC/ARC connection to a receiver.
- */
+// Lossless formats only survive over ARC or eARC to a receiver, and only while
+// the TV is bitstreaming. PCM means it decoded the track itself.
 const isLosslessPassthroughOutput = (audioStatus = {}) => {
-	if (!isArcSoundOutput(audioStatus)) return false;
+	if (!/arc/.test(getActiveSoundOutput(audioStatus))) return false;
 	const digital = (audioStatus?.soundOutputDigital || '').toString().toLowerCase();
 	return digital !== 'pcm';
 };
@@ -42,7 +36,6 @@ const lunaRequest = async (service, method, parameters) => {
 	try {
 		const LS2Request = (await import('@enact/webos/LS2Request')).default;
 		return await new Promise((resolve) => {
-			// eslint-disable-next-line
 			new LS2Request().send({
 				service: `luna://${service}`,
 				method,
@@ -59,11 +52,9 @@ const lunaRequest = async (service, method, parameters) => {
 const queryAudioOutputStatus = () =>
 	lunaRequest('com.webos.service.avoutput', 'audio/getStatus');
 
-/**
- * The documented route to the sound path. com.webos.service.avoutput is not a
- * public API and answers an empty object on current firmware, which read as "no
- * receiver" and quietly disabled every passthrough check.
- */
+// The documented route to the sound path. com.webos.service.avoutput is not
+// public API and answers an empty object on current firmware, which read as
+// "no receiver" and quietly switched off every passthrough check.
 const querySoundSettings = async () => {
 	const result = await lunaRequest('com.webos.settingsservice', 'getSystemSettings', {
 		category: 'sound',
@@ -75,7 +66,6 @@ const querySoundSettings = async () => {
 const getAudioOutputStatus = async () => {
 	for (let attempt = 0; attempt < 4; attempt++) {
 		const [status, sound] = await Promise.all([queryAudioOutputStatus(), querySoundSettings()]);
-		// Luna API returns empty objects.
 		const merged = {
 			...status,
 			soundOutput: status?.soundOutput || sound.soundOutput,
@@ -98,9 +88,8 @@ const applyAudioOutputPath = async (baseCaps) => {
 	return {
 		...baseCaps,
 		dts,
+		truehd: receiverPassthrough,
 		dtshd: receiverPassthrough && !!(dts.mkv || dts.mp4 || dts.ts),
-		// TrueHD is fine. Only need to check if channels are preserved.
-		truehdBitstream: receiverPassthrough,
 		audioOutputStatus,
 		externalAudioPathActive: receiverPassthrough
 	};
@@ -111,16 +100,12 @@ const applyPassthroughSettings = (caps, options = {}) => {
 	const passthroughAllowed = prefs.passthroughEnabled;
 	const dtsSupport = passthroughAllowed && prefs.dtsPassthrough ? (caps.dts || emptyDtsSupport) : emptyDtsSupport;
 
-	// Passrough is enabled in settings.
-	const forceTruehd = !!prefs.forceTruehdPassthrough;
-	const truehdAllowed = forceTruehd || (passthroughAllowed && !!prefs.truehdPassthrough);
-
 	return {
 		...caps,
 		ac3: !!caps.ac3 && !!prefs.ac3Passthrough,
 		eac3: !!caps.eac3 && !!prefs.eac3Passthrough,
-		truehd: forceTruehd || (!!caps.truehd && truehdAllowed),
-		truehdBitstream: forceTruehd || (!!caps.truehdBitstream && truehdAllowed),
+		// The force toggle skips receiver detection for setups the TV misreports
+		truehd: !!prefs.forceTruehdPassthrough || (!!caps.truehd && passthroughAllowed && !!prefs.truehdPassthrough),
 		dts: dtsSupport,
 		dtshd: !!caps.dtshd && passthroughAllowed && !!prefs.dtshdPassthrough
 	};
@@ -344,8 +329,7 @@ export const getDeviceCapabilities = async () => {
 		dtsBase,
 		ac3: testAc3Support(),
 		eac3: true,
-		// If the reciver is connected via arc/eArc, TrueHD can go trough bitrseam.
-		truehd: true,
+		truehd: false,
 		dtshd: false,
 		// the TV decodes FLAC to LPCM, so it direct plays in a video container
 		// on modern webOS even though LG only lists it as a standalone format
@@ -671,8 +655,7 @@ export const getJellyfinDeviceProfile = async (options = {}) => {
 	const directPlayProfiles = buildDirectPlayProfiles(caps);
 
 	const maxStreamingBitrate = 120_000_000;
-	// LG says limit is scince WebOS 4,5 8, but it limits it to 6?
-	const maxAudioChannels = caps.dolbyAtmos || caps.truehdBitstream || caps.dtshd ? '8' : '6';
+	const maxAudioChannels = caps.dolbyAtmos || caps.truehd || caps.dtshd ? '8' : '6';
 
 	// fMP4 preserves DV RPU metadata; MPEG-TS strips it. Use fMP4 on webOS 5+.
 	const hlsContainer = caps.nativeHlsFmp4 ? 'mp4' : 'ts';

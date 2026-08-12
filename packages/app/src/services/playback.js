@@ -44,7 +44,6 @@ const DEFAULT_PASSTHROUGH_SETTINGS = {
 	dtsPassthrough: true,
 	dtshdPassthrough: true,
 	truehdPassthrough: true,
-	// Skip check and passtrough TueHD
 	forceTruehdPassthrough: false
 };
 

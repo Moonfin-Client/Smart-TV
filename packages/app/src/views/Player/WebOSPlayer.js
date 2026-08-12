@@ -55,8 +55,6 @@ import {getVideoDisplayAspectRatio, getZoomDisplayRect} from './aspectRatioUtils
 
 import css from './WebOSPlayer.module.less';
 
-const TRUEHD_CODECS = ['truehd', 'mlp'];
-
 const getWebOSFullscreenRect = () => {
 	if (typeof window === 'undefined') {
 		return {width: 1920, height: 1080};
@@ -628,21 +626,12 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 					isLiveTV,
 					hasUserData: !!item.UserData
 				});
-				// Force TrueHD passtrough if anabled.
-				const pinTruehdDirectPlay = Boolean(settings.forceTruehdPassthrough) &&
-					(item?.MediaSources || []).some((source) => (source?.MediaStreams || []).some(
-						(s) => s.Type === 'Audio' && TRUEHD_CODECS.includes((s.Codec || '').toLowerCase())
-					));
-
 				const playbackInfoOptions = {
 					startPositionTicks: startPosition,
 					maxBitrate: selectedQuality || settings.maxBitrate,
 					enableDirectPlay: !forceTranscode && !settings.preferTranscode,
 					enableDirectStream: !forceTranscode && !settings.preferTranscode,
-					forceTruehdPassthrough: settings.forceTruehdPassthrough,
-					forceDirectPlay: (isLiveTV || forceTranscode)
-						? false
-						: (settings.forceDirectPlay || pinTruehdDirectPlay),
+					forceDirectPlay: (isLiveTV || forceTranscode) ? false : settings.forceDirectPlay,
 					mediaSourceId: initialMediaSourceId,
 					audioStreamIndex: initialAudioIndex != null ? initialAudioIndex : undefined,
 					subtitleStreamIndex: initialSubtitleIndex,
@@ -731,14 +720,12 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 						: null;
 				}
 
-				// For logging purpos to see what the audio path is
 				const audioCaps = playback.getCurrentSession()?.capabilities;
 				serverLogger.playback('Playback: media opened', {
 					itemId: item?.Id,
 					playMethod: result.playMethod,
 					container: result.mediaSource?.Container,
 					forceTruehdPassthrough: Boolean(settings.forceTruehdPassthrough),
-					pinTruehdDirectPlay,
 					audioOutputStatus: audioCaps?.audioOutputStatus,
 					defaultAudioStreamIndex: result.defaultAudioStreamIndex,
 					selectedAudioStreamIndex: result.selectedAudioStreamIndex,
