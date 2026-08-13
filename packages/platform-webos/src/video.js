@@ -407,30 +407,42 @@ let _screenSaverRegistered = false;
 const respondScreenSaver = (timestamp) => {
 	if (typeof window.webOS?.service?.request !== 'function') return;
 	try {
+		const ack = !_screenSaverBlocked;
+		console.log('[webosVideo] Responding to screensaver request - timestamp:', timestamp, 'ack (allow screensaver):', ack);
 		window.webOS.service.request('luna://com.webos.service.tvpower/power', {
 			method: 'responseScreenSaverRequest',
-			parameters: {clientName: SCREENSAVER_CLIENT, ack: !_screenSaverBlocked, timestamp}
+			parameters: {clientName: SCREENSAVER_CLIENT, ack, timestamp}
 		});
-	} catch {}
+	} catch (e) {
+		console.warn('[webosVideo] Failed to respond to screensaver request:', e);
+	}
 };
 
 const registerScreenSaverGuard = () => {
 	if (_screenSaverRegistered) return;
 	if (typeof window.webOS?.service?.request !== 'function') return;
 	try {
+		console.log('[webosVideo] Registering screensaver guard with TV power service');
 		window.webOS.service.request('luna://com.webos.service.tvpower/power', {
 			method: 'registerScreenSaverRequest',
 			parameters: {subscribe: true, clientName: SCREENSAVER_CLIENT},
 			subscribe: true,
 			onSuccess: (res) => {
-				if (res && res.state === 'Active') respondScreenSaver(res.timestamp);
+				console.log('[webosVideo] Screensaver request event received:', res);
+				if (res?.timestamp) {
+					respondScreenSaver(res.timestamp);
+				}
 			},
-			onFailure: () => {
+			onFailure: (err) => {
+				console.warn('[webosVideo] Screensaver guard registration failed:', err);
 				_screenSaverRegistered = false;
 			}
 		});
 		_screenSaverRegistered = true;
-	} catch {}
+	} catch (e) {
+		console.warn('[webosVideo] Exception registering screensaver guard:', e);
+		_screenSaverRegistered = false;
+	}
 };
 
 export const keepScreenOn = async (enable) => {
