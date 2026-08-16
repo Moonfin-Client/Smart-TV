@@ -286,7 +286,7 @@ const GalleryBanner = memo(({
 												pluginEnabled={isMdblistEnabled(settings)}
 											/>
 
-											{item.Overview && (
+											{!settings.hideHomeMediaDescription && item.Overview && (
 												<p className={css.galleryOverview}>{item.Overview}</p>
 											)}
 										</div>

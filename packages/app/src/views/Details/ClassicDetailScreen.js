@@ -4,7 +4,7 @@ import MediaRow from '../../components/MediaRow';
 import MediaCard from '../../components/MediaCard';
 import RatingsRow from '../../components/RatingsRow';
 import {formatDuration, getImageUrl} from '../../utils/helpers';
-import {castPhotoUrl} from './detailsMedia';
+import {castPhotoUrl, hidesMediaDescription, seriesThumbUrl} from './detailsMedia';
 import {isMdblistEnabled} from '../../services/mdblistApi';
 import {formatTime} from '../Player/PlayerConstants';
 import {SeerrStatusBadge, SeerrDownloadBars, SeerrSeasonDot} from '../../components/seerr/SeerrStatusBadge';
@@ -18,6 +18,9 @@ import DetailMetadata from './DetailMetadata';
 import NextUpCard from './NextUpCard';
 
 import css from './Details.module.less';
+
+const EPISODE_THUMB = {maxWidth: 400, quality: 80};
+const CHAPTER_THUMB = {maxWidth: 400, quality: 90};
 
 // The v1 detail layout, used for anything with a video behind it: movies, series, episodes
 // and box sets. The action row arrives already built, because what belongs in it depends on
@@ -125,9 +128,12 @@ const ClassicDetailScreen = ({
 
 				<RatingsRow item={item} serverUrl={serverUrl} pluginEnabled={isMdblistEnabled(settings)} />
 
-				{tagline && <p className={css.tagline}>&ldquo;{tagline}&rdquo;</p>}
-
-				<ExpandableOverview text={item.Overview} itemId={item.Id} className={css.overviewSlot} variant="classic" backRef={overviewBackRef} />
+				{!hidesMediaDescription(item, settings) && (
+					<>
+						{tagline && <p className={css.tagline}>&ldquo;{tagline}&rdquo;</p>}
+						<ExpandableOverview text={item.Overview} itemId={item.Id} className={css.overviewSlot} variant="classic" backRef={overviewBackRef} />
+					</>
+				)}
 			</div>
 
 			<div className={`${css.posterSection} ${isEpisode ? css.posterLandscape : ''}`}>
@@ -154,7 +160,7 @@ const ClassicDetailScreen = ({
 
 		<div className={css.sectionsContainer} onKeyDown={handleSectionKeyDown}>
 			{nextUp.length > 0 && (
-				<NextUpCard episode={nextUp[0]} title="Next Up" serverUrl={serverUrl} onSelectItem={onSelectItem} />
+				<NextUpCard episode={nextUp[0]} title="Next Up" serverUrl={serverUrl} settings={settings} onSelectItem={onSelectItem} />
 			)}
 
 			{isSeries && seasons.length > 0 && (
@@ -199,7 +205,7 @@ const ClassicDetailScreen = ({
 			)}
 
 			{isEpisode && nextEpisode && (
-				<NextUpCard episode={nextEpisode} title="Next Episode" serverUrl={serverUrl} onSelectItem={onSelectItem} />
+				<NextUpCard episode={nextEpisode} title="Next Episode" serverUrl={serverUrl} settings={settings} onSelectItem={onSelectItem} />
 			)}
 
 			{isEpisode && episodes.length > 0 && (
@@ -211,9 +217,13 @@ const ClassicDetailScreen = ({
 					</div>
 					<div className={css.sectionScroll} onFocus={handleScrollerFocus}>
 						{episodes.map(ep => {
-							const epThumbUrl = ep.ImageTags?.Primary
-								? getImageUrl(serverUrl, ep.Id, 'Primary', {maxWidth: 400, quality: 80})
+							// The episode carries the series artwork on most records, and the
+							// screen's own item stands in for the ones that don't.
+							const seriesThumb = settings.detailUseSeriesThumbnails
+								? (seriesThumbUrl(serverUrl, ep, EPISODE_THUMB) || seriesThumbUrl(serverUrl, item, EPISODE_THUMB))
 								: null;
+							const epThumbUrl = seriesThumb ||
+								(ep.ImageTags?.Primary ? getImageUrl(serverUrl, ep.Id, 'Primary', EPISODE_THUMB) : null);
 							const isCurrentEp = ep.Id === item.Id;
 							const epRuntime = ep.RunTimeTicks ? formatDuration(ep.RunTimeTicks) : '';
 							const epProgress = ep.UserData?.PlayedPercentage || 0;
@@ -284,9 +294,11 @@ const ClassicDetailScreen = ({
 					</div>
 					<div className={css.sectionScroll} onFocus={handleScrollerFocus}>
 						{item.Chapters.map((chapter, index) => {
-							const chapterImageUrl = chapter.ImageTag
-								? `${serverUrl}/Items/${item.Id}/Images/Chapter/${index}?maxWidth=400&tag=${chapter.ImageTag}`
+							const seriesThumb = settings.detailUseSeriesThumbnails
+								? seriesThumbUrl(serverUrl, item, CHAPTER_THUMB)
 								: null;
+							const chapterImageUrl = seriesThumb ||
+								(chapter.ImageTag ? `${serverUrl}/Items/${item.Id}/Images/Chapter/${index}?maxWidth=400&tag=${chapter.ImageTag}` : null);
 
 							return (
 								<SpottableDiv

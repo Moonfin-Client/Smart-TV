@@ -12,7 +12,7 @@ import {SeerrChips, SeerrFacts, SeerrCollectionBanner} from '../../components/se
 import RatingsRow from '../../components/RatingsRow';
 import DetailsTabBar from '../../components/DetailsTabBar';
 import {getImageUrl, formatDuration} from '../../utils/helpers';
-import {castPhotoUrl} from './detailsMedia';
+import {castPhotoUrl, hidesMediaDescription} from './detailsMedia';
 import ExpandableOverview from './ExpandableOverview';
 import {KEYS} from '../../utils/keys';
 import {DETAIL_ICON_PATHS} from './detailIcons';
@@ -97,6 +97,7 @@ const ModernDetailContent = (props) => {
 	const hasTrailer = item.LocalTrailerCount > 0 || (item.RemoteTrailers?.length > 0) || isSeries;
 	const played = item.UserData?.Played;
 	const isFavorite = item.UserData?.IsFavorite;
+	const hideMediaDescription = hidesMediaDescription(item, settings);
 
 	const scrollToRef = useRef(null);
 	const handleScrollTo = useCallback((fn) => {
@@ -737,8 +738,12 @@ const ModernDetailContent = (props) => {
 					<div className={`${css.hero} ${hasUpNext ? css.hasUpNext : ''}`} onKeyDown={handleHeroKeyDown}>
 						<div className={`${css.heroMain} ${isPerson ? css.heroPerson : ''}`}>
 							{!hasUpNext && renderTitleBlock()}
-							{tagline && <div className={css.tagline}>{tagline}</div>}
-							<ExpandableOverview text={item.Overview} itemId={item.Id} className={css.descriptionSlot} backRef={overviewBackRef} />
+							{!hideMediaDescription && (
+								<>
+									{tagline && <div className={css.tagline}>{tagline}</div>}
+									<ExpandableOverview text={item.Overview} itemId={item.Id} className={css.descriptionSlot} backRef={overviewBackRef} />
+								</>
+							)}
 							{!isBoxSet && !isPerson && renderActionButtons()}
 						</div>
 						{renderUpNext()}

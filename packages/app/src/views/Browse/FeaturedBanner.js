@@ -273,9 +273,11 @@ const FeaturedBanner = memo(({
 						</div>
 						<div className={css.featuredDetails}>
 							<RatingsRow item={currentFeatured} serverUrl={getItemServerUrl(currentFeatured)} compact pluginEnabled={isMdblistEnabled(settings)} />
-							<p className={css.featuredOverview}>
-								{currentFeatured.Overview || $L('No description available.')}
-							</p>
+							{!settings.hideHomeMediaDescription && (
+								<p className={css.featuredOverview}>
+									{currentFeatured.Overview || $L('No description available.')}
+								</p>
+							)}
 						</div>
 					</div>
 

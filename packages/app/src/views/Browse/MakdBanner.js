@@ -266,9 +266,11 @@ const MakdBanner = memo(({
 							pluginEnabled={isMdblistEnabled(settings)}
 						/>
 
-						<p className={css.makdOverview}>
-							{currentFeatured.Overview || $L('No description available.')}
-						</p>
+						{!settings.hideHomeMediaDescription && (
+							<p className={css.makdOverview}>
+								{currentFeatured.Overview || $L('No description available.')}
+							</p>
+						)}
 					</div>
 				</div>
 

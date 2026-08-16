@@ -17,7 +17,7 @@ import {formatPlaybackEndsAt} from '../../utils/playbackTimeLabels';
 
 import {isSeerrOnlyItem} from '../../utils/seerrTarget';
 import {buildSeerrDetailItem} from '../../utils/seerrDetailItem';
-import {COLLECTION_ITEM_TYPES, IDENTIFIABLE_TYPES, getMediaBadges, shuffleArray, splitCastAndCrew} from './detailsMedia';
+import {COLLECTION_ITEM_TYPES, IDENTIFIABLE_TYPES, getMediaBadges, seriesThumbUrl, shuffleArray, splitCastAndCrew} from './detailsMedia';
 import useDetailsItem from './useDetailsItem';
 import useDetailsModals from './useDetailsModals';
 import useDetailsTrailer from './useDetailsTrailer';
@@ -733,7 +733,14 @@ const Details = ({itemId, initialItem, onPlay, onSelectItem, onSelectPerson, onS
 	let posterUrl = item._externalPosterUrl || null;
 	if (!posterUrl) {
 		if (isEpisode) {
-			if (item.ImageTags?.Thumb) {
+			// The classic layout is the only one that offers this, so the modern one
+			// keeps the episode's own still whatever the setting says.
+			const seriesPoster = settings.detailUseSeriesThumbnails && settings.detailScreenStyle === 'v1'
+				? seriesThumbUrl(effectiveServerUrl, item, {maxWidth: 500, quality: 90})
+				: null;
+			if (seriesPoster) {
+				posterUrl = seriesPoster;
+			} else if (item.ImageTags?.Thumb) {
 				posterUrl = getImageUrl(effectiveServerUrl, item.Id, 'Thumb', {maxWidth: 500, quality: 90});
 			} else if (item.ImageTags?.Primary) {
 				posterUrl = getImageUrl(effectiveServerUrl, item.Id, 'Primary', {maxWidth: 500, quality: 90});

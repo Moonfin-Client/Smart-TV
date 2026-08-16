@@ -2,21 +2,25 @@ import {useCallback} from 'react';
 import $L from '@enact/i18n/$L';
 
 import {getImageUrl} from '../../utils/helpers';
+import {hidesMediaDescription, seriesThumbUrl} from './detailsMedia';
 import {SpottableDiv, RowContainer} from './detailsSpottables';
 
 import css from './Details.module.less';
 
+const THUMB = {maxWidth: 400, quality: 80};
+
 // The wide card that offers the episode to watch next, on a series or after an episode.
-const NextUpCard = ({episode, title, serverUrl, onSelectItem}) => {
+const NextUpCard = ({episode, title, serverUrl, settings, onSelectItem}) => {
 	const handleClick = useCallback(() => onSelectItem?.(episode), [onSelectItem, episode]);
 
-	const thumbUrl = episode.ImageTags?.Primary
-		? getImageUrl(serverUrl, episode.Id, 'Primary', {maxWidth: 400, quality: 80})
-		: null;
+	const seriesThumb = settings.detailUseSeriesThumbnails ? seriesThumbUrl(serverUrl, episode, THUMB) : null;
+	const thumbUrl = seriesThumb ||
+		(episode.ImageTags?.Primary ? getImageUrl(serverUrl, episode.Id, 'Primary', THUMB) : null);
 	const label = episode.ParentIndexNumber != null && episode.IndexNumber != null
 		? `S${episode.ParentIndexNumber}:E${episode.IndexNumber}`
 		: null;
 	const progress = episode.UserData?.PlayedPercentage || 0;
+	const hideOverview = hidesMediaDescription(episode, settings);
 
 	return (
 		<RowContainer className={css.section}>
@@ -40,7 +44,7 @@ const NextUpCard = ({episode, title, serverUrl, onSelectItem}) => {
 				</div>
 				<div className={css.nextUpInfo}>
 					<span className={css.nextUpTitle}>{label ? `${label} - ${episode.Name}` : episode.Name}</span>
-					{episode.Overview && <span className={css.nextUpOverview}>{episode.Overview}</span>}
+					{!hideOverview && episode.Overview && <span className={css.nextUpOverview}>{episode.Overview}</span>}
 				</div>
 				<div className={css.nextUpPlayIcon}>
 					<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 14.5v-9l6 4.5-6 4.5z"/></svg>

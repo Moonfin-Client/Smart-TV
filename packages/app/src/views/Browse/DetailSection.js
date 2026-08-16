@@ -157,7 +157,9 @@ const DetailSection = forwardRef(({
 						))}
 					</div>
 					<RatingsRow item={focusedItem} serverUrl={getItemServerUrl(focusedItem)} pluginEnabled={isMdblistEnabled(settings)} />
-					<p className={css.detailSummary}>{focusedItem.Overview}</p>
+					{!settings.hideHomeMediaDescription && focusedItem.Overview && (
+						<p className={css.detailSummary}>{focusedItem.Overview}</p>
+					)}
 				</>
 			) : (
 				<div className={css.detailPlaceholder}>

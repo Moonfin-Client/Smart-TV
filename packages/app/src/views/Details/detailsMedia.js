@@ -18,6 +18,28 @@ export const COLLECTION_ITEM_TYPES = ['Movie', 'Series', 'Season', 'Episode', 'V
 
 export const IDENTIFIABLE_TYPES = ['Movie', 'Series', 'Season', 'Episode', 'BoxSet', 'Person', 'MusicAlbum', 'MusicArtist', 'Book', 'Trailer', 'MusicVideo'];
 
+// Whether the summary is being kept back for someone avoiding spoilers. Only a
+// film or an episode gives the plot away, so a series or a season keeps its
+// description either way.
+export const hidesMediaDescription = (item, settings) =>
+	settings?.hideDetailsMediaDescription === true &&
+	(item?.Type === 'Movie' || item?.Type === 'Episode');
+
+// The parent series artwork, for standing in where an episode still or a chapter
+// frame would give something away. Null when the series offers no artwork, which
+// leaves the caller to fall back to the picture it would have used.
+export const seriesThumbUrl = (serverUrl, source, options) => {
+	const seriesId = source?.ParentThumbItemId || source?.SeriesId;
+	if (!seriesId) return null;
+	if (source.ParentThumbImageTag) {
+		return getImageUrl(serverUrl, seriesId, 'Thumb', {...options, tag: source.ParentThumbImageTag});
+	}
+	if (source.SeriesPrimaryImageTag) {
+		return getImageUrl(serverUrl, seriesId, 'Primary', {...options, tag: source.SeriesPrimaryImageTag});
+	}
+	return getImageUrl(serverUrl, seriesId, 'Thumb', options);
+};
+
 // A role written in block capitals reads as shouting next to the rest, and one
 // person can arrive with several jobs run together in a single field.
 const normalizeRoles = (role) => role

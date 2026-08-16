@@ -239,6 +239,7 @@ export const SETTINGS_SCHEMA = [
 				label: () => $L('Details Screen'),
 				description: () => $L('Style, background blur, and tab behavior'),
 				rows: [
+					{kind: KIND.SECTION, id: 'detailsDisplay', label: () => $L('Display')},
 					{kind: KIND.OPTION, key: 'detailScreenStyle', label: () => $L('Detail Screen Style'), desc: () => $L('Classic is the original centered moonfin layout. Modern is a responsive cinematic layout.'), options: getDetailScreenStyleOptions, fallback: () => $L('Modern'), icon: 'movie'},
 					{
 						kind: KIND.OPTION,
@@ -254,8 +255,11 @@ export const SETTINGS_SCHEMA = [
 					},
 					{kind: KIND.TOGGLE, key: 'detailExpandedTabs', label: () => $L('Expanded Tabs'), desc: () => $L('Automatically show tab content while browsing tabs. Turn off to open and close each tab manually.'), icon: 'tab', when: (ctx) => ctx.settings.detailScreenStyle !== 'v1'},
 					{kind: KIND.OPTION, key: 'personalRatingStyle', label: () => $L('Personal Rating Style'), desc: () => $L('How your own rating is shown and entered on a movie'), options: getPersonalRatingStyleOptions, fallback: () => $L('Like / dislike'), icon: 'rate_review'},
-					{kind: KIND.TOGGLE, key: 'detailShowTechnicalDetails', label: () => $L('Show Technical Details?'), desc: () => $L('Show codec, resolution, and stream information in banner summary'), icon: 'info'},
-					{kind: KIND.NAV, id: 'detailButtons', label: () => $L('Action Buttons'), desc: () => $L('Choose which buttons the details screen shows'), icon: 'buttons_alt', action: (ctx) => ctx.actions.openDetailButtons()}
+					{kind: KIND.NAV, id: 'detailButtons', label: () => $L('Action Buttons'), desc: () => $L('Choose which buttons the details screen shows'), icon: 'buttons_alt', action: (ctx) => ctx.actions.openDetailButtons()},
+					{kind: KIND.SECTION, id: 'mediaDetailsAndSpoilers', label: () => $L('Media Details and Spoilers')},
+					{kind: KIND.TOGGLE, key: 'detailShowTechnicalDetails', label: () => $L('Show Technical Details'), desc: () => $L('Show codec, resolution, and stream information in banner summary'), icon: 'info'},
+					{kind: KIND.TOGGLE, key: 'hideDetailsMediaDescription', label: () => $L('Hide Media Description on Details Page'), desc: () => $L('Hide the movie or episode descriptive text.'), icon: 'hide'},
+					{kind: KIND.TOGGLE, key: 'detailUseSeriesThumbnails', label: () => $L('Use Series Thumbnails on Details Page'), desc: () => $L('Replace all thumbnails on Classic details page with series thumbnail'), icon: 'aspectratio', when: (ctx) => ctx.settings.detailScreenStyle === 'v1'}
 				]
 			},
 			{
@@ -306,14 +310,17 @@ export const SETTINGS_SCHEMA = [
 				rows: [
 					{kind: KIND.SECTION, id: 'homeRowDisplay', label: () => $L('Home Row Display')},
 					{kind: KIND.OPTION, key: 'homeRowsStyle', label: () => $L('Row Type'), desc: () => $L('Classic keeps per-row image type and info overlay. Modern uses portrait-to-backdrop rows.'), options: getHomeRowsStyleOptions, fallback: () => $L('Modern'), icon: 'appscontents'},
-					{kind: KIND.TOGGLE, key: 'mergeContinueWatchingNextUp', label: () => $L('Merge Continue Watching and Next Up'), desc: () => $L('Combine both rows into a single home section'), icon: 'merge_type'},
-					{kind: KIND.OPTION, key: 'nextUpMaxDays', label: () => $L('Max Days in Next Up'), options: getNextUpMaxDaysOptions, fallback: () => $L('365 days'), desc: () => $L('How long a show stays in Next Up after you last watched it'), icon: 'calendarbusy'},
-					{kind: KIND.TOGGLE, key: 'useSeriesThumbnails', label: () => $L('Display Series Thumbnails'), desc: () => $L('For TV series, use the main series artwork instead of the episode thumbnail'), icon: 'aspectratio'},
 					{kind: KIND.TOGGLE, key: 'fullScreenRows', label: () => $L('Expanded Home Rows'), desc: () => $L('Limit home rows to 1 row per screen'), icon: 'aspectratio'},
 					{kind: KIND.TOGGLE, key: 'homeRowOverlay', label: () => $L('Home Row Info Overlay'), desc: () => $L('Show title and metadata for the focused item above classic rows'), icon: 'info', when: (ctx) => ctx.settings.homeRowsStyle === 'v1'},
 					{kind: KIND.OPTION, key: 'homeRowsPosterSize', label: () => $L('Home Row Card Display Size'), options: getPosterSizeOptions, fallback: () => $L('Default'), icon: 'photo_size_select_large'},
 					{kind: KIND.SLIDER, key: 'classicHomeRowsPadding', label: () => $L('Home Row Padding'), desc: () => $L('Vertical space between rows'), min: 10, max: 130, step: 20, format: pixels, icon: 'unfold_more', when: (ctx) => ctx.settings.homeRowsStyle === 'v1' && !ctx.settings.fullScreenRows && !ctx.settings.homeRowOverlay},
 					{kind: KIND.SLIDER, key: 'modernHomeRowsPadding', label: () => $L('Home Row Padding'), desc: () => $L('Vertical space between rows'), min: 360, max: 560, step: 20, format: pixels, icon: 'unfold_more', when: (ctx) => ctx.settings.homeRowsStyle !== 'v1' && !ctx.settings.fullScreenRows},
+					{kind: KIND.SECTION, id: 'continueWatchingAndNextUp', label: () => $L('Continue Watching and Next Up')},
+					{kind: KIND.TOGGLE, key: 'mergeContinueWatchingNextUp', label: () => $L('Merge Continue Watching and Next Up'), desc: () => $L('Combine both rows into a single home section'), icon: 'merge_type'},
+					{kind: KIND.OPTION, key: 'nextUpMaxDays', label: () => $L('Max Days in Next Up'), options: getNextUpMaxDaysOptions, fallback: () => $L('365 days'), desc: () => $L('How long a show stays in Next Up after you last watched it'), icon: 'calendarbusy'},
+					{kind: KIND.TOGGLE, key: 'useSeriesThumbnails', label: () => $L('Display Series Thumbnails'), desc: () => $L('For TV series, use the main series artwork instead of the episode thumbnail'), icon: 'aspectratio'},
+					{kind: KIND.SECTION, id: 'homeMediaDetailsAndSpoilers', label: () => $L('Media Details and Spoilers')},
+					{kind: KIND.TOGGLE, key: 'hideHomeMediaDescription', label: () => $L('Hide Media Description on Home Screen'), desc: () => $L('Hide the movie or episode descriptive text.'), icon: 'hide'},
 					{kind: KIND.SECTION, id: 'homeRowSections', label: () => $L('Home Row Sections')},
 					{kind: KIND.NAV, id: 'homeRows', label: () => $L('Home Sections'), desc: () => $L('Reorder and toggle both library and external-based home rows'), icon: 'list', action: (ctx) => ctx.actions.openHomeRows()},
 					{kind: KIND.NAV, id: 'homeRowToggles', label: () => $L('Home Row Toggles'), desc: () => $L('Enable or disable library-based home row categories'), icon: 'tune', action: (ctx) => ctx.actions.openScreen('personalization', 'homeRowToggles', 'setting-homeRowToggles')},
