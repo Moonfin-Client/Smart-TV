@@ -2,9 +2,32 @@
 // English source string, so handing the string straight back is faithful enough here.
 jest.mock('@enact/i18n/$L', () => ({__esModule: true, default: (str) => str}));
 
-import {splitCastAndCrew} from './detailsMedia';
+import {splitCastAndCrew, hidesMediaDescription} from './detailsMedia';
 
 const person = (Id, Name, Type, Role) => ({Id, Name, Type, Role});
+
+describe('hidesMediaDescription', () => {
+	test('returns true for Movie or Episode when hideDetailsMediaDescription is enabled', () => {
+		const settings = {hideDetailsMediaDescription: true};
+		expect(hidesMediaDescription({Type: 'Movie'}, settings)).toBe(true);
+		expect(hidesMediaDescription({Type: 'Episode'}, settings)).toBe(true);
+		expect(hidesMediaDescription({IndexNumber: 1}, settings)).toBe(true);
+	});
+
+	test('returns false for Series, Season, BoxSet, and Person', () => {
+		const settings = {hideDetailsMediaDescription: true};
+		expect(hidesMediaDescription({Type: 'Series'}, settings)).toBe(false);
+		expect(hidesMediaDescription({Type: 'Season'}, settings)).toBe(false);
+		expect(hidesMediaDescription({Type: 'BoxSet'}, settings)).toBe(false);
+		expect(hidesMediaDescription({Type: 'Person'}, settings)).toBe(false);
+	});
+
+	test('returns false when hideDetailsMediaDescription is disabled', () => {
+		const settings = {hideDetailsMediaDescription: false};
+		expect(hidesMediaDescription({Type: 'Movie'}, settings)).toBe(false);
+		expect(hidesMediaDescription({Type: 'Episode'}, settings)).toBe(false);
+	});
+});
 
 describe('splitCastAndCrew', () => {
 	test('actors and guest stars land in the cast', () => {

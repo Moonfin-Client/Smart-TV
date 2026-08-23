@@ -23,7 +23,10 @@ export const IDENTIFIABLE_TYPES = ['Movie', 'Series', 'Season', 'Episode', 'BoxS
 // description either way.
 export const hidesMediaDescription = (item, settings) =>
 	settings?.hideDetailsMediaDescription === true &&
-	(item?.Type === 'Movie' || item?.Type === 'Episode');
+	item?.Type !== 'Series' &&
+	item?.Type !== 'Season' &&
+	item?.Type !== 'BoxSet' &&
+	item?.Type !== 'Person';
 
 // The parent series artwork, for standing in where an episode still or a chapter
 // frame would give something away. Null when the series offers no artwork, which
