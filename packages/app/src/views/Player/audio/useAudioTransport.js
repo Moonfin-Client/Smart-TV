@@ -51,11 +51,15 @@ const useAudioTransport = ({
 	}, [audioPlaylist, onPlayNext, isAudioMode, playlistHasNext, audioPlaylistIndex, queue, playQueueTrack, restartCurrent]);
 
 	const handlePrevTrack = useCallback(async () => {
-		if (!audioPlaylist || !onPlayNext) return;
 		if (!isAudioMode) {
-			if (playlistHasPrev) await playQueueTrack(audioPlaylist[audioPlaylistIndex - 1]);
+			if (!audioPlaylist || !onPlayNext || !playlistHasPrev || getPositionSeconds() > 3) {
+				seekTo(0);
+			} else {
+				await playQueueTrack(audioPlaylist[audioPlaylistIndex - 1]);
+			}
 			return;
 		}
+		if (!audioPlaylist || !onPlayNext) return;
 		const step = queue.getPrev(getPositionSeconds());
 		if (!step) return;
 		if (step.type === 'restart') seekTo(0);

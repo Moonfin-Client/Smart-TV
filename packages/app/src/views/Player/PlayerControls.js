@@ -44,12 +44,8 @@ export const usePlayerButtons = ({
 		}
 		const buttons = [];
 		if (!isLiveTV) {
-			if (hasPrevTrack) {
-				buttons.push(
-					{id: 'previous', icon: <IconPrevious />, label: $L('Previous'), action: 'prevTrack'}
-				);
-			}
 			buttons.push(
+				{id: 'previous', icon: <IconPrevious />, label: $L('Previous'), action: 'prevTrack'},
 				{id: 'rewind', icon: <IconRewind />, label: $L('Seek Back'), action: 'rewind'},
 				{id: 'playPause', icon: isPaused ? <IconPlay /> : <IconPause />, label: isPaused ? $L('Play') : $L('Pause'), action: 'playPause'},
 				{id: 'forward', icon: <IconForward />, label: $L('Seek Forward'), action: 'forward'}
