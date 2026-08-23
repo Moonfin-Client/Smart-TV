@@ -371,7 +371,7 @@ const ModernDetailContent = (props) => {
 						<div className={css.episodeBody}>
 							<span className={css.episodeName}>{label}</span>
 							{epRuntime && <span className={css.episodeMeta}>{epRuntime}</span>}
-							{ep.Overview && <p className={css.episodeOverview}>{ep.Overview}</p>}
+							{!hidesMediaDescription(ep, settings) && ep.Overview && <p className={css.episodeOverview}>{ep.Overview}</p>}
 						</div>
 					</SpottableDiv>
 				);
@@ -711,7 +711,7 @@ const ModernDetailContent = (props) => {
 					<div className={css.upNextLabel}>{`${$L('Next Up')} - ${code}${ep.Name}`}</div>
 					<div className={css.upNextBody}>
 						<div className={css.upNextText}>
-							{ep.Overview && <span className={css.upNextOverview}>{ep.Overview}</span>}
+							{!hidesMediaDescription(ep, settings) && ep.Overview && <span className={css.upNextOverview}>{ep.Overview}</span>}
 							<div className={css.upNextFoot}>
 								{progress > 0 && <div className={css.upNextProgress}><div style={{width: `${Math.min(progress, 100)}%`}} /></div>}
 								{remaining && <span className={css.upNextRemaining}>{$L('{time} remaining').replace('{time}', remaining)}</span>}

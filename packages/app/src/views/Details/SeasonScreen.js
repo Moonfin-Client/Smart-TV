@@ -2,6 +2,7 @@ import $L from '@enact/i18n/$L';
 
 import RatingsRow from '../../components/RatingsRow';
 import {formatDuration, getImageUrl} from '../../utils/helpers';
+import {hidesMediaDescription} from './detailsMedia';
 import {isMdblistEnabled} from '../../services/mdblistApi';
 import {DETAIL_ICON_PATHS} from './detailIcons';
 import {SpottableDiv, HorizontalContainer} from './detailsSpottables';
@@ -135,7 +136,7 @@ const SeasonScreen = ({
 								</span>
 							</div>
 							<span className={css.seasonEpTitle}>{ep.Name}</span>
-							{ep.Overview && <p className={css.seasonEpOverview}>{ep.Overview}</p>}
+							{!hidesMediaDescription(ep, settings) && ep.Overview && <p className={css.seasonEpOverview}>{ep.Overview}</p>}
 						</div>
 					</SpottableDiv>
 				);
