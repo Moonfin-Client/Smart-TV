@@ -51,12 +51,9 @@ const useAudioTransport = ({
 	}, [audioPlaylist, onPlayNext, isAudioMode, playlistHasNext, audioPlaylistIndex, queue, playQueueTrack, restartCurrent]);
 
 	const handlePrevTrack = useCallback(async () => {
+		// Nothing is queued behind a video, so previous restarts it rather than stepping back.
 		if (!isAudioMode) {
-			if (!audioPlaylist || !onPlayNext || !playlistHasPrev || getPositionSeconds() > 3) {
-				seekTo(0);
-			} else {
-				await playQueueTrack(audioPlaylist[audioPlaylistIndex - 1]);
-			}
+			seekTo(0);
 			return;
 		}
 		if (!audioPlaylist || !onPlayNext) return;
@@ -64,7 +61,7 @@ const useAudioTransport = ({
 		if (!step) return;
 		if (step.type === 'restart') seekTo(0);
 		else await playQueueTrack(step.track);
-	}, [audioPlaylist, onPlayNext, isAudioMode, playlistHasPrev, audioPlaylistIndex, queue, playQueueTrack, getPositionSeconds, seekTo]);
+	}, [audioPlaylist, onPlayNext, isAudioMode, queue, playQueueTrack, getPositionSeconds, seekTo]);
 
 	const handleSelectQueueTrack = useCallback((track) => {
 		if (track?.Id === item?.Id) return;
