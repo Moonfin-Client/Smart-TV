@@ -4,6 +4,7 @@ import $L from '@enact/i18n/$L';
 import {TRANSCODE_QUALITIES} from './detailsMedia';
 import {ModalContainer} from '../../utils/spotlightContainers';
 import {numberedTrackName, trackName, subtitleTrackDetail, audioTrackDetail} from '../../utils/trackLabels';
+import {formatVersionLabel} from '../../utils/mediaDedup';
 import {SpottableButton, SpottableDiv} from './detailsSpottables';
 
 import css from './Details.module.less';
@@ -19,8 +20,12 @@ const DetailTrackModals = ({
 	selectedVersionIndex,
 	selectedAudioIndex,
 	selectedSubtitleIndex,
+	hasMultipleLibraries,
+	serverSources,
+	selectedServerIndex,
 	onSelectTranscodeQuality,
 	onSelectVersion,
+	onSelectServer,
 	onSelectAudio,
 	onSelectSubtitle,
 	onOpenRemoteSubtitleSearch,
@@ -64,6 +69,13 @@ const DetailTrackModals = ({
 								const bitrate = source.Bitrate ? `${(source.Bitrate / 1000000).toFixed(1)} Mbps` : '';
 								const container = source.Container?.toUpperCase();
 								const detail = [resLabel, container, bitrate].filter(Boolean).join(' · ');
+								const rawName = source.Name || `${$L('Version')} ${i + 1}`;
+								const libName = source.LibraryName || item?.LibraryName || item?.CollectionName;
+								const displayName = formatVersionLabel({
+									versionName: rawName,
+									libraryName: libName,
+									hasMultipleLibraries
+								});
 								return (
 									<SpottableButton
 										key={source.Id}
@@ -72,11 +84,33 @@ const DetailTrackModals = ({
 										data-selected={i === selectedVersionIndex ? 'true' : undefined}
 										onClick={onSelectVersion}
 									>
-										<span className={css.trackName}>{source.Name || `${$L('Version')} ${i + 1}`}</span>
+										<span className={css.trackName}>{displayName}</span>
 										{detail && <span className={css.trackInfo}>{detail}</span>}
 									</SpottableButton>
 								);
 							})}
+						</div>
+						<p className={css.trackModalFooter}>{$L('Press BACK to close')}</p>
+					</ModalContainer>
+				</div>
+			)}
+			{activeModal === 'server' && (
+				<div className={css.trackModal} onClick={onCloseModal}>
+					<ModalContainer className={css.trackModalPanel} onClick={stopPropagation} data-modal="server" spotlightId="server-modal">
+						<h2 className={css.trackModalTitle}>{$L('Select Server')}</h2>
+						<div className={css.trackList}>
+							{(serverSources || []).map((srv, i) => (
+								<SpottableButton
+									key={srv.id || srv.url || i}
+									className={`${css.trackItem} ${i === selectedServerIndex ? css.selected : ''}`}
+									data-index={i}
+									data-selected={i === selectedServerIndex ? 'true' : undefined}
+									onClick={onSelectServer}
+								>
+									<span className={css.trackName}>{srv.name || srv.serverName || `${$L('Server')} ${i + 1}`}</span>
+									{srv.url && <span className={css.trackInfo}>{srv.url}</span>}
+								</SpottableButton>
+							))}
 						</div>
 						<p className={css.trackModalFooter}>{$L('Press BACK to close')}</p>
 					</ModalContainer>

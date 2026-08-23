@@ -718,6 +718,27 @@ const Details = ({itemId: itemIdProp, initialItem, onPlay, onSelectItem, onSelec
 		pageScrollToRef.current = fn;
 	}, []);
 
+	const hasMultipleLibraries = useMemo(() => {
+		if (!item?.MediaSources?.length) return false;
+		const libNames = new Set(item.MediaSources.map(s => s.LibraryName || item.LibraryName).filter(Boolean));
+		return libNames.size > 1;
+	}, [item]);
+
+	const serverSources = useMemo(() => {
+		if (item?._servers && Array.isArray(item._servers)) return item._servers;
+		if (item?._serverId) return [{id: item._serverId, name: item._serverName || 'Server'}];
+		return [];
+	}, [item]);
+	const hasMultipleServers = serverSources.length > 1;
+	const [selectedServerIndex, setSelectedServerIndex] = useState(0);
+	const handleSelectServer = useCallback((e) => {
+		const index = parseInt(e.currentTarget.dataset.index, 10);
+		if (!isNaN(index) && serverSources[index]) {
+			setSelectedServerIndex(index);
+			closeModal();
+		}
+	}, [serverSources, closeModal]);
+
 	if (isLoading || !item) {
 		return (
 			<div className={css.page}>
@@ -796,6 +817,7 @@ const Details = ({itemId: itemIdProp, initialItem, onPlay, onSelectItem, onSelec
 		item.MediaSources[0].Type !== 'Placeholder';
 	const hasMultipleVersions = supportsMediaSourceSelection && (item.MediaSources?.length || 0) > 1;
 	const hasMultipleAudio = supportsMediaSourceSelection && audioStreams.length > 1;
+
 	const currentAudioStream = audioStreams[selectedAudioIndex];
 	const currentSubtitleStream = selectedSubtitleIndex >= 0 ? subtitleStreams[selectedSubtitleIndex] : null;
 
@@ -836,8 +858,12 @@ const Details = ({itemId: itemIdProp, initialItem, onPlay, onSelectItem, onSelec
 				selectedVersionIndex={selectedVersionIndex}
 				selectedAudioIndex={selectedAudioIndex}
 				selectedSubtitleIndex={selectedSubtitleIndex}
+				hasMultipleLibraries={hasMultipleLibraries}
+				serverSources={serverSources}
+				selectedServerIndex={selectedServerIndex}
 				onSelectTranscodeQuality={handleSelectTranscodeQuality}
 				onSelectVersion={handleSelectVersion}
+				onSelectServer={handleSelectServer}
 				onSelectAudio={handleSelectAudio}
 				onSelectSubtitle={handleSelectSubtitle}
 				onOpenRemoteSubtitleSearch={handleOpenRemoteSubtitleSearch}
@@ -932,6 +958,8 @@ const Details = ({itemId: itemIdProp, initialItem, onPlay, onSelectItem, onSelec
 					supportsMediaSourceSelection={supportsMediaSourceSelection}
 					hasMultipleVersions={hasMultipleVersions}
 					hasMultipleAudio={hasMultipleAudio}
+					hasMultipleLibraries={hasMultipleLibraries}
+					hasMultipleServers={hasMultipleServers}
 					handlePlay={handlePlay}
 					handleResume={handleResume}
 					handleShuffle={handleShuffle}
@@ -943,6 +971,7 @@ const Details = ({itemId: itemIdProp, initialItem, onPlay, onSelectItem, onSelec
 					handleOpenRatingDialog={modals.handleOpenRatingDialog}
 					handleGoToSeries={handleGoToSeries}
 					handleOpenVersionModal={modals.handleOpenVersionModal}
+					handleOpenServerModal={modals.handleOpenServerModal}
 					handleOpenAudioModal={modals.handleOpenAudioModal}
 					handleOpenSubtitleModal={modals.handleOpenSubtitleModal}
 					handleOpenPlaylistModal={modals.handleOpenPlaylistModal}
@@ -1099,6 +1128,9 @@ const Details = ({itemId: itemIdProp, initialItem, onPlay, onSelectItem, onSelec
 			supportsMediaSourceSelection={supportsMediaSourceSelection}
 			hasMultipleVersions={hasMultipleVersions}
 			hasMultipleAudio={hasMultipleAudio}
+			hasMultipleLibraries={hasMultipleLibraries}
+			hasMultipleServers={hasMultipleServers}
+			currentServerName={serverSources[selectedServerIndex]?.name || item._serverName}
 			selectedVersionIndex={selectedVersionIndex}
 			selectedAudioIndex={selectedAudioIndex}
 			selectedSubtitleIndex={selectedSubtitleIndex}
@@ -1111,6 +1143,7 @@ const Details = ({itemId: itemIdProp, initialItem, onPlay, onSelectItem, onSelec
 			onFocusRow={handleButtonRowFocus}
 			onShuffle={handleShuffle}
 			onOpenVersionModal={modals.handleOpenVersionModal}
+			onOpenServerModal={modals.handleOpenServerModal}
 			onOpenAudioModal={modals.handleOpenAudioModal}
 			onOpenSubtitleModal={modals.handleOpenSubtitleModal}
 			onTrailer={trailer.handleTrailer}

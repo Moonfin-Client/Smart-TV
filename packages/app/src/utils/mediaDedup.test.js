@@ -1,4 +1,4 @@
-import {getDeduplicationKey, deduplicateMediaItems} from './mediaDedup';
+import {getDeduplicationKey, deduplicateMediaItems, formatVersionLabel} from './mediaDedup';
 
 describe('getDeduplicationKey', () => {
 	test('prefers imdb over tmdb and tvdb', () => {
@@ -81,3 +81,23 @@ describe('deduplicateMediaItems', () => {
 		expect(deduplicateMediaItems(one)).toBe(one);
 	});
 });
+
+describe('formatVersionLabel', () => {
+	test('prefixes library name when user has multiple libraries for type', () => {
+		expect(formatVersionLabel({versionName: '1080p', libraryName: '4K Movies', hasMultipleLibraries: true}))
+			.toBe('[4K Movies] - 1080p');
+	});
+
+	test('returns raw version name when user has only one library for type', () => {
+		expect(formatVersionLabel({versionName: '1080p', libraryName: 'Movies', hasMultipleLibraries: false}))
+			.toBe('1080p');
+	});
+
+	test('returns raw version name if library name is missing or empty', () => {
+		expect(formatVersionLabel({versionName: '1080p', libraryName: '', hasMultipleLibraries: true}))
+			.toBe('1080p');
+		expect(formatVersionLabel({versionName: '1080p', libraryName: null, hasMultipleLibraries: true}))
+			.toBe('1080p');
+	});
+});
+

@@ -54,3 +54,14 @@ export const deduplicateMediaItems = (items) => {
 	byKey.forEach((item) => deduplicated.push(item));
 	return deduplicated;
 };
+
+// Formats a version option label as '[Library Name] - [Version Name]' conditionally
+// when the user has multiple libraries for that content type.
+export const formatVersionLabel = ({versionName, libraryName, hasMultipleLibraries}) => {
+	const rawName = versionName || '';
+	if (hasMultipleLibraries && libraryName && String(libraryName).trim()) {
+		return `[${String(libraryName).trim()}] - ${rawName}`;
+	}
+	return rawName;
+};
+

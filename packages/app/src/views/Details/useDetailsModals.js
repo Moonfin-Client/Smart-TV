@@ -49,6 +49,7 @@ const useDetailsModals = ({backHandlerRef, onArtworkClosed, seerrBackRef, overvi
 	const handleOpenAudioModal = useCallback(() => openModal('audio'), [openModal]);
 	const handleOpenSubtitleModal = useCallback(() => openModal('subtitle'), [openModal]);
 	const handleOpenVersionModal = useCallback(() => openModal('version'), [openModal]);
+	const handleOpenServerModal = useCallback(() => openModal('server'), [openModal]);
 
 	// Holding Play offers the same forced transcodes the mobile clients do, for a file
 	// the set can open but not decode smoothly. A series or an album keeps the plain
@@ -168,6 +169,7 @@ const useDetailsModals = ({backHandlerRef, onArtworkClosed, seerrBackRef, overvi
 		handleOpenAudioModal,
 		handleOpenSubtitleModal,
 		handleOpenVersionModal,
+		handleOpenServerModal,
 		handleAdvancedPlay,
 		handleAdvancedResume
 	};

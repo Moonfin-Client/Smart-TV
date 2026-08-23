@@ -3,6 +3,7 @@
 
 import $L from '@enact/i18n/$L';
 import {genericCollectionLabel, mergeRecentRows} from '../../utils/mergeRecentRows';
+import {deduplicateMediaItems} from '../../utils/mediaDedup';
 
 import {HOME_ROW_ITEM_FIELDS} from '../../services/jellyfinApi';
 import {loadSinceYouWatchedRows, loadRewatchItems} from '../../services/homeRecommendations';
@@ -202,7 +203,7 @@ const loadCollections = async (ctx) => {
 			appendRows([{
 				id: 'collections',
 				title: $L('Collections'),
-				items: collectionsResult.Items,
+				items: deduplicateMediaItems(collectionsResult.Items),
 				type: 'portrait'
 			}]);
 		}
@@ -256,7 +257,7 @@ const loadFavorites = async (ctx) => {
 			rows.push({
 				id: favoriteResult.rowConfig.id,
 				title: $L(favoriteResult.rowConfig.title),
-				items,
+				items: deduplicateMediaItems(items),
 				type: favoriteResult.rowConfig.type
 			});
 		});
