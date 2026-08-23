@@ -136,7 +136,7 @@ const SeasonScreen = ({
 								</span>
 							</div>
 							<span className={css.seasonEpTitle}>{ep.Name}</span>
-							{!hidesMediaDescription(ep, settings) && ep.Overview && <p className={css.seasonEpOverview}>{ep.Overview}</p>}
+							{ep.Overview && !hidesMediaDescription(ep, settings) && <p className={css.seasonEpOverview}>{ep.Overview}</p>}
 						</div>
 					</SpottableDiv>
 				);

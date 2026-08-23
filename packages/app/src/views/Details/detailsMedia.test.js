@@ -7,25 +7,36 @@ import {splitCastAndCrew, hidesMediaDescription} from './detailsMedia';
 const person = (Id, Name, Type, Role) => ({Id, Name, Type, Role});
 
 describe('hidesMediaDescription', () => {
-	test('returns true for Movie or Episode when hideDetailsMediaDescription is enabled', () => {
-		const settings = {hideDetailsMediaDescription: true};
-		expect(hidesMediaDescription({Type: 'Movie'}, settings)).toBe(true);
-		expect(hidesMediaDescription({Type: 'Episode'}, settings)).toBe(true);
-		expect(hidesMediaDescription({IndexNumber: 1}, settings)).toBe(true);
+	const on = {hideDetailsMediaDescription: true};
+
+	test('a film and an episode give the story away, so they are held back', () => {
+		expect(hidesMediaDescription({Type: 'Movie'}, on)).toBe(true);
+		expect(hidesMediaDescription({Type: 'Episode'}, on)).toBe(true);
 	});
 
-	test('returns false for Series, Season, BoxSet, and Person', () => {
-		const settings = {hideDetailsMediaDescription: true};
-		expect(hidesMediaDescription({Type: 'Series'}, settings)).toBe(false);
-		expect(hidesMediaDescription({Type: 'Season'}, settings)).toBe(false);
-		expect(hidesMediaDescription({Type: 'BoxSet'}, settings)).toBe(false);
-		expect(hidesMediaDescription({Type: 'Person'}, settings)).toBe(false);
+	test('a series or a season keeps its description', () => {
+		expect(hidesMediaDescription({Type: 'Series'}, on)).toBe(false);
+		expect(hidesMediaDescription({Type: 'Season'}, on)).toBe(false);
+		expect(hidesMediaDescription({Type: 'BoxSet'}, on)).toBe(false);
+		expect(hidesMediaDescription({Type: 'Person'}, on)).toBe(false);
 	});
 
-	test('returns false when hideDetailsMediaDescription is disabled', () => {
-		const settings = {hideDetailsMediaDescription: false};
-		expect(hidesMediaDescription({Type: 'Movie'}, settings)).toBe(false);
-		expect(hidesMediaDescription({Type: 'Episode'}, settings)).toBe(false);
+	test('music and books keep their description', () => {
+		expect(hidesMediaDescription({Type: 'MusicAlbum'}, on)).toBe(false);
+		expect(hidesMediaDescription({Type: 'MusicArtist'}, on)).toBe(false);
+		expect(hidesMediaDescription({Type: 'Playlist'}, on)).toBe(false);
+		expect(hidesMediaDescription({Type: 'Book'}, on)).toBe(false);
+	});
+
+	test('an unknown or missing type keeps its description', () => {
+		expect(hidesMediaDescription({Type: ''}, on)).toBe(false);
+		expect(hidesMediaDescription({IndexNumber: 1}, on)).toBe(false);
+	});
+
+	test('nothing is held back while the setting is off', () => {
+		const off = {hideDetailsMediaDescription: false};
+		expect(hidesMediaDescription({Type: 'Movie'}, off)).toBe(false);
+		expect(hidesMediaDescription({Type: 'Episode'}, off)).toBe(false);
 	});
 });
 
