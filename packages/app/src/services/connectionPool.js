@@ -433,13 +433,18 @@ export const getItemCopiesFromAllServers = async (item) => {
 	const resultsPerServer = await Promise.all(servers.map(async (server) => {
 		try {
 			const api = createApiForServer(server.url, server.accessToken, server.userId, server.serverType || 'jellyfin');
-			const result = await api.getItems({
+			const queryParams = {
 				SearchTerm: searchTerm,
 				IncludeItemTypes: item.Type,
 				Recursive: true,
-				Limit: 20,
-				Fields: 'ProviderIds,MediaSources,MediaStreams'
-			});
+				Limit: 100,
+				Fields: 'ParentIndexNumber,IndexNumber,SeriesName,ProductionYear,ProviderIds,MediaSources,MediaStreams'
+			};
+			if (item.Type === 'Episode' && item.IndexNumber != null) {
+				queryParams.ParentIndexNumber = item.ParentIndexNumber != null ? item.ParentIndexNumber : 1;
+				queryParams.IndexNumber = item.IndexNumber;
+			}
+			const result = await api.getItems(queryParams);
 			const matches = (result?.Items || []).filter((candidate) => getDeduplicationKey(candidate) === wanted);
 			if (matches.length === 0) return [];
 
