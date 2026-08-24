@@ -20,6 +20,8 @@ import {isSeerrOnlyItem, libraryIdOf} from '../../utils/seerrTarget';
 import {buildSeerrDetailItem} from '../../utils/seerrDetailItem';
 import {COLLECTION_ITEM_TYPES, IDENTIFIABLE_TYPES, getMediaBadges, seriesThumbUrl, shuffleArray, splitCastAndCrew} from './detailsMedia';
 import useDetailsItem from './useDetailsItem';
+import useDetailsServers from './useDetailsServers';
+import useVersionLibraries from './useVersionLibraries';
 import useDetailsModals from './useDetailsModals';
 import useDetailsTrailer from './useDetailsTrailer';
 import useSeerrOverlay from './useSeerrOverlay';
@@ -47,30 +49,35 @@ const Details = ({itemId: itemIdProp, initialItem, onPlay, onSelectItem, onSelec
 	const {settings} = useSettings();
 	const {isInGroup: isSyncPlayInGroup} = useSyncPlay();
 
+	// Which server's copy is on screen. Everything below reads this rather than
+	// the item the screen was opened with, so the Server button can move it.
+	const [serverCopy, setServerCopy] = useState(null);
+	const activeSource = serverCopy || initialItem;
+
 	const effectiveApi = useMemo(() => {
-		if (initialItem?._serverUrl && initialItem._serverAccessToken) {
-			return jellyfinApi.createApiForServer(initialItem._serverUrl, initialItem._serverAccessToken, initialItem._serverUserId);
+		if (activeSource?._serverUrl && activeSource._serverAccessToken) {
+			return jellyfinApi.createApiForServer(activeSource._serverUrl, activeSource._serverAccessToken, activeSource._serverUserId);
 		}
 		return api;
-	}, [initialItem, api]);
+	}, [activeSource, api]);
 
 	const effectiveServerUrl = useMemo(() => {
-		return initialItem?._serverUrl || serverUrl;
-	}, [initialItem?._serverUrl, serverUrl]);
+		return activeSource?._serverUrl || serverUrl;
+	}, [activeSource?._serverUrl, serverUrl]);
 
 	const tagWithServerInfo = useCallback((items) => {
-		if (!initialItem?._serverUrl) return items;
+		if (!activeSource?._serverUrl) return items;
 		const tagSingleItem = (singleItem) => ({
 			...singleItem,
-			_serverUrl: initialItem._serverUrl,
-			_serverType: initialItem._serverType,
-			_serverAccessToken: initialItem._serverAccessToken,
-			_serverUserId: initialItem._serverUserId,
-			_serverName: initialItem._serverName,
-			_serverId: initialItem._serverId
+			_serverUrl: activeSource._serverUrl,
+			_serverType: activeSource._serverType,
+			_serverAccessToken: activeSource._serverAccessToken,
+			_serverUserId: activeSource._serverUserId,
+			_serverName: activeSource._serverName,
+			_serverId: activeSource._serverId
 		});
 		return Array.isArray(items) ? items.map(tagSingleItem) : tagSingleItem(items);
-	}, [initialItem?._serverUrl, initialItem?._serverType, initialItem?._serverAccessToken, initialItem?._serverUserId, initialItem?._serverName, initialItem?._serverId]);
+	}, [activeSource?._serverUrl, activeSource?._serverType, activeSource?._serverAccessToken, activeSource?._serverUserId, activeSource?._serverName, activeSource?._serverId]);
 
 	const [remoteSubtitleResults, setRemoteSubtitleResults] = useState([]);
 	const [isSearchingRemoteSubtitles, setIsSearchingRemoteSubtitles] = useState(false);
@@ -89,19 +96,23 @@ const Details = ({itemId: itemIdProp, initialItem, onPlay, onSelectItem, onSelec
 	// library. The screen swaps itself for the real item, which has playback and everything
 	// else a synthetic one has none of.
 	const [seerrLibraryId, setSeerrLibraryId] = useState(null);
-	useEffect(() => setSeerrLibraryId(null), [itemIdProp]);
-	const itemId = seerrLibraryId || itemIdProp;
+	// A different title arrives with its own server and its own Seerr answer.
+	useEffect(() => {
+		setSeerrLibraryId(null);
+		setServerCopy(null);
+	}, [itemIdProp]);
+	const itemId = serverCopy?.Id || seerrLibraryId || itemIdProp;
 
 	// A new item brings its own artwork, so a logo that failed for the last one must not
 	// keep its title hidden behind the fallback.
 	useEffect(() => setLogoFailed(false), [itemId]);
 
 	// Seerr supplies the whole screen for a title the library doesn't have.
-	const seerrOnly = isSeerrOnlyItem(initialItem) && !seerrLibraryId;
+	const seerrOnly = isSeerrOnlyItem(activeSource) && !seerrLibraryId;
 
 	const data = useDetailsItem({
 		itemId,
-		initialItem,
+		initialItem: activeSource,
 		effectiveApi,
 		effectiveServerUrl,
 		settings,
@@ -117,7 +128,7 @@ const Details = ({itemId: itemIdProp, initialItem, onPlay, onSelectItem, onSelec
 		selectedSubtitleIndex, setSelectedSubtitleIndex
 	} = data;
 
-	const seerr = useSeerrOverlay({item: seerrOnly ? initialItem : data.item, seerrOnly});
+	const seerr = useSeerrOverlay({item: seerrOnly ? activeSource : data.item, seerrOnly});
 
 	// A tap that came in as a bare TMDB or IMDb id can turn out to be a title the
 	// library holds, which only Seerr's answer reveals.
@@ -718,26 +729,22 @@ const Details = ({itemId: itemIdProp, initialItem, onPlay, onSelectItem, onSelec
 		pageScrollToRef.current = fn;
 	}, []);
 
-	const hasMultipleLibraries = useMemo(() => {
-		if (!item?.MediaSources?.length) return false;
-		const libNames = new Set(item.MediaSources.map(s => s.LibraryName || item.LibraryName).filter(Boolean));
-		return libNames.size > 1;
-	}, [item]);
+	const versionLibraries = useVersionLibraries(item, effectiveApi);
 
-	const serverSources = useMemo(() => {
-		if (item?._servers && Array.isArray(item._servers)) return item._servers;
-		if (item?._serverId) return [{id: item._serverId, name: item._serverName || 'Server'}];
-		return [];
-	}, [item]);
+	const serverSources = useDetailsServers(item, !seerrOnly);
 	const hasMultipleServers = serverSources.length > 1;
-	const [selectedServerIndex, setSelectedServerIndex] = useState(0);
+	// A row on the server already signed in to hands over no server of its own,
+	// so the address stands in for it.
+	const currentServerIndex = serverSources.findIndex((source) => (activeSource?._serverId
+		? source.id === activeSource._serverId
+		: source.url === effectiveServerUrl));
+	const selectedServerIndex = Math.max(0, currentServerIndex);
 	const handleSelectServer = useCallback((e) => {
 		const index = parseInt(e.currentTarget.dataset.index, 10);
-		if (!isNaN(index) && serverSources[index]) {
-			setSelectedServerIndex(index);
-			closeModal();
-		}
-	}, [serverSources, closeModal]);
+		const chosen = serverSources[index];
+		closeModal();
+		if (chosen && index !== currentServerIndex) setServerCopy(chosen.item);
+	}, [serverSources, closeModal, currentServerIndex]);
 
 	if (isLoading || !item) {
 		return (
@@ -817,7 +824,6 @@ const Details = ({itemId: itemIdProp, initialItem, onPlay, onSelectItem, onSelec
 		item.MediaSources[0].Type !== 'Placeholder';
 	const hasMultipleVersions = supportsMediaSourceSelection && (item.MediaSources?.length || 0) > 1;
 	const hasMultipleAudio = supportsMediaSourceSelection && audioStreams.length > 1;
-
 	const currentAudioStream = audioStreams[selectedAudioIndex];
 	const currentSubtitleStream = selectedSubtitleIndex >= 0 ? subtitleStreams[selectedSubtitleIndex] : null;
 
@@ -858,7 +864,7 @@ const Details = ({itemId: itemIdProp, initialItem, onPlay, onSelectItem, onSelec
 				selectedVersionIndex={selectedVersionIndex}
 				selectedAudioIndex={selectedAudioIndex}
 				selectedSubtitleIndex={selectedSubtitleIndex}
-				hasMultipleLibraries={hasMultipleLibraries}
+				versionLibraries={versionLibraries}
 				serverSources={serverSources}
 				selectedServerIndex={selectedServerIndex}
 				onSelectTranscodeQuality={handleSelectTranscodeQuality}
@@ -910,7 +916,7 @@ const Details = ({itemId: itemIdProp, initialItem, onPlay, onSelectItem, onSelec
 					canChangeArtwork={canChangeArtwork}
 					handleOpenArtworkModal={modals.handleOpenArtworkModal}
 					effectiveApi={effectiveApi}
-					serverToken={initialItem?._serverAccessToken || jellyfinApi.getApiKey()}
+					serverToken={activeSource?._serverAccessToken || jellyfinApi.getApiKey()}
 					effectiveServerUrl={effectiveServerUrl}
 					isEpisode={isEpisode}
 					isSeries={isSeries}
@@ -958,7 +964,6 @@ const Details = ({itemId: itemIdProp, initialItem, onPlay, onSelectItem, onSelec
 					supportsMediaSourceSelection={supportsMediaSourceSelection}
 					hasMultipleVersions={hasMultipleVersions}
 					hasMultipleAudio={hasMultipleAudio}
-					hasMultipleLibraries={hasMultipleLibraries}
 					hasMultipleServers={hasMultipleServers}
 					handlePlay={handlePlay}
 					handleResume={handleResume}
@@ -1128,9 +1133,9 @@ const Details = ({itemId: itemIdProp, initialItem, onPlay, onSelectItem, onSelec
 			supportsMediaSourceSelection={supportsMediaSourceSelection}
 			hasMultipleVersions={hasMultipleVersions}
 			hasMultipleAudio={hasMultipleAudio}
-			hasMultipleLibraries={hasMultipleLibraries}
+			versionLibraries={versionLibraries}
 			hasMultipleServers={hasMultipleServers}
-			currentServerName={serverSources[selectedServerIndex]?.name || item._serverName}
+			currentServerName={serverSources[selectedServerIndex]?.name}
 			selectedVersionIndex={selectedVersionIndex}
 			selectedAudioIndex={selectedAudioIndex}
 			selectedSubtitleIndex={selectedSubtitleIndex}

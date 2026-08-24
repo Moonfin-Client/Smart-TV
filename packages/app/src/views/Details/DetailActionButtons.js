@@ -4,7 +4,7 @@ import $L from '@enact/i18n/$L';
 import {arrange, seerrOnlyRow, DETAIL_ORDER_KEY, DETAIL_HIDDEN_KEY} from '../../utils/buttonLayout';
 import {DETAIL_ICON_PATHS} from './detailIcons';
 import {personalRatingIconPath, personalRatingLabel} from './personalRatingAction';
-import {formatVersionLabel} from '../../utils/mediaDedup';
+import {versionLabel} from '../../utils/trackLabels';
 import {SpottableDiv, HorizontalContainer} from './detailsSpottables';
 import {handleButtonRowKeyDown} from './detailsFocus';
 
@@ -28,7 +28,7 @@ const DetailActionButtons = ({
 	supportsMediaSourceSelection,
 	hasMultipleVersions,
 	hasMultipleAudio,
-	hasMultipleLibraries,
+	versionLibraries,
 	hasMultipleServers,
 	currentServerName,
 	selectedVersionIndex,
@@ -96,13 +96,7 @@ const DetailActionButtons = ({
 			</SpottableDiv>
 		)},
 		{id: 'version', when: hasMultipleVersions, render: () => {
-			const rawName = mediaSource?.Name || `${$L('Version')} ${selectedVersionIndex + 1}`;
-			const libName = mediaSource?.LibraryName || item?.LibraryName || item?.CollectionName;
-			const versionDetail = formatVersionLabel({
-				versionName: rawName,
-				libraryName: libName,
-				hasMultipleLibraries
-			});
+			const versionDetail = versionLabel(mediaSource?.Name || `${$L('Version')} ${selectedVersionIndex + 1}`, versionLibraries?.[mediaSource?.Id]);
 			return (
 				<SpottableDiv className={css.btnWrapper} onClick={onOpenVersionModal}>
 					<div className={css.btnAction}>
@@ -123,7 +117,7 @@ const DetailActionButtons = ({
 					</svg>
 				</div>
 				<span className={css.btnLabel}>{$L('Server')}</span>
-				<span className={css.btnDetail}>{currentServerName || item?._serverName || $L('Server')}</span>
+				<span className={css.btnDetail}>{currentServerName}</span>
 			</SpottableDiv>
 		)},
 		{id: 'audio', when: hasMultipleAudio, render: () => (

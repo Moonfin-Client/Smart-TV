@@ -6,7 +6,7 @@
 
 import * as multiServerManager from './multiServerManager';
 import {createApiForServer} from './jellyfinApi';
-import {deduplicateMediaItems} from '../utils/mediaDedup';
+import {deduplicateMediaItems, getDeduplicationKey, hasProviderIdentity} from '../utils/mediaDedup';
 
 /**
  * Execute a request to all servers and aggregate results
@@ -390,6 +390,65 @@ export const getItemFromServer = async (item) => {
 
 	const api = createApiForServer(item._serverUrl, item._serverAccessToken, item._serverUserId, item._serverType || 'jellyfin');
 	return api.getItem(item.Id);
+};
+
+// One entry per server rather than per account, since the picker offers servers
+// and a server holding two of the user's accounts still holds one copy.
+const uniqueByServer = (servers) => {
+	const seen = new Set();
+	return servers.filter((server) => {
+		if (seen.has(server.serverId)) return false;
+		seen.add(server.serverId);
+		return true;
+	});
+};
+
+const withServerTags = (item, server) => ({
+	...item,
+	_serverId: server.serverId,
+	_serverName: server.name,
+	_serverUrl: server.url,
+	_serverUserId: server.userId,
+	_serverAccessToken: server.accessToken,
+	_serverType: server.serverType || 'jellyfin'
+});
+
+/**
+ * Find every configured server holding the same title as the given item.
+ * Matched on the same key the rows collapse copies by, so the picker offers back
+ * exactly what was folded away and nothing else.
+ * @param {Object} item - Item to look for, carrying its provider ids
+ * @returns {Promise<Array>} One entry per server that has it, each with the copy attached
+ */
+export const getItemCopiesFromAllServers = async (item) => {
+	if (!item?.Name || !item?.Type || !hasProviderIdentity(item)) return [];
+
+	const servers = uniqueByServer(await multiServerManager.getAllServersArray());
+	if (servers.length < 2) return [];
+
+	const wanted = getDeduplicationKey(item);
+	const copies = await Promise.all(servers.map(async (server) => {
+		try {
+			const api = createApiForServer(server.url, server.accessToken, server.userId, server.serverType || 'jellyfin');
+			// Searching by name narrows the library down cheaply and the provider
+			// ids on what comes back are what actually settle the match.
+			const result = await api.getItems({
+				SearchTerm: item.Name,
+				IncludeItemTypes: item.Type,
+				Recursive: true,
+				Limit: 10,
+				Fields: 'ProviderIds'
+			});
+			const match = (result?.Items || []).find((candidate) => getDeduplicationKey(candidate) === wanted);
+			if (!match) return null;
+			return {id: server.serverId, name: server.name, url: server.url, item: withServerTags(match, server)};
+		} catch (err) {
+			console.warn(`[ConnectionPool] Could not look up ${item.Name} on ${server.name}:`, err);
+			return null;
+		}
+	}));
+
+	return copies.filter(Boolean);
 };
 
 /**

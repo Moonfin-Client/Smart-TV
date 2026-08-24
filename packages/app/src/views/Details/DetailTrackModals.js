@@ -3,8 +3,7 @@ import $L from '@enact/i18n/$L';
 
 import {TRANSCODE_QUALITIES} from './detailsMedia';
 import {ModalContainer} from '../../utils/spotlightContainers';
-import {numberedTrackName, trackName, subtitleTrackDetail, audioTrackDetail} from '../../utils/trackLabels';
-import {formatVersionLabel} from '../../utils/mediaDedup';
+import {numberedTrackName, trackName, subtitleTrackDetail, audioTrackDetail, versionLabel} from '../../utils/trackLabels';
 import {SpottableButton, SpottableDiv} from './detailsSpottables';
 
 import css from './Details.module.less';
@@ -20,7 +19,7 @@ const DetailTrackModals = ({
 	selectedVersionIndex,
 	selectedAudioIndex,
 	selectedSubtitleIndex,
-	hasMultipleLibraries,
+	versionLibraries,
 	serverSources,
 	selectedServerIndex,
 	onSelectTranscodeQuality,
@@ -69,13 +68,7 @@ const DetailTrackModals = ({
 								const bitrate = source.Bitrate ? `${(source.Bitrate / 1000000).toFixed(1)} Mbps` : '';
 								const container = source.Container?.toUpperCase();
 								const detail = [resLabel, container, bitrate].filter(Boolean).join(' · ');
-								const rawName = source.Name || `${$L('Version')} ${i + 1}`;
-								const libName = source.LibraryName || item?.LibraryName || item?.CollectionName;
-								const displayName = formatVersionLabel({
-									versionName: rawName,
-									libraryName: libName,
-									hasMultipleLibraries
-								});
+								const displayName = versionLabel(source.Name || `${$L('Version')} ${i + 1}`, versionLibraries?.[source.Id]);
 								return (
 									<SpottableButton
 										key={source.Id}
@@ -99,16 +92,16 @@ const DetailTrackModals = ({
 					<ModalContainer className={css.trackModalPanel} onClick={stopPropagation} data-modal="server" spotlightId="server-modal">
 						<h2 className={css.trackModalTitle}>{$L('Select Server')}</h2>
 						<div className={css.trackList}>
-							{(serverSources || []).map((srv, i) => (
+							{(serverSources || []).map((source, i) => (
 								<SpottableButton
-									key={srv.id || srv.url || i}
+									key={source.id}
 									className={`${css.trackItem} ${i === selectedServerIndex ? css.selected : ''}`}
 									data-index={i}
 									data-selected={i === selectedServerIndex ? 'true' : undefined}
 									onClick={onSelectServer}
 								>
-									<span className={css.trackName}>{srv.name || srv.serverName || `${$L('Server')} ${i + 1}`}</span>
-									{srv.url && <span className={css.trackInfo}>{srv.url}</span>}
+									<span className={css.trackName}>{source.name || `${$L('Server')} ${i + 1}`}</span>
+									{source.url && <span className={css.trackInfo}>{source.url}</span>}
 								</SpottableButton>
 							))}
 						</div>

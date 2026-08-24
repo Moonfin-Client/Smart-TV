@@ -67,3 +67,9 @@ export const audioTrackDetail = ({language, displayTitle, codec, channels}) => {
 	if (channels) parts.push(`${channels}ch`);
 	return parts.join(' · ');
 };
+
+// Version names are written per file, so two libraries can easily both call
+// theirs 1080p and only the library tells them apart. A library arrives here
+// only when it is what separates the versions.
+export const versionLabel = (versionName, libraryName) =>
+	(libraryName ? `[${libraryName}] - ${versionName}` : versionName);

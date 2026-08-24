@@ -203,7 +203,7 @@ const loadCollections = async (ctx) => {
 			appendRows([{
 				id: 'collections',
 				title: $L('Collections'),
-				items: deduplicateMediaItems(collectionsResult.Items),
+				items: collectionsResult.Items,
 				type: 'portrait'
 			}]);
 		}

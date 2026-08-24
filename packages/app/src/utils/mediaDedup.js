@@ -4,21 +4,27 @@
 
 const PROVIDER_PRIORITY = ['imdb', 'tmdb', 'tvdb'];
 
-export const getDeduplicationKey = (item) => {
+const providerKey = (item) => {
 	const providerIds = item?.ProviderIds;
-	if (providerIds) {
-		const keys = Object.keys(providerIds);
-		for (let p = 0; p < PROVIDER_PRIORITY.length; p++) {
-			const provider = PROVIDER_PRIORITY[p];
-			for (let k = 0; k < keys.length; k++) {
-				if (keys[k].trim().toLowerCase() !== provider) continue;
-				const value = String(providerIds[keys[k]] ?? '').trim().toLowerCase();
-				if (value) return `${provider}:${value}`;
-			}
+	if (!providerIds) return null;
+	const keys = Object.keys(providerIds);
+	for (let p = 0; p < PROVIDER_PRIORITY.length; p++) {
+		const provider = PROVIDER_PRIORITY[p];
+		for (let k = 0; k < keys.length; k++) {
+			if (keys[k].trim().toLowerCase() !== provider) continue;
+			const value = String(providerIds[keys[k]] ?? '').trim().toLowerCase();
+			if (value) return `${provider}:${value}`;
 		}
 	}
-	return `item:${item?._serverId || ''}:${item?.Id || ''}`;
+	return null;
 };
+
+export const getDeduplicationKey = (item) =>
+	providerKey(item) || `item:${item?._serverId || ''}:${item?.Id || ''}`;
+
+// Whether an item carries an id that could prove another copy is the same title.
+// Without one it keys on its own id and never merges with anything.
+export const hasProviderIdentity = (item) => providerKey(item) !== null;
 
 // Prefers the copy with watch progress, then a played one, then a favorited
 // one, and finally falls back to a stable server and id order so the winner
@@ -54,14 +60,3 @@ export const deduplicateMediaItems = (items) => {
 	byKey.forEach((item) => deduplicated.push(item));
 	return deduplicated;
 };
-
-// Formats a version option label as '[Library Name] - [Version Name]' conditionally
-// when the user has multiple libraries for that content type.
-export const formatVersionLabel = ({versionName, libraryName, hasMultipleLibraries}) => {
-	const rawName = versionName || '';
-	if (hasMultipleLibraries && libraryName && String(libraryName).trim()) {
-		return `[${String(libraryName).trim()}] - ${rawName}`;
-	}
-	return rawName;
-};
-

@@ -2,7 +2,7 @@
 // English source string, so handing the string straight back is faithful enough here.
 jest.mock('@enact/i18n/$L', () => ({__esModule: true, default: (str) => str}));
 
-import {trackName, numberedTrackName, sortSubtitleStreams} from './trackLabels';
+import {trackName, numberedTrackName, sortSubtitleStreams, versionLabel} from './trackLabels';
 
 describe('trackName', () => {
 	test('subtitle rows read as the track is named, with nothing in front', () => {
@@ -29,5 +29,16 @@ describe('sortSubtitleStreams', () => {
 		const external = {index: 2, isExternal: true};
 		const delivered = {index: 3, deliveryMethod: 'External'};
 		expect(sortSubtitleStreams([external, internal, delivered])).toEqual([internal, external, delivered]);
+	});
+});
+
+describe('versionLabel', () => {
+	test('the library leads the name when it is what tells the versions apart', () => {
+		expect(versionLabel('1080p', '4K Movies')).toBe('[4K Movies] - 1080p');
+	});
+
+	test('a version with no library beside it stands on its own name', () => {
+		expect(versionLabel('1080p')).toBe('1080p');
+		expect(versionLabel('1080p', '')).toBe('1080p');
 	});
 });
