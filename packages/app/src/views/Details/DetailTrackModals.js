@@ -90,10 +90,10 @@ const DetailTrackModals = ({
 			{activeModal === 'server' && (
 				<div className={css.trackModal} onClick={onCloseModal}>
 					<ModalContainer className={css.trackModalPanel} onClick={stopPropagation} data-modal="server" spotlightId="server-modal">
-						<h2 className={css.trackModalTitle}>{new Set((serverSources || []).map((s) => s.serverId || s.id)).size > 1 ? $L('Select Server') : $L('Select Version / Library')}</h2>
+						<h2 className={css.trackModalTitle}>{new Set((serverSources || []).map((s) => s.serverId || s.id.split(':')[0])).size > 1 ? $L('Select Server') : $L('Select Version / Library')}</h2>
 						<div className={css.trackList}>
 							{(serverSources || []).map((source, i) => {
-								const isMultiServer = new Set((serverSources || []).map((s) => s.serverId || s.id)).size > 1;
+								const isMultiServer = new Set((serverSources || []).map((s) => s.serverId || s.id.split(':')[0])).size > 1;
 								const video = source.item?.MediaSources?.[0]?.MediaStreams?.find(s => s.Type === 'Video');
 								const resLabel = video?.Width >= 3800 ? '4K' : video?.Width >= 1900 ? '1080p' : video?.Width >= 1260 ? '720p' : video?.Width ? `${video.Width}p` : '';
 								const container = source.item?.MediaSources?.[0]?.Container?.toUpperCase();
@@ -103,6 +103,12 @@ const DetailTrackModals = ({
 								const nameParts = [];
 								if (isMultiServer && source.name) nameParts.push(source.name);
 								if (source.libraryName) nameParts.push(source.libraryName);
+								const sourceVersionName = source.item?.MediaSources?.[0]?.Name;
+								if (sourceVersionName && sourceVersionName !== source.libraryName && sourceVersionName !== source.item?.Name) {
+									nameParts.push(sourceVersionName);
+								} else if (resLabel) {
+									nameParts.push(resLabel);
+								}
 								if (nameParts.length === 0 && source.name) nameParts.push(source.name);
 								const displayName = nameParts.length > 0 ? nameParts.join(' · ') : `${$L('Source')} ${i + 1}`;
 
