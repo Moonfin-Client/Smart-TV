@@ -1,6 +1,7 @@
 // Collapses copies of the same title that arrive from more than one server or
 // library. Items only merge when an external provider id proves they are the
-// same media, otherwise every copy keeps its own key and nothing is dropped.
+// same media, or when episode details (series name, season, episode) match,
+// otherwise every copy keeps its own key and nothing is dropped.
 
 const PROVIDER_PRIORITY = ['imdb', 'tmdb', 'tvdb'];
 
@@ -19,12 +20,25 @@ const providerKey = (item) => {
 	return null;
 };
 
-export const getDeduplicationKey = (item) =>
-	providerKey(item) || `item:${item?._serverId || ''}:${item?.Id || ''}`;
+const episodeKey = (item) => {
+	if (item?.Type !== 'Episode' && item?.Type !== 'Season') return null;
+	const series = (item?.SeriesName || '').trim().toLowerCase();
+	if (!series) return null;
+	if (item.Type === 'Season') {
+		const season = item.IndexNumber != null ? item.IndexNumber : 1;
+		return `season:${series}:s${season}`;
+	}
+	if (item.IndexNumber == null) return null;
+	const season = item.ParentIndexNumber != null ? item.ParentIndexNumber : 1;
+	return `episode:${series}:s${season}:e${item.IndexNumber}`;
+};
 
-// Whether an item carries an id that could prove another copy is the same title.
+export const getDeduplicationKey = (item) =>
+	providerKey(item) || episodeKey(item) || `item:${item?._serverId || ''}:${item?.Id || ''}`;
+
+// Whether an item carries an id or metadata that could prove another copy is the same title.
 // Without one it keys on its own id and never merges with anything.
-export const hasProviderIdentity = (item) => providerKey(item) !== null;
+export const hasProviderIdentity = (item) => providerKey(item) !== null || episodeKey(item) !== null;
 
 // Prefers the copy with watch progress, then a played one, then a favorited
 // one, and finally falls back to a stable server and id order so the winner

@@ -51,7 +51,7 @@ describe('getItemCopiesFromAllServers', () => {
 
 		const copies = await getItemCopiesFromAllServers(dune);
 
-		expect(copies.map((c) => c.id)).toEqual(['s1']);
+		expect(copies.map((c) => c.serverId)).toEqual(['s1']);
 	});
 
 	test('a title identified by tmdb rather than imdb matches just the same', async () => {
@@ -73,7 +73,7 @@ describe('getItemCopiesFromAllServers', () => {
 
 		const copies = await getItemCopiesFromAllServers(dune);
 
-		expect(copies.map((c) => c.id)).toEqual(['s1']);
+		expect(copies.map((c) => c.serverId)).toEqual(['s1']);
 	});
 
 	test('a title with no provider ids was never folded together, so nothing is offered', async () => {
@@ -83,14 +83,30 @@ describe('getItemCopiesFromAllServers', () => {
 		expect(createApiForServer).not.toHaveBeenCalled();
 	});
 
-	test('one server on its own has nothing to pick between', async () => {
+	test('one server on its own with only one copy has nothing to pick between', async () => {
 		multiServerManager.getAllServersArray.mockResolvedValue([server('s1', 'Attic')]);
 		servingItems({s1: [{Id: 'a', Name: 'Dune', ProviderIds: {Imdb: 'tt1160419'}}]});
 
 		expect(await getItemCopiesFromAllServers(dune)).toEqual([]);
 	});
 
-	test('two accounts on one server are one server to pick from', async () => {
+	test('one server holding multiple versions in different libraries offers both copies', async () => {
+		multiServerManager.getAllServersArray.mockResolvedValue([server('s1', 'Attic')]);
+		servingItems({
+			s1: [
+				{Id: 'a', Name: 'Dune', ProviderIds: {Imdb: 'tt1160419'}, _libraryName: '4K Movies'},
+				{Id: 'b', Name: 'Dune', ProviderIds: {Imdb: 'tt1160419'}, _libraryName: 'HD Movies'}
+			]
+		});
+
+		const copies = await getItemCopiesFromAllServers(dune);
+
+		expect(copies).toHaveLength(2);
+		expect(copies.map((c) => c.item.Id)).toEqual(['a', 'b']);
+		expect(copies.map((c) => c.libraryName)).toEqual(['4K Movies', 'HD Movies']);
+	});
+
+	test('two accounts on one server with only one copy returns empty list', async () => {
 		multiServerManager.getAllServersArray.mockResolvedValue([
 			server('s1', 'Attic'),
 			{...server('s1', 'Attic'), userId: 'u2'}
@@ -110,7 +126,7 @@ describe('getItemCopiesFromAllServers', () => {
 
 		const copies = await getItemCopiesFromAllServers(dune);
 
-		expect(copies.map((c) => c.id)).toEqual(['s1']);
+		expect(copies.map((c) => c.serverId)).toEqual(['s1']);
 		warn.mockRestore();
 	});
 });

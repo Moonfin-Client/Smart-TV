@@ -414,41 +414,81 @@ const withServerTags = (item, server) => ({
 });
 
 /**
- * Find every configured server holding the same title as the given item.
+ * Find every configured server or library holding a copy of the same title as the given item.
  * Matched on the same key the rows collapse copies by, so the picker offers back
  * exactly what was folded away and nothing else.
- * @param {Object} item - Item to look for, carrying its provider ids
- * @returns {Promise<Array>} One entry per server that has it, each with the copy attached
+ * @param {Object} item - Item to look for, carrying its provider or episode identity
+ * @returns {Promise<Array>} List of available item copies across servers and libraries
  */
 export const getItemCopiesFromAllServers = async (item) => {
-	if (!item?.Name || !item?.Type || !hasProviderIdentity(item)) return [];
+	if (!item?.Type || !hasProviderIdentity(item)) return [];
 
 	const servers = uniqueByServer(await multiServerManager.getAllServersArray());
-	if (servers.length < 2) return [];
+	if (servers.length === 0) return [];
 
 	const wanted = getDeduplicationKey(item);
-	const copies = await Promise.all(servers.map(async (server) => {
+	const searchTerm = item.Type === 'Episode' ? (item.SeriesName || item.Name) : item.Name;
+	if (!searchTerm) return [];
+
+	const resultsPerServer = await Promise.all(servers.map(async (server) => {
 		try {
 			const api = createApiForServer(server.url, server.accessToken, server.userId, server.serverType || 'jellyfin');
-			// Searching by name narrows the library down cheaply and the provider
-			// ids on what comes back are what actually settle the match.
 			const result = await api.getItems({
-				SearchTerm: item.Name,
+				SearchTerm: searchTerm,
 				IncludeItemTypes: item.Type,
 				Recursive: true,
-				Limit: 10,
-				Fields: 'ProviderIds'
+				Limit: 20,
+				Fields: 'ProviderIds,MediaSources,MediaStreams'
 			});
-			const match = (result?.Items || []).find((candidate) => getDeduplicationKey(candidate) === wanted);
-			if (!match) return null;
-			return {id: server.serverId, name: server.name, url: server.url, item: withServerTags(match, server)};
+			const matches = (result?.Items || []).filter((candidate) => getDeduplicationKey(candidate) === wanted);
+			if (matches.length === 0) return [];
+
+			return Promise.all(matches.map(async (candidate) => {
+				let libraryName = candidate._libraryName || '';
+				let libraryId = candidate._libraryId || null;
+				if (!libraryName && api.getAncestors) {
+					try {
+						const ancestors = await api.getAncestors(candidate.Id);
+						const lib = Array.isArray(ancestors)
+							? ancestors.find((a) => a.Type === 'CollectionFolder')
+							: null;
+						if (lib?.Name) libraryName = lib.Name.trim();
+						if (lib?.Id) libraryId = lib.Id;
+					} catch (_err) {
+						// Ancestor lookup failed, leave unnamed
+					}
+				}
+				const tagged = {
+					...withServerTags(candidate, server),
+					...(libraryName ? {_libraryName: libraryName} : {}),
+					...(libraryId ? {_libraryId: libraryId} : {})
+				};
+				return {
+					id: `${server.serverId}:${candidate.Id}`,
+					serverId: server.serverId,
+					name: server.name,
+					url: server.url,
+					libraryName,
+					libraryId,
+					item: tagged
+				};
+			}));
 		} catch (err) {
-			console.warn(`[ConnectionPool] Could not look up ${item.Name} on ${server.name}:`, err);
-			return null;
+			console.warn(`[ConnectionPool] Could not look up ${searchTerm} on ${server.name}:`, err);
+			return [];
 		}
 	}));
 
-	return copies.filter(Boolean);
+	const flattened = resultsPerServer.flat();
+	const seen = new Set();
+	const uniqueCopies = flattened.filter((copy) => {
+		if (seen.has(copy.id)) return false;
+		seen.add(copy.id);
+		return true;
+	});
+
+	if (servers.length < 2 && uniqueCopies.length < 2) return [];
+	return uniqueCopies;
 };
 
 /**

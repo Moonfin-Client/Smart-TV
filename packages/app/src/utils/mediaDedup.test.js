@@ -15,7 +15,12 @@ describe('getDeduplicationKey', () => {
 		expect(getDeduplicationKey(item)).toBe('tmdb:42');
 	});
 
-	test('falls back to server and id when no provider id exists', () => {
+	test('falls back to episode key when provider id is missing', () => {
+		const episode = {Type: 'Episode', SeriesName: 'Breaking Bad', ParentIndexNumber: 1, IndexNumber: 2};
+		expect(getDeduplicationKey(episode)).toBe('episode:breaking bad:s1:e2');
+	});
+
+	test('falls back to server and id when no provider id or episode key exists', () => {
 		expect(getDeduplicationKey({Id: 'abc', _serverId: 's1'})).toBe('item:s1:abc');
 		expect(getDeduplicationKey({Id: 'abc'})).toBe('item::abc');
 	});
@@ -72,6 +77,16 @@ describe('deduplicateMediaItems', () => {
 		]);
 		expect(first[0]._serverId).toBe('s1');
 		expect(second[0]._serverId).toBe('s1');
+	});
+
+	test('merges episodes of the same show lacking provider ids', () => {
+		const items = [
+			{Id: 'ep1_hd', Type: 'Episode', SeriesName: 'Breaking Bad', ParentIndexNumber: 1, IndexNumber: 1},
+			{Id: 'ep1_4k', Type: 'Episode', SeriesName: 'Breaking Bad', ParentIndexNumber: 1, IndexNumber: 1, UserData: {PlaybackPositionTicks: 1000}}
+		];
+		const result = deduplicateMediaItems(items);
+		expect(result).toHaveLength(1);
+		expect(result[0].Id).toBe('ep1_4k');
 	});
 
 	test('handles empty and single item input', () => {

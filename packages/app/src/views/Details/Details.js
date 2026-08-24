@@ -733,18 +733,42 @@ const Details = ({itemId: itemIdProp, initialItem, onPlay, onSelectItem, onSelec
 
 	const serverSources = useDetailsServers(item, !seerrOnly);
 	const hasMultipleServers = serverSources.length > 1;
-	// A row on the server already signed in to hands over no server of its own,
-	// so the address stands in for it.
-	const currentServerIndex = serverSources.findIndex((source) => (activeSource?._serverId
-		? source.id === activeSource._serverId
-		: source.url === effectiveServerUrl));
+	const currentServerIndex = serverSources.findIndex((source) => {
+		if (activeSource?.Id && source.item?.Id === activeSource.Id) {
+			if (activeSource?._serverId) {
+				return source.serverId === activeSource._serverId;
+			}
+			return true;
+		}
+		if (activeSource?._serverId) {
+			return source.serverId === activeSource._serverId;
+		}
+		return source.url === effectiveServerUrl;
+	});
 	const selectedServerIndex = Math.max(0, currentServerIndex);
+	const selectedSource = serverSources[selectedServerIndex] || serverSources[0];
+	const isMultiServer = useMemo(() => {
+		const serverIds = new Set(serverSources.map((s) => s.serverId || s.id));
+		return serverIds.size > 1;
+	}, [serverSources]);
+
+	const currentServerName = useMemo(() => {
+		if (!selectedSource) return '';
+		if (isMultiServer && selectedSource.libraryName) {
+			return `${selectedSource.name} · ${selectedSource.libraryName}`;
+		}
+		if (selectedSource.libraryName) {
+			return selectedSource.libraryName;
+		}
+		return selectedSource.name || '';
+	}, [selectedSource, isMultiServer]);
+
 	const handleSelectServer = useCallback((e) => {
 		const index = parseInt(e.currentTarget.dataset.index, 10);
 		const chosen = serverSources[index];
 		closeModal();
-		if (chosen && index !== currentServerIndex) setServerCopy(chosen.item);
-	}, [serverSources, closeModal, currentServerIndex]);
+		if (chosen && chosen.item) setServerCopy(chosen.item);
+	}, [serverSources, closeModal]);
 
 	if (isLoading || !item) {
 		return (

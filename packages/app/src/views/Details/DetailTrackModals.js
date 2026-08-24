@@ -90,20 +90,39 @@ const DetailTrackModals = ({
 			{activeModal === 'server' && (
 				<div className={css.trackModal} onClick={onCloseModal}>
 					<ModalContainer className={css.trackModalPanel} onClick={stopPropagation} data-modal="server" spotlightId="server-modal">
-						<h2 className={css.trackModalTitle}>{$L('Select Server')}</h2>
+						<h2 className={css.trackModalTitle}>{new Set((serverSources || []).map((s) => s.serverId || s.id)).size > 1 ? $L('Select Server') : $L('Select Version / Library')}</h2>
 						<div className={css.trackList}>
-							{(serverSources || []).map((source, i) => (
-								<SpottableButton
-									key={source.id}
-									className={`${css.trackItem} ${i === selectedServerIndex ? css.selected : ''}`}
-									data-index={i}
-									data-selected={i === selectedServerIndex ? 'true' : undefined}
-									onClick={onSelectServer}
-								>
-									<span className={css.trackName}>{source.name || `${$L('Server')} ${i + 1}`}</span>
-									{source.url && <span className={css.trackInfo}>{source.url}</span>}
-								</SpottableButton>
-							))}
+							{(serverSources || []).map((source, i) => {
+								const isMultiServer = new Set((serverSources || []).map((s) => s.serverId || s.id)).size > 1;
+								const video = source.item?.MediaSources?.[0]?.MediaStreams?.find(s => s.Type === 'Video');
+								const resLabel = video?.Width >= 3800 ? '4K' : video?.Width >= 1900 ? '1080p' : video?.Width >= 1260 ? '720p' : video?.Width ? `${video.Width}p` : '';
+								const container = source.item?.MediaSources?.[0]?.Container?.toUpperCase();
+								const bitrate = source.item?.MediaSources?.[0]?.Bitrate ? `${(source.item.MediaSources[0].Bitrate / 1000000).toFixed(1)} Mbps` : '';
+								const mediaDetail = [resLabel, container, bitrate].filter(Boolean).join(' · ');
+
+								const nameParts = [];
+								if (isMultiServer && source.name) nameParts.push(source.name);
+								if (source.libraryName) nameParts.push(source.libraryName);
+								if (nameParts.length === 0 && source.name) nameParts.push(source.name);
+								const displayName = nameParts.length > 0 ? nameParts.join(' · ') : `${$L('Source')} ${i + 1}`;
+
+								return (
+									<SpottableButton
+										key={source.id || i}
+										className={`${css.trackItem} ${i === selectedServerIndex ? css.selected : ''}`}
+										data-index={i}
+										data-selected={i === selectedServerIndex ? 'true' : undefined}
+										onClick={onSelectServer}
+									>
+										<span className={css.trackName}>{displayName}</span>
+										{mediaDetail ? (
+											<span className={css.trackInfo}>{mediaDetail}</span>
+										) : source.url ? (
+											<span className={css.trackInfo}>{source.url}</span>
+										) : null}
+									</SpottableButton>
+								);
+							})}
 						</div>
 						<p className={css.trackModalFooter}>{$L('Press BACK to close')}</p>
 					</ModalContainer>
