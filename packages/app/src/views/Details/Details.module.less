@@ -1492,11 +1492,19 @@
 	font-size: 24px;
 	font-weight: 600;
 	color: var(--theme-text-primary, #ffffff);
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	flex: 1;
+	min-width: 0;
 }
 
 .trackInfo {
 	font-size: 20px;
 	color: rgba(255, 255, 255, 0.7);
+	white-space: nowrap;
+	margin-left: 20px;
+	flex-shrink: 0;
 }
 
 .trackModalFooter {
