@@ -33,12 +33,28 @@ const episodeKey = (item) => {
 	return `episode:${series}:s${season}:e${item.IndexNumber}`;
 };
 
-export const getDeduplicationKey = (item) =>
-	providerKey(item) || episodeKey(item) || `item:${item?._serverId || ''}:${item?.Id || ''}`;
+const nameKey = (item) => {
+	if (!item?.Name || !item?.Type) return null;
+	const type = item.Type.toLowerCase();
+	const name = item.Name.trim().toLowerCase();
+	if (type === 'episode' || type === 'season') {
+		return episodeKey(item);
+	}
+	const year = item.ProductionYear || (item.PremiereDate ? new Date(item.PremiereDate).getFullYear() : null);
+	return year ? `${type}:${name}:${year}` : `${type}:${name}`;
+};
+
+export const getDeduplicationKey = (item) => {
+	if (item?.Type === 'Episode') {
+		return episodeKey(item) || providerKey(item) || nameKey(item) || `item:${item?._serverId || ''}:${item?.Id || ''}`;
+	}
+	return providerKey(item) || nameKey(item) || `item:${item?._serverId || ''}:${item?.Id || ''}`;
+};
 
 // Whether an item carries an id or metadata that could prove another copy is the same title.
 // Without one it keys on its own id and never merges with anything.
-export const hasProviderIdentity = (item) => providerKey(item) !== null || episodeKey(item) !== null;
+export const hasProviderIdentity = (item) =>
+	providerKey(item) !== null || episodeKey(item) !== null || (Boolean(item?.Name) && Boolean(item?.Type));
 
 // Prefers the copy with watch progress, then a played one, then a favorited
 // one, and finally falls back to a stable server and id order so the winner

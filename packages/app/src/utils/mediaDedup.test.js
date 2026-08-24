@@ -89,6 +89,26 @@ describe('deduplicateMediaItems', () => {
 		expect(result[0].Id).toBe('ep1_4k');
 	});
 
+	test('keeps separate episodes of the same show even when they share a series IMDb provider ID', () => {
+		const items = [
+			{Id: 'ep1', Type: 'Episode', SeriesName: 'Breaking Bad', ParentIndexNumber: 1, IndexNumber: 1, ProviderIds: {Imdb: 'tt0903747'}},
+			{Id: 'ep2', Type: 'Episode', SeriesName: 'Breaking Bad', ParentIndexNumber: 1, IndexNumber: 2, ProviderIds: {Imdb: 'tt0903747'}}
+		];
+		const result = deduplicateMediaItems(items);
+		expect(result).toHaveLength(2);
+		expect(result.map((i) => i.Id)).toEqual(['ep1', 'ep2']);
+	});
+
+	test('merges movies matching title and type when provider ids are missing', () => {
+		const items = [
+			{Id: 'movie_hd', Type: 'Movie', Name: 'Avatar'},
+			{Id: 'movie_4k', Type: 'Movie', Name: 'Avatar', UserData: {PlaybackPositionTicks: 2000}}
+		];
+		const result = deduplicateMediaItems(items);
+		expect(result).toHaveLength(1);
+		expect(result[0].Id).toBe('movie_4k');
+	});
+
 	test('handles empty and single item input', () => {
 		expect(deduplicateMediaItems(null)).toEqual([]);
 		expect(deduplicateMediaItems([])).toEqual([]);

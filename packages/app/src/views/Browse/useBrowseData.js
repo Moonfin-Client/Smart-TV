@@ -4,6 +4,7 @@ import $L from '@enact/i18n/$L';
 import {getLogoUrl} from '../../utils/helpers';
 import * as connectionPool from '../../services/connectionPool';
 import * as seerrApi from '../../services/seerrApi';
+import {deduplicateMediaItems} from '../../utils/mediaDedup';
 import browseReducer, {browseInitialState, mergeRowsById} from './browseReducer';
 import {BROWSE_ROW_LOADERS, buildLoaderContext} from './browseRowLoaders';
 import {genericCollectionLabel, mergeRecentRows} from '../../utils/mergeRecentRows';
@@ -131,20 +132,22 @@ const useBrowseData = ({
 
 			const volatileRows = [];
 
-			if (resumeItems.Items?.length > 0) {
+			const dedupeResume = deduplicateMediaItems(resumeItems.Items || []);
+			if (dedupeResume.length > 0) {
 				volatileRows.push({
 					id: 'resume',
 					title: $L('Continue Watching'),
-					items: resumeItems.Items,
+					items: dedupeResume,
 					type: 'landscape'
 				});
 			}
 
-			if (nextUp.Items?.length > 0) {
+			const dedupeNextUp = deduplicateMediaItems(nextUp.Items || []);
+			if (dedupeNextUp.length > 0) {
 				volatileRows.push({
 					id: 'nextup',
 					title: $L('Next Up'),
-					items: nextUp.Items,
+					items: dedupeNextUp,
 					type: 'landscape'
 				});
 			}

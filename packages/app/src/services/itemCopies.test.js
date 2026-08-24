@@ -76,10 +76,10 @@ describe('getItemCopiesFromAllServers', () => {
 		expect(copies.map((c) => c.serverId)).toEqual(['s1']);
 	});
 
-	test('a title with no provider ids was never folded together, so nothing is offered', async () => {
+	test('an item lacking type and name has no identity, so nothing is queried', async () => {
 		servingItems({s1: [], s2: []});
 
-		expect(await getItemCopiesFromAllServers({...dune, ProviderIds: {}})).toEqual([]);
+		expect(await getItemCopiesFromAllServers({})).toEqual([]);
 		expect(createApiForServer).not.toHaveBeenCalled();
 	});
 

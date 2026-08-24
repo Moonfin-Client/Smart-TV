@@ -6,7 +6,7 @@
 
 import * as multiServerManager from './multiServerManager';
 import {createApiForServer} from './jellyfinApi';
-import {deduplicateMediaItems, getDeduplicationKey, hasProviderIdentity} from '../utils/mediaDedup';
+import {deduplicateMediaItems, getDeduplicationKey} from '../utils/mediaDedup';
 
 /**
  * Execute a request to all servers and aggregate results
@@ -421,7 +421,7 @@ const withServerTags = (item, server) => ({
  * @returns {Promise<Array>} List of available item copies across servers and libraries
  */
 export const getItemCopiesFromAllServers = async (item) => {
-	if (!item?.Type || !hasProviderIdentity(item)) return [];
+	if (!item?.Type || (!item?.Name && !item?.SeriesName)) return [];
 
 	const servers = uniqueByServer(await multiServerManager.getAllServersArray());
 	if (servers.length === 0) return [];

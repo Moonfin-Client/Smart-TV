@@ -24,6 +24,7 @@ export const DETAIL_BUTTONS = [
 	{id: 'seerrRequest4k', label: 'Request 4K'},
 	{id: 'shuffle', label: 'Shuffle'},
 	{id: 'version', label: 'Version'},
+	{id: 'server', label: 'Server'},
 	{id: 'audio', label: 'Audio'},
 	{id: 'subtitles', label: 'Subtitle'},
 	{id: 'trailer', label: 'Trailer'},
