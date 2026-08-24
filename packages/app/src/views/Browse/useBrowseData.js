@@ -314,20 +314,22 @@ const useBrowseData = ({
 
 				const rowData = [];
 
-				if (resumeItems.Items?.length > 0) {
+				const dedupeResume = deduplicateMediaItems(resumeItems.Items || []);
+				if (dedupeResume.length > 0) {
 					rowData.push({
 						id: 'resume',
 						title: $L('Continue Watching'),
-						items: resumeItems.Items,
+						items: dedupeResume,
 						type: 'landscape'
 					});
 				}
 
-				if (nextUp.Items?.length > 0) {
+				const dedupeNextUp = deduplicateMediaItems(nextUp.Items || []);
+				if (dedupeNextUp.length > 0) {
 					rowData.push({
 						id: 'nextup',
 						title: $L('Next Up'),
-						items: nextUp.Items,
+						items: dedupeNextUp,
 						type: 'landscape'
 					});
 				}

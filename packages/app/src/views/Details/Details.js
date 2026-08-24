@@ -732,25 +732,23 @@ const Details = ({itemId: itemIdProp, initialItem, onPlay, onSelectItem, onSelec
 	const versionLibraries = useVersionLibraries(item, effectiveApi);
 
 	const serverSources = useDetailsServers(item, !seerrOnly);
-	const hasMultipleServers = serverSources.length > 1;
-	const currentServerIndex = serverSources.findIndex((source) => {
-		if (activeSource?.Id && source.item?.Id === activeSource.Id) {
-			if (activeSource?._serverId) {
-				return source.serverId === activeSource._serverId;
-			}
-			return true;
-		}
-		if (activeSource?._serverId) {
-			return source.serverId === activeSource._serverId;
-		}
-		return source.url === effectiveServerUrl;
-	});
-	const selectedServerIndex = Math.max(0, currentServerIndex);
-	const selectedSource = serverSources[selectedServerIndex] || serverSources[0];
 	const isMultiServer = useMemo(() => {
 		const serverIds = new Set(serverSources.map((s) => s.serverId || s.id));
 		return serverIds.size > 1;
 	}, [serverSources]);
+	const hasMultipleServers = isMultiServer;
+
+	const currentServerIndex = serverSources.findIndex((source) => {
+		const targetId = item?.Id || activeSource?.Id;
+		if (targetId && source.item?.Id === targetId) {
+			return true;
+		}
+		return false;
+	});
+	const selectedServerIndex = currentServerIndex >= 0
+		? currentServerIndex
+		: Math.max(0, serverSources.findIndex((source) => source.url === effectiveServerUrl));
+	const selectedSource = serverSources[selectedServerIndex] || serverSources[0];
 
 	const currentServerName = useMemo(() => {
 		if (!selectedSource) return '';
@@ -769,6 +767,15 @@ const Details = ({itemId: itemIdProp, initialItem, onPlay, onSelectItem, onSelec
 		closeModal();
 		if (chosen && chosen.item) setServerCopy(chosen.item);
 	}, [serverSources, closeModal]);
+
+	const handleOpenVersionModal = useCallback(() => {
+		const sources = item?.MediaSources || [];
+		if (sources.length > 1) {
+			modals.handleOpenVersionModal();
+		} else if (serverSources.length > 1) {
+			modals.handleOpenServerModal();
+		}
+	}, [item?.MediaSources, serverSources.length, modals]);
 
 	if (isLoading || !item) {
 		return (
@@ -846,7 +853,7 @@ const Details = ({itemId: itemIdProp, initialItem, onPlay, onSelectItem, onSelec
 	const supportsMediaSourceSelection = item.MediaType === 'Video' &&
 		item.MediaSources?.length > 0 &&
 		item.MediaSources[0].Type !== 'Placeholder';
-	const hasMultipleVersions = supportsMediaSourceSelection && (item.MediaSources?.length || 0) > 1;
+	const hasMultipleVersions = (supportsMediaSourceSelection && (item.MediaSources?.length || 0) > 1) || (!hasMultipleServers && serverSources.length > 1);
 	const hasMultipleAudio = supportsMediaSourceSelection && audioStreams.length > 1;
 	const currentAudioStream = audioStreams[selectedAudioIndex];
 	const currentSubtitleStream = selectedSubtitleIndex >= 0 ? subtitleStreams[selectedSubtitleIndex] : null;
@@ -999,7 +1006,7 @@ const Details = ({itemId: itemIdProp, initialItem, onPlay, onSelectItem, onSelec
 					personalRatingStyle={ratingStyle}
 					handleOpenRatingDialog={modals.handleOpenRatingDialog}
 					handleGoToSeries={handleGoToSeries}
-					handleOpenVersionModal={modals.handleOpenVersionModal}
+					handleOpenVersionModal={handleOpenVersionModal}
 					handleOpenServerModal={modals.handleOpenServerModal}
 					handleOpenAudioModal={modals.handleOpenAudioModal}
 					handleOpenSubtitleModal={modals.handleOpenSubtitleModal}
@@ -1171,7 +1178,7 @@ const Details = ({itemId: itemIdProp, initialItem, onPlay, onSelectItem, onSelec
 			resumeLongPress={resumeLongPress}
 			onFocusRow={handleButtonRowFocus}
 			onShuffle={handleShuffle}
-			onOpenVersionModal={modals.handleOpenVersionModal}
+			onOpenVersionModal={handleOpenVersionModal}
 			onOpenServerModal={modals.handleOpenServerModal}
 			onOpenAudioModal={modals.handleOpenAudioModal}
 			onOpenSubtitleModal={modals.handleOpenSubtitleModal}

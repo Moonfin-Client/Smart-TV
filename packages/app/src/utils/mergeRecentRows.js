@@ -3,6 +3,7 @@
 // ordering across them.
 
 import $L from '@enact/i18n/$L';
+import {getDeduplicationKey} from './mediaDedup';
 
 const MERGED_ROW_LIMIT = 16;
 
@@ -33,14 +34,16 @@ export const mergeRecentRows = (entries, dateField) => {
 		const collectionType = (entries[i].lib?.CollectionType || '').toLowerCase();
 		let group = byType.get(collectionType);
 		if (!group) {
-			group = {seen: {}, items: []};
+			group = {seen: new Set(), items: []};
 			byType.set(collectionType, group);
 		}
 		const items = entries[i].items || [];
 		for (let j = 0; j < items.length; j++) {
 			const item = items[j];
-			if (!item?.Id || group.seen[item.Id]) continue;
-			group.seen[item.Id] = true;
+			if (!item) continue;
+			const key = getDeduplicationKey(item);
+			if (group.seen.has(key)) continue;
+			group.seen.add(key);
 			group.items.push(item);
 		}
 	}
