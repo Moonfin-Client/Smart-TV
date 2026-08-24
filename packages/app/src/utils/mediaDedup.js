@@ -25,8 +25,8 @@ const episodeKey = (item) => {
 	const series = (item?.SeriesName || '').trim().toLowerCase();
 	if (!series) return null;
 	if (item.Type === 'Season') {
-		const season = item.IndexNumber != null ? item.IndexNumber : 1;
-		return `season:${series}:s${season}`;
+		const seasonNum = item.IndexNumber != null ? item.IndexNumber : 1;
+		return `season:${series}:s${seasonNum}`;
 	}
 	if (item.IndexNumber == null) return null;
 	const season = item.ParentIndexNumber != null ? item.ParentIndexNumber : 1;
