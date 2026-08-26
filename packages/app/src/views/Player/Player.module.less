@@ -103,6 +103,72 @@
 	text-align: center;
 }
 
+.offsetModalWide {
+	width: 900px;
+}
+
+.timeline {
+	margin-bottom: 40px;
+}
+
+.timelineRuler {
+	position: relative;
+	height: 26px;
+	margin-bottom: 6px;
+}
+
+.timelineMarker {
+	position: absolute;
+	top: 0;
+	transform: translateX(-50%);
+	font-size: 18px;
+	color: rgba(255, 255, 255, 0.5);
+	white-space: nowrap;
+}
+
+.timelineTrack {
+	position: relative;
+	height: 150px;
+	border-radius: 8px;
+	background: rgba(0, 0, 0, 0.5);
+	border: 2px solid rgba(255, 255, 255, 0.15);
+	overflow: hidden;
+}
+
+.timelineEvent {
+	position: absolute;
+	top: 12px;
+	bottom: 12px;
+	border-radius: 4px;
+	background: rgba(255, 255, 255, 0.22);
+	overflow: hidden;
+}
+
+.timelineEventActive {
+	background: rgba(var(--theme-accent-rgb, 0, 164, 220), 0.55);
+}
+
+.timelineEventText {
+	display: block;
+	padding: 8px 6px;
+	font-size: 18px;
+	line-height: 1.2;
+	color: #fff;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.timelinePlayhead {
+	position: absolute;
+	top: 0;
+	bottom: 0;
+	width: 4px;
+	margin-left: -2px;
+	background: #fff;
+	box-shadow: 0 0 8px rgba(0, 0, 0, 0.9);
+}
+
 .offsetActions {
 	display: flex;
 	justify-content: center;

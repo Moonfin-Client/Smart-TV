@@ -190,6 +190,7 @@ const PlayerControls = ({
 	chapters,
 	currentTime,
 	subtitleOffset,
+	subtitleTrackEvents,
 	handleControlButtonClick,
 	handleProgressClick,
 	handleProgressKeyDown,
@@ -802,6 +803,8 @@ const PlayerControls = ({
 			<SubtitleOffsetOverlay
 				visible={activeModal === 'subtitleOffset'}
 				currentOffset={subtitleOffset}
+				currentTime={currentTime}
+				subtitleTrackEvents={subtitleTrackEvents}
 				onClose={closeModal}
 				onOffsetChange={handleSubtitleOffsetChange}
 			/>

@@ -2619,6 +2619,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 				chapters={chapters}
 				currentTime={currentTime}
 				subtitleOffset={subtitleOffset}
+				subtitleTrackEvents={subtitleTrackEvents}
 				handleControlButtonClick={handleControlButtonClick}
 				handleProgressClick={handleProgressClick}
 				handleProgressKeyDown={handleProgressKeyDown}

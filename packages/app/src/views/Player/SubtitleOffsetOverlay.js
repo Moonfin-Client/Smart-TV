@@ -1,9 +1,10 @@
 import Spottable from '@enact/spotlight/Spottable';
 import SpotlightContainerDecorator from '@enact/spotlight/SpotlightContainerDecorator';
 import Spotlight from '@enact/spotlight';
-import {useCallback, useEffect} from 'react';
+import {useCallback, useEffect, useMemo} from 'react';
 import $L from '@enact/i18n/$L';
 import {isBackKey} from '../../utils/keys';
+import {buildSubtitleTimeline} from './subtitleTimeline';
 
 import css from './Player.module.less';
 
@@ -18,7 +19,12 @@ const OffsetContainer = SpotlightContainerDecorator({
 
 const stopPropagation = (e) => e.stopPropagation();
 
-const SubtitleOffsetOverlay = ({visible, currentOffset, onClose, onOffsetChange}) => {
+const SubtitleOffsetOverlay = ({visible, currentOffset, currentTime, subtitleTrackEvents, onClose, onOffsetChange}) => {
+	const timeline = useMemo(
+		() => (visible ? buildSubtitleTimeline(subtitleTrackEvents, currentTime, currentOffset) : null),
+		[visible, subtitleTrackEvents, currentTime, currentOffset]
+	);
+
 	const handleIncrease = useCallback(() => {
 		onOffsetChange(Math.round((currentOffset + 0.1) * 10) / 10);
 	}, [currentOffset, onOffsetChange]);
@@ -59,7 +65,7 @@ const SubtitleOffsetOverlay = ({visible, currentOffset, onClose, onOffsetChange}
 	return (
 		<div className={css.trackModal} onClick={onClose}>
 			<OffsetContainer
-				className={`${css.modalContent} ${css.offsetModal}`}
+				className={`${css.modalContent} ${css.offsetModal}${timeline ? ` ${css.offsetModalWide}` : ''}`}
 				onClick={stopPropagation}
 				spotlightId="offset-modal"
 			>
@@ -83,6 +89,33 @@ const SubtitleOffsetOverlay = ({visible, currentOffset, onClose, onOffsetChange}
 						+
 					</SpottableButton>
 				</div>
+				{timeline ? (
+					<div className={css.timeline}>
+						<div className={css.timelineRuler}>
+							{timeline.markers.map((marker) => (
+								<span
+									key={marker.time}
+									className={css.timelineMarker}
+									style={{left: `${marker.left}%`}}
+								>
+									{marker.label}
+								</span>
+							))}
+						</div>
+						<div className={css.timelineTrack}>
+							{timeline.bars.map((bar) => (
+								<div
+									key={bar.key}
+									className={bar.isActive ? `${css.timelineEvent} ${css.timelineEventActive}` : css.timelineEvent}
+									style={{left: `${bar.left}%`, width: `${bar.width}%`}}
+								>
+									<span className={css.timelineEventText}>{bar.text}</span>
+								</div>
+							))}
+							<div className={css.timelinePlayhead} style={{left: `${timeline.playheadLeft}%`}} />
+						</div>
+					</div>
+				) : null}
 				<div className={css.offsetActions}>
 					<SpottableButton
 						className={css.actionBtn}
