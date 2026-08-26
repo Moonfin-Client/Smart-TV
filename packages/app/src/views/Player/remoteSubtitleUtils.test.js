@@ -15,9 +15,28 @@ const subtitle = (overrides) => ({
 });
 
 describe('mapSubtitleStreamsFromMediaSource', () => {
-	// The profile asks the server to extract text, so AVPlay has no track to select.
-	it('does not treat embedded text as native', () => {
-		expect(mapOne(subtitle({DeliveryMethod: 'Embed'})).isEmbeddedNative).toBe(false);
+	// The profile asks the server to extract text, but a server that cannot extract
+	// still answers Embed with no DeliveryUrl, and then AVPlay is the only route left.
+	it('treats embedded text with no delivery url as native', () => {
+		expect(mapOne(subtitle({DeliveryMethod: 'Embed'})).isEmbeddedNative).toBe(true);
+	});
+
+	it('leaves embedded text to the server when it supplied a delivery url', () => {
+		const mapped = mapOne(subtitle({DeliveryMethod: 'Embed', DeliveryUrl: '/Videos/1/sub.vtt'}));
+
+		expect(mapped.deliveryUrl).toBe('https://server/Videos/1/sub.vtt');
+		expect(mapped.isEmbeddedNative).toBe(false);
+	});
+
+	it('treats an embedded mov_text track as text', () => {
+		expect(mapOne(subtitle({Codec: 'mov_text'})).isTextBased).toBe(true);
+	});
+
+	it('treats an embedded hdmv_pgs_subtitle track as image based', () => {
+		const mapped = mapOne(subtitle({Codec: 'hdmv_pgs_subtitle', DeliveryMethod: 'Embed'}));
+
+		expect(mapped.isImageBased).toBe(true);
+		expect(mapped.isEmbeddedNative).toBe(true);
 	});
 
 	it('does not treat a server delivered text track as native', () => {

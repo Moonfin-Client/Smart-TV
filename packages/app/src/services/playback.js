@@ -350,7 +350,7 @@ const extractSubtitleStreams = (mediaSource, itemId = null, creds = null, assBur
 				// Only bitmap tracks left in the container are AVPlay's to select. The profile
 				// asks the server to extract text, so it arrives over the API and renders on
 				// the web layer even though it also sits in the container.
-				isEmbeddedNative: !s.IsExternal && s.DeliveryMethod !== 'External' && isImageBased,
+				isEmbeddedNative: !s.IsExternal && s.DeliveryMethod !== 'External' && (isImageBased || (isTextBased && !deliveryUrl)),
 				deliveryUrl: deliveryUrl,
 				deliveryMethod: s.DeliveryMethod
 			};
