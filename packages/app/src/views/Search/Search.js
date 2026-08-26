@@ -20,6 +20,12 @@ import {isGameLibrary, resolveGameLibraryId} from '../../utils/gameLibrary';
 import {groupSearchResults, aspectClassForType, isCircleType, filterByName, fetchAllGames, filterGames} from '../../utils/searchGroups';
 import SpottableInput from '../../components/SpottableInput/SpottableInput';
 import useStorage from '../../hooks/useStorage';
+import {
+	initialCardCount,
+	expandedCardCount,
+	searchArtworkOptions,
+	shouldMountSearchRow
+} from './searchWindow';
 
 import css from './Search.module.less';
 
@@ -84,6 +90,8 @@ const Search = ({onSelectItem, onSelectSeerrItem, onSelectPerson, onSelectGame, 
 	const [seerrResults, setSeerrResults] = useState([]);
 	const [gameResults, setGameResults] = useState([]);
 	const [activeTab, setActiveTab] = useState('all');
+	const [activeRowIndex, setActiveRowIndex] = useState(0);
+	const [visibleCardCounts, setVisibleCardCounts] = useState({});
 	const [recentSearches, saveRecentSearches] = useStorage(RECENT_SEARCHES_KEY, []);
 
 	// doSearch records into this list, so it reads the current value through a
@@ -148,6 +156,8 @@ const Search = ({onSelectItem, onSelectSeerrItem, onSelectPerson, onSelectGame, 
 			setGroups([]);
 			setSeerrResults([]);
 			setGameResults([]);
+			setActiveRowIndex(0);
+			setVisibleCardCounts({});
 			return;
 		}
 
@@ -169,6 +179,8 @@ const Search = ({onSelectItem, onSelectSeerrItem, onSelectPerson, onSelectGame, 
 			const items = [...(libraryResult.Items || []), ...filterByName(channels, q)];
 			lastResultNamesRef.current = items.map((found) => found.Name).filter(Boolean);
 			setGroups(groupSearchResults(items));
+			setActiveRowIndex(0);
+			setVisibleCardCounts({});
 			setIsLoading(false);
 			rememberSearch(q);
 			// A new query always starts on All. Focus it once the tabs render, unless
@@ -230,6 +242,8 @@ const Search = ({onSelectItem, onSelectSeerrItem, onSelectPerson, onSelectGame, 
 		setGroups([]);
 		setSeerrResults([]);
 		setGameResults([]);
+		setActiveRowIndex(0);
+		setVisibleCardCounts({});
 		Spotlight.focus('search-input');
 	}, []);
 
@@ -311,6 +325,7 @@ const Search = ({onSelectItem, onSelectSeerrItem, onSelectPerson, onSelectGame, 
 	}, [focusBelowInput]);
 
 	const focusContent = useCallback(() => {
+		if (activeTab === 'all') setActiveRowIndex(0);
 		Spotlight.focus(activeTab === 'all' ? 'search-row-0' : 'search-grid');
 	}, [activeTab]);
 
@@ -334,19 +349,38 @@ const Search = ({onSelectItem, onSelectSeerrItem, onSelectPerson, onSelectGame, 
 		if (e.keyCode === KEYS.UP) {
 			e.preventDefault();
 			e.stopPropagation();
-			Spotlight.focus(rowIndex === 0 ? 'search-tabs' : `search-row-${rowIndex - 1}`);
+			if (rowIndex === 0) {
+				Spotlight.focus('search-tabs');
+			} else {
+				setActiveRowIndex(rowIndex - 1);
+				Spotlight.focus(`search-row-${rowIndex - 1}`);
+			}
 		} else if (e.keyCode === KEYS.DOWN) {
 			e.preventDefault();
 			e.stopPropagation();
-			if (rowIndex < allRows.length - 1) Spotlight.focus(`search-row-${rowIndex + 1}`);
+			if (rowIndex < allRows.length - 1) {
+				setActiveRowIndex(rowIndex + 1);
+				Spotlight.focus(`search-row-${rowIndex + 1}`);
+			}
 		}
 	}, [allRows.length]);
 
-	const handleRowFocus = useCallback((rowId) => (e) => {
+	const handleRowFocus = useCallback((rowId, rowIndex, itemCount) => (e) => {
 		if (pointerHover()) return;
+		setActiveRowIndex((current) => current === rowIndex ? current : rowIndex);
 		const card = e.target.closest('[data-spotlight-id]');
 		const scroller = scrollerRefs.current[rowId];
 		if (!card || !scroller) return;
+		const spotlightId = card.getAttribute('data-spotlight-id') || '';
+		const indexMatch = /-item-(\d+)$/.exec(spotlightId);
+		if (indexMatch) {
+			const focusedIndex = parseInt(indexMatch[1], 10);
+			setVisibleCardCounts((current) => {
+				const visible = current[rowId] || initialCardCount(itemCount);
+				const expanded = expandedCardCount(visible, focusedIndex, itemCount);
+				return expanded === visible ? current : {...current, [rowId]: expanded};
+			});
+		}
 		const cardRect = card.getBoundingClientRect();
 		const scrollerRect = scroller.getBoundingClientRect();
 		if (cardRect.left < scrollerRect.left) {
@@ -387,13 +421,22 @@ const Search = ({onSelectItem, onSelectSeerrItem, onSelectPerson, onSelectGame, 
 	const handleGameSelect = useCallback((game) => onSelectGame?.(game._library, game), [onSelectGame]);
 
 	const renderJellyfinCard = useCallback((item, spotlightId) => {
+		const aspect = aspectClassForType(item.Type);
 		const {card, img} = cardSizeClass(item.Type);
 		const circle = isCircleType(item.Type);
 		const itemServerUrl = item._serverUrl || serverUrl;
 		const hasImage = item.ImageTags?.Primary || item.PrimaryImageTag;
-		let imageUrl = hasImage ? getImageUrl(itemServerUrl, item.Id, 'Primary') : null;
+		const primaryTag = item.ImageTags?.Primary || item.PrimaryImageTag;
+		let imageUrl = hasImage
+			? getImageUrl(itemServerUrl, item.Id, 'Primary', searchArtworkOptions(aspect, primaryTag))
+			: null;
 		if (!imageUrl && item.Type === 'Audio' && item.AlbumId && item.AlbumPrimaryImageTag) {
-			imageUrl = getImageUrl(itemServerUrl, item.AlbumId, 'Primary');
+			imageUrl = getImageUrl(
+				itemServerUrl,
+				item.AlbumId,
+				'Primary',
+				searchArtworkOptions(aspect, item.AlbumPrimaryImageTag)
+			);
 		}
 		return (
 			<SpottableDiv
@@ -475,7 +518,12 @@ const Search = ({onSelectItem, onSelectSeerrItem, onSelectPerson, onSelectGame, 
 		if (activeTab === 'all') {
 			return (
 				<div className={css.resultsContainer}>
-					{allRows.map((row, rowIndex) => (
+					{allRows.map((row, rowIndex) => {
+						const mounted = shouldMountSearchRow(rowIndex, activeRowIndex);
+						const visibleCount = visibleCardCounts[row.id] || initialCardCount(row.items.length);
+						const firstType = row.kind === 'jellyfin' ? row.items[0]?.Type : 'Movie';
+						const placeholderSize = cardSizeClass(firstType);
+						return (
 						<RowContainer
 							key={row.id}
 							className={css.resultRow}
@@ -487,14 +535,25 @@ const Search = ({onSelectItem, onSelectSeerrItem, onSelectPerson, onSelectGame, 
 							<div
 								className={css.rowScroller}
 								ref={(el) => { scrollerRefs.current[row.id] = el; }}
-								onFocus={handleRowFocus(row.id)}
+								onFocus={handleRowFocus(row.id, rowIndex, row.items.length)}
 							>
-								<div className={css.resultItems}>
-									{row.items.map((item, idx) => renderCard(row.kind, item, `${row.id}-item-${idx}`))}
-								</div>
+								{mounted ? (
+									<div className={css.resultItems}>
+										{row.items.slice(0, visibleCount).map((item, idx) => renderCard(row.kind, item, `${row.id}-item-${idx}`))}
+									</div>
+								) : (
+									<div className={css.resultItems} aria-hidden="true">
+										<div className={`${css.card} ${placeholderSize.card} ${css.windowPlaceholder}`}>
+											<div className={`${css.cardImg} ${placeholderSize.img}`} />
+											<div className={css.cardTitle}>&nbsp;</div>
+											<div className={css.cardSubtitle}>&nbsp;</div>
+										</div>
+									</div>
+								)}
 							</div>
 						</RowContainer>
-					))}
+						);
+					})}
 				</div>
 			);
 		}
