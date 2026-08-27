@@ -414,9 +414,9 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 			avplaySetSilentSubtitle(false);
 			useNativeSubtitleRef.current = false;
 		} else {
-			// text arrives through onsubtitlechange and renders on the web layer.
-			// The flip has to END unsilenced or no cue is delivered at all, so the
-			// web layer would stay empty with the track still reported as selected.
+			// text arrives through onsubtitlechange and renders on the web layer. The
+			// flip has to end unsilenced or no cue is delivered at all, which leaves
+			// the web layer empty while the track still reads as selected.
 			avplaySetSilentSubtitle(true);
 			avplaySetSilentSubtitle(false);
 			useNativeSubtitleRef.current = true;

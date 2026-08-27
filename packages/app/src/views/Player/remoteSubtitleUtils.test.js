@@ -1,8 +1,8 @@
 import {mapSubtitleStreamsFromMediaSource} from './remoteSubtitleUtils';
 
-const mediaSource = (streams) => ({MediaStreams: streams});
-const mapOne = (stream) =>
-	mapSubtitleStreamsFromMediaSource(mediaSource([stream]), 'https://server', {includeEmbeddedNative: true})[0];
+const mediaSource = (streams, over = {}) => ({MediaStreams: streams, ...over});
+const mapOne = (stream, over) =>
+	mapSubtitleStreamsFromMediaSource(mediaSource([stream], over), 'https://server', {includeEmbeddedNative: true})[0];
 
 const subtitle = (overrides) => ({
 	Type: 'Subtitle',
@@ -15,17 +15,14 @@ const subtitle = (overrides) => ({
 });
 
 describe('mapSubtitleStreamsFromMediaSource', () => {
-	// The profile asks the server to extract text, but a server that cannot extract
-	// still answers Embed with no DeliveryUrl, and then AVPlay is the only route left.
-	it('treats embedded text with no delivery url as native', () => {
-		expect(mapOne(subtitle({DeliveryMethod: 'Embed'})).isEmbeddedNative).toBe(true);
+	// A server that cant transcode cant extract either, so there AVPlay is all text has.
+	it('leaves embedded text to the server when it can extract', () => {
+		expect(mapOne(subtitle()).isEmbeddedNative).toBe(false);
+		expect(mapOne(subtitle(), {SupportsTranscoding: true}).isEmbeddedNative).toBe(false);
 	});
 
-	it('leaves embedded text to the server when it supplied a delivery url', () => {
-		const mapped = mapOne(subtitle({DeliveryMethod: 'Embed', DeliveryUrl: '/Videos/1/sub.vtt'}));
-
-		expect(mapped.deliveryUrl).toBe('https://server/Videos/1/sub.vtt');
-		expect(mapped.isEmbeddedNative).toBe(false);
+	it('treats embedded text as native when the server cant extract', () => {
+		expect(mapOne(subtitle(), {SupportsTranscoding: false}).isEmbeddedNative).toBe(true);
 	});
 
 	it('treats an embedded mov_text track as text', () => {

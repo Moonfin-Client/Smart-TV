@@ -347,10 +347,12 @@ const extractSubtitleStreams = (mediaSource, itemId = null, creds = null, assBur
 				isAss: !assBurnsIn && isAssSubtitleCodec(codec),
 				isImageBased,
 				isBurnIn: isBurnInSubtitleCodec(codec) || (assBurnsIn && isAssSubtitleCodec(codec)),
-				// Only bitmap tracks left in the container are AVPlay's to select. The profile
-				// asks the server to extract text, so it arrives over the API and renders on
-				// the web layer even though it also sits in the container.
-				isEmbeddedNative: !s.IsExternal && s.DeliveryMethod !== 'External' && (isImageBased || (isTextBased && !deliveryUrl)),
+				// Bitmap tracks left in the container are AVPlay's to select. Text normally
+				// comes over the API because the profile asks the server to extract it, but a
+				// server that cant transcode cant extract either, and then the copy in the
+				// container is the only one text has.
+				isEmbeddedNative: !s.IsExternal && s.DeliveryMethod !== 'External' &&
+					(isImageBased || (isTextBased && mediaSource.SupportsTranscoding === false)),
 				deliveryUrl: deliveryUrl,
 				deliveryMethod: s.DeliveryMethod
 			};
