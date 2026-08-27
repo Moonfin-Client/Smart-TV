@@ -52,7 +52,7 @@ function build(label, extraFlags) {
 	console.log('\n' + cyan('═'.repeat(50)));
 	console.log(cyan(`  Building: ${label}`));
 	console.log(cyan('═'.repeat(50)) + '\n');
-	execSync(`node "${SCRIPT}" ${allArgs.join(' ')}`, {stdio: 'inherit', cwd: ROOT});
+	spawnSync('node', [SCRIPT, ...allArgs], {stdio: 'inherit', cwd: ROOT});
 }
 
 build('Regular', []);
