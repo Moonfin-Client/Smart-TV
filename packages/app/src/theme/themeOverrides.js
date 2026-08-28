@@ -27,6 +27,7 @@ import appCss from '../App/App.module.less';
 import sidebarCss from '../components/Sidebar/Sidebar.module.less';
 import navBarCss from '../components/NavBar/NavBar.module.less';
 import settingsCss from '../views/Settings/Settings.module.less';
+import searchCss from '../views/Search/Search.module.less';
 import detailsCss from '../views/Details/Details.module.less';
 import modernDetailCss from '../views/Details/ModernDetailContent.module.less';
 import overviewCss from '../views/Details/ExpandableOverview.module.less';
@@ -217,6 +218,10 @@ export const buildThemeOverrideCss = (theme, options = {}) => {
 	rule(`.${settingsCss.playbackTimeBar}`, `background: ${rangeTrack};`);
 	rule(`.${settingsCss.playbackTimeBarFill}`, `background: ${rangeProgress};`);
 
+	// Search input
+	rule(`.${searchCss.searchInputWrapper}`, `background: ${inputBackground}; border-color: ${inputBorder};`);
+	rule(`.${searchCss.searchInputFocused}`, `background: ${inputFocused}; border-color: ${focusColor}; box-shadow: ${glowOr('none')};`);
+
 	// Detail screens, classic layout
 	rule(`.${detailsCss.posterBadgeWatched}, .${detailsCss.watchedIndicator}`, `background: ${badgeWatched};`);
 	rule(`.${detailsCss.posterBadgeWatched} svg, .${detailsCss.watchedIndicator} svg`, `fill: ${onBadge};`);
@@ -373,7 +378,7 @@ export const buildThemeOverrideCss = (theme, options = {}) => {
 			`.${navBarCss.navPill}`, `.${navBarCss.navBtn}`,
 			`.${settingsCss.listItem}`, `.${settingsCss.listItemIcon}`, `.${settingsCss.sliderContainer}`,
 			`.${settingsCss.themeCard}`, `.${settingsCss.themeCardStripe}`, `.${settingsCss.input}`,
-			`.${settingsCss.searchInput}`, `.${settingsCss.actionButton}`, `.${settingsCss.playbackTimePreview}`,
+			`.${settingsCss.searchInput}`, `.${settingsCss.actionButton}`, `.${settingsCss.playbackTimePreview}`, `.${searchCss.searchInputWrapper}`,
 			`.${detailsCss.poster}`, `.${detailsCss.btnAction}`, `.${detailsCss.nextUpCard}`,
 			`.${detailsCss.episodeCard}`, `.${detailsCss.chapterCard}`, `.${detailsCss.extraCard}`,
 			`.${detailsCss.seasonPosterWrapper}`, `.${detailsCss.episodeNumber}`, `.${detailsCss.badge}`,

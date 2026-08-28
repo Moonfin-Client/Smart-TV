@@ -31,8 +31,10 @@ import css from './Search.module.less';
 
 const SpottableDiv = Spottable('div');
 const SpottableButton = Spottable('button');
+const ACTIVE_SEARCH_TAB_ID = 'search-active-tab';
+const ACTIVE_SEARCH_TAB_SELECTOR = `[data-spotlight-id="${ACTIVE_SEARCH_TAB_ID}"]`;
 const RowContainer = SpotlightContainerDecorator({enterTo: 'last-focused', restrict: 'self-first'}, 'div');
-const GridContainer = SpotlightContainerDecorator({enterTo: 'last-focused', leaveFor: {up: 'search-tabs'}}, 'div');
+const GridContainer = SpotlightContainerDecorator({enterTo: 'last-focused', leaveFor: {up: ACTIVE_SEARCH_TAB_SELECTOR}}, 'div');
 // Without a default element, entering the container lands on Clear, since that
 // is first in the DOM. Point it at the chips so arriving here offers a search.
 const RecentContainer = SpotlightContainerDecorator({
@@ -46,6 +48,7 @@ const GLOBAL_FETCH_LIMIT = 240;
 const SEERR_CAP = 24;
 const RECENT_SEARCHES_KEY = 'search_recentQueries';
 const RECENT_SEARCHES_MAX = 10;
+const ROW_SCROLL_MARGIN = 50;
 
 const SearchIcon = () => (
 	<svg viewBox="0 0 24 24" fill="currentColor" className={css.searchIcon}>
@@ -96,6 +99,7 @@ const Search = ({onSelectItem, onSelectSeerrItem, onSelectPerson, onSelectGame, 
 	const [seerrResults, setSeerrResults] = useState([]);
 	const [gameResults, setGameResults] = useState([]);
 	const [activeTab, setActiveTab] = useState('all');
+	const [searchInputFocused, setSearchInputFocused] = useState(false);
 	const [activeRowIndex, setActiveRowIndex] = useState(0);
 	const [visibleCardCounts, setVisibleCardCounts] = useState({});
 	const [recentSearches, saveRecentSearches] = useStorage(RECENT_SEARCHES_KEY, []);
@@ -330,6 +334,11 @@ const Search = ({onSelectItem, onSelectSeerrItem, onSelectPerson, onSelectGame, 
 		if (focusBelowInput()) e.preventDefault();
 	}, [focusBelowInput]);
 
+	const handleSearchInputFocus = useCallback(() => setSearchInputFocused(true), []);
+	const handleSearchInputBlur = useCallback((e) => {
+		if (!e.currentTarget.contains(e.relatedTarget)) setSearchInputFocused(false);
+	}, []);
+
 	const focusContent = useCallback(() => {
 		if (activeTab === 'all') setActiveRowIndex(0);
 		Spotlight.focus(activeTab === 'all' ? 'search-row-0' : 'search-grid');
@@ -356,7 +365,7 @@ const Search = ({onSelectItem, onSelectSeerrItem, onSelectPerson, onSelectGame, 
 			e.preventDefault();
 			e.stopPropagation();
 			if (rowIndex === 0) {
-				Spotlight.focus('search-tabs');
+				Spotlight.focus(ACTIVE_SEARCH_TAB_SELECTOR);
 			} else {
 				setActiveRowIndex(rowIndex - 1);
 				Spotlight.focus(`search-row-${rowIndex - 1}`);
@@ -387,13 +396,17 @@ const Search = ({onSelectItem, onSelectSeerrItem, onSelectPerson, onSelectGame, 
 				return expanded === visible ? current : {...current, [rowId]: expanded};
 			});
 		}
-		const cardRect = card.getBoundingClientRect();
-		const scrollerRect = scroller.getBoundingClientRect();
-		if (cardRect.left < scrollerRect.left) {
-			scroller.scrollLeft -= (scrollerRect.left - cardRect.left + 50);
-		} else if (cardRect.right > scrollerRect.right) {
-			scroller.scrollLeft += (cardRect.right - scrollerRect.right + 50);
-		}
+		window.requestAnimationFrame(() => {
+			const cardRect = card.getBoundingClientRect();
+			const scrollerRect = scroller.getBoundingClientRect();
+			const leftEdge = scrollerRect.left + ROW_SCROLL_MARGIN;
+			const rightEdge = scrollerRect.right - ROW_SCROLL_MARGIN;
+			if (cardRect.left < leftEdge) {
+				scroller.scrollLeft -= leftEdge - cardRect.left;
+			} else if (cardRect.right > rightEdge) {
+				scroller.scrollLeft += cardRect.right - rightEdge;
+			}
+		});
 	}, []);
 
 	const handleSelectJellyfin = useCallback((item) => {
@@ -571,9 +584,13 @@ const Search = ({onSelectItem, onSelectSeerrItem, onSelectPerson, onSelectGame, 
 	};
 
 	return (
-		<div className={css.searchContainer}>
+		<div className={`${css.searchContainer} ${settings.navbarPosition === 'left' ? css.sidebarOffset : ''}`}>
 			<div className={css.searchInputSection}>
-				<div className={css.searchInputWrapper}>
+				<div
+					className={`${css.searchInputWrapper} ${searchInputFocused ? css.searchInputFocused : ''}`}
+					onFocusCapture={handleSearchInputFocus}
+					onBlurCapture={handleSearchInputBlur}
+				>
 					<SearchIcon />
 					<SpottableInput
 						type="text"
@@ -599,6 +616,7 @@ const Search = ({onSelectItem, onSelectSeerrItem, onSelectPerson, onSelectGame, 
 						<DetailsTabBar
 							tabs={tabs}
 							activeId={activeTab}
+							activeSpotlightId={ACTIVE_SEARCH_TAB_ID}
 							onSelect={handleSelectTab}
 							onActivate={handleSelectTab}
 							expanded
