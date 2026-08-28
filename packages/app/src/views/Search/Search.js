@@ -55,10 +55,16 @@ const SearchIcon = () => (
 
 const cardSizeClass = (type) => {
 	const aspect = aspectClassForType(type);
-	if (aspect === 'wide') return {card: css.cardWide, img: css.imgWide};
-	if (aspect === 'square') return {card: css.cardSquare, img: css.imgSquare};
-	return {card: css.cardPoster, img: css.imgPoster};
+	if (aspect === 'wide') return {aspect, card: css.cardWide, img: css.imgWide};
+	if (aspect === 'square') return {aspect, card: css.cardSquare, img: css.imgSquare};
+	return {aspect, card: css.cardPoster, img: css.imgPoster};
 };
+
+// An unmounted row still has to hold its height, so it draws one hidden card in
+// the shape that row uses. Games come from GameCard, which sizes itself.
+const placeholderShape = (row) => row.kind === 'game'
+	? {card: css.cardGame, img: css.imgGame}
+	: cardSizeClass(row.kind === 'jellyfin' ? row.items[0]?.Type : 'Movie');
 
 const jellyfinSubtitle = (item) => {
 	switch (item.Type) {
@@ -421,13 +427,11 @@ const Search = ({onSelectItem, onSelectSeerrItem, onSelectPerson, onSelectGame, 
 	const handleGameSelect = useCallback((game) => onSelectGame?.(game._library, game), [onSelectGame]);
 
 	const renderJellyfinCard = useCallback((item, spotlightId) => {
-		const aspect = aspectClassForType(item.Type);
-		const {card, img} = cardSizeClass(item.Type);
+		const {aspect, card, img} = cardSizeClass(item.Type);
 		const circle = isCircleType(item.Type);
 		const itemServerUrl = item._serverUrl || serverUrl;
-		const hasImage = item.ImageTags?.Primary || item.PrimaryImageTag;
 		const primaryTag = item.ImageTags?.Primary || item.PrimaryImageTag;
-		let imageUrl = hasImage
+		let imageUrl = primaryTag
 			? getImageUrl(itemServerUrl, item.Id, 'Primary', searchArtworkOptions(aspect, primaryTag))
 			: null;
 		if (!imageUrl && item.Type === 'Audio' && item.AlbumId && item.AlbumPrimaryImageTag) {
@@ -520,38 +524,37 @@ const Search = ({onSelectItem, onSelectSeerrItem, onSelectPerson, onSelectGame, 
 				<div className={css.resultsContainer}>
 					{allRows.map((row, rowIndex) => {
 						const mounted = shouldMountSearchRow(rowIndex, activeRowIndex);
-						const visibleCount = visibleCardCounts[row.id] || initialCardCount(row.items.length);
-						const firstType = row.kind === 'jellyfin' ? row.items[0]?.Type : 'Movie';
-						const placeholderSize = cardSizeClass(firstType);
+						const visibleCount = mounted ? visibleCardCounts[row.id] || initialCardCount(row.items.length) : 0;
+						const placeholderSize = mounted ? null : placeholderShape(row);
 						return (
-						<RowContainer
-							key={row.id}
-							className={css.resultRow}
-							spotlightId={`search-row-${rowIndex}`}
-							data-row-index={rowIndex}
-							onKeyDown={handleRowKeyDown}
-						>
-							<h2 className={css.rowTitle}>{row.title}<span className={css.rowCount}> ({row.items.length})</span></h2>
-							<div
-								className={css.rowScroller}
-								ref={(el) => { scrollerRefs.current[row.id] = el; }}
-								onFocus={handleRowFocus(row.id, rowIndex, row.items.length)}
+							<RowContainer
+								key={row.id}
+								className={css.resultRow}
+								spotlightId={`search-row-${rowIndex}`}
+								data-row-index={rowIndex}
+								onKeyDown={handleRowKeyDown}
 							>
-								{mounted ? (
-									<div className={css.resultItems}>
-										{row.items.slice(0, visibleCount).map((item, idx) => renderCard(row.kind, item, `${row.id}-item-${idx}`))}
-									</div>
-								) : (
-									<div className={css.resultItems} aria-hidden="true">
-										<div className={`${css.card} ${placeholderSize.card} ${css.windowPlaceholder}`}>
-											<div className={`${css.cardImg} ${placeholderSize.img}`} />
-											<div className={css.cardTitle}>&nbsp;</div>
-											<div className={css.cardSubtitle}>&nbsp;</div>
+								<h2 className={css.rowTitle}>{row.title}<span className={css.rowCount}> ({row.items.length})</span></h2>
+								<div
+									className={css.rowScroller}
+									ref={(el) => { scrollerRefs.current[row.id] = el; }}
+									onFocus={handleRowFocus(row.id, rowIndex, row.items.length)}
+								>
+									{mounted ? (
+										<div className={css.resultItems}>
+											{row.items.slice(0, visibleCount).map((item, idx) => renderCard(row.kind, item, `${row.id}-item-${idx}`))}
 										</div>
-									</div>
-								)}
-							</div>
-						</RowContainer>
+									) : (
+										<div className={css.resultItems} aria-hidden="true">
+											<div className={`${css.card} ${placeholderSize.card} ${css.windowPlaceholder}`}>
+												<div className={`${css.cardImg} ${placeholderSize.img}`} />
+												<div className={css.cardTitle}>&nbsp;</div>
+												<div className={css.cardSubtitle}>&nbsp;</div>
+											</div>
+										</div>
+									)}
+								</div>
+							</RowContainer>
 						);
 					})}
 				</div>

@@ -21,13 +21,15 @@ describe('search result windowing', () => {
 		expect(expandedCardCount(18, 17, 24)).toBe(24);
 	});
 
+	// The same sizes and quality the rest of the app asks for, so search reads
+	// the images the server already rendered.
 	test('sizes artwork for its card shape', () => {
 		expect(searchArtworkOptions('poster', 'poster-tag')).toEqual({
-			maxHeight: 360,
-			quality: 75,
+			maxHeight: 300,
+			quality: 80,
 			tag: 'poster-tag'
 		});
-		expect(searchArtworkOptions('wide')).toEqual({maxWidth: 440, quality: 75});
-		expect(searchArtworkOptions('square')).toEqual({maxWidth: 440, quality: 75});
+		expect(searchArtworkOptions('wide')).toEqual({maxWidth: 400, quality: 80});
+		expect(searchArtworkOptions('square')).toEqual({maxWidth: 400, quality: 80});
 	});
 });

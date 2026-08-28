@@ -331,6 +331,17 @@
 	pointer-events: none;
 }
 
+// GameCard sizes itself rather than using the card classes above, so the stand
+// in for an unmounted games row has to match its width and poster ratio or the
+// row changes height as it mounts.
+.cardGame {
+	width: 150px;
+}
+
+.imgGame {
+	padding-top: 134%;
+}
+
 .watchedBadge {
 	@import '../../styles/mixins.less';
 	.watched-badge(24px, 14px);

@@ -1,5 +1,9 @@
+// A row opens with about a screen of cards and grows as focus nears the end of
+// what is mounted, so a long result set is only built in full for someone who
+// walks through it.
 export const INITIAL_CARD_WINDOW = 10;
 export const CARD_WINDOW_STEP = 8;
+// How near the last mounted card focus has to get before the next batch lands.
 export const CARD_WINDOW_EDGE = 2;
 export const ROW_WINDOW_RADIUS = 1;
 
@@ -17,6 +21,8 @@ export const expandedCardCount = (currentCount, focusedIndex, itemCount) => {
 };
 
 export const searchArtworkOptions = (aspect, tag) => {
-	const size = aspect === 'poster' ? {maxHeight: 360} : {maxWidth: 440};
-	return tag ? {...size, quality: 75, tag} : {...size, quality: 75};
+	const options = aspect === 'poster' ? {maxHeight: 300} : {maxWidth: 400};
+	options.quality = 80;
+	if (tag) options.tag = tag;
+	return options;
 };
