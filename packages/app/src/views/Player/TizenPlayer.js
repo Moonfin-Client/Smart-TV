@@ -92,7 +92,10 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 	const {settings, updateSetting} = useSettings();
 	const {isInGroup, lastCommand} = useSyncPlay();
 	const syncPlayCommandRef = useRef(false);
-	const lastProcessedCommandRef = useRef(null);
+	// Whatever command was pending when this player mounted has already had its
+	// effect. Joining an idle group gets a Stop, and replaying that here on the
+	// next mount would close the player the moment the group starts something.
+	const lastProcessedCommandRef = useRef(lastCommand);
 	const suppressBufferingUntilRef = useRef(0);
 	const stallRecheckTimerRef = useRef(null);
 	const isBufferingRef = useRef(false);
@@ -1596,6 +1599,20 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 		avplaySeek(Math.floor(target / 10000)).catch(e => console.warn('[Player] Seek failed:', e));
 	}, []);
 
+	// Every user seek inside a group goes through here to the server, which then
+	// seeks everyone. A local seek would only be reported as buffering and
+	// undone by the next group command. Arrow presses already collapse through
+	// the deferred seek, so this sends straight away. Returns false outside a
+	// group so callers fall through to a local seek.
+	const groupSeekTo = useCallback((ticks) => {
+		if (!isInGroup || syncPlayCommandRef.current) return false;
+		const limit = runTimeRef.current > 0 ? runTimeRef.current - 10000000 : ticks;
+		const target = Math.max(0, Math.min(ticks, limit));
+		setSeekPosition(target);
+		syncPlayService.sendSeekRequest(target);
+		return true;
+	}, [isInGroup]);
+
 	// A recap starts at the top of the episode, so its skip button is on screen
 	// while the session is still starting. A fresh session refuses seeks until
 	// playback is moving, which is what the resume seek above waits for, so a
@@ -1607,12 +1624,14 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 		// stop a second early and let playback finish on its own.
 		const limit = runTimeRef.current > 0 ? runTimeRef.current - 10000000 : endTicks;
 		const target = Math.max(0, Math.min(endTicks, limit));
+		// Skipping inside a group skips the segment for everyone.
+		if (groupSeekTo(target)) return;
 		if (!playbackMovingRef.current) {
 			pendingSegmentSeekRef.current = target;
 			return;
 		}
 		seekToSegmentTarget(target);
-	}, [seekToSegmentTarget]);
+	}, [seekToSegmentTarget, groupSeekTo]);
 
 	const {
 		skipSegment, showSkipCredits, showNextEpisode, nextEpisodeCountdown,
@@ -1807,29 +1826,21 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 	const handleRewind = useCallback(() => {
 		if (!avplayReadyRef.current) return;
 		const step = skipBackSeconds(settings);
-		if (isInGroup && !syncPlayCommandRef.current) {
-			const newTicks = Math.max(0, positionRef.current - step * 10000000);
-			syncPlayService.sendSeekRequest(newTicks);
-			return;
-		}
+		if (groupSeekTo(positionRef.current - step * 10000000)) return;
 		const ms = avplayGetCurrentTime();
 		const newMs = Math.max(0, ms - step * 1000);
 		avplaySeek(newMs).catch(e => console.warn('[Player] Seek failed:', e));
-	}, [settings, isInGroup]);
+	}, [settings, groupSeekTo]);
 
 	const handleForward = useCallback(() => {
 		if (!avplayReadyRef.current) return;
 		const step = skipForwardSeconds(settings);
-		if (isInGroup && !syncPlayCommandRef.current) {
-			const newTicks = Math.min(runTimeRef.current, positionRef.current + step * 10000000);
-			syncPlayService.sendSeekRequest(newTicks);
-			return;
-		}
+		if (groupSeekTo(positionRef.current + step * 10000000)) return;
 		const ms = avplayGetCurrentTime();
 		const durationMs = avplayGetDuration();
 		const newMs = Math.min(durationMs, ms + step * 1000);
 		avplaySeek(newMs).catch(e => console.warn('[Player] Seek failed:', e));
-	}, [settings, isInGroup]);
+	}, [settings, groupSeekTo]);
 
 	// Modal handlers
 	const openModal = useCallback((modal) => {
@@ -2073,12 +2084,12 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 	const handleSelectChapter = useCallback((e) => {
 		const ticks = parseInt(e.currentTarget.dataset.ticks, 10);
 		if (isNaN(ticks)) return;
-		if (avplayReadyRef.current && ticks >= 0) {
+		if (avplayReadyRef.current && ticks >= 0 && !groupSeekTo(ticks)) {
 			const seekMs = Math.floor(ticks / 10000);
 			avplaySeek(seekMs).catch(err => console.warn('[Player] Chapter seek failed:', err));
 		}
 		closeModal();
-	}, [closeModal]);
+	}, [closeModal, groupSeekTo]);
 
 	// Progress bar seeking
 	const handleProgressClick = useCallback((e) => {
@@ -2086,8 +2097,9 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 		const rect = e.currentTarget.getBoundingClientRect();
 		const percent = (e.clientX - rect.left) / rect.width;
 		const newTimeMs = percent * duration * 1000;
+		if (groupSeekTo(Math.floor(newTimeMs * 10000))) return;
 		avplaySeek(newTimeMs).catch(err => console.warn('[Player] Seek failed:', err));
-	}, [duration]);
+	}, [duration, groupSeekTo]);
 
 	// Deferred seek helpers: only execute the actual avplaySeek after the user
 	// stops pressing arrow keys (debounce) or presses OK/Enter to confirm.
@@ -2099,9 +2111,10 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 		if (pendingSeekMsRef.current != null && avplayReadyRef.current) {
 			const seekMs = pendingSeekMsRef.current;
 			pendingSeekMsRef.current = null;
+			if (groupSeekTo(Math.floor(seekMs * 10000))) return;
 			avplaySeek(seekMs).catch(err => console.warn('[Player] Deferred seek failed:', err));
 		}
-	}, []);
+	}, [groupSeekTo]);
 
 	const scheduleDeferredSeek = useCallback((targetMs) => {
 		pendingSeekMsRef.current = targetMs;

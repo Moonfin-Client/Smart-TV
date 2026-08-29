@@ -82,12 +82,21 @@ const getWebOSFullscreenRect = () => {
 	};
 };
 
+// A burst of arrow presses on the seek bar becomes one group seek, since every
+// request puts the whole group through a round of buffering.
+const GROUP_SEEK_DEBOUNCE_MS = 600;
+
 const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialSubtitleIndex, initialStartPositionTicks, initialQuality, forceTranscode, onEnded, onBack, onGuide, onPlayNext, onSelectPerson, audioPlaylist, videoQueue, onPausedChange}) => {
 	const {settings, updateSetting} = useSettings();
 	const {isInGroup, lastCommand} = useSyncPlay();
 	const syncPlayCommandRef = useRef(false);
-	const lastProcessedCommandRef = useRef(null);
+	// Whatever command was pending when this player mounted has already had its
+	// effect. Joining an idle group gets a Stop, and replaying that here on the
+	// next mount would close the player the moment the group starts something.
+	const lastProcessedCommandRef = useRef(lastCommand);
 	const suppressBufferingUntilRef = useRef(0);
+	const groupSeekTimerRef = useRef(null);
+	const groupSeekTargetRef = useRef(null);
 	const stallRecheckTimerRef = useRef(null);
 
 	const [mediaUrl, setMediaUrl] = useState(null);
@@ -975,7 +984,51 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 
 
 
+	// Every user seek inside a group goes through here to the server, which then
+	// seeks everyone. A local seek would only be reported as buffering and
+	// undone by the next group command. positionRef is left alone so the
+	// group's Seek command still measures as a real move when it comes back.
+	// Returns false outside a group so callers fall through to a local seek.
+	const groupSeekTo = useCallback((ticks, debounce = false) => {
+		if (!isInGroup || syncPlayCommandRef.current) return false;
+		const limit = runTimeRef.current > 0 ? runTimeRef.current - 10000000 : ticks;
+		const target = Math.max(0, Math.min(ticks, limit));
+		clearTimeout(groupSeekTimerRef.current);
+		groupSeekTargetRef.current = target;
+		setSeekPosition(target);
+		const send = () => {
+			groupSeekTimerRef.current = null;
+			groupSeekTargetRef.current = null;
+			syncPlayService.sendSeekRequest(target);
+		};
+		if (debounce) {
+			groupSeekTimerRef.current = setTimeout(send, GROUP_SEEK_DEBOUNCE_MS);
+		} else {
+			send();
+		}
+		return true;
+	}, [isInGroup]);
+
+	// A pending group seek is meaningless once the group is left or the server
+	// has moved everyone itself.
+	const cancelGroupSeek = useCallback(() => {
+		clearTimeout(groupSeekTimerRef.current);
+		groupSeekTimerRef.current = null;
+		groupSeekTargetRef.current = null;
+	}, []);
+
+	useEffect(() => {
+		if (!isInGroup) cancelGroupSeek();
+		return cancelGroupSeek;
+	}, [isInGroup, cancelGroupSeek]);
+
 	const seekByOffset = useCallback((deltaSec, updateSeekPosition) => {
+		if (isInGroup && !syncPlayCommandRef.current) {
+			// Presses accumulate on the pending target so a burst lands once.
+			const base = groupSeekTargetRef.current != null ? groupSeekTargetRef.current : positionRef.current;
+			groupSeekTo(base + Math.floor(deltaSec * 10000000), true);
+			return;
+		}
 		const baseTime = (playMethod === 'Transcode')
 			? ((lastSeekTargetRef.current != null ? lastSeekTargetRef.current : positionRef.current) / 10000000)
 			: (videoRef.current ? videoRef.current.currentTime : 0);
@@ -1005,7 +1058,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 				console.warn('[Player] seekByOffset: failed to set currentTime:', e);
 			}
 		}
-	}, [duration, playMethod]);
+	}, [duration, playMethod, isInGroup, groupSeekTo]);
 
 	const seekToTicks = useCallback((ticks) => {
 		const maxTicks = Math.max(0, runTimeRef.current - 10000000); // 1s before end
@@ -1322,10 +1375,10 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 	}, [onPlayNext, item.Id]);
 
 	const onSeekToSegmentEnd = useCallback((endTicks) => {
-		if (endTicks && videoRef.current) {
-			seekToTicks(endTicks);
-		}
-	}, [seekToTicks]);
+		if (!endTicks || !videoRef.current) return;
+		// Skipping inside a group skips the segment for everyone.
+		if (!groupSeekTo(endTicks)) seekToTicks(endTicks);
+	}, [seekToTicks, groupSeekTo]);
 
 	const {
 		skipSegment, showSkipCredits, showNextEpisode, nextEpisodeCountdown,
@@ -1708,28 +1761,12 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 	}, [isPaused, settings.unpauseRewind, isInGroup, showControls]);
 
 	const handleRewind = useCallback(() => {
-		if (videoRef.current) {
-			const step = skipBackSeconds(settings);
-			if (isInGroup && !syncPlayCommandRef.current) {
-				const newTicks = Math.max(0, positionRef.current - step * 10000000);
-				syncPlayService.sendSeekRequest(newTicks);
-				return;
-			}
-			seekByOffset(-step);
-		}
-	}, [settings, seekByOffset, isInGroup]);
+		if (videoRef.current) seekByOffset(-skipBackSeconds(settings));
+	}, [settings, seekByOffset]);
 
 	const handleForward = useCallback(() => {
-		if (videoRef.current) {
-			const step = skipForwardSeconds(settings);
-			if (isInGroup && !syncPlayCommandRef.current) {
-				const newTicks = Math.min(runTimeRef.current, positionRef.current + step * 10000000);
-				syncPlayService.sendSeekRequest(newTicks);
-				return;
-			}
-			seekByOffset(step);
-		}
-	}, [settings, seekByOffset, isInGroup]);
+		if (videoRef.current) seekByOffset(skipForwardSeconds(settings));
+	}, [settings, seekByOffset]);
 
 	const openModal = useCallback((modal) => {
 	  lastFocusedElementRef.current = document.activeElement;
@@ -2055,9 +2092,9 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 	const handleSelectChapter = useCallback((e) => {
 		const ticks = parseInt(e.currentTarget.dataset.ticks, 10);
 		if (isNaN(ticks) || ticks < 0) return;
-		seekToTicks(ticks);
+		if (!groupSeekTo(ticks)) seekToTicks(ticks);
 		closeModal();
-	}, [closeModal, seekToTicks]);
+	}, [closeModal, seekToTicks, groupSeekTo]);
 
 	const handleProgressClick = useCallback((e) => {
 		if (!videoRef.current) return;
@@ -2065,8 +2102,8 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 		const percent = (e.clientX - rect.left) / rect.width;
 		const newTime = percent * duration;
 		const newTicks = Math.floor(newTime * 10000000);
-		if(newTicks)seekToTicks(newTicks);
-	}, [duration, seekToTicks]);
+		if (newTicks && !groupSeekTo(newTicks)) seekToTicks(newTicks);
+	}, [duration, seekToTicks, groupSeekTo]);
 
 	const handleProgressKeyDown = useCallback((e) => {
 		if (!videoRef.current) return;
@@ -2204,6 +2241,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 
 		const execute = () => {
 			if (!videoRef.current) return;
+			cancelGroupSeek();
 			syncPlayCommandRef.current = true;
 			suppressBufferingUntilRef.current = Date.now() + syncPlayService.BUFFERING_SUPPRESS_MS;
 
@@ -2249,7 +2287,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 			return () => clearTimeout(t);
 		}
 		execute();
-	}, [lastCommand, seekToTicks, handleBack]);
+	}, [lastCommand, seekToTicks, handleBack, cancelGroupSeek]);
 
 	// Commands alone cant hold this in step, because the decoder loses a little
 	// wall clock time on every rebuffer and nothing measured it afterwards.

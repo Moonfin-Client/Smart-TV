@@ -32,6 +32,10 @@ const MAX_HANDSHAKE_ATTEMPTS = 3;
 // because the server has no rate limit on buffering reports.
 export const BUFFERING_SUPPRESS_MS = 5000;
 
+// Play queue update reasons that mean the group moved on to something, as
+// opposed to a reorder or a repeat/shuffle change.
+export const QUEUE_START_REASONS = ['NewPlaylist', 'SetCurrentItem', 'NextItem', 'PreviousItem'];
+
 const emit = (event, data) => {
 	for (const listener of listeners) {
 		try {
