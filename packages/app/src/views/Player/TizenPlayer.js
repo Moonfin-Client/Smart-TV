@@ -18,6 +18,7 @@ import {KEYS, isBackKey} from '../../utils/keys';
 import {isPreroll, nextInQueue, shouldAutoAdvance} from '../../utils/cinemaMode';
 import {driftAction, driftMs, needsSeek, correctionOptions, DRIFT_CHECK_MS} from '../../utils/syncDrift';
 import {createReadyGate} from '../../utils/syncReady';
+import {createSkipGovernor} from '../../utils/syncCorrection';
 import {getImageUrl} from '../../utils/helpers';
 import {initPgsCanvasRenderer, disposePgsRenderer, clearPgsCanvas} from '../../utils/pgsRenderer';
 import {supportsAssRenderer, initAssCanvasRenderer, disposeAssRenderer, setAssTime} from '../../utils/assRenderer';
@@ -113,6 +114,12 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 		isBuffering: () => isBufferingRef.current,
 		report: () => syncPlayService.sendReadyRequest(syncPlaySample)
 	}), [syncPlaySample]);
+	// Corrective skips are attempts that have to land and render before the
+	// drift is measured again; see syncCorrection.js for the loop this stops.
+	const skipGovernorRef = useRef(createSkipGovernor());
+	useEffect(() => {
+		skipGovernorRef.current.reset();
+	}, [item?.Id]);
 
 	const [isLoading, setIsLoading] = useState(true);
 	const [isBuffering, setIsBuffering] = useState(false);
@@ -2406,6 +2413,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 
 	const executeSyncPlayCommand = useCallback((command, delay) => {
 		const {Command, PositionTicks, When} = command;
+		skipGovernorRef.current.cancel();
 		syncPlayCommandRef.current = true;
 		suppressBufferingUntilRef.current = Date.now() + syncPlayService.BUFFERING_SUPPRESS_MS;
 
@@ -2477,11 +2485,24 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 		let restoreTimer = null;
 		const restoreRate = () => avplaySetSpeed(1);
 		const interval = setInterval(() => {
-			if (syncPlayCommandRef.current || groupSeekPendingRef.current || avplayGetState() !== 'PLAYING') return;
+			if (syncPlayCommandRef.current || groupSeekPendingRef.current) return;
 			const expected = syncPlayService.getExpectedPositionTicks(correction.extraOffsetMs);
-			const action = driftAction(driftMs(positionRef.current, expected), correction);
+			const drift = driftMs(positionRef.current, expected);
+			const nowMs = Date.now();
+			const positionMs = positionRef.current / 10000;
+			const verdict = skipGovernorRef.current.evaluate({
+				nowMs,
+				positionMs,
+				driftMs: drift,
+				isPlaying: avplayGetState() === 'PLAYING',
+				isBuffering: isBufferingRef.current
+			});
+			if (verdict === 'defer') return;
+			let action = driftAction(drift, correction);
+			if (action.type === 'seek' && verdict !== 'skip') action = driftAction(drift, {...correction, useSkip: false});
 
 			if (action.type === 'seek') {
+				skipGovernorRef.current.onSkip({nowMs, fromMs: positionMs, targetMs: expected / 10000, driftMs: drift});
 				syncPlayCommandRef.current = true;
 				suppressBufferingUntilRef.current = Date.now() + syncPlayService.BUFFERING_SUPPRESS_MS;
 				const done = () => { syncPlayCommandRef.current = false; };

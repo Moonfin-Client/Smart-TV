@@ -46,6 +46,7 @@ import useSegmentPopups from './useSegmentPopups';
 import {isPreroll, nextInQueue, shouldAutoAdvance} from '../../utils/cinemaMode';
 import {driftAction, driftMs, needsSeek, seekLanded, correctionOptions, DRIFT_CHECK_MS, GROUP_SEEK_SETTLE_TIMEOUT_MS} from '../../utils/syncDrift';
 import {createReadyGate} from '../../utils/syncReady';
+import {createSkipGovernor} from '../../utils/syncCorrection';
 import {
 	NextEpisodeContainer, CONTROLS_HIDE_DELAY,
 	withTimeout, SEGMENT_FETCH_TIMEOUT
@@ -189,6 +190,12 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 		isBuffering: () => !videoRef.current || videoRef.current.readyState < 3 || !!groupSeekPendingRef.current,
 		report: () => syncPlayService.sendReadyRequest(syncPlaySample)
 	}), [syncPlaySample]);
+	// Corrective skips are attempts that have to land and render before the
+	// drift is measured again; see syncCorrection.js for the loop this stops.
+	const skipGovernorRef = useRef(createSkipGovernor());
+	useEffect(() => {
+		skipGovernorRef.current.reset();
+	}, [item?.Id]);
 	const containerRef = useRef(null);
 	const handlersRef = useRef({});
 	const positionRef = useRef(0);
@@ -2342,6 +2349,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 		const {Command, PositionTicks, When} = command;
 		console.log('[Player] SyncPlay command', Command, 'at', PositionTicks != null ? PositionTicks / 10000000 : null, 's, delay', delay, 'ms, set at', positionRef.current / 10000000, 's', video.paused ? 'paused' : 'playing');
 		cancelGroupSeek();
+		skipGovernorRef.current.cancel();
 		syncPlayCommandRef.current = true;
 		suppressBufferingUntilRef.current = Date.now() + syncPlayService.BUFFERING_SUPPRESS_MS;
 
@@ -2404,11 +2412,26 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 		};
 		const interval = setInterval(() => {
 			const video = videoRef.current;
-			if (!video || video.paused || syncPlayCommandRef.current || groupSeekPendingRef.current) return;
+			if (!video || syncPlayCommandRef.current || groupSeekPendingRef.current) return;
 			const expected = syncPlayService.getExpectedPositionTicks(correction.extraOffsetMs);
-			const action = driftAction(driftMs(positionRef.current, expected), correction);
+			const drift = driftMs(positionRef.current, expected);
+			const nowMs = Date.now();
+			const positionMs = positionRef.current / 10000;
+			const verdict = skipGovernorRef.current.evaluate({
+				nowMs,
+				positionMs,
+				driftMs: drift,
+				isPlaying: !video.paused,
+				isBuffering: video.seeking || video.readyState < 3
+			});
+			if (verdict === 'defer') return;
+			let action = driftAction(drift, correction);
+			if (action.type === 'seek' && verdict !== 'skip') action = driftAction(drift, {...correction, useSkip: false});
 
 			if (action.type === 'seek') {
+				const targetMs = expected / 10000;
+				skipGovernorRef.current.onSkip({nowMs, fromMs: positionMs, targetMs, driftMs: drift});
+				console.log('[Player] SyncPlay drift', drift, 'ms, skipping to', targetMs / 1000, 's (skip', skipGovernorRef.current.skipsUsed(), ')');
 				suppressBufferingUntilRef.current = Date.now() + syncPlayService.BUFFERING_SUPPRESS_MS;
 				seekToTicks(expected);
 			} else if (action.type === 'rate' && !restoreTimer) {
