@@ -178,6 +178,12 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 	const lastFocusedElementRef = useRef(null);
 
 	const videoRef = useRef(null);
+	// Whether the pipeline has stalled: set by waiting, cleared once frames
+	// move again. readyState is no use for this on webOS, which sits at
+	// HAVE_CURRENT_DATA while playing perfectly well, so a test on it reported
+	// Buffering to the group after every seek and unpause, stopped everyone,
+	// and only let the Ready out when the watchdog gave up.
+	const stalledRef = useRef(false);
 	const syncPlaySample = useCallback(() => {
 		const video = videoRef.current;
 		return {
@@ -187,7 +193,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 	}, []);
 	const readyGate = useMemo(() => createReadyGate({
 		sample: syncPlaySample,
-		isBuffering: () => !videoRef.current || videoRef.current.readyState < 3 || !!groupSeekPendingRef.current,
+		isBuffering: () => !videoRef.current || stalledRef.current || !!groupSeekPendingRef.current,
 		report: () => syncPlayService.sendReadyRequest(syncPlaySample)
 	}), [syncPlaySample]);
 	// Corrective skips are attempts that have to land and render before the
@@ -1563,12 +1569,10 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 	const handleTimeUpdate = useCallback(() => {
 		if (videoRef.current) {
 			const rawTime = videoRef.current.currentTime;
-
-
-
 			const time = rawTime;
 			setCurrentTime(time);
 			const ticks = Math.floor(time * 10000000);
+			if (ticks !== positionRef.current) stalledRef.current = false;
 			// While a group seek is in flight the old buffer is still going by,
 			// so the position stays on the target and nothing seeks there twice.
 			const pending = groupSeekPendingRef.current;
@@ -1604,6 +1608,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 
 	const handleWaiting = useCallback(() => {
 		setIsBuffering(true);
+		stalledRef.current = true;
 		if (healthMonitorRef.current && (Date.now() - lastSeekTimeRef.current > 15000)) {
 			healthMonitorRef.current.recordBuffer();
 		}
@@ -1611,6 +1616,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 
 	const handlePlaying = useCallback(() => {
 		setIsBuffering(false);
+		stalledRef.current = false;
 		setIsPaused(false);
 		healthMonitorRef.current?.setPaused(false);
 		if (!seekDebounceTimerRef.current && !seekingTranscodeRef.current) {
@@ -2441,7 +2447,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 				positionMs,
 				driftMs: drift,
 				isPlaying: !video.paused,
-				isBuffering: video.seeking || video.readyState < 3
+				isBuffering: video.seeking || stalledRef.current
 			});
 			if (verdict === 'defer') return;
 			const action = chooseCorrection(drift, verdict, correction, skipGovernorRef.current.seekAllowanceMs());
@@ -2504,7 +2510,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 				clearTimeout(stallRecheckTimerRef.current);
 				stallRecheckTimerRef.current = setTimeout(() => {
 					const v = videoRef.current;
-					if (v && v.readyState < 3 && !v.paused) {
+					if (v && stalledRef.current && !v.paused) {
 						syncPlayService.sendBufferingRequest(syncPlaySample);
 					}
 				}, remaining + 100);
