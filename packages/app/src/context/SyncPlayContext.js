@@ -24,6 +24,10 @@ export const SyncPlayProvider = ({children}) => {
 	const [playQueueUpdate, setPlayQueueUpdate] = useState(null);
 	const queueSeqRef = useRef(0);
 	const queueItemRef = useRef(null);
+	// The group's position as of the last play queue update, and when that
+	// was, so a player opened for the group can start where the group is
+	// rather than at the beginning and be seeked from there.
+	const queuePositionRef = useRef(null);
 	const [displayMessage, setDisplayMessage] = useState(null);
 	const listenerRef = useRef(null);
 
@@ -62,6 +66,7 @@ export const SyncPlayProvider = ({children}) => {
 					setGroup(null);
 					setPlayQueue(null);
 					setPlayQueueUpdate(null);
+					queuePositionRef.current = null;
 					break;
 				case 'stateUpdate':
 					setGroup(prev => prev ? {...prev, State: data?.State} : null);
@@ -77,6 +82,11 @@ export const SyncPlayProvider = ({children}) => {
 					break;
 				case 'playQueue': {
 					setPlayQueue(data);
+					queuePositionRef.current = data ? {
+						positionTicks: data.StartPositionTicks || 0,
+						isPlaying: !!data.IsPlaying,
+						serverTimeMs: syncPlayService.serverNow()
+					} : null;
 					const queue = data?.Playlist;
 					const index = data?.PlayingItemIndex ?? 0;
 					const queueItem = queue?.length > 0 ? queue[index] : null;
@@ -156,6 +166,14 @@ export const SyncPlayProvider = ({children}) => {
 		return success;
 	}, []);
 
+	// Where the group is now, from the last queue update and the time since.
+	const getGroupPositionTicks = useCallback(() => {
+		const ref = queuePositionRef.current;
+		if (!ref) return null;
+		const elapsedMs = ref.isPlaying ? Math.max(0, syncPlayService.serverNow() - ref.serverTimeMs) : 0;
+		return ref.positionTicks + elapsedMs * 10000;
+	}, []);
+
 	const openDialog = useCallback(() => {
 		if (settings.syncplayEnabled === false) return;
 		setIsDialogOpen(true);
@@ -178,6 +196,7 @@ export const SyncPlayProvider = ({children}) => {
 		playQueueUpdate,
 		clearDisplayMessage: useCallback(() => setDisplayMessage(null), []),
 		refreshGroups,
+		getGroupPositionTicks,
 		getGroup: syncPlayService.getGroup,
 		createGroup: handleCreateGroup,
 		joinGroup: handleJoinGroup,

@@ -147,7 +147,7 @@ const AppContent = (props) => {
 	const {streamNotification, dismissStreamNotification} = useSeerr();
 	const {pendingPopups, markPopupsRead} = useServerMessages();
 	const themeMusic = useThemeMusic();
-	const {openDialog: openSyncPlay, closeDialog: closeSyncPlay, isDialogOpen: syncPlayDialogOpen, playQueueUpdate: syncPlayQueueUpdate, isInGroup: isSyncPlayInGroup, setNewQueue: syncPlaySetNewQueue, displayMessage: syncPlayMessage, clearDisplayMessage: clearSyncPlayMessage} = useSyncPlay();
+	const {openDialog: openSyncPlay, closeDialog: closeSyncPlay, isDialogOpen: syncPlayDialogOpen, playQueueUpdate: syncPlayQueueUpdate, isInGroup: isSyncPlayInGroup, setNewQueue: syncPlaySetNewQueue, displayMessage: syncPlayMessage, clearDisplayMessage: clearSyncPlayMessage, getGroupPositionTicks: getSyncPlayPositionTicks} = useSyncPlay();
 	const handledSyncPlayQueueRef = useRef(null);
 
 	const syncPlayToast = useMemo(() => (
@@ -835,11 +835,15 @@ const AppContent = (props) => {
 
 	const playSyncPlayItem = useCallback((item) => {
 		if (panelIndex === PANELS.PLAYER && playingItem?.Id === item.Id) return;
+		// Opened where the group is: a set started at the beginning is only
+		// seeked there by the server afterwards, which on a transcode means
+		// starting the stream twice while everyone waits.
+		const startPositionTicks = getSyncPlayPositionTicks();
 		setPlayingItem(item);
-		setPlaybackOptions(null);
+		setPlaybackOptions(startPositionTicks > 0 ? {startPositionTicks} : null);
 		setIsResume(false);
 		navigateTo(PANELS.PLAYER);
-	}, [panelIndex, playingItem, navigateTo]);
+	}, [panelIndex, playingItem, navigateTo, getSyncPlayPositionTicks]);
 
 	// The group queued something, so the player has to take over. Reorders and
 	// repeat/shuffle toggles arrive the same way and only count when they

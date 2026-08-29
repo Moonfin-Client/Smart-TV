@@ -1,4 +1,5 @@
-import {createSkipGovernor, ATTEMPT_DEADLINE_MS, SETTLE_WINDOW_MS, MAX_FAILED_ATTEMPTS, MAX_SKIPS_PER_ITEM} from './syncCorrection';
+import {createSkipGovernor, chooseCorrection, ATTEMPT_DEADLINE_MS, SETTLE_WINDOW_MS, MAX_FAILED_ATTEMPTS, MAX_SKIPS_PER_ITEM, DEFAULT_SEEK_ALLOWANCE_MS, MAX_SEEK_ALLOWANCE_MS, ALLOWANCE_DECAY_MS, MAX_WAIT_MS} from './syncCorrection';
+import {correctionOptions, SLOW_RATE, FAST_RATE} from './syncDrift';
 
 const playing = (nowMs, positionMs, driftMs) => ({nowMs, positionMs, driftMs, isPlaying: true, isBuffering: false});
 const stalled = (nowMs, positionMs, driftMs) => ({nowMs, positionMs, driftMs, isPlaying: true, isBuffering: true});
@@ -101,5 +102,78 @@ describe('createSkipGovernor', () => {
 		for (let i = 0; i < MAX_SKIPS_PER_ITEM; i++) landAndSettle(g, {at: i * 10000, from: 10000, to: 20000});
 		g.reset();
 		expect(g.evaluate(playing(0, 10000, -3000))).toBe('skip');
+	});
+});
+
+describe('seek allowance', () => {
+	test('starts at the default before any skip has been measured', () => {
+		expect(createSkipGovernor().seekAllowanceMs()).toBe(DEFAULT_SEEK_ALLOWANCE_MS);
+	});
+
+	test('takes the cost of a skip from issue to rendering', () => {
+		const g = createSkipGovernor();
+		g.onSkip({nowMs: 0, fromMs: 10000, targetMs: 20000, driftMs: -10000});
+		g.evaluate(playing(4000, 20000, 0));
+		g.evaluate(playing(4000 + SETTLE_WINDOW_MS, 20000 + SETTLE_WINDOW_MS, 0));
+		expect(g.seekAllowanceMs()).toBe(4000 + SETTLE_WINDOW_MS);
+	});
+
+	test('decays from a slow seek rather than dropping to the next fast one', () => {
+		const g = createSkipGovernor();
+		g.onSkip({nowMs: 0, fromMs: 10000, targetMs: 20000, driftMs: -10000});
+		g.evaluate(playing(6000, 20000, 0));
+		g.evaluate(playing(6000 + SETTLE_WINDOW_MS, 20000 + SETTLE_WINDOW_MS, 0));
+		const slow = g.seekAllowanceMs();
+		g.onSkip({nowMs: 20000, fromMs: 20000, targetMs: 30000, driftMs: -10000});
+		g.evaluate(playing(20500, 30000, 0));
+		g.evaluate(playing(20500 + SETTLE_WINDOW_MS, 30000 + SETTLE_WINDOW_MS, 0));
+		expect(g.seekAllowanceMs()).toBe(slow - ALLOWANCE_DECAY_MS);
+	});
+
+	test('is capped', () => {
+		const g = createSkipGovernor();
+		g.onSkip({nowMs: 0, fromMs: 10000, targetMs: 20000, driftMs: -10000});
+		g.evaluate(playing(12000, 20000, 0));
+		g.evaluate(playing(12000 + SETTLE_WINDOW_MS, 20000 + SETTLE_WINDOW_MS, 0));
+		expect(g.seekAllowanceMs()).toBe(MAX_SEEK_ALLOWANCE_MS);
+	});
+});
+
+describe('chooseCorrection', () => {
+	const options = correctionOptions({});
+
+	test('does nothing on a deferred verdict whatever the drift', () => {
+		expect(chooseCorrection(-30000, 'defer', options, 1500)).toEqual({type: 'none'});
+	});
+
+	test('behind by a lot, skips ahead by the allowance', () => {
+		expect(chooseCorrection(-6000, 'skip', options, 1500)).toEqual({type: 'skip', aheadMs: 1500});
+	});
+
+	test('behind by a lot with skips used up, speeds up if the gap allows', () => {
+		expect(chooseCorrection(-3000, 'nudge', options, 1500)).toEqual({type: 'rate', rate: FAST_RATE});
+		expect(chooseCorrection(-30000, 'nudge', options, 1500)).toEqual({type: 'none'});
+	});
+
+	test('behind by a little, speeds up', () => {
+		expect(chooseCorrection(-500, 'skip', options, 1500)).toEqual({type: 'rate', rate: FAST_RATE});
+	});
+
+	test('ahead by a little, slows down', () => {
+		expect(chooseCorrection(3000, 'skip', options, 1500)).toEqual({type: 'rate', rate: SLOW_RATE});
+	});
+
+	test('ahead by more than a nudge can take out, waits for the group', () => {
+		expect(chooseCorrection(7000, 'skip', options, 1500)).toEqual({type: 'wait', ms: 7000});
+		expect(chooseCorrection(7000, 'nudge', options, 1500)).toEqual({type: 'wait', ms: 7000});
+	});
+
+	test('ahead by too much to sit through, skips back', () => {
+		expect(chooseCorrection(MAX_WAIT_MS + 1, 'skip', options, 1500)).toEqual({type: 'skip', aheadMs: 0});
+		expect(chooseCorrection(MAX_WAIT_MS + 1, 'nudge', options, 1500)).toEqual({type: 'none'});
+	});
+
+	test('with rate nudges off, a lead is answered with a wait', () => {
+		expect(chooseCorrection(3000, 'skip', {...options, useSpeed: false}, 1500)).toEqual({type: 'wait', ms: 3000});
 	});
 });

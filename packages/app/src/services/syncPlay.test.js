@@ -132,3 +132,69 @@ describe('SyncPlay socket keep-alive', () => {
 		expect(first.send).toHaveBeenCalledTimes(1);
 	});
 });
+
+describe('SyncPlay Ready reports', () => {
+	let socket;
+	let service;
+
+	const readyCount = () => global.fetch.mock.calls.filter(([url]) => url === 'https://server/SyncPlay/Ready').length;
+	const sample = () => ({isPlaying: true, positionTicks: 0});
+	const groupUpdate = (type, data = {GroupId: 'g1'}) => socket.onmessage({
+		data: JSON.stringify({MessageType: 'SyncPlayGroupUpdate', Data: {Type: type, Data: data}})
+	});
+
+	beforeEach(() => {
+		global.WebSocket = function FakeSocket () {
+			socket = this;
+			this.readyState = 1;
+			this.send = jest.fn();
+			this.close = () => {};
+		};
+		global.fetch = jest.fn(() => Promise.resolve({ok: true, status: 204, json: () => Promise.resolve({})}));
+		jest.isolateModules(() => {
+			service = require('./syncPlay');
+		});
+		service.connectWebSocket();
+		socket.onopen();
+	});
+
+	afterEach(() => {
+		service.disconnectWebSocket();
+		delete global.fetch;
+		delete global.WebSocket;
+	});
+
+	test('is owed straight after joining, when the server has marked the set as buffering', async () => {
+		groupUpdate('GroupJoined', {GroupId: 'g1', State: 'Playing'});
+		await service.sendReadyRequest(sample);
+		expect(readyCount()).toBe(1);
+	});
+
+	// The server answers a Ready it was not waiting on with an Unpause echo of
+	// the last sync point, and acting on that echo is a seek for nothing.
+	test('is not sent while the group plays and nothing is owed', async () => {
+		groupUpdate('GroupJoined', {GroupId: 'g1', State: 'Playing'});
+		await service.sendReadyRequest(sample);
+		groupUpdate('StateUpdate', {State: 'Playing'});
+		await service.sendReadyRequest(sample);
+		expect(readyCount()).toBe(1);
+	});
+
+	test('is owed while the group waits', async () => {
+		groupUpdate('GroupJoined', {GroupId: 'g1', State: 'Playing'});
+		await service.sendReadyRequest(sample);
+		groupUpdate('StateUpdate', {State: 'Waiting'});
+		await service.sendReadyRequest(sample);
+		expect(readyCount()).toBe(2);
+	});
+
+	test('is owed after a Buffering report until it goes out', async () => {
+		groupUpdate('GroupJoined', {GroupId: 'g1', State: 'Playing'});
+		await service.sendReadyRequest(sample);
+		groupUpdate('StateUpdate', {State: 'Playing'});
+		await service.sendBufferingRequest(sample);
+		await service.sendReadyRequest(sample);
+		await service.sendReadyRequest(sample);
+		expect(readyCount()).toBe(2);
+	});
+});

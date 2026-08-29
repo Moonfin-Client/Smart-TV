@@ -12,6 +12,12 @@ let reconnectTimeout = null;
 let listeners = [];
 let isConnecting = false;
 let currentPlaylistItemId = null;
+// A Buffering report went out, so the server is holding the group for this
+// set and is owed a Ready. Outside that, and outside the Waiting state, it is
+// not: the server answers an unsolicited Ready with an Unpause echo of the
+// last sync point, and a set that acts on that echo seeks, stalls, comes back
+// playing, reports Ready again, and goes round for as long as it plays.
+let bufferingReported = false;
 let timeSyncMeasurements = [];
 let timeSyncInterval = null;
 let timeSyncBurstActive = false;
@@ -169,9 +175,23 @@ const sendHandshake = async (path, sample) => {
 	}
 };
 
-export const sendBufferingRequest = (sample) => sendHandshake('Buffering', sample);
+export const sendBufferingRequest = async (sample) => {
+	await sendHandshake('Buffering', sample);
+	bufferingReported = true;
+};
 
-export const sendReadyRequest = (sample) => sendHandshake('Ready', sample);
+// Whether the server is waiting on a Ready from this set: the group is in
+// Waiting, a Buffering report is outstanding, or the state is not known yet.
+export const isReadyOwed = () => !!currentGroup && (currentGroup.State === 'Waiting' || bufferingReported || !currentGroup.State);
+
+export const sendReadyRequest = async (sample) => {
+	if (!isReadyOwed()) {
+		console.log('[SyncPlay] Ready not owed, group', currentGroup?.State, '- not sent');
+		return;
+	}
+	await sendHandshake('Ready', sample);
+	bufferingReported = false;
+};
 
 // The server treats Ping as a group request, so one sent outside a group tells it
 // nothing and leaves a warning in its log every ten seconds the app stays open.
@@ -423,6 +443,8 @@ const handleGroupUpdate = (data) => {
 	switch (data.Type) {
 		case 'GroupJoined':
 			currentGroup = data.Data || data;
+			// The server marks a joiner as buffering and waits on its Ready.
+			bufferingReported = true;
 			// The group unpauses on its slowest member, so give the server this
 			// session's round trip now rather than leaving it on a default for
 			// up to ten seconds.
@@ -432,6 +454,7 @@ const handleGroupUpdate = (data) => {
 
 		case 'GroupLeft':
 			currentGroup = null;
+			bufferingReported = false;
 			emit('groupLeft', null);
 			break;
 
@@ -530,9 +553,15 @@ export const getAdjustedPosition = (positionTicks, when) => {
 };
 
 // Where the group was last known to be, so playback can be measured against it
-// between commands rather than only when one arrives.
-export const setSyncReference = (positionTicks) => {
-	syncReference = positionTicks == null ? null : {positionTicks, serverTimeMs: serverNow()};
+// between commands rather than only when one arrives. A command carries the
+// time its position was true for, which for a late one or an echo is not now.
+export const setSyncReference = (positionTicks, serverTimeMs = serverNow()) => {
+	syncReference = positionTicks == null ? null : {positionTicks, serverTimeMs};
+};
+
+export const whenToServerMs = (when) => {
+	const ms = when ? new Date(when).getTime() : NaN;
+	return isNaN(ms) ? serverNow() : ms;
 };
 
 export const clearSyncReference = () => {

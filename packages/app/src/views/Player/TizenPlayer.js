@@ -16,9 +16,9 @@ import {useSyncPlay} from '../../context/SyncPlayContext';
 import * as syncPlayService from '../../services/syncPlay';
 import {KEYS, isBackKey} from '../../utils/keys';
 import {isPreroll, nextInQueue, shouldAutoAdvance} from '../../utils/cinemaMode';
-import {driftAction, driftMs, needsSeek, correctionOptions, DRIFT_CHECK_MS} from '../../utils/syncDrift';
+import {driftMs, needsSeek, correctionOptions, DRIFT_CHECK_MS} from '../../utils/syncDrift';
 import {createReadyGate} from '../../utils/syncReady';
-import {createSkipGovernor} from '../../utils/syncCorrection';
+import {createSkipGovernor, chooseCorrection} from '../../utils/syncCorrection';
 import {getImageUrl} from '../../utils/helpers';
 import {initPgsCanvasRenderer, disposePgsRenderer, clearPgsCanvas} from '../../utils/pgsRenderer';
 import {supportsAssRenderer, initAssCanvasRenderer, disposeAssRenderer, setAssTime} from '../../utils/assRenderer';
@@ -117,9 +117,16 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 	// Corrective skips are attempts that have to land and render before the
 	// drift is measured again; see syncCorrection.js for the loop this stops.
 	const skipGovernorRef = useRef(createSkipGovernor());
+	// A pause the set is sitting out to let the group catch up.
+	const syncWaitTimerRef = useRef(null);
+	const cancelSyncWait = useCallback(() => {
+		clearTimeout(syncWaitTimerRef.current);
+		syncWaitTimerRef.current = null;
+	}, []);
 	useEffect(() => {
 		skipGovernorRef.current.reset();
 	}, [item?.Id]);
+	useEffect(() => cancelSyncWait, [cancelSyncWait]);
 
 	const [isLoading, setIsLoading] = useState(true);
 	const [isBuffering, setIsBuffering] = useState(false);
@@ -1118,7 +1125,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 				const savedPosition = isLiveTV ? 0 : (item.UserData?.PlaybackPositionTicks || 0);
 				const startPosition = applyResumeRewind(
 					initialStartPositionTicks != null ? initialStartPositionTicks : ((!isLiveTV && resume !== false) ? savedPosition : 0),
-					settings
+					isInGroup ? null : settings
 				);
 				const effectiveBitrate = selectedQuality || settings.maxBitrate || undefined;
 				const playbackInfoOptions = {
@@ -2414,20 +2421,27 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 	const executeSyncPlayCommand = useCallback((command, delay) => {
 		const {Command, PositionTicks, When} = command;
 		skipGovernorRef.current.cancel();
+		cancelSyncWait();
 		syncPlayCommandRef.current = true;
 		suppressBufferingUntilRef.current = Date.now() + syncPlayService.BUFFERING_SUPPRESS_MS;
 
 		switch (Command) {
 			case 'Unpause': {
 				groupHoldRef.current = false;
-				// Executing on time seeks to the commanded position. A late
-				// arrival seeks ahead by the elapsed time to catch up.
-				let target = delay > 0 ? PositionTicks : syncPlayService.getAdjustedPosition(PositionTicks, When);
+				// The sync point is the position at the command's own time,
+				// which for a late arrival or an echo is not now.
+				syncPlayService.setSyncReference(PositionTicks != null ? PositionTicks : positionRef.current, syncPlayService.whenToServerMs(When));
+				// On time, the commanded position; late and not playing,
+				// where the group has got to by now. Already playing, the
+				// server answers any Ready with the last sync point unchanged,
+				// and seeking on that echo restarts the stream for nothing.
+				let target = null;
+				if (delay > 0) target = PositionTicks;
+				else if (avplayGetState() !== 'PLAYING') target = syncPlayService.getAdjustedPosition(PositionTicks, When);
 				if (target != null) {
 					if (runTimeRef.current > 0) target = Math.min(runTimeRef.current, target);
 					landGroupSeek(target, false);
 				}
-				syncPlayService.setSyncReference(target != null ? target : positionRef.current);
 				avplayPlay();
 				setIsPaused(false);
 				break;
@@ -2455,7 +2469,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 		}
 
 		syncPlayCommandRef.current = false;
-	}, [landGroupSeek]);
+	}, [landGroupSeek, cancelSyncWait]);
 
 	useSyncPlayCommands({
 		lastCommand,
@@ -2498,15 +2512,24 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 				isBuffering: isBufferingRef.current
 			});
 			if (verdict === 'defer') return;
-			let action = driftAction(drift, correction);
-			if (action.type === 'seek' && verdict !== 'skip') action = driftAction(drift, {...correction, useSkip: false});
+			const action = chooseCorrection(drift, verdict, correction, skipGovernorRef.current.seekAllowanceMs());
 
-			if (action.type === 'seek') {
-				skipGovernorRef.current.onSkip({nowMs, fromMs: positionMs, targetMs: expected / 10000, driftMs: drift});
+			if (action.type === 'skip') {
+				const targetTicks = expected + action.aheadMs * 10000;
+				skipGovernorRef.current.onSkip({nowMs, fromMs: positionMs, targetMs: targetTicks / 10000, driftMs: drift});
 				syncPlayCommandRef.current = true;
 				suppressBufferingUntilRef.current = Date.now() + syncPlayService.BUFFERING_SUPPRESS_MS;
 				const done = () => { syncPlayCommandRef.current = false; };
-				avplaySeek(Math.floor(expected / 10000)).then(done, done);
+				avplaySeek(Math.floor(targetTicks / 10000)).then(done, done);
+			} else if (action.type === 'wait') {
+				cancelSyncWait();
+				avplayPause();
+				setIsPaused(true);
+				syncWaitTimerRef.current = setTimeout(() => {
+					syncWaitTimerRef.current = null;
+					avplayPlay();
+					setIsPaused(false);
+				}, action.ms);
 			} else if (action.type === 'rate' && !restoreTimer) {
 				avplaySetSpeed(action.rate);
 				restoreTimer = setTimeout(() => {
@@ -2521,7 +2544,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 			if (restoreTimer) clearTimeout(restoreTimer);
 			restoreRate();
 		};
-	}, [isInGroup, isPaused, settings]);
+	}, [isInGroup, isPaused, settings, cancelSyncWait]);
 
 	// The server marks every member as buffering after a group seek or a change
 	// of item and waits for each one to report Ready, so a set that never

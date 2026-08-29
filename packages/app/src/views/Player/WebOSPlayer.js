@@ -44,9 +44,9 @@ import useSleepTimer from './useSleepTimer';
 import useSyncPlayCommands from './useSyncPlayCommands';
 import useSegmentPopups from './useSegmentPopups';
 import {isPreroll, nextInQueue, shouldAutoAdvance} from '../../utils/cinemaMode';
-import {driftAction, driftMs, needsSeek, seekLanded, correctionOptions, DRIFT_CHECK_MS, GROUP_SEEK_SETTLE_TIMEOUT_MS} from '../../utils/syncDrift';
+import {driftMs, needsSeek, seekLanded, correctionOptions, DRIFT_CHECK_MS, GROUP_SEEK_SETTLE_TIMEOUT_MS} from '../../utils/syncDrift';
 import {createReadyGate} from '../../utils/syncReady';
-import {createSkipGovernor} from '../../utils/syncCorrection';
+import {createSkipGovernor, chooseCorrection} from '../../utils/syncCorrection';
 import {
 	NextEpisodeContainer, CONTROLS_HIDE_DELAY,
 	withTimeout, SEGMENT_FETCH_TIMEOUT
@@ -193,9 +193,16 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 	// Corrective skips are attempts that have to land and render before the
 	// drift is measured again; see syncCorrection.js for the loop this stops.
 	const skipGovernorRef = useRef(createSkipGovernor());
+	// A pause the set is sitting out to let the group catch up.
+	const syncWaitTimerRef = useRef(null);
+	const cancelSyncWait = useCallback(() => {
+		clearTimeout(syncWaitTimerRef.current);
+		syncWaitTimerRef.current = null;
+	}, []);
 	useEffect(() => {
 		skipGovernorRef.current.reset();
 	}, [item?.Id]);
+	useEffect(() => cancelSyncWait, [cancelSyncWait]);
 	const containerRef = useRef(null);
 	const handlersRef = useRef({});
 	const positionRef = useRef(0);
@@ -663,9 +670,11 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 
 			try {
 				const savedPosition = isLiveTV ? 0 : (item.UserData?.PlaybackPositionTicks || 0);
+				// A group position is exact; rewinding it only gets the set
+				// seeked forward again by the server.
 				const startPosition = applyResumeRewind(
 					initialStartPositionTicks != null ? initialStartPositionTicks : ((!isLiveTV && resume !== false) ? savedPosition : 0),
-					settings
+					isInGroup ? null : settings
 				);
 				console.log('[Player] Start position:', {
 					resume,
@@ -2349,23 +2358,33 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 		const {Command, PositionTicks, When} = command;
 		console.log('[Player] SyncPlay command', Command, 'at', PositionTicks != null ? PositionTicks / 10000000 : null, 's, delay', delay, 'ms, set at', positionRef.current / 10000000, 's', video.paused ? 'paused' : 'playing');
 		cancelGroupSeek();
+		cancelSyncWait();
 		skipGovernorRef.current.cancel();
 		syncPlayCommandRef.current = true;
 		suppressBufferingUntilRef.current = Date.now() + syncPlayService.BUFFERING_SUPPRESS_MS;
 
 		switch (Command) {
 			case 'Unpause': {
-				// Executing on time seeks to the commanded position. A late
-				// arrival seeks ahead by the elapsed time to catch up.
-				const target = delay > 0 ? PositionTicks : syncPlayService.getAdjustedPosition(PositionTicks, When);
 				groupHoldRef.current = false;
 				// The group is playing again, so a seek still landing must
 				// not pause the set when it does.
 				if (groupSeekPendingRef.current) groupSeekPendingRef.current.pauseOnLand = false;
-				// A seek costs a rebuffer that the whole group then waits on, so a
-				// difference this small is left alone.
-				if (target != null && needsSeek(positionRef.current, target)) startGroupSeek(target, false);
-				syncPlayService.setSyncReference(target != null ? target : positionRef.current);
+				// The sync point is the position at the command's own time,
+				// which for a late arrival or an echo is not now.
+				syncPlayService.setSyncReference(PositionTicks != null ? PositionTicks : positionRef.current, syncPlayService.whenToServerMs(When));
+				if (delay > 0) {
+					// On time: a seek costs a rebuffer the whole group then
+					// waits on, so a difference this small is left alone.
+					if (PositionTicks != null && needsSeek(positionRef.current, PositionTicks)) startGroupSeek(PositionTicks, false);
+				} else if (video.paused) {
+					// Late: start where the group has got to by now.
+					const target = syncPlayService.getAdjustedPosition(PositionTicks, When);
+					if (target != null && needsSeek(positionRef.current, target)) startGroupSeek(target, false);
+				}
+				// Already playing: the server answers any Ready it gets while
+				// playing with the last sync point unchanged. That confirms
+				// where the group is; seeking on it restarts the stream for
+				// nothing, and the drift check corrects a real gap.
 				video.play()?.catch?.(() => {});
 				break;
 			}
@@ -2391,7 +2410,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 		}
 
 		syncPlayCommandRef.current = false;
-	}, [cancelGroupSeek, startGroupSeek]);
+	}, [cancelGroupSeek, cancelSyncWait, startGroupSeek]);
 
 	useSyncPlayCommands({
 		lastCommand,
@@ -2425,15 +2444,22 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 				isBuffering: video.seeking || video.readyState < 3
 			});
 			if (verdict === 'defer') return;
-			let action = driftAction(drift, correction);
-			if (action.type === 'seek' && verdict !== 'skip') action = driftAction(drift, {...correction, useSkip: false});
+			const action = chooseCorrection(drift, verdict, correction, skipGovernorRef.current.seekAllowanceMs());
 
-			if (action.type === 'seek') {
-				const targetMs = expected / 10000;
-				skipGovernorRef.current.onSkip({nowMs, fromMs: positionMs, targetMs, driftMs: drift});
-				console.log('[Player] SyncPlay drift', drift, 'ms, skipping to', targetMs / 1000, 's (skip', skipGovernorRef.current.skipsUsed(), ')');
+			if (action.type === 'skip') {
+				const targetTicks = expected + action.aheadMs * 10000;
+				skipGovernorRef.current.onSkip({nowMs, fromMs: positionMs, targetMs: targetTicks / 10000, driftMs: drift});
+				console.log('[Player] SyncPlay drift', drift, 'ms, skipping to', targetTicks / 10000000, 's, aimed', action.aheadMs, 'ms ahead (skip', skipGovernorRef.current.skipsUsed(), ')');
 				suppressBufferingUntilRef.current = Date.now() + syncPlayService.BUFFERING_SUPPRESS_MS;
-				seekToTicks(expected);
+				seekToTicks(targetTicks);
+			} else if (action.type === 'wait') {
+				console.log('[Player] SyncPlay drift', drift, 'ms, waiting', action.ms, 'ms for the group');
+				cancelSyncWait();
+				video.pause();
+				syncWaitTimerRef.current = setTimeout(() => {
+					syncWaitTimerRef.current = null;
+					videoRef.current?.play()?.catch?.(() => {});
+				}, action.ms);
 			} else if (action.type === 'rate' && !restoreTimer) {
 				video.playbackRate = action.rate;
 				restoreTimer = setTimeout(() => {
@@ -2448,7 +2474,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 			if (restoreTimer) clearTimeout(restoreTimer);
 			restoreRate();
 		};
-	}, [isInGroup, isPaused, seekToTicks, settings]);
+	}, [isInGroup, isPaused, seekToTicks, settings, cancelSyncWait]);
 
 	// The server marks every member as buffering after a group seek or a change
 	// of item and waits for each one to report Ready, so a set that never

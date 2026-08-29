@@ -1,4 +1,4 @@
-import {TICKS_PER_MS} from './syncDrift';
+import {TICKS_PER_MS, driftAction, SLOW_RATE} from './syncDrift';
 
 // Whether a corrective skip is worth making. A television that has just been
 // seeked keeps reporting the old position, then a frozen one while it
@@ -23,12 +23,32 @@ export const IMPROVEMENT_RATIO = 0.6;
 export const MAX_FAILED_ATTEMPTS = 3;
 // Skips per item, never handed back, so no sequence of events can jump forever.
 export const MAX_SKIPS_PER_ITEM = 10;
+// A skip is aimed this far ahead of where the group is, before its cost has
+// been measured: landing on the group's position after a seek that took time
+// is landing behind it, and a transcode restarts the stream for every seek.
+export const DEFAULT_SEEK_ALLOWANCE_MS = 1500;
+export const MAX_SEEK_ALLOWANCE_MS = 8000;
+// The allowance decays by this much per skip, so one slow seek does not aim
+// every later skip too far ahead.
+export const ALLOWANCE_DECAY_MS = 500;
+// Ahead of the group by up to this much, the set pauses for exactly that
+// long. It costs no seek, cannot overshoot, and is the correction of choice
+// on a set where a seek restarts the stream.
+export const MAX_WAIT_MS = 10000;
+export const MIN_WAIT_MS = 1000;
 
 export const createSkipGovernor = () => {
 	let attempt = null;
 	let skips = 0;
 	let failed = 0;
 	let gaveUp = false;
+	let allowanceMs = null;
+
+	const learnSeekCost = (costMs) => {
+		if (costMs == null) return;
+		const decayed = allowanceMs == null ? 0 : allowanceMs - ALLOWANCE_DECAY_MS;
+		allowanceMs = Math.min(MAX_SEEK_ALLOWANCE_MS, Math.max(0, Math.max(costMs, decayed)));
+	};
 
 	const observe = ({nowMs, positionMs, isPlaying, isBuffering}) => {
 		if (!attempt || attempt.settled) return;
@@ -57,6 +77,7 @@ export const createSkipGovernor = () => {
 		const rate = (positionMs - attempt.anchor.positionMs) / elapsed;
 		if (rate >= MIN_SETTLE_RATE && rate <= MAX_SETTLE_RATE) {
 			attempt.settled = true;
+			attempt.settledAtMs = nowMs;
 		} else {
 			attempt.anchor = {nowMs, positionMs};
 		}
@@ -81,6 +102,7 @@ export const createSkipGovernor = () => {
 				return 'defer';
 			}
 			const pre = attempt.preResidualMs;
+			learnSeekCost(attempt.settledAtMs - attempt.issuedAtMs);
 			attempt = null;
 			if (Math.abs(driftMs) <= Math.round(pre * IMPROVEMENT_RATIO)) {
 				failed = 0;
@@ -102,7 +124,8 @@ export const createSkipGovernor = () => {
 			preResidualMs: Math.abs(driftMs),
 			landedAtMs: null,
 			anchor: null,
-			settled: false
+			settled: false,
+			settledAtMs: null
 		};
 	};
 
@@ -117,6 +140,7 @@ export const createSkipGovernor = () => {
 		skips = 0;
 		failed = 0;
 		gaveUp = false;
+		allowanceMs = null;
 	};
 
 	return {
@@ -125,8 +149,33 @@ export const createSkipGovernor = () => {
 		cancel,
 		reset,
 		hasGivenUp: () => gaveUp,
-		skipsUsed: () => skips
+		skipsUsed: () => skips,
+		seekAllowanceMs: () => (allowanceMs == null ? DEFAULT_SEEK_ALLOWANCE_MS : allowanceMs)
 	};
+};
+
+// What to do about a measured drift, given the governor's verdict. Behind,
+// only a skip or a faster rate makes up time, and a skip is aimed ahead by the
+// seek allowance. Ahead, a rate nudge if the gap is small enough, otherwise a
+// wait; a skip backwards only for a lead too long to sit through.
+//   {type: 'skip', aheadMs} seek to the expected position plus aheadMs
+//   {type: 'rate', rate}    play at rate for the configured duration
+//   {type: 'wait', ms}      pause for ms
+//   {type: 'none'}
+export const chooseCorrection = (driftMs, verdict, options, allowanceMs) => {
+	if (verdict === 'defer' || driftMs == null) return {type: 'none'};
+	const action = driftAction(driftMs, options);
+	if (action.type !== 'seek') return action;
+	if (driftMs < 0) {
+		if (verdict === 'skip') return {type: 'skip', aheadMs: allowanceMs};
+		return driftAction(driftMs, {...options, useSkip: false});
+	}
+	const size = driftMs;
+	if (options.useSpeed !== false && size > (options.speedMinMs ?? 0) && size < (options.speedMaxMs ?? Infinity)) {
+		return {type: 'rate', rate: SLOW_RATE};
+	}
+	if (size <= MAX_WAIT_MS) return size >= MIN_WAIT_MS ? {type: 'wait', ms: size} : {type: 'none'};
+	return verdict === 'skip' ? {type: 'skip', aheadMs: 0} : {type: 'none'};
 };
 
 export const ticksToMs = (ticks) => (ticks == null ? null : ticks / TICKS_PER_MS);
