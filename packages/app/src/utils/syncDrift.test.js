@@ -3,6 +3,7 @@ import {
 	driftMs,
 	expectedPositionTicks,
 	needsSeek,
+	seekLanded,
 	FAST_RATE,
 	SLOW_RATE,
 	TICKS_PER_MS
@@ -85,5 +86,29 @@ describe('needsSeek', () => {
 
 	test('seeks when there is no target to compare', () => {
 		expect(needsSeek(ticks(10000), null)).toBe(true);
+	});
+});
+
+describe('seekLanded', () => {
+	test('lands once the position reaches the target', () => {
+		expect(seekLanded(ticks(10000), ticks(40000), ticks(40300))).toBe(true);
+	});
+
+	test('is still in flight while the set reports the old position', () => {
+		expect(seekLanded(ticks(10000), ticks(40000), ticks(10800))).toBe(false);
+	});
+
+	test('does not take a short skip on the stale reading', () => {
+		expect(seekLanded(ticks(10000), ticks(10900), ticks(10300))).toBe(false);
+		expect(seekLanded(ticks(10000), ticks(10900), ticks(11000))).toBe(true);
+	});
+
+	test('is not landed a long way past the target', () => {
+		expect(seekLanded(ticks(10000), ticks(40000), ticks(45000))).toBe(false);
+	});
+
+	test('needs a target and a reading', () => {
+		expect(seekLanded(ticks(10000), null, ticks(10000))).toBe(false);
+		expect(seekLanded(null, ticks(10000), ticks(10200))).toBe(true);
 	});
 });

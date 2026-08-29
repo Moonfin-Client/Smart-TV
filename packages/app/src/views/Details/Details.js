@@ -923,6 +923,8 @@ const Details = ({itemId: itemIdProp, initialItem, onPlay, onSelectItem, onSelec
 		return (
 			<div className={css.page}>
 				<ModernDetailContent
+					inSyncPlayGroup={isSyncPlayInGroup}
+					onWatchWithGroup={handlePlay}
 					key={item.Id}
 					item={item}
 					settings={settings}
@@ -1147,6 +1149,8 @@ const Details = ({itemId: itemIdProp, initialItem, onPlay, onSelectItem, onSelec
 			isReadableBook={isReadableBook}
 			hasPlaybackPosition={hasPlaybackPosition}
 			resumeTimeText={resumeTimeText}
+			inSyncPlayGroup={isSyncPlayInGroup}
+			onWatchWithGroup={handlePlay}
 			mediaSource={mediaSource}
 			supportsMediaSourceSelection={supportsMediaSourceSelection}
 			hasMultipleVersions={hasMultipleVersions}

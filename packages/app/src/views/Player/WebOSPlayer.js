@@ -41,9 +41,10 @@ import NextUpOverlay from './NextUpOverlay';
 import SkipSegmentOverlay from './SkipSegmentOverlay';
 import StillWatchingDialog from './StillWatchingDialog';
 import useSleepTimer from './useSleepTimer';
+import useSyncPlayCommands from './useSyncPlayCommands';
 import useSegmentPopups from './useSegmentPopups';
 import {isPreroll, nextInQueue, shouldAutoAdvance} from '../../utils/cinemaMode';
-import {driftAction, driftMs, needsSeek, correctionOptions, DRIFT_CHECK_MS} from '../../utils/syncDrift';
+import {driftAction, driftMs, needsSeek, seekLanded, correctionOptions, DRIFT_CHECK_MS, GROUP_SEEK_SETTLE_TIMEOUT_MS} from '../../utils/syncDrift';
 import {createReadyGate} from '../../utils/syncReady';
 import {
 	NextEpisodeContainer, CONTROLS_HIDE_DELAY,
@@ -90,14 +91,24 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 	const {settings, updateSetting} = useSettings();
 	const {isInGroup, lastCommand} = useSyncPlay();
 	const syncPlayCommandRef = useRef(false);
-	// Whatever command was pending when this player mounted has already had its
-	// effect. Joining an idle group gets a Stop, and replaying that here on the
-	// next mount would close the player the moment the group starts something.
-	const lastProcessedCommandRef = useRef(lastCommand);
 	const suppressBufferingUntilRef = useRef(0);
 	const groupSeekTimerRef = useRef(null);
 	const groupSeekTargetRef = useRef(null);
 	const stallRecheckTimerRef = useRef(null);
+	// A seek the group commanded, until the set actually lands on it. webOS
+	// keeps playing the old buffer, and reporting the old position, while its
+	// pipeline works through a seek, and a second seek issued into that window
+	// can leave it on neither. So while one is in flight the position stays on
+	// the target, nothing else seeks, and the Ready report waits.
+	const groupSeekPendingRef = useRef(null);
+	const groupSeekSettleTimerRef = useRef(null);
+	// A player opened inside a group is held until the group unpauses it. The
+	// server only corrects a joiner's position when its Ready says it is
+	// paused: told "playing at the start" it takes the set as already under
+	// way, never sends the seek, and holds the others until the film catches
+	// up. Startup calls play() more than once (autoplay, metadata, HLS), so
+	// one pause isn't enough; every play is answered while this holds.
+	const groupHoldRef = useRef(isInGroup);
 
 	const [mediaUrl, setMediaUrl] = useState(null);
 	const [mimeType, setMimeType] = useState('video/mp4');
@@ -169,13 +180,13 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 	const syncPlaySample = useCallback(() => {
 		const video = videoRef.current;
 		return {
-			isPlaying: Boolean(video && !video.paused),
+			isPlaying: Boolean(video && !video.paused) && !groupHoldRef.current,
 			positionTicks: video ? Math.floor(video.currentTime * 10000000) : 0
 		};
 	}, []);
 	const readyGate = useMemo(() => createReadyGate({
 		sample: syncPlaySample,
-		isBuffering: () => !videoRef.current || videoRef.current.readyState < 3,
+		isBuffering: () => !videoRef.current || videoRef.current.readyState < 3 || !!groupSeekPendingRef.current,
 		report: () => syncPlayService.sendReadyRequest(syncPlaySample)
 	}), [syncPlaySample]);
 	const containerRef = useRef(null);
@@ -578,6 +589,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 			timeupdate: () => handlersRef.current.onTimeUpdate?.(),
 			waiting: () => handlersRef.current.onWaiting?.(),
 			playing: () => handlersRef.current.onPlaying?.(),
+			seeked: () => handlersRef.current.onSeeked?.(),
 			ended: () => handlersRef.current.onEnded?.(),
 			error: () => handlersRef.current.onError?.(),
 		};
@@ -1017,10 +1029,30 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 		groupSeekTargetRef.current = null;
 	}, []);
 
+	const clearGroupSeekPending = useCallback(() => {
+		clearTimeout(groupSeekSettleTimerRef.current);
+		groupSeekSettleTimerRef.current = null;
+		groupSeekPendingRef.current = null;
+	}, []);
+
+	// Held for the group: the server says when and where playback starts. A
+	// seek in flight on its behalf is the one thing allowed to run.
+	const holdForGroup = useCallback(() => {
+		if (groupHoldRef.current && !groupSeekPendingRef.current && videoRef.current) videoRef.current.pause();
+	}, []);
+
 	useEffect(() => {
-		if (!isInGroup) cancelGroupSeek();
-		return cancelGroupSeek;
-	}, [isInGroup, cancelGroupSeek]);
+		if (!isInGroup) {
+			// Leaving while still held for the group would leave the set sat
+			// paused at the start, so it goes on by itself.
+			if (groupHoldRef.current && videoRef.current?.paused) videoRef.current.play()?.catch?.(() => {});
+			groupHoldRef.current = false;
+		}
+		return () => {
+			cancelGroupSeek();
+			clearGroupSeekPending();
+		};
+	}, [isInGroup, cancelGroupSeek, clearGroupSeekPending]);
 
 	const seekByOffset = useCallback((deltaSec, updateSeekPosition) => {
 		if (isInGroup && !syncPlayCommandRef.current) {
@@ -1082,7 +1114,66 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 				console.warn('[Player] seekToTicks: failed to set currentTime:', e);
 			}
 		}
+		return clampedTicks;
 	}, [playMethod]);
+
+	// The commanded seek is over, whether the position arrived or the wait ran
+	// out. Either way the set reports Ready with where it really is: the server
+	// answers a wrong position by sending the seek again.
+	const settleGroupSeek = useCallback(() => {
+		const pending = groupSeekPendingRef.current;
+		if (!pending) return;
+		clearGroupSeekPending();
+		const video = videoRef.current;
+		if (pending.pauseOnLand && video) {
+			video.pause();
+			// The set played on for a moment between landing and pausing, and
+			// the server sends the seek again for anything over half a second
+			// off, which would go round forever. A paused seek puts it exactly
+			// on the target.
+			if (needsSeek(syncPlaySample().positionTicks, pending.target)) seekToTicks(pending.target);
+		}
+		if (isInGroup) readyGate.request();
+	}, [clearGroupSeekPending, seekToTicks, readyGate, isInGroup, syncPlaySample]);
+
+	const settleGroupSeekIfLanded = useCallback(() => {
+		const pending = groupSeekPendingRef.current;
+		if (!pending || !videoRef.current || videoRef.current.seeking) return;
+		if (seekLanded(pending.from, pending.target, syncPlaySample().positionTicks)) settleGroupSeek();
+	}, [settleGroupSeek, syncPlaySample]);
+
+	// A seek on the group's behalf. The server holds the group until this set
+	// reports Ready, so the report waits for the seek to land. A Seek command
+	// leaves the set paused there, as the other clients do, for the Unpause
+	// that follows once everyone has arrived.
+	const startGroupSeek = useCallback((target, pauseOnLand, playToSeek = false) => {
+		const video = videoRef.current;
+		if (!video) return;
+		const pending = groupSeekPendingRef.current;
+		if (pending && !needsSeek(pending.target, target)) {
+			// Already on its way there.
+			pending.pauseOnLand = pending.pauseOnLand || pauseOnLand;
+			return;
+		}
+		if (!pending && !needsSeek(positionRef.current, target)) {
+			if (pauseOnLand) video.pause();
+			if (isInGroup) readyGate.request();
+			return;
+		}
+		clearGroupSeekPending();
+		const from = syncPlaySample().positionTicks;
+		// The hold lets a seek on the group's behalf run, so it has to be on
+		// record before the pipeline is started for it. A seek lands sooner
+		// with the pipeline running, which is also how the other clients do
+		// it: unpause, seek, pause once it is there.
+		groupSeekPendingRef.current = {from, target, pauseOnLand};
+		if (playToSeek && video.paused) video.play()?.catch?.(() => {});
+		groupSeekPendingRef.current.target = seekToTicks(target);
+		groupSeekSettleTimerRef.current = setTimeout(() => {
+			console.warn('[Player] Group seek did not land within', GROUP_SEEK_SETTLE_TIMEOUT_MS, 'ms, reporting as is');
+			settleGroupSeek();
+		}, GROUP_SEEK_SETTLE_TIMEOUT_MS);
+	}, [clearGroupSeekPending, seekToTicks, settleGroupSeek, readyGate, isInGroup, syncPlaySample]);
 
 	useEffect(() => {
 		const video = videoRef.current;
@@ -1439,7 +1530,8 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 		} else {
 			playback.reportProgress(positionRef.current, { isPaused: false, eventName: 'unpause' });
 		}
-	}, [handleUnhealthy]);
+		holdForGroup();
+	}, [handleUnhealthy, holdForGroup]);
 
 	const handlePause = useCallback(() => {
 		setIsPaused(true);
@@ -1456,7 +1548,13 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 			const time = rawTime;
 			setCurrentTime(time);
 			const ticks = Math.floor(time * 10000000);
-			positionRef.current = ticks;
+			// While a group seek is in flight the old buffer is still going by,
+			// so the position stays on the target and nothing seeks there twice.
+			const pending = groupSeekPendingRef.current;
+			if (!pending || seekLanded(pending.from, pending.target, ticks)) {
+				positionRef.current = ticks;
+				if (pending && !videoRef.current.seeking) settleGroupSeek();
+			}
 
 			// Canvas-mode ASS isn't auto-synced to the video, so drive its clock here.
 			if (assRendererRef.current) {
@@ -1481,7 +1579,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 
 			checkSegments(ticks);
 		}
-	}, [checkSegments, subtitleTrackEvents, subtitleOffset]);
+	}, [checkSegments, subtitleTrackEvents, subtitleOffset, settleGroupSeek]);
 
 	const handleWaiting = useCallback(() => {
 		setIsBuffering(true);
@@ -1497,7 +1595,8 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 		if (!seekDebounceTimerRef.current && !seekingTranscodeRef.current) {
 			lastSeekTargetRef.current = null;
 		}
-	}, []);
+		holdForGroup();
+	}, [holdForGroup]);
 
 	const handleEnded = useCallback(async () => {
 		if (sourceTransitionRef.current) {
@@ -1703,10 +1802,11 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 			onTimeUpdate: handleTimeUpdate,
 			onWaiting: handleWaiting,
 			onPlaying: handlePlaying,
+			onSeeked: settleGroupSeekIfLanded,
 			onEnded: handleEnded,
 			onError: handleError,
 		};
-	}, [handleLoadedMetadata, handlePlay, handlePause, handleTimeUpdate, handleWaiting, handlePlaying, handleEnded, handleError]);
+	}, [handleLoadedMetadata, handlePlay, handlePause, handleTimeUpdate, handleWaiting, handlePlaying, settleGroupSeekIfLanded, handleEnded, handleError]);
 
 	const teardownPlayback = useCallback(async () => {
 		cancelNextEpisodeCountdown();
@@ -2231,63 +2331,60 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 		e.stopPropagation();
 	}, []);
 
-	useEffect(() => {
-		if (!lastCommand || !videoRef.current) return;
-		if (lastCommand === lastProcessedCommandRef.current) return;
-		lastProcessedCommandRef.current = lastCommand;
+	const executeSyncPlayCommand = useCallback((command, delay) => {
+		const video = videoRef.current;
+		if (!video) return;
+		const {Command, PositionTicks, When} = command;
+		cancelGroupSeek();
+		syncPlayCommandRef.current = true;
+		suppressBufferingUntilRef.current = Date.now() + syncPlayService.BUFFERING_SUPPRESS_MS;
 
-		const {Command, PositionTicks, When} = lastCommand;
-		const delay = syncPlayService.getDelayToWhen(When);
-
-		const execute = () => {
-			if (!videoRef.current) return;
-			cancelGroupSeek();
-			syncPlayCommandRef.current = true;
-			suppressBufferingUntilRef.current = Date.now() + syncPlayService.BUFFERING_SUPPRESS_MS;
-
-			switch (Command) {
-				case 'Unpause': {
-					// Executing on time seeks to the commanded position. A late
-					// arrival seeks ahead by the elapsed time to catch up.
-					const target = delay > 0 ? PositionTicks : syncPlayService.getAdjustedPosition(PositionTicks, When);
-					// A seek costs a rebuffer that the whole group then waits on, so a
-					// difference this small is left alone.
-					if (target != null && needsSeek(positionRef.current, target)) seekToTicks(target);
-					syncPlayService.setSyncReference(target != null ? target : positionRef.current);
-					videoRef.current.play()?.catch?.(() => {});
-					break;
-				}
-				case 'Pause': {
-					videoRef.current.pause();
-					syncPlayService.clearSyncReference();
-					if (PositionTicks != null && needsSeek(positionRef.current, PositionTicks)) seekToTicks(PositionTicks);
-					break;
-				}
-				case 'Seek': {
-					if (PositionTicks != null) {
-						if (needsSeek(positionRef.current, PositionTicks)) seekToTicks(PositionTicks);
-						syncPlayService.setSyncReference(PositionTicks);
-					}
-					break;
-				}
-				default:
-					break;
+		switch (Command) {
+			case 'Unpause': {
+				// Executing on time seeks to the commanded position. A late
+				// arrival seeks ahead by the elapsed time to catch up.
+				const target = delay > 0 ? PositionTicks : syncPlayService.getAdjustedPosition(PositionTicks, When);
+				groupHoldRef.current = false;
+				// The group is playing again, so a seek still landing must
+				// not pause the set when it does.
+				if (groupSeekPendingRef.current) groupSeekPendingRef.current.pauseOnLand = false;
+				// A seek costs a rebuffer that the whole group then waits on, so a
+				// difference this small is left alone.
+				if (target != null && needsSeek(positionRef.current, target)) startGroupSeek(target, false);
+				syncPlayService.setSyncReference(target != null ? target : positionRef.current);
+				video.play()?.catch?.(() => {});
+				break;
 			}
-
-			syncPlayCommandRef.current = false;
-		};
-
-		if (Command === 'Stop') {
-			handleBack();
-			return;
+			case 'Pause': {
+				groupHoldRef.current = false;
+				video.pause();
+				syncPlayService.clearSyncReference();
+				if (PositionTicks != null && needsSeek(positionRef.current, PositionTicks)) startGroupSeek(PositionTicks, true);
+				break;
+			}
+			case 'Seek': {
+				// The server holds everyone until they report Ready at the
+				// new position, then unpauses them together, so the set
+				// waits there paused rather than running on ahead.
+				if (PositionTicks != null) {
+					startGroupSeek(PositionTicks, true, true);
+					syncPlayService.setSyncReference(PositionTicks);
+				}
+				break;
+			}
+			default:
+				break;
 		}
 
-		if (delay > 50) {
-			const t = setTimeout(execute, delay);
-			return () => clearTimeout(t);
-		}
-		execute();
-	}, [lastCommand, seekToTicks, handleBack, cancelGroupSeek]);
+		syncPlayCommandRef.current = false;
+	}, [cancelGroupSeek, startGroupSeek]);
+
+	useSyncPlayCommands({
+		lastCommand,
+		isReady: () => !!videoRef.current,
+		execute: executeSyncPlayCommand,
+		onStop: handleBack
+	});
 
 	// Commands alone cant hold this in step, because the decoder loses a little
 	// wall clock time on every rebuffer and nothing measured it afterwards.
@@ -2301,7 +2398,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 		};
 		const interval = setInterval(() => {
 			const video = videoRef.current;
-			if (!video || video.paused || syncPlayCommandRef.current) return;
+			if (!video || video.paused || syncPlayCommandRef.current || groupSeekPendingRef.current) return;
 			const expected = syncPlayService.getExpectedPositionTicks(correction.extraOffsetMs);
 			const action = driftAction(driftMs(positionRef.current, expected), correction);
 

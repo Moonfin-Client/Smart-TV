@@ -77,3 +77,22 @@ export const needsSeek = (currentTicks, targetTicks) => {
 	if (targetTicks == null || currentTicks == null) return true;
 	return Math.abs(currentTicks - targetTicks) / TICKS_PER_MS > SEEK_TOLERANCE_MS;
 };
+
+// A television keeps playing the old buffer, and reporting the old position,
+// while its pipeline works through a seek, so a seek only counts as landed
+// once the position sits within this of the target and nearer to it than to
+// where the seek started. The second test stops a short skip from passing
+// on the stale reading alone.
+export const SEEK_LANDED_MS = 1000;
+// How long a seek the group commanded gets to land before the set reports
+// itself as it stands. The honest position lets the server correct a seek the
+// pipeline quietly dropped, instead of the group waiting on it forever.
+export const GROUP_SEEK_SETTLE_TIMEOUT_MS = 8000;
+
+export const seekLanded = (fromTicks, targetTicks, currentTicks) => {
+	if (targetTicks == null || currentTicks == null) return false;
+	const toTarget = Math.abs(currentTicks - targetTicks);
+	if (toTarget / TICKS_PER_MS > SEEK_LANDED_MS) return false;
+	if (fromTicks == null) return true;
+	return toTarget <= Math.abs(currentTicks - fromTicks);
+};
