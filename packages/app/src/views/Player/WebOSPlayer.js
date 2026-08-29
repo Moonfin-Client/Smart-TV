@@ -46,7 +46,7 @@ import useSegmentPopups from './useSegmentPopups';
 import {isPreroll, nextInQueue, shouldAutoAdvance} from '../../utils/cinemaMode';
 import {driftMs, needsSeek, seekLanded, correctionOptions, DRIFT_CHECK_MS, GROUP_SEEK_SETTLE_TIMEOUT_MS} from '../../utils/syncDrift';
 import {createReadyGate} from '../../utils/syncReady';
-import {createSkipGovernor, chooseCorrection} from '../../utils/syncCorrection';
+import {createSkipGovernor, chooseCorrection, STALL_DEBOUNCE_MS} from '../../utils/syncCorrection';
 import {
 	NextEpisodeContainer, CONTROLS_HIDE_DELAY,
 	withTimeout, SEGMENT_FETCH_TIMEOUT
@@ -1573,6 +1573,12 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 			setCurrentTime(time);
 			const ticks = Math.floor(time * 10000000);
 			if (ticks !== positionRef.current) stalledRef.current = false;
+			skipGovernorRef.current.observe({
+				nowMs: Date.now(),
+				positionMs: time * 1000,
+				isPlaying: !videoRef.current.paused,
+				isBuffering: videoRef.current.seeking || stalledRef.current
+			});
 			// While a group seek is in flight the old buffer is still going by,
 			// so the position stays on the target and nothing seeks there twice.
 			const pending = groupSeekPendingRef.current;
@@ -1609,6 +1615,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 	const handleWaiting = useCallback(() => {
 		setIsBuffering(true);
 		stalledRef.current = true;
+		console.log('[Player] waiting at', videoRef.current?.currentTime, videoRef.current?.paused ? 'paused' : 'playing');
 		if (healthMonitorRef.current && (Date.now() - lastSeekTimeRef.current > 15000)) {
 			healthMonitorRef.current.recordBuffer();
 		}
@@ -1617,6 +1624,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 	const handlePlaying = useCallback(() => {
 		setIsBuffering(false);
 		stalledRef.current = false;
+		console.log('[Player] playing at', videoRef.current?.currentTime);
 		setIsPaused(false);
 		healthMonitorRef.current?.setPaused(false);
 		if (!seekDebounceTimerRef.current && !seekingTranscodeRef.current) {
@@ -2467,6 +2475,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 					videoRef.current?.play()?.catch?.(() => {});
 				}, action.ms);
 			} else if (action.type === 'rate' && !restoreTimer) {
+				console.log('[Player] SyncPlay drift', drift, 'ms, rate', action.rate, 'for', correction.speedDurationMs, 'ms');
 				video.playbackRate = action.rate;
 				restoreTimer = setTimeout(() => {
 					restoreTimer = null;
@@ -2501,22 +2510,26 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 	useEffect(() => {
 		if (!isInGroup || !videoRef.current) return;
 
+		// A stall is reported once it has lasted, and only while the position
+		// is really not moving; the group stops for every report.
+		const reportIfStillStalled = (delayMs) => {
+			clearTimeout(stallRecheckTimerRef.current);
+			const v = videoRef.current;
+			const before = v ? v.currentTime : null;
+			stallRecheckTimerRef.current = setTimeout(() => {
+				const now = videoRef.current;
+				if (!now || now.paused || !stalledRef.current) return;
+				if (before != null && now.currentTime !== before) return;
+				syncPlayService.sendBufferingRequest(syncPlaySample);
+			}, delayMs);
+		};
+
 		const reportBuffering = () => {
 			const remaining = suppressBufferingUntilRef.current - Date.now();
-			if (remaining > 0) {
-				// This 'waiting' came from our own command-driven seek. A genuine
-				// stall must still reach the server eventually, so re-check once
-				// the window expires ('waiting' won't fire again for it).
-				clearTimeout(stallRecheckTimerRef.current);
-				stallRecheckTimerRef.current = setTimeout(() => {
-					const v = videoRef.current;
-					if (v && stalledRef.current && !v.paused) {
-						syncPlayService.sendBufferingRequest(syncPlaySample);
-					}
-				}, remaining + 100);
-				return;
-			}
-			syncPlayService.sendBufferingRequest(syncPlaySample);
+			// A 'waiting' inside the window came from our own seek. A genuine
+			// stall must still reach the server eventually, so re-check once
+			// the window expires ('waiting' won't fire again for it).
+			reportIfStillStalled(remaining > 0 ? remaining + 100 : STALL_DEBOUNCE_MS);
 		};
 
 		const reportReady = () => {

@@ -36,6 +36,10 @@ export const ALLOWANCE_DECAY_MS = 500;
 // on a set where a seek restarts the stream.
 export const MAX_WAIT_MS = 10000;
 export const MIN_WAIT_MS = 1000;
+// A stall has to last this long before it is a stall. A television raises
+// waiting for a moment after every seek and start, and reporting each one
+// stops the whole group for it.
+export const STALL_DEBOUNCE_MS = 350;
 
 export const createSkipGovernor = () => {
 	let attempt = null;
@@ -145,6 +149,7 @@ export const createSkipGovernor = () => {
 
 	return {
 		evaluate,
+		observe,
 		onSkip,
 		cancel,
 		reset,
@@ -167,7 +172,9 @@ export const chooseCorrection = (driftMs, verdict, options, allowanceMs) => {
 	const action = driftAction(driftMs, options);
 	if (action.type !== 'seek') return action;
 	if (driftMs < 0) {
-		if (verdict === 'skip') return {type: 'skip', aheadMs: allowanceMs};
+		// A skip freezes the set for as long as its seek costs, so one that
+		// would fix less than that leaves the set worse off than the gap did.
+		if (verdict === 'skip' && -driftMs > allowanceMs) return {type: 'skip', aheadMs: allowanceMs};
 		return driftAction(driftMs, {...options, useSkip: false});
 	}
 	const size = driftMs;

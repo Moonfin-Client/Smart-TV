@@ -150,6 +150,11 @@ describe('chooseCorrection', () => {
 		expect(chooseCorrection(-6000, 'skip', options, 1500)).toEqual({type: 'skip', aheadMs: 1500});
 	});
 
+	test('behind by less than a seek costs, speeds up rather than skipping', () => {
+		expect(chooseCorrection(-3000, 'skip', options, 4000)).toEqual({type: 'rate', rate: FAST_RATE});
+		expect(chooseCorrection(-6000, 'skip', options, 4000)).toEqual({type: 'skip', aheadMs: 4000});
+	});
+
 	test('behind by a lot with skips used up, speeds up if the gap allows', () => {
 		expect(chooseCorrection(-3000, 'nudge', options, 1500)).toEqual({type: 'rate', rate: FAST_RATE});
 		expect(chooseCorrection(-30000, 'nudge', options, 1500)).toEqual({type: 'none'});
