@@ -66,3 +66,69 @@ describe('SyncPlay ping', () => {
 		expect(pingCount()).toBe(sent);
 	});
 });
+
+describe('SyncPlay socket keep-alive', () => {
+	let socket;
+	let service;
+
+	const keepAliveCount = () => socket.send.mock.calls.filter(([data]) => JSON.parse(data).MessageType === 'KeepAlive').length;
+	const forceKeepAlive = (timeout) => socket.onmessage({data: JSON.stringify({MessageType: 'ForceKeepAlive', Data: timeout})});
+
+	beforeEach(() => {
+		jest.useFakeTimers();
+		global.WebSocket = function FakeSocket () {
+			socket = this;
+			this.readyState = 1;
+			this.send = jest.fn();
+			this.close = () => {};
+		};
+		global.fetch = jest.fn(() => Promise.resolve({ok: true, status: 204, json: () => Promise.resolve({})}));
+		jest.isolateModules(() => {
+			service = require('./syncPlay');
+		});
+		service.connectWebSocket();
+		socket.onopen();
+	});
+
+	afterEach(() => {
+		service.disconnectWebSocket();
+		jest.useRealTimers();
+		delete global.fetch;
+		delete global.WebSocket;
+	});
+
+	test('sends nothing until the server asks', () => {
+		jest.advanceTimersByTime(60000);
+		expect(keepAliveCount()).toBe(0);
+	});
+
+	// The server disposes a socket 60s after the last KeepAlive it received and
+	// ends the session with it, which takes the set out of its group.
+	test('answers ForceKeepAlive at once and then every half timeout', () => {
+		forceKeepAlive(60);
+		expect(keepAliveCount()).toBe(1);
+		jest.advanceTimersByTime(29999);
+		expect(keepAliveCount()).toBe(1);
+		jest.advanceTimersByTime(1);
+		expect(keepAliveCount()).toBe(2);
+		jest.advanceTimersByTime(60000);
+		expect(keepAliveCount()).toBe(4);
+	});
+
+	test('a repeated ForceKeepAlive restarts the timer rather than doubling it', () => {
+		forceKeepAlive(60);
+		forceKeepAlive(60);
+		expect(keepAliveCount()).toBe(2);
+		jest.advanceTimersByTime(30000);
+		expect(keepAliveCount()).toBe(3);
+	});
+
+	test('stops once the socket closes', () => {
+		// The reconnect that follows opens a fresh socket, so count on this one.
+		const first = socket;
+		forceKeepAlive(60);
+		first.onclose();
+		jest.advanceTimersByTime(120000);
+		expect(first.send).toHaveBeenCalledTimes(1);
+	});
+});

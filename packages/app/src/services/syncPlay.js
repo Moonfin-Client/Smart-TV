@@ -7,6 +7,7 @@ let currentGroup = null;
 let serverTimeOffset = 0;
 let lastPing = 500;
 let pingInterval = null;
+let keepAliveInterval = null;
 let reconnectTimeout = null;
 let listeners = [];
 let isConnecting = false;
@@ -25,6 +26,13 @@ const MAX_TIME_SYNC_RTT_MS = 5000;
 // How far a late command is allowed to skip ahead to catch up.
 const MAX_LATE_CATCH_UP_MS = 15000;
 const HANDSHAKE_RETRY_DELAY_MS = 1200;
+// The server drops a socket that has not sent it a KeepAlive message within
+// this long. It says so in the ForceKeepAlive it sends on connect and again
+// once a reply is overdue; the fallback only covers a message with no timeout.
+const DEFAULT_KEEP_ALIVE_TIMEOUT_S = 60;
+// Reply every half timeout, as jellyfin-web does, so one lost message does not
+// cost the socket.
+const KEEP_ALIVE_FACTOR = 0.5;
 const MAX_HANDSHAKE_ATTEMPTS = 3;
 
 // Buffering fired this soon after executing a SyncPlay command is the seek
@@ -144,6 +152,7 @@ const sendHandshake = async (path, sample) => {
 	for (let attempt = 1; attempt <= MAX_HANDSHAKE_ATTEMPTS; attempt++) {
 		const {isPlaying, positionTicks} = sample();
 		try {
+			console.log('[SyncPlay] send', path, 'at', positionTicks / 10000000, 's', isPlaying ? 'playing' : 'paused', 'item', currentPlaylistItemId);
 			await request('POST', path, {
 				When: new Date(serverNow()).toISOString(),
 				PositionTicks: positionTicks,
@@ -281,6 +290,31 @@ export const setShuffleMode = (mode) =>
 export const setIgnoreWait = (ignoreWait) =>
 	request('POST', 'SetIgnoreWait', {IgnoreWait: ignoreWait}).catch(() => {});
 
+// A socket the server counts as lost is disposed, which ends the session and
+// with it its place in the group. Only a KeepAlive message from this side
+// refreshes its timer; nothing else sent on the socket or over HTTP counts.
+const sendKeepAlive = () => {
+	if (!ws || ws.readyState !== 1) return;
+	try {
+		ws.send(JSON.stringify({MessageType: 'KeepAlive'}));
+	} catch {
+		// ignore
+	}
+};
+
+const stopKeepAlive = () => {
+	if (keepAliveInterval) {
+		clearInterval(keepAliveInterval);
+		keepAliveInterval = null;
+	}
+};
+
+const scheduleKeepAlive = (timeoutSeconds) => {
+	stopKeepAlive();
+	const seconds = Number(timeoutSeconds) > 0 ? Number(timeoutSeconds) : DEFAULT_KEEP_ALIVE_TIMEOUT_S;
+	keepAliveInterval = setInterval(sendKeepAlive, seconds * 1000 * KEEP_ALIVE_FACTOR);
+};
+
 export const connectWebSocket = () => {
 	if (ws || isConnecting) return;
 
@@ -327,6 +361,7 @@ export const connectWebSocket = () => {
 			clearInterval(pingInterval);
 			pingInterval = null;
 		}
+		stopKeepAlive();
 		stopTimeSync();
 		scheduleReconnect(); // eslint-disable-line no-use-before-define
 	};
@@ -349,6 +384,7 @@ export const disconnectWebSocket = () => {
 		clearInterval(pingInterval);
 		pingInterval = null;
 	}
+	stopKeepAlive();
 	stopTimeSync();
 	if (ws) {
 		ws.onclose = null;
@@ -372,6 +408,8 @@ const handleWebSocketMessage = (msg) => {
 			handleGeneralCommand(Data); // eslint-disable-line no-use-before-define
 			break;
 		case 'ForceKeepAlive':
+			sendKeepAlive();
+			scheduleKeepAlive(Data);
 			break;
 		default:
 			break;
@@ -380,6 +418,7 @@ const handleWebSocketMessage = (msg) => {
 
 const handleGroupUpdate = (data) => {
 	if (!data) return;
+	console.log('[SyncPlay] group update', data.Type, data.Type === 'StateUpdate' ? data.Data?.State : '');
 
 	switch (data.Type) {
 		case 'GroupJoined':
@@ -444,6 +483,7 @@ const handleGroupUpdate = (data) => {
 
 const handlePlaybackCommand = (data) => {
 	if (!data) return;
+	console.log('[SyncPlay] command', data.Command, 'at', data.PositionTicks != null ? data.PositionTicks / 10000000 : null, 's, when', data.When, 'delay', getDelayToWhen(data.When), 'ms'); // eslint-disable-line no-use-before-define
 	emit('playbackCommand', data);
 };
 

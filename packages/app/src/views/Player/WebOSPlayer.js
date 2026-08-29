@@ -1093,7 +1093,9 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 	}, [duration, playMethod, isInGroup, groupSeekTo]);
 
 	const seekToTicks = useCallback((ticks) => {
-		const maxTicks = Math.max(0, runTimeRef.current - 10000000); // 1s before end
+		// 1s before the end, or unclamped while the runtime is still unknown,
+		// which would otherwise send every seek to the start.
+		const maxTicks = runTimeRef.current > 10000000 ? runTimeRef.current - 10000000 : Infinity;
 		const clampedTicks = Math.max(0, Math.min(ticks, maxTicks));
 		positionRef.current = clampedTicks;
 		lastSeekTargetRef.current = null;
@@ -1125,6 +1127,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 		if (!pending) return;
 		clearGroupSeekPending();
 		const video = videoRef.current;
+		console.log('[Player] SyncPlay seek settled at', syncPlaySample().positionTicks / 10000000, 's, target', pending.target / 10000000, 's');
 		if (pending.pauseOnLand && video) {
 			video.pause();
 			// The set played on for a moment between landing and pausing, and
@@ -1156,12 +1159,14 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 			return;
 		}
 		if (!pending && !needsSeek(positionRef.current, target)) {
+			console.log('[Player] SyncPlay seek to', target / 10000000, 's already there');
 			if (pauseOnLand) video.pause();
 			if (isInGroup) readyGate.request();
 			return;
 		}
 		clearGroupSeekPending();
 		const from = syncPlaySample().positionTicks;
+		console.log('[Player] SyncPlay seek from', from / 10000000, 's to', target / 10000000, 's', {pauseOnLand, playToSeek, paused: video.paused, readyState: video.readyState});
 		// The hold lets a seek on the group's behalf run, so it has to be on
 		// record before the pipeline is started for it. A seek lands sooner
 		// with the pipeline running, which is also how the other clients do
@@ -2335,6 +2340,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 		const video = videoRef.current;
 		if (!video) return;
 		const {Command, PositionTicks, When} = command;
+		console.log('[Player] SyncPlay command', Command, 'at', PositionTicks != null ? PositionTicks / 10000000 : null, 's, delay', delay, 'ms, set at', positionRef.current / 10000000, 's', video.paused ? 'paused' : 'playing');
 		cancelGroupSeek();
 		syncPlayCommandRef.current = true;
 		suppressBufferingUntilRef.current = Date.now() + syncPlayService.BUFFERING_SUPPRESS_MS;

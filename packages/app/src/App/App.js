@@ -632,6 +632,15 @@ const AppContent = (props) => {
 					return;
 				}
 
+				// The dialog closes itself on back, but its listener shares the
+				// window with this one and stopPropagation does not reach a
+				// sibling, so the same press otherwise falls through to the
+				// panel underneath and asks to exit the app.
+				if (syncPlayDialogOpen) {
+					closeSyncPlay();
+					return;
+				}
+
 				if (updateInfo) {
 					dismissUpdate();
 					return;
@@ -678,7 +687,7 @@ const AppContent = (props) => {
 
 		window.addEventListener('keydown', handleKeyDown, true);
 		return () => window.removeEventListener('keydown', handleKeyDown, true);
-	}, [panelIndex, handleBack, performAppCleanup, settings.exitConfirmation, showAccountModal, showServerMessages, showExitDialog, showSettingsPanel, showShuffleOverlay, isPinGateActive, setupWizardActive, updateInfo, dismissUpdate]);
+	}, [panelIndex, handleBack, performAppCleanup, settings.exitConfirmation, showAccountModal, showServerMessages, showExitDialog, showSettingsPanel, showShuffleOverlay, isPinGateActive, setupWizardActive, updateInfo, dismissUpdate, syncPlayDialogOpen, closeSyncPlay]);
 
 	const handleLoggedIn = useCallback(() => {
 		setPanelHistory([]);
