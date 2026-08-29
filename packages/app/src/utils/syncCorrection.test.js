@@ -89,6 +89,38 @@ describe('createSkipGovernor', () => {
 		expect(g.skipsUsed()).toBe(MAX_SKIPS_PER_ITEM);
 	});
 
+	test('a start holds off skips until the set is seen moving', () => {
+		const g = createSkipGovernor();
+		g.onStart({nowMs: 0, fromMs: 10000});
+		// Reported playing, position not moving yet: start latency.
+		expect(g.evaluate(playing(2000, 10000, -2000))).toBe('defer');
+		expect(g.evaluate(playing(2000 + SETTLE_WINDOW_MS, 10020, -2500))).toBe('defer');
+		// Moving now, and the lag that is left is real.
+		expect(g.evaluate(playing(3500, 10500, -3000))).toBe('defer');
+		expect(g.evaluate(playing(3500 + SETTLE_WINDOW_MS, 10500 + SETTLE_WINDOW_MS, -3000))).toBe('skip');
+	});
+
+	test('a start counts as neither a skip nor a failure and teaches nothing', () => {
+		const g = createSkipGovernor();
+		g.onStart({nowMs: 0, fromMs: 10000});
+		g.evaluate(playing(4000, 10100, -4000));
+		g.evaluate(playing(4000 + SETTLE_WINDOW_MS, 10100 + SETTLE_WINDOW_MS, -4000));
+		expect(g.skipsUsed()).toBe(0);
+		expect(g.hasGivenUp()).toBe(false);
+		expect(g.seekAllowanceMs()).toBe(DEFAULT_SEEK_ALLOWANCE_MS);
+	});
+
+	test('a start that never moves is dropped at the deadline without counting', () => {
+		const g = createSkipGovernor();
+		for (let i = 0; i < MAX_FAILED_ATTEMPTS; i++) {
+			const at = i * 20000;
+			g.onStart({nowMs: at, fromMs: 10000});
+			expect(g.evaluate(playing(at + ATTEMPT_DEADLINE_MS, 10000, -13000))).toBe('defer');
+		}
+		expect(g.hasGivenUp()).toBe(false);
+		expect(g.evaluate(playing(100000, 10000, -13000))).toBe('skip');
+	});
+
 	test('a group command drops the open attempt without counting it', () => {
 		const g = createSkipGovernor();
 		g.onSkip({nowMs: 0, fromMs: 10000, targetMs: 20000, driftMs: -10000});
@@ -150,9 +182,16 @@ describe('chooseCorrection', () => {
 		expect(chooseCorrection(-6000, 'skip', options, 1500)).toEqual({type: 'skip', aheadMs: 1500});
 	});
 
-	test('behind by less than a seek costs, speeds up rather than skipping', () => {
-		expect(chooseCorrection(-3000, 'skip', options, 4000)).toEqual({type: 'rate', rate: FAST_RATE});
+	test('behind by more than the skip threshold, skips however much a seek costs', () => {
+		expect(chooseCorrection(-3000, 'skip', options, 4000)).toEqual({type: 'skip', aheadMs: 4000});
 		expect(chooseCorrection(-6000, 'skip', options, 4000)).toEqual({type: 'skip', aheadMs: 4000});
+	});
+
+	test('with rate nudges off, a lateness under the skip threshold is tolerated', () => {
+		const noSpeed = {...options, useSpeed: false};
+		expect(chooseCorrection(-1700, 'skip', noSpeed, 1500)).toEqual({type: 'none'});
+		expect(chooseCorrection(-2500, 'skip', noSpeed, 1500)).toEqual({type: 'skip', aheadMs: 1500});
+		expect(chooseCorrection(-2500, 'nudge', noSpeed, 1500)).toEqual({type: 'none'});
 	});
 
 	test('behind by a lot with skips used up, speeds up if the gap allows', () => {

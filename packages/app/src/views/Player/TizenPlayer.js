@@ -7,7 +7,7 @@ import {
 	initTizenAPI, registerAppStateObserver, keepScreenOn, getTizenVersion,
 	avplayOpen, avplayPrepare, avplayPlay, avplayPause,
 	avplaySeek, avplaySeekIdle, avplaySetPostSeekHook, avplayGetCurrentTime, avplayGetDuration, avplayGetState,
-	avplaySetListener, avplaySetSpeed, avplaySelectTrack, avplaySetSilentSubtitle,
+	avplaySetListener, avplaySelectTrack, avplaySetSilentSubtitle,
 	avplayGetTracks, avplaySetDisplayMethod, avplaySetStreamingProperty, setDisplayWindow, cleanupAVPlay,
 	avplaySetBufferingParams, avplaySuspend, avplayRestore, waitForHlsManifest
 } from '@moonfin/platform-tizen/video';
@@ -2444,6 +2444,13 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 				}
 				avplayPlay();
 				setIsPaused(false);
+				// The set takes a moment to actually move, and a drift read
+				// before it does is not one a skip could close.
+				skipGovernorRef.current.onStart({
+					nowMs: Date.now(),
+					fromMs: positionRef.current / 10000,
+					targetMs: (target != null ? target : positionRef.current) / 10000
+				});
 				break;
 			}
 			case 'Pause': {
@@ -2493,11 +2500,12 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 	// Commands alone cant hold this in step, because the decoder loses a little
 	// wall clock time on every rebuffer and nothing measured it afterwards.
 	useEffect(() => {
-		const correction = correctionOptions(settings);
+		// Never a rate nudge: AVPlay's audio does not survive a speed change,
+		// as Core found, so a wait or a skip covers every gap whatever the
+		// setting says.
+		const correction = {...correctionOptions(settings), useSpeed: false};
 		if (!isInGroup || isPaused || !correction.enabled) return undefined;
 
-		let restoreTimer = null;
-		const restoreRate = () => avplaySetSpeed(1);
 		const interval = setInterval(() => {
 			if (syncPlayCommandRef.current || groupSeekPendingRef.current) return;
 			const expected = syncPlayService.getExpectedPositionTicks(correction.extraOffsetMs);
@@ -2530,20 +2538,10 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 					avplayPlay();
 					setIsPaused(false);
 				}, action.ms);
-			} else if (action.type === 'rate' && !restoreTimer) {
-				avplaySetSpeed(action.rate);
-				restoreTimer = setTimeout(() => {
-					restoreTimer = null;
-					restoreRate();
-				}, correction.speedDurationMs);
 			}
 		}, DRIFT_CHECK_MS);
 
-		return () => {
-			clearInterval(interval);
-			if (restoreTimer) clearTimeout(restoreTimer);
-			restoreRate();
-		};
+		return () => clearInterval(interval);
 	}, [isInGroup, isPaused, settings, cancelSyncWait]);
 
 	// The server marks every member as buffering after a group seek or a change

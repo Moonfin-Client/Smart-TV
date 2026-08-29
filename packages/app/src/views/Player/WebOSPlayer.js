@@ -2386,20 +2386,29 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 				// The sync point is the position at the command's own time,
 				// which for a late arrival or an echo is not now.
 				syncPlayService.setSyncReference(PositionTicks != null ? PositionTicks : positionRef.current, syncPlayService.whenToServerMs(When));
+				let startTarget = null;
 				if (delay > 0) {
 					// On time: a seek costs a rebuffer the whole group then
 					// waits on, so a difference this small is left alone.
-					if (PositionTicks != null && needsSeek(positionRef.current, PositionTicks)) startGroupSeek(PositionTicks, false);
+					if (PositionTicks != null && needsSeek(positionRef.current, PositionTicks)) startTarget = PositionTicks;
 				} else if (video.paused) {
 					// Late: start where the group has got to by now.
 					const target = syncPlayService.getAdjustedPosition(PositionTicks, When);
-					if (target != null && needsSeek(positionRef.current, target)) startGroupSeek(target, false);
+					if (target != null && needsSeek(positionRef.current, target)) startTarget = target;
 				}
+				if (startTarget != null) startGroupSeek(startTarget, false);
 				// Already playing: the server answers any Ready it gets while
 				// playing with the last sync point unchanged. That confirms
 				// where the group is; seeking on it restarts the stream for
 				// nothing, and the drift check corrects a real gap.
 				video.play()?.catch?.(() => {});
+				// The set takes a second or two to actually move, and a drift
+				// read before it does is not one a skip could close.
+				skipGovernorRef.current.onStart({
+					nowMs: Date.now(),
+					fromMs: positionRef.current / 10000,
+					targetMs: (startTarget != null ? startTarget : positionRef.current) / 10000
+				});
 				break;
 			}
 			case 'Pause': {
@@ -2436,13 +2445,12 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 	// Commands alone cant hold this in step, because the decoder loses a little
 	// wall clock time on every rebuffer and nothing measured it afterwards.
 	useEffect(() => {
-		const correction = correctionOptions(settings);
+		// Never a rate nudge: this pipeline freezes for about a second after
+		// every playbackRate write, which the log showed putting the set three
+		// seconds behind and the group on hold, whatever the setting says.
+		const correction = {...correctionOptions(settings), useSpeed: false};
 		if (!isInGroup || isPaused || !correction.enabled) return undefined;
 
-		let restoreTimer = null;
-		const restoreRate = () => {
-			if (videoRef.current) videoRef.current.playbackRate = 1;
-		};
 		const interval = setInterval(() => {
 			const video = videoRef.current;
 			if (!video || syncPlayCommandRef.current || groupSeekPendingRef.current) return;
@@ -2474,21 +2482,12 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 					syncWaitTimerRef.current = null;
 					videoRef.current?.play()?.catch?.(() => {});
 				}, action.ms);
-			} else if (action.type === 'rate' && !restoreTimer) {
-				console.log('[Player] SyncPlay drift', drift, 'ms, rate', action.rate, 'for', correction.speedDurationMs, 'ms');
-				video.playbackRate = action.rate;
-				restoreTimer = setTimeout(() => {
-					restoreTimer = null;
-					restoreRate();
-				}, correction.speedDurationMs);
+			} else if (drift != null && Math.abs(drift) > 500) {
+				console.log('[Player] SyncPlay drift', drift, 'ms, held');
 			}
 		}, DRIFT_CHECK_MS);
 
-		return () => {
-			clearInterval(interval);
-			if (restoreTimer) clearTimeout(restoreTimer);
-			restoreRate();
-		};
+		return () => clearInterval(interval);
 	}, [isInGroup, isPaused, seekToTicks, settings, cancelSyncWait]);
 
 	// The server marks every member as buffering after a group seek or a change

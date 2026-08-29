@@ -101,17 +101,20 @@ export const createSkipGovernor = () => {
 			if (!attempt.settled) {
 				if (nowMs < attempt.deadlineMs) return 'defer';
 				// Never came back. Seeking at a set in this state pins it there.
+				const wasStart = attempt.start;
 				attempt = null;
-				noteFailure();
+				if (!wasStart) noteFailure();
 				return 'defer';
 			}
-			const pre = attempt.preResidualMs;
-			learnSeekCost(attempt.settledAtMs - attempt.issuedAtMs);
+			const {preResidualMs: pre, start, settledAtMs, issuedAtMs} = attempt;
 			attempt = null;
-			if (Math.abs(driftMs) <= Math.round(pre * IMPROVEMENT_RATIO)) {
-				failed = 0;
-			} else {
-				noteFailure();
+			if (!start) {
+				learnSeekCost(settledAtMs - issuedAtMs);
+				if (Math.abs(driftMs) <= Math.round(pre * IMPROVEMENT_RATIO)) {
+					failed = 0;
+				} else {
+					noteFailure();
+				}
 			}
 		}
 		if (gaveUp || skips >= MAX_SKIPS_PER_ITEM) return 'nudge';
@@ -126,6 +129,26 @@ export const createSkipGovernor = () => {
 			fromMs,
 			targetMs,
 			preResidualMs: Math.abs(driftMs),
+			landedAtMs: null,
+			anchor: null,
+			settled: false,
+			settledAtMs: null
+		};
+	};
+
+	// Playback was started, by an Unpause or a group seek landing. A television
+	// reports playing a second or two before it renders, and the drift read in
+	// that time is the start latency, not a gap a skip could close. So the
+	// start is an attempt like a skip, held until the set is seen moving, only
+	// it is nobody's fault and teaches nothing about seeks.
+	const onStart = ({nowMs, fromMs, targetMs = fromMs}) => {
+		attempt = {
+			start: true,
+			issuedAtMs: nowMs,
+			deadlineMs: nowMs + ATTEMPT_DEADLINE_MS,
+			fromMs,
+			targetMs,
+			preResidualMs: 0,
 			landedAtMs: null,
 			anchor: null,
 			settled: false,
@@ -151,6 +174,7 @@ export const createSkipGovernor = () => {
 		evaluate,
 		observe,
 		onSkip,
+		onStart,
 		cancel,
 		reset,
 		hasGivenUp: () => gaveUp,
@@ -160,9 +184,17 @@ export const createSkipGovernor = () => {
 };
 
 // What to do about a measured drift, given the governor's verdict. Behind,
-// only a skip or a faster rate makes up time, and a skip is aimed ahead by the
-// seek allowance. Ahead, a rate nudge if the gap is small enough, otherwise a
-// wait; a skip backwards only for a lead too long to sit through.
+// only a skip or a faster rate makes up time; a skip is aimed ahead by the
+// seek allowance, so it lands on the group however far behind it started, and
+// below the skip threshold a lateness is tolerated. Ahead, a rate nudge if the
+// gap is small enough, otherwise a wait; a skip backwards only for a lead too
+// long to sit through.
+//
+// Rate nudges are only for players whose pipeline survives one. An LG set
+// freezes for about a second after every playbackRate write, which puts it
+// further behind than the nudge was closing, and Core has found the same on
+// Samsung and Apple TV, so the television players pass useSpeed false
+// whatever the setting says.
 //   {type: 'skip', aheadMs} seek to the expected position plus aheadMs
 //   {type: 'rate', rate}    play at rate for the configured duration
 //   {type: 'wait', ms}      pause for ms
@@ -172,9 +204,7 @@ export const chooseCorrection = (driftMs, verdict, options, allowanceMs) => {
 	const action = driftAction(driftMs, options);
 	if (action.type !== 'seek') return action;
 	if (driftMs < 0) {
-		// A skip freezes the set for as long as its seek costs, so one that
-		// would fix less than that leaves the set worse off than the gap did.
-		if (verdict === 'skip' && -driftMs > allowanceMs) return {type: 'skip', aheadMs: allowanceMs};
+		if (verdict === 'skip') return {type: 'skip', aheadMs: allowanceMs};
 		return driftAction(driftMs, {...options, useSkip: false});
 	}
 	const size = driftMs;
