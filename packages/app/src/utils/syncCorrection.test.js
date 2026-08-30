@@ -121,6 +121,16 @@ describe('createSkipGovernor', () => {
 		expect(g.evaluate(playing(100000, 10000, -13000))).toBe('skip');
 	});
 
+	test('a start does not replace a skip still in flight', () => {
+		const g = createSkipGovernor();
+		g.onSkip({nowMs: 0, fromMs: 10000, targetMs: 20000, driftMs: -10000});
+		g.onStart({nowMs: 100, fromMs: 10000});
+		// Still the skip: landing at its target is what settles it.
+		expect(g.evaluate(playing(2000, 20050, -1000))).toBe('defer');
+		expect(g.evaluate(playing(2000 + SETTLE_WINDOW_MS, 20050 + SETTLE_WINDOW_MS, -1000))).toBe('skip');
+		expect(g.skipsUsed()).toBe(1);
+	});
+
 	test('a group command drops the open attempt without counting it', () => {
 		const g = createSkipGovernor();
 		g.onSkip({nowMs: 0, fromMs: 10000, targetMs: 20000, driftMs: -10000});

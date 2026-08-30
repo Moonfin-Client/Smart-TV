@@ -142,6 +142,9 @@ export const createSkipGovernor = () => {
 	// start is an attempt like a skip, held until the set is seen moving, only
 	// it is nobody's fault and teaches nothing about seeks.
 	const onStart = ({nowMs, fromMs, targetMs = fromMs}) => {
+		// A skip in flight is already being watched for the same thing, and
+		// it has a cost to learn that a start does not.
+		if (attempt) return;
 		attempt = {
 			start: true,
 			issuedAtMs: nowMs,

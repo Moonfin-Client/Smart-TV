@@ -148,6 +148,25 @@ export const sendSeekRequest = (positionTicks) => request('POST', 'Seek', {Posit
 
 export const serverNow = () => Date.now() + serverTimeOffset;
 
+// Where the group is, from the last queue update or command and the time
+// since. Kept here rather than in the player so an item started while the
+// group is already playing opens where the group has got to, not where the
+// queue was when it was last announced.
+let groupPosition = null;
+
+const trackGroupPosition = (positionTicks, isPlaying, serverTimeMs = serverNow()) => {
+	if (positionTicks == null) return;
+	groupPosition = {positionTicks, isPlaying: !!isPlaying, serverTimeMs};
+};
+
+export const getGroupPositionTicks = () => {
+	if (!groupPosition) return null;
+	const elapsedMs = groupPosition.isPlaying ? Math.max(0, serverNow() - groupPosition.serverTimeMs) : 0;
+	return groupPosition.positionTicks + elapsedMs * 10000;
+};
+
+export const getGroupState = () => currentGroup?.State ?? null;
+
 const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 // The group waits on these two reports, so one lost to a dropped request leaves
@@ -455,6 +474,7 @@ const handleGroupUpdate = (data) => {
 		case 'GroupLeft':
 			currentGroup = null;
 			bufferingReported = false;
+			groupPosition = null;
 			emit('groupLeft', null);
 			break;
 
@@ -472,6 +492,10 @@ const handleGroupUpdate = (data) => {
 			if (currentGroup && data.Data) {
 				currentGroup.State = data.Data.State;
 			}
+			// Paused or waiting, the group stands where it has got to.
+			if (data.Data?.State !== 'Playing' && groupPosition?.isPlaying) {
+				trackGroupPosition(getGroupPositionTicks(), false);
+			}
 			emit('stateUpdate', data.Data);
 			break;
 
@@ -484,6 +508,7 @@ const handleGroupUpdate = (data) => {
 					currentPlaylistItemId = queue[index].PlaylistItemId || null;
 				}
 			}
+			if (queueData) trackGroupPosition(queueData.StartPositionTicks || 0, queueData.IsPlaying);
 			emit('playQueue', queueData);
 			break;
 		}
@@ -491,6 +516,7 @@ const handleGroupUpdate = (data) => {
 		case 'NotInGroup':
 		case 'GroupDoesNotExist':
 			currentGroup = null;
+			groupPosition = null;
 			emit('groupLeft', null);
 			break;
 
@@ -507,6 +533,11 @@ const handleGroupUpdate = (data) => {
 const handlePlaybackCommand = (data) => {
 	if (!data) return;
 	console.log('[SyncPlay] command', data.Command, 'at', data.PositionTicks != null ? data.PositionTicks / 10000000 : null, 's, when', data.When, 'delay', getDelayToWhen(data.When), 'ms'); // eslint-disable-line no-use-before-define
+	// A command says where the group was at its own time, which for a late
+	// one or an echo is not now.
+	if (data.Command === 'Unpause' || data.Command === 'Pause' || data.Command === 'Seek') {
+		trackGroupPosition(data.PositionTicks, data.Command === 'Unpause', whenToServerMs(data.When)); // eslint-disable-line no-use-before-define
+	}
 	emit('playbackCommand', data);
 };
 

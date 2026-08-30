@@ -125,7 +125,15 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 	}, []);
 	useEffect(() => {
 		skipGovernorRef.current.reset();
-	}, [item?.Id]);
+		// Held for the group only when the server will send the Unpause: after
+		// a join, or while the group is paused or waiting. An item the group is
+		// already playing is waited on by nobody, so it plays from where the
+		// group is and the drift check takes up the rest.
+		if (isInGroup) {
+			const state = syncPlayService.getGroupState();
+			groupHoldRef.current = syncPlayService.isReadyOwed() || state !== 'Playing';
+		}
+	}, [item?.Id, isInGroup]);
 	useEffect(() => cancelSyncWait, [cancelSyncWait]);
 
 	const [isLoading, setIsLoading] = useState(true);

@@ -198,3 +198,77 @@ describe('SyncPlay Ready reports', () => {
 		expect(readyCount()).toBe(2);
 	});
 });
+
+describe('SyncPlay group position', () => {
+	let socket;
+	let service;
+
+	const groupUpdate = (type, data) => socket.onmessage({
+		data: JSON.stringify({MessageType: 'SyncPlayGroupUpdate', Data: {Type: type, Data: data}})
+	});
+	const command = (Command, PositionTicks, whenMs) => socket.onmessage({
+		data: JSON.stringify({MessageType: 'SyncPlayCommand', Data: {Command, PositionTicks, When: new Date(whenMs).toISOString()}})
+	});
+	const SECOND = 10000000;
+
+	beforeEach(() => {
+		global.WebSocket = function FakeSocket () {
+			socket = this;
+			this.readyState = 1;
+			this.send = jest.fn();
+			this.close = () => {};
+		};
+		global.fetch = jest.fn(() => Promise.resolve({ok: true, status: 204, json: () => Promise.resolve({})}));
+		jest.isolateModules(() => {
+			service = require('./syncPlay');
+		});
+		service.connectWebSocket();
+		socket.onopen();
+		groupUpdate('GroupJoined', {GroupId: 'g1', State: 'Playing'});
+	});
+
+	afterEach(() => {
+		service.disconnectWebSocket();
+		delete global.fetch;
+		delete global.WebSocket;
+	});
+
+	test('is unknown until the group has said where it is', () => {
+		expect(service.getGroupPositionTicks()).toBeNull();
+		expect(service.getGroupState()).toBe('Playing');
+	});
+
+	test('a queue update places the group, playing or not', () => {
+		groupUpdate('PlayQueue', {Playlist: [{PlaylistItemId: 'p1'}], PlayingItemIndex: 0, StartPositionTicks: 30 * SECOND, IsPlaying: false});
+		expect(service.getGroupPositionTicks()).toBe(30 * SECOND);
+	});
+
+	test('an Unpause runs on from its own time, so an echo of an old one still lands where the group is', () => {
+		command('Unpause', 100 * SECOND, Date.now() - 5000);
+		const ticks = service.getGroupPositionTicks();
+		expect(ticks).toBeGreaterThanOrEqual(105 * SECOND - SECOND / 10);
+		expect(ticks).toBeLessThan(106 * SECOND);
+	});
+
+	test('a Pause or Seek stands still', () => {
+		command('Pause', 200 * SECOND, Date.now() - 5000);
+		expect(service.getGroupPositionTicks()).toBe(200 * SECOND);
+		command('Seek', 300 * SECOND, Date.now() - 5000);
+		expect(service.getGroupPositionTicks()).toBe(300 * SECOND);
+	});
+
+	test('a state update out of Playing freezes the group where it had got to', () => {
+		command('Unpause', 100 * SECOND, Date.now() - 5000);
+		groupUpdate('StateUpdate', {State: 'Waiting'});
+		const frozen = service.getGroupPositionTicks();
+		expect(frozen).toBeGreaterThanOrEqual(105 * SECOND - SECOND / 10);
+		expect(service.getGroupPositionTicks()).toBe(frozen);
+	});
+
+	test('is forgotten on leaving', () => {
+		command('Unpause', 100 * SECOND, Date.now());
+		groupUpdate('GroupLeft', {GroupId: 'g1'});
+		expect(service.getGroupPositionTicks()).toBeNull();
+		expect(service.getGroupState()).toBeNull();
+	});
+});
