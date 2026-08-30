@@ -1,5 +1,6 @@
 import {getServerUrl, getAuthHeader, getApiKey, getDeviceId} from './jellyfinApi';
 import {expectedPositionTicks} from '../utils/syncDrift';
+import {syncLog} from '../utils/syncLog';
 
 let ws = null;
 let syncReference = null;
@@ -177,7 +178,7 @@ const sendHandshake = async (path, sample) => {
 	for (let attempt = 1; attempt <= MAX_HANDSHAKE_ATTEMPTS; attempt++) {
 		const {isPlaying, positionTicks} = sample();
 		try {
-			console.log('[SyncPlay] send', path, 'at', positionTicks / 10000000, 's', isPlaying ? 'playing' : 'paused', 'item', currentPlaylistItemId);
+			syncLog('[SyncPlay] send', path, 'at', positionTicks / 10000000, 's', isPlaying ? 'playing' : 'paused', 'item', currentPlaylistItemId);
 			await request('POST', path, {
 				When: new Date(serverNow()).toISOString(),
 				PositionTicks: positionTicks,
@@ -205,7 +206,7 @@ export const isReadyOwed = () => !!currentGroup && (currentGroup.State === 'Wait
 
 export const sendReadyRequest = async (sample) => {
 	if (!isReadyOwed()) {
-		console.log('[SyncPlay] Ready not owed, group', currentGroup?.State, '- not sent');
+		syncLog('[SyncPlay] Ready not owed, group', currentGroup?.State, '- not sent');
 		return;
 	}
 	await sendHandshake('Ready', sample);
@@ -457,7 +458,7 @@ const handleWebSocketMessage = (msg) => {
 
 const handleGroupUpdate = (data) => {
 	if (!data) return;
-	console.log('[SyncPlay] group update', data.Type, data.Type === 'StateUpdate' ? data.Data?.State : '');
+	syncLog('[SyncPlay] group update', data.Type, data.Type === 'StateUpdate' ? data.Data?.State : '');
 
 	switch (data.Type) {
 		case 'GroupJoined':
@@ -532,7 +533,7 @@ const handleGroupUpdate = (data) => {
 
 const handlePlaybackCommand = (data) => {
 	if (!data) return;
-	console.log('[SyncPlay] command', data.Command, 'at', data.PositionTicks != null ? data.PositionTicks / 10000000 : null, 's, when', data.When, 'delay', getDelayToWhen(data.When), 'ms'); // eslint-disable-line no-use-before-define
+	syncLog('[SyncPlay] command', data.Command, 'at', data.PositionTicks != null ? data.PositionTicks / 10000000 : null, 's, when', data.When, 'delay', getDelayToWhen(data.When), 'ms'); // eslint-disable-line no-use-before-define
 	// A command says where the group was at its own time, which for a late
 	// one or an echo is not now.
 	if (data.Command === 'Unpause' || data.Command === 'Pause' || data.Command === 'Seek') {

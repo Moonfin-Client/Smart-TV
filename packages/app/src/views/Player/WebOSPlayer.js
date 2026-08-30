@@ -47,6 +47,7 @@ import {isPreroll, nextInQueue, shouldAutoAdvance} from '../../utils/cinemaMode'
 import {driftMs, needsSeek, seekLanded, correctionOptions, DRIFT_CHECK_MS, GROUP_SEEK_SETTLE_TIMEOUT_MS} from '../../utils/syncDrift';
 import {createReadyGate} from '../../utils/syncReady';
 import {createSkipGovernor, chooseCorrection, STALL_DEBOUNCE_MS} from '../../utils/syncCorrection';
+import {syncLog} from '../../utils/syncLog';
 import {
 	NextEpisodeContainer, CONTROLS_HIDE_DELAY,
 	withTimeout, SEGMENT_FETCH_TIMEOUT
@@ -219,7 +220,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 		if (isInGroup) {
 			const state = syncPlayService.getGroupState();
 			groupHoldRef.current = syncPlayService.isReadyOwed() || state !== 'Playing';
-			console.log('[Player] SyncPlay start', groupHoldRef.current ? 'held for the group,' : 'with the group,', 'state', state);
+			syncLog('[Player] SyncPlay start', groupHoldRef.current ? 'held for the group,' : 'with the group,', 'state', state);
 		}
 	}, [item?.Id, isInGroup]);
 	useEffect(() => cancelSyncWait, [cancelSyncWait]);
@@ -1080,18 +1081,18 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 		if (!video || renderedRef.current || !video.paused || groupSeekPendingRef.current) return;
 		if (playMethod === playback.PlayMethod.Transcode) return;
 		const at = video.currentTime;
-		console.log('[Player] no frame drawn yet, seeking in place at', at);
+		// A pipeline that has not drawn yet may not report its position yet
+		// either, and a seek to a reading like that would move the set.
+		if (Math.abs(at * 10000000 - positionRef.current) > 10000000) return;
+		syncLog('[Player] no frame drawn yet, seeking in place at', at);
 		video.currentTime = at;
 	}, [playMethod]);
 
 	// Held for the group: the server says when and where playback starts. A
 	// seek in flight on its behalf is the one thing allowed to run.
 	const holdForGroup = useCallback(() => {
-		if (groupHoldRef.current && !groupSeekPendingRef.current && videoRef.current) {
-			videoRef.current.pause();
-			showFrameIfNone();
-		}
-	}, [showFrameIfNone]);
+		if (groupHoldRef.current && !groupSeekPendingRef.current && videoRef.current) videoRef.current.pause();
+	}, []);
 
 	useEffect(() => {
 		if (!isInGroup) {
@@ -1179,7 +1180,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 		if (!pending) return;
 		clearGroupSeekPending();
 		const video = videoRef.current;
-		console.log('[Player] SyncPlay seek settled at', syncPlaySample().positionTicks / 10000000, 's, target', pending.target / 10000000, 's');
+		syncLog('[Player] SyncPlay seek settled at', syncPlaySample().positionTicks / 10000000, 's, target', pending.target / 10000000, 's');
 		if (pending.pauseOnLand && video) {
 			video.pause();
 			// The set played on for a moment between landing and pausing, and
@@ -1211,14 +1212,14 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 			return;
 		}
 		if (!pending && !needsSeek(positionRef.current, target)) {
-			console.log('[Player] SyncPlay seek to', target / 10000000, 's already there');
+			syncLog('[Player] SyncPlay seek to', target / 10000000, 's already there');
 			if (pauseOnLand) video.pause();
 			if (isInGroup) readyGate.request();
 			return;
 		}
 		clearGroupSeekPending();
 		const from = syncPlaySample().positionTicks;
-		console.log('[Player] SyncPlay seek from', from / 10000000, 's to', target / 10000000, 's', {pauseOnLand, playToSeek, paused: video.paused, readyState: video.readyState});
+		syncLog('[Player] SyncPlay seek from', from / 10000000, 's to', target / 10000000, 's', {pauseOnLand, playToSeek, paused: video.paused, readyState: video.readyState});
 		// The hold lets a seek on the group's behalf run, so it has to be on
 		// record before the pipeline is started for it. A seek lands sooner
 		// with the pipeline running, which is also how the other clients do
@@ -1648,7 +1649,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 	const handleWaiting = useCallback(() => {
 		setIsBuffering(true);
 		stalledRef.current = true;
-		console.log('[Player] waiting at', videoRef.current?.currentTime, videoRef.current?.paused ? 'paused' : 'playing');
+		syncLog('[Player] waiting at', videoRef.current?.currentTime, videoRef.current?.paused ? 'paused' : 'playing');
 		if (healthMonitorRef.current && (Date.now() - lastSeekTimeRef.current > 15000)) {
 			healthMonitorRef.current.recordBuffer();
 		}
@@ -1657,7 +1658,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 	const handlePlaying = useCallback(() => {
 		setIsBuffering(false);
 		stalledRef.current = false;
-		console.log('[Player] playing at', videoRef.current?.currentTime);
+		syncLog('[Player] playing at', videoRef.current?.currentTime);
 		setIsPaused(false);
 		healthMonitorRef.current?.setPaused(false);
 		if (!seekDebounceTimerRef.current && !seekingTranscodeRef.current) {
@@ -2408,7 +2409,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 		const video = videoRef.current;
 		if (!video) return;
 		const {Command, PositionTicks, When} = command;
-		console.log('[Player] SyncPlay command', Command, 'at', PositionTicks != null ? PositionTicks / 10000000 : null, 's, delay', delay, 'ms, set at', positionRef.current / 10000000, 's', video.paused ? 'paused' : 'playing');
+		syncLog('[Player] SyncPlay command', Command, 'at', PositionTicks != null ? PositionTicks / 10000000 : null, 's, delay', delay, 'ms, set at', positionRef.current / 10000000, 's', video.paused ? 'paused' : 'playing');
 		cancelGroupSeek();
 		cancelSyncWait();
 		skipGovernorRef.current.cancel();
@@ -2490,6 +2491,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 		const correction = {...correctionOptions(settings), useSpeed: false};
 		if (!isInGroup || isPaused || !correction.enabled) return undefined;
 
+		let lastHeldDrift = 0;
 		const interval = setInterval(() => {
 			const video = videoRef.current;
 			if (!video || syncPlayCommandRef.current || groupSeekPendingRef.current) return;
@@ -2510,19 +2512,21 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 			if (action.type === 'skip') {
 				const targetTicks = expected + action.aheadMs * 10000;
 				skipGovernorRef.current.onSkip({nowMs, fromMs: positionMs, targetMs: targetTicks / 10000, driftMs: drift});
-				console.log('[Player] SyncPlay drift', drift, 'ms, skipping to', targetTicks / 10000000, 's, aimed', action.aheadMs, 'ms ahead (skip', skipGovernorRef.current.skipsUsed(), ')');
+				syncLog('[Player] SyncPlay drift', drift, 'ms, skipping to', targetTicks / 10000000, 's, aimed', action.aheadMs, 'ms ahead (skip', skipGovernorRef.current.skipsUsed(), ')');
 				suppressBufferingUntilRef.current = Date.now() + syncPlayService.BUFFERING_SUPPRESS_MS;
 				seekToTicks(targetTicks);
 			} else if (action.type === 'wait') {
-				console.log('[Player] SyncPlay drift', drift, 'ms, waiting', action.ms, 'ms for the group');
+				syncLog('[Player] SyncPlay drift', drift, 'ms, waiting', action.ms, 'ms for the group');
 				cancelSyncWait();
 				video.pause();
 				syncWaitTimerRef.current = setTimeout(() => {
 					syncWaitTimerRef.current = null;
 					videoRef.current?.play()?.catch?.(() => {});
 				}, action.ms);
-			} else if (drift != null && Math.abs(drift) > 500) {
-				console.log('[Player] SyncPlay drift', drift, 'ms, held');
+			} else if (drift != null && Math.abs(drift - lastHeldDrift) > 250) {
+				// A steady gap is logged once, not every two seconds.
+				lastHeldDrift = drift;
+				syncLog('[Player] SyncPlay drift', drift, 'ms, held');
 			}
 		}, DRIFT_CHECK_MS);
 

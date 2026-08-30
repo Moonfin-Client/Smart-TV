@@ -10,6 +10,7 @@ export const LOG_FILTERS = [
 	{id: 'all', label: 'All'},
 	{id: LOG_CATEGORIES.NETWORK, label: 'Network'},
 	{id: LOG_CATEGORIES.PLAYBACK, label: 'Playback'},
+	{id: LOG_CATEGORIES.SYNCPLAY, label: 'SyncPlay'},
 	{id: LOG_CATEGORIES.APP, label: 'Application'},
 	{id: LOG_CATEGORIES.AUTHENTICATION, label: 'Auth'},
 	{id: LOG_CATEGORIES.NAVIGATION, label: 'Navigation'}
