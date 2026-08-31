@@ -242,7 +242,11 @@
 /* One dotted line of facts, with the stream chips and Seerr pills on their own
    line beneath it. */
 .infoRow {
+	display: flex;
+	align-items: center;
+	flex-wrap: wrap;
 	margin-bottom: 12px;
+	.flex-row-gap(12px);
 }
 
 .infoTextItems {
@@ -1252,7 +1256,22 @@
 /* ============================================
    Person Layout
    ============================================ */
+.personRandomBackdrop {
+	position: fixed;
+	top: 0;
+	left: 0;
+	right: 0;
+	bottom: 0;
+	background-size: cover;
+	background-position: center;
+	opacity: 0.4;
+	pointer-events: none;
+	z-index: 0;
+}
+
 .personHeader {
+	position: relative;
+	z-index: 1;
 	display: flex;
 	align-items: flex-start;
 	margin-bottom: 48px;
@@ -1269,17 +1288,19 @@
 
 .personPhoto {
 	width: 100%;
-	height: 330px;
+	height: 220px;
 	object-fit: cover;
-	border-radius: 12px;
+	border-radius: 50%;
+	border: 3px solid var(--accent-color, #00a4dc);
 	box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
 }
 
 .personPhotoPlaceholder {
 	width: 100%;
-	height: 330px;
+	height: 220px;
 	background: rgba(255, 255, 255, 0.08);
-	border-radius: 12px;
+	border-radius: 50%;
+	border: 3px solid var(--accent-color, #00a4dc);
 	display: flex;
 	align-items: center;
 	justify-content: center;
@@ -1301,14 +1322,67 @@
 	}
 
 	.overview {
-		max-height: 250px;
-		overflow-y: auto;
-		scrollbar-width: none;
-
-		&::-webkit-scrollbar {
-			display: none;
-		}
+		margin: 0;
+		line-height: 1.45;
+		color: rgba(255, 255, 255, 0.85);
+		display: -webkit-box;
+		-webkit-line-clamp: 3;
+		-webkit-box-orient: vertical;
+		overflow: hidden;
 	}
+
+	.overviewExpanded {
+		-webkit-line-clamp: unset;
+		display: block;
+	}
+}
+
+.overviewToggle {
+	cursor: pointer;
+	padding: 8px 12px;
+	margin-top: 8px;
+	border-radius: 8px;
+	transition: background-color 0.15s;
+
+	&:focus {
+		background-color: rgba(255, 255, 255, 0.08);
+		outline: none;
+	}
+}
+
+.overviewToggleHint {
+	display: inline-block;
+	margin-top: 4px;
+	font-size: 0.85em;
+	color: var(--accent-color, #00a4dc);
+}
+
+.personTabs {
+	position: relative;
+	z-index: 1;
+	display: flex;
+	margin-bottom: 24px;
+
+	.flex-row-gap(8px);
+}
+
+.personTab {
+	padding: 8px 20px;
+	border-radius: 8px;
+	font-size: 1.1em;
+	color: rgba(255, 255, 255, 0.7);
+	background: rgba(255, 255, 255, 0.06);
+	transition: background-color 0.15s, color 0.15s;
+
+	&:focus {
+		outline: none;
+		background-color: rgba(255, 255, 255, 0.12);
+	}
+}
+
+.personTabActive {
+	color: #fff;
+	background: var(--accent-color, #00a4dc);
 }
 
 :global(html[data-theme-id='neon_pulse']) {
