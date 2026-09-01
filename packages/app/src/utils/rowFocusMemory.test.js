@@ -1,4 +1,4 @@
-import {focusedCardIndex, cardToRestore} from './rowFocusMemory';
+import {focusedCardIndex, cardToRestore, focusedRowIndex} from './rowFocusMemory';
 
 const buildRow = (count, spotlightId = 'row-0') => {
 	const row = document.createElement('div');
@@ -81,6 +81,44 @@ describe('cardToRestore', () => {
 	it('gives nothing when the row has no cards', () => {
 		buildRow(0, 'row-3');
 		expect(cardToRestore('row-3', 0)).toBeNull();
+	});
+});
+
+describe('focusedRowIndex', () => {
+	const buildWrapped = (rowIndex) => {
+		const wrap = document.createElement('div');
+		wrap.setAttribute('data-row-index', String(rowIndex));
+		const card = document.createElement('div');
+		wrap.appendChild(card);
+		document.body.appendChild(wrap);
+		return card;
+	};
+
+	it('reports the row the focused card belongs to', () => {
+		expect(focusedRowIndex(buildWrapped(4))).toBe(4);
+	});
+
+	it('reports zero for a card in the top row', () => {
+		expect(focusedRowIndex(buildWrapped(0))).toBe(0);
+	});
+
+	// The navbar and the banner sit outside the rows, and back from either of them
+	// should leave rather than pull the list about.
+	it('counts anything outside the rows as the top', () => {
+		const loose = document.createElement('div');
+		document.body.appendChild(loose);
+		expect(focusedRowIndex(loose)).toBe(0);
+		expect(focusedRowIndex(null)).toBe(0);
+		expect(focusedRowIndex(undefined)).toBe(0);
+	});
+
+	it('treats an unreadable row number as the top', () => {
+		const wrap = document.createElement('div');
+		wrap.setAttribute('data-row-index', 'nonsense');
+		const card = document.createElement('div');
+		wrap.appendChild(card);
+		document.body.appendChild(wrap);
+		expect(focusedRowIndex(card)).toBe(0);
 	});
 });
 
