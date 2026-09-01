@@ -14,6 +14,7 @@ import hydrateRequestMediaItems from '../../utils/seerrHydration';
 import {STREAMING_NETWORKS, MOVIE_STUDIOS, SEERR_SHORTCUTS, pickShortcutBackdrops} from '../../utils/seerrHomeRows';
 import {libraryIdOf} from '../../utils/seerrTarget';
 import {isScrolledAway} from '../../utils/quickReturn';
+import {focusedCardIndex, cardToRestore} from '../../utils/rowFocusMemory';
 
 import css from './SeerrDiscover.module.less';
 
@@ -54,6 +55,7 @@ const getShortcuts = (trendingResults = []) => {
 };
 
 let lastFocusedRowIndex = null;
+let lastFocusedCardIndex = -1;
 
 // Memoized card components for performance
 const MediaCard = memo(function MediaCard({item, mediaType, onSelect, onFocus}) {
@@ -589,6 +591,7 @@ const SeerrDiscover = ({onSelectItem, onSelectGenre, onSelectNetwork, onSelectSt
 
 	const handleSelectItem = useCallback((item, mediaType) => {
 		const type = mediaType || item.media_type || item.mediaType || (item.title ? 'movie' : 'tv');
+		lastFocusedCardIndex = focusedCardIndex(`discover-row-${lastFocusedRowIndex}`, document.activeElement);
 		onSelectItem?.({
 			mediaId: item.id,
 			mediaType: type,
@@ -641,6 +644,8 @@ const SeerrDiscover = ({onSelectItem, onSelectGenre, onSelectNetwork, onSelectSt
 
 	const handleRowFocus = useCallback((rowIndex) => {
 		if (typeof rowIndex === 'number') {
+			// A card index only means anything in the row it came from.
+			if (rowIndex !== lastFocusedRowIndex) lastFocusedCardIndex = -1;
 			lastFocusedRowIndex = rowIndex;
 		}
 	}, []);
@@ -649,7 +654,11 @@ const SeerrDiscover = ({onSelectItem, onSelectGenre, onSelectNetwork, onSelectSt
 		if (!isLoading && visibleRows.length > 0) {
 			setTimeout(() => {
 				if (lastFocusedRowIndex !== null && lastFocusedRowIndex < visibleRows.length) {
-					Spotlight.focus(`discover-row-${lastFocusedRowIndex}`);
+					const rowId = `discover-row-${lastFocusedRowIndex}`;
+					const card = cardToRestore(rowId, lastFocusedCardIndex);
+					if (!card || !Spotlight.focus(card)) {
+						Spotlight.focus(rowId);
+					}
 					const targetRow = document.querySelector(`[data-row-index="${lastFocusedRowIndex}"]`);
 					if (targetRow) {
 						targetRow.scrollIntoView({block: 'center'});

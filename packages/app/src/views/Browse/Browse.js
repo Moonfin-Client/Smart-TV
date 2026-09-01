@@ -10,6 +10,7 @@ import LibraryButtonRow from '../../components/LibraryButtonRow';
 import LoadingSpinner from '../../components/LoadingSpinner';
 import {getImageUrl, getBackdropId} from '../../utils/helpers';
 import {isScrolledAway} from '../../utils/quickReturn';
+import {focusedCardIndex, cardToRestore} from '../../utils/rowFocusMemory';
 import {radiusToCss, shadowToCss, toCssColor} from '../../theme/themeSpec';
 import DetailSection from './DetailSection';
 import FeaturedBanner from './FeaturedBanner';
@@ -191,7 +192,12 @@ const Browse = ({
 		return result;
 	}, [allRowData, seerrRows, externalRows, homeRowsConfig, pluginSectionsConfig, rowBuildSettings]);
 
-	const focusRow = useCallback((rowIndex) => {
+	const focusRow = useCallback((rowIndex, cardIndex) => {
+		const card = cardToRestore(`row-${rowIndex}`, cardIndex);
+		if (card && Spotlight.focus(card)) {
+			return true;
+		}
+
 		if (Spotlight.focus(`row-${rowIndex}`)) {
 			return true;
 		}
@@ -228,13 +234,13 @@ const Browse = ({
 		if (Math.abs(container.scrollTop - top) > 1) container.scrollTop = top;
 	}, [settings.navbarPosition, showTopInfoArea]);
 
-	const scrollToRow = useCallback((rowIndex, thenFocus) => {
+	const scrollToRow = useCallback((rowIndex, thenFocus, cardIndex) => {
 		if (scrollTimeoutRef.current) clearTimeout(scrollTimeoutRef.current);
 
 		const targetRow = rowRefsMap.current.get(rowIndex);
 		const container = contentRowsRef.current;
 		if (!targetRow || !container) {
-			if (thenFocus) focusRow(rowIndex);
+			if (thenFocus) focusRow(rowIndex, cardIndex);
 			return;
 		}
 
@@ -251,7 +257,7 @@ const Browse = ({
 			let attempts = 0;
 			const tryFocus = () => {
 				attempts += 1;
-				if (focusRow(rowIndex)) {
+				if (focusRow(rowIndex, cardIndex)) {
 					return;
 				}
 				if (attempts < 6) {
@@ -296,17 +302,23 @@ const Browse = ({
 			wasVisibleRef.current = false;
 			return;
 		}
-		if (wasVisibleRef.current || isLoading || filteredRows.length === 0) return;
+		if (isLoading || filteredRows.length === 0) return;
+		// The panel is built again on the way back in, so the ref that marks a first run
+		// starts over with it. A place to return to is what tells the two apart.
+		if (wasVisibleRef.current && lastFocusState === null) return;
 		wasVisibleRef.current = true;
 
 		fetchFreshFeaturedItems();
 		refreshVolatileData(true);
 
 		setTimeout(() => {
-			if (lastFocusState && lastFocusState.rowIndex > 0) {
-				const {rowIndex} = lastFocusState;
+			// The first row is somewhere the user was too, so it comes back like any other
+			// rather than handing the screen to the banner.
+			if (lastFocusState && lastFocusState.rowIndex >= 0) {
+				const {rowIndex, cardIndex} = lastFocusState;
 				const targetRowIndex = Math.min(rowIndex, filteredRows.length - 1);
-				scrollToRow(targetRowIndex, true);
+				setBrowseMode('rows');
+				scrollToRow(targetRowIndex, true, cardIndex);
 			} else if (showFeaturedBar !== false && featuredItems.length > 0) {
 				setBrowseMode('featured');
 				setTimeout(() => Spotlight.focus('featured-banner'), 50);
@@ -360,14 +372,19 @@ const Browse = ({
 		return getImageUrl(itemUrl, backdropId, 'Backdrop', {maxWidth: 1280, quality: 80});
 	}, [browseMode, focusedItemForBackdrop, isLegacy, settings.showHomeBackdrop, getItemServerUrl, settings.featuredBarStyle]);
 
+	const rememberFocus = useCallback(() => {
+		const rowIndex = lastFocusedRowRef.current;
+		if (rowIndex === null) return;
+		lastFocusState = {
+			rowIndex,
+			cardIndex: focusedCardIndex(`row-${rowIndex}`, document.activeElement)
+		};
+	}, []);
+
 	const handleSelectItem = useCallback((item) => {
 		onBlurItemThemeMusic?.();
 		onLeaveThemeMusic?.();
-		if (lastFocusedRowRef.current !== null) {
-			lastFocusState = {
-				rowIndex: lastFocusedRowRef.current
-			};
-		}
+		rememberFocus();
 		if (item.isRecordingsShortcut) {
 			onOpenRecordings?.();
 		} else if (item.isLibraryTile) {
@@ -377,16 +394,12 @@ const Browse = ({
 		} else {
 			onSelectItem?.(item);
 		}
-	}, [onSelectItem, onSelectLibrary, onOpenRecordings, onPlayRecording, onBlurItemThemeMusic, onLeaveThemeMusic]);
+	}, [onSelectItem, onSelectLibrary, onOpenRecordings, onPlayRecording, onBlurItemThemeMusic, onLeaveThemeMusic, rememberFocus]);
 
 	const handleSelectGenreItem = useCallback((item) => {
 		onBlurItemThemeMusic?.();
 		onLeaveThemeMusic?.();
-		if (lastFocusedRowRef.current !== null) {
-			lastFocusState = {
-				rowIndex: lastFocusedRowRef.current
-			};
-		}
+		rememberFocus();
 		onSelectGenre?.({
 			id: item.Id,
 			name: item.Name,
@@ -397,10 +410,11 @@ const Browse = ({
 			_serverUserId: item._serverUserId,
 			_serverId: item._serverId
 		});
-	}, [onSelectGenre, onBlurItemThemeMusic, onLeaveThemeMusic]);
+	}, [onSelectGenre, onBlurItemThemeMusic, onLeaveThemeMusic, rememberFocus]);
 
 	const handleSelectSeerrItem = useCallback((item) => {
 		const raw = item._seerrRaw || {};
+		rememberFocus();
 		switch (item._seerrType) {
 			case 'genre':
 				onSelectSeerrGenre?.(raw.genreId, raw.genreName, raw.mediaType);
@@ -420,7 +434,7 @@ const Browse = ({
 				onSelectSeerrItem?.({...raw, libraryId: item._seerrLibraryId});
 				break;
 		}
-	}, [onSelectSeerrItem, onSelectSeerrGenre, onSelectSeerrStudio, onSelectSeerrNetwork, onOpenSeerrShortcut]);
+	}, [onSelectSeerrItem, onSelectSeerrGenre, onSelectSeerrStudio, onSelectSeerrNetwork, onOpenSeerrShortcut, rememberFocus]);
 
 	// External row items that resolved to a library item open as the library item, and the ones
 	// that did not open as the Seerr title they came from.
