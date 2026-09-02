@@ -633,7 +633,7 @@ const loadPluginsAndRecos = async (ctx) => {
 		sinceYouWatchedRows.forEach((row) => {
 			rows.push({
 				id: row.id,
-				title: $L('Because you watched {name}').replace('{name}', row.seedName),
+				title: $L('Since you watched {name}').replace('{name}', row.seedName),
 				items: row.items,
 				type: 'portrait',
 				isOnlineRecoRow: row.isSeerr === true
