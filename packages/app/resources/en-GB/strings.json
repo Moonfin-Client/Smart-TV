@@ -23,7 +23,7 @@
     "Leave group": "Leave group",
     "LEGAL": "LEGAL",
     "LIBRARY SHUFFLE": "LIBRARY SHUFFLE",
-    "Live": "LIVE",
+    "Live": "Live",
     "Max days in Next Up": "Max days in Next Up",
     "Personal rating style": "Personal rating style",
     "Prefer SDH subtitles": "Prefer SDH subtitles",
@@ -865,5 +865,15 @@
     "Text Fill Color": "Text Fill Color",
     "Queue is empty": "Queue is empty",
     "Perfect match": "Perfect match",
-    "{count} downloads": "{count} downloads"
+    "{count} downloads": "{count} downloads",
+    "1 download": "1 download",
+    "1 minute": "1 minute",
+    "1 player": "1 player",
+    "10 Mbps": "10 Mbps",
+    "10 items": "10 items",
+    "100%": "100%",
+    "1080p": "1080p",
+    "1080p (10 Mbps)": "1080p (10 Mbps)",
+    "1080p (20 Mbps)": "1080p (20 Mbps)",
+    "12-Hour": "12-Hour"
 }
