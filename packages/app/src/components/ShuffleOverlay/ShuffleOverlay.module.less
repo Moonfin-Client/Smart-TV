@@ -39,6 +39,12 @@
 	margin-top: 18px;
 }
 
+.topStrip,
+.infoPanel,
+.actions {
+	flex-shrink: 0;
+}
+
 .dialogDimmed {
 	opacity: 0.72;
 	transform: scale(0.985);
@@ -74,7 +80,7 @@
 	min-height: 330px;
 }
 
-.card + .card {
+.card:not(:first-child) {
 	margin-left: 18px;
 }
 
@@ -196,7 +202,7 @@
 	display: flex;
 }
 
-.actionBtn + .actionBtn {
+.actionBtn:not(:first-child) {
 	margin-left: 12px;
 }
 
