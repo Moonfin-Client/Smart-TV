@@ -22,7 +22,7 @@ import {getImageUrl} from '../../utils/helpers';
 import {initPgsCanvasRenderer, disposePgsRenderer, clearPgsCanvas} from '../../utils/pgsRenderer';
 import {supportsAssRenderer, initAssCanvasRenderer, disposeAssRenderer, setAssTime} from '../../utils/assRenderer';
 import {getSubtitleOverlayStyle, getSubtitleTextStyle, sanitizeSubtitleHtml, resolveSubtitleStyleSettings} from '../../utils/subtitleConstants';
-import {isHdrOutput} from '../../utils/videoRange';
+import {isHdrOutput, findVideoStream} from '../../utils/videoRange';
 import {selectPreferredAudioStream} from '../../utils/audioTrackSelection';
 import {applyResumeRewind, skipBackSeconds, skipForwardSeconds, zoomInternalFromSetting, zoomSettingFromInternal} from '../../utils/playbackTuning';
 import {saveAudioPref, saveSubtitlePref} from '../../services/subtitlePrefs';
@@ -54,6 +54,7 @@ import {getVideoDisplayAspectRatio, getZoomDisplayRect} from './aspectRatioUtils
 import {mapJellyfinTrackToTizen} from './tizenTrackUtils';
 import serverLogger from '../../services/serverLogger';
 import {summarizeAvplayTracks, describeSubtitleStream, describeSubtitleStreams} from './subtitleDiagnostics';
+import {describeVideoStream, readVideoSupport} from './videoDiagnostics';
 
 import css from './TizenPlayer.module.less';
 
@@ -1062,11 +1063,13 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 				let burnInPendingSub = null;
 
 				// one inventory of what the server offered, before anything is selected
+				const videoSupport = await readVideoSupport();
 				serverLogger.playback('Playback: media opened', {
 					itemId: item?.Id,
 					playMethod: result.playMethod,
 					container: result.mediaSource?.Container,
-					videoCodec: (result.mediaSource?.MediaStreams || []).find((s) => s.Type === 'Video')?.Codec,
+					videoStream: describeVideoStream(findVideoStream(result.mediaSource)),
+					videoSupport,
 					selectedAudioStreamIndex: result.selectedAudioStreamIndex,
 					transcodingContainer: result.mediaSource?.TranscodingContainer,
 					transcodingSubProtocol: result.mediaSource?.TranscodingSubProtocol,

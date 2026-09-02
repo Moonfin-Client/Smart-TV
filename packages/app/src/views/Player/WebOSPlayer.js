@@ -28,7 +28,7 @@ import {useSettings} from '../../context/SettingsContext';
 import {useSyncPlay} from '../../context/SyncPlayContext';
 import * as syncPlayService from '../../services/syncPlay';
 import {getSubtitleOverlayStyle, getSubtitleTextStyle, sanitizeSubtitleHtml, resolveSubtitleStyleSettings} from '../../utils/subtitleConstants';
-import {isHdrOutput} from '../../utils/videoRange';
+import {isHdrOutput, findVideoStream} from '../../utils/videoRange';
 import {selectPreferredAudioStream} from '../../utils/audioTrackSelection';
 import {applyResumeRewind, skipBackSeconds, skipForwardSeconds, zoomInternalFromSetting, zoomSettingFromInternal} from '../../utils/playbackTuning';
 import {saveAudioPref, saveSubtitlePref} from '../../services/subtitlePrefs';
@@ -59,6 +59,7 @@ import {
 	remoteSubtitleNotAppearedMessage
 } from './remoteSubtitleUtils';
 import {getVideoDisplayAspectRatio, getZoomDisplayRect} from './aspectRatioUtils';
+import {describeVideoStream, readVideoSupport} from './videoDiagnostics';
 
 import css from './WebOSPlayer.module.less';
 
@@ -765,10 +766,13 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 				}
 
 				const audioCaps = playback.getCurrentSession()?.capabilities;
+				const videoSupport = await readVideoSupport();
 				serverLogger.playback('Playback: media opened', {
 					itemId: item?.Id,
 					playMethod: result.playMethod,
 					container: result.mediaSource?.Container,
+					videoStream: describeVideoStream(findVideoStream(result.mediaSource)),
+					videoSupport,
 					forceTruehdPassthrough: Boolean(settings.forceTruehdPassthrough),
 					audioOutputStatus: audioCaps?.audioOutputStatus,
 					defaultAudioStreamIndex: result.defaultAudioStreamIndex,
