@@ -547,22 +547,86 @@
 	margin: 0 0 32px 0;
 }
 
-.sortSection {
-	margin-bottom: 32px;
-}
-
 .filterSection {
 	border-top: 1px solid rgba(var(--theme-on-surface-rgb, 255, 255, 255), 0.1);
 	padding-top: 24px;
+
+	/* The panel title already sits above the first group, so it needs no line of its own. */
+	&:first-of-type {
+		border-top: none;
+		padding-top: 0;
+	}
 }
 
-.sortSectionLabel {
+/* Each group collapses to this heading, so it reads as a label but takes focus. */
+.sectionHeader {
+	display: -webkit-flex;
+	display: flex;
+	-webkit-align-items: center;
+	align-items: center;
+	width: 100%;
+	/* The chip is here for the shape the option rows use, so a focused heading lines up
+	   with them. It stays flat until then. */
+	.theme-chip();
+	background: none;
+	border-color: transparent;
+	padding: 10px 12px;
+	cursor: pointer;
+	transition: all 0.15s ease;
+
+	&:focus {
+		outline: none;
+		background: rgba(var(--theme-on-surface-rgb, 255, 255, 255), 0.1);
+		border-color: @accent;
+	}
+}
+
+.sectionHeaderOpen {
+	margin-bottom: 12px;
+}
+
+.sectionHeaderLabel {
 	font-size: 15px;
 	font-weight: 600;
 	color: var(--theme-text-muted, rgba(255, 255, 255, 0.45));
 	text-transform: uppercase;
 	letter-spacing: 1px;
-	margin-bottom: 16px;
+	margin-left: 10px;
+	text-align: left;
+
+	.sectionHeader:focus &,
+	.sectionHeaderOpen & {
+		color: var(--theme-text-primary, white);
+	}
+}
+
+/* What the group is set to while it is closed, so a filter cant hide behind a heading. */
+.sectionSummary {
+	margin-left: auto;
+	padding-left: 12px;
+	max-width: 45%;
+	font-size: 15px;
+	font-weight: 500;
+	color: @accent;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.sectionChevron {
+	width: 18px;
+	height: 18px;
+	-webkit-flex-shrink: 0;
+	flex-shrink: 0;
+	fill: var(--theme-text-muted, rgba(255, 255, 255, 0.45));
+	-webkit-transition: -webkit-transform 0.15s ease;
+	transition: transform 0.15s ease;
+}
+
+.sectionChevronOpen {
+	-webkit-transform: rotate(90deg);
+	transform: rotate(90deg);
+	fill: @accent;
 }
 
 /* ── Sort / Filter option rows ───────────────────────────── */
@@ -723,7 +787,7 @@
 	.metaItem,
 	.statusText,
 	.statusCount,
-	.sortSectionLabel,
+	.sectionHeaderLabel,
 	.settingsHeader,
 	.settingValue,
 	.cardSubtitle,
