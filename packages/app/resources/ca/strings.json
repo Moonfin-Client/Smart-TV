@@ -865,5 +865,19 @@
     "Text Fill Color": "Color de farciment de text",
     "Queue is empty": "La cua està buida",
     "Perfect match": "Coincidència perfecte",
-    "{count} downloads": "{count} descàrregues"
+    "{count} downloads": "{count} descàrregues",
+    "1 minute": "1 minut",
+    "1 player": "1 jugador",
+    "10 Mbps": "10 Mbps",
+    "10 items": "10 elements",
+    "100%": "100%",
+    "1080p": "1080p",
+    "1080p (10 Mbps)": "1080p (10 Mbps)",
+    "12-Hour": "12-Hores",
+    "15 items": "15 elements",
+    "180 days": "180 dies",
+    "2 episodes": "2 episodis",
+    "2 minutes": "2 minuts",
+    "20 items": "20 elements",
+    "20 seconds": "20 segons"
 }
