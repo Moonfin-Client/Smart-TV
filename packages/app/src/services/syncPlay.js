@@ -1,5 +1,6 @@
 import {getServerUrl, getAuthHeader, getApiKey, getDeviceId} from './jellyfinApi';
 import {expectedPositionTicks} from '../utils/syncDrift';
+import {syncLog} from '../utils/syncLog';
 
 let ws = null;
 let syncReference = null;
@@ -7,10 +8,17 @@ let currentGroup = null;
 let serverTimeOffset = 0;
 let lastPing = 500;
 let pingInterval = null;
+let keepAliveInterval = null;
 let reconnectTimeout = null;
 let listeners = [];
 let isConnecting = false;
 let currentPlaylistItemId = null;
+// A Buffering report went out, so the server is holding the group for this
+// set and is owed a Ready. Outside that, and outside the Waiting state, it is
+// not: the server answers an unsolicited Ready with an Unpause echo of the
+// last sync point, and a set that acts on that echo seeks, stalls, comes back
+// playing, reports Ready again, and goes round for as long as it plays.
+let bufferingReported = false;
 let timeSyncMeasurements = [];
 let timeSyncInterval = null;
 let timeSyncBurstActive = false;
@@ -25,12 +33,23 @@ const MAX_TIME_SYNC_RTT_MS = 5000;
 // How far a late command is allowed to skip ahead to catch up.
 const MAX_LATE_CATCH_UP_MS = 15000;
 const HANDSHAKE_RETRY_DELAY_MS = 1200;
+// The server drops a socket that has not sent it a KeepAlive message within
+// this long. It says so in the ForceKeepAlive it sends on connect and again
+// once a reply is overdue; the fallback only covers a message with no timeout.
+const DEFAULT_KEEP_ALIVE_TIMEOUT_S = 60;
+// Reply every half timeout, as jellyfin-web does, so one lost message does not
+// cost the socket.
+const KEEP_ALIVE_FACTOR = 0.5;
 const MAX_HANDSHAKE_ATTEMPTS = 3;
 
 // Buffering fired this soon after executing a SyncPlay command is the seek
 // itself, not a stall. Reporting it would bounce the whole group into Waiting
 // because the server has no rate limit on buffering reports.
 export const BUFFERING_SUPPRESS_MS = 5000;
+
+// Play queue update reasons that mean the group moved on to something, as
+// opposed to a reorder or a repeat/shuffle change.
+export const QUEUE_START_REASONS = ['NewPlaylist', 'SetCurrentItem', 'NextItem', 'PreviousItem'];
 
 const emit = (event, data) => {
 	for (const listener of listeners) {
@@ -131,6 +150,25 @@ export const sendSeekRequest = (positionTicks) => request('POST', 'Seek', {Posit
 
 export const serverNow = () => Date.now() + serverTimeOffset;
 
+// Where the group is, from the last queue update or command and the time
+// since. Kept here rather than in the player so an item started while the
+// group is already playing opens where the group has got to, not where the
+// queue was when it was last announced.
+let groupPosition = null;
+
+const trackGroupPosition = (positionTicks, isPlaying, serverTimeMs = serverNow()) => {
+	if (positionTicks == null) return;
+	groupPosition = {positionTicks, isPlaying: !!isPlaying, serverTimeMs};
+};
+
+export const getGroupPositionTicks = () => {
+	if (!groupPosition) return null;
+	const elapsedMs = groupPosition.isPlaying ? Math.max(0, serverNow() - groupPosition.serverTimeMs) : 0;
+	return groupPosition.positionTicks + elapsedMs * 10000;
+};
+
+export const getGroupState = () => currentGroup?.State ?? null;
+
 const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 // The group waits on these two reports, so one lost to a dropped request leaves
@@ -141,6 +179,7 @@ const sendHandshake = async (path, sample) => {
 	for (let attempt = 1; attempt <= MAX_HANDSHAKE_ATTEMPTS; attempt++) {
 		const {isPlaying, positionTicks} = sample();
 		try {
+			syncLog('[SyncPlay] send', path, 'at', positionTicks / 10000000, 's', isPlaying ? 'playing' : 'paused', 'item', currentPlaylistItemId);
 			await request('POST', path, {
 				When: new Date(serverNow()).toISOString(),
 				PositionTicks: positionTicks,
@@ -157,9 +196,23 @@ const sendHandshake = async (path, sample) => {
 	}
 };
 
-export const sendBufferingRequest = (sample) => sendHandshake('Buffering', sample);
+export const sendBufferingRequest = async (sample) => {
+	await sendHandshake('Buffering', sample);
+	bufferingReported = true;
+};
 
-export const sendReadyRequest = (sample) => sendHandshake('Ready', sample);
+// Whether the server is waiting on a Ready from this set: the group is in
+// Waiting, a Buffering report is outstanding, or the state is not known yet.
+export const isReadyOwed = () => !!currentGroup && (currentGroup.State === 'Waiting' || bufferingReported || !currentGroup.State);
+
+export const sendReadyRequest = async (sample) => {
+	if (!isReadyOwed()) {
+		syncLog('[SyncPlay] Ready not owed, group', currentGroup?.State, '- not sent');
+		return;
+	}
+	await sendHandshake('Ready', sample);
+	bufferingReported = false;
+};
 
 // The server treats Ping as a group request, so one sent outside a group tells it
 // nothing and leaves a warning in its log every ten seconds the app stays open.
@@ -279,6 +332,31 @@ export const setShuffleMode = (mode) =>
 export const setIgnoreWait = (ignoreWait) =>
 	request('POST', 'SetIgnoreWait', {IgnoreWait: ignoreWait}).catch(() => {});
 
+// A socket the server counts as lost is disposed, which ends the session and
+// with it its place in the group. Only a KeepAlive message from this side
+// refreshes its timer; nothing else sent on the socket or over HTTP counts.
+const sendKeepAlive = () => {
+	if (!ws || ws.readyState !== 1) return;
+	try {
+		ws.send(JSON.stringify({MessageType: 'KeepAlive'}));
+	} catch {
+		// ignore
+	}
+};
+
+const stopKeepAlive = () => {
+	if (keepAliveInterval) {
+		clearInterval(keepAliveInterval);
+		keepAliveInterval = null;
+	}
+};
+
+const scheduleKeepAlive = (timeoutSeconds) => {
+	stopKeepAlive();
+	const seconds = Number(timeoutSeconds) > 0 ? Number(timeoutSeconds) : DEFAULT_KEEP_ALIVE_TIMEOUT_S;
+	keepAliveInterval = setInterval(sendKeepAlive, seconds * 1000 * KEEP_ALIVE_FACTOR);
+};
+
 export const connectWebSocket = () => {
 	if (ws || isConnecting) return;
 
@@ -325,6 +403,7 @@ export const connectWebSocket = () => {
 			clearInterval(pingInterval);
 			pingInterval = null;
 		}
+		stopKeepAlive();
 		stopTimeSync();
 		scheduleReconnect(); // eslint-disable-line no-use-before-define
 	};
@@ -347,6 +426,7 @@ export const disconnectWebSocket = () => {
 		clearInterval(pingInterval);
 		pingInterval = null;
 	}
+	stopKeepAlive();
 	stopTimeSync();
 	if (ws) {
 		ws.onclose = null;
@@ -370,6 +450,8 @@ const handleWebSocketMessage = (msg) => {
 			handleGeneralCommand(Data); // eslint-disable-line no-use-before-define
 			break;
 		case 'ForceKeepAlive':
+			sendKeepAlive();
+			scheduleKeepAlive(Data);
 			break;
 		default:
 			break;
@@ -378,10 +460,13 @@ const handleWebSocketMessage = (msg) => {
 
 const handleGroupUpdate = (data) => {
 	if (!data) return;
+	syncLog('[SyncPlay] group update', data.Type, data.Type === 'StateUpdate' ? data.Data?.State : '');
 
 	switch (data.Type) {
 		case 'GroupJoined':
 			currentGroup = data.Data || data;
+			// The server marks a joiner as buffering and waits on its Ready.
+			bufferingReported = true;
 			// The group unpauses on its slowest member, so give the server this
 			// session's round trip now rather than leaving it on a default for
 			// up to ten seconds.
@@ -391,6 +476,8 @@ const handleGroupUpdate = (data) => {
 
 		case 'GroupLeft':
 			currentGroup = null;
+			bufferingReported = false;
+			groupPosition = null;
 			emit('groupLeft', null);
 			break;
 
@@ -408,6 +495,10 @@ const handleGroupUpdate = (data) => {
 			if (currentGroup && data.Data) {
 				currentGroup.State = data.Data.State;
 			}
+			// Paused or waiting, the group stands where it has got to.
+			if (data.Data?.State !== 'Playing' && groupPosition?.isPlaying) {
+				trackGroupPosition(getGroupPositionTicks(), false);
+			}
 			emit('stateUpdate', data.Data);
 			break;
 
@@ -420,6 +511,7 @@ const handleGroupUpdate = (data) => {
 					currentPlaylistItemId = queue[index].PlaylistItemId || null;
 				}
 			}
+			if (queueData) trackGroupPosition(queueData.StartPositionTicks || 0, queueData.IsPlaying);
 			emit('playQueue', queueData);
 			break;
 		}
@@ -427,6 +519,7 @@ const handleGroupUpdate = (data) => {
 		case 'NotInGroup':
 		case 'GroupDoesNotExist':
 			currentGroup = null;
+			groupPosition = null;
 			emit('groupLeft', null);
 			break;
 
@@ -442,6 +535,12 @@ const handleGroupUpdate = (data) => {
 
 const handlePlaybackCommand = (data) => {
 	if (!data) return;
+	syncLog('[SyncPlay] command', data.Command, 'at', data.PositionTicks != null ? data.PositionTicks / 10000000 : null, 's, when', data.When, 'delay', getDelayToWhen(data.When), 'ms'); // eslint-disable-line no-use-before-define
+	// A command says where the group was at its own time, which for a late
+	// one or an echo is not now.
+	if (data.Command === 'Unpause' || data.Command === 'Pause' || data.Command === 'Seek') {
+		trackGroupPosition(data.PositionTicks, data.Command === 'Unpause', whenToServerMs(data.When)); // eslint-disable-line no-use-before-define
+	}
 	emit('playbackCommand', data);
 };
 
@@ -488,9 +587,15 @@ export const getAdjustedPosition = (positionTicks, when) => {
 };
 
 // Where the group was last known to be, so playback can be measured against it
-// between commands rather than only when one arrives.
-export const setSyncReference = (positionTicks) => {
-	syncReference = positionTicks == null ? null : {positionTicks, serverTimeMs: serverNow()};
+// between commands rather than only when one arrives. A command carries the
+// time its position was true for, which for a late one or an echo is not now.
+export const setSyncReference = (positionTicks, serverTimeMs = serverNow()) => {
+	syncReference = positionTicks == null ? null : {positionTicks, serverTimeMs};
+};
+
+export const whenToServerMs = (when) => {
+	const ms = when ? new Date(when).getTime() : NaN;
+	return isNaN(ms) ? serverNow() : ms;
 };
 
 export const clearSyncReference = () => {

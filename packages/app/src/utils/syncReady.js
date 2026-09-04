@@ -11,6 +11,14 @@ export const STABILITY_WINDOW_MS = 400;
 // sets report position too coarsely to ever look like it is moving, and a Ready
 // that never arrives leaves the group waiting forever.
 export const MAX_STABILITY_CHECKS = 4;
+// While the pipeline is still buffering the gate looks again this often,
+// rather than waiting for a canplay or playing event that a television does
+// not always raise after a seek.
+export const BUFFERING_POLL_MS = 500;
+// After this many looks the report goes out regardless, as Core's watchdog
+// does. The server holds the whole group on a Ready that never comes, and a
+// set that then stalls on unpause reports Buffering like any other stall.
+export const MAX_BUFFERING_POLLS = 24;
 
 // Playing at normal speed the position should advance by roughly the window
 // itself. Well under that means the decoder is still stalled, well over means a
@@ -27,30 +35,45 @@ export const isPositionStable = (beforeTicks, afterTicks, isPlaying) => {
 	return Math.abs(delta) <= MAX_PAUSED_DRIFT_MS;
 };
 
-// Buffering abandons a waiting report rather than delaying it, because coming
-// out of the stall asks for a fresh one anyway.
+// Buffering holds a waiting report rather than dropping it: the gate keeps
+// looking until the stall clears, and a canplay or playing event only brings
+// the report forward.
 export const createReadyGate = ({sample, isBuffering, report}) => {
 	let timer = null;
 	let checks = 0;
+	let polls = 0;
 
 	const cancel = () => {
 		clearTimeout(timer);
 		timer = null;
 	};
 
+	const send = () => {
+		timer = null;
+		report();
+	};
+
 	const measure = () => {
 		if (isBuffering()) {
-			timer = null;
+			polls += 1;
+			if (polls >= MAX_BUFFERING_POLLS) {
+				send();
+				return;
+			}
+			timer = setTimeout(measure, BUFFERING_POLL_MS);
 			return;
 		}
 		const before = sample().positionTicks;
 		timer = setTimeout(() => {
 			timer = null;
-			if (isBuffering()) return;
+			if (isBuffering()) {
+				measure();
+				return;
+			}
 			const {isPlaying, positionTicks} = sample();
 			checks += 1;
 			if (isPositionStable(before, positionTicks, isPlaying) || checks >= MAX_STABILITY_CHECKS) {
-				report();
+				send();
 				return;
 			}
 			measure();
@@ -60,6 +83,7 @@ export const createReadyGate = ({sample, isBuffering, report}) => {
 	const request = () => {
 		cancel();
 		checks = 0;
+		polls = 0;
 		timer = setTimeout(measure, READY_DEBOUNCE_MS);
 	};
 

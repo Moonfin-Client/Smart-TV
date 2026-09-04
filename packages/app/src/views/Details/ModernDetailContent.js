@@ -46,9 +46,9 @@ const Icon = ({path}) => (
 );
 
 // A circular icon button that expands into a labeled pill when focused.
-const ActionButton = ({path, label, detail, onClick, active, primary, spotlightId}) => (
+const ActionButton = ({path, label, detail, onClick, active, group, primary, spotlightId}) => (
 	<SpottableDiv
-		className={`${css.actionBtn} ${primary ? css.actionPrimary : ''} ${active ? css.actionActive : ''}`}
+		className={`${css.actionBtn} ${primary ? css.actionPrimary : ''} ${active ? css.actionActive : ''} ${group ? css.actionGroup : ''}`}
 		onClick={onClick}
 		spotlightId={spotlightId}
 	>
@@ -76,7 +76,8 @@ const ModernDetailContent = (props) => {
 		handleChapterSelect, handleExtraSelect, handleTrackPlay,
 		onSelectItem, onSelectPerson, onSelectStudio,
 		canChangeArtwork, handleOpenArtworkModal, handleOpenIdentifyModal,
-		seerr, seerrNav, seerrOnly, onSelectSeerrCard
+		seerr, seerrNav, seerrOnly, onSelectSeerrCard,
+		inSyncPlayGroup, onWatchWithGroup
 	} = props;
 
 	// Blur and opacity share one stored value, and the blur options reach 40 while
@@ -625,6 +626,9 @@ const ModernDetailContent = (props) => {
 			{id: 'audio', when: hasMultipleAudio, render: () => <ActionButton path={DETAIL_ICON_PATHS.audio} label={$L('Audio')} onClick={handleOpenAudioModal} />},
 			{id: 'subtitles', when: supportsMediaSourceSelection, render: () => <ActionButton path={DETAIL_ICON_PATHS.subtitle} label={$L('Subtitle')} onClick={handleOpenSubtitleModal} />},
 			{id: 'trailer', when: hasTrailer, render: () => <ActionButton path={DETAIL_ICON_PATHS.trailer} label={$L('Trailer')} onClick={handleTrailer} />},
+			// Same button as Core: offered while in a SyncPlay group and lit in the
+			// accent so it reads as the group's, next to a Play that stays as it is.
+			{id: 'watchWithGroup', when: inSyncPlayGroup && !isBook, render: () => <ActionButton path={DETAIL_ICON_PATHS.group} label={$L('Watch with group')} group onClick={onWatchWithGroup} spotlightId="details-watch-with-group-btn" />},
 			{id: 'watched', when: true, render: () => <ActionButton path={DETAIL_ICON_PATHS.watched} label={played ? $L('Watched') : $L('Mark as Watched')} active={played} onClick={handleToggleWatched} spotlightId="details-watched-btn" />},
 			{id: 'favorite', when: true, render: () => <ActionButton path={DETAIL_ICON_PATHS.favorite} label={isFavorite ? $L('Favorited') : $L('Favorite')} active={isFavorite} onClick={handleToggleFavorite} spotlightId="details-favorite-btn" />},
 			{id: 'personalRating', when: showsPersonalRating, render: () => <ActionButton path={personalRatingIconPath(personalRatingStyle, item.UserData)} label={personalRatingLabel(personalRatingStyle, item.UserData)} onClick={handleOpenRatingDialog} spotlightId="details-rating-btn" />},

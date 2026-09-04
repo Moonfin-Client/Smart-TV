@@ -30,6 +30,8 @@ const DetailActionButtons = ({
 	isReadableBook,
 	hasPlaybackPosition,
 	resumeTimeText,
+	inSyncPlayGroup,
+	onWatchWithGroup,
 	mediaSource,
 	supportsMediaSourceSelection,
 	hasMultipleVersions,
@@ -136,6 +138,16 @@ const DetailActionButtons = ({
 					<BtnIcon path={DETAIL_ICON_PATHS.trailer}/>
 				</div>
 				<span className={css.btnLabel}>{$L('Trailer')}</span>
+			</SpottableDiv>
+		)},
+		// Same button as Core: offered while in a SyncPlay group, and lit in the
+		// accent so it reads as the group's, next to a Play that stays as it is.
+		{id: 'watchWithGroup', when: inSyncPlayGroup && !isBook, render: () => (
+			<SpottableDiv className={css.btnWrapper} onClick={onWatchWithGroup} spotlightId="details-watch-with-group-btn">
+				<div className={css.btnAction}>
+					<BtnIcon path={DETAIL_ICON_PATHS.group} stateClass={css.watched}/>
+				</div>
+				<span className={css.btnLabel}>{$L('Watch with group')}</span>
 			</SpottableDiv>
 		)},
 		{id: 'watched', when: true, render: () => (

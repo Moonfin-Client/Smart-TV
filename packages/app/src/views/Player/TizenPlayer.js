@@ -7,7 +7,7 @@ import {
 	initTizenAPI, registerAppStateObserver, keepScreenOn, getTizenVersion,
 	avplayOpen, avplayPrepare, avplayPlay, avplayPause,
 	avplaySeek, avplaySeekIdle, avplaySetPostSeekHook, avplayGetCurrentTime, avplayGetDuration, avplayGetState,
-	avplaySetListener, avplaySetSpeed, avplaySelectTrack, avplaySetSilentSubtitle,
+	avplaySetListener, avplaySelectTrack, avplaySetSilentSubtitle,
 	avplayGetTracks, avplaySetDisplayMethod, avplaySetStreamingProperty, setDisplayWindow, cleanupAVPlay,
 	avplaySetBufferingParams, avplaySuspend, avplayRestore, waitForHlsManifest
 } from '@moonfin/platform-tizen/video';
@@ -16,8 +16,9 @@ import {useSyncPlay} from '../../context/SyncPlayContext';
 import * as syncPlayService from '../../services/syncPlay';
 import {KEYS, isBackKey} from '../../utils/keys';
 import {isPreroll, nextInQueue, shouldAutoAdvance} from '../../utils/cinemaMode';
-import {driftAction, driftMs, needsSeek, correctionOptions, DRIFT_CHECK_MS} from '../../utils/syncDrift';
+import {driftMs, needsSeek, correctionOptions, DRIFT_CHECK_MS} from '../../utils/syncDrift';
 import {createReadyGate} from '../../utils/syncReady';
+import {createSkipGovernor, chooseCorrection} from '../../utils/syncCorrection';
 import {getImageUrl} from '../../utils/helpers';
 import {initPgsCanvasRenderer, disposePgsRenderer, clearPgsCanvas} from '../../utils/pgsRenderer';
 import {supportsAssRenderer, initAssCanvasRenderer, disposeAssRenderer, setAssTime} from '../../utils/assRenderer';
@@ -32,6 +33,7 @@ import {api as jellyfinApi, createApiForServer, getServerUrl} from '../../servic
 import PlayerControls, {usePlayerButtons} from './PlayerControls';
 import useLiveProgram from './useLiveProgram';
 import useSleepTimer from './useSleepTimer';
+import useSyncPlayCommands from './useSyncPlayCommands';
 import AudioMode from './audio/AudioMode';
 import useAudioTransport from './audio/useAudioTransport';
 import useLyrics from './audio/useLyrics';
@@ -87,12 +89,19 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 	const {settings, updateSetting} = useSettings();
 	const {isInGroup, lastCommand} = useSyncPlay();
 	const syncPlayCommandRef = useRef(false);
-	const lastProcessedCommandRef = useRef(null);
 	const suppressBufferingUntilRef = useRef(0);
 	const stallRecheckTimerRef = useRef(null);
 	const isBufferingRef = useRef(false);
+	// A player opened inside a group is held, prepared but not started, until
+	// the group unpauses it. The server only corrects a joiner's position when
+	// its Ready says it is paused: told "playing at the start" it takes the set
+	// as already under way, never sends the seek, and holds the others until
+	// the film catches up with them.
+	const groupHoldRef = useRef(isInGroup);
+	// A seek the group commanded, until AVPlay reports it landed.
+	const groupSeekPendingRef = useRef(false);
 	const syncPlaySample = useCallback(() => ({
-		isPlaying: avplayGetState() === 'PLAYING',
+		isPlaying: avplayGetState() === 'PLAYING' && !groupHoldRef.current,
 		positionTicks: Math.floor(avplayGetCurrentTime() * 10000)
 	}), []);
 	const readyGate = useMemo(() => createReadyGate({
@@ -100,6 +109,27 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 		isBuffering: () => isBufferingRef.current,
 		report: () => syncPlayService.sendReadyRequest(syncPlaySample)
 	}), [syncPlaySample]);
+	// Corrective skips are attempts that have to land and render before the
+	// drift is measured again; see syncCorrection.js for the loop this stops.
+	const skipGovernorRef = useRef(createSkipGovernor());
+	// A pause the set is sitting out to let the group catch up.
+	const syncWaitTimerRef = useRef(null);
+	const cancelSyncWait = useCallback(() => {
+		clearTimeout(syncWaitTimerRef.current);
+		syncWaitTimerRef.current = null;
+	}, []);
+	useEffect(() => {
+		skipGovernorRef.current.reset();
+		// Held for the group only when the server will send the Unpause: after
+		// a join, or while the group is paused or waiting. An item the group is
+		// already playing is waited on by nobody, so it plays from where the
+		// group is and the drift check takes up the rest.
+		if (isInGroup) {
+			const state = syncPlayService.getGroupState();
+			groupHoldRef.current = syncPlayService.isReadyOwed() || state !== 'Playing';
+		}
+	}, [item?.Id, isInGroup]);
+	useEffect(() => cancelSyncWait, [cancelSyncWait]);
 
 	const [isLoading, setIsLoading] = useState(true);
 	const [isBuffering, setIsBuffering] = useState(false);
@@ -699,8 +729,18 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 		playIssuedAtRef.current = Date.now();
 		lastPolledMsRef.current = null;
 		pendingSegmentSeekRef.current = null;
-		avplayPlay();
-		setIsPaused(false);
+		if (groupHoldRef.current) {
+			// Held for the group: the server answers a paused Ready with a seek
+			// to the group's position, then unpauses everyone together. The
+			// resume position is the group's call too, so it is dropped here
+			// rather than left to race the group's seek.
+			deferredResumeSeekRef.current = null;
+			setIsPaused(true);
+			readyGate.request();
+		} else {
+			avplayPlay();
+			setIsPaused(false);
+		}
 		if (pendingTracksRef.current) {
 			pendingTracksRef.current.deadline = Date.now() + 5000;
 		}
@@ -724,7 +764,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 			reassertNativeSubtitle();
 			applyPendingTracksRef.current?.();
 		}, 4000);
-	}, [isLiveTV, applyDisplayWindow, handleSubtitleChange, reassertNativeSubtitle, settings.videoStartDelay]);
+	}, [readyGate, isLiveTV, applyDisplayWindow, handleSubtitleChange, reassertNativeSubtitle, settings.videoStartDelay]);
 
 	/**
 	 * Start AVPlay playback for a given URL.
@@ -968,7 +1008,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 				const savedPosition = isLiveTV ? 0 : (item.UserData?.PlaybackPositionTicks || 0);
 				const startPosition = applyResumeRewind(
 					initialStartPositionTicks != null ? initialStartPositionTicks : ((!isLiveTV && resume !== false) ? savedPosition : 0),
-					settings
+					isInGroup ? null : settings
 				);
 				const effectiveBitrate = selectedQuality || settings.maxBitrate || undefined;
 				const playbackInfoOptions = {
@@ -1512,6 +1552,20 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 		avplaySeek(Math.floor(target / 10000)).catch(e => console.warn('[Player] Seek failed:', e));
 	}, []);
 
+	// Every user seek inside a group goes through here to the server, which then
+	// seeks everyone. A local seek would only be reported as buffering and
+	// undone by the next group command. Arrow presses already collapse through
+	// the deferred seek, so this sends straight away. Returns false outside a
+	// group so callers fall through to a local seek.
+	const groupSeekTo = useCallback((ticks) => {
+		if (!isInGroup || syncPlayCommandRef.current) return false;
+		const limit = runTimeRef.current > 0 ? runTimeRef.current - 10000000 : ticks;
+		const target = Math.max(0, Math.min(ticks, limit));
+		setSeekPosition(target);
+		syncPlayService.sendSeekRequest(target);
+		return true;
+	}, [isInGroup]);
+
 	// A recap starts at the top of the episode, so its skip button is on screen
 	// while the session is still starting. A fresh session refuses seeks until
 	// playback is moving, which is what the resume seek above waits for, so a
@@ -1523,12 +1577,14 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 		// stop a second early and let playback finish on its own.
 		const limit = runTimeRef.current > 0 ? runTimeRef.current - 10000000 : endTicks;
 		const target = Math.max(0, Math.min(endTicks, limit));
+		// Skipping inside a group skips the segment for everyone.
+		if (groupSeekTo(target)) return;
 		if (!playbackMovingRef.current) {
 			pendingSegmentSeekRef.current = target;
 			return;
 		}
 		seekToSegmentTarget(target);
-	}, [seekToSegmentTarget]);
+	}, [seekToSegmentTarget, groupSeekTo]);
 
 	const {
 		skipSegment, showSkipCredits, showNextEpisode, nextEpisodeCountdown,
@@ -1723,29 +1779,21 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 	const handleRewind = useCallback(() => {
 		if (!avplayReadyRef.current) return;
 		const step = skipBackSeconds(settings);
-		if (isInGroup && !syncPlayCommandRef.current) {
-			const newTicks = Math.max(0, positionRef.current - step * 10000000);
-			syncPlayService.sendSeekRequest(newTicks);
-			return;
-		}
+		if (groupSeekTo(positionRef.current - step * 10000000)) return;
 		const ms = avplayGetCurrentTime();
 		const newMs = Math.max(0, ms - step * 1000);
 		avplaySeek(newMs).catch(e => console.warn('[Player] Seek failed:', e));
-	}, [settings, isInGroup]);
+	}, [settings, groupSeekTo]);
 
 	const handleForward = useCallback(() => {
 		if (!avplayReadyRef.current) return;
 		const step = skipForwardSeconds(settings);
-		if (isInGroup && !syncPlayCommandRef.current) {
-			const newTicks = Math.min(runTimeRef.current, positionRef.current + step * 10000000);
-			syncPlayService.sendSeekRequest(newTicks);
-			return;
-		}
+		if (groupSeekTo(positionRef.current + step * 10000000)) return;
 		const ms = avplayGetCurrentTime();
 		const durationMs = avplayGetDuration();
 		const newMs = Math.min(durationMs, ms + step * 1000);
 		avplaySeek(newMs).catch(e => console.warn('[Player] Seek failed:', e));
-	}, [settings, isInGroup]);
+	}, [settings, groupSeekTo]);
 
 	// Modal handlers
 	const openModal = useCallback((modal) => {
@@ -2035,12 +2083,12 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 	const handleSelectChapter = useCallback((e) => {
 		const ticks = parseInt(e.currentTarget.dataset.ticks, 10);
 		if (isNaN(ticks)) return;
-		if (avplayReadyRef.current && ticks >= 0) {
+		if (avplayReadyRef.current && ticks >= 0 && !groupSeekTo(ticks)) {
 			const seekMs = Math.floor(ticks / 10000);
 			avplaySeek(seekMs).catch(err => console.warn('[Player] Chapter seek failed:', err));
 		}
 		closeModal();
-	}, [closeModal]);
+	}, [closeModal, groupSeekTo]);
 
 	// Progress bar seeking
 	const handleProgressClick = useCallback((e) => {
@@ -2048,8 +2096,9 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 		const rect = e.currentTarget.getBoundingClientRect();
 		const percent = (e.clientX - rect.left) / rect.width;
 		const newTimeMs = percent * duration * 1000;
+		if (groupSeekTo(Math.floor(newTimeMs * 10000))) return;
 		avplaySeek(newTimeMs).catch(err => console.warn('[Player] Seek failed:', err));
-	}, [duration]);
+	}, [duration, groupSeekTo]);
 
 	// Deferred seek helpers: only execute the actual avplaySeek after the user
 	// stops pressing arrow keys (debounce) or presses OK/Enter to confirm.
@@ -2061,9 +2110,10 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 		if (pendingSeekMsRef.current != null && avplayReadyRef.current) {
 			const seekMs = pendingSeekMsRef.current;
 			pendingSeekMsRef.current = null;
+			if (groupSeekTo(Math.floor(seekMs * 10000))) return;
 			avplaySeek(seekMs).catch(err => console.warn('[Player] Deferred seek failed:', err));
 		}
-	}, []);
+	}, [groupSeekTo]);
 
 	const scheduleDeferredSeek = useCallback((targetMs) => {
 		pendingSeekMsRef.current = targetMs;
@@ -2316,106 +2366,153 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 		}
 	}, [remoteSubtitleResults, item, subtitleStreams, mediaSourceId, selectedAudioIndex, selectedSubtitleIndex, selectedQuality, settings.maxBitrate, applySubtitleSelection]);
 
-	useEffect(() => {
-		if (!lastCommand || !avplayReadyRef.current) return;
-		if (lastCommand === lastProcessedCommandRef.current) return;
-		lastProcessedCommandRef.current = lastCommand;
-
-		const {Command, PositionTicks, When} = lastCommand;
-		const delay = syncPlayService.getDelayToWhen(When);
-
-		const execute = () => {
-			syncPlayCommandRef.current = true;
-			suppressBufferingUntilRef.current = Date.now() + syncPlayService.BUFFERING_SUPPRESS_MS;
-
-			switch (Command) {
-				case 'Unpause': {
-					// Executing on time seeks to the commanded position. A late
-					// arrival seeks ahead by the elapsed time to catch up.
-					let target = delay > 0 ? PositionTicks : syncPlayService.getAdjustedPosition(PositionTicks, When);
-					if (target != null) {
-						if (runTimeRef.current > 0) target = Math.min(runTimeRef.current, target);
-						// Every seek costs a rebuffer here, which the group then waits
-						// on, so a difference this small is left alone.
-						if (needsSeek(positionRef.current, target)) {
-							avplaySeek(Math.floor(target / 10000)).catch(() => {});
-						}
-					}
-					syncPlayService.setSyncReference(target != null ? target : positionRef.current);
-					avplayPlay();
-					setIsPaused(false);
-					break;
-				}
-				case 'Pause': {
-					avplayPause();
-					setIsPaused(true);
-					syncPlayService.clearSyncReference();
-					if (PositionTicks != null && needsSeek(positionRef.current, PositionTicks)) {
-						avplaySeek(Math.floor(PositionTicks / 10000)).catch(() => {});
-					}
-					break;
-				}
-				case 'Seek': {
-					if (PositionTicks != null) {
-						if (needsSeek(positionRef.current, PositionTicks)) {
-							avplaySeek(Math.floor(PositionTicks / 10000)).catch(() => {});
-						}
-						syncPlayService.setSyncReference(PositionTicks);
-					}
-					break;
-				}
-				default:
-					break;
-			}
-
-			syncPlayCommandRef.current = false;
+	// A seek on the group's behalf. Every seek costs a rebuffer here, which
+	// the group then waits on, so a difference within tolerance is left alone.
+	// AVPlay reports when the seek lands; a pause asked for is queued behind
+	// it, which also stops AVPlay's post-seek nudge from starting playback
+	// again, and Ready goes out once the set is sat on the target.
+	const landGroupSeek = useCallback((target, pauseOnLand) => {
+		const settle = () => {
+			groupSeekPendingRef.current = false;
+			if (!pauseOnLand) return;
+			setIsPaused(true);
+			readyGate.request();
 		};
+		let seek = null;
+		if (needsSeek(positionRef.current, target)) {
+			groupSeekPendingRef.current = true;
+			seek = avplaySeek(Math.floor(target / 10000));
+		}
+		if (pauseOnLand && avplayGetState() === 'PLAYING') avplayPause();
+		if (seek) seek.then(settle, settle);
+		else settle();
+	}, [readyGate]);
 
-		if (Command === 'Stop') {
-			handleBack();
-			return;
+	const executeSyncPlayCommand = useCallback((command, delay) => {
+		const {Command, PositionTicks, When} = command;
+		skipGovernorRef.current.cancel();
+		cancelSyncWait();
+		syncPlayCommandRef.current = true;
+		suppressBufferingUntilRef.current = Date.now() + syncPlayService.BUFFERING_SUPPRESS_MS;
+
+		switch (Command) {
+			case 'Unpause': {
+				groupHoldRef.current = false;
+				// The sync point is the position at the command's own time,
+				// which for a late arrival or an echo is not now.
+				syncPlayService.setSyncReference(PositionTicks != null ? PositionTicks : positionRef.current, syncPlayService.whenToServerMs(When));
+				// On time, the commanded position; late and not playing,
+				// where the group has got to by now. Already playing, the
+				// server answers any Ready with the last sync point unchanged,
+				// and seeking on that echo restarts the stream for nothing.
+				let target = null;
+				if (delay > 0) target = PositionTicks;
+				else if (avplayGetState() !== 'PLAYING') target = syncPlayService.getAdjustedPosition(PositionTicks, When);
+				if (target != null) {
+					if (runTimeRef.current > 0) target = Math.min(runTimeRef.current, target);
+					landGroupSeek(target, false);
+				}
+				avplayPlay();
+				setIsPaused(false);
+				// The set takes a moment to actually move, and a drift read
+				// before it does is not one a skip could close.
+				skipGovernorRef.current.onStart({
+					nowMs: Date.now(),
+					fromMs: positionRef.current / 10000,
+					targetMs: (target != null ? target : positionRef.current) / 10000
+				});
+				break;
+			}
+			case 'Pause': {
+				groupHoldRef.current = false;
+				avplayPause();
+				setIsPaused(true);
+				syncPlayService.clearSyncReference();
+				if (PositionTicks != null) landGroupSeek(PositionTicks, true);
+				break;
+			}
+			case 'Seek': {
+				// The server holds everyone until they report Ready at the new
+				// position, then unpauses them together, so the set waits there
+				// paused rather than running on ahead.
+				if (PositionTicks != null) {
+					syncPlayService.setSyncReference(PositionTicks);
+					landGroupSeek(PositionTicks, true);
+				}
+				break;
+			}
+			default:
+				break;
 		}
 
-		if (delay > 50) {
-			const t = setTimeout(execute, delay);
-			return () => clearTimeout(t);
+		syncPlayCommandRef.current = false;
+	}, [landGroupSeek, cancelSyncWait]);
+
+	useSyncPlayCommands({
+		lastCommand,
+		isReady: () => avplayReadyRef.current,
+		execute: executeSyncPlayCommand,
+		onStop: () => handleBackRef.current?.()
+	});
+
+	// Leaving the group while still held for it would leave the set sitting
+	// prepared and silent, so it starts on its own instead.
+	useEffect(() => {
+		if (isInGroup) return;
+		if (groupHoldRef.current && avplayReadyRef.current) {
+			avplayPlay();
+			setIsPaused(false);
 		}
-		execute();
-	}, [lastCommand, handleBack]);
+		groupHoldRef.current = false;
+		groupSeekPendingRef.current = false;
+	}, [isInGroup]);
 
 	// Commands alone cant hold this in step, because the decoder loses a little
 	// wall clock time on every rebuffer and nothing measured it afterwards.
 	useEffect(() => {
-		const correction = correctionOptions(settings);
+		// Never a rate nudge: AVPlay's audio does not survive a speed change,
+		// as Core found, so a wait or a skip covers every gap whatever the
+		// setting says.
+		const correction = {...correctionOptions(settings), useSpeed: false};
 		if (!isInGroup || isPaused || !correction.enabled) return undefined;
 
-		let restoreTimer = null;
-		const restoreRate = () => avplaySetSpeed(1);
 		const interval = setInterval(() => {
-			if (syncPlayCommandRef.current || avplayGetState() !== 'PLAYING') return;
+			if (syncPlayCommandRef.current || groupSeekPendingRef.current) return;
 			const expected = syncPlayService.getExpectedPositionTicks(correction.extraOffsetMs);
-			const action = driftAction(driftMs(positionRef.current, expected), correction);
+			const drift = driftMs(positionRef.current, expected);
+			const nowMs = Date.now();
+			const positionMs = positionRef.current / 10000;
+			const verdict = skipGovernorRef.current.evaluate({
+				nowMs,
+				positionMs,
+				driftMs: drift,
+				isPlaying: avplayGetState() === 'PLAYING',
+				isBuffering: isBufferingRef.current
+			});
+			if (verdict === 'defer') return;
+			const action = chooseCorrection(drift, verdict, correction, skipGovernorRef.current.seekAllowanceMs());
 
-			if (action.type === 'seek') {
+			if (action.type === 'skip') {
+				const targetTicks = expected + action.aheadMs * 10000;
+				skipGovernorRef.current.onSkip({nowMs, fromMs: positionMs, targetMs: targetTicks / 10000, driftMs: drift});
 				syncPlayCommandRef.current = true;
 				suppressBufferingUntilRef.current = Date.now() + syncPlayService.BUFFERING_SUPPRESS_MS;
 				const done = () => { syncPlayCommandRef.current = false; };
-				avplaySeek(Math.floor(expected / 10000)).then(done, done);
-			} else if (action.type === 'rate' && !restoreTimer) {
-				avplaySetSpeed(action.rate);
-				restoreTimer = setTimeout(() => {
-					restoreTimer = null;
-					restoreRate();
-				}, correction.speedDurationMs);
+				avplaySeek(Math.floor(targetTicks / 10000)).then(done, done);
+			} else if (action.type === 'wait') {
+				cancelSyncWait();
+				avplayPause();
+				setIsPaused(true);
+				syncWaitTimerRef.current = setTimeout(() => {
+					syncWaitTimerRef.current = null;
+					avplayPlay();
+					setIsPaused(false);
+				}, action.ms);
 			}
 		}, DRIFT_CHECK_MS);
 
-		return () => {
-			clearInterval(interval);
-			if (restoreTimer) clearTimeout(restoreTimer);
-			restoreRate();
-		};
-	}, [isInGroup, isPaused, settings]);
+		return () => clearInterval(interval);
+	}, [isInGroup, isPaused, settings, cancelSyncWait]);
 
 	// The server marks every member as buffering after a group seek or a change
 	// of item and waits for each one to report Ready, so a set that never
@@ -2426,7 +2523,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 		const listener = syncPlayService.addListener((event) => {
 			if (event === 'stateUpdate') {
 				const state = avplayGetState();
-				if (state === 'PLAYING' || state === 'PAUSED') readyGate.request();
+				if (state === 'PLAYING' || state === 'PAUSED' || (state === 'READY' && groupHoldRef.current)) readyGate.request();
 			}
 		});
 

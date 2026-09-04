@@ -30,7 +30,7 @@ const REPEAT_LABELS = {
 
 const REPEAT_CYCLE = ['RepeatNone', 'RepeatOne', 'RepeatAll'];
 
-const SyncPlayDialog = ({open, onClose}) => {
+const SyncPlayDialog = ({open, onClose, playingItemId, onWatch}) => {
 	const {
 		group,
 		groups,
@@ -55,7 +55,7 @@ const SyncPlayDialog = ({open, onClose}) => {
 		if (open) {
 			const t = setTimeout(() => {
 				if (isInGroup) {
-					Spotlight.focus('syncplay-leave-btn');
+					if (!Spotlight.focus('syncplay-watch-btn')) Spotlight.focus('syncplay-leave-btn');
 				} else {
 					Spotlight.focus('syncplay-input');
 				}
@@ -97,10 +97,10 @@ const SyncPlayDialog = ({open, onClose}) => {
 		const name = groupName.trim();
 		if (!name || isCreating) return;
 		setIsCreating(true);
-		await createGroup(name);
+		await createGroup(name, playingItemId ? [playingItemId] : undefined);
 		setGroupName('');
 		setIsCreating(false);
-	}, [groupName, isCreating, createGroup]);
+	}, [groupName, isCreating, createGroup, playingItemId]);
 
 	const handleJoin = useCallback(async (groupId) => {
 		if (isJoining) return;
@@ -125,6 +125,8 @@ const SyncPlayDialog = ({open, onClose}) => {
 			handleCreate();
 		}
 	}, [handleCreate]);
+
+	const handleWatch = useCallback(() => onWatch?.(playQueueItem), [playQueueItem, onWatch]);
 
 	const handleToggleRepeat = useCallback(() => {
 		const current = playQueue?.RepeatMode || 'RepeatNone';
@@ -166,6 +168,8 @@ const SyncPlayDialog = ({open, onClose}) => {
 							onLeave={handleLeave}
 							playQueue={playQueue}
 							playQueueItem={playQueueItem}
+							playingItemId={playingItemId}
+							onWatch={handleWatch}
 							onToggleRepeat={handleToggleRepeat}
 							onToggleShuffle={handleToggleShuffle}
 						/>
@@ -243,7 +247,7 @@ const LobbyView = memo(({groups, groupName, isCreating, isJoining, onInputChange
 	);
 });
 
-const GroupView = memo(({group, isLeaving, onLeave, playQueue, playQueueItem, onToggleRepeat, onToggleShuffle}) => {
+const GroupView = memo(({group, isLeaving, onLeave, playQueue, playQueueItem, playingItemId, onWatch, onToggleRepeat, onToggleShuffle}) => {
 	if (!group) return null;
 	const participants = group.Participants || [];
 	const stateLabel = group.State || $L('Idle');
@@ -272,6 +276,15 @@ const GroupView = memo(({group, isLeaving, onLeave, playQueue, playQueueItem, on
 							</span>
 						)}
 					</div>
+					{playQueueItem.Id !== playingItemId && (
+						<SpottableButton
+							className={`${css.btn} ${css.createBtn} ${css.watchBtn}`}
+							onClick={onWatch}
+							spotlightId="syncplay-watch-btn"
+						>
+							{$L('Watch now')}
+						</SpottableButton>
+					)}
 				</div>
 			)}
 

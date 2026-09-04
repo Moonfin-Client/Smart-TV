@@ -117,7 +117,6 @@ const whenScreensaver = (ctx) => ctx.settings.screensaverEnabled;
 const whenScreensaverLibrary = (ctx) => ctx.settings.screensaverEnabled && ctx.settings.screensaverMode === 'library';
 const whenPassthrough = (ctx) => ctx.settings.audioPassthroughMode === 'manual';
 const whenSyncCorrection = (ctx) => ctx.settings.syncPlayAdvancedCorrectionEnabled !== false;
-const whenSpeedToSync = (ctx) => whenSyncCorrection(ctx) && ctx.settings.syncPlayUseSpeedToSync !== false;
 
 const countLabel = (count) => $L('{count} selected').replace('{count}', String(count));
 
@@ -656,11 +655,7 @@ export const SETTINGS_SCHEMA = [
 					{kind: KIND.SECTION, id: 'syncPlayCorrection', label: () => $L('Sync Correction')},
 					{kind: KIND.TOGGLE, key: 'syncPlayAdvancedCorrectionEnabled', label: () => $L('Advanced Correction'), desc: () => $L('Continuously measure playback against the group and correct drift'), icon: 'spanner'},
 					{kind: KIND.TOGGLE, key: 'syncPlayEnableSyncCorrection', label: () => $L('Sync Correction'), desc: () => $L('Correct drift while playing'), icon: 'sync', when: whenSyncCorrection},
-					{kind: KIND.TOGGLE, key: 'syncPlayUseSpeedToSync', label: () => $L('Speed to Sync'), desc: () => $L('Use small speed changes to close a drift. Not every TV supports this, seeking covers the rest.'), icon: 'playspeed', when: whenSyncCorrection},
 					{kind: KIND.TOGGLE, key: 'syncPlayUseSkipToSync', label: () => $L('Skip to Sync'), desc: () => $L('Use seeking to sync'), icon: 'skip', when: whenSyncCorrection},
-					{kind: KIND.SLIDER, key: 'syncPlayMinDelaySpeedToSync', label: () => $L('Minimum Speed Delay'), min: 0, max: 5000, step: 100, format: milliseconds, icon: 'timer', when: whenSpeedToSync},
-					{kind: KIND.SLIDER, key: 'syncPlayMaxDelaySpeedToSync', label: () => $L('Maximum Speed Delay'), min: 0, max: 15000, step: 250, format: milliseconds, icon: 'timer', when: whenSpeedToSync},
-					{kind: KIND.SLIDER, key: 'syncPlaySpeedToSyncDuration', label: () => $L('Speed Duration'), min: 100, max: 5000, step: 100, format: milliseconds, icon: 'scheduler', when: whenSpeedToSync},
 					{kind: KIND.SLIDER, key: 'syncPlayMinDelaySkipToSync', label: () => $L('Minimum Skip Delay'), min: 0, max: 15000, step: 250, format: milliseconds, icon: 'timer', when: (ctx) => whenSyncCorrection(ctx) && ctx.settings.syncPlayUseSkipToSync},
 					{kind: KIND.SLIDER, key: 'syncPlayExtraTimeOffset', label: () => $L('SyncPlay Extra Offset'), desc: () => $L('A fixed offset added to the group position, for displays that lag'), min: -2000, max: 2000, step: 100, format: milliseconds, icon: 'scheduler'}
 				]
