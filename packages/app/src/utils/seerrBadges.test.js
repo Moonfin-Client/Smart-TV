@@ -55,7 +55,7 @@ describe('getStatusPills', () => {
 
 	test('blacklisted and deleted read as errors', () => {
 		expect(pills(MEDIA_STATUS.BLOCKLISTED, MEDIA_STATUS.UNKNOWN))
-			.toEqual([{text: 'Blacklisted', color: 'red'}]);
+			.toEqual([{text: 'Blocklisted', color: 'red'}]);
 		expect(pills(MEDIA_STATUS.DELETED, MEDIA_STATUS.UNKNOWN))
 			.toEqual([{text: 'Deleted', color: 'red'}]);
 	});

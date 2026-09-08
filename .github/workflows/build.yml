@@ -73,12 +73,38 @@ jobs:
           path: Moonfin_Tizen_*.wgt
 
   # ───────────────────────────────────────────────
+  # Jest suite
+  # ───────────────────────────────────────────────
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    outputs:
+      result: ${{ steps.jest.outcome }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci --force
+
+      - name: Run tests
+        id: jest
+        run: npm test --workspace @moonfin/app
+
+  # ───────────────────────────────────────────────
   # Save PR build outcomes for pr-comment workflow
   # ───────────────────────────────────────────────
   save-pr-results:
     name: Save PR Build Results
-    if: github.event_name == 'pull_request'
-    needs: [build-webos, build-tizen]
+    # Without always() a failed build skips this job, no artifact is uploaded, and
+    # the comment workflow has nothing to read, so the run that most needs a comment
+    # is the one that never gets one.
+    if: always() && github.event_name == 'pull_request'
+    needs: [build-webos, build-tizen, test]
     runs-on: ubuntu-latest
     steps:
       - name: Write outcomes.json
@@ -88,7 +114,8 @@ jobs:
             "pr_number": ${{ github.event.pull_request.number }},
             "sha": "${{ github.event.pull_request.head.sha }}",
             "webos": "${{ needs.build-webos.outputs.result }}",
-            "tizen": "${{ needs.build-tizen.outputs.result }}"
+            "tizen": "${{ needs.build-tizen.outputs.result }}",
+            "tests": "${{ needs.test.outputs.result }}"
           }
           EOF
 

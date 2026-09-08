@@ -1,7 +1,7 @@
 name: "Bug: Seerr"
 description: Report a Seerr integration issue
 title: "[Seerr] "
-labels: ["bug", "seerr"]
+labels: ["Bug", "Seerr"]
 body:
   - type: input
     id: app_version

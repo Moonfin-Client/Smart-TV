@@ -1,7 +1,7 @@
 name: "Bug: Playback"
 description: Report a video/audio playback issue
 title: "[Playback] "
-labels: ["bug", "playback"]
+labels: ["Bug", "Playback"]
 body:
   - type: markdown
     attributes:

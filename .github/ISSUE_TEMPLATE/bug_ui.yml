@@ -1,7 +1,7 @@
 name: "Bug: UI"
 description: Report a UI/UX issue (navigation, screens, layout, focus, etc.)
 title: "[UI] "
-labels: ["bug", "ui"]
+labels: ["Bug", "UI"]
 body:
   - type: input
     id: app_version
