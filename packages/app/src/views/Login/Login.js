@@ -875,7 +875,7 @@ const Login = ({
 						>
 							{user.imageTag ? (
 								<img
-									src={`${jellyfinApi.getServerUrl()}/Users/${user.id}/Images/Primary?tag=${user.imageTag}&quality=90&maxHeight=150`}
+									src={jellyfinApi.getUserImageUrl(jellyfinApi.getServerUrl(), user.id, user.imageTag, server?.serverType)}
 									alt={user.name}
 									className={css.userAvatar}
 								/>

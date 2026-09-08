@@ -16,7 +16,7 @@ let inFlightRefresh = null;
 
 // Two schemas meet in this file. Plugin responses under /Moonfin/Games use
 // camelCase fields (id, name), while the user-view libraries the rest of the
-// app passes in come from /Users/{id}/Views and are PascalCase (Id, Name).
+// app passes in come from the user views endpoint and are PascalCase (Id, Name).
 // The registry holds plugin objects, so reads from it are camelCase.
 
 // Concurrent callers share one request rather than each hitting the server. A failed refresh
@@ -67,7 +67,7 @@ export const isGameLibrary = (id, collectionType, name) => (registryLoaded
 	? Boolean(findLibrary(id, name))
 	: looksLikeGameLibrary(collectionType, name));
 
-// The id the plugin answers to for a library the caller got from /Users/{id}/Views. Every
+// The id the plugin answers to for a library the caller got from the user views endpoint. Every
 // /Moonfin/Games call matches on the plugin's id, not the view's.
 export const resolveGameLibraryId = (library) => {
 	const id = library?.Id;

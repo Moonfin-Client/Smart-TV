@@ -7,10 +7,9 @@ export const getTrickplayManifest = async (itemId, mediaSourceId) => {
     try {
         const serverUrl = jellyfinApi.getServerUrl();
         const apiKey = jellyfinApi.getApiKey();
-        const userId = jellyfinApi.getUserId();
 
         const response = await fetch(
-            `${serverUrl}/Users/${userId}/Items/${itemId}?Fields=Trickplay&ApiKey=${apiKey}`
+            `${serverUrl}${jellyfinApi.userRoutes.item(itemId)}Fields=Trickplay&${jellyfinApi.getTokenParam()}=${apiKey}`
         );
 
         if (!response.ok) return null;

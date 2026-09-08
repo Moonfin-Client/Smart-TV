@@ -116,8 +116,7 @@ const postDocument = (auth, body) => fetch(
 	method: 'POST',
 	headers: {
 		'Content-Type': 'text/plain',
-		'Authorization': `MediaBrowser Token="${auth.accessToken}"`,
-		'X-MediaBrowser-Token': auth.accessToken
+		'Authorization': `MediaBrowser Token="${auth.accessToken}"`
 	},
 	body
 }

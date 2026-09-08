@@ -8,7 +8,7 @@
  */
 /* global tizen */
 
-import {getServerUrl, getUserId, getAuthHeader} from '@moonfin/app/src/services/jellyfinApi';
+import {getServerUrl, getUserId, getAuthHeader, userRoutes} from '@moonfin/app/src/services/jellyfinApi';
 
 const NEXT_UP_LIMIT = 2;
 const RESUME_LIMIT = 4;
@@ -328,7 +328,7 @@ export async function runSmartViewUpdate () {
 
 		const [resumableItems, nextUpEpisodes] = await Promise.all([
 			apiRequest(
-				`/Users/${userId}/Items/Resume?Limit=${RESUME_LIMIT}&MediaTypes=Video&Fields=${baseFields}&${imageFields}&EnableTotalRecordCount=false&Recursive=true`
+				`${userRoutes.resume()}Limit=${RESUME_LIMIT}&MediaTypes=Video&Fields=${baseFields}&${imageFields}&EnableTotalRecordCount=false&Recursive=true`
 			),
 			apiRequest(
 				`/Shows/NextUp?UserId=${userId}&Limit=${NEXT_UP_LIMIT}&Fields=${baseFields}&${imageFields}&EnableTotalRecordCount=false`

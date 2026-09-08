@@ -7,7 +7,8 @@
 // inherit the same old-webOS+LE limitation as video playback. Cores load from the
 // trusted-cert CDN and work everywhere.
 
-import {getServerUrl, getAuthHeader, getApiKey, getTokenParam} from './jellyfinApi';
+import {getServerUrl, getAuthHeader, getApiKey, getTokenParam, getServerType} from './jellyfinApi';
+import {legacyAuthHeader} from '../utils/serverRoutes';
 import {platformFetch} from './secureFetch';
 import {fetchWithTimeout} from '../utils/fetchTimeout';
 
@@ -17,7 +18,7 @@ export const SETTINGS_ID = 'moonfin-global';
 const base = () => (getServerUrl() || '').replace(/\/+$/, '');
 const authHeaders = () => {
 	const h = getAuthHeader();
-	return {Authorization: h, 'X-Emby-Authorization': h};
+	return {Authorization: h, ...legacyAuthHeader(getServerType(), h)};
 };
 const enc = encodeURIComponent;
 

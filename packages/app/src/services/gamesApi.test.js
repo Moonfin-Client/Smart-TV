@@ -9,7 +9,8 @@ jest.mock('./jellyfinApi', () => ({
 	getServerUrl: () => 'https://server',
 	getAuthHeader: () => 'MediaBrowser Token="t"',
 	getApiKey: () => mockToken,
-	getTokenParam: () => 'ApiKey'
+	getTokenParam: () => 'ApiKey',
+	getServerType: () => 'jellyfin'
 }));
 
 const MB = 1024 * 1024;

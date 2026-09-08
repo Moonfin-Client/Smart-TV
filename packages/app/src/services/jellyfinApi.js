@@ -5,6 +5,7 @@ import {classifyError} from '../utils/connectionErrors';
 import {mediaServerQueue} from '../utils/requestQueue';
 import {platformFetch} from './secureFetch';
 import {isTizen} from '../platform';
+import {makeUserRoutes, trimQuerySeparator, legacyAuthHeader, buildUserImageUrl} from '../utils/serverRoutes';
 const APP_VERSION = packageJson.version;
 
 const APP_NAME = isTizen() ? 'Moonfin for Tizen' : 'Moonfin for webOS';
@@ -38,6 +39,12 @@ export const getServerType = () => serverType;
 
 // Jellyfin 12 drops the lowercase api_key param while Emby still requires it
 export const getTokenParam = (type) => ((type || serverType) === 'emby' ? 'api_key' : 'ApiKey');
+
+// Exported for the callers that build a raw URL instead of going through request().
+export const userRoutes = makeUserRoutes(() => serverType, () => currentUser);
+
+export const getUserImageUrl = (serverUrl, userId, imageTag, type) =>
+	buildUserImageUrl(serverUrl, userId, imageTag, type || serverType);
 
 export const setAuth = (userId, token) => {
 	currentUser = userId;
@@ -154,7 +161,7 @@ const fetchWithTimeout = (url, options = {}, timeoutMs = DEFAULT_TIMEOUT_MS) =>
 export const getDeviceId = () => deviceId;
 
 const request = async (endpoint, options = {}) => {
-	const url = `${currentServer}${endpoint}`;
+	const url = `${currentServer}${trimQuerySeparator(endpoint)}`;
 	const parentId = parentIdOf(endpoint);
 	if (parentId && accessDeniedParentIds.has(parentId)) {
 		const error = new Error('Access denied (cached): ' + parentId);
@@ -169,7 +176,7 @@ const request = async (endpoint, options = {}) => {
 			method: options.method || 'GET',
 			headers: {
 				'Authorization': authHeader,
-				'X-Emby-Authorization': authHeader,
+				...legacyAuthHeader(serverType, authHeader),
 				'Content-Type': 'application/json',
 				...options.headers
 			},
@@ -240,7 +247,7 @@ export const resolveItemsByProviderIds = async (items) => {
 		const chunk = pairs.slice(i, i + CHUNK);
 		try {
 			const query = chunk.map((p) => encodeURIComponent(p)).join(',');
-			const res = await request(`/Users/${currentUser}/Items?Recursive=true&anyProviderIdEquals=${query}&Fields=${HOME_ROW_ITEM_FIELDS}&Limit=${chunk.length * 2}`);
+			const res = await request(`${userRoutes.items()}Recursive=true&anyProviderIdEquals=${query}&Fields=${HOME_ROW_ITEM_FIELDS}&Limit=${chunk.length * 2}`);
 			for (const jf of (res?.Items || [])) {
 				const p = jf.ProviderIds || {};
 				if (p.Tmdb) found[`tmdb.${p.Tmdb}`] = jf;
@@ -366,9 +373,9 @@ export const api = {
 		body: {Secret: secret}
 	}),
 
-	getLibraries: () => request(`/Users/${currentUser}/Views`),
+	getLibraries: () => request(userRoutes.views()),
 
-	getAllLibraries: () => request(`/Users/${currentUser}/Views?IncludeHidden=true`),
+	getAllLibraries: () => request(`${userRoutes.views()}IncludeHidden=true`),
 
 	getItems: (params = {}) => {
 		// Manually build query string to avoid URLSearchParams issues
@@ -379,48 +386,48 @@ export const api = {
 			}
 		}
 		const query = queryParts.join('&');
-		return request(`/Users/${currentUser}/Items?${query}`);
+		return request(`${userRoutes.items()}${query}`);
 	},
 
-	getItem: (itemId) => request(`/Users/${currentUser}/Items/${itemId}`),
+	getItem: (itemId) => request(userRoutes.item(itemId)),
 
 	getLocalTrailers: (itemId) => request(`/Items/${itemId}/LocalTrailers?userId=${currentUser}`),
 
 	getItemForDetail: (itemId) =>
-		request(`/Users/${currentUser}/Items/${itemId}?Fields=Overview,Genres,OfficialRating,BackdropImageTags,ParentBackdropImageTags,ParentBackdropItemId,ProviderIds,RunTimeTicks,ProductionYear,Chapters,People,Studios,Taglines,RemoteTrailers,MediaSources,MediaSourceCount,CommunityRating,CriticRating`),
+		request(`${userRoutes.item(itemId)}Fields=Overview,Genres,OfficialRating,BackdropImageTags,ParentBackdropImageTags,ParentBackdropItemId,ProviderIds,RunTimeTicks,ProductionYear,Chapters,People,Studios,Taglines,RemoteTrailers,MediaSources,MediaSourceCount,CommunityRating,CriticRating`),
 
-	getItemWithChapters: (itemId) => request(`/Users/${currentUser}/Items/${itemId}?Fields=Chapters`),
+	getItemWithChapters: (itemId) => request(`${userRoutes.item(itemId)}Fields=Chapters`),
 
 	// Just the track list, for the repeated checks after a subtitle download. The
 	// full item drags people, chapters and trickplay along with it.
-	getItemMediaInfo: (itemId) => request(`/Users/${currentUser}/Items/${itemId}?Fields=MediaSources,MediaStreams`),
+	getItemMediaInfo: (itemId) => request(`${userRoutes.item(itemId)}Fields=MediaSources,MediaStreams`),
 
 	getMediaSegments: (itemId) => request(`/MediaSegments/${itemId}`),
 
 	getUserConfiguration: () => request(`/Users/${currentUser}`),
 
-	updateUserConfiguration: (config) => request(`/Users/${currentUser}/Configuration`, {
+	updateUserConfiguration: (config) => request(userRoutes.configuration(), {
 		method: 'POST',
 		body: config
 	}),
 
 	getLatest: (libraryId, limit = 20) =>
-		request(`/Users/${currentUser}/Items/Latest?ParentId=${libraryId}&Limit=${limit}&Fields=${encodeURIComponent(HOME_ROW_ITEM_FIELDS)}&ImageTypeLimit=1&GroupItems=true`),
+		request(`${userRoutes.latest()}ParentId=${libraryId}&Limit=${limit}&Fields=${encodeURIComponent(HOME_ROW_ITEM_FIELDS)}&ImageTypeLimit=1&GroupItems=true`),
 
 	getRecentlyReleased: (libraryId, limit = 20, includeItemTypes = 'Movie,Series') =>
-		request(`/Users/${currentUser}/Items?IncludeItemTypes=${includeItemTypes}&Recursive=true&ParentId=${libraryId}&Limit=${limit}&Fields=${encodeURIComponent(HOME_ROW_ITEM_FIELDS)}&ImageTypeLimit=1&SortBy=PremiereDate&SortOrder=Descending&MaxPremiereDate=${encodeURIComponent(new Date().toISOString())}`),
+		request(`${userRoutes.items()}IncludeItemTypes=${includeItemTypes}&Recursive=true&ParentId=${libraryId}&Limit=${limit}&Fields=${encodeURIComponent(HOME_ROW_ITEM_FIELDS)}&ImageTypeLimit=1&SortBy=PremiereDate&SortOrder=Descending&MaxPremiereDate=${encodeURIComponent(new Date().toISOString())}`),
 
 	getCollections: (limit = 50, sortBy = 'SortName', sortOrder = 'Ascending') =>
-		request(`/Users/${currentUser}/Items?IncludeItemTypes=BoxSet&Recursive=true&SortBy=${encodeURIComponent(sortBy)}&SortOrder=${encodeURIComponent(sortOrder)}&Limit=${limit}&Fields=PrimaryImageAspectRatio,ProductionYear,OfficialRating`),
+		request(`${userRoutes.items()}IncludeItemTypes=BoxSet&Recursive=true&SortBy=${encodeURIComponent(sortBy)}&SortOrder=${encodeURIComponent(sortOrder)}&Limit=${limit}&Fields=PrimaryImageAspectRatio,ProductionYear,OfficialRating`),
 
 	getStudios: (limit = 20, sortBy = 'SortName', sortOrder = 'Ascending') =>
 		request(`/Studios?UserId=${currentUser}&Recursive=true&SortBy=${encodeURIComponent(sortBy)}&SortOrder=${encodeURIComponent(sortOrder)}&Limit=${limit}&Fields=ItemCounts,PrimaryImageAspectRatio`),
 
 	getResumeItems: (limit = 12) =>
-		request(`/Users/${currentUser}/Items/Resume?Limit=${limit}&MediaTypes=Video&Fields=${encodeURIComponent(HOME_ROW_ITEM_FIELDS)}`),
+		request(`${userRoutes.resume()}Limit=${limit}&MediaTypes=Video&Fields=${encodeURIComponent(HOME_ROW_ITEM_FIELDS)}`),
 
 	getResumeAudioItems: (limit = 20) =>
-		request(`/Users/${currentUser}/Items/Resume?Limit=${limit}&MediaTypes=Audio&Fields=${encodeURIComponent(HOME_ROW_ITEM_FIELDS)}`),
+		request(`${userRoutes.resume()}Limit=${limit}&MediaTypes=Audio&Fields=${encodeURIComponent(HOME_ROW_ITEM_FIELDS)}`),
 
 	getNextUp: (limit = 24, seriesId = null, maxDays = 0) => {
 		let url = `/Shows/NextUp?UserId=${currentUser}&Limit=${limit}&Fields=${encodeURIComponent(HOME_ROW_ITEM_FIELDS)}`;
@@ -470,7 +477,7 @@ export const api = {
 
 	search: async (query, limit = 240) => {
 		const [itemsResult, peopleResult] = await Promise.all([
-			request(`/Users/${currentUser}/Items?searchTerm=${encodeURIComponent(query)}&Limit=${limit}&Recursive=true&IncludeItemTypes=Book,Movie,Series,Season,Episode,Video,MusicVideo,Trailer,Program,Playlist,MusicArtist,MusicAlbum,Audio,PhotoAlbum,Photo,BoxSet,Folder&Fields=PrimaryImageAspectRatio,ProductionYear,AlbumArtist,SeriesName,ParentIndexNumber,IndexNumber,ProviderIds,UserData`),
+			request(`${userRoutes.items()}searchTerm=${encodeURIComponent(query)}&Limit=${limit}&Recursive=true&IncludeItemTypes=Book,Movie,Series,Season,Episode,Video,MusicVideo,Trailer,Program,Playlist,MusicArtist,MusicAlbum,Audio,PhotoAlbum,Photo,BoxSet,Folder&Fields=PrimaryImageAspectRatio,ProductionYear,AlbumArtist,SeriesName,ParentIndexNumber,IndexNumber,ProviderIds,UserData`),
 			request(`/Persons?searchTerm=${encodeURIComponent(query)}&Limit=${limit}&Fields=PrimaryImageAspectRatio`)
 		]);
 
@@ -503,21 +510,21 @@ export const api = {
 	},
 
 	getItemsByGenre: (genreId, libraryId, limit = 50) =>
-		request(`/Users/${currentUser}/Items?GenreIds=${genreId}&ParentId=${libraryId}&Limit=${limit}&Recursive=true&IncludeItemTypes=Movie,Series&Fields=PrimaryImageAspectRatio,ProductionYear,OfficialRating`),
+		request(`${userRoutes.items()}GenreIds=${genreId}&ParentId=${libraryId}&Limit=${limit}&Recursive=true&IncludeItemTypes=Movie,Series&Fields=PrimaryImageAspectRatio,ProductionYear,OfficialRating`),
 
 	getPerson: (personId) =>
-		request(`/Users/${currentUser}/Items/${personId}`),
+		request(userRoutes.item(personId)),
 
 	// Episodes and music videos get their own rows on a person, and the newest
 	// work is the part worth opening on.
 	getItemsByPerson: (personId, limit = 100) =>
-		request(`/Users/${currentUser}/Items?PersonIds=${personId}&Recursive=true&IncludeItemTypes=Movie,Series,MusicVideo,Episode&SortBy=PremiereDate&SortOrder=Descending&Limit=${limit}&Fields=PrimaryImageAspectRatio,ProductionYear,OfficialRating,BasicSyncInfo`),
+		request(`${userRoutes.items()}PersonIds=${personId}&Recursive=true&IncludeItemTypes=Movie,Series,MusicVideo,Episode&SortBy=PremiereDate&SortOrder=Descending&Limit=${limit}&Fields=PrimaryImageAspectRatio,ProductionYear,OfficialRating,BasicSyncInfo`),
 
 	getFavorites: (limit = 50) =>
-		request(`/Users/${currentUser}/Items?IsFavorite=true&Recursive=true&Limit=${limit}&Fields=PrimaryImageAspectRatio,ProductionYear,OfficialRating`),
+		request(`${userRoutes.items()}IsFavorite=true&Recursive=true&Limit=${limit}&Fields=PrimaryImageAspectRatio,ProductionYear,OfficialRating`),
 
 	getRandomItem: (includeTypes = 'Movie,Series') =>
-		request(`/Items?UserId=${currentUser}&IncludeItemTypes=${includeTypes}&Recursive=true&SortBy=Random&Limit=1&Fields=PrimaryImageAspectRatio,Overview&ExcludeItemTypes=BoxSet`),
+		request(`${userRoutes.items()}IncludeItemTypes=${includeTypes}&Recursive=true&SortBy=Random&Limit=1&Fields=PrimaryImageAspectRatio,Overview&ExcludeItemTypes=BoxSet`),
 
 	getRandomItems: (contentType = 'both', limit = 10, parentId = null, genreName = null, fields = 'PrimaryImageAspectRatio,Overview,Genres,ProviderIds,RemoteTrailers') => {
 		let includeTypes;
@@ -533,7 +540,7 @@ export const api = {
 		}
 		const parentParam = parentId ? `&ParentId=${parentId}` : '';
 		const genreParam = genreName ? `&Genres=${encodeURIComponent(genreName)}` : '';
-		return request(`/Users/${currentUser}/Items?IncludeItemTypes=${includeTypes}&Recursive=true&SortBy=Random&Limit=${limit}&Fields=${encodeURIComponent(fields)}&HasBackdrop=true&ExcludeItemTypes=BoxSet${parentParam}${genreParam}`);
+		return request(`${userRoutes.items()}IncludeItemTypes=${includeTypes}&Recursive=true&SortBy=Random&Limit=${limit}&Fields=${encodeURIComponent(fields)}&HasBackdrop=true&ExcludeItemTypes=BoxSet${parentParam}${genreParam}`);
 	},
 
 	// Items for the setup wizard previews, which ask for no backdrop. The
@@ -542,21 +549,21 @@ export const api = {
 	// previews on their drawn stand ins. The previews draw posters and logos
 	// happily, so anything real beats nothing.
 	getPreviewItems: (limit = 10, fields = 'PrimaryImageAspectRatio,Overview,Genres,ProviderIds,RemoteTrailers') =>
-		request(`/Users/${currentUser}/Items?IncludeItemTypes=Movie,Series&Recursive=true&SortBy=DateCreated&SortOrder=Descending&Limit=${limit}&Fields=${encodeURIComponent(fields)}&ExcludeItemTypes=BoxSet`),
+		request(`${userRoutes.items()}IncludeItemTypes=Movie,Series&Recursive=true&SortBy=DateCreated&SortOrder=Descending&Limit=${limit}&Fields=${encodeURIComponent(fields)}&ExcludeItemTypes=BoxSet`),
 
 	// With no sort the server hands back the arrangement the collection keeps
 	getCollectionItems: (collectionId, limit = 50, sortBy = null, sortOrder = 'Ascending') =>
-		request(`/Users/${currentUser}/Items?ParentId=${collectionId}&Limit=${limit}&Recursive=true&Fields=PrimaryImageAspectRatio,Overview,Genres,ProviderIds,RemoteTrailers&HasBackdrop=true${sortBy ? `&SortBy=${encodeURIComponent(sortBy)}&SortOrder=${encodeURIComponent(sortOrder)}` : ''}`),
+		request(`${userRoutes.items()}ParentId=${collectionId}&Limit=${limit}&Recursive=true&Fields=PrimaryImageAspectRatio,Overview,Genres,ProviderIds,RemoteTrailers&HasBackdrop=true${sortBy ? `&SortBy=${encodeURIComponent(sortBy)}&SortOrder=${encodeURIComponent(sortOrder)}` : ''}`),
 
 	// Get all movies and series for genres page
 	getAllItems: (limit = 10000) =>
-		request(`/Users/${currentUser}/Items?IncludeItemTypes=Movie,Series&Recursive=true&Fields=Genres,PrimaryImageAspectRatio,ProductionYear&SortBy=SortName&SortOrder=Ascending&Limit=${limit}&ExcludeItemTypes=BoxSet`),
+		request(`${userRoutes.items()}IncludeItemTypes=Movie,Series&Recursive=true&Fields=Genres,PrimaryImageAspectRatio,ProductionYear&SortBy=SortName&SortOrder=Ascending&Limit=${limit}&ExcludeItemTypes=BoxSet`),
 
-	setFavorite: (itemId, isFavorite) => request(`/Users/${currentUser}/FavoriteItems/${itemId}`, {
+	setFavorite: (itemId, isFavorite) => request(userRoutes.favorite(itemId), {
 		method: isFavorite ? 'POST' : 'DELETE'
 	}),
 
-	setWatched: (itemId, watched) => request(`/Users/${currentUser}/PlayedItems/${itemId}`, {
+	setWatched: (itemId, watched) => request(userRoutes.played(itemId), {
 		method: watched ? 'POST' : 'DELETE'
 	}),
 
@@ -577,7 +584,7 @@ export const api = {
 	}),
 
 	getIntros: (itemId) =>
-		request(`/Users/${currentUser}/Items/${itemId}/Intros`),
+		request(userRoutes.extras(itemId, 'Intros')),
 
 	// The distinct filter values across the libraries, used by parental controls
 	// to list which official ratings actually exist.
@@ -593,7 +600,7 @@ export const api = {
 		request(`/Videos/${itemId}/AdditionalParts?UserId=${currentUser}`),
 
 	getSpecialFeatures: (itemId) =>
-		request(`/Users/${currentUser}/Items/${itemId}/SpecialFeatures`),
+		request(userRoutes.extras(itemId, 'SpecialFeatures')),
 
 	getAncestors: (itemId) =>
 		request(`/Items/${itemId}/Ancestors?UserId=${currentUser}`),
@@ -721,7 +728,7 @@ export const api = {
 		}),
 
 	getAdjacentEpisodes: (itemId) =>
-		request(`/Users/${currentUser}/Items/${itemId}?Fields=Overview,MediaStreams,Chapters`),
+		request(`${userRoutes.item(itemId)}Fields=Overview,MediaStreams,Chapters`),
 
 	// Music API methods
 	getAlbumArtists: (params = {}) => {
@@ -739,16 +746,16 @@ export const api = {
 	},
 
 	getAlbumsByArtist: (artistId, limit = 100) =>
-		request(`/Users/${currentUser}/Items?AlbumArtistIds=${artistId}&IncludeItemTypes=MusicAlbum&Recursive=true&SortBy=ProductionYear,SortName&SortOrder=Descending&Limit=${limit}&Fields=PrimaryImageAspectRatio,ProductionYear,OfficialRating`),
+		request(`${userRoutes.items()}AlbumArtistIds=${artistId}&IncludeItemTypes=MusicAlbum&Recursive=true&SortBy=ProductionYear,SortName&SortOrder=Descending&Limit=${limit}&Fields=PrimaryImageAspectRatio,ProductionYear,OfficialRating`),
 
 	getAlbumTracks: (albumId) =>
-		request(`/Users/${currentUser}/Items?ParentId=${albumId}&IncludeItemTypes=Audio&SortBy=ParentIndexNumber,IndexNumber&SortOrder=Ascending&Fields=MediaSources,MediaStreams`),
+		request(`${userRoutes.items()}ParentId=${albumId}&IncludeItemTypes=Audio&SortBy=ParentIndexNumber,IndexNumber&SortOrder=Ascending&Fields=MediaSources,MediaStreams`),
 
 	getLyrics: (itemId) =>
 		serverType === 'emby' ? Promise.resolve(null) : request(`/Audio/${itemId}/Lyrics?UserId=${currentUser}`),
 
 	getArtistItems: (artistId, limit = 50) =>
-		request(`/Users/${currentUser}/Items?ArtistIds=${artistId}&IncludeItemTypes=Audio&Recursive=true&SortBy=Album,ParentIndexNumber,IndexNumber&SortOrder=Ascending&Limit=${limit}&Fields=PrimaryImageAspectRatio,ProductionYear,AlbumArtist`),
+		request(`${userRoutes.items()}ArtistIds=${artistId}&IncludeItemTypes=Audio&Recursive=true&SortBy=Album,ParentIndexNumber,IndexNumber&SortOrder=Ascending&Limit=${limit}&Fields=PrimaryImageAspectRatio,ProductionYear,AlbumArtist`),
 
 	getInstantMix: (itemId, limit = 50) =>
 		request(`/Items/${itemId}/InstantMix?UserId=${currentUser}&Limit=${limit}&Fields=PrimaryImageAspectRatio,ProductionYear,AlbumArtist`),
@@ -762,7 +769,7 @@ export const api = {
 		}),
 
 	getPlaylists: (sortBy = 'SortName', sortOrder = 'Ascending') =>
-		request(`/Users/${currentUser}/Items?IncludeItemTypes=Playlist&Recursive=true&SortBy=${sortBy}&SortOrder=${sortOrder}`),
+		request(`${userRoutes.items()}IncludeItemTypes=Playlist&Recursive=true&SortBy=${sortBy}&SortOrder=${sortOrder}`),
 
 	createPlaylist: (name, itemIds = []) =>
 		request('/Playlists', {
@@ -828,9 +835,10 @@ export const createApiForServer = (serverUrl, token, userId, serverTypeOverride 
 	}
 
 	const getServerAuthHeader = () => buildAuthHeader(serverTypeOverride, token);
+	const serverUserRoutes = makeUserRoutes(() => serverTypeOverride, () => userId);
 
 	const serverRequest = async (endpoint, options = {}) => {
-		const requestUrl = `${url}${endpoint}`;
+		const requestUrl = `${url}${trimQuerySeparator(endpoint)}`;
 		const deniedParentId = parentIdOf(endpoint);
 		const deniedKey = deniedParentId ? `${url}|${deniedParentId}` : null;
 		if (deniedKey && accessDeniedParentIds.has(deniedKey)) {
@@ -846,7 +854,7 @@ export const createApiForServer = (serverUrl, token, userId, serverTypeOverride 
 				method: options.method || 'GET',
 				headers: {
 					'Authorization': authHeader,
-					'X-Emby-Authorization': authHeader,
+					...legacyAuthHeader(serverTypeOverride, authHeader),
 					'Content-Type': 'application/json',
 					...options.headers
 				},
@@ -878,28 +886,28 @@ export const createApiForServer = (serverUrl, token, userId, serverTypeOverride 
 	};
 
 	return {
-		getLibraries: () => serverRequest(`/Users/${userId}/Views`),
+		getLibraries: () => serverRequest(serverUserRoutes.views()),
 
-		getAllLibraries: () => serverRequest(`/Users/${userId}/Views?IncludeHidden=true`),
+		getAllLibraries: () => serverRequest(`${serverUserRoutes.views()}IncludeHidden=true`),
 
 		getUserConfiguration: () => serverRequest(`/Users/${userId}`),
 
-		updateUserConfiguration: (config) => serverRequest(`/Users/${userId}/Configuration`, {
+		updateUserConfiguration: (config) => serverRequest(serverUserRoutes.configuration(), {
 			method: 'POST',
 			body: config
 		}),
 
 		// UserData is named so a saved rating comes back when the title is reopened.
 		getItem: (itemId) =>
-			serverRequest(`/Users/${userId}/Items/${itemId}?Fields=Overview,Genres,People,Studios,MediaSources,MediaStreams,ExternalUrls,ProviderIds,RemoteTrailers,Taglines,UserData`),
+			serverRequest(`${serverUserRoutes.item(itemId)}Fields=Overview,Genres,People,Studios,MediaSources,MediaStreams,ExternalUrls,ProviderIds,RemoteTrailers,Taglines,UserData`),
 
 		getItemMediaInfo: (itemId) =>
-			serverRequest(`/Users/${userId}/Items/${itemId}?Fields=MediaSources,MediaStreams`),
+			serverRequest(`${serverUserRoutes.item(itemId)}Fields=MediaSources,MediaStreams`),
 
-		getPerson: (itemId) => serverRequest(`/Users/${userId}/Items/${itemId}`),
+		getPerson: (itemId) => serverRequest(serverUserRoutes.item(itemId)),
 
 		getItemsByPerson: (personId, limit = 100) =>
-			serverRequest(`/Users/${userId}/Items?PersonIds=${personId}&Recursive=true&IncludeItemTypes=Movie,Series,MusicVideo,Episode&SortBy=PremiereDate&SortOrder=Descending&Limit=${limit}&Fields=PrimaryImageAspectRatio,ProductionYear,OfficialRating,BasicSyncInfo`),
+			serverRequest(`${serverUserRoutes.items()}PersonIds=${personId}&Recursive=true&IncludeItemTypes=Movie,Series,MusicVideo,Episode&SortBy=PremiereDate&SortOrder=Descending&Limit=${limit}&Fields=PrimaryImageAspectRatio,ProductionYear,OfficialRating,BasicSyncInfo`),
 
 		getItems: (params = {}) => {
 			// Manually build query string to match main api.getItems behavior
@@ -910,7 +918,7 @@ export const createApiForServer = (serverUrl, token, userId, serverTypeOverride 
 				}
 			}
 			const query = queryParts.join('&');
-			return serverRequest(`/Users/${userId}/Items?${query}`);
+			return serverRequest(`${serverUserRoutes.items()}${query}`);
 		},
 
 		getGenres: (libraryId, includeItemTypes = 'Movie,Series', sortBy = 'SortName', sortOrder = 'Ascending') => {
@@ -928,7 +936,7 @@ export const createApiForServer = (serverUrl, token, userId, serverTypeOverride 
 		},
 
 		getResumeItems: () =>
-			serverRequest(`/Users/${userId}/Items/Resume?Limit=12&Recursive=true&Fields=PrimaryImageAspectRatio,Overview,BackdropImageTags,ParentBackdropImageTags,ParentBackdropItemId,ProviderIds&MediaTypes=Video&EnableTotalRecordCount=false&ExcludeItemTypes=Book`),
+			serverRequest(`${serverUserRoutes.resume()}Limit=12&Recursive=true&Fields=PrimaryImageAspectRatio,Overview,BackdropImageTags,ParentBackdropImageTags,ParentBackdropItemId,ProviderIds&MediaTypes=Video&EnableTotalRecordCount=false&ExcludeItemTypes=Book`),
 
 		getNextUp: (limit = 12, seriesId = null, maxDays = 0) => {
 			let endpoint = `/Shows/NextUp?UserId=${userId}&Limit=${limit}&Fields=PrimaryImageAspectRatio,Overview,BackdropImageTags,ParentBackdropImageTags,ParentBackdropItemId,ProviderIds`;
@@ -938,13 +946,13 @@ export const createApiForServer = (serverUrl, token, userId, serverTypeOverride 
 		},
 
 		getLatestMedia: (libraryId = null, limit = 16) => {
-			let endpoint = `/Users/${userId}/Items/Latest?Limit=${limit}&Fields=${encodeURIComponent(HOME_ROW_ITEM_FIELDS)}`;
+			let endpoint = `${serverUserRoutes.latest()}Limit=${limit}&Fields=${encodeURIComponent(HOME_ROW_ITEM_FIELDS)}`;
 			if (libraryId) endpoint += `&ParentId=${libraryId}`;
 			return serverRequest(endpoint);
 		},
 
 		getCollections: (limit = 50, sortBy = 'SortName', sortOrder = 'Ascending') =>
-			serverRequest(`/Users/${userId}/Items?IncludeItemTypes=BoxSet&Recursive=true&SortBy=${encodeURIComponent(sortBy)}&SortOrder=${encodeURIComponent(sortOrder)}&Limit=${limit}&Fields=PrimaryImageAspectRatio,ProductionYear,OfficialRating`),
+			serverRequest(`${serverUserRoutes.items()}IncludeItemTypes=BoxSet&Recursive=true&SortBy=${encodeURIComponent(sortBy)}&SortOrder=${encodeURIComponent(sortOrder)}&Limit=${limit}&Fields=PrimaryImageAspectRatio,ProductionYear,OfficialRating`),
 
 		getRandomItems: (contentType = 'both', limit = 10, parentId = null, genreName = null, fields = 'PrimaryImageAspectRatio,Overview,Genres,ProviderIds') => {
 			let includeTypes;
@@ -960,14 +968,14 @@ export const createApiForServer = (serverUrl, token, userId, serverTypeOverride 
 			}
 			const parentParam = parentId ? `&ParentId=${parentId}` : '';
 			const genreParam = genreName ? `&Genres=${encodeURIComponent(genreName)}` : '';
-			return serverRequest(`/Users/${userId}/Items?IncludeItemTypes=${includeTypes}&Recursive=true&SortBy=Random&Limit=${limit}&Fields=${encodeURIComponent(fields)}&HasBackdrop=true&ExcludeItemTypes=BoxSet${parentParam}${genreParam}`);
+			return serverRequest(`${serverUserRoutes.items()}IncludeItemTypes=${includeTypes}&Recursive=true&SortBy=Random&Limit=${limit}&Fields=${encodeURIComponent(fields)}&HasBackdrop=true&ExcludeItemTypes=BoxSet${parentParam}${genreParam}`);
 		},
 
 		getRandomItem: (includeTypes = 'Movie,Series') =>
-			serverRequest(`/Items?UserId=${userId}&IncludeItemTypes=${includeTypes}&Recursive=true&SortBy=Random&Limit=1&Fields=PrimaryImageAspectRatio,Overview&ExcludeItemTypes=BoxSet`),
+			serverRequest(`${serverUserRoutes.items()}IncludeItemTypes=${includeTypes}&Recursive=true&SortBy=Random&Limit=1&Fields=PrimaryImageAspectRatio,Overview&ExcludeItemTypes=BoxSet`),
 
 		search: (query, limit = 240) =>
-			serverRequest(`/Users/${userId}/Items?SearchTerm=${encodeURIComponent(query)}&IncludeItemTypes=Book,Movie,Series,Season,Episode,Video,MusicVideo,Trailer,Program,Playlist,Person,MusicArtist,MusicAlbum,Audio,PhotoAlbum,Photo,BoxSet,Folder&Recursive=true&Limit=${limit}&Fields=PrimaryImageAspectRatio,Overview,AlbumArtist,SeriesName,ParentIndexNumber,IndexNumber,ProviderIds,UserData`),
+			serverRequest(`${serverUserRoutes.items()}SearchTerm=${encodeURIComponent(query)}&IncludeItemTypes=Book,Movie,Series,Season,Episode,Video,MusicVideo,Trailer,Program,Playlist,Person,MusicArtist,MusicAlbum,Audio,PhotoAlbum,Photo,BoxSet,Folder&Recursive=true&Limit=${limit}&Fields=PrimaryImageAspectRatio,Overview,AlbumArtist,SeriesName,ParentIndexNumber,IndexNumber,ProviderIds,UserData`),
 
 		getSimilar: (itemId, limit = 12) =>
 			serverRequest(`/Items/${itemId}/Similar?UserId=${userId}&Limit=${limit}&Fields=PrimaryImageAspectRatio,Overview`),
@@ -1016,11 +1024,11 @@ export const createApiForServer = (serverUrl, token, userId, serverTypeOverride 
 			method: 'POST'
 		}),
 
-		setFavorite: (itemId, isFavorite) => serverRequest(`/Users/${userId}/FavoriteItems/${itemId}`, {
+		setFavorite: (itemId, isFavorite) => serverRequest(serverUserRoutes.favorite(itemId), {
 			method: isFavorite ? 'POST' : 'DELETE'
 		}),
 
-		setWatched: (itemId, watched) => serverRequest(`/Users/${userId}/PlayedItems/${itemId}`, {
+		setWatched: (itemId, watched) => serverRequest(serverUserRoutes.played(itemId), {
 			method: watched ? 'POST' : 'DELETE'
 		}),
 
@@ -1053,16 +1061,16 @@ export const createApiForServer = (serverUrl, token, userId, serverTypeOverride 
 		},
 
 		getAlbumsByArtist: (artistId, limit = 100) =>
-			serverRequest(`/Users/${userId}/Items?AlbumArtistIds=${artistId}&IncludeItemTypes=MusicAlbum&Recursive=true&SortBy=ProductionYear,SortName&SortOrder=Descending&Limit=${limit}&Fields=PrimaryImageAspectRatio,ProductionYear,OfficialRating`),
+			serverRequest(`${serverUserRoutes.items()}AlbumArtistIds=${artistId}&IncludeItemTypes=MusicAlbum&Recursive=true&SortBy=ProductionYear,SortName&SortOrder=Descending&Limit=${limit}&Fields=PrimaryImageAspectRatio,ProductionYear,OfficialRating`),
 
 		getAlbumTracks: (albumId) =>
-			serverRequest(`/Users/${userId}/Items?ParentId=${albumId}&IncludeItemTypes=Audio&SortBy=ParentIndexNumber,IndexNumber&SortOrder=Ascending&Fields=MediaSources,MediaStreams`),
+			serverRequest(`${serverUserRoutes.items()}ParentId=${albumId}&IncludeItemTypes=Audio&SortBy=ParentIndexNumber,IndexNumber&SortOrder=Ascending&Fields=MediaSources,MediaStreams`),
 
 		getLyrics: (itemId) =>
 			serverTypeOverride === 'emby' ? Promise.resolve(null) : serverRequest(`/Audio/${itemId}/Lyrics?UserId=${userId}`),
 
 		getArtistItems: (artistId, limit = 50) =>
-			serverRequest(`/Users/${userId}/Items?ArtistIds=${artistId}&IncludeItemTypes=Audio&Recursive=true&SortBy=Album,ParentIndexNumber,IndexNumber&SortOrder=Ascending&Limit=${limit}&Fields=PrimaryImageAspectRatio,ProductionYear,AlbumArtist`),
+			serverRequest(`${serverUserRoutes.items()}ArtistIds=${artistId}&IncludeItemTypes=Audio&Recursive=true&SortBy=Album,ParentIndexNumber,IndexNumber&SortOrder=Ascending&Limit=${limit}&Fields=PrimaryImageAspectRatio,ProductionYear,AlbumArtist`),
 
 		getInstantMix: (itemId, limit = 50) =>
 			serverRequest(`/Items/${itemId}/InstantMix?UserId=${userId}&Limit=${limit}&Fields=PrimaryImageAspectRatio,ProductionYear,AlbumArtist`),
@@ -1076,7 +1084,7 @@ export const createApiForServer = (serverUrl, token, userId, serverTypeOverride 
 			}),
 
 		getPlaylists: (sortBy = 'SortName', sortOrder = 'Ascending') =>
-			serverRequest(`/Users/${userId}/Items?IncludeItemTypes=Playlist&Recursive=true&SortBy=${sortBy}&SortOrder=${sortOrder}`),
+			serverRequest(`${serverUserRoutes.items()}IncludeItemTypes=Playlist&Recursive=true&SortBy=${sortBy}&SortOrder=${sortOrder}`),
 
 		createPlaylist: (name, itemIds = []) =>
 			serverRequest('/Playlists', {
@@ -1102,7 +1110,7 @@ export const createApiForServer = (serverUrl, token, userId, serverTypeOverride 
 			}),
 
 		getSpecialFeatures: (itemId) =>
-			serverRequest(`/Users/${userId}/Items/${itemId}/SpecialFeatures`),
+			serverRequest(serverUserRoutes.extras(itemId, 'SpecialFeatures')),
 
 		getAncestors: (itemId) =>
 			serverRequest(`/Items/${itemId}/Ancestors?UserId=${userId}`),
@@ -1114,7 +1122,7 @@ export const createApiForServer = (serverUrl, token, userId, serverTypeOverride 
 			serverRequest(`/Items/${itemId}/ThemeSongs?UserId=${userId}&InheritFromParent=${inheritFromParent}`),
 
 		getIntros: (itemId) =>
-			serverRequest(`/Users/${userId}/Items/${itemId}/Intros`),
+			serverRequest(serverUserRoutes.extras(itemId, 'Intros')),
 
 		searchRemote: searchRemoteVia(serverRequest),
 

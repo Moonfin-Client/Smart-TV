@@ -58,7 +58,6 @@ const request = async (method, path, body) => {
 		method,
 		headers: {
 			'Authorization': getAuthHeader(),
-			'X-Emby-Authorization': getAuthHeader(),
 			'Content-Type': 'application/json'
 		}
 	};
@@ -179,8 +178,7 @@ const measureTimeSync = async () => {
 		const t0 = Date.now();
 		const response = await fetch(`${serverUrl}/GetUtcTime`, {
 			headers: {
-				'Authorization': getAuthHeader(),
-				'X-Emby-Authorization': getAuthHeader()
+				'Authorization': getAuthHeader()
 			}
 		});
 		const t3 = Date.now();

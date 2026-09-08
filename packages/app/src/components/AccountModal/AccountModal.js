@@ -5,6 +5,7 @@ import Popup from '@enact/sandstone/Popup';
 import $L from '@enact/i18n/$L';
 import {useAuth} from '../../context/AuthContext';
 import {useSettings} from '../../context/SettingsContext';
+import {getUserImageUrl} from '../../services/jellyfinApi';
 
 import css from './AccountModal.module.less';
 
@@ -17,10 +18,10 @@ const UserIcon = () => (
 	</svg>
 );
 
-const UserAvatar = ({url, userId, username, imageTag, className, placeholderClass}) => {
+const UserAvatar = ({url, userId, username, imageTag, serverType, className, placeholderClass}) => {
 	const [failed, setFailed] = useState(false);
 	const handleError = useCallback(() => setFailed(true), []);
-	const avatarUrl = `${url}/Users/${userId}/Images/Primary?quality=90&maxHeight=150${imageTag ? `&tag=${imageTag}` : ''}`;
+	const avatarUrl = getUserImageUrl(url, userId, imageTag, serverType);
 
 	if (failed) {
 		return (
@@ -225,6 +226,7 @@ const AccountModal = ({
 								>
 									<UserAvatar
 										url={server.url}
+										serverType={server.serverType}
 										userId={server.userId}
 										username={server.username}
 										imageTag={imageTag}
