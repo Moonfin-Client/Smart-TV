@@ -6,6 +6,7 @@ import {fetchTmdbSeasonRatings, resolveSeriesTmdbId, isRatingSourceAllowed} from
 import {getItemSubtitlePref, getSeriesSubtitlePref, getSeriesAudioPref} from '../../services/subtitlePrefs';
 import {fromServerStream, matchSeriesTrackIndex} from '../../utils/seriesTrackPrefs';
 import {findParentCollection} from './parentCollection';
+import {getOnlineRecommendations} from '../../services/homeRecommendations';
 
 // Everything the screen shows about one item. The item itself is fetched first and rendered
 // on its own, then the rows that hang off it fill in behind, because waiting for all of them
@@ -19,6 +20,8 @@ const seedFrom = (candidate, id) => (candidate && candidate.Id === id ? candidat
 const useDetailsItem = ({itemId, initialItem, effectiveApi, effectiveServerUrl, settings, tagWithServerInfo, skip}) => {
 	const seedRef = useRef(initialItem);
 	seedRef.current = initialItem;
+	const settingsRef = useRef(settings);
+	settingsRef.current = settings;
 
 	const [item, setItem] = useState(() => seedFrom(initialItem, itemId));
 	// Whether what is on screen is still the row it was opened from rather than the record
@@ -217,8 +220,38 @@ const useDetailsItem = ({itemId, initialItem, effectiveApi, effectiveServerUrl, 
 				const needsExtras = data.Type === 'Movie' || data.Type === 'Episode' || data.Type === 'Video';
 				const needsBoxSet = data.Type === 'Movie' || data.Type === 'Video';
 
+				const fetchSimilar = async () => {
+					if (!needsSimilar) return null;
+					const currentSettings = settingsRef.current;
+					const source = currentSettings?.recommendationSystemSource || 'local';
+					if (source === 'server' && effectiveApi?.getSimilar) {
+						return effectiveApi.getSimilar(itemId, 100, 'moonfin').catch(() => null);
+					}
+					if (source === 'online') {
+						try {
+							const onlineCards = await getOnlineRecommendations(currentSettings, data).catch(() => []);
+							if (onlineCards && onlineCards.length > 0) {
+								return {Items: onlineCards};
+							}
+						} catch (_e) {
+							// Online recommendation failed, fall through to local
+						}
+					}
+					if (effectiveApi?.getMoonfinSimilar) {
+						try {
+							const moonbaseData = await effectiveApi.getMoonfinSimilar(itemId, 100).catch(() => null);
+							if (moonbaseData?.Items?.length) {
+								return moonbaseData;
+							}
+						} catch (_e) {
+							// Moonbase not present, fall through to stock
+						}
+					}
+					return effectiveApi?.getSimilar ? effectiveApi.getSimilar(itemId, 100).catch(() => null) : null;
+				};
+
 				const [similarData, extrasData, boxSet] = await Promise.all([
-					needsSimilar ? effectiveApi.getSimilar(itemId).catch(() => null) : Promise.resolve(null),
+					fetchSimilar(),
 					needsExtras ? effectiveApi.getSpecialFeatures(itemId).catch(() => null) : Promise.resolve(null),
 					needsBoxSet ? findParentCollection(effectiveApi, data).catch(() => null) : Promise.resolve(null)
 				]);

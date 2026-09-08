@@ -492,8 +492,13 @@ export const api = {
 	getEpisodes: (seriesId, seasonId = null) =>
 		request(`/Shows/${seriesId}/Episodes?UserId=${currentUser}${seasonId ? `&SeasonId=${seasonId}` : ''}&Fields=PrimaryImageAspectRatio,Overview,LocationType`),
 
-	getSimilar: (itemId, limit = 15) =>
-		request(`/Items/${itemId}/Similar?UserId=${currentUser}&Limit=${limit}&Fields=PrimaryImageAspectRatio,ProductionYear,OfficialRating`),
+	getSimilar: (itemId, limit = 100, bypass = null) => {
+		const bypassQuery = bypass ? `&bypass=${encodeURIComponent(bypass)}` : '';
+		return request(`/Items/${itemId}/Similar?UserId=${currentUser}&Limit=${limit}&Fields=PrimaryImageAspectRatio,ProductionYear,OfficialRating${bypassQuery}`);
+	},
+
+	getMoonfinSimilar: (itemId, limit = 100) =>
+		request(`/Moonfin/Items/${itemId}/Similar?limit=${limit}`),
 
 	getGenres: (libraryId, includeItemTypes = 'Movie,Series', sortBy = 'SortName', sortOrder = 'Ascending') => {
 		const params = libraryId ? `&ParentId=${libraryId}` : '';
@@ -977,8 +982,13 @@ export const createApiForServer = (serverUrl, token, userId, serverTypeOverride 
 		search: (query, limit = 240) =>
 			serverRequest(`${serverUserRoutes.items()}SearchTerm=${encodeURIComponent(query)}&IncludeItemTypes=Book,Movie,Series,Season,Episode,Video,MusicVideo,Trailer,Program,Playlist,Person,MusicArtist,MusicAlbum,Audio,PhotoAlbum,Photo,BoxSet,Folder&Recursive=true&Limit=${limit}&Fields=PrimaryImageAspectRatio,Overview,AlbumArtist,SeriesName,ParentIndexNumber,IndexNumber,ProviderIds,UserData`),
 
-		getSimilar: (itemId, limit = 12) =>
-			serverRequest(`/Items/${itemId}/Similar?UserId=${userId}&Limit=${limit}&Fields=PrimaryImageAspectRatio,Overview`),
+		getSimilar: (itemId, limit = 100, bypass = null) => {
+			const bypassQuery = bypass ? `&bypass=${encodeURIComponent(bypass)}` : '';
+			return serverRequest(`/Items/${itemId}/Similar?UserId=${userId}&Limit=${limit}&Fields=PrimaryImageAspectRatio,Overview${bypassQuery}`);
+		},
+
+		getMoonfinSimilar: (itemId, limit = 100) =>
+			serverRequest(`/Moonfin/Items/${itemId}/Similar?limit=${limit}`),
 
 		getSeasons: (seriesId) =>
 			serverRequest(`/Shows/${seriesId}/Seasons?UserId=${userId}&Fields=Overview,PrimaryImageAspectRatio`),

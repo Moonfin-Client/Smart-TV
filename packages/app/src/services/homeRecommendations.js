@@ -340,6 +340,14 @@ async function loadSeeds(api, sourceItem, sourceType) {
 	return resolveSeedEpisodes(api, (res && res.Items) || []);
 }
 
+function filterRecommendedItems(items, includeWatched) {
+	return (items || []).filter((item) => {
+		if (!item || !item.Id) return false;
+		if (!includeWatched && isPlayed(item)) return false;
+		return true;
+	});
+}
+
 // Builds one row per enabled index. Row N is seeded from the Nth item in the
 // shared seed pool, so seeds are only fetched once.
 export async function loadSinceYouWatchedRows(api, settings, enabledIndexes, onlineAllowed) {
@@ -349,7 +357,9 @@ export async function loadSinceYouWatchedRows(api, settings, enabledIndexes, onl
 	const sourceType = settings.sinceYouWatchedSourceType || 'movies';
 	const includeWatched = settings.sinceYouWatchedIncludeWatched === true;
 	const candidateItemTypes = candidateTypesFor(sourceType);
-	const online = settings.sinceYouWatchedSource === 'online' && onlineAllowed;
+	const source = settings.sinceYouWatchedSource || 'local';
+	const online = source === 'online' && onlineAllowed;
+	const isServer = source === 'server';
 
 	const seeds = await loadSeeds(api, sourceItem, sourceType);
 	if (seeds.length === 0) return [];
@@ -368,6 +378,38 @@ export async function loadSinceYouWatchedRows(api, settings, enabledIndexes, onl
 						items: onlineItems,
 						isSeerr: true
 					};
+				}
+			}
+
+			if (isServer && api.getSimilar) {
+				try {
+					const res = await api.getSimilar(seed.Id, 100, 'moonfin');
+					const filtered = filterRecommendedItems(res && res.Items, includeWatched).slice(0, 15);
+					if (filtered.length) {
+						return {
+							id: `sinceyouwatched${idx}`,
+							seedName: seed.Name || '',
+							items: filtered
+						};
+					}
+				} catch (_e) {
+					// Fall through to local
+				}
+			}
+
+			if (api.getMoonfinSimilar) {
+				try {
+					const res = await api.getMoonfinSimilar(seed.Id, 100);
+					const filtered = filterRecommendedItems(res && res.Items, includeWatched).slice(0, 15);
+					if (filtered.length) {
+						return {
+							id: `sinceyouwatched${idx}`,
+							seedName: seed.Name || '',
+							items: filtered
+						};
+					}
+				} catch (_e) {
+					// Moonbase unavailable, fall back to client scoring
 				}
 			}
 
@@ -419,7 +461,7 @@ async function fetchSeerrRecommendations(tmdbId, mediaType) {
 	}
 }
 
-async function getOnlineRecommendations(settings, seed) {
+export async function getOnlineRecommendations(settings, seed) {
 	const tmdbId = seed.ProviderIds && seed.ProviderIds.Tmdb;
 	if (!tmdbId) return [];
 	const mediaType = seed.Type === 'Series' ? 'tv' : 'movie';

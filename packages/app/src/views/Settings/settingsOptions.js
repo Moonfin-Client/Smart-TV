@@ -222,8 +222,15 @@ export const getGenresRowItemFilterOptions = () => [
 ];
 
 export const getSinceYouWatchedSourceOptions = () => [
-	{ value: 'local', label: $L('Local') },
-	{ value: 'online', label: $L('Online') }
+	{ value: 'local', label: $L('Moonfin Recommends') },
+	{ value: 'server', label: $L('Jellyfin Recommends') },
+	{ value: 'online', label: $L('TMDb Similarity') }
+];
+
+export const getRecommendationSystemSourceOptions = () => [
+	{ value: 'local', label: $L('Moonfin Recommends') },
+	{ value: 'server', label: $L('Jellyfin Recommends') },
+	{ value: 'online', label: $L('TMDb Similarity') }
 ];
 
 export const getSinceYouWatchedSourceItemOptions = () => [
