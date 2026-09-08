@@ -2,19 +2,19 @@
 /* eslint-disable no-console */
 /**
  * Builds all three Tizen variants (Regular, Oblong, Legacy) sequentially.
- * Lint runs once at the start; individual builds skip it via --skip-lint.
+ * Lint runs once at the start, and individual builds skip it via --skip-lint.
  *
  * Usage:
  *   node scripts/build-all.js [<version>] [--signed] [--install]
  */
 
-const {execSync, spawnSync} = require('child_process');
+const {execSync} = require('child_process');
 const fs = require('fs');
 const path = require('path');
+const {LINT_DIRS, runLintGate} = require('../../../scripts/lint-gate');
 
 const ROOT = path.resolve(__dirname, '..');
 const REPO_ROOT = path.resolve(ROOT, '..', '..');
-const APP_DIR = path.resolve(ROOT, '..', 'app');
 const SCRIPT = path.join(__dirname, 'build-wgt.js');
 
 const cyan = (t) => `\x1b[36m${t}\x1b[0m`;
@@ -26,16 +26,11 @@ const passArgs = process.argv.slice(2).filter(a => a !== '--skip-lint');
 
 // ── Lint gate (run once for all variants) ─────────────────────────────────────
 console.log(cyan('\nRunning lint checks...'));
-const lint = spawnSync('npx', ['enact', 'lint', '.'], {
-	cwd: APP_DIR,
-	env: process.env,
-	encoding: 'utf8'
-});
-if (lint.stdout) process.stdout.write(lint.stdout);
-if (lint.stderr) process.stderr.write(lint.stderr);
-if (lint.status !== 0 || /\bwarning\b/i.test(`${lint.stdout || ''}\n${lint.stderr || ''}`)) {
-	console.error(red('Lint check failed!'));
-	process.exit(1);
+for (const dir of LINT_DIRS) {
+	if (!runLintGate(dir)) {
+		console.error(red('Lint check failed!'));
+		process.exit(1);
+	}
 }
 console.log(green('Lint checks passed\n'));
 
