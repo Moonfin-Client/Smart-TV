@@ -123,6 +123,12 @@ const VALUE_CONVERSIONS = {
 	mediaBarCollectionIds: {
 		fromServer: normalizeGuidArray
 	},
+	screensaverLibraryIds: {
+		fromServer: normalizeGuidArray
+	},
+	screensaverCollectionIds: {
+		fromServer: normalizeGuidArray
+	},
 	// The item types and the source shared one server key until recently, so a stored
 	// profile can hold either setting's value under either name. Mapping through the sets
 	// each one actually offers drops whatever landed in the wrong place.
@@ -132,6 +138,10 @@ const VALUE_CONVERSIONS = {
 	},
 	mediaBarSourceType: {
 		fromServer: v => (v === 'library' || v === 'collection' ? v : undefined)
+	},
+	screensaverContentType: {
+		toServer: v => CONTENT_TYPE_TO_SERVER[v],
+		fromServer: v => CONTENT_TYPE_FROM_SERVER[v]
 	},
 	// The clock is a toggle here and a three way choice on the other clients. Anything that
 	// isn't "never" shows a clock, so the toggle reads as on.
@@ -238,6 +248,9 @@ export const SYNCABLE_KEYS = [
 	'radarrCalendarShowDate', 'sonarrCalendarShowDate', 'sonarrCalendarShowEpisodeInfo',
 	'showSeerrButton', 'showServerMessagesButton',
 	'screensaverMode', 'screensaverClockMode',
+	'screensaverBackdrop', 'screensaverComponent', 'screensaverMovement',
+	'screensaverPosition', 'screensaverSize', 'screensaverContentType',
+	'screensaverLibraryIds', 'screensaverCollectionIds', 'screensaverExcludedGenres',
 	'navbarAlwaysExpanded', 'oledMode', 'themeMusicLoop',
 	// Settings this app has no screen for. They ride along so a value set on another client
 	// survives the profile the TV writes back.
@@ -562,6 +575,34 @@ export function SettingsProvider({children}) {
 					stored.screensaverClockMode = stored.screensaverShowClock === false
 						? 'off'
 						: (stored.screensaverMode === 'logo' ? 'bouncing' : 'staticCorner');
+					migrated = true;
+				}
+				if ('screensaverMode' in stored && !('screensaverBackdrop' in stored)) {
+					// The one mode picker became a backdrop plus a component. Logo drew
+					// itself on black and moved at a fixed pace, so that pairing is what
+					// those users keep.
+					if (stored.screensaverMode === 'logo') {
+						stored.screensaverBackdrop = 'black';
+						stored.screensaverComponent = 'moonfinLogo';
+						stored.screensaverMovement = 'fast';
+					} else if (stored.screensaverMode === 'library') {
+						stored.screensaverBackdrop = 'library';
+					}
+					migrated = true;
+				}
+				if ('screensaverClockMode' in stored && !('screensaverMovement' in stored)) {
+					// Only reached when the step above left the movement alone, which is
+					// what keeps a migrated logo from being replaced by the clock.
+					if (stored.screensaverClockMode === 'bouncing') {
+						stored.screensaverComponent = 'clock';
+						stored.screensaverMovement = 'fast';
+					} else if (stored.screensaverClockMode === 'staticCorner') {
+						stored.screensaverComponent = 'clock';
+						stored.screensaverMovement = 'staticCorner';
+					} else if (stored.screensaverClockMode === 'off') {
+						stored.screensaverComponent = 'none';
+						stored.screensaverMovement = 'fast';
+					}
 					migrated = true;
 				}
 				if (!stored.autoLoginBehavior && 'autoLogin' in stored) {

@@ -1577,9 +1577,16 @@ const AppContent = (props) => {
 			)}
 			<Screensaver
 				visible={showScreensaver}
-				mode={settings.screensaverMode || 'library'}
+				backdrop={settings.screensaverBackdrop || 'library'}
+				component={settings.screensaverComponent || 'none'}
+				movement={settings.screensaverMovement || 'moderate'}
+				position={settings.screensaverPosition || 'middle'}
+				size={settings.screensaverSize || 'medium'}
+				contentType={settings.screensaverContentType || 'both'}
+				libraryIds={settings.screensaverLibraryIds}
+				collectionIds={settings.screensaverCollectionIds}
+				excludedGenres={settings.screensaverExcludedGenres}
 				dimmingLevel={settings.screensaverDimmingLevel}
-				clockMode={settings.screensaverClockMode}
 				clockDisplay={settings.clockDisplay}
 				timeOffsetHours={settings.timeOffsetHours}
 				maxRating={settings.screensaverAgeFilter ? settings.screensaverMaxRating : null}

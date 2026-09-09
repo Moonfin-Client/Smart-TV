@@ -13,6 +13,7 @@ import {isBackKey} from '../../utils/keys';
 import {isTvKeyboardVisible} from '../../components/TVKeyboard/keyboardBus';
 import {isWebOS} from '../../platform';
 import ClearDataDialog from '../../components/ClearDataDialog';
+import ScreensaverPreview from '../../components/Screensaver/ScreensaverPreview';
 import {clearAllStorage} from '../../services/storage';
 import {clearImageCache} from '../../services/imageProxy';
 import {clearProxiedImageCache} from '../../hooks/useProxiedImage';
@@ -31,6 +32,7 @@ import useHomeRowsEditor from './useHomeRowsEditor';
 import useButtonLayoutEditor from './useButtonLayoutEditor';
 import useLibraryVisibility from './useLibraryVisibility';
 import useMediaBarSources from './useMediaBarSources';
+import useScreensaverSources from './useScreensaverSources';
 import useDiagnosticsLog from './useDiagnosticsLog';
 import renderDescriptorRow from './settingsDescriptorRow';
 import {CategoriesView, CategoryView, SubcategoryView, OptionsView} from './BrowseViews';
@@ -201,6 +203,12 @@ const Settings = ({ onBack, onLibrariesChanged, onRunSetupWizard, panelMode }) =
 				Spotlight.focus('media-bar-libraries-view');
 			} else if (cv.view === 'mediaBarCollections') {
 				Spotlight.focus('media-bar-collections-view');
+			} else if (cv.view === 'screensaverLibraries') {
+				Spotlight.focus('screensaver-libraries-view');
+			} else if (cv.view === 'screensaverCollections') {
+				Spotlight.focus('screensaver-collections-view');
+			} else if (cv.view === 'screensaverGenres') {
+				Spotlight.focus('screensaver-genres-view');
 			} else {
 				// Any screen not named above would otherwise leave focus where it
 				// already was, which is outside the panel. Each screen is a single
@@ -668,6 +676,14 @@ const Settings = ({ onBack, onLibrariesChanged, onRunSetupWizard, panelMode }) =
 	} = useMediaBarSources({api, settings, updateSettings, pushView, popView});
 
 	const {
+		screensaverLibraries, screensaverCollections, screensaverGenres,
+		tempScreensaverLibraryIds, tempScreensaverCollectionIds, tempScreensaverGenres,
+		screensaverSourcesLoading, openScreensaverLibraries, openScreensaverCollections, openScreensaverGenres,
+		toggleScreensaverLibrary, toggleScreensaverCollection, toggleScreensaverGenre,
+		saveScreensaverLibraries, saveScreensaverCollections, saveScreensaverGenres
+	} = useScreensaverSources({api, settings, updateSettings, pushView, popView});
+
+	const {
 		logEntries, logFilter, setLogFilter, logRenderLimit, setLogRenderLimit,
 		logMessage, sendingReport, openDiagnostics, handleClearLogs, handleSendReport
 	} = useDiagnosticsLog({currentViewName: currentView.view, pushView});
@@ -719,6 +735,19 @@ const Settings = ({ onBack, onLibrariesChanged, onRunSetupWizard, panelMode }) =
 			</div>
 		);
 	};
+
+	const renderScreensaverPreview = () => (
+		<ScreensaverPreview
+			backdrop={settings.screensaverBackdrop}
+			component={settings.screensaverComponent}
+			movement={settings.screensaverMovement}
+			position={settings.screensaverPosition}
+			size={settings.screensaverSize}
+			dimmingLevel={settings.screensaverDimmingLevel}
+			clockDisplay={settings.clockDisplay}
+			timeOffsetHours={settings.timeOffsetHours}
+		/>
+	);
 
 	const closeClearDataDialog = useCallback(() => setClearDataDialogOpen(false), []);
 	const openClearDataDialog = useCallback(() => setClearDataDialogOpen(true), []);
@@ -903,6 +932,9 @@ const Settings = ({ onBack, onLibrariesChanged, onRunSetupWizard, panelMode }) =
 			openExcludedGenres,
 			openMediaBarLibraries,
 			openMediaBarCollections,
+			openScreensaverLibraries,
+			openScreensaverCollections,
+			openScreensaverGenres,
 			openImdbLists,
 			openExternalTmdbLists,
 			openExternalCalendars,
@@ -918,7 +950,8 @@ const Settings = ({ onBack, onLibrariesChanged, onRunSetupWizard, panelMode }) =
 		serverVersion, availableThemes, activeThemeId, openThemes, openThemeStore, openHomeRows,
 		openDetailButtons, openOsdButtons, openDiagnostics,
 		openPinCode, openLibraries, openParentalControls, openQrLink, openRatingSources, openRowImageTypes, openExcludedGenres, openMediaBarLibraries,
-		openMediaBarCollections, openImdbLists, openExternalTmdbLists, openExternalCalendars,
+		openMediaBarCollections, openScreensaverLibraries, openScreensaverCollections, openScreensaverGenres,
+		openImdbLists, openExternalTmdbLists, openExternalCalendars,
 		openExternalCustomRows, openSeerrHomeRows, openScreen, handleMoonfinToggle, onRunSetupWizard
 	]);
 
@@ -1012,7 +1045,8 @@ const Settings = ({ onBack, onLibrariesChanged, onRunSetupWizard, panelMode }) =
 		imageCacheActions: renderImageCacheActions,
 		checkForUpdates: renderCheckForUpdates,
 		profileSync: renderProfileSync,
-		playbackTimePreview: renderPlaybackTimePreview
+		playbackTimePreview: renderPlaybackTimePreview,
+		screensaverPreview: renderScreensaverPreview
 	};
 
 	const rowDeps = {settings, updateSetting, toggleSetting, pushView, customRenderers};
@@ -1354,6 +1388,63 @@ const Settings = ({ onBack, onLibrariesChanged, onRunSetupWizard, panelMode }) =
 					onToggleSelection={toggleMediaBarCollection}
 					onCancel={popView}
 					onSave={saveMediaBarCollections}
+				/>
+			)}
+			{viewName === 'screensaverLibraries' && (
+				<MediaBarSourceView
+					viewSpotlightId='screensaver-libraries-view'
+					title={$L('Source Libraries')}
+					description={$L('Choose which libraries the screensaver picks artwork from.')}
+					loadingLabel={$L('Loading libraries...')}
+					loading={screensaverSourcesLoading}
+					items={screensaverLibraries}
+					itemIdKey='Id'
+					itemNameKey='Name'
+					selectedIds={tempScreensaverLibraryIds}
+					itemSpotlightPrefix='screensaver-lib'
+					cancelSpotlightId='screensaver-lib-cancel'
+					saveSpotlightId='screensaver-lib-save'
+					onToggleSelection={toggleScreensaverLibrary}
+					onCancel={popView}
+					onSave={saveScreensaverLibraries}
+				/>
+			)}
+			{viewName === 'screensaverCollections' && (
+				<MediaBarSourceView
+					viewSpotlightId='screensaver-collections-view'
+					title={$L('Source Collections')}
+					description={$L('Choose which collections the screensaver picks artwork from.')}
+					loadingLabel={$L('Loading collections...')}
+					loading={screensaverSourcesLoading}
+					items={screensaverCollections}
+					itemIdKey='Id'
+					itemNameKey='Name'
+					selectedIds={tempScreensaverCollectionIds}
+					itemSpotlightPrefix='screensaver-collection'
+					cancelSpotlightId='screensaver-collection-cancel'
+					saveSpotlightId='screensaver-collection-save'
+					onToggleSelection={toggleScreensaverCollection}
+					onCancel={popView}
+					onSave={saveScreensaverCollections}
+				/>
+			)}
+			{viewName === 'screensaverGenres' && (
+				<MediaBarSourceView
+					viewSpotlightId='screensaver-genres-view'
+					title={$L('Excluded Genres')}
+					description={$L('Artwork from the genres you pick here is left out of the screensaver.')}
+					loadingLabel={$L('Loading genres...')}
+					loading={screensaverSourcesLoading}
+					items={screensaverGenres}
+					itemIdKey='Id'
+					itemNameKey='Name'
+					selectedIds={tempScreensaverGenres}
+					itemSpotlightPrefix='screensaver-genre'
+					cancelSpotlightId='screensaver-genre-cancel'
+					saveSpotlightId='screensaver-genre-save'
+					onToggleSelection={toggleScreensaverGenre}
+					onCancel={popView}
+					onSave={saveScreensaverGenres}
 				/>
 			)}
 			<ClearDataDialog

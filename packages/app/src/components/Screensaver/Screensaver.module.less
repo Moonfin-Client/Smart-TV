@@ -1,3 +1,5 @@
+@import './screensaverLayers.less';
+
 .overlay {
 	position: fixed;
 	top: 0;
@@ -28,12 +30,6 @@
 	z-index: 2;
 }
 
-.logoContainer {
-	position: absolute;
-	width: 400px;
-	height: 200px;
-}
-
 .logoContainerCentered {
 	position: absolute;
 	top: 50%;
@@ -48,28 +44,6 @@
 	height: 100%;
 	object-fit: contain;
 	pointer-events: none;
-}
-
-.clockBase() {
-	position: absolute;
-	font-family: 'Museo Sans', sans-serif;
-	font-size: 42px;
-	font-weight: 300;
-	color: var(--theme-text-primary, #ffffff);
-	white-space: nowrap;
-	pointer-events: none;
-	text-shadow: 0 2px 8px rgba(var(--theme-scrim-rgb, 0, 0, 0), 0.8);
-	z-index: 3;
-}
-
-.clock {
-	.clockBase();
-}
-
-.clockFixed {
-	.clockBase();
-	bottom: 40px;
-	right: 50px;
 }
 
 .backdropContainer {
@@ -128,4 +102,163 @@
 	object-fit: contain;
 	pointer-events: none;
 	filter: drop-shadow(0 2px 6px rgba(var(--theme-scrim-rgb, 0, 0, 0), 0.7));
+}
+
+.screensaverComponentLayers(48px);
+
+.gradient {
+	position: absolute;
+	top: 0;
+	left: 0;
+	right: 0;
+	bottom: 0;
+	overflow: hidden;
+	background-color: #000000;
+}
+
+// A square wider than the screen diagonal, so the corners stay covered the whole
+// way round. Turning it is what swings the gradient through its own angle.
+.gradientOrbit {
+	position: absolute;
+	top: -80%;
+	left: -80%;
+	width: 260%;
+	height: 260%;
+	animation: screensaverOrbit 18s linear infinite;
+}
+
+.gradientFlash {
+	position: absolute;
+	top: 0;
+	left: 0;
+	right: 0;
+	bottom: 0;
+	opacity: 0;
+	animation: screensaverNeonFlash 4.5s linear infinite;
+}
+
+.gradientAccent {
+	position: absolute;
+	top: 0;
+	left: 0;
+	right: 0;
+	bottom: 0;
+	animation: screensaverAccentDrift 36s linear infinite;
+}
+
+.gradientAccentInner {
+	position: absolute;
+	top: 0;
+	left: 0;
+	right: 0;
+	bottom: 0;
+	animation: screensaverAccentBreath 18s linear infinite;
+}
+
+.gradientMoonfin .gradientOrbit {
+	background-image: linear-gradient(to left, #1a0526, #6b2087, #aa5cc3, #9c62c5, #7672cb, #3a8cd4, #00c6ff, #091426);
+}
+
+.gradientMoonfin .gradientAccentInner {
+	background-image: radial-gradient(circle closest-side, rgba(0, 198, 255, 0.58) 0%, rgba(0, 198, 255, 0.1) 65%, rgba(0, 198, 255, 0) 100%);
+}
+
+.gradientCalm .gradientOrbit {
+	background-image: linear-gradient(to left, #071b0f, #134223, #1f6b38, #2e8b57, #48b369, #68d388, #287a43, #0b2414);
+}
+
+.gradientCalm .gradientAccentInner {
+	background-image: radial-gradient(circle closest-side, rgba(104, 211, 136, 0.58) 0%, rgba(104, 211, 136, 0.1) 65%, rgba(104, 211, 136, 0) 100%);
+}
+
+.gradientAurora .gradientOrbit {
+	background-image: linear-gradient(to left, #02111c, #04483e, #00b894, #00cec9, #6c5ce7, #1a0e3d);
+}
+
+.gradientAurora .gradientAccentInner {
+	background-image: radial-gradient(circle closest-side, rgba(0, 206, 201, 0.58) 0%, rgba(0, 206, 201, 0.1) 65%, rgba(0, 206, 201, 0) 100%);
+}
+
+.gradientNeonPulse .gradientOrbit {
+	background-image: linear-gradient(to left, #080412, #2b004e, #c41264, #9000d0, #00b4d8, #0b2742, #05030d);
+}
+
+// The lit end of the same palette, faded in over the dim one so the whole wash
+// brightens on the beat rather than only the accent.
+.gradientNeonPulse .gradientFlash {
+	background-image: linear-gradient(to left, #080412, #2b004e, #ff78bd, #d466ff, #7affff, #0b2742, #05030d);
+}
+
+.gradientNeonPulse .gradientAccentInner {
+	background-image: radial-gradient(circle closest-side, rgba(255, 94, 171, 0.66) 0%, rgba(255, 94, 171, 0.24) 65%, rgba(255, 94, 171, 0) 100%);
+	animation-name: screensaverNeonAccent;
+	animation-duration: 4.5s;
+}
+
+@keyframes screensaverOrbit {
+	0% { transform: rotate3d(0, 0, 1, 0deg) scale3d(1.06, 1.06, 1); }
+	12.5% { transform: rotate3d(0, 0, 1, 45deg) scale3d(1.102, 1.102, 1); }
+	25% { transform: rotate3d(0, 0, 1, 90deg) scale3d(1.12, 1.12, 1); }
+	37.5% { transform: rotate3d(0, 0, 1, 135deg) scale3d(1.102, 1.102, 1); }
+	50% { transform: rotate3d(0, 0, 1, 180deg) scale3d(1.06, 1.06, 1); }
+	62.5% { transform: rotate3d(0, 0, 1, 225deg) scale3d(1.018, 1.018, 1); }
+	75% { transform: rotate3d(0, 0, 1, 270deg) scale3d(1, 1, 1); }
+	87.5% { transform: rotate3d(0, 0, 1, 315deg) scale3d(1.018, 1.018, 1); }
+	100% { transform: rotate3d(0, 0, 1, 360deg) scale3d(1.06, 1.06, 1); }
+}
+
+@keyframes screensaverAccentDrift {
+	0% { transform: translate3d(0, 16%, 0) scale3d(1.225, 1.225, 1); }
+	6.25% { transform: translate3d(7.65%, 11.31%, 0) scale3d(1.49, 1.49, 1); }
+	12.5% { transform: translate3d(14.14%, 0, 0) scale3d(1.6, 1.6, 1); }
+	18.75% { transform: translate3d(18.48%, -11.31%, 0) scale3d(1.49, 1.49, 1); }
+	25% { transform: translate3d(20%, -16%, 0) scale3d(1.225, 1.225, 1); }
+	31.25% { transform: translate3d(18.48%, -11.31%, 0) scale3d(0.96, 0.96, 1); }
+	37.5% { transform: translate3d(14.14%, 0, 0) scale3d(0.85, 0.85, 1); }
+	43.75% { transform: translate3d(7.65%, 11.31%, 0) scale3d(0.96, 0.96, 1); }
+	50% { transform: translate3d(0, 16%, 0) scale3d(1.225, 1.225, 1); }
+	56.25% { transform: translate3d(-7.65%, 11.31%, 0) scale3d(1.49, 1.49, 1); }
+	62.5% { transform: translate3d(-14.14%, 0, 0) scale3d(1.6, 1.6, 1); }
+	68.75% { transform: translate3d(-18.48%, -11.31%, 0) scale3d(1.49, 1.49, 1); }
+	75% { transform: translate3d(-20%, -16%, 0) scale3d(1.225, 1.225, 1); }
+	81.25% { transform: translate3d(-18.48%, -11.31%, 0) scale3d(0.96, 0.96, 1); }
+	87.5% { transform: translate3d(-14.14%, 0, 0) scale3d(0.85, 0.85, 1); }
+	93.75% { transform: translate3d(-7.65%, 11.31%, 0) scale3d(0.96, 0.96, 1); }
+	100% { transform: translate3d(0, 16%, 0) scale3d(1.225, 1.225, 1); }
+}
+
+@keyframes screensaverAccentBreath {
+	0% { opacity: 0.81; }
+	12.5% { opacity: 0.944; }
+	25% { opacity: 1; }
+	37.5% { opacity: 0.944; }
+	50% { opacity: 0.81; }
+	62.5% { opacity: 0.676; }
+	75% { opacity: 0.621; }
+	87.5% { opacity: 0.676; }
+	100% { opacity: 0.81; }
+}
+
+@keyframes screensaverNeonAccent {
+	0% { opacity: 0.712; }
+	12.5% { opacity: 0.916; }
+	25% { opacity: 1; }
+	37.5% { opacity: 0.916; }
+	50% { opacity: 0.712; }
+	62.5% { opacity: 0.509; }
+	75% { opacity: 0.424; }
+	87.5% { opacity: 0.509; }
+	100% { opacity: 0.712; }
+}
+
+@keyframes screensaverNeonFlash {
+	0% { opacity: 0.5; }
+	12.5% { opacity: 0.854; }
+	25% { opacity: 1; }
+	37.5% { opacity: 0.854; }
+	50% { opacity: 0.5; }
+	62.5% { opacity: 0.146; }
+	75% { opacity: 0; }
+	87.5% { opacity: 0.146; }
+	100% { opacity: 0.5; }
 }

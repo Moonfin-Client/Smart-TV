@@ -10,7 +10,7 @@ import {KIND, SETTINGS_SCHEMA, resolve, spotlightIdOf} from './settingsSchema';
 // a key that does not exist writes junk into settings, and a repeated spotlight id makes
 // a deep linked search result focus the wrong row.
 
-const CUSTOM_RENDERERS = ['moonfinStatus', 'seerrPanel', 'aboutDataActions', 'imageCacheActions', 'checkForUpdates', 'profileSync', 'playbackTimePreview'];
+const CUSTOM_RENDERERS = ['moonfinStatus', 'seerrPanel', 'aboutDataActions', 'imageCacheActions', 'checkForUpdates', 'profileSync', 'playbackTimePreview', 'screensaverPreview'];
 const KEYED = [KIND.TOGGLE, KIND.OPTION, KIND.SLIDER];
 
 // Enough of a context that every label, value and condition can be called.
