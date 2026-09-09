@@ -10,6 +10,12 @@ const RESOLUTIONS = {
 	res2160p: {width: 3840, height: 2160}
 };
 
+// A format the client draws itself is asked for as a sidecar. Take it off the
+// profile and the server has no way left to deliver it but to burn it into the
+// video, which is what turning direct play off is asking for.
+const ASS_FORMATS = ['ass', 'ssa'];
+const PGS_FORMATS = ['pgs', 'pgssub'];
+
 const resolutionConditions = ({width, height}) => ([
 	{Condition: 'LessThanEqual', Property: 'Width', Value: String(width), IsRequired: false},
 	{Condition: 'LessThanEqual', Property: 'Height', Value: String(height), IsRequired: false}
@@ -25,8 +31,9 @@ export const applyProfileTuning = (profile, settings = {}) => {
 			? settings.maxAudioChannels
 			: null);
 	const dropAss = settings.assDirectPlay === false;
+	const dropPgs = settings.enablePgsRendering === false;
 
-	if (!resolution && !channelCap && !dropAss) return profile;
+	if (!resolution && !channelCap && !dropAss && !dropPgs) return profile;
 
 	const tuned = {...profile};
 
@@ -61,9 +68,10 @@ export const applyProfileTuning = (profile, settings = {}) => {
 		});
 	}
 
-	if (dropAss) {
+	if (dropAss || dropPgs) {
+		const dropped = [...(dropAss ? ASS_FORMATS : []), ...(dropPgs ? PGS_FORMATS : [])];
 		tuned.SubtitleProfiles = (tuned.SubtitleProfiles || [])
-			.filter((subtitleProfile) => subtitleProfile.Format !== 'ass' && subtitleProfile.Format !== 'ssa');
+			.filter((subtitleProfile) => dropped.indexOf(subtitleProfile.Format) < 0);
 	}
 
 	return tuned;

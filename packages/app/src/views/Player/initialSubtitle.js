@@ -149,6 +149,7 @@ export const resolveInitialSubtitle = async (result, item, initialSubtitleIndex,
 	const pick = (subtitleMode) => bestSubtitle(streams, settings.subtitleLanguage, {
 		fallbackLanguage: settings.fallbackSubtitleLanguage,
 		preferSdh: settings.preferSdhSubtitles === true,
+		pgsDirectPlay: settings.enablePgsRendering !== false,
 		assDirectPlay: settings.assDirectPlay !== false,
 		subtitleMode
 	});

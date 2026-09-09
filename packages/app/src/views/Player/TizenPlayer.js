@@ -955,6 +955,47 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 		return pgsCanvasRef.current;
 	}, []);
 
+	// Draws a pgs track on the same canvas the ass renderer uses. The track is picked
+	// while the loading screen is still standing in for the player, so the wait is what
+	// gives the renderer somewhere to draw instead of handing it nothing.
+	const startPgsRenderer = useCallback(async (stream, isCurrent = () => true) => {
+		let canvas = null;
+		let renderer = null;
+		let failure = null;
+		try {
+			canvas = await waitForSubtitleCanvas(isCurrent);
+			if (canvas && stream?.deliveryUrl) {
+				renderer = await initPgsCanvasRenderer(canvas, stream);
+			}
+		} catch (err) {
+			failure = err;
+			console.error('[Player] PGS init failed', err);
+		}
+		if (!isCurrent()) {
+			if (renderer) disposePgsRenderer(renderer);
+			serverLogger.playback('Subtitle: pgs renderer discarded, a newer load took over', {
+				stream: describeSubtitleStream(stream)
+			});
+			return;
+		}
+		if (renderer) {
+			pgsRendererRef.current = renderer;
+			serverLogger.playback('Subtitle: pgs renderer started', {
+				stream: describeSubtitleStream(stream)
+			});
+		} else {
+			const context = {
+				stream: describeSubtitleStream(stream),
+				hasUrl: !!stream?.deliveryUrl,
+				hasCanvas: !!canvas
+			};
+			if (failure) context.error = failure.message || String(failure);
+			serverLogger.playbackError('Subtitle: pgs renderer did not start', context);
+		}
+		// the chosen track owns the screen now, so text left from the last one goes
+		setSubtitleTrackEvents(null);
+	}, [waitForSubtitleCanvas]);
+
 	// Draws an ass track on the canvas, falling back to server extracted text events
 	// when the renderer cant start. Every way out leaves a line in the log, since a
 	// track that was chosen and then never drew anything reads back as nothing at all.
@@ -1182,7 +1223,9 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 				// loads in the background once video is running
 				const decideSubtitleAction = (sub) => {
 					if (!sub) return {type: 'off'};
-					if (sub.isEmbeddedNative) return {type: 'native', stream: sub};
+					// A transcode leaves the embedded tracks out of the stream AVPlay is
+					// handed, so there is nothing there to select and the client draws it.
+					if (sub.isEmbeddedNative && result.playMethod !== playback.PlayMethod.Transcode) return {type: 'native', stream: sub};
 					// The server bakes a burn in track into the video itself, so drawing it
 					// client side as well would put the same line on screen twice. An ass
 					// track with direct play turned off is flagged this way too, and has to
@@ -1234,22 +1277,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 							if (stillCurrent()) setSubtitleTrackEvents(null);
 						}
 					} else if (action.type === 'pgs') {
-						try {
-							const renderer = await initPgsCanvasRenderer(pgsCanvasRef.current, sub);
-							if (!stillCurrent()) {
-								if (renderer) disposePgsRenderer(renderer);
-								return;
-							}
-							if (renderer) {
-								pgsRendererRef.current = renderer;
-							} else {
-								console.error('[Player] PGS renderer returned null');
-							}
-							setSubtitleTrackEvents(null);
-						} catch (err) {
-							console.error('[Player] Error initializing PGS renderer:', err);
-							if (stillCurrent()) setSubtitleTrackEvents(null);
-						}
+						await startPgsRenderer(sub, stillCurrent);
 					}
 				};
 
@@ -1981,16 +2009,10 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 					}
 				}
 			} else if (stream && stream.isEmbeddedNative && stream.isImageBased && settings.enablePgsRendering) {
-				// Native PGS track selection failed -- fall back to libpgs.
+				// Native PGS track selection failed, so draw the same track ourselves.
 				useNativeSubtitleRef.current = false;
 				avplaySetSilentSubtitle(true);
-				try {
-					const renderer = await initPgsCanvasRenderer(pgsCanvasRef.current, stream);
-					if (renderer) pgsRendererRef.current = renderer;
-				} catch (err) {
-					console.error('[Player] libpgs fallback failed:', err);
-				}
-				setSubtitleTrackEvents(null);
+				await startPgsRenderer(stream);
 				setCurrentSubtitleText(null);
 			} else if (stream && stream.isAss && supportsAssRenderer()) {
 				useNativeSubtitleRef.current = false;
@@ -2020,18 +2042,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 			} else if (stream && stream.isImageBased && settings.enablePgsRendering) {
 				useNativeSubtitleRef.current = false;
 				avplaySetSilentSubtitle(true);
-				try {
-					const renderer = await initPgsCanvasRenderer(pgsCanvasRef.current, stream);
-					if (renderer) {
-						pgsRendererRef.current = renderer;
-					} else {
-						console.error('[Player] PGS renderer returned null');
-					}
-					setSubtitleTrackEvents(null);
-				} catch (err) {
-					console.error('[Player] PGS init failed:', err);
-					setSubtitleTrackEvents(null);
-				}
+				await startPgsRenderer(stream);
 			} else {
 				avplaySetSilentSubtitle(true);
 				setSubtitleTrackEvents(null);
@@ -2044,7 +2055,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 		if (shouldClose) {
 			closeModal();
 		}
-	}, [item, subtitleStreams, closeModal, settings.enablePgsRendering, applyNativeSubtitleTrack, reloadWithSubtitleIndex, startAssRenderer]);
+	}, [item, subtitleStreams, closeModal, settings.enablePgsRendering, applyNativeSubtitleTrack, reloadWithSubtitleIndex, startAssRenderer, startPgsRenderer]);
 
 	const handleSelectSubtitle = useCallback(async (e) => {
 		const index = parseInt(e.currentTarget.dataset.index, 10);

@@ -77,6 +77,13 @@ describe('mapSubtitleStreamsFromMediaSource', () => {
 		expect(mapOne(subtitle({Codec: 'dvdsub', DeliveryMethod: 'External'})).isBurnIn).toBe(true);
 	});
 
+	it('leaves a track the server has to encode to the server', () => {
+		const mapped = mapOne(subtitle({Codec: 'PGSSUB', DeliveryMethod: 'Encode'}));
+
+		expect(mapped.isBurnIn).toBe(true);
+		expect(mapped.isEmbeddedNative).toBe(false);
+	});
+
 	it('marks nothing native when the whole source is server delivered', () => {
 		const streams = [
 			subtitle({Index: 3, DeliveryMethod: 'External'}),

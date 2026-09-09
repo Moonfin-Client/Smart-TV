@@ -138,6 +138,17 @@ describe('resolveInitialSubtitle', () => {
 		const picked = await resolveInitialSubtitle(result(), item, undefined, {subtitleMode: 'something-new'});
 		expect(picked).toBeUndefined();
 	});
+
+	test('turning pgs rendering off stops a bitmap track winning the tie', async () => {
+		const streams = [
+			{index: 1, language: 'eng', codec: 'subrip'},
+			{index: 2, language: 'eng', codec: 'PGSSUB'}
+		];
+		const settings = {subtitleMode: 'always', subtitleLanguage: 'eng'};
+
+		expect(await resolveInitialSubtitle({subtitleStreams: streams}, item, undefined, settings)).toBe(streams[1]);
+		expect(await resolveInitialSubtitle({subtitleStreams: streams}, item, undefined, {...settings, enablePgsRendering: false})).toBe(streams[0]);
+	});
 });
 
 describe('bestSubtitle', () => {
