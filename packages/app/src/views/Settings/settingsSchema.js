@@ -358,6 +358,7 @@ export const SETTINGS_SCHEMA = [
 				rows: [
 					{kind: KIND.SECTION, id: 'homeRowDisplay', label: () => $L('Home Row Display')},
 					{kind: KIND.OPTION, key: 'homeRowsStyle', label: () => $L('Row Type'), desc: () => $L('Classic keeps per-row image type and info overlay. Modern uses portrait-to-backdrop rows.'), options: getHomeRowsStyleOptions, fallback: () => $L('Modern'), icon: 'appscontents'},
+					{kind: KIND.TOGGLE, key: 'modernCardsOnMyMediaRow', label: () => $L('Modern cards on My Media row'), desc: () => $L('Display customizable posters that expand on focus. Disable to always show landscape thumbnail.'), icon: 'picture', when: (ctx) => ctx.settings.homeRowsStyle !== 'v1'},
 					{kind: KIND.TOGGLE, key: 'fullScreenRows', label: () => $L('Expanded Home Rows'), desc: () => $L('Limit home rows to 1 row per screen'), icon: 'aspectratio'},
 					{kind: KIND.TOGGLE, key: 'homeRowOverlay', label: () => $L('Home Row Info Overlay'), desc: () => $L('Show title and metadata for the focused item above classic rows'), icon: 'info', when: (ctx) => ctx.settings.homeRowsStyle === 'v1'},
 					{kind: KIND.OPTION, key: 'homeRowsPosterSize', label: () => $L('Home Row Card Display Size'), options: getPosterSizeOptions, fallback: () => $L('Default'), icon: 'photo_size_select_large'},
