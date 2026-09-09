@@ -189,6 +189,7 @@ const ModernMediaRow = ({
 								onSpotlightLeft={isFirst ? handleWrapLeft : null}
 								onSpotlightRight={isLast ? handleWrapRight : null}
 								isFocused={focusedItemId === item.Id}
+								isLibraryRow={rowId === 'library-tiles'}
 							/>
 						);
 					})}

@@ -213,7 +213,7 @@ export const SYNCABLE_KEYS = [
 	'backdropBlurHome', 'backdropBlurDetail',
 	'mediaBarSourceType', 'mediaBarLibraryIds', 'mediaBarCollectionIds',
 	'mediaBarOverlayColor', 'mediaBarOverlayOpacity',
-	'homeRows', 'homeRowsStyle', 'detailScreenStyle', 'detailExpandedTabs', 'fullScreenRows', 'homeRowsPosterSize', 'useSeriesThumbnails',
+	'homeRows', 'homeRowsStyle', 'modernCardsOnMyMediaRow', 'detailScreenStyle', 'detailExpandedTabs', 'fullScreenRows', 'homeRowsPosterSize', 'useSeriesThumbnails',
 	'hideDetailsMediaDescription', 'detailUseSeriesThumbnails', 'hideHomeMediaDescription',
 	'personalRatingStyle', 'recentlyReleasedSeriesType', 'mergeRecentRowsByType', 'playlistsGroupByType',
 	'useDetailedSubHeadings', 'showMediaDetailsOnLibraryPage', 'hideBackdropsInLibraries',

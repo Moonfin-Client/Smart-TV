@@ -195,6 +195,7 @@ export const defaultSettings = {
 	// Per row overrides keyed by row id. An absent id uses the global type above.
 	homeRowImageTypes: {},
 	homeRowsStyle: 'v2',
+	modernCardsOnMyMediaRow: true,
 	detailScreenStyle: 'v2',
 	personalRatingStyle: 'thumbs',
 	detailExpandedTabs: true,

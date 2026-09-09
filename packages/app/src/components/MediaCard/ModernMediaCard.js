@@ -77,7 +77,8 @@ const ModernMediaCard = ({
 	spotlightId,
 	onSpotlightLeft,
 	onSpotlightRight,
-	isFocused = false
+	isFocused = false,
+	isLibraryRow = false
 }) => {
 	const {settings} = useSettings();
 	const focusTimeoutRef = useRef(null);
@@ -92,6 +93,9 @@ const ModernMediaCard = ({
 	}, []);
 
 	const itemServerUrl = useMemo(() => item?._serverUrl || serverUrl, [item?._serverUrl, serverUrl]);
+
+	const isMyMedia = isLibraryRow || item?.Type === 'CollectionFolder' || item?.isLibraryTile;
+	const isStaticMyMedia = isMyMedia && settings.modernCardsOnMyMediaRow === false;
 
 	const imageUrl = useMemo(() => {
 		if (!item) return null;
@@ -177,8 +181,8 @@ const ModernMediaCard = ({
 			}
 		}
 
-		if (item.Type === 'CollectionFolder' || item.isLibraryTile) {
-			if (isFocused) {
+		if (item.Type === 'CollectionFolder' || item.isLibraryTile || isLibraryRow) {
+			if (isStaticMyMedia || isFocused) {
 				if (item.ImageTags?.Thumb) {
 					return getImageUrl(itemServerUrl, item.Id, 'Thumb', {maxWidth: 600, quality: 80});
 				}
@@ -187,11 +191,14 @@ const ModernMediaCard = ({
 				}
 			}
 
-			if (item.ImageTags?.Primary) {
+			if (!isStaticMyMedia && item.ImageTags?.Primary) {
 				return getImageUrl(itemServerUrl, item.Id, 'Primary', {maxHeight: 360, quality: 80});
 			}
 			if (item.ImageTags?.Thumb) {
 				return getImageUrl(itemServerUrl, item.Id, 'Thumb', {maxWidth: 600, quality: 80});
+			}
+			if (item.ImageTags?.Primary) {
+				return getImageUrl(itemServerUrl, item.Id, 'Primary', {maxWidth: 600, quality: 80});
 			}
 		}
 
@@ -220,7 +227,7 @@ const ModernMediaCard = ({
 		}
 
 		return null;
-	}, [item, itemServerUrl, isFocused, settings.useSeriesThumbnails]);
+	}, [item, itemServerUrl, isFocused, isStaticMyMedia, isLibraryRow, settings.useSeriesThumbnails]);
 
 	const handleClick = useCallback(() => {
 		onSelect?.(item);
@@ -261,10 +268,12 @@ const ModernMediaCard = ({
 	const sizeMultiplier = POSTER_SIZE_MULTIPLIERS[settings.homeRowsPosterSize] || 1;
 	const imageHeight = Math.round(360 * sizeMultiplier);
 	const isSquareItem = item?.Type === 'MusicAlbum' || item?.Type === 'Audio';
-	const cardWidth = isSquareItem ? imageHeight : Math.round((imageHeight * 2) / 3);
 	const expandedWidthFactor = platform === 'tizen' ? 16 / 9 : 1.65;
-	const expandedWidth = Math.max(cardWidth, Math.round(imageHeight * expandedWidthFactor));
-	const canRenderExpanded = !isSquareItem && (
+	const expandedWidth = Math.round(imageHeight * expandedWidthFactor);
+	const cardWidth = isStaticMyMedia
+		? expandedWidth
+		: (isSquareItem ? imageHeight : Math.round((imageHeight * 2) / 3));
+	const canRenderExpanded = !isStaticMyMedia && !isSquareItem && (
 		Boolean(metadata || item?.CommunityRating || (shouldShowOverview && overviewText)) ||
 		item?.Type === 'Genre' ||
 		item?.Type === 'CollectionFolder' ||
