@@ -10,10 +10,21 @@ const profile = () => ({
 		{Format: 'dvdsub', Method: 'Encode'}
 	],
 	CodecProfiles: [{Type: 'Video', Codec: 'hevc', Conditions: []}],
-	TranscodingProfiles: [{Container: 'ts', MaxAudioChannels: '6'}]
+	TranscodingProfiles: [
+		{Container: 'ts', Type: 'Video', MaxAudioChannels: '6'},
+		{Container: 'mp3', Type: 'Audio'}
+	]
 });
 
 const formats = (tuned) => tuned.SubtitleProfiles.map((p) => p.Format);
+
+const capped = (width, height) => ([
+	{Condition: 'LessThanEqual', Property: 'Width', Value: String(width), IsRequired: false},
+	{Condition: 'LessThanEqual', Property: 'Height', Value: String(height), IsRequired: false}
+]);
+
+const fhdPanel = {uhd: false, uhd8K: false};
+const uhdPanel = {uhd: true, uhd8K: false};
 
 describe('applyProfileTuning', () => {
 	it('leaves the profile alone when nothing is limited', () => {
@@ -48,14 +59,54 @@ describe('applyProfileTuning', () => {
 	it('caps the resolution without touching the subtitles', () => {
 		const tuned = applyProfileTuning(profile(), {maxVideoResolution: 'res1080p'});
 		expect(formats(tuned)).toHaveLength(6);
-		expect(tuned.CodecProfiles[0].Conditions).toEqual([
-			{Condition: 'LessThanEqual', Property: 'Width', Value: '1920', IsRequired: false},
-			{Condition: 'LessThanEqual', Property: 'Height', Value: '1080', IsRequired: false}
-		]);
+		expect(tuned.CodecProfiles[0].Conditions).toEqual(capped(1920, 1080));
+		expect(tuned.TranscodingProfiles[0].Conditions).toEqual(capped(1920, 1080));
 	});
 
 	it('caps the audio channels on the transcoding profiles', () => {
 		const tuned = applyProfileTuning(profile(), {downmixToStereo: true});
+		expect(tuned.TranscodingProfiles[0].MaxAudioChannels).toBe('2');
+	});
+
+	it('caps a 1080p panel when the user asked for no limit', () => {
+		const tuned = applyProfileTuning(profile(), {}, fhdPanel);
+		expect(tuned.CodecProfiles[0].Conditions).toEqual(capped(1920, 1080));
+		expect(tuned.TranscodingProfiles[0].Conditions).toEqual(capped(1920, 1080));
+	});
+
+	it('leaves the audio transcoding profile out of it', () => {
+		const tuned = applyProfileTuning(profile(), {}, fhdPanel);
+		expect(tuned.TranscodingProfiles[1]).toEqual({Container: 'mp3', Type: 'Audio'});
+	});
+
+	it('lets a 4K panel through to DCI 4K', () => {
+		const tuned = applyProfileTuning(profile(), {}, uhdPanel);
+		expect(tuned.CodecProfiles[0].Conditions).toEqual(capped(4096, 2160));
+	});
+
+	it('leaves an 8K panel uncapped', () => {
+		const original = profile();
+		expect(applyProfileTuning(original, {}, {uhd: true, uhd8K: true})).toBe(original);
+	});
+
+	it('takes the panel when the chosen resolution is larger than it', () => {
+		const tuned = applyProfileTuning(profile(), {maxVideoResolution: 'res2160p'}, fhdPanel);
+		expect(tuned.CodecProfiles[0].Conditions).toEqual(capped(1920, 1080));
+	});
+
+	it('takes the chosen resolution when it is smaller than the panel', () => {
+		const tuned = applyProfileTuning(profile(), {maxVideoResolution: 'res1080p'}, uhdPanel);
+		expect(tuned.CodecProfiles[0].Conditions).toEqual(capped(1920, 1080));
+	});
+
+	it('has no panel to cap to when nothing was detected', () => {
+		const original = profile();
+		expect(applyProfileTuning(original, {})).toBe(original);
+	});
+
+	it('keeps both caps on the same transcoding profile', () => {
+		const tuned = applyProfileTuning(profile(), {downmixToStereo: true}, fhdPanel);
+		expect(tuned.TranscodingProfiles[0].Conditions).toEqual(capped(1920, 1080));
 		expect(tuned.TranscodingProfiles[0].MaxAudioChannels).toBe('2');
 	});
 });

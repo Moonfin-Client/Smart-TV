@@ -387,9 +387,12 @@ export const getPlaybackInfo = async (itemId, options = {}) => {
 	const storedSettings = (await getFromStorage('settings')) || {};
 	const passthroughSettings = await getPlaybackAudioSettings(options, storedSettings);
 	const profileOptions = {...options, passthroughSettings};
-	const deviceProfile = options.deviceProfile ||
-		applyProfileTuning(await getDeviceProfile(serverType, profileOptions), storedSettings);
 	const capabilities = await getDeviceCapabilities(profileOptions);
+	const deviceProfile = applyProfileTuning(
+		options.deviceProfile || await getDeviceProfile(serverType, profileOptions),
+		storedSettings,
+		capabilities
+	);
 
 	// Cross-server: use item's server if available
 	const api = options.item ? getApiForItem(options.item) : jellyfinApi.api;
