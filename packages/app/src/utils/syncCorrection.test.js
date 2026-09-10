@@ -1,8 +1,18 @@
-import {createSkipGovernor, chooseCorrection, ATTEMPT_DEADLINE_MS, SETTLE_WINDOW_MS, MAX_FAILED_ATTEMPTS, MAX_SKIPS_PER_ITEM, DEFAULT_SEEK_ALLOWANCE_MS, MAX_SEEK_ALLOWANCE_MS, ALLOWANCE_DECAY_MS, MAX_WAIT_MS} from './syncCorrection';
-import {correctionOptions, SLOW_RATE, FAST_RATE} from './syncDrift';
+import {createSkipGovernor, chooseCorrection, ATTEMPT_DEADLINE_MS, SETTLE_WINDOW_MS, MAX_FAILED_ATTEMPTS, MAX_SKIPS_PER_ITEM, DEFAULT_SEEK_ALLOWANCE_MS, MAX_SEEK_ALLOWANCE_MS, ALLOWANCE_DECAY_MS, MAX_WAIT_MS, RETRY_MARGIN_MS} from './syncCorrection';
+import {correctionOptions} from './syncDrift';
 
 const playing = (nowMs, positionMs, driftMs) => ({nowMs, positionMs, driftMs, isPlaying: true, isBuffering: false});
 const stalled = (nowMs, positionMs, driftMs) => ({nowMs, positionMs, driftMs, isPlaying: true, isBuffering: true});
+
+// Skips that render but leave the set no nearer the group, until it stands down.
+const standDown = (g) => {
+	for (let i = 0; i < MAX_FAILED_ATTEMPTS; i++) {
+		const at = i * 10000;
+		g.onSkip({nowMs: at, fromMs: 10000, targetMs: 20000, driftMs: -10000});
+		g.evaluate(playing(at + 2000, 20000, -9000));
+		g.evaluate(playing(at + 2000 + SETTLE_WINDOW_MS, 20000 + SETTLE_WINDOW_MS, -9000));
+	}
+};
 
 // Issues a skip and walks it through landing and rendering.
 const landAndSettle = (g, {at, from, to}) => {
@@ -53,7 +63,7 @@ describe('createSkipGovernor', () => {
 			g.evaluate(playing(at + 2000, 20000, -9000));
 			// Rendering again, but no nearer the group than before.
 			const verdict = g.evaluate(playing(at + 2000 + SETTLE_WINDOW_MS, 20000 + SETTLE_WINDOW_MS, -9000));
-			expect(verdict).toBe(i === MAX_FAILED_ATTEMPTS - 1 ? 'nudge' : 'skip');
+			expect(verdict).toBe(i === MAX_FAILED_ATTEMPTS - 1 ? 'hold' : 'skip');
 		}
 		expect(g.hasGivenUp()).toBe(true);
 	});
@@ -85,7 +95,7 @@ describe('createSkipGovernor', () => {
 			expect(verdict).toBe('skip');
 			verdict = landAndSettle(g, {at: i * 10000, from: 10000, to: 20000});
 		}
-		expect(verdict).toBe('nudge');
+		expect(verdict).toBe('hold');
 		expect(g.skipsUsed()).toBe(MAX_SKIPS_PER_ITEM);
 	});
 
@@ -136,6 +146,24 @@ describe('createSkipGovernor', () => {
 		g.onSkip({nowMs: 0, fromMs: 10000, targetMs: 20000, driftMs: -10000});
 		g.cancel();
 		expect(g.evaluate(playing(2000, 10000, -3000))).toBe('skip');
+		expect(g.hasGivenUp()).toBe(false);
+	});
+
+	test('a group command hands back a stand down', () => {
+		const g = createSkipGovernor();
+		standDown(g);
+		expect(g.hasGivenUp()).toBe(true);
+		g.cancel();
+		expect(g.hasGivenUp()).toBe(false);
+		expect(g.evaluate(playing(40000, 20000, -9000))).toBe('skip');
+	});
+
+	test('a gap much worse than the one stood down over earns one more try', () => {
+		const g = createSkipGovernor();
+		standDown(g);
+		expect(g.evaluate(playing(40000, 20000, -9000))).toBe('hold');
+		expect(g.evaluate(playing(42000, 20000, -(9000 + RETRY_MARGIN_MS)))).toBe('hold');
+		expect(g.evaluate(playing(44000, 20000, -(9000 + RETRY_MARGIN_MS + 1)))).toBe('skip');
 		expect(g.hasGivenUp()).toBe(false);
 	});
 
@@ -197,37 +225,24 @@ describe('chooseCorrection', () => {
 		expect(chooseCorrection(-6000, 'skip', options, 4000)).toEqual({type: 'skip', aheadMs: 4000});
 	});
 
-	test('with rate nudges off, a lateness under the skip threshold is tolerated', () => {
-		const noSpeed = {...options, useSpeed: false};
-		expect(chooseCorrection(-1700, 'skip', noSpeed, 1500)).toEqual({type: 'none'});
-		expect(chooseCorrection(-2500, 'skip', noSpeed, 1500)).toEqual({type: 'skip', aheadMs: 1500});
-		expect(chooseCorrection(-2500, 'nudge', noSpeed, 1500)).toEqual({type: 'none'});
+	test('a lateness under the skip threshold is tolerated', () => {
+		expect(chooseCorrection(-1700, 'skip', options, 1500)).toEqual({type: 'none'});
+		expect(chooseCorrection(-500, 'skip', options, 1500)).toEqual({type: 'none'});
 	});
 
-	test('behind by a lot with skips used up, speeds up if the gap allows', () => {
-		expect(chooseCorrection(-3000, 'nudge', options, 1500)).toEqual({type: 'rate', rate: FAST_RATE});
-		expect(chooseCorrection(-30000, 'nudge', options, 1500)).toEqual({type: 'none'});
+	test('behind with skips used up, rides it out', () => {
+		expect(chooseCorrection(-3000, 'hold', options, 1500)).toEqual({type: 'none'});
+		expect(chooseCorrection(-30000, 'hold', options, 1500)).toEqual({type: 'none'});
 	});
 
-	test('behind by a little, speeds up', () => {
-		expect(chooseCorrection(-500, 'skip', options, 1500)).toEqual({type: 'rate', rate: FAST_RATE});
-	});
-
-	test('ahead by a little, slows down', () => {
-		expect(chooseCorrection(3000, 'skip', options, 1500)).toEqual({type: 'rate', rate: SLOW_RATE});
-	});
-
-	test('ahead by more than a nudge can take out, waits for the group', () => {
+	test('ahead of the group, waits the gap out either way', () => {
+		expect(chooseCorrection(3000, 'skip', options, 1500)).toEqual({type: 'wait', ms: 3000});
 		expect(chooseCorrection(7000, 'skip', options, 1500)).toEqual({type: 'wait', ms: 7000});
-		expect(chooseCorrection(7000, 'nudge', options, 1500)).toEqual({type: 'wait', ms: 7000});
+		expect(chooseCorrection(7000, 'hold', options, 1500)).toEqual({type: 'wait', ms: 7000});
 	});
 
 	test('ahead by too much to sit through, skips back', () => {
 		expect(chooseCorrection(MAX_WAIT_MS + 1, 'skip', options, 1500)).toEqual({type: 'skip', aheadMs: 0});
-		expect(chooseCorrection(MAX_WAIT_MS + 1, 'nudge', options, 1500)).toEqual({type: 'none'});
-	});
-
-	test('with rate nudges off, a lead is answered with a wait', () => {
-		expect(chooseCorrection(3000, 'skip', {...options, useSpeed: false}, 1500)).toEqual({type: 'wait', ms: 3000});
+		expect(chooseCorrection(MAX_WAIT_MS + 1, 'hold', options, 1500)).toEqual({type: 'none'});
 	});
 });

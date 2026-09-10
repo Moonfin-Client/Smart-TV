@@ -16,7 +16,7 @@ import {useSyncPlay} from '../../context/SyncPlayContext';
 import * as syncPlayService from '../../services/syncPlay';
 import {KEYS, isBackKey} from '../../utils/keys';
 import {isPreroll, nextInQueue, shouldAutoAdvance} from '../../utils/cinemaMode';
-import {driftMs, needsSeek, correctionOptions, DRIFT_CHECK_MS} from '../../utils/syncDrift';
+import {driftMs, needsSeek, correctionOptions, DRIFT_CHECK_MS, GROUP_SEEK_SETTLE_TIMEOUT_MS} from '../../utils/syncDrift';
 import {createReadyGate} from '../../utils/syncReady';
 import {createSkipGovernor, chooseCorrection} from '../../utils/syncCorrection';
 import {getImageUrl} from '../../utils/helpers';
@@ -103,8 +103,15 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 	// as already under way, never sends the seek, and holds the others until
 	// the film catches up with them.
 	const groupHoldRef = useRef(isInGroup);
-	// A seek the group commanded, until AVPlay reports it landed.
-	const groupSeekPendingRef = useRef(false);
+	// A seek the group commanded, until AVPlay reports it landed or the
+	// backstop stops waiting for it.
+	const groupSeekPendingRef = useRef(null);
+	const groupSeekSettleTimerRef = useRef(null);
+	const clearGroupSeekPending = useCallback(() => {
+		clearTimeout(groupSeekSettleTimerRef.current);
+		groupSeekSettleTimerRef.current = null;
+		groupSeekPendingRef.current = null;
+	}, []);
 	const syncPlaySample = useCallback(() => ({
 		isPlaying: avplayGetState() === 'PLAYING' && !groupHoldRef.current,
 		positionTicks: Math.floor(avplayGetCurrentTime() * 10000)
@@ -135,6 +142,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 		}
 	}, [item?.Id, isInGroup]);
 	useEffect(() => cancelSyncWait, [cancelSyncWait]);
+	useEffect(() => clearGroupSeekPending, [clearGroupSeekPending]);
 
 	const [isLoading, setIsLoading] = useState(true);
 	const [isBuffering, setIsBuffering] = useState(false);
@@ -373,6 +381,15 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 
 		setCurrentTime(time);
 		positionRef.current = ticks;
+
+		// A corrective skip is judged on every reading rather than only at the
+		// drift check, so it is seen landing without waiting for the next one.
+		skipGovernorRef.current.observe({
+			nowMs: Date.now(),
+			positionMs: ms,
+			isPlaying: state === 'PLAYING',
+			isBuffering: isBufferingRef.current
+		});
 
 		// AVPlay reports PLAYING as soon as play is issued, so a position that has
 		// visibly moved is the only proof the pipeline is running. The elapsed
@@ -2408,23 +2425,40 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 	// the group then waits on, so a difference within tolerance is left alone.
 	// AVPlay reports when the seek lands; a pause asked for is queued behind
 	// it, which also stops AVPlay's post-seek nudge from starting playback
-	// again, and Ready goes out once the set is sat on the target.
+	// again, and Ready goes out once the set is sat on the target. Some
+	// firmware never answers a seek at all, and the server holds the whole
+	// group on a Ready that never comes, so after a while the set reports
+	// where it stands and lets the server correct it from there.
 	const landGroupSeek = useCallback((target, pauseOnLand) => {
-		const settle = () => {
-			groupSeekPendingRef.current = false;
+		const reportPaused = () => {
 			if (!pauseOnLand) return;
 			setIsPaused(true);
 			readyGate.request();
 		};
-		let seek = null;
-		if (needsSeek(positionRef.current, target)) {
-			groupSeekPendingRef.current = true;
-			seek = avplaySeek(Math.floor(target / 10000));
+		if (!needsSeek(positionRef.current, target)) {
+			if (pauseOnLand && avplayGetState() === 'PLAYING') avplayPause();
+			reportPaused();
+			return;
 		}
+		clearGroupSeekPending();
+		const pending = {target};
+		groupSeekPendingRef.current = pending;
+		const settle = () => {
+			// The backstop can fire after the seek already settled, and a seek
+			// this one replaced settles along with it, so only the one still on
+			// record reports.
+			if (groupSeekPendingRef.current !== pending) return;
+			clearGroupSeekPending();
+			reportPaused();
+		};
+		const seek = avplaySeek(Math.floor(target / 10000));
 		if (pauseOnLand && avplayGetState() === 'PLAYING') avplayPause();
-		if (seek) seek.then(settle, settle);
-		else settle();
-	}, [readyGate]);
+		seek.then(settle, settle);
+		groupSeekSettleTimerRef.current = setTimeout(() => {
+			console.warn('[Player] Group seek did not land within', GROUP_SEEK_SETTLE_TIMEOUT_MS, 'ms, reporting as is');
+			settle();
+		}, GROUP_SEEK_SETTLE_TIMEOUT_MS);
+	}, [readyGate, clearGroupSeekPending]);
 
 	const executeSyncPlayCommand = useCallback((command, delay) => {
 		const {Command, PositionTicks, When} = command;
@@ -2502,16 +2536,13 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 			setIsPaused(false);
 		}
 		groupHoldRef.current = false;
-		groupSeekPendingRef.current = false;
-	}, [isInGroup]);
+		clearGroupSeekPending();
+	}, [isInGroup, clearGroupSeekPending]);
 
 	// Commands alone cant hold this in step, because the decoder loses a little
 	// wall clock time on every rebuffer and nothing measured it afterwards.
 	useEffect(() => {
-		// Never a rate nudge: AVPlay's audio does not survive a speed change,
-		// as Core found, so a wait or a skip covers every gap whatever the
-		// setting says.
-		const correction = {...correctionOptions(settings), useSpeed: false};
+		const correction = correctionOptions(settings);
 		if (!isInGroup || isPaused || !correction.enabled) return undefined;
 
 		const interval = setInterval(() => {

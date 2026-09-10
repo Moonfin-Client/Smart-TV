@@ -215,8 +215,8 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 		// after a join, when the server is waiting on this set's Ready, or
 		// while the group is paused or waiting. A set that starts an item the
 		// group is already playing is waited on by nobody, so it plays from
-		// where the group is and the drift check takes up the rest, as Core
-		// does. Held, it would sit paused for a command that never comes.
+		// where the group is and the drift check takes up the rest. Held, it
+		// would sit paused for a command that never comes.
 		if (isInGroup) {
 			const state = syncPlayService.getGroupState();
 			groupHoldRef.current = syncPlayService.isReadyOwed() || state !== 'Playing';
@@ -1200,8 +1200,8 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 
 	// A seek on the group's behalf. The server holds the group until this set
 	// reports Ready, so the report waits for the seek to land. A Seek command
-	// leaves the set paused there, as the other clients do, for the Unpause
-	// that follows once everyone has arrived.
+	// leaves the set paused there for the Unpause that follows once everyone
+	// has arrived.
 	const startGroupSeek = useCallback((target, pauseOnLand, playToSeek = false) => {
 		const video = videoRef.current;
 		if (!video) return;
@@ -1222,8 +1222,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 		syncLog('[Player] SyncPlay seek from', from / 10000000, 's to', target / 10000000, 's', {pauseOnLand, playToSeek, paused: video.paused, readyState: video.readyState});
 		// The hold lets a seek on the group's behalf run, so it has to be on
 		// record before the pipeline is started for it. A seek lands sooner
-		// with the pipeline running, which is also how the other clients do
-		// it: unpause, seek, pause once it is there.
+		// with the pipeline running: unpause, seek, pause once it is there.
 		groupSeekPendingRef.current = {from, target, pauseOnLand};
 		if (playToSeek && video.paused) video.play()?.catch?.(() => {});
 		groupSeekPendingRef.current.target = seekToTicks(target);
@@ -2485,10 +2484,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 	// Commands alone cant hold this in step, because the decoder loses a little
 	// wall clock time on every rebuffer and nothing measured it afterwards.
 	useEffect(() => {
-		// Never a rate nudge: this pipeline freezes for about a second after
-		// every playbackRate write, which the log showed putting the set three
-		// seconds behind and the group on hold, whatever the setting says.
-		const correction = {...correctionOptions(settings), useSpeed: false};
+		const correction = correctionOptions(settings);
 		if (!isInGroup || isPaused || !correction.enabled) return undefined;
 
 		let lastHeldDrift = 0;

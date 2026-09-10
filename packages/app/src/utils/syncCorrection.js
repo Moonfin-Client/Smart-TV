@@ -1,4 +1,4 @@
-import {TICKS_PER_MS, driftAction, SLOW_RATE} from './syncDrift';
+import {TICKS_PER_MS, driftAction, SKIP_THRESHOLD_MS} from './syncDrift';
 
 // Whether a corrective skip is worth making. A television that has just been
 // seeked keeps reporting the old position, then a frozen one while it
@@ -6,8 +6,8 @@ import {TICKS_PER_MS, driftAction, SLOW_RATE} from './syncDrift';
 // reading stalls the pipeline again: the loop that leaves one set scrubbing
 // in place at a frame a second while the rest of the group plays on. So a
 // skip is an attempt that has to land and render before the drift is
-// measured again, and skips that do not close the gap are given up on.
-// Mirrors Core's SyncCorrectionPolicy.
+// measured again, and after enough skips that do not close the gap the set
+// stands down, until a group command moves it or the gap gets much worse.
 
 // A landed seek sits within this of its target, allowing for a keyframe snap.
 export const LANDING_TOLERANCE_MS = 1500;
@@ -19,8 +19,13 @@ export const MAX_SETTLE_RATE = 1.5;
 export const ATTEMPT_DEADLINE_MS = 13000;
 // A skip must leave the gap at most this fraction of what it was, or it failed.
 export const IMPROVEMENT_RATIO = 0.6;
-// Consecutive failed skips before the set stops jumping at the gap.
+// Consecutive failed skips before the set stands down from jumping at the gap.
 export const MAX_FAILED_ATTEMPTS = 3;
+// Stood down, the set tries again only once the gap is worse than the one it
+// stood down over by this much.
+export const RETRY_MARGIN_MS = 5000;
+// A gap this large is worth another try whatever it stood down over.
+export const RETRY_GAP_MS = 3 * SKIP_THRESHOLD_MS;
 // Skips per item, never handed back, so no sequence of events can jump forever.
 export const MAX_SKIPS_PER_ITEM = 10;
 // A skip is aimed this far ahead of where the group is, before its cost has
@@ -32,7 +37,7 @@ export const MAX_SEEK_ALLOWANCE_MS = 8000;
 // every later skip too far ahead.
 export const ALLOWANCE_DECAY_MS = 500;
 // Ahead of the group by up to this much, the set pauses for exactly that
-// long. It costs no seek, cannot overshoot, and is the correction of choice
+// long. It costs no seek, cant overshoot, and is the correction of choice
 // on a set where a seek restarts the stream.
 export const MAX_WAIT_MS = 10000;
 export const MIN_WAIT_MS = 1000;
@@ -46,6 +51,7 @@ export const createSkipGovernor = () => {
 	let skips = 0;
 	let failed = 0;
 	let gaveUp = false;
+	let gaveUpResidualMs = 0;
 	let allowanceMs = null;
 
 	const learnSeekCost = (costMs) => {
@@ -87,37 +93,46 @@ export const createSkipGovernor = () => {
 		}
 	};
 
-	const noteFailure = () => {
+	const noteFailure = (residualMs) => {
 		failed += 1;
-		if (failed >= MAX_FAILED_ATTEMPTS) gaveUp = true;
+		if (failed >= MAX_FAILED_ATTEMPTS) {
+			gaveUp = true;
+			gaveUpResidualMs = residualMs;
+		}
 	};
 
-	// 'defer': nothing should be done this tick, the reading cannot be
-	// trusted. 'nudge': only a rate change is allowed. 'skip': anything.
+	// 'defer': nothing should be done this tick, the reading cant be trusted.
+	// 'hold': a wait is allowed but not a skip. 'skip': anything.
 	const evaluate = ({nowMs, positionMs, driftMs, isPlaying, isBuffering}) => {
 		observe({nowMs, positionMs, isPlaying, isBuffering});
 		if (isBuffering || !isPlaying) return 'defer';
+		const gap = Math.abs(driftMs || 0);
 		if (attempt) {
 			if (!attempt.settled) {
 				if (nowMs < attempt.deadlineMs) return 'defer';
 				// Never came back. Seeking at a set in this state pins it there.
 				const wasStart = attempt.start;
 				attempt = null;
-				if (!wasStart) noteFailure();
+				if (!wasStart) noteFailure(gap);
 				return 'defer';
 			}
 			const {preResidualMs: pre, start, settledAtMs, issuedAtMs} = attempt;
 			attempt = null;
 			if (!start) {
 				learnSeekCost(settledAtMs - issuedAtMs);
-				if (Math.abs(driftMs) <= Math.round(pre * IMPROVEMENT_RATIO)) {
+				if (gap <= Math.round(pre * IMPROVEMENT_RATIO)) {
 					failed = 0;
 				} else {
-					noteFailure();
+					noteFailure(gap);
 				}
 			}
 		}
-		if (gaveUp || skips >= MAX_SKIPS_PER_ITEM) return 'nudge';
+		if (gaveUp && gap > Math.max(RETRY_GAP_MS, gaveUpResidualMs + RETRY_MARGIN_MS)) {
+			// Whatever the set stood down over, this is worse. Worth one more try.
+			gaveUp = false;
+			failed = 0;
+		}
+		if (gaveUp || skips >= MAX_SKIPS_PER_ITEM) return 'hold';
 		return 'skip';
 	};
 
@@ -160,9 +175,12 @@ export const createSkipGovernor = () => {
 	};
 
 	// The position moved for another reason, a group command or a user seek,
-	// so whatever the open attempt would have measured is meaningless.
+	// so whatever the open attempt would have measured is meaningless, and
+	// so are the failures counted up before the group moved the set.
 	const cancel = () => {
 		attempt = null;
+		failed = 0;
+		gaveUp = false;
 	};
 
 	const reset = () => {
@@ -170,6 +188,7 @@ export const createSkipGovernor = () => {
 		skips = 0;
 		failed = 0;
 		gaveUp = false;
+		gaveUpResidualMs = 0;
 		allowanceMs = null;
 	};
 
@@ -187,34 +206,24 @@ export const createSkipGovernor = () => {
 };
 
 // What to do about a measured drift, given the governor's verdict. Behind,
-// only a skip or a faster rate makes up time; a skip is aimed ahead by the
-// seek allowance, so it lands on the group however far behind it started, and
-// below the skip threshold a lateness is tolerated. Ahead, a rate nudge if the
-// gap is small enough, otherwise a wait; a skip backwards only for a lead too
-// long to sit through.
+// only a skip makes up time, aimed ahead by the seek allowance so it lands on
+// the group however far behind it started, and under the skip threshold a
+// lateness is tolerated. Ahead, the set waits the gap out, and only a lead too
+// long to sit through is worth a skip backwards.
 //
-// Rate nudges are only for players whose pipeline survives one. An LG set
-// freezes for about a second after every playbackRate write, which puts it
-// further behind than the nudge was closing, and Core has found the same on
-// Samsung and Apple TV, so the television players pass useSpeed false
-// whatever the setting says.
+// Playing at a corrected rate is not on offer. An LG set freezes for about a
+// second after every playbackRate write, which puts it further behind than the
+// change was closing, and a Samsung set loses its audio on one.
 //   {type: 'skip', aheadMs} seek to the expected position plus aheadMs
-//   {type: 'rate', rate}    play at rate for the configured duration
 //   {type: 'wait', ms}      pause for ms
 //   {type: 'none'}
 export const chooseCorrection = (driftMs, verdict, options, allowanceMs) => {
 	if (verdict === 'defer' || driftMs == null) return {type: 'none'};
-	const action = driftAction(driftMs, options);
-	if (action.type !== 'seek') return action;
+	if (driftAction(driftMs, options).type !== 'seek') return {type: 'none'};
 	if (driftMs < 0) {
-		if (verdict === 'skip') return {type: 'skip', aheadMs: allowanceMs};
-		return driftAction(driftMs, {...options, useSkip: false});
+		return verdict === 'skip' ? {type: 'skip', aheadMs: allowanceMs} : {type: 'none'};
 	}
-	const size = driftMs;
-	if (options.useSpeed !== false && size > (options.speedMinMs ?? 0) && size < (options.speedMaxMs ?? Infinity)) {
-		return {type: 'rate', rate: SLOW_RATE};
-	}
-	if (size <= MAX_WAIT_MS) return size >= MIN_WAIT_MS ? {type: 'wait', ms: size} : {type: 'none'};
+	if (driftMs <= MAX_WAIT_MS) return driftMs >= MIN_WAIT_MS ? {type: 'wait', ms: driftMs} : {type: 'none'};
 	return verdict === 'skip' ? {type: 'skip', aheadMs: 0} : {type: 'none'};
 };
 

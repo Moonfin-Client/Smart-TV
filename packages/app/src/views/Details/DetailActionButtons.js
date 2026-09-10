@@ -141,8 +141,8 @@ const DetailActionButtons = ({
 				<span className={css.btnLabel}>{$L('Trailer')}</span>
 			</SpottableDiv>
 		)},
-		// Same button as Core: offered while in a SyncPlay group, and lit in the
-		// accent so it reads as the group's, next to a Play that stays as it is.
+		// Offered while in a SyncPlay group, and lit in the accent so it reads
+		// as the group's, next to a Play that stays as it is.
 		{id: 'watchWithGroup', when: inSyncPlayGroup && !isBook, render: () => (
 			<SpottableDiv className={css.btnWrapper} onClick={onWatchWithGroup} spotlightId="details-watch-with-group-btn">
 				<div className={css.btnAction}>

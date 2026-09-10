@@ -24,9 +24,6 @@ export const SyncPlayProvider = ({children}) => {
 	const [playQueueUpdate, setPlayQueueUpdate] = useState(null);
 	const queueSeqRef = useRef(0);
 	const queueItemRef = useRef(null);
-	// The group's position as of the last play queue update, and when that
-	// was, so a player opened for the group can start where the group is
-	// rather than at the beginning and be seeked from there.
 	const [displayMessage, setDisplayMessage] = useState(null);
 	const listenerRef = useRef(null);
 

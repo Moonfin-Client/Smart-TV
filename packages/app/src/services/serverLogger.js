@@ -255,8 +255,6 @@ export const serverLogger = {
 			: null);
 	},
 
-	isRecording: () => isRecording,
-
 	subscribe: (fn) => {
 		listeners.add(fn);
 		return () => listeners.delete(fn);

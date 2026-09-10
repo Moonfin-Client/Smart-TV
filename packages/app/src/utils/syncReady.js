@@ -15,9 +15,9 @@ export const MAX_STABILITY_CHECKS = 4;
 // rather than waiting for a canplay or playing event that a television does
 // not always raise after a seek.
 export const BUFFERING_POLL_MS = 500;
-// After this many looks the report goes out regardless, as Core's watchdog
-// does. The server holds the whole group on a Ready that never comes, and a
-// set that then stalls on unpause reports Buffering like any other stall.
+// After this many looks the report goes out regardless. The server holds the
+// whole group on a Ready that never comes, and a set that then stalls on
+// unpause reports Buffering like any other stall.
 export const MAX_BUFFERING_POLLS = 24;
 
 // Playing at normal speed the position should advance by roughly the window
