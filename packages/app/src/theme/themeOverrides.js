@@ -33,6 +33,7 @@ import trackOptionCss from '../components/TrackOptionRow/TrackOptionRow.module.l
 import modernDetailCss from '../views/Details/ModernDetailContent.module.less';
 import overviewCss from '../views/Details/ExpandableOverview.module.less';
 import tabBarCss from '../components/DetailsTabBar/DetailsTabBar.module.less';
+import backdropCss from '../components/BackdropLayer/BackdropLayer.module.less';
 import browseCss from '../views/Browse/Browse.module.less';
 import mediaCardCss from '../components/MediaCard/MediaCard.module.less';
 import modernCardCss from '../components/MediaCard/ModernMediaCard.module.less';
@@ -292,7 +293,7 @@ export const buildThemeOverrideCss = (theme, options = {}) => {
 	rule(`.${browseCss.ayaTitle}`, `color: ${onSurface}; text-shadow: 0 0 20px ${scrim(0.72)};`);
 	rule(`.${browseCss.ayaIndicator}`, `background: ${os(0.3)};`);
 	rule(`.${browseCss.ayaIndicatorActive}`, `background: ${onSurface};`);
-	rule(`.${browseCss.globalBackdropOverlay}`, `background: ${toCssColor(c.scrim)};`);
+	rule(`.${backdropCss.globalBackdropOverlay}`, `background: ${toCssColor(c.scrim)};`);
 	rule(`.${browseCss.featuredGradient}`, `background: -webkit-linear-gradient(top, ${scrim(0.3)} 0%, ${scrim(0.1)} 40%, ${scrim(0.8)} 100%); background: linear-gradient(to bottom, ${scrim(0.3)} 0%, ${scrim(0.1)} 40%, ${scrim(0.8)} 100%);`);
 	rule(`.${browseCss.loadingContainer} p, .${browseCss.detailPlaceholder} p, .${browseCss.empty}`, `color: ${os(0.7)};`);
 	// The card takes the media bar's own overlay color at three quarters of its

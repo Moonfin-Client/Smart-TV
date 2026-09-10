@@ -8,47 +8,74 @@ import useQuickReturnGrid from '../../hooks/useQuickReturnGrid';
 import {useAuth} from '../../context/AuthContext';
 import {useSettings} from '../../context/SettingsContext';
 import * as connectionPool from '../../services/connectionPool';
+import BackdropLayer from '../../components/BackdropLayer';
+import DetailsTabBar from '../../components/DetailsTabBar';
 import LoadingSpinner from '../../components/LoadingSpinner';
-import {getImageUrl, getPrimaryImageId} from '../../utils/helpers';
+import {getBackdropId, getImageUrl} from '../../utils/helpers';
 import {useStorage} from '../../hooks/useStorage';
 import useSortSettingsPanels from '../../hooks/useSortSettingsPanels';
 import useStartLetter from '../../hooks/useStartLetter';
 import {GRID_DIRECTIONS, IMAGE_SIZES, IMAGE_TYPES, LETTERS, capitalize, createGridKeyDown, createToolbarKeyDown, cycleValue, stopPropagation} from '../../utils/gridChrome';
+import {keepFocusInView} from '../../utils/focusScroll';
+
+import FocusedItemHud from './FocusedItemHud';
+import useFavoriteTabs from './useFavoriteTabs';
+import {cardMetrics, clampTabIndex, favoriteCardImage} from './favoriteTabs';
 
 import css from './Favorites.module.less';
 
 const SpottableDiv = Spottable('div');
 const SpottableButton = Spottable('button');
 const ToolbarContainer = SpotlightContainerDecorator({enterTo: 'last-focused', restrict: 'self-first'}, 'div');
-const GridContainer = SpotlightContainerDecorator({enterTo: 'last-focused', restrict: 'self-only'}, 'div');
+// The grid sits under the tab bar, so it lets focus leave upward rather than
+// keeping it to itself.
+const GridContainer = SpotlightContainerDecorator({enterTo: 'last-focused', restrict: 'self-first'}, 'div');
 const SortPanelContainer = SpotlightContainerDecorator({enterTo: 'last-focused', restrict: 'self-only'}, 'div');
 const SettingsPanelContainer = SpotlightContainerDecorator({enterTo: 'last-focused', restrict: 'self-only'}, 'div');
 
+// These labels are the plain English the translation is looked up by. Translating
+// here would freeze them before the locale has been picked, so they are left alone
+// until they are drawn.
 const SORT_OPTIONS = [
-	{key: 'SortName', field: 'SortName', order: 'Ascending', label: $L('Name')},
-	{key: 'DateCreated', field: 'DateCreated', order: 'Descending', label: $L('Date Added')},
-	{key: 'PremiereDate', field: 'PremiereDate', order: 'Descending', label: $L('Premiere Date')},
-	{key: 'CommunityRating', field: 'CommunityRating', order: 'Descending', label: $L('Community Rating')},
-	{key: 'CriticRating', field: 'CriticRating', order: 'Descending', label: $L('Critic rating')},
-	{key: 'DatePlayed', field: 'DatePlayed', order: 'Descending', label: $L('Last Played')},
-	{key: 'Runtime', field: 'Runtime', order: 'Ascending', label: $L('Runtime')}
+	{key: 'SortName', field: 'SortName', order: 'Ascending', label: 'Name'},
+	{key: 'DateCreated', field: 'DateCreated', order: 'Descending', label: 'Date Added'},
+	{key: 'PremiereDate', field: 'PremiereDate', order: 'Descending', label: 'Premiere Date'},
+	{key: 'CommunityRating', field: 'CommunityRating', order: 'Descending', label: 'Community Rating'},
+	{key: 'CriticRating', field: 'CriticRating', order: 'Descending', label: 'Critic rating'},
+	{key: 'DatePlayed', field: 'DatePlayed', order: 'Descending', label: 'Last Played'},
+	{key: 'Runtime', field: 'Runtime', order: 'Ascending', label: 'Runtime'}
 ];
 
 const TYPE_FILTERS = [
-	{key: 'all', label: $L('All'), types: 'Movie,Series,Episode,Person'},
-	{key: 'movies', label: $L('Movies'), types: 'Movie'},
-	{key: 'shows', label: $L('Shows'), types: 'Series'},
-	{key: 'episodes', label: $L('Episodes'), types: 'Episode'},
-	{key: 'people', label: $L('People'), types: 'Person'}
+	{key: 'all', label: 'All', types: 'Movie,Series,Episode,Person'},
+	{key: 'movies', label: 'Movies', types: 'Movie'},
+	{key: 'shows', label: 'Shows', types: 'Series'},
+	{key: 'episodes', label: 'Episodes', types: 'Episode'},
+	{key: 'people', label: 'People', types: 'Person'}
 ];
 
-const handleToolbarKeyDown = createToolbarKeyDown('favorites-grid');
-const handleGridKeyDown = createGridKeyDown(css.grid, 'favorites-letter-hash');
+const VIEW_STYLES = ['home', 'library'];
+const VIEW_STYLE_LABELS = {home: 'Home View', library: 'Library View'};
+
+// The tabbed layout leaves more of the picture showing, since the only thing
+// reading over it is the one line above the cards.
+const BACKDROP_OVERLAY_OPACITY = 0.85;
+
+const PAGE_AHEAD = 15;
+
+// Down out of the toolbar lands on the tabs in one layout and in the grid in the
+// other, so the handler is built once for each.
+const handleHomeToolbarKeyDown = createToolbarKeyDown('favorites-active-tab');
+const handleLibraryToolbarKeyDown = createToolbarKeyDown('favorites-grid');
+const handleTabsKeyDown = createToolbarKeyDown('favorites-grid', 'favorites-toolbar');
+const handleHomeGridKeyDown = createGridKeyDown(css.grid, 'favorites-active-tab');
+const handleLibraryGridKeyDown = createGridKeyDown(css.grid, 'favorites-letter-hash');
 
 const Favorites = ({onSelectItem, onSelectPerson, onHome, backHandlerRef}) => {
 	const {api, serverUrl, hasMultipleServers} = useAuth();
 	const {settings} = useSettings();
 	const unifiedMode = settings.unifiedLibraryMode && hasMultipleServers;
+	const isLegacy = typeof document !== 'undefined' && (' ' + document.documentElement.className + ' ').indexOf(' legacy ') >= 0;
 
 	const [allItems, setAllItems] = useState([]);
 	const [isLoading, setIsLoading] = useState(true);
@@ -58,6 +85,13 @@ const Favorites = ({onSelectItem, onSelectPerson, onHome, backHandlerRef}) => {
 	const [imageSize, setImageSize] = useStorage('favorites_imageSize', 'medium');
 	const [imageType, setImageType] = useStorage('favorites_imageType', 'poster');
 	const [gridDirection, setGridDirection] = useStorage('favorites_gridDirection', 'vertical');
+	// Which layout is showing is only known once it has been read back, so both
+	// loaders wait on it rather than fetching for a screen about to be replaced.
+	const [viewStyle, setViewStyle, viewStyleLoaded] = useStorage('favorites_viewStyle', 'home');
+	const isHome = viewStyle === 'home';
+
+	const [tabIndex, setTabIndex] = useState(0);
+	const [focusedItem, setFocusedItem] = useState(null);
 
 	const {getScrollTo: getGridScrollTo, quickReturn} = useQuickReturnGrid('favorites-grid');
 
@@ -76,14 +110,48 @@ const Favorites = ({onSelectItem, onSelectPerson, onHome, backHandlerRef}) => {
 	const apiFetchIndexRef = useRef(0);
 	const initialFocusDoneRef = useRef(false);
 
+	const sortOption = useMemo(() => {
+		return SORT_OPTIONS.find(o => o.key === sortKey) || SORT_OPTIONS[0];
+	}, [sortKey]);
+
+	const {
+		tabs,
+		itemsByKey,
+		countsByKey,
+		totalCount: tabsTotalCount,
+		isLoading: tabsLoading,
+		loadMore
+	} = useFavoriteTabs({
+		api,
+		sortBy: sortOption.field,
+		sortOrder: sortOption.order,
+		unifiedMode,
+		enabled: viewStyleLoaded && isHome
+	});
+
 	const {startLetter, handleLetterSelect, items} = useStartLetter({
 		allItems,
 		isLoading,
 		gridSpotlightId: 'favorites-grid'
 	});
 
-	const itemsRef = useRef(items);
-	itemsRef.current = items;
+	const activeIndex = clampTabIndex(tabIndex, tabs);
+	const activeTab = tabs[activeIndex] || null;
+	const cardType = isHome
+		? (activeTab?.cardType || 'portrait')
+		: (imageType === 'thumbnail' ? 'landscape' : 'portrait');
+
+	const displayItems = isHome ? (activeTab ? itemsByKey[activeTab.key] || [] : []) : items;
+	const displayTotal = isHome ? tabsTotalCount : totalCount;
+	const displayLoading = isHome ? tabsLoading : isLoading;
+
+	// The click and focus handlers read the list through this rather than closing
+	// over it, so switching tabs cant rebuild them and drop the focus.
+	const itemsRef = useRef(displayItems);
+	itemsRef.current = displayItems;
+
+	const activeKeyRef = useRef(null);
+	activeKeyRef.current = activeTab?.key || null;
 
 	const clientSideSort = useCallback((arr, key) => {
 		const sorted = [...arr];
@@ -121,7 +189,6 @@ const Favorites = ({onSelectItem, onSelectPerson, onHome, backHandlerRef}) => {
 				setAllItems(sorted);
 				setTotalCount(sorted.length);
 			} else {
-				const sortOption = SORT_OPTIONS.find(o => o.key === sortKey) || SORT_OPTIONS[0];
 				const params = {
 					Recursive: true,
 					Filters: 'IsFavorite',
@@ -149,25 +216,31 @@ const Favorites = ({onSelectItem, onSelectPerson, onHome, backHandlerRef}) => {
 			setIsLoading(false);
 			loadingMoreRef.current = false;
 		}
-	}, [api, sortKey, unifiedMode, clientSideSort, activeTypeFilter]);
+	}, [api, sortKey, sortOption, unifiedMode, clientSideSort, activeTypeFilter]);
 
 	useEffect(() => {
+		if (!viewStyleLoaded || isHome) return;
 		setIsLoading(true);
 		setAllItems([]);
 		loadingMoreRef.current = false;
 		apiFetchIndexRef.current = 0;
 		initialFocusDoneRef.current = false;
 		loadItems(0, false);
-	}, [sortKey, typeFilterKey, loadItems]);
+	}, [viewStyleLoaded, isHome, sortKey, typeFilterKey, loadItems]);
 
 	useEffect(() => {
-		if (items.length > 0 && !isLoading && !initialFocusDoneRef.current) {
+		if (displayItems.length > 0 && !displayLoading && !initialFocusDoneRef.current) {
 			setTimeout(() => {
 				Spotlight.focus('favorites-grid');
 				initialFocusDoneRef.current = true;
 			}, 100);
 		}
-	}, [items.length, isLoading]);
+	}, [displayItems.length, displayLoading]);
+
+	// Switching layout starts the other one from the top.
+	useEffect(() => {
+		initialFocusDoneRef.current = false;
+	}, [isHome]);
 
 	const handleItemClick = useCallback((ev) => {
 		const itemIndex = ev.currentTarget?.dataset?.index;
@@ -182,11 +255,21 @@ const Favorites = ({onSelectItem, onSelectPerson, onHome, backHandlerRef}) => {
 		}
 	}, [onSelectItem, onSelectPerson]);
 
+	const handleItemFocus = useCallback((ev) => {
+		const itemIndex = ev.currentTarget?.dataset?.index;
+		if (itemIndex === undefined) return;
+		setFocusedItem(itemsRef.current[parseInt(itemIndex, 10)] || null);
+	}, []);
+
 	const handleScrollStop = useCallback(() => {
+		if (isHome) {
+			loadMore(activeKeyRef.current);
+			return;
+		}
 		if (!unifiedMode && apiFetchIndexRef.current < totalCount && !isLoading && !loadingMoreRef.current) {
 			loadItems(apiFetchIndexRef.current, true);
 		}
-	}, [unifiedMode, totalCount, isLoading, loadItems]);
+	}, [isHome, loadMore, unifiedMode, totalCount, isLoading, loadItems]);
 
 	const handleSortSelect = useCallback((ev) => {
 		const key = ev.currentTarget?.dataset?.sortKey;
@@ -218,19 +301,59 @@ const Favorites = ({onSelectItem, onSelectPerson, onHome, backHandlerRef}) => {
 		setGridDirection(cycleValue(GRID_DIRECTIONS, gridDirection));
 	}, [gridDirection, setGridDirection]);
 
-	const isWideImage = imageType === 'thumbnail';
-	const posterHeight = isWideImage
-		? ({small: 120, medium: 160, large: 210, extraLarge: 260}[imageSize] || 160)
-		: ({small: 200, medium: 270, large: 350, extraLarge: 440}[imageSize] || 270);
+	// The whole screen is rebuilt underneath, so the panel steps out of the way and
+	// the focus waits on the button that opened it until the new grid can take it.
+	const handleCycleViewStyle = useCallback(() => {
+		setViewStyle(cycleValue(VIEW_STYLES, viewStyle));
+		handleCloseSettingsPanel();
+		setTimeout(() => Spotlight.focus('favorites-settings-btn'), 100);
+	}, [viewStyle, setViewStyle, handleCloseSettingsPanel]);
 
-	const gridItemSize = isWideImage
-		? ({small: {minWidth: 220, minHeight: 170}, medium: {minWidth: 280, minHeight: 220}, large: {minWidth: 360, minHeight: 280}, extraLarge: {minWidth: 440, minHeight: 340}}[imageSize] || {minWidth: 280, minHeight: 220})
-		: ({small: {minWidth: 130, minHeight: 270}, medium: {minWidth: 170, minHeight: 340}, large: {minWidth: 220, minHeight: 430}, extraLarge: {minWidth: 270, minHeight: 530}}[imageSize] || {minWidth: 170, minHeight: 340});
+	const tabsRef = useRef(tabs);
+	tabsRef.current = tabs;
+
+	const selectTabById = useCallback((id) => {
+		const index = tabsRef.current.findIndex((tab) => tab.key === id);
+		if (index >= 0) setTabIndex(index);
+	}, []);
+
+	const handleTabActivate = useCallback((id) => {
+		selectTabById(id);
+		setTimeout(() => Spotlight.focus('favorites-grid'), 100);
+	}, [selectTabById]);
+
+	// Moving along the tabs changes the grid under them, and rebuilding it for every
+	// tab the focus crosses is more than an older set can keep up with. The same
+	// list stays put and is scrolled back to the first card instead.
+	const gridScrollToRef = useRef(null);
+	const captureGridScrollTo = useCallback((fn) => {
+		gridScrollToRef.current = fn;
+		getGridScrollTo(fn);
+	}, [getGridScrollTo]);
+
+	useEffect(() => {
+		gridScrollToRef.current?.({index: 0, animate: false});
+		setFocusedItem(null);
+	}, [activeTab]);
+
+	const {posterHeight, itemSize: gridItemSize} = cardMetrics(cardType, imageSize);
+	const isRound = cardType === 'circle';
+
+	const targetBackdropUrl = useMemo(() => {
+		if (!isHome || !focusedItem || isLegacy || settings.showHomeBackdrop === false) return '';
+		const backdropId = getBackdropId(focusedItem);
+		if (!backdropId) return '';
+		return getImageUrl(focusedItem._serverUrl || serverUrl, backdropId, 'Backdrop', {maxWidth: 1280, quality: 80});
+	}, [isHome, focusedItem, isLegacy, settings.showHomeBackdrop, serverUrl]);
 
 	const renderItem = useCallback(({index, ...rest}) => {
-		const isNearEnd = index >= items.length - 50;
-		if (isNearEnd && !unifiedMode && apiFetchIndexRef.current < totalCount && !isLoading && !loadingMoreRef.current) {
-			loadItems(apiFetchIndexRef.current, true);
+		const isNearEnd = index >= itemsRef.current.length - (isHome ? PAGE_AHEAD : 50);
+		if (isNearEnd) {
+			if (isHome) {
+				loadMore(activeKeyRef.current);
+			} else if (!unifiedMode && apiFetchIndexRef.current < totalCount && !isLoading && !loadingMoreRef.current) {
+				loadItems(apiFetchIndexRef.current, true);
+			}
 		}
 
 		const item = itemsRef.current[index];
@@ -243,40 +366,30 @@ const Favorites = ({onSelectItem, onSelectPerson, onHome, backHandlerRef}) => {
 		}
 
 		const isPerson = item.Type === 'Person';
-		let imageId, imgApiType;
-		if (imageType === 'thumbnail') {
-			if (item.ImageTags?.Thumb) {
-				imageId = item.Id;
-				imgApiType = 'Thumb';
-			} else {
-				imageId = getPrimaryImageId(item);
-				imgApiType = 'Primary';
-			}
-		} else {
-			imageId = getPrimaryImageId(item);
-			imgApiType = 'Primary';
-		}
+		const {imageId, imageType: imgApiType} = favoriteCardImage(item, cardType);
 		const itemServerUrl = item._serverUrl || serverUrl;
 		const imageUrl = imageId ? getImageUrl(itemServerUrl, imageId, imgApiType, {maxHeight: 400, quality: 80}) : null;
+		const roundClass = isRound || isPerson ? css.personPoster : '';
 
 		return (
 			<SpottableDiv
 				{...rest}
 				className={css.itemCard}
 				onClick={handleItemClick}
+				onFocus={handleItemFocus}
 				data-index={index}
 			>
 				<div className={css.itemCardInner}>
 					{imageUrl ? (
 						<img
-							className={`${css.poster} ${isPerson ? css.personPoster : ''}`}
+							className={`${css.poster} ${roundClass}`}
 							style={{height: posterHeight}}
 							src={imageUrl}
 							alt={item.Name}
 							loading="lazy"
 						/>
 					) : (
-						<div className={css.posterPlaceholder} style={{height: posterHeight}}>
+						<div className={`${css.posterPlaceholder} ${roundClass}`} style={{height: posterHeight}}>
 							<svg viewBox="0 0 24 24" className={css.placeholderIcon}>
 								{isPerson
 									? <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z" />
@@ -296,22 +409,39 @@ const Favorites = ({onSelectItem, onSelectPerson, onHome, backHandlerRef}) => {
 				</div>
 			</SpottableDiv>
 		);
-	}, [serverUrl, handleItemClick, items.length, totalCount, isLoading, loadItems, imageType, posterHeight, unifiedMode]);
+	}, [serverUrl, handleItemClick, handleItemFocus, isHome, loadMore, totalCount, isLoading, loadItems, cardType, isRound, posterHeight, unifiedMode]);
 
-	const currentSort = SORT_OPTIONS.find(o => o.key === sortKey);
-	const sortLabel = currentSort ? $L(currentSort.label) : $L('Name');
+	const sortLabel = $L(sortOption.label);
 	const typeLabel = activeTypeFilter.key === 'all' ? '' : ` · ${$L(activeTypeFilter.label)}`;
 	const statusText = $L('{count} favorites sorted by {sortLabel}').replace('{count}', totalCount).replace('{sortLabel}', sortLabel) + typeLabel;
 
+	const tabBarTabs = useMemo(() => {
+		return tabs.map((tab) => ({id: tab.key, label: `${$L(tab.label)}: ${countsByKey[tab.key] || 0}`}));
+	}, [tabs, countsByKey]);
+
+	const emptyText = isHome ? $L('No favorites yet') : $L('No favorites found');
+
 	return (
 		<div className={css.page}>
+			{isHome && (
+				<BackdropLayer
+					targetUrl={targetBackdropUrl}
+					blurAmount={settings.backdropBlurHome}
+					overlayOpacity={BACKDROP_OVERLAY_OPACITY}
+				/>
+			)}
+
 			<div className={css.content}>
 				<div className={css.header}>
 					<div className={css.title}>{$L('Favorites')}</div>
-					<div className={css.itemCount}>{totalCount} {$L('Items')}</div>
+					<div className={css.itemCount}>{displayTotal} {$L('Items')}</div>
 				</div>
 
-				<ToolbarContainer className={css.toolbar} spotlightId="favorites-toolbar" onKeyDown={handleToolbarKeyDown}>
+				<ToolbarContainer
+					className={css.toolbar}
+					spotlightId="favorites-toolbar"
+					onKeyDown={isHome ? handleHomeToolbarKeyDown : handleLibraryToolbarKeyDown}
+				>
 					<SpottableButton className={css.toolbarBtn} onClick={onHome} spotlightId="favorites-home-btn">
 						<svg className={css.toolbarIcon} viewBox="0 0 24 24">
 							<path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z" />
@@ -330,34 +460,55 @@ const Favorites = ({onSelectItem, onSelectPerson, onHome, backHandlerRef}) => {
 						</svg>
 					</SpottableButton>
 
-					<div className={css.letterNav}>
-						{LETTERS.map((letter, index) => (
-							<SpottableButton
-								key={letter}
-								className={`${css.letterButton} ${startLetter === letter ? css.active : ''}`}
-								onClick={handleLetterSelect}
-								data-letter={letter}
-								spotlightId={index === 0 ? 'favorites-letter-hash' : undefined}
-							>
-								{letter}
-							</SpottableButton>
-						))}
-					</div>
+					{!isHome && (
+						<div className={css.letterNav}>
+							{LETTERS.map((letter, index) => (
+								<SpottableButton
+									key={letter}
+									className={`${css.letterButton} ${startLetter === letter ? css.active : ''}`}
+									onClick={handleLetterSelect}
+									data-letter={letter}
+									spotlightId={index === 0 ? 'favorites-letter-hash' : undefined}
+								>
+									{letter}
+								</SpottableButton>
+							))}
+						</div>
+					)}
 				</ToolbarContainer>
 
+				{isHome && (
+					<div className={css.hudRow}>
+						<FocusedItemHud item={focusedItem} serverUrl={serverUrl} />
+					</div>
+				)}
+
+				{isHome && tabBarTabs.length > 0 && (
+					<div className={css.tabRow} onKeyDown={handleTabsKeyDown} onFocus={keepFocusInView}>
+						<DetailsTabBar
+							tabs={tabBarTabs}
+							activeId={activeTab?.key}
+							activeSpotlightId="favorites-active-tab"
+							onSelect={selectTabById}
+							onActivate={handleTabActivate}
+							spotlightId="favorites-tabs"
+						/>
+					</div>
+				)}
+
 				<GridContainer className={css.gridContainer}>
-					{isLoading && items.length === 0 ? (
+					{displayLoading && displayItems.length === 0 ? (
 						<div className={css.loading}>
 							<LoadingSpinner />
 						</div>
-					) : items.length === 0 ? (
-						<div className={css.empty}>{$L('No favorites found')}</div>
+					) : displayItems.length === 0 ? (
+						<div className={css.empty}>{emptyText}</div>
 					) : (
 						<div className={css.gridWrapper}>
 							<VirtualGridList
 								className={css.grid}
-								cbScrollTo={getGridScrollTo}
-								dataSize={items.length}
+								cbScrollTo={captureGridScrollTo}
+								dataSize={displayItems.length}
 								itemRenderer={renderItem}
 								itemSize={gridItemSize}
 								direction={gridDirection}
@@ -365,17 +516,19 @@ const Favorites = ({onSelectItem, onSelectPerson, onHome, backHandlerRef}) => {
 								verticalScrollbar="hidden"
 								spacing={20}
 								onScrollStop={handleScrollStop}
-								onKeyDown={handleGridKeyDown}
+								onKeyDown={isHome ? handleHomeGridKeyDown : handleLibraryGridKeyDown}
 								spotlightId="favorites-grid"
 							/>
 						</div>
 					)}
 				</GridContainer>
 
-				<div className={css.statusBar}>
-					<div className={css.statusText}>{statusText}</div>
-					<div className={css.statusCount}>{items.length} | {totalCount}</div>
-				</div>
+				{!isHome && (
+					<div className={css.statusBar}>
+						<div className={css.statusText}>{statusText}</div>
+						<div className={css.statusCount}>{items.length} | {totalCount}</div>
+					</div>
+				)}
 			</div>
 
 			{showSortPanel && (
@@ -385,7 +538,7 @@ const Favorites = ({onSelectItem, onSelectPerson, onHome, backHandlerRef}) => {
 						spotlightId="fav-sort-panel"
 						onClick={stopPropagation}
 					>
-						<h2 className={css.sortPanelTitle}>{$L('Sort & Filter')}</h2>
+						<h2 className={css.sortPanelTitle}>{isHome ? $L('Sort By') : $L('Sort & Filter')}</h2>
 
 						<div className={css.sortSection}>
 							<div className={css.sortSectionLabel}>{$L('Sort By')}</div>
@@ -405,23 +558,26 @@ const Favorites = ({onSelectItem, onSelectPerson, onHome, backHandlerRef}) => {
 							))}
 						</div>
 
-						<div className={css.filterSection}>
-							<div className={css.sortSectionLabel}>{$L('Type')}</div>
-							{TYPE_FILTERS.map((filter, index) => (
-								<SpottableButton
-									key={filter.key}
-									className={`${css.sortOption} ${typeFilterKey === filter.key ? css.sortOptionActive : ''}`}
-									onClick={handleTypeFilterSelect}
-									data-filter-key={filter.key}
-									spotlightId={`fav-filter-option-${index}`}
-								>
-									<span className={css.radioCircle}>
-										{typeFilterKey === filter.key && <span className={css.radioFill} />}
-									</span>
-									<span className={css.sortOptionLabel}>{$L(filter.label)}</span>
-								</SpottableButton>
-							))}
-						</div>
+						{/* The tabs are the type picker in the other layout. */}
+						{!isHome && (
+							<div className={css.filterSection}>
+								<div className={css.sortSectionLabel}>{$L('Type')}</div>
+								{TYPE_FILTERS.map((filter, index) => (
+									<SpottableButton
+										key={filter.key}
+										className={`${css.sortOption} ${typeFilterKey === filter.key ? css.sortOptionActive : ''}`}
+										onClick={handleTypeFilterSelect}
+										data-filter-key={filter.key}
+										spotlightId={`fav-filter-option-${index}`}
+									>
+										<span className={css.radioCircle}>
+											{typeFilterKey === filter.key && <span className={css.radioFill} />}
+										</span>
+										<span className={css.sortOptionLabel}>{$L(filter.label)}</span>
+									</SpottableButton>
+								))}
+							</div>
+						)}
 					</SortPanelContainer>
 				</div>
 			)}
@@ -445,14 +601,17 @@ const Favorites = ({onSelectItem, onSelectPerson, onHome, backHandlerRef}) => {
 							<div className={css.settingValue}>{$L(capitalize(imageSize))}</div>
 						</SpottableButton>
 
-						<SpottableButton
-							className={css.settingRow}
-							onClick={handleCycleImageType}
-							spotlightId="fav-settings-image-type"
-						>
-							<div className={css.settingLabel}>{$L('Image Type')}</div>
-							<div className={css.settingValue}>{$L(capitalize(imageType))}</div>
-						</SpottableButton>
+						{/* Each tab already knows what shape its cards are. */}
+						{!isHome && (
+							<SpottableButton
+								className={css.settingRow}
+								onClick={handleCycleImageType}
+								spotlightId="fav-settings-image-type"
+							>
+								<div className={css.settingLabel}>{$L('Image Type')}</div>
+								<div className={css.settingValue}>{$L(capitalize(imageType))}</div>
+							</SpottableButton>
+						)}
 
 						<SpottableButton
 							className={css.settingRow}
@@ -461,6 +620,15 @@ const Favorites = ({onSelectItem, onSelectPerson, onHome, backHandlerRef}) => {
 						>
 							<div className={css.settingLabel}>{$L('Grid direction')}</div>
 							<div className={css.settingValue}>{$L(capitalize(gridDirection))}</div>
+						</SpottableButton>
+
+						<SpottableButton
+							className={css.settingRow}
+							onClick={handleCycleViewStyle}
+							spotlightId="fav-settings-view-style"
+						>
+							<div className={css.settingLabel}>{$L('View style')}</div>
+							<div className={css.settingValue}>{$L(VIEW_STYLE_LABELS[viewStyle] || VIEW_STYLE_LABELS.home)}</div>
 						</SpottableButton>
 					</SettingsPanelContainer>
 				</div>

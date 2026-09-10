@@ -18,7 +18,7 @@ import GalleryBanner from './GalleryBanner';
 import AyaBanner from './AyaBanner';
 import BannerBar from './BannerBar';
 import BookshelfBar from './BookshelfBar';
-import BackdropLayer from './BackdropLayer';
+import BackdropLayer from '../../components/BackdropLayer';
 import useBrowseData from './useBrowseData';
 import useSeerrRows from './useSeerrRows';
 import useExternalRows from './useExternalRows';

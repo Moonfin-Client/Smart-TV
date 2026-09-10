@@ -354,20 +354,26 @@ export const searchAllServers = async (query, limit = 20) => {
 	);
 };
 
+const DEFAULT_FAVORITE_TYPES = 'Movie,Series,Episode,Person';
+const DEFAULT_FAVORITE_FIELDS = 'PrimaryImageAspectRatio,ProductionYear,ParentIndexNumber,IndexNumber,SeriesName,ProviderIds,UserData';
+
 /**
  * Get favorites from all servers
+ * @param {Object} [options] - Types and fields to ask each server for
+ * @param {string} [options.includeItemTypes] - Comma separated item types
+ * @param {string} [options.fields] - Comma separated fields
  * @returns {Promise<Array>} All favorited items from all servers
  */
-export const getFavoritesFromAllServers = async () => {
+export const getFavoritesFromAllServers = async ({includeItemTypes, fields} = {}) => {
 	return executeAll(
 		async (api) => {
 			const fetchResult = await api.getItems({
 				Recursive: true,
 				Filters: 'IsFavorite',
-				IncludeItemTypes: 'Movie,Series,Episode,Person',
+				IncludeItemTypes: includeItemTypes || DEFAULT_FAVORITE_TYPES,
 				SortBy: 'SortName',
 				SortOrder: 'Ascending',
-				Fields: 'PrimaryImageAspectRatio,ProductionYear,ParentIndexNumber,IndexNumber,SeriesName,ProviderIds,UserData'
+				Fields: fields || DEFAULT_FAVORITE_FIELDS
 			});
 			return fetchResult.Items || [];
 		},

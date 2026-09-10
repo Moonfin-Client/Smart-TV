@@ -7,7 +7,7 @@ import {VirtualGridList} from '@enact/sandstone/VirtualList';
 
 import LoadingSpinner from '../../components/LoadingSpinner';
 import SpottableInput from '../../components/SpottableInput/SpottableInput';
-import BackdropLayer from '../Browse/BackdropLayer';
+import BackdropLayer from '../../components/BackdropLayer';
 import * as gamesApi from '../../services/gamesApi';
 import {useSettings} from '../../context/SettingsContext';
 import {gameDisplayTitle, gameFallbackColor, hideBrokenArt} from '../../utils/gameArt';
