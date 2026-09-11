@@ -55,7 +55,7 @@ import css from './Details.module.less';
 const Details = ({itemId: itemIdProp, initialItem, onPlay, onSelectItem, onSelectPerson, onSelectStudio, onItemDeleted, seerrNav, backHandlerRef}) => {
 	const {api, serverUrl, user} = useAuth();
 	const {settings} = useSettings();
-	const {pluginInfo} = useSeerr();
+	const {pluginInfo, isEnabled: seerrEnabled} = useSeerr();
 	const recommendationsSupported = pluginInfo?.recommendationsSupported === true;
 	const {isInGroup: isSyncPlayInGroup} = useSyncPlay();
 
@@ -120,6 +120,7 @@ const Details = ({itemId: itemIdProp, initialItem, onPlay, onSelectItem, onSelec
 		effectiveServerUrl,
 		settings,
 		recommendationsSupported,
+		seerrEnabled,
 		tagWithServerInfo,
 		skip: seerrOnly
 	});

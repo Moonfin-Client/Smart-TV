@@ -22,7 +22,7 @@ const seedFrom = (candidate, id) => (candidate && candidate.Id === id ? candidat
 // it ends up with.
 const SIMILAR_LIMIT = 15;
 
-const useDetailsItem = ({itemId, initialItem, effectiveApi, effectiveServerUrl, settings, recommendationsSupported, tagWithServerInfo, skip}) => {
+const useDetailsItem = ({itemId, initialItem, effectiveApi, effectiveServerUrl, settings, recommendationsSupported, seerrEnabled, tagWithServerInfo, skip}) => {
 	const seedRef = useRef(initialItem);
 	seedRef.current = initialItem;
 	// Read where they are used rather than depended on, so a change to either one
@@ -31,6 +31,10 @@ const useDetailsItem = ({itemId, initialItem, effectiveApi, effectiveServerUrl, 
 	settingsRef.current = settings;
 	const scoringRef = useRef(recommendationsSupported);
 	scoringRef.current = recommendationsSupported;
+	// A server with no Seerr behind it is never asked for missing titles, since that
+	// costs failed round trips on every collection opened and can answer nothing.
+	const seerrEnabledRef = useRef(seerrEnabled);
+	seerrEnabledRef.current = seerrEnabled;
 
 	const [item, setItem] = useState(() => seedFrom(initialItem, itemId));
 	// Whether what is on screen is still the row it was opened from rather than the record
@@ -79,6 +83,10 @@ const useDetailsItem = ({itemId, initialItem, effectiveApi, effectiveServerUrl, 
 			setIsLoading(false);
 			return;
 		}
+
+		// The Seerr pass is the one thing here that settles after the load has moved
+		// on, so its answer is dropped when the screen already shows something else.
+		let cancelled = false;
 
 		const loadItem = async () => {
 			const seed = seedFrom(seedRef.current, itemId);
@@ -201,15 +209,14 @@ const useDetailsItem = ({itemId, initialItem, effectiveApi, effectiveServerUrl, 
 					if (collectionData) {
 						const tagged = tagWithServerInfo(collectionData.Items || []);
 						setCollectionItems(tagged);
-						if (tagged.length > 0 && settingsRef.current?.seerrShowMissingCollectionItems !== false) {
+						if (tagged.length > 0 && seerrEnabledRef.current) {
 							fetchMissingCollectionItems({
 								boxSet: data,
 								members: tagged,
 								settings: settingsRef.current
 							}).then((missing) => {
-								if (missing.length > 0) {
-									setCollectionItems((prev) => mergeCollectionWithMissing(prev, missing));
-								}
+								if (cancelled || missing.length === 0) return;
+								setCollectionItems((prev) => mergeCollectionWithMissing(prev, missing));
 							}).catch(() => {});
 						}
 					}
@@ -295,15 +302,14 @@ const useDetailsItem = ({itemId, initialItem, effectiveApi, effectiveServerUrl, 
 						const tagged = tagWithServerInfo(members);
 						setParentCollectionName(boxSet.Name || $L('Collection'));
 						setParentCollection(tagged);
-						if (settingsRef.current?.seerrShowMissingCollectionItems !== false) {
+						if (seerrEnabledRef.current) {
 							fetchMissingCollectionItems({
 								boxSet,
 								members: tagged,
 								settings: settingsRef.current
 							}).then((missing) => {
-								if (missing.length > 0) {
-									setParentCollection((prev) => mergeCollectionWithMissing(prev, missing));
-								}
+								if (cancelled || missing.length === 0) return;
+								setParentCollection((prev) => mergeCollectionWithMissing(prev, missing));
 							}).catch(() => {});
 						}
 					}
@@ -318,6 +324,7 @@ const useDetailsItem = ({itemId, initialItem, effectiveApi, effectiveServerUrl, 
 			bg().catch(() => {});
 		};
 		loadItem();
+		return () => { cancelled = true; };
 	}, [effectiveApi, itemId, tagWithServerInfo, skip]);
 
 	useEffect(() => {

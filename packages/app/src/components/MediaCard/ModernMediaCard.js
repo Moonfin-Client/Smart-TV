@@ -345,7 +345,7 @@ const ModernMediaCard = ({
 					<div className={css.serverBadge}>{item._serverName}</div>
 				)}
 
-				{item?._seerr && (item?._isMissing || item?._seerrMissing) ? (
+				{item?._seerr && item?._seerrMissing ? (
 					<div className={`${css.seerrBadge} ${css.seerrMissing}`}>
 						<SeerrIcon />
 					</div>
