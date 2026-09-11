@@ -28,16 +28,13 @@ export const resolveCollectionTmdbId = async (boxSet, members = []) => {
 		.filter((id) => Number.isFinite(id) && id > 0)
 		.slice(0, 4);
 
-	for (const tmdbId of movieCandidates) {
-		try {
-			// eslint-disable-next-line no-await-in-loop
-			const details = await seerrApi.getMovie(tmdbId);
-			if (details?.collection?.id) {
-				return details.collection.id;
-			}
-		} catch {
-			// ignore probe failure
-		}
+	// Asked for together rather than one after another, so the grid is not left
+	// waiting on four round trips.
+	const probed = await Promise.all(movieCandidates.map((tmdbId) =>
+		seerrApi.getMovie(tmdbId).catch(() => null)));
+
+	for (const details of probed) {
+		if (details?.collection?.id) return details.collection.id;
 	}
 
 	return null;
@@ -60,7 +57,6 @@ export const makeMissingCollectionItem = (part) => {
 		ProviderIds: {Tmdb: String(part.id)},
 		mediaInfo: part.mediaInfo || {status: MEDIA_STATUS.UNKNOWN},
 		_seerr: true,
-		_isMissing: true,
 		_seerrMissing: true,
 		_seerrType: 'item',
 		_seerrMediaType: 'movie',
@@ -94,8 +90,11 @@ export const fetchMissingCollectionItems = async ({boxSet, members = [], setting
 			libraryTitles.has((part.title || part.name)?.trim().toLowerCase())
 		).length;
 
-		// Guard: BoxSet must have adequate overlap so a custom/unrelated BoxSet doesn't adopt an entire franchise
-		if (overlap < (movieCount < 2 ? movieCount : 2)) return [];
+		// One match carries a single film set, two otherwise. Nothing matching means
+		// this collection describes something else, and a hand made set would take on
+		// a whole franchise.
+		if (overlap === 0) return [];
+		if (movieCount > 1 && overlap < 2) return [];
 
 		const missingParts = parts.filter((part) =>
 			!libraryTmdbIds.has(String(part.id)) &&

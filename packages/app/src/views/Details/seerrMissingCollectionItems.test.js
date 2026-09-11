@@ -82,7 +82,6 @@ describe('seerrMissingCollectionItems', () => {
 			expect(item.Type).toBe('Movie');
 			expect(item.ProductionYear).toBe(2019);
 			expect(item.PremiereDate).toBe('2019-07-13');
-			expect(item._isMissing).toBe(true);
 			expect(item._seerrMissing).toBe(true);
 			expect(item._seerr).toBe(true);
 			expect(item._seerrMediaId).toBe(555);
@@ -131,7 +130,7 @@ describe('seerrMissingCollectionItems', () => {
 
 			expect(items).toHaveLength(3);
 			expect(items.map((i) => i.Name)).toEqual(['Critters 3', 'Critters 4', 'Critters Attack!']);
-			expect(items.every((i) => i._isMissing)).toBe(true);
+			expect(items.every((i) => i._seerrMissing)).toBe(true);
 		});
 
 		test('guards against franchise adoption when overlap is insufficient', async () => {
@@ -150,6 +149,35 @@ describe('seerrMissingCollectionItems', () => {
 
 			expect(items).toEqual([]);
 		});
+
+		// A set holding no movies had only its own movie count to beat, and nothing
+		// beats nothing, so it took the whole franchise.
+		test('nothing matching is never enough, whatever the set holds', async () => {
+			seerrApi.getCollection.mockResolvedValue(seerrCollectionResponse);
+			const seriesOnly = [
+				{Id: 's1', Name: 'Some Show', Type: 'Series', ProviderIds: {Tmdb: '9001'}},
+				{Id: 's2', Name: 'Another Show', Type: 'Series', ProviderIds: {Tmdb: '9002'}}
+			];
+
+			expect(await fetchMissingCollectionItems({
+				boxSet: {Id: 'shows', ProviderIds: {Tmdb: '1000'}},
+				members: seriesOnly,
+				settings: {seerrShowMissingCollectionItems: true}
+			})).toEqual([]);
+		});
+
+		test('one match carries a single film set, and two are needed past that', async () => {
+			seerrApi.getCollection.mockResolvedValue(seerrCollectionResponse);
+			const oneFilm = [{Id: 'm1', Name: 'Critters', Type: 'Movie', ProviderIds: {Tmdb: '1001'}}];
+
+			const items = await fetchMissingCollectionItems({
+				boxSet: {Id: 'single', ProviderIds: {Tmdb: '1000'}},
+				members: oneFilm,
+				settings: {seerrShowMissingCollectionItems: true}
+			});
+
+			expect(items.length).toBeGreaterThan(0);
+		});
 	});
 
 	describe('mergeCollectionWithMissing', () => {
@@ -159,8 +187,8 @@ describe('seerrMissingCollectionItems', () => {
 				{Id: 'm4', Name: 'Critters 4', PremiereDate: '1992-10-14', ProductionYear: 1992}
 			];
 			const missing = [
-				{Id: 'seerr-movie-1002', Name: 'Critters 2', PremiereDate: '1988-04-29', ProductionYear: 1988, _isMissing: true},
-				{Id: 'seerr-movie-1005', Name: 'Critters Attack!', PremiereDate: '2019-07-13', ProductionYear: 2019, _isMissing: true}
+				{Id: 'seerr-movie-1002', Name: 'Critters 2', PremiereDate: '1988-04-29', ProductionYear: 1988, _seerrMissing: true},
+				{Id: 'seerr-movie-1005', Name: 'Critters Attack!', PremiereDate: '2019-07-13', ProductionYear: 2019, _seerrMissing: true}
 			];
 
 			const merged = mergeCollectionWithMissing(members, missing);

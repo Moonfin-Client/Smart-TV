@@ -355,6 +355,8 @@ export const buildThemeOverrideCss = (theme, options = {}) => {
 		rule(`.${cardCss.seerr4}`, `background: ${statusAvailable};`);
 		rule(`.${cardCss.seerr3}`, `border-color: ${statusRequested};`);
 		rule(`.${cardCss.seerr2}`, `background: ${onSurface}; border-color: ${statusPending};`);
+		rule(`.${cardCss.seerrMissing}`, `background: ${accent};`);
+		rule(`.${cardCss.seerrMissing} svg`, `fill: ${onBadge};`);
 	}
 	rule(`.${mediaCardCss.seriesName}`, `color: ${onSurface};`);
 	rule(`.${mediaCardCss.episodeInfo}, .${modernCardCss.secondaryTitle}`, `color: ${theme.id === 'neon_pulse' ? onSurface : os(0.6)};`);
