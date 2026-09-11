@@ -6,12 +6,11 @@ import RatingsRow from '../RatingsRow';
 import {getImageUrl} from '../../utils/helpers';
 import {useSettings} from '../../context/SettingsContext';
 import {getPlatform} from '../../platform';
+import {isStaticLibraryCard, modernCardMetrics} from './modernCardLayout';
 
 import css from './ModernMediaCard.module.less';
 
 const SpottableDiv = Spottable('div');
-
-const POSTER_SIZE_MULTIPLIERS = {small: 0.8, default: 1, large: 1.2, xlarge: 1.4};
 
 const toAbsoluteImageUrl = (url, serverUrl) => {
 	if (!url || typeof url !== 'string') return null;
@@ -94,8 +93,7 @@ const ModernMediaCard = ({
 
 	const itemServerUrl = useMemo(() => item?._serverUrl || serverUrl, [item?._serverUrl, serverUrl]);
 
-	const isMyMedia = isLibraryRow || item?.Type === 'CollectionFolder' || item?.isLibraryTile;
-	const isStaticMyMedia = isMyMedia && settings.modernCardsOnMyMediaRow === false;
+	const isStaticMyMedia = isStaticLibraryCard(isLibraryRow, settings);
 
 	const imageUrl = useMemo(() => {
 		if (!item) return null;
@@ -181,7 +179,7 @@ const ModernMediaCard = ({
 			}
 		}
 
-		if (item.Type === 'CollectionFolder' || item.isLibraryTile || isLibraryRow) {
+		if (item.Type === 'CollectionFolder' || item.isLibraryTile) {
 			if (isStaticMyMedia || isFocused) {
 				if (item.ImageTags?.Thumb) {
 					return getImageUrl(itemServerUrl, item.Id, 'Thumb', {maxWidth: 600, quality: 80});
@@ -227,7 +225,7 @@ const ModernMediaCard = ({
 		}
 
 		return null;
-	}, [item, itemServerUrl, isFocused, isStaticMyMedia, isLibraryRow, settings.useSeriesThumbnails]);
+	}, [item, itemServerUrl, isFocused, isStaticMyMedia, settings.useSeriesThumbnails]);
 
 	const handleClick = useCallback(() => {
 		onSelect?.(item);
@@ -265,14 +263,13 @@ const ModernMediaCard = ({
 		return rawOverview || $L('No description available.');
 	}, [item?.Overview, shouldShowOverview, item?._external]);
 
-	const sizeMultiplier = POSTER_SIZE_MULTIPLIERS[settings.homeRowsPosterSize] || 1;
-	const imageHeight = Math.round(360 * sizeMultiplier);
 	const isSquareItem = item?.Type === 'MusicAlbum' || item?.Type === 'Audio';
-	const expandedWidthFactor = platform === 'tizen' ? 16 / 9 : 1.65;
-	const expandedWidth = Math.round(imageHeight * expandedWidthFactor);
-	const cardWidth = isStaticMyMedia
-		? expandedWidth
-		: (isSquareItem ? imageHeight : Math.round((imageHeight * 2) / 3));
+	const {imageHeight, expandedWidth, cardWidth} = modernCardMetrics({
+		posterSize: settings.homeRowsPosterSize,
+		platform,
+		isSquareItem,
+		isStatic: isStaticMyMedia
+	});
 	const canRenderExpanded = !isStaticMyMedia && !isSquareItem && (
 		Boolean(metadata || item?.CommunityRating || (shouldShowOverview && overviewText)) ||
 		item?.Type === 'Genre' ||
