@@ -14,7 +14,8 @@ export const isCommentaryAudioStream = (stream) =>
 	stream?.isCommentary === true || COMMENTARY.test(streamTitleText(stream));
 
 export const isAudioDescriptionAudioStream = (stream) =>
-	stream?.isAudioDescription === true || AUDIO_DESCRIPTION.test(streamTitleText(stream));
+	stream?.isAudioDescription === true || stream?.IsAudioDescription === true ||
+	AUDIO_DESCRIPTION.test(streamTitleText(stream));
 
 const trackTitle = (stream) => String(stream?.title || stream?.displayTitle || '').trim().toLowerCase();
 

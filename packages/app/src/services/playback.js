@@ -2,6 +2,8 @@ import * as jellyfinApi from './jellyfinApi';
 import {getDeviceProfile, getDeviceCapabilities} from './deviceProfile';
 import {getPlayMethod, getMimeType, isAudioStreamPlayable} from './video';
 import {getFromStorage} from './storage';
+import {selectCompatibleAlternateAudio} from '../utils/alternateAudio';
+import {serverLogger} from './serverLogger';
 import {TEXT_SUBTITLE_CODECS, isAssSubtitleCodec, isPgsSubtitleCodec, isBurnInSubtitleCodec} from '../utils/subtitleCodecs';
 import {applyProfileTuning} from '../utils/deviceProfileTuning';
 import {findNextInSeason, findNextSeason, firstPlayableEpisode} from '../utils/nextEpisode';
@@ -550,18 +552,22 @@ export const getPlaybackInfo = async (itemId, options = {}) => {
 			// alternate in the SAME language (e.g. TrueHD default + E-AC3 secondary).
 			// Prefer that so the server keeps direct-playing the video instead of
 			// transcoding, which just hangs on Dolby Vision files on webOS.
-			// Restrict to the default's language (never switch to a foreign track)
-			// and pick the highest channel count (the main mix, not a commentary or
-			// descriptive downmix). With no same-language match we transcode as before.
-			const defaultLang = defaultAudioStream.Language;
-			const altStream = (mediaSource.MediaStreams || [])
-				.filter(s => s.Type === 'Audio' && s.Index !== defaultAudioStream.Index &&
-					(!defaultLang || s.Language === defaultLang) &&
-					isAudioStreamPlayable(s, capabilities, passthroughSettings))
-				.sort((a, b) => (b.Channels || 0) - (a.Channels || 0))[0] || null;
+			const altStream = selectCompatibleAlternateAudio(
+				mediaSource.MediaStreams, defaultAudioStream,
+				(s) => isAudioStreamPlayable(s, capabilities, passthroughSettings));
 
 			if (altStream) {
 				console.log(`[playback] Default audio (${defaultCodec}) unplayable \u2014 selecting compatible track ${altStream.Index} (${altStream.Codec}) to keep direct play`);
+				// A swapped audio track is the first thing to check when a viewer
+				// reports hearing the wrong one, so it belongs in the report and
+				// not only in a console nobody can reach on a retail set.
+				serverLogger.playback('Audio: default track unplayable, swapped to a compatible one', {
+					defaultIndex: defaultAudioStream.Index,
+					defaultCodec,
+					selectedIndex: altStream.Index,
+					selectedCodec: altStream.Codec,
+					selectedTitle: altStream.DisplayTitle || altStream.Title
+				});
 				const altInfo = await api.getPlaybackInfo(itemId, {
 					DeviceProfile: deviceProfile,
 					StartTimeTicks: requestedStartTime,
@@ -582,6 +588,10 @@ export const getPlaybackInfo = async (itemId, options = {}) => {
 			} else {
 				// No compatible alternate track \u2014 force an audio-only remux transcode.
 				console.log(`[playback] Default audio (${defaultCodec}) unplayable \u2014 forcing transcode (audio-only remux, video copied)`);
+				serverLogger.playback('Audio: default track unplayable, remuxing it on the server', {
+					defaultIndex: defaultAudioStream.Index,
+					defaultCodec
+				});
 				const retryInfo = await api.getPlaybackInfo(itemId, {
 					DeviceProfile: deviceProfile,
 					StartTimeTicks: requestedStartTime,
