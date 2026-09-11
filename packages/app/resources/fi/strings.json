@@ -1743,5 +1743,17 @@
     "Top-Right": "YläOikea",
     "Ultra": "Ultra",
     "Visual Components": "Visuaaliset komponentit",
-    "Runner": "Tuotantoapulainen"
+    "Runner": "Tuotantoapulainen",
+    "Display customizable posters that expand on focus. Disable to always show landscape thumbnail.": "Näytä muokattavia bannereita, jotka parantavat aihepiiriä. Poista tämä asetus käytöstä, jos haluat näyttää aina vaakasuuntaisen pikkukuvan.",
+    "Home View": "Etusivu Näkymä",
+    "Hybrid": "Hybridi",
+    "Jellyfin Recommends": "Jellyfin Suosittelee",
+    "Modern cards on My Media row": "Modernit kortit ”Oma Media” rivillä",
+    "Moonfin Recommends": "Moonfin Suosittelee",
+    "Moonfin scores your own library, Jellyfin takes the picks from the server, TMDb uses Seerr, and Hybrid leads with the server then tops up locally": "Moonfin arvioi oman kirjastosi, Jellyfin hakee valinnat palvelimelta, TMDb käyttää Seerr-palvelua, ja Hybrid käyttää ensisijaisesti palvelinta ja täydentää tietoja paikallisesti",
+    "No favorites yet": "Ei vielä suosikkeja",
+    "Recommendation Source": "Suosittelujen Lähde",
+    "TMDb Similarity": "TMDb:n Samankaltaisuus",
+    "View style": "Näkymän tyyli",
+    "Watch now": "Katsele nyt"
 }
