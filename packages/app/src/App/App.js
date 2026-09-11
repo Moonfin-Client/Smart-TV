@@ -15,6 +15,7 @@ import {libraryIdOf, seerrDetailStub} from '../utils/seerrTarget';
 import serverLogger from '../services/serverLogger';
 import {isBackKey, KEYS} from '../utils/keys';
 import {applyPerfTier} from '../utils/perfTier';
+import {isLiveTvLibrary} from '../utils/liveTvLibrary';
 import {OLED_TUNING} from '../utils/oledMode';
 import {isTizen} from '../platform';
 import {initVideo, cleanupVideoElement, setupVisibilityHandler, setupPlatformLifecycle} from '../services/video';
@@ -757,7 +758,7 @@ const AppContent = (props) => {
 	}, []);
 
 	const handleSelectLibrary = useCallback(async (library) => {
-		if (library.CollectionType === 'livetv') {
+		if (isLiveTvLibrary(library)) {
 			if (settings.liveTvSkipGuide) {
 				let channels = null;
 				try {
@@ -1258,9 +1259,7 @@ const AppContent = (props) => {
 		}
 	};
 
-	// The nav button only offers Live TV on a server that has it, and re-reads the
-	// current server's libraries so switching servers never leaves it behind.
-	const hasLiveTv = libraries.some(lib => lib.CollectionType === 'livetv');
+	const hasLiveTv = libraries.some(isLiveTvLibrary);
 
 	const showNavBar = panelIndex !== PANELS.LOGIN &&
 		panelIndex !== PANELS.PLAYER &&

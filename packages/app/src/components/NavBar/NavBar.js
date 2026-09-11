@@ -9,6 +9,7 @@ import SeerrIcon from '../icons/SeerrIcon';
 import SyncPlayIcon from '../icons/SyncPlayIcon';
 import {FavoritesIcon, GenresIcon, HomeIcon, LiveTvIcon, MessagesIcon, SearchIcon, SettingsIcon, ShuffleIcon} from '../icons/navIcons';
 import useClock from '../../hooks/useClock';
+import {librariesForNav} from '../../utils/liveTvLibrary';
 import {shadowToCss, toCssColor, toCssColorWithAlpha} from '../../theme/themeSpec';
 import {resolveOverlayColor} from '../../theme/overlayColors';
 import {CONTENT_FOCUS_TARGETS, focusFirstContentTarget} from '../../utils/navFocusTargets';
@@ -54,12 +55,11 @@ const NavBar = ({
 	const showShuffle = settings.showShuffleButton !== false;
 	const showGenres = settings.showGenresButton !== false;
 	const showFavorites = settings.showFavoritesButton !== false;
-	// Only on a server that actually has a Live TV library, the same check the home
-	// screen's Live TV row makes.
 	const showLiveTv = settings.showLiveTvButton !== false && hasLiveTv;
 	const showSeerr = seerrEnabled && settings.showSeerrButton !== false;
 	const showSyncPlay = settings.syncplayEnabled !== false && settings.showSyncPlayButton !== false;
-	const showLibraries = settings.showLibrariesInToolbar !== false && libraries.length > 0;
+	const navLibraries = librariesForNav(libraries, showLiveTv);
+	const showLibraries = settings.showLibrariesInToolbar !== false && navLibraries.length > 0;
 	// Only with something to show, so the menu never has a button that does nothing.
 	const showMessages = settings.showServerMessagesButton === true && messages.length > 0;
 
@@ -154,7 +154,7 @@ const NavBar = ({
 
 					{showLibraries && (
 						<NavLibraries
-							libraries={libraries}
+							libraries={navLibraries}
 							slot={nextSlot()}
 							activeView={activeView}
 							onSelectLibrary={onSelectLibrary}
