@@ -1,6 +1,7 @@
 import $L from '@enact/i18n/$L';
 import {SpottableButton} from './PlayerConstants';
 import {CountdownRing, PlayGlyph, formatRemaining, useOverlayFocus} from './overlayParts';
+import AnimeMarkerPills, {useEpisodeMarker, hasAnimeMarkerPills} from '../../components/AnimeMarkerPills';
 
 import css from './NextUpOverlay.module.less';
 
@@ -21,13 +22,14 @@ const episodeLabel = (episode) => {
  * play button rather than under the card, so the countdown reads as part of the
  * thing it is about to do.
  */
-const NextUpOverlay = ({episode, imageUrl, countdown, timeout, countdownStyle, minimal, onPlay, onDismiss}) => {
+const NextUpOverlay = ({episode, imageUrl, serverUrl, countdown, timeout, countdownStyle, minimal, onPlay, onDismiss}) => {
 	useOverlayFocus('next-up-play-btn');
 
 	const counting = countdown != null && timeout > 0;
 	const showRing = counting && (countdownStyle === 'progressBar' || countdownStyle === 'both');
 	const showTimer = counting && (countdownStyle === 'timer' || countdownStyle === 'both');
 	const pill = episodeLabel(episode);
+	const marker = useEpisodeMarker(episode, {serverUrl});
 
 	return (
 		<div className={`${css.overlay} ${minimal ? css.minimal : ''}`}>
@@ -40,7 +42,12 @@ const NextUpOverlay = ({episode, imageUrl, countdown, timeout, countdownStyle, m
 				)}
 				<div className={css.info}>
 					<div className={css.eyebrow}>{$L('Up Next')}</div>
-					{pill && <div className={css.pill}>{pill}</div>}
+					{(pill || hasAnimeMarkerPills(marker)) && (
+						<div className={css.pills}>
+							{pill && <div className={css.pill}>{pill}</div>}
+							<AnimeMarkerPills marker={marker} />
+						</div>
+					)}
 					<div className={css.title}>{episode?.Name}</div>
 					{showTimer && (
 						<div className={css.timer}>

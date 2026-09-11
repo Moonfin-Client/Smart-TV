@@ -3,6 +3,7 @@ import {useCallback} from 'react';
 import {getImageUrl} from '../../utils/helpers';
 import {hidesMediaDescription, seriesThumbUrl} from './detailsMedia';
 import {SpottableDiv, RowContainer} from './detailsSpottables';
+import {AnimeEpisodePills} from '../../components/AnimeMarkerPills';
 
 import css from './Details.module.less';
 
@@ -43,6 +44,7 @@ const NextUpCard = ({episode, title, serverUrl, settings, onSelectItem}) => {
 				</div>
 				<div className={css.nextUpInfo}>
 					<span className={css.nextUpTitle}>{label ? `${label} - ${episode.Name}` : episode.Name}</span>
+					<AnimeEpisodePills episode={episode} serverUrl={serverUrl} className={css.nextUpMarkers} />
 					{!hideOverview && episode.Overview && <span className={css.nextUpOverview}>{episode.Overview}</span>}
 				</div>
 				<div className={css.nextUpPlayIcon}>

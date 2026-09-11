@@ -19,6 +19,7 @@ import {DETAIL_ICON_PATHS} from './detailIcons';
 import {iconViewBox} from '../../components/icons/iconViewBox';
 import {personalRatingIconPath, personalRatingLabel} from './personalRatingAction';
 import {arrange, seerrOnlyRow, DETAIL_ORDER_KEY, DETAIL_HIDDEN_KEY} from '../../utils/buttonLayout';
+import {AnimeEpisodePills, AnimeItemPills} from '../../components/AnimeMarkerPills';
 
 import css from './ModernDetailContent.module.less';
 
@@ -374,6 +375,7 @@ const ModernDetailContent = (props) => {
 						<div className={css.episodeBody}>
 							<span className={css.episodeName}>{label}</span>
 							{epRuntime && <span className={css.episodeMeta}>{epRuntime}</span>}
+							<AnimeEpisodePills episode={ep} serverUrl={effectiveServerUrl} large />
 							{ep.Overview && !hidesMediaDescription(ep, settings) && <p className={css.episodeOverview}>{ep.Overview}</p>}
 						</div>
 					</SpottableDiv>
@@ -715,6 +717,7 @@ const ModernDetailContent = (props) => {
 					<SeerrStatusBadge seerr={seerr} className={css.metaBadge} />
 				</div>
 			)}
+			<AnimeItemPills item={item} serverUrl={effectiveServerUrl} large />
 			{hasTech && (
 				<div className={css.techRow}>
 					{techSize && <span className={css.techSize}>{techSize}</span>}

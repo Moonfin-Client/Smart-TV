@@ -2858,6 +2858,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 					<NextUpOverlay
 						episode={nextEpisode}
 						imageUrl={getImageUrl(item._serverUrl || getServerUrl(), nextEpisode.Id, 'Primary', {maxWidth: 400, quality: 80})}
+						serverUrl={item._serverUrl || getServerUrl()}
 						countdown={nextEpisodeCountdown}
 						timeout={settings.nextUpTimeout ?? 7}
 						countdownStyle={settings.nextUpCountdownStyle ?? 'both'}

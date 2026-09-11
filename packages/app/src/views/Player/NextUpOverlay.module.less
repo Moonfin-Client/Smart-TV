@@ -81,8 +81,16 @@
 	font-size: 16px;
 }
 
-.pill {
+.pills {
+	display: flex;
+	flex-direction: row;
+	align-items: center;
+	flex-wrap: wrap;
+	.flex-wrap-gap(6px; 8px);
 	margin-top: 10px;
+}
+
+.pill {
 	padding: 3px 12px;
 	border-radius: 9px;
 	font-size: 16px;

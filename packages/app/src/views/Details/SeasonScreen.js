@@ -8,6 +8,7 @@ import {DETAIL_ICON_PATHS} from './detailIcons';
 import {SpottableDiv, HorizontalContainer} from './detailsSpottables';
 import {handleSeasonButtonKeyDown} from './detailsFocus';
 import {PosterBadges, WatchedCheckIcon, FavoriteHeartIcon} from './DetailBadges';
+import {AnimeEpisodePills} from '../../components/AnimeMarkerPills';
 
 import css from './Details.module.less';
 
@@ -133,6 +134,7 @@ const SeasonScreen = ({
 											{episodeRatings[ep.IndexNumber].toFixed(1)}
 										</span>
 									)}
+									<AnimeEpisodePills episode={ep} serverUrl={serverUrl} compact />
 								</span>
 							</div>
 							<span className={css.seasonEpTitle}>{ep.Name}</span>
