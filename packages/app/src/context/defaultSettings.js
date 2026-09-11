@@ -255,6 +255,7 @@ export const defaultSettings = {
 	forceTruehdPassthrough: false,
 	blockedRatings: [],
 	showSeerrButton: true,
+	seerrShowMissingCollectionItems: true,
 	// Off until asked for. An admin who wants it on for everyone can set it in the
 	// plugin's default settings.
 	showServerMessagesButton: false,

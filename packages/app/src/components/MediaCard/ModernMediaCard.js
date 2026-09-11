@@ -7,6 +7,7 @@ import {getImageUrl} from '../../utils/helpers';
 import {useSettings} from '../../context/SettingsContext';
 import {getPlatform} from '../../platform';
 import {isStaticLibraryCard, modernCardMetrics} from './modernCardLayout';
+import SeerrIcon from '../icons/SeerrIcon';
 
 import css from './ModernMediaCard.module.less';
 
@@ -344,9 +345,13 @@ const ModernMediaCard = ({
 					<div className={css.serverBadge}>{item._serverName}</div>
 				)}
 
-				{item?._seerr && [2, 3, 4, 5].includes(item?.mediaInfo?.status) && (
+				{item?._seerr && (item?._isMissing || item?._seerrMissing) ? (
+					<div className={`${css.seerrBadge} ${css.seerrMissing}`}>
+						<SeerrIcon />
+					</div>
+				) : item?._seerr && [2, 3, 4, 5].includes(item?.mediaInfo?.status) ? (
 					<div className={`${css.seerrBadge} ${css[`seerr${item.mediaInfo.status}`]}`} />
-				)}
+				) : null}
 
 				{showIndicators && item?.UserData?.Played && (
 					<div className={css.watchedBadge}>
