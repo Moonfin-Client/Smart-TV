@@ -7,7 +7,7 @@ import {useSyncPlay} from '../../context/SyncPlayContext';
 import {useServerMessages} from '../../context/ServerMessagesContext';
 import SeerrIcon from '../icons/SeerrIcon';
 import SyncPlayIcon from '../icons/SyncPlayIcon';
-import {FavoritesIcon, GenresIcon, HomeIcon, MessagesIcon, SearchIcon, SettingsIcon, ShuffleIcon} from '../icons/navIcons';
+import {FavoritesIcon, GenresIcon, HomeIcon, LiveTvIcon, MessagesIcon, SearchIcon, SettingsIcon, ShuffleIcon} from '../icons/navIcons';
 import useClock from '../../hooks/useClock';
 import {shadowToCss, toCssColor, toCssColorWithAlpha} from '../../theme/themeSpec';
 import {resolveOverlayColor} from '../../theme/overlayColors';
@@ -45,11 +45,13 @@ const trapVerticalEdges = (e) => {
 
 const Sidebar = ({
 	libraries = [],
+	hasLiveTv = false,
 	onHome,
 	onSearch,
 	onShuffle,
 	onGenres,
 	onFavorites,
+	onLiveTv,
 	onDiscover,
 	onSettings,
 	onSelectLibrary,
@@ -67,6 +69,9 @@ const Sidebar = ({
 	const showShuffle = settings.showShuffleButton !== false;
 	const showGenres = settings.showGenresButton !== false;
 	const showFavorites = settings.showFavoritesButton !== false;
+	// Only on a server that actually has a Live TV library, the same check the home
+	// screen's Live TV row makes.
+	const showLiveTv = settings.showLiveTvButton !== false && hasLiveTv;
 	const showSeerr = seerrEnabled && settings.showSeerrButton !== false;
 	const showSyncPlay = settings.syncplayEnabled !== false && settings.showSyncPlayButton !== false;
 	const showLibraries = settings.showLibrariesInToolbar !== false && libraries.length > 0;
@@ -140,6 +145,10 @@ const Sidebar = ({
 
 					{showFavorites && (
 						<SidebarItem Icon={FavoritesIcon} slot={nextSlot()} label={$L('Favorites')} onClick={onFavorites} />
+					)}
+
+					{showLiveTv && (
+						<SidebarItem Icon={LiveTvIcon} slot={nextSlot()} label={$L('Live TV')} onClick={onLiveTv} />
 					)}
 
 					{showSeerr && (

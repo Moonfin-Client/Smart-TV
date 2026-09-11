@@ -286,6 +286,7 @@ export const SETTINGS_SCHEMA = [
 					{kind: KIND.OPTION, key: 'shuffleContentType', label: () => $L('Shuffle Content Type Filter'), options: getContentTypeOptions, fallback: () => $L('Movies & TV Shows'), icon: 'shuffle', when: (ctx) => ctx.settings.showShuffleButton},
 					{kind: KIND.TOGGLE, key: 'showGenresButton', label: () => $L('Show Genres Button'), desc: () => $L('Show the genres button in the navigation bar'), icon: 'category'},
 					{kind: KIND.TOGGLE, key: 'showFavoritesButton', label: () => $L('Show Favorites Button'), desc: () => $L('Show the favorites button in the navigation bar'), icon: 'heart'},
+					{kind: KIND.TOGGLE, key: 'showLiveTvButton', label: () => $L('Show Live TV Button'), desc: () => $L('Show the Live TV button in the navigation bar when the server has a Live TV library'), icon: 'live_tv'},
 					{kind: KIND.TOGGLE, key: 'showLibrariesInToolbar', label: () => $L('Show Libraries in Toolbar'), desc: () => $L('Show the libraries button in the navigation bar'), icon: 'video_library'},
 					{kind: KIND.OPTION, key: 'folderViewMode', label: () => $L('Enable Folder View'), options: getFolderViewModeOptions, fallback: () => $L('Per Library'), icon: 'folder'},
 					{kind: KIND.TOGGLE, key: 'showSeerrButton', label: (ctx) => $L('Show {seerrLabel} Button').replace('{seerrLabel}', ctx.seerrLabel), desc: () => $L('Show the Seerr button in the navigation bar'), when: whenSeerr, icon: 'seerr'},
