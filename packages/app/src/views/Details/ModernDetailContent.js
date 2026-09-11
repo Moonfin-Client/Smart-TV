@@ -482,7 +482,6 @@ const ModernDetailContent = (props) => {
 	};
 
 	// The season cards carry a marker for what Seerr has, or is getting, for that season.
-	const showAvailabilityBadges = settings.showSeerrAvailabilityBadges ?? true;
 	const renderSeasonsGrid = () => (
 		<RowContainer className={css.grid}>
 			{seasons.map((season) => (
@@ -492,7 +491,7 @@ const ModernDetailContent = (props) => {
 					serverUrl={effectiveServerUrl}
 					cardType="portrait"
 					onSelect={onSelectItem}
-					seerrSeasonStatus={showAvailabilityBadges ? seerr.seasonMarkers.get(season.IndexNumber) : null}
+					seerrSeasonStatus={settings.showSeerrAvailabilityBadges !== false ? seerr.seasonMarkers.get(season.IndexNumber) : null}
 				/>
 			))}
 		</RowContainer>
