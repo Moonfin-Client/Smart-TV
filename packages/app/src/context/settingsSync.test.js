@@ -149,4 +149,8 @@ describe('SYNCABLE_KEYS', () => {
 
 		expect(repeated).toEqual([]);
 	});
+
+	test('includes seerrShowMissingCollectionItems', () => {
+		expect(SYNCABLE_KEYS).toContain('seerrShowMissingCollectionItems');
+	});
 });

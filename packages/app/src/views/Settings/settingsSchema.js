@@ -796,7 +796,16 @@ export const SETTINGS_SCHEMA = [
 				// only thing worth surfacing. These make it findable by what it does.
 				keywords: () => [$L('Sign In'), $L('login'), $L('Password'), $L('Requests')],
 				rows: [
-					{kind: KIND.CUSTOM, render: 'seerrPanel'}
+					{kind: KIND.CUSTOM, render: 'seerrPanel'},
+					{kind: KIND.SECTION, id: 'seerrPreferences', label: () => $L('Preferences'), when: whenSeerr},
+					{
+						kind: KIND.TOGGLE,
+						key: 'seerrShowMissingCollectionItems',
+						label: () => $L('Show Missing Collection Items'),
+						desc: () => $L('Include missing items on Collection pages'),
+						icon: 'photo_library',
+						when: whenSeerr
+					}
 				]
 			},
 			{

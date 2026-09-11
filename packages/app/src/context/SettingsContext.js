@@ -244,7 +244,7 @@ export const SYNCABLE_KEYS = [
 	'mergeRadarrSonarrCalendars',
 	'radarrCalendarShowCinema', 'radarrCalendarShowDigital', 'radarrCalendarShowPhysical',
 	'radarrCalendarShowDate', 'sonarrCalendarShowDate', 'sonarrCalendarShowEpisodeInfo',
-	'showSeerrButton', 'showServerMessagesButton',
+	'showSeerrButton', 'seerrShowMissingCollectionItems', 'showServerMessagesButton',
 	'screensaverMode', 'screensaverClockMode',
 	'screensaverBackdrop', 'screensaverComponent', 'screensaverMovement',
 	'screensaverPosition', 'screensaverSize', 'screensaverContentType',

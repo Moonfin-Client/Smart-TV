@@ -7,6 +7,7 @@ import {getItemSubtitlePref, getSeriesSubtitlePref, getSeriesAudioPref} from '..
 import {fromServerStream, matchSeriesTrackIndex} from '../../utils/seriesTrackPrefs';
 import {findParentCollection} from './parentCollection';
 import {getOnlineRecommendations, mergeRecommendations} from '../../services/homeRecommendations';
+import {fetchMissingCollectionItems, mergeCollectionWithMissing} from './seerrMissingCollectionItems';
 
 // Everything the screen shows about one item. The item itself is fetched first and rendered
 // on its own, then the rows that hang off it fill in behind, because waiting for all of them
@@ -195,9 +196,23 @@ const useDetailsItem = ({itemId, initialItem, effectiveApi, effectiveServerUrl, 
 						ParentId: data.Id,
 						SortBy: 'ProductionYear,SortName',
 						SortOrder: 'Ascending',
-						Fields: 'PrimaryImageAspectRatio,ProductionYear'
+						Fields: 'PrimaryImageAspectRatio,ProductionYear,ProviderIds'
 					}).catch(() => null);
-					if (collectionData) setCollectionItems(tagWithServerInfo(collectionData.Items || []));
+					if (collectionData) {
+						const tagged = tagWithServerInfo(collectionData.Items || []);
+						setCollectionItems(tagged);
+						if (tagged.length > 0 && settingsRef.current?.seerrShowMissingCollectionItems !== false) {
+							fetchMissingCollectionItems({
+								boxSet: data,
+								members: tagged,
+								settings: settingsRef.current
+							}).then((missing) => {
+								if (missing.length > 0) {
+									setCollectionItems((prev) => mergeCollectionWithMissing(prev, missing));
+								}
+							}).catch(() => {});
+						}
+					}
 				}
 
 				if (data.Type === 'MusicAlbum') {
@@ -272,13 +287,25 @@ const useDetailsItem = ({itemId, initialItem, effectiveApi, effectiveServerUrl, 
 						ParentId: boxSet.Id,
 						SortBy: 'PremiereDate,SortName',
 						SortOrder: 'Ascending',
-						Fields: 'PrimaryImageAspectRatio,ProductionYear'
+						Fields: 'PrimaryImageAspectRatio,ProductionYear,ProviderIds'
 					}).catch(() => null);
 					// A collection holding nothing but the title being looked at says nothing.
 					const members = colData?.Items || [];
 					if (members.length > 1) {
+						const tagged = tagWithServerInfo(members);
 						setParentCollectionName(boxSet.Name || $L('Collection'));
-						setParentCollection(tagWithServerInfo(members));
+						setParentCollection(tagged);
+						if (settingsRef.current?.seerrShowMissingCollectionItems !== false) {
+							fetchMissingCollectionItems({
+								boxSet,
+								members: tagged,
+								settings: settingsRef.current
+							}).then((missing) => {
+								if (missing.length > 0) {
+									setParentCollection((prev) => mergeCollectionWithMissing(prev, missing));
+								}
+							}).catch(() => {});
+						}
 					}
 				}
 
