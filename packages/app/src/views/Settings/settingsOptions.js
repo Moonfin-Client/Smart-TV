@@ -259,10 +259,15 @@ export const getGenresRowItemFilterOptions = () => [
 	{ value: 'Series', label: $L('TV Shows') }
 ];
 
-export const getSinceYouWatchedSourceOptions = () => [
-	{ value: 'local', label: $L('Local') },
-	{ value: 'online', label: $L('Online') }
+export const getRecommendationSystemSourceOptions = () => [
+	{ value: 'local', label: $L('Moonfin Recommends') },
+	{ value: 'server', label: $L('Jellyfin Recommends') },
+	{ value: 'online', label: $L('TMDb Similarity') },
+	{ value: 'hybrid', label: $L('Hybrid') }
 ];
+
+// The details row and the home rows offer the same three engines.
+export const getSinceYouWatchedSourceOptions = getRecommendationSystemSourceOptions;
 
 export const getSinceYouWatchedSourceItemOptions = () => [
 	{ value: 'recentlyWatched', label: $L('Recently Watched') },

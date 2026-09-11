@@ -6,6 +6,7 @@ import {fetchTmdbSeasonRatings, resolveSeriesTmdbId, isRatingSourceAllowed} from
 import {getItemSubtitlePref, getSeriesSubtitlePref, getSeriesAudioPref} from '../../services/subtitlePrefs';
 import {fromServerStream, matchSeriesTrackIndex} from '../../utils/seriesTrackPrefs';
 import {findParentCollection} from './parentCollection';
+import {getOnlineRecommendations, mergeRecommendations} from '../../services/homeRecommendations';
 
 // Everything the screen shows about one item. The item itself is fetched first and rendered
 // on its own, then the rows that hang off it fill in behind, because waiting for all of them
@@ -16,9 +17,19 @@ import {findParentCollection} from './parentCollection';
 // long as the request takes.
 const seedFrom = (candidate, id) => (candidate && candidate.Id === id ? candidate : null);
 
-const useDetailsItem = ({itemId, initialItem, effectiveApi, effectiveServerUrl, settings, tagWithServerInfo, skip}) => {
+// The More Like This row draws everything it is given, so this is how many cards
+// it ends up with.
+const SIMILAR_LIMIT = 15;
+
+const useDetailsItem = ({itemId, initialItem, effectiveApi, effectiveServerUrl, settings, recommendationsSupported, tagWithServerInfo, skip}) => {
 	const seedRef = useRef(initialItem);
 	seedRef.current = initialItem;
+	// Read where they are used rather than depended on, so a change to either one
+	// does not refetch the whole screen.
+	const settingsRef = useRef(settings);
+	settingsRef.current = settings;
+	const scoringRef = useRef(recommendationsSupported);
+	scoringRef.current = recommendationsSupported;
 
 	const [item, setItem] = useState(() => seedFrom(initialItem, itemId));
 	// Whether what is on screen is still the row it was opened from rather than the record
@@ -217,8 +228,39 @@ const useDetailsItem = ({itemId, initialItem, effectiveApi, effectiveServerUrl, 
 				const needsExtras = data.Type === 'Movie' || data.Type === 'Episode' || data.Type === 'Video';
 				const needsBoxSet = data.Type === 'Movie' || data.Type === 'Video';
 
+				// Moonfin is only asked where the server said it can score, since
+				// otherwise every open pays a failed request before the stock row.
+				const fetchSimilar = async () => {
+					if (!needsSimilar || !effectiveApi?.getSimilar) return null;
+					const currentSettings = settingsRef.current;
+					const source = currentSettings?.recommendationSystemSource || 'local';
+					const canScore = scoringRef.current && !!effectiveApi.getMoonfinSimilar;
+					const stock = () => effectiveApi.getSimilar(itemId, SIMILAR_LIMIT, 'moonfin').catch(() => null);
+					const scored = () => effectiveApi.getMoonfinSimilar(itemId, SIMILAR_LIMIT).catch(() => null);
+
+					if (source === 'server') return stock();
+
+					if (source === 'online') {
+						const onlineCards = await getOnlineRecommendations(currentSettings, data).catch(() => []);
+						if (onlineCards.length) return {Items: onlineCards};
+					}
+
+					if (source === 'hybrid') {
+						const [stockData, scoredData] = await Promise.all([stock(), canScore ? scored() : null]);
+						const merged = mergeRecommendations(stockData?.Items, scoredData?.Items, SIMILAR_LIMIT);
+						if (merged.length) return {Items: merged};
+					}
+
+					if (source === 'local' && canScore) {
+						const scoredData = await scored();
+						if (scoredData?.Items?.length) return scoredData;
+					}
+
+					return effectiveApi.getSimilar(itemId, SIMILAR_LIMIT).catch(() => null);
+				};
+
 				const [similarData, extrasData, boxSet] = await Promise.all([
-					needsSimilar ? effectiveApi.getSimilar(itemId).catch(() => null) : Promise.resolve(null),
+					fetchSimilar(),
 					needsExtras ? effectiveApi.getSpecialFeatures(itemId).catch(() => null) : Promise.resolve(null),
 					needsBoxSet ? findParentCollection(effectiveApi, data).catch(() => null) : Promise.resolve(null)
 				]);

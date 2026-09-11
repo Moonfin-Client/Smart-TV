@@ -2,6 +2,12 @@ import {HOME_ROW_ITEM_FIELDS} from './jellyfinApi';
 import seerrApi from './seerrApi';
 import {normalizeMediaItem} from '../utils/seerrHomeRows';
 
+// How many a row shows, and how many are asked for to fill it. The server scored
+// sources are asked for more because the watched ones get dropped here, but not
+// so many that an older set spends longer parsing the answer than showing it.
+const RECOMMENDATION_ROW_SIZE = 15;
+export const RECOMMENDATION_FETCH_LIMIT = 40;
+
 // Fields needed to score candidates without extra detail calls.
 const CANDIDATE_FIELDS = 'Genres,Tags,People,UserData,OfficialRating,ProductionYear,CommunityRating,Studios';
 const SEED_FIELDS = `${HOME_ROW_ITEM_FIELDS},Tags,People,Studios,SeriesId`;
@@ -340,6 +346,42 @@ async function loadSeeds(api, sourceItem, sourceType) {
 	return resolveSeedEpisodes(api, (res && res.Items) || []);
 }
 
+function filterRecommendedItems(items, includeWatched) {
+	return (items || []).filter((item) => {
+		if (!item || !item.Id) return false;
+		if (!includeWatched && isPlayed(item)) return false;
+		return true;
+	});
+}
+
+// What a server scored source had to offer, or nothing at all if it could not
+// answer, so the next source down gets asked instead.
+async function scoredItems(fetchItems, includeWatched) {
+	try {
+		const res = await fetchItems();
+		return filterRecommendedItems(res && res.Items, includeWatched).slice(0, RECOMMENDATION_ROW_SIZE);
+	} catch (_e) {
+		return [];
+	}
+}
+
+// Two lists into one, the first getting first claim, and nothing twice.
+export function mergeRecommendations(primary, secondary, limit) {
+	const merged = [];
+	const seen = new Set();
+	[primary, secondary].forEach((list) => {
+		(list || []).forEach((item) => {
+			if (merged.length >= limit || !item) return;
+			if (item.Id) {
+				if (seen.has(item.Id)) return;
+				seen.add(item.Id);
+			}
+			merged.push(item);
+		});
+	});
+	return merged;
+}
+
 // Builds one row per enabled index. Row N is seeded from the Nth item in the
 // shared seed pool, so seeds are only fetched once.
 export async function loadSinceYouWatchedRows(api, settings, enabledIndexes, onlineAllowed) {
@@ -349,7 +391,12 @@ export async function loadSinceYouWatchedRows(api, settings, enabledIndexes, onl
 	const sourceType = settings.sinceYouWatchedSourceType || 'movies';
 	const includeWatched = settings.sinceYouWatchedIncludeWatched === true;
 	const candidateItemTypes = candidateTypesFor(sourceType);
-	const online = settings.sinceYouWatchedSource === 'online' && onlineAllowed;
+	const source = settings.sinceYouWatchedSource || 'local';
+	const online = source === 'online' && onlineAllowed;
+	// Only where the server can answer. Asking one without the plugin costs a
+	// failed request per row on every load and can only fall through to the
+	// client scoring anyway.
+	const askMoonfin = (source === 'local' || source === 'hybrid') && settings.recommendationsSupported === true;
 
 	const seeds = await loadSeeds(api, sourceItem, sourceType);
 	if (seeds.length === 0) return [];
@@ -359,29 +406,42 @@ export async function loadSinceYouWatchedRows(api, settings, enabledIndexes, onl
 			const seed = seeds[idx - 1];
 			if (!seed) return null;
 
+			const row = (items, isSeerr) => (items.length
+				? {id: `sinceyouwatched${idx}`, seedName: seed.Name || '', items, ...(isSeerr ? {isSeerr: true} : null)}
+				: null);
+
 			if (online) {
 				const onlineItems = await getOnlineRecommendations(settings, seed).catch(() => []);
-				if (onlineItems.length) {
-					return {
-						id: `sinceyouwatched${idx}`,
-						seedName: seed.Name || '',
-						items: onlineItems,
-						isSeerr: true
-					};
-				}
+				if (onlineItems.length) return row(onlineItems, true);
 			}
 
-			const items = await getRecommendations(api, seed, {
-				includeWatched,
-				candidateItemTypes,
-				limit: 15
-			}).catch(() => []);
-			if (!items.length) return null;
-			return {
-				id: `sinceyouwatched${idx}`,
-				seedName: seed.Name || '',
-				items
+			const fromServer = () => (api.getSimilar
+				? scoredItems(() => api.getSimilar(seed.Id, RECOMMENDATION_FETCH_LIMIT, 'moonfin'), includeWatched)
+				: Promise.resolve([]));
+
+			const fromLibrary = async () => {
+				if (askMoonfin && api.getMoonfinSimilar) {
+					const scored = await scoredItems(() => api.getMoonfinSimilar(seed.Id, RECOMMENDATION_FETCH_LIMIT), includeWatched);
+					if (scored.length) return scored;
+				}
+				return getRecommendations(api, seed, {
+					includeWatched,
+					candidateItemTypes,
+					limit: RECOMMENDATION_ROW_SIZE
+				}).catch(() => []);
 			};
+
+			if (source === 'hybrid') {
+				const [serverItems, libraryItems] = await Promise.all([fromServer(), fromLibrary()]);
+				return row(mergeRecommendations(serverItems, libraryItems, RECOMMENDATION_ROW_SIZE));
+			}
+
+			if (source === 'server') {
+				const serverItems = await fromServer();
+				if (serverItems.length) return row(serverItems);
+			}
+
+			return row(await fromLibrary());
 		})
 	);
 	return rows.filter(Boolean);
@@ -419,7 +479,7 @@ async function fetchSeerrRecommendations(tmdbId, mediaType) {
 	}
 }
 
-async function getOnlineRecommendations(settings, seed) {
+export async function getOnlineRecommendations(settings, seed) {
 	const tmdbId = seed.ProviderIds && seed.ProviderIds.Tmdb;
 	if (!tmdbId) return [];
 	const mediaType = seed.Type === 'Series' ? 'tv' : 'movie';

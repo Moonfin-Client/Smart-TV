@@ -4,6 +4,7 @@ import Spotlight from '@enact/spotlight';
 
 import {useAuth} from '../../context/AuthContext';
 import {useSettings} from '../../context/SettingsContext';
+import {useSeerr} from '../../context/SeerrContext';
 import {useSyncPlay} from '../../context/SyncPlayContext';
 import * as jellyfinApi from '../../services/jellyfinApi';
 import LoadingSpinner from '../../components/LoadingSpinner';
@@ -54,6 +55,8 @@ import css from './Details.module.less';
 const Details = ({itemId: itemIdProp, initialItem, onPlay, onSelectItem, onSelectPerson, onSelectStudio, onItemDeleted, seerrNav, backHandlerRef}) => {
 	const {api, serverUrl, user} = useAuth();
 	const {settings} = useSettings();
+	const {pluginInfo} = useSeerr();
+	const recommendationsSupported = pluginInfo?.recommendationsSupported === true;
 	const {isInGroup: isSyncPlayInGroup} = useSyncPlay();
 
 	const effectiveApi = useMemo(() => {
@@ -116,6 +119,7 @@ const Details = ({itemId: itemIdProp, initialItem, onPlay, onSelectItem, onSelec
 		effectiveApi,
 		effectiveServerUrl,
 		settings,
+		recommendationsSupported,
 		tagWithServerInfo,
 		skip: seerrOnly
 	});

@@ -11,7 +11,7 @@ import {apiSortBy, getGenresIncludeTypes, isPlaylistOrder, resolveSortOrder} fro
 
 // The sort settings and enabled flags every loader reads, worked out once rather than by each
 // of them. Everything here is a plain function of the settings and the row list.
-export const buildLoaderContext = ({api, settings, homeRowsConfig, eligibleLibraries, seerrEnabled, seerrAuthenticated, appendRows}) => {
+export const buildLoaderContext = ({api, settings, homeRowsConfig, eligibleLibraries, seerrEnabled, seerrAuthenticated, recommendationsSupported, appendRows}) => {
 	const rowEnabled = (id) => homeRowsConfig.some((row) => row.enabled && row.id === id);
 	// Playlist order is not a server sort field, so every row hands the server
 	// the fallback and the rows that honor the arrangement check the setting
@@ -29,6 +29,7 @@ export const buildLoaderContext = ({api, settings, homeRowsConfig, eligibleLibra
 		eligibleLibraries,
 		seerrEnabled,
 		seerrAuthenticated,
+		recommendationsSupported,
 		favoriteSortBy,
 		favoriteSortOrder: resolveSortOrder(favoriteSortBy, settings.favoritesRowSortOrder),
 		collectionsSortBy,
@@ -445,7 +446,7 @@ const loadPlaylistsAndMusic = async (ctx) => {
 };
 
 const loadPluginsAndRecos = async (ctx) => {
-	const {api, appendRows, collectionsSortBy, collectionsSortOrder, enabledPluginSections, rewatchEnabled, seerrAuthenticated, seerrEnabled, settings, sinceYouWatchedIndexes} = ctx;
+	const {api, appendRows, collectionsSortBy, collectionsSortOrder, enabledPluginSections, recommendationsSupported, rewatchEnabled, seerrAuthenticated, seerrEnabled, settings, sinceYouWatchedIndexes} = ctx;
 	const fetchPluginSectionRow = async (section) => {
 		if (!section?.enabled) return null;
 		const spec = parsePluginSpec(section.specJson);
@@ -615,7 +616,8 @@ const loadPluginsAndRecos = async (ctx) => {
 					sinceYouWatchedSourceItem: settings.sinceYouWatchedSourceItem,
 					sinceYouWatchedSourceType: settings.sinceYouWatchedSourceType,
 					sinceYouWatchedIncludeWatched: settings.sinceYouWatchedIncludeWatched,
-					tmdbApiKey: settings.tmdbApiKey
+					tmdbApiKey: settings.tmdbApiKey,
+					recommendationsSupported
 				}, sinceYouWatchedIndexes, seerrEnabled && seerrAuthenticated).catch(() => [])
 				: Promise.resolve([]),
 			rewatchEnabled
