@@ -51,7 +51,7 @@ More in the [Screenshots](https://github.com/Moonfin-Client/Smart-TV/wiki/Screen
 
 ## Installation
 
-TVs don't carry Moonfin in their app stores, so the package has to be sideloaded. Download the latest release from the [Releases page](https://github.com/Moonfin-Client/Smart-TV/releases) and pick the file that matches your TV:
+Samsung and LG don't carry Moonfin in their TV app stores, so it's installed by sideloading. On LG the closest thing to a store is the **Homebrew Channel**, which lists Moonfin and updates it like any other app, no root needed. Everyone else downloads a package from the [Releases page](https://github.com/Moonfin-Client/Smart-TV/releases) and picks the file that matches the TV:
 
 | Platform | File | Supported Devices |
 |---|---|---|
@@ -60,7 +60,12 @@ TVs don't carry Moonfin in their app stores, so the package has to be sideloaded
 | **Tizen Legacy** | `Moonfin_Tizen_Legacy_*.wgt` | Samsung Smart TVs (2016, Tizen 2.4) |
 | **webOS** | `Moonfin_webOS_*.ipk` | LG Smart TVs (2016+, webOS 3.0+) |
 
-On Samsung the easiest route is the [Apps2Samsung](https://github.com/Apps2Samsung/Apps2Samsung) tool, and on LG it's the webOS CLI (`ares-install`). Step-by-step instructions for both are on the [Installation and Sideloading](https://github.com/Moonfin-Client/Smart-TV/wiki/Installation-and-Sideloading) page.
+The easiest route on each brand:
+
+- **LG:** the Homebrew Channel if your TV has it. Otherwise LG's Developer Mode app plus [Dev Manager Desktop](https://github.com/webosbrew/dev-manager-desktop), a free desktop program that installs the `.ipk` in a few clicks. The webOS CLI (`ares-install`) works too.
+- **Samsung:** the [Apps2Samsung](https://github.com/Apps2Samsung/Apps2Samsung) tool, which signs and installs the `.wgt` for you.
+
+Step-by-step instructions for all of them, including turning on Developer Mode, are on the [Installation and Sideloading](https://github.com/Moonfin-Client/Smart-TV/wiki/Installation-and-Sideloading) page. Once installed, [Getting Started](https://github.com/Moonfin-Client/Smart-TV/wiki/Getting-Started) walks through connecting to your server.
 
 Seerr is optional and connects through the [Moonfin server plugin](https://github.com/Moonfin-Client/Plugin) rather than directly, so nothing needs to be entered on the TV. See [Seerr Setup](https://github.com/Moonfin-Client/Smart-TV/wiki/Seerr-Setup).
 
@@ -73,6 +78,9 @@ The deeper reference material lives in the [Wiki](https://github.com/Moonfin-Cli
 | [Features](https://github.com/Moonfin-Client/Smart-TV/wiki/Features) | The full feature list, section by section |
 | [Playback and Codecs](https://github.com/Moonfin-Client/Smart-TV/wiki/Playback-and-Codecs) | Video pipelines, direct play and fallback, audio passthrough, and subtitles |
 | [Installation and Sideloading](https://github.com/Moonfin-Client/Smart-TV/wiki/Installation-and-Sideloading) | Which release file to pick, and how to sideload on Samsung and LG |
+| [Getting Started](https://github.com/Moonfin-Client/Smart-TV/wiki/Getting-Started) | Connecting to your server, Quick Connect, the setup wizard, and the settings worth a look on day one |
+| [User Guide](https://github.com/Moonfin-Client/Smart-TV/wiki/User-Guide) | The remote inside the player, typing on a TV, themes, home rows, and parental controls |
+| [Common Problems](https://github.com/Moonfin-Client/Smart-TV/wiki/Common-Problems) | Plain fixes for connection, login, install, playback, sound and subtitle trouble |
 | [Seerr Setup](https://github.com/Moonfin-Client/Smart-TV/wiki/Seerr-Setup) | Connecting Seerr through the Moonfin server plugin |
 | [Building from Source](https://github.com/Moonfin-Client/Smart-TV/wiki/Building-from-Source) | Build scripts, the three Tizen variants, and dev servers |
 | [Development](https://github.com/Moonfin-Client/Smart-TV/wiki/Development) | Project structure, platform abstraction, and developer notes |
@@ -86,7 +94,7 @@ npm run build:tizen:all   # Samsung: Regular, Oblong, and Legacy
 npm run build:webos       # LG
 ```
 
-Node.js 18+ and npm 9+ are the only prerequisites.
+A current Node.js LTS release (20 or newer) with npm is the only prerequisite.
 
 <details>
 <summary><b>Advanced:</b> where the build CLIs live</summary>
