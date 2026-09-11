@@ -955,6 +955,10 @@ const AppContent = (props) => {
 		navigateTo(PANELS.GENRES);
 	}, [navigateTo]);
 
+	const handleOpenLiveTv = useCallback(() => {
+		navigateTo(PANELS.LIVETV);
+	}, [navigateTo]);
+
 	const handleSelectGenre = useCallback((genre, library) => {
 		setGenreFilter(genre.name);
 		setStudioFilter(null);
@@ -1254,6 +1258,10 @@ const AppContent = (props) => {
 		}
 	};
 
+	// The nav button only offers Live TV on a server that has it, and re-reads the
+	// current server's libraries so switching servers never leaves it behind.
+	const hasLiveTv = libraries.some(lib => lib.CollectionType === 'livetv');
+
 	const showNavBar = panelIndex !== PANELS.LOGIN &&
 		panelIndex !== PANELS.PLAYER &&
 		panelIndex !== PANELS.GAME_PLAYER &&
@@ -1273,11 +1281,13 @@ const AppContent = (props) => {
 			{showNavBar && settings.navbarPosition === 'left' ? (
 				<Sidebar
 					libraries={libraries}
+					hasLiveTv={hasLiveTv}
 					onHome={handleHome}
 					onSearch={handleOpenSearch}
 					onShuffle={handleShuffle}
 					onGenres={handleOpenGenres}
 					onFavorites={handleOpenFavorites}
+					onLiveTv={handleOpenLiveTv}
 					onDiscover={handleOpenSeerr}
 					onSyncPlay={settings.syncplayEnabled !== false ? openSyncPlay : undefined}
 					onSettings={handleOpenSettings}
@@ -1289,11 +1299,13 @@ const AppContent = (props) => {
 				<NavBar
 					activeView={getActiveView()}
 					libraries={libraries}
+					hasLiveTv={hasLiveTv}
 					onHome={handleHome}
 					onSearch={handleOpenSearch}
 					onShuffle={handleShuffle}
 					onGenres={handleOpenGenres}
 					onFavorites={handleOpenFavorites}
+					onLiveTv={handleOpenLiveTv}
 					onDiscover={handleOpenSeerr}
 					onSyncPlay={settings.syncplayEnabled !== false ? openSyncPlay : undefined}
 					onSettings={handleOpenSettings}

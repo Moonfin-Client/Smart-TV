@@ -111,6 +111,7 @@ export const defaultSettings = {
 	shuffleContentType: 'both',
 	showGenresButton: true,
 	showFavoritesButton: true,
+	showLiveTvButton: true,
 	showLibrariesInToolbar: true,
 	mergeContinueWatchingNextUp: true,
 	mergeRecentRowsByType: false,
