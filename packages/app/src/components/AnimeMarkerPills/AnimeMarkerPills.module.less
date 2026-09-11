@@ -1,0 +1,102 @@
+.row {
+	display: inline-flex;
+	flex-direction: row;
+	align-items: center;
+	flex-wrap: wrap;
+
+	> * + * {
+		margin-left: 8px;
+	}
+}
+
+.pill {
+	display: inline-flex;
+	align-items: center;
+	padding: 2px 11px;
+	border-radius: 9px;
+	font-size: 15px;
+	font-weight: 600;
+	line-height: 1.5;
+	letter-spacing: 0.2px;
+	white-space: nowrap;
+
+	border-width: 1px;
+	border-style: solid;
+}
+
+.compact .pill {
+	padding: 1px 9px;
+	border-radius: 8px;
+	font-size: 13px;
+}
+
+.large .pill {
+	padding: 3px 14px;
+	border-radius: 11px;
+	font-size: 19px;
+}
+
+.filler {
+	color: #ffc48a;
+	background: rgba(255, 138, 0, 0.18);
+	border-color: rgba(255, 138, 0, 0.55);
+}
+
+.mixed {
+	color: #ffe08a;
+	background: rgba(255, 193, 7, 0.16);
+	border-color: rgba(255, 193, 7, 0.5);
+}
+
+.mangaCanon {
+	color: #9ce8b4;
+	background: rgba(46, 204, 113, 0.16);
+	border-color: rgba(46, 204, 113, 0.5);
+}
+
+.animeCanon {
+	color: #9ecbff;
+	background: rgba(52, 152, 219, 0.18);
+	border-color: rgba(52, 152, 219, 0.55);
+}
+
+.recap {
+	color: #d3b4ff;
+	background: rgba(155, 89, 232, 0.18);
+	border-color: rgba(155, 89, 232, 0.55);
+}
+
+.subbed {
+	color: #a9d8ff;
+	background: rgba(0, 164, 220, 0.18);
+	border-color: rgba(0, 164, 220, 0.55);
+}
+
+.dubbed {
+	color: #ffb3b3;
+	background: rgba(231, 76, 60, 0.18);
+	border-color: rgba(231, 76, 60, 0.55);
+}
+
+.dual {
+	color: #c4c9ff;
+	background: rgba(120, 120, 255, 0.18);
+	border-color: rgba(120, 120, 255, 0.55);
+}
+
+.cardOverlay {
+	position: absolute;
+	left: 8px;
+	bottom: 8px;
+	z-index: 2;
+	max-width: ~'calc(100% - 16px)';
+
+	.pill {
+		background-color: rgba(0, 0, 0, 0.72);
+		box-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
+	}
+}
+
+.aboveProgress {
+	bottom: 26px;
+}

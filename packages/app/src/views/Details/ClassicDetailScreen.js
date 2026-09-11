@@ -16,6 +16,7 @@ import {handleSectionKeyDown, handleScrollerFocus} from './detailsFocus';
 import {PosterBadges, WatchedCheckIcon, FavoriteHeartIcon} from './DetailBadges';
 import DetailMetadata from './DetailMetadata';
 import NextUpCard from './NextUpCard';
+import {AnimeEpisodePills, AnimeItemPills} from '../../components/AnimeMarkerPills';
 
 import css from './Details.module.less';
 
@@ -116,6 +117,7 @@ const ClassicDetailScreen = ({
 						{endsAt && !isSeries && <span className={css.infoItem}>{endsAt}</span>}
 						{genres.length > 0 && <span className={css.infoItem}>{genres.slice(0, 3).join(' • ')}</span>}
 					</div>
+					<AnimeItemPills item={item} serverUrl={serverUrl} className={css.detailMarkers} />
 					{(techBadges.length > 0 || seerr.statusPills?.length > 0) && (
 						<div className={css.infoBadges}>
 							{techBadges.map((badge, i) => (
@@ -269,6 +271,7 @@ const ClassicDetailScreen = ({
 												{episodeRatings[ep.IndexNumber].toFixed(1)}
 											</span>
 										)}
+										<AnimeEpisodePills episode={ep} serverUrl={serverUrl} compact className={css.episodeMarkers} />
 									</div>
 								</SpottableDiv>
 							);

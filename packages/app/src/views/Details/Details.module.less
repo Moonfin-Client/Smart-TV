@@ -281,6 +281,10 @@
 	margin-top: 9px;
 }
 
+.detailMarkers {
+	margin-top: 9px;
+}
+
 /* Media Badges */
 .badge {
 	padding: 3px 9px;
@@ -893,6 +897,12 @@
 .episodeEpRuntime {
 	font-size: 14px;
 	color: rgba(255, 255, 255, 0.4);
+	flex-shrink: 0;
+}
+
+// The episode title is what gives way when the row runs out of room, so the markers hold
+// their width the same way the runtime and the rating do.
+.episodeMarkers {
 	flex-shrink: 0;
 }
 
@@ -1890,4 +1900,10 @@
 }
 
 .nextUpInfo { .flex-col-gap(6px); }
+
+// Under the title rather than beside it: the title already ellipses at this width, so
+// anything sharing its line would be the half that gets cut.
+.nextUpMarkers {
+	align-self: flex-start;
+}
 
