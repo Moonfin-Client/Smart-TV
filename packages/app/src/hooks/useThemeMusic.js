@@ -1,15 +1,27 @@
 import {useRef, useCallback, useEffect} from 'react';
 import {useSettings} from '../context/SettingsContext';
 import * as jellyfinApi from '../services/jellyfinApi';
+import {fetchWithTimeout} from '../utils/fetchTimeout';
 
 const FADE_DURATION = 1500;
 const FADE_INTERVAL = 50;
 const HOME_ROW_DELAY = 1500;
 
+// The token used to ride in the query string here, which leaks it into network
+// logs and browser history. It now goes in an Authorization header instead and
+// the response is played back from a revocable Blob URL.
 const buildAudioUrl = (itemId) => {
 	const server = jellyfinApi.getServerUrl();
-	const token = jellyfinApi.getApiKey();
-	return `${server}/Audio/${encodeURIComponent(itemId)}/stream?static=true&audioCodec=mp3&audioBitrate=128000&${jellyfinApi.getTokenParam()}=${encodeURIComponent(token)}`;
+	return `${server}/Audio/${encodeURIComponent(itemId)}/stream?static=true&audioCodec=mp3&audioBitrate=128000`;
+};
+
+const fetchAudioBlobUrl = async (itemId) => {
+	const res = await fetchWithTimeout(buildAudioUrl(itemId), {
+		headers: {Authorization: jellyfinApi.getAuthHeader()}
+	}, 20000);
+	if (!res.ok) throw new Error(`Theme audio fetch error: ${res.status}`);
+	const blob = await res.blob();
+	return URL.createObjectURL(blob);
 };
 
 export const useThemeMusic = () => {
@@ -19,6 +31,7 @@ export const useThemeMusic = () => {
 	const fadeTimerRef = useRef(null);
 	const delayTimerRef = useRef(null);
 	const targetVolumeRef = useRef(0);
+	const blobUrlRef = useRef(null);
 
 	const getTargetVolume = useCallback(() => {
 		return Math.max(0, Math.min(100, settings.themeMusicVolume || 30)) / 100;
@@ -41,6 +54,10 @@ export const useThemeMusic = () => {
 			audioRef.current.pause();
 			audioRef.current.src = '';
 			audioRef.current = null;
+		}
+		if (blobUrlRef.current) {
+			URL.revokeObjectURL(blobUrlRef.current);
+			blobUrlRef.current = null;
 		}
 		currentItemIdRef.current = null;
 	}, [clearFade]);
@@ -99,7 +116,11 @@ export const useThemeMusic = () => {
 			if (songs.length === 0 || currentItemIdRef.current !== itemId) return;
 
 			const song = songs[Math.floor(Math.random() * songs.length)];
-			const url = buildAudioUrl(song.Id);
+			const url = await fetchAudioBlobUrl(song.Id);
+			if (currentItemIdRef.current !== itemId) {
+				URL.revokeObjectURL(url);
+				return;
+			}
 
 			const audio = new window.Audio();
 			// A profile synced from another client can hold null here, which keeps
@@ -107,6 +128,7 @@ export const useThemeMusic = () => {
 			audio.loop = settings.themeMusicLoop !== false;
 			audio.volume = 0;
 			audioRef.current = audio;
+			blobUrlRef.current = url;
 
 			audio.addEventListener('canplaythrough', () => {
 				if (currentItemIdRef.current === itemId && audioRef.current === audio) {
