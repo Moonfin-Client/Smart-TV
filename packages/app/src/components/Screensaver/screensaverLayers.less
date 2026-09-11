@@ -1,0 +1,100 @@
+// The moving and anchored placements a screensaver component can take. The inset
+// is a parameter because the preview draws the same arrangement much smaller.
+.screensaverComponentLayers(@inset) {
+	.bounceLayer,
+	.staticLayer {
+		position: absolute;
+		pointer-events: none;
+		z-index: 3;
+	}
+
+	.bounceLayer {
+		top: 0;
+		left: 0;
+		right: 0;
+		bottom: 0;
+	}
+
+	.staticLayer {
+		top: @inset;
+		left: @inset;
+		right: @inset;
+		bottom: @inset;
+	}
+
+	.componentBox {
+		position: absolute;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+	}
+
+	.bounceLayer .componentBox {
+		top: 0;
+		left: 0;
+	}
+
+	.anchorTopLeft {
+		top: 0;
+		left: 0;
+	}
+
+	.anchorTopCenter {
+		top: 0;
+		left: 50%;
+		transform: translateX(-50%);
+	}
+
+	.anchorTopRight {
+		top: 0;
+		right: 0;
+	}
+
+	.anchorMiddleLeft {
+		top: 50%;
+		left: 0;
+		transform: translateY(-50%);
+	}
+
+	.anchorMiddle {
+		top: 50%;
+		left: 50%;
+		transform: translate(-50%, -50%);
+	}
+
+	.anchorMiddleRight {
+		top: 50%;
+		right: 0;
+		transform: translateY(-50%);
+	}
+
+	.anchorBottomLeft {
+		bottom: 0;
+		left: 0;
+	}
+
+	.anchorBottomCenter {
+		bottom: 0;
+		left: 50%;
+		transform: translateX(-50%);
+	}
+
+	.anchorBottomRight {
+		bottom: 0;
+		right: 0;
+	}
+
+	.componentLogo {
+		width: 100%;
+		height: 100%;
+		object-fit: contain;
+	}
+
+	.componentClock {
+		font-family: 'Museo Sans', sans-serif;
+		font-weight: 500;
+		color: #ffffff;
+		white-space: nowrap;
+		text-shadow: 0 2px 8px rgba(0, 0, 0, 0.8);
+	}
+}

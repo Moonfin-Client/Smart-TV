@@ -2,29 +2,14 @@ import {useState, useEffect, useRef, useCallback, forwardRef, useImperativeHandl
 import {isMdblistEnabled} from '../../services/mdblistApi';
 import $L from '@enact/i18n/$L';
 import RatingsRow from '../../components/RatingsRow';
-import {formatDuration, getImageUrl} from '../../utils/helpers';
+import {formatDuration, getImageUrl, videoResolutionLabel} from '../../utils/helpers';
 import css from './Browse.module.less';
 
 const FOCUS_ITEM_DEBOUNCE_MS = 400;
 const DETAIL_GENRES_LIMIT = 3;
 
-// The other clients label whatever the video stream measures, not what the file claims.
-const videoResolutionLabel = (item) => {
-	const stream = (item.MediaStreams || []).find((ms) => ms?.Type === 'Video');
-	if (!stream || !stream.Width || !stream.Height) return null;
-	const {Width: w, Height: h} = stream;
-	const suffix = stream.IsInterlaced ? 'i' : 'p';
-	if (w >= 7600 || h >= 4300) return '8K';
-	if (w >= 3800 || h >= 2000) return '4K';
-	if (w >= 2500 || h >= 1400) return `1440${suffix}`;
-	if (w >= 1800 || h >= 1000) return `1080${suffix}`;
-	if (w >= 1200 || h >= 700) return `720${suffix}`;
-	if (w >= 600 || h >= 400) return `480${suffix}`;
-	return 'SD';
-};
-
-// Plain text and chips share one bullet separated line, the way the other clients
-// compose it: year, S:E, certification chip, runtime, resolution chip, then genres.
+// Plain text and chips share one bullet separated line: year, S:E, certification
+// chip, runtime, resolution chip, then genres.
 const buildInfoParts = (item) => {
 	const parts = [];
 	if (item.ProductionYear) parts.push({text: String(item.ProductionYear)});

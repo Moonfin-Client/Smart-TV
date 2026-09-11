@@ -64,7 +64,7 @@ export const mapSubtitleStreamsFromMediaSource = (mediaSource, serverUrl, option
 				isDefault: stream.IsDefault,
 				isTextBased: TEXT_SUBTITLE_CODECS.includes(codec),
 				isImageBased: isPgsSubtitleCodec(codec),
-				isBurnIn: isBurnInSubtitleCodec(codec),
+				isBurnIn: isBurnInSubtitleCodec(codec) || stream.DeliveryMethod === 'Encode',
 				isAss: isAssSubtitleCodec(codec),
 				deliveryUrl,
 				deliveryMethod: stream.DeliveryMethod
@@ -73,7 +73,7 @@ export const mapSubtitleStreamsFromMediaSource = (mediaSource, serverUrl, option
 			if (includeEmbeddedNative) {
 				// Same rule as extractSubtitleStreams in the playback service.
 				const isServerDelivered = stream.DeliveryMethod === 'External';
-				mapped.isEmbeddedNative = !stream.IsExternal && !isServerDelivered &&
+				mapped.isEmbeddedNative = !mapped.isBurnIn && !stream.IsExternal && !isServerDelivered &&
 					(mapped.isImageBased || (mapped.isTextBased && mediaSource.SupportsTranscoding === false));
 			}
 

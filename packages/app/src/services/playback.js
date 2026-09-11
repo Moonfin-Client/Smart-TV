@@ -332,6 +332,10 @@ const extractSubtitleStreams = (mediaSource, itemId = null, creds = null, assBur
 			} else if (isImageBased && itemId && !s.IsExternal) {
 				deliveryUrl = `${serverUrl}/Videos/${itemId}/${mediaSource.Id}/Subtitles/${s.Index}/0/Stream.sup?${tokenParam}=${apiKey}`;
 			}
+			// Encode is the server saying the only way it can deliver this track is
+			// baked into the video, which is what a format left off the profile gets.
+			const isBurnIn = isBurnInSubtitleCodec(codec) || s.DeliveryMethod === 'Encode' ||
+				(assBurnsIn && isAssSubtitleCodec(codec));
 			return {
 				index: s.Index,
 				codec: s.Codec,
@@ -346,12 +350,12 @@ const extractSubtitleStreams = (mediaSource, itemId = null, creds = null, assBur
 				// renderer must stay out of the way.
 				isAss: !assBurnsIn && isAssSubtitleCodec(codec),
 				isImageBased,
-				isBurnIn: isBurnInSubtitleCodec(codec) || (assBurnsIn && isAssSubtitleCodec(codec)),
+				isBurnIn,
 				// Bitmap tracks left in the container are AVPlay's to select. Text normally
 				// comes over the API because the profile asks the server to extract it, but a
 				// server that cant transcode cant extract either, and then the copy in the
 				// container is the only one text has.
-				isEmbeddedNative: !s.IsExternal && s.DeliveryMethod !== 'External' &&
+				isEmbeddedNative: !isBurnIn && !s.IsExternal && s.DeliveryMethod !== 'External' &&
 					(isImageBased || (isTextBased && mediaSource.SupportsTranscoding === false)),
 				deliveryUrl: deliveryUrl,
 				deliveryMethod: s.DeliveryMethod
@@ -383,9 +387,12 @@ export const getPlaybackInfo = async (itemId, options = {}) => {
 	const storedSettings = (await getFromStorage('settings')) || {};
 	const passthroughSettings = await getPlaybackAudioSettings(options, storedSettings);
 	const profileOptions = {...options, passthroughSettings};
-	const deviceProfile = options.deviceProfile ||
-		applyProfileTuning(await getDeviceProfile(serverType, profileOptions), storedSettings);
 	const capabilities = await getDeviceCapabilities(profileOptions);
+	const deviceProfile = applyProfileTuning(
+		options.deviceProfile || await getDeviceProfile(serverType, profileOptions),
+		storedSettings,
+		capabilities
+	);
 
 	// Cross-server: use item's server if available
 	const api = options.item ? getApiForItem(options.item) : jellyfinApi.api;
@@ -404,14 +411,16 @@ export const getPlaybackInfo = async (itemId, options = {}) => {
 	// too slow for large/4K sources and times out behind a reverse proxy. We
 	// still track the real index in the session so the player renders it
 	// client-side. dvd and dvb bitmaps have no client renderer, so their index
-	// goes through and the server burns them in.
+	// goes through and the server burns them in. So does PGS with its direct
+	// play turned off, because then nothing on this end will draw it.
 	const requestedSubStream = findSubtitleStreamByIndex(
 		requestedSubtitleStreamIndex,
 		options.mediaSource?.MediaStreams,
 		options.item?.MediaStreams,
 		currentSession?.mediaSource?.MediaStreams
 	);
-	const subtitleIsPgs = !!requestedSubStream && isPgsSubtitleCodec(requestedSubStream.Codec);
+	const subtitleIsPgs = storedSettings.enablePgsRendering !== false &&
+		!!requestedSubStream && isPgsSubtitleCodec(requestedSubStream.Codec);
 	const subtitleStreamIndex = subtitleIsPgs ? -1 : requestedSubtitleStreamIndex;
 	// When the user hasn't explicitly picked a subtitle, omit the index entirely so
 	// the server applies their preferred-subtitle-language / SubtitleMode default.

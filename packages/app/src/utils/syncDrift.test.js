@@ -3,8 +3,7 @@ import {
 	driftMs,
 	expectedPositionTicks,
 	needsSeek,
-	FAST_RATE,
-	SLOW_RATE,
+	seekLanded,
 	TICKS_PER_MS
 } from './syncDrift';
 
@@ -41,32 +40,25 @@ describe('driftMs', () => {
 });
 
 describe('driftAction', () => {
-	test('leaves a gap under a tenth of a second alone', () => {
+	test('leaves a gap under the skip threshold alone', () => {
 		expect(driftAction(80).type).toBe('none');
+		expect(driftAction(600).type).toBe('none');
+		expect(driftAction(-600).type).toBe('none');
 	});
 
-	test('slows down when ahead', () => {
-		expect(driftAction(600)).toEqual({type: 'rate', rate: SLOW_RATE});
-	});
-
-	test('speeds up when behind', () => {
-		expect(driftAction(-600)).toEqual({type: 'rate', rate: FAST_RATE});
-	});
-
-	test('seeks once the gap is past two seconds', () => {
+	test('seeks once the gap is past two seconds, either way', () => {
 		expect(driftAction(-4000).type).toBe('seek');
-	});
-
-	test('seeks rather than nudging for a gap a nudge could not close', () => {
 		expect(driftAction(9000).type).toBe('seek');
 	});
 
-	test('does nothing when both corrections are turned off', () => {
-		expect(driftAction(9000, {useSkip: false, useSpeed: false}).type).toBe('none');
+	test('takes the threshold from the settings', () => {
+		expect(driftAction(3000, {skipThresholdMs: 5000}).type).toBe('none');
+		expect(driftAction(6000, {skipThresholdMs: 5000}).type).toBe('seek');
 	});
 
-	test('falls back to a nudge when seeking is off', () => {
-		expect(driftAction(3000, {useSkip: false}).type).toBe('rate');
+	test('does nothing when correction is turned off', () => {
+		expect(driftAction(9000, {useSkip: false}).type).toBe('none');
+		expect(driftAction(9000, {enabled: false}).type).toBe('none');
 	});
 
 	test('has no action without a measurement', () => {
@@ -85,5 +77,29 @@ describe('needsSeek', () => {
 
 	test('seeks when there is no target to compare', () => {
 		expect(needsSeek(ticks(10000), null)).toBe(true);
+	});
+});
+
+describe('seekLanded', () => {
+	test('lands once the position reaches the target', () => {
+		expect(seekLanded(ticks(10000), ticks(40000), ticks(40300))).toBe(true);
+	});
+
+	test('is still in flight while the set reports the old position', () => {
+		expect(seekLanded(ticks(10000), ticks(40000), ticks(10800))).toBe(false);
+	});
+
+	test('does not take a short skip on the stale reading', () => {
+		expect(seekLanded(ticks(10000), ticks(10900), ticks(10300))).toBe(false);
+		expect(seekLanded(ticks(10000), ticks(10900), ticks(11000))).toBe(true);
+	});
+
+	test('is not landed a long way past the target', () => {
+		expect(seekLanded(ticks(10000), ticks(40000), ticks(45000))).toBe(false);
+	});
+
+	test('needs a target and a reading', () => {
+		expect(seekLanded(ticks(10000), null, ticks(10000))).toBe(false);
+		expect(seekLanded(null, ticks(10000), ticks(10200))).toBe(true);
 	});
 });

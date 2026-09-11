@@ -94,3 +94,25 @@ export const getLogoUrl = (serverUrl, item, options = {}) => {
 
 	return null;
 };
+
+// The shorthand a video is known by, taken from what its stream measures. Both
+// sides are checked because a scope film is short of the height its width would
+// suggest, and a pillarboxed one is short of the width.
+export const videoResolutionLabel = (item) => {
+	const stream = (item?.MediaStreams || []).find((ms) => ms?.Type === 'Video');
+	if (!stream) return null;
+
+	const w = Number(stream.Width);
+	const h = Number(stream.Height);
+	if (!Number.isFinite(w) || !Number.isFinite(h) || w <= 0 || h <= 0) return null;
+
+	const suffix = stream.IsInterlaced ? 'i' : 'p';
+
+	if (w >= 7600 || h >= 4300) return '8K';
+	if (w >= 3800 || h >= 2000) return '4K';
+	if (w >= 2500 || h >= 1400) return `1440${suffix}`;
+	if (w >= 1800 || h >= 1000) return `1080${suffix}`;
+	if (w >= 1200 || h >= 700) return `720${suffix}`;
+	if (w >= 600 || h >= 400) return `480${suffix}`;
+	return 'SD';
+};

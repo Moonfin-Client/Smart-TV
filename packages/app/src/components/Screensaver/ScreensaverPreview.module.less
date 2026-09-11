@@ -1,0 +1,71 @@
+@import './screensaverLayers.less';
+
+.preview {
+	margin: 0 24px 12px;
+}
+
+.stage {
+	position: relative;
+	height: 200px;
+	overflow: hidden;
+	border-radius: 16px;
+	border: 1.5px solid rgba(255, 255, 255, 0.16);
+	background-color: #000000;
+	box-shadow: 0 6px 16px rgba(0, 0, 0, 0.47);
+}
+
+.libraryBackdrop {
+	position: absolute;
+	top: 0;
+	left: 0;
+	right: 0;
+	bottom: 0;
+	background-image: radial-gradient(circle at 50% 50%, #1e293b 0%, #0f172a 50%, #050811 100%);
+}
+
+.libraryIcon {
+	position: absolute;
+	top: 50%;
+	left: 50%;
+	width: 64px;
+	height: 64px;
+	margin: -32px 0 0 -32px;
+	opacity: 0.25;
+	fill: #00a4dc;
+}
+
+.dimming {
+	position: absolute;
+	top: 0;
+	left: 0;
+	right: 0;
+	bottom: 0;
+	background-color: #000000;
+	z-index: 2;
+}
+
+.screensaverComponentLayers(12px);
+
+.badge {
+	position: absolute;
+	top: 10px;
+	left: 14px;
+	display: flex;
+	align-items: center;
+	z-index: 4;
+}
+
+.badgeDot {
+	width: 7px;
+	height: 7px;
+	margin-right: 6px;
+	border-radius: 50%;
+	background-color: #00a4dc;
+}
+
+.badgeLabel {
+	font-size: 10px;
+	font-weight: 700;
+	letter-spacing: 1.5px;
+	color: rgba(255, 255, 255, 0.59);
+}

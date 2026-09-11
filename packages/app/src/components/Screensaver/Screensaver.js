@@ -2,88 +2,142 @@ import {useState, useEffect, useRef, useCallback} from 'react';
 import {getImageUrl, getBackdropId, getLogoUrl} from '../../utils/helpers';
 import {formatClockTime, shiftedNow} from '../../utils/clock';
 import * as jellyfinApi from '../../services/jellyfinApi';
+import ScreensaverGradient, {isGradientBackdrop} from './ScreensaverGradient';
+import ScreensaverRunner from './ScreensaverRunner';
+import {resolveLayout, startBounce} from './screensaverLayout';
 import css from './Screensaver.module.less';
 
-const LOGO_WIDTH = 400;
-const LOGO_HEIGHT = 200;
-const CLOCK_WIDTH = 200;
-const CLOCK_HEIGHT = 60;
-const MARGIN = 20;
-const VELOCITY = 0.5;
-const FRAME_DELAY = 16;
+const BOUNCE_MARGIN = 20;
 const BACKDROP_INTERVAL = 30000;
-const BACKDROP_BATCH_SIZE = 20;
+const BACKDROP_BATCH_SIZE = 60;
+const RUNNER_BASE_SIZE = 96;
 
-const BACKDROP_QUERY = {
-	IncludeItemTypes: 'Movie,Series',
-	Recursive: true,
-	SortBy: 'Random',
-	Limit: BACKDROP_BATCH_SIZE,
-	Fields: 'ImageTags,ParentLogoImageTag,ParentLogoItemId,ParentBackdropImageTags,ParentBackdropItemId,BackdropImageTags',
-	HasBackdrop: true,
-	ExcludeItemTypes: 'BoxSet',
-	ImageTypes: 'Backdrop'
-};
+const SORT_FIELDS = ['DateCreated', 'CommunityRating'];
+const SORT_ORDERS = ['Descending', 'Ascending'];
+const START_OFFSETS = [0, 30, 60, 90];
+const LIBRARY_TYPES = ['movies', 'tvshows'];
+const ITEM_FIELDS = 'ImageTags,BackdropImageTags,ParentBackdropItemId,ParentBackdropImageTags,ParentLogoItemId,ParentLogoImageTag,OfficialRating,Genres';
 
 const RATING_MAP = {0: 'G', 7: 'PG', 13: 'PG-13', 17: 'R', 18: 'NC-17'};
 
-const startBounce = (ref, animRef, width, height) => {
-	const screenWidth = window.innerWidth;
-	const screenHeight = window.innerHeight;
-
-	let x = Math.random() * (screenWidth - width - 2 * MARGIN) + MARGIN;
-	let y = Math.random() * (screenHeight - height - 2 * MARGIN) + MARGIN;
-	let vx = Math.random() > 0.5 ? VELOCITY : -VELOCITY;
-	let vy = Math.random() > 0.5 ? VELOCITY : -VELOCITY;
-	let running = true;
-
-	const animate = () => {
-		if (!running) return;
-
-		x += vx;
-		y += vy;
-
-		const maxX = screenWidth - width - MARGIN;
-		const maxY = screenHeight - height - MARGIN;
-
-		if (x <= MARGIN) { x = MARGIN; vx = -vx; }
-		else if (x >= maxX) { x = maxX; vx = -vx; }
-
-		if (y <= MARGIN) { y = MARGIN; vy = -vy; }
-		else if (y >= maxY) { y = maxY; vy = -vy; }
-
-		if (ref.current) {
-			ref.current.style.transform = 'translate(' + Math.round(x) + 'px, ' + Math.round(y) + 'px)';
-			ref.current.style.webkitTransform = ref.current.style.transform;
-		}
-
-		animRef.current = window.requestAnimationFrame ? window.requestAnimationFrame(animate) : setTimeout(animate, FRAME_DELAY);
-	};
-
-	animate();
-
-	return () => {
-		running = false;
-		if (animRef.current) {
-			if (window.requestAnimationFrame) {
-				window.cancelAnimationFrame(animRef.current);
-			} else {
-				clearTimeout(animRef.current);
-			}
-		}
-	};
+const COMPONENT_SIZE = {
+	moonfinLogo: {width: 320, height: 140},
+	clock: {width: 200, height: 56},
+	runner: {width: 120, height: 120}
 };
 
-const Screensaver = ({visible, mode = 'library', dimmingLevel = 50, clockMode = 'staticCorner', clockDisplay = '24-hour', timeOffsetHours = 0, maxRating = null, onDismiss, serverUrl}) => {
-	const showClock = clockMode !== 'off';
-	const clockBounces = clockMode === 'bouncing';
+const pickOne = (values) => values[Math.floor(Math.random() * values.length)];
+
+const shuffle = (items) => {
+	for (let i = items.length - 1; i > 0; i--) {
+		const j = Math.floor(Math.random() * (i + 1));
+		const held = items[i];
+		items[i] = items[j];
+		items[j] = held;
+	}
+	return items;
+};
+
+const includeItemTypesFor = (contentType) => {
+	if (contentType === 'movies') return 'Movie';
+	if (contentType === 'tv' || contentType === 'tvshows') return 'Series';
+	return 'Movie,Series';
+};
+
+const viewMatchesContentType = (collectionType, contentType) => {
+	if (!collectionType) return true;
+	if (contentType === 'movies') return collectionType === 'movies';
+	if (contentType === 'tv' || contentType === 'tvshows') return collectionType === 'tvshows';
+	return LIBRARY_TYPES.indexOf(collectionType) !== -1;
+};
+
+const loadBackdropBatch = async ({contentType, libraryIds, collectionIds, excludedGenres, maxRating}) => {
+	let parentIds = libraryIds.concat(collectionIds).filter(Boolean);
+	if (parentIds.length === 0) {
+		const views = await jellyfinApi.api.getAllLibraries();
+		parentIds = (views?.Items || [])
+			.filter(view => viewMatchesContentType(view.CollectionType, contentType))
+			.map(view => view.Id)
+			.filter(Boolean);
+	}
+
+	const query = {
+		IncludeItemTypes: includeItemTypesFor(contentType),
+		ExcludeItemTypes: 'BoxSet',
+		Recursive: true,
+		SortBy: pickOne(SORT_FIELDS),
+		SortOrder: pickOne(SORT_ORDERS),
+		Limit: BACKDROP_BATCH_SIZE,
+		Fields: ITEM_FIELDS,
+		EnableTotalRecordCount: false,
+		EnableImageTypes: 'Backdrop,Logo'
+	};
+	if (maxRating != null && RATING_MAP[maxRating]) {
+		query.MaxOfficialRating = RATING_MAP[maxRating];
+	}
+
+	const startIndex = pickOne(START_OFFSETS);
+
+	const fetchFrom = async (parentId) => {
+		const run = (start) => {
+			const params = {...query, StartIndex: start};
+			if (parentId) params.ParentId = parentId;
+			return jellyfinApi.api.getItems(params).then(result => result?.Items || []);
+		};
+		const page = await run(startIndex);
+		// A random offset can overshoot a small library and come back with nothing,
+		// so the second pass starts from the top.
+		if (page.length === 0 && startIndex > 0) return run(0);
+		return page;
+	};
+
+	const batches = parentIds.length > 0
+		? await Promise.all(parentIds.map(parentId => fetchFrom(parentId).catch(() => [])))
+		: [await fetchFrom(null)];
+
+	const excluded = excludedGenres.filter(Boolean);
+	const items = shuffle([].concat.apply([], batches)).filter(item => {
+		if (!getBackdropId(item)) return false;
+		return !(item.Genres || []).some(genre => excluded.indexOf(genre) !== -1);
+	});
+
+	return items.slice(0, BACKDROP_BATCH_SIZE);
+};
+
+const Screensaver = ({
+	visible,
+	backdrop = 'library',
+	component = 'moonfinLogo',
+	movement = 'moderate',
+	position = 'middle',
+	size = 'medium',
+	contentType = 'both',
+	libraryIds,
+	collectionIds,
+	excludedGenres,
+	dimmingLevel = 50,
+	clockDisplay = '24-hour',
+	timeOffsetHours = 0,
+	maxRating = null,
+	onDismiss,
+	serverUrl
+}) => {
+	const showLibrary = backdrop === 'library';
+	const showClock = component === 'clock';
+	const {scale, speedMultiplier, bounces, box, boxStyle, anchorClass} = resolveLayout({
+		component,
+		movement,
+		position,
+		size,
+		sizes: COMPONENT_SIZE
+	});
+
 	const [rendered, setRendered] = useState(false);
 	const [showOverlay, setShowOverlay] = useState(false);
 	const [clockText, setClockText] = useState(() => formatClockTime(shiftedNow(timeOffsetHours), clockDisplay));
-	const logoAnimRef = useRef(null);
-	const clockAnimRef = useRef(null);
-	const logoRef = useRef(null);
-	const clockRef = useRef(null);
+	const boxRef = useRef(null);
+	const boxAnimRef = useRef(null);
+	const facingRef = useRef(false);
 
 	const [currentItem, setCurrentItem] = useState(null);
 	const [backdropVisible, setBackdropVisible] = useState(false);
@@ -91,6 +145,12 @@ const Screensaver = ({visible, mode = 'library', dimmingLevel = 50, clockMode = 
 	const backdropTimerRef = useRef(null);
 	const backdropBatchRef = useRef([]);
 	const backdropUsedRef = useRef(0);
+
+	// Fresh arrays on every parent render would restart the slideshow, so the
+	// query is keyed off the joined ids instead.
+	const libraryKey = (libraryIds || []).join(',');
+	const collectionKey = (collectionIds || []).join(',');
+	const genreKey = (excludedGenres || []).join(',');
 
 	useEffect(() => {
 		if (visible) {
@@ -121,27 +181,28 @@ const Screensaver = ({visible, mode = 'library', dimmingLevel = 50, clockMode = 
 	}, [visible, showClock, clockDisplay, timeOffsetHours]);
 
 	useEffect(() => {
-		if (!visible || mode !== 'library' || !serverUrl) return;
+		if (!visible || !showLibrary || !serverUrl) return;
 		let cancelled = false;
 
-		const query = maxRating != null && RATING_MAP[maxRating]
-			? {...BACKDROP_QUERY, MaxOfficialRating: RATING_MAP[maxRating]}
-			: BACKDROP_QUERY;
+		const options = {
+			contentType,
+			libraryIds: libraryKey ? libraryKey.split(',') : [],
+			collectionIds: collectionKey ? collectionKey.split(',') : [],
+			excludedGenres: genreKey ? genreKey.split(',') : [],
+			maxRating
+		};
 
 		const fetchItems = async () => {
 			try {
-				const result = await jellyfinApi.api.getItems(query);
-				if (cancelled) return;
-				const items = (result?.Items || []).filter(item => getBackdropId(item));
-				if (items.length > 0) {
-					backdropBatchRef.current = items;
-					backdropUsedRef.current = 0;
-					setCurrentItem(items[0]);
-					setBatchReady(true);
-					setTimeout(() => {
-						if (!cancelled) setBackdropVisible(true);
-					}, 500);
-				}
+				const items = await loadBackdropBatch(options);
+				if (cancelled || items.length === 0) return;
+				backdropBatchRef.current = items;
+				backdropUsedRef.current = 0;
+				setCurrentItem(items[0]);
+				setBatchReady(true);
+				setTimeout(() => {
+					if (!cancelled) setBackdropVisible(true);
+				}, 500);
 			} catch (err) {
 				console.error('[Screensaver] Failed to fetch backdrop items:', err);
 			}
@@ -152,31 +213,29 @@ const Screensaver = ({visible, mode = 'library', dimmingLevel = 50, clockMode = 
 			cancelled = true;
 			clearTimeout(initialTimer);
 		};
-	}, [visible, mode, serverUrl, maxRating]);
+	}, [visible, showLibrary, serverUrl, contentType, libraryKey, collectionKey, genreKey, maxRating]);
 
 	useEffect(() => {
-		if (!visible || mode !== 'library' || !serverUrl || !batchReady) return;
+		if (!visible || !showLibrary || !serverUrl || !batchReady) return;
 
-		const query = maxRating != null && RATING_MAP[maxRating]
-			? {...BACKDROP_QUERY, MaxOfficialRating: RATING_MAP[maxRating]}
-			: BACKDROP_QUERY;
+		const options = {
+			contentType,
+			libraryIds: libraryKey ? libraryKey.split(',') : [],
+			collectionIds: collectionKey ? collectionKey.split(',') : [],
+			excludedGenres: genreKey ? genreKey.split(',') : [],
+			maxRating
+		};
 
 		const cycle = async () => {
 			backdropUsedRef.current += 1;
-			const batch = backdropBatchRef.current;
 
-			if (backdropUsedRef.current >= batch.length) {
+			if (backdropUsedRef.current >= backdropBatchRef.current.length) {
+				backdropUsedRef.current = 0;
 				try {
-					const result = await jellyfinApi.api.getItems(query);
-					const items = (result?.Items || []).filter(item => getBackdropId(item));
-					if (items.length > 0) {
-						backdropBatchRef.current = items;
-						backdropUsedRef.current = 0;
-					} else {
-						backdropUsedRef.current = 0;
-					}
+					const items = await loadBackdropBatch(options);
+					if (items.length > 0) backdropBatchRef.current = items;
 				} catch (err) {
-					backdropUsedRef.current = 0;
+					console.error('[Screensaver] Failed to refresh backdrop items:', err);
 				}
 			}
 
@@ -196,17 +255,21 @@ const Screensaver = ({visible, mode = 'library', dimmingLevel = 50, clockMode = 
 				clearInterval(backdropTimerRef.current);
 			}
 		};
-	}, [visible, mode, serverUrl, batchReady, maxRating]);
+	}, [visible, showLibrary, serverUrl, batchReady, contentType, libraryKey, collectionKey, genreKey, maxRating]);
 
 	useEffect(() => {
-		if (!visible || mode !== 'logo' || !logoRef.current) return;
-		return startBounce(logoRef, logoAnimRef, LOGO_WIDTH, LOGO_HEIGHT);
-	}, [visible, mode, rendered]);
-
-	useEffect(() => {
-		if (!visible || !clockBounces || !clockRef.current) return;
-		return startBounce(clockRef, clockAnimRef, CLOCK_WIDTH, CLOCK_HEIGHT);
-	}, [visible, clockBounces, rendered]);
+		if (!visible || !bounces || !box || !boxRef.current) return;
+		return startBounce({
+			boxRef,
+			animRef: boxAnimRef,
+			facingRef,
+			bounds: {width: window.innerWidth, height: window.innerHeight},
+			width: box.width * scale,
+			height: box.height * scale,
+			speedMultiplier,
+			margin: BOUNCE_MARGIN
+		});
+	}, [visible, bounces, box, scale, speedMultiplier, rendered]);
 
 	const handleInteraction = useCallback((e) => {
 		e.preventDefault();
@@ -223,13 +286,36 @@ const Screensaver = ({visible, mode = 'library', dimmingLevel = 50, clockMode = 
 	const backdropUrl = backdropId ? getImageUrl(serverUrl, backdropId, 'Backdrop', {maxWidth: 1920, quality: 80}) : null;
 	const itemLogoUrl = currentItem ? getLogoUrl(serverUrl, currentItem, {maxWidth: 400, quality: 90}) : null;
 
+	const renderComponent = () => {
+		if (component === 'moonfinLogo') {
+			return <img src="resources/banner-dark.png" alt="Moonfin" className={css.componentLogo} />;
+		}
+		if (component === 'clock') {
+			return (
+				<div className={css.componentClock} style={{fontSize: Math.round(32 * scale) + 'px', opacity: clockAlpha}}>
+					{clockText}
+				</div>
+			);
+		}
+		if (component === 'runner') {
+			return (
+				<ScreensaverRunner
+					size={Math.round(RUNNER_BASE_SIZE * scale)}
+					speedMultiplier={bounces ? speedMultiplier : 1}
+					facingRef={facingRef}
+				/>
+			);
+		}
+		return null;
+	};
+
 	return (
 		<div
 			className={css.overlay + ' ' + (showOverlay ? css.overlayVisible : '')}
 			onClick={handleInteraction}
 			onKeyDown={handleInteraction}
 		>
-			{mode === 'library' && (
+			{showLibrary && (
 				<div className={css.backdropContainer}>
 					{backdropUrl && (
 						<div
@@ -250,20 +336,9 @@ const Screensaver = ({visible, mode = 'library', dimmingLevel = 50, clockMode = 
 				</div>
 			)}
 
-			{mode === 'logo' && (
-				<div
-					ref={logoRef}
-					className={css.logoContainer}
-				>
-					<img
-						src="resources/banner-dark.png"
-						alt="Moonfin"
-						className={css.logo}
-					/>
-				</div>
-			)}
+			{isGradientBackdrop(backdrop) && <ScreensaverGradient backdrop={backdrop} />}
 
-			{mode === 'library' && !backdropUrl && (
+			{showLibrary && !backdropUrl && (
 				<div className={css.logoContainerCentered}>
 					<img
 						src="resources/banner-dark.png"
@@ -280,13 +355,15 @@ const Screensaver = ({visible, mode = 'library', dimmingLevel = 50, clockMode = 
 				/>
 			)}
 
-			{showClock && (
-				<div
-					ref={clockBounces ? clockRef : null}
-					className={clockBounces ? css.clock : css.clockFixed}
-					style={{opacity: clockAlpha}}
-				>
-					{clockText}
+			{box && (
+				<div className={bounces ? css.bounceLayer : css.staticLayer}>
+					<div
+						ref={bounces ? boxRef : null}
+						className={css.componentBox + (bounces ? '' : ' ' + css[anchorClass])}
+						style={boxStyle}
+					>
+						{renderComponent()}
+					</div>
 				</div>
 			)}
 		</div>

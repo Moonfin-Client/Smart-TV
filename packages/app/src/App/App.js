@@ -147,7 +147,8 @@ const AppContent = (props) => {
 	const {streamNotification, dismissStreamNotification} = useSeerr();
 	const {pendingPopups, markPopupsRead} = useServerMessages();
 	const themeMusic = useThemeMusic();
-	const {openDialog: openSyncPlay, closeDialog: closeSyncPlay, isDialogOpen: syncPlayDialogOpen, playQueueItem, clearPlayQueueItem, isInGroup: isSyncPlayInGroup, setNewQueue: syncPlaySetNewQueue, displayMessage: syncPlayMessage, clearDisplayMessage: clearSyncPlayMessage} = useSyncPlay();
+	const {openDialog: openSyncPlay, closeDialog: closeSyncPlay, isDialogOpen: syncPlayDialogOpen, playQueueUpdate: syncPlayQueueUpdate, isInGroup: isSyncPlayInGroup, setNewQueue: syncPlaySetNewQueue, displayMessage: syncPlayMessage, clearDisplayMessage: clearSyncPlayMessage, getGroupPositionTicks: getSyncPlayPositionTicks} = useSyncPlay();
+	const handledSyncPlayQueueRef = useRef(null);
 
 	const syncPlayToast = useMemo(() => (
 		syncPlayMessage ? {
@@ -631,6 +632,15 @@ const AppContent = (props) => {
 					return;
 				}
 
+				// The dialog closes itself on back, but its listener shares the
+				// window with this one and stopPropagation does not reach a
+				// sibling, so the same press otherwise falls through to the
+				// panel underneath and asks to exit the app.
+				if (syncPlayDialogOpen) {
+					closeSyncPlay();
+					return;
+				}
+
 				if (updateInfo) {
 					dismissUpdate();
 					return;
@@ -677,7 +687,7 @@ const AppContent = (props) => {
 
 		window.addEventListener('keydown', handleKeyDown, true);
 		return () => window.removeEventListener('keydown', handleKeyDown, true);
-	}, [panelIndex, handleBack, performAppCleanup, settings.exitConfirmation, showAccountModal, showServerMessages, showExitDialog, showSettingsPanel, showShuffleOverlay, isPinGateActive, setupWizardActive, updateInfo, dismissUpdate]);
+	}, [panelIndex, handleBack, performAppCleanup, settings.exitConfirmation, showAccountModal, showServerMessages, showExitDialog, showSettingsPanel, showShuffleOverlay, isPinGateActive, setupWizardActive, updateInfo, dismissUpdate, syncPlayDialogOpen, closeSyncPlay]);
 
 	const handleLoggedIn = useCallback(() => {
 		setPanelHistory([]);
@@ -823,17 +833,36 @@ const AppContent = (props) => {
 		navigateTo(PANELS.PLAYER);
 	}, [navigateTo, isSyncPlayInGroup, openSyncPlay, settings.syncplayAutoOpen, settings.syncplayEnabled, syncPlaySetNewQueue]);
 
+	const playSyncPlayItem = useCallback((item) => {
+		if (panelIndex === PANELS.PLAYER && playingItem?.Id === item.Id) return;
+		// Opened where the group is: a set started at the beginning is only
+		// seeked there by the server afterwards, which on a transcode means
+		// starting the stream twice while everyone waits.
+		const startPositionTicks = getSyncPlayPositionTicks();
+		setPlayingItem(item);
+		setPlaybackOptions(startPositionTicks > 0 ? {startPositionTicks} : null);
+		setIsResume(false);
+		navigateTo(PANELS.PLAYER);
+	}, [panelIndex, playingItem, navigateTo, getSyncPlayPositionTicks]);
+
+	// The group queued something, so the player has to take over. Reorders and
+	// repeat/shuffle toggles arrive the same way and only count when they
+	// change what is playing.
 	useEffect(() => {
-		if (playQueueItem) {
-			if (!playingItem || playingItem.Id !== playQueueItem.Id) {
-				setPlayingItem(playQueueItem);
-				setPlaybackOptions(null);
-				setIsResume(false);
-				navigateTo(PANELS.PLAYER);
-			}
-			clearPlayQueueItem();
-		}
-	}, [playQueueItem, playingItem, navigateTo, clearPlayQueueItem]);
+		const update = syncPlayQueueUpdate;
+		if (!update || update === handledSyncPlayQueueRef.current) return;
+		handledSyncPlayQueueRef.current = update;
+		if (!update.startsPlayback && playingItem?.Id === update.item.Id) return;
+		playSyncPlayItem(update.item);
+	}, [syncPlayQueueUpdate, playingItem, playSyncPlayItem]);
+
+	// The SyncPlay dialog sits above every panel and holds the remote focus, so
+	// it can't stay up over a player the group is driving: a member waiting in
+	// it when the group starts, or a group created from over the player through
+	// the auto-open flow, would otherwise only see the state badge change.
+	useEffect(() => {
+		if (syncPlayDialogOpen && isSyncPlayInGroup && panelIndex === PANELS.PLAYER) closeSyncPlay();
+	}, [syncPlayDialogOpen, isSyncPlayInGroup, panelIndex, closeSyncPlay]);
 
 	const handlePlayNext = useCallback((item) => {
 		setPlayingItem(item);
@@ -1529,6 +1558,8 @@ const AppContent = (props) => {
 			<SyncPlayDialog
 				open={syncPlayDialogOpen}
 				onClose={closeSyncPlay}
+				playingItemId={panelIndex === PANELS.PLAYER ? playingItem?.Id : null}
+				onWatch={playSyncPlayItem}
 			/>
 			<ShuffleOverlay
 				open={showShuffleOverlay}
@@ -1577,9 +1608,16 @@ const AppContent = (props) => {
 			)}
 			<Screensaver
 				visible={showScreensaver}
-				mode={settings.screensaverMode || 'library'}
+				backdrop={settings.screensaverBackdrop || 'library'}
+				component={settings.screensaverComponent || 'none'}
+				movement={settings.screensaverMovement || 'moderate'}
+				position={settings.screensaverPosition || 'middle'}
+				size={settings.screensaverSize || 'medium'}
+				contentType={settings.screensaverContentType || 'both'}
+				libraryIds={settings.screensaverLibraryIds}
+				collectionIds={settings.screensaverCollectionIds}
+				excludedGenres={settings.screensaverExcludedGenres}
 				dimmingLevel={settings.screensaverDimmingLevel}
-				clockMode={settings.screensaverClockMode}
 				clockDisplay={settings.clockDisplay}
 				timeOffsetHours={settings.timeOffsetHours}
 				maxRating={settings.screensaverAgeFilter ? settings.screensaverMaxRating : null}

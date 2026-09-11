@@ -40,6 +40,30 @@ describe('profileToLocal', () => {
 		expect(profileToLocal({screensaverMode: 'off'}).screensaverMode).toBeUndefined();
 		expect(profileToLocal({screensaverMode: 'logo'}).screensaverMode).toBe('logo');
 	});
+
+	test('takes the screensaver customization stored in the profile', () => {
+		const local = profileToLocal({
+			screensaverBackdrop: 'neonPulse',
+			screensaverComponent: 'runner',
+			screensaverMovement: 'ultra',
+			screensaverPosition: 'bottomRight',
+			screensaverSize: 'large',
+			screensaverContentType: 'tvshows',
+			screensaverLibraryIds: ['0123456789abcdef0123456789abcdef'],
+			screensaverCollectionIds: ['fedcba9876543210fedcba9876543210'],
+			screensaverExcludedGenres: ['Horror']
+		});
+
+		expect(local.screensaverBackdrop).toBe('neonPulse');
+		expect(local.screensaverComponent).toBe('runner');
+		expect(local.screensaverMovement).toBe('ultra');
+		expect(local.screensaverPosition).toBe('bottomRight');
+		expect(local.screensaverSize).toBe('large');
+		expect(local.screensaverContentType).toBe('tv');
+		expect(local.screensaverLibraryIds).toEqual(['01234567-89ab-cdef-0123-456789abcdef']);
+		expect(local.screensaverCollectionIds).toEqual(['fedcba98-7654-3210-fedc-ba9876543210']);
+		expect(local.screensaverExcludedGenres).toEqual(['Horror']);
+	});
 });
 
 describe('localToProfile', () => {
@@ -73,6 +97,12 @@ describe('localToProfile', () => {
 		const profile = localToProfile({...defaultSettings, customHomeRows: [{id: 'row'}]});
 
 		expect(profile).not.toHaveProperty('customHomeRows');
+	});
+
+	test('sends the screensaver content type under the name the profile uses', () => {
+		const profile = localToProfile({...defaultSettings, screensaverContentType: 'tv'}, ['screensaverContentType']);
+
+		expect(profile).toEqual({screensaverContentType: 'tvshows'});
 	});
 
 	// Some synced keys have no default at all, which is how a screen asks for its built in

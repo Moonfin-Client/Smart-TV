@@ -38,9 +38,12 @@ import {
 	getRecommendationSystemSourceOptions,
 	getResumeRewindOptions,
 	getRewatchSortOptions,
-	getScreensaverClockOptions,
+	getScreensaverBackdropOptions,
+	getScreensaverComponentOptions,
 	getScreensaverDimmingOptions,
-	getScreensaverModeOptions,
+	getScreensaverMovementOptions,
+	getScreensaverPositionOptions,
+	getScreensaverSizeOptions,
 	getScreensaverTimeoutOptions,
 	getSeasonalThemeOptions,
 	getSeekStepOptions,
@@ -115,10 +118,11 @@ const whenPlugin = (ctx) => ctx.settings.useMoonfinPlugin;
 const whenHdrSubtitles = (ctx) => ctx.settings.subtitleHdrSeparate;
 const whenSeerr = (ctx) => ctx.seerr.isEnabled;
 const whenScreensaver = (ctx) => ctx.settings.screensaverEnabled;
-const whenScreensaverLibrary = (ctx) => ctx.settings.screensaverEnabled && ctx.settings.screensaverMode === 'library';
+const whenScreensaverLibrary = (ctx) => ctx.settings.screensaverEnabled && ctx.settings.screensaverBackdrop === 'library';
+const whenScreensaverComponent = (ctx) => ctx.settings.screensaverEnabled && ctx.settings.screensaverComponent !== 'none';
+const whenScreensaverStatic = (ctx) => whenScreensaverComponent(ctx) && ctx.settings.screensaverMovement === 'staticCorner';
 const whenPassthrough = (ctx) => ctx.settings.audioPassthroughMode === 'manual';
 const whenSyncCorrection = (ctx) => ctx.settings.syncPlayAdvancedCorrectionEnabled !== false;
-const whenSpeedToSync = (ctx) => whenSyncCorrection(ctx) && ctx.settings.syncPlayUseSpeedToSync !== false;
 
 const countLabel = (count) => $L('{count} selected').replace('{count}', String(count));
 
@@ -295,12 +299,52 @@ export const SETTINGS_SCHEMA = [
 				label: () => $L('Screensaver'),
 				description: () => $L('Enable the built-in screensaver'),
 				rows: [
-					{kind: KIND.SECTION, id: 'screensaver', label: () => $L('Screensaver')},
+					{kind: KIND.SECTION, id: 'screensaverGeneral', label: () => $L('General Settings')},
 					{kind: KIND.TOGGLE, key: 'screensaverEnabled', label: () => $L('In-App Screensaver'), desc: () => $L('Enable the built-in screensaver'), icon: 'wallpaper'},
-					{kind: KIND.OPTION, key: 'screensaverMode', label: () => $L('Mode'), options: getScreensaverModeOptions, fallback: () => $L('Library Art'), icon: 'star_shine', when: whenScreensaver},
 					{kind: KIND.OPTION, key: 'screensaverTimeout', label: () => $L('Timeout'), options: getScreensaverTimeoutOptions, fallback: () => $L('90 seconds'), icon: 'timer', when: whenScreensaver},
 					{kind: KIND.OPTION, key: 'screensaverDimmingLevel', label: () => $L('Dimming Level'), options: getScreensaverDimmingOptions, fallback: '50%', icon: 'brightness_6', when: whenScreensaver},
-					{kind: KIND.OPTION, key: 'screensaverClockMode', label: () => $L('Show Clock'), desc: () => $L('How the clock appears during the screensaver'), options: getScreensaverClockOptions, fallback: () => $L('Static'), icon: 'clock', when: whenScreensaver},
+					{kind: KIND.SECTION, id: 'screensaverVisual', label: () => $L('Visual Components'), when: whenScreensaver},
+					{kind: KIND.CUSTOM, id: 'screensaverPreview', render: 'screensaverPreview', when: whenScreensaver},
+					{kind: KIND.OPTION, key: 'screensaverBackdrop', label: () => $L('Backdrop'), options: getScreensaverBackdropOptions, fallback: () => $L('Library Art'), icon: 'star_shine', when: whenScreensaver},
+					{kind: KIND.OPTION, key: 'screensaverComponent', label: () => $L('Additional Component'), options: getScreensaverComponentOptions, fallback: () => $L('Moonfin Logo'), icon: 'appscontents', when: whenScreensaver},
+					{kind: KIND.OPTION, key: 'screensaverMovement', label: () => $L('Component Movement'), options: getScreensaverMovementOptions, fallback: () => $L('Moderate'), icon: 'speed', when: whenScreensaverComponent},
+					{kind: KIND.OPTION, key: 'screensaverSize', label: () => $L('Component Size'), options: getScreensaverSizeOptions, fallback: () => $L('Medium'), icon: 'photo_size_select_large', when: whenScreensaverComponent},
+					{kind: KIND.OPTION, key: 'screensaverPosition', label: () => $L('Component Position'), options: getScreensaverPositionOptions, fallback: () => $L('Middle'), icon: 'aligncenter', when: whenScreensaverStatic},
+					{kind: KIND.SECTION, id: 'screensaverLibraryContent', label: () => $L('Library Content'), when: whenScreensaverLibrary},
+					{kind: KIND.OPTION, key: 'screensaverContentType', label: () => $L('Content Type'), options: getContentTypeOptions, fallback: () => $L('Movies & TV Shows'), icon: 'category', when: whenScreensaverLibrary},
+					{
+						kind: KIND.NAV,
+						id: 'screensaverLibraries',
+						label: () => $L('Source Libraries'),
+						desc: (ctx) => (Array.isArray(ctx.settings.screensaverLibraryIds) && ctx.settings.screensaverLibraryIds.length > 0
+							? countLabel(ctx.settings.screensaverLibraryIds.length)
+							: $L('All (Default)')),
+						icon: 'folder',
+						when: whenScreensaverLibrary,
+						action: (ctx) => ctx.actions.openScreensaverLibraries()
+					},
+					{
+						kind: KIND.NAV,
+						id: 'screensaverCollections',
+						label: () => $L('Source Collections'),
+						desc: (ctx) => (Array.isArray(ctx.settings.screensaverCollectionIds) && ctx.settings.screensaverCollectionIds.length > 0
+							? countLabel(ctx.settings.screensaverCollectionIds.length)
+							: $L('None selected')),
+						icon: 'photo_library',
+						when: whenScreensaverLibrary,
+						action: (ctx) => ctx.actions.openScreensaverCollections()
+					},
+					{
+						kind: KIND.NAV,
+						id: 'screensaverGenres',
+						label: () => $L('Excluded Genres'),
+						desc: (ctx) => (Array.isArray(ctx.settings.screensaverExcludedGenres) && ctx.settings.screensaverExcludedGenres.length > 0
+							? ctx.settings.screensaverExcludedGenres.join(', ')
+							: $L('None excluded')),
+						icon: 'hide',
+						when: whenScreensaverLibrary,
+						action: (ctx) => ctx.actions.openScreensaverGenres()
+					},
 					{kind: KIND.OPTION, key: 'screensaverMaxRating', label: () => $L('Max Age Rating'), options: getAgeRatingOptions, fallback: 'PG-13', icon: 'lockcircle', when: whenScreensaverLibrary},
 					{kind: KIND.TOGGLE, key: 'screensaverAgeFilter', label: () => $L('Require Age Rating'), desc: () => $L('Only show rated content'), icon: 'verified_user', when: whenScreensaverLibrary}
 				]
@@ -658,11 +702,7 @@ export const SETTINGS_SCHEMA = [
 					{kind: KIND.SECTION, id: 'syncPlayCorrection', label: () => $L('Sync Correction')},
 					{kind: KIND.TOGGLE, key: 'syncPlayAdvancedCorrectionEnabled', label: () => $L('Advanced Correction'), desc: () => $L('Continuously measure playback against the group and correct drift'), icon: 'spanner'},
 					{kind: KIND.TOGGLE, key: 'syncPlayEnableSyncCorrection', label: () => $L('Sync Correction'), desc: () => $L('Correct drift while playing'), icon: 'sync', when: whenSyncCorrection},
-					{kind: KIND.TOGGLE, key: 'syncPlayUseSpeedToSync', label: () => $L('Speed to Sync'), desc: () => $L('Use small speed changes to close a drift. Not every TV supports this, seeking covers the rest.'), icon: 'playspeed', when: whenSyncCorrection},
 					{kind: KIND.TOGGLE, key: 'syncPlayUseSkipToSync', label: () => $L('Skip to Sync'), desc: () => $L('Use seeking to sync'), icon: 'skip', when: whenSyncCorrection},
-					{kind: KIND.SLIDER, key: 'syncPlayMinDelaySpeedToSync', label: () => $L('Minimum Speed Delay'), min: 0, max: 5000, step: 100, format: milliseconds, icon: 'timer', when: whenSpeedToSync},
-					{kind: KIND.SLIDER, key: 'syncPlayMaxDelaySpeedToSync', label: () => $L('Maximum Speed Delay'), min: 0, max: 15000, step: 250, format: milliseconds, icon: 'timer', when: whenSpeedToSync},
-					{kind: KIND.SLIDER, key: 'syncPlaySpeedToSyncDuration', label: () => $L('Speed Duration'), min: 100, max: 5000, step: 100, format: milliseconds, icon: 'scheduler', when: whenSpeedToSync},
 					{kind: KIND.SLIDER, key: 'syncPlayMinDelaySkipToSync', label: () => $L('Minimum Skip Delay'), min: 0, max: 15000, step: 250, format: milliseconds, icon: 'timer', when: (ctx) => whenSyncCorrection(ctx) && ctx.settings.syncPlayUseSkipToSync},
 					{kind: KIND.SLIDER, key: 'syncPlayExtraTimeOffset', label: () => $L('SyncPlay Extra Offset'), desc: () => $L('A fixed offset added to the group position, for displays that lag'), min: -2000, max: 2000, step: 100, format: milliseconds, icon: 'scheduler'}
 				]

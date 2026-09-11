@@ -128,9 +128,47 @@ export const getUiScaleOptions = () => [
 	{ value: 1.3, label: $L('Maximum') }
 ];
 
-export const getScreensaverModeOptions = () => [
+export const getScreensaverBackdropOptions = () => [
 	{ value: 'library', label: $L('Library Art') },
-	{ value: 'logo', label: $L('Logo') }
+	{ value: 'black', label: $L('Black') },
+	{ value: 'moonfin', label: $L('Moonfin') },
+	{ value: 'calm', label: $L('Calm') },
+	{ value: 'neonPulse', label: $L('Neon Pulse') },
+	{ value: 'aurora', label: $L('Aurora') }
+];
+
+export const getScreensaverComponentOptions = () => [
+	{ value: 'none', label: $L('None') },
+	{ value: 'moonfinLogo', label: $L('Moonfin Logo') },
+	{ value: 'clock', label: $L('Clock') },
+	{ value: 'runner', label: $L('Runner') }
+];
+
+export const getScreensaverMovementOptions = () => [
+	{ value: 'staticCorner', label: $L('Static') },
+	{ value: 'slow', label: $L('Slow') },
+	{ value: 'moderate', label: $L('Moderate') },
+	{ value: 'fast', label: $L('Fast') },
+	{ value: 'ultra', label: $L('Ultra') }
+];
+
+export const getScreensaverSizeOptions = () => [
+	{ value: 'thumbnail', label: $L('Thumbnail') },
+	{ value: 'small', label: $L('Small') },
+	{ value: 'medium', label: $L('Medium') },
+	{ value: 'large', label: $L('Large') }
+];
+
+export const getScreensaverPositionOptions = () => [
+	{ value: 'topLeft', label: $L('Top-Left') },
+	{ value: 'topCenter', label: $L('Top-Center') },
+	{ value: 'topRight', label: $L('Top-Right') },
+	{ value: 'middleLeft', label: $L('Middle-Left') },
+	{ value: 'middle', label: $L('Middle') },
+	{ value: 'middleRight', label: $L('Middle-Right') },
+	{ value: 'bottomLeft', label: $L('Bottom-Left') },
+	{ value: 'bottomCenter', label: $L('Bottom-Center') },
+	{ value: 'bottomRight', label: $L('Bottom-Right') }
 ];
 
 export const getScreensaverTimeoutOptions = () => [
@@ -349,12 +387,6 @@ export const getSortOrderOptions = () => [
 	{ value: 'auto', label: $L('Auto') },
 	{ value: 'Ascending', label: $L('Ascending') },
 	{ value: 'Descending', label: $L('Descending') }
-];
-
-export const getScreensaverClockOptions = () => [
-	{ value: 'off', label: $L('Off') },
-	{ value: 'staticCorner', label: $L('Static') },
-	{ value: 'bouncing', label: $L('Bouncing') }
 ];
 
 export const getOledModeOptions = () => [

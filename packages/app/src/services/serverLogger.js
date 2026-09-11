@@ -1,6 +1,7 @@
 import {getPlatform} from '../platform';
 import {setNetworkLogSink} from '../utils/networkLogSink';
 import {redact, redactContext} from '../utils/logRedaction';
+import {setSyncLogSink} from '../utils/syncLog';
 
 const LOG_LEVELS = {
 	DEBUG: 'Debug',
@@ -15,7 +16,8 @@ const LOG_CATEGORIES = {
 	NETWORK: 'Network',
 	APP: 'Application',
 	AUTHENTICATION: 'Authentication',
-	NAVIGATION: 'Navigation'
+	NAVIGATION: 'Navigation',
+	SYNCPLAY: 'SyncPlay'
 };
 
 import packageJson from '../../package.json';
@@ -247,6 +249,9 @@ export const serverLogger = {
 		isRecording = recording;
 		setNetworkLogSink(recording
 			? (message, level) => log(level === 'error' ? LOG_LEVELS.ERROR : LOG_LEVELS.DEBUG, LOG_CATEGORIES.NETWORK, message)
+			: null);
+		setSyncLogSink(recording
+			? (message) => log(LOG_LEVELS.DEBUG, LOG_CATEGORIES.SYNCPLAY, message)
 			: null);
 	},
 

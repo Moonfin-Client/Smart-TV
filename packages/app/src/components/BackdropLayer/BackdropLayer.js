@@ -1,6 +1,7 @@
 import {useEffect, useRef, memo} from 'react';
 import {getPerfTier} from '../../utils/perfTier';
-import css from './Browse.module.less';
+
+import css from './BackdropLayer.module.less';
 
 const BACKDROP_DEBOUNCE_MS = 500;
 
@@ -11,7 +12,7 @@ const clampBlur = (amount) => {
 	return Math.min(amount || 0, cap);
 };
 
-const BackdropLayer = memo(({targetUrl, blurAmount}) => {
+const BackdropLayer = memo(({targetUrl, blurAmount, overlayOpacity}) => {
 	const layerARef = useRef(null);
 	const layerBRef = useRef(null);
 	const activeLayerRef = useRef('a');
@@ -73,6 +74,11 @@ const BackdropLayer = memo(({targetUrl, blurAmount}) => {
 		? {WebkitFilter: `blur(${effectiveBlur}px)`, filter: `blur(${effectiveBlur}px)`}
 		: {WebkitFilter: 'none', filter: 'none', top: 0, left: 0, width: '100%', height: '100%'};
 
+	// How much picture shows through is the screen's own call, since a page laying
+	// a grid over the whole thing needs more of it covered than one that only
+	// wants the colour.
+	const overlayStyle = typeof overlayOpacity === 'number' ? {opacity: overlayOpacity} : undefined;
+
 	return (
 		<div className={css.globalBackdrop}>
 			<div
@@ -85,7 +91,7 @@ const BackdropLayer = memo(({targetUrl, blurAmount}) => {
 				className={css.globalBackdropImage}
 				style={layerStyle}
 			/>
-			<div className={css.globalBackdropOverlay} />
+			<div className={css.globalBackdropOverlay} style={overlayStyle} />
 		</div>
 	);
 });

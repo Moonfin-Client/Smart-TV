@@ -8,7 +8,7 @@ import {useAuth} from '../../context/AuthContext';
 import {createApiForServer} from '../../services/jellyfinApi';
 import LoadingSpinner from '../../components/LoadingSpinner';
 import MusicBrowse from '../MusicBrowse';
-import BackdropLayer from '../Browse/BackdropLayer';
+import BackdropLayer from '../../components/BackdropLayer';
 import {getImageUrl, getPrimaryImageId, formatDuration} from '../../utils/helpers';
 import useQuickReturnGrid from '../../hooks/useQuickReturnGrid';
 import {useSettings} from '../../context/SettingsContext';
