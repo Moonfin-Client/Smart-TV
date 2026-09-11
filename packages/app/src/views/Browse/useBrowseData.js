@@ -25,6 +25,7 @@ const useBrowseData = ({
 	unifiedMode,
 	seerrEnabled,
 	seerrAuthenticated,
+	recommendationsSupported,
 	getItemServerUrl,
 	homeRowsConfig
 }) => {
@@ -464,6 +465,7 @@ const useBrowseData = ({
 						eligibleLibraries,
 						seerrEnabled,
 						seerrAuthenticated,
+						recommendationsSupported,
 						appendRows
 					});
 					BROWSE_ROW_LOADERS.forEach((loader) => loader(loaderContext));
@@ -517,6 +519,7 @@ const useBrowseData = ({
 		settings.tmdbApiKey,
 		seerrEnabled,
 		seerrAuthenticated,
+		recommendationsSupported,
 		settings.rewatchIncludeMovies,
 		settings.rewatchIncludeShows,
 		settings.rewatchIncludeCollections,

@@ -50,7 +50,8 @@ const Browse = ({
 }) => {
 	const {api, serverUrl, accessToken, hasMultipleServers, user} = useAuth();
 	const {settings, activeTheme, loaded: settingsLoaded} = useSettings();
-	const {isEnabled: seerrEnabled, isAuthenticated: seerrAuthenticated, user: seerrUser} = useSeerr();
+	const {isEnabled: seerrEnabled, isAuthenticated: seerrAuthenticated, user: seerrUser, pluginInfo} = useSeerr();
+	const recommendationsSupported = pluginInfo?.recommendationsSupported === true;
 	const seerrUserId = seerrUser?.seerrUserId;
 	const seerrRows = useSeerrRows({
 		seerrEnabled,
@@ -145,6 +146,7 @@ const Browse = ({
 		unifiedMode,
 		seerrEnabled,
 		seerrAuthenticated,
+		recommendationsSupported,
 		getItemServerUrl,
 		homeRowsConfig
 	});
