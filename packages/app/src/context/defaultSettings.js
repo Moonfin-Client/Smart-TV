@@ -256,6 +256,7 @@ export const defaultSettings = {
 	blockedRatings: [],
 	showSeerrButton: true,
 	seerrShowMissingCollectionItems: true,
+	showSeerrAvailabilityBadges: true,
 	// Off until asked for. An admin who wants it on for everyone can set it in the
 	// plugin's default settings.
 	showServerMessagesButton: false,

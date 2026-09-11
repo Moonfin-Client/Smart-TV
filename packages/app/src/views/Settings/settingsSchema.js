@@ -805,6 +805,14 @@ export const SETTINGS_SCHEMA = [
 						desc: () => $L('Include missing items on Collection pages'),
 						icon: 'photo_library',
 						when: whenSeerr
+					},
+					{
+						kind: KIND.TOGGLE,
+						key: 'showSeerrAvailabilityBadges',
+						label: () => $L('Show Seerr Availability Badges'),
+						desc: () => $L('Show season availability badges on media details pages'),
+						icon: 'seerr',
+						when: whenSeerr
 					}
 				]
 			},
