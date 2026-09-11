@@ -186,7 +186,7 @@ const ClassicDetailScreen = ({
 												<span>{season.Name}</span>
 											</div>
 										)}
-										<SeerrSeasonDot status={(settings.showSeerrAvailabilityBadges ?? true) ? seerr.seasonMarkers.get(season.IndexNumber) : null} />
+										<SeerrSeasonDot status={settings.showSeerrAvailabilityBadges !== false ? seerr.seasonMarkers.get(season.IndexNumber) : null} />
 										{isWatched && (
 											<div className={css.watchedIndicator}>
 												<WatchedCheckIcon />
