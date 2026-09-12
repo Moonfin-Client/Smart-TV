@@ -1,0 +1,65 @@
+@import '../../styles/mixins.less';
+
+.trackList {
+	display: flex;
+	flex-direction: column;
+	width: 100%;
+}
+
+.discHeading {
+	color: rgba(255, 255, 255, 0.85);
+	font-size: 22px;
+	font-weight: 600;
+	padding: 16px 4px 8px;
+}
+
+.discHeading:first-child {
+	padding-top: 0;
+}
+
+.trackRow {
+	align-items: center;
+	border: 2px solid transparent;
+	border-radius: 8px;
+	display: flex;
+	padding: 10px 16px;
+}
+
+.trackRow:focus {
+	background: rgba(255, 255, 255, 0.14);
+	border-color: var(--theme-focus-border-color, #ffffff);
+	outline: none;
+}
+
+.trackIndex {
+	color: rgba(255, 255, 255, 0.5);
+	flex: 0 0 52px;
+	font-size: 20px;
+	text-align: right;
+}
+
+.trackText {
+	display: flex;
+	flex-direction: column;
+	min-width: 0;
+	overflow: hidden;
+}
+
+.trackTitle {
+	color: #fff;
+	font-size: 22px;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.trackSubtitle {
+	color: rgba(255, 255, 255, 0.6);
+	font-size: 18px;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.trackList            { .flex-col-gap(4px); }
+.trackRow             { .flex-row-gap(20px); }

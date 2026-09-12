@@ -1,0 +1,81 @@
+@import '../../../styles/mixins.less';
+
+.overlay {
+	background: rgba(0, 0, 0, 0.54);
+	bottom: 0;
+	left: 0;
+	position: fixed;
+	right: 0;
+	top: 0;
+	z-index: 120;
+}
+
+.panel {
+	background: rgba(18, 20, 24, 0.96);
+	border: 1px solid rgba(255, 255, 255, 0.12);
+	border-radius: 20px;
+	display: flex;
+	flex-direction: column;
+	height: 85%;
+	left: 9%;
+	overflow: hidden;
+	position: absolute;
+	top: 7.5%;
+	width: 82%;
+}
+
+.header {
+	align-items: center;
+	border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+	display: flex;
+	padding: 20px 24px 16px;
+}
+
+.headerIcon {
+	fill: rgba(255, 255, 255, 0.8);
+	height: 30px;
+	width: 30px;
+}
+
+.headerTitle {
+	color: #fff;
+	font-size: 30px;
+	font-weight: 700;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.body {
+	flex: 1;
+	padding: 16px 24px 24px;
+}
+
+.section {
+	display: flex;
+	flex-direction: column;
+}
+
+.sectionHeader {
+	align-items: center;
+	display: flex;
+}
+
+.sectionTitle {
+	color: #fff;
+	font-size: 24px;
+	font-weight: 600;
+}
+
+.sectionCount {
+	background: rgba(255, 255, 255, 0.08);
+	border-radius: 999px;
+	color: rgba(255, 255, 255, 0.7);
+	font-size: 18px;
+	padding: 2px 12px;
+}
+
+.header                { .flex-row-gap(12px); }
+.section               { .flex-col-gap(10px); }
+.body > * + *          { margin-top: 24px; }
+.sectionHeader         { .flex-row-gap(8px); }

@@ -1,0 +1,117 @@
+.card {
+	border: 1px solid rgba(255, 255, 255, 0.12);
+	border-radius: 14px;
+	display: block;
+	overflow: hidden;
+	position: relative;
+	transition: transform 0.15s ease-out, border-color 0.15s ease-out;
+}
+
+.card:focus {
+	border-color: var(--theme-focus-border-color, #ffffff);
+	border-width: 2px;
+	box-shadow: 0 0 12px rgba(255, 255, 255, 0.35);
+	outline: none;
+	transform: scale(1.03);
+}
+
+.image,
+.imageEmpty {
+	height: 100%;
+	left: 0;
+	position: absolute;
+	top: 0;
+	width: 100%;
+}
+
+.image {
+	object-fit: cover;
+	object-position: top center;
+	transition: transform 0.4s ease-out;
+}
+
+.card:focus .image {
+	transform: scale(1.06);
+}
+
+.imageEmpty {
+	background: linear-gradient(135deg, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.03));
+}
+
+.scrim {
+	background: linear-gradient(
+		to bottom,
+		rgba(0, 0, 0, 0.05) 35%,
+		rgba(0, 0, 0, 0.45) 65%,
+		rgba(0, 0, 0, 0.85) 100%
+	);
+	bottom: 0;
+	left: 0;
+	position: absolute;
+	right: 0;
+	top: 0;
+}
+
+.badge {
+	align-items: center;
+	background: rgba(0, 0, 0, 0.45);
+	border-radius: 50%;
+	display: flex;
+	height: 36px;
+	justify-content: center;
+	left: 10px;
+	position: absolute;
+	top: 10px;
+	width: 36px;
+}
+
+.badgeIcon {
+	fill: #fff;
+	height: 20px;
+	width: 20px;
+}
+
+.arrow {
+	bottom: 12px;
+	fill: #fff;
+	height: 22px;
+	opacity: 0.55;
+	position: absolute;
+	right: 12px;
+	transition: opacity 0.15s ease-out, transform 0.15s ease-out;
+	width: 22px;
+}
+
+.card:focus .arrow {
+	opacity: 1;
+	transform: translateX(3px);
+}
+
+.text {
+	bottom: 10px;
+	display: flex;
+	flex-direction: column;
+	left: 14px;
+	position: absolute;
+	right: 40px;
+}
+
+.title {
+	color: #fff;
+	display: -webkit-box;
+	font-size: 20px;
+	font-weight: 700;
+	line-height: 1.2;
+	overflow: hidden;
+	-webkit-box-orient: vertical;
+	-webkit-line-clamp: 2;
+}
+
+.subtitle {
+	color: rgba(255, 255, 255, 0.75);
+	font-size: 16px;
+	margin-top: 2px;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}

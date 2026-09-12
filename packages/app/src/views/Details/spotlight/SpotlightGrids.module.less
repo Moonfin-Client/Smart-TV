@@ -1,0 +1,171 @@
+@import '../../../styles/mixins.less';
+
+.grid {
+	display: flex;
+	flex-direction: row;
+	flex-wrap: wrap;
+}
+
+.icon {
+	width: 48px;
+	height: 48px;
+	fill: rgba(255, 255, 255, 0.35);
+}
+
+.creditCell {
+	display: flex;
+	flex-direction: column;
+	width: 240px;
+}
+
+.creditLine {
+	color: rgba(255, 255, 255, 0.6);
+	font-size: 18px;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.personCard {
+	align-items: center;
+	border: 2px solid transparent;
+	border-radius: 10px;
+	display: flex;
+	flex-direction: column;
+	padding: 8px;
+	width: 180px;
+}
+
+.personCard:focus {
+	border-color: var(--theme-focus-border-color, #ffffff);
+	outline: none;
+}
+
+.personPhoto {
+	border-radius: 50%;
+	height: 160px;
+	overflow: hidden;
+	width: 160px;
+}
+
+.personPhoto img {
+	height: 100%;
+	object-fit: cover;
+	width: 100%;
+}
+
+.personPhotoEmpty {
+	align-items: center;
+	background: rgba(255, 255, 255, 0.08);
+	display: flex;
+	height: 100%;
+	justify-content: center;
+	width: 100%;
+}
+
+.personName {
+	color: #fff;
+	font-size: 20px;
+	text-align: center;
+}
+
+.personRole {
+	color: rgba(255, 255, 255, 0.6);
+	font-size: 17px;
+	text-align: center;
+	white-space: pre-line;
+}
+
+.studioCard {
+	align-items: center;
+	border: 2px solid transparent;
+	border-radius: 10px;
+	display: flex;
+	flex-direction: column;
+	justify-content: center;
+	padding: 12px;
+	width: 240px;
+}
+
+.studioCard:focus {
+	border-color: var(--theme-focus-border-color, #ffffff);
+	outline: none;
+}
+
+.studioImage {
+	align-items: center;
+	display: flex;
+	height: 90px;
+	justify-content: center;
+	width: 100%;
+}
+
+.studioImage img {
+	max-height: 100%;
+	max-width: 100%;
+}
+
+.studioName {
+	color: #fff;
+	font-size: 19px;
+	text-align: center;
+}
+
+.chapterCard {
+	border: 2px solid transparent;
+	border-radius: 10px;
+	display: flex;
+	flex-direction: column;
+	padding: 6px;
+	width: 300px;
+}
+
+.chapterCard:focus {
+	border-color: var(--theme-focus-border-color, #ffffff);
+	outline: none;
+}
+
+.chapterThumb {
+	background: rgba(255, 255, 255, 0.08);
+	border-radius: 6px;
+	height: 158px;
+	overflow: hidden;
+	position: relative;
+	width: 100%;
+}
+
+.chapterThumb img {
+	height: 100%;
+	object-fit: cover;
+	width: 100%;
+}
+
+.chapterThumbEmpty {
+	height: 100%;
+	width: 100%;
+}
+
+.chapterTime {
+	background: rgba(0, 0, 0, 0.75);
+	border-radius: 4px;
+	bottom: 6px;
+	color: #fff;
+	font-size: 16px;
+	padding: 2px 6px;
+	position: absolute;
+	right: 6px;
+}
+
+.chapterName {
+	color: #fff;
+	font-size: 19px;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.grid                 { .flex-wrap-gap(30px); }
+.personCard           { .flex-col-gap(10px); }
+.studioCard           { .flex-col-gap(12px); }
+.chapterCard          { .flex-col-gap(8px); }
+.creditCell           { .flex-col-gap(6px); }

@@ -1,14 +1,23 @@
-import {Fragment} from 'react';
+import {Fragment, useState, useCallback, useEffect} from 'react';
 import $L from '@enact/i18n/$L';
 
-import {arrange, seerrOnlyRow, DETAIL_ORDER_KEY, DETAIL_HIDDEN_KEY} from '../../utils/buttonLayout';
+import {arrange, seerrOnlyRow, countSplit, DETAIL_ORDER_KEY, DETAIL_HIDDEN_KEY} from '../../utils/buttonLayout';
+import {isBackKey} from '../../utils/keys';
 import {DETAIL_ICON_PATHS} from './detailIcons';
 import {iconViewBox} from '../../components/icons/iconViewBox';
 import {personalRatingIconPath, personalRatingLabel} from './personalRatingAction';
+import SpotlightContainerDecorator from '@enact/spotlight/SpotlightContainerDecorator';
+import Spotlight from '@enact/spotlight';
 import {SpottableDiv, HorizontalContainer} from './detailsSpottables';
 import {handleButtonRowKeyDown} from './detailsFocus';
 
 import css from './Details.module.less';
+
+const OverflowContainer = SpotlightContainerDecorator({
+	enterTo: 'default-element',
+	restrict: 'self-only',
+	leaveFor: {left: '', right: '', up: '', down: ''}
+}, 'div');
 
 const BtnIcon = ({path, stateClass}) => (
 	<svg className={stateClass ? `${css.btnIcon} ${stateClass}` : css.btnIcon} viewBox={iconViewBox(path)} fill="currentColor">
@@ -61,8 +70,34 @@ const DetailActionButtons = ({
 	onOpenPlaylistModal,
 	onOpenCollectionModal,
 	onOpenDeleteDialog,
-	onOpenIdentifyModal
+	onOpenIdentifyModal,
+	maxVisibleButtons,
+	overflowAsMenu
 }) => {
+	const [menuOpen, setMenuOpen] = useState(false);
+
+	const handleOpenMenu = useCallback(() => {
+		setMenuOpen(true);
+		setTimeout(() => Spotlight.focus('details-overflow-menu'), 50);
+	}, []);
+	const closeMenu = useCallback(() => {
+		setMenuOpen(false);
+		setTimeout(() => Spotlight.focus('details-action-buttons'), 50);
+	}, []);
+
+	// Back closes the menu before the screen behind it sees the press.
+	useEffect(() => {
+		if (!menuOpen) return undefined;
+		const handleKey = (ev) => {
+			if (!isBackKey(ev)) return;
+			ev.preventDefault();
+			ev.stopPropagation();
+			closeMenu();
+		};
+		window.addEventListener('keydown', handleKey, true);
+		return () => window.removeEventListener('keydown', handleKey, true);
+	}, [menuOpen, closeMenu]);
+
 	// Asking and taking back are separate buttons sharing one arrangement slot,
 	// so a partly available series with an open request offers both at once.
 	const seerrButton = (label, icon, onClick) => (
@@ -245,33 +280,64 @@ const DetailActionButtons = ({
 		{order: settings[DETAIL_ORDER_KEY], hidden: settings[DETAIL_HIDDEN_KEY]}
 	);
 
+	// Resume and Restart both lead the row when there is somewhere to resume from, so the
+	// leading slots are counted rather than assumed to be one.
+	const showsResume = !seerrOnly && !isBook && hasPlaybackPosition;
+	const showsPlay = !seerrOnly && (isBook ? isReadableBook : true);
+	const leading = (showsResume ? 1 : 0) + (showsPlay ? 1 : 0);
+	const {visibleCount, needsOverflow} = countSplit({
+		totalButtons: leading + customizable.length,
+		maxVisible: maxVisibleButtons || 0,
+		overflowAsMenu,
+		countCapped: Boolean(maxVisibleButtons)
+	});
+	const inlineButtons = needsOverflow ? customizable.slice(0, Math.max(0, visibleCount - leading)) : customizable;
+	const menuButtons = needsOverflow ? customizable.slice(Math.max(0, visibleCount - leading)) : [];
+
 	return (
-		<HorizontalContainer className={css.actionButtons} onKeyDown={handleButtonRowKeyDown} onFocus={onFocusRow} spotlightId="details-action-buttons">
-			{!seerrOnly && !isBook && hasPlaybackPosition && (
-				<SpottableDiv className={css.btnWrapper} {...resumeLongPress} spotlightId="details-primary-btn">
-					<div className={css.btnAction}>
-						<span className={css.btnIcon}>▶</span>
-					</div>
-					<span className={css.btnLabel}>{$L('Resume')}</span>
-					<span className={css.btnDetail}>{resumeTimeText}</span>
-				</SpottableDiv>
-			)}
-			{!seerrOnly && (isBook ? isReadableBook : true) && (
-				<SpottableDiv className={css.btnWrapper} {...playLongPress} onFocus={onFocusRow} spotlightId={hasPlaybackPosition ? undefined : 'details-primary-btn'}>
-					<div className={css.btnAction}>
-						{hasPlaybackPosition && !isBook ? (
-							<BtnIcon path={DETAIL_ICON_PATHS.restart}/>
-						) : isBook ? (
-							<BtnIcon path={DETAIL_ICON_PATHS.book}/>
-						) : (
+		<>
+			<HorizontalContainer className={css.actionButtons} onKeyDown={handleButtonRowKeyDown} onFocus={onFocusRow} spotlightId="details-action-buttons">
+				{showsResume && (
+					<SpottableDiv className={css.btnWrapper} {...resumeLongPress} spotlightId="details-primary-btn">
+						<div className={css.btnAction}>
 							<span className={css.btnIcon}>▶</span>
-						)}
-					</div>
-					<span className={css.btnLabel}>{isBook ? $L('Read') : hasPlaybackPosition ? $L('Restart') : $L('Play')}</span>
-				</SpottableDiv>
+						</div>
+						<span className={css.btnLabel}>{$L('Resume')}</span>
+						<span className={css.btnDetail}>{resumeTimeText}</span>
+					</SpottableDiv>
+				)}
+				{showsPlay && (
+					<SpottableDiv className={css.btnWrapper} {...playLongPress} onFocus={onFocusRow} spotlightId={hasPlaybackPosition ? undefined : 'details-primary-btn'}>
+						<div className={css.btnAction}>
+							{hasPlaybackPosition && !isBook ? (
+								<BtnIcon path={DETAIL_ICON_PATHS.restart}/>
+							) : isBook ? (
+								<BtnIcon path={DETAIL_ICON_PATHS.book}/>
+							) : (
+								<span className={css.btnIcon}>▶</span>
+							)}
+						</div>
+						<span className={css.btnLabel}>{isBook ? $L('Read') : hasPlaybackPosition ? $L('Restart') : $L('Play')}</span>
+					</SpottableDiv>
+				)}
+				{inlineButtons.map((btn) => <Fragment key={btn.id}>{btn.render()}</Fragment>)}
+				{menuButtons.length > 0 && (
+					<SpottableDiv className={css.btnWrapper} onClick={handleOpenMenu}>
+						<div className={css.btnAction}>
+							<BtnIcon path={DETAIL_ICON_PATHS.admin}/>
+						</div>
+						<span className={css.btnLabel}>{$L('More')}</span>
+					</SpottableDiv>
+				)}
+			</HorizontalContainer>
+			{menuOpen && (
+				<div className={css.overflowMenu}>
+					<OverflowContainer className={css.overflowList} spotlightId="details-overflow-menu">
+						{menuButtons.map((btn) => <Fragment key={btn.id}>{btn.render()}</Fragment>)}
+					</OverflowContainer>
+				</div>
 			)}
-			{customizable.map((btn) => <Fragment key={btn.id}>{btn.render()}</Fragment>)}
-		</HorizontalContainer>
+		</>
 	);
 };
 

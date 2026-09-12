@@ -1,0 +1,222 @@
+@import '../../../styles/mixins.less';
+
+@bg: #0b0d10;
+
+.backdrop {
+	background: @bg;
+	bottom: 0;
+	left: 0;
+	overflow: hidden;
+	position: absolute;
+	right: 0;
+	top: 0;
+}
+
+.backdropImage {
+	height: 100%;
+	object-fit: cover;
+	object-position: center right;
+	width: 100%;
+}
+
+.backdrop {
+	--opacity-alpha: 0.4;
+	--gradient-scale: 1;
+}
+
+// The scrims that keep the hero readable: a left to right fade under the text, a rise from the
+// bottom under the card band, and a vignette to round the edges off.
+//
+// Declared twice on purpose. Older TVs have no custom properties, so they drop the var() pass
+// below and keep this static one. Writing var(--x, fallback) instead does not work, since the
+// build resolves any var() that has a fallback ahead of time and would freeze the opacity
+// setting everywhere.
+.backdrop:after {
+	bottom: 0;
+	content: '';
+	left: 0;
+	position: absolute;
+	right: 0;
+	top: 0;
+
+	background-image:
+		linear-gradient(to right,
+			rgba(11, 13, 16, 1) 0%,
+			rgba(11, 13, 16, 0.9) 35%,
+			rgba(11, 13, 16, 0.45) 60%,
+			rgba(11, 13, 16, 0) 85%
+		),
+		linear-gradient(to top,
+			rgba(11, 13, 16, 1) 0%,
+			rgba(11, 13, 16, 0.8) 45%,
+			rgba(11, 13, 16, 0) 80%
+		),
+		radial-gradient(ellipse at center,
+			rgba(11, 13, 16, 0) 70%,
+			rgba(11, 13, 16, 0.32) 100%
+		);
+	background-color: rgba(0, 0, 0, 0.4);
+
+	background-image:
+		linear-gradient(to right,
+			rgba(11, 13, 16, var(--gradient-scale)) 0%,
+			rgba(11, 13, 16, calc(0.9 * var(--gradient-scale))) 35%,
+			rgba(11, 13, 16, calc(0.45 * var(--gradient-scale))) 60%,
+			rgba(11, 13, 16, 0) 85%
+		),
+		linear-gradient(to top,
+			rgba(11, 13, 16, var(--gradient-scale)) 0%,
+			rgba(11, 13, 16, calc(0.8 * var(--gradient-scale))) 45%,
+			rgba(11, 13, 16, 0) 80%
+		),
+		radial-gradient(ellipse at center,
+			rgba(11, 13, 16, 0) 70%,
+			rgba(11, 13, 16, calc(0.32 * var(--gradient-scale))) 100%
+		);
+	background-color: rgba(0, 0, 0, var(--opacity-alpha));
+}
+
+.backdropPerson .backdropImage {
+	object-position: center top;
+}
+
+.page {
+	bottom: 0;
+	display: flex;
+	flex-direction: column;
+	justify-content: space-between;
+	left: 0;
+	padding: 40px;
+	position: absolute;
+	right: 0;
+	top: 0;
+}
+
+.sidebarOffset {
+	padding-left: 120px;
+}
+
+.hero {
+	display: flex;
+	flex-direction: column;
+	max-width: 100%;
+}
+
+.tagline {
+	color: var(--theme-accent, #6ea8fe);
+	font-size: 18px;
+	font-weight: 700;
+	letter-spacing: 3px;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	text-transform: uppercase;
+	white-space: nowrap;
+}
+
+.title {
+	color: #fff;
+	font-size: 52px;
+	font-weight: 700;
+	margin: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.logo {
+	max-height: 120px;
+	max-width: 480px;
+	object-fit: contain;
+}
+
+.logoEpisode {
+	max-height: 72px;
+	max-width: 360px;
+}
+
+.seriesLabel {
+	color: rgba(255, 255, 255, 0.7);
+	font-size: 22px;
+	letter-spacing: 1.2px;
+}
+
+.personAvatar {
+	border: 3px solid var(--theme-focus-border-color, #6ea8fe);
+	border-radius: 50%;
+	height: 140px;
+	object-fit: cover;
+	width: 140px;
+}
+
+.personBorn {
+	color: rgba(255, 255, 255, 0.7);
+	font-size: 20px;
+}
+
+.metaRow,
+.techRow {
+	align-items: center;
+	display: flex;
+	flex-wrap: wrap;
+}
+
+.metaItem {
+	align-items: center;
+	color: rgba(255, 255, 255, 0.75);
+	display: flex;
+	font-size: 21px;
+}
+
+.metaItem + .metaItem:before {
+	color: rgba(255, 255, 255, 0.4);
+	content: '·';
+	padding: 0 8px;
+}
+
+.metaIcon {
+	fill: currentColor;
+	height: 18px;
+	margin-right: 4px;
+	width: 18px;
+}
+
+.statusBadge {
+	background: #2E7D32;
+	border-radius: 4px;
+	color: #fff;
+	font-size: 17px;
+	font-weight: 600;
+	padding: 2px 8px;
+}
+
+.statusEnded {
+	background: #B71C1C;
+}
+
+.techChip {
+	border: 1px solid rgba(255, 255, 255, 0.3);
+	border-radius: 4px;
+	color: rgba(255, 255, 255, 0.85);
+	font-size: 17px;
+	padding: 3px 8px;
+}
+
+.techSize {
+	color: rgba(255, 255, 255, 0.75);
+	font-size: 19px;
+	font-weight: 700;
+}
+
+.descriptionSlot {
+	max-width: 800px;
+}
+
+.cardBand {
+	display: flex;
+	flex-direction: row;
+}
+
+.metaRow              { .flex-row-gap(0); }
+.techRow              { .flex-row-gap(8px); }
+.hero                 { .flex-col-gap(10px); }
+.cardBand             { .flex-row-gap(16px); }
