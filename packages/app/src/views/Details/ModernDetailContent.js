@@ -20,6 +20,8 @@ import {DETAIL_ICON_PATHS} from './detailIcons';
 import {iconViewBox} from '../../components/icons/iconViewBox';
 import {personalRatingIconPath, personalRatingLabel} from './personalRatingAction';
 import {arrange, seerrOnlyRow, DETAIL_ORDER_KEY, DETAIL_HIDDEN_KEY} from '../../utils/buttonLayout';
+import {DETAIL_METADATA} from '../../utils/detailMetadataLayout';
+import {fetchUpcomingEpisode, formatUpcomingEpisode} from '../../utils/upcomingEpisode';
 
 import css from './ModernDetailContent.module.less';
 
@@ -200,33 +202,77 @@ const ModernDetailContent = (props) => {
 		[tmdbCompanies, item.Studios, effectiveServerUrl, serverToken]
 	);
 
-	// Metadata pieces, joined by CSS separators rather than string concatenation.
+	const [upcomingEpisode, setUpcomingEpisode] = useState(null);
+
+	useEffect(() => {
+		let cancelled = false;
+		if (!isSeries && !isSeason) {
+			setUpcomingEpisode(null);
+			return undefined;
+		}
+		fetchUpcomingEpisode({item, settings, serverUrl: effectiveServerUrl, serverToken})
+			.then((res) => {
+				if (!cancelled) setUpcomingEpisode(res);
+			})
+			.catch(() => {});
+		return () => {
+			cancelled = true;
+		};
+	}, [item, isSeries, isSeason, settings, effectiveServerUrl, serverToken]);
+
+	const upcomingEpisodeText = useMemo(() => formatUpcomingEpisode(upcomingEpisode), [upcomingEpisode]);
+
+	// Metadata pieces, arranged according to the user's settings.
 	// A piece carries its kind so the status can render as a coloured pill and
 	// the runtime can lead with a clock.
 	const metaPieces = useMemo(() => {
-		const pieces = [];
-		const addText = (text) => {
-			if (text) pieces.push({kind: 'text', text});
+		const orderedItems = arrange(DETAIL_METADATA, {
+			order: settings.detailMetadataOrderTv,
+			hidden: settings.hiddenDetailMetadataTv
+		});
+
+		const pieceFor = (id) => {
+			switch (id) {
+				case 'year':
+					return year ? [{kind: 'text', text: String(year)}] : [];
+				case 'parentalRating':
+					return officialRating ? [{kind: 'text', text: officialRating}] : [];
+				case 'runtimeAndSeasons': {
+					const parts = [];
+					if (isSeries && seasonCount) {
+						parts.push({kind: 'text', text: $L('{count} Seasons').replace('{count}', seasonCount)});
+					} else if (isSeason && episodes.length) {
+						parts.push({kind: 'text', text: $L('{count} Episodes').replace('{count}', episodes.length)});
+					} else if (isEpisode && item.ParentIndexNumber != null && item.IndexNumber != null) {
+						let label = `S${item.ParentIndexNumber}:E${item.IndexNumber}`;
+						const rating = episodeRatings?.[item.IndexNumber];
+						const showEpisodeRating = settings.tmdbEpisodeRatingsEnabled && isRatingSourceAllowed(settings.mdblistRatingSources, 'tmdb');
+						if (showEpisodeRating && rating) label += ` · ${rating}`;
+						parts.push({kind: 'text', text: label});
+					} else if (runtime) {
+						parts.push({kind: 'runtime', text: runtime});
+						if (endsAt) parts.push({kind: 'text', text: endsAt});
+					}
+					return parts;
+				}
+				case 'status':
+					if (isSeries && item.Status === 'Continuing') return [{kind: 'status', text: $L('Continuing')}];
+					if (isSeries && item.Status === 'Ended') return [{kind: 'status', text: $L('Ended'), ended: true}];
+					return [];
+				case 'upcomingEpisodeDate':
+					if (upcomingEpisodeText) return [{kind: 'upcoming', text: upcomingEpisodeText}];
+					return [];
+				case 'genres':
+					return genres.length ? [{kind: 'text', text: genres.slice(0, 3).join(' · ')}] : [];
+				case 'seerrAvailability':
+					return seerr.statusPills?.length > 0 ? [{kind: 'seerr'}] : [];
+				default:
+					return [];
+			}
 		};
-		if (year) addText(String(year));
-		addText(officialRating);
-		if (isSeries && seasonCount) addText($L('{count} Seasons').replace('{count}', seasonCount));
-		if (isSeason && episodes.length) addText($L('{count} Episodes').replace('{count}', episodes.length));
-		if (isEpisode && item.ParentIndexNumber != null && item.IndexNumber != null) {
-			let label = `S${item.ParentIndexNumber}:E${item.IndexNumber}`;
-			// The value is a score out of 10, not a percentage.
-			const rating = episodeRatings?.[item.IndexNumber];
-			const showEpisodeRating = settings.tmdbEpisodeRatingsEnabled && isRatingSourceAllowed(settings.mdblistRatingSources, 'tmdb');
-			if (showEpisodeRating && rating) label += ` · ${rating}`;
-			addText(label);
-		}
-		if (isSeries && item.Status === 'Continuing') pieces.push({kind: 'status', text: $L('Continuing')});
-		if (isSeries && item.Status === 'Ended') pieces.push({kind: 'status', text: $L('Ended'), ended: true});
-		if (runtime) pieces.push({kind: 'runtime', text: runtime});
-		if (runtime && endsAt) addText(endsAt);
-		if (genres.length) addText(genres.slice(0, 3).join(' · '));
-		return pieces;
-	}, [year, officialRating, isSeries, seasonCount, isSeason, episodes.length, isEpisode, item.ParentIndexNumber, item.IndexNumber, item.Status, episodeRatings, settings.tmdbEpisodeRatingsEnabled, settings.mdblistRatingSources, runtime, endsAt, genres]);
+
+		return orderedItems.flatMap((itemDef) => pieceFor(itemDef.id));
+	}, [settings.detailMetadataOrderTv, settings.hiddenDetailMetadataTv, year, officialRating, isSeries, seasonCount, isSeason, episodes.length, isEpisode, item.ParentIndexNumber, item.IndexNumber, item.Status, episodeRatings, settings.tmdbEpisodeRatingsEnabled, settings.mdblistRatingSources, runtime, endsAt, genres, upcomingEpisodeText, seerr.statusPills]);
 
 	const handleCastClick = useCallback((ev) => {
 		const personId = ev.currentTarget.dataset.personId;
@@ -694,17 +740,34 @@ const ModernDetailContent = (props) => {
 			{isPerson && posterUrl && <img className={css.personAvatar} src={posterUrl} alt="" />}
 			{heroTitle()}
 			{personBorn()}
-			{(metaPieces.length > 0 || seerr.statusPills?.length > 0) && (
+			{metaPieces.length > 0 && (
 				<div className={css.metaRow}>
-					{metaPieces.map((piece, i) => (
-						<span key={i} className={css.metaItem}>
-							{piece.kind === 'runtime' && <svg className={css.metaIcon} viewBox="0 -960 960 960" fill="currentColor" aria-hidden="true"><path d={DETAIL_ICON_PATHS.schedule} /></svg>}
-							{piece.kind === 'status'
-								? <span className={`${css.statusBadge} ${piece.ended ? css.statusEnded : ''}`}>{piece.text}</span>
-								: piece.text}
-						</span>
-					))}
-					<SeerrStatusBadge seerr={seerr} className={css.metaBadge} />
+					{metaPieces.map((piece, i) => {
+						if (piece.kind === 'seerr') {
+							return <SeerrStatusBadge key={i} seerr={seerr} className={css.metaBadge} />;
+						}
+						return (
+							<span key={i} className={css.metaItem}>
+								{piece.kind === 'runtime' && (
+									<svg className={css.metaIcon} viewBox="0 -960 960 960" fill="currentColor" aria-hidden="true">
+										<path d={DETAIL_ICON_PATHS.schedule} />
+									</svg>
+								)}
+								{piece.kind === 'upcoming' && (
+									<span className={`${css.statusBadge} ${css.statusUpcoming}`}>
+										<svg className={css.metaIcon} viewBox="0 -960 960 960" fill="currentColor" aria-hidden="true" style={{width: 18, height: 18, marginRight: 6, verticalAlign: -3}}>
+											<path d={DETAIL_ICON_PATHS.calendar} />
+										</svg>
+										{piece.text}
+									</span>
+								)}
+								{piece.kind === 'status' && (
+									<span className={`${css.statusBadge} ${piece.ended ? css.statusEnded : ''}`}>{piece.text}</span>
+								)}
+								{piece.kind === 'text' && piece.text}
+							</span>
+						);
+					})}
 				</div>
 			)}
 			{hasTech && (

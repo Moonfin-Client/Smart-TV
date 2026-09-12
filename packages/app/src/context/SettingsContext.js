@@ -58,7 +58,9 @@ const SERVER_TO_LOCAL = {
 	defaultAudioLanguage: 'audioLanguage',
 	defaultSubtitleLanguage: 'subtitleLanguage',
 	unpauseRewindDuration: 'unpauseRewind',
-	confirmExit: 'exitConfirmation'
+	confirmExit: 'exitConfirmation',
+	DetailMetadataOrderTv: 'detailMetadataOrderTv',
+	HiddenDetailMetadataTv: 'hiddenDetailMetadataTv'
 };
 const LOCAL_TO_SERVER = Object.fromEntries(
 	Object.entries(SERVER_TO_LOCAL).map(([s, l]) => [l, s])
@@ -259,6 +261,7 @@ export const SYNCABLE_KEYS = [
 	'detailShowTechnicalDetails',
 	'recommendationSystemSource', 'recommendationsApplyParentalRatingCap',
 	'detailButtonOrderTv', 'hiddenDetailButtonsTv', 'osdButtonOrderTv', 'hiddenOsdButtonsTv',
+	'detailMetadataOrderTv', 'hiddenDetailMetadataTv',
 	'focusBorderColor',
 	'navbarOpacity',
 	'navbarColor',

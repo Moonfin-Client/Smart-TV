@@ -14,6 +14,7 @@ import DetailActionButtons from '../DetailActionButtons';
 import {KEYS} from '../../../utils/keys';
 import {spotlightCardsFor, spotlightCardFor} from './spotlightCards';
 import {spotlightMetaPieces} from './spotlightMeta';
+import {fetchUpcomingEpisode, formatUpcomingEpisode} from '../../../utils/upcomingEpisode';
 import {summaryCardHeight, summaryCardWidth, heroWidth} from './summaryCardLayout';
 import SpotlightSummaryCard from './SpotlightSummaryCard';
 import SpotlightSectionModal from './SpotlightSectionModal';
@@ -26,8 +27,8 @@ const cardSpotlightId = (id) => `spotlight-card-${id}`;
 
 const SpotlightDetailContent = (props) => {
 	const {
-		item, settings, effectiveServerUrl, seerr, seerrNav, seerrOnly,
-		isPerson, isEpisode, backdropUrl, posterUrl, logoUrl, onLogoError,
+		item, settings, effectiveServerUrl, serverToken, seerr, seerrNav, seerrOnly,
+		isPerson, isEpisode, isSeries, isSeason, backdropUrl, posterUrl, logoUrl, onLogoError,
 		year, officialRating, seasonCount, genres = [], tagline, techBadges = [], techSize,
 		overviewBackRef, episodes = [], birthDate, birthPlace,
 		cardState, cardActions, onToggleNavbar
@@ -45,14 +46,15 @@ const SpotlightDetailContent = (props) => {
 		return () => window.removeEventListener('resize', onResize);
 	}, []);
 
-	// Blur and opacity share one stored value, and the stored range reaches 40 while this scale
-	// stops at 25, so anything above 25 is held at full rather than blacking the backdrop out.
-	const blurAmount = Number(settings.backdropBlurDetail ?? 20);
-	const opacityFactor = Math.min(1, blurAmount / 25);
-	const backdropStyle = {
-		'--opacity-alpha': opacityFactor * (isPerson ? 0.40 : 0.80),
-		'--gradient-scale': 0.3 + 0.7 * opacityFactor
-	};
+	const backdropStyle = useMemo(() => {
+		const blurAmount = Number(settings.backdropBlurDetail ?? 20);
+		const opacityFactor = Math.min(1, blurAmount / 25);
+		const maxAlpha = isPerson ? 0.40 : 0.80;
+		return {
+			'--opacity-alpha': opacityFactor * maxAlpha,
+			'--gradient-scale': 0.3 + 0.7 * opacityFactor
+		};
+	}, [isPerson, settings.backdropBlurDetail]);
 
 	const cards = useMemo(() => spotlightCardsFor(cardState), [cardState]);
 
@@ -63,9 +65,39 @@ const SpotlightDetailContent = (props) => {
 		[openCardId, cardState]
 	);
 
+	const [upcomingEpisode, setUpcomingEpisode] = useState(null);
+
+	useEffect(() => {
+		let cancelled = false;
+		if (!isSeries && !isSeason) {
+			setUpcomingEpisode(null);
+			return undefined;
+		}
+		fetchUpcomingEpisode({item, settings, serverUrl: effectiveServerUrl, serverToken})
+			.then((res) => {
+				if (!cancelled) setUpcomingEpisode(res);
+			})
+			.catch(() => {});
+		return () => {
+			cancelled = true;
+		};
+	}, [item, isSeries, isSeason, settings, effectiveServerUrl, serverToken]);
+
+	const upcomingEpisodeText = useMemo(() => formatUpcomingEpisode(upcomingEpisode), [upcomingEpisode]);
+
 	const metaPieces = useMemo(
-		() => spotlightMetaPieces({item, year, officialRating, seasonCount, episodeCount: episodes.length, genres}),
-		[item, year, officialRating, seasonCount, episodes.length, genres]
+		() => spotlightMetaPieces({
+			item,
+			year,
+			officialRating,
+			seasonCount,
+			episodeCount: episodes.length,
+			genres,
+			upcomingEpisodeText,
+			hasSeerrPills: seerr.statusPills?.length > 0,
+			settings
+		}),
+		[item, year, officialRating, seasonCount, episodes.length, genres, upcomingEpisodeText, seerr.statusPills, settings]
 	);
 
 	const bandWidth = heroWidth(viewport.width);
@@ -147,17 +179,34 @@ const SpotlightDetailContent = (props) => {
 					{tagline && !isPerson && <div className={css.tagline}>{tagline}</div>}
 					{heroTitle()}
 					{isPerson && personBorn()}
-					{(metaPieces.length > 0 || seerr.statusPills?.length > 0) && (
+					{metaPieces.length > 0 && (
 						<div className={css.metaRow}>
-							{metaPieces.map((piece, i) => (
-								<span key={i} className={css.metaItem}>
-									{piece.kind === 'runtime' && <svg className={css.metaIcon} viewBox={iconViewBox(DETAIL_ICON_PATHS.schedule)} fill="currentColor" aria-hidden="true"><path d={DETAIL_ICON_PATHS.schedule} /></svg>}
-									{piece.kind === 'status'
-										? <span className={`${css.statusBadge} ${piece.ended ? css.statusEnded : ''}`}>{piece.text}</span>
-										: piece.text}
-								</span>
-							))}
-							<SeerrStatusBadge seerr={seerr} className={css.metaBadge} />
+							{metaPieces.map((piece, i) => {
+								if (piece.kind === 'seerr') {
+									return <SeerrStatusBadge key={i} seerr={seerr} className={css.metaBadge} />;
+								}
+								return (
+									<span key={i} className={css.metaItem}>
+										{piece.kind === 'runtime' && (
+											<svg className={css.metaIcon} viewBox={iconViewBox(DETAIL_ICON_PATHS.schedule)} fill="currentColor" aria-hidden="true">
+												<path d={DETAIL_ICON_PATHS.schedule} />
+											</svg>
+										)}
+										{piece.kind === 'upcoming' && (
+											<span className={`${css.statusBadge} ${css.statusUpcoming}`}>
+												<svg className={css.metaIcon} viewBox={iconViewBox(DETAIL_ICON_PATHS.calendar)} fill="currentColor" aria-hidden="true" style={{width: 16, height: 16, marginRight: 6, verticalAlign: -2}}>
+													<path d={DETAIL_ICON_PATHS.calendar} />
+												</svg>
+												{piece.text}
+											</span>
+										)}
+										{piece.kind === 'status' && (
+											<span className={`${css.statusBadge} ${piece.ended ? css.statusEnded : ''}`}>{piece.text}</span>
+										)}
+										{piece.kind === 'text' && piece.text}
+									</span>
+								);
+							})}
 						</div>
 					)}
 					{hasTech && !isPerson && (
