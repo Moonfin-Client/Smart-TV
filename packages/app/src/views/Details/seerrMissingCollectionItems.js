@@ -125,3 +125,36 @@ export const mergeCollectionWithMissing = (members = [], missingItems = []) => {
 		return (a.Name || '').localeCompare(b.Name || '');
 	});
 };
+
+// Slots the missing titles into the library list by release date, leaving the order the server
+// gave the library alone. Each one lands in front of the first title released after it, or at
+// the end when nothing is.
+//
+// This is not the same as sorting the two lists together, which is what the collection row
+// wants, so both live here. A collection the server deliberately ordered keeps that order.
+export const mergeMissingByReleaseOrder = (library = [], missing = []) => {
+	if (!missing.length) return library;
+
+	const released = (item) => {
+		if (item.PremiereDate) {
+			const parsed = Date.parse(item.PremiereDate);
+			if (!isNaN(parsed)) return parsed;
+		}
+		return item.ProductionYear ? Date.UTC(item.ProductionYear, 0, 1) : null;
+	};
+
+	const merged = [...library];
+	missing.forEach((item) => {
+		const key = released(item);
+		let at = merged.length;
+		if (key !== null) {
+			const later = merged.findIndex((existing) => {
+				const date = released(existing);
+				return date !== null && key < date;
+			});
+			if (later >= 0) at = later;
+		}
+		merged.splice(at, 0, item);
+	});
+	return merged;
+};

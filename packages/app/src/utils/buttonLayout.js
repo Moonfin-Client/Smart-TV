@@ -127,3 +127,17 @@ export const withUnknownIds = (catalogue, saved, stored) => {
 // With nothing in the library to play, mark or add anywhere, the only actions left worth
 // offering are the ones that ask Seerr for the title.
 export const seerrOnlyRow = (buttons) => buttons.filter((item) => item.id.startsWith('seerr'));
+
+// How a capped row splits into the buttons that stay inline and the ones that fold behind an
+// ellipsis. `totalButtons` counts the whole row, the leading play slot included, because that
+// slot takes a place in the row like any other button.
+//
+// `countCapped` is what keeps the older rows as they are. Classic and Modern do not cap at all,
+// so they leave it off and every button stays inline. Spotlight caps strictly: it overflows as
+// soon as one more button exists than the slots hold, even when the menu would hold a single
+// action, where a row exactly at the cap would otherwise stay inline.
+export const countSplit = ({totalButtons, maxVisible, overflowAsMenu, countCapped}) => {
+	const visibleCount = maxVisible - 1;
+	const threshold = overflowAsMenu ? visibleCount : maxVisible;
+	return {visibleCount, needsOverflow: Boolean(countCapped) && totalButtons > threshold};
+};

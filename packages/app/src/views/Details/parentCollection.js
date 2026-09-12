@@ -1,4 +1,4 @@
-// Which collection a title belongs to.
+// Which collections a title belongs to.
 //
 // Jellyfin 12 answers this outright, so on a server carrying that route it is one request.
 // Older servers and Emby have nothing of the sort. Ancestors describes the folders above
@@ -66,7 +66,10 @@ const membershipFor = async (api, collections) => {
 				.then((result) => result?.Items || [])
 				.catch(() => []);
 			members.forEach((member) => {
-				if (member?.Id && !owners[member.Id]) owners[member.Id] = collection;
+				if (!member?.Id) return;
+				const held = owners[member.Id];
+				if (held) held.push(collection);
+				else owners[member.Id] = [collection];
 			});
 		}));
 	}
@@ -74,20 +77,33 @@ const membershipFor = async (api, collections) => {
 	return owners;
 };
 
-export const findParentCollection = async (api, item) => {
-	if (!api || !item?.Id) return null;
+// The collection a title names is the one it most belongs to, so it leads whatever else
+// holds the title.
+const namedFirst = (item, collections) => {
+	const named = namedCollection(item, collections);
+	if (!named) return collections;
+	return [named, ...collections.filter((collection) => collection.Id !== named.Id)];
+};
+
+export const findParentCollections = async (api, item) => {
+	if (!api || !item?.Id) return [];
 
 	// The route hands back every collection the title is in, ordered by name. An empty
 	// answer from it settles the question, where a refusal settles nothing.
 	const direct = await directCollections(api, item);
-	if (direct) return namedCollection(item, direct) || direct[0] || null;
+	if (direct) return namedFirst(item, direct);
 
 	const collections = await allCollections(api);
-	if (collections.length === 0) return null;
+	if (collections.length === 0) return [];
 
+	// A title that names its own collection is answered without the scan below. That leaves
+	// any second collection holding it unlisted, which only happens on a server old enough
+	// to lack the route, and is worth far more than asking every collection what it holds.
 	const named = namedCollection(item, collections);
-	if (named) return named;
+	if (named) return [named];
 
 	const owners = await membershipFor(api, collections);
-	return owners[item.Id] || null;
+	return owners[item.Id] || [];
 };
+
+export const findParentCollection = async (api, item) => (await findParentCollections(api, item))[0] || null;

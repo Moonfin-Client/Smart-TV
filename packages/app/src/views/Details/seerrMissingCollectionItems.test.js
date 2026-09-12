@@ -3,7 +3,8 @@ import {
 	resolveCollectionTmdbId,
 	makeMissingCollectionItem,
 	fetchMissingCollectionItems,
-	mergeCollectionWithMissing
+	mergeCollectionWithMissing,
+	mergeMissingByReleaseOrder
 } from './seerrMissingCollectionItems';
 import seerrApi from '../../services/seerrApi';
 
@@ -204,5 +205,41 @@ describe('seerrMissingCollectionItems', () => {
 			const members = [{Id: 'm1', Name: 'Solo'}];
 			expect(mergeCollectionWithMissing(members, [])).toBe(members);
 		});
+	});
+});
+
+describe('mergeMissingByReleaseOrder', () => {
+	const item = (Name, PremiereDate, ProductionYear) => ({Name, PremiereDate, ProductionYear});
+
+	it('leaves the library list alone when nothing is missing', () => {
+		const library = [item('B', '1990-01-01'), item('A', '1980-01-01')];
+		expect(mergeMissingByReleaseOrder(library, [])).toBe(library);
+	});
+
+	it('slots a missing title in front of the first one released after it', () => {
+		const library = [item('First', '1980-01-01'), item('Third', '2000-01-01')];
+		const merged = mergeMissingByReleaseOrder(library, [item('Second', '1990-01-01')]);
+		expect(merged.map((i) => i.Name)).toEqual(['First', 'Second', 'Third']);
+	});
+
+	it('slots ahead of the first later title without re-sorting the rest', () => {
+		const library = [item('Later', '2000-01-01'), item('Earlier', '1980-01-01')];
+		const merged = mergeMissingByReleaseOrder(library, [item('Missing', '1990-01-01')]);
+		expect(merged.map((i) => i.Name)).toEqual(['Missing', 'Later', 'Earlier']);
+	});
+
+	it('puts a missing title with no date at the end', () => {
+		const merged = mergeMissingByReleaseOrder([item('A', '1980-01-01')], [item('Undated')]);
+		expect(merged.map((i) => i.Name)).toEqual(['A', 'Undated']);
+	});
+
+	it('falls back to the production year on either side', () => {
+		const merged = mergeMissingByReleaseOrder([item('A', null, 1980), item('C', null, 2000)], [item('B', null, 1990)]);
+		expect(merged.map((i) => i.Name)).toEqual(['A', 'B', 'C']);
+	});
+
+	it('appends when everything in the library came out earlier', () => {
+		const merged = mergeMissingByReleaseOrder([item('A', '1980-01-01')], [item('B', '1990-01-01')]);
+		expect(merged.map((i) => i.Name)).toEqual(['A', 'B']);
 	});
 });

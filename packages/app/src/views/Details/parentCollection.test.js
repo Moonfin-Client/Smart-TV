@@ -1,4 +1,4 @@
-import {findParentCollection, __resetCollectionMembership} from './parentCollection';
+import {findParentCollection, findParentCollections, __resetCollectionMembership} from './parentCollection';
 
 const ACE = {Id: 'box-ace', Name: 'Ace Ventura Collection', ProviderIds: {Tmdb: '3167'}};
 const ALIEN = {Id: 'box-alien', Name: 'Alien Collection', ProviderIds: {Tmdb: '8091'}};
@@ -163,5 +163,38 @@ describe('findParentCollection and the direct route', () => {
 		expect(await findParentCollection(api, movie())).toBe(ACE);
 		expect(calls.direct).toBe(1);
 		expect(calls.collections).toBe(1);
+	});
+});
+
+describe('findParentCollections', () => {
+	beforeEach(__resetCollectionMembership);
+
+	it('lists every collection the server says holds the title', async () => {
+		const {api} = serverAnswering([ACE, ALIEN]);
+		const found = await findParentCollections(api, {Id: 'movie-1'});
+		expect(found.map((c) => c.Id)).toEqual(['box-ace', 'box-alien']);
+	});
+
+	it('leads with the collection the title names', async () => {
+		const {api} = serverAnswering([ACE, ALIEN]);
+		const found = await findParentCollections(api, {Id: 'movie-1', ProviderIds: {TmdbCollection: '8091'}});
+		expect(found.map((c) => c.Id)).toEqual(['box-alien', 'box-ace']);
+	});
+
+	it('lists every hand made collection holding the title on a server without the route', async () => {
+		const {api} = serverWith([HAND_MADE, ACE], {'box-mine': [{Id: 'movie-1'}], 'box-ace': [{Id: 'movie-1'}]});
+		const found = await findParentCollections(api, {Id: 'movie-1'});
+		expect(found.map((c) => c.Id)).toEqual(['box-mine', 'box-ace']);
+	});
+
+	it('has nothing to list when no collection holds the title', async () => {
+		const {api} = serverAnswering([]);
+		expect(await findParentCollections(api, {Id: 'movie-1'})).toEqual([]);
+		expect(await findParentCollections(null, {Id: 'movie-1'})).toEqual([]);
+	});
+
+	it('still answers the single collection question with the first of them', async () => {
+		const {api} = serverAnswering([ACE, ALIEN]);
+		expect((await findParentCollection(api, {Id: 'movie-1'})).Id).toBe('box-ace');
 	});
 });

@@ -13,6 +13,7 @@ import RatingsRow from '../../components/RatingsRow';
 import DetailsTabBar from '../../components/DetailsTabBar';
 import {getImageUrl, formatDuration} from '../../utils/helpers';
 import {castPhotoUrl, hidesMediaDescription} from './detailsMedia';
+import {studioCardsFor, studioLogoIndex} from './studioLogos';
 import ExpandableOverview from './ExpandableOverview';
 import {KEYS} from '../../utils/keys';
 import {DETAIL_ICON_PATHS} from './detailIcons';
@@ -192,21 +193,12 @@ const ModernDetailContent = (props) => {
 		};
 	}, [item.Id, item.ProviderIds, item.Studios, settings.useMoonfinPlugin, isSeries, effectiveApi]);
 
-	const studioCards = useMemo(() => {
-		// Only list the Jellyfin studios so selecting one matches the library
-		// filter, and borrow a TMDB logo when the names line up (ignoring case
-		// and punctuation, since both lists usually come from TMDB originally).
-		const norm = (s) => (s || '').toLowerCase().replace(/[^a-z0-9]+/g, '');
-		const byName = new Map((tmdbCompanies || []).map((c) => [norm(c.name), c]));
-		return (item.Studios || []).map((s) => {
-			const match = byName.get(norm(s.Name));
-			return {
-				key: s.Id || s.Name,
-				name: s.Name,
-				logo: match?.hasLogo ? `${effectiveServerUrl}/Moonfin/Tmdb/StudioImage/${match.id}?api_key=${serverToken}` : null
-			};
-		});
-	}, [tmdbCompanies, item.Studios, effectiveServerUrl, serverToken]);
+	// Only the Jellyfin studios are listed, so selecting one matches the library filter, and
+	// each borrows a TMDB logo when the names line up.
+	const studioCards = useMemo(
+		() => studioCardsFor(item.Studios, studioLogoIndex(tmdbCompanies, effectiveServerUrl, serverToken)),
+		[tmdbCompanies, item.Studios, effectiveServerUrl, serverToken]
+	);
 
 	// Metadata pieces, joined by CSS separators rather than string concatenation.
 	// A piece carries its kind so the status can render as a coloured pill and
