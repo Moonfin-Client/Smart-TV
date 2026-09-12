@@ -401,31 +401,10 @@
 
 /* ── Badges ──────────────────────────────────────────────── */
 .favoriteBadge {
-	position: absolute;
-	top: 8px;
-	left: 8px;
-	width: 26px;
-	height: 26px;
-	background: rgba(var(--theme-scrim-rgb, 0, 0, 0), 0.65);
-	border-radius: 50%;
-	display: -webkit-flex;
-	display: flex;
-	-webkit-align-items: center;
-	align-items: center;
-	-webkit-justify-content: center;
-	justify-content: center;
-	z-index: 5;
-	pointer-events: none;
-
-	svg {
-		width: 15px;
-		height: 15px;
-		fill: var(--theme-recording-active, #e91e63);
-	}
+	.favorite-badge(26px, 15px);
 }
 
 .watchedBadge {
-	@import '../../styles/mixins.less';
 	.watched-badge();
 }
 

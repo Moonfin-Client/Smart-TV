@@ -298,7 +298,7 @@ const MediaCard = ({item, serverUrl, cardType = 'portrait', rowImageType = 'post
 					<div className={`${css.seerrBadge} ${css[`seerr${item.mediaInfo.status}`]}`} />
 				) : null}
 
-				<SeerrSeasonDot status={seerrSeasonStatus} />
+				<SeerrSeasonDot status={settings?.showSeerrAvailabilityBadges !== false ? seerrSeasonStatus : null} />
 
 				{showIndicators && item.UserData?.Played && (
 					<div className={css.watchedBadge}>

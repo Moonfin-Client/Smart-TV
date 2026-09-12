@@ -225,10 +225,10 @@ export const buildThemeOverrideCss = (theme, options = {}) => {
 	rule(`.${searchCss.searchInputFocused}`, `background: ${inputFocused}; border-color: ${focusColor}; box-shadow: ${glowOr('none')};`);
 
 	// Detail screens, classic layout
-	rule(`.${detailsCss.posterBadgeWatched}, .${detailsCss.watchedIndicator}`, `background: ${badgeWatched};`);
-	rule(`.${detailsCss.posterBadgeWatched} svg, .${detailsCss.watchedIndicator} svg`, `fill: ${onBadge};`);
-	rule(`.${detailsCss.posterBadgeFavorite} svg, .${detailsCss.favoriteBadge} svg`, `fill: ${recordingActive};`);
-	rule(`.${detailsCss.posterBadgeFavorite}, .${detailsCss.favoriteBadge}`, `background: ${scrim(0.6)};`);
+	rule(`.${detailsCss.posterBadgeWatched}, .${detailsCss.watchedIndicator}`, `background: ${badgeWatched}; border-color: ${onBadge};`);
+	rule(`.${detailsCss.posterBadgeWatched} svg, .${detailsCss.watchedIndicator} svg`, `fill: ${onBadge}; stroke: ${onBadge};`);
+	rule(`.${detailsCss.posterBadgeFavorite} svg, .${detailsCss.favoriteBadge} svg`, `fill: ${onBadge}; stroke: ${onBadge};`);
+	rule(`.${detailsCss.posterBadgeFavorite}, .${detailsCss.favoriteBadge}`, `background: ${recordingActive}; border-color: ${onBadge};`);
 	rule(`.${detailsCss.seriesName}, .${detailsCss.tagline}`, `color: ${os(0.7)};`);
 	rule(`.${detailsCss.episodeNumber}`, `color: ${os(0.9)}; background: ${os(0.15)};`);
 	rule(`.${detailsCss.title}, .${detailsCss.sectionTitle}, .${detailsCss.seasonDetailTitle}, .${detailsCss.trackModalTitle}`, `color: ${onBackground};`);
@@ -246,7 +246,7 @@ export const buildThemeOverrideCss = (theme, options = {}) => {
 	rule(`.${detailsCss.btnWrapper}:focus .${detailsCss.btnDetail}`, `color: ${onBackground};`);
 	rule(`.${detailsCss.btnLabel}, .${detailsCss.seasonName}, .${detailsCss.seasonEpTitle}, .${detailsCss.castName}, .${detailsCss.trackName}, .${detailsCss.trackTitle}`, `color: ${onSurface};`);
 	rule(`.${detailsCss.seasonCard}:focus .${detailsCss.seasonPosterWrapper}`, `border-color: ${focusColor};`);
-	rule(`.${detailsCss.unplayedCount}`, `background: ${badgeUnplayed}; color: ${onBadge};`);
+	rule(`.${detailsCss.unplayedCount}`, `background: ${badgeUnplayed}; color: ${onBadge}; border-color: ${onBadge};`);
 	rule(`.${detailsCss.nextUpCard}`, `background: ${os(0.06)};`);
 	rule(`.${detailsCss.nextUpCard}:focus, .${detailsCss.episodeCard}:focus, .${detailsCss.castCard}:focus .${detailsCss.castImageWrapper}`, `border-color: ${focusColor};`);
 	rule(`.${detailsCss.chapterCard}:focus, .${detailsCss.extraCard}:focus`, `border-color: ${accentA(0.5)};`);
@@ -279,6 +279,8 @@ export const buildThemeOverrideCss = (theme, options = {}) => {
 	rule(`.${modernDetailCss.upNextLabel}`, `color: ${accent};`);
 	rule(`.${modernDetailCss.upNextProgress} > div`, `background: ${accent};`);
 	rule(`.${modernDetailCss.seerrHeading}`, `color: ${onBackground};`);
+	rule(`.${modernDetailCss.episodeWatched}`, `background: ${badgeWatched}; border-color: ${onBadge};`);
+	rule(`.${modernDetailCss.episodeWatched} svg`, `fill: ${onBadge}; stroke: ${onBadge};`);
 	rule(`.${tabBarCss.tabBar}`, `background: ${os(0.08)};`);
 	rule(`.${tabBarCss.tab}`, `color: ${os(0.75)};`);
 	rule(`.${tabBarCss.tabActive}`, `background: ${accent}; color: ${onAccent};`);
@@ -346,10 +348,11 @@ export const buildThemeOverrideCss = (theme, options = {}) => {
 		rule(`.${cardCss.title}`, `color: ${theme.id === 'neon_pulse' ? accent : onSurface};`);
 		rule(`.${cardCss.progressBar}`, `background: ${scrim(0.54)};`);
 		rule(`.${cardCss.progress}`, `background: ${accent};`);
-		rule(`.${cardCss.watchedBadge}`, `background: ${badgeWatched};`);
-		rule(`.${cardCss.watchedBadge} svg`, `fill: ${onBadge};`);
-		rule(`.${cardCss.unplayedCount}`, `background: ${badgeUnplayed}; color: ${onBadge};`);
-		rule(`.${cardCss.favoriteBadge}`, `color: ${recordingActive};`);
+		rule(`.${cardCss.watchedBadge}`, `background: ${badgeWatched}; border-color: ${onBadge};`);
+		rule(`.${cardCss.watchedBadge} svg`, `fill: ${onBadge}; stroke: ${onBadge};`);
+		rule(`.${cardCss.unplayedCount}`, `background: ${badgeUnplayed}; color: ${onBadge}; border-color: ${onBadge};`);
+		rule(`.${cardCss.favoriteBadge}`, `background: ${recordingActive}; border-color: ${onBadge};`);
+		rule(`.${cardCss.favoriteBadge} svg`, `fill: ${onBadge}; stroke: ${onBadge};`);
 		rule(`.${cardCss.serverBadge}`, `background: ${surface}; color: ${onSurface};`);
 		rule(`.${cardCss.seerr5}`, `background: ${onSurface}; border-color: ${statusAvailable};`);
 		rule(`.${cardCss.seerr4}`, `background: ${statusAvailable};`);

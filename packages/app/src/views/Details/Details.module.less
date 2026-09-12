@@ -158,29 +158,13 @@
 
 /* Poster overlay badges */
 .posterBadgeWatched {
-	@import '../../styles/mixins.less';
 	.watched-badge(28px, 16px);
 	z-index: 2;
 }
 
 .posterBadgeFavorite {
-	position: absolute;
-	top: 8px;
-	left: 8px;
-	width: 28px;
-	height: 28px;
-	border-radius: 50%;
-	background: rgba(var(--theme-scrim-rgb, 0, 0, 0), 0.6);
-	display: flex;
-	align-items: center;
-	justify-content: center;
+	.favorite-badge(28px, 16px);
 	z-index: 2;
-
-	svg {
-		width: 18px;
-		height: 18px;
-		fill: var(--theme-accent, #00a4dc);
-	}
 }
 
 /* ============================================
@@ -657,22 +641,7 @@
 }
 
 .favoriteBadge {
-	position: absolute;
-	top: 8px;
-	left: 8px;
-	width: 28px;
-	height: 28px;
-	border-radius: 50%;
-	background: rgba(var(--theme-scrim-rgb, 0, 0, 0), 0.6);
-	display: flex;
-	align-items: center;
-	justify-content: center;
-
-	svg {
-		width: 18px;
-		height: 18px;
-		fill: var(--theme-accent, #00a4dc);
-	}
+	.favorite-badge(28px, 16px);
 }
 
 .unplayedCount {
@@ -682,11 +651,13 @@
 	min-width: 24px;
 	height: 24px;
 	padding: 0 6px;
-	background: var(--theme-accent, #00a4dc);
+	background: var(--theme-badge-watched, var(--theme-accent, #00a4dc));
 	border-radius: 12px;
+	border: 1.5px solid var(--theme-on-badge, #ffffff);
+	box-shadow: 0 1.5px 4px rgba(0, 0, 0, 0.6);
 	font-size: 14px;
 	font-weight: 700;
-	color: var(--theme-on-accent, #ffffff);
+	color: var(--theme-on-badge, #ffffff);
 	display: flex;
 	align-items: center;
 	justify-content: center;
