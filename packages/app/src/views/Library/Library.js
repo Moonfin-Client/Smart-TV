@@ -297,14 +297,15 @@ const Library = ({library, genreFilter, studioFilter, onSelectItem, onViewPhoto,
 	groupCountRef.current = groups ? groups.length : 0;
 
 	const getItemTypeForLibrary = useCallback(() => {
-		if (!library) return 'Movie,Series';
+		const groupCollections = Boolean(settings.groupItemsIntoCollections);
+		if (!library) return groupCollections ? 'Movie,Series,BoxSet' : 'Movie,Series';
 		const collectionType = library.CollectionType?.toLowerCase();
 
 		switch (collectionType) {
 			case 'movies':
-				return 'Movie';
+				return groupCollections ? 'Movie,BoxSet' : 'Movie';
 			case 'tvshows':
-				return 'Series';
+				return groupCollections ? 'Series,BoxSet' : 'Series';
 			case 'boxsets':
 				return 'BoxSet';
 			case 'homevideos':
@@ -327,17 +328,21 @@ const Library = ({library, genreFilter, studioFilter, onSelectItem, onViewPhoto,
 			default:
 				return '';
 		}
-	}, [library, musicContentType]);
+	}, [library, musicContentType, settings.groupItemsIntoCollections]);
 
 	const getExcludeItemTypes = useCallback(() => {
+		const groupCollections = Boolean(settings.groupItemsIntoCollections);
+		if (isGenreMode) {
+			return groupCollections ? 'Playlist,Episode,Season,Folder' : 'BoxSet,Playlist,Episode,Season,Folder';
+		}
 		if (!library) return '';
 		const collectionType = library.CollectionType?.toLowerCase();
 
-		if (collectionType === 'movies' || collectionType === 'tvshows') {
+		if ((collectionType === 'movies' || collectionType === 'tvshows') && !groupCollections) {
 			return 'BoxSet';
 		}
 		return '';
-	}, [library]);
+	}, [library, isGenreMode, settings.groupItemsIntoCollections]);
 
 	const loadItems = useCallback(async (startIndex = 0, append = false) => {
 		if (!library && !genreFilter && !studioFilter) return;
@@ -431,7 +436,10 @@ const Library = ({library, genreFilter, studioFilter, onSelectItem, onViewPhoto,
 				if (excludeTypes) params.ExcludeItemTypes = excludeTypes;
 
 				const collectionType = library?.CollectionType?.toLowerCase();
-				if (collectionType === 'movies') params.CollapseBoxSetItems = false;
+				const groupCollections = Boolean(settings.groupItemsIntoCollections);
+				if (isGenreMode || collectionType === 'movies' || collectionType === 'tvshows') {
+					params.CollapseBoxSetItems = groupCollections;
+				}
 
 				if (filters.length > 0) params.Filters = filters.join(',');
 				if (seriesStatusParam) params.SeriesStatus = seriesStatusParam;
@@ -477,7 +485,8 @@ const Library = ({library, genreFilter, studioFilter, onSelectItem, onViewPhoto,
 				let newItems = result.Items || [];
 
 				if (excludeTypes && newItems.length > 0) {
-					newItems = newItems.filter(item => item.Type !== 'BoxSet');
+					const excludedList = excludeTypes.split(',').map(t => t.trim());
+					newItems = newItems.filter(item => !excludedList.includes(item.Type));
 				}
 
 				apiFetchIndexRef.current = append ? apiFetchIndexRef.current + (result.Items?.length || 0) : (result.Items?.length || 0);
@@ -494,7 +503,7 @@ const Library = ({library, genreFilter, studioFilter, onSelectItem, onViewPhoto,
 			setIsLoading(false);
 			loadingMoreRef.current = false;
 		}
-	}, [isPlaylistLibrary, effectiveApi, library, genreFilter, studioFilter, sortKey, sortOrder, favoritesOnly, playedFilter, likedFilter, seriesFilter, featureFilters, qualityFilters, videoSourceFilters, genreFilters, ratingFilters, tagFilters, yearFilters, audioLanguageFilters, subtitleLanguageFilters, isFolderView, currentFolderId, currentFolderCollectionType, isMusicLibrary, musicContentType, getItemTypeForLibrary, getExcludeItemTypes]);
+	}, [isPlaylistLibrary, effectiveApi, library, genreFilter, studioFilter, sortKey, sortOrder, favoritesOnly, playedFilter, likedFilter, seriesFilter, featureFilters, qualityFilters, videoSourceFilters, genreFilters, ratingFilters, tagFilters, yearFilters, audioLanguageFilters, subtitleLanguageFilters, isFolderView, currentFolderId, currentFolderCollectionType, isMusicLibrary, musicContentType, getItemTypeForLibrary, getExcludeItemTypes, settings.groupItemsIntoCollections, isGenreMode]);
 
 	loadItemsRef.current = loadItems;
 
@@ -581,7 +590,7 @@ const Library = ({library, genreFilter, studioFilter, onSelectItem, onViewPhoto,
 			initialFocusDoneRef.current = false;
 			loadItemsRef.current(0, false);
 		}
-	}, [library, sortKey, sortOrder, favoritesOnly, playedFilter, likedFilter, seriesFilter, featureFilters, qualityFilters, videoSourceFilters, genreFilters, ratingFilters, tagFilters, yearFilters, audioLanguageFilters, subtitleLanguageFilters, musicContentType, isFolderView, currentFolderId, genreFilter, studioFilter, isMusicBrowseHome]);
+	}, [library, sortKey, sortOrder, favoritesOnly, playedFilter, likedFilter, seriesFilter, featureFilters, qualityFilters, videoSourceFilters, genreFilters, ratingFilters, tagFilters, yearFilters, audioLanguageFilters, subtitleLanguageFilters, musicContentType, isFolderView, currentFolderId, genreFilter, studioFilter, isMusicBrowseHome, settings.groupItemsIntoCollections]);
 
 	// The values the library actually holds, read once per library so opening
 	// the filter panel does not wait on the network.
