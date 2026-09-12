@@ -43,4 +43,21 @@ describe('spotlightMetaPieces', () => {
 	it('has nothing to say about an item carrying nothing', () => {
 		expect(spotlightMetaPieces({item: {Type: 'Movie'}})).toEqual([]);
 	});
+
+	it('includes upcoming episode piece and respects custom metadata order', () => {
+		const pieces = spotlightMetaPieces({
+			item: {Type: 'Series', Status: 'Continuing'},
+			year: 2024,
+			upcomingEpisodeText: 'Next: Today (S2:E1)',
+			settings: {
+				detailMetadataOrderTv: ['upcomingEpisodeDate', 'year', 'status'],
+				hiddenDetailMetadataTv: ['status']
+			}
+		});
+
+		expect(pieces).toEqual([
+			{kind: 'upcoming', text: 'Next: Today (S2:E1)'},
+			{kind: 'text', text: '2024'}
+		]);
+	});
 });

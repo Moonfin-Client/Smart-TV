@@ -4,12 +4,27 @@ import {
 	ordered, hiddenSet, withUnknownIds, DETAIL_BUTTONS, OSD_BUTTONS,
 	DETAIL_ORDER_KEY, DETAIL_HIDDEN_KEY, OSD_ORDER_KEY, OSD_HIDDEN_KEY
 } from '../../utils/buttonLayout';
+import {
+	DETAIL_METADATA, DETAIL_METADATA_ORDER_KEY, DETAIL_METADATA_HIDDEN_KEY
+} from '../../utils/detailMetadataLayout';
 
-// The details row and the player controls are arranged the same way, so one view drives both
-// and only the storage keys differ.
-const buttonLayoutKeys = (kind) => (kind === 'osd'
-	? {catalogue: OSD_BUTTONS, orderKey: OSD_ORDER_KEY, hiddenKey: OSD_HIDDEN_KEY}
-	: {catalogue: DETAIL_BUTTONS, orderKey: DETAIL_ORDER_KEY, hiddenKey: DETAIL_HIDDEN_KEY});
+// The details row, the player controls, and the details metadata row are arranged the same way,
+// so one view drives all three and only the storage keys and catalogue differ.
+const buttonLayoutKeys = (kind) => {
+	if (kind === 'osd') {
+		return {catalogue: OSD_BUTTONS, orderKey: OSD_ORDER_KEY, hiddenKey: OSD_HIDDEN_KEY};
+	}
+	if (kind === 'metadata') {
+		return {catalogue: DETAIL_METADATA, orderKey: DETAIL_METADATA_ORDER_KEY, hiddenKey: DETAIL_METADATA_HIDDEN_KEY};
+	}
+	return {catalogue: DETAIL_BUTTONS, orderKey: DETAIL_ORDER_KEY, hiddenKey: DETAIL_HIDDEN_KEY};
+};
+
+const returnFocusMap = {
+	osd: 'setting-osdButtons',
+	detail: 'setting-detailButtons',
+	metadata: 'setting-detailMetadata'
+};
 
 // Edits go to a scratch copy, so backing out of the screen leaves the stored arrangement alone.
 const useButtonLayoutEditor = ({settings, updateSettings, pushView, popView}) => {
@@ -21,11 +36,12 @@ const useButtonLayoutEditor = ({settings, updateSettings, pushView, popView}) =>
 		const off = hiddenSet(settings[hiddenKey]);
 		setButtonLayoutKind(kind);
 		setTempButtons(ordered(catalogue, settings[orderKey]).map((btn) => ({...btn, enabled: !off.has(btn.id)})));
-		pushView({view: 'buttonLayout', returnFocusTo: kind === 'osd' ? 'setting-osdButtons' : 'setting-detailButtons'});
+		pushView({view: 'buttonLayout', returnFocusTo: returnFocusMap[kind] || 'setting-detailButtons'});
 	}, [settings, pushView]);
 
 	const openDetailButtons = useCallback(() => openButtonLayout('detail'), [openButtonLayout]);
 	const openOsdButtons = useCallback(() => openButtonLayout('osd'), [openButtonLayout]);
+	const openDetailMetadata = useCallback(() => openButtonLayout('metadata'), [openButtonLayout]);
 
 	const saveButtonLayout = useCallback(() => {
 		const {catalogue, orderKey, hiddenKey} = buttonLayoutKeys(buttonLayoutKind);
@@ -66,6 +82,7 @@ const useButtonLayoutEditor = ({settings, updateSettings, pushView, popView}) =>
 		buttonLayoutKind,
 		openDetailButtons,
 		openOsdButtons,
+		openDetailMetadata,
 		saveButtonLayout,
 		resetButtonLayout,
 		toggleLayoutButton,

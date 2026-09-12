@@ -27,6 +27,16 @@ describe('profileToLocal', () => {
 		expect(local.hiddenOsdButtonsTv).toEqual(['audio']);
 	});
 
+	test('takes the TV metadata fields under their own names or PascalCase', () => {
+		const local = profileToLocal({
+			detailMetadataOrderTv: ['upcomingEpisodeDate', 'year'],
+			HiddenDetailMetadataTv: ['status']
+		});
+
+		expect(local.detailMetadataOrderTv).toEqual(['upcomingEpisodeDate', 'year']);
+		expect(local.hiddenDetailMetadataTv).toEqual(['status']);
+	});
+
 	test('leaves the desktop and mobile button fields alone', () => {
 		const local = profileToLocal({
 			osdButtonOrderDesktop: ['desktop-order'],

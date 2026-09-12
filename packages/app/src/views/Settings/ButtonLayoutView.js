@@ -11,11 +11,15 @@ import css from './Settings.module.less';
 
 const ButtonLayoutView = ({kind, tempButtons, onToggleButton, onMoveButton, onReset, onSave}) => (
 	<SettingsView spotlightId='button-layout-view'>
-		<SectionTitle>{kind === 'osd' ? $L('Player Buttons') : $L('Details Buttons')}</SectionTitle>
+		<SectionTitle>
+			{kind === 'osd' ? $L('Player Buttons') : (kind === 'metadata' ? $L('Metadata Row') : $L('Details Buttons'))}
+		</SectionTitle>
 		<div className={css.viewDescription}>
 			{kind === 'osd'
 				? $L('Enable/disable and reorder the buttons around the playback controls.')
-				: $L('Enable/disable and reorder the buttons on the details screen action row.')}
+				: (kind === 'metadata'
+				? $L('Enable/disable and reorder the metadata items displayed on the details screen.')
+				: $L('Enable/disable and reorder the buttons on the details screen action row.'))}
 		</div>
 		{tempButtons.map((btn, index) => (
 			<div key={btn.id} className={css.homeRowItem}>
@@ -26,6 +30,7 @@ const ButtonLayoutView = ({kind, tempButtons, onToggleButton, onMoveButton, onRe
 				>
 					<div className={css.listItemBody}>
 						<div className={css.listItemHeading}>{$L(btn.label)}</div>
+						{btn.subtitle && <div className={css.listItemCaption}>{$L(btn.subtitle)}</div>}
 					</div>
 					<div className={css.listItemTrailing}>{renderToggle(btn.enabled)}</div>
 				</SpottableDiv>

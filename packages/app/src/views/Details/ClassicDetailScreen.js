@@ -1,3 +1,4 @@
+import {Fragment, useState, useEffect, useMemo} from 'react';
 import $L from '@enact/i18n/$L';
 
 import MediaRow from '../../components/MediaRow';
@@ -16,6 +17,9 @@ import {handleSectionKeyDown, handleScrollerFocus} from './detailsFocus';
 import {PosterBadges, WatchedCheckIcon, FavoriteHeartIcon} from './DetailBadges';
 import DetailMetadata from './DetailMetadata';
 import NextUpCard from './NextUpCard';
+import {DETAIL_METADATA, arrange} from '../../utils/detailMetadataLayout';
+import {fetchUpcomingEpisode, formatUpcomingEpisode} from '../../utils/upcomingEpisode';
+import {DETAIL_ICON_PATHS} from './detailIcons';
 
 import css from './Details.module.less';
 
@@ -28,6 +32,7 @@ const CHAPTER_THUMB = {maxWidth: 400, quality: 90};
 const ClassicDetailScreen = ({
 	item,
 	serverUrl,
+	serverToken,
 	settings,
 	isEpisode,
 	isSeries,
@@ -67,64 +72,144 @@ const ClassicDetailScreen = ({
 	onExtraSelect,
 	onCastSelect,
 	onSelectItem
-}) => (
-	<>
-		<div className={css.detailsHeader}>
-			<div className={css.infoSection}>
-				{isEpisode && (
-					<div className={css.episodeHeader}>
-						{item.SeriesName && <span className={css.seriesName}>{item.SeriesName}</span>}
-						{item.ParentIndexNumber !== undefined && item.IndexNumber !== undefined && (
-							<span className={css.episodeNumber}>S{item.ParentIndexNumber} E{item.IndexNumber}</span>
-						)}
-					</div>
-				)}
+}) => {
+	const [upcomingEpisode, setUpcomingEpisode] = useState(null);
 
-				<div className={css.titleSection}>
-					{logoUrl && !logoFailed ? (
-						<img
-							src={logoUrl}
-							className={css.logoImage}
-							alt={item.Name}
-							onError={onLogoError}
-						/>
-					) : (
-						<h1 className={css.title}>{item.Name}</h1>
-					)}
-				</div>
+	useEffect(() => {
+		let cancelled = false;
+		if (!isSeries && item?.Type !== 'Series') {
+			setUpcomingEpisode(null);
+			return undefined;
+		}
+		fetchUpcomingEpisode({item, settings, serverUrl, serverToken})
+			.then((res) => {
+				if (!cancelled) setUpcomingEpisode(res);
+			})
+			.catch(() => {});
+		return () => {
+			cancelled = true;
+		};
+	}, [item, isSeries, settings, serverUrl, serverToken]);
 
-				<div className={css.infoRow}>
-					<div className={css.infoTextItems}>
-						{year && <span className={css.infoItem}>{year}</span>}
-						{officialRating && (
-							<span className={css.infoItem}>
-								<span className={`${css.badge} ${css.badgeRating}`}>{officialRating}</span>
+	const upcomingEpisodeText = useMemo(() => formatUpcomingEpisode(upcomingEpisode), [upcomingEpisode]);
+
+	const orderedItems = arrange(DETAIL_METADATA, {
+		order: settings.detailMetadataOrderTv,
+		hidden: settings.hiddenDetailMetadataTv
+	});
+
+	const renderMetadataPiece = (id) => {
+		switch (id) {
+			case 'year':
+				return year ? <span key="year" className={css.infoItem}>{year}</span> : null;
+			case 'parentalRating':
+				return officialRating ? (
+					<span key="parentalRating" className={css.infoItem}>
+						<span className={`${css.badge} ${css.badgeRating}`}>{officialRating}</span>
+					</span>
+				) : null;
+			case 'runtimeAndSeasons':
+				if (isSeries && seasonCount > 0) {
+					return (
+						<span key="runtimeAndSeasons" className={css.infoItem}>
+							{seasonCount}&nbsp;{seasonCount !== 1 ? $L('Seasons') : $L('Season')}
+						</span>
+					);
+				}
+				if (runtime && !isSeries) {
+					return (
+						<Fragment key="runtimeAndSeasons">
+							<span className={css.infoItem}>{runtime}</span>
+							{endsAt && <span className={css.infoItem}>{endsAt}</span>}
+						</Fragment>
+					);
+				}
+				return null;
+			case 'status':
+				if (isSeries && (item.Status === 'Continuing' || item.Status === 'Ended')) {
+					return (
+						<span key="status" className={css.infoItem}>
+							<span className={`${css.badge} ${item.Status === 'Continuing' ? css.badgeContinuing : css.badgeEnded}`}>
+								{item.Status === 'Continuing' ? $L('Continuing') : $L('Ended')}
 							</span>
-						)}
-						{techSize && <span className={css.infoItem}>{techSize}</span>}
-						{runtime && !isSeries && <span className={css.infoItem}>{runtime}</span>}
-						{isSeries && seasonCount > 0 && (
-							<span className={css.infoItem}>{seasonCount}&nbsp;{seasonCount !== 1 ? $L('Seasons') : $L('Season')}</span>
-						)}
-						{isSeries && (item.Status === 'Continuing' || item.Status === 'Ended') && (
-							<span className={css.infoItem}>
-								<span className={`${css.badge} ${item.Status === 'Continuing' ? css.badgeContinuing : css.badgeEnded}`}>
-									{item.Status === 'Continuing' ? $L('Continuing') : $L('Ended')}
-								</span>
+						</span>
+					);
+				}
+				return null;
+			case 'upcomingEpisodeDate':
+				if (upcomingEpisodeText) {
+					return (
+						<span key="upcomingEpisodeDate" className={css.infoItem}>
+							<span className={`${css.badge} ${css.badgeUpcoming}`}>
+								<svg viewBox="0 -960 960 960" fill="currentColor" aria-hidden="true" style={{width: 16, height: 16, marginRight: 6, verticalAlign: -2}}>
+									<path d={DETAIL_ICON_PATHS.calendar} />
+								</svg>
+								{upcomingEpisodeText}
 							</span>
-						)}
-						{endsAt && !isSeries && <span className={css.infoItem}>{endsAt}</span>}
-						{genres.length > 0 && <span className={css.infoItem}>{genres.slice(0, 3).join(' • ')}</span>}
-					</div>
-					{(techBadges.length > 0 || seerr.statusPills?.length > 0) && (
-						<div className={css.infoBadges}>
-							{techBadges.map((badge, i) => (
-								<span key={i} className={`${css.badge} ${css[badge.type]}`}>{badge.label}</span>
-							))}
-							<SeerrStatusBadge seerr={seerr} />
+						</span>
+					);
+				}
+				return null;
+			case 'genres':
+				return genres.length > 0 ? (
+					<span key="genres" className={css.infoItem}>{genres.slice(0, 3).join(' • ')}</span>
+				) : null;
+			case 'seerrAvailability':
+				return seerr?.statusPills?.length > 0 ? (
+					<span key="seerrAvailability" className={css.infoItem}>
+						<SeerrStatusBadge seerr={seerr} />
+					</span>
+				) : null;
+			default:
+				return null;
+		}
+	};
+
+	const metadataElements = useMemo(
+		() => orderedItems.map((meta) => renderMetadataPiece(meta.id)).filter(Boolean),
+		// eslint-disable-next-line react-hooks/exhaustive-deps
+		[orderedItems, year, officialRating, isSeries, seasonCount, runtime, endsAt, item.Status, upcomingEpisodeText, genres, seerr]
+	);
+
+	return (
+		<>
+			<div className={css.detailsHeader}>
+				<div className={css.infoSection}>
+					{isEpisode && (
+						<div className={css.episodeHeader}>
+							{item.SeriesName && <span className={css.seriesName}>{item.SeriesName}</span>}
+							{item.ParentIndexNumber !== undefined && item.IndexNumber !== undefined && (
+								<span className={css.episodeNumber}>S{item.ParentIndexNumber} E{item.IndexNumber}</span>
+							)}
 						</div>
 					)}
-				</div>
+
+					<div className={css.titleSection}>
+						{logoUrl && !logoFailed ? (
+							<img
+								src={logoUrl}
+								className={css.logoImage}
+								alt={item.Name}
+								onError={onLogoError}
+							/>
+						) : (
+							<h1 className={css.title}>{item.Name}</h1>
+						)}
+					</div>
+
+					<div className={css.infoRow}>
+						<div className={css.infoTextItems}>
+							{techSize && <span className={css.infoItem}>{techSize}</span>}
+							{metadataElements}
+						</div>
+						{techBadges.length > 0 && (
+							<div className={css.infoBadges}>
+								{techBadges.map((badge, i) => (
+									<span key={i} className={`${css.badge} ${css[badge.type]}`}>{badge.label}</span>
+								))}
+							</div>
+						)}
+					</div>
 
 				<RatingsRow item={item} serverUrl={serverUrl} pluginEnabled={isMdblistEnabled(settings)} />
 
@@ -476,6 +561,7 @@ const ClassicDetailScreen = ({
 			)}
 		</div>
 	</>
-);
+	);
+};
 
 export default ClassicDetailScreen;
