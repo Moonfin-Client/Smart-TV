@@ -134,12 +134,16 @@ const Genres = ({onSelectGenre, onHome, backHandlerRef}) => {
 					genreList = genresResult.Items || [];
 				}
 
+				const groupCollections = Boolean(settings.groupItemsIntoCollections);
 				const BATCH_SIZE = 10;
+				const usedBackdropIds = new Set();
 				const getGenreData = async (genre) => {
 					try {
 						const itemParams = {
 							Genres: genre.Name,
-							IncludeItemTypes: 'Movie,Series',
+							IncludeItemTypes: groupCollections ? 'Movie,Series,BoxSet' : 'Movie,Series',
+							ExcludeItemTypes: 'Playlist,Episode,Season,Folder',
+							CollapseBoxSetItems: groupCollections,
 							Recursive: true,
 							Limit: 5,
 							SortBy: 'Random',
@@ -175,13 +179,34 @@ const Genres = ({onSelectGenre, onHome, backHandlerRef}) => {
 						if (itemCount === 0) return null;
 
 						let backdropUrl = null;
+						let selectedBackdropId = null;
+
+						// First try to find a backdrop that hasn't been used yet across genre cards
 						for (const item of items) {
 							const backdropId = getBackdropId(item);
-							if (backdropId) {
+							if (backdropId && !usedBackdropIds.has(backdropId)) {
 								const itemServerUrl = item._serverUrl || serverUrl;
 								backdropUrl = getImageUrl(itemServerUrl, backdropId, 'Backdrop', {maxWidth: 780, quality: 80});
+								selectedBackdropId = backdropId;
 								break;
 							}
+						}
+
+						// If all items have already been used, fall back to any available backdrop
+						if (!backdropUrl) {
+							for (const item of items) {
+								const backdropId = getBackdropId(item);
+								if (backdropId) {
+									const itemServerUrl = item._serverUrl || serverUrl;
+									backdropUrl = getImageUrl(itemServerUrl, backdropId, 'Backdrop', {maxWidth: 780, quality: 80});
+									selectedBackdropId = backdropId;
+									break;
+								}
+							}
+						}
+
+						if (selectedBackdropId) {
+							usedBackdropIds.add(selectedBackdropId);
 						}
 
 						return {
@@ -218,7 +243,7 @@ const Genres = ({onSelectGenre, onHome, backHandlerRef}) => {
 		};
 
 		loadGenres();
-	}, [api, serverUrl, selectedLibrary, unifiedMode]);
+	}, [api, serverUrl, selectedLibrary, unifiedMode, settings.groupItemsIntoCollections]);
 
 	const sortedGenres = useMemo(() => {
 		const sorted = [...genres];

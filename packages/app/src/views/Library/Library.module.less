@@ -37,9 +37,9 @@
 }
 
 .headerSide {
-	width: 464px;
-	-webkit-flex: 0 0 auto;
-	flex: 0 0 auto;
+	width: 380px;
+	-webkit-flex: 0 0 380px;
+	flex: 0 0 380px;
 }
 
 .headerTitle {
@@ -52,6 +52,7 @@
 	-webkit-justify-content: center;
 	justify-content: center;
 	min-width: 0;
+	padding: 0 16px;
 }
 
 .searchWrap {
@@ -70,6 +71,10 @@
 	font-size: 38px;
 	font-weight: 300;
 	color: var(--theme-text-primary, white);
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	min-width: 0;
 }
 
 .itemCount {
@@ -78,6 +83,8 @@
 	color: rgba(var(--theme-on-surface-rgb, 255, 255, 255), 0.4);
 	margin-left: 17px;
 	font-weight: 400;
+	white-space: nowrap;
+	flex-shrink: 0;
 }
 
 /* ── Breadcrumb (folder view) ────────────────────────────── */

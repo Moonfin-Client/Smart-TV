@@ -116,6 +116,7 @@ export const defaultSettings = {
 	mergeContinueWatchingNextUp: true,
 	mergeRecentRowsByType: false,
 	playlistsGroupByType: true,
+	groupItemsIntoCollections: false,
 	nextUpMaxDays: 365,
 	hiddenContinueWatchingItems: null,
 	hiddenNextUpSeries: null,

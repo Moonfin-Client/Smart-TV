@@ -106,6 +106,7 @@ const GenreBrowse = ({genre, libraryId, onSelectItem, backHandlerRef}) => {
 		}
 
 		try {
+			const groupCollections = Boolean(settings.groupItemsIntoCollections);
 			const [sortField, sortOrder] = sortBy.split(',');
 			const params = {
 				StartIndex: startIndex,
@@ -115,7 +116,8 @@ const GenreBrowse = ({genre, libraryId, onSelectItem, backHandlerRef}) => {
 				Recursive: true,
 				Genres: genre.name,
 				EnableTotalRecordCount: true,
-				CollapseBoxSetItems: false,
+				CollapseBoxSetItems: groupCollections,
+				ExcludeItemTypes: 'Playlist,Episode,Season,Folder',
 				Fields: 'ProductionYear,ImageTags,BackdropImageTags,ParentBackdropImageTags,ParentBackdropItemId,SeriesId,SeriesPrimaryImageTag,UserData'
 			};
 
@@ -124,9 +126,11 @@ const GenreBrowse = ({genre, libraryId, onSelectItem, backHandlerRef}) => {
 			}
 
 			if (filterType !== 'all') {
-				params.IncludeItemTypes = filterType;
+				params.IncludeItemTypes = groupCollections && (filterType === 'Movie' || filterType === 'Series')
+					? `${filterType},BoxSet`
+					: filterType;
 			} else {
-				params.IncludeItemTypes = 'Movie,Series';
+				params.IncludeItemTypes = groupCollections ? 'Movie,Series,BoxSet' : 'Movie,Series';
 			}
 
 			if (startLetter) {
@@ -201,7 +205,7 @@ const GenreBrowse = ({genre, libraryId, onSelectItem, backHandlerRef}) => {
 				setIsLoading(false);
 			}
 		}
-	}, [api, genre, libraryId, sortBy, filterType, startLetter, serverUrl, isRangeLoaded]);
+	}, [api, genre, libraryId, sortBy, filterType, startLetter, serverUrl, isRangeLoaded, settings.groupItemsIntoCollections]);
 
 	useEffect(() => {
 		if (genre) {

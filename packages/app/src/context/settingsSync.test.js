@@ -153,4 +153,8 @@ describe('SYNCABLE_KEYS', () => {
 	test('includes seerrShowMissingCollectionItems', () => {
 		expect(SYNCABLE_KEYS).toContain('seerrShowMissingCollectionItems');
 	});
+
+	test('includes groupItemsIntoCollections', () => {
+		expect(SYNCABLE_KEYS).toContain('groupItemsIntoCollections');
+	});
 });
