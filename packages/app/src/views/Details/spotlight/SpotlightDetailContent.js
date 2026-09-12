@@ -202,7 +202,7 @@ const SpotlightDetailContent = (props) => {
 				card={openCard}
 				serverUrl={effectiveServerUrl}
 				actions={cardActions}
-				seerr={{details: seerr.details, mediaType: seerr.mediaType, nav: seerrNav}}
+				seerr={{details: seerr.details, mediaType: seerr.mediaType, nav: seerrNav, seasonMarkers: seerr.seasonMarkers}}
 				onClose={handleCloseModal}
 				onNearEnd={openCardId === 'boxset_items' ? cardActions.loadMoreCollectionItems : null}
 			/>
