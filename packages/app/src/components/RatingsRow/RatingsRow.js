@@ -53,7 +53,7 @@ const RatingsRow = ({item, serverUrl, compact = false, pluginEnabled = true}) =>
 
 		const contentType = getContentType(item);
 		const tmdbId = getTmdbId(item);
-		if (!contentType || !tmdbId) {
+		if (!contentType || (!tmdbId && item.Type !== 'Series')) {
 			setAllRatings([]);
 			return;
 		}

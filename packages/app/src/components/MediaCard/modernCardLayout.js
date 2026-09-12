@@ -17,3 +17,30 @@ export const modernCardMetrics = ({posterSize, platform, isSquareItem, isStatic}
 
 	return {imageHeight, expandedWidth, cardWidth: isStatic ? expandedWidth : posterWidth};
 };
+
+export const getEpisodeLabels = (item) => {
+	if (!item) return null;
+	if (item.Type === 'Episode') {
+		if (!Number.isFinite(item.ParentIndexNumber) || !Number.isFinite(item.IndexNumber)) return null;
+		const short = `S${item.ParentIndexNumber}:E${item.IndexNumber}`;
+		return {
+			short,
+			full: item.SeriesName ? `${short} - ${item.Name}` : short
+		};
+	}
+	if (item.Type === 'Season' && item.SeriesName) {
+		return {
+			short: item.Name,
+			full: item.Name
+		};
+	}
+	return null;
+};
+
+export const getCardDisplayTitle = (item) => {
+	if (!item) return '';
+	if (item.Type === 'Episode' || item.Type === 'Season') {
+		return item.SeriesName || item.Name;
+	}
+	return item.Name;
+};

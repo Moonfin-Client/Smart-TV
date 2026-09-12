@@ -7,6 +7,7 @@ import * as seerrApi from '../../services/seerrApi';
 import browseReducer, {browseInitialState, mergeRowsById} from './browseReducer';
 import {BROWSE_ROW_LOADERS, buildLoaderContext} from './browseRowLoaders';
 import {genericCollectionLabel, mergeRecentRows} from '../../utils/mergeRecentRows';
+import {normalizeLatestMediaItems} from '../../utils/latestMediaRowNormalizer';
 import {EXCLUDED_COLLECTION_TYPES, filterItemsByExcludedGenres} from './browseFilters';
 import {
 	CACHE_TTL_LIBRARIES, CACHE_TTL_VOLATILE, VOLATILE_REFRESH_COOLDOWN_MS,
@@ -409,7 +410,10 @@ const useBrowseData = ({
 					if (settings.mergeRecentRowsByType) {
 						const entries = latestResults
 							.filter((r) => r && r.latest?.length > 0)
-							.map((r) => ({lib: r.lib, items: r.latest}));
+							.map((r) => ({
+								lib: r.lib,
+								items: normalizeLatestMediaItems(r.latest, {collectionType: r.lib?.CollectionType, limit: 16})
+							}));
 						for (const merged of mergeRecentRows(entries, 'DateCreated')) {
 							newRows.push({
 								id: `latest-merged-${merged.collectionType}`,
@@ -422,19 +426,22 @@ const useBrowseData = ({
 					} else {
 						for (const result of latestResults) {
 							if (result && result.latest?.length > 0) {
-								const libraryTitle = result.lib._serverName
-									? `${result.lib.Name} (${result.lib._serverName})`
-									: result.lib.Name;
-								const rowId = `latest-${result.lib.Id}${result.lib._serverName ? '-' + result.lib._serverName : ''}`;
+								const items = normalizeLatestMediaItems(result.latest, {collectionType: result.lib?.CollectionType, limit: 16});
+								if (items.length > 0) {
+									const libraryTitle = result.lib._serverName
+										? `${result.lib.Name} (${result.lib._serverName})`
+										: result.lib.Name;
+									const rowId = `latest-${result.lib.Id}${result.lib._serverName ? '-' + result.lib._serverName : ''}`;
 
-								newRows.push({
-									id: rowId,
-									title: $L('Recently Added {libraryName}').replace('{libraryName}', libraryTitle),
-									items: result.latest,
-									library: result.lib,
-									type: result.lib.CollectionType?.toLowerCase() === 'music' ? 'square' : 'portrait',
-									isLatestRow: true
-								});
+									newRows.push({
+										id: rowId,
+										title: $L('Recently Added {libraryName}').replace('{libraryName}', libraryTitle),
+										items,
+										library: result.lib,
+										type: result.lib.CollectionType?.toLowerCase() === 'music' ? 'square' : 'portrait',
+										isLatestRow: true
+									});
+								}
 							}
 						}
 					}

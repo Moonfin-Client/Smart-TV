@@ -6,7 +6,7 @@ import RatingsRow from '../RatingsRow';
 import {getImageUrl} from '../../utils/helpers';
 import {useSettings} from '../../context/SettingsContext';
 import {getPlatform} from '../../platform';
-import {isStaticLibraryCard, modernCardMetrics} from './modernCardLayout';
+import {isStaticLibraryCard, modernCardMetrics, getEpisodeLabels, getCardDisplayTitle} from './modernCardLayout';
 import SeerrIcon from '../icons/SeerrIcon';
 
 import css from './ModernMediaCard.module.less';
@@ -51,19 +51,6 @@ const getMetadataLine = (item) => {
 	const runtime = formatRuntime(item.RunTimeTicks);
 	if (runtime) parts.push(runtime);
 	return parts.join(' • ');
-};
-
-// Short form rests under the title, the full form takes over while focused. The
-// episode title only joins in when the series name occupies the main title, since
-// without a SeriesName the title already is item.Name and would repeat here.
-const getEpisodeLabels = (item) => {
-	if (!item || item.Type !== 'Episode') return null;
-	if (!Number.isFinite(item.ParentIndexNumber) || !Number.isFinite(item.IndexNumber)) return null;
-	const short = `S${item.ParentIndexNumber}:E${item.IndexNumber}`;
-	return {
-		short,
-		full: item.SeriesName ? `${short} - ${item.Name}` : short
-	};
 };
 
 const ModernMediaCard = ({
@@ -248,11 +235,7 @@ const ModernMediaCard = ({
 	const unplayedCount = item?.UserData?.UnplayedItemCount;
 	const showUnplayedCount = showIndicators && watchedBehavior !== 'hideCount' && !item?.UserData?.Played && unplayedCount > 0;
 
-	const displayTitle = useMemo(() => {
-		if (!item) return '';
-		if (item.Type === 'Episode') return item.SeriesName || item.Name;
-		return item.Name;
-	}, [item]);
+	const displayTitle = useMemo(() => getCardDisplayTitle(item), [item]);
 
 	const metadata = useMemo(() => getMetadataLine(item), [item]);
 	const episodeLabels = useMemo(() => getEpisodeLabels(item), [item]);

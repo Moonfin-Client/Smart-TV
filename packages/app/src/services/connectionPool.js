@@ -7,6 +7,7 @@
 import * as multiServerManager from './multiServerManager';
 import {createApiForServer} from './jellyfinApi';
 import {deduplicateMediaItems} from '../utils/mediaDedup';
+import {latestMediaFetchLimitForCollection} from '../utils/latestMediaRowNormalizer';
 
 /**
  * Execute a request to all servers and aggregate results
@@ -236,7 +237,8 @@ export const getLatestPerLibraryFromAllServers = async (excludedLibraryIds = [],
 			// Fetch latest for each library
 			await Promise.all(eligibleLibraries.map(async (lib) => {
 				try {
-					const latest = await api.getLatestMedia(lib.Id, 16);
+					const fetchLimit = latestMediaFetchLimitForCollection(lib.CollectionType, 16);
+					const latest = await api.getLatestMedia(lib.Id, fetchLimit);
 					if (latest && latest.length > 0) {
 						const taggedItems = latest.map(item => ({
 							...item,

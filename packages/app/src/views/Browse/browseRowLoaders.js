@@ -3,6 +3,7 @@
 
 import $L from '@enact/i18n/$L';
 import {genericCollectionLabel, mergeRecentRows} from '../../utils/mergeRecentRows';
+import {latestMediaFetchLimitForCollection, normalizeLatestMediaItems} from '../../utils/latestMediaRowNormalizer';
 
 import {HOME_ROW_ITEM_FIELDS} from '../../services/jellyfinApi';
 import {loadSinceYouWatchedRows, loadRewatchItems} from '../../services/homeRecommendations';
@@ -117,7 +118,7 @@ const loadLatestAndRecentlyReleased = async (ctx) => {
 		const [latestResults, recentlyReleasedResults] = await Promise.all([
 			Promise.all(
 				eligibleLibraries.map(lib =>
-					api.getLatest(lib.Id, 16)
+					api.getLatest(lib.Id, latestMediaFetchLimitForCollection(lib.CollectionType, 16))
 						.then(latest => ({lib, latest}))
 						.catch(() => null)
 				)
@@ -135,7 +136,10 @@ const loadLatestAndRecentlyReleased = async (ctx) => {
 		if (settings.mergeRecentRowsByType) {
 			const latestEntries = latestResults
 				.filter((r) => r && r.latest?.length > 0)
-				.map((r) => ({lib: r.lib, items: r.latest}));
+				.map((r) => ({
+					lib: r.lib,
+					items: normalizeLatestMediaItems(r.latest, {collectionType: r.lib?.CollectionType, limit: 16})
+				}));
 			for (const merged of mergeRecentRows(latestEntries, 'DateCreated')) {
 				rows.push({
 					id: `latest-merged-${merged.collectionType}`,
@@ -162,16 +166,19 @@ const loadLatestAndRecentlyReleased = async (ctx) => {
 		}
 		for (const result of latestResults) {
 			if (result && result.latest?.length > 0) {
-				const libraryTitle = result.lib.Name;
-				const rowId = `latest-${result.lib.Id}`;
-				rows.push({
-					id: rowId,
-					title: $L('Recently Added {libraryName}').replace('{libraryName}', libraryTitle),
-					items: result.latest,
-					library: result.lib,
-					type: result.lib.CollectionType?.toLowerCase() === 'music' ? 'square' : 'portrait',
-					isLatestRow: true
-				});
+				const items = normalizeLatestMediaItems(result.latest, {collectionType: result.lib?.CollectionType, limit: 16});
+				if (items.length > 0) {
+					const libraryTitle = result.lib.Name;
+					const rowId = `latest-${result.lib.Id}`;
+					rows.push({
+						id: rowId,
+						title: $L('Recently Added {libraryName}').replace('{libraryName}', libraryTitle),
+						items,
+						library: result.lib,
+						type: result.lib.CollectionType?.toLowerCase() === 'music' ? 'square' : 'portrait',
+						isLatestRow: true
+					});
+				}
 			}
 		}
 		for (const result of recentlyReleasedResults) {
