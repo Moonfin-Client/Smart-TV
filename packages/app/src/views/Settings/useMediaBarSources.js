@@ -2,6 +2,18 @@ import {useCallback, useState} from 'react';
 
 const withIdToggled = (id) => (prev) => (prev.includes(id) ? prev.filter((entry) => entry !== id) : [...prev, id]);
 
+// A mixed library names no collection type, so the bar takes it for either kind. Folders
+// and recordings name none either, but a query on one of those reaches every library, so
+// they go out by name.
+const MEDIA_BAR_COLLECTION_TYPES = ['movies', 'tvshows', '', 'mixed', 'unknown'];
+
+const isMediaBarLibrary = (lib) => {
+	const name = String(lib?.Name || '').trim().toLowerCase();
+	if (name === 'folders' || name === 'recordings') return false;
+
+	return MEDIA_BAR_COLLECTION_TYPES.includes(String(lib?.CollectionType || '').trim().toLowerCase());
+};
+
 // Which libraries or collections the featured bar draws from. Saving either one also sets
 // the source type, since picking a set is how the viewer says which kind they want.
 const useMediaBarSources = ({api, settings, updateSettings, pushView, popView}) => {
@@ -17,7 +29,7 @@ const useMediaBarSources = ({api, settings, updateSettings, pushView, popView}) 
 		setTempMediaBarLibraryIds(Array.isArray(settings.mediaBarLibraryIds) ? [...settings.mediaBarLibraryIds] : []);
 		try {
 			const viewsResult = await api.getAllLibraries();
-			const libs = (viewsResult?.Items || []).filter((lib) => lib?.CollectionType === 'movies' || lib?.CollectionType === 'tvshows');
+			const libs = (viewsResult?.Items || []).filter(isMediaBarLibrary);
 			setMediaBarLibraries(libs);
 		} catch (err) {
 			void err;
