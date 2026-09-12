@@ -155,6 +155,8 @@
 	height: @size;
 	background: var(--theme-badge-watched, rgba(0, 164, 220, 0.9));
 	border-radius: 50%;
+	border: 1.5px solid var(--theme-on-badge, #ffffff);
+	box-shadow: 0 1.5px 4px rgba(0, 0, 0, 0.6);
 	display: flex;
 	align-items: center;
 	justify-content: center;
@@ -164,6 +166,34 @@
 	svg {
 		width: @icon-size;
 		height: @icon-size;
-		fill: white;
+		fill: var(--theme-on-badge, #ffffff);
+		stroke: var(--theme-on-badge, #ffffff);
+		stroke-width: 0.6px;
+		stroke-linecap: round;
+		stroke-linejoin: round;
 	}
 }
+
+.favorite-badge(@size: 26px, @icon-size: 14px) {
+	position: absolute;
+	top: 8px;
+	left: 8px;
+	width: @size;
+	height: @size;
+	background: var(--theme-recording-active, #f44336);
+	border-radius: 50%;
+	border: 1.5px solid var(--theme-on-badge, #ffffff);
+	box-shadow: 0 1.5px 4px rgba(0, 0, 0, 0.6);
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	z-index: 5;
+	pointer-events: none;
+
+	svg {
+		width: @icon-size;
+		height: @icon-size;
+		fill: var(--theme-on-badge, #ffffff);
+	}
+}
+
