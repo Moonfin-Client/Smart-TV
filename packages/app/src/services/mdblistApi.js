@@ -102,9 +102,12 @@ const seriesTmdbIdCache = {};
  */
 export const resolveSeriesTmdbId = async (item) => {
 	if (!item) return null;
-	if (item.Type === 'Series') return getTmdbId(item);
+	if (item.Type === 'Series') {
+		const direct = getTmdbId(item);
+		if (direct) return direct;
+	}
 
-	const seriesId = item.SeriesId;
+	const seriesId = item.SeriesId || (item.Type === 'Series' ? item.Id : null);
 	if (!seriesId) return null;
 	if (seriesId in seriesTmdbIdCache) return seriesTmdbIdCache[seriesId];
 
@@ -157,7 +160,10 @@ const isNegativelyCached = (key) => {
 
 export const fetchRatings = async (serverUrl, item, options = {}) => {
 	const contentType = getContentType(item);
-	const tmdbId = getTmdbId(item);
+	let tmdbId = getTmdbId(item);
+	if (!tmdbId && item?.Type === 'Series' && (item.Id || item.SeriesId)) {
+		tmdbId = await resolveSeriesTmdbId(item);
+	}
 
 	if (!contentType || !tmdbId) return [];
 

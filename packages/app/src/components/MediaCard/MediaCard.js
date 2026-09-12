@@ -207,7 +207,7 @@ const MediaCard = ({item, serverUrl, cardType = 'portrait', rowImageType = 'post
 	const showUnplayedCount = showIndicators && watchedBehavior !== 'hideCount' && !item.UserData?.Played && unplayedCount > 0;
 
 	const displayTitle = useMemo(() => {
-		if (item.Type === 'Episode') {
+		if (item.Type === 'Episode' || item.Type === 'Season') {
 			return item.SeriesName || item.Name;
 		}
 		return item.Name;
@@ -217,8 +217,11 @@ const MediaCard = ({item, serverUrl, cardType = 'portrait', rowImageType = 'post
 		if (item.Type === 'Episode' && item.ParentIndexNumber !== undefined) {
 			return `S${item.ParentIndexNumber}:E${item.IndexNumber} - ${item.Name}`;
 		}
+		if (item.Type === 'Season' && item.SeriesName) {
+			return item.Name;
+		}
 		return null;
-	}, [item.Type, item.ParentIndexNumber, item.IndexNumber, item.Name]);
+	}, [item.Type, item.ParentIndexNumber, item.IndexNumber, item.Name, item.SeriesName]);
 
 	const musicInfo = useMemo(() => {
 		if (item.Type === 'MusicAlbum') {
