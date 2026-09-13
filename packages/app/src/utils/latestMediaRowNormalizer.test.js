@@ -57,8 +57,7 @@ describe('latestMediaRowNormalizer', () => {
 				SeriesName: 'Party Down',
 				SeriesPrimaryImageTag: 'tag-series-1',
 				ImageTags: {Primary: 'tag-series-1'},
-				PrimaryImageTag: 'tag-series-1',
-				PrimaryImageItemId: 'series-party-down'
+				PrimaryImageTag: 'tag-series-1'
 			});
 			expect(result.IndexNumber).toBeUndefined();
 			expect(result.ProviderIds).toBeUndefined();
@@ -98,10 +97,26 @@ describe('latestMediaRowNormalizer', () => {
 			expect(result.Id).toBe('series-fleabag');
 			expect(result.Type).toBe('Series');
 			expect(result.Name).toBe('Fleabag');
-			expect(result.LatestEpisodeId).toBe('ep-1');
-			expect(result.LatestEpisodePrimaryImageTag).toBe('tag-ep-art');
 			expect(result.IndexNumber).toBeUndefined();
 			expect(result.ParentIndexNumber).toBeUndefined();
+		});
+	});
+
+	describe('season state', () => {
+		test('leaves the season watched state and runtime behind', () => {
+			const result = seriesCardForLatestTvItem({
+				Id: 'season-9',
+				Type: 'Season',
+				Name: 'Season 9',
+				SeriesId: 'show-9',
+				SeriesName: 'Cheers',
+				RunTimeTicks: 15000000000,
+				UserData: {Played: true, IsFavorite: true, PlayedPercentage: 100, UnplayedItemCount: 0}
+			});
+
+			expect(result.UserData).toBeUndefined();
+			expect(result.RunTimeTicks).toBeUndefined();
+			expect(result.Name).toBe('Cheers');
 		});
 	});
 

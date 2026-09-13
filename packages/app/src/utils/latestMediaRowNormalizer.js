@@ -1,16 +1,16 @@
-// Normalizes Latest Media items from Jellyfin.
-// Jellyfin 12's /Items/Latest endpoint returns Season entities when an entire season
-// of a multi-season show is added, or Episode entities when individual episodes are added.
-// This normalizer collapses Season and Episode items into true Series cards with the
-// show's ID, name, and primary artwork, matching Moonfin-Core.
+// Jellyfin 12's /Items/Latest hands back a Season when a whole season is added, or an Episode when
+// single ones are, so a Latest row reads "Season 1" where the show name belongs. These collapse
+// those down to one card per show.
+
+const isTvCollectionType = (collectionType) => {
+	const normalized = collectionType?.toLowerCase();
+	return normalized === 'tvshows' || normalized === 'shows';
+};
 
 export const latestMediaFetchLimitForCollection = (collectionType, defaultLimit = 16, maxLimit = 64) => {
-	const normalizedType = collectionType?.toLowerCase();
-	if (normalizedType === 'tvshows' || normalizedType === 'shows') {
-		const expanded = defaultLimit * 2;
-		return expanded > maxLimit ? maxLimit : expanded;
-	}
-	return defaultLimit;
+	if (!isTvCollectionType(collectionType)) return defaultLimit;
+	const expanded = defaultLimit * 2;
+	return expanded > maxLimit ? maxLimit : expanded;
 };
 
 export const seriesCardForLatestTvItem = (item) => {
@@ -34,19 +34,16 @@ export const seriesCardForLatestTvItem = (item) => {
 		Type: 'Series',
 		Name: seriesName,
 		ImageTags: imageTags,
-		PrimaryImageTag: seriesPrimaryImageTag || item.PrimaryImageTag,
-		PrimaryImageItemId: seriesId
+		PrimaryImageTag: seriesPrimaryImageTag || item.PrimaryImageTag
 	};
 
+	// What described the season goes with it, or a watched season would tick the whole show and one
+	// episode's runtime would read as the show's.
 	delete normalized.IndexNumber;
 	delete normalized.ParentIndexNumber;
-	// Do not retain season/episode-specific ProviderIds on the synthetic series card
 	delete normalized.ProviderIds;
-
-	if (item.Type === 'Episode') {
-		normalized.LatestEpisodeId = item.Id;
-		normalized.LatestEpisodePrimaryImageTag = item.ImageTags?.Primary || item.PrimaryImageTag;
-	}
+	delete normalized.UserData;
+	delete normalized.RunTimeTicks;
 
 	return normalized;
 };
@@ -69,10 +66,8 @@ export const collapseLatestTvItems = (items) => {
 
 export const normalizeLatestMediaItems = (items, {collectionType, limit = 16} = {}) => {
 	if (!Array.isArray(items)) return [];
-	const normalizedType = collectionType?.toLowerCase();
-	const isTvCollection = normalizedType === 'tvshows' || normalizedType === 'shows';
-	const hasTvItems = items.some((i) => i.Type === 'Episode' || i.Type === 'Season');
-	const shouldCollapse = isTvCollection || (!normalizedType && hasTvItems);
+	const shouldCollapse = isTvCollectionType(collectionType) ||
+		(!collectionType && items.some((i) => i.Type === 'Episode' || i.Type === 'Season'));
 
 	const normalized = shouldCollapse ? collapseLatestTvItems(items) : items;
 
