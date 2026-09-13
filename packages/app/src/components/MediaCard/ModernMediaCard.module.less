@@ -1,5 +1,5 @@
 @import '../../styles/mixins.less';
- 
+
 .card {
 	flex: 0 0 auto;
 	cursor: pointer;
@@ -178,9 +178,12 @@
 	right: 8px;
 	padding: 2px 10px;
 	border-radius: 16px;
+	background: rgba(0, 164, 220, 0.9);
 	background: var(--theme-badge-watched, rgba(0, 164, 220, 0.9));
-	border: 1.5px solid var(--theme-on-badge, #ffffff);
+	border: 1.5px solid #ffffff;
+	border-color: var(--theme-on-badge, #ffffff);
 	box-shadow: 0 1.5px 4px rgba(0, 0, 0, 0.6);
+	color: #ffffff;
 	color: var(--theme-on-badge, #ffffff);
 	font-size: 20px;
 	font-weight: 700;

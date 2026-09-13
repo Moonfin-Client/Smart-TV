@@ -147,15 +147,19 @@
 	background: var(--theme-chip-background, rgba(var(--theme-on-surface-rgb, 255, 255, 255), 0.1));
 }
 
+// Both badge mixins name their colours twice: a plain value an engine without custom properties
+// keeps, then the themed one over the top of it.
 .watched-badge(@size: 26px, @icon-size: 15px) {
 	position: absolute;
 	top: 8px;
 	right: 8px;
 	width: @size;
 	height: @size;
+	background: rgba(0, 164, 220, 0.9);
 	background: var(--theme-badge-watched, rgba(0, 164, 220, 0.9));
 	border-radius: 50%;
-	border: 1.5px solid var(--theme-on-badge, #ffffff);
+	border: 1.5px solid #ffffff;
+	border-color: var(--theme-on-badge, #ffffff);
 	box-shadow: 0 1.5px 4px rgba(0, 0, 0, 0.6);
 	display: flex;
 	align-items: center;
@@ -166,7 +170,9 @@
 	svg {
 		width: @icon-size;
 		height: @icon-size;
+		fill: #ffffff;
 		fill: var(--theme-on-badge, #ffffff);
+		stroke: #ffffff;
 		stroke: var(--theme-on-badge, #ffffff);
 		stroke-width: 0.6px;
 		stroke-linecap: round;
@@ -180,9 +186,11 @@
 	left: 8px;
 	width: @size;
 	height: @size;
+	background: #f44336;
 	background: var(--theme-recording-active, #f44336);
 	border-radius: 50%;
-	border: 1.5px solid var(--theme-on-badge, #ffffff);
+	border: 1.5px solid #ffffff;
+	border-color: var(--theme-on-badge, #ffffff);
 	box-shadow: 0 1.5px 4px rgba(0, 0, 0, 0.6);
 	display: flex;
 	align-items: center;
@@ -193,7 +201,7 @@
 	svg {
 		width: @icon-size;
 		height: @icon-size;
+		fill: #ffffff;
 		fill: var(--theme-on-badge, #ffffff);
 	}
 }
-
