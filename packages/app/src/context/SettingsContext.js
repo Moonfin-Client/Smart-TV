@@ -262,6 +262,7 @@ export const SYNCABLE_KEYS = [
 	'classicHomeRowsPadding', 'modernHomeRowsPadding',
 	'detailShowTechnicalDetails',
 	'recommendationSystemSource', 'recommendationsApplyParentalRatingCap',
+	'detailButtonsMaxVisible',
 	'detailButtonOrderTv', 'hiddenDetailButtonsTv', 'osdButtonOrderTv', 'hiddenOsdButtonsTv',
 	'detailMetadataOrderTv', 'hiddenDetailMetadataTv',
 	'focusBorderColor',

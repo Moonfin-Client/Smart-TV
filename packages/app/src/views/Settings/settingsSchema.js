@@ -10,6 +10,7 @@ import {
 	getClockDisplayOptions,
 	getContentTypeOptions,
 	getDetailScreenStyleOptions,
+	getDetailButtonsMaxVisibleOptions,
 	getDetailsOpacityOptions,
 	getEnabledRatingSourcesSummary,
 	getFeaturedBarStyleOptions,
@@ -263,6 +264,15 @@ export const SETTINGS_SCHEMA = [
 					{kind: KIND.OPTION, key: 'personalRatingStyle', label: () => $L('Personal rating style'), desc: () => $L('How your own rating is shown and entered on a movie'), options: getPersonalRatingStyleOptions, fallback: () => $L('Like / dislike'), icon: 'rate_review'},
 					{kind: KIND.OPTION, key: 'recommendationSystemSource', label: () => $L('Recommendation Source'), desc: () => $L('Moonfin scores your own library, Jellyfin takes the picks from the server, TMDb uses Seerr, and Hybrid leads with the server then tops up locally'), options: getRecommendationSystemSourceOptions, fallback: () => $L('Moonfin Recommends'), icon: 'folder_code'},
 					{kind: KIND.NAV, id: 'detailButtons', label: () => $L('Action Buttons'), desc: () => $L('Choose which buttons the details screen shows'), icon: 'buttons_alt', action: (ctx) => ctx.actions.openDetailButtons()},
+					{
+						kind: KIND.OPTION,
+						key: 'detailButtonsMaxVisible',
+						label: () => $L('Action Buttons on Screen'),
+						desc: () => $L('Customize how many action buttons appear before folding into the More Actions menu.'),
+						options: getDetailButtonsMaxVisibleOptions,
+						fallback: () => $L('Auto (Theme Default)'),
+						icon: 'more_horiz'
+					},
 					{kind: KIND.SECTION, id: 'mediaDetailsAndSpoilers', label: () => $L('Media Details and Spoilers')},
 					{kind: KIND.NAV, id: 'detailMetadata', label: () => $L('Metadata Row'), desc: () => $L('Choose which metadata items the details screen shows and reorder them'), icon: 'reorder', action: (ctx) => ctx.actions.openDetailMetadata()},
 					{kind: KIND.TOGGLE, key: 'detailShowTechnicalDetails', label: () => $L('Show Technical Details'), desc: () => $L('Show codec, resolution, and stream information in banner summary'), icon: 'info'},

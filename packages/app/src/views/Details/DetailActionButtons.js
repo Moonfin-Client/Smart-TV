@@ -9,7 +9,7 @@ import {personalRatingIconPath, personalRatingLabel} from './personalRatingActio
 import SpotlightContainerDecorator from '@enact/spotlight/SpotlightContainerDecorator';
 import Spotlight from '@enact/spotlight';
 import {SpottableDiv, HorizontalContainer} from './detailsSpottables';
-import {handleButtonRowKeyDown} from './detailsFocus';
+import {handleButtonRowKeyDown, handleScrollerFocus} from './detailsFocus';
 
 import css from './Details.module.less';
 
@@ -285,18 +285,47 @@ const DetailActionButtons = ({
 	const showsResume = !seerrOnly && !isBook && hasPlaybackPosition;
 	const showsPlay = !seerrOnly && (isBook ? isReadableBook : true);
 	const leading = (showsResume ? 1 : 0) + (showsPlay ? 1 : 0);
+
+	const prefLimit = settings?.detailButtonsMaxVisible ?? 0;
+	let effectiveMaxVisible = maxVisibleButtons || 0;
+	let effectiveOverflowAsMenu = overflowAsMenu;
+	let effectiveCountCapped = Boolean(maxVisibleButtons);
+
+	if (prefLimit === -1) {
+		effectiveCountCapped = false;
+	} else if (prefLimit === 1) {
+		effectiveMaxVisible = 2;
+		effectiveOverflowAsMenu = true;
+		effectiveCountCapped = true;
+	} else if (prefLimit > 1) {
+		effectiveMaxVisible = prefLimit + 1;
+		effectiveOverflowAsMenu = true;
+		effectiveCountCapped = true;
+	}
+
 	const {visibleCount, needsOverflow} = countSplit({
 		totalButtons: leading + customizable.length,
-		maxVisible: maxVisibleButtons || 0,
-		overflowAsMenu,
-		countCapped: Boolean(maxVisibleButtons)
+		maxVisible: effectiveMaxVisible,
+		overflowAsMenu: effectiveOverflowAsMenu,
+		countCapped: effectiveCountCapped
 	});
 	const inlineButtons = needsOverflow ? customizable.slice(0, Math.max(0, visibleCount - leading)) : customizable;
 	const menuButtons = needsOverflow ? customizable.slice(Math.max(0, visibleCount - leading)) : [];
 
+	const isHorizontalScroll = prefLimit === -1;
+	const handleRowFocus = useCallback((ev) => {
+		if (isHorizontalScroll) handleScrollerFocus(ev);
+		onFocusRow?.(ev);
+	}, [isHorizontalScroll, onFocusRow]);
+
 	return (
 		<>
-			<HorizontalContainer className={css.actionButtons} onKeyDown={handleButtonRowKeyDown} onFocus={onFocusRow} spotlightId="details-action-buttons">
+			<HorizontalContainer
+				className={`${css.actionButtons} ${isHorizontalScroll ? css.actionButtonsScroll : ''}`}
+				onKeyDown={handleButtonRowKeyDown}
+				onFocus={handleRowFocus}
+				spotlightId="details-action-buttons"
+			>
 				{showsResume && (
 					<SpottableDiv className={css.btnWrapper} {...resumeLongPress} spotlightId="details-primary-btn">
 						<div className={css.btnAction}>

@@ -367,6 +367,26 @@
 	}
 }
 
+.actionButtonsScroll {
+	flex-wrap: nowrap;
+	justify-content: flex-start;
+	overflow-x: auto;
+	overflow-y: hidden;
+	width: 100%;
+	box-sizing: border-box;
+	padding: 0 40px;
+	scrollbar-width: none;
+	-ms-overflow-style: none;
+
+	&::-webkit-scrollbar {
+		display: none;
+	}
+
+	> * {
+		flex-shrink: 0;
+	}
+}
+
 .btnWrapper {
 	display: flex;
 	flex-direction: column;

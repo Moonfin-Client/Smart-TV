@@ -9,6 +9,7 @@ import {DETAIL_ICON_PATHS} from '../../detailIcons';
 import {ActionButton, detailActionCatalogue} from '../../detailActions';
 import {RowContainer} from '../../detailsSpottables';
 import {splitNouveauActions} from '../nouveauActionSplit';
+import {handleScrollerFocus} from '../../detailsFocus';
 
 import modernCss from '../../ModernDetailContent.module.less';
 import css from './NouveauHero.module.less';
@@ -68,14 +69,30 @@ const NouveauActionRow = (props) => {
 			else onNavigateDown?.('details-action-buttons');
 			return;
 		}
-		if (ev.keyCode !== KEYS.LEFT) return;
+		if (ev.keyCode !== KEYS.LEFT && ev.keyCode !== KEYS.RIGHT) return;
 		const buttons = Array.from(ev.currentTarget.querySelectorAll(`.${modernCss.actionBtn}`));
-		if (buttons.indexOf(document.activeElement) !== 0) return;
-		// Docked left, the start of the row is the way across to the navbar. Anywhere else there
-		// is nothing out that side, so the press stays put rather than letting focus leave the row.
-		if (settings.navbarPosition === 'left') Spotlight.focus('navbar');
-		ev.preventDefault();
-		ev.stopPropagation();
+		const idx = buttons.indexOf(document.activeElement);
+		if (ev.keyCode === KEYS.LEFT && idx === 0) {
+			// Docked left, the start of the row is the way across to the navbar. Anywhere else there
+			// is nothing out that side, so the press stays put rather than letting focus leave the row.
+			if (settings.navbarPosition === 'left') Spotlight.focus('navbar');
+			ev.preventDefault();
+			ev.stopPropagation();
+			return;
+		}
+		// Move sequentially between action buttons so off-screen buttons in horizontal scroll mode
+		// can be reached and scrolled into view.
+		const nextIdx = ev.keyCode === KEYS.LEFT ? idx - 1 : idx + 1;
+		if (nextIdx >= 0 && nextIdx < buttons.length) {
+			ev.preventDefault();
+			ev.stopPropagation();
+			Spotlight.focus(buttons[nextIdx]);
+			return;
+		}
+		if (ev.keyCode === KEYS.RIGHT && idx === buttons.length - 1) {
+			ev.preventDefault();
+			ev.stopPropagation();
+		}
 	}, [settings.navbarPosition, onNavigateUp, onNavigateDown]);
 
 	const offered = detailActionCatalogue(props);
@@ -114,14 +131,20 @@ const NouveauActionRow = (props) => {
 		)}]
 		: [];
 
-	const {inline, overflow} = splitNouveauActions([...restart, ...customizable]);
+	const prefLimit = settings?.detailButtonsMaxVisible ?? 0;
+	const {inline, overflow} = splitNouveauActions([...restart, ...customizable], prefLimit);
+
+	const handleRowFocus = useCallback((ev) => {
+		handleScrollerFocus(ev);
+		onFocusRow?.(ev);
+	}, [onFocusRow]);
 
 	return (
 		<>
 			<RowContainer
 				className={`${css.actions} ${leading ? css.actionsWithPrimary : ''}`}
 				spotlightId="details-action-buttons"
-				onFocus={onFocusRow}
+				onFocus={handleRowFocus}
 				onKeyDown={handleKeyDown}
 			>
 				{leading && (

@@ -8,6 +8,7 @@ import {KEYS} from '../../utils/keys';
 import {DETAIL_ICON_PATHS} from './detailIcons';
 import {ActionButton, detailActionCatalogue} from './detailActions';
 import {RowContainer} from './detailsSpottables';
+import {handleScrollerFocus} from './detailsFocus';
 
 import css from './ModernDetailContent.module.less';
 
@@ -89,6 +90,15 @@ const ModernActionButtons = (props) => {
 			ev.stopPropagation();
 			return;
 		}
+		// Move sequentially between action buttons so off-screen buttons in horizontal scroll mode
+		// can be reached and scrolled into view.
+		const nextIdx = ev.keyCode === KEYS.LEFT ? idx - 1 : idx + 1;
+		if (nextIdx >= 0 && nextIdx < buttons.length) {
+			ev.preventDefault();
+			ev.stopPropagation();
+			Spotlight.focus(buttons[nextIdx]);
+			return;
+		}
 		if (atLeftEdge || atRightEdge) {
 			ev.preventDefault();
 			ev.stopPropagation();
@@ -107,18 +117,41 @@ const ModernActionButtons = (props) => {
 	const showsResume = !seerrOnly && hasPlaybackPosition && !isBook;
 	const showsPlay = !seerrOnly && (isBook ? isReadableBook : true);
 	const leading = (showsResume ? 1 : 0) + (showsPlay ? 1 : 0);
+
+	const prefLimit = settings?.detailButtonsMaxVisible ?? 0;
+	let effectiveMaxVisible = maxVisibleButtons || 0;
+	let effectiveOverflowAsMenu = overflowAsMenu;
+	let effectiveCountCapped = Boolean(maxVisibleButtons);
+
+	if (prefLimit === -1) {
+		effectiveCountCapped = false;
+	} else if (prefLimit === 1) {
+		effectiveMaxVisible = 2;
+		effectiveOverflowAsMenu = true;
+		effectiveCountCapped = true;
+	} else if (prefLimit > 1) {
+		effectiveMaxVisible = prefLimit + 1;
+		effectiveOverflowAsMenu = true;
+		effectiveCountCapped = true;
+	}
+
 	const {visibleCount, needsOverflow} = countSplit({
 		totalButtons: leading + customizable.length,
-		maxVisible: maxVisibleButtons || 0,
-		overflowAsMenu,
-		countCapped: Boolean(maxVisibleButtons)
+		maxVisible: effectiveMaxVisible,
+		overflowAsMenu: effectiveOverflowAsMenu,
+		countCapped: effectiveCountCapped
 	});
 	const inline = needsOverflow ? customizable.slice(0, Math.max(0, visibleCount - leading)) : customizable;
 	const behindMenu = needsOverflow ? customizable.slice(Math.max(0, visibleCount - leading)) : [];
 
+	const handleRowFocus = useCallback((ev) => {
+		handleScrollerFocus(ev);
+		onFocusRow?.(ev);
+	}, [onFocusRow]);
+
 	return (
 		<>
-			<RowContainer className={`${css.actions} ${hasTech ? css.actionsTight : ''}`} spotlightId="details-action-buttons" onFocus={onFocusRow} onKeyDown={handleKeyDown}>
+			<RowContainer className={`${css.actions} ${hasTech ? css.actionsTight : ''}`} spotlightId="details-action-buttons" onFocus={handleRowFocus} onKeyDown={handleKeyDown}>
 				{showsResume && (
 					<ActionButton primary path={DETAIL_ICON_PATHS.play} label={$L('Resume')} detail={resumeTimeText} onClick={handleResume} spotlightId="details-primary-btn" />
 				)}

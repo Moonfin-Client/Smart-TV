@@ -59,7 +59,7 @@ const ModernDetailContent = (props) => {
 		mediaSource, supportsMediaSourceSelection,
 		handleChapterSelect, handleExtraSelect, handleTrackPlay,
 		onSelectItem, onSelectPerson, onSelectStudio,
-		seerr, seerrNav, onSelectSeerrCard,
+		seerr, seerrNav, onSelectSeerrCard, spotlightBackRef
 	} = props;
 
 	// Blur and opacity share one stored value, and the blur options reach 40 while
@@ -82,6 +82,18 @@ const ModernDetailContent = (props) => {
 	const played = item.UserData?.Played;
 	const isFavorite = item.UserData?.IsFavorite;
 	const hideMediaDescription = hidesMediaDescription(item, settings);
+
+	const menuBackRef = useRef(null);
+	useEffect(() => {
+		if (!spotlightBackRef) return undefined;
+		spotlightBackRef.current = () => {
+			if (menuBackRef.current?.()) return true;
+			return false;
+		};
+		return () => {
+			spotlightBackRef.current = null;
+		};
+	}, [spotlightBackRef]);
 
 	const scrollToRef = useRef(null);
 	const handleScrollTo = useCallback((fn) => {
@@ -695,6 +707,7 @@ const ModernDetailContent = (props) => {
 									isFavorite={isFavorite}
 									onFocusRow={handleActionsFocus}
 									downTarget="details-tab-bar"
+									menuBackRef={menuBackRef}
 								/>
 							)}
 						</div>

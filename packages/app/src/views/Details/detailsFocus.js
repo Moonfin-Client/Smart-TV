@@ -72,6 +72,31 @@ export const handleSectionKeyDown = (ev) => {
 };
 
 export const handleButtonRowKeyDown = (ev) => {
+	if (ev.keyCode === KEYS.LEFT || ev.keyCode === KEYS.RIGHT) {
+		const container = ev.currentTarget;
+		if (container && container.classList.contains(css.actionButtonsScroll)) {
+			// When single-line horizontal scroll is active, step sequentially between buttons so
+			// off-screen buttons can be reached and scrolled into view.
+			const buttons = Array.from(container.querySelectorAll('.spottable'));
+			const currentSpottable = ev.target.closest('.spottable');
+			const currentIdx = buttons.indexOf(currentSpottable);
+			if (currentIdx !== -1) {
+				const targetIdx = ev.keyCode === KEYS.LEFT ? currentIdx - 1 : currentIdx + 1;
+				if (targetIdx >= 0 && targetIdx < buttons.length) {
+					ev.preventDefault();
+					ev.stopPropagation();
+					Spotlight.focus(buttons[targetIdx]);
+					return;
+				}
+				if (targetIdx < 0 || targetIdx >= buttons.length) {
+					ev.preventDefault();
+					ev.stopPropagation();
+					return;
+				}
+			}
+		}
+		return;
+	}
 	if (ev.keyCode !== KEYS.DOWN) return;
 	ev.preventDefault();
 	ev.stopPropagation();

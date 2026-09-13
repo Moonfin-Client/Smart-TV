@@ -27,6 +27,14 @@ describe('profileToLocal', () => {
 		expect(local.hiddenOsdButtonsTv).toEqual(['audio']);
 	});
 
+	test('takes detailButtonsMaxVisible under its own name', () => {
+		const local = profileToLocal({
+			detailButtonsMaxVisible: 3
+		});
+
+		expect(local.detailButtonsMaxVisible).toBe(3);
+	});
+
 	test('takes the TV metadata fields under their own names or PascalCase', () => {
 		const local = profileToLocal({
 			detailMetadataOrderTv: ['upcomingEpisodeDate', 'year'],
@@ -166,5 +174,9 @@ describe('SYNCABLE_KEYS', () => {
 
 	test('includes groupItemsIntoCollections', () => {
 		expect(SYNCABLE_KEYS).toContain('groupItemsIntoCollections');
+	});
+
+	test('includes detailButtonsMaxVisible', () => {
+		expect(SYNCABLE_KEYS).toContain('detailButtonsMaxVisible');
 	});
 });

@@ -204,6 +204,7 @@ export const defaultSettings = {
 	homeRowsStyle: 'v2',
 	modernCardsOnMyMediaRow: true,
 	detailScreenStyle: 'v2',
+	detailButtonsMaxVisible: 0,
 	personalRatingStyle: 'thumbs',
 	detailExpandedTabs: true,
 	hideDetailsMediaDescription: false,
