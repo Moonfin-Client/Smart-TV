@@ -178,35 +178,18 @@ const Genres = ({onSelectGenre, onHome, backHandlerRef}) => {
 
 						if (itemCount === 0) return null;
 
+						// Each card takes a backdrop no other has taken, repeating one only when it has to.
+						const withBackdrops = items
+							.map((item) => ({item, backdropId: getBackdropId(item)}))
+							.filter((entry) => entry.backdropId);
+						const chosen = withBackdrops.find((entry) => !usedBackdropIds.has(entry.backdropId)) ||
+							withBackdrops[0];
+
 						let backdropUrl = null;
-						let selectedBackdropId = null;
-
-						// First try to find a backdrop that hasn't been used yet across genre cards
-						for (const item of items) {
-							const backdropId = getBackdropId(item);
-							if (backdropId && !usedBackdropIds.has(backdropId)) {
-								const itemServerUrl = item._serverUrl || serverUrl;
-								backdropUrl = getImageUrl(itemServerUrl, backdropId, 'Backdrop', {maxWidth: 780, quality: 80});
-								selectedBackdropId = backdropId;
-								break;
-							}
-						}
-
-						// If all items have already been used, fall back to any available backdrop
-						if (!backdropUrl) {
-							for (const item of items) {
-								const backdropId = getBackdropId(item);
-								if (backdropId) {
-									const itemServerUrl = item._serverUrl || serverUrl;
-									backdropUrl = getImageUrl(itemServerUrl, backdropId, 'Backdrop', {maxWidth: 780, quality: 80});
-									selectedBackdropId = backdropId;
-									break;
-								}
-							}
-						}
-
-						if (selectedBackdropId) {
-							usedBackdropIds.add(selectedBackdropId);
+						if (chosen) {
+							const itemServerUrl = chosen.item._serverUrl || serverUrl;
+							backdropUrl = getImageUrl(itemServerUrl, chosen.backdropId, 'Backdrop', {maxWidth: 780, quality: 80});
+							usedBackdropIds.add(chosen.backdropId);
 						}
 
 						return {
