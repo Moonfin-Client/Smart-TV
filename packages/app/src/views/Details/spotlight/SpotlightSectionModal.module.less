@@ -56,9 +56,19 @@
 	flex-direction: column;
 }
 
+// Room under the last row for the growth a focused card gains, which the scroller has
+// nowhere to bring into view once the content has run out.
+.scrollContent {
+	padding-bottom: 24px;
+}
+
 .sectionHeader {
 	align-items: center;
 	display: flex;
+	// A focused card grows by a twentieth of its height and reaches back over whatever sits
+	// above it, so the heading keeps enough room to stay clear. Set here rather than as a gap
+	// between the section's children, because the grid's own margin shorthand would win.
+	margin-bottom: 20px;
 }
 
 .sectionTitle {
@@ -76,6 +86,5 @@
 }
 
 .header                { .flex-row-gap(12px); }
-.section               { .flex-col-gap(10px); }
 .body > * + *          { margin-top: 24px; }
 .sectionHeader         { .flex-row-gap(8px); }

@@ -4,6 +4,26 @@
 	display: flex;
 	flex-direction: row;
 	flex-wrap: wrap;
+	justify-content: center;
+}
+
+// The chip sizes itself, so it needs a row of its own or the section column would stretch it
+// the full width of the panel. It sits at the left, indented clear of the panel edge.
+.chipRow {
+	display: flex;
+	justify-content: flex-start;
+	padding-left: 16px;
+}
+
+// The facts panel keeps the width it asks for and sits in the middle, rather than shrinking
+// to its content the way a plain flex child would.
+.factsRow {
+	display: flex;
+	justify-content: center;
+}
+
+.factsRow > * {
+	width: 100%;
 }
 
 .icon {

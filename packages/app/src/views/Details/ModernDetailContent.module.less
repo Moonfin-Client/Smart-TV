@@ -912,3 +912,80 @@
 // other neighbour.
 .metaRow > .metaBadge { margin-left: 12px; }
 .metaRow > .metaBadge:first-child { margin-left: 0; }
+
+// The menu the action row folds its extra buttons into once it is capped.
+.overflowMenu {
+	align-items: center;
+	background: rgba(0, 0, 0, 0.6);
+	bottom: 0;
+	display: flex;
+	justify-content: center;
+	left: 0;
+	position: fixed;
+	right: 0;
+	top: 0;
+	z-index: 130;
+}
+
+.overflowPanel {
+	background: rgba(18, 20, 24, 0.97);
+	border: 1px solid rgba(255, 255, 255, 0.12);
+	border-radius: 20px;
+	display: flex;
+	flex-direction: column;
+	max-height: 84%;
+	overflow: hidden;
+	padding: 24px;
+	width: 560px;
+}
+
+.overflowTitle {
+	color: #fff;
+	font-size: 28px;
+	font-weight: 700;
+	padding: 4px 8px 20px;
+}
+
+.overflowList {
+	display: flex;
+	flex-direction: column;
+}
+
+// The rows are the circular buttons the action row draws, stretched into a list: full width,
+// square-ish corners, and the label always showing rather than only on focus.
+.overflowList .actionBtn {
+	border-radius: 12px;
+	height: 68px;
+	justify-content: flex-start;
+	width: 100%;
+}
+
+.overflowList .actionIcon {
+	flex: 0 0 56px;
+	height: 56px;
+	width: 56px;
+}
+
+.overflowList .actionBtn .actionText {
+	max-width: none;
+	opacity: 1;
+	padding-left: 4px;
+	padding-right: 12px;
+}
+
+.overflowList .actionBtn:focus .actionText {
+	max-width: none;
+	padding-left: 4px;
+	padding-right: 12px;
+}
+
+// A focused row is marked by its border rather than by inverting, so a list of them stays
+// readable at a glance.
+.overflowList .actionBtn:focus {
+	background: rgba(255, 255, 255, 0.1);
+	border: 2px solid var(--theme-focus-border-color, #ffffff);
+	color: #fff;
+	padding-left: 0;
+}
+
+.overflowList            { .flex-col-gap(10px); }

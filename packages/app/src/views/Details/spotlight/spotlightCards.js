@@ -1,6 +1,7 @@
 import $L from '@enact/i18n/$L';
 
 import {DETAIL_ICON_PATHS} from '../detailIcons';
+import {MATERIAL_ICON_PATHS} from '../../Settings/materialIconMap';
 import {groupExtrasByCategory, getExtraCategoryLabel} from '../extraCategories';
 import {mergeMissingByReleaseOrder} from '../seerrMissingCollectionItems';
 import {
@@ -13,16 +14,15 @@ import {
 
 // The summary cards reuse the detail screen's own icon set rather than carrying a second one.
 export const CARD_ICONS = {
-	people: DETAIL_ICON_PATHS.group,
-	chaptersExtras: DETAIL_ICON_PATHS.trailer,
-	// The detail icon set has nothing for a recommendation, so the watchlist bookmark stands
-	// in: a card of titles to line up next.
-	similar: DETAIL_ICON_PATHS.watchlist,
+	people: MATERIAL_ICON_PATHS.groups,
+	chaptersExtras: MATERIAL_ICON_PATHS.video_library,
+	similar: MATERIAL_ICON_PATHS.star_shine,
 	collections: DETAIL_ICON_PATHS.collection,
 	episodes: DETAIL_ICON_PATHS.series,
-	tracks: DETAIL_ICON_PATHS.audio,
-	playlist: DETAIL_ICON_PATHS.playlist,
-	filmography: DETAIL_ICON_PATHS.trailer
+	tracks: MATERIAL_ICON_PATHS.queue_music,
+	playlist: MATERIAL_ICON_PATHS.playlist_play,
+	playlistOrder: MATERIAL_ICON_PATHS.format_list_numbered,
+	filmography: MATERIAL_ICON_PATHS.movie
 };
 
 // A runtime for a card subtitle or the hero's metadata row: "1h 32m", "2h", or "48m". The
@@ -447,7 +447,7 @@ class CardBuilder {
 			title: $L('Playlist Order'),
 			subtitle: countLabel(playlistItems.length, $L('1 item'), $L('{count} items')),
 			imageUrl: spotlightLandscapeImageUrl(serverUrl, playlistItems[0], {fallbackUrl: fallbackImageUrl}),
-			icon: CARD_ICONS.playlist,
+			icon: CARD_ICONS.playlistOrder,
 			sections: [{
 				kind: 'tracks',
 				title: $L('Playlist Order'),

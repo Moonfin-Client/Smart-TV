@@ -42,7 +42,9 @@ import TrailerOverlay from './TrailerOverlay';
 import PersonalRatingDialog from '../../components/PersonalRatingDialog';
 import {clampRating, clearedRatingPatch, isRatableItemType, normalizeRatingStyle, numericRatingPatch, thumbRatingPatch} from '../../utils/personalRating';
 import {personDateLines, splitFilmography} from '../../utils/personCredits';
+import {mergeCollectionWithMissing} from './seerrMissingCollectionItems';
 import ClassicDetailScreen from './ClassicDetailScreen';
+import SpotlightDetailContent from './spotlight/SpotlightDetailContent';
 import PersonScreen from './PersonScreen';
 import SeasonScreen from './SeasonScreen';
 import PlaylistScreen from './PlaylistScreen';
@@ -126,7 +128,7 @@ const Details = ({itemId: itemIdProp, initialItem, onPlay, onSelectItem, onSelec
 	});
 	const {
 		setItem, isLoading: libraryLoading, isSeed, seasons, episodes, similar, extras, cast, nextUp, nextEpisode,
-		collectionItems, parentCollection, parentCollectionName, albumTracks, artistAlbums,
+		collectionItems, missingCollectionItems, parentCollections, similarSource, loadMoreCollectionItems, albumTracks, artistAlbums,
 		playlistItems, setPlaylistItems, episodeRatings, refreshItem,
 		selectedVersionIndex, setSelectedVersionIndex,
 		selectedAudioIndex, setSelectedAudioIndex,
@@ -174,7 +176,8 @@ const Details = ({itemId: itemIdProp, initialItem, onPlay, onSelectItem, onSelec
 	// The expanded overview box collapses on BACK through the same chain the
 	// screen's overlays use.
 	const overviewBackRef = useRef(null);
-	const modals = useDetailsModals({backHandlerRef, onArtworkClosed: refreshItem, seerrBackRef, overviewBackRef});
+	const spotlightBackRef = useRef(null);
+	const modals = useDetailsModals({backHandlerRef, onArtworkClosed: refreshItem, seerrBackRef, overviewBackRef, spotlightBackRef});
 	const {activeModal, openModal, closeModal, advancedResumeRef} = modals;
 
 	const trailer = useDetailsTrailer({
@@ -855,6 +858,17 @@ const Details = ({itemId: itemIdProp, initialItem, onPlay, onSelectItem, onSelec
 	const hasPlaybackPosition = item.UserData?.PlaybackPositionTicks > 0;
 	const resumeTimeText = hasPlaybackPosition ? formatDuration(item.UserData.PlaybackPositionTicks) : '';
 
+	// Modern and Classic show one collection and merge the missing titles into its list, so
+	// the first of them is flattened back into the shape those two take.
+	const parentCollection = parentCollections[0]
+		? mergeCollectionWithMissing(parentCollections[0].items, parentCollections[0].missingItems)
+		: [];
+	const parentCollectionName = parentCollections[0]?.name || '';
+
+	// Reordering needs an entry id per track, which only a real playlist carries.
+	const canManagePlaylist = isPlaylist && playlistItems.length > 0 &&
+		playlistItems.every((track) => track.PlaylistItemId);
+
 	const filmography = isPerson ? splitFilmography(similar) : null;
 	const personMovies = filmography?.movies || [];
 	const personSeries = filmography?.series || [];
@@ -925,9 +939,12 @@ const Details = ({itemId: itemIdProp, initialItem, onPlay, onSelectItem, onSelec
 	);
 
 	if (settings.detailScreenStyle !== 'v1') {
+		// Spotlight takes the same contract as Modern, so the style only decides which of the
+		// two draws the screen.
+		const DetailContent = settings.detailScreenStyle === 'v3' ? SpotlightDetailContent : ModernDetailContent;
 		return (
 			<div className={css.page}>
-				<ModernDetailContent
+				<DetailContent
 					inSyncPlayGroup={isSyncPlayInGroup}
 					onWatchWithGroup={handlePlay}
 					key={item.Id}
@@ -1013,6 +1030,15 @@ const Details = ({itemId: itemIdProp, initialItem, onPlay, onSelectItem, onSelec
 					onSelectItem={onSelectItem}
 					onSelectPerson={onSelectPerson}
 					onSelectStudio={onSelectStudio}
+					similarSource={similarSource}
+					missingCollectionItems={missingCollectionItems}
+					parentCollections={parentCollections}
+					loadMoreCollectionItems={loadMoreCollectionItems}
+					filmography={filmography}
+					canManagePlaylist={canManagePlaylist}
+					spotlightBackRef={spotlightBackRef}
+					onReorderPlaylistItem={handlePlaylistItemReorder}
+					onRemovePlaylistItem={handleRemoveFromPlaylist}
 				/>
 				{overlays}
 			</div>

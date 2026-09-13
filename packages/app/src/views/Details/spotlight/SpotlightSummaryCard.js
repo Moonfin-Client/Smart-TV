@@ -27,8 +27,8 @@ const SpotlightSummaryCard = ({card, width, height, spotlightId, onOpen}) => {
 					<path d={card.icon} />
 				</svg>
 			</span>
-			<svg className={css.arrow} viewBox={iconViewBox(DETAIL_ICON_PATHS.play)} fill="currentColor" aria-hidden="true">
-				<path d={DETAIL_ICON_PATHS.play} />
+			<svg className={css.arrow} viewBox={iconViewBox(DETAIL_ICON_PATHS.chevronRight)} fill="currentColor" aria-hidden="true">
+				<path d={DETAIL_ICON_PATHS.chevronRight} />
 			</svg>
 			<span className={css.text}>
 				<span className={css.title}>{card.title}</span>

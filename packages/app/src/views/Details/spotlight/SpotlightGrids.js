@@ -174,9 +174,17 @@ const SpotlightSection = ({section, serverUrl, actions, seerr, firstSpotlightId}
 				/>
 			);
 		case 'seerrChips':
-			return <SeerrChips details={seerr?.details} mediaType={seerr?.mediaType} seerrNav={seerr?.nav} />;
+			return (
+				<div className={css.chipRow}>
+					<SeerrChips details={seerr?.details} mediaType={seerr?.mediaType} seerrNav={seerr?.nav} />
+				</div>
+			);
 		case 'seerrFacts':
-			return <SeerrFacts details={seerr?.details} mediaType={seerr?.mediaType} />;
+			return (
+				<div className={css.factsRow}>
+					<SeerrFacts details={seerr?.details} mediaType={seerr?.mediaType} />
+				</div>
+			);
 		default:
 			return null;
 	}

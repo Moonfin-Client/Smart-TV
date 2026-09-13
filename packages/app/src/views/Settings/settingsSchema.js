@@ -246,7 +246,7 @@ export const SETTINGS_SCHEMA = [
 				description: () => $L('Style, background blur, and tab behavior'),
 				rows: [
 					{kind: KIND.SECTION, id: 'detailsDisplay', label: () => $L('Display')},
-					{kind: KIND.OPTION, key: 'detailScreenStyle', label: () => $L('Details Screen Style'), desc: () => $L('Classic is the original centered moonfin layout. Modern is a responsive cinematic layout.'), options: getDetailScreenStyleOptions, fallback: () => $L('Modern'), icon: 'movie'},
+					{kind: KIND.OPTION, key: 'detailScreenStyle', label: () => $L('Details Screen Style'), desc: () => $L('Classic is the original centered moonfin layout. Modern is a responsive cinematic layout. Spotlight puts the artwork first, with summary cards that open what they name.'), options: getDetailScreenStyleOptions, fallback: () => $L('Modern'), icon: 'movie'},
 					{
 						kind: KIND.OPTION,
 						key: 'backdropBlurDetail',
@@ -259,7 +259,7 @@ export const SETTINGS_SCHEMA = [
 							: getDetailsOpacityOptions()),
 						fallback: (ctx) => (ctx.settings.detailScreenStyle === 'v1' ? $L('Medium') : '80%')
 					},
-					{kind: KIND.TOGGLE, key: 'detailExpandedTabs', label: () => $L('Expanded Tabs'), desc: () => $L('Automatically show tab content while browsing tabs. Turn off to open and close each tab manually.'), icon: 'tab', when: (ctx) => ctx.settings.detailScreenStyle !== 'v1'},
+					{kind: KIND.TOGGLE, key: 'detailExpandedTabs', label: () => $L('Expanded Tabs'), desc: () => $L('Automatically show tab content while browsing tabs. Turn off to open and close each tab manually.'), icon: 'tab', when: (ctx) => ctx.settings.detailScreenStyle === 'v2'},
 					{kind: KIND.OPTION, key: 'personalRatingStyle', label: () => $L('Personal rating style'), desc: () => $L('How your own rating is shown and entered on a movie'), options: getPersonalRatingStyleOptions, fallback: () => $L('Like / dislike'), icon: 'rate_review'},
 					{kind: KIND.OPTION, key: 'recommendationSystemSource', label: () => $L('Recommendation Source'), desc: () => $L('Moonfin scores your own library, Jellyfin takes the picks from the server, TMDb uses Seerr, and Hybrid leads with the server then tops up locally'), options: getRecommendationSystemSourceOptions, fallback: () => $L('Moonfin Recommends'), icon: 'folder_code'},
 					{kind: KIND.NAV, id: 'detailButtons', label: () => $L('Action Buttons'), desc: () => $L('Choose which buttons the details screen shows'), icon: 'buttons_alt', action: (ctx) => ctx.actions.openDetailButtons()},

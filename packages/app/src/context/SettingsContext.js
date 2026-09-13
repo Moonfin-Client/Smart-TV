@@ -83,7 +83,8 @@ const normalizeHomeRowsStyle = (value) => {
 const normalizeDetailScreenStyle = (value) => {
 	if (value === 'classic') return 'v1';
 	if (value === 'modern') return 'v2';
-	return value === 'v1' || value === 'v2' ? value : 'v2';
+	if (value === 'spotlight') return 'v3';
+	return value === 'v1' || value === 'v2' || value === 'v3' ? value : 'v2';
 };
 
 const normalizeGuid = (id) => {

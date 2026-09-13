@@ -227,6 +227,7 @@ export const getHomeRowsStyleOptions = () => [
 
 export const getDetailScreenStyleOptions = () => [
 	{ value: 'v2', label: $L('Modern') },
+	{ value: 'v3', label: $L('Spotlight') },
 	{ value: 'v1', label: $L('Classic') }
 ];
 

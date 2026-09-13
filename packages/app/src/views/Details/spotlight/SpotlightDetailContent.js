@@ -5,14 +5,17 @@ import {isMdblistEnabled} from '../../../services/mdblistApi';
 
 import RatingsRow from '../../../components/RatingsRow';
 import {SeerrStatusBadge, SeerrDownloadBars} from '../../../components/seerr/SeerrStatusBadge';
-import {SeerrChips, SeerrFacts, SeerrCollectionBanner} from '../../../components/seerr/SeerrSections';
+import {SeerrChips, SeerrFacts, SeerrCollectionBanner, hasSeerrChips} from '../../../components/seerr/SeerrSections';
 import {DETAIL_ICON_PATHS} from '../detailIcons';
 import {iconViewBox} from '../../../components/icons/iconViewBox';
 import {hidesMediaDescription} from '../detailsMedia';
+import {hasMediaFacts} from '../../../utils/seerrMediaFacts';
 import ExpandableOverview from '../ExpandableOverview';
-import DetailActionButtons from '../DetailActionButtons';
+import ModernActionButtons from '../ModernActionButtons';
 import {KEYS} from '../../../utils/keys';
 import {spotlightCardsFor, spotlightCardFor} from './spotlightCards';
+import {studioCardsFor, studioLogoIndex} from '../studioLogos';
+import {loadSeerrPersonCredits} from '../seerrPersonCredits';
 import {spotlightMetaPieces} from './spotlightMeta';
 import {summaryCardHeight, summaryCardWidth, heroWidth} from './summaryCardLayout';
 import SpotlightSummaryCard from './SpotlightSummaryCard';
@@ -24,16 +27,27 @@ const BandContainer = SpotlightContainerDecorator({enterTo: 'last-focused'}, 'di
 
 const cardSpotlightId = (id) => `spotlight-card-${id}`;
 
+// Shared so an item with no credits does not hand the memo a new array each render.
+const EMPTY_LIST = [];
+
 const SpotlightDetailContent = (props) => {
 	const {
 		item, settings, effectiveServerUrl, seerr, seerrNav, seerrOnly,
 		isPerson, isEpisode, backdropUrl, posterUrl, logoUrl, onLogoError,
 		year, officialRating, seasonCount, genres = [], tagline, techBadges = [], techSize,
 		overviewBackRef, episodes = [], birthDate, birthPlace,
-		cardState, cardActions, onToggleNavbar
+		effectiveApi, serverToken, seasons = [], similar = [], similarSource, extras = [], cast = [], crew = [],
+		nextUp = [], collectionItems = [], missingCollectionItems = [], parentCollections = [],
+		albumTracks = [], artistAlbums = [], playlistItems = [], personMovies = [], personSeries = [],
+		filmography, loadMoreCollectionItems,
+		onSelectItem, onSelectPerson, onSelectStudio, onSelectSeerrCard,
+		handleChapterSelect, handleExtraSelect, handleTrackPlay,
+		onReorderPlaylistItem, onRemovePlaylistItem, canManagePlaylist, spotlightBackRef
 	} = props;
 
 	const [openCardId, setOpenCardId] = useState(null);
+	const [tmdbCompanies, setTmdbCompanies] = useState(null);
+	const [seerrCredits, setSeerrCredits] = useState({appearances: [], crewCredits: []});
 	const [viewport, setViewport] = useState(() => ({
 		width: typeof window === 'undefined' ? 1920 : window.innerWidth,
 		height: typeof window === 'undefined' ? 1080 : window.innerHeight
@@ -53,6 +67,91 @@ const SpotlightDetailContent = (props) => {
 		'--opacity-alpha': opacityFactor * (isPerson ? 0.40 : 0.80),
 		'--gradient-scale': 0.3 + 0.7 * opacityFactor
 	};
+
+	// Studio logos come from the plugin TMDB proxy, which caches them server side using its own
+	// key, so the client only needs the plugin to be switched on.
+	useEffect(() => {
+		let cancelled = false;
+		const tmdbId = item.ProviderIds?.Tmdb;
+		if (!settings.useMoonfinPlugin || !tmdbId || !item.Studios?.length || !effectiveApi?.getStudioCompanies) {
+			setTmdbCompanies(null);
+			return undefined;
+		}
+		effectiveApi.getStudioCompanies(tmdbId, item.Type === 'Series' ? 'tv' : 'movie')
+			.then((res) => {
+				if (!cancelled && res?.success && Array.isArray(res.companies)) setTmdbCompanies(res.companies);
+			})
+			.catch(() => {});
+		return () => {
+			cancelled = true;
+		};
+	}, [item.Id, item.ProviderIds, item.Studios, item.Type, settings.useMoonfinPlugin, effectiveApi]);
+
+	// Seerr is an extra on a person page, so a failure leaves the card with the library lists.
+	useEffect(() => {
+		let cancelled = false;
+		const tmdbId = item.ProviderIds?.Tmdb;
+		setSeerrCredits({appearances: [], crewCredits: []});
+		if (!isPerson || !tmdbId || !seerr.available) return undefined;
+		loadSeerrPersonCredits(tmdbId)
+			.then((credits) => {
+				if (!cancelled) setSeerrCredits(credits);
+			})
+			.catch(() => {});
+		return () => {
+			cancelled = true;
+		};
+	}, [item.Id, item.ProviderIds, isPerson, seerr.available]);
+
+	const studioCards = useMemo(
+		() => studioCardsFor(item.Studios, studioLogoIndex(tmdbCompanies, effectiveServerUrl, serverToken)),
+		[item.Studios, tmdbCompanies, effectiveServerUrl, serverToken]
+	);
+
+	// A person's filmography is rebuilt on every render, so the list itself is what the memo
+	// below watches rather than the object holding it.
+	const otherCredits = filmography?.other || EMPTY_LIST;
+
+	const cardState = useMemo(() => ({
+		item, serverUrl: effectiveServerUrl, settings, seerrOnly,
+		seasons, episodes, similar, similarSource, extras, cast, crew, nextUp,
+		seriesEpisodes: episodes,
+		collectionItems, missingCollectionItems, parentCollections,
+		albumTracks, artistAlbums, playlistItems,
+		personMovies, personSeries, filmography: otherCredits,
+		seerrAppearances: seerrCredits.appearances, seerrCrewCredits: seerrCredits.crewCredits,
+		studioCards, canManagePlaylist,
+		seerr: {
+			recommendations: seerr.recommendationCards || [],
+			similar: seerr.similarCards || [],
+			hasChips: hasSeerrChips(seerr.details),
+			hasFacts: hasMediaFacts(seerr.details, seerr.mediaType)
+		},
+		fallbackImageUrl: backdropUrl
+	}), [
+		item, effectiveServerUrl, settings, seerrOnly, seasons, episodes, similar, similarSource,
+		extras, cast, crew, nextUp, collectionItems, missingCollectionItems, parentCollections,
+		albumTracks, artistAlbums, playlistItems, personMovies, personSeries, otherCredits,
+		seerrCredits, studioCards, canManagePlaylist, backdropUrl,
+		seerr.recommendationCards, seerr.similarCards, seerr.details, seerr.mediaType
+	]);
+
+	const cardActions = useMemo(() => ({
+		openItem: onSelectItem,
+		openSeerrItem: onSelectSeerrCard,
+		openPerson: onSelectPerson,
+		openStudio: onSelectStudio,
+		playFromChapter: handleChapterSelect,
+		playExtra: handleExtraSelect,
+		playTrack: handleTrackPlay,
+		reorderTrack: onReorderPlaylistItem,
+		removeTrack: onRemovePlaylistItem,
+		loadMoreCollectionItems
+	}), [
+		onSelectItem, onSelectSeerrCard, onSelectPerson, onSelectStudio, handleChapterSelect,
+		handleExtraSelect, handleTrackPlay, onReorderPlaylistItem, onRemovePlaylistItem,
+		loadMoreCollectionItems
+	]);
 
 	const cards = useMemo(() => spotlightCardsFor(cardState), [cardState]);
 
@@ -84,23 +183,24 @@ const SpotlightDetailContent = (props) => {
 		}
 	}, [openCardId]);
 
-	// The navbar steps aside while the band has focus, since the cards sit where it would be.
-	const navbarHiddenRef = useRef(false);
-	const setNavbarHidden = useCallback((hidden) => {
-		if (navbarHiddenRef.current === hidden) return;
-		navbarHiddenRef.current = hidden;
-		onToggleNavbar?.(!hidden);
-	}, [onToggleNavbar]);
-
-	const handleBandFocus = useCallback(() => setNavbarHidden(true), [setNavbarHidden]);
-	const handleBandBlur = useCallback((ev) => {
-		if (!ev.currentTarget.contains(ev.relatedTarget)) setNavbarHidden(false);
-	}, [setNavbarHidden]);
-
-	useEffect(() => () => setNavbarHidden(false), [setNavbarHidden]);
-
 	// Up out of the band goes back to the action row, which 5-way does not reach on its own
 	// because the hero above is much wider than the card under the remote.
+	// App closes the screen on BACK unless something here says it took the press, so the open
+	// menu and then the open card each get their say first, innermost one winning.
+	const menuBackRef = useRef(null);
+	useEffect(() => {
+		if (!spotlightBackRef) return undefined;
+		spotlightBackRef.current = () => {
+			if (menuBackRef.current?.()) return true;
+			if (!openCardId) return false;
+			handleCloseModal();
+			return true;
+		};
+		return () => {
+			spotlightBackRef.current = null;
+		};
+	});
+
 	const handleBandKeyDown = useCallback((ev) => {
 		if (ev.keyCode !== KEYS.UP) return;
 		if (Spotlight.focus('details-primary-btn')) {
@@ -173,18 +273,21 @@ const SpotlightDetailContent = (props) => {
 					{!hideMediaDescription && item.Overview && (
 						<ExpandableOverview text={item.Overview} itemId={item.Id} className={css.descriptionSlot} backRef={overviewBackRef} />
 					)}
-					{!isPerson && <DetailActionButtons {...props} maxVisibleButtons={5} overflowAsMenu />}
+					{!isPerson && (
+						<ModernActionButtons
+							{...props}
+							hasTech={hasTech}
+							maxVisibleButtons={5}
+							overflowAsMenu
+							downTarget={cards.length ? cardSpotlightId(cards[0].id) : null}
+							menuBackRef={menuBackRef}
+						/>
+					)}
 					<SeerrDownloadBars seerr={seerr} />
 					{seerr.collection && <SeerrCollectionBanner collection={seerr.collection} onOpen={seerrNav?.onSelectItem} />}
 				</div>
 				{cards.length > 0 && (
-					<BandContainer
-						className={css.cardBand}
-						style={{width: `${bandWidth}px`}}
-						onFocus={handleBandFocus}
-						onBlur={handleBandBlur}
-						onKeyDown={handleBandKeyDown}
-					>
+					<BandContainer className={css.cardBand} style={{width: `${bandWidth}px`}} onKeyDown={handleBandKeyDown}>
 						{cards.map((card) => (
 							<SpotlightSummaryCard
 								key={card.id}
@@ -203,7 +306,6 @@ const SpotlightDetailContent = (props) => {
 				serverUrl={effectiveServerUrl}
 				actions={cardActions}
 				seerr={{details: seerr.details, mediaType: seerr.mediaType, nav: seerrNav}}
-				onClose={handleCloseModal}
 				onNearEnd={openCardId === 'boxset_items' ? cardActions.loadMoreCollectionItems : null}
 			/>
 		</>

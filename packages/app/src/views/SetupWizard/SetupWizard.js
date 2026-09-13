@@ -466,11 +466,12 @@ const SetupWizard = ({onDone, backHandlerRef}) => {
 		}
 		if (step === 'detailStyle') {
 			const selected = selectedFor('detailScreenStyle');
-			const width = cardWidthFor(2, 1, 110);
+			const width = cardWidthFor(3, 1, 110);
 			return (
 				<div className={css.optionRow}>
-					<OptionCard spotlightId='setup-card-detailStyle-v1' label={$L('Classic')} hint={$L('Everything centred in one stack.')} selected={selected === 'v1'} preview={<DetailStylePreview modern={false} />} onSelect={() => pick('detailScreenStyle', 'v1')} width={width} t={t} /> {/* eslint-disable-line react/jsx-no-bind */}
-					<OptionCard spotlightId='setup-card-detailStyle-v2' label={$L('Modern')} hint={$L('Cinematic, with tabs for cast and extras.')} selected={selected === 'v2'} preview={<DetailStylePreview modern />} onSelect={() => pick('detailScreenStyle', 'v2')} width={width} t={t} /> {/* eslint-disable-line react/jsx-no-bind */}
+					<OptionCard spotlightId='setup-card-detailStyle-v1' label={$L('Classic')} hint={$L('Everything centred in one stack.')} selected={selected === 'v1'} preview={<DetailStylePreview variant='v1' />} onSelect={() => pick('detailScreenStyle', 'v1')} width={width} t={t} /> {/* eslint-disable-line react/jsx-no-bind */}
+					<OptionCard spotlightId='setup-card-detailStyle-v2' label={$L('Modern')} hint={$L('Cinematic, with tabs for cast and extras.')} selected={selected === 'v2'} preview={<DetailStylePreview variant='v2' />} onSelect={() => pick('detailScreenStyle', 'v2')} width={width} t={t} /> {/* eslint-disable-line react/jsx-no-bind */}
+					<OptionCard spotlightId='setup-card-detailStyle-v3' label={$L('Spotlight')} hint={$L('Artwork first, with cards that open what they name.')} selected={selected === 'v3'} preview={<DetailStylePreview variant='v3' />} onSelect={() => pick('detailScreenStyle', 'v3')} width={width} t={t} /> {/* eslint-disable-line react/jsx-no-bind */}
 				</div>
 			);
 		}

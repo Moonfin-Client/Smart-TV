@@ -1324,6 +1324,77 @@ const FallbackNavbar = ({position, t}) => {
 	return <div style={{width: '100%', height: '100%', display: 'flex', flexDirection: 'column'}}>{chrome}{rows}</div>;
 };
 
+
+// Spotlight keeps Modern's hero and swaps the tab row for a band of summary cards, each
+// naming a section and opening it.
+const SpotlightCardTile = ({label, count, t}) => (
+	<div
+		style={{
+			width: 190,
+			height: 108,
+			marginRight: 16,
+			borderRadius: 14,
+			border: `1px solid ${t.onSurfaceA(0.12)}`,
+			backgroundColor: t.onSurfaceA(0.06),
+			position: 'relative',
+			overflow: 'hidden'
+		}}
+	>
+		<div style={{...ABS_FILL, background: `linear-gradient(to bottom, ${t.backgroundA(0.05)} 35%, ${t.backgroundA(0.45)} 65%, ${t.backgroundA(0.85)} 100%)`}} />
+		<div style={{position: 'absolute', left: 10, top: 10, width: 28, height: 28, borderRadius: 14, backgroundColor: t.backgroundA(0.45)}} />
+		<div style={{position: 'absolute', left: 12, right: 12, bottom: 10}}>
+			<div style={{fontSize: 14, fontWeight: 700, color: t.onSurface}}>{label}</div>
+			<div style={{fontSize: 11, color: t.onSurfaceA(0.75)}}>{count}</div>
+		</div>
+	</div>
+);
+
+const SpotlightDetail = ({items, t}) => {
+	const item = items[0];
+	const gradientScale = 0.58;
+	const metaStyle = {fontSize: 14, color: t.onSurfaceA(0.75)};
+	const meta = [];
+	if (item.year) meta.push(<span key='year' style={metaStyle}>{item.year}</span>);
+	if (item.officialRating) meta.push(<span key='rating' style={{...metaStyle, marginLeft: 16}}>{item.officialRating}</span>);
+	if (item.genres.length > 0) meta.push(<span key='genres' style={{...metaStyle, marginLeft: 16}}>{item.genres.slice(0, 3).join(' · ')}</span>);
+	return (
+		<div style={{position: 'relative', width: '100%', height: '100%'}}>
+			<Artwork url={item.backdropUrl} position='right center' t={t} />
+			<div style={{...ABS_FILL, backgroundColor: 'rgba(0, 0, 0, 0.32)'}} />
+			<div style={{...ABS_FILL, background: `linear-gradient(to right, ${t.backgroundA(1.0 * gradientScale)} 0%, ${t.backgroundA(0.90 * gradientScale)} 35%, ${t.backgroundA(0.45 * gradientScale)} 60%, ${t.backgroundA(0)} 85%)`}} />
+			<div style={{...ABS_FILL, background: `linear-gradient(to top, ${t.backgroundA(1.0 * gradientScale)} 0%, ${t.backgroundA(0.80 * gradientScale)} 45%, ${t.backgroundA(0)} 80%)`}} />
+			<div style={{...ABS_FILL, overflow: 'hidden', padding: '71px 40px 0 40px', display: 'flex', flexDirection: 'column'}}>
+				<div style={{width: Math.min(1100, Math.max(450, DESIGN_W * 0.85))}}>
+					<LogoOrTitle item={item} width={300} height={75} fallbackStyle={{fontSize: 34, fontWeight: 700, color: t.onSurface}} />
+					<div style={{marginTop: 10, display: 'flex', flexWrap: 'wrap', alignItems: 'center'}}>{meta}</div>
+					<div style={{marginTop: 6}}>
+						<CommunityRating item={item} t={t} />
+					</div>
+					{item.overview && (
+						<div style={{marginTop: 8, maxWidth: 800, fontSize: 14, lineHeight: 1.45, color: t.onSurfaceA(0.85), ...clampLines(3)}}>
+							{item.overview}
+						</div>
+					)}
+					<div style={{marginTop: 20, display: 'flex', alignItems: 'center'}}>
+						<div style={{height: 54, minWidth: 200, padding: '0 14px 0 10px', backgroundColor: t.accent, borderRadius: 27, display: 'flex', alignItems: 'center', justifyContent: 'center'}}>
+							<MIcon name='play_arrow' size={24} color={t.onAccent} />
+							<div style={{marginLeft: 4, fontSize: 13, fontWeight: 700, color: t.onAccent}}>{$L('Play')}</div>
+						</div>
+						<CircleButton icon='favorite' t={t} />
+						<CircleButton icon='check' t={t} />
+						<CircleButton icon='more_horiz' t={t} />
+					</div>
+					<div style={{marginTop: 28, display: 'flex'}}>
+						<SpotlightCardTile label={$L('Cast, Crew, and Studios')} count={$L('{count} people').replace('{count}', 24)} t={t} />
+						<SpotlightCardTile label={$L('Chapters and Extras')} count={$L('{count} chapters').replace('{count}', 18)} t={t} />
+						<SpotlightCardTile label={$L('Recommendations')} count={$L('{count} titles').replace('{count}', 12)} t={t} />
+					</div>
+				</div>
+			</div>
+		</div>
+	);
+};
+
 const FallbackDetail = ({modern, t}) => {
 	const strong = t.onSurfaceA(0.78);
 	const weak = t.onSurfaceA(0.3);
@@ -1395,10 +1466,14 @@ export const HomeRowsPreview = ({modern}) => {
 	return <LivePreview render={render} fallback={<FallbackHomeRows modern={modern} t={t} />} />;
 };
 
-export const DetailStylePreview = ({modern}) => {
+export const DetailStylePreview = ({variant}) => {
 	const t = usePreviewPalette();
-	const render = useCallback((items) => (modern ? <ModernDetail items={items} t={t} /> : <ClassicDetail items={items} t={t} />), [modern, t]);
-	return <LivePreview render={render} fallback={<FallbackDetail modern={modern} t={t} />} />;
+	const render = useCallback((items) => {
+		if (variant === 'v1') return <ClassicDetail items={items} t={t} />;
+		if (variant === 'v3') return <SpotlightDetail items={items} t={t} />;
+		return <ModernDetail items={items} t={t} />;
+	}, [variant, t]);
+	return <LivePreview render={render} fallback={<FallbackDetail modern={variant !== 'v1'} t={t} />} />;
 };
 
 export {MIcon as SetupIcon};
