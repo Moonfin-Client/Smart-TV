@@ -59,7 +59,8 @@ export const orderItemsByIds = (items = [], ids = []) => {
 	return [...items].sort((a, b) => (rank.get(a.Id) ?? ids.length) - (rank.get(b.Id) ?? ids.length));
 };
 
-// Walks the collection once for the id and sort key of everything playable in it.
+// Walks the collection once and returns the ids of everything playable in it, in release
+// order. Only ids come back, because that is what the paging below asks the server for.
 //
 // Deliberately not recursive. The scan reads the collection's own members and then asks each
 // series for its episodes, so walking the tree here would spend the limit on episodes that
@@ -82,7 +83,7 @@ export const buildCollectionIndex = async (api, collectionId) => {
 		});
 	}
 
-	return sortIndexEntries(flat.map(indexEntryFor));
+	return sortIndexEntries(flat.map(indexEntryFor)).map((entry) => entry.id);
 };
 
 // Reads the next run of ids. Progress is counted in index positions rather than items

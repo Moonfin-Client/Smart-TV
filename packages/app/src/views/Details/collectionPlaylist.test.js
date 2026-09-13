@@ -87,7 +87,7 @@ describe('buildCollectionIndex', () => {
 				{Id: 'e1', Type: 'Episode', Name: 'Ep 1', PremiereDate: '1985-01-01'}
 			]})
 		};
-		expect((await buildCollectionIndex(api, 'box')).map((e) => e.id)).toEqual(['e1', 'm1']);
+		expect(await buildCollectionIndex(api, 'box')).toEqual(['e1', 'm1']);
 		expect(api.getItems).toHaveBeenCalledWith(expect.objectContaining({ParentId: 'box', Limit: 2000}));
 		expect(api.getEpisodes).toHaveBeenCalledWith('s1');
 	});
@@ -97,7 +97,7 @@ describe('buildCollectionIndex', () => {
 			getItems: jest.fn().mockResolvedValue({Items: [{Id: 'm1', Type: 'Movie', Name: 'M'}, {Id: 's1', Type: 'Series'}]}),
 			getEpisodes: jest.fn().mockRejectedValue(new Error('nope'))
 		};
-		expect((await buildCollectionIndex(api, 'box')).map((e) => e.id)).toEqual(['m1']);
+		expect(await buildCollectionIndex(api, 'box')).toEqual(['m1']);
 	});
 
 	it('comes back empty when the scan itself fails', async () => {
@@ -108,6 +108,19 @@ describe('buildCollectionIndex', () => {
 
 describe('fetchCollectionPage', () => {
 	const ids = Array.from({length: 60}, (_, i) => `i${i}`);
+
+	// The two halves have to agree on what an index holds, so the page is asked for using
+	// exactly what the scan produced rather than a shape made up for the test.
+	it('asks for the ids the scan produced, not the entries behind them', async () => {
+		const scan = {
+			getItems: jest.fn().mockResolvedValue({Items: [{Id: 'm1', Type: 'Movie', Name: 'M'}]}),
+			getEpisodes: jest.fn()
+		};
+		const index = await buildCollectionIndex(scan, 'box');
+		const api = {getItems: jest.fn().mockResolvedValue({Items: [{Id: 'm1'}]})};
+		await fetchCollectionPage(api, index, 0);
+		expect(api.getItems).toHaveBeenCalledWith(expect.objectContaining({Ids: 'm1'}));
+	});
 
 	it('reads fifty at a time and says there is more to come', async () => {
 		const api = {getItems: jest.fn().mockResolvedValue({Items: ids.slice(0, 50).map((Id) => ({Id}))})};

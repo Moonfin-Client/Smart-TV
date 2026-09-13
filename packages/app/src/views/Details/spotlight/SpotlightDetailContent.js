@@ -10,6 +10,7 @@ import {DETAIL_ICON_PATHS} from '../detailIcons';
 import {iconViewBox} from '../../../components/icons/iconViewBox';
 import {hidesMediaDescription} from '../detailsMedia';
 import {hasMediaFacts} from '../../../utils/seerrMediaFacts';
+import {useSeerr} from '../../../context/SeerrContext';
 import ExpandableOverview from '../ExpandableOverview';
 import ModernActionButtons from '../ModernActionButtons';
 import {KEYS} from '../../../utils/keys';
@@ -45,6 +46,7 @@ const SpotlightDetailContent = (props) => {
 		onReorderPlaylistItem, onRemovePlaylistItem, canManagePlaylist, spotlightBackRef
 	} = props;
 
+	const {isEnabled: seerrEnabled} = useSeerr();
 	const [openCardId, setOpenCardId] = useState(null);
 	const [tmdbCompanies, setTmdbCompanies] = useState(null);
 	const [seerrCredits, setSeerrCredits] = useState({appearances: [], crewCredits: []});
@@ -92,7 +94,7 @@ const SpotlightDetailContent = (props) => {
 		let cancelled = false;
 		const tmdbId = item.ProviderIds?.Tmdb;
 		setSeerrCredits({appearances: [], crewCredits: []});
-		if (!isPerson || !tmdbId || !seerr.available) return undefined;
+		if (!isPerson || !tmdbId || !seerrEnabled) return undefined;
 		loadSeerrPersonCredits(tmdbId)
 			.then((credits) => {
 				if (!cancelled) setSeerrCredits(credits);
@@ -101,7 +103,7 @@ const SpotlightDetailContent = (props) => {
 		return () => {
 			cancelled = true;
 		};
-	}, [item.Id, item.ProviderIds, isPerson, seerr.available]);
+	}, [item.Id, item.ProviderIds, isPerson, seerrEnabled]);
 
 	const studioCards = useMemo(
 		() => studioCardsFor(item.Studios, studioLogoIndex(tmdbCompanies, effectiveServerUrl, serverToken)),
@@ -110,7 +112,7 @@ const SpotlightDetailContent = (props) => {
 
 	// A person's filmography is rebuilt on every render, so the list itself is what the memo
 	// below watches rather than the object holding it.
-	const otherCredits = filmography?.other || EMPTY_LIST;
+	const otherCredits = filmography?.guestAppearances || EMPTY_LIST;
 
 	const cardState = useMemo(() => ({
 		item, serverUrl: effectiveServerUrl, settings, seerrOnly,
