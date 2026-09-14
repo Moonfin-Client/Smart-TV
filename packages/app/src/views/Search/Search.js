@@ -16,6 +16,7 @@ import DetailsTabBar from '../../components/DetailsTabBar';
 import GameCard from '../../components/GameCard';
 import {KEYS} from '../../utils/keys';
 import {getImageUrl} from '../../utils/helpers';
+import {showsWatchedCheck} from '../../utils/playedState';
 import {isGameLibrary, resolveGameLibraryId} from '../../utils/gameLibrary';
 import {groupSearchResults, aspectClassForType, isCircleType, filterByName, fetchAllGames, filterGames} from '../../utils/searchGroups';
 import SpottableInput from '../../components/SpottableInput/SpottableInput';
@@ -469,7 +470,7 @@ const Search = ({onSelectItem, onSelectSeerrItem, onSelectPerson, onSelectGame, 
 					{imageUrl
 						? <img className={css.cardImage} src={imageUrl} alt={item.Name} loading="lazy" />
 						: <div className={css.cardPlaceholder}>{circle ? '👤' : '🎬'}</div>}
-					{item.UserData?.Played && (
+					{showsWatchedCheck(item) && (
 						<div className={css.watchedBadge}>
 							<svg viewBox="0 0 24 24"><path fill="white" d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>
 						</div>
