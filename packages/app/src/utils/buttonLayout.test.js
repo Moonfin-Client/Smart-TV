@@ -1,4 +1,4 @@
-import {ordered, arrange, hiddenSet, withUnknownIds, seerrOnlyRow, countSplit, DETAIL_BUTTONS, OSD_BUTTONS} from './buttonLayout';
+import {ordered, arrange, hiddenSet, withUnknownIds, seerrOnlyRow, countSplit, applyButtonLimit, DETAIL_BUTTONS, OSD_BUTTONS} from './buttonLayout';
 
 const ids = (list) => list.map((item) => item.id);
 const declare = (...list) => list.map((id) => ({id}));
@@ -141,5 +141,36 @@ describe('countSplit', () => {
 		const row = {maxVisible: 5, overflowAsMenu: false, countCapped: true};
 		expect(countSplit({...row, totalButtons: 5}).needsOverflow).toBe(false);
 		expect(countSplit({...row, totalButtons: 6})).toEqual({visibleCount: 4, needsOverflow: true});
+	});
+});
+
+describe('applyButtonLimit', () => {
+	// What each style asks for on its own, before the viewer's setting gets a say.
+	const spotlight = {maxVisible: 5, overflowAsMenu: true, countCapped: true};
+	const modern = {maxVisible: 0, overflowAsMenu: false, countCapped: false};
+
+	it('leaves the style as it is on Auto', () => {
+		expect(applyButtonLimit(0, spotlight)).toEqual(spotlight);
+		expect(applyButtonLimit(0, modern)).toEqual(modern);
+	});
+
+	it('lifts the cap so every button stays in the row', () => {
+		expect(applyButtonLimit(-1, spotlight)).toEqual({maxVisible: 5, overflowAsMenu: true, countCapped: false});
+	});
+
+	it('leaves play on its own', () => {
+		const row = applyButtonLimit(1, modern);
+		expect(row).toEqual({maxVisible: 2, overflowAsMenu: true, countCapped: true});
+		expect(countSplit({...row, totalButtons: 4})).toEqual({visibleCount: 1, needsOverflow: true});
+	});
+
+	it('counts the play slot into the number the viewer picked', () => {
+		const row = applyButtonLimit(3, modern);
+		expect(countSplit({...row, totalButtons: 6}).visibleCount).toBe(3);
+		expect(countSplit({...row, totalButtons: 3}).needsOverflow).toBe(false);
+	});
+
+	it('tightens a row the style had already capped', () => {
+		expect(applyButtonLimit(2, spotlight)).toEqual({maxVisible: 3, overflowAsMenu: true, countCapped: true});
 	});
 });

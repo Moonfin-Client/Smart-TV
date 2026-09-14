@@ -86,12 +86,10 @@ const ModernDetailContent = (props) => {
 	const menuBackRef = useRef(null);
 	useEffect(() => {
 		if (!spotlightBackRef) return undefined;
-		spotlightBackRef.current = () => {
-			if (menuBackRef.current?.()) return true;
-			return false;
-		};
+		const handler = () => Boolean(menuBackRef.current?.());
+		spotlightBackRef.current = handler;
 		return () => {
-			spotlightBackRef.current = null;
+			if (spotlightBackRef.current === handler) spotlightBackRef.current = null;
 		};
 	}, [spotlightBackRef]);
 

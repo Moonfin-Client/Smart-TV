@@ -3,7 +3,7 @@ import $L from '@enact/i18n/$L';
 import Spotlight from '@enact/spotlight';
 import SpotlightContainerDecorator from '@enact/spotlight/SpotlightContainerDecorator';
 
-import {arrange, seerrOnlyRow, countSplit, DETAIL_ORDER_KEY, DETAIL_HIDDEN_KEY} from '../../utils/buttonLayout';
+import {arrange, seerrOnlyRow, countSplit, applyButtonLimit, DETAIL_ORDER_KEY, DETAIL_HIDDEN_KEY} from '../../utils/buttonLayout';
 import {KEYS} from '../../utils/keys';
 import {DETAIL_ICON_PATHS} from './detailIcons';
 import {ActionButton, detailActionCatalogue} from './detailActions';
@@ -119,27 +119,13 @@ const ModernActionButtons = (props) => {
 	const leading = (showsResume ? 1 : 0) + (showsPlay ? 1 : 0);
 
 	const prefLimit = settings?.detailButtonsMaxVisible ?? 0;
-	let effectiveMaxVisible = maxVisibleButtons || 0;
-	let effectiveOverflowAsMenu = overflowAsMenu;
-	let effectiveCountCapped = Boolean(maxVisibleButtons);
-
-	if (prefLimit === -1) {
-		effectiveCountCapped = false;
-	} else if (prefLimit === 1) {
-		effectiveMaxVisible = 2;
-		effectiveOverflowAsMenu = true;
-		effectiveCountCapped = true;
-	} else if (prefLimit > 1) {
-		effectiveMaxVisible = prefLimit + 1;
-		effectiveOverflowAsMenu = true;
-		effectiveCountCapped = true;
-	}
-
 	const {visibleCount, needsOverflow} = countSplit({
 		totalButtons: leading + customizable.length,
-		maxVisible: effectiveMaxVisible,
-		overflowAsMenu: effectiveOverflowAsMenu,
-		countCapped: effectiveCountCapped
+		...applyButtonLimit(prefLimit, {
+			maxVisible: maxVisibleButtons || 0,
+			overflowAsMenu,
+			countCapped: Boolean(maxVisibleButtons)
+		})
 	});
 	const inline = needsOverflow ? customizable.slice(0, Math.max(0, visibleCount - leading)) : customizable;
 	const behindMenu = needsOverflow ? customizable.slice(Math.max(0, visibleCount - leading)) : [];

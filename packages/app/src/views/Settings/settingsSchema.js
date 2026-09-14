@@ -268,7 +268,7 @@ export const SETTINGS_SCHEMA = [
 						kind: KIND.OPTION,
 						key: 'detailButtonsMaxVisible',
 						label: () => $L('Action Buttons on Screen'),
-						desc: () => $L('Customize how many action buttons appear before folding into the More Actions menu.'),
+						desc: () => $L('Choose how many buttons stay on screen before the rest move into More Actions'),
 						options: getDetailButtonsMaxVisibleOptions,
 						fallback: () => $L('Auto (Theme Default)'),
 						icon: 'more_horiz'

@@ -1,5 +1,6 @@
-// Nouveau keeps its action row short. Up to three secondary buttons all stay on screen, and past
-// that only two do with the rest moving behind a More button.
+// Nouveau keeps its action row short. Left on Auto, up to three secondary buttons all stay on
+// screen, and past that only two do with the rest moving behind a More button. The Action Buttons
+// on Screen setting replaces that with a count of its own, or lifts the limit so nothing folds.
 //
 // This is deliberately not `countSplit` from utils/buttonLayout. That one counts the primary button
 // into its total and derives the threshold from the cap, so no argument to it produces three then
@@ -12,21 +13,18 @@ export const VISIBLE_SECONDARY_WITH_OVERFLOW = 2;
 export const splitNouveauActions = (secondaryActions, maxVisibleButtons = 0) => {
 	const actions = Array.isArray(secondaryActions) ? secondaryActions : [];
 
-	let needsOverflow = false;
+	let needsOverflow;
 	let visibleCount = VISIBLE_SECONDARY_WITH_OVERFLOW;
 
 	if (maxVisibleButtons === -1) {
 		needsOverflow = false;
-	} else if (maxVisibleButtons === 1) {
-		needsOverflow = actions.length > 0;
-		visibleCount = 0;
-	} else if (maxVisibleButtons > 1) {
-		const maxSecondary = maxVisibleButtons - 1;
-		needsOverflow = actions.length > maxSecondary;
+	} else if (maxVisibleButtons >= 1) {
+		// The count covers the primary button too, so the secondaries get one fewer than it inline,
+		// and one fewer again where the More button has to take a place in the row as well.
+		needsOverflow = actions.length > maxVisibleButtons - 1;
 		visibleCount = Math.max(0, maxVisibleButtons - 2);
 	} else {
 		needsOverflow = actions.length > MAX_SECONDARY_WITHOUT_OVERFLOW;
-		visibleCount = VISIBLE_SECONDARY_WITH_OVERFLOW;
 	}
 
 	if (!needsOverflow) {

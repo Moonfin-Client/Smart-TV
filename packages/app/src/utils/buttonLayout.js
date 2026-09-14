@@ -141,3 +141,12 @@ export const countSplit = ({totalButtons, maxVisible, overflowAsMenu, countCappe
 	const threshold = overflowAsMenu ? visibleCount : maxVisible;
 	return {visibleCount, needsOverflow: Boolean(countCapped) && totalButtons > threshold};
 };
+
+// The viewer's own cap from the Action Buttons on Screen setting, laid over what the style already
+// asked for. Auto leaves the style alone, All lifts the cap so every button stays in the row and it
+// scrolls sideways, and a number is how many end up on screen with the rest behind the menu.
+export const applyButtonLimit = (prefLimit, layout) => {
+	if (prefLimit === -1) return {...layout, countCapped: false};
+	if (prefLimit >= 1) return {maxVisible: prefLimit + 1, overflowAsMenu: true, countCapped: true};
+	return layout;
+};

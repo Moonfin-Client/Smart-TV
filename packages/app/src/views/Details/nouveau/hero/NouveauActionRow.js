@@ -80,8 +80,8 @@ const NouveauActionRow = (props) => {
 			ev.stopPropagation();
 			return;
 		}
-		// Move sequentially between action buttons so off-screen buttons in horizontal scroll mode
-		// can be reached and scrolled into view.
+		// Move one button at a time so the ones sitting off screen can be reached and scrolled
+		// into view.
 		const nextIdx = ev.keyCode === KEYS.LEFT ? idx - 1 : idx + 1;
 		if (nextIdx >= 0 && nextIdx < buttons.length) {
 			ev.preventDefault();
@@ -89,7 +89,7 @@ const NouveauActionRow = (props) => {
 			Spotlight.focus(buttons[nextIdx]);
 			return;
 		}
-		if (ev.keyCode === KEYS.RIGHT && idx === buttons.length - 1) {
+		if (ev.keyCode === KEYS.RIGHT) {
 			ev.preventDefault();
 			ev.stopPropagation();
 		}
