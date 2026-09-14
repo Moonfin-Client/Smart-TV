@@ -3,6 +3,7 @@ import Spottable from '@enact/spotlight/Spottable';
 import {getImageUrl} from '../../utils/helpers';
 import {useSettings} from '../../context/SettingsContext';
 import {SeerrSeasonDot} from '../seerr/SeerrStatusBadge';
+import {showsWatchedCheck} from '../../utils/playedState';
 import SeerrIcon from '../icons/SeerrIcon';
 import {AnimeCardPill} from '../AnimeMarkerPills';
 
@@ -304,7 +305,7 @@ const MediaCard = ({item, serverUrl, cardType = 'portrait', rowImageType = 'post
 
 				<SeerrSeasonDot status={settings?.showSeerrAvailabilityBadges !== false ? seerrSeasonStatus : null} />
 
-				{showIndicators && item.UserData?.Played && (
+				{showIndicators && showsWatchedCheck(item) && (
 					<div className={css.watchedBadge}>
 						<svg viewBox="0 0 24 24"><path fill="white" d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>
 					</div>

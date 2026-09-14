@@ -20,6 +20,7 @@ import NextUpCard from './NextUpCard';
 import {DETAIL_METADATA, arrange} from '../../utils/detailMetadataLayout';
 import {fetchUpcomingEpisode, formatUpcomingEpisode} from '../../utils/upcomingEpisode';
 import {DETAIL_ICON_PATHS} from './detailIcons';
+import {showsWatchedCheck} from '../../utils/playedState';
 import {AnimeEpisodePills, AnimeItemPills} from '../../components/AnimeMarkerPills';
 
 import css from './Details.module.less';
@@ -256,7 +257,7 @@ const ClassicDetailScreen = ({
 							const seasonPosterUrl = season.ImageTags?.Primary
 								? getImageUrl(serverUrl, season.Id, 'Primary', {maxHeight: 350, quality: 80})
 								: null;
-							const isWatched = season.UserData?.Played;
+							const isWatched = showsWatchedCheck(season);
 							const unplayed = season.UserData?.UnplayedItemCount;
 
 							return (

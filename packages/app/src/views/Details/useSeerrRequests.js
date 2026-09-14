@@ -115,11 +115,14 @@ const useSeerrRequests = ({
 	// What to mark each season card with, keyed by season number. The server keeps its own
 	// per-season list and that wins where it exists, and the requests fill in the seasons it
 	// says nothing about, which is how a brand new request shows before Seerr has caught up.
+	// Only the HD/SD status feeds this - the same distinction getStatusPills makes elsewhere
+	// (owning the HD copy says nothing about the 4K one, and the reverse is just as true), so
+	// a season available only in 4K doesn't light up as "you have this" for someone who
+	// doesn't have a 4K copy at all.
 	const seasonMarkers = useMemo(() => {
 		const markers = new Map();
 		(details?.mediaInfo?.seasons || []).forEach((season) => {
-			const status = season.status > MEDIA_STATUS.UNKNOWN ? season.status : season.status4k;
-			if (status > MEDIA_STATUS.UNKNOWN) markers.set(season.seasonNumber, status);
+			if (season.status > MEDIA_STATUS.UNKNOWN) markers.set(season.seasonNumber, season.status);
 		});
 		seasonStatusMapHd.forEach((requestStatus, seasonNumber) => {
 			if (markers.has(seasonNumber)) return;

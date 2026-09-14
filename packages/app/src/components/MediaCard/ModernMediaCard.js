@@ -8,6 +8,7 @@ import {useSettings} from '../../context/SettingsContext';
 import {getPlatform} from '../../platform';
 import {isStaticLibraryCard, modernCardMetrics, getEpisodeLabels, getCardDisplayTitle} from './modernCardLayout';
 import SeerrIcon from '../icons/SeerrIcon';
+import {showsWatchedCheck} from '../../utils/playedState';
 import {AnimeCardPill} from '../AnimeMarkerPills';
 
 import css from './ModernMediaCard.module.less';
@@ -337,7 +338,7 @@ const ModernMediaCard = ({
 					<div className={`${css.seerrBadge} ${css[`seerr${item.mediaInfo.status}`]}`} />
 				) : null}
 
-				{showIndicators && item?.UserData?.Played && (
+				{showIndicators && showsWatchedCheck(item) && (
 					<div className={css.watchedBadge}>
 						<svg viewBox="0 0 24 24"><path fill="white" d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>
 					</div>
