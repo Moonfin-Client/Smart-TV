@@ -1,318 +1,25 @@
-.container {
+@import '../../styles/mixins.less';
+
+.page {
 	position: fixed;
 	top: 0;
+	left: 0;
 	right: 0;
 	bottom: 0;
-	left: 0;
 	overflow: hidden;
-	background: var(--theme-background, #111827);
-	color: var(--theme-text-primary, #ffffff);
-}
-
-// Main Content
-.mainContent {
-	height: 100%;
-	overflow-y: auto;
-	padding: 60px;
-}
-
-// Header Section
-.headerSection {
-	display: flex;
-	margin-bottom: 40px;
-
-	> * + * {
-		margin-left: 40px;
-	}
-}
-
-// Profile Image
-.profileContainer {
-	flex-shrink: 0;
-	width: 220px;
-}
-
-.profileImage {
-	width: 100%;
-	height: 330px;
-	object-fit: cover;
-	border-radius: 12px;
-	box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6);
-}
-
-.profilePlaceholder {
-	width: 100%;
-	height: 330px;
-	background: var(--theme-surface-variant, #333);
-	border-radius: 12px;
+	background: var(--theme-background, #000);
 	display: flex;
 	align-items: center;
 	justify-content: center;
-	font-size: 72px;
-	color: var(--theme-text-muted, #666);
 }
 
-// Info Container
-.infoContainer {
-	flex: 1;
-	padding-top: 20px;
-}
-
-.personName {
-	font-size: 48px;
-	font-weight: 700;
-	margin: 0 0 20px 0;
-}
-
-.metaInfo {
-	display: flex;
-	flex-direction: column;
-	font-size: 20px;
-	color: var(--theme-text-secondary, rgba(255, 255, 255, 0.8));
-
-	> * + * {
-		margin-top: 12px;
-	}
-}
-
-.birthInfo,
-.placeOfBirth,
-.knownFor {
-	display: block;
-}
-
-// Section Title
-.sectionTitle {
-	font-size: 32px;
-	font-weight: 600;
-	margin: 0 0 20px 0;
-	color: var(--theme-text-primary, #ffffff);
-}
-
-// Biography Section
-.biographySection {
-	margin-bottom: 40px;
-}
-
-.biographyText {
-	font-size: 20px;
-	line-height: 1.6;
-	color: var(--theme-text-secondary, rgba(255, 255, 255, 0.8));
-	margin: 0 0 16px 0;
-	display: -webkit-box;
-	-webkit-line-clamp: 6;
-	-webkit-box-orient: vertical;
-	overflow: hidden;
-
-	&.expanded {
-		-webkit-line-clamp: unset;
-		display: block;
-	}
-}
-
-.biographyToggle {
-	display: inline-block;
-	padding: 8px 16px;
-	background: rgba(var(--theme-on-surface-rgb, 255, 255, 255), 0.1);
-	border: 2px solid rgba(var(--theme-on-surface-rgb, 255, 255, 255), 0.2);
-	border-radius: 8px;
-	font-size: 18px;
-	cursor: pointer;
-	transition: all 0.2s ease;
-
-	&:focus {
-		background: var(--theme-on-surface, #ffffff);
-		color: var(--theme-background, #000);
-		transform: scale(1.05);
-	}
-}
-
-// Appearances Section
-.appearancesSection {
-	margin-bottom: 40px;
-}
-
-.appearancesList {
-	display: flex;
-	flex-wrap: wrap;
-
-	> * {
-		margin-right: 20px;
-		margin-bottom: 20px;
-	}
-}
-
-// Appearance Card
-.appearanceCard {
-	width: 160px;
-	cursor: pointer;
-	transition: transform 0.2s ease;
-	outline: none;
-
-	&:focus {
-		transform: scale(1.08);
-
-		.poster {
-			border-color: var(--theme-focus-border-color, #ffffff);
-		}
-	}
-}
-
-.posterContainer {
-	position: relative;
-	width: 100%;
-	height: 0;
-	padding-bottom: 150%;
-	margin-bottom: 8px;
-	overflow: hidden;
-	border-radius: 8px;
-}
-
-.poster {
-	position: absolute;
-	top: 0;
-	left: 0;
-	width: 100%;
-	height: 100%;
-	object-fit: cover;
-	border-radius: 8px;
-	border: 3px solid transparent;
-	transition: border-color 0.2s ease;
-}
-
-.noPoster {
-	position: absolute;
-	top: 0;
-	left: 0;
-	width: 100%;
-	height: 100%;
-	background: var(--theme-surface-variant, #333);
-	border-radius: 8px;
-	display: flex;
-	align-items: center;
-	justify-content: center;
-	font-size: 48px;
-	color: var(--theme-text-muted, #666);
-}
-
-.mediaTypeBadge {
-	position: absolute;
-	top: 6px;
-	left: 6px;
-	padding: 3px 8px;
-	border-radius: 10px;
-	font-size: 10px;
-	font-weight: 700;
-	letter-spacing: 0.5px;
-	text-transform: uppercase;
-	color: var(--theme-on-badge, #fff);
-	z-index: 2;
-}
-
-.movieBadge {
-	background: var(--theme-badge-movie, #2563eb);
-}
-
-.seriesBadge {
-	background: var(--theme-badge-show, #7c3aed);
-}
-
-.availabilityBadge {
-	position: absolute;
-	top: 6px;
-	right: 6px;
-	width: 18px;
-	height: 18px;
-	border-radius: 50%;
-	z-index: 2;
-}
-
-.availability5 {
-	background: var(--theme-status-available, #22c55e);
-	border: 2px solid var(--theme-text-primary, #fff);
-	box-shadow: 0 1.5px 4px rgba(0, 0, 0, 0.6);
-}
-
-.availability5::after {
-	content: '';
-	position: absolute;
-	top: 3px;
-	left: 5px;
-	width: 4px;
-	height: 7px;
-	border: solid var(--theme-text-primary, #fff);
-	border-width: 0 2px 2px 0;
-	transform: rotate(45deg);
-}
-
-.availability4 {
-	background: var(--theme-status-pending, #eab308);
-	box-shadow: 0 1.5px 4px rgba(0, 0, 0, 0.6);
-}
-
-.availability4::after {
-	content: '';
-	position: absolute;
-	top: 50%;
-	left: 50%;
-	width: 8px;
-	height: 2px;
-	background: var(--theme-on-badge, #fff);
-	transform: translate(-50%, -50%);
-}
-
-.availability3 {
-	background: transparent;
-	border: 2px solid var(--theme-status-downloading, #6366f1);
-	border-top-color: transparent;
-	animation: spin 1s linear infinite;
-}
-
-@keyframes spin {
-	from {
-		transform: rotate(0deg);
-	}
-	to {
-		transform: rotate(360deg);
-	}
-}
-
-.cardInfo {
-	padding: 4px 0;
-}
-
-.cardTitle {
-	font-size: 16px;
-	font-weight: 500;
-	color: var(--theme-text-primary, #ffffff);
-	margin: 0 0 4px 0;
-	overflow: hidden;
-	text-overflow: ellipsis;
-	white-space: nowrap;
-}
-
-.cardCharacter {
-	font-size: 14px;
-	color: var(--theme-text-secondary, #888);
-	margin: 0 0 2px 0;
-	overflow: hidden;
-	text-overflow: ellipsis;
-	white-space: nowrap;
-}
-
-.cardYear {
-	font-size: 14px;
-	color: var(--theme-text-muted, #666);
-	margin: 0;
-}
-
-// Error State
+// Error state - a TMDB fetch can fail in more ways than the local server call
+// Person.js makes, so this gets its own recoverable state with a way back.
 .error {
 	display: flex;
 	flex-direction: column;
 	align-items: center;
 	justify-content: center;
-	height: 100%;
 	font-size: 24px;
 	color: var(--theme-text-secondary, #888);
 	text-align: center;
@@ -323,9 +30,8 @@
 }
 
 .errorButton {
+	.glass-button();
 	padding: 12px 24px;
-	background: rgba(var(--theme-on-surface-rgb, 255, 255, 255), 0.1);
-	border: 2px solid rgba(var(--theme-on-surface-rgb, 255, 255, 255), 0.2);
 	border-radius: 8px;
 	font-size: 18px;
 	cursor: pointer;
@@ -334,30 +40,7 @@
 	&:focus {
 		background: var(--theme-on-surface, #ffffff);
 		color: var(--theme-background, #000);
+		border-color: var(--theme-accent, #00a4dc);
 		transform: scale(1.05);
-	}
-}
-
-:global(html[data-theme-id='neon_pulse']) {
-	.personName,
-	.sectionTitle,
-	.cardTitle {
-		color: var(--theme-accent, #ff2e92);
-		text-shadow: var(--theme-text-glow, 0 0 8px rgba(255, 46, 146, 0.35));
-		font-family: 'NeonPulseDisplay', sans-serif;
-		font-weight: bold;
-		letter-spacing: 0.4px;
-	}
-
-	.metaInfo,
-	.biographyText,
-	.cardCharacter,
-	.cardYear {
-		color: var(--theme-on-surface, #00e5ff);
-	}
-
-	.appearanceCard:focus .poster {
-		border-color: var(--theme-accent, #ff2e92);
-		box-shadow: 0 0 10px rgba(var(--theme-accent-rgb, 255, 46, 146), 0.3);
 	}
 }

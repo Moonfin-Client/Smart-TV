@@ -1,23 +1,30 @@
-import {useCallback, useEffect, useState, useRef} from 'react';
-import Spottable from '@enact/spotlight/Spottable';
+import {useCallback, useEffect, useMemo, useState} from 'react';
 import Spotlight from '@enact/spotlight';
-import Image from '@enact/sandstone/Image';
+import Spottable from '@enact/spotlight/Spottable';
 import $L from '@enact/i18n/$L';
 import seerrApi from '../../services/seerrApi';
+import {useAuth} from '../../context/AuthContext';
 import LoadingSpinner from '../../components/LoadingSpinner';
+import MediaRow from '../../components/MediaRow';
+import PersonDetailShell from '../../components/PersonDetailShell';
 import {personDateLines, prepareCredits} from '../../utils/personCredits';
+import {normalizeMediaItem} from '../../utils/seerrHomeRows';
 
 import css from './SeerrPerson.module.less';
 
 const SpottableDiv = Spottable('div');
 
+// Same shell Person (a library person) uses, and the same MediaRow cards for the
+// credits, so a person reached from a title you don't own looks like one reached
+// from a title you do. This one has no Jellyfin record to favorite and nowhere
+// further to jump to, so it only supplies a backdrop, portrait, overview, and the
+// Appearances/Crew tabs.
 const SeerrPerson = ({personId, personName, onClose, onSelectItem, onBack}) => {
+	const {serverUrl} = useAuth();
 	const [details, setDetails] = useState(null);
 	const [loading, setLoading] = useState(true);
 	const [error, setError] = useState(null);
-	const [biographyExpanded, setBiographyExpanded] = useState(false);
 	const [credits, setCredits] = useState(null);
-	const appearancesRef = useRef([]);
 
 	useEffect(() => {
 		if (!personId) return;
@@ -45,70 +52,56 @@ const SeerrPerson = ({personId, personName, onClose, onSelectItem, onBack}) => {
 
 	useEffect(() => {
 		if (!loading && details) {
-			Spotlight.focus('person-appearances');
+			Spotlight.focus('person-tab-appearances');
 		}
 	}, [loading, details]);
 
-	const handleSelectMedia = useCallback((ev) => {
-		const index = ev.currentTarget?.dataset?.index;
-		if (index === undefined) return;
-		const item = appearancesRef.current[parseInt(index, 10)];
-		if (!item) return;
-		const type = item.mediaType || item.media_type || (item.title ? 'movie' : 'tv');
-		onSelectItem?.({
-			mediaId: item.id,
-			mediaType: type
-		});
+	// Same idea as the native Person screen: pull a backdrop from whatever this person has
+	// been in, rather than leaving the screen flat. TMDB credits carry their own backdrop
+	// per title, so there is no need to go fetch one separately.
+	const backdropCandidates = useMemo(() => {
+		const rawCastForBackdrop = credits?.cast || details?.combinedCredits?.cast || details?.credits?.cast;
+		const rawCrewForBackdrop = credits?.crew || details?.combinedCredits?.crew || details?.credits?.crew;
+		const urls = [];
+		for (const item of [...(rawCastForBackdrop || []), ...(rawCrewForBackdrop || [])]) {
+			const backdropPath = item.backdropPath || item.backdrop_path;
+			if (backdropPath) urls.push(seerrApi.getImageUrl(backdropPath, 'w1280'));
+		}
+		return urls;
+	}, [credits, details]);
+
+	const randomBackdrop = useMemo(() => {
+		if (backdropCandidates.length === 0) return null;
+		return backdropCandidates[Math.floor(Math.random() * backdropCandidates.length)];
+	}, [backdropCandidates]);
+
+	const handleSelectMedia = useCallback((item) => {
+		if (item?._seerrRaw) onSelectItem?.(item._seerrRaw);
 	}, [onSelectItem]);
 
-	const toggleBiography = useCallback(() => {
-		setBiographyExpanded(prev => !prev);
-	}, []);
+	const rawCast = credits?.cast || details?.combinedCredits?.cast || details?.credits?.cast;
+	const rawCrew = credits?.crew || details?.combinedCredits?.crew || details?.credits?.crew;
+	const appearances = useMemo(() => prepareCredits(rawCast, {isCrew: false}).map(normalizeMediaItem), [rawCast]);
+	const crewCredits = useMemo(() => prepareCredits(rawCrew, {isCrew: true}).map(normalizeMediaItem), [rawCrew]);
 
-	const renderAppearanceCard = useCallback((item, index) => {
-		const posterUrl = seerrApi.getImageUrl(item.posterPath || item.poster_path, 'w342');
-		const title = item.title || item.name;
-		const role = item.character || item.job || item.department;
-		const year = (item.releaseDate || item.release_date || item.firstAirDate || item.first_air_date)?.substring(0, 4);
-		const itemMediaType = item.mediaType || item.media_type || (item.title ? 'movie' : 'tv');
-		const status = item.mediaInfo?.status;
-
-		return (
-			<SpottableDiv
-				key={`${item.id}-${item.mediaType || item.media_type}`}
-				className={css.appearanceCard}
-				onClick={handleSelectMedia}
-				data-index={index}
-			>
-				<div className={css.posterContainer}>
-					{posterUrl ? (
-						<Image className={css.poster} src={posterUrl} sizing="fill" />
-					) : (
-						<div className={css.noPoster}>{title?.[0]}</div>
-					)}
-					{/* Media type badge - top left */}
-					{itemMediaType && (
-						<div className={`${css.mediaTypeBadge} ${itemMediaType === 'movie' ? css.movieBadge : css.seriesBadge}`}>
-							{itemMediaType === 'movie' ? $L('Movie') : $L('Series')}
-						</div>
-					)}
-					{/* Availability badge - top right */}
-					{status && [3, 4, 5].includes(status) && (
-						<div className={`${css.availabilityBadge} ${css[`availability${status}`]}`} />
-					)}
-				</div>
-				<div className={css.cardInfo}>
-					<p className={css.cardTitle}>{title}</p>
-					{role && <p className={css.cardCharacter}>{role}</p>}
-					{year && <p className={css.cardYear}>{year}</p>}
-				</div>
-			</SpottableDiv>
-		);
-	}, [handleSelectMedia]);
+	const tabs = useMemo(() => {
+		const list = [];
+		if (appearances.length > 0) {
+			list.push({key: 'appearances', label: $L('Appearances'), content: (
+				<MediaRow title={`${$L('Appearances')} (${appearances.length})`} items={appearances} serverUrl={serverUrl} cardType="portrait" onSelectItem={handleSelectMedia} rowId="person-appearances" />
+			)});
+		}
+		if (crewCredits.length > 0) {
+			list.push({key: 'crew', label: $L('Crew'), content: (
+				<MediaRow title={`${$L('Crew')} (${crewCredits.length})`} items={crewCredits} serverUrl={serverUrl} cardType="portrait" onSelectItem={handleSelectMedia} rowId="person-crew" />
+			)});
+		}
+		return list;
+	}, [appearances, crewCredits, handleSelectMedia, serverUrl]);
 
 	if (loading) {
 		return (
-			<div className={css.container}>
+			<div className={css.page}>
 				<LoadingSpinner />
 			</div>
 		);
@@ -116,7 +109,7 @@ const SeerrPerson = ({personId, personName, onClose, onSelectItem, onBack}) => {
 
 	if (error) {
 		return (
-			<div className={css.container}>
+			<div className={css.page}>
 				<div className={css.error}>
 					<p>{error}</p>
 					<SpottableDiv className={css.errorButton} onClick={onClose || onBack}>
@@ -129,7 +122,7 @@ const SeerrPerson = ({personId, personName, onClose, onSelectItem, onBack}) => {
 
 	if (!details) {
 		return (
-			<div className={css.container}>
+			<div className={css.page}>
 				<div className={css.error}>
 					<p>{$L('No details available')}</p>
 				</div>
@@ -141,81 +134,18 @@ const SeerrPerson = ({personId, personName, onClose, onSelectItem, onBack}) => {
 		? seerrApi.getImageUrl(details.profilePath, 'h632')
 		: null;
 	const dateLines = personDateLines(details.birthday, details.deathday);
-	const biography = details.biography || '';
-	const knownFor = details.knownForDepartment || '';
-
-	const rawCast = credits?.cast || details.combinedCredits?.cast || details.credits?.cast;
-	const rawCrew = credits?.crew || details.combinedCredits?.crew || details.credits?.crew;
-	const appearances = prepareCredits(rawCast, {isCrew: false});
-	const crewCredits = prepareCredits(rawCrew, {isCrew: true});
-
-	// One list behind the two rows, so a card only has to carry its position.
-	appearancesRef.current = [...appearances, ...crewCredits];
+	const knownFor = details.knownForDepartment ? `${$L('Known for:')} ${details.knownForDepartment}` : null;
 
 	return (
-		<div className={css.container}>
-			<div className={css.mainContent}>
-				{/* Header Section */}
-				<div className={css.headerSection}>
-					<div className={css.profileContainer}>
-						{profileUrl ? (
-							<Image className={css.profileImage} src={profileUrl} sizing="fill" />
-						) : (
-							<div className={css.profilePlaceholder}>{details.name?.[0]}</div>
-						)}
-					</div>
-
-					<div className={css.infoContainer}>
-						<h1 className={css.personName}>{personName || details.name}</h1>
-
-						<div className={css.metaInfo}>
-							{dateLines.map((line) => (
-								<span key={line} className={css.birthInfo}>{line}</span>
-							))}
-							{details.placeOfBirth && (
-								<span className={css.placeOfBirth}>{details.placeOfBirth}</span>
-							)}
-							{knownFor && (
-								<span className={css.knownFor}>{$L('Known for:')} {knownFor}</span>
-							)}
-						</div>
-					</div>
-				</div>
-
-				{/* Biography Section */}
-				{biography && (
-					<div className={css.biographySection}>
-						<h2 className={css.sectionTitle}>{$L('Biography')}</h2>
-						<p className={`${css.biographyText} ${biographyExpanded ? css.expanded : ''}`}>
-							{biography}
-						</p>
-						{biography.length > 500 && (
-							<SpottableDiv className={css.biographyToggle} onClick={toggleBiography}>
-								{biographyExpanded ? $L('Show Less') : $L('Show More')}
-							</SpottableDiv>
-						)}
-					</div>
-				)}
-
-				{appearances.length > 0 && (
-					<div className={css.appearancesSection}>
-						<h2 className={css.sectionTitle}>{$L('Appearances')} ({appearances.length})</h2>
-						<div className={css.appearancesList} data-spotlight-id="person-appearances">
-							{appearances.map((item, index) => renderAppearanceCard(item, index))}
-						</div>
-					</div>
-				)}
-
-				{crewCredits.length > 0 && (
-					<div className={css.appearancesSection}>
-						<h2 className={css.sectionTitle}>{$L('Crew')} ({crewCredits.length})</h2>
-						<div className={css.appearancesList} data-spotlight-id="person-crew">
-							{crewCredits.map((item, index) => renderAppearanceCard(item, appearances.length + index))}
-						</div>
-					</div>
-				)}
-			</div>
-		</div>
+		<PersonDetailShell
+			backdropUrl={randomBackdrop}
+			imageUrl={profileUrl}
+			placeholderInitial={details.name?.[0]}
+			name={personName || details.name}
+			metaLines={[...dateLines, details.placeOfBirth, knownFor].filter(Boolean)}
+			overview={details.biography}
+			tabs={tabs}
+		/>
 	);
 };
 
