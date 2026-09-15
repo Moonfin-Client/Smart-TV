@@ -15,8 +15,8 @@ const TabsContainer = SpotlightContainerDecorator({enterTo: 'last-focused'}, 'di
 // Each brings its own data and its own tabs, but the header, the overview, the tab bar, and
 // the MediaRow cards below are one piece of UI, not two that happen to look similar.
 //
-// tabs: [{key, label, content}] - content is whatever the caller wants rendered for that tab.
-// actions: [{key, label, icon, onClick}] - optional row under the overview (favorite, etc).
+// Each tab is {key, label, content}, where content is whatever the caller wants drawn for it.
+// Each action is {key, label, icon, onClick} for the optional row under the overview.
 const PersonDetailShell = ({
 	backdropUrl,
 	imageUrl,

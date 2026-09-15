@@ -12,8 +12,8 @@ import css from './Person.module.less';
 
 // Same shell as SeerrPerson (a TMDB-only person). This one has a Jellyfin
 // person record and its own library filmography, so it adds a favorite
-// button and a way to jump to the Seerr side; everything else - backdrop,
-// portrait, overview, tab bar - is the shared PersonDetailShell.
+// button and a way to jump to the Seerr side. The backdrop, portrait,
+// overview and tab bar all come from the shared PersonDetailShell.
 const Person = ({personId, onSelectItem, onSelectSeerrItem, onSelectSeerrPerson}) => {
 	const {api, serverUrl} = useAuth();
 	const [person, setPerson] = useState(null);
@@ -64,7 +64,7 @@ const Person = ({personId, onSelectItem, onSelectSeerrItem, onSelectSeerrPerson}
 		if (tmdbId) onSelectSeerrPerson?.(tmdbId, person?.Name);
 	}, [tmdbId, person, onSelectSeerrPerson]);
 
-	const {movies, series, guestAppearances, musicVideos} = splitFilmography(items);
+	const {movies, series, guestAppearances, musicVideos} = useMemo(() => splitFilmography(items), [items]);
 
 	const backdropCandidates = useMemo(() => {
 		const urls = [];

@@ -50,25 +50,20 @@ const SeerrPerson = ({personId, personName, onClose, onSelectItem, onBack}) => {
 		loadDetails();
 	}, [personId]);
 
-	useEffect(() => {
-		if (!loading && details) {
-			Spotlight.focus('person-tab-appearances');
-		}
-	}, [loading, details]);
+	const rawCast = credits?.cast || details?.combinedCredits?.cast || details?.credits?.cast;
+	const rawCrew = credits?.crew || details?.combinedCredits?.crew || details?.credits?.crew;
 
 	// Same idea as the native Person screen: pull a backdrop from whatever this person has
 	// been in, rather than leaving the screen flat. TMDB credits carry their own backdrop
 	// per title, so there is no need to go fetch one separately.
 	const backdropCandidates = useMemo(() => {
-		const rawCastForBackdrop = credits?.cast || details?.combinedCredits?.cast || details?.credits?.cast;
-		const rawCrewForBackdrop = credits?.crew || details?.combinedCredits?.crew || details?.credits?.crew;
 		const urls = [];
-		for (const item of [...(rawCastForBackdrop || []), ...(rawCrewForBackdrop || [])]) {
+		for (const item of [...(rawCast || []), ...(rawCrew || [])]) {
 			const backdropPath = item.backdropPath || item.backdrop_path;
 			if (backdropPath) urls.push(seerrApi.getImageUrl(backdropPath, 'w1280'));
 		}
 		return urls;
-	}, [credits, details]);
+	}, [rawCast, rawCrew]);
 
 	const randomBackdrop = useMemo(() => {
 		if (backdropCandidates.length === 0) return null;
@@ -79,8 +74,6 @@ const SeerrPerson = ({personId, personName, onClose, onSelectItem, onBack}) => {
 		if (item?._seerrRaw) onSelectItem?.(item._seerrRaw);
 	}, [onSelectItem]);
 
-	const rawCast = credits?.cast || details?.combinedCredits?.cast || details?.credits?.cast;
-	const rawCrew = credits?.crew || details?.combinedCredits?.crew || details?.credits?.crew;
 	const appearances = useMemo(() => prepareCredits(rawCast, {isCrew: false}).map(normalizeMediaItem), [rawCast]);
 	const crewCredits = useMemo(() => prepareCredits(rawCrew, {isCrew: true}).map(normalizeMediaItem), [rawCrew]);
 
@@ -98,6 +91,13 @@ const SeerrPerson = ({personId, personName, onClose, onSelectItem, onBack}) => {
 		}
 		return list;
 	}, [appearances, crewCredits, handleSelectMedia, serverUrl]);
+
+	// Land on whichever tab comes first, since someone credited only as crew has no
+	// appearances tab.
+	useEffect(() => {
+		if (loading || !details || tabs.length === 0) return;
+		Spotlight.focus(`person-tab-${tabs[0].key}`);
+	}, [loading, details, tabs]);
 
 	if (loading) {
 		return (
