@@ -497,8 +497,10 @@ export const api = {
 		return request(`/Items/${itemId}/Similar?UserId=${currentUser}&Limit=${limit}&Fields=PrimaryImageAspectRatio,ProductionYear,OfficialRating${bypassQuery}`);
 	},
 
-	getMoonfinSimilar: (itemId, limit = 15) =>
-		request(`/Moonfin/Items/${itemId}/Similar?limit=${limit}`),
+	getMoonfinSimilar: (itemId, limit = 20) => {
+		const userQuery = currentUser ? `&userId=${encodeURIComponent(currentUser)}` : '';
+		return request(`/Moonfin/Items/${itemId}/Similar?limit=${limit}${userQuery}`);
+	},
 
 	getGenres: (libraryId, includeItemTypes = 'Movie,Series', sortBy = 'SortName', sortOrder = 'Ascending') => {
 		const params = libraryId ? `&ParentId=${libraryId}` : '';
@@ -992,8 +994,10 @@ export const createApiForServer = (serverUrl, token, userId, serverTypeOverride 
 			return serverRequest(`/Items/${itemId}/Similar?UserId=${userId}&Limit=${limit}&Fields=PrimaryImageAspectRatio,Overview${bypassQuery}`);
 		},
 
-		getMoonfinSimilar: (itemId, limit = 12) =>
-			serverRequest(`/Moonfin/Items/${itemId}/Similar?limit=${limit}`),
+		getMoonfinSimilar: (itemId, limit = 20) => {
+			const userQuery = userId ? `&userId=${encodeURIComponent(userId)}` : '';
+			return serverRequest(`/Moonfin/Items/${itemId}/Similar?limit=${limit}${userQuery}`);
+		},
 
 		getSeasons: (seriesId) =>
 			serverRequest(`/Shows/${seriesId}/Seasons?UserId=${userId}&Fields=Overview,PrimaryImageAspectRatio`),
