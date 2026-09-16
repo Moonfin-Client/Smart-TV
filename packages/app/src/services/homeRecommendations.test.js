@@ -3,7 +3,7 @@ jest.mock('./jellyfinApi', () => ({
 	HOME_ROW_ITEM_FIELDS: 'Id,Name,Type'
 }));
 
-import {loadSinceYouWatchedRows, mergeRecommendations, RECOMMENDATION_FETCH_LIMIT} from './homeRecommendations';
+import {loadSinceYouWatchedRows, mergeRecommendations, RECOMMENDATION_FETCH_LIMIT, scoreCandidate} from './homeRecommendations';
 import {
 	getSinceYouWatchedSourceOptions,
 	getRecommendationSystemSourceOptions
@@ -205,5 +205,216 @@ describe('loadSinceYouWatchedRows', () => {
 
 		expect(api.getMoonfinSimilar).not.toHaveBeenCalled();
 		expect(rows[0].items[0].Id).toBe('cand-1');
+	});
+});
+
+describe('scoreCandidate (200.0 pt model)', () => {
+	const baseCtx = {
+		genres: ['Sci-Fi', 'Action', 'Adventure', 'Thriller', 'Mystery'],
+		tags: ['Space', 'Alien', 'Future', 'Cyberpunk', 'Dystopia'],
+		baseStudios: ['Warner Bros.', 'Legendary'],
+		baseYear: 2020,
+		baseRating: 8.5,
+		baseName: 'Alien',
+		actorNames: ['Sigourney Weaver', 'Tom Skerritt', 'John Hurt'],
+		directorNames: ['Ridley Scott', 'James Cameron', 'David Fincher'],
+		writerNames: ['Dan O\'Bannon', 'Ronald Shusett', 'Walter Hill']
+	};
+
+	test('achieves exactly 200.0 points when all criteria match at maximum', () => {
+		const perfectCandidate = {
+			Name: 'Aliens',
+			Genres: ['Sci-Fi', 'Action', 'Adventure', 'Thriller', 'Mystery'],
+			Tags: ['Space', 'Alien', 'Future', 'Cyberpunk', 'Dystopia'],
+			Studios: [{Name: 'Warner Bros.'}, {Name: 'Legendary'}],
+			ProductionYear: 2020,
+			CommunityRating: 8.5,
+			People: [
+				{Name: 'Ridley Scott', Type: 'Director'},
+				{Name: 'James Cameron', Type: 'Director'},
+				{Name: 'David Fincher', Type: 'Director'},
+				{Name: 'Dan O\'Bannon', Type: 'Writer'},
+				{Name: 'Ronald Shusett', Type: 'Writer'},
+				{Name: 'Walter Hill', Type: 'Writer'},
+				{Name: 'Sigourney Weaver', Type: 'Actor'},
+				{Name: 'Tom Skerritt', Type: 'Actor'},
+				{Name: 'John Hurt', Type: 'Actor'}
+			]
+		};
+
+		const score = scoreCandidate(perfectCandidate, baseCtx);
+		expect(score).toBe(200.0);
+	});
+
+	test('directors use diminishing returns (15, 10, 5 up to 30)', () => {
+		const ctx = {
+			genres: [],
+			tags: [],
+			baseStudios: [],
+			baseName: 'Unrelated',
+			actorNames: [],
+			directorNames: ['Dir1', 'Dir2', 'Dir3', 'Dir4'],
+			writerNames: []
+		};
+
+		const candWithDirs = (names) => ({
+			Name: 'Different',
+			People: names.map((n) => ({Name: n, Type: 'Director'}))
+		});
+
+		expect(scoreCandidate(candWithDirs(['Dir1']), ctx)).toBe(15.0);
+		expect(scoreCandidate(candWithDirs(['Dir1', 'Dir2']), ctx)).toBe(25.0);
+		expect(scoreCandidate(candWithDirs(['Dir1', 'Dir2', 'Dir3']), ctx)).toBe(30.0);
+		expect(scoreCandidate(candWithDirs(['Dir1', 'Dir2', 'Dir3', 'Dir4']), ctx)).toBe(30.0);
+	});
+
+	test('writers use diminishing returns (15, 10, 5 up to 30)', () => {
+		const ctx = {
+			genres: [],
+			tags: [],
+			baseStudios: [],
+			baseName: 'Unrelated',
+			actorNames: [],
+			directorNames: [],
+			writerNames: ['Wri1', 'Wri2', 'Wri3', 'Wri4']
+		};
+
+		const candWithWriters = (names) => ({
+			Name: 'Different',
+			People: names.map((n) => ({Name: n, Type: 'Writer'}))
+		});
+
+		expect(scoreCandidate(candWithWriters(['Wri1']), ctx)).toBe(15.0);
+		expect(scoreCandidate(candWithWriters(['Wri1', 'Wri2']), ctx)).toBe(25.0);
+		expect(scoreCandidate(candWithWriters(['Wri1', 'Wri2', 'Wri3']), ctx)).toBe(30.0);
+		expect(scoreCandidate(candWithWriters(['Wri1', 'Wri2', 'Wri3', 'Wri4']), ctx)).toBe(30.0);
+	});
+
+	test('actors use diminishing returns (10, 6, 4 up to 20)', () => {
+		const ctx = {
+			genres: [],
+			tags: [],
+			baseStudios: [],
+			baseName: 'Unrelated',
+			actorNames: ['Act1', 'Act2', 'Act3', 'Act4'],
+			directorNames: [],
+			writerNames: []
+		};
+
+		const candWithActors = (names) => ({
+			Name: 'Different',
+			People: names.map((n) => ({Name: n, Type: 'Actor'}))
+		});
+
+		expect(scoreCandidate(candWithActors(['Act1']), ctx)).toBe(10.0);
+		expect(scoreCandidate(candWithActors(['Act1', 'Act2']), ctx)).toBe(16.0);
+		expect(scoreCandidate(candWithActors(['Act1', 'Act2', 'Act3']), ctx)).toBe(20.0);
+		expect(scoreCandidate(candWithActors(['Act1', 'Act2', 'Act3', 'Act4']), ctx)).toBe(20.0);
+	});
+
+	test('studios use diminishing returns (12, 8 up to 20)', () => {
+		const ctx = {
+			genres: [],
+			tags: [],
+			baseStudios: ['Studio1', 'Studio2', 'Studio3'],
+			baseName: 'Unrelated',
+			actorNames: [],
+			directorNames: [],
+			writerNames: []
+		};
+
+		const candWithStudios = (names) => ({
+			Name: 'Different',
+			Studios: names.map((n) => ({Name: n}))
+		});
+
+		expect(scoreCandidate(candWithStudios(['Studio1']), ctx)).toBe(12.0);
+		expect(scoreCandidate(candWithStudios(['Studio1', 'Studio2']), ctx)).toBe(20.0);
+		expect(scoreCandidate(candWithStudios(['Studio1', 'Studio2', 'Studio3']), ctx)).toBe(20.0);
+	});
+
+	test('genres are 7 pts each and capped at 35', () => {
+		const ctx = {
+			genres: ['G1', 'G2', 'G3', 'G4', 'G5', 'G6'],
+			tags: [],
+			baseStudios: [],
+			baseName: 'Unrelated',
+			actorNames: [],
+			directorNames: [],
+			writerNames: []
+		};
+
+		expect(scoreCandidate({Name: 'Diff', Genres: ['G1']}, ctx)).toBe(7.0);
+		expect(scoreCandidate({Name: 'Diff', Genres: ['G1', 'G2', 'G3']}, ctx)).toBe(21.0);
+		expect(scoreCandidate({Name: 'Diff', Genres: ['G1', 'G2', 'G3', 'G4', 'G5']}, ctx)).toBe(35.0);
+		expect(scoreCandidate({Name: 'Diff', Genres: ['G1', 'G2', 'G3', 'G4', 'G5', 'G6']}, ctx)).toBe(35.0);
+	});
+
+	test('tags are 4 pts each and capped at 20', () => {
+		const ctx = {
+			genres: [],
+			tags: ['T1', 'T2', 'T3', 'T4', 'T5', 'T6'],
+			baseStudios: [],
+			baseName: 'Unrelated',
+			actorNames: [],
+			directorNames: [],
+			writerNames: []
+		};
+
+		expect(scoreCandidate({Name: 'Diff', Tags: ['T1']}, ctx)).toBe(4.0);
+		expect(scoreCandidate({Name: 'Diff', Tags: ['T1', 'T2']}, ctx)).toBe(8.0);
+		expect(scoreCandidate({Name: 'Diff', Tags: ['T1', 'T2', 'T3', 'T4', 'T5']}, ctx)).toBe(20.0);
+		expect(scoreCandidate({Name: 'Diff', Tags: ['T1', 'T2', 'T3', 'T4', 'T5', 'T6']}, ctx)).toBe(20.0);
+	});
+
+	test('production year decays over 15 years', () => {
+		const ctx = {
+			genres: [],
+			tags: [],
+			baseStudios: [],
+			baseName: 'Unrelated',
+			baseYear: 2020,
+			actorNames: [],
+			directorNames: [],
+			writerNames: []
+		};
+
+		expect(scoreCandidate({Name: 'Diff', ProductionYear: 2020}, ctx)).toBe(10.0);
+		expect(scoreCandidate({Name: 'Diff', ProductionYear: 2017}, ctx)).toBeCloseTo(8.0, 2);
+		expect(scoreCandidate({Name: 'Diff', ProductionYear: 2005}, ctx)).toBe(0.0);
+		expect(scoreCandidate({Name: 'Diff', ProductionYear: 2000}, ctx)).toBe(0.0);
+	});
+
+	test('community rating proximity yields up to 10 points', () => {
+		const ctx = {
+			genres: [],
+			tags: [],
+			baseStudios: [],
+			baseName: 'Unrelated',
+			baseRating: 8.0,
+			actorNames: [],
+			directorNames: [],
+			writerNames: []
+		};
+
+		expect(scoreCandidate({Name: 'Diff', CommunityRating: 8.0}, ctx)).toBe(10.0);
+		expect(scoreCandidate({Name: 'Diff', CommunityRating: 6.0}, ctx)).toBeCloseTo(8.0, 2);
+		expect(scoreCandidate({Name: 'Diff', CommunityRating: 0.0}, ctx)).toBeCloseTo(2.0, 2);
+	});
+
+	test('sequels and pluralized suffixes earn the 25 point bonus', () => {
+		const ctx = {
+			genres: [],
+			tags: [],
+			baseStudios: [],
+			baseName: 'Alien',
+			actorNames: [],
+			directorNames: [],
+			writerNames: []
+		};
+
+		expect(scoreCandidate({Name: 'Aliens'}, ctx)).toBe(25.0);
+		expect(scoreCandidate({Name: 'Alien 3'}, ctx)).toBe(25.0);
+		expect(scoreCandidate({Name: 'The Alienist'}, ctx)).toBe(0.0);
 	});
 });

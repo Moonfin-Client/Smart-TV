@@ -85,49 +85,100 @@ function byDateDesc(dateA, dateB) {
 	return 0;
 }
 
-function scoreCandidate(candidate, ctx) {
+function scoreDiminishing(count, first, second, third = 0) {
+	if (count <= 0) return 0;
+	if (count === 1) return first;
+	if (count === 2) return first + second;
+	return first + second + third;
+}
+
+export function scoreCandidate(candidate, ctx) {
 	let score = 0;
 
+	// Genres: 7.0 pts each, capped at 35.0 (5 matches)
+	let genreMatches = 0;
 	const cGenres = new Set(genreList(candidate));
-	for (const g of ctx.genres) if (cGenres.has(g)) score += 3;
+	for (const g of ctx.genres) {
+		if (cGenres.has(g)) genreMatches++;
+	}
+	score += Math.min(genreMatches * 7, 35);
 
+	// Tags: 4.0 pts each, capped at 20.0 (5 matches)
+	let tagMatches = 0;
 	const cTags = new Set(tagList(candidate));
-	for (const t of ctx.tags) if (cTags.has(t)) score += 3;
+	for (const t of ctx.tags) {
+		if (cTags.has(t)) tagMatches++;
+	}
+	score += Math.min(tagMatches * 4, 20);
 
 	const cPeople = candidate.People || [];
 	const cActors = new Set(namesOf(cPeople, 'Actor'));
 	const cDirectors = new Set(namesOf(cPeople, 'Director'));
 	const cWriters = new Set(namesOf(cPeople, 'Writer'));
-	for (const a of ctx.actorNames) if (cActors.has(a)) score += 5;
-	for (const d of ctx.directorNames) if (cDirectors.has(d)) score += 6;
-	for (const w of ctx.writerNames) if (cWriters.has(w)) score += 6;
 
+	// Directors: 15, 10, 5 diminishing returns (capped at 30.0 pts)
+	let dirMatches = 0;
+	for (const d of ctx.directorNames) {
+		if (cDirectors.has(d)) dirMatches++;
+	}
+	score += scoreDiminishing(dirMatches, 15, 10, 5);
+
+	// Writers: 15, 10, 5 diminishing returns (capped at 30.0 pts)
+	let writerMatches = 0;
+	for (const w of ctx.writerNames) {
+		if (cWriters.has(w)) writerMatches++;
+	}
+	score += scoreDiminishing(writerMatches, 15, 10, 5);
+
+	// Actors: 10, 6, 4 diminishing returns (capped at 20.0 pts)
+	let actorMatches = 0;
+	for (const a of ctx.actorNames) {
+		if (cActors.has(a)) actorMatches++;
+	}
+	score += scoreDiminishing(actorMatches, 10, 6, 4);
+
+	// Studios: 12, 8 diminishing returns (capped at 20.0 pts)
+	let studioMatches = 0;
 	const cStudios = new Set(studioNames(candidate.Studios));
-	for (const s of ctx.baseStudios) if (cStudios.has(s)) score += 3;
+	for (const s of ctx.baseStudios) {
+		if (cStudios.has(s)) studioMatches++;
+	}
+	score += scoreDiminishing(studioMatches, 12, 8);
 
+	// Title / Franchise match: 25.0 pts
+	if (isSequelOrSimilarTitle(ctx.baseName, candidate.Name || '')) score += 25;
+
+	// Production Year: smooth 15-year decay up to 10.0 pts
 	const candYear = candidate.ProductionYear;
 	if (typeof candYear === 'number' && typeof ctx.baseYear === 'number') {
-		if (candYear === ctx.baseYear) score += 2;
-		else if (Math.abs(candYear - ctx.baseYear) <= 3) score += 1;
+		const delta = Math.abs(candYear - ctx.baseYear);
+		score += 10.0 * Math.max(0, 1.0 - (delta / 15.0));
 	}
 
-	if (isSequelOrSimilarTitle(ctx.baseName, candidate.Name || '')) score += 10;
-
+	// Community Rating proximity: up to 10.0 pts
 	const comm = candidate.CommunityRating;
-	if (typeof comm === 'number') score += comm / 10;
+	if (typeof comm === 'number') {
+		if (typeof ctx.baseRating === 'number') {
+			const delta = Math.abs(comm - ctx.baseRating);
+			score += 10.0 * Math.max(0, 1.0 - (delta / 10.0));
+		} else {
+			score += comm;
+		}
+	}
 
 	return score;
 }
 
 // Local recommender. Pulls candidates that share the seeds genres, tags, or
 // people, scores them, and returns the best matches sorted by score.
-async function getRecommendations(api, seed, {includeWatched, candidateItemTypes, limit}) {
+export async function getRecommendations(api, seed, {includeWatched, candidateItemTypes, limit}) {
 	const types = candidateItemTypes || (seed.Type === 'Series' ? 'Series' : 'Movie');
 	const genres = genreList(seed);
 	const tags = tagList(seed);
 	const people = seed.People || [];
 	const baseStudios = studioNames(seed.Studios);
 	const baseYear = typeof seed.ProductionYear === 'number' ? seed.ProductionYear : null;
+	const baseRating = typeof seed.CommunityRating === 'number' ? seed.CommunityRating : null;
 	const baseId = String(seed.Id || '');
 
 	const ctx = {
@@ -135,6 +186,7 @@ async function getRecommendations(api, seed, {includeWatched, candidateItemTypes
 		tags,
 		baseStudios,
 		baseYear,
+		baseRating,
 		baseName: seed.Name || '',
 		actorNames: namesOf(people, 'Actor'),
 		directorNames: namesOf(people, 'Director'),
@@ -189,7 +241,7 @@ async function getRecommendations(api, seed, {includeWatched, candidateItemTypes
 	}
 
 	// Not enough matches, so pull recent titles in the same genres as filler.
-	if (scored.length < 15) {
+	if (scored.length < (limit || 20)) {
 		try {
 			const res = await api.getItems({
 				IncludeItemTypes: types,
