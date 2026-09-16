@@ -98,8 +98,12 @@
 
 .backdropLogo {
 	max-width: 100%;
-	max-height: 75px;
+	// vh-based like the player's logo, so it holds the same relative size
+	// whether the panel reports a 720p, 1080p or 4K viewport (clamp() isn't
+	// safe here - older Tizen/webOS WebKit predates it).
+	max-height: 12vh;
 	object-fit: contain;
+	object-position: left center;
 	pointer-events: none;
 	filter: drop-shadow(0 2px 6px rgba(var(--theme-scrim-rgb, 0, 0, 0), 0.7));
 }

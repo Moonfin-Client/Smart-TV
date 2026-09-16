@@ -1,5 +1,6 @@
 import {useState, useEffect, useRef, useCallback} from 'react';
 import {getImageUrl, getBackdropId, getLogoUrl} from '../../utils/helpers';
+import {autocropLogoUrl} from '../../utils/logoAutocrop';
 import {formatClockTime, shiftedNow} from '../../utils/clock';
 import * as jellyfinApi from '../../services/jellyfinApi';
 import ScreensaverGradient, {isGradientBackdrop} from './ScreensaverGradient';
@@ -142,9 +143,24 @@ const Screensaver = ({
 	const [currentItem, setCurrentItem] = useState(null);
 	const [backdropVisible, setBackdropVisible] = useState(false);
 	const [batchReady, setBatchReady] = useState(false);
+	const [croppedLogoUrl, setCroppedLogoUrl] = useState(null);
 	const backdropTimerRef = useRef(null);
 	const backdropBatchRef = useRef([]);
 	const backdropUsedRef = useRef(0);
+
+	const currentItemLogoUrl = currentItem ? getLogoUrl(serverUrl, currentItem, {maxWidth: 800, quality: 90}) : null;
+
+	// Same padding-trim pass as the video player, so a logo with a lot of
+	// transparent margin baked in doesn't read smaller than a tightly cropped one.
+	useEffect(() => {
+		setCroppedLogoUrl(null);
+		if (!currentItemLogoUrl) return undefined;
+		let cancelled = false;
+		autocropLogoUrl(currentItemLogoUrl).then((result) => {
+			if (!cancelled) setCroppedLogoUrl(result);
+		});
+		return () => { cancelled = true; };
+	}, [currentItemLogoUrl]);
 
 	// Fresh arrays on every parent render would restart the slideshow, so the
 	// query is keyed off the joined ids instead.
@@ -284,7 +300,7 @@ const Screensaver = ({
 
 	const backdropId = currentItem ? getBackdropId(currentItem) : null;
 	const backdropUrl = backdropId ? getImageUrl(serverUrl, backdropId, 'Backdrop', {maxWidth: 1920, quality: 80}) : null;
-	const itemLogoUrl = currentItem ? getLogoUrl(serverUrl, currentItem, {maxWidth: 400, quality: 90}) : null;
+	const displayLogoUrl = croppedLogoUrl || currentItemLogoUrl;
 
 	const renderComponent = () => {
 		if (component === 'moonfinLogo') {
@@ -324,10 +340,10 @@ const Screensaver = ({
 						/>
 					)}
 					<div className={css.backdropVignette} />
-					{currentItem && backdropVisible && itemLogoUrl && (
+					{currentItem && backdropVisible && currentItemLogoUrl && (
 						<div className={css.backdropInfo}>
 							<img
-								src={itemLogoUrl}
+								src={displayLogoUrl}
 								alt={currentItem.Name || ''}
 								className={css.backdropLogo}
 							/>

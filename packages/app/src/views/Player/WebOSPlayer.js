@@ -4,7 +4,7 @@ import Button from '@enact/sandstone/Button';
 import $L from '@enact/i18n/$L';
 import Hls from 'hls.js';
 import * as playback from '../../services/playback';
-import {getImageUrl} from '../../utils/helpers';
+import {getImageUrl, getLogoUrl} from '../../utils/helpers';
 import {api as jellyfinApi, createApiForServer, getServerUrl} from '../../services/jellyfinApi';
 import AudioMode from './audio/AudioMode';
 import useAudioTransport from './audio/useAudioTransport';
@@ -119,6 +119,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 	const [error, setError] = useState(null);
 	const [title, setTitle] = useState('');
 	const [subtitle, setSubtitle] = useState('');
+	const [logoUrl, setLogoUrl] = useState(null);
 	const [playMethod, setPlayMethod] = useState(null);
 	const [isHdrContent, setIsHdrContent] = useState(false);
 	const [isPaused, setIsPaused] = useState(false);
@@ -922,7 +923,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 					displaySubtitle = item.ChannelNumber ? `Channel ${item.ChannelNumber}` : '';
 				} else if (item.SeriesName) {
 					displayTitle = item.SeriesName;
-					displaySubtitle = `S${item.ParentIndexNumber}E${item.IndexNumber} - ${item.Name}`;
+					displaySubtitle = `S${item.ParentIndexNumber}:E${item.IndexNumber} - ${item.Name}`;
 				} else if (result.isAudio) {
 					displayTitle = item.Name;
 					displaySubtitle = item.AlbumArtist || item.Artists?.[0] || item.Album || '';
@@ -930,6 +931,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 				const shouldUseAudioMode = !!result.isAudio || item?.MediaType === 'Audio' || item?.Type === 'Audio';
 				setTitle(displayTitle);
 				setSubtitle(displaySubtitle);
+				setLogoUrl(isLiveTV ? null : getLogoUrl(item?._serverUrl || getServerUrl(), item, {maxWidth: 800, quality: 90}));
 				setIsAudioMode(shouldUseAudioMode);
 				setFocusRow('bottom');
 				setIsFavorite(!!item.UserData?.IsFavorite);
@@ -2891,6 +2893,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 				focusRow={focusRow}
 				title={title}
 				subtitle={subtitle}
+				logoUrl={logoUrl}
 				topButtons={topButtons}
 				bottomButtons={bottomButtons}
 				displayTime={displayTime}

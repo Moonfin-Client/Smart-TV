@@ -19,7 +19,7 @@ import {isPreroll, nextInQueue, shouldAutoAdvance} from '../../utils/cinemaMode'
 import {driftMs, needsSeek, correctionOptions, DRIFT_CHECK_MS, GROUP_SEEK_SETTLE_TIMEOUT_MS} from '../../utils/syncDrift';
 import {createReadyGate} from '../../utils/syncReady';
 import {createSkipGovernor, chooseCorrection} from '../../utils/syncCorrection';
-import {getImageUrl} from '../../utils/helpers';
+import {getImageUrl, getLogoUrl} from '../../utils/helpers';
 import {initPgsCanvasRenderer, disposePgsRenderer, clearPgsCanvas} from '../../utils/pgsRenderer';
 import {supportsAssRenderer, initAssCanvasRenderer, disposeAssRenderer, setAssTime} from '../../utils/assRenderer';
 import {getSubtitleOverlayStyle, getSubtitleTextStyle, sanitizeSubtitleHtml, resolveSubtitleStyleSettings} from '../../utils/subtitleConstants';
@@ -149,6 +149,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 	const [error, setError] = useState(null);
 	const [title, setTitle] = useState('');
 	const [subtitle, setSubtitle] = useState('');
+	const [logoUrl, setLogoUrl] = useState(null);
 	const [playMethod, setPlayMethod] = useState(null);
 	const [isHdrContent, setIsHdrContent] = useState(false);
 	const [isPaused, setIsPaused] = useState(false);
@@ -1398,13 +1399,14 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 					displaySubtitle = item.ChannelNumber ? `Channel ${item.ChannelNumber}` : '';
 				} else if (item.SeriesName) {
 					displayTitle = item.SeriesName;
-					displaySubtitle = `S${item.ParentIndexNumber}E${item.IndexNumber} - ${item.Name}`;
+					displaySubtitle = `S${item.ParentIndexNumber}:E${item.IndexNumber} - ${item.Name}`;
 				} else if (result.isAudio) {
 					displayTitle = item.Name;
 					displaySubtitle = item.AlbumArtist || item.Artists?.[0] || item.Album || '';
 				}
 				setTitle(displayTitle);
 				setSubtitle(displaySubtitle);
+				setLogoUrl(isLiveTV ? null : getLogoUrl(item?._serverUrl || getServerUrl(), item, {maxWidth: 800, quality: 90}));
 				const shouldUseAudioMode = !!result.isAudio || item?.MediaType === 'Audio' || item?.Type === 'Audio';
 				setIsAudioMode(shouldUseAudioMode);
 				setFocusRow('bottom');
@@ -2958,6 +2960,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 				focusRow={focusRow}
 				title={title}
 				subtitle={subtitle}
+				logoUrl={logoUrl}
 				topButtons={topButtons}
 				bottomButtons={bottomButtons}
 				displayTime={displayTime}

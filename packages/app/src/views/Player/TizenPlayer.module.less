@@ -106,6 +106,22 @@
 	text-overflow: ellipsis;
 }
 
+.mediaLogo {
+	display: block;
+	// A fixed px height reads big on a low-res panel and tiny on a 4K one, since
+	// the two report very different viewport heights for the same physical
+	// screen - scaling off vh keeps the logo the same relative size everywhere.
+	// min/max-height are the floor/ceiling for unusually short or tall
+	// viewports (clamp() isn't safe here - older Tizen/webOS WebKit predates it).
+	height: 10vh;
+	min-height: 70px;
+	max-height: 160px;
+	max-width: 100%;
+	object-fit: contain;
+	object-position: left center;
+	margin-bottom: 8px;
+}
+
 .mediaTitle {
 	font-size: 27px;
 	font-weight: 600;

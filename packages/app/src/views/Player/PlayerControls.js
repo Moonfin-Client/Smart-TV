@@ -1,8 +1,9 @@
-import {useCallback, useMemo, useState} from 'react';
+import {useCallback, useEffect, useMemo, useState} from 'react';
 import $L from '@enact/i18n/$L';
 import Scroller from '@enact/sandstone/Scroller';
 import * as playback from '../../services/playback';
 import {getImageUrl} from '../../utils/helpers';
+import {autocropLogoUrl} from '../../utils/logoAutocrop';
 import {getServerUrl} from '../../services/jellyfinApi';
 import TrickplayPreview from '../../components/TrickplayPreview';
 import SubtitleOffsetOverlay from './SubtitleOffsetOverlay';
@@ -114,6 +115,7 @@ const PlayerControls = ({
 	isAudioMode,	isLiveTV,	focusRow,
 	title,
 	subtitle,
+	logoUrl,
 	liveProgram,
 	topButtons,
 	bottomButtons,
@@ -168,6 +170,30 @@ const PlayerControls = ({
 	const { settings } = useSettings();
 	const isTizenPlatform = getPlatform() === 'tizen';
 	const [focusedTooltip, setFocusedTooltip] = useState(null);
+	const [logoLoadFailed, setLogoLoadFailed] = useState(false);
+	const [croppedLogoUrl, setCroppedLogoUrl] = useState(null);
+
+	// A tag that resolved but whose image 404s (stale cache, server hiccup) should
+	// still fall back to text instead of leaving a broken image in the corner.
+	// Logos vary a lot in how much transparent padding is baked into the source
+	// image, so the raw url renders first and is swapped for a trimmed version
+	// once the autocrop pass resolves - keeps every logo reading the same size.
+	useEffect(() => {
+		setLogoLoadFailed(false);
+		setCroppedLogoUrl(null);
+		if (!logoUrl) return undefined;
+		let cancelled = false;
+		autocropLogoUrl(logoUrl).then((result) => {
+			if (!cancelled) setCroppedLogoUrl(result);
+		});
+		return () => { cancelled = true; };
+	}, [logoUrl]);
+
+	const displayLogoUrl = croppedLogoUrl || logoUrl;
+
+	const handleLogoError = useCallback(() => {
+		setLogoLoadFailed(true);
+	}, []);
 
 	const handleTooltipFocus = useCallback((e) => {
 		const label = e.currentTarget.dataset.tooltip;
@@ -266,7 +292,17 @@ const PlayerControls = ({
 						</div>
 					) : (
 						<div className={css.mediaInfo}>
-							{subtitle ? (
+							{logoUrl && !logoLoadFailed ? (
+								<>
+									<img
+										className={css.mediaLogo}
+										src={displayLogoUrl}
+										alt={title}
+										onError={handleLogoError}
+									/>
+									{subtitle && <h1 className={css.mediaTitle}>{subtitle}</h1>}
+								</>
+							) : subtitle ? (
 								<>
 									<p className={css.mediaSecondary}>{title}</p>
 									<h1 className={css.mediaTitle}>{subtitle}</h1>
