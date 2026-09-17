@@ -6,7 +6,7 @@ import {fetchTmdbSeasonRatings, resolveSeriesTmdbId, isRatingSourceAllowed} from
 import {getItemSubtitlePref, getSeriesSubtitlePref, getSeriesAudioPref} from '../../services/subtitlePrefs';
 import {fromServerStream, matchSeriesTrackIndex} from '../../utils/seriesTrackPrefs';
 import {findParentCollections} from './parentCollection';
-import {getOnlineRecommendations, getRecommendations, mergeRecommendations} from '../../services/homeRecommendations';
+import {canScoreSeedLocally, getOnlineRecommendations, getRecommendations, mergeRecommendations} from '../../services/homeRecommendations';
 import {fetchMissingCollectionItems} from './seerrMissingCollectionItems';
 import {buildCollectionIndex, fetchCollectionPage} from './collectionPlaylist';
 
@@ -307,6 +307,9 @@ const useDetailsItem = ({itemId, initialItem, effectiveApi, effectiveServerUrl, 
 					const canScore = scoringRef.current && !!effectiveApi.getMoonfinSimilar;
 					const stock = () => effectiveApi.getSimilar(itemId, SIMILAR_LIMIT, 'moonfin').catch(() => null);
 					const scored = () => effectiveApi.getMoonfinSimilar(itemId, SIMILAR_LIMIT).catch(() => null);
+					const localScored = () => (canScoreSeedLocally(data)
+						? getRecommendations(effectiveApi, data, {includeWatched: true, limit: SIMILAR_LIMIT}).catch(() => [])
+						: Promise.resolve([]));
 
 					if (source === 'server') return {data: await stock(), source: 'jellyfin'};
 
@@ -318,9 +321,7 @@ const useDetailsItem = ({itemId, initialItem, effectiveApi, effectiveServerUrl, 
 					if (source === 'hybrid') {
 						const [stockData, scoredData] = await Promise.all([
 							stock(),
-							canScore
-								? scored()
-								: getRecommendations(effectiveApi, data, {includeWatched: true, limit: SIMILAR_LIMIT}).then(items => ({Items: items})).catch(() => null)
+							canScore ? scored() : localScored().then((items) => ({Items: items}))
 						]);
 						const merged = mergeRecommendations(stockData?.Items, scoredData?.Items, SIMILAR_LIMIT);
 						if (merged.length) return {data: {Items: merged}, source: 'moonfin'};
@@ -331,12 +332,8 @@ const useDetailsItem = ({itemId, initialItem, effectiveApi, effectiveServerUrl, 
 							const scoredData = await scored();
 							if (scoredData?.Items?.length) return {data: scoredData, source: 'moonfin'};
 						}
-						// Fall back to client candidate scoring when Moonbase is unavailable or empty
-						const localRecs = await getRecommendations(effectiveApi, data, {
-							includeWatched: true,
-							limit: SIMILAR_LIMIT
-						}).catch(() => []);
-						if (localRecs && localRecs.length) return {data: {Items: localRecs}, source: 'moonfin'};
+						const localRecs = await localScored();
+						if (localRecs.length) return {data: {Items: localRecs}, source: 'moonfin'};
 					}
 
 					return {data: await effectiveApi.getSimilar(itemId, SIMILAR_LIMIT).catch(() => null), source: 'jellyfin'};

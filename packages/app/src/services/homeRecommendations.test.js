@@ -3,7 +3,7 @@ jest.mock('./jellyfinApi', () => ({
 	HOME_ROW_ITEM_FIELDS: 'Id,Name,Type'
 }));
 
-import {loadSinceYouWatchedRows, mergeRecommendations, RECOMMENDATION_FETCH_LIMIT, scoreCandidate} from './homeRecommendations';
+import {canScoreSeedLocally, loadSinceYouWatchedRows, mergeRecommendations, RECOMMENDATION_FETCH_LIMIT, scoreCandidate} from './homeRecommendations';
 import {
 	getSinceYouWatchedSourceOptions,
 	getRecommendationSystemSourceOptions
@@ -205,6 +205,19 @@ describe('loadSinceYouWatchedRows', () => {
 
 		expect(api.getMoonfinSimilar).not.toHaveBeenCalled();
 		expect(rows[0].items[0].Id).toBe('cand-1');
+	});
+});
+
+describe('canScoreSeedLocally', () => {
+	test('takes films and shows', () => {
+		expect(canScoreSeedLocally({Type: 'Movie'})).toBe(true);
+		expect(canScoreSeedLocally({Type: 'Series'})).toBe(true);
+	});
+
+	test('leaves everything else to the server', () => {
+		for (const Type of ['Episode', 'Season', 'Book', 'AudioBook', 'MusicVideo', 'Video']) {
+			expect(canScoreSeedLocally({Type})).toBe(false);
+		}
 	});
 });
 

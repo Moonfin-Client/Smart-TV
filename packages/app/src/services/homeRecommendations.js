@@ -169,6 +169,10 @@ export function scoreCandidate(candidate, ctx) {
 	return score;
 }
 
+// The scorer only queries films and shows as candidates, so those are the only seeds it can
+// answer for. Moonbase draws the same line, and an episode or a book keeps the server's own row.
+export const canScoreSeedLocally = (seed) => seed.Type === 'Movie' || seed.Type === 'Series';
+
 // Local recommender. Pulls candidates that share the seeds genres, tags, or
 // people, scores them, and returns the best matches sorted by score.
 export async function getRecommendations(api, seed, {includeWatched, candidateItemTypes, limit}) {
