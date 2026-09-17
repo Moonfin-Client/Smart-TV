@@ -949,7 +949,7 @@ export const createApiForServer = (serverUrl, token, userId, serverTypeOverride 
 			serverRequest(`${serverUserRoutes.resume()}Limit=12&Recursive=true&Fields=PrimaryImageAspectRatio,Overview,BackdropImageTags,ParentBackdropImageTags,ParentBackdropItemId,ProviderIds&MediaTypes=Video&EnableTotalRecordCount=false&ExcludeItemTypes=Book`),
 
 		getNextUp: (limit = 12, seriesId = null, maxDays = 0) => {
-			let endpoint = `/Shows/NextUp?UserId=${userId}&Limit=${limit}&Fields=PrimaryImageAspectRatio,Overview,BackdropImageTags,ParentBackdropImageTags,ParentBackdropItemId,ProviderIds`;
+			let endpoint = `/Shows/NextUp?UserId=${userId}&Limit=${limit}&Fields=PrimaryImageAspectRatio,Overview,BackdropImageTags,ParentBackdropImageTags,ParentBackdropItemId,ParentLogoItemId,ParentLogoImageTag,ProviderIds`;
 			if (seriesId) endpoint += `&SeriesId=${seriesId}`;
 			endpoint += nextUpCutoffQuery(seriesId, maxDays, serverTypeOverride);
 			return serverRequest(endpoint);

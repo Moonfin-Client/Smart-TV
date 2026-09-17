@@ -7,7 +7,22 @@
 const ALPHA_THRESHOLD = 16;
 const CROP_PADDING_RATIO = 0.06;
 
+// The bounds only say where to cut, and the cut lands in the same place whether they were read
+// off the full image or a small copy of it. Reading the full one means pulling every pixel back
+// out of the canvas, which is the slow part and happens just as playback is starting.
+const SCAN_WIDTH = 240;
+
+// Every entry holds a whole logo as a data url, and a set left on the screensaver walks the
+// library. Without a ceiling each logo it passes would sit in memory until the app closes.
+const CACHE_LIMIT = 16;
+
 const cache = new Map();
+
+const remember = (key, value) => {
+	if (cache.size >= CACHE_LIMIT) cache.delete(cache.keys().next().value);
+	cache.set(key, value);
+	return value;
+};
 
 // The crossOrigin request is what keeps getImageData from throwing on a canvas
 // tainted by the artwork.
@@ -20,7 +35,7 @@ const loadImage = (src) =>
 		img.src = src;
 	});
 
-const findOpaqueBounds = (data, width, height) => {
+export const findOpaqueBounds = (data, width, height) => {
 	let minX = width, minY = height, maxX = -1, maxY = -1;
 	for (let y = 0; y < height; y++) {
 		const rowOffset = y * width * 4;
@@ -36,6 +51,33 @@ const findOpaqueBounds = (data, width, height) => {
 	return maxX >= minX && maxY >= minY ? {minX, minY, maxX, maxY} : null;
 };
 
+// Reads the ink bounds off a scaled down copy and maps them back onto the source. One scan pixel
+// covers several real ones, so each edge widens to cover the whole pixel that produced it, which
+// keeps a faint outer stroke from being cut off.
+const opaqueBoundsOf = (img, width, height) => {
+	const scale = Math.min(1, SCAN_WIDTH / width);
+	const scanWidth = Math.max(1, Math.round(width * scale));
+	const scanHeight = Math.max(1, Math.round(height * scale));
+
+	const canvas = document.createElement('canvas');
+	canvas.width = scanWidth;
+	canvas.height = scanHeight;
+	const ctx = canvas.getContext('2d');
+	if (!ctx) return null;
+	ctx.drawImage(img, 0, 0, scanWidth, scanHeight);
+
+	const {data} = ctx.getImageData(0, 0, scanWidth, scanHeight);
+	const bounds = findOpaqueBounds(data, scanWidth, scanHeight);
+	if (!bounds) return null;
+
+	return {
+		minX: Math.max(0, Math.floor(bounds.minX / scale)),
+		minY: Math.max(0, Math.floor(bounds.minY / scale)),
+		maxX: Math.min(width - 1, Math.ceil((bounds.maxX + 1) / scale)),
+		maxY: Math.min(height - 1, Math.ceil((bounds.maxY + 1) / scale))
+	};
+};
+
 // Falls back to the untouched URL whenever the crop can't be computed - no
 // image, a server that doesn't allow the cross origin read, or a fully
 // transparent bitmap.
@@ -49,15 +91,7 @@ export const autocropLogoUrl = (logoUrl) => {
 			const {naturalWidth: width, naturalHeight: height} = img;
 			if (!width || !height) return logoUrl;
 
-			const canvas = document.createElement('canvas');
-			canvas.width = width;
-			canvas.height = height;
-			const ctx = canvas.getContext('2d');
-			if (!ctx) return logoUrl;
-			ctx.drawImage(img, 0, 0);
-			const {data} = ctx.getImageData(0, 0, width, height);
-
-			const bounds = findOpaqueBounds(data, width, height);
+			const bounds = opaqueBoundsOf(img, width, height);
 			if (!bounds) return logoUrl;
 
 			const trimmedWidth = bounds.maxX - bounds.minX + 1;
@@ -85,6 +119,5 @@ export const autocropLogoUrl = (logoUrl) => {
 		}
 	})();
 
-	cache.set(logoUrl, promise);
-	return promise;
+	return remember(logoUrl, promise);
 };
