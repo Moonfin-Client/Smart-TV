@@ -1558,6 +1558,8 @@
 	"Show libraries from all connected servers": "Show libraries from all connected servers",
 	"Show messages button": "Show messages button",
 	"Show more ({count} left)": "Show more ({count} left)",
+	"Search {facet}": "Search {facet}",
+	"No {facet} found": "No {facet} found",
 	"Show preview thumbnails when seeking": "Show preview thumbnails when seeking",
 	"Show ratings on individual episodes": "Show ratings on individual episodes",
 	"Show season availability badges on media details pages": "Show season availability badges on media details pages",

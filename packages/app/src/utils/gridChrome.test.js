@@ -185,4 +185,19 @@ describe('filterByStartLetter', () => {
 	test('a letter nothing starts with comes back empty', () => {
 		expect(filterByStartLetter(items, 'Z')).toEqual([]);
 	});
+
+	// An accent does not make it a different word, so the strip has to reach a
+	// title carrying one rather than leaving it parked under hash.
+	test('an accented title files under its own letter', () => {
+		const accented = [{SortName: 'Ángel'}, {SortName: 'Alien'}, {SortName: 'Øster'}];
+
+		expect(filterByStartLetter(accented, 'A')).toEqual([{SortName: 'Ángel'}, {SortName: 'Alien'}]);
+		expect(filterByStartLetter(accented, 'O')).toEqual([{SortName: 'Øster'}]);
+	});
+
+	test('folding an accent away does not empty the hash bucket', () => {
+		const accented = [{SortName: 'Ángel'}, {SortName: '2001'}, {SortName: 'Ω Project'}];
+
+		expect(filterByStartLetter(accented, '#')).toEqual([{SortName: '2001'}, {SortName: 'Ω Project'}]);
+	});
 });

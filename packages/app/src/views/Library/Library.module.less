@@ -67,6 +67,27 @@
 	.search-field();
 }
 
+// The box that narrows a long filter list. The panel is a good deal narrower
+// than the header the mixin was drawn for, and nothing sits in front of the
+// text here, so the height and the lead-in padding come back down.
+.facetSearchWrap {
+	position: relative;
+	padding: 2px 0 8px;
+}
+
+.facetSearchField {
+	.search-field();
+	height: 52px;
+	padding: 0 16px;
+	font-size: 19px;
+}
+
+.facetSearchEmpty {
+	padding: 6px 16px 12px;
+	color: var(--theme-text-secondary, rgba(255, 255, 255, 0.6));
+	font-size: 17px;
+}
+
 .libraryTitle {
 	font-size: 38px;
 	font-weight: 300;

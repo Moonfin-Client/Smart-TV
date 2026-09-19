@@ -1,6 +1,7 @@
 import $L from '@enact/i18n/$L';
 import * as gamesApi from '../services/gamesApi';
 import {deduplicateMediaItems} from './mediaDedup';
+import {foldForSearch} from './accentFolding';
 
 const RESULT_CAP = 24;
 
@@ -62,10 +63,10 @@ export const isCircleType = (type) => type === 'Person';
 
 // Live TV channels are fetched wholesale, so they are matched by name here.
 export const filterByName = (items, query, cap = RESULT_CAP) => {
-	const q = (query || '').toLowerCase().trim();
+	const q = foldForSearch((query || '').trim());
 	if (!q) return [];
 	return (items || [])
-		.filter((item) => (item.Name || '').toLowerCase().includes(q))
+		.filter((item) => foldForSearch(item.Name || '').includes(q))
 		.slice(0, cap);
 };
 
@@ -88,9 +89,9 @@ export const fetchAllGames = async (gameLibraries) => {
 };
 
 export const filterGames = (all, query, cap = RESULT_CAP) => {
-	const q = (query || '').toLowerCase().trim();
+	const q = foldForSearch((query || '').trim());
 	if (!q) return [];
 	return (all || [])
-		.filter((game) => (game.title || '').toLowerCase().includes(q) || (game.fileName || '').toLowerCase().includes(q))
+		.filter((game) => foldForSearch(game.title || '').includes(q) || foldForSearch(game.fileName || '').includes(q))
 		.slice(0, cap);
 };

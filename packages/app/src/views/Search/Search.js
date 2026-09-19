@@ -20,6 +20,7 @@ import {getImageUrl} from '../../utils/helpers';
 import {showsWatchedCheck} from '../../utils/playedState';
 import {isGameLibrary, resolveGameLibraryId} from '../../utils/gameLibrary';
 import {groupSearchResults, aspectClassForType, isCircleType, filterByName, fetchAllGames, filterGames} from '../../utils/searchGroups';
+import {foldForSearch} from '../../utils/accentFolding';
 import SpottableInput from '../../components/SpottableInput/SpottableInput';
 import useStorage from '../../hooks/useStorage';
 import {
@@ -246,9 +247,9 @@ const Search = ({onSelectItem, onSelectSeerrItem, onSelectPerson, onSelectGame, 
 	// Titles for the keyboard's suggestion chips. These come out of the results the
 	// screen already loaded, so offering them costs no extra trip to the server.
 	const fetchKeyboardSuggestions = useCallback((text) => {
-		const typed = text.trim().toLowerCase();
+		const typed = foldForSearch(text.trim());
 		if (!typed) return [];
-		return lastResultNamesRef.current.filter((name) => name.toLowerCase().indexOf(typed) >= 0);
+		return lastResultNamesRef.current.filter((name) => foldForSearch(name).indexOf(typed) >= 0);
 	}, []);
 
 	const handleClearSearch = useCallback(() => {
