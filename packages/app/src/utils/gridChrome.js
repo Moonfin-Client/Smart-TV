@@ -6,6 +6,7 @@
 import Spotlight from '@enact/spotlight';
 
 import {KEYS} from './keys';
+import {foldAccents} from './accentFolding';
 
 export const LETTERS = ['#', 'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z'];
 
@@ -16,7 +17,9 @@ export const filterByStartLetter = (items, startLetter) => {
 	if (!startLetter) return items;
 
 	return items.filter((item) => {
-		const firstChar = (item.SortName || item.Name || '').charAt(0).toUpperCase();
+		// An accent does not make it a different word, so "Ángel" files under A
+		// rather than in the bucket kept for titles that start with a symbol.
+		const firstChar = foldAccents((item.SortName || item.Name || '').charAt(0)).toUpperCase();
 		if (startLetter === '#') return !/[A-Z]/.test(firstChar);
 		return firstChar === startLetter;
 	});

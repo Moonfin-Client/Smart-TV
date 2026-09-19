@@ -23,6 +23,7 @@ import {useStorage} from '../../hooks/useStorage';
 import {buildFilterParams} from '../../utils/libraryFilters';
 import {keepFocusInView} from '../../utils/focusScroll';
 import {KEYS} from '../../utils/keys';
+import {foldForSearch} from '../../utils/accentFolding';
 import useSortSettingsPanels from '../../hooks/useSortSettingsPanels';
 import useStartLetter from '../../hooks/useStartLetter';
 import {GRID_DIRECTIONS, IMAGE_SIZES, IMAGE_TYPES, LETTERS, capitalize, createGridKeyDown, createToolbarKeyDown, cycleValue, focusOverhang, horizontalCellPad, stopPropagation} from '../../utils/gridChrome';
@@ -265,14 +266,22 @@ const Library = ({library, genreFilter, studioFilter, onSelectItem, onViewPhoto,
 	const playlistGrouped = isPlaylistLibrary && playlistGroupingOn && !isFolderView;
 	const groupedActive = (canGroup && groupBy !== 'none') || playlistGrouped;
 
+	// Folding costs a pass over every title, so the names are prepared once per
+	// set of loaded items rather than again on each keystroke.
+	const searchNames = useMemo(
+		() => allItems.map((item) => foldForSearch(item.SortName || item.Name || '')),
+		[allItems]
+	);
+
 	// The header search narrows the items already loaded. It reads the sort name
 	// the server orders by, so a title held as "Matrix, The" still answers to
-	// "matrix".
+	// "matrix", and it folds accents the way the server does for the searches it
+	// answers itself, so "canco" still finds "Cançó".
 	const searchedItems = useMemo(() => {
-		const query = searchQuery.trim().toLowerCase();
+		const query = foldForSearch(searchQuery.trim());
 		if (!query) return allItems;
-		return allItems.filter((item) => (item.SortName || item.Name || '').toLowerCase().indexOf(query) !== -1);
-	}, [allItems, searchQuery]);
+		return allItems.filter((item, index) => searchNames[index].indexOf(query) !== -1);
+	}, [allItems, searchNames, searchQuery]);
 
 	const {startLetter, handleLetterSelect, items} = useStartLetter({
 		allItems: searchedItems,

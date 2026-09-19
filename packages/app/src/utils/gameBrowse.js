@@ -3,26 +3,11 @@
 // A title buckets under its first letter with accents folded off, and anything
 // that does not start with a letter lands under the hash.
 
-// Letters that carry no combining mark to strip, so folding has to name them.
-const FOLD_EXTRAS = {
-	'Æ': 'A', 'æ': 'a',
-	'Ð': 'D', 'ð': 'd',
-	'Đ': 'D', 'đ': 'd',
-	'Ø': 'O', 'ø': 'o',
-	'Þ': 'T', 'þ': 't',
-	'Ł': 'L', 'ł': 'l'
-};
+import {foldAccents, foldForSearch} from './accentFolding';
 
 const WORD_SEPARATORS = /[\s\-_.\\,:;!?()[\]{}'"+&\u2010-\u2015\u2018\u2019\u201c\u201d\/]+/;
 
-const foldForBrowse = (value) => {
-	const text = String(value || '');
-	const stripped = text.normalize ? text.normalize('NFD').replace(/[̀-ͯ]/g, '') : text;
-	return stripped.replace(/[ÆæÐðĐđØøÞþŁł]/g, (ch) => FOLD_EXTRAS[ch] || ch);
-};
-
-const searchWords = (value) => foldForBrowse(value)
-	.toLowerCase()
+const searchWords = (value) => foldForSearch(value)
 	.split(WORD_SEPARATORS)
 	.filter((word) => word.length > 0);
 
@@ -30,7 +15,7 @@ const searchWords = (value) => foldForBrowse(value)
 export const gameQueryWords = (query) => searchWords((query || '').trim());
 
 const letterBucket = (title) => {
-	const trimmed = foldForBrowse(title).replace(/^\s+/, '');
+	const trimmed = foldAccents(title).replace(/^\s+/, '');
 	if (!trimmed) return '#';
 	const initial = trimmed.charAt(0).toUpperCase();
 	return initial >= 'A' && initial <= 'Z' ? initial : '#';
