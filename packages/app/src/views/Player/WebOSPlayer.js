@@ -1909,6 +1909,21 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 		handleBackRef.current = handleBack;
 	}, [handleBack]);
 
+	// Play on the remote is a one way key and must not toggle, so it resumes
+	// through here rather than through handlePlayPause. The rewind belongs to
+	// any unpause, not only the one the OK button asks for; the rest of the
+	// bookkeeping rides the element's own play event in handlePlay.
+	const resumePlayback = useCallback(() => {
+		const video = videoRef.current;
+		if (!video) return;
+		const rewind = settings.unpauseRewind || 0;
+		if (rewind > 0) {
+			video.currentTime = Math.max(0, video.currentTime - rewind);
+		}
+		video.play();
+		healthMonitorRef.current?.setPaused(false);
+	}, [settings.unpauseRewind]);
+
 	const handlePlayPause = useCallback(() => {
 		if (videoRef.current) {
 			showControls();
@@ -1921,19 +1936,13 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 				return;
 			}
 			if (isPaused) {
-				const rewind = settings.unpauseRewind || 0;
-				if (rewind > 0) {
-					const newTime = Math.max(0, videoRef.current.currentTime - rewind);
-					videoRef.current.currentTime = newTime;
-				}
-				videoRef.current.play();
-				healthMonitorRef.current?.setPaused(false);
+				resumePlayback();
 			} else {
 				videoRef.current.pause();
 				healthMonitorRef.current?.setPaused(true);
 			}
 		}
-	}, [isPaused, settings.unpauseRewind, isInGroup, showControls]);
+	}, [isPaused, isInGroup, showControls, resumePlayback]);
 
 	const handleRewind = useCallback(() => {
 		if (videoRef.current) seekByOffset(-skipBackSeconds(settings));
@@ -2610,7 +2619,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 						syncPlayService.sendPlayRequest();
 						return;
 					}
-					videoRef.current.play();
+					resumePlayback();
 				}
 				return;
 			}
@@ -2739,7 +2748,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 
 		window.addEventListener('keydown', handleKeyDown, true);
 		return () => window.removeEventListener('keydown', handleKeyDown, true);
-	}, [controlsVisible, activeModal, closeModal, hideControls, handleBack, showControls, handlePlayPause, handleForward, handleRewind, currentTime, settings.seekStep, seekByOffset, handlePopupKeyDown, bottomButtons.length, isAudioMode, focusRow, skipSegment, showSkipCredits, showNextEpisode, isLiveTV, isInGroup]);
+	}, [controlsVisible, activeModal, closeModal, hideControls, handleBack, showControls, handlePlayPause, resumePlayback, handleForward, handleRewind, currentTime, settings.seekStep, seekByOffset, handlePopupKeyDown, bottomButtons.length, isAudioMode, focusRow, skipSegment, showSkipCredits, showNextEpisode, isLiveTV, isInGroup]);
 
 	const displayTime = isSeeking ? (seekPosition / 10000000) : currentTime;
 	const progressPercent = duration > 0 ? (displayTime / duration) * 100 : 0;

@@ -1848,9 +1848,50 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 		}, RESUME_CHECK_MS);
 	}, []);
 
+	// AVPlay is not a media element, so nothing fires on a state change and every
+	// pause has to do its own bookkeeping. Play and Pause on the remote are one
+	// way keys and must not toggle, so they call these directly while the OK
+	// button and the Play/Pause key come through handlePlayPause below. Leaving
+	// them to open code their own avplayPause is what let the unpause rewind and
+	// the pause report apply to some of the ways in and not others.
+	const pausePlayback = useCallback(() => {
+		// In a group the request goes to the server because acting locally would
+		// silently desync this client.
+		if (isInGroup && !syncPlayCommandRef.current) {
+			syncPlayService.sendPauseRequest();
+			return;
+		}
+		avplayPause();
+		setIsPaused(true);
+		// Pause bug where the playe would thro erros when paused for longer
+		healthMonitorRef.current?.setPaused(true);
+		playback.reportProgress(positionRef.current, { isPaused: true, eventName: 'pause' });
+	}, [isInGroup]);
+
+	const resumePlayback = useCallback(() => {
+		if (isInGroup && !syncPlayCommandRef.current) {
+			syncPlayService.sendPlayRequest();
+			return;
+		}
+		const rewind = settings.unpauseRewind || 0;
+		if (rewind > 0) {
+			const ms = avplayGetCurrentTime();
+			const newMs = Math.max(0, ms - rewind * 1000);
+			avplaySeek(newMs).catch(() => {});
+		}
+		avplayPlay();
+		setIsPaused(false);
+		healthMonitorRef.current?.setPaused(false);
+		verifyResumeHealthy();
+		playback.reportProgress(positionRef.current, { isPaused: false, eventName: 'unpause' });
+	}, [settings.unpauseRewind, isInGroup, verifyResumeHealthy]);
+
 	const handlePlayPause = useCallback(() => {
 		const state = avplayGetState();
 		if (isInGroup && !syncPlayCommandRef.current) {
+			// A state that is neither of the two below still counts as not
+			// playing to the group, so the toggle asks the server here rather
+			// than through the pair above.
 			if (state === 'PLAYING') {
 				syncPlayService.sendPauseRequest();
 			} else {
@@ -1859,25 +1900,11 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 			return;
 		}
 		if (state === 'PLAYING') {
-			avplayPause();
-			setIsPaused(true);
-			// Pause bug where the playe would thro erros when paused for longer
-			healthMonitorRef.current?.setPaused(true);
-			playback.reportProgress(positionRef.current, { isPaused: true, eventName: 'pause' });
+			pausePlayback();
 		} else if (state === 'PAUSED' || state === 'READY') {
-			const rewind = settings.unpauseRewind || 0;
-			if (rewind > 0) {
-				const ms = avplayGetCurrentTime();
-				const newMs = Math.max(0, ms - rewind * 1000);
-				avplaySeek(newMs).catch(() => {});
-			}
-			avplayPlay();
-			setIsPaused(false);
-			healthMonitorRef.current?.setPaused(false);
-			verifyResumeHealthy();
-			playback.reportProgress(positionRef.current, { isPaused: false, eventName: 'unpause' });
+			resumePlayback();
 		}
-	}, [settings.unpauseRewind, isInGroup, verifyResumeHealthy]);
+	}, [isInGroup, pausePlayback, resumePlayback]);
 
 	const handleRewind = useCallback(() => {
 		if (!avplayReadyRef.current) return;
@@ -2641,15 +2668,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 				showControls();
 				const state = avplayGetState();
 				if (state === 'PAUSED' || state === 'READY') {
-					// In a group the request goes to the server because acting
-					// locally would silently desync this client.
-					if (isInGroup && !syncPlayCommandRef.current) {
-						syncPlayService.sendPlayRequest();
-						return;
-					}
-					avplayPlay();
-					setIsPaused(false);
-					verifyResumeHealthy();
+					resumePlayback();
 				}
 				return;
 			}
@@ -2657,14 +2676,8 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 				e.preventDefault();
 				e.stopPropagation();
 				showControls();
-				const state = avplayGetState();
-				if (state === 'PLAYING') {
-					if (isInGroup && !syncPlayCommandRef.current) {
-						syncPlayService.sendPauseRequest();
-						return;
-					}
-					avplayPause();
-					setIsPaused(true);
+				if (avplayGetState() === 'PLAYING') {
+					pausePlayback();
 				}
 				return;
 			}
@@ -2797,7 +2810,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 
 		window.addEventListener('keydown', handleKeyDown, true);
 		return () => window.removeEventListener('keydown', handleKeyDown, true);
-	}, [controlsVisible, activeModal, closeModal, hideControls, handleBack, showControls, handlePlayPause, handleForward, handleRewind, currentTime, duration, settings.seekStep, handlePopupKeyDown, bottomButtons.length, isAudioMode, focusRow, scheduleDeferredSeek, skipSegment, showSkipCredits, showNextEpisode, isLiveTV, isInGroup, verifyResumeHealthy]);
+	}, [controlsVisible, activeModal, closeModal, hideControls, handleBack, showControls, handlePlayPause, pausePlayback, resumePlayback, handleForward, handleRewind, currentTime, duration, settings.seekStep, handlePopupKeyDown, bottomButtons.length, isAudioMode, focusRow, scheduleDeferredSeek, skipSegment, showSkipCredits, showNextEpisode, isLiveTV]);
 
 	// Calculate progress - use seekPosition when actively seeking for smooth scrubbing
 	const displayTime = isSeeking ? (seekPosition / 10000000) : currentTime;
