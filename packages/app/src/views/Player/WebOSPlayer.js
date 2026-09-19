@@ -2273,6 +2273,9 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 
 	const handleProgressClick = useCallback((e) => {
 		if (!videoRef.current) return;
+		// Spotlight emulates a click from the OK key, and that event carries no
+		// pointer coordinates. Only a real pointer click seeks to a position.
+		if (!Number.isFinite(e.clientX)) return;
 		const rect = e.currentTarget.getBoundingClientRect();
 		const percent = (e.clientX - rect.left) / rect.width;
 		const newTime = percent * duration;
@@ -2293,6 +2296,13 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 			e.preventDefault();
 			setIsSeeking(true);
 			seekByOffset(step, true);
+		} else if (e.key === 'Enter' || e.keyCode === 13) {
+			// Arrows already applied the jump, so OK on the bar toggles playback
+			// instead of doing nothing and forcing a trip down to the play/pause
+			// button.
+			e.preventDefault();
+			setIsSeeking(false);
+			handlePlayPause();
 		} else if (e.key === 'ArrowUp' || e.keyCode === 38) {
 			e.preventDefault();
 			const next = isAudioMode ? nextAudioFocusRow('progress', 'up') : 'bottom';
@@ -2307,7 +2317,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 				window.requestAnimationFrame(() => Spotlight.focus('play-pause-btn'));
 			}
 		}
-	}, [settings.seekStep, seekByOffset, showControls, isAudioMode]);
+	}, [settings.seekStep, seekByOffset, showControls, handlePlayPause, isAudioMode]);
 
 	const handleProgressBlur = useCallback(() => {
 		setIsSeeking(false);

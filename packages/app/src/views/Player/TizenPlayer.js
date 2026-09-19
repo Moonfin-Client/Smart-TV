@@ -2150,6 +2150,9 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 	// Progress bar seeking
 	const handleProgressClick = useCallback((e) => {
 		if (!avplayReadyRef.current) return;
+		// Spotlight emulates a click from the OK key, and that event carries no
+		// pointer coordinates. Only a real pointer click seeks to a position.
+		if (!Number.isFinite(e.clientX)) return;
 		const rect = e.currentTarget.getBoundingClientRect();
 		const percent = (e.clientX - rect.left) / rect.width;
 		const newTimeMs = percent * duration * 1000;
@@ -2207,8 +2210,13 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 			scheduleDeferredSeek(newMs);
 		} else if (e.key === 'Enter' || e.keyCode === 13) {
 			e.preventDefault();
+			// Mid-scrub, OK still commits the pending jump. Once it has landed the
+			// bar has nothing to confirm, so OK toggles playback instead of doing
+			// nothing and forcing a trip down to the play/pause button.
+			const hadPendingSeek = pendingSeekMsRef.current != null;
 			executeDeferredSeek();
 			setIsSeeking(false);
+			if (!hadPendingSeek) handlePlayPause();
 		} else if (e.key === 'ArrowUp' || e.keyCode === 38) {
 			e.preventDefault();
 			executeDeferredSeek();
@@ -2225,7 +2233,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 				window.requestAnimationFrame(() => Spotlight.focus('play-pause-btn'));
 			}
 		}
-	}, [settings.seekStep, showControls, scheduleDeferredSeek, executeDeferredSeek, isAudioMode]); // eslint-disable-line react-hooks/exhaustive-deps
+	}, [settings.seekStep, showControls, scheduleDeferredSeek, executeDeferredSeek, handlePlayPause, isAudioMode]); // eslint-disable-line react-hooks/exhaustive-deps
 
 	const handleProgressBlur = useCallback(() => {
 		executeDeferredSeek();
