@@ -78,9 +78,9 @@ const opaqueBoundsOf = (img, width, height) => {
 	};
 };
 
-// Falls back to the untouched URL whenever the crop can't be computed - no
-// image, a server that doesn't allow the cross origin read, or a fully
-// transparent bitmap.
+// Falls back to the untouched url (and a null aspectRatio) whenever the crop
+// can't be computed - no image, a server that doesn't allow the cross origin
+// read, or a fully transparent bitmap.
 export const autocropLogoUrl = (logoUrl) => {
 	if (!logoUrl) return Promise.resolve(null);
 	if (cache.has(logoUrl)) return cache.get(logoUrl);
@@ -89,10 +89,10 @@ export const autocropLogoUrl = (logoUrl) => {
 		try {
 			const img = await loadImage(logoUrl);
 			const {naturalWidth: width, naturalHeight: height} = img;
-			if (!width || !height) return logoUrl;
+			if (!width || !height) return {url: logoUrl, aspectRatio: null};
 
 			const bounds = opaqueBoundsOf(img, width, height);
-			if (!bounds) return logoUrl;
+			if (!bounds) return {url: logoUrl, aspectRatio: null};
 
 			const trimmedWidth = bounds.maxX - bounds.minX + 1;
 			const trimmedHeight = bounds.maxY - bounds.minY + 1;
@@ -106,16 +106,19 @@ export const autocropLogoUrl = (logoUrl) => {
 			outCanvas.width = trimmedWidth;
 			outCanvas.height = trimmedHeight + padY * 2;
 			const outCtx = outCanvas.getContext('2d');
-			if (!outCtx) return logoUrl;
+			if (!outCtx) return {url: logoUrl, aspectRatio: null};
 			outCtx.drawImage(
 				img,
 				bounds.minX, bounds.minY, trimmedWidth, trimmedHeight,
 				0, padY, trimmedWidth, trimmedHeight
 			);
 
-			return outCanvas.toDataURL('image/png');
+			return {
+				url: outCanvas.toDataURL('image/png'),
+				aspectRatio: outCanvas.width / outCanvas.height
+			};
 		} catch {
-			return logoUrl;
+			return {url: logoUrl, aspectRatio: null};
 		}
 	})();
 
