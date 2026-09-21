@@ -97,31 +97,56 @@ export const getSubtitlePositionOptions = () => [
 
 export const getSubtitleColorOptions = () => [
 	{ value: '#ffffff', label: $L('White') },
-	{ value: '#ffff00', label: $L('Yellow') },
-	{ value: '#00ffff', label: $L('Cyan') },
-	{ value: '#ff00ff', label: $L('Magenta') },
-	{ value: '#00ff00', label: $L('Green') },
-	{ value: '#ff0000', label: $L('Red') },
+	{ value: '#cccccc', label: $L('Light Grey') },
 	{ value: '#808080', label: $L('Grey') },
-	{ value: '#404040', label: $L('Dark Grey') }
+	{ value: '#404040', label: $L('Dark Grey') },
+	{ value: '#000000', label: $L('Black') },
+	{ value: '#ffff00', label: $L('Yellow') },
+	{ value: '#00ff00', label: $L('Green') },
+	{ value: '#00ffff', label: $L('Cyan') },
+	{ value: '#0000ff', label: $L('Blue') },
+	{ value: '#ff00ff', label: $L('Magenta') },
+	{ value: '#ff0000', label: $L('Red') },
+	{ value: '#000080', label: $L('Navy') },
+	{ value: '#00000000', label: $L('Transparent') },
+	{ value: '#00000080', label: $L('Semi-transparent Black') },
+	{ value: '#ffffff80', label: $L('Semi-transparent White') }
 ];
 
 export const getSubtitleShadowColorOptions = () => [
 	{ value: '#000000', label: $L('Black') },
 	{ value: '#ffffff', label: $L('White') },
+	{ value: '#cccccc', label: $L('Light Grey') },
 	{ value: '#808080', label: $L('Grey') },
 	{ value: '#404040', label: $L('Dark Grey') },
-	{ value: '#ff0000', label: $L('Red') },
+	{ value: '#ffff00', label: $L('Yellow') },
 	{ value: '#00ff00', label: $L('Green') },
-	{ value: '#0000ff', label: $L('Blue') }
+	{ value: '#00ffff', label: $L('Cyan') },
+	{ value: '#0000ff', label: $L('Blue') },
+	{ value: '#ff00ff', label: $L('Magenta') },
+	{ value: '#ff0000', label: $L('Red') },
+	{ value: '#000080', label: $L('Navy') },
+	{ value: '#00000000', label: $L('Transparent') },
+	{ value: '#00000080', label: $L('Semi-transparent Black') },
+	{ value: '#ffffff80', label: $L('Semi-transparent White') }
 ];
 
 export const getSubtitleBackgroundColorOptions = () => [
 	{ value: '#000000', label: $L('Black') },
 	{ value: '#ffffff', label: $L('White') },
+	{ value: '#cccccc', label: $L('Light Grey') },
 	{ value: '#808080', label: $L('Grey') },
 	{ value: '#404040', label: $L('Dark Grey') },
-	{ value: '#000080', label: $L('Navy') }
+	{ value: '#ffff00', label: $L('Yellow') },
+	{ value: '#00ff00', label: $L('Green') },
+	{ value: '#00ffff', label: $L('Cyan') },
+	{ value: '#0000ff', label: $L('Blue') },
+	{ value: '#ff00ff', label: $L('Magenta') },
+	{ value: '#ff0000', label: $L('Red') },
+	{ value: '#000080', label: $L('Navy') },
+	{ value: '#00000000', label: $L('Transparent') },
+	{ value: '#00000080', label: $L('Semi-transparent Black') },
+	{ value: '#ffffff80', label: $L('Semi-transparent White') }
 ];
 
 export const getSeekStepOptions = () => [
