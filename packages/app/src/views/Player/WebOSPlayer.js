@@ -2432,7 +2432,12 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 		},
 		playPause: handlePlayPause,
 		stop: handleBack,
-		release: teardownPlayback,
+		// Swaps in place the way Next Up does. The full teardown behind Back makes the next
+		// load sit out the webOS decoder release wait, about three seconds.
+		release: async () => {
+			cancelNextEpisodeCountdown();
+			await playback.reportStop(videoRef.current ? Math.floor(videoRef.current.currentTime * 10000000) : positionRef.current);
+		},
 		seek: (ticks) => {
 			dropScrub();
 			if (!groupSeekTo(ticks)) seekToTicks(ticks);
