@@ -1,4 +1,4 @@
-import {formatDuration, videoResolutionLabel} from './helpers';
+import {formatDuration, toAbsoluteImageUrl, videoResolutionLabel} from './helpers';
 
 const video = (Width, Height, extra = {}) => ({
 	MediaStreams: [{Type: 'Audio'}, {Type: 'Video', Width, Height, ...extra}]
@@ -68,5 +68,40 @@ describe('videoResolutionLabel', () => {
 
 	it('reads dimensions the server sent as text', () => {
 		expect(videoResolutionLabel(video('1920', '1080'))).toBe('1080p');
+	});
+});
+
+describe('toAbsoluteImageUrl', () => {
+	const server = 'https://media.example';
+
+	it('leaves an absolute url alone', () => {
+		expect(toAbsoluteImageUrl('https://image.tmdb.org/t/p/w500/a.jpg', server)).toBe(
+			'https://image.tmdb.org/t/p/w500/a.jpg'
+		);
+		expect(toAbsoluteImageUrl('http://art.example/a.jpg', server)).toBe('http://art.example/a.jpg');
+	});
+
+	// A TV browser on an https page drops protocol-relative images.
+	it('pins a protocol-relative url to https', () => {
+		expect(toAbsoluteImageUrl('//art.example/a.jpg', server)).toBe('https://art.example/a.jpg');
+	});
+
+	it('hangs a path off the server it belongs to', () => {
+		expect(toAbsoluteImageUrl('/Items/1/Images/Primary', server)).toBe(
+			'https://media.example/Items/1/Images/Primary'
+		);
+		expect(toAbsoluteImageUrl('Items/1/Images/Primary', server)).toBe(
+			'https://media.example/Items/1/Images/Primary'
+		);
+	});
+
+	it('returns the path unchanged when there is no server to resolve against', () => {
+		expect(toAbsoluteImageUrl('/Items/1/Images/Primary', null)).toBe('/Items/1/Images/Primary');
+	});
+
+	it('answers null for anything that is not a url', () => {
+		expect(toAbsoluteImageUrl(null, server)).toBeNull();
+		expect(toAbsoluteImageUrl('', server)).toBeNull();
+		expect(toAbsoluteImageUrl(42, server)).toBeNull();
 	});
 });

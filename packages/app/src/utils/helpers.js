@@ -28,6 +28,16 @@ export const getImageUrl = (serverUrl, itemId, imageType = 'Primary', options = 
 	return `${serverUrl}/Items/${itemId}/Images/${imageType}${queryString ? '?' + queryString : ''}`;
 };
 
+// Resolves Seerr or TMDB artwork, which can be absolute, protocol-relative, or a path on its server.
+export const toAbsoluteImageUrl = (url, serverUrl) => {
+	if (!url || typeof url !== 'string') return null;
+	if (url.startsWith('http://') || url.startsWith('https://')) return url;
+	if (url.startsWith('//')) return `https:${url}`;
+	if (!serverUrl) return url;
+	if (url.startsWith('/')) return `${serverUrl}${url}`;
+	return `${serverUrl}/${url}`;
+};
+
 export const getBackdropId = (item) => {
 	if (!item) return null;
 	// Only return ID if the item actually has backdrop images

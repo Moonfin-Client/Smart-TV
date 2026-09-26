@@ -1,6 +1,6 @@
 import {memo, useCallback, useMemo, useRef, useEffect} from 'react';
 import Spottable from '@enact/spotlight/Spottable';
-import {getImageUrl} from '../../utils/helpers';
+import {getImageUrl, toAbsoluteImageUrl} from '../../utils/helpers';
 import {useSettings} from '../../context/SettingsContext';
 import {SeerrSeasonDot} from '../seerr/SeerrStatusBadge';
 import {showsWatchedCheck} from '../../utils/playedState';
@@ -20,15 +20,6 @@ export const classicCardSize = (shape, posterSize) => {
 	const multiplier = POSTER_SIZE_MULTIPLIERS[posterSize] || 1;
 	const [width, height] = BASE_SIZES[shape];
 	return {width: Math.round(width * multiplier), height: Math.round(height * multiplier)};
-};
-
-const toAbsoluteImageUrl = (url, serverUrl) => {
-	if (!url || typeof url !== 'string') return null;
-	if (url.startsWith('http://') || url.startsWith('https://')) return url;
-	if (url.startsWith('//')) return `https:${url}`;
-	if (!serverUrl) return url;
-	if (url.startsWith('/')) return `${serverUrl}${url}`;
-	return `${serverUrl}/${url}`;
 };
 
 // The wide artwork a row asked for, or null when the item carries none of it. Handing
