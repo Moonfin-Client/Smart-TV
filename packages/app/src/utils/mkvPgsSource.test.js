@@ -110,7 +110,7 @@ const trackEntry = (number, type, codec) => element(0xae, join([
  * Build a real Matroska file with a subtitle cue per cluster, so the source sees the same
  * layout it sees in the wild: cues at the end, subtitle blocks buried behind filler.
  */
-const buildFile = ({subtitleTimes, fillerBytes = 200 * 1024}) => {
+const buildFile = ({subtitleTimes, fillerBytes = 200 * 1024, subtitlePayloadBytes = 0}) => {
 	const tracks = element(0x1654ae6b, join([
 		trackEntry(1, 1, 'V_MPEGH/ISO/HEVC'),
 		trackEntry(2, 17, 'S_HDMV/PGS')
@@ -128,7 +128,9 @@ const buildFile = ({subtitleTimes, fillerBytes = 200 * 1024}) => {
 	const cuePoints = [];
 	for (const time of subtitleTimes) {
 		const filler = new Uint8Array(fillerBytes).fill(0x55);
-		const subtitle = displaySet(time & 0xff);
+		const subtitle = subtitlePayloadBytes > 0
+			? join([displaySet(time & 0xff), pgsSegment(0x15, new Uint8Array(subtitlePayloadBytes).fill(time & 0xff))])
+			: displaySet(time & 0xff);
 		const block = element(0xa3, simpleBlock(2, subtitle));
 		const timecode = element(0xe7, uintBytes(time, 4));
 		const video = element(0xa3, simpleBlock(1, filler));
@@ -263,6 +265,30 @@ describe('mkvPgsSource', () => {
 		expect([...new Set(ptsOf(out))]).toEqual([2000 * 90, 3000 * 90]);
 		expect(out[0]).toBe(0x50);
 		expect(out[1]).toBe(0x47);
+	});
+
+	test('fetches only the unread tail of a large SimpleBlock', async () => {
+		const bytes = buildFile({subtitleTimes: [1000], fillerBytes: 32, subtitlePayloadBytes: 4096});
+		const ranges = [];
+		serveFile(bytes, {ranges});
+		const source = createInBandPgsSource({
+			streamUrl: 'http://server/Videos/1/stream?Static=true',
+			subtitleOrdinal: 0,
+			getTime: () => 0,
+			lookaheadSeconds: 10
+		});
+		await source.ready;
+		const out = await readAll(source);
+		expect(out.length).toBeGreaterThan(4096);
+
+		// Once a 64-byte block probe has been made, the follow-up starts exactly
+		// after it instead of downloading those bytes again.
+		const contiguous = ranges.some((range, index) => {
+			if (index === 0 || !range) return false;
+			const previous = ranges[index - 1];
+			return previous && previous[1] - previous[0] + 1 === 64 && range[0] === previous[1] + 1;
+		});
+		expect(contiguous).toBe(true);
 	});
 
 	test('reads a small share of the file rather than all of it', async () => {
