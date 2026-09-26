@@ -665,6 +665,8 @@ export const SETTINGS_SCHEMA = [
 					{kind: KIND.OPTION, key: 'subtitleLanguage', label: () => $L('Default Subtitle Language'), options: getSubtitleLanguageOptions, fallback: () => $L('None'), icon: 'language'},
 					{kind: KIND.OPTION, key: 'fallbackSubtitleLanguage', label: () => $L('Fallback Subtitle Language'), desc: () => $L('Used when no track matches the default subtitle language'), options: getSubtitleLanguageOptions, fallback: () => $L('None'), icon: 'language'},
 					{kind: KIND.TOGGLE, key: 'preferSdhSubtitles', label: () => $L('Prefer SDH subtitles'), desc: () => $L('Pick subtitles for the deaf and hard of hearing when available'), icon: 'hearing'},
+					{kind: KIND.TOGGLE, key: 'preferTextSubtitles', label: () => $L('Prefer text subtitles'), desc: () => $L('Prioritize text-based subtitles (SRT, VTT) over image-based formats (PGS, VobSub)'), icon: 'subtitles'},
+					{kind: KIND.TOGGLE, key: 'preferExternalSubtitles', label: () => $L('Prefer external subtitles'), desc: () => $L('Prioritize external subtitle files over embedded tracks'), icon: 'folder'},
 					{kind: KIND.SECTION, id: 'subtitleCustomization', label: () => $L('Subtitle Customization')},
 					{kind: KIND.OPTION, key: 'subtitleSize', label: () => $L('Subtitle Size'), options: getSubtitleSizeOptions, fallback: () => $L('Medium'), icon: 'textinput'},
 					{kind: KIND.OPTION, key: 'subtitlePosition', label: () => $L('Subtitle Position'), options: getSubtitlePositionOptions, fallback: () => $L('Bottom'), icon: 'arrowlargedown'},

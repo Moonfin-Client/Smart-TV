@@ -444,7 +444,7 @@ const PlayerControls = ({
 								onClick={handleSelectSubtitle}
 								onKeyDown={handleSubtitleKeyDown}
 							/>
-							{sortSubtitleStreams(subtitleStreams).map((stream, i) => (
+							{sortSubtitleStreams(subtitleStreams, settings?.preferExternalSubtitles === true).map((stream, i) => (
 								<TrackOptionRow
 									key={stream.index}
 									label={numberedTrackName(i + 1, stream.displayTitle, $L('Subtitle'))}

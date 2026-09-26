@@ -22,6 +22,9 @@ import {
 	remoteSubtitleDownloadError,
 	remoteSubtitleNotAppearedMessage
 } from '../Player/remoteSubtitleUtils';
+import {resolveBestSubtitle} from '../Player/initialSubtitle';
+import {getSeriesSubtitlePref} from '../../services/subtitlePrefs';
+import {fromServerStream, matchSeriesTrackIndex} from '../../utils/seriesTrackPrefs';
 import useLongPress from '../../utils/longPress';
 import {formatPlaybackEndsAt} from '../../utils/playbackTimeLabels';
 import {formatFileSize} from '../../utils/formatFileSize';
@@ -272,6 +275,34 @@ const Details = ({itemId: itemIdProp, initialItem, onPlay, onSelectItem, onSelec
 	// preferences would never get a say.
 	const subtitleChosenRef = useRef(false);
 	const audioChosenRef = useRef(false);
+
+	useEffect(() => {
+		if (subtitleChosenRef.current) return;
+		const playMediaSource = item?.MediaSources?.[selectedVersionIndex] || item?.MediaSources?.[0];
+		const subs = playMediaSource?.MediaStreams?.filter(s => s.Type === 'Subtitle') || [];
+		if (!subs.length) {
+			setSelectedSubtitleIndex(-1);
+			return;
+		}
+		if (item?.SeriesId) {
+			getSeriesSubtitlePref(item.SeriesId).then((seriesPref) => {
+				if (subtitleChosenRef.current) return;
+				const matched = seriesPref
+					? matchSeriesTrackIndex(subs.map(fromServerStream), seriesPref)
+					: null;
+				if (matched === -1) {
+					setSelectedSubtitleIndex(-1);
+				} else if (matched !== null) {
+					const pos = subs.findIndex(s => s.Index === matched);
+					if (pos >= 0) setSelectedSubtitleIndex(pos);
+				} else {
+					setSelectedSubtitleIndex(resolveBestSubtitle(subs, settings, playMediaSource));
+				}
+			});
+		} else {
+			setSelectedSubtitleIndex(resolveBestSubtitle(subs, settings, playMediaSource));
+		}
+	}, [item, selectedVersionIndex, settings, setSelectedSubtitleIndex]);
 
 	// The version, audio and subtitle picks made on this screen, in the shape the
 	// player wants them. Shared with the advanced playback menu so both routes start
@@ -956,6 +987,7 @@ const Details = ({itemId: itemIdProp, initialItem, onPlay, onSelectItem, onSelec
 				selectedVersionIndex={selectedVersionIndex}
 				selectedAudioIndex={selectedAudioIndex}
 				selectedSubtitleIndex={selectedSubtitleIndex}
+				preferExternalSubtitles={settings.preferExternalSubtitles === true}
 				onSelectTranscodeQuality={handleSelectTranscodeQuality}
 				onSelectVersion={handleSelectVersion}
 				onSelectAudio={handleSelectAudio}
