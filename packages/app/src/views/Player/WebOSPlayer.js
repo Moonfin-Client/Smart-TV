@@ -569,9 +569,16 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 		pgsRendererRef.current = null;
 		pgsInitRef.current = null;
 		try {
-			const renderer = stream.inBand ?
+			let renderer = stream.inBand ?
 				await initPgsInBandRenderer(videoRef.current, stream, {startTime: videoRef.current.currentTime}) :
 				await initPgsRenderer(videoRef.current, stream);
+			// Keep Jellyfin's sidecar URL as a lazy fallback. Merely carrying the URL
+			// does not start extraction; it is fetched only if the range-demux path
+			// cannot read this Matroska (missing Cues, unsupported layout, no Range).
+			if (!renderer && stream.inBand && stream.deliveryUrl) {
+				console.warn('[Player] In-band PGS unavailable, falling back to sidecar');
+				renderer = await initPgsRenderer(videoRef.current, stream);
+			}
 			if (!renderer) {
 				console.error('[Player] PGS renderer returned null');
 				setSubtitleTrackEvents(null);
