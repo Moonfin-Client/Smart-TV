@@ -24,6 +24,8 @@ export const memoryCache = {
 	// Which shape of the recent rows these were built for, since a cache of per
 	// library rows says nothing about the merged ones and the other way round.
 	rowConfigKey: null,
+	// The media bar settings the shown items were drawn for; a set drawn for other settings replaces them.
+	featuredConfigKey: null,
 	// Whose rows these are. Kept so a fresh mount can tell an account change, which has to
 	// throw the rows away, apart from an ordinary return to the home screen, which is the
 	// whole reason the cache is here. Emptying the rows leaves it alone, since a refresh
@@ -31,12 +33,15 @@ export const memoryCache = {
 	owner: null
 };
 
-export const clearMemoryCache = () => {
+// A refresh keeps the media bar unless the caller asks for it, or an account change clears everything.
+export const clearMemoryCache = ({keepFeatured = false} = {}) => {
 	memoryCache.rowData = null;
 	memoryCache.libraries = null;
-	memoryCache.featuredItems = null;
 	memoryCache.timestamp = null;
 	memoryCache.rowConfigKey = null;
+	if (keepFeatured) return;
+	memoryCache.featuredItems = null;
+	memoryCache.featuredConfigKey = null;
 };
 
 export const isCacheValid = (timestamp, ttl) => {
@@ -148,7 +153,8 @@ export const saveBrowseCache = (rowData, libraries, featuredItems, {serverUrl, u
 				timestamp: Date.now(),
 				serverUrl,
 				userId,
-				rowConfigKey: memoryCache.rowConfigKey
+				rowConfigKey: memoryCache.rowConfigKey,
+				featuredConfigKey: memoryCache.featuredConfigKey
 			});
 			lastSignature = signature;
 		} catch (e) {

@@ -77,7 +77,8 @@ const useLibraryVisibility = ({api, settings, hasMultipleServers, pushView, popV
 			// refresh rather than on the next launch.
 			resetLibraryScope();
 			onLibrariesChanged?.();
-			window.dispatchEvent(new window.Event('moonfin:browseRefresh'));
+			// Hiding a library can change the media bar, so this refresh redraws it.
+			window.dispatchEvent(new window.CustomEvent('moonfin:browseRefresh', {detail: {featured: true}}));
 		} catch (err) {
 			console.error('Failed to save library visibility:', err);
 		} finally {

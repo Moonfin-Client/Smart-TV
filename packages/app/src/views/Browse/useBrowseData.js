@@ -12,6 +12,7 @@ import {BROWSE_ROW_LOADERS, buildLoaderContext} from './browseRowLoaders';
 import {genericCollectionLabel, mergeRecentRows} from '../../utils/mergeRecentRows';
 import {normalizeLatestMediaItems} from '../../utils/latestMediaRowNormalizer';
 import {EXCLUDED_COLLECTION_TYPES, filterItemsByExcludedGenres} from './browseFilters';
+import {featuredConfigKey} from './featuredConfig';
 import {
 	CACHE_TTL_LIBRARIES, CACHE_TTL_VOLATILE, VOLATILE_REFRESH_COOLDOWN_MS,
 	cancelPendingCacheSave, clearMemoryCache, isCacheValid, loadBrowseCache, memoryCache, saveBrowseCache
@@ -51,6 +52,16 @@ const useBrowseData = ({
 
 	const fetchFreshFeaturedItems = useCallback(async (fallbackItems = null) => {
 		const s = settingsRef.current;
+		const configKey = featuredConfigKey(s);
+		// The bar already holds a set for these settings, and a new random draw would only reshuffle it.
+		if (memoryCache.featuredItems?.length > 0 && memoryCache.featuredConfigKey === configKey) {
+			return null;
+		}
+		const publish = (items) => {
+			memoryCache.featuredItems = items;
+			memoryCache.featuredConfigKey = configKey;
+			dispatch({type: 'SET_FEATURED_ITEMS', items});
+		};
 		const sourceType = s.mediaBarSourceType || 'library';
 		// The saved picks can name a library access has since been revoked for, so what the policy
 		// no longer allows is dropped before they are trusted.
@@ -104,19 +115,16 @@ const useBrowseData = ({
 					...item,
 					LogoUrl: getLogoUrl(getItemServerUrl(item), item, {maxWidth: 800, quality: 90})
 				}));
-				dispatch({type: 'SET_FEATURED_ITEMS', items: featuredWithLogos});
-				memoryCache.featuredItems = featuredWithLogos;
+				publish(featuredWithLogos);
 				return featuredWithLogos;
 			} else if (fallbackItems && !hasSourceFilter) {
-				dispatch({type: 'SET_FEATURED_ITEMS', items: fallbackItems});
-				memoryCache.featuredItems = fallbackItems;
+				publish(fallbackItems);
 				return fallbackItems;
 			}
 		} catch (e) {
 			console.warn('[Browse] Failed to fetch fresh featured items:', e);
 			if (fallbackItems && !hasSourceFilter) {
-				dispatch({type: 'SET_FEATURED_ITEMS', items: fallbackItems});
-				memoryCache.featuredItems = fallbackItems;
+				publish(fallbackItems);
 				return fallbackItems;
 			}
 		}
@@ -188,8 +196,9 @@ const useBrowseData = ({
 	}, [accessToken]);
 
 	useEffect(() => {
-		const handleBrowseRefresh = () => {
-			clearMemoryCache();
+		// detail.featured marks refreshes that change what the bar may hold, like hiding a library.
+		const handleBrowseRefresh = (e) => {
+			clearMemoryCache({keepFeatured: !e?.detail?.featured});
 		};
 
 		window.addEventListener('moonfin:browseRefresh', handleBrowseRefresh);
@@ -204,12 +213,15 @@ const useBrowseData = ({
 		let cancelled = false;
 
 		// Loading cant clear until the media bar has something, or the first focus lands
-		// on a row rather than on the bar. Items we already remember do that on the spot
-		// and the fresh ones then arrive in their own time, so coming back to the home
-		// screen no longer waits on a request whose answer is already in hand. With
-		// nothing remembered there is still nothing to show until the request answers.
-		const primeFeaturedItems = async (remembered) => {
+		// on a row rather than on the bar. Items we already remember do that on the spot,
+		// so coming back to the home screen no longer waits on a request whose answer is
+		// already in hand, and a fresh draw only follows if the media bar settings changed.
+		// With nothing remembered there is still nothing to show until the request answers.
+		const primeFeaturedItems = async (remembered, rememberedConfigKey) => {
 			if (remembered?.length) {
+				// Records which settings the bar's items were drawn for.
+				memoryCache.featuredItems = remembered;
+				memoryCache.featuredConfigKey = rememberedConfigKey;
 				dispatch({type: 'SET_FEATURED_ITEMS', items: remembered});
 				fetchFreshFeaturedItems(remembered);
 				return;
@@ -249,7 +261,7 @@ const useBrowseData = ({
 
 			if (memoryCache.rowConfigKey === rowConfigKey && memoryCache.rowData && memoryCache.libraries && memoryCache.featuredItems && isCacheValid(memoryCache.timestamp, CACHE_TTL_VOLATILE)) {
 				dispatch({type: 'SET_ROW_DATA', rowData: memoryCache.rowData});
-				await primeFeaturedItems(memoryCache.featuredItems);
+				await primeFeaturedItems(memoryCache.featuredItems, memoryCache.featuredConfigKey);
 				dispatch({type: 'SET_LOADING', value: false});
 				return;
 			}
@@ -263,7 +275,7 @@ const useBrowseData = ({
 
 			if (hasValidPersistedCache) {
 				dispatch({type: 'SET_ROW_DATA', rowData: persistedCache.rowData});
-				await primeFeaturedItems(persistedCache.featuredItems);
+				await primeFeaturedItems(persistedCache.featuredItems, persistedCache.featuredConfigKey);
 				memoryCache.libraries = persistedCache.libraries;
 				memoryCache.rowData = persistedCache.rowData;
 				memoryCache.timestamp = persistedCache.timestamp;
@@ -397,9 +409,9 @@ const useBrowseData = ({
 				// The Mediabar is populated only by the settings-aware loader so it can
 				// never show a library outside the selected sources. Rows that answer to
 				// a setting are rebuilt on every visit rather than read back, but the bar
-				// can still open on what it last held while the fresh set is on its way.
+				// keeps what it last held unless the media bar settings changed.
 				if (settingsRef.current.featuredBarStyle !== 'off') {
-					await primeFeaturedItems(memoryCache.featuredItems);
+					await primeFeaturedItems(memoryCache.featuredItems, memoryCache.featuredConfigKey);
 				} else {
 					fetchFreshFeaturedItems();
 				}
