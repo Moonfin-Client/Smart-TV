@@ -267,8 +267,8 @@ const concat = (chunks) => {
 	return out;
 };
 
-// A compressed PGS access unit carries bytes past the end of its deflate stream, which
-// the platform DecompressionStream rejects outright, so the inflate is done here.
+// Keep inflate local and synchronous so the libpgs stream can be fed on every webOS
+// generation we support. The input here is the exact Matroska block payload.
 const inflate = (bytes) => unzlibSync(bytes);
 
 /**
@@ -342,11 +342,32 @@ export const createInBandPgsSource = ({streamUrl, subtitleOrdinal, getTime, star
 		if (!block || block.id !== ID.SimpleBlock) throw new Error(`no subtitle block at ${blockStart}`);
 		const trackVint = readVint(probe, block.headerLength, true);
 		if (!trackVint || trackVint.value !== trackNumber) throw new Error(`wrong track at ${blockStart}`);
+
+		// SimpleBlock.size is the size of the whole block body: track vint + signed
+		// timecode + flags + payload. Do not add that size to dataOffset or the read
+		// spills into the following Matroska element.
 		const dataOffset = block.headerLength + trackVint.length + 3;
-		const end = dataOffset + block.size;
-		const bytes = end <= probe.length
-			? probe.subarray(dataOffset, end)
-			: (await fetchRange(blockStart, blockStart + end - 1)).subarray(dataOffset, end);
+		const blockEnd = block.headerLength + block.size;
+		if (dataOffset > blockEnd) throw new Error(`short subtitle block at ${blockStart}`);
+
+		// PGS access units are not expected to be laced. Refuse a layout we do not
+		// understand so the caller can use Jellyfin's sidecar instead of emitting
+		// subtly corrupt subtitle bytes.
+		const flagsOffset = block.headerLength + trackVint.length + 2;
+		const flags = probe[flagsOffset];
+		if (flags === undefined) throw new Error(`short subtitle block header at ${blockStart}`);
+		if (flags & 0x06) throw new Error(`laced subtitle block unsupported at ${blockStart}`);
+
+		let bytes;
+		if (blockEnd <= probe.length) {
+			bytes = probe.subarray(dataOffset, blockEnd);
+		} else {
+			// The probe already contains the first part of the payload. Fetch only the
+			// tail rather than requesting the same bytes a second time.
+			const tail = await fetchRange(blockStart + probe.length, blockStart + blockEnd - 1);
+			const body = concat([probe, tail]);
+			bytes = body.subarray(dataOffset, blockEnd);
+		}
 		return {timeMs: cue.time * timestampScale, bytes};
 	};
 
