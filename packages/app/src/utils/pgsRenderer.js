@@ -87,7 +87,7 @@ export const initPgsInBandRenderer = async (videoElement, subtitleStream, option
 		});
 		if (!source || !(await source.ready)) {
 			source?.dispose();
-			console.warn('[PgsRenderer] In band PGS unavailable, falling back to the sidecar');
+			console.warn('[PgsRenderer] In-band PGS source unavailable');
 			return null;
 		}
 
