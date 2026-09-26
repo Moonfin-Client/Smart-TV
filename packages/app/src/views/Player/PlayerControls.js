@@ -110,6 +110,28 @@ export const usePlayerButtons = ({
 	return {topButtons, bottomButtons};
 };
 
+// Mirrors the height clamp .mediaLogo sets in css (10vh, floor 70px, ceiling
+// 160px) so the two stay in lockstep - this is what a logo renders at before
+// any width-driven shrinking kicks in.
+const LOGO_HEIGHT_VH = 0.10;
+const LOGO_MIN_HEIGHT_PX = 70;
+const LOGO_MAX_HEIGHT_PX = 160;
+// A squarish logo comfortably clears this at the height above; a wide
+// wordmark would not, which is exactly the case this trims down for.
+const LOGO_MAX_WIDTH_VW = 0.34;
+
+// A logo rendered at the normal height, straight off its aspect ratio - undefined
+// until the autocrop pass resolves one, since a raw un-autocropped image still
+// needs to render at something in the meantime.
+const logoHeightPxFor = (aspectRatio, viewportWidth, viewportHeight) => {
+	const normalHeight = Math.min(LOGO_MAX_HEIGHT_PX, Math.max(LOGO_MIN_HEIGHT_PX, viewportHeight * LOGO_HEIGHT_VH));
+	if (!aspectRatio) return normalHeight;
+
+	const maxWidth = viewportWidth * LOGO_MAX_WIDTH_VW;
+	const widthAtNormalHeight = normalHeight * aspectRatio;
+	return widthAtNormalHeight > maxWidth ? maxWidth / aspectRatio : normalHeight;
+};
+
 const PlayerControls = ({
 	css,
 	controlsVisible,
@@ -174,6 +196,7 @@ const PlayerControls = ({
 	const [focusedTooltip, setFocusedTooltip] = useState(null);
 	const [logoLoadFailed, setLogoLoadFailed] = useState(false);
 	const [croppedLogoUrl, setCroppedLogoUrl] = useState(null);
+	const [logoAspectRatio, setLogoAspectRatio] = useState(null);
 
 	// A tag that resolved but whose image 404s (stale cache, server hiccup) should
 	// still fall back to text instead of leaving a broken image in the corner.
@@ -183,15 +206,32 @@ const PlayerControls = ({
 	useEffect(() => {
 		setLogoLoadFailed(false);
 		setCroppedLogoUrl(null);
+		setLogoAspectRatio(null);
 		if (!logoUrl) return undefined;
 		let cancelled = false;
 		autocropLogoUrl(logoUrl).then((result) => {
-			if (!cancelled) setCroppedLogoUrl(result);
+			if (cancelled) return;
+			setCroppedLogoUrl(result?.url || null);
+			setLogoAspectRatio(result?.aspectRatio || null);
 		});
 		return () => { cancelled = true; };
 	}, [logoUrl]);
 
 	const displayLogoUrl = croppedLogoUrl || logoUrl;
+
+	// A wordmark-style logo (wide aspect ratio) renders far too big at the height a
+	// squarish one is comfortable at, since nothing before this scaled height down
+	// as width grew - see logoHeightPxFor.
+	const [viewportSize, setViewportSize] = useState(() => ({width: window.innerWidth, height: window.innerHeight}));
+	useEffect(() => {
+		const handleResize = () => setViewportSize({width: window.innerWidth, height: window.innerHeight});
+		window.addEventListener('resize', handleResize);
+		return () => window.removeEventListener('resize', handleResize);
+	}, []);
+	const logoHeightPx = useMemo(
+		() => logoHeightPxFor(logoAspectRatio, viewportSize.width, viewportSize.height),
+		[logoAspectRatio, viewportSize]
+	);
 
 	const handleLogoError = useCallback(() => {
 		setLogoLoadFailed(true);
@@ -304,6 +344,7 @@ const PlayerControls = ({
 								<>
 									<img
 										className={css.mediaLogo}
+										style={{height: `${logoHeightPx}px`}}
 										src={displayLogoUrl}
 										alt={title}
 										onError={handleLogoError}

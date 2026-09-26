@@ -157,7 +157,7 @@ const Screensaver = ({
 		if (!currentItemLogoUrl) return undefined;
 		let cancelled = false;
 		autocropLogoUrl(currentItemLogoUrl).then((result) => {
-			if (!cancelled) setCroppedLogoUrl(result);
+			if (!cancelled) setCroppedLogoUrl(result?.url || null);
 		});
 		return () => { cancelled = true; };
 	}, [currentItemLogoUrl]);
@@ -340,13 +340,17 @@ const Screensaver = ({
 						/>
 					)}
 					<div className={css.backdropVignette} />
-					{currentItem && backdropVisible && currentItemLogoUrl && (
+					{currentItem && backdropVisible && (currentItemLogoUrl || currentItem.Name) && (
 						<div className={css.backdropInfo}>
-							<img
-								src={displayLogoUrl}
-								alt={currentItem.Name || ''}
-								className={css.backdropLogo}
-							/>
+							{currentItemLogoUrl ? (
+								<img
+									src={displayLogoUrl}
+									alt={currentItem.Name || ''}
+									className={css.backdropLogo}
+								/>
+							) : (
+								<h1 className={css.backdropTitle}>{currentItem.Name}</h1>
+							)}
 						</div>
 					)}
 				</div>
