@@ -1,5 +1,6 @@
 import * as systemVolume from './systemVolume';
 import {KEYS} from '../utils/keys';
+import {createRemoteSearch} from './remoteSearch';
 
 // Answers another client driving this one through the server: play state, volume, a message, the
 // d-pad, home, and things sent to play. The server only offers the commands named here.
@@ -14,6 +15,8 @@ export const SUPPORTED_COMMANDS = [
 	'SetRepeatMode',
 	'SetShuffleQueue',
 	'GoHome',
+	'GoToSearch',
+	'SendString',
 	'VolumeUp',
 	'VolumeDown',
 	'MoveUp',
@@ -33,6 +36,7 @@ const REPEAT_MODES = {repeatall: 'all', repeatone: 'one'};
 let appRef = null;
 let playerRef = null;
 let unbindSocket = null;
+let remoteSearch = null;
 
 export const setAppControls = (ref) => {
 	appRef = ref;
@@ -201,6 +205,7 @@ const handleGeneralCommand = async (data) => {
 			pressKey(KEYS.ENTER);
 			break;
 		case 'back':
+			remoteSearch?.close();
 			pressKey(KEYS.BACK);
 			break;
 		case 'setaudiostreamindex': {
@@ -222,8 +227,26 @@ const handleGeneralCommand = async (data) => {
 			if (arg('ShuffleMode') != null) player()?.setShuffle(arg('ShuffleMode').toLowerCase() === 'shuffle');
 			break;
 		case 'gohome':
+			remoteSearch?.close();
 			await player()?.stop();
 			app()?.goHome();
+			break;
+		case 'gotosearch': {
+			if (!app()?.goToSearch) break;
+			remoteSearch?.close();
+			const search = createRemoteSearch(arg('MoonfinInputId'));
+			remoteSearch = search;
+			try {
+				await player()?.stop();
+				if (search.active) app()?.goToSearch(search);
+			} catch (error) {
+				search.close();
+				throw error;
+			}
+			break;
+		}
+		case 'sendstring':
+			remoteSearch?.receive(args);
 			break;
 		default:
 			break;
@@ -240,6 +263,7 @@ const handlePlay = (data) => {
 		app().queueItems(itemIds, command === 'playnext');
 		return;
 	}
+	remoteSearch?.close();
 	app().playItems(itemIds, {
 		startIndex: toInt(data.StartIndex) || 0,
 		startPositionTicks: toInt(data.StartPositionTicks),
@@ -270,6 +294,8 @@ export const bindTo = (listen) => {
 };
 
 export const reset = () => {
+	remoteSearch?.close();
+	remoteSearch = null;
 	if (unbindSocket) unbindSocket();
 	unbindSocket = null;
 };

@@ -26,7 +26,7 @@ let volume;
 
 beforeEach(() => {
 	player = {current: controls(PLAYER_ACTIONS)};
-	app = {current: controls(['goHome', 'showMessage', 'playItems', 'queueItems'])};
+	app = {current: controls(['goHome', 'goToSearch', 'showMessage', 'playItems', 'queueItems'])};
 	unregisterPlayer = remoteControl.setPlayerControls(player);
 	unregisterApp = remoteControl.setAppControls(app);
 	volume = {volume: 40, muted: false};
@@ -42,6 +42,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+	remoteControl.reset();
 	unregisterPlayer();
 	unregisterApp();
 	jest.clearAllMocks();
@@ -51,7 +52,7 @@ describe('remote control', () => {
 	test('offers the commands another client can send', () => {
 		expect(remoteControl.SUPPORTED_COMMANDS).toEqual([
 			'DisplayMessage', 'SetVolume', 'Mute', 'Unmute', 'ToggleMute', 'SetAudioStreamIndex',
-			'SetSubtitleStreamIndex', 'SetRepeatMode', 'SetShuffleQueue', 'GoHome', 'VolumeUp', 'VolumeDown',
+			'SetSubtitleStreamIndex', 'SetRepeatMode', 'SetShuffleQueue', 'GoHome', 'GoToSearch', 'SendString', 'VolumeUp', 'VolumeDown',
 			'MoveUp', 'MoveDown', 'MoveLeft', 'MoveRight', 'Select', 'Back'
 		]);
 	});
@@ -208,6 +209,43 @@ describe('remote control', () => {
 			subtitleStreamIndex: null,
 			mediaSourceId: 'src'
 		});
+	});
+
+	test('buffers typing during player exit and delivers it when Search mounts', async () => {
+		let stopped;
+		player.current.stop.mockImplementation(() => new Promise((resolve) => { stopped = resolve; }));
+		const opening = command('GoToSearch', {MoonfinInputId: 'phone'});
+		await command('SendString', {String: 'alien', MoonfinInputId: 'phone', MoonfinRevision: '1'});
+		expect(app.current.goToSearch).not.toHaveBeenCalled();
+		stopped();
+		await opening;
+		const search = app.current.goToSearch.mock.calls[0][0];
+		const changed = jest.fn();
+		search.attach(changed);
+		expect(changed).toHaveBeenCalledWith('alien');
+		await command('SendString', {String: ''});
+		expect(changed).toHaveBeenLastCalledWith('');
+	});
+
+	test('an older opening cannot replace a newer remote search', async () => {
+		let stopped;
+		player.current.stop.mockImplementationOnce(() => new Promise((resolve) => { stopped = resolve; }));
+		const old = command('GoToSearch', {MoonfinInputId: 'old'});
+		await command('GoToSearch', {MoonfinInputId: 'new'});
+		stopped();
+		await old;
+		expect(app.current.goToSearch).toHaveBeenCalledTimes(1);
+	});
+
+	test('logout cancels pending Search navigation and text', async () => {
+		let stopped;
+		player.current.stop.mockImplementation(() => new Promise((resolve) => { stopped = resolve; }));
+		const opening = command('GoToSearch');
+		remoteControl.reset();
+		stopped();
+		await opening;
+		await command('SendString', {String: 'ignored'});
+		expect(app.current.goToSearch).not.toHaveBeenCalled();
 	});
 
 	test('queues after what plays for PlayNext and at the end for PlayLast or Enqueue', async () => {
