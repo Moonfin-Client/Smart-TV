@@ -41,3 +41,38 @@ describe('seerr request gate', () => {
 		expect(setup({userPermissions: PERMISSIONS.REQUEST_MOVIE}).result.current.canRequestHd).toBe(false);
 	});
 });
+
+// Partly in the library, and requested in 4K as far as Seerr is concerned.
+const with4k = (over = {}) => setup({
+	hdStatus: 4,
+	status4k: 3,
+	details: {
+		seasons: [{seasonNumber: 1}],
+		numberOfSeasons: 1,
+		mediaInfo: {seasons: [{seasonNumber: 1, status: 1, status4k: 3}]}
+	},
+	...over
+}).result.current;
+
+describe('4K status', () => {
+	test('stays hidden from a viewer who can only request HD', () => {
+		const current = with4k();
+		expect(current.statusPills.map((p) => p.text)).toEqual(['Partially Available']);
+		expect(current.seasonMarkers.has(1)).toBe(false);
+	});
+
+	test('shows for a viewer who can request 4K', () => {
+		const current = with4k({userPermissions: PERMISSIONS.REQUEST_4K_TV});
+		expect(current.statusPills.map((p) => p.text)).toEqual(['HD · Partially Available', '4K · Requested']);
+		expect(current.seasonMarkers.get(1)).toBe(3);
+	});
+
+	test('shows for a request manager', () => {
+		expect(with4k({userPermissions: PERMISSIONS.MANAGE_REQUESTS}).shows4k).toBe(true);
+	});
+
+	test('takes the per media type permission too', () => {
+		expect(with4k({mediaType: 'movie', userPermissions: PERMISSIONS.REQUEST_4K_TV}).shows4k).toBe(false);
+		expect(with4k({mediaType: 'movie', userPermissions: PERMISSIONS.REQUEST_4K_MOVIE}).shows4k).toBe(true);
+	});
+});

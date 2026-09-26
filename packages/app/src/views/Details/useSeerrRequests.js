@@ -112,13 +112,18 @@ const useSeerrRequests = ({
 	const seasonStatusMapHd = useMemo(() => getSeasonStatusMap(false), [getSeasonStatusMap]);
 	const seasonStatusMap4k = useMemo(() => getSeasonStatusMap(true), [getSeasonStatusMap]);
 
+	// Seerr only shows 4K status to those who can request 4K or manage requests.
+	const shows4k = canManageRequests(userPermissions) || (mediaType === 'movie'
+		? canRequest4kMovies(userPermissions)
+		: canRequest4kTv(userPermissions));
+
 	// What to mark each season card with, keyed by season number. The server keeps its own
 	// per-season list and that wins where it exists, and the requests fill in the seasons it
 	// says nothing about, which is how a brand new request shows before Seerr has caught up.
 	const seasonMarkers = useMemo(() => {
 		const markers = new Map();
 		(details?.mediaInfo?.seasons || []).forEach((season) => {
-			const status = season.status > MEDIA_STATUS.UNKNOWN ? season.status : season.status4k;
+			const status = season.status > MEDIA_STATUS.UNKNOWN || !shows4k ? season.status : season.status4k;
 			if (status > MEDIA_STATUS.UNKNOWN) markers.set(season.seasonNumber, status);
 		});
 		seasonStatusMapHd.forEach((requestStatus, seasonNumber) => {
@@ -127,7 +132,7 @@ const useSeerrRequests = ({
 			if (status) markers.set(seasonNumber, status);
 		});
 		return markers;
-	}, [details, seasonStatusMapHd]);
+	}, [details, seasonStatusMapHd, shows4k]);
 
 	const isBlacklisted = useMemo(() =>
 		hdStatus === MEDIA_STATUS.BLOCKLISTED || status4k === MEDIA_STATUS.BLOCKLISTED,
@@ -186,8 +191,8 @@ const useSeerrRequests = ({
 	[userPermissions]);
 
 	const statusPills = useMemo(() =>
-		getStatusPills(hdStatus, status4k, hdDeclined, fourKDeclined),
-	[hdStatus, status4k, hdDeclined, fourKDeclined]
+		getStatusPills(hdStatus, shows4k ? status4k : null, hdDeclined, shows4k && fourKDeclined),
+	[hdStatus, status4k, hdDeclined, fourKDeclined, shows4k]
 	);
 
 	const reloadDetails = useCallback(async () => {
@@ -367,6 +372,7 @@ const useSeerrRequests = ({
 		showQualityPopup,
 		showReportPopup,
 		showSeasonPopup,
+		shows4k,
 		statusPills
 	};
 };

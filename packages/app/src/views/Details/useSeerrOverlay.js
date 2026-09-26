@@ -126,6 +126,7 @@ const useSeerrOverlay = ({item, seerrOnly}) => {
 		// The screen must keep its loading state up while the IMDb id is still becoming
 		// a TMDB id, or it renders empty for the wait.
 		loading: data.loading || resolvingImdb,
+		download4k: requests.shows4k ? data.download4k : null,
 		similarCards,
 		recommendationCards,
 		displayName,
