@@ -171,7 +171,6 @@ const PlayerControls = ({
 }) => {
 	const { settings } = useSettings();
 	const isTizenPlatform = getPlatform() === 'tizen';
-	const [focusedTooltip, setFocusedTooltip] = useState(null);
 	const [logoLoadFailed, setLogoLoadFailed] = useState(false);
 	const [croppedLogoUrl, setCroppedLogoUrl] = useState(null);
 
@@ -197,30 +196,19 @@ const PlayerControls = ({
 		setLogoLoadFailed(true);
 	}, []);
 
-	const handleTooltipFocus = useCallback((e) => {
-		const label = e.currentTarget.dataset.tooltip;
-		if (!label) return;
-		setFocusedTooltip(label);
-	}, []);
-
-	const handleTooltipBlur = useCallback(() => {
-		setFocusedTooltip(null);
-	}, []);
-
 	// The list only stands in for itself once the work is done and there is
 	// nothing to report instead.
 	const remoteSubtitleBusy = isSearchingRemoteSubtitles || isDownloadingRemoteSubtitle;
 	const showRemoteSubtitleResults = !remoteSubtitleBusy && !remoteSubtitleError;
 
-	const renderControlButton = useCallback((btn, row, defaultSpotlightId) => (
+	// Every button carries its own tooltip and the stylesheet reveals the focused one,
+	// so moving along the row doesn't re-render anything.
+	const renderControlButton = (btn, row, defaultSpotlightId) => (
 		<div key={btn.id} className={css.controlBtnWrapper}>
 			<SpottableButton
 				className={`${css.controlBtn} ${isLiveTV ? css.liveBtn : ''} ${btn.disabled ? css.controlBtnDisabled : ''} ${btn.active ? css.controlBtnActive : ''}`}
 				data-action={btn.action}
-				data-tooltip={btn.label}
 				onClick={btn.disabled ? undefined : handleControlButtonClick}
-				onFocus={handleTooltipFocus}
-				onBlur={handleTooltipBlur}
 				aria-label={btn.label}
 				aria-disabled={btn.disabled}
 				spotlightDisabled={focusRow !== row}
@@ -228,11 +216,9 @@ const PlayerControls = ({
 			>
 				{btn.icon}
 			</SpottableButton>
-			{focusedTooltip === btn.label && (
-				<div className={css.focusTooltip}>{btn.label}</div>
-			)}
+			<div className={css.focusTooltip}>{btn.label}</div>
 		</div>
-	), [css.controlBtn, css.controlBtnActive, css.controlBtnDisabled, css.controlBtnWrapper, css.focusTooltip, css.liveBtn, isLiveTV, focusRow, focusedTooltip, handleControlButtonClick, handleTooltipBlur, handleTooltipFocus]);
+	);
 
 	const handleCastClick = useCallback((e) => {
 		const index = Number(e.currentTarget.dataset.index);
@@ -363,7 +349,9 @@ const PlayerControls = ({
 							spotlightDisabled={focusRow !== 'progress'}
 							spotlightId="progress-bar"
 						>
-							<div className={css.progressBuffered} style={{transform: `scaleX(${clampedBuffered / 100})`, WebkitTransform: `scaleX(${clampedBuffered / 100})`}} />
+							{Number.isFinite(bufferedPercent) && (
+								<div className={css.progressBuffered} style={{transform: `scaleX(${clampedBuffered / 100})`, WebkitTransform: `scaleX(${clampedBuffered / 100})`}} />
+							)}
 							<div className={css.progressFill} style={{transform: `scaleX(${clampedProgress / 100})`, WebkitTransform: `scaleX(${clampedProgress / 100})`}} />
 							<div className={css.seekIndicator} style={{left: `${clampedProgress}%`}} />
 							{/* Over the fill and the thumb, so a mark stays visible where it crosses the played part. */}
@@ -809,20 +797,24 @@ const PlayerControls = ({
 				);
 			})()}
 
-			<SubtitleOffsetOverlay
-				visible={activeModal === 'subtitleOffset'}
-				currentOffset={subtitleOffset}
-				currentTime={currentTime}
-				subtitleTrackEvents={subtitleTrackEvents}
-				onClose={closeModal}
-				onOffsetChange={handleSubtitleOffsetChange}
-			/>
+			{activeModal === 'subtitleOffset' && (
+				<SubtitleOffsetOverlay
+					visible
+					currentOffset={subtitleOffset}
+					currentTime={currentTime}
+					subtitleTrackEvents={subtitleTrackEvents}
+					onClose={closeModal}
+					onOffsetChange={handleSubtitleOffsetChange}
+				/>
+			)}
 
-			<SubtitleSettingsOverlay
-				visible={activeModal === 'subtitleSettings'}
-				onClose={closeModal}
-				isHdr={isHdrContent}
-			/>
+			{activeModal === 'subtitleSettings' && (
+				<SubtitleSettingsOverlay
+					visible
+					onClose={closeModal}
+					isHdr={isHdrContent}
+				/>
+			)}
 		</>
 	);
 };

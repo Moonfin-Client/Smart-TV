@@ -322,7 +322,13 @@
 	font-weight: 600;
 	white-space: nowrap;
 	pointer-events: none;
+	opacity: 0;
 	z-index: 10;
+}
+
+// Spottable puts a hidden div of its own between the button and its tooltip.
+.controlBtn:focus ~ .focusTooltip {
+	opacity: 1;
 }
 
 .controlBtn {

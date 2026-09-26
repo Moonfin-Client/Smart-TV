@@ -89,6 +89,15 @@ const getRootFontSizePx = () => {
 	return Number.isFinite(parsed) && parsed > 0 ? parsed : 24;
 };
 
+// Goes to PlayerControls as a prop, so it sits out here and keeps one identity
+// instead of being rebuilt on every render.
+const renderInfoPlaybackRows = ({css: c}) => (
+	<div className={c.infoRow}>
+		<span className={c.infoLabel}>{$L('Player')}</span>
+		<span className={c.infoValue}>{$L('AVPlay (Native)')}</span>
+	</div>
+);
+
 /**
  * AVPlay-based Player component for Samsung Tizen.
  *
@@ -246,6 +255,9 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 	// a fatal error can arrive while parked in pause and must resurface on resume
 	const pausedErrorRef = useRef(null);
 	const deferredResumeSeekRef = useRef(null);
+	// The key handler is rebuilt every render, so the listener reaches it through this
+	// rather than being torn down and re-added every time playback state moves.
+	const keyDownRef = useRef(null);
 	// tracks queued before prepare and applied once AVPlay reaches a state that accepts them
 	const pendingTracksRef = useRef(null);
 	const lastTrackAttemptRef = useRef(0);
@@ -2917,14 +2929,21 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 
 		};
 
-		window.addEventListener('keydown', handleKeyDown, true);
-		return () => window.removeEventListener('keydown', handleKeyDown, true);
-	}, [controlsVisible, activeModal, closeModal, hideControls, handleBack, showControls, handlePlayPause, handleForward, handleRewind, settings.seekStep, handlePopupKeyDown, bottomButtons.length, isAudioMode, focusRow, scrubBy, resumeHeldScrub, skipSegment, showSkipCredits, showNextEpisode, isLiveTV, carouselOpenRef, openCarousel]);
+		keyDownRef.current = handleKeyDown;
+	});
+
+	useEffect(() => {
+		const onKeyDown = (e) => keyDownRef.current?.(e);
+		window.addEventListener('keydown', onKeyDown, true);
+		return () => window.removeEventListener('keydown', onKeyDown, true);
+	}, []);
 
 	// Calculate progress - use seekPosition when actively seeking for smooth scrubbing
 	const displayTime = isSeeking ? (seekPosition / 10000000) : currentTime;
 	const progressPercent = duration > 0 ? (displayTime / duration) * 100 : 0;
-	const bufferedPercent = progressPercent;
+	// AVPlay reports no buffered ranges, so there is nothing real to draw and the bar
+	// would only trace the fill sitting under it.
+	const bufferedPercent = null;
 
 	// Focus appropriate element when focusRow changes
 	useEffect(() => {
@@ -3133,13 +3152,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 				handleSubtitleOffsetChange={handleSubtitleOffsetChange}
 				closeModal={closeModal}
 				stopPropagation={stopPropagation}
-				// eslint-disable-next-line react/jsx-no-bind
-				renderInfoPlaybackRows={({css: c}) => (
-					<div className={c.infoRow}>
-						<span className={c.infoLabel}>{$L('Player')}</span>
-						<span className={c.infoValue}>{$L('AVPlay (Native)')}</span>
-					</div>
-				)}
+				renderInfoPlaybackRows={renderInfoPlaybackRows}
 			/>
 		</div>
 	);
