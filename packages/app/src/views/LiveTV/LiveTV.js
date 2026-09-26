@@ -30,7 +30,9 @@ const FilterRailContainer = SpotlightContainerDecorator({enterTo: 'last-focused'
 const WindowBarContainer = SpotlightContainerDecorator({enterTo: 'last-focused', restrict: 'self-first'}, 'div');
 // Rows aren't spotlight containers. Every arrow key inside the grid is resolved by the guide
 // itself against the selection's time, so nothing is left for geometry to decide.
-const ProgramGridContainer = SpotlightContainerDecorator({enterTo: 'last-focused', restrict: 'self-first'}, 'div');
+// overflow makes Spotlight focus cells without the browser scrolling them into view. The guide
+// scrolls the grid itself, and a second scroll from focus would redraw rows twice per press.
+const ProgramGridContainer = SpotlightContainerDecorator({enterTo: 'last-focused', restrict: 'self-first', overflow: true}, 'div');
 // self-only on its own still lets a press at the edge reach the guide behind the scrim, so every
 // direction is closed off as well.
 const PopupContainer = SpotlightContainerDecorator({
@@ -107,7 +109,17 @@ const focusWhenMounted = (spotlightId, {attempts = 12, defer = false} = {}) => {
 	else tryFocus(attempts);
 };
 
+// One animation per scroller. A held key would otherwise stack loops that all write the offset
+// each frame, and a leftover one would undo a jump set straight after it.
+const scrollFrames = new WeakMap();
+
+const stopScrollAnimation = (node) => {
+	window.cancelAnimationFrame(scrollFrames.get(node));
+	scrollFrames.delete(node);
+};
+
 const animateScrollTop = (node, target, duration) => {
+	stopScrollAnimation(node);
 	const from = node.scrollTop;
 	const distance = target - from;
 	if (!distance) return;
@@ -115,9 +127,10 @@ const animateScrollTop = (node, target, duration) => {
 	const step = () => {
 		const t = Math.min(1, (Date.now() - started) / duration);
 		node.scrollTop = from + distance * (1 - Math.pow(1 - t, 3));
-		if (t < 1) window.requestAnimationFrame(step);
+		if (t < 1) scrollFrames.set(node, window.requestAnimationFrame(step));
+		else scrollFrames.delete(node);
 	};
-	window.requestAnimationFrame(step);
+	scrollFrames.set(node, window.requestAnimationFrame(step));
 };
 
 // The same span the other clients' date picker offers, a week back through two weeks out.
@@ -199,6 +212,7 @@ const GuideRow = memo(({channel, rowIndex, cells, windowStart, now, layout, logo
 const GuideHeroHost = ({store, emitter, focusRef, serverUrl, clockDisplay, version}) => {
 	const [tick, setTick] = useState(0);
 	useEffect(() => emitter.subscribe(() => setTick((t) => t + 1)), [emitter]);
+	useEffect(() => store.subscribeArtwork(() => setTick((t) => t + 1)), [store]);
 
 	const {program, railFocused, channelId} = focusRef.current;
 	const channel = !railFocused && program ? store.channelForId(program.ChannelId) : (channelId ? store.channelForId(channelId) : null);
@@ -384,8 +398,12 @@ const LiveTV = ({onPlayChannel, onRecordings, backHandlerRef}) => {
 		if (!scroller) return;
 		const max = Math.max(0, scroller.scrollHeight - scroller.clientHeight);
 		const target = Math.max(0, Math.min(max, index * rowHeightRef.current));
-		if (animate) animateScrollTop(scroller, target, 200);
-		else scroller.scrollTop = target;
+		if (animate) {
+			animateScrollTop(scroller, target, 200);
+		} else {
+			stopScrollAnimation(scroller);
+			scroller.scrollTop = target;
+		}
 		syncScrollRow();
 	}, [syncScrollRow]);
 

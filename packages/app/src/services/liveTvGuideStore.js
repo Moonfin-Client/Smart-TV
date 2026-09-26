@@ -48,6 +48,8 @@ const contentKeyFor = (program) => {
 
 export const createLiveTvGuideStore = (api, {sortBy = 'number', now = () => Date.now()} = {}) => {
 	const listeners = new Set();
+	// Only the hero shows artwork, so a lookup landing wakes it rather than the whole grid.
+	const artworkListeners = new Set();
 	let disposed = false;
 
 	let state = 'loading';
@@ -701,10 +703,10 @@ export const createLiveTvGuideStore = (api, {sortBy = 'number', now = () => Date
 
 	const scheduleArtworkNotify = () => {
 		if (artworkNotifyTimer) return;
-		// A backlog can resolve dozens a second, so the guide redraws once for a burst of them.
+		// A backlog can resolve dozens a second, so the hero redraws once for a burst of them.
 		artworkNotifyTimer = setTimeout(() => {
 			artworkNotifyTimer = null;
-			notify();
+			artworkListeners.forEach((listener) => listener());
 		}, 200);
 	};
 
@@ -793,12 +795,17 @@ export const createLiveTvGuideStore = (api, {sortBy = 'number', now = () => Date
 		artworkCache.clear();
 		artworkByContentKey.clear();
 		listeners.clear();
+		artworkListeners.clear();
 	};
 
 	return {
 		subscribe: (listener) => {
 			listeners.add(listener);
 			return () => listeners.delete(listener);
+		},
+		subscribeArtwork: (listener) => {
+			artworkListeners.add(listener);
+			return () => artworkListeners.delete(listener);
 		},
 		get state () { return state; },
 		get error () { return error; },
