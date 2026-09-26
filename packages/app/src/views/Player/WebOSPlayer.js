@@ -302,7 +302,9 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 	const pgsRendererRef = useRef(null);
 	const assRendererRef = useRef(null);
 	const assCanvasRef = useRef(null);
-	const pendingInitialAssSubtitleRef = useRef(null);
+	// Bumped by every renderer start and teardown, so a start that finishes after a
+	// newer one, or after the player moved on, throws its renderer away.
+	const assInitGenRef = useRef(0);
 	// index of a subtitle the server is currently burning into the stream
 	const burnInSubtitleRef = useRef(null);
 
@@ -503,6 +505,8 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 		if (!stream?.isAss || !assCanvasRef.current) {
 			return false;
 		}
+		const generation = ++assInitGenRef.current;
+		const isCurrent = () => generation === assInitGenRef.current;
 
 		try {
 			const assUrl = playback.getAssSubtitleUrl(stream);
@@ -523,6 +527,10 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 				}).catch(() => setSubtitleTrackEvents(null));
 			});
 
+			if (renderer && !isCurrent()) {
+				disposeAssRenderer(renderer);
+				return false;
+			}
 			if (renderer) {
 				assRendererRef.current = renderer;
 				setSubtitleTrackEvents(null);
@@ -532,9 +540,11 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 		} catch (err) {
 			console.error('[Player] ASS init failed, falling back to text', err);
 		}
+		if (!isCurrent()) return false;
 
 		try {
 			const data = await playback.fetchSubtitleData(stream);
+			if (!isCurrent()) return false;
 			if (data && data.TrackEvents) {
 				setSubtitleTrackEvents(data.TrackEvents);
 			} else {
@@ -731,6 +741,13 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 			setVideoDisplayAspectRatio(null);
 			setDecodedAspectRatio(null);
 			burnInSubtitleRef.current = null;
+			// The player isn't remounted between items, and a next item with subtitles off
+			// or burned in never reaches loadSubtitleData to clear these.
+			disposePgsRenderer(pgsRendererRef.current);
+			pgsRendererRef.current = null;
+			disposeAssRenderer(assRendererRef.current);
+			assRendererRef.current = null;
+			clearAssCanvas(assCanvasRef.current);
 
 			resetPopups(); // eslint-disable-line no-use-before-define
 			setNextEpisode(null);
@@ -899,20 +916,18 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 				const loadSubtitleData = async (sub) => {
 					disposePgsRenderer(pgsRendererRef.current);
 					pgsRendererRef.current = null;
+					assInitGenRef.current++;
 					disposeAssRenderer(assRendererRef.current);
 					assRendererRef.current = null;
 					clearAssCanvas(assCanvasRef.current);
-					pendingInitialAssSubtitleRef.current = null;
 
 					const supportsAss = sub && sub.isAss && supportsAssRenderer();
 					if (supportsAss) {
-						const hasReadyVideoSource = !!(videoRef.current && (videoRef.current.currentSrc || videoRef.current.src));
-						if (!hasReadyVideoSource) {
-							pendingInitialAssSubtitleRef.current = sub;
-							setSubtitleTrackEvents(null);
-						} else {
-							await initAssRendererForStream(sub);
-						}
+						// The canvas is always mounted, so the renderer boots alongside the rest of
+						// the start. Its worker fetches and parses the whole track and its fonts,
+						// which takes seconds on a slow TV, so the start doesn't wait on it.
+						setSubtitleTrackEvents(null);
+						initAssRendererForStream(sub);
 					} else if (sub && sub.isTextBased) {
 						try {
 							const data = await playback.fetchSubtitleData(sub);
@@ -1023,6 +1038,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 
 		return () => {
 			cancelled = true;
+			assInitGenRef.current++; // eslint-disable-line react-hooks/exhaustive-deps
 			console.log('[Player] Cleanup running - unmounting or re-rendering');
 
 			if (isCleaningUpRef.current) {
@@ -1625,15 +1641,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 				});
 			}
 		}
-
-		const pendingInitialAssSub = pendingInitialAssSubtitleRef.current;
-		if (pendingInitialAssSub && supportsAssRenderer()) {
-			pendingInitialAssSubtitleRef.current = null;
-			initAssRendererForStream(pendingInitialAssSub).catch((err) => {
-				console.error('[Player] Deferred ASS init failed', err);
-			});
-		}
-	}, [initAssRendererForStream]);
+	}, []);
 
 	const handlePlay = useCallback(() => {
 		setIsPaused(false);
@@ -2177,10 +2185,10 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 
 		disposePgsRenderer(pgsRendererRef.current);
 		pgsRendererRef.current = null;
+		assInitGenRef.current++;
 		disposeAssRenderer(assRendererRef.current);
 		assRendererRef.current = null;
 		clearAssCanvas(assCanvasRef.current);
-		pendingInitialAssSubtitleRef.current = null;
 
 		if (index === -1) {
 			setSelectedSubtitleIndex(-1);
