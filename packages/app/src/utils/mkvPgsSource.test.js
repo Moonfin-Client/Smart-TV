@@ -220,8 +220,8 @@ describe('mkvPgsSource', () => {
 		expect(header.segmentDataOffset).toBeGreaterThan(0);
 		expect(header.cuesOffset).not.toBeNull();
 		expect(header.tracks).toEqual([
-			{number: 1, type: 1, codec: 'V_MPEGH/ISO/HEVC', language: 'und', compressed: false},
-			{number: 2, type: 17, codec: 'S_HDMV/PGS', language: 'und', compressed: false}
+			{number: 1, type: 1, codec: 'V_MPEGH/ISO/HEVC', language: 'und', compressionAlgorithm: null, compressionSettings: null},
+			{number: 2, type: 17, codec: 'S_HDMV/PGS', language: 'und', compressionAlgorithm: null, compressionSettings: null}
 		]);
 	});
 
@@ -240,13 +240,31 @@ describe('mkvPgsSource', () => {
 			element(0xd7, uintBytes(7, 1)),
 			element(0x83, uintBytes(17, 1)),
 			element(0x86, ascii('S_HDMV/PGS')),
-			element(0x6d80, element(0x6240, element(0x5034, uintBytes(0, 1))))
+			element(0x6d80, element(0x6240, element(0x5034, element(0x4254, uintBytes(0, 1)))))
 		]));
 		const tracksElement = element(0x1654ae6b, entry);
 		const tracks = splitElement(tracksElement);
 		expect(parseTracks(tracksElement, tracks.bodyStart, tracks.bodyEnd - tracks.bodyStart)[0]).toEqual({
-			number: 7, type: 17, codec: 'S_HDMV/PGS', language: 'und', compressed: true
+			number: 7, type: 17, codec: 'S_HDMV/PGS', language: 'und', compressionAlgorithm: 0, compressionSettings: null
 		});
+	});
+
+	test('parses Matroska header-stripping settings', () => {
+		const prefix = new Uint8Array([0x16, 0x00, 0x02]);
+		const entry = element(0xae, join([
+			element(0xd7, uintBytes(7, 1)),
+			element(0x83, uintBytes(17, 1)),
+			element(0x86, ascii('S_HDMV/PGS')),
+			element(0x6d80, element(0x6240, element(0x5034, join([
+				element(0x4254, uintBytes(3, 1)),
+				element(0x4255, prefix)
+			]))))
+		]));
+		const tracksElement = element(0x1654ae6b, entry);
+		const tracks = splitElement(tracksElement);
+		const parsed = parseTracks(tracksElement, tracks.bodyStart, tracks.bodyEnd - tracks.bodyStart)[0];
+		expect(parsed.compressionAlgorithm).toBe(3);
+		expect(Array.from(parsed.compressionSettings)).toEqual(Array.from(prefix));
 	});
 
 	test('streams .sup frames for the cue at and after the start position', async () => {
