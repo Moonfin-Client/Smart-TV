@@ -1884,7 +1884,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 		}, RESUME_CHECK_MS);
 	}, []);
 
-	// The one real seek a scrub makes, once it's committed.
+	// The one real seek a scrub makes, once it's committed, and the end of the scrub.
 	const executeDeferredSeek = useCallback(() => {
 		if (seekDebounceRef.current) {
 			clearTimeout(seekDebounceRef.current);
@@ -1894,9 +1894,15 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 			const seekMs = pendingSeekMsRef.current;
 			pendingSeekMsRef.current = null;
 			noteSeek();
-			if (groupSeekTo(Math.floor(seekMs * 10000))) return;
-			avplaySeek(seekMs).catch(err => console.warn('[Player] Deferred seek failed:', err));
+			if (!groupSeekTo(Math.floor(seekMs * 10000))) {
+				// Until the seek lands the last poll still has the old spot, so the bar stays on the scrubbed one.
+				avplaySeek(seekMs)
+					.then(() => setCurrentTime(seekMs / 1000), err => console.warn('[Player] Deferred seek failed:', err))
+					.then(() => { if (pendingSeekMsRef.current == null) setIsSeeking(false); });
+				return;
+			}
 		}
+		setIsSeeking(false);
 	}, [groupSeekTo, noteSeek]);
 
 	const scheduleDeferredSeek = useCallback((targetMs) => {
@@ -1908,7 +1914,6 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 		seekDebounceRef.current = setTimeout(() => {
 			seekDebounceRef.current = null;
 			executeDeferredSeek();
-			setIsSeeking(false);
 		}, 500);
 	}, [executeDeferredSeek]);
 
@@ -1919,7 +1924,6 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 		scrubHoldRef.current = {active: false, wasPlaying: false};
 		noteViewerActivity();
 		executeDeferredSeek();
-		setIsSeeking(false);
 		avplayPlay();
 		setIsPaused(false);
 		healthMonitorRef.current?.setPaused(false);
@@ -2344,30 +2348,22 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 			// OK lands a jump that's still waiting, and toggles playback once there's none.
 			const hadPendingSeek = pendingSeekMsRef.current != null;
 			executeDeferredSeek();
-			setIsSeeking(false);
 			if (!hadPendingSeek) handlePlayPause();
 		} else if (e.key === 'ArrowUp' || e.keyCode === 38) {
 			e.preventDefault();
 			executeDeferredSeek();
 			const next = isAudioMode ? nextAudioFocusRow('progress', 'up') : 'bottom';
 			setFocusRow(next);
-			setIsSeeking(false);
 			window.requestAnimationFrame(() => Spotlight.focus(isAudioMode ? AUDIO_FOCUS_IDS[next] : 'play-pause-btn'));
 		} else if (e.key === 'ArrowDown' || e.keyCode === 40) {
 			e.preventDefault();
 			executeDeferredSeek();
 			setFocusRow('bottom');
-			setIsSeeking(false);
 			if (isAudioMode) {
 				window.requestAnimationFrame(() => Spotlight.focus('play-pause-btn'));
 			}
 		}
 	}, [settings.seekStep, showControls, scrubBy, executeDeferredSeek, resumeHeldScrub, handlePlayPause, isAudioMode]); // eslint-disable-line react-hooks/exhaustive-deps
-
-	const handleProgressBlur = useCallback(() => {
-		executeDeferredSeek();
-		setIsSeeking(false);
-	}, [executeDeferredSeek]);
 
 	const handleToggleFavorite = useCallback(async () => {
 		if (!item?.Id) return;
@@ -3109,7 +3105,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 				handleControlButtonClick={handleControlButtonClick}
 				handleProgressClick={handleProgressClick}
 				handleProgressKeyDown={handleProgressKeyDown}
-				handleProgressBlur={handleProgressBlur}
+				handleProgressBlur={executeDeferredSeek}
 				handleSelectAudio={handleSelectAudio}
 				handleSelectSubtitle={handleSelectSubtitle}
 				handleSubtitleKeyDown={handleSubtitleItemKeyDown}

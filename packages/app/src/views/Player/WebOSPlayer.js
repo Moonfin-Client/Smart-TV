@@ -1158,6 +1158,8 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 			seekDebounceTimerRef.current = setTimeout(() => {
 				lastSeekTimeRef.current = Date.now();
 				if (healthMonitorRef.current) healthMonitorRef.current.reset();
+				// The last timeupdate is from before the seek, and a scrub's bar falls back to it.
+				setCurrentTime(newTime);
 				try {
 					videoRef.current.currentTime = newTime;
 				} catch (e) {
@@ -1167,6 +1169,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 		} else if (videoRef.current) {
 			lastSeekTimeRef.current = Date.now();
 			if (healthMonitorRef.current) healthMonitorRef.current.reset();
+			setCurrentTime(newTime);
 			try {
 				videoRef.current.currentTime = newTime;
 			} catch (e) {
@@ -1182,6 +1185,8 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 		const clampedTicks = Math.max(0, Math.min(ticks, maxTicks));
 		positionRef.current = clampedTicks;
 		lastSeekTargetRef.current = null;
+		// Same as seekByOffset, or committing a held scrub shows where it started.
+		setCurrentTime(clampedTicks / 10000000);
 		if (playMethod === 'Transcode') {
 			lastSeekTimeRef.current = Date.now();
 			if (healthMonitorRef.current) healthMonitorRef.current.reset();
