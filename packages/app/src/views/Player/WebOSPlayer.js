@@ -170,6 +170,8 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 	const [subtitleTrackEvents, setSubtitleTrackEvents] = useState(null)
 	const [currentSubtitleText, setCurrentSubtitleText] = useState(null);
 	const [subtitleOffset, setSubtitleOffset] = useState(0);
+	const subtitleOffsetRef = useRef(0);
+	subtitleOffsetRef.current = subtitleOffset;
 	const [controlsVisible, setControlsVisible] = useState(false);
 	const [activeModal, setActiveModal] = useState(null);
 	// Seeded from the advanced playback menu, which picks a cap before playback starts.
@@ -300,6 +302,8 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 	const lastSeekTimeRef = useRef(0);
 	const mediaUrlRef = useRef(null);
 	const pgsRendererRef = useRef(null);
+	// Invalidates async PGS starts when the user changes track/item before one finishes.
+	const pgsInitGenRef = useRef(0);
 	// Re-runs the PGS setup of the current subtitle, for a seek that left the in band
 	// reader behind the playhead.
 	const pgsInitRef = useRef(null);
@@ -564,6 +568,8 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 	// same way the ASS renderer does, so a PGS track can be picked at any point.
 	const initPgsRendererForStream = useCallback(async (stream) => {
 		if (!stream?.isImageBased || !videoRef.current) return false;
+		const generation = ++pgsInitGenRef.current;
+		const isCurrent = () => generation === pgsInitGenRef.current;
 
 		disposePgsRenderer(pgsRendererRef.current);
 		pgsRendererRef.current = null;
@@ -572,18 +578,29 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 			let renderer = stream.inBand ?
 				await initPgsInBandRenderer(videoRef.current, stream, {startTime: videoRef.current.currentTime}) :
 				await initPgsRenderer(videoRef.current, stream);
+			if (!isCurrent()) {
+				if (renderer) disposePgsRenderer(renderer);
+				return false;
+			}
 			// Keep Jellyfin's sidecar URL as a lazy fallback. Merely carrying the URL
 			// does not start extraction; it is fetched only if the range-demux path
 			// cannot read this Matroska (missing Cues, unsupported layout, no Range).
 			if (!renderer && stream.inBand && stream.deliveryUrl) {
 				console.warn('[Player] In-band PGS unavailable, falling back to sidecar');
 				renderer = await initPgsRenderer(videoRef.current, stream);
+				if (!isCurrent()) {
+					if (renderer) disposePgsRenderer(renderer);
+					return false;
+				}
 			}
 			if (!renderer) {
 				console.error('[Player] PGS renderer returned null');
 				setSubtitleTrackEvents(null);
 				return false;
 			}
+			// Moonfin positive offset means delay the subtitle; libpgs positive offset
+			// means render it early, so the signs are intentionally opposite.
+			renderer.timeOffset = -subtitleOffsetRef.current;
 			pgsRendererRef.current = renderer;
 			// libpgs cannot rewind its subtitle list, so a seek back behind the data it has
 			// already parsed is answered with a fresh renderer.
@@ -591,6 +608,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 			setSubtitleTrackEvents(null);
 			return true;
 		} catch (err) {
+			if (!isCurrent()) return false;
 			console.error('[Player] PGS renderer failed:', err);
 			setSubtitleTrackEvents(null);
 			return false;
@@ -954,6 +972,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 
 				// Load subtitle data or renderer for the selected stream.
 				const loadSubtitleData = async (sub) => {
+					pgsInitGenRef.current++;
 					disposePgsRenderer(pgsRendererRef.current);
 					pgsRendererRef.current = null;
 					pgsInitRef.current = null;
@@ -2219,6 +2238,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 	const applySubtitleSelection = useCallback(async (index, streamList = subtitleStreams, shouldClose = true) => {
 		playback.updateCurrentSession({subtitleStreamIndex: index});
 
+		pgsInitGenRef.current++;
 		disposePgsRenderer(pgsRendererRef.current);
 		pgsRendererRef.current = null;
 		pgsInitRef.current = null;
@@ -2626,7 +2646,9 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 	}, [handleButtonAction]);
 
 	const handleSubtitleOffsetChange = useCallback((newOffset) => {
+		subtitleOffsetRef.current = newOffset;
 		setSubtitleOffset(newOffset);
+		if (pgsRendererRef.current) pgsRendererRef.current.timeOffset = -newOffset;
 	}, []);
 
 	const stopPropagation = useCallback((e) => {
