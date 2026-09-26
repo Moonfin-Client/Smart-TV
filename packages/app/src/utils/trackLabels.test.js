@@ -32,4 +32,11 @@ describe('sortSubtitleStreams', () => {
 
 		expect(sortSubtitleStreams([external, delivered, internal])).toEqual([internal, external, delivered]);
 	});
+
+	test('external tracks come first when preferExternal is true', () => {
+		const internal = {index: 1};
+		const external = {index: 2, isExternal: true};
+		const delivered = {index: 3, deliveryMethod: 'External'};
+		expect(sortSubtitleStreams([internal, external, delivered], true)).toEqual([external, delivered, internal]);
+	});
 });

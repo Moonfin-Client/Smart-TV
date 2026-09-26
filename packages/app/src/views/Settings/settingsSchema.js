@@ -815,6 +815,8 @@ export const SETTINGS_SCHEMA = [
 					{kind: KIND.OPTION, key: 'subtitleLanguage', label: () => $L('Default Subtitle Language'), options: getSubtitleLanguageOptions, fallback: () => $L('None'), icon: 'language', when: whenSubtitlesOn, padded: true},
 					{kind: KIND.OPTION, key: 'fallbackSubtitleLanguage', label: () => $L('Fallback Subtitle Language'), options: getSubtitleLanguageOptions, fallback: () => $L('None'), icon: 'language', when: whenSubtitlesOn, padded: true},
 					{kind: KIND.TOGGLE, key: 'preferSdhSubtitles', label: () => $L('Prefer SDH Subtitles'), desc: () => $L('Prioritize SDH/CC subtitle tracks when auto-selecting.'), icon: 'hearing', when: whenSubtitlesOn},
+					{kind: KIND.TOGGLE, key: 'preferTextSubtitles', label: () => $L('Prefer text subtitles'), desc: () => $L('Prioritize text-based subtitles (SRT, VTT) over image-based formats (PGS, VobSub)'), icon: 'subtitles', when: whenSubtitlesOn},
+					{kind: KIND.TOGGLE, key: 'preferExternalSubtitles', label: () => $L('Prefer external subtitles'), desc: () => $L('Prioritize external subtitle files over embedded tracks'), icon: 'folder', when: whenSubtitlesOn},
 					{kind: KIND.SECTION, id: 'subtitleCustomization', label: () => $L('Subtitle Customization'), when: whenSubtitlesOn},
 					{kind: KIND.NAV, id: 'subtitleCustomization', label: () => $L('Subtitle Customization'), desc: () => $L('Customize subtitle appearance'), icon: 'style', when: whenSubtitlesOn, action: (ctx) => ctx.actions.openScreen('playback', 'subtitleCustomization', 'setting-subtitleCustomization')},
 					{kind: KIND.SECTION, id: 'subtitleRendering', label: () => $L('Subtitle Rendering'), when: whenSubtitlesOn},

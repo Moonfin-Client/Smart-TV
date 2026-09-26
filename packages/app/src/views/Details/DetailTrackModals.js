@@ -20,6 +20,7 @@ const DetailTrackModals = ({
 	selectedVersionIndex,
 	selectedAudioIndex,
 	selectedSubtitleIndex,
+	preferExternalSubtitles,
 	onSelectTranscodeQuality,
 	onSelectVersion,
 	onSelectAudio,
@@ -34,15 +35,15 @@ const DetailTrackModals = ({
 	const stopPropagation = useCallback((e) => e.stopPropagation(), []);
 
 	// The file's own tracks list before downloaded ones, the order the player
-	// uses. Rows are picked by their place in the unsorted list, so each one
-	// carries that place rather than its place on screen.
+	// uses (or vice versa when preferExternalSubtitles is true). Rows are picked
+	// by their place in the unsorted list, so each one carries that place rather
+	// than its place on screen.
 	const displaySubtitleStreams = useMemo(() => {
 		const withPosition = subtitleStreams.map((stream, position) => ({stream, position}));
-		return [
-			...withPosition.filter((entry) => !isExternalSubtitleStream(entry.stream)),
-			...withPosition.filter((entry) => isExternalSubtitleStream(entry.stream))
-		];
-	}, [subtitleStreams]);
+		const internal = withPosition.filter((entry) => !isExternalSubtitleStream(entry.stream));
+		const external = withPosition.filter((entry) => isExternalSubtitleStream(entry.stream));
+		return preferExternalSubtitles ? [...external, ...internal] : [...internal, ...external];
+	}, [subtitleStreams, preferExternalSubtitles]);
 
 	// The list only stands in for itself once the work is done and there is
 	// nothing to report instead.

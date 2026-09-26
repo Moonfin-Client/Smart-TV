@@ -39,6 +39,8 @@ export const defaultSettings = {
 	preferAudioDescription: false,
 	fallbackSubtitleLanguage: '',
 	preferSdhSubtitles: false,
+	preferTextSubtitles: false,
+	preferExternalSubtitles: false,
 	// Seconds as a string, the shape the other clients sync for it.
 	resumeSubtractDuration: '0',
 	skipBackLength: 10000,
