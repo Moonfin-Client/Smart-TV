@@ -1094,7 +1094,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 				if (controlsTimeoutRef.current) clearTimeout(controlsTimeoutRef.current);
 				if (seekDebounceTimerRef.current) clearTimeout(seekDebounceTimerRef.current);
 				clearTimeout(scrubSettleTimerRef.current);
-				pgsInitGenRef.current++;
+				pgsInitGenRef.current++; // eslint-disable-line react-hooks/exhaustive-deps
 				disposePgsRenderer(pgsRendererRef.current);
 				pgsInitRef.current = null;
 				disposeAssRenderer(assRendererRef.current);
