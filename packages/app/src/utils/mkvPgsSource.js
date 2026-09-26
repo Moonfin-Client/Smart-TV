@@ -34,6 +34,8 @@ const ID = {
 	ContentEncodings: 0x6d80,
 	ContentEncoding: 0x6240,
 	ContentCompression: 0x5034,
+	ContentCompAlgo: 0x4254,
+	ContentCompSettings: 0x4255,
 	Cues: 0x1c53bb6b,
 	CuePoint: 0xbb,
 	CueTime: 0xb3,
@@ -47,7 +49,6 @@ const ID = {
 
 const PGS_CODEC_IDS = ['S_HDMV/PGS', 'S_HDRV_PGS'];
 const SUBTITLE_TRACK_TYPE = 17;
-const ZLIB_HEADER = 0x78;
 const SUP_FRAME_HEADER_BYTES = 10;
 const SUP_PTS_UNITS_PER_MS = 90;
 const HEAD_BYTES = 64 * 1024;
@@ -120,7 +121,14 @@ export const parseTracks = (bytes, start, size) => {
 	const tracks = [];
 	forEachChild(bytes, start, start + size, (header, bodyStart) => {
 		if (header.id !== ID.TrackEntry) return;
-		const track = {number: 0, type: 0, codec: '', language: 'und', compressed: false};
+		const track = {
+			number: 0,
+			type: 0,
+			codec: '',
+			language: 'und',
+			compressionAlgorithm: null,
+			compressionSettings: null
+		};
 		forEachChild(bytes, bodyStart, bodyStart + header.size, (child, childBody) => {
 			switch (child.id) {
 				case ID.TrackNumber:
@@ -139,11 +147,17 @@ export const parseTracks = (bytes, start, size) => {
 					forEachChild(bytes, childBody, childBody + child.size, (encoding, encodingBody) => {
 						if (encoding.id !== ID.ContentEncoding) return;
 						forEachChild(bytes, encodingBody, encodingBody + encoding.size, (field, fieldBody) => {
-							// Algorithm zero is zlib, which is how PGS access units are
-							// stored in Matroska.
-							if (field.id === ID.ContentCompression) {
-								track.compressed = readUint(bytes, fieldBody, field.size) === 0;
-							}
+							if (field.id !== ID.ContentCompression) return;
+							// ContentCompAlgo defaults to zlib when ContentCompression is
+							// present. Header stripping carries the removed prefix in settings.
+							track.compressionAlgorithm = 0;
+							forEachChild(bytes, fieldBody, fieldBody + field.size, (compression, compressionBody) => {
+								if (compression.id === ID.ContentCompAlgo) {
+									track.compressionAlgorithm = readUint(bytes, compressionBody, compression.size);
+								} else if (compression.id === ID.ContentCompSettings) {
+									track.compressionSettings = bytes.slice(compressionBody, compressionBody + compression.size);
+								}
+							});
 						});
 					});
 					break;
@@ -291,6 +305,8 @@ export const createInBandPgsSource = ({streamUrl, subtitleOrdinal, getTime, star
 	let servedThroughMs = -1;
 	let lastServedMs = 0;
 	let disposed = false;
+	let compressionAlgorithm = null;
+	let compressionSettings = null;
 	const clusterDataOffsets = new Map();
 
 	const fetchRange = async (start, end) => {
@@ -318,7 +334,12 @@ export const createInBandPgsSource = ({streamUrl, subtitleOrdinal, getTime, star
 		const subtitleTracks = header.tracks.filter((entry) => entry.type === SUBTITLE_TRACK_TYPE);
 		const track = subtitleTracks[subtitleOrdinal];
 		if (!track || !PGS_CODEC_IDS.includes(track.codec)) return false;
+		// zlib and header stripping are both cheap to undo here. bzip2/lzo are rare
+		// and deliberately fall back to Jellyfin's extractor instead.
+		if (track.compressionAlgorithm !== null && track.compressionAlgorithm !== 0 && track.compressionAlgorithm !== 3) return false;
 		trackNumber = track.number;
+		compressionAlgorithm = track.compressionAlgorithm;
+		compressionSettings = track.compressionSettings;
 		timestampScale = header.timestampScale / 1000000;
 		cues = await readCues(header.cuesOffset);
 		return cues.length > 0;
@@ -383,7 +404,12 @@ export const createInBandPgsSource = ({streamUrl, subtitleOrdinal, getTime, star
 		}
 		const frames = [];
 		for (const unit of units) {
-			const payload = unit.bytes[0] === ZLIB_HEADER ? inflate(unit.bytes) : unit.bytes;
+			let payload = unit.bytes;
+			if (compressionAlgorithm === 0) {
+				payload = inflate(payload);
+			} else if (compressionAlgorithm === 3 && compressionSettings?.length) {
+				payload = concat([compressionSettings, payload]);
+			}
 			frames.push(...accessUnitToSup(unit.timeMs, payload));
 		}
 		servedThroughMs = batch[batch.length - 1].time * timestampScale;
