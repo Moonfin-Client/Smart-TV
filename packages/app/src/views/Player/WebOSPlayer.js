@@ -560,6 +560,36 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 		return false;
 	}, [applyVideoAndAssGeometry]);
 
+	// Both the first use of a subtitle and a change away from another one land here, the
+	// same way the ASS renderer does, so a PGS track can be picked at any point.
+	const initPgsRendererForStream = useCallback(async (stream) => {
+		if (!stream?.isImageBased || !videoRef.current) return false;
+
+		disposePgsRenderer(pgsRendererRef.current);
+		pgsRendererRef.current = null;
+		pgsInitRef.current = null;
+		try {
+			const renderer = stream.inBand ?
+				await initPgsInBandRenderer(videoRef.current, stream, {startTime: videoRef.current.currentTime}) :
+				await initPgsRenderer(videoRef.current, stream);
+			if (!renderer) {
+				console.error('[Player] PGS renderer returned null');
+				setSubtitleTrackEvents(null);
+				return false;
+			}
+			pgsRendererRef.current = renderer;
+			// libpgs cannot rewind its subtitle list, so a seek back behind the data it has
+			// already parsed is answered with a fresh renderer.
+			pgsInitRef.current = renderer.needsRestart ? () => initPgsRendererForStream(stream) : null;
+			setSubtitleTrackEvents(null);
+			return true;
+		} catch (err) {
+			console.error('[Player] PGS renderer failed:', err);
+			setSubtitleTrackEvents(null);
+			return false;
+		}
+	}, []);
+
 	useEffect(() => {
 		const init = async () => {
 			await initLunaAPI();
@@ -919,6 +949,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 				const loadSubtitleData = async (sub) => {
 					disposePgsRenderer(pgsRendererRef.current);
 					pgsRendererRef.current = null;
+					pgsInitRef.current = null;
 					assInitGenRef.current++;
 					disposeAssRenderer(assRendererRef.current);
 					assRendererRef.current = null;
@@ -944,34 +975,8 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 							setSubtitleTrackEvents(null);
 						}
 					} else if (sub && sub.isImageBased && settings.enablePgsRendering) {
-						pgsInitRef.current = null;
-						if (videoRef.current) {
-							try {
-								const startPgs = async () => {
-									const renderer = sub.inBand ?
-										await initPgsInBandRenderer(videoRef.current, sub, {startTime: videoRef.current.currentTime}) :
-										await initPgsRenderer(videoRef.current, sub);
-									if (!renderer) return false;
-									pgsRendererRef.current = renderer;
-									pgsInitRef.current = renderer.needsRestart ? startPgs : null;
-									return true;
-								};
-								if (await startPgs()) {
-									setSubtitleTrackEvents(null);
-								} else {
-									console.error('[Player] PGS renderer returned null');
-									setSubtitleTrackEvents(null);
-								}
-							} catch (err) {
-								console.error('[Player] PGS renderer failed:', err);
-								setSubtitleTrackEvents(null);
-							}
-						} else {
-							console.error('[Player] PGS: videoRef is null');
-							setSubtitleTrackEvents(null);
-						}
+						await initPgsRendererForStream(sub);
 					} else {
-						pgsInitRef.current = null;
 						setSubtitleTrackEvents(null);
 					}
 
@@ -2209,6 +2214,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 
 		disposePgsRenderer(pgsRendererRef.current);
 		pgsRendererRef.current = null;
+		pgsInitRef.current = null;
 		assInitGenRef.current++;
 		disposeAssRenderer(assRendererRef.current);
 		assRendererRef.current = null;
@@ -2264,34 +2270,17 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 					setSubtitleTrackEvents(null);
 				}
 			} else if (stream && stream.isImageBased && settings.enablePgsRendering) {
-				if (videoRef.current) {
-					try {
-						const renderer = await initPgsRenderer(videoRef.current, stream, {
-							opacity: settings.subtitleOpacity,
-							scale: 1.0
-						});
-						if (renderer) {
-							pgsRendererRef.current = renderer;
-							setSubtitleTrackEvents(null);
-						} else {
-							setSubtitleTrackEvents(null);
-						}
-					} catch (err) {
-						setSubtitleTrackEvents(null);
-					}
-				}
+				await initPgsRendererForStream(stream);
 			} else {
 				setSubtitleTrackEvents(null);
 			}
-			setCurrentSubtitleText(null);
 		}
-
+		setCurrentSubtitleText(null);
 		saveSubtitlePref(item, index, streamList || []);
-
 		if (shouldClose) {
 			closeModal();
 		}
-	}, [item, subtitleStreams, closeModal, settings.enablePgsRendering, settings.subtitleOpacity, initAssRendererForStream, reloadWithSubtitleIndex]);
+	}, [item, subtitleStreams, closeModal, settings.enablePgsRendering, initAssRendererForStream, initPgsRendererForStream, reloadWithSubtitleIndex]);
 
 	const handleOpenRemoteSubtitleSearch = useCallback(async () => {
 		if (!item?.Id) return;

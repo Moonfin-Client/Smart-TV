@@ -4,7 +4,7 @@ import {getPlayMethod, getMimeType, isAudioStreamPlayable, canRenderEmbeddedPgsI
 import {getFromStorage} from './storage';
 import {selectCompatibleAlternateAudio} from '../utils/alternateAudio';
 import {serverLogger} from './serverLogger';
-import {TEXT_SUBTITLE_CODECS, isAssSubtitleCodec, isPgsSubtitleCodec, isBurnInSubtitleCodec} from '../utils/subtitleCodecs';
+import {TEXT_SUBTITLE_CODECS, isAssSubtitleCodec, isPgsSubtitleCodec, isBurnInSubtitleCodec, isInBandSubtitleTrack} from '../utils/subtitleCodecs';
 import {applyProfileTuning} from '../utils/deviceProfileTuning';
 import {findNextInSeason, findNextSeason, firstPlayableEpisode} from '../utils/nextEpisode';
 import {videoRangeTypeOf} from '../utils/videoRange';
@@ -318,11 +318,6 @@ const extractAudioStreams = (mediaSource) => {
 		}));
 };
 
-const isMatroskaContainer = (container) => {
-	const parts = (container || '').toLowerCase().split(',').map((part) => part.trim());
-	return parts.includes('mkv') || parts.includes('matroska');
-};
-
 const extractSubtitleStreams = (mediaSource, itemId = null, creds = null, assBurnsIn = false, streamUrl = null) => {
 	if (!mediaSource.MediaStreams) return [];
 	const serverUrl = creds?.serverUrl || jellyfinApi.getServerUrl();
@@ -343,9 +338,11 @@ const extractSubtitleStreams = (mediaSource, itemId = null, creds = null, assBur
 			// server for a sidecar: the sidecar request makes Jellyfin read the whole
 			// source with ffmpeg first, which on a large remux is minutes of delay and a
 			// second full pass over the media.
-			const inBand = isImageBased && !s.IsExternal && streamUrl &&
-				isMatroskaContainer(mediaSource.Container) && canRenderEmbeddedPgsInBand() ?
-				{streamUrl, ordinal: inBandOrdinal} : null;
+			const inBand = streamUrl && isInBandSubtitleTrack(codec, {
+				isExternal: s.IsExternal,
+				container: mediaSource.Container,
+				canStreamInBand: canRenderEmbeddedPgsInBand()
+			}) ? {streamUrl, ordinal: inBandOrdinal} : null;
 			let deliveryUrl = null;
 			if (s.DeliveryUrl) {
 				// External URLs are used as-is, internal URLs need server prefix
