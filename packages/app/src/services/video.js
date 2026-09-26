@@ -23,6 +23,7 @@ export const initVideo = () => loadImpl();
 
 export const getPlayMethod = (...args) => impl.getPlayMethod(...args);
 export const getMimeType = (...args) => impl.getMimeType(...args);
+export const canRenderEmbeddedPgsInBand = (...args) => impl.canRenderEmbeddedPgsInBand(...args);
 export const findCompatibleAudioStreamIndex = (...args) => impl.findCompatibleAudioStreamIndex(...args);
 export const getSupportedAudioCodecs = (...args) => impl.getSupportedAudioCodecs(...args);
 export const isAudioStreamPlayable = (...args) => impl.isAudioStreamPlayable(...args);

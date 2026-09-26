@@ -356,6 +356,16 @@ export const getMimeType = (container) => {
 	return mimeTypes[container?.toLowerCase()] || 'video/mp4';
 };
 
+/**
+ * webOS hands the container to Starfish and exposes no track list for embedded bitmap
+ * subtitles, so an embedded PGS track is taken out of the file the player is already
+ * streaming instead of being asked for as a sidecar.
+ */
+export const canRenderEmbeddedPgsInBand = () =>
+	typeof ReadableStream === 'function' &&
+	typeof Response === 'function' &&
+	typeof fetch === 'function';
+
 export const setDisplayWindow = async (rect) => {
 	if (!isLunaAvailable) return false;
 
@@ -650,6 +660,7 @@ export default {
 	initLunaAPI,
 	getPlayMethod,
 	getMimeType,
+	canRenderEmbeddedPgsInBand,
 	getSupportedAudioCodecs,
 	findCompatibleAudioStreamIndex,
 	isAudioStreamPlayable,

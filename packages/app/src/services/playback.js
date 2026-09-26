@@ -1,6 +1,6 @@
 import * as jellyfinApi from './jellyfinApi';
 import {getDeviceProfile, getDeviceCapabilities} from './deviceProfile';
-import {getPlayMethod, getMimeType, isAudioStreamPlayable} from './video';
+import {getPlayMethod, getMimeType, isAudioStreamPlayable, canRenderEmbeddedPgsInBand} from './video';
 import {getFromStorage} from './storage';
 import {selectCompatibleAlternateAudio} from '../utils/alternateAudio';
 import {serverLogger} from './serverLogger';
@@ -318,11 +318,17 @@ const extractAudioStreams = (mediaSource) => {
 		}));
 };
 
-const extractSubtitleStreams = (mediaSource, itemId = null, creds = null, assBurnsIn = false) => {
+const isMatroskaContainer = (container) => {
+	const parts = (container || '').toLowerCase().split(',').map((part) => part.trim());
+	return parts.includes('mkv') || parts.includes('matroska');
+};
+
+const extractSubtitleStreams = (mediaSource, itemId = null, creds = null, assBurnsIn = false, streamUrl = null) => {
 	if (!mediaSource.MediaStreams) return [];
 	const serverUrl = creds?.serverUrl || jellyfinApi.getServerUrl();
 	const apiKey = creds?.accessToken || jellyfinApi.getApiKey();
 	const tokenParam = jellyfinApi.getTokenParam(creds?.serverType);
+	let embeddedOrdinal = 0;
 
 	return mediaSource.MediaStreams
 		.filter(s => s.Type === 'Subtitle')
@@ -330,11 +336,21 @@ const extractSubtitleStreams = (mediaSource, itemId = null, creds = null, assBur
 			const codec = s.Codec?.toLowerCase();
 			const isTextBased = TEXT_SUBTITLE_CODECS.includes(codec);
 			const isImageBased = isPgsSubtitleCodec(codec);
+			// Position among the container's own subtitle tracks, which is what maps this
+			// stream onto a Matroska track number. External sidecars sit outside the file.
+			const inBandOrdinal = s.IsExternal ? -1 : embeddedOrdinal++;
+			// Taking PGS out of the file the player is already streaming beats asking the
+			// server for a sidecar: the sidecar request makes Jellyfin read the whole
+			// source with ffmpeg first, which on a large remux is minutes of delay and a
+			// second full pass over the media.
+			const inBand = isImageBased && !s.IsExternal && streamUrl &&
+				isMatroskaContainer(mediaSource.Container) && canRenderEmbeddedPgsInBand() ?
+				{streamUrl, ordinal: inBandOrdinal} : null;
 			let deliveryUrl = null;
 			if (s.DeliveryUrl) {
 				// External URLs are used as-is, internal URLs need server prefix
 				deliveryUrl = s.IsExternalUrl ? s.DeliveryUrl : `${serverUrl}${s.DeliveryUrl}`;
-			} else if (isImageBased && itemId && !s.IsExternal) {
+			} else if (isImageBased && itemId && !s.IsExternal && !inBand) {
 				deliveryUrl = `${serverUrl}/Videos/${itemId}/${mediaSource.Id}/Subtitles/${s.Index}/0/Stream.sup?${tokenParam}=${apiKey}`;
 			}
 			// Encode is the server saying the only way it can deliver this track is
@@ -362,6 +378,7 @@ const extractSubtitleStreams = (mediaSource, itemId = null, creds = null, assBur
 				// container is the only one text has.
 				isEmbeddedNative: !isBurnIn && !s.IsExternal && s.DeliveryMethod !== 'External' &&
 					(isImageBased || (isTextBased && mediaSource.SupportsTranscoding === false)),
+				inBand,
 				deliveryUrl: deliveryUrl,
 				deliveryMethod: s.DeliveryMethod
 			};
@@ -486,7 +503,7 @@ export const getPlaybackInfo = async (itemId, options = {}) => {
 			: (mediaSource.SupportsDirectPlay ? PlayMethod.DirectPlay : PlayMethod.DirectStream);
 		const url = buildPlaybackUrl(itemId, mediaSource, playbackInfo.PlaySessionId, playMethod, creds, false, options);
 		const audioStreams = extractAudioStreams(mediaSource);
-		const subtitleStreams = extractSubtitleStreams(mediaSource, itemId, creds, storedSettings.assDirectPlay === false);
+		const subtitleStreams = extractSubtitleStreams(mediaSource, itemId, creds, storedSettings.assDirectPlay === false, url);
 
 		currentSession = {
 			itemId,
@@ -708,7 +725,7 @@ export const getPlaybackInfo = async (itemId, options = {}) => {
 	const url = buildPlaybackUrl(itemId, mediaSource, playbackInfo.PlaySessionId, playMethod, creds, isAudio, options);
 
 	const audioStreams = extractAudioStreams(mediaSource);
-	const subtitleStreams = extractSubtitleStreams(mediaSource, itemId, creds, storedSettings.assDirectPlay === false);
+	const subtitleStreams = extractSubtitleStreams(mediaSource, itemId, creds, storedSettings.assDirectPlay === false, url);
 	const chapters = extractChapters(mediaSource);
 
 	const audioOnlyRemux = playMethod === PlayMethod.Transcode && isAudioOnlyRemuxTranscode(mediaSource);

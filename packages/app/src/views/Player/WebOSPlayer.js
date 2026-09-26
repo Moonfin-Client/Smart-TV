@@ -11,7 +11,7 @@ import useAudioTransport from './audio/useAudioTransport';
 import useLyrics from './audio/useLyrics';
 import {handleAudioFocusKey, exitAudioPanel, nextAudioFocusRow, AUDIO_FOCUS_IDS} from './audio/audioFocus';
 import {detectWebOSVersion, getH264FallbackProfile} from '@moonfin/platform-webos/deviceProfile';
-import {initPgsRenderer, disposePgsRenderer} from '../../utils/pgsRenderer';
+import {initPgsRenderer, initPgsInBandRenderer, disposePgsRenderer} from '../../utils/pgsRenderer';
 import {supportsAssRenderer, initAssCanvasRenderer, disposeAssRenderer, setAssTime, clearAssCanvas} from '../../utils/assRenderer';
 import {
 	initLunaAPI,
@@ -300,6 +300,9 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 	const lastSeekTimeRef = useRef(0);
 	const mediaUrlRef = useRef(null);
 	const pgsRendererRef = useRef(null);
+	// Re-runs the PGS setup of the current subtitle, for a seek that left the in band
+	// reader behind the playhead.
+	const pgsInitRef = useRef(null);
 	const assRendererRef = useRef(null);
 	const assCanvasRef = useRef(null);
 	// Bumped by every renderer start and teardown, so a start that finishes after a
@@ -941,11 +944,19 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 							setSubtitleTrackEvents(null);
 						}
 					} else if (sub && sub.isImageBased && settings.enablePgsRendering) {
+						pgsInitRef.current = null;
 						if (videoRef.current) {
 							try {
-								const renderer = await initPgsRenderer(videoRef.current, sub);
-								if (renderer) {
+								const startPgs = async () => {
+									const renderer = sub.inBand ?
+										await initPgsInBandRenderer(videoRef.current, sub, {startTime: videoRef.current.currentTime}) :
+										await initPgsRenderer(videoRef.current, sub);
+									if (!renderer) return false;
 									pgsRendererRef.current = renderer;
+									pgsInitRef.current = renderer.needsRestart ? startPgs : null;
+									return true;
+								};
+								if (await startPgs()) {
 									setSubtitleTrackEvents(null);
 								} else {
 									console.error('[Player] PGS renderer returned null');
@@ -960,6 +971,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 							setSubtitleTrackEvents(null);
 						}
 					} else {
+						pgsInitRef.current = null;
 						setSubtitleTrackEvents(null);
 					}
 
@@ -1271,6 +1283,18 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 		if (!pending || !videoRef.current || videoRef.current.seeking) return;
 		if (seekLanded(pending.from, pending.target, syncPlaySample().positionTicks)) settleGroupSeek();
 	}, [settleGroupSeek, syncPlaySample]);
+
+	const handleSeeked = useCallback(() => {
+		// libpgs keeps an ascending list of subtitle timestamps, so a seek back behind
+		// the data already handed to it needs a fresh renderer rather than a seek.
+		const renderer = pgsRendererRef.current;
+		if (renderer?.needsRestart && renderer.needsRestart(videoRef.current?.currentTime || 0)) {
+			disposePgsRenderer(renderer);
+			pgsRendererRef.current = null;
+			pgsInitRef.current?.();
+		}
+		settleGroupSeekIfLanded();
+	}, [settleGroupSeekIfLanded]);
 
 	// A seek on the group's behalf. The server holds the group until this set
 	// reports Ready, so the report waits for the seek to land. A Seek command
@@ -1948,11 +1972,11 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 			onTimeUpdate: handleTimeUpdate,
 			onWaiting: handleWaiting,
 			onPlaying: handlePlaying,
-			onSeeked: settleGroupSeekIfLanded,
+			onSeeked: handleSeeked,
 			onEnded: handleEnded,
 			onError: handleError,
 		};
-	}, [handleLoadedMetadata, handlePlay, handlePause, handleTimeUpdate, handleWaiting, handlePlaying, settleGroupSeekIfLanded, handleEnded, handleError]);
+	}, [handleLoadedMetadata, handlePlay, handlePause, handleTimeUpdate, handleWaiting, handlePlaying, handleSeeked, handleEnded, handleError]);
 
 	const teardownPlayback = useCallback(async () => {
 		cancelNextEpisodeCountdown();
