@@ -132,7 +132,7 @@
 		"@enact/ui": "^4.8.0",
 		"@enact/webos": "^5.4.1",
 		"@material-symbols/svg-400": "^0.44.4",
-		"hls.js": "^1.4.14",
+		"hls.js": "^1.7.0",
 		"ilib": "^14.19.0",
 		"jszip": "^3.10.1",
 		"libpgs": "^0.8.1",

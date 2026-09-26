@@ -2,7 +2,7 @@ import {useState, useEffect, useCallback, useRef} from 'react';
 import Spotlight from '@enact/spotlight';
 
 import {stopPlaybackForTrailer} from '../../utils/trailerPlayback';
-import {fetchVideoStreamUrl, extractYouTubeIdFromUrl, fetchSponsorSegments} from '../../services/youtubeTrailer';
+import {attachTrailerStream, fetchVideoStream, extractYouTubeIdFromUrl, fetchSponsorSegments, isManifestUrl, needsHlsJs} from '../../services/youtubeTrailer';
 import {isBackKey} from '../../utils/keys';
 
 // Plays a title's trailer. A local one goes to the real player, and a YouTube link plays in
@@ -12,6 +12,7 @@ const useDetailsTrailer = ({item, effectiveApi, onPlay, trailerMuted, seerrOnly}
 	const [trailerStreamUrl, setTrailerStreamUrl] = useState(null);
 
 	const trailerVideoRef = useRef(null);
+	const trailerAudioLanguageRef = useRef('');
 	const sponsorSegmentsRef = useRef([]);
 	const sponsorSkipIntervalRef = useRef(null);
 
@@ -106,14 +107,15 @@ const useDetailsTrailer = ({item, effectiveApi, onPlay, trailerMuted, seerrOnly}
 
 		const resolveStream = async () => {
 			// Segments are a bonus, so a failed lookup must not hold up the trailer.
-			const [segments, url] = await Promise.all([
+			const [segments, stream] = await Promise.all([
 				fetchSponsorSegments(trailerOverlay).catch(() => []),
-				fetchVideoStreamUrl(trailerOverlay, true)
+				fetchVideoStream(trailerOverlay, true)
 			]);
 			if (cancelled) return;
-			if (url) {
+			if (stream) {
 				sponsorSegmentsRef.current = segments || [];
-				setTrailerStreamUrl(url);
+				trailerAudioLanguageRef.current = stream.audioLanguage || '';
+				setTrailerStreamUrl(stream.url);
 			} else {
 				setTrailerOverlay(null);
 			}
@@ -122,6 +124,39 @@ const useDetailsTrailer = ({item, effectiveApi, onPlay, trailerMuted, seerrOnly}
 		resolveStream();
 		return () => { cancelled = true; };
 	}, [trailerOverlay]);
+
+	// The overlay's video mounts once there is a stream to put on it. A manifest the TV cant play
+	// gives way to YouTube's small muxed file.
+	useEffect(() => {
+		const video = trailerVideoRef.current;
+		if (!trailerStreamUrl || !video) return undefined;
+		let cancelled = false;
+		let fellBack = false;
+		let release = null;
+
+		const fallBack = () => {
+			if (cancelled || fellBack || !isManifestUrl(trailerStreamUrl)) return;
+			fellBack = true;
+			fetchVideoStream(trailerOverlay, true, '', true).then((stream) => {
+				if (cancelled || !stream) return;
+				trailerAudioLanguageRef.current = '';
+				setTrailerStreamUrl(stream.url);
+			});
+		};
+		video.onerror = fallBack;
+
+		const loadHls = needsHlsJs(trailerStreamUrl) ? import('hls.js').then((m) => m.default) : Promise.resolve(null);
+		loadHls.then((Hls) => {
+			if (cancelled) return;
+			release = attachTrailerStream(video, trailerStreamUrl, {Hls, audioLanguage: trailerAudioLanguageRef.current, onError: fallBack});
+		}).catch(fallBack);
+
+		return () => {
+			cancelled = true;
+			video.onerror = null;
+			if (release) release();
+		};
+	}, [trailerStreamUrl, trailerOverlay]);
 
 	// Skips sponsor segments by polling, the same way the home screen previews do.
 	useEffect(() => {

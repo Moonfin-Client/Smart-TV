@@ -37,6 +37,14 @@ export default function useTrailerPreview({currentItem, isVisible, enabled, pref
 	const sponsorSegmentsRef = useRef([]);
 	const trailerCaptionBlobRef = useRef(null);
 	const trailerCaptionBoxRef = useRef(null);
+	const releaseStreamRef = useRef(null);
+
+	const releaseStream = useCallback(() => {
+		if (releaseStreamRef.current) {
+			releaseStreamRef.current();
+			releaseStreamRef.current = null;
+		}
+	}, []);
 
 	// The video element is shared, so a caption track left behind would show its
 	// cues over whatever plays it next.
@@ -85,10 +93,11 @@ export default function useTrailerPreview({currentItem, isVisible, enabled, pref
 			video.onerror = null;
 		}
 		removeCaptionTrack(video);
+		releaseStream();
 		trailerStateRef.current = 'idle';
 		trailerVideoIdRef.current = null;
 		sponsorSegmentsRef.current = [];
-	}, [removeCaptionTrack]);
+	}, [removeCaptionTrack, releaseStream]);
 
 	const getRemoteTrailersForItem = useCallback(async (item) => {
 		if (!item?.Id) return [];
@@ -142,7 +151,7 @@ export default function useTrailerPreview({currentItem, isVisible, enabled, pref
 		trailerVideoIdRef.current = requestId;
 		await stopPlaybackForTrailer(trailerVideoRef.current);
 
-		const [{fetchSponsorSegments, fetchVideoStream, getTrailerStartTime}, {getSharedVideoElement}] = await Promise.all([
+		const [{attachTrailerStream, fetchSponsorSegments, fetchVideoStream, getTrailerStartTime, isManifestUrl, needsHlsJs}, {getSharedVideoElement}] = await Promise.all([
 			import('../../services/youtubeTrailer'),
 			import('@moonfin/platform-webos/video')
 		]);
@@ -182,21 +191,22 @@ export default function useTrailerPreview({currentItem, isVisible, enabled, pref
 		// The bar fills the screen, so ask for the best stream rather than the
 		// balanced pick a small preview would take
 		const resolveStream = async (attempt) => {
-			if (attempt.url) return {streamUrl: attempt.url, captionsUrl: null, segments: [], startTime: 0};
+			if (attempt.url) return {streamUrl: attempt.url, captionsUrl: null, audioLanguage: '', segments: [], startTime: 0};
 			try {
 				const results = await Promise.all([
 					fetchSponsorSegments(attempt.id).catch(() => []),
-					fetchVideoStream(attempt.id, true, captionLanguage)
+					fetchVideoStream(attempt.id, true, captionLanguage, attempt.muxedOnly)
 				]);
 				const stream = results[1];
 				return {
 					streamUrl: stream ? stream.url : null,
 					captionsUrl: stream ? stream.captionsUrl : null,
+					audioLanguage: stream ? stream.audioLanguage : '',
 					segments: results[0],
 					startTime: getTrailerStartTime(results[0])
 				};
 			} catch (e) {
-				return {streamUrl: null, captionsUrl: null, segments: [], startTime: 0};
+				return {streamUrl: null, captionsUrl: null, audioLanguage: '', segments: [], startTime: 0};
 			}
 		};
 
@@ -220,13 +230,17 @@ export default function useTrailerPreview({currentItem, isVisible, enabled, pref
 				return;
 			}
 
-			const {streamUrl, captionsUrl, segments, startTime} = await resolveStream(attempts[index]);
+			const {streamUrl, captionsUrl, audioLanguage, segments, startTime} = await resolveStream(attempts[index]);
 			if (isStale()) return;
 			if (!streamUrl) {
 				tryAttempt(index + 1);
 				return;
 			}
 			sponsorSegmentsRef.current = segments;
+			// A manifest the TV cant play gives way to YouTube's small muxed file.
+			if (attempts[index].id && !attempts[index].muxedOnly && isManifestUrl(streamUrl)) {
+				attempts.splice(index + 1, 0, {id: attempts[index].id, muxedOnly: true});
+			}
 
 			// The caption text is fetched here and handed over as a blob, since the
 			// track element cant load it straight from YouTube across origins.
@@ -299,8 +313,11 @@ export default function useTrailerPreview({currentItem, isVisible, enabled, pref
 				onEndedRef.current?.();
 			};
 
-			video.onerror = () => {
-				if (trailerVideoIdRef.current !== requestId) return;
+			// The element and hls.js can both report the same failure, which must only move on once
+			let failed = false;
+			const handleError = () => {
+				if (failed || trailerVideoIdRef.current !== requestId) return;
+				failed = true;
 				clearSkipInterval();
 				if (trailerStateRef.current === 'resolving') {
 					video.classList.remove(css.trailerVisible);
@@ -309,9 +326,12 @@ export default function useTrailerPreview({currentItem, isVisible, enabled, pref
 					markUnavailable();
 				}
 			};
+			video.onerror = handleError;
 
-			video.src = streamUrl;
-			if (startTime > 0) video.currentTime = startTime;
+			releaseStream();
+			const Hls = needsHlsJs(streamUrl) ? (await import('hls.js')).default : null;
+			if (isStale()) return;
+			releaseStreamRef.current = attachTrailerStream(video, streamUrl, {Hls, audioLanguage, startTime, onError: handleError});
 			const playPromise = video.play();
 			if (playPromise) {
 				playPromise.catch(() => {
@@ -328,7 +348,7 @@ export default function useTrailerPreview({currentItem, isVisible, enabled, pref
 		};
 
 		tryAttempt(0);
-	}, [stopTrailer, preferMuted, showCaptions, captionLanguage, removeCaptionTrack]);
+	}, [stopTrailer, preferMuted, showCaptions, captionLanguage, removeCaptionTrack, releaseStream]);
 
 	useEffect(() => {
 		if (!enabled || !isVisible || !currentItem || screensaverActive) {

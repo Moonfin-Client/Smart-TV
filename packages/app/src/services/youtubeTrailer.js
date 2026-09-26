@@ -1,30 +1,35 @@
+import {isTizen} from '../platform';
+
 const INNERTUBE_URL = 'https://www.youtube.com/youtubei/v1/player';
 const RESOLVE_TIMEOUT_MS = 8000;
 const REQUEST_TIMEOUT_MS = 5000;
 const DEBUG_STORAGE_KEY = 'moonfin:debugYoutubeTrailer';
 
-const YOUTUBE_REFERER = 'https://www.youtube.com/';
 // What counts as a good enough resolution to stop hunting for a better stream.
 const HIGH_QUALITY_FLOOR = 720;
-const FIREFOX_UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:140.0) Gecko/20100101 Firefox/140.0';
+const MANIFEST_URL = /\/manifest\/(hls|dash)_|\.(m3u8|mpd)(\?|$)/;
+// hls.js guesses 500 kbps until it has measured, which opens a trailer at 480p on a TV that
+// has bandwidth to spare for YouTube's 2.6 Mbps 1080p.
+const HLS_START_BANDWIDTH = 8000000;
 
-const PIPED_BASES = [
-	'https://pipedapi.kavin.rocks',
-	'https://pipedapi.moomoo.me'
-];
-
-const INVIDIOUS_BASES = [
-	'https://invidious.fdn.fr',
-	'https://invidious.privacyredirect.com',
-	'https://invidious.projectsegfau.lt'
-];
-
+// The Vision Pro app gets a manifest with every resolution in it, and the Android app backs it
+// up with a muxed file that stops at 360p. A client marked needsVisitor turns away a request
+// that carries no visitor id.
 const INNERTUBE_CLIENTS = [
 	{
+		name: 'VISIONOS',
+		version: '1.02',
+		needsVisitor: true,
+		extra: {
+			deviceMake: 'Apple',
+			deviceModel: 'RealityDevice17,1',
+			osName: 'visionOS',
+			osVersion: '26.5.23O471'
+		}
+	},
+	{
 		name: 'ANDROID',
-		nameId: '3',
 		version: '20.10.41',
-		userAgent: 'com.google.android.youtube/20.10.41 (Linux; U; Android 11) gzip',
 		apiKey: 'AIzaSyA8eiZmM1FaDVjRy-df2KTyQ_vz_yYM39w',
 		platform: 'MOBILE',
 		extra: {
@@ -34,56 +39,11 @@ const INNERTUBE_CLIENTS = [
 			osVersion: '11',
 			androidSdkVersion: '30'
 		}
-	},
-	{
-		name: 'ANDROID_VR',
-		nameId: '28',
-		version: '1.60.19',
-		userAgent: 'com.google.android.apps.youtube.vr.oculus/1.60.19 (Linux; U; Android 12L; Quest 3 Build/SQ3A.220605.009.A1) gzip',
-		apiKey: 'AIzaSyA8eiZmM1FaDVjRy-df2KTyQ_vz_yYM39w',
-		platform: 'MOBILE',
-		extra: {
-			deviceMake: 'Oculus',
-			deviceModel: 'Quest 3',
-			osName: 'Android',
-			osVersion: '12L',
-			androidSdkVersion: '32'
-		}
-	},
-	{
-		name: 'TVHTML5_SIMPLY_EMBEDDED_PLAYER',
-		nameId: '85',
-		version: '2.0',
-		userAgent: 'Mozilla/5.0 (SMART-TV; LINUX; Tizen 6.0) AppleWebKit/538.1 (KHTML, like Gecko) Version/6.0 TV Safari/538.1',
-		apiKey: 'AIzaSyAO_FJ2SlqU8Q4STEHLGCilw_Y9_11qcW8',
-		platform: 'TV',
-		embedContext: true,
-		extra: {}
-	},
-	{
-		name: 'IOS',
-		nameId: '5',
-		version: '20.10.4',
-		userAgent: 'com.google.ios.youtube/20.10.4 (iPhone16,2; U; CPU iOS 18_3_2 like Mac OS X;)',
-		apiKey: 'AIzaSyB-63vPrdThhKuerbB2N_l7Kwwcxj6yUAc',
-		platform: 'MOBILE',
-		extra: {
-			deviceMake: 'Apple',
-			deviceModel: 'iPhone16,2',
-			osName: 'iOS',
-			osVersion: '18.3.2.22D82'
-		}
-	},
-	{
-		name: 'WEB',
-		nameId: '1',
-		version: '2.20250312.04.00',
-		userAgent: FIREFOX_UA,
-		apiKey: 'AIzaSyAO_FJ2SlqU8Q4STEHLGCilw_Y9_11qcW8',
-		platform: 'DESKTOP',
-		extra: {}
 	}
 ];
+
+// YouTube's visitor id outlives a single lookup, so the one it last handed over is kept.
+let visitorData = '';
 
 const YT_ID_REGEX = /(?:youtube\.com\/(?:watch\?.*v=|embed\/|shorts\/|v\/)|youtu\.be\/)([a-zA-Z0-9_-]{11})/;
 
@@ -132,36 +92,23 @@ function qualityFromStream (stream) {
 
 function streamHasAudio (stream) {
 	const mime = ((stream && stream.mimeType) || '').toLowerCase();
-	const audioCodec = ((stream && stream.audioCodec) || '').toLowerCase();
 
-	return (stream && stream.videoOnly === false) ||
-		mime.indexOf('mp4a') !== -1 ||
+	return mime.indexOf('mp4a') !== -1 ||
 		mime.indexOf('opus') !== -1 ||
 		mime.indexOf('vorbis') !== -1 ||
-		mime.indexOf('audio') !== -1 ||
-		audioCodec.length > 0;
+		mime.indexOf('audio') !== -1;
 }
 
 function streamScore (stream, preferHighQuality) {
 	const mime = ((stream && stream.mimeType) || '').toLowerCase();
-	const container = ((stream && stream.container) || '').toLowerCase();
 	const quality = qualityFromStream(stream);
-
-	const hasAudio = streamHasAudio(stream);
-	const isMp4 = mime.indexOf('video/mp4') !== -1 || container === 'mp4';
-	const isH264 = mime.indexOf('avc1') !== -1 || mime.indexOf('h264') !== -1;
-	const isVp9 = mime.indexOf('vp9') !== -1 || mime.indexOf('vp09') !== -1;
-	const isAv1 = mime.indexOf('av01') !== -1 || mime.indexOf('av1') !== -1;
-	const isHls = (stream && stream.hls === true) || (stream && stream.isHLS === true);
 
 	let score = 0;
 
-	if (hasAudio) score += 5000;
-	if (isMp4) score += 2500;
-	if (isH264) score += 2500;
-	if (isVp9) score -= 1500;
-	if (isAv1) score -= 2500;
-	if (isHls) score += 500;
+	if (mime.indexOf('video/mp4') !== -1) score += 2500;
+	if (mime.indexOf('avc1') !== -1) score += 2500;
+	if (mime.indexOf('vp9') !== -1 || mime.indexOf('vp09') !== -1) score -= 1500;
+	if (mime.indexOf('av01') !== -1) score -= 2500;
 
 	const clampedQuality = quality > 0 ? Math.min(1080, Math.max(144, quality)) : 480;
 	if (preferHighQuality) {
@@ -175,8 +122,6 @@ function streamScore (stream, preferHighQuality) {
 }
 
 function pickBestStream (streams, preferHighQuality) {
-	if (!Array.isArray(streams) || streams.length === 0) return null;
-
 	let best = null;
 	let bestScore = -1e9;
 
@@ -192,21 +137,10 @@ function pickBestStream (streams, preferHighQuality) {
 		}
 	}
 
-	if (best) return best;
-
-	for (let i = 0; i < streams.length; i++) {
-		if (streams[i] && streams[i].url) return {url: streams[i].url, quality: qualityFromStream(streams[i])};
-	}
-
-	return null;
+	return best;
 }
 
-function pickBestUrl (streams, preferHighQuality) {
-	const best = pickBestStream(streams, preferHighQuality);
-	return best ? best.url : null;
-}
-
-function extractInnertubeStream (playerResponse, preferHighQuality) {
+export function extractInnertubeStream (playerResponse, preferHighQuality, muxedOnly = false) {
 	if (!playerResponse) return null;
 
 	const playability = playerResponse.playabilityStatus;
@@ -217,8 +151,8 @@ function extractInnertubeStream (playerResponse, preferHighQuality) {
 	if (!streamingData) return null;
 
 	// A manifest carries every variant, so nothing else beats it on quality.
-	if (streamingData.hlsManifestUrl) return {url: streamingData.hlsManifestUrl, quality: HIGH_QUALITY_FLOOR};
-	if (streamingData.dashManifestUrl) return {url: streamingData.dashManifestUrl, quality: HIGH_QUALITY_FLOOR};
+	if (streamingData.hlsManifestUrl && !muxedOnly) return {url: streamingData.hlsManifestUrl, quality: HIGH_QUALITY_FLOOR};
+	if (streamingData.dashManifestUrl && !muxedOnly) return {url: streamingData.dashManifestUrl, quality: HIGH_QUALITY_FLOOR};
 
 	const formats = Array.isArray(streamingData.formats) ? streamingData.formats : [];
 	const muxedFormats = formats.filter(function (stream) {
@@ -252,145 +186,173 @@ function pickCaptionTrackUrl (playerResponse, language) {
 	return base + (base.indexOf('?') === -1 ? '?' : '&') + 'fmt=vtt';
 }
 
-function buildInnertubePayload (videoId, client) {
-	const payload = {
+export function buildInnertubePayload (videoId, client, visitor = '') {
+	const context = {
+		clientName: client.name,
+		clientVersion: client.version,
+		hl: 'en',
+		gl: 'US',
+		...client.extra
+	};
+	if (client.platform) context.platform = client.platform;
+	if (visitor) context.visitorData = visitor;
+
+	return {
 		videoId: videoId,
-		context: {
-			client: {
-				clientName: client.name,
-				clientVersion: client.version,
-				hl: 'en',
-				gl: 'US',
-				platform: client.platform,
-				...client.extra
-			}
-		},
+		context: {client: context},
 		contentCheckOk: true,
 		racyCheckOk: true
 	};
-
-	if (client.embedContext) {
-		payload.context.thirdParty = {embedUrl: YOUTUBE_REFERER};
-	}
-
-	return payload;
 }
 
-// The first client to answer usually only carries a 360p muxed format, so in
-// high quality mode the search keeps going until a client offers 720p or
-// better, keeping the best answer so far as the fallback.
-async function tryInnertube (videoId, preferHighQuality, captionLanguage) {
+// Every answer carries a visitor id, even one that turned the request away for lacking it, so
+// asking again is only worth it when the id handed back isnt the one that was sent.
+export function freshVisitorData (playerResponse, sentVisitor) {
+	if (!playerResponse || playerResponse.playabilityStatus?.status === 'OK') return null;
+	const fresh = playerResponse.responseContext?.visitorData;
+	return fresh && fresh !== sentVisitor ? fresh : null;
+}
+
+// YouTube turned the sent id away and handed the same one back, so asking again with it gets
+// nowhere.
+export function isStaleVisitor (playerResponse, sentVisitor) {
+	return !!sentVisitor &&
+		playerResponse?.playabilityStatus?.status === 'LOGIN_REQUIRED' &&
+		playerResponse.responseContext?.visitorData === sentVisitor;
+}
+
+// The language of the trailer's own soundtrack, when YouTube lists machine dubbed ones beside
+// it. The manifest names every one of them and flags none as the default, so a player left to
+// choose takes the first, which is usually a dub.
+export function originalAudioLanguage (playerResponse) {
+	const formats = playerResponse?.streamingData?.adaptiveFormats;
+	if (!Array.isArray(formats)) return '';
+	for (let i = 0; i < formats.length; i++) {
+		const track = formats[i] && formats[i].audioTrack;
+		if (track && track.audioIsDefault === true) return (track.id || '').split('.')[0];
+	}
+	return '';
+}
+
+// Which of a video element's audioTracks is the original soundtrack, found by the "original" in
+// its name or failing that its language. YouTube lists every soundtrack once per audio group and
+// only 240p and below play from the first, so the last match wins.
+export function pickOriginalAudioTrackIndex (tracks, language) {
+	if (!language || !tracks || tracks.length < 2) return -1;
+	const wanted = language.slice(0, 2).toLowerCase();
+	let named = -1;
+	let spoken = -1;
+	for (let i = 0; i < tracks.length; i++) {
+		if ((tracks[i].label || '').toLowerCase().indexOf('original') !== -1) named = i;
+		if ((tracks[i].language || '').slice(0, 2).toLowerCase() === wanted) spoken = i;
+	}
+	return named >= 0 ? named : spoken;
+}
+
+export function isManifestUrl (url) {
+	return MANIFEST_URL.test(url || '');
+}
+
+// Keeps a video element on the original soundtrack. Call it once the src is set, since tracks
+// turn up as the manifest loads, and call what it returns before the element plays anything
+// else. Engines without the audioTracks API keep whatever they picked.
+export function keepOriginalAudioTrack (video, language) {
+	const tracks = video && video.audioTracks;
+	if (!language || !tracks) return function () {};
+
+	const apply = function () {
+		const index = pickOriginalAudioTrackIndex(tracks, language);
+		if (index < 0) return;
+		for (let i = 0; i < tracks.length; i++) {
+			const enabled = i === index;
+			if (tracks[i].enabled !== enabled) tracks[i].enabled = enabled;
+		}
+	};
+	apply();
+	tracks.onaddtrack = apply;
+	return function () {
+		if (tracks.onaddtrack === apply) tracks.onaddtrack = null;
+	};
+}
+
+// A browser cant set the User-Agent, Origin or Referer headers, and a text/plain body keeps the
+// request simple enough to skip the CORS preflight YouTube would turn away.
+function requestPlayer (videoId, client, visitor) {
+	const key = client.apiKey ? `key=${client.apiKey}&` : '';
+	return requestJson(
+		`${INNERTUBE_URL}?${key}prettyPrint=false`,
+		{
+			method: 'POST',
+			mode: 'cors',
+			credentials: 'omit',
+			cache: 'no-store',
+			headers: {
+				'Content-Type': 'text/plain;charset=UTF-8'
+			},
+			body: JSON.stringify(buildInnertubePayload(videoId, client, visitor))
+		},
+		REQUEST_TIMEOUT_MS,
+		`innertube:${client.name}`
+	);
+}
+
+// A client that wants a visitor id and has none kept gets turned away with a fresh one, so it
+// asks once more with that. A kept id YouTube stops taking is dropped, so the next lookup
+// starts over.
+async function requestPlayerWithVisitor (videoId, client) {
+	const sent = client.needsVisitor ? visitorData : '';
+	const data = await requestPlayer(videoId, client, sent);
+	if (!client.needsVisitor) return data;
+
+	const fresh = freshVisitorData(data, sent);
+	if (!fresh) {
+		if (isStaleVisitor(data, sent)) visitorData = '';
+		return data;
+	}
+	visitorData = fresh;
+	return requestPlayer(videoId, client, fresh);
+}
+
+// A client that only offers a 360p muxed format doesnt end the search in high
+// quality mode, which keeps going until one offers 720p or better and keeps the
+// best answer so far as the fallback.
+async function tryInnertube (videoId, preferHighQuality, captionLanguage, muxedOnly) {
 	let best = null;
 
-	// Browser environments cannot set User-Agent/Origin/Referer headers.
-	// Use a CORS-simple request (text/plain) to avoid preflight rejection.
 	for (let i = 0; i < INNERTUBE_CLIENTS.length; i++) {
 		const client = INNERTUBE_CLIENTS[i];
-		const data = await requestJson(
-			`${INNERTUBE_URL}?key=${client.apiKey}&prettyPrint=false`,
-			{
-				method: 'POST',
-				mode: 'cors',
-				credentials: 'omit',
-				cache: 'no-store',
-				headers: {
-					'Content-Type': 'text/plain;charset=UTF-8'
-				},
-				body: JSON.stringify(buildInnertubePayload(videoId, client))
-			},
-			REQUEST_TIMEOUT_MS,
-			`innertube:${client.name}`
-		);
+		const data = await requestPlayerWithVisitor(videoId, client);
 
 		if (!data) continue;
 
 		debugLog('innertube status', client.name, data.playabilityStatus?.status, data.playabilityStatus?.reason || '');
 
-		const stream = extractInnertubeStream(data, preferHighQuality);
+		const stream = extractInnertubeStream(data, preferHighQuality, muxedOnly);
 		if (!stream) continue;
 
 		const captionsUrl = pickCaptionTrackUrl(data, captionLanguage);
+		const audioLanguage = originalAudioLanguage(data);
 		debugLog('innertube resolved stream', client.name, stream.quality + 'p');
 		if (!preferHighQuality || stream.quality >= HIGH_QUALITY_FLOOR) {
-			return {url: stream.url, captionsUrl};
+			return {url: stream.url, captionsUrl, audioLanguage};
 		}
 		if (!best || stream.quality > best.quality) {
-			best = {url: stream.url, quality: stream.quality, captionsUrl};
+			best = {url: stream.url, quality: stream.quality, captionsUrl, audioLanguage};
 		}
 	}
 
 	if (best) {
 		debugLog('innertube settled for', best.quality + 'p');
-		return {url: best.url, captionsUrl: best.captionsUrl};
+		return {url: best.url, captionsUrl: best.captionsUrl, audioLanguage: best.audioLanguage};
 	}
 
 	debugLog('innertube exhausted without stream');
 	return null;
 }
 
-async function tryPiped (videoId, baseUrl, preferHighQuality) {
-	const data = await requestJson(
-		`${baseUrl}/streams/${videoId}`,
-		{headers: {'User-Agent': FIREFOX_UA}},
-		REQUEST_TIMEOUT_MS,
-		`piped:${baseUrl}`
-	);
-
-	if (!data) return null;
-
-	if (data.hls && typeof data.hls === 'string') {
-		return data.hls;
-	}
-
-	const videoStreams = Array.isArray(data.videoStreams) ? data.videoStreams : [];
-	const muxedStreams = videoStreams.filter(function (stream) {
-		return stream && stream.url && stream.videoOnly === false;
-	});
-
-	const muxedUrl = pickBestUrl(muxedStreams, preferHighQuality);
-	if (muxedUrl) return muxedUrl;
-
-	return pickBestUrl(videoStreams, preferHighQuality);
-}
-
-async function tryInvidious (videoId, baseUrl, preferHighQuality) {
-	const data = await requestJson(
-		`${baseUrl}/api/v1/videos/${videoId}`,
-		{},
-		REQUEST_TIMEOUT_MS,
-		`invidious:${baseUrl}`
-	);
-
-	if (!data) return null;
-
-	const formatStreams = Array.isArray(data.formatStreams) ? data.formatStreams.filter(function (stream) {
-		return stream && stream.url;
-	}) : [];
-
-	if (formatStreams.length === 0) return null;
-
-	return pickBestUrl(formatStreams, preferHighQuality);
-}
-
-async function doResolve (videoId, preferHighQuality, captionLanguage) {
-	const innertubeStream = await tryInnertube(videoId, preferHighQuality, captionLanguage);
-	if (innertubeStream) return innertubeStream;
-
-	// The fallback services answer with a bare stream, so no captions ride along.
-	for (let i = 0; i < PIPED_BASES.length; i++) {
-		const pipedUrl = await tryPiped(videoId, PIPED_BASES[i], preferHighQuality);
-		if (pipedUrl) return {url: pipedUrl, captionsUrl: null};
-	}
-
-	for (let i = 0; i < INVIDIOUS_BASES.length; i++) {
-		const invidiousUrl = await tryInvidious(videoId, INVIDIOUS_BASES[i], preferHighQuality);
-		if (invidiousUrl) return {url: invidiousUrl, captionsUrl: null};
-	}
-
-	return null;
-}
-
-export function fetchVideoStream (videoId, preferHighQuality = false, captionLanguage = '') {
+// muxedOnly stands in for a manifest the TV couldnt play, with the 360p file that carries its
+// own sound.
+export function fetchVideoStream (videoId, preferHighQuality = false, captionLanguage = '', muxedOnly = false) {
 	if (!videoId) return Promise.resolve(null);
 
 	return new Promise(function (resolve) {
@@ -406,16 +368,48 @@ export function fetchVideoStream (videoId, preferHighQuality = false, captionLan
 
 		timer = setTimeout(function () { finish(null); }, RESOLVE_TIMEOUT_MS);
 
-		doResolve(videoId, !!preferHighQuality, captionLanguage)
+		tryInnertube(videoId, !!preferHighQuality, captionLanguage, !!muxedOnly)
 			.then(function (stream) { finish(stream); })
 			.catch(function () { finish(null); });
 	});
 }
 
-export function fetchVideoStreamUrl (videoId, preferHighQuality = false) {
-	return fetchVideoStream(videoId, preferHighQuality).then(function (stream) {
-		return stream ? stream.url : null;
+// Tizen's video element turns an HLS manifest away whatever canPlayType says, but its runtime
+// lets script read googlevideo across origins, so hls.js plays it there. webOS holds script to
+// CORS, which googlevideo only answers for YouTube's own pages, so its native player takes it.
+export function needsHlsJs (url) {
+	return isTizen() && isManifestUrl(url);
+}
+
+// Starts a trailer stream on a video element and returns what lets go of it, which has to run
+// before the element plays anything else. Hls is the hls.js class, which the caller loads when
+// needsHlsJs says so. onError hears a manifest hls.js gives up on, since that never reaches the
+// element's own error event.
+export function attachTrailerStream (video, url, {Hls = null, audioLanguage = '', startTime = 0, onError} = {}) {
+	if (!Hls || !Hls.isSupported()) {
+		video.src = url;
+		if (startTime > 0) video.currentTime = startTime;
+		return keepOriginalAudioTrack(video, audioLanguage);
+	}
+
+	const hls = new Hls({
+		enableWorker: false,
+		startPosition: startTime > 0 ? startTime : -1,
+		abrEwmaDefaultEstimate: HLS_START_BANDWIDTH,
+		// VP9 stalls in Tizen's MSE, and YouTube always offers H.264 beside it
+		videoPreference: {videoCodec: 'avc1'},
+		...(audioLanguage ? {audioPreference: {lang: audioLanguage}} : {})
 	});
+	let released = false;
+	hls.on(Hls.Events.ERROR, function (event, data) {
+		if (data.fatal && !released && onError) onError();
+	});
+	hls.loadSource(url);
+	hls.attachMedia(video);
+	return function () {
+		released = true;
+		hls.destroy();
+	};
 }
 
 export function extractYouTubeId (item) {

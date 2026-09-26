@@ -23,10 +23,11 @@ const TrailerOverlay = ({videoId, streamUrl, videoRef, muted, onClose, onKeyDown
 			</SpottableButton>
 			<div className={css.trailerIframeWrap} onClick={stopPropagation}>
 				{streamUrl ? (
+					// No src here, since Tizen plays YouTube's manifest through hls.js and
+					// useDetailsTrailer attaches the stream either way
 					<video
 						ref={videoRef}
 						className={css.trailerIframe}
-						src={streamUrl}
 						autoPlay
 						controls
 						playsInline
