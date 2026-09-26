@@ -2897,9 +2897,12 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 
 			// Up/Down arrow navigation between rows when controls are visible
 			if (controlsVisible && !activeModal) {
+				// Any key restarts the hide timer, or they hide while someone moves along the
+				// buttons and the next Left or Right seeks.
+				showControls();
+
 				if (key === 'ArrowUp' || e.keyCode === 38) {
 					e.preventDefault();
-					showControls();
 					setFocusRow(prev => {
 						if (prev === 'bottom') return !isLiveTV ? 'progress' : 'bottom';
 						if (prev === 'progress') {
@@ -2912,7 +2915,6 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 				}
 				if (key === 'ArrowDown' || e.keyCode === 40) {
 					e.preventDefault();
-					showControls();
 					setFocusRow(prev => {
 						if (prev === 'top') return isLiveTV ? (bottomButtons.length > 0 ? 'bottom' : 'top') : 'progress';
 						if (prev === 'progress') {
