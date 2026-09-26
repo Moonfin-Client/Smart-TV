@@ -323,7 +323,10 @@ export const createInBandPgsSource = ({streamUrl, subtitleOrdinal, getTime, star
 		const headerOfCues = readElementHeader(bytes, 0);
 		if (!headerOfCues || headerOfCues.id !== ID.Cues) return [];
 		const end = headerOfCues.headerLength + headerOfCues.size;
-		if (end > bytes.length) bytes = await fetchRange(start, start + end - 1);
+		if (end > bytes.length) {
+			const tail = await fetchRange(start + bytes.length, start + end - 1);
+			bytes = concat([bytes, tail]);
+		}
 		return parseCues(bytes, headerOfCues.headerLength, headerOfCues.size, trackNumber);
 	};
 
