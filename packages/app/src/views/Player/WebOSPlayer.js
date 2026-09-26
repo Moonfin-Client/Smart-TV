@@ -801,8 +801,10 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 			burnInSubtitleRef.current = null;
 			// The player isn't remounted between items, and a next item with subtitles off
 			// or burned in never reaches loadSubtitleData to clear these.
+			pgsInitGenRef.current++;
 			disposePgsRenderer(pgsRendererRef.current);
 			pgsRendererRef.current = null;
+			pgsInitRef.current = null;
 			disposeAssRenderer(assRendererRef.current);
 			assRendererRef.current = null;
 			clearAssCanvas(assCanvasRef.current);
@@ -1092,7 +1094,9 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 				if (controlsTimeoutRef.current) clearTimeout(controlsTimeoutRef.current);
 				if (seekDebounceTimerRef.current) clearTimeout(seekDebounceTimerRef.current);
 				clearTimeout(scrubSettleTimerRef.current);
+				pgsInitGenRef.current++;
 				disposePgsRenderer(pgsRendererRef.current);
+				pgsInitRef.current = null;
 				disposeAssRenderer(assRendererRef.current);
 				clearAssCanvas(assCanvas);
 				return;
