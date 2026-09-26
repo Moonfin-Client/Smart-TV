@@ -21,13 +21,18 @@ export const isExternalSubtitleStream = (stream) =>
 	stream.IsExternal === true ||
 	(stream.deliveryMethod || stream.DeliveryMethod || '').trim().toLowerCase() === 'external';
 
-// Internal tracks list first and external ones last, the order the other clients
-// use. Only rows that select by stream index can be reordered, so this takes the
+// Internal tracks list first and external ones last (or vice versa when preferExternal is true).
+// Only rows that select by stream index can be reordered, so this takes the
 // player's mapped streams rather than raw server ones.
-export const sortSubtitleStreams = (streams) => [
-	...streams.filter((stream) => !isExternalSubtitleStream(stream)),
-	...streams.filter(isExternalSubtitleStream)
-];
+export const sortSubtitleStreams = (streams, preferExternal = false) => preferExternal
+	? [
+		...streams.filter(isExternalSubtitleStream),
+		...streams.filter((stream) => !isExternalSubtitleStream(stream))
+	]
+	: [
+		...streams.filter((stream) => !isExternalSubtitleStream(stream)),
+		...streams.filter(isExternalSubtitleStream)
+	];
 
 // Servers and release groups spell hearing impaired several ways, and the word
 // boundaries keep cc from matching inside an ordinary word.
