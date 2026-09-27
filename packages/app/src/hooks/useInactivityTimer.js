@@ -34,8 +34,10 @@ const useInactivityTimer = (timeoutSeconds = 90, enabled = true) => {
 		}
 
 		const handleActivity = (event) => {
-			if (event.fromRemote && ((event.type === 'keydown' && inactiveRef.current) ||
-				(event.type === 'keyup' && consumedRemoteKeys.current.delete(event.keyCode)))) {
+			const waking = event.type === 'keydown' && inactiveRef.current;
+			const releasingWakeKey = event.type === 'keyup' &&
+				event.fromRemote && consumedRemoteKeys.current.delete(event.keyCode);
+			if (event.fromRemote && (waking || releasingWakeKey)) {
 				if (event.type === 'keydown') consumedRemoteKeys.current.add(event.keyCode);
 				event.preventDefault();
 				event.stopImmediatePropagation();
