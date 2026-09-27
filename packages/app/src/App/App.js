@@ -1176,7 +1176,9 @@ const AppContent = (props) => {
 	const remoteAppRef = useRef(null);
 	const [remoteSearch, setRemoteSearch] = useState(null);
 	remoteAppRef.current = {
+		notifyInteraction: dismissScreensaver,
 		goToSearch: (search) => {
+			dismissScreensaver();
 			closeTvKeyboard();
 			document.activeElement?.blur?.();
 			setShowSettingsPanel(false);
@@ -1186,6 +1188,7 @@ const AppContent = (props) => {
 			navigateTo(PANELS.SEARCH, panelIndex !== PANELS.PLAYER && panelIndex !== PANELS.SEARCH);
 		},
 		goHome: () => {
+			dismissScreensaver();
 			closeTvKeyboard();
 			document.activeElement?.blur?.();
 			setShowSettingsPanel(false);

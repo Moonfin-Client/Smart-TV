@@ -254,6 +254,7 @@ const handleGeneralCommand = async (data) => {
 			break;
 		case 'sendstring':
 			if (remoteSearch?.active) {
+				app()?.notifyInteraction?.();
 				remoteSearch.receive(args);
 			} else if (arg('MoonfinInputId') == null) {
 				// Another controller's text has no Search to land in yet, so it opens one.
