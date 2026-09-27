@@ -145,12 +145,15 @@ describe('remote control', () => {
 	});
 
 	test('presses the key the TV remote would for a move, a select and a back', async () => {
+		unregisterPlayer();
 		const pressed = [];
 		const record = (e) => pressed.push([e.type, e.keyCode, e.key, e.fromRemote]);
 		document.addEventListener('keydown', record);
 		document.addEventListener('keyup', record);
 
 		await command('MoveUp');
+		await command('MoveDown');
+		await command('MoveLeft');
 		await command('MoveRight');
 		await command('Select');
 		await command('Back');
@@ -159,6 +162,8 @@ describe('remote control', () => {
 		document.removeEventListener('keyup', record);
 		expect(pressed).toEqual([
 			['keydown', 38, 'ArrowUp', true], ['keyup', 38, 'ArrowUp', true],
+			['keydown', 40, 'ArrowDown', true], ['keyup', 40, 'ArrowDown', true],
+			['keydown', 37, 'ArrowLeft', true], ['keyup', 37, 'ArrowLeft', true],
 			['keydown', 39, 'ArrowRight', true], ['keyup', 39, 'ArrowRight', true],
 			['keydown', 13, 'Enter', true], ['keyup', 13, 'Enter', true],
 			['keydown', 10009, 'GoBack', true], ['keyup', 10009, 'GoBack', true]
@@ -197,6 +202,56 @@ describe('remote control', () => {
 		await command('GoHome');
 
 		expect(order).toEqual(['stop', 'home']);
+	});
+
+	test('idle volume and Home do not require a player', async () => {
+		unregisterPlayer();
+		await command('VolumeUp');
+		expect(volume.volume).toBe(50);
+		await command('VolumeDown');
+		expect(volume.volume).toBe(40);
+		await command('ToggleMute');
+		expect(volume.muted).toBe(true);
+		await command('GoHome');
+		expect(app.current.goHome).toHaveBeenCalledTimes(1);
+		expect(player.current.stop).not.toHaveBeenCalled();
+	});
+
+	test('Select reaches the focused control while a player is active', async () => {
+		const control = document.createElement('button');
+		document.body.appendChild(control);
+		control.focus();
+		const select = jest.fn();
+		control.addEventListener('keydown', select);
+		await command('Select');
+		expect(select).toHaveBeenCalledTimes(1);
+		expect(select.mock.calls[0][0].key).toBe('Enter');
+		expect(player.current.playPause).not.toHaveBeenCalled();
+		control.remove();
+	});
+
+	test('Back and Home cancel search still waiting for player exit', async () => {
+		for (const navigation of ['Back', 'GoHome']) {
+			let stopped;
+			player.current.stop.mockImplementationOnce(() => new Promise((resolve) => { stopped = resolve; }));
+			const opening = command('GoToSearch', {MoonfinInputId: navigation});
+			await command(navigation);
+			stopped();
+			await opening;
+			expect(app.current.goToSearch).not.toHaveBeenCalled();
+		}
+	});
+
+	test('a delayed Home cannot replace a newer Search', async () => {
+		let stopped;
+		const stopping = new Promise(resolve => { stopped = resolve; });
+		player.current.stop.mockReturnValue(stopping);
+		const home = command('GoHome');
+		const search = command('GoToSearch', {MoonfinInputId: 'new-search'});
+		stopped();
+		await Promise.all([home, search]);
+		expect(app.current.goHome).not.toHaveBeenCalled();
+		expect(app.current.goToSearch).toHaveBeenCalledTimes(1);
 	});
 
 	test('plays what another client sends, from where it asked', async () => {

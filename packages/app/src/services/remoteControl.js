@@ -37,6 +37,7 @@ let appRef = null;
 let playerRef = null;
 let unbindSocket = null;
 let remoteSearch = null;
+let navigationGeneration = 0;
 
 export const setAppControls = (ref) => {
 	appRef = ref;
@@ -160,6 +161,7 @@ const handlePlaystate = async (data) => {
 };
 
 const openRemoteSearch = async (search) => {
+	navigationGeneration++;
 	if (!app()?.goToSearch) return;
 	remoteSearch?.close();
 	remoteSearch = search;
@@ -218,6 +220,7 @@ const handleGeneralCommand = async (data) => {
 			pressKey(KEYS.ENTER);
 			break;
 		case 'back':
+			navigationGeneration++;
 			remoteSearch?.close();
 			pressKey(KEYS.BACK);
 			break;
@@ -239,11 +242,13 @@ const handleGeneralCommand = async (data) => {
 		case 'setshufflequeue':
 			if (arg('ShuffleMode') != null) player()?.setShuffle(arg('ShuffleMode').toLowerCase() === 'shuffle');
 			break;
-		case 'gohome':
+		case 'gohome': {
+			const generation = ++navigationGeneration;
 			remoteSearch?.close();
 			await player()?.stop();
-			app()?.goHome();
+			if (generation === navigationGeneration) app()?.goHome();
 			break;
+		}
 		case 'gotosearch':
 			await openRemoteSearch(createRemoteSearch(arg('MoonfinInputId')));
 			break;
@@ -273,6 +278,7 @@ const handlePlay = (data) => {
 		app().queueItems(itemIds, command === 'playnext');
 		return;
 	}
+	navigationGeneration++;
 	remoteSearch?.close();
 	app().playItems(itemIds, {
 		startIndex: toInt(data.StartIndex) || 0,
@@ -304,6 +310,7 @@ export const bindTo = (listen) => {
 };
 
 export const reset = () => {
+	navigationGeneration++;
 	remoteSearch?.close();
 	remoteSearch = null;
 	if (unbindSocket) unbindSocket();

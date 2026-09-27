@@ -1186,6 +1186,8 @@ const AppContent = (props) => {
 			navigateTo(PANELS.SEARCH, panelIndex !== PANELS.PLAYER && panelIndex !== PANELS.SEARCH);
 		},
 		goHome: () => {
+			closeTvKeyboard();
+			document.activeElement?.blur?.();
 			setShowSettingsPanel(false);
 			handleHome();
 		},
