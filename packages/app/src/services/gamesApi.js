@@ -141,25 +141,26 @@ export const getRomUrl = async (libraryId, gameId) => {
 	return {url: await getRomBlobUrl(libraryId, gameId), isBlob: true};
 };
 
-// Save state (binary) keyed per game. Returns null when none exists (404).
-export const getStateBytes = async (gameId) => {
-	try {
-		const res = await fetchWithTimeout(
-			`${base()}/Moonfin/Games/Saves/${enc(gameId)}?kind=state`,
-			{headers: authHeaders()},
-			30000
-		);
-		if (res.status === 404) return null;
-		if (!res.ok) return null;
-		const buf = await res.arrayBuffer();
-		return buf && buf.byteLength ? new Uint8Array(buf) : null;
-	} catch (e) {
-		return null;
+// Null when there's no save (404). Any other failure throws, so a failed read is never
+// mistaken for a missing save.
+export const getStateBytes = async (saveId) => {
+	const res = await fetchWithTimeout(
+		`${base()}/Moonfin/Games/Saves/${enc(saveId)}?kind=state`,
+		{headers: authHeaders()},
+		30000
+	);
+	if (res.status === 404) return null;
+	if (!res.ok) {
+		const err = new Error(`Save fetch error: ${res.status}`);
+		err.status = res.status;
+		throw err;
 	}
+	const buf = await res.arrayBuffer();
+	return buf && buf.byteLength ? new Uint8Array(buf) : null;
 };
 
-export const putStateBytes = async (gameId, bytes) => {
-	await fetchWithTimeout(`${base()}/Moonfin/Games/Saves/${enc(gameId)}?kind=state`, {
+export const putStateBytes = async (saveId, bytes) => {
+	await fetchWithTimeout(`${base()}/Moonfin/Games/Saves/${enc(saveId)}?kind=state`, {
 		method: 'PUT',
 		headers: {...authHeaders(), 'Content-Type': 'application/octet-stream'},
 		body: bytes

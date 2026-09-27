@@ -1,4 +1,4 @@
-import {getRomUrl} from './gamesApi';
+import {getRomUrl, getStateBytes} from './gamesApi';
 import {fetchWithTimeout} from '../utils/fetchTimeout';
 
 let mockToken = 'key';
@@ -96,5 +96,44 @@ describe('getRomUrl', () => {
 		// The probe is skipped entirely, so the blob fetch is the first request.
 		expect(fetchWithTimeout).toHaveBeenCalledTimes(1);
 		expect(fetchWithTimeout.mock.calls[0][0]).toBe('https://server/Moonfin/Games/lib/Rom/game');
+	});
+});
+
+describe('getStateBytes', () => {
+	const stateResponse = (status, bytes = []) => ({
+		status,
+		ok: status >= 200 && status < 300,
+		arrayBuffer: () => Promise.resolve(new Uint8Array(bytes).buffer)
+	});
+
+	beforeEach(() => {
+		fetchWithTimeout.mockReset();
+	});
+
+	test('reads the state under the save id it is given', async () => {
+		fetchWithTimeout.mockResolvedValueOnce(stateResponse(200, [1, 2]));
+
+		const bytes = await getStateBytes('ejs-nes-game');
+
+		expect(Array.from(bytes)).toEqual([1, 2]);
+		expect(fetchWithTimeout.mock.calls[0][0]).toBe('https://server/Moonfin/Games/Saves/ejs-nes-game?kind=state');
+	});
+
+	test('reads a 404 as no save', async () => {
+		fetchWithTimeout.mockResolvedValueOnce(stateResponse(404));
+
+		await expect(getStateBytes('ejs-nes-game')).resolves.toBeNull();
+	});
+
+	test('throws on a server error rather than reading it as no save', async () => {
+		fetchWithTimeout.mockResolvedValueOnce(stateResponse(500));
+
+		await expect(getStateBytes('ejs-nes-game')).rejects.toMatchObject({status: 500});
+	});
+
+	test('lets a network failure through', async () => {
+		fetchWithTimeout.mockRejectedValueOnce(new Error('network'));
+
+		await expect(getStateBytes('ejs-nes-game')).rejects.toThrow('network');
 	});
 });

@@ -9,6 +9,7 @@ import LoadingSpinner from '../../components/LoadingSpinner';
 import * as gamesApi from '../../services/gamesApi';
 import {isSupported, unsupportedMessage} from '../../utils/emulatorjs';
 import {gameDisplayTitle, gameFallbackColor} from '../../utils/gameArt';
+import {loadGameStateWithMigration} from '../../utils/gameSaves';
 
 import css from './GameDetails.module.less';
 
@@ -36,7 +37,9 @@ const GameDetails = ({library, gameId, initialGame, onPlay, onSelectGame, backHa
 			setGame(g);
 			setLoading(false);
 			if (g) {
-				gamesApi.getStateBytes(g.id).then((b) => { if (!cancelled) setHasSave(b != null); });
+				loadGameStateWithMigration(g.id, g.core)
+					.then((b) => { if (!cancelled) setHasSave(b != null); })
+					.catch(() => { if (!cancelled) setHasSave(false); });
 				gamesApi.getGames(libraryId, g.system).then((all) => {
 					if (cancelled) return;
 					setRelated((all || []).filter((x) => x.id !== g.id).slice(0, 20));

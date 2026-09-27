@@ -141,7 +141,9 @@ jobs:
         with:
           draft: true
           generate_release_notes: true
+          # The webOS artifact keeps the manifest in its folder. The asset is still named after
+          # the file, and it carries the hash of the package uploaded next to it.
           files: |
             Moonfin_webOS_*.ipk
             Moonfin_Tizen_*.wgt
-            org.moonfin.webos.manifest.json
+            packages/build-webos/org.moonfin.webos.manifest.json

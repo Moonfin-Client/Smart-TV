@@ -10,6 +10,7 @@ import * as gamesApi from '../../services/gamesApi';
 import serverLogger from '../../services/serverLogger';
 import {initVideo, keepScreenOn, setupVisibilityHandler} from '../../services/video';
 import * as ejs from '../../utils/emulatorjs';
+import {gameStateKey, loadGameStateWithMigration} from '../../utils/gameSaves';
 
 import css from './GamePlayer.module.less';
 
@@ -58,7 +59,7 @@ const GamePlayer = ({library, game, startFresh, onBack, backHandlerRef}) => {
 	const flushState = useCallback(() => {
 		try {
 			const bytes = ejs.getState();
-			if (bytes && bytes.length) gamesApi.putStateBytes(game.id, bytes).catch(() => {});
+			if (bytes && bytes.length) gamesApi.putStateBytes(gameStateKey(game.id, game.core), bytes).catch(() => {});
 		} catch (e) { /* emulator never booted */ }
 	}, [game]);
 
@@ -74,7 +75,9 @@ const GamePlayer = ({library, game, startFresh, onBack, backHandlerRef}) => {
 				const [rom, settingsJson, existing] = await Promise.all([
 					gamesApi.getRomUrl(libraryId, game.id),
 					gamesApi.getSettingsBlob(),
-					startFresh ? Promise.resolve(null) : gamesApi.getStateBytes(game.id)
+					// Read on Restart too so Load state is still offered. A failed read counts as
+					// no save instead of stopping the game.
+					loadGameStateWithMigration(game.id, game.core).catch(() => null)
 				]);
 				if (cancelled) return;
 				const {url: romUrl, isBlob} = rom;
@@ -95,7 +98,7 @@ const GamePlayer = ({library, game, startFresh, onBack, backHandlerRef}) => {
 					settingsJson
 				});
 				if (cancelled) return;
-				if (existing) { try { ejs.loadState(existing); } catch (e) { /* ignore */ } }
+				if (existing && !startFresh) { try { ejs.loadState(existing); } catch (e) { /* ignore */ } }
 				setReady(true);
 			} catch (e) {
 				// Backing out mid-load lands here too, and that is not worth reporting.
@@ -127,7 +130,7 @@ const GamePlayer = ({library, game, startFresh, onBack, backHandlerRef}) => {
 	const saveState = useCallback(async () => {
 		try {
 			const bytes = ejs.getState();
-			if (bytes && bytes.length) { await gamesApi.putStateBytes(game.id, bytes); setHasSave(true); }
+			if (bytes && bytes.length) { await gamesApi.putStateBytes(gameStateKey(game.id, game.core), bytes); setHasSave(true); }
 		} catch (e) { /* ignore */ }
 	}, [game]);
 
@@ -227,8 +230,10 @@ const GamePlayer = ({library, game, startFresh, onBack, backHandlerRef}) => {
 	}, []);
 
 	const loadSave = useCallback(async () => {
-		const bytes = await gamesApi.getStateBytes(game.id);
-		if (bytes) ejs.loadState(bytes);
+		try {
+			const bytes = await loadGameStateWithMigration(game.id, game.core);
+			if (bytes) ejs.loadState(bytes);
+		} catch (e) { /* ignore */ }
 		closeOverlay();
 	}, [game, closeOverlay]);
 
