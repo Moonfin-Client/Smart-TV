@@ -1314,11 +1314,15 @@ const sendStopRequest = ({endpoint, json}) => {
 export const reportStopBeacon = (positionTicks) => {
 	const request = stopRequest(positionTicks);
 	if (!request) return false;
+	const key = `${currentSession.playSessionId}:${positionTicks || 0}`;
+	if (key === lastStopBeaconKey) return false;
 	const sent = sendStopRequest(request);
-	// The stop that went out named the live stream, so the server has let it go.
-	// A later stop must not close it again, since the server counts viewers and a
-	// second close on a stream shared with another set takes theirs as well.
-	if (sent) currentSession.liveStreamClosed = true;
+	// Keep the upstream live-stream close guard: duplicate closes can stop
+	// another viewer of a shared stream.
+	if (sent) {
+		lastStopBeaconKey = key;
+		currentSession.liveStreamClosed = true;
+	}
 	return sent;
 };
 
@@ -1343,6 +1347,10 @@ export const stopHealthMonitoring = () => {
 // to re-report start on it.
 let backgroundStopFired = false;
 
+// Key of the last stop sent via reportStopBeacon (playSessionId:position).
+// Guards the pagehide+beforeunload double-fire during app teardown.
+let lastStopBeaconKey = null;
+
 export const reportBackgroundStop = (positionTicks) => {
 	if (!currentSession) return;
 	shareStopWithShell(positionTicks);
@@ -1360,6 +1368,15 @@ export const consumeBackgroundStopFired = () => {
 	const fired = backgroundStopFired;
 	backgroundStopFired = false;
 	return fired;
+};
+
+// Terminal counterpart to reportBackgroundStop: the app is exiting, so the
+// beacon above is the one and only stop. Drop the local session so a late
+// unmount cleanup (getCurrentSession -> reportStop) can't send a second one.
+export const discardCurrentSession = () => {
+	currentSession = null;
+	stopProgressReporting();
+	stopHealthMonitoring();
 };
 
 export const reportStop = async (positionTicks) => {
@@ -1565,6 +1582,7 @@ export default {
 	reportProgress,
 	reportStopBeacon,
 	reportStop,
+	discardCurrentSession,
 	startProgressReporting,
 	stopProgressReporting,
 	getHealthMonitor,

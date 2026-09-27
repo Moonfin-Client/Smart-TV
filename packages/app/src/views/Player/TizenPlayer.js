@@ -1020,6 +1020,10 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 			// always report the stop, even at position 0 (live TV and freshly
 			// opened media start there), or the session lingers on the server
 			playback.reportStopBeacon(positionRef.current);
+			// pagehide and beforeunload both fire here; the beacon dedups
+			// itself, and dropping the session stops the late unmount
+			// cleanup from reporting it a third time
+			playback.discardCurrentSession();
 			cleanupAVPlay();
 		};
 		window.addEventListener('pagehide', handleAppExit);
