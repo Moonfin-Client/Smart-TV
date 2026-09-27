@@ -25,26 +25,25 @@ const installStreamFetch = (url, readable) => {
 };
 
 class InBandPgsRenderer {
-	constructor(renderer, source) {
+	constructor(renderer, source, clock) {
 		this.renderer = renderer;
 		this.source = source;
+		this.clock = clock;
 	}
 
 	get timeOffset() {
 		return this.renderer.timeOffset;
 	}
 
+	// libpgs draws at the video time plus this offset, and the reader follows that same time.
 	set timeOffset(value) {
 		this.renderer.timeOffset = value;
+		this.clock.offset = value;
 	}
 
-	renderAtTimestamp(time) {
-		this.renderer.renderAtTimestamp(time);
-	}
-
-	/** True when a seek back left libpgs holding timestamps that no longer ascend. */
+	/** True when a seek went back before the data libpgs holds, which only a new renderer fixes. */
 	needsRestart(time) {
-		return this.source.needsRestart(time);
+		return this.source.needsRestart(time + this.clock.offset);
 	}
 
 	dispose() {
@@ -78,12 +77,14 @@ export const initPgsRenderer = async (videoElement, subtitleStream) => {
 export const initPgsInBandRenderer = async (videoElement, subtitleStream, options = {}) => {
 	if (!subtitleStream?.inBand || !videoElement) return null;
 
+	const clock = {offset: options.timeOffset || 0};
+	let source = null;
 	try {
-		const source = createInBandPgsSource({
+		source = createInBandPgsSource({
 			streamUrl: subtitleStream.inBand.streamUrl,
 			subtitleOrdinal: subtitleStream.inBand.ordinal,
-			getTime: () => videoElement.currentTime,
-			startTime: options.startTime ?? videoElement.currentTime
+			getTime: () => videoElement.currentTime + clock.offset,
+			startTime: (options.startTime ?? videoElement.currentTime) + clock.offset
 		});
 		if (!source || !(await source.ready)) {
 			source?.dispose();
@@ -93,6 +94,9 @@ export const initPgsInBandRenderer = async (videoElement, subtitleStream, option
 
 		const {PgsRenderer} = await import('libpgs');
 		const url = `moonfin-inband-pgs://${++streamUrlCounter}`;
+		// libpgs 0.8 calls fetch synchronously from its constructor when given subUrl, so the
+		// swap only has to last that long. Its worker would fetch with its own global, hence
+		// the main thread mode.
 		const restore = installStreamFetch(url, source.readable);
 		let renderer;
 		try {
@@ -100,13 +104,15 @@ export const initPgsInBandRenderer = async (videoElement, subtitleStream, option
 				workerUrl: 'libpgs.worker.js',
 				video: videoElement,
 				subUrl: url,
-				mode: 'mainThread'
+				mode: 'mainThread',
+				timeOffset: clock.offset
 			});
 		} finally {
 			restore();
 		}
-		return new InBandPgsRenderer(renderer, source);
+		return new InBandPgsRenderer(renderer, source, clock);
 	} catch (err) {
+		source?.dispose();
 		console.error('[PgsRenderer] Failed to initialize in band PGS', err);
 		return null;
 	}

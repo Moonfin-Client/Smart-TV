@@ -6,6 +6,7 @@ import {
 	parseTracks,
 	supFrame
 } from './mkvPgsSource';
+import {deflateSync} from 'zlib';
 
 // The jsdom environment jest runs in has no web streams, and the source hands libpgs one.
 if (typeof global.ReadableStream === 'undefined') {
@@ -25,15 +26,23 @@ const encodeId = (id) => {
 	return new Uint8Array(bytes);
 };
 
+const uintBytes = (value, length) => {
+	const out = new Uint8Array(length);
+	let remaining = value;
+	for (let i = length - 1; i >= 0; i--) {
+		out[i] = remaining & 0xff;
+		remaining = Math.floor(remaining / 256);
+	}
+	return out;
+};
+
+// Each byte of a VINT carries seven bits of value, and all ones is reserved for an unknown size.
 const encodeSize = (size) => {
-	const bytes = [];
-	let value = size;
-	do {
-		bytes.unshift(value & 0xff);
-		value = Math.floor(value / 256);
-	} while (value > 0);
-	bytes[0] |= 0x80 >> (bytes.length - 1);
-	return new Uint8Array(bytes);
+	let length = 1;
+	while (size >= 2 ** (7 * length) - 1) length++;
+	const bytes = uintBytes(size, length);
+	bytes[0] |= 0x80 >> (length - 1);
+	return bytes;
 };
 
 const element = (id, body) => {
@@ -65,16 +74,6 @@ const splitElement = (bytes, offset = 0) => {
 	return {bodyStart: sizeStart + sizeLength, bodyEnd: sizeStart + sizeLength + size};
 };
 
-const uintBytes = (value, length) => {
-	const out = new Uint8Array(length);
-	let remaining = value;
-	for (let i = length - 1; i >= 0; i--) {
-		out[i] = remaining & 0xff;
-		remaining = Math.floor(remaining / 256);
-	}
-	return out;
-};
-
 const join = (parts) => {
 	const out = new Uint8Array(parts.reduce((sum, part) => sum + part.length, 0));
 	let offset = 0;
@@ -87,9 +86,10 @@ const join = (parts) => {
 
 const pgsSegment = (type, payload) => join([new Uint8Array([type]), uintBytes(payload.length, 2), payload]);
 
-const displaySet = (marker) => join([
+const displaySet = (marker, objectBytes = 0) => join([
 	pgsSegment(0x16, new Uint8Array([0x00, marker])),
 	pgsSegment(0x14, new Uint8Array([0x00, marker])),
+	...(objectBytes > 0 ? [pgsSegment(0x15, new Uint8Array(objectBytes).fill(marker))] : []),
 	pgsSegment(0x80, new Uint8Array([]))
 ]);
 
@@ -100,20 +100,32 @@ const simpleBlock = (trackNumber, payload) => join([
 	payload
 ]);
 
-const trackEntry = (number, type, codec) => element(0xae, join([
+const trackEntry = (number, type, codec, extra = []) => element(0xae, join([
 	element(0xd7, uintBytes(number, 1)),
 	element(0x83, uintBytes(type, 1)),
-	element(0x86, ascii(codec))
+	element(0x86, ascii(codec)),
+	...extra
 ]));
+
+const contentEncodings = (fields) => element(0x6d80, element(0x6240, join(fields)));
+
+// mkvmerge's default for PGS: every block zlib compressed, declared once on the track.
+const ZLIB = contentEncodings([element(0x5034, element(0x4254, uintBytes(0, 1)))]);
+
+const pgsTrackWithEncoding = (fields) => {
+	const tracksElement = element(0x1654ae6b, trackEntry(7, 17, 'S_HDMV/PGS', [contentEncodings(fields)]));
+	const tracks = splitElement(tracksElement);
+	return parseTracks(tracksElement, tracks.bodyStart, tracks.bodyEnd - tracks.bodyStart)[0];
+};
 
 /**
  * Build a real Matroska file with a subtitle cue per cluster, so the source sees the same
  * layout it sees in the wild: cues at the end, subtitle blocks buried behind filler.
  */
-const buildFile = ({subtitleTimes, fillerBytes = 200 * 1024, subtitlePayloadBytes = 0}) => {
+const buildFile = ({subtitleTimes, fillerBytes = 200 * 1024, subtitlePayloadBytes = 0, blockGroup = false, omitRelativePosition = false, brokenIndex = -1, zlib = false, incompleteSets = false}) => {
 	const tracks = element(0x1654ae6b, join([
 		trackEntry(1, 1, 'V_MPEGH/ISO/HEVC'),
-		trackEntry(2, 17, 'S_HDMV/PGS')
+		trackEntry(2, 17, 'S_HDMV/PGS', zlib ? [ZLIB] : [])
 	]));
 	const info = element(0x1549a966, element(0x2ad7b1, uintBytes(1000000, 3)));
 
@@ -126,12 +138,17 @@ const buildFile = ({subtitleTimes, fillerBytes = 200 * 1024, subtitlePayloadByte
 	let segmentRelative = seekHeadFor(0).length + info.length + tracks.length;
 	const clusters = [];
 	const cuePoints = [];
-	for (const time of subtitleTimes) {
+	for (const [index, time] of subtitleTimes.entries()) {
 		const filler = new Uint8Array(fillerBytes).fill(0x55);
-		const subtitle = subtitlePayloadBytes > 0
-			? join([displaySet(time & 0xff), pgsSegment(0x15, new Uint8Array(subtitlePayloadBytes).fill(time & 0xff))])
-			: displaySet(time & 0xff);
-		const block = element(0xa3, simpleBlock(2, subtitle));
+		let subtitle = displaySet(time & 0xff, subtitlePayloadBytes);
+		// The spec's one segment per block, where the rest of the display set sits in blocks with no cue.
+		if (incompleteSets) subtitle = pgsSegment(0x16, new Uint8Array([0x00, time & 0xff]));
+		if (zlib) subtitle = new Uint8Array(deflateSync(subtitle));
+		// FFmpeg writes a BlockGroup with the duration ahead of the Block, and a Void stands in for a broken one.
+		let block = blockGroup
+			? element(0xa0, join([element(0x9b, uintBytes(500, 2)), element(0xa1, simpleBlock(2, subtitle))]))
+			: element(0xa3, simpleBlock(2, subtitle));
+		if (index === brokenIndex) block = element(0xec, simpleBlock(2, subtitle));
 		const timecode = element(0xe7, uintBytes(time, 4));
 		const video = element(0xa3, simpleBlock(1, filler));
 		const clusterBody = element(0x1f43b675, join([timecode, video, block]));
@@ -143,7 +160,7 @@ const buildFile = ({subtitleTimes, fillerBytes = 200 * 1024, subtitlePayloadByte
 			element(0xb7, join([
 				element(0xf7, uintBytes(2, 1)),
 				element(0xf1, uintBytes(segmentRelative, 4)),
-				element(0xf0, uintBytes(blockOffset, 4))
+				...(omitRelativePosition ? [] : [element(0xf0, uintBytes(blockOffset, 4))])
 			]))
 		])));
 		segmentRelative += clusterBody.length;
@@ -155,8 +172,13 @@ const buildFile = ({subtitleTimes, fillerBytes = 200 * 1024, subtitlePayloadByte
 	]);
 };
 
-const serveFile = (bytes, {status = 206, ranges = null} = {}) => {
+const serveFile = (bytes, {status = 206, ranges = null, failFirstWith = null} = {}) => {
+	let failed = failFirstWith === null;
 	global.fetch = jest.fn(async (url, init) => {
+		if (!failed) {
+			failed = true;
+			return {status: failFirstWith, arrayBuffer: async () => new ArrayBuffer(0)};
+		}
 		const match = /bytes=(\d+)-(\d+)/.exec(init?.headers?.Range || '');
 		if (ranges) ranges.push(match ? [Number(match[1]), Number(match[2])] : null);
 		if (status !== 206) {
@@ -167,6 +189,8 @@ const serveFile = (bytes, {status = 206, ranges = null} = {}) => {
 		return {status: 206, arrayBuffer: async () => slice.buffer.slice(slice.byteOffset, slice.byteOffset + slice.length)};
 	});
 };
+
+const openSource = (options = {}) => createInBandPgsSource({streamUrl: 'http://server/stream', subtitleOrdinal: 0, getTime: () => 0, ...options});
 
 const readAll = async (source) => {
 	const reader = source.readable.getReader();
@@ -220,8 +244,8 @@ describe('mkvPgsSource', () => {
 		expect(header.segmentDataOffset).toBeGreaterThan(0);
 		expect(header.cuesOffset).not.toBeNull();
 		expect(header.tracks).toEqual([
-			{number: 1, type: 1, codec: 'V_MPEGH/ISO/HEVC', language: 'und', compressionAlgorithm: null, compressionSettings: null},
-			{number: 2, type: 17, codec: 'S_HDMV/PGS', language: 'und', compressionAlgorithm: null, compressionSettings: null}
+			{number: 1, type: 1, codec: 'V_MPEGH/ISO/HEVC', compressionAlgorithm: null, compressionSettings: null, unsupportedEncoding: false},
+			{number: 2, type: 17, codec: 'S_HDMV/PGS', compressionAlgorithm: null, compressionSettings: null, unsupportedEncoding: false}
 		]);
 	});
 
@@ -236,45 +260,40 @@ describe('mkvPgsSource', () => {
 	});
 
 	test('parses a tracks element with a zlib content encoding', () => {
-		const entry = element(0xae, join([
-			element(0xd7, uintBytes(7, 1)),
-			element(0x83, uintBytes(17, 1)),
-			element(0x86, ascii('S_HDMV/PGS')),
-			element(0x6d80, element(0x6240, element(0x5034, element(0x4254, uintBytes(0, 1)))))
-		]));
-		const tracksElement = element(0x1654ae6b, entry);
-		const tracks = splitElement(tracksElement);
-		expect(parseTracks(tracksElement, tracks.bodyStart, tracks.bodyEnd - tracks.bodyStart)[0]).toEqual({
-			number: 7, type: 17, codec: 'S_HDMV/PGS', language: 'und', compressionAlgorithm: 0, compressionSettings: null
+		expect(pgsTrackWithEncoding([element(0x5034, element(0x4254, uintBytes(0, 1)))])).toEqual({
+			number: 7, type: 17, codec: 'S_HDMV/PGS', compressionAlgorithm: 0, compressionSettings: null, unsupportedEncoding: false
 		});
+	});
+
+	test('marks an encrypted track as unsupported', () => {
+		const track = pgsTrackWithEncoding([element(0x5033, uintBytes(1, 1)), element(0x5035, new Uint8Array([]))]);
+		expect(track.unsupportedEncoding).toBe(true);
+	});
+
+	test('leaves frames uncompressed when the compression only covers the codec private data', () => {
+		const track = pgsTrackWithEncoding([element(0x5032, uintBytes(2, 1)), element(0x5034, element(0x4254, uintBytes(0, 1)))]);
+		expect(track.compressionAlgorithm).toBeNull();
+		expect(track.unsupportedEncoding).toBe(false);
 	});
 
 	test('parses Matroska header-stripping settings', () => {
 		const prefix = new Uint8Array([0x16, 0x00, 0x02]);
-		const entry = element(0xae, join([
-			element(0xd7, uintBytes(7, 1)),
-			element(0x83, uintBytes(17, 1)),
-			element(0x86, ascii('S_HDMV/PGS')),
-			element(0x6d80, element(0x6240, element(0x5034, join([
-				element(0x4254, uintBytes(3, 1)),
-				element(0x4255, prefix)
-			]))))
-		]));
-		const tracksElement = element(0x1654ae6b, entry);
-		const tracks = splitElement(tracksElement);
-		const parsed = parseTracks(tracksElement, tracks.bodyStart, tracks.bodyEnd - tracks.bodyStart)[0];
+		const parsed = pgsTrackWithEncoding([element(0x5034, join([
+			element(0x4254, uintBytes(3, 1)),
+			element(0x4255, prefix)
+		]))]);
 		expect(parsed.compressionAlgorithm).toBe(3);
 		expect(Array.from(parsed.compressionSettings)).toEqual(Array.from(prefix));
 	});
 
-	test('streams .sup frames for the cue at and after the start position', async () => {
+	test('streams .sup frames from the subtitle on screen at the start position', async () => {
 		const bytes = buildFile({subtitleTimes: [1000, 2000, 3000], fillerBytes: 32});
 		serveFile(bytes);
 		const source = createInBandPgsSource({
 			streamUrl: 'http://server/Videos/1/stream?Static=true',
 			subtitleOrdinal: 0,
 			getTime: () => 0,
-			startTime: 1.5,
+			startTime: 2.5,
 			lookaheadSeconds: 10
 		});
 		expect(await source.ready).toBe(true);
@@ -283,6 +302,80 @@ describe('mkvPgsSource', () => {
 		expect([...new Set(ptsOf(out))]).toEqual([2000 * 90, 3000 * 90]);
 		expect(out[0]).toBe(0x50);
 		expect(out[1]).toBe(0x47);
+	});
+
+	test('reads the Block out of a BlockGroup', async () => {
+		serveFile(buildFile({subtitleTimes: [1000, 2000], fillerBytes: 32, blockGroup: true}));
+		const source = openSource({lookaheadSeconds: 10});
+		expect(await source.ready).toBe(true);
+		expect([...new Set(ptsOf(await readAll(source)))]).toEqual([1000 * 90, 2000 * 90]);
+	});
+
+	test('inflates zlib compressed blocks', async () => {
+		serveFile(buildFile({subtitleTimes: [1000, 2000], fillerBytes: 32, zlib: true}));
+		const source = openSource({lookaheadSeconds: 10});
+		expect(await source.ready).toBe(true);
+		const out = await readAll(source);
+		expect([...new Set(ptsOf(out))]).toEqual([1000 * 90, 2000 * 90]);
+		// Right after the first .sup header sits the display set's composition segment.
+		expect(out[10]).toBe(0x16);
+	});
+
+	test('falls back when a block holds only part of a display set', async () => {
+		serveFile(buildFile({subtitleTimes: [1000], fillerBytes: 32, incompleteSets: true}));
+		const source = openSource();
+		expect(await source.ready).toBe(false);
+	});
+
+	test('keeps a display set past the playhead so libpgs draws the one on screen', async () => {
+		serveFile(buildFile({subtitleTimes: [1000, 40000], fillerBytes: 32}));
+		const source = openSource({getTime: () => 2, startTime: 2, lookaheadSeconds: 5});
+		await source.ready;
+		const first = await source.readable.getReader().read();
+		expect([...new Set(ptsOf(first.value))]).toEqual([1000 * 90, 40000 * 90]);
+	});
+
+	test('falls back when a cue has no relative position', async () => {
+		serveFile(buildFile({subtitleTimes: [1000], fillerBytes: 32, omitRelativePosition: true}));
+		const source = openSource();
+		expect(await source.ready).toBe(false);
+	});
+
+	test('falls back when it can't read the first block', async () => {
+		serveFile(buildFile({subtitleTimes: [1000, 2000], fillerBytes: 32, brokenIndex: 0}));
+		const source = openSource();
+		await expect(source.ready).rejects.toThrow(/no subtitle block/);
+	});
+
+	test('skips a broken block later on and keeps the stream going', async () => {
+		const warn = jest.spyOn(console, 'warn').mockImplementation(() => {});
+		serveFile(buildFile({subtitleTimes: [1000, 2000, 3000], fillerBytes: 32, brokenIndex: 1}));
+		const source = openSource({lookaheadSeconds: 10});
+		expect(await source.ready).toBe(true);
+		expect([...new Set(ptsOf(await readAll(source)))]).toEqual([1000 * 90, 3000 * 90]);
+		expect(warn).toHaveBeenCalled();
+		warn.mockRestore();
+	});
+
+	test('retries a range request the server failed once', async () => {
+		serveFile(buildFile({subtitleTimes: [1000], fillerBytes: 32}), {failFirstWith: 503});
+		const source = openSource();
+		expect(await source.ready).toBe(true);
+	});
+
+	test('jumps the cursor to the playhead after a seek forward', async () => {
+		serveFile(buildFile({subtitleTimes: [1000, 2000, 10000, 20000, 30000, 31000], fillerBytes: 32}));
+		let time = 0;
+		const source = openSource({getTime: () => time, lookaheadSeconds: 5});
+		await source.ready;
+		const reader = source.readable.getReader();
+		expect([...new Set(ptsOf((await reader.read()).value))]).toEqual([1000 * 90, 2000 * 90]);
+		time = 30;
+		// 10s and 20s are over by now, so they are never read.
+		expect([...new Set(ptsOf((await reader.read()).value))]).toEqual([30000 * 90, 31000 * 90]);
+		expect((await reader.read()).done).toBe(true);
+		expect(source.needsRestart(25)).toBe(true);
+		expect(source.needsRestart(29.5)).toBe(false);
 	});
 
 	test('fetches only the unread tail of a large SimpleBlock', async () => {
@@ -326,21 +419,20 @@ describe('mkvPgsSource', () => {
 		expect(fetched).toBeLessThan(bytes.length / 4);
 	});
 
-	test('re-arms after a seek back behind the data already handed over', async () => {
-		const bytes = buildFile({subtitleTimes: [1000, 2000, 3000], fillerBytes: 32});
-		serveFile(bytes);
-		const source = createInBandPgsSource({
-			streamUrl: 'http://server/Videos/1/stream?Static=true',
-			subtitleOrdinal: 0,
-			getTime: () => 0,
-			lookaheadSeconds: 10
-		});
-		await source.ready;
-		await readAll(source);
-		expect(source.needsRestart(0)).toBe(true);
-		expect(source.needsRestart(3)).toBe(false);
-		source.seek(2.5);
-		expect(source.needsRestart(0)).toBe(false);
+	test('needs a restart only for a seek back before the data it handed over', async () => {
+		serveFile(buildFile({subtitleTimes: [1000, 2000, 3000], fillerBytes: 32}));
+		const fromStart = openSource({lookaheadSeconds: 10});
+		await fromStart.ready;
+		await readAll(fromStart);
+		// libpgs still holds everything from the start, so seeking back inside it is fine.
+		expect(fromStart.needsRestart(0)).toBe(false);
+		expect(fromStart.needsRestart(2)).toBe(false);
+
+		serveFile(buildFile({subtitleTimes: [1000, 2000, 3000], fillerBytes: 32}));
+		const resumed = openSource({getTime: () => 2.5, startTime: 2.5, lookaheadSeconds: 10});
+		await resumed.ready;
+		expect(resumed.needsRestart(0)).toBe(true);
+		expect(resumed.needsRestart(2)).toBe(false);
 	});
 
 	test('refuses a track that is not PGS so the caller can fall back', async () => {
@@ -355,13 +447,13 @@ describe('mkvPgsSource', () => {
 			element(0x18538067, join([seekHead, tracks, cues]))
 		]);
 		serveFile(bytes);
-		const source = createInBandPgsSource({streamUrl: 'http://server/stream', subtitleOrdinal: 0, getTime: () => 0});
+		const source = openSource();
 		expect(await source.ready).toBe(false);
 	});
 
 	test('refuses a server that ignores the range request', async () => {
 		serveFile(buildFile({subtitleTimes: [1000], fillerBytes: 32}), {status: 200});
-		const source = createInBandPgsSource({streamUrl: 'http://server/stream', subtitleOrdinal: 0, getTime: () => 0});
+		const source = openSource();
 		await expect(source.ready).rejects.toThrow(/range request not honoured/);
 		await expect(source.readable.getReader().read()).rejects.toThrow(/range request not honoured/);
 	});

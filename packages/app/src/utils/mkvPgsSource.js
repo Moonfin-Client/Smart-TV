@@ -30,9 +30,10 @@ const ID = {
 	TrackNumber: 0xd7,
 	TrackType: 0x83,
 	CodecID: 0x86,
-	Language: 0x22b59c,
 	ContentEncodings: 0x6d80,
 	ContentEncoding: 0x6240,
+	ContentEncodingScope: 0x5032,
+	ContentEncodingType: 0x5033,
 	ContentCompression: 0x5034,
 	ContentCompAlgo: 0x4254,
 	ContentCompSettings: 0x4255,
@@ -44,10 +45,15 @@ const ID = {
 	CueClusterPosition: 0xf1,
 	CueRelativePosition: 0xf0,
 	Cluster: 0x1f43b675,
+	BlockGroup: 0xa0,
+	Block: 0xa1,
 	SimpleBlock: 0xa3
 };
 
-const PGS_CODEC_IDS = ['S_HDMV/PGS', 'S_HDRV_PGS'];
+const PGS_CODEC_ID = 'S_HDMV/PGS';
+const PGS_END_SEGMENT = 0x80;
+// Palette, object, presentation composition, window and end of display set.
+const PGS_SEGMENT_TYPES = [0x14, 0x15, 0x16, 0x17, PGS_END_SEGMENT];
 const SUBTITLE_TRACK_TYPE = 17;
 const SUP_FRAME_HEADER_BYTES = 10;
 const SUP_PTS_UNITS_PER_MS = 90;
@@ -56,6 +62,13 @@ const BLOCK_PROBE_BYTES = 64;
 const MAX_CUES_PER_BATCH = 64;
 const READ_CONCURRENCY = 4;
 const POLL_INTERVAL_MS = 100;
+const FETCH_ATTEMPTS = 3;
+const RETRY_DELAY_MS = 500;
+// How far the cursor can fall behind the playhead before it counts as a seek forward.
+const FORWARD_JUMP_MS = 5000;
+const RESTART_TOLERANCE_MS = 1000;
+
+const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 const readVint = (bytes, offset, stripMarker) => {
 	const first = bytes[offset];
@@ -116,7 +129,10 @@ const forEachChild = (bytes, start, end, visit) => {
 	}
 };
 
-/** Parse a Tracks element into `{number, type, codec, language, compressed}` entries. */
+/**
+ * Parse a Tracks element into `{number, type, codec, compressionAlgorithm, compressionSettings,
+ * unsupportedEncoding}` entries. The compression fields are only set when the compression applies to frames.
+ */
 export const parseTracks = (bytes, start, size) => {
 	const tracks = [];
 	forEachChild(bytes, start, start + size, (header, bodyStart) => {
@@ -125,10 +141,11 @@ export const parseTracks = (bytes, start, size) => {
 			number: 0,
 			type: 0,
 			codec: '',
-			language: 'und',
 			compressionAlgorithm: null,
-			compressionSettings: null
+			compressionSettings: null,
+			unsupportedEncoding: false
 		};
+		let encodingCount = 0;
 		forEachChild(bytes, bodyStart, bodyStart + header.size, (child, childBody) => {
 			switch (child.id) {
 				case ID.TrackNumber:
@@ -140,26 +157,42 @@ export const parseTracks = (bytes, start, size) => {
 				case ID.CodecID:
 					track.codec = readString(bytes, childBody, child.size);
 					break;
-				case ID.Language:
-					track.language = readString(bytes, childBody, child.size);
-					break;
 				case ID.ContentEncodings:
 					forEachChild(bytes, childBody, childBody + child.size, (encoding, encodingBody) => {
 						if (encoding.id !== ID.ContentEncoding) return;
+						encodingCount++;
+						// Spec defaults: a compression, applied to every frame, zlib unless ContentCompAlgo
+						// says otherwise. Header stripping carries the removed prefix in ContentCompSettings.
+						let type = 0;
+						let scope = 1;
+						let algorithm = null;
+						let settings = null;
 						forEachChild(bytes, encodingBody, encodingBody + encoding.size, (field, fieldBody) => {
-							if (field.id !== ID.ContentCompression) return;
-							// ContentCompAlgo defaults to zlib when ContentCompression is
-							// present. Header stripping carries the removed prefix in settings.
-							track.compressionAlgorithm = 0;
-							forEachChild(bytes, fieldBody, fieldBody + field.size, (compression, compressionBody) => {
-								if (compression.id === ID.ContentCompAlgo) {
-									track.compressionAlgorithm = readUint(bytes, compressionBody, compression.size);
-								} else if (compression.id === ID.ContentCompSettings) {
-									track.compressionSettings = bytes.slice(compressionBody, compressionBody + compression.size);
-								}
-							});
+							if (field.id === ID.ContentEncodingType) {
+								type = readUint(bytes, fieldBody, field.size);
+							} else if (field.id === ID.ContentEncodingScope) {
+								scope = readUint(bytes, fieldBody, field.size);
+							} else if (field.id === ID.ContentCompression) {
+								algorithm = 0;
+								forEachChild(bytes, fieldBody, fieldBody + field.size, (compression, compressionBody) => {
+									if (compression.id === ID.ContentCompAlgo) {
+										algorithm = readUint(bytes, compressionBody, compression.size);
+									} else if (compression.id === ID.ContentCompSettings) {
+										settings = bytes.slice(compressionBody, compressionBody + compression.size);
+									}
+								});
+							}
 						});
+						// Encryption, or a compression entry missing its ContentCompression, can't be undone here.
+						if (type !== 0 || algorithm === null) {
+							track.unsupportedEncoding = true;
+						} else if (scope & 1) {
+							track.compressionAlgorithm = algorithm;
+							track.compressionSettings = settings;
+						}
 					});
+					// Chained encodings have to be undone in order, which this doesn't do.
+					if (encodingCount > 1) track.unsupportedEncoding = true;
 					break;
 				default:
 					break;
@@ -183,7 +216,8 @@ export const parseCues = (bytes, start, size, trackNumber = null) => {
 			} else if (child.id === ID.CueTrackPositions) {
 				let track = 0;
 				let clusterPosition = 0;
-				let relativePosition = 0;
+				// Optional in the spec. Left null when missing, since zero is a real position.
+				let relativePosition = null;
 				forEachChild(bytes, childBody, childBody + child.size, (field, fieldBody) => {
 					if (field.id === ID.CueTrack) track = readUint(bytes, fieldBody, field.size);
 					else if (field.id === ID.CueClusterPosition) clusterPosition = readUint(bytes, fieldBody, field.size);
@@ -289,10 +323,11 @@ const inflate = (bytes) => unzlibSync(bytes);
  * Create a source of .sup bytes for one embedded PGS track of a Matroska file.
  *
  * `subtitleOrdinal` is the position of the wanted track among the container's subtitle
- * tracks, which is how a Jellyfin subtitle stream maps onto a Matroska track number, and
- * `startTime` is where playback begins, which matters when resuming mid file. The source
- * refuses to start unless the track it lands on really is PGS, so a mismatch shows up as a
- * fallback rather than as garbage subtitles.
+ * tracks, which is how a Jellyfin subtitle stream maps onto a Matroska track number.
+ * `getTime` and `startTime` are the time libpgs draws at, in seconds, which is the video
+ * time plus its offset. The source reads one access unit before it reports ready, so a
+ * track that isn't PGS or a layout this reader gets wrong shows up as a fallback rather
+ * than as missing or garbage subtitles.
  */
 export const createInBandPgsSource = ({streamUrl, subtitleOrdinal, getTime, startTime = 0, lookaheadSeconds = 15}) => {
 	if (!streamUrl || typeof subtitleOrdinal !== 'number' || subtitleOrdinal < 0) return null;
@@ -302,19 +337,40 @@ export const createInBandPgsSource = ({streamUrl, subtitleOrdinal, getTime, star
 	let timestampScale = 1;
 	let cues = [];
 	let nextCue = 0;
-	let servedThroughMs = -1;
-	let lastServedMs = 0;
+	// Where the data handed to libpgs starts. It can't take anything earlier once it has later.
+	let servedFromMs = 0;
 	let disposed = false;
 	let compressionAlgorithm = null;
 	let compressionSettings = null;
 	const clusterDataOffsets = new Map();
 
+	const cueMs = (index) => cues[index].time * timestampScale;
+
+	// An answer that isn't read keeps downloading, and a 200 here is the whole file.
+	const discard = (response) => {
+		if (response.body) response.body.cancel().catch(() => {});
+	};
+
 	const fetchRange = async (start, end) => {
-		const response = await fetch(streamUrl, {headers: {Range: `bytes=${start}-${end}`}});
-		// A server that ignores Range answers 200 with the whole file, which would make
-		// every offset below wrong, so treat that as a hard failure.
-		if (response.status !== 206) throw new Error(`range request not honoured: ${response.status}`);
-		return new Uint8Array(await response.arrayBuffer());
+		for (let attempt = 1; ; attempt++) {
+			let response;
+			try {
+				response = await fetch(streamUrl, {headers: {Range: `bytes=${start}-${end}`}});
+			} catch (err) {
+				if (attempt >= FETCH_ATTEMPTS || disposed) throw err;
+				await delay(RETRY_DELAY_MS);
+				continue;
+			}
+			if (response.status === 206) return new Uint8Array(await response.arrayBuffer());
+			discard(response);
+			if (response.status >= 500 && attempt < FETCH_ATTEMPTS && !disposed) {
+				await delay(RETRY_DELAY_MS);
+				continue;
+			}
+			// A server that ignores Range answers 200 with the whole file, which would make
+			// every offset below wrong, so treat that as a hard failure.
+			throw new Error(`range request not honoured: ${response.status}`);
+		}
 	};
 
 	const readCues = async (offset) => {
@@ -328,24 +384,6 @@ export const createInBandPgsSource = ({streamUrl, subtitleOrdinal, getTime, star
 			bytes = concat([bytes, tail]);
 		}
 		return parseCues(bytes, headerOfCues.headerLength, headerOfCues.size, trackNumber);
-	};
-
-	const prepare = async () => {
-		if (header) return true;
-		header = parseHeader(await fetchRange(0, HEAD_BYTES - 1));
-		if (!header.tracks.length || header.cuesOffset === null) return false;
-		const subtitleTracks = header.tracks.filter((entry) => entry.type === SUBTITLE_TRACK_TYPE);
-		const track = subtitleTracks[subtitleOrdinal];
-		if (!track || !PGS_CODEC_IDS.includes(track.codec)) return false;
-		// zlib and header stripping are both cheap to undo here. bzip2/lzo are rare
-		// and deliberately fall back to Jellyfin's extractor instead.
-		if (track.compressionAlgorithm !== null && track.compressionAlgorithm !== 0 && track.compressionAlgorithm !== 3) return false;
-		trackNumber = track.number;
-		compressionAlgorithm = track.compressionAlgorithm;
-		compressionSettings = track.compressionSettings;
-		timestampScale = header.timestampScale / 1000000;
-		cues = await readCues(header.cuesOffset);
-		return cues.length > 0;
 	};
 
 	const clusterDataOffset = async (clusterPosition) => {
@@ -362,75 +400,111 @@ export const createInBandPgsSource = ({streamUrl, subtitleOrdinal, getTime, star
 	const readAccessUnit = async (cue) => {
 		const blockStart = await clusterDataOffset(cue.clusterPosition) + cue.relativePosition;
 		const probe = await fetchRange(blockStart, blockStart + BLOCK_PROBE_BYTES - 1);
-		const block = readElementHeader(probe, 0);
-		if (!block || block.id !== ID.SimpleBlock) throw new Error(`no subtitle block at ${blockStart}`);
-		const trackVint = readVint(probe, block.headerLength, true);
+		const element = readElementHeader(probe, 0);
+
+		// FFmpeg's muxer, which HandBrake uses, keeps a subtitle that has a duration in a
+		// BlockGroup, and the Block inside it has the same body as a SimpleBlock.
+		let bodyStart = null;
+		let bodyEnd = null;
+		if (element?.id === ID.SimpleBlock) {
+			bodyStart = element.headerLength;
+			bodyEnd = element.headerLength + element.size;
+		} else if (element?.id === ID.BlockGroup) {
+			forEachChild(probe, element.headerLength, element.headerLength + element.size, (child, childBody) => {
+				if (child.id !== ID.Block || bodyStart !== null) return;
+				bodyStart = childBody;
+				bodyEnd = childBody + child.size;
+			});
+		}
+		if (bodyStart === null) throw new Error(`no subtitle block at ${blockStart}`);
+		const trackVint = readVint(probe, bodyStart, true);
 		if (!trackVint || trackVint.value !== trackNumber) throw new Error(`wrong track at ${blockStart}`);
 
-		// SimpleBlock.size is the size of the whole block body: track vint + signed
-		// timecode + flags + payload. Do not add that size to dataOffset or the read
-		// spills into the following Matroska element.
-		const dataOffset = block.headerLength + trackVint.length + 3;
-		const blockEnd = block.headerLength + block.size;
-		if (dataOffset > blockEnd) throw new Error(`short subtitle block at ${blockStart}`);
+		// The body is the track number, a signed 16 bit timecode, one flags byte, then the payload.
+		const flagsOffset = bodyStart + trackVint.length + 2;
+		const dataOffset = flagsOffset + 1;
+		if (dataOffset > bodyEnd) throw new Error(`short subtitle block at ${blockStart}`);
 
-		// PGS access units are not expected to be laced. Refuse a layout we do not
-		// understand so the caller can use Jellyfin's sidecar instead of emitting
-		// subtly corrupt subtitle bytes.
-		const flagsOffset = block.headerLength + trackVint.length + 2;
+		// PGS access units aren't laced, so a laced block is refused rather than read as corrupt subtitle bytes.
 		const flags = probe[flagsOffset];
 		if (flags === undefined) throw new Error(`short subtitle block header at ${blockStart}`);
 		if (flags & 0x06) throw new Error(`laced subtitle block unsupported at ${blockStart}`);
 
 		let bytes;
-		if (blockEnd <= probe.length) {
-			bytes = probe.subarray(dataOffset, blockEnd);
+		if (bodyEnd <= probe.length) {
+			bytes = probe.subarray(dataOffset, bodyEnd);
 		} else {
 			// The probe already contains the first part of the payload. Fetch only the
 			// tail rather than requesting the same bytes a second time.
-			const tail = await fetchRange(blockStart + probe.length, blockStart + blockEnd - 1);
-			const body = concat([probe, tail]);
-			bytes = body.subarray(dataOffset, blockEnd);
+			const tail = await fetchRange(blockStart + probe.length, blockStart + bodyEnd - 1);
+			bytes = concat([probe, tail]).subarray(dataOffset, bodyEnd);
 		}
 		return {timeMs: cue.time * timestampScale, bytes};
 	};
 
-	const readBatch = async (targetMs) => {
+	const toSupFrames = (unit) => {
+		let payload = unit.bytes;
+		if (compressionAlgorithm === 0) {
+			payload = inflate(payload);
+		} else if (compressionAlgorithm === 3 && compressionSettings?.length) {
+			payload = concat([compressionSettings, payload]);
+		}
+		if (!PGS_SEGMENT_TYPES.includes(payload[0])) throw new Error('not a PGS access unit');
+		return accessUnitToSup(unit.timeMs, payload);
+	};
+
+	const prepare = async () => {
+		header = parseHeader(await fetchRange(0, HEAD_BYTES - 1));
+		if (!header.tracks.length || header.cuesOffset === null) return false;
+		const subtitleTracks = header.tracks.filter((entry) => entry.type === SUBTITLE_TRACK_TYPE);
+		const track = subtitleTracks[subtitleOrdinal];
+		if (!track || track.codec !== PGS_CODEC_ID || track.unsupportedEncoding) return false;
+		// zlib and header stripping are both cheap to undo here. bzip2/lzo are rare
+		// and deliberately fall back to Jellyfin's extractor instead.
+		if (track.compressionAlgorithm !== null && track.compressionAlgorithm !== 0 && track.compressionAlgorithm !== 3) return false;
+		trackNumber = track.number;
+		compressionAlgorithm = track.compressionAlgorithm;
+		compressionSettings = track.compressionSettings;
+		timestampScale = header.timestampScale / 1000000;
+		cues = await readCues(header.cuesOffset);
+		// A cue with no relative position names only the cluster, not where the block sits in it.
+		if (!cues.length || cues.some((cue) => cue.relativePosition === null)) return false;
+		// Read one access unit up front, so a layout this reader gets wrong falls back before anything shows.
+		// mkvmerge and FFmpeg put a whole display set in each block, so it has to end with the end segment.
+		const frames = toSupFrames(await readAccessUnit(cues[0]));
+		return frames.length > 0 && frames[frames.length - 1][SUP_FRAME_HEADER_BYTES] === PGS_END_SEGMENT;
+	};
+
+	const readBatch = async (targetMs, nowMs) => {
 		const batch = [];
-		while (nextCue < cues.length && batch.length < MAX_CUES_PER_BATCH && cues[nextCue].time * timestampScale <= targetMs) {
+		while (nextCue < cues.length && batch.length < MAX_CUES_PER_BATCH && cueMs(nextCue) <= targetMs) {
 			batch.push(cues[nextCue++]);
 		}
+		// libpgs only draws a display set once a later one is loaded, so one always sits past the playhead.
+		if (nextCue < cues.length && nextCue > 0 && cueMs(nextCue - 1) <= nowMs) batch.push(cues[nextCue++]);
 		if (!batch.length) return null;
-		const units = [];
-		for (let i = 0; i < batch.length; i += READ_CONCURRENCY) {
-			units.push(...await Promise.all(batch.slice(i, i + READ_CONCURRENCY).map((cue) => readAccessUnit(cue))));
-		}
 		const frames = [];
-		for (const unit of units) {
-			let payload = unit.bytes;
-			if (compressionAlgorithm === 0) {
-				payload = inflate(payload);
-			} else if (compressionAlgorithm === 3 && compressionSettings?.length) {
-				payload = concat([compressionSettings, payload]);
-			}
-			frames.push(...accessUnitToSup(unit.timeMs, payload));
+		for (let i = 0; i < batch.length; i += READ_CONCURRENCY) {
+			const reads = batch.slice(i, i + READ_CONCURRENCY).map((cue) => readAccessUnit(cue).then(toSupFrames).catch((err) => {
+				// Skipping one subtitle beats erroring the stream, which stops libpgs for the rest of playback.
+				console.warn('[PgsRenderer] Skipped an in-band subtitle:', err);
+				return [];
+			}));
+			for (const unitFrames of await Promise.all(reads)) frames.push(...unitFrames);
 		}
-		servedThroughMs = batch[batch.length - 1].time * timestampScale;
-		lastServedMs = servedThroughMs;
 		return concat(frames);
 	};
 
-	/** Drop everything after `timeMs` and re-arm the cue cursor there. */
-	const seekTo = (timeMs) => {
-		const target = Math.max(0, timeMs);
-		nextCue = 0;
-		while (nextCue < cues.length && cues[nextCue].time * timestampScale < target) nextCue++;
-		servedThroughMs = nextCue < cues.length ? cues[nextCue].time * timestampScale - 1 : Infinity;
-		lastServedMs = Math.max(0, target - 1000);
+	// Put the cursor on the last cue at or before `targetMs`, which is the subtitle on screen there.
+	const arm = (targetMs) => {
+		let index = 0;
+		while (index < cues.length && cueMs(index) <= targetMs) index++;
+		nextCue = Math.max(0, index - 1);
+		servedFromMs = cues.length ? Math.min(cueMs(nextCue), targetMs) : targetMs;
 	};
 
 	const ready = prepare().then((ok) => {
-		if (ok) seekTo(Math.max(0, startTime || 0) * 1000);
+		if (ok) arm(Math.max(0, startTime || 0) * 1000);
 		return ok;
 	});
 	// A pull that never runs would otherwise leave this rejection unhandled.
@@ -441,24 +515,33 @@ export const createInBandPgsSource = ({streamUrl, subtitleOrdinal, getTime, star
 	// the position to move on. Waiting inside the pull is what keeps the whole subtitle
 	// track from being read up front, which is the cost this path exists to avoid.
 	const pullOnce = async (controller) => {
-		await ready;
-		if (disposed) {
+		if (!(await ready)) {
 			controller.close();
 			return;
 		}
 		for (;;) {
-			const time = getTime();
-			const targetMs = (Number.isFinite(time) ? time : 0) * 1000 + lookaheadSeconds * 1000;
-			const bytes = await readBatch(targetMs);
-			if (bytes) {
-				controller.enqueue(bytes);
-				return;
-			}
-			if (servedThroughMs === Infinity || nextCue >= cues.length) {
+			if (disposed) {
 				controller.close();
 				return;
 			}
-			await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS));
+			const time = getTime();
+			const nowMs = (Number.isFinite(time) ? time : 0) * 1000;
+			// After a seek forward, everything between the cursor and the playhead is already over.
+			if (nextCue < cues.length && cueMs(nextCue) < nowMs - FORWARD_JUMP_MS) arm(nowMs);
+			const bytes = await readBatch(nowMs + lookaheadSeconds * 1000, nowMs);
+			if (disposed) {
+				controller.close();
+				return;
+			}
+			if (bytes?.length) {
+				controller.enqueue(bytes);
+				return;
+			}
+			if (nextCue >= cues.length) {
+				controller.close();
+				return;
+			}
+			if (!bytes) await delay(POLL_INTERVAL_MS);
 		}
 	};
 
@@ -474,14 +557,10 @@ export const createInBandPgsSource = ({streamUrl, subtitleOrdinal, getTime, star
 	return {
 		readable,
 		ready,
-		get lastServedTimeMs() {
-			return lastServedMs;
+		/** True when the time moved back before the data libpgs holds, which only a new renderer can fix. */
+		needsRestart(timeSeconds) {
+			return timeSeconds * 1000 < servedFromMs - RESTART_TOLERANCE_MS;
 		},
-		/** True when the playhead moved back behind data that has already been handed over. */
-		needsRestart(timeMs) {
-			return timeMs * 1000 < lastServedMs - 1000;
-		},
-		seek: seekTo,
 		dispose() {
 			disposed = true;
 			clusterDataOffsets.clear();
