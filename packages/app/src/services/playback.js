@@ -1206,6 +1206,11 @@ const sendSessionBeacon = (path, payload) => {
 	}
 };
 
+// Key of the last stop sent via reportStopBeacon (playSessionId:position).
+// Guards the pagehide+beforeunload double-fire during app teardown. Declared
+// here, above reportStopBeacon, because that function reads it (no-use-before-define).
+let lastStopBeaconKey = null;
+
 export const reportStopBeacon = (positionTicks) => {
 	if (!currentSession) return false;
 	// pagehide and beforeunload both fire during app teardown and both call
@@ -1246,10 +1251,6 @@ export const stopHealthMonitoring = () => {
 // session is kept locally, and consumeBackgroundStopFired tells the resume path
 // to re-report start on it.
 let backgroundStopFired = false;
-
-// Key of the last stop sent via reportStopBeacon (playSessionId:position).
-// Guards the pagehide+beforeunload double-fire during app teardown.
-let lastStopBeaconKey = null;
 
 export const reportBackgroundStop = (positionTicks) => {
 	if (!currentSession) return;
