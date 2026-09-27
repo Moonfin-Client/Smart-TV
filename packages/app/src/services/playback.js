@@ -1208,6 +1208,13 @@ const sendSessionBeacon = (path, payload) => {
 
 export const reportStopBeacon = (positionTicks) => {
 	if (!currentSession) return false;
+	// pagehide and beforeunload both fire during app teardown and both call
+	// this, so without a guard the server receives the same stop twice ~30ms
+	// apart (plus a third from the late unmount cleanup). Suppress exact
+	// duplicates per session; a later stop at a new position still goes out.
+	const key = `${currentSession.playSessionId}:${positionTicks || 0}`;
+	if (key === lastStopBeaconKey) return false;
+	lastStopBeaconKey = key;
 	return sendSessionBeacon('/Sessions/Playing/Stopped', {
 		ItemId: currentSession.itemId,
 		PlaySessionId: currentSession.playSessionId,
@@ -1240,6 +1247,10 @@ export const stopHealthMonitoring = () => {
 // to re-report start on it.
 let backgroundStopFired = false;
 
+// Key of the last stop sent via reportStopBeacon (playSessionId:position).
+// Guards the pagehide+beforeunload double-fire during app teardown.
+let lastStopBeaconKey = null;
+
 export const reportBackgroundStop = (positionTicks) => {
 	if (!currentSession) return;
 	reportStopBeacon(positionTicks);
@@ -1256,6 +1267,15 @@ export const consumeBackgroundStopFired = () => {
 	const fired = backgroundStopFired;
 	backgroundStopFired = false;
 	return fired;
+};
+
+// Terminal counterpart to reportBackgroundStop: the app is exiting, so the
+// beacon above is the one and only stop. Drop the local session so a late
+// unmount cleanup (getCurrentSession -> reportStop) can't send a second one.
+export const discardCurrentSession = () => {
+	currentSession = null;
+	stopProgressReporting();
+	stopHealthMonitoring();
 };
 
 export const reportStop = async (positionTicks) => {
@@ -1449,6 +1469,7 @@ export default {
 	reportProgress,
 	reportStopBeacon,
 	reportStop,
+	discardCurrentSession,
 	startProgressReporting,
 	stopProgressReporting,
 	getHealthMonitor,
