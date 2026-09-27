@@ -97,9 +97,9 @@ describe('renderReleaseNotes', () => {
 	// The badge at the top of every release is an image inside a link, which is
 	// what used to leave half the markup sitting in the heading.
 	test('a badge image wrapped in a link leaves nothing behind', () => {
-		const notes = '# Moonfin v2.8.2 [![github](https://img.shields.io/x.svg)](https://github.com/y)';
+		const notes = '# Moonfin v2.9.0 [![github](https://img.shields.io/x.svg)](https://github.com/y)';
 
-		expect(renderReleaseNotes(notes)).toBe('<h1>Moonfin v2.8.2</h1>');
+		expect(renderReleaseNotes(notes)).toBe('<h1>Moonfin v2.9.0</h1>');
 	});
 
 	test('a heading and the list under it are separate blocks', () => {

@@ -1,6 +1,6 @@
 {
 	"name": "@moonfin/platform-webos",
-	"version": "2.8.2",
+	"version": "2.9.0",
 	"private": true,
 	"main": "src/index.js",
 	"exports": {

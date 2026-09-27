@@ -34,7 +34,6 @@ const DiagnosticsView = ({
 			<div className={css.viewDescription}>
 				{$L('Server requests recorded on this device. Video and image traffic is not included.')}
 			</div>
-			{logMessage && <div className={css.statusMessage}>{logMessage}</div>}
 			<div className={css.logFilterBar}>
 				{LOG_FILTERS.map((filter) => (
 					<SpottableButton
@@ -81,6 +80,8 @@ const DiagnosticsView = ({
 				</div>
 			)}
 			{sendUnavailableReason && <div className={css.viewDescription}>{sendUnavailableReason}</div>}
+			{/* Next to the buttons, since a long log leaves the top of the screen far out of view. */}
+			{logMessage && <div className={css.statusMessage}>{logMessage}</div>}
 			<div className={css.actionBar}>
 				<Button onClick={onClearLogs} size='small' spotlightId='log-clear'>
 					{$L('Clear')}

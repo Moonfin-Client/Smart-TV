@@ -53,7 +53,7 @@ describe('redact', () => {
 	// A timestamp is full of colons and dots without holding an address.
 	it('leaves timestamps and versions alone', () => {
 		expect(redact('2026-09-07T12:29:24.123Z Information')).toBe('2026-09-07T12:29:24.123Z Information');
-		expect(redact('App Version 2.8.2')).toBe('App Version 2.8.2');
+		expect(redact('App Version 2.9.0')).toBe('App Version 2.9.0');
 	});
 
 	it('survives what is not a string', () => {

@@ -24,16 +24,18 @@ Moonfin is a Jellyfin and Emby client for Samsung Smart TVs (Tizen) and LG Smart
 - **Hardware-accelerated playback** through Samsung AVPlay and webOS Starfish, with direct play first and a transcode fallback only when needed.
 - **Lossless audio passthrough** for DTS, DTS-HD, and Dolby TrueHD to a capable receiver.
 - **Multi-server and Emby support**, including Emby Connect, Quick Connect, and a unified library view across all your Jellyfin servers.
-- **A setup wizard on first run** that walks you through the look of the app with live previews built from your own artwork.
+- **A setup wizard on first run** that walks you through the look of the app with live previews built from your own artwork, including five detail screen styles: Classic, Modern, Spotlight, Nouveau, and Minimalist.
+- **Kids Mode and Blocked Ratings.** Kids Mode strips the app back for a child and locks the way out with a PIN, and blocked ratings apply everywhere, from home rows and search to detail screens and playback.
 - **A proper on-screen keyboard** with layouts that follow your language, plus sign-in that finds servers on your network by itself.
 - **Native Seerr integration** for browsing, discovering, and requesting content in HD or 4K from your TV, with requests, issue reporting, and a watchlist button built into the detail screen.
 - **Retro games** played right on the TV from a server game library, with save states synced through the server. Needs webOS 5 or Tizen 5 and newer. See [Retro Games](https://github.com/Moonfin-Client/Plugin/wiki/Retro-Games).
-- **Live TV and DVR** with a full program guide and recording management.
+- **Live TV and DVR** with a program guide that opens on your last channel, a quick channel changer during live playback, and recording management.
 - **Advanced subtitles**, including PGS image subtitles and styled ASS/SSA through libass, plus in-app subtitle downloads.
-- **SyncPlay** for watching together in sync with others.
-- **Themes** with four built-in looks including Glass and 8-Bit Hero, a Theme Store for community themes, custom themes, and accent color customization.
+- **SyncPlay and remote control**, for watching together in sync with others and for driving the TV from other Jellyfin apps, including typing a search from your phone.
+- **Themes** with four built-in looks including Glass and 8-bit Hero, a Theme Store for community themes, custom themes, and accent color customization. Loading animations and the screensaver's backdrop, clock or logo are yours to customize with a live preview, and screens show skeleton placeholders while they load.
 - **A featured media bar** with six layouts, including the rounded Aya hero.
 - **Personal ratings** as a like, stars, or a score out of ten, usable as a library filter.
+- **Achievement Badges** on Jellyfin servers that run the Achievement Badges plugin, and **anime markers** like Filler, Manga Canon, and Subbed/Dubbed on cards and detail screens from the Moonbase plugin.
 - **Automatic performance tuning** that matches visual effects to how capable your TV is, with a manual override.
 - **Wide device support**, from Samsung 2016 sets (Tizen 2.4) and LG webOS 3.0 through the latest models, including Let's Encrypt support on older webOS models whose built-in certificate stores are out of date.
 

@@ -1,6 +1,6 @@
 import {acceptsReports, clientLogRequest} from './clientLogUpload';
 
-const EMBY_HEADER = 'Emby Client="Moonfin for Tizen", Version="2.8.2", Token="t"';
+const EMBY_HEADER = 'Emby Client="Moonfin for Tizen", Version="2.9.0", Token="t"';
 
 describe('acceptsReports', () => {
 	test('Jellyfin always has its own endpoint', () => {
