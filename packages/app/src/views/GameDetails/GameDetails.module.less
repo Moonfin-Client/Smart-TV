@@ -1,3 +1,5 @@
+@import '../../styles/mixins.less';
+
 .root {
 	position: fixed;
 	top: 0;
@@ -85,6 +87,25 @@
 	margin-left: 16px;
 }
 
+// Sandstone caps a button's width, which cuts the label short once the icon is in. Its rule
+// loads after ours at the same weight, so the parent is named to outrank it.
+.actions > .actionButton {
+	max-width: none;
+}
+
+// Sandstone's neutral fill is three classes deep, so this names four to outrank it while its
+// focus highlight still wins.
+.actions > .actionButton.coreButton .coreBg {
+	background-color: #2e74e0;
+}
+
+.buttonIcon {
+	width: 1.25em;
+	height: 1.25em;
+	margin-right: 0.5em;
+	vertical-align: middle;
+}
+
 .related {
 	position: relative;
 	margin-top: 24px;
@@ -110,4 +131,60 @@
 	justify-content: center;
 	color: var(--theme-on-surface-variant, #cfd6e0);
 	font-size: 28px;
+}
+
+.coreModal {
+	position: fixed;
+	top: 0;
+	left: 0;
+	right: 0;
+	bottom: 0;
+	background: rgba(0, 0, 0, 0.95);
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	z-index: 2000;
+}
+
+.coreModalPanel {
+	.glass-panel(16px);
+	padding: 30px 0;
+	background-color: rgba(24, 24, 24, 0.94);
+	background-image: none;
+	border-radius: 20px;
+	max-width: 660px;
+	width: 90%;
+	max-height: 80%;
+	overflow-y: auto;
+	border-width: 2px;
+	box-shadow: 0 15px 50px rgba(0, 0, 0, 0.8);
+}
+
+.coreModalTitle {
+	font-size: 30px;
+	font-weight: 700;
+	color: #fff;
+	margin: 0 0 18px 0;
+	padding: 0 36px 18px 36px;
+	border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.coreList {
+	display: flex;
+	flex-direction: column;
+}
+
+.toast {
+	position: fixed;
+	bottom: 60px;
+	left: 50%;
+	-webkit-transform: translateX(-50%);
+	transform: translateX(-50%);
+	padding: 14px 28px;
+	border-radius: 12px;
+	background: rgba(30, 30, 40, 0.9);
+	color: #fff;
+	font-size: 20px;
+	z-index: 60;
+	pointer-events: none;
 }

@@ -1450,6 +1450,7 @@ const AppContent = (props) => {
 		panelIndex !== PANELS.GAME_PLAYER &&
 		panelIndex !== PANELS.GAMES &&
 		panelIndex !== PANELS.GAME_SYSTEM &&
+		panelIndex !== PANELS.GAME_DETAILS &&
 		panelIndex !== PANELS.LIBRARY &&
 		panelIndex !== PANELS.LIVETV &&
 		panelIndex !== PANELS.RECORDINGS &&

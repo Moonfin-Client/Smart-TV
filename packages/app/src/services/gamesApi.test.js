@@ -1,4 +1,4 @@
-import {getRomUrl, getStateBytes} from './gamesApi';
+import {getRomUrl, getStateBytes, putStateBytes} from './gamesApi';
 import {fetchWithTimeout} from '../utils/fetchTimeout';
 
 let mockToken = 'key';
@@ -86,6 +86,25 @@ describe('getRomUrl', () => {
 		expect(global.URL.createObjectURL).not.toHaveBeenCalled();
 	});
 
+	test('ends the direct url in the file name it is given', async () => {
+		fetchWithTimeout.mockResolvedValueOnce(probeOf(4 * MB));
+
+		const rom = await getRomUrl('lib', 'game', 'sf2 (world).zip');
+
+		expect(rom.url).toBe('https://server/Moonfin/Games/lib/Rom/game/sf2%20(world).zip?ApiKey=key');
+		expect(fetchWithTimeout.mock.calls[0][0]).toBe(rom.url);
+	});
+
+	test('fetches the blob fallback from the plain rom route', async () => {
+		fetchWithTimeout
+			.mockRejectedValueOnce(new Error('network'))
+			.mockResolvedValueOnce(response({headers: {'content-length': String(2 * MB)}}));
+
+		await getRomUrl('lib', 'game', 'sf2.zip');
+
+		expect(fetchWithTimeout.mock.calls[1][0]).toBe('https://server/Moonfin/Games/lib/Rom/game');
+	});
+
 	test('goes straight to the blob when there is no token to put in the query', async () => {
 		mockToken = null;
 		fetchWithTimeout.mockResolvedValueOnce(response({headers: {'content-length': String(2 * MB)}}));
@@ -135,5 +154,95 @@ describe('getStateBytes', () => {
 		fetchWithTimeout.mockRejectedValueOnce(new Error('network'));
 
 		await expect(getStateBytes('ejs-nes-game')).rejects.toThrow('network');
+	});
+});
+
+describe('putStateBytes', () => {
+	beforeEach(() => {
+		fetchWithTimeout.mockReset();
+	});
+
+	test('uploads the state under the save id it is given', async () => {
+		fetchWithTimeout.mockResolvedValueOnce({status: 204, ok: true});
+
+		await putStateBytes('ejs-nes-game', new Uint8Array([1]));
+
+		expect(fetchWithTimeout.mock.calls[0][0]).toBe('https://server/Moonfin/Games/Saves/ejs-nes-game?kind=state');
+		expect(fetchWithTimeout.mock.calls[0][1].method).toBe('PUT');
+	});
+
+	test('throws when the server turns the upload down', async () => {
+		fetchWithTimeout.mockResolvedValueOnce({status: 500, ok: false});
+
+		await expect(putStateBytes('ejs-nes-game', new Uint8Array([1]))).rejects.toMatchObject({status: 500});
+	});
+});
+
+describe('getEmulatorDataPath', () => {
+	let api;
+	let pageFetch;
+	let directFetch;
+	const playerPage = (path) => ({ok: true, status: 200, text: () => Promise.resolve(`window.EJS_pathtodata = '${path}';`)});
+
+	beforeEach(() => {
+		jest.resetModules();
+		api = require('./gamesApi');
+		pageFetch = require('./secureFetch').platformFetch;
+		directFetch = require('../utils/fetchTimeout').fetchWithTimeout;
+	});
+
+	test('uses the server copy the player page points at', async () => {
+		pageFetch.mockResolvedValueOnce(playerPage('./data/'));
+		directFetch.mockResolvedValueOnce({ok: true, status: 200});
+
+		await expect(api.getEmulatorDataPath()).resolves.toBe('https://server/Moonfin/EmulatorJS/data/');
+		expect(pageFetch.mock.calls[0][0]).toBe('https://server/Moonfin/EmulatorJS/player.html');
+		expect(directFetch.mock.calls[0][0]).toBe('https://server/Moonfin/EmulatorJS/data/loader.js');
+	});
+
+	test('uses an admin URL as the page gives it', async () => {
+		pageFetch.mockResolvedValueOnce(playerPage('https://cores.example/data/'));
+		directFetch.mockResolvedValueOnce({ok: true, status: 200});
+
+		await expect(api.getEmulatorDataPath()).resolves.toBe('https://cores.example/data/');
+	});
+
+	test('stays on the CDN when this TV can\'t reach the path', async () => {
+		pageFetch.mockResolvedValueOnce(playerPage('./data/'));
+		directFetch.mockRejectedValueOnce(new TypeError('certificate'));
+
+		await expect(api.getEmulatorDataPath()).resolves.toBeNull();
+	});
+
+	test('stays on the CDN when the server has no player page', async () => {
+		pageFetch.mockResolvedValueOnce({ok: false, status: 404});
+
+		await expect(api.getEmulatorDataPath()).resolves.toBeNull();
+		expect(directFetch).not.toHaveBeenCalled();
+	});
+
+	test('asks each server once', async () => {
+		pageFetch.mockResolvedValue(playerPage('./data/'));
+		directFetch.mockResolvedValue({ok: true, status: 200});
+
+		await api.getEmulatorDataPath();
+		await api.getEmulatorDataPath();
+
+		expect(pageFetch).toHaveBeenCalledTimes(1);
+	});
+});
+
+describe('setGameCoreOverride', () => {
+	test('puts the core for the game and returns it as it now plays', async () => {
+		const {platformFetch} = require('./secureFetch');
+		const {setGameCoreOverride} = require('./gamesApi');
+		platformFetch.mockResolvedValueOnce({ok: true, status: 200, text: () => Promise.resolve('{"id":"g1","core":"mame"}')});
+
+		await expect(setGameCoreOverride('lib', 'g1', 'mame')).resolves.toEqual({id: 'g1', core: 'mame'});
+
+		const [url, options] = platformFetch.mock.calls[platformFetch.mock.calls.length - 1];
+		expect(url).toBe('https://server/Moonfin/Games/lib/Games/g1/Core');
+		expect(options.method).toBe('PUT');
+		expect(JSON.parse(options.body)).toEqual({core: 'mame'});
 	});
 });
