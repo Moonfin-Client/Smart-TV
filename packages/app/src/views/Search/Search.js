@@ -23,6 +23,7 @@ import {isGameLibrary, resolveGameLibraryId} from '../../utils/gameLibrary';
 import {groupSearchResults, aspectClassForType, isCircleType, filterByName, fetchAllGames, filterGames} from '../../utils/searchGroups';
 import {foldForSearch} from '../../utils/accentFolding';
 import SpottableInput from '../../components/SpottableInput/SpottableInput';
+import {closeTvKeyboard} from '../../components/TVKeyboard/keyboardBus';
 import useStorage from '../../hooks/useStorage';
 import useItemMenuHold from '../../hooks/useItemMenuHold';
 import {
@@ -257,15 +258,18 @@ const Search = ({onSelectItem, onSelectSeerrItem, onSelectPerson, onSelectGame, 
 		try { value = decodeURIComponent(escape(value)); } catch (_err) { void _err; }
 		applyQuery(value);
 	}, [remoteSearch, applyQuery]);
-	const endRemoteSearch = useCallback(() => remoteSearch?.close(), [remoteSearch]);
-	const handleInputKeyCapture = useCallback((e) => {
-		if (e.keyCode === KEYS.ENTER) endRemoteSearch();
-	}, [endRemoteSearch]);
+	const inputWrapperRef = useRef(null);
 	const applyQueryRef = useRef(applyQuery);
 	applyQueryRef.current = applyQuery;
 	useEffect(() => {
 		if (!remoteSearch?.active) return undefined;
-		remoteSearch.attach((text) => applyQueryRef.current(text));
+		remoteSearch.attach((text) => {
+			// Discard the receiver keyboard's old buffer before the phone edits.
+			closeTvKeyboard();
+			const input = inputWrapperRef.current?.querySelector('input');
+			if (document.activeElement === input) input.blur();
+			applyQueryRef.current(text);
+		});
 		Spotlight.focus('search-input');
 		return () => remoteSearch.close();
 	}, [remoteSearch]);
@@ -637,8 +641,7 @@ const Search = ({onSelectItem, onSelectSeerrItem, onSelectPerson, onSelectGame, 
 			<div className={css.searchInputSection}>
 				<div
 					className={`${css.searchInputWrapper} ${searchInputFocused ? css.searchInputFocused : ''}`}
-					onClickCapture={endRemoteSearch}
-					onKeyDownCapture={handleInputKeyCapture}
+					ref={inputWrapperRef}
 					onFocusCapture={handleSearchInputFocus}
 					onBlurCapture={handleSearchInputBlur}
 				>

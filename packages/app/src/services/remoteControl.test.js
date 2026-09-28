@@ -49,6 +49,29 @@ afterEach(() => {
 });
 
 describe('remote control', () => {
+
+	test.each([['0', 0], ['1', 1], ['2', 2], ['25', 25], ['100', 100], ['-1', 0], ['101', 100], ['0.5', 50]])(
+		'volume %s is applied as %s percent', async (raw, expected) => {
+			await command('SetVolume', {Volume: raw});
+			expect(systemVolume.setVolume).toHaveBeenCalledWith(expected);
+		}
+	);
+	test.each(['', 'oops', '25garbage', 'NaN', 'Infinity', '-Infinity'])(
+		'invalid volume %s leaves the TV volume unchanged', async (raw) => {
+			await command('SetVolume', {Volume: raw});
+			expect(systemVolume.setVolume).not.toHaveBeenCalled();
+		}
+	);
+	test('Back consumed by a keyboard keeps an attached remote Search active', async () => {
+		await command('GoToSearch', {MoonfinInputId: 'phone'});
+		const search = app.current.goToSearch.mock.calls[0][0];
+		const edits = jest.fn();
+		search.attach(edits);
+		await command('Back');
+		await command('SendString', {String: 'alien', MoonfinInputId: 'phone', MoonfinRevision: '1'});
+		expect(search.active).toBe(true);
+		expect(edits).toHaveBeenLastCalledWith('alien');
+	});
 	test('offers the commands another client can send', () => {
 		expect(remoteControl.SUPPORTED_COMMANDS).toEqual([
 			'DisplayMessage', 'SetVolume', 'Mute', 'Unmute', 'ToggleMute', 'SetAudioStreamIndex',

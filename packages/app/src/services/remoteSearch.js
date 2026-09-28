@@ -8,6 +8,7 @@ export const createRemoteSearch = (inputId) => {
 	let onText = null;
 	return {
 		get active () { return active; },
+		get opening () { return onText === null; },
 		attach (listener) {
 			if (!active) return;
 			onText = listener;

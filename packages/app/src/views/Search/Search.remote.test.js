@@ -68,6 +68,19 @@ test('preserves remote Unicode without the local keyboard encoding workaround', 
 	expect(mockApi.search).toHaveBeenCalledWith('Ã© 日本語 🦞', expect.any(Number));
 });
 
+test('opening the receiver keyboard does not end phone typing', async () => {
+	const search = createRemoteSearch('phone');
+	render(<Search remoteSearch={search} />);
+	const input = screen.getByRole('textbox');
+	fireEvent.keyDown(input, {keyCode: 13});
+	fireEvent.click(input);
+	expect(search.active).toBe(true);
+	act(() => search.receive({String: 'alien', MoonfinInputId: 'phone', MoonfinRevision: '1'}));
+	expect(input.value).toBe('alien');
+	await act(async () => { jest.advanceTimersByTime(450); });
+	expect(mockApi.search).toHaveBeenCalledWith('alien', expect.any(Number));
+});
+
 test('clear discards results from a request that completes after the clear', async () => {
 	let finish;
 	mockApi.search.mockImplementation(() => new Promise((resolve) => { finish = resolve; }));

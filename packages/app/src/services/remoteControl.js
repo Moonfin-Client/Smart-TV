@@ -64,11 +64,12 @@ export const releasePlayer = async () => {
 
 const clampVolume = (value) => Math.min(100, Math.max(0, value));
 
-// Some senders give a fraction of one and others a level out of a hundred.
+// Session commands use percentages. Preserve fractions below 1, but 1 is 1%.
 const normalizeVolume = (raw) => {
-	const parsed = parseFloat(raw);
-	const value = isFinite(parsed) ? parsed : 100;
-	return clampVolume(value <= 1 ? value * 100 : value);
+	if (typeof raw !== 'string' || !raw.trim()) return null;
+	const value = Number(raw);
+	if (!Number.isFinite(value)) return null;
+	return clampVolume(value > 0 && value < 1 ? value * 100 : value);
 };
 
 const toInt = (raw) => {
@@ -184,9 +185,11 @@ const handleGeneralCommand = async (data) => {
 			if (text && text.trim()) app()?.showMessage(text.trim(), arg('Header'));
 			break;
 		}
-		case 'setvolume':
-			if (arg('Volume') != null) await applyVolume(normalizeVolume(arg('Volume')));
+		case 'setvolume': {
+			const volume = normalizeVolume(arg('Volume'));
+			if (volume != null) await applyVolume(volume);
 			break;
+		}
 		case 'mute':
 			await setMuted(true);
 			break;
@@ -221,7 +224,7 @@ const handleGeneralCommand = async (data) => {
 			break;
 		case 'back':
 			navigationGeneration++;
-			remoteSearch?.close();
+			if (remoteSearch?.opening) remoteSearch.close();
 			pressKey(KEYS.BACK);
 			break;
 		case 'setaudiostreamindex': {
