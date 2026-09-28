@@ -64,7 +64,8 @@ export const releasePlayer = async () => {
 
 const clampVolume = (value) => Math.min(100, Math.max(0, value));
 
-// Session commands use percentages. Preserve fractions below 1, but 1 is 1%.
+// Session commands send a percentage, so 1 means 1%. Only a value between 0 and 1 is read as a
+// fraction.
 const normalizeVolume = (raw) => {
 	if (typeof raw !== 'string' || !raw.trim()) return null;
 	const value = Number(raw);
@@ -120,6 +121,11 @@ const pressKey = (keyCode) => {
 		event.fromRemote = true;
 		(document.activeElement || document.body).dispatchEvent(event);
 	});
+};
+
+// A press that wakes the screensaver stops there, so it can't act on a page the viewer can't see.
+const navigate = (keyCode) => {
+	if (!app()?.wakeScreensaver?.()) pressKey(keyCode);
 };
 
 const handlePlaystate = async (data) => {
@@ -208,24 +214,24 @@ const handleGeneralCommand = async (data) => {
 			await stepVolume(-VOLUME_STEP);
 			break;
 		case 'moveup':
-			pressKey(KEYS.UP);
+			navigate(KEYS.UP);
 			break;
 		case 'movedown':
-			pressKey(KEYS.DOWN);
+			navigate(KEYS.DOWN);
 			break;
 		case 'moveleft':
-			pressKey(KEYS.LEFT);
+			navigate(KEYS.LEFT);
 			break;
 		case 'moveright':
-			pressKey(KEYS.RIGHT);
+			navigate(KEYS.RIGHT);
 			break;
 		case 'select':
-			pressKey(KEYS.ENTER);
+			navigate(KEYS.ENTER);
 			break;
 		case 'back':
 			navigationGeneration++;
 			if (remoteSearch?.opening) remoteSearch.close();
-			pressKey(KEYS.BACK);
+			navigate(KEYS.BACK);
 			break;
 		case 'setaudiostreamindex': {
 			const index = toInt(arg('Index'));

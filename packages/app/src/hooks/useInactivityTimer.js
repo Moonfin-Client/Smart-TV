@@ -3,7 +3,6 @@ import {useState, useEffect, useCallback, useRef} from 'react';
 const useInactivityTimer = (timeoutSeconds = 90, enabled = true) => {
 	const [isInactive, setIsInactive] = useState(false);
 	const inactiveRef = useRef(false);
-	const consumedRemoteKeys = useRef(new Set());
 	inactiveRef.current = isInactive;
 	const timerRef = useRef(null);
 	const enabledRef = useRef(enabled);
@@ -23,6 +22,12 @@ const useInactivityTimer = (timeoutSeconds = 90, enabled = true) => {
 		}
 	}, []);
 
+	const wake = useCallback(() => {
+		if (!inactiveRef.current) return false;
+		dismiss();
+		return true;
+	}, [dismiss]);
+
 	useEffect(() => {
 		if (!enabled) {
 			if (timerRef.current) {
@@ -33,16 +38,7 @@ const useInactivityTimer = (timeoutSeconds = 90, enabled = true) => {
 			return;
 		}
 
-		const handleActivity = (event) => {
-			const waking = event.type === 'keydown' && inactiveRef.current;
-			const releasingWakeKey = event.type === 'keyup' &&
-				event.fromRemote && consumedRemoteKeys.current.delete(event.keyCode);
-			if (event.fromRemote && (waking || releasingWakeKey)) {
-				if (event.type === 'keydown') consumedRemoteKeys.current.add(event.keyCode);
-				event.preventDefault();
-				event.stopImmediatePropagation();
-			}
-			if (event.type === 'keyup') return;
+		const handleActivity = () => {
 			inactiveRef.current = false;
 			if (timerRef.current) {
 				clearTimeout(timerRef.current);
@@ -53,8 +49,8 @@ const useInactivityTimer = (timeoutSeconds = 90, enabled = true) => {
 			}, timeoutRef.current * 1000);
 		};
 
-		const events = ['keydown', 'keyup', 'mousedown', 'touchstart'];
-		events.forEach(event => window.addEventListener(event, handleActivity, {capture: true}));
+		const events = ['keydown', 'mousedown', 'touchstart'];
+		events.forEach(event => window.addEventListener(event, handleActivity, {passive: true, capture: true}));
 
 		timerRef.current = setTimeout(() => {
 			setIsInactive(true);
@@ -69,7 +65,7 @@ const useInactivityTimer = (timeoutSeconds = 90, enabled = true) => {
 		};
 	}, [enabled]);
 
-	return {isInactive, dismiss};
+	return {isInactive, dismiss, wake};
 };
 
 export default useInactivityTimer;

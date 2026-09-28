@@ -267,7 +267,10 @@ const Search = ({onSelectItem, onSelectSeerrItem, onSelectPerson, onSelectGame, 
 			// Discard the receiver keyboard's old buffer before the phone edits.
 			closeTvKeyboard();
 			const input = inputWrapperRef.current?.querySelector('input');
-			if (document.activeElement === input) input.blur();
+			if (document.activeElement === input) {
+				input.blur();
+				Spotlight.focus('search-input');
+			}
 			applyQueryRef.current(text);
 		});
 		Spotlight.focus('search-input');

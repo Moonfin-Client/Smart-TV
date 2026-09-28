@@ -4,34 +4,16 @@ import useInactivityTimer from './useInactivityTimer';
 beforeEach(() => jest.useFakeTimers());
 afterEach(() => jest.useRealTimers());
 
-const remoteKey = (type, keyCode = 13) => {
-	const event = new Event(type, {bubbles: true, cancelable: true});
-	event.keyCode = keyCode;
-	event.fromRemote = true;
-	return event;
-};
-
-test('the first remote tap wakes without selecting covered content', () => {
+test('wake answers true only while the screensaver is showing', () => {
 	const {result, unmount} = renderHook(() => useInactivityTimer(10, true));
-	const button = document.createElement('button');
-	document.body.appendChild(button);
-	const selected = jest.fn();
-	button.addEventListener('keydown', selected);
-	button.addEventListener('keyup', selected);
+	expect(result.current.wake()).toBe(false);
 	act(() => jest.advanceTimersByTime(10000));
 	expect(result.current.isInactive).toBe(true);
-	act(() => {
-		button.dispatchEvent(remoteKey('keydown'));
-		button.dispatchEvent(remoteKey('keyup'));
-	});
+	let woke;
+	act(() => { woke = result.current.wake(); });
+	expect(woke).toBe(true);
 	expect(result.current.isInactive).toBe(false);
-	expect(selected).not.toHaveBeenCalled();
-	act(() => {
-		button.dispatchEvent(remoteKey('keydown'));
-		button.dispatchEvent(remoteKey('keyup'));
-	});
-	expect(selected).toHaveBeenCalledTimes(2);
-	button.remove();
+	expect(result.current.wake()).toBe(false);
 	unmount();
 });
 

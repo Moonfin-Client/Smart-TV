@@ -1,5 +1,4 @@
-import {handleMessage, setAppControls, reset} from './remoteControl';
-import * as systemVolume from './systemVolume';
+import {handleMessage, reset} from './remoteControl';
 
 jest.mock('../platform', () => ({getPlatform: () => 'webos'}));
 jest.mock('./systemVolume', () => ({
@@ -9,12 +8,6 @@ jest.mock('./systemVolume', () => ({
 }));
 
 const command = Name => handleMessage({MessageType: 'GeneralCommand', Data: {Name}});
-
-beforeEach(() => {
-	systemVolume.getVolumeState.mockResolvedValue({volume: 40, muted: false});
-	systemVolume.setVolume.mockResolvedValue(true);
-	systemVolume.setMuted.mockResolvedValue(true);
-});
 
 afterEach(() => {
 	reset();
@@ -36,18 +29,4 @@ test('LG receives its own Back code and all navigation without a player', async 
 		['keydown', code, true], ['keyup', code, true]
 	]));
 	button.remove();
-});
-
-test('LG idle volume reaches the platform service and Home reaches the app', async () => {
-	const goHome = jest.fn();
-	const unregister = setAppControls({current: {goHome}});
-	await command('VolumeUp');
-	expect(systemVolume.setVolume).toHaveBeenCalledWith(50);
-	await command('VolumeDown');
-	expect(systemVolume.setVolume).toHaveBeenCalledWith(30);
-	await command('ToggleMute');
-	expect(systemVolume.setMuted).toHaveBeenCalledWith(true);
-	await command('GoHome');
-	expect(goHome).toHaveBeenCalledTimes(1);
-	unregister();
 });

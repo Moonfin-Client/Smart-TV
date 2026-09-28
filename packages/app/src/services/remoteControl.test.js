@@ -49,7 +49,6 @@ afterEach(() => {
 });
 
 describe('remote control', () => {
-
 	test.each([['0', 0], ['1', 1], ['2', 2], ['25', 25], ['100', 100], ['-1', 0], ['101', 100], ['0.5', 50]])(
 		'volume %s is applied as %s percent', async (raw, expected) => {
 			await command('SetVolume', {Volume: raw});
@@ -62,7 +61,7 @@ describe('remote control', () => {
 			expect(systemVolume.setVolume).not.toHaveBeenCalled();
 		}
 	);
-	test('Back consumed by a keyboard keeps an attached remote Search active', async () => {
+	test('Back leaves an attached remote Search active', async () => {
 		await command('GoToSearch', {MoonfinInputId: 'phone'});
 		const search = app.current.goToSearch.mock.calls[0][0];
 		const edits = jest.fn();
@@ -238,6 +237,20 @@ describe('remote control', () => {
 		await command('GoHome');
 		expect(app.current.goHome).toHaveBeenCalledTimes(1);
 		expect(player.current.stop).not.toHaveBeenCalled();
+	});
+
+	test('a press that wakes the screensaver goes no further', async () => {
+		app.current.wakeScreensaver = jest.fn(() => true);
+		const pressed = jest.fn();
+		document.addEventListener('keydown', pressed);
+		await command('Select');
+		await command('Back');
+		expect(pressed).not.toHaveBeenCalled();
+		app.current.wakeScreensaver.mockReturnValue(false);
+		await command('Select');
+		document.removeEventListener('keydown', pressed);
+		expect(app.current.wakeScreensaver).toHaveBeenCalledTimes(3);
+		expect(pressed).toHaveBeenCalledTimes(1);
 	});
 
 	test('Select reaches the focused control while a player is active', async () => {

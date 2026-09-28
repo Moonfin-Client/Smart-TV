@@ -260,7 +260,7 @@ const AppContent = (props) => {
 		!photoViewerItem &&
 		!comicViewerItem
 	);
-	const {isInactive: showScreensaver, dismiss: dismissScreensaver} = useInactivityTimer(screensaverTimeout, screensaverEnabled);
+	const {isInactive: showScreensaver, dismiss: dismissScreensaver, wake: wakeScreensaver} = useInactivityTimer(screensaverTimeout, screensaverEnabled);
 
 	useEffect(() => {
 		window.dispatchEvent(new CustomEvent('moonfin:screensaver', {detail: {active: showScreensaver}}));
@@ -1175,23 +1175,24 @@ const AppContent = (props) => {
 
 	const remoteAppRef = useRef(null);
 	const [remoteSearch, setRemoteSearch] = useState(null);
+	const clearForRemote = () => {
+		dismissScreensaver();
+		closeTvKeyboard();
+		document.activeElement?.blur?.();
+		setShowSettingsPanel(false);
+	};
 	remoteAppRef.current = {
 		notifyInteraction: dismissScreensaver,
+		wakeScreensaver,
 		goToSearch: (search) => {
-			dismissScreensaver();
-			closeTvKeyboard();
-			document.activeElement?.blur?.();
-			setShowSettingsPanel(false);
+			clearForRemote();
 			setRemoteSearch(search);
 			// The player has already returned to its previous panel. Do not
 			// put the now-closed player into Search's back history.
 			navigateTo(PANELS.SEARCH, panelIndex !== PANELS.PLAYER && panelIndex !== PANELS.SEARCH);
 		},
 		goHome: () => {
-			dismissScreensaver();
-			closeTvKeyboard();
-			document.activeElement?.blur?.();
-			setShowSettingsPanel(false);
+			clearForRemote();
 			handleHome();
 		},
 		showMessage: showRemoteMessage,
