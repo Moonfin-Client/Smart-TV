@@ -994,5 +994,17 @@
     "Login failed": "Falha no login",
     "Queue is empty": "A fila está vazia",
     "Perfect match": "Combinação perfeita",
-    "{count} downloads": "{count} downloads"
+    "{count} downloads": "{count} downloads",
+    "1 (Play only)": "Apenas reproduzir",
+    "1 album": "1 album",
+    "1 chapter": "1 capítulo",
+    "1 collection": "1 coleção",
+    "1 download": "1 baixado",
+    "1 episode": "1 episódio",
+    "1 extra": "1 extra",
+    "1 fact": "1 curiosidade",
+    "1 held": "1 realizado",
+    "1 item": "1 item",
+    "1 movie": "1 filme",
+    "1 person": "1 pessoa"
 }

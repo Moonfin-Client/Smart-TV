@@ -1214,5 +1214,8 @@
     "More in {system}": "Mehr in {system}",
     "No games found.": "Keine Spiele gefunden.",
     "Server Message": "Servernachricht",
-    "Since you watched {name}": "Weil du {name) gesehen hast"
+    "Since you watched {name}": "Weil du {name) gesehen hast",
+    "Cancel Series Recording": "Aufnahme der Serie abbrechen",
+    "Channel Number": "Kanal Nummer",
+    "Chapter Marks": "Kapitelmarkierungen"
 }
