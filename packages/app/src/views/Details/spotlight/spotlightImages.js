@@ -64,12 +64,13 @@ export const firstPosterImageUrl = (serverUrl, items = []) => {
 };
 
 // The still a card falls back to when it holds no artwork of its own. The hero is already
-// showing the item's first backdrop, so a card takes the second one where there is one rather
-// than repeating it.
-export const spotlightCardFallbackUrl = (serverUrl, item, heroBackdropUrl = null) => {
+// showing the item's first backdrop, so a card takes the second (or subsequent) one where
+// there is one rather than repeating it.
+export const spotlightCardFallbackUrl = (serverUrl, item, heroBackdropUrl = null, index = 1) => {
 	const tags = item?.BackdropImageTags || [];
 	if (tags.length < 2) return heroBackdropUrl;
-	return getImageUrl(serverUrl, item.Id, 'Backdrop/1', {maxWidth: 960, quality: 90, tag: tags[1]});
+	const backdropIndex = Math.min(index, tags.length - 1);
+	return getImageUrl(serverUrl, item.Id, `Backdrop/${backdropIndex}`, {maxWidth: 960, quality: 90, tag: tags[backdropIndex]});
 };
 
 // The chapter still a Chapters card leads with, which is the first chapter that has one.

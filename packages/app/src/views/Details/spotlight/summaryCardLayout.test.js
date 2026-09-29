@@ -15,20 +15,13 @@ describe('summaryCardHeight', () => {
 });
 
 describe('summaryCardWidth', () => {
-	it('divides the band evenly once the gaps are taken out', () => {
-		expect(summaryCardWidth(1100, 5, 200)).toBe((1100 - 64) / 5);
-	});
-
-	it('never grows a card wider than its artwork needs', () => {
-		expect(summaryCardWidth(1100, 2, 200)).toBe(200 * (16 / 9));
+	it('locks cards to a 16:9 ratio across card counts', () => {
+		expect(summaryCardWidth(1100, 5, 200)).toBe(Math.round(200 * (16 / 9)));
+		expect(summaryCardWidth(1100, 2, 200)).toBe(Math.round(200 * (16 / 9)));
 	});
 
 	it('has no width to give without cards', () => {
 		expect(summaryCardWidth(1100, 0, 200)).toBe(0);
-	});
-
-	it('never goes negative when the gaps outrun the band', () => {
-		expect(summaryCardWidth(20, 5, 200)).toBe(0);
 	});
 });
 

@@ -1,4 +1,5 @@
 import {useState, useMemo, useCallback, useEffect, useRef} from 'react';
+import $L from '@enact/i18n/$L';
 import Spotlight from '@enact/spotlight';
 import SpotlightContainerDecorator from '@enact/spotlight/SpotlightContainerDecorator';
 import {isMdblistEnabled} from '../../../services/mdblistApi';
@@ -20,6 +21,7 @@ import {loadSeerrPersonCredits} from '../seerrPersonCredits';
 import {spotlightMetaPieces} from './spotlightMeta';
 import {spotlightCardFallbackUrl} from './spotlightImages';
 import {fetchUpcomingEpisode, formatUpcomingEpisode} from '../../../utils/upcomingEpisode';
+import {keepFocusInView} from '../../../utils/focusScroll';
 import {summaryCardHeight, summaryCardWidth, heroWidth} from './summaryCardLayout';
 import SpotlightSummaryCard from './SpotlightSummaryCard';
 import SpotlightSectionModal from './SpotlightSectionModal';
@@ -51,6 +53,7 @@ const SpotlightDetailContent = (props) => {
 		nextUp = [], collectionItems = [], missingCollectionItems = [], parentCollections = [],
 		albumTracks = [], artistAlbums = [], playlistItems = [], personMovies = [], personSeries = [],
 		filmography, loadMoreCollectionItems, collectionMenu,
+		mediaSource, hasMultipleVersions, selectedAudioIndex, selectedSubtitleIndex,
 		onSelectItem, onSelectPerson, onSelectStudio, onSelectSeerrCard,
 		handleChapterSelect, handleExtraSelect, playTrack, playlistMenu,
 		onReorderPlaylistItem, onRemovePlaylistItem, canManagePlaylist, spotlightBackRef
@@ -132,7 +135,7 @@ const SpotlightDetailContent = (props) => {
 	);
 
 	const cardState = useMemo(() => ({
-		item, serverUrl: effectiveServerUrl, settings, showsSection, seerrOnly,
+		item, serverUrl: effectiveServerUrl, settings, showsSection, seerrOnly, mediaSource,
 		seasons, episodes, seriesEpisodes, similar, similarSource, extras, cast, crew, nextUp,
 		collectionItems, missingCollectionItems, parentCollections,
 		albumTracks, artistAlbums, playlistItems,
@@ -149,7 +152,7 @@ const SpotlightDetailContent = (props) => {
 		},
 		fallbackImageUrl: cardFallbackImageUrl
 	}), [
-		item, effectiveServerUrl, settings, showsSection, seerrOnly, seasons, episodes, seriesEpisodes, similar, similarSource,
+		item, effectiveServerUrl, settings, showsSection, seerrOnly, mediaSource, seasons, episodes, seriesEpisodes, similar, similarSource,
 		extras, cast, crew, nextUp, collectionItems, missingCollectionItems, parentCollections,
 		albumTracks, artistAlbums, playlistItems, personMovies, personSeries, otherCredits,
 		seerrCredits, studioCards, canManagePlaylist, cardFallbackImageUrl,
@@ -169,11 +172,16 @@ const SpotlightDetailContent = (props) => {
 		reorderTrack: onReorderPlaylistItem,
 		removeTrack: onRemovePlaylistItem,
 		loadMoreCollectionItems,
-		collectionMenu
+		collectionMenu,
+		effectiveApi,
+		settings,
+		selectedAudioIndex,
+		selectedSubtitleIndex
 	}), [
 		onSelectItem, onSelectSeerrCard, onSelectPerson, onSelectStudio, handleChapterSelect,
 		handleExtraSelect, playTrack, playlistMenu, onReorderPlaylistItem, onRemovePlaylistItem,
-		loadMoreCollectionItems, collectionMenu
+		loadMoreCollectionItems, collectionMenu,
+		effectiveApi, settings, selectedAudioIndex, selectedSubtitleIndex
 	]);
 
 	const cards = useMemo(() => spotlightCardsFor(cardState), [cardState]);
@@ -266,23 +274,56 @@ const SpotlightDetailContent = (props) => {
 	const hasTech = Boolean(techSize) || techBadges.length > 0;
 	const hideMediaDescription = hidesMediaDescription(item, settings) || (isPerson && !showsSection('biography'));
 
+	const renderVersionBadge = () => {
+		if (!hasMultipleVersions || !mediaSource) return null;
+		const versionName = mediaSource.Name || $L('Default');
+		return (
+			<span className={css.versionBadge}>
+				{`[ ${versionName} ]`}
+			</span>
+		);
+	};
+
 	const heroTitle = () => {
 		if (isEpisode) {
 			return (
 				<>
 					<div className={css.seriesSlot}>
-						{logoUrl
-							? <img className={`${css.logo} ${css.logoEpisode}`} src={logoUrl} alt={item.SeriesName} onError={onLogoError} />
-							: item.SeriesName && <div className={css.seriesLabel}>{item.SeriesName}</div>}
+						{logoUrl ? (
+							<div className={css.logoRow}>
+								<img className={`${css.logo} ${css.logoEpisode}`} src={logoUrl} alt={item.SeriesName} onError={onLogoError} />
+								{renderVersionBadge()}
+							</div>
+						) : (
+							item.SeriesName && (
+								<div className={css.seriesLabelRow}>
+									<div className={css.seriesLabel}>{item.SeriesName}</div>
+									{renderVersionBadge()}
+								</div>
+							)
+						)}
 					</div>
-					<h1 className={css.title}>{item.Name}</h1>
+					<h1 className={css.title}>
+						{item.Name}
+						{!logoUrl && !item.SeriesName && renderVersionBadge()}
+					</h1>
 				</>
 			);
 		}
 		if (logoUrl && !isPerson) {
-			return <img className={css.logo} src={logoUrl} alt={item.Name} onError={onLogoError} />;
+			return (
+				<div className={css.logoRow}>
+					<img className={css.logo} src={logoUrl} alt={item.Name} onError={onLogoError} />
+					{renderVersionBadge()}
+				</div>
+			);
 		}
-		return <h1 className={css.title}>{item.Name}</h1>;
+		return (
+			<h1 className={css.title}>
+				{item.Name}
+				{renderVersionBadge()}
+			</h1>
+		);
 	};
 
 	const personBorn = () => {
@@ -357,18 +398,20 @@ const SpotlightDetailContent = (props) => {
 					<SeerrDownloadBars seerr={seerr} />
 				</div>
 				{cards.length > 0 && (
-					<BandContainer className={css.cardBand} style={{width: `${bandWidth}px`}} onKeyDown={handleBandKeyDown}>
-						{cards.map((card) => (
-							<SpotlightSummaryCard
-								key={card.id}
-								card={card}
-								width={cardWidth}
-								height={cardHeight}
-								spotlightId={cardSpotlightId(card.id)}
-								onOpen={handleOpenCard}
-							/>
-						))}
-					</BandContainer>
+					<div className={css.cardBandWrapper} onFocus={keepFocusInView}>
+						<BandContainer className={css.cardBand} onKeyDown={handleBandKeyDown}>
+							{cards.map((card) => (
+								<SpotlightSummaryCard
+									key={card.id}
+									card={card}
+									width={cardWidth}
+									height={cardHeight}
+									spotlightId={cardSpotlightId(card.id)}
+									onOpen={handleOpenCard}
+								/>
+							))}
+						</BandContainer>
+					</div>
 				)}
 			</div>
 			<SpotlightSectionModal
