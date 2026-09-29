@@ -286,6 +286,67 @@ describe('spotlightCardsFor', () => {
 		expect(spotlightCardsFor(state({...base}))[0].sections[0].manage).toBe(false);
 		expect(spotlightCardsFor(state({...base, canManagePlaylist: true}))[0].sections[0].manage).toBe(true);
 	});
+
+	it('a movie with media sources produces a file details card', () => {
+		const source = {
+			Id: 'src-1',
+			Container: 'mkv',
+			Size: 5583457484,
+			MediaStreams: [{Type: 'Video', Codec: 'hevc'}]
+		};
+		const cards = spotlightCardsFor(state({
+			item: {Id: 'm1', Type: 'Movie', MediaSources: [source]}
+		}));
+		const card = cards.find((c) => c.id === 'file_details');
+		expect(card).toBeDefined();
+		expect(card.title).toBe('File Details');
+		expect(card.modalTitle).toBe('File Information');
+		expect(card.subtitle).toContain('MKV');
+		expect(card.sections[0]).toMatchObject({kind: 'fileInfo', mediaSource: source});
+	});
+
+	it('an episode with media sources produces a file details card', () => {
+		const source = {
+			Id: 'src-ep',
+			Container: 'mp4',
+			Size: 1048576000,
+			MediaStreams: [{Type: 'Video', Codec: 'h264'}]
+		};
+		const cards = spotlightCardsFor(state({
+			item: {Id: 'ep-1', Type: 'Episode', MediaSources: [source]}
+		}));
+		const card = cards.find((c) => c.id === 'file_details');
+		expect(card).toBeDefined();
+		expect(card.title).toBe('File Details');
+	});
+
+	it('file details card respects selected mediaSource from state', () => {
+		const source1 = {Id: 'src-1', Container: 'mkv', Size: 5000000000, MediaStreams: [{Type: 'Video'}]};
+		const source2 = {Id: 'src-2', Container: 'mp4', Size: 2000000000, MediaStreams: [{Type: 'Video'}]};
+		const cards = spotlightCardsFor(state({
+			item: {Id: 'm1', Type: 'Movie', MediaSources: [source1, source2]},
+			mediaSource: source2
+		}));
+		const card = cards.find((c) => c.id === 'file_details');
+		expect(card.subtitle).toContain('MP4');
+		expect(card.sections[0].mediaSource).toBe(source2);
+	});
+
+	it('file details card picks distinct backdrop tag when available', () => {
+		const source = {Id: 'src-1', Container: 'mkv', Size: 1000, MediaStreams: [{Type: 'Video'}]};
+		const withThree = spotlightCardsFor(state({
+			item: {Id: 'm1', Type: 'Movie', BackdropImageTags: ['b0', 'b1', 'b2'], MediaSources: [source]}
+		})).find((c) => c.id === 'file_details');
+		expect(withThree.imageUrl).toContain('/Items/m1/Images/Backdrop/2');
+		expect(withThree.imageUrl).toContain('tag=b2');
+
+		const withSeerr = spotlightCardsFor(state({
+			item: {Id: 'm1', Type: 'Movie', BackdropImageTags: ['b0'], MediaSources: [source]},
+			seerr: {details: {backdrop_path: '/tmdb_backdrop.jpg'}},
+			fallbackImageUrl: 'fallback.jpg'
+		})).find((c) => c.id === 'file_details');
+		expect(withSeerr.imageUrl).toContain('https://image.tmdb.org/t/p/w780/tmdb_backdrop.jpg');
+	});
 });
 
 describe('spotlightCardFor', () => {

@@ -124,6 +124,33 @@
 	white-space: nowrap;
 }
 
+.logoRow {
+	display: inline-flex;
+	align-items: center;
+	max-width: 100%;
+}
+
+.seriesLabelRow {
+	display: inline-flex;
+	align-items: center;
+	max-width: 100%;
+}
+
+.versionBadge {
+	display: inline-flex;
+	align-items: center;
+	font-size: 16px;
+	font-weight: 700;
+	padding: 3px 8px;
+	border-radius: 4px;
+	background-color: rgba(110, 168, 254, 0.15);
+	border: 1px solid rgba(110, 168, 254, 0.5);
+	color: var(--theme-accent, #6ea8fe);
+	margin-left: 14px;
+	vertical-align: middle;
+	white-space: nowrap;
+}
+
 .logo {
 	max-height: 120px;
 	max-width: 480px;
@@ -232,9 +259,26 @@
 	max-width: 800px;
 }
 
+.cardBandWrapper {
+	overflow-x: auto;
+	overflow-y: visible;
+	scrollbar-width: none;
+	-webkit-overflow-scrolling: touch;
+	transform: translateZ(0);
+	will-change: scroll-position;
+	contain: layout style;
+	padding: 16px 40px;
+	margin: -16px -40px;
+
+	&::-webkit-scrollbar {
+		display: none;
+	}
+}
+
 .cardBand {
 	display: flex;
 	flex-direction: row;
+	width: max-content;
 }
 
 .metaRow              { .flex-row-gap(0); }

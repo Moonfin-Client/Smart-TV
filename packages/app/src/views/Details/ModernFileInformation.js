@@ -133,8 +133,8 @@ const DirectPlaySection = ({api, item, mediaSource, activeAudio, activeSubtitle,
 // What the file behind the title is: its name, size and when it was added, the tracks inside it,
 // and whether it plays as it is. A file that can't direct play says why, with a hint about the
 // setting that would change it.
-const ModernFileInformation = ({item, mediaSource, effectiveApi, selectedAudioIndex, selectedSubtitleIndex, settings}) => {
-	const streams = mediaSource.MediaStreams || [];
+const ModernFileInformation = ({item, mediaSource, effectiveApi, selectedAudioIndex, selectedSubtitleIndex, settings, firstSpotlightId}) => {
+	const streams = mediaSource?.MediaStreams || [];
 	const video = streams.find((stream) => stream.Type === 'Video');
 	const audio = streams.filter((stream) => stream.Type === 'Audio');
 	const subtitles = streams.filter((stream) => stream.Type === 'Subtitle');
@@ -145,13 +145,13 @@ const ModernFileInformation = ({item, mediaSource, effectiveApi, selectedAudioIn
 
 	const name = fileName(mediaSource);
 	const sizeLine = fileSizeLine(mediaSource);
-	const added = addedOn(item.DateCreated);
+	const added = addedOn(item?.DateCreated);
 	const videoDetails = videoLines(video);
 
 	return (
 		<Container className={css.fileInfo}>
 			<h3 className={css.title}>{$L('File Information')}</h3>
-			<SpottableDiv className={css.fileCard}>
+			<SpottableDiv className={css.fileCard} spotlightId={firstSpotlightId}>
 				{name && <div className={css.fileName}>{name}</div>}
 				{sizeLine && <div className={css.fileMeta}>{sizeLine}</div>}
 				{added && <div className={css.fileMeta}>{$L('Date Added: {date}').replace('{date}', added)}</div>}

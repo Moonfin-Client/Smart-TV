@@ -4,6 +4,8 @@ import {DETAIL_ICON_PATHS} from '../detailIcons';
 import {MATERIAL_ICON_PATHS} from '../../Settings/materialIconMap';
 import {groupExtrasByCategory, getExtraCategoryLabel} from '../extraCategories';
 import {mergeMissingByReleaseOrder} from '../seerrMissingCollectionItems';
+import {formatFileSize} from '../../../utils/formatFileSize';
+import {getImageUrl, toAbsoluteImageUrl} from '../../../utils/helpers';
 import {
 	spotlightItemImageUrl,
 	spotlightLandscapeImageUrl,
@@ -24,7 +26,8 @@ export const CARD_ICONS = {
 	playlist: MATERIAL_ICON_PATHS.playlist_play,
 	playlistOrder: MATERIAL_ICON_PATHS.format_list_numbered,
 	filmography: MATERIAL_ICON_PATHS.movie,
-	seerrDetails: MATERIAL_ICON_PATHS.info
+	seerrDetails: MATERIAL_ICON_PATHS.info,
+	fileDetails: MATERIAL_ICON_PATHS.info
 };
 
 // A runtime for a card subtitle or the hero's metadata row: "1h 32m", "2h", or "48m". The
@@ -116,7 +119,8 @@ class CardBuilder {
 				episodes: () => this.moreEpisodesCard(),
 				people: () => this.peopleCard(),
 				chapters_extras: () => this.chaptersExtrasCard(),
-				similar: () => this.similarCard()
+				similar: () => this.similarCard(),
+				file_details: () => this.fileDetailsCard()
 			};
 			case 'MusicAlbum':
 			case 'AudioBook':
@@ -133,7 +137,8 @@ class CardBuilder {
 				people: () => this.peopleCard(),
 				chapters_extras: () => this.chaptersExtrasCard(),
 				similar: () => this.similarCard(),
-				collections: () => this.collectionsCard()
+				collections: () => this.collectionsCard(),
+				file_details: () => this.fileDetailsCard()
 			};
 		}
 	}
@@ -289,6 +294,40 @@ class CardBuilder {
 					: (collection.items || []))
 			].filter(Boolean)))
 		};
+	}
+
+	fileDetailsCard() {
+		const {item, mediaSource} = this.s;
+		const source = mediaSource || item?.MediaSources?.[0];
+		if (!source || !source.MediaStreams?.length) return null;
+
+		const container = source.Container ? String(source.Container).toUpperCase() : null;
+		const size = formatFileSize(source.Size);
+		const subtitle = joinSubtitle([container, size]);
+
+		return {
+			id: 'file_details',
+			title: $L('File Details'),
+			modalTitle: $L('File Information'),
+			subtitle,
+			imageUrl: this.fileDetailsImageUrl(),
+			icon: CARD_ICONS.fileDetails,
+			sections: [
+				{kind: 'fileInfo', mediaSource: source, item}
+			]
+		};
+	}
+
+	fileDetailsImageUrl() {
+		const {serverUrl, item, fallbackImageUrl} = this.s;
+		const tags = item?.BackdropImageTags || [];
+		if (tags.length >= 3) {
+			return getImageUrl(serverUrl, item.Id, 'Backdrop/2', {maxWidth: 960, quality: 90, tag: tags[2]});
+		}
+		if (this.s.seerr?.details?.backdrop_path) {
+			return toAbsoluteImageUrl(`https://image.tmdb.org/t/p/w780${this.s.seerr.details.backdrop_path}`);
+		}
+		return fallbackImageUrl;
 	}
 
 	seasonsCard() {
