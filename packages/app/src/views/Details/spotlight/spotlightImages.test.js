@@ -68,6 +68,12 @@ describe('spotlightCardFallbackUrl', () => {
 			.toBe(`${SERVER}/Items/m1/Images/Backdrop/1?maxWidth=960&quality=90&tag=b1`);
 	});
 
+	it('moves on to the third backdrop when index 2 is requested', () => {
+		const item = {Id: 'm1', BackdropImageTags: ['b0', 'b1', 'b2']};
+		expect(spotlightCardFallbackUrl(SERVER, item, hero, 2))
+			.toBe(`${SERVER}/Items/m1/Images/Backdrop/2?maxWidth=960&quality=90&tag=b2`);
+	});
+
 	it('keeps the hero url when the item has only the one backdrop to give', () => {
 		expect(spotlightCardFallbackUrl(SERVER, {Id: 'm1', BackdropImageTags: ['b0']}, hero)).toBe(hero);
 	});
