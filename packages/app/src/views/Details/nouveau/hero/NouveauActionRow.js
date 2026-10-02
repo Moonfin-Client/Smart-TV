@@ -4,7 +4,7 @@ import $L from '@enact/i18n/$L';
 import Spotlight from '@enact/spotlight';
 import SpotlightContainerDecorator from '@enact/spotlight/SpotlightContainerDecorator';
 
-import {arrange, seerrOnlyRow, DETAIL_ORDER_KEY, DETAIL_HIDDEN_KEY} from '../../../../utils/buttonLayout';
+import {arrange, seerrOnlyRow, DETAIL_BUTTONS, DETAIL_ORDER_KEY, DETAIL_HIDDEN_KEY} from '../../../../utils/buttonLayout';
 import {KEYS} from '../../../../utils/keys';
 import {DETAIL_ICON_PATHS} from '../../detailIcons';
 import {ActionButton, detailActionCatalogue} from '../../detailActions';
@@ -103,7 +103,7 @@ const NouveauActionRow = (props) => {
 	// is the point and a reorder would otherwise put a hidden button back.
 	const customizable = isKidsMode(settings)
 		? kidsModeButtons(offeredButtons, true)
-		: arrange(offeredButtons, {order: settings[DETAIL_ORDER_KEY], hidden: settings[DETAIL_HIDDEN_KEY]});
+		: arrange(offeredButtons, {order: settings[DETAIL_ORDER_KEY], hidden: settings[DETAIL_HIDDEN_KEY], catalogue: DETAIL_BUTTONS});
 
 	// A person has nothing to play, so their row is circles alone.
 	const showsResume = !seerrOnly && !isPerson && hasPlaybackPosition && !isBook;
