@@ -12,7 +12,8 @@ const profile = () => ({
 	CodecProfiles: [{Type: 'Video', Codec: 'hevc', Conditions: []}],
 	TranscodingProfiles: [
 		{Container: 'ts', Type: 'Video', MaxAudioChannels: '6'},
-		{Container: 'mp3', Type: 'Audio'}
+		{Container: 'mp3', Type: 'Audio'},
+		{Container: 'mp4', Type: 'Video', VideoCodec: 'av1'}
 	]
 });
 
@@ -108,5 +109,19 @@ describe('applyProfileTuning', () => {
 		const tuned = applyProfileTuning(profile(), {downmixToStereo: true}, fhdPanel);
 		expect(tuned.TranscodingProfiles[0].Conditions).toEqual(capped(1920, 1080));
 		expect(tuned.TranscodingProfiles[0].MaxAudioChannels).toBe('2');
+	});
+
+	// The Tizen AV1 fMP4 transcoding profile copies AV1 video untouched, which
+	// some Tizen sets fail to play regardless of the encode. This setting drops
+	// that profile so those transcodes fall back to the ts/hevc re-encode.
+	it('drops the av1 transcoding profile when forced compatible', () => {
+		const tuned = applyProfileTuning(profile(), {forceCompatibleAv1Transcode: true});
+		expect(tuned.TranscodingProfiles.map((p) => p.VideoCodec)).toEqual([undefined, undefined]);
+	});
+
+	it('leaves the av1 transcoding profile alone by default', () => {
+		const original = profile();
+		expect(applyProfileTuning(original, {})).toBe(original);
+		expect(original.TranscodingProfiles).toHaveLength(3);
 	});
 });

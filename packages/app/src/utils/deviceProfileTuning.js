@@ -53,8 +53,14 @@ export const applyProfileTuning = (profile, settings = {}, capabilities) => {
 			: null);
 	const dropAss = settings.assDirectPlay === false;
 	const dropPgs = settings.enablePgsRendering === false;
+	// The Tizen AV1 transcoding profile copies the video stream untouched into
+	// fMP4-segmented HLS, which some Tizen sets fail to play a few seconds in
+	// regardless of the AV1 encode. Dropping this single-codec profile (only
+	// Tizen's AV1 profile lists just 'av1'; other platforms join it with other
+	// codecs) forces those transcodes through the ts/hevc profile instead.
+	const dropAv1Transcode = settings.forceCompatibleAv1Transcode === true;
 
-	if (!resolution && !channelCap && !dropAss && !dropPgs) return profile;
+	if (!resolution && !channelCap && !dropAss && !dropPgs && !dropAv1Transcode) return profile;
 
 	const tuned = {...profile};
 
@@ -103,6 +109,11 @@ export const applyProfileTuning = (profile, settings = {}, capabilities) => {
 		const dropped = [...(dropAss ? ASS_FORMATS : []), ...(dropPgs ? PGS_FORMATS : [])];
 		tuned.SubtitleProfiles = (tuned.SubtitleProfiles || [])
 			.filter((subtitleProfile) => dropped.indexOf(subtitleProfile.Format) < 0);
+	}
+
+	if (dropAv1Transcode) {
+		tuned.TranscodingProfiles = (tuned.TranscodingProfiles || [])
+			.filter((transcodingProfile) => transcodingProfile.VideoCodec !== 'av1');
 	}
 
 	return tuned;

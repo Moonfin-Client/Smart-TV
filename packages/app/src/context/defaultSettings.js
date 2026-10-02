@@ -6,6 +6,7 @@ export const defaultSettings = {
 	preferTranscode: false,
 	forceDirectPlay: false,
 	experimentalTruehd: false,
+	forceCompatibleAv1Transcode: false,
 	maxBitrate: 0,
 	audioLanguage: '',
 	subtitleLanguage: '',
