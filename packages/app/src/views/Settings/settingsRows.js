@@ -22,14 +22,22 @@ export const ToggleRow = ({settingKey, title, desc, icon, checked, onToggle}) =>
 	</SpottableDiv>
 );
 
-export const OptionRow = ({settingKey, title, caption, icon, onOpen}) => (
+// A dot of the color an option stands for, in front of its label or the chevron.
+export const Swatch = ({color}) => (color
+	? <span className={css.swatch} style={{backgroundColor: color}} />
+	: null);
+
+export const OptionRow = ({settingKey, title, caption, icon, swatch, onOpen}) => (
 	<SpottableDiv className={css.listItem} onClick={onOpen} spotlightId={`setting-${settingKey}`}>
 		{renderSettingsIcon(icon)}
 		<div className={css.listItemBody}>
 			<div className={css.listItemHeading}>{title}</div>
 			<div className={css.listItemCaption}>{caption}</div>
 		</div>
-		<div className={css.listItemTrailing}>{renderChevron()}</div>
+		<div className={css.listItemTrailing}>
+			<Swatch color={swatch} />
+			{renderChevron()}
+		</div>
 	</SpottableDiv>
 );
 

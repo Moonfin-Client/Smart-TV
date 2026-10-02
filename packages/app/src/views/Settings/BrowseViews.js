@@ -5,7 +5,7 @@ import $L from '@enact/i18n/$L';
 import SpottableInput from '../../components/SpottableInput/SpottableInput';
 import {renderSettingsIcon, renderChevron, renderRadio} from './settingsIcons';
 import {SpottableDiv} from './settingsSpottables';
-import {SectionTitle} from './settingsRows';
+import {SectionTitle, Swatch} from './settingsRows';
 import SettingsView from './SettingsView';
 import {resultSpotlightId} from './settingsSearch';
 
@@ -132,7 +132,10 @@ export const OptionsView = ({title, options, currentValue, onSelect}) => (
 				<div className={css.listItemBody}>
 					<div className={css.listItemHeading}>{opt.label}</div>
 				</div>
-				<div className={css.listItemTrailing}>{renderRadio(opt.value === currentValue)}</div>
+				<div className={css.listItemTrailing}>
+					<Swatch color={opt.swatch} />
+					{renderRadio(opt.value === currentValue)}
+				</div>
 			</SpottableDiv>
 		))}
 	</SettingsView>

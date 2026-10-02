@@ -105,6 +105,13 @@ try {
 		process.exit(1);
 	}
 
+	// The per-surface accent rules are generated from the stylesheets.
+	console.log('\n Checking the generated accent rules are current...');
+	if (spawnSync('node', [path.join(ROOT_DIR, 'scripts', 'gen-accent-rules.js'), '--check'], {stdio: 'inherit'}).status !== 0) {
+		console.error('Accent rules are stale.');
+		process.exit(1);
+	}
+
 	// Production build with Enact
 	console.log('\n Building with Enact...');
 	const browserslistConfig = path.join(APP_DIR, '.browserslistrc');

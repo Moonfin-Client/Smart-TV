@@ -1,0 +1,49 @@
+.preview {
+	margin: 0 24px 12px;
+}
+
+// The width is what the canvas is scaled to, and the height follows it from the component.
+.stage {
+	position: relative;
+	max-width: 720px;
+	overflow: hidden;
+	border-radius: 16px;
+	border: 1.5px solid rgba(255, 255, 255, 0.16);
+	background-color: #000000;
+	background-image: radial-gradient(circle at 50% 45%, #1e293b 0%, #0f172a 55%, #050811 100%);
+	box-shadow: 0 6px 16px rgba(0, 0, 0, 0.47);
+}
+
+// A screen's worth of pixels, shrunk from its top left corner.
+.canvas {
+	position: absolute;
+	top: 0;
+	left: 0;
+	transform-origin: 0 0;
+	-webkit-transform-origin: 0 0;
+}
+
+// In the bottom corner, since the prompt has to be free to sit in any of the top ones.
+.badge {
+	position: absolute;
+	bottom: 10px;
+	left: 14px;
+	display: flex;
+	align-items: center;
+	z-index: 4;
+}
+
+.badgeDot {
+	width: 7px;
+	height: 7px;
+	margin-right: 6px;
+	border-radius: 50%;
+	background-color: #00a4dc;
+}
+
+.badgeLabel {
+	font-size: 10px;
+	font-weight: 700;
+	letter-spacing: 1.5px;
+	color: rgba(255, 255, 255, 0.59);
+}

@@ -47,6 +47,7 @@ export const DETAIL_BUTTONS = [
 // which drops the audio rather than stretching it, so anything but 1x plays silent.
 export const OSD_BUTTONS = [
 	{id: 'chapters', label: 'Chapters'},
+	{id: 'episodes', label: 'Episodes'},
 	{id: 'subtitles', label: 'Subtitles'},
 	{id: 'audio', label: 'Audio'},
 	{id: 'castAndCrew', label: 'Cast and Crew'},
@@ -87,9 +88,22 @@ export const ordered = (all, stored) => {
 };
 
 // The visible buttons for a row, in the user's order. `all` has to be in declaration order.
-export const arrange = (all, {order, hidden} = {}) => {
+//
+// A row that only holds some of its buttons at a time, such as the player's, passes the whole
+// `catalogue`. A button nobody placed is then put behind the one declared before it in the
+// catalogue even when that one is missing from this row, so it does not jump to the front the
+// moment its neighbour, say Chapters on an episode with none, is absent.
+export const arrange = (all, {order, hidden, catalogue} = {}) => {
 	const off = hiddenSet(hidden);
-	return ordered(all, order).filter((item) => !off.has(item.id));
+	if (!catalogue) return ordered(all, order).filter((item) => !off.has(item.id));
+
+	const position = new Map(ordered(catalogue, order).map((item, index) => [item.id, index]));
+	const at = (item) => (position.has(item.id) ? position.get(item.id) : catalogue.length);
+	return all
+		.map((item, declared) => ({item, declared}))
+		.sort((a, b) => (at(a.item) - at(b.item)) || (a.declared - b.declared))
+		.map(({item}) => item)
+		.filter((item) => !off.has(item.id));
 };
 
 // A save from this app has to carry through the ids it has no button for. The other clients

@@ -382,6 +382,14 @@ async function main() {
 			error('CSS target check failed!');
 			process.exit(1);
 		}
+		// The per-surface accent rules are generated from the stylesheets, so a stylesheet edit
+		// without a regenerate would leave a surface's picked color missing some of its parts.
+		log('Checking the generated accent rules are current...');
+		const accentGate = spawnSync('node', [path.join(REPO_ROOT, 'scripts', 'gen-accent-rules.js'), '--check'], {stdio: 'inherit'});
+		if (accentGate.status !== 0) {
+			error('Accent rules are stale!');
+			process.exit(1);
+		}
 		success('Lint checks passed');
 	}
 

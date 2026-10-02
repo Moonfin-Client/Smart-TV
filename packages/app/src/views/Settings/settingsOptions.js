@@ -613,23 +613,44 @@ export const getSeasonalThemeOptions = () => [
 	{ value: 'halloween', label: $L('Halloween') }
 ];
 
-export const getAccentColorOptions = () => [
-	{ value: '', label: $L('Theme Default') },
-	{ value: '#ffffff', label: $L('White') },
-	{ value: '#000000', label: $L('Black') },
-	{ value: '#808080', label: $L('Gray') },
-	{ value: '#003366', label: $L('Dark Blue') },
-	{ value: '#6a0dad', label: $L('Purple') },
-	{ value: '#008080', label: $L('Teal') },
-	{ value: '#000080', label: $L('Navy') },
-	{ value: '#36454f', label: $L('Charcoal') },
-	{ value: '#8b4513', label: $L('Brown') },
-	{ value: '#8b0000', label: $L('Dark Red') },
-	{ value: '#006400', label: $L('Dark Green') },
-	{ value: '#708090', label: $L('Slate') },
-	{ value: '#4b0082', label: $L('Indigo') },
-	{ value: '#00a4dc', label: $L('Moonfin Cyan') },
-	{ value: '#ff2e92', label: $L('Neon Magenta') }
+// How the skip prompt is built, not just where it sits.
+export const getSkipOverlayLayoutOptions = () => [
+	{ value: 'capsule', label: $L('Capsule') },
+	{ value: 'rectangle', label: $L('Rectangle') },
+	{ value: 'sweep', label: $L('Sweep') }
+];
+
+// How the next episode prompt is built. The card is the one with the still, the banner runs
+// wide with the still beside the words, and the button is only a button.
+export const getNextUpLayoutOptions = () => [
+	{ value: 'card', label: $L('Card') },
+	{ value: 'banner', label: $L('Banner') },
+	{ value: 'button', label: $L('Button') }
+];
+
+// `defaultColor` is what an empty pick falls back to, drawn as the swatch of the first option so
+// the list shows what leaving it alone really looks like.
+export const getAccentColorOptions = (defaultColor, defaultLabel = $L('Theme Default')) => [
+	{ value: '', label: defaultLabel, swatch: defaultColor },
+	{ value: '#00a4dc', label: $L('Moonfin Cyan'), swatch: '#00a4dc' },
+	{ value: '#ff2e92', label: $L('Neon Magenta'), swatch: '#ff2e92' },
+	{ value: '#0a84ff', label: $L('Blue'), swatch: '#0a84ff' },
+	{ value: '#30d158', label: $L('Green'), swatch: '#30d158' },
+	{ value: '#ffd60a', label: $L('Yellow'), swatch: '#ffd60a' },
+	{ value: '#ff453a', label: $L('Red'), swatch: '#ff453a' },
+	{ value: '#ffffff', label: $L('White'), swatch: '#ffffff' },
+	{ value: '#808080', label: $L('Gray'), swatch: '#808080' },
+	{ value: '#000000', label: $L('Black'), swatch: '#000000' },
+	{ value: '#6a0dad', label: $L('Purple'), swatch: '#6a0dad' },
+	{ value: '#008080', label: $L('Teal'), swatch: '#008080' },
+	{ value: '#4b0082', label: $L('Indigo'), swatch: '#4b0082' },
+	{ value: '#003366', label: $L('Dark Blue'), swatch: '#003366' },
+	{ value: '#000080', label: $L('Navy'), swatch: '#000080' },
+	{ value: '#36454f', label: $L('Charcoal'), swatch: '#36454f' },
+	{ value: '#708090', label: $L('Slate'), swatch: '#708090' },
+	{ value: '#8b4513', label: $L('Brown'), swatch: '#8b4513' },
+	{ value: '#8b0000', label: $L('Dark Red'), swatch: '#8b0000' },
+	{ value: '#006400', label: $L('Dark Green'), swatch: '#006400' }
 ];
 
 // The color the navigation and media bar surfaces tint themselves with.

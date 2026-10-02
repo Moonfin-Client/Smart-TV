@@ -25,3 +25,12 @@ export const PanelContainer = SpotlightContainerDecorator({
 export const OverlayContainer = SpotlightContainerDecorator({
 	leaveFor: {left: '', right: '', up: '', down: ''}
 }, 'div');
+
+// A strip of tabs where the one that is open is the one the remote lands on, however far along the
+// strip it sits, rather than whichever tab happens to be nearest.
+export const ActiveTabContainer = SpotlightContainerDecorator({
+	enterTo: 'default-element',
+	defaultElement: '[data-active-tab="true"]',
+	preserveId: true
+}, 'div');
+
