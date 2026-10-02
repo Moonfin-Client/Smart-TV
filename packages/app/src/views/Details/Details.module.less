@@ -1857,28 +1857,17 @@
 	justify-content: center;
 }
 
-.trailerCloseBtn {
+.trailerCloseHint {
 	position: absolute;
-	top: 24px;
-	right: 24px;
-	width: 48px;
-	height: 48px;
-	border-radius: 50%;
-	border: none;
-	background: rgba(var(--theme-on-surface-rgb, 255, 255, 255), 0.15);
-	color: var(--theme-text-primary, #ffffff);
-	cursor: pointer;
-	display: flex;
-	align-items: center;
-	justify-content: center;
+	top: 28px;
+	right: 32px;
 	z-index: 10;
-	transition: background 0.2s ease, transform 0.2s ease;
-	outline: none;
-
-	&:focus {
-		background: rgba(255, 255, 255, 0.3);
-		transform: scale(1.1);
-	}
+	padding: 8px 18px;
+	border-radius: 999px;
+	background: rgba(0, 0, 0, 0.55);
+	color: var(--theme-text-primary, #ffffff);
+	font-size: 22px;
+	pointer-events: none;
 }
 
 .trailerIframeWrap {

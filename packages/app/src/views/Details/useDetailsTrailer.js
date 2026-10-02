@@ -1,5 +1,4 @@
 import {useState, useEffect, useCallback, useRef} from 'react';
-import Spotlight from '@enact/spotlight';
 
 import {stopPlaybackForTrailer} from '../../utils/trailerPlayback';
 import {
@@ -60,7 +59,6 @@ const useDetailsTrailer = ({item, effectiveApi, onPlay, trailerMuted, seerrOnly}
 					const videoId = extractYouTubeIdFromUrl(trailerUrl);
 					if (videoId) {
 						setTrailerOverlay(videoId);
-						window.requestAnimationFrame(() => Spotlight.focus('trailer-close-btn'));
 						return;
 					}
 

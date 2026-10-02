@@ -190,7 +190,8 @@ const Details = ({itemId: itemIdProp, initialItem, onPlay, onSelectItem, onSelec
 	// screen's overlays use.
 	const overviewBackRef = useRef(null);
 	const spotlightBackRef = useRef(null);
-	const modals = useDetailsModals({backHandlerRef, onArtworkClosed: refreshItem, seerrBackRef, overviewBackRef, spotlightBackRef});
+	const trailerBackRef = useRef(null);
+	const modals = useDetailsModals({backHandlerRef, onArtworkClosed: refreshItem, seerrBackRef, overviewBackRef, spotlightBackRef, trailerBackRef});
 	const {activeModal, openModal, closeModal, advancedResumeRef} = modals;
 
 	const trailer = useDetailsTrailer({
@@ -200,6 +201,18 @@ const Details = ({itemId: itemIdProp, initialItem, onPlay, onSelectItem, onSelec
 		trailerMuted: settings.featuredTrailerMuted,
 		seerrOnly
 	});
+
+	// BACK while a trailer plays closes the trailer and stays on this title. The app hears the
+	// key before the overlay does, so without this it would leave the screen altogether.
+	const {trailerOverlay, handleCloseTrailer} = trailer;
+	useEffect(() => {
+		trailerBackRef.current = () => {
+			if (!trailerOverlay) return false;
+			handleCloseTrailer();
+			return true;
+		};
+		return () => { trailerBackRef.current = null; };
+	}, [trailerOverlay, handleCloseTrailer]);
 
 	const canChangeArtwork = useMemo(() => {
 		if (!item) return false;

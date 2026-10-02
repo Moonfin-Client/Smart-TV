@@ -3,7 +3,6 @@ import $L from '@enact/i18n/$L';
 import {createPortal} from 'react-dom';
 
 import {OverlayContainer} from '../../utils/spotlightContainers';
-import {SpottableButton} from './detailsSpottables';
 
 import css from './Details.module.less';
 
@@ -16,11 +15,7 @@ const TrailerOverlay = ({videoId, streamUrl, videoRef, muted, onClose, onKeyDown
 
 	const content = (
 		<OverlayContainer className={css.trailerOverlay} onClick={onClose} onKeyDown={onKeyDown}>
-			<SpottableButton className={css.trailerCloseBtn} onClick={onClose} spotlightId="trailer-close-btn">
-				<svg viewBox="0 0 24 24" width="32" height="32" fill="currentColor">
-					<path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
-				</svg>
-			</SpottableButton>
+			<div className={css.trailerCloseHint}>{$L('Press BACK to close')}</div>
 			<div className={css.trailerIframeWrap} onClick={stopPropagation}>
 				{streamUrl ? (
 					// No src here, since Tizen plays YouTube's manifest through hls.js and
