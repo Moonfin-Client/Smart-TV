@@ -329,7 +329,6 @@ const Screensaver = ({
 		<div
 			className={css.overlay + ' ' + (showOverlay ? css.overlayVisible : '')}
 			onClick={handleInteraction}
-			onKeyDown={handleInteraction}
 		>
 			{showLibrary && (
 				<div className={css.backdropContainer}>

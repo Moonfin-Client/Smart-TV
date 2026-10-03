@@ -28,6 +28,17 @@ const useInactivityTimer = (timeoutSeconds = 90, enabled = true) => {
 		return true;
 	}, [dismiss]);
 
+	// Added once, ahead of the window listeners the screens add later, so the key that wakes the screensaver goes no further.
+	useEffect(() => {
+		const handleWakeKey = (e) => {
+			if (!wake()) return;
+			e.preventDefault();
+			e.stopImmediatePropagation();
+		};
+		window.addEventListener('keydown', handleWakeKey, true);
+		return () => window.removeEventListener('keydown', handleWakeKey, true);
+	}, [wake]);
+
 	useEffect(() => {
 		if (!enabled) {
 			if (timerRef.current) {
