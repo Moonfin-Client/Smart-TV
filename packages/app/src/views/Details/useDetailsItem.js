@@ -5,6 +5,7 @@ import * as playback from '../../services/playback';
 import {fetchTmdbSeasonRatings, resolveSeriesTmdbId, isRatingSourceAllowed} from '../../services/mdblistApi';
 import {getItemSubtitlePref, getSeriesSubtitlePref, getSeriesAudioPref} from '../../services/subtitlePrefs';
 import {fromServerStream, matchSeriesTrackIndex} from '../../utils/seriesTrackPrefs';
+import {resolveBestSubtitle} from '../Player/initialSubtitle';
 import {findParentCollections} from './parentCollection';
 import {canScoreSeedLocally, getOnlineRecommendations, getRecommendations, mergeRecommendations} from '../../services/homeRecommendations';
 import {fetchMissingCollectionItems} from './seerrMissingCollectionItems';
@@ -231,11 +232,8 @@ const useDetailsItem = ({itemId, initialItem, effectiveApi, effectiveServerUrl, 
 				}
 				if (savedSubtitlePos !== null) {
 					setSelectedSubtitleIndex(savedSubtitlePos);
-				} else if (ms.DefaultSubtitleStreamIndex != null) {
-					const idx = initSubtitleStreams.findIndex(s => s.Index === ms.DefaultSubtitleStreamIndex);
-					if (idx >= 0) setSelectedSubtitleIndex(idx);
 				} else {
-					setSelectedSubtitleIndex(-1);
+					setSelectedSubtitleIndex(resolveBestSubtitle(initSubtitleStreams, settingsRef.current, ms));
 				}
 			} else {
 				setSelectedAudioIndex(0);
