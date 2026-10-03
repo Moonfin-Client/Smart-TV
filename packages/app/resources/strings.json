@@ -1315,6 +1315,7 @@
 	"Playback Information": "Playback Information",
 	"Playback pauses while you seek and resumes when you press play. Turn this off to keep playing and jump straight to the new spot": "Playback pauses while you seek and resumes when you press play. Turn this off to keep playing and jump straight to the new spot",
 	"Playback Quality": "Playback Quality",
+	"Playback didn't resume automatically. Select Retry to try again.": "Playback didn't resume automatically. Select Retry to try again.",
 	"Playback failed.": "Playback failed.",
 	"Playback failed. The file format may not be supported.": "Playback failed. The file format may not be supported.",
 	"Playback has been paused. Are you still watching?": "Playback has been paused. Are you still watching?",

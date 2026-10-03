@@ -20,6 +20,7 @@ import {adoptLegacyBlockedRatings, loadParentalControls, parentalScopeKey, setPa
 import {libraryIdOf, seerrDetailStub} from '../utils/seerrTarget';
 import serverLogger from '../services/serverLogger';
 import * as remoteControl from '../services/remoteControl';
+import * as serverSocket from '../services/serverSocket';
 import {isBackKey, KEYS} from '../utils/keys';
 import {applyPerfTier} from '../utils/perfTier';
 import {isLiveTvLibrary} from '../utils/liveTvLibrary';
@@ -296,6 +297,11 @@ const AppContent = (props) => {
 
 	useEffect(() => {
 		serverLogger.setRecording(settings.diagnosticLoggingEnabled === true);
+		if (settings.diagnosticLoggingEnabled) {
+			// A fresh timestamp here after a standby cycle means the JS process was
+			// actually killed and relaunched, not just suspended in place.
+			serverLogger.info(serverLogger.LOG_CATEGORIES.APP, 'Standby diag: app process (re)initialized', {bootTime: Date.now()});
+		}
 	}, [settings.diagnosticLoggingEnabled]);
 
 	useEffect(() => {
@@ -524,6 +530,7 @@ const AppContent = (props) => {
 		};
 
 		const handleVisibilityHidden = () => {
+			serverLogger.info(serverLogger.LOG_CATEGORIES.APP, 'Standby diag: app-level visibility hidden', {});
 			const videoElements = document.querySelectorAll('video');
 			videoElements.forEach(video => {
 				if (!video.paused) {
@@ -533,10 +540,16 @@ const AppContent = (props) => {
 		};
 
 		const handleVisibilityVisible = () => {
+			serverLogger.info(serverLogger.LOG_CATEGORIES.APP, 'Standby diag: app-level visibility visible', {
+				socketConnected: serverSocket.isConnected()
+			});
 			revalidateSession();
 		};
 
 		const handleRelaunch = () => {
+			serverLogger.info(serverLogger.LOG_CATEGORIES.APP, 'Standby diag: platform relaunch event fired', {
+				socketConnected: serverSocket.isConnected()
+			});
 			// The app is held in the background until it activates, so a throw on the way
 			// there must not be allowed to skip it.
 			try {

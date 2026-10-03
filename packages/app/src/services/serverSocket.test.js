@@ -7,6 +7,11 @@ jest.mock('./jellyfinApi', () => ({
 	getServerType: () => mockServerType
 }));
 
+jest.mock('./serverLogger', () => ({
+	info: jest.fn(),
+	LOG_CATEGORIES: {NETWORK: 'Network'}
+}));
+
 describe('the session socket', () => {
 	let sockets;
 	let serverSocket;

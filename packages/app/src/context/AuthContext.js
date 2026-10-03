@@ -10,6 +10,7 @@ import {resetBlockedContentGate} from '../services/blockedContentGate';
 import * as serverSocket from '../services/serverSocket';
 import * as userDataSync from '../services/userDataSync';
 import * as remoteControl from '../services/remoteControl';
+import serverLogger from '../services/serverLogger';
 
 import {clearProxiedImageCache} from '../hooks/useProxiedImage';
 import {parseUrl} from '../utils/urlCompat';
@@ -480,27 +481,43 @@ export const AuthProvider = ({children}) => {
 		if (!isAuthenticated) return;
 
 		const now = Date.now();
-		if (!force && now - lastRevalidateRef.current < REVALIDATE_INTERVAL) return;
+		if (!force && now - lastRevalidateRef.current < REVALIDATE_INTERVAL) {
+			serverLogger.info(serverLogger.LOG_CATEGORIES.AUTHENTICATION, 'Standby diag: revalidateSession skipped, within interval', {
+				msSinceLast: now - lastRevalidateRef.current
+			});
+			return;
+		}
 		lastRevalidateRef.current = now;
 
 		// One attempt straight away, then another after each backoff delay.
 		let serverReachable = await probeServer();
+		let attempts = 1;
 		for (let i = 0; !serverReachable && i < BACKOFF_DELAYS.length; i++) {
 			setConnectionState('reconnecting');
 			await new Promise(r => setTimeout(r, BACKOFF_DELAYS[i]));
 			serverReachable = await probeServer();
+			attempts += 1;
 		}
 
 		if (!serverReachable) {
+			serverLogger.info(serverLogger.LOG_CATEGORIES.AUTHENTICATION, 'Standby diag: revalidateSession found server unreachable', {attempts});
 			setConnectionState('disconnected');
 			return;
 		}
 
 		try {
 			await jellyfinApi.api.getUserConfiguration();
+			serverLogger.info(serverLogger.LOG_CATEGORIES.AUTHENTICATION, 'Standby diag: revalidateSession succeeded', {
+				attempts,
+				socketConnected: serverSocket.isConnected()
+			});
 			setConnectionState('connected');
 		} catch (e) {
 			const status = e?.status || e?.response?.status;
+			serverLogger.info(serverLogger.LOG_CATEGORIES.AUTHENTICATION, 'Standby diag: revalidateSession getUserConfiguration failed', {
+				attempts,
+				status: status ?? null
+			});
 			if (status === 401 || status === 403) {
 				console.warn('[AUTH] Session expired, requiring re-login');
 				jellyfinApi.setAuth(null, null);
@@ -546,6 +563,11 @@ export const AuthProvider = ({children}) => {
 		const check = async () => {
 			const reachable = await probeServer();
 			if (cancelled) return;
+			serverLogger.info(serverLogger.LOG_CATEGORIES.AUTHENTICATION, 'Standby diag: disconnected-recovery probe', {
+				attempt: attempt + 1,
+				reachable,
+				socketConnected: serverSocket.isConnected()
+			});
 			if (reachable) {
 				setConnectionState('connected');
 				return;

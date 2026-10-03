@@ -2,6 +2,7 @@
 // it stays open for as long as someone is signed in and reconnects whenever it drops.
 
 import {getApiKey, getDeviceId, getServerType, getServerUrl} from './jellyfinApi';
+import serverLogger from './serverLogger';
 
 const RECONNECT_DELAY_MS = 5000;
 // The server drops a socket that hasn't sent it a KeepAlive message within this long. It says
@@ -92,6 +93,7 @@ export const connect = () => {
 
 	ws.onopen = () => {
 		isOpen = true;
+		serverLogger.info(serverLogger.LOG_CATEGORIES.NETWORK, 'Standby diag: server socket opened', {});
 		tell(connectionListeners, true);
 	};
 
@@ -113,6 +115,7 @@ export const connect = () => {
 	ws.onclose = () => {
 		ws = null;
 		isOpen = false;
+		serverLogger.info(serverLogger.LOG_CATEGORIES.NETWORK, 'Standby diag: server socket closed', {});
 		stopKeepAlive();
 		tell(connectionListeners, false);
 		scheduleReconnect(); // eslint-disable-line no-use-before-define

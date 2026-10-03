@@ -6,6 +6,11 @@ jest.mock('./jellyfinApi', () => ({
 	getServerType: () => 'jellyfin'
 }));
 
+jest.mock('./serverLogger', () => ({
+	info: jest.fn(),
+	LOG_CATEGORIES: {NETWORK: 'Network'}
+}));
+
 const pingCount = () => global.fetch.mock.calls.filter(([url]) => url === 'https://server/SyncPlay/Ping').length;
 
 describe('SyncPlay ping', () => {
