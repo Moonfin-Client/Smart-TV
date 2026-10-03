@@ -14,6 +14,16 @@
 	width: 493px;
 }
 
+// The same card drawn inside the settings preview, which places it itself.
+.overlayPreview {
+	position: absolute;
+	right: 35px;
+	bottom: 174px;
+	z-index: 1;
+	width: 493px;
+	pointer-events: none;
+}
+
 .minimal {
 	width: 435px;
 }
@@ -223,3 +233,106 @@
 }
 
 .actions { .flex-row-gap(16px); }
+
+// --- Other layouts ---
+// Each one reshapes the same markup, so the chained selectors keep them ahead of the base rules
+// and of the lower tiers' fill, which have the same weight and come first.
+
+// Wide, with the still beside the words and the buttons, for a prompt that reads along one line.
+.layoutBanner,
+.layoutBanner.minimal {
+	width: 880px;
+}
+
+.layoutBanner .card {
+	display: flex;
+	flex-direction: row;
+	align-items: stretch;
+	border-radius: 16px;
+}
+
+.layoutBanner .thumb {
+	flex-shrink: 0;
+	width: 300px;
+	height: auto;
+	min-height: 170px;
+	padding-bottom: 0;
+}
+
+.layoutBanner .thumbFade {
+	background: linear-gradient(to right, transparent 55%, rgba(0, 0, 0, 0.6) 100%);
+}
+
+.layoutBanner .info {
+	flex: 1;
+	min-width: 0;
+	justify-content: center;
+}
+
+.layoutBanner .actions {
+	margin-top: 16px;
+}
+
+// Only a button: no card, no still and no words, the light box the skip prompt has, with the
+// countdown in its ring.
+.layoutButton,
+.layoutButton.minimal {
+	width: auto;
+}
+
+.layoutButton .card {
+	overflow: visible;
+	border-radius: 0;
+	background: transparent;
+	box-shadow: none;
+	-webkit-backdrop-filter: none;
+	backdrop-filter: none;
+}
+
+.layoutButton .thumb,
+.layoutButton .eyebrow,
+.layoutButton .pills,
+.layoutButton .title {
+	display: none;
+}
+
+.layoutButton .info {
+	flex-direction: row;
+	align-items: center;
+	padding: 0;
+}
+
+.layoutButton .timer {
+	margin: 0 16px 0 0;
+	color: #fff;
+	text-shadow: 0 2px 10px rgba(0, 0, 0, 0.9);
+}
+
+.layoutButton .actions {
+	margin-top: 0;
+}
+
+.layoutButton .playBtn {
+	padding: 20px 30px;
+	border-radius: 10px;
+	background: rgba(244, 244, 246, 0.96);
+	color: #14161c;
+	box-shadow: 0 6px 24px rgba(0, 0, 0, 0.5);
+
+	&:focus {
+		border-color: @accent;
+	}
+}
+
+.layoutButton .ringTrack {
+	stroke: rgba(20, 22, 28, 0.2);
+}
+
+.layoutButton .ringValue {
+	stroke: @accent;
+}
+
+.layoutButton .dismissBtn {
+	border-radius: 10px;
+}
+

@@ -37,6 +37,7 @@ import serverLogger from '../../services/serverLogger';
 import {resolveSeriesAudio} from './initialAudio';
 import {resolveInitialSubtitle} from './initialSubtitle';
 import PlayerControls, {usePlayerButtons} from './PlayerControls';
+import {canBrowseEpisodes} from '../../utils/episodeBrowser';
 import useLiveProgram from './useLiveProgram';
 import {hasTrickplayPreview} from '../../components/TrickplayPreview';
 import useChannelCarousel from './useChannelCarousel';
@@ -175,6 +176,9 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 	subtitleOffsetRef.current = subtitleOffset;
 	const [controlsVisible, setControlsVisible] = useState(false);
 	const [activeModal, setActiveModal] = useState(null);
+	// Read by the time update, which runs from an interval or a media event and so sees no fresh state.
+	const episodesOpenRef = useRef(false);
+	episodesOpenRef.current = activeModal === 'episodes';
 	// Seeded from the advanced playback menu, which picks a cap before playback starts.
 	const [selectedQuality, setSelectedQuality] = useState(initialQuality || null);
 	const [remoteSubtitleResults, setRemoteSubtitleResults] = useState([]);
@@ -435,7 +439,8 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 		nextEpisode, isAudioMode, isLiveTV, hasNextTrack, hasPrevTrack,
 		shuffleMode, repeatMode, selectedQuality,
 		selectedSubtitleIndex, canDownloadRemoteSubtitles: !isAudioMode && Boolean(item?.Id), hasCastMembers, zoomModeLabel, zoomModeKey: zoomMode,
-		sleepMinutes
+		sleepMinutes,
+		canBrowseEpisodes: canBrowseEpisodes({item, isLiveTV, isAudioMode})
 	});
 
 	useEffect(() => {
@@ -1661,13 +1666,13 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 	// minus one there, and handing that to the next episode would switch its
 	// subtitles off. A chosen track already carries over through the series
 	// preferences.
-	const onPlayNextWithCleanup = useCallback(async (episode) => {
+	const onPlayNextWithCleanup = useCallback(async (episode, options) => {
 		// An outro skip lands near the end, so the next up countdown can come
 		// round again on the episode it already started, and reporting a stop
 		// for it would end the session that is still playing.
 		if (episode.Id === item.Id) return;
 		await playback.reportStop(positionRef.current);
-		onPlayNext(episode);
+		onPlayNext(episode, options);
 	}, [onPlayNext, item.Id]);
 
 	const {carouselOpenRef, openCarousel, markChannelPlaying, carouselProps} = useChannelCarousel({
@@ -1746,7 +1751,9 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 		if (videoRef.current) {
 			const rawTime = videoRef.current.currentTime;
 			const time = rawTime;
-			setCurrentTime(time);
+			// Nothing on screen reads the time while the episode panel is up, and each update redraws the
+			// whole player, which is what makes that panel drag. The first tick after it closes catches up.
+			if (!episodesOpenRef.current) setCurrentTime(time);
 			const ticks = Math.floor(time * 10000000);
 			if (ticks !== positionRef.current) {
 				stalledRef.current = false;
@@ -2532,6 +2539,21 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 		closeModal();
 	}, [closeModal, seekToTicks, groupSeekTo, dropScrub]);
 
+	// Picks an episode from the browser. An episode part way through carries on from where it
+	// stopped and an unstarted one begins at the top, both of which the player already does for
+	// an item it is told to resume. The one already playing just closes the browser.
+	const handleSelectEpisode = useCallback((episode) => {
+		closeModal();
+		if (String(episode.Id) === String(item.Id)) return;
+		onPlayNextWithCleanup(episode, {resume: true});
+	}, [closeModal, item.Id, onPlayNextWithCleanup]);
+
+	// A new episode starting takes the browser with it, whether it was chosen there or the
+	// player moved on by itself while it was open.
+	useEffect(() => {
+		setActiveModal((open) => (open === 'episodes' ? null : open));
+	}, [item.Id]);
+
 	const handleProgressClick = useCallback((e) => {
 		if (!videoRef.current) return;
 		const rect = e.currentTarget.getBoundingClientRect();
@@ -2643,6 +2665,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 			case 'subtitle': openModal('subtitle'); break;
 			case 'quality': openModal('quality'); break;
 			case 'chapter': openModal('chapter'); break;
+			case 'episodes': openModal('episodes'); break;
 			case 'cast': handleOpenCast(); break;
 			case 'zoom': handleToggleZoom(); break;
 			case 'sleep': openModal('sleep'); break;
@@ -3195,6 +3218,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 				sleepRemainingSeconds={sleepRemainingSeconds}
 				handleSelectQuality={handleSelectQuality}
 				handleSelectChapter={handleSelectChapter}
+				handleSelectEpisode={handleSelectEpisode}
 				handleSelectCastMember={handleSelectCastMember}
 				handleOpenSubtitleOffset={handleOpenSubtitleOffset}
 				handleOpenSubtitleSettings={handleOpenSubtitleSettings}

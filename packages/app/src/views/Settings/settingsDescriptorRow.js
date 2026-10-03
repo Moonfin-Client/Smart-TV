@@ -42,6 +42,7 @@ const renderDescriptorRow = (row, ctx, index, deps) => {
 					settingKey={row.key}
 					title={title}
 					caption={getLabel(options, settings[row.key], text(row.fallback))}
+					swatch={options.find((o) => o.value === settings[row.key])?.swatch}
 					icon={text(row.icon)}
 					onOpen={() => pushView({view: 'options', title, options, settingKey: row.key, returnFocusTo: `setting-${row.key}`})}
 				/>

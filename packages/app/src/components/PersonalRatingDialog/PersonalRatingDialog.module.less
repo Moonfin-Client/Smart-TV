@@ -33,7 +33,7 @@
 // The rating already saved on the server, so it reads as chosen before focus
 // lands anywhere.
 .thumbSelected {
-	background: rgba(0, 164, 220, 0.28);
+	background: rgba(var(--theme-accent-rgb, 0, 164, 220), 0.28);
 	border-color: rgba(255, 255, 255, 0.5);
 }
 
@@ -89,7 +89,7 @@
 .step:focus,
 .thumb:focus,
 .stars:focus {
-	background: rgba(0, 164, 220, 0.35);
+	background: rgba(var(--theme-accent-rgb, 0, 164, 220), 0.35);
 	border-color: #fff;
 }
 

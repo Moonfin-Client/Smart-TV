@@ -19,9 +19,24 @@
 	bottom: 0;
 	background-size: cover;
 	background-position: center;
-	opacity: 0.4;
+	opacity: 0.75;
 	pointer-events: none;
 	z-index: 0;
+}
+
+// Darkens the left, where the portrait and text sit, and the bottom, where the cards sit, so
+// both read against any backdrop while the middle of the picture stays bright.
+.scrim {
+	position: fixed;
+	top: 0;
+	left: 0;
+	right: 0;
+	bottom: 0;
+	pointer-events: none;
+	z-index: 0;
+	background:
+		linear-gradient(to right, var(--theme-background, #000) 0%, rgba(0, 0, 0, 0.55) 38%, rgba(0, 0, 0, 0) 75%),
+		linear-gradient(to top, var(--theme-background, #000) 0%, rgba(0, 0, 0, 0.7) 32%, rgba(0, 0, 0, 0) 62%);
 }
 
 .content {
@@ -33,8 +48,16 @@
 	flex-direction: column;
 }
 
+// A docked sidebar is drawn over the page, so the portrait, tabs, and everything
+// below start clear of it - matches Details' and Browse's own sidebarOffset.
+.sidebarOffset {
+	padding-left: 174px;
+}
+
 .personInfo {
 	display: flex;
+	// The list below takes whatever height is left, so this must not give any up.
+	flex-shrink: 0;
 	margin-bottom: 32px;
 
 	> * + * {
@@ -43,16 +66,27 @@
 }
 
 .personImage {
+	// A round frame with the photo filling it, centred, the way Seerr draws a person. The photo is
+	// a background so nothing can stretch it.
 	width: 250px;
 	height: 250px;
+	min-width: 250px;
+	min-height: 250px;
+	box-sizing: border-box;
 	border-radius: 50%;
 	border: 3px solid var(--theme-accent, #00a4dc);
-	flex-shrink: 0;
+	background-color: var(--theme-surface-variant, #333);
+	background-size: cover;
+	background-position: center;
+	background-repeat: no-repeat;
+	flex: 0 0 250px;
+	box-shadow: 0 14px 44px rgba(0, 0, 0, 0.65), 0 0 0 8px rgba(var(--theme-accent-rgb, 0, 164, 220), 0.14);
 }
 
 .noImage {
 	width: 250px;
 	height: 250px;
+	box-sizing: border-box;
 	border-radius: 50%;
 	border: 3px solid var(--theme-accent, #00a4dc);
 	background: var(--theme-surface-variant, #333);
@@ -61,7 +95,7 @@
 	justify-content: center;
 	font-size: 72px;
 	color: var(--theme-text-muted, #666);
-	flex-shrink: 0;
+	flex: 0 0 250px;
 }
 
 .personDetails {
@@ -69,35 +103,36 @@
 }
 
 .name {
-	font-size: 48px;
-	margin: 0 0 16px 0;
+	font-size: 60px;
+	font-weight: 700;
+	line-height: 1.1;
+	margin: 0 0 18px 0;
+	text-shadow: 0 2px 14px rgba(0, 0, 0, 0.8);
 }
 
 .metaRow {
 	display: flex;
+	flex-wrap: wrap;
 	align-items: center;
-	margin-bottom: 16px;
-
-	> * + * {
-		margin-left: 16px;
-	}
-
-	> * + *::before {
-		content: '\2022';
-		margin-right: 16px;
-		color: var(--theme-text-muted, #666);
-	}
+	margin-bottom: 14px;
 }
 
+// Each fact is a pill of its own, which reads faster than a line of dots and wraps cleanly.
 .meta {
-	font-size: 24px;
-	color: var(--theme-text-secondary, #aaa);
+	font-size: 21px;
+	color: var(--theme-text, #fff);
+	background: rgba(255, 255, 255, 0.12);
+	border: 1px solid rgba(255, 255, 255, 0.16);
+	border-radius: 999px;
+	padding: 5px 18px;
+	margin: 0 12px 8px 0;
 }
 
 .overview {
 	font-size: 22px;
 	line-height: 1.5;
-	color: var(--theme-text-secondary, #ccc);
+	color: var(--theme-text, rgba(255, 255, 255, 0.88));
+	text-shadow: 0 1px 8px rgba(0, 0, 0, 0.8);
 	max-height: 200px;
 	overflow: hidden;
 	display: -webkit-box;
@@ -148,13 +183,15 @@
 	border: 2px solid transparent;
 	outline: none;
 	cursor: pointer;
-	color: var(--theme-text-secondary, rgba(255, 255, 255, 0.7));
-	font-size: 18px;
-	transition: border-color 0.2s, transform 0.2s;
+	color: var(--theme-text, rgba(255, 255, 255, 0.9));
+	background: rgba(255, 255, 255, 0.1);
+	font-size: 20px;
+	transition: border-color 0.2s, transform 0.2s, background 0.2s;
 	width: fit-content;
 
 	&:focus {
-		border-color: rgba(var(--theme-accent-rgb, 0, 164, 220), 0.5);
+		border-color: rgba(var(--theme-accent-rgb, 0, 164, 220), 0.9);
+		background: rgba(var(--theme-accent-rgb, 0, 164, 220), 0.3);
 		transform: scale(1.05);
 	}
 }
@@ -169,25 +206,25 @@
 }
 
 .tab {
-	padding: 10px 24px;
-	border-radius: 8px;
+	padding: 10px 28px;
+	border-radius: 999px;
+	background: rgba(255, 255, 255, 0.08);
 	font-size: 22px;
 	font-weight: 600;
 	color: var(--theme-text-secondary, #aaa);
-	background: transparent;
 	border: 2px solid transparent;
 	outline: none;
 	cursor: pointer;
 	transition: background 0.2s, color 0.2s, border-color 0.2s;
 
 	&:focus {
-		border-color: rgba(var(--theme-accent-rgb, 0, 164, 220), 0.5);
+		border-color: rgba(var(--theme-accent-rgb, 0, 164, 220), 0.9);
 	}
 }
 
 .tabActive {
 	color: var(--theme-text, #fff);
-	background: rgba(var(--theme-accent-rgb, 0, 164, 220), 0.2);
+	background: rgba(var(--theme-accent-rgb, 0, 164, 220), 0.4);
 }
 
 .filmography {

@@ -465,3 +465,70 @@ export const buildThemeCssVars = (theme) => ({
 	'--theme-surface-variant-rgb': toRgbTriplet(theme.colors.surfaceVariant),
 	'--theme-scrim-rgb': toRgbTriplet(theme.colors.scrim)
 });
+
+const toHex6 = (channels) => `#${channels.map((value) => `0${Math.round(value).toString(16)}`.slice(-2)).join('')}`;
+
+// Moves a color toward `target` by `amount`, both given as rgb channel triples.
+const mixToward = (channels, target, amount) =>
+	channels.map((value, i) => value + ((target[i] - value) * amount));
+
+const MIX_STEP = 0.08;
+const MIX_STEPS = 20;
+
+/**
+ * An accent that can be seen against the surfaces it sits on. A picked color is the person's own
+ * choice, so it is left exactly as picked while it reads, and only when it would vanish, black
+ * on a near black screen or white on a white one, is it moved toward light or dark, just far
+ * enough to reach `minContrast`. The direction follows the surfaces, lighter over dark ones.
+ *
+ * @param {string} hex - the picked color
+ * @param {string[]} backgrounds - the colors it will be drawn over
+ * @param {number} [minContrast] - the least ratio to reach, three being enough for a large mark
+ * @returns {string} the color to draw, as #rrggbb
+ */
+export const ensureVisible = (hex, backgrounds, minContrast = MIN_BUTTON_CONTRAST) => {
+	const surfaces = (backgrounds || []).filter(Boolean);
+	if (surfaces.length === 0) return hex;
+	const worst = (color) => Math.min(...surfaces.map((surface) => contrastRatio(color, surface)));
+	if (worst(hex) >= minContrast) return hex;
+
+	const overDark = surfaces.every((surface) => inkOn(surface) === '255, 255, 255');
+	const target = overDark ? [255, 255, 255] : [0, 0, 0];
+	const start = toRgbTriplet(hex).split(', ').map(Number);
+	let current = toHex6(start);
+	// Capped at 1: MIX_STEP * MIX_STEPS is 1.6, and past 1 this extrapolates beyond the
+	// target instead of stopping there, which can push a channel outside 0-255 and hand
+	// toHex6 a negative number it has no way to render as a hex pair.
+	for (let step = 1; step <= MIX_STEPS && worst(current) < minContrast; step += 1) {
+		current = toHex6(mixToward(start, target, Math.min(1, MIX_STEP * step)));
+	}
+	return current;
+};
+
+/**
+ * The ink for text drawn on a fill: the color the caller would otherwise use where it reads
+ * against that fill, and black or white where it does not.
+ *
+ * @param {string} fill - the color behind the text
+ * @param {string} preferred - the ink to keep when it reads
+ * @returns {string} an rgb() color
+ */
+export const readableInk = (fill, preferred) => (
+	preferred && contrastRatio(fill, preferred) >= MIN_BUTTON_CONTRAST
+		? toCssColor(preferred)
+		: `rgba(${inkOn(fill)}, 0.92)`
+);
+
+/**
+ * A color laid over another at some opacity, as it ends up looking.
+ *
+ * @param {string} hex - the color on top
+ * @param {string} backgroundHex - the color under it
+ * @param {number} alpha - how opaque the top color is, 0 to 1
+ * @returns {string} the blend, as #rrggbb
+ */
+export const blendOver = (hex, backgroundHex, alpha) => {
+	const top = toRgbTriplet(hex).split(', ').map(Number);
+	const under = toRgbTriplet(backgroundHex).split(', ').map(Number);
+	return toHex6(mixToward(under, top, Math.min(1, Math.max(0, alpha))));
+};

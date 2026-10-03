@@ -49,13 +49,27 @@ export const personDateLines = (birthValue, deathValue) => {
 // that series, so only the rest count as a guest appearance.
 export const splitFilmography = (items) => {
 	const all = Array.isArray(items) ? items : [];
-	const movies = all.filter((item) => item.Type === 'Movie');
-	const series = all.filter((item) => item.Type === 'Series');
-	const musicVideos = all.filter((item) => item.Type === 'MusicVideo');
+	// The same title held twice, in two libraries or as two copies, is one card. The first is kept,
+	// which is the most recent since the list comes newest first.
+	const distinct = (list, keyOf) => {
+		const seen = new Set();
+		return list.filter((item) => {
+			const key = keyOf(item).toLowerCase();
+			if (seen.has(key)) return false;
+			seen.add(key);
+			return true;
+		});
+	};
+	const titled = (item) => `${item.Type}|${item.Name || item.Id}|${item.ProductionYear || ''}`;
+	const movies = distinct(all.filter((item) => item.Type === 'Movie'), titled);
+	const series = distinct(all.filter((item) => item.Type === 'Series'), titled);
+	const musicVideos = distinct(all.filter((item) => item.Type === 'MusicVideo'), titled);
 	const seriesIds = new Set(series.map((item) => item.Id));
-	const guestAppearances = all.filter((item) => (
-		item.Type === 'Episode' && (!item.SeriesId || !seriesIds.has(item.SeriesId))
-	));
+	// A talk show can hold dozens of episodes with the same person, so a show gets one card.
+	const guestAppearances = distinct(
+		all.filter((item) => item.Type === 'Episode' && (!item.SeriesId || !seriesIds.has(item.SeriesId))),
+		(item) => (item.SeriesName || item.SeriesId ? `show|${item.SeriesName || item.SeriesId}` : `episode|${item.Id}`)
+	);
 
 	return {movies, series, guestAppearances, musicVideos};
 };
@@ -84,9 +98,11 @@ export const groupCredits = (credits, isCrew = false) => {
 	const byId = new Map();
 
 	for (const credit of list) {
-		const existing = byId.get(credit.id);
+		// A movie and a show can share an id, so the kind is part of the key.
+		const key = `${credit.mediaType || credit.media_type || ''}:${credit.id}`;
+		const existing = byId.get(key);
 		if (existing) existing.push(credit);
-		else byId.set(credit.id, [credit]);
+		else byId.set(key, [credit]);
 	}
 
 	const grouped = [];
@@ -110,6 +126,30 @@ export const groupCredits = (credits, isCrew = false) => {
 	}
 
 	return grouped;
+};
+
+// TMDB's genre ids for talk shows and news, which a person turns up on as themselves and which
+// say little about what they are known for.
+const SELF_GENRES = [10767, 10763];
+
+// The backdrop of the title this person is best known for: the most voted-on of their acting
+// credits, leaving out appearances as themselves. Null when no credit has a backdrop.
+export const popularBackdropPath = (cast) => {
+	let best = null;
+	let bestVotes = -1;
+	(Array.isArray(cast) ? cast : []).forEach((credit) => {
+		const path = credit.backdropPath || credit.backdrop_path;
+		if (!path) return;
+		const genres = credit.genreIds || credit.genre_ids || [];
+		if (genres.some((id) => SELF_GENRES.includes(id))) return;
+		if (/^(self|himself|herself|themselves)\b/i.test(credit.character || '')) return;
+		const votes = credit.voteCount || credit.vote_count || 0;
+		if (votes > bestVotes) {
+			best = path;
+			bestVotes = votes;
+		}
+	});
+	return best;
 };
 
 export const sortCredits = (credits, sortOption = 'alphabetical') => {

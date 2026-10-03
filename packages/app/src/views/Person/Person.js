@@ -5,6 +5,7 @@ import {withoutBlockedItems} from '../../services/parentalControls';
 import MediaRow from '../../components/MediaRow';
 import LoadingSpinner from '../../components/LoadingSpinner';
 import PersonDetailShell from '../../components/PersonDetailShell';
+import * as seerrApi from '../../services/seerrApi';
 import usePersonSeerrCredits from '../../hooks/usePersonSeerrCredits';
 import {useUserDataList} from '../../hooks/useUserDataSync';
 import {getImageUrl} from '../../utils/helpers';
@@ -44,7 +45,7 @@ const Person = ({personId, onSelectItem, onSelectSeerrItem, onSelectSeerrPerson}
 	}, [api, personId]);
 
 	const tmdbId = person?.ProviderIds?.Tmdb;
-	const {appearances, crewCredits, seerrEnabled} = usePersonSeerrCredits(tmdbId);
+	const {appearances, crewCredits, backdropPath, creditsSettled, seerrEnabled} = usePersonSeerrCredits(tmdbId);
 
 	const handleSelectCredit = useCallback((item) => {
 		if (item?._seerrRaw) onSelectSeerrItem?.(item._seerrRaw);
@@ -69,20 +70,21 @@ const Person = ({personId, onSelectItem, onSelectSeerrItem, onSelectSeerrPerson}
 	const syncedItems = useUserDataList(items);
 	const {movies, series, guestAppearances, musicVideos} = useMemo(() => splitFilmography(syncedItems), [syncedItems]);
 
-	const backdropCandidates = useMemo(() => {
-		const urls = [];
-		for (const f of [...movies, ...series]) {
-			if (f.ImageTags?.Backdrop) {
-				urls.push(getImageUrl(serverUrl, f.Id, 'Backdrop', {maxWidth: 1920}));
-			}
-		}
-		return urls;
-	}, [movies, series, serverUrl]);
-
+	// The backdrop of what they are best known for, which the credits know and the library does
+	// not. Without Seerr it is the best rated movie or series held here. Nothing is drawn until
+	// the credits have answered, so the picture never changes once it is up.
 	const randomBackdrop = useMemo(() => {
-		if (backdropCandidates.length === 0) return null;
-		return backdropCandidates[Math.floor(Math.random() * backdropCandidates.length)];
-	}, [backdropCandidates]);
+		if (!creditsSettled) return null;
+		// This is the one backdrop on screen, not a grid of many, so it can afford TMDB's
+		// 'original' size - 'w1280' is under 1080p and the CSS covers the full screen with
+		// it, so anything smaller than the screen gets visibly upscaled and goes soft.
+		if (backdropPath) return seerrApi.getImageUrl(backdropPath, 'original');
+		const rated = [...movies, ...series]
+			.filter((f) => f.BackdropImageTags?.length > 0)
+			.map((f, index) => ({f, index}))
+			.sort((a, b) => ((b.f.CommunityRating || 0) - (a.f.CommunityRating || 0)) || (a.index - b.index));
+		return rated.length ? getImageUrl(serverUrl, rated[0].f.Id, 'Backdrop', {maxWidth: 1920, quality: 90}) : null;
+	}, [creditsSettled, backdropPath, movies, series, serverUrl]);
 
 	const tabs = useMemo(() => {
 		const list = [];

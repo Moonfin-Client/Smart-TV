@@ -12,6 +12,15 @@
 	pointer-events: all;
 }
 
+// The same prompt drawn inside the settings preview, which places it itself.
+.overlayPreview {
+	position: absolute;
+	right: 35px;
+	bottom: 174px;
+	z-index: 1;
+	pointer-events: none;
+}
+
 .button {
 	display: flex;
 	flex-direction: row;
@@ -36,6 +45,11 @@
 		border-color: @accent;
 		outline: none;
 	}
+}
+
+// The real prompt always holds focus, so the preview wears the focused border too.
+.buttonPreview {
+	border-color: @accent;
 }
 
 .icon {
@@ -107,4 +121,84 @@
 	width: 22px;
 	height: 22px;
 	color: @accent;
+}
+
+// --- Other layouts ---
+// Each one is the base button with its shape changed, so the chained selector keeps it ahead of
+// the lower tiers' fill above, which has the same weight and comes first.
+
+// The countdown drawn as a line along the bottom edge, for the layouts that have no ring.
+.bar {
+	position: absolute;
+	left: 0;
+	right: 0;
+	bottom: 0;
+	height: 6px;
+	background: rgba(var(--theme-on-surface-rgb, 255, 255, 255), 0.16);
+}
+
+.barFill {
+	display: block;
+	height: 100%;
+	background: @accent;
+	transition: width 0.3s linear;
+}
+
+// A solid light box with dark text, the one layout that reads as a plain button on any picture.
+.button.layoutRectangle {
+	position: relative;
+	overflow: hidden;
+	border-radius: 10px;
+	padding: 20px 30px 24px 26px;
+	color: #14161c;
+	background: rgba(244, 244, 246, 0.96);
+	box-shadow: 0 6px 24px rgba(0, 0, 0, 0.5);
+	-webkit-backdrop-filter: none;
+	backdrop-filter: none;
+}
+
+.layoutRectangle .timer {
+	color: rgba(20, 22, 28, 0.6);
+}
+
+.layoutRectangle .bar {
+	background: rgba(20, 22, 28, 0.18);
+}
+
+.layoutRectangle .icon {
+	width: 26px;
+	height: 26px;
+}
+
+// The countdown is a fill that drains across the button behind the label.
+.button.layoutSweep {
+	position: relative;
+	overflow: hidden;
+	justify-content: center;
+	min-width: 280px;
+	border-radius: 10px;
+	padding: 20px 38px;
+	background: rgba(var(--theme-surface-rgb, 30, 30, 40), 0.9);
+	-webkit-backdrop-filter: none;
+	backdrop-filter: none;
+}
+
+.sweep {
+	position: absolute;
+	top: 0;
+	bottom: 0;
+	left: 0;
+	background: rgba(var(--theme-accent-rgb, 0, 164, 220), 0.38);
+	transition: width 0.3s linear;
+}
+
+.layoutSweep > .label,
+.layoutSweep > .timer {
+	position: relative;
+	z-index: 1;
+	margin-left: 0;
+}
+
+.layoutSweep > .timer {
+	margin-left: 14px;
 }

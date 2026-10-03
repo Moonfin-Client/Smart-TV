@@ -8,6 +8,7 @@ import {formatClockTime} from '../../utils/clock';
 import {KEYS, isBackKey} from '../../utils/keys';
 import {fittingItems} from '../../utils/measureText';
 import {rem, rootScale} from '../../utils/rootScale';
+import useSurfaceAccent from '../../hooks/useSurfaceAccent';
 import {
 	CAROUSEL_CARD_HEIGHT, DESCRIPTION_MS_PER_PIXEL, TV_CANVAS_SCALE, carouselLayoutFor, carouselNeighborhood, categoryTags,
 	channelComparator, channelIndexFor, episodeTitleOf, filterLabel, genreFor, guideLeftEdge, hasSeriesTimer,
@@ -54,7 +55,7 @@ const OVERVIEW_LINE_HEIGHT = 26 * 1.25;
 
 const SURFACE = [26, 26, 26];
 const SURFACE_VARIANT = [37, 37, 37];
-const ACCENT = '#00a4dc';
+const DEFAULT_ACCENT = '#00a4dc';
 
 const parseRgb = (rgb) => rgb.split(',').map((part) => parseInt(part, 10));
 
@@ -99,6 +100,7 @@ const buildEntry = (channel, store, now, serverUrl, clockDisplay) => {
 // One channel in the strip. The program block mirrors the guide cell, a title over a muted
 // metadata line, with room for a second title line since the card is much taller than a row.
 const CarouselCard = memo(({entry, centered, left}) => {
+	const accent = useSurfaceAccent('liveTv', DEFAULT_ACCENT);
 	const [logoFailed, setLogoFailed] = useState(false);
 	const handleLogoError = useCallback(() => setLogoFailed(true), []);
 
@@ -118,7 +120,7 @@ const CarouselCard = memo(({entry, centered, left}) => {
 				backgroundColor: cardBackground(entry.genre, centered)
 			}}
 		>
-			<div className={css.genreBar} style={{backgroundColor: entry.genre ? entry.genre.color : ACCENT}} />
+			<div className={css.genreBar} style={{backgroundColor: entry.genre ? entry.genre.color : accent}} />
 			<div className={css.cardContent}>
 				<div className={css.cardHeader}>
 					{entry.isFavorite && <GuideIcon className={css.headerIcon} path={GUIDE_ICONS.favorite} />}

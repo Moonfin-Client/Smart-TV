@@ -2,7 +2,7 @@ import {useState, useEffect} from 'react';
 
 import {useSeerr} from '../context/SeerrContext';
 import * as seerrApi from '../services/seerrApi';
-import {prepareCredits} from '../utils/personCredits';
+import {prepareCredits, popularBackdropPath} from '../utils/personCredits';
 import {normalizeMediaItem} from '../utils/seerrHomeRows';
 
 const EMPTY = [];
@@ -24,14 +24,21 @@ const usePersonSeerrCredits = (tmdbId) => {
 			.then((data) => {
 				if (!cancelled) setCredits(data);
 			})
-			.catch(() => {});
+			// Settled either way, so a screen waiting on these can stop waiting.
+			.catch(() => {
+				if (!cancelled) setCredits({cast: [], crew: []});
+			});
 
 		return () => { cancelled = true; };
 	}, [tmdbId, isEnabled]);
 
 	return {
-		appearances: credits ? prepareCredits(credits.cast, {isCrew: false}).map(normalizeMediaItem) : EMPTY,
-		crewCredits: credits ? prepareCredits(credits.crew, {isCrew: true}).map(normalizeMediaItem) : EMPTY,
+		appearances: credits ? prepareCredits(credits.cast, {isCrew: false, group: true}).map(normalizeMediaItem) : EMPTY,
+		crewCredits: credits ? prepareCredits(credits.crew, {isCrew: true, group: true}).map(normalizeMediaItem) : EMPTY,
+		backdropPath: credits ? popularBackdropPath(credits.cast) : null,
+		// False while credits are still on their way, so a backdrop chosen from them is not
+		// replaced a moment after another was drawn.
+		creditsSettled: !tmdbId || !isEnabled || credits !== null,
 		seerrEnabled: isEnabled
 	};
 };

@@ -14,6 +14,7 @@ import {achievementIconPath} from './achievementIcons';
 import ConfirmSpendDialog from './ConfirmSpendDialog';
 import DetailsTabBar from '../../../components/DetailsTabBar/DetailsTabBar';
 import SettingsView from '../SettingsView';
+import useSurfaceAccent from '../../../hooks/useSurfaceAccent';
 import {renderSettingsIcon} from '../settingsIcons';
 import {SectionTitle, NavRow} from '../settingsRows';
 import {SpottableDiv} from '../settingsSpottables';
@@ -21,7 +22,7 @@ import {SpottableDiv} from '../settingsSpottables';
 import settingsCss from '../Settings.module.less';
 import css from './Achievements.module.less';
 
-const ACCENT = '#00a4dc';
+const DEFAULT_ACCENT = '#00a4dc';
 
 // The plugin has no category name for the overall board, but a tab still needs an id of its own.
 const OVERALL_BOARD = 'score';
@@ -29,7 +30,7 @@ const BOARDS = [OVERALL_BOARD, 'movies', 'episodes', 'hours', 'streak', 'series'
 const PERIODS = ['week', 'month', 'year'];
 
 const tint = (hex, alpha = 0.18) => {
-	const value = parseHexColor(hex) || ACCENT;
+	const value = parseHexColor(hex) || DEFAULT_ACCENT;
 	const n = parseInt(value.slice(1), 16);
 	return `rgba(${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255}, ${alpha})`;
 };
@@ -227,7 +228,8 @@ const CategorySection = ({group, open, onToggle, onOpenBadge}) => {
 };
 
 const RankHeader = ({rank, summary, worn}) => {
-	const color = (rank && parseHexColor(rank.tier.color)) || ACCENT;
+	const accent = useSurfaceAccent('achievements', DEFAULT_ACCENT);
+	const color = (rank && parseHexColor(rank.tier.color)) || accent;
 	const avatar = wornAvatarIcon(worn);
 	const title = wornTitle(worn);
 
@@ -519,6 +521,7 @@ const heldLabel = (count) => {
 };
 
 const PowerUpRow = ({slot, busy, onUse}) => {
+	const accent = useSurfaceAccent('achievements', DEFAULT_ACCENT);
 	const handleClick = useCallback(() => onUse(slot), [onUse, slot]);
 	const body = powerUpBody(slot.type);
 	const held = heldLabel(slot.count);
@@ -531,11 +534,11 @@ const PowerUpRow = ({slot, busy, onUse}) => {
 			spotlightId={`achievement-powerup-${slot.type}`}
 			onClick={offered ? handleClick : null}
 		>
-			<TileIcon icon={slot.icon} color={ACCENT} />
+			<TileIcon icon={slot.icon} color={accent} />
 			<div className={settingsCss.listItemBody}>
 				<div className={settingsCss.listItemHeading}>{powerUpName(slot.type)}</div>
 				{body && <div className={settingsCss.listItemCaption}>{body}</div>}
-				<div className={css.progressText} style={slot.active ? {color: ACCENT} : null}>
+				<div className={css.progressText} style={slot.active ? {color: accent} : null}>
 					{slot.active ? `${held} · ${$L('Running now')}` : held}
 				</div>
 			</div>
@@ -544,6 +547,7 @@ const PowerUpRow = ({slot, busy, onUse}) => {
 };
 
 const ShopRow = ({item, affordable, onBuy}) => {
+	const accent = useSurfaceAccent('achievements', DEFAULT_ACCENT);
 	const handleClick = useCallback(() => onBuy(item), [onBuy, item]);
 	const name = powerUpName(item.type);
 	const body = powerUpBody(item.type);
@@ -553,7 +557,7 @@ const ShopRow = ({item, affordable, onBuy}) => {
 			spotlightId={`achievement-shop-${item.id}`}
 			onClick={affordable ? handleClick : null}
 		>
-			<TileIcon icon="storefront" color={ACCENT} />
+			<TileIcon icon="storefront" color={accent} />
 			<div className={settingsCss.listItemBody}>
 				<div className={settingsCss.listItemHeading}>
 					{item.bundleSize > 1
@@ -562,7 +566,7 @@ const ShopRow = ({item, affordable, onBuy}) => {
 				</div>
 				{body && <div className={settingsCss.listItemCaption}>{body}</div>}
 			</div>
-			<div className={css.price} style={affordable ? {color: ACCENT} : null}>
+			<div className={css.price} style={affordable ? {color: accent} : null}>
 				{$L('{score} points').replace('{score}', String(item.priceScore))}
 			</div>
 		</AchievementRow>
@@ -661,6 +665,7 @@ const COSMETIC_KINDS = [COSMETIC_AVATAR, COSMETIC_RANK_TITLE];
 // One avatar or title, and whichever of wearing or buying it allows. Nothing to do with one that
 // has to be earned and has not been, or one the bank is short of.
 const CosmeticRow = ({item, worn, busy, onWear, onBuy}) => {
+	const accent = useSurfaceAccent('achievements', DEFAULT_ACCENT);
 	const wearing = equippedCosmetic(worn, item.kind) === item.id;
 	const held = ownsCosmetic(worn, item);
 	const affordable = item.priceScore <= worn.bank;
@@ -678,11 +683,11 @@ const CosmeticRow = ({item, worn, busy, onWear, onBuy}) => {
 	// cannot cover or the score an earned one still needs.
 	return (
 		<AchievementRow spotlightId={`achievement-cosmetic-${item.id}`} onClick={press}>
-			<TileIcon icon={item.icon} color={ACCENT} />
+			<TileIcon icon={item.icon} color={accent} />
 			<div className={settingsCss.listItemBody}>
 				<div className={settingsCss.listItemHeading}>{item.name}</div>
 				{wearing && (
-					<div className={css.progressText} style={{color: ACCENT}}>{$L('Equipped')}</div>
+					<div className={css.progressText} style={{color: accent}}>{$L('Equipped')}</div>
 				)}
 				{!wearing && held && <div className={css.progressText}>{$L('Owned')}</div>}
 				{!held && item.isEarned && (
@@ -691,14 +696,14 @@ const CosmeticRow = ({item, worn, busy, onWear, onBuy}) => {
 							{$L('Earned at {score} lifetime score').replace('{score}', String(item.milestoneScore))}
 						</div>
 						<div className={css.rowBar}>
-							<Bar value={Math.min(1, worn.lifetimeScore / item.milestoneScore)} color={ACCENT} slim />
+							<Bar value={Math.min(1, worn.lifetimeScore / item.milestoneScore)} color={accent} slim />
 						</div>
 					</>
 				)}
 			</div>
 			{wearing && <Icon name="check_circle" className={css.wornCheck} />}
 			{!wearing && !held && !item.isEarned && (
-				<div className={css.price} style={affordable ? {color: ACCENT} : null}>
+				<div className={css.price} style={affordable ? {color: accent} : null}>
 					{$L('{score} points').replace('{score}', String(item.priceScore))}
 				</div>
 			)}
@@ -1054,18 +1059,21 @@ export const AchievementsShopView = () => {
 	);
 };
 
-const QuestRow = ({quest}) => (
-	<AchievementRow spotlightId={`achievement-quest-${quest.id}`}>
-		<TileIcon icon={quest.completed ? 'check_circle' : quest.icon} color={ACCENT} />
-		<div className={settingsCss.listItemBody}>
-			<div className={settingsCss.listItemHeading}>{quest.title}</div>
-			{quest.description && <div className={settingsCss.listItemCaption}>{quest.description}</div>}
-			<div className={css.rowBar}><Bar value={quest.progress} color={ACCENT} slim /></div>
-			<div className={css.progressText}>{`${quest.current} / ${quest.target}`}</div>
-		</div>
-		<div className={css.reward}>{$L('+{points}').replace('{points}', String(quest.reward))}</div>
-	</AchievementRow>
-);
+const QuestRow = ({quest}) => {
+	const accent = useSurfaceAccent('achievements', DEFAULT_ACCENT);
+	return (
+		<AchievementRow spotlightId={`achievement-quest-${quest.id}`}>
+			<TileIcon icon={quest.completed ? 'check_circle' : quest.icon} color={accent} />
+			<div className={settingsCss.listItemBody}>
+				<div className={settingsCss.listItemHeading}>{quest.title}</div>
+				{quest.description && <div className={settingsCss.listItemCaption}>{quest.description}</div>}
+				<div className={css.rowBar}><Bar value={quest.progress} color={accent} slim /></div>
+				<div className={css.progressText}>{`${quest.current} / ${quest.target}`}</div>
+			</div>
+			<div className={css.reward}>{$L('+{points}').replace('{points}', String(quest.reward))}</div>
+		</AchievementRow>
+	);
+};
 
 const RerollRow = ({weekly, rerollsLeft = 0, busy, onReroll}) => {
 	const handleClick = useCallback(() => onReroll(weekly), [onReroll, weekly]);
@@ -1300,18 +1308,21 @@ export const AchievementsRecapView = ({initial}) => {
 	);
 };
 
-export const AchievementsLibraryView = ({completion}) => (
-	<SettingsView spotlightId="achievements-library-view">
-		{Object.keys(completion).sort().map((name) => (
-			<AchievementRow key={name} spotlightId={`achievement-library-${name}`}>
-				<div className={settingsCss.listItemBody}>
-					<div className={settingsCss.listItemHeading}>{name}</div>
-					<div className={css.rowBar}>
-						<Bar value={Math.min(1, Math.max(0, completion[name] / 100))} color={ACCENT} slim />
+export const AchievementsLibraryView = ({completion}) => {
+	const accent = useSurfaceAccent('achievements', DEFAULT_ACCENT);
+	return (
+		<SettingsView spotlightId="achievements-library-view">
+			{Object.keys(completion).sort().map((name) => (
+				<AchievementRow key={name} spotlightId={`achievement-library-${name}`}>
+					<div className={settingsCss.listItemBody}>
+						<div className={settingsCss.listItemHeading}>{name}</div>
+						<div className={css.rowBar}>
+							<Bar value={Math.min(1, Math.max(0, completion[name] / 100))} color={accent} slim />
+						</div>
 					</div>
-				</div>
-				<div className={css.boardValue}>{`${completion[name]}%`}</div>
-			</AchievementRow>
-		))}
-	</SettingsView>
-);
+					<div className={css.boardValue}>{`${completion[name]}%`}</div>
+				</AchievementRow>
+			))}
+		</SettingsView>
+	);
+};

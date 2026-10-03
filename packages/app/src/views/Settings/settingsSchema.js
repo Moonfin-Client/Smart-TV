@@ -48,6 +48,8 @@ import {
 	getScreensaverMovementOptions,
 	getScreensaverPositionOptions,
 	getScreensaverSizeOptions,
+	getNextUpLayoutOptions,
+	getSkipOverlayLayoutOptions,
 	getScreensaverTimeoutOptions,
 	getSeasonalThemeOptions,
 	getSeekStepOptions,
@@ -71,6 +73,9 @@ import {
 	getZoomModeOptions,
 	getRecentlyReleasedSeriesTypeOptions
 } from './settingsOptions';
+import {toCssColor} from '../../theme/themeSpec';
+import {ACCENT_SURFACES, defaultAccentSwatch} from '../../theme/accentSurfaces';
+import {skipAccentDefault, skipDefaultFill, skipDefaultText} from '../Player/skipOverlayLook';
 
 // This module describes every settings screen as data. Settings.js renders it and the
 // search index reads it, so a row only ever has to be written once. It deliberately
@@ -139,6 +144,25 @@ const pluginFlag = (flag, yes, no) => {
 	if (flag === true) return yes;
 	if (flag === false) return no;
 	return $L('Unknown');
+};
+
+// What a pick left empty falls back to, drawn as the swatch of the Default option. A context
+// with no theme in it, such as a unit test's, simply gets no swatch.
+const themeFocusOptions = (ctx) => {
+	const hex = ctx.activeTheme?.borders?.focusBorder?.color;
+	return getAccentColorOptions(hex ? toCssColor(hex) : undefined, $L('Default'));
+};
+
+const accentRow = (surfaceId, label, icon) => {
+	const surface = ACCENT_SURFACES.find((candidate) => candidate.id === surfaceId);
+	return {
+		kind: KIND.OPTION,
+		key: surface.key,
+		label,
+		options: (ctx) => getAccentColorOptions(defaultAccentSwatch(surface, ctx.activeTheme), $L('Default')),
+		fallback: () => $L('Default'),
+		icon
+	};
 };
 
 export const SETTINGS_SCHEMA = [
@@ -236,7 +260,6 @@ export const SETTINGS_SCHEMA = [
 						desc: () => $L('Browse and save community themes'),
 						action: (ctx) => ctx.actions.openThemeStore()
 					},
-					{kind: KIND.OPTION, key: 'focusBorderColor', label: () => $L('Focus Border Color'), options: getAccentColorOptions, fallback: () => $L('Theme Default'), icon: 'border_color'},
 					{kind: KIND.SECTION, id: 'keyboard', label: () => $L('Keyboard')},
 					{kind: KIND.TOGGLE, key: 'preferSystemImeKeyboard', label: () => $L('Prefer system keyboard'), desc: () => $L('Use your device input method by default for text entry'), icon: 'keyboard'},
 					{kind: KIND.SECTION, id: 'clock', label: () => $L('Clock')},
@@ -250,6 +273,36 @@ export const SETTINGS_SCHEMA = [
 					{kind: KIND.OPTION, key: 'watchedIndicatorBehavior', label: () => $L('Watched Indicators'), options: getWatchedIndicatorOptions, fallback: () => $L('Always'), icon: 'check_circle'},
 					{kind: KIND.OPTION, key: 'oledMode', label: () => $L('OLED Mode'), desc: () => $L('Darken surfaces toward true black and boost artwork colors'), options: getOledModeOptions, fallback: () => $L('Off'), icon: 'oled'},
 					{kind: KIND.OPTION, key: 'performanceMode', label: () => $L('Performance Mode'), options: getPerformanceModeOptions, fallback: () => $L('Auto'), icon: 'gear'}
+				]
+			},
+			{
+				id: 'accentColors',
+				icon: 'colorpicker',
+				section: () => $L('Appearance'),
+				label: () => $L('Accent Colors'),
+				description: () => $L('Pick a color for each part of the app'),
+				keywords: () => ['color', 'colour', 'accent', 'highlight', 'focus', 'outline', 'border', 'selection'],
+				rows: [
+					{kind: KIND.SECTION, id: 'accentSurfaces', label: () => $L('Surface Accents')},
+					{
+						kind: KIND.NAV,
+						id: 'accentAll',
+						label: () => $L('Apply to All Surfaces'),
+						desc: () => $L('Set every color below in one step'),
+						icon: 'palette',
+						action: (ctx) => ctx.actions.openAccentAll()
+					},
+					accentRow('navigation', () => $L('Navigation'), 'view_sidebar'),
+					{kind: KIND.OPTION, key: 'focusBorderColor', label: () => $L('Home & Browse Selection'), options: themeFocusOptions, fallback: () => $L('Default'), icon: 'border_color'},
+					accentRow('home', () => $L('Home & Browse Highlights'), 'home'),
+					accentRow('settings', () => $L('Settings & Controls'), 'settings'),
+					accentRow('settingsFocus', () => $L('Settings Focus'), 'style'),
+					accentRow('achievements', () => $L('Achievement Badges'), 'military_tech'),
+					accentRow('details', () => $L('Details Screen'), 'article'),
+					accentRow('player', () => $L('Player & Playback'), 'play_circle'),
+					accentRow('skip', () => $L('Skip Intro/Recap/Credits'), 'skip'),
+					accentRow('liveTv', () => $L('Live TV & Recordings'), 'live_tv'),
+					accentRow('other', () => $L('Everything Else'), 'category')
 				]
 			},
 			{
@@ -372,6 +425,47 @@ export const SETTINGS_SCHEMA = [
 					},
 					{kind: KIND.OPTION, key: 'screensaverMaxRating', label: () => $L('Max Age Rating'), options: getAgeRatingOptions, fallback: 'PG-13', icon: 'lockcircle', when: whenScreensaverLibrary},
 					{kind: KIND.TOGGLE, key: 'screensaverAgeFilter', label: () => $L('Require Age Rating'), desc: () => $L('Only show rated content'), icon: 'verified_user', when: whenScreensaverLibrary}
+				]
+			},
+			{
+				id: 'skipSegments',
+				icon: 'skip',
+				section: () => $L('Appearance'),
+				label: () => $L('Skip Intro/Recap/Credits'),
+				description: () => $L('Layout, position, size and colors of the skip button'),
+				keywords: () => ['skip', 'intro', 'recap', 'credits', 'outro', 'button', 'prompt', 'overlay'],
+				rows: [
+					{kind: KIND.SECTION, id: 'skipSegmentsPreview', label: () => $L('Preview')},
+					{kind: KIND.CUSTOM, id: 'skipSegmentPreview', render: 'skipSegmentPreview'},
+					{kind: KIND.OPTION, key: 'skipOverlayLayout', label: () => $L('Layout'), options: getSkipOverlayLayoutOptions, fallback: () => $L('Capsule'), icon: 'view_carousel'},
+					{kind: KIND.OPTION, key: 'skipOverlayPosition', label: () => $L('Position'), options: getScreensaverPositionOptions, fallback: () => $L('Bottom-Right'), icon: 'grid_view'},
+					{kind: KIND.OPTION, key: 'skipOverlaySize', label: () => $L('Size'), options: getScreensaverSizeOptions, fallback: () => $L('Medium'), icon: 'photo_size_select_large'},
+					{
+						kind: KIND.OPTION,
+						key: 'skipOverlayBackground',
+						label: () => $L('Background Color'),
+						options: (ctx) => getAccentColorOptions(skipDefaultFill(ctx.settings.skipOverlayLayout), $L('Default')),
+						fallback: () => $L('Default'),
+						icon: 'format_color_fill'
+					},
+					{kind: KIND.SLIDER, key: 'skipOverlayOpacity', label: () => $L('Background Opacity'), min: 20, max: 100, step: 2, format: percent, icon: 'opacity'},
+					{
+						kind: KIND.OPTION,
+						key: 'skipOverlayAccent',
+						label: () => $L('Accent Color'),
+						options: (ctx) => getAccentColorOptions(skipAccentDefault(ctx.settings), $L('Default')),
+						fallback: () => $L('Default'),
+						icon: 'colorpicker'
+					},
+					{
+						kind: KIND.OPTION,
+						key: 'skipOverlayText',
+						label: () => $L('Text Color'),
+						options: (ctx) => getAccentColorOptions(skipDefaultText(ctx.settings.skipOverlayLayout), $L('Default')),
+						fallback: () => $L('Default'),
+						icon: 'format_color_text'
+					},
+					{kind: KIND.OPTION, key: 'nextUpLayout', label: () => $L('Next Episode Layout'), options: getNextUpLayoutOptions, fallback: () => $L('Card'), icon: 'view_carousel', when: (ctx) => ctx.settings.nextUpBehavior !== 'disabled'}
 				]
 			},
 			{

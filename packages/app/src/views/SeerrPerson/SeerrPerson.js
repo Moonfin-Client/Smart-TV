@@ -7,7 +7,7 @@ import {useAuth} from '../../context/AuthContext';
 import LoadingSpinner from '../../components/LoadingSpinner';
 import MediaRow from '../../components/MediaRow';
 import PersonDetailShell from '../../components/PersonDetailShell';
-import {personDateLines, prepareCredits} from '../../utils/personCredits';
+import {personDateLines, prepareCredits, popularBackdropPath} from '../../utils/personCredits';
 import {normalizeMediaItem} from '../../utils/seerrHomeRows';
 
 import css from './SeerrPerson.module.less';
@@ -56,26 +56,32 @@ const SeerrPerson = ({personId, personName, onClose, onSelectItem, onBack}) => {
 	// Same idea as the native Person screen: pull a backdrop from whatever this person has
 	// been in, rather than leaving the screen flat. TMDB credits carry their own backdrop
 	// per title, so there is no need to go fetch one separately.
+	//
+	// 'original' rather than the app's usual 'w1280': this is the one backdrop on screen,
+	// not a grid of many, so it can afford it - 'w1280' is under 1080p and the CSS covers
+	// the full screen with it, so anything smaller than the screen gets visibly upscaled.
 	const backdropCandidates = useMemo(() => {
 		const urls = [];
 		for (const item of [...(rawCast || []), ...(rawCrew || [])]) {
 			const backdropPath = item.backdropPath || item.backdrop_path;
-			if (backdropPath) urls.push(seerrApi.getImageUrl(backdropPath, 'w1280'));
+			if (backdropPath) urls.push(seerrApi.getImageUrl(backdropPath, 'original'));
 		}
 		return urls;
 	}, [rawCast, rawCrew]);
 
+	// The title they are best known for, or anything with a backdrop when nothing qualifies.
 	const randomBackdrop = useMemo(() => {
-		if (backdropCandidates.length === 0) return null;
-		return backdropCandidates[Math.floor(Math.random() * backdropCandidates.length)];
-	}, [backdropCandidates]);
+		const popular = popularBackdropPath(rawCast);
+		if (popular) return seerrApi.getImageUrl(popular, 'original');
+		return backdropCandidates[0] || null;
+	}, [rawCast, backdropCandidates]);
 
 	const handleSelectMedia = useCallback((item) => {
 		if (item?._seerrRaw) onSelectItem?.(item._seerrRaw);
 	}, [onSelectItem]);
 
-	const appearances = useMemo(() => prepareCredits(rawCast, {isCrew: false}).map(normalizeMediaItem), [rawCast]);
-	const crewCredits = useMemo(() => prepareCredits(rawCrew, {isCrew: true}).map(normalizeMediaItem), [rawCrew]);
+	const appearances = useMemo(() => prepareCredits(rawCast, {isCrew: false, group: true}).map(normalizeMediaItem), [rawCast]);
+	const crewCredits = useMemo(() => prepareCredits(rawCrew, {isCrew: true, group: true}).map(normalizeMediaItem), [rawCrew]);
 
 	const tabs = useMemo(() => {
 		const list = [];

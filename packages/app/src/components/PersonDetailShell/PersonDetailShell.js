@@ -2,11 +2,14 @@ import {useState, useCallback, useEffect} from 'react';
 import Spotlight from '@enact/spotlight';
 import Spottable from '@enact/spotlight/Spottable';
 import SpotlightContainerDecorator from '@enact/spotlight/SpotlightContainerDecorator';
-import Image from '@enact/sandstone/Image';
 import $L from '@enact/i18n/$L';
 import {KEYS} from '../../utils/keys';
+import {useSettings} from '../../context/SettingsContext';
 
 import css from './PersonDetailShell.module.less';
+
+// Three lines at this size hold about this much, so shorter text has nothing to expand.
+const LONG_OVERVIEW = 240;
 
 const SpottableDiv = Spottable('div');
 const TabsContainer = SpotlightContainerDecorator({enterTo: 'last-focused'}, 'div');
@@ -27,6 +30,7 @@ const PersonDetailShell = ({
 	actions = [],
 	tabs = []
 }) => {
+	const {settings} = useSettings();
 	const [overviewExpanded, setOverviewExpanded] = useState(false);
 	const [activeTab, setActiveTab] = useState(0);
 
@@ -66,10 +70,11 @@ const PersonDetailShell = ({
 			{backdropUrl && (
 				<div className={css.randomBackdrop} style={{backgroundImage: `url(${backdropUrl})`}} />
 			)}
-			<div className={css.content}>
+			{backdropUrl && <div className={css.scrim} />}
+			<div className={`${css.content} ${settings.navbarPosition === 'left' ? css.sidebarOffset : ''}`}>
 				<div className={css.personInfo}>
 					{imageUrl ? (
-						<Image className={css.personImage} src={imageUrl} sizing="fill" />
+						<div className={css.personImage} role="img" aria-label={name} style={{backgroundImage: `url("${imageUrl}")`}} />
 					) : (
 						<div className={css.noImage}>{placeholderInitial}</div>
 					)}
@@ -90,7 +95,9 @@ const PersonDetailShell = ({
 								spotlightId="person-overview"
 							>
 								{overview}
-								<span className={css.overviewToggle}>{overviewExpanded ? $L('Show Less') : $L('Show More')}</span>
+								{overview.length > LONG_OVERVIEW && (
+									<span className={css.overviewToggle}>{overviewExpanded ? $L('Show Less') : $L('Show More')}</span>
+								)}
 							</SpottableDiv>
 						)}
 						{actions.length > 0 && (

@@ -7,6 +7,7 @@ import {
 	splitFilmography,
 	usableCredits,
 	groupCredits,
+	popularBackdropPath,
 	sortCredits,
 	prepareCredits
 } from './personCredits';
@@ -67,6 +68,21 @@ describe('splitFilmography', () => {
 		]);
 
 		expect(guestAppearances.map((i) => i.Id)).toEqual(['e2', 'e3']);
+	});
+
+	test('a show or title held twice is one card', () => {
+		const {movies, guestAppearances} = splitFilmography([
+			item({Id: 'm1', Type: 'Movie', Name: 'Days of Thunder', ProductionYear: 1990}),
+			item({Id: 'm2', Type: 'Movie', Name: 'Days of Thunder', ProductionYear: 1990}),
+			item({Id: 'm3', Type: 'Movie', Name: 'Days of Thunder', ProductionYear: 2028}),
+			item({Id: 'e1', Type: 'Episode', SeriesId: 'a', SeriesName: 'Late Show'}),
+			item({Id: 'e2', Type: 'Episode', SeriesId: 'a', SeriesName: 'Late Show'}),
+			item({Id: 'e3', Type: 'Episode', SeriesId: 'b', SeriesName: 'Late Show'}),
+			item({Id: 'e4', Type: 'Episode', SeriesId: 'c', SeriesName: 'Other'})
+		]);
+
+		expect(movies.map((i) => i.Id)).toEqual(['m1', 'm3']);
+		expect(guestAppearances.map((i) => i.Id)).toEqual(['e1', 'e4']);
 	});
 
 	test('nothing to split is four empty rows', () => {
@@ -136,5 +152,26 @@ describe('credits', () => {
 
 		expect(prepareCredits(list).map((c) => c.character)).toEqual(['One', 'Two']);
 		expect(prepareCredits(list, {group: true}).map((c) => c.character)).toEqual(['One, Two']);
+	});
+});
+
+describe('the backdrop they are best known for', () => {
+	const c = (extra) => ({backdropPath: '/a.jpg', voteCount: 10, ...extra});
+
+	test('goes to the most voted-on acting credit', () => {
+		expect(popularBackdropPath([c({backdropPath: '/low.jpg'}), c({backdropPath: '/top.jpg', voteCount: 9000}), c({backdrop_path: '/mid.jpg', vote_count: 500, backdropPath: undefined})])).toBe('/top.jpg');
+	});
+
+	test('skips talk shows, news and appearances as themselves', () => {
+		expect(popularBackdropPath([
+			c({backdropPath: '/talk.jpg', voteCount: 99999, genre_ids: [10767]}),
+			c({backdropPath: '/self.jpg', voteCount: 88888, character: 'Himself'}),
+			c({backdropPath: '/film.jpg', voteCount: 5})
+		])).toBe('/film.jpg');
+	});
+
+	test('is nothing when no credit has one', () => {
+		expect(popularBackdropPath([{voteCount: 5}])).toBeNull();
+		expect(popularBackdropPath(null)).toBeNull();
 	});
 });

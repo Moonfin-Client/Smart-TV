@@ -5,14 +5,16 @@ import Spinner from '@enact/sandstone/Spinner';
 
 import {fittingItems} from '../../utils/measureText';
 import {rem} from '../../utils/rootScale';
+import useSurfaceAccent from '../../hooks/useSurfaceAccent';
+import {toRgbTriplet} from '../../theme/themeSpec';
 import {GUIDE_ICONS, GuideIcon} from './GuideIcons';
 
 import css from './LiveTV.module.less';
 
 const SpottableDiv = Spottable('div');
 
-// The accent color a program without a genre borrows.
-const ACCENT = {color: '#00a4dc', rgb: '0, 164, 220'};
+// The accent color a program without a genre borrows, until one is picked for Live TV.
+const DEFAULT_ACCENT = '#00a4dc';
 
 // Every horizontal padding a cell's text sits inside: the cell gap, the text inset, and the
 // right hand inset.
@@ -41,7 +43,8 @@ export const ProgramCell = memo(({
 	const handleKeyDown = useCallback((e) => onKeyDownCell(e, cell), [cell, onKeyDownCell]);
 	const handleClick = useCallback(() => onSelectCell(cell), [cell, onSelectCell]);
 
-	const tint = genre || ACCENT;
+	const accent = useSurfaceAccent('liveTv', DEFAULT_ACCENT);
+	const tint = genre || {color: accent, rgb: toRgbTriplet(accent)};
 	const program = cell.program;
 	const isGap = cell.kind === 'gap';
 	const loading = cell.kind === 'loading';

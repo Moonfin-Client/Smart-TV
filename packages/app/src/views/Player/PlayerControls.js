@@ -13,11 +13,12 @@ import {getPlatform} from '../../platform';
 import {ModalContainer} from '../../utils/spotlightContainers';
 import {numberedTrackName, sortSubtitleStreams, subtitleTrackDetail, audioTrackDetail} from '../../utils/trackLabels';
 import TrackOptionRow, {TrackDivider} from '../../components/TrackOptionRow';
+import EpisodeBrowser from './EpisodeBrowser';
 import {
 	SpottableButton, SpottableDiv,
 	formatTime, getQualityPresets,
 	IconPlay, IconPause, IconRewind, IconForward, IconSubtitle, IconSubtitleOff, IconAudio,
-	IconChapters, IconPrevious, IconNext, IconQuality, IconInfo, IconCast, IconZoom,
+	IconChapters, IconEpisodes, IconPrevious, IconNext, IconQuality, IconInfo, IconCast, IconZoom,
 	IconShuffle, IconRepeat, IconRepeatOne, IconSleep, IconGuide, IconChannels
 } from './PlayerConstants';
 import {formatClockTime} from '../../utils/clock';
@@ -25,7 +26,7 @@ import {episodeLine} from '../../utils/liveTvGuide';
 import {chapterMarkerPositions} from '../../utils/chapterMarkers';
 import {keepFocusInView} from '../../utils/focusScroll';
 import {SLEEP_TIMER_MINUTES} from './useSleepTimer';
-import {arrange, OSD_ORDER_KEY, OSD_HIDDEN_KEY} from '../../utils/buttonLayout';
+import {arrange, OSD_BUTTONS, OSD_ORDER_KEY, OSD_HIDDEN_KEY} from '../../utils/buttonLayout';
 import {formatPlaybackTimeSlot, formatPlaybackTrailingTime} from '../../utils/playbackTimeLabels';
 import { useSettings } from '../../context/SettingsContext';
 
@@ -34,7 +35,7 @@ export const usePlayerButtons = ({
 	nextEpisode, isAudioMode, isLiveTV, hasNextTrack, hasPrevTrack,
 	shuffleMode, repeatMode, selectedQuality,
 	selectedSubtitleIndex, canDownloadRemoteSubtitles, hasCastMembers, zoomModeLabel, zoomModeKey,
-	sleepMinutes
+	sleepMinutes, canBrowseEpisodes = false
 }) => {
 	const {settings} = useSettings();
 	const topButtons = useMemo(() => {
@@ -95,6 +96,8 @@ export const usePlayerButtons = ({
 		}
 		return arrange([
 			...(chapters.length > 0 ? [{id: 'chapters', icon: <IconChapters />, label: $L('Chapters'), action: 'chapter'}] : []),
+			// Only an episode has a season to browse, so a movie never gets this button.
+			...(canBrowseEpisodes ? [{id: 'episodes', icon: <IconEpisodes />, label: $L('Episodes'), action: 'episodes'}] : []),
 			...((subtitleStreams.length > 0 || canDownloadRemoteSubtitles) ? [{id: 'subtitles', icon: (selectedSubtitleIndex >= 0 ? <IconSubtitle /> : <IconSubtitleOff />), label: $L('Subtitles'), action: 'subtitle'}] : []),
 			...(audioStreams.length > 1 ? [{id: 'audio', icon: <IconAudio />, label: $L('Audio'), action: 'audio'}] : []),
 			// Core calls this castAndCrew and keeps cast for Chromecast, so hiding one there
@@ -104,8 +107,8 @@ export const usePlayerButtons = ({
 			{id: 'zoom', icon: <IconZoom />, label: $L('Zoom').concat(` (${zoomModeLabel})`), action: 'zoom', active: zoomModeKey !== 'fit'},
 			{id: 'sleep', icon: <IconSleep />, label: $L('Sleep timer'), action: 'sleep', active: sleepMinutes != null},
 			{id: 'info', icon: <IconInfo />, label: $L('Playback Information'), action: 'info'}
-		], {order: osdOrder, hidden: osdHidden});
-	}, [audioStreams.length, chapters.length, subtitleStreams.length, isAudioMode, isLiveTV, selectedQuality, selectedSubtitleIndex, canDownloadRemoteSubtitles, hasCastMembers, zoomModeLabel, zoomModeKey, sleepMinutes, osdOrder, osdHidden]);
+		], {order: osdOrder, hidden: osdHidden, catalogue: OSD_BUTTONS});
+	}, [audioStreams.length, chapters.length, canBrowseEpisodes, subtitleStreams.length, isAudioMode, isLiveTV, selectedQuality, selectedSubtitleIndex, canDownloadRemoteSubtitles, hasCastMembers, zoomModeLabel, zoomModeKey, sleepMinutes, osdOrder, osdHidden]);
 
 	return {topButtons, bottomButtons};
 };
@@ -173,6 +176,7 @@ const PlayerControls = ({
 	sleepRemainingSeconds,
 	handleSelectQuality,
 	handleSelectChapter,
+	handleSelectEpisode,
 	handleSelectCastMember,
 	handleOpenSubtitleOffset,
 	handleOpenSubtitleSettings,
@@ -601,6 +605,16 @@ const PlayerControls = ({
 						<p className={css.modalFooter}>{$L('Current')}: {playMethod || $L('Unknown')}</p>
 					</ModalContainer>
 				</div>
+			)}
+
+			{activeModal === 'episodes' && (
+				<EpisodeBrowser
+					item={item}
+					logoUrl={logoLoadFailed ? null : displayLogoUrl}
+					onLogoError={handleLogoError}
+					onSelect={handleSelectEpisode}
+					onClose={closeModal}
+				/>
 			)}
 
 			{activeModal === 'chapter' && (

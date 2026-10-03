@@ -292,6 +292,29 @@ export const defaultSettings = {
 	// instead of letting a handset decide how the TV types.
 	preferSystemImeKeyboard: false,
 	focusBorderColor: '',
+	// One accent per part of the app. An empty value keeps the active theme's own accent, so
+	// nothing looks different until a color is picked. Local only, never synced.
+	accentNavigation: '',
+	accentHome: '',
+	accentSettings: '',
+	accentSettingsFocus: '',
+	accentAchievements: '',
+	accentDetails: '',
+	accentPlayer: '',
+	accentSkip: '',
+	accentLiveTv: '',
+	accentOther: '',
+	// The skip prompt's own look. Every value here is what the prompt has always been, so it
+	// only changes once something is picked. An empty color means the default one. Local only.
+	skipOverlayLayout: 'capsule',
+	// How the next episode prompt is built: card (the one with the still), banner or button.
+	nextUpLayout: 'card',
+	skipOverlayPosition: 'bottomRight',
+	skipOverlaySize: 'medium',
+	skipOverlayBackground: '',
+	skipOverlayOpacity: 88,
+	skipOverlayAccent: '',
+	skipOverlayText: '',
 	navbarOpacity: 50,
 	navbarColor: 'gray',
 	// webOS TLS proxy fallback: when the WebView rejects a server's certificate

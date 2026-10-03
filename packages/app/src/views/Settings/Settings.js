@@ -19,6 +19,7 @@ import {isTvKeyboardVisible} from '../../components/TVKeyboard/keyboardBus';
 import {isWebOS} from '../../platform';
 import ClearDataDialog from '../../components/ClearDataDialog';
 import ScreensaverPreview from '../../components/Screensaver/ScreensaverPreview';
+import SkipSegmentPreview from '../../components/SkipSegmentPreview';
 import {LoadingAnimationPreview} from '../../components/LoadingAnimation';
 import {clearAllStorage} from '../../services/storage';
 import {clearImageCache} from '../../services/imageProxy';
@@ -28,7 +29,9 @@ import {fetchCustomRow} from '../../services/externalRowsApi';
 import {checkForUpdatesDetailed} from '../../services/versionChecker';
 import QrLinkView from './QrLinkView';
 import {formatPlaybackTimeSlot} from '../../utils/playbackTimeLabels';
-import {getHomeRowsStyleOptions, getImageTypeOptions, getLabel} from './settingsOptions';
+import {getAccentColorOptions, getHomeRowsStyleOptions, getImageTypeOptions, getLabel} from './settingsOptions';
+import {ACCENT_ALL_KEYS} from '../../theme/accentSurfaces';
+import {toCssColor} from '../../theme/themeSpec';
 import {SCHEMA_BY_KEY, SETTINGS_SCHEMA, resolve, spotlightIdOf} from './settingsSchema';
 import {MIN_QUERY_LENGTH, buildSettingsIndex, matchSettings, resultSpotlightId} from './settingsSearch';
 import {PLUGIN_SECTION_RENDER_STEP} from './homeSectionsModel';
@@ -67,6 +70,9 @@ import css from './Settings.module.less';
 const SpottableButton = Spottable('button');
 
 // The four settings profiles the Moonbase plugin stores, in server order.
+// Not a stored setting: the options picker Apply to All Surfaces opens writes every accent at once.
+const ACCENT_ALL_KEY = '__accentAll';
+
 const PROFILE_CHIPS = [
 	{profile: 'global', label: () => $L('Global')},
 	{profile: 'desktop', label: () => $L('Desktop')},
@@ -77,7 +83,7 @@ const PROFILE_CHIPS = [
 
 const Settings = ({ onBack, onLibrariesChanged, onRunSetupWizard, onSelectItem, panelMode }) => {
 	const { api, serverUrl, accessToken, hasMultipleServers, logoutAll, activeServerInfo, user, serverType } = useAuth();
-	const { settings, updateSetting, updateSettings, resetSettings, restoreSyncedDefaults, availableThemes, activeThemeId, selectThemeById, saveStoreTheme, deleteStoreTheme } = useSettings();
+	const { settings, updateSetting, updateSettings, resetSettings, restoreSyncedDefaults, availableThemes, activeTheme, activeThemeId, selectThemeById, saveStoreTheme, deleteStoreTheme } = useSettings();
 	const { capabilities } = useDeviceInfo();
 	const seerr = useSeerr();
 	const achievements = useAchievements();
@@ -323,6 +329,12 @@ const Settings = ({ onBack, onLibrariesChanged, onRunSetupWizard, onSelectItem, 
 				popView();
 				return;
 			}
+			if (settingKey === ACCENT_ALL_KEY) {
+				// One pick for every surface and for the selection outline at once. Default hands them all back.
+				updateSettings(Object.fromEntries(ACCENT_ALL_KEYS.map((key) => [key, value])));
+				popView();
+				return;
+			}
 			if (settingKey === 'autoLoginBehavior' && value === 'currentUser') {
 				// Pin the account that is signed in right now, so launches keep
 				// coming back to it even after switching users.
@@ -332,7 +344,7 @@ const Settings = ({ onBack, onLibrariesChanged, onRunSetupWizard, onSelectItem, 
 			updateSetting(settingKey, value);
 			popView();
 		},
-		[updateSetting, popView, selectThemeById, activeServerInfo]
+		[updateSetting, updateSettings, popView, selectThemeById, activeServerInfo]
 	);
 
 	const openQrLink = useCallback((label, url, returnFocusTo) => {
@@ -1002,6 +1014,17 @@ const Settings = ({ onBack, onLibrariesChanged, onRunSetupWizard, onSelectItem, 
 		await logoutAll();
 	}, [resetSettings, logoutAll]);
 
+	const openAccentAll = useCallback(() => {
+		const themeAccent = activeTheme?.colors?.accent;
+		pushView({
+			view: 'options',
+			title: $L('Apply to All Surfaces'),
+			options: getAccentColorOptions(themeAccent ? toCssColor(themeAccent) : undefined, $L('Default')),
+			settingKey: ACCENT_ALL_KEY,
+			returnFocusTo: 'setting-accentAll'
+		});
+	}, [pushView, activeTheme]);
+
 	const settingsCtx = useMemo(() => ({
 		settings,
 		capabilities,
@@ -1013,9 +1036,11 @@ const Settings = ({ onBack, onLibrariesChanged, onRunSetupWizard, onSelectItem, 
 		serverUrl,
 		serverVersion,
 		availableThemes,
+		activeTheme,
 		activeThemeId,
 		ratingsResetArmed,
 		actions: {
+			openAccentAll,
 			openThemes,
 			openThemeStore,
 			openHomeRows,
@@ -1048,7 +1073,7 @@ const Settings = ({ onBack, onLibrariesChanged, onRunSetupWizard, onSelectItem, 
 		}
 	}), [
 		settings, capabilities, seerr, achievements, seerrLabel, isSeerr, serverUrl, ratingsResetArmed, resetRatingsSettings,
-		serverVersion, availableThemes, activeThemeId, openThemes, openThemeStore, openHomeRows,
+		serverVersion, availableThemes, activeTheme, activeThemeId, openAccentAll, openThemes, openThemeStore, openHomeRows,
 		openDetailButtons, openOsdButtons, openDetailMetadata, openDiagnostics,
 		openPinCode, openKidsMode, openLibraries, openParentalControls, openQrLink, openRatingSources, openRowImageTypes, openExcludedGenres, openMediaBarLibraries,
 		openMediaBarCollections, openScreensaverLibraries, openScreensaverCollections, openScreensaverGenres,
@@ -1101,6 +1126,17 @@ const Settings = ({ onBack, onLibrariesChanged, onRunSetupWizard, onSelectItem, 
 	const selectOptionValue = useCallback((value) => {
 		handleOptionSelect(currentView.settingKey, value);
 	}, [handleOptionSelect, currentView.settingKey]);
+
+	// The picked option to mark. Apply to All only has one when every surface agrees.
+	const optionCurrentValue = useMemo(() => {
+		const key = currentView.settingKey;
+		if (key === '__themeSelection') return activeThemeId;
+		if (key === ACCENT_ALL_KEY) {
+			const first = settings[ACCENT_ALL_KEYS[0]];
+			return ACCENT_ALL_KEYS.every((accentKey) => settings[accentKey] === first) ? first : undefined;
+		}
+		return settings[key];
+	}, [currentView.settingKey, activeThemeId, settings]);
 
 	const openRowsTypeOption = useCallback(() => {
 		pushView({
@@ -1160,6 +1196,7 @@ const Settings = ({ onBack, onLibrariesChanged, onRunSetupWizard, onSelectItem, 
 		profileSync: renderProfileSync,
 		playbackTimePreview: renderPlaybackTimePreview,
 		screensaverPreview: renderScreensaverPreview,
+		skipSegmentPreview: () => <SkipSegmentPreview />,
 		loadingAnimationPreview: () => <LoadingAnimationPreview />
 	};
 
@@ -1295,7 +1332,7 @@ const Settings = ({ onBack, onLibrariesChanged, onRunSetupWizard, onSelectItem, 
 				<OptionsView
 					title={currentView.title}
 					options={currentView.options}
-					currentValue={currentView.settingKey === '__themeSelection' ? activeThemeId : settings[currentView.settingKey]}
+					currentValue={optionCurrentValue}
 					onSelect={selectOptionValue}
 				/>
 			)}

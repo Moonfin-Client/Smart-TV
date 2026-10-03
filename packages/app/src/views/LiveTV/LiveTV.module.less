@@ -4,7 +4,7 @@
 // Every size is the other clients' canvas point value times 1.45, the scale a 1080p panel paints
 // that canvas at, so the guide lands at the same painted size in this 1920 wide design space.
 @guide-divider: rgba(142, 200, 240, 0.33);
-@guide-accent: #00a4dc;
+@guide-accent: var(--theme-accent, #00a4dc);
 @row-height: 87px;
 @channel-column-width: 296px;
 @channel-logo-width: 91px;
@@ -156,9 +156,9 @@
 	flex-shrink: 0;
 	margin-left: 12px;
 	padding: 3px 9px;
-	border: 1.5px solid rgba(0, 164, 220, 0.5);
+	border: 1.5px solid rgba(var(--theme-accent-rgb, 0, 164, 220), 0.5);
 	border-radius: 6px;
-	background: rgba(0, 164, 220, 0.18);
+	background: rgba(var(--theme-accent-rgb, 0, 164, 220), 0.18);
 	color: @guide-accent;
 	font-size: 14.5px;
 	font-weight: 700;
@@ -347,8 +347,8 @@
 }
 
 .channelCellFocused {
-	border-color: rgba(0, 164, 220, 0.7);
-	background: rgba(0, 164, 220, 0.16);
+	border-color: rgba(var(--theme-accent-rgb, 0, 164, 220), 0.7);
+	background: rgba(var(--theme-accent-rgb, 0, 164, 220), 0.16);
 
 	.channelName {
 		font-weight: 600;

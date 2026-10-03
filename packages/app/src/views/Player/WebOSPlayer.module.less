@@ -744,15 +744,15 @@
 
 .chapterItem:hover,
 .chapterItem:focus {
-	background: rgba(0, 164, 220, 0.3);
+	background: rgba(var(--theme-accent-rgb, 0, 164, 220), 0.3);
 	border-color: var(--accent-color, #00a4dc);
 	transform: scale(1.03) translateX(8px);
-	box-shadow: 0 6px 20px rgba(0, 164, 220, 0.5);
+	box-shadow: 0 6px 20px rgba(var(--theme-accent-rgb, 0, 164, 220), 0.5);
 }
 
 .chapterItem.currentChapter {
-	background: rgba(0, 164, 220, 0.25);
-	border-color: rgba(0, 164, 220, 0.6);
+	background: rgba(var(--theme-accent-rgb, 0, 164, 220), 0.25);
+	border-color: rgba(var(--theme-accent-rgb, 0, 164, 220), 0.6);
 }
 
 .chapterTime {
@@ -799,7 +799,7 @@
 
 .infoSection:focus {
 	border-color: var(--accent-color, #00a4dc);
-	background: rgba(0, 164, 220, 0.1);
+	background: rgba(var(--theme-accent-rgb, 0, 164, 220), 0.1);
 }
 
 .infoHeader {
@@ -807,7 +807,7 @@
 	font-weight: 700;
 	color: var(--accent-color, #00a4dc);
 	margin-bottom: 15px;
-	border-bottom: 2px solid rgba(0, 164, 220, 0.3);
+	border-bottom: 2px solid rgba(var(--theme-accent-rgb, 0, 164, 220), 0.3);
 	padding-bottom: 10px;
 }
 
@@ -837,7 +837,7 @@
 }
 
 .infoRow.infoHighlight {
-	background: linear-gradient(90deg, rgba(138, 43, 226, 0.15) 0%, rgba(0, 164, 220, 0.15) 100%);
+	background: linear-gradient(90deg, rgba(138, 43, 226, 0.15) 0%, rgba(var(--theme-accent-rgb, 0, 164, 220), 0.15) 100%);
 	border-radius: 6px;
 	padding: 15px 12px;
 	border: 1px solid rgba(138, 43, 226, 0.4);
@@ -932,7 +932,7 @@
 
 .offsetBtn:hover,
 .offsetBtn:focus {
-	background: rgba(0, 164, 220, 0.3);
+	background: rgba(var(--theme-accent-rgb, 0, 164, 220), 0.3);
 	border-color: var(--accent-color, #00a4dc);
 	transform: scale(1.1);
 }
@@ -972,7 +972,7 @@
 
 .actionBtn:hover,
 .actionBtn:focus {
-	background: rgba(0, 164, 220, 0.3);
+	background: rgba(var(--theme-accent-rgb, 0, 164, 220), 0.3);
 	border-color: var(--accent-color, #00a4dc);
 }
 
@@ -1017,7 +1017,7 @@
 
 .settingItem:hover,
 .settingItem:focus {
-	background: rgba(0, 164, 220, 0.3);
+	background: rgba(var(--theme-accent-rgb, 0, 164, 220), 0.3);
 	border-color: var(--accent-color, #00a4dc);
 	transform: scale(1.02);
 }
@@ -1051,7 +1051,7 @@
 }
 
 .sliderItem:focus-within {
-	background: rgba(0, 164, 220, 0.15);
+	background: rgba(var(--theme-accent-rgb, 0, 164, 220), 0.15);
 	border-color: var(--accent-color, #00a4dc);
 }
 

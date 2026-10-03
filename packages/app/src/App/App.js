@@ -59,8 +59,9 @@ import TVKeyboard from '../components/TVKeyboard/TVKeyboard';
 import {isTvKeyboardVisible, closeTvKeyboard} from '../components/TVKeyboard/keyboardBus';
 import useInactivityTimer from '../hooks/useInactivityTimer';
 import {useThemeMusic} from '../hooks/useThemeMusic';
-import {buildThemeCssVars, toRgbTriplet} from '../theme/themeSpec';
+import {buildThemeCssVars, ensureVisible, isValidHexColor, toRgbTriplet} from '../theme/themeSpec';
 import {applyThemeOverrides} from '../theme/themeOverrides';
+import {accentSignature, pickedAccents} from '../theme/accentSurfaces';
 import {resolveOverlayColor} from '../theme/overlayColors';
 import Login from '../views/Login';
 import Browse from '../views/Browse';
@@ -409,13 +410,17 @@ const AppContent = (props) => {
 
 	// The custom properties above only reach the newer engines. The injected
 	// stylesheet carries the same theme as literal colors for everything older.
+	// Each surface's accent is a separate pick, so the signature stands in for all of them and
+	// the effect only re-runs when one actually changes.
+	const accentPicks = accentSignature(settings);
 	useEffect(() => {
 		applyThemeOverrides(activeTheme, {
 			focusBorderColor: settings.focusBorderColor,
 			mediaBarOverlayColor: settings.mediaBarOverlayColor,
-			mediaBarOverlayOpacity: settings.mediaBarOverlayOpacity
+			mediaBarOverlayOpacity: settings.mediaBarOverlayOpacity,
+			accents: pickedAccents(settings)
 		});
-	}, [activeTheme, settings.focusBorderColor, settings.mediaBarOverlayColor, settings.mediaBarOverlayOpacity]);
+	}, [activeTheme, settings.focusBorderColor, settings.mediaBarOverlayColor, settings.mediaBarOverlayOpacity, accentPicks]); // eslint-disable-line react-hooks/exhaustive-deps
 
 	useEffect(() => {
 		applyPerfTier(settings.performanceMode === 'auto' ? null : settings.performanceMode);
@@ -432,7 +437,11 @@ const AppContent = (props) => {
 	useEffect(() => {
 		const root = document.documentElement;
 		if (settings.focusBorderColor) {
-			root.style.setProperty('--theme-focus-border-color', settings.focusBorderColor);
+			// A pick that would vanish into the screen is nudged until it shows, same as the injected rules.
+			const outline = isValidHexColor(settings.focusBorderColor)
+				? ensureVisible(settings.focusBorderColor, [activeTheme?.colors?.background, activeTheme?.colors?.surface])
+				: settings.focusBorderColor;
+			root.style.setProperty('--theme-focus-border-color', outline);
 		}
 		root.style.setProperty('--theme-navbar-color-rgb', toRgbTriplet(resolveOverlayColor(settings.navbarColor)));
 	}, [activeTheme, settings.focusBorderColor, settings.navbarColor]);
@@ -930,7 +939,10 @@ const AppContent = (props) => {
 		if (syncPlayDialogOpen && isSyncPlayInGroup && panelIndex === PANELS.PLAYER) closeSyncPlay();
 	}, [syncPlayDialogOpen, isSyncPlayInGroup, panelIndex, closeSyncPlay]);
 
-	const handlePlayNext = useCallback((item) => {
+	// Moving on to another item from inside the player. The next episode starts at the top, and
+	// one the viewer picked by hand from the episode browser passes `resume` so an episode they
+	// were part way through carries on from where it stopped.
+	const handlePlayNext = useCallback((item, options) => {
 		setPlayingItem(item);
 		setPlaybackOptions(prev => {
 			if (prev?.audioPlaylist?.some(t => t.Id === item.Id)) {
@@ -944,17 +956,28 @@ const AppContent = (props) => {
 			}
 			return null;
 		});
-		setIsResume(false);
+		setIsResume(options?.resume === true);
 	}, []);
 
 	const handlePlayerEnd = useCallback(() => {
+		// Episodes played on from inside the player (next episode, the episode browser) leave the
+		// episode page underneath on the one it was opened for, so back lands on the episode that
+		// was actually last playing. Only an episode page follows: a series or movie page stays put.
+		if (
+			panelHistory[panelHistory.length - 1] === PANELS.DETAILS &&
+			selectedItem?.Type === 'Episode' &&
+			playingItem?.Type === 'Episode' &&
+			playingItem.Id !== selectedItem.Id
+		) {
+			setSelectedItem(playingItem);
+		}
 		setIsPlayerPaused(false);
 		setPlayingItem(null);
 		setPlaybackOptions(null);
 		setIsResume(false);
 		handleBack();
 		window.dispatchEvent(new CustomEvent('moonfin:browseRefresh'));
-	}, [handleBack]);
+	}, [handleBack, panelHistory, selectedItem, playingItem]);
 
 	// The guide button on the live TV OSD always lands on the guide, not wherever
 	// playback was launched from. When the player was opened from the guide its
