@@ -1746,7 +1746,16 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 		if (videoRef.current) {
 			const rawTime = videoRef.current.currentTime;
 			const time = rawTime;
-			setCurrentTime(time);
+			// Each time state change re-renders the whole player, open picker
+			// included, which is what makes moving through a track list lag on the
+			// weaker sets. A picker hides the OSD so nothing shows the time, and
+			// the OSD only shows whole seconds. Lyrics and the offset overlay
+			// follow the time more closely, so they still get every tick.
+			if (isAudioMode || activeModal === 'subtitleOffset') {
+				setCurrentTime(time);
+			} else if (!activeModal && Math.floor(time) !== Math.floor(currentTime)) {
+				setCurrentTime(time);
+			}
 			const ticks = Math.floor(time * 10000000);
 			if (ticks !== positionRef.current) {
 				stalledRef.current = false;
@@ -1789,7 +1798,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 
 			checkSegments(ticks);
 		}
-	}, [checkSegments, subtitleTrackEvents, subtitleOffset, settleGroupSeek]);
+	}, [checkSegments, subtitleTrackEvents, subtitleOffset, settleGroupSeek, isAudioMode, activeModal, currentTime]);
 
 	const handleWaiting = useCallback(() => {
 		setIsBuffering(true);
