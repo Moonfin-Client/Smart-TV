@@ -64,6 +64,7 @@ const useHomeRowsEditor = ({api, settings, updateSetting, updateSettings, pushVi
 
 	const openHomeRows = useCallback(() => {
 		setTempHomeRows([...(settings.homeRows || DEFAULT_HOME_ROWS)].sort((a, b) => a.order - b.order));
+		setTempPluginSections([...(settings.pluginSections || [])].sort((a, b) => (a.order ?? 0) - (b.order ?? 0)));
 		setPluginSectionRenderLimit(INITIAL_PLUGIN_SECTION_RENDER_COUNT);
 		pushView({ view: 'homeRows', returnFocusTo: 'setting-homeRows' });
 
@@ -91,7 +92,7 @@ const useHomeRowsEditor = ({api, settings, updateSetting, updateSettings, pushVi
 				});
 			})
 			.catch(() => {});
-	}, [settings.homeRows, pushView, refreshBuiltInCollectionGenreSections]);
+	}, [settings.homeRows, settings.pluginSections, pushView, refreshBuiltInCollectionGenreSections]);
 
 	const saveHomeRows = useCallback(() => {
 		const updates = {homeRows: tempHomeRows, pluginSections: tempPluginSections};
