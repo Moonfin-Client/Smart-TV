@@ -1102,6 +1102,13 @@ const AppContent = (props) => {
 	}, [navigateTo]);
 
 	const handleSelectGenre = useCallback((genre, library) => {
+		// A genre merged across servers has no single library to open, so it goes to the browse
+		// screen that queries every server instead of the library screen.
+		if (genre._unifiedGenre) {
+			setSelectedGenre(genre);
+			navigateTo(PANELS.GENRE_BROWSE);
+			return;
+		}
 		setGenreFilter(genre.name);
 		setStudioFilter(null);
 		if (library) {

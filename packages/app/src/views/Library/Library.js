@@ -958,8 +958,8 @@ const Library = ({library, genreFilter, studioFilter, onSelectItem, onViewPhoto,
 	// A square and a poster share an image height and differ only in width, while
 	// a thumbnail is sized off its own shorter height.
 	const posterHeight = isWideImage
-		? ({small: 128, medium: 160, large: 191, extraLarge: 223}[imageSize] || 160)
-		: ({small: 174, medium: 217, large: 261, extraLarge: 304}[imageSize] || 217);
+		? ({small: 128, medium: 160, large: 191, extraLarge: 335}[imageSize] || 160)
+		: ({small: 174, medium: 217, large: 261, extraLarge: 456}[imageSize] || 217);
 
 	// A subtitle anywhere in the library makes room for a second line on every
 	// card, so the rows stay level whether or not a given item has one.
@@ -974,8 +974,8 @@ const Library = ({library, genreFilter, studioFilter, onSelectItem, onViewPhoto,
 	const cardWidth = isSquareImage
 		? posterHeight
 		: isWideImage
-			? ({small: 227, medium: 284, large: 340, extraLarge: 397}[imageSize] || 284)
-			: ({small: 116, medium: 145, large: 174, extraLarge: 203}[imageSize] || 145);
+			? ({small: 227, medium: 284, large: 340, extraLarge: 596}[imageSize] || 284)
+			: ({small: 116, medium: 145, large: 174, extraLarge: 305}[imageSize] || 145);
 	const cardHeight = posterHeight + textHeight;
 
 	const cellPadX = horizontalCellPad(cardWidth, window.innerWidth - GRID_INSET);
