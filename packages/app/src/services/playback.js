@@ -1317,7 +1317,10 @@ export const reportStopBeacon = (positionTicks) => {
 	const request = stopRequest(positionTicks);
 	if (!request) return false;
 	const key = `${currentSession.playSessionId}:${positionTicks || 0}`;
-	if (key === currentSession.lastStopBeaconKey) return false;
+	// An identical stop already went out for this session. Report it as sent
+	// so the exit gate drops the session; the late cleanup would otherwise
+	// send a genuine duplicate of the delivered stop.
+	if (key === currentSession.lastStopBeaconKey) return true;
 	const sent = sendStopRequest(request);
 	// Keep the upstream live-stream close guard: duplicate closes can stop
 	// another viewer of a shared stream.
