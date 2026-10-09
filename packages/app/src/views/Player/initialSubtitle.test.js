@@ -1,4 +1,4 @@
-import {resolveInitialSubtitle, bestSubtitle} from './initialSubtitle';
+import {resolveInitialSubtitle, bestSubtitle, resolveBestSubtitle} from './initialSubtitle';
 import {getItemSubtitlePref, getSeriesSubtitlePref} from '../../services/subtitlePrefs';
 
 jest.mock('../../services/subtitlePrefs', () => ({
@@ -229,6 +229,32 @@ describe('bestSubtitle', () => {
 		const list = [{index: 1, language: 'eng', deliveryMethod: 'External'}, {index: 2, language: 'eng'}];
 		expect(bestSubtitle(list, 'eng')).toBe(list[1]);
 	});
+
+	test('prefers text track over bitmap track when preferTextSubtitles is true even with pgsDirectPlay', () => {
+		const list = [
+			{index: 1, language: 'eng', codec: 'subrip'},
+			{index: 2, language: 'eng', codec: 'pgs'}
+		];
+		expect(bestSubtitle(list, 'eng', {pgsDirectPlay: true, preferTextSubtitles: true})).toBe(list[0]);
+		expect(bestSubtitle(list, 'eng', {pgsDirectPlay: true, preferTextSubtitles: false})).toBe(list[1]);
+	});
+
+	test('prefers external subtitle over internal subtitle when preferExternalSubtitles is true', () => {
+		const list = [
+			{index: 1, language: 'eng', codec: 'subrip', isExternal: true},
+			{index: 2, language: 'eng', codec: 'subrip', isExternal: false}
+		];
+		expect(bestSubtitle(list, 'eng', {preferExternalSubtitles: true})).toBe(list[0]);
+		expect(bestSubtitle(list, 'eng', {preferExternalSubtitles: false})).toBe(list[1]);
+	});
+
+	test('prefers internal text over external bitmap when preferTextSubtitles is true even with preferExternalSubtitles true', () => {
+		const list = [
+			{index: 1, language: 'eng', codec: 'subrip', isExternal: false},
+			{index: 2, language: 'eng', codec: 'pgs', isExternal: true}
+		];
+		expect(bestSubtitle(list, 'eng', {preferTextSubtitles: true, preferExternalSubtitles: true, pgsDirectPlay: true})).toBe(list[0]);
+	});
 });
 
 describe('flagged candidates', () => {
@@ -251,5 +277,45 @@ describe('flagged candidates', () => {
 	test('English stays out when the chosen language is there to be flagged', () => {
 		const list = [{index: 1, language: 'eng'}, {index: 2, language: 'jpn'}];
 		expect(flagged(list, 'jpn')).toBeUndefined();
+	});
+});
+
+describe('resolveBestSubtitle', () => {
+	const streams = [
+		{Index: 0, Language: 'eng', Codec: 'subrip', IsExternal: true},
+		{Index: 3, Language: 'eng', Codec: 'subrip', IsExternal: false, Title: 'English (SRT)'},
+		{Index: 4, Language: 'eng', Codec: 'PGSSUB', IsExternal: false, Title: 'English'},
+		{Index: 5, Language: 'eng', Codec: 'PGSSUB', IsExternal: false, Title: 'English (SDH)', IsHearingImpaired: true}
+	];
+
+	const baseSettings = {
+		subtitleMode: 'always',
+		subtitleLanguage: 'eng',
+		preferSdhSubtitles: false,
+		enablePgsRendering: true
+	};
+
+	test('selects external text when preferTextSubtitles and preferExternalSubtitles are true', () => {
+		const settings = {...baseSettings, preferTextSubtitles: true, preferExternalSubtitles: true};
+		expect(resolveBestSubtitle(streams, settings)).toBe(0);
+	});
+
+	test('selects internal text when preferTextSubtitles is true and preferExternalSubtitles is false', () => {
+		const settings = {...baseSettings, preferTextSubtitles: true, preferExternalSubtitles: false};
+		expect(resolveBestSubtitle(streams, settings)).toBe(1);
+	});
+
+	test('selects internal PGS when both preferTextSubtitles and preferExternalSubtitles are false', () => {
+		const settings = {...baseSettings, preferTextSubtitles: false, preferExternalSubtitles: false};
+		expect(resolveBestSubtitle(streams, settings)).toBe(2);
+	});
+
+	test('returns -1 when subtitleMode is none', () => {
+		const settings = {...baseSettings, subtitleMode: 'none'};
+		expect(resolveBestSubtitle(streams, settings)).toBe(-1);
+	});
+
+	test('returns -1 for empty streams', () => {
+		expect(resolveBestSubtitle([], baseSettings)).toBe(-1);
 	});
 });
