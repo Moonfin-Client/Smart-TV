@@ -1226,6 +1226,8 @@ const shareStopWithShell = (positionTicks) => {
 
 export const reportStart = async (positionTicks = 0) => {
 	if (!currentSession) return;
+	// Resuming starts a new reporting cycle even at the same position.
+	delete currentSession.lastStopBeaconKey;
 
 	try {
 		// Use session's server credentials for cross-server support
@@ -1311,21 +1313,16 @@ const sendStopRequest = ({endpoint, json}) => {
 	}
 };
 
-// Key of the last stop sent via reportStopBeacon (playSessionId:position).
-// Guards the pagehide+beforeunload double-fire during app teardown. Declared
-// here, above reportStopBeacon, because that function reads it (no-use-before-define).
-let lastStopBeaconKey = null;
-
 export const reportStopBeacon = (positionTicks) => {
 	const request = stopRequest(positionTicks);
 	if (!request) return false;
 	const key = `${currentSession.playSessionId}:${positionTicks || 0}`;
-	if (key === lastStopBeaconKey) return false;
+	if (key === currentSession.lastStopBeaconKey) return false;
 	const sent = sendStopRequest(request);
 	// Keep the upstream live-stream close guard: duplicate closes can stop
 	// another viewer of a shared stream.
 	if (sent) {
-		lastStopBeaconKey = key;
+		currentSession.lastStopBeaconKey = key;
 		currentSession.liveStreamClosed = true;
 	}
 	return sent;
