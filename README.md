@@ -116,11 +116,11 @@ Contributions are welcome. Check the existing issues first, open an issue before
 
 To submit a change, fork the repo, create a feature branch, make your changes with clear commit messages, and open a pull request with a clear description.
 
-## Help translate Moonfin [here](https://translate.moonfin.io/engage/smart-tv/)
+## Help translate Moonfin [here](https://translate.moonfin.io/projects/moonfin/smart-tv/)
 
-<a href="https://translate.moonfin.io/engage/smart-tv/">
+<a href="https://translate.moonfin.io/projects/moonfin/smart-tv/">
   <img
-    src="https://translate.moonfin.io/widgets/smart-tv/-/multi-auto.svg"
+    src="https://translate.moonfin.io/widget/moonfin/smart-tv/multi-auto.svg"
     alt="Moonfin SmartTV translation status by language"
   />
 </a>
