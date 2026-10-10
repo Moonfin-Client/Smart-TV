@@ -37,10 +37,11 @@ const ModernMediaRow = ({
 }) => {
 	const {settings} = useSettings();
 	const scrollerRef = useRef(null);
-	const scrollerRectRef = useRef(null);
+	const scrollerLayoutRef = useRef(null);
 	const scrollTimeoutRef = useRef(null);
 	const rowElementRef = useRef(null);
 	const [focusedItemId, setFocusedItemId] = useState(null);
+	const [details, setDetails] = useState(null);
 	const platform = useRef(getPlatform()).current;
 
 	const keyPrefix = rowId || title || rowIndex || '';
@@ -52,9 +53,9 @@ const ModernMediaRow = ({
 	}, [rowIndex, registerRowRef]);
 
 	useEffect(() => {
-		scrollerRectRef.current = null;
+		scrollerLayoutRef.current = null;
 		const invalidate = () => {
-			scrollerRectRef.current = null;
+			scrollerLayoutRef.current = null;
 		};
 		window.addEventListener('resize', invalidate);
 		return () => window.removeEventListener('resize', invalidate);
@@ -85,7 +86,10 @@ const ModernMediaRow = ({
 
 		// A hovered card already sits under the cursor, so nudging the lane
 		// would only slide it away from the pointer.
-		if (Spotlight.getPointerMode()) return;
+		if (Spotlight.getPointerMode()) {
+			setDetails(null);
+			return;
+		}
 
 		const card = e.target.closest('.spottable');
 		const scroller = scrollerRef.current;
@@ -93,19 +97,35 @@ const ModernMediaRow = ({
 			if (scrollTimeoutRef.current) {
 				window.cancelAnimationFrame(scrollTimeoutRef.current);
 			}
+			// The focused card parks at the leading edge, so the ratings and overview
+			// under it get the rest of the row. The last cards can't scroll that far
+			// and keep what's left.
 			scrollTimeoutRef.current = window.requestAnimationFrame(() => {
-				const cardRect = card.getBoundingClientRect();
-				if (!scrollerRectRef.current) {
-					scrollerRectRef.current = scroller.getBoundingClientRect();
+				const cards = Array.prototype.filter.call(card.parentNode.children, (el) => el.classList.contains('spottable'));
+				if (!scrollerLayoutRef.current) {
+					const style = window.getComputedStyle(scroller);
+					scrollerLayoutRef.current = {
+						width: scroller.clientWidth,
+						paddingLeft: parseFloat(style.paddingLeft) || 0,
+						paddingRight: parseFloat(style.paddingRight) || 0
+					};
 				}
-				const scrollerRect = scrollerRectRef.current;
-				const leftPadding = 80;
-				const rightPadding = 120;
-				if (cardRect.left < scrollerRect.left + leftPadding) {
-					scroller.scrollLeft -= (scrollerRect.left + leftPadding - cardRect.left);
-				} else if (cardRect.right > scrollerRect.right - rightPadding) {
-					scroller.scrollLeft += (cardRect.right - (scrollerRect.right - rightPadding));
+				const layout = scrollerLayoutRef.current;
+				if (layout.gap === undefined && cards.length > 1) {
+					layout.gap = parseFloat(window.getComputedStyle(cards[1]).marginLeft) || 0;
 				}
+				// Widths come from the cards' styles rather than their boxes, since the
+				// card that just lost focus is still shrinking back.
+				let cardStart = 0;
+				for (let i = 0; i < cards.length && cards[i] !== card; i++) {
+					cardStart += parseFloat(cards[i].style.width) + layout.gap;
+				}
+				scroller.scrollLeft = cardStart;
+				const cardLeft = layout.paddingLeft + cardStart - scroller.scrollLeft;
+				setDetails({
+					spotlightId: card.getAttribute('data-spotlight-id'),
+					width: layout.width - layout.paddingRight - cardLeft
+				});
 			});
 		}
 	}, [onFocus, rowIndex]);
@@ -216,6 +236,7 @@ const ModernMediaRow = ({
 								onSpotlightLeft={isFirst ? handleWrapLeft : null}
 								onSpotlightRight={isLast ? handleWrapRight : null}
 								isFocused={focusedItemId === item.Id}
+								detailsWidth={details?.spotlightId === spotlightId ? details.width : undefined}
 								isLibraryRow={rowId === 'library-tiles'}
 							/>
 						);

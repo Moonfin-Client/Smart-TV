@@ -69,8 +69,6 @@ const BASELINE = {
 	// .gridContent is a grid, not a flex container, and gets grid-gap from
 	// postcss-preset-env
 	'components/ChangeArtworkModal/ChangeArtworkModal.module.less': 1,
-	// three max-width: min(...)
-	'components/MediaCard/ModernMediaCard.module.less': 3,
 	// four min() widths and heights
 	'components/ShuffleOverlay/ShuffleOverlay.module.less': 4
 };

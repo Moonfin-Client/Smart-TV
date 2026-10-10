@@ -1,4 +1,4 @@
-import {useState, useEffect, useRef, useMemo} from 'react';
+import {useState, useEffect, useLayoutEffect, useRef, useMemo, useCallback} from 'react';
 import $L from '@enact/i18n/$L';
 import {fetchRatings, fetchEpisodeRatings, buildDisplayRatings, getContentType, getTmdbId, getSelectionSource, isRatingSourceEnabled} from '../../services/mdblistApi';
 import {useSettings} from '../../context/SettingsContext';
@@ -6,7 +6,7 @@ import {normalizeRatingStyle, personalRatingOf} from '../../utils/personalRating
 import {getRtFallbackIcon} from '../icons/rtIcons';
 import css from './RatingsRow.module.less';
 
-const RatingsRow = ({item, serverUrl, compact = false, pluginEnabled = true}) => {
+const RatingsRow = ({item, serverUrl, compact = false, singleLineWidth, pluginEnabled = true}) => {
 	const {settings} = useSettings();
 	const showLabels = settings.showRatingLabels !== false;
 	// Badges only choose the chip chrome around each rating. Off means plain, not hidden.
@@ -15,6 +15,7 @@ const RatingsRow = ({item, serverUrl, compact = false, pluginEnabled = true}) =>
 	const [allRatings, setAllRatings] = useState([]);
 	const mountedRef = useRef(true);
 	const itemIdRef = useRef(null);
+	const singleLineRef = useRef(null);
 
 	useEffect(() => {
 		mountedRef.current = true;
@@ -81,12 +82,30 @@ const RatingsRow = ({item, serverUrl, compact = false, pluginEnabled = true}) =>
 	// arrive, so it stays visible when there's no API key or nothing came back.
 	const showCriticRating = allRatings.length === 0 && item && item.CriticRating != null;
 	const hasContent = personalRating || communityRating || displayRatings.length > 0 || showCriticRating;
+
+	// Zoom rather than a scale transform, so the line gives back its height too.
+	// The icons size to their images, so each one that loads fits the line again.
+	const fitSingleLine = useCallback(() => {
+		const row = singleLineRef.current;
+		if (!row) return;
+		row.style.zoom = '';
+		if (row.scrollWidth > row.clientWidth) {
+			row.style.zoom = String(row.clientWidth / row.scrollWidth);
+		}
+	}, []);
+	useLayoutEffect(fitSingleLine, [fitSingleLine, singleLineWidth, displayRatings, personalRating, communityRating, showCriticRating, showLabels, showBadges]);
+
 	if (!hasContent) return null;
 
 	if (compact) {
 		const compactClass = `${css.ratingCompact}${showBadges ? ' ' + css.ratingCompactBadge : ''}`;
+		const singleLine = Boolean(singleLineWidth);
+		const onIconLoad = singleLine ? fitSingleLine : undefined;
 		return (
-			<div className={css.ratingsRowCompact}>
+			<div
+				ref={singleLine ? singleLineRef : null}
+				className={`${css.ratingsRowCompact}${singleLine ? ' ' + css.ratingsRowSingleLine : ''}`}
+			>
 				{personalRating && (
 					<span className={compactClass}>
 						<span className={css.ratingTopCompact}>
@@ -112,6 +131,7 @@ const RatingsRow = ({item, serverUrl, compact = false, pluginEnabled = true}) =>
 								className={css.ratingIconCompact}
 								src={getRtFallbackIcon(item.CriticRating)}
 								alt={$L('Rotten Tomatoes')}
+								onLoad={onIconLoad}
 							/>
 							<span className={css.ratingValueCompact}>{item.CriticRating}%</span>
 						</span>
@@ -126,6 +146,7 @@ const RatingsRow = ({item, serverUrl, compact = false, pluginEnabled = true}) =>
 								src={r.iconUrl}
 								alt={r.name}
 								title={r.name}
+								onLoad={onIconLoad}
 							/>
 							<span className={css.ratingValueCompact}>{r.formatted}</span>
 						</span>
