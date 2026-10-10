@@ -1,4 +1,5 @@
 import {renderHook, waitFor} from '@testing-library/react';
+import $L from '@enact/i18n/$L';
 
 import useBrowseData from './useBrowseData';
 import {clearMemoryCache, loadBrowseCache, memoryCache} from './browseCache';
@@ -30,7 +31,7 @@ jest.mock('./browseCache', () => {
 const empty = async () => ({Items: []});
 const api = {
 	getLibraries: empty,
-	getResumeItems: empty,
+	getResumeItems: jest.fn(empty),
 	getNextUp: empty,
 	getItems: empty,
 	getRandomItems: empty,
@@ -67,10 +68,16 @@ beforeEach(() => {
 	clearMemoryCache();
 	memoryCache.owner = null;
 	loadBrowseCache.mockReset();
+	api.getResumeItems.mockReset();
+	api.getResumeItems.mockImplementation(empty);
 });
 
 describe('switching users', () => {
 	test('rows read for the previous user go once the new user arrives', async () => {
+		// The new user's own row, so the assertion proves the switch fetched
+		// this user's data rather than merely that the old rows moved on.
+		const newUserRows = [{id: 'resume', title: $L('Continue Watching'), items: [{Id: 'mine'}], type: 'landscape'}];
+		api.getResumeItems.mockResolvedValue({Items: newUserRows[0].items});
 		loadBrowseCache.mockImplementation(async (serverUrl, userId) => (userId === 'user-a' ? cacheFor('user-a') : null));
 
 		// The switch can land the new token a render before the new user, and that render
@@ -83,7 +90,7 @@ describe('switching users', () => {
 		// cycle starts only after loadBrowseCache answers, so waiting on it can
 		// pass while the previous user's rows are still on screen. Wait on the
 		// rows themselves instead.
-		await waitFor(() => expect(result.current.allRowData).not.toEqual(previousUserRows));
+		await waitFor(() => expect(result.current.allRowData).toEqual(newUserRows));
 		expect(loadBrowseCache).toHaveBeenLastCalledWith('http://server', 'user-b');
 	});
 
