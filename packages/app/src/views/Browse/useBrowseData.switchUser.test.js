@@ -79,8 +79,11 @@ describe('switching users', () => {
 		await waitFor(() => expect(result.current.allRowData).toEqual(previousUserRows));
 
 		rerender(props('token-b', 'user-b'));
-		await waitFor(() => expect(result.current.isLoading).toBe(false));
-		expect(result.current.allRowData).not.toEqual(previousUserRows);
+		// isLoading is already false when the switch lands: the new user's loading
+		// cycle starts only after loadBrowseCache answers, so waiting on it can
+		// pass while the previous user's rows are still on screen. Wait on the
+		// rows themselves instead.
+		await waitFor(() => expect(result.current.allRowData).not.toEqual(previousUserRows));
 		expect(loadBrowseCache).toHaveBeenLastCalledWith('http://server', 'user-b');
 	});
 
