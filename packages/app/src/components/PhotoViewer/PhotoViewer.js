@@ -101,6 +101,10 @@ const PhotoViewer = ({item, items, serverUrl, onClose}) => {
 			} else if (key === 13 || key === 32) {
 				e.preventDefault();
 				setShowInfo(prev => !prev);
+			} else if (key === KEYS.UP || key === KEYS.DOWN) {
+				// Up and down do nothing here, and taking them keeps focus from wandering behind the viewer.
+				e.preventDefault();
+				e.stopPropagation();
 			}
 		};
 
