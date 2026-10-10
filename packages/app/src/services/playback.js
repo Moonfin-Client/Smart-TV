@@ -1226,6 +1226,8 @@ const shareStopWithShell = (positionTicks) => {
 
 export const reportStart = async (positionTicks = 0) => {
 	if (!currentSession) return;
+	// Resuming starts a new reporting cycle even at the same position.
+	delete currentSession.lastStopBeaconKey;
 
 	try {
 		// Use session's server credentials for cross-server support
@@ -1314,11 +1316,18 @@ const sendStopRequest = ({endpoint, json}) => {
 export const reportStopBeacon = (positionTicks) => {
 	const request = stopRequest(positionTicks);
 	if (!request) return false;
+	const key = `${currentSession.playSessionId}:${positionTicks || 0}`;
+	// An identical stop already went out for this session. Report it as sent
+	// so the exit gate drops the session; the late cleanup would otherwise
+	// send a genuine duplicate of the delivered stop.
+	if (key === currentSession.lastStopBeaconKey) return true;
 	const sent = sendStopRequest(request);
-	// The stop that went out named the live stream, so the server has let it go.
-	// A later stop must not close it again, since the server counts viewers and a
-	// second close on a stream shared with another set takes theirs as well.
-	if (sent) currentSession.liveStreamClosed = true;
+	// Keep the upstream live-stream close guard: duplicate closes can stop
+	// another viewer of a shared stream.
+	if (sent) {
+		currentSession.lastStopBeaconKey = key;
+		currentSession.liveStreamClosed = true;
+	}
 	return sent;
 };
 
@@ -1360,6 +1369,15 @@ export const consumeBackgroundStopFired = () => {
 	const fired = backgroundStopFired;
 	backgroundStopFired = false;
 	return fired;
+};
+
+// Terminal counterpart to reportBackgroundStop: the app is exiting, so the
+// beacon above is the one and only stop. Drop the local session so a late
+// unmount cleanup (getCurrentSession -> reportStop) can't send a second one.
+export const discardCurrentSession = () => {
+	currentSession = null;
+	stopProgressReporting();
+	stopHealthMonitoring();
 };
 
 export const reportStop = async (positionTicks) => {
@@ -1565,6 +1583,7 @@ export default {
 	reportProgress,
 	reportStopBeacon,
 	reportStop,
+	discardCurrentSession,
 	startProgressReporting,
 	stopProgressReporting,
 	getHealthMonitor,

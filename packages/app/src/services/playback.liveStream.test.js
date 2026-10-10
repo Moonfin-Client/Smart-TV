@@ -2,7 +2,7 @@ import * as playback from './playback';
 import * as jellyfinApi from './jellyfinApi';
 
 jest.mock('./jellyfinApi', () => {
-	const server = {getPlaybackInfo: jest.fn(), closeLiveStream: jest.fn(), reportPlaybackStopped: jest.fn()};
+	const server = {getPlaybackInfo: jest.fn(), closeLiveStream: jest.fn(), reportPlaybackStopped: jest.fn(), reportPlaybackStart: jest.fn()};
 	return {
 		api: server,
 		createApiForServer: () => server,
@@ -126,6 +126,50 @@ describe('the stop beacon', () => {
 		playback.reportBackgroundStop(0);
 		await playback.reportStop(0);
 		expect(api.closeLiveStream).toHaveBeenCalledWith('live-a');
+	});
+
+	test('duplicate exit events and late cleanup send one stop', async () => {
+		answerMovie();
+		await playback.getPlaybackInfo(movie.Id, {item: movie});
+		playback.reportStopBeacon(100);
+		playback.reportStopBeacon(100);
+		playback.discardCurrentSession();
+		playback.reportStopBeacon(100);
+		await playback.reportStop(100);
+		expect(stops).toHaveLength(1);
+		expect(api.reportPlaybackStopped).not.toHaveBeenCalled();
+	});
+
+	test('a failed beacon can be retried at the same position', async () => {
+		answerMovie();
+		await playback.getPlaybackInfo(movie.Id, {item: movie});
+		status = 500;
+		expect(playback.reportStopBeacon(100)).toBe(false);
+		status = 200;
+		expect(playback.reportStopBeacon(100)).toBe(true);
+		expect(stops).toHaveLength(2);
+	});
+
+	test('an already delivered stop reports as sent so the exit gate drops the session', async () => {
+		answerMovie();
+		await playback.getPlaybackInfo(movie.Id, {item: movie});
+		playback.reportBackgroundStop(0);
+		expect(playback.reportStopBeacon(0)).toBe(true);
+		expect(stops).toHaveLength(1);
+		playback.discardCurrentSession();
+		expect(playback.reportStopBeacon(0)).toBe(false);
+		await playback.reportStop(0);
+		expect(stops).toHaveLength(1);
+		expect(api.reportPlaybackStopped).not.toHaveBeenCalled();
+	});
+
+	test('a resumed session can stop again at the same position', async () => {
+		answerMovie();
+		await playback.getPlaybackInfo(movie.Id, {item: movie});
+		playback.reportBackgroundStop(0);
+		await playback.reportStart(0);
+		playback.reportBackgroundStop(0);
+		expect(stops).toHaveLength(2);
 	});
 
 	test('a film has no stream to name', async () => {
