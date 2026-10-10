@@ -1746,7 +1746,10 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 		// so nothing reloads, and the teardown below would leave the player dead.
 		if (episode.Id === item.Id) return;
 		stopTimeUpdatePolling();
+		const generation = loadGenerationRef.current;
 		await playback.reportStop(positionRef.current);
+		// the ended event can load the next one during the stop, leave its player alone
+		if (generation !== loadGenerationRef.current) return;
 		cleanupAVPlay();
 		avplayReadyRef.current = false;
 		onPlayNext(episode);
@@ -1828,7 +1831,10 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 		}
 
 		stopTimeUpdatePolling();
+		const generation = loadGenerationRef.current;
 		await playback.reportStop(positionRef.current);
+		// the next up countdown can load the next one during the stop, leave its player alone
+		if (generation !== loadGenerationRef.current) return;
 
 		if (repeatMode === 'one') {
 			restartCurrent();

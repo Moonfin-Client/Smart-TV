@@ -1926,6 +1926,8 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 		}
 
 		await playback.reportStop(positionRef.current);
+		// the next up countdown can load the next one during the stop, leave its player alone
+		if (prevItemIdRef.current !== item.Id) return;
 
 		if (repeatMode === 'one') {
 			restartCurrent();
