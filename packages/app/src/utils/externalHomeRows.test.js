@@ -26,6 +26,13 @@ describe('validateCustomRow', () => {
 
 		expect(await validateCustomRow(row)).toEqual({error: expect.stringContaining(listUrl)});
 	});
+
+	it('forwards language option when validating', async () => {
+		fetchCustomRow.mockResolvedValue([{name: 'Movie'}]);
+
+		expect(await validateCustomRow(row, {language: 'es-ES'})).toEqual({ok: true});
+		expect(fetchCustomRow).toHaveBeenCalledWith(row, {timeoutMs: 45000, language: 'es-ES'});
+	});
 });
 
 describe('fetchExternalPresetRow', () => {
@@ -53,6 +60,16 @@ describe('fetchExternalPresetRow', () => {
 
 		const [card] = await fetchExternalPresetRow('tmdb_popular_movies');
 		expect(card.OfficialRating).toBe('PG');
+	});
+
+	it('forwards language option to fetchCustomRow', async () => {
+		fetchCustomRow.mockResolvedValue([{name: 'Elf', type: 'Movie', officialRating: 'PG', providerIds: {Tmdb: '10719'}}]);
+
+		await fetchExternalPresetRow('tmdb_popular_movies', {language: 'fr-FR'});
+		expect(fetchCustomRow).toHaveBeenCalledWith(
+			{source: 'tmdb_chart', type: 'movie/popular', params: {}},
+			{language: 'fr-FR'}
+		);
 	});
 });
 

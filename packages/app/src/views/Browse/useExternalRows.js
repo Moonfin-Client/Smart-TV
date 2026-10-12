@@ -57,12 +57,12 @@ const useExternalRows = ({settings, homeRows, kidsMode}) => {
 				const presetData = await Promise.all(enabledPresets.map(async (id) => {
 					const cfg = presetConfigs.find((c) => c.id === id);
 					if (!cfg) return null;
-					const items = await fetchExternalPresetRow(id);
+					const items = await fetchExternalPresetRow(id, {language: settings.uiLanguage});
 					return {id, title: cfg.title, items: items || []};
 				}));
 
 				const customData = await Promise.all(customRows.map(async (row) => {
-					const items = await fetchCustomHomeRow(row);
+					const items = await fetchCustomHomeRow(row, {language: settings.uiLanguage});
 					return {id: `external-${row.id}`, title: row.name || row.title || $L('Custom'), items: items || [], isCustomRow: true};
 				}));
 
@@ -142,6 +142,7 @@ const useExternalRows = ({settings, homeRows, kidsMode}) => {
 			cancelled = true;
 		};
 	}, [settings.useMoonfinPlugin, homeRows, kidsMode, settings.homeRows, settings.customHomeRows,
+		settings.uiLanguage,
 		settings.seasonalRowEnabled, settings.seasonalRowCountry, settings.seasonalRowHiddenHolidays,
 		settings.mergeRadarrSonarrCalendars,
 		settings.radarrCalendarShowCinema, settings.radarrCalendarShowDigital, settings.radarrCalendarShowPhysical,

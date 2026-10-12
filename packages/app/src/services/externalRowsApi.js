@@ -11,7 +11,7 @@ import {mediaServerQueue} from '../utils/requestQueue';
 const cache = {};
 const CACHE_TTL_MS = 30 * 60 * 1000;
 
-const cacheKeyFor = (source, type, params) => `${source}:${type}:${JSON.stringify(params || {})}`;
+const cacheKeyFor = (source, type, params, language) => `${source}:${type}:${JSON.stringify(params || {})}:${(language || '').toLowerCase()}`;
 
 const normalizeItem = (raw) => {
 	const providerIds = raw.providerIds || raw.ProviderIds || {};
@@ -36,12 +36,19 @@ const normalizeItem = (raw) => {
 	};
 };
 
+export const _clearCacheForTesting = () => {
+	for (const key of Object.keys(cache)) {
+		delete cache[key];
+	}
+};
+
 // Fetches one external list. params is the plugin params object such as
 // {id} or {username, listname}, sent url-encoded as JSON.
 export const fetchCustomRow = async ({source, type, params = {}}, options = {}) => {
 	if (!source || !type) return [];
 
-	const key = cacheKeyFor(source, type, params);
+	const language = options.language || '';
+	const key = cacheKeyFor(source, type, params, language);
 	if (!options.forceRefresh) {
 		const cached = cache[key];
 		if (cached && (Date.now() - cached.fetchedAt) < CACHE_TTL_MS) {
@@ -59,6 +66,7 @@ export const fetchCustomRow = async ({source, type, params = {}}, options = {}) 
 			+ `?source=${encodeURIComponent(source)}`
 			+ `&type=${encodeURIComponent(type)}`
 			+ `&params=${encodeURIComponent(JSON.stringify(params))}`
+			+ (language ? `&language=${encodeURIComponent(language)}` : '')
 			+ (options.forceRefresh ? '&refresh=true' : '');
 
 		const fetchOptions = {headers: {'Authorization': getAuthHeader()}};

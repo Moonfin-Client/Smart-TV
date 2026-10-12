@@ -843,7 +843,7 @@ const Settings = ({ onBack, onLibrariesChanged, onRunSetupWizard, onSelectItem, 
 		await Promise.all(enabledRows.map(async (row) => {
 			try {
 				// forceRefresh also asks the plugin to rebuild its own cache.
-				await fetchCustomRow(row, {forceRefresh: true});
+				await fetchCustomRow(row, {forceRefresh: true, language: settings.uiLanguage});
 				refreshed += 1;
 			} catch (e) {
 				void e;
@@ -855,7 +855,7 @@ const Settings = ({ onBack, onLibrariesChanged, onRunSetupWizard, onSelectItem, 
 				.replace('{done}', String(refreshed))
 				.replace('{total}', String(enabledRows.length))
 		);
-	}, [settings.customHomeRows, customRowsRefreshing]);
+	}, [settings.customHomeRows, settings.uiLanguage, customRowsRefreshing]);
 
 	const resetCustomRowForm = useCallback(() => {
 		setCustomRowUrl('');
@@ -893,7 +893,7 @@ const Settings = ({ onBack, onLibrariesChanged, onRunSetupWizard, onSelectItem, 
 		};
 		if (detected.source === 'letterboxd') row.showUserRatings = customRowShowUserRatings;
 		setCustomRowSaving(true);
-		const result = await validateCustomRow(row);
+		const result = await validateCustomRow(row, {language: settings.uiLanguage});
 		setCustomRowSaving(false);
 		if (result.error) {
 			setCustomRowError(result.error);
@@ -906,7 +906,7 @@ const Settings = ({ onBack, onLibrariesChanged, onRunSetupWizard, onSelectItem, 
 		resetCustomRowForm();
 	}, [customRowMode, customRowUrl, customRowSourceKey, customRowParamA, customRowParamB,
 		customRowName, customRowSortBy, customRowSortOrder, customRowShowUserRatings,
-		editingCustomRowId, settings.customHomeRows, updateSetting, resetCustomRowForm]);
+		editingCustomRowId, settings.customHomeRows, settings.uiLanguage, updateSetting, resetCustomRowForm]);
 
 	// Loads a stored row into the manual form so its ids and sorting can change
 	// without removing and re-adding it.
