@@ -142,7 +142,12 @@ const ModernDetailContent = (props) => {
 	const episodeMenuHold = useItemMenuHold(episodeAt);
 
 	const tracks = isPlaylist ? displayedPlaylistTracks : albumTracks;
-	const trackAt = useCallback((target) => itemWithIdAt(tracks, 'data-track-id', target), [tracks]);
+	const trackAt = useCallback((target) => {
+		const card = target.closest?.('[data-index]');
+		const idx = card ? parseInt(card.getAttribute('data-index'), 10) : -1;
+		if (idx >= 0 && idx < tracks.length) return tracks[idx];
+		return itemWithIdAt(tracks, 'data-track-id', target);
+	}, [tracks]);
 	const trackMenuOptions = useMemo(() => {
 		if (!isPlaylist || !playlistMenu?.playlist) return playlistMenu;
 		return {
@@ -405,7 +410,7 @@ const ModernDetailContent = (props) => {
 			if (personMovies.length) list.push({id: 'movies', label: $L('Movies')});
 			if (personSeries.length) list.push({id: 'series', label: $L('TV Shows')});
 		}
-		if ((isAlbum || isPlaylist) && (albumTracks.length || playlistItems.length)) list.push({id: 'tracks', label: $L('Tracks')});
+		if ((isAlbum && albumTracks.length) || isPlaylist) list.push({id: 'tracks', label: $L('Tracks')});
 		if (isMusicArtist && artistAlbums.length) list.push({id: 'albums', label: $L('Albums')});
 		if (isBoxSet && collectionItems.length) list.push({id: 'items', label: $L('Items')});
 		if (cast.length) list.push({id: 'cast', label: $L('Cast')});
@@ -418,7 +423,7 @@ const ModernDetailContent = (props) => {
 		if (similar.length) list.push({id: 'similar', label: $L('More Like This')});
 		if (seerr.hasTabContent) list.push({id: 'seerr', label: seerr.displayName});
 		return list;
-	}, [isSeries, seasons.length, listsEpisodes, episodes.length, isPerson, personMovies.length, personSeries.length, isAlbum, isPlaylist, albumTracks.length, playlistItems.length, isMusicArtist, artistAlbums.length, isBoxSet, collectionItems.length, collectionSections.length, collectionTabLabel, cast.length, crew.length, studios, chapters, extras.length, showsDetails, similar.length, seerr.hasTabContent, seerr.displayName]);
+	}, [isSeries, seasons.length, listsEpisodes, episodes.length, isPerson, personMovies.length, personSeries.length, isAlbum, isPlaylist, albumTracks.length, isMusicArtist, artistAlbums.length, isBoxSet, collectionItems.length, collectionSections.length, collectionTabLabel, cast.length, crew.length, studios, chapters, extras.length, showsDetails, similar.length, seerr.hasTabContent, seerr.displayName]);
 
 	const [activeTab, setActiveTab] = useState(null);
 	// Expanded Tabs on keeps the first tab open and lets focus follow selection.
@@ -603,7 +608,7 @@ const ModernDetailContent = (props) => {
 				) : (
 					<RowContainer className={css.trackList} {...(isPlaylist ? trackMenuHold : {})}>
 						{tracks.map((track, i) => (
-							<SpottableDiv key={track.PlaylistItemId || `${track.Id}_${i}`} className={css.trackRow} data-track-id={track.Id} data-index={i} onClick={handleTrackClick}>
+							<SpottableDiv key={track.PlaylistItemId || `${track.Id}_${i}`} className={css.trackRow} data-track-id={track.Id} data-playlist-item-id={track.PlaylistItemId} data-index={i} onClick={handleTrackClick}>
 								<span className={css.trackIndex}>{isPlaylist ? i + 1 : (track.IndexNumber || i + 1)}</span>
 								<span className={css.trackTitle}>{track.Name}</span>
 								{track.RunTimeTicks && <span className={css.trackDuration}>{formatDuration(track.RunTimeTicks)}</span>}
