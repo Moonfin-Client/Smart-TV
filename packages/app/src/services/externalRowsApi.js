@@ -1,4 +1,4 @@
-import {getAuthHeader, getServerUrl} from './jellyfinApi';
+import {getAuthHeader, getServerUrl, getUserId} from './jellyfinApi';
 import {fetchWithTimeout} from '../utils/fetchTimeout';
 import {mediaServerQueue} from '../utils/requestQueue';
 
@@ -11,7 +11,11 @@ import {mediaServerQueue} from '../utils/requestQueue';
 const cache = {};
 const CACHE_TTL_MS = 30 * 60 * 1000;
 
-const cacheKeyFor = (source, type, params, language) => `${source}:${type}:${JSON.stringify(params || {})}:${(language || '').toLowerCase()}`;
+// The server holds every row to the viewer's parental limit, so a cached row belongs to the
+// account that fetched it, on the server it came from. The next account on this TV gets its
+// own row, not the last one's.
+const cacheScope = () => `${getServerUrl() || ''}|${getUserId() || ''}`;
+const cacheKeyFor = (source, type, params, language) => `${cacheScope()}|${source}:${type}:${JSON.stringify(params || {})}:${(language || '').toLowerCase()}`;
 
 const normalizeItem = (raw) => {
 	const providerIds = raw.providerIds || raw.ProviderIds || {};
@@ -95,7 +99,7 @@ export const fetchCustomRow = async ({source, type, params = {}}, options = {}) 
 // The seasonal row Moonbase built for this user. Owned movies arrive as library items and
 // suggestions in the custom row shape. A holiday of null means there is no row today.
 export const fetchSeasonalRow = async ({country} = {}) => {
-	const key = `seasonal:${country || ''}`;
+	const key = `${cacheScope()}|seasonal:${country || ''}`;
 	const cached = cache[key];
 	if (cached && (Date.now() - cached.fetchedAt) < CACHE_TTL_MS) {
 		return cached.payload;
