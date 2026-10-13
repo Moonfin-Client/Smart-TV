@@ -50,7 +50,7 @@ export const ActionButton = ({path, label, detail, onClick, active, group, prima
 export const detailActionCatalogue = (props) => {
 	const {
 		item, seerr,
-		isSeries, isSeason, isBoxSet, isEpisode, isBook, isPerson,
+		isSeries, isSeason, isBoxSet, isEpisode, isBook, isPerson, isPlaylist, playlistTracks,
 		hasTrailer, played, isFavorite, inSyncPlayGroup, onWatchWithGroup,
 		supportsMediaSourceSelection, hasMultipleVersions, hasMultipleAudio,
 		handleShuffle, handleTrailer, handleToggleWatched, handleToggleFavorite, handleGoToSeries,
@@ -100,7 +100,7 @@ export const detailActionCatalogue = (props) => {
 				)}
 			</>
 		)},
-		{id: 'shuffle', when: isSeries || isSeason || isBoxSet, render: () => <ActionButton path={DETAIL_ICON_PATHS.shuffle} label={$L('Shuffle')} onClick={handleShuffle} />},
+		{id: 'shuffle', when: isSeries || isSeason || isBoxSet || (isPlaylist && (playlistTracks ? playlistTracks.length > 1 : (item.ChildCount > 1 || item.RecursiveItemCount > 1))), render: () => <ActionButton path={DETAIL_ICON_PATHS.shuffle} label={$L('Shuffle')} onClick={handleShuffle} />},
 		{id: 'version', when: hasMultipleVersions, render: () => <ActionButton path={DETAIL_ICON_PATHS.version} label={$L('Version')} onClick={handleOpenVersionModal} />},
 		{id: 'audio', when: hasMultipleAudio, render: () => <ActionButton path={DETAIL_ICON_PATHS.audio} label={$L('Audio')} onClick={handleOpenAudioModal} />},
 		{id: 'subtitles', when: supportsMediaSourceSelection, render: () => <ActionButton path={DETAIL_ICON_PATHS.subtitle} label={$L('Subtitle')} onClick={handleOpenSubtitleModal} />},

@@ -28,6 +28,14 @@ import {episodeCardTitle} from '../../utils/episodeCardTitle';
 import useItemMenuHold, {itemWithIdAt} from '../../hooks/useItemMenuHold';
 import {AnimeEpisodePills, AnimeItemPills} from '../../components/AnimeMarkerPills';
 import {scrimStyle} from '../../utils/scrimImage';
+import PlaylistSortFilterBar, {EmptyPlaylistFilterState} from '../../components/PlaylistSortFilterBar';
+import {
+	sortAndFilterPlaylistTracks,
+	PLAYLIST_SORT_ORDER,
+	PLAYLIST_SORT_RANDOM,
+	SORT_DIR_ASC,
+	PLAYED_ALL
+} from '../../utils/playlistSortFilter';
 
 import css from './ModernDetailContent.module.less';
 
@@ -73,19 +81,97 @@ const ModernDetailContent = (props) => {
 		mediaSource, supportsMediaSourceSelection, selectedAudioIndex, selectedSubtitleIndex,
 		handleChapterSelect, handleExtraSelect, playTrack, playlistMenu,
 		onSelectItem, onSelectPerson, onSelectStudio,
-		seerr, seerrNav, onSelectSeerrCard, spotlightBackRef, collectionMenu
+		seerr, seerrNav, onSelectSeerrCard, spotlightBackRef, collectionMenu,
+		handlePlay, handleShuffle
 	} = props;
+
+	const [sortBy, setSortBy] = useState(PLAYLIST_SORT_ORDER);
+	const [sortDirection, setSortDirection] = useState(SORT_DIR_ASC);
+	const [playedFilter, setPlayedFilter] = useState(PLAYED_ALL);
+	const [favoriteOnly, setFavoriteOnly] = useState(false);
+	const [mediaTypeFilter, setMediaTypeFilter] = useState(null);
+	const [randomSeed, setRandomSeed] = useState(42);
+
+	const availableMediaTypes = useMemo(() => {
+		if (!isPlaylist || !playlistItems) return [];
+		const set = new Set();
+		playlistItems.forEach((t) => {
+			const type = t.MediaType || t.Type;
+			if (type) set.add(type);
+		});
+		return Array.from(set);
+	}, [isPlaylist, playlistItems]);
+
+	const displayedPlaylistTracks = useMemo(() => {
+		if (!isPlaylist) return playlistItems || [];
+		return sortAndFilterPlaylistTracks({
+			tracks: playlistItems || [],
+			sortBy,
+			sortDirection,
+			playedFilter,
+			favoriteOnly,
+			mediaTypeFilter,
+			randomSeed
+		});
+	}, [isPlaylist, playlistItems, sortBy, sortDirection, playedFilter, favoriteOnly, mediaTypeFilter, randomSeed]);
+
+	const handleSortChange = useCallback((newSort, newDir) => {
+		setSortBy(newSort);
+		setSortDirection(newDir);
+		if (newSort === PLAYLIST_SORT_RANDOM) {
+			setRandomSeed(Date.now());
+		}
+	}, []);
+
+	const handleFilterChange = useCallback(({playedFilter: pf, favoriteOnly: fo, mediaTypeFilter: mtf}) => {
+		if (pf !== undefined) setPlayedFilter(pf);
+		if (fo !== undefined) setFavoriteOnly(fo);
+		if (mtf !== undefined) setMediaTypeFilter(mtf);
+	}, []);
+
+	const handleReset = useCallback(() => {
+		setSortBy(PLAYLIST_SORT_ORDER);
+		setSortDirection(SORT_DIR_ASC);
+		setPlayedFilter(PLAYED_ALL);
+		setFavoriteOnly(false);
+		setMediaTypeFilter(null);
+		setRandomSeed(Date.now());
+	}, []);
 
 	const episodeAt = useCallback((target) => itemWithIdAt(episodes, 'data-episode-id', target), [episodes]);
 	const episodeMenuHold = useItemMenuHold(episodeAt);
 
-	const tracks = isPlaylist ? playlistItems : albumTracks;
+	const tracks = isPlaylist ? displayedPlaylistTracks : albumTracks;
 	const trackAt = useCallback((target) => itemWithIdAt(tracks, 'data-track-id', target), [tracks]);
 	const trackMenuHold = useItemMenuHold(trackAt, playlistMenu);
 	const handleTrackClick = useCallback((ev) => {
 		const track = trackAt(ev.currentTarget);
-		if (track) playTrack(track);
-	}, [trackAt, playTrack]);
+		if (track) {
+			if (isPlaylist) {
+				playTrack(track, displayedPlaylistTracks);
+			} else {
+				playTrack(track);
+			}
+		}
+	}, [trackAt, playTrack, isPlaylist, displayedPlaylistTracks]);
+
+	const handleModernPlay = useCallback((targetItem, tracksOverride) => {
+		if (isPlaylist) {
+			const queue = tracksOverride || displayedPlaylistTracks;
+			const first = (targetItem && !Array.isArray(targetItem)) ? targetItem : queue[0];
+			handlePlay?.(first, queue);
+		} else {
+			handlePlay?.(targetItem, tracksOverride);
+		}
+	}, [isPlaylist, displayedPlaylistTracks, handlePlay]);
+
+	const handleModernShuffle = useCallback((tracksOverride) => {
+		if (isPlaylist) {
+			handleShuffle?.(tracksOverride || displayedPlaylistTracks);
+		} else {
+			handleShuffle?.(tracksOverride);
+		}
+	}, [isPlaylist, displayedPlaylistTracks, handleShuffle]);
 
 	// Blur and opacity share one stored value, and the blur options reach 40 while
 	// this scale stops at 25, so a setting carried over from the classic layout is
@@ -228,6 +314,11 @@ const ModernDetailContent = (props) => {
 						const showEpisodeRating = settings.tmdbEpisodeRatingsEnabled && isRatingSourceAllowed(settings.mdblistRatingSources, 'tmdb');
 						if (showEpisodeRating && rating) label += ` · ${rating}`;
 						parts.push({kind: 'text', text: label});
+					} else if (isPlaylist) {
+						const count = displayedPlaylistTracks.length;
+						const totalTicks = displayedPlaylistTracks.reduce((sum, t) => sum + (t.RunTimeTicks || 0), 0);
+						parts.push({kind: 'text', text: `${count} ${count !== 1 ? $L('Items') : $L('Item')}`});
+						if (totalTicks > 0) parts.push({kind: 'runtime', text: formatDuration(totalTicks)});
 					} else if (runtime) {
 						parts.push({kind: 'runtime', text: runtime});
 						if (endsAt) parts.push({kind: 'text', text: endsAt});
@@ -251,7 +342,7 @@ const ModernDetailContent = (props) => {
 		};
 
 		return orderedItems.flatMap((itemDef) => pieceFor(itemDef.id));
-	}, [settings.detailMetadataOrderTv, settings.hiddenDetailMetadataTv, year, officialRating, isSeries, seasonCount, isSeason, episodes.length, isEpisode, item.ParentIndexNumber, item.IndexNumber, item.Status, episodeRatings, settings.tmdbEpisodeRatingsEnabled, settings.mdblistRatingSources, runtime, endsAt, genres, upcomingEpisodeText, seerr.statusPills]);
+	}, [settings.detailMetadataOrderTv, settings.hiddenDetailMetadataTv, year, officialRating, isSeries, seasonCount, isSeason, episodes.length, isEpisode, item.ParentIndexNumber, item.IndexNumber, item.Status, episodeRatings, settings.tmdbEpisodeRatingsEnabled, settings.mdblistRatingSources, runtime, endsAt, genres, upcomingEpisodeText, seerr.statusPills, isPlaylist, displayedPlaylistTracks]);
 
 	const handleCastClick = useCallback((ev) => {
 		const personId = ev.currentTarget.dataset.personId;
@@ -462,15 +553,34 @@ const ModernDetailContent = (props) => {
 
 	const renderTracksTab = () => {
 		return (
-			<RowContainer className={css.trackList} {...(isPlaylist ? trackMenuHold : {})}>
-				{tracks.map((track, i) => (
-					<SpottableDiv key={track.PlaylistItemId || track.Id} className={css.trackRow} data-track-id={track.Id} onClick={handleTrackClick}>
-						<span className={css.trackIndex}>{track.IndexNumber || i + 1}</span>
-						<span className={css.trackTitle}>{track.Name}</span>
-						{track.RunTimeTicks && <span className={css.trackDuration}>{formatDuration(track.RunTimeTicks)}</span>}
-					</SpottableDiv>
-				))}
-			</RowContainer>
+			<div className={css.tracksContainer}>
+				{isPlaylist && (
+					<PlaylistSortFilterBar
+						sortBy={sortBy}
+						sortDirection={sortDirection}
+						onSortChange={handleSortChange}
+						playedFilter={playedFilter}
+						favoriteOnly={favoriteOnly}
+						mediaTypeFilter={mediaTypeFilter}
+						availableMediaTypes={availableMediaTypes}
+						onFilterChange={handleFilterChange}
+						onReset={handleReset}
+					/>
+				)}
+				{isPlaylist && displayedPlaylistTracks.length === 0 ? (
+					<EmptyPlaylistFilterState onReset={handleReset} />
+				) : (
+					<RowContainer className={css.trackList} {...(isPlaylist ? trackMenuHold : {})}>
+						{tracks.map((track, i) => (
+							<SpottableDiv key={track.PlaylistItemId || track.Id} className={css.trackRow} data-track-id={track.Id} onClick={handleTrackClick}>
+								<span className={css.trackIndex}>{track.IndexNumber || i + 1}</span>
+								<span className={css.trackTitle}>{track.Name}</span>
+								{track.RunTimeTicks && <span className={css.trackDuration}>{formatDuration(track.RunTimeTicks)}</span>}
+							</SpottableDiv>
+						))}
+					</RowContainer>
+				)}
+			</div>
 		);
 	};
 
@@ -735,6 +845,9 @@ const ModernDetailContent = (props) => {
 							{!isPerson && (
 								<ModernActionButtons
 									{...props}
+									handlePlay={handleModernPlay}
+									handleShuffle={handleModernShuffle}
+									playlistTracks={isPlaylist ? displayedPlaylistTracks : undefined}
 									hasTech={hasTech}
 									played={played}
 									isFavorite={isFavorite}

@@ -29,7 +29,7 @@ const ModernActionButtons = (props) => {
 	// Only what the row itself needs. Everything the buttons are built from is read straight off
 	// props by the catalogue.
 	const {
-		settings, seerrOnly, isBook, isReadableBook,
+		settings, seerrOnly, isBook, isReadableBook, isPlaylist, playlistTracks,
 		hasPlaybackPosition, resumeTimeText, hasTech,
 		handlePlay, handleResume,
 		onFocusRow, downTarget, maxVisibleButtons, overflowAsMenu, menuBackRef
@@ -118,7 +118,7 @@ const ModernActionButtons = (props) => {
 	// Resume and Restart both lead the row when there is somewhere to resume from, so the
 	// leading slots are counted rather than assumed to be one.
 	const showsResume = !seerrOnly && hasPlaybackPosition && !isBook;
-	const showsPlay = !seerrOnly && (isBook ? isReadableBook : true);
+	const showsPlay = !seerrOnly && (isBook ? isReadableBook : true) && (!isPlaylist || (playlistTracks ? playlistTracks.length > 0 : true));
 	const leading = (showsResume ? 1 : 0) + (showsPlay ? 1 : 0);
 
 	// Kids Mode's row is its own short allow list and always fits, so the viewer's cap is one more
