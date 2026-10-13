@@ -143,6 +143,7 @@ const SpotlightDetailContent = (props) => {
 		seerrAppearances: seerrCredits.appearances, seerrCrewCredits: seerrCredits.crewCredits,
 		studioCards, canManagePlaylist,
 		seerr: {
+			details: seerr.details,
 			recommendations: seerr.recommendationCards || [],
 			similar: seerr.similarCards || [],
 			chipCount: seerr.pieces.chips ? seerrChipCount(seerr.details) : 0,
