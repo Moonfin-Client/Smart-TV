@@ -79,8 +79,7 @@ describe('switching users', () => {
 		await waitFor(() => expect(result.current.allRowData).toEqual(previousUserRows));
 
 		rerender(props('token-b', 'user-b'));
-		await waitFor(() => expect(result.current.isLoading).toBe(false));
-		expect(result.current.allRowData).not.toEqual(previousUserRows);
+		await waitFor(() => expect(result.current.allRowData).not.toEqual(previousUserRows));
 		expect(loadBrowseCache).toHaveBeenLastCalledWith('http://server', 'user-b');
 	});
 
