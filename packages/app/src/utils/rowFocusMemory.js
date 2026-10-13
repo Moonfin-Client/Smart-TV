@@ -34,3 +34,34 @@ export const focusedRowIndex = (active) => {
 	const index = wrapper ? Number(wrapper.getAttribute('data-row-index')) : 0;
 	return index > 0 ? index : 0;
 };
+
+// A placeholder holds a loading row's place but has nothing to focus, so moving between rows
+// steps over it. The first row with cards from [from] in the direction of [step], or -1.
+export const nextFocusableRow = (rows, from, step) => {
+	for (let i = from; i >= 0 && i < rows.length; i += step) {
+		if (!rows[i].isPlaceholder) return i;
+	}
+	return -1;
+};
+
+// The remembered row is on its way back and has not filled yet.
+export const ROW_STILL_LOADING = 'row-still-loading';
+
+// Where to land on a screen whose rows were rebuilt. The rows come back in waves and settle in
+// a different order each time, so the remembered row is looked up by its id rather than by
+// where it sat. A row that is back but still a placeholder is worth waiting for: landing on
+// its neighbour meanwhile would leave focus there once it fills. Only a row that is gone for
+// good falls back to the nearest row with cards, above first.
+export const rowToRestore = (rows, remembered) => {
+	if (!remembered) return null;
+	const {rowId, rowIndex, cardIndex} = remembered;
+	const byId = rowId ? rows.findIndex((row) => row.id === rowId) : -1;
+	if (byId >= 0) {
+		return rows[byId].isPlaceholder ? ROW_STILL_LOADING : {rowIndex: byId, cardIndex};
+	}
+	if (typeof rowIndex !== 'number' || rowIndex < 0 || rows.length === 0) return null;
+	const nearest = Math.min(rowIndex, rows.length - 1);
+	const above = nextFocusableRow(rows, nearest, -1);
+	const target = above >= 0 ? above : nextFocusableRow(rows, nearest, 1);
+	return target >= 0 ? {rowIndex: target, cardIndex} : null;
+};

@@ -1,4 +1,4 @@
-import {focusedCardIndex, cardToRestore, focusedRowIndex} from './rowFocusMemory';
+import {focusedCardIndex, cardToRestore, focusedRowIndex, nextFocusableRow, rowToRestore, ROW_STILL_LOADING} from './rowFocusMemory';
 
 const buildRow = (count, spotlightId = 'row-0') => {
 	const row = document.createElement('div');
@@ -145,5 +145,84 @@ describe('going back to a row that was rebuilt', () => {
 		const after = buildRow(3, 'row-2');
 
 		expect(cardToRestore('row-2', index)).toBe(after.children[2]);
+	});
+});
+
+const filled = (id) => ({id, items: [{Id: `${id}-1`}]});
+const placeholder = (id) => ({id, items: [], isPlaceholder: true});
+
+describe('nextFocusableRow', () => {
+	const rows = [filled('resume'), placeholder('imdb-top250-movies'), filled('latest-tv'), placeholder('seasonal')];
+
+	it('steps over a placeholder going down', () => {
+		expect(nextFocusableRow(rows, 1, 1)).toBe(2);
+	});
+
+	it('steps over a placeholder going up', () => {
+		expect(nextFocusableRow(rows, 1, -1)).toBe(0);
+	});
+
+	it('reports -1 past either end', () => {
+		expect(nextFocusableRow(rows, 3, 1)).toBe(-1);
+		expect(nextFocusableRow(rows, -1, -1)).toBe(-1);
+		expect(nextFocusableRow(rows, 4, 1)).toBe(-1);
+	});
+
+	it('reports -1 when every row is still loading', () => {
+		expect(nextFocusableRow([placeholder('a'), placeholder('b')], 0, 1)).toBe(-1);
+	});
+});
+
+describe('rowToRestore', () => {
+	it('finds the remembered row by its id after the rows were reordered', () => {
+		const rows = [filled('resume'), filled('latest-tv'), filled('imdb-top250-movies')];
+		expect(rowToRestore(rows, {rowId: 'imdb-top250-movies', rowIndex: 1, cardIndex: 4}))
+			.toEqual({rowIndex: 2, cardIndex: 4});
+	});
+
+	it('waits while the remembered row is still a placeholder', () => {
+		const rows = [filled('resume'), placeholder('imdb-top250-movies'), filled('latest-tv')];
+		expect(rowToRestore(rows, {rowId: 'imdb-top250-movies', rowIndex: 1, cardIndex: 4})).toBe(ROW_STILL_LOADING);
+	});
+
+	it('falls back to the nearest row with cards above when the remembered row is gone', () => {
+		const rows = [filled('resume'), filled('latest-tv'), placeholder('seasonal'), filled('latest-movies')];
+		expect(rowToRestore(rows, {rowId: 'imdb-top250-movies', rowIndex: 2, cardIndex: 0}))
+			.toEqual({rowIndex: 1, cardIndex: 0});
+	});
+
+	it('falls back to the nearest row below when nothing above has cards', () => {
+		const rows = [placeholder('resume'), placeholder('nextup'), filled('latest-tv')];
+		expect(rowToRestore(rows, {rowId: 'gone', rowIndex: 1, cardIndex: 2}))
+			.toEqual({rowIndex: 2, cardIndex: 2});
+	});
+
+	it('clamps a remembered index past the end of the list', () => {
+		const rows = [filled('resume'), filled('latest-tv')];
+		expect(rowToRestore(rows, {rowIndex: 7, cardIndex: 1})).toEqual({rowIndex: 1, cardIndex: 1});
+	});
+
+	it('gives nothing when there is nothing to come back to', () => {
+		expect(rowToRestore([filled('resume')], null)).toBeNull();
+		expect(rowToRestore([filled('resume')], {rowIndex: -1, cardIndex: 0})).toBeNull();
+		expect(rowToRestore([], {rowId: 'imdb-top250-movies', rowIndex: 0, cardIndex: 0})).toBeNull();
+		expect(rowToRestore([placeholder('a')], {rowIndex: 0, cardIndex: 0})).toBeNull();
+	});
+});
+
+// Back from a title picked out of an external row: the library rows are in first and the
+// external row still holds its place, so the decision waits for it rather than settling for
+// the row above it.
+describe('going back to an external row that was still loading', () => {
+	const remembered = {rowId: 'imdb-top250-movies', rowIndex: 5, cardIndex: 3};
+	const library = [filled('resume'), filled('nextup'), filled('latest-movies'), filled('latest-tv'), filled('latest-music')];
+
+	it('waits first, then lands on the same card of the same row', () => {
+		expect(rowToRestore([...library, placeholder('imdb-top250-movies')], remembered)).toBe(ROW_STILL_LOADING);
+		expect(rowToRestore([...library, filled('imdb-top250-movies')], remembered)).toEqual({rowIndex: 5, cardIndex: 3});
+	});
+
+	it('lands on the row above only once the row is known to be gone', () => {
+		expect(rowToRestore(library, remembered)).toEqual({rowIndex: 4, cardIndex: 3});
 	});
 });

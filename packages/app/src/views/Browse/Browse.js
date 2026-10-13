@@ -15,7 +15,7 @@ import SeerrTileRow from '../../components/SeerrTileRow';
 import LibraryButtonRow from '../../components/LibraryButtonRow';
 import {SkeletonShimmer, skeletonTitleWidths} from '../../components/Skeleton';
 import {getImageUrl, getBackdropId} from '../../utils/helpers';
-import {focusedCardIndex, cardToRestore, focusedRowIndex} from '../../utils/rowFocusMemory';
+import {focusedCardIndex, cardToRestore, focusedRowIndex, nextFocusableRow, rowToRestore, ROW_STILL_LOADING} from '../../utils/rowFocusMemory';
 import {radiusToCss, shadowToCss, toCssColor} from '../../theme/themeSpec';
 import DetailSection from './DetailSection';
 import FeaturedBanner from './FeaturedBanner';
@@ -226,6 +226,8 @@ const Browse = ({
 	// known now is laid over them rather than fetched again.
 	const filteredRows = useUserDataRows(builtRows);
 	const hasFocusableRow = filteredRows.some((row) => !row.isPlaceholder);
+	// An empty list means nothing only once every row that was on its way has arrived.
+	const settled = !isLoading && pendingSections.length === 0 && pendingRows.length === 0;
 
 	const focusRow = useCallback((rowIndex, cardIndex) => {
 		const card = cardToRestore(`row-${rowIndex}`, cardIndex);
@@ -303,15 +305,7 @@ const Browse = ({
 		}
 	}, [focusRow, restRowScroll]);
 
-	// A placeholder holds a loading section's place but has nothing to focus, so moving between
-	// rows steps over it.
-	const focusableRowFrom = useCallback((fromRowIndex, step) => {
-		const rows = filteredRowsRef.current;
-		for (let i = fromRowIndex; i >= 0 && i < rows.length; i += step) {
-			if (!rows[i].isPlaceholder) return i;
-		}
-		return -1;
-	}, []);
+	const focusableRowFrom = useCallback((fromRowIndex, step) => nextFocusableRow(filteredRowsRef.current, fromRowIndex, step), []);
 
 	const handleNavigateUp = useCallback((fromRowIndex) => {
 		const targetIndex = focusableRowFrom(fromRowIndex - 1, -1);
@@ -350,6 +344,9 @@ const Browse = ({
 		// The panel is built again on the way back in, so the ref that marks a first run
 		// starts over with it. A place to return to is what tells the two apart.
 		if (wasVisibleRef.current && lastFocusState === null) return;
+		// The library rows are in before the rows fetched from outside, so the row a title was
+		// picked from can still be a placeholder here. The effect runs again once it fills.
+		if (rowToRestore(filteredRows, lastFocusState) === ROW_STILL_LOADING) return;
 		wasVisibleRef.current = true;
 
 		fetchFreshFeaturedItems();
@@ -358,12 +355,11 @@ const Browse = ({
 		setTimeout(() => {
 			// The first row is somewhere the user was too, so it comes back like any other
 			// rather than handing the screen to the banner.
-			if (lastFocusState && lastFocusState.rowIndex >= 0) {
-				const {rowIndex, cardIndex} = lastFocusState;
-				const nearest = Math.min(rowIndex, filteredRows.length - 1);
-				const above = focusableRowFrom(nearest, -1);
+			const target = rowToRestore(filteredRowsRef.current, lastFocusState);
+			if (target === ROW_STILL_LOADING) return;
+			if (target) {
 				setBrowseMode('rows');
-				scrollToRow(above >= 0 ? above : focusableRowFrom(nearest, 1), true, cardIndex);
+				scrollToRow(target.rowIndex, true, target.cardIndex);
 			} else if (showFeaturedBar !== false && featuredItems.length > 0) {
 				setBrowseMode('featured');
 				setTimeout(() => Spotlight.focus('featured-banner'), 50);
@@ -372,7 +368,7 @@ const Browse = ({
 			}
 			lastFocusState = null;
 		}, FOCUS_DELAY_MS);
-	}, [isVisible, isLoading, filteredRows.length, hasFocusableRow, fetchFreshFeaturedItems, refreshVolatileData, showFeaturedBar, featuredItems.length, scrollToRow, setBrowseMode, focusableRowFrom]);
+	}, [isVisible, isLoading, filteredRows, hasFocusableRow, fetchFreshFeaturedItems, refreshVolatileData, showFeaturedBar, featuredItems.length, scrollToRow, setBrowseMode, focusableRowFrom]);
 
 	useEffect(() => {
 		if (!isVisible) return;
@@ -425,6 +421,7 @@ const Browse = ({
 		const rowIndex = lastFocusedRowRef.current;
 		if (rowIndex === null) return;
 		lastFocusState = {
+			rowId: filteredRowsRef.current[rowIndex]?.id,
 			rowIndex,
 			cardIndex: focusedCardIndex(`row-${rowIndex}`, document.activeElement)
 		};
@@ -769,7 +766,7 @@ const Browse = ({
 							/>
 						);
 					})}
-					{filteredRows.length === 0 && (
+					{settled && filteredRows.length === 0 && (
 						<div className={css.empty}>{$L('No content found')}</div>
 					)}
 				</div>
