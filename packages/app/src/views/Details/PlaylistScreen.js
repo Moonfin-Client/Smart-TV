@@ -1,4 +1,4 @@
-import {useState, useCallback, useMemo} from 'react';
+import {useState, useCallback, useMemo, useRef, useEffect} from 'react';
 import PropTypes from 'prop-types';
 import $L from '@enact/i18n/$L';
 
@@ -8,7 +8,7 @@ import {DETAIL_ICON_PATHS} from './detailIcons';
 import {SpottableDiv, HorizontalContainer} from './detailsSpottables';
 import {handleSeasonButtonKeyDown} from './detailsFocus';
 import {PosterBadges} from './DetailBadges';
-import PlaylistSortFilterBar, {EmptyPlaylistFilterState} from '../../components/PlaylistSortFilterBar';
+import PlaylistSortFilterBar, {EmptyPlaylistFilterState, EmptyPlaylistState} from '../../components/PlaylistSortFilterBar';
 import {
 	sortAndFilterPlaylistTracks,
 	PLAYLIST_SORT_ORDER,
@@ -32,8 +32,19 @@ const PlaylistScreen = ({
 	onItemSelect,
 	onItemKeyDown,
 	onFocusRow,
-	playlistMenu
+	playlistMenu,
+	spotlightBackRef
 }) => {
+	const sortFilterBackRef = useRef(null);
+	useEffect(() => {
+		if (!spotlightBackRef) return undefined;
+		const handler = () => Boolean(sortFilterBackRef.current?.());
+		spotlightBackRef.current = handler;
+		return () => {
+			if (spotlightBackRef.current === handler) spotlightBackRef.current = null;
+		};
+	}, [spotlightBackRef]);
+
 	const [sortBy, setSortBy] = useState(PLAYLIST_SORT_ORDER);
 	const [sortDirection, setSortDirection] = useState(SORT_DIR_ASC);
 	const [playedFilter, setPlayedFilter] = useState(PLAYED_ALL);
@@ -102,8 +113,12 @@ const PlaylistScreen = ({
 	}, [displayedTracks, onShuffle]);
 
 	const handleItemClick = useCallback((ev) => {
-		const trackId = ev.currentTarget?.dataset?.playlistItemId;
-		const track = displayedTracks.find((t) => t.Id === trackId);
+		const card = ev.currentTarget;
+		const idxStr = card?.getAttribute?.('data-index');
+		const idx = idxStr != null ? parseInt(idxStr, 10) : -1;
+		const track = (idx >= 0 && idx < displayedTracks.length)
+			? displayedTracks[idx]
+			: displayedTracks.find((t) => (t.PlaylistItemId || t.Id) === card?.dataset?.playlistItemId);
 		if (track) {
 			if (onItemSelect) {
 				onItemSelect(ev, track, displayedTracks);
@@ -115,7 +130,12 @@ const PlaylistScreen = ({
 
 	const playlistItemCount = displayedTracks.length;
 	// Holding OK on a row opens its menu.
-	const rowAt = useCallback((target) => itemWithIdAt(displayedTracks, 'data-playlist-item-id', target), [displayedTracks]);
+	const rowAt = useCallback((target) => {
+		const card = target.closest('[data-index]');
+		const idx = card ? parseInt(card.getAttribute('data-index'), 10) : -1;
+		if (idx >= 0 && idx < displayedTracks.length) return displayedTracks[idx];
+		return itemWithIdAt(displayedTracks, 'data-playlist-item-id', target);
+	}, [displayedTracks]);
 	const menuHold = useItemMenuHold(rowAt, playlistMenu);
 	const totalDuration = displayedTracks.reduce((sum, t) => sum + (t.RunTimeTicks || 0), 0);
 
@@ -180,16 +200,19 @@ const PlaylistScreen = ({
 				availableMediaTypes={availableMediaTypes}
 				onFilterChange={handleFilterChange}
 				onReset={handleReset}
+				backHandlerRef={sortFilterBackRef}
 			/>
 
 			{isDefaultOrder && displayedTracks.length > 0 && (
 				<p className={css.playlistHint}>{$L('◀ ▶ to re-order · DEL to remove')}</p>
 			)}
 
-			{displayedTracks.length === 0 ? (
+			{playlistItems.length === 0 ? (
+				<EmptyPlaylistState />
+			) : displayedTracks.length === 0 ? (
 				<EmptyPlaylistFilterState onReset={handleReset} />
 			) : (
-				<div className={`${css.trackList} ${css.playlistItemsList}`} onKeyDown={onItemKeyDown} {...menuHold}>
+				<div className={`${css.trackList} ${css.playlistItemsList}`} onKeyDown={isDefaultOrder ? onItemKeyDown : undefined} {...menuHold}>
 					{displayedTracks.map((plItem, idx) => {
 						const plDuration = plItem.RunTimeTicks ? formatDuration(plItem.RunTimeTicks) : '';
 						const plArtist = plItem.AlbumArtist || plItem.Artists?.[0] || '';
@@ -204,6 +227,7 @@ const PlaylistScreen = ({
 								className={css.playlistItem}
 								data-playlist-item-id={plItem.Id}
 								data-playlist-index={idx}
+								data-index={idx}
 								onClick={handleItemClick}
 							>
 								<span className={css.trackNumber}>{idx + 1}</span>
@@ -246,7 +270,11 @@ PlaylistScreen.propTypes = {
 	playlistMenu: PropTypes.object,
 	posterUrl: PropTypes.string,
 	serverUrl: PropTypes.string,
-	showsSection: PropTypes.func.isRequired
+	showsSection: PropTypes.func.isRequired,
+	spotlightBackRef: PropTypes.oneOfType([
+		PropTypes.func,
+		PropTypes.shape({current: PropTypes.any})
+	])
 };
 
 export default PlaylistScreen;

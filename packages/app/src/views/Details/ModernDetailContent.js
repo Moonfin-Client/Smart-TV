@@ -28,7 +28,7 @@ import {episodeCardTitle} from '../../utils/episodeCardTitle';
 import useItemMenuHold, {itemWithIdAt} from '../../hooks/useItemMenuHold';
 import {AnimeEpisodePills, AnimeItemPills} from '../../components/AnimeMarkerPills';
 import {scrimStyle} from '../../utils/scrimImage';
-import PlaylistSortFilterBar, {EmptyPlaylistFilterState} from '../../components/PlaylistSortFilterBar';
+import PlaylistSortFilterBar, {EmptyPlaylistFilterState, EmptyPlaylistState} from '../../components/PlaylistSortFilterBar';
 import {
 	sortAndFilterPlaylistTracks,
 	PLAYLIST_SORT_ORDER,
@@ -82,7 +82,7 @@ const ModernDetailContent = (props) => {
 		handleChapterSelect, handleExtraSelect, playTrack, playlistMenu,
 		onSelectItem, onSelectPerson, onSelectStudio,
 		seerr, seerrNav, onSelectSeerrCard, spotlightBackRef, collectionMenu,
-		handlePlay, handleShuffle
+		handlePlay, handleShuffle, onWatchWithGroup
 	} = props;
 
 	const [sortBy, setSortBy] = useState(PLAYLIST_SORT_ORDER);
@@ -143,7 +143,17 @@ const ModernDetailContent = (props) => {
 
 	const tracks = isPlaylist ? displayedPlaylistTracks : albumTracks;
 	const trackAt = useCallback((target) => itemWithIdAt(tracks, 'data-track-id', target), [tracks]);
-	const trackMenuHold = useItemMenuHold(trackAt, playlistMenu);
+	const trackMenuOptions = useMemo(() => {
+		if (!isPlaylist || !playlistMenu?.playlist) return playlistMenu;
+		return {
+			...playlistMenu,
+			playlist: {
+				...playlistMenu.playlist,
+				play: (track) => playlistMenu.playlist.play(track, displayedPlaylistTracks)
+			}
+		};
+	}, [isPlaylist, playlistMenu, displayedPlaylistTracks]);
+	const trackMenuHold = useItemMenuHold(trackAt, trackMenuOptions);
 	const handleTrackClick = useCallback((ev) => {
 		const track = trackAt(ev.currentTarget);
 		if (track) {
@@ -157,17 +167,34 @@ const ModernDetailContent = (props) => {
 
 	const handleModernPlay = useCallback((targetItem, tracksOverride) => {
 		if (isPlaylist) {
-			const queue = tracksOverride || displayedPlaylistTracks;
-			const first = (targetItem && !Array.isArray(targetItem)) ? targetItem : queue[0];
+			const queue = Array.isArray(tracksOverride) ? tracksOverride : displayedPlaylistTracks;
+			const validTarget = (targetItem && !Array.isArray(targetItem) && targetItem.Id)
+				? queue.find((t) => (targetItem.PlaylistItemId ? t.PlaylistItemId === targetItem.PlaylistItemId : t.Id === targetItem.Id))
+				: null;
+			const first = validTarget || queue[0];
 			handlePlay?.(first, queue);
 		} else {
 			handlePlay?.(targetItem, tracksOverride);
 		}
 	}, [isPlaylist, displayedPlaylistTracks, handlePlay]);
 
+	const handleModernWatchWithGroup = useCallback((targetItem) => {
+		if (isPlaylist) {
+			const queue = displayedPlaylistTracks;
+			const validTarget = (targetItem && !Array.isArray(targetItem) && targetItem.Id)
+				? queue.find((t) => (targetItem.PlaylistItemId ? t.PlaylistItemId === targetItem.PlaylistItemId : t.Id === targetItem.Id))
+				: null;
+			const first = validTarget || queue[0];
+			onWatchWithGroup?.(first, queue);
+		} else {
+			onWatchWithGroup?.(targetItem);
+		}
+	}, [isPlaylist, displayedPlaylistTracks, onWatchWithGroup]);
+
 	const handleModernShuffle = useCallback((tracksOverride) => {
 		if (isPlaylist) {
-			handleShuffle?.(tracksOverride || displayedPlaylistTracks);
+			const queue = Array.isArray(tracksOverride) ? tracksOverride : displayedPlaylistTracks;
+			handleShuffle?.(queue);
 		} else {
 			handleShuffle?.(tracksOverride);
 		}
@@ -194,9 +221,10 @@ const ModernDetailContent = (props) => {
 	const hideMediaDescription = hidesMediaDescription(item, settings);
 
 	const menuBackRef = useRef(null);
+	const sortFilterBackRef = useRef(null);
 	useEffect(() => {
 		if (!spotlightBackRef) return undefined;
-		const handler = () => Boolean(menuBackRef.current?.());
+		const handler = () => Boolean(sortFilterBackRef.current?.() || menuBackRef.current?.());
 		spotlightBackRef.current = handler;
 		return () => {
 			if (spotlightBackRef.current === handler) spotlightBackRef.current = null;
@@ -565,15 +593,18 @@ const ModernDetailContent = (props) => {
 						availableMediaTypes={availableMediaTypes}
 						onFilterChange={handleFilterChange}
 						onReset={handleReset}
+						backHandlerRef={sortFilterBackRef}
 					/>
 				)}
-				{isPlaylist && displayedPlaylistTracks.length === 0 ? (
+				{isPlaylist && playlistItems.length === 0 ? (
+					<EmptyPlaylistState />
+				) : isPlaylist && displayedPlaylistTracks.length === 0 ? (
 					<EmptyPlaylistFilterState onReset={handleReset} />
 				) : (
 					<RowContainer className={css.trackList} {...(isPlaylist ? trackMenuHold : {})}>
 						{tracks.map((track, i) => (
-							<SpottableDiv key={track.PlaylistItemId || track.Id} className={css.trackRow} data-track-id={track.Id} onClick={handleTrackClick}>
-								<span className={css.trackIndex}>{track.IndexNumber || i + 1}</span>
+							<SpottableDiv key={track.PlaylistItemId || `${track.Id}_${i}`} className={css.trackRow} data-track-id={track.Id} data-index={i} onClick={handleTrackClick}>
+								<span className={css.trackIndex}>{isPlaylist ? i + 1 : (track.IndexNumber || i + 1)}</span>
 								<span className={css.trackTitle}>{track.Name}</span>
 								{track.RunTimeTicks && <span className={css.trackDuration}>{formatDuration(track.RunTimeTicks)}</span>}
 							</SpottableDiv>
@@ -847,6 +878,7 @@ const ModernDetailContent = (props) => {
 									{...props}
 									handlePlay={handleModernPlay}
 									handleShuffle={handleModernShuffle}
+									onWatchWithGroup={handleModernWatchWithGroup}
 									playlistTracks={isPlaylist ? displayedPlaylistTracks : undefined}
 									hasTech={hasTech}
 									played={played}

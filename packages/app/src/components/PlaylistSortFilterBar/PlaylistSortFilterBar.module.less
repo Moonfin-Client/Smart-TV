@@ -3,7 +3,6 @@
 .bar {
 	display: flex;
 	align-items: center;
-	gap: 12px;
 	margin: 16px 0 20px;
 	flex-wrap: wrap;
 }
@@ -11,7 +10,6 @@
 .pill {
 	display: inline-flex;
 	align-items: center;
-	gap: 8px;
 	padding: 8px 18px;
 	border-radius: 20px;
 	font-size: 16px;
@@ -114,7 +112,6 @@
 .modalList {
 	display: flex;
 	flex-direction: column;
-	gap: 4px;
 }
 
 .emptyState {
@@ -124,7 +121,6 @@
 	justify-content: center;
 	padding: 56px 24px;
 	text-align: center;
-	gap: 16px;
 }
 
 .emptyIcon {
@@ -152,7 +148,7 @@
 	border: 1px solid rgba(255, 255, 255, 0.2);
 	cursor: pointer;
 	outline: none;
-	transition: all 0.15s;
+	transition: background 0.15s, border-color 0.15s, transform 0.15s;
 
 	&:focus,
 	&:global(.spottable-focus) {
@@ -161,3 +157,9 @@
 		transform: scale(1.05);
 	}
 }
+
+.bar { .flex-row-gap(12px); }
+.pill { .flex-row-gap(8px); }
+.modalList { .flex-col-gap(4px); }
+.emptyState { .flex-col-gap(16px); }
+

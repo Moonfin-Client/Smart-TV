@@ -361,7 +361,10 @@ const Details = ({itemId: itemIdProp, initialItem, onPlay, onSelectItem, onSelec
 			}
 		} else if (item.Type === 'Playlist') {
 			const tracks = tracksOverride || (Array.isArray(targetItem) ? targetItem : playlistItems);
-			const first = (targetItem && !Array.isArray(targetItem)) ? targetItem : tracks[0];
+			const matched = (targetItem && !Array.isArray(targetItem) && targetItem.Id)
+				? tracks.find((t) => (targetItem.PlaylistItemId ? t.PlaylistItemId === targetItem.PlaylistItemId : t.Id === targetItem.Id))
+				: null;
+			const first = matched || tracks[0];
 			if (tracks.length > 0 && first) playListFrom(tracks, first);
 		} else {
 			// A SyncPlay group queues the pressed item for everyone, so intros stay out of it.
@@ -1229,6 +1232,7 @@ const Details = ({itemId: itemIdProp, initialItem, onPlay, onSelectItem, onSelec
 					playlistMenu={playlistMenu}
 					onItemKeyDown={handlePlaylistItemKeyDown}
 					onFocusRow={handleButtonRowFocus}
+					spotlightBackRef={spotlightBackRef}
 				/>
 			</DetailScrollPage>
 		);

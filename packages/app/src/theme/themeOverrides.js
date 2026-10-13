@@ -53,6 +53,7 @@ import modernRowCss from '../components/MediaRow/ModernMediaRow.module.less';
 import ratingsCss from '../components/RatingsRow/RatingsRow.module.less';
 import itemMenuCss from '../components/ItemContextMenu/ItemContextMenu.module.less';
 import skeletonCss from '../components/Skeleton/Skeleton.module.less';
+import playlistSortFilterCss from '../components/PlaylistSortFilterBar/PlaylistSortFilterBar.module.less';
 
 const STYLE_ELEMENT_ID = 'moonfin-theme-overrides';
 
@@ -374,6 +375,13 @@ export const buildThemeOverrideCss = (theme, options = {}) => {
 	rule(`.${detailsCss.actionBtn}:hover, .${detailsCss.actionBtn}:focus`, `background: ${accentA(0.3)}; border-color: ${focusColor};`);
 	rule(`.${detailsCss.toast}`, `background: ${surfaceA(0.9)}; color: ${onBackground}; border-color: ${os(0.12)};`);
 	rule(`.${detailsCss.trailerCloseBtn}`, `background: ${os(0.15)}; color: ${onBackground};`);
+
+	// Playlist sort & filter controls
+	rule(`.${playlistSortFilterCss.pill}:focus, .${playlistSortFilterCss.pill}.spottable-focus`, `background: ${focusColor}; border-color: ${focusColor}; color: ${buttonInk};`);
+	rule(`.${playlistSortFilterCss.pillActive}`, `background: ${accentA(0.22)}; border-color: ${accent}; color: ${onBackground};`);
+	rule(`.${playlistSortFilterCss.badge}`, `background: ${accent}; color: ${onBadge};`);
+	rule(`.${playlistSortFilterCss.pill}:focus .${playlistSortFilterCss.badge}, .${playlistSortFilterCss.pill}.spottable-focus .${playlistSortFilterCss.badge}`, `background: #ffffff; color: ${accent};`);
+	rule(`.${playlistSortFilterCss.clearFiltersBtn}:focus, .${playlistSortFilterCss.clearFiltersBtn}.spottable-focus`, `background: ${focusColor}; border-color: ${focusColor};`);
 
 	// Detail screens, modern layout
 	rule(`.${modernDetailCss.metaRow}, .${modernDetailCss.techSize}`, `color: ${os(0.75)};`);

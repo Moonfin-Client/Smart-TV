@@ -1,4 +1,4 @@
-import {useState, useCallback, useEffect} from 'react';
+import {useState, useCallback, useEffect, useRef} from 'react';
 import PropTypes from 'prop-types';
 import $L from '@enact/i18n/$L';
 import Spottable from '@enact/spotlight/Spottable';
@@ -7,7 +7,6 @@ import SpotlightContainerDecorator from '@enact/spotlight/SpotlightContainerDeco
 
 import {ModalContainer} from '../../utils/spotlightContainers';
 import TrackOptionRow, {TrackDivider} from '../TrackOptionRow';
-import {isBackKey} from '../../utils/keys';
 import {
 	PLAYLIST_SORT_ORDER,
 	PLAYLIST_SORT_RANDOM,
@@ -36,25 +35,12 @@ export const PlaylistSortDialog = ({
 	onToggleDirection,
 	onClose
 }) => {
-	const handleKeyDown = useCallback((ev) => {
-		if (isBackKey(ev)) {
-			ev.preventDefault();
-			ev.stopPropagation();
-			onClose();
-		}
-	}, [onClose]);
-
 	const handleAscending = useCallback(() => onToggleDirection(SORT_DIR_ASC), [onToggleDirection]);
 	const handleDescending = useCallback(() => onToggleDirection(SORT_DIR_DESC), [onToggleDirection]);
 	const handleSelectSort = useCallback((ev) => {
 		const sortId = ev.currentTarget.dataset.sortId;
 		if (sortId) onSelectSort(sortId);
 	}, [onSelectSort]);
-
-	useEffect(() => {
-		window.addEventListener('keydown', handleKeyDown, true);
-		return () => window.removeEventListener('keydown', handleKeyDown, true);
-	}, [handleKeyDown]);
 
 	const options = playlistSortOptions();
 	const showDirection = sortBy !== PLAYLIST_SORT_RANDOM;
@@ -120,14 +106,6 @@ export const PlaylistFilterDialog = ({
 	onUpdateFilter,
 	onClose
 }) => {
-	const handleKeyDown = useCallback((ev) => {
-		if (isBackKey(ev)) {
-			ev.preventDefault();
-			ev.stopPropagation();
-			onClose();
-		}
-	}, [onClose]);
-
 	const handleToggleFavorite = useCallback(() => {
 		onUpdateFilter({favoriteOnly: !favoriteOnly});
 	}, [favoriteOnly, onUpdateFilter]);
@@ -141,11 +119,6 @@ export const PlaylistFilterDialog = ({
 		const type = ev.currentTarget.dataset.mediaType;
 		if (type) onUpdateFilter({mediaTypeFilter: type});
 	}, [onUpdateFilter]);
-
-	useEffect(() => {
-		window.addEventListener('keydown', handleKeyDown, true);
-		return () => window.removeEventListener('keydown', handleKeyDown, true);
-	}, [handleKeyDown]);
 
 	const playedChoices = playedFilterOptions();
 
@@ -237,6 +210,13 @@ EmptyPlaylistFilterState.propTypes = {
 	spotlightId: PropTypes.string
 };
 
+export const EmptyPlaylistState = () => (
+	<div className={css.emptyState}>
+		<div className={css.emptyIcon}>🎵</div>
+		<p className={css.emptyText}>{$L('This playlist is empty')}</p>
+	</div>
+);
+
 const PlaylistSortFilterBar = ({
 	sortBy = PLAYLIST_SORT_ORDER,
 	sortDirection = SORT_DIR_ASC,
@@ -248,10 +228,23 @@ const PlaylistSortFilterBar = ({
 	onFilterChange,
 	onReset,
 	spotlightId = 'playlist-sort-filter-bar',
-	onKeyDown
+	onKeyDown,
+	backHandlerRef
 }) => {
 	const [sortModalOpen, setSortModalOpen] = useState(false);
 	const [filterModalOpen, setFilterModalOpen] = useState(false);
+	const focusTimerRef = useRef(null);
+
+	const scheduleFocus = useCallback((target) => {
+		if (focusTimerRef.current) clearTimeout(focusTimerRef.current);
+		focusTimerRef.current = setTimeout(() => {
+			Spotlight.focus(target);
+		}, 50);
+	}, []);
+
+	useEffect(() => () => {
+		if (focusTimerRef.current) clearTimeout(focusTimerRef.current);
+	}, []);
 
 	const isSortNonDefault = sortBy !== PLAYLIST_SORT_ORDER || sortDirection !== SORT_DIR_ASC;
 
@@ -265,13 +258,13 @@ const PlaylistSortFilterBar = ({
 
 	const handleOpenSort = useCallback(() => {
 		setSortModalOpen(true);
-		setTimeout(() => Spotlight.focus('playlist-sort-modal'), 50);
-	}, []);
+		scheduleFocus('playlist-sort-modal');
+	}, [scheduleFocus]);
 
 	const handleCloseSort = useCallback(() => {
 		setSortModalOpen(false);
-		setTimeout(() => Spotlight.focus('playlist-sort-pill'), 50);
-	}, []);
+		scheduleFocus('playlist-sort-pill');
+	}, [scheduleFocus]);
 
 	const handleSelectSort = useCallback((id) => {
 		onSortChange?.(id, sortDirection);
@@ -284,13 +277,33 @@ const PlaylistSortFilterBar = ({
 
 	const handleOpenFilter = useCallback(() => {
 		setFilterModalOpen(true);
-		setTimeout(() => Spotlight.focus('playlist-filter-modal'), 50);
-	}, []);
+		scheduleFocus('playlist-filter-modal');
+	}, [scheduleFocus]);
 
 	const handleCloseFilter = useCallback(() => {
 		setFilterModalOpen(false);
-		setTimeout(() => Spotlight.focus('playlist-filter-pill'), 50);
-	}, []);
+		scheduleFocus('playlist-filter-pill');
+	}, [scheduleFocus]);
+
+	useEffect(() => {
+		if (!backHandlerRef) return undefined;
+		if (!sortModalOpen && !filterModalOpen) return undefined;
+		const handler = () => {
+			if (sortModalOpen) {
+				handleCloseSort();
+				return true;
+			}
+			if (filterModalOpen) {
+				handleCloseFilter();
+				return true;
+			}
+			return false;
+		};
+		backHandlerRef.current = handler;
+		return () => {
+			if (backHandlerRef.current === handler) backHandlerRef.current = null;
+		};
+	}, [backHandlerRef, sortModalOpen, filterModalOpen, handleCloseSort, handleCloseFilter]);
 
 	const handleUpdateFilter = useCallback((updates) => {
 		onFilterChange?.({
@@ -376,7 +389,11 @@ PlaylistSortFilterBar.propTypes = {
 	playedFilter: PropTypes.string,
 	sortBy: PropTypes.string,
 	sortDirection: PropTypes.string,
-	spotlightId: PropTypes.string
+	spotlightId: PropTypes.string,
+	backHandlerRef: PropTypes.oneOfType([
+		PropTypes.func,
+		PropTypes.shape({current: PropTypes.any})
+	])
 };
 
 export default PlaylistSortFilterBar;
