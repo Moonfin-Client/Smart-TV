@@ -24,7 +24,7 @@ import {
 	remoteSubtitleNotAppearedMessage
 } from '../Player/remoteSubtitleUtils';
 import {resolveBestSubtitle} from '../Player/initialSubtitle';
-import {getSeriesSubtitlePref} from '../../services/subtitlePrefs';
+import {getItemSubtitlePref, getSeriesSubtitlePref} from '../../services/subtitlePrefs';
 import {fromServerStream, matchSeriesTrackIndex} from '../../utils/seriesTrackPrefs';
 import useLongPress from '../../utils/longPress';
 import {formatPlaybackEndsAt} from '../../utils/playbackTimeLabels';
@@ -288,16 +288,33 @@ const Details = ({itemId: itemIdProp, initialItem, onPlay, onSelectItem, onSelec
 	const audioChosenRef = useRef(false);
 
 	useEffect(() => {
-		if (subtitleChosenRef.current) return;
-		const playMediaSource = item?.MediaSources?.[selectedVersionIndex] || item?.MediaSources?.[0];
-		const subs = playMediaSource?.MediaStreams?.filter(s => s.Type === 'Subtitle') || [];
-		if (!subs.length) {
-			setSelectedSubtitleIndex(-1);
-			return;
-		}
-		if (item?.SeriesId) {
-			getSeriesSubtitlePref(item.SeriesId).then((seriesPref) => {
-				if (subtitleChosenRef.current) return;
+		if (subtitleChosenRef.current) return undefined;
+		let cancelled = false;
+		const applySubtitlePreference = async () => {
+			const playMediaSource = item?.MediaSources?.[selectedVersionIndex] || item?.MediaSources?.[0];
+			const subs = playMediaSource?.MediaStreams?.filter(s => s.Type === 'Subtitle') || [];
+			if (!subs.length) {
+				if (!cancelled) setSelectedSubtitleIndex(-1);
+				return;
+			}
+
+			const savedItemIndex = await getItemSubtitlePref(item?.Id);
+			if (cancelled || subtitleChosenRef.current) return;
+			if (savedItemIndex !== undefined) {
+				if (savedItemIndex < 0) {
+					setSelectedSubtitleIndex(-1);
+					return;
+				}
+				const savedItemPos = subs.findIndex(s => s.Index === savedItemIndex);
+				if (savedItemPos >= 0) {
+					setSelectedSubtitleIndex(savedItemPos);
+					return;
+				}
+			}
+
+			if (item?.SeriesId) {
+				const seriesPref = await getSeriesSubtitlePref(item.SeriesId);
+				if (cancelled || subtitleChosenRef.current) return;
 				const matched = seriesPref
 					? matchSeriesTrackIndex(subs.map(fromServerStream), seriesPref)
 					: null;
@@ -305,14 +322,20 @@ const Details = ({itemId: itemIdProp, initialItem, onPlay, onSelectItem, onSelec
 					setSelectedSubtitleIndex(-1);
 				} else if (matched !== null) {
 					const pos = subs.findIndex(s => s.Index === matched);
-					if (pos >= 0) setSelectedSubtitleIndex(pos);
+					setSelectedSubtitleIndex(
+						pos >= 0 ? pos : resolveBestSubtitle(subs, settings, playMediaSource)
+					);
 				} else {
 					setSelectedSubtitleIndex(resolveBestSubtitle(subs, settings, playMediaSource));
 				}
-			});
-		} else {
-			setSelectedSubtitleIndex(resolveBestSubtitle(subs, settings, playMediaSource));
-		}
+			} else {
+				setSelectedSubtitleIndex(resolveBestSubtitle(subs, settings, playMediaSource));
+			}
+		};
+		applySubtitlePreference();
+		return () => {
+			cancelled = true;
+		};
 	}, [item, selectedVersionIndex, settings, setSelectedSubtitleIndex]);
 
 	// The version, audio and subtitle picks made on this screen, in the shape the
