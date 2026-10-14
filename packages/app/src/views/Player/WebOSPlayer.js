@@ -728,7 +728,8 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 		const handleAppExit = () => {
 			// always report the stop, even at position 0 (live TV and freshly
 			// opened media start there), or the session lingers on the server
-			// Keep a failed stop available for the next exit event or cleanup.
+			// Only a stop that went out lets the session go, so a failed one gets
+			// another try from the next exit event or the cleanup.
 			if (playback.reportStopBeacon(positionRef.current)) {
 				playback.discardCurrentSession();
 			}

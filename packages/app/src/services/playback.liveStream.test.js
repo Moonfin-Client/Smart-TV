@@ -150,7 +150,7 @@ describe('the stop beacon', () => {
 		expect(stops).toHaveLength(2);
 	});
 
-	test('an already delivered stop reports as sent so the exit gate drops the session', async () => {
+	test('an exit stop matching the background stop counts as sent and goes out once', async () => {
 		answerMovie();
 		await playback.getPlaybackInfo(movie.Id, {item: movie});
 		playback.reportBackgroundStop(0);
@@ -161,6 +161,24 @@ describe('the stop beacon', () => {
 		await playback.reportStop(0);
 		expect(stops).toHaveLength(1);
 		expect(api.reportPlaybackStopped).not.toHaveBeenCalled();
+	});
+
+	test('a normal stop at the background stop position is not sent again', async () => {
+		answerMovie();
+		await playback.getPlaybackInfo(movie.Id, {item: movie});
+		playback.reportBackgroundStop(100);
+		await playback.reportStop(100);
+		expect(stops).toHaveLength(1);
+		expect(api.reportPlaybackStopped).not.toHaveBeenCalled();
+		expect(playback.getCurrentSession()).toBeNull();
+	});
+
+	test('a normal stop after seeking away from the background stop still goes out', async () => {
+		answerMovie();
+		await playback.getPlaybackInfo(movie.Id, {item: movie});
+		playback.reportBackgroundStop(100);
+		await playback.reportStop(200);
+		expect(api.reportPlaybackStopped).toHaveBeenCalledWith(expect.objectContaining({PositionTicks: 200}));
 	});
 
 	test('a resumed session can stop again at the same position', async () => {
