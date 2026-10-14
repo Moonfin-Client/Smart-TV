@@ -205,7 +205,9 @@ const useDetailsItem = ({itemId, initialItem, effectiveApi, effectiveServerUrl, 
 				if (shownAudioPos >= 0) setSelectedAudioIndex(shownAudioPos);
 				// Show the track playback will start on as active, so a remembered pick
 				// doesn't look like it needs reselecting and the settings decide the rest.
-				setSelectedSubtitleIndex(await detailsSubtitlePosition(data, ms, settingsRef.current, initAudioStreams[shownAudioPos]));
+				const subtitlePos = await detailsSubtitlePosition(data, ms, settingsRef.current, initAudioStreams[shownAudioPos]);
+				if (cancelled) return;
+				setSelectedSubtitleIndex(subtitlePos);
 			} else {
 				setSelectedAudioIndex(0);
 				setSelectedSubtitleIndex(-1);
