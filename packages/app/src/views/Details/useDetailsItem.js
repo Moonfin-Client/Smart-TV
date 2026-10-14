@@ -3,9 +3,9 @@ import $L from '@enact/i18n/$L';
 
 import * as playback from '../../services/playback';
 import {fetchTmdbSeasonRatings, resolveSeriesTmdbId, isRatingSourceAllowed} from '../../services/mdblistApi';
-import {getItemSubtitlePref, getSeriesSubtitlePref, getSeriesAudioPref} from '../../services/subtitlePrefs';
+import {getSeriesAudioPref} from '../../services/subtitlePrefs';
 import {fromServerStream, matchSeriesTrackIndex} from '../../utils/seriesTrackPrefs';
-import {resolveBestSubtitle} from '../Player/initialSubtitle';
+import {detailsSubtitlePosition} from '../Player/initialSubtitle';
 import {findParentCollections} from './parentCollection';
 import {canScoreSeedLocally, getOnlineRecommendations, getRecommendations, mergeRecommendations} from '../../services/homeRecommendations';
 import {fetchMissingCollectionItems} from './seerrMissingCollectionItems';
@@ -190,7 +190,6 @@ const useDetailsItem = ({itemId, initialItem, effectiveApi, effectiveServerUrl, 
 			const ms = data.MediaSources?.[0];
 			if (ms) {
 				const initAudioStreams = ms.MediaStreams?.filter(s => s.Type === 'Audio') || [];
-				const initSubtitleStreams = ms.MediaStreams?.filter(s => s.Type === 'Subtitle') || [];
 				// A track remembered for the series shows as active, and only when there
 				// is none does the server's own default stand in.
 				const seriesAudioPref = data.SeriesId ? await getSeriesAudioPref(data.SeriesId) : undefined;
@@ -200,42 +199,13 @@ const useDetailsItem = ({itemId, initialItem, effectiveApi, effectiveServerUrl, 
 				const rememberedAudioPos = matchedAudio !== null && matchedAudio >= 0
 					? initAudioStreams.findIndex(s => s.Index === matchedAudio)
 					: -1;
-				if (rememberedAudioPos >= 0) {
-					setSelectedAudioIndex(rememberedAudioPos);
-				} else if (ms.DefaultAudioStreamIndex != null) {
-					const idx = initAudioStreams.findIndex(s => s.Index === ms.DefaultAudioStreamIndex);
-					if (idx >= 0) setSelectedAudioIndex(idx);
-				}
-				// Show the remembered pick as active so it doesn't look like it needs
-				// reselecting. The per-item index restores the exact track, and an episode
-				// otherwise inherits its series' remembered language.
-				let savedSubtitlePos = null;
-				const savedItemIndex = await getItemSubtitlePref(itemId);
-				if (savedItemIndex !== undefined) {
-					if (savedItemIndex < 0) {
-						savedSubtitlePos = -1;
-					} else {
-						const pos = initSubtitleStreams.findIndex(s => s.Index === savedItemIndex);
-						if (pos >= 0) savedSubtitlePos = pos;
-					}
-				}
-				if (savedSubtitlePos === null && data.SeriesId) {
-					const seriesPref = await getSeriesSubtitlePref(data.SeriesId);
-					const matched = seriesPref
-						? matchSeriesTrackIndex(initSubtitleStreams.map(fromServerStream), seriesPref)
-						: null;
-					if (matched === -1) {
-						savedSubtitlePos = -1;
-					} else if (matched !== null) {
-						const pos = initSubtitleStreams.findIndex(s => s.Index === matched);
-						if (pos >= 0) savedSubtitlePos = pos;
-					}
-				}
-				if (savedSubtitlePos !== null) {
-					setSelectedSubtitleIndex(savedSubtitlePos);
-				} else {
-					setSelectedSubtitleIndex(resolveBestSubtitle(initSubtitleStreams, settingsRef.current, ms));
-				}
+				const shownAudioPos = rememberedAudioPos >= 0
+					? rememberedAudioPos
+					: initAudioStreams.findIndex(s => s.Index === ms.DefaultAudioStreamIndex);
+				if (shownAudioPos >= 0) setSelectedAudioIndex(shownAudioPos);
+				// Show the track playback will start on as active, so a remembered pick
+				// doesn't look like it needs reselecting and the settings decide the rest.
+				setSelectedSubtitleIndex(await detailsSubtitlePosition(data, ms, settingsRef.current, initAudioStreams[shownAudioPos]));
 			} else {
 				setSelectedAudioIndex(0);
 				setSelectedSubtitleIndex(-1);

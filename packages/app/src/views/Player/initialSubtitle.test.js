@@ -1,4 +1,4 @@
-import {resolveInitialSubtitle, bestSubtitle, resolveBestSubtitle} from './initialSubtitle';
+import {resolveInitialSubtitle, bestSubtitle, detailsSubtitlePosition} from './initialSubtitle';
 import {getItemSubtitlePref, getSeriesSubtitlePref} from '../../services/subtitlePrefs';
 
 jest.mock('../../services/subtitlePrefs', () => ({
@@ -255,6 +255,23 @@ describe('bestSubtitle', () => {
 		];
 		expect(bestSubtitle(list, 'eng', {preferTextSubtitles: true, preferExternalSubtitles: true, pgsDirectPlay: true})).toBe(list[0]);
 	});
+
+	test('neither preference lifts a forced track above a full one', () => {
+		const list = [
+			{index: 1, language: 'eng', codec: 'pgssub'},
+			{index: 2, language: 'eng', codec: 'subrip', isForced: true, isExternal: true}
+		];
+		expect(bestSubtitle(list, 'eng', {preferTextSubtitles: true})).toBe(list[0]);
+		expect(bestSubtitle(list, 'eng', {preferExternalSubtitles: true})).toBe(list[0]);
+	});
+
+	test('the server text flag counts as text whatever the codec', () => {
+		const list = [
+			{index: 1, language: 'eng', codec: 'pgssub'},
+			{index: 2, language: 'eng', codec: 'mystery', IsTextSubtitleStream: true}
+		];
+		expect(bestSubtitle(list, 'eng', {preferTextSubtitles: true})).toBe(list[1]);
+	});
 });
 
 describe('flagged candidates', () => {
@@ -280,42 +297,45 @@ describe('flagged candidates', () => {
 	});
 });
 
-describe('resolveBestSubtitle', () => {
-	const streams = [
-		{Index: 0, Language: 'eng', Codec: 'subrip', IsExternal: true},
-		{Index: 3, Language: 'eng', Codec: 'subrip', IsExternal: false, Title: 'English (SRT)'},
-		{Index: 4, Language: 'eng', Codec: 'PGSSUB', IsExternal: false, Title: 'English'},
-		{Index: 5, Language: 'eng', Codec: 'PGSSUB', IsExternal: false, Title: 'English (SDH)', IsHearingImpaired: true}
-	];
+describe('detailsSubtitlePosition', () => {
+	const source = (extra) => ({
+		MediaStreams: [
+			{Type: 'Audio', Index: 1, Language: 'eng'},
+			{Type: 'Subtitle', Index: 2, Language: 'eng', Codec: 'subrip', IsExternal: true},
+			{Type: 'Subtitle', Index: 3, Language: 'eng', Codec: 'subrip', Title: 'English (SRT)'},
+			{Type: 'Subtitle', Index: 4, Language: 'eng', Codec: 'PGSSUB', Title: 'English'},
+			{Type: 'Subtitle', Index: 5, Language: 'eng', Codec: 'PGSSUB', Title: 'English (SDH)', IsHearingImpaired: true}
+		],
+		...extra
+	});
+	const always = {subtitleMode: 'always', subtitleLanguage: 'eng', enablePgsRendering: true};
 
-	const baseSettings = {
-		subtitleMode: 'always',
-		subtitleLanguage: 'eng',
-		preferSdhSubtitles: false,
-		enablePgsRendering: true
-	};
-
-	test('selects external text when preferTextSubtitles and preferExternalSubtitles are true', () => {
-		const settings = {...baseSettings, preferTextSubtitles: true, preferExternalSubtitles: true};
-		expect(resolveBestSubtitle(streams, settings)).toBe(0);
+	test('ranks by the text and external preferences', async () => {
+		expect(await detailsSubtitlePosition(item, source(), {...always, preferTextSubtitles: true, preferExternalSubtitles: true})).toBe(0);
+		expect(await detailsSubtitlePosition(item, source(), {...always, preferTextSubtitles: true})).toBe(1);
+		expect(await detailsSubtitlePosition(item, source(), always)).toBe(2);
 	});
 
-	test('selects internal text when preferTextSubtitles is true and preferExternalSubtitles is false', () => {
-		const settings = {...baseSettings, preferTextSubtitles: true, preferExternalSubtitles: false};
-		expect(resolveBestSubtitle(streams, settings)).toBe(1);
+	test('none mode and a version without subtitles show off', async () => {
+		expect(await detailsSubtitlePosition(item, source(), {...always, subtitleMode: 'none'})).toBe(-1);
+		expect(await detailsSubtitlePosition(item, {MediaStreams: []}, always)).toBe(-1);
 	});
 
-	test('selects internal PGS when both preferTextSubtitles and preferExternalSubtitles are false', () => {
-		const settings = {...baseSettings, preferTextSubtitles: false, preferExternalSubtitles: false};
-		expect(resolveBestSubtitle(streams, settings)).toBe(2);
+	test('a track remembered for the item wins over the settings', async () => {
+		getItemSubtitlePref.mockResolvedValue(5);
+		expect(await detailsSubtitlePosition(item, source(), always)).toBe(3);
+		getItemSubtitlePref.mockResolvedValue(-1);
+		expect(await detailsSubtitlePosition(item, source(), always)).toBe(-1);
 	});
 
-	test('returns -1 when subtitleMode is none', () => {
-		const settings = {...baseSettings, subtitleMode: 'none'};
-		expect(resolveBestSubtitle(streams, settings)).toBe(-1);
+	test('default mode shows the track the server names', async () => {
+		const settings = {...always, subtitleMode: 'default'};
+		expect(await detailsSubtitlePosition(item, source({DefaultSubtitleStreamIndex: 3}), settings)).toBe(1);
 	});
 
-	test('returns -1 for empty streams', () => {
-		expect(resolveBestSubtitle([], baseSettings)).toBe(-1);
+	test('foreign mode shows off when the audio is already in the wanted language', async () => {
+		const settings = {...always, subtitleMode: 'foreign', audioLanguage: 'eng'};
+		expect(await detailsSubtitlePosition(item, source(), settings, {Language: 'eng'})).toBe(-1);
+		expect(await detailsSubtitlePosition(item, source(), settings, {Language: 'jpn'})).toBe(2);
 	});
 });

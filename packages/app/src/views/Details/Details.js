@@ -23,9 +23,7 @@ import {
 	remoteSubtitleDownloadError,
 	remoteSubtitleNotAppearedMessage
 } from '../Player/remoteSubtitleUtils';
-import {resolveBestSubtitle} from '../Player/initialSubtitle';
-import {getItemSubtitlePref, getSeriesSubtitlePref} from '../../services/subtitlePrefs';
-import {fromServerStream, matchSeriesTrackIndex} from '../../utils/seriesTrackPrefs';
+import {detailsSubtitlePosition} from '../Player/initialSubtitle';
 import useLongPress from '../../utils/longPress';
 import {formatPlaybackEndsAt} from '../../utils/playbackTimeLabels';
 import {formatFileSize} from '../../utils/formatFileSize';
@@ -287,56 +285,20 @@ const Details = ({itemId: itemIdProp, initialItem, onPlay, onSelectItem, onSelec
 	const subtitleChosenRef = useRef(false);
 	const audioChosenRef = useRef(false);
 
+	// Until a track is picked here, show the one playback will start on. It follows
+	// the settings along with the version and audio on screen.
 	useEffect(() => {
-		if (subtitleChosenRef.current) return undefined;
+		if (subtitleChosenRef.current || !item) return undefined;
 		let cancelled = false;
-		const applySubtitlePreference = async () => {
-			const playMediaSource = item?.MediaSources?.[selectedVersionIndex] || item?.MediaSources?.[0];
-			const subs = playMediaSource?.MediaStreams?.filter(s => s.Type === 'Subtitle') || [];
-			if (!subs.length) {
-				if (!cancelled) setSelectedSubtitleIndex(-1);
-				return;
-			}
-
-			const savedItemIndex = await getItemSubtitlePref(item?.Id);
-			if (cancelled || subtitleChosenRef.current) return;
-			if (savedItemIndex !== undefined) {
-				if (savedItemIndex < 0) {
-					setSelectedSubtitleIndex(-1);
-					return;
-				}
-				const savedItemPos = subs.findIndex(s => s.Index === savedItemIndex);
-				if (savedItemPos >= 0) {
-					setSelectedSubtitleIndex(savedItemPos);
-					return;
-				}
-			}
-
-			if (item?.SeriesId) {
-				const seriesPref = await getSeriesSubtitlePref(item.SeriesId);
-				if (cancelled || subtitleChosenRef.current) return;
-				const matched = seriesPref
-					? matchSeriesTrackIndex(subs.map(fromServerStream), seriesPref)
-					: null;
-				if (matched === -1) {
-					setSelectedSubtitleIndex(-1);
-				} else if (matched !== null) {
-					const pos = subs.findIndex(s => s.Index === matched);
-					setSelectedSubtitleIndex(
-						pos >= 0 ? pos : resolveBestSubtitle(subs, settings, playMediaSource)
-					);
-				} else {
-					setSelectedSubtitleIndex(resolveBestSubtitle(subs, settings, playMediaSource));
-				}
-			} else {
-				setSelectedSubtitleIndex(resolveBestSubtitle(subs, settings, playMediaSource));
-			}
-		};
-		applySubtitlePreference();
+		const ms = item.MediaSources?.[selectedVersionIndex] || item.MediaSources?.[0];
+		const audio = ms?.MediaStreams?.filter(s => s.Type === 'Audio')[selectedAudioIndex];
+		detailsSubtitlePosition(item, ms, settings, audio).then((pos) => {
+			if (!cancelled && !subtitleChosenRef.current) setSelectedSubtitleIndex(pos);
+		});
 		return () => {
 			cancelled = true;
 		};
-	}, [item, selectedVersionIndex, settings, setSelectedSubtitleIndex]);
+	}, [item, selectedVersionIndex, selectedAudioIndex, settings, setSelectedSubtitleIndex]);
 
 	// The version, audio and subtitle picks made on this screen, in the shape the
 	// player wants them. Shared with the advanced playback menu so both routes start
@@ -641,10 +603,14 @@ const Details = ({itemId: itemIdProp, initialItem, onPlay, onSelectItem, onSelec
 	const handleSelectVersion = useCallback((e) => {
 		const index = parseInt(e.currentTarget.dataset.index, 10);
 		if (isNaN(index) || !item?.MediaSources?.[index]) return;
+		// The version already on screen keeps the tracks picked for it.
+		if (index === selectedVersionIndex) {
+			closeModal();
+			return;
+		}
 		setSelectedVersionIndex(index);
 		const ms = item.MediaSources[index];
 		const versionAudioStreams = ms.MediaStreams?.filter(s => s.Type === 'Audio') || [];
-		const versionSubtitleStreams = ms.MediaStreams?.filter(s => s.Type === 'Subtitle') || [];
 		if (ms.DefaultAudioStreamIndex != null) {
 			const idx = versionAudioStreams.findIndex(s => s.Index === ms.DefaultAudioStreamIndex);
 			setSelectedAudioIndex(idx >= 0 ? idx : 0);
@@ -652,17 +618,11 @@ const Details = ({itemId: itemIdProp, initialItem, onPlay, onSelectItem, onSelec
 			setSelectedAudioIndex(0);
 		}
 		// A different version brings its own tracks, so whatever was picked for the old
-		// one no longer stands.
+		// one no longer stands. The subtitle effect above works out the new one.
 		subtitleChosenRef.current = false;
 		audioChosenRef.current = false;
-		if (ms.DefaultSubtitleStreamIndex != null) {
-			const idx = versionSubtitleStreams.findIndex(s => s.Index === ms.DefaultSubtitleStreamIndex);
-			setSelectedSubtitleIndex(idx >= 0 ? idx : -1);
-		} else {
-			setSelectedSubtitleIndex(-1);
-		}
 		closeModal();
-	}, [item, closeModal, setSelectedVersionIndex, setSelectedAudioIndex, setSelectedSubtitleIndex]);
+	}, [item, selectedVersionIndex, closeModal, setSelectedVersionIndex, setSelectedAudioIndex]);
 
 	const handleSeasonSelect = useCallback((ev) => {
 		const seasonId = ev.currentTarget.dataset.seasonId;

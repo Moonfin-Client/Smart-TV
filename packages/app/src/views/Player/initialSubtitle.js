@@ -1,7 +1,8 @@
 import {getItemSubtitlePref, getSeriesSubtitlePref} from '../../services/subtitlePrefs';
 import {languageMatches, normalizeLanguageCode} from '../../utils/audioLanguage';
-import {matchSeriesTrackIndex} from '../../utils/seriesTrackPrefs';
+import {fromServerStream, matchSeriesTrackIndex} from '../../utils/seriesTrackPrefs';
 import {streamTitleText} from '../../utils/streamTitle';
+import {isTextSubtitleCodec} from '../../utils/subtitleCodecs';
 
 const SPECIAL = /\b(commentary|commentaries|jump\s*scare)\b/;
 const SDH = /\b(sdh|cc|hoh|hearing\s*impaired|closed\s*caption)\b/;
@@ -9,33 +10,15 @@ const SDH = /\b(sdh|cc|hoh|hearing\s*impaired|closed\s*caption)\b/;
 const PGS_CODECS = ['pgs', 'pgssub', 'hdmv_pgs_subtitle', 'dvdsub', 'vobsub'];
 const ASS_CODECS = ['ass', 'ssa'];
 
-const BITMAP_CODECS = ['pgs', 'pgssub', 'hdmv_pgs_subtitle', 'dvdsub', 'vobsub', 'dvd_subtitle', 'dvbsub', 'dvb_subtitle', 'xsub'];
-const TEXT_CODECS = ['subrip', 'srt', 'vtt', 'webvtt', 'ass', 'ssa', 'ttml'];
-
 const getCodec = (s) => String(s?.codec || s?.Codec || '').trim().toLowerCase();
 const getLanguage = (s) => s?.language || s?.Language || '';
 const getIsForced = (s) => s?.isForced === true || s?.IsForced === true;
 const getIsDefault = (s) => s?.isDefault === true || s?.IsDefault === true;
 const getIsHearingImpaired = (s) => s?.isHearingImpaired === true || s?.IsHearingImpaired === true;
-const getIsExternal = (s) => s?.isExternal === true || s?.IsExternal === true ||
-	String(s?.deliveryMethod || s?.DeliveryMethod || '').trim().toLowerCase() === 'external';
-const getIsText = (s) => s?.isTextSubtitleStream === true || s?.IsTextSubtitleStream === true;
 const getIsCommentary = (s) => s?.isCommentary === true || s?.IsCommentary === true;
-
-const isBitmap = (stream) => {
-	const codec = getCodec(stream);
-	return BITMAP_CODECS.indexOf(codec) >= 0;
-};
-
-const isText = (stream) => {
-	if (getIsText(stream)) return true;
-	if (isBitmap(stream)) return false;
-	const codec = getCodec(stream);
-	if (!codec) return false;
-	return TEXT_CODECS.indexOf(codec) >= 0;
-};
-
-const isExternal = (stream) => getIsExternal(stream);
+const isExternal = (s) => s?.isExternal === true || s?.IsExternal === true ||
+	String(s?.deliveryMethod || s?.DeliveryMethod || '').trim().toLowerCase() === 'external';
+const isText = (s) => s?.IsTextSubtitleStream === true || isTextSubtitleCodec(getCodec(s));
 
 const isSdh = (stream) => getIsHearingImpaired(stream) || SDH.test(streamTitleText(stream));
 
@@ -115,9 +98,19 @@ export const bestSubtitle = (streams, preferredLanguage, options = {}) => {
 		const bySpecial = compare(!isSpecial(left), !isSpecial(right));
 		if (bySpecial) return bySpecial;
 
+		// Wanted SDH is matched first. Unwanted SDH only counts once internal and
+		// external are settled, so a stray external download cant beat the file's
+		// own SDH track unless external files are preferred.
 		if (preferSdh) {
 			const bySdh = compare(isSdh(left), isSdh(right));
 			if (bySdh) return bySdh;
+		}
+
+		// A forced track only carries the foreign dialogue, so neither preference
+		// below should lift it above a full track.
+		if (preferText || preferExternal) {
+			const byFull = compare(!getIsForced(left), !getIsForced(right));
+			if (byFull) return byFull;
 		}
 
 		if (preferText) {
@@ -125,12 +118,8 @@ export const bestSubtitle = (streams, preferredLanguage, options = {}) => {
 			if (byText) return byText;
 		}
 
-		if (isExternal(left) !== isExternal(right)) {
-			const byStorage = preferExternal
-				? compare(isExternal(left), isExternal(right))
-				: compare(!isExternal(left), !isExternal(right));
-			if (byStorage) return byStorage;
-		}
+		const byStorage = compare(isExternal(left) === preferExternal, isExternal(right) === preferExternal);
+		if (byStorage) return byStorage;
 
 		if (!preferSdh) {
 			const bySdh = compare(!isSdh(left), !isSdh(right));
@@ -249,47 +238,23 @@ export const resolveInitialSubtitle = async (result, item, initialSubtitleIndex,
 };
 
 /**
- * Resolves the position index of the best subtitle stream in the given list,
- * matching Moonfin's cross-platform selection logic.
+ * Where the track Details shows as active sits in the version's subtitle list,
+ * or -1 for off. It runs the player's own resolution, so the screen shows the
+ * track playback is going to start on.
  *
- * @param {Array} streams - subtitle streams (either raw MediaStreams or normalized)
- * @param {Object} settings - user settings
- * @param {Object} [mediaSource] - optional MediaSource for default stream fallback
- * @returns {number} position index in `streams`, or -1 if no subtitles should be selected
+ * @param {Object} item - the item, for its remembered picks
+ * @param {Object} mediaSource - the version on screen, holding the server's MediaStreams
+ * @param {Object} settings
+ * @param {Object} [audioStream] - the audio track on screen, as the server sent it
  */
-export const resolveBestSubtitle = (streams, settings, mediaSource) => {
-	if (!streams?.length || settings?.subtitleMode === 'none') {
-		return -1;
-	}
-	const pick = (subtitleMode) => bestSubtitle(streams, settings?.subtitleLanguage, {
-		fallbackLanguage: settings?.fallbackSubtitleLanguage,
-		preferSdh: settings?.preferSdhSubtitles === true,
-		preferTextSubtitles: settings?.preferTextSubtitles === true,
-		preferExternalSubtitles: settings?.preferExternalSubtitles === true,
-		pgsDirectPlay: settings?.enablePgsRendering !== false,
-		assDirectPlay: settings?.assDirectPlay !== false,
-		subtitleMode
-	});
-
-	let chosen;
-	const mode = settings?.subtitleMode || 'default';
-	if (mode === 'always') {
-		chosen = pick('always');
-	} else if (mode === 'forced') {
-		chosen = pick('forced');
-	} else if (mode === 'foreign') {
-		chosen = pick('foreign');
-	} else {
-		const defaultIdx = mediaSource?.defaultSubtitleStreamIndex ?? mediaSource?.DefaultSubtitleStreamIndex;
-		if (defaultIdx != null && defaultIdx >= 0) {
-			chosen = streams.find((s) => (s.index ?? s.Index) === defaultIdx);
-		}
-		if (!chosen) {
-			chosen = pick('flagged');
-		}
-	}
-
-	if (!chosen) return -1;
-	const chosenIndex = chosen.index ?? chosen.Index;
-	return streams.findIndex((s) => (s.index ?? s.Index) === chosenIndex);
+export const detailsSubtitlePosition = async (item, mediaSource, settings, audioStream) => {
+	const subs = (mediaSource?.MediaStreams || []).filter((s) => s.Type === 'Subtitle');
+	if (!subs.length) return -1;
+	// The player matches on the lower case fields, and the ranking reads either case.
+	const streams = subs.map((s) => ({...s, ...fromServerStream(s)}));
+	const chosen = await resolveInitialSubtitle(
+		{subtitleStreams: streams, defaultSubtitleStreamIndex: mediaSource.DefaultSubtitleStreamIndex},
+		item, undefined, settings, audioStream && fromServerStream(audioStream)
+	);
+	return chosen ? streams.indexOf(chosen) : -1;
 };
