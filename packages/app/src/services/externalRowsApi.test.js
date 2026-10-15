@@ -1,4 +1,4 @@
-import {fetchCustomRow, fetchSeasonalRow, constructSourceUrl, _clearCacheForTesting} from './externalRowsApi';
+import {fetchCustomRow, fetchSeasonalRow, constructSourceUrl, __resetExternalRowCache} from './externalRowsApi';
 import {fetchWithTimeout} from '../utils/fetchTimeout';
 
 jest.mock('../utils/fetchTimeout', () => ({fetchWithTimeout: jest.fn()}));
@@ -15,7 +15,7 @@ const mockJsonResponse = (data, status = 200) => ({
 
 describe('externalRowsApi', () => {
 	beforeEach(() => {
-		_clearCacheForTesting();
+		__resetExternalRowCache();
 		fetchWithTimeout.mockReset();
 	});
 

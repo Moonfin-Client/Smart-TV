@@ -36,7 +36,8 @@ const normalizeItem = (raw) => {
 	};
 };
 
-export const _clearCacheForTesting = () => {
+// Exported so tests can clear the cache between cases.
+export const __resetExternalRowCache = () => {
 	for (const key of Object.keys(cache)) {
 		delete cache[key];
 	}
