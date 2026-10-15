@@ -538,9 +538,8 @@ const Browse = ({
 		}
 	}, [handleSelectSeerrItem, handleSelectItem]);
 
-	// The rows leave a changed callback alone (their comparator looks at the items), so a row drawn while Home sat behind
-	// another screen, as it does when Home is built again after playback, kept the App's picture of that screen from then
-	// on and opened nothing. What the rows are handed reads the current handlers instead.
+	// The rows ignore a changed callback, so one drawn while Home sat hidden behind Details kept a
+	// handler that cant navigate. These always call the current one.
 	const latestSelectRef = useRef(null);
 	latestSelectRef.current = {item: handleSelectItem, genre: handleSelectGenreItem, seerr: handleSelectSeerrItem, external: handleSelectExternalItem};
 	const rowSelect = useMemo(() => ({
