@@ -64,13 +64,13 @@ const SubtitleOffsetOverlay = ({visible, currentOffset, currentTime, subtitleTra
 	if (!visible) return null;
 
 	return (
-		<div className={css.offsetOverlay} onClick={onClose}>
+		<div className={`${css.trackModal} ${css.offsetOverlay}`} onClick={onClose}>
 			<OffsetContainer
-				className={`${css.offsetPanel}${timeline ? ` ${css.offsetPanelWide}` : ''}`}
+				className={`${css.modalContent} ${css.offsetPanel}${timeline ? ` ${css.offsetPanelWide}` : ''}`}
 				onClick={stopPropagation}
 				spotlightId="offset-modal"
 			>
-				<h2 className={css.offsetTitle}>{$L('Subtitle Offset')}</h2>
+				<h2 className={`${css.modalTitle} ${css.offsetTitle}`}>{$L('Subtitle Offset')}</h2>
 				<div className={css.offsetControls}>
 					<SpottableButton
 						className={css.offsetBtn}
