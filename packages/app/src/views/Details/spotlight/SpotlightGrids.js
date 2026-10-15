@@ -206,6 +206,7 @@ const SpotlightSection = ({section, serverUrl, actions, seerr, firstSpotlightId}
 					selectedSubtitleIndex={actions.selectedSubtitleIndex}
 					settings={actions.settings}
 					firstSpotlightId={firstSpotlightId}
+					showTitle={false}
 				/>
 			);
 		default:

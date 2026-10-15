@@ -40,7 +40,7 @@ export const DETAIL_SECTIONS = [
 	{id: 'collections', label: 'Collections', group: 'sections', styles: [CLASSIC, MODERN, SPOTLIGHT]},
 	{id: 'moreLikeThis', label: 'More Like This', subtitle: 'Also similar albums and artists', group: 'sections', styles: [CLASSIC, MODERN, SPOTLIGHT, NOUVEAU]},
 	{id: 'moreEpisodes', label: 'More episodes', subtitle: 'On episode pages', group: 'sections', styles: [CLASSIC, MODERN, SPOTLIGHT]},
-	{id: 'mediaInfo', label: 'Media info', subtitle: 'File, streams and Direct Play check', group: 'sections', styles: [MODERN, NOUVEAU]},
+	{id: 'mediaInfo', label: 'Media info', subtitle: 'File, streams and Direct Play check', group: 'sections', styles: [MODERN, SPOTLIGHT, NOUVEAU]},
 	{id: 'seerrGenresTags', label: 'Genres & tags', group: 'seerr', styles: [CLASSIC, MODERN, SPOTLIGHT, NOUVEAU]},
 	{id: 'seerrStats', label: 'Stats', group: 'seerr', styles: [CLASSIC, MODERN, SPOTLIGHT, NOUVEAU]},
 	{id: 'seerrRecommendations', label: 'Recommendations', group: 'seerr', styles: [CLASSIC, MODERN, SPOTLIGHT, NOUVEAU]},

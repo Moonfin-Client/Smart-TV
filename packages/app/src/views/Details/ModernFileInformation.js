@@ -133,7 +133,7 @@ const DirectPlaySection = ({api, item, mediaSource, activeAudio, activeSubtitle,
 // What the file behind the title is: its name, size and when it was added, the tracks inside it,
 // and whether it plays as it is. A file that can't direct play says why, with a hint about the
 // setting that would change it.
-const ModernFileInformation = ({item, mediaSource, effectiveApi, selectedAudioIndex, selectedSubtitleIndex, settings, firstSpotlightId}) => {
+const ModernFileInformation = ({item, mediaSource, effectiveApi, selectedAudioIndex, selectedSubtitleIndex, settings, firstSpotlightId, showTitle = true}) => {
 	const streams = mediaSource?.MediaStreams || [];
 	const video = streams.find((stream) => stream.Type === 'Video');
 	const audio = streams.filter((stream) => stream.Type === 'Audio');
@@ -150,7 +150,7 @@ const ModernFileInformation = ({item, mediaSource, effectiveApi, selectedAudioIn
 
 	return (
 		<Container className={css.fileInfo}>
-			<h3 className={css.title}>{$L('File Information')}</h3>
+			{showTitle && <h3 className={css.title}>{$L('File Information')}</h3>}
 			<SpottableDiv className={css.fileCard} spotlightId={firstSpotlightId}>
 				{name && <div className={css.fileName}>{name}</div>}
 				{sizeLine && <div className={css.fileMeta}>{sizeLine}</div>}

@@ -15,13 +15,9 @@ describe('summaryCardHeight', () => {
 });
 
 describe('summaryCardWidth', () => {
-	it('locks cards to a 16:9 ratio across card counts', () => {
-		expect(summaryCardWidth(1100, 5, 200)).toBe(Math.round(200 * (16 / 9)));
-		expect(summaryCardWidth(1100, 2, 200)).toBe(Math.round(200 * (16 / 9)));
-	});
-
-	it('has no width to give without cards', () => {
-		expect(summaryCardWidth(1100, 0, 200)).toBe(0);
+	it('keeps cards at 16:9', () => {
+		expect(summaryCardWidth(200)).toBe(356);
+		expect(summaryCardWidth(120)).toBe(213);
 	});
 });
 

@@ -352,6 +352,15 @@ describe('spotlightCardsFor', () => {
 describe('hidden sections', () => {
 	const hiding = (...hidden) => (id) => !hidden.includes(id);
 
+	it('leaves the file details card out with media info hidden', () => {
+		const source = {Id: 'src-1', Container: 'mkv', MediaStreams: [{Type: 'Video'}]};
+		const cards = spotlightCardsFor(state({
+			item: {Id: 'm1', Type: 'Movie', MediaSources: [source]},
+			showsSection: hiding('mediaInfo')
+		}));
+		expect(ids(cards)).not.toContain('file_details');
+	});
+
 	it('leaves a card out once every section of it is hidden', () => {
 		const cards = spotlightCardsFor(state({
 			item: {Id: 'item-1', Type: 'Movie', Chapters: [{Name: 'One'}]},

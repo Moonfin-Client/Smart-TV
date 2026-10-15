@@ -230,9 +230,9 @@ const SpotlightDetailContent = (props) => {
 		[item, year, officialRating, seasonCount, episodes.length, genres, upcomingEpisodeText, seerr.statusPills, settings]
 	);
 
-	const bandWidth = heroWidth(viewport.width);
+	const heroColumnWidth = heroWidth(viewport.width);
 	const cardHeight = summaryCardHeight(viewport.height);
-	const cardWidth = summaryCardWidth(bandWidth, cards.length, cardHeight);
+	const cardWidth = summaryCardWidth(cardHeight);
 
 	const handleOpenCard = useCallback((card) => setOpenCardId(card.id), []);
 
@@ -341,7 +341,7 @@ const SpotlightDetailContent = (props) => {
 				<div className={css.scrim} style={scrimStyle(SCRIM, backdropStyle['--gradient-scale'])} />
 			</div>
 			<div className={`${css.page} ${settings.navbarPosition === 'left' ? css.sidebarOffset : css.topbarOffset}`}>
-				<div className={css.hero} style={{width: `${bandWidth}px`}}>
+				<div className={css.hero} style={{width: `${heroColumnWidth}px`}}>
 					{isPerson && posterUrl && <img className={css.personAvatar} src={posterUrl} alt="" />}
 					{tagline && !isPerson && <div className={css.tagline}>{tagline}</div>}
 					{heroTitle()}

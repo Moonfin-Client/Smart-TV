@@ -6,7 +6,8 @@ import {groupExtrasByCategory, getExtraCategoryLabel} from '../extraCategories';
 import {mergeMissingByReleaseOrder} from '../seerrMissingCollectionItems';
 import {SHOWS_EVERYTHING} from '../../../utils/detailSectionLayout';
 import {formatFileSize} from '../../../utils/formatFileSize';
-import {getImageUrl, toAbsoluteImageUrl} from '../../../utils/helpers';
+import {getImageUrl} from '../../../utils/helpers';
+import seerrApi from '../../../services/seerrApi';
 import {
 	spotlightItemImageUrl,
 	spotlightLandscapeImageUrl,
@@ -304,6 +305,7 @@ class CardBuilder {
 	}
 
 	fileDetailsCard() {
+		if (!this.shows('mediaInfo')) return null;
 		const {item, mediaSource} = this.s;
 		const source = mediaSource || item?.MediaSources?.[0];
 		if (!source || !source.MediaStreams?.length) return null;
@@ -332,7 +334,7 @@ class CardBuilder {
 			return getImageUrl(serverUrl, item.Id, 'Backdrop/2', {maxWidth: 960, quality: 90, tag: tags[2]});
 		}
 		if (this.s.seerr?.details?.backdrop_path) {
-			return toAbsoluteImageUrl(`https://image.tmdb.org/t/p/w780${this.s.seerr.details.backdrop_path}`);
+			return seerrApi.getImageUrl(this.s.seerr.details.backdrop_path, 'w780');
 		}
 		return fallbackImageUrl;
 	}
