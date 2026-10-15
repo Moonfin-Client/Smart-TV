@@ -538,6 +538,18 @@ const Browse = ({
 		}
 	}, [handleSelectSeerrItem, handleSelectItem]);
 
+	// The rows leave a changed callback alone (their comparator looks at the items), so a row drawn while Home sat behind
+	// another screen, as it does when Home is built again after playback, kept the App's picture of that screen from then
+	// on and opened nothing. What the rows are handed reads the current handlers instead.
+	const latestSelectRef = useRef(null);
+	latestSelectRef.current = {item: handleSelectItem, genre: handleSelectGenreItem, seerr: handleSelectSeerrItem, external: handleSelectExternalItem};
+	const rowSelect = useMemo(() => ({
+		item: (picked) => latestSelectRef.current.item(picked),
+		genre: (picked) => latestSelectRef.current.genre(picked),
+		seerr: (picked) => latestSelectRef.current.seerr(picked),
+		external: (picked) => latestSelectRef.current.external(picked)
+	}), []);
+
 	const handleNavigateDownFromFeatured = useCallback(() => {
 		setBrowseMode('rows');
 		setTimeout(() => {
@@ -748,7 +760,7 @@ const Browse = ({
 									rowId={row.id}
 									title={row.title}
 									items={row.items}
-									onSelectItem={handleSelectItem}
+									onSelectItem={rowSelect.item}
 									onFocus={handleRowFocus}
 									onFocusItem={handleFocusItem}
 									rowIndex={index}
@@ -766,7 +778,7 @@ const Browse = ({
 									title={row.title}
 									items={row.items}
 									cardType={row.type}
-									onSelectItem={handleSelectSeerrItem}
+									onSelectItem={rowSelect.seerr}
 									onFocus={handleRowFocus}
 									onFocusItem={handleFocusItem}
 									rowIndex={index}
@@ -776,10 +788,10 @@ const Browse = ({
 								/>
 							);
 						}
-						let selectHandler = handleSelectItem;
-						if (row.isSeerrRow || row.isOnlineRecoRow) selectHandler = handleSelectSeerrItem;
-						else if (row.isExternalRow) selectHandler = handleSelectExternalItem;
-						else if (row.isGenreRow) selectHandler = handleSelectGenreItem;
+						let selectHandler = rowSelect.item;
+						if (row.isSeerrRow || row.isOnlineRecoRow) selectHandler = rowSelect.seerr;
+						else if (row.isExternalRow) selectHandler = rowSelect.external;
+						else if (row.isGenreRow) selectHandler = rowSelect.genre;
 						// Per library rows share one override under the id that gates them.
 						// Overrides are a classic rows feature, the modern layout keeps its
 						// own arrangement untouched.
