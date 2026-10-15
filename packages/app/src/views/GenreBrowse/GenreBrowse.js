@@ -501,7 +501,7 @@ const GenreBrowse = ({genre, libraryId, onSelectItem, backHandlerRef}) => {
 							className={css.grid}
 							dataSize={compact ? items.length + (compactHasMore ? 1 : 0) : serverTotalCount}
 							itemRenderer={renderItem}
-							itemSize={{minWidth: 270, minHeight: 480}}
+							itemSize={{minWidth: 180, minHeight: 340}}
 							spacing={20}
 							spotlightId="genre-browse-grid"
 						/>
