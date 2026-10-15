@@ -31,6 +31,8 @@ import {scrimStyle} from '../../utils/scrimImage';
 import PlaylistSortFilterBar, {EmptyPlaylistFilterState, EmptyPlaylistState} from '../../components/PlaylistSortFilterBar';
 import {
 	sortAndFilterPlaylistTracks,
+	showsPlaylistOrder,
+	playlistRowMenu,
 	PLAYLIST_SORT_ORDER,
 	PLAYLIST_SORT_RANDOM,
 	SORT_DIR_ASC,
@@ -148,16 +150,11 @@ const ModernDetailContent = (props) => {
 		if (idx >= 0 && idx < tracks.length) return tracks[idx];
 		return itemWithIdAt(tracks, 'data-track-id', target);
 	}, [tracks]);
-	const trackMenuOptions = useMemo(() => {
-		if (!isPlaylist || !playlistMenu?.playlist) return playlistMenu;
-		return {
-			...playlistMenu,
-			playlist: {
-				...playlistMenu.playlist,
-				play: (track) => playlistMenu.playlist.play(track, displayedPlaylistTracks)
-			}
-		};
-	}, [isPlaylist, playlistMenu, displayedPlaylistTracks]);
+	const playlistOrderShown = showsPlaylistOrder({sortBy, sortDirection, playedFilter, favoriteOnly, mediaTypeFilter});
+	const trackMenuOptions = useMemo(
+		() => (isPlaylist ? playlistRowMenu(playlistMenu, displayedPlaylistTracks, playlistOrderShown) : playlistMenu),
+		[isPlaylist, playlistMenu, displayedPlaylistTracks, playlistOrderShown]
+	);
 	const trackMenuHold = useItemMenuHold(trackAt, trackMenuOptions);
 	const handleTrackClick = useCallback((ev) => {
 		const track = trackAt(ev.currentTarget);

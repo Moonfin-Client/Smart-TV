@@ -38,6 +38,8 @@ describe('itemMenuActions', () => {
 		expect(ids(movie(), {playlist: {canManage: true, first: true, last: false}})).not.toContain('moveUp');
 		expect(ids(movie(), {playlist: {canManage: true, first: false, last: true}})).not.toContain('moveDown');
 		expect(ids(movie(), {playlist: {canManage: false}})).toEqual(['play', 'viewDetails', 'watched', 'favorite', 'addToPlaylist']);
+		expect(ids(movie(), {playlist: {canManage: true, canMove: false, first: false, last: false}}))
+			.toEqual(['play', 'viewDetails', 'watched', 'favorite', 'addToPlaylist', 'removeFromPlaylist']);
 	});
 
 	test('leaves View Details off a song, which has no page to open', () => {

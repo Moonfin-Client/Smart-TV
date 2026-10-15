@@ -7,6 +7,7 @@ import {getSeriesAudioPref} from '../../services/subtitlePrefs';
 import {fromServerStream, matchSeriesTrackIndex} from '../../utils/seriesTrackPrefs';
 import {detailsSubtitlePosition} from '../Player/initialSubtitle';
 import {findParentCollections} from './parentCollection';
+import {fetchAllPlaylistItems} from './playlistItems';
 import {canScoreSeedLocally, getOnlineRecommendations, getRecommendations, mergeRecommendations} from '../../services/homeRecommendations';
 import {fetchMissingCollectionItems} from './seerrMissingCollectionItems';
 import {buildCollectionIndex, fetchCollectionPage} from './collectionPlaylist';
@@ -307,8 +308,8 @@ const useDetailsItem = ({itemId, initialItem, effectiveApi, effectiveServerUrl, 
 				}
 
 				if (data.Type === 'Playlist') {
-					const playlistData = await effectiveApi.getPlaylistItems(data.Id).catch(() => null);
-					if (playlistData) setPlaylistItems(tagWithServerInfo(withoutBlockedItems(playlistData.Items || [])));
+					const entries = await fetchAllPlaylistItems(effectiveApi, data.Id).catch(() => null);
+					if (entries) setPlaylistItems(tagWithServerInfo(withoutBlockedItems(entries)));
 				}
 
 				setPlayListsLoaded(true);

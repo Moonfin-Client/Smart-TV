@@ -1,5 +1,7 @@
 import {
 	sortAndFilterPlaylistTracks,
+	showsPlaylistOrder,
+	playlistRowMenu,
 	PLAYLIST_SORT_ORDER,
 	PLAYLIST_SORT_NAME,
 	PLAYLIST_SORT_ARTIST,
@@ -279,5 +281,39 @@ describe('playlistSortFilter', () => {
 			});
 			expect(res1.map((t) => t.Id)).toEqual(res2.map((t) => t.Id));
 		});
+	});
+});
+
+describe('showsPlaylistOrder', () => {
+	const plain = {sortBy: PLAYLIST_SORT_ORDER, sortDirection: SORT_DIR_ASC, playedFilter: PLAYED_ALL, favoriteOnly: false, mediaTypeFilter: null};
+
+	test('is true only with no sort or filter applied', () => {
+		expect(showsPlaylistOrder(plain)).toBe(true);
+		expect(showsPlaylistOrder({...plain, mediaTypeFilter: 'all'})).toBe(true);
+		expect(showsPlaylistOrder({...plain, sortBy: PLAYLIST_SORT_NAME})).toBe(false);
+		expect(showsPlaylistOrder({...plain, sortDirection: SORT_DIR_DESC})).toBe(false);
+		expect(showsPlaylistOrder({...plain, playedFilter: PLAYED_WATCHED})).toBe(false);
+		expect(showsPlaylistOrder({...plain, favoriteOnly: true})).toBe(false);
+		expect(showsPlaylistOrder({...plain, mediaTypeFilter: 'Audio'})).toBe(false);
+	});
+});
+
+describe('playlistRowMenu', () => {
+	const play = jest.fn();
+	const menu = {playlist: {canManage: true, play}};
+
+	test('plays the shown list and passes on whether rows can move', () => {
+		const shown = [{Id: 'b'}, {Id: 'a'}];
+		const rowMenu = playlistRowMenu(menu, shown, false);
+		expect(rowMenu.playlist.canMove).toBe(false);
+		expect(rowMenu.playlist.canManage).toBe(true);
+		rowMenu.playlist.play(shown[1]);
+		expect(play).toHaveBeenCalledWith(shown[1], shown);
+	});
+
+	test('leaves a menu with no playlist as it is', () => {
+		expect(playlistRowMenu(null, [], true)).toBeNull();
+		const plain = {collectionRemoval: true};
+		expect(playlistRowMenu(plain, [], true)).toBe(plain);
 	});
 });

@@ -88,6 +88,20 @@ export const playedFilterOptions = () => [
 	{id: PLAYED_IN_PROGRESS, label: playedFilterLabel(PLAYED_IN_PROGRESS)}
 ];
 
+// Only with no sort or filter applied do the rows sit in the playlist's own order, which is the
+// only order a row can be moved in.
+export const showsPlaylistOrder = ({sortBy, sortDirection, playedFilter, favoriteOnly, mediaTypeFilter}) =>
+	sortBy === PLAYLIST_SORT_ORDER &&
+	sortDirection === SORT_DIR_ASC &&
+	playedFilter === PLAYED_ALL &&
+	!favoriteOnly &&
+	(!mediaTypeFilter || mediaTypeFilter === 'all');
+
+// A playlist row's menu plays the list as shown and only offers moves in the playlist's own order.
+export const playlistRowMenu = (menu, shownTracks, canMove) => (menu?.playlist
+	? {...menu, playlist: {...menu.playlist, canMove, play: (track) => menu.playlist.play(track, shownTracks)}}
+	: menu);
+
 const seededShuffle = (array, seed = 42) => {
 	let s = seed;
 	const rng = () => {

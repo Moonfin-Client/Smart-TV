@@ -38,7 +38,8 @@ const hasProgress = (item) => {
 };
 
 // `playlist` is set when the menu opened on a row of a playlist: `canManage` adds the entries
-// that change the playlist, and `first` and `last` say which way the row can still move.
+// that change the playlist, `canMove` is false while the rows show some other order, and
+// `first` and `last` say which way the row can still move.
 export const itemMenuActions = (item, {isAdmin = false, isJellyfin = true, canManageCollections = false, inCollection = false, playlist = null} = {}) => {
 	if (!item) return [];
 	const type = item.Type;
@@ -81,8 +82,9 @@ export const itemMenuActions = (item, {isAdmin = false, isJellyfin = true, canMa
 		actions.push({id: 'addToPlaylist', icon: DETAIL_ICON_PATHS.playlist, label: $L('Add to Playlist')});
 		if (playlist?.canManage) {
 			actions.push({id: 'removeFromPlaylist', icon: MENU_ICON_PATHS.playlistRemove, label: $L('Delete from Playlist')});
-			if (!playlist.first) actions.push({id: 'moveUp', icon: MENU_ICON_PATHS.arrowUpward, label: $L('Move Up')});
-			if (!playlist.last) actions.push({id: 'moveDown', icon: MENU_ICON_PATHS.arrowDownward, label: $L('Move Down')});
+			const canMove = playlist.canMove !== false;
+			if (canMove && !playlist.first) actions.push({id: 'moveUp', icon: MENU_ICON_PATHS.arrowUpward, label: $L('Move Up')});
+			if (canMove && !playlist.last) actions.push({id: 'moveDown', icon: MENU_ICON_PATHS.arrowDownward, label: $L('Move Down')});
 		}
 		if (isJellyfin && isAdmin) {
 			actions.push({id: 'refreshMetadata', icon: MENU_ICON_PATHS.refresh, label: $L('Refresh Metadata')});

@@ -11,6 +11,8 @@ import {PosterBadges} from './DetailBadges';
 import PlaylistSortFilterBar, {EmptyPlaylistFilterState, EmptyPlaylistState} from '../../components/PlaylistSortFilterBar';
 import {
 	sortAndFilterPlaylistTracks,
+	showsPlaylistOrder,
+	playlistRowMenu,
 	PLAYLIST_SORT_ORDER,
 	PLAYLIST_SORT_RANDOM,
 	SORT_DIR_ASC,
@@ -71,11 +73,7 @@ const PlaylistScreen = ({
 		randomSeed
 	}), [playlistItems, sortBy, sortDirection, playedFilter, favoriteOnly, mediaTypeFilter, randomSeed]);
 
-	const isDefaultOrder = sortBy === PLAYLIST_SORT_ORDER &&
-		sortDirection === SORT_DIR_ASC &&
-		playedFilter === PLAYED_ALL &&
-		!favoriteOnly &&
-		(!mediaTypeFilter || mediaTypeFilter === 'all');
+	const isDefaultOrder = showsPlaylistOrder({sortBy, sortDirection, playedFilter, favoriteOnly, mediaTypeFilter});
 
 	const handleSortChange = useCallback((newSort, newDir) => {
 		setSortBy(newSort);
@@ -136,7 +134,11 @@ const PlaylistScreen = ({
 		if (idx >= 0 && idx < displayedTracks.length) return displayedTracks[idx];
 		return itemWithIdAt(displayedTracks, 'data-playlist-item-id', target);
 	}, [displayedTracks]);
-	const menuHold = useItemMenuHold(rowAt, playlistMenu);
+	const rowMenuOptions = useMemo(
+		() => playlistRowMenu(playlistMenu, displayedTracks, isDefaultOrder),
+		[playlistMenu, displayedTracks, isDefaultOrder]
+	);
+	const menuHold = useItemMenuHold(rowAt, rowMenuOptions);
 	const totalDuration = displayedTracks.reduce((sum, t) => sum + (t.RunTimeTicks || 0), 0);
 
 	return (
