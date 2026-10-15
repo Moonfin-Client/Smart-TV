@@ -186,9 +186,9 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 	subtitleOffsetRef.current = subtitleOffset;
 	const [controlsVisible, setControlsVisible] = useState(false);
 	const [activeModal, setActiveModal] = useState(null);
-	// Read by the time update, which runs from an interval or a media event and so sees no fresh state.
-	const episodesOpenRef = useRef(false);
-	episodesOpenRef.current = activeModal === 'episodes';
+	// Read by the time update, whose handler only catches up with state after a render.
+	const activeModalRef = useRef(null);
+	activeModalRef.current = activeModal;
 	// Seeded from the advanced playback menu, which picks a cap before playback starts.
 	const [selectedQuality, setSelectedQuality] = useState(initialQuality || null);
 	const [remoteSubtitleResults, setRemoteSubtitleResults] = useState([]);
@@ -1848,15 +1848,15 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 		if (videoRef.current) {
 			const rawTime = videoRef.current.currentTime;
 			const time = rawTime;
-			// Each time state change re-renders the whole player, open picker
-			// included, which is what makes moving through a track list lag on the
-			// weaker sets. A picker hides the OSD so nothing shows the time, and
-			// the OSD only shows whole seconds. Lyrics and the offset overlay
-			// follow the time more closely, so they still get every tick.
-			if (isAudioMode || activeModal === 'subtitleOffset') {
+			// Each update redraws the whole player, which is what makes an open picker or the episode
+			// panel drag on the weaker sets. A modal hides the OSD and the OSD only shows whole seconds,
+			// so the time only moves when it would show, and the first tick after a modal closes catches
+			// up. Lyrics and the offset overlay follow it closely, so they still get every tick.
+			const modal = activeModalRef.current;
+			if (isAudioMode || modal === 'subtitleOffset') {
 				setCurrentTime(time);
-			} else if (!activeModal && Math.floor(time) !== Math.floor(currentTime)) {
-				setCurrentTime(time);
+			} else if (!modal) {
+				setCurrentTime((shown) => (Math.floor(shown) === Math.floor(time) ? shown : time));
 			}
 			const ticks = Math.floor(time * 10000000);
 			if (ticks !== positionRef.current) {
@@ -1901,7 +1901,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 
 			checkSegments(ticks);
 		}
-	}, [checkSegments, subtitleTrackEvents, subtitleOffset, settleGroupSeek, isAudioMode, activeModal, currentTime]);
+	}, [checkSegments, subtitleTrackEvents, subtitleOffset, settleGroupSeek, isAudioMode]);
 
 	const handleWaiting = useCallback(() => {
 		setIsBuffering(true);
