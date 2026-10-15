@@ -4,6 +4,7 @@ import {fetchWithTimeout} from '../utils/fetchTimeout';
 jest.mock('../utils/fetchTimeout', () => ({fetchWithTimeout: jest.fn()}));
 jest.mock('./jellyfinApi', () => ({
 	getServerUrl: () => 'http://server',
+	getUserId: () => 'user',
 	getAuthHeader: () => 'MediaBrowser Token="test-token"'
 }));
 

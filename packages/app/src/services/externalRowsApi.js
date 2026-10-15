@@ -107,11 +107,14 @@ export const fetchSeasonalRow = async ({country} = {}) => {
 
 	const baseUrl = getServerUrl();
 	if (!baseUrl) return null;
+	// Read alongside the key, so a request still queued when the account changes answers for
+	// the account the key belongs to.
+	const headers = {'Authorization': getAuthHeader()};
 
 	try {
 		const url = `${baseUrl}/Moonfin/Seasonal/Row` + (country ? `?country=${encodeURIComponent(country)}` : '');
 		const response = await mediaServerQueue.run(
-			() => fetchWithTimeout(url, {headers: {'Authorization': getAuthHeader()}}, 10000)
+			() => fetchWithTimeout(url, {headers}, 10000)
 		);
 		if (!response.ok) return cache[key]?.payload || null;
 
