@@ -731,7 +731,8 @@ const Details = ({itemId: itemIdProp, initialItem, onPlay, onSelectItem, onSelec
 	}, [playlistItems, playTrack]);
 
 	const handlePlaylistShuffle = useCallback((tracksOverride) => {
-		const tracks = tracksOverride || playlistItems;
+		// The shared Shuffle button calls this with its click event rather than a list.
+		const tracks = Array.isArray(tracksOverride) ? tracksOverride : playlistItems;
 		if (tracks.length < 2) return;
 		const shuffled = shuffleArray(tracks);
 		playListFrom(shuffled, shuffled[0]);

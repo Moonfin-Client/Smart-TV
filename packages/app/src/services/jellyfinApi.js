@@ -886,7 +886,7 @@ export const api = {
 		request(`/Items/${itemId}/InstantMix?UserId=${currentUser}&Limit=${limit}&Fields=PrimaryImageAspectRatio,ProductionYear,AlbumArtist`),
 
 	getPlaylistItems: (playlistId, limit = 300) =>
-		request(`/Playlists/${playlistId}/Items?UserId=${currentUser}&Limit=${limit}&Fields=PrimaryImageAspectRatio,ProductionYear,AlbumArtist`),
+		request(`/Playlists/${playlistId}/Items?UserId=${currentUser}&Limit=${limit}&Fields=PrimaryImageAspectRatio,ProductionYear,AlbumArtist,DateCreated,SortName`),
 
 	movePlaylistItem: (playlistId, itemId, newIndex) =>
 		request(`/Playlists/${playlistId}/Items/${itemId}/Move/${newIndex}`, {
@@ -1235,7 +1235,7 @@ export const createApiForServer = (serverUrl, token, userId, serverTypeOverride 
 			serverRequest(`/Items/${itemId}/InstantMix?UserId=${userId}&Limit=${limit}&Fields=PrimaryImageAspectRatio,ProductionYear,AlbumArtist`),
 
 		getPlaylistItems: (playlistId, limit = 300) =>
-			serverRequest(`/Playlists/${playlistId}/Items?UserId=${userId}&Limit=${limit}&Fields=PrimaryImageAspectRatio,ProductionYear,AlbumArtist`),
+			serverRequest(`/Playlists/${playlistId}/Items?UserId=${userId}&Limit=${limit}&Fields=PrimaryImageAspectRatio,ProductionYear,AlbumArtist,DateCreated,SortName`),
 
 		movePlaylistItem: (playlistId, itemId, newIndex) =>
 			serverRequest(`/Playlists/${playlistId}/Items/${itemId}/Move/${newIndex}`, {
