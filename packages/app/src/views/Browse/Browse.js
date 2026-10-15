@@ -541,7 +541,9 @@ const Browse = ({
 	// The rows ignore a changed callback, so one drawn while Home sat hidden behind Details kept a
 	// handler that cant navigate. These always call the current one.
 	const latestSelectRef = useRef(null);
-	latestSelectRef.current = {item: handleSelectItem, genre: handleSelectGenreItem, seerr: handleSelectSeerrItem, external: handleSelectExternalItem};
+	useLayoutEffect(() => {
+		latestSelectRef.current = {item: handleSelectItem, genre: handleSelectGenreItem, seerr: handleSelectSeerrItem, external: handleSelectExternalItem};
+	}, [handleSelectItem, handleSelectGenreItem, handleSelectSeerrItem, handleSelectExternalItem]);
 	const rowSelect = useMemo(() => ({
 		item: (picked) => latestSelectRef.current.item(picked),
 		genre: (picked) => latestSelectRef.current.genre(picked),
