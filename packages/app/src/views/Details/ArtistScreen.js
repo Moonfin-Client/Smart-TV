@@ -6,6 +6,7 @@ import {getImageUrl} from '../../utils/helpers';
 import {isMdblistEnabled} from '../../services/mdblistApi';
 import {DETAIL_ICON_PATHS} from './detailIcons';
 import {SpottableDiv, HorizontalContainer} from './detailsSpottables';
+import {hidesMediaDescription} from './detailsMedia';
 
 import css from './Details.module.less';
 
@@ -39,7 +40,7 @@ const ArtistScreen = ({
 			<div className={css.personInfo}>
 				<h1 className={css.title}>{item.Name}</h1>
 				<RatingsRow item={item} serverUrl={serverUrl} pluginEnabled={isMdblistEnabled(settings)} />
-				{item.Overview && <p className={css.overview}>{item.Overview}</p>}
+				{item.Overview && !hidesMediaDescription(item, settings) && <p className={css.overview}>{item.Overview}</p>}
 				<HorizontalContainer className={css.actionButtons} spotlightId="details-action-buttons">
 					{artistAlbums.length > 0 && (
 						<SpottableDiv className={css.btnWrapper} onClick={onPlay} onFocus={onFocusRow} spotlightId="details-primary-btn">
