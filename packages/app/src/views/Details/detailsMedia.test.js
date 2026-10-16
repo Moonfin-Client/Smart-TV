@@ -38,6 +38,56 @@ describe('hidesMediaDescription', () => {
 		expect(hidesMediaDescription({Type: 'Movie'}, off)).toBe(false);
 		expect(hidesMediaDescription({Type: 'Episode'}, off)).toBe(false);
 	});
+
+	test('local content items are hidden when their specific setting is on', () => {
+		expect(hidesMediaDescription({Type: 'Movie'}, {hideDetailsMediaDescriptionMovie: true})).toBe(true);
+		expect(hidesMediaDescription({Type: 'Series'}, {hideDetailsMediaDescriptionShow: true})).toBe(true);
+		expect(hidesMediaDescription({Type: 'Show'}, {hideDetailsMediaDescriptionShow: true})).toBe(true);
+		expect(hidesMediaDescription({Type: 'Tv'}, {hideDetailsMediaDescriptionShow: true})).toBe(true);
+		expect(hidesMediaDescription({Type: 'Season'}, {hideDetailsMediaDescriptionSeason: true})).toBe(true);
+		expect(hidesMediaDescription({Type: 'Episode'}, {hideDetailsMediaDescriptionEpisode: true})).toBe(true);
+		expect(hidesMediaDescription({Type: 'BoxSet'}, {hideDetailsMediaDescriptionBoxSet: true})).toBe(true);
+		expect(hidesMediaDescription({Type: 'Collection'}, {hideDetailsMediaDescriptionBoxSet: true})).toBe(true);
+		expect(hidesMediaDescription({Type: 'Book'}, {hideDetailsMediaDescriptionBook: true})).toBe(true);
+		expect(hidesMediaDescription({Type: 'AudioBook'}, {hideDetailsMediaDescriptionBook: true})).toBe(true);
+		expect(hidesMediaDescription({Type: 'Person'}, {hideDetailsMediaDescriptionPerson: true})).toBe(true);
+		expect(hidesMediaDescription({Type: 'MusicAlbum'}, {hideDetailsMediaDescriptionMusic: true})).toBe(true);
+		expect(hidesMediaDescription({Type: 'MusicArtist'}, {hideDetailsMediaDescriptionMusic: true})).toBe(true);
+		expect(hidesMediaDescription({Type: 'Audio'}, {hideDetailsMediaDescriptionMusic: true})).toBe(true);
+		expect(hidesMediaDescription({Type: 'Playlist'}, {hideDetailsMediaDescriptionMusic: true})).toBe(true);
+	});
+
+	test('seerr content items respect seerr specific settings', () => {
+		const seerrMovie = {Type: 'Movie', _seerrMediaId: 100};
+		const seerrShow = {Type: 'Series', _seerrMediaId: 200};
+		const seerrTv = {Type: 'Tv', isSeerr: true};
+		const seerrCollection = {Type: 'BoxSet', Id: 'seerr-collection-300'};
+		const seerrPerson = {Type: 'Person', _seerrMediaId: 400};
+
+		expect(hidesMediaDescription(seerrMovie, {hideDetailsMediaDescriptionSeerrMovie: true})).toBe(true);
+		expect(hidesMediaDescription(seerrMovie, {hideDetailsMediaDescription: true})).toBe(true);
+		expect(hidesMediaDescription(seerrMovie, {hideDetailsMediaDescriptionMovie: true})).toBe(false);
+
+		expect(hidesMediaDescription(seerrShow, {hideDetailsMediaDescriptionSeerrShow: true})).toBe(true);
+		expect(hidesMediaDescription(seerrTv, {hideDetailsMediaDescriptionSeerrShow: true})).toBe(true);
+		expect(hidesMediaDescription(seerrShow, {hideDetailsMediaDescriptionShow: true})).toBe(false);
+
+		expect(hidesMediaDescription(seerrCollection, {hideDetailsMediaDescriptionSeerrCollection: true})).toBe(true);
+		expect(hidesMediaDescription(seerrCollection, {hideDetailsMediaDescriptionBoxSet: true})).toBe(false);
+
+		expect(hidesMediaDescription(seerrPerson, {hideDetailsMediaDescriptionPerson: true})).toBe(true);
+	});
+
+	test('kids mode forces all media descriptions to be hidden', () => {
+		const kidsSettings = {kidsModeEnabled: true};
+		expect(hidesMediaDescription({Type: 'Movie'}, kidsSettings)).toBe(true);
+		expect(hidesMediaDescription({Type: 'Series'}, kidsSettings)).toBe(true);
+		expect(hidesMediaDescription({Type: 'Season'}, kidsSettings)).toBe(true);
+		expect(hidesMediaDescription({Type: 'Episode'}, kidsSettings)).toBe(true);
+		expect(hidesMediaDescription({Type: 'BoxSet'}, kidsSettings)).toBe(true);
+		expect(hidesMediaDescription({Type: 'Person'}, kidsSettings)).toBe(true);
+		expect(hidesMediaDescription({Type: 'Movie', _seerrMediaId: 1}, kidsSettings)).toBe(true);
+	});
 });
 
 describe('splitCastAndCrew', () => {

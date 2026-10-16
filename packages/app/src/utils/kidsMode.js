@@ -24,6 +24,17 @@ const KIDS_MODE_DETAILS = {
 	detailShowTechnicalDetails: false,
 	// Named for hiding, so the mode turns it on to leave the description out.
 	hideDetailsMediaDescription: true,
+	hideDetailsMediaDescriptionMovie: true,
+	hideDetailsMediaDescriptionShow: true,
+	hideDetailsMediaDescriptionSeason: true,
+	hideDetailsMediaDescriptionEpisode: true,
+	hideDetailsMediaDescriptionBoxSet: true,
+	hideDetailsMediaDescriptionBook: true,
+	hideDetailsMediaDescriptionPerson: true,
+	hideDetailsMediaDescriptionMusic: true,
+	hideDetailsMediaDescriptionSeerrMovie: true,
+	hideDetailsMediaDescriptionSeerrShow: true,
+	hideDetailsMediaDescriptionSeerrCollection: true,
 	detailUseSeriesThumbnails: false,
 	// The online source is an outside catalogue no parental rating reaches, so recommendations stay
 	// inside the server's own library.

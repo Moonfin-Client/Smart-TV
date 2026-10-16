@@ -18,12 +18,63 @@ export const COLLECTION_ITEM_TYPES = ['Movie', 'Series', 'Season', 'Episode', 'V
 
 export const IDENTIFIABLE_TYPES = ['Movie', 'Series', 'Season', 'Episode', 'BoxSet', 'Person', 'MusicAlbum', 'MusicArtist', 'Book', 'Trailer', 'MusicVideo'];
 
-// Whether the summary is being kept back for someone avoiding spoilers. Only a
-// film or an episode gives the plot away, so a series or a season keeps its
-// description either way.
-export const hidesMediaDescription = (item, settings) =>
-	settings?.hideDetailsMediaDescription === true &&
-	(item?.Type === 'Movie' || item?.Type === 'Episode');
+// Whether the summary is being kept back for someone avoiding spoilers or hiding descriptions.
+export const hidesMediaDescription = (item, settings) => {
+	if (!item || !item.Type) return false;
+	if (settings?.kidsModeEnabled === true) return true;
+
+	const isSeerr = item._seerrMediaId != null ||
+		item._seerrImdbId != null ||
+		item.isSeerr === true ||
+		(typeof item.Id === 'string' && item.Id.startsWith('seerr-'));
+	const type = item.Type;
+
+	if (isSeerr) {
+		switch (type) {
+			case 'Movie':
+				return Boolean(settings?.hideDetailsMediaDescriptionSeerrMovie || settings?.hideDetailsMediaDescription);
+			case 'Series':
+			case 'Show':
+			case 'Tv':
+				return Boolean(settings?.hideDetailsMediaDescriptionSeerrShow);
+			case 'BoxSet':
+			case 'Collection':
+				return Boolean(settings?.hideDetailsMediaDescriptionSeerrCollection);
+			case 'Person':
+				return Boolean(settings?.hideDetailsMediaDescriptionPerson);
+			default:
+				return false;
+		}
+	}
+
+	switch (type) {
+		case 'Movie':
+			return Boolean(settings?.hideDetailsMediaDescriptionMovie || settings?.hideDetailsMediaDescription);
+		case 'Series':
+		case 'Show':
+		case 'Tv':
+			return Boolean(settings?.hideDetailsMediaDescriptionShow);
+		case 'Season':
+			return Boolean(settings?.hideDetailsMediaDescriptionSeason);
+		case 'Episode':
+			return Boolean(settings?.hideDetailsMediaDescriptionEpisode || settings?.hideDetailsMediaDescription);
+		case 'BoxSet':
+		case 'Collection':
+			return Boolean(settings?.hideDetailsMediaDescriptionBoxSet);
+		case 'Book':
+		case 'AudioBook':
+			return Boolean(settings?.hideDetailsMediaDescriptionBook);
+		case 'Person':
+			return Boolean(settings?.hideDetailsMediaDescriptionPerson);
+		case 'MusicAlbum':
+		case 'MusicArtist':
+		case 'Audio':
+		case 'Playlist':
+			return Boolean(settings?.hideDetailsMediaDescriptionMusic);
+		default:
+			return false;
+	}
+};
 
 // The parent series artwork, for standing in where an episode still or a chapter
 // frame would give something away. Null when the series offers no artwork, which

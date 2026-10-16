@@ -11,6 +11,8 @@ import {useUserDataList} from '../../hooks/useUserDataSync';
 import {getImageUrl} from '../../utils/helpers';
 import {personDateLines, splitFilmography} from '../../utils/personCredits';
 import {sectionVisibility} from '../../utils/detailSectionLayout';
+import {kidsModeSettings} from '../../utils/kidsMode';
+import {hidesMediaDescription} from '../Details/detailsMedia';
 
 import css from './Person.module.less';
 
@@ -20,7 +22,8 @@ import css from './Person.module.less';
 // overview and tab bar all come from the shared PersonDetailShell.
 const Person = ({personId, onSelectItem, onSelectSeerrItem, onSelectSeerrPerson}) => {
 	const {api, serverUrl} = useAuth();
-	const {settings} = useSettings();
+	const {settings: storedSettings} = useSettings();
+	const settings = useMemo(() => kidsModeSettings(storedSettings), [storedSettings]);
 	// The detail sections setting reaches this page too, since it stands in for the Details
 	// screen on a person under every style but Nouveau.
 	const showsSection = useMemo(() => sectionVisibility(settings.hiddenDetailSectionsTv), [settings.hiddenDetailSectionsTv]);
@@ -161,6 +164,9 @@ const Person = ({personId, onSelectItem, onSelectSeerrItem, onSelectSeerrPerson}
 		actions.push({key: 'seerr', label: $L('Seerr'), icon: null, onClick: handleOpenSeerr});
 	}
 
+	const personItem = person.Type ? person : {...person, Type: 'Person'};
+	const hideOverview = !showsSection('biography') || hidesMediaDescription(personItem, settings);
+
 	return (
 		<PersonDetailShell
 			backdropUrl={randomBackdrop}
@@ -168,7 +174,7 @@ const Person = ({personId, onSelectItem, onSelectSeerrItem, onSelectSeerrPerson}
 			placeholderInitial={person.Name?.[0]}
 			name={person.Name}
 			metaLines={[...dateLines, birthPlace].filter(Boolean)}
-			overview={showsSection('biography') ? person.Overview : null}
+			overview={hideOverview ? null : person.Overview}
 			actions={actions}
 			tabs={tabs}
 		/>

@@ -2271,5 +2271,20 @@
 	"{seerrLabel} is disabled by your server administrator.": "{seerrLabel} is disabled by your server administrator.",
 	"{time} remaining": "{time} remaining",
 	"◀ ▶ Navigate": "◀ ▶ Navigate",
-	"◀ ▶ to re-order · DEL to remove": "◀ ▶ to re-order · DEL to remove"
+	"◀ ▶ to re-order · DEL to remove": "◀ ▶ to re-order · DEL to remove",
+	"Toggle Media Description Visibility": "Toggle Media Description Visibility",
+	"Hide media descriptions from various detail pages.": "Hide media descriptions from various detail pages.",
+	"Local Content": "Local Content",
+	"Hide descriptions on movie detail pages.": "Hide descriptions on movie detail pages.",
+	"Hide descriptions on TV show detail pages.": "Hide descriptions on TV show detail pages.",
+	"Hide descriptions on season detail pages.": "Hide descriptions on season detail pages.",
+	"Hide descriptions on episode detail pages.": "Hide descriptions on episode detail pages.",
+	"Hide descriptions on box set and collection detail pages.": "Hide descriptions on box set and collection detail pages.",
+	"Hide descriptions on book and audiobook detail pages.": "Hide descriptions on book and audiobook detail pages.",
+	"Hide descriptions on person and actor detail pages.": "Hide descriptions on person and actor detail pages.",
+	"Hide descriptions on album and artist detail pages.": "Hide descriptions on album and artist detail pages.",
+	"Seerr Content": "Seerr Content",
+	"Hide descriptions on Seerr movie discovery pages.": "Hide descriptions on Seerr movie discovery pages.",
+	"Hide descriptions on Seerr TV show discovery pages.": "Hide descriptions on Seerr TV show discovery pages.",
+	"Hide descriptions on Seerr collection discovery pages.": "Hide descriptions on Seerr collection discovery pages."
 }

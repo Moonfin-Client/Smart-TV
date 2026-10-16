@@ -1223,6 +1223,7 @@ const Details = ({itemId: itemIdProp, initialItem, onPlay, onSelectItem, onSelec
 				<PlaylistScreen
 					item={item}
 					serverUrl={effectiveServerUrl}
+					settings={settings}
 					showsSection={showsSection}
 					posterUrl={posterUrl}
 					genres={genres}

@@ -8,6 +8,7 @@ import {DETAIL_ICON_PATHS} from './detailIcons';
 import {SpottableDiv, HorizontalContainer} from './detailsSpottables';
 import {handleSeasonButtonKeyDown} from './detailsFocus';
 import {PosterBadges, WatchedCheckIcon} from './DetailBadges';
+import {hidesMediaDescription} from './detailsMedia';
 
 import css from './Details.module.less';
 
@@ -112,7 +113,7 @@ const AlbumScreen = ({
 				})}
 			</div>
 
-			{item.Overview && (
+			{item.Overview && !hidesMediaDescription(item, settings) && (
 				<div className={css.albumOverview}>
 					<p className={css.overview}>{item.Overview}</p>
 				</div>

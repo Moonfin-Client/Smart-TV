@@ -575,7 +575,15 @@ export const SETTINGS_SCHEMA = [
 					{kind: KIND.NAV, id: 'detailSections', label: () => $L('Sections'), desc: () => $L('Choose which parts of the Details screen to show'), icon: 'dashboard_customize_outlined', keywords: () => ['sections', 'hide', 'logo', 'tagline', 'cast', 'crew', 'studios', 'chapters', 'extras', 'collections', 'similar', 'more like this', 'episodes', 'media info', 'seerr', 'recommendations', 'biography'], action: (ctx) => ctx.actions.openDetailSections()},
 					{kind: KIND.TOGGLE, key: 'detailExpandedTabs', label: () => $L('Expanded Tabs'), desc: () => $L('Automatically show tab content while browsing tabs. Turn off to open and close each tab manually.'), icon: 'tab', when: (ctx) => ctx.settings.detailScreenStyle === 'v2'},
 					{kind: KIND.TOGGLE, key: 'detailShowTechnicalDetails', label: () => $L('Show Technical Details'), desc: () => $L('Show codec, resolution, and stream information in banner summary'), icon: 'info_outline'},
-					{kind: KIND.TOGGLE, key: 'hideDetailsMediaDescription', label: () => $L('Hide Media Description'), desc: () => $L('Hide the movie or episode descriptive text.'), icon: 'description_outlined'},
+					{
+						kind: KIND.NAV,
+						id: 'mediaDescriptionVisibility',
+						label: () => $L('Toggle Media Description Visibility'),
+						desc: () => $L('Hide media descriptions from various detail pages.'),
+						icon: 'description_outlined',
+						keywords: () => ['hide media description', 'spoilers', 'overview', 'descriptions', 'movie', 'show', 'season', 'episode', 'collection', 'book', 'person', 'music', 'seerr'],
+						action: (ctx) => ctx.actions.openMediaDescriptionVisibility()
+					},
 					{kind: KIND.TOGGLE, key: 'detailUseSeriesThumbnails', label: () => $L('Use Series Thumbnails'), desc: () => $L('Replace thumbnails on the details page with the series thumbnail'), icon: 'image_outlined', when: (ctx) => ['v1', 'v4', 'v5'].indexOf(ctx.settings.detailScreenStyle) >= 0},
 					{kind: KIND.SECTION, id: 'recommendations', label: () => $L('Recommendations')},
 					{kind: KIND.OPTION, key: 'recommendationSystemSource', label: () => $L('Recommendation System'), desc: () => $L('Moonfin scores your own library, Jellyfin takes the picks from the server, TMDb uses Seerr, and Hybrid leads with the server then tops up locally'), options: getRecommendationSystemSourceOptions, fallback: () => $L('Moonfin Recommends'), icon: 'auto_awesome'},
