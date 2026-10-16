@@ -568,6 +568,23 @@ describe('the per row image types', () => {
 		expect(resolveFromEnvelope({}, {homeRowImageTypes: 'genres:thumb'}).homeRowImageTypes).toEqual({genres: 'thumb'});
 		expect(resolveFromEnvelope({}, {})).not.toHaveProperty('homeRowImageTypes');
 	});
+
+	test('migrates legacy hideDetailsMediaDescription to granular movie, episode, and seerr movie settings', () => {
+		const local = profileToLocal({hideDetailsMediaDescription: true});
+		expect(local.hideDetailsMediaDescriptionMovie).toBe(true);
+		expect(local.hideDetailsMediaDescriptionEpisode).toBe(true);
+		expect(local.hideDetailsMediaDescriptionSeerrMovie).toBe(true);
+		expect(local.hideDetailsMediaDescription).toBeUndefined();
+
+		const partial = profileToLocal({
+			hideDetailsMediaDescription: true,
+			hideDetailsMediaDescriptionMovie: false
+		});
+		expect(partial.hideDetailsMediaDescriptionMovie).toBe(false);
+		expect(partial.hideDetailsMediaDescriptionEpisode).toBe(true);
+		expect(partial.hideDetailsMediaDescriptionSeerrMovie).toBe(true);
+		expect(partial.hideDetailsMediaDescription).toBeUndefined();
+	});
 });
 
 describe('the profile push queue', () => {
