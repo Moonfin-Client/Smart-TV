@@ -4,7 +4,7 @@ import Spotlight from '@enact/spotlight';
 
 import {getImageUrl} from '../../../utils/helpers';
 import {rem, rootScale} from '../../../utils/rootScale';
-import {castPhotoUrl, seriesThumbUrl} from '../detailsMedia';
+import {castPhotoUrl, hidesMediaDescription, seriesThumbUrl} from '../detailsMedia';
 import {RowContainer, SpottableDiv} from '../detailsSpottables';
 import {spotlightItemImageUrl} from '../spotlight/spotlightImages';
 import {nouveauCardImageUrl} from './nouveauCardImage';
@@ -357,11 +357,11 @@ const NouveauDetailContent = (props) => {
 	}, [sections, sortedPlaylist.length, discovery.related.length, discovery.recommendations.length]);
 
 	const chain = useMemo(() => buildNouveauChain({
-		hasOverview: Boolean(item.Overview) && (!isPerson || showsSection('biography')),
+		hasOverview: Boolean(item.Overview) && !hidesMediaDescription(item, settings) && (!isPerson || showsSection('biography')),
 		hasSeasonSelector: isSeries && seasonNumbers.length > 1,
 		rails: railNodes,
 		footerRows: sections.includes(SECTION_DETAILS) ? 1 : 0
-	}), [item.Overview, isPerson, showsSection, isSeries, seasonNumbers.length, railNodes, sections]);
+	}), [item, settings, isPerson, showsSection, isSeries, seasonNumbers.length, railNodes, sections]);
 
 	chainRef.current = chain;
 
