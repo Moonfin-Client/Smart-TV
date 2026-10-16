@@ -65,6 +65,7 @@ describe('hidesMediaDescription', () => {
 		const seerrPerson = {Type: 'Person', _seerrMediaId: 400};
 
 		expect(hidesMediaDescription(seerrMovie, {hideDetailsMediaDescriptionSeerrMovie: true})).toBe(true);
+		expect(hidesMediaDescription(seerrMovie, {hideDetailsMediaDescription: true})).toBe(true);
 		expect(hidesMediaDescription(seerrMovie, {hideDetailsMediaDescriptionMovie: true})).toBe(false);
 
 		expect(hidesMediaDescription(seerrShow, {hideDetailsMediaDescriptionSeerrShow: true})).toBe(true);

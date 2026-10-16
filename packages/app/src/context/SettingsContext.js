@@ -352,6 +352,18 @@ export const profileToLocal = (serverProfile) => {
 	if (serverProfile.tmdbApiKey !== undefined && serverProfile.tmdbApiKey !== null) {
 		local.tmdbApiKey = serverProfile.tmdbApiKey;
 	}
+	if (serverProfile.hideDetailsMediaDescription === true) {
+		if (local.hideDetailsMediaDescriptionMovie === undefined) {
+			local.hideDetailsMediaDescriptionMovie = true;
+		}
+		if (local.hideDetailsMediaDescriptionEpisode === undefined) {
+			local.hideDetailsMediaDescriptionEpisode = true;
+		}
+		if (local.hideDetailsMediaDescriptionSeerrMovie === undefined) {
+			local.hideDetailsMediaDescriptionSeerrMovie = true;
+		}
+		delete local.hideDetailsMediaDescription;
+	}
 	return local;
 };
 
@@ -782,6 +794,21 @@ export function SettingsProvider({children}) {
 					// there rather than anyone asking to skip the guide. The shortcut
 					// restarts from off under its own key, liveTvSkipGuide.
 					delete stored.liveTvDirect;
+					migrated = true;
+				}
+				if ('hideDetailsMediaDescription' in stored) {
+					if (stored.hideDetailsMediaDescription === true) {
+						if (stored.hideDetailsMediaDescriptionMovie === undefined) {
+							stored.hideDetailsMediaDescriptionMovie = true;
+						}
+						if (stored.hideDetailsMediaDescriptionEpisode === undefined) {
+							stored.hideDetailsMediaDescriptionEpisode = true;
+						}
+						if (stored.hideDetailsMediaDescriptionSeerrMovie === undefined) {
+							stored.hideDetailsMediaDescriptionSeerrMovie = true;
+						}
+					}
+					delete stored.hideDetailsMediaDescription;
 					migrated = true;
 				}
 				const merged = {...defaultSettings, ...stored};

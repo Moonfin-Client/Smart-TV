@@ -32,7 +32,7 @@ export const hidesMediaDescription = (item, settings) => {
 	if (isSeerr) {
 		switch (type) {
 			case 'Movie':
-				return Boolean(settings?.hideDetailsMediaDescriptionSeerrMovie);
+				return Boolean(settings?.hideDetailsMediaDescriptionSeerrMovie || settings?.hideDetailsMediaDescription);
 			case 'Series':
 			case 'Show':
 			case 'Tv':
