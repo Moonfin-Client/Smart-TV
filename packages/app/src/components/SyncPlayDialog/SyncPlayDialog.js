@@ -3,7 +3,9 @@ import $L from '@enact/i18n/$L';
 import Spottable from '@enact/spotlight/Spottable';
 import Spotlight from '@enact/spotlight';
 import SpotlightContainerDecorator from '@enact/spotlight/SpotlightContainerDecorator';
-import {useSyncPlay} from '../../context/SyncPlayContext';
+import {itemIdKey, useSyncPlay} from '../../context/SyncPlayContext';
+import {api} from '../../services/jellyfinApi';
+import {MENU_ICON_PATHS} from '../ItemContextMenu/itemMenuActions';
 import {isBackKey} from '../../utils/keys';
 import {isTvKeyboardVisible} from '../TVKeyboard/keyboardBus';
 import SpottableInput from '../SpottableInput/SpottableInput';
@@ -19,6 +21,47 @@ const DialogContainer = SpotlightContainerDecorator({
 const GroupsContainer = SpotlightContainerDecorator({
 	enterTo: 'last-focused'
 }, 'div');
+
+const QueueContainer = SpotlightContainerDecorator({
+	enterTo: 'last-focused'
+}, 'div');
+
+// An episode's name alone often says little, so the series and its number go under it.
+const episodeLine = (item) => {
+	if (item?.Type !== 'Episode') return '';
+	const season = item.ParentIndexNumber != null ? `S${item.ParentIndexNumber}:` : '';
+	const number = item.IndexNumber != null ? `${season}E${item.IndexNumber}` : '';
+	return [item.SeriesName, number].filter(Boolean).join(' · ');
+};
+
+// Queue entries carry only an item id, so the items come from one lookup, keyed on the set of
+// ids so a reorder doesn't ask again.
+const useQueueItems = (entries) => {
+	const [items, setItems] = useState({});
+	const idsKey = entries.map((entry) => entry.ItemId).filter(Boolean).sort().join(',');
+	useEffect(() => {
+		if (!idsKey) return;
+		let cancelled = false;
+		api.getItems({Ids: idsKey, EnableImages: false, EnableUserData: false})
+			.then((result) => {
+				if (cancelled) return;
+				const next = {};
+				(result?.Items || []).forEach((item) => {
+					if (item?.Id) next[itemIdKey(item.Id)] = item;
+				});
+				setItems((prev) => ({...prev, ...next}));
+			})
+			.catch(() => {});
+		return () => { cancelled = true; };
+	}, [idsKey]);
+	return items;
+};
+
+const QueueIcon = ({path}) => (
+	<svg className={css.queueIcon} viewBox="0 -960 960 960" fill="currentColor" aria-hidden="true" focusable="false">
+		<path d={path} />
+	</svg>
+);
 
 const SpottableButton = Spottable('button');
 
@@ -42,7 +85,12 @@ const SyncPlayDialog = ({open, onClose, playingItemId, onWatch}) => {
 		playQueue,
 		playQueueItem,
 		setRepeatMode,
-		setShuffleMode
+		setShuffleMode,
+		ignoreWait,
+		toggleIgnoreWait,
+		setPlaylistItem,
+		movePlaylistItem,
+		removeFromPlaylist
 	} = useSyncPlay();
 
 	const [groupName, setGroupName] = useState('');
@@ -140,6 +188,8 @@ const SyncPlayDialog = ({open, onClose, playingItemId, onWatch}) => {
 		setShuffleMode(current === 'Sorted' ? 'Shuffle' : 'Sorted');
 	}, [playQueue?.ShuffleMode, setShuffleMode]);
 
+	const handleRemoveFromQueue = useCallback((playlistItemId) => removeFromPlaylist([playlistItemId]), [removeFromPlaylist]);
+
 	if (!open) return null;
 
 	return (
@@ -172,6 +222,11 @@ const SyncPlayDialog = ({open, onClose, playingItemId, onWatch}) => {
 							onWatch={handleWatch}
 							onToggleRepeat={handleToggleRepeat}
 							onToggleShuffle={handleToggleShuffle}
+							ignoreWait={ignoreWait}
+							onToggleIgnoreWait={toggleIgnoreWait}
+							onPlayQueueItem={setPlaylistItem}
+							onMoveQueueItem={movePlaylistItem}
+							onRemoveQueueItem={handleRemoveFromQueue}
 						/>
 					) : (
 						<LobbyView
@@ -247,7 +302,10 @@ const LobbyView = memo(({groups, groupName, isCreating, isJoining, onInputChange
 	);
 });
 
-const GroupView = memo(({group, isLeaving, onLeave, playQueue, playQueueItem, playingItemId, onWatch, onToggleRepeat, onToggleShuffle}) => {
+const GroupView = memo(({
+	group, isLeaving, onLeave, playQueue, playQueueItem, playingItemId, onWatch, onToggleRepeat, onToggleShuffle,
+	ignoreWait, onToggleIgnoreWait, onPlayQueueItem, onMoveQueueItem, onRemoveQueueItem
+}) => {
 	if (!group) return null;
 	const participants = group.Participants || [];
 	const stateLabel = group.State || $L('Idle');
@@ -255,6 +313,7 @@ const GroupView = memo(({group, isLeaving, onLeave, playQueue, playQueueItem, pl
 	const shuffleMode = playQueue?.ShuffleMode || 'Sorted';
 	const queueLength = playQueue?.Playlist?.length || 0;
 	const queueIndex = playQueue?.PlayingItemIndex ?? -1;
+	const nowPlayingLine = episodeLine(playQueueItem);
 
 	return (
 		<div className={css.groupView}>
@@ -269,7 +328,10 @@ const GroupView = memo(({group, isLeaving, onLeave, playQueue, playQueueItem, pl
 				<div className={css.nowPlaying}>
 					<h4 className={css.sectionTitle}>{$L('Now Playing')}</h4>
 					<div className={css.nowPlayingInfo}>
-						<span className={css.nowPlayingTitle}>{playQueueItem.Name || $L('Unknown')}</span>
+						<div className={css.nowPlayingText}>
+							<span className={css.nowPlayingTitle}>{playQueueItem.Name || $L('Unknown')}</span>
+							{nowPlayingLine && <span className={css.nowPlayingSubtitle}>{nowPlayingLine}</span>}
+						</div>
 						{queueLength > 1 && (
 							<span className={css.nowPlayingMeta}>
 								{queueIndex + 1} of {queueLength}
@@ -288,6 +350,16 @@ const GroupView = memo(({group, isLeaving, onLeave, playQueue, playQueueItem, pl
 				</div>
 			)}
 
+			<div className={css.queueControls}>
+				<SpottableButton
+					className={`${css.controlBtn} ${ignoreWait ? css.controlActive : ''}`}
+					onClick={onToggleIgnoreWait}
+					spotlightId="syncplay-ignore-wait-btn"
+				>
+					{$L('Ignore wait')}: {ignoreWait ? $L('On') : $L('Off')}
+				</SpottableButton>
+			</div>
+
 			{queueLength > 0 && (
 				<div className={css.queueControls}>
 					<SpottableButton
@@ -305,6 +377,16 @@ const GroupView = memo(({group, isLeaving, onLeave, playQueue, playQueueItem, pl
 						{$L('Repeat')}: {REPEAT_LABELS[repeatMode] || $L('Off')}
 					</SpottableButton>
 				</div>
+			)}
+
+			{queueLength > 1 && (
+				<QueueList
+					entries={playQueue.Playlist}
+					currentIndex={queueIndex}
+					onPlay={onPlayQueueItem}
+					onMove={onMoveQueueItem}
+					onRemove={onRemoveQueueItem}
+				/>
 			)}
 
 			<div>
@@ -329,6 +411,101 @@ const GroupView = memo(({group, isLeaving, onLeave, playQueue, playQueueItem, pl
 					{isLeaving ? $L('Leaving...') : $L('Leave group')}
 				</SpottableButton>
 			</div>
+		</div>
+	);
+});
+
+// A move or removal redraws the rows, so focus goes back to the same row, or the next one, when the
+// group's new queue arrives. A stale request (one the server never answered) is dropped.
+const REFOCUS_WINDOW_MS = 5000;
+
+const QueueList = memo(({entries, currentIndex, onPlay, onMove, onRemove}) => {
+	const items = useQueueItems(entries);
+	const refocusRef = useRef(null);
+
+	useEffect(() => {
+		const target = refocusRef.current;
+		refocusRef.current = null;
+		if (!target || Date.now() - target.at > REFOCUS_WINDOW_MS) return;
+		const row = document.querySelector(`[data-queue-id="${target.id}"]`);
+		const button = row && (row.querySelector(`[data-action="${target.action}"]`) || row.querySelector('[data-action="play"]'));
+		if (button) Spotlight.focus(button);
+	}, [entries]);
+
+	const handleMove = useCallback((id, index, action) => {
+		refocusRef.current = {id, action, at: Date.now()};
+		onMove(id, index);
+	}, [onMove]);
+
+	const handleRemove = useCallback((id, index) => {
+		const neighbour = entries[index + 1] || entries[index - 1];
+		// Down to one entry the list goes away, so focus moves up to the controls.
+		if (entries.length > 2 && neighbour) refocusRef.current = {id: neighbour.PlaylistItemId, action: 'play', at: Date.now()};
+		else Spotlight.focus('syncplay-ignore-wait-btn');
+		onRemove(id);
+	}, [entries, onRemove]);
+
+	return (
+		<div>
+			<h4 className={css.sectionTitle}>{$L('Group queue')}</h4>
+			<QueueContainer className={css.queueList} spotlightId="syncplay-queue">
+				{entries.map((entry, index) => (
+					<QueueRow
+						key={entry.PlaylistItemId || index}
+						entry={entry}
+						index={index}
+						isCurrent={index === currentIndex}
+						isFirst={index === 0}
+						isLast={index === entries.length - 1}
+						title={items[itemIdKey(entry.ItemId)]?.Name}
+						subtitle={episodeLine(items[itemIdKey(entry.ItemId)])}
+						onPlay={onPlay}
+						onMove={handleMove}
+						onRemove={handleRemove}
+					/>
+				))}
+			</QueueContainer>
+		</div>
+	);
+});
+
+const QueueRow = memo(({entry, index, isCurrent, isFirst, isLast, title, subtitle, onPlay, onMove, onRemove}) => {
+	const id = entry.PlaylistItemId;
+	const name = title || $L('Unknown');
+	const handlePlay = useCallback(() => {
+		if (!isCurrent) onPlay(id);
+	}, [isCurrent, onPlay, id]);
+	const handleUp = useCallback(() => onMove(id, index - 1, 'up'), [onMove, id, index]);
+	const handleDown = useCallback(() => onMove(id, index + 1, 'down'), [onMove, id, index]);
+	const handleRemove = useCallback(() => onRemove(id, index), [onRemove, id, index]);
+
+	return (
+		<div className={css.queueRow} data-queue-id={id}>
+			<SpottableButton
+				className={`${css.queueEntry} ${isCurrent ? css.queueCurrent : ''}`}
+				data-action="play"
+				onClick={handlePlay}
+				aria-label={isCurrent ? `${name}, ${$L('Now Playing')}` : `${$L('Watch now')}: ${name}`}
+			>
+				<span className={css.queueNumber}>{index + 1}</span>
+				<span className={css.queueText}>
+					<span className={css.queueTitle}>{name}</span>
+					{subtitle && <span className={css.queueSubtitle}>{subtitle}</span>}
+				</span>
+			</SpottableButton>
+			{!isFirst && (
+				<SpottableButton className={css.queueAction} data-action="up" onClick={handleUp} aria-label={$L('Move Up')}>
+					<QueueIcon path={MENU_ICON_PATHS.arrowUpward} />
+				</SpottableButton>
+			)}
+			{!isLast && (
+				<SpottableButton className={css.queueAction} data-action="down" onClick={handleDown} aria-label={$L('Move Down')}>
+					<QueueIcon path={MENU_ICON_PATHS.arrowDownward} />
+				</SpottableButton>
+			)}
+			<SpottableButton className={css.queueAction} data-action="remove" onClick={handleRemove} aria-label={$L('Remove')}>
+				<QueueIcon path={MENU_ICON_PATHS.playlistRemove} />
+			</SpottableButton>
 		</div>
 	);
 });

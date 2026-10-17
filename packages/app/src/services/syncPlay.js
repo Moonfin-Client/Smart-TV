@@ -319,7 +319,7 @@ export const setShuffleMode = (mode) =>
 	request('POST', 'SetShuffleMode', {Mode: mode}).catch(() => {});
 
 export const setIgnoreWait = (ignoreWait) =>
-	request('POST', 'SetIgnoreWait', {IgnoreWait: ignoreWait}).catch(() => {});
+	request('POST', 'SetIgnoreWait', {IgnoreWait: ignoreWait}).then(() => true, () => false);
 
 const onSocketOpen = () => {
 	if (pingInterval) clearInterval(pingInterval);
@@ -443,8 +443,17 @@ const handleGroupUpdate = (data) => {
 	}
 };
 
+const playlistItemKey = (id) => String(id || '').replace(/-/g, '').toLowerCase();
+
 const handlePlaybackCommand = (data) => {
 	if (!data) return;
+	// A command for another queue entry is the group catching up on one this device has already
+	// left, and would land on the wrong item. Core drops these too. An all-zero id names no entry.
+	const commandItem = playlistItemKey(data.PlaylistItemId);
+	if (/[1-9a-f]/.test(commandItem) && currentPlaylistItemId && commandItem !== playlistItemKey(currentPlaylistItemId)) {
+		syncLog('[SyncPlay] dropped', data.Command, 'for item', data.PlaylistItemId);
+		return;
+	}
 	syncLog('[SyncPlay] command', data.Command, 'at', data.PositionTicks != null ? data.PositionTicks / 10000000 : null, 's, when', data.When, 'delay', getDelayToWhen(data.When), 'ms'); // eslint-disable-line no-use-before-define
 	// A command says where the group was at its own time, which for a late
 	// one or an echo is not now.

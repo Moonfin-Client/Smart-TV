@@ -46,6 +46,7 @@ export const DETAIL_BUTTONS = [
 // Playback speed is absent because these TVs hand the rate to their own media pipeline,
 // which drops the audio rather than stretching it, so anything but 1x plays silent.
 export const OSD_BUTTONS = [
+	{id: 'syncPlay', label: 'SyncPlay'},
 	{id: 'chapters', label: 'Chapters'},
 	{id: 'episodes', label: 'Episodes'},
 	{id: 'subtitles', label: 'Subtitles'},

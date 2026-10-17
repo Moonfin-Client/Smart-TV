@@ -222,6 +222,17 @@ describe('SyncPlay group position', () => {
 		expect(service.getGroupPositionTicks()).toBe(frozen);
 	});
 
+	test('a command for another queue entry is dropped', () => {
+		const itemCommand = (PlaylistItemId) => socket.onmessage({
+			data: JSON.stringify({MessageType: 'SyncPlayCommand', Data: {Command: 'Seek', PositionTicks: 300 * SECOND, When: new Date().toISOString(), PlaylistItemId}})
+		});
+		groupUpdate('PlayQueue', {Playlist: [{PlaylistItemId: 'bbbb-0002'}], PlayingItemIndex: 0, StartPositionTicks: 0, IsPlaying: false});
+		itemCommand('aaaa-0001');
+		expect(service.getGroupPositionTicks()).toBe(0);
+		itemCommand('BBBB0002');
+		expect(service.getGroupPositionTicks()).toBe(300 * SECOND);
+	});
+
 	test('is forgotten on leaving', () => {
 		command('Unpause', 100 * SECOND, Date.now());
 		groupUpdate('GroupLeft', {GroupId: 'g1'});

@@ -7,7 +7,13 @@ import {api} from '../services/jellyfinApi';
 const SyncPlayContext = createContext(null);
 
 // Queue entries carry the GUID with dashes, item DTOs without them.
-const sameItemId = (a, b) => !!a && !!b && String(a).replace(/-/g, '').toLowerCase() === String(b).replace(/-/g, '').toLowerCase();
+export const itemIdKey = (id) => String(id || '').replace(/-/g, '').toLowerCase();
+const sameItemId = (a, b) => !!a && !!b && itemIdKey(a) === itemIdKey(b);
+
+// A reorder, a removal or a repeat/shuffle change only moves a player showing something else.
+// With nothing playing, this device stays where it is, as on Core.
+export const followsQueueUpdate = (update, playingItemId) =>
+	update.startsPlayback || (Boolean(playingItemId) && !sameItemId(playingItemId, update.item.Id));
 
 export const useSyncPlay = () => useContext(SyncPlayContext);
 
@@ -22,6 +28,8 @@ export const SyncPlayProvider = ({children}) => {
 	// A fresh object per server play queue, so consumers can tell a new queue
 	// apart from the same item still sitting there.
 	const [playQueueUpdate, setPlayQueueUpdate] = useState(null);
+	// The server never reports this back, so it follows what this device last set. Off in a new group.
+	const [ignoreWait, setIgnoreWaitState] = useState(false);
 	const queueSeqRef = useRef(0);
 	const queueItemRef = useRef(null);
 	const listenerRef = useRef(null);
@@ -56,11 +64,13 @@ export const SyncPlayProvider = ({children}) => {
 			switch (event) {
 				case 'groupJoined':
 					setGroup(data);
+					setIgnoreWaitState(false);
 					break;
 				case 'groupLeft':
 					setGroup(null);
 					setPlayQueue(null);
 					setPlayQueueUpdate(null);
+					setIgnoreWaitState(false);
 					break;
 				case 'stateUpdate':
 					setGroup(prev => prev ? {...prev, State: data?.State} : null);
@@ -148,13 +158,32 @@ export const SyncPlayProvider = ({children}) => {
 			setGroup(null);
 			setPlayQueue(null);
 			setPlayQueueUpdate(null);
+			setIgnoreWaitState(false);
 		}
 		return success;
 	}, []);
 
+	const toggleIgnoreWait = useCallback(async () => {
+		const enabled = !ignoreWait;
+		setIgnoreWaitState(enabled);
+		if (!(await syncPlayService.setIgnoreWait(enabled))) setIgnoreWaitState(!enabled);
+	}, [ignoreWait]);
+
 	// Where the group is now, from its last queue update or command and the
 	// time since.
 	const getGroupPositionTicks = useCallback(() => syncPlayService.getGroupPositionTicks(), []);
+
+	// Moving on inside a group is the group's to do, as on Core. The next or previous entry goes
+	// by its own request, which the server ignores once the group has already moved on.
+	const moveGroupTo = useCallback((itemId) => {
+		const entries = playQueue?.Playlist || [];
+		const index = playQueue?.PlayingItemIndex ?? -1;
+		const entry = entries.find((e) => sameItemId(e.ItemId, itemId));
+		if (!entry) syncPlayService.setNewQueue([itemId]);
+		else if (index >= 0 && entry === entries[index + 1]) syncPlayService.nextItem();
+		else if (index > 0 && entry === entries[index - 1]) syncPlayService.previousItem();
+		else syncPlayService.setPlaylistItem(entry.PlaylistItemId);
+	}, [playQueue]);
 
 	const openDialog = useCallback(() => {
 		if (settings.syncplayEnabled === false) return;
@@ -177,6 +206,7 @@ export const SyncPlayProvider = ({children}) => {
 		playQueueUpdate,
 		refreshGroups,
 		getGroupPositionTicks,
+		moveGroupTo,
 		getGroup: syncPlayService.getGroup,
 		createGroup: handleCreateGroup,
 		joinGroup: handleJoinGroup,
@@ -196,7 +226,8 @@ export const SyncPlayProvider = ({children}) => {
 		previousItem: syncPlayService.previousItem,
 		setRepeatMode: syncPlayService.setRepeatMode,
 		setShuffleMode: syncPlayService.setShuffleMode,
-		setIgnoreWait: syncPlayService.setIgnoreWait
+		ignoreWait,
+		toggleIgnoreWait
 	};
 
 	return (
