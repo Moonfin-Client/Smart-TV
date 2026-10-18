@@ -64,6 +64,25 @@ export function normalizeServerBaseUrl (input) {
 	return stripTrailingSlash(authority + path);
 }
 
+/**
+ * The web client page that approves a Quick Connect code, or null when there
+ * is no server address or code to build it from.
+ *
+ * Concatenated rather than resolved, which keeps a reverse proxy's path prefix.
+ * The page reads the code from the query string, so a phone that is already
+ * signed in approves with one tap instead of typing it.
+ *
+ * @param {string} baseUrl
+ * @param {string} code
+ * @returns {string|null}
+ */
+export function quickConnectApprovalUrl (baseUrl, code) {
+	const base = normalizeServerBaseUrl(baseUrl);
+	const digits = String(code || '').replace(/\s/g, '');
+	if (!base || !digits) return null;
+	return base + '/web/#/quickconnect?code=' + encodeURIComponent(digits);
+}
+
 export function normalizeServerUrl (input) {
 	let url = input?.trim();
 	if (!url) return null;

@@ -78,3 +78,16 @@ export function isVersionSupported (versionString) {
 	}
 	return true;
 }
+
+// Whether the web client opens its Quick Connect page from a link with the code
+// already filled in. That page arrived in Jellyfin 10.9, and older servers only
+// have the page without the prefill. A version that doesn't parse counts as
+// recent enough, since the alternative is hiding it on every server that
+// reports something unexpected.
+export function supportsQuickConnectWebLink (versionString) {
+	const parts = String(versionString || '').split('.');
+	const major = parseInt(parts[0], 10);
+	const minor = parseInt(parts[1], 10);
+	if (Number.isNaN(major) || Number.isNaN(minor)) return true;
+	return major > 10 || (major === 10 && minor >= 9);
+}

@@ -75,6 +75,11 @@
 	max-width: 1200px;
 }
 
+// Room for the QR beside the sign in column, so the buttons keep to one row
+.frameWide {
+	max-width: 1680px;
+}
+
 .logoSection {
 	padding-bottom: 48px;
 }
@@ -100,6 +105,45 @@
 
 .cardCentered {
 	text-align: center;
+}
+
+// With a QR beside it the card is a row, the sign in column on the left and the
+// QR on the right. The column keeps its width while the code is still loading.
+.cardWithQr {
+	padding: 48px 64px;
+	display: -webkit-flex;
+	display: flex;
+	-webkit-align-items: center;
+	align-items: center;
+}
+
+.signInMain {
+	-webkit-flex: 1 1 0;
+	flex: 1 1 0;
+	min-width: 0;
+}
+
+.qrAside {
+	-webkit-flex: 0 0 auto;
+	flex: 0 0 auto;
+	width: 400px;
+	margin-left: 64px;
+}
+
+.qrCanvas {
+	display: block;
+	width: 360px;
+	height: 360px;
+	margin: 0 auto;
+	background: #ffffff;
+	border-radius: 16px;
+}
+
+.qrCaption {
+	margin-top: 24px;
+	font-size: 24px;
+	text-align: center;
+	.fg(0.5);
 }
 
 .versionFooter {
