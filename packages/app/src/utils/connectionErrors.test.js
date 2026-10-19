@@ -1,4 +1,4 @@
-import {detectServerType, supportsQuickConnectWebLink} from './connectionErrors';
+import {detectServerType, getSignInMessage, isSignInForbidden, supportsQuickConnectWebLink} from './connectionErrors';
 
 describe('detectServerType', () => {
 	test('takes a server at its word when it names itself', () => {
@@ -42,5 +42,36 @@ describe('supportsQuickConnectWebLink', () => {
 		expect(supportsQuickConnectWebLink('')).toBe(true);
 		expect(supportsQuickConnectWebLink(null)).toBe(true);
 		expect(supportsQuickConnectWebLink('unknown')).toBe(true);
+	});
+});
+
+describe('a refused sign in', () => {
+	const refused = (status) => Object.assign(new Error('API Error: ' + status), {status});
+
+	test('a 403 is the account being refused, whatever the reason', () => {
+		expect(isSignInForbidden(refused(403))).toBe(true);
+	});
+
+	test('other failures are not', () => {
+		expect(isSignInForbidden(refused(401))).toBe(false);
+		expect(isSignInForbidden(refused(500))).toBe(false);
+		expect(isSignInForbidden(new Error('network down'))).toBe(false);
+		expect(isSignInForbidden(null)).toBe(false);
+		expect(isSignInForbidden(undefined)).toBe(false);
+	});
+
+	test('says the account cannot sign in right now instead of blaming the password', () => {
+		const message = getSignInMessage(refused(403));
+
+		expect(message).toMatch(/can't sign in right now/);
+		expect(message).not.toMatch(/password/i);
+	});
+
+	test('a wrong password still reads as one', () => {
+		expect(getSignInMessage(refused(401))).toBe('Invalid username or password.');
+	});
+
+	test('other failures keep their own messages', () => {
+		expect(getSignInMessage(refused(500))).toBe('Login failed. Please try again.');
 	});
 });

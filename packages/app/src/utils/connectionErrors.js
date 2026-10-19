@@ -37,6 +37,20 @@ export function getLoginMessage (type) {
 	return LOGIN_MESSAGES[type] ? LOGIN_MESSAGES[type]() : $L('Login failed. Please try again.');
 }
 
+// A refusal at sign in. Jellyfin only gives the reason (an access schedule that doesn't
+// allow the current time, a lockout, a disabled account) in its own log, and sends
+// "Error processing request." outside development, so the status is all there is.
+export function isSignInForbidden (err) {
+	return Boolean(err) && err.status === 403;
+}
+
+export function getSignInMessage (err) {
+	if (isSignInForbidden(err)) {
+		return $L('This account can\'t sign in right now. It may be outside its allowed hours, locked or disabled. Try again later or ask an administrator.');
+	}
+	return getLoginMessage(classifyError(err));
+}
+
 export function classifyError (err) {
 	if (!err) return null;
 	if (err.connectionType) return err.connectionType;

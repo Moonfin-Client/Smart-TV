@@ -10,7 +10,7 @@ import * as embyConnect from '../../services/embyConnect';
 import {discoverLocalServers} from '../../services/serverDiscovery';
 import {generateCandidates, normalizeServerBaseUrl, quickConnectApprovalUrl} from '../../utils/serverUrl';
 import {drawQrCode} from '../../utils/qrCanvas';
-import {classifyError, detectServerType, getConnectionMessage, getLoginMessage, isVersionSupported, supportsQuickConnectWebLink, INVALID_ADDRESS, SERVER_NOT_JELLYFIN, INSECURE_CERT, MIN_SERVER_VERSION} from '../../utils/connectionErrors';
+import {classifyError, detectServerType, getConnectionMessage, getSignInMessage, isSignInForbidden, isVersionSupported, supportsQuickConnectWebLink, INVALID_ADDRESS, SERVER_NOT_JELLYFIN, INSECURE_CERT, MIN_SERVER_VERSION} from '../../utils/connectionErrors';
 import {KEYS} from '../../utils/keys';
 import SpottableInput from '../../components/SpottableInput/SpottableInput';
 import {subscribeTvKeyboardVisibility} from '../../components/TVKeyboard/keyboardBus';
@@ -435,7 +435,7 @@ const Login = ({
 			finishLogin(result);
 			return true;
 		} catch (err) {
-			setError(getLoginMessage(classifyError(err)));
+			setError(getSignInMessage(err));
 			setStatus(null);
 			return false;
 		} finally {
@@ -492,6 +492,12 @@ const Login = ({
 			finishLogin(result);
 		} catch (err) {
 			console.error('Quick Connect poll error:', err);
+			// Once approved the code is gone, so a refusal here has to be said or the screen
+			// stays on "Waiting for authorization..."
+			if (isSignInForbidden(err)) {
+				setError(getSignInMessage(err));
+				setStatus(null);
+			}
 		}
 	}, [stopQuickConnect, isAdding, loginWithToken, server, finishLogin]);
 

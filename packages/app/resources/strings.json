@@ -2064,6 +2064,7 @@
 	"There is more waiting in Settings": "There is more waiting in Settings",
 	"This TV runs Tizen {version}. Games require Tizen 5 or newer.": "This TV runs Tizen {version}. Games require Tizen 5 or newer.",
 	"This TV runs webOS {version}. Games require webOS 5 or newer.": "This TV runs webOS {version}. Games require webOS 5 or newer.",
+	"This account can't sign in right now. It may be outside its allowed hours, locked or disabled. Try again later or ask an administrator.": "This account can't sign in right now. It may be outside its allowed hours, locked or disabled. Try again later or ask an administrator.",
 	"This core has no adjustable options.": "This core has no adjustable options.",
 	"This game is too large to run on this TV.": "This game is too large to run on this TV.",
 	"This profile is protected by a 4-digit PIN.": "This profile is protected by a 4-digit PIN.",
