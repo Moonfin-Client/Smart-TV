@@ -43,10 +43,12 @@ export const useAccessSchedule = ({userId, enabled, fetchUser, getNow, onBlocked
 
 		const apply = (now) => {
 			const allowed = exempt || isAllowed(schedules, now);
-			if (allowed === !blocked) return;
+			const wasBlocked = blocked;
 			blocked = !allowed;
+			if (!blocked && !wasBlocked) return;
+			// Refreshed on every check while blocked so the screen tracks schedule edits and day rollover.
 			setState({blocked, nextAccess: blocked ? nextAccessStart(schedules, now) : null});
-			if (blocked) latest.current.onBlocked?.();
+			if (blocked && !wasBlocked) latest.current.onBlocked?.();
 		};
 
 		async function check () {

@@ -117,6 +117,23 @@ describe('useAccessSchedule', () => {
 		expect(result.current.blocked).toBe(true);
 	});
 
+	test('refreshes the next access time while staying blocked', async () => {
+		clock = at(21);
+		const {result, onBlocked} = mount();
+		await flush();
+		expect(result.current.nextAccess).toEqual(new Date(2026, 9, 26, 8));
+
+		user = {Policy: {AccessSchedules: [
+			{DayOfWeek: 'Monday', StartHour: 8, EndHour: 20},
+			{DayOfWeek: 'Tuesday', StartHour: 6, EndHour: 20}
+		]}};
+		await flush(60 * 1000);
+
+		expect(result.current.blocked).toBe(true);
+		expect(result.current.nextAccess).toEqual(new Date(2026, 9, 20, 6));
+		expect(onBlocked).toHaveBeenCalledTimes(1);
+	});
+
 	test('recheck reads the policy again', async () => {
 		const {result, fetchUser} = mount();
 		await flush();
