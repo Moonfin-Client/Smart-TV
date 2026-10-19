@@ -63,6 +63,18 @@ const withoutHiddenViews = async (views, user) => {
 export const getUserImageUrl = (serverUrl, userId, imageTag, type) =>
 	buildUserImageUrl(serverUrl, userId, imageTag, type || serverType);
 
+// Who wants to know when the signed-in server refuses a request. A user whose access schedule
+// has just ended is refused everything, which nothing else would tell the app.
+const forbiddenListeners = new Set();
+export const onForbidden = (listener) => {
+	forbiddenListeners.add(listener);
+	return () => forbiddenListeners.delete(listener);
+};
+
+// Parents the server refused are remembered so they aren't asked for again, which has to be
+// forgotten when the refusal might have been about the hour and not the parent.
+export const clearAccessDenied = () => accessDeniedParentIds.clear();
+
 export const setAuth = (userId, token) => {
 	currentUser = userId;
 	accessToken = token;
@@ -218,6 +230,7 @@ const request = async (endpoint, options = {}) => {
 		if ((response.status === 401 || response.status === 403) && parentId) {
 			accessDeniedParentIds.add(parentId);
 		}
+		if (response.status === 403) forbiddenListeners.forEach((listener) => listener());
 		const error = new Error('API Error: ' + response.status);
 		error.status = response.status;
 		error.connectionType = classifyError(error);

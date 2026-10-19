@@ -1,7 +1,7 @@
 import {useCallback, useEffect, useRef, useState} from 'react';
 import {isAllowed, nextAccessStart, nextBoundary, readSchedules} from '../utils/accessSchedule';
 
-const MAX_WAIT_MS = 15 * 60 * 1000;
+const MAX_WAIT_MS = 60 * 1000;
 const BLOCKED_RECHECK_MS = 60 * 1000;
 const RETRY_MS = 15 * 1000;
 

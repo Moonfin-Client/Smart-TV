@@ -106,6 +106,17 @@ describe('useAccessSchedule', () => {
 		expect(result.current.blocked).toBe(true);
 	});
 
+	test('notices a schedule shortened behind its back within a minute', async () => {
+		const {result} = mount();
+		await flush();
+		expect(result.current.blocked).toBe(false);
+
+		user = policyOf([8, 11]);
+		await flush(60 * 1000);
+
+		expect(result.current.blocked).toBe(true);
+	});
+
 	test('recheck reads the policy again', async () => {
 		const {result, fetchUser} = mount();
 		await flush();

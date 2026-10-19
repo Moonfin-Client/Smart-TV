@@ -588,6 +588,23 @@ const AppContent = (props) => {
 	});
 	recheckAccessRef.current = recheckAccess;
 
+	// What was refused while the hours were closed is allowed again once they open.
+	useEffect(() => {
+		if (!timesUp) jellyfinApi.clearAccessDenied();
+	}, [timesUp]);
+
+	// An administrator can end the hours while someone is watching. Every request is refused from
+	// then on, so a refusal is the cue to look, not more than every few seconds.
+	useEffect(() => {
+		let last = 0;
+		return jellyfinApi.onForbidden(() => {
+			const now = Date.now();
+			if (now - last < 5000) return;
+			last = now;
+			recheckAccessRef.current?.();
+		});
+	}, []);
+
 	// Belongs to leaving and nowhere else. Dropping the handlers on any other path costs
 	// the app the listener it is reopened through, and webOS has no other way back in.
 	const performAppCleanup = useCallback(() => {
