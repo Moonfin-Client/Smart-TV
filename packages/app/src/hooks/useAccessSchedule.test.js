@@ -168,6 +168,78 @@ describe('useAccessSchedule', () => {
 		expect(first.result.current.blocked).toBe(false);
 	});
 
+	test('blocks when the server turns the user away though this clock says the window is open', async () => {
+		const serverRefuses = jest.fn(async () => true);
+		const {result, onBlocked} = mount({serverRefuses});
+		await flush();
+
+		expect(result.current.blocked).toBe(true);
+		expect(result.current.nextAccess).toBeNull();
+		expect(onBlocked).toHaveBeenCalledTimes(1);
+	});
+
+	test('stays open while the server allows it though this clock says the window is closed', async () => {
+		clock = at(21);
+		const {result, onBlocked} = mount({serverRefuses: async () => false});
+		await flush();
+
+		expect(result.current.blocked).toBe(false);
+		expect(onBlocked).not.toHaveBeenCalled();
+	});
+
+	test('goes by this clock when the server cant tell', async () => {
+		clock = at(21);
+		const {result} = mount({serverRefuses: async () => null});
+		await flush();
+
+		expect(result.current.blocked).toBe(true);
+		expect(result.current.nextAccess).toEqual(new Date(2026, 9, 26, 8));
+	});
+
+	test('reads a user without a schedule every 15 minutes and never asks the server', async () => {
+		user = {Policy: {AccessSchedules: []}};
+		const serverRefuses = jest.fn(async () => true);
+		const {fetchUser} = mount({serverRefuses});
+		await flush();
+		await flush(14 * 60 * 1000);
+		expect(fetchUser).toHaveBeenCalledTimes(1);
+
+		await flush(60 * 1000);
+		expect(fetchUser).toHaveBeenCalledTimes(2);
+		expect(serverRefuses).not.toHaveBeenCalled();
+	});
+
+	test('an older check never replaces the answer of a newer one', async () => {
+		clock = at(21);
+		let releaseFirst;
+		const fetchUser = jest.fn()
+			.mockImplementationOnce(() => new Promise((resolve) => {
+				releaseFirst = resolve;
+			}))
+			.mockImplementation(async () => user);
+		const {result} = mount({fetchUser});
+		await act(async () => {
+			result.current.recheck();
+		});
+		expect(result.current.blocked).toBe(true);
+
+		await act(async () => {
+			releaseFirst(policyOf([8, 23]));
+		});
+		expect(result.current.blocked).toBe(true);
+	});
+
+	test('stops checking once unmounted', async () => {
+		clock = at(21);
+		const {fetchUser, unmount} = mount();
+		await flush();
+		expect(fetchUser).toHaveBeenCalledTimes(1);
+
+		unmount();
+		await flush(5 * 60 * 1000);
+		expect(fetchUser).toHaveBeenCalledTimes(1);
+	});
+
 	test('starts over for another user', async () => {
 		clock = at(21);
 		const {result, rerender} = mount();

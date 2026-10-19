@@ -524,6 +524,8 @@ export const api = {
 
 	getUserConfiguration: () => request(`/Users/${currentUser}`),
 
+	getCurrentUser: () => request('/Users/Me'),
+
 	updateUserConfiguration: (config) => request(userRoutes.configuration(), {
 		method: 'POST',
 		body: config

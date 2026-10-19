@@ -574,6 +574,8 @@ const AppContent = (props) => {
 		userId: isAuthenticated ? user?.Id : null,
 		enabled: serverType !== 'emby',
 		fetchUser: () => api.getUserConfiguration(),
+		// The user's own record honors the schedule, so a 403 there is the server turning them away.
+		serverRefuses: () => api.getCurrentUser().then(() => false, (err) => (err?.status === 403 ? true : null)),
 		getNow: () => shiftedNow(settings.timeOffsetHours),
 		onBlocked: () => {
 			releaseVideoElements();
@@ -587,6 +589,8 @@ const AppContent = (props) => {
 		}
 	});
 	recheckAccessRef.current = recheckAccess;
+	const timesUpRef = useRef(false);
+	timesUpRef.current = timesUp;
 
 	// What was refused while the hours were closed is allowed again once they open.
 	useEffect(() => {
@@ -598,6 +602,8 @@ const AppContent = (props) => {
 	useEffect(() => {
 		let last = 0;
 		return jellyfinApi.onForbidden(() => {
+			// While blocked every request is refused, the check's own question included.
+			if (timesUpRef.current) return;
 			const now = Date.now();
 			if (now - last < 5000) return;
 			last = now;
