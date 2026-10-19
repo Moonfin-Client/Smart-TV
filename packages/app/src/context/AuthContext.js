@@ -516,6 +516,17 @@ export const AuthProvider = ({children}) => {
 		}
 	}, [isAuthenticated]);
 
+	/**
+	 * Leave the signed-in user without forgetting them: their saved sign-in stays, so they are
+	 * on the picker to be chosen again. For when the account can't be used for now.
+	 */
+	const leaveSession = useCallback(() => {
+		jellyfinApi.setAuth(null, null);
+		setAccessToken(null);
+		setUser(null);
+		setIsAuthenticated(false);
+	}, []);
+
 	// The session socket, and the watched state and remote control it carries, belong to whoever
 	// is signed in, so all of it starts over when the account or the server changes. A server that
 	// restarts forgets what this session can do, so it's told again on every connect.
@@ -608,6 +619,7 @@ export const AuthProvider = ({children}) => {
 		loginWithToken,
 		logout,
 		logoutAll,
+		leaveSession,
 		switchUser,
 		removeUser,
 		removeServerEntry,
@@ -643,6 +655,7 @@ export const AuthProvider = ({children}) => {
 		loginWithToken,
 		logout,
 		logoutAll,
+		leaveSession,
 		switchUser,
 		removeUser,
 		removeServerEntry,

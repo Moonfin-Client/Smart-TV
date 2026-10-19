@@ -63,6 +63,9 @@ import TVKeyboard from '../components/TVKeyboard/TVKeyboard';
 import {isTvKeyboardVisible, closeTvKeyboard} from '../components/TVKeyboard/keyboardBus';
 import useInactivityTimer from '../hooks/useInactivityTimer';
 import {useThemeMusic} from '../hooks/useThemeMusic';
+import {useAccessSchedule} from '../hooks/useAccessSchedule';
+import {shiftedNow} from '../utils/clock';
+import TimesUp from '../components/TimesUp/TimesUp';
 import {buildThemeCssVars, toRgbTriplet} from '../theme/themeSpec';
 import {applyThemeOverrides} from '../theme/themeOverrides';
 import {resolveOverlayColor} from '../theme/overlayColors';
@@ -163,7 +166,7 @@ const PANELS = {
 };
 
 const AppContent = (props) => {
-	const {isAuthenticated, isLoading, logout, serverUrl, serverName, api, user, hasMultipleServers, accessToken, connectionState, revalidateSession} = useAuth();
+	const {isAuthenticated, isLoading, logout, serverUrl, serverName, api, user, hasMultipleServers, accessToken, connectionState, revalidateSession, leaveSession, serverType} = useAuth();
 	const {settings, activeTheme, syncOnLogin, updateSettings, loaded: settingsLoaded} = useSettings();
 	const {streamNotification, dismissStreamNotification, pluginInfo} = useSeerr();
 	const {pendingPopups, markPopupsRead} = useServerMessages();
@@ -564,6 +567,27 @@ const AppContent = (props) => {
 		});
 	}, []);
 
+	// A user outside the hours their account allows can't do anything on the server, so the
+	// app says so and stops what is playing. The check is run again whenever the app comes back.
+	const recheckAccessRef = useRef(null);
+	const {blocked: timesUp, nextAccess, recheck: recheckAccess} = useAccessSchedule({
+		userId: isAuthenticated ? user?.Id : null,
+		enabled: serverType !== 'emby',
+		fetchUser: () => api.getUserConfiguration(),
+		getNow: () => shiftedNow(settings.timeOffsetHours),
+		onBlocked: () => {
+			releaseVideoElements();
+			setPlayingItem(null);
+			setPlaybackOptions(null);
+			setIsResume(false);
+			setIsPlayerPaused(false);
+			setPanelHistory([]);
+			setPanelIndex(PANELS.BROWSE);
+			themeMusic.stopThemeMusicImmediate();
+		}
+	});
+	recheckAccessRef.current = recheckAccess;
+
 	// Belongs to leaving and nowhere else. Dropping the handlers on any other path costs
 	// the app the listener it is reopened through, and webOS has no other way back in.
 	const performAppCleanup = useCallback(() => {
@@ -596,6 +620,7 @@ const AppContent = (props) => {
 		};
 
 		const handleVisibilityVisible = () => {
+			recheckAccessRef.current?.();
 			revalidateSession();
 		};
 
@@ -614,6 +639,7 @@ const AppContent = (props) => {
 				if (isAuthenticated) {
 					setPanelIndex(PANELS.BROWSE);
 				}
+				recheckAccessRef.current?.();
 			} finally {
 				activateApp();
 			}
@@ -735,7 +761,7 @@ const AppContent = (props) => {
 				e.preventDefault();
 				e.stopPropagation();
 
-				if (isPinGateActive) {
+				if (isPinGateActive || timesUp) {
 					return;
 				}
 
@@ -807,7 +833,14 @@ const AppContent = (props) => {
 
 		window.addEventListener('keydown', handleKeyDown, true);
 		return () => window.removeEventListener('keydown', handleKeyDown, true);
-	}, [panelIndex, handleBack, performAppCleanup, settings.exitConfirmation, showAccountModal, showServerMessages, showExitDialog, showSettingsPanel, showShuffleOverlay, isPinGateActive, setupWizardActive, updateInfo, dismissUpdate, syncPlayDialogOpen, closeSyncPlay]);
+	}, [panelIndex, handleBack, performAppCleanup, settings.exitConfirmation, showAccountModal, showServerMessages, showExitDialog, showSettingsPanel, showShuffleOverlay, isPinGateActive, timesUp, setupWizardActive, updateInfo, dismissUpdate, syncPlayDialogOpen, closeSyncPlay]);
+
+	// The account stays saved, so it can be chosen again from the picker once its hours are back.
+	const handleTimesUpSwitchUser = useCallback(() => {
+		leaveSession();
+		setPanelHistory([]);
+		setPanelIndex(PANELS.LOGIN);
+	}, [leaveSession]);
 
 	const handleLoggedIn = useCallback(() => {
 		setPanelHistory([]);
@@ -1471,6 +1504,19 @@ const AppContent = (props) => {
 		return (
 			<div className={css.loading}>
 				<LoadingSpinner />
+			</div>
+		);
+	}
+
+	if (timesUp) {
+		return (
+			<div className={css.app} {...props}>
+				<TimesUp
+					nextAccess={nextAccess}
+					now={shiftedNow(settings.timeOffsetHours)}
+					clockDisplay={settings.clockDisplay}
+					onSwitchUser={handleTimesUpSwitchUser}
+				/>
 			</div>
 		);
 	}
