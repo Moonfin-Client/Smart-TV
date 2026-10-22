@@ -645,10 +645,16 @@ const Browse = ({
 	}, [handleSelectItem, handleSelectGenreItem, handleSelectSeerrItem, handleSelectExternalItem]);
 	const rowSelect = useMemo(() => ({
 		item: (picked, autoPlay) => latestSelectRef.current.item(picked, autoPlay),
+		cwPlay: (picked) => latestSelectRef.current.item(picked, true),
 		genre: (picked) => latestSelectRef.current.genre(picked),
 		seerr: (picked) => latestSelectRef.current.seerr(picked),
 		external: (picked) => latestSelectRef.current.external(picked)
 	}), []);
+
+	const continueWatchingMenuOptions = useMemo(() => ({
+		isContinueWatchingOrNextUp: true,
+		playImmediately: settings.continueWatchingDefaultAction === 'play'
+	}), [settings.continueWatchingDefaultAction]);
 
 	// The banner unmounts as soon as the mode flips, so the row takes focus right away.
 	const handleNavigateDownFromFeatured = useCallback(() => {
@@ -900,7 +906,7 @@ const Browse = ({
 						const isCwOrNextUp = row.id === 'continue-nextup' || row.id === 'resume' || row.id === 'nextup';
 						const shouldPlayImmediately = isCwOrNextUp && settings.continueWatchingDefaultAction === 'play';
 						let selectHandler = shouldPlayImmediately
-							? (picked) => rowSelect.item(picked, true)
+							? rowSelect.cwPlay
 							: rowSelect.item;
 						if (row.isSeerrRow || row.isOnlineRecoRow) selectHandler = rowSelect.seerr;
 						else if (row.isExternalRow) selectHandler = rowSelect.external;
@@ -914,7 +920,7 @@ const Browse = ({
 							? (settings.homeRowImageTypes || {})[imageTypeKey]
 							: undefined;
 						const rowMenuOptions = isCwOrNextUp
-							? {isContinueWatchingOrNextUp: true, playImmediately: settings.continueWatchingDefaultAction === 'play'}
+							? continueWatchingMenuOptions
 							: undefined;
 						return (
 							<RowComponent
