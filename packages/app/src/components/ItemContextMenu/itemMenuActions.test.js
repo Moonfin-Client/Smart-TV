@@ -71,4 +71,18 @@ describe('itemMenuActions', () => {
 		expect(ids({Id: 'c1', Type: 'TvChannel'})).toEqual([]);
 		expect(ids(null)).toEqual([]);
 	});
+
+	test('flips the top action to Go to Details screen when configured for CW&NU play immediately', () => {
+		const options = {isContinueWatchingOrNextUp: true, playImmediately: true};
+		expect(ids(movie(), options)).toEqual(['viewDetails', 'watched', 'favorite', 'addToPlaylist']);
+		expect(labelOf(movie(), 'viewDetails', options)).toBe('Go to Details screen');
+		expect(ids(episode(), options)).toEqual(['viewDetails', 'watched', 'hideNextUp', 'favorite', 'addToPlaylist', 'goToSeries']);
+		expect(labelOf(episode(), 'viewDetails', options)).toBe('Go to Details screen');
+	});
+
+	test('keeps Play/Resume first when playImmediately is false for CW&NU', () => {
+		const options = {isContinueWatchingOrNextUp: true, playImmediately: false};
+		expect(ids(movie(), options)).toEqual(['play', 'watched', 'favorite', 'addToPlaylist']);
+		expect(labelOf(movie(), 'play', options)).toBe('Play');
+	});
 });

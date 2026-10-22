@@ -40,7 +40,15 @@ const hasProgress = (item) => {
 // `playlist` is set when the menu opened on a row of a playlist: `canManage` adds the entries
 // that change the playlist, `canMove` is false while the rows show some other order, and
 // `first` and `last` say which way the row can still move.
-export const itemMenuActions = (item, {isAdmin = false, isJellyfin = true, canManageCollections = false, inCollection = false, playlist = null} = {}) => {
+export const itemMenuActions = (item, {
+	isAdmin = false,
+	isJellyfin = true,
+	canManageCollections = false,
+	inCollection = false,
+	playlist = null,
+	isContinueWatchingOrNextUp = false,
+	playImmediately = false
+} = {}) => {
 	if (!item) return [];
 	const type = item.Type;
 	const userData = item.UserData || {};
@@ -49,11 +57,17 @@ export const itemMenuActions = (item, {isAdmin = false, isJellyfin = true, canMa
 	const actions = [];
 
 	if (MEDIA_TYPES.indexOf(type) !== -1) {
-		actions.push({id: 'play', icon: DETAIL_ICON_PATHS.play, label: hasProgress(item) ? $L('Resume') : $L('Play')});
-		// A press on a playlist row plays from there, so opening the item moves in here. A song
-		// has no page of its own to open.
-		if (playlist && type !== 'Audio') {
-			actions.push({id: 'viewDetails', icon: MENU_ICON_PATHS.info, label: $L('View Details')});
+		if (isContinueWatchingOrNextUp && playImmediately) {
+			if (type !== 'Audio') {
+				actions.push({id: 'viewDetails', icon: MENU_ICON_PATHS.info, label: $L('Go to Details screen')});
+			}
+		} else {
+			actions.push({id: 'play', icon: DETAIL_ICON_PATHS.play, label: hasProgress(item) ? $L('Resume') : $L('Play')});
+			// A press on a playlist row plays from there, so opening the item moves in here. A song
+			// has no page of its own to open.
+			if (playlist && type !== 'Audio') {
+				actions.push({id: 'viewDetails', icon: MENU_ICON_PATHS.info, label: $L('View Details')});
+			}
 		}
 		actions.push({
 			id: 'watched',

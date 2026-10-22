@@ -323,6 +323,11 @@ export const getFolderViewModeOptions = () => [
 	{ value: 'off', label: $L('Always Off') }
 ];
 
+export const getContinueWatchingDefaultActionOptions = () => [
+	{ value: 'details', label: $L('Go to Details screen') },
+	{ value: 'play', label: $L('Play immediately') }
+];
+
 export const getNextUpMaxDaysOptions = () => [
 	{ value: 0, label: $L('No limit') },
 	{ value: 30, label: $L('30 days') },

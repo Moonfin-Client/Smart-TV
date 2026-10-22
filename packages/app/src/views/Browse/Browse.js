@@ -568,7 +568,7 @@ const Browse = ({
 		};
 	}, []);
 
-	const handleSelectItem = useCallback((item) => {
+	const handleSelectItem = useCallback((item, autoPlay = false) => {
 		mediaPreview.stop('select');
 		onBlurItemThemeMusic?.();
 		onLeaveThemeMusic?.();
@@ -582,7 +582,7 @@ const Browse = ({
 		} else if (isLiveTvProgram(item)) {
 			onSelectItem?.(channelForProgram(item));
 		} else {
-			onSelectItem?.(item);
+			onSelectItem?.(item, autoPlay);
 		}
 	}, [onSelectItem, onSelectLibrary, onOpenRecordings, onPlayRecording, onBlurItemThemeMusic, onLeaveThemeMusic, rememberFocus, mediaPreview]);
 
@@ -644,7 +644,7 @@ const Browse = ({
 		latestSelectRef.current = {item: handleSelectItem, genre: handleSelectGenreItem, seerr: handleSelectSeerrItem, external: handleSelectExternalItem};
 	}, [handleSelectItem, handleSelectGenreItem, handleSelectSeerrItem, handleSelectExternalItem]);
 	const rowSelect = useMemo(() => ({
-		item: (picked) => latestSelectRef.current.item(picked),
+		item: (picked, autoPlay) => latestSelectRef.current.item(picked, autoPlay),
 		genre: (picked) => latestSelectRef.current.genre(picked),
 		seerr: (picked) => latestSelectRef.current.seerr(picked),
 		external: (picked) => latestSelectRef.current.external(picked)
@@ -897,7 +897,11 @@ const Browse = ({
 								/>
 							);
 						}
-						let selectHandler = rowSelect.item;
+						const isCwOrNextUp = row.id === 'continue-nextup' || row.id === 'resume' || row.id === 'nextup';
+						const shouldPlayImmediately = isCwOrNextUp && settings.continueWatchingDefaultAction === 'play';
+						let selectHandler = shouldPlayImmediately
+							? (picked) => rowSelect.item(picked, true)
+							: rowSelect.item;
 						if (row.isSeerrRow || row.isOnlineRecoRow) selectHandler = rowSelect.seerr;
 						else if (row.isExternalRow) selectHandler = rowSelect.external;
 						else if (row.isGenreRow) selectHandler = rowSelect.genre;
@@ -908,6 +912,9 @@ const Browse = ({
 							: row.isRecentlyReleasedRow ? 'recently-released' : row.id;
 						const rowImageOverride = settings.homeRowsStyle === 'v1'
 							? (settings.homeRowImageTypes || {})[imageTypeKey]
+							: undefined;
+						const rowMenuOptions = isCwOrNextUp
+							? {isContinueWatchingOrNextUp: true, playImmediately: settings.continueWatchingDefaultAction === 'play'}
 							: undefined;
 						return (
 							<RowComponent
@@ -929,6 +936,7 @@ const Browse = ({
 								subtitle={row.subtitle}
 								registerRowRef={registerRowRef}
 								deferImages={!NATIVE_LAZY_IMAGES && index >= imageRows}
+								menuOptions={rowMenuOptions}
 							/>
 						);
 					})}

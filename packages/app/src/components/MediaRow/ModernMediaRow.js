@@ -36,6 +36,7 @@ const ModernMediaRow = ({
 	cardType,
 	spotlightId: rowSpotlightId,
 	onLoadMore,
+	menuOptions,
 	deferImages = false
 }) => {
 	const {settings} = useSettings();
@@ -253,6 +254,7 @@ const ModernMediaRow = ({
 								detailsWidth={details?.spotlightId === spotlightId ? details.width : undefined}
 								isLibraryRow={rowId === 'library-tiles'}
 								warmFocusArt={besideFocus}
+								menuOptions={menuOptions}
 							/>
 						);
 					})}
@@ -272,6 +274,7 @@ const areRowPropsEqual = (prev, next) => {
 	if (prev.rowSpacing !== next.rowSpacing) return false;
 	if (prev.className !== next.className) return false;
 	if (prev.spotlightId !== next.spotlightId) return false;
+	if (prev.menuOptions !== next.menuOptions) return false;
 	// Presence only, since a caller's inline arrow would defeat the comparator.
 	if (!prev.onLoadMore !== !next.onLoadMore) return false;
 	if (prev.loading !== next.loading || prev.titleWidth !== next.titleWidth || prev.cardType !== next.cardType) return false;

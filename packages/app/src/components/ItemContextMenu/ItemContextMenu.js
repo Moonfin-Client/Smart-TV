@@ -86,7 +86,9 @@ export const ItemMenuProvider = ({children, onPlay, onOpenItem, backRef}) => {
 			isJellyfin,
 			canManageCollections,
 			inCollection: Boolean(options?.collectionRemoval),
-			playlist: playlist ? {canManage: playlist.canManage, canMove: playlist.canMove, ...playlist.positionOf(item)} : null
+			playlist: playlist ? {canManage: playlist.canManage, canMove: playlist.canMove, ...playlist.positionOf(item)} : null,
+			isContinueWatchingOrNextUp: Boolean(options?.isContinueWatchingOrNextUp),
+			playImmediately: Boolean(options?.playImmediately)
 		});
 	}, [user, serverUrl]);
 

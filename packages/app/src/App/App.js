@@ -927,8 +927,8 @@ const AppContent = (props) => {
 		navigateTo(PANELS.PLAYER);
 	}, [navigateTo]);
 
-	const handleSelectItem = useCallback((item) => {
-		setDetailsAutoPlay(false);
+	const handleSelectItem = useCallback((item, autoPlay = false) => {
+		setDetailsAutoPlay(Boolean(autoPlay) && item?.Type !== 'Audio' && !isLiveTvChannel(item));
 		// A channel has no details worth landing on, so it tunes straight away.
 		if (isLiveTvChannel(item)) {
 			handlePlayChannel(item);
@@ -963,8 +963,7 @@ const AppContent = (props) => {
 
 	// A song or a channel plays as soon as it's picked, so only the rest wait for their screen to start them.
 	const handlePlayFromMenu = useCallback((item) => {
-		handleSelectItem(item);
-		if (item.Type !== 'Audio' && !isLiveTvChannel(item)) setDetailsAutoPlay(true);
+		handleSelectItem(item, true);
 	}, [handleSelectItem]);
 
 	const handleAutoPlayed = useCallback(() => setDetailsAutoPlay(false), []);

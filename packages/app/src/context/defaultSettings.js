@@ -127,6 +127,7 @@ export const defaultSettings = {
 	showLiveTvButton: true,
 	showLibrariesInToolbar: true,
 	mergeContinueWatchingNextUp: true,
+	continueWatchingDefaultAction: 'details',
 	mergeRecentRowsByType: false,
 	playlistsGroupByType: true,
 	groupItemsIntoCollections: false,

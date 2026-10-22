@@ -252,6 +252,7 @@ export const SYNCABLE_KEYS = [
 	'showShuffleButton', 'shuffleContentType', 'showGenresButton',
 	'showFavoritesButton', 'showLiveTvButton', 'showLibrariesInToolbar',
 	'mergeContinueWatchingNextUp',
+	'continueWatchingDefaultAction',
 	'nextUpMaxDays',
 	'hiddenContinueWatchingItems', 'hiddenNextUpSeries',
 	'mdblistEnabled', 'mdblistRatingSources', 'tmdbEpisodeRatingsEnabled',
