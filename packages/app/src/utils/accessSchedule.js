@@ -93,3 +93,36 @@ export const nextBoundary = (schedules, now) => {
 	}
 	return earliest;
 };
+
+/**
+ * How the server's clock differs from this device's, from the answer of the plugin's
+ * Moonfin/Time. Kept instead of a moment so it stays right as time passes.
+ *
+ * @param {{utcTime?: string, utcOffsetSeconds?: number}} [time] the answer
+ * @param {number} deviceUtcMs this device's UTC clock when the answer arrived
+ * @returns {{skewMs: number, offsetMs: number}|null} null when the answer is unusable
+ */
+export const readServerClock = (time, deviceUtcMs) => {
+	const utc = Date.parse(time?.utcTime);
+	const offset = time?.utcOffsetSeconds;
+	if (Number.isNaN(utc) || typeof offset !== 'number' || !Number.isFinite(offset)) return null;
+	return {skewMs: utc - deviceUtcMs, offsetMs: offset * 1000};
+};
+
+/**
+ * A date whose local fields are the server's wall clock when this device's UTC clock reads
+ * `deviceUtcMs`, whatever zone this device is in, so the functions above can read it as they read
+ * any other date. It's meant to be read for its fields and not as an instant. A wall time this
+ * device skips for daylight saving lands an hour later.
+ *
+ * @param {{skewMs: number, offsetMs: number}} clock from {@link readServerClock}
+ * @param {number} deviceUtcMs
+ * @returns {Date}
+ */
+export const serverWallClock = (clock, deviceUtcMs) => {
+	const wall = new Date(deviceUtcMs + clock.skewMs + clock.offsetMs);
+	return new Date(
+		wall.getUTCFullYear(), wall.getUTCMonth(), wall.getUTCDate(),
+		wall.getUTCHours(), wall.getUTCMinutes(), wall.getUTCSeconds()
+	);
+};

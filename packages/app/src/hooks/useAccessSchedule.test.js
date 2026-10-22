@@ -187,6 +187,99 @@ describe('useAccessSchedule', () => {
 		expect(onBlocked).not.toHaveBeenCalled();
 	});
 
+	describe('with the server clock', () => {
+		// The device says Monday 21:00, after the window, while the server, eight hours west of UTC
+		// with the device a UTC one, says Monday 12:00.
+		let deviceUtcMs;
+		const serverNoon = {utcTime: '2026-10-19T20:00:00Z', utcOffsetSeconds: -28800};
+		const mountWithTime = (fetchServerTime, overrides = {}) =>
+			mount({fetchServerTime, getDeviceUtcMs: () => deviceUtcMs, ...overrides});
+
+		beforeEach(() => {
+			clock = at(21);
+			deviceUtcMs = Date.UTC(2026, 9, 19, 20, 0);
+		});
+
+		test('stays open when the server clock says the window is open though this one says closed', async () => {
+			const {result, onBlocked} = mountWithTime(jest.fn(async () => serverNoon));
+			await flush();
+
+			expect(result.current.blocked).toBe(false);
+			expect(onBlocked).not.toHaveBeenCalled();
+			expect(result.current.getScheduleNow().getHours()).toBe(12);
+		});
+
+		test('blocks when the server clock says closed though this one says open, naming the opening on it', async () => {
+			clock = at(12);
+			const {result} = mountWithTime(jest.fn(async () => ({utcTime: '2026-10-20T05:00:00Z', utcOffsetSeconds: -28800})), {
+				getDeviceUtcMs: () => Date.UTC(2026, 9, 20, 5, 0)
+			});
+			await flush();
+
+			expect(result.current.blocked).toBe(true);
+			expect(result.current.nextAccess).toEqual(new Date(2026, 9, 26, 8));
+		});
+
+		test('lets the server answer of the user still decide', async () => {
+			const {result} = mountWithTime(jest.fn(async () => serverNoon), {serverRefuses: async () => true});
+			await flush();
+
+			expect(result.current.blocked).toBe(true);
+		});
+
+		test('goes by this clock and stops asking when the server has no time', async () => {
+			const fetchServerTime = jest.fn(async () => null);
+			const {result} = mountWithTime(fetchServerTime);
+			await flush();
+
+			expect(result.current.blocked).toBe(true);
+			expect(result.current.getScheduleNow()).toEqual(clock);
+
+			await flush(3 * 60 * 1000);
+			expect(fetchServerTime).toHaveBeenCalledTimes(1);
+		});
+
+		test('keeps the last server clock when a later read fails', async () => {
+			const fetchServerTime = jest.fn()
+				.mockImplementationOnce(async () => serverNoon)
+				.mockImplementation(async () => {
+					throw new Error('offline');
+				});
+			const {result} = mountWithTime(fetchServerTime);
+			await flush();
+
+			deviceUtcMs += 60 * 1000;
+			await flush(61 * 1000);
+
+			expect(fetchServerTime).toHaveBeenCalledTimes(2);
+			expect(result.current.blocked).toBe(false);
+			expect(result.current.getScheduleNow().getHours()).toBe(12);
+		});
+
+		test('does not ask once the time is up, when the server would refuse it', async () => {
+			const fetchServerTime = jest.fn(async () => ({utcTime: '2026-10-20T05:00:00Z', utcOffsetSeconds: -28800}));
+			deviceUtcMs = Date.UTC(2026, 9, 20, 5, 0);
+			const {result} = mountWithTime(fetchServerTime);
+			await flush();
+			expect(result.current.blocked).toBe(true);
+			expect(fetchServerTime).toHaveBeenCalledTimes(1);
+
+			await flush(3 * 60 * 1000);
+			expect(fetchServerTime).toHaveBeenCalledTimes(1);
+		});
+
+		test('is not asked of an administrator or a user without a schedule', async () => {
+			const fetchServerTime = jest.fn(async () => serverNoon);
+			user = policyOf([8, 20], {IsAdministrator: true});
+			mountWithTime(fetchServerTime);
+			user = {Policy: {AccessSchedules: []}};
+			mountWithTime(fetchServerTime);
+			await flush();
+
+			expect(fetchServerTime).not.toHaveBeenCalled();
+		});
+	});
+
 	test('goes by this clock when the server cant tell', async () => {
 		clock = at(21);
 		const {result} = mount({serverRefuses: async () => null});

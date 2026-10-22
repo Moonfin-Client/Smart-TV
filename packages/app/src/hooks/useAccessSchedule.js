@@ -1,5 +1,7 @@
 import {useCallback, useEffect, useRef, useState} from 'react';
-import {isAllowed, nextAccessStart, nextBoundary, readSchedules} from '../utils/accessSchedule';
+import {
+	isAllowed, nextAccessStart, nextBoundary, readSchedules, readServerClock, serverWallClock
+} from '../utils/accessSchedule';
 
 const MAX_WAIT_MS = 60 * 1000;
 const IDLE_WAIT_MS = 15 * 60 * 1000;
@@ -14,23 +16,41 @@ const RETRY_MS = 15 * 1000;
  * time zone, so for a user with a schedule the server is asked and its answer decides. A user
  * without one is read every 15 minutes. Administrators are exempt, as they are on the server.
  *
+ * The hours are read on the server's clock when the plugin reports it, since that is the clock
+ * the server judges them by, and on this device's otherwise. The server refuses every request
+ * once the time is up, the clock included, so it is read while the user is let in and kept.
+ *
  * @param {object} options
  * @param {string} [options.userId] the signed-in user, or none
  * @param {boolean} options.enabled false when the server isn't Jellyfin
  * @param {() => Promise<object>} options.fetchUser reads the user, with their Policy
  * @param {() => Promise<boolean|null>} [options.serverRefuses] whether the server is turning the
  *   user away right now, or null when it can't tell, which leaves it to this device's clock
- * @param {() => Date} options.getNow the current time
+ * @param {() => Promise<object|null>} [options.fetchServerTime] the plugin's Moonfin/Time, null
+ *   when the server has none, which is not asked for again, and a rejection when it couldn't be
+ *   read, which keeps the last clock
+ * @param {() => Date} options.getNow the current time on this device, for when the server's isn't known
+ * @param {() => number} [options.getDeviceUtcMs] this device's UTC clock in milliseconds
  * @param {() => void} [options.onBlocked] called once each time the time runs out
- * @returns {{blocked: boolean, nextAccess: Date|null, recheck: () => void}}
+ * @returns {{blocked: boolean, nextAccess: Date|null, recheck: () => void, getScheduleNow: () => Date}}
+ *   getScheduleNow is the current time on the clock the hours are judged by, to read as `nextAccess` is
  */
-export const useAccessSchedule = ({userId, enabled, fetchUser, serverRefuses, getNow, onBlocked}) => {
+export const useAccessSchedule = ({
+	userId, enabled, fetchUser, serverRefuses, fetchServerTime, getNow, getDeviceUtcMs = Date.now, onBlocked
+}) => {
 	const [state, setState] = useState({blocked: false, nextAccess: null});
 	const checkRef = useRef(null);
-	const latest = useRef({fetchUser, serverRefuses, getNow, onBlocked});
-	latest.current = {fetchUser, serverRefuses, getNow, onBlocked};
+	const serverClockRef = useRef(null);
+	const latest = useRef({fetchUser, serverRefuses, fetchServerTime, getNow, getDeviceUtcMs, onBlocked});
+	latest.current = {fetchUser, serverRefuses, fetchServerTime, getNow, getDeviceUtcMs, onBlocked};
+
+	const getScheduleNow = useCallback(() => {
+		const clock = serverClockRef.current;
+		return clock ? serverWallClock(clock, latest.current.getDeviceUtcMs()) : latest.current.getNow();
+	}, []);
 
 	useEffect(() => {
+		serverClockRef.current = null;
 		setState((prev) => (prev.blocked || prev.nextAccess ? {blocked: false, nextAccess: null} : prev));
 		checkRef.current = null;
 		if (!userId || !enabled) return undefined;
@@ -40,6 +60,7 @@ export const useAccessSchedule = ({userId, enabled, fetchUser, serverRefuses, ge
 		let schedules = [];
 		let exempt = false;
 		let blocked = false;
+		let timeUnsupported = false;
 		// Checks can overlap, so each is numbered and none replaces the answer of one started after it.
 		let started = 0;
 		let applied = 0;
@@ -80,10 +101,24 @@ export const useAccessSchedule = ({userId, enabled, fetchUser, serverRefuses, ge
 				refused = await ask().catch(() => null);
 				if (cancelled || look < applied) return;
 			}
+			// Not asked once the time is up, when the server refuses it too, nor of a server without it.
+			let serverClock;
+			const askTime = latest.current.fetchServerTime;
+			if (!isExempt && fresh.length > 0 && askTime && !timeUnsupported && !blocked) {
+				try {
+					const time = await askTime();
+					serverClock = time === null ? null : readServerClock(time, latest.current.getDeviceUtcMs());
+				} catch (e) {
+					// Keeps the last clock
+				}
+				if (cancelled || look < applied) return;
+			}
 			applied = look;
 			exempt = isExempt;
 			schedules = fresh;
-			const now = latest.current.getNow();
+			if (serverClock === null) timeUnsupported = true;
+			if (serverClock !== undefined) serverClockRef.current = serverClock;
+			const now = getScheduleNow();
 			apply(now, refused);
 			if (exempt) return;
 			const boundary = nextBoundary(schedules, now);
@@ -100,13 +135,13 @@ export const useAccessSchedule = ({userId, enabled, fetchUser, serverRefuses, ge
 			clearTimeout(timer);
 			checkRef.current = null;
 		};
-	}, [userId, enabled]);
+	}, [userId, enabled, getScheduleNow]);
 
 	const recheck = useCallback(() => {
 		if (checkRef.current) checkRef.current();
 	}, []);
 
-	return {blocked: state.blocked, nextAccess: state.nextAccess, recheck};
+	return {blocked: state.blocked, nextAccess: state.nextAccess, recheck, getScheduleNow};
 };
 
 export default useAccessSchedule;

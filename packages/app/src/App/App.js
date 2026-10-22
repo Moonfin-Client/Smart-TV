@@ -596,12 +596,15 @@ const AppContent = (props) => {
 	// A user outside the hours their account allows can't do anything on the server, so the
 	// app says so and stops what is playing. The check is run again whenever the app comes back.
 	const recheckAccessRef = useRef(null);
-	const {blocked: timesUp, nextAccess, recheck: recheckAccess} = useAccessSchedule({
+	const {blocked: timesUp, nextAccess, recheck: recheckAccess, getScheduleNow} = useAccessSchedule({
 		userId: isAuthenticated ? user?.Id : null,
 		enabled: serverType !== 'emby',
 		fetchUser: () => api.getUserConfiguration(),
 		// The user's own record honors the schedule, so a 403 there is the server turning them away.
 		serverRefuses: () => api.getCurrentUser().then(() => false, (err) => (err?.status === 403 ? true : null)),
+		// The server's own clock, from the plugin, is what the schedule is judged against. Without it
+		// this device's clock is used, nudged by the time offset setting.
+		fetchServerTime: () => api.getServerTime().catch((err) => (err?.status === 404 ? null : Promise.reject(err))),
 		getNow: () => shiftedNow(settings.timeOffsetHours),
 		onBlocked: () => {
 			releaseVideoElements();
@@ -1597,7 +1600,7 @@ const AppContent = (props) => {
 			<div className={css.app} {...props}>
 				<TimesUp
 					nextAccess={nextAccess}
-					now={shiftedNow(settings.timeOffsetHours)}
+					now={getScheduleNow()}
 					clockDisplay={settings.clockDisplay}
 					onSwitchUser={handleTimesUpSwitchUser}
 				/>

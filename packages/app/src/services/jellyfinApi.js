@@ -554,6 +554,9 @@ export const api = {
 
 	getCurrentUser: () => request('/Users/Me'),
 
+	// The server's clock and time zone, from the Moonfin plugin. A 404 means it can't say.
+	getServerTime: () => request('/Moonfin/Time'),
+
 	updateUserConfiguration: (config) => {
 		userRead = null;
 		return request(userRoutes.configuration(), {

@@ -1,4 +1,6 @@
-import {isAllowed, nextAccessStart, nextBoundary, readSchedules} from './accessSchedule';
+import {
+	isAllowed, nextAccessStart, nextBoundary, readSchedules, readServerClock, serverWallClock
+} from './accessSchedule';
 
 const entry = (dayOfWeek, startHour, endHour) => ({dayOfWeek, startHour, endHour});
 
@@ -123,6 +125,51 @@ describe('nextBoundary', () => {
 	test('is null with no entries', () => {
 		expect(nextBoundary([], at(MONDAY, 12))).toBeNull();
 		expect(nextBoundary(undefined, at(MONDAY, 12))).toBeNull();
+	});
+});
+
+describe('server clock', () => {
+	// 2026-10-19T23:30:00Z, a Monday evening in UTC
+	const deviceNow = Date.UTC(2026, 9, 19, 23, 30);
+	const answer = (utcTime, utcOffsetSeconds) => ({utcTime, utcOffsetSeconds});
+	const fields = (date) => [date.getDay(), date.getHours(), date.getMinutes(), date.getSeconds()];
+
+	test('reads the server wall clock east of UTC, where it is already the next day', () => {
+		const clock = readServerClock(answer('2026-10-19T23:30:00Z', 19800), deviceNow);
+
+		expect(clock).toEqual({skewMs: 0, offsetMs: 19800000});
+		expect(fields(serverWallClock(clock, deviceNow))).toEqual([2, 5, 0, 0]);
+	});
+
+	test('reads the server wall clock west of UTC, where it is still the day before', () => {
+		const clock = readServerClock(answer('2026-10-19T23:30:00Z', -28800), deviceNow);
+
+		expect(fields(serverWallClock(clock, deviceNow))).toEqual([1, 15, 30, 0]);
+	});
+
+	test('keeps the skew of a server clock that disagrees, and keeps running after the answer', () => {
+		const clock = readServerClock(answer('2026-10-19T23:30:30Z', 0), deviceNow);
+
+		expect(clock.skewMs).toBe(30000);
+		expect(fields(serverWallClock(clock, deviceNow + 90000))).toEqual([1, 23, 32, 0]);
+		expect(fields(serverWallClock(clock, deviceNow + 30 * 60000))[0]).toBe(2);
+	});
+
+	test('feeds the schedule functions like any date', () => {
+		const clock = readServerClock(answer('2026-10-19T20:00:00Z', -28800), deviceNow);
+		const schedules = [entry('Monday', 8, 20)];
+		const now = serverWallClock(clock, Date.UTC(2026, 9, 19, 20, 0));
+
+		expect(isAllowed(schedules, now)).toBe(true);
+		expect(nextBoundary(schedules, now)).toEqual(new Date(2026, 9, 19, 20, 0, 1));
+	});
+
+	test('has no clock for an answer that cant be used', () => {
+		expect(readServerClock(undefined, deviceNow)).toBeNull();
+		expect(readServerClock({}, deviceNow)).toBeNull();
+		expect(readServerClock(answer('not a time', 0), deviceNow)).toBeNull();
+		expect(readServerClock(answer('2026-10-19T23:30:00Z', 'x'), deviceNow)).toBeNull();
+		expect(readServerClock(answer('2026-10-19T23:30:00Z', undefined), deviceNow)).toBeNull();
 	});
 });
 
