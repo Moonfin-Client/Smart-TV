@@ -431,7 +431,7 @@ export const SETTINGS_SCHEMA = [
 				rows: [
 					{kind: KIND.SECTION, id: 'continueWatchingAndNextUp', label: () => $L('CONTINUE WATCHING AND NEXT UP')},
 					{kind: KIND.TOGGLE, key: 'mergeContinueWatchingNextUp', label: () => $L('Merge Continue Watching and Next Up'), desc: () => $L('Combine both rows into a single home section'), icon: 'merge_type'},
-					{kind: KIND.OPTION, key: 'continueWatchingDefaultAction', label: () => $L('Default Action'), options: getContinueWatchingDefaultActionOptions, fallback: () => $L('Go to Details screen'), desc: () => $L('Change what single clicking on a CW&NU item does'), icon: 'play_circle', padded: true},
+					{kind: KIND.OPTION, key: 'continueWatchingDefaultAction', label: () => $L('Default Action'), options: getContinueWatchingDefaultActionOptions, fallback: () => $L('Go to Details'), desc: () => $L('What selecting a Continue Watching or Next Up item does'), icon: 'play_circle_outline', padded: true},
 					{kind: KIND.OPTION, key: 'nextUpMaxDays', label: () => $L('Max days in Next Up'), options: getNextUpMaxDaysOptions, fallback: () => $L('365 days'), desc: () => $L('How long a show stays in Next Up after you last watched it'), icon: 'event_busy', padded: true},
 					{kind: KIND.SECTION, id: 'recentlyAdded', label: () => $L('RECENTLY ADDED')},
 					{kind: KIND.TOGGLE, key: 'mergeRecentRowsByType', label: () => $L('Merge Recent Rows by Type'), desc: () => $L('Combine separate libraries of the same type for Recently Added and Recently Released home rows.'), icon: 'library_books'},

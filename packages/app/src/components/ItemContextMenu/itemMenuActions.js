@@ -59,7 +59,7 @@ export const itemMenuActions = (item, {
 	if (MEDIA_TYPES.indexOf(type) !== -1) {
 		if (isContinueWatchingOrNextUp && playImmediately) {
 			if (type !== 'Audio') {
-				actions.push({id: 'viewDetails', icon: MENU_ICON_PATHS.info, label: $L('Go to Details screen')});
+				actions.push({id: 'viewDetails', icon: MENU_ICON_PATHS.info, label: $L('Go to Details')});
 			}
 		} else {
 			actions.push({id: 'play', icon: DETAIL_ICON_PATHS.play, label: hasProgress(item) ? $L('Resume') : $L('Play')});

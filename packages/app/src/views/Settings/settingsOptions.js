@@ -324,7 +324,7 @@ export const getFolderViewModeOptions = () => [
 ];
 
 export const getContinueWatchingDefaultActionOptions = () => [
-	{ value: 'details', label: $L('Go to Details screen') },
+	{ value: 'details', label: $L('Go to Details') },
 	{ value: 'play', label: $L('Play immediately') }
 ];
 

@@ -72,15 +72,15 @@ describe('itemMenuActions', () => {
 		expect(ids(null)).toEqual([]);
 	});
 
-	test('flips the top action to Go to Details screen when configured for CW&NU play immediately', () => {
+	test('flips the top action to Go to Details when Continue Watching and Next Up play on select', () => {
 		const options = {isContinueWatchingOrNextUp: true, playImmediately: true};
 		expect(ids(movie(), options)).toEqual(['viewDetails', 'watched', 'favorite', 'addToPlaylist']);
-		expect(labelOf(movie(), 'viewDetails', options)).toBe('Go to Details screen');
+		expect(labelOf(movie(), 'viewDetails', options)).toBe('Go to Details');
 		expect(ids(episode(), options)).toEqual(['viewDetails', 'watched', 'hideNextUp', 'favorite', 'addToPlaylist', 'goToSeries']);
-		expect(labelOf(episode(), 'viewDetails', options)).toBe('Go to Details screen');
+		expect(labelOf(episode(), 'viewDetails', options)).toBe('Go to Details');
 	});
 
-	test('keeps Play/Resume first when playImmediately is false for CW&NU', () => {
+	test('keeps Play first on Continue Watching and Next Up when they open Details on select', () => {
 		const options = {isContinueWatchingOrNextUp: true, playImmediately: false};
 		expect(ids(movie(), options)).toEqual(['play', 'watched', 'favorite', 'addToPlaylist']);
 		expect(labelOf(movie(), 'play', options)).toBe('Play');
