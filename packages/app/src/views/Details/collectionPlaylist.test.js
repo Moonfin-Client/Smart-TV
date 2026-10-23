@@ -51,7 +51,7 @@ describe('orderItemsByIds', () => {
 });
 
 describe('buildCollectionIndex', () => {
-	it('keeps the server order and puts each series\' episodes in its place', async () => {
+	it('defaults to release order ascending across movies and series episodes', async () => {
 		const api = {
 			getItems: jest.fn().mockResolvedValue({Items: [
 				{Id: 'm1', Type: 'Movie', Name: 'Movie', PremiereDate: '1990-01-01'},
@@ -64,7 +64,7 @@ describe('buildCollectionIndex', () => {
 				{Id: 'e2', Type: 'Episode', Name: 'Ep 2', PremiereDate: '1985-01-08'}
 			]})
 		};
-		expect(await buildCollectionIndex(api, 'box')).toEqual(['m1', 'e1', 'e2', 'm2']);
+		expect(await buildCollectionIndex(api, 'box')).toEqual(['m2', 'e1', 'e2', 'm1']);
 		expect(api.getItems).toHaveBeenCalledWith(expect.objectContaining({ParentId: 'box', Limit: 2000}));
 		expect(api.getEpisodes).toHaveBeenCalledWith('s1');
 	});
@@ -78,7 +78,51 @@ describe('buildCollectionIndex', () => {
 			]}),
 			getEpisodes: jest.fn().mockResolvedValue({Items: [{Id: 'e1', Type: 'Episode'}, {Id: 'e2', Type: 'Episode'}]})
 		};
-		expect(await buildCollectionIndex(api, 'box')).toEqual(['e9', 'e1', 'e2']);
+		expect(await buildCollectionIndex(api, 'box', {sortBy: 'server'})).toEqual(['e9', 'e1', 'e2']);
+	});
+
+	it('preserves the server order when sortBy is server', async () => {
+		const api = {
+			getItems: jest.fn().mockResolvedValue({Items: [
+				{Id: 'm1', Type: 'Movie', Name: 'Movie', PremiereDate: '1990-01-01'},
+				{Id: 's1', Type: 'Series', Name: 'Show'},
+				{Id: 'b1', Type: 'BoxSet', Name: 'Nested'},
+				{Id: 'm2', Type: 'Movie', Name: 'Older', PremiereDate: '1980-01-01'}
+			]}),
+			getEpisodes: jest.fn().mockResolvedValue({Items: [
+				{Id: 'e1', Type: 'Episode', Name: 'Ep 1', PremiereDate: '1985-01-01'},
+				{Id: 'e2', Type: 'Episode', Name: 'Ep 2', PremiereDate: '1985-01-08'}
+			]})
+		};
+		expect(await buildCollectionIndex(api, 'box', {sortBy: 'server'})).toEqual(['m1', 'e1', 'e2', 'm2']);
+	});
+
+	it('uses custom order and appends remaining items in release order', async () => {
+		const api = {
+			getCollectionOrder: jest.fn().mockResolvedValue(['m1', 'm2']),
+			getItems: jest.fn().mockResolvedValue({Items: [
+				{Id: 'm1', Type: 'Movie', Name: 'Movie', PremiereDate: '1990-01-01'},
+				{Id: 's1', Type: 'Series', Name: 'Show'},
+				{Id: 'm2', Type: 'Movie', Name: 'Older', PremiereDate: '1980-01-01'}
+			]}),
+			getEpisodes: jest.fn().mockResolvedValue({Items: [
+				{Id: 'e1', Type: 'Episode', Name: 'Ep 1', PremiereDate: '1985-01-01'}
+			]})
+		};
+		expect(await buildCollectionIndex(api, 'box')).toEqual(['m1', 'm2', 'e1']);
+	});
+
+	it('deduplicates entries appearing through both series expansion and direct membership', async () => {
+		const api = {
+			getItems: jest.fn().mockResolvedValue({Items: [
+				{Id: 'e1', Type: 'Episode', Name: 'Direct Ep', PremiereDate: '1985-01-01'},
+				{Id: 's1', Type: 'Series', Name: 'Show'}
+			]}),
+			getEpisodes: jest.fn().mockResolvedValue({Items: [
+				{Id: 'e1', Type: 'Episode', Name: 'Series Ep', PremiereDate: '1985-01-01'}
+			]})
+		};
+		expect(await buildCollectionIndex(api, 'box')).toEqual(['e1']);
 	});
 
 	it('carries on when a series refuses to list its episodes', async () => {

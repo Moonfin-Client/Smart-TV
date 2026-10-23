@@ -13,7 +13,7 @@ const INDEX_SCAN_BATCH = 8;
 
 const PAGE_SIZE = 50;
 
-const PLAYABLE_TYPES = new Set(['Movie', 'Episode', 'Audio', 'Video', 'MusicVideo']);
+export const PLAYABLE_TYPES = new Set(['Movie', 'Audio', 'Video', 'MusicVideo', 'Episode']);
 
 // All an entry keeps: enough to sort by, and the id to fetch with.
 export const indexEntryFor = (item) => ({
@@ -24,11 +24,13 @@ export const indexEntryFor = (item) => ({
 });
 
 const releaseKey = (entry) => {
-	if (entry.premiereDate) {
-		const parsed = Date.parse(entry.premiereDate);
+	const date = entry?.premiereDate || entry?.PremiereDate;
+	if (date) {
+		const parsed = Date.parse(date);
 		if (!isNaN(parsed)) return parsed;
 	}
-	return entry.productionYear ? Date.UTC(entry.productionYear, 0, 1) : null;
+	const year = entry?.productionYear || entry?.ProductionYear;
+	return year ? Date.UTC(year, 0, 1) : null;
 };
 
 // Release order, with the entries carrying no date at all sinking to the bottom and ties
@@ -36,11 +38,13 @@ const releaseKey = (entry) => {
 export const compareReleaseAscending = (a, b) => {
 	const aKey = releaseKey(a);
 	const bKey = releaseKey(b);
-	if (aKey === null && bKey === null) return a.name.toLowerCase().localeCompare(b.name.toLowerCase());
+	const aName = (a?.name || a?.Name || '').toLowerCase();
+	const bName = (b?.name || b?.Name || '').toLowerCase();
+	if (aKey === null && bKey === null) return aName.localeCompare(bName);
 	if (aKey === null) return 1;
 	if (bKey === null) return -1;
 	if (aKey !== bKey) return aKey - bKey;
-	return a.name.toLowerCase().localeCompare(b.name.toLowerCase());
+	return aName.localeCompare(bName);
 };
 
 // The by-id endpoint answers in whatever order it likes, so the page is put back into the
@@ -50,18 +54,22 @@ export const orderItemsByIds = (items = [], ids = []) => {
 	return [...items].sort((a, b) => (rank.get(a.Id) ?? ids.length) - (rank.get(b.Id) ?? ids.length));
 };
 
-// Walks the collection once and returns the ids of everything playable in it, in the order the
-// server lists them with each series' episodes in its place. Only ids come back, because that is
-// what the paging below asks the server for.
+// Walks the collection once and returns the ids of everything playable in it, defaulting to
+// release order or custom order when present.
 //
 // Deliberately not recursive. The scan reads the collection's own members and then asks each
 // series for its episodes, so walking the tree here would spend the limit on episodes that
 // arrive twice.
-export const buildCollectionIndex = async (api, collectionId) => {
+export const buildCollectionIndex = async (api, collectionId, options = {}) => {
+	const sortBy = options.sortBy || 'releaseAscending';
+	const customOrder = (sortBy === 'custom' || sortBy === 'releaseAscending') && typeof api?.getCollectionOrder === 'function'
+		? await api.getCollectionOrder(collectionId).catch(() => null)
+		: null;
+
 	const data = await api.getItems({
 		ParentId: collectionId,
 		Limit: INDEX_SCAN_LIMIT,
-		Fields: 'BasicSyncInfo'
+		Fields: 'BasicSyncInfo,PremiereDate,ProductionYear'
 	}).catch(() => null);
 	const members = data?.Items || [];
 	const series = members.filter((item) => item?.Type === 'Series');
@@ -74,13 +82,46 @@ export const buildCollectionIndex = async (api, collectionId) => {
 		batch.forEach((show, j) => episodes.set(show.Id, lists[j]?.Items || []));
 	}
 
-	// An episode filed on its own and again through its series plays once.
-	const ids = members.flatMap((item) => {
-		if (item?.Type === 'Series') return episodes.get(item.Id);
+	const allItems = members.flatMap((item) => {
+		if (item?.Type === 'Series') return episodes.get(item.Id) || [];
 		return PLAYABLE_TYPES.has(item?.Type) ? [item] : [];
-	}).map((item) => item.Id);
-	const seen = new Set();
-	return ids.filter((id) => !seen.has(id) && seen.add(id));
+	});
+
+	// Deduplicate by ID preserving first occurrence
+	const seenIds = new Set();
+	const uniqueItems = [];
+	for (const item of allItems) {
+		if (item?.Id && !seenIds.has(item.Id)) {
+			seenIds.add(item.Id);
+			uniqueItems.push(item);
+		}
+	}
+
+	if (Array.isArray(customOrder) && customOrder.length) {
+		const customSet = new Set(customOrder);
+		const remaining = uniqueItems
+			.filter((item) => !customSet.has(item.Id))
+			.sort(compareReleaseAscending);
+		const remainingIds = remaining.map((item) => item.Id);
+		const seen = new Set();
+		return [...customOrder, ...remainingIds].filter((id) => {
+			if (seen.has(id)) return false;
+			seen.add(id);
+			return true;
+		});
+	}
+
+	if (sortBy === 'releaseAscending') {
+		return [...uniqueItems].sort(compareReleaseAscending).map((item) => item.Id);
+	}
+
+	if (sortBy === 'alphabetical') {
+		return [...uniqueItems]
+			.sort((a, b) => String(a?.Name || a?.name || '').toLowerCase().localeCompare(String(b?.Name || b?.name || '').toLowerCase()))
+			.map((item) => item.Id);
+	}
+
+	return uniqueItems.map((item) => item.Id);
 };
 
 // Reads the next run of ids. Progress is counted in index positions rather than items

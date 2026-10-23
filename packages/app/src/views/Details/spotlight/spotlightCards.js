@@ -15,6 +15,7 @@ import {
 	firstPosterImageUrl,
 	firstChapterImageUrl
 } from './spotlightImages';
+import {PLAYABLE_TYPES} from '../collectionPlaylist';
 
 // The summary cards reuse the detail screen's own icon set rather than carrying a second one.
 export const CARD_ICONS = {
@@ -551,7 +552,7 @@ class CardBuilder {
 	}
 
 	boxSetItemsCard() {
-		const {collectionItems = [], missingCollectionItems = [], settings = {}, serverUrl, fallbackImageUrl} = this.s;
+		const {collectionItems = [], missingCollectionItems = [], settings = {}, serverUrl, item, fallbackImageUrl} = this.s;
 		const showMissing = settings.seerrShowMissingCollectionItems !== false;
 		// Slotted in by release date, the same way the parent collection card orders its own
 		// missing titles.
@@ -564,6 +565,8 @@ class CardBuilder {
 		const series = items.filter((i) => i.Type === 'Series');
 		const rest = items.filter((i) => i.Type !== 'Movie' && i.Type !== 'Series');
 
+		const collectionImageUrl = spotlightLandscapeImageUrl(serverUrl, item, {fallbackUrl: fallbackImageUrl}) || fallbackImageUrl;
+
 		return {
 			id: 'boxset_items',
 			title: $L('Movies & Shows'),
@@ -572,7 +575,7 @@ class CardBuilder {
 				series.length ? countLabel(series.length, $L('1 show'), $L('{count} shows')) : null,
 				!movies.length && !series.length ? countLabel(items.length, $L('1 item'), $L('{count} items')) : null
 			]),
-			imageUrl: firstLandscapeImageUrl(serverUrl, items) || fallbackImageUrl,
+			imageUrl: collectionImageUrl,
 			icon: CARD_ICONS.collections,
 			sections: [
 				...(movies.length ? [memberSection($L('Movies'), movies)] : []),
@@ -617,21 +620,37 @@ class CardBuilder {
 	}
 
 	playlistOrderCard() {
-		const {playlistItems = [], serverUrl, fallbackImageUrl} = this.s;
-		if (!playlistItems.length) return null;
+		const {playlistItems = [], collectionItems = [], serverUrl, item, fallbackImageUrl} = this.s;
+		const playableFallback = collectionItems.filter((i) => i && PLAYABLE_TYPES.has(i.Type));
+		const effectiveItems = playlistItems.length ? playlistItems : playableFallback;
+		if (!effectiveItems.length) return null;
+
+		const collectionImageUrl = spotlightLandscapeImageUrl(serverUrl, item, {fallbackUrl: fallbackImageUrl});
+		let playlistImageUrl = null;
+		for (const candidate of effectiveItems) {
+			const url = spotlightLandscapeImageUrl(serverUrl, candidate);
+			if (url && url !== collectionImageUrl) {
+				playlistImageUrl = url;
+				break;
+			}
+		}
+		playlistImageUrl = playlistImageUrl || (effectiveItems.length
+			? spotlightLandscapeImageUrl(serverUrl, effectiveItems[0], {fallbackUrl: fallbackImageUrl})
+			: fallbackImageUrl);
+
 		return {
 			id: 'playlist_order',
 			title: $L('Playlist Order'),
-			subtitle: countLabel(playlistItems.length, $L('1 item'), $L('{count} items')),
-			imageUrl: spotlightLandscapeImageUrl(serverUrl, playlistItems[0], {fallbackUrl: fallbackImageUrl}),
+			subtitle: countLabel(effectiveItems.length, $L('1 item'), $L('{count} items')),
+			imageUrl: playlistImageUrl,
 			icon: CARD_ICONS.playlistOrder,
 			// A collection's order can be sorted from the modal it opens.
 			headerAction: this.s.playlistSort ? {label: this.s.playlistSort.label, onClick: this.s.playlistSort.open} : null,
 			sections: [{
 				kind: 'tracks',
 				title: $L('Playlist Order'),
-				count: playlistItems.length,
-				tracks: playlistItems,
+				count: effectiveItems.length,
+				tracks: effectiveItems,
 				showAlbum: true
 			}]
 		};

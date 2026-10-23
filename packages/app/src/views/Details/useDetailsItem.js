@@ -282,7 +282,7 @@ const useDetailsItem = ({itemId, initialItem, effectiveApi, effectiveServerUrl, 
 				if (data.Type === 'BoxSet') {
 					const collectionData = await effectiveApi.getItems({
 						ParentId: data.Id,
-						SortBy: 'ProductionYear,SortName',
+						SortBy: 'PremiereDate,ProductionYear,SortName',
 						SortOrder: 'Ascending',
 						Fields: 'PrimaryImageAspectRatio,ProductionYear,ProviderIds'
 					}).catch(() => null);

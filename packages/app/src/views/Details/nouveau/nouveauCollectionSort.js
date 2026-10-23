@@ -11,7 +11,7 @@ export const SORT_RELEASE_ASCENDING = 'releaseAscending';
 export const SORT_RELEASE_DESCENDING = 'releaseDescending';
 export const SORT_CUSTOM = 'custom';
 
-export const DEFAULT_SORT = SORT_SERVER;
+export const DEFAULT_SORT = SORT_RELEASE_ASCENDING;
 
 // The custom option is named for the order it keeps rather than for any gesture, since a remote
 // has none to offer.
@@ -38,7 +38,12 @@ const byName = (a, b) => String(a?.Name || '').toLowerCase().localeCompare(Strin
 const byRelease = (a, b) => compareReleaseAscending(indexEntryFor(a), indexEntryFor(b));
 
 export const applyCollectionSort = (items = [], option = DEFAULT_SORT, customOrder = []) => {
-	if (option === SORT_CUSTOM && customOrder.length) return orderItemsByIds(items, customOrder);
+	if (option === SORT_CUSTOM && customOrder.length) {
+		const customSet = new Set(customOrder);
+		const remaining = items.filter((item) => !customSet.has(item?.Id)).sort(byRelease);
+		const orderedCustom = orderItemsByIds(items.filter((item) => customSet.has(item?.Id)), customOrder);
+		return [...orderedCustom, ...remaining];
+	}
 	if (option === SORT_ALPHABETICAL) return [...items].sort(byName);
 	if (option === SORT_RELEASE_ASCENDING) return [...items].sort(byRelease);
 	if (option === SORT_RELEASE_DESCENDING) return [...items].sort((a, b) => byRelease(b, a));
