@@ -1,4 +1,5 @@
 import {useEffect, useCallback, useRef, useState} from 'react';
+import $L from '@enact/i18n/$L';
 import Spotlight from '@enact/spotlight';
 import SpotlightContainerDecorator from '@enact/spotlight/SpotlightContainerDecorator';
 import {Scroller} from '@enact/sandstone/Scroller';
@@ -148,12 +149,27 @@ const SpotlightSectionModal = ({card, serverUrl, actions, seerr, onNearEnd}) => 
 		<div className={css.overlay}>
 			<ModalContainer className={css.panel} spotlightId="spotlight-modal" onKeyDown={handleKeyDown} onKeyUp={handleKeyUp}>
 				<div className={css.header}>
-					{card.icon && (
-						<svg className={css.headerIcon} viewBox={iconViewBox(card.icon)} fill="currentColor" aria-hidden="true">
-							<path d={card.icon} />
-						</svg>
+					<div className={css.headerLeft}>
+						{card.icon && (
+							<svg className={css.headerIcon} viewBox={iconViewBox(card.icon)} fill="currentColor" aria-hidden="true">
+								<path d={card.icon} />
+							</svg>
+						)}
+						<span className={css.headerTitle}>{card.modalTitle || card.title}</span>
+					</div>
+					{(card.onOpenSort || actions?.openCollectionSort) && (card.id === 'playlist_order' || card.id === 'playlist') && (
+						<div className={css.headerRight}>
+							{(actions?.collectionSort === 'custom' || card.sections?.some((s) => s.manage)) && (
+								<span className={css.headerHint}>{$L('◀ ▶ to re-order')}</span>
+							)}
+							<SpottableDiv
+								className={css.headerSortButton}
+								onClick={card.onOpenSort || actions.openCollectionSort}
+							>
+								{card.sortLabel || actions?.collectionSortLabel}
+							</SpottableDiv>
+						</div>
 					)}
-					<span className={css.headerTitle}>{card.modalTitle || card.title}</span>
 				</div>
 				<Scroller className={css.body} direction="vertical" horizontalScrollbar="hidden" verticalScrollbar="hidden" onScroll={handleScroll} cbScrollTo={handleScrollTo}>
 					<div className={css.scrollContent} ref={contentRef}>

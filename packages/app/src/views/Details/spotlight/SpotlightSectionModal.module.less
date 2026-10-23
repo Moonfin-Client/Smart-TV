@@ -28,7 +28,45 @@
 	align-items: center;
 	border-bottom: 1px solid rgba(255, 255, 255, 0.08);
 	display: flex;
+	justify-content: space-between;
 	padding: 20px 24px 16px;
+}
+
+.headerLeft {
+	align-items: center;
+	display: flex;
+	gap: 12px;
+	min-width: 0;
+}
+
+.headerRight {
+	align-items: center;
+	display: flex;
+	flex-shrink: 0;
+	gap: 16px;
+}
+
+.headerHint {
+	color: rgba(255, 255, 255, 0.5);
+	font-size: 16px;
+	font-weight: 500;
+}
+
+.headerSortButton {
+	background: rgba(255, 255, 255, 0.08);
+	border: 2px solid transparent;
+	border-radius: 999px;
+	color: #fff;
+	cursor: pointer;
+	font-size: 17px;
+	font-weight: 600;
+	outline: none;
+	padding: 8px 18px;
+}
+
+.headerSortButton:focus {
+	background: rgba(255, 255, 255, 0.2);
+	border-color: var(--theme-focus-border-color, #ffffff);
 }
 
 .headerIcon {
