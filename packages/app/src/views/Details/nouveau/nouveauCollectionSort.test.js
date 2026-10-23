@@ -1,6 +1,6 @@
 import {
-	SORT_ALPHABETICAL, SORT_CUSTOM, SORT_RELEASE_ASCENDING, SORT_RELEASE_DESCENDING, applyCollectionSort,
-	collectionSortOptions, sortLabel
+	SORT_ALPHABETICAL, SORT_CUSTOM, SORT_RELEASE_ASCENDING, SORT_RELEASE_DESCENDING, SORT_SERVER,
+	applyCollectionSort, collectionSortOptions, sortLabel
 } from './nouveauCollectionSort';
 
 const film = (Id, Name, PremiereDate) => ({Id, Name, PremiereDate});
@@ -14,8 +14,12 @@ const library = [
 ];
 
 describe('applyCollectionSort', () => {
-	it('keeps the order the server sent by default', () => {
-		expect(ids(applyCollectionSort(library))).toEqual(['c', 'a', 'b']);
+	it('puts a collection in release order by default', () => {
+		expect(ids(applyCollectionSort(library))).toEqual(['a', 'c', 'b']);
+	});
+
+	it('keeps the order the server sent on request', () => {
+		expect(ids(applyCollectionSort(library, SORT_SERVER))).toEqual(['c', 'a', 'b']);
 	});
 
 	it('puts a collection in release order on request', () => {
@@ -32,6 +36,10 @@ describe('applyCollectionSort', () => {
 
 	it('follows a saved order when there is one', () => {
 		expect(ids(applyCollectionSort(library, SORT_CUSTOM, ['b', 'a', 'c']))).toEqual(['b', 'a', 'c']);
+	});
+
+	it('appends unlisted items in release order when using a saved order', () => {
+		expect(ids(applyCollectionSort(library, SORT_CUSTOM, ['b']))).toEqual(['b', 'a', 'c']);
 	});
 
 	it('falls back to the server order when the saved one is empty', () => {
