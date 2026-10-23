@@ -54,7 +54,7 @@ export const DETAIL_SECTIONS = [
 	{id: 'birthplace', label: 'Birthplace', group: 'person', styles: [CLASSIC, MODERN, SPOTLIGHT, NOUVEAU]},
 	{id: 'guestAppearances', label: 'Guest appearances', group: 'person', styles: [CLASSIC, MODERN, SPOTLIGHT, NOUVEAU]},
 	{id: 'musicVideos', label: 'Music videos', group: 'person', styles: [CLASSIC, MODERN, SPOTLIGHT, NOUVEAU]},
-	{id: 'playlistOrder', label: 'Playlist order', group: 'collection', styles: [SPOTLIGHT, NOUVEAU]}
+	{id: 'playlistOrder', label: 'Playlist order', group: 'collection', styles: [MODERN, SPOTLIGHT, NOUVEAU]}
 ];
 
 // Whether picking `style` can put a section on screen. Minimalist only draws video pages and

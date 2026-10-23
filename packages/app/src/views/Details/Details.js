@@ -39,6 +39,13 @@ import {collectionQueue, collectionPlayTarget} from '../../utils/collectionPlayb
 import {isSeerrOnlyItem, libraryIdOf, personRouteFor} from '../../utils/seerrTarget';
 import {buildSeerrDetailItem} from '../../utils/seerrDetailItem';
 import {COLLECTION_ITEM_TYPES, IDENTIFIABLE_TYPES, getMediaBadges, seriesThumbUrl, shuffleArray, splitCastAndCrew} from './detailsMedia';
+import CollectionSortDialog from './CollectionSortDialog';
+import {
+	DEFAULT_SORT,
+	SORT_CUSTOM,
+	applyCollectionSort,
+	collectionSortOptions
+} from './collectionSort';
 import useDetailsItem from './useDetailsItem';
 import useDetailsModals from './useDetailsModals';
 import useDetailsTrailer from './useDetailsTrailer';
@@ -263,6 +270,63 @@ const Details = ({itemId: itemIdProp, initialItem, onPlay, onSelectItem, onSelec
 			jellyfinApi.getServerType() === 'jellyfin' &&
 			user?.Policy?.IsAdministrator;
 	}, [item, user]);
+
+	const [collectionSort, setCollectionSort] = useState(DEFAULT_SORT);
+	const [customOrder, setCustomOrder] = useState([]);
+	const [collectionSortOpen, setCollectionSortOpen] = useState(false);
+
+	useEffect(() => {
+		let cancelled = false;
+		setCustomOrder([]);
+		setCollectionSort(DEFAULT_SORT);
+		if (item?.Type !== 'BoxSet' || !effectiveApi?.getCollectionOrder || !item?.Id) return undefined;
+
+		effectiveApi.getCollectionOrder(item.Id)
+			.then((order) => {
+				if (cancelled || !Array.isArray(order) || !order.length) return;
+				setCustomOrder(order);
+				setCollectionSort(SORT_CUSTOM);
+			})
+			.catch(() => {});
+
+		return () => {
+			cancelled = true;
+		};
+	}, [item?.Id, item?.Type, effectiveApi]);
+
+	const handleSelectCollectionSort = useCallback((id) => {
+		setCollectionSort(id);
+		setCollectionSortOpen(false);
+	}, []);
+	const handleOpenCollectionSort = useCallback(() => setCollectionSortOpen(true), []);
+	const handleCloseCollectionSort = useCallback(() => setCollectionSortOpen(false), []);
+
+	const isBoxSet = item?.Type === 'BoxSet';
+	const sortedPlaylistItems = useMemo(() => {
+		const shown = isBoxSet && !showsSection('playlistOrder') ? [] : playlistItems;
+		if (!isBoxSet) return shown;
+		return applyCollectionSort(shown, collectionSort, customOrder);
+	}, [isBoxSet, showsSection, playlistItems, collectionSort, customOrder]);
+
+	const handleCollectionReorder = useCallback(async (itemIndex, direction) => {
+		if (!isBoxSet || !item?.Id) return;
+		const newIndex = itemIndex + direction;
+		if (newIndex < 0 || newIndex >= sortedPlaylistItems.length) return;
+
+		const currentItems = [...sortedPlaylistItems];
+		const [moved] = currentItems.splice(itemIndex, 1);
+		currentItems.splice(newIndex, 0, moved);
+
+		const newOrder = currentItems.map((i) => i.Id);
+		setCustomOrder(newOrder);
+		setCollectionSort(SORT_CUSTOM);
+
+		try {
+			await effectiveApi.saveCollectionOrder(item.Id, newOrder);
+		} catch {
+			// ignore
+		}
+	}, [isBoxSet, item?.Id, sortedPlaylistItems, effectiveApi]);
 
 	// Keyed on the id rather than the item, because marking watched or favourite
 	// builds a new item object, which would otherwise yank focus back to Play.
@@ -955,7 +1019,6 @@ const Details = ({itemId: itemIdProp, initialItem, onPlay, onSelectItem, onSelec
 	const isSeries = item.Type === 'Series';
 	const isSeason = item.Type === 'Season';
 	const isPerson = item.Type === 'Person';
-	const isBoxSet = item.Type === 'BoxSet';
 	const isAlbum = item.Type === 'MusicAlbum';
 	const isMusicArtist = item.Type === 'MusicArtist';
 	const isPlaylist = item.Type === 'Playlist';
@@ -1036,8 +1099,6 @@ const Details = ({itemId: itemIdProp, initialItem, onPlay, onSelectItem, onSelec
 	// A hidden row never holds a loading slot open.
 	const shownSimilarLoaded = showsSimilar ? similarLoaded : true;
 	const shownParentCollections = showsSection('collections') ? parentCollections : [];
-	// A collection's playlist order, not a playlist's own tracks.
-	const shownPlaylistItems = isBoxSet && !showsSection('playlistOrder') ? [] : playlistItems;
 
 	const hasPlaybackPosition = item.UserData?.PlaybackPositionTicks > 0;
 	const resumeTimeText = hasPlaybackPosition ? formatDuration(item.UserData.PlaybackPositionTicks) : '';
@@ -1133,6 +1194,14 @@ const Details = ({itemId: itemIdProp, initialItem, onPlay, onSelectItem, onSelec
 			/>
 			<SeerrDialogs seerr={seerr} title={item.Name} />
 			<ReviewDialog review={reviews.openReview} onClose={reviews.handleCloseReview} />
+			{collectionSortOpen && (
+				<CollectionSortDialog
+					options={collectionSortOptions(customOrder.length > 0 || isBoxSet)}
+					active={collectionSort}
+					onSelect={handleSelectCollectionSort}
+					onClose={handleCloseCollectionSort}
+				/>
+			)}
 		</>
 	);
 
@@ -1195,7 +1264,11 @@ const Details = ({itemId: itemIdProp, initialItem, onPlay, onSelectItem, onSelec
 					collectionSections={collectionSections}
 					albumTracks={albumTracks}
 					artistAlbums={artistAlbums}
-					playlistItems={shownPlaylistItems}
+					playlistItems={sortedPlaylistItems}
+					collectionSort={collectionSort}
+					collectionSortOptions={collectionSortOptions(customOrder.length > 0 || isBoxSet)}
+					onOpenCollectionSort={handleOpenCollectionSort}
+					onReorderCollectionItem={handleCollectionReorder}
 					personMovies={personMovies}
 					personSeries={personSeries}
 					birthDate={birthDate}

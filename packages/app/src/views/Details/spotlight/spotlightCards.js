@@ -16,6 +16,7 @@ import {
 	firstChapterImageUrl
 } from './spotlightImages';
 import {PLAYABLE_TYPES} from '../collectionPlaylist';
+import {DEFAULT_SORT, SORT_CUSTOM, sortLabel} from '../collectionSort';
 
 // The summary cards reuse the detail screen's own icon set rather than carrying a second one.
 export const CARD_ICONS = {
@@ -620,7 +621,10 @@ class CardBuilder {
 	}
 
 	playlistOrderCard() {
-		const {playlistItems = [], collectionItems = [], serverUrl, item, fallbackImageUrl} = this.s;
+		const {
+			playlistItems = [], collectionItems = [], serverUrl, item, fallbackImageUrl,
+			collectionSort, onOpenCollectionSort, isBoxSet
+		} = this.s;
 		const playableFallback = collectionItems.filter((i) => i && PLAYABLE_TYPES.has(i.Type));
 		const effectiveItems = playlistItems.length ? playlistItems : playableFallback;
 		if (!effectiveItems.length) return null;
@@ -638,6 +642,8 @@ class CardBuilder {
 			? spotlightLandscapeImageUrl(serverUrl, effectiveItems[0], {fallbackUrl: fallbackImageUrl})
 			: fallbackImageUrl);
 
+		const canManage = (isBoxSet || item?.Type === 'BoxSet') ? collectionSort === SORT_CUSTOM : false;
+
 		return {
 			id: 'playlist_order',
 			title: $L('Playlist Order'),
@@ -651,7 +657,9 @@ class CardBuilder {
 				title: $L('Playlist Order'),
 				count: effectiveItems.length,
 				tracks: effectiveItems,
-				showAlbum: true
+				showAlbum: true,
+				manage: canManage,
+				isPlaylist: true
 			}]
 		};
 	}
