@@ -52,12 +52,16 @@ describe('groupSeerrCredits', () => {
 });
 
 describe('creditAsCard', () => {
-	it('carries the credit line onto the card', () => {
-		const card = creditAsCard({...credit({id: 9, character: 'Ripley'}), _credit: 'Ripley'});
-		expect(card.Id).toBe('seerr-movie-9');
-		expect(card.Name).toBe('A Film');
-		expect(card._seerrCredit).toBe('Ripley');
-		expect(card._externalPosterUrl).toBe('https://image.tmdb.org/t/p/w342/a.jpg');
+	it('carries the credit line and stable cardKey onto the card', () => {
+		const cardWithCreditId = creditAsCard({...credit({id: 9, character: 'Ripley', credit_id: 'cid-999'}), _credit: 'Ripley'});
+		expect(cardWithCreditId.Id).toBe('seerr-movie-9');
+		expect(cardWithCreditId.Name).toBe('A Film');
+		expect(cardWithCreditId._seerrCredit).toBe('Ripley');
+		expect(cardWithCreditId.cardKey).toBe('cid-999');
+		expect(cardWithCreditId._externalPosterUrl).toBe('https://image.tmdb.org/t/p/w342/a.jpg');
+
+		const cardFallbackKey = creditAsCard({...credit({id: 9, character: 'Ripley'}), _credit: 'Ripley'});
+		expect(cardFallbackKey.cardKey).toBe('movie-9-Ripley');
 	});
 });
 

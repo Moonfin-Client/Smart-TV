@@ -68,7 +68,7 @@ const HERO_UNDER_TOP_BAR = {paddingTop: rem(TOP_BAR_CLEARANCE)};
 const SMOOTH_SCROLL = typeof document !== 'undefined' && 'scrollBehavior' in document.documentElement.style;
 
 // Looking an item up in the list a card came from, which every rail's select handler needs.
-const findIn = (list, key) => list.find((candidate) => String(candidate.Id) === key);
+const findIn = (list, key) => list.find((candidate) => String(candidate.cardKey || candidate.Id) === key);
 
 // One value to reset to, so an item with no Seerr credits leaves the rails memo alone.
 const NO_PERSON_CREDITS = {cast: [], crew: []};
@@ -742,7 +742,7 @@ const NouveauDetailContent = (props) => {
 				subtitle={entry.Subtitle || (entry.ProductionYear ? String(entry.ProductionYear) : null)}
 				width={posterWidth}
 				height={posterHeight}
-				selectKey={entry.Id}
+				selectKey={entry.cardKey || entry.Id}
 				onSelect={onPosterCard}
 			/>
 		);

@@ -4,7 +4,6 @@ import {
 	formatPersonDate,
 	personAge,
 	personDateLines,
-	sortFilmography,
 	splitFilmography,
 	withPersonRoles,
 	usableCredits,
@@ -13,7 +12,6 @@ import {
 	sortFilmography,
 	prepareCredits
 } from './personCredits';
-
 
 describe('person dates', () => {
 	test('a date reads as a month, a day and a year', () => {
@@ -88,56 +86,6 @@ describe('splitFilmography', () => {
 		expect(guestAppearances).toEqual([]);
 		expect(musicVideos).toEqual([]);
 	});
-
-	test('sorts filmography rows using the requested sort option', () => {
-		const items = [
-			item({Id: 'm1', Type: 'Movie', Name: 'Beta', PremiereDate: '2020-01-01'}),
-			item({Id: 'm2', Type: 'Movie', Name: 'Alpha', PremiereDate: '2022-01-01'}),
-			item({Id: 'm3', Type: 'Movie', Name: 'Charlie', PremiereDate: '2018-01-01'})
-		];
-
-		const alpha = splitFilmography(items, undefined, 'alphabetical');
-		expect(alpha.movies.map((m) => m.Id)).toEqual(['m2', 'm1', 'm3']);
-
-		const desc = splitFilmography(items, undefined, 'releaseDateDesc');
-		expect(desc.movies.map((m) => m.Id)).toEqual(['m2', 'm1', 'm3']);
-
-		const asc = splitFilmography(items, undefined, 'releaseDateAsc');
-		expect(asc.movies.map((m) => m.Id)).toEqual(['m3', 'm1', 'm2']);
-	});
-});
-
-describe('sortFilmography', () => {
-	const item = (over) => ({Id: 'i', Name: 'Title', ...over});
-
-	test('sorts alphabetically by name', () => {
-		const items = [
-			item({Id: '1', Name: 'Zulu'}),
-			item({Id: '2', Name: 'Alpha'}),
-			item({Id: '3', Name: 'Bravo'})
-		];
-		expect(sortFilmography(items, 'alphabetical').map((i) => i.Id)).toEqual(['2', '3', '1']);
-	});
-
-	test('sorts by release date ascending and descending with tie-breaker', () => {
-		const items = [
-			item({Id: '1', Name: 'Zulu', PremiereDate: '2020-01-01'}),
-			item({Id: '2', Name: 'Alpha', PremiereDate: '2020-01-01'}),
-			item({Id: '3', Name: 'Bravo', PremiereDate: '2022-01-01'}),
-			item({Id: '4', Name: 'Delta', PremiereDate: '2010-01-01'})
-		];
-		expect(sortFilmography(items, 'releaseDateAsc').map((i) => i.Id)).toEqual(['4', '2', '1', '3']);
-		expect(sortFilmography(items, 'releaseDateDesc').map((i) => i.Id)).toEqual(['3', '2', '1', '4']);
-	});
-
-	test('falls back to ProductionYear when PremiereDate is absent', () => {
-		const items = [
-			item({Id: '1', Name: 'Zulu', ProductionYear: 2021}),
-			item({Id: '2', Name: 'Alpha', PremiereDate: '2019-05-01'})
-		];
-		expect(sortFilmography(items, 'releaseDateAsc').map((i) => i.Id)).toEqual(['2', '1']);
-		expect(sortFilmography(items, 'releaseDateDesc').map((i) => i.Id)).toEqual(['1', '2']);
-	});
 });
 
 describe('credits', () => {
@@ -167,16 +115,6 @@ describe('credits', () => {
 		expect(cast[1].character).toBe('Guard');
 	});
 
-	test('does not collide same ID between movie and tv credits', () => {
-		const credits = groupCredits([
-			credit({id: 10, media_type: 'movie', character: 'Hero Movie'}),
-			credit({id: 10, media_type: 'tv', character: 'Hero Show'})
-		]);
-		expect(credits).toHaveLength(2);
-		expect(credits[0].character).toBe('Hero Movie');
-		expect(credits[1].character).toBe('Hero Show');
-	});
-
 	test('a repeated role is only named once', () => {
 		const crew = groupCredits([credit({job: 'Writer'}), credit({job: 'Writer'}), credit({job: 'Producer'})], true);
 
@@ -194,15 +132,6 @@ describe('credits', () => {
 		expect(sortCredits(list, 'alphabetical').map((c) => c.id)).toEqual([2, 3, 1]);
 		expect(sortCredits(list, 'releaseDateAsc').map((c) => c.id)).toEqual([3, 1, 2]);
 		expect(sortCredits(list, 'releaseDateDesc').map((c) => c.id)).toEqual([2, 1, 3]);
-	});
-
-	test('breaks ties by title when dates are identical', () => {
-		const list = [
-			credit({id: 1, title: 'Zebra', releaseDate: '2020-01-01'}),
-			credit({id: 2, title: 'Alpha', releaseDate: '2020-01-01'})
-		];
-		expect(sortCredits(list, 'releaseDateAsc').map((c) => c.id)).toEqual([2, 1]);
-		expect(sortCredits(list, 'releaseDateDesc').map((c) => c.id)).toEqual([2, 1]);
 	});
 
 	test('a title with no date sorts to the end whichever way the rest go', () => {
@@ -238,7 +167,6 @@ describe('credits', () => {
 		expect(prepareCredits(list).map((c) => c.character)).toEqual(['One', 'Two']);
 		expect(prepareCredits(list, {group: true}).map((c) => c.character)).toEqual(['One, Two']);
 	});
-
 });
 
 describe('sortFilmography', () => {

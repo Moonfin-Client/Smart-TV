@@ -40,7 +40,11 @@ export const filterSeerrCredits = (credits = [], isCrew = false) => credits
 		!(isCrew && EXCLUDED_JOBS.has(String(credit.job || '').toLowerCase())));
 
 // A credit as a card the grids can draw, carrying the roles or jobs that earned it a place.
-export const creditAsCard = (credit) => ({...normalizeMediaItem(credit), _seerrCredit: credit._credit || null});
+export const creditAsCard = (credit) => ({
+	...normalizeMediaItem(credit),
+	_seerrCredit: credit._credit || null,
+	cardKey: credit.credit_id || credit.creditId || `${credit.media_type || credit.mediaType || 'media'}-${credit.id}-${credit._credit || credit.job || credit.character || ''}`
+});
 
 // A person's combined credits, minus what the cards can't draw. Seerr is an extra here, so a
 // failure leaves the page with whatever the library knows.

@@ -146,7 +146,7 @@ const NouveauRail = ({
 				>
 					{items.slice(0, visibleCount).map((item, index) => (
 						<div
-							key={item?.Id || `item-${index}`}
+							key={item?.cardKey || item?.Id || `item-${index}`}
 							className={css.cell}
 							data-card-index={index}
 							style={index ? {marginLeft: `${gap}px`} : undefined}
