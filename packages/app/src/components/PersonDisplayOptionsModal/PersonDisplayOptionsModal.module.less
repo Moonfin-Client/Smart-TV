@@ -1,0 +1,81 @@
+.modalOverlay {
+	position: fixed;
+	top: 0;
+	left: 0;
+	right: 0;
+	bottom: 0;
+	background: rgba(0, 0, 0, 0.95);
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	z-index: 2000;
+	animation: fadeIn 0.2s ease;
+}
+
+@keyframes fadeIn {
+	from {
+		opacity: 0;
+	}
+	to {
+		opacity: 1;
+	}
+}
+
+.modalPanel {
+	padding: 30px 0;
+	background-color: rgba(var(--theme-surface-rgb, 24, 24, 24), 0.94);
+	background-image: none;
+	border: 2px solid rgba(255, 255, 255, 0.1);
+	border-radius: 20px;
+	max-width: 660px;
+	width: 90%;
+	max-height: 80%;
+	overflow-y: auto;
+	box-shadow: 0 15px 50px rgba(0, 0, 0, 0.8);
+	animation: slideUp 0.3s ease;
+	scrollbar-width: none;
+	-ms-overflow-style: none;
+
+	&::-webkit-scrollbar {
+		display: none;
+	}
+}
+
+@keyframes slideUp {
+	from {
+		transform: translateY(30px);
+		opacity: 0;
+	}
+	to {
+		transform: translateY(0);
+		opacity: 1;
+	}
+}
+
+.modalTitle {
+	font-size: 30px;
+	font-weight: 700;
+	color: var(--theme-text-primary, #ffffff);
+	margin: 0 0 18px 0;
+	text-align: left;
+	padding: 0 36px 18px 36px;
+	border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.optionsList {
+	display: flex;
+	flex-direction: column;
+
+	> * + * {
+		margin-top: 0;
+	}
+}
+
+.groupHeader {
+	font-size: 20px;
+	font-weight: 600;
+	color: rgba(255, 255, 255, 0.55);
+	text-transform: uppercase;
+	letter-spacing: 1px;
+	padding: 14px 36px 8px 36px;
+}

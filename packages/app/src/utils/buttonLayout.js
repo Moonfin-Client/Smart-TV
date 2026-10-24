@@ -30,6 +30,7 @@ export const DETAIL_BUTTONS = [
 	{id: 'watchWithGroup', label: 'Watch with group'},
 	{id: 'watched', label: 'Mark Watched'},
 	{id: 'favorite', label: 'Favorite'},
+	{id: 'personDisplay', label: 'Display Options'},
 	{id: 'personalRating', label: 'Rate'},
 	{id: 'goToSeries', label: 'Series'},
 	{id: 'playlist', label: 'Add to Playlist'},

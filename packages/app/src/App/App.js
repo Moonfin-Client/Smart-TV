@@ -1334,16 +1334,13 @@ const AppContent = (props) => {
 		navigateTo(PANELS.GENRE_BROWSE);
 	}, [navigateTo]);
 
-	// Nouveau draws a person on the detail screen itself, so they open there rather than on the
-	// separate screen the other styles send them to.
+	// Every detail screen style draws a person on the detail screen according to the style chosen
+	// (Classic, Modern, Spotlight, Nouveau, Minimalist).
 	const handleSelectPerson = useCallback((person) => {
-		if (settings.detailScreenStyle === 'v4') {
-			handleSelectItem(person);
-			return;
-		}
-		setSelectedPerson(person);
-		navigateTo(PANELS.PERSON);
-	}, [navigateTo, settings.detailScreenStyle, handleSelectItem]);
+		if (!person?.Id) return;
+		const item = person.Type ? person : {...person, Type: 'Person'};
+		handleSelectItem(item);
+	}, [handleSelectItem]);
 
 	const handleSelectPersonFromPlayer = useCallback((person) => {
 		if (!person?.Id) return;
@@ -1351,14 +1348,10 @@ const AppContent = (props) => {
 		setPlayingItem(null);
 		setPlaybackOptions(null);
 		setIsResume(false);
-		if (settings.detailScreenStyle === 'v4') {
-			setSelectedItem(person);
-			navigateTo(PANELS.DETAILS, false);
-			return;
-		}
-		setSelectedPerson(person);
-		navigateTo(PANELS.PERSON, false);
-	}, [navigateTo, settings.detailScreenStyle]);
+		const item = person.Type ? person : {...person, Type: 'Person'};
+		setSelectedItem(item);
+		navigateTo(PANELS.DETAILS, false);
+	}, [navigateTo]);
 
 	const handleOpenRecordings = useCallback(() => {
 		navigateTo(PANELS.RECORDINGS);

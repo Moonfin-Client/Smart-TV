@@ -12,6 +12,7 @@ const useDetailsModals = ({backHandlerRef, onArtworkClosed, seerrBackRef, overvi
 	const [showRatingDialog, setShowRatingDialog] = useState(false);
 	const [showArtworkModal, setShowArtworkModal] = useState(false);
 	const [showIdentifyModal, setShowIdentifyModal] = useState(false);
+	const [showPersonDisplayModal, setShowPersonDisplayModal] = useState(false);
 
 	const lastFocusedElementRef = useRef(null);
 	const artworkModalBackRef = useRef(null);
@@ -116,6 +117,15 @@ const useDetailsModals = ({backHandlerRef, onArtworkClosed, seerrBackRef, overvi
 		window.requestAnimationFrame(() => Spotlight.focus('details-action-buttons'));
 	}, [onArtworkClosed]);
 
+	const handleOpenPersonDisplayModal = useCallback(() => {
+		setShowPersonDisplayModal(true);
+	}, []);
+
+	const handleClosePersonDisplayModal = useCallback(() => {
+		setShowPersonDisplayModal(false);
+		window.requestAnimationFrame(() => Spotlight.focus('details-person-display-btn') || Spotlight.focus('details-action-buttons'));
+	}, []);
+
 	// BACK closes the innermost overlay. The artwork modal browses within itself, so it gets
 	// first refusal before the whole thing is dismissed. The Seerr popups and the expanded
 	// overview run off their own state, so they answer through refs rather than flags of ours.
@@ -135,6 +145,7 @@ const useDetailsModals = ({backHandlerRef, onArtworkClosed, seerrBackRef, overvi
 				return true;
 			}
 			if (showIdentifyModal) { handleCloseIdentifyModal(); return true; }
+			if (showPersonDisplayModal) { handleClosePersonDisplayModal(); return true; }
 			if (showDeleteDialog) { handleCloseDeleteDialog(); return true; }
 			if (showRatingDialog) { handleCloseRatingDialog(); return true; }
 			if (showPlaylistModal) { handleClosePlaylistModal(); return true; }
@@ -145,7 +156,7 @@ const useDetailsModals = ({backHandlerRef, onArtworkClosed, seerrBackRef, overvi
 		};
 		backHandlerRef.current = handler;
 		return () => { if (backHandlerRef.current === handler) backHandlerRef.current = null; };
-	}, [backHandlerRef, seerrBackRef, overviewBackRef, spotlightBackRef, trailerBackRef, reviewBackRef, activeModal, showPlaylistModal, showCollectionModal, showDeleteDialog, showRatingDialog, showArtworkModal, showIdentifyModal, closeModal, handleClosePlaylistModal, handleCloseCollectionModal, handleCloseDeleteDialog, handleCloseRatingDialog, handleCloseArtworkModal, handleCloseIdentifyModal]);
+	}, [backHandlerRef, seerrBackRef, overviewBackRef, spotlightBackRef, trailerBackRef, reviewBackRef, activeModal, showPlaylistModal, showCollectionModal, showDeleteDialog, showRatingDialog, showArtworkModal, showIdentifyModal, showPersonDisplayModal, closeModal, handleClosePlaylistModal, handleCloseCollectionModal, handleCloseDeleteDialog, handleCloseRatingDialog, handleCloseArtworkModal, handleCloseIdentifyModal, handleClosePersonDisplayModal]);
 
 	return {
 		activeModal,
@@ -171,6 +182,9 @@ const useDetailsModals = ({backHandlerRef, onArtworkClosed, seerrBackRef, overvi
 		showIdentifyModal,
 		handleOpenIdentifyModal,
 		handleCloseIdentifyModal,
+		showPersonDisplayModal,
+		handleOpenPersonDisplayModal,
+		handleClosePersonDisplayModal,
 		handleOpenAudioModal,
 		handleOpenSubtitleModal,
 		handleOpenVersionModal,

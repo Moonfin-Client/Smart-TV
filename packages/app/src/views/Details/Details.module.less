@@ -1386,6 +1386,43 @@
 	color: var(--accent-color, #00a4dc);
 }
 
+.personActionRow {
+	display: flex;
+	align-items: center;
+	margin-top: 16px;
+
+	> * + * {
+		margin-left: 16px;
+	}
+}
+
+.personActionBtn {
+	display: inline-flex;
+	align-items: center;
+	gap: 10px;
+	padding: 10px 22px;
+	border-radius: 9999px;
+	background: rgba(255, 255, 255, 0.08);
+	color: #ffffff;
+	font-size: 20px;
+	font-weight: 600;
+	cursor: pointer;
+	outline: none;
+	border: 2px solid transparent;
+	transition: all 0.2s ease;
+
+	svg {
+		width: 24px;
+		height: 24px;
+	}
+
+	&:focus {
+		background: rgba(var(--theme-accent-rgb, 0, 164, 220), 0.3);
+		border-color: var(--accent-color, #00a4dc);
+		transform: scale(1.05);
+	}
+}
+
 .personTabs {
 	position: relative;
 	z-index: 1;

@@ -63,6 +63,7 @@ import SpotlightDetailContent from './spotlight/SpotlightDetailContent';
 import NouveauDetailContent from './nouveau/NouveauDetailContent';
 import MinimalistDetailContent from './minimalist/MinimalistDetailContent';
 import PersonScreen from './PersonScreen';
+import PersonDisplayOptionsModal from '../../components/PersonDisplayOptionsModal';
 import SeasonScreen from './SeasonScreen';
 import PlaylistScreen from './PlaylistScreen';
 import AlbumScreen from './AlbumScreen';
@@ -82,7 +83,7 @@ const Details = ({itemId: itemIdProp, initialItem, onPlay, onSelectItem, onSelec
 	// Kids Mode has its say before anything on this screen reads a setting, and every piece below
 	// takes what it is handed rather than reaching for the context itself. Held steady across
 	// renders, or the effects and memos that depend on it would run again every time.
-	const {settings: storedSettings} = useSettings();
+	const {settings: storedSettings, updateSetting} = useSettings();
 	const settings = useMemo(() => kidsModeSettings(storedSettings), [storedSettings]);
 	// Which sections the viewer left on. Read once here so every style and the Seerr block
 	// agree, and a hidden section reads as one with nothing in it. The data behind it stays,
@@ -961,6 +962,14 @@ const Details = ({itemId: itemIdProp, initialItem, onPlay, onSelectItem, onSelec
 		};
 	}, [item?.Type, playlistItems, canManagePlaylist, playTrack, handleRemoveFromPlaylist, handlePlaylistItemReorder, handleCollectionMove]);
 
+	const handleSelectPersonSortOption = useCallback((option) => {
+		updateSetting('personPageSortOption', option);
+	}, [updateSetting]);
+
+	const handleTogglePersonGroupItems = useCallback(() => {
+		updateSetting('personPageGroupItems', !settings.personPageGroupItems);
+	}, [updateSetting, settings.personPageGroupItems]);
+
 	// No artwork, name or retry on purpose, since a retry would read as an invitation.
 	if (!seerrOnly && blockedByRating) {
 		return (
@@ -1167,6 +1176,14 @@ const Details = ({itemId: itemIdProp, initialItem, onPlay, onSelectItem, onSelec
 				onClearRating={handleClearRating}
 				onClose={modals.handleCloseRatingDialog}
 			/>
+			<PersonDisplayOptionsModal
+				open={modals.showPersonDisplayModal}
+				onClose={modals.handleClosePersonDisplayModal}
+				sortOption={settings.personPageSortOption}
+				onSelectSortOption={handleSelectPersonSortOption}
+				groupItems={settings.personPageGroupItems}
+				onToggleGroupItems={handleTogglePersonGroupItems}
+			/>
 			<SeerrDialogs seerr={seerr} title={item.Name} />
 			<ReviewDialog review={reviews.openReview} onClose={reviews.handleCloseReview} />
 		</>
@@ -1190,6 +1207,7 @@ const Details = ({itemId: itemIdProp, initialItem, onPlay, onSelectItem, onSelec
 					onSelectSeerrCard={handleSelectSeerrCard}
 					canChangeArtwork={canChangeArtwork}
 					handleOpenArtworkModal={modals.handleOpenArtworkModal}
+					handleOpenPersonDisplayModal={modals.handleOpenPersonDisplayModal}
 					effectiveApi={effectiveApi}
 					serverToken={initialItem?._serverAccessToken || jellyfinApi.getApiKey()}
 					effectiveServerUrl={effectiveServerUrl}
@@ -1302,7 +1320,9 @@ const Details = ({itemId: itemIdProp, initialItem, onPlay, onSelectItem, onSelec
 					birthPlace={birthPlace}
 					onSelectItem={onSelectItem}
 					onSelectSeerrItem={seerrNav?.onSelectItem}
+					onOpenPersonDisplayModal={modals.handleOpenPersonDisplayModal}
 				/>
+				{overlays}
 			</DetailScrollPage>
 		);
 	}

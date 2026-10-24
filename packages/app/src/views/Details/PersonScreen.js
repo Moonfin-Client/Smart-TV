@@ -9,6 +9,7 @@ import usePersonSeerrCredits from '../../hooks/usePersonSeerrCredits';
 import {getImageUrl} from '../../utils/helpers';
 import {isMdblistEnabled} from '../../services/mdblistApi';
 import {KEYS} from '../../utils/keys';
+import {DETAIL_ICON_PATHS} from './detailIcons';
 
 import css from './Details.module.less';
 
@@ -16,7 +17,10 @@ const SpottableDiv = Spottable('div');
 
 const TabsContainer = SpotlightContainerDecorator({enterTo: 'last-focused'}, 'div');
 
-const PersonScreen = ({item, serverUrl, settings, showsSection, filmography, personDates, birthPlace, onSelectItem, onSelectSeerrItem}) => {
+const PersonScreen = ({
+	item, serverUrl, settings, showsSection, filmography, personDates, birthPlace,
+	onSelectItem, onSelectSeerrItem, onOpenPersonDisplayModal
+}) => {
 	const {appearances, crewCredits} = usePersonSeerrCredits(item.ProviderIds?.Tmdb);
 	const {movies, series, guestAppearances, musicVideos} = filmography || {movies: [], series: [], guestAppearances: [], musicVideos: []};
 
@@ -119,6 +123,20 @@ const PersonScreen = ({item, serverUrl, settings, showsSection, filmography, per
 							<p className={`${css.overview} ${expanded ? css.overviewExpanded : ''}`}>{item.Overview}</p>
 							<span className={css.overviewToggleHint}>{expanded ? $L('Less') : $L('More')}</span>
 						</SpottableDiv>
+					)}
+					{onOpenPersonDisplayModal && (
+						<div className={css.personActionRow}>
+							<SpottableDiv
+								className={css.personActionBtn}
+								onClick={onOpenPersonDisplayModal}
+								data-spotlight-id="details-person-display-btn"
+							>
+								<svg viewBox="0 -960 960 960" fill="currentColor">
+									<path d={DETAIL_ICON_PATHS.tune} />
+								</svg>
+								<span>{$L('Display')}</span>
+							</SpottableDiv>
+						</div>
 					)}
 				</div>
 			</div>

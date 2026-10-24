@@ -956,21 +956,19 @@ const ModernDetailContent = (props) => {
 									<ExpandableOverview text={isPerson && !showsSection('biography') ? '' : item.Overview} itemId={item.Id} className={css.descriptionSlot} backRef={overviewBackRef} />
 								</>
 							)}
-							{!isPerson && (
-								<ModernActionButtons
-									{...props}
-									handlePlay={handleModernPlay}
-									handleShuffle={handleModernShuffle}
-									onWatchWithGroup={handleModernWatchWithGroup}
-									playlistTracks={isPlaylist ? displayedPlaylistTracks : undefined}
-									hasTech={hasTech}
-									played={played}
-									isFavorite={isFavorite}
-									onFocusRow={handleActionsFocus}
-									downTarget="details-tab-bar"
-									menuBackRef={menuBackRef}
-								/>
-							)}
+							<ModernActionButtons
+								{...props}
+								handlePlay={handleModernPlay}
+								handleShuffle={handleModernShuffle}
+								onWatchWithGroup={handleModernWatchWithGroup}
+								playlistTracks={isPlaylist ? displayedPlaylistTracks : undefined}
+								hasTech={hasTech}
+								played={played}
+								isFavorite={isFavorite}
+								onFocusRow={handleActionsFocus}
+								downTarget="details-tab-bar"
+								menuBackRef={menuBackRef}
+							/>
 						</div>
 						{renderUpNext()}
 					</div>

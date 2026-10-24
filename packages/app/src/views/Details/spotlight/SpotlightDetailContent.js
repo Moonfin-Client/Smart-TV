@@ -410,16 +410,14 @@ const SpotlightDetailContent = (props) => {
 					{!hideMediaDescription && item.Overview && (
 						<ExpandableOverview text={item.Overview} itemId={item.Id} className={css.descriptionSlot} backRef={overviewBackRef} />
 					)}
-					{!isPerson && (
-						<ModernActionButtons
-							{...props}
-							hasTech={hasTech}
-							maxVisibleButtons={5}
-							overflowAsMenu
-							downTarget={cards.length ? cardSpotlightId(cards[0].id) : null}
-							menuBackRef={menuBackRef}
-						/>
-					)}
+					<ModernActionButtons
+						{...props}
+						hasTech={hasTech}
+						maxVisibleButtons={5}
+						overflowAsMenu
+						downTarget={cards.length ? cardSpotlightId(cards[0].id) : null}
+						menuBackRef={menuBackRef}
+					/>
 					<SeerrDownloadBars seerr={seerr} />
 				</div>
 				{cards.length > 0 && (
