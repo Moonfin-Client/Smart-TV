@@ -46,7 +46,7 @@ const EMPTY_LIST = [];
 const SpotlightDetailContent = (props) => {
 	const {
 		item, settings, showsSection, effectiveServerUrl, seerr, seerrNav, seerrOnly,
-		isPerson, isEpisode, isSeries, isSeason, backdropUrl, posterUrl, logoUrl, onLogoError,
+		isPerson, isEpisode, isSeries, isSeason, isBoxSet, backdropUrl, posterUrl, logoUrl, onLogoError,
 		year, officialRating, seasonCount, genres = [], tagline, techBadges = [], techSize,
 		overviewBackRef, episodes = [], seriesEpisodes = [], birthDate, birthPlace,
 		effectiveApi, serverToken, seasons = [], similar = [], similarSource, reviews = [], onSelectReview, extras = [], cast = [], crew = [],
@@ -56,7 +56,8 @@ const SpotlightDetailContent = (props) => {
 		mediaSource, hasMultipleVersions, selectedAudioIndex, selectedSubtitleIndex,
 		onSelectItem, onSelectPerson, onSelectStudio, onSelectSeerrCard,
 		handleChapterSelect, handleExtraSelect, playTrack, playlistMenu,
-		onReorderPlaylistItem, onRemovePlaylistItem, canManagePlaylist, spotlightBackRef
+		onReorderPlaylistItem, onRemovePlaylistItem, canManagePlaylist, spotlightBackRef,
+		collectionSort, onOpenCollectionSort, onReorderCollectionItem
 	} = props;
 
 	const {isEnabled: seerrEnabled} = useSeerr();
@@ -142,6 +143,7 @@ const SpotlightDetailContent = (props) => {
 		personMovies, personSeries, filmography: otherCredits,
 		seerrAppearances: seerrCredits.appearances, seerrCrewCredits: seerrCredits.crewCredits,
 		studioCards, canManagePlaylist,
+		collectionSort, onOpenCollectionSort, isBoxSet,
 		seerr: {
 			details: seerr.details,
 			recommendations: seerr.recommendationCards || [],
@@ -158,6 +160,7 @@ const SpotlightDetailContent = (props) => {
 		extras, cast, crew, nextUp, collectionItems, missingCollectionItems, parentCollections,
 		albumTracks, artistAlbums, playlistItems, personMovies, personSeries, otherCredits,
 		seerrCredits, studioCards, canManagePlaylist, cardFallbackImageUrl,
+		collectionSort, onOpenCollectionSort, isBoxSet,
 		seerr.recommendationCards, seerr.similarCards, seerr.details, seerr.mediaType, seerr.collection, seerr.seasonMarkers,
 		seerr.pieces.chips, seerr.pieces.facts, seerr.pieces.streaming, seerr.streamingProviders
 	]);
@@ -172,19 +175,22 @@ const SpotlightDetailContent = (props) => {
 		playExtra: handleExtraSelect,
 		playTrack,
 		playlistMenu,
-		reorderTrack: onReorderPlaylistItem,
+		reorderTrack: isBoxSet ? onReorderCollectionItem : onReorderPlaylistItem,
 		removeTrack: onRemovePlaylistItem,
 		loadMoreCollectionItems,
 		collectionMenu,
 		effectiveApi,
 		settings,
 		selectedAudioIndex,
-		selectedSubtitleIndex
+		selectedSubtitleIndex,
+		collectionSort,
+		openCollectionSort: onOpenCollectionSort
 	}), [
 		onSelectItem, onSelectSeerrCard, onSelectPerson, onSelectStudio, onSelectReview, handleChapterSelect,
-		handleExtraSelect, playTrack, playlistMenu, onReorderPlaylistItem, onRemovePlaylistItem,
+		handleExtraSelect, playTrack, playlistMenu, isBoxSet, onReorderCollectionItem, onReorderPlaylistItem, onRemovePlaylistItem,
 		loadMoreCollectionItems, collectionMenu,
-		effectiveApi, settings, selectedAudioIndex, selectedSubtitleIndex
+		effectiveApi, settings, selectedAudioIndex, selectedSubtitleIndex,
+		collectionSort, onOpenCollectionSort
 	]);
 
 	const cards = useMemo(() => spotlightCardsFor(cardState), [cardState]);

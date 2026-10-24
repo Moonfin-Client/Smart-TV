@@ -41,9 +41,12 @@ const seedToShow = (candidate, id) => {
 // it ends up with.
 const SIMILAR_LIMIT = 20;
 
-const useDetailsItem = ({itemId, initialItem, effectiveApi, effectiveServerUrl, settings, recommendationsSupported, seerrEnabled, tagWithServerInfo, skip}) => {
+const useDetailsItem = ({itemId, initialItem, effectiveApi, effectiveServerUrl, settings, recommendationsSupported, seerrEnabled, tagWithServerInfo, skip, collectionSort = 'releaseAscending'}) => {
 	const seedRef = useRef(initialItem);
 	seedRef.current = initialItem;
+	const collectionSortRef = useRef(collectionSort);
+	collectionSortRef.current = collectionSort;
+	const prevSortRef = useRef(collectionSort);
 	// Read where they are used rather than depended on, so a change to either one
 	// does not refetch the whole screen.
 	const settingsRef = useRef(settings);
@@ -60,6 +63,7 @@ const useDetailsItem = ({itemId, initialItem, effectiveApi, effectiveServerUrl, 
 	const collectionFetchedRef = useRef(0);
 	const collectionHasMoreRef = useRef(false);
 	const collectionLoadingRef = useRef(false);
+	const playlistGenerationRef = useRef(0);
 	seerrEnabledRef.current = seerrEnabled;
 
 	const [item, setItem] = useState(() => seedToShow(initialItem, itemId));
@@ -95,16 +99,23 @@ const useDetailsItem = ({itemId, initialItem, effectiveApi, effectiveServerUrl, 
 	const loadMoreCollectionItems = useCallback(async () => {
 		if (collectionLoadingRef.current || !collectionHasMoreRef.current) return;
 		collectionLoadingRef.current = true;
+		const generation = playlistGenerationRef.current;
 		try {
 			const page = await fetchCollectionPage(effectiveApi, collectionIndexRef.current, collectionFetchedRef.current);
+			if (generation !== playlistGenerationRef.current) return;
 			collectionFetchedRef.current = page.fetchedCount;
 			collectionHasMoreRef.current = page.hasMore;
 			const visible = withoutBlockedItems(page.items);
 			if (visible.length) setPlaylistItems((prev) => [...prev, ...tagWithServerInfo(visible)]);
 		} catch {
-			collectionHasMoreRef.current = false;
+			if (generation === playlistGenerationRef.current) {
+				collectionHasMoreRef.current = false;
+			}
+		} finally {
+			if (generation === playlistGenerationRef.current) {
+				collectionLoadingRef.current = false;
+			}
 		}
-		collectionLoadingRef.current = false;
 	}, [effectiveApi, tagWithServerInfo]);
 
 	useEffect(() => {
@@ -125,6 +136,8 @@ const useDetailsItem = ({itemId, initialItem, effectiveApi, effectiveServerUrl, 
 		collectionIndexRef.current = [];
 		collectionFetchedRef.current = 0;
 		collectionHasMoreRef.current = false;
+		playlistGenerationRef.current += 1;
+		collectionLoadingRef.current = false;
 		setParentCollections([]);
 		setSimilarSource('jellyfin');
 		setAlbumTracks([]);
@@ -270,7 +283,7 @@ const useDetailsItem = ({itemId, initialItem, effectiveApi, effectiveServerUrl, 
 				if (data.Type === 'BoxSet') {
 					const collectionData = await effectiveApi.getItems({
 						ParentId: data.Id,
-						SortBy: 'ProductionYear,SortName',
+						SortBy: 'PremiereDate,ProductionYear,SortName',
 						SortOrder: 'Ascending',
 						Fields: 'PrimaryImageAspectRatio,ProductionYear,ProviderIds'
 					}).catch(() => null);
@@ -426,11 +439,12 @@ const useDetailsItem = ({itemId, initialItem, effectiveApi, effectiveServerUrl, 
 				// of every series in it. Only the first page is read here, the rest follows as
 				// the viewer scrolls.
 				if (data.Type === 'BoxSet') {
-					const index = await buildCollectionIndex(effectiveApi, itemId);
-					if (cancelled) return;
+					const generation = playlistGenerationRef.current;
+					const index = await buildCollectionIndex(effectiveApi, itemId, {sortBy: collectionSortRef.current});
+					if (cancelled || generation !== playlistGenerationRef.current) return;
 					collectionIndexRef.current = index;
 					const page = await fetchCollectionPage(effectiveApi, index, 0);
-					if (cancelled) return;
+					if (cancelled || generation !== playlistGenerationRef.current) return;
 					collectionFetchedRef.current = page.fetchedCount;
 					collectionHasMoreRef.current = page.hasMore;
 					setPlaylistItems(tagWithServerInfo(withoutBlockedItems(page.items)));
@@ -447,6 +461,32 @@ const useDetailsItem = ({itemId, initialItem, effectiveApi, effectiveServerUrl, 
 		loadItem();
 		return () => { cancelled = true; };
 	}, [effectiveApi, itemId, tagWithServerInfo, skip]);
+
+	useEffect(() => {
+		if (prevSortRef.current === collectionSort) return undefined;
+		if (!item || item.Type !== 'BoxSet' || !effectiveApi || !itemId) return undefined;
+
+		let cancelled = false;
+		const generation = ++playlistGenerationRef.current;
+		collectionFetchedRef.current = 0;
+		collectionHasMoreRef.current = false;
+		collectionLoadingRef.current = false;
+		setPlaylistItems([]);
+
+		(async () => {
+			const index = await buildCollectionIndex(effectiveApi, itemId, {sortBy: collectionSort});
+			if (cancelled || generation !== playlistGenerationRef.current) return;
+			collectionIndexRef.current = index;
+			const page = await fetchCollectionPage(effectiveApi, index, 0);
+			if (cancelled || generation !== playlistGenerationRef.current) return;
+			collectionFetchedRef.current = page.fetchedCount;
+			collectionHasMoreRef.current = page.hasMore;
+			setPlaylistItems(tagWithServerInfo(withoutBlockedItems(page.items)));
+			prevSortRef.current = collectionSort;
+		})();
+
+		return () => { cancelled = true; };
+	}, [collectionSort, item, itemId, effectiveApi, tagWithServerInfo]);
 
 	useEffect(() => {
 		if (!item || !episodes.length) return undefined;
@@ -571,6 +611,7 @@ const useDetailsItem = ({itemId, initialItem, effectiveApi, effectiveServerUrl, 
 		playListsLoaded,
 		loadMoreCollectionItems,
 		removeFromCollection,
+		collectionIndexRef,
 		setPlaylistItems,
 		episodeRatings,
 		selectedVersionIndex,

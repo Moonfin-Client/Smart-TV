@@ -4,7 +4,7 @@ import Spotlight from '@enact/spotlight';
 // Every overlay the detail screen can raise, and the BACK handling that closes them in the
 // right order. The track pickers share one activeModal slot because only one of them is ever
 // up at a time, while the dialogs that own their own component get a flag each.
-const useDetailsModals = ({backHandlerRef, onArtworkClosed, seerrBackRef, overviewBackRef, spotlightBackRef, trailerBackRef, reviewBackRef}) => {
+const useDetailsModals = ({backHandlerRef, onArtworkClosed, seerrBackRef, overviewBackRef, spotlightBackRef, trailerBackRef, reviewBackRef, collectionSortBackRef}) => {
 	const [activeModal, setActiveModal] = useState(null);
 	const [showPlaylistModal, setShowPlaylistModal] = useState(false);
 	const [showCollectionModal, setShowCollectionModal] = useState(false);
@@ -128,6 +128,7 @@ const useDetailsModals = ({backHandlerRef, onArtworkClosed, seerrBackRef, overvi
 			if (trailerBackRef?.current?.()) return true;
 			if (reviewBackRef?.current?.()) return true;
 			if (seerrBackRef?.current?.()) return true;
+			if (collectionSortBackRef?.current?.()) return true;
 			if (spotlightBackRef?.current?.()) return true;
 			if (showArtworkModal) {
 				if (artworkModalBackRef.current?.()) return true;
@@ -145,7 +146,7 @@ const useDetailsModals = ({backHandlerRef, onArtworkClosed, seerrBackRef, overvi
 		};
 		backHandlerRef.current = handler;
 		return () => { if (backHandlerRef.current === handler) backHandlerRef.current = null; };
-	}, [backHandlerRef, seerrBackRef, overviewBackRef, spotlightBackRef, trailerBackRef, reviewBackRef, activeModal, showPlaylistModal, showCollectionModal, showDeleteDialog, showRatingDialog, showArtworkModal, showIdentifyModal, closeModal, handleClosePlaylistModal, handleCloseCollectionModal, handleCloseDeleteDialog, handleCloseRatingDialog, handleCloseArtworkModal, handleCloseIdentifyModal]);
+	}, [backHandlerRef, seerrBackRef, overviewBackRef, spotlightBackRef, trailerBackRef, reviewBackRef, collectionSortBackRef, activeModal, showPlaylistModal, showCollectionModal, showDeleteDialog, showRatingDialog, showArtworkModal, showIdentifyModal, closeModal, handleClosePlaylistModal, handleCloseCollectionModal, handleCloseDeleteDialog, handleCloseRatingDialog, handleCloseArtworkModal, handleCloseIdentifyModal]);
 
 	return {
 		activeModal,

@@ -31,6 +31,8 @@ import useItemMenuHold, {itemWithIdAt} from '../../hooks/useItemMenuHold';
 import {AnimeEpisodePills, AnimeItemPills} from '../../components/AnimeMarkerPills';
 import {scrimStyle} from '../../utils/scrimImage';
 import PlaylistSortFilterBar, {EmptyPlaylistFilterState, EmptyPlaylistState} from '../../components/PlaylistSortFilterBar';
+import DetailTrackList from '../../components/DetailTrackList';
+import {DEFAULT_SORT, SORT_CUSTOM, sortLabel} from './collectionSort';
 import {
 	sortAndFilterPlaylistTracks,
 	showsPlaylistOrder,
@@ -44,6 +46,7 @@ import {
 import css from './ModernDetailContent.module.less';
 
 const SpottableDiv = Spottable('div');
+const countLabel = (count, one, many) => (count === 1 ? one : many.replace('{count}', String(count)));
 
 // Same stops as .scrim and .backdropPerson .scrim in the stylesheet.
 const SCRIM = [
@@ -86,7 +89,8 @@ const ModernDetailContent = (props) => {
 		handleChapterSelect, handleExtraSelect, playTrack, playlistMenu,
 		onSelectItem, onSelectPerson, onSelectStudio,
 		seerr, seerrNav, onSelectSeerrCard, spotlightBackRef, collectionMenu,
-		handlePlay, handleShuffle, onWatchWithGroup
+		handlePlay, handleShuffle, onWatchWithGroup,
+		collectionSort, onOpenCollectionSort, onReorderCollectionItem
 	} = props;
 
 	const [sortBy, setSortBy] = useState(PLAYLIST_SORT_ORDER);
@@ -414,6 +418,9 @@ const ModernDetailContent = (props) => {
 		if ((isAlbum && albumTracks.length) || isPlaylist) list.push({id: 'tracks', label: $L('Tracks')});
 		if (isMusicArtist && artistAlbums.length) list.push({id: 'albums', label: $L('Albums')});
 		if (isBoxSet && collectionItems.length) list.push({id: 'items', label: $L('Items')});
+		if (isBoxSet && showsSection('playlistOrder') && (playlistItems?.length || collectionItems.length)) {
+			list.push({id: 'playlist', label: $L('Playlist')});
+		}
 		if (cast.length) list.push({id: 'cast', label: $L('Cast')});
 		if (crew.length) list.push({id: 'crew', label: $L('Crew')});
 		if (studios?.length) list.push({id: 'studios', label: $L('Studios')});
@@ -426,7 +433,7 @@ const ModernDetailContent = (props) => {
 		if (reviews.length) list.push({id: 'reviews', label: $L('Reviews')});
 		if (seerr.hasTabContent) list.push({id: 'seerr', label: seerr.displayName});
 		return list;
-	}, [isSeries, seasons.length, listsEpisodes, episodes.length, isPerson, personMovies.length, personSeries.length, isAlbum, isPlaylist, albumTracks.length, isMusicArtist, artistAlbums.length, isBoxSet, collectionItems.length, collectionSections.length, collectionTabLabel, cast.length, crew.length, studios, chapters, additionalParts.length, otherExtras.length, showsDetails, similar.length, reviews.length, seerr.hasTabContent, seerr.displayName]);
+	}, [isSeries, seasons.length, listsEpisodes, episodes.length, isPerson, personMovies.length, personSeries.length, isAlbum, isPlaylist, albumTracks.length, isMusicArtist, artistAlbums.length, isBoxSet, showsSection, playlistItems?.length, collectionItems.length, collectionSections.length, collectionTabLabel, cast.length, crew.length, studios, chapters, additionalParts.length, otherExtras.length, showsDetails, similar.length, reviews.length, seerr.hasTabContent, seerr.displayName]);
 
 	const [activeTab, setActiveTab] = useState(null);
 	// Expanded Tabs on keeps the first tab open and lets focus follow selection.
@@ -625,6 +632,39 @@ const ModernDetailContent = (props) => {
 		);
 	};
 
+	const handleCollectionTrackPlay = useCallback((track) => {
+		const tracksList = playlistItems?.length ? playlistItems : collectionItems;
+		playTrack?.(track, tracksList);
+	}, [playTrack, playlistItems, collectionItems]);
+
+	const renderPlaylistTab = () => {
+		const tracksList = playlistItems?.length ? playlistItems : collectionItems;
+		return (
+			<div className={css.tracksContainer}>
+				<div className={css.playlistHeaderBar}>
+					<span className={css.playlistCount}>
+						{countLabel(tracksList.length, $L('1 item'), $L('{count} items'))}
+					</span>
+					{onOpenCollectionSort && (
+						<SpottableDiv className={css.sortButton} onClick={onOpenCollectionSort}>
+							{sortLabel(collectionSort || DEFAULT_SORT)}
+						</SpottableDiv>
+					)}
+				</div>
+				{collectionSort === SORT_CUSTOM && (
+					<p className={css.playlistHint}>{$L('◀ ▶ to re-order')}</p>
+				)}
+				<DetailTrackList
+					tracks={tracksList}
+					isPlaylist
+					manage={collectionSort === SORT_CUSTOM}
+					onPlayTrack={handleCollectionTrackPlay}
+					onReorder={onReorderCollectionItem}
+				/>
+			</div>
+		);
+	};
+
 	const renderStudiosTab = () => (
 		<RowContainer className={css.grid}>
 			{studioCards.map((studio) => (
@@ -713,6 +753,8 @@ const ModernDetailContent = (props) => {
 				return renderGrid(artistAlbums, 'square');
 			case 'items':
 				return renderGrid(collectionItems, 'portrait', onSelectItem, collectionMenu);
+			case 'playlist':
+				return renderPlaylistTab();
 			case 'collection':
 				if (collectionSections.length === 1) return renderGrid(collectionSections[0].items, 'portrait');
 				return (

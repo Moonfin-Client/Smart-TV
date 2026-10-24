@@ -36,6 +36,14 @@ import {collectionQueue, collectionPlayTarget} from '../../utils/collectionPlayb
 import {isSeerrOnlyItem, libraryIdOf, personRouteFor} from '../../utils/seerrTarget';
 import {buildSeerrDetailItem} from '../../utils/seerrDetailItem';
 import {COLLECTION_ITEM_TYPES, IDENTIFIABLE_TYPES, getMediaBadges, seriesThumbUrl, shuffleArray, splitCastAndCrew} from './detailsMedia';
+import CollectionSortDialog from './CollectionSortDialog';
+import {
+	DEFAULT_SORT,
+	SORT_CUSTOM,
+	applyCollectionSort,
+	collectionSortOptions
+} from './collectionSort';
+import {reorderCollectionIds} from './collectionPlaylist';
 import useDetailsItem from './useDetailsItem';
 import useDetailsModals from './useDetailsModals';
 import useDetailsTrailer from './useDetailsTrailer';
@@ -140,6 +148,8 @@ const Details = ({itemId: itemIdProp, initialItem, onPlay, onSelectItem, onSelec
 	// Seerr supplies the whole screen for a title the library doesn't have.
 	const seerrOnly = isSeerrOnlyItem(initialItem) && !seerrLibraryId;
 
+	const [collectionSort, setCollectionSort] = useState(DEFAULT_SORT);
+
 	const data = useDetailsItem({
 		itemId,
 		initialItem,
@@ -149,12 +159,13 @@ const Details = ({itemId: itemIdProp, initialItem, onPlay, onSelectItem, onSelec
 		recommendationsSupported,
 		seerrEnabled,
 		tagWithServerInfo,
-		skip: seerrOnly
+		skip: seerrOnly,
+		collectionSort
 	});
 	const {
 		setItem, isLoading: libraryLoading, isBlocked: blockedByRating, isSeed, seasons, episodes, seriesEpisodes, similar, extras, cast, nextUp, nextEpisode,
 		collectionItems, missingCollectionItems, parentCollections, similarSource, similarLoaded, playListsLoaded, loadMoreCollectionItems, removeFromCollection, albumTracks, artistAlbums,
-		playlistItems, setPlaylistItems, episodeRatings, refreshItem,
+		playlistItems, setPlaylistItems, collectionIndexRef, episodeRatings, refreshItem,
 		selectedVersionIndex, setSelectedVersionIndex,
 		selectedAudioIndex, setSelectedAudioIndex,
 		selectedSubtitleIndex, setSelectedSubtitleIndex
@@ -207,7 +218,17 @@ const Details = ({itemId: itemIdProp, initialItem, onPlay, onSelectItem, onSelec
 	const spotlightBackRef = useRef(null);
 	const trailerBackRef = useRef(null);
 	const reviewBackRef = useRef(null);
-	const modals = useDetailsModals({backHandlerRef, onArtworkClosed: refreshItem, seerrBackRef, overviewBackRef, spotlightBackRef, trailerBackRef, reviewBackRef});
+	const collectionSortBackRef = useRef(null);
+	const modals = useDetailsModals({
+		backHandlerRef,
+		onArtworkClosed: refreshItem,
+		seerrBackRef,
+		overviewBackRef,
+		spotlightBackRef,
+		trailerBackRef,
+		reviewBackRef,
+		collectionSortBackRef
+	});
 	const {activeModal, openModal, closeModal, advancedResumeRef} = modals;
 
 	const trailer = useDetailsTrailer({
@@ -258,6 +279,81 @@ const Details = ({itemId: itemIdProp, initialItem, onPlay, onSelectItem, onSelec
 			jellyfinApi.getServerType() === 'jellyfin' &&
 			user?.Policy?.IsAdministrator;
 	}, [item, user]);
+
+	const [customOrder, setCustomOrder] = useState([]);
+	const [collectionSortOpen, setCollectionSortOpen] = useState(false);
+
+	useEffect(() => {
+		let cancelled = false;
+		setCustomOrder([]);
+		setCollectionSort(DEFAULT_SORT);
+		if (item?.Type !== 'BoxSet' || !effectiveApi?.getCollectionOrder || !item?.Id) return undefined;
+
+		effectiveApi.getCollectionOrder(item.Id)
+			.then((order) => {
+				if (cancelled || !Array.isArray(order) || !order.length) return;
+				setCustomOrder(order);
+				setCollectionSort(SORT_CUSTOM);
+			})
+			.catch(() => {});
+
+		return () => {
+			cancelled = true;
+		};
+	}, [item?.Id, item?.Type, effectiveApi]);
+
+	const handleSelectCollectionSort = useCallback((id) => {
+		setCollectionSort(id);
+		setCollectionSortOpen(false);
+	}, []);
+	const handleOpenCollectionSort = useCallback(() => setCollectionSortOpen(true), []);
+	const handleCloseCollectionSort = useCallback(() => setCollectionSortOpen(false), []);
+
+	useEffect(() => {
+		collectionSortBackRef.current = collectionSortOpen ? () => {
+			handleCloseCollectionSort();
+			return true;
+		} : null;
+	}, [collectionSortOpen, handleCloseCollectionSort]);
+
+	const isBoxSet = item?.Type === 'BoxSet';
+	const sortedPlaylistItems = useMemo(() => {
+		const shown = isBoxSet && !showsSection('playlistOrder') ? [] : playlistItems;
+		if (!isBoxSet) return shown;
+		return applyCollectionSort(shown, collectionSort, customOrder);
+	}, [isBoxSet, showsSection, playlistItems, collectionSort, customOrder]);
+
+	const handleCollectionReorder = useCallback(async (itemIndex, direction) => {
+		if (!isBoxSet || !item?.Id) return;
+		const result = reorderCollectionIds({
+			currentItems: sortedPlaylistItems,
+			customOrder,
+			allIds: collectionIndexRef?.current || [],
+			itemIndex,
+			direction
+		});
+		if (!result) return;
+
+		const {newIndex, newOrder} = result;
+		setCustomOrder(newOrder);
+		setCollectionSort(SORT_CUSTOM);
+		if (collectionIndexRef) {
+			collectionIndexRef.current = newOrder;
+		}
+
+		window.requestAnimationFrame(() => {
+			const row = document.querySelector(`[data-index="${newIndex}"]`);
+			if (row) {
+				Spotlight.focus(row);
+			}
+		});
+
+		try {
+			await effectiveApi.saveCollectionOrder(item.Id, newOrder);
+		} catch {
+			// ignore
+		}
+	}, [isBoxSet, item?.Id, sortedPlaylistItems, customOrder, collectionIndexRef, effectiveApi]);
 
 	// Keyed on the id rather than the item, because marking watched or favourite
 	// builds a new item object, which would otherwise yank focus back to Play.
@@ -940,7 +1036,6 @@ const Details = ({itemId: itemIdProp, initialItem, onPlay, onSelectItem, onSelec
 	const isSeries = item.Type === 'Series';
 	const isSeason = item.Type === 'Season';
 	const isPerson = item.Type === 'Person';
-	const isBoxSet = item.Type === 'BoxSet';
 	const isAlbum = item.Type === 'MusicAlbum';
 	const isMusicArtist = item.Type === 'MusicArtist';
 	const isPlaylist = item.Type === 'Playlist';
@@ -1018,8 +1113,6 @@ const Details = ({itemId: itemIdProp, initialItem, onPlay, onSelectItem, onSelec
 	// A hidden row never holds a loading slot open.
 	const shownSimilarLoaded = showsSimilar ? similarLoaded : true;
 	const shownParentCollections = showsSection('collections') ? parentCollections : [];
-	// A collection's playlist order, not a playlist's own tracks.
-	const shownPlaylistItems = isBoxSet && !showsSection('playlistOrder') ? [] : playlistItems;
 
 	const hasPlaybackPosition = item.UserData?.PlaybackPositionTicks > 0;
 	const resumeTimeText = hasPlaybackPosition ? formatDuration(item.UserData.PlaybackPositionTicks) : '';
@@ -1106,6 +1199,14 @@ const Details = ({itemId: itemIdProp, initialItem, onPlay, onSelectItem, onSelec
 			/>
 			<SeerrDialogs seerr={seerr} title={item.Name} />
 			<ReviewDialog review={reviews.openReview} onClose={reviews.handleCloseReview} />
+			{collectionSortOpen && (
+				<CollectionSortDialog
+					options={collectionSortOptions(customOrder.length > 0 || isBoxSet)}
+					active={collectionSort}
+					onSelect={handleSelectCollectionSort}
+					onClose={handleCloseCollectionSort}
+				/>
+			)}
 		</>
 	);
 
@@ -1167,7 +1268,11 @@ const Details = ({itemId: itemIdProp, initialItem, onPlay, onSelectItem, onSelec
 					collectionSections={collectionSections}
 					albumTracks={albumTracks}
 					artistAlbums={artistAlbums}
-					playlistItems={shownPlaylistItems}
+					playlistItems={sortedPlaylistItems}
+					collectionSort={collectionSort}
+					collectionSortOptions={collectionSortOptions(customOrder.length > 0 || isBoxSet)}
+					onOpenCollectionSort={handleOpenCollectionSort}
+					onReorderCollectionItem={handleCollectionReorder}
 					personMovies={personMovies}
 					personSeries={personSeries}
 					birthDate={birthDate}

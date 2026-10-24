@@ -3,7 +3,8 @@ import {
 	compareReleaseAscending,
 	orderItemsByIds,
 	buildCollectionIndex,
-	fetchCollectionPage
+	fetchCollectionPage,
+	reorderCollectionIds
 } from './collectionPlaylist';
 
 const entry = (over) => ({id: 'x', name: '', premiereDate: null, productionYear: null, ...over});
@@ -51,7 +52,7 @@ describe('orderItemsByIds', () => {
 });
 
 describe('buildCollectionIndex', () => {
-	it('keeps the server order and puts each series\' episodes in its place', async () => {
+	it('defaults to release order ascending across movies and series episodes', async () => {
 		const api = {
 			getItems: jest.fn().mockResolvedValue({Items: [
 				{Id: 'm1', Type: 'Movie', Name: 'Movie', PremiereDate: '1990-01-01'},
@@ -64,9 +65,73 @@ describe('buildCollectionIndex', () => {
 				{Id: 'e2', Type: 'Episode', Name: 'Ep 2', PremiereDate: '1985-01-08'}
 			]})
 		};
-		expect(await buildCollectionIndex(api, 'box')).toEqual(['m1', 'e1', 'e2', 'm2']);
+		expect(await buildCollectionIndex(api, 'box')).toEqual(['m2', 'e1', 'e2', 'm1']);
 		expect(api.getItems).toHaveBeenCalledWith(expect.objectContaining({ParentId: 'box', Limit: 2000}));
 		expect(api.getEpisodes).toHaveBeenCalledWith('s1');
+	});
+
+	it('preserves the server order when sortBy is server', async () => {
+		const api = {
+			getItems: jest.fn().mockResolvedValue({Items: [
+				{Id: 'm1', Type: 'Movie', Name: 'Movie', PremiereDate: '1990-01-01'},
+				{Id: 's1', Type: 'Series', Name: 'Show'},
+				{Id: 'b1', Type: 'BoxSet', Name: 'Nested'},
+				{Id: 'm2', Type: 'Movie', Name: 'Older', PremiereDate: '1980-01-01'}
+			]}),
+			getEpisodes: jest.fn().mockResolvedValue({Items: [
+				{Id: 'e1', Type: 'Episode', Name: 'Ep 1', PremiereDate: '1985-01-01'},
+				{Id: 'e2', Type: 'Episode', Name: 'Ep 2', PremiereDate: '1985-01-08'}
+			]})
+		};
+		expect(await buildCollectionIndex(api, 'box', {sortBy: 'server'})).toEqual(['m1', 'e1', 'e2', 'm2']);
+	});
+
+	it('uses custom order and appends remaining items in release order', async () => {
+		const api = {
+			getCollectionOrder: jest.fn().mockResolvedValue(['m1', 'm2']),
+			getItems: jest.fn().mockResolvedValue({Items: [
+				{Id: 'm1', Type: 'Movie', Name: 'Movie', PremiereDate: '1990-01-01'},
+				{Id: 's1', Type: 'Series', Name: 'Show'},
+				{Id: 'm2', Type: 'Movie', Name: 'Older', PremiereDate: '1980-01-01'}
+			]}),
+			getEpisodes: jest.fn().mockResolvedValue({Items: [
+				{Id: 'e1', Type: 'Episode', Name: 'Ep 1', PremiereDate: '1985-01-01'}
+			]})
+		};
+		expect(await buildCollectionIndex(api, 'box', {sortBy: 'custom'})).toEqual(['m1', 'm2', 'e1']);
+	});
+
+	it('orders by release date descending when requested', async () => {
+		const api = {
+			getItems: jest.fn().mockResolvedValue({Items: [
+				{Id: 'm1', Type: 'Movie', Name: 'Movie', PremiereDate: '1990-01-01'},
+				{Id: 'm2', Type: 'Movie', Name: 'Older', PremiereDate: '1980-01-01'}
+			]})
+		};
+		expect(await buildCollectionIndex(api, 'box', {sortBy: 'releaseDescending'})).toEqual(['m1', 'm2']);
+	});
+
+	it('orders alphabetically when requested', async () => {
+		const api = {
+			getItems: jest.fn().mockResolvedValue({Items: [
+				{Id: 'm1', Type: 'Movie', Name: 'Zebra', PremiereDate: '1990-01-01'},
+				{Id: 'm2', Type: 'Movie', Name: 'Apple', PremiereDate: '1980-01-01'}
+			]})
+		};
+		expect(await buildCollectionIndex(api, 'box', {sortBy: 'alphabetical'})).toEqual(['m2', 'm1']);
+	});
+
+	it('deduplicates entries appearing through both series expansion and direct membership', async () => {
+		const api = {
+			getItems: jest.fn().mockResolvedValue({Items: [
+				{Id: 'e1', Type: 'Episode', Name: 'Direct Ep', PremiereDate: '1985-01-01'},
+				{Id: 's1', Type: 'Series', Name: 'Show'}
+			]}),
+			getEpisodes: jest.fn().mockResolvedValue({Items: [
+				{Id: 'e1', Type: 'Episode', Name: 'Series Ep', PremiereDate: '1985-01-01'}
+			]})
+		};
+		expect(await buildCollectionIndex(api, 'box')).toEqual(['e1']);
 	});
 
 	it('carries on when a series refuses to list its episodes', async () => {
@@ -117,5 +182,59 @@ describe('fetchCollectionPage', () => {
 		const api = {getItems: jest.fn()};
 		expect(await fetchCollectionPage(api, ids, 60)).toEqual({items: [], fetchedCount: 60, hasMore: false});
 		expect(api.getItems).not.toHaveBeenCalled();
+	});
+});
+
+describe('reorderCollectionIds', () => {
+	const currentItems = [{Id: 'i0'}, {Id: 'i1'}, {Id: 'i2'}];
+
+	it('preserves unloaded member ids from customOrder when reordering', () => {
+		const customOrder = ['i0', 'i1', 'i2', 'i3', 'i4'];
+		const result = reorderCollectionIds({
+			currentItems,
+			customOrder,
+			allIds: [],
+			itemIndex: 0,
+			direction: 1
+		});
+
+		expect(result).toEqual({
+			newIndex: 1,
+			newOrder: ['i1', 'i0', 'i2', 'i3', 'i4']
+		});
+	});
+
+	it('preserves unloaded member ids from allIds when customOrder is empty', () => {
+		const allIds = ['i0', 'i1', 'i2', 'i3', 'i4'];
+		const result = reorderCollectionIds({
+			currentItems,
+			customOrder: [],
+			allIds,
+			itemIndex: 2,
+			direction: -1
+		});
+
+		expect(result).toEqual({
+			newIndex: 1,
+			newOrder: ['i0', 'i2', 'i1', 'i3', 'i4']
+		});
+	});
+
+	it('returns null when reordering past boundary', () => {
+		expect(reorderCollectionIds({
+			currentItems,
+			customOrder: [],
+			allIds: ['i0', 'i1', 'i2'],
+			itemIndex: 0,
+			direction: -1
+		})).toBeNull();
+
+		expect(reorderCollectionIds({
+			currentItems,
+			customOrder: [],
+			allIds: ['i0', 'i1', 'i2'],
+			itemIndex: 2,
+			direction: 1
+		})).toBeNull();
 	});
 });
