@@ -62,7 +62,7 @@ export const orderItemsByIds = (items = [], ids = []) => {
 // arrive twice.
 export const buildCollectionIndex = async (api, collectionId, options = {}) => {
 	const sortBy = options.sortBy || 'releaseAscending';
-	const customOrder = (sortBy === 'custom' || sortBy === 'releaseAscending') && typeof api?.getCollectionOrder === 'function'
+	const customOrder = sortBy === 'custom' && typeof api?.getCollectionOrder === 'function'
 		? await api.getCollectionOrder(collectionId).catch(() => null)
 		: null;
 
@@ -97,7 +97,7 @@ export const buildCollectionIndex = async (api, collectionId, options = {}) => {
 		}
 	}
 
-	if (Array.isArray(customOrder) && customOrder.length) {
+	if (sortBy === 'custom' && Array.isArray(customOrder) && customOrder.length) {
 		const customSet = new Set(customOrder);
 		const remaining = uniqueItems
 			.filter((item) => !customSet.has(item.Id))
@@ -113,6 +113,12 @@ export const buildCollectionIndex = async (api, collectionId, options = {}) => {
 
 	if (sortBy === 'releaseAscending') {
 		return [...uniqueItems].sort(compareReleaseAscending).map((item) => item.Id);
+	}
+
+	if (sortBy === 'releaseDescending') {
+		return [...uniqueItems]
+			.sort((a, b) => compareReleaseAscending(b, a))
+			.map((item) => item.Id);
 	}
 
 	if (sortBy === 'alphabetical') {

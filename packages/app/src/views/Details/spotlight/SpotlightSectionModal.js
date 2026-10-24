@@ -157,16 +157,16 @@ const SpotlightSectionModal = ({card, serverUrl, actions, seerr, onNearEnd}) => 
 						)}
 						<span className={css.headerTitle}>{card.modalTitle || card.title}</span>
 					</div>
-					{(card.onOpenSort || actions?.openCollectionSort) && (card.id === 'playlist_order' || card.id === 'playlist') && (
+					{card.onOpenSort && card.id === 'playlist_order' && (
 						<div className={css.headerRight}>
-							{(actions?.collectionSort === 'custom' || card.sections?.some((s) => s.manage)) && (
+							{card.sections?.some((s) => s.manage) && (
 								<span className={css.headerHint}>{$L('◀ ▶ to re-order')}</span>
 							)}
 							<SpottableDiv
 								className={css.headerSortButton}
-								onClick={card.onOpenSort || actions.openCollectionSort}
+								onClick={card.onOpenSort}
 							>
-								{card.sortLabel || actions?.collectionSortLabel}
+								{card.sortLabel}
 							</SpottableDiv>
 						</div>
 					)}
