@@ -35,7 +35,6 @@
 .headerLeft {
 	align-items: center;
 	display: flex;
-	gap: 12px;
 	min-width: 0;
 }
 
@@ -43,7 +42,6 @@
 	align-items: center;
 	display: flex;
 	flex-shrink: 0;
-	gap: 16px;
 }
 
 .headerHint {
@@ -174,5 +172,7 @@
 .scrollContent > .sectionFolded + .section { margin-top: 8px; }
 
 .header                { .flex-row-gap(12px); }
+.headerLeft            { .flex-row-gap(12px); }
+.headerRight           { .flex-row-gap(16px); }
 .body > * + *          { margin-top: 24px; }
 .sectionHeader         { .flex-row-gap(8px); }

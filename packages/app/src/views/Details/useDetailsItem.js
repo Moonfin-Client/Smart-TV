@@ -52,9 +52,12 @@ const seedToShow = (candidate, id) => {
 // it ends up with.
 const SIMILAR_LIMIT = 20;
 
-const useDetailsItem = ({itemId, initialItem, effectiveApi, effectiveServerUrl, settings, recommendationsSupported, seerrEnabled, tagWithServerInfo, skip}) => {
+const useDetailsItem = ({itemId, initialItem, effectiveApi, effectiveServerUrl, settings, recommendationsSupported, seerrEnabled, tagWithServerInfo, skip, collectionSort = 'releaseAscending'}) => {
 	const seedRef = useRef(initialItem);
 	seedRef.current = initialItem;
+	const collectionSortRef = useRef(collectionSort);
+	collectionSortRef.current = collectionSort;
+	const prevSortRef = useRef(collectionSort);
 	// Read where they are used rather than depended on, so a change to either one
 	// does not refetch the whole screen.
 	const settingsRef = useRef(settings);
@@ -438,7 +441,7 @@ const useDetailsItem = ({itemId, initialItem, effectiveApi, effectiveServerUrl, 
 				// of every series in it. Only the first page is read here, the rest follows as
 				// the viewer scrolls.
 				if (data.Type === 'BoxSet') {
-					const index = await buildCollectionIndex(effectiveApi, itemId);
+					const index = await buildCollectionIndex(effectiveApi, itemId, {sortBy: collectionSortRef.current});
 					if (cancelled) return;
 					collectionIndexRef.current = index;
 					const page = await fetchCollectionPage(effectiveApi, index, 0);
@@ -459,6 +462,30 @@ const useDetailsItem = ({itemId, initialItem, effectiveApi, effectiveServerUrl, 
 		loadItem();
 		return () => { cancelled = true; };
 	}, [effectiveApi, itemId, tagWithServerInfo, skip]);
+
+	useEffect(() => {
+		if (prevSortRef.current === collectionSort) return undefined;
+		prevSortRef.current = collectionSort;
+		if (!item || item.Type !== 'BoxSet' || !effectiveApi || !itemId) return undefined;
+
+		let cancelled = false;
+		collectionFetchedRef.current = 0;
+		collectionHasMoreRef.current = true;
+		setPlaylistItems([]);
+
+		(async () => {
+			const index = await buildCollectionIndex(effectiveApi, itemId, {sortBy: collectionSort});
+			if (cancelled) return;
+			collectionIndexRef.current = index;
+			const page = await fetchCollectionPage(effectiveApi, index, 0);
+			if (cancelled) return;
+			collectionFetchedRef.current = page.fetchedCount;
+			collectionHasMoreRef.current = page.hasMore;
+			setPlaylistItems(tagWithServerInfo(withoutBlockedItems(page.items)));
+		})();
+
+		return () => { cancelled = true; };
+	}, [collectionSort, item, itemId, effectiveApi, tagWithServerInfo]);
 
 	useEffect(() => {
 		if (!item || !episodes.length) return undefined;

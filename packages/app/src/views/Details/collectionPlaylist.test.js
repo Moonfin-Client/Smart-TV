@@ -109,7 +109,27 @@ describe('buildCollectionIndex', () => {
 				{Id: 'e1', Type: 'Episode', Name: 'Ep 1', PremiereDate: '1985-01-01'}
 			]})
 		};
-		expect(await buildCollectionIndex(api, 'box')).toEqual(['m1', 'm2', 'e1']);
+		expect(await buildCollectionIndex(api, 'box', {sortBy: 'custom'})).toEqual(['m1', 'm2', 'e1']);
+	});
+
+	it('orders by release date descending when requested', async () => {
+		const api = {
+			getItems: jest.fn().mockResolvedValue({Items: [
+				{Id: 'm1', Type: 'Movie', Name: 'Movie', PremiereDate: '1990-01-01'},
+				{Id: 'm2', Type: 'Movie', Name: 'Older', PremiereDate: '1980-01-01'}
+			]})
+		};
+		expect(await buildCollectionIndex(api, 'box', {sortBy: 'releaseDescending'})).toEqual(['m1', 'm2']);
+	});
+
+	it('orders alphabetically when requested', async () => {
+		const api = {
+			getItems: jest.fn().mockResolvedValue({Items: [
+				{Id: 'm1', Type: 'Movie', Name: 'Zebra', PremiereDate: '1990-01-01'},
+				{Id: 'm2', Type: 'Movie', Name: 'Apple', PremiereDate: '1980-01-01'}
+			]})
+		};
+		expect(await buildCollectionIndex(api, 'box', {sortBy: 'alphabetical'})).toEqual(['m2', 'm1']);
 	});
 
 	it('deduplicates entries appearing through both series expansion and direct membership', async () => {
