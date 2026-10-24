@@ -30,6 +30,8 @@ export const CARD_ICONS = {
 	playlist: MATERIAL_ICON_PATHS.playlist_play,
 	playlistOrder: MATERIAL_ICON_PATHS.format_list_numbered,
 	filmography: MATERIAL_ICON_PATHS.movie,
+	appearances: MATERIAL_ICON_PATHS.star_shine,
+	crew: MATERIAL_ICON_PATHS.movie,
 	seerrDetails: MATERIAL_ICON_PATHS.info,
 	fileDetails: MATERIAL_ICON_PATHS.info
 };
@@ -144,7 +146,11 @@ class CardBuilder {
 			case 'Book': return {tracks: () => this.tracksCard(), similar: () => this.similarCard()};
 			case 'Playlist': return {playlist: () => this.playlistCard()};
 			case 'MusicArtist': return {albums: () => this.albumsCard(), similar: () => this.similarCard()};
-			case 'Person': return {filmography: () => this.filmographyCard()};
+			case 'Person': return {
+				filmography: () => this.filmographyCard(),
+				appearances: () => this.personAppearancesCard(),
+				crew: () => this.personCrewCard()
+			};
 			case 'BoxSet': return {
 				boxset_items: () => this.boxSetItemsCard(),
 				people: () => this.boxSetPeopleCard(),
@@ -520,36 +526,63 @@ class CardBuilder {
 
 	filmographyCard() {
 		const {personMovies = [], personSeries = [], filmography = [], serverUrl, fallbackImageUrl} = this.s;
-		const seerrAppearances = this.shows('seerrPersonAppearances') ? this.s.seerrAppearances || [] : [];
-		const seerrCrewCredits = this.shows('seerrPersonCrew') ? this.s.seerrCrewCredits || [] : [];
 		const hasLibrary = personMovies.length > 0 || personSeries.length > 0;
-		if (!hasLibrary && !filmography.length && !seerrAppearances.length && !seerrCrewCredits.length) return null;
+		if (!hasLibrary && !filmography.length) return null;
 
 		const subtitle = joinSubtitle([
 			personMovies.length ? countLabel(personMovies.length, $L('1 movie'), $L('{count} movies')) : null,
 			personSeries.length ? countLabel(personSeries.length, $L('1 show'), $L('{count} shows')) : null,
-			!hasLibrary && filmography.length ? countLabel(filmography.length, $L('1 item'), $L('{count} items')) : null,
-			!hasLibrary && !filmography.length && seerrAppearances.length
-				? countLabel(seerrAppearances.length, $L('1 item'), $L('{count} items')) : null
+			!hasLibrary && filmography.length ? countLabel(filmography.length, $L('1 item'), $L('{count} items')) : null
 		]);
 
-		const lead = personMovies[0] || personSeries[0] || filmography[0] || null;
+		const all = [...personMovies, ...personSeries, ...filmography];
+		const imageUrl = firstLandscapeImageUrl(serverUrl, all) || firstPosterImageUrl(serverUrl, all) || fallbackImageUrl;
 		return {
 			id: 'filmography',
 			title: $L('Filmography'),
 			subtitle,
-			imageUrl: (lead ? spotlightItemImageUrl(serverUrl, lead) : firstPosterImageUrl(serverUrl, seerrAppearances)) || fallbackImageUrl,
+			imageUrl,
 			icon: CARD_ICONS.filmography,
 			sections: [
 				...(personMovies.length ? [mediaSection($L('Movies'), personMovies)] : []),
 				...(personSeries.length ? [mediaSection($L('TV Shows'), personSeries)] : []),
-				...(seerrAppearances.length ? [seerrSection($L('Appearances (Seerr)'), seerrAppearances, true)] : []),
-				...(seerrCrewCredits.length ? [seerrSection($L('Crew Contributions (Seerr)'), seerrCrewCredits, true)] : []),
-				...(!hasLibrary && !seerrAppearances.length && !seerrCrewCredits.length && filmography.length
-					? [mediaSection($L('Appearances'), filmography)] : [])
+				...(!hasLibrary && filmography.length ? [mediaSection($L('Filmography'), filmography)] : [])
 			]
 		};
 	}
+
+	personAppearancesCard() {
+		if (!this.shows('seerrPersonAppearances')) return null;
+		const {seerrAppearances = [], serverUrl, fallbackImageUrl} = this.s;
+		if (!seerrAppearances.length) return null;
+
+		const imageUrl = firstLandscapeImageUrl(serverUrl, seerrAppearances) || firstPosterImageUrl(serverUrl, seerrAppearances) || fallbackImageUrl;
+		return {
+			id: 'appearances',
+			title: $L('Appearances (Seerr)'),
+			subtitle: countLabel(seerrAppearances.length, $L('1 item'), $L('{count} items')),
+			imageUrl,
+			icon: CARD_ICONS.appearances,
+			sections: [seerrSection($L('Appearances (Seerr)'), seerrAppearances, true)]
+		};
+	}
+
+	personCrewCard() {
+		if (!this.shows('seerrPersonCrew')) return null;
+		const {seerrCrewCredits = [], serverUrl, fallbackImageUrl} = this.s;
+		if (!seerrCrewCredits.length) return null;
+
+		const imageUrl = firstLandscapeImageUrl(serverUrl, seerrCrewCredits) || firstPosterImageUrl(serverUrl, seerrCrewCredits) || fallbackImageUrl;
+		return {
+			id: 'crew',
+			title: $L('Crew Contributions (Seerr)'),
+			subtitle: countLabel(seerrCrewCredits.length, $L('1 item'), $L('{count} items')),
+			imageUrl,
+			icon: CARD_ICONS.crew,
+			sections: [seerrSection($L('Crew Contributions (Seerr)'), seerrCrewCredits, true)]
+		};
+	}
+
 
 	boxSetItemsCard() {
 		const {collectionItems = [], missingCollectionItems = [], settings = {}, serverUrl, item, fallbackImageUrl} = this.s;

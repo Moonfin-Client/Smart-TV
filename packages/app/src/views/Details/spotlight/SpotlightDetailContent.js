@@ -290,7 +290,7 @@ const SpotlightDetailContent = (props) => {
 
 	const handleBandKeyDown = useCallback((ev) => {
 		if (ev.keyCode !== KEYS.UP) return;
-		if (Spotlight.focus('details-primary-btn')) {
+		if (Spotlight.focus('details-primary-btn') || Spotlight.focus('details-person-display-btn') || Spotlight.focus('details-action-buttons')) {
 			ev.preventDefault();
 			ev.stopPropagation();
 		}
@@ -364,12 +364,22 @@ const SpotlightDetailContent = (props) => {
 				{backdropUrl && <img className={css.backdropImage} src={backdropUrl} alt="" />}
 				<div className={css.scrim} style={scrimStyle(SCRIM, backdropStyle['--gradient-scale'])} />
 			</div>
-			<div className={`${css.page} ${settings.navbarPosition === 'left' ? css.sidebarOffset : css.topbarOffset}`}>
+			<div className={`${css.page} ${settings.navbarPosition === 'left' ? css.sidebarOffset : css.topbarOffset}`} onFocus={keepFocusInView}>
 				<div className={css.hero} style={{width: `${heroColumnWidth}px`}}>
-					{isPerson && posterUrl && <img className={css.personAvatar} src={posterUrl} alt="" />}
-					{tagline && !isPerson && <div className={css.tagline}>{tagline}</div>}
-					{heroTitle()}
-					{isPerson && personBorn()}
+					{isPerson ? (
+						<div className={css.personHeader}>
+							{posterUrl && <img className={css.personAvatar} src={posterUrl} alt="" />}
+							<div className={css.personInfo}>
+								<h1 className={css.title}>{item.Name}</h1>
+								{personBorn()}
+							</div>
+						</div>
+					) : (
+						<>
+							{tagline && <div className={css.tagline}>{tagline}</div>}
+							{heroTitle()}
+						</>
+					)}
 					{metaPieces.length > 0 && (
 						<div className={css.metaRow}>
 							{metaPieces.map((piece, i) => {
@@ -422,7 +432,7 @@ const SpotlightDetailContent = (props) => {
 				</div>
 				{cards.length > 0 && (
 					<div className={css.cardBandWrapper} onFocus={keepFocusInView}>
-						<BandContainer className={css.cardBand} onKeyDown={handleBandKeyDown}>
+						<BandContainer className={css.cardBand} spotlightId="spotlight-card-band" onKeyDown={handleBandKeyDown}>
 							{cards.map((card) => (
 								<SpotlightSummaryCard
 									key={card.id}

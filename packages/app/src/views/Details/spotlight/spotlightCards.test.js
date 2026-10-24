@@ -142,14 +142,17 @@ describe('spotlightCardsFor', () => {
 		expect(titles(cards[0])).toEqual(['Movies', 'TV Shows']);
 	});
 
-	it('keeps a person their seerr credits sections', () => {
-		const card = spotlightCardsFor(state({
+	it('gives a person separate cards for filmography, appearances, and crew', () => {
+		const cards = spotlightCardsFor(state({
 			item: {Id: 'item-1', Type: 'Person'},
 			personMovies: [child('m1')],
 			seerrAppearances: [child('a1')],
 			seerrCrewCredits: [child('c1')]
-		}))[0];
-		expect(titles(card)).toEqual(['Movies', 'Appearances (Seerr)', 'Crew Contributions (Seerr)']);
+		}));
+		expect(ids(cards)).toEqual(['filmography', 'appearances', 'crew']);
+		expect(titles(cards[0])).toEqual(['Movies']);
+		expect(titles(cards[1])).toEqual(['Appearances (Seerr)']);
+		expect(titles(cards[2])).toEqual(['Crew Contributions (Seerr)']);
 	});
 
 	it('joins seerr recommendations onto the similar card', () => {
@@ -431,15 +434,17 @@ describe('hidden sections', () => {
 		expect(ids(cards)).not.toContain('episodes');
 	});
 
-	it('lets the person seerr sections follow their own switches', () => {
-		const card = spotlightCardsFor(state({
+	it('lets the person seerr cards follow their own switches', () => {
+		const cards = spotlightCardsFor(state({
 			item: {Id: 'item-1', Type: 'Person'},
 			personMovies: [child('m1')],
 			seerrAppearances: [child('a1')],
 			seerrCrewCredits: [child('c1')],
 			showsSection: hiding('seerrPersonCrew')
-		}))[0];
-		expect(titles(card)).toEqual(['Movies', 'Appearances (Seerr)']);
+		}));
+		expect(ids(cards)).toEqual(['filmography', 'appearances']);
+		expect(titles(cards[0])).toEqual(['Movies']);
+		expect(titles(cards[1])).toEqual(['Appearances (Seerr)']);
 	});
 
 	it('drops the hidden people from a box set', () => {

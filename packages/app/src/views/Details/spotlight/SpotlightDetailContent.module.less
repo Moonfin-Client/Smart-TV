@@ -92,6 +92,12 @@
 	position: absolute;
 	right: 0;
 	top: 0;
+	overflow-y: auto;
+	scrollbar-width: none;
+
+	&::-webkit-scrollbar {
+		display: none;
+	}
 }
 
 .sidebarOffset {
@@ -182,12 +188,28 @@
 	letter-spacing: 1.2px;
 }
 
+.personHeader {
+	align-items: center;
+	display: flex;
+	flex-direction: row;
+	gap: 24px;
+	max-width: 100%;
+}
+
+.personInfo {
+	display: flex;
+	flex-direction: column;
+	gap: 6px;
+	min-width: 0;
+}
+
 .personAvatar {
 	border: 3px solid var(--theme-focus-border-color, #6ea8fe);
 	border-radius: 50%;
-	height: 140px;
+	height: 120px;
 	object-fit: cover;
-	width: 140px;
+	width: 120px;
+	flex-shrink: 0;
 }
 
 .personBorn {
@@ -266,6 +288,7 @@
 }
 
 .cardBandWrapper {
+	flex-shrink: 0;
 	overflow-x: auto;
 	overflow-y: visible;
 	scrollbar-width: none;

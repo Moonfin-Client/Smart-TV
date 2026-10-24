@@ -289,27 +289,28 @@ const Details = ({itemId: itemIdProp, initialItem, onPlay, onSelectItem, onSelec
 
 	// Keyed on the id rather than the item, because marking watched or favourite
 	// builds a new item object, which would otherwise yank focus back to Play.
+	const isPersonItem = item?.Type === 'Person';
 	const loadedItemId = item?.Id;
 	const autoFocusedRef = useRef(null);
 	useEffect(() => {
 		if (isLoading || !loadedItemId) return undefined;
 		const timer = setTimeout(() => {
-			Spotlight.focus(seerrOnly ? 'details-action-buttons' : 'details-primary-btn');
+			Spotlight.focus(seerrOnly || isPersonItem ? 'details-action-buttons' : 'details-primary-btn');
 			autoFocusedRef.current = Spotlight.getCurrent();
 		}, 150);
 		return () => clearTimeout(timer);
-	}, [isLoading, loadedItemId, seerrOnly]);
+	}, [isLoading, loadedItemId, seerrOnly, isPersonItem]);
 
 	// The row a title is opened from doesn't carry everything the buttons are built from, so
 	// a Resume can appear once the full record lands and take the primary spot from under
 	// the focus, leaving it on Restart. Put it back, but only while it is still sitting where
 	// it was put, so a viewer who has already moved along the row is left where they are.
 	useEffect(() => {
-		if (isSeed || seerrOnly || !autoFocusedRef.current) return;
+		if (isSeed || seerrOnly || isPersonItem || !autoFocusedRef.current) return;
 		if (Spotlight.getCurrent() !== autoFocusedRef.current) return;
 		Spotlight.focus('details-primary-btn');
 		autoFocusedRef.current = Spotlight.getCurrent();
-	}, [isSeed, seerrOnly]);
+	}, [isSeed, seerrOnly, isPersonItem]);
 
 	// A hidden logo falls back to the title text, as a missing one does.
 	const logoUrl = useMemo(
