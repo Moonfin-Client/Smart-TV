@@ -570,11 +570,17 @@ describe('the per row image types', () => {
 	});
 
 	test('migrates legacy hideDetailsMediaDescription to granular movie, episode, and seerr movie settings', () => {
-		const local = profileToLocal({hideDetailsMediaDescription: true});
-		expect(local.hideDetailsMediaDescriptionMovie).toBe(true);
-		expect(local.hideDetailsMediaDescriptionEpisode).toBe(true);
-		expect(local.hideDetailsMediaDescriptionSeerrMovie).toBe(true);
-		expect(local.hideDetailsMediaDescription).toBeUndefined();
+		const localTrue = profileToLocal({hideDetailsMediaDescription: true});
+		expect(localTrue.hideDetailsMediaDescriptionMovie).toBe(true);
+		expect(localTrue.hideDetailsMediaDescriptionEpisode).toBe(true);
+		expect(localTrue.hideDetailsMediaDescriptionSeerrMovie).toBe(true);
+		expect(localTrue.hideDetailsMediaDescription).toBeUndefined();
+
+		const localFalse = profileToLocal({hideDetailsMediaDescription: false});
+		expect(localFalse.hideDetailsMediaDescriptionMovie).toBe(false);
+		expect(localFalse.hideDetailsMediaDescriptionEpisode).toBe(false);
+		expect(localFalse.hideDetailsMediaDescriptionSeerrMovie).toBe(false);
+		expect(localFalse.hideDetailsMediaDescription).toBeUndefined();
 
 		const partial = profileToLocal({
 			hideDetailsMediaDescription: true,
@@ -584,6 +590,18 @@ describe('the per row image types', () => {
 		expect(partial.hideDetailsMediaDescriptionEpisode).toBe(true);
 		expect(partial.hideDetailsMediaDescriptionSeerrMovie).toBe(true);
 		expect(partial.hideDetailsMediaDescription).toBeUndefined();
+	});
+
+	test('preserves explicit false legacy hideDetailsMediaDescription across profile layers', () => {
+		const envelope = {
+			tv: {hideDetailsMediaDescription: false},
+			global: {hideDetailsMediaDescription: true}
+		};
+		const resolved = resolveFromEnvelope(envelope, null, 'tv');
+		expect(resolved.hideDetailsMediaDescriptionMovie).toBe(false);
+		expect(resolved.hideDetailsMediaDescriptionEpisode).toBe(false);
+		expect(resolved.hideDetailsMediaDescriptionSeerrMovie).toBe(false);
+		expect(resolved.hideDetailsMediaDescription).toBeUndefined();
 	});
 });
 

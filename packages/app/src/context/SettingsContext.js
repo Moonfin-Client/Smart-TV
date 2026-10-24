@@ -358,15 +358,16 @@ export const profileToLocal = (serverProfile) => {
 	if (serverProfile.tmdbApiKey !== undefined && serverProfile.tmdbApiKey !== null) {
 		local.tmdbApiKey = serverProfile.tmdbApiKey;
 	}
-	if (serverProfile.hideDetailsMediaDescription === true) {
+	if (typeof serverProfile.hideDetailsMediaDescription === 'boolean') {
+		const legacyValue = serverProfile.hideDetailsMediaDescription;
 		if (local.hideDetailsMediaDescriptionMovie === undefined) {
-			local.hideDetailsMediaDescriptionMovie = true;
+			local.hideDetailsMediaDescriptionMovie = legacyValue;
 		}
 		if (local.hideDetailsMediaDescriptionEpisode === undefined) {
-			local.hideDetailsMediaDescriptionEpisode = true;
+			local.hideDetailsMediaDescriptionEpisode = legacyValue;
 		}
 		if (local.hideDetailsMediaDescriptionSeerrMovie === undefined) {
-			local.hideDetailsMediaDescriptionSeerrMovie = true;
+			local.hideDetailsMediaDescriptionSeerrMovie = legacyValue;
 		}
 		delete local.hideDetailsMediaDescription;
 	}
@@ -803,15 +804,16 @@ export function SettingsProvider({children}) {
 					migrated = true;
 				}
 				if ('hideDetailsMediaDescription' in stored) {
-					if (stored.hideDetailsMediaDescription === true) {
+					if (typeof stored.hideDetailsMediaDescription === 'boolean') {
+						const legacyValue = stored.hideDetailsMediaDescription;
 						if (stored.hideDetailsMediaDescriptionMovie === undefined) {
-							stored.hideDetailsMediaDescriptionMovie = true;
+							stored.hideDetailsMediaDescriptionMovie = legacyValue;
 						}
 						if (stored.hideDetailsMediaDescriptionEpisode === undefined) {
-							stored.hideDetailsMediaDescriptionEpisode = true;
+							stored.hideDetailsMediaDescriptionEpisode = legacyValue;
 						}
 						if (stored.hideDetailsMediaDescriptionSeerrMovie === undefined) {
-							stored.hideDetailsMediaDescriptionSeerrMovie = true;
+							stored.hideDetailsMediaDescriptionSeerrMovie = legacyValue;
 						}
 					}
 					delete stored.hideDetailsMediaDescription;
