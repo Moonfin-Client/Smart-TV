@@ -281,3 +281,103 @@ describe('the skip prompt', () => {
 		expect(Spotlight.focus).toHaveBeenCalledWith('skip-segment-btn');
 	});
 });
+
+describe('next up when the episode ends', () => {
+	const SECOND = 10000000;
+
+	beforeEach(() => jest.useFakeTimers());
+	afterEach(() => jest.useRealTimers());
+
+	const setupNextUp = (settings = {}) => {
+		const onPlayNext = jest.fn();
+		const {result} = renderHook(() => useSegmentPopups({
+			mediaSegments: null,
+			nextEpisode: {Id: 'next'},
+			settings: {autoPlay: true, nextUpBehavior: 'extended', nextUpTimeout: 10, nextUpAdvance: 'end', stillWatchingBehavior: 'short_', ...settings},
+			runTimeRef: {current: 100 * SECOND},
+			activeModal: null,
+			controlsVisible: false,
+			hideControls: () => {},
+			showControls: () => {},
+			onPlayNext,
+			onPausePlayback: () => {}
+		}));
+		const at = (seconds) => act(() => result.current.checkSegments(seconds * SECOND));
+		return {result, at, onPlayNext};
+	};
+
+	test('the card comes up for the last seconds of the timeout and counts down what is left', () => {
+		const {result, at} = setupNextUp();
+		at(85);
+		expect(result.current.showNextEpisode).toBe(false);
+		at(91.5);
+		expect(result.current.showNextEpisode).toBe(true);
+		expect(result.current.nextEpisodeCountdown).toBe(9);
+		at(96);
+		expect(result.current.nextEpisodeCountdown).toBe(4);
+	});
+
+	test('an Instant timeout shows no card and leaves the move to the end of the file', () => {
+		const {result, at, onPlayNext} = setupNextUp({nextUpTimeout: 0});
+		at(99.9);
+		expect(result.current.showNextEpisode).toBe(false);
+		expect(onPlayNext).not.toHaveBeenCalled();
+	});
+
+	test('a seek back out of the window takes the card down until playback reaches it again', () => {
+		const {result, at} = setupNextUp();
+		at(95);
+		at(50);
+		expect(result.current.showNextEpisode).toBe(false);
+		expect(result.current.nextEpisodeCountdown).toBeNull();
+		at(95);
+		expect(result.current.showNextEpisode).toBe(true);
+	});
+
+	test('nothing moves on before the file ends', () => {
+		const {at, onPlayNext} = setupNextUp();
+		at(95);
+		act(() => jest.advanceTimersByTime(60000));
+		expect(onPlayNext).not.toHaveBeenCalled();
+	});
+
+	test('Back takes the card down for the rest of the episode', () => {
+		const {result, at} = setupNextUp();
+		at(95);
+		let consumed;
+		act(() => {
+			consumed = result.current.handlePopupKeyDown({keyCode: 27, preventDefault: jest.fn(), stopPropagation: jest.fn()});
+		});
+		expect(consumed).toBe(true);
+		at(97);
+		expect(result.current.showNextEpisode).toBe(false);
+	});
+
+	test('the end of the file asks whether anyone is still watching after the set number of episodes', () => {
+		const {result} = setupNextUp();
+		const held = [];
+		for (let i = 0; i < 3; i++) {
+			act(() => result.current.resetPopups());
+			act(() => {
+				held.push(result.current.shouldHoldForStillWatching());
+			});
+		}
+		expect(held).toEqual([false, false, true]);
+		expect(result.current.askStillWatching).toBe(true);
+	});
+
+	test('the countdown mode still moves on when its countdown runs out', () => {
+		const {result, at, onPlayNext} = setupNextUp({nextUpAdvance: 'countdown'});
+		at(75);
+		expect(result.current.showNextEpisode).toBe(true);
+		act(() => jest.advanceTimersByTime(10000));
+		expect(onPlayNext).toHaveBeenCalledWith({Id: 'next'});
+	});
+
+	test('with autoplay off the card comes up as before, with no countdown', () => {
+		const {result, at} = setupNextUp({autoPlay: false});
+		at(75);
+		expect(result.current.showNextEpisode).toBe(true);
+		expect(result.current.nextEpisodeCountdown).toBeNull();
+	});
+});

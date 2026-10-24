@@ -615,6 +615,11 @@ export const getNextUpCountdownStyleOptions = () => [
 	{ value: 'none', label: $L('None') }
 ];
 
+export const getNextUpAdvanceOptions = () => [
+	{ value: 'countdown', label: $L('When the Countdown Ends') },
+	{ value: 'end', label: $L('When the Episode Ends') }
+];
+
 export const getStillWatchingBehaviorOptions = () => [
 	{ value: 'disabled', label: $L('Off') },
 	{ value: 'short_', label: $L('2 episodes') },

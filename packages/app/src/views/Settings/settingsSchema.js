@@ -33,6 +33,7 @@ import {
 	getNavPositionOptions,
 	getNextUpBehaviorOptions,
 	getNextUpCountdownStyleOptions,
+	getNextUpAdvanceOptions,
 	getContinueWatchingDefaultActionOptions,
 	getNextUpMaxDaysOptions,
 	getOledModeOptions,
@@ -927,6 +928,7 @@ export const SETTINGS_SCHEMA = [
 					{kind: KIND.OPTION, key: 'nextUpBehavior', label: () => $L('Next Up Display'), desc: () => $L('Extended shows a full card with episode artwork and description. Minimal shows a compact countdown overlay. Disabled hides the prompt entirely.'), options: getNextUpBehaviorOptions, fallback: () => $L('Extended'), icon: 'skip_next'},
 					{kind: KIND.OPTION, key: 'nextUpCountdownStyle', label: () => $L('Media Segment Countdown'), options: getNextUpCountdownStyleOptions, fallback: () => $L('Both'), icon: 'timer_outlined', when: (ctx) => ctx.settings.nextUpBehavior !== 'disabled'},
 					{kind: KIND.SLIDER, key: 'nextUpTimeout', label: () => $L('Next Up Timeout'), min: 0, max: 30, step: 1, format: (v) => (v === 0 ? $L('Instant') : `${v}s`), icon: 'timer', when: (ctx) => ctx.settings.nextUpBehavior !== 'disabled'},
+					{kind: KIND.OPTION, key: 'nextUpAdvance', label: () => $L('Next Up Advances'), desc: () => $L('Whether the next episode starts when the Next Up countdown runs out or when the episode finishes.'), options: getNextUpAdvanceOptions, fallback: () => $L('When the Countdown Ends'), icon: 'skip_next', when: (ctx) => ctx.settings.autoPlay && ctx.settings.nextUpBehavior !== 'disabled'},
 					{kind: KIND.TOGGLE, key: 'replaceSkipOutroWithNextUp', label: () => $L('Replace Skip Outro with Next Up Display'), desc: () => $L('Show the Next Up overlay instead of the Skip Outro button.'), icon: 'skip_next', when: (ctx) => ctx.settings.outroAction !== 'none'},
 					{kind: KIND.OPTION, key: 'stillWatchingBehavior', label: () => $L('Still Watching Prompt'), options: getStillWatchingBehaviorOptions, fallback: () => $L('3 episodes'), desc: () => $L('Prompt to Continue Watching after X consecutive episodes.'), icon: 'visibility'}
 				]

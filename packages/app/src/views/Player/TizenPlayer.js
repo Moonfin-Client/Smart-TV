@@ -1866,7 +1866,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 
 	const {
 		skipSegment, skipPromptShown, suppressSeekPrompts, showSkipCredits, showNextEpisode, nextEpisodeCountdown,
-		handleSkipSegment, handlePlayNextNow,
+		handleSkipSegment, handlePlayNextNow, shouldHoldForStillWatching,
 		askStillWatching, handleStillWatchingContinue, handleStillWatchingStop, cancelNextEpisodeCountdown,
 		checkSegments, handlePopupKeyDown, resetPopups, noteViewerActivity
 	} = useSegmentPopups({
@@ -1911,11 +1911,11 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 			return;
 		}
 		if (nextEpisode && onPlayNext && shouldAutoAdvance(settings.autoPlay, item)) {
-			onPlayNext(nextEpisode);
+			if (!shouldHoldForStillWatching()) onPlayNext(nextEpisode);
 		} else {
 			onEnded?.();
 		}
-	}, [onEnded, onPlayNext, nextEpisode, stopTimeUpdatePolling, audioPlaylist, repeatMode, restartCurrent, getNextStep, settings.autoPlay, item, liveRecovery]);
+	}, [onEnded, onPlayNext, nextEpisode, stopTimeUpdatePolling, audioPlaylist, repeatMode, restartCurrent, getNextStep, settings.autoPlay, item, liveRecovery, shouldHoldForStillWatching]);
 
 	const handleError = useCallback(async () => {
 		console.error('[Player] Playback error');
