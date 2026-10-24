@@ -64,6 +64,7 @@ import {KidsModeSetView, KidsModeExitView} from './KidsModeViews';
 import HomeRowsView from './HomeRowsView';
 import ButtonLayoutView from './ButtonLayoutView';
 import DetailSectionsView from './DetailSectionsView';
+import MediaDescriptionVisibilityView from './MediaDescriptionVisibilityView';
 import DiagnosticsView from './DiagnosticsView';
 import LibrariesView from './LibrariesView';
 import LibraryOrderView from './LibraryOrderView';
@@ -105,6 +106,7 @@ const FIRST_ROW_VIEWS = {
 	homeRows: 'homerows-view',
 	buttonLayout: 'button-layout-view',
 	detailSections: 'detail-sections-view',
+	mediaDescriptionVisibility: 'media-description-visibility-view',
 	ratingSources: 'rating-sources-view'
 };
 
@@ -750,6 +752,10 @@ const Settings = ({ onBack, onLibrariesChanged, onRunSetupWizard, onSelectItem, 
 		pushView({view: 'detailSections', returnFocusTo: 'setting-detailSections'});
 	}, [pushView]);
 
+	const openMediaDescriptionVisibility = useCallback(() => {
+		pushView({view: 'mediaDescriptionVisibility', returnFocusTo: 'setting-mediaDescriptionVisibility'});
+	}, [pushView]);
+
 	const hiddenDetailSections = settings[DETAIL_SECTIONS_HIDDEN_KEY];
 	const toggleDetailSection = useCallback((id) => {
 		updateSetting(DETAIL_SECTIONS_HIDDEN_KEY, toggleHiddenSection(hiddenDetailSections, id));
@@ -1018,6 +1024,7 @@ const Settings = ({ onBack, onLibrariesChanged, onRunSetupWizard, onSelectItem, 
 			openOsdButtons,
 			openDetailMetadata,
 			openDetailSections,
+			openMediaDescriptionVisibility,
 			openDiagnostics,
 			openPinCode,
 			openKidsMode,
@@ -1054,7 +1061,7 @@ const Settings = ({ onBack, onLibrariesChanged, onRunSetupWizard, onSelectItem, 
 	}), [
 		settings, capabilities, seerr, achievements, romm, seerrLabel, isSeerr, serverUrl, ratingsResetArmed, resetRatingsSettings, toggleExperimentalTruehd, updateSetting, refreshPlugin,
 		serverVersion, availableThemes, activeThemeId, openThemes, openThemeStore, openHomeRows,
-		openDetailButtons, openOsdButtons, openDetailMetadata, openDetailSections, openDiagnostics,
+		openDetailButtons, openOsdButtons, openDetailMetadata, openDetailSections, openMediaDescriptionVisibility, openDiagnostics,
 		openPinCode, openKidsMode, openLibraries, openLibraryOrder, openParentalControls, openSubtitleDownloadLanguages, openTranscodeAudioCodecs, openQrLink, openRatingSources, openRowImageTypes, openExcludedGenres, openMediaBarLibraries,
 		openMediaBarCollections, openScreensaverLibraries, openScreensaverCollections, openScreensaverGenres,
 		openImdbLists, openSeasonalRow, openExternalTmdbLists, openExternalCalendars,
@@ -1562,6 +1569,13 @@ const Settings = ({ onBack, onLibrariesChanged, onRunSetupWizard, onSelectItem, 
 					seerrLabel={seerrLabel}
 					hidden={hiddenDetailSections}
 					onToggle={toggleDetailSection}
+				/>
+			)}
+			{viewName === 'mediaDescriptionVisibility' && (
+				<MediaDescriptionVisibilityView
+					settings={settings}
+					seerrAvailable={seerr.isEnabled}
+					onToggle={toggleSetting}
 				/>
 			)}
 			{viewName === 'mediaBarLibraries' && (

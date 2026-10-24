@@ -287,7 +287,11 @@ export const SYNCABLE_KEYS = [
 	'mediaBarOverlayColor', 'mediaBarOverlayOpacity',
 	'homeRows', 'homeRowsStyle', 'modernCardsOnMyMediaRow', 'detailScreenStyle', 'detailExpandedTabs', 'fullScreenRows', 'homeRowsPosterSize', 'useSeriesThumbnails',
 	'episodePreviewEnabled', 'previewAudioEnabled', 'previewVolume',
-	'hideDetailsMediaDescription', 'detailUseSeriesThumbnails', 'hideHomeMediaDescription',
+	'hideDetailsMediaDescription',
+	'hideDetailsMediaDescriptionMovie', 'hideDetailsMediaDescriptionShow', 'hideDetailsMediaDescriptionSeason', 'hideDetailsMediaDescriptionEpisode',
+	'hideDetailsMediaDescriptionBoxSet', 'hideDetailsMediaDescriptionBook', 'hideDetailsMediaDescriptionPerson', 'hideDetailsMediaDescriptionMusic',
+	'hideDetailsMediaDescriptionSeerrMovie', 'hideDetailsMediaDescriptionSeerrShow', 'hideDetailsMediaDescriptionSeerrCollection',
+	'detailUseSeriesThumbnails', 'hideHomeMediaDescription',
 	'personalRatingStyle', 'recentlyReleasedSeriesType', 'mergeRecentRowsByType', 'playlistsGroupByType', 'groupItemsIntoCollections',
 	'useDetailedSubHeadings', 'showMediaDetailsOnLibraryPage', 'hideBackdropsInLibraries', 'libraryStyle', 'musicLibraryStyle',
 	'syncplayEnabled', 'syncplayAutoOpen',
@@ -353,6 +357,19 @@ export const profileToLocal = (serverProfile) => {
 	// stays out of SYNCABLE_KEYS so the client never pushes it back.
 	if (serverProfile.tmdbApiKey !== undefined && serverProfile.tmdbApiKey !== null) {
 		local.tmdbApiKey = serverProfile.tmdbApiKey;
+	}
+	if (typeof serverProfile.hideDetailsMediaDescription === 'boolean') {
+		const legacyValue = serverProfile.hideDetailsMediaDescription;
+		if (local.hideDetailsMediaDescriptionMovie === undefined) {
+			local.hideDetailsMediaDescriptionMovie = legacyValue;
+		}
+		if (local.hideDetailsMediaDescriptionEpisode === undefined) {
+			local.hideDetailsMediaDescriptionEpisode = legacyValue;
+		}
+		if (local.hideDetailsMediaDescriptionSeerrMovie === undefined) {
+			local.hideDetailsMediaDescriptionSeerrMovie = legacyValue;
+		}
+		delete local.hideDetailsMediaDescription;
 	}
 	return local;
 };
@@ -784,6 +801,22 @@ export function SettingsProvider({children}) {
 					// there rather than anyone asking to skip the guide. The shortcut
 					// restarts from off under its own key, liveTvSkipGuide.
 					delete stored.liveTvDirect;
+					migrated = true;
+				}
+				if ('hideDetailsMediaDescription' in stored) {
+					if (typeof stored.hideDetailsMediaDescription === 'boolean') {
+						const legacyValue = stored.hideDetailsMediaDescription;
+						if (stored.hideDetailsMediaDescriptionMovie === undefined) {
+							stored.hideDetailsMediaDescriptionMovie = legacyValue;
+						}
+						if (stored.hideDetailsMediaDescriptionEpisode === undefined) {
+							stored.hideDetailsMediaDescriptionEpisode = legacyValue;
+						}
+						if (stored.hideDetailsMediaDescriptionSeerrMovie === undefined) {
+							stored.hideDetailsMediaDescriptionSeerrMovie = legacyValue;
+						}
+					}
+					delete stored.hideDetailsMediaDescription;
 					migrated = true;
 				}
 				const merged = {...defaultSettings, ...stored};

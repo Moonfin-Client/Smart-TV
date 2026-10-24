@@ -9,6 +9,7 @@ import usePersonSeerrCredits from '../../hooks/usePersonSeerrCredits';
 import {getImageUrl} from '../../utils/helpers';
 import {isMdblistEnabled} from '../../services/mdblistApi';
 import {KEYS} from '../../utils/keys';
+import {hidesMediaDescription} from './detailsMedia';
 
 import css from './Details.module.less';
 
@@ -110,7 +111,7 @@ const PersonScreen = ({item, serverUrl, settings, showsSection, filmography, per
 						{birthPlace && <span className={css.infoItem}>{birthPlace}</span>}
 					</div>
 					<RatingsRow item={item} serverUrl={serverUrl} pluginEnabled={isMdblistEnabled(settings)} />
-					{showsSection('biography') && item.Overview && (
+					{showsSection('biography') && !hidesMediaDescription(item?.Type ? item : {...item, Type: 'Person'}, settings) && item.Overview && (
 						<SpottableDiv
 							className={css.overviewToggle}
 							onKeyDown={handleOverviewKeyDown}

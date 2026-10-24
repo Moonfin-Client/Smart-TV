@@ -9,6 +9,10 @@ import MediaRow from '../../components/MediaRow';
 import PersonDetailShell from '../../components/PersonDetailShell';
 import {personDateLines, prepareCredits} from '../../utils/personCredits';
 import {normalizeMediaItem} from '../../utils/seerrHomeRows';
+import {useSettings} from '../../context/SettingsContext';
+import {kidsModeSettings} from '../../utils/kidsMode';
+import {sectionVisibility} from '../../utils/detailSectionLayout';
+import {hidesMediaDescription} from '../Details/detailsMedia';
 
 import css from './SeerrPerson.module.less';
 
@@ -21,6 +25,9 @@ const SpottableDiv = Spottable('div');
 // Appearances/Crew tabs.
 const SeerrPerson = ({personId, personName, onClose, onSelectItem, onBack}) => {
 	const {serverUrl} = useAuth();
+	const {settings: storedSettings} = useSettings();
+	const settings = useMemo(() => kidsModeSettings(storedSettings), [storedSettings]);
+	const showsSection = useMemo(() => sectionVisibility(settings?.hiddenDetailSectionsTv), [settings?.hiddenDetailSectionsTv]);
 	const [details, setDetails] = useState(null);
 	const [loading, setLoading] = useState(true);
 	const [error, setError] = useState(null);
@@ -136,6 +143,9 @@ const SeerrPerson = ({personId, personName, onClose, onSelectItem, onBack}) => {
 	const dateLines = personDateLines(details.birthday, details.deathday);
 	const knownFor = details.knownForDepartment ? `${$L('Known for:')} ${details.knownForDepartment}` : null;
 
+	const seerrPersonItem = {Type: 'Person', isSeerr: true, ...details};
+	const hideOverview = !showsSection('biography') || hidesMediaDescription(seerrPersonItem, settings);
+
 	return (
 		<PersonDetailShell
 			backdropUrl={randomBackdrop}
@@ -143,7 +153,7 @@ const SeerrPerson = ({personId, personName, onClose, onSelectItem, onBack}) => {
 			placeholderInitial={details.name?.[0]}
 			name={personName || details.name}
 			metaLines={[...dateLines, details.placeOfBirth, knownFor].filter(Boolean)}
-			overview={details.biography}
+			overview={hideOverview ? null : details.biography}
 			tabs={tabs}
 		/>
 	);

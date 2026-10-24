@@ -18,12 +18,14 @@ import {
 	SORT_DIR_ASC,
 	PLAYED_ALL
 } from '../../utils/playlistSortFilter';
+import {hidesMediaDescription} from './detailsMedia';
 
 import css from './Details.module.less';
 
 const PlaylistScreen = ({
 	item,
 	serverUrl,
+	settings,
 	showsSection,
 	posterUrl,
 	genres,
@@ -159,7 +161,7 @@ const PlaylistScreen = ({
 					{genres.length > 0 && (
 						<span className={css.seasonDetailCount}>{genres.join(', ')}</span>
 					)}
-					{item.Overview && <p className={css.overview}>{item.Overview}</p>}
+					{item.Overview && !hidesMediaDescription(item, settings) && <p className={css.overview}>{item.Overview}</p>}
 				</div>
 			</div>
 
@@ -272,6 +274,7 @@ PlaylistScreen.propTypes = {
 	playlistMenu: PropTypes.object,
 	posterUrl: PropTypes.string,
 	serverUrl: PropTypes.string,
+	settings: PropTypes.object,
 	showsSection: PropTypes.func.isRequired,
 	spotlightBackRef: PropTypes.oneOfType([
 		PropTypes.func,

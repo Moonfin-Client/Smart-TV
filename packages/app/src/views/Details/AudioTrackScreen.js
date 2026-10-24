@@ -5,6 +5,7 @@ import {isMdblistEnabled} from '../../services/mdblistApi';
 import {DETAIL_ICON_PATHS} from './detailIcons';
 import {SpottableDiv, HorizontalContainer} from './detailsSpottables';
 import {PosterBadges} from './DetailBadges';
+import {hidesMediaDescription} from './detailsMedia';
 
 import css from './Details.module.less';
 
@@ -28,7 +29,7 @@ const AudioTrackScreen = ({item, serverUrl, settings, showsSection, posterUrl, y
 						</div>
 						<RatingsRow item={item} serverUrl={serverUrl} pluginEnabled={isMdblistEnabled(settings)} />
 					</div>
-					{item.Overview && <p className={css.overview}>{item.Overview}</p>}
+					{item.Overview && !hidesMediaDescription(item, settings) && <p className={css.overview}>{item.Overview}</p>}
 				</div>
 				{showsSection('poster') && (
 					<div className={css.posterSection}>

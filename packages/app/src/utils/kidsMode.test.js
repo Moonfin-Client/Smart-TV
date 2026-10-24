@@ -211,8 +211,19 @@ describe('the details screen', () => {
 
 	// The preference is named for hiding, so leaving the description out means forcing it on.
 	test('hiding the description means forcing its flag on, not off', () => {
-		expect(kidsModeSettings({...stored, kidsModeEnabled: true}).hideDetailsMediaDescription)
-			.toBe(true);
+		const effective = kidsModeSettings({...stored, kidsModeEnabled: true});
+		expect(effective.hideDetailsMediaDescription).toBe(true);
+		expect(effective.hideDetailsMediaDescriptionMovie).toBe(true);
+		expect(effective.hideDetailsMediaDescriptionShow).toBe(true);
+		expect(effective.hideDetailsMediaDescriptionSeason).toBe(true);
+		expect(effective.hideDetailsMediaDescriptionEpisode).toBe(true);
+		expect(effective.hideDetailsMediaDescriptionBoxSet).toBe(true);
+		expect(effective.hideDetailsMediaDescriptionBook).toBe(true);
+		expect(effective.hideDetailsMediaDescriptionPerson).toBe(true);
+		expect(effective.hideDetailsMediaDescriptionMusic).toBe(true);
+		expect(effective.hideDetailsMediaDescriptionSeerrMovie).toBe(true);
+		expect(effective.hideDetailsMediaDescriptionSeerrShow).toBe(true);
+		expect(effective.hideDetailsMediaDescriptionSeerrCollection).toBe(true);
 	});
 
 	// Read never written, so the stored style still syncs as the user picked it.
