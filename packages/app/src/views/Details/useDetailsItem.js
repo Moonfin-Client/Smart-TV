@@ -137,6 +137,7 @@ const useDetailsItem = ({itemId, initialItem, effectiveApi, effectiveServerUrl, 
 		collectionFetchedRef.current = 0;
 		collectionHasMoreRef.current = false;
 		playlistGenerationRef.current += 1;
+		collectionLoadingRef.current = false;
 		setParentCollections([]);
 		setSimilarSource('jellyfin');
 		setAlbumTracks([]);
@@ -468,7 +469,7 @@ const useDetailsItem = ({itemId, initialItem, effectiveApi, effectiveServerUrl, 
 		let cancelled = false;
 		const generation = ++playlistGenerationRef.current;
 		collectionFetchedRef.current = 0;
-		collectionHasMoreRef.current = true;
+		collectionHasMoreRef.current = false;
 		collectionLoadingRef.current = false;
 		setPlaylistItems([]);
 
