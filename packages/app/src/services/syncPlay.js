@@ -443,8 +443,17 @@ const handleGroupUpdate = (data) => {
 	}
 };
 
+// Ids come with and without dashes.
+export const itemIdKey = (id) => String(id || '').replace(/-/g, '').toLowerCase();
+
 const handlePlaybackCommand = (data) => {
 	if (!data) return;
+	// A command for another queue entry would land on the wrong item. An all-zero id names none.
+	const commandItem = itemIdKey(data.PlaylistItemId);
+	if (/[1-9a-f]/.test(commandItem) && currentPlaylistItemId && commandItem !== itemIdKey(currentPlaylistItemId)) {
+		syncLog('[SyncPlay] dropped', data.Command, 'for item', data.PlaylistItemId);
+		return;
+	}
 	syncLog('[SyncPlay] command', data.Command, 'at', data.PositionTicks != null ? data.PositionTicks / 10000000 : null, 's, when', data.When, 'delay', getDelayToWhen(data.When), 'ms'); // eslint-disable-line no-use-before-define
 	// A command says where the group was at its own time, which for a late
 	// one or an echo is not now.

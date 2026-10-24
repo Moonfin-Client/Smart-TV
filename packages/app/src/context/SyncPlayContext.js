@@ -7,7 +7,11 @@ import {api} from '../services/jellyfinApi';
 const SyncPlayContext = createContext(null);
 
 // Queue entries carry the GUID with dashes, item DTOs without them.
-const sameItemId = (a, b) => !!a && !!b && String(a).replace(/-/g, '').toLowerCase() === String(b).replace(/-/g, '').toLowerCase();
+const sameItemId = (a, b) => !!a && !!b && syncPlayService.itemIdKey(a) === syncPlayService.itemIdKey(b);
+
+// Only a new item, or one other than what's playing, moves the player. With nothing playing it stays put.
+export const followsQueueUpdate = (update, playingItemId) =>
+	update.startsPlayback || (Boolean(playingItemId) && !sameItemId(playingItemId, update.item.Id));
 
 export const useSyncPlay = () => useContext(SyncPlayContext);
 
@@ -156,6 +160,20 @@ export const SyncPlayProvider = ({children}) => {
 	// time since.
 	const getGroupPositionTicks = useCallback(() => syncPlayService.getGroupPositionTicks(), []);
 
+	// Moves the whole group to an item, by next or previous when it's the neighbouring entry.
+	const moveGroupTo = useCallback((itemId, startPositionTicks = 0) => {
+		const entries = playQueue?.Playlist || [];
+		const index = playQueue?.PlayingItemIndex ?? -1;
+		const entry = entries.find((e) => sameItemId(e.ItemId, itemId));
+		// Only SetNewQueue accepts a start position. Its update places every member at the resume point.
+		if (startPositionTicks > 0) {
+			syncPlayService.setNewQueue(entry ? entries.map(e => e.ItemId) : [itemId], entry ? entries.indexOf(entry) : 0, startPositionTicks);
+		} else if (!entry) syncPlayService.setNewQueue([itemId]);
+		else if (index >= 0 && entry === entries[index + 1]) syncPlayService.nextItem();
+		else if (index > 0 && entry === entries[index - 1]) syncPlayService.previousItem();
+		else syncPlayService.setPlaylistItem(entry.PlaylistItemId);
+	}, [playQueue]);
+
 	const openDialog = useCallback(() => {
 		if (settings.syncplayEnabled === false) return;
 		setIsDialogOpen(true);
@@ -177,6 +195,7 @@ export const SyncPlayProvider = ({children}) => {
 		playQueueUpdate,
 		refreshGroups,
 		getGroupPositionTicks,
+		moveGroupTo,
 		getGroup: syncPlayService.getGroup,
 		createGroup: handleCreateGroup,
 		joinGroup: handleJoinGroup,
