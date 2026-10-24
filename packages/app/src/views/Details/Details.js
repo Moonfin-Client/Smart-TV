@@ -46,6 +46,7 @@ import {
 	applyCollectionSort,
 	collectionSortOptions
 } from './collectionSort';
+import {reorderCollectionIds} from './collectionPlaylist';
 import useDetailsItem from './useDetailsItem';
 import useDetailsModals from './useDetailsModals';
 import useDetailsTrailer from './useDetailsTrailer';
@@ -169,7 +170,7 @@ const Details = ({itemId: itemIdProp, initialItem, onPlay, onSelectItem, onSelec
 	const {
 		setItem, isLoading: libraryLoading, isBlocked: blockedByRating, isSeed, seasons, episodes, seriesEpisodes, similar, extras, cast, nextUp, nextEpisode,
 		collectionItems, missingCollectionItems, parentCollections, similarSource, similarLoaded, playListsLoaded, loadMoreCollectionItems, removeFromCollection, albumTracks, artistAlbums,
-		playlistItems, setPlaylistItems, episodeRatings, refreshItem,
+		playlistItems, setPlaylistItems, collectionIndexRef, episodeRatings, refreshItem,
 		selectedVersionIndex, setSelectedVersionIndex,
 		selectedAudioIndex, setSelectedAudioIndex,
 		selectedSubtitleIndex, setSelectedSubtitleIndex
@@ -329,16 +330,21 @@ const Details = ({itemId: itemIdProp, initialItem, onPlay, onSelectItem, onSelec
 
 	const handleCollectionReorder = useCallback(async (itemIndex, direction) => {
 		if (!isBoxSet || !item?.Id) return;
-		const newIndex = itemIndex + direction;
-		if (newIndex < 0 || newIndex >= sortedPlaylistItems.length) return;
+		const result = reorderCollectionIds({
+			currentItems: sortedPlaylistItems,
+			customOrder,
+			allIds: collectionIndexRef?.current || [],
+			itemIndex,
+			direction
+		});
+		if (!result) return;
 
-		const currentItems = [...sortedPlaylistItems];
-		const [moved] = currentItems.splice(itemIndex, 1);
-		currentItems.splice(newIndex, 0, moved);
-
-		const newOrder = currentItems.map((i) => i.Id);
+		const {newIndex, newOrder} = result;
 		setCustomOrder(newOrder);
 		setCollectionSort(SORT_CUSTOM);
+		if (collectionIndexRef) {
+			collectionIndexRef.current = newOrder;
+		}
 
 		window.requestAnimationFrame(() => {
 			const row = document.querySelector(`[data-index="${newIndex}"]`);
@@ -352,7 +358,7 @@ const Details = ({itemId: itemIdProp, initialItem, onPlay, onSelectItem, onSelec
 		} catch {
 			// ignore
 		}
-	}, [isBoxSet, item?.Id, sortedPlaylistItems, effectiveApi]);
+	}, [isBoxSet, item?.Id, sortedPlaylistItems, customOrder, collectionIndexRef, effectiveApi]);
 
 	// Keyed on the id rather than the item, because marking watched or favourite
 	// builds a new item object, which would otherwise yank focus back to Play.

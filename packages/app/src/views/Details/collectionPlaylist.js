@@ -148,3 +148,25 @@ export const fetchCollectionPage = async (api, ids = [], fetchedCount = 0) => {
 		hasMore: next < ids.length
 	};
 };
+
+// Moves an item in the loaded collection page and preserves unloaded member ids
+// in the overall custom order.
+export const reorderCollectionIds = ({currentItems = [], customOrder = [], allIds = [], itemIndex, direction}) => {
+	const newIndex = itemIndex + direction;
+	if (newIndex < 0 || newIndex >= currentItems.length) return null;
+
+	const reordered = [...currentItems];
+	const [moved] = reordered.splice(itemIndex, 1);
+	reordered.splice(newIndex, 0, moved);
+
+	const movedIds = reordered.map((i) => i.Id);
+	const movedSet = new Set(movedIds);
+	const baseOrder = customOrder.length > 0 ? customOrder : allIds;
+	const remaining = baseOrder.filter((id) => !movedSet.has(id));
+
+	return {
+		newIndex,
+		newOrder: [...movedIds, ...remaining]
+	};
+};
+
