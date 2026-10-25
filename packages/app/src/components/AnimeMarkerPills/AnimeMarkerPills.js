@@ -1,5 +1,7 @@
 import $L from '@enact/i18n/$L';
 
+import {getAudioLabelStyle} from '../../services/animeMarkersApi';
+
 import css from './AnimeMarkerPills.module.less';
 
 const KIND_PILLS = {
@@ -10,9 +12,9 @@ const KIND_PILLS = {
 };
 
 const AUDIO_PILLS = {
-	Subbed: {label: 'Subbed', tone: css.subbed},
-	Dubbed: {label: 'Dubbed', tone: css.dubbed},
-	SubbedAndDubbed: {label: 'Subbed/Dubbed', tone: css.dual}
+	Subbed: {label: 'Subbed', shortLabel: 'Sub', tone: css.subbed},
+	Dubbed: {label: 'Dubbed', shortLabel: 'Dub', tone: css.dubbed},
+	SubbedAndDubbed: {label: 'Subbed/Dubbed', shortLabel: 'Sub/Dub', tone: css.dual}
 };
 
 // Whether there is anything to show for the given marker and audio.
@@ -31,7 +33,10 @@ const AnimeMarkerPills = ({marker, audio, compact, large, max, className = ''}) 
 	const pills = [];
 	if (kind) pills.push({key: 'kind', label: kind.label, tone: kind.tone});
 	if (recap) pills.push({key: 'recap', label: 'Recap', tone: css.recap});
-	if (audioPill) pills.push({key: 'audio', label: audioPill.label, tone: audioPill.tone});
+	if (audioPill) {
+		const label = getAudioLabelStyle() === 'short' ? audioPill.shortLabel : audioPill.label;
+		pills.push({key: 'audio', label, tone: audioPill.tone});
+	}
 
 	const shown = max > 0 ? pills.slice(0, max) : pills;
 	if (shown.length === 0) return null;

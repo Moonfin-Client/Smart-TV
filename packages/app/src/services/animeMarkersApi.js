@@ -53,6 +53,18 @@ let itemFeatureOffAt = 0;
 const featureOff = () => featureOffAt > 0 && (Date.now() - featureOffAt) < CACHE_TTL_MS;
 const itemFeatureOff = () => featureOff() || (itemFeatureOffAt > 0 && (Date.now() - itemFeatureOffAt) < CACHE_TTL_MS);
 
+// How the server wants the subbed/dubbed pills worded. Anything unknown keeps the full
+// wording, which is what the app drew before the setting existed.
+let labelStyle = 'full';
+
+export const getAudioLabelStyle = () => labelStyle;
+
+const rememberLabelStyle = (value) => {
+	if (value === 'short' || value === 'full') {
+		labelStyle = value;
+	}
+};
+
 const normalizeId = (id) => String(id || '').replace(/-/g, '').toLowerCase();
 
 const isNegativelyCached = (key) => {
@@ -94,6 +106,9 @@ export const fetchSeriesMarkers = async (seriesId, options = {}) => {
 			const storedKey = `${baseUrl}|${key}`;
 			const saved = entries[storedKey];
 			if (saved && (Date.now() - saved.fetchedAt) < STORED_TTL_MS) {
+				// A stored series answers without asking the server, so the wording it was
+				// fetched with comes back with it.
+				rememberLabelStyle(saved.data?.labelStyle);
 				seriesCache[key] = saved;
 				return saved.data;
 			}
@@ -111,6 +126,7 @@ export const fetchSeriesMarkers = async (seriesId, options = {}) => {
 			}
 
 			const body = await response.json();
+			rememberLabelStyle(body?.labelStyle);
 
 			// Off server-wide, so no other series will answer differently.
 			if (body?.enabled !== true) {
@@ -142,7 +158,7 @@ export const fetchSeriesMarkers = async (seriesId, options = {}) => {
 				if (entry?.audio) seasons[normalizeId(id)] = entry.audio;
 			});
 
-			const data = {episodes, seasons};
+			const data = {episodes, seasons, labelStyle};
 			seriesCache[key] = {fetchedAt: Date.now(), data};
 			entries[storedKey] = seriesCache[key];
 			saveStored();
@@ -205,6 +221,7 @@ const flushItemBatch = async () => {
 		if (!response.ok) throw new Error(`HTTP ${response.status}`);
 
 		const body = await response.json();
+		rememberLabelStyle(body?.labelStyle);
 
 		if (body?.enabled === false) {
 			itemFeatureOffAt = Date.now();
@@ -283,4 +300,5 @@ export const clearAnimeMarkerCache = () => {
 	firstSeries = null;
 	featureOffAt = 0;
 	itemFeatureOffAt = 0;
+	labelStyle = 'full';
 };
