@@ -1280,6 +1280,7 @@
 	"Kids Mode": "Kids Mode",
 	"Known for:": "Known for:",
 	"Korean": "Korean",
+	"Languages to search when downloading subtitles, up to {max}. With none ticked, the default subtitle language is searched, or one language is picked from the video when that is not set.": "Languages to search when downloading subtitles, up to {max}. With none ticked, the default subtitle language is searched, or one language is picked from the video when that is not set.",
 	"Languages watched": "Languages watched",
 	"Late night sessions": "Late night sessions",
 	"Leaderboard": "Leaderboard",
