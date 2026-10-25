@@ -25,7 +25,11 @@ const LANGUAGE_MAP = {
 	kor: 'kor',
 	chinese: 'zho',
 	zh: 'zho',
-	zho: 'zho'
+	zho: 'zho',
+	dutch: 'nld',
+	nl: 'nld',
+	nld: 'nld',
+	dut: 'nld'
 };
 
 export const toSubtitleLanguage = (...languages) => {

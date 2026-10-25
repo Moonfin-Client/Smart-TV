@@ -2776,6 +2776,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 		const languages = subtitleDownloadLanguages(
 			settings.subtitleDownloadLanguages,
 			toSubtitleLanguage(
+				settings.subtitleLanguage,
 				selectedSubtitle?.language,
 				selectedAudio?.language,
 				subtitleStreams[0]?.language,
@@ -2796,7 +2797,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 		} finally {
 			setIsSearchingRemoteSubtitles(false);
 		}
-	}, [item, subtitleStreams, selectedSubtitleIndex, audioStreams, selectedAudioIndex, openModal, settings.subtitleDownloadLanguages]);
+	}, [item, subtitleStreams, selectedSubtitleIndex, audioStreams, selectedAudioIndex, openModal, settings.subtitleDownloadLanguages, settings.subtitleLanguage]);
 
 	const handleSelectRemoteSubtitle = useCallback(async (e) => {
 		const index = parseInt(e.currentTarget.dataset.index, 10);

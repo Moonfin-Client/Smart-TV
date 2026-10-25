@@ -597,7 +597,7 @@ const Details = ({itemId: itemIdProp, initialItem, onPlay, onSelectItem, onSelec
 			const currentAudio = audios[selectedAudioIndex];
 			const languages = subtitleDownloadLanguages(
 				settings.subtitleDownloadLanguages,
-				toSubtitleLanguage(currentSub?.Language, currentAudio?.Language, subs[0]?.Language)
+				toSubtitleLanguage(settings.subtitleLanguage, currentSub?.Language, currentAudio?.Language, subs[0]?.Language)
 			);
 			const results = await searchRemoteSubtitlesIn(effectiveApi, item.Id, languages);
 			setRemoteSubtitleResults(mapRemoteSubtitleOptions(results));
@@ -607,7 +607,7 @@ const Details = ({itemId: itemIdProp, initialItem, onPlay, onSelectItem, onSelec
 		} finally {
 			setIsSearchingRemoteSubtitles(false);
 		}
-	}, [item, selectedVersionIndex, selectedSubtitleIndex, selectedAudioIndex, effectiveApi, openModal, settings.subtitleDownloadLanguages]);
+	}, [item, selectedVersionIndex, selectedSubtitleIndex, selectedAudioIndex, effectiveApi, openModal, settings.subtitleDownloadLanguages, settings.subtitleLanguage]);
 
 	const handleSelectRemoteSubtitle = useCallback(async (e) => {
 		const index = parseInt(e.currentTarget.dataset.index, 10);

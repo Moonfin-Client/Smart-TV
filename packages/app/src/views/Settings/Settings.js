@@ -1546,7 +1546,7 @@ const Settings = ({ onBack, onLibrariesChanged, onRunSetupWizard, onSelectItem, 
 					spotlightId='subtitle-download-languages-view'
 					rowIdPrefix='subtitle-download-language'
 					title={$L('Subtitle Download Languages')}
-					lead={$L('Languages to search when downloading subtitles, up to {max}. With none ticked, one language is picked from the video.').replace('{max}', MAX_SUBTITLE_DOWNLOAD_LANGUAGES)}
+					lead={$L('Languages to search when downloading subtitles, up to {max}. With none ticked, the default subtitle language is searched, or one language is picked from the video when that is not set.').replace('{max}', MAX_SUBTITLE_DOWNLOAD_LANGUAGES)}
 					options={getSubtitleLanguageOptions().filter((option) => option.value)}
 					picked={settings.subtitleDownloadLanguages || []}
 					max={MAX_SUBTITLE_DOWNLOAD_LANGUAGES}

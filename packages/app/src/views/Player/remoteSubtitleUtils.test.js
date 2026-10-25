@@ -11,6 +11,7 @@ import {
 	SUBTITLE_APPEARANCE_DELAYS,
 	subtitleDownloadLanguages,
 	searchRemoteSubtitlesIn,
+	toSubtitleLanguage,
 	MAX_SUBTITLE_DOWNLOAD_LANGUAGES
 } from './remoteSubtitleUtils';
 
@@ -217,6 +218,18 @@ describe('pollForSubtitleAppearance', () => {
 
 		await expect(found).resolves.toEqual({Index: 7});
 		expect(probe).toHaveBeenCalledTimes(2);
+	});
+});
+
+describe('toSubtitleLanguage', () => {
+	test('finds Dutch under either spelling', () => {
+		expect(toSubtitleLanguage('nl')).toBe('nld');
+		expect(toSubtitleLanguage('dut')).toBe('nld');
+		expect(toSubtitleLanguage('dutch')).toBe('nld');
+	});
+
+	test('takes the first language it knows', () => {
+		expect(toSubtitleLanguage('', 'unknown', 'nld', 'eng')).toBe('nld');
 	});
 });
 
