@@ -126,6 +126,22 @@ export const buildSeasonalRow = (payload, hiddenHolidays = []) => {
 	};
 };
 
+const getReleaseDateValue = (item) => {
+	const raw = item.PremiereDate || item.premiereDate || item.releaseDate || item.release_date || item.firstAirDate || item.first_air_date;
+	if (raw) {
+		const parsed = Date.parse(raw);
+		if (!Number.isNaN(parsed)) return parsed;
+	}
+	const year = item.ProductionYear || item.productionYear || item.year;
+	if (year) {
+		const numYear = typeof year === 'number' ? year : parseInt(String(year).slice(0, 4), 10);
+		if (Number.isFinite(numYear) && numYear > 0) {
+			return Date.UTC(numYear, 0, 1);
+		}
+	}
+	return 0;
+};
+
 // Client side sorting for external rows (IMDb, TMDB, Seerr, and custom rows).
 export const sortExternalItems = (items, sortBy, sortOrder) => {
 	if (!sortBy || sortBy === 'none' || !items || items.length === 0) return items;
@@ -149,8 +165,8 @@ export const sortExternalItems = (items, sortBy, sortOrder) => {
 				break;
 			case 'releaseDate':
 			case 'year':
-				av = a.ProductionYear || a.productionYear || a.year || 0;
-				bv = b.ProductionYear || b.productionYear || b.year || 0;
+				av = getReleaseDateValue(a);
+				bv = getReleaseDateValue(b);
 				break;
 			case 'rating':
 				av = a.CommunityRating || a.communityRating || a.rating || 0;

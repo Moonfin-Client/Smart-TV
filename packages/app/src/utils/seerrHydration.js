@@ -51,7 +51,9 @@ const hydrateRequestMediaItems = async (requests = []) => {
 				backdropPath: media?.backdropPath || details.backdropPath || details.backdrop_path,
 				overview: media?.overview || details.overview,
 				releaseDate: media?.releaseDate || details.releaseDate || details.release_date,
-				firstAirDate: media?.firstAirDate || details.firstAirDate || details.first_air_date
+				firstAirDate: media?.firstAirDate || details.firstAirDate || details.first_air_date,
+				voteAverage: media?.voteAverage || details.voteAverage || details.vote_average,
+				popularity: media?.popularity || details.popularity
 			}
 		};
 	});

@@ -77,11 +77,13 @@ export const normalizeMediaItem = (item) => {
 	const mediaType = item.media_type || item.mediaType || (item.title ? 'movie' : 'tv');
 	const poster = item.poster_path || item.posterPath;
 	const backdrop = item.backdrop_path || item.backdropPath;
+	const releaseDate = item.release_date || item.releaseDate || item.first_air_date || item.firstAirDate || '';
 	return {
 		Id: `seerr-${mediaType}-${item.id}`,
 		Name: item.title || item.name,
 		Type: mediaType === 'movie' ? 'Movie' : 'Series',
 		ProductionYear: yearOf(item),
+		PremiereDate: releaseDate || undefined,
 		Overview: item.overview || '',
 		CommunityRating: item.vote_average || item.voteAverage,
 		Popularity: item.popularity,
@@ -101,10 +103,13 @@ export const normalizeRequestItem = (request) => {
 	const mediaType = request.type || media.mediaType || 'movie';
 	const poster = media.posterPath || media.poster_path;
 	const backdrop = media.backdropPath || media.backdrop_path;
+	const releaseDate = media.releaseDate || media.release_date || media.firstAirDate || media.first_air_date || '';
 	return {
 		Id: `seerr-${mediaType}-${media.tmdbId}`,
 		Name: media.title || media.name || $L('Unknown'),
 		Type: mediaType === 'movie' ? 'Movie' : 'Series',
+		ProductionYear: yearOf(media),
+		PremiereDate: releaseDate || undefined,
 		Overview: media.overview || request.overview || '',
 		CommunityRating: media.voteAverage || media.vote_average,
 		Popularity: media.popularity,

@@ -175,6 +175,20 @@ describe('sortExternalItems', () => {
 		expect(desc.map((i) => i.ProductionYear)).toEqual([2020, 2010, 2005]);
 	});
 
+	it('sorts by full release date and falls back to production year', () => {
+		const datedItems = [
+			{Name: 'May Movie', PremiereDate: '2024-05-20', ProductionYear: 2024},
+			{Name: 'Jan Movie', PremiereDate: '2024-01-10', ProductionYear: 2024},
+			{Name: 'Dec Movie', PremiereDate: '2024-12-01', ProductionYear: 2024},
+			{Name: 'Older Year', ProductionYear: 2023}
+		];
+		const asc = sortExternalItems(datedItems, 'releaseDate', 'ascending');
+		expect(asc.map((i) => i.Name)).toEqual(['Older Year', 'Jan Movie', 'May Movie', 'Dec Movie']);
+
+		const desc = sortExternalItems(datedItems, 'releaseDate', 'descending');
+		expect(desc.map((i) => i.Name)).toEqual(['Dec Movie', 'May Movie', 'Jan Movie', 'Older Year']);
+	});
+
 	it('sorts by rating ascending and descending', () => {
 		const asc = sortExternalItems(items, 'rating', 'ascending');
 		expect(asc.map((i) => i.CommunityRating)).toEqual([6.0, 7.5, 9.0]);
