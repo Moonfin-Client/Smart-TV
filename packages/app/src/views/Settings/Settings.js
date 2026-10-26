@@ -751,6 +751,10 @@ const Settings = ({ onBack, onLibrariesChanged, onRunSetupWizard, onSelectItem, 
 		pushView({view: 'externalCustomRows', returnFocusTo: 'setting-externalCustomRows'});
 	}, [pushView]);
 
+	const openOptionsDialog = useCallback(({title, options, settingKey, returnFocusTo}) => {
+		pushView({view: 'options', title, options, settingKey, returnFocusTo});
+	}, [pushView]);
+
 	// Lets a row on one screen open a screen that lives elsewhere in the schema, the
 	// way Progress Bar Time is reached from Video Playback Preferences.
 	const openScreen = useCallback((categoryId, subcategoryId, returnFocusTo) => {
@@ -1482,16 +1486,27 @@ const Settings = ({ onBack, onLibrariesChanged, onRunSetupWizard, onSelectItem, 
 					homeRows={settings.homeRows}
 					serverUrl={serverUrl}
 					onToggleSlider={toggleSeerrSlider}
+					settings={settings}
+					onOpenOptions={openOptionsDialog}
 				/>
 			)}
 			{viewName === 'imdbLists' && (
-				<ImdbListsView settings={settings} onUpdateSettings={updateSettings} />
+				<ImdbListsView
+					settings={settings}
+					onUpdateSettings={updateSettings}
+					onOpenOptions={openOptionsDialog}
+				/>
 			)}
 			{viewName === 'seasonalRow' && (
 				<SeasonalRowView settings={settings} onUpdateSettings={updateSettings} />
 			)}
 			{viewName === 'externalTmdbLists' && (
-				<ExternalTmdbListsView enabledMap={homeRowEnabledMap} onToggleRow={toggleHomeRowEnabled} />
+				<ExternalTmdbListsView
+					enabledMap={homeRowEnabledMap}
+					onToggleRow={toggleHomeRowEnabled}
+					settings={settings}
+					onOpenOptions={openOptionsDialog}
+				/>
 			)}
 			{viewName === 'externalCalendars' && (
 				<ExternalCalendarsView

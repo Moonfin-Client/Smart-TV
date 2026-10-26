@@ -101,7 +101,9 @@ const Browse = ({
 		seerrAuthenticated,
 		seerrUserId,
 		homeRows: homeRowsConfig,
-		serverUrl
+		serverUrl,
+		sortBy: settings.seerrRowsSortBy,
+		sortOrder: settings.seerrRowsSortOrder
 	});
 	const {rows: externalRows, pending: externalPending} = useExternalRows({settings, homeRows: homeRowsConfig, kidsMode});
 	const pendingRows = useMemo(() => [...seerrPending, ...externalPending], [seerrPending, externalPending]);

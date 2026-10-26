@@ -23,7 +23,7 @@ const SECTIONS = {
 	'appearance.appearance': ['navigation', 'layout', 'theme', 'display', 'extras'],
 	'appearance.navigationBar': ['navAppearance', 'navButtons'],
 	'appearance.homeScreen': ['contents', 'looks', 'externalSources'],
-	'appearance.rowOptions': ['continueWatchingAndNextUp', 'recentlyAdded', 'audio', 'collections', 'favorites', 'genres', 'playlists', 'rewatch', 'sinceYouWatched', 'studios'],
+	'appearance.rowOptions': ['continueWatchingAndNextUp', 'recentlyAdded', 'audio', 'collections', 'favorites', 'genres', 'playlists', 'rewatch', 'sinceYouWatched', 'studios', 'imdbRows', 'tmdbRows', 'seerrRows'],
 	'appearance.mediaBar': ['mediaBarGeneral', 'mediaSources', 'mediaBarBehavior', 'trailers'],
 	'appearance.libraries': ['librariesGeneral', 'libraryView'],
 	'appearance.detailsPage': ['detailsDisplay', 'mediaDetailsAndSpoilers', 'recommendations', 'ratings', 'themeMusic'],

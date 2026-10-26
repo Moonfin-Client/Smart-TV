@@ -22,6 +22,7 @@ import {
 	getGenresRowItemFilterOptions,
 	getHomeRowSortOptions, getPlaylistCollectionSortOptions,
 	getHomeBackdropStyleOptions,
+	getExternalRowSortByOptions, getExternalRowSortOrderOptions,
 	getHomeRowsStyleOptions,
 	getBookLibraryStyleOptions,
 	getKeyboardStyleOptions,
@@ -517,7 +518,16 @@ export const SETTINGS_SCHEMA = [
 					{kind: KIND.SECTION, id: 'studios', label: () => $L('STUDIOS')},
 					{kind: KIND.TOGGLE, key: 'displayStudiosRows', label: () => $L('Display Studio Row'), desc: () => $L('Show Studio row in Home Sections.'), icon: 'business'},
 					{kind: KIND.OPTION, key: 'studiosRowSortBy', label: () => $L('Studio Row Sorting'), desc: () => $L('Studio row by name, recently added, and more.'), options: getHomeRowSortOptions, fallback: () => $L('Name'), icon: 'sort_by_alpha', when: (ctx) => ctx.settings.displayStudiosRows},
-					{kind: KIND.OPTION, key: 'studiosRowSortOrder', label: () => $L('Sort Order'), desc: () => $L('Choose Ascending or Descending sort order.'), options: getSortOrderOptions, fallback: () => $L('Auto'), icon: 'swap_vert', when: (ctx) => ctx.settings.displayStudiosRows}
+					{kind: KIND.OPTION, key: 'studiosRowSortOrder', label: () => $L('Sort Order'), desc: () => $L('Choose Ascending or Descending sort order.'), options: getSortOrderOptions, fallback: () => $L('Auto'), icon: 'swap_vert', when: (ctx) => ctx.settings.displayStudiosRows},
+					{kind: KIND.SECTION, id: 'imdbRows', label: () => $L('IMDb Lists'), when: whenPlugin},
+					{kind: KIND.OPTION, key: 'imdbRowsSortBy', label: () => $L('IMDb Row Sorting'), desc: () => $L('Sort IMDb rows by name, release date, rating, and more.'), options: getExternalRowSortByOptions, fallback: () => $L('Default'), icon: 'sort', when: whenPlugin},
+					{kind: KIND.OPTION, key: 'imdbRowsSortOrder', label: () => $L('Sort Order'), desc: () => $L('Sort IMDb rows in ascending or descending order.'), options: getExternalRowSortOrderOptions, fallback: () => $L('Ascending'), icon: 'swap_vert', when: (ctx) => whenPlugin(ctx) && ctx.settings.imdbRowsSortBy !== 'none' && ctx.settings.imdbRowsSortBy !== 'shuffle'},
+					{kind: KIND.SECTION, id: 'tmdbRows', label: () => $L('TMDB Lists'), when: whenPlugin},
+					{kind: KIND.OPTION, key: 'tmdbRowsSortBy', label: () => $L('TMDB Row Sorting'), desc: () => $L('Sort TMDB rows by name, release date, rating, and more.'), options: getExternalRowSortByOptions, fallback: () => $L('Default'), icon: 'sort', when: whenPlugin},
+					{kind: KIND.OPTION, key: 'tmdbRowsSortOrder', label: () => $L('Sort Order'), desc: () => $L('Sort TMDB rows in ascending or descending order.'), options: getExternalRowSortOrderOptions, fallback: () => $L('Ascending'), icon: 'swap_vert', when: (ctx) => whenPlugin(ctx) && ctx.settings.tmdbRowsSortBy !== 'none' && ctx.settings.tmdbRowsSortBy !== 'shuffle'},
+					{kind: KIND.SECTION, id: 'seerrRows', label: (ctx) => `${ctx.seerrLabel} ${$L('Rows')}`, when: (ctx) => whenPlugin(ctx) && whenSeerr(ctx)},
+					{kind: KIND.OPTION, key: 'seerrRowsSortBy', label: (ctx) => `${ctx.seerrLabel} ${$L('Row Sorting')}`, desc: () => $L('Sort Seerr rows by name, release date, rating, and more.'), options: getExternalRowSortByOptions, fallback: () => $L('Default'), icon: 'sort', when: (ctx) => whenPlugin(ctx) && whenSeerr(ctx)},
+					{kind: KIND.OPTION, key: 'seerrRowsSortOrder', label: () => $L('Sort Order'), desc: () => $L('Sort Seerr rows in ascending or descending order.'), options: getExternalRowSortOrderOptions, fallback: () => $L('Ascending'), icon: 'swap_vert', when: (ctx) => whenPlugin(ctx) && whenSeerr(ctx) && ctx.settings.seerrRowsSortBy !== 'none' && ctx.settings.seerrRowsSortBy !== 'shuffle'}
 				]
 			},
 			{

@@ -89,6 +89,7 @@ const normalizeExternalItem = (item, rowId, source) => {
 		OfficialRating: item.officialRating ?? null,
 		Overview: item.overview || null,
 		CommunityRating: item.rating ?? null,
+		Popularity: item.popularity ?? item.rank ?? null,
 		Genres: Array.isArray(item.genres) ? item.genres : [],
 		RunTimeTicks: item.runTimeTicks ?? null,
 		_externalPosterUrl: item.posterUrl ? seerrApi.getImageUrl(item.posterUrl, 'w342') : null,
@@ -125,9 +126,9 @@ export const buildSeasonalRow = (payload, hiddenHolidays = []) => {
 	};
 };
 
-// Client side sorting for custom rows.
-const applySorting = (items, sortBy, sortOrder) => {
-	if (!sortBy || sortBy === 'none') return items;
+// Client side sorting for external rows (IMDb, TMDB, Seerr, and custom rows).
+export const sortExternalItems = (items, sortBy, sortOrder) => {
+	if (!sortBy || sortBy === 'none' || !items || items.length === 0) return items;
 	const sorted = [...items];
 	if (sortBy === 'shuffle') {
 		for (let i = sorted.length - 1; i > 0; i--) {
@@ -136,16 +137,30 @@ const applySorting = (items, sortBy, sortOrder) => {
 		}
 		return sorted;
 	}
-	const dir = sortOrder === 'desc' ? -1 : 1;
+	const dir = sortOrder === 'descending' || sortOrder === 'desc' ? -1 : 1;
 	sorted.sort((a, b) => {
 		let av;
 		let bv;
 		switch (sortBy) {
-			case 'title': av = (a.name || '').toLowerCase(); bv = (b.name || '').toLowerCase(); break;
-			case 'year': av = a.productionYear || 0; bv = b.productionYear || 0; break;
-			case 'rating': av = a.rating || 0; bv = b.rating || 0; break;
+			case 'name':
+			case 'title':
+				av = (a.Name || a.name || a.title || '').toLowerCase();
+				bv = (b.Name || b.name || b.title || '').toLowerCase();
+				break;
+			case 'releaseDate':
+			case 'year':
+				av = a.ProductionYear || a.productionYear || a.year || 0;
+				bv = b.ProductionYear || b.productionYear || b.year || 0;
+				break;
+			case 'rating':
+				av = a.CommunityRating || a.communityRating || a.rating || 0;
+				bv = b.CommunityRating || b.communityRating || b.rating || 0;
+				break;
 			case 'popularity':
-			default: av = a.rank || 0; bv = b.rank || 0; break;
+			default:
+				av = a.Popularity || a.popularity || a.rank || 0;
+				bv = b.Popularity || b.popularity || b.rank || 0;
+				break;
 		}
 		if (av < bv) return -1 * dir;
 		if (av > bv) return 1 * dir;
@@ -175,7 +190,7 @@ export const fetchExternalPresetRow = async (rowId, options = {}) => {
 // {id, source, type, params, sortBy, sortOrder, showUserRatings}.
 export const fetchCustomHomeRow = async (row, options = {}) => {
 	const items = await fetchCustomRow({source: row.source, type: row.type, params: row.params}, options);
-	const sorted = applySorting(items, row.sortBy, row.sortOrder);
+	const sorted = sortExternalItems(items, row.sortBy, row.sortOrder);
 	return sorted.slice(0, options.limit || HOME_ROW_LIMIT).map((it) => {
 		const norm = normalizeExternalItem(it, row.id, row.source);
 		if (row.showUserRatings === false) norm.UserRating = null;

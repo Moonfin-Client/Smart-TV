@@ -260,6 +260,7 @@ export const SYNCABLE_KEYS = [
 	'mdblistEnabled', 'mdblistRatingSources', 'tmdbEpisodeRatingsEnabled',
 	'imdbTop250MoviesEnabled', 'imdbTop250TvShowsEnabled', 'imdbMostPopularMoviesEnabled',
 	'imdbMostPopularTvShowsEnabled', 'imdbLowestRatedMoviesEnabled', 'imdbTopEnglishMoviesEnabled',
+	'imdbRowsSortBy', 'imdbRowsSortOrder', 'tmdbRowsSortBy', 'tmdbRowsSortOrder', 'seerrRowsSortBy', 'seerrRowsSortOrder',
 	'sinceYouWatchedSource', 'sinceYouWatchedSourceItem', 'sinceYouWatchedSourceType', 'sinceYouWatchedIncludeWatched',
 	'rewatchIncludeMovies', 'rewatchIncludeShows', 'rewatchIncludeCollections', 'rewatchSortBy',
 	'navbarPosition', 'featuredBarStyle', 'mediaBarRowPeek', 'featuredContentType', 'featuredItemCount',

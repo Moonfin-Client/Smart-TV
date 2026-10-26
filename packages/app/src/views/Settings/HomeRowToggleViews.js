@@ -5,7 +5,8 @@ import $L from '@enact/i18n/$L';
 import {getSeerrHomeRowConfigs, SEERR_CONFIG_TO_SECTION} from '../../utils/seerrHomeRows';
 import {isSupportedSlider, loadDiscoverSliders} from '../../utils/seerrSliders';
 import {makeSeerrSliderRow} from '../../utils/pickedRows';
-import {SectionTitle} from './settingsRows';
+import {OptionRow, SectionTitle} from './settingsRows';
+import {getChipLabel, getExternalRowSortByOptions, getExternalRowSortOrderOptions} from './settingsOptions';
 import {renderToggle} from './settingsIcons';
 import {SpottableDiv} from './settingsSpottables';
 import SettingsView from './SettingsView';
@@ -25,7 +26,7 @@ const ToggleItem = ({spotlightId, title, checked, onClick}) => (
 
 // The custom sliders a Seerr admin set up come after the rows this app knows, read fresh each time
 // the screen opens. A failed read just leaves them off the screen.
-export const SeerrHomeRowsView = ({seerrLabel, enabledMap, onToggleRow, homeRows, serverUrl, onToggleSlider}) => {
+export const SeerrHomeRowsView = ({seerrLabel, enabledMap, onToggleRow, homeRows, serverUrl, onToggleSlider, settings, onOpenOptions}) => {
 	const [sliders, setSliders] = useState([]);
 
 	useEffect(() => {
@@ -43,11 +44,49 @@ export const SeerrHomeRowsView = ({seerrLabel, enabledMap, onToggleRow, homeRows
 		return (homeRows || []).some((row) => row.id === id && row.enabled);
 	};
 
+	const sortBy = settings?.seerrRowsSortBy || 'none';
+	const sortOrder = settings?.seerrRowsSortOrder || 'ascending';
+	const sortOrderApplies = sortBy !== 'none' && sortBy !== 'shuffle';
+
 	return (
 		<SettingsView spotlightId='seerr-home-rows-view' title={`${seerrLabel} ${$L('Home Rows')}`} clean>
 			<div className={css.viewDescription}>
 				{$L('Choose which Seerr discover rows appear on the home screen.')}
 			</div>
+			{onOpenOptions && (
+				<>
+					<SectionTitle>{$L('Sorting')}</SectionTitle>
+					<OptionRow
+						settingKey='seerrRowsSortBy'
+						title={`${seerrLabel} ${$L('Row Sorting')}`}
+						desc={$L('Sort Seerr rows by name, release date, rating, and more.')}
+						caption={getChipLabel(getExternalRowSortByOptions(), sortBy, $L('Default'))}
+						icon='sort'
+						onOpen={() => onOpenOptions({
+							title: `${seerrLabel} ${$L('Row Sorting')}`,
+							options: getExternalRowSortByOptions(),
+							settingKey: 'seerrRowsSortBy',
+							returnFocusTo: 'setting-seerrRowsSortBy'
+						})}
+					/>
+					{sortOrderApplies && (
+						<OptionRow
+							settingKey='seerrRowsSortOrder'
+							title={$L('Sort Order')}
+							desc={$L('Sort Seerr rows in ascending or descending order.')}
+							caption={getChipLabel(getExternalRowSortOrderOptions(), sortOrder, $L('Ascending'))}
+							icon='swap_vert'
+							onOpen={() => onOpenOptions({
+								title: $L('Sort Order'),
+								options: getExternalRowSortOrderOptions(),
+								settingKey: 'seerrRowsSortOrder',
+								returnFocusTo: 'setting-seerrRowsSortOrder'
+							})}
+						/>
+					)}
+					<SectionTitle>{$L('Rows')}</SectionTitle>
+				</>
+			)}
 			{getSeerrHomeRowConfigs().map((cfg) => (
 				<ToggleItem
 					key={cfg.id}
@@ -82,7 +121,7 @@ const IMDB_LISTS = [
 	{ id: 'imdbTopEnglishMoviesEnabled', rowId: 'imdb-top-english', title: () => $L('IMDb Top Rated English Movies') }
 ];
 
-export const ImdbListsView = ({settings, onUpdateSettings}) => {
+export const ImdbListsView = ({settings, onUpdateSettings, onOpenOptions}) => {
 	const toggleImdbList = (settingKey, rowId) => {
 		const nextValue = !settings[settingKey];
 		const updatedHomeRows = (settings.homeRows || []).map((row) =>
@@ -94,11 +133,49 @@ export const ImdbListsView = ({settings, onUpdateSettings}) => {
 		});
 	};
 
+	const sortBy = settings?.imdbRowsSortBy || 'none';
+	const sortOrder = settings?.imdbRowsSortOrder || 'ascending';
+	const sortOrderApplies = sortBy !== 'none' && sortBy !== 'shuffle';
+
 	return (
 		<SettingsView spotlightId='imdb-lists-view' title={$L('IMDb Lists')} clean>
 			<div className={css.viewDescription}>
 				{$L('Choose which IMDb lists are active. Activating a list adds it to your Home Sections.')}
 			</div>
+			{onOpenOptions && (
+				<>
+					<SectionTitle>{$L('Sorting')}</SectionTitle>
+					<OptionRow
+						settingKey='imdbRowsSortBy'
+						title={$L('IMDb Row Sorting')}
+						desc={$L('Sort IMDb rows by name, release date, rating, and more.')}
+						caption={getChipLabel(getExternalRowSortByOptions(), sortBy, $L('Default'))}
+						icon='sort'
+						onOpen={() => onOpenOptions({
+							title: $L('IMDb Row Sorting'),
+							options: getExternalRowSortByOptions(),
+							settingKey: 'imdbRowsSortBy',
+							returnFocusTo: 'setting-imdbRowsSortBy'
+						})}
+					/>
+					{sortOrderApplies && (
+						<OptionRow
+							settingKey='imdbRowsSortOrder'
+							title={$L('Sort Order')}
+							desc={$L('Sort IMDb rows in ascending or descending order.')}
+							caption={getChipLabel(getExternalRowSortOrderOptions(), sortOrder, $L('Ascending'))}
+							icon='swap_vert'
+							onOpen={() => onOpenOptions({
+								title: $L('Sort Order'),
+								options: getExternalRowSortOrderOptions(),
+								settingKey: 'imdbRowsSortOrder',
+								returnFocusTo: 'setting-imdbRowsSortOrder'
+							})}
+						/>
+					)}
+					<SectionTitle>{$L('Lists')}</SectionTitle>
+				</>
+			)}
 			{IMDB_LISTS.map((cfg) => (
 				<SpottableDiv
 					key={cfg.id}

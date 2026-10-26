@@ -8,7 +8,7 @@ jest.mock('./uiLocale', () => ({uiLocale: () => 'en-US'}));
 import {fetchCustomRow, constructSourceUrl} from '../services/externalRowsApi';
 import seerrApi from '../services/seerrApi';
 import {fetchWithTimeout} from './fetchTimeout';
-import {buildSeasonalRow, fetchCalendarRows, fetchExternalPresetRow, validateCustomRow} from './externalHomeRows';
+import {buildSeasonalRow, fetchCalendarRows, fetchExternalPresetRow, sortExternalItems, validateCustomRow} from './externalHomeRows';
 
 const listUrl = 'https://mdblist.com/lists/user/list';
 const row = {source: 'mdblist', type: 'user_list', params: {username: 'user', listname: 'list'}};
@@ -144,5 +144,56 @@ describe('fetchCalendarRows', () => {
 	it('labels a release with the day Radarr gives, wherever the TV is', async () => {
 		const calendar = await radarrRow([movie(1, 'Out today', '2026-10-27T00:00:00Z')]);
 		expect(calendar.items[0].Subtitle).toBe('Cinema: Oct 27');
+	});
+});
+
+describe('sortExternalItems', () => {
+	const items = [
+		{Name: 'Bravo', ProductionYear: 2010, CommunityRating: 7.5, Popularity: 300},
+		{Name: 'Alpha', ProductionYear: 2020, CommunityRating: 9.0, Popularity: 100},
+		{Name: 'Charlie', ProductionYear: 2005, CommunityRating: 6.0, Popularity: 500}
+	];
+
+	it('returns items unchanged when sortBy is none or empty', () => {
+		expect(sortExternalItems(items, 'none', 'ascending')).toEqual(items);
+		expect(sortExternalItems(items, '', 'ascending')).toEqual(items);
+	});
+
+	it('sorts by name ascending and descending', () => {
+		const asc = sortExternalItems(items, 'name', 'ascending');
+		expect(asc.map((i) => i.Name)).toEqual(['Alpha', 'Bravo', 'Charlie']);
+
+		const desc = sortExternalItems(items, 'name', 'descending');
+		expect(desc.map((i) => i.Name)).toEqual(['Charlie', 'Bravo', 'Alpha']);
+	});
+
+	it('sorts by releaseDate ascending and descending', () => {
+		const asc = sortExternalItems(items, 'releaseDate', 'ascending');
+		expect(asc.map((i) => i.ProductionYear)).toEqual([2005, 2010, 2020]);
+
+		const desc = sortExternalItems(items, 'releaseDate', 'descending');
+		expect(desc.map((i) => i.ProductionYear)).toEqual([2020, 2010, 2005]);
+	});
+
+	it('sorts by rating ascending and descending', () => {
+		const asc = sortExternalItems(items, 'rating', 'ascending');
+		expect(asc.map((i) => i.CommunityRating)).toEqual([6.0, 7.5, 9.0]);
+
+		const desc = sortExternalItems(items, 'rating', 'descending');
+		expect(desc.map((i) => i.CommunityRating)).toEqual([9.0, 7.5, 6.0]);
+	});
+
+	it('sorts by popularity ascending and descending', () => {
+		const asc = sortExternalItems(items, 'popularity', 'ascending');
+		expect(asc.map((i) => i.Popularity)).toEqual([100, 300, 500]);
+
+		const desc = sortExternalItems(items, 'popularity', 'descending');
+		expect(desc.map((i) => i.Popularity)).toEqual([500, 300, 100]);
+	});
+
+	it('shuffles items when sortBy is shuffle', () => {
+		const shuffled = sortExternalItems(items, 'shuffle', 'ascending');
+		expect(shuffled).toHaveLength(items.length);
+		expect(new Set(shuffled.map((i) => i.Name))).toEqual(new Set(['Alpha', 'Bravo', 'Charlie']));
 	});
 });

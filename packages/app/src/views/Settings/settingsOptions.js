@@ -444,6 +444,20 @@ export const getSortOrderOptions = () => [
 	{ value: 'Descending', label: $L('Descending') }
 ];
 
+export const getExternalRowSortByOptions = () => [
+	{ value: 'none', label: $L('Default') },
+	{ value: 'name', label: $L('Name') },
+	{ value: 'releaseDate', label: $L('Release Date') },
+	{ value: 'rating', label: $L('Rating') },
+	{ value: 'popularity', label: $L('Popularity') },
+	{ value: 'shuffle', label: $L('Shuffle') }
+];
+
+export const getExternalRowSortOrderOptions = () => [
+	{ value: 'ascending', label: $L('Ascending') },
+	{ value: 'descending', label: $L('Descending') }
+];
+
 export const getOledModeOptions = () => [
 	{ value: 'off', label: $L('Off') },
 	{ value: 'subtle', label: $L('Subtle') },
