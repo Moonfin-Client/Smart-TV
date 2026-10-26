@@ -82,9 +82,11 @@ const useBrowseData = ({
 			dispatch({type: 'SET_FEATURED_ITEMS', items});
 		};
 		const sourceType = s.mediaBarSourceType || 'library';
-		// The saved picks can name a library access has since been revoked for, so what the policy
-		// no longer allows is dropped before they are trusted.
-		const libraryIds = await retainPermitted(api, s.mediaBarLibraryIds || []);
+		// The saved picks sync across servers and can name a library access has since been revoked
+		// for, so only what this server still offers and the policy still allows is trusted.
+		const views = unifiedMode || !s.mediaBarLibraryIds?.length ? null : (await api.getLibraries().catch(() => null))?.Items;
+		const onThisServer = (s.mediaBarLibraryIds || []).filter((id) => !views || views.some((view) => view.Id === id));
+		const libraryIds = await retainPermitted(api, onThisServer);
 		const collectionIds = s.mediaBarCollectionIds || [];
 		const hasSourceFilter = (sourceType === 'collection' && collectionIds.length > 0) || libraryIds.length > 0;
 		// Kids Mode hides every outside list on Home, and the lists come through the plugin.
