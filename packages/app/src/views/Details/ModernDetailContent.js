@@ -577,7 +577,7 @@ const ModernDetailContent = (props) => {
 		<RowContainer className={css.grid}>
 			{item.Chapters.map((chapter, i) => {
 				const thumb = chapter.ImageTag
-					? `${effectiveServerUrl}/Items/${item.Id}/Images/Chapter/${i}?maxWidth=400&tag=${chapter.ImageTag}`
+					? getImageUrl(effectiveServerUrl, item.Id, `Chapter/${i}`, {maxWidth: 400, tag: chapter.ImageTag})
 					: null;
 				return (
 					<SpottableDiv key={i} className={css.chapterCard} data-start-ticks={chapter.StartPositionTicks} onClick={handleChapterSelect}>

@@ -157,5 +157,5 @@ export const getMediaBadges = (item, versionIndex = 0) => {
 export const castPhotoUrl = (person, serverUrl, maxHeight) => {
 	if (person._externalImageUrl) return person._externalImageUrl;
 	if (!person.PrimaryImageTag) return null;
-	return getImageUrl(serverUrl, person.Id, 'Primary', {maxHeight, quality: 80});
+	return getImageUrl(serverUrl, person.Id, 'Primary', {maxHeight, quality: 80, tag: person.PrimaryImageTag});
 };

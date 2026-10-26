@@ -353,7 +353,10 @@ const Settings = ({ onBack, onLibrariesChanged, onRunSetupWizard, onSelectItem, 
 	}, [popView]);
 
 	useEffect(() => {
-		if (serverUrl && accessToken) {
+		// Plex has no /System/Info, so its version comes from the identity call.
+		if (serverUrl && serverType === 'plex') {
+			api.getPublicInfo().then((info) => info?.Version && setServerVersion(info.Version)).catch(() => {});
+		} else if (serverUrl && accessToken) {
 			fetch(`${serverUrl}/System/Info`, {
 				headers: { Authorization: `MediaBrowser Token="${accessToken}"` }
 			})
@@ -363,7 +366,7 @@ const Settings = ({ onBack, onLibrariesChanged, onRunSetupWizard, onSelectItem, 
 				})
 				.catch(() => {});
 		}
-	}, [serverUrl, accessToken]);
+	}, [serverUrl, accessToken, serverType, api]);
 
 	const toggleSetting = useCallback(
 		(key) => {

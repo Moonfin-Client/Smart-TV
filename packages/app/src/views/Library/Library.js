@@ -124,7 +124,7 @@ const QUALITY_FILTERS = [
 	{key: 'sd', label: $L('SD')},
 	{key: 'hd', label: $L('HD')},
 	{key: 'uhd', label: $L('4K'), jellyfinOnly: true},
-	{key: 'threeD', label: $L('3D')}
+	{key: 'threeD', label: $L('3D'), plexless: true}
 ];
 
 // A tag list can run to thousands of entries, and each one costs a focusable
@@ -1406,7 +1406,9 @@ const Library = ({library, genreFilter, studioFilter, onSelectItem, onViewPhoto,
 	const showVideoFilters = !isMusicLibrary && !isPlaylistLibrary;
 	// Emby's items query has no 4K flag and its series status holds only
 	// continuing and ended, so those options stay out of the panel there.
-	const supported = (options) => options.filter(o => !o.jellyfinOnly || serverType !== 'emby');
+	// Plex can't filter on series status, likes, subtitles, trailers, extras, theme media, 3D or disc source.
+	const onPlex = serverType === 'plex';
+	const supported = (options) => options.filter(o => (!o.jellyfinOnly || serverType !== 'emby') && !(onPlex && o.plexless));
 	const folderName = folderStack.length > 0 ? folderStack[folderStack.length - 1].name : library?.Name;
 	const displayName = genreFilter || studioFilter || library?.Name || '';
 	const titleProps = {isFolderView, folderStack, rootName: library?.Name, displayName, shownCount, onBreadcrumb: handleFolderBreadcrumb};
@@ -1769,7 +1771,7 @@ const Library = ({library, genreFilter, studioFilter, onSelectItem, onViewPhoto,
 							))
 						))}
 
-						{renderSection('liked', $L('My Rating'), chosenLabel(LIKED_FILTERS, likedFilter), () => (
+						{!onPlex && renderSection('liked', $L('My Rating'), chosenLabel(LIKED_FILTERS, likedFilter), () => (
 							LIKED_FILTERS.map((option) => (
 								<SpottableButton
 									key={option.key}
@@ -1786,7 +1788,7 @@ const Library = ({library, genreFilter, studioFilter, onSelectItem, onViewPhoto,
 							))
 						))}
 
-						{isSeriesLibrary && renderSection('series', $L('Series Status'), chosenLabel(SERIES_FILTERS, seriesFilter), () => (
+						{isSeriesLibrary && !onPlex && renderSection('series', $L('Series Status'), chosenLabel(SERIES_FILTERS, seriesFilter), () => (
 							supported(SERIES_FILTERS).map((option) => (
 								<SpottableButton
 									key={option.key}
@@ -1803,11 +1805,11 @@ const Library = ({library, genreFilter, studioFilter, onSelectItem, onViewPhoto,
 							))
 						))}
 
-						{showVideoFilters && renderOptionSection('features', $L('Features'), supported(FEATURE_FILTERS), featureFilters, handleFeatureToggle, 'feature')}
+						{showVideoFilters && !onPlex && renderOptionSection('features', $L('Features'), supported(FEATURE_FILTERS), featureFilters, handleFeatureToggle, 'feature')}
 
 						{showVideoFilters && renderOptionSection('quality', $L('Quality'), supported(QUALITY_FILTERS), qualityFilters, handleQualityToggle, 'quality')}
 
-						{showVideoFilters && renderOptionSection('source', $L('Source'), VIDEO_SOURCE_FILTERS, videoSourceFilters, handleVideoSourceToggle, 'source')}
+						{showVideoFilters && !onPlex && renderOptionSection('source', $L('Source'), VIDEO_SOURCE_FILTERS, videoSourceFilters, handleVideoSourceToggle, 'source')}
 
 						{!genreFilter && renderFacetSection('genres', $L('Genres'), facetValues?.genres, genreFilters, handleGenreToggle)}
 						{renderFacetSection('ratings', $L('Parental Rating'), facetValues?.officialRatings, ratingFilters, handleRatingToggle)}

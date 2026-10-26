@@ -164,7 +164,7 @@ const Person = ({personId, onSelectItem, onSelectSeerrItem, onSelectSeerrPerson,
 	}
 
 	const imageUrl = person.ImageTags?.Primary
-		? getImageUrl(serverUrl, person.Id, 'Primary', {maxHeight: 450, quality: 90})
+		? getImageUrl(serverUrl, person.Id, 'Primary', {maxHeight: 450, quality: 90, tag: person.ImageTags.Primary})
 		: null;
 	const dateLines = personDateLines(person.PremiereDate, person.EndDate);
 	const birthPlace = showsSection('birthplace') ? person.ProductionLocations?.[0] : null;

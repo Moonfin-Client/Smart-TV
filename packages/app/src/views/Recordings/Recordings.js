@@ -12,7 +12,7 @@ import IncompleteBadge from '../../components/IncompleteBadge';
 import {
 	canKeepAsComplete, keepAsComplete, refreshIncompleteRecordings, useIncompleteRecording
 } from '../../services/incompleteRecordings';
-import {formatDuration} from '../../utils/helpers';
+import {formatDuration, getImageUrl} from '../../utils/helpers';
 import {parseServerDate} from '../../utils/serverDate';
 import {seriesChoiceFlags, seriesChoiceOf} from '../../utils/liveTvGuide';
 import SeriesEpisodeChoices from '../../components/SeriesEpisodeChoices';
@@ -49,9 +49,9 @@ const RecIcon = ({paths, className}) => (
 // primary image, then the parent's backdrop, and finally the placeholder icon.
 const recordingImageUrl = (serverUrl, item) => {
 	if (!item) return null;
-	if (item.ImageTags?.Thumb) return `${serverUrl}/Items/${item.Id}/Images/Backdrop/0?maxWidth=600`;
-	if (item.ImageTags?.Primary) return `${serverUrl}/Items/${item.Id}/Images/Primary?maxHeight=450`;
-	if (item.ParentThumbItemId) return `${serverUrl}/Items/${item.ParentThumbItemId}/Images/Backdrop/0?maxWidth=600`;
+	if (item.ImageTags?.Thumb) return getImageUrl(serverUrl, item.Id, 'Backdrop/0', {maxWidth: 600});
+	if (item.ImageTags?.Primary) return getImageUrl(serverUrl, item.Id, 'Primary', {maxHeight: 450, tag: item.ImageTags.Primary});
+	if (item.ParentThumbItemId) return getImageUrl(serverUrl, item.ParentThumbItemId, 'Backdrop/0', {maxWidth: 600});
 	return null;
 };
 

@@ -9,6 +9,7 @@ import {useSettings} from '../../context/SettingsContext';
 import {useSeerr} from '../../context/SeerrContext';
 import {useSyncPlay} from '../../context/SyncPlayContext';
 import * as jellyfinApi from '../../services/jellyfinApi';
+import {searchesForTrailer} from '../../services/youtubeTrailer';
 import {saveAudioPref, saveSubtitlePref} from '../../services/subtitlePrefs';
 import {fromServerStream} from '../../utils/seriesTrackPrefs';
 import ModernDetailContent from './ModernDetailContent';
@@ -961,14 +962,17 @@ const Details = ({itemId: itemIdProp, initialItem, onPlay, onSelectItem, onSelec
 	const isAudioTrack = item.Type === 'Audio';
 	const isBook = item.Type === 'Book';
 	const isReadableBook = isBook && !!bookReader(item);
-	const isRatable = isRatableItemType(item.Type);
+	// Plex has no personal ratings, since its one rating stands in for favorites.
+	const isRatable = isRatableItemType(item.Type) && (item._serverType || jellyfinApi.getServerType()) !== 'plex';
 	const ratingStyle = normalizeRatingStyle(settings.personalRatingStyle);
 
 	// A series keeps the button with nothing counted against it, since a trailer sitting in a
-	// season folder belongs to that season rather than the series it came from.
+	// season folder belongs to that season rather than the series it came from. A movie or show
+	// on a server that keeps no trailer links has YouTube searched for one.
+	const searchesTrailer = (item.Type === 'Movie' || isSeries) && searchesForTrailer(item, jellyfinApi.getServerType());
 	const hasTrailer = seerrOnly
 		? item.RemoteTrailers?.length > 0
-		: (item.LocalTrailerCount > 0 || item.RemoteTrailers?.length > 0 || isSeries);
+		: (item.LocalTrailerCount > 0 || item.RemoteTrailers?.length > 0 || isSeries || searchesTrailer);
 
 	// Collections only hold video content, so the action is hidden on people,
 	// music and playlists rather than offering a call the server would reject.
@@ -1360,6 +1364,7 @@ const Details = ({itemId: itemIdProp, initialItem, onPlay, onSelectItem, onSelec
 			settings={settings}
 			seerr={seerr}
 			seerrOnly={seerrOnly}
+			searchesTrailer={searchesTrailer}
 			isSeries={isSeries}
 			isSeason={isSeason}
 			isBoxSet={isBoxSet}
