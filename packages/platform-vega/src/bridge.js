@@ -39,3 +39,27 @@ export const exitApp = () => postToShell('EXIT_APP');
 // The WebView refuses a certificate it cant verify, and only the shell can tell
 // it to go ahead for a host.
 export const allowInsecureHost = (host) => postToShell('ALLOW_INSECURE_HOST', {host});
+
+const waitingRequests = new Map();
+let nextRequestId = 0;
+let hearingAnswers = false;
+
+// The shell makes the request, since the WebView holds an answer back from the page
+// when the server doesnt let other sites read it. Resolves with the status and the
+// body, where a status of 0 means nothing answered.
+export const requestThroughShell = (url, {method = 'GET', headers = {}, body = null} = {}, timeoutMs = 15000) => new Promise((resolve) => {
+	if (!hearingAnswers) {
+		hearingAnswers = true;
+		onShellMessage('HTTP_RESPONSE', (answer) => waitingRequests.get(answer.id)?.(answer));
+	}
+	const id = ++nextRequestId;
+	let timer = null;
+	const finish = (answer) => {
+		clearTimeout(timer);
+		waitingRequests.delete(id);
+		resolve(answer);
+	};
+	timer = setTimeout(() => finish({status: 0, body: ''}), timeoutMs);
+	waitingRequests.set(id, finish);
+	if (!postToShell('HTTP_REQUEST', {id, url, method, headers, body, timeoutMs})) finish({status: 0, body: ''});
+});

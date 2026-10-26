@@ -20,7 +20,7 @@
 import {fetchWithTimeout} from '../utils/fetchTimeout';
 import {classifyError, INSECURE_CERT, DNS_OR_NETWORK} from '../utils/connectionErrors';
 import {traceRequest} from '../utils/networkLogSink';
-import {isWebOS} from '../platform';
+import {isVega, isWebOS} from '../platform';
 import {getFromStorage} from './storage';
 import {loadShellBridge} from './shellBridge';
 
@@ -192,4 +192,18 @@ export const platformFetch = async (url, options = {}, timeoutMs) => {
 		proxyHosts.add(origin);
 		return res;
 	}
+};
+
+// A Plex server only lets app.plex.tv read its answers across origins, and the page on
+// Fire TV sits at file://, so the shell makes those requests there.
+export const corsFreeFetch = async (url, options = {}, timeoutMs) => {
+	const bridge = isVega() ? await loadShellBridge() : null;
+	if (!bridge?.requestThroughShell) return platformFetch(url, options, timeoutMs);
+	return traceRequest(`${options.method || 'GET'} (shell)`, url, async () => {
+		const answer = await bridge.requestThroughShell(url, options, timeoutMs);
+		if (answer.status) return makeResponse(answer);
+		const err = new Error('Shell request failed');
+		err.connectionType = DNS_OR_NETWORK;
+		throw err;
+	});
 };

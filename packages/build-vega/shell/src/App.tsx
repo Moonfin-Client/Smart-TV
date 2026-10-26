@@ -3,7 +3,7 @@
 // The app itself is the Enact build under assets/, loaded into the Vega WebView.
 // This shell only does what a page cant: it reports the device and its address,
 // forwards app state and the keys the WebView swallows, reads the YouTube trailer
-// manifests the page isnt allowed to, sends the playback stop report once page
+// manifests and the Plex answers the page isnt allowed to, sends the playback stop report once page
 // scripts are frozen in the background, and exits the app.
 import {WebView} from '@amazon-devices/webview';
 import type {OnSslErrorCallback, SslErrorData, WebViewErrorEvent, WebViewMessageEvent} from '@amazon-devices/webview/dist/types/WebViewTypes';
@@ -22,6 +22,7 @@ import {bootScript, parsePageMessage, toPageScript, ShellMessage} from './bridge
 import {BootData, collectBootData} from './bootData';
 import {sendStopReport, setPlaybackSession} from './playbackSession';
 import {readManifest} from './youtubeManifest';
+import {httpRequest} from './httpRequest';
 
 // The WebView handles the back key itself and passes no menu key to the page.
 const FORWARDED_KEYS: Record<string, string> = {menu: 'Menu'};
@@ -87,6 +88,9 @@ export const App = () => {
 				break;
 			case 'READ_MANIFEST':
 				readManifest(message.payload).then((answer) => send({type: 'MANIFEST', payload: answer}));
+				break;
+			case 'HTTP_REQUEST':
+				httpRequest(message.payload).then((answer) => send({type: 'HTTP_RESPONSE', payload: answer}));
 				break;
 		}
 	}, [send]);
