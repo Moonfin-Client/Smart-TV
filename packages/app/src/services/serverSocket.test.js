@@ -1,9 +1,12 @@
 let mockServerType = 'jellyfin';
+const mockGetItem = jest.fn();
 
 jest.mock('./jellyfinApi', () => ({
+	api: {getItem: (...args) => mockGetItem(...args)},
 	getServerUrl: () => 'https://server',
 	getApiKey: () => 'key',
 	getDeviceId: () => 'device',
+	getUserId: () => 'user-1',
 	getServerType: () => mockServerType
 }));
 
@@ -46,6 +49,44 @@ describe('the session socket', () => {
 		mockServerType = 'emby';
 		serverSocket.connect();
 		expect(latest().url).toBe('wss://server/embywebsocket?api_key=key&deviceId=device');
+	});
+
+	test('follows a Plex stop into the watched state of the item, its season and its show', async () => {
+		mockServerType = 'plex';
+		mockGetItem.mockImplementation((id) => Promise.resolve(id === '17100'
+			? {Id: '17100', SeasonId: '17099', SeriesId: '17098', UserData: {Played: true}}
+			: {Id: id, UserData: {UnplayedItemCount: 3}}));
+		const listener = jest.fn();
+		serverSocket.onMessage(listener);
+		serverSocket.connect();
+		expect(latest().url).toBe('wss://server/:/websockets/notifications?filters=playing&X-Plex-Token=key');
+		receive({NotificationContainer: {type: 'playing', PlaySessionStateNotification: [
+			{sessionKey: '1', ratingKey: '17100', state: 'playing'},
+			{sessionKey: '1', ratingKey: '17100', state: 'stopped'}
+		]}});
+		await jest.runAllTimersAsync();
+		expect(listener).toHaveBeenCalledTimes(1);
+		expect(listener.mock.calls[0][0]).toEqual({MessageType: 'UserDataChanged', Data: {UserId: 'user-1', UserDataList: [
+			{ItemId: '17100', Played: true, PlayedPercentage: null},
+			{ItemId: '17099', UnplayedItemCount: 3, PlayedPercentage: null},
+			{ItemId: '17098', UnplayedItemCount: 3, PlayedPercentage: null}
+		]}});
+	});
+
+	test('reads a paused Plex item once, however often the pause is reported', async () => {
+		mockServerType = 'plex';
+		mockGetItem.mockReset();
+		mockGetItem.mockResolvedValue({Id: '17100', SeasonId: '17099', SeriesId: '17098', UserData: {PlaybackPositionTicks: 10}});
+		const listener = jest.fn();
+		serverSocket.onMessage(listener);
+		serverSocket.connect();
+		const paused = {NotificationContainer: {type: 'playing', PlaySessionStateNotification: [{sessionKey: '1', ratingKey: '17100', state: 'paused'}]}};
+		receive(paused);
+		await jest.runAllTimersAsync();
+		receive(paused);
+		await jest.runAllTimersAsync();
+		expect(mockGetItem).toHaveBeenCalledTimes(1);
+		expect(listener).toHaveBeenCalledTimes(1);
 	});
 
 	test('hands each message to every listener', () => {

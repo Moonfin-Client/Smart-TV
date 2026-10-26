@@ -1,7 +1,7 @@
 // The session socket to the active server. SyncPlay and the watched state both listen on it, so
 // it stays open for as long as someone is signed in and reconnects whenever it drops.
 
-import {getApiKey, getDeviceId, getServerType, getServerUrl} from './jellyfinApi';
+import {api, getApiKey, getDeviceId, getServerType, getServerUrl, getUserId} from './jellyfinApi';
 
 const RECONNECT_DELAY_MS = 5000;
 // The server drops a socket that hasn't sent it a KeepAlive message within this long. It says
@@ -72,9 +72,48 @@ const socketUrl = (serverUrl) => {
 	const host = serverUrl.replace(/^https?:\/\//, '');
 	const token = encodeURIComponent(getApiKey());
 	const deviceId = encodeURIComponent(getDeviceId());
+	// Only playback events are asked for, which is all the watched state needs.
+	if (getServerType() === 'plex') return `${wsProto}://${host}/:/websockets/notifications?filters=playing&X-Plex-Token=${token}`;
 	// Emby answers on a path of its own and still wants the lower case key.
 	if (getServerType() === 'emby') return `${wsProto}://${host}/embywebsocket?api_key=${token}&deviceId=${deviceId}`;
 	return `${wsProto}://${host}/socket?ApiKey=${token}&deviceId=${deviceId}`;
+};
+
+const PLEX_SETTLED = ['paused', 'stopped'];
+// The state each Plex session last reported, since a paused one keeps reporting while it waits.
+let plexStates = {};
+
+// Plex says only that a session paused or stopped, on whichever device, so the item is read again and passed on the way
+// Jellyfin sends a watched state change. Only a stop can change how much of its season and show was played, so those
+// are read after a stop.
+const plexUserData = async (message) => {
+	const userId = getUserId();
+	const sessions = message?.NotificationContainer?.PlaySessionStateNotification;
+	const settled = {};
+	(Array.isArray(sessions) ? sessions : []).forEach((session) => {
+		const state = session?.state;
+		const changed = plexStates[session?.sessionKey] !== state;
+		if (state === 'stopped') delete plexStates[session.sessionKey];
+		else plexStates[session?.sessionKey] = state;
+		if (!changed || !PLEX_SETTLED.includes(state) || session.ratingKey == null) return;
+		const key = String(session.ratingKey);
+		settled[key] = settled[key] || state === 'stopped';
+	});
+	const entries = [];
+	for (const key of Object.keys(settled)) {
+		try {
+			const item = await api.getItem(key);
+			const ids = settled[key] ? [item.SeasonId, item.SeriesId].filter(Boolean) : [];
+			const related = await Promise.all(ids.map((id) => api.getItem(id).catch(() => null)));
+			// A finished item has no progress left, so the old bar is cleared.
+			[item, ...related].forEach((entry) => {
+				if (entry?.UserData) entries.push({PlayedPercentage: null, ...entry.UserData, ItemId: entry.Id});
+			});
+		} catch {
+			// The next settled session tries again.
+		}
+	}
+	if (entries.length) tell(messageListeners, {MessageType: 'UserDataChanged', Data: {UserId: userId, UserDataList: entries}});
 };
 
 export const connect = () => {
@@ -102,6 +141,10 @@ export const connect = () => {
 		} catch {
 			return;
 		}
+		if (message?.NotificationContainer) {
+			if (message.NotificationContainer.type === 'playing') plexUserData(message);
+			return;
+		}
 		if (message?.MessageType === 'ForceKeepAlive') {
 			sendKeepAlive();
 			scheduleKeepAlive(message.Data);
@@ -113,6 +156,7 @@ export const connect = () => {
 	ws.onclose = () => {
 		ws = null;
 		isOpen = false;
+		plexStates = {};
 		stopKeepAlive();
 		tell(connectionListeners, false);
 		scheduleReconnect(); // eslint-disable-line no-use-before-define
@@ -128,6 +172,7 @@ const scheduleReconnect = () => {
 };
 
 export const disconnect = () => {
+	plexStates = {};
 	if (reconnectTimeout) {
 		clearTimeout(reconnectTimeout);
 		reconnectTimeout = null;

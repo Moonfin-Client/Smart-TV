@@ -36,9 +36,11 @@ const useDiagnosticsLog = ({currentViewName, pushView, serverType, pluginInfo}) 
 	const [logMessage, setLogMessage] = useState('');
 	const [sendingReport, setSendingReport] = useState(false);
 
-	const sendUnavailableReason = acceptsReports(serverType, pluginInfo?.clientLogSupported)
-		? null
-		: $L('This Emby server needs the Moonfin plugin, with client log upload turned on.');
+	let sendUnavailableReason = null;
+	if (serverType === 'plex') sendUnavailableReason = $L("Plex servers don't take client logs.");
+	else if (!acceptsReports(serverType, pluginInfo?.clientLogSupported)) {
+		sendUnavailableReason = $L('This Emby server needs the Moonfin plugin, with client log upload turned on.');
+	}
 
 	const openDiagnostics = useCallback(() => {
 		setLogEntries(serverLogger.getBuffer());

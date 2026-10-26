@@ -8,6 +8,8 @@ import {getPlatform} from '../platform';
 import {makeUserRoutes, trimQuerySeparator, legacyAuthHeader, buildUserImageUrl} from '../utils/serverRoutes';
 import * as userDataSync from './userDataSync';
 import {SUPPORTED_COMMANDS} from './remoteControl';
+import {createPlexApi, withEveryMethod} from './plexApi';
+import {isPlexServer, registerPlexServer} from '../utils/plexUrls';
 const APP_VERSION = packageJson.version;
 
 const PLATFORM_IDENTITY = {
@@ -40,13 +42,19 @@ export const setServer = (serverUrl) => {
 };
 
 export const setServerType = (type) => {
-	serverType = type === 'emby' ? 'emby' : 'jellyfin';
+	serverType = type === 'emby' || type === 'plex' ? type : 'jellyfin';
+	// eslint-disable-next-line no-use-before-define
+	applyServerType();
 };
 
 export const getServerType = () => serverType;
 
 // Jellyfin 12 drops the lowercase api_key param while Emby still requires it
-export const getTokenParam = (type) => ((type || serverType) === 'emby' ? 'api_key' : 'ApiKey');
+export const getTokenParam = (type) => {
+	const kind = type || serverType;
+	if (kind === 'plex') return 'X-Plex-Token';
+	return kind === 'emby' ? 'api_key' : 'ApiKey';
+};
 
 // Exported for the callers that build a raw URL instead of going through request().
 export const userRoutes = makeUserRoutes(() => serverType, () => currentUser);
@@ -80,6 +88,7 @@ export const setAuth = (userId, token) => {
 	accessToken = token;
 	accessDeniedParentIds.clear();
 	libraryIndex = null;
+	if (serverType === 'plex') registerPlexServer(currentServer, token);
 	if (token) reportCapabilities();
 };
 
@@ -272,7 +281,7 @@ let capabilitiesSent = null;
 // Signing in reports what this session can do and the socket opening a moment later would send it
 // again, so the socket skips a report made for the same session in the last few seconds.
 export function reportCapabilities({unlessRecent = false} = {}) {
-	if (!currentServer || !accessToken) return;
+	if (!currentServer || !accessToken || serverType === 'plex') return;
 	const session = `${currentServer}|${accessToken}`;
 	if (unlessRecent && capabilitiesSent?.session === session && Date.now() - capabilitiesSent.at < 10000) return;
 	capabilitiesSent = {session, at: Date.now()};
@@ -328,12 +337,18 @@ const matchOnEmby = async (wanted) => {
 const INDEX_PAGE = 1000;
 const INDEX_TTL_MS = 30 * 60 * 1000;
 
+// On Plex the api object asks for the same page in Plex's own terms.
+const indexPage = (start) => (serverType === 'plex'
+	// eslint-disable-next-line no-use-before-define
+	? api.getItems({IncludeItemTypes: 'Movie,Series', Fields: 'ProviderIds', StartIndex: start, Limit: INDEX_PAGE})
+	: request(`${userRoutes.items()}Recursive=true&${OWNED_TYPES}&Fields=ProviderIds&EnableImages=false&EnableUserData=false&EnableTotalRecordCount=false&StartIndex=${start}&Limit=${INDEX_PAGE}`));
+
 const loadLibraryIndex = async () => {
 	const index = {};
 	let start = 0;
 	let pageFull = true;
 	while (pageFull) {
-		const res = await request(`${userRoutes.items()}Recursive=true&${OWNED_TYPES}&Fields=ProviderIds&EnableImages=false&EnableUserData=false&EnableTotalRecordCount=false&StartIndex=${start}&Limit=${INDEX_PAGE}`);
+		const res = await indexPage(start);
 		const page = res?.Items || [];
 		for (const item of page) addToIndex(index, item, item.Id);
 		pageFull = page.length === INDEX_PAGE;
@@ -370,7 +385,10 @@ const matchOnJellyfin = async (wanted) => {
 	const found = {};
 	for (let i = 0; i < ids.length; i += MATCH_CHUNK) {
 		const chunk = ids.slice(i, i + MATCH_CHUNK);
-		const res = await request(`${userRoutes.items()}Ids=${chunk.join(',')}&Fields=${HOME_ROW_ITEM_FIELDS}`);
+		const res = serverType === 'plex'
+			// eslint-disable-next-line no-use-before-define
+			? await api.getItems({Ids: chunk.join(',')})
+			: await request(`${userRoutes.items()}Ids=${chunk.join(',')}&Fields=${HOME_ROW_ITEM_FIELDS}`);
 		for (const item of (res?.Items || [])) addToIndex(found, item, item);
 	}
 	return found;
@@ -1016,6 +1034,38 @@ export const api = {
 	})
 };
 
+// The name a Plex account was saved under, since a Plex server has no route that says who's signed in.
+const savedUserName = async (serverUrl, userId) => {
+	const {getAllServersArray} = await import('./multiServerManager');
+	const wanted = normalizeServerUrl(serverUrl);
+	const entry = (await getAllServersArray()).find((s) => s.userId === userId && normalizeServerUrl(s.url) === wanted);
+	return entry?.username || null;
+};
+
+const jellyfinMethods = {...api};
+const methodNames = Object.keys(jellyfinMethods);
+
+const plexApiFor = (readUrl, readToken, readUserId) => withEveryMethod(createPlexApi({
+	getBaseUrl: readUrl,
+	getToken: readToken,
+	getUserId: readUserId,
+	getDeviceInfo,
+	getUserName: () => savedUserName(readUrl(), readUserId())
+}), methodNames);
+
+const plexMethods = plexApiFor(() => currentServer, () => accessToken, () => currentUser);
+
+let plexActive = false;
+
+// The api object everything imports stays the same object, with its methods swapped for the kind of server signed in.
+const applyServerType = () => {
+	const wantPlex = serverType === 'plex';
+	if (wantPlex) registerPlexServer(currentServer, accessToken);
+	if (wantPlex === plexActive) return;
+	plexActive = wantPlex;
+	Object.assign(api, wantPlex ? plexMethods : jellyfinMethods);
+};
+
 /**
  * Create an API instance for a specific server
  * Used for cross-server content aggregation
@@ -1032,6 +1082,11 @@ export const createApiForServer = (serverUrl, token, userId, serverTypeOverride 
 		if (!/^https?:\/\//i.test(url)) {
 			url = 'http://' + url;
 		}
+	}
+
+	if (serverTypeOverride === 'plex' || isPlexServer(url)) {
+		registerPlexServer(url, token);
+		return plexApiFor(() => url, () => token, () => userId);
 	}
 
 	const getServerAuthHeader = () => buildAuthHeader(serverTypeOverride, token);

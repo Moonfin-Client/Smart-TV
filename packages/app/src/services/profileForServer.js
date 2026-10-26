@@ -30,7 +30,7 @@ const getServerVersion = async (api) => {
 // Jellyfin only learned NumStreams in 10.11, and older servers turn the whole request down with a
 // 400 when a profile names it. A server that cant be asked is treated as older.
 export const profileForServer = async (profile, serverType, api) => {
-	if (serverType === 'emby' || !namesNumStreams(profile)) return profile;
+	if (serverType === 'emby' || serverType === 'plex' || !namesNumStreams(profile)) return profile;
 	const version = await getServerVersion(api);
 	return version && compareVersions(version, '10.11.0') >= 0 ? profile : withoutNumStreams(profile);
 };

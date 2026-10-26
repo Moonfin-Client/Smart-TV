@@ -2,6 +2,7 @@ import {memo, useCallback, useMemo, useState} from 'react';
 import $L from '@enact/i18n/$L';
 import Spotlight from '@enact/spotlight';
 import SpotlightContainerDecorator from '@enact/spotlight/SpotlightContainerDecorator';
+import {useAuth} from '../../context/AuthContext';
 import {useSettings} from '../../context/SettingsContext';
 import {useSeerr} from '../../context/SeerrContext';
 import {useSyncPlay} from '../../context/SyncPlayContext';
@@ -55,6 +56,7 @@ const NavBar = ({
 	const {settings, activeTheme} = useSettings();
 	const {isEnabled: seerrEnabled, displayName} = useSeerr();
 	const {isInGroup} = useSyncPlay();
+	const {serverType} = useAuth();
 	const {messages, unreadCount} = useServerMessages();
 	const {socialAvailable, badgeCount: friendsBadge} = useAchievements();
 	const [libraryMenuOpen, setLibraryMenuOpen] = useState(false);
@@ -69,7 +71,8 @@ const NavBar = ({
 	const kidsMode = isKidsMode(settings);
 	const showLiveTv = !kidsMode && settings.showLiveTvButton !== false && hasLiveTv;
 	const showSeerr = !kidsMode && seerrEnabled && settings.showSeerrButton !== false;
-	const showSyncPlay = !kidsMode && settings.syncplayEnabled !== false && settings.showSyncPlayButton !== false;
+	// Plex has no SyncPlay.
+	const showSyncPlay = !kidsMode && serverType !== 'plex' && settings.syncplayEnabled !== false && settings.showSyncPlayButton !== false;
 	const navLibraries = librariesForNav(libraries, showLiveTv, {hideLiveTv: kidsMode});
 	const showLibraries = !kidsMode && settings.showLibrariesInToolbar !== false && navLibraries.length > 0;
 	// Only with something to show, so the menu never has a button that does nothing.

@@ -14,7 +14,7 @@ const STREAM_RECONNECT_MAX_MS = 60000;
 export const SeerrProvider = ({children}) => {
 	const {settings, syncFromServer} = useSettings();
 	const pluginEnabled = settings.useMoonfinPlugin;
-	const {serverUrl: authServerUrl, accessToken: authAccessToken} = useAuth();
+	const {serverUrl: authServerUrl, accessToken: authAccessToken, serverType: authServerType} = useAuth();
 	const [isEnabled, setIsEnabled] = useState(false);
 	const [isAuthenticated, setIsAuthenticated] = useState(false);
 	const [isLoading, setIsLoading] = useState(true);
@@ -260,13 +260,19 @@ export const SeerrProvider = ({children}) => {
 		// Stored config settles this on its own, so waiting for it to load keeps the two
 		// from configuring the same token at once.
 		if (isLoading) return;
+		// Seerr goes through the plugin, and a Plex server has none.
+		if (authServerType === 'plex') {
+			configuredTokenRef.current = null;
+			stopSettingsStream();
+			return;
+		}
 		if (!pluginEnabled && !(isEnabled && isMoonfin)) return;
 		if (!authAccessToken || !authServerUrl) return;
 		if (authAccessToken === configuredTokenRef.current) return;
 		configureWithMoonfin(authServerUrl, authAccessToken).catch(e =>
 			console.log('[Seerr] Configure against the plugin failed:', e.message)
 		);
-	}, [authAccessToken, authServerUrl, isLoading, pluginEnabled, isEnabled, isMoonfin, configureWithMoonfin]);
+	}, [authAccessToken, authServerUrl, authServerType, isLoading, pluginEnabled, isEnabled, isMoonfin, configureWithMoonfin, stopSettingsStream]);
 
 	const loginWithMoonfin = useCallback(async (username, password, authType = 'jellyfin') => {
 		const normalizedAuthType = normalizeMoonfinAuthType(authType);
@@ -352,7 +358,7 @@ export const SeerrProvider = ({children}) => {
 
 	return (
 		<SeerrContext.Provider value={{
-			isEnabled,
+			isEnabled: isEnabled && authServerType !== 'plex',
 			isAuthenticated,
 			isLoading,
 			user,

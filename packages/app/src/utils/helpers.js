@@ -1,6 +1,7 @@
 import {buildQueryString} from './urlCompat';
 import {uiLocale} from './uiLocale';
 import {parseServerDate} from './serverDate';
+import {isPlexServer, plexImageUrl} from './plexUrls';
 
 export const formatDuration = (ticks) => {
 	if (!ticks) return '';
@@ -19,6 +20,7 @@ export const formatDate = (dateString) => {
 };
 
 export const getImageUrl = (serverUrl, itemId, imageType = 'Primary', options = {}) => {
+	if (serverUrl && isPlexServer(serverUrl)) return plexImageUrl(serverUrl, itemId, imageType, options);
 	if (!serverUrl || !itemId) return null;
 	const params = {};
 	if (options.maxWidth) params.maxWidth = options.maxWidth;

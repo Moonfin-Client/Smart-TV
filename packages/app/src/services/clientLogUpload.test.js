@@ -12,6 +12,10 @@ describe('acceptsReports', () => {
 		expect(acceptsReports('emby', false)).toBe(false);
 		expect(acceptsReports('emby', undefined)).toBe(false);
 	});
+
+	test('Plex never takes them', () => {
+		expect(acceptsReports('plex', true)).toBe(false);
+	});
 });
 
 describe('clientLogRequest', () => {

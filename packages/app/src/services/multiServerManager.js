@@ -51,6 +51,9 @@ export const getAllServersArray = async () => {
 						username: user.username,
 						accessToken: user.accessToken,
 						primaryImageTag: user.primaryImageTag || null,
+						plexToken: user.plexToken || null,
+						machineId: server.machineId || null,
+						candidateAddresses: server.candidateAddresses || null,
 						addedDate: server.addedDate,
 						lastConnected: user.lastConnected,
 						connected: user.connected
@@ -83,6 +86,8 @@ export const getUniqueServers = async () => {
 				url: server.url,
 				serverType: server.serverType || 'jellyfin',
 				version: server.version || null,
+				machineId: server.machineId || null,
+				candidateAddresses: server.candidateAddresses || null,
 				addedDate: server.addedDate,
 				userCount: userCount
 			});
@@ -156,6 +161,8 @@ export const getActiveServer = async () => {
 		userId: activeUserId,
 		username: user.username,
 		accessToken: user.accessToken,
+		machineId: server.machineId || null,
+		candidateAddresses: server.candidateAddresses || null,
 		addedDate: server.addedDate,
 		lastConnected: user.lastConnected,
 		connected: user.connected

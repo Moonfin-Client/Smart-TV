@@ -3,6 +3,7 @@ import {fetchWithTimeout} from '../utils/fetchTimeout';
 import {mediaServerQueue} from '../utils/requestQueue';
 import {normalizeWatchlistBody} from './seerrApi.watchlistShape';
 import {sharePending} from '../utils/sharePending';
+import {isPlexUrl} from '../utils/plexUrls';
 
 let moonfinMode = false;
 let jellyfinServerUrl = null;
@@ -25,6 +26,8 @@ export const isMoonfinMode = () => moonfinMode;
 
 const fetchRequest = async (params) => {
 	const {url, method = 'GET', headers = {}, body, timeout = 15000} = params;
+	// Plex never has the plugin, so its requests are answered here instead of going out.
+	if (isPlexUrl(url)) return {success: true, status: 404, headers: {}, body: ''};
 
 	try {
 		const response = await mediaServerQueue.run(() => fetchWithTimeout(url, {
@@ -540,6 +543,7 @@ export const subscribeMoonfinSettingsStream = (serverUrl, token, onEvent, onErro
 	if (!sUrl || !sToken) {
 		throw new Error('Server URL and token required');
 	}
+	if (isPlexUrl(sUrl)) throw new Error('Plex servers have no settings stream');
 
 	let closed = false;
 	const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;

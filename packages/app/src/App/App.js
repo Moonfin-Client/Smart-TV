@@ -1119,14 +1119,14 @@ const AppContent = (props) => {
 		if (backgroundMusic) await remoteControl.releasePlayer();
 		if (isSyncPlayInGroup) {
 			syncPlaySetNewQueue([item.Id]);
-		} else if (settings.syncplayEnabled !== false && settings.syncplayAutoOpen) {
+		} else if (serverType !== 'plex' && settings.syncplayEnabled !== false && settings.syncplayAutoOpen) {
 			openSyncPlay();
 		}
 		setPlayingItem(item);
 		setPlaybackOptions(options || null);
 		setIsResume(!!resume);
 		navigateTo(PANELS.PLAYER);
-	}, [navigateTo, isSyncPlayInGroup, openSyncPlay, settings.syncplayAutoOpen, settings.syncplayEnabled, syncPlaySetNewQueue, backgroundMusic, openBook]);
+	}, [navigateTo, isSyncPlayInGroup, openSyncPlay, serverType, settings.syncplayAutoOpen, settings.syncplayEnabled, syncPlaySetNewQueue, backgroundMusic, openBook]);
 
 	const playSyncPlayItem = useCallback((item) => {
 		if (panelIndex === PANELS.PLAYER && playingItem?.Id === item.Id) return;
