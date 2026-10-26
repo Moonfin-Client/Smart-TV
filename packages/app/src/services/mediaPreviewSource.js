@@ -116,8 +116,10 @@ const outsideTrailerSource = async (item, extractYouTubeId) => {
 
 // A trailer on the server comes first, as a target the clip's own stream plays. The
 // first YouTube trailer comes next, as an id for the caller to resolve, since the
-// resolver is loaded on demand. Null when there is neither.
-export const resolveTrailerSource = async (api, item, extractYouTubeId) => {
+// resolver is loaded on demand. A server that keeps no trailer links has YouTube
+// searched for one. Null when there is neither.
+export const resolveTrailerSource = async (api, item, youtube) => {
+	const {extractYouTubeId} = youtube;
 	if (isOutsideTitle(item)) return outsideTrailerSource(item, extractYouTubeId);
 	const subjectId = trailerSubjectId(item);
 	if (!subjectId) return null;
@@ -131,7 +133,8 @@ export const resolveTrailerSource = async (api, item, extractYouTubeId) => {
 	}
 	const target = local ? await resolvePreviewTarget(api, local) : null;
 	if (target) return {target};
-	let subject = subjectId === item.Id && Array.isArray(item.RemoteTrailers) ? item : null;
+	const searches = youtube.searchesForTrailer(item, getServerType());
+	let subject = subjectId === item.Id && (Array.isArray(item.RemoteTrailers) || searches) ? item : null;
 	if (!subject) {
 		try {
 			subject = await api.getItem(subjectId);
@@ -139,7 +142,8 @@ export const resolveTrailerSource = async (api, item, extractYouTubeId) => {
 			return null;
 		}
 	}
-	const youTubeId = extractYouTubeId(subject);
+	let youTubeId = extractYouTubeId(subject);
+	if (!youTubeId && searches) youTubeId = extractYouTubeId({RemoteTrailers: await youtube.searchedTrailers(subject)});
 	return youTubeId ? {youTubeId} : null;
 };
 

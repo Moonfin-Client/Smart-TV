@@ -29,7 +29,7 @@ import {
 	supportsMediaPreview,
 	trailerSubjectId
 } from './mediaPreviewSource';
-import {extractYouTubeId} from './youtubeTrailer';
+import * as youtube from './youtubeTrailer';
 
 const TICK = 10000000;
 
@@ -377,7 +377,7 @@ describe('resolveTrailerSource', () => {
 	test('a trailer on the server comes before YouTube', async () => {
 		api.getLocalTrailers.mockResolvedValue([{Id: 'local-1'}]);
 
-		const source = await resolveTrailerSource(api, {Id: 'film', Type: 'Movie', RemoteTrailers: [youTube('aaaaaaaaaaa')]}, extractYouTubeId);
+		const source = await resolveTrailerSource(api, {Id: 'film', Type: 'Movie', RemoteTrailers: [youTube('aaaaaaaaaaa')]}, youtube);
 
 		expect(api.getLocalTrailers).toHaveBeenCalledWith('film');
 		expect(api.getItemMediaInfo).toHaveBeenCalledWith('local-1');
@@ -387,28 +387,48 @@ describe('resolveTrailerSource', () => {
 	test('Emby\'s wrapped list is read too', async () => {
 		api.getLocalTrailers.mockResolvedValue({Items: [{Id: 'local-2'}]});
 
-		expect(await resolveTrailerSource(api, {Id: 'film', Type: 'Movie'}, extractYouTubeId)).toEqual({target: trailerItem('local-2')});
+		expect(await resolveTrailerSource(api, {Id: 'film', Type: 'Movie'}, youtube)).toEqual({target: trailerItem('local-2')});
 	});
 
 	test('YouTube comes next, from the card when it carries the trailers', async () => {
-		const source = await resolveTrailerSource(api, {Id: 'film', Type: 'Movie', RemoteTrailers: [{Url: 'https://example.com/t.mp4'}, youTube('bbbbbbbbbbb')]}, extractYouTubeId);
+		const source = await resolveTrailerSource(api, {Id: 'film', Type: 'Movie', RemoteTrailers: [{Url: 'https://example.com/t.mp4'}, youTube('bbbbbbbbbbb')]}, youtube);
 
 		expect(source).toEqual({youTubeId: 'bbbbbbbbbbb'});
 		expect(api.getItem).not.toHaveBeenCalled();
+	});
+
+	test('a Plex title has YouTube searched for its trailer without being read again', async () => {
+		const searchedTrailers = jest.fn().mockResolvedValue([youTube('ggggggggggg')]);
+		const film = {Id: 'film', Type: 'Movie', Name: 'Film', _serverType: 'plex'};
+
+		expect(await resolveTrailerSource(api, film, {...youtube, searchedTrailers})).toEqual({youTubeId: 'ggggggggggg'});
+		expect(searchedTrailers).toHaveBeenCalledWith(film);
+		expect(api.getItem).not.toHaveBeenCalled();
+	});
+
+	test('a Plex episode searches with its show', async () => {
+		const searchedTrailers = jest.fn().mockResolvedValue([youTube('hhhhhhhhhhh')]);
+		const show = {Id: 'show', Type: 'Series', Name: 'Show'};
+		api.getItem.mockResolvedValue(show);
+
+		const source = await resolveTrailerSource(api, {Id: 'ep', Type: 'Episode', SeriesId: 'show', _serverType: 'plex'}, {...youtube, searchedTrailers});
+
+		expect(source).toEqual({youTubeId: 'hhhhhhhhhhh'});
+		expect(searchedTrailers).toHaveBeenCalledWith(show);
 	});
 
 	test('a card without its trailers fetches the title, and a failed local lookup still reaches YouTube', async () => {
 		api.getLocalTrailers.mockRejectedValue(new Error('offline'));
 		api.getItem.mockResolvedValue({Id: 'show', RemoteTrailers: [youTube('ccccccccccc')]});
 
-		expect(await resolveTrailerSource(api, {Id: 'show', Type: 'Series'}, extractYouTubeId)).toEqual({youTubeId: 'ccccccccccc'});
+		expect(await resolveTrailerSource(api, {Id: 'show', Type: 'Series'}, youtube)).toEqual({youTubeId: 'ccccccccccc'});
 		expect(api.getItem).toHaveBeenCalledWith('show');
 	});
 
 	test('an episode plays its show\'s trailer, not its own', async () => {
 		api.getItem.mockResolvedValue({Id: 'show', RemoteTrailers: [youTube('ddddddddddd')]});
 
-		const source = await resolveTrailerSource(api, {Id: 'ep', Type: 'Episode', SeriesId: 'show', RemoteTrailers: [youTube('eeeeeeeeeee')]}, extractYouTubeId);
+		const source = await resolveTrailerSource(api, {Id: 'ep', Type: 'Episode', SeriesId: 'show', RemoteTrailers: [youTube('eeeeeeeeeee')]}, youtube);
 
 		expect(api.getLocalTrailers).toHaveBeenCalledWith('show');
 		expect(api.getItem).toHaveBeenCalledWith('show');
@@ -418,8 +438,8 @@ describe('resolveTrailerSource', () => {
 	test('no trailer anywhere means nothing, and the clip is never asked for', async () => {
 		api.getItem.mockResolvedValue({Id: 'film', RemoteTrailers: []});
 
-		expect(await resolveTrailerSource(api, {Id: 'film', Type: 'Movie'}, extractYouTubeId)).toBeNull();
-		expect(await resolveTrailerSource(api, {Id: 'film', Type: 'Movie', RemoteTrailers: []}, extractYouTubeId)).toBeNull();
+		expect(await resolveTrailerSource(api, {Id: 'film', Type: 'Movie'}, youtube)).toBeNull();
+		expect(await resolveTrailerSource(api, {Id: 'film', Type: 'Movie', RemoteTrailers: []}, youtube)).toBeNull();
 		expect(api.getNextUp).not.toHaveBeenCalled();
 		expect(api.getItemMediaInfo).not.toHaveBeenCalled();
 	});
@@ -428,10 +448,10 @@ describe('resolveTrailerSource', () => {
 		moonfinPing.mockResolvedValue({tmdbDetailsSupported: true});
 		fetchTmdbDetails.mockResolvedValue({trailerUrl: 'https://www.youtube.com/watch?v=fffffffffff'});
 
-		expect(await resolveTrailerSource(api, seerrTitle(), extractYouTubeId)).toEqual({youTubeId: 'fffffffffff'});
+		expect(await resolveTrailerSource(api, seerrTitle(), youtube)).toEqual({youTubeId: 'fffffffffff'});
 		expect(fetchTmdbDetails).toHaveBeenLastCalledWith({type: 'movie', tmdbId: 603, imdbId: undefined});
 
-		expect(await resolveTrailerSource(api, listTitle(), extractYouTubeId)).toEqual({youTubeId: 'fffffffffff'});
+		expect(await resolveTrailerSource(api, listTitle(), youtube)).toEqual({youTubeId: 'fffffffffff'});
 		expect(fetchTmdbDetails).toHaveBeenLastCalledWith({type: 'tv', tmdbId: undefined, imdbId: 'tt0944947'});
 
 		expect(api.getLocalTrailers).not.toHaveBeenCalled();
@@ -442,22 +462,22 @@ describe('resolveTrailerSource', () => {
 	test('an outside title plays nothing without the plugin\'s TMDB details or a trailer in them', async () => {
 		fetchTmdbDetails.mockClear();
 		moonfinPing.mockResolvedValue({tmdbDetailsSupported: false});
-		expect(await resolveTrailerSource(api, seerrTitle(), extractYouTubeId)).toBeNull();
+		expect(await resolveTrailerSource(api, seerrTitle(), youtube)).toBeNull();
 		moonfinPing.mockRejectedValue(new Error('no plugin'));
-		expect(await resolveTrailerSource(api, seerrTitle(), extractYouTubeId)).toBeNull();
+		expect(await resolveTrailerSource(api, seerrTitle(), youtube)).toBeNull();
 		expect(fetchTmdbDetails).not.toHaveBeenCalled();
 
 		moonfinPing.mockResolvedValue({tmdbDetailsSupported: true});
 		fetchTmdbDetails.mockResolvedValue({overview: 'no trailer'});
-		expect(await resolveTrailerSource(api, seerrTitle(), extractYouTubeId)).toBeNull();
+		expect(await resolveTrailerSource(api, seerrTitle(), youtube)).toBeNull();
 		fetchTmdbDetails.mockResolvedValue(null);
-		expect(await resolveTrailerSource(api, seerrTitle(), extractYouTubeId)).toBeNull();
+		expect(await resolveTrailerSource(api, seerrTitle(), youtube)).toBeNull();
 		expect(api.getLocalTrailers).not.toHaveBeenCalled();
 	});
 
 	test('a card with no show to borrow from asks nothing', async () => {
-		expect(await resolveTrailerSource(api, {Id: 'ep', Type: 'Episode'}, extractYouTubeId)).toBeNull();
-		expect(await resolveTrailerSource(api, {Id: 'v', Type: 'Video'}, extractYouTubeId)).toBeNull();
+		expect(await resolveTrailerSource(api, {Id: 'ep', Type: 'Episode'}, youtube)).toBeNull();
+		expect(await resolveTrailerSource(api, {Id: 'v', Type: 'Video'}, youtube)).toBeNull();
 		expect(api.getLocalTrailers).not.toHaveBeenCalled();
 	});
 });

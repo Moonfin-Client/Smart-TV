@@ -218,7 +218,7 @@ export const createMediaPreviewController = ({getSettings, api, onThemeMusicHold
 			const loadTrailerModule = trailerModule ? Promise.resolve(trailerModule) : import('../../services/youtubeTrailer');
 			const [picked, loadedVideoModule, loadedTrailerModule, caps] = await Promise.all([
 				entry.trailer
-					? loadTrailerModule.then((youtube) => resolveTrailerSource(serverApi, entry.item, youtube.extractYouTubeId))
+					? loadTrailerModule.then((youtube) => resolveTrailerSource(serverApi, entry.item, youtube))
 					: resolvePreviewTarget(serverApi, entry.item).then((target) => target && {target}),
 				videoModule || import('@moonfin/platform-webos/video'),
 				loadTrailerModule,
@@ -249,7 +249,11 @@ export const createMediaPreviewController = ({getSettings, api, onThemeMusicHold
 				const source = target.MediaSources[0];
 				entry.playSessionId = newPlaySessionId();
 				entry.startTime = entry.trailer ? 0 : previewStartSeconds(target);
-				entry.url = buildMediaPreviewUrl({
+				entry.url = server.serverType === 'plex' ? await serverApi.getPreviewStreamUrl({
+					itemId: target.Id,
+					mediaSourceId: source.Id,
+					playSessionId: entry.playSessionId
+				}) : buildMediaPreviewUrl({
 					serverUrl: server.serverUrl,
 					serverType: server.serverType,
 					token: server.token,
@@ -260,6 +264,7 @@ export const createMediaPreviewController = ({getSettings, api, onThemeMusicHold
 					audioStreamIndex: pickPreviewAudioIndex(source, getSettings() || {}),
 					segmentContainer: previewSegmentContainer(platform, caps)
 				});
+				if (!isActive(id)) return;
 			}
 			entry.phase = 'attached';
 			timers.open = setTimeout(() => {

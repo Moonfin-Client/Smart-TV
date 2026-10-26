@@ -1,10 +1,11 @@
 import {useState, useEffect, useCallback, useRef} from 'react';
 import {buildQueryString} from '../../utils/urlCompat';
+import {isPlexServer, withPlexToken} from '../../utils/plexUrls';
 import {stopPlaybackForTrailer} from '../../utils/trailerPlayback';
 import {claimSharedVideo, isMusicPlaying, ownsSharedVideo, releaseSharedVideo} from '../../utils/sharedVideoOwner';
 import {coverVideoInBox} from '../../utils/videoCover';
 import {volumeLevel} from '../../utils/volumeLevel';
-import {createApiForServer, getApiKey, getServerUrl as getDefaultServerUrl} from '../../services/jellyfinApi';
+import {createApiForServer, getApiKey, getServerType, getServerUrl as getDefaultServerUrl} from '../../services/jellyfinApi';
 import serverLogger from '../../services/serverLogger';
 import {afterHomeReady} from '../../utils/homeReady';
 import css from './Browse.module.less';
@@ -128,6 +129,8 @@ export default function useTrailerPreview({currentItem, isVisible, enabled, pref
 		const initialTrailers = Array.isArray(item.RemoteTrailers) ? item.RemoteTrailers : [];
 		// A slide from an outside list isn't on the server, so what it came with is all there is.
 		if (initialTrailers.length > 0 || item._external) return initialTrailers;
+		const youtube = await import('../../services/youtubeTrailer');
+		if (youtube.searchesForTrailer(item, getServerType())) return youtube.searchedTrailers(item);
 
 		try {
 			const serverApi = item._serverUrl && item._serverAccessToken
@@ -152,18 +155,23 @@ export default function useTrailerPreview({currentItem, isVisible, enabled, pref
 
 			const trailers = await serverApi.getLocalTrailers(item.Id);
 			const trailerItems = Array.isArray(trailers?.Items) ? trailers.Items : Array.isArray(trailers) ? trailers : [];
-			const trailerId = trailerItems.find((t) => t?.Id)?.Id;
-			if (!trailerId) return null;
+			const trailer = trailerItems.find((t) => t?.Id);
+			if (!trailer) return null;
 
 			const resolvedServerUrl = item._serverUrl || getItemServerUrl(item) || getDefaultServerUrl();
 			if (!resolvedServerUrl) return null;
 
 			const resolvedToken = item._serverAccessToken || getApiKey();
+			// A Plex trailer plays straight from its own file.
+			if (isPlexServer(resolvedServerUrl)) {
+				const part = trailer.MediaSources?.[0]?.DirectStreamUrl;
+				return part ? withPlexToken(`${resolvedServerUrl}${part}`, resolvedToken) : null;
+			}
 			const params = {
 				...LOCAL_TRAILER_STREAM_PARAMS,
 				...(resolvedToken ? {ApiKey: resolvedToken} : {})
 			};
-			return `${resolvedServerUrl}/Videos/${encodeURIComponent(trailerId)}/stream?${buildQueryString(params)}`;
+			return `${resolvedServerUrl}/Videos/${encodeURIComponent(trailer.Id)}/stream?${buildQueryString(params)}`;
 		} catch {
 			return null;
 		}

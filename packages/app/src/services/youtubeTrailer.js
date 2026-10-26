@@ -673,6 +673,53 @@ export function attachTrailerStream (video, url, {Hls = null, audioLanguage = ''
 	};
 }
 
+// The first video in a search answer, in the order YouTube ranked them.
+export function firstSearchVideoId (node) {
+	if (!node || typeof node !== 'object') return null;
+	if (node.videoRenderer && typeof node.videoRenderer.videoId === 'string') return node.videoRenderer.videoId;
+	const children = Array.isArray(node) ? node : Object.keys(node).map(function (key) { return node[key]; });
+	for (let i = 0; i < children.length; i++) {
+		const id = firstSearchVideoId(children[i]);
+		if (id) return id;
+	}
+	return null;
+}
+
+const SEARCH_URL = 'https://www.youtube.com/youtubei/v1/search?prettyPrint=false';
+const searches = {};
+
+// A server that keeps no trailer links of its own gets the top YouTube search hit for the title's trailer, asked as the
+// web client, whose top hit is usually the studio's own upload. A search is kept per title, but a failed one isn't.
+export function searchedTrailers (item) {
+	if (!item || !item.Name) return Promise.resolve([]);
+	const query = [item.Name, item.ProductionYear, 'trailer'].filter(Boolean).join(' ');
+	if (!searches[query]) {
+		searches[query] = requestJson(SEARCH_URL, {
+			method: 'POST',
+			mode: 'cors',
+			credentials: 'omit',
+			cache: 'no-store',
+			headers: {'Content-Type': 'text/plain;charset=UTF-8'},
+			body: JSON.stringify({
+				context: {client: {clientName: 'WEB', clientVersion: '2.20260101.00.00', hl: 'en', gl: 'US'}},
+				query: query,
+				// Videos only, leaving out channels and playlists.
+				params: 'EgIQAQ%3D%3D'
+			})
+		}, REQUEST_TIMEOUT_MS, 'innertube:search').then(function (data) {
+			const id = firstSearchVideoId(data);
+			if (!id) delete searches[query];
+			return id ? [{Url: 'https://www.youtube.com/watch?v=' + id}] : [];
+		});
+	}
+	return searches[query];
+}
+
+// Plex items never carry trailer links. An item from the signed in server names no server type of its own.
+export function searchesForTrailer (item, activeServerType) {
+	return ((item && item._serverType) || activeServerType) === 'plex';
+}
+
 export function extractYouTubeId (item) {
 	let trailers = item && item.RemoteTrailers;
 	if (!trailers || trailers.length === 0) return null;
