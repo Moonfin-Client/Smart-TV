@@ -878,7 +878,7 @@ const ModernDetailContent = (props) => {
 								{piece.kind === 'status' && (
 									<span className={`${css.statusBadge} ${piece.ended ? css.statusEnded : ''}`}>{piece.text}</span>
 								)}
-								{piece.kind === 'text' && piece.text}
+								{(piece.kind === 'text' || piece.kind === 'runtime') && piece.text}
 							</span>
 						);
 					})}
