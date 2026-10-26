@@ -12,11 +12,31 @@ import {getVolumeState, lastVolumeState} from './systemVolume';
 import {loadShellBridge} from './shellBridge';
 import {linkBitrate} from './linkBitrate';
 import {canRetryWithoutMediaSourceId, isStreamlessStaticSource, isUnprobedPlaceholder, probedSources} from '../utils/placeholderSource';
+import {withPlexToken} from '../utils/plexUrls';
+import {parseSubtitleText} from '../utils/subtitleText';
+import {corsFreeFetch} from './secureFetch';
+import {isTizen} from '../platform';
 
 export const PlayMethod = {
 	DirectPlay: 'DirectPlay',
 	DirectStream: 'DirectStream',
 	Transcode: 'Transcode'
+};
+
+const isPlexCreds = (creds) => (creds?.serverType || jellyfinApi.getServerType()) === 'plex';
+
+const isHlsTranscode = (url, mediaSource, serverType) => url.includes('/master.m3u8') || url.includes('TranscodingProtocol=hls') ||
+	(serverType === 'plex' && mediaSource.TranscodingSubProtocol === 'hls');
+
+// Plex can't take a track out of a file, so on Plex a track the TV can't read from the file it plays only shows burned
+// into a transcode. Tizen's player reads every embedded track itself except dvd and dvb bitmaps, and PGS with its
+// rendering turned off is burned in too.
+const plexReadsFromFile = (stream, container, pgsOff = false) => {
+	const codec = stream.Codec?.toLowerCase();
+	if (stream.IsExternal) return true;
+	if (pgsOff && isPgsSubtitleCodec(codec)) return false;
+	return (isTizen() && !isBurnInSubtitleCodec(codec)) || rendersSubtitleInHost(codec) ||
+		isInBandSubtitleTrack(codec, {container, canStreamInBand: canRenderEmbeddedPgsInBand()});
 };
 
 const findSubtitleStreamByIndex = (index, ...streamSets) => {
@@ -49,7 +69,8 @@ const apiForSession = (session) => (session.serverCredentials
 	? jellyfinApi.createApiForServer(
 		session.serverCredentials.serverUrl,
 		session.serverCredentials.accessToken,
-		session.serverCredentials.userId
+		session.serverCredentials.userId,
+		session.serverCredentials.serverType
 	)
 	: jellyfinApi.api);
 
@@ -66,13 +87,27 @@ const closeLiveStreamOnce = async (session) => {
 	}
 };
 
+// Plex keeps a replaced play session listed as playing, with its transcoder running, until it's told the session ended,
+// so it's stopped where it last reported.
+const endReplacedPlexSession = (previous, next) => {
+	if (!isPlexCreds(previous.serverCredentials)) return;
+	if (!previous.playSessionId || previous.playSessionId === next.playSessionId) return;
+	const api = apiForSession(previous);
+	const position = previous.positionTicks ?? previous.startPositionTicks ?? 0;
+	api.reportPlaybackStopped({ItemId: previous.itemId, PlaySessionId: previous.playSessionId, PositionTicks: position}).catch(() => {});
+	api.stopActiveEncodings(previous.playSessionId).catch(() => {});
+};
+
 // A session dropped for a fresh one closes its stream only after the fresh one
 // is back, even when both carry the same id, since closing first leaves a
 // shared stream with no viewers and makes it reconnect to its source.
 const replaceSession = (session) => {
 	const previous = currentSession;
 	currentSession = session;
-	if (previous && previous !== session) closeLiveStreamOnce(previous);
+	if (previous && previous !== session) {
+		closeLiveStreamOnce(previous);
+		endReplacedPlexSession(previous, session);
+	}
 };
 
 const DEFAULT_PASSTHROUGH_SETTINGS = {
@@ -274,6 +309,11 @@ const buildPlaybackUrl = (itemId, mediaSource, playSessionId, playMethod, creden
 		isAudio
 	});
 
+	// A Plex file plays from its own part address.
+	if (playMethod === PlayMethod.DirectPlay && serverType === 'plex') {
+		return withPlexToken(`${serverUrl}${mediaSource.Path}`, apiKey);
+	}
+
 	if (playMethod === PlayMethod.DirectPlay) {
 		// Build query string manually for Chromium 47 compat (no URLSearchParams)
 		const queryParts = [
@@ -324,6 +364,7 @@ const buildPlaybackUrl = (itemId, mediaSource, playSessionId, playMethod, creden
 		const url = transcodeUrl.startsWith('http')
 			? transcodeUrl
 			: `${serverUrl}${transcodeUrl}`;
+		if (serverType === 'plex') return url.startsWith(serverUrl) ? withPlexToken(url, apiKey) : url;
 		return /api_?key=/i.test(url) ? url : `${url}&${jellyfinApi.getTokenParam(serverType)}=${apiKey}`;
 	}
 
@@ -351,11 +392,12 @@ const extractAudioStreams = (mediaSource) => {
 		}));
 };
 
-const extractSubtitleStreams = (mediaSource, itemId = null, creds = null, assBurnsIn = false, streamUrl = null, playMethod = null) => {
+const extractSubtitleStreams = (mediaSource, itemId = null, creds = null, assBurnsIn = false, streamUrl = null, playMethod = null, pgsOff = false) => {
 	if (!mediaSource.MediaStreams) return [];
 	const serverUrl = creds?.serverUrl || jellyfinApi.getServerUrl();
 	const apiKey = creds?.accessToken || jellyfinApi.getApiKey();
 	const tokenParam = jellyfinApi.getTokenParam(creds?.serverType);
+	const isPlex = isPlexCreds(creds);
 	let embeddedOrdinal = 0;
 
 	return mediaSource.MediaStreams
@@ -380,7 +422,7 @@ const extractSubtitleStreams = (mediaSource, itemId = null, creds = null, assBur
 			if (s.DeliveryUrl) {
 				// External URLs are used as-is, internal URLs need server prefix
 				deliveryUrl = s.IsExternalUrl ? s.DeliveryUrl : `${serverUrl}${s.DeliveryUrl}`;
-			} else if (isImageBased && itemId && !s.IsExternal) {
+			} else if (isImageBased && itemId && !s.IsExternal && !isPlex) {
 				deliveryUrl = `${serverUrl}/Videos/${itemId}/${mediaSource.Id}/Subtitles/${s.Index}/0/Stream.sup?${tokenParam}=${apiKey}`;
 			}
 			// Encode is the server saying the only way it can deliver this track is
@@ -389,8 +431,11 @@ const extractSubtitleStreams = (mediaSource, itemId = null, creds = null, assBur
 			// since a transcode carries no subtitle tracks.
 			const bitmapOnly = isBurnInSubtitleCodec(codec);
 			const hostRendered = bitmapOnly && !s.IsExternal && playMethod === PlayMethod.DirectPlay && rendersSubtitleInHost(codec);
+			// Plex can't decode a track it lists as codec none, so it never burns one in.
+			const plexBurns = isPlex && !s.IsExternal && codec !== 'none' &&
+				(playMethod !== PlayMethod.DirectPlay || !plexReadsFromFile(s, mediaSource.Container, pgsOff));
 			const isBurnIn = (bitmapOnly && !hostRendered) || s.DeliveryMethod === 'Encode' ||
-				(assBurnsIn && isAssSubtitleCodec(codec));
+				(assBurnsIn && isAssSubtitleCodec(codec)) || plexBurns;
 			return {
 				index: s.Index,
 				codec: s.Codec,
@@ -442,10 +487,10 @@ const getAutoMaxBitrate = (capabilities) => {
 
 // Where the platform asks for it, the automatic bitrate also stays under what the
 // link to the server was measured to carry.
-const autoMaxBitrate = async (capabilities, creds, canMeasure) => {
+const autoMaxBitrate = async (capabilities, creds, canMeasure, api) => {
 	const ceiling = getAutoMaxBitrate(capabilities);
 	if (!capabilities.fitsBitrateToLink) return ceiling;
-	const measured = await linkBitrate(creds ? {
+	const server = creds ? {
 		serverUrl: creds.serverUrl,
 		serverType: creds.serverType,
 		authHeader: jellyfinApi.getAuthHeaderFor(creds.serverType, creds.accessToken)
@@ -453,7 +498,9 @@ const autoMaxBitrate = async (capabilities, creds, canMeasure) => {
 		serverUrl: jellyfinApi.getServerUrl(),
 		serverType: jellyfinApi.getServerType(),
 		authHeader: jellyfinApi.getAuthHeader()
-	}, canMeasure).catch(() => null);
+	};
+	if (server.serverType === 'plex') server.testFileUrl = () => api.getBitrateTestUrl();
+	const measured = await linkBitrate(server, canMeasure).catch(() => null);
 	return measured ? Math.min(ceiling, measured) : ceiling;
 };
 
@@ -485,11 +532,10 @@ export const getPlaybackInfo = async (itemId, options = {}) => {
 	const playing = currentSession?.itemId === itemId ? currentSession : null;
 	const allowDirectPlay = playing ? playing.allowDirectPlay : options.enableDirectPlay !== false;
 	const allowDirectStream = playing ? playing.allowDirectStream : options.enableDirectStream !== false;
-	const enableDirectPlay = allowDirectPlay && options.enableDirectPlay !== false;
 	const enableDirectStream = allowDirectStream && options.enableDirectStream !== false;
 
 	// maxBitrate: user-set value (>0), or auto-detect from device capabilities
-	const maxBitrate = options.maxBitrate > 0 ? options.maxBitrate : await autoMaxBitrate(capabilities, creds, !currentSession);
+	const maxBitrate = options.maxBitrate > 0 ? options.maxBitrate : await autoMaxBitrate(capabilities, creds, !currentSession, api);
 
 	const requestedStartTime = isLiveTV ? 0 : (options.startPositionTicks || 0);
 	const hasExplicitSubtitle = options.subtitleStreamIndex != null;
@@ -501,15 +547,24 @@ export const getPlaybackInfo = async (itemId, options = {}) => {
 	// client-side. dvd and dvb bitmaps have no client renderer, so their index
 	// goes through and the server burns them in. So does PGS with its direct
 	// play turned off, because then nothing on this end will draw it.
+	const itemSources = options.item?.MediaSources;
+	const chosenSource = itemSources?.find((s) => s.Id === options.mediaSourceId);
 	const requestedSubStream = findSubtitleStreamByIndex(
 		requestedSubtitleStreamIndex,
 		options.mediaSource?.MediaStreams,
+		chosenSource?.MediaStreams,
 		options.item?.MediaStreams,
 		currentSession?.mediaSource?.MediaStreams
 	);
-	const subtitleIsPgs = storedSettings.enablePgsRendering !== false &&
+	// Plex can't hand a bitmap track out on its own, so it burns one in whenever the TV can't read it from the file.
+	const subtitleIsPgs = serverType !== 'plex' && storedSettings.enablePgsRendering !== false &&
 		!!requestedSubStream && isPgsSubtitleCodec(requestedSubStream.Codec);
 	const subtitleStreamIndex = subtitleIsPgs ? -1 : requestedSubtitleStreamIndex;
+	const sourceContainer = options.mediaSource?.Container || chosenSource?.Container || itemSources?.[0]?.Container ||
+		currentSession?.mediaSource?.Container;
+	const plexBurnsSubtitle = serverType === 'plex' && !!requestedSubStream && requestedSubStream.Codec !== 'none' &&
+		!plexReadsFromFile(requestedSubStream, sourceContainer, storedSettings.enablePgsRendering === false);
+	const enableDirectPlay = allowDirectPlay && options.enableDirectPlay !== false && !plexBurnsSubtitle;
 	// When the user hasn't explicitly picked a subtitle, omit the index entirely so
 	// the server applies their preferred-subtitle-language / SubtitleMode default.
 	const sentSubtitleStreamIndex = hasExplicitSubtitle ? subtitleStreamIndex : undefined;
@@ -600,7 +655,7 @@ export const getPlaybackInfo = async (itemId, options = {}) => {
 			: (mediaSource.SupportsDirectPlay ? PlayMethod.DirectPlay : PlayMethod.DirectStream);
 		const url = buildPlaybackUrl(itemId, mediaSource, playbackInfo.PlaySessionId, playMethod, creds, false, options);
 		const audioStreams = extractAudioStreams(mediaSource);
-		const subtitleStreams = extractSubtitleStreams(mediaSource, itemId, creds, storedSettings.assDirectPlay === false, null, playMethod);
+		const subtitleStreams = extractSubtitleStreams(mediaSource, itemId, creds, storedSettings.assDirectPlay === false, null, playMethod, storedSettings.enablePgsRendering === false);
 
 		replaceSession({
 			itemId,
@@ -623,7 +678,7 @@ export const getPlaybackInfo = async (itemId, options = {}) => {
 
 		let mimeType;
 		if (playMethod === PlayMethod.Transcode) {
-			if (url.includes('/master.m3u8') || url.includes('TranscodingProtocol=hls')) {
+			if (isHlsTranscode(url, mediaSource, serverType)) {
 				mimeType = 'application/x-mpegURL';
 			} else if (url.includes('.ts') || mediaSource.TranscodingContainer === 'ts') {
 				mimeType = 'video/mp2t';
@@ -744,8 +799,9 @@ export const getPlaybackInfo = async (itemId, options = {}) => {
 	// index) and it resolved to a bitmap track on a transcode, the server would
 	// burn it into the video, far too slow for a source the user never asked to
 	// re-encode. Re-negotiate without it, PGS still renders client-side from its
-	// .sup URL and burn-in stays an explicit choice.
-	if (!hasExplicitSubtitle && playMethod === PlayMethod.Transcode &&
+	// .sup URL and burn-in stays an explicit choice. Plex can't hand out a bitmap
+	// track, so there the burn stays.
+	if (serverType !== 'plex' && !hasExplicitSubtitle && playMethod === PlayMethod.Transcode &&
 			mediaSource.DefaultSubtitleStreamIndex != null && mediaSource.DefaultSubtitleStreamIndex >= 0) {
 		const resolvedSub = findSubtitleStreamByIndex(mediaSource.DefaultSubtitleStreamIndex, mediaSource.MediaStreams);
 		if (resolvedSub && (isPgsSubtitleCodec(resolvedSub.Codec) || isBurnInSubtitleCodec(resolvedSub.Codec))) {
@@ -827,7 +883,7 @@ export const getPlaybackInfo = async (itemId, options = {}) => {
 	const url = buildPlaybackUrl(itemId, mediaSource, playbackInfo.PlaySessionId, playMethod, creds, isAudio, options);
 
 	const audioStreams = extractAudioStreams(mediaSource);
-	const subtitleStreams = extractSubtitleStreams(mediaSource, itemId, creds, storedSettings.assDirectPlay === false, url, playMethod);
+	const subtitleStreams = extractSubtitleStreams(mediaSource, itemId, creds, storedSettings.assDirectPlay === false, url, playMethod, storedSettings.enablePgsRendering === false);
 	const chapters = extractChapters(mediaSource);
 
 	const audioOnlyRemux = playMethod === PlayMethod.Transcode && isAudioOnlyRemuxTranscode(mediaSource);
@@ -858,7 +914,7 @@ export const getPlaybackInfo = async (itemId, options = {}) => {
 
 	let mimeType;
 	if (playMethod === PlayMethod.Transcode) {
-		if (url.includes('/master.m3u8') || url.includes('TranscodingProtocol=hls')) {
+		if (isHlsTranscode(url, mediaSource, serverType)) {
 			mimeType = 'application/x-mpegURL';
 		} else if (url.includes('.ts') || mediaSource.TranscodingContainer === 'ts') {
 			mimeType = 'video/mp2t';
@@ -939,6 +995,7 @@ export const getSubtitleUrl = (subtitleStream) => {
 // Raw ASS/SSA subtitle URL that preserves styling (vs getSubtitleUrl which converts to VTT)
 export const getAssSubtitleUrl = (subtitleStream) => {
 	if (!subtitleStream?.isAss || !currentSession) return null;
+	if (isPlexCreds(currentSession.serverCredentials)) return subtitleStream.deliveryUrl || null;
 
 	const {itemId, mediaSourceId, serverCredentials} = currentSession;
 	const serverUrl = serverCredentials?.serverUrl || jellyfinApi.getServerUrl();
@@ -990,6 +1047,19 @@ export const fetchSubtitleData = async (subtitleStream) => {
 	if (!subtitleStream.isTextBased) {
 		console.log('[Playback] Subtitle stream is not text-based, cannot fetch as JSON');
 		return null;
+	}
+
+	// Plex hands out a sidecar file as it is, so it's parsed here.
+	if (isPlexCreds(serverCredentials)) {
+		if (!subtitleStream.deliveryUrl) return null;
+		try {
+			const response = await corsFreeFetch(subtitleStream.deliveryUrl);
+			if (!response.ok) throw new Error(`Failed to fetch subtitles: ${response.status}`);
+			return {TrackEvents: parseSubtitleText(await response.text())};
+		} catch (err) {
+			console.error('[Playback] Failed to fetch subtitle data:', err);
+			return null;
+		}
 	}
 
 	// Jellyfin returns JSON when requesting .js format instead of .vtt
@@ -1230,6 +1300,16 @@ const stopRequest = (positionTicks) => {
 	serverUrl = serverUrl.trim().replace(/\/+$/, '');
 	if (!/^https?:\/\//i.test(serverUrl)) serverUrl = 'http://' + serverUrl;
 
+	// Plex takes its stop as a timeline report, all of it in the address.
+	if (isPlexCreds(creds)) {
+		const endpoint = apiForSession(currentSession).stoppedTimelineUrl({
+			ItemId: currentSession.itemId,
+			PlaySessionId: currentSession.playSessionId,
+			PositionTicks: positionTicks || 0
+		});
+		return endpoint ? {endpoint, json: ''} : null;
+	}
+
 	const liveStreamId = currentSession.liveStreamClosed ? null : currentSession.liveStreamId;
 	return {
 		endpoint: `${serverUrl}/Sessions/Playing/Stopped?${jellyfinApi.getTokenParam(creds?.serverType)}=${encodeURIComponent(token)}`,
@@ -1269,16 +1349,7 @@ export const reportStart = async (positionTicks = 0) => {
 	delete currentSession.lastStopBeaconKey;
 
 	try {
-		// Use session's server credentials for cross-server support
-		const api = currentSession.serverCredentials
-			? jellyfinApi.createApiForServer(
-				currentSession.serverCredentials.serverUrl,
-				currentSession.serverCredentials.accessToken,
-				currentSession.serverCredentials.userId
-			)
-			: jellyfinApi.api;
-
-		await api.reportPlaybackStart({
+		await apiForSession(currentSession).reportPlaybackStart({
 			ItemId: currentSession.itemId,
 			PlaySessionId: currentSession.playSessionId,
 			MediaSourceId: currentSession.mediaSourceId,
@@ -1298,15 +1369,7 @@ export const reportProgress = async (positionTicks, options = {}) => {
 	if (!currentSession) return;
 
 	try {
-		// Use session's server credentials for cross-server support
-		const api = currentSession.serverCredentials
-			? jellyfinApi.createApiForServer(
-				currentSession.serverCredentials.serverUrl,
-				currentSession.serverCredentials.accessToken,
-				currentSession.serverCredentials.userId
-			)
-			: jellyfinApi.api;
-
+		const api = apiForSession(currentSession);
 		const info = {
 			ItemId: currentSession.itemId,
 			PlaySessionId: currentSession.playSessionId,
@@ -1319,6 +1382,7 @@ export const reportProgress = async (positionTicks, options = {}) => {
 			AudioStreamIndex: currentSession.audioStreamIndex,
 			SubtitleStreamIndex: currentSession.subtitleStreamIndex
 		};
+		currentSession.positionTicks = positionTicks;
 
 		if (options.eventName) {
 			info.EventName = options.eventName;

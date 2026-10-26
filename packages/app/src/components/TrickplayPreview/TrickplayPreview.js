@@ -1,11 +1,13 @@
 import {useState, useEffect, useLayoutEffect, useReducer, useRef} from 'react';
 import * as jellyfinApi from '../../services/jellyfinApi';
+import {plexTrickplayFrameUrl} from '../../utils/plexUrls';
 import {planSeekSheetIndexes, trickplayTile} from '../../utils/trickplaySheets';
 import {VERTICAL_TRAVEL_TOP_MARGIN, planTrickplayPreview} from '../../utils/trickplayLayout';
 
 import css from './TrickplayPreview.module.less';
 
 export const getTrickplayManifest = async (itemId, mediaSourceId) => {
+    if (jellyfinApi.getServerType() === 'plex') return jellyfinApi.api.getTrickplayManifest(itemId, mediaSourceId).catch(() => null);
     try {
         const serverUrl = jellyfinApi.getServerUrl();
         const apiKey = jellyfinApi.getApiKey();
@@ -87,8 +89,9 @@ const pickWidth = (manifest, preferredWidth) => {
 	return best;
 };
 
-const sheetUrl = (itemId, mediaSourceId, width, imageIndex) =>
-	`${jellyfinApi.getServerUrl()}/Videos/${itemId}/Trickplay/${width}/${imageIndex}.jpg?MediaSourceId=${mediaSourceId}&ApiKey=${jellyfinApi.getApiKey()}`;
+const sheetUrl = (itemId, mediaSourceId, width, imageIndex, info) => (info?.PlexPartId
+	? plexTrickplayFrameUrl(jellyfinApi.getServerUrl(), info, imageIndex)
+	: `${jellyfinApi.getServerUrl()}/Videos/${itemId}/Trickplay/${width}/${imageIndex}.jpg?MediaSourceId=${mediaSourceId}&ApiKey=${jellyfinApi.getApiKey()}`);
 
 // The sheet's crop scaled so the wanted thumbnail fills a box of the given size.
 const spriteStyle = (url, tile, width, height) => {
@@ -166,7 +169,7 @@ const TrickplayPreview = ({
 
 	const positionMs = positionTicks / 10000;
 	const durationMs = durationTicks / 10000;
-	const urlFor = (imageIndex) => sheetUrl(itemId, mediaSourceId, widthRef.current, imageIndex);
+	const urlFor = (imageIndex) => sheetUrl(itemId, mediaSourceId, widthRef.current, imageIndex, info);
 
 	// Warms the sheets around a position in the direction the viewer is heading.
 	const prefetch = (fromMs, forward) => {

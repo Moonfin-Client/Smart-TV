@@ -12,6 +12,7 @@ jest.mock('../services/jellyfinApi', () => ({
 	getServerUrl: () => 'http://server',
 	getApiKey: () => 'token',
 	getTokenParam: () => 'api_key',
+	getServerType: () => 'jellyfin',
 	api: {getThemeSongs: jest.fn()}
 }));
 

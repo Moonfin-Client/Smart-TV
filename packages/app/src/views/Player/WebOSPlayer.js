@@ -9,6 +9,7 @@ import {transcodesAudioCodec} from '../../utils/deviceProfileTuning';
 import {api as jellyfinApi, createApiForServer, getServerUrl} from '../../services/jellyfinApi';
 import {getApiForItem} from '../../services/connectionPool';
 import {isVega} from '../../platform';
+import {isPlexUrl} from '../../utils/plexUrls';
 import AudioMode from './audio/AudioMode';
 import useAudioTransport from './audio/useAudioTransport';
 import useLyrics from './audio/useLyrics';
@@ -1553,8 +1554,10 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 
 			// forceHlsJsRef overrides native when HEVC decoding already failed. The Fire TV
 			// WebView's own HLS player holds on to what it has played, so a high bitrate
-			// remux runs the device out of memory.
-			const nativeHlsOk = !forceHlsJsRef.current && !(isVega() && !isLiveTV)
+			// remux runs the device out of memory. hls.js can't read a Plex stream there
+			// though, since Plex only lets app.plex.tv read its answers.
+			// shortcut: a high bitrate Plex remux can still run the stick out of memory, give hls.js a shell loader if it does.
+			const nativeHlsOk = !forceHlsJsRef.current && !(isVega() && !isLiveTV && !isPlexUrl(mediaUrl))
 				&& !!(video.canPlayType('application/x-mpegURL').replace(/no/, ''));
 			const useHlsJs = isHls && !nativeHlsOk && Hls.isSupported();
 			console.log('[Player] Source type:', { isHls, mimeType, autoplay: video.autoplay, platformVersion: platformVersionRef.current, nativeHlsOk, useHlsJs, forceHlsJs: forceHlsJsRef.current });

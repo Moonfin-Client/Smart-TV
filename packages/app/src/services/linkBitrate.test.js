@@ -48,6 +48,22 @@ describe('the link bitrate', () => {
 		expect(global.fetch.mock.calls[0][1].headers.Authorization).toBe(server.authHeader);
 	});
 
+	test('on Plex is timed off the start of a library file, read no further than the test needs', async () => {
+		const file = 'http://plex:32400/library/parts/5/1/file.mkv?X-Plex-Token=t';
+		const plex = {serverUrl: `http://plex-${servers}:32400`, serverType: 'plex', testFileUrl: () => Promise.resolve(file)};
+		const response = download([{bytes: 100000, afterMs: 300}, {bytes: 500000, afterMs: 500}, {bytes: 500000, afterMs: 500}, {bytes: 500000, afterMs: 500}]);
+		const reader = response.body.getReader();
+		const read = jest.fn(reader.read);
+		response.body.getReader = () => ({read});
+		global.fetch.mockResolvedValueOnce(response);
+
+		await expect(linkBitrate(plex)).resolves.toBe(5600000);
+
+		expect(global.fetch.mock.calls[0][0]).toBe(file);
+		expect(global.fetch.mock.calls[0][1].headers).toEqual({});
+		expect(read).toHaveBeenCalledTimes(3);
+	});
+
 	test('is read off the download once it has got up to speed', async () => {
 		global.fetch.mockResolvedValueOnce(download([
 			{bytes: 100000, afterMs: 300},

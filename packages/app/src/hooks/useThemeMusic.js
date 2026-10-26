@@ -1,14 +1,17 @@
 import {useRef, useCallback, useEffect} from 'react';
 import {useSettings} from '../context/SettingsContext';
 import * as jellyfinApi from '../services/jellyfinApi';
+import {withPlexToken} from '../utils/plexUrls';
 
 const FADE_DURATION = 1500;
 const FADE_INTERVAL = 50;
 const HOME_ROW_DELAY = 1500;
 
+// A Plex theme's id is the path it plays from.
 const buildAudioUrl = (itemId) => {
 	const server = jellyfinApi.getServerUrl();
 	const token = jellyfinApi.getApiKey();
+	if (jellyfinApi.getServerType() === 'plex') return withPlexToken(`${server}${itemId}`, token);
 	return `${server}/Audio/${encodeURIComponent(itemId)}/stream?static=true&audioCodec=mp3&audioBitrate=128000&${jellyfinApi.getTokenParam()}=${encodeURIComponent(token)}`;
 };
 

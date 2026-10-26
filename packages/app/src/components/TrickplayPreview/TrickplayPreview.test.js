@@ -18,6 +18,7 @@ jest.mock('../../services/jellyfinApi', () => ({
 	getServerUrl: () => 'http://server',
 	getApiKey: () => 'key',
 	getTokenParam: () => 'ApiKey',
+	getServerType: () => 'jellyfin',
 	userRoutes: {item: (id) => `/Items/${id}?`}
 }));
 

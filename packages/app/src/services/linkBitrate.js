@@ -1,5 +1,5 @@
 // How much this device can pull from a server each second, by the server's own
-// bitrate test.
+// bitrate test, or on Plex by the start of a library file.
 //
 // A wireless link can carry far less than the device plays, and a stream asked for
 // at more than the link carries stalls from start to finish. Where a platform asks
@@ -22,14 +22,14 @@ const underway = new Map();
 
 // Timed from the first data in, so the wait for the server to answer isnt counted.
 // A test cut off by the timeout still says how fast the link was until then.
-const timeDownload = async (serverUrl, headers, bytes) => {
+const timeDownload = async (url, headers, bytes) => {
 	const controller = new AbortController();
 	const timer = setTimeout(() => controller.abort(), TEST_TIMEOUT_MS);
 	let started = 0;
 	let received = 0;
 	let settled = null;
 	try {
-		const response = await fetch(`${serverUrl}/Playback/BitrateTest?Size=${bytes}`, {headers, cache: 'no-store', signal: controller.signal});
+		const response = await fetch(url, {headers, cache: 'no-store', signal: controller.signal});
 		if (!response.ok || !response.body) return null;
 		const reader = response.body.getReader();
 		for (;;) {
@@ -38,6 +38,11 @@ const timeDownload = async (serverUrl, headers, bytes) => {
 			if (started) received += value.byteLength;
 			else started = performance.now();
 			if (!settled && received >= bytes * RAMP_SHARE) settled = {at: performance.now(), received};
+			// A library file keeps coming long past the test's size, so the read stops there.
+			if (received >= bytes) {
+				controller.abort();
+				break;
+			}
 		}
 	} catch (err) {
 		if (err.name !== 'AbortError') return null;
@@ -54,10 +59,14 @@ const timeDownload = async (serverUrl, headers, bytes) => {
 	return {ms, bitsPerSecond};
 };
 
-const measure = async ({serverUrl, serverType, authHeader}) => {
-	const headers = {Authorization: authHeader, ...legacyAuthHeader(serverType, authHeader)};
-	let result = await timeDownload(serverUrl, headers, TEST_BYTES);
-	if (result && result.ms < SHORT_TEST_MS) result = (await timeDownload(serverUrl, headers, LONGER_TEST_BYTES)) || result;
+// Plex has no bitrate test, so the start of a file in its library stands in, with the token in its address.
+const measure = async ({serverUrl, serverType, authHeader, testFileUrl}) => {
+	const plexFile = serverType === 'plex' && testFileUrl ? await testFileUrl().catch(() => null) : null;
+	if (serverType === 'plex' && !plexFile) return null;
+	const headers = plexFile ? {} : {Authorization: authHeader, ...legacyAuthHeader(serverType, authHeader)};
+	const urlFor = (bytes) => plexFile || `${serverUrl}/Playback/BitrateTest?Size=${bytes}`;
+	let result = await timeDownload(urlFor(TEST_BYTES), headers, TEST_BYTES);
+	if (result && result.ms < SHORT_TEST_MS) result = (await timeDownload(urlFor(LONGER_TEST_BYTES), headers, LONGER_TEST_BYTES)) || result;
 	return result ? Math.max(LOWEST_BITRATE, Math.round(result.bitsPerSecond * HEADROOM)) : null;
 };
 
