@@ -55,16 +55,17 @@ describe('extractPrivateIpv4FromSdp', () => {
 });
 
 describe('buildPrivateSubnetCandidates', () => {
-	test('walks the subnet on both schemes and both ports, skipping our own address', () => {
+	test('walks the subnet on both schemes and both ports, plus Plex over http, skipping our own address', () => {
 		const candidates = buildPrivateSubnetCandidates({
 			prefixes: {'192.168.50': true},
 			currentHostByPrefix: {'192.168.50': 42},
 			originScheme: 'http'
 		});
 
-		expect(candidates).toHaveLength(253 * 4);
+		expect(candidates).toHaveLength(253 * 5);
 		expect(candidates).toContain('http://192.168.50.1:8096');
 		expect(candidates).toContain('https://192.168.50.1:8920');
+		expect(candidates).toContain('http://192.168.50.1:32400');
 		expect(candidates.some((url) => url.indexOf('192.168.50.42:') >= 0)).toBe(false);
 	});
 

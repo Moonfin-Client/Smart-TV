@@ -1,6 +1,5 @@
-// Icons for the sign-in screens. Both server logos are the outlines the other
-// clients paint, so a saved server is recognizable at a glance before its name
-// has been read.
+// Icons for the sign-in screens. Each server logo is its brand's own outline, so a
+// saved server is recognizable at a glance before its name has been read.
 
 const JELLYFIN_PATH = 'M127.998 39.598C104.6 39.598 29.281 176.145 40.766 199.206C52.251 222.267 203.874 222 215.233 199.206C226.592 176.412 151.395 39.598 127.998 39.598ZM128.009 74.617C143.338 74.617 192.609 164.251 185.166 179.198C177.724 194.14 78.384 194.307 70.854 179.198C63.324 164.089 112.681 74.617 128.009 74.617ZM127.998 107.341C120.233 107.341 95.235 152.658 99.05 160.31C102.865 167.962 153.178 167.878 156.948 160.31C160.718 152.742 136.763 107.344 127.998 107.341Z';
 
@@ -21,8 +20,18 @@ export const MaterialIcon = ({name, className}) => (
 	</svg>
 );
 
-export const ServerTypeIcon = ({serverType, className}) => (
-	serverType === 'emby' ? (
+// The chevron Plex marks itself with.
+const PLEX_PATH = 'M64 24H128L192 128L128 232H64L128 128Z';
+
+export const ServerTypeIcon = ({serverType, className}) => {
+	if (serverType === 'plex') {
+		return (
+			<svg className={className} viewBox="0 0 256 256" fill="currentColor" aria-hidden="true">
+				<path d={PLEX_PATH} />
+			</svg>
+		);
+	}
+	return serverType === 'emby' ? (
 		<svg className={className} viewBox="0 0 712.601 712.601" fill="currentColor" aria-hidden="true">
 			<g transform="translate(64 64) scale(0.82)">
 				<path d={EMBY_PATH} />
@@ -32,5 +41,5 @@ export const ServerTypeIcon = ({serverType, className}) => (
 		<svg className={className} viewBox="0 0 256 256" fill="currentColor" aria-hidden="true">
 			<path d={JELLYFIN_PATH} />
 		</svg>
-	)
-);
+	);
+};

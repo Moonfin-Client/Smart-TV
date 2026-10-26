@@ -1,5 +1,5 @@
 /**
- * Finds Jellyfin and Emby servers on the local network.
+ * Finds Jellyfin, Emby and Plex servers on the local network.
  *
  * A packaged TV app has no UDP socket, so the broadcast the other clients send
  * is out of reach. All that is left is asking every address that could
@@ -11,10 +11,16 @@
 import {detectServerType} from '../utils/connectionErrors';
 import {normalizeServerBaseUrl} from '../utils/serverUrl';
 import {resolvePlatformModule} from './platformModule';
+import {isVega} from '../platform';
+import {loadShellBridge} from './shellBridge';
+import {plexVersion} from './plexMapper';
 
 const REQUEST_TIMEOUT = 1200;
 const MAX_IN_FLIGHT = 16;
 const COMMON_PORTS = [8096, 8920];
+// Plex answers on its own port, over plain http on a LAN, since its certificate names a plex.direct host and not the address.
+const PLEX_PORT = 32400;
+const PLEX_ADDRESS = new RegExp(`:${PLEX_PORT}$`);
 const WEBRTC_GATHER_TIMEOUT = 2200;
 const WEBRTC_POLL_INTERVAL = 120;
 
@@ -94,6 +100,17 @@ const resolveBaseUrl = (requestUrl) => {
 const SILENT = {ok: false, answered: false};
 const ANSWERED = {ok: false, answered: true};
 
+// An answer only counts as a server's when it's a JSON object.
+const jsonAnswer = (status, text, url) => {
+	if (status < 200 || status >= 300) return ANSWERED;
+	try {
+		const data = JSON.parse(text);
+		return data && typeof data === 'object' ? {ok: true, answered: true, data, url} : ANSWERED;
+	} catch (e) {
+		return ANSWERED;
+	}
+};
+
 /**
  * A bare GET that reports a JSON body and whether anything answered at all.
  * Deliberately not the app's own fetch wrapper: a subnet walk is a thousand
@@ -120,30 +137,15 @@ const requestJson = (url, live) => new Promise((resolve) => {
 
 	try {
 		xhr.open('GET', url, true);
+		// Plex answers in XML without it.
+		xhr.setRequestHeader('Accept', 'application/json');
 	} catch (e) {
 		resolve(SILENT);
 		return;
 	}
 
 	xhr.timeout = REQUEST_TIMEOUT;
-	xhr.onload = () => {
-		if (xhr.status < 200 || xhr.status >= 300) {
-			finish(ANSWERED);
-			return;
-		}
-		let data = null;
-		try {
-			data = JSON.parse(xhr.responseText);
-		} catch (e) {
-			finish(ANSWERED);
-			return;
-		}
-		if (!data || typeof data !== 'object') {
-			finish(ANSWERED);
-			return;
-		}
-		finish({ok: true, answered: true, data, url: xhr.responseURL || url});
-	};
+	xhr.onload = () => finish(jsonAnswer(xhr.status, xhr.responseText, xhr.responseURL || url));
 	xhr.onerror = () => finish(SILENT);
 	xhr.ontimeout = () => finish(SILENT);
 	xhr.onabort = () => finish(SILENT);
@@ -156,8 +158,29 @@ const requestJson = (url, live) => new Promise((resolve) => {
 	}
 });
 
+// On Fire TV the shell asks instead, since the page at file:// can't read a Plex server's answer.
+const requestJsonInShell = async (url) => {
+	const answer = await (await loadShellBridge()).requestThroughShell(url, {headers: {Accept: 'application/json'}}, REQUEST_TIMEOUT);
+	return answer.status ? jsonAnswer(answer.status, answer.body, url) : SILENT;
+};
+
+const probePlex = async (base, state) => {
+	const url = base + '/identity';
+	const response = await (isVega() ? requestJsonInShell(url) : requestJson(url, state.live));
+	const identity = response.ok ? response.data.MediaContainer : null;
+	if (!identity || !identity.machineIdentifier) return null;
+	return {
+		id: identity.machineIdentifier,
+		name: 'Plex Media Server',
+		address: base,
+		serverType: 'plex',
+		version: plexVersion(identity.version) || ''
+	};
+};
+
 const probeServer = async (baseUrl, state) => {
 	const base = baseUrl.charAt(baseUrl.length - 1) === '/' ? baseUrl.slice(0, -1) : baseUrl;
+	if (PLEX_ADDRESS.test(base)) return probePlex(base, state);
 
 	for (let i = 0; i < PUBLIC_INFO_PATHS.length; i++) {
 		if (state.canceled) return null;
@@ -350,6 +373,7 @@ export const buildPrivateSubnetCandidates = ({prefixes, currentHostByPrefix, ori
 					}
 				}
 			}
+			if (schemes.indexOf('http') >= 0) candidates.push('http://' + host + ':' + PLEX_PORT);
 		}
 	}
 
