@@ -22,6 +22,10 @@ describe('redactUrl', () => {
 		expect(redactUrl(`${BASE}?api_key=secret`)).toBe(`${BASE}?api_key=***`);
 	});
 
+	it('hides a Plex token', () => {
+		expect(redactUrl(`${BASE}?X-Plex-Product=Moonfin&X-Plex-Token=secret`)).toBe(`${BASE}?X-Plex-Product=Moonfin&X-Plex-Token=***`);
+	});
+
 	it('hides every credential when more than one is present', () => {
 		expect(redactUrl(`${BASE}?ApiKey=a&x=1&token=b`))
 			.toBe(`${BASE}?ApiKey=***&x=1&token=***`);

@@ -97,20 +97,25 @@ const plexUserData = async (message) => {
 		else plexStates[session?.sessionKey] = state;
 		if (!changed || !PLEX_SETTLED.includes(state) || session.ratingKey == null) return;
 		const key = String(session.ratingKey);
-		settled[key] = settled[key] || state === 'stopped';
+		const entry = settled[key] || (settled[key] = {stopped: false, sessions: []});
+		entry.stopped = entry.stopped || state === 'stopped';
+		entry.sessions.push(session.sessionKey);
 	});
 	const entries = [];
 	for (const key of Object.keys(settled)) {
 		try {
 			const item = await api.getItem(key);
-			const ids = settled[key] ? [item.SeasonId, item.SeriesId].filter(Boolean) : [];
+			const ids = settled[key].stopped ? [item.SeasonId, item.SeriesId].filter(Boolean) : [];
 			const related = await Promise.all(ids.map((id) => api.getItem(id).catch(() => null)));
 			// A finished item has no progress left, so the old bar is cleared.
 			[item, ...related].forEach((entry) => {
 				if (entry?.UserData) entries.push({PlayedPercentage: null, ...entry.UserData, ItemId: entry.Id});
 			});
 		} catch {
-			// The next settled session tries again.
+			// A pause that couldn't be read is forgotten, so the next report of it tries again.
+			settled[key].sessions.forEach((sessionKey) => {
+				if (plexStates[sessionKey] === 'paused') delete plexStates[sessionKey];
+			});
 		}
 	}
 	if (entries.length) tell(messageListeners, {MessageType: 'UserDataChanged', Data: {UserId: userId, UserDataList: entries}});

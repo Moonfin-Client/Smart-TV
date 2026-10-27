@@ -1117,9 +1117,11 @@ const AppContent = (props) => {
 		}
 		// Music left playing behind the screens reports its stop before the new item opens.
 		if (backgroundMusic) await remoteControl.releasePlayer();
-		if (isSyncPlayInGroup) {
+		// Plex has no SyncPlay, so a Plex item neither joins a group nor opens it.
+		const itemOnPlex = (item._serverType || serverType) === 'plex';
+		if (isSyncPlayInGroup && !itemOnPlex) {
 			syncPlaySetNewQueue([item.Id]);
-		} else if (serverType !== 'plex' && settings.syncplayEnabled !== false && settings.syncplayAutoOpen) {
+		} else if (!itemOnPlex && settings.syncplayEnabled !== false && settings.syncplayAutoOpen) {
 			openSyncPlay();
 		}
 		setPlayingItem(item);

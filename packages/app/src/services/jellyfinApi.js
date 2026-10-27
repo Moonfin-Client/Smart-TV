@@ -1063,6 +1063,12 @@ const applyServerType = () => {
 	if (wantPlex) registerPlexServer(currentServer, accessToken);
 	if (wantPlex === plexActive) return;
 	plexActive = wantPlex;
+	// Plex adds methods Jellyfin doesn't have, and those have to go again.
+	if (!wantPlex) {
+		Object.keys(api).forEach((name) => {
+			if (!Object.prototype.hasOwnProperty.call(jellyfinMethods, name)) delete api[name];
+		});
+	}
 	Object.assign(api, wantPlex ? plexMethods : jellyfinMethods);
 };
 

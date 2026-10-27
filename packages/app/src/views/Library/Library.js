@@ -1407,8 +1407,9 @@ const Library = ({library, genreFilter, studioFilter, onSelectItem, onViewPhoto,
 	// Emby's items query has no 4K flag and its series status holds only
 	// continuing and ended, so those options stay out of the panel there.
 	// Plex can't filter on series status, likes, subtitles, trailers, extras, theme media, 3D or disc source.
-	const onPlex = serverType === 'plex';
-	const supported = (options) => options.filter(o => (!o.jellyfinOnly || serverType !== 'emby') && !(onPlex && o.plexless));
+	const libraryServerType = library?._serverType || serverType;
+	const onPlex = libraryServerType === 'plex';
+	const supported = (options) => options.filter(o => (!o.jellyfinOnly || libraryServerType !== 'emby') && !(onPlex && o.plexless));
 	const folderName = folderStack.length > 0 ? folderStack[folderStack.length - 1].name : library?.Name;
 	const displayName = genreFilter || studioFilter || library?.Name || '';
 	const titleProps = {isFolderView, folderStack, rootName: library?.Name, displayName, shownCount, onBreadcrumb: handleFolderBreadcrumb};

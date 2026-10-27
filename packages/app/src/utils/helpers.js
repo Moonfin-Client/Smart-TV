@@ -98,7 +98,8 @@ export const getLogoUrl = (serverUrl, item, options = {}) => {
 	if (item.ImageTags?.Logo) {
 		return getImageUrl(serverUrl, item.Id, 'Logo', {
 			maxWidth,
-			quality
+			quality,
+			tag: item.ImageTags.Logo
 		});
 	}
 

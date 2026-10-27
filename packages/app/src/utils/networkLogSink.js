@@ -13,7 +13,7 @@ export const setNetworkLogSink = (fn) => {
 
 // Query values that would otherwise put a working credential into a report that gets
 // uploaded to the server.
-const SECRET_PARAMS = ['apikey', 'api_key', 'token'];
+const SECRET_PARAMS = ['apikey', 'api_key', 'token', 'x-plex-token'];
 
 export const redactUrl = (url) => {
 	const text = String(url || '');

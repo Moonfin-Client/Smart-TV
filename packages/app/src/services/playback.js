@@ -562,7 +562,7 @@ export const getPlaybackInfo = async (itemId, options = {}) => {
 	const subtitleStreamIndex = subtitleIsPgs ? -1 : requestedSubtitleStreamIndex;
 	const sourceContainer = options.mediaSource?.Container || chosenSource?.Container || itemSources?.[0]?.Container ||
 		currentSession?.mediaSource?.Container;
-	const plexBurnsSubtitle = serverType === 'plex' && !!requestedSubStream && requestedSubStream.Codec !== 'none' &&
+	const plexBurnsSubtitle = serverType === 'plex' && !options.forceDirectPlay && !!requestedSubStream && requestedSubStream.Codec !== 'none' &&
 		!plexReadsFromFile(requestedSubStream, sourceContainer, storedSettings.enablePgsRendering === false);
 	const enableDirectPlay = allowDirectPlay && options.enableDirectPlay !== false && !plexBurnsSubtitle;
 	// When the user hasn't explicitly picked a subtitle, omit the index entirely so

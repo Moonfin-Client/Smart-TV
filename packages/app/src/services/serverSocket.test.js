@@ -89,6 +89,22 @@ describe('the session socket', () => {
 		expect(listener).toHaveBeenCalledTimes(1);
 	});
 
+	test('reads a Plex pause again after a read that failed', async () => {
+		mockServerType = 'plex';
+		mockGetItem.mockReset();
+		mockGetItem.mockRejectedValueOnce(new Error('offline')).mockResolvedValue({Id: '17100', UserData: {PlaybackPositionTicks: 10}});
+		const listener = jest.fn();
+		serverSocket.onMessage(listener);
+		serverSocket.connect();
+		const paused = {NotificationContainer: {type: 'playing', PlaySessionStateNotification: [{sessionKey: '1', ratingKey: '17100', state: 'paused'}]}};
+		receive(paused);
+		await jest.runAllTimersAsync();
+		receive(paused);
+		await jest.runAllTimersAsync();
+		expect(mockGetItem).toHaveBeenCalledTimes(2);
+		expect(listener).toHaveBeenCalledTimes(1);
+	});
+
 	test('hands each message to every listener', () => {
 		const first = jest.fn();
 		const second = jest.fn();
