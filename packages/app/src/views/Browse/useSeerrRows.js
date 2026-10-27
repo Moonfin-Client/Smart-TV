@@ -45,14 +45,13 @@ const useSeerrRows = ({seerrEnabled, seerrAuthenticated, seerrUserId, homeRows, 
 				if (!cfg) return null;
 				const items = await fetchSeerrHomeRow(configId, {userId: seerrUserId});
 				if (!items.length) return null;
-				const isTileRow = cfg.type === 'genre' || cfg.type === 'studio' || cfg.type === 'network' || cfg.type === 'shortcut';
 				return {
 					id: section.id,
 					title: cfg.title,
-					items: isTileRow ? items : sortExternalItems(items, sortBy, sortOrder),
+					items: cfg.type === 'shortcut' ? items : sortExternalItems(items, sortBy, sortOrder),
 					type: cfg.cardType,
 					isSeerrRow: true,
-					isTileRow
+					isTileRow: cfg.type === 'genre' || cfg.type === 'studio' || cfg.type === 'network' || cfg.type === 'shortcut'
 				};
 			}));
 			const builtSliders = await Promise.all(sliderRows.map(async (row) => {

@@ -8,8 +8,8 @@ import {SEASONAL_COUNTRY_OPTIONS, SEASONAL_HOLIDAYS} from '../../utils/seasonalR
 import {seasonalCountryLabel, seasonalTitle} from '../../utils/seasonalTitles';
 import {renderCheck, renderSettingsIcon, renderToggle} from './settingsIcons';
 import {SpottableDiv} from './settingsSpottables';
-import {OptionRow, SectionTitle, ToggleRow} from './settingsRows';
-import {getChipLabel, getExternalRowSortByOptions, getExternalRowSortOrderOptions} from './settingsOptions';
+import {SectionTitle, ToggleRow} from './settingsRows';
+import {ExternalRowSortRows} from './HomeRowToggleViews';
 import SettingsView from './SettingsView';
 
 import css from './Settings.module.less';
@@ -17,66 +17,36 @@ import css from './Settings.module.less';
 // Home rows that come from somewhere other than the Jellyfin library: TMDB charts, the
 // Radarr and Sonarr calendars, and lists the viewer pastes a URL for.
 
-export const ExternalTmdbListsView = ({enabledMap, onToggleRow, settings, onOpenOptions}) => {
-	const sortBy = settings?.tmdbRowsSortBy || 'none';
-	const sortOrder = settings?.tmdbRowsSortOrder || 'ascending';
-	const sortOrderApplies = sortBy !== 'none' && sortBy !== 'shuffle';
-
-	return (
-		<SettingsView spotlightId='external-tmdb-lists-view' title={$L('TMDB Lists')} clean>
-			<div className={css.viewDescription}>
-				{$L('Choose which TMDB chart rows appear on the home screen.')}
-			</div>
-			{onOpenOptions && (
-				<>
-					<SectionTitle>{$L('Sorting')}</SectionTitle>
-					<OptionRow
-						settingKey='tmdbRowsSortBy'
-						title={$L('TMDB Row Sorting')}
-						desc={$L('Sort TMDB rows by name, release date, rating, and more.')}
-						caption={getChipLabel(getExternalRowSortByOptions(), sortBy, $L('Default'))}
-						icon='sort'
-						onOpen={() => onOpenOptions({
-							title: $L('TMDB Row Sorting'),
-							options: getExternalRowSortByOptions(),
-							settingKey: 'tmdbRowsSortBy',
-							returnFocusTo: 'setting-tmdbRowsSortBy'
-						})}
-					/>
-					{sortOrderApplies && (
-						<OptionRow
-							settingKey='tmdbRowsSortOrder'
-							title={$L('Sort Order')}
-							desc={$L('Sort TMDB rows in ascending or descending order.')}
-							caption={getChipLabel(getExternalRowSortOrderOptions(), sortOrder, $L('Ascending'))}
-							icon='swap_vert'
-							onOpen={() => onOpenOptions({
-								title: $L('Sort Order'),
-								options: getExternalRowSortOrderOptions(),
-								settingKey: 'tmdbRowsSortOrder',
-								returnFocusTo: 'setting-tmdbRowsSortOrder'
-							})}
-						/>
-					)}
-					<SectionTitle>{$L('Lists')}</SectionTitle>
-				</>
-			)}
-			{TMDB_PRESETS.map((cfg) => (
-				<SpottableDiv
-					key={cfg.id}
-					className={css.listItem}
-					onClick={() => onToggleRow(cfg.id)}
-					spotlightId={`tmdbrow-${cfg.id}`}
-				>
-					<div className={css.listItemBody}>
-						<div className={css.listItemHeading}>{cfg.title}</div>
-					</div>
-					<div className={css.listItemTrailing}>{renderToggle(enabledMap.get(cfg.id) === true)}</div>
-				</SpottableDiv>
-			))}
-		</SettingsView>
-	);
-};
+export const ExternalTmdbListsView = ({enabledMap, onToggleRow, settings, onOpenOptions}) => (
+	<SettingsView spotlightId='external-tmdb-lists-view' title={$L('TMDB Lists')} clean>
+		<div className={css.viewDescription}>
+			{$L('Choose which TMDB chart rows appear on the home screen.')}
+		</div>
+		<ExternalRowSortRows
+			settings={settings}
+			sortByKey='tmdbRowsSortBy'
+			sortOrderKey='tmdbRowsSortOrder'
+			title={$L('TMDB Row Sorting')}
+			desc={$L('Sort TMDB rows by name, release date, rating, and more.')}
+			orderDesc={$L('Sort TMDB rows in ascending or descending order.')}
+			onOpenOptions={onOpenOptions}
+		/>
+		<SectionTitle>{$L('TMDB Lists')}</SectionTitle>
+		{TMDB_PRESETS.map((cfg) => (
+			<SpottableDiv
+				key={cfg.id}
+				className={css.listItem}
+				onClick={() => onToggleRow(cfg.id)}
+				spotlightId={`tmdbrow-${cfg.id}`}
+			>
+				<div className={css.listItemBody}>
+					<div className={css.listItemHeading}>{cfg.title}</div>
+				</div>
+				<div className={css.listItemTrailing}>{renderToggle(enabledMap.get(cfg.id) === true)}</div>
+			</SpottableDiv>
+		))}
+	</SettingsView>
+);
 
 export const ExternalCalendarsView = ({enabledMap, settings, onToggleRow, onToggleSetting}) => {
 	const radarrOn = enabledMap.get('radarr_calendar') === true;

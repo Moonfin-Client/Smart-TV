@@ -89,7 +89,7 @@ const normalizeExternalItem = (item, rowId, source) => {
 		OfficialRating: item.officialRating ?? null,
 		Overview: item.overview || null,
 		CommunityRating: item.rating ?? null,
-		Popularity: item.popularity ?? item.rank ?? null,
+		Popularity: item.popularity ?? null,
 		Genres: Array.isArray(item.genres) ? item.genres : [],
 		RunTimeTicks: item.runTimeTicks ?? null,
 		_externalPosterUrl: item.posterUrl ? seerrApi.getImageUrl(item.posterUrl, 'w342') : null,
@@ -126,63 +126,60 @@ export const buildSeasonalRow = (payload, hiddenHolidays = []) => {
 	};
 };
 
-const getReleaseDateValue = (item) => {
-	const raw = item.PremiereDate || item.premiereDate || item.releaseDate || item.release_date || item.firstAirDate || item.first_air_date;
-	if (raw) {
-		const parsed = Date.parse(raw);
-		if (!Number.isNaN(parsed)) return parsed;
+const shuffled = (items) => {
+	const out = [...items];
+	for (let i = out.length - 1; i > 0; i--) {
+		const j = Math.floor(Math.random() * (i + 1));
+		[out[i], out[j]] = [out[j], out[i]];
 	}
-	const year = item.ProductionYear || item.productionYear || item.year;
-	if (year) {
-		const numYear = typeof year === 'number' ? year : parseInt(String(year).slice(0, 4), 10);
-		if (Number.isFinite(numYear) && numYear > 0) {
-			return Date.UTC(numYear, 0, 1);
-		}
-	}
-	return 0;
+	return out;
 };
 
-// Client side sorting for external rows (IMDb, TMDB, Seerr, and custom rows).
-export const sortExternalItems = (items, sortBy, sortOrder) => {
-	if (!sortBy || sortBy === 'none' || !items || items.length === 0) return items;
+// Client side sorting for custom rows.
+const applySorting = (items, sortBy, sortOrder) => {
+	if (!sortBy || sortBy === 'none') return items;
+	if (sortBy === 'shuffle') return shuffled(items);
 	const sorted = [...items];
-	if (sortBy === 'shuffle') {
-		for (let i = sorted.length - 1; i > 0; i--) {
-			const j = Math.floor(Math.random() * (i + 1));
-			[sorted[i], sorted[j]] = [sorted[j], sorted[i]];
-		}
-		return sorted;
-	}
-	const dir = sortOrder === 'descending' || sortOrder === 'desc' ? -1 : 1;
+	const dir = sortOrder === 'desc' ? -1 : 1;
 	sorted.sort((a, b) => {
 		let av;
 		let bv;
 		switch (sortBy) {
-			case 'name':
-			case 'title':
-				av = (a.Name || a.name || a.title || '').toLowerCase();
-				bv = (b.Name || b.name || b.title || '').toLowerCase();
-				break;
-			case 'releaseDate':
-			case 'year':
-				av = getReleaseDateValue(a);
-				bv = getReleaseDateValue(b);
-				break;
-			case 'rating':
-				av = a.CommunityRating || a.communityRating || a.rating || 0;
-				bv = b.CommunityRating || b.communityRating || b.rating || 0;
-				break;
+			case 'title': av = (a.name || '').toLowerCase(); bv = (b.name || '').toLowerCase(); break;
+			case 'year': av = a.productionYear || 0; bv = b.productionYear || 0; break;
+			case 'rating': av = a.rating || 0; bv = b.rating || 0; break;
 			case 'popularity':
-			default:
-				av = a.Popularity || a.popularity || a.rank || 0;
-				bv = b.Popularity || b.popularity || b.rank || 0;
-				break;
+			default: av = a.rank || 0; bv = b.rank || 0; break;
 		}
 		if (av < bv) return -1 * dir;
 		if (av > bv) return 1 * dir;
 		return 0;
 	});
 	return sorted;
+};
+
+const EXTERNAL_SORT_KEYS = {
+	releaseDate: (item) => item.ProductionYear || 0,
+	rating: (item) => item.CommunityRating || 0,
+	popularity: (item) => item.Popularity || 0
+};
+
+// The order the IMDb, TMDB and Seerr rows' sort settings ask for. Ties go to the name, since a
+// release date is often only a year.
+export const sortExternalItems = (items, sortBy, sortOrder) => {
+	if (!sortBy || sortBy === 'none' || !items.length) return items;
+	if (sortBy === 'shuffle') return shuffled(items);
+	const byName = (a, b) => {
+		const x = (a.Name || '').toLowerCase();
+		const y = (b.Name || '').toLowerCase();
+		return x < y ? -1 : x > y ? 1 : 0;
+	};
+	const key = EXTERNAL_SORT_KEYS[sortBy];
+	const dir = sortOrder === 'descending' ? -1 : 1;
+	return [...items].sort((a, b) => {
+		const cmp = key ? key(a) - key(b) : byName(a, b);
+		return cmp === 0 ? byName(a, b) : cmp * dir;
+	});
 };
 
 // TMDB's movie and TV charts don't say what each result is, so the chart's path decides.
@@ -193,20 +190,23 @@ const chartItemType = (path) => {
 	return null;
 };
 
-// Fetches a preset TMDB or IMDb chart row.
+// Fetches a preset TMDB or IMDb chart row. The whole chart is sorted before the row is cut to size.
 export const fetchExternalPresetRow = async (rowId, options = {}) => {
 	const cfg = findPreset(rowId);
 	if (!cfg) return [];
 	const items = await fetchCustomRow({source: cfg.source, type: cfg.type, params: {}}, options);
 	const type = chartItemType(cfg.type);
-	return items.slice(0, options.limit || HOME_ROW_LIMIT).map((it) => normalizeExternalItem(type ? {...it, type} : it, rowId, cfg.source));
+	const limit = options.limit || HOME_ROW_LIMIT;
+	const pool = options.sortBy && options.sortBy !== 'none' ? items : items.slice(0, limit);
+	const normalized = pool.map((it) => normalizeExternalItem(type ? {...it, type} : it, rowId, cfg.source));
+	return sortExternalItems(normalized, options.sortBy, options.sortOrder).slice(0, limit);
 };
 
 // Fetches a user configured custom row. `row` is the stored config
 // {id, source, type, params, sortBy, sortOrder, showUserRatings}.
 export const fetchCustomHomeRow = async (row, options = {}) => {
 	const items = await fetchCustomRow({source: row.source, type: row.type, params: row.params}, options);
-	const sorted = sortExternalItems(items, row.sortBy, row.sortOrder);
+	const sorted = applySorting(items, row.sortBy, row.sortOrder);
 	return sorted.slice(0, options.limit || HOME_ROW_LIMIT).map((it) => {
 		const norm = normalizeExternalItem(it, row.id, row.source);
 		if (row.showUserRatings === false) norm.UserRating = null;

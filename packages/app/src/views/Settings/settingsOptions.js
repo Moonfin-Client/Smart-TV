@@ -445,7 +445,7 @@ export const getSortOrderOptions = () => [
 ];
 
 export const getExternalRowSortByOptions = () => [
-	{ value: 'none', label: $L('Default') },
+	{ value: 'none', label: $L('Default (List Order)') },
 	{ value: 'name', label: $L('Name') },
 	{ value: 'releaseDate', label: $L('Release Date') },
 	{ value: 'rating', label: $L('Rating') },

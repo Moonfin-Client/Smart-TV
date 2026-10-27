@@ -22,7 +22,6 @@ import {
 	getGenresRowItemFilterOptions,
 	getHomeRowSortOptions, getPlaylistCollectionSortOptions,
 	getHomeBackdropStyleOptions,
-	getExternalRowSortByOptions, getExternalRowSortOrderOptions,
 	getHomeRowsStyleOptions,
 	getBookLibraryStyleOptions,
 	getKeyboardStyleOptions,
@@ -449,11 +448,11 @@ export const SETTINGS_SCHEMA = [
 					},
 					{kind: KIND.TOGGLE, key: 'hideHomeMediaDescription', label: () => $L('Hide Media Description'), desc: () => $L('Hide the movie or episode descriptive text.'), icon: 'description_outlined'},
 					{kind: KIND.SECTION, id: 'externalSources', label: () => $L('External Sources'), when: whenPlugin},
-					{kind: KIND.NAV, id: 'imdbLists', label: () => $L('IMDb Lists'), desc: () => $L('Configure IMDb Top 250, Popular, and other charts.'), icon: 'movie_outlined', action: (ctx) => ctx.actions.openImdbLists(), when: whenPlugin},
-					{kind: KIND.NAV, id: 'externalTmdbLists', label: () => $L('TMDB Lists'), desc: () => $L('Configure Popular, Top Rated, and Trending TMDB lists.'), icon: 'trending_up', action: (ctx) => ctx.actions.openExternalTmdbLists(), when: whenPlugin},
+					{kind: KIND.NAV, id: 'imdbLists', label: () => $L('IMDb Lists'), desc: () => $L('Configure IMDb Top 250, Popular, and other charts.'), icon: 'movie_outlined', keywords: () => [$L('IMDb Row Sorting'), $L('Sort Order')], action: (ctx) => ctx.actions.openImdbLists(), when: whenPlugin},
+					{kind: KIND.NAV, id: 'externalTmdbLists', label: () => $L('TMDB Lists'), desc: () => $L('Configure Popular, Top Rated, and Trending TMDB lists.'), icon: 'trending_up', keywords: () => [$L('TMDB Row Sorting'), $L('Sort Order')], action: (ctx) => ctx.actions.openExternalTmdbLists(), when: whenPlugin},
 					{kind: KIND.NAV, id: 'seasonalRow', label: () => $L('Seasonal Row'), desc: () => $L('Show a row of holiday movies from your library, with Seerr suggestions when available.'), icon: 'celebration_outlined', keywords: () => ['holiday', 'christmas', 'halloween', 'seasonal'], action: (ctx) => ctx.actions.openSeasonalRow(), when: whenPlugin},
 					{kind: KIND.NAV, id: 'externalCalendars', label: () => $L('Upcoming Calendars'), desc: () => $L('Toggle Upcoming Calendars from Radarr/Sonarr.'), icon: 'calendar_month', action: (ctx) => ctx.actions.openExternalCalendars(), when: (ctx) => whenPlugin(ctx) && whenSeerr(ctx)},
-					{kind: KIND.NAV, id: 'seerrHomeRows', label: (ctx) => `${ctx.seerrLabel} ${$L('Rows')}`, desc: () => $L('Configure Seerr Discovery Rows.'), icon: 'list', action: (ctx) => ctx.actions.openSeerrHomeRows(), when: (ctx) => whenPlugin(ctx) && whenSeerr(ctx)},
+					{kind: KIND.NAV, id: 'seerrHomeRows', label: (ctx) => `${ctx.seerrLabel} ${$L('Rows')}`, desc: () => $L('Configure Seerr Discovery Rows.'), icon: 'list', keywords: () => [$L('Seerr Row Sorting'), $L('Sort Order')], action: (ctx) => ctx.actions.openSeerrHomeRows(), when: (ctx) => whenPlugin(ctx) && whenSeerr(ctx)},
 					{
 						kind: KIND.NAV,
 						id: 'externalCustomRows',
@@ -518,16 +517,7 @@ export const SETTINGS_SCHEMA = [
 					{kind: KIND.SECTION, id: 'studios', label: () => $L('STUDIOS')},
 					{kind: KIND.TOGGLE, key: 'displayStudiosRows', label: () => $L('Display Studio Row'), desc: () => $L('Show Studio row in Home Sections.'), icon: 'business'},
 					{kind: KIND.OPTION, key: 'studiosRowSortBy', label: () => $L('Studio Row Sorting'), desc: () => $L('Studio row by name, recently added, and more.'), options: getHomeRowSortOptions, fallback: () => $L('Name'), icon: 'sort_by_alpha', when: (ctx) => ctx.settings.displayStudiosRows},
-					{kind: KIND.OPTION, key: 'studiosRowSortOrder', label: () => $L('Sort Order'), desc: () => $L('Choose Ascending or Descending sort order.'), options: getSortOrderOptions, fallback: () => $L('Auto'), icon: 'swap_vert', when: (ctx) => ctx.settings.displayStudiosRows},
-					{kind: KIND.SECTION, id: 'imdbRows', label: () => $L('IMDb Lists'), when: whenPlugin},
-					{kind: KIND.OPTION, key: 'imdbRowsSortBy', label: () => $L('IMDb Row Sorting'), desc: () => $L('Sort IMDb rows by name, release date, rating, and more.'), options: getExternalRowSortByOptions, fallback: () => $L('Default'), icon: 'sort', when: whenPlugin},
-					{kind: KIND.OPTION, key: 'imdbRowsSortOrder', label: () => $L('Sort Order'), desc: () => $L('Sort IMDb rows in ascending or descending order.'), options: getExternalRowSortOrderOptions, fallback: () => $L('Ascending'), icon: 'swap_vert', when: (ctx) => whenPlugin(ctx) && ctx.settings.imdbRowsSortBy !== 'none' && ctx.settings.imdbRowsSortBy !== 'shuffle'},
-					{kind: KIND.SECTION, id: 'tmdbRows', label: () => $L('TMDB Lists'), when: whenPlugin},
-					{kind: KIND.OPTION, key: 'tmdbRowsSortBy', label: () => $L('TMDB Row Sorting'), desc: () => $L('Sort TMDB rows by name, release date, rating, and more.'), options: getExternalRowSortByOptions, fallback: () => $L('Default'), icon: 'sort', when: whenPlugin},
-					{kind: KIND.OPTION, key: 'tmdbRowsSortOrder', label: () => $L('Sort Order'), desc: () => $L('Sort TMDB rows in ascending or descending order.'), options: getExternalRowSortOrderOptions, fallback: () => $L('Ascending'), icon: 'swap_vert', when: (ctx) => whenPlugin(ctx) && ctx.settings.tmdbRowsSortBy !== 'none' && ctx.settings.tmdbRowsSortBy !== 'shuffle'},
-					{kind: KIND.SECTION, id: 'seerrRows', label: (ctx) => `${ctx.seerrLabel} ${$L('Rows')}`, when: (ctx) => whenPlugin(ctx) && whenSeerr(ctx)},
-					{kind: KIND.OPTION, key: 'seerrRowsSortBy', label: (ctx) => `${ctx.seerrLabel} ${$L('Row Sorting')}`, desc: () => $L('Sort Seerr rows by name, release date, rating, and more.'), options: getExternalRowSortByOptions, fallback: () => $L('Default'), icon: 'sort', when: (ctx) => whenPlugin(ctx) && whenSeerr(ctx)},
-					{kind: KIND.OPTION, key: 'seerrRowsSortOrder', label: () => $L('Sort Order'), desc: () => $L('Sort Seerr rows in ascending or descending order.'), options: getExternalRowSortOrderOptions, fallback: () => $L('Ascending'), icon: 'swap_vert', when: (ctx) => whenPlugin(ctx) && whenSeerr(ctx) && ctx.settings.seerrRowsSortBy !== 'none' && ctx.settings.seerrRowsSortBy !== 'shuffle'}
+					{kind: KIND.OPTION, key: 'studiosRowSortOrder', label: () => $L('Sort Order'), desc: () => $L('Choose Ascending or Descending sort order.'), options: getSortOrderOptions, fallback: () => $L('Auto'), icon: 'swap_vert', when: (ctx) => ctx.settings.displayStudiosRows}
 				]
 			},
 			{

@@ -751,9 +751,7 @@ const Settings = ({ onBack, onLibrariesChanged, onRunSetupWizard, onSelectItem, 
 		pushView({view: 'externalCustomRows', returnFocusTo: 'setting-externalCustomRows'});
 	}, [pushView]);
 
-	const openOptionsDialog = useCallback(({title, options, settingKey, returnFocusTo}) => {
-		pushView({view: 'options', title, options, settingKey, returnFocusTo});
-	}, [pushView]);
+	const openOptionsDialog = useCallback((picker) => pushView({view: 'options', ...picker}), [pushView]);
 
 	// Lets a row on one screen open a screen that lives elsewhere in the schema, the
 	// way Progress Bar Time is reached from Video Playback Preferences.

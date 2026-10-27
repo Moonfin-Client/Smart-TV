@@ -148,66 +148,44 @@ describe('fetchCalendarRows', () => {
 });
 
 describe('sortExternalItems', () => {
-	const items = [
-		{Name: 'Bravo', ProductionYear: 2010, CommunityRating: 7.5, Popularity: 300},
-		{Name: 'Alpha', ProductionYear: 2020, CommunityRating: 9.0, Popularity: 100},
-		{Name: 'Charlie', ProductionYear: 2005, CommunityRating: 6.0, Popularity: 500}
-	];
+	const film = (Name, ProductionYear, CommunityRating) => ({Name, ProductionYear, CommunityRating});
+	const items = [film('Metropolis', 1927, 8.3), film('M', 1931, 8.3), film('City Lights', 1931, 8.5), film('The Kid', 1921, 8.2)];
+	const sorted = (by, order) => sortExternalItems(items, by, order).map((item) => item.Name);
 
-	it('returns items unchanged when sortBy is none or empty', () => {
-		expect(sortExternalItems(items, 'none', 'ascending')).toEqual(items);
-		expect(sortExternalItems(items, '', 'ascending')).toEqual(items);
+	it('keeps the list order by default', () => {
+		expect(sorted('none', 'ascending')).toEqual(['Metropolis', 'M', 'City Lights', 'The Kid']);
 	});
 
-	it('sorts by name ascending and descending', () => {
-		const asc = sortExternalItems(items, 'name', 'ascending');
-		expect(asc.map((i) => i.Name)).toEqual(['Alpha', 'Bravo', 'Charlie']);
-
-		const desc = sortExternalItems(items, 'name', 'descending');
-		expect(desc.map((i) => i.Name)).toEqual(['Charlie', 'Bravo', 'Alpha']);
+	it('falls back to the name for a shared year in either direction', () => {
+		expect(sorted('releaseDate', 'ascending')).toEqual(['The Kid', 'Metropolis', 'City Lights', 'M']);
+		expect(sorted('releaseDate', 'descending')).toEqual(['City Lights', 'M', 'Metropolis', 'The Kid']);
 	});
 
-	it('sorts by releaseDate ascending and descending', () => {
-		const asc = sortExternalItems(items, 'releaseDate', 'ascending');
-		expect(asc.map((i) => i.ProductionYear)).toEqual([2005, 2010, 2020]);
-
-		const desc = sortExternalItems(items, 'releaseDate', 'descending');
-		expect(desc.map((i) => i.ProductionYear)).toEqual([2020, 2010, 2005]);
+	it('sorts by the community rating', () => {
+		expect(sorted('rating', 'descending')).toEqual(['City Lights', 'M', 'Metropolis', 'The Kid']);
 	});
 
-	it('sorts by full release date and falls back to production year', () => {
-		const datedItems = [
-			{Name: 'May Movie', PremiereDate: '2024-05-20', ProductionYear: 2024},
-			{Name: 'Jan Movie', PremiereDate: '2024-01-10', ProductionYear: 2024},
-			{Name: 'Dec Movie', PremiereDate: '2024-12-01', ProductionYear: 2024},
-			{Name: 'Older Year', ProductionYear: 2023}
-		];
-		const asc = sortExternalItems(datedItems, 'releaseDate', 'ascending');
-		expect(asc.map((i) => i.Name)).toEqual(['Older Year', 'Jan Movie', 'May Movie', 'Dec Movie']);
-
-		const desc = sortExternalItems(datedItems, 'releaseDate', 'descending');
-		expect(desc.map((i) => i.Name)).toEqual(['Dec Movie', 'May Movie', 'Jan Movie', 'Older Year']);
+	it('sorts by name, ignoring case', () => {
+		expect(sorted('name', 'descending')).toEqual(['The Kid', 'Metropolis', 'M', 'City Lights']);
 	});
 
-	it('sorts by rating ascending and descending', () => {
-		const asc = sortExternalItems(items, 'rating', 'ascending');
-		expect(asc.map((i) => i.CommunityRating)).toEqual([6.0, 7.5, 9.0]);
-
-		const desc = sortExternalItems(items, 'rating', 'descending');
-		expect(desc.map((i) => i.CommunityRating)).toEqual([9.0, 7.5, 6.0]);
+	it('sorts by popularity', () => {
+		const charted = [{Name: 'A', Popularity: 12}, {Name: 'B', Popularity: 80}, {Name: 'C'}];
+		expect(sortExternalItems(charted, 'popularity', 'descending').map((item) => item.Name)).toEqual(['B', 'A', 'C']);
 	});
 
-	it('sorts by popularity ascending and descending', () => {
-		const asc = sortExternalItems(items, 'popularity', 'ascending');
-		expect(asc.map((i) => i.Popularity)).toEqual([100, 300, 500]);
-
-		const desc = sortExternalItems(items, 'popularity', 'descending');
-		expect(desc.map((i) => i.Popularity)).toEqual([500, 300, 100]);
+	it('keeps every item in a shuffle', () => {
+		expect(sorted('shuffle', 'ascending').sort()).toEqual(['City Lights', 'M', 'Metropolis', 'The Kid']);
 	});
 
-	it('shuffles items when sortBy is shuffle', () => {
-		const shuffled = sortExternalItems(items, 'shuffle', 'ascending');
-		expect(shuffled).toHaveLength(items.length);
-		expect(new Set(shuffled.map((i) => i.Name))).toEqual(new Set(['Alpha', 'Bravo', 'Charlie']));
+	it('sorts the whole chart before cutting the row to size', async () => {
+		fetchCustomRow.mockResolvedValue([
+			{name: 'Zulu', providerIds: {Tmdb: '1'}},
+			{name: 'Yankee', providerIds: {Tmdb: '2'}},
+			{name: 'Alpha', providerIds: {Tmdb: '3'}}
+		]);
+
+		const cut = await fetchExternalPresetRow('tmdb_popular_movies', {limit: 2, sortBy: 'name', sortOrder: 'ascending'});
+		expect(cut.map((item) => item.Name)).toEqual(['Alpha', 'Yankee']);
 	});
 });

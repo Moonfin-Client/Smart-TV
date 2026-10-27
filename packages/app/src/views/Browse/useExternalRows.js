@@ -1,7 +1,7 @@
 import {useEffect, useState} from 'react';
 import $L from '@enact/i18n/$L';
 
-import {getExternalHomeRowConfigs, fetchExternalPresetRow, fetchCustomHomeRow, fetchCalendarRows, buildSeasonalRow, sortExternalItems} from '../../utils/externalHomeRows';
+import {getExternalHomeRowConfigs, fetchExternalPresetRow, fetchCustomHomeRow, fetchCalendarRows, buildSeasonalRow} from '../../utils/externalHomeRows';
 import {fetchSeasonalRow} from '../../services/externalRowsApi';
 import {resolveItemsByProviderIds} from '../../services/jellyfinApi';
 import {seasonalCountryParam} from '../../utils/seasonalRow';
@@ -57,11 +57,12 @@ const useExternalRows = ({settings, homeRows, kidsMode}) => {
 				const presetData = await Promise.all(enabledPresets.map(async (id) => {
 					const cfg = presetConfigs.find((c) => c.id === id);
 					if (!cfg) return null;
-					const rawItems = await fetchExternalPresetRow(id, {language: settings.uiLanguage});
-					const isImdb = id.startsWith('imdb-');
-					const sortBy = isImdb ? settings.imdbRowsSortBy : settings.tmdbRowsSortBy;
-					const sortOrder = isImdb ? settings.imdbRowsSortOrder : settings.tmdbRowsSortOrder;
-					const items = sortExternalItems(rawItems, sortBy, sortOrder);
+					const imdb = id.startsWith('imdb-');
+					const items = await fetchExternalPresetRow(id, {
+						language: settings.uiLanguage,
+						sortBy: imdb ? settings.imdbRowsSortBy : settings.tmdbRowsSortBy,
+						sortOrder: imdb ? settings.imdbRowsSortOrder : settings.tmdbRowsSortOrder
+					});
 					return {id, title: cfg.title, items: items || []};
 				}));
 
