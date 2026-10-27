@@ -64,7 +64,7 @@ const ModernActionButtons = (props) => {
 	const handleKeyDown = useCallback((ev) => {
 		if (ev.keyCode === KEYS.DOWN) {
 			// Down moves to whatever sits under the row, which 5-way does not reach on its own.
-			if (downTarget && (Spotlight.focus(downTarget) || Spotlight.focus('spotlight-card-band'))) {
+			if (downTarget && Spotlight.focus(downTarget)) {
 				ev.preventDefault();
 				ev.stopPropagation();
 			}

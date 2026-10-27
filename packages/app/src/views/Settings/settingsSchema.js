@@ -47,7 +47,6 @@ import {
 	getPassthroughModeOptions,
 	getPerformanceModeOptions,
 	getPersonalRatingStyleOptions,
-	getPersonPageSortOptions,
 	getPlaybackTimeDisplayOptions,
 	getPlaybackTimeSlotOptions,
 	getPosterSizeOptions,
@@ -651,23 +650,6 @@ export const SETTINGS_SCHEMA = [
 					{kind: KIND.TOGGLE, key: 'detailShowTechnicalDetails', label: () => $L('Show Technical Details'), desc: () => $L('Show codec, resolution, and stream information in banner summary'), icon: 'info_outline'},
 					{kind: KIND.TOGGLE, key: 'hideDetailsMediaDescription', label: () => $L('Hide Media Description'), desc: () => $L('Hide the movie or episode descriptive text.'), icon: 'description_outlined'},
 					{kind: KIND.TOGGLE, key: 'detailUseSeriesThumbnails', label: () => $L('Use Series Thumbnails'), desc: () => $L('Replace thumbnails on the details page with the series thumbnail'), icon: 'image_outlined', when: (ctx) => ['v1', 'v4', 'v5'].indexOf(ctx.settings.detailScreenStyle) >= 0},
-					{kind: KIND.SECTION, id: 'personPage', label: () => $L('Person & Cast Pages')},
-					{
-						kind: KIND.OPTION,
-						key: 'personPageSortOption',
-						label: () => $L('Person Page Sort Order'),
-						desc: () => $L('Sort order for person filmography and credit lists.'),
-						options: getPersonPageSortOptions,
-						fallback: () => $L('Alphabetical'),
-						icon: 'sort'
-					},
-					{
-						kind: KIND.TOGGLE,
-						key: 'personPageGroupItems',
-						label: () => $L('Group Roles by Title'),
-						desc: () => $L('Group multiple roles or jobs for the same title onto a single card.'),
-						icon: 'group'
-					},
 					{kind: KIND.SECTION, id: 'recommendations', label: () => $L('Recommendations')},
 					{kind: KIND.OPTION, key: 'recommendationSystemSource', label: () => $L('Recommendation System'), desc: () => $L('Moonfin scores your own library, Jellyfin takes the picks from the server, TMDb uses Seerr, and Hybrid leads with the server then tops up locally'), options: getRecommendationSystemSourceOptions, fallback: () => $L('Moonfin Recommends'), icon: 'auto_awesome'},
 					{kind: KIND.SECTION, id: 'ratings', label: () => $L('Ratings')},

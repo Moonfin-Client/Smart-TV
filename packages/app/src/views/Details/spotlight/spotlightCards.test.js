@@ -155,6 +155,24 @@ describe('spotlightCardsFor', () => {
 		expect(titles(cards[2])).toEqual(['Crew Contributions (Seerr)']);
 	});
 
+	it('gives each of a person\'s cards its own backdrop where there are enough to go round', () => {
+		const backdrop = (url) => ({_externalBackdropUrl: url});
+		const cards = spotlightCardsFor(state({
+			item: {Id: 'item-1', Type: 'Person'},
+			personMovies: [child('m1', 'Movie', {BackdropImageTags: ['b1']})],
+			seerrAppearances: [child('a1', 'Movie', backdrop('https://img/shared.jpg')), child('a2', 'Movie', backdrop('https://img/a2.jpg'))],
+			seerrCrewCredits: [child('c1', 'Movie', backdrop('https://img/shared.jpg'))]
+		}));
+		const art = cards.map((card) => card.imageUrl);
+		expect(art[0]).toContain('/Items/m1/Images/Backdrop');
+		expect(art.slice(1)).toEqual(['https://img/shared.jpg', 'https://img/a2.jpg']);
+	});
+
+	it('leaves the filmography card off a person the library has nothing for', () => {
+		const cards = spotlightCardsFor(state({item: {Id: 'item-1', Type: 'Person'}, seerrAppearances: [child('a1')]}));
+		expect(ids(cards)).toEqual(['appearances']);
+	});
+
 	it('joins seerr recommendations onto the similar card', () => {
 		const card = spotlightCardsFor(state({
 			similar: [child('s1')],

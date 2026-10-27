@@ -10,6 +10,7 @@ import {getImageUrl} from '../../utils/helpers';
 import {isMdblistEnabled} from '../../services/mdblistApi';
 import {KEYS} from '../../utils/keys';
 import {DETAIL_ICON_PATHS} from './detailIcons';
+import {HorizontalContainer} from './detailsSpottables';
 
 import css from './Details.module.less';
 
@@ -19,7 +20,7 @@ const TabsContainer = SpotlightContainerDecorator({enterTo: 'last-focused'}, 'di
 
 const PersonScreen = ({
 	item, serverUrl, settings, showsSection, filmography, personDates, birthPlace,
-	onSelectItem, onSelectSeerrItem, onOpenPersonDisplayModal
+	onSelectItem, onSelectSeerrItem, onOpenPersonDisplayModal, canFavorite, isFavorite, onToggleFavorite
 }) => {
 	const {appearances, crewCredits} = usePersonSeerrCredits(item.ProviderIds?.Tmdb);
 	const {movies, series, guestAppearances, musicVideos} = filmography || {movies: [], series: [], guestAppearances: [], musicVideos: []};
@@ -124,20 +125,22 @@ const PersonScreen = ({
 							<span className={css.overviewToggleHint}>{expanded ? $L('Less') : $L('More')}</span>
 						</SpottableDiv>
 					)}
-					{onOpenPersonDisplayModal && (
-						<div className={css.personActionRow}>
-							<SpottableDiv
-								className={css.personActionBtn}
-								onClick={onOpenPersonDisplayModal}
-								data-spotlight-id="details-person-display-btn"
-							>
+					<HorizontalContainer className={css.personActionRow} spotlightId="details-action-buttons">
+						{canFavorite && (
+							<SpottableDiv className={css.personActionBtn} onClick={onToggleFavorite}>
 								<svg viewBox="0 -960 960 960" fill="currentColor">
-									<path d={DETAIL_ICON_PATHS.tune} />
+									<path d={DETAIL_ICON_PATHS.favorite} />
 								</svg>
-								<span>{$L('Display')}</span>
+								<span>{isFavorite ? $L('Favorited') : $L('Favorite')}</span>
 							</SpottableDiv>
-						</div>
-					)}
+						)}
+						<SpottableDiv className={css.personActionBtn} onClick={onOpenPersonDisplayModal}>
+							<svg viewBox="0 -960 960 960" fill="currentColor">
+								<path d={DETAIL_ICON_PATHS.tune} />
+							</svg>
+							<span>{$L('Display')}</span>
+						</SpottableDiv>
+					</HorizontalContainer>
 				</div>
 			</div>
 

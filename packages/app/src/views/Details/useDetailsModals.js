@@ -123,7 +123,6 @@ const useDetailsModals = ({backHandlerRef, onArtworkClosed, seerrBackRef, overvi
 
 	const handleClosePersonDisplayModal = useCallback(() => {
 		setShowPersonDisplayModal(false);
-		window.requestAnimationFrame(() => Spotlight.focus('details-person-display-btn') || Spotlight.focus('details-action-buttons'));
 	}, []);
 
 	// BACK closes the innermost overlay. The artwork modal browses within itself, so it gets

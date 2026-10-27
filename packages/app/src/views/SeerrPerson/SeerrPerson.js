@@ -4,7 +4,6 @@ import Spottable from '@enact/spotlight/Spottable';
 import $L from '@enact/i18n/$L';
 import seerrApi from '../../services/seerrApi';
 import {useAuth} from '../../context/AuthContext';
-import {useSettings} from '../../context/SettingsContext';
 import LoadingSpinner from '../../components/LoadingSpinner';
 import MediaRow from '../../components/MediaRow';
 import PersonDetailShell from '../../components/PersonDetailShell';
@@ -22,8 +21,6 @@ const SpottableDiv = Spottable('div');
 // Appearances/Crew tabs.
 const SeerrPerson = ({personId, personName, onClose, onSelectItem, onBack}) => {
 	const {serverUrl} = useAuth();
-	const {settings} = useSettings();
-
 	const [details, setDetails] = useState(null);
 	const [loading, setLoading] = useState(true);
 	const [error, setError] = useState(null);
@@ -77,23 +74,8 @@ const SeerrPerson = ({personId, personName, onClose, onSelectItem, onBack}) => {
 		if (item?._seerrRaw) onSelectItem?.(item._seerrRaw);
 	}, [onSelectItem]);
 
-	const appearances = useMemo(
-		() => prepareCredits(rawCast, {
-			isCrew: false,
-			group: settings.personPageGroupItems,
-			sortOption: settings.personPageSortOption
-		}).map(normalizeMediaItem),
-		[rawCast, settings.personPageGroupItems, settings.personPageSortOption]
-	);
-	const crewCredits = useMemo(
-		() => prepareCredits(rawCrew, {
-			isCrew: true,
-			group: settings.personPageGroupItems,
-			sortOption: settings.personPageSortOption
-		}).map(normalizeMediaItem),
-		[rawCrew, settings.personPageGroupItems, settings.personPageSortOption]
-	);
-
+	const appearances = useMemo(() => prepareCredits(rawCast, {isCrew: false}).map(normalizeMediaItem), [rawCast]);
+	const crewCredits = useMemo(() => prepareCredits(rawCrew, {isCrew: true}).map(normalizeMediaItem), [rawCrew]);
 
 	const tabs = useMemo(() => {
 		const list = [];

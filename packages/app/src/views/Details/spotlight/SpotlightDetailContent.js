@@ -290,7 +290,7 @@ const SpotlightDetailContent = (props) => {
 
 	const handleBandKeyDown = useCallback((ev) => {
 		if (ev.keyCode !== KEYS.UP) return;
-		if (Spotlight.focus('details-primary-btn') || Spotlight.focus('details-person-display-btn') || Spotlight.focus('details-action-buttons')) {
+		if (Spotlight.focus('details-primary-btn') || Spotlight.focus('details-action-buttons')) {
 			ev.preventDefault();
 			ev.stopPropagation();
 		}
@@ -432,7 +432,7 @@ const SpotlightDetailContent = (props) => {
 				</div>
 				{cards.length > 0 && (
 					<div className={css.cardBandWrapper} onFocus={keepFocusInView}>
-						<BandContainer className={css.cardBand} spotlightId="spotlight-card-band" onKeyDown={handleBandKeyDown}>
+						<BandContainer className={css.cardBand} onKeyDown={handleBandKeyDown}>
 							{cards.map((card) => (
 								<SpotlightSummaryCard
 									key={card.id}

@@ -767,10 +767,3 @@ export const getRecentlyReleasedSeriesTypeOptions = () => [
 	{ value: 'season', label: $L('Season') },
 	{ value: 'episode', label: $L('Episode') }
 ];
-
-export const getPersonPageSortOptions = () => [
-	{ value: 'alphabetical', label: $L('Alphabetical') },
-	{ value: 'releaseDateDesc', label: $L('Release Date (Newest First)') },
-	{ value: 'releaseDateAsc', label: $L('Release Date (Oldest First)') }
-];
-
