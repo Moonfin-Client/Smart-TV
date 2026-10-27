@@ -15,8 +15,7 @@ import {
 	firstPosterImageUrl,
 	firstChapterImageUrl
 } from './spotlightImages';
-import {PLAYABLE_TYPES} from '../collectionPlaylist';
-import {DEFAULT_SORT, SORT_CUSTOM, sortLabel} from '../collectionSort';
+import {collectionPlaylistItems} from '../collectionPlaylist';
 
 // The summary cards reuse the detail screen's own icon set rather than carrying a second one.
 export const CARD_ICONS = {
@@ -566,8 +565,6 @@ class CardBuilder {
 		const series = items.filter((i) => i.Type === 'Series');
 		const rest = items.filter((i) => i.Type !== 'Movie' && i.Type !== 'Series');
 
-		const collectionImageUrl = spotlightLandscapeImageUrl(serverUrl, item, {fallbackUrl: fallbackImageUrl}) || fallbackImageUrl;
-
 		return {
 			id: 'boxset_items',
 			title: $L('Movies & Shows'),
@@ -576,7 +573,7 @@ class CardBuilder {
 				series.length ? countLabel(series.length, $L('1 show'), $L('{count} shows')) : null,
 				!movies.length && !series.length ? countLabel(items.length, $L('1 item'), $L('{count} items')) : null
 			]),
-			imageUrl: collectionImageUrl,
+			imageUrl: spotlightLandscapeImageUrl(serverUrl, item, {fallbackUrl: fallbackImageUrl}) || firstLandscapeImageUrl(serverUrl, items),
 			icon: CARD_ICONS.collections,
 			sections: [
 				...(movies.length ? [memberSection($L('Movies'), movies)] : []),
@@ -621,45 +618,30 @@ class CardBuilder {
 	}
 
 	playlistOrderCard() {
-		const {
-			playlistItems = [], collectionItems = [], serverUrl, item, fallbackImageUrl,
-			collectionSort, onOpenCollectionSort, isBoxSet
-		} = this.s;
-		const playableFallback = collectionItems.filter((i) => i && PLAYABLE_TYPES.has(i.Type));
-		const effectiveItems = playlistItems.length ? playlistItems : playableFallback;
-		if (!effectiveItems.length) return null;
-
+		const {playlistItems = [], collectionItems = [], playlistSort, serverUrl, item, fallbackImageUrl} = this.s;
+		const tracks = collectionPlaylistItems(playlistItems, collectionItems);
+		if (!tracks.length) return null;
+		// Art that differs from the Movies & Shows card beside it, where there is any.
 		const collectionImageUrl = spotlightLandscapeImageUrl(serverUrl, item, {fallbackUrl: fallbackImageUrl});
-		let playlistImageUrl = null;
-		for (const candidate of effectiveItems) {
-			const url = spotlightLandscapeImageUrl(serverUrl, candidate);
-			if (url && url !== collectionImageUrl) {
-				playlistImageUrl = url;
-				break;
-			}
-		}
-		playlistImageUrl = playlistImageUrl || (effectiveItems.length
-			? spotlightLandscapeImageUrl(serverUrl, effectiveItems[0], {fallbackUrl: fallbackImageUrl})
-			: fallbackImageUrl);
-
-		const canManage = (isBoxSet || item?.Type === 'BoxSet') ? collectionSort === SORT_CUSTOM : false;
-
+		const trackImageUrls = tracks.map((track) => spotlightLandscapeImageUrl(serverUrl, track)).filter(Boolean);
 		return {
 			id: 'playlist_order',
 			title: $L('Playlist Order'),
-			subtitle: countLabel(effectiveItems.length, $L('1 item'), $L('{count} items')),
-			imageUrl: playlistImageUrl,
+			subtitle: countLabel(tracks.length, $L('1 item'), $L('{count} items')),
+			imageUrl: trackImageUrls.find((url) => url !== collectionImageUrl) || trackImageUrls[0] || fallbackImageUrl,
 			icon: CARD_ICONS.playlistOrder,
 			// A collection's order can be sorted from the modal it opens.
-			headerAction: this.s.playlistSort ? {label: this.s.playlistSort.label, onClick: this.s.playlistSort.open} : null,
+			headerAction: playlistSort ? {label: playlistSort.label, onClick: playlistSort.open} : null,
 			sections: [{
 				kind: 'tracks',
 				title: $L('Playlist Order'),
-				count: effectiveItems.length,
-				tracks: effectiveItems,
+				count: tracks.length,
+				tracks,
 				showAlbum: true,
-				manage: canManage,
-				isPlaylist: true
+				isPlaylist: true,
+				loading: Boolean(playlistSort?.loading && !playlistItems.length),
+				// Until the playlist is in, a row opens its title, since there's no run yet to play from it.
+				opensItems: !playlistItems.length
 			}]
 		};
 	}

@@ -2511,6 +2511,5 @@
 	"{value} (converted from {source})": "{value} (converted from {source})",
 	"{value} (original {original})": "{value} (original {original})",
 	"◀ ▶ Navigate": "◀ ▶ Navigate",
-	"◀ ▶ to re-order": "◀ ▶ to re-order",
 	"◀ ▶ to re-order · DEL to remove": "◀ ▶ to re-order · DEL to remove"
 }

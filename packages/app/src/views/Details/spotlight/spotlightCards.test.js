@@ -1,4 +1,5 @@
 import {spotlightCardsFor, spotlightCardFor, spotlightRuntimeLabel, dedupePeople} from './spotlightCards';
+import {spotlightLandscapeImageUrl} from './spotlightImages';
 
 const SERVER = 'https://tv.example';
 
@@ -276,6 +277,36 @@ describe('spotlightCardsFor', () => {
 		}));
 		expect(ids(cards)).toEqual(['boxset_items', 'playlist_order']);
 		expect(cards[1].subtitle).toBe('2 items');
+	});
+
+	it('gives the playlist order card different art from the movies and shows card beside it', () => {
+		const m1 = child('m1', 'Movie', {BackdropImageTags: ['b1']});
+		const m2 = child('m2', 'Movie', {BackdropImageTags: ['b2']});
+		const cards = spotlightCardsFor(state({
+			item: {Id: 'box', Type: 'BoxSet'},
+			fallbackImageUrl: spotlightLandscapeImageUrl(SERVER, m1),
+			collectionItems: [m1, m2],
+			playlistItems: [m1, m2]
+		}));
+		const art = (id) => cards.find((c) => c.id === id).imageUrl;
+		expect(art('boxset_items')).toBe(spotlightLandscapeImageUrl(SERVER, m1));
+		expect(art('playlist_order')).toBe(spotlightLandscapeImageUrl(SERVER, m2));
+	});
+
+	it('shows a collection\'s own titles until its playlist is in, opening them rather than playing', () => {
+		const playlistSort = {label: 'Server Order', open: () => {}, loading: false};
+		const boxSet = {Id: 'box', Type: 'BoxSet'};
+		const before = spotlightCardFor('playlist_order', state({item: boxSet, collectionItems: [child('m1'), child('s1', 'Series')], playlistSort}));
+		expect(before.headerAction.label).toBe('Server Order');
+		expect(before.sections[0].tracks.map((t) => t.Id)).toEqual(['m1']);
+		expect(before.sections[0].opensItems).toBe(true);
+
+		const loading = spotlightCardFor('playlist_order', state({item: boxSet, collectionItems: [child('m1')], playlistSort: {...playlistSort, loading: true}}));
+		expect(loading.sections[0].loading).toBe(true);
+
+		const after = spotlightCardFor('playlist_order', state({item: boxSet, collectionItems: [child('m1')], playlistItems: [child('m1'), child('e1', 'Episode')], playlistSort}));
+		expect(after.sections[0].opensItems).toBe(false);
+		expect(after.sections[0].loading).toBe(false);
 	});
 
 	it('offers a seerr only title just what seerr can fill', () => {

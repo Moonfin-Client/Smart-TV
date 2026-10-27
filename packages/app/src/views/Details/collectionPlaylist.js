@@ -1,8 +1,9 @@
 // A collection played in order, which means every movie in it plus every episode of every
 // series in it, flattened into one list.
 //
-// Only the keys are held. The items themselves are read a page at a time, so a collection of
-// any size settles at a few KB until the viewer scrolls.
+// Only a small entry per title is held, enough to put the list in any order without asking the
+// server again. The items themselves are read a page at a time, so a collection of any size
+// settles at a few KB until the viewer scrolls.
 
 // How much of a collection is walked looking for members.
 const INDEX_SCAN_LIMIT = 2000;
@@ -13,7 +14,7 @@ const INDEX_SCAN_BATCH = 8;
 
 const PAGE_SIZE = 50;
 
-export const PLAYABLE_TYPES = new Set(['Movie', 'Audio', 'Video', 'MusicVideo', 'Episode']);
+const PLAYABLE_TYPES = new Set(['Movie', 'Episode', 'Audio', 'Video', 'MusicVideo']);
 
 // All an entry keeps: enough to sort by, and the id to fetch with.
 export const indexEntryFor = (item) => ({
@@ -24,13 +25,11 @@ export const indexEntryFor = (item) => ({
 });
 
 const releaseKey = (entry) => {
-	const date = entry?.premiereDate || entry?.PremiereDate;
-	if (date) {
-		const parsed = Date.parse(date);
+	if (entry.premiereDate) {
+		const parsed = Date.parse(entry.premiereDate);
 		if (!isNaN(parsed)) return parsed;
 	}
-	const year = entry?.productionYear || entry?.ProductionYear;
-	return year ? Date.UTC(year, 0, 1) : null;
+	return entry.productionYear ? Date.UTC(entry.productionYear, 0, 1) : null;
 };
 
 // Release order, with the entries carrying no date at all sinking to the bottom and ties
@@ -38,13 +37,11 @@ const releaseKey = (entry) => {
 export const compareReleaseAscending = (a, b) => {
 	const aKey = releaseKey(a);
 	const bKey = releaseKey(b);
-	const aName = (a?.name || a?.Name || '').toLowerCase();
-	const bName = (b?.name || b?.Name || '').toLowerCase();
-	if (aKey === null && bKey === null) return aName.localeCompare(bName);
+	if (aKey === null && bKey === null) return a.name.toLowerCase().localeCompare(b.name.toLowerCase());
 	if (aKey === null) return 1;
 	if (bKey === null) return -1;
 	if (aKey !== bKey) return aKey - bKey;
-	return aName.localeCompare(bName);
+	return a.name.toLowerCase().localeCompare(b.name.toLowerCase());
 };
 
 // The by-id endpoint answers in whatever order it likes, so the page is put back into the
@@ -54,22 +51,17 @@ export const orderItemsByIds = (items = [], ids = []) => {
 	return [...items].sort((a, b) => (rank.get(a.Id) ?? ids.length) - (rank.get(b.Id) ?? ids.length));
 };
 
-// Walks the collection once and returns the ids of everything playable in it, defaulting to
-// release order or custom order when present.
+// Walks the collection once and returns an entry for everything playable in it, in the order the
+// server lists them with each series' episodes in its place.
 //
 // Deliberately not recursive. The scan reads the collection's own members and then asks each
 // series for its episodes, so walking the tree here would spend the limit on episodes that
 // arrive twice.
-export const buildCollectionIndex = async (api, collectionId, options = {}) => {
-	const sortBy = options.sortBy || 'releaseAscending';
-	const customOrder = sortBy === 'custom' && typeof api?.getCollectionOrder === 'function'
-		? await api.getCollectionOrder(collectionId).catch(() => null)
-		: null;
-
+export const buildCollectionIndex = async (api, collectionId) => {
 	const data = await api.getItems({
 		ParentId: collectionId,
 		Limit: INDEX_SCAN_LIMIT,
-		Fields: 'BasicSyncInfo,PremiereDate,ProductionYear'
+		Fields: 'BasicSyncInfo'
 	}).catch(() => null);
 	const members = data?.Items || [];
 	const series = members.filter((item) => item?.Type === 'Series');
@@ -82,52 +74,29 @@ export const buildCollectionIndex = async (api, collectionId, options = {}) => {
 		batch.forEach((show, j) => episodes.set(show.Id, lists[j]?.Items || []));
 	}
 
-	const allItems = members.flatMap((item) => {
-		if (item?.Type === 'Series') return episodes.get(item.Id) || [];
+	// An episode filed on its own and again through its series plays once.
+	const seen = new Set();
+	return members.flatMap((item) => {
+		if (item?.Type === 'Series') return episodes.get(item.Id);
 		return PLAYABLE_TYPES.has(item?.Type) ? [item] : [];
-	});
+	}).filter((item) => !seen.has(item.Id) && seen.add(item.Id)).map(indexEntryFor);
+};
 
-	// Deduplicate by ID preserving first occurrence
-	const seenIds = new Set();
-	const uniqueItems = [];
-	for (const item of allItems) {
-		if (item?.Id && !seenIds.has(item.Id)) {
-			seenIds.add(item.Id);
-			uniqueItems.push(item);
-		}
-	}
+// What a collection's playlist shows. Until the playlist has items, that's the collection's own
+// playable members.
+export const collectionPlaylistItems = (playlistItems = [], collectionItems = []) => (
+	playlistItems.length ? playlistItems : collectionItems.filter((item) => PLAYABLE_TYPES.has(item?.Type))
+);
 
-	if (sortBy === 'custom' && Array.isArray(customOrder) && customOrder.length) {
-		const customSet = new Set(customOrder);
-		const remaining = uniqueItems
-			.filter((item) => !customSet.has(item.Id))
-			.sort(compareReleaseAscending);
-		const remainingIds = remaining.map((item) => item.Id);
-		const seen = new Set();
-		return [...customOrder, ...remainingIds].filter((id) => {
-			if (seen.has(id)) return false;
-			seen.add(id);
-			return true;
-		});
-	}
-
-	if (sortBy === 'releaseAscending') {
-		return [...uniqueItems].sort(compareReleaseAscending).map((item) => item.Id);
-	}
-
-	if (sortBy === 'releaseDescending') {
-		return [...uniqueItems]
-			.sort((a, b) => compareReleaseAscending(b, a))
-			.map((item) => item.Id);
-	}
-
-	if (sortBy === 'alphabetical') {
-		return [...uniqueItems]
-			.sort((a, b) => String(a?.Name || a?.name || '').toLowerCase().localeCompare(String(b?.Name || b?.name || '').toLowerCase()))
-			.map((item) => item.Id);
-	}
-
-	return uniqueItems.map((item) => item.Id);
+// Moves a loaded row and gives back the whole new order. The loaded rows take the head of it in
+// their new order and the rest keep theirs, matched on id since a page can come back short.
+export const moveInCollection = (loaded = [], index = [], from, to) => {
+	if (from < 0 || from >= loaded.length || to < 0 || to >= loaded.length) return null;
+	const items = [...loaded];
+	items.splice(to, 0, items.splice(from, 1)[0]);
+	const loadedIds = items.map((item) => item.Id);
+	const placed = new Set(loadedIds);
+	return {items, order: [...loadedIds, ...index.filter((id) => !placed.has(id))]};
 };
 
 // Reads the next run of ids. Progress is counted in index positions rather than items
@@ -148,25 +117,3 @@ export const fetchCollectionPage = async (api, ids = [], fetchedCount = 0) => {
 		hasMore: next < ids.length
 	};
 };
-
-// Moves an item in the loaded collection page and preserves unloaded member ids
-// in the overall custom order.
-export const reorderCollectionIds = ({currentItems = [], customOrder = [], allIds = [], itemIndex, direction}) => {
-	const newIndex = itemIndex + direction;
-	if (newIndex < 0 || newIndex >= currentItems.length) return null;
-
-	const reordered = [...currentItems];
-	const [moved] = reordered.splice(itemIndex, 1);
-	reordered.splice(newIndex, 0, moved);
-
-	const movedIds = reordered.map((i) => i.Id);
-	const movedSet = new Set(movedIds);
-	const baseOrder = customOrder.length > 0 ? customOrder : allIds;
-	const remaining = baseOrder.filter((id) => !movedSet.has(id));
-
-	return {
-		newIndex,
-		newOrder: [...movedIds, ...remaining]
-	};
-};
-

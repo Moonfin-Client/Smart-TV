@@ -10,7 +10,8 @@ import {findParentCollections} from './parentCollection';
 import {fetchAllPlaylistItems} from './playlistItems';
 import {canScoreSeedLocally, getOnlineRecommendations, getRecommendations, mergeRecommendations} from '../../services/homeRecommendations';
 import {fetchMissingCollectionItems} from './seerrMissingCollectionItems';
-import {buildCollectionIndex, fetchCollectionPage} from './collectionPlaylist';
+import {buildCollectionIndex, collectionPlaylistItems, fetchCollectionPage, indexEntryFor, moveInCollection} from './collectionPlaylist';
+import {DEFAULT_SORT, SORT_CUSTOM, mergeSavedOrder, orderCollectionIndex} from './nouveau/nouveauCollectionSort';
 import {sectionVisibility} from '../../utils/detailSectionLayout';
 import {withPersonRoles} from '../../utils/personCredits';
 import {isBlocked as isContentBlocked, isBlockedNow, observeItem} from '../../services/blockedContentGate';
@@ -52,12 +53,9 @@ const seedToShow = (candidate, id) => {
 // it ends up with.
 const SIMILAR_LIMIT = 20;
 
-const useDetailsItem = ({itemId, initialItem, effectiveApi, effectiveServerUrl, settings, recommendationsSupported, seerrEnabled, tagWithServerInfo, skip, collectionSort = 'releaseAscending'}) => {
+const useDetailsItem = ({itemId, initialItem, effectiveApi, effectiveServerUrl, settings, recommendationsSupported, seerrEnabled, tagWithServerInfo, skip}) => {
 	const seedRef = useRef(initialItem);
 	seedRef.current = initialItem;
-	const collectionSortRef = useRef(collectionSort);
-	collectionSortRef.current = collectionSort;
-	const prevSortRef = useRef(collectionSort);
 	// Read where they are used rather than depended on, so a change to either one
 	// does not refetch the whole screen.
 	const settingsRef = useRef(settings);
@@ -75,6 +73,10 @@ const useDetailsItem = ({itemId, initialItem, effectiveApi, effectiveServerUrl, 
 	const collectionHasMoreRef = useRef(false);
 	const collectionLoadingRef = useRef(false);
 	const playlistGenerationRef = useRef(0);
+	// Every title in the collection in the server's order, which each sort is worked out from.
+	const collectionEntriesRef = useRef(null);
+	// Read when the scan lands, so a sort picked while it was still running holds.
+	const collectionSortRef = useRef(DEFAULT_SORT);
 	seerrEnabledRef.current = seerrEnabled;
 
 	const [item, setItem] = useState(() => seedToShow(initialItem, itemId));
@@ -100,6 +102,9 @@ const useDetailsItem = ({itemId, initialItem, effectiveApi, effectiveServerUrl, 
 	const [albumTracks, setAlbumTracks] = useState([]);
 	const [artistAlbums, setArtistAlbums] = useState([]);
 	const [playlistItems, setPlaylistItems] = useState([]);
+	const [collectionSort, setCollectionSort] = useState(DEFAULT_SORT);
+	const [collectionCustomOrder, setCollectionCustomOrder] = useState([]);
+	const [collectionPlaylistLoading, setCollectionPlaylistLoading] = useState(false);
 	const [isLoading, setIsLoading] = useState(() => !seedToShow(initialItem, itemId));
 	const [episodeRatings, setEpisodeRatings] = useState({});
 
@@ -129,6 +134,23 @@ const useDetailsItem = ({itemId, initialItem, effectiveApi, effectiveServerUrl, 
 		}
 	}, [effectiveApi, tagWithServerInfo]);
 
+	// Starts the playlist over in a new order, and paging waits until its first page is in.
+	const startCollectionPlaylist = useCallback(async (index, generation) => {
+		collectionIndexRef.current = index;
+		collectionFetchedRef.current = 0;
+		collectionHasMoreRef.current = false;
+		collectionLoadingRef.current = false;
+		try {
+			const page = await fetchCollectionPage(effectiveApi, index, 0);
+			if (generation !== playlistGenerationRef.current) return;
+			collectionFetchedRef.current = page.fetchedCount;
+			collectionHasMoreRef.current = page.hasMore;
+			setPlaylistItems(tagWithServerInfo(withoutBlockedItems(page.items)));
+		} finally {
+			if (generation === playlistGenerationRef.current) setCollectionPlaylistLoading(false);
+		}
+	}, [effectiveApi, tagWithServerInfo]);
+
 	useEffect(() => {
 		// Whatever the last item brought with it has to go before anything else, or its rows
 		// stay on screen under the next title.
@@ -149,6 +171,11 @@ const useDetailsItem = ({itemId, initialItem, effectiveApi, effectiveServerUrl, 
 		collectionHasMoreRef.current = false;
 		playlistGenerationRef.current += 1;
 		collectionLoadingRef.current = false;
+		collectionEntriesRef.current = null;
+		collectionSortRef.current = DEFAULT_SORT;
+		setCollectionSort(DEFAULT_SORT);
+		setCollectionCustomOrder([]);
+		setCollectionPlaylistLoading(false);
 		setParentCollections([]);
 		setSimilarSource('jellyfin');
 		setAlbumTracks([]);
@@ -252,6 +279,7 @@ const useDetailsItem = ({itemId, initialItem, effectiveApi, effectiveServerUrl, 
 			const fallbackRating = data.OfficialRating;
 
 			const bg = async () => {
+				let boxSetMembers = [];
 				if (data.Type === 'Series') {
 					// Nouveau and Minimalist show one season's episodes at a time behind a selector.
 					// Asking for the whole run once and splitting it here beats a fetch per season,
@@ -295,10 +323,11 @@ const useDetailsItem = ({itemId, initialItem, effectiveApi, effectiveServerUrl, 
 				if (data.Type === 'BoxSet') {
 					const collectionData = await effectiveApi.getItems({
 						ParentId: data.Id,
-						SortBy: 'PremiereDate,ProductionYear,SortName',
+						SortBy: 'ProductionYear,SortName',
 						SortOrder: 'Ascending',
 						Fields: 'PrimaryImageAspectRatio,ProductionYear,ProviderIds'
 					}).catch(() => null);
+					boxSetMembers = collectionData?.Items || [];
 					if (collectionData) {
 						const tagged = tagWithServerInfo(withoutBlockedItems(collectionData.Items || []));
 						setCollectionItems(tagged);
@@ -452,14 +481,22 @@ const useDetailsItem = ({itemId, initialItem, effectiveApi, effectiveServerUrl, 
 				// the viewer scrolls.
 				if (data.Type === 'BoxSet') {
 					const generation = playlistGenerationRef.current;
-					const index = await buildCollectionIndex(effectiveApi, itemId, {sortBy: collectionSortRef.current});
+					setCollectionPlaylistLoading(true);
+					const [scanned, saved] = await Promise.all([
+						buildCollectionIndex(effectiveApi, itemId),
+						Promise.resolve(effectiveApi.getCollectionOrder?.(itemId)).catch(() => null)
+					]);
 					if (cancelled || generation !== playlistGenerationRef.current) return;
-					collectionIndexRef.current = index;
-					const page = await fetchCollectionPage(effectiveApi, index, 0);
-					if (cancelled || generation !== playlistGenerationRef.current) return;
-					collectionFetchedRef.current = page.fetchedCount;
-					collectionHasMoreRef.current = page.hasMore;
-					setPlaylistItems(tagWithServerInfo(withoutBlockedItems(page.items)));
+					// A scan that finds nothing leaves the collection's own playable members to stand in.
+					const entries = scanned.length ? scanned : collectionPlaylistItems([], boxSetMembers).map(indexEntryFor);
+					// A saved order means somebody arranged this collection, so it opens the way they left it.
+					const customOrder = Array.isArray(saved) && saved.length ? mergeSavedOrder(saved, entries) : [];
+					if (customOrder.length) collectionSortRef.current = SORT_CUSTOM;
+					collectionEntriesRef.current = entries;
+					setCollectionCustomOrder(customOrder);
+					setCollectionSort(collectionSortRef.current);
+					const index = customOrder.length ? customOrder : orderCollectionIndex(entries, collectionSortRef.current);
+					await startCollectionPlaylist(index, generation);
 				}
 
 				if (data.Type === 'Person') {
@@ -472,33 +509,40 @@ const useDetailsItem = ({itemId, initialItem, effectiveApi, effectiveServerUrl, 
 		};
 		loadItem();
 		return () => { cancelled = true; };
-	}, [effectiveApi, itemId, tagWithServerInfo, skip]);
+	}, [effectiveApi, itemId, tagWithServerInfo, skip, startCollectionPlaylist]);
 
-	useEffect(() => {
-		if (prevSortRef.current === collectionSort) return undefined;
-		if (!item || item.Type !== 'BoxSet' || !effectiveApi || !itemId) return undefined;
-
-		let cancelled = false;
+	const chooseCollectionSort = useCallback((option) => {
+		if (option === collectionSortRef.current) return;
+		collectionSortRef.current = option;
+		setCollectionSort(option);
+		const entries = collectionEntriesRef.current;
+		if (!entries) return;
+		// Custom with nothing arranged yet starts from whatever order is showing.
+		let index = collectionIndexRef.current;
+		if (option === SORT_CUSTOM) {
+			if (collectionCustomOrder.length) index = collectionCustomOrder;
+		} else if (entries.length) {
+			index = orderCollectionIndex(entries, option);
+		}
 		const generation = ++playlistGenerationRef.current;
-		collectionFetchedRef.current = 0;
-		collectionHasMoreRef.current = false;
-		collectionLoadingRef.current = false;
 		setPlaylistItems([]);
+		setCollectionPlaylistLoading(true);
+		startCollectionPlaylist(index, generation).catch(() => {});
+	}, [collectionCustomOrder, startCollectionPlaylist]);
 
-		(async () => {
-			const index = await buildCollectionIndex(effectiveApi, itemId, {sortBy: collectionSort});
-			if (cancelled || generation !== playlistGenerationRef.current) return;
-			collectionIndexRef.current = index;
-			const page = await fetchCollectionPage(effectiveApi, index, 0);
-			if (cancelled || generation !== playlistGenerationRef.current) return;
-			collectionFetchedRef.current = page.fetchedCount;
-			collectionHasMoreRef.current = page.hasMore;
-			setPlaylistItems(tagWithServerInfo(withoutBlockedItems(page.items)));
-			prevSortRef.current = collectionSort;
-		})();
-
-		return () => { cancelled = true; };
-	}, [collectionSort, item, itemId, effectiveApi, tagWithServerInfo]);
+	// Moves a loaded title and switches to the custom order. The whole order is saved, so titles
+	// that haven't been read yet keep their places.
+	const moveCollectionItem = useCallback((from, to) => {
+		if (item?.Type !== 'BoxSet') return;
+		const moved = moveInCollection(playlistItems, collectionIndexRef.current, from, to);
+		if (!moved) return;
+		collectionIndexRef.current = moved.order;
+		collectionSortRef.current = SORT_CUSTOM;
+		setPlaylistItems(moved.items);
+		setCollectionCustomOrder(moved.order);
+		setCollectionSort(SORT_CUSTOM);
+		Promise.resolve(effectiveApi.saveCollectionOrder?.(item.Id, moved.order)).catch(() => {});
+	}, [item, playlistItems, effectiveApi]);
 
 	useEffect(() => {
 		if (!item || !episodes.length) return undefined;
@@ -549,6 +593,8 @@ const useDetailsItem = ({itemId, initialItem, effectiveApi, effectiveServerUrl, 
 		const previousCollection = collectionItems;
 		const previousPlaylist = playlistItems;
 		const previousIndex = collectionIndexRef.current;
+		const previousEntries = collectionEntriesRef.current;
+		const previousCustomOrder = collectionCustomOrder;
 		const previousFetched = collectionFetchedRef.current;
 		const previousHasMore = collectionHasMoreRef.current;
 
@@ -558,6 +604,8 @@ const useDetailsItem = ({itemId, initialItem, effectiveApi, effectiveServerUrl, 
 		setCollectionItems(previousCollection.filter((entry) => entry.Id !== member.Id));
 		setPlaylistItems(previousPlaylist.filter((entry) => entry.Id !== member.Id));
 		collectionIndexRef.current = previousIndex.filter((id) => id !== member.Id);
+		collectionEntriesRef.current = previousEntries && previousEntries.filter((entry) => entry.id !== member.Id);
+		setCollectionCustomOrder(previousCustomOrder.filter((id) => id !== member.Id));
 		if (position >= 0 && position < previousFetched) collectionFetchedRef.current = previousFetched - 1;
 		collectionHasMoreRef.current = collectionFetchedRef.current < collectionIndexRef.current.length;
 
@@ -567,6 +615,8 @@ const useDetailsItem = ({itemId, initialItem, effectiveApi, effectiveServerUrl, 
 			setCollectionItems(previousCollection);
 			setPlaylistItems(previousPlaylist);
 			collectionIndexRef.current = previousIndex;
+			collectionEntriesRef.current = previousEntries;
+			setCollectionCustomOrder(previousCustomOrder);
 			collectionFetchedRef.current = previousFetched;
 			collectionHasMoreRef.current = previousHasMore;
 			throw err;
@@ -577,7 +627,7 @@ const useDetailsItem = ({itemId, initialItem, effectiveApi, effectiveServerUrl, 
 		if (Array.isArray(order) && order.indexOf(member.Id) !== -1) {
 			await effectiveApi.saveCollectionOrder(item.Id, order.filter((id) => id !== member.Id)).catch(() => {});
 		}
-	}, [item, collectionItems, playlistItems, effectiveApi]);
+	}, [item, collectionItems, playlistItems, collectionCustomOrder, effectiveApi]);
 
 	const refreshItem = useCallback(async () => {
 		try {
@@ -624,6 +674,10 @@ const useDetailsItem = ({itemId, initialItem, effectiveApi, effectiveServerUrl, 
 		loadMoreCollectionItems,
 		removeFromCollection,
 		collectionIndexRef,
+		collectionSort,
+		collectionPlaylistLoading,
+		chooseCollectionSort,
+		moveCollectionItem,
 		setPlaylistItems,
 		episodeRatings,
 		selectedVersionIndex,

@@ -1,62 +1,62 @@
 import {
-	SORT_ALPHABETICAL, SORT_CUSTOM, SORT_RELEASE_ASCENDING, SORT_RELEASE_DESCENDING, SORT_SERVER,
-	applyCollectionSort, collectionSortOptions, sortLabel
+	SORT_ALPHABETICAL, SORT_CUSTOM, SORT_RELEASE_ASCENDING, SORT_RELEASE_DESCENDING,
+	collectionSortOptions, mergeSavedOrder, orderCollectionIndex, sortLabel
 } from './nouveauCollectionSort';
+import {indexEntryFor} from '../collectionPlaylist';
 
-const film = (Id, Name, PremiereDate) => ({Id, Name, PremiereDate});
-const ids = (items) => items.map((i) => i.Id);
-const names = (items) => items.map((i) => i.Name);
+const film = (Id, Name, PremiereDate) => indexEntryFor({Id, Name, PremiereDate});
 
 const library = [
 	film('c', 'Carol', '2001-01-01'),
-	film('a', 'Alpha', '1999-01-01'),
+	film('a', 'alpha', '1999-01-01'),
 	film('b', 'Bravo', '2010-01-01')
 ];
 
-describe('applyCollectionSort', () => {
-	it('puts a collection in release order by default', () => {
-		expect(ids(applyCollectionSort(library))).toEqual(['a', 'c', 'b']);
-	});
-
-	it('keeps the order the server sent on request', () => {
-		expect(ids(applyCollectionSort(library, SORT_SERVER))).toEqual(['c', 'a', 'b']);
+describe('orderCollectionIndex', () => {
+	it('keeps the order the server sent by default', () => {
+		expect(orderCollectionIndex(library)).toEqual(['c', 'a', 'b']);
 	});
 
 	it('puts a collection in release order on request', () => {
-		expect(ids(applyCollectionSort(library, SORT_RELEASE_ASCENDING))).toEqual(['a', 'c', 'b']);
+		expect(orderCollectionIndex(library, SORT_RELEASE_ASCENDING)).toEqual(['a', 'c', 'b']);
 	});
 
 	it('reverses it on request', () => {
-		expect(ids(applyCollectionSort(library, SORT_RELEASE_DESCENDING))).toEqual(['b', 'c', 'a']);
+		expect(orderCollectionIndex(library, SORT_RELEASE_DESCENDING)).toEqual(['b', 'c', 'a']);
 	});
 
 	it('sorts by name, ignoring case', () => {
-		expect(names(applyCollectionSort(library, SORT_ALPHABETICAL))).toEqual(['Alpha', 'Bravo', 'Carol']);
+		expect(orderCollectionIndex(library, SORT_ALPHABETICAL)).toEqual(['a', 'b', 'c']);
 	});
 
-	it('follows a saved order when there is one', () => {
-		expect(ids(applyCollectionSort(library, SORT_CUSTOM, ['b', 'a', 'c']))).toEqual(['b', 'a', 'c']);
-	});
-
-	it('appends unlisted items in release order when using a saved order', () => {
-		expect(ids(applyCollectionSort(library, SORT_CUSTOM, ['b']))).toEqual(['b', 'a', 'c']);
-	});
-
-	it('falls back to the server order when the saved one is empty', () => {
-		expect(ids(applyCollectionSort(library, SORT_CUSTOM, []))).toEqual(['c', 'a', 'b']);
+	it('lists a title once however often it turns up', () => {
+		expect(orderCollectionIndex([...library, film('a', 'alpha', '1999-01-01')])).toEqual(['c', 'a', 'b']);
 	});
 
 	it('leaves the list it was given alone', () => {
 		const original = [...library];
-		applyCollectionSort(library, SORT_ALPHABETICAL);
+		orderCollectionIndex(library, SORT_ALPHABETICAL);
 		expect(library).toEqual(original);
 	});
 });
 
+describe('mergeSavedOrder', () => {
+	it('follows a saved order', () => {
+		expect(mergeSavedOrder(['b', 'a', 'c'], library)).toEqual(['b', 'a', 'c']);
+	});
+
+	it('puts titles added since it was saved on the end in release order', () => {
+		expect(mergeSavedOrder(['b'], library)).toEqual(['b', 'a', 'c']);
+	});
+
+	it('keeps the saved order as it is, listing each title once', () => {
+		expect(mergeSavedOrder(['x', 'b', 'b'], library)).toEqual(['x', 'b', 'a', 'c']);
+	});
+});
+
 describe('collectionSortOptions', () => {
-	it('offers the custom order only where one can be kept', () => {
-		expect(collectionSortOptions(false).map((o) => o.id)).not.toContain('custom');
-		expect(collectionSortOptions(true).map((o) => o.id)).toContain('custom');
+	it('offers every order, the custom one included', () => {
+		expect(collectionSortOptions().map((o) => o.id)).toEqual(['server', 'releaseAscending', 'releaseDescending', 'alphabetical', 'custom']);
 	});
 
 	// A remote cannot drag, so the option is named for what it is rather than for a gesture.

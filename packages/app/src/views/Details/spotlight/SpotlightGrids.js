@@ -3,6 +3,7 @@ import $L from '@enact/i18n/$L';
 
 import MediaCard from '../../../components/MediaCard';
 import DetailTrackList from '../../../components/DetailTrackList';
+import LoadingSpinner from '../../../components/LoadingSpinner';
 import {SeerrChips, SeerrFacts, SeerrStreaming, SeerrCollectionBanner} from '../../../components/seerr/SeerrSections';
 import {getImageUrl} from '../../../utils/helpers';
 import {formatPlaybackDuration} from '../../../utils/playbackTimeLabels';
@@ -171,6 +172,7 @@ const SpotlightSection = ({section, serverUrl, actions, seerr, firstSpotlightId}
 				</RowContainer>
 			);
 		case 'tracks':
+			if (section.loading) return <div className={css.tracksLoading}><LoadingSpinner /></div>;
 			return (
 				<DetailTrackList
 					tracks={section.tracks}
@@ -180,7 +182,7 @@ const SpotlightSection = ({section, serverUrl, actions, seerr, firstSpotlightId}
 					showAlbum={section.showAlbum}
 					manage={section.manage}
 					menuOptions={section.isPlaylist ? actions.playlistMenu : null}
-					onPlayTrack={actions.playTrack}
+					onPlayTrack={section.opensItems ? actions.openItem : actions.playTrack}
 					onReorder={actions.reorderTrack}
 					onRemove={actions.removeTrack}
 					firstSpotlightId={firstSpotlightId}

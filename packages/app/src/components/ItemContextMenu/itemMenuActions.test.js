@@ -42,6 +42,11 @@ describe('itemMenuActions', () => {
 			.toEqual(['play', 'viewDetails', 'watched', 'favorite', 'addToPlaylist', 'removeFromPlaylist']);
 	});
 
+	test('lets a collection\'s play order move a row without offering to delete it', () => {
+		expect(ids(movie(), {playlist: {canManage: true, canRemove: false, first: false, last: false}}))
+			.toEqual(['play', 'viewDetails', 'watched', 'favorite', 'addToPlaylist', 'moveUp', 'moveDown']);
+	});
+
 	test('leaves View Details off a song, which has no page to open', () => {
 		const song = {Id: 'a1', Type: 'Audio', Name: 'A song', UserData: {}};
 		expect(ids(song, {playlist: {canManage: true, first: true, last: true}})).toEqual(['play', 'watched', 'favorite', 'addToPlaylist', 'removeFromPlaylist']);

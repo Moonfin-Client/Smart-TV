@@ -39,14 +39,7 @@ import {collectionQueue, collectionPlayTarget} from '../../utils/collectionPlayb
 import {isSeerrOnlyItem, libraryIdOf, personRouteFor} from '../../utils/seerrTarget';
 import {buildSeerrDetailItem} from '../../utils/seerrDetailItem';
 import {COLLECTION_ITEM_TYPES, IDENTIFIABLE_TYPES, getMediaBadges, seriesThumbUrl, shuffleArray, splitCastAndCrew} from './detailsMedia';
-import CollectionSortDialog from './CollectionSortDialog';
-import {
-	DEFAULT_SORT,
-	SORT_CUSTOM,
-	applyCollectionSort,
-	collectionSortOptions
-} from './collectionSort';
-import {reorderCollectionIds} from './collectionPlaylist';
+import {orderItemsByIds} from './collectionPlaylist';
 import useDetailsItem from './useDetailsItem';
 import useDetailsModals from './useDetailsModals';
 import useDetailsTrailer from './useDetailsTrailer';
@@ -153,8 +146,6 @@ const Details = ({itemId: itemIdProp, initialItem, onPlay, onSelectItem, onSelec
 	// Seerr supplies the whole screen for a title the library doesn't have.
 	const seerrOnly = isSeerrOnlyItem(initialItem) && !seerrLibraryId;
 
-	const [collectionSort, setCollectionSort] = useState(DEFAULT_SORT);
-
 	const data = useDetailsItem({
 		itemId,
 		initialItem,
@@ -164,13 +155,13 @@ const Details = ({itemId: itemIdProp, initialItem, onPlay, onSelectItem, onSelec
 		recommendationsSupported,
 		seerrEnabled,
 		tagWithServerInfo,
-		skip: seerrOnly,
-		collectionSort
+		skip: seerrOnly
 	});
 	const {
 		setItem, isLoading: libraryLoading, isBlocked: blockedByRating, isSeed, seasons, episodes, seriesEpisodes, similar, extras, cast, nextUp, nextEpisode,
 		collectionItems, missingCollectionItems, parentCollections, similarSource, similarLoaded, playListsLoaded, loadMoreCollectionItems, removeFromCollection, albumTracks, artistAlbums,
-		playlistItems, setPlaylistItems, collectionIndexRef, episodeRatings, refreshItem,
+		playlistItems, setPlaylistItems, collectionIndexRef, collectionSort, collectionPlaylistLoading, chooseCollectionSort, moveCollectionItem,
+		episodeRatings, refreshItem,
 		selectedVersionIndex, setSelectedVersionIndex,
 		selectedAudioIndex, setSelectedAudioIndex,
 		selectedSubtitleIndex, setSelectedSubtitleIndex
@@ -223,17 +214,7 @@ const Details = ({itemId: itemIdProp, initialItem, onPlay, onSelectItem, onSelec
 	const spotlightBackRef = useRef(null);
 	const trailerBackRef = useRef(null);
 	const reviewBackRef = useRef(null);
-	const collectionSortBackRef = useRef(null);
-	const modals = useDetailsModals({
-		backHandlerRef,
-		onArtworkClosed: refreshItem,
-		seerrBackRef,
-		overviewBackRef,
-		spotlightBackRef,
-		trailerBackRef,
-		reviewBackRef,
-		collectionSortBackRef
-	});
+	const modals = useDetailsModals({backHandlerRef, onArtworkClosed: refreshItem, seerrBackRef, overviewBackRef, spotlightBackRef, trailerBackRef, reviewBackRef});
 	const {activeModal, openModal, closeModal, advancedResumeRef} = modals;
 
 	const trailer = useDetailsTrailer({
@@ -285,80 +266,25 @@ const Details = ({itemId: itemIdProp, initialItem, onPlay, onSelectItem, onSelec
 			user?.Policy?.IsAdministrator;
 	}, [item, user]);
 
-	const [customOrder, setCustomOrder] = useState([]);
-	const [collectionSortOpen, setCollectionSortOpen] = useState(false);
-
-	useEffect(() => {
-		let cancelled = false;
-		setCustomOrder([]);
-		setCollectionSort(DEFAULT_SORT);
-		if (item?.Type !== 'BoxSet' || !effectiveApi?.getCollectionOrder || !item?.Id) return undefined;
-
-		effectiveApi.getCollectionOrder(item.Id)
-			.then((order) => {
-				if (cancelled || !Array.isArray(order) || !order.length) return;
-				setCustomOrder(order);
-				setCollectionSort(SORT_CUSTOM);
-			})
-			.catch(() => {});
-
-		return () => {
-			cancelled = true;
-		};
-	}, [item?.Id, item?.Type, effectiveApi]);
-
-	const handleSelectCollectionSort = useCallback((id) => {
-		setCollectionSort(id);
-		setCollectionSortOpen(false);
-	}, []);
-	const handleOpenCollectionSort = useCallback(() => setCollectionSortOpen(true), []);
-	const handleCloseCollectionSort = useCallback(() => setCollectionSortOpen(false), []);
-
-	useEffect(() => {
-		collectionSortBackRef.current = collectionSortOpen ? () => {
-			handleCloseCollectionSort();
-			return true;
-		} : null;
-	}, [collectionSortOpen, handleCloseCollectionSort]);
-
 	const isBoxSet = item?.Type === 'BoxSet';
-	const sortedPlaylistItems = useMemo(() => {
-		const shown = isBoxSet && !showsSection('playlistOrder') ? [] : playlistItems;
-		if (!isBoxSet) return shown;
-		return applyCollectionSort(shown, collectionSort, customOrder);
-	}, [isBoxSet, showsSection, playlistItems, collectionSort, customOrder]);
 
-	const handleCollectionReorder = useCallback(async (itemIndex, direction) => {
-		if (!isBoxSet || !item?.Id) return;
-		const result = reorderCollectionIds({
-			currentItems: sortedPlaylistItems,
-			customOrder,
-			allIds: collectionIndexRef?.current || [],
-			itemIndex,
-			direction
-		});
-		if (!result) return;
-
-		const {newIndex, newOrder} = result;
-		setCustomOrder(newOrder);
-		setCollectionSort(SORT_CUSTOM);
-		if (collectionIndexRef) {
-			collectionIndexRef.current = newOrder;
-		}
-
+	// A moved row can be drawn afresh, so focus is put back on it in its new place.
+	const handleCollectionMove = useCallback((itemIndex, direction) => {
+		const newIndex = itemIndex + direction;
+		if (newIndex < 0 || newIndex >= playlistItems.length) return;
+		const list = Spotlight.getCurrent()?.closest('[data-index]')?.parentElement;
+		moveCollectionItem(itemIndex, newIndex);
 		window.requestAnimationFrame(() => {
-			const row = document.querySelector(`[data-index="${newIndex}"]`);
-			if (row) {
-				Spotlight.focus(row);
-			}
+			const row = list?.querySelector(`[data-index="${newIndex}"]`);
+			if (row) Spotlight.focus(row);
 		});
+	}, [playlistItems.length, moveCollectionItem]);
 
-		try {
-			await effectiveApi.saveCollectionOrder(item.Id, newOrder);
-		} catch {
-			// ignore
-		}
-	}, [isBoxSet, item?.Id, sortedPlaylistItems, customOrder, collectionIndexRef, effectiveApi]);
+	const collectionOrder = useMemo(() => (isBoxSet ? {
+		sortOption: collectionSort,
+		loading: collectionPlaylistLoading,
+		choose: chooseCollectionSort
+	} : null), [isBoxSet, collectionSort, collectionPlaylistLoading, chooseCollectionSort]);
 
 	// Keyed on the id rather than the item, because marking watched or favourite
 	// builds a new item object, which would otherwise yank focus back to Play.
@@ -474,9 +400,9 @@ const Details = ({itemId: itemIdProp, initialItem, onPlay, onSelectItem, onSelec
 				onPlay?.(target, shouldResumeTarget(target), {});
 			}
 		} else if (item.Type === 'BoxSet') {
-			// The rest of the collection rides along, so finishing one film starts the next
-			// rather than sending the viewer back to pick it.
-			const queue = collectionQueue(collectionItems);
+			// The rest of the collection rides along in playlist order, so finishing one film starts
+			// the next rather than sending the viewer back to pick it.
+			const queue = orderItemsByIds(collectionQueue(collectionItems), collectionIndexRef.current);
 			const target = collectionPlayTarget(queue);
 			if (target) {
 				onPlay?.(target, shouldResumeTarget(target), {videoQueue: queue});
@@ -508,7 +434,7 @@ const Details = ({itemId: itemIdProp, initialItem, onPlay, onSelectItem, onSelec
 				onPlay?.(item, false, parts.length ? {...playbackOptions, videoQueue: [item, ...parts]} : playbackOptions);
 			}
 		}
-	}, [item, episodes, nextUp, seasons, collectionItems, albumTracks, playlistItems, onPlay, onSelectItem, buildPlaybackOptions, effectiveApi, settings, tagWithServerInfo, isSyncPlayInGroup, playListFrom, fetchAdditionalParts]);
+	}, [item, episodes, nextUp, seasons, collectionItems, albumTracks, playlistItems, onPlay, onSelectItem, buildPlaybackOptions, effectiveApi, settings, tagWithServerInfo, isSyncPlayInGroup, playListFrom, fetchAdditionalParts, collectionIndexRef]);
 
 	const handleResume = useCallback(async () => {
 		if (!item) return;
@@ -1002,6 +928,21 @@ const Details = ({itemId: itemIdProp, initialItem, onPlay, onSelectItem, onSelec
 	// What the long press menu on a playlist row can do. The same title can sit in a playlist
 	// twice, so a row is found by its entry id when it has one.
 	const playlistMenu = useMemo(() => {
+		// A collection's rows can move in its play order, which switches it to the custom order,
+		// but they can't leave the collection from here.
+		if (item?.Type === 'BoxSet') {
+			if (!playlistItems.length) return null;
+			const at = (entry) => playlistItems.findIndex((candidate) => candidate.Id === entry.Id);
+			return {
+				playlist: {
+					canManage: true,
+					canRemove: false,
+					positionOf: (entry) => ({first: at(entry) <= 0, last: at(entry) >= playlistItems.length - 1}),
+					play: playTrack,
+					move: (entry, direction) => handleCollectionMove(at(entry), direction)
+				}
+			};
+		}
 		if (item?.Type !== 'Playlist') return null;
 		const indexOf = (entry) => playlistItems.findIndex((candidate) => (entry.PlaylistItemId
 			? candidate.PlaylistItemId === entry.PlaylistItemId
@@ -1018,7 +959,7 @@ const Details = ({itemId: itemIdProp, initialItem, onPlay, onSelectItem, onSelec
 				move: (entry, direction) => handlePlaylistItemReorder(indexOf(entry), direction)
 			}
 		};
-	}, [item?.Type, playlistItems, canManagePlaylist, playTrack, handleRemoveFromPlaylist, handlePlaylistItemReorder]);
+	}, [item?.Type, playlistItems, canManagePlaylist, playTrack, handleRemoveFromPlaylist, handlePlaylistItemReorder, handleCollectionMove]);
 
 	// No artwork, name or retry on purpose, since a retry would read as an invitation.
 	if (!seerrOnly && blockedByRating) {
@@ -1131,6 +1072,8 @@ const Details = ({itemId: itemIdProp, initialItem, onPlay, onSelectItem, onSelec
 	// A hidden row never holds a loading slot open.
 	const shownSimilarLoaded = showsSimilar ? similarLoaded : true;
 	const shownParentCollections = showsSection('collections') ? parentCollections : [];
+	// A collection's playlist order, not a playlist's own tracks.
+	const shownPlaylistItems = isBoxSet && !showsSection('playlistOrder') ? [] : playlistItems;
 
 	const hasPlaybackPosition = item.UserData?.PlaybackPositionTicks > 0;
 	const resumeTimeText = hasPlaybackPosition ? formatDuration(item.UserData.PlaybackPositionTicks) : '';
@@ -1226,14 +1169,6 @@ const Details = ({itemId: itemIdProp, initialItem, onPlay, onSelectItem, onSelec
 			/>
 			<SeerrDialogs seerr={seerr} title={item.Name} />
 			<ReviewDialog review={reviews.openReview} onClose={reviews.handleCloseReview} />
-			{collectionSortOpen && (
-				<CollectionSortDialog
-					options={collectionSortOptions(customOrder.length > 0 || isBoxSet)}
-					active={collectionSort}
-					onSelect={handleSelectCollectionSort}
-					onClose={handleCloseCollectionSort}
-				/>
-			)}
 		</>
 	);
 
@@ -1296,11 +1231,8 @@ const Details = ({itemId: itemIdProp, initialItem, onPlay, onSelectItem, onSelec
 					collectionSections={collectionSections}
 					albumTracks={albumTracks}
 					artistAlbums={artistAlbums}
-					playlistItems={sortedPlaylistItems}
-					collectionSort={collectionSort}
-					collectionSortOptions={collectionSortOptions(customOrder.length > 0 || isBoxSet)}
-					onOpenCollectionSort={handleOpenCollectionSort}
-					onReorderCollectionItem={handleCollectionReorder}
+					playlistItems={shownPlaylistItems}
+					collectionOrder={collectionOrder}
 					personMovies={personMovies}
 					personSeries={personSeries}
 					birthDate={birthDate}

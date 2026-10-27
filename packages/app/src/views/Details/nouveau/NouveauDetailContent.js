@@ -82,7 +82,7 @@ const NouveauDetailContent = (props) => {
 		episodes = [], seriesEpisodes = [], nextUp = [], seasons = [],
 		collectionItems = [], collectionSections = [], playlistItems = [], effectiveApi,
 		mediaSource, selectedAudioIndex, selectedSubtitleIndex,
-		spotlightBackRef, overviewBackRef, seerrNav, onSelectStudio, loadMoreCollectionItems, collectionMenu
+		spotlightBackRef, overviewBackRef, seerrNav, onSelectStudio, loadMoreCollectionItems, collectionMenu, collectionOrder
 	} = props;
 
 	const {isEnabled: seerrEnabled} = useSeerr();
@@ -220,9 +220,7 @@ const NouveauDetailContent = (props) => {
 		if (episode) onSelectItem?.(episode);
 	}, [findEpisode, onSelectItem]);
 
-	const {
-		sorted: sortedPlaylist, sortOption, sortOptions, sortOpen, openSort, closeSort, chooseSort
-	} = useCollectionSort(effectiveApi, item.Id, playlistItems);
+	const {sortOption, sortOptions, sortOpen, openSort, closeSort, chooseSort} = useCollectionSort(collectionOrder);
 
 	const discovery = useMemo(() => buildDiscoveryRails({
 		item,
@@ -264,13 +262,13 @@ const NouveauDetailContent = (props) => {
 	}, [parentCollectionItems, onSelectItem]);
 
 	const onPlaylistArtwork = useCallback((ev) => {
-		handleEpisodePlay?.(findIn(sortedPlaylist, ev.currentTarget.dataset.selectKey));
-	}, [sortedPlaylist, handleEpisodePlay]);
+		handleEpisodePlay?.(findIn(playlistItems, ev.currentTarget.dataset.selectKey));
+	}, [playlistItems, handleEpisodePlay]);
 
 	const onPlaylistDetails = useCallback((ev) => {
-		const entry = findIn(sortedPlaylist, ev.currentTarget.dataset.selectKey);
+		const entry = findIn(playlistItems, ev.currentTarget.dataset.selectKey);
 		if (entry) onSelectItem?.(entry);
-	}, [sortedPlaylist, onSelectItem]);
+	}, [playlistItems, onSelectItem]);
 
 	const onChapterCard = useCallback((ev) => {
 		handleChapterSelect?.(Number(ev.currentTarget.dataset.selectKey));
@@ -325,7 +323,7 @@ const NouveauDetailContent = (props) => {
 			if (id === SECTION_DETAILS) return;
 			if (id === SECTION_COLLECTION) {
 				ids.push(id);
-				if (sortedPlaylist.length > 0) ids.push(`${id}-playlist`);
+				if (playlistItems.length > 0) ids.push(`${id}-playlist`);
 				return;
 			}
 			if (id === SECTION_PARENT_COLLECTIONS) {
@@ -341,7 +339,7 @@ const NouveauDetailContent = (props) => {
 			ids.push(id);
 		});
 		return ids;
-	}, [sections, sortedPlaylist.length, discovery.related.length, discovery.recommendations.length, parentCollectionCount]);
+	}, [sections, playlistItems.length, discovery.related.length, discovery.recommendations.length, parentCollectionCount]);
 
 	const chain = useMemo(() => buildNouveauChain({
 		hasOverview: Boolean(item.Overview) && (!isPerson || showsSection('biography')),
@@ -535,7 +533,7 @@ const NouveauDetailContent = (props) => {
 						renderItem={renderCollectionCard}
 						itemMenu={collectionMenu}
 					/>
-					{sortedPlaylist.length > 0 && (
+					{playlistItems.length > 0 && (
 						<>
 							<div className={sectionsCss.railHeader}>
 								<h2 className={sectionsCss.railTitle}>{$L('Playlist')}</h2>
@@ -544,7 +542,7 @@ const NouveauDetailContent = (props) => {
 								</SpottableDiv>
 							</div>
 							<NouveauRail
-								items={sortedPlaylist}
+								items={playlistItems}
 								gap={TV_RAIL_GAP}
 								spotlightId={`nouveau-rail-${id}-playlist`}
 								navbarPosition={settings.navbarPosition}

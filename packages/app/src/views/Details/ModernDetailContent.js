@@ -43,6 +43,8 @@ import {
 
 import useCollectionSort from './useCollectionSort';
 import {sortLabel} from './nouveau/nouveauCollectionSort';
+import {collectionPlaylistItems} from './collectionPlaylist';
+import LoadingSpinner from '../../components/LoadingSpinner';
 import NouveauSortDialog from './nouveau/sections/NouveauSortDialog';
 
 import css from './ModernDetailContent.module.less';
@@ -57,7 +59,6 @@ const SCRIM = [
 	{at: [0.72, 0.28], rgb: '0, 0, 0', stops: [[0.42, 0], [1, 0.45]]}
 ];
 const PERSON_SCRIM = [{to: 'top', rgb: '11, 13, 16', stops: [[0, 1], [0.5, 0.6], [1, 0.45]]}];
-const NO_TRACKS = [];
 
 const Icon = ({path}) => (
 	<svg className={css.icon} viewBox={iconViewBox(path)} fill="currentColor" aria-hidden="true">
@@ -91,12 +92,12 @@ const ModernDetailContent = (props) => {
 		mediaSource, supportsMediaSourceSelection, selectedAudioIndex, selectedSubtitleIndex,
 		handleChapterSelect, handleExtraSelect, playTrack, playlistMenu,
 		onSelectItem, onSelectPerson, onSelectStudio,
-		seerr, seerrNav, onSelectSeerrCard, spotlightBackRef, collectionMenu, loadMoreCollectionItems,
+		seerr, seerrNav, onSelectSeerrCard, spotlightBackRef, collectionMenu, loadMoreCollectionItems, collectionOrder,
 		handlePlay, handleShuffle, onWatchWithGroup
 	} = props;
 
 	// A collection's play order, sorted the same way as in Nouveau.
-	const collectionSort = useCollectionSort(isBoxSet ? effectiveApi : null, item.Id, isBoxSet ? playlistItems : NO_TRACKS);
+	const collectionSort = useCollectionSort(collectionOrder);
 	const collectionSortOpenRef = useRef(false);
 	collectionSortOpenRef.current = collectionSort.sortOpen;
 	const closeCollectionSort = collectionSort.closeSort;
@@ -437,7 +438,7 @@ const ModernDetailContent = (props) => {
 		if (crew.length) list.push({id: 'crew', label: $L('Crew')});
 		if (studios?.length) list.push({id: 'studios', label: $L('Studios')});
 		// After the collection's own tabs, so it still opens on what it holds.
-		if (isBoxSet && playlistItems.length) list.push({id: 'collectionPlaylist', label: $L('Playlist')});
+		if (isBoxSet && showsSection('playlistOrder')) list.push({id: 'collectionPlaylist', label: $L('Playlist')});
 		if (chapters?.length) list.push({id: 'chapters', label: $L('Chapters')});
 		if (additionalParts.length) list.push({id: 'additionalParts', label: $L('Additional Parts')});
 		if (otherExtras.length) list.push({id: 'extras', label: $L('Extras')});
@@ -447,7 +448,7 @@ const ModernDetailContent = (props) => {
 		if (reviews.length) list.push({id: 'reviews', label: $L('Reviews')});
 		if (seerr.hasTabContent) list.push({id: 'seerr', label: seerr.displayName});
 		return list;
-	}, [isSeries, seasons.length, listsEpisodes, episodes.length, isPerson, personMovies.length, personSeries.length, isAlbum, isPlaylist, albumTracks.length, isMusicArtist, artistAlbums.length, isBoxSet, collectionItems.length, playlistItems.length, collectionSections.length, collectionTabLabel, cast.length, crew.length, studios, chapters, additionalParts.length, otherExtras.length, showsDetails, similar.length, reviews.length, seerr.hasTabContent, seerr.displayName]);
+	}, [isSeries, seasons.length, listsEpisodes, episodes.length, isPerson, personMovies.length, personSeries.length, isAlbum, isPlaylist, albumTracks.length, isMusicArtist, artistAlbums.length, isBoxSet, showsSection, collectionItems.length, collectionSections.length, collectionTabLabel, cast.length, crew.length, studios, chapters, additionalParts.length, otherExtras.length, showsDetails, similar.length, reviews.length, seerr.hasTabContent, seerr.displayName]);
 
 	const [activeTab, setActiveTab] = useState(null);
 	// Expanded Tabs on keeps the first tab open and lets focus follow selection.
@@ -646,15 +647,22 @@ const ModernDetailContent = (props) => {
 		);
 	};
 
+	const collectionTracks = useMemo(() => collectionPlaylistItems(playlistItems, collectionItems), [playlistItems, collectionItems]);
+	const collectionTrackAt = useCallback(
+		(target) => collectionTracks[parseInt(target.closest('[data-index]')?.dataset.index, 10)] || null,
+		[collectionTracks]
+	);
+	const collectionMenuHold = useItemMenuHold(collectionTrackAt, playlistMenu);
+
 	const handleCollectionTrackClick = useCallback((ev) => {
-		const entry = collectionSort.sorted[parseInt(ev.currentTarget.dataset.index, 10)];
-		if (entry) playTrack(entry, collectionSort.sorted);
-	}, [collectionSort.sorted, playTrack]);
+		const entry = collectionTrackAt(ev.currentTarget);
+		if (entry) playTrack(entry, collectionTracks);
+	}, [collectionTrackAt, collectionTracks, playTrack]);
 
 	// The rest of a long collection is read as focus nears the end of what's in.
 	const handleCollectionTrackFocus = useCallback((ev) => {
-		if (parseInt(ev.currentTarget.dataset.index, 10) >= collectionSort.sorted.length - 5) loadMoreCollectionItems?.();
-	}, [collectionSort.sorted.length, loadMoreCollectionItems]);
+		if (parseInt(ev.currentTarget.dataset.index, 10) >= playlistItems.length - 5) loadMoreCollectionItems?.();
+	}, [playlistItems.length, loadMoreCollectionItems]);
 
 	const renderCollectionPlaylistTab = () => (
 		<div className={css.tracksContainer}>
@@ -663,15 +671,19 @@ const ModernDetailContent = (props) => {
 					{sortLabel(collectionSort.sortOption)}
 				</SpottableDiv>
 			</div>
-			<RowContainer className={css.trackList}>
-				{collectionSort.sorted.map((entry, i) => (
-					<SpottableDiv key={entry.Id} className={css.trackRow} data-index={i} onClick={handleCollectionTrackClick} onFocus={handleCollectionTrackFocus}>
-						<span className={css.trackIndex}>{i + 1}</span>
-						<span className={css.trackTitle}>{entry.SeriesName ? `${entry.SeriesName} · ${entry.Name}` : entry.Name}</span>
-						{entry.RunTimeTicks && <span className={css.trackDuration}>{formatDuration(entry.RunTimeTicks)}</span>}
-					</SpottableDiv>
-				))}
-			</RowContainer>
+			{collectionOrder?.loading && !playlistItems.length ? (
+				<div className={css.collectionLoading}><LoadingSpinner /></div>
+			) : (
+				<RowContainer className={css.trackList} {...collectionMenuHold}>
+					{collectionTracks.map((entry, i) => (
+						<SpottableDiv key={entry.Id} className={css.trackRow} data-index={i} onClick={handleCollectionTrackClick} onFocus={handleCollectionTrackFocus}>
+							<span className={css.trackIndex}>{i + 1}</span>
+							<span className={css.trackTitle}>{entry.SeriesName ? `${entry.SeriesName} · ${entry.Name}` : entry.Name}</span>
+							{entry.RunTimeTicks && <span className={css.trackDuration}>{formatDuration(entry.RunTimeTicks)}</span>}
+						</SpottableDiv>
+					))}
+				</RowContainer>
+			)}
 		</div>
 	);
 

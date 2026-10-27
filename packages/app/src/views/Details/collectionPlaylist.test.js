@@ -4,10 +4,13 @@ import {
 	orderItemsByIds,
 	buildCollectionIndex,
 	fetchCollectionPage,
-	reorderCollectionIds
+	collectionPlaylistItems,
+	moveInCollection
 } from './collectionPlaylist';
+import {orderCollectionIndex} from './nouveau/nouveauCollectionSort';
 
 const entry = (over) => ({id: 'x', name: '', premiereDate: null, productionYear: null, ...over});
+const idsOf = (entries) => entries.map((e) => e.id);
 
 describe('indexEntryFor', () => {
 	it('keeps only the id and what it takes to sort', () => {
@@ -52,7 +55,7 @@ describe('orderItemsByIds', () => {
 });
 
 describe('buildCollectionIndex', () => {
-	it('defaults to release order ascending across movies and series episodes', async () => {
+	it('keeps the server order and puts each series\' episodes in its place', async () => {
 		const api = {
 			getItems: jest.fn().mockResolvedValue({Items: [
 				{Id: 'm1', Type: 'Movie', Name: 'Movie', PremiereDate: '1990-01-01'},
@@ -65,7 +68,9 @@ describe('buildCollectionIndex', () => {
 				{Id: 'e2', Type: 'Episode', Name: 'Ep 2', PremiereDate: '1985-01-08'}
 			]})
 		};
-		expect(await buildCollectionIndex(api, 'box')).toEqual(['m2', 'e1', 'e2', 'm1']);
+		const entries = await buildCollectionIndex(api, 'box');
+		expect(idsOf(entries)).toEqual(['m1', 'e1', 'e2', 'm2']);
+		expect(entries[0]).toEqual({id: 'm1', name: 'Movie', premiereDate: '1990-01-01', productionYear: null});
 		expect(api.getItems).toHaveBeenCalledWith(expect.objectContaining({ParentId: 'box', Limit: 2000}));
 		expect(api.getEpisodes).toHaveBeenCalledWith('s1');
 	});
@@ -79,71 +84,7 @@ describe('buildCollectionIndex', () => {
 			]}),
 			getEpisodes: jest.fn().mockResolvedValue({Items: [{Id: 'e1', Type: 'Episode'}, {Id: 'e2', Type: 'Episode'}]})
 		};
-		expect(await buildCollectionIndex(api, 'box', {sortBy: 'server'})).toEqual(['e9', 'e1', 'e2']);
-	});
-
-	it('preserves the server order when sortBy is server', async () => {
-		const api = {
-			getItems: jest.fn().mockResolvedValue({Items: [
-				{Id: 'm1', Type: 'Movie', Name: 'Movie', PremiereDate: '1990-01-01'},
-				{Id: 's1', Type: 'Series', Name: 'Show'},
-				{Id: 'b1', Type: 'BoxSet', Name: 'Nested'},
-				{Id: 'm2', Type: 'Movie', Name: 'Older', PremiereDate: '1980-01-01'}
-			]}),
-			getEpisodes: jest.fn().mockResolvedValue({Items: [
-				{Id: 'e1', Type: 'Episode', Name: 'Ep 1', PremiereDate: '1985-01-01'},
-				{Id: 'e2', Type: 'Episode', Name: 'Ep 2', PremiereDate: '1985-01-08'}
-			]})
-		};
-		expect(await buildCollectionIndex(api, 'box', {sortBy: 'server'})).toEqual(['m1', 'e1', 'e2', 'm2']);
-	});
-
-	it('uses custom order and appends remaining items in release order', async () => {
-		const api = {
-			getCollectionOrder: jest.fn().mockResolvedValue(['m1', 'm2']),
-			getItems: jest.fn().mockResolvedValue({Items: [
-				{Id: 'm1', Type: 'Movie', Name: 'Movie', PremiereDate: '1990-01-01'},
-				{Id: 's1', Type: 'Series', Name: 'Show'},
-				{Id: 'm2', Type: 'Movie', Name: 'Older', PremiereDate: '1980-01-01'}
-			]}),
-			getEpisodes: jest.fn().mockResolvedValue({Items: [
-				{Id: 'e1', Type: 'Episode', Name: 'Ep 1', PremiereDate: '1985-01-01'}
-			]})
-		};
-		expect(await buildCollectionIndex(api, 'box', {sortBy: 'custom'})).toEqual(['m1', 'm2', 'e1']);
-	});
-
-	it('orders by release date descending when requested', async () => {
-		const api = {
-			getItems: jest.fn().mockResolvedValue({Items: [
-				{Id: 'm1', Type: 'Movie', Name: 'Movie', PremiereDate: '1990-01-01'},
-				{Id: 'm2', Type: 'Movie', Name: 'Older', PremiereDate: '1980-01-01'}
-			]})
-		};
-		expect(await buildCollectionIndex(api, 'box', {sortBy: 'releaseDescending'})).toEqual(['m1', 'm2']);
-	});
-
-	it('orders alphabetically when requested', async () => {
-		const api = {
-			getItems: jest.fn().mockResolvedValue({Items: [
-				{Id: 'm1', Type: 'Movie', Name: 'Zebra', PremiereDate: '1990-01-01'},
-				{Id: 'm2', Type: 'Movie', Name: 'Apple', PremiereDate: '1980-01-01'}
-			]})
-		};
-		expect(await buildCollectionIndex(api, 'box', {sortBy: 'alphabetical'})).toEqual(['m2', 'm1']);
-	});
-
-	it('deduplicates entries appearing through both series expansion and direct membership', async () => {
-		const api = {
-			getItems: jest.fn().mockResolvedValue({Items: [
-				{Id: 'e1', Type: 'Episode', Name: 'Direct Ep', PremiereDate: '1985-01-01'},
-				{Id: 's1', Type: 'Series', Name: 'Show'}
-			]}),
-			getEpisodes: jest.fn().mockResolvedValue({Items: [
-				{Id: 'e1', Type: 'Episode', Name: 'Series Ep', PremiereDate: '1985-01-01'}
-			]})
-		};
-		expect(await buildCollectionIndex(api, 'box')).toEqual(['e1']);
+		expect(idsOf(await buildCollectionIndex(api, 'box'))).toEqual(['e9', 'e1', 'e2']);
 	});
 
 	it('carries on when a series refuses to list its episodes', async () => {
@@ -151,7 +92,7 @@ describe('buildCollectionIndex', () => {
 			getItems: jest.fn().mockResolvedValue({Items: [{Id: 'm1', Type: 'Movie', Name: 'M'}, {Id: 's1', Type: 'Series'}]}),
 			getEpisodes: jest.fn().mockRejectedValue(new Error('nope'))
 		};
-		expect(await buildCollectionIndex(api, 'box')).toEqual(['m1']);
+		expect(idsOf(await buildCollectionIndex(api, 'box'))).toEqual(['m1']);
 	});
 
 	it('comes back empty when the scan itself fails', async () => {
@@ -165,12 +106,12 @@ describe('fetchCollectionPage', () => {
 
 	// The two halves have to agree on what an index holds, so the page is asked for using
 	// exactly what the scan produced rather than a shape made up for the test.
-	it('asks for the ids the scan produced, not the entries behind them', async () => {
+	it('asks for the ids the ordered scan produced, not the entries behind them', async () => {
 		const scan = {
 			getItems: jest.fn().mockResolvedValue({Items: [{Id: 'm1', Type: 'Movie', Name: 'M'}]}),
 			getEpisodes: jest.fn()
 		};
-		const index = await buildCollectionIndex(scan, 'box');
+		const index = orderCollectionIndex(await buildCollectionIndex(scan, 'box'));
 		const api = {getItems: jest.fn().mockResolvedValue({Items: [{Id: 'm1'}]})};
 		await fetchCollectionPage(api, index, 0);
 		expect(api.getItems).toHaveBeenCalledWith(expect.objectContaining({Ids: 'm1'}));
@@ -197,56 +138,32 @@ describe('fetchCollectionPage', () => {
 	});
 });
 
-describe('reorderCollectionIds', () => {
-	const currentItems = [{Id: 'i0'}, {Id: 'i1'}, {Id: 'i2'}];
-
-	it('preserves unloaded member ids from customOrder when reordering', () => {
-		const customOrder = ['i0', 'i1', 'i2', 'i3', 'i4'];
-		const result = reorderCollectionIds({
-			currentItems,
-			customOrder,
-			allIds: [],
-			itemIndex: 0,
-			direction: 1
-		});
-
-		expect(result).toEqual({
-			newIndex: 1,
-			newOrder: ['i1', 'i0', 'i2', 'i3', 'i4']
-		});
+describe('collectionPlaylistItems', () => {
+	it('shows the playlist once it has items', () => {
+		expect(collectionPlaylistItems([{Id: 'p1'}], [{Id: 'm1', Type: 'Movie'}])).toEqual([{Id: 'p1'}]);
 	});
 
-	it('preserves unloaded member ids from allIds when customOrder is empty', () => {
-		const allIds = ['i0', 'i1', 'i2', 'i3', 'i4'];
-		const result = reorderCollectionIds({
-			currentItems,
-			customOrder: [],
-			allIds,
-			itemIndex: 2,
-			direction: -1
-		});
+	it('stands in with the collection\'s own playable members until then', () => {
+		const members = [{Id: 'm1', Type: 'Movie'}, {Id: 's1', Type: 'Series'}, {Id: 'b1', Type: 'BoxSet'}, {Id: 'e1', Type: 'Episode'}];
+		expect(collectionPlaylistItems([], members).map((item) => item.Id)).toEqual(['m1', 'e1']);
+	});
+});
 
-		expect(result).toEqual({
-			newIndex: 1,
-			newOrder: ['i0', 'i2', 'i1', 'i3', 'i4']
-		});
+describe('moveInCollection', () => {
+	const loaded = [{Id: 'a'}, {Id: 'b'}, {Id: 'c'}];
+
+	it('moves a loaded row and keeps the rows not read yet behind it', () => {
+		const moved = moveInCollection(loaded, ['a', 'b', 'c', 'd', 'e'], 0, 1);
+		expect(moved.items.map((item) => item.Id)).toEqual(['b', 'a', 'c']);
+		expect(moved.order).toEqual(['b', 'a', 'c', 'd', 'e']);
 	});
 
-	it('returns null when reordering past boundary', () => {
-		expect(reorderCollectionIds({
-			currentItems,
-			customOrder: [],
-			allIds: ['i0', 'i1', 'i2'],
-			itemIndex: 0,
-			direction: -1
-		})).toBeNull();
+	it('puts a row the server left out of a page after the loaded ones', () => {
+		expect(moveInCollection(loaded, ['a', 'gone', 'b', 'c'], 2, 1).order).toEqual(['a', 'c', 'b', 'gone']);
+	});
 
-		expect(reorderCollectionIds({
-			currentItems,
-			customOrder: [],
-			allIds: ['i0', 'i1', 'i2'],
-			itemIndex: 2,
-			direction: 1
-		})).toBeNull();
+	it('gives nothing back for a move off either end', () => {
+		expect(moveInCollection(loaded, ['a', 'b', 'c'], 0, -1)).toBeNull();
+		expect(moveInCollection(loaded, ['a', 'b', 'c'], 2, 3)).toBeNull();
 	});
 });

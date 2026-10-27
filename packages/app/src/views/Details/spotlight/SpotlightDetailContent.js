@@ -56,7 +56,7 @@ const SpotlightDetailContent = (props) => {
 		effectiveApi, serverToken, seasons = [], similar = [], similarSource, reviews = [], onSelectReview, extras = [], cast = [], crew = [],
 		nextUp = [], collectionItems = [], missingCollectionItems = [], parentCollections = [],
 		albumTracks = [], artistAlbums = [], playlistItems = [], personMovies = [], personSeries = [],
-		filmography, loadMoreCollectionItems, collectionMenu,
+		filmography, loadMoreCollectionItems, collectionMenu, collectionOrder,
 		mediaSource, hasMultipleVersions, selectedAudioIndex, selectedSubtitleIndex,
 		onSelectItem, onSelectPerson, onSelectStudio, onSelectSeerrCard,
 		handleChapterSelect, handleExtraSelect, playTrack, playlistMenu,
@@ -138,13 +138,14 @@ const SpotlightDetailContent = (props) => {
 	}), [seerrCredits, settings]);
 	// A collection's play order sorts the same way it does in Modern and Nouveau.
 	const isBoxSet = item.Type === 'BoxSet';
-	const collectionSort = useCollectionSort(isBoxSet ? effectiveApi : null, item.Id, isBoxSet ? playlistItems : EMPTY_LIST);
-	const shownPlaylistItems = isBoxSet ? collectionSort.sorted : playlistItems;
+	const collectionSort = useCollectionSort(collectionOrder);
 	const {openSort: openCollectionSort, sortOption: collectionSortOption} = collectionSort;
-	const playlistSort = useMemo(
-		() => (isBoxSet ? {label: sortLabel(collectionSortOption), open: openCollectionSort} : null),
-		[isBoxSet, collectionSortOption, openCollectionSort]
-	);
+	const collectionLoading = Boolean(collectionOrder?.loading);
+	const playlistSort = useMemo(() => (isBoxSet ? {
+		label: sortLabel(collectionSortOption),
+		open: openCollectionSort,
+		loading: collectionLoading
+	} : null), [isBoxSet, collectionSortOption, openCollectionSort, collectionLoading]);
 
 	const cardFallbackImageUrl = useMemo(
 		() => spotlightCardFallbackUrl(effectiveServerUrl, item, backdropUrl),
@@ -155,7 +156,7 @@ const SpotlightDetailContent = (props) => {
 		item, serverUrl: effectiveServerUrl, settings, showsSection, seerrOnly, mediaSource,
 		seasons, episodes, seriesEpisodes, similar, similarSource, reviews, extras, cast, crew, nextUp,
 		collectionItems, missingCollectionItems, parentCollections,
-		albumTracks, artistAlbums, playlistItems: shownPlaylistItems, playlistSort,
+		albumTracks, artistAlbums, playlistItems, playlistSort,
 		personMovies, personSeries, filmography: otherCredits,
 		seerrAppearances, seerrCrewCredits,
 		studioCards, canManagePlaylist,
@@ -173,7 +174,7 @@ const SpotlightDetailContent = (props) => {
 	}), [
 		item, effectiveServerUrl, settings, showsSection, seerrOnly, mediaSource, seasons, episodes, seriesEpisodes, similar, similarSource, reviews,
 		extras, cast, crew, nextUp, collectionItems, missingCollectionItems, parentCollections,
-		albumTracks, artistAlbums, shownPlaylistItems, playlistSort, personMovies, personSeries, otherCredits,
+		albumTracks, artistAlbums, playlistItems, playlistSort, personMovies, personSeries, otherCredits,
 		seerrAppearances, seerrCrewCredits, studioCards, canManagePlaylist, cardFallbackImageUrl,
 		seerr.recommendationCards, seerr.similarCards, seerr.details, seerr.mediaType, seerr.collection, seerr.seasonMarkers,
 		seerr.pieces.chips, seerr.pieces.facts, seerr.pieces.streaming, seerr.streamingProviders
