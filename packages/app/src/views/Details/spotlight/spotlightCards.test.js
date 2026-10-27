@@ -5,6 +5,7 @@ const SERVER = 'https://tv.example';
 
 const state = (over) => ({item: {Id: 'item-1', Type: 'Movie', Name: 'Thing'}, serverUrl: SERVER, settings: {}, ...over});
 const child = (Id, Type = 'Movie', over = {}) => ({Id, Name: Id, Type, ...over});
+const backdrop = (url) => ({_externalBackdropUrl: url});
 const ids = (cards) => cards.map((card) => card.id);
 const titles = (card) => card.sections.map((section) => section.title);
 
@@ -156,7 +157,6 @@ describe('spotlightCardsFor', () => {
 	});
 
 	it('gives each of a person\'s cards its own backdrop where there are enough to go round', () => {
-		const backdrop = (url) => ({_externalBackdropUrl: url});
 		const cards = spotlightCardsFor(state({
 			item: {Id: 'item-1', Type: 'Person'},
 			personMovies: [child('m1', 'Movie', {BackdropImageTags: ['b1']})],
@@ -166,6 +166,15 @@ describe('spotlightCardsFor', () => {
 		const art = cards.map((card) => card.imageUrl);
 		expect(art[0]).toContain('/Items/m1/Images/Backdrop');
 		expect(art.slice(1)).toEqual(['https://img/shared.jpg', 'https://img/a2.jpg']);
+	});
+
+	it('saves a backdrop for the cards that show, not for a filmography card that has nothing', () => {
+		const cards = spotlightCardsFor(state({
+			item: {Id: 'item-1', Type: 'Person'},
+			seerrAppearances: [child('a1', 'Movie', backdrop('https://img/a1.jpg'))],
+			seerrCrewCredits: [child('c1', 'Movie', backdrop('https://img/c1.jpg'))]
+		}));
+		expect(cards.map((card) => card.imageUrl)).toEqual(['https://img/a1.jpg', 'https://img/c1.jpg']);
 	});
 
 	it('leaves the filmography card off a person the library has nothing for', () => {

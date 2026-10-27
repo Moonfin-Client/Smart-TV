@@ -524,24 +524,33 @@ class CardBuilder {
 		};
 	}
 
+	shownAppearances() {
+		return this.shows('seerrPersonAppearances') ? this.s.seerrAppearances || [] : [];
+	}
+
+	shownCrewCredits() {
+		return this.shows('seerrPersonCrew') ? this.s.seerrCrewCredits || [] : [];
+	}
+
 	// Each of a person's cards takes a backdrop the others haven't, from its own credits where it can.
+	// Only the cards that show take one, so a missing card can't leave two others sharing.
 	personBackdrops() {
 		if (this.personBackdropsCache) return this.personBackdropsCache;
-		const {personMovies = [], personSeries = [], filmography = [], seerrAppearances = [], seerrCrewCredits = [], serverUrl} = this.s;
+		const {personMovies = [], personSeries = [], filmography = [], serverUrl} = this.s;
 		const landscapes = (items) => items.map((entry) => spotlightLandscapeImageUrl(serverUrl, entry)).filter(Boolean);
-		const pools = {
-			filmography: landscapes([...personMovies, ...personSeries, ...filmography]),
-			appearances: landscapes(seerrAppearances),
-			crew: landscapes(seerrCrewCredits)
-		};
-		const all = [...pools.filmography, ...pools.appearances, ...pools.crew];
+		const cards = [
+			['filmography', [...personMovies, ...personSeries, ...filmography]],
+			['appearances', this.shownAppearances()],
+			['crew', this.shownCrewCredits()]
+		].filter(([, items]) => items.length).map(([id, items]) => [id, landscapes(items)]);
+		const all = cards.flatMap(([, pool]) => pool);
 		const used = new Set();
 		const pick = (pool) => {
 			const url = pool.find((candidate) => !used.has(candidate)) || all.find((candidate) => !used.has(candidate)) || pool[0] || all[0] || null;
 			if (url) used.add(url);
 			return url;
 		};
-		this.personBackdropsCache = {filmography: pick(pools.filmography), appearances: pick(pools.appearances), crew: pick(pools.crew)};
+		this.personBackdropsCache = Object.fromEntries(cards.map(([id, pool]) => [id, pick(pool)]));
 		return this.personBackdropsCache;
 	}
 
@@ -580,12 +589,12 @@ class CardBuilder {
 	}
 
 	personAppearancesCard() {
-		const credits = this.shows('seerrPersonAppearances') ? this.s.seerrAppearances || [] : [];
+		const credits = this.shownAppearances();
 		return credits.length ? this.seerrCreditsCard('appearances', $L('Appearances (Seerr)'), credits, CARD_ICONS.appearances) : null;
 	}
 
 	personCrewCard() {
-		const credits = this.shows('seerrPersonCrew') ? this.s.seerrCrewCredits || [] : [];
+		const credits = this.shownCrewCredits();
 		return credits.length ? this.seerrCreditsCard('crew', $L('Crew Contributions (Seerr)'), credits, CARD_ICONS.crew) : null;
 	}
 

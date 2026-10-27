@@ -108,7 +108,7 @@ export const detailActionCatalogue = (props) => {
 		{id: 'trailer', when: hasTrailer, render: () => <ActionButton path={DETAIL_ICON_PATHS.trailer} label={$L('Trailer')} onClick={handleTrailer} />},
 		// Offered while in a SyncPlay group and lit in the accent so it reads
 		// as the group's, next to a Play that stays as it is.
-		{id: 'watchWithGroup', when: inSyncPlayGroup && !isBook, render: () => <ActionButton path={DETAIL_ICON_PATHS.group} label={$L('Watch with group')} group onClick={onWatchWithGroup} spotlightId="details-watch-with-group-btn" />},
+		{id: 'watchWithGroup', when: inSyncPlayGroup && !isBook && !isPerson, render: () => <ActionButton path={DETAIL_ICON_PATHS.group} label={$L('Watch with group')} group onClick={onWatchWithGroup} spotlightId="details-watch-with-group-btn" />},
 		{id: 'watched', when: !isPerson, render: () => <ActionButton path={DETAIL_ICON_PATHS.watched} label={played ? $L('Watched') : $L('Mark as Watched')} active={played} onClick={handleToggleWatched} spotlightId="details-watched-btn" />},
 		{id: 'favorite', when: offersFavorite(isPerson, effectiveServerUrl), render: () => <ActionButton path={DETAIL_ICON_PATHS.favorite} label={isFavorite ? $L('Favorited') : $L('Favorite')} active={isFavorite} onClick={handleToggleFavorite} spotlightId="details-favorite-btn" />},
 		{id: 'personDisplay', when: isPerson && Boolean(handleOpenPersonDisplayModal), render: () => <ActionButton path={DETAIL_ICON_PATHS.tune} label={$L('Display')} onClick={handleOpenPersonDisplayModal} />},
