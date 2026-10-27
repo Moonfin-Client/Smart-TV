@@ -135,6 +135,7 @@ export const defaultSettings = {
 	showFavoritesButton: true,
 	showLiveTvButton: true,
 	showLibrariesInToolbar: true,
+	showLibrariesIndividually: false,
 	mergeContinueWatchingNextUp: true,
 	continueWatchingDefaultAction: 'details',
 	mergeRecentRowsByType: false,

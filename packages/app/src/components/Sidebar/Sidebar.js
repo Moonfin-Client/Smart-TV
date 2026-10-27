@@ -9,7 +9,7 @@ import {useServerMessages} from '../../context/ServerMessagesContext';
 import {useAchievements} from '../../context/AchievementsContext';
 import SeerrIcon from '../icons/SeerrIcon';
 import SyncPlayIcon from '../icons/SyncPlayIcon';
-import {FavoritesIcon, FriendsIcon, GenresIcon, HomeIcon, LiveTvIcon, MessagesIcon, SearchIcon, SettingsIcon, ShuffleIcon} from '../icons/navIcons';
+import {FavoritesIcon, FriendsIcon, GenresIcon, HomeIcon, LibrariesIcon, LiveTvIcon, MessagesIcon, SearchIcon, SettingsIcon, ShuffleIcon} from '../icons/navIcons';
 import useClock from '../../hooks/useClock';
 import {librariesForNav} from '../../utils/liveTvLibrary';
 import {isKidsMode} from '../../utils/kidsMode';
@@ -89,6 +89,12 @@ const Sidebar = ({
 	const showSyncPlay = !kidsMode && serverType !== 'plex' && settings.syncplayEnabled !== false && settings.showSyncPlayButton !== false;
 	const navLibraries = librariesForNav(libraries, showLiveTv, {hideLiveTv: kidsMode});
 	const showLibraries = !kidsMode && settings.showLibrariesInToolbar !== false && navLibraries.length > 0;
+	const showLibrariesIndividually = settings.showLibrariesIndividually === true;
+	const handleLibraryClick = useCallback((e) => {
+		const libraryId = e.currentTarget.dataset.libraryId;
+		const library = navLibraries.find((item) => item.Id === libraryId);
+		if (library) onSelectLibrary?.(library);
+	}, [navLibraries, onSelectLibrary]);
 	// Only with something to show, so the rail never has a row that does nothing.
 	const showMessages = settings.showServerMessagesButton === true && messages.length > 0;
 	// Only where the Achievement Badges plugin has friends switched on, so it never takes a
@@ -176,7 +182,18 @@ const Sidebar = ({
 						<SidebarItem Icon={SyncPlayIcon} slot={nextSlot()} label={$L('SyncPlay')} onClick={onSyncPlay} active={isInGroup} />
 					)}
 
-					{showLibraries && (
+					{showLibraries && (showLibrariesIndividually ? (
+						navLibraries.map((library) => (
+							<SidebarItem
+								key={library.Id}
+								Icon={LibrariesIcon}
+								slot={nextSlot()}
+								label={library.Name}
+								onClick={handleLibraryClick}
+								libraryId={library.Id}
+							/>
+						))
+					) : (
 						<SidebarLibraries
 							libraries={navLibraries}
 							slot={nextSlot()}
@@ -184,7 +201,7 @@ const Sidebar = ({
 							onToggle={toggleLibraries}
 							onSelectLibrary={onSelectLibrary}
 						/>
-					)}
+					))}
 
 					{showMessages && (
 						<SidebarItem Icon={MessagesIcon} slot={nextSlot()} label={$L('Messages')} onClick={onMessages} spotlightId="navbar-messages" badge={unreadCount} />

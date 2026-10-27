@@ -249,7 +249,7 @@ const VALUE_CONVERSIONS = {
 
 export const SYNCABLE_KEYS = [
 	'showShuffleButton', 'shuffleContentType', 'showGenresButton',
-	'showFavoritesButton', 'showLiveTvButton', 'showLibrariesInToolbar',
+	'showFavoritesButton', 'showLiveTvButton', 'showLibrariesInToolbar', 'showLibrariesIndividually',
 	'mergeContinueWatchingNextUp',
 	'continueWatchingDefaultAction',
 	'nextUpMaxDays',
