@@ -32,6 +32,7 @@ describe('externalRowsApi', () => {
 				name: 'Spirited Away',
 				type: 'Movie',
 				productionYear: 2001,
+				Popularity: 41.5,
 				posterUrl: '/poster.jpg',
 				providerIds: {Tmdb: '129'}
 			}
@@ -48,6 +49,7 @@ describe('externalRowsApi', () => {
 			expect(items[0].name).toBe('Spirited Away');
 			expect(items[0].type).toBe('Movie');
 			expect(items[0].productionYear).toBe(2001);
+			expect(items[0].popularity).toBe(41.5);
 			expect(items[0].providerIds.Tmdb).toBe('129');
 			expect(fetchWithTimeout).toHaveBeenCalledTimes(1);
 

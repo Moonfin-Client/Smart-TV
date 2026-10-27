@@ -24,6 +24,7 @@ const normalizeItem = (raw) => {
 		type: raw.type ?? raw.Type ?? 'Movie',
 		productionYear: raw.productionYear ?? raw.ProductionYear ?? null,
 		rank: raw.rank ?? raw.Rank ?? null,
+		popularity: raw.popularity ?? raw.Popularity ?? null,
 		posterUrl: raw.posterUrl ?? raw.PosterUrl ?? null,
 		backdropUrl: raw.backdropUrl ?? raw.BackdropUrl ?? null,
 		userRating: raw.userRating ?? raw.UserRating ?? null,
