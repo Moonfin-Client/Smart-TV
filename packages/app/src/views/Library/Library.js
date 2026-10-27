@@ -224,6 +224,7 @@ const GridList = memo(VirtualGridList);
 const Library = ({library, genreFilter, studioFilter, onSelectItem, onViewPhoto, onHome, onPlay, onSearch, backHandlerRef}) => {
 	const {api, serverUrl, serverType} = useAuth();
 	const {settings, updateSetting} = useSettings();
+	const libraryServerType = library?._serverType || serverType;
 
 	const effectiveApi = useMemo(() => {
 		if (library?._serverUrl && library?._serverAccessToken) {
@@ -266,6 +267,16 @@ const Library = ({library, genreFilter, studioFilter, onSelectItem, onViewPhoto,
 	const [yearFilters, setYearFilters] = useState([]);
 	const [audioLanguageFilters, setAudioLanguageFilters] = useState([]);
 	const [subtitleLanguageFilters, setSubtitleLanguageFilters] = useState([]);
+	// Plex can't filter on these, so a choice carried over from another server's library is dropped.
+	useEffect(() => {
+		if (libraryServerType !== 'plex') return;
+		const none = (current) => (current.length ? [] : current);
+		setLikedFilter('all');
+		setSeriesFilter('all');
+		setFeatureFilters(none);
+		setVideoSourceFilters(none);
+		setQualityFilters((current) => (current.includes('threeD') ? current.filter((key) => key !== 'threeD') : current));
+	}, [libraryServerType]);
 	const [facetValues, setFacetValues] = useState(null);
 	const [expandedSection, setExpandedSection] = useState(SORT_SECTION);
 	const [facetLimit, setFacetLimit] = useState(FACET_PAGE);
@@ -1407,7 +1418,6 @@ const Library = ({library, genreFilter, studioFilter, onSelectItem, onViewPhoto,
 	// Emby's items query has no 4K flag and its series status holds only
 	// continuing and ended, so those options stay out of the panel there.
 	// Plex can't filter on series status, likes, subtitles, trailers, extras, theme media, 3D or disc source.
-	const libraryServerType = library?._serverType || serverType;
 	const onPlex = libraryServerType === 'plex';
 	const supported = (options) => options.filter(o => (!o.jellyfinOnly || libraryServerType !== 'emby') && !(onPlex && o.plexless));
 	const folderName = folderStack.length > 0 ? folderStack[folderStack.length - 1].name : library?.Name;
