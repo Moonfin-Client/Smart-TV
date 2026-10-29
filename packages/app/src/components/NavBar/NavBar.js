@@ -27,10 +27,10 @@ import NavUserButton from './NavUserButton';
 import css from './NavBar.module.less';
 
 // A library as a pill of its own, for Show Libraries Individually. It holds the library itself
-// rather than its id, since two servers can use the same id.
-const NavLibraryPill = ({library, slot, active, onSelectLibrary}) => {
+// rather than its id, since two servers, or two users of one server, can list the same id.
+const NavLibraryPill = ({library, slot, onSelectLibrary}) => {
 	const handleClick = useCallback(() => onSelectLibrary?.(library), [library, onSelectLibrary]);
-	return <NavPillButton Icon={libraryNavIcon(library)} slot={slot} label={library.Name} onClick={handleClick} active={active} />;
+	return <NavPillButton Icon={libraryNavIcon(library)} slot={slot} label={library.Name} onClick={handleClick} />;
 };
 
 const NavContainer = SpotlightContainerDecorator({
@@ -182,10 +182,9 @@ const NavBar = ({
 					{showLibraries && (settings.showLibrariesIndividually === true ? (
 						navLibraries.map((library) => (
 							<NavLibraryPill
-								key={`${library._serverId || ''}:${library.Id}`}
+								key={`${library._serverId || ''}:${library._serverUserId || ''}:${library.Id}`}
 								library={library}
 								slot={nextSlot()}
-								active={activeView === library.Id}
 								onSelectLibrary={onSelectLibrary}
 							/>
 						))

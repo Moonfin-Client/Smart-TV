@@ -26,7 +26,7 @@ import {SidebarMusicCard} from '../MiniMusicPlayer/MiniMusicPlayer';
 import css from './Sidebar.module.less';
 
 // A library as a row of its own, for Show Libraries Individually. It holds the library itself
-// rather than its id, since two servers can use the same id.
+// rather than its id, since two servers, or two users of one server, can list the same id.
 const SidebarLibraryItem = ({library, slot, onSelectLibrary}) => {
 	const handleClick = useCallback(() => onSelectLibrary?.(library), [library, onSelectLibrary]);
 	return <SidebarItem Icon={libraryNavIcon(library)} slot={slot} label={library.Name} onClick={handleClick} />;
@@ -186,7 +186,7 @@ const Sidebar = ({
 					{showLibraries && (settings.showLibrariesIndividually === true ? (
 						navLibraries.map((library) => (
 							<SidebarLibraryItem
-								key={`${library._serverId || ''}:${library.Id}`}
+								key={`${library._serverId || ''}:${library._serverUserId || ''}:${library.Id}`}
 								library={library}
 								slot={nextSlot()}
 								onSelectLibrary={onSelectLibrary}
