@@ -1,3 +1,6 @@
+import {CORE_ICON_PATHS} from '../../views/Settings/settingsCoreIcons';
+import {libraryOrderIcon} from '../../views/Settings/libraryOrder';
+
 // The nav icons drawn by both the top bar and the sidebar. Keeping the path
 // data in one place means the two navigations can't drift apart.
 
@@ -32,3 +35,13 @@ export const ChevronDownIcon = (props) => <NavIcon {...props} path={PATHS.chevro
 export const MessagesIcon = (props) => <NavIcon {...props} path={PATHS.messages} />;
 export const FriendsIcon = (props) => <NavIcon {...props} path={PATHS.friends} />;
 export const LiveTvIcon = (props) => <NavIcon {...props} path={PATHS.liveTv} />;
+
+const libraryIcons = {};
+
+// The icon the Library Order screen shows for a library's type. Each one is made once, so a
+// nav redraw never remounts it.
+export const libraryNavIcon = (library) => {
+	const name = libraryOrderIcon(library);
+	if (!libraryIcons[name]) libraryIcons[name] = (props) => <NavIcon {...props} path={CORE_ICON_PATHS[name]} />;
+	return libraryIcons[name];
+};

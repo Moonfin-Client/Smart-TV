@@ -8,13 +8,12 @@ const SpottableButton = Spottable('button');
 // One row of the sidebar, an icon plus the label that fades in when the rail
 // expands. The slot lets themes with a nav color cycle tint each row on its own.
 // A badge count draws as a small red circle on the icon, and zero draws nothing.
-const SidebarItem = ({Icon, slot, label, onClick, spotlightId, libraryId, active = false, className = '', badge = 0, children}) => (
+const SidebarItem = ({Icon, slot, label, onClick, spotlightId, active = false, className = '', badge = 0, children}) => (
 	<SpottableButton
 		className={[css.sidebarItem, active && css.active, className].filter(Boolean).join(' ')}
 		onClick={onClick}
 		spotlightId={spotlightId}
 		data-nav-slot={slot}
-		data-library-id={libraryId}
 	>
 		<UnreadBadge count={badge} className={css.sidebarIconHost}>
 			<Icon className={css.sidebarIcon} />

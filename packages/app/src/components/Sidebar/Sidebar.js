@@ -9,7 +9,7 @@ import {useServerMessages} from '../../context/ServerMessagesContext';
 import {useAchievements} from '../../context/AchievementsContext';
 import SeerrIcon from '../icons/SeerrIcon';
 import SyncPlayIcon from '../icons/SyncPlayIcon';
-import {FavoritesIcon, FriendsIcon, GenresIcon, HomeIcon, LibrariesIcon, LiveTvIcon, MessagesIcon, SearchIcon, SettingsIcon, ShuffleIcon} from '../icons/navIcons';
+import {FavoritesIcon, FriendsIcon, GenresIcon, HomeIcon, LiveTvIcon, MessagesIcon, SearchIcon, SettingsIcon, ShuffleIcon, libraryNavIcon} from '../icons/navIcons';
 import useClock from '../../hooks/useClock';
 import {librariesForNav} from '../../utils/liveTvLibrary';
 import {isKidsMode} from '../../utils/kidsMode';
@@ -24,6 +24,13 @@ import useSidebarExpansion from './useSidebarExpansion';
 import {SidebarMusicCard} from '../MiniMusicPlayer/MiniMusicPlayer';
 
 import css from './Sidebar.module.less';
+
+// A library as a row of its own, for Show Libraries Individually. It holds the library itself
+// rather than its id, since two servers can use the same id.
+const SidebarLibraryItem = ({library, slot, onSelectLibrary}) => {
+	const handleClick = useCallback(() => onSelectLibrary?.(library), [library, onSelectLibrary]);
+	return <SidebarItem Icon={libraryNavIcon(library)} slot={slot} label={library.Name} onClick={handleClick} />;
+};
 
 const SidebarContainer = SpotlightContainerDecorator({
 	enterTo: 'default-element',
@@ -89,12 +96,6 @@ const Sidebar = ({
 	const showSyncPlay = !kidsMode && serverType !== 'plex' && settings.syncplayEnabled !== false && settings.showSyncPlayButton !== false;
 	const navLibraries = librariesForNav(libraries, showLiveTv, {hideLiveTv: kidsMode});
 	const showLibraries = !kidsMode && settings.showLibrariesInToolbar !== false && navLibraries.length > 0;
-	const showLibrariesIndividually = settings.showLibrariesIndividually === true;
-	const handleLibraryClick = useCallback((e) => {
-		const libraryId = e.currentTarget.dataset.libraryId;
-		const library = navLibraries.find((item) => item.Id === libraryId);
-		if (library) onSelectLibrary?.(library);
-	}, [navLibraries, onSelectLibrary]);
 	// Only with something to show, so the rail never has a row that does nothing.
 	const showMessages = settings.showServerMessagesButton === true && messages.length > 0;
 	// Only where the Achievement Badges plugin has friends switched on, so it never takes a
@@ -182,15 +183,13 @@ const Sidebar = ({
 						<SidebarItem Icon={SyncPlayIcon} slot={nextSlot()} label={$L('SyncPlay')} onClick={onSyncPlay} active={isInGroup} />
 					)}
 
-					{showLibraries && (showLibrariesIndividually ? (
+					{showLibraries && (settings.showLibrariesIndividually === true ? (
 						navLibraries.map((library) => (
-							<SidebarItem
-								key={library.Id}
-								Icon={LibrariesIcon}
+							<SidebarLibraryItem
+								key={`${library._serverId || ''}:${library.Id}`}
+								library={library}
 								slot={nextSlot()}
-								label={library.Name}
-								onClick={handleLibraryClick}
-								libraryId={library.Id}
+								onSelectLibrary={onSelectLibrary}
 							/>
 						))
 					) : (

@@ -186,6 +186,14 @@ describe('settings schema', () => {
 		expect(toggle.when(ctx)).toBeFalsy();
 	});
 
+	test('Show Libraries Individually is offered only while libraries show in the navigation bar', () => {
+		const toggle = allRows().find(({row}) => row.key === 'showLibrariesIndividually').row;
+		expect(defaultSettings.showLibrariesIndividually).toBe(false);
+		expect(toggle.when(ctx)).toBe(true);
+		expect(toggle.when({...ctx, settings: {...defaultSettings, navbarPosition: 'left'}})).toBe(true);
+		expect(toggle.when({...ctx, settings: {...defaultSettings, showLibrariesInToolbar: false}})).toBe(false);
+	});
+
 	// The fallback stands in for the value on the row's chip, so it's one of the chip texts
 	test('every option row falls back to what one of its own options shows on the chip', () => {
 		const mismatched = [];
