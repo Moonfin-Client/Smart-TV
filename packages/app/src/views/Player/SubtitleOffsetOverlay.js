@@ -5,6 +5,7 @@ import {useCallback, useEffect, useMemo} from 'react';
 import $L from '@enact/i18n/$L';
 import {isBackKey} from '../../utils/keys';
 import {buildSubtitleTimeline} from './subtitleTimeline';
+import useOffsetHold from './useOffsetHold';
 
 import css from './Player.module.less';
 
@@ -20,19 +21,13 @@ const OffsetContainer = SpotlightContainerDecorator({
 
 const stopPropagation = (e) => e.stopPropagation();
 
-const SubtitleOffsetOverlay = ({visible, currentOffset, currentTime, subtitleTrackEvents, onClose, onOffsetChange}) => {
+const SubtitleOffsetOverlay = ({visible, currentOffset, currentTime, subtitleTrackEvents, onClose, onOffsetChange, offsetLimitSeconds = 60}) => {
 	const timeline = useMemo(
 		() => (visible ? buildSubtitleTimeline(subtitleTrackEvents, currentTime, currentOffset) : null),
 		[visible, subtitleTrackEvents, currentTime, currentOffset]
 	);
 
-	const handleIncrease = useCallback(() => {
-		onOffsetChange(Math.round((currentOffset + 0.1) * 10) / 10);
-	}, [currentOffset, onOffsetChange]);
-
-	const handleDecrease = useCallback(() => {
-		onOffsetChange(Math.round((currentOffset - 0.1) * 10) / 10);
-	}, [currentOffset, onOffsetChange]);
+	const {buttonProps} = useOffsetHold(currentOffset, onOffsetChange, offsetLimitSeconds);
 
 	const handleReset = useCallback(() => {
 		onOffsetChange(0);
@@ -74,7 +69,7 @@ const SubtitleOffsetOverlay = ({visible, currentOffset, currentTime, subtitleTra
 				<div className={css.offsetControls}>
 					<SpottableButton
 						className={css.offsetBtn}
-						onClick={handleDecrease}
+						{...buttonProps(-1)}
 						spotlightId="offset-decrease"
 					>
 						−
@@ -84,12 +79,13 @@ const SubtitleOffsetOverlay = ({visible, currentOffset, currentTime, subtitleTra
 					</div>
 					<SpottableButton
 						className={css.offsetBtn}
-						onClick={handleIncrease}
+						{...buttonProps(1)}
 						spotlightId="offset-increase"
 					>
 						+
 					</SpottableButton>
 				</div>
+				<p className={css.offsetHint}>{$L('Hold OK to step faster')}</p>
 				{timeline ? (
 					<div className={css.timeline}>
 						<div className={css.timelineRuler}>
