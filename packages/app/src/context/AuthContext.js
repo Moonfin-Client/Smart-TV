@@ -15,6 +15,7 @@ import {clearProxiedImageCache} from '../hooks/useProxiedImage';
 import {parseUrl} from '../utils/urlCompat';
 import {noteProvedSignIn} from '../utils/signInPin';
 import {bestPlexAddress} from '../services/plexTv';
+import {onSiloSessionEnded, onSiloTokensRotated, siloServerKey} from '../services/siloSession';
 
 const REVALIDATE_INTERVAL = 5 * 60 * 1000;
 const BACKOFF_DELAYS = [5000, 10000, 20000];
@@ -87,6 +88,33 @@ export const AuthProvider = ({children}) => {
 			return {allServers: [], unique: [], active: null};
 		}
 	}, []);
+
+	// Silo rotates an account's token pair on every refresh, so the saved users holding the old access token move to the
+	// new one. A refresh Silo refuses ends the login, and the app goes back to sign-in.
+	useEffect(() => {
+		const offRotated = onSiloTokensRotated(async (session, previousToken) => {
+			const next = session.tokens.accessToken;
+			setAccessToken((current) => (current === previousToken ? next : current));
+			const stale = (await multiServerManager.getAllServersArray())
+				.filter((entry) => entry.serverType === 'silo' && entry.accessToken === previousToken);
+			for (const entry of stale) {
+				// eslint-disable-next-line no-await-in-loop
+				await multiServerManager.updateServer(entry.serverId, null, entry.userId, {accessToken: next});
+			}
+			if (stale.length) loadServers();
+		});
+		const offEnded = onSiloSessionEnded((session) => {
+			if (jellyfinApi.getServerType() !== 'silo' || siloServerKey(jellyfinApi.getServerUrl()) !== session.server) return;
+			console.warn('[AUTH] Silo refused the session refresh, requiring re-login');
+			jellyfinApi.setAuth(null, null);
+			setAccessToken(null);
+			setIsAuthenticated(false);
+		});
+		return () => {
+			offRotated();
+			offEnded();
+		};
+	}, [loadServers]);
 
 	// A Plex server can move between its addresses, so a saved one is checked for the best before it's used, and the
 	// saved servers are read again once a better one is stored.
@@ -215,6 +243,9 @@ export const AuthProvider = ({children}) => {
 			sType,
 			sVersion
 		);
+		if (result.SiloAccountId) {
+			await multiServerManager.updateServer(serverResult.serverId, null, result.User.Id, {siloAccountId: result.SiloAccountId});
+		}
 
 		// Always switch to the newly logged in user
 		const shouldSwitch = switchToNewUser || !isAddingNewServer;
@@ -443,6 +474,8 @@ export const AuthProvider = ({children}) => {
 
 	const logout = useCallback(async () => {
 		await remoteControl.runPlayerCommand('stop');
+		// Silo's refresh token stays good until the login is ended on the server too.
+		if (jellyfinApi.getServerType() === 'silo') await jellyfinApi.api.logout?.();
 		if (activeServerInfo) {
 			await multiServerManager.removeServer(activeServerInfo.serverId, activeServerInfo.userId);
 		}

@@ -651,7 +651,6 @@
 	"Input": "Input",
 	"Interlaced video is not supported.": "Interlaced video is not supported.",
 	"Intro Segments": "Intro Segments",
-	"Jellyfin or Emby on your network or online": "Jellyfin or Emby on your network or online",
 	"Jump Back In": "Jump Back In",
 	"Jump to letter": "Jump to letter",
 	"Justify": "Justify",
@@ -1035,7 +1034,6 @@
 	"When resuming playback (from Continue Watching or a media item page), how many seconds should be rewound?": "When resuming playback (from Continue Watching or a media item page), how many seconds should be rewound?",
 	"White is much brighter in HDR than in SDR, so a dimmer style here avoids the glare": "White is much brighter in HDR than in SDR, so a dimmer style here avoids the glare",
 	"Wide": "Wide",
-	"Works with Jellyfin and Emby. A Plex address opens the Plex sign-in.": "Works with Jellyfin and Emby. A Plex address opens the Plex sign-in.",
 	"Write a message": "Write a message",
 	"Yes": "Yes",
 	"You": "You",
@@ -2627,5 +2625,9 @@
 	"Sort TMDB rows in ascending or descending order.": "Sort TMDB rows in ascending or descending order.",
 	"Sorting": "Sorting",
 	"TMDB Row Sorting": "TMDB Row Sorting",
-	"◀ ▶ to re-order · DEL to remove": "◀ ▶ to re-order · DEL to remove"
+	"◀ ▶ to re-order · DEL to remove": "◀ ▶ to re-order · DEL to remove",
+	"Jellyfin, Emby or Silo on your network or online": "Jellyfin, Emby or Silo on your network or online",
+	"Works with Jellyfin, Emby and Silo. A Plex address opens the Plex sign-in.": "Works with Jellyfin, Emby and Silo. A Plex address opens the Plex sign-in.",
+	"This Silo server needs a newer version of Moonfin. Update Moonfin to use it.": "This Silo server needs a newer version of Moonfin. Update Moonfin to use it.",
+	"This Silo server is too old for this version of Moonfin. Update Silo to use it.": "This Silo server is too old for this version of Moonfin. Update Silo to use it."
 }

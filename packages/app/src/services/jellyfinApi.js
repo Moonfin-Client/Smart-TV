@@ -9,6 +9,8 @@ import {makeUserRoutes, trimQuerySeparator, legacyAuthHeader, buildUserImageUrl}
 import * as userDataSync from './userDataSync';
 import {SUPPORTED_COMMANDS} from './remoteControl';
 import {createPlexApi, withEveryMethod} from './plexApi';
+import {createSiloApi, withEverySiloMethod} from './siloApi';
+import {onSiloTokensRotated, siloServerKey, siloSessionFor} from './siloSession';
 import {isPlexServer, registerPlexServer} from '../utils/plexUrls';
 const APP_VERSION = packageJson.version;
 
@@ -42,7 +44,7 @@ export const setServer = (serverUrl) => {
 };
 
 export const setServerType = (type) => {
-	serverType = type === 'emby' || type === 'plex' ? type : 'jellyfin';
+	serverType = type === 'emby' || type === 'plex' || type === 'silo' ? type : 'jellyfin';
 	// eslint-disable-next-line no-use-before-define
 	applyServerType();
 };
@@ -281,7 +283,7 @@ let capabilitiesSent = null;
 // Signing in reports what this session can do and the socket opening a moment later would send it
 // again, so the socket skips a report made for the same session in the last few seconds.
 export function reportCapabilities({unlessRecent = false} = {}) {
-	if (!currentServer || !accessToken || serverType === 'plex') return;
+	if (!currentServer || !accessToken || serverType === 'plex' || serverType === 'silo') return;
 	const session = `${currentServer}|${accessToken}`;
 	if (unlessRecent && capabilitiesSent?.session === session && Date.now() - capabilitiesSent.at < 10000) return;
 	capabilitiesSent = {session, at: Date.now()};
@@ -1058,21 +1060,35 @@ const plexApiFor = (readUrl, readToken, readUserId) => withEveryMethod(createPle
 
 const plexMethods = plexApiFor(() => currentServer, () => accessToken, () => currentUser);
 
-let plexActive = false;
+const siloApiFor = (readUrl, readToken, readUserId) => withEverySiloMethod(createSiloApi({
+	getBaseUrl: readUrl,
+	getToken: readToken,
+	getUserId: readUserId,
+	getDeviceInfo,
+	platform: platformTag
+}), methodNames);
+
+const siloMethods = siloApiFor(() => currentServer, () => accessToken, () => currentUser);
+
+// Silo rotates the account's tokens on every refresh. The signed-in session follows, so the api keeps finding it.
+onSiloTokensRotated((session, previousToken) => {
+	if (accessToken === previousToken && siloServerKey(currentServer) === session.server) accessToken = session.tokens.accessToken;
+});
+
+const METHODS_BY_TYPE = {plex: plexMethods, silo: siloMethods};
+let activeMethods = jellyfinMethods;
 
 // The api object everything imports stays the same object, with its methods swapped for the kind of server signed in.
 const applyServerType = () => {
-	const wantPlex = serverType === 'plex';
-	if (wantPlex) registerPlexServer(currentServer, accessToken);
-	if (wantPlex === plexActive) return;
-	plexActive = wantPlex;
-	// Plex adds methods Jellyfin doesn't have, and those have to go again.
-	if (!wantPlex) {
-		Object.keys(api).forEach((name) => {
-			if (!Object.prototype.hasOwnProperty.call(jellyfinMethods, name)) delete api[name];
-		});
-	}
-	Object.assign(api, wantPlex ? plexMethods : jellyfinMethods);
+	if (serverType === 'plex') registerPlexServer(currentServer, accessToken);
+	const wanted = METHODS_BY_TYPE[serverType] || jellyfinMethods;
+	if (wanted === activeMethods) return;
+	activeMethods = wanted;
+	// Plex and Silo add methods Jellyfin doesn't have, and those have to go again.
+	Object.keys(api).forEach((name) => {
+		if (!Object.prototype.hasOwnProperty.call(wanted, name)) delete api[name];
+	});
+	Object.assign(api, wanted);
 };
 
 /**
@@ -1096,6 +1112,11 @@ export const createApiForServer = (serverUrl, token, userId, serverTypeOverride 
 	if (serverTypeOverride === 'plex' || isPlexServer(url)) {
 		registerPlexServer(url, token);
 		return plexApiFor(() => url, () => token, () => userId);
+	}
+
+	// The token may have rotated since it was saved, and the session it belonged to still knows it.
+	if (serverTypeOverride === 'silo') {
+		return siloApiFor(() => url, () => siloSessionFor(url, token)?.tokens?.accessToken || token, () => userId);
 	}
 
 	const getServerAuthHeader = () => buildAuthHeader(serverTypeOverride, token);

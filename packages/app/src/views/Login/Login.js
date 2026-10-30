@@ -8,6 +8,7 @@ import {useSettings} from '../../context/SettingsContext';
 import * as jellyfinApi from '../../services/jellyfinApi';
 import * as embyConnect from '../../services/embyConnect';
 import * as plexTv from '../../services/plexTv';
+import {probeSilo} from '../../services/siloApi';
 import * as multiServerManager from '../../services/multiServerManager';
 import {discoverLocalServers} from '../../services/serverDiscovery';
 import {generateCandidates, normalizeServerBaseUrl, quickConnectApprovalUrl} from '../../utils/serverUrl';
@@ -40,7 +41,7 @@ const focusLater = (id) => setTimeout(() => Spotlight.focus(`[data-spotlight-id=
 
 const formatQuickConnectCode = (code) => (code.length === 6 ? `${code.slice(0, 3)} ${code.slice(3)}` : code);
 
-const hasQuickConnect = (target) => target?.serverType !== 'emby' && target?.serverType !== 'plex';
+const hasQuickConnect = (target) => target?.serverType !== 'emby' && target?.serverType !== 'plex' && target?.serverType !== 'silo';
 
 // plex.tv asks apps to check a code once a second.
 const PLEX_PIN_POLL = 1000;
@@ -55,7 +56,8 @@ const plexErrorMessage = (err) => (err?.status === 401 ? getSignInMessage(err) :
 // These say more than the general advice to check the address, so the add dialog keeps their own line.
 const SPECIFIC_FAILURES = [INVALID_ADDRESS, SERVER_NOT_JELLYFIN, VERSION_UNSUPPORTED];
 
-const BRAND_NAMES = {jellyfin: 'Jellyfin', emby: 'Emby', plex: 'Plex'};
+const BRAND_NAMES = {jellyfin: 'Jellyfin', emby: 'Emby', plex: 'Plex', silo: 'Silo'};
+const FOUND_TILES = {emby: css.tileEmby, silo: css.tileSilo};
 
 // Where a press should land once the password half of the screen is showing
 const credentialFocusTarget = (user) => {
@@ -459,6 +461,22 @@ const Login = ({
 			jellyfinApi.setServer(candidate);
 
 			try {
+				// Silo's own API is asked first: its web app answers Jellyfin's probe with a page.
+				const siloInfo = await probeSilo(candidate);
+				if (siloInfo) {
+					jellyfinApi.setServerType('silo');
+					return {
+						server: {
+							serverId: null,
+							url: candidate,
+							name: siloInfo.ServerName || candidate,
+							serverType: 'silo',
+							version: siloInfo.Version || null,
+							loginDisclaimer: siloInfo.LoginDisclaimer || null
+						}
+					};
+				}
+
 				const info = await jellyfinApi.api.getPublicInfo();
 				if (!info) continue;
 
@@ -490,6 +508,14 @@ const Login = ({
 					}
 				};
 			} catch (err) {
+				if (err.siloApiUnsupported) {
+					return {
+						error: err.serverIsNewer
+							? $L('This Silo server needs a newer version of Moonfin. Update Moonfin to use it.')
+							: $L('This Silo server is too old for this version of Moonfin. Update Silo to use it.'),
+						errorType: VERSION_UNSUPPORTED
+					};
+				}
 				const errType = classifyError(err);
 				// A cert rejection (from the https candidate / proxy probe) is the
 				// most actionable diagnosis, don't let a weaker network failure
@@ -509,7 +535,7 @@ const Login = ({
 		else setError(null);
 
 		const result = await probeServer(input);
-		// Only Jellyfin and Emby answer that probe, so a Plex server goes to its plex.tv sign in.
+		// Only Jellyfin, Emby and Silo answer that probe, so a Plex server goes to its plex.tv sign in.
 		const plex = result.error ? await plexTv.findServerAt(input) : null;
 		setStatus(null);
 		setIsConnecting(false);
@@ -1238,7 +1264,7 @@ const Login = ({
 						<span className={css.addServerTitle}>{$L('Add Server')}</span>
 						<span className={css.addServerSubtitle}>{$L('By address, or with a Plex or Emby Connect account')}</span>
 					</span>
-					{['jellyfin', 'emby', 'plex'].map((type) => (
+					{['jellyfin', 'emby', 'plex', 'silo'].map((type) => (
 						<ServerTypeIcon key={type} serverType={type} className={css.addServerBrand} />
 					))}
 				</SpottableButton>
@@ -1666,7 +1692,7 @@ const Login = ({
 					tileClass: css.tileAccent,
 					icon: <MaterialIcon name="language" className={css.choiceGlyph} />,
 					title: $L('Server Address'),
-					detail: $L('Jellyfin or Emby on your network or online'),
+					detail: $L('Jellyfin, Emby or Silo on your network or online'),
 					onClick: showAddressStep
 				})}
 				{renderChoice({
@@ -1739,7 +1765,7 @@ const Login = ({
 			<div className={css.addressHint}>
 				{isConnecting
 					? $L('Checking {address}').replace('{address}', addressValue.trim())
-					: $L('Works with Jellyfin and Emby. A Plex address opens the Plex sign-in.')}
+					: $L('Works with Jellyfin, Emby and Silo. A Plex address opens the Plex sign-in.')}
 			</div>
 			{dialogError && renderNotice(dialogError)}
 		</div>
@@ -1754,7 +1780,7 @@ const Login = ({
 				<h2 className={css.panelTitle}>{$L('Server found')}</h2>
 			</div>
 			<div className={css.foundCard}>
-				<div className={`${css.foundTile} ${found.serverType === 'emby' ? css.tileEmby : css.tileJellyfin}`}>
+				<div className={`${css.foundTile} ${FOUND_TILES[found.serverType] || css.tileJellyfin}`}>
 					<ServerTypeIcon serverType={found.serverType} className={css.foundGlyph} />
 				</div>
 				<div className={css.foundBody}>
