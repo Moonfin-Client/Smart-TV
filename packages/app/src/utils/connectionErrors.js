@@ -1,5 +1,7 @@
 import $L from '@enact/i18n/$L';
 
+import {tooManyAttempts} from './pinLockout';
+
 export const TIMEOUT = 'timeout';
 export const DNS_OR_NETWORK = 'network';
 export const INVALID_ADDRESS = 'invalid_address';
@@ -45,6 +47,11 @@ export function isSignInForbidden (err) {
 }
 
 export function getSignInMessage (err) {
+	// Silo limits sign-in attempts, and says for how long.
+	if (err?.status === 429) {
+		const seconds = Number(err.retryAfter);
+		return tooManyAttempts((seconds > 0 ? seconds : 60) * 1000);
+	}
 	if (isSignInForbidden(err)) {
 		return $L('This account can\'t sign in right now. It may be outside its allowed hours, locked or disabled. Try again later or ask an administrator.');
 	}

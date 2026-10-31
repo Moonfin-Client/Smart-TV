@@ -205,7 +205,12 @@ const send = async (url, {method = 'GET', headers, body, timeoutMs = DEFAULT_TIM
 		throw typed;
 	}
 	const data = await readBody(response);
-	if (!response.ok) throw siloError(response.status, data);
+	if (!response.ok) {
+		const err = siloError(response.status, data);
+		// Silo says how long a rate limit (429) or a busy server (503) wants waited.
+		err.retryAfter = response.headers?.get?.('retry-after') || null;
+		throw err;
+	}
 	return {data, headers: response.headers, status: response.status};
 };
 

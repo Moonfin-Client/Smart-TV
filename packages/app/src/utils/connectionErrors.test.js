@@ -75,3 +75,9 @@ describe('a refused sign in', () => {
 		expect(getSignInMessage(refused(500))).toBe('Login failed. Please try again.');
 	});
 });
+
+describe('a rate limited sign-in', () => {
+	it('says how long Silo wants waited', () => {
+		expect(getSignInMessage({status: 429, retryAfter: '120'})).toBe('Too many attempts. Try again in 2m.');
+	});
+});
