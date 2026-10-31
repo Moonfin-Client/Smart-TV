@@ -229,3 +229,28 @@ describe('SyncPlay group position', () => {
 		expect(service.getGroupState()).toBeNull();
 	});
 });
+
+describe('SyncPlay driven by a Silo Watch Party', () => {
+	test('sends the player\'s requests to the room instead of Jellyfin', async () => {
+		global.fetch = jest.fn();
+		let service;
+		jest.isolateModules(() => {
+			service = require('./syncPlay');
+		});
+		const driver = {request: jest.fn(), readyOwed: jest.fn(() => true), ready: jest.fn(), buffering: jest.fn()};
+		service.setRoomDriver(driver);
+		service.feedRoomMessage({MessageType: 'SyncPlayGroupUpdate', Data: {Type: 'GroupJoined', Data: {GroupId: 'r1', State: 'Waiting'}}});
+		service.sendPauseRequest();
+		service.sendSeekRequest(50);
+		await service.sendReadyRequest(() => ({}));
+		await service.sendBufferingRequest(() => ({}));
+		expect(driver.request.mock.calls).toEqual([['pause'], ['seek', 50]]);
+		expect(service.isReadyOwed()).toBe(true);
+		expect(driver.ready).toHaveBeenCalled();
+		expect(driver.buffering).toHaveBeenCalled();
+		expect(service.getGroupState()).toBe('Waiting');
+		expect(global.fetch).not.toHaveBeenCalled();
+		service.setRoomDriver(null);
+		delete global.fetch;
+	});
+});

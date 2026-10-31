@@ -55,6 +55,9 @@ import Screensaver from '../components/Screensaver';
 import SeasonalTheme from '../components/SeasonalTheme';
 import NoConnection from '../components/NoConnection/NoConnection';
 import SyncPlayDialog from '../components/SyncPlayDialog';
+import WatchPartyDialog from '../components/WatchPartyDialog';
+import useWatchParty from '../hooks/useWatchParty';
+import {watchParty, isRoomPlaying} from '../services/siloWatchParty';
 import PhotoViewer from '../components/PhotoViewer';
 import ComicViewer from '../components/ComicViewer';
 import EpubReader from '../components/EpubReader';
@@ -291,6 +294,11 @@ const AppContent = (props) => {
 	const [showServerMessages, setShowServerMessages] = useState(false);
 	const serverMessagesBackRef = useRef(null);
 	const [showExitDialog, setShowExitDialog] = useState(false);
+	// Silo's Watch Party, in SyncPlay's place on Silo.
+	const [watchPartyOpen, setWatchPartyOpen] = useState(false);
+	const {room: watchPartyRoom} = useWatchParty();
+	const openWatchParty = useCallback(() => setWatchPartyOpen(true), []);
+	const closeWatchParty = useCallback(() => setWatchPartyOpen(false), []);
 	const [showSettingsPanel, setShowSettingsPanel] = useState(false);
 	// The screen the settings panel opens on when something other than the gear opened it.
 	const [settingsInitialView, setSettingsInitialView] = useState(null);
@@ -867,6 +875,10 @@ const AppContent = (props) => {
 					closeSyncPlay();
 					return;
 				}
+				if (watchPartyOpen) {
+					closeWatchParty();
+					return;
+				}
 
 				if (updateInfo) {
 					dismissUpdate();
@@ -918,7 +930,7 @@ const AppContent = (props) => {
 
 		window.addEventListener('keydown', handleKeyDown, true);
 		return () => window.removeEventListener('keydown', handleKeyDown, true);
-	}, [panelIndex, handleBack, performAppCleanup, settings.exitConfirmation, showAccountModal, showServerMessages, showExitDialog, showSettingsPanel, showShuffleOverlay, photoViewerItem, reading, unreadableBook, isPinGateActive, isPinChecking, timesUp, setupWizardActive, updateInfo, dismissUpdate, syncPlayDialogOpen, closeSyncPlay]);
+	}, [panelIndex, handleBack, performAppCleanup, settings.exitConfirmation, showAccountModal, showServerMessages, showExitDialog, showSettingsPanel, showShuffleOverlay, photoViewerItem, reading, unreadableBook, isPinGateActive, isPinChecking, timesUp, setupWizardActive, updateInfo, dismissUpdate, syncPlayDialogOpen, closeSyncPlay, watchPartyOpen, closeWatchParty]);
 
 	// The account stays saved, so it can be chosen again from the picker once its hours are back.
 	const handleTimesUpSwitchUser = useCallback(() => {
@@ -1128,14 +1140,14 @@ const AppContent = (props) => {
 		navigateTo(PANELS.PLAYER);
 	}, [navigateTo, isSyncPlayInGroup, openSyncPlay, serverType, settings.syncplayAutoOpen, settings.syncplayEnabled, syncPlaySetNewQueue, backgroundMusic, openBook]);
 
-	const playSyncPlayItem = useCallback((item) => {
+	const playSyncPlayItem = useCallback((item, options = null) => {
 		if (panelIndex === PANELS.PLAYER && playingItem?.Id === item.Id) return;
 		// Opened where the group is: a set started at the beginning is only
 		// seeked there by the server afterwards, which on a transcode means
 		// starting the stream twice while everyone waits.
 		const startPositionTicks = getSyncPlayPositionTicks();
 		setPlayingItem(item);
-		setPlaybackOptions(startPositionTicks > 0 ? {startPositionTicks} : null);
+		setPlaybackOptions(startPositionTicks > 0 || options ? {...options, ...(startPositionTicks > 0 ? {startPositionTicks} : null)} : null);
 		setIsResume(false);
 		navigateTo(PANELS.PLAYER);
 	}, [panelIndex, playingItem, navigateTo, getSyncPlayPositionTicks]);
@@ -1148,7 +1160,7 @@ const AppContent = (props) => {
 		if (!update || update === handledSyncPlayQueueRef.current) return;
 		handledSyncPlayQueueRef.current = update;
 		if (!update.startsPlayback && playingItem?.Id === update.item.Id) return;
-		playSyncPlayItem(update.item);
+		playSyncPlayItem(update.item, update.options);
 	}, [syncPlayQueueUpdate, playingItem, playSyncPlayItem]);
 
 	// The SyncPlay dialog sits above every panel and holds the remote focus, so
@@ -1158,6 +1170,23 @@ const AppContent = (props) => {
 	useEffect(() => {
 		if (syncPlayDialogOpen && isSyncPlayInGroup && panelIndex === PANELS.PLAYER) closeSyncPlay();
 	}, [syncPlayDialogOpen, isSyncPlayInGroup, panelIndex, closeSyncPlay]);
+
+	// The same for a Watch Party that starts playing. One that stops (the host went back to the lobby, the item
+	// finished, the party ended) brings its members back to the room instead of leaving them on a closed player.
+	const watchPartyPlaying = isRoomPlaying(watchPartyRoom);
+	const watchPartyWasPlayingRef = useRef(false);
+	useEffect(() => {
+		if (watchPartyOpen && watchPartyPlaying && panelIndex === PANELS.PLAYER) closeWatchParty();
+	}, [watchPartyOpen, watchPartyPlaying, panelIndex, closeWatchParty]);
+	useEffect(() => {
+		if (watchPartyWasPlayingRef.current && !watchPartyPlaying) openWatchParty();
+		watchPartyWasPlayingRef.current = watchPartyPlaying;
+	}, [watchPartyPlaying, openWatchParty]);
+	// A room belongs to the login and profile that opened it.
+	useEffect(() => {
+		watchParty.onSessionChanged();
+	}, [isAuthenticated, serverUrl, user?.Id, accessToken]);
+	const openWatchTogether = serverType === 'silo' ? openWatchParty : openSyncPlay;
 
 	// Moving on to another item from inside the player. The next episode starts at the top, and
 	// one the viewer picked by hand from the episode browser passes `resume` so an episode they
@@ -1776,7 +1805,7 @@ const AppContent = (props) => {
 					onFavorites={handleOpenFavorites}
 					onLiveTv={handleOpenLiveTv}
 					onDiscover={handleOpenSeerr}
-					onSyncPlay={settings.syncplayEnabled !== false ? openSyncPlay : undefined}
+					onSyncPlay={settings.syncplayEnabled !== false ? openWatchTogether : undefined}
 					onSettings={handleOpenSettings}
 					onSelectLibrary={handleSelectLibrary}
 					onUserMenu={handleOpenAccountModal}
@@ -1798,7 +1827,7 @@ const AppContent = (props) => {
 					onFavorites={handleOpenFavorites}
 					onLiveTv={handleOpenLiveTv}
 					onDiscover={handleOpenSeerr}
-					onSyncPlay={settings.syncplayEnabled !== false ? openSyncPlay : undefined}
+					onSyncPlay={settings.syncplayEnabled !== false ? openWatchTogether : undefined}
 					onSettings={handleOpenSettings}
 					onSelectLibrary={handleSelectLibrary}
 					onUserMenu={handleOpenAccountModal}
@@ -1827,6 +1856,7 @@ const AppContent = (props) => {
 									onSelectPerson={handleSelectPerson}
 									onSelectStudio={handleSelectStudio}
 									onItemDeleted={handleBack}
+									onOpenWatchParty={openWatchParty}
 									autoPlay={detailsAutoPlay}
 									onAutoPlayed={handleAutoPlayed}
 									seerrNav={seerrNav}
@@ -2088,6 +2118,11 @@ const AppContent = (props) => {
 				onClose={closeSyncPlay}
 				playingItemId={panelIndex === PANELS.PLAYER ? playingItem?.Id : null}
 				onWatch={playSyncPlayItem}
+			/>
+			<WatchPartyDialog
+				open={watchPartyOpen}
+				onClose={closeWatchParty}
+				playingItemId={panelIndex === PANELS.PLAYER ? playingItem?.Id : null}
 			/>
 			<ShuffleOverlay
 				open={showShuffleOverlay}

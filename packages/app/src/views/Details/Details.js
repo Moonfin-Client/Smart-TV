@@ -8,6 +8,8 @@ import {useAuth} from '../../context/AuthContext';
 import {useSettings} from '../../context/SettingsContext';
 import {useSeerr} from '../../context/SeerrContext';
 import {useSyncPlay} from '../../context/SyncPlayContext';
+import {watchParty} from '../../services/siloWatchParty';
+import useWatchParty from '../../hooks/useWatchParty';
 import * as jellyfinApi from '../../services/jellyfinApi';
 import {searchesForTrailer} from '../../services/youtubeTrailer';
 import {canKeepAsComplete, keepAsComplete, useIncompleteRecording} from '../../services/incompleteRecordings';
@@ -80,7 +82,7 @@ const DETAIL_CONTENT = {v3: SpotlightDetailContent, v4: NouveauDetailContent, v5
 // The missing titles already ride in the list a collection's page is handed.
 const NO_ITEMS = [];
 
-const Details = ({itemId: itemIdProp, initialItem, onPlay, onSelectItem, onSelectPerson, onSelectStudio, onItemDeleted, autoPlay, onAutoPlayed, seerrNav, backHandlerRef}) => {
+const Details = ({itemId: itemIdProp, initialItem, onPlay, onSelectItem, onSelectPerson, onSelectStudio, onItemDeleted, autoPlay, onAutoPlayed, seerrNav, backHandlerRef, onOpenWatchParty}) => {
 	const {api, serverUrl, user} = useAuth();
 	// Kids Mode has its say before anything on this screen reads a setting, and every piece below
 	// takes what it is handed rather than reaching for the context itself. Held steady across
@@ -94,6 +96,7 @@ const Details = ({itemId: itemIdProp, initialItem, onPlay, onSelectItem, onSelec
 	const {pluginInfo, isEnabled: seerrEnabled} = useSeerr();
 	const recommendationsSupported = pluginInfo?.recommendationsSupported === true;
 	const {isInGroup: isSyncPlayInGroup} = useSyncPlay();
+	const {room: watchPartyRoom} = useWatchParty();
 
 	const effectiveApi = useMemo(() => {
 		if (initialItem?._serverUrl && initialItem._serverAccessToken) {
@@ -185,6 +188,41 @@ const Details = ({itemId: itemIdProp, initialItem, onPlay, onSelectItem, onSelec
 		[seerrOnly, seerr.details, seerr.mediaType]
 	);
 	const item = seerrOnly ? seerrItem : data.item;
+
+	// On Silo the host picks what a Watch Party watches; anyone else can open a party by picking. The party is the
+	// signed-in server's, so items from another server can't be picked.
+	const canPickForWatchParty = jellyfinApi.getServerType() === 'silo' && (!initialItem?._serverUrl || initialItem._serverUrl === serverUrl) &&
+		(!watchPartyRoom || watchPartyRoom.isHost);
+
+	// A room plays files, so a series stands for its Next Up, else its first unwatched episode (specials left out),
+	// and a season for its first unwatched episode.
+	const watchPartyEpisodeFor = useCallback(async (target) => {
+		if (target.Type !== 'Series' && target.Type !== 'Season') return target;
+		if (target.Type === 'Series' && nextUp[0]) return nextUp[0];
+		let list;
+		try {
+			list = target.Type === 'Series'
+				? ((await api.getEpisodes(target.Id))?.Items || []).filter((e) => e.ParentIndexNumber !== 0)
+				: (episodes.length ? episodes : (await api.getEpisodes(target.SeriesId, target.Id))?.Items || []);
+		} catch {
+			return null;
+		}
+		const playable = list.filter((e) => e.LocationType !== 'Virtual');
+		return playable.find((e) => !e.UserData?.Played) || playable[0] || null;
+	}, [api, nextUp, episodes]);
+
+	const handlePickForWatchParty = useCallback(async () => {
+		const target = await watchPartyEpisodeFor(item);
+		if (!target) {
+			showToast($L('No episodes found'));
+			return;
+		}
+		const suggested = watchParty.state().room?.isVoting && target.Type === 'Movie';
+		const picked = await watchParty.pick(target);
+		showToast(!picked ? watchParty.state().error || '' : suggested ? $L('Added to the Watch Party vote') : $L('Picked for the Watch Party'));
+		if (picked) onOpenWatchParty?.();
+	}, [item, watchPartyEpisodeFor, showToast, onOpenWatchParty]);
+
 	const isLoading = seerrOnly ? seerr.loading : libraryLoading;
 
 	const {cast: detailCast, crew: detailCrew} = useMemo(() => {
@@ -1196,8 +1234,8 @@ const Details = ({itemId: itemIdProp, initialItem, onPlay, onSelectItem, onSelec
 		return (
 			<div className={css.page}>
 				<DetailContent
-					inSyncPlayGroup={isSyncPlayInGroup}
-					onWatchWithGroup={handlePlay}
+					inSyncPlayGroup={isSyncPlayInGroup || canPickForWatchParty}
+					onWatchWithGroup={canPickForWatchParty ? handlePickForWatchParty : handlePlay}
 					key={item.Id}
 					item={item}
 					settings={settings}
@@ -1434,8 +1472,8 @@ const Details = ({itemId: itemIdProp, initialItem, onPlay, onSelectItem, onSelec
 			isReadableBook={isReadableBook}
 			hasPlaybackPosition={hasPlaybackPosition}
 			resumeTimeText={resumeTimeText}
-			inSyncPlayGroup={isSyncPlayInGroup}
-			onWatchWithGroup={handlePlay}
+			inSyncPlayGroup={isSyncPlayInGroup || canPickForWatchParty}
+			onWatchWithGroup={canPickForWatchParty ? handlePickForWatchParty : handlePlay}
 			mediaSource={mediaSource}
 			supportsMediaSourceSelection={supportsMediaSourceSelection}
 			hasMultipleVersions={hasMultipleVersions}

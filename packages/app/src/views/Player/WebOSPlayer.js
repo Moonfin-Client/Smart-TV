@@ -285,6 +285,17 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 	const handlersRef = useRef({});
 	const positionRef = useRef(0);
 	const playSessionRef = useRef(null);
+	// A Silo Watch Party reports where this player is and which session it plays (siloWatchParty.js).
+	useEffect(() => syncPlayService.attachPlayer({
+		sample: syncPlaySample,
+		sessionId: () => playSessionRef.current,
+		// A player held paused never moves, which is what clears stalledRef, so paused it counts as playable once it has
+		// the data to start.
+		isBuffering: () => {
+			const video = videoRef.current;
+			return !video || (video.paused ? video.readyState < 3 : stalledRef.current);
+		}
+	}), [syncPlaySample]);
 	const runTimeRef = useRef(0);
 	const healthMonitorRef = useRef(null);
 	const unregisterAppStateRef = useRef(null);

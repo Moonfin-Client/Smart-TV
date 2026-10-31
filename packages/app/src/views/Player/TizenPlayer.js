@@ -256,6 +256,12 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 
 	const positionRef = useRef(0);
 	const playSessionRef = useRef(null);
+	// A Silo Watch Party reports where this player is and which session it plays (siloWatchParty.js).
+	useEffect(() => syncPlayService.attachPlayer({
+		sample: syncPlaySample,
+		sessionId: () => playSessionRef.current,
+		isBuffering: () => isBufferingRef.current
+	}), [syncPlaySample]);
 	const runTimeRef = useRef(0);
 	const healthMonitorRef = useRef(null);
 	const unregisterAppStateRef = useRef(null);
