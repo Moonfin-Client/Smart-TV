@@ -244,7 +244,16 @@ export const AuthProvider = ({children}) => {
 			sVersion
 		);
 		if (result.SiloAccountId) {
-			await multiServerManager.updateServer(serverResult.serverId, null, result.User.Id, {siloAccountId: result.SiloAccountId});
+			// Silo's household: every profile is saved as a user of this server, sharing the account's token, so the
+			// user picker is the "Who's watching" list.
+			for (const profile of result.SiloUsers || [result.User]) {
+				if (profile.Id !== result.User.Id) {
+					// eslint-disable-next-line no-await-in-loop
+					await multiServerManager.addServer(server, finalServerName, profile.Id, profile.Name, result.AccessToken, profile.PrimaryImageTag, sType, sVersion);
+				}
+				// eslint-disable-next-line no-await-in-loop
+				await multiServerManager.updateServer(serverResult.serverId, null, profile.Id, {siloAccountId: result.SiloAccountId, siloHasPin: profile.SiloHasPin === true});
+			}
 		}
 
 		// Always switch to the newly logged in user
@@ -597,7 +606,8 @@ export const AuthProvider = ({children}) => {
 			userDataSync.reset();
 			serverSocket.disconnect();
 		};
-	}, [isAuthenticated, serverUrl, accessToken]);
+	// Silo's profiles share the account's token, so switching profile has to start this over too.
+	}, [isAuthenticated, serverUrl, accessToken, user?.Id]); // eslint-disable-line react-hooks/exhaustive-deps
 
 	// Nothing else moves the state off disconnected, so the banner would sit there
 	// until someone pressed Retry. Probe in the background instead and drop it as

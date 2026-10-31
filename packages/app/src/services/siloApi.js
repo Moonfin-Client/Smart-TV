@@ -3,7 +3,7 @@
 
 import {
 	SILO_API_MAJOR, closeSiloSession, isClientUpgradeRequired, loadSiloSessions, needsRefresh, openSiloSession, profileProof,
-	refreshSiloSession, siloError, siloHeaders, siloRequest, siloSessionFor, tokensFrom
+	refreshSiloSession, setProfileProof, siloError, siloHeaders, siloRequest, siloSessionFor, tokensFrom
 } from './siloSession';
 import {createSiloEvents, noteSiloPlaybackEnded} from './siloEvents';
 import {findSiloMoonbase} from './siloMoonbase';
@@ -224,6 +224,8 @@ export const createSiloApi = ({getBaseUrl, getToken, getUserId, getDeviceInfo, p
 				User: withAvatar(siloProfileToUser(primary, account), primary),
 				SiloAccountId: String(account.id),
 				SiloProfiles: profiles,
+				// The household: every profile as a user of its own, sharing the account's token.
+				SiloUsers: profiles.map((p) => ({...withAvatar(siloProfileToUser(p, account), p), SiloHasPin: p.has_pin === true})),
 				SiloPasswordChangeRequired: account.password_change_required === true
 			};
 		},
@@ -278,6 +280,26 @@ export const createSiloApi = ({getBaseUrl, getToken, getUserId, getDeviceInfo, p
 			moonbaseGet(`/Moonfin/Tmdb/ProductionCompanies?tmdbId=${encodeURIComponent(tmdbId)}&type=${mediaType === 'tv' ? 'tv' : 'movie'}`),
 		getTmdbReviews: (tmdbId, mediaType, language) =>
 			moonbaseGet(`/Moonfin/Tmdb/Reviews?tmdbId=${encodeURIComponent(tmdbId)}&type=${mediaType === 'tv' ? 'tv' : 'movie'}&language=${encodeURIComponent(language || 'en-US')}`),
+
+		// Whether a household profile has a PIN, or null when the account doesn't list it.
+		profileHasPin: async (profileId) => {
+			const {profiles} = await accountAndProfiles();
+			const profile = profiles.find((p) => String(p.id) === String(profileId));
+			return profile ? profile.has_pin === true : null;
+		},
+
+		// Checks a profile's PIN, and keeps the proof that unlocks the profile for this login. PIN checks are never
+		// replayed after a refresh, since Silo counts them against its rate limit.
+		verifyProfilePin: async (profileId, pin) => {
+			const answer = await call(`/api/v2/profiles/${encodeURIComponent(profileId)}/verify-pin`, {
+				method: 'POST', body: {pin}, profile: false, refresh: false
+			});
+			if (answer?.valid !== true || !answer.profile_token) return false;
+			setProfileProof(session(), String(profileId), {
+				token: answer.profile_token, expiresAt: answer.expires_at ? Date.parse(answer.expires_at) : 0
+			});
+			return true;
+		},
 
 		// A plain request to Silo's /api/v2 as the acting profile, for the request screens (siloSeerr.js).
 		siloCall: (path, options) => call(path, options),

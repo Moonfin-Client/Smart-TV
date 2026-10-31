@@ -180,11 +180,9 @@ export const openSiloEvents = (events, {onOpen, onMessage, onClose}) => {
 				ticket = await events.ticket();
 			}
 		} catch (err) {
-			// A PIN set on the profile since sign-in: every ticket would be refused until it's unlocked again.
-			if (err?.code === 'profile_verification_required') {
-				console.warn('[Silo] Events socket stopped: the profile needs its PIN');
-				return;
-			}
+			// A locked profile gets no ticket until its PIN is entered, which the app asks for after switching to it,
+			// so this waits with the usual backoff rather than giving up.
+			if (err?.code === 'profile_verification_required') console.info('[Silo] Events socket waits for the profile\'s PIN');
 			scheduleReconnect();
 			return;
 		}

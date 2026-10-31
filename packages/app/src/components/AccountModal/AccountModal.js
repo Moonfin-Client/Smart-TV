@@ -17,11 +17,13 @@ const UserAvatar = ({url, userId, username, imageTag, serverType}) => {
 	const [failed, setFailed] = useState(false);
 	const handleError = useCallback(() => setFailed(true), []);
 
-	if (failed) return <MaterialIcon name="person" className={css.placeholderIcon} />;
+	const src = getUserImageUrl(url, userId, imageTag, serverType);
+	// A Silo profile without an avatar has no address, and an image without one never fails.
+	if (failed || !src) return <MaterialIcon name="person" className={css.placeholderIcon} />;
 
 	return (
 		<img
-			src={getUserImageUrl(url, userId, imageTag, serverType)}
+			src={src}
 			alt={username}
 			className={css.avatarImage}
 			onError={handleError}

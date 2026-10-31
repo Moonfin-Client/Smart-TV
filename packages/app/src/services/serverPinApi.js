@@ -4,7 +4,7 @@
 //
 // Each call answers with one of the results below, and a locked answer carries how long to wait.
 
-import {getAuthHeaderFor} from './jellyfinApi';
+import {createApiForServer, getAuthHeaderFor} from './jellyfinApi';
 import {platformFetch} from './secureFetch';
 import {legacyAuthHeader} from '../utils/serverRoutes';
 
@@ -56,8 +56,15 @@ const writeVerdict = (response) => {
 	return unavailable;
 };
 
+// On Silo the PIN is the household profile's own (`account.userId` is the profile).
+const siloFor = (account) => (account?.serverType === 'silo'
+	? createApiForServer(account.serverUrl, account.accessToken, account.userId, 'silo')
+	: null);
+
 // Whether the server keeps a PIN for the account: true, false, or null when it couldn't say.
 export const getServerPinStatus = async (account) => {
+	const silo = siloFor(account);
+	if (silo) return silo.profileHasPin(account.userId).catch(() => null);
 	try {
 		const {status, data} = await request(account, 'GET', 'Pin');
 		return status === 200 && typeof data?.enabled === 'boolean' ? data.enabled : null;
@@ -67,6 +74,14 @@ export const getServerPinStatus = async (account) => {
 };
 
 export const verifyServerPin = async (account, pin) => {
+	const silo = siloFor(account);
+	if (silo) {
+		try {
+			return {result: await silo.verifyProfilePin(account.userId, pin) ? PIN_VALID : PIN_WRONG};
+		} catch (e) {
+			return e.status === 429 ? {result: PIN_LOCKED, wait: DEFAULT_RETRY_SECONDS * 1000} : unavailable;
+		}
+	}
 	try {
 		const response = await request(account, 'POST', 'Pin/Verify', {pin});
 		if (response.status === 200 && typeof response.data?.valid === 'boolean') {
