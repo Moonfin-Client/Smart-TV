@@ -8,6 +8,7 @@ import {isTrickplayOn} from '../../utils/trickplayLayout';
 import SubtitleOffsetOverlay from './SubtitleOffsetOverlay';
 import SubtitleSettingsOverlay from './SubtitleSettingsOverlay';
 import SecondarySubtitleSettingsOverlay from './SecondarySubtitleSettingsOverlay';
+import {SECONDARY_DELAY_LIMIT_SECONDS} from './secondarySubtitle';
 import SubtitleFetchIndicator, {useSubtitleFetchShown} from './SubtitleFetchIndicator';
 import {getPlatform} from '../../platform';
 import {ModalContainer} from '../../utils/spotlightContainers';
@@ -900,6 +901,7 @@ const PlayerControls = ({
 					subtitleTrackEvents={secondarySubtitleTrackEvents}
 					onClose={closeModal}
 					onOffsetChange={handleSecondarySubtitleOffsetChange}
+					offsetLimitSeconds={SECONDARY_DELAY_LIMIT_SECONDS}
 				/>
 			)}
 
