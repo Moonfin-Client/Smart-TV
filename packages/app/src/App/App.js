@@ -584,9 +584,7 @@ const AppContent = (props) => {
 
 	useEffect(() => {
 		const root = document.documentElement;
-		if (settings.focusBorderColor) {
-			root.style.setProperty('--theme-focus-border-color', settings.focusBorderColor);
-		}
+		root.style.setProperty('--theme-focus-border-color', settings.focusBorderColor || buildThemeCssVars(activeTheme)['--theme-focus-border-color']);
 		root.style.setProperty('--theme-navbar-color-rgb', toRgbTriplet(resolveOverlayColor(settings.navbarColor)));
 	}, [activeTheme, settings.focusBorderColor, settings.navbarColor]);
 
