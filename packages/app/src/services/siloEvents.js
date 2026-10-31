@@ -6,6 +6,8 @@
 // changed, not the new values, so each changed item's user data is read back and passed on as the UserDataChanged
 // message Jellyfin sends.
 
+import {openSiloSocket} from './siloSocket';
+
 export const SILO_EVENT_CHANNELS = ['user_state', 'catalog'];
 // Silo closes with this when the login's access changed (libraries, rating limits, role).
 const ACCESS_CHANGED_CLOSE = 4001;
@@ -191,9 +193,13 @@ export const openSiloEvents = (events, {onOpen, onMessage, onClose}) => {
 		dropSocket();
 		let next;
 		try {
-			next = new WebSocket(siloEventsUrl(events.baseUrl()), [ticket.protocol, `silo.ticket.${ticket.ticket}`]);
+			next = await openSiloSocket(siloEventsUrl(events.baseUrl()), [ticket.protocol, `silo.ticket.${ticket.ticket}`]);
 		} catch {
 			scheduleReconnect();
+			return;
+		}
+		if (closed) {
+			next.close();
 			return;
 		}
 		socket = next;

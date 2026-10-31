@@ -13,6 +13,7 @@ import * as syncPlay from './syncPlay';
 import {findSiloMoonbase} from './siloMoonbase';
 import {isSiloLogin} from './moonbaseEndpoint';
 import {siloNewUuid} from './siloPlayback';
+import {openSiloSocket} from './siloSocket';
 
 export const SILO_ROOM_PROTOCOL = 'silo.room.v2';
 const TICKS_PER_SECOND = 10000000;
@@ -603,9 +604,13 @@ export const createWatchParty = ({silo, sync = syncPlay, now = () => Date.now()}
 		if (generation !== socketGeneration) return;
 		let next;
 		try {
-			next = new WebSocket(api.socketUrl(room.roomId), [SILO_ROOM_PROTOCOL, `silo.ticket.${ticket}`]);
+			next = await openSiloSocket(api.socketUrl(room.roomId), [SILO_ROOM_PROTOCOL, `silo.ticket.${ticket}`]);
 		} catch {
 			scheduleReconnect(generation);
+			return;
+		}
+		if (generation !== socketGeneration) {
+			next.close();
 			return;
 		}
 		socket = next;
