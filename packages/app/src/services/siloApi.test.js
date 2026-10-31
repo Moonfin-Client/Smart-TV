@@ -159,3 +159,34 @@ describe('the signed-in profile', () => {
 		expect(corsFreeFetch).toHaveBeenCalledTimes(1);
 	});
 });
+
+describe('device sign-in', () => {
+	test('shows Silo\'s code, and signs in to the household once another login approves it', async () => {
+		let polls = 0;
+		answer({
+			'/api/v2/auth/device/capability': {state: 'available', allowed: true},
+			'POST /api/v2/auth/device/start': {device_code: 'secret-1', user_code: '1234-5678', verification_uri_complete: `${SERVER}/link?code=12345678`},
+			'POST /api/v2/auth/device/poll': () => {
+				polls += 1;
+				return reply(200, polls === 1
+					? {status: 'pending'}
+					: {status: 'approved', tokens: {access_token: 'a1', refresh_token: 'r1', expires_in: 3600, user: account}});
+			},
+			'/api/v2/profiles': profiles
+		});
+		await expect(silo.initiateQuickConnect()).resolves.toEqual({
+			Code: '12345678', Secret: 'secret-1', Authenticated: false, VerificationUriComplete: `${SERVER}/link?code=12345678`
+		});
+		await expect(silo.getQuickConnectState('secret-1')).resolves.toEqual({Authenticated: false, Expired: false});
+		await expect(silo.getQuickConnectState('secret-1')).resolves.toEqual({Authenticated: true});
+		const result = await silo.authenticateQuickConnect('secret-1');
+		expect(result).toMatchObject({AccessToken: 'a1', SiloAccountId: '7', User: {Id: 'main'}});
+		expect(result.SiloUsers.map((u) => [u.Id, u.SiloHasPin])).toEqual([['kid', true], ['main', false]]);
+		await expect(silo.authenticateQuickConnect('secret-1')).rejects.toMatchObject({status: 409});
+	});
+
+	test('a code Silo no longer knows is done', async () => {
+		answer({});
+		await expect(silo.getQuickConnectState('gone')).resolves.toEqual({Authenticated: false, Expired: true});
+	});
+});

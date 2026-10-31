@@ -131,6 +131,33 @@ export const createSiloApi = ({getBaseUrl, getToken, getUserId, getDeviceInfo, p
 		return call(`${plugin}${path}`);
 	};
 
+	// Opens the login a token pair names, as its primary profile, with the account's household.
+	const openLogin = async (pair) => {
+		const tokens = tokensFrom(pair);
+		const account = pair?.user;
+		if (!tokens.accessToken || !tokens.refreshToken || account?.id == null) {
+			throw siloError(502, {title: 'Silo sign-in answered without a token pair'});
+		}
+		const opened = openSiloSession(base(), String(account.id), tokens);
+		const profiles = (await siloRequest(base(), '/api/v2/profiles', {
+			session: opened, deviceInfo: getDeviceInfo(), platform
+		}))?.items || [];
+		const primary = profiles.find((p) => p.is_primary) || profiles[0];
+		if (!primary) throw siloError(502, {title: 'Silo listed no profile for this account'});
+		return {
+			AccessToken: tokens.accessToken,
+			User: withAvatar(siloProfileToUser(primary, account), primary),
+			SiloAccountId: String(account.id),
+			SiloProfiles: profiles,
+			// The household: every profile as a user of its own, sharing the account's token.
+			SiloUsers: profiles.map((p) => ({...withAvatar(siloProfileToUser(p, account), p), SiloHasPin: p.has_pin === true})),
+			SiloPasswordChangeRequired: account.password_change_required === true
+		};
+	};
+
+	// Token pairs of approved device sign-ins, by device code, between the poll and the sign-in.
+	const approvedDevices = {};
+
 	const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
 
 	const items = createSiloItems({
@@ -200,35 +227,58 @@ export const createSiloApi = ({getBaseUrl, getToken, getUserId, getDeviceInfo, p
 
 		// Signs the account in and acts as its primary profile. The token pair belongs to the account, and is kept
 		// in the Silo session store; the result carries the account's profiles for the household.
-		authenticateByName: async (username, password) => {
-			const pair = await call('/api/v2/auth/login', {
-				method: 'POST',
-				public: true,
-				refresh: false,
-				profile: false,
-				body: {username, password}
-			});
-			const tokens = tokensFrom(pair);
-			const account = pair?.user;
-			if (!tokens.accessToken || !tokens.refreshToken || account?.id == null) {
-				throw siloError(502, {title: 'Silo sign-in answered without a token pair'});
+		authenticateByName: async (username, password) => openLogin(await call('/api/v2/auth/login', {
+			method: 'POST',
+			public: true,
+			refresh: false,
+			profile: false,
+			body: {username, password}
+		})),
+
+		// Sign-in on another device (Silo's device sign-in, as the app's Quick Connect): an eight-digit code shown here, or
+		// the verification page with it filled in as a QR code, approved by a signed-in Silo login.
+		initiateQuickConnect: async () => {
+			const capability = await call('/api/v2/auth/device/capability', {public: true, refresh: false, profile: false});
+			if (capability?.state !== 'available' || capability.allowed === false) {
+				throw siloError(403, {title: `Silo device sign-in is ${capability?.state || 'unavailable'}`});
 			}
-			const opened = openSiloSession(base(), String(account.id), tokens);
-			const profiles = (await siloRequest(base(), '/api/v2/profiles', {
-				session: opened, deviceInfo: getDeviceInfo(), platform
-			}))?.items || [];
-			const primary = profiles.find((p) => p.is_primary) || profiles[0];
-			if (!primary) throw siloError(502, {title: 'Silo listed no profile for this account'});
-			return {
-				AccessToken: tokens.accessToken,
-				User: withAvatar(siloProfileToUser(primary, account), primary),
-				SiloAccountId: String(account.id),
-				SiloProfiles: profiles,
-				// The household: every profile as a user of its own, sharing the account's token.
-				SiloUsers: profiles.map((p) => ({...withAvatar(siloProfileToUser(p, account), p), SiloHasPin: p.has_pin === true})),
-				SiloPasswordChangeRequired: account.password_change_required === true
-			};
+			const device = getDeviceInfo() || {};
+			const start = await call('/api/v2/auth/device/start', {
+				method: 'POST', public: true, refresh: false, profile: false,
+				body: {
+					...(device.deviceName ? {device_name: String(device.deviceName).slice(0, 128)} : null),
+					...(platform ? {device_platform: String(platform).slice(0, 64)} : null)
+				}
+			});
+			const code = String(start?.user_code || '').replace(/[\s-]/g, '');
+			if (!start?.device_code || !code) throw siloError(502, {title: 'Silo device sign-in answered without codes'});
+			return {Code: code, Secret: start.device_code, Authenticated: false, VerificationUriComplete: start.verification_uri_complete || null};
 		},
+
+		// An approval carries the token pair once, kept for authenticateQuickConnect.
+		getQuickConnectState: async (secret) => {
+			let poll;
+			try {
+				poll = await call('/api/v2/auth/device/poll', {method: 'POST', public: true, refresh: false, profile: false, body: {device_code: secret}});
+			} catch (err) {
+				if (err.status === 404) return {Authenticated: false, Expired: true};
+				throw err;
+			}
+			if (poll?.status === 'approved' && poll.tokens) {
+				approvedDevices[secret] = poll.tokens;
+				return {Authenticated: true};
+			}
+			return {Authenticated: false, Expired: poll?.status !== 'pending'};
+		},
+
+		authenticateQuickConnect: async (secret) => {
+			const pair = approvedDevices[secret];
+			delete approvedDevices[secret];
+			if (!pair) throw siloError(409, {title: 'No approved Silo device sign-in for this code'});
+			return openLogin(pair);
+		},
+
+
 
 		// Ends the login on Silo too, so its refresh token dies with it. Signed out here whatever Silo answers.
 		logout: async () => {

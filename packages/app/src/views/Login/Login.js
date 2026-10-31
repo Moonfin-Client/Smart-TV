@@ -39,9 +39,15 @@ const LONG_PRESS_DELAY = 500;
 
 const focusLater = (id) => setTimeout(() => Spotlight.focus(`[data-spotlight-id="${id}"]`), 100);
 
-const formatQuickConnectCode = (code) => (code.length === 6 ? `${code.slice(0, 3)} ${code.slice(3)}` : code);
+// Jellyfin's six digits read 3+3, Silo's eight 4+4.
+const formatQuickConnectCode = (code) => {
+	if (code.length === 6) return `${code.slice(0, 3)} ${code.slice(3)}`;
+	if (code.length === 8) return `${code.slice(0, 4)} ${code.slice(4)}`;
+	return code;
+};
 
-const hasQuickConnect = (target) => target?.serverType !== 'emby' && target?.serverType !== 'plex' && target?.serverType !== 'silo';
+// Silo's device sign-in stands in for Quick Connect.
+const hasQuickConnect = (target) => target?.serverType !== 'emby' && target?.serverType !== 'plex';
 
 // plex.tv asks apps to check a code once a second.
 const PLEX_PIN_POLL = 1000;
@@ -111,6 +117,10 @@ const Login = ({
 	const [password, setPassword] = useState('');
 	const [showQuickConnect, setShowQuickConnect] = useState(false);
 	const [quickConnectCode, setQuickConnectCode] = useState(null);
+	// Silo names its own approval page, with the code filled in.
+	const [quickConnectLink, setQuickConnectLink] = useState(null);
+	// Bumped when a code ran out, so a fresh one is asked for.
+	const [quickConnectRound, setQuickConnectRound] = useState(0);
 	const [connectServers, setConnectServers] = useState([]);
 	const [connectSession, setConnectSession] = useState(null);
 	const [error, setError] = useState(null);
@@ -144,8 +154,9 @@ const Login = ({
 
 	// The QR sits beside the code and the buttons, so its room is kept while the code
 	// is still on its way instead of the card jumping when it arrives.
-	const showQuickConnectQr = supportsQuickConnect && showQuickConnect && supportsQuickConnectWebLink(server?.version);
-	const quickConnectQrUrl = showQuickConnectQr ? quickConnectApprovalUrl(server?.url, quickConnectCode) : null;
+	const onSilo = server?.serverType === 'silo';
+	const showQuickConnectQr = supportsQuickConnect && showQuickConnect && (onSilo ? Boolean(quickConnectLink) : supportsQuickConnectWebLink(server?.version));
+	const quickConnectQrUrl = showQuickConnectQr ? (onSilo ? quickConnectLink : quickConnectApprovalUrl(server?.url, quickConnectCode)) : null;
 
 	useEffect(() => {
 		drawQrCode(qrCanvasRef.current, quickConnectQrUrl);
@@ -198,6 +209,7 @@ const Login = ({
 			quickConnectTimer.current = null;
 		}
 		setQuickConnectCode(null);
+		setQuickConnectLink(null);
 	}, []);
 
 	useEffect(() => () => {
@@ -725,6 +737,12 @@ const Login = ({
 	const pollQuickConnect = useCallback(async (secret) => {
 		try {
 			const state = await jellyfinApi.api.getQuickConnectState(secret);
+			// A Silo code that ran out (or was declined) is done; the screen asks for a fresh one.
+			if (state.Expired) {
+				stopQuickConnect();
+				setQuickConnectRound((n) => n + 1);
+				return;
+			}
 			if (!state.Authenticated) return;
 
 			stopQuickConnect();
@@ -762,6 +780,7 @@ const Login = ({
 			const result = await jellyfinApi.api.initiateQuickConnect();
 			if (!result?.Code || !result?.Secret) return;
 			setQuickConnectCode(result.Code);
+			setQuickConnectLink(result.VerificationUriComplete || null);
 			quickConnectTimer.current = setInterval(() => pollQuickConnect(result.Secret), QUICK_CONNECT_POLL);
 			focusLater('back-btn');
 		} catch {
@@ -775,7 +794,7 @@ const Login = ({
 		if (quickConnectTimer.current || quickConnectCode) return;
 		startQuickConnect();
 	// eslint-disable-next-line react-hooks/exhaustive-deps
-	}, [step, showQuickConnect, supportsQuickConnect]);
+	}, [step, showQuickConnect, supportsQuickConnect, quickConnectRound]);
 
 	const selectQuickConnect = useCallback(() => {
 		if (showQuickConnect) return;

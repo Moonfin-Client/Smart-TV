@@ -210,6 +210,20 @@ export const AuthProvider = ({children}) => {
 		init();
 	}, [loadServers, addressFor]);
 
+	// Silo's household: every profile is saved as a user of this server, sharing the account's token, so the user picker
+	// is the "Who's watching" list.
+	const saveSiloHousehold = async (server, savedName, serverId, result, sType, sVersion) => {
+		if (!result.SiloAccountId) return;
+		for (const profile of result.SiloUsers || [result.User]) {
+			if (profile.Id !== result.User.Id) {
+				// eslint-disable-next-line no-await-in-loop
+				await multiServerManager.addServer(server, savedName, profile.Id, profile.Name, result.AccessToken, profile.PrimaryImageTag, sType, sVersion);
+			}
+			// eslint-disable-next-line no-await-in-loop
+			await multiServerManager.updateServer(serverId, null, profile.Id, {siloAccountId: result.SiloAccountId, siloHasPin: profile.SiloHasPin === true});
+		}
+	};
+
 	const login = useCallback(async (server, username, password, options = {}) => {
 		const {serverName: sName, serverType: sType = 'jellyfin', serverVersion: sVersion = null, isAddingNewServer = false, switchToNewUser = true} = options;
 
@@ -243,18 +257,7 @@ export const AuthProvider = ({children}) => {
 			sType,
 			sVersion
 		);
-		if (result.SiloAccountId) {
-			// Silo's household: every profile is saved as a user of this server, sharing the account's token, so the
-			// user picker is the "Who's watching" list.
-			for (const profile of result.SiloUsers || [result.User]) {
-				if (profile.Id !== result.User.Id) {
-					// eslint-disable-next-line no-await-in-loop
-					await multiServerManager.addServer(server, finalServerName, profile.Id, profile.Name, result.AccessToken, profile.PrimaryImageTag, sType, sVersion);
-				}
-				// eslint-disable-next-line no-await-in-loop
-				await multiServerManager.updateServer(serverResult.serverId, null, profile.Id, {siloAccountId: result.SiloAccountId, siloHasPin: profile.SiloHasPin === true});
-			}
-		}
+		await saveSiloHousehold(server, finalServerName, serverResult.serverId, result, sType, sVersion);
 
 		// Always switch to the newly logged in user
 		const shouldSwitch = switchToNewUser || !isAddingNewServer;
@@ -318,6 +321,7 @@ export const AuthProvider = ({children}) => {
 			sVersion
 		);
 		if (serverFields || userFields) await multiServerManager.updateServer(serverResult.serverId, serverFields, authResult.User.Id, userFields);
+		await saveSiloHousehold(server, finalServerName, serverResult.serverId, authResult, sType, sVersion);
 
 		// Always switch to the newly logged in user
 		const shouldSwitch = switchToNewUser || !isAddingNewServer;
