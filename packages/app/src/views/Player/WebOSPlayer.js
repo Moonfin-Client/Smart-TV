@@ -75,6 +75,7 @@ import LiveFailedCard from './LiveFailedCard';
 import LoadingAnimationLayer from '../../components/LoadingAnimation';
 import useSleepTimer from './useSleepTimer';
 import useSyncPlayCommands from './useSyncPlayCommands';
+import playbackErrorMessage from './playbackErrorMessage';
 import useSegmentPopups, {isSkipPromptFocused} from './useSegmentPopups';
 import useChannelKeys from './useChannelKeys';
 import {isPreroll, nextInQueue, shouldAutoAdvance} from '../../utils/cinemaMode';
@@ -1230,7 +1231,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 				if (skipTo && onPlayNext) {
 					onPlayNext(skipTo);
 				} else {
-					setError(err.message || $L('Failed to load media'));
+					setError(playbackErrorMessage(err));
 				}
 			} finally {
 				if (!cancelled) setIsLoading(false);

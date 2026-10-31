@@ -52,6 +52,7 @@ import useChannelCarousel, {liveTvApiFor} from './useChannelCarousel';
 import ChannelCarousel from './ChannelCarousel';
 import useSleepTimer from './useSleepTimer';
 import useSyncPlayCommands from './useSyncPlayCommands';
+import playbackErrorMessage from './playbackErrorMessage';
 import AudioMode from './audio/AudioMode';
 import useAudioTransport from './audio/useAudioTransport';
 import useLyrics from './audio/useLyrics';
@@ -1738,7 +1739,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 					if (skipTo && onPlayNext) {
 						onPlayNext(skipTo);
 					} else {
-						setError(err.message || $L('Failed to load media'));
+						setError(playbackErrorMessage(err));
 					}
 				}
 			} finally {

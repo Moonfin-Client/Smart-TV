@@ -469,10 +469,11 @@ export const SILO_PLAYBACK_ENDED_ON_SERVER = 'Playback was ended on the Silo ser
 
 /**
  * `call(path, options)` sends as the signed-in profile; `getItem(itemId, fileId)` reads a title with its files.
- * `getAccessToken()` is the account's current token, for the stream addresses. `onPlaying(itemId, fileId,
+ * `getAccessToken()` is the account's current token, for the stream addresses, and `freshenStreamAuth()` refreshes one
+ * past a tenth of its life before a plan's stream is handed out. `onPlaying(itemId, fileId,
  * runTimeSeconds, source)` hears which file each plan plays, whose markers and tracks the player then uses.
  */
-export const createSiloPlayback = ({call, getBaseUrl, getUserId, getAccessToken, getDeviceInfo, platform, getItem, onPlaying, wait = sleep}) => {
+export const createSiloPlayback = ({call, getBaseUrl, getUserId, getAccessToken, freshenStreamAuth = async () => {}, getDeviceInfo, platform, getItem, onPlaying, wait = sleep}) => {
 	const sessions = {};
 	let capabilities = null;
 
@@ -620,6 +621,7 @@ export const createSiloPlayback = ({call, getBaseUrl, getUserId, getAccessToken,
 			bandwidthCapKbps: sent.bandwidth_cap_kbps || null
 		};
 		sessions[sessionId] = session;
+		await freshenStreamAuth();
 		return playingTracks(session, asPlaybackInfo(session, body.SubtitleStreamIndex));
 	};
 
@@ -708,6 +710,7 @@ export const createSiloPlayback = ({call, getBaseUrl, getUserId, getAccessToken,
 		session.source = await sourceOfPlan(next, session.itemId, session.source?.Id, session.source);
 		session.plan = next;
 		session.planAttemptId = siloNewUuid();
+		await freshenStreamAuth();
 		return playingTracks(session, asPlaybackInfo(session, body.SubtitleStreamIndex));
 	};
 

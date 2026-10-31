@@ -3,7 +3,7 @@
 
 import {
 	SILO_API_MAJOR, closeSiloSession, isClientUpgradeRequired, loadSiloSessions, needsRefresh, openSiloSession, profileProof,
-	refreshSiloSession, setProfileProof, siloError, siloHeaders, siloRequest, siloSessionFor, tokensFrom
+	needsStreamRefresh, refreshSiloSession, setProfileProof, siloError, siloHeaders, siloRequest, siloSessionFor, tokensFrom
 } from './siloSession';
 import {createSiloAdminItems} from './siloAdminItems';
 import {createSiloRemoteSubtitles} from './siloRemoteSubtitles';
@@ -208,6 +208,11 @@ export const createSiloApi = ({getBaseUrl, getToken, getUserId, getDeviceInfo, p
 		getBaseUrl: base,
 		getUserId,
 		getAccessToken: () => session()?.tokens?.accessToken || getToken(),
+		// A failed refresh keeps the current token, which the start just used.
+		freshenStreamAuth: async () => {
+			const current = session();
+			if (current && needsStreamRefresh(current.tokens)) await refreshSiloSession(current, getDeviceInfo(), platform).catch(() => false);
+		},
 		getDeviceInfo,
 		platform,
 		getItem: (itemId, fileId) => items.readItem(itemId, fileId),

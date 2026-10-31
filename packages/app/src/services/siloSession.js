@@ -94,6 +94,12 @@ export const needsRefresh = (tokens, now = Date.now()) => {
 	return remaining <= 60000 || remaining <= tokens.lifetimeMs * 0.2;
 };
 
+// A stream carries the token it was opened with in its address for as long as it plays, so one about to open is
+// given a nearly fresh token: anything past a tenth of its life is refreshed first. As Moonfin-Core's _streamAuth
+// for players that carry the token in their URLs.
+export const needsStreamRefresh = (tokens, now = Date.now()) => Boolean(tokens?.refreshToken) &&
+	tokens.lifetimeMs > 0 && tokens.expiresAt - now < tokens.lifetimeMs * 0.9;
+
 const sessions = [];
 let loaded = null;
 

@@ -1,6 +1,6 @@
 import $L from '@enact/i18n/$L';
 
-import {tooManyAttempts} from './pinLockout';
+import {formatWait, tooManyAttempts} from './pinLockout';
 
 export const TIMEOUT = 'timeout';
 export const DNS_OR_NETWORK = 'network';
@@ -51,6 +51,17 @@ export function getSignInMessage (err) {
 	if (err?.status === 429) {
 		const seconds = Number(err.retryAfter);
 		return tooManyAttempts((seconds > 0 ? seconds : 60) * 1000);
+	}
+	// Silo answers 503 while it's busy or still starting, and retires an API version with 426 or
+	// client_upgrade_required. As Moonfin-Core's SiloFailure.
+	if (err?.problem && err.status === 503) {
+		const seconds = Number(err.retryAfter);
+		return seconds > 0
+			? $L('The server is busy or still starting. Try again in {wait}.').replace('{wait}', formatWait(seconds * 1000))
+			: $L('The server is busy or still starting. Try again later.');
+	}
+	if (err?.status === 426 || (err?.problem && err.code === 'client_upgrade_required')) {
+		return $L('This Silo server needs a newer version of Moonfin. Update Moonfin to use it.');
 	}
 	if (isSignInForbidden(err)) {
 		return $L('This account can\'t sign in right now. It may be outside its allowed hours, locked or disabled. Try again later or ask an administrator.');

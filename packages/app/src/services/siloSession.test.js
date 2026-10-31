@@ -150,3 +150,14 @@ describe('PIN proofs', () => {
 		expect(profileProof(session, 'kid', 3000)).toBe(null);
 	});
 });
+
+describe('needsStreamRefresh', () => {
+	const {needsStreamRefresh} = require('./siloSession');
+	const tokens = (left, lifetimeMs = 3600000) => ({refreshToken: 'r', lifetimeMs, expiresAt: 1000000 + left});
+	test('a stream about to open gets a token past a tenth of its life refreshed first', () => {
+		expect(needsStreamRefresh(tokens(3600000), 1000000)).toBe(false);
+		expect(needsStreamRefresh(tokens(3300000), 1000000)).toBe(false);
+		expect(needsStreamRefresh(tokens(3200000), 1000000)).toBe(true);
+		expect(needsStreamRefresh({...tokens(10), refreshToken: ''}, 1000000)).toBe(false);
+	});
+});
