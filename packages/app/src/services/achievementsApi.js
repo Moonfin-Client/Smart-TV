@@ -71,8 +71,8 @@ const authHeaders = () => {
 	return {Authorization: header, ...legacyAuthHeader(getServerType(), header)};
 };
 
-// It is a Jellyfin plugin, so an Emby server never carries it and is never asked.
-const isJellyfin = () => getServerType() !== 'emby';
+// It's a Jellyfin plugin, so no other server carries it or gets asked.
+const isJellyfin = () => getServerType() === 'jellyfin';
 
 const call = (path, method, body) => {
 	const init = {method, headers: {...authHeaders(), Accept: 'application/json'}};
