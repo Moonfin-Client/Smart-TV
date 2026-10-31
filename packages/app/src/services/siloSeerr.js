@@ -39,7 +39,7 @@ const SLIDER_SEARCH = 17;
 const EMPTY_PAGE = {page: 1, totalPages: 0, totalResults: 0, results: []};
 const EMPTY_LIST = {pageInfo: {pages: 0, pageSize: 20, results: 0, page: 1}, results: []};
 
-const seerrType = (siloType) => (siloType === 'series' ? 'tv' : 'movie');
+const seerrType = (kind) => (kind === 'series' ? 'tv' : 'movie');
 const siloType = (type) => (type === 'tv' ? 'series' : 'movie');
 const intOf = (v) => {
 	const n = typeof v === 'number' ? v : parseInt(v, 10);
@@ -213,9 +213,9 @@ export const createSiloSeerr = ({call, random = Math.random}) => {
 	// ---- Discovery
 
 	const mediaInfo = (result) => {
-		const request = result.request || {};
-		const id = request.request_id == null ? '' : String(request.request_id);
-		const state = request.state == null ? null : String(request.state);
+		const req = result.request || {};
+		const id = req.request_id == null ? '' : String(req.request_id);
+		const state = req.state == null ? null : String(req.state);
 		const info = {
 			id: result.tmdb_id,
 			tmdbId: result.tmdb_id,
@@ -226,7 +226,7 @@ export const createSiloSeerr = ({call, random = Math.random}) => {
 				status: requestStatusOf(state),
 				type: seerrType(result.media_type),
 				is4k: false,
-				...(request.requested_by_viewer === true ? {requestedBy: {id: me}} : null)
+				...(req.requested_by_viewer === true ? {requestedBy: {id: me}} : null)
 			}] : []
 		};
 		if (Array.isArray(result.seasons)) {
@@ -430,7 +430,7 @@ export const createSiloSeerr = ({call, random = Math.random}) => {
 	const mapRequest = (r) => {
 		const type = seerrType(r.media_type);
 		const state = r.state == null ? null : String(r.state);
-		const status = requestStatusOf(state);
+		const requestStatus = requestStatusOf(state);
 		const requestedBy = intOf(r.requested_by_user_id);
 		const media = {
 			id: r.tmdb_id, mediaType: type, tmdbId: r.tmdb_id, tvdbId: r.tvdb_id, imdbId: r.imdb_id,
@@ -441,7 +441,7 @@ export const createSiloSeerr = ({call, random = Math.random}) => {
 		const seasons = list(r.seasons).filter((n) => typeof n === 'number');
 		return {
 			id: intId(String(r.id)),
-			status,
+			status: requestStatus,
 			createdAt: r.created_at,
 			updatedAt: r.updated_at,
 			type,
@@ -449,7 +449,7 @@ export const createSiloSeerr = ({call, random = Math.random}) => {
 			media,
 			...(requestedBy != null ? {requestedBy: {id: requestedBy}} : null),
 			seasonCount: seasons.length,
-			seasons: seasons.map((n) => ({id: n, seasonNumber: n, status, createdAt: r.created_at, updatedAt: r.updated_at}))
+			seasons: seasons.map((n) => ({id: n, seasonNumber: n, status: requestStatus, createdAt: r.created_at, updatedAt: r.updated_at}))
 		};
 	};
 

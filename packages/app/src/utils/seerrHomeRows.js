@@ -1,5 +1,6 @@
 import $L from '@enact/i18n/$L';
 import seerrApi from '../services/seerrApi';
+import {getServerType} from '../services/jellyfinApi';
 import {seerrGenreBackdrop} from './seerrGenreArt';
 import hydrateRequestMediaItems, {hydrateRecentlyAddedItems, hydrateWatchlistItems} from './seerrHydration';
 import {libraryIdOf} from './seerrTarget';
@@ -29,8 +30,12 @@ export const MOVIE_STUDIOS = [
 	{id: 41077, name: 'A24', logo: '1ZXsGaFPgrgS6ZZGS37AqD5uU12.png'}
 ];
 
+// Silo's requests have no issues, and aren't Seerr.
+const onSilo = () => getServerType() === 'silo';
+export const seerrBrowseTitle = () => (onSilo() ? $L('Browse') : $L('Seerr Browse'));
+
 export const getSeerrHomeRowConfigs = () => [
-	{id: 'shortcuts', title: $L('Seerr Browse'), type: 'shortcut', cardType: 'landscape'},
+	{id: 'shortcuts', title: seerrBrowseTitle(), type: 'shortcut', cardType: 'landscape'},
 	{id: 'myRequests', title: $L('Recent Requests'), type: 'request', cardType: 'portrait'},
 	{id: 'yourWatchlist', title: $L('Your Watchlist'), type: 'media', cardType: 'portrait'},
 	{id: 'recentlyAdded', title: $L('Recently Added'), type: 'media', cardType: 'portrait'},
@@ -129,6 +134,8 @@ export const SEERR_SHORTCUTS = [
 	{key: 'requests', name: () => $L('Requests')},
 	{key: 'issues', name: () => $L('Issues')}
 ];
+
+export const seerrShortcuts = () => (onSilo() ? SEERR_SHORTCUTS.filter((shortcut) => shortcut.key !== 'issues') : SEERR_SHORTCUTS);
 
 // A tile is a fraction of the screen, so it asks for a still cut to its own size.
 // The full size one is kept alongside, since focusing a tile is what paints the
@@ -232,8 +239,8 @@ export const fetchSeerrHomeRow = async (rowId, {userId} = {}) => {
 				// leaves a usable row.
 				const trending = await seerrApi.trending(1).catch(() => ({results: []}));
 				const results = (trending.results || []).slice().sort(() => Math.random() - 0.5);
-				const backdrops = pickShortcutBackdrops(SEERR_SHORTCUTS, results);
-				return SEERR_SHORTCUTS.map((shortcut) => normalizeShortcutItem(shortcut, backdrops[shortcut.key]));
+				const backdrops = pickShortcutBackdrops(seerrShortcuts(), results);
+				return seerrShortcuts().map((shortcut) => normalizeShortcutItem(shortcut, backdrops[shortcut.key]));
 			}
 			case 'trending':
 				return ((await seerrApi.trending(1)).results || []).slice(0, HOME_ROW_LIMIT).map(normalizeMediaItem);

@@ -14,7 +14,7 @@ import {seerrGenreBackdrop} from '../../utils/seerrGenreArt';
 import LoadingSpinner from '../../components/LoadingSpinner';
 import {KEYS} from '../../utils/keys';
 import hydrateRequestMediaItems from '../../utils/seerrHydration';
-import {STREAMING_NETWORKS, MOVIE_STUDIOS, SEERR_SHORTCUTS, pickShortcutBackdrops, normalizeMediaItem, normalizeRequestItem} from '../../utils/seerrHomeRows';
+import {STREAMING_NETWORKS, MOVIE_STUDIOS, pickShortcutBackdrops, normalizeMediaItem, normalizeRequestItem, seerrBrowseTitle, seerrShortcuts} from '../../utils/seerrHomeRows';
 import {libraryIdOf} from '../../utils/seerrTarget';
 import {isSupportedSlider, loadDiscoverSliders, loadSliderPage} from '../../utils/seerrSliders';
 import {isScrolledAway} from '../../utils/quickReturn';
@@ -31,8 +31,8 @@ const RowContainer = SpotlightContainerDecorator({
 const ITEMS_PER_PAGE = 9;
 
 let _rowConfigs;
-const getRowConfigs = () => (_rowConfigs ??= [
-	{id: 'shortcuts', title: $L('Seerr Browse'), type: 'shortcut'},
+const buildRowConfigs = () => [
+	{id: 'shortcuts', title: seerrBrowseTitle(), type: 'shortcut'},
 	{id: 'myRequests', title: $L('Recent Requests'), type: 'request'},
 	{id: 'trending', title: $L('Trending Now'), type: 'media', fetchFn: 'trending'},
 	{id: 'popularMovies', title: $L('Popular Movies'), type: 'media', fetchFn: 'trendingMovies'},
@@ -43,12 +43,19 @@ const getRowConfigs = () => (_rowConfigs ??= [
 	{id: 'networks', title: $L('Browse by Network'), type: 'network'},
 	{id: 'upcomingMovies', title: $L('Upcoming Movies'), type: 'media', fetchFn: 'upcomingMovies'},
 	{id: 'upcomingTv', title: $L('Upcoming TV Shows'), type: 'media', fetchFn: 'upcomingTv'}
-]);
+];
+
+const getRowConfigs = () => {
+	_rowConfigs ??= buildRowConfigs();
+	// The one title that follows the server, which can change while this module stays loaded.
+	_rowConfigs[0].title = seerrBrowseTitle();
+	return _rowConfigs;
+};
 
 // Discover stays off this copy of the row, since this screen is the
 // destination it would point at.
 const getShortcuts = (trendingResults = []) => {
-	const shortcuts = SEERR_SHORTCUTS.filter((shortcut) => shortcut.key !== 'discover');
+	const shortcuts = seerrShortcuts().filter((shortcut) => shortcut.key !== 'discover');
 	const shuffled = trendingResults.slice().sort(() => Math.random() - 0.5);
 	const backdrops = pickShortcutBackdrops(shortcuts, shuffled);
 	return shortcuts.map((shortcut) => ({
