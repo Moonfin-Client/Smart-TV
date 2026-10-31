@@ -14,7 +14,7 @@ import AddToPlaylistModal from '../AddToPlaylistModal';
 import ChangeArtworkModal from '../ChangeArtworkModal';
 import IdentifyModal from '../IdentifyModal';
 import {iconViewBox} from '../icons/iconViewBox';
-import {hideFromResume, itemMenuActions} from './itemMenuActions';
+import {hideFromNextUp, hideFromResume, itemMenuActions} from './itemMenuActions';
 
 import css from './ItemContextMenu.module.less';
 
@@ -146,7 +146,7 @@ export const ItemMenuProvider = ({children, onPlay, onOpenItem, backRef}) => {
 					hiddenNextUpSeries: hiddenMapWith(settings.hiddenNextUpSeries, item.SeriesId),
 					hiddenContinueWatchingItems: hiddenMapWith(settings.hiddenContinueWatchingItems, item.SeriesId)
 				});
-				await hideFromResume(api, item, item._serverType || getServerType());
+				await hideFromNextUp(api, item, item._serverType || getServerType());
 				break;
 			case 'favorite':
 				await api.setFavorite(item.Id, !userData.IsFavorite).catch(() => {});

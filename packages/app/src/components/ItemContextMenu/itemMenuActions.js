@@ -123,10 +123,17 @@ export const itemMenuActions = (item, {
 	return actions;
 };
 
-// Emby and Plex take an item off resume and keep its progress. Jellyfin can only clear the play state, and
+// Emby, Plex and Silo take an item off resume and keep its progress. Jellyfin can only clear the play state, and
 // the audiobook Continue row ignores Emby's flag, so audio is always cleared.
 export const hideFromResume = (api, item, serverType) => {
 	const audio = item.Type === 'Audio' || item.Type === 'AudioBook' || item.MediaType === 'Audio';
+	// Silo hides a title as of its last progress, which it finds on the item.
+	if (serverType === 'silo') return api.hideFromResume(item.Id, item).catch(() => {});
 	if ((serverType === 'emby' || serverType === 'plex') && !audio) return api.hideFromResume(item.Id).catch(() => {});
 	return api.setWatched(item.Id, false).catch(() => {});
 };
+
+// Silo keeps its own Next Up dismissals. Elsewhere hiding from Next Up is the same as from resume.
+export const hideFromNextUp = (api, item, serverType) => (serverType === 'silo'
+	? api.hideFromNextUp(item).catch(() => {})
+	: hideFromResume(api, item, serverType));

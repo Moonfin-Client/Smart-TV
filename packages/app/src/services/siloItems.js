@@ -139,7 +139,19 @@ export const siloCollectionToBoxSet = (collection, register, libraryId = null) =
 	};
 };
 
-export const createSiloItems = ({call, images, getConfiguration, mediaSources}) => {
+// Silo keeps favorites, watched state and ratings on titles: films, shows, seasons and episodes.
+const titleId = (itemId, action) => {
+	const id = String(itemId || '').trim();
+	if (!id || siloGenreNameOf(id) || siloStudioNameOf(id) || parseSiloCollectionId(id) || /^\d+$/.test(id)) {
+		throw Object.assign(new Error(`Silo keeps a ${action} only on films, shows, seasons and episodes, not on ${itemId}`), {status: 501});
+	}
+	return encodeURIComponent(id);
+};
+
+// The app's ratings are out of 10; Silo's are 1 to 5 stars.
+export const siloStarsFromRating = (rating) => Math.min(Math.max(Math.round(rating / 2), 1), 5);
+
+export const createSiloItems = ({call, images, getConfiguration, mediaSources, getUserId, publishUserData}) => {
 	const pager = createSiloPager();
 	const register = (itemId, type, url, index) => images.register(itemId, type, url, index);
 	const map = (raw, extra) => siloItemToBaseItem(raw, {images, mediaSources, ...extra});
@@ -150,6 +162,22 @@ export const createSiloItems = ({call, images, getConfiguration, mediaSources}) 
 	const viewsRead = keptReads(5 * 60 * 1000);
 	let searchCaps = null;
 	const filteredLists = new Map();
+	const layouts = keptReads(60 * 1000);
+	const sectionCards = keptReads(5 * 1000);
+	// The profile's "hide watched items on Home" setting, which the newest rows follow.
+	let hideWatched = null;
+
+	// The caches of this profile's catalog and home, dropped when something they show changes.
+	const forgetAll = () => {
+		details.forget();
+		seasonLists.forget();
+		episodeLists.forget();
+		filteredLists.clear();
+		pager.clear();
+		layouts.forget();
+		sectionCards.forget();
+		hideWatched = null;
+	};
 
 	// Where each item was last listed, so a detail page knows its library, and the names of series seen, for the
 	// season and episode lists that don't repeat them.
@@ -663,6 +691,59 @@ export const createSiloItems = ({call, images, getConfiguration, mediaSources}) 
 		return page(params, startIndex, limit, keep, libraryId);
 	};
 
+	// ---- Writes
+
+	// Anything the profile changes can show in a cached list or home row, so those are read again.
+	const changed = (itemId, patch) => {
+		forgetAll();
+		if (patch) publishUserData(itemId, patch);
+	};
+
+	const setStars = async (itemId, stars, patch) => {
+		await call(`/api/v2/ratings/${titleId(itemId, 'rating')}`, {method: 'PUT', body: {rating: stars}});
+		changed(itemId, patch);
+	};
+
+	// Only manual collections the profile made itself can be changed; a library's belong to the library.
+	const canEditCollection = (box) => {
+		const parsed = parseSiloCollectionId(box?.Id);
+		const silo = box?._silo;
+		return Boolean(parsed && !parsed.libraryId && silo && silo.collection_type === 'manual' && String(silo.creator_profile_id) === String(getUserId()));
+	};
+
+	const ownCollectionId = (collectionId) => {
+		const parsed = parseSiloCollectionId(collectionId);
+		if (!parsed || parsed.libraryId) {
+			throw Object.assign(new Error(`Only your own collections can be changed on Silo; ${collectionId} is a library's`), {status: 501});
+		}
+		return encodeURIComponent(parsed.id);
+	};
+
+	const editCollection = async (collectionId, itemIds, method) => {
+		const collectionPath = `/api/v2/collections/${ownCollectionId(collectionId)}/items/`;
+		try {
+			for (const itemId of itemIds) {
+				// eslint-disable-next-line no-await-in-loop
+				await call(`${collectionPath}${encodeURIComponent(itemId)}`, method === 'PUT' ? {method, body: {position: 0}} : {method});
+			}
+		} finally {
+			forgetAll();
+		}
+	};
+
+	const createCollection = async (name, itemIds = []) => {
+		const box = siloCollectionToBoxSet(await call('/api/v2/collections', {
+			method: 'POST', body: {name: String(name).trim(), collection_type: 'manual'}
+		}), register);
+		if (!box) throw new Error('Silo answered without the new collection');
+		forgetAll();
+		if (itemIds.length) await editCollection(box.Id, itemIds, 'PUT');
+		return box;
+	};
+
+	// A personal collection's own order, kept on Silo and changed against its current version.
+	const collectionOrderPath = (collectionId) => `/api/v2/collections/${ownCollectionId(collectionId)}/items/order`;
+
 	// ---- Everything else that reads
 
 	const scopeOf = (includeItemTypes) => {
@@ -739,12 +820,11 @@ export const createSiloItems = ({call, images, getConfiguration, mediaSources}) 
 
 	const asResult = (items) => ({Items: items, TotalRecordCount: items.length, StartIndex: 0});
 
+
 	// ---- Home
 
 	// Silo's home page: its layout of sections, and the cards in each. Continue Watching and Next Up come from there,
 	// as on Silo's own home, so what's hidden there is hidden here too.
-	const layouts = keptReads(60 * 1000);
-	const sectionCards = keptReads(5 * 1000);
 	const pageKey = (libraryId) => (libraryId ? `library:${libraryId}` : 'home');
 	const homeLayout = (libraryId = null) => layouts.get(pageKey(libraryId), async () => {
 		const answer = await call(libraryId ? `/api/v2/library/${encodeURIComponent(libraryId)}/layout` : '/api/v2/home/layout');
@@ -785,8 +865,6 @@ export const createSiloItems = ({call, images, getConfiguration, mediaSources}) 
 		}
 	});
 
-	// The profile's "hide watched items on Home" setting, which the newest rows follow.
-	let hideWatched = null;
 	const hidesWatchedOnHome = () => {
 		if (!hideWatched || Date.now() - hideWatched.at > 60 * 1000) {
 			hideWatched = {
@@ -911,6 +989,28 @@ export const createSiloItems = ({call, images, getConfiguration, mediaSources}) 
 		}, 0, limit > 0 ? limit : 20, null, id);
 	};
 
+	// Continue Watching hides a title as of its last progress, so the next time it's watched it comes back.
+	const progressUpdatedAt = async (item) => {
+		const stamp = item?._silo?.progress_updated_at;
+		if (typeof stamp === 'string' && stamp) return stamp;
+		const card = ((await cardsOf('continue_watching')) || []).find((c) => c.content_id === item.Id);
+		return typeof card?.progress_updated_at === 'string' && card.progress_updated_at ? card.progress_updated_at : null;
+	};
+
+	const hideFromResume = async (itemId, item = {Id: itemId}) => {
+		const stamp = await progressUpdatedAt({...item, Id: itemId});
+		if (!stamp) throw Object.assign(new Error(`Silo has no resume point for ${itemId} to hide`), {status: 404});
+		await call(`/api/v2/home/dismissals/continue_watching/${encodeURIComponent(itemId)}`, {method: 'PUT', body: {progress_updated_at: stamp}});
+		forgetAll();
+	};
+
+	const hideFromNextUp = async (item) => {
+		const series = item.SeriesId || parseSiloEpisodeId(item.Id)?.seriesId;
+		if (!series) throw Object.assign(new Error(`${item.Id} is not an episode of a show`), {status: 404});
+		await call(`/api/v2/home/dismissals/next_up/${encodeURIComponent(item.Id)}`, {method: 'PUT', body: {series_id: series}});
+		forgetAll();
+	};
+
 	// The sections Silo curates for the home page, except the two the app builds itself.
 	const OWN_SECTIONS = ['continue_watching', 'next_up'];
 	const getServerHomeSections = async () => (await homeLayout())
@@ -926,23 +1026,69 @@ export const createSiloItems = ({call, images, getConfiguration, mediaSources}) 
 		return slice(items, 0, limit);
 	};
 
-	// The app's caches of this profile's catalog, dropped when something it shows changes.
-	const forget = () => {
-		details.forget();
-		seasonLists.forget();
-		episodeLists.forget();
-		filteredLists.clear();
-		pager.clear();
-	};
 
 	return {
-		forget: () => {
-			forget();
-			layouts.forget();
-			sectionCards.forget();
-			hideWatched = null;
-		},
+		forget: () => forgetAll(),
 		cardsOf,
+		hideFromResume,
+		hideFromNextUp,
+
+		setFavorite: async (itemId, isFavorite) => {
+			await call(`/api/v2/favorites/${titleId(itemId, 'favorite')}`, {method: isFavorite ? 'PUT' : 'DELETE'});
+			changed(itemId, {IsFavorite: isFavorite});
+		},
+		// Either way Silo drops the resume point.
+		setWatched: async (itemId, watched) => {
+			await call(`/api/v2/watched/${titleId(itemId, 'played state')}`, {method: watched ? 'POST' : 'DELETE'});
+			changed(itemId, {Played: watched, PlayedPercentage: null, PlaybackPositionTicks: 0});
+		},
+		// Silo saves a position only while something plays.
+		setPlaybackPosition: async (itemId) => {
+			throw Object.assign(new Error(`Silo saves positions only during playback, not for ${itemId}`), {status: 501});
+		},
+		// Silo has stars and no likes: a like is five stars and a dislike one, read back as 10 and 2.
+		setRating: (itemId, likes) => setStars(itemId, likes ? 5 : 1, {Likes: likes, Rating: likes ? 10 : 2}),
+		setNumericRating: (itemId, rating) => setStars(itemId, siloStarsFromRating(rating), {Rating: siloStarsFromRating(rating) * 2}),
+		clearRating: async (itemId) => {
+			await call(`/api/v2/ratings/${titleId(itemId, 'rating')}`, {method: 'DELETE'});
+			changed(itemId, {Rating: null, Likes: null});
+		},
+
+		// The profile's star ratings, as the plugin's {ItemId, Rating} list out of 10, for the My Rating sort.
+		getMyUserRatings: async () => {
+			const out = [];
+			let cursor = null;
+			do {
+				// eslint-disable-next-line no-await-in-loop
+				const answer = siloPage(await call('/api/v2/ratings', {query: {limit: 200, cursor: cursor || undefined}}));
+				answer.items.forEach((entry) => {
+					const id = siloIdOf(entry.item_id);
+					if (id && typeof entry.rating === 'number') out.push({ItemId: id, Rating: entry.rating * 2});
+				});
+				cursor = answer.nextCursor;
+			} while (cursor);
+			return {Items: out};
+		},
+
+		canEditCollection,
+		getEditableCollections: async () => asResult((await personalCollections()).filter(canEditCollection)
+			.sort((a, b) => (a.Name || '').toLowerCase().localeCompare((b.Name || '').toLowerCase()))),
+		createCollection,
+		addToCollection: (collectionId, itemIds) => editCollection(collectionId, itemIds, 'PUT'),
+		removeFromCollection: (collectionId, itemIds) => editCollection(collectionId, itemIds, 'DELETE'),
+		getCollectionOrder: async (collectionId) => {
+			const answer = await call(collectionOrderPath(collectionId));
+			return Array.isArray(answer?.ordered_ids) ? answer.ordered_ids.map(String) : null;
+		},
+		saveCollectionOrder: async (collectionId, itemIds) => {
+			const path = collectionOrderPath(collectionId);
+			const current = await call(path, {raw: true});
+			const etag = current.headers?.get?.('etag');
+			if (!etag) throw new Error('Silo sent no version of the collection order to change');
+			await call(path, {method: 'PUT', body: {ordered_ids: itemIds}, headers: {'If-Match': etag}});
+			forgetAll();
+			return null;
+		},
 		getResumeItems,
 		getNextUp,
 		getLatest,

@@ -171,3 +171,70 @@ describe('items', () => {
 		expect(next.Items.map((i) => i.Id)).toEqual(['episode-x-1-2']);
 	});
 });
+
+describe('writes', () => {
+	const setup = (answers = {}) => {
+		const calls = [];
+		const published = [];
+		const call = jest.fn(async (path, options = {}) => {
+			calls.push(`${options.method || 'GET'} ${path}${options.body ? ' ' + JSON.stringify(options.body) : ''}`);
+			const answer = answers[`${options.method || 'GET'} ${path}`];
+			return typeof answer === 'function' ? answer(options) : answer;
+		});
+		const items = createSiloItems({
+			call, images: memoryImages(), getConfiguration: async () => ({}), getUserId: () => 'p1',
+			publishUserData: (id, patch) => published.push([id, patch])
+		});
+		return {items, calls, published};
+	};
+
+	test('favorite, watched and ratings write to Silo and tell the app', async () => {
+		const {items, calls, published} = setup();
+		await items.setFavorite('movie-1', true);
+		await items.setWatched('episode-x-1-2', false);
+		await items.setNumericRating('movie-1', 7);
+		await items.setRating('movie-1', false);
+		await items.clearRating('movie-1');
+		expect(calls).toEqual([
+			'PUT /api/v2/favorites/movie-1',
+			'DELETE /api/v2/watched/episode-x-1-2',
+			'PUT /api/v2/ratings/movie-1 {"rating":4}',
+			'PUT /api/v2/ratings/movie-1 {"rating":1}',
+			'DELETE /api/v2/ratings/movie-1'
+		]);
+		expect(published[0]).toEqual(['movie-1', {IsFavorite: true}]);
+		expect(published[2]).toEqual(['movie-1', {Rating: 8}]);
+	});
+
+	test('a genre, studio, collection or library has no favorite on Silo', async () => {
+		const {items, calls} = setup();
+		await expect(items.setFavorite('silo-genre:Drama', true)).rejects.toMatchObject({status: 501});
+		await expect(items.setFavorite('3', true)).rejects.toMatchObject({status: 501});
+		expect(calls).toEqual([]);
+	});
+
+	test('hiding from Continue Watching sends the progress it hides as of', async () => {
+		const {items, calls} = setup();
+		await items.hideFromResume('movie-1', {Id: 'movie-1', _silo: {progress_updated_at: '2026-10-30T10:00:00Z'}});
+		await items.hideFromNextUp({Id: 'episode-x-1-2', SeriesId: 'series-x'});
+		expect(calls).toEqual([
+			'PUT /api/v2/home/dismissals/continue_watching/movie-1 {"progress_updated_at":"2026-10-30T10:00:00Z"}',
+			'PUT /api/v2/home/dismissals/next_up/episode-x-1-2 {"series_id":"series-x"}'
+		]);
+	});
+
+	test("only the profile's own manual collections take items, by Silo's collection id", async () => {
+		const {items, calls} = setup({
+			'GET /api/v2/collections': {items: [
+				{id: 'c1', title: 'Mine', collection_type: 'manual', creator_profile_id: 'p1'},
+				{id: 'c2', title: 'Theirs', collection_type: 'manual', creator_profile_id: 'p2'},
+				{id: 'c3', title: 'Smart', collection_type: 'smart', creator_profile_id: 'p1'}
+			]}
+		});
+		const editable = await items.getEditableCollections();
+		expect(editable.Items.map((c) => c.Id)).toEqual(['silo-collection:c1']);
+		await items.addToCollection('silo-collection:c1', ['movie-1']);
+		expect(calls[1]).toBe('PUT /api/v2/collections/c1/items/movie-1 {"position":0}');
+		await expect(items.addToCollection('silo-libcollection:1:c9', ['movie-1'])).rejects.toMatchObject({status: 501});
+	});
+});

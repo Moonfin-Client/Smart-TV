@@ -261,7 +261,7 @@ export const refreshSiloSession = (session, deviceInfo, platform) => {
  */
 export const siloRequest = async (server, path, {
 	session = null, profileId = null, profile = true, refresh = true,
-	method, query, body, timeoutMs, deviceInfo, platform, raw = false
+	method, query, body, headers, timeoutMs, deviceInfo, platform, raw = false
 } = {}) => {
 	const base = siloServerKey(server);
 	const params = query ? Object.keys(query)
@@ -270,12 +270,15 @@ export const siloRequest = async (server, path, {
 		.join('&') : '';
 	const url = `${/^https?:/.test(path) ? path : base + path}${params ? (path.includes('?') ? '&' : '?') + params : ''}`;
 	const identity = session?.identity;
-	const headersNow = () => siloHeaders({
-		deviceInfo,
-		platform,
-		accessToken: session?.tokens?.accessToken,
-		profileId: profile ? profileId : null,
-		profileToken: profile && profileId ? profileProof(session, profileId) : null
+	const headersNow = () => ({
+		...headers,
+		...siloHeaders({
+			deviceInfo,
+			platform,
+			accessToken: session?.tokens?.accessToken,
+			profileId: profile ? profileId : null,
+			profileToken: profile && profileId ? profileProof(session, profileId) : null
+		})
 	});
 	const changed = () => {
 		const err = new Error('The Silo login or profile changed before this request was sent');

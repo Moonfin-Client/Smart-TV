@@ -6,6 +6,7 @@ import {
 	siloSessionFor, tokensFrom
 } from './siloSession';
 import {createSiloItems} from './siloItems';
+import * as userDataSync from './userDataSync';
 import {registerSiloImage, registerSiloServer, siloImageTagFor} from '../utils/siloUrls';
 import {
 	SILO_SETTING_KEYS, configurationToSiloSettings, isSiloSystemInfo, siloProfileToUser, siloPublicInfo,
@@ -124,7 +125,8 @@ export const createSiloApi = ({getBaseUrl, getToken, getUserId, getDeviceInfo, p
 		call,
 		images,
 		getUserId,
-		getConfiguration: async () => (await currentUser()).Configuration
+		getConfiguration: async () => (await currentUser()).Configuration,
+		publishUserData: (itemId, patch) => userDataSync.publish(itemId, patch)
 	});
 
 	return {
