@@ -1,5 +1,5 @@
 <h1 align="center">Moonfin for Smart-TVs</h1>
-<h3 align="center">Premium Jellyfin, Emby and Plex client for webOS and Tizen TVs</h3>
+<h3 align="center">Premium Jellyfin, Emby, Plex and Silo client for webOS and Tizen TVs</h3>
 
 ---
 
@@ -19,13 +19,14 @@
 
 ## What is Moonfin for Smart TVs?
 
-Moonfin is a Jellyfin, Emby and Plex client for Samsung Smart TVs (Tizen), LG Smart TVs (webOS), Fire TV sticks running Vega OS and Xbox consoles. One shared codebase powers every platform, with a video pipeline tuned for each, so you get hardware-accelerated playback, a UI designed around a remote instead of a mouse, and features that most TV clients leave out.
+Moonfin is a Jellyfin, Emby, Plex and Silo client for Samsung Smart TVs (Tizen), LG Smart TVs (webOS), Fire TV sticks running Vega OS and Xbox consoles. One shared codebase powers every platform, with a video pipeline tuned for each, so you get hardware-accelerated playback, a UI designed around a remote instead of a mouse, and features that most TV clients leave out.
 
 ## Features
 
 - **Hardware-accelerated playback** through Samsung AVPlay, webOS Starfish, the Fire TV WebView and the Xbox console's own player, with direct play first and a transcode fallback only when needed.
 - **Lossless audio passthrough** for DTS, DTS-HD, and Dolby TrueHD to a capable receiver on LG and Samsung TVs. On Xbox, an experimental Passthrough setting does the same for TrueHD, DTS and Dolby Digital. Without it, the console decodes the sound and sends it to the receiver as PCM.
 - **Multi-server, Emby and Plex support**, including Emby Connect, Plex sign-in through plex.tv with Plex Home users and Live TV, Quick Connect with a QR code for your phone, and a unified library view across all your Jellyfin servers.
+- **Silo support**, through Silo's own API: the household's profiles with their PINs, signing in with a code approved on another device, Silo's playback plans, markers and seek previews, and Silo's own requests and calendar.
 - **A setup wizard on first run** that walks you through the look of the app with live previews built from your own artwork, including five detail screen styles: Classic, Modern, Spotlight, Nouveau, and Minimalist.
 - **Kids Mode and Blocked Ratings.** Kids Mode strips the app back for a child and locks the way out with a PIN, and blocked ratings apply everywhere, from home rows and search to detail screens and playback. Sign-in PINs can be kept on the server through the Moonfin plugin, so one PIN works on every device.
 - **A proper on-screen keyboard** in four styles with layouts that follow your language, plus sign-in that finds servers on your network by itself.
@@ -163,6 +164,6 @@ This project is licensed under the MPL 2.0 license. Some parts incorporate conte
 
 ---
 <p align="center">
-   <strong>Moonfin for Smart TVs</strong> is an independent client and is not affiliated with the Jellyfin or Emby projects or with Plex.<br>
+   <strong>Moonfin for Smart TVs</strong> is an independent client and is not affiliated with the Jellyfin, Emby or Silo projects or with Plex.<br>
    <a href="https://github.com/Moonfin-Client">Back to main Moonfin project</a>
 </p>
