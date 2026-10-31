@@ -2630,5 +2630,10 @@
 	"Works with Jellyfin, Emby and Silo. A Plex address opens the Plex sign-in.": "Works with Jellyfin, Emby and Silo. A Plex address opens the Plex sign-in.",
 	"This Silo server needs a newer version of Moonfin. Update Moonfin to use it.": "This Silo server needs a newer version of Moonfin. Update Moonfin to use it.",
 	"This Silo server is too old for this version of Moonfin. Update Silo to use it.": "This Silo server is too old for this version of Moonfin. Update Silo to use it.",
-	"Silo servers don't take client logs.": "Silo servers don't take client logs."
+	"Silo servers don't take client logs.": "Silo servers don't take client logs.",
+	"This account's password has to be changed in Silo's web app before signing in here.": "This account's password has to be changed in Silo's web app before signing in here.",
+	"The password changed. Sign in with the new one.": "The password changed. Sign in with the new one.",
+	"This account's password has to be changed before signing in. Choose a new one of at least {count} characters.": "This account's password has to be changed before signing in. Choose a new one of at least {count} characters.",
+	"New password": "New password",
+	"Change Password": "Change Password"
 }

@@ -115,6 +115,8 @@ const Login = ({
 	const [signInUser, setSignInUser] = useState(null);
 	const [username, setUsername] = useState('');
 	const [password, setPassword] = useState('');
+	// A Silo account signed in with a temporary password, waiting for a new one: {minimumLength}.
+	const [passwordChange, setPasswordChange] = useState(null);
 	const [showQuickConnect, setShowQuickConnect] = useState(false);
 	const [quickConnectCode, setQuickConnectCode] = useState(null);
 	// Silo names its own approval page, with the code filled in.
@@ -652,13 +654,51 @@ const Login = ({
 			finishLogin(result);
 			return true;
 		} catch (err) {
-			setError(getSignInMessage(err));
 			setStatus(null);
+			if (err.code === 'password_change_required') {
+				setPasswordChange({minimumLength: err.minimumLength || 0});
+				setPassword('');
+				focusLater('password-input');
+				return false;
+			}
+			setError(err.code === 'password_change_unavailable'
+				? $L("This account's password has to be changed in Silo's web app before signing in here.")
+				: getSignInMessage(err));
 			return false;
 		} finally {
 			setIsConnecting(false);
 		}
 	}, [server, login, isAdding, finishLogin]);
+
+	// Replaces the temporary password the sign-in stopped on, then finishes signing in.
+	const changeRequiredPassword = useCallback(async () => {
+		if (!password) return;
+		setIsConnecting(true);
+		setError(null);
+		setStatus(isAdding ? $L('Adding user...') : $L('Signing in...'));
+		try {
+			const authResult = await jellyfinApi.api.changeRequiredPassword(password);
+			setPasswordChange(null);
+			setPassword('');
+			const result = await loginWithToken(jellyfinApi.getServerUrl(), authResult, {
+				serverName: server?.name, serverType: server?.serverType, serverVersion: server?.version,
+				isAddingNewServer: isAdding, switchToNewUser: true
+			});
+			finishLogin(result);
+		} catch (err) {
+			if (err.code === 'password_changed_sign_in' || err.status === 401) {
+				setPasswordChange(null);
+				setPassword('');
+				setError($L('The password changed. Sign in with the new one.'));
+			} else {
+				// Silo says why a new password was refused (too short, too long).
+				setError(err.status === 422 || err.status === 400 ? err.message : getSignInMessage(err));
+			}
+		} finally {
+			setIsConnecting(false);
+			setStatus(null);
+		}
+	}, [password, isAdding, loginWithToken, server, finishLogin]);
 
 	// A Plex Home member signs in with their own plex.tv token, from a switch that checks their PIN, and the server token
 	// plex.tv gives them.
@@ -1029,6 +1069,15 @@ const Login = ({
 			return true;
 		}
 		if (step === 'signin') {
+			if (passwordChange) {
+				// Giving up the change ends the login it was waiting on.
+				setPasswordChange(null);
+				setPassword('');
+				setError(null);
+				jellyfinApi.api.cancelRequiredPasswordChange?.();
+				focusLater('password-input');
+				return true;
+			}
 			stopQuickConnect();
 			if (users.length > 0) {
 				setStep('users');
@@ -1048,7 +1097,7 @@ const Login = ({
 			return true;
 		}
 		return false;
-	}, [dialog, closeDialog, showAddressStep, showChooseStep, isConnecting, step, users.length, isAdding, goToServers, stopQuickConnect, cancelAddServerFlow, onServerAdded, plexUsePassword, stopPlexPolling, requestPlexPin]);
+	}, [dialog, closeDialog, showAddressStep, showChooseStep, isConnecting, step, users.length, isAdding, goToServers, stopQuickConnect, cancelAddServerFlow, onServerAdded, plexUsePassword, stopPlexPolling, requestPlexPin, passwordChange]);
 
 	useEffect(() => {
 		if (!backHandlerRef) return undefined;
@@ -1149,13 +1198,17 @@ const Login = ({
 	}, [server, goToSignIn]);
 
 	const handleSignIn = useCallback(() => {
+		if (passwordChange) {
+			changeRequiredPassword();
+			return;
+		}
 		if (server?.serverType === 'plex') {
 			signInPlexHome(signInUser, password);
 			return;
 		}
 		if (!username.trim()) return;
 		signIn(username.trim(), password);
-	}, [server, signInUser, username, password, signIn, signInPlexHome]);
+	}, [server, signInUser, username, password, signIn, signInPlexHome, passwordChange, changeRequiredPassword]);
 
 	const handlePlexCodeChange = useCallback((e) => setPlexCode(e.target.value), []);
 
@@ -1372,7 +1425,13 @@ const Login = ({
 
 	const renderCredentials = () => (
 		<div className={css.formBlock}>
-			{!signInUser && (
+			{passwordChange && (
+				<p className={css.signInSubtitle}>
+					{$L("This account's password has to be changed before signing in. Choose a new one of at least {count} characters.")
+						.replace('{count}', String(passwordChange.minimumLength || 1))}
+				</p>
+			)}
+			{!signInUser && !passwordChange && (
 				<div className={css.field}>
 					<SpottableInput
 						data-spotlight-id="username-input"
@@ -1395,7 +1454,7 @@ const Login = ({
 						type="password"
 						purpose="password"
 						className={css.input}
-						placeholder={server?.serverType === 'plex' ? $L('PIN') : $L('Password')}
+						placeholder={passwordChange ? $L('New password') : (server?.serverType === 'plex' ? $L('PIN') : $L('Password'))}
 						value={password}
 						onChange={handlePasswordChange}
 						onKeyDown={handlePasswordKeyDown}
@@ -1418,7 +1477,7 @@ const Login = ({
 					onClick={handleSignIn}
 					disabled={isConnecting}
 				>
-					{isConnecting ? <span className={`${css.spinner} ${css.buttonSpinner}`} /> : $L('Sign In')}
+					{isConnecting ? <span className={`${css.spinner} ${css.buttonSpinner}`} /> : (passwordChange ? $L('Change Password') : $L('Sign In'))}
 				</SpottableButton>
 			</div>
 		</div>

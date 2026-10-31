@@ -190,3 +190,38 @@ describe('device sign-in', () => {
 		await expect(silo.getQuickConnectState('gone')).resolves.toEqual({Authenticated: false, Expired: true});
 	});
 });
+
+describe('a temporary password', () => {
+	const temporary = {...account, password_change_required: true};
+
+	test('keeps the login waiting for a new one, then signs in to the household with it', async () => {
+		let refreshed = false;
+		answer({
+			'POST /api/v2/auth/login': {access_token: 'a1', refresh_token: 'r1', expires_in: 3600, user: temporary},
+			'/api/v2/account/password/capability': {allowed: true, minimum_password_length: 8},
+			'POST /api/v2/account/password': (url, options) => {
+				expect(JSON.parse(options.body)).toEqual({current_password: 'temp', new_password: 'brand new pw'});
+				return reply(204);
+			},
+			'POST /api/v2/auth/refresh': () => {
+				refreshed = true;
+				return reply(200, {access_token: 'a2', refresh_token: 'r2', expires_in: 3600});
+			},
+			'/api/v2/profiles': () => reply(refreshed ? 200 : 403, refreshed ? profiles : {type: 'x/password_change_required', status: 403})
+		});
+		await expect(silo.authenticateByName('brady', 'temp')).rejects.toMatchObject({code: 'password_change_required', minimumLength: 8});
+		const result = await silo.changeRequiredPassword('brand new pw');
+		expect(result).toMatchObject({AccessToken: 'a2', SiloAccountId: '7', User: {Id: 'main'}});
+		await expect(silo.changeRequiredPassword('again')).rejects.toMatchObject({status: 409});
+	});
+
+	test('is ended when Silo won\'t let it be changed here', async () => {
+		answer({
+			'POST /api/v2/auth/login': {access_token: 'a1', refresh_token: 'r1', expires_in: 3600, user: temporary},
+			'/api/v2/account/password/capability': {allowed: false},
+			'POST /api/v2/auth/logout': null
+		});
+		await expect(silo.authenticateByName('brady', 'temp')).rejects.toMatchObject({code: 'password_change_unavailable'});
+		expect(calls()).toContain('POST /api/v2/auth/logout');
+	});
+});

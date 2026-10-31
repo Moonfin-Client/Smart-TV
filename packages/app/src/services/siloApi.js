@@ -132,27 +132,55 @@ export const createSiloApi = ({getBaseUrl, getToken, getUserId, getDeviceInfo, p
 	};
 
 	// Opens the login a token pair names, as its primary profile, with the account's household.
-	const openLogin = async (pair) => {
-		const tokens = tokensFrom(pair);
-		const account = pair?.user;
-		if (!tokens.accessToken || !tokens.refreshToken || account?.id == null) {
-			throw siloError(502, {title: 'Silo sign-in answered without a token pair'});
-		}
-		const opened = openSiloSession(base(), String(account.id), tokens);
+	// The household of an open login, signed in as its primary profile.
+	const householdOf = async (opened, account) => {
 		const profiles = (await siloRequest(base(), '/api/v2/profiles', {
 			session: opened, deviceInfo: getDeviceInfo(), platform
 		}))?.items || [];
 		const primary = profiles.find((p) => p.is_primary) || profiles[0];
 		if (!primary) throw siloError(502, {title: 'Silo listed no profile for this account'});
 		return {
-			AccessToken: tokens.accessToken,
+			AccessToken: opened.tokens.accessToken,
 			User: withAvatar(siloProfileToUser(primary, account), primary),
 			SiloAccountId: String(account.id),
 			SiloProfiles: profiles,
 			// The household: every profile as a user of its own, sharing the account's token.
-			SiloUsers: profiles.map((p) => ({...withAvatar(siloProfileToUser(p, account), p), SiloHasPin: p.has_pin === true})),
-			SiloPasswordChangeRequired: account.password_change_required === true
+			SiloUsers: profiles.map((p) => ({...withAvatar(siloProfileToUser(p, account), p), SiloHasPin: p.has_pin === true}))
 		};
+	};
+
+	const endLogin = async (opened) => {
+		await siloRequest(base(), '/api/v2/auth/logout', {
+			method: 'POST', session: opened, profile: false, refresh: false, deviceInfo: getDeviceInfo(), platform
+		}).catch(() => {});
+		closeSiloSession(opened);
+	};
+
+	// A login whose account holds a temporary password, kept open (and unsaved) until the password is replaced.
+	let pendingPasswordChange = null;
+
+	// Opens the login a token pair names. An account with a temporary password may only change it (Silo answers
+	// everything else, the profiles included, with 403 password_change_required), so the login waits for a new one;
+	// the password just typed is the current one Silo asks for with the change.
+	const openLogin = async (pair, password = null) => {
+		const tokens = tokensFrom(pair);
+		const account = pair?.user;
+		if (!tokens.accessToken || !tokens.refreshToken || account?.id == null) {
+			throw siloError(502, {title: 'Silo sign-in answered without a token pair'});
+		}
+		const opened = openSiloSession(base(), String(account.id), tokens);
+		if (account.password_change_required !== true) return householdOf(opened, account);
+		const capability = password ? await siloRequest(base(), '/api/v2/account/password/capability', {
+			session: opened, profile: false, deviceInfo: getDeviceInfo(), platform
+		}).catch(() => null) : null;
+		if (!capability || capability.allowed === false) {
+			await endLogin(opened);
+			throw Object.assign(siloError(403, {title: 'Silo doesn\'t allow changing this password here'}), {code: 'password_change_unavailable'});
+		}
+		pendingPasswordChange = {opened, account, password};
+		throw Object.assign(siloError(403, {title: 'Silo needs a new password for this account'}), {
+			code: 'password_change_required', minimumLength: capability.minimum_password_length || 0
+		});
 	};
 
 	// Token pairs of approved device sign-ins, by device code, between the poll and the sign-in.
@@ -233,7 +261,40 @@ export const createSiloApi = ({getBaseUrl, getToken, getUserId, getDeviceInfo, p
 			refresh: false,
 			profile: false,
 			body: {username, password}
-		})),
+		}), password),
+
+		// Replaces the temporary password of the login authenticateByName left waiting, then signs in as it would. Silo
+		// signs out the account's other sessions; this one is refreshed, since its token still carries the restriction.
+		// A refused new password (422) leaves the login waiting for another.
+		changeRequiredPassword: async (newPassword) => {
+			const pending = pendingPasswordChange;
+			if (!pending) throw siloError(409, {title: 'No Silo sign-in is waiting for a new password'});
+			try {
+				await siloRequest(base(), '/api/v2/account/password', {
+					method: 'POST', session: pending.opened, profile: false, deviceInfo: getDeviceInfo(), platform,
+					body: {current_password: pending.password, new_password: newPassword}
+				});
+			} catch (err) {
+				if (err.status === 401) {
+					pendingPasswordChange = null;
+					closeSiloSession(pending.opened);
+				}
+				throw err;
+			}
+			pendingPasswordChange = null;
+			if (!(await refreshSiloSession(pending.opened, getDeviceInfo(), platform))) {
+				closeSiloSession(pending.opened);
+				throw Object.assign(siloError(401, {title: 'The password changed; sign in with it'}), {code: 'password_changed_sign_in'});
+			}
+			return householdOf(pending.opened, {...pending.account, password_change_required: false});
+		},
+
+		// Ends a login left waiting for a new password, when the change is given up.
+		cancelRequiredPasswordChange: async () => {
+			const pending = pendingPasswordChange;
+			pendingPasswordChange = null;
+			if (pending) await endLogin(pending.opened);
+		},
 
 		// Sign-in on another device (Silo's device sign-in, as the app's Quick Connect): an eight-digit code shown here, or
 		// the verification page with it filled in as a QR code, approved by a signed-in Silo login.
