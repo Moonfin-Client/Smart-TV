@@ -242,6 +242,8 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 	const stalledRef = useRef(false);
 	// Whether the pipeline has drawn a frame of the current item yet.
 	const renderedRef = useRef(false);
+	// Whether the source set now has played, as opposed to the item.
+	const sourcePlayedRef = useRef(false);
 	// Where the playing stream starts in the title (a Silo remux opened mid-title counts from there), and whether its
 	// seeks go back to Silo. Positions and seeks in the player are title time; only the element's are the stream's.
 	const streamOffsetRef = useRef(0);
@@ -1404,6 +1406,8 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 		if (!result?.url) throw new Error('Silo gave no stream to reopen');
 		pendingResumeTicksRef.current = ticks;
 		setMediaUrl(result.url);
+		// Silo can hand back the address the element already has; the source is set again all the same.
+		setSourceRevision((revision) => revision + 1);
 		if (result.playMethod) setPlayMethod(result.playMethod);
 		setIsHdrContent(isHdrOutput(result.mediaSource, result.playMethod === playback.PlayMethod.Transcode));
 		setMimeType(result.mimeType || 'video/mp4');
@@ -1600,6 +1604,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 
 		const setSourceAndPlay = () => {
 			console.log('[Player] Setting video source now');
+			sourcePlayedRef.current = false;
 
 			destroyHlsPlayer();
 
@@ -2019,6 +2024,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 			if (ticks !== positionRef.current) {
 				stalledRef.current = false;
 				renderedRef.current = true;
+				sourcePlayedRef.current = true;
 			}
 			skipGovernorRef.current.observe({
 				nowMs: Date.now(),
@@ -2145,8 +2151,10 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 		// A network failure, or a source Silo stopped serving (a token it no longer takes), after the stream had played.
 		// A decode error is the file's and goes on below. While a reconnect runs, its own attempts' failures are its to
 		// count.
+		// A source that never played (a track or quality the set can't play) is for the fallbacks below.
 		const code = videoRef.current?.error?.code;
-		if (!isPaused && canReconnect() && (reconnect.reconnecting || code === 2 || code === 4)) {
+		if (!isPaused && canReconnect() &&
+			(reconnect.reconnecting || code === 2 || (code === 4 && sourcePlayedRef.current))) {
 			playbackStartTimedOutRef.current = false;
 			reconnect.lost(`error ${code || 'timeout'}`);
 			return;

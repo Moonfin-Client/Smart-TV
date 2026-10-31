@@ -34,10 +34,13 @@ describe('a server shuffle as a growing queue', () => {
 		const first = await startServerShuffle(api, {Id: 'series-tvdb-1', Type: 'Series'});
 		expect(first.map((i) => i.Id)).toEqual(['e1', 'e2']);
 		expect(calls[1]).toMatchObject({path: '/api/v2/shuffles', method: 'POST', body: {scope: {kind: 'series', id: 'series-tvdb-1'}}});
-		expect(await extendServerShuffle('e1')).toBeNull();
-		expect((await extendServerShuffle('e2')).map((i) => i.Id)).toEqual(['e3']);
+		expect(await extendServerShuffle(first[0])).toBeNull();
+		// The same episode queued some other way (the episode browser) doesn't move the shuffle.
+		expect(await extendServerShuffle({Id: 'e2'})).toBeNull();
+		const [e3] = await extendServerShuffle(first[1]);
+		expect(e3.Id).toBe('e3');
 		expect(calls[2]).toMatchObject({path: '/api/v2/shuffles/s1/advance', body: {from_content_id: 'e1'}});
-		expect((await extendServerShuffle('e3')).map((i) => i.Id)).toEqual(['e4']);
+		expect((await extendServerShuffle(e3)).map((i) => i.Id)).toEqual(['e4']);
 		expect(calls[3].body).toEqual({from_content_id: 'e2'});
 	});
 

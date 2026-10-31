@@ -133,9 +133,9 @@ const avplayGetDuration = () => {
 // A seek into the open stream, as a resume makes.
 const seekStream = (titleMs) => streamSeek(streamMs(titleMs));
 const avplaySeek = (titleMs) => {
+	// Resolves once Silo's new stream is open there, so a caller that waits on the seek (a group seek) settles on it.
 	if (streamTimeline.seeksThroughServer && streamTimeline.seekThroughServer) {
-		streamTimeline.seekThroughServer(Math.floor(titleMs * 10000));
-		return Promise.resolve();
+		return streamTimeline.seekThroughServer(Math.floor(titleMs * 10000));
 	}
 	return seekStream(titleMs);
 };
@@ -261,6 +261,9 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 	// The stream reconnect, for the AVPlay listener, and the type of the error AVPlay last reported.
 	const reconnectRef = useRef(null);
 	const lastErrorTypeRef = useRef('');
+	// Whether the stream open now has played. One that fails before it does (a track or quality the set can't play) is
+	// for the fallbacks, not a lost connection.
+	const sourcePlayedRef = useRef(false);
 	// A Silo Watch Party reports where this player is and which session it plays (siloWatchParty.js).
 	useEffect(() => syncPlayService.attachPlayer({
 		sample: syncPlaySample,
@@ -831,6 +834,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 			},
 			oncurrentplaytime: () => {
 				if (pausedErrorRef.current) pausedErrorRef.current = null;
+				sourcePlayedRef.current = true;
 				reconnectRef.current?.playing();
 				liveRecoveryRef.current?.update({playing: true});
 				const now = Date.now();
@@ -949,6 +953,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 		// subtitle re-applies through the confirmation pass instead
 		pendingTracksRef.current = null;
 
+		sourcePlayedRef.current = false;
 		const session = playback.getCurrentSession();
 		await openAndPrepare({
 			url,
@@ -2055,7 +2060,8 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 		// attempts' failures are its to count.
 		const errorType = lastErrorTypeRef.current;
 		lastErrorTypeRef.current = '';
-		if (!isPausedRef.current && canReconnect() && (reconnect.reconnecting || !/NOT_SUPPORTED/.test(errorType))) {
+		if (!isPausedRef.current && canReconnect() &&
+			(reconnect.reconnecting || (sourcePlayedRef.current && !/NOT_SUPPORTED/.test(errorType)))) {
 			reconnect.lost(errorType || 'error');
 			return;
 		}

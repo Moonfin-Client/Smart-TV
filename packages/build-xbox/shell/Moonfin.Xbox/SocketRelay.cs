@@ -158,7 +158,9 @@ namespace Moonfin.Xbox
             if (!sockets.TryGetValue(id, out Relayed relayed)) return;
             sockets.Remove(id);
             // Only 1000 and the 3000s and 4000s are a page's to send.
-            double asked = payload != null ? payload.GetNamedNumber("code", 1000) : 1000;
+            // A code that isn't a number (the page sent null) closes normally.
+            IJsonValue askedValue = Bridge.Named(payload, "code");
+            double asked = askedValue != null && askedValue.ValueType == JsonValueType.Number ? askedValue.GetNumber() : 1000;
             ushort code = asked == 1000 || (asked >= 3000 && asked <= 4999) ? (ushort)asked : (ushort)1000;
             string reason = Bridge.NamedString(payload, "reason") ?? "";
             try

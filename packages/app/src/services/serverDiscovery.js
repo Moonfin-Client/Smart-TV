@@ -183,10 +183,13 @@ const probePlex = async (base, state) => {
 	};
 };
 
-// A Silo answers its public system info with its API version, and its identity and branding with its id and name.
+// A Silo answers its public system info with its API version, and its identity and branding with its id and name. Null
+// when something else answered, undefined when nothing did.
 const probeSilo = async (base, state) => {
 	const read = (path) => (isVega() ? requestJsonInShell(base + path) : requestJson(base + path, state.live));
 	const info = await read('/api/v2/system/info');
+	// Nothing listening: there's nothing else to ask either.
+	if (!info.answered) return undefined;
 	if (!info.ok || !isSiloSystemInfo(info.data)) return null;
 	const [identity, branding] = await Promise.all([read('/api/v2/system/identity'), read('/api/v2/theme/branding')]);
 	return {
@@ -201,7 +204,11 @@ const probeSilo = async (base, state) => {
 const probeServer = async (baseUrl, state) => {
 	const base = baseUrl.charAt(baseUrl.length - 1) === '/' ? baseUrl.slice(0, -1) : baseUrl;
 	if (PLEX_ADDRESS.test(base)) return probePlex(base, state);
-	if (SILO_ADDRESS.test(base)) return probeSilo(base, state);
+	// Those ports are common enough that a Jellyfin or Emby there is still asked for as one.
+	if (SILO_ADDRESS.test(base)) {
+		const silo = await probeSilo(base, state);
+		if (silo !== null || state.canceled) return silo || null;
+	}
 
 	for (let i = 0; i < PUBLIC_INFO_PATHS.length; i++) {
 		if (state.canceled) return null;

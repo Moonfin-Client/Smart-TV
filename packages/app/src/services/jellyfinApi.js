@@ -1125,10 +1125,13 @@ export const createApiForServer = (serverUrl, token, userId, serverTypeOverride 
 	// server's title has to reach the one that started it.
 	if (serverTypeOverride === 'silo') {
 		registerSiloServer(url);
-		const key = `${url}|${token}|${userId}`;
+		// Keyed by the account, not the token, which Silo rotates on every refresh. The session found now is kept, since it
+		// only remembers a handful of the tokens it replaced.
+		const found = siloSessionFor(url, token);
+		const key = `${url}|${found ? `account:${found.accountId}` : token}|${userId}`;
 		let silo = siloApis.get(key);
 		if (!silo) {
-			silo = siloApiFor(() => url, () => siloSessionFor(url, token)?.tokens?.accessToken || token, () => userId);
+			silo = siloApiFor(() => url, () => found?.tokens?.accessToken || siloSessionFor(url, token)?.tokens?.accessToken || token, () => userId);
 			siloApis.set(key, silo);
 			if (siloApis.size > MAX_SILO_APIS) siloApis.delete(siloApis.keys().next().value);
 		}

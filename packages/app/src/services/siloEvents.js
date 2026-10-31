@@ -12,6 +12,7 @@ export const SILO_EVENT_CHANNELS = ['user_state', 'catalog'];
 // Silo closes with this when the login's access changed (libraries, rating limits, role).
 const ACCESS_CHANGED_CLOSE = 4001;
 const RECONNECT_DELAY_MS = 5000;
+const ACCESS_CHANGED_AGAIN_MS = 10000;
 // A handshake Silo refuses (an app origin it doesn't accept) looks like any drop, so each failed try waits twice as long.
 const MAX_RECONNECT_DELAY_MS = 5 * 60 * 1000;
 // Enough for a ticket and a handshake before Silo's limit ends the connection.
@@ -106,6 +107,7 @@ export const openSiloEvents = (events, {onOpen, onMessage, onClose}) => {
 	// or every cached list would be read again every five minutes.
 	let renewal = false;
 	let accessChanged = false;
+	let lastAccessChangeAt = 0;
 	let pending = [];
 	let batchTimer = null;
 	let renewTimer = null;
@@ -230,10 +232,14 @@ export const openSiloEvents = (events, {onOpen, onMessage, onClose}) => {
 				scheduleReconnect();
 				return;
 			}
-			// What the account may see has to be read again. No delay: the new ticket carries the new access.
+			// What the account may see has to be read again. No delay, since the new ticket carries the new access, unless
+			// the last such reconnect was only moments ago: a server that keeps closing that way is waited on as any drop.
 			console.info('[Silo] This login\'s access changed');
 			events.forget();
-			connect();
+			const again = Date.now() - lastAccessChangeAt < ACCESS_CHANGED_AGAIN_MS;
+			lastAccessChangeAt = Date.now();
+			if (again) scheduleReconnect();
+			else connect();
 		};
 	};
 

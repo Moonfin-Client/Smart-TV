@@ -103,6 +103,21 @@ describe('Silo events', () => {
 			expect(sockets).toHaveLength(2);
 		});
 
+		test('a server that keeps closing for changed access is waited on, not asked again at once', async () => {
+			await flushPromises();
+			latest().onopen();
+			latest().onclose({code: 4001});
+			await flushPromises();
+			expect(sockets).toHaveLength(2);
+			latest().onopen();
+			latest().onclose({code: 4001});
+			await flushPromises();
+			expect(sockets).toHaveLength(2);
+			jest.advanceTimersByTime(5000);
+			await flushPromises();
+			expect(sockets).toHaveLength(3);
+		});
+
 		test('this client\'s own stop is read back like an event', async () => {
 			await flushPromises();
 			noteSiloPlaybackEnded('http://s', 'm1');

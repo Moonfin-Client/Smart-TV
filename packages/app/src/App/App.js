@@ -1195,11 +1195,15 @@ const AppContent = (props) => {
 	const handlePlayNext = useCallback((item, options) => {
 		setPlayingItem(item);
 		// A server's shuffle (Silo's) hands out one item ahead: the one starting now was it, so the server picks the next.
-		extendServerShuffle(item?.Id).then((more) => {
+		extendServerShuffle(item).then((more) => {
 			if (!more?.length) return;
 			const fromServer = Object.fromEntries(Object.entries(item).filter(([key]) => key.startsWith('_server')));
+			const added = more.map((next) => ({...next, ...fromServer}));
+			// Once Silo starts repeating, a title comes round again. The queue keeps only its latest place, since the
+			// player finds what's next from the first one.
+			const repeats = new Set([item.Id, ...added.map((next) => next.Id)]);
 			setPlaybackOptions((prev) => (prev?.videoQueue?.some((e) => e.Id === item.Id)
-				? {...prev, videoQueue: [...prev.videoQueue, ...more.map((next) => ({...next, ...fromServer}))]}
+				? {...prev, videoQueue: [...prev.videoQueue.filter((e) => !repeats.has(e.Id)), item, ...added]}
 				: prev));
 		}).catch((err) => console.warn('[App] Moving the server shuffle on failed:', err));
 		setPlaybackOptions(prev => {
