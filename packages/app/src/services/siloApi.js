@@ -7,6 +7,7 @@ import {
 } from './siloSession';
 import {createSiloItems} from './siloItems';
 import {createSiloPlayback} from './siloPlayback';
+import {createSiloPlayerExtras} from './siloPlayerExtras';
 import {siloItemMediaSources} from './siloMediaSources';
 import * as userDataSync from './userDataSync';
 import {registerSiloImage, registerSiloServer, siloImageTagFor} from '../utils/siloUrls';
@@ -132,6 +133,8 @@ export const createSiloApi = ({getBaseUrl, getToken, getUserId, getDeviceInfo, p
 		mediaSources: siloItemMediaSources
 	});
 
+	const extras = createSiloPlayerExtras({call, getBaseUrl: base, getDetail: (itemId) => items.detailJson(itemId)});
+
 	const playback = createSiloPlayback({
 		call,
 		getBaseUrl: base,
@@ -139,11 +142,16 @@ export const createSiloApi = ({getBaseUrl, getToken, getUserId, getDeviceInfo, p
 		getAccessToken: () => session()?.tokens?.accessToken || getToken(),
 		getDeviceInfo,
 		platform,
-		getItem: (itemId, fileId) => items.readItem(itemId, fileId)
+		getItem: (itemId, fileId) => items.readItem(itemId, fileId),
+		onPlaying: extras.notePlayingFile
 	});
 
 	return {
 		...items,
+		getMediaSegments: extras.getMediaSegments,
+		getTrickplayManifest: extras.getTrickplayManifest,
+		getThemeSongs: extras.getThemeSongs,
+		getThemeSongUrl: extras.getThemeSongUrl,
 		getPlaybackInfo: playback.getPlaybackInfo,
 		reportPlaybackStart: playback.reportPlaybackStart,
 		reportPlaybackProgress: playback.reportPlaybackProgress,

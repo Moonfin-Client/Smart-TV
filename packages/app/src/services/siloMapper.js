@@ -712,6 +712,25 @@ const people = (item, images) => {
 	return out;
 };
 
+// A version's chapters (`index`, `title`, `start_seconds`, `end_seconds`, `thumbnail_url`) as Jellyfin Chapters in
+// start order, each thumbnail recorded as the item's `Chapter/<n>` picture with its tag as the ImageTag. Silo keeps
+// intro and credit markers apart, so only real chapters are listed.
+export const siloChaptersOf = (version, itemId, images) => (Array.isArray(version?.chapters) ? version.chapters : [])
+	.filter((c) => c && typeof c.start_seconds === 'number')
+	.map((c, order) => ({c, order}))
+	// Stable: chapters starting together keep Silo's order.
+	.sort((a, b) => (a.c.start_seconds - b.c.start_seconds) || (a.order - b.order))
+	.map(({c}, position) => {
+		const tag = images ? images.register(itemId, `Chapter/${position}`, c.thumbnail_url) : null;
+		return {
+			StartPositionTicks: secondsToTicks(Math.max(c.start_seconds, 0)),
+			...(text(c.title) ? {Name: text(c.title)} : null),
+			...(tag ? {ImageTag: tag} : null),
+			MarkerType: 'Chapter',
+			ChapterIndex: position
+		};
+	});
+
 /**
  * A Silo catalog item (a movie, series, season or episode, from a list or a detail answer) as a Jellyfin BaseItemDto.
  * `images` records artwork: {register(itemId, type, url, index), tagFor(itemId, type, index)}. Season and episode list
@@ -770,6 +789,13 @@ export const siloItemToBaseItem = (item, {images, type, series, mediaSources} = 
 		if (sources && sources.length) {
 			dto.MediaSources = sources;
 			dto.MediaStreams = sources[0].MediaStreams || [];
+			// Each version carries its own chapters, so the player shows those of the version that plays. The default's
+			// are recorded last, so its thumbnails are the ones a lookup by index finds.
+			const versions = Array.isArray(item.versions) ? item.versions : [];
+			sources.slice().reverse().forEach((source) => {
+				const version = versions.find((v) => siloIdOf(v?.file_id) === source.Id);
+				if (version) source.Chapters = siloChaptersOf(version, id, images);
+			});
 			if (sources[0].Chapters) dto.Chapters = sources[0].Chapters;
 		}
 	}

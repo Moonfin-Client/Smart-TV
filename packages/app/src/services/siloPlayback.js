@@ -469,9 +469,10 @@ export const SILO_PLAYBACK_ENDED_ON_SERVER = 'Playback was ended on the Silo ser
 
 /**
  * `call(path, options)` sends as the signed-in profile; `getItem(itemId, fileId)` reads a title with its files.
- * `getAccessToken()` is the account's current token, for the stream addresses.
+ * `getAccessToken()` is the account's current token, for the stream addresses. `onPlaying(itemId, fileId,
+ * runTimeSeconds)` hears which file each plan plays, whose markers the player then shows.
  */
-export const createSiloPlayback = ({call, getBaseUrl, getUserId, getAccessToken, getDeviceInfo, platform, getItem, wait = sleep}) => {
+export const createSiloPlayback = ({call, getBaseUrl, getUserId, getAccessToken, getDeviceInfo, platform, getItem, onPlaying, wait = sleep}) => {
 	const sessions = {};
 	let capabilities = null;
 
@@ -530,6 +531,8 @@ export const createSiloPlayback = ({call, getBaseUrl, getUserId, getAccessToken,
 	// The tracks the plan plays, which a later ask is compared with: one that names no track, or the one already
 	// playing, changes none.
 	const playingTracks = (session, info) => {
+		const ticks = session.source?.RunTimeTicks;
+		if (onPlaying) onPlaying(session.itemId, info.MediaSources[0].Id, ticks > 0 ? ticks / TICKS_PER_SECOND : null);
 		session.audioStreamIndex = info.MediaSources[0].DefaultAudioStreamIndex;
 		session.subtitleStreamIndex = info.MediaSources[0].DefaultSubtitleStreamIndex;
 		return info;

@@ -38,7 +38,7 @@ const shuffle = (list) => {
 };
 
 // Answers for a short while, so a screen opening asks once. A failed read is dropped at once.
-const keptReads = (lifetime, maxKeys) => {
+export const keptReads = (lifetime, maxKeys) => {
 	const kept = new Map();
 	return {
 		get (key, read) {
@@ -1194,9 +1194,8 @@ export const createSiloItems = ({call, images, getConfiguration, mediaSources, g
 
 		getLocalTrailers: (itemId) => extras(itemId, true),
 		getSpecialFeatures: (itemId) => extras(itemId, false),
-		// Silo has no intros, theme songs or additional parts.
+		// Silo has no intros or additional parts.
 		getIntros: async () => asResult([]),
-		getThemeSongs: async () => asResult([]),
 		getAdditionalParts: async () => asResult([])
 	};
 };
