@@ -60,6 +60,7 @@ import {isAtLive, liveWindowFor, nextLiveWindow} from './liveWindow';
 import useLiveRecording from './useLiveRecording';
 import useHeldSeekStep from './useHeldSeekStep';
 import {createServerSeek} from './serverSeek';
+import useSiloStreamRenewal from './useSiloStreamRenewal';
 import useMediaSession from './useMediaSession';
 import {hasTrickplayPreview} from '../../components/TrickplayPreview';
 import {isTrickplayOn} from '../../utils/trickplayLayout';
@@ -1395,6 +1396,9 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 		}
 	}), []);
 
+	const reopenSiloStream = useCallback(() => seekThroughServer(positionRef.current), [seekThroughServer]);
+	useSiloStreamRenewal(isPaused, reopenSiloStream);
+
 	// Moves the stream to a title position, or has Silo reopen it there when the stream can't seek.
 	const seekVideo = useCallback((seconds) => {
 		if (seeksThroughServerRef.current) {
@@ -1964,7 +1968,9 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 	}, [liveRecovery]);
 
 	const handleTimeUpdate = useCallback(() => {
-		// Until a stream that starts mid-title has loaded, the element still holds the last stream's time.
+		// Until a stream that starts mid-title has loaded, the element still holds the last stream's time, and until a
+		// resume seek lands it reads the file's start, which would go to the server as the position.
+		if (pendingResumeTicksRef.current > 0) return;
 		if (videoRef.current && (videoRef.current.readyState > 0 || !streamOffsetRef.current)) {
 			const time = videoRef.current.currentTime + streamOffsetRef.current;
 			// Each update redraws the whole player, which is what makes an open picker or the episode

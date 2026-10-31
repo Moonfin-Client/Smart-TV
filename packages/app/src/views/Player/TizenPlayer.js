@@ -45,6 +45,7 @@ import {isAtLive, liveWindowFor, nextLiveWindow} from './liveWindow';
 import useLiveRecording from './useLiveRecording';
 import useHeldSeekStep from './useHeldSeekStep';
 import {createServerSeek} from './serverSeek';
+import useSiloStreamRenewal from './useSiloStreamRenewal';
 import {hasTrickplayPreview} from '../../components/TrickplayPreview';
 import {isTrickplayOn} from '../../utils/trickplayLayout';
 import useChannelCarousel, {liveTvApiFor} from './useChannelCarousel';
@@ -976,6 +977,9 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 		});
 		return () => { streamTimeline.seekThroughServer = null; };
 	}, [restartFromResult]);
+
+	const reopenSiloStream = useCallback(() => streamTimeline.seekThroughServer?.(positionRef.current), []);
+	useSiloStreamRenewal(isPaused, reopenSiloStream);
 
 	const reloadWithSubtitleIndex = useCallback(async (subIndex) => {
 		const currentPositionTicks = Math.floor(avplayGetCurrentTime() * 10000);
