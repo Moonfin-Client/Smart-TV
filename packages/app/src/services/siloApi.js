@@ -5,6 +5,7 @@ import {
 	SILO_API_MAJOR, closeSiloSession, isClientUpgradeRequired, loadSiloSessions, openSiloSession, siloError, siloRequest,
 	siloSessionFor, tokensFrom
 } from './siloSession';
+import {createSiloEvents, noteSiloPlaybackEnded} from './siloEvents';
 import {createSiloItems} from './siloItems';
 import {createSiloPlayback} from './siloPlayback';
 import {createSiloPlayerExtras, siloPlayingFile} from './siloPlayerExtras';
@@ -149,8 +150,20 @@ export const createSiloApi = ({getBaseUrl, getToken, getUserId, getDeviceInfo, p
 		onPlaying: extras.notePlayingFile
 	});
 
+	const events = createSiloEvents({
+		call,
+		getBaseUrl: base,
+		getUserId,
+		getItems: items.getItems,
+		forget: () => {
+			items.forget();
+			items.forgetViews();
+		}
+	});
+
 	return {
 		...items,
+		siloEvents: events,
 		getMediaSegments: extras.getMediaSegments,
 		getTrickplayManifest: extras.getTrickplayManifest,
 		getThemeSongs: extras.getThemeSongs,
@@ -161,8 +174,10 @@ export const createSiloApi = ({getBaseUrl, getToken, getUserId, getDeviceInfo, p
 		reportPlaybackProgress: playback.reportPlaybackProgress,
 		reportPlaybackStopped: async (info) => {
 			await playback.reportPlaybackStopped(info);
-			// What was watched moves Continue Watching and Next Up along.
+			// What was watched moves Continue Watching and Next Up along, and the item's new resume point and watched
+			// state are read back for the cards showing it.
 			items.forget();
+			noteSiloPlaybackEnded(base(), info?.ItemId);
 		},
 		stopActiveEncodings: playback.stopActiveEncodings,
 		closeLiveStream: playback.closeLiveStream,
