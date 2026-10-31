@@ -84,7 +84,7 @@ describe('sign-in', () => {
 		expect(result).toMatchObject({
 			AccessToken: 'a1',
 			SiloAccountId: '7',
-			User: {Id: 'main', Name: 'Brady', PrimaryImageTag: 'silo', Policy: {IsAdministrator: true}}
+			User: {Id: 'main', Name: 'Brady', Policy: {IsAdministrator: true}}
 		});
 		const login = corsFreeFetch.mock.calls[0][1];
 		expect(login.headers.Authorization).toBeUndefined();

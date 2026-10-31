@@ -12,6 +12,7 @@ import {createPlexApi, withEveryMethod} from './plexApi';
 import {createSiloApi, withEverySiloMethod} from './siloApi';
 import {onSiloTokensRotated, siloServerKey, siloSessionFor} from './siloSession';
 import {isPlexServer, registerPlexServer} from '../utils/plexUrls';
+import {registerSiloServer} from '../utils/siloUrls';
 const APP_VERSION = packageJson.version;
 
 const PLATFORM_IDENTITY = {
@@ -1081,6 +1082,7 @@ let activeMethods = jellyfinMethods;
 // The api object everything imports stays the same object, with its methods swapped for the kind of server signed in.
 const applyServerType = () => {
 	if (serverType === 'plex') registerPlexServer(currentServer, accessToken);
+	if (serverType === 'silo') registerSiloServer(currentServer);
 	const wanted = METHODS_BY_TYPE[serverType] || jellyfinMethods;
 	if (wanted === activeMethods) return;
 	activeMethods = wanted;
@@ -1116,6 +1118,7 @@ export const createApiForServer = (serverUrl, token, userId, serverTypeOverride 
 
 	// The token may have rotated since it was saved, and the session it belonged to still knows it.
 	if (serverTypeOverride === 'silo') {
+		registerSiloServer(url);
 		return siloApiFor(() => url, () => siloSessionFor(url, token)?.tokens?.accessToken || token, () => userId);
 	}
 

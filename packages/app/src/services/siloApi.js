@@ -5,6 +5,8 @@ import {
 	SILO_API_MAJOR, closeSiloSession, isClientUpgradeRequired, loadSiloSessions, openSiloSession, siloError, siloRequest,
 	siloSessionFor, tokensFrom
 } from './siloSession';
+import {createSiloItems} from './siloItems';
+import {registerSiloImage, registerSiloServer, siloImageTagFor} from '../utils/siloUrls';
 import {
 	SILO_SETTING_KEYS, configurationToSiloSettings, isSiloSystemInfo, siloProfileToUser, siloPublicInfo,
 	siloSettingsToConfiguration
@@ -64,6 +66,21 @@ export const createSiloApi = ({getBaseUrl, getToken, getUserId, getDeviceInfo, p
 		});
 	};
 
+	// Artwork is recorded under this server, where getImageUrl finds it.
+	const images = {
+		register: (itemId, type, url, index = 0) => {
+			registerSiloServer(base());
+			return registerSiloImage(base(), itemId, type, url, index);
+		},
+		tagFor: (itemId, type, index = 0) => siloImageTagFor(base(), itemId, type, index)
+	};
+
+	// A profile's avatar is recorded as the profile's picture, where the user image lookups find it.
+	const withAvatar = (user, profile) => {
+		const tag = images.register(user.Id, 'Primary', profile.avatar_url);
+		return {...user, PrimaryImageTag: tag || null};
+	};
+
 	// The account and its profiles change rarely, and a screen asks for the user several times as it opens.
 	let accountRead = null;
 	const accountAndProfiles = () => {
@@ -98,12 +115,21 @@ export const createSiloApi = ({getBaseUrl, getToken, getUserId, getDeviceInfo, p
 		const profile = profiles.find((p) => String(p.id) === String(wanted)) ||
 			(wanted ? null : profiles.find((p) => p.is_primary));
 		if (!profile) throw siloError(404, {title: `Silo profile ${wanted} no longer exists on this account`});
-		return siloProfileToUser(profile, account, siloSettingsToConfiguration(values));
+		return withAvatar(siloProfileToUser(profile, account, siloSettingsToConfiguration(values)), profile);
 	};
 
 	const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
 
+	const items = createSiloItems({
+		call,
+		images,
+		getUserId,
+		getConfiguration: async () => (await currentUser()).Configuration
+	});
+
 	return {
+		...items,
+
 		getPublicInfo: async () => {
 			const info = await probeSilo(base());
 			if (!info) throw siloError(404, {title: 'Not a Silo server'});
@@ -136,7 +162,7 @@ export const createSiloApi = ({getBaseUrl, getToken, getUserId, getDeviceInfo, p
 			if (!primary) throw siloError(502, {title: 'Silo listed no profile for this account'});
 			return {
 				AccessToken: tokens.accessToken,
-				User: siloProfileToUser(primary, account),
+				User: withAvatar(siloProfileToUser(primary, account), primary),
 				SiloAccountId: String(account.id),
 				SiloProfiles: profiles,
 				SiloPasswordChangeRequired: account.password_change_required === true

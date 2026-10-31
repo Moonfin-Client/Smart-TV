@@ -126,6 +126,8 @@ export const connect = () => {
 
 	const serverUrl = getServerUrl();
 	if (!serverUrl) return;
+	// Silo's events come over its own socket, which isn't ported yet.
+	if (getServerType() === 'silo') return;
 
 	try {
 		ws = new WebSocket(socketUrl(serverUrl));
