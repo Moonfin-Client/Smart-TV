@@ -2,14 +2,17 @@
 
 import {createSiloRequest} from './siloSession';
 import {createSiloPager, siloPage} from './siloPager';
-import {SILO_ORIGINAL, siloItemToJellyfin, siloLibrariesToViews, siloNamedItem, siloPersonToJellyfin} from './siloMapper';
+import {SILO_ORIGINAL, siloItemToJellyfin, siloLibrariesToViews, siloNamedItem, siloPersonToJellyfin, siloProgressToUserData} from './siloMapper';
 import {parseSiloSeasonId, siloGenreNameOf, siloStudioNameOf, siloTypeOfId} from '../utils/siloUrls';
 
 const LIST_IMAGES = 'medium';
 const DETAIL_IMAGES = 'large';
 const TITLE_TYPES = ['movie', 'series', 'season', 'episode'];
-// The libraries and what Silo lets a profile search change rarely, so a read of them is kept a minute.
+const RESUMABLE_TYPES = ['movie', 'episode'];
+// The libraries, the settings and the page layout change rarely, so a read of them is kept a minute. A Home section is
+// kept a few seconds, since the Home rows read the same ones at once.
 const READ_LIFE_MS = 60000;
+const SECTION_LIFE_MS = 5000;
 
 const SORT_FIELDS = {
 	sortname: 'title',
@@ -185,6 +188,55 @@ export const createSiloApi = ({getBaseUrl, getAccount, getProfile, getDeviceInfo
 	const searchCapabilities = () => keep('search', READ_LIFE_MS, () => request('/catalog/search/capabilities')
 		.catch(() => ({state: 'available', allowed: true})));
 
+	const layout = (libraryId) => {
+		const base = libraryId ? `/library/${encodeURIComponent(libraryId)}` : '/home';
+		return keep(`${base}/layout`, READ_LIFE_MS, async () => ({base, sections: (await request(`${base}/layout`))?.sections || []}));
+	};
+
+	// The cards of every section of one type on the Home page or a library's page, or null when there's no such section.
+	const sectionCards = async (sectionType, libraryId) => {
+		const {base, sections} = await layout(libraryId);
+		const wanted = sections.filter((section) => section?.section_type === sectionType && section.id);
+		if (!wanted.length) return null;
+		const lists = await Promise.all(wanted.map((section) => {
+			const path = `${base}/sections/${encodeURIComponent(section.id)}/items`;
+			return keep(path, SECTION_LIFE_MS, async () => itemsOf(await request(path, {query: {image_size: LIST_IMAGES}})));
+		}));
+		const seen = new Set();
+		return lists.flat().filter((card) => {
+			if (typeof card?.content_id !== 'string' || seen.has(card.content_id)) return false;
+			seen.add(card.content_id);
+			return true;
+		});
+	};
+
+	const resumeFromProgress = async (wanted) => {
+		const entries = itemsOf(await request('/progress', {query: {status: 'in_progress', limit: Math.min(200, Math.max(1, wanted))}}))
+			.filter((entry) => typeof entry.media_item_id === 'string');
+		const found = await byIds(entries.map((entry) => entry.media_item_id));
+		return found.filter((item) => RESUMABLE_TYPES.includes(siloTypeOf(item))).map((item) => {
+			const entry = entries.find((e) => e.media_item_id === item.Id);
+			return {...item, UserData: {...item.UserData, ...siloProgressToUserData(entry)}};
+		});
+	};
+
+	const hidesWatchedOnHome = () => keep('hide-watched', READ_LIFE_MS, async () => {
+		const answer = await request('/settings/values/effective', {query: {keys: 'home.hide_watched_items'}});
+		return itemsOf(answer).some((setting) => setting.key === 'home.hide_watched_items' && setting.value === true);
+	}).catch(() => false);
+
+	// The newest titles of a library, or of every library: films by when they arrived, and shows by their newest episode.
+	const newestScope = async (libraryId, includeItemTypes, episodesAsSeries) => {
+		const types = siloTypesFor(includeItemTypes);
+		if (types) {
+			const listed = new Set([...types].map((t) => (t === 'season' || (episodesAsSeries && t === 'episode') ? 'series' : t)));
+			return listed.size ? scopeFor(listed) || 'video' : null;
+		}
+		if (!libraryId) return 'video';
+		const library = (await libraries().catch(() => [])).find((view) => view.Id === libraryId);
+		return {movies: 'movie', tvshows: 'series'}[library?.CollectionType] || 'video';
+	};
+
 	const catalogPage = async (query, startIndex = 0, limit, keepItem = () => true) => {
 		const signature = JSON.stringify(Object.keys(query).sort().map((key) => [key, query[key]]));
 		const fetchPage = async ({cursor, seek, limit: size}) => siloPage(await request('/catalog', {query: {...query, cursor, seek, limit: size}}));
@@ -249,6 +301,63 @@ export const createSiloApi = ({getBaseUrl, getAccount, getProfile, getDeviceInfo
 		return catalogPage(query, start, limit, keepItem);
 	};
 
+	const getResumeItems = async (limit = 12) => {
+		const cards = await sectionCards('continue_watching');
+		const items = cards
+			? mapAll(cards.filter((card) => card.item_source !== 'next_up' && RESUMABLE_TYPES.includes(card.type)))
+			: await resumeFromProgress(limit);
+		return slice(items, 0, limit);
+	};
+
+	const getNextUp = async (limit = 24, seriesId = null) => {
+		const unwatched = (item) => item.UserData?.Played !== true;
+		if (seriesId) {
+			const next = siloTypeOfId(seriesId) === 'series' ? (await getItem(seriesId))[SILO_ORIGINAL]?.play_content_id : null;
+			const episode = siloTypeOfId(next) === 'episode' ? await getItem(next) : null;
+			return slice(episode && unwatched(episode) ? [episode] : [], 0, limit);
+		}
+		// Silo can put a Next Up card in Continue Watching, so both rows are read.
+		const [watching, nextUp] = await Promise.all([sectionCards('continue_watching'), sectionCards('next_up')]);
+		const seen = new Set();
+		const cards = [...(watching || []).filter((card) => card.item_source === 'next_up'), ...(nextUp || [])].filter((card) => {
+			if (card.type !== 'episode' || seen.has(card.content_id)) return false;
+			seen.add(card.content_id);
+			return true;
+		});
+		return slice(mapAll(cards).filter(unwatched), 0, limit);
+	};
+
+	const getLatest = async (libraryId, limit = 20) => {
+		const scope = await newestScope(libraryId, null, true);
+		if (!scope) return [];
+		const hideWatched = await hidesWatchedOnHome();
+		const page = await catalogPage({
+			library_id: libraryId || undefined,
+			type: scope,
+			sort: scope === 'series' ? '-latest_episode_added' : '-added_at',
+			groups: hideWatched ? JSON.stringify(siloRuleGroups({Filters: 'IsUnplayed'})) : undefined,
+			image_size: LIST_IMAGES
+		}, 0, limit);
+		return page.Items;
+	};
+
+	const getRecentlyReleased = async (libraryId, limit = 20, includeItemTypes = 'Movie,Series') => {
+		const scope = await newestScope(libraryId, includeItemTypes, false);
+		if (!scope) return result([]);
+		const now = new Date();
+		const tomorrow = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+		const pad = (n) => String(n).padStart(2, '0');
+		const releasedBy = {match: 'all', rules: [rule('release_date', 'lt', `${tomorrow.getFullYear()}-${pad(tomorrow.getMonth() + 1)}-${pad(tomorrow.getDate())}`)]};
+		const hideWatched = await hidesWatchedOnHome();
+		return catalogPage({
+			library_id: libraryId || undefined,
+			type: scope,
+			sort: '-release_date',
+			groups: JSON.stringify([releasedBy, ...(hideWatched ? siloRuleGroups({Filters: 'IsUnplayed'}) : [])]),
+			image_size: LIST_IMAGES
+		}, 0, limit);
+	};
+
 	const getGenres = async (libraryId, includeItemTypes = 'Movie,Series', sortBy, sortOrder = 'Ascending') => {
 		const types = siloTypesFor(includeItemTypes);
 		const filters = await request('/catalog/filters', {query: {
@@ -270,6 +379,10 @@ export const createSiloApi = ({getBaseUrl, getAccount, getProfile, getDeviceInfo
 		getItemMediaInfo: getItem,
 		getSeasons: async (seriesId) => result(await seasons(seriesId)),
 		getEpisodes: async (seriesId, seasonId = null) => result(await episodes(seriesId, seasonId)),
+		getResumeItems,
+		getNextUp,
+		getLatest,
+		getRecentlyReleased,
 		getGenres,
 		getItemsByGenre: (genreId, libraryId, limit = 50) => getItems({ParentId: libraryId, GenreIds: genreId, IncludeItemTypes: 'Movie,Series', Limit: limit}),
 		search: (query, limit = 240) => getItems({SearchTerm: query, Limit: limit, IncludeItemTypes: 'Movie,Series,Episode'}),
@@ -279,6 +392,13 @@ export const createSiloApi = ({getBaseUrl, getAccount, getProfile, getDeviceInfo
 		getSimilar: async (itemId, limit = 15) => {
 			const answer = await request(`/recommendations/similar/${encodeURIComponent(itemId)}`, {query: {limit}});
 			return result(mapAll(itemsOf(answer)).filter((item) => TITLE_TYPES.includes(siloTypeOf(item))));
+		},
+		// Silo hides a title from Continue Watching only for the resume point it had, which its card names.
+		hideFromResume: async (itemId) => {
+			const card = (await sectionCards('continue_watching') || []).find((c) => c.content_id === itemId);
+			if (!card?.progress_updated_at) throw Object.assign(new Error(`Silo has no resume point for ${itemId} to hide`), {status: 404});
+			await request(`/home/dismissals/continue_watching/${encodeURIComponent(itemId)}`, {method: 'PUT', body: {progress_updated_at: card.progress_updated_at}});
+			[...kept.keys()].filter((key) => key.includes('/sections/')).forEach((key) => kept.delete(key));
 		},
 		getServerInfo: () => ({serverUrl: getBaseUrl(), accessToken: getAccount?.()?.tokens?.accessToken || null, userId: getProfile?.()?.id || null})
 	};

@@ -206,27 +206,36 @@ const playedPercentage = (position, duration) => (position > 0 && typeof duratio
 	? Math.min(100, position / duration * 100)
 	: null);
 
+// Silo only knows whether something was watched, not how often, and a watched item keeps no position.
+const playState = (position, duration, played, lastPlayed) => {
+	const seconds = typeof position === 'number' && position > 0 && !played ? position : 0;
+	return compact({
+		PlaybackPositionTicks: secondsToTicks(seconds),
+		PlayedPercentage: playedPercentage(seconds, duration),
+		PlayCount: played ? 1 : 0,
+		Played: played,
+		LastPlayedDate: lastPlayed
+	});
+};
+
 // Silo spreads what Jellyfin calls user data over user_state, user_data, the card itself and the detail's own rating.
 // Stars are out of 5, and Jellyfin's rating out of 10.
 const userData = (folder, item) => {
 	const state = item.user_state || {};
 	const data = item.user_data || {};
-	const played = state.played === true || data.played === true;
-	const position = data.position_seconds ?? item.position_seconds;
-	const seconds = typeof position === 'number' && position > 0 && !played ? position : 0;
-	const lastPlayed = timestamp(item.progress_updated_at) || timestamp(item.sort_metrics?.viewed_at);
-	const result = {
-		PlaybackPositionTicks: secondsToTicks(seconds),
-		PlayCount: played ? 1 : 0,
+	return {
+		...playState(
+			data.position_seconds ?? item.position_seconds,
+			data.duration_seconds ?? item.duration_seconds,
+			state.played === true || data.played === true,
+			timestamp(item.progress_updated_at) || timestamp(item.sort_metrics?.viewed_at)
+		),
 		IsFavorite: state.is_favorite === true,
-		Played: played
+		...compact({
+			UnplayedItemCount: folder ? int(data.unplayed_count) : null,
+			Rating: typeof item.user_rating === 'number' && item.user_rating > 0 ? item.user_rating * 2 : null
+		})
 	};
-	const percent = playedPercentage(seconds, data.duration_seconds ?? item.duration_seconds);
-	if (percent != null) result.PlayedPercentage = percent;
-	if (folder && typeof data.unplayed_count === 'number') result.UnplayedItemCount = int(data.unplayed_count);
-	if (lastPlayed) result.LastPlayedDate = lastPlayed;
-	if (typeof item.user_rating === 'number' && item.user_rating > 0) result.Rating = item.user_rating * 2;
-	return result;
 };
 
 const CREW_KINDS = {
@@ -617,6 +626,9 @@ export const siloLibrariesToViews = (libraries, baseUrl) => maps(libraries)
 		return a.index - b.index;
 	})
 	.map((entry) => entry.view);
+
+// An entry of Silo's progress list, which Continue Watching reads when the home page has no row for it.
+export const siloProgressToUserData = (entry) => playState(entry?.position_seconds, entry?.duration_seconds, entry?.completed === true, timestamp(entry?.updated_at));
 
 // Silo names genres and studios but gives them no id or artwork, so their cards fall back to their titles' artwork.
 export const siloNamedItem = (name, studio) => ({

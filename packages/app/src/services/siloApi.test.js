@@ -6,6 +6,8 @@ import libraryPage from './__fixtures__/silo/catalog_library_page1.json';
 import movie from './__fixtures__/silo/catalog_item_movie.json';
 import seriesSeasons from './__fixtures__/silo/series_seasons.json';
 import seasonEpisodes from './__fixtures__/silo/season_episodes.json';
+import homeLayout from './__fixtures__/silo/home_layout.json';
+import continueWatching from './__fixtures__/silo/home_continue_watching.json';
 import searchCapabilities from './__fixtures__/silo/search_capabilities.json';
 import person from './__fixtures__/silo/person.json';
 import catalogFilters from './__fixtures__/silo/catalog_filters.json';
@@ -13,6 +15,7 @@ import catalogFilters from './__fixtures__/silo/catalog_filters.json';
 jest.mock('./secureFetch', () => ({corsFreeFetch: jest.fn()}));
 
 const BASE = 'http://silo:8090';
+const CONTINUE_WATCHING = '146552064640566580';
 const account = siloAccount(BASE, 'account-api');
 setSiloTokens(account, {accessToken: 'tok', refreshToken: 'ref', expiresAt: Date.now() + 3600000, lifetimeMs: 3600000});
 
@@ -131,5 +134,49 @@ describe('browsing', () => {
 		const {Items} = await api().getGenres('1', 'Movie');
 		expect(Items[0]).toMatchObject({Name: 'Action', Id: 'silo-genre:Action', Type: 'Genre'});
 		expect(calls()[0].query).toEqual({library_id: '1', type: 'movie'});
+	});
+});
+
+describe('home rows', () => {
+	const home = (extra = {}) => serve({
+		'/home/layout': homeLayout,
+		[`/home/sections/${CONTINUE_WATCHING}/items`]: continueWatching,
+		...extra
+	});
+
+	test('Continue Watching is the section\'s cards that aren\'t Next Up', async () => {
+		home();
+		const {Items} = await api().getResumeItems(10);
+		expect(Items.map((item) => item.Id)).toEqual(['movie-imdb-tt2518788', 'episode-imdb-tt1641384-1-2']);
+		expect(Items[0].UserData.PlaybackPositionTicks).toBeGreaterThan(0);
+	});
+
+	test('Next Up takes the Next Up cards Silo put in Continue Watching', async () => {
+		home();
+		const {Items} = await api().getNextUp(10);
+		expect(Items.map((item) => item.Id)).toEqual(['episode-imdb-tt0472954-17-1', 'episode-imdb-tt14403178-2-5']);
+	});
+
+	test('the Home rows share one read of the layout', async () => {
+		home();
+		const client = api();
+		await Promise.all([client.getResumeItems(), client.getNextUp()]);
+		expect(calls().filter((c) => c.path === '/home/layout')).toHaveLength(1);
+	});
+
+	test('hiding a title from Continue Watching names the resume point its card had', async () => {
+		home({'PUT /home/dismissals/continue_watching/movie-imdb-tt2518788': null});
+		await api().hideFromResume('movie-imdb-tt2518788');
+		expect(calls().find((c) => c.method === 'PUT')).toMatchObject({
+			path: '/home/dismissals/continue_watching/movie-imdb-tt2518788',
+			body: {progress_updated_at: '2026-10-14T20:15:00.000Z'}
+		});
+	});
+
+	test('the newest films sort by when they arrived', async () => {
+		serve({'/user/libraries': libraries, '/settings/values/effective': {items: []}, '/catalog': libraryPage});
+		const latest = await api().getLatest('1', 5);
+		expect(latest).toHaveLength(libraryPage.items.length);
+		expect(calls().find((c) => c.path === '/catalog').query).toMatchObject({library_id: '1', type: 'movie', sort: '-added_at'});
 	});
 });
