@@ -83,3 +83,36 @@ describe('RatingsRow plugin ratings on a surface', () => {
 		}
 	});
 });
+
+describe('RatingsRow sample ratings', () => {
+	const sample = [
+		{source: 'imdb', name: 'IMDb', formatted: '7.8', iconUrl: 'data:image/svg+xml,imdb'},
+		{source: 'tomatoes', name: 'Rotten Tomatoes', formatted: '88%', iconUrl: 'data:image/svg+xml,rt'}
+	];
+
+	afterEach(() => {
+		delete global.fetch;
+	});
+
+	test('stand in for the plugin, in the surface order, without asking the server', () => {
+		global.fetch = jest.fn();
+		const saved = mockSettings.homeRowsMdblistRatingSources;
+		mockSettings.homeRowsMdblistRatingSources = ['tomatoes', 'imdb'];
+		try {
+			render(<RatingsRow item={{...movie, Id: 'm3', ProviderIds: {Tmdb: '603'}}} serverUrl='http://server' surface='homeRows' sampleRatings={sample} />);
+			const values = screen.getAllByRole('img').map((img) => img.getAttribute('alt'));
+			expect(values).toEqual(['Rotten Tomatoes', 'IMDb']);
+			expect(screen.getByText('88%')).toBeTruthy();
+			expect(global.fetch).not.toHaveBeenCalled();
+		} finally {
+			mockSettings.homeRowsMdblistRatingSources = saved;
+		}
+	});
+
+	test('leave the server ratings alone with the plugin off', () => {
+		render(<RatingsRow item={movie} serverUrl='http://server' pluginEnabled={false} sampleRatings={sample} />);
+		expect(screen.queryByText('88%')).toBeNull();
+		expect(screen.getByText('91%')).toBeTruthy();
+		expect(screen.getByText('7.4')).toBeTruthy();
+	});
+});

@@ -16,6 +16,16 @@
 	margin-bottom: (10 * @dp);
 }
 
+// The label only gets what the chips leave, so a big UI scale or a long translation
+// shortens it to nothing before a chip is touched.
+.heading {
+	flex: 1 1 0;
+	min-width: 0;
+	display: flex;
+	align-items: center;
+	overflow: hidden;
+}
+
 .dot {
 	width: (8 * @dp);
 	height: (8 * @dp);
@@ -25,21 +35,31 @@
 }
 
 .label {
-	flex: 1 1 auto;
+	flex: 0 1 auto;
+	min-width: 0;
 	font-size: (12 * @dp);
 	font-weight: 700;
 	letter-spacing: (1.2 * @dp);
 	text-transform: uppercase;
 	color: rgba(255, 255, 255, 0.6);
 	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
 }
 
+// Chips that still don't fit clip on the right, so the first one shows, and a focused one
+// scrolls into view. The padding keeps the focus glow clear of the clip.
 .chips {
 	display: flex;
-	flex-shrink: 0;
+	flex: 0 1 auto;
+	min-width: 0;
+	overflow: hidden;
+	padding: (8 * @dp);
+	margin: (-8 * @dp);
 }
 
 .chip {
+	flex-shrink: 0;
 	margin-left: (6 * @dp);
 	padding: (4 * @dp) (12 * @dp);
 	border-radius: (999 * @dp);
@@ -47,7 +67,14 @@
 	font-size: (12.5 * @dp);
 	font-weight: 600;
 	color: rgba(255, 255, 255, 0.7);
+	white-space: nowrap;
 	cursor: pointer;
+
+	&:focus {
+		outline: none;
+		border-color: rgba(0, 164, 220, 0.72);
+		box-shadow: 0 0 (6 * @dp) (2 * @dp) rgba(0, 164, 220, 0.6);
+	}
 }
 
 .chipSelected {
@@ -56,8 +83,12 @@
 	color: #000000;
 }
 
+:global(.perf-low) .chip:focus {
+	box-shadow: 0 0 0 (2 * @dp) rgba(0, 164, 220, 0.9);
+}
+
 // Narrower than the column on a 1080p layout, so the frame and the inspector both fit
-// its height.
+// its height. At a bigger UI scale useStageWidth narrows it further.
 .frame {
 	position: relative;
 	width: 100%;
@@ -75,6 +106,7 @@
 	border-radius: (18 * @dp);
 	background-color: rgba(255, 255, 255, 0.06);
 	min-height: (96 * @dp);
+	flex-shrink: 0;
 }
 
 .status {

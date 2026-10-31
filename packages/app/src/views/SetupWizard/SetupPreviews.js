@@ -5,18 +5,42 @@
 // real screen's proportions. The artwork comes from the viewer's own library,
 // with drawn stand ins until it arrives.
 
-import {useState, useEffect, useMemo, useRef, useCallback} from 'react';
+import {lazy, Suspense, useState, useEffect, useMemo, useRef, useCallback} from 'react';
 import $L from '@enact/i18n/$L';
 
 import {useSettings} from '../../context/SettingsContext';
 import {useAuth} from '../../context/AuthContext';
+import {useSeerr} from '../../context/SeerrContext';
+import {useServerMessages} from '../../context/ServerMessagesContext';
+import {useAchievements} from '../../context/AchievementsContext';
+import useUserAvatar from '../../hooks/useUserAvatar';
+import LoadingAnimationLayer from '../../components/LoadingAnimation';
+import RatingsRow from '../../components/RatingsRow';
+import {iconViewBox} from '../../components/icons/iconViewBox';
+import {getRtFallbackIcon} from '../../components/icons/rtIcons';
+import {buildDisplayRatings, isMdblistEnabled} from '../../services/mdblistApi';
 import {toCssColor, toRgbTriplet, radiusToCss} from '../../theme/themeSpec';
 import {resolveOverlayColor} from '../../theme/overlayColors';
+import {arrange, countSplit, applyButtonLimit, DETAIL_BUTTONS, DETAIL_ORDER_KEY, DETAIL_HIDDEN_KEY} from '../../utils/buttonLayout';
 import {formatClockTime} from '../../utils/clock';
+import {DETAIL_METADATA, DETAIL_METADATA_ORDER_KEY, DETAIL_METADATA_HIDDEN_KEY} from '../../utils/detailMetadataLayout';
+import {formatFileSize} from '../../utils/formatFileSize';
+import {normalizeRatingStyle} from '../../utils/personalRating';
+import {rootScale} from '../../utils/rootScale';
+import {memoryCache} from '../Browse/browseCache';
 import {genreGlowRgb} from '../Browse/galleryGlow';
+import {DETAIL_ICON_PATHS} from '../Details/detailIcons';
+import {getMediaBadges} from '../Details/detailsMedia';
+import {minimalistScrimAlpha} from '../Details/minimalist/minimalistRules';
+import {splitNouveauActions} from '../Details/nouveau/nouveauActionSplit';
+import {personalRatingIconPath, personalRatingLabel} from '../Details/personalRatingAction';
 import {materialIconPath} from '../Settings/materialIconMap';
+import {ScrubThumbnails} from '../../components/TrickplayPreview/TrickplaySettingsPreview';
 import {getPreviewItems, subscribePreviewItems} from './setupPreviewData';
+import {previewNavButtons} from './previewNavButtons';
 import css from './SetupPreviews.module.less';
+
+const PlayerControlsLayer = lazy(() => import('./PlayerControlsLayer'));
 
 // The logical size a preview screen is laid out at before being scaled down.
 // Measurements inside a preview are the real screen's measurements at this
@@ -35,18 +59,17 @@ const TEXT_SHADOW = '0px 0px 4px rgba(0, 0, 0, 0.54)';
 const LOCAL_ICON_PATHS = {
 	search: 'M784-120 532-372q-30 24-69 38t-83 14q-109 0-184.5-75.5T120-580q0-109 75.5-184.5T380-840q109 0 184.5 75.5T640-580q0 44-14 83t-38 69l252 252-56 56ZM380-400q75 0 127.5-52.5T560-580q0-75-52.5-127.5T380-760q-75 0-127.5 52.5T200-580q0 75 52.5 127.5T380-400Z',
 	chevron_left: 'M560-240 320-480l240-240 56 56-184 184 184 184-56 56Z',
-	pause: 'M560-200v-560h160v560H560Zm-320 0v-560h160v560H240Z',
 	chevron_right: 'M504-480 320-664l56-56 240 240-240 240-56-56 184-184Z',
 	keyboard_arrow_down: 'M480-344 240-584l43-43 197 197 197-197 43 43-240 240Z',
-	translate: 'm475-80 185-480h79L924-80h-65l-45-117H584L539-80h-64ZM162-201l-42-42 201-201q-51-53-85.5-107.5T183-660h65q16 43 43.5 85t72.5 88q46-48 85-117.5T505-740H40v-60h290v-80h60v80h290v60H567q-17 78-61.5 159.5T406-443l102 104-24 63-121-125-201 200Zm443-51h188l-94-248-94 248Z',
-	more_horiz: 'M240-400q-33 0-56.5-23.5T160-480q0-33 23.5-56.5T240-560q33 0 56.5 23.5T320-480q0 33-23.5 56.5T240-400Zm240 0q-33 0-56.5-23.5T400-480q0-33 23.5-56.5T480-560q33 0 56.5 23.5T560-480q0 33-23.5 56.5T480-400Zm240 0q-33 0-56.5-23.5T640-480q0-33 23.5-56.5T720-560q33 0 56.5 23.5T800-480q0 33-23.5 56.5T720-400Z'
+	translate: 'm475-80 185-480h79L924-80h-65l-45-117H584L539-80h-64ZM162-201l-42-42 201-201q-51-53-85.5-107.5T183-660h65q16 43 43.5 85t72.5 88q46-48 85-117.5T505-740H40v-60h290v-80h60v80h290v60H567q-17 78-61.5 159.5T406-443l102 104-24 63-121-125-201 200Zm443-51h188l-94-248-94 248Z'
 };
 
-const MIcon = ({name, size, color, style}) => {
-	const path = LOCAL_ICON_PATHS[name] || materialIconPath(name);
+// [path] draws one of the real screens' own glyphs in place of a named one.
+const MIcon = ({name, path: given, size, color, style}) => {
+	const path = given || LOCAL_ICON_PATHS[name] || materialIconPath(name);
 	if (!path) return null;
 	return (
-		<svg width={size} height={size} viewBox='0 -960 960 960' style={style} aria-hidden='true' focusable='false'>
+		<svg width={size} height={size} viewBox={given ? iconViewBox(given) : '0 -960 960 960'} style={style} aria-hidden='true' focusable='false'>
 			<path d={path} fill={color} />
 		</svg>
 	);
@@ -70,6 +93,7 @@ export const usePreviewPalette = () => {
 		const overlayOpacity = Math.min(100, Math.max(0, Number(settings.mediaBarOverlayOpacity != null ? settings.mediaBarOverlayOpacity : 50))) / 100;
 		const navbarHex = resolveOverlayColor(settings.navbarColor) || '#6B7280';
 		const navbarOpacity = Math.min(100, Math.max(0, Number(settings.navbarOpacity != null ? settings.navbarOpacity : 50))) / 100;
+		const navbarOverlay = withAlpha(navbarHex, navbarOpacity);
 		const navCycle = activeTheme.navColorCycle || [];
 		return {
 			background: toCssColor(colors.background),
@@ -83,7 +107,10 @@ export const usePreviewPalette = () => {
 			backgroundA: (a) => withAlpha(colors.background, a),
 			surfaceA: (a) => withAlpha(colors.surface, a),
 			overlayA: (a) => withAlpha(overlayHex, a * overlayOpacity),
-			navbarSurface: withAlpha(navbarHex, navbarOpacity),
+			// The rail wears the navbar color on every theme, and only the top bar clears it for
+			// a theme asking for a transparent nav surface, the same as the real ones.
+			navbarRail: navbarOverlay,
+			navbarSurface: activeTheme.transparentNavbarSurface ? 'transparent' : navbarOverlay,
 			navColorForSlot: (slot) => (navCycle.length > 0 ? toCssColor(navCycle[slot % navCycle.length]) : null),
 			cardRadius: radiusToCss(activeTheme.borders.cardRadius),
 			cardRadiusRing: grownRadius(activeTheme.borders.cardRadius, 3.5),
@@ -144,7 +171,7 @@ const PreviewScreen = ({children}) => {
 	const [ref, scale] = useFitScale(DESIGN_W, 0);
 	return (
 		<div ref={ref} className={css.screenOuter}>
-			<div className={css.screenInner} style={{transform: `scale(${scale})`, backgroundColor: t.background}}>
+			<div className={css.screenInner} style={{width: DESIGN_W, height: DESIGN_H, transform: `scale(${scale})`, backgroundColor: t.background}}>
 				{children}
 			</div>
 		</div>
@@ -226,21 +253,70 @@ const LogoOrTitle = ({item, width, height, alignment = 'bottomLeft', fallbackSty
 	);
 };
 
-const CommunityRating = ({item, t}) => {
-	if (item.communityRating == null) return null;
+// Fixed scores for every source the plugin sends, so the ratings draw without asking the
+// server. Rotten Tomatoes is the only source with an icon in the app itself, so the others
+// wear a tile in their own color where the plugin would serve their logo.
+const SAMPLE_SCORES = [
+	{source: 'imdb', value: 7.8, score: 78},
+	{source: 'tmdb', score: 76},
+	{source: 'trakt', score: 81},
+	{source: 'tomatoes', score: 91},
+	{source: 'tomatoes_audience', score: 88},
+	{source: 'metacritic', score: 74},
+	{source: 'metacriticuser', score: 71},
+	{source: 'letterboxd', value: 3.9},
+	{source: 'rogerebert', value: 3.5},
+	{source: 'myanimelist', value: 8.1}
+];
+
+const SOURCE_MARKS = {imdb: 'IMDb', tmdb: 'TMDB', trakt: 'Trakt', tomatoes_audience: 'RT', metacritic: 'MC', metacriticuser: 'MC', letterboxd: 'LB', rogerebert: 'RE', myanimelist: 'MAL'};
+
+const sourceTile = ({source, color, textColor}) => {
+	const mark = SOURCE_MARKS[source];
+	const width = 12 + mark.length * 9;
+	return 'data:image/svg+xml,' + encodeURIComponent(
+		`<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="24" viewBox="0 0 ${width} 24">` +
+		`<rect width="${width}" height="24" rx="5" fill="${color}"/>` +
+		`<text x="${width / 2}" y="16.5" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="13" font-weight="700" fill="${textColor}">${mark}</text>` +
+		'</svg>'
+	);
+};
+
+const SAMPLE_RATINGS = buildDisplayRatings(SAMPLE_SCORES, '').map((rating) => ({
+	...rating,
+	iconUrl: rating.source === 'tomatoes' ? getRtFallbackIcon(rating.score) : sourceTile(rating)
+}));
+
+// The viewer's own score on the sample, which a liked thumb also reads from.
+const SAMPLE_USER_DATA = {Rating: 8};
+
+// The real ratings row on the sample scores. [surface] picks whose ratings settings it follows,
+// and [zoom] is the share of the TV's size the surrounding preview is drawn at, since the row
+// sizes itself for the full screen.
+const PreviewRatings = ({item, surface, zoom = 0.5, ...rest}) => {
+	const {settings} = useSettings();
+	const rated = useMemo(() => ({
+		Id: 'preview',
+		Type: 'Movie',
+		CommunityRating: item.communityRating,
+		UserData: SAMPLE_USER_DATA
+	}), [item.communityRating]);
 	return (
-		<div style={{display: 'flex', alignItems: 'center'}}>
-			<MIcon name='star' size={16} color='#FFC107' />
-			<div style={{marginLeft: 4, fontSize: 14, fontWeight: 700, color: t.onSurface}}>
-				{item.communityRating.toFixed(1)}
-			</div>
+		<div style={{zoom: zoom / rootScale()}}>
+			<RatingsRow
+				{...rest}
+				item={rated}
+				surface={surface}
+				sampleRatings={SAMPLE_RATINGS}
+				pluginEnabled={isMdblistEnabled(settings, surface)}
+			/>
 		</div>
 	);
 };
 
-const MetadataWrap = ({item, t}) => {
+// [parts] replaces the item's usual facts, for a screen that arranges its own.
+const MetadataWrap = ({item, t, parts = metaParts(item)}) => {
 	const style = {fontSize: 12, fontWeight: 600, color: t.onSurfaceA(0.9)};
-	const parts = metaParts(item);
 	const children = [];
 	for (let i = 0; i < parts.length; i++) {
 		if (i > 0) children.push(<span key={`sep${i}`} style={style}>{' • '}</span>);
@@ -402,7 +478,7 @@ const FocusedRowCard = ({item, posterHeight, t}) => {
 			)}
 			<div style={{position: 'relative', width, height: 76, marginTop: 4}}>
 				<div style={{position: 'absolute', left: 0, top: 0, width: width * 2.4}}>
-					<CommunityRating item={item} t={t} />
+					<PreviewRatings item={item} surface='homeRows' compact singleLineWidth={width * 2.4} zoom={0.5 * ROW_SCALE} />
 					{item.overview && (
 						<div style={{marginTop: 4, fontSize: 12, lineHeight: 1.4, color: t.onSurfaceA(0.7), textShadow: TEXT_SHADOW, ...clampLines(3)}}>
 							{item.overview}
@@ -453,7 +529,9 @@ const HomeRowsColumn = ({items, t, modern, focusFirst = false, rowGapOverride}) 
 	const sizeScale = POSTER_SIZE_SCALE[settings.homeRowsPosterSize] || 1;
 	const posterHeight = (modern ? 240 : 150) * ROW_SCALE * sizeScale;
 	const thumbHeight = 110 * ROW_SCALE * sizeScale;
-	const rowGap = rowGapOverride != null ? rowGapOverride : (modern ? 60 : 18);
+	// Expanded Rows gives each row a screen of its own, so the next one starts below the frame.
+	let rowGap = rowGapOverride != null ? rowGapOverride : (modern ? 60 : 18);
+	if (settings.fullScreenRows === true) rowGap = DESIGN_H;
 	const first = items[0];
 	return (
 		<div style={{paddingLeft: ROW_LEFT_INSET - 16, paddingTop: 16}}>
@@ -468,6 +546,9 @@ const HomeRowsColumn = ({items, t, modern, focusFirst = false, rowGapOverride}) 
 						</div>
 						<div style={{marginTop: 6}}>
 							<MetadataWrap item={first} t={t} />
+						</div>
+						<div style={{marginTop: 6}}>
+							<PreviewRatings item={first} surface='homeRows' inline />
 						</div>
 						{first.overview && (
 							<div style={{marginTop: 8, fontSize: 13, lineHeight: 1.4, color: t.onSurfaceA(0.7), ...clampLines(2)}}>
@@ -512,6 +593,7 @@ const MoonfinBar = ({items, t}) => {
 			<div style={{position: 'absolute', left: 0, right: 0, bottom: 0, padding: '0 24px 36px 24px'}}>
 				<div style={{padding: '12px 16px', backgroundColor: t.overlayA(0.75), borderRadius: 16, border: t.cardBorder}}>
 					<MetadataWrap item={item} t={t} />
+					<PreviewRatings item={item} surface='mediaBar' compact />
 					{item.overview && (
 						<div style={{marginTop: 8, fontSize: 14, lineHeight: 1.4, color: t.onSurfaceA(0.9), ...clampLines(3)}}>
 							{item.overview}
@@ -520,7 +602,7 @@ const MoonfinBar = ({items, t}) => {
 				</div>
 			</div>
 			<div style={{position: 'absolute', left: 0, right: 0, bottom: 8, display: 'flex', justifyContent: 'center'}}>
-				<div style={{padding: '6px 12px', backgroundColor: t.overlayA(0.6), borderRadius: 12}}>
+				<div style={{padding: '6px 12px', backgroundColor: t.scrimA(0.55), borderRadius: 12}}>
 					<Dots count={5} active={10} inactive={8} inactiveAlpha={0.5} t={t} />
 				</div>
 			</div>
@@ -540,18 +622,7 @@ const MakdBar = ({items, t}) => {
 	return (
 		<div style={{position: 'relative', width: '100%', height: '100%'}}>
 			<Artwork url={item.backdropUrl} t={t} />
-			<div
-				style={{
-					...ABS_FILL,
-					background: `linear-gradient(to right, ${t.overlayA(0.78)} 0%, ${t.overlayA(0.46)} 46%, ${t.overlayA(0.06)} 100%)`
-				}}
-			/>
-			<div
-				style={{
-					...ABS_FILL,
-					background: `linear-gradient(to bottom, ${t.overlayA(0.12)} 0%, ${t.overlayA(0.28)} 48%, ${t.overlayA(0.78)} 100%)`
-				}}
-			/>
+			<div style={{...ABS_FILL, backgroundColor: 'rgba(0, 0, 0, 0.64)'}} />
 			<div style={{position: 'absolute', left: 50, top: DESIGN_H * 0.22}}>
 				<LogoOrTitle
 					item={item}
@@ -562,6 +633,7 @@ const MakdBar = ({items, t}) => {
 			</div>
 			<div style={{position: 'absolute', left: 50, bottom: 20, width: contentWidth}}>
 				<MetadataWrap item={item} t={t} />
+				<PreviewRatings item={item} surface='mediaBar' compact />
 				{item.overview && (
 					<div style={{marginTop: 10, fontSize: 14, lineHeight: 1.38, color: t.onSurfaceA(0.88), ...clampLines(3)}}>
 						{item.overview}
@@ -763,6 +835,7 @@ const GalleryBar = ({items, t}) => {
 										<GalleryBadge key={genre} text={genre} tinted t={t} />
 									))}
 								</div>
+								<PreviewRatings item={active} surface='mediaBar' compact />
 								{active.overview && (
 									<div style={{marginTop: 14, fontSize: 16, lineHeight: 1.45, color: t.onSurfaceA(0.9), ...clampLines(3)}}>
 										{active.overview}
@@ -808,6 +881,7 @@ const BannerBar = ({items, t}) => {
 						<div style={{marginTop: 6, fontSize: 12, fontWeight: 600, color: t.onSurfaceA(0.75)}}>
 							{parts.join('  ·  ')}
 						</div>
+						<PreviewRatings item={item} surface='mediaBar' compact />
 					</div>
 					<div style={{position: 'absolute', top: 12, right: 16}}>
 						<Dots count={5} active={16} inactive={6} inactiveAlpha={0.4} gap={2} pillActive t={t} />
@@ -856,23 +930,32 @@ const AyaBar = ({items, t}) => {
 // Navbar positions
 // ---------------------------------------------------------------------------
 
-const NAV_ICONS = ['home', 'search', 'shuffle', 'favorite', 'video_library', 'settings'];
-
 const navIconColor = (t, slot) => t.navColorForSlot(slot) || t.onSurfaceA(0.6);
 
-const NavAvatar = ({name}) => {
+// The real button's icon, which fills and colors itself from the style it's handed.
+const NavButtonIcon = ({button, color, size = 24}) => {
+	const Icon = button.Icon;
+	return <Icon style={{width: size, height: size, fill: color, color, flexShrink: 0}} />;
+};
+
+// The signed in user's picture where the real navbar shows one, else their initial.
+const NavAvatar = ({name, size = 40}) => {
+	const {avatarUrl, onError} = useUserAvatar();
+	if (avatarUrl) {
+		return <img src={avatarUrl} alt='' onError={onError} style={{width: size, height: size, borderRadius: '50%', objectFit: 'cover', opacity: 0.85, display: 'block'}} />;
+	}
 	const initial = name ? name.charAt(0).toUpperCase() : '?';
 	return (
 		<div
 			style={{
-				width: 40,
-				height: 40,
+				width: size,
+				height: size,
 				borderRadius: '50%',
 				backgroundColor: 'rgba(255, 255, 255, 0.1)',
 				display: 'flex',
 				alignItems: 'center',
 				justifyContent: 'center',
-				fontSize: 16,
+				fontSize: size * 0.4,
 				fontWeight: 600,
 				color: '#FFFFFF'
 			}}
@@ -882,81 +965,122 @@ const NavAvatar = ({name}) => {
 	);
 };
 
-const NAV_LABELS = {
-	home: () => $L('Home'),
-	search: () => $L('Search'),
-	shuffle: () => $L('Shuffle'),
-	favorite: () => $L('Favorites'),
-	video_library: () => $L('Libraries'),
-	settings: () => $L('Settings')
-};
-
-// The buttons the navbar shows with the shuffle and favorites switches applied.
-const useNavButtons = () => {
+// The buttons the real navbar or [rail] draws for these settings. Live TV only shows when the
+// shell says there's a library for it, and the libraries are the ones home already loaded.
+const useNavButtons = (rail, hasLiveTv) => {
 	const {settings} = useSettings();
-	return NAV_ICONS.filter((name) => (
-		(name !== 'shuffle' || settings.showShuffleButton !== false) &&
-		(name !== 'favorite' || settings.showFavoritesButton !== false)
-	));
+	const {serverType} = useAuth();
+	const seerr = useSeerr();
+	const {messages} = useServerMessages();
+	const {socialAvailable} = useAchievements();
+	return previewNavButtons({
+		settings,
+		rail,
+		hasLiveTv,
+		seerrEnabled: seerr.isEnabled,
+		seerrLabel: seerr.displayName,
+		serverType,
+		hasMessages: messages.length > 0,
+		socialAvailable,
+		libraries: memoryCache.libraries
+	});
 };
 
-const NavbarRows = ({items, t, topInset = 12, modern = true}) => (
+const NavbarRows = ({items, t, topInset = 12, modern = true, focusFirst = false}) => (
 	<div style={{flex: '1 1 auto', overflow: 'hidden', paddingTop: topInset}}>
-		<HomeRowsColumn items={items} t={t} modern={modern} rowGapOverride={24} />
+		<HomeRowsColumn items={items} t={t} modern={modern} focusFirst={focusFirst} rowGapOverride={24} />
 	</div>
 );
 
 // The toolbar draws no band of its own. An avatar sits on the left, the
 // buttons live in one translucent pill in the middle, and the clock keeps the
-// right, all floating straight over the content.
-const TopNavbarPreview = ({items, t, userName, modern}) => {
+// right, all floating straight over the content. Everything is drawn at half the real
+// bar's size, since the design screen is half of 1920, and the pill stops at the real one's
+// 1400px cap and clips where the real one scrolls.
+const TopNavbarPreview = ({items, t, userName, modern, focusFirst, hasLiveTv}) => {
 	const {settings} = useSettings();
-	const buttons = useNavButtons();
+	const buttons = useNavButtons(false, hasLiveTv);
 	const expanded = !!settings.navbarAlwaysExpanded;
 	const clock = settings.showClock === false ? null : formatClockTime(new Date(), settings.clockDisplay);
 	return (
 		<div style={{width: '100%', height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden'}}>
-			<div style={{height: 95, flexShrink: 0, padding: '27px 48px', position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center'}}>
-				<div style={{position: 'absolute', left: 48, top: '50%', transform: 'translateY(-50%)'}}>
-					<NavAvatar name={userName} />
+			<div style={{height: 95, flexShrink: 0, padding: '27px 24px', position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center'}}>
+				<div style={{position: 'absolute', left: 24, top: '50%', transform: 'translateY(-50%)'}}>
+					<NavAvatar name={userName} size={32} />
 				</div>
-				<div style={{backgroundColor: t.navbarSurface, borderRadius: 36, display: 'flex'}}>
-					{buttons.map((name, i) => (
-						<div key={name} style={{minWidth: 44, height: 44, padding: expanded ? '0 12px' : 0, boxSizing: 'border-box', display: 'flex', alignItems: 'center', justifyContent: 'center'}}>
-							<MIcon name={name} size={24} color={navIconColor(t, i)} />
+				<div style={{backgroundColor: t.navbarSurface, borderRadius: 36, display: 'flex', maxWidth: 700, overflow: 'hidden'}}>
+					{buttons.map((button, i) => (
+						<div key={button.id} style={{minWidth: 35, height: 35, marginLeft: i === 0 ? 0 : 1, padding: expanded ? '0 12px' : 0, boxSizing: 'border-box', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center'}}>
+							<NavButtonIcon button={button} color={navIconColor(t, i)} size={18} />
 							{expanded && (
-								<span style={{marginLeft: 8, fontSize: 14, fontWeight: 600, whiteSpace: 'nowrap', color: t.onSurfaceA(0.8)}}>
-									{NAV_LABELS[name]()}
+								<span style={{marginLeft: 5, fontSize: 11, fontWeight: 600, whiteSpace: 'nowrap', color: t.onSurfaceA(0.8)}}>
+									{button.label}
 								</span>
 							)}
 						</div>
 					))}
 				</div>
 				{clock && (
-					<div style={{position: 'absolute', right: 48, top: '50%', transform: 'translateY(-50%)', fontSize: 14, fontWeight: 600, color: t.onSurfaceA(0.8)}}>
+					<div style={{position: 'absolute', right: 24, top: '50%', transform: 'translateY(-50%)', fontSize: 14, fontWeight: 600, color: t.onSurfaceA(0.8)}}>
 						{clock}
 					</div>
 				)}
 			</div>
-			<NavbarRows items={items} t={t} modern={modern} />
+			<NavbarRows items={items} t={t} modern={modern} focusFirst={focusFirst} />
 		</div>
 	);
 };
 
 // The collapsed rail is a bare gutter of icons with no backdrop, so the
-// preview keeps it transparent too and just moves the rows over.
-const LeftNavbarPreview = ({items, t, modern}) => {
-	const buttons = useNavButtons();
+// preview keeps it transparent too and just moves the rows over. [open] draws
+// it the way focus opens it over the page, labeled and in the navbar color.
+// Like the real rail, the user keeps the top and the clock the bottom, the
+// buttons center between them, and a list too long to fit runs off the bottom
+// rather than over the user. The clock only shows while the rail is open, though
+// its room is kept either way.
+const LeftNavbarPreview = ({items, t, userName, modern, open = false, focusFirst, hasLiveTv}) => {
+	const {settings} = useSettings();
+	const buttons = useNavButtons(true, hasLiveTv);
+	const clock = settings.showClock === false ? null : formatClockTime(new Date(), settings.clockDisplay);
 	return (
-		<div style={{width: '100%', height: '100%', display: 'flex', overflow: 'hidden'}}>
-			<div style={{width: 72, flexShrink: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center'}}>
-				{buttons.map((name, i) => (
-					<div key={name} style={{height: 40, display: 'flex', alignItems: 'center', justifyContent: 'center'}}>
-						<MIcon name={name} size={24} color={navIconColor(t, i)} />
+		<div style={{position: 'relative', width: '100%', height: '100%', display: 'flex', overflow: 'hidden'}}>
+			<div style={{width: 72, flexShrink: 0}} />
+			<NavbarRows items={items} t={t} topInset={24} modern={modern} focusFirst={focusFirst} />
+			<div
+				style={{
+					position: 'absolute',
+					top: 0,
+					bottom: 0,
+					left: 0,
+					width: open ? 240 : 72,
+					background: open ? `linear-gradient(to right, ${t.navbarRail} 0%, ${t.navbarRail} 94%, transparent 100%)` : 'none',
+					display: 'flex',
+					flexDirection: 'column'
+				}}
+			>
+				<div style={{flexShrink: 0, padding: '12px 0 6px 23px'}}>
+					<NavAvatar name={userName} size={26} />
+				</div>
+				<div style={{flex: '1 1 auto', minHeight: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column'}}>
+					<div style={{flexShrink: 0, margin: 'auto 0'}}>
+						{buttons.map((button, i) => (
+							<div key={button.id} style={{height: 40, paddingLeft: 24, display: 'flex', alignItems: 'center'}}>
+								<NavButtonIcon button={button} color={navIconColor(t, i)} />
+								{open && (
+									<span style={{marginLeft: 14, fontSize: 14, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', color: t.onSurfaceA(0.8)}}>
+										{button.label}
+									</span>
+								)}
+							</div>
+						))}
 					</div>
-				))}
+				</div>
+				{clock && (
+					<div style={{flexShrink: 0, padding: '8px 0 10px', textAlign: 'center', fontSize: 9, fontWeight: 500, whiteSpace: 'nowrap', color: 'rgba(255, 255, 255, 0.5)', opacity: open ? 1 : 0}}>
+						{clock}
+					</div>
+				)}
 			</div>
-			<NavbarRows items={items} t={t} topInset={24} modern={modern} />
 		</div>
 	);
 };
@@ -965,10 +1089,100 @@ const LeftNavbarPreview = ({items, t, modern}) => {
 // Detail screen styles
 // ---------------------------------------------------------------------------
 
-const DetailActionTile = ({icon, label, t}) => (
+// The facts under a details title, in the order the Metadata Row setting puts them with the
+// hidden ones left out. The sample is a film, so a series' status, upcoming episodes and Seerr
+// availability have nothing to add.
+const detailMeta = (item, settings) => arrange(DETAIL_METADATA, {
+	order: settings[DETAIL_METADATA_ORDER_KEY],
+	hidden: settings[DETAIL_METADATA_HIDDEN_KEY]
+}).map(({id}) => {
+	if (id === 'year') return item.year ? {id, text: String(item.year)} : null;
+	if (id === 'parentalRating') return item.officialRating ? {id, text: item.officialRating} : null;
+	if (id === 'runtimeAndSeasons') return item.runtimeMinutes ? {id, text: runtimeText(item.runtimeMinutes)} : null;
+	if (id === 'genres') return item.genres.length > 0 ? {id, text: item.genres.slice(0, 3).join(' · ')} : null;
+	return null;
+}).filter(Boolean);
+
+// A 4K HDR film with surround sound, labeled by the same helper the details screen uses.
+const SAMPLE_MEDIA = {MediaSources: [{Container: 'mkv', MediaStreams: [
+	{Type: 'Video', Width: 3840, VideoRangeType: 'HDR10', Codec: 'hevc'},
+	{Type: 'Audio', Channels: 6, Codec: 'eac3'}
+]}]};
+const SAMPLE_FILE_BYTES = 26.4 * 1024 * 1024 * 1024;
+
+const detailTech = (settings) => (settings.detailShowTechnicalDetails
+	? {badges: getMediaBadges(SAMPLE_MEDIA), size: formatFileSize(SAMPLE_FILE_BYTES)}
+	: null);
+
+// The styles after Classic read Background Blur as how far the artwork is darkened, on the
+// same curve the details screens use.
+const detailWash = (settings) => {
+	const factor = Math.min(1, Math.max(0, Number(settings.backdropBlurDetail ?? 20) / 25));
+	return {alpha: factor * 0.8, gradientScale: 0.3 + 0.7 * factor};
+};
+
+// The buttons a film offers someone who can't manage the library. Kept in the row's own
+// declaration order, which is where `arrange` puts anything the viewer never placed.
+const SAMPLE_ACTION_LOOKS = {
+	subtitles: () => ({path: DETAIL_ICON_PATHS.subtitle, label: $L('Subtitle')}),
+	trailer: () => ({path: DETAIL_ICON_PATHS.trailer, label: $L('Trailer')}),
+	watched: () => ({path: DETAIL_ICON_PATHS.watched, label: $L('Mark as Watched')}),
+	favorite: () => ({path: DETAIL_ICON_PATHS.favorite, label: $L('Favorite')}),
+	personalRating: (settings) => {
+		const style = normalizeRatingStyle(settings.personalRatingStyle);
+		return {path: personalRatingIconPath(style, SAMPLE_USER_DATA), label: personalRatingLabel(style, SAMPLE_USER_DATA)};
+	},
+	playlist: () => ({path: DETAIL_ICON_PATHS.playlist, label: $L('Add to Playlist')})
+};
+const SAMPLE_ACTIONS = DETAIL_BUTTONS.filter((button) => SAMPLE_ACTION_LOOKS[button.id]);
+
+// The film's buttons after Play in the viewer's order, split the way [variant]'s row splits
+// them. Spotlight and Minimalist cap the row at five, Nouveau keeps its own short rule, and
+// Classic and Modern only fold anything away once the viewer sets a count.
+const detailActions = (variant, settings) => {
+	const offered = arrange(SAMPLE_ACTIONS, {order: settings[DETAIL_ORDER_KEY], hidden: settings[DETAIL_HIDDEN_KEY]});
+	const prefLimit = settings.detailButtonsMaxVisible ?? 0;
+	let inline = offered;
+	let more = false;
+	if (variant === 'v4') {
+		const split = splitNouveauActions(offered, prefLimit);
+		inline = split.inline;
+		more = split.overflow.length > 0;
+	} else {
+		const capped = variant === 'v3' || variant === 'v5';
+		const {visibleCount, needsOverflow} = countSplit({
+			totalButtons: 1 + offered.length,
+			...applyButtonLimit(prefLimit, {maxVisible: capped ? 5 : 0, overflowAsMenu: capped, countCapped: capped})
+		});
+		if (needsOverflow) {
+			inline = offered.slice(0, Math.max(0, visibleCount - 1));
+			more = true;
+		}
+	}
+	return {inline: inline.map((button) => ({id: button.id, ...SAMPLE_ACTION_LOOKS[button.id](settings)})), more};
+};
+
+const TechChip = ({text}) => (
+	<span style={{padding: '2px 7px', marginRight: 6, marginTop: 4, borderRadius: 4, border: '1px solid rgba(255, 255, 255, 0.3)', fontSize: 10, fontWeight: 600, color: 'rgba(255, 255, 255, 0.8)'}}>
+		{text}
+	</span>
+);
+
+// The size then the chips, or with [sizeAsChip] the size as the last chip the way Nouveau
+// draws it.
+const TechRow = ({tech, t, sizeAsChip = false}) => (
+	<div style={{marginTop: 6, display: 'flex', flexWrap: 'wrap', alignItems: 'center'}}>
+		{!sizeAsChip && <span style={{marginTop: 4, fontSize: 12, fontWeight: 700, color: t.onSurfaceA(0.75)}}>{tech.size}</span>}
+		{!sizeAsChip && <span style={{margin: '4px 7px 0', fontSize: 12, color: t.onSurfaceA(0.5)}}>{'·'}</span>}
+		{tech.badges.map((badge, i) => <TechChip key={i} text={badge.label} />)}
+		{sizeAsChip && <TechChip text={tech.size} />}
+	</div>
+);
+
+const DetailActionTile = ({path, label, t}) => (
 	<div style={{width: 108, display: 'flex', flexDirection: 'column', alignItems: 'center', marginBottom: 12}}>
 		<div style={{width: 58, height: 58, backgroundColor: 'rgba(255, 255, 255, 0.08)', borderRadius: 15, display: 'flex', alignItems: 'center', justifyContent: 'center'}}>
-			<MIcon name={icon} size={27} color={t.onSurface} />
+			<MIcon path={path} size={27} color={t.onSurface} />
 		</div>
 		<div style={{marginTop: 8, fontSize: 11, fontWeight: 600, color: t.onSurface, textAlign: 'center', ...clampLines(2)}}>
 			{label}
@@ -990,15 +1204,16 @@ const CastPlaceholderRow = ({t, avatarRadius}) => {
 };
 
 const ClassicDetail = ({items, t}) => {
+	const {settings} = useSettings();
 	const item = items[0];
+	const tech = detailTech(settings);
+	const {inline, more} = detailActions('v1', settings);
 	const actions = [
-		['play_arrow', $L('Play')],
-		['shuffle', $L('Shuffle')],
-		['subtitles', $L('Subtitles')],
-		['check', $L('Watched')],
-		['favorite', $L('Favorite')],
-		['more_horiz', $L('More')]
+		{id: 'play', path: DETAIL_ICON_PATHS.play, label: $L('Play')},
+		...inline,
+		...(more ? [{id: 'more', path: DETAIL_ICON_PATHS.admin, label: $L('More')}] : [])
 	];
+	const blur = Number(settings.backdropBlurDetail ?? 20);
 	const morePosters = [];
 	for (let i = 1; i < 8; i++) {
 		morePosters.push(
@@ -1014,8 +1229,9 @@ const ClassicDetail = ({items, t}) => {
 	}
 	return (
 		<div style={{position: 'relative', width: '100%', height: '100%'}}>
-			{item.backdropUrl && (
-				<Artwork url={item.backdropUrl} imgStyle={{filter: 'blur(10px)', WebkitFilter: 'blur(10px)'}} t={t} />
+			{settings.detailsBackdropEnabled !== false && item.backdropUrl && (
+				// The preview is drawn at half the TV's size, so the blur is halved with it.
+				<Artwork url={item.backdropUrl} imgStyle={blur > 0 ? {filter: `blur(${blur / 2}px)`, WebkitFilter: `blur(${blur / 2}px)`} : null} t={t} />
 			)}
 			<div
 				style={{
@@ -1033,10 +1249,15 @@ const ClassicDetail = ({items, t}) => {
 							fallbackStyle={{fontSize: 32, fontWeight: 700, color: '#FFFFFF', textShadow: TEXT_SHADOW}}
 						/>
 						<div style={{marginTop: 12}}>
-							<MetadataWrap item={item} t={t} />
+							<MetadataWrap item={item} parts={[...(tech ? [tech.size] : []), ...detailMeta(item, settings).map((piece) => piece.text)]} t={t} />
 						</div>
+						{tech && (
+							<div style={{display: 'flex', flexWrap: 'wrap'}}>
+								{tech.badges.map((badge, i) => <TechChip key={i} text={badge.label} />)}
+							</div>
+						)}
 						<div style={{marginTop: 8}}>
-							<CommunityRating item={item} t={t} />
+							<PreviewRatings item={item} />
 						</div>
 						{item.overview && (
 							<div style={{marginTop: 8, fontSize: 14, lineHeight: 1.4, color: 'rgba(255, 255, 255, 0.8)', textShadow: TEXT_SHADOW, ...clampLines(4)}}>
@@ -1050,9 +1271,9 @@ const ClassicDetail = ({items, t}) => {
 					</div>
 				</div>
 				<div style={{display: 'flex', flexWrap: 'wrap', justifyContent: 'center'}}>
-					{actions.map(([icon, label]) => (
-						<div key={icon} style={{marginLeft: 4, marginRight: 4}}>
-							<DetailActionTile icon={icon} label={label} t={t} />
+					{actions.map((action) => (
+						<div key={action.id} style={{marginLeft: 4, marginRight: 4}}>
+							<DetailActionTile path={action.path} label={action.label} t={t} />
 						</div>
 					))}
 				</div>
@@ -1089,7 +1310,7 @@ const PillTab = ({label, t, selected = false}) => (
 	</div>
 );
 
-const CircleButton = ({icon, t}) => (
+const CircleButton = ({path, t}) => (
 	<div
 		style={{
 			width: 52,
@@ -1103,26 +1324,31 @@ const CircleButton = ({icon, t}) => (
 			justifyContent: 'center'
 		}}
 	>
-		<MIcon name={icon} size={24} color={t.onSurface} />
+		<MIcon path={path} size={24} color={t.onSurface} />
 	</div>
 );
 
+// The row's buttons after Play, and More when the rest fold away.
+const ActionCircles = ({actions, t}) => (
+	<>
+		{actions.inline.map((action) => <CircleButton key={action.id} path={action.path} t={t} />)}
+		{actions.more && <CircleButton path={DETAIL_ICON_PATHS.moreHoriz} t={t} />}
+	</>
+);
+
 const ModernDetail = ({items, t}) => {
+	const {settings} = useSettings();
 	const item = items[0];
-	const gradientScale = 0.58;
+	const {alpha, gradientScale} = detailWash(settings);
+	const tech = detailTech(settings);
+	const expandedTabs = !!settings.detailExpandedTabs;
 	const metaStyle = {fontSize: 14, color: t.onSurfaceA(0.75)};
-	const metaChildren = [];
-	if (item.year) metaChildren.push(<span key='year' style={metaStyle}>{item.year}</span>);
-	if (item.officialRating) metaChildren.push(<span key='rating' style={metaStyle}>{item.officialRating}</span>);
-	if (item.runtimeMinutes) {
-		metaChildren.push(
-			<span key='runtime' style={{...metaStyle, display: 'inline-flex', alignItems: 'center'}}>
-				<MIcon name='schedule' size={14} color={t.onSurfaceA(0.75)} style={{marginRight: 4}} />
-				{runtimeText(item.runtimeMinutes)}
-			</span>
-		);
-	}
-	if (item.genres.length > 0) metaChildren.push(<span key='genres' style={metaStyle}>{item.genres.slice(0, 3).join(' · ')}</span>);
+	const metaChildren = detailMeta(item, settings).map((piece) => (
+		<span key={piece.id} style={{...metaStyle, display: 'inline-flex', alignItems: 'center'}}>
+			{piece.id === 'runtimeAndSeasons' && <MIcon name='schedule' size={14} color={t.onSurfaceA(0.75)} style={{marginRight: 4}} />}
+			{piece.text}
+		</span>
+	));
 	const meta = [];
 	for (let i = 0; i < metaChildren.length; i++) {
 		if (i > 0) meta.push(<span key={`dot${i}`} style={{...metaStyle, margin: '0 8px'}}>{'·'}</span>);
@@ -1131,7 +1357,7 @@ const ModernDetail = ({items, t}) => {
 	return (
 		<div style={{position: 'relative', width: '100%', height: '100%'}}>
 			<Artwork url={item.backdropUrl} position='right center' t={t} />
-			<div style={{...ABS_FILL, backgroundColor: 'rgba(0, 0, 0, 0.32)'}} />
+			<div style={{...ABS_FILL, backgroundColor: `rgba(0, 0, 0, ${alpha})`}} />
 			<div
 				style={{
 					...ABS_FILL,
@@ -1153,8 +1379,9 @@ const ModernDetail = ({items, t}) => {
 						fallbackStyle={{fontSize: 34, fontWeight: 700, color: t.onSurface}}
 					/>
 					<div style={{marginTop: 10, display: 'flex', flexWrap: 'wrap', alignItems: 'center'}}>{meta}</div>
+					{tech && <TechRow tech={tech} t={t} />}
 					<div style={{marginTop: 6}}>
-						<CommunityRating item={item} t={t} />
+						<PreviewRatings item={item} />
 					</div>
 					{item.overview && (
 						<div style={{marginTop: 8, maxWidth: 800, fontSize: 14, lineHeight: 1.45, color: t.onSurfaceA(0.85), ...clampLines(4)}}>
@@ -1177,22 +1404,23 @@ const ModernDetail = ({items, t}) => {
 							<MIcon name='play_arrow' size={24} color={t.onAccent} />
 							<div style={{marginLeft: 4, fontSize: 13, fontWeight: 700, color: t.onAccent}}>{$L('Play')}</div>
 						</div>
-						<CircleButton icon='favorite' t={t} />
-						<CircleButton icon='check' t={t} />
-						<CircleButton icon='more_horiz' t={t} />
+						<ActionCircles actions={detailActions('v2', settings)} t={t} />
 					</div>
 					<div style={{marginTop: 16, display: 'flex'}}>
 						<div style={{padding: 3, backgroundColor: t.onSurfaceA(0.08), borderRadius: 999, display: 'flex'}}>
-							<PillTab label={$L('Cast')} selected t={t} />
+							<PillTab label={$L('Cast')} selected={expandedTabs} t={t} />
 							<PillTab label={$L('Studios')} t={t} />
 							<PillTab label={$L('Chapters')} t={t} />
 							<PillTab label={$L('Details')} t={t} />
 							<PillTab label={$L('More Like This')} t={t} />
 						</div>
 					</div>
-					<div style={{marginTop: 8}}>
-						<CastPlaceholderRow t={t} avatarRadius={45} />
-					</div>
+					{/* Expanded Tabs off starts with every tab closed. */}
+					{expandedTabs && (
+						<div style={{marginTop: 8}}>
+							<CastPlaceholderRow t={t} avatarRadius={45} />
+						</div>
+					)}
 				</div>
 			</div>
 		</div>
@@ -1382,25 +1610,30 @@ const SpotlightCardTile = ({label, count, t}) => (
 );
 
 const SpotlightDetail = ({items, t}) => {
+	const {settings} = useSettings();
 	const item = items[0];
-	const gradientScale = 0.58;
+	const {alpha, gradientScale} = detailWash(settings);
+	const tech = detailTech(settings);
 	const metaStyle = {fontSize: 14, color: t.onSurfaceA(0.75)};
-	const meta = [];
-	if (item.year) meta.push(<span key='year' style={metaStyle}>{item.year}</span>);
-	if (item.officialRating) meta.push(<span key='rating' style={{...metaStyle, marginLeft: 16}}>{item.officialRating}</span>);
-	if (item.genres.length > 0) meta.push(<span key='genres' style={{...metaStyle, marginLeft: 16}}>{item.genres.slice(0, 3).join(' · ')}</span>);
+	const meta = detailMeta(item, settings).map((piece, i) => (
+		<span key={piece.id} style={{...metaStyle, marginLeft: i > 0 ? 16 : 0, display: 'inline-flex', alignItems: 'center'}}>
+			{piece.id === 'runtimeAndSeasons' && <MIcon name='schedule' size={14} color={t.onSurfaceA(0.75)} style={{marginRight: 4}} />}
+			{piece.text}
+		</span>
+	));
 	return (
 		<div style={{position: 'relative', width: '100%', height: '100%'}}>
 			<Artwork url={item.backdropUrl} position='right center' t={t} />
-			<div style={{...ABS_FILL, backgroundColor: 'rgba(0, 0, 0, 0.32)'}} />
+			<div style={{...ABS_FILL, backgroundColor: `rgba(0, 0, 0, ${alpha})`}} />
 			<div style={{...ABS_FILL, background: `linear-gradient(to right, ${t.backgroundA(1.0 * gradientScale)} 0%, ${t.backgroundA(0.90 * gradientScale)} 35%, ${t.backgroundA(0.45 * gradientScale)} 60%, ${t.backgroundA(0)} 85%)`}} />
 			<div style={{...ABS_FILL, background: `linear-gradient(to top, ${t.backgroundA(1.0 * gradientScale)} 0%, ${t.backgroundA(0.80 * gradientScale)} 45%, ${t.backgroundA(0)} 80%)`}} />
 			<div style={{...ABS_FILL, overflow: 'hidden', padding: '71px 40px 0 40px', display: 'flex', flexDirection: 'column'}}>
 				<div style={{width: Math.min(1100, Math.max(450, DESIGN_W * 0.85))}}>
 					<LogoOrTitle item={item} width={300} height={75} fallbackStyle={{fontSize: 34, fontWeight: 700, color: t.onSurface}} />
 					<div style={{marginTop: 10, display: 'flex', flexWrap: 'wrap', alignItems: 'center'}}>{meta}</div>
+					{tech && <TechRow tech={tech} t={t} />}
 					<div style={{marginTop: 6}}>
-						<CommunityRating item={item} t={t} />
+						<PreviewRatings item={item} />
 					</div>
 					{item.overview && (
 						<div style={{marginTop: 8, maxWidth: 800, fontSize: 14, lineHeight: 1.45, color: t.onSurfaceA(0.85), ...clampLines(3)}}>
@@ -1412,9 +1645,7 @@ const SpotlightDetail = ({items, t}) => {
 							<MIcon name='play_arrow' size={24} color={t.onAccent} />
 							<div style={{marginLeft: 4, fontSize: 13, fontWeight: 700, color: t.onAccent}}>{$L('Play')}</div>
 						</div>
-						<CircleButton icon='favorite' t={t} />
-						<CircleButton icon='check' t={t} />
-						<CircleButton icon='more_horiz' t={t} />
+						<ActionCircles actions={detailActions('v3', settings)} t={t} />
 					</div>
 					<div style={{marginTop: 28, display: 'flex'}}>
 						<SpotlightCardTile label={$L('Cast, Crew, and Studios')} count={$L('{count} people').replace('{count}', 24)} t={t} />
@@ -1450,8 +1681,10 @@ const NouveauRailRow = ({label, count, wide, t}) => (
 // Nouveau puts the hero at the top and then stacks every section down the page as its own rail,
 // so the preview shows the hero shallow and two rails already under it.
 const NouveauDetail = ({items, t}) => {
+	const {settings} = useSettings();
 	const item = items[0];
-	const gradientScale = 0.58;
+	const {alpha, gradientScale} = detailWash(settings);
+	const tech = detailTech(settings);
 	const metaStyle = {fontSize: 14, color: t.onSurfaceA(0.75)};
 	const meta = [];
 	if (item.year) meta.push(<span key='year' style={metaStyle}>{item.year}</span>);
@@ -1460,15 +1693,16 @@ const NouveauDetail = ({items, t}) => {
 	return (
 		<div style={{position: 'relative', width: '100%', height: '100%'}}>
 			<Artwork url={item.backdropUrl} position='right center' t={t} />
-			<div style={{...ABS_FILL, backgroundColor: 'rgba(0, 0, 0, 0.32)'}} />
+			<div style={{...ABS_FILL, backgroundColor: `rgba(0, 0, 0, ${alpha})`}} />
 			<div style={{...ABS_FILL, background: `linear-gradient(to right, ${t.backgroundA(0.96 * gradientScale)} 0%, ${t.backgroundA(0.86 * gradientScale)} 18%, ${t.backgroundA(0.58 * gradientScale)} 38%, ${t.backgroundA(0.22 * gradientScale)} 60%, ${t.backgroundA(0)} 82%)`}} />
 			<div style={{...ABS_FILL, background: `linear-gradient(to top, ${t.backgroundA(1.0 * gradientScale)} 0%, ${t.backgroundA(0.96 * gradientScale)} 20%, ${t.backgroundA(0.76 * gradientScale)} 45%, ${t.backgroundA(0)} 80%)`}} />
 			<div style={{...ABS_FILL, overflow: 'hidden', padding: '48px 40px 0 40px', display: 'flex', flexDirection: 'column'}}>
 				<div style={{width: Math.min(1100, Math.max(450, DESIGN_W * 0.85))}}>
 					<LogoOrTitle item={item} width={260} height={62} fallbackStyle={{fontSize: 30, fontWeight: 700, color: t.onSurface}} />
 					<div style={{marginTop: 8, display: 'flex', flexWrap: 'wrap', alignItems: 'center'}}>{meta}</div>
+					{tech && <TechRow tech={tech} t={t} sizeAsChip />}
 					<div style={{marginTop: 6}}>
-						<CommunityRating item={item} t={t} />
+						<PreviewRatings item={item} />
 					</div>
 					{item.overview && (
 						<div style={{marginTop: 8, maxWidth: 760, fontSize: 13, lineHeight: 1.45, color: t.onSurfaceA(0.85), ...clampLines(2)}}>
@@ -1480,8 +1714,7 @@ const NouveauDetail = ({items, t}) => {
 							<MIcon name='play_arrow' size={22} color={t.onAccent} />
 							<div style={{marginLeft: 4, fontSize: 13, fontWeight: 700, color: t.onAccent}}>{$L('Play')}</div>
 						</div>
-						<CircleButton icon='favorite' t={t} />
-						<CircleButton icon='more_horiz' t={t} />
+						<ActionCircles actions={detailActions('v4', settings)} t={t} />
 					</div>
 					<NouveauRailRow label={$L('Chapters')} count={5} wide t={t} />
 					<NouveauRailRow label={$L('Recommendations')} count={7} t={t} />
@@ -1494,12 +1727,13 @@ const NouveauDetail = ({items, t}) => {
 // Minimalist leaves the artwork alone and puts the title, one play button and the episodes along
 // the bottom, so the preview is mostly picture.
 const MinimalistDetail = ({items, t}) => {
+	const {settings} = useSettings();
 	const item = items[0];
 	const cardWidth = 118;
 	return (
 		<div style={{position: 'relative', width: '100%', height: '100%'}}>
 			<Artwork url={item.backdropUrl} position='right center' t={t} />
-			<div style={{...ABS_FILL, backgroundColor: 'rgba(0, 0, 0, 0.55)'}} />
+			<div style={{...ABS_FILL, backgroundColor: `rgba(0, 0, 0, ${minimalistScrimAlpha(settings.backdropBlurDetail)})`}} />
 			<div style={{...ABS_FILL, padding: '0 28px 24px', display: 'flex', flexDirection: 'column', justifyContent: 'flex-end'}}>
 				<LogoOrTitle item={item} width={220} height={52} fallbackStyle={{fontSize: 30, fontWeight: 700, color: t.onSurface}} />
 				<div style={{marginTop: 14, display: 'flex', alignItems: 'center'}}>
@@ -1507,8 +1741,7 @@ const MinimalistDetail = ({items, t}) => {
 						<MIcon name='play_arrow' size={22} color={t.onAccent} />
 						<div style={{marginLeft: 4, fontSize: 13, fontWeight: 700, color: t.onAccent}}>{$L('Play')}</div>
 					</div>
-					<CircleButton icon='shuffle' t={t} />
-					<CircleButton icon='favorite' t={t} />
+					<ActionCircles actions={detailActions('v5', settings)} t={t} />
 				</div>
 				<div style={{marginTop: 18, display: 'flex'}}>
 					{[0, 1, 2, 3].map((i) => (
@@ -1603,7 +1836,7 @@ export const NavbarPreview = ({position}) => {
 	const {user} = useAuth();
 	const render = useCallback((items) => (
 		position === 'left'
-			? <LeftNavbarPreview items={items} t={t} />
+			? <LeftNavbarPreview items={items} t={t} userName={user?.Name} />
 			: <TopNavbarPreview items={items} t={t} userName={user?.Name} />
 	), [position, t, user?.Name]);
 	return <LivePreview render={render} fallback={<FallbackNavbar position={position} t={t} />} />;
@@ -1634,75 +1867,86 @@ export const DetailStylePreview = ({variant}) => {
 
 // Home as the settings live preview draws it: the navbar where it's set, with its
 // buttons, labels and clock, over the rows in their set style and card size.
-export const SettingsHomePreview = () => {
+// [railOpen] opens the left rail, and [focusCard] holds a modern row's first card in
+// focus with its ratings and description under it.
+export const SettingsHomePreview = ({railOpen = false, focusCard = false, hasLiveTv = false}) => {
 	const t = usePreviewPalette();
 	const {user} = useAuth();
 	const {settings} = useSettings();
 	const position = settings.navbarPosition === 'left' ? 'left' : 'top';
 	const modern = settings.homeRowsStyle !== 'v1';
+	const focusFirst = focusCard && modern;
 	const render = useCallback((items) => (
 		position === 'left'
-			? <LeftNavbarPreview items={items} t={t} modern={modern} />
-			: <TopNavbarPreview items={items} t={t} userName={user?.Name} modern={modern} />
-	), [position, modern, t, user?.Name]);
+			? <LeftNavbarPreview items={items} t={t} userName={user?.Name} modern={modern} open={railOpen} focusFirst={focusFirst} hasLiveTv={hasLiveTv} />
+			: <TopNavbarPreview items={items} t={t} userName={user?.Name} modern={modern} focusFirst={focusFirst} hasLiveTv={hasLiveTv} />
+	), [position, modern, railOpen, focusFirst, t, user?.Name, hasLiveTv]);
 	return <LivePreview render={render} fallback={<FallbackNavbar position={position} t={t} />} />;
-};
-
-const SUBTITLE_LINES = {
-	jpn: '待って、今の聞こえた？',
-	spa: 'Espera, ¿oíste eso?',
-	fre: 'Attends, tu as entendu ça ?',
-	fra: 'Attends, tu as entendu ça ?',
-	ger: 'Warte, hast du das gehört?',
-	deu: 'Warte, hast du das gehört?'
 };
 
 const SHADOWED = {color: '#FFFFFF', textShadow: '0px 0px 6px #000000'};
 
-const PlayerCircle = ({filled, children}) => (
-	<div
-		style={{
-			width: 46,
-			height: 46,
-			borderRadius: '50%',
-			boxSizing: 'border-box',
-			display: 'flex',
-			alignItems: 'center',
-			justifyContent: 'center',
-			margin: '0 10px',
-			backgroundColor: filled ? '#FFFFFF' : 'rgba(255, 255, 255, 0.08)',
-			border: filled ? 'none' : '2px solid rgba(255, 255, 255, 0.6)'
-		}}
-	>
-		{children}
-	</div>
+// The real loading layer at the TV's own size, so the animation keeps its proportions.
+const PlayerLoading = () => (
+	<PreviewScreen>
+		<div style={{...ABS_FILL, backgroundColor: '#000000', overflow: 'hidden'}}>
+			<div style={{position: 'absolute', top: 0, left: 0, width: DESIGN_W * 2, height: DESIGN_H * 2, transform: 'scale(0.5)', transformOrigin: 'top left'}}>
+				<LoadingAnimationLayer dimmed label={$L('Loading Stream...')} />
+			</div>
+		</div>
+	</PreviewScreen>
 );
 
-// The player with its controls up: the zoom mode, subtitles, skip lengths and paused
-// description in the middle of a title, the intro prompt at its start and Next Up at its
-// end. [moment] picks which of the three to show.
-export const PlayerPreview = ({moment = 'middle'}) => {
+// The player mid-episode: the zoom mode, the subtitles and the player's own controls, the
+// intro prompt at the start and Next Up at the end. [moment] picks one of those, or paused,
+// which draws the paused description in place of the controls the way the player does, or
+// watching, the picture and subtitles with the controls away. Loading is the screen before
+// the stream starts, and seek holds a scrub with its thumbnails over the bar. [hdr] draws the
+// subtitles in their HDR style.
+export const PlayerPreview = ({moment = 'middle', hdr = false}) => {
+	if (moment === 'loading') return <PlayerLoading />;
+	return <PlayerControlsPreview moment={moment} hdr={hdr} />;
+};
+
+const PlayerControlsPreview = ({moment, hdr}) => {
 	const t = usePreviewPalette();
 	const {settings} = useSettings();
 	const items = usePreviewItems();
+	// The bar's place on the design screen, which the scrub thumbnails line up with.
+	const [bar, setBar] = useState(null);
+	// The player's controls and subtitles are laid out at the screen's own size and scaled onto
+	// the design screen, so the player's stylesheet places them the way it does in playback.
+	const screenWidth = window.innerWidth || DESIGN_W;
+	const ratio = DESIGN_W / screenWidth;
+	const measureBar = useCallback((node) => {
+		if (!node || !node.offsetParent) return;
+		setBar({left: node.offsetLeft * ratio, width: node.offsetWidth * ratio, floor: (node.offsetParent.offsetHeight - node.offsetTop) * ratio});
+	}, [ratio]);
 	const item = items[0];
 	const next = items[1] || item;
 	const zoom = settings.playerZoomMode || 'fit';
-	const paused = moment === 'middle' && !!settings.showDescriptionOnPause;
-	const subtitles = !paused && settings.subtitleMode !== 'none';
-	const back = Math.round((settings.skipBackLength || 10000) / 1000);
-	const forward = Math.round((settings.skipForwardLength || 30000) / 1000);
+	const paused = moment === 'paused';
+	const describing = paused && !!settings.showDescriptionOnPause;
+	const subtitles = !describing && settings.subtitleMode !== 'none';
+	const controls = !describing && moment !== 'watching';
 	const intro = settings.introAction || 'ask';
 	const nextUp = settings.nextUpBehavior || 'extended';
-	let time = '4:12';
 	let progress = 0.42;
 	if (moment === 'intro') {
-		time = intro === 'auto' ? '1:30' : '0:42';
 		progress = intro === 'auto' ? 0.15 : 0.07;
 	} else if (moment === 'end') {
-		time = '9:58';
 		progress = 0.99;
+	} else if (moment === 'seek') {
+		progress = 0.3;
 	}
+	let focus = null;
+	if (moment === 'seek') focus = 'progress';
+	else if (moment === 'middle' || moment === 'paused') focus = 'button';
+	const seeking = moment === 'seek' && bar;
+	const coverScrub = settings.trickPlayMode === 'full';
+	const scrub = seeking && (
+		<ScrubThumbnails frameWidth={DESIGN_W} frameHeight={DESIGN_H} trackLeft={bar.left} trackWidth={bar.width} floor={bar.floor} scale={ratio} progress={progress} />
+	);
 	// The picture is drawn as a 2.39:1 film, so each zoom mode shows plainly.
 	let frame = {position: 'absolute', left: 0, right: 0, top: 69, height: 402};
 	let frameInner = null;
@@ -1717,7 +1961,8 @@ export const PlayerPreview = ({moment = 'middle'}) => {
 				<div style={{...frame, overflow: zoom === 'stretch' ? 'visible' : 'hidden', ...frameInner}}>
 					<Artwork url={item && item.backdropUrl} t={t} />
 				</div>
-				{paused && (
+				{coverScrub && scrub}
+				{describing && (
 					<div style={{...ABS_FILL, background: 'linear-gradient(to right, rgba(0, 0, 0, 0.85), rgba(0, 0, 0, 0.3))'}}>
 						<div style={{position: 'absolute', left: 48, top: 110, width: 460}}>
 							<div style={{...SHADOWED, fontSize: 13, fontWeight: 700, textTransform: 'uppercase'}}>{$L('Paused')}</div>
@@ -1726,11 +1971,14 @@ export const PlayerPreview = ({moment = 'middle'}) => {
 						</div>
 					</div>
 				)}
-				{subtitles && (
-					<div style={{...SHADOWED, position: 'absolute', left: 0, right: 0, bottom: 132, textAlign: 'center', fontSize: 24, fontWeight: 500}}>
-						{SUBTITLE_LINES[settings.subtitleLanguage] || 'Wait, did you hear that?'}
-					</div>
-				)}
+				<div style={{position: 'absolute', top: 0, left: 0, width: screenWidth, height: DESIGN_H / ratio, transform: `scale(${ratio})`, transformOrigin: 'top left'}}>
+					<Suspense fallback={null}>
+						<PlayerControlsLayer
+							item={item} hdr={hdr} subtitles={subtitles} controls={controls} paused={paused}
+							progress={progress} focus={focus} measureBar={moment === 'seek' ? measureBar : null}
+						/>
+					</Suspense>
+				</div>
 				{moment === 'intro' && intro === 'ask' && (
 					<div style={{position: 'absolute', right: 36, bottom: 126, padding: '10px 20px', borderRadius: 999, backgroundColor: '#FFFFFF', color: '#000000', fontSize: 15, fontWeight: 700}}>
 						{$L('Skip Intro')}
@@ -1752,20 +2000,7 @@ export const PlayerPreview = ({moment = 'middle'}) => {
 						{`${$L('Up Next')}: ${next ? next.title : ''}`}
 					</div>
 				)}
-				<div style={{position: 'absolute', left: 0, right: 0, bottom: 0, height: 118, padding: '0 32px 16px', boxSizing: 'border-box', display: 'flex', flexDirection: 'column', justifyContent: 'flex-end', background: 'linear-gradient(to bottom, rgba(0, 0, 0, 0), rgba(0, 0, 0, 0.85))'}}>
-					<div style={{display: 'flex', alignItems: 'center'}}>
-						<span style={{...SHADOWED, fontSize: 13}}>{time}</span>
-						<div style={{flex: '1 1 auto', height: 5, margin: '0 12px', borderRadius: 3, overflow: 'hidden', backgroundColor: 'rgba(255, 255, 255, 0.25)'}}>
-							<div style={{width: `${progress * 100}%`, height: '100%', backgroundColor: t.accent}} />
-						</div>
-						<span style={{...SHADOWED, fontSize: 13}}>10:04</span>
-					</div>
-					<div style={{display: 'flex', justifyContent: 'center', marginTop: 12}}>
-						<PlayerCircle><span style={{...SHADOWED, fontSize: 14, fontWeight: 700}}>{`-${back}`}</span></PlayerCircle>
-						<PlayerCircle filled><MIcon name={paused ? 'play_arrow' : 'pause'} size={28} color='#000000' /></PlayerCircle>
-						<PlayerCircle><span style={{...SHADOWED, fontSize: 14, fontWeight: 700}}>{`+${forward}`}</span></PlayerCircle>
-					</div>
-				</div>
+				{!coverScrub && scrub}
 			</div>
 		</PreviewScreen>
 	);

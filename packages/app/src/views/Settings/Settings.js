@@ -116,8 +116,10 @@ const FIRST_ROW_VIEWS = {
 // With [liveCategory] set, the stack starts at that category's page instead of the category
 // list, [onRootBack] takes Back at that root, and [onPreviewTry] hears which option a picker
 // has in focus. [liveSearchQuery] comes from the search field beside the pill, and
-// [onLiveSearchClear] empties that field. The live preview layout drives all of them.
-const Settings = ({ onBack, onLibrariesChanged, onRunSetupWizard, onSelectItem, panelMode, initialView, hasLiveTv, liveCategory, onRootBack, onPreviewTry, liveSearchQuery, onLiveSearchClear }) => {
+// [onLiveSearchClear] empties that field. [onLiveBack] gets the first say on Back and returns
+// true when it took it. The live preview layout drives all of them, and draws the previews
+// a few screens otherwise carry in their lists.
+const Settings = ({ onBack, onLibrariesChanged, onRunSetupWizard, onSelectItem, panelMode, initialView, hasLiveTv, liveCategory, onRootBack, onPreviewTry, onSchemaContext, liveSearchQuery, onLiveSearchClear, onLiveBack }) => {
 	const { api, serverUrl, servers, accessToken, hasMultipleServers, logoutAll, activeServerInfo, user, serverType } = useAuth();
 	const {
 		settings, updateSetting, updateSettings, resetSettings, restoreSyncedDefaults, applyServerProfile, selectSyncProfile,
@@ -131,6 +133,8 @@ const Settings = ({ onBack, onLibrariesChanged, onRunSetupWizard, onSelectItem, 
 	const bootLocaleRef = useRef(settings.uiLanguage);
 	const onLiveSearchClearRef = useRef(onLiveSearchClear);
 	onLiveSearchClearRef.current = onLiveSearchClear;
+	const onLiveBackRef = useRef(onLiveBack);
+	onLiveBackRef.current = onLiveBack;
 	useEffect(() => {
 		if (settings.uiLanguage !== bootLocaleRef.current &&
 			typeof window !== 'undefined' && window.location) {
@@ -348,6 +352,7 @@ const Settings = ({ onBack, onLibrariesChanged, onRunSetupWizard, onSelectItem, 
 			if (isConfirmSpendOpen()) return;
 			e.preventDefault();
 			e.stopPropagation();
+			if (onLiveBackRef.current && onLiveBackRef.current()) return;
 			// App.js stops back keys propagating before React sees them, so SpottableInput
 			// never gets to close itself. Stepping out of the field is handled here
 			// instead, which covers every input on these screens.
@@ -1165,6 +1170,11 @@ const Settings = ({ onBack, onLibrariesChanged, onRunSetupWizard, onSelectItem, 
 		openExternalCustomRows, openSeerrHomeRows, openScreen, onRunSetupWizard, canProbeDevice
 	]);
 
+	// The live preview's inspector names rows with the same context the list draws them with.
+	useEffect(() => {
+		if (onSchemaContext) onSchemaContext(settingsCtx);
+	}, [onSchemaContext, settingsCtx]);
+
 	// The page a category opens on.
 	const rootViewFor = useCallback((id) => {
 		// A category holding a single screen opens it directly, unless it always lists its screens
@@ -1302,10 +1312,10 @@ const Settings = ({ onBack, onLibrariesChanged, onRunSetupWizard, onSelectItem, 
 		imageCacheActions: renderImageCacheActions,
 		checkForUpdates: renderCheckForUpdates,
 		playbackTimePreview: renderPlaybackTimePreview,
-		subtitlePreview: renderSubtitlePreview,
-		screensaverPreview: renderScreensaverPreview,
-		loadingAnimationPreview: () => <LoadingAnimationPreview />,
-		trickplayPreview: () => <TrickplaySettingsPreview />
+		subtitlePreview: liveCategory ? null : renderSubtitlePreview,
+		screensaverPreview: liveCategory ? null : renderScreensaverPreview,
+		loadingAnimationPreview: liveCategory ? null : () => <LoadingAnimationPreview />,
+		trickplayPreview: liveCategory ? null : () => <TrickplaySettingsPreview />
 	};
 
 	const rowDeps = {settings, updateSetting, toggleSetting, pushView, customRenderers};

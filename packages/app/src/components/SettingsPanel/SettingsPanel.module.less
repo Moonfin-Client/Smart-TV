@@ -81,10 +81,13 @@
 }
 
 // The live preview layout fills the screen: the category pill across the top, the
-// settings list on the left and the preview on the right.
+// settings list on the left and the preview on the right. It's held to the screen's width,
+// since the pill row would otherwise stretch it past the edge at bigger UI scales and push
+// the chips and search off screen.
 .livePanel {
 	position: relative;
 	flex: 1 1 auto;
+	min-width: 0;
 	height: 100%;
 	display: flex;
 	flex-direction: column;
@@ -117,15 +120,19 @@
 	white-space: nowrap;
 }
 
+// The auto margins center the pill while it fits and start it at the left once it doesn't, so
+// the first category shows and a focused one scrolls into view.
 .pillWrap {
 	flex: 1 1 auto;
 	min-width: 0;
 	display: flex;
-	justify-content: center;
+	overflow: hidden;
 }
 
 .pill {
+	margin: 0 auto;
 	display: flex;
+	flex-shrink: 0;
 	padding: (5 * @dp);
 	border-radius: (999 * @dp);
 	background: rgba(255, 255, 255, 0.08);
@@ -154,9 +161,11 @@
 	color: #FFFFFF;
 }
 
+// The search field gives up its width well before the pill does, down to a usable floor.
 .searchSlot {
 	width: (300 * @dp);
-	flex-shrink: 0;
+	min-width: (180 * @dp);
+	flex-shrink: 100;
 	margin-left: (16 * @dp);
 }
 

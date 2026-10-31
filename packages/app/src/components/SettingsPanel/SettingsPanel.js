@@ -5,9 +5,9 @@ import Spotlight from '@enact/spotlight';
 import Spottable from '@enact/spotlight/Spottable';
 import SpotlightContainerDecorator from '@enact/spotlight/SpotlightContainerDecorator';
 import Settings from '../../views/Settings';
-import SettingsLivePreview from '../../views/Settings/LivePreview/SettingsLivePreview';
+import SettingsLivePreview, {keepInView, sceneChipId} from '../../views/Settings/LivePreview/SettingsLivePreview';
 import {SearchBar} from '../../views/Settings/BrowseViews';
-import {SCENE_BY_KEY, describeRow} from '../../views/Settings/LivePreview/previewRows';
+import {SCENE_BY_KEY, describeRow, sceneOfRow} from '../../views/Settings/LivePreview/previewRows';
 import {SETTINGS_SCHEMA, resolve} from '../../views/Settings/settingsSchema';
 import {usePreviewPalette} from '../../views/SetupWizard/SetupPreviews';
 import {useSettings} from '../../context/SettingsContext';
@@ -44,6 +44,13 @@ const hasRowAbove = (column, active) => {
 	));
 };
 
+// The first row of the list column's page rather than the page container, whose memory of its
+// last row can point at the same-named page of the category before.
+const firstRowOf = (column) => {
+	const page = column.querySelector('[data-spotlight-container]');
+	return page && Array.prototype.find.call(page.querySelectorAll('.spottable'), (el) => el.offsetParent !== null);
+};
+
 // Settings with its live preview: the categories in a pill across the top, the chosen
 // category's screens in a column on the left, and a preview of the screen the focused
 // setting changes on the right.
@@ -59,9 +66,15 @@ const LiveSettingsLayout = ({closing, onClose, onLibrariesChanged, onRunSetupWiz
 	const [trying, setTrying] = useState(null);
 	const [scene, setScene] = useState('home');
 	const [query, setQuery] = useState('');
+	const [schema, setSchema] = useState(null);
 	const listRef = useRef(null);
 	const pillRef = useRef(null);
 	const topRef = useRef(null);
+	const previewRef = useRef(null);
+	// The setting focus was last on, which Left off the first chip and Back return to.
+	const lastRowRef = useRef(null);
+	const sceneRef = useRef(scene);
+	sceneRef.current = scene;
 
 	// Kids Mode coming or going swaps the categories out from under the one that was open.
 	useEffect(() => {
@@ -88,13 +101,7 @@ const LiveSettingsLayout = ({closing, onClose, onLibrariesChanged, onRunSetupWiz
 			const column = listRef.current;
 			if (!active || !column) return;
 			if (ev.keyCode === 40 && topRef.current && topRef.current.contains(active)) {
-				// The first row rather than the page container, whose memory of its last row
-				// can point at the same-named page of the category before.
-				const page = column.querySelector('[data-spotlight-container]');
-				const first = page && Array.prototype.find.call(
-					page.querySelectorAll('.spottable'),
-					(el) => el.offsetParent !== null
-				);
+				const first = firstRowOf(column);
 				if (first) {
 					ev.preventDefault();
 					ev.stopPropagation();
@@ -114,6 +121,37 @@ const LiveSettingsLayout = ({closing, onClose, onLibrariesChanged, onRunSetupWiz
 		return () => window.removeEventListener('keydown', handleKeyDown, true);
 	}, []);
 
+	// Right off a setting goes to the scene chips. It's heard after Spotlight, so a row with
+	// something to its right still gets there first, and a slider stops the key before it
+	// arrives. Pickers keep it, since leaving one would leave its choice half tried.
+	useEffect(() => {
+		const handleKeyDown = (ev) => {
+			if (ev.keyCode !== 39 || isTvKeyboardVisible()) return;
+			const active = document.activeElement;
+			const column = listRef.current;
+			if (!column || active !== ev.target || !column.contains(active) || active.tagName === 'INPUT') return;
+			if (active.closest('[data-spotlight-id="options-view"]')) return;
+			Spotlight.focus(sceneChipId(sceneRef.current));
+		};
+		window.addEventListener('keydown', handleKeyDown);
+		return () => window.removeEventListener('keydown', handleKeyDown);
+	}, []);
+
+	const returnToList = useCallback(() => {
+		const last = lastRowRef.current;
+		const column = listRef.current;
+		if (last && column && column.contains(last) && Spotlight.focus(last)) return;
+		const first = column && firstRowOf(column);
+		if (first) Spotlight.focus(first);
+	}, []);
+
+	// Back on a chip goes back to the setting rather than out of the screen.
+	const handleLiveBack = useCallback(() => {
+		if (!previewRef.current || !previewRef.current.contains(document.activeElement)) return false;
+		returnToList();
+		return true;
+	}, [returnToList]);
+
 	// Back at a category's own page returns to the pill, and from the pill closes Settings.
 	const handleRootBack = useCallback(() => {
 		if (pillRef.current && pillRef.current.contains(document.activeElement)) onClose();
@@ -123,12 +161,20 @@ const LiveSettingsLayout = ({closing, onClose, onLibrariesChanged, onRunSetupWiz
 	const handleListFocus = useCallback((ev) => {
 		const host = ev.target.closest ? ev.target.closest('[data-spotlight-id]') : null;
 		const id = host ? host.getAttribute('data-spotlight-id') : null;
+		lastRowRef.current = ev.target;
 		if (!id || /^opt-\d+$/.test(id)) return;
-		const described = describeRow(id, settings);
+		const described = describeRow(id, settings, schema);
 		if (!described) return;
 		setRowId(id);
-		if (described.scene) setScene(described.scene);
-	}, [settings]);
+		const next = sceneOfRow(described);
+		if (next) setScene(next);
+	}, [settings, schema]);
+
+	// The inspector tells what the category holds while the pill has focus.
+	const handlePillFocus = useCallback((id) => {
+		setCategory(id);
+		setRowId(`cat-${id}`);
+	}, []);
 
 	const handleTry = useCallback((key, value, index) => {
 		if (key == null) {
@@ -139,7 +185,7 @@ const LiveSettingsLayout = ({closing, onClose, onLibrariesChanged, onRunSetupWiz
 		if (SCENE_BY_KEY[key]) setScene(SCENE_BY_KEY[key]);
 	}, []);
 
-	const row = useMemo(() => describeRow(rowId, settings), [rowId, settings]);
+	const row = useMemo(() => describeRow(rowId, settings, schema), [rowId, settings, schema]);
 
 	const handleQueryChange = useCallback((ev) => setQuery(ev.target.value), []);
 	const clearQuery = useCallback(() => setQuery(''), []);
@@ -158,7 +204,10 @@ const LiveSettingsLayout = ({closing, onClose, onLibrariesChanged, onRunSetupWiz
 									data-selected={c.id === category}
 									className={c.id === category ? `${css.pillItem} ${css.pillItemSelected}` : css.pillItem}
 									style={c.id === category ? {backgroundColor: t.accent} : null}
-									onFocus={() => setCategory(c.id)}
+									onFocus={(ev) => {
+										keepInView(ev.currentTarget, pillRef.current);
+										handlePillFocus(c.id);
+									}}
 									onClick={() => setCategory(c.id)}
 								>
 									{c.label}
@@ -178,7 +227,9 @@ const LiveSettingsLayout = ({closing, onClose, onLibrariesChanged, onRunSetupWiz
 							panelMode
 							liveCategory={category}
 							onRootBack={handleRootBack}
+							onLiveBack={handleLiveBack}
 							onPreviewTry={handleTry}
+							onSchemaContext={setSchema}
 							liveSearchQuery={settings.kidsModeEnabled ? '' : query}
 							onLiveSearchClear={clearQuery}
 							onBack={onClose}
@@ -188,8 +239,15 @@ const LiveSettingsLayout = ({closing, onClose, onLibrariesChanged, onRunSetupWiz
 							hasLiveTv={hasLiveTv}
 						/>
 					</div>
-					<div className={css.previewColumn}>
-						<SettingsLivePreview scene={scene} row={row} trying={trying} onPickScene={setScene} />
+					<div className={css.previewColumn} ref={previewRef}>
+						<SettingsLivePreview
+							scene={scene}
+							row={row}
+							trying={trying}
+							onPickScene={setScene}
+							onLeaveChips={returnToList}
+							hasLiveTv={hasLiveTv}
+						/>
 					</div>
 				</div>
 			</PanelContainer>
