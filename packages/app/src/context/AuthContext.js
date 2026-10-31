@@ -409,12 +409,29 @@ export const AuthProvider = ({children}) => {
 		}
 	}, [loadServers, addressFor]);
 
+	// A Silo login is the account's, shared by its household profiles, so it ends on the server (which retires its
+	// refresh token) only with the last of them saved here.
+	const endSiloLoginIfLast = useCallback(async (entry) => {
+		if (entry?.serverType !== 'silo' || !entry.accessToken) return;
+		const shared = (await multiServerManager.getAllServersArray())
+			.some((other) => other.serverType === 'silo' && other.accessToken === entry.accessToken);
+		if (shared) return;
+		try {
+			await jellyfinApi.createApiForServer(entry.url, entry.accessToken, entry.userId, 'silo').logout();
+		} catch (e) {
+			console.warn('[AUTH] Ending the Silo login failed:', e);
+		}
+	}, []);
+
 	/**
 	 * Remove a server/user
 	 */
 	const removeUser = useCallback(async (serverId, userId) => {
 		try {
+			const removed = (await multiServerManager.getAllServersArray())
+				.find((entry) => entry.serverId === serverId && entry.userId === userId);
 			await multiServerManager.removeServer(serverId, userId);
+			await endSiloLoginIfLast(removed);
 
 			// Check if we still have any users
 			const count = await multiServerManager.getTotalUserCount();
@@ -439,7 +456,7 @@ export const AuthProvider = ({children}) => {
 			console.error('[AUTH] Error removing user:', error);
 			return false;
 		}
-	}, [loadServers, switchUser]);
+	}, [loadServers, switchUser, endSiloLoginIfLast]);
 
 	/**
 	 * Forget a server and every account saved against it
@@ -483,11 +500,15 @@ export const AuthProvider = ({children}) => {
 
 	const logout = useCallback(async () => {
 		await remoteControl.runPlayerCommand('stop');
-		// Silo's refresh token stays good until the login is ended on the server too.
-		if (jellyfinApi.getServerType() === 'silo') await jellyfinApi.api.logout?.();
+		const leaving = {
+			serverType: jellyfinApi.getServerType(), url: jellyfinApi.getServerUrl(), accessToken: jellyfinApi.getApiKey(),
+			userId: jellyfinApi.getUserId()
+		};
 		if (activeServerInfo) {
 			await multiServerManager.removeServer(activeServerInfo.serverId, activeServerInfo.userId);
 		}
+		// Silo's refresh token stays good until the login is ended on the server too.
+		await endSiloLoginIfLast(leaving);
 
 		const count = await multiServerManager.getTotalUserCount();
 		if (count > 0) {
@@ -510,7 +531,7 @@ export const AuthProvider = ({children}) => {
 		setUniqueServers([]);
 		setActiveServerInfo(null);
 		setIsAuthenticated(false);
-	}, [activeServerInfo, switchUser]);
+	}, [activeServerInfo, switchUser, endSiloLoginIfLast]);
 
 	/**
 	 * Full logout - remove all servers and users
@@ -525,6 +546,12 @@ export const AuthProvider = ({children}) => {
 		for (const server of allServers) {
 			await multiServerManager.removeServer(server.serverId, server.userId);
 		}
+		const siloLogins = allServers.filter((server, i) => server.serverType === 'silo' &&
+			allServers.findIndex((other) => other.accessToken === server.accessToken) === i);
+		for (const entry of siloLogins) {
+			// eslint-disable-next-line no-await-in-loop
+			await endSiloLoginIfLast(entry);
+		}
 
 		await removeFromStorage('auth');
 		setUser(null);
@@ -535,7 +562,7 @@ export const AuthProvider = ({children}) => {
 		setUniqueServers([]);
 		setActiveServerInfo(null);
 		setIsAuthenticated(false);
-	}, []);
+	}, [endSiloLoginIfLast]);
 
 	const [connectionState, setConnectionState] = useState('connected');
 	const lastRevalidateRef = useRef(0);
