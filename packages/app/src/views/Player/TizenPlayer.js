@@ -6,7 +6,8 @@ import * as playback from '../../services/playback';
 import {
 	initTizenAPI, registerAppStateObserver, keepScreenOn, getTizenVersion,
 	avplayOpen, avplayPrepare, avplayPlay, avplayPause,
-	avplaySeek, avplaySeekIdle, avplaySetPostSeekHook, avplayGetCurrentTime, avplayGetDuration, avplayGetLiveRange, avplayGetState,
+	avplaySeek as streamSeek, avplaySeekIdle as streamSeekIdle, avplaySetPostSeekHook, avplayGetCurrentTime as streamGetCurrentTime,
+	avplayGetDuration as streamGetDuration, avplayGetLiveRange, avplayGetState,
 	avplaySetListener, avplaySelectTrack, avplaySetSilentSubtitle,
 	avplayGetTracks, avplayGetCurrentTracks, avplaySetDisplayMethod, avplaySetStreamingProperty, setDisplayWindow, cleanupAVPlay,
 	avplaySetBufferingParams, avplaySuspend, avplayRestore, waitForHlsManifest
@@ -43,6 +44,7 @@ import useLiveProgram from './useLiveProgram';
 import {isAtLive, liveWindowFor, nextLiveWindow} from './liveWindow';
 import useLiveRecording from './useLiveRecording';
 import useHeldSeekStep from './useHeldSeekStep';
+import {createServerSeek} from './serverSeek';
 import {hasTrickplayPreview} from '../../components/TrickplayPreview';
 import {isTrickplayOn} from '../../utils/trickplayLayout';
 import useChannelCarousel, {liveTvApiFor} from './useChannelCarousel';
@@ -116,6 +118,25 @@ const getRootFontSizePx = () => {
  * playback. AVPlay renders on a platform multimedia layer BEHIND the web engine;
  * the web layer must be transparent in the video area for the content to show through.
  */
+// Where the open stream starts in the title (a Silo remux opened mid-title counts from there), and whether its seeks go
+// back to Silo. AVPlay is one per app, so this is too. Positions and seeks below are title time; AVPlay's are the stream's.
+const streamTimeline = {offsetMs: 0, seeksThroughServer: false, seekThroughServer: null};
+const streamMs = (titleMs) => Math.max(0, titleMs - streamTimeline.offsetMs);
+const avplayGetCurrentTime = () => streamGetCurrentTime() + streamTimeline.offsetMs;
+const avplayGetDuration = () => {
+	const ms = streamGetDuration();
+	return ms > 0 ? ms + streamTimeline.offsetMs : ms;
+};
+// A seek into the open stream, as a resume makes.
+const seekStream = (titleMs) => streamSeek(streamMs(titleMs));
+const avplaySeek = (titleMs) => {
+	if (streamTimeline.seeksThroughServer && streamTimeline.seekThroughServer) {
+		streamTimeline.seekThroughServer(Math.floor(titleMs * 10000));
+		return Promise.resolve();
+	}
+	return seekStream(titleMs);
+};
+
 const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialSubtitleIndex, initialStartPositionTicks, initialQuality, forceTranscode, onEnded, onBack, onGuide, onPlayNext, onSelectPerson, audioPlaylist, videoQueue, liveTvChannels, onPausedChange, background, onBackground}) => {
 	const {settings, updateSetting} = useSettings();
 	const {isInGroup, lastCommand} = useSyncPlay();
@@ -697,6 +718,8 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 
 		avplayOpen(url);
 		currentUrlRef.current = url;
+		streamTimeline.offsetMs = (mediaSource?.SiloTimelineOffsetTicks || 0) / 10000;
+		streamTimeline.seeksThroughServer = mediaSource?.SiloSeeksThroughServer === true;
 		applyDisplayWindow();
 		avplaySetBufferingParams({bitrate: mediaSource?.Bitrate});
 
@@ -742,7 +765,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 			const seekMs = Math.floor(resumeTicks / 10000);
 			if (isTranscode && isHls) {
 				deferredResumeSeekRef.current = seekMs;
-			} else if (hasNativePendingSub || !avplaySeekIdle(seekMs)) {
+			} else if (hasNativePendingSub || !streamSeekIdle(streamMs(seekMs))) {
 				postPlaySeekMs = seekMs;
 			}
 		}
@@ -758,7 +781,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 			const ms = deferredResumeSeekRef.current;
 			if (ms == null) return;
 			deferredResumeSeekRef.current = null;
-			avplaySeek(ms).catch((e) => {
+			seekStream(ms).catch((e) => {
 				console.warn('[Player] Deferred resume seek failed:', e?.message || e);
 			});
 		};
@@ -882,7 +905,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 			setTimeout(runDeferredResumeSeek, 1500);
 		}
 		if (postPlaySeekMs > 0) {
-			avplaySeek(postPlaySeekMs).catch((e) => {
+			seekStream(postPlaySeekMs).catch((e) => {
 				console.warn('[Player] Post play resume seek failed:', e?.message || e);
 			});
 		}
@@ -941,6 +964,18 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 		);
 		return true;
 	}, [startAVPlayback]);
+
+	// Silo replans the session at the position and the stream reopens there.
+	useEffect(() => {
+		streamTimeline.seekThroughServer = createServerSeek(async (ticks) => {
+			try {
+				await restartFromResult(await playback.reanchorAt(ticks), ticks);
+			} catch (err) {
+				console.error('[Player] Seek through the server failed:', err);
+			}
+		});
+		return () => { streamTimeline.seekThroughServer = null; };
+	}, [restartFromResult]);
 
 	const reloadWithSubtitleIndex = useCallback(async (subIndex) => {
 		const currentPositionTicks = Math.floor(avplayGetCurrentTime() * 10000);

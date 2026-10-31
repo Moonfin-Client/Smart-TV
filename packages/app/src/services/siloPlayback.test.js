@@ -135,6 +135,18 @@ describe('sessions', () => {
 		expect(replan).toMatchObject({operation: 'failure_recovery', attempted_plan_keys: ['k1'], failure: {classification: 'playback_error'}, position_seconds: 1});
 	});
 
+	test('asked again at another place with the tracks it plays, the session is replanned for the seek', async () => {
+		const {playback, calls} = setup({
+			'GET /api/v2/playback/capabilities': capabilities,
+			'POST /api/v2/playback/start': plan('server_remux_progressive', 'k1'),
+			'POST /api/v2/playback/s1/replan': plan('server_remux_progressive', 'k2')
+		});
+		const info = await playback.getPlaybackInfo('movie-1', {});
+		const {DefaultAudioStreamIndex, DefaultSubtitleStreamIndex} = info.MediaSources[0];
+		await playback.getPlaybackInfo('movie-1', {StartTimeTicks: 6000000000, AudioStreamIndex: DefaultAudioStreamIndex, SubtitleStreamIndex: DefaultSubtitleStreamIndex});
+		expect(calls.find((c) => c.path.endsWith('/replan')).body).toMatchObject({operation: 'seek_reanchor', position_seconds: 600});
+	});
+
 	test('progress is numbered, a conflict goes again under the next number, and the stop keeps its id', async () => {
 		let conflicts = 1;
 		const {playback, calls} = setup({

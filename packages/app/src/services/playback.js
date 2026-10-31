@@ -1342,6 +1342,12 @@ export const changeAudioStream = async (streamIndex, currentPositionTicks) => {
 	return newInfo;
 };
 
+// A seek the stream can't make itself (a Silo remux that only plays forward): the same title is asked for again at
+// the position, which Silo serves by replanning the session there.
+export const reanchorAt = (positionTicks) => (currentSession
+	? getPlaybackInfo(currentSession.itemId, {...currentSession, item: currentSessionItem(), startPositionTicks: positionTicks})
+	: null);
+
 export const changeSubtitleStream = async (streamIndex) => {
 	if (!currentSession) return null;
 
