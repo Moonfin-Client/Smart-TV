@@ -6,7 +6,7 @@ import {scopedGetItems} from '../../services/libraryScope';
 import {genericCollectionLabel, mergeRecentRows} from '../../utils/mergeRecentRows';
 import {latestMediaFetchLimitForCollection, normalizeLatestMediaItems} from '../../utils/latestMediaRowNormalizer';
 
-import {HOME_ROW_ITEM_FIELDS, createApiForServer} from '../../services/jellyfinApi';
+import {HOME_ROW_ITEM_FIELDS, createApiForServer, getServerType} from '../../services/jellyfinApi';
 import {getAllServersArray} from '../../services/multiServerManager';
 import {loadSinceYouWatchedRows, loadRewatchItems} from '../../services/homeRecommendations';
 import {FAVORITE_ROW_CONFIGS, getItemGenreNames, stableIndex} from './browseFilters';
@@ -26,7 +26,7 @@ const EAGER_SECTION_COUNT = 8;
 export const buildLoaderContext = ({api, serverUrl, settings, homeRowsConfig, eligibleLibraries, recommendations, appendRows}) => {
 	const rowEnabled = (id) => homeRowsConfig.some((row) => row.enabled && row.id === id);
 	const enabledRows = homeRowsConfig.filter((row) => row.enabled);
-	const pickedRows = enabledRows.filter((row) => isPickedRow(row) && isPickedRowShown(row, settings, serverUrl));
+	const pickedRows = enabledRows.filter((row) => isPickedRow(row) && isPickedRowShown(row, settings, serverUrl, getServerType()));
 	// Playlist order is not a server sort field, so every row hands the server
 	// the fallback and the rows that honor the arrangement check the setting
 	// itself.
@@ -463,7 +463,8 @@ const PICKED_ROW_LIMIT = 40;
 // A collection picked from another signed in server loads from that server, and its cards carry
 // the server along so they open there
 const pickedRowSource = async (ctx, row) => {
-	if (isSameServer(row.serverUrl, ctx.serverUrl)) return {api: ctx.api, server: null};
+	// A Silo section row from Moonbase's defaults names no server: it is the one signed in.
+	if (!row.serverUrl || isSameServer(row.serverUrl, ctx.serverUrl)) return {api: ctx.api, server: null};
 	const server = (await getAllServersArray()).find((entry) => isSameServer(entry.url, row.serverUrl));
 	if (!server) return null;
 	return {api: createApiForServer(server.url, server.accessToken, server.userId, server.serverType || 'jellyfin'), server};
@@ -471,6 +472,8 @@ const pickedRowSource = async (ctx, row) => {
 
 const loadPickedRowItems = async (ctx, api, row) => {
 	const {settings} = ctx;
+	// Silo sends a section's whole row at once, in its own order.
+	if (row.source === 'server') return (await api.getServerHomeSectionItems(row.itemId, PICKED_ROW_LIMIT))?.Items || [];
 	if (row.source === 'collections') {
 		return loadCollectionRowItems(api, row.itemId, {
 			limit: PICKED_ROW_LIMIT,

@@ -119,7 +119,8 @@ export const buildSeasonalRow = (payload, hiddenHolidays = []) => {
 	return {
 		id: 'seasonal',
 		holiday: payload.holiday,
-		title: seasonalTitle(payload.holiday),
+		// Silo names its own seasonal section.
+		title: payload.title || seasonalTitle(payload.holiday),
 		items,
 		isExternalRow: true,
 		isSeasonalRow: true

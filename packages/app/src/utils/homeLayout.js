@@ -15,7 +15,7 @@
  * one, taking every other client's disabled rows and plugin rows with it.
  */
 
-import {PICK_SOURCES, isPickedRow, isSeerrSliderRow, makePickedRow, makeSeerrSliderRow} from './pickedRows';
+import {PICK_SOURCES, isPickedRow, isSeerrSliderRow, isServerSectionRow, makePickedRow, makeSeerrSliderRow} from './pickedRows';
 
 export const DEFAULT_HOME_ROWS = [
 	{id: 'resume', name: 'Continue Watching', enabled: true, order: 0},
@@ -225,6 +225,10 @@ const pickedRowFromSection = (section) => {
 			name: section.pluginDisplayText || ''
 		});
 	}
+	// Silo's own sections keep the section in pluginSection, as Moonfin-Core and Moonbase write them.
+	if (source === 'server' && section.pluginSection) {
+		return makePickedRow({source, serverUrl: section.serverId || '', itemId: String(section.pluginSection), name: section.pluginDisplayText || ''});
+	}
 	if (!PICK_SOURCES[source] || !section.pluginAdditionalData || !section.serverId) return undefined;
 	return makePickedRow({
 		source,
@@ -290,6 +294,7 @@ const rowToSection = (row, order) => {
 	if (isSeerrSliderRow(row)) {
 		return {...plugin, pluginSource: 'seerr', pluginSection: row.sliderId, pluginAdditionalData: row.sliderType};
 	}
+	if (isServerSectionRow(row)) return {...plugin, pluginSource: 'server', pluginSection: row.itemId};
 	if (isPickedRow(row)) {
 		return {...plugin, pluginSource: row.source, pluginSection: PICK_SOURCES[row.source].section, pluginAdditionalData: row.itemId};
 	}
