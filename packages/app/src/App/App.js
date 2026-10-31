@@ -561,9 +561,7 @@ const AppContent = (props) => {
 
 	useEffect(() => {
 		const root = document.documentElement;
-		if (settings.focusBorderColor) {
-			root.style.setProperty('--theme-focus-border-color', settings.focusBorderColor);
-		}
+		root.style.setProperty('--theme-focus-border-color', settings.focusBorderColor || buildThemeCssVars(activeTheme)['--theme-focus-border-color']);
 		root.style.setProperty('--theme-navbar-color-rgb', toRgbTriplet(resolveOverlayColor(settings.navbarColor)));
 	}, [activeTheme, settings.focusBorderColor, settings.navbarColor]);
 
@@ -636,7 +634,7 @@ const AppContent = (props) => {
 	const recheckAccessRef = useRef(null);
 	const {blocked: timesUp, nextAccess, recheck: recheckAccess} = useAccessSchedule({
 		userId: isAuthenticated ? user?.Id : null,
-		enabled: serverType !== 'emby',
+		enabled: serverType === 'jellyfin',
 		fetchUser: () => api.getUserConfiguration(),
 		// The user's own record honors the schedule, so a 403 there is the server turning them away.
 		serverRefuses: () => api.getCurrentUser().then(() => false, (err) => (err?.status === 403 ? true : null)),
@@ -1115,11 +1113,11 @@ const AppContent = (props) => {
 		}
 		// Music left playing behind the screens reports its stop before the new item opens.
 		if (backgroundMusic) await remoteControl.releasePlayer();
-		// Plex has no SyncPlay, so a Plex item neither joins a group nor opens it.
-		const itemOnPlex = (item._serverType || serverType) === 'plex';
-		if (isSyncPlayInGroup && !itemOnPlex) {
+		// Only Jellyfin has SyncPlay, so an item from another server neither joins a group nor opens it.
+		const itemSyncs = (item._serverType || serverType) === 'jellyfin';
+		if (isSyncPlayInGroup && itemSyncs) {
 			syncPlaySetNewQueue([item.Id]);
-		} else if (!itemOnPlex && settings.syncplayEnabled !== false && settings.syncplayAutoOpen) {
+		} else if (itemSyncs && settings.syncplayEnabled !== false && settings.syncplayAutoOpen) {
 			openSyncPlay();
 		}
 		setPlayingItem(item);
