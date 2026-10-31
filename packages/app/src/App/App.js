@@ -13,7 +13,7 @@ import $L from '@enact/i18n/$L';
 
 import ilib from 'ilib';
 
-import {AuthProvider, useAuth} from '../context/AuthContext';
+import {AuthProvider, takeHouseholdPick, useAuth} from '../context/AuthContext';
 import {useSettings} from '../context/SettingsContext';
 import * as connectionPool from '../services/connectionPool';
 import * as jellyfinApi from '../services/jellyfinApi';
@@ -1248,6 +1248,11 @@ const AppContent = (props) => {
 		setShowSettingsPanel(false);
 		handleSelectItem(item);
 	}, [handleSelectItem]);
+
+	// A Silo sign-in with several household profiles asks who's watching, once the setup and any PIN are out of the way.
+	useEffect(() => {
+		if (isAuthenticated && !setupWizardActive && !isPinGateActive && takeHouseholdPick()) setShowAccountModal(true);
+	}, [isAuthenticated, setupWizardActive, isPinGateActive]);
 
 	const handleOpenAccountModal = useCallback(() => {
 		setShowAccountModal(true);

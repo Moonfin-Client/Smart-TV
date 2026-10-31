@@ -18,6 +18,14 @@ import {bestPlexAddress} from '../services/plexTv';
 import {onSiloSessionEnded, onSiloTokensRotated, siloServerKey} from '../services/siloSession';
 
 const REVALIDATE_INTERVAL = 5 * 60 * 1000;
+
+// Set when a Silo sign-in brought a household of several profiles, so the app asks who's watching once it opens.
+let householdToPick = false;
+export const takeHouseholdPick = () => {
+	const pick = householdToPick;
+	householdToPick = false;
+	return pick;
+};
 const BACKOFF_DELAYS = [5000, 10000, 20000];
 const RECOVERY_MAX_DELAY = 60000;
 
@@ -214,6 +222,7 @@ export const AuthProvider = ({children}) => {
 	// is the "Who's watching" list.
 	const saveSiloHousehold = async (server, savedName, serverId, result, sType, sVersion) => {
 		if (!result.SiloAccountId) return;
+		householdToPick = (result.SiloUsers || []).length > 1;
 		for (const profile of result.SiloUsers || [result.User]) {
 			if (profile.Id !== result.User.Id) {
 				// eslint-disable-next-line no-await-in-loop
