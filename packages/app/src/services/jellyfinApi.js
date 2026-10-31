@@ -10,6 +10,10 @@ import * as userDataSync from './userDataSync';
 import {SUPPORTED_COMMANDS} from './remoteControl';
 import {createPlexApi, withEveryMethod} from './plexApi';
 import {isPlexServer, registerPlexServer} from '../utils/plexUrls';
+import {createSiloApi, siloUnsupported} from './siloApi';
+import {siloAccount} from './siloSession';
+import {siloProfileOf} from './siloAccounts';
+import {isSiloServer, registerSiloServer} from '../utils/siloUrls';
 const APP_VERSION = packageJson.version;
 
 const PLATFORM_IDENTITY = {
@@ -42,7 +46,7 @@ export const setServer = (serverUrl) => {
 };
 
 export const setServerType = (type) => {
-	serverType = type === 'emby' || type === 'plex' ? type : 'jellyfin';
+	serverType = ['emby', 'plex', 'silo'].includes(type) ? type : 'jellyfin';
 	// eslint-disable-next-line no-use-before-define
 	applyServerType();
 };
@@ -53,6 +57,7 @@ export const getServerType = () => serverType;
 export const getTokenParam = (type) => {
 	const kind = type || serverType;
 	if (kind === 'plex') return 'X-Plex-Token';
+	if (kind === 'silo') return 'token';
 	return kind === 'emby' ? 'api_key' : 'ApiKey';
 };
 
@@ -99,6 +104,7 @@ const sanitizeHeaderValue = (value) => {
 };
 
 const buildAuthHeader = (type, token) => {
+	if (type === 'silo') return token ? `Bearer ${sanitizeHeaderValue(token)}` : '';
 	const scheme = type === 'emby' ? 'Emby' : 'MediaBrowser';
 	let header = `${scheme} Client="${APP_NAME}", Device="${DEVICE_NAME}", DeviceId="${deviceId}", Version="${APP_VERSION}"`;
 	if (token) {
@@ -1058,21 +1064,34 @@ const plexApiFor = (readUrl, readToken, readUserId) => withEveryMethod(createPle
 
 const plexMethods = plexApiFor(() => currentServer, () => accessToken, () => currentUser);
 
-let plexActive = false;
+// A Silo profile reaches its account's shared tokens through the account it was saved under.
+const siloApiFor = (readUrl, readUserId) => withEveryMethod(createSiloApi({
+	getBaseUrl: readUrl,
+	getAccount: () => {
+		const profile = siloProfileOf(readUrl(), readUserId());
+		return profile ? siloAccount(readUrl(), profile.accountId) : null;
+	},
+	getProfile: () => ({id: readUserId(), token: siloProfileOf(readUrl(), readUserId())?.profileToken || null}),
+	getDeviceInfo: () => ({...getDeviceInfo(), platform: platformTag})
+}), methodNames, siloUnsupported);
+
+const siloMethods = siloApiFor(() => currentServer, () => currentUser);
+
+const methodsByType = {plex: plexMethods, silo: siloMethods};
+let activeMethods = jellyfinMethods;
 
 // The api object everything imports stays the same object, with its methods swapped for the kind of server signed in.
 const applyServerType = () => {
-	const wantPlex = serverType === 'plex';
-	if (wantPlex) registerPlexServer(currentServer, accessToken);
-	if (wantPlex === plexActive) return;
-	plexActive = wantPlex;
-	// Plex adds methods Jellyfin doesn't have, and those have to go again.
-	if (!wantPlex) {
-		Object.keys(api).forEach((name) => {
-			if (!Object.prototype.hasOwnProperty.call(jellyfinMethods, name)) delete api[name];
-		});
-	}
-	Object.assign(api, wantPlex ? plexMethods : jellyfinMethods);
+	if (serverType === 'plex') registerPlexServer(currentServer, accessToken);
+	if (serverType === 'silo') registerSiloServer(currentServer);
+	const wanted = methodsByType[serverType] || jellyfinMethods;
+	if (wanted === activeMethods) return;
+	activeMethods = wanted;
+	// A server's own client can add methods Jellyfin doesn't have, and those have to go again.
+	Object.keys(api).forEach((name) => {
+		if (!Object.prototype.hasOwnProperty.call(jellyfinMethods, name)) delete api[name];
+	});
+	Object.assign(api, wanted);
 };
 
 /**
@@ -1096,6 +1115,11 @@ export const createApiForServer = (serverUrl, token, userId, serverTypeOverride 
 	if (serverTypeOverride === 'plex' || isPlexServer(url)) {
 		registerPlexServer(url, token);
 		return plexApiFor(() => url, () => token, () => userId);
+	}
+
+	if (serverTypeOverride === 'silo' || isSiloServer(url)) {
+		registerSiloServer(url);
+		return siloApiFor(() => url, () => userId);
 	}
 
 	const getServerAuthHeader = () => buildAuthHeader(serverTypeOverride, token);

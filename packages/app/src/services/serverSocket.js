@@ -68,6 +68,8 @@ const scheduleKeepAlive = (timeoutSeconds) => {
 };
 
 const socketUrl = (serverUrl) => {
+	// Silo's events come over a socket of its own, which this doesn't speak.
+	if (getServerType() === 'silo') return null;
 	const wsProto = serverUrl.startsWith('https') ? 'wss' : 'ws';
 	const host = serverUrl.replace(/^https?:\/\//, '');
 	const token = encodeURIComponent(getApiKey());
@@ -125,10 +127,11 @@ export const connect = () => {
 	if (ws) return;
 
 	const serverUrl = getServerUrl();
-	if (!serverUrl) return;
+	const url = serverUrl ? socketUrl(serverUrl) : null;
+	if (!url) return;
 
 	try {
-		ws = new WebSocket(socketUrl(serverUrl));
+		ws = new WebSocket(url);
 	} catch {
 		scheduleReconnect(); // eslint-disable-line no-use-before-define
 		return;

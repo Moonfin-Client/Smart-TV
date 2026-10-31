@@ -43,6 +43,8 @@ export const legacyAuthHeader = (type, authHeader) =>
 export const buildUserImageUrl = (serverUrl, userId, imageTag, type) => {
 	// Plex keeps every account's avatar on plex.tv, under its uuid.
 	if (type === 'plex') return `https://plex.tv/users/${encodeURIComponent(userId)}/avatar`;
+	// A Silo profile's avatar comes signed, and its address is the tag.
+	if (type === 'silo') return /^https?:/.test(imageTag || '') ? imageTag : null;
 	const tag = imageTag ? `&tag=${encodeURIComponent(imageTag)}` : '';
 	if (type === 'emby') {
 		return `${serverUrl}/Users/${userId}/Images/Primary?quality=90&maxHeight=150${tag}`;

@@ -3,6 +3,14 @@
 
 export const siloBase = (url) => String(url || '').replace(/\/+$/, '');
 
+const siloServers = new Set();
+
+export const registerSiloServer = (serverUrl) => {
+	if (serverUrl) siloServers.add(siloBase(serverUrl));
+};
+
+export const isSiloServer = (serverUrl) => siloServers.has(siloBase(serverUrl));
+
 // Silo sends most addresses as a path on the server, which takes the server's address, sub-path and all.
 const resolveSiloUrl = (url, baseUrl) => {
 	const trimmed = typeof url === 'string' ? url.trim() : '';
@@ -27,6 +35,13 @@ export const registerSiloImage = (baseUrl, itemId, type, url, index = 0) => {
 export const siloImageFor = (baseUrl, itemId, type = 'Primary', index = 0) => images.get(imageKey(baseUrl, itemId, type, index)) || null;
 
 export const forgetSiloImages = () => images.clear();
+
+// The tag is the signed address itself. Without one, the item's last seen artwork of that kind stands in.
+export const siloImageUrl = (serverUrl, itemId, imageType = 'Primary', options = {}) => {
+	const tag = options.tag;
+	if (typeof tag === 'string' && /^https?:/.test(tag)) return tag;
+	return itemId ? siloImageFor(serverUrl, itemId, imageType) : null;
+};
 
 export const siloIdOf = (raw) => {
 	if (raw == null) return null;

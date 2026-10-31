@@ -1559,11 +1559,11 @@ export const createPlexApi = ({getBaseUrl, getToken, getUserId, getDeviceInfo, g
 	return api;
 };
 
-// Every method the app can call, with the ones Plex has no answer for refusing rather than reaching for a Jellyfin route.
-export const withEveryMethod = (plexApi, methodNames) => {
-	const complete = {...plexApi};
+// Every method the app can call, with the ones the server has no answer for refusing rather than reaching for a Jellyfin route.
+export const withEveryMethod = (serverApi, methodNames, refuse = unsupported) => {
+	const complete = {...serverApi};
 	methodNames.forEach((name) => {
-		if (!complete[name]) complete[name] = () => unsupported(name);
+		if (!complete[name]) complete[name] = () => refuse(name);
 	});
 	return complete;
 };

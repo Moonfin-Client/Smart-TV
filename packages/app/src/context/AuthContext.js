@@ -15,6 +15,7 @@ import {clearProxiedImageCache} from '../hooks/useProxiedImage';
 import {parseUrl} from '../utils/urlCompat';
 import {noteProvedSignIn} from '../utils/signInPin';
 import {bestPlexAddress} from '../services/plexTv';
+import {onSiloLoginEnded, restoreSiloAccounts, siloProfileOf} from '../services/siloAccounts';
 
 const REVALIDATE_INTERVAL = 5 * 60 * 1000;
 const BACKOFF_DELAYS = [5000, 10000, 20000];
@@ -75,7 +76,8 @@ export const AuthProvider = ({children}) => {
 			const [allServers, unique, active] = await Promise.all([
 				multiServerManager.getAllServersArray(),
 				multiServerManager.getUniqueServers(),
-				multiServerManager.getActiveServer()
+				multiServerManager.getActiveServer(),
+				restoreSiloAccounts()
 			]);
 
 			setServers(allServers);
@@ -469,6 +471,11 @@ export const AuthProvider = ({children}) => {
 		setActiveServerInfo(null);
 		setIsAuthenticated(false);
 	}, [activeServerInfo, switchUser]);
+
+	// Silo turned the account's refresh token down, so the profile signed in on it has to sign in again.
+	useEffect(() => onSiloLoginEnded((baseUrl, accountId) => {
+		if (activeServerInfo?.serverType === 'silo' && siloProfileOf(baseUrl, activeServerInfo.userId)?.accountId === accountId) logout();
+	}), [activeServerInfo, logout]);
 
 	/**
 	 * Full logout - remove all servers and users

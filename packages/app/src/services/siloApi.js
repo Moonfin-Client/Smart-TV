@@ -31,7 +31,7 @@ const SORT_FIELDS = {
 	playcount: 'plays'
 };
 
-const unsupported = (what) => Promise.reject(Object.assign(new Error(`${what} isn't supported on Silo`), {status: 501}));
+export const siloUnsupported = (what) => Promise.reject(Object.assign(new Error(`${what} isn't supported on Silo`), {status: 501}));
 
 const list = (value, separator = ',') => {
 	if (value == null || value === '') return [];
@@ -265,7 +265,7 @@ export const createSiloApi = ({getBaseUrl, getAccount, getProfile, getDeviceInfo
 		const libraryId = isLibraryId(parentId) ? parentId.trim() : null;
 		const genreParent = siloGenreNameOf(parentId);
 		const studioParent = siloStudioNameOf(parentId);
-		if (parentId && !libraryId && !genreParent && !studioParent) return unsupported(`Listing the items of ${parentId}`);
+		if (parentId && !libraryId && !genreParent && !studioParent) return siloUnsupported(`Listing the items of ${parentId}`);
 		if (types && !types.size) return result([], 0, start);
 		const searchText = String(params.SearchTerm || '').trim() || null;
 		let scope = types ? scopeFor(types) : null;
