@@ -95,8 +95,21 @@ export const verifyServerPin = async (account, pin) => {
 	}
 };
 
+// On Silo a PIN already set is checked first (Silo itself doesn't ask for it), so a wrong one still counts as a guess.
+const siloWrite = async (silo, profileId, pin, currentPin) => {
+	try {
+		if (currentPin && !(await silo.verifyProfilePin(profileId, currentPin))) return {result: PIN_WRONG};
+		await silo.setProfilePin(profileId, pin);
+		return {result: PIN_VALID};
+	} catch (e) {
+		return e.status === 429 ? {result: PIN_LOCKED, wait: DEFAULT_RETRY_SECONDS * 1000} : unavailable;
+	}
+};
+
 // A PIN already on the server has to be named in currentPin, and a wrong one counts as a guess.
 export const setServerPin = async (account, pin, currentPin) => {
+	const silo = siloFor(account);
+	if (silo) return siloWrite(silo, account.userId, pin, currentPin);
 	try {
 		return writeVerdict(await request(account, 'PUT', 'Pin', currentPin ? {pin, currentPin} : {pin}));
 	} catch (e) {
@@ -105,6 +118,8 @@ export const setServerPin = async (account, pin, currentPin) => {
 };
 
 export const removeServerPin = async (account, currentPin) => {
+	const silo = siloFor(account);
+	if (silo) return siloWrite(silo, account.userId, null, currentPin);
 	try {
 		return writeVerdict(await request(account, 'DELETE', 'Pin', currentPin ? {currentPin} : {}));
 	} catch (e) {
@@ -114,6 +129,8 @@ export const removeServerPin = async (account, currentPin) => {
 
 // Clears any account's PIN without it, which the plugin only lets an administrator do.
 export const removeServerPinFor = async (account, userId) => {
+	const silo = siloFor(account);
+	if (silo) return siloWrite(silo, userId, null, null);
 	try {
 		const {status} = await request(account, 'DELETE', `Users/${encodeURIComponent(userId)}/Pin`);
 		return status === 200 ? {result: PIN_VALID} : unavailable;

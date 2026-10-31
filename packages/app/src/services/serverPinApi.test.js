@@ -5,7 +5,7 @@ import {
 import {platformFetch} from './secureFetch';
 
 jest.mock('./secureFetch', () => ({platformFetch: jest.fn()}));
-const mockSilo = {profileHasPin: jest.fn(), verifyProfilePin: jest.fn()};
+const mockSilo = {profileHasPin: jest.fn(), verifyProfilePin: jest.fn(), setProfilePin: jest.fn()};
 jest.mock('./jellyfinApi', () => ({
 	getAuthHeaderFor: (type, token) => `MediaBrowser Token="${token}"`,
 	createApiForServer: () => mockSilo
@@ -116,5 +116,17 @@ describe('on Silo', () => {
 	it('waits out Silo\'s rate limit', async () => {
 		mockSilo.verifyProfilePin.mockRejectedValueOnce(Object.assign(new Error('slow down'), {status: 429}));
 		await expect(verifyServerPin(silo, '1')).resolves.toMatchObject({result: PIN_LOCKED});
+	});
+
+	it('sets and removes the profile\'s PIN, checking the one in place first', async () => {
+		mockSilo.setProfilePin.mockResolvedValue(null);
+		mockSilo.verifyProfilePin.mockResolvedValueOnce(false);
+		await expect(setServerPin(silo, '1111', '9999')).resolves.toEqual({result: PIN_WRONG});
+		expect(mockSilo.setProfilePin).not.toHaveBeenCalled();
+		mockSilo.verifyProfilePin.mockResolvedValueOnce(true);
+		await expect(setServerPin(silo, '1111', '2222')).resolves.toEqual({result: PIN_VALID});
+		expect(mockSilo.setProfilePin).toHaveBeenLastCalledWith('p2', '1111');
+		await expect(removeServerPinFor(silo, 'kid')).resolves.toEqual({result: PIN_VALID});
+		expect(mockSilo.setProfilePin).toHaveBeenLastCalledWith('kid', null);
 	});
 });

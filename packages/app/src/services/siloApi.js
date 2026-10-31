@@ -412,6 +412,21 @@ export const createSiloApi = ({getBaseUrl, getToken, getUserId, getDeviceInfo, p
 			return true;
 		},
 
+		// Sets (or with null removes) a profile's PIN, as the acting profile; Silo lets the primary profile or an admin do
+		// it. A new PIN retires the proof that unlocked the profile, so it's proved again with the new one.
+		setProfilePin: async (profileId, pin) => {
+			await call(`/api/v2/profiles/${encodeURIComponent(profileId)}`, {method: 'PATCH', body: {pin: pin || null}});
+			accountRead = null;
+			if (pin) {
+				await call(`/api/v2/profiles/${encodeURIComponent(profileId)}/verify-pin`, {method: 'POST', body: {pin}, profile: false, refresh: false})
+					.then((answer) => {
+						if (answer?.valid === true && answer.profile_token) {
+							setProfileProof(session(), String(profileId), {token: answer.profile_token, expiresAt: answer.expires_at ? Date.parse(answer.expires_at) : 0});
+						}
+					});
+			}
+		},
+
 		// A plain request to Silo's /api/v2 as the acting profile, for the request screens (siloSeerr.js).
 		siloCall: (path, options) => call(path, options),
 
