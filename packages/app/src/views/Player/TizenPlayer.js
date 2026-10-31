@@ -36,7 +36,7 @@ import {getZoomModeOptions} from '../Settings/settingsOptions';
 import {saveAudioPref, saveSubtitlePref} from '../../services/subtitlePrefs';
 import {resolveSeriesAudio} from './initialAudio';
 import {resolveInitialSubtitle} from './initialSubtitle';
-import {api as jellyfinApi, createApiForServer, getServerUrl} from '../../services/jellyfinApi';
+import {api as jellyfinApi, createApiForServer, getServerType, getServerUrl} from '../../services/jellyfinApi';
 import {getApiForItem} from '../../services/connectionPool';
 import PlayerControls, {usePlayerButtons} from './PlayerControls';
 import {canBrowseEpisodes} from '../../utils/episodeBrowser';
@@ -46,6 +46,7 @@ import useLiveRecording from './useLiveRecording';
 import useHeldSeekStep from './useHeldSeekStep';
 import {createServerSeek} from './serverSeek';
 import useSiloStreamRenewal from './useSiloStreamRenewal';
+import useStreamReconnect from './useStreamReconnect';
 import {hasTrickplayPreview} from '../../components/TrickplayPreview';
 import {isTrickplayOn} from '../../utils/trickplayLayout';
 import useChannelCarousel, {liveTvApiFor} from './useChannelCarousel';
@@ -257,6 +258,9 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 
 	const positionRef = useRef(0);
 	const playSessionRef = useRef(null);
+	// The stream reconnect, for the AVPlay listener, and the type of the error AVPlay last reported.
+	const reconnectRef = useRef(null);
+	const lastErrorTypeRef = useRef('');
 	// A Silo Watch Party reports where this player is and which session it plays (siloWatchParty.js).
 	useEffect(() => syncPlayService.attachPlayer({
 		sample: syncPlaySample,
@@ -796,6 +800,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 
 		avplaySetListener({
 			onbufferingstart: () => {
+				reconnectRef.current?.interrupted();
 				setIsBuffering(true);
 				liveRecoveryRef.current?.update({buffering: true});
 			},
@@ -815,6 +820,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 					return;
 				}
 				console.error('[Player] AVPlay error:', eventType);
+				lastErrorTypeRef.current = String(eventType || '');
 				serverLogger.playbackError('Playback: AVPlay reported an error', {
 					eventType: typeof eventType === 'object' ? JSON.stringify(eventType).slice(0, 300) : String(eventType),
 					playerState: avplayGetState(),
@@ -825,6 +831,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 			},
 			oncurrentplaytime: () => {
 				if (pausedErrorRef.current) pausedErrorRef.current = null;
+				reconnectRef.current?.playing();
 				liveRecoveryRef.current?.update({playing: true});
 				const now = Date.now();
 				if (now - lastTrackAttemptRef.current >= 500) {
@@ -987,6 +994,23 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 
 	const reopenSiloStream = useCallback(() => streamTimeline.seekThroughServer?.(positionRef.current), []);
 	useSiloStreamRenewal(isPaused, reopenSiloStream);
+
+	// A Silo stream that played and then lost its connection is reopened where it was (Core #2060), as an unchanged
+	// replan rather than a failure one, since the route was fine.
+	const {reconnect, reconnectingLabel} = useStreamReconnect({
+		itemId: item?.Id,
+		reopen: async () => {
+			const ticks = positionRef.current;
+			if (!await restartFromResult(await playback.reanchorAt(ticks), ticks)) throw new Error('Silo gave no stream to reopen');
+		},
+		onLost: () => setError($L('The connection to the server was lost.'))
+	});
+	reconnectRef.current = reconnect;
+	useEffect(() => {
+		if (isPaused) reconnect.interrupted();
+	}, [isPaused, reconnect]);
+	const canReconnect = useCallback(() => !isLiveTV && hasPlayedRef.current &&
+		(item?._serverType || getServerType()) === 'silo', [isLiveTV, item]);
 
 	const reloadWithSubtitleIndex = useCallback(async (subIndex) => {
 		const currentPositionTicks = Math.floor(avplayGetCurrentTime() * 10000);
@@ -2026,6 +2050,16 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 	const handleError = useCallback(async () => {
 		console.error('[Player] Playback error');
 
+		// A lost connection, or a source Silo stopped serving (a token it no longer takes), after the stream had played. A
+		// file the set can't play is not a connection's fault and goes on below. While a reconnect runs, its own
+		// attempts' failures are its to count.
+		const errorType = lastErrorTypeRef.current;
+		lastErrorTypeRef.current = '';
+		if (!isPausedRef.current && canReconnect() && (reconnect.reconnecting || !/NOT_SUPPORTED/.test(errorType))) {
+			reconnect.lost(errorType || 'error');
+			return;
+		}
+
 		// A channel past its tune is the live recovery's to bring back.
 		if (liveRecovery?.engaged()) {
 			liveRecovery.recover('source-error');
@@ -2082,7 +2116,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 		}
 
 		setError($L('Playback failed. The file format may not be supported.'));
-	}, [hasTriedTranscode, playMethod, item, selectedQuality, settings.maxBitrate, settings.stereoUpmixEnabled, restartFromResult, mediaSourceId, videoQueue, onPlayNext, liveRecovery]);
+	}, [hasTriedTranscode, playMethod, item, selectedQuality, settings.maxBitrate, settings.stereoUpmixEnabled, restartFromResult, mediaSourceId, videoQueue, onPlayNext, liveRecovery, canReconnect, reconnect]);
 
 	// Reload the current item from its last position, used when a suspended
 	// session cant be restored after the app returns to the foreground
@@ -3448,7 +3482,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 			)}
 
 
-			{(reconnecting || showBuffering) && <LoadingAnimationLayer label={reconnecting || $L('Loading Stream...')} />}
+			{(reconnecting || reconnectingLabel || showBuffering) && <LoadingAnimationLayer label={reconnecting || reconnectingLabel || $L('Loading Stream...')} />}
 
 			{isPaused && settings.showDescriptionOnPause && item?.Overview && !isAudioMode && !activeModal && !controlsVisible && (
 				<div className={css.pauseDescriptionOverlay}>

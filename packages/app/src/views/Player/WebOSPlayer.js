@@ -6,7 +6,7 @@ import Hls from 'hls.js';
 import * as playback from '../../services/playback';
 import {getImageUrl, getLogoUrl} from '../../utils/helpers';
 import {transcodesAudioCodec} from '../../utils/deviceProfileTuning';
-import {api as jellyfinApi, createApiForServer, getServerUrl} from '../../services/jellyfinApi';
+import {api as jellyfinApi, createApiForServer, getServerType, getServerUrl} from '../../services/jellyfinApi';
 import {getApiForItem} from '../../services/connectionPool';
 import {isVega} from '../../platform';
 import {isPlexUrl} from '../../utils/plexUrls';
@@ -61,6 +61,7 @@ import useLiveRecording from './useLiveRecording';
 import useHeldSeekStep from './useHeldSeekStep';
 import {createServerSeek} from './serverSeek';
 import useSiloStreamRenewal from './useSiloStreamRenewal';
+import useStreamReconnect from './useStreamReconnect';
 import useMediaSession from './useMediaSession';
 import {hasTrickplayPreview} from '../../components/TrickplayPreview';
 import {isTrickplayOn} from '../../utils/trickplayLayout';
@@ -1397,22 +1398,37 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 	}, [duration]);
 
 	// Silo replans the session at the position and the new stream opens there.
+	// Has Silo replan the session at a title position and opens the stream it gives. Rejects when it couldn't.
+	const reopenSiloAt = useCallback(async (ticks) => {
+		const result = await playback.reanchorAt(ticks);
+		if (!result?.url) throw new Error('Silo gave no stream to reopen');
+		pendingResumeTicksRef.current = ticks;
+		setMediaUrl(result.url);
+		if (result.playMethod) setPlayMethod(result.playMethod);
+		setIsHdrContent(isHdrOutput(result.mediaSource, result.playMethod === playback.PlayMethod.Transcode));
+		setMimeType(result.mimeType || 'video/mp4');
+	}, []);
+
 	const seekThroughServer = useMemo(() => createServerSeek(async (ticks) => {
 		try {
-			const result = await playback.reanchorAt(ticks);
-			if (!result?.url) return;
-			pendingResumeTicksRef.current = ticks;
-			setMediaUrl(result.url);
-			if (result.playMethod) setPlayMethod(result.playMethod);
-			setIsHdrContent(isHdrOutput(result.mediaSource, result.playMethod === playback.PlayMethod.Transcode));
-			setMimeType(result.mimeType || 'video/mp4');
+			await reopenSiloAt(ticks);
 		} catch (err) {
 			console.error('[Player] Seek through the server failed:', err);
 		}
-	}), []);
+	}), [reopenSiloAt]);
 
 	const reopenSiloStream = useCallback(() => seekThroughServer(positionRef.current), [seekThroughServer]);
 	useSiloStreamRenewal(isPaused, reopenSiloStream);
+
+	// A Silo stream that played and then lost its connection is reopened where it was (Core #2060). Silo's protocol has
+	// that be an unchanged replan, not a failure one, since the route was fine.
+	const {reconnect, reconnectingLabel} = useStreamReconnect({
+		itemId: item?.Id,
+		reopen: () => reopenSiloAt(positionRef.current),
+		onLost: () => setError($L('The connection to the server was lost.'))
+	});
+	const canReconnect = useCallback(() => !isLiveTV && renderedRef.current &&
+		(item?._serverType || getServerType()) === 'silo', [isLiveTV, item]);
 
 	// Moves the stream to a title position, or has Silo reopen it there when the stream can't seek.
 	const seekVideo = useCallback((seconds) => {
@@ -1976,11 +1992,12 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 	}, [handleUnhealthy, holdForGroup]);
 
 	const handlePause = useCallback(() => {
+		reconnect.interrupted();
 		setIsPaused(true);
 		healthMonitorRef.current?.setPaused(true);
 		liveRecovery?.update({playing: false});
 		playback.reportProgress(positionRef.current, { isPaused: true, eventName: 'pause' });
-	}, [liveRecovery]);
+	}, [liveRecovery, reconnect]);
 
 	const handleTimeUpdate = useCallback(() => {
 		// Until a stream that starts mid-title has loaded, the element still holds the last stream's time, and until a
@@ -2057,6 +2074,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 	}, [checkSegments, subtitleTrackEvents, subtitleOffset, settleGroupSeek, isAudioMode, updateSecondary, updateCinemaSkip, cinemaSkipActive, isLiveTV]);
 
 	const handleWaiting = useCallback(() => {
+		reconnect.interrupted();
 		setIsBuffering(true);
 		stalledRef.current = true;
 		liveRecovery?.update({buffering: true});
@@ -2064,9 +2082,10 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 		if (healthMonitorRef.current && (Date.now() - lastSeekTimeRef.current > 15000)) {
 			healthMonitorRef.current.recordBuffer();
 		}
-	}, [liveRecovery]);
+	}, [liveRecovery, reconnect]);
 
 	const handlePlaying = useCallback(() => {
+		reconnect.playing();
 		markChannelPlaying();
 		setIsBuffering(false);
 		stalledRef.current = false;
@@ -2083,7 +2102,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 		if (isInGroup && !groupHoldRef.current) {
 			skipGovernorRef.current.onStart({nowMs: Date.now(), fromMs: positionRef.current / 10000});
 		}
-	}, [holdForGroup, isInGroup, markChannelPlaying, liveRecovery]);
+	}, [holdForGroup, isInGroup, markChannelPlaying, liveRecovery, reconnect]);
 
 	const handleEnded = useCallback(async () => {
 		if (sourceTransitionRef.current) {
@@ -2123,6 +2142,15 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 	}, [onEnded, onPlayNext, nextEpisode, audioPlaylist, repeatMode, restartCurrent, getNextStep, settings.autoPlay, item, liveRecovery, shouldHoldForStillWatching]);
 
 	const handleError = useCallback(async () => {
+		// A network failure, or a source Silo stopped serving (a token it no longer takes), after the stream had played.
+		// A decode error is the file's and goes on below. While a reconnect runs, its own attempts' failures are its to
+		// count.
+		const code = videoRef.current?.error?.code;
+		if (!isPaused && canReconnect() && (reconnect.reconnecting || code === 2 || code === 4)) {
+			playbackStartTimedOutRef.current = false;
+			reconnect.lost(`error ${code || 'timeout'}`);
+			return;
+		}
 		const startFailure = playbackStartTimedOutRef.current && !isPaused;
 		// A channel that fails to open reads as paused too, so only the viewer's own pause holds a live error back.
 		const paused = isPaused || (!isLiveTV && videoRef.current?.paused);
@@ -2299,7 +2327,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 		} finally {
 			isHandlingErrorRef.current = false;
 		}
-	}, [hasTriedTranscode, playMethod, item, selectedQuality, settings.maxBitrate, settings.stereoUpmixEnabled, mediaSourceId, isPaused, isLiveTV, videoQueue, onPlayNext, liveRecovery]);
+	}, [hasTriedTranscode, playMethod, item, selectedQuality, settings.maxBitrate, settings.stereoUpmixEnabled, mediaSourceId, isPaused, isLiveTV, videoQueue, onPlayNext, liveRecovery, canReconnect, reconnect]);
 
 	useEffect(() => {
 		handlersRef.current = {
@@ -3525,7 +3553,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 			)}
 
 
-			{!isLoading && (reconnecting || showBuffering) && <LoadingAnimationLayer label={reconnecting || $L('Loading Stream...')} />}
+			{!isLoading && (reconnecting || reconnectingLabel || showBuffering) && <LoadingAnimationLayer label={reconnecting || reconnectingLabel || $L('Loading Stream...')} />}
 
 			{!isLoading && !error && isPaused && settings.showDescriptionOnPause && item?.Overview && !isAudioMode && !activeModal && !controlsVisible && (
 				<div className={css.pauseDescriptionOverlay}>

@@ -2677,5 +2677,6 @@
 	"The server is busy or still starting. Try again later.": "The server is busy or still starting. Try again later.",
 	"Playback isn't available on this Silo server.": "Playback isn't available on this Silo server.",
 	"This Silo server needs a newer version of Moonfin to play.": "This Silo server needs a newer version of Moonfin to play.",
-	"Playback was ended on the Silo server.": "Playback was ended on the Silo server."
+	"Playback was ended on the Silo server.": "Playback was ended on the Silo server.",
+	"The connection to the server was lost.": "The connection to the server was lost."
 }
