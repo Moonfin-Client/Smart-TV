@@ -1,4 +1,5 @@
-import {getAuthHeader, getServerUrl, api} from './jellyfinApi';
+import {getApiKey, getServerUrl, api} from './jellyfinApi';
+import {moonbaseAssetUrl, moonbaseEndpoint} from './moonbaseEndpoint';
 import {mediaServerQueue} from '../utils/requestQueue';
 import {RATING_SETTING_KEYS, ratingKey} from '../utils/ratingSources';
 
@@ -31,24 +32,25 @@ export const RATING_SOURCES = {
 export const getIconUrl = (baseUrl, source, rating) => {
 	const info = RATING_SOURCES[source];
 	if (!info) return '';
+	const asset = (file) => moonbaseAssetUrl(baseUrl, `/Moonfin/Assets/${file}`, getApiKey());
 
 	const score = rating?.score;
 
 	if (source === 'tomatoes' && score != null && score > 0) {
-		if (score >= 75) return `${baseUrl}/Moonfin/Assets/rt-certified.svg`;
-		if (score < 60) return `${baseUrl}/Moonfin/Assets/rt-rotten.svg`;
+		if (score >= 75) return asset('rt-certified.svg');
+		if (score < 60) return asset('rt-rotten.svg');
 	}
 
 	if (source === 'tomatoes_audience' && score != null && score > 0) {
-		if (score >= 90) return `${baseUrl}/Moonfin/Assets/rt-verified.svg`;
-		if (score < 60) return `${baseUrl}/Moonfin/Assets/rt-audience-down.svg`;
+		if (score >= 90) return asset('rt-verified.svg');
+		if (score < 60) return asset('rt-audience-down.svg');
 	}
 
 	if (source === 'metacritic' && score != null && score >= 81) {
-		return `${baseUrl}/Moonfin/Assets/metacritic-score.svg`;
+		return asset('metacritic-score.svg');
 	}
 
-	return `${baseUrl}/Moonfin/Assets/${info.iconFile}`;
+	return asset(info.iconFile);
 };
 
 /**
@@ -202,10 +204,12 @@ export const fetchRatings = async (serverUrl, item, options = {}) => {
 	try {
 		// profile=tv makes the plugin filter with the same profile this app syncs its
 		// settings to, rather than the global one.
-		const url = `${baseUrl}/Moonfin/MdbList/Ratings?type=${encodeURIComponent(contentType)}&tmdbId=${encodeURIComponent(tmdbId)}&profile=tv`;
+		const endpoint = await moonbaseEndpoint(baseUrl, getApiKey());
+		if (!endpoint) return [];
+		const url = `${endpoint.base}/Moonfin/MdbList/Ratings?type=${encodeURIComponent(contentType)}&tmdbId=${encodeURIComponent(tmdbId)}&profile=tv`;
 		const fetchOptions = {
 			headers: {
-				'Authorization': getAuthHeader()
+				...endpoint.headers
 			}
 		};
 		if (options.signal) {
@@ -286,8 +290,10 @@ export const fetchEpisodeRatings = async (serverUrl, item, options = {}) => {
 	if (!baseUrl) return [];
 
 	try {
-		const url = `${baseUrl}/Moonfin/Tmdb/EpisodeRating?tmdbId=${encodeURIComponent(seriesTmdbId)}&season=${encodeURIComponent(season)}&episode=${encodeURIComponent(episode)}`;
-		const fetchOptions = {headers: {'Authorization': getAuthHeader()}};
+		const endpoint = await moonbaseEndpoint(baseUrl, getApiKey());
+		if (!endpoint) return [];
+		const url = `${endpoint.base}/Moonfin/Tmdb/EpisodeRating?tmdbId=${encodeURIComponent(seriesTmdbId)}&season=${encodeURIComponent(season)}&episode=${encodeURIComponent(episode)}`;
+		const fetchOptions = {headers: endpoint.headers};
 		if (options.signal) fetchOptions.signal = options.signal;
 		const response = await mediaServerQueue.run(() => fetch(url, fetchOptions));
 		if (!response.ok) {
@@ -353,9 +359,11 @@ export const fetchTmdbSeasonRatings = async (serverUrl, tmdbId, season, options 
 	const baseUrl = serverUrl || getServerUrl();
 	if (!baseUrl) return null;
 	try {
-		const url = `${baseUrl}/Moonfin/Tmdb/SeasonRatings?tmdbId=${encodeURIComponent(tmdbId)}&season=${encodeURIComponent(season)}`;
+		const endpoint = await moonbaseEndpoint(baseUrl, getApiKey());
+		if (!endpoint) return null;
+		const url = `${endpoint.base}/Moonfin/Tmdb/SeasonRatings?tmdbId=${encodeURIComponent(tmdbId)}&season=${encodeURIComponent(season)}`;
 		const fetchOptions = {
-			headers: {'Authorization': getAuthHeader()}
+			headers: endpoint.headers
 		};
 		if (options.signal) fetchOptions.signal = options.signal;
 		const response = await fetch(url, fetchOptions);

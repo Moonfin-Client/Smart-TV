@@ -4,6 +4,7 @@ import {mediaServerQueue} from '../utils/requestQueue';
 import {normalizeWatchlistBody} from './seerrApi.watchlistShape';
 import {sharePending} from '../utils/sharePending';
 import {isPlexUrl} from '../utils/plexUrls';
+import {isSiloLogin, moonbaseEndpoint} from './moonbaseEndpoint';
 
 let moonfinMode = false;
 let jellyfinServerUrl = null;
@@ -55,6 +56,14 @@ const fetchRequest = async (params) => {
 			error: error.name === 'AbortError' ? 'Request timed out' : (error.message || 'Request failed')
 		};
 	}
+};
+
+// A request to one of Moonbase's own routes, signed the way this server wants. A server without Moonbase answers as one
+// without the plugin.
+const moonbaseFetch = async (sUrl, sToken, path, params) => {
+	const endpoint = await moonbaseEndpoint(sUrl, sToken);
+	if (!endpoint) return {success: true, status: 404, headers: {}, body: ''};
+	return fetchRequest({...params, url: `${endpoint.base}${path}`, headers: {...params.headers, ...endpoint.headers}});
 };
 
 // What a server said went wrong, capped. The message ends up in the diagnostic
@@ -276,9 +285,7 @@ const pingOnce = async (sUrl, sToken) => {
 		throw new Error('Server URL and token required');
 	}
 
-	const url = `${sUrl}/Moonfin/Ping`;
-	const result = await fetchRequest({
-		url,
+	const result = await moonbaseFetch(sUrl, sToken, `/Moonfin/Ping`, {
 		method: 'GET',
 		headers: {
 			'Accept': 'application/json',
@@ -314,8 +321,7 @@ export const getMoonfinMessages = async (serverUrl, token) => {
 		throw new Error('Server URL and token required');
 	}
 
-	const result = await fetchRequest({
-		url: `${sUrl}/Moonfin/Messages`,
+	const result = await moonbaseFetch(sUrl, sToken, `/Moonfin/Messages`, {
 		method: 'GET',
 		headers: {
 			'Accept': 'application/json',
@@ -377,9 +383,7 @@ export const getMoonfinSettings = async (serverUrl, token) => {
 		throw new Error('Server URL and token required');
 	}
 
-	const url = `${sUrl}/Moonfin/Settings`;
-	const result = await fetchRequest({
-		url,
+	const result = await moonbaseFetch(sUrl, sToken, `/Moonfin/Settings`, {
 		method: 'GET',
 		headers: {
 			'Accept': 'application/json',
@@ -410,9 +414,7 @@ export const getMoonfinThemes = async (serverUrl, token) => {
 		throw new Error('Server URL and token required');
 	}
 
-	const url = `${sUrl}/Moonfin/Themes`;
-	const result = await fetchRequest({
-		url,
+	const result = await moonbaseFetch(sUrl, sToken, `/Moonfin/Themes`, {
 		method: 'GET',
 		headers: {
 			'Accept': 'application/json',
@@ -445,9 +447,7 @@ export const getMoonfinResolvedProfile = async (profileName, serverUrl, token) =
 		throw new Error('Server URL and token required');
 	}
 
-	const url = `${sUrl}/Moonfin/Settings/Resolved/${profileName}`;
-	const result = await fetchRequest({
-		url,
+	const result = await moonbaseFetch(sUrl, sToken, `/Moonfin/Settings/Resolved/${profileName}`, {
 		method: 'GET',
 		headers: {
 			'Accept': 'application/json',
@@ -481,11 +481,8 @@ export const deleteMoonfinProfile = async (profileName, serverUrl, token) => {
 		throw new Error('Server URL and token required');
 	}
 
-	const url = profileName === 'global'
-		? `${sUrl}/Moonfin/Settings`
-		: `${sUrl}/Moonfin/Settings/Profile/${profileName}`;
-	const result = await fetchRequest({
-		url,
+	const path = profileName === 'global' ? '/Moonfin/Settings' : `/Moonfin/Settings/Profile/${profileName}`;
+	const result = await moonbaseFetch(sUrl, sToken, path, {
 		method: 'DELETE',
 		headers: {
 			'Accept': 'application/json',
@@ -511,9 +508,7 @@ export const saveMoonfinProfile = async (profileName, profile, serverUrl, token)
 		throw new Error('Server URL and token required');
 	}
 
-	const url = `${sUrl}/Moonfin/Settings/Profile/${profileName}`;
-	const result = await fetchRequest({
-		url,
+	const result = await moonbaseFetch(sUrl, sToken, `/Moonfin/Settings/Profile/${profileName}`, {
 		method: 'POST',
 		headers: {
 			'Content-Type': 'application/json',
@@ -544,6 +539,8 @@ export const subscribeMoonfinSettingsStream = (serverUrl, token, onEvent, onErro
 		throw new Error('Server URL and token required');
 	}
 	if (isPlexUrl(sUrl)) throw new Error('Plex servers have no settings stream');
+	// Silo can't stream a plugin's answer, so settings arrive at sign-in and on a manual sync.
+	if (isSiloLogin(sUrl, sToken)) throw new Error('Silo servers have no settings stream');
 
 	let closed = false;
 	const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
@@ -685,9 +682,7 @@ export const getMoonfinMediaBar = async (serverUrl, token, profile = 'tv') => {
 	const sToken = token || jellyfinAccessToken;
 	if (!sUrl || !sToken) return null;
 
-	const url = `${sUrl}/Moonfin/MediaBar?profile=${encodeURIComponent(profile)}`;
-	const result = await fetchRequest({
-		url,
+	const result = await moonbaseFetch(sUrl, sToken, `/Moonfin/MediaBar?profile=${encodeURIComponent(profile)}`, {
 		method: 'GET',
 		headers: {
 			'Accept': 'application/json',

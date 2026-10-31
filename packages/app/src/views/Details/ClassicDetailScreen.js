@@ -25,6 +25,8 @@ import {showsWatchedCheck} from '../../utils/playedState';
 import {AnimeEpisodePills, AnimeItemPills} from '../../components/AnimeMarkerPills';
 import IncompleteBadge, {IncompleteDetailLine} from '../../components/IncompleteBadge';
 import useItemMenuHold, {itemWithIdAt} from '../../hooks/useItemMenuHold';
+import {getApiKey} from '../../services/jellyfinApi';
+import {moonbaseAssetUrl} from '../../services/moonbaseEndpoint';
 
 import css from './Details.module.less';
 
@@ -402,7 +404,7 @@ const ClassicDetailScreen = ({
 										{epRuntime && <span className={css.episodeEpRuntime}>{epRuntime}</span>}
 										{episodeRatings[ep.IndexNumber] != null && (
 											<span className={css.tmdbBadge}>
-												<img className={css.tmdbIcon} src={`${serverUrl}/Moonfin/Assets/tmdb.svg`} alt="TMDB" />
+												<img className={css.tmdbIcon} src={moonbaseAssetUrl(serverUrl, '/Moonfin/Assets/tmdb.svg', getApiKey())} alt="TMDB" />
 												{episodeRatings[ep.IndexNumber].toFixed(1)}
 											</span>
 										)}

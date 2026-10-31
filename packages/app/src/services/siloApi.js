@@ -2,10 +2,11 @@
 // Silo's native /api/v2, not its Jellyfin-compatible listener.
 
 import {
-	SILO_API_MAJOR, closeSiloSession, isClientUpgradeRequired, loadSiloSessions, openSiloSession, siloError, siloRequest,
-	siloSessionFor, tokensFrom
+	SILO_API_MAJOR, closeSiloSession, isClientUpgradeRequired, loadSiloSessions, needsRefresh, openSiloSession, profileProof,
+	refreshSiloSession, siloError, siloHeaders, siloRequest, siloSessionFor, tokensFrom
 } from './siloSession';
 import {createSiloEvents, noteSiloPlaybackEnded} from './siloEvents';
+import {findSiloMoonbase} from './siloMoonbase';
 import {createSiloItems} from './siloItems';
 import {createSiloPlayback} from './siloPlayback';
 import {createSiloPlayerExtras, siloPlayingFile} from './siloPlayerExtras';
@@ -122,6 +123,12 @@ export const createSiloApi = ({getBaseUrl, getToken, getUserId, getDeviceInfo, p
 			(wanted ? null : profiles.find((p) => p.is_primary));
 		if (!profile) throw siloError(404, {title: `Silo profile ${wanted} no longer exists on this account`});
 		return withAvatar(siloProfileToUser(profile, account, siloSettingsToConfiguration(values)), profile);
+	};
+
+	const moonbaseGet = async (path) => {
+		const plugin = await findSiloMoonbase(base(), () => call('/api/v2/settings/plugins'));
+		if (!plugin) throw siloError(404, {title: 'Moonbase isn\'t installed on this Silo'});
+		return call(`${plugin}${path}`);
 	};
 
 	const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
@@ -265,6 +272,31 @@ export const createSiloApi = ({getBaseUrl, getToken, getUserId, getDeviceInfo, p
 
 		// Silo has no Jellyfin-style client capabilities report.
 		reportCapabilities: async () => null,
+
+		// TMDB lookups, through Moonbase for Silo.
+		getStudioCompanies: (tmdbId, mediaType) =>
+			moonbaseGet(`/Moonfin/Tmdb/ProductionCompanies?tmdbId=${encodeURIComponent(tmdbId)}&type=${mediaType === 'tv' ? 'tv' : 'movie'}`),
+		getTmdbReviews: (tmdbId, mediaType, language) =>
+			moonbaseGet(`/Moonfin/Tmdb/Reviews?tmdbId=${encodeURIComponent(tmdbId)}&type=${mediaType === 'tv' ? 'tv' : 'movie'}&language=${encodeURIComponent(language || 'en-US')}`),
+
+		// The plugins installed on the server, where Moonbase is found.
+		getInstalledPlugins: () => call('/api/v2/settings/plugins'),
+
+		// The headers a request made outside this api signs with (Moonbase's routes), its token refreshed first when due.
+		requestHeaders: async () => {
+			await loadSiloSessions();
+			const current = session();
+			if (!current?.tokens) return null;
+			if (needsRefresh(current.tokens)) await refreshSiloSession(current, getDeviceInfo(), platform);
+			if (!current.tokens) return null;
+			return siloHeaders({
+				deviceInfo: getDeviceInfo(),
+				platform,
+				accessToken: current.tokens.accessToken,
+				profileId: getUserId(),
+				profileToken: getUserId() ? profileProof(current, getUserId()) : null
+			});
+		},
 
 		siloUnsupported: unsupported
 	};

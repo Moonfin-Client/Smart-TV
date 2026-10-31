@@ -3,6 +3,10 @@ import {moonfinPing} from './seerrApi';
 
 jest.mock('../utils/fetchTimeout', () => ({fetchWithTimeout: jest.fn()}));
 jest.mock('../platform', () => ({isWebOS: () => false, isLegacyTizen: () => false}));
+jest.mock('./moonbaseEndpoint', () => ({
+	moonbaseEndpoint: async (base, token) => ({base, headers: {Authorization: `MediaBrowser Token="${token}"`}}),
+	isSiloLogin: () => false
+}));
 
 const answer = () => Promise.resolve({
 	status: 200,

@@ -22,6 +22,8 @@ const DEFAULT_RETRY_SECONDS = 30;
 const unavailable = {result: PIN_UNAVAILABLE};
 
 const request = async ({serverUrl, accessToken, serverType}, method, path, body) => {
+	// Silo keeps its own profile PINs, and Moonbase for Silo has none of these routes.
+	if (serverType === 'silo') return {status: 404, data: null};
 	const auth = getAuthHeaderFor(serverType, accessToken);
 	const headers = {Authorization: auth, ...legacyAuthHeader(serverType, auth)};
 	if (body) headers['Content-Type'] = 'application/json';
