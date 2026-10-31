@@ -9,6 +9,8 @@ import {
 } from './siloMapper';
 import {createSiloPager, siloPage, siloPageSignature} from './siloPager';
 
+import {createSiloShuffles} from './siloShuffles';
+
 const CATALOG = '/api/v2/catalog';
 // Silo sizes artwork when the item is read: lists take medium, detail pages large.
 export const SILO_LIST_IMAGE_SIZE = 'medium';
@@ -1028,6 +1030,7 @@ export const createSiloItems = ({call, images, getConfiguration, mediaSources, g
 
 
 	return {
+		...createSiloShuffles({call, map}),
 		forget: () => forgetAll(),
 		cardsOf,
 		hideFromResume,

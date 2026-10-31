@@ -58,6 +58,7 @@ import SyncPlayDialog from '../components/SyncPlayDialog';
 import WatchPartyDialog from '../components/WatchPartyDialog';
 import useWatchParty from '../hooks/useWatchParty';
 import {watchParty, isRoomPlaying} from '../services/siloWatchParty';
+import {extendServerShuffle} from '../services/serverShuffle';
 import PhotoViewer from '../components/PhotoViewer';
 import ComicViewer from '../components/ComicViewer';
 import EpubReader from '../components/EpubReader';
@@ -1193,6 +1194,14 @@ const AppContent = (props) => {
 	// were part way through carries on from where it stopped.
 	const handlePlayNext = useCallback((item, options) => {
 		setPlayingItem(item);
+		// A server's shuffle (Silo's) hands out one item ahead: the one starting now was it, so the server picks the next.
+		extendServerShuffle(item?.Id).then((more) => {
+			if (!more?.length) return;
+			const fromServer = Object.fromEntries(Object.entries(item).filter(([key]) => key.startsWith('_server')));
+			setPlaybackOptions((prev) => (prev?.videoQueue?.some((e) => e.Id === item.Id)
+				? {...prev, videoQueue: [...prev.videoQueue, ...more.map((next) => ({...next, ...fromServer}))]}
+				: prev));
+		}).catch((err) => console.warn('[App] Moving the server shuffle on failed:', err));
 		setPlaybackOptions(prev => {
 			if (prev?.audioPlaylist?.some(t => t.Id === item.Id)) {
 				return {audioPlaylist: prev.audioPlaylist};

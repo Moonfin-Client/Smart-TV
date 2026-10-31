@@ -9,6 +9,7 @@ import {useSettings} from '../../context/SettingsContext';
 import {useSeerr} from '../../context/SeerrContext';
 import {useSyncPlay} from '../../context/SyncPlayContext';
 import {watchParty} from '../../services/siloWatchParty';
+import {startServerShuffle} from '../../services/serverShuffle';
 import useWatchParty from '../../hooks/useWatchParty';
 import * as jellyfinApi from '../../services/jellyfinApi';
 import {searchesForTrailer} from '../../services/youtubeTrailer';
@@ -519,6 +520,17 @@ const Details = ({itemId: itemIdProp, initialItem, onPlay, onSelectItem, onSelec
 
 	const handleShuffle = useCallback(async () => {
 		if (!item) return;
+
+		// Silo shuffles a show, season or collection itself, playing everything once before any repeats, and the queue
+		// grows as it goes. Anything it won't shuffle falls through to the local shuffle below.
+		if (['Series', 'Season', 'BoxSet'].includes(item.Type)) {
+			const served = await startServerShuffle(effectiveApi, item).catch(() => null);
+			if (served?.length) {
+				const queue = tagWithServerInfo(served);
+				onPlay?.(queue[0], false, {videoQueue: queue});
+				return;
+			}
+		}
 
 		// A series or season is not itself playable, so shuffle builds a randomized
 		// queue of its episodes and plays through them. Handing the series item

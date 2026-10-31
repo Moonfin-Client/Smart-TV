@@ -1219,7 +1219,10 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 					if (queued) {
 						setNextEpisode(queued);
 					} else if (item.Type === 'Episode') {
-						playback.getNextEpisode(item).then(setNextEpisode);
+						// A queue that grew while this was asked (a server's shuffle) keeps its own order.
+						playback.getNextEpisode(item).then((next) => {
+							if (!nextInQueue(videoQueueRef.current, item)) setNextEpisode(next);
+						});
 					}
 				}
 
