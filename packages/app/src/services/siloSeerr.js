@@ -46,6 +46,17 @@ const intOf = (v) => {
 	return Number.isFinite(n) ? n : null;
 };
 const list = (v) => (Array.isArray(v) ? v : []);
+// A query string's values by name. Old Tizen engines have no URLSearchParams.
+const parseQuery = (query) => {
+	const values = {};
+	String(query || '').split('&').forEach((pair) => {
+		if (!pair) return;
+		const at = pair.indexOf('=');
+		const name = decodeURIComponent((at < 0 ? pair : pair.slice(0, at)).replace(/\+/g, ' '));
+		if (!(name in values)) values[name] = at < 0 ? '' : decodeURIComponent(pair.slice(at + 1).replace(/\+/g, ' '));
+	});
+	return {get: (name) => (name in values ? values[name] : null)};
+};
 const pageOf = (take, skip) => (take > 0 ? Math.floor(skip / take) + 1 : 1);
 
 // A 31-bit FNV-1a hash, the same on every run, for ids made from names (genres, cast, row keys).
@@ -550,7 +561,7 @@ export const createSiloSeerr = ({call, baseUrl = '', random = Math.random}) => {
 
 	// The catalog entries the events point at, for their TMDB and TVDB ids, overview and backdrop, each read once.
 	const calendarTitles = async (entries, idOf) => {
-		const ids = [...new Set(entries.map(idOf).filter((id) => typeof id === 'string'))];
+		const ids = entries.map(idOf).filter((id, i, all) => typeof id === 'string' && all.indexOf(id) === i);
 		const found = {};
 		for (let i = 0; i < ids.length; i += 5) {
 			// eslint-disable-next-line no-await-in-loop
@@ -608,7 +619,7 @@ export const createSiloSeerr = ({call, baseUrl = '', random = Math.random}) => {
 	/** Answers one Seerr API path (`/discover/trending?page=2`) the way Seerr would, from Silo. */
 	const request = async (endpoint, {method = 'GET', body} = {}) => {
 		const [rawPath, rawQuery = ''] = String(endpoint).replace(/^\/+/, '').split('?');
-		const params = new URLSearchParams(rawQuery);
+		const params = parseQuery(rawQuery);
 		const parts = rawPath.split('/');
 		const at = intOf(params.get('page')) || 1;
 		const verb = method.toUpperCase();
