@@ -6,6 +6,7 @@ import {
 	refreshSiloSession, setProfileProof, siloError, siloHeaders, siloRequest, siloSessionFor, tokensFrom
 } from './siloSession';
 import {createSiloAdminItems} from './siloAdminItems';
+import {createSiloRemoteSubtitles} from './siloRemoteSubtitles';
 import {createSiloEvents, noteSiloPlaybackEnded} from './siloEvents';
 import {findSiloMoonbase} from './siloMoonbase';
 import {createSiloItems} from './siloItems';
@@ -232,9 +233,17 @@ export const createSiloApi = ({getBaseUrl, getToken, getUserId, getDeviceInfo, p
 		}
 	});
 
+	// The file playing for the title, or the default file of its first version.
+	const remoteSubtitles = createSiloRemoteSubtitles({
+		call,
+		fileOf: async (itemId) => siloPlayingFile(base(), itemId)?.fileId || (await items.getItem(itemId))?.MediaSources?.[0]?.Id || null,
+		forget: () => items.forget()
+	});
+
 	return {
 		...items,
 		...adminItems,
+		...remoteSubtitles,
 		siloEvents: events,
 		getMediaSegments: extras.getMediaSegments,
 		getTrickplayManifest: extras.getTrickplayManifest,

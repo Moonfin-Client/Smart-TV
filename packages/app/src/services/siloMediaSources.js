@@ -31,6 +31,14 @@ const NAMES = {
 	urd: 'Urdu', vi: 'Vietnamese', vie: 'Vietnamese', zh: 'Chinese', zho: 'Chinese', chi: 'Chinese'
 };
 
+// The two-letter code Silo takes for a language code, where the table knows one (`eng` is `en`), else the code.
+export const siloLanguageCode = (code) => {
+	const lower = String(code || '').trim().toLowerCase();
+	const name = NAMES[lower];
+	if (lower.length === 2 || !name) return lower;
+	return Object.keys(NAMES).find((key) => key.length === 2 && NAMES[key] === name) || lower;
+};
+
 // The English name of a language code, or the code itself when the table doesn't know it.
 export const siloLanguageName = (code) => {
 	const trimmed = typeof code === 'string' ? code.trim() : '';
