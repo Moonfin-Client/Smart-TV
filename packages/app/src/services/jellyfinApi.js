@@ -1071,6 +1071,10 @@ const siloApiFor = (readUrl, readToken, readUserId) => withEverySiloMethod(creat
 
 const siloMethods = siloApiFor(() => currentServer, () => accessToken, () => currentUser);
 
+// The Silo apis built for other servers (and profiles), oldest first.
+const siloApis = new Map();
+const MAX_SILO_APIS = 8;
+
 // Silo rotates the account's tokens on every refresh. The signed-in session follows, so the api keeps finding it.
 onSiloTokensRotated((session, previousToken) => {
 	if (accessToken === previousToken && siloServerKey(currentServer) === session.server) accessToken = session.tokens.accessToken;
@@ -1116,10 +1120,19 @@ export const createApiForServer = (serverUrl, token, userId, serverTypeOverride 
 		return plexApiFor(() => url, () => token, () => userId);
 	}
 
-	// The token may have rotated since it was saved, and the session it belonged to still knows it.
+	// The token may have rotated since it was saved, and the session it belonged to still knows it. One api per server,
+	// login and profile, since it holds the playback sessions it started: a stop or progress report for another
+	// server's title has to reach the one that started it.
 	if (serverTypeOverride === 'silo') {
 		registerSiloServer(url);
-		return siloApiFor(() => url, () => siloSessionFor(url, token)?.tokens?.accessToken || token, () => userId);
+		const key = `${url}|${token}|${userId}`;
+		let silo = siloApis.get(key);
+		if (!silo) {
+			silo = siloApiFor(() => url, () => siloSessionFor(url, token)?.tokens?.accessToken || token, () => userId);
+			siloApis.set(key, silo);
+			if (siloApis.size > MAX_SILO_APIS) siloApis.delete(siloApis.keys().next().value);
+		}
+		return silo;
 	}
 
 	const getServerAuthHeader = () => buildAuthHeader(serverTypeOverride, token);
