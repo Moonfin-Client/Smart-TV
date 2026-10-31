@@ -618,6 +618,42 @@ export const siloLibrariesToViews = (libraries, baseUrl) => maps(libraries)
 	})
 	.map((entry) => entry.view);
 
+// Silo names genres and studios but gives them no id or artwork, so their cards fall back to their titles' artwork.
+export const siloNamedItem = (name, studio) => ({
+	Id: studio ? siloStudioId(name) : siloGenreId(name),
+	Name: name,
+	SortName: name,
+	Type: studio ? 'Studio' : 'Genre',
+	IsFolder: true,
+	ImageTags: {},
+	BackdropImageTags: []
+});
+
+export const siloPersonToJellyfin = (person, baseUrl) => {
+	const id = siloIdOf(person?.id) || '';
+	const name = text(person?.name) || '';
+	const photo = id ? registerSiloImage(baseUrl, id, 'Primary', person?.photo_url) : null;
+	const birthplace = text(person?.birthplace);
+	const homepage = text(person?.homepage);
+	return {
+		Id: id,
+		Name: name,
+		SortName: name,
+		Type: 'Person',
+		IsFolder: false,
+		ProductionLocations: birthplace ? [birthplace] : [],
+		ProviderIds: compact({Imdb: text(person?.imdb_id), Tmdb: text(person?.tmdb_id), Tvdb: text(person?.tvdb_id)}),
+		ImageTags: photo ? {Primary: photo} : {},
+		BackdropImageTags: [],
+		...compact({
+			Overview: text(person?.bio),
+			PremiereDate: calendarDate(person?.birth_date),
+			EndDate: calendarDate(person?.death_date),
+			ExternalUrls: homepage ? [{Name: 'Website', Url: homepage}] : null
+		})
+	};
+};
+
 // A household profile as one of the app's users. Only an admin account's primary profile is an admin here.
 export const siloProfileToUser = (profile, account) => {
 	const name = text(profile?.name) || text(account?.username) || '';

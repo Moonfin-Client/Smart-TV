@@ -35,14 +35,39 @@ export const siloIdOf = (raw) => {
 };
 
 // Silo names genres and studios without ids, so the app makes them from the name.
-export const siloGenreId = (name) => `silo-genre:${encodeURIComponent(name)}`;
-export const siloStudioId = (name) => `silo-studio:${encodeURIComponent(name)}`;
+const GENRE_PREFIX = 'silo-genre:';
+const STUDIO_PREFIX = 'silo-studio:';
+
+export const siloGenreId = (name) => `${GENRE_PREFIX}${encodeURIComponent(name)}`;
+export const siloStudioId = (name) => `${STUDIO_PREFIX}${encodeURIComponent(name)}`;
+
+const nameAfter = (prefix, id) => {
+	if (typeof id !== 'string' || !id.startsWith(prefix) || id.length === prefix.length) return null;
+	const encoded = id.substring(prefix.length);
+	try {
+		return decodeURIComponent(encoded);
+	} catch {
+		return encoded;
+	}
+};
+
+export const siloGenreNameOf = (id) => nameAfter(GENRE_PREFIX, id);
+export const siloStudioNameOf = (id) => nameAfter(STUDIO_PREFIX, id);
 
 // Silo names a season after its series, series-<key> having season-<key>-1, -2 and so on. An episode only carries
 // its series and season number, so the app builds the season's id itself.
 export const siloSeasonId = (seriesId, seasonNumber) => (typeof seriesId === 'string' && seriesId.startsWith('series-') && seriesId.length > 7
 	? `season-${seriesId.substring(7)}-${seasonNumber}`
 	: null);
+
+export const parseSiloSeasonId = (seasonId) => {
+	if (typeof seasonId !== 'string' || !seasonId.startsWith('season-')) return null;
+	const dash = seasonId.lastIndexOf('-');
+	if (dash <= 7) return null;
+	const number = Number(seasonId.substring(dash + 1));
+	if (!Number.isInteger(number) || number < 0) return null;
+	return {seriesId: `series-${seasonId.substring(7, dash)}`, seasonNumber: number};
+};
 
 // Season and episode list entries carry no type, which the id's prefix gives.
 export const siloTypeOfId = (id) => {
