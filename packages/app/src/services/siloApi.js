@@ -279,6 +279,9 @@ export const createSiloApi = ({getBaseUrl, getToken, getUserId, getDeviceInfo, p
 		getTmdbReviews: (tmdbId, mediaType, language) =>
 			moonbaseGet(`/Moonfin/Tmdb/Reviews?tmdbId=${encodeURIComponent(tmdbId)}&type=${mediaType === 'tv' ? 'tv' : 'movie'}&language=${encodeURIComponent(language || 'en-US')}`),
 
+		// A plain request to Silo's /api/v2 as the acting profile, for the request screens (siloSeerr.js).
+		siloCall: (path, options) => call(path, options),
+
 		// The plugins installed on the server, where Moonbase is found.
 		getInstalledPlugins: () => call('/api/v2/settings/plugins'),
 
