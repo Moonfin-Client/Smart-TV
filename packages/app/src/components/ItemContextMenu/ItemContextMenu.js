@@ -84,6 +84,7 @@ export const ItemMenuProvider = ({children, onPlay, onOpenItem, backRef}) => {
 		return itemMenuActions(item, {
 			isAdmin,
 			isJellyfin,
+			isSilo: (item._serverType || getServerType()) === 'silo' && sameServer,
 			canManageCollections,
 			inCollection: Boolean(options?.collectionRemoval),
 			playlist: playlist ? {canManage: playlist.canManage, canRemove: playlist.canRemove, canMove: playlist.canMove, ...playlist.positionOf(item)} : null,

@@ -5,6 +5,7 @@ import {
 	SILO_API_MAJOR, closeSiloSession, isClientUpgradeRequired, loadSiloSessions, needsRefresh, openSiloSession, profileProof,
 	refreshSiloSession, setProfileProof, siloError, siloHeaders, siloRequest, siloSessionFor, tokensFrom
 } from './siloSession';
+import {createSiloAdminItems} from './siloAdminItems';
 import {createSiloEvents, noteSiloPlaybackEnded} from './siloEvents';
 import {findSiloMoonbase} from './siloMoonbase';
 import {createSiloItems} from './siloItems';
@@ -223,8 +224,17 @@ export const createSiloApi = ({getBaseUrl, getToken, getUserId, getDeviceInfo, p
 		}
 	});
 
+	const adminItems = createSiloAdminItems({
+		call,
+		forget: () => {
+			items.forget();
+			items.forgetViews();
+		}
+	});
+
 	return {
 		...items,
+		...adminItems,
 		siloEvents: events,
 		getMediaSegments: extras.getMediaSegments,
 		getTrickplayManifest: extras.getTrickplayManifest,

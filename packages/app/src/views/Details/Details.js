@@ -277,6 +277,16 @@ const Details = ({itemId: itemIdProp, initialItem, onPlay, onSelectItem, onSelec
 		backRef: reviewBackRef
 	});
 
+	// Identify on Silo gives a newly matched item a new id, and the old one is gone, so the page opens the new one.
+	const handleItemIdentified = useCallback((newId) => {
+		if (newId) onSelectItem?.({Id: newId, Type: item?.Type, Name: item?.Name});
+		else refreshItem();
+	}, [onSelectItem, item?.Type, item?.Name, refreshItem]);
+
+	// Silo's admin item routes cover the catalog's titles: movies, shows, seasons and episodes.
+	const siloAdmin = jellyfinApi.getServerType() === 'silo' && Boolean(user?.Policy?.IsAdministrator) &&
+		['Movie', 'Series', 'Season', 'Episode'].includes(item?.Type);
+
 	const canChangeArtwork = useMemo(() => {
 		if (!item) return false;
 		const type = item.Type;
@@ -295,17 +305,19 @@ const Details = ({itemId: itemIdProp, initialItem, onPlay, onSelectItem, onSelec
 			type === 'Genre' ||
 			type === 'MusicGenre';
 
-		return (isMediaType || isFolder) &&
+		return siloAdmin || ((isMediaType || isFolder) &&
 			jellyfinApi.getServerType() === 'jellyfin' &&
-			user?.Policy?.IsAdministrator;
-	}, [item, user]);
+			user?.Policy?.IsAdministrator);
+	}, [item, user, siloAdmin]);
 
 	const canIdentify = useMemo(() => {
 		if (!item) return false;
+		// Silo matches movies and shows; an episode or season is identified through its show.
+		if (siloAdmin) return item.Type === 'Movie' || item.Type === 'Series';
 		return IDENTIFIABLE_TYPES.includes(item.Type) &&
 			jellyfinApi.getServerType() === 'jellyfin' &&
 			user?.Policy?.IsAdministrator;
-	}, [item, user]);
+	}, [item, user, siloAdmin]);
 
 	const isBoxSet = item?.Type === 'BoxSet';
 
@@ -1207,7 +1219,7 @@ const Details = ({itemId: itemIdProp, initialItem, onPlay, onSelectItem, onSelec
 				api={effectiveApi}
 				serverUrl={effectiveServerUrl}
 				modals={modals}
-				onItemRefreshed={refreshItem}
+				onItemRefreshed={handleItemIdentified}
 				onConfirmDelete={handleConfirmDelete}
 				onToast={showToast}
 				toastMessage={toastMessage}
