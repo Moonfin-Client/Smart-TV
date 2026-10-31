@@ -115,11 +115,14 @@ const shuffle = (items, random) => {
 	return items;
 };
 
+const DAY_MS = 24 * 60 * 60 * 1000;
+const isoDay = (d) => d.toISOString().slice(0, 10);
+
 /**
  * `call(path, options)` is a Silo request as the signed-in profile (siloApi's `siloCall`), throwing Silo's errors with
- * `status`. `random` is for tests.
+ * `status`. `baseUrl` makes Silo's relative artwork links whole. `random` is for tests.
  */
-export const createSiloSeerr = ({call, random = Math.random}) => {
+export const createSiloSeerr = ({call, baseUrl = '', random = Math.random}) => {
 	// Silo request id by the integer the screens were given.
 	const requestIds = {};
 	const requestKeys = {};
@@ -525,6 +528,83 @@ export const createSiloSeerr = ({call, random = Math.random}) => {
 
 	const watchlistPath = (tmdbId, type) => `/api/v2/watchlist/titles/${siloType(type)}/${encodeURIComponent(tmdbId)}`;
 
+	// ---- Calendar: Radarr's and Sonarr's, both from Silo's own (GET /calendar), which lists the releases and airings of
+	// what the server holds.
+
+	// The events of `type` from `start` to `end` (YYYY-MM-DD). Silo answers at most 31 days at a time.
+	const calendarEvents = async (start, end, type) => {
+		let from = new Date(`${start}T00:00:00Z`);
+		const last = new Date(`${end}T00:00:00Z`);
+		const found = [];
+		while (from <= last) {
+			const to = new Date(Math.min(from.getTime() + 30 * DAY_MS, last.getTime()));
+			// eslint-disable-next-line no-await-in-loop
+			const body = await get('/calendar', {start: isoDay(from), end: isoDay(to)});
+			list(body.events).forEach((day) => list(day?.items).forEach((e) => {
+				if (e?.type === type) found.push(e);
+			}));
+			from = new Date(to.getTime() + DAY_MS);
+		}
+		return found;
+	};
+
+	// The catalog entries the events point at, for their TMDB and TVDB ids, overview and backdrop, each read once.
+	const calendarTitles = async (entries, idOf) => {
+		const ids = [...new Set(entries.map(idOf).filter((id) => typeof id === 'string'))];
+		const found = {};
+		for (let i = 0; i < ids.length; i += 5) {
+			// eslint-disable-next-line no-await-in-loop
+			await Promise.all(ids.slice(i, i + 5).map((id) => get(`/catalog/items/${encodeURIComponent(id)}`).then((t) => {
+				found[id] = t;
+			}, () => {})));
+		}
+		return found;
+	};
+
+	// Silo's artwork links are signed, so they load without the session.
+	const absolute = (url) => (/^https?:/.test(url) ? url : `${String(baseUrl).replace(/\/+$/, '')}${url}`);
+	const calendarImages = (poster, backdrop) => [
+		...(typeof poster === 'string' && poster ? [{coverType: 'poster', remoteUrl: absolute(poster)}] : []),
+		...(typeof backdrop === 'string' && backdrop ? [{coverType: 'fanart', remoteUrl: absolute(backdrop)}] : [])
+	];
+
+	// When it airs, in UTC: Silo gives the instant when it knows the network's time, else only the day, read as the start
+	// of the viewer's day.
+	const calendarInstant = (e) => {
+		const at = Date.parse(e.air_at || '');
+		if (!Number.isNaN(at)) return new Date(at).toISOString();
+		const day = /^(\d{4})-(\d{2})-(\d{2})/.exec(e.air_date || '');
+		return day ? new Date(Number(day[1]), Number(day[2]) - 1, Number(day[3])).toISOString() : null;
+	};
+
+	/** Silo's calendar as Radarr's (`movie`) or Sonarr's (`tv`) calendar answers. */
+	const calendar = async (type, start, end) => {
+		if (type === 'movie') {
+			const releases = await calendarEvents(start, end, 'movie');
+			const titles = await calendarTitles(releases, (e) => e.content_id);
+			return releases.filter((e) => intOf(titles[e.content_id]?.tmdb_id) != null).map((e) => {
+				const t = titles[e.content_id];
+				return {
+					tmdbId: intOf(t.tmdb_id), title: e.title, overview: t.overview, year: t.year,
+					digitalRelease: calendarInstant(e), images: calendarImages(e.poster_url, t.backdrop_url)
+				};
+			});
+		}
+		const events = await calendarEvents(start, end, 'episode');
+		const shows = await calendarTitles(events, (e) => e.series_id);
+		return events.filter((e) => intOf(shows[e.series_id]?.tvdb_id) != null).map((e) => {
+			const show = shows[e.series_id];
+			return {
+				series: {
+					tvdbId: intOf(show.tvdb_id), tmdbId: intOf(show.tmdb_id), title: e.title, overview: show.overview,
+					images: calendarImages(e.poster_url, show.backdrop_url)
+				},
+				title: e.episode_title, seasonNumber: e.season_number, episodeNumber: e.episode_number,
+				airDateUtc: calendarInstant(e)
+			};
+		});
+	};
+
 	/** Answers one Seerr API path (`/discover/trending?page=2`) the way Seerr would, from Silo. */
 	const request = async (endpoint, {method = 'GET', body} = {}) => {
 		const [rawPath, rawQuery = ''] = String(endpoint).replace(/^\/+/, '').split('?');
@@ -582,5 +662,5 @@ export const createSiloSeerr = ({call, random = Math.random}) => {
 		return {};
 	};
 
-	return {request, status};
+	return {request, status, calendar};
 };

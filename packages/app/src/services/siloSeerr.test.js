@@ -13,7 +13,7 @@ const setup = (routes) => {
 		if (answer instanceof Error) throw answer;
 		return typeof answer === 'function' ? answer(options) : answer;
 	});
-	return {seerr: createSiloSeerr({call, random: () => 0}), calls};
+	return {seerr: createSiloSeerr({call, baseUrl: 'http://silo/', random: () => 0}), calls};
 };
 
 const refused = (status) => Object.assign(new Error('no'), {status});
@@ -82,5 +82,25 @@ describe('Silo requests in Seerr\'s shapes', () => {
 		await seerr.request('/watchlist', {method: 'POST', body: {tmdbId: 11, mediaType: 'movie'}});
 		await seerr.request('/watchlist/5?mediaType=tv', {method: 'DELETE'});
 		expect(calls.map((c) => `${c.method} ${c.path}`)).toEqual(['PUT /api/v2/watchlist/titles/movie/11', 'DELETE /api/v2/watchlist/titles/series/5']);
+	});
+
+	test('the calendar reads Silo\'s in 31-day parts and answers in Radarr\'s and Sonarr\'s shapes', async () => {
+		const {seerr, calls} = setup({
+			'GET /api/v2/calendar': (options) => (options.query.start === '2026-11-01' ? {events: [{items: [
+				{type: 'movie', content_id: 'movie-tmdb-11', title: 'Film', air_at: '2026-11-03T20:00:00Z', poster_url: '/img/p'},
+				{type: 'episode', series_id: 'series-tvdb-7', title: 'Show', episode_title: 'Pilot', season_number: 1, episode_number: 1, air_date: '2026-11-04'}
+			]}]} : {events: []}),
+			'GET /api/v2/catalog/items/movie-tmdb-11': {tmdb_id: 11, overview: 'o', year: 2026, backdrop_url: 'https://cdn/b'},
+			'GET /api/v2/catalog/items/series-tvdb-7': {tvdb_id: '7', tmdb_id: 5, overview: 's'}
+		});
+		const movies = await seerr.calendar('movie', '2026-11-01', '2027-01-30');
+		expect(calls.filter((c) => c.path === '/api/v2/calendar').map((c) => [c.query.start, c.query.end]))
+			.toEqual([['2026-11-01', '2026-12-01'], ['2026-12-02', '2027-01-01'], ['2027-01-02', '2027-01-30']]);
+		expect(movies).toEqual([{tmdbId: 11, title: 'Film', overview: 'o', year: 2026, digitalRelease: '2026-11-03T20:00:00.000Z', images: [
+			{coverType: 'poster', remoteUrl: 'http://silo/img/p'}, {coverType: 'fanart', remoteUrl: 'https://cdn/b'}
+		]}]);
+		const episodes = await seerr.calendar('tv', '2026-11-01', '2026-11-30');
+		expect(episodes[0]).toMatchObject({series: {tvdbId: 7, tmdbId: 5, title: 'Show'}, title: 'Pilot', seasonNumber: 1, episodeNumber: 1});
+		expect(episodes[0].airDateUtc).toBe(new Date(2026, 10, 4).toISOString());
 	});
 });

@@ -35,7 +35,7 @@ const siloSeerrNow = () => {
 	if (siloSeerr?.server !== jellyfinServerUrl) {
 		// Silo's request routes name the acting profile, read at call time since it can switch.
 		const silo = () => createApiForServer(jellyfinServerUrl, jellyfinAccessToken, getUserId(), 'silo');
-		siloSeerr = {server: jellyfinServerUrl, ...createSiloSeerr({call: (path, options) => silo().siloCall(path, options)})};
+		siloSeerr = {server: jellyfinServerUrl, ...createSiloSeerr({call: (path, options) => silo().siloCall(path, options), baseUrl: jellyfinServerUrl})};
 	}
 	return siloSeerr;
 };
@@ -850,6 +850,13 @@ export const getSonarrServerDetails = async (serverId) => {
 // Full Radarr/Sonarr connection settings (hostname, port, apiKey, useSsl,
 // baseUrl) used to fetch upcoming calendars directly from the arr servers.
 // These are Seerr admin settings, so they require an admin Seerr session.
+// Silo's own calendar in Radarr's (`movie`) or Sonarr's (`tv`) shape, or null when the requests aren't Silo's, whose
+// calendars come from the arr servers themselves.
+export const getSiloCalendar = (type, start, end) => {
+	const silo = siloSeerrNow();
+	return silo ? silo.calendar(type, start, end).catch(() => []) : null;
+};
+
 export const getRadarrSettings = async () => {
 	return request('/settings/radarr');
 };
@@ -1220,6 +1227,7 @@ export default {
 	getRadarrServerDetails,
 	getSonarrServers,
 	getSonarrServerDetails,
+	getSiloCalendar,
 	getRadarrSettings,
 	getSonarrSettings,
 	discover,

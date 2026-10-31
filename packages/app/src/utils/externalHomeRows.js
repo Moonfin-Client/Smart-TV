@@ -318,7 +318,7 @@ const arrGet = async (url) => {
 	}
 };
 
-const fetchRadarrItems = async (settings) => {
+const radarrCalendar = async () => {
 	let servers = [];
 	try {
 		servers = await seerrApi.getRadarrSettings();
@@ -328,9 +328,12 @@ const fetchRadarrItems = async (settings) => {
 	}
 	const server = pickDefaultServer(servers);
 	if (!server || !server.apiKey) return [];
+	return arrGet(`${arrBaseUrl(server)}/api/v3/calendar?apikey=${encodeURIComponent(server.apiKey)}&start=${isoDate(0)}&end=${isoDate(90)}&unmonitored=true`);
+};
 
-	const url = `${arrBaseUrl(server)}/api/v3/calendar?apikey=${encodeURIComponent(server.apiKey)}&start=${isoDate(0)}&end=${isoDate(90)}&unmonitored=true`;
-	const items = await arrGet(url);
+const fetchRadarrItems = async (settings) => {
+	// On Silo, Silo's own calendar in Radarr's shape.
+	const items = await (seerrApi.getSiloCalendar('movie', isoDate(0), isoDate(90)) || radarrCalendar());
 
 	const results = [];
 	for (const m of items) {
@@ -383,7 +386,7 @@ const fetchRadarrItems = async (settings) => {
 	return results;
 };
 
-const fetchSonarrItems = async (settings) => {
+const sonarrCalendar = async () => {
 	let servers = [];
 	try {
 		servers = await seerrApi.getSonarrSettings();
@@ -393,9 +396,12 @@ const fetchSonarrItems = async (settings) => {
 	}
 	const server = pickDefaultServer(servers);
 	if (!server || !server.apiKey) return [];
+	return arrGet(`${arrBaseUrl(server)}/api/v3/calendar?apikey=${encodeURIComponent(server.apiKey)}&start=${isoDate(0)}&end=${isoDate(90)}&includeSeries=true`);
+};
 
-	const url = `${arrBaseUrl(server)}/api/v3/calendar?apikey=${encodeURIComponent(server.apiKey)}&start=${isoDate(0)}&end=${isoDate(90)}&includeSeries=true`;
-	const episodes = await arrGet(url);
+const fetchSonarrItems = async (settings) => {
+	// On Silo, Silo's own calendar in Sonarr's shape.
+	const episodes = await (seerrApi.getSiloCalendar('tv', isoDate(0), isoDate(90)) || sonarrCalendar());
 
 	// Keep the earliest upcoming episode per series.
 	const bySeries = {};
