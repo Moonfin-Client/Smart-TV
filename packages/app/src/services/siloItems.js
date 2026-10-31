@@ -1100,6 +1100,8 @@ export const createSiloItems = ({call, images, getConfiguration, mediaSources, g
 		getPlaylists: async () => empty(0),
 		forgetViews: () => viewsRead.forget(),
 		detailJson,
+		// A title with one of its files read in full, for playback.
+		readItem: (itemId, fileId) => getItem(itemId, fileId),
 		rememberRow: (items, libraryId) => items.forEach((item) => {
 			rememberSeries(item);
 			if (libraryId) rememberLibrary(item.Id, libraryId);

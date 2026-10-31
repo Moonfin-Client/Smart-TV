@@ -24,6 +24,9 @@ export const PlayMethod = {
 };
 
 const isPlexCreds = (creds) => (creds?.serverType || jellyfinApi.getServerType()) === 'plex';
+const isSiloCreds = (creds) => (creds?.serverType || jellyfinApi.getServerType()) === 'silo';
+// Plex and Silo hand subtitles out as files at their own addresses, which are parsed here.
+const servesSidecars = (creds) => isPlexCreds(creds) || isSiloCreds(creds);
 
 const isHlsTranscode = (url, mediaSource, serverType) => url.includes('/master.m3u8') || url.includes('TranscodingProtocol=hls') ||
 	(serverType === 'plex' && mediaSource.TranscodingSubProtocol === 'hls');
@@ -587,6 +590,16 @@ export const getPlaybackInfo = async (itemId, options = {}) => {
 		enableTranscoding: options.enableTranscoding !== false
 	});
 
+	if (serverType === 'silo') {
+		// eslint-disable-next-line no-use-before-define
+		return siloPlaybackResult({
+			itemId, options, api, creds, deviceProfile, maxBitrate, capabilities, storedSettings, allowDirectPlay, allowDirectStream,
+			startPositionTicks: requestedStartTime,
+			subtitleStreamIndex: hasExplicitSubtitle ? requestedSubtitleStreamIndex : undefined,
+			requestedSubtitleStreamIndex
+		});
+	}
+
 	const subProfiles = deviceProfile.SubtitleProfiles;
 	if (subProfiles) {
 		console.log('[playback] SubtitleProfiles sent to server:', subProfiles.map(p => p.Format + ':' + p.Method).join(', '));
@@ -963,6 +976,76 @@ export const getPlaybackInfo = async (itemId, options = {}) => {
 	};
 };
 
+// Silo decides how a title plays and answers with one plan, so none of the negotiation above applies: the plan's
+// delivery is the play method and its address is the stream. Asked again while the title plays (another track, a
+// quality, a seek a remux can't make), Silo replans the same session.
+const siloPlaybackResult = async ({
+	itemId, options, api, creds, deviceProfile, maxBitrate, capabilities, storedSettings, allowDirectPlay, allowDirectStream,
+	startPositionTicks, subtitleStreamIndex, requestedSubtitleStreamIndex
+}) => {
+	const playbackInfo = await api.getPlaybackInfo(itemId, {
+		DeviceProfile: deviceProfile,
+		StartTimeTicks: startPositionTicks,
+		AudioStreamIndex: options.audioStreamIndex,
+		SubtitleStreamIndex: subtitleStreamIndex,
+		MaxStreamingBitrate: maxBitrate,
+		MediaSourceId: options.mediaSourceId,
+		// Asked again with direct play off, the original file failed here, and Silo is told so.
+		EnableDirectPlay: allowDirectPlay && options.enableDirectPlay !== false
+	}, options.item);
+	const mediaSource = playbackInfo.MediaSources[0];
+	let playMethod = PlayMethod.Transcode;
+	if (mediaSource.SupportsDirectPlay) playMethod = PlayMethod.DirectPlay;
+	else if (mediaSource.SupportsDirectStream) playMethod = PlayMethod.DirectStream;
+	const url = mediaSource.SiloStreamUrl;
+	const isHls = mediaSource.TranscodingSubProtocol === 'hls';
+	const audioStreams = extractAudioStreams(mediaSource);
+	const subtitleStreams = extractSubtitleStreams(mediaSource, itemId, creds, storedSettings.assDirectPlay === false, url, playMethod,
+		storedSettings.enablePgsRendering === false);
+	const selectedAudio = options.audioStreamIndex ?? mediaSource.DefaultAudioStreamIndex;
+
+	replaceSession({
+		itemId,
+		playSessionId: playbackInfo.PlaySessionId,
+		mediaSourceId: mediaSource.Id,
+		liveStreamId: null,
+		mediaSource,
+		playMethod,
+		reportedPlayMethod: playMethod,
+		startPositionTicks: options.startPositionTicks || 0,
+		capabilities,
+		audioStreamIndex: selectedAudio,
+		subtitleStreamIndex: requestedSubtitleStreamIndex,
+		maxBitrate: options.maxBitrate,
+		allowDirectPlay,
+		allowDirectStream,
+		serverCredentials: creds
+	});
+	console.log(`[playback] Silo plays ${itemId} as ${mediaSource.SiloDelivery} (${playMethod})`);
+
+	let mimeType;
+	if (isHls) mimeType = 'application/x-mpegURL';
+	else mimeType = getMimeType(mediaSource.Container) || mediaSource.SiloStreamMimeType;
+
+	return {
+		url,
+		playSessionId: playbackInfo.PlaySessionId,
+		mediaSourceId: mediaSource.Id,
+		mediaSource,
+		playMethod,
+		mimeType,
+		isAudio: false,
+		runTimeTicks: mediaSource.RunTimeTicks,
+		audioStreams,
+		subtitleStreams,
+		chapters: extractChapters(mediaSource),
+		defaultAudioStreamIndex: mediaSource.DefaultAudioStreamIndex,
+		selectedAudioStreamIndex: selectedAudio,
+		defaultSubtitleStreamIndex: mediaSource.DefaultSubtitleStreamIndex,
+		startPositionTicks
+	};
+};
+
 export const getPlaybackInfoWithFallback = async (itemId, options = {}) => {
 	try {
 		return await getPlaybackInfo(itemId, options);
@@ -984,6 +1067,8 @@ export const getSubtitleUrl = (subtitleStream) => {
 	const serverUrl = serverCredentials?.serverUrl || jellyfinApi.getServerUrl();
 	const apiKey = serverCredentials?.accessToken || jellyfinApi.getApiKey();
 
+	if (isSiloCreds(serverCredentials)) return subtitleStream.deliveryUrl || null;
+
 	// Request WebVTT for any text-based subtitle - server converts ASS/SSA/SRT as needed
 	if (subtitleStream.isTextBased) {
 		return `${serverUrl}/Videos/${itemId}/${mediaSourceId}/Subtitles/${subtitleStream.index}/Stream.vtt?${jellyfinApi.getTokenParam(serverCredentials?.serverType)}=${apiKey}`;
@@ -995,7 +1080,7 @@ export const getSubtitleUrl = (subtitleStream) => {
 // Raw ASS/SSA subtitle URL that preserves styling (vs getSubtitleUrl which converts to VTT)
 export const getAssSubtitleUrl = (subtitleStream) => {
 	if (!subtitleStream?.isAss || !currentSession) return null;
-	if (isPlexCreds(currentSession.serverCredentials)) return subtitleStream.deliveryUrl || null;
+	if (servesSidecars(currentSession.serverCredentials)) return subtitleStream.deliveryUrl || null;
 
 	const {itemId, mediaSourceId, serverCredentials} = currentSession;
 	const serverUrl = serverCredentials?.serverUrl || jellyfinApi.getServerUrl();
@@ -1049,8 +1134,8 @@ export const fetchSubtitleData = async (subtitleStream) => {
 		return null;
 	}
 
-	// Plex hands out a sidecar file as it is, so it's parsed here.
-	if (isPlexCreds(serverCredentials)) {
+	// Plex and Silo hand out a sidecar file as it is, so it's parsed here.
+	if (servesSidecars(serverCredentials)) {
 		if (!subtitleStream.deliveryUrl) return null;
 		try {
 			const response = await corsFreeFetch(subtitleStream.deliveryUrl);
@@ -1299,6 +1384,10 @@ const stopRequest = (positionTicks) => {
 
 	serverUrl = serverUrl.trim().replace(/\/+$/, '');
 	if (!/^https?:\/\//i.test(serverUrl)) serverUrl = 'http://' + serverUrl;
+
+	// Silo's stop is a DELETE with the account's headers, which a beacon can't send. Silo ends a session that stops
+	// reporting on its own.
+	if (isSiloCreds(creds)) return null;
 
 	// Plex takes its stop as a timeline report, all of it in the address.
 	if (isPlexCreds(creds)) {

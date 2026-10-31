@@ -6,6 +6,8 @@ import {
 	siloSessionFor, tokensFrom
 } from './siloSession';
 import {createSiloItems} from './siloItems';
+import {createSiloPlayback} from './siloPlayback';
+import {siloItemMediaSources} from './siloMediaSources';
 import * as userDataSync from './userDataSync';
 import {registerSiloImage, registerSiloServer, siloImageTagFor} from '../utils/siloUrls';
 import {
@@ -126,11 +128,32 @@ export const createSiloApi = ({getBaseUrl, getToken, getUserId, getDeviceInfo, p
 		images,
 		getUserId,
 		getConfiguration: async () => (await currentUser()).Configuration,
-		publishUserData: (itemId, patch) => userDataSync.publish(itemId, patch)
+		publishUserData: (itemId, patch) => userDataSync.publish(itemId, patch),
+		mediaSources: siloItemMediaSources
+	});
+
+	const playback = createSiloPlayback({
+		call,
+		getBaseUrl: base,
+		getUserId,
+		getAccessToken: () => session()?.tokens?.accessToken || getToken(),
+		getDeviceInfo,
+		platform,
+		getItem: (itemId, fileId) => items.readItem(itemId, fileId)
 	});
 
 	return {
 		...items,
+		getPlaybackInfo: playback.getPlaybackInfo,
+		reportPlaybackStart: playback.reportPlaybackStart,
+		reportPlaybackProgress: playback.reportPlaybackProgress,
+		reportPlaybackStopped: async (info) => {
+			await playback.reportPlaybackStopped(info);
+			// What was watched moves Continue Watching and Next Up along.
+			items.forget();
+		},
+		stopActiveEncodings: playback.stopActiveEncodings,
+		closeLiveStream: playback.closeLiveStream,
 
 		getPublicInfo: async () => {
 			const info = await probeSilo(base());
