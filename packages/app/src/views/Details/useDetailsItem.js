@@ -3,7 +3,7 @@ import $L from '@enact/i18n/$L';
 
 import * as playback from '../../services/playback';
 import {fetchTmdbSeasonRatings, resolveSeriesTmdbId, isRatingSourceAllowed} from '../../services/mdblistApi';
-import {getItemAudioPref, getSeriesAudioPref} from '../../services/subtitlePrefs';
+import {getItemAudioPref, getSeriesAudioPref, syncSeriesTrackChoices} from '../../services/subtitlePrefs';
 import {fromServerStream, matchSeriesTrackIndex} from '../../utils/seriesTrackPrefs';
 import {detailsSubtitlePosition} from '../Player/initialSubtitle';
 import {findParentCollections} from './parentCollection';
@@ -241,8 +241,11 @@ const useDetailsItem = ({itemId, initialItem, effectiveApi, effectiveServerUrl, 
 			setItem(tagWithServerInfo(data));
 			setIsSeed(false);
 			setSelectedVersionIndex(0);
+			// A series' track choice made on another device comes in before this page reads it.
+			const tracksSynced = syncSeriesTrackChoices(tagWithServerInfo(data));
 			const ms = data.MediaSources?.[0];
 			if (ms) {
+				await tracksSynced;
 				const initAudioStreams = ms.MediaStreams?.filter(s => s.Type === 'Audio') || [];
 				// A track remembered for the title or its series shows as active, and only
 				// when there is none does the server's own default stand in.

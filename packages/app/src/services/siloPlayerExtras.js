@@ -126,13 +126,26 @@ export const siloThemeSongs = (detail, itemId) => {
 	}));
 };
 
+// The file each item plays (or last played), by server and item: its markers are the ones that count (two versions of
+// a film can have different markers), and its track map names a track to Silo. Kept for the app, since an item from
+// another server gets a new api each time it's asked for.
+const playing = {};
+const MAX_PLAYING = 50;
+
+export const siloPlayingFile = (baseUrl, itemId) => playing[`${baseUrl}|${itemId}`] || null;
+
+const notePlaying = (baseUrl, itemId, file) => {
+	const key = `${baseUrl}|${itemId}`;
+	delete playing[key];
+	playing[key] = file;
+	const keys = Object.keys(playing);
+	if (keys.length > MAX_PLAYING) delete playing[keys[0]];
+};
+
 /**
  * `getDetail(itemId)` answers a title's raw detail, shared with the page that shows it.
  */
 export const createSiloPlayerExtras = ({call, getBaseUrl, getDetail}) => {
-	// The file each item plays (or last played), whose markers are the ones that count: two versions of a film can
-	// have different markers.
-	const playing = {};
 	const markers = keptReads(MARKERS_TTL, 64);
 	const themesAvailable = keptReads(THEMES_CAPABILITIES_TTL);
 
@@ -154,14 +167,15 @@ export const createSiloPlayerExtras = ({call, getBaseUrl, getDetail}) => {
 	}).catch(() => false);
 
 	return {
-		// Told by playback when `itemId` starts playing `fileId`; a credits marker without an end runs to the length.
-		notePlayingFile: (itemId, fileId, runTimeSeconds = null) => {
-			if (itemId && fileId) playing[itemId] = {fileId: String(fileId), runTimeSeconds};
+		// Told by playback when `itemId` starts playing `fileId` (its MediaSource `source`); a credits marker without an
+		// end runs to the length.
+		notePlayingFile: (itemId, fileId, runTimeSeconds = null, source = null) => {
+			if (itemId && fileId) notePlaying(getBaseUrl(), itemId, {fileId: String(fileId), runTimeSeconds, source});
 		},
 
 		// Silo's markers of the file that plays, or of the title's first file before one plays.
 		getMediaSegments: async (itemId) => {
-			const file = playing[itemId];
+			const file = siloPlayingFile(getBaseUrl(), itemId);
 			const Items = await (file
 				? markers.get(`file:${file.fileId}`, () => readMarkers(`/api/v2/markers/files/${encodeURIComponent(file.fileId)}`, itemId, file.runTimeSeconds))
 				: markers.get(`item:${itemId}`, () => readMarkers(`/api/v2/markers/items/${encodeURIComponent(itemId)}`, itemId, null)));
