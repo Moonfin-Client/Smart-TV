@@ -2629,5 +2629,6 @@
 	"Jellyfin, Emby or Silo on your network or online": "Jellyfin, Emby or Silo on your network or online",
 	"Works with Jellyfin, Emby and Silo. A Plex address opens the Plex sign-in.": "Works with Jellyfin, Emby and Silo. A Plex address opens the Plex sign-in.",
 	"This Silo server needs a newer version of Moonfin. Update Moonfin to use it.": "This Silo server needs a newer version of Moonfin. Update Moonfin to use it.",
-	"This Silo server is too old for this version of Moonfin. Update Silo to use it.": "This Silo server is too old for this version of Moonfin. Update Silo to use it."
+	"This Silo server is too old for this version of Moonfin. Update Silo to use it.": "This Silo server is too old for this version of Moonfin. Update Silo to use it.",
+	"Silo servers don't take client logs.": "Silo servers don't take client logs."
 }

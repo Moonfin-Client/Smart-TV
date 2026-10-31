@@ -27,8 +27,8 @@ export const SyncPlayProvider = ({children}) => {
 	const listenerRef = useRef(null);
 
 	useEffect(() => {
-		// Emby and Plex have no SyncPlay, and asking them for the clock or a ping only earns errors.
-		if (isAuthenticated && serverType !== 'emby' && serverType !== 'plex' && settings.syncplayEnabled !== false) {
+		// Emby, Plex and Silo have no SyncPlay, and asking them for the clock or a ping only earns errors.
+		if (isAuthenticated && serverType !== 'emby' && serverType !== 'plex' && serverType !== 'silo' && settings.syncplayEnabled !== false) {
 			syncPlayService.start();
 		} else {
 			syncPlayService.stop();
