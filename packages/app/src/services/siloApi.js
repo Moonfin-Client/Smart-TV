@@ -1,5 +1,6 @@
 // A Silo server behind the same methods the app calls on a Jellyfin server, answering in Jellyfin's shapes.
 
+import * as userDataSync from './userDataSync';
 import {createSiloRequest} from './siloSession';
 import {createSiloPager, siloPage} from './siloPager';
 import {SILO_ORIGINAL, siloItemToJellyfin, siloLibrariesToViews, siloNamedItem, siloPersonToJellyfin, siloProgressToUserData} from './siloMapper';
@@ -369,6 +370,20 @@ export const createSiloApi = ({getBaseUrl, getAccount, getProfile, getDeviceInfo
 		return result(names.map((name) => siloNamedItem(name, false)));
 	};
 
+	const changed = (itemId, patch) => () => userDataSync.publish(itemId, patch);
+
+	// Silo keeps favorites, watched state and ratings on titles only.
+	const titleId = (itemId, what) => {
+		const id = String(itemId || '').trim();
+		if (!id || isLibraryId(id) || siloGenreNameOf(id) || siloStudioNameOf(id)) {
+			throw Object.assign(new Error(`Silo keeps ${what} on films, shows, seasons and episodes only`), {status: 501});
+		}
+		return encodeURIComponent(id);
+	};
+
+	const setStars = (itemId, stars) => request(`/ratings/${titleId(itemId, 'ratings')}`, {method: 'PUT', body: {rating: stars}})
+		.then(changed(itemId, {Rating: stars * 2}));
+
 	return {
 		getLibraries: async () => result(await libraries()),
 		getAllLibraries: async () => result(await libraries()),
@@ -393,6 +408,10 @@ export const createSiloApi = ({getBaseUrl, getAccount, getProfile, getDeviceInfo
 			const answer = await request(`/recommendations/similar/${encodeURIComponent(itemId)}`, {query: {limit}});
 			return result(mapAll(itemsOf(answer)).filter((item) => TITLE_TYPES.includes(siloTypeOf(item))));
 		},
+		setFavorite: (itemId, isFavorite) => request(`/favorites/${titleId(itemId, 'favorites')}`, {method: isFavorite ? 'PUT' : 'DELETE'})
+			.then(changed(itemId, {IsFavorite: isFavorite})),
+		setWatched: (itemId, watched) => request(`/watched/${titleId(itemId, 'watched state')}`, {method: watched ? 'POST' : 'DELETE'})
+			.then(changed(itemId, {Played: watched, PlayedPercentage: null, PlaybackPositionTicks: 0})),
 		// Silo hides a title from Continue Watching only for the resume point it had, which its card names.
 		hideFromResume: async (itemId) => {
 			const card = (await sectionCards('continue_watching') || []).find((c) => c.content_id === itemId);
@@ -400,6 +419,10 @@ export const createSiloApi = ({getBaseUrl, getAccount, getProfile, getDeviceInfo
 			await request(`/home/dismissals/continue_watching/${encodeURIComponent(itemId)}`, {method: 'PUT', body: {progress_updated_at: card.progress_updated_at}});
 			[...kept.keys()].filter((key) => key.includes('/sections/')).forEach((key) => kept.delete(key));
 		},
+		// Silo rates in whole stars from 1 to 5, and the app out of 10.
+		setNumericRating: (itemId, rating) => setStars(itemId, Math.min(5, Math.max(1, Math.round(rating / 2)))),
+		setRating: (itemId, likes) => setStars(itemId, likes ? 5 : 1),
+		clearRating: (itemId) => request(`/ratings/${titleId(itemId, 'ratings')}`, {method: 'DELETE'}).then(changed(itemId, {Rating: null, Likes: null})),
 		getServerInfo: () => ({serverUrl: getBaseUrl(), accessToken: getAccount?.()?.tokens?.accessToken || null, userId: getProfile?.()?.id || null})
 	};
 };

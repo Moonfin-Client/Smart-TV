@@ -1,6 +1,7 @@
 import {createSiloApi, siloRuleGroups, siloSortFor} from './siloApi';
 import {setSiloTokens, siloAccount} from './siloSession';
 import {corsFreeFetch} from './secureFetch';
+import * as userDataSync from './userDataSync';
 import libraries from './__fixtures__/silo/user_libraries.json';
 import libraryPage from './__fixtures__/silo/catalog_library_page1.json';
 import movie from './__fixtures__/silo/catalog_item_movie.json';
@@ -13,6 +14,7 @@ import person from './__fixtures__/silo/person.json';
 import catalogFilters from './__fixtures__/silo/catalog_filters.json';
 
 jest.mock('./secureFetch', () => ({corsFreeFetch: jest.fn()}));
+jest.mock('./userDataSync', () => ({publish: jest.fn()}));
 
 const BASE = 'http://silo:8090';
 const CONTINUE_WATCHING = '146552064640566580';
@@ -47,6 +49,7 @@ const calls = () => corsFreeFetch.mock.calls.map(([url, init]) => {
 
 beforeEach(() => {
 	corsFreeFetch.mockReset();
+	userDataSync.publish.mockReset();
 });
 
 describe('sorting and filters', () => {
@@ -178,5 +181,25 @@ describe('home rows', () => {
 		const latest = await api().getLatest('1', 5);
 		expect(latest).toHaveLength(libraryPage.items.length);
 		expect(calls().find((c) => c.path === '/catalog').query).toMatchObject({library_id: '1', type: 'movie', sort: '-added_at'});
+	});
+});
+
+describe('user data', () => {
+	test('a favorite is set on the title and told to the rest of the app', async () => {
+		serve({'PUT /favorites/movie-imdb-tt0295701': null});
+		await api().setFavorite('movie-imdb-tt0295701', true);
+		expect(calls()[0]).toMatchObject({method: 'PUT', path: '/favorites/movie-imdb-tt0295701'});
+		expect(userDataSync.publish).toHaveBeenCalledWith('movie-imdb-tt0295701', {IsFavorite: true});
+	});
+
+	test('a rating out of 10 becomes whole stars', async () => {
+		serve({'PUT /ratings/movie-imdb-tt0295701': null});
+		await api().setNumericRating('movie-imdb-tt0295701', 7);
+		expect(calls()[0].body).toEqual({rating: 4});
+		expect(userDataSync.publish).toHaveBeenCalledWith('movie-imdb-tt0295701', {Rating: 8});
+	});
+
+	test('a library can\'t be a favorite', () => {
+		expect(() => api().setFavorite('1', true)).toThrow(/titles|films/);
 	});
 });
