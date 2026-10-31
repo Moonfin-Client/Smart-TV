@@ -27,8 +27,8 @@ export const SyncPlayProvider = ({children}) => {
 	const listenerRef = useRef(null);
 
 	useEffect(() => {
-		// Emby and Plex have no SyncPlay, and asking them for the clock or a ping only earns errors.
-		if (isAuthenticated && serverType !== 'emby' && serverType !== 'plex' && settings.syncplayEnabled !== false) {
+		// Only Jellyfin has SyncPlay, and asking other servers for the clock or a ping only earns errors.
+		if (isAuthenticated && serverType === 'jellyfin' && settings.syncplayEnabled !== false) {
 			syncPlayService.start();
 		} else {
 			syncPlayService.stop();

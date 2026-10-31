@@ -281,7 +281,7 @@ let capabilitiesSent = null;
 // Signing in reports what this session can do and the socket opening a moment later would send it
 // again, so the socket skips a report made for the same session in the last few seconds.
 export function reportCapabilities({unlessRecent = false} = {}) {
-	if (!currentServer || !accessToken || serverType === 'plex') return;
+	if (!currentServer || !accessToken || (serverType !== 'jellyfin' && serverType !== 'emby')) return;
 	const session = `${currentServer}|${accessToken}`;
 	if (unlessRecent && capabilitiesSent?.session === session && Date.now() - capabilitiesSent.at < 10000) return;
 	capabilitiesSent = {session, at: Date.now()};
