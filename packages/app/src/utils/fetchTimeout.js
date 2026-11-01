@@ -36,5 +36,9 @@ const send = (url, options, timeoutMs) => {
 	return raced;
 };
 
-export const fetchWithTimeout = (url, options = {}, timeoutMs) =>
-	traceRequest(options.method || 'GET', url, () => send(url, options, timeoutMs));
+// The webOS proxy waits this long when no time is given. Here no time used to mean a timer of
+// zero, which aborted the request as soon as it went out.
+const DEFAULT_TIMEOUT_MS = 30000;
+
+export const fetchWithTimeout = (url, options = {}, timeoutMs = DEFAULT_TIMEOUT_MS) =>
+	traceRequest(options.method || 'GET', url, () => send(url, options, timeoutMs || DEFAULT_TIMEOUT_MS));

@@ -50,6 +50,20 @@ describe('fetchWithTimeout', () => {
 		expect(receivedSignal.aborted).toBe(true);
 	});
 
+	test('waits the default time when the caller gives none', async () => {
+		let receivedSignal = null;
+		global.fetch = jest.fn((url, options) => {
+			receivedSignal = options.signal;
+			return new Promise(() => {});
+		});
+		const promise = fetchWithTimeout('http://x');
+		promise.catch(() => {});
+		jest.advanceTimersByTime(1000);
+		expect(receivedSignal.aborted).toBe(false);
+		jest.advanceTimersByTime(30000);
+		await expect(promise).rejects.toMatchObject({name: 'AbortError'});
+	});
+
 	test('propagates fetch rejection', async () => {
 		const netErr = new Error('network down');
 		global.fetch = jest.fn(() => Promise.reject(netErr));
