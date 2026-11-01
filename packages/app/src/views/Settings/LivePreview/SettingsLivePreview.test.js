@@ -1,4 +1,4 @@
-import {act, fireEvent, render, screen, waitFor, within} from '@testing-library/react';
+import {act, cleanup, fireEvent, render, screen, waitFor, within} from '@testing-library/react';
 
 import {defaultSettings} from '../../../context/defaultSettings';
 import {describeRow} from './previewRows';
@@ -32,7 +32,6 @@ jest.mock('../../../context/SettingsContext', () => ({
 }));
 jest.mock('../../../context/AuthContext', () => ({useAuth: () => ({user: {Id: 'u', Name: 'Ana'}, serverType: 'jellyfin', serverUrl: 'http://server'})}));
 jest.mock('../../../context/SeerrContext', () => ({useSeerr: () => ({isEnabled: false, displayName: 'Seerr'})}));
-jest.mock('../../../context/ServerMessagesContext', () => ({useServerMessages: () => ({messages: []})}));
 jest.mock('../../../context/AchievementsContext', () => ({useAchievements: () => ({socialAvailable: false})}));
 jest.mock('../../../components/RatingsRow', () => () => null);
 const mockItems = Array.from({length: 4}, (_, i) => ({
@@ -79,6 +78,42 @@ describe('SettingsLivePreview', () => {
 		unmount();
 		draw({fullScreenRows: true}, 'setting-fullScreenRows', 'home');
 		expect(spacerAbove('Recently Added')).toBe('540px');
+	});
+
+	test('modern rows hold their first card in focus on every home tile, and classic rows hold none', () => {
+		const rings = () => Array.from(document.querySelectorAll('.frame div')).filter((node) => node.style.border.indexOf('3px solid') === 0).length;
+		for (const [rowId, navbarPosition] of [['setting-homeRowsStyle', 'top'], ['setting-clockDisplay', 'left'], ['setting-homeRowsPosterSize', 'top']]) {
+			const {unmount} = draw({homeRowsStyle: 'v2', navbarPosition}, rowId, 'home');
+			expect(rings()).toBe(1);
+			unmount();
+		}
+		draw({homeRowsStyle: 'v1'}, 'setting-homeRowsStyle', 'home');
+		expect(rings()).toBe(0);
+	});
+
+	test('Hide Media Description takes the description off the classic info area and the focused modern card', () => {
+		const descriptions = () => screen.queryAllByText('A story.').length;
+		for (const homeRowsStyle of ['v1', 'v2']) {
+			draw({homeRowsStyle}, 'setting-hideHomeMediaDescription', 'home');
+			expect(screen.getByText('Shows on the Home preview')).toBeTruthy();
+			expect(descriptions()).toBe(1);
+			cleanup();
+			draw({homeRowsStyle, hideHomeMediaDescription: true}, 'setting-hideHomeMediaDescription', 'home');
+			expect(descriptions()).toBe(0);
+			cleanup();
+		}
+	});
+
+	test('the media bars that show a description drop it while Hide Media Description is on', () => {
+		const descriptions = () => screen.queryAllByText('A story.').length;
+		for (const featuredBarStyle of ['moonfin', 'makd', 'gallery', 'off']) {
+			draw({featuredBarStyle}, 'setting-featuredBarStyle', 'home');
+			expect(descriptions()).toBeGreaterThan(0);
+			cleanup();
+			draw({featuredBarStyle, hideHomeMediaDescription: true}, 'setting-featuredBarStyle', 'home');
+			expect(descriptions()).toBe(0);
+			cleanup();
+		}
 	});
 
 	test('the open rail draws the buttons the switches leave', () => {

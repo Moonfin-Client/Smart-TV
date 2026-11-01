@@ -40,10 +40,13 @@ describe('preview navbar buttons', () => {
 			.toEqual(['home', 'search', 'shuffle', 'genres', 'favorites', 'livetv', 'syncplay', 'seerr', 'libraries', 'settings']);
 		expect(ids({serverType: 'emby'})).toContain('syncplay');
 		expect(ids({serverType: 'plex'})).not.toContain('syncplay');
-		expect(withSettings({showServerMessagesButton: true})).not.toContain('messages');
-		expect(withSettings({showServerMessagesButton: true}, {hasMessages: true})).toContain('messages');
 		expect(withSettings({showFriendsButton: true})).not.toContain('friends');
 		expect(withSettings({showFriendsButton: true}, {socialAvailable: true})).toContain('friends');
+	});
+
+	test('Messages shows whenever its switch is on, messages or not', () => {
+		expect(ids()).not.toContain('messages');
+		expect(withSettings({showServerMessagesButton: true})).toContain('messages');
 	});
 
 	test('the sidebar puts Seerr ahead of SyncPlay', () => {

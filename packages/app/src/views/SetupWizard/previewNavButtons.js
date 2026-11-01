@@ -8,8 +8,9 @@ import {isKidsMode} from '../../utils/kidsMode';
 
 // The buttons the real navbar draws, in its order and behind the same gates. [rail] gives the
 // sidebar's order, which puts Seerr ahead of SyncPlay. [libraries] is null while they aren't
-// known, and then one Libraries button stands in for them.
-export const previewNavButtons = ({settings, rail = false, hasLiveTv = false, seerrEnabled = false, seerrLabel = '', serverType = null, hasMessages = false, socialAvailable = false, libraries = null}) => {
+// known, and then one Libraries button stands in for them. Messages skips the real navbar's
+// check that the server has any, or its switch would seem to do nothing on a quiet server.
+export const previewNavButtons = ({settings, rail = false, hasLiveTv = false, seerrEnabled = false, seerrLabel = '', serverType = null, socialAvailable = false, libraries = null}) => {
 	const kidsMode = isKidsMode(settings);
 	const showLiveTv = !kidsMode && settings.showLiveTvButton !== false && hasLiveTv;
 	const syncPlay = !kidsMode && serverType !== 'plex' && settings.syncplayEnabled !== false && settings.showSyncPlayButton !== false &&
@@ -31,7 +32,7 @@ export const previewNavButtons = ({settings, rail = false, hasLiveTv = false, se
 		showLiveTv && {id: 'livetv', label: $L('Live TV'), Icon: LiveTvIcon},
 		...(rail ? [seerr, syncPlay] : [syncPlay, seerr]),
 		...libraryButtons,
-		settings.showServerMessagesButton === true && hasMessages && {id: 'messages', label: $L('Messages'), Icon: MessagesIcon},
+		settings.showServerMessagesButton === true && {id: 'messages', label: $L('Messages'), Icon: MessagesIcon},
 		!kidsMode && socialAvailable && settings.showFriendsButton === true && {id: 'friends', label: $L('Friends'), Icon: FriendsIcon},
 		{id: 'settings', label: $L('Settings'), Icon: SettingsIcon}
 	].filter(Boolean);

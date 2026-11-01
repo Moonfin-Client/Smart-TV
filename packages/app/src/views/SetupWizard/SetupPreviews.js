@@ -11,7 +11,6 @@ import $L from '@enact/i18n/$L';
 import {useSettings} from '../../context/SettingsContext';
 import {useAuth} from '../../context/AuthContext';
 import {useSeerr} from '../../context/SeerrContext';
-import {useServerMessages} from '../../context/ServerMessagesContext';
 import {useAchievements} from '../../context/AchievementsContext';
 import useUserAvatar from '../../hooks/useUserAvatar';
 import LoadingAnimationLayer from '../../components/LoadingAnimation';
@@ -449,6 +448,7 @@ const RowCard = ({item, height, aspect, imageUrl, progress, t}) => {
 // The focused modern card holds the state the style is about: the thumb
 // morphed to 16 by 9, the focus ring, and the text block it grows underneath.
 const FocusedRowCard = ({item, posterHeight, t}) => {
+	const {settings} = useSettings();
 	const width = posterHeight * 16 / 9;
 	return (
 		<div style={{width, flexShrink: 0, marginRight: 12}}>
@@ -479,7 +479,7 @@ const FocusedRowCard = ({item, posterHeight, t}) => {
 			<div style={{position: 'relative', width, height: 76, marginTop: 4}}>
 				<div style={{position: 'absolute', left: 0, top: 0, width: width * 2.4}}>
 					<PreviewRatings item={item} surface='homeRows' compact singleLineWidth={width * 2.4} zoom={0.5 * ROW_SCALE} />
-					{item.overview && (
+					{item.overview && !settings.hideHomeMediaDescription && (
 						<div style={{marginTop: 4, fontSize: 12, lineHeight: 1.4, color: t.onSurfaceA(0.7), textShadow: TEXT_SHADOW, ...clampLines(3)}}>
 							{item.overview}
 						</div>
@@ -550,7 +550,7 @@ const HomeRowsColumn = ({items, t, modern, focusFirst = false, rowGapOverride}) 
 						<div style={{marginTop: 6}}>
 							<PreviewRatings item={first} surface='homeRows' inline />
 						</div>
-						{first.overview && (
+						{first.overview && !settings.hideHomeMediaDescription && (
 							<div style={{marginTop: 8, fontSize: 13, lineHeight: 1.4, color: t.onSurfaceA(0.7), ...clampLines(2)}}>
 								{first.overview}
 							</div>
@@ -971,7 +971,6 @@ const useNavButtons = (rail, hasLiveTv) => {
 	const {settings} = useSettings();
 	const {serverType} = useAuth();
 	const seerr = useSeerr();
-	const {messages} = useServerMessages();
 	const {socialAvailable} = useAchievements();
 	return previewNavButtons({
 		settings,
@@ -980,7 +979,6 @@ const useNavButtons = (rail, hasLiveTv) => {
 		seerrEnabled: seerr.isEnabled,
 		seerrLabel: seerr.displayName,
 		serverType,
-		hasMessages: messages.length > 0,
 		socialAvailable,
 		libraries: memoryCache.libraries
 	});
@@ -1817,7 +1815,10 @@ const FallbackDetail = ({variant, t}) => {
 
 export const MediaBarPreview = ({mode}) => {
 	const t = usePreviewPalette();
-	const render = useCallback((items) => {
+	const {settings} = useSettings();
+	const hideDescription = !!settings.hideHomeMediaDescription;
+	const render = useCallback((shown) => {
+		const items = hideDescription ? shown.map((item) => ({...item, overview: ''})) : shown;
 		if (mode === 'makd') return <MakdBar items={items} t={t} />;
 		if (mode === 'bookshelf') return <BookshelfBar items={items} t={t} />;
 		if (mode === 'gallery') return <GalleryBar items={items} t={t} />;
@@ -1825,9 +1826,9 @@ export const MediaBarPreview = ({mode}) => {
 		if (mode === 'aya') return <AyaBar items={items} t={t} />;
 		// The rows carry the whole screen with the bar off, so the preview
 		// packs them tighter than the style default to show more than one.
-		if (mode === 'off') return <HomeRowsScreen items={items} t={t} modern rowGapOverride={24} />;
+		if (mode === 'off') return <HomeRowsScreen items={items} t={t} modern focusFirst rowGapOverride={24} />;
 		return <MoonfinBar items={items} t={t} />;
-	}, [mode, t]);
+	}, [mode, t, hideDescription]);
 	return <LivePreview render={render} fallback={<FallbackMediaBar mode={mode} t={t} />} fallbackAspect={16 / 7} />;
 };
 
@@ -1866,21 +1867,20 @@ export const DetailStylePreview = ({variant}) => {
 };
 
 // Home as the settings live preview draws it: the navbar where it's set, with its
-// buttons, labels and clock, over the rows in their set style and card size.
-// [railOpen] opens the left rail, and [focusCard] holds a modern row's first card in
-// focus with its ratings and description under it.
-export const SettingsHomePreview = ({railOpen = false, focusCard = false, hasLiveTv = false}) => {
+// buttons, labels and clock, over the rows in their set style and card size. Modern rows
+// hold their first card in focus with its ratings and description under it, the way Home
+// looks once a row has focus. [railOpen] opens the left rail.
+export const SettingsHomePreview = ({railOpen = false, hasLiveTv = false}) => {
 	const t = usePreviewPalette();
 	const {user} = useAuth();
 	const {settings} = useSettings();
 	const position = settings.navbarPosition === 'left' ? 'left' : 'top';
 	const modern = settings.homeRowsStyle !== 'v1';
-	const focusFirst = focusCard && modern;
 	const render = useCallback((items) => (
 		position === 'left'
-			? <LeftNavbarPreview items={items} t={t} userName={user?.Name} modern={modern} open={railOpen} focusFirst={focusFirst} hasLiveTv={hasLiveTv} />
-			: <TopNavbarPreview items={items} t={t} userName={user?.Name} modern={modern} focusFirst={focusFirst} hasLiveTv={hasLiveTv} />
-	), [position, modern, railOpen, focusFirst, t, user?.Name, hasLiveTv]);
+			? <LeftNavbarPreview items={items} t={t} userName={user?.Name} modern={modern} open={railOpen} focusFirst={modern} hasLiveTv={hasLiveTv} />
+			: <TopNavbarPreview items={items} t={t} userName={user?.Name} modern={modern} focusFirst={modern} hasLiveTv={hasLiveTv} />
+	), [position, modern, railOpen, t, user?.Name, hasLiveTv]);
 	return <LivePreview render={render} fallback={<FallbackNavbar position={position} t={t} />} />;
 };
 
