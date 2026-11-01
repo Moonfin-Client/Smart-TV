@@ -82,6 +82,7 @@ import useSegmentPopups, {isSkipPromptFocused} from './useSegmentPopups';
 import useChannelKeys from './useChannelKeys';
 import {isPreroll, nextInQueue, shouldAutoAdvance} from '../../utils/cinemaMode';
 import {driftMs, needsSeek, seekLanded, correctionOptions, DRIFT_CHECK_MS, GROUP_SEEK_SETTLE_TIMEOUT_MS} from '../../utils/syncDrift';
+import {createLoadBudget, CONVERGED_MS} from '../../utils/syncLoadBudget';
 import {createReadyGate} from '../../utils/syncReady';
 import {createSkipGovernor, chooseCorrection, STALL_DEBOUNCE_MS} from '../../utils/syncCorrection';
 import {syncLog} from '../../utils/syncLog';
@@ -128,6 +129,8 @@ const getWebOSFullscreenRect = () => {
 // A burst of arrow presses on the seek bar becomes one group seek, since every
 // request puts the whole group through a round of buffering.
 const GROUP_SEEK_DEBOUNCE_MS = 600;
+// A seek that hasn't played by then isn't going to, and stops holding the next one back.
+const SEEK_FLIGHT_TIMEOUT_MS = 15000;
 
 const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialSubtitleIndex, initialStartPositionTicks, initialQuality, forceTranscode, onEnded, onBack, onGuide, onPlayNext, onSelectPerson, audioPlaylist, videoQueue, liveTvChannels, onPausedChange, background, onBackground}) => {
 	const {settings, updateSetting} = useSettings();
@@ -264,6 +267,12 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 	// Corrective skips are attempts that have to land and render before the
 	// drift is measured again; see syncCorrection.js for the loop this stops.
 	const skipGovernorRef = useRef(createSkipGovernor());
+	// Watch Party seeks, which this set takes as loads (syncLoadBudget.js): even one inside the buffer rebuffers.
+	const loadBudgetRef = useRef(createLoadBudget());
+	// The seek this pipeline is still carrying out. A set reports the target as its position the moment a seek is
+	// asked for, can then land short of it on a keyframe, and drops a seek asked for before the last one has played,
+	// so a seek counts as done only once its position has moved steadily forward.
+	const seekInFlightRef = useRef(null);
 	// A pause the set is sitting out to let the group catch up.
 	const syncWaitTimerRef = useRef(null);
 	const cancelSyncWait = useCallback(() => {
@@ -272,6 +281,8 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 	}, []);
 	useEffect(() => {
 		skipGovernorRef.current.reset();
+		loadBudgetRef.current.reset();
+		seekInFlightRef.current = null;
 		renderedRef.current = false;
 		// Held for the group, the set waits paused for the server's Unpause:
 		// after a join, when the server is waiting on this set's Ready, or
@@ -1492,6 +1503,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 		const clampedTicks = Math.max(0, Math.min(ticks, maxTicks));
 		positionRef.current = clampedTicks;
 		lastSeekTargetRef.current = null;
+		seekInFlightRef.current = {targetTicks: clampedTicks, issuedAt: Date.now(), fromTicks: null, lastTicks: null, catchUp: false};
 		// Same as seekByOffset, or committing a held scrub shows where it started.
 		setCurrentTime(clampedTicks / 10000000);
 		if (playMethod === 'Transcode') {
@@ -1556,7 +1568,8 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 	// reports Ready, so the report waits for the seek to land. A Seek command
 	// leaves the set paused there for the Unpause that follows once everyone
 	// has arrived.
-	const startGroupSeek = useCallback((target, pauseOnLand, playToSeek = false) => {
+	// `catchUp` is a Watch Party correction this set chose to load for, which the load budget counts.
+	const startGroupSeek = useCallback((target, pauseOnLand, playToSeek = false, catchUp = false) => {
 		const video = videoRef.current;
 		if (!video) return;
 		const pending = groupSeekPendingRef.current;
@@ -1578,8 +1591,12 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 		// record before the pipeline is started for it. A seek lands sooner
 		// with the pipeline running: unpause, seek, pause once it is there.
 		groupSeekPendingRef.current = {from, target, pauseOnLand};
+		// How long a room's seek takes is how far a catch-up aims.
+		if (syncPlayService.isRoomDriven()) loadBudgetRef.current.onStart(Date.now(), catchUp);
 		if (playToSeek && video.paused) video.play()?.catch?.(() => {});
 		groupSeekPendingRef.current.target = seekToTicks(target);
+		// The seek is on record now; a catch-up's landing moves the next one's aim.
+		if (seekInFlightRef.current) seekInFlightRef.current.catchUp = catchUp;
 		groupSeekSettleTimerRef.current = setTimeout(() => {
 			console.warn('[Player] Group seek did not land within', GROUP_SEEK_SETTLE_TIMEOUT_MS, 'ms, reporting as is');
 			settleGroupSeek();
@@ -2028,6 +2045,25 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 				setCurrentTime((shown) => (Math.floor(shown) === Math.floor(time) ? shown : time));
 			}
 			const ticks = Math.floor(time * 10000000);
+			const flight = seekInFlightRef.current;
+			if (flight) {
+				// Moving forward counts from the last time it stood still or jumped back.
+				const {seeking, paused} = videoRef.current;
+				if (seeking || paused || stalledRef.current || flight.lastTicks == null || ticks <= flight.lastTicks) flight.fromTicks = ticks;
+				flight.lastTicks = ticks;
+				const movedMs = (ticks - flight.fromTicks) / 10000;
+				if (movedMs > 250) {
+					seekInFlightRef.current = null;
+					const expected = syncPlayService.getExpectedPositionTicks();
+					const missedMs = flight.catchUp && expected != null ? Math.round((ticks - expected) / 10000) : null;
+					// It started playing about as long ago as it has played since.
+					loadBudgetRef.current.onPlaying(Date.now() - movedMs, missedMs);
+					syncLog('[Player] seek to', flight.targetTicks / 10000000, 's playing at', time, 's after', Math.round(Date.now() - movedMs - flight.issuedAt), 'ms', missedMs != null ? `, ${missedMs} ms from the room` : '');
+				} else if (Date.now() - flight.issuedAt > SEEK_FLIGHT_TIMEOUT_MS) {
+					seekInFlightRef.current = null;
+					syncLog('[Player] seek to', flight.targetTicks / 10000000, 's never played, now at', time, 's');
+				}
+			}
 			if (ticks !== positionRef.current) {
 				stalledRef.current = false;
 				renderedRef.current = true;
@@ -3135,7 +3171,25 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 					const target = syncPlayService.getAdjustedPosition(PositionTicks, When);
 					if (target != null && needsSeek(positionRef.current, target)) startTarget = target;
 				}
-				if (startTarget != null) startGroupSeek(startTarget, false);
+				// In a Watch Party a load lands late by its load time, and the room doesn't wait for it: aim ahead by
+				// what the last one took, and don't start another until the budget allows, or the set chases the
+				// room round and round.
+				let catchUp = false;
+				if (startTarget != null && syncPlayService.isRoomDriven()) {
+					const budget = loadBudgetRef.current;
+					if (seekInFlightRef.current) {
+						syncLog('[Player] Watch Party catch-up held: the last seek has not played yet');
+						startTarget = null;
+					} else if (!budget.allows(Date.now())) {
+						syncLog('[Player] Watch Party catch-up held: a load ran too recently');
+						startTarget = null;
+					} else {
+						catchUp = true;
+						startTarget += budget.leadMs() * 10000;
+						syncLog('[Player] Watch Party catch-up aimed', budget.leadMs(), 'ms ahead');
+					}
+				}
+				if (startTarget != null) startGroupSeek(startTarget, false, false, catchUp);
 				// Already playing: the server answers any Ready it gets while
 				// playing with the last sync point unchanged. That confirms
 				// where the group is; seeking on it restarts the stream for
@@ -3194,6 +3248,13 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 			if (!video || syncPlayCommandRef.current || groupSeekPendingRef.current) return;
 			const expected = syncPlayService.getExpectedPositionTicks(correction.extraOffsetMs);
 			const drift = driftMs(positionRef.current, expected);
+			if (syncPlayService.isRoomDriven()) {
+				// A Watch Party corrects this set itself, through the load budget; a second corrector skipping on
+				// its own piles seeks onto a pipeline still carrying out the last one.
+				if (drift != null && Math.abs(drift) <= CONVERGED_MS) loadBudgetRef.current.onConverged();
+				else if (drift != null) syncLog('[Player] Watch Party drift', drift, 'ms');
+				return;
+			}
 			const nowMs = Date.now();
 			const positionMs = positionRef.current / 10000;
 			const verdict = skipGovernorRef.current.evaluate({

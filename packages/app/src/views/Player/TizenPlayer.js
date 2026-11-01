@@ -18,6 +18,7 @@ import * as syncPlayService from '../../services/syncPlay';
 import {KEYS, isBackKey, isMediaKey} from '../../utils/keys';
 import {isPreroll, nextInQueue, shouldAutoAdvance} from '../../utils/cinemaMode';
 import {driftMs, needsSeek, correctionOptions, DRIFT_CHECK_MS, GROUP_SEEK_SETTLE_TIMEOUT_MS} from '../../utils/syncDrift';
+import {createLoadBudget, CONVERGED_MS} from '../../utils/syncLoadBudget';
 import {createReadyGate} from '../../utils/syncReady';
 import {createSkipGovernor, chooseCorrection} from '../../utils/syncCorrection';
 import {getImageUrl, getLogoUrl} from '../../utils/helpers';
@@ -175,6 +176,9 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 	// Corrective skips are attempts that have to land and render before the
 	// drift is measured again; see syncCorrection.js for the loop this stops.
 	const skipGovernorRef = useRef(createSkipGovernor());
+	// A Watch Party correction that has to load media (syncLoadBudget.js). AVPlay reports no buffered ranges, so every
+	// seek counts as one.
+	const loadBudgetRef = useRef(createLoadBudget());
 	// A pause the set is sitting out to let the group catch up.
 	const syncWaitTimerRef = useRef(null);
 	const cancelSyncWait = useCallback(() => {
@@ -183,6 +187,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 	}, []);
 	useEffect(() => {
 		skipGovernorRef.current.reset();
+		loadBudgetRef.current.reset();
 		// Held for the group only when the server will send the Unpause: after
 		// a join, or while the group is paused or waiting. An item the group is
 		// already playing is waited on by nobody, so it plays from where the
@@ -2989,7 +2994,8 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 	// firmware never answers a seek at all, and the server holds the whole
 	// group on a Ready that never comes, so after a while the set reports
 	// where it stands and lets the server correct it from there.
-	const landGroupSeek = useCallback((target, pauseOnLand) => {
+	// `catchUp` is a Watch Party correction this set chose to load for, which the load budget counts.
+	const landGroupSeek = useCallback((target, pauseOnLand, catchUp = false) => {
 		const reportPaused = () => {
 			if (!pauseOnLand) return;
 			setIsPaused(true);
@@ -3003,12 +3009,16 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 		clearGroupSeekPending();
 		const pending = {target};
 		groupSeekPendingRef.current = pending;
+		// How long a room's seek takes is how far a catch-up aims.
+		const timed = syncPlayService.isRoomDriven();
+		if (timed) loadBudgetRef.current.onStart(Date.now(), catchUp);
 		const settle = () => {
 			// The backstop can fire after the seek already settled, and a seek
 			// this one replaced settles along with it, so only the one still on
 			// record reports.
 			if (groupSeekPendingRef.current !== pending) return;
 			clearGroupSeekPending();
+			if (timed) loadBudgetRef.current.onPlaying(Date.now());
 			reportPaused();
 		};
 		const seek = avplaySeek(Math.floor(target / 10000));
@@ -3040,9 +3050,22 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 				let target = null;
 				if (delay > 0) target = PositionTicks;
 				else if (avplayGetState() !== 'PLAYING') target = syncPlayService.getAdjustedPosition(PositionTicks, When);
+				// In a Watch Party a load lands late by its load time, and the room doesn't wait for it: aim ahead by
+				// what the last one took, and don't start another until the budget allows, or the set chases the
+				// room round and round.
+				let catchUp = false;
+				if (target != null && syncPlayService.isRoomDriven() && needsSeek(positionRef.current, target)) {
+					const budget = loadBudgetRef.current;
+					if (groupSeekPendingRef.current || !budget.allows(Date.now())) {
+						target = null;
+					} else {
+						catchUp = true;
+						target += budget.leadMs() * 10000;
+					}
+				}
 				if (target != null) {
 					if (runTimeRef.current > 0) target = Math.min(runTimeRef.current, target);
-					landGroupSeek(target, false);
+					landGroupSeek(target, false, catchUp);
 				}
 				avplayPlay();
 				setIsPaused(false);
@@ -3109,6 +3132,12 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 			if (syncPlayCommandRef.current || groupSeekPendingRef.current) return;
 			const expected = syncPlayService.getExpectedPositionTicks(correction.extraOffsetMs);
 			const drift = driftMs(positionRef.current, expected);
+			if (syncPlayService.isRoomDriven()) {
+				// A Watch Party corrects this set itself, through the load budget; a second corrector skipping on
+				// its own piles seeks onto a pipeline still carrying out the last one.
+				if (drift != null && Math.abs(drift) <= CONVERGED_MS) loadBudgetRef.current.onConverged();
+				return;
+			}
 			const nowMs = Date.now();
 			const positionMs = positionRef.current / 10000;
 			const verdict = skipGovernorRef.current.evaluate({

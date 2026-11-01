@@ -137,6 +137,7 @@ let player = null;
 export const setRoomDriver = (driver) => {
 	roomDriver = driver;
 };
+export const isRoomDriven = () => Boolean(roomDriver);
 export const feedRoomMessage = (msg) => handleWebSocketMessage(msg); // eslint-disable-line no-use-before-define
 export const setServerTimeOffset = (ms) => {
 	serverTimeOffset = ms;
