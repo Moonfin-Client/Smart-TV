@@ -8,7 +8,8 @@ import css from './RatingsRow.module.less';
 
 // surface is 'homeRows' or 'mediaBar' for the screens that keep their own ratings settings.
 // inline keeps the full size chips on one line with each label after its value.
-const RatingsRow = ({item, serverUrl, compact = false, singleLineWidth, pluginEnabled = true, surface, inline = false}) => {
+// sampleRatings stands in for the plugin's answer, so the settings preview never asks the server.
+const RatingsRow = ({item, serverUrl, compact = false, singleLineWidth, pluginEnabled = true, surface, inline = false, sampleRatings}) => {
 	const settings = ratingSettingsFor(useSettings().settings, surface);
 	const showLabels = settings.showRatingLabels !== false;
 	// Badges only choose the chip chrome around each rating. Off means plain, not hidden.
@@ -28,7 +29,7 @@ const RatingsRow = ({item, serverUrl, compact = false, singleLineWidth, pluginEn
 	const episodeRatingsEnabled = settings.tmdbEpisodeRatingsEnabled === true && isRatingSourceEnabled(settings, 'tmdb');
 
 	useEffect(() => {
-		if (!pluginEnabled || !item || !serverUrl) {
+		if (!pluginEnabled || !item || !serverUrl || sampleRatings) {
 			setAllRatings([]);
 			return;
 		}
@@ -63,14 +64,15 @@ const RatingsRow = ({item, serverUrl, compact = false, singleLineWidth, pluginEn
 
 		fetchRatings(serverUrl, item, {signal: controller.signal, sourcesKey}).then(apply);
 		return () => controller.abort();
-	}, [item, serverUrl, pluginEnabled, episodeRatingsEnabled, sourcesKey]);
+	}, [item, serverUrl, pluginEnabled, episodeRatingsEnabled, sourcesKey, sampleRatings]);
 
+	const shownRatings = sampleRatings && pluginEnabled ? sampleRatings : allRatings;
 	const displayRatings = useMemo(() => {
-		if (!Array.isArray(enabledSources)) return allRatings;
-		return allRatings
+		if (!Array.isArray(enabledSources)) return shownRatings;
+		return shownRatings
 			.filter(r => enabledSources.includes(getSelectionSource(r.source)))
 			.sort((a, b) => enabledSources.indexOf(getSelectionSource(a.source)) - enabledSources.indexOf(getSelectionSource(b.source)));
-	}, [allRatings, enabledSources]);
+	}, [shownRatings, enabledSources]);
 
 	// The viewer's own score leads the row, formatted the way their chosen
 	// rating style reads. It never waits on the plugin, since it comes from the
@@ -82,7 +84,7 @@ const RatingsRow = ({item, serverUrl, compact = false, singleLineWidth, pluginEn
 	const communityRating = isRatingSourceEnabled(settings, 'stars') && item && item.CommunityRating ? item.CommunityRating.toFixed(1) : null;
 	// The server's own critic rating stands in until plugin ratings actually
 	// arrive, so it stays visible when there's no API key or nothing came back.
-	const showCriticRating = allRatings.length === 0 && item && item.CriticRating != null;
+	const showCriticRating = shownRatings.length === 0 && item && item.CriticRating != null;
 	const hasContent = personalRating || communityRating || displayRatings.length > 0 || showCriticRating;
 
 	// Zoom rather than a scale transform, so the line gives back its height too.

@@ -31,7 +31,7 @@ const ResultItem = ({entry, index, onOpen, onKeyDown}) => (
 	</SpottableDiv>
 );
 
-const SearchBar = ({value, onChange, onKeyDown}) => (
+export const SearchBar = ({value, onChange, onKeyDown}) => (
 	<div className={css.searchBar}>
 		<div className={css.searchWrap}>
 			<SpottableInput

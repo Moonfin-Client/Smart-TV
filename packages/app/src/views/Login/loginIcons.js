@@ -11,6 +11,8 @@ const PLEX_PATH = 'M64 24H128L192 128L128 232H64L128 128Z';
 // Silo's glyph: a silo whose bands show what's behind it.
 const SILO_PATH = 'M6 9A6 6 0 0 1 18 9V10.8H6ZM6 12.2H18V14.3H6ZM6 15.7H18V17.8H6ZM6 19.2H18V21H6Z';
 
+export const BRAND_NAMES = {jellyfin: 'Jellyfin', emby: 'Emby', plex: 'Plex', silo: 'Silo'};
+
 export const ServerTypeIcon = ({serverType, className}) => {
 	if (serverType === 'silo') {
 		return (

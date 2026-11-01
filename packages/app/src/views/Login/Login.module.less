@@ -179,16 +179,6 @@
 	margin-bottom: (8 * @dp);
 }
 
-.serverLabel {
-	margin: 0;
-	font-size: (12 * @dp);
-	.fg(0.5);
-}
-
-.serverLabel + .title {
-	margin-top: (16 * @dp);
-}
-
 .disclaimer {
 	margin: (8 * @dp) 0 0;
 	font-size: (12 * @dp);
@@ -322,14 +312,6 @@
 	.outline-chrome();
 }
 
-.outlineButtonIcon {
-	width: (18 * @dp);
-	height: (18 * @dp);
-	margin-right: (8 * @dp);
-	-webkit-flex-shrink: 0;
-	flex-shrink: 0;
-}
-
 .actionRow {
 	display: -webkit-box;
 	display: -webkit-flex;
@@ -353,21 +335,6 @@
 	}
 }
 
-// Add User and Select Server, which keep the plain button shape
-.actionRowWide {
-	padding-top: (24 * @dp);
-
-	> * + * {
-		margin-left: (12 * @dp);
-	}
-
-	.outlineButton {
-		min-height: (40 * @dp);
-		padding: 0 (23 * @dp) 0 (15 * @dp);
-		border-radius: (8 * @dp);
-	}
-}
-
 // A centered row of buttons that wraps, used for the sign-in actions and for
 // the Quick Connect and Password pills above them.
 .buttonWrap {
@@ -386,109 +353,116 @@
 	}
 }
 
-// Who's watching
+// Who's watching. It takes the whole screen, so the frame the other steps sit in
+// opens up and its logo and spacers step aside.
 
-.userRow {
-	height: (130 * @dp);
-	margin-top: (24 * @dp);
-	overflow-x: auto;
-	overflow-y: hidden;
-	scroll-behavior: smooth;
-
-	&::-webkit-scrollbar {
+.pageUsers {
+	.spacerTop,
+	.spacerBottom,
+	.logoSection {
 		display: none;
 	}
-}
 
-// A short list sits centered, a long one grows past the edge and scrolls. Being
-// inline is what lets it outgrow the strip, and the minimum width is what keeps
-// it centered until it does. A block would pin it to the strip and park the
-// first card off the left edge, where scrolling cant reach it.
-.userRowInner {
-	display: -webkit-inline-box;
-	display: -webkit-inline-flex;
-	display: inline-flex;
-	-webkit-box-pack: center;
-	-webkit-justify-content: center;
-	justify-content: center;
-	-webkit-box-align: center;
-	-webkit-align-items: center;
-	align-items: center;
-	min-width: 100%;
-	height: 100%;
-	vertical-align: top;
-}
+	.frame {
+		-webkit-box-flex: 1;
+		-webkit-flex: 1 0 auto;
+		flex: 1 0 auto;
+		display: -webkit-box;
+		display: -webkit-flex;
+		display: flex;
+		-webkit-box-orient: vertical;
+		-webkit-flex-direction: column;
+		flex-direction: column;
+		max-width: none;
+		min-height: 100%;
+		padding: 0;
+	}
 
-.userCard {
-	-webkit-flex-shrink: 0;
-	flex-shrink: 0;
-	width: (110 * @dp);
-	padding: (8 * @dp);
-	margin: 0 (8 * @dp);
-	text-align: center;
-	background: transparent;
-	border: none;
-	border-radius: (12 * @dp);
-	cursor: pointer;
-	outline: none;
-	transition: -webkit-transform 0.12s ease-out;
-	transition: transform 0.12s ease-out;
-
-	&:focus {
-		-webkit-transform: scale(1.08);
-		transform: scale(1.08);
-
-		.userAvatar, .userAvatarPlaceholder {
-			border: (3 * @dp) solid @accent;
-		}
-
-		.userName {
-			color: @accent;
-		}
+	:global(.legacy) & {
+		padding: 0;
 	}
 }
 
-.userAvatar, .userAvatarPlaceholder {
-	width: (72 * @dp);
-	height: (72 * @dp);
-	margin: 0 auto (8 * @dp);
-	border-radius: 50%;
-	background: rgba(var(--theme-on-surface-rgb, 255, 255, 255), 0.1);
-	box-sizing: content-box;
+.usersScreen {
+	-webkit-box-flex: 1;
+	-webkit-flex: 1 1 auto;
+	flex: 1 1 auto;
+	display: -webkit-box;
+	display: -webkit-flex;
+	display: flex;
+	-webkit-box-orient: vertical;
+	-webkit-flex-direction: column;
+	flex-direction: column;
+	box-sizing: border-box;
+	padding: (38 * @dp) (58 * @dp);
 }
 
-.userAvatar {
-	object-fit: cover;
-}
-
-.userAvatarPlaceholder {
+.usersTop {
 	display: -webkit-box;
 	display: -webkit-flex;
 	display: flex;
 	-webkit-box-align: center;
 	-webkit-align-items: center;
 	align-items: center;
+	-webkit-box-pack: justify;
+	-webkit-justify-content: space-between;
+	justify-content: space-between;
+}
+
+.usersLogo {
+	height: (40 * @dp);
+	object-fit: contain;
+}
+
+.usersServer {
+	display: -webkit-box;
+	display: -webkit-flex;
+	display: flex;
+	-webkit-box-align: center;
+	-webkit-align-items: center;
+	align-items: center;
+	font-size: (15 * @dp);
+	.fg(0.65);
+}
+
+.usersServerIcon {
+	width: (18 * @dp);
+	height: (18 * @dp);
+	margin-right: (8 * @dp);
+}
+
+.usersMain {
+	-webkit-box-flex: 1;
+	-webkit-flex: 1 1 auto;
+	flex: 1 1 auto;
+	display: -webkit-box;
+	display: -webkit-flex;
+	display: flex;
+	-webkit-box-orient: vertical;
+	-webkit-flex-direction: column;
+	flex-direction: column;
 	-webkit-box-pack: center;
 	-webkit-justify-content: center;
 	justify-content: center;
+	padding: (24 * @dp) 0;
 }
 
-.userRow + .errorText {
-	padding-top: (12 * @dp);
+.usersTitle {
+	margin: 0 0 (32 * @dp);
+	font-size: (20 * @dp);
+	font-weight: 500;
+	.fg(0.7);
 }
 
-.placeholderIcon {
-	width: (32 * @dp);
-	height: (32 * @dp);
-	.fg(0.6);
+.usersStatus {
+	-webkit-align-self: center;
+	align-self: center;
+	margin: (20 * @dp) 0 0;
 }
 
-.userName {
-	font-size: (14 * @dp);
-	overflow: hidden;
-	text-overflow: ellipsis;
-	white-space: nowrap;
-	color: @fg;
+.usersNote {
+	margin-top: (16 * @dp);
+	padding-top: 0;
 }
 
 // Sign in

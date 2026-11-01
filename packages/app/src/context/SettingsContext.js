@@ -1215,6 +1215,18 @@ export function SettingsProvider({children}) {
 	);
 }
 
+// Draws everything under it as if the overridden settings were saved, so the settings
+// live preview can show the option a picker is trying without writing it.
+export function SettingsOverride({overrides, children}) {
+	const context = useContext(SettingsContext);
+	const value = useMemo(() => (
+		overrides && Object.keys(overrides).length > 0
+			? {...context, settings: {...context.settings, ...overrides}}
+			: context
+	), [context, overrides]);
+	return <SettingsContext.Provider value={value}>{children}</SettingsContext.Provider>;
+}
+
 export function useSettings() {
 	const context = useContext(SettingsContext);
 	if (!context) {

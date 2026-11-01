@@ -1,234 +1,73 @@
 @import '../../styles/mixins.less';
 
-@accent-rgb: var(--theme-accent-rgb, 0, 164, 220);
-@danger-rgb: 198, 40, 40;
-
-.panel {
-	min-width: (520 * @dp);
-	max-width: (800 * @dp);
-}
-
-// A short list sits centered, a long one runs past the edge and scrolls
-.cardStrip {
-	height: (228 * @dp);
-	margin: (8 * @dp) (24 * @dp) 0;
-	overflow-x: auto;
-	overflow-y: hidden;
-	scrollbar-width: none;
-
-	&::-webkit-scrollbar {
-		display: none;
-	}
-}
-
-.cardRow {
-	display: -webkit-inline-box;
-	display: -webkit-inline-flex;
-	display: inline-flex;
-	-webkit-box-pack: center;
-	-webkit-justify-content: center;
-	justify-content: center;
-	-webkit-box-align: start;
-	-webkit-align-items: flex-start;
-	align-items: flex-start;
-	min-width: 100%;
-	height: 100%;
-	vertical-align: top;
-
-	> * + * {
-		margin-left: (20 * @dp);
-	}
-}
-
-.card {
-	position: relative;
-	-webkit-flex-shrink: 0;
-	flex-shrink: 0;
-	width: (140 * @dp);
-	text-align: center;
-	cursor: pointer;
-	outline: none;
-
-	&:focus .avatar {
-		border-color: rgb(@accent-rgb);
-	}
-
-	&:hover .removeBtn {
-		opacity: 1;
-	}
-}
-
-.avatar {
-	display: -webkit-box;
-	display: -webkit-flex;
-	display: flex;
-	-webkit-box-align: center;
-	-webkit-align-items: center;
-	align-items: center;
-	-webkit-box-pack: center;
-	-webkit-justify-content: center;
-	justify-content: center;
-	box-sizing: border-box;
-	width: (130 * @dp);
-	height: (130 * @dp);
-	margin: 0 auto;
-	overflow: hidden;
-	border: (3 * @dp) solid rgba(255, 255, 255, 0.15);
-	border-radius: 50%;
-	background: var(--theme-surface-variant, #252525);
-}
-
-.avatarImage {
-	width: 100%;
-	height: 100%;
-	object-fit: cover;
-}
-
-.placeholderIcon {
-	width: (68 * @dp);
-	height: (68 * @dp);
-	color: rgba(255, 255, 255, 0.55);
-}
-
-.userName {
-	margin-top: (12 * @dp);
-	overflow: hidden;
-	text-overflow: ellipsis;
-	white-space: nowrap;
-	font-size: (20 * @dp);
-	font-weight: 500;
-	color: #fff;
-}
-
-.serverName {
-	margin-top: (2 * @dp);
-	overflow: hidden;
-	text-overflow: ellipsis;
-	white-space: nowrap;
-	font-size: (14 * @dp);
-	color: rgba(255, 255, 255, 0.45);
-}
-
-.active {
-	margin-top: (4 * @dp);
-	font-size: (12 * @dp);
-	font-weight: 600;
-	letter-spacing: (0.5 * @dp);
-	text-transform: uppercase;
-	color: rgb(@accent-rgb);
-}
-
-.addCard {
-	.avatar {
-		border-color: rgba(255, 255, 255, 0.25);
-		background: rgba(255, 255, 255, 0.06);
-	}
-
-	&:focus .avatar {
-		background: rgba(@accent-rgb, 0.14);
-	}
-
-	&:focus .addIcon {
-		color: rgb(@accent-rgb);
-	}
-}
-
-.addIcon {
-	width: (48 * @dp);
-	height: (48 * @dp);
-	color: rgba(255, 255, 255, 0.54);
-}
-
-.removeBtn {
-	position: absolute;
+.layer {
+	position: fixed;
 	top: 0;
+	left: 0;
 	right: 0;
+	bottom: 0;
+	z-index: 2000;
 	display: -webkit-box;
 	display: -webkit-flex;
 	display: flex;
-	-webkit-box-align: center;
-	-webkit-align-items: center;
-	align-items: center;
+	background: rgba(5, 7, 14, 0.9);
+}
+
+.screen {
+	-webkit-box-flex: 1;
+	-webkit-flex: 1 1 auto;
+	flex: 1 1 auto;
+	display: -webkit-box;
+	display: -webkit-flex;
+	display: flex;
+	-webkit-box-orient: vertical;
+	-webkit-flex-direction: column;
+	flex-direction: column;
+	box-sizing: border-box;
+	padding: (38 * @dp) (58 * @dp);
+	color: #fff;
+	font-family: 'Roboto', 'Sandstone', sans-serif;
+	line-height: 1.17;
+}
+
+.header {
+	display: -webkit-box;
+	display: -webkit-flex;
+	display: flex;
+	-webkit-box-align: baseline;
+	-webkit-align-items: baseline;
+	align-items: baseline;
+	-webkit-box-pack: justify;
+	-webkit-justify-content: space-between;
+	justify-content: space-between;
+}
+
+.title {
+	margin: 0;
+	font-size: (24 * @dp);
+	font-weight: 700;
+}
+
+.signedInAs {
+	margin-left: (24 * @dp);
+	font-size: (15 * @dp);
+	color: rgba(255, 255, 255, 0.65);
+}
+
+.main {
+	-webkit-box-flex: 1;
+	-webkit-flex: 1 1 auto;
+	flex: 1 1 auto;
+	display: -webkit-box;
+	display: -webkit-flex;
+	display: flex;
+	-webkit-box-orient: vertical;
+	-webkit-flex-direction: column;
+	flex-direction: column;
 	-webkit-box-pack: center;
 	-webkit-justify-content: center;
 	justify-content: center;
-	width: (28 * @dp);
-	height: (28 * @dp);
-	padding: 0;
-	border: (1 * @dp) solid rgba(255, 255, 255, 0.2);
-	border-radius: 50%;
-	background: rgba(0, 0, 0, 0.7);
-	color: rgba(255, 255, 255, 0.6);
-	cursor: pointer;
-	opacity: 0;
-	transition: opacity 0.2s;
-
-	&:hover {
-		color: #fff;
-		background: rgba(@danger-rgb, 0.8);
-	}
-}
-
-.removeIcon {
-	width: (18 * @dp);
-	height: (18 * @dp);
-}
-
-.actions {
-	margin: (16 * @dp) (24 * @dp) 0;
-}
-
-.actionPair {
-	display: -webkit-box;
-	display: -webkit-flex;
-	display: flex;
-
-	> * {
-		-webkit-box-flex: 1;
-		-webkit-flex: 1 1 0;
-		flex: 1 1 0;
-		min-width: 0;
-	}
-
-	> * + * {
-		margin-left: (10 * @dp);
-	}
-}
-
-// Focus doubles the border and rings it, in red for the button that signs everyone out
-.action-button(@focus-rgb) {
-	box-sizing: border-box;
-	min-height: (52 * @dp);
-	padding: (14 * @dp) (18 * @dp);
-	border: (1 * @dp) solid rgba(255, 255, 255, 0.12);
-	border-radius: (8 * @dp);
-	background: rgba(255, 255, 255, 0.08);
-	font-family: inherit;
-	font-size: (17 * @dp);
-	font-weight: 500;
-	color: #fff;
-	text-align: center;
-	cursor: pointer;
-	outline: none;
-	transition: background 120ms ease, border-color 120ms ease, box-shadow 120ms ease, color 120ms ease;
-
-	&:focus {
-		border-color: rgb(@focus-rgb);
-		background: rgba(@focus-rgb, 0.16);
-		box-shadow: inset 0 0 0 (1 * @dp) rgb(@focus-rgb), 0 0 0 (3 * @dp) rgba(@focus-rgb, 0.35);
-		color: rgb(@focus-rgb);
-	}
-}
-
-.actionBtn {
-	.action-button(@accent-rgb);
-}
-
-.dangerBtn {
-	display: block;
-	width: 100%;
-	margin-top: (8 * @dp);
-	.action-button(@danger-rgb);
+	padding: (24 * @dp) 0;
 }
 
 .confirmText {
