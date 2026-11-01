@@ -2,6 +2,7 @@ import * as playback from './playback';
 import * as jellyfinApi from './jellyfinApi';
 import {getDeviceCapabilities, getDeviceProfile} from './deviceProfile';
 import {linkBitrate} from './linkBitrate';
+import {getPlayMethod} from './video';
 
 jest.mock('./jellyfinApi', () => {
 	const server = {getPlaybackInfo: jest.fn(), closeLiveStream: jest.fn(), reportPlaybackStopped: jest.fn()};
@@ -23,7 +24,7 @@ jest.mock('./deviceProfile', () => ({
 }));
 jest.mock('./linkBitrate', () => ({linkBitrate: jest.fn()}));
 jest.mock('./video', () => ({
-	getPlayMethod: () => 'DirectPlay',
+	getPlayMethod: jest.fn(() => 'DirectPlay'),
 	getMimeType: () => 'video/mp4',
 	isAudioStreamPlayable: () => true,
 	canRenderEmbeddedPgsInBand: () => false,
@@ -43,9 +44,104 @@ beforeEach(async () => {
 	jest.spyOn(console, 'log').mockImplementation(() => {});
 	api.reportPlaybackStopped.mockResolvedValue(null);
 	getDeviceProfile.mockResolvedValue({});
+	getPlayMethod.mockReturnValue('DirectPlay');
 	api.getPlaybackInfo.mockResolvedValue({
 		PlaySessionId: 'session',
 		MediaSources: [{Id: 'source', SupportsDirectPlay: true, Container: 'mkv', MediaStreams: []}]
+	});
+});
+
+describe('a server-approved file without a usable stream URL', () => {
+	const av1 = {
+		Id: 'av1-hdr-version', Container: 'mkv', SupportsDirectPlay: true, SupportsDirectStream: true,
+		MediaStreams: [{Type: 'Video', Codec: 'av1', VideoRangeType: 'DOVIInvalid'}]
+	};
+
+	test('requests a real transcode URL for the selected AV1 version when no remux URL was returned', async () => {
+		getDeviceCapabilities.mockResolvedValue({av1: true, hdr10: true, dolbyVision: false});
+		getDeviceProfile.mockResolvedValue({TranscodingProfiles: [
+			{Type: 'Video', VideoCodec: 'hevc,h264'}, {Type: 'Video', VideoCodec: 'av1'}
+		]});
+		getPlayMethod.mockReturnValue('DirectStream');
+		api.getPlaybackInfo
+			.mockResolvedValueOnce({PlaySessionId: 'first', MediaSources: [av1]})
+			.mockResolvedValueOnce({PlaySessionId: 'fallback', MediaSources: [{
+				...av1, SupportsDirectPlay: false, SupportsDirectStream: false,
+				TranscodingUrl: '/Videos/movie-1/master.m3u8?VideoCodec=h264'
+			}]});
+
+		const result = await playback.getPlaybackInfo(movie.Id, {
+			item: movie, mediaSourceId: av1.Id, startPositionTicks: 120000000,
+			audioStreamIndex: 1, subtitleStreamIndex: -1, maxBitrate: 12000000
+		});
+
+		expect(result.playMethod).toBe('Transcode');
+		expect(result.url).toContain('/Videos/movie-1/master.m3u8');
+		expect(result.mediaSourceId).toBe(av1.Id);
+		expect(api.getPlaybackInfo).toHaveBeenCalledTimes(2);
+		expect(api.getPlaybackInfo.mock.calls[1][1]).toMatchObject({
+			EnableDirectPlay: false, EnableDirectStream: false, EnableTranscoding: true,
+			MediaSourceId: av1.Id, AllowVideoStreamCopy: false,
+			StartTimeTicks: 120000000, AudioStreamIndex: 1, SubtitleStreamIndex: -1,
+			MaxStreamingBitrate: 12000000
+		});
+		expect(api.getPlaybackInfo.mock.calls[1][1].DeviceProfile.TranscodingProfiles.map((p) => p.VideoCodec))
+			.toEqual(['hevc,h264']);
+	});
+
+	test.each(['DirectStreamUrl', 'TranscodingUrl'])('uses an existing %s without forcing a video encode', async (urlField) => {
+		getDeviceCapabilities.mockResolvedValue({av1: true, hdr10: true, dolbyVision: false});
+		getPlayMethod.mockReturnValue('DirectStream');
+		api.getPlaybackInfo.mockResolvedValueOnce({PlaySessionId: 'remux', MediaSources: [{
+			...av1, [urlField]: '/Videos/movie-1/stream.ts?Static=false'
+		}]});
+
+		const result = await playback.getPlaybackInfo(movie.Id, {item: movie, mediaSourceId: av1.Id});
+
+		expect(result.playMethod).toBe('DirectStream');
+		expect(result.url).toContain('/Videos/movie-1/stream.ts');
+		expect(api.getPlaybackInfo).toHaveBeenCalledTimes(1);
+	});
+
+	test('keeps the automatically selected version when no source id was supplied', async () => {
+		getDeviceCapabilities.mockResolvedValue({av1: true, hdr10: true, dolbyVision: false});
+		getPlayMethod.mockReturnValue('DirectStream');
+		api.getPlaybackInfo
+			.mockResolvedValueOnce({PlaySessionId: 'first', MediaSources: [av1]})
+			.mockResolvedValueOnce({PlaySessionId: 'fallback', MediaSources: [{
+				...av1, TranscodingUrl: '/Videos/movie-1/master.m3u8?VideoCodec=h264'
+			}]});
+
+		await playback.getPlaybackInfo(movie.Id, {item: movie});
+
+		expect(api.getPlaybackInfo.mock.calls[0][1].MediaSourceId).toBeUndefined();
+		expect(api.getPlaybackInfo.mock.calls[1][1].MediaSourceId).toBe(av1.Id);
+	});
+
+	test('retains an AV1-only profile when no alternative video encode profile exists', async () => {
+		getDeviceCapabilities.mockResolvedValue({av1: true, hdr10: true, dolbyVision: false});
+		getDeviceProfile.mockResolvedValue({TranscodingProfiles: [{Type: 'Video', VideoCodec: 'av1'}]});
+		getPlayMethod.mockReturnValue('DirectStream');
+		api.getPlaybackInfo
+			.mockResolvedValueOnce({PlaySessionId: 'first', MediaSources: [av1]})
+			.mockResolvedValueOnce({PlaySessionId: 'fallback', MediaSources: [{
+				...av1, TranscodingUrl: '/Videos/movie-1/master.m3u8?VideoCodec=av1'
+			}]});
+
+		await playback.getPlaybackInfo(movie.Id, {item: movie, mediaSourceId: av1.Id});
+
+		expect(api.getPlaybackInfo.mock.calls[1][1].DeviceProfile.TranscodingProfiles.map((p) => p.VideoCodec))
+			.toEqual(['av1']);
+	});
+
+	test('fails after one retry if the server still cannot supply a stream URL', async () => {
+		getDeviceCapabilities.mockResolvedValue({av1: true, hdr10: true, dolbyVision: false});
+		getPlayMethod.mockReturnValue('DirectStream');
+		api.getPlaybackInfo.mockResolvedValue({PlaySessionId: 'no-url', MediaSources: [av1]});
+
+		await expect(playback.getPlaybackInfo(movie.Id, {item: movie, mediaSourceId: av1.Id}))
+			.rejects.toThrow('No playback URL available');
+		expect(api.getPlaybackInfo).toHaveBeenCalledTimes(2);
 	});
 });
 

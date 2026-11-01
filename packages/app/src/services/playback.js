@@ -849,21 +849,32 @@ export const getPlaybackInfo = async (itemId, options = {}) => {
 		dolbyVision: capabilities.dolbyVision
 	});
 
-	// If we determined we need transcoding but server didn't provide a TranscodingUrl,
-	// re-request with DirectPlay/DirectStream disabled to force transcoding
-	if (playMethod === PlayMethod.Transcode && !mediaSource.TranscodingUrl) {
-		console.log('[playback] Need transcode but no TranscodingUrl - re-requesting with transcoding forced');
+	// The server can approve direct play while the player rejects it (for example,
+	// AV1 with a Dolby Vision range this TV cannot render). The local decision can
+	// then be DirectStream even though the server returned no remux URL. Negotiate
+	// a real transcode instead of passing that source to buildPlaybackUrl.
+	const missingRemuxUrl = playMethod === PlayMethod.DirectStream &&
+		!mediaSource.DirectStreamUrl && !mediaSource.TranscodingUrl;
+	if ((playMethod === PlayMethod.Transcode && !mediaSource.TranscodingUrl) || missingRemuxUrl) {
+		console.log('[playback] No usable negotiated stream URL - re-requesting with transcoding forced');
+		// This fallback must encode the video. Prefer the device's ordinary codecs
+		// over an AV1-only profile that the server may only be able to stream-copy.
+		const ordinaryProfiles = deviceProfile.TranscodingProfiles?.filter((p) => p.VideoCodec !== 'av1');
+		const fallbackProfile = missingRemuxUrl && ordinaryProfiles?.some((p) => p.Type === 'Video')
+			? {...deviceProfile, TranscodingProfiles: ordinaryProfiles}
+			: deviceProfile;
 		playbackInfo = await api.getPlaybackInfo(itemId, {
-			DeviceProfile: deviceProfile,
+			DeviceProfile: fallbackProfile,
 			StartTimeTicks: requestedStartTime,
 			AutoOpenLiveStream: true,
 			EnableDirectPlay: false,
 			EnableDirectStream: false,
 			EnableTranscoding: true,
+			...(missingRemuxUrl ? {AllowVideoStreamCopy: false} : {}),
 			AudioStreamIndex: audioStreamIndex,
 			SubtitleStreamIndex: sentSubtitleStreamIndex,
 			MaxStreamingBitrate: maxBitrate,
-			MediaSourceId: options.mediaSourceId
+			MediaSourceId: options.mediaSourceId || mediaSource.Id
 		});
 
 		if (!playbackInfo.MediaSources?.length) {
