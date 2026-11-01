@@ -1105,6 +1105,8 @@ const Settings = ({ onBack, onLibrariesChanged, onRunSetupWizard, onSelectItem, 
 		romm,
 		seerrLabel,
 		isSeerr,
+		hasLiveTv,
+		serverType,
 		isWebOS: isWebOS(),
 		isTizen: isTizen(),
 		isVega: isVega(),
@@ -1161,7 +1163,7 @@ const Settings = ({ onBack, onLibrariesChanged, onRunSetupWizard, onSelectItem, 
 			openDeviceProbe: canProbeDevice ? openDeviceProbe : null
 		}
 	}), [
-		settings, capabilities, seerr, achievements, romm, seerrLabel, isSeerr, serverUrl, ratingsResetArmed, resetRatingsSettings, toggleExperimentalTruehd, updateSetting, updateSettings, refreshPlugin,
+		settings, capabilities, seerr, achievements, romm, seerrLabel, isSeerr, hasLiveTv, serverType, serverUrl, ratingsResetArmed, resetRatingsSettings, toggleExperimentalTruehd, updateSetting, updateSettings, refreshPlugin,
 		serverVersion, availableThemes, activeThemeId, openThemes, openThemeStore, openHomeRows,
 		openDetailButtons, openOsdButtons, openDetailMetadata, openDetailSections, openDiagnostics,
 		signInPin, toggleSignInPin, changeSignInPin, removeSignInPin, openKidsMode, openLibraries, openLibraryOrder, openParentalControls, openSubtitleDownloadLanguages, openTranscodeAudioCodecs, openQrLink, openRatingSources, openRowImageTypes, openExcludedGenres, openMediaBarLibraries,
