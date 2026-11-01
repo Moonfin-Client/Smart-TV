@@ -654,7 +654,7 @@
     "SyncPlay Extra Offset": "SyncPlay Ylimääräinen offset",
     "Synchronization logic for group sessions": "Synkronointilogiikka ryhmäistunnoille",
     "TMDB Score": "TMDB-pisteet",
-    "TV Series": "TV-sarja",
+    "TV Series": "TV Sarja",
     "TV Shows": "TV-ohjelmat",
     "TV Shows Only": "Vain TV-ohjelmat",
     "Tags": "Tunnisteet",
@@ -1612,7 +1612,7 @@
     "TMDB Trending TV (Daily)": "TMDB:n suosituimmat TV-ohjelmat (päivittäin)",
     "TMDB Trending TV (Weekly)": "TMDB:n suosituimmat TV-sarjat (viikoittain)",
     "TMDB Upcoming Movies": "TMDB:n tulevat elokuvat",
-    "TV Show": "TV-sarja",
+    "TV Show": "TV Sarja",
     "Tagalog": "Tagalog",
     "Take the skip button off screen after this long": "Poista ohituspainike näytöltä tämän pitkän ajan kuluttua",
     "Tamil": "Tamil",
@@ -2884,5 +2884,9 @@
     "Seerr Settings": "Seerr-asetukset",
     "Show Libraries Individually": "Näytä kirjastot yksitellen",
     "Show each library as its own button in the navigation bar instead of in the Libraries menu": "Näytä kukin kirjasto omana painikkeenaan navigointipalkissa sen sijaan, että se näkyisi Kirjastot-valikossa",
-    "Version badge": "Versiotunnus"
+    "Version badge": "Versiotunnus",
+    "Password required": "Salasana vaaditaan",
+    "PIN required": "PIN-koodi vaaditaan",
+    "Signed in as {user} on {server}": "Kirjautunut sisään käyttäjänä {user} palvelimella {server}",
+    "Signed in on this device": "Kirjautunut sisään tällä laitteella"
 }
