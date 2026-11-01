@@ -18,7 +18,8 @@ import SpottableInput from '../../components/SpottableInput/SpottableInput';
 import {subscribeTvKeyboardVisibility} from '../../components/TVKeyboard/keyboardBus';
 import {MaterialIcon} from '../../components/icons/materialIcons';
 import {CoreAlertDialog} from '../../components/CoreDialog';
-import {ServerTypeIcon} from './loginIcons';
+import ProfileCarousel, {PillButton, PillRow} from '../../components/ProfileCarousel';
+import {BRAND_NAMES, ServerTypeIcon} from './loginIcons';
 import {forgottenPinUsername, noteProvedSignIn} from '../../utils/signInPin';
 
 import logoAndText from './logo_and_text.png';
@@ -54,8 +55,6 @@ const plexErrorMessage = (err) => (err?.status === 401 ? getSignInMessage(err) :
 
 // These say more than the general advice to check the address, so the add dialog keeps their own line.
 const SPECIFIC_FAILURES = [INVALID_ADDRESS, SERVER_NOT_JELLYFIN, VERSION_UNSUPPORTED];
-
-const BRAND_NAMES = {jellyfin: 'Jellyfin', emby: 'Emby', plex: 'Plex'};
 
 // Where a press should land once the password half of the screen is showing
 const credentialFocusTarget = (user) => {
@@ -1093,11 +1092,27 @@ const Login = ({
 		focusLater('add-server-btn');
 	}, [dialog, removeServerEntry]);
 
-	const handleUserClick = useCallback((e) => {
-		const {userId} = e.currentTarget.dataset;
-		const user = users.find((item) => String(item.id) === String(userId));
+	const handleUserActivate = useCallback((item) => {
+		const user = users.find((entry) => String(entry.id) === String(item.id));
 		if (user) handleUserSelect(user);
 	}, [users, handleUserSelect]);
+
+	// A token resumes without asking, so only someone without one is told what they'll need.
+	const userCarouselItems = useMemo(() => users.map((user) => {
+		const pin = !user.hasToken && user.plexHome && user.hasPassword;
+		let line = null;
+		if (user.hasToken) line = {text: $L('Signed in on this device')};
+		else if (pin) line = {text: $L('PIN required'), lock: true};
+		else if (user.hasPassword) line = {text: $L('Password required')};
+		return {
+			key: user.id,
+			id: user.id,
+			name: user.name,
+			imageUrl: user.imageTag ? jellyfinApi.getUserImageUrl(jellyfinApi.getServerUrl(), user.id, user.imageTag, server?.serverType) : null,
+			badge: pin ? 'pin' : null,
+			lines: line ? [line] : []
+		};
+	}), [users, server]);
 
 	const handleAddUser = useCallback(() => {
 		if (server) goToSignIn(server, null);
@@ -1246,59 +1261,40 @@ const Login = ({
 		</FocusArea>
 	);
 
+	// The carousel takes the whole screen, so this step draws its own logo and status.
 	const renderUsers = () => (
-		<FocusArea className={`${css.card} ${css.cardCentered}`}>
-			<p className={css.serverLabel}>{server?.name}</p>
-			<h1 className={css.title}>{$L("Who's watching?")}</h1>
-			{server?.loginDisclaimer && <p className={css.disclaimer}>{server.loginDisclaimer}</p>}
-
-			<div className={css.userRow}>
-				<div className={css.userRowInner}>
-					{users.map((user, index) => (
-						<SpottableDiv
-							key={user.id}
-							data-spotlight-id={`user-${index}`}
-							data-user-id={user.id}
-							className={css.userCard}
-							onClick={handleUserClick}
-						>
-							{user.imageTag ? (
-								<img
-									src={jellyfinApi.getUserImageUrl(jellyfinApi.getServerUrl(), user.id, user.imageTag, server?.serverType)}
-									alt={user.name}
-									className={css.userAvatar}
-								/>
-							) : (
-								<div className={css.userAvatarPlaceholder}>
-									<MaterialIcon name="person" className={css.placeholderIcon} />
-								</div>
-							)}
-							<div className={css.userName}>{user.name}</div>
-						</SpottableDiv>
-					))}
-				</div>
+		<FocusArea className={css.usersScreen}>
+			<div className={css.usersTop}>
+				<img src={logoAndText} alt="Moonfin" className={css.usersLogo} />
+				{server?.name && (
+					<span className={css.usersServer}>
+						<MaterialIcon name="dnsOutlined" className={css.usersServerIcon} />
+						{server.name}
+					</span>
+				)}
 			</div>
 
-			{error && <div className={css.errorText}>{error}</div>}
+			<div className={css.usersMain}>
+				<h1 className={css.usersTitle}>{$L("Who's watching?")}</h1>
+				<ProfileCarousel
+					key={server?.serverId}
+					items={userCarouselItems}
+					spotlightId="user-0"
+					onActivate={handleUserActivate}
+				/>
+				{status && !dialog && <div className={`${css.statusMessage} ${css.usersStatus}`}>{status}</div>}
+				{server?.loginDisclaimer && <p className={`${css.disclaimer} ${css.usersNote}`}>{server.loginDisclaimer}</p>}
+				{error && <div className={`${css.errorText} ${css.usersNote}`}>{error}</div>}
+			</div>
 
-			<div className={`${css.actionRow} ${css.actionRowWide}`}>
-				<SpottableButton
-					data-spotlight-id="add-user-btn"
-					className={css.outlineButton}
-					onClick={handleAddUser}
-				>
-					<MaterialIcon name="person" className={css.outlineButtonIcon} />
+			<PillRow>
+				<PillButton data-spotlight-id="add-user-btn" icon="person" onClick={handleAddUser}>
 					{$L('Add User')}
-				</SpottableButton>
-				<SpottableButton
-					data-spotlight-id="select-server-btn"
-					className={css.outlineButton}
-					onClick={goToServers}
-				>
-					<MaterialIcon name="home" className={css.outlineButtonIcon} />
+				</PillButton>
+				<PillButton data-spotlight-id="select-server-btn" icon="home" onClick={goToServers}>
 					{$L('Select Server')}
-				</SpottableButton>
-			</div>
+				</PillButton>
+			</PillRow>
 		</FocusArea>
 	);
 
@@ -1827,7 +1823,7 @@ const Login = ({
 	const isWide = (step === 'signin' && showQuickConnectQr) || Boolean(plexQrUrl);
 
 	return (
-		<div className={css.page} ref={pageRef}>
+		<div className={`${css.page} ${step === 'users' ? css.pageUsers : ''}`} ref={pageRef}>
 			<div className={css.spacerTop} />
 			<div className={`${css.frame} ${isNarrow ? (isWide ? css.frameWide : css.frameNarrow) : ''}`}>
 				<div className={css.logoSection}>
@@ -1838,7 +1834,7 @@ const Login = ({
 					/>
 				</div>
 
-				{status && !dialog && <div className={css.statusMessage}>{status}</div>}
+				{status && !dialog && step !== 'users' && <div className={css.statusMessage}>{status}</div>}
 
 				{step === 'servers' && renderServers()}
 				{step === 'users' && renderUsers()}

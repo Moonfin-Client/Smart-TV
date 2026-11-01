@@ -1,33 +1,15 @@
 import {useCallback, useState, useEffect, useMemo} from 'react';
-import Spottable from '@enact/spotlight/Spottable';
 import Spotlight from '@enact/spotlight';
 import $L from '@enact/i18n/$L';
 import {useAuth} from '../../context/AuthContext';
 import {useSettings} from '../../context/SettingsContext';
 import {getUserImageUrl} from '../../services/jellyfinApi';
-import CoreDialog, {CoreAlertDialog} from '../CoreDialog';
-import {MaterialIcon} from '../icons/materialIcons';
+import {ModalContainer} from '../../utils/spotlightContainers';
+import {CoreAlertDialog, useDialogLayer, portal} from '../CoreDialog';
+import ProfileCarousel, {PillButton, PillRow} from '../ProfileCarousel';
+import {BRAND_NAMES} from '../../views/Login/loginIcons';
 
 import css from './AccountModal.module.less';
-
-const SpottableButton = Spottable('button');
-const SpottableDiv = Spottable('div');
-
-const UserAvatar = ({url, userId, username, imageTag, serverType}) => {
-	const [failed, setFailed] = useState(false);
-	const handleError = useCallback(() => setFailed(true), []);
-
-	if (failed) return <MaterialIcon name="person" className={css.placeholderIcon} />;
-
-	return (
-		<img
-			src={getUserImageUrl(url, userId, imageTag, serverType)}
-			alt={username}
-			className={css.avatarImage}
-			onError={handleError}
-		/>
-	);
-};
 
 const AccountModal = ({
 	open,
@@ -111,11 +93,8 @@ const AccountModal = ({
 		onAddServer?.();
 	}, [startAddServerFlow, onClose, onAddServer]);
 
-	const handleUserCardClick = useCallback(async (e) => {
-		const serverId = e.currentTarget.dataset.serverId;
-		const userId = e.currentTarget.dataset.userId;
-		if (!serverId || !userId) return;
-
+	const handleActivate = useCallback(async (item) => {
+		const {serverId, userId} = item.server;
 		const isActive = activeServerInfo?.serverId === serverId && activeServerInfo?.userId === userId;
 		if (isActive) {
 			onClose?.();
@@ -126,10 +105,9 @@ const AccountModal = ({
 	}, [switchUser, onClose, activeServerInfo]);
 
 	// Only a pointer reaches this, since the remote has no way onto it.
-	const handleRemoveUserClick = useCallback((e) => {
-		e.stopPropagation();
-		const {serverId, userId, username, serverName} = e.currentTarget.dataset;
-		if (serverId && userId) setServerToRemove({serverId, userId, username, serverName});
+	const handleRemove = useCallback((item) => {
+		const {serverId, userId, username, name: serverName} = item.server;
+		setServerToRemove({serverId, userId, username, serverName});
 	}, []);
 
 	const handleConfirmRemove = useCallback(async () => {
@@ -149,94 +127,78 @@ const AccountModal = ({
 	const activeIndex = sortedServers.findIndex(
 		(s) => activeServerInfo?.serverId === s.serverId && activeServerInfo?.userId === s.userId
 	);
-	const initialIndex = activeIndex >= 0 ? activeIndex : 0;
+	const activeEntry = activeIndex >= 0 ? sortedServers[activeIndex] : null;
+
+	const items = useMemo(() => sortedServers.map((server, index) => {
+		const isActive = index === activeIndex;
+		const imageTag = isActive ? (user?.PrimaryImageTag || server.primaryImageTag) : server.primaryImageTag;
+		const brand = BRAND_NAMES[server.serverType || 'jellyfin'];
+		const lines = [{text: brand ? `${server.name} · ${brand}` : server.name}];
+		if (isActive) lines.push({text: $L('Active'), accent: true});
+		return {
+			key: `${server.serverId}-${server.userId}`,
+			id: server.userId,
+			name: server.username,
+			imageUrl: getUserImageUrl(server.url, server.userId, imageTag, server.serverType),
+			badge: isActive ? 'active' : null,
+			lines,
+			removable: sortedServers.length > 1 || !isActive,
+			server
+		};
+	}), [sortedServers, activeIndex, user]);
+
+	useDialogLayer({open, onClose, spotlightId: 'account-modal'});
 
 	return (
 		<>
-			<CoreDialog
-				open={open}
-				onClose={onClose}
-				title={$L('Switch User')}
-				spotlightId="account-modal"
-				className={css.panel}
-			>
-				<div className={css.cardStrip}>
-					<div className={css.cardRow}>
-						{sortedServers.map((server, index) => {
-							const isActive = index === activeIndex;
-							const imageTag = isActive ? (user?.PrimaryImageTag || server.primaryImageTag) : server.primaryImageTag;
-							return (
-								<SpottableDiv
-									key={`${server.serverId}-${server.userId}`}
-									data-spotlight-id={`account-user-${index}`}
-									data-selected={index === initialIndex ? 'true' : undefined}
-									data-server-id={server.serverId}
-									data-user-id={server.userId}
-									className={css.card}
-									onClick={handleUserCardClick}
-								>
-									<div className={css.avatar}>
-										<UserAvatar
-											url={server.url}
-											serverType={server.serverType}
-											userId={server.userId}
-											username={server.username}
-											imageTag={imageTag}
-										/>
-									</div>
-									<div className={css.userName}>{server.username}</div>
-									<div className={css.serverName}>{server.name}</div>
-									{isActive && <div className={css.active}>{$L('Active')}</div>}
-									{(sortedServers.length > 1 || !isActive) && (
-										<button
-											className={css.removeBtn}
-											data-server-id={server.serverId}
-											data-user-id={server.userId}
-											data-server-name={server.name}
-											data-username={server.username}
-											onClick={handleRemoveUserClick}
-											tabIndex={-1}
-										>
-											<MaterialIcon name="close" className={css.removeIcon} />
-										</button>
-									)}
-								</SpottableDiv>
-							);
-						})}
-						<SpottableDiv
-							className={`${css.card} ${css.addCard}`}
-							data-spotlight-id="account-add-user"
-							data-selected={sortedServers.length === 0 ? 'true' : undefined}
-							onClick={handleAddUser}
-						>
-							<div className={css.avatar}>
-								<MaterialIcon name="add" className={css.addIcon} />
-							</div>
-							<div className={css.userName}>{$L('Add User')}</div>
-						</SpottableDiv>
-					</div>
-				</div>
+			{open && portal(
+				<div className={css.layer}>
+					<ModalContainer spotlightId="account-modal" className={css.screen}>
+						<div className={css.header}>
+							<h2 className={css.title}>{$L('Switch User')}</h2>
+							{activeEntry && (
+								<span className={css.signedInAs}>
+									{$L('Signed in as {user} on {server}')
+										.replace('{user}', activeEntry.username)
+										.replace('{server}', activeEntry.name)}
+								</span>
+							)}
+						</div>
 
-				<div className={css.actions}>
-					<div className={css.actionPair}>
-						<SpottableButton className={css.actionBtn} onClick={handleSelectServer} data-spotlight-id="account-add-server">
-							{$L('Select Server')}
-						</SpottableButton>
-						<SpottableButton className={css.actionBtn} onClick={handleLogout} data-spotlight-id="account-logout">
-							{$L('Sign Out')}
-						</SpottableButton>
-					</div>
-					{hasMultipleUsers && (
-						<SpottableButton
-							className={`${css.actionBtn} ${css.dangerBtn}`}
-							onClick={handleLogoutAll}
-							data-spotlight-id="account-logout-all"
-						>
-							{$L('Sign Out All Users')}
-						</SpottableButton>
-					)}
+						<div className={css.main}>
+							<ProfileCarousel
+								items={items}
+								initialIndex={Math.max(activeIndex, 0)}
+								spotlightId="account-carousel"
+								onActivate={handleActivate}
+								onRemove={handleRemove}
+							/>
+						</div>
+
+						<PillRow>
+							<PillButton
+								icon="person"
+								onClick={handleAddUser}
+								data-spotlight-id="account-add-user"
+								data-selected={items.length === 0 ? 'true' : undefined}
+							>
+								{$L('Add User')}
+							</PillButton>
+							<PillButton icon="home" onClick={handleSelectServer} data-spotlight-id="account-add-server">
+								{$L('Select Server')}
+							</PillButton>
+							<PillButton onClick={handleLogout} data-spotlight-id="account-logout">
+								{$L('Sign Out')}
+							</PillButton>
+							{hasMultipleUsers && (
+								<PillButton danger onClick={handleLogoutAll} data-spotlight-id="account-logout-all">
+									{$L('Sign Out All Users')}
+								</PillButton>
+							)}
+						</PillRow>
+					</ModalContainer>
 				</div>
-			</CoreDialog>
+			)}
 
 			<CoreAlertDialog
 				open={open && Boolean(serverToRemove)}

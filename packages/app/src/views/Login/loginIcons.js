@@ -8,6 +8,8 @@ const EMBY_PATH = 'M327.065 642.186C281.668 596.326 244.327 558.818 244.085 558.
 // The chevron Plex marks itself with.
 const PLEX_PATH = 'M64 24H128L192 128L128 232H64L128 128Z';
 
+export const BRAND_NAMES = {jellyfin: 'Jellyfin', emby: 'Emby', plex: 'Plex'};
+
 export const ServerTypeIcon = ({serverType, className}) => {
 	if (serverType === 'plex') {
 		return (
