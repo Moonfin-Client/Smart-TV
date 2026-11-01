@@ -1242,9 +1242,13 @@ const AppContent = (props) => {
 		setIsResume(false);
 		setMusicInBackground(false);
 		// Music stopped from the mini player ends wherever the viewer already is.
-		if (panelIndex === PANELS.PLAYER) handleBack();
+		if (panelIndex === PANELS.PLAYER) {
+			handleBack();
+			// A viewer in a Watch Party goes back to its room, where they can rejoin, rather than to the item's page.
+			if (watchPartyRoom) openWatchParty();
+		}
 		window.dispatchEvent(new CustomEvent('moonfin:browseRefresh'));
-	}, [handleBack, panelHistory, selectedItem, playingItem, panelIndex]);
+	}, [handleBack, panelHistory, selectedItem, playingItem, panelIndex, watchPartyRoom, openWatchParty]);
 
 	const handlePlayerBackground = useCallback(() => {
 		setMusicInBackground(true);

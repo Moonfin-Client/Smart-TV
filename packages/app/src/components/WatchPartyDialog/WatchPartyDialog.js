@@ -5,6 +5,7 @@ import Spotlight from '@enact/spotlight';
 import SpotlightContainerDecorator from '@enact/spotlight/SpotlightContainerDecorator';
 import {watchParty, isRoomPlaying, partySource} from '../../services/siloWatchParty';
 import useWatchParty from '../../hooks/useWatchParty';
+import useHoldDialogFocus from '../../hooks/useHoldDialogFocus';
 import {isBackKey} from '../../utils/keys';
 import {isTvKeyboardVisible} from '../TVKeyboard/keyboardBus';
 import SpottableInput from '../SpottableInput/SpottableInput';
@@ -63,17 +64,20 @@ const WatchPartyDialog = ({open, onClose, playingItemId}) => {
 		};
 	}, [room?.selectedContentId]);
 
+	const inRoom = Boolean(room);
+	const focusDefault = useCallback(() => {
+		if (inRoom) {
+			if (!Spotlight.focus('watchparty-primary-btn')) Spotlight.focus('watchparty-leave-btn');
+		} else if (!Spotlight.focus('watchparty-start-btn')) {
+			Spotlight.focus('watchparty-close-btn');
+		}
+	}, [inRoom]);
 	useEffect(() => {
 		if (!open) return;
-		const t = setTimeout(() => {
-			if (room) {
-				if (!Spotlight.focus('watchparty-primary-btn')) Spotlight.focus('watchparty-leave-btn');
-			} else if (!Spotlight.focus('watchparty-start-btn')) {
-				Spotlight.focus('watchparty-close-btn');
-			}
-		}, 100);
+		const t = setTimeout(focusDefault, 100);
 		return () => clearTimeout(t);
-	}, [open, Boolean(room), supported]); // eslint-disable-line react-hooks/exhaustive-deps
+	}, [open, focusDefault, supported]);
+	useHoldDialogFocus(open, 'watchparty-dialog', focusDefault);
 
 	useEffect(() => {
 		if (!open) return;
