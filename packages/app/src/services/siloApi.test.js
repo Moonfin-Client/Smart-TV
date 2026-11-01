@@ -12,6 +12,8 @@ import continueWatching from './__fixtures__/silo/home_continue_watching.json';
 import searchCapabilities from './__fixtures__/silo/search_capabilities.json';
 import person from './__fixtures__/silo/person.json';
 import catalogFilters from './__fixtures__/silo/catalog_filters.json';
+import accountMe from './__fixtures__/silo/account_me.json';
+import profiles from './__fixtures__/silo/profiles.json';
 
 jest.mock('./secureFetch', () => ({corsFreeFetch: jest.fn()}));
 jest.mock('./userDataSync', () => ({publish: jest.fn()}));
@@ -137,6 +139,15 @@ describe('browsing', () => {
 		const {Items} = await api().getGenres('1', 'Movie');
 		expect(Items[0]).toMatchObject({Name: 'Action', Id: 'silo-genre:Action', Type: 'Genre'});
 		expect(calls()[0].query).toEqual({library_id: '1', type: 'movie'});
+	});
+});
+
+describe('the signed-in profile', () => {
+	test('is read from the account and its profiles, as the app\'s user', async () => {
+		const [profile] = profiles.items;
+		serve({'/account/me': accountMe, '/profiles': {items: [{...profile, id: 'profile-1', is_primary: false}, {...profile, id: 'other', is_primary: true}]}});
+		expect(await api().getCurrentUser()).toMatchObject({Id: 'profile-1', SiloAccountId: '9', Policy: {IsAdministrator: false}});
+		expect(calls().find((c) => c.path === '/profiles')).toBeTruthy();
 	});
 });
 

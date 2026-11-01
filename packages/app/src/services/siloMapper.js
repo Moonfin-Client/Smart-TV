@@ -667,12 +667,15 @@ export const siloPersonToJellyfin = (person, baseUrl) => {
 };
 
 // A household profile as one of the app's users. Only an admin account's primary profile is an admin here.
-export const siloProfileToUser = (profile, account) => {
+export const siloProfileToUser = (profile, account, baseUrl) => {
+	const id = siloIdOf(profile?.id);
 	const name = text(profile?.name) || text(account?.username) || '';
 	const admin = account?.role === 'admin' && profile?.is_primary === true;
+	const avatar = id ? registerSiloImage(baseUrl, id, 'Primary', profile?.avatar_url) : null;
 	return {
-		Id: siloIdOf(profile?.id),
+		Id: id,
 		Name: name,
+		...compact({PrimaryImageTag: avatar}),
 		HasPassword: profile?.has_pin === true,
 		HasConfiguredPassword: true,
 		SiloAccountId: siloIdOf(account?.id),

@@ -1,4 +1,4 @@
-import {onSiloLoginEnded, restoreSiloAccounts, siloProfileOf} from './siloAccounts';
+import {onSiloLoginEnded, rememberSiloProfile, restoreSiloAccounts, siloProfileOf} from './siloAccounts';
 import {setSiloTokens, siloAccount} from './siloSession';
 import {getAllServers, updateServer} from './multiServerManager';
 
@@ -60,4 +60,14 @@ test('a profile no longer saved is forgotten when the saved servers load again',
 	getAllServers.mockResolvedValue({});
 	await restoreSiloAccounts();
 	expect(siloProfileOf(SILO, 'profile-1')).toBeNull();
+});
+
+test('a profile just signed in is known at once, and saved beside the server\'s other Silo logins', async () => {
+	getAllServers.mockResolvedValue(saved('account-f', pair('f1')));
+	const tokens = pair('g1');
+	const fields = await rememberSiloProfile(SILO, 'profile-9', 'account-g', tokens, 'pin-proof');
+	expect(siloProfileOf(SILO, 'profile-9')).toEqual({accountId: 'account-g', profileToken: 'pin-proof'});
+	expect(Object.keys(fields.serverFields.siloAccounts)).toEqual(['account-f', 'account-g']);
+	expect(fields.serverFields.siloAccounts['account-g']).toBe(tokens);
+	expect(fields.userFields).toEqual({siloAccountId: 'account-g', siloProfileToken: 'pin-proof'});
 });

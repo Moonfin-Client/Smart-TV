@@ -3,7 +3,7 @@
 import * as userDataSync from './userDataSync';
 import {createSiloRequest} from './siloSession';
 import {createSiloPager, siloPage} from './siloPager';
-import {SILO_ORIGINAL, siloItemToJellyfin, siloLibrariesToViews, siloNamedItem, siloPersonToJellyfin, siloProgressToUserData} from './siloMapper';
+import {SILO_ORIGINAL, siloItemToJellyfin, siloLibrariesToViews, siloNamedItem, siloPersonToJellyfin, siloProfileToUser, siloProgressToUserData} from './siloMapper';
 import {parseSiloSeasonId, siloGenreNameOf, siloStudioNameOf, siloTypeOfId} from '../utils/siloUrls';
 
 const LIST_IMAGES = 'medium';
@@ -245,6 +245,15 @@ export const createSiloApi = ({getBaseUrl, getAccount, getProfile, getDeviceInfo
 		return result(mapAll(items).filter(keepItem), total, startIndex);
 	};
 
+	// The profile signed in, as the app's user, or the account's primary profile when none is named.
+	const currentUser = async () => {
+		const [account, profiles] = await Promise.all([request('/account/me'), request('/profiles', {noProfile: true})]);
+		const id = String(getProfile?.()?.id ?? '');
+		const profile = itemsOf(profiles).find((p) => String(p.id) === id) || itemsOf(profiles).find((p) => p.is_primary);
+		if (!profile) throw Object.assign(new Error(`Silo has no profile ${id}`), {status: 404});
+		return siloProfileToUser(profile, account, getBaseUrl());
+	};
+
 	const getItems = async (params = {}) => {
 		const start = params.StartIndex || 0;
 		const limit = params.Limit;
@@ -385,6 +394,8 @@ export const createSiloApi = ({getBaseUrl, getAccount, getProfile, getDeviceInfo
 		.then(changed(itemId, {Rating: stars * 2}));
 
 	return {
+		getCurrentUser: currentUser,
+		getUserConfiguration: currentUser,
 		getLibraries: async () => result(await libraries()),
 		getAllLibraries: async () => result(await libraries()),
 		getItems,

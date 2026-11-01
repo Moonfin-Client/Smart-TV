@@ -8,6 +8,10 @@ import {useSettings} from '../../context/SettingsContext';
 import * as jellyfinApi from '../../services/jellyfinApi';
 import * as embyConnect from '../../services/embyConnect';
 import * as plexTv from '../../services/plexTv';
+import {createSiloSignIn, probeSilo, siloBehindJellyfin, siloVersionMismatch} from '../../services/siloSignIn';
+import {rememberSiloProfile} from '../../services/siloAccounts';
+import {siloProfileToUser} from '../../services/siloMapper';
+import {getPlatform} from '../../platform';
 import * as multiServerManager from '../../services/multiServerManager';
 import {discoverLocalServers} from '../../services/serverDiscovery';
 import {generateCandidates, normalizeServerBaseUrl, quickConnectApprovalUrl} from '../../utils/serverUrl';
@@ -38,7 +42,23 @@ const LONG_PRESS_DELAY = 500;
 
 const focusLater = (id) => setTimeout(() => Spotlight.focus(`[data-spotlight-id="${id}"]`), 100);
 
-const formatQuickConnectCode = (code) => (code.length === 6 ? `${code.slice(0, 3)} ${code.slice(3)}` : code);
+const formatQuickConnectCode = (code) => {
+	if (code.length === 6) return `${code.slice(0, 3)} ${code.slice(3)}`;
+	return code.length === 8 ? `${code.slice(0, 4)} ${code.slice(4)}` : code;
+};
+
+const siloDevice = () => ({...jellyfinApi.getDeviceInfo(), platform: getPlatform()});
+
+// A server on another major version of Silo's API, or Silo's address checked and found, as the probe answers.
+const siloServerAt = (url, info) => {
+	const mismatch = siloVersionMismatch(info);
+	if (mismatch === 'app') return {error: $L('This Silo server needs a newer version of Moonfin.'), errorType: VERSION_UNSUPPORTED};
+	if (mismatch === 'server') return {error: $L('This Silo server is too old for this version of Moonfin.'), errorType: VERSION_UNSUPPORTED};
+	return {server: {serverId: null, url, name: info.ServerName || url, serverType: 'silo', version: info.Version || null, loginDisclaimer: null}};
+};
+
+// Silo slows sign-in attempts and PIN guesses down with a wait it names.
+const siloWaitMessage = (waitMs) => $L('Too many attempts. Try again in {minutes} minutes.').replace('{minutes}', String(Math.max(1, Math.ceil((waitMs ?? 300000) / 60000))));
 
 const hasQuickConnect = (target) => target?.serverType !== 'emby' && target?.serverType !== 'plex';
 
@@ -124,6 +144,8 @@ const Login = ({
 	const pageRef = useRef(null);
 	const panelRef = useRef(null);
 	const quickConnectTimer = useRef(null);
+	const siloRef = useRef(null);
+	const [quickConnectLink, setQuickConnectLink] = useState(null);
 	const qrCanvasRef = useRef(null);
 	const bootstrapped = useRef(false);
 	const suppressClick = useRef(false);
@@ -143,7 +165,9 @@ const Login = ({
 	// The QR sits beside the code and the buttons, so its room is kept while the code
 	// is still on its way instead of the card jumping when it arrives.
 	const showQuickConnectQr = supportsQuickConnect && showQuickConnect && supportsQuickConnectWebLink(server?.version);
-	const quickConnectQrUrl = showQuickConnectQr ? quickConnectApprovalUrl(server?.url, quickConnectCode) : null;
+	const quickConnectQrUrl = showQuickConnectQr
+		? (server?.serverType === 'silo' ? quickConnectLink : quickConnectApprovalUrl(server?.url, quickConnectCode))
+		: null;
 
 	useEffect(() => {
 		drawQrCode(qrCanvasRef.current, quickConnectQrUrl);
@@ -196,6 +220,7 @@ const Login = ({
 			quickConnectTimer.current = null;
 		}
 		setQuickConnectCode(null);
+		setQuickConnectLink(null);
 	}, []);
 
 	useEffect(() => () => {
@@ -328,8 +353,10 @@ const Login = ({
 			return;
 		}
 		stopQuickConnect();
-		setSignInUser(user || null);
-		setUsername(user ? user.name : '');
+		// A Silo account signs in by its own name, and a profile only ever asks for its PIN.
+		const named = target?.serverType === 'silo' && !user?.siloProfile ? null : user;
+		setSignInUser(named || null);
+		setUsername(named ? named.name : '');
 		setPassword('');
 		setError(null);
 		setStatus(null);
@@ -344,6 +371,7 @@ const Login = ({
 	const openServer = useCallback(async (target, {forceSignIn = false, signInAs = null} = {}) => {
 		jellyfinApi.setServer(target.url);
 		jellyfinApi.setServerType(target.serverType || 'jellyfin');
+		siloRef.current = target.serverType === 'silo' ? {signIn: createSiloSignIn(target.url, siloDevice()), login: null} : null;
 
 		setServer(target);
 		setError(null);
@@ -468,6 +496,10 @@ const Login = ({
 					continue;
 				}
 
+				// Silo's Jellyfin-compatible service does less than its own API, so the native one is used when it's there.
+				const silo = serverType === 'jellyfin' ? await siloBehindJellyfin(candidate, siloDevice()) : null;
+				if (silo) return siloServerAt(silo.url, silo.info);
+
 				// Emby reports a 4.x version that has nothing to do with the Jellyfin minimum
 				if (serverType === 'jellyfin' && !isVersionSupported(info.Version)) {
 					return {
@@ -508,8 +540,17 @@ const Login = ({
 		if (inDialog) setDialogError(null);
 		else setError(null);
 
-		const result = await probeServer(input);
-		// Only Jellyfin and Emby answer that probe, so a Plex server goes to its plex.tv sign in.
+		let result = await probeServer(input);
+		// Only Jellyfin and Emby answer that probe, so Silo's own API is tried next, and a Plex server goes to its plex.tv sign in.
+		if (result.error) {
+			for (const candidate of generateCandidates(input)) {
+				const info = await probeSilo(candidate, siloDevice());
+				if (info) {
+					result = siloServerAt(candidate, info);
+					break;
+				}
+			}
+		}
 		const plex = result.error ? await plexTv.findServerAt(input) : null;
 		setStatus(null);
 		setIsConnecting(false);
@@ -596,8 +637,87 @@ const Login = ({
 		}
 	}, [isAdding, completeAddServerFlow, onServerAdded, onLoggedIn]);
 
+	// A Silo profile becomes the app's user, saved with the login every profile on its account shares.
+	const finishSilo = useCallback(async (profile, profileToken) => {
+		const siloLogin = siloRef.current.login;
+		setIsConnecting(true);
+		setError(null);
+		setStatus(isAdding ? $L('Adding user...') : $L('Signing in...'));
+		try {
+			const user = siloProfileToUser(profile, siloLogin.account, server.url);
+			const fields = await rememberSiloProfile(server.url, user.Id, siloLogin.account.id, siloLogin.tokens, profileToken);
+			const result = await loginWithToken(server.url, {User: user, AccessToken: siloLogin.tokens.accessToken}, {
+				serverName: server.name, serverType: 'silo', serverVersion: server.version, isAddingNewServer: isAdding, switchToNewUser: true,
+				...fields
+			});
+			finishLogin(result);
+		} catch (err) {
+			setError(getSignInMessage(err));
+		} finally {
+			setIsConnecting(false);
+			setStatus(null);
+		}
+	}, [server, isAdding, loginWithToken, finishLogin]);
+
+	// The account is signed in, and the household profile it acts as is picked next. A single profile without a PIN
+	// is the account itself, so there's nothing to pick.
+	const openSiloAccount = useCallback(async (siloLogin) => {
+		siloRef.current.login = siloLogin;
+		const profiles = await siloRef.current.signIn.profiles();
+		if (profiles.length === 1 && profiles[0].has_pin !== true) {
+			await finishSilo(profiles[0], null);
+			return;
+		}
+		stopQuickConnect();
+		setUsers(profiles.map((profile) => ({
+			id: String(profile.id),
+			name: profile.name || siloLogin.account.username,
+			imageTag: siloProfileToUser(profile, siloLogin.account, server.url).PrimaryImageTag || null,
+			hasToken: false,
+			hasPassword: profile.has_pin === true,
+			siloProfile: profile
+		})));
+		setStep('users');
+		setStatus(null);
+		focusLater('user-0');
+	}, [server, finishSilo, stopQuickConnect]);
+
+	const signInSilo = useCallback(async (name, secret) => {
+		setIsConnecting(true);
+		setError(null);
+		setStatus($L('Signing in...'));
+		try {
+			await openSiloAccount(await siloRef.current.signIn.signIn(name, secret));
+			return true;
+		} catch (err) {
+			setError(err.status === 429 ? siloWaitMessage(err.retryAfterMs) : getSignInMessage(err));
+			setStatus(null);
+			return false;
+		} finally {
+			setIsConnecting(false);
+		}
+	}, [openSiloAccount]);
+
+	const verifySiloPin = useCallback(async (user, pin) => {
+		setIsConnecting(true);
+		setError(null);
+		try {
+			const answer = await siloRef.current.signIn.verifyPin(user.id, pin);
+			if (answer.profileToken) {
+				await finishSilo(user.siloProfile, answer.profileToken);
+				return;
+			}
+			setError(answer.wrong ? $L('Incorrect PIN') : siloWaitMessage(answer.lockedForMs));
+		} catch (err) {
+			setError(getSignInMessage(err));
+		} finally {
+			setIsConnecting(false);
+		}
+	}, [finishSilo]);
+
 	const signIn = useCallback(async (name, secret) => {
 		if (!server || !name) return false;
+		if (server.serverType === 'silo') return signInSilo(name, secret);
 
 		setIsConnecting(true);
 		setError(null);
@@ -620,7 +740,7 @@ const Login = ({
 		} finally {
 			setIsConnecting(false);
 		}
-	}, [server, login, isAdding, finishLogin]);
+	}, [server, login, isAdding, finishLogin, signInSilo]);
 
 	// A Plex Home member signs in with their own plex.tv token, from a switch that checks their PIN, and the server token
 	// plex.tv gives them.
@@ -663,6 +783,12 @@ const Login = ({
 	const handleUserSelect = useCallback(async (user) => {
 		if (!server) return;
 
+		if (user.siloProfile) {
+			if (user.hasPassword) goToSignIn(server, user);
+			else await finishSilo(user.siloProfile, null);
+			return;
+		}
+
 		// An account we already hold a token for can be resumed, unless the user
 		// asked to be challenged every time or we're here to add an account.
 		if (user.hasToken && !alwaysAuthenticate && !isAdding && server.serverId) {
@@ -692,9 +818,30 @@ const Login = ({
 		}
 
 		goToSignIn(server, user);
-	}, [server, alwaysAuthenticate, isAdding, switchUser, onLoggedIn, goToSignIn, signIn, signInPlexHome]);
+	}, [server, alwaysAuthenticate, isAdding, switchUser, onLoggedIn, goToSignIn, signIn, signInPlexHome, finishSilo]);
 
 	// Quick Connect
+
+	const pollSiloCode = useCallback(async (secret) => {
+		let answer;
+		try {
+			answer = await siloRef.current.signIn.checkCodeSignIn(secret);
+		} catch {
+			// The next poll asks again.
+			return;
+		}
+		if (answer.status === 'pending') return;
+		stopQuickConnect();
+		if (answer.status !== 'approved') {
+			setError(answer.status === 'denied' ? $L('The sign-in was turned down.') : $L('The sign-in code ran out. Try again.'));
+			return;
+		}
+		try {
+			await openSiloAccount(answer.login);
+		} catch (err) {
+			setError(getSignInMessage(err));
+		}
+	}, [stopQuickConnect, openSiloAccount]);
 
 	const pollQuickConnect = useCallback(async (secret) => {
 		try {
@@ -732,6 +879,19 @@ const Login = ({
 	}, [stopQuickConnect, signInUser]);
 
 	const startQuickConnect = useCallback(async () => {
+		if (server?.serverType === 'silo') {
+			try {
+				const start = await siloRef.current.signIn.startCodeSignIn();
+				setQuickConnectCode(start.code);
+				setQuickConnectLink(start.link);
+				quickConnectTimer.current = setInterval(() => pollSiloCode(start.secret), start.pollAfterMs);
+				focusLater('back-btn');
+			} catch {
+				setError($L('Quick Connect is disabled'));
+				selectPassword();
+			}
+			return;
+		}
 		try {
 			const result = await jellyfinApi.api.initiateQuickConnect();
 			if (!result?.Code || !result?.Secret) return;
@@ -742,7 +902,7 @@ const Login = ({
 			setError($L('Quick Connect is disabled'));
 			selectPassword();
 		}
-	}, [pollQuickConnect, selectPassword]);
+	}, [server, pollQuickConnect, pollSiloCode, selectPassword]);
 
 	useEffect(() => {
 		if (step !== 'signin' || !showQuickConnect || !supportsQuickConnect) return;
@@ -1104,13 +1264,17 @@ const Login = ({
 	}, [server, goToSignIn]);
 
 	const handleSignIn = useCallback(() => {
+		if (signInUser?.siloProfile) {
+			verifySiloPin(signInUser, password);
+			return;
+		}
 		if (server?.serverType === 'plex') {
 			signInPlexHome(signInUser, password);
 			return;
 		}
 		if (!username.trim()) return;
 		signIn(username.trim(), password);
-	}, [server, signInUser, username, password, signIn, signInPlexHome]);
+	}, [server, signInUser, username, password, signIn, signInPlexHome, verifySiloPin]);
 
 	const handlePlexCodeChange = useCallback((e) => setPlexCode(e.target.value), []);
 
@@ -1350,7 +1514,7 @@ const Login = ({
 						type="password"
 						purpose="password"
 						className={css.input}
-						placeholder={server?.serverType === 'plex' ? $L('PIN') : $L('Password')}
+						placeholder={server?.serverType === 'plex' || signInUser?.siloProfile ? $L('PIN') : $L('Password')}
 						value={password}
 						onChange={handlePasswordChange}
 						onKeyDown={handlePasswordKeyDown}

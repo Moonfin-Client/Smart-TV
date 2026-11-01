@@ -2627,5 +2627,10 @@
 	"Sort TMDB rows in ascending or descending order.": "Sort TMDB rows in ascending or descending order.",
 	"Sorting": "Sorting",
 	"TMDB Row Sorting": "TMDB Row Sorting",
-	"◀ ▶ to re-order · DEL to remove": "◀ ▶ to re-order · DEL to remove"
+	"◀ ▶ to re-order · DEL to remove": "◀ ▶ to re-order · DEL to remove",
+	"This Silo server needs a newer version of Moonfin.": "This Silo server needs a newer version of Moonfin.",
+	"This Silo server is too old for this version of Moonfin.": "This Silo server is too old for this version of Moonfin.",
+	"Too many attempts. Try again in {minutes} minutes.": "Too many attempts. Try again in {minutes} minutes.",
+	"The sign-in was turned down.": "The sign-in was turned down.",
+	"The sign-in code ran out. Try again.": "The sign-in code ran out. Try again."
 }

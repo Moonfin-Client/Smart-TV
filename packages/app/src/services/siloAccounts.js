@@ -35,6 +35,16 @@ const watch = (serverId, baseUrl, accountId, account) => {
 		.then(() => endedListeners.forEach((listener) => listener(baseUrl, accountId)));
 };
 
+// A profile just signed in. It's known straight away, and the fields saved with it keep the server's other Silo logins.
+export const rememberSiloProfile = async (baseUrl, profileId, accountId, tokens, profileToken) => {
+	profiles.set(profileKey(baseUrl, profileId), {accountId: String(accountId), profileToken: profileToken || null});
+	const server = Object.values(await getAllServers()).find((s) => s?.serverType === 'silo' && siloBase(s.url) === siloBase(baseUrl));
+	return {
+		serverFields: {siloAccounts: {...server?.siloAccounts, [accountId]: tokens}},
+		userFields: {siloAccountId: String(accountId), siloProfileToken: profileToken || null}
+	};
+};
+
 export const restoreSiloAccounts = async () => {
 	const servers = await getAllServers();
 	profiles.clear();
