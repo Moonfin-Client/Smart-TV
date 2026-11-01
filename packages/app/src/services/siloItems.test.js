@@ -56,6 +56,19 @@ describe('item mapping', () => {
 		});
 	});
 
+	test("an episode's logo is its series', so the episode's detail without one still has the series logo", () => {
+		const images = memoryImages();
+		const card = siloItemToBaseItem({
+			content_id: 'episode-tvdb-5-1-2', type: 'episode', series_id: 'series-tvdb-5', season_number: 1, episode_number: 2,
+			logo_url: '/series-logo.webp'
+		}, {images});
+		expect(card).toMatchObject({ParentLogoItemId: 'series-tvdb-5', ParentLogoImageTag: 'tag:/series-logo.webp'});
+		const detail = siloItemToBaseItem({
+			content_id: 'episode-tvdb-5-1-2', type: 'episode', series_id: 'series-tvdb-5', season_number: 1, episode_number: 2
+		}, {images});
+		expect(detail).toMatchObject({ParentLogoItemId: 'series-tvdb-5', ParentLogoImageTag: 'tag:/series-logo.webp'});
+	});
+
 	test('a season list entry takes its type and series from the caller', () => {
 		const season = siloItemToBaseItem({content_id: 'season-tvdb-5-0', season_number: 0, episode_count: 3},
 			{images: memoryImages(), type: 'season', series: {id: 'series-tvdb-5', name: 'Show'}});

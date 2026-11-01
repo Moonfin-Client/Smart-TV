@@ -561,6 +561,9 @@ const imageFields = (id, type, item, images) => {
 		if (seriesId && backdrops.length) registerIfMissing(seriesId, 'Backdrop', backdrops[0]);
 		backdrops = [];
 	}
+	// Episodes have no logo of their own, so an episode's logo_url is its series'. Recorded there too, the player and
+	// the episode's detail, which comes without one, find it as the series logo.
+	if (isEpisode && seriesId && text(item.logo_url)) registerIfMissing(seriesId, 'Logo', text(item.logo_url));
 	const tags = {};
 	const primary = images.register(id, 'Primary', primaryUrl);
 	if (primary) tags.Primary = primary;
