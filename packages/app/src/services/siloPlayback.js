@@ -22,11 +22,19 @@ const TRAITS = {
 	selectsAnyAudioTrack: false,
 	playsProgressive: true,
 	playsHls: true,
+	playsHlsNatively: false,
 	rendersEmbeddedSubtitles: false,
 	drawsAssStyling: true,
 	loadsFontAttachments: false,
 	sendsRequestHeaders: false
 };
+
+// webOS's player can't play Silo's progressive remux: a piped fragmented MP4 has no overall duration or index, so the
+// TV takes the first fragment for the whole stream and stalls. HLS carries the duration in its playlist, and the TV's
+// own player plays it, which is what lets Silo keep a copied Dolby Vision track marked as Dolby Vision.
+const PLATFORM_TRAITS = {webos: {playsProgressive: false, playsHlsNatively: true}};
+
+export const siloTraitsFor = (platform) => ({...TRAITS, ...PLATFORM_TRAITS[platform]});
 
 export const siloNewUuid = () => {
 	const bytes = [];
@@ -68,16 +76,20 @@ const excludedVideoCodecs = (codecProfiles) => {
 
 const rangeKey = (value) => value.trim().toUpperCase().replace(/_/g, '');
 
-const unsupportedRanges = (codecProfiles, codec) => {
-	const out = [];
+// The ranges a codec's profile rules out, and the ones it lists as the only ones it plays (null when it lists none).
+const rangeRules = (codecProfiles, codec) => {
+	const ruledOut = [];
+	let only = null;
 	codecProfiles.forEach((p) => {
 		if (p.Type !== 'Video' || !csv(p.Codec).includes(codec)) return;
 		profiles(p.Conditions).forEach((c) => {
-			if (c.Property !== 'VideoRangeType' || c.Condition !== 'NotEquals') return;
-			String(c.Value).split('|').forEach((v) => out.push(rangeKey(v)));
+			if (c.Property !== 'VideoRangeType') return;
+			const values = String(c.Value).split('|').map(rangeKey);
+			if (c.Condition === 'NotEquals') ruledOut.push(...values);
+			else if (c.Condition === 'EqualsAny') only = (only || []).concat(values);
 		});
 	});
-	return out;
+	return {ruledOut, only};
 };
 
 const hdrDetails = (codecProfiles, videoCodecs) => {
@@ -87,15 +99,19 @@ const hdrDetails = (codecProfiles, videoCodecs) => {
 	const dolbyVision = [];
 	['hevc', 'av1'].forEach((codec) => {
 		if (!videoCodecs.includes(codec)) return;
-		const ruledOut = unsupportedRanges(codecProfiles, codec);
-		const allows = (range) => !ruledOut.includes(rangeKey(range));
+		const {ruledOut, only} = rangeRules(codecProfiles, codec);
+		const allows = (range) => !ruledOut.includes(rangeKey(range)) && (!only || only.includes(rangeKey(range)));
 		hdr10 = hdr10 || allows('HDR10');
 		hlg = hlg || allows('HLG');
 		hdr10Plus = hdr10Plus || allows('HDR10_PLUS');
+		// Silo reads these as profiles the TV shows as Dolby Vision. A TV without it still lists the profile 7 and 8
+		// ranges, since their HDR10 base layer plays, so those count only where plain Dolby Vision does.
 		if (codec === 'hevc') {
-			if (allows('DOVI')) dolbyVision.push(5);
-			if (allows('DOVI_WITH_EL')) dolbyVision.push(7);
-			if (allows('DOVI_WITH_HDR10')) dolbyVision.push(8);
+			if (allows('DOVI')) {
+				dolbyVision.push(5);
+				if (allows('DOVI_WITH_EL')) dolbyVision.push(7);
+				if (allows('DOVI_WITH_HDR10')) dolbyVision.push(8);
+			}
 		} else if (allows('DOVI')) {
 			dolbyVision.push(10);
 		}
@@ -154,7 +170,7 @@ export const siloCapabilitiesFromDeviceProfile = (deviceProfile = {}, traits = T
 	const resolution = maxResolution(codecProfiles);
 	const channels = maxChannels(codecProfiles);
 
-	const delivery = ({supported, containers: kinds, video, audio, subtitles, claims = [], failureReason}) => ({
+	const delivery = ({supported, containers: kinds, video, audio, subtitles, claims = [], features = [], failureReason}) => ({
 		enabled: true,
 		supported_on_device: supported,
 		...(supported ? null : {failure_reason: failureReason}),
@@ -164,7 +180,7 @@ export const siloCapabilitiesFromDeviceProfile = (deviceProfile = {}, traits = T
 		audio_passthrough_codecs: [],
 		...(channels != null ? {max_channels: channels} : null),
 		subtitles,
-		features: [],
+		features,
 		auth_header_refresh: false,
 		validated_claims: claims,
 		transformations: []
@@ -218,7 +234,8 @@ export const siloCapabilitiesFromDeviceProfile = (deviceProfile = {}, traits = T
 				containers: ['hls'],
 				video: hlsVideo,
 				audio: hlsAudio.length ? hlsAudio : ['aac'],
-				subtitles: sidecarSubtitles
+				subtitles: sidecarSubtitles,
+				features: traits.playsHlsNatively ? ['native_hls_playback_v1'] : []
 			})
 		},
 		clientFeatures: ['playback_plan_v3', ...(traits.rendersEmbeddedSubtitles ? ['embedded_subtitles_v1'] : [])]
@@ -227,13 +244,23 @@ export const siloCapabilitiesFromDeviceProfile = (deviceProfile = {}, traits = T
 
 const NO_HDR = {hdr10: false, hdr10_plus: false, hlg: false, dolby_vision_profiles: []};
 
-// The device and what it shows. Smart TVs don't say what their panel shows, so its HDR stays unknown.
+// A TV app runs on the panel itself, so what the TV decodes is what it shows. A stick or a console drives a display it
+// can't see, so its HDR stays unknown and Silo maps HDR down for it.
+const SHOWS_ON_ITS_OWN_PANEL = ['webos', 'tizen'];
+
+const outputOf = (platform, capabilities) => {
+	const hdr = capabilities.clientCapabilities?.hdr_details;
+	if (!SHOWS_ON_ITS_OWN_PANEL.includes(platform) || !hdr) return {hdr_details: NO_HDR, display: {hdr_evidence: 'unknown'}};
+	return {hdr_details: hdr, display: {hdr_evidence: 'exact', hdr_types: hdr}};
+};
+
+// The device and what it shows.
 export const siloPlaybackContext = ({platform, appVersion, capabilities}) => ({
 	protocol_version: 3,
 	form_factor: 'tv',
 	app_version: String(appVersion || 'unknown').slice(0, 64),
 	device: platform ? {platform: String(platform).slice(0, 32)} : {},
-	output: {hdr_details: NO_HDR, display: {hdr_evidence: 'unknown'}},
+	output: outputOf(platform, capabilities),
 	deliveries: capabilities.deliveries
 });
 
@@ -557,7 +584,7 @@ export const createSiloPlayback = ({call, getBaseUrl, getUserId, getAccessToken,
 		const profileId = getUserId();
 		if (!profileId) throw new Error('Silo playback needs the profile it plays as');
 		const file = await fileOf(itemId, body.MediaSourceId, item);
-		const caps = siloCapabilitiesFromDeviceProfile(body.DeviceProfile || {}, TRAITS);
+		const caps = siloCapabilitiesFromDeviceProfile(body.DeviceProfile || {}, siloTraitsFor(platform));
 		const context = siloPlaybackContext({platform, appVersion: getDeviceInfo().appVersion, capabilities: caps});
 		let server = await playable();
 		const audioTrack = file.source && body.AudioStreamIndex != null && body.AudioStreamIndex >= 0

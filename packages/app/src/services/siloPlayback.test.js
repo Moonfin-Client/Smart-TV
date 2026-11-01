@@ -1,4 +1,4 @@
-import {createSiloPlayback, siloCapabilitiesFromDeviceProfile, siloPlanToMediaSource, siloSubtitleOrder} from './siloPlayback';
+import {createSiloPlayback, siloCapabilitiesFromDeviceProfile, siloPlanToMediaSource, siloPlaybackContext, siloSubtitleOrder, siloTraitsFor} from './siloPlayback';
 import {siloVersionToMediaSource} from './siloMediaSources';
 
 const BASE = 'http://silo:8090';
@@ -29,10 +29,50 @@ describe('device profile', () => {
 			containers: ['mp4', 'mkv', 'matroska'],
 			max_resolution: '2160p',
 			hdr: true,
-			hdr_details: {hdr10: true, hlg: true, dolby_vision_profiles: [8]}
+			hdr_details: {hdr10: true, hlg: true, dolby_vision_profiles: []}
 		});
 		expect(caps.deliveries.hls).toMatchObject({supported_on_device: true, video_codecs: ['h264', 'hevc'], audio_decode_codecs: ['aac']});
 		expect(caps.clientFeatures).toEqual(['playback_plan_v3']);
+	});
+
+	// The ranges webOS lists for HEVC, with and without Dolby Vision (deviceProfile.js buildVideoRangeTypes).
+	const hevcOnly = (ranges) => siloCapabilitiesFromDeviceProfile({
+		DirectPlayProfiles: [{Type: 'Video', Container: 'mkv', VideoCodec: 'hevc', AudioCodec: 'aac'}],
+		CodecProfiles: [{Type: 'Video', Codec: 'hevc', Conditions: [{Condition: 'EqualsAny', Property: 'VideoRangeType', Value: ranges}]}]
+	});
+
+	test('a list of the only ranges a codec plays is read as that list', () => {
+		const dv = hevcOnly('SDR|HDR10|HDR10Plus|HLG|DOVI|DOVIWithHDR10|DOVIWithHLG|DOVIWithSDR|DOVIWithHDR10Plus|DOVIWithEL|DOVIWithELHDR10Plus|DOVIInvalid');
+		expect(dv.clientCapabilities.hdr_details).toEqual({hdr10: true, hdr10_plus: true, hlg: true, dolby_vision_profiles: [5, 7, 8]});
+		const noDv = hevcOnly('SDR|DOVIWithSDR|HDR10|HDR10Plus|DOVIWithHDR10|DOVIWithHDR10Plus|DOVIWithEL|DOVIWithELHDR10Plus|DOVIInvalid');
+		expect(noDv.clientCapabilities.hdr_details).toEqual({hdr10: true, hdr10_plus: true, hlg: false, dolby_vision_profiles: []});
+		const sdr = hevcOnly('SDR');
+		expect(sdr.clientCapabilities).toMatchObject({hdr: false, hdr_details: {hdr10: false, hlg: false, dolby_vision_profiles: []}});
+	});
+
+	test("webOS takes HLS instead of the progressive remux its player can't play", () => {
+		const profile = {
+			DirectPlayProfiles: [{Type: 'Video', Container: 'mkv', VideoCodec: 'hevc', AudioCodec: 'aac'}],
+			TranscodingProfiles: [{Type: 'Video', Protocol: 'hls', VideoCodec: 'hevc', AudioCodec: 'aac'}]
+		};
+		const webos = siloCapabilitiesFromDeviceProfile(profile, siloTraitsFor('webos')).deliveries;
+		expect(webos.progressive).toMatchObject({supported_on_device: false, failure_reason: 'player_has_no_progressive_remux'});
+		expect(webos.hls).toMatchObject({supported_on_device: true, features: ['native_hls_playback_v1']});
+		const tizen = siloCapabilitiesFromDeviceProfile(profile, siloTraitsFor('tizen')).deliveries;
+		expect(tizen.progressive.supported_on_device).toBe(true);
+		expect(tizen.hls.features).toEqual([]);
+	});
+
+	test('a TV reports its own HDR as what it shows, a stick or console leaves it unknown', () => {
+		const capabilities = hevcOnly('SDR|HDR10|HLG|DOVI|DOVIWithHDR10');
+		const hdr = capabilities.clientCapabilities.hdr_details;
+		expect(siloPlaybackContext({platform: 'webos', capabilities}).output).toEqual({hdr_details: hdr, display: {hdr_evidence: 'exact', hdr_types: hdr}});
+		expect(siloPlaybackContext({platform: 'tizen', capabilities}).output.display.hdr_evidence).toBe('exact');
+		for (const platform of ['vega', 'xbox']) {
+			expect(siloPlaybackContext({platform, capabilities}).output).toEqual({
+				hdr_details: {hdr10: false, hdr10_plus: false, hlg: false, dolby_vision_profiles: []}, display: {hdr_evidence: 'unknown'}
+			});
+		}
 	});
 });
 

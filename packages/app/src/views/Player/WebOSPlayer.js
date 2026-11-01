@@ -1636,8 +1636,11 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 			// shortcut: a high bitrate Plex remux can still run the stick out of memory, give hls.js a shell loader if it does.
 			const nativeHlsOk = !forceHlsJsRef.current && !(isVega() && !isLiveTV && !isPlexUrl(mediaUrl))
 				&& !!(video.canPlayType('application/x-mpegURL').replace(/no/, ''));
-			const useHlsJs = isHls && !nativeHlsOk && Hls.isSupported();
-			console.log('[Player] Source type:', { isHls, mimeType, autoplay: video.autoplay, platformVersion: platformVersionRef.current, nativeHlsOk, useHlsJs, forceHlsJs: forceHlsJsRef.current });
+			// Silo's copy remux is a playlist that grows as it's copied. webOS's own player takes it for live, opens near its
+			// newest segments and can't seek it at all, so a start or resume lands half a minute late. hls.js honours a start.
+			const siloGrowingHls = isHls && !!streamSource?.SiloDelivery && seeksThroughServerRef.current;
+			const useHlsJs = isHls && (!nativeHlsOk || siloGrowingHls) && Hls.isSupported();
+			console.log('[Player] Source type:', { isHls, mimeType, autoplay: video.autoplay, platformVersion: platformVersionRef.current, nativeHlsOk, siloGrowingHls, useHlsJs, forceHlsJs: forceHlsJsRef.current });
 
 			while (video.firstChild) video.removeChild(video.firstChild);
 			video.removeAttribute('src');
@@ -1650,7 +1653,9 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 					lowLatencyMode: false,
 					maxBufferLength: isVega() ? 10 : 30,
 					maxMaxBufferLength: 60,
-					backBufferLength: isVega() ? 10 : Infinity,
+					// A 4K remux runs tens of megabits, so a Silo copy keeps only a short way back.
+					backBufferLength: isVega() ? 10 : (siloGrowingHls ? 30 : Infinity),
+					...(siloGrowingHls ? {startPosition: resumeTicks > 0 ? streamResumeSec() : 0} : null),
 					startFragPrefetch: true,
 					maxBufferHole: 0.5,
 					nudgeMaxRetry: 5,
@@ -1734,7 +1739,8 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 
 				video.autoplay = false; // play() called from FRAG_BUFFERED instead
 				hls.attachMedia(video);
-				hls.loadSource(srcUrl);
+				// hls.js takes its start from startPosition, not a #t= in the address.
+				hls.loadSource(siloGrowingHls ? mediaUrl : srcUrl);
 			} else {
 				destroyHlsPlayer();
 				chooseHostReader(video, playback.getCurrentSession());
