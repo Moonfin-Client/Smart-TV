@@ -965,6 +965,7 @@ const Browse = ({
 								deferImages={!NATIVE_LAZY_IMAGES && index >= imageRows}
 								menuOptions={rowMenuOptions}
 								ratingsSurface='homeRows'
+								hideOverview={settings.hideHomeMediaDescription === true}
 							/>
 						);
 					})}

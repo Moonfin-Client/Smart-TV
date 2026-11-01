@@ -162,6 +162,19 @@ describe('ModernMediaCard growing on focus', () => {
 	});
 });
 
+describe('ModernMediaCard description', () => {
+	const film = {Id: 'described', Name: 'Film', Type: 'Movie', ProductionYear: 2020, Overview: 'A story.', ImageTags: {Primary: 'p'}};
+
+	it('shows under the focused card unless the row hides it', () => {
+		const {rerender} = render(<ModernMediaCard item={film} serverUrl="http://server" isFocused />);
+		passArtWait();
+		expect(screen.getByText('A story.')).toBeTruthy();
+		rerender(<ModernMediaCard item={film} serverUrl="http://server" isFocused hideOverview />);
+		expect(screen.queryByText('A story.')).toBeNull();
+		expect(screen.getByText('Film')).toBeTruthy();
+	});
+});
+
 // A controller that records what the card asks of it and lets a test move the phase.
 const fakeController = () => {
 	const listeners = {};

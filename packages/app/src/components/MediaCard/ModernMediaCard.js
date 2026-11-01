@@ -238,7 +238,8 @@ const ModernMediaCard = ({
 	isLibraryRow = false,
 	warmFocusArt = false,
 	menuOptions,
-	ratingsSurface
+	ratingsSurface,
+	hideOverview = false
 }) => {
 	const {settings} = useSettings();
 	const focusTimeoutRef = useRef(null);
@@ -509,7 +510,7 @@ const ModernMediaCard = ({
 						surface={ratingsSurface}
 						pluginEnabled={isMdblistEnabled(settings, ratingsSurface)}
 					/>
-					{shouldShowOverview && <div className={css.overview}>{overviewText}</div>}
+					{shouldShowOverview && !hideOverview && <div className={css.overview}>{overviewText}</div>}
 				</div>
 			)}
 		</SpottableDiv>
