@@ -292,6 +292,8 @@ const AppContent = (props) => {
 	const [authChecked, setAuthChecked] = useState(false);
 	const [libraries, setLibraries] = useState([]);
 	const [showAccountModal, setShowAccountModal] = useState(false);
+	// Home stays hidden behind the who's watching pick, or its first focus lands under the picker.
+	const [pickingHousehold, setPickingHousehold] = useState(false);
 	const [showServerMessages, setShowServerMessages] = useState(false);
 	const serverMessagesBackRef = useRef(null);
 	const [showExitDialog, setShowExitDialog] = useState(false);
@@ -888,6 +890,7 @@ const AppContent = (props) => {
 
 				if (showAccountModal) {
 					setShowAccountModal(false);
+					setPickingHousehold(false);
 					return;
 				}
 
@@ -1293,7 +1296,10 @@ const AppContent = (props) => {
 
 	// A Silo sign-in with several household profiles asks who's watching, once the setup and any PIN are out of the way.
 	useEffect(() => {
-		if (isAuthenticated && !setupWizardActive && !isPinGateActive && takeHouseholdPick()) setShowAccountModal(true);
+		if (isAuthenticated && !setupWizardActive && !isPinGateActive && takeHouseholdPick()) {
+			setPickingHousehold(true);
+			setShowAccountModal(true);
+		}
 	}, [isAuthenticated, setupWizardActive, isPinGateActive]);
 
 	const handleOpenAccountModal = useCallback(() => {
@@ -1302,6 +1308,7 @@ const AppContent = (props) => {
 
 	const handleCloseAccountModal = useCallback(() => {
 		setShowAccountModal(false);
+		setPickingHousehold(false);
 	}, []);
 
 	const handleOpenServerMessages = useCallback(() => {
@@ -2103,7 +2110,7 @@ const AppContent = (props) => {
 							onSelectSeerrStudio={handleSelectSeerrStudio}
 							onSelectSeerrNetwork={handleSelectSeerrNetwork}
 							onOpenSeerrShortcut={handleOpenSeerrShortcut}
-							isVisible={panelIndex === PANELS.BROWSE && !showSettingsPanel}
+							isVisible={panelIndex === PANELS.BROWSE && !showSettingsPanel && !pickingHousehold}
 							backHandlerRef={backHandlerRef}
 							onFocusItemThemeMusic={backgroundMusic ? undefined : themeMusic.playThemeMusicDelayed}
 							onBlurItemThemeMusic={themeMusic.cancelDelayed}
