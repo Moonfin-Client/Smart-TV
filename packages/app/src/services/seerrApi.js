@@ -7,6 +7,7 @@ import {isPlexUrl} from '../utils/plexUrls';
 import {isSiloLogin, moonbaseEndpoint} from './moonbaseEndpoint';
 import {createApiForServer, getUserId} from './jellyfinApi';
 import {createSiloSeerr} from './siloSeerr';
+import {loadSiloSessions} from './siloSession';
 
 let moonfinMode = false;
 let jellyfinServerUrl = null;
@@ -38,6 +39,13 @@ const siloSeerrNow = () => {
 		siloSeerr = {server: jellyfinServerUrl, ...createSiloSeerr({call: (path, options) => silo().siloCall(path, options), baseUrl: jellyfinServerUrl})};
 	}
 	return siloSeerr;
+};
+
+// The same, once the stored Silo logins are read. Seerr starts up from its own stored config, often before those
+// are, and a Silo login it can't recognise yet would be sent to a Moonbase that isn't there.
+const siloSeerrReady = async () => {
+	await loadSiloSessions();
+	return siloSeerrNow();
 };
 
 const fetchRequest = async (params) => {
@@ -94,7 +102,7 @@ const moonfinRequest = async (endpoint, options = {}) => {
 	if (!jellyfinServerUrl || !jellyfinAccessToken) {
 		throw new Error('Moonfin not configured');
 	}
-	const silo = siloSeerrNow();
+	const silo = await siloSeerrReady();
 	if (silo) return silo.request(endpoint, options);
 
 	const path = endpoint.replace(/^\//, '');
@@ -191,7 +199,8 @@ export const getMoonfinStatus = async () => {
 	if (!jellyfinServerUrl || !jellyfinAccessToken) {
 		throw new Error('Moonfin not configured');
 	}
-	if (siloSeerrNow()) return siloSeerrNow().status();
+	const silo = await siloSeerrReady();
+	if (silo) return silo.status();
 
 	const url = `${jellyfinServerUrl}/Moonfin/Seerr/Status`;
 	const result = await fetchRequest({
@@ -224,8 +233,9 @@ export const moonfinLogin = async (username, password, authType = 'jellyfin') =>
 	}
 
 	// Signing in to Seerr has no meaning on Silo: the Silo session is the requests session.
-	if (siloSeerrNow()) {
-		const status = await siloSeerrNow().status();
+	const silo = await siloSeerrReady();
+	if (silo) {
+		const status = await silo.status();
 		return {success: status.authenticated, ...status};
 	}
 	const normalizedAuthType = authType === 'local' ? 'local' : 'jellyfin';
@@ -248,7 +258,7 @@ export const moonfinLogout = async () => {
 		throw new Error('Moonfin not configured');
 	}
 
-	if (siloSeerrNow()) return null;
+	if (await siloSeerrReady()) return null;
 	return moonfinAuthRequest(
 `${jellyfinServerUrl}/Moonfin/Seerr/Logout`,
 'DELETE',
@@ -263,7 +273,8 @@ export const moonfinValidate = async () => {
 		throw new Error('Moonfin not configured');
 	}
 
-	if (siloSeerrNow()) return {valid: (await siloSeerrNow().status()).authenticated};
+	const silo = await siloSeerrReady();
+	if (silo) return {valid: (await silo.status()).authenticated};
 	return moonfinAuthRequest(
 `${jellyfinServerUrl}/Moonfin/Seerr/Validate`,
 'GET',
@@ -377,6 +388,7 @@ export const getMoonfinConfig = async (serverUrl, token) => {
 	}
 
 	// Silo's requests are its own, named as such.
+	await loadSiloSessions();
 	if (isSiloLogin(sUrl, sToken)) return {variant: 'seerr', displayName: 'Requests'};
 	const url = `${sUrl}/Moonfin/Seerr/Config`;
 	const result = await fetchRequest({
