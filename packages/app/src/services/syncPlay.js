@@ -220,6 +220,10 @@ export const sendBufferingRequest = async (sample) => {
 // Waiting, a Buffering report is outstanding, or the state is not known yet.
 export const isReadyOwed = () => (roomDriver ? roomDriver.readyOwed() : !!currentGroup && (currentGroup.State === 'Waiting' || bufferingReported || !currentGroup.State));
 
+// A player that has just opened its playback session. A room waits only on members whose session is attached, so
+// the room hears of it now rather than on its next report.
+export const playerSessionOpened = () => roomDriver?.ready();
+
 export const sendReadyRequest = async (sample) => {
 	if (roomDriver) return roomDriver.ready();
 	if (!isReadyOwed()) {

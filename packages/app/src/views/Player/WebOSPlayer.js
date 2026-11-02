@@ -1069,6 +1069,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 				liveRecovery?.tuned();
 				setVideoDisplayAspectRatio(getVideoDisplayAspectRatio(result.mediaSource));
 				playSessionRef.current = result.playSessionId;
+				if (isInGroup) syncPlayService.playerSessionOpened();
 
 				positionRef.current = startPosition;
 				lastSeekTargetRef.current = null;

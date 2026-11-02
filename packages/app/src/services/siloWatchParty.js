@@ -9,6 +9,7 @@
 // Silo's rules for the numbers below: docs/architecture/watch-party-synchronization.md in silo-server.
 
 import {createApiForServer, getApiKey, getServerUrl, getUserId} from './jellyfinApi';
+import {getDeviceCapabilities} from './deviceProfile';
 import * as syncPlay from './syncPlay';
 import {findSiloMoonbase} from './siloMoonbase';
 import {isSiloLogin} from './moonbaseEndpoint';
@@ -501,6 +502,10 @@ export const createWatchParty = ({silo, sync = syncPlay, now = () => Date.now()}
 		if (!previous || next.roomId !== previous.roomId || next.generation < previous.generation) return;
 		room = next;
 		if (next.isVoting !== previous.isVoting) loadSuggestions();
+		// A start waits only on members whose playback session is attached, and the session comes after this set's
+		// capabilities, whose sound path query alone takes most of a second. Asked once something is picked, they're
+		// ready when the player opens.
+		if (next.selectedContentId) getDeviceCapabilities().catch(() => {});
 		if (isRoomPlaying(next) && next.selectedContentId) {
 			startFollowing();
 			feedGroup('StateUpdate', {State: syncPlayStateOf(next)});
