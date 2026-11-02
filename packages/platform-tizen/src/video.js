@@ -139,8 +139,7 @@ export const getMediaCapabilities = async () => {
 export const getSupportedAudioCodecs = (capabilities, _container, passthroughOptions = {}) => {
 	const passthrough = resolvePassthroughSettings(passthroughOptions);
 	const passthroughAllowed = passthrough.passthroughEnabled;
-	const codecs = ['aac', 'mp3', 'flac', 'vorbis', 'pcm', 'wav'];
-	if (capabilities.pcm16) codecs.push('pcm_s16le');
+	const codecs = ['aac', 'mp3', 'flac', 'vorbis', 'pcm', 'wav', 'pcm_s16le'];
 	// Left alone by the passthrough settings, same as the device profile
 	if (capabilities.ac3) codecs.push('ac3');
 	if (capabilities.eac3) codecs.push('eac3');
