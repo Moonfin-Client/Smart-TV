@@ -590,6 +590,18 @@
 	text-overflow: ellipsis;
 }
 
+// Quick Look starts the same row at the drawer's edge, where it can run onto a second line, so each
+// line keeps the room for its labels and Core's gap under that.
+.actionsStart {
+	justify-content: flex-start;
+	margin: 0 -6.7px -20px;
+	padding-bottom: 0;
+}
+
+.actionsStart > .actionBtn {
+	margin-bottom: 56.7px;
+}
+
 .upNext {
 	width: 594px;
 	flex-shrink: 0;

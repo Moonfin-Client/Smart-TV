@@ -36,14 +36,16 @@ export const stagePoster = (serverUrl, item, settings) => {
 	return {url: own ? getImageUrl(serverUrl, item.Id, 'Primary', {maxWidth: 720, quality: 90, tag: own}) : null, wide};
 };
 
+// An episode's place in its show, like S1:E2.
+export const episodeCode = (item) => (item.ParentIndexNumber != null && item.IndexNumber != null
+	? `S${item.ParentIndexNumber}:E${item.IndexNumber}`
+	: null);
+
 // The line under the show's name on a season or an episode.
 export const stageSubtitle = (item) => {
 	if (item.Type === 'Season') return item.Name || '';
 	if (item.Type !== 'Episode') return '';
-	const number = item.ParentIndexNumber != null && item.IndexNumber != null
-		? `S${item.ParentIndexNumber}:E${item.IndexNumber}`
-		: null;
-	return [number, item.Name].filter(Boolean).join(' · ');
+	return [episodeCode(item), item.Name].filter(Boolean).join(' · ');
 };
 
 const streamName = (stream) => stream?.DisplayTitle || stream?.Language || $L('Unknown');

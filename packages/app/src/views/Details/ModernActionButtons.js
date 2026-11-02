@@ -40,8 +40,9 @@ const TRACK_BUTTONS = ['version', 'audio', 'subtitles'];
 // button or the last circle. Without onRightEdge the row reads left to right as usual.
 //
 // `centered` is Premiere's row under its centered title: a labeled first button and the circles
-// beside it, each showing its label under it while focused. In a plain or centered row,
-// onNavigateUp and onNavigateDown take Up and Down off any button.
+// beside it, each showing its label under it while focused. `startAligned` starts that row at the
+// left instead, for Quick Look's drawer. In a plain or centered row, onNavigateUp and
+// onNavigateDown take Up and Down off any button.
 const ModernActionButtons = (props) => {
 	// Only what the row itself needs. Everything the buttons are built from is read straight off
 	// props by the catalogue.
@@ -50,7 +51,7 @@ const ModernActionButtons = (props) => {
 		hasPlaybackPosition, resumeTimeText, hasTech,
 		handlePlay, handleResume, handleOpenExtras,
 		onFocusRow, downTarget, maxVisibleButtons, overflowAsMenu, menuBackRef,
-		stacked, centered, omitTrackButtons, buttonCap, onNavigateUp, onNavigateDown, onRightEdge
+		stacked, centered, startAligned, omitTrackButtons, buttonCap, onNavigateUp, onNavigateDown, onRightEdge
 	} = props;
 
 	const [menuOpen, setMenuOpen] = useState(false);
@@ -197,7 +198,7 @@ const ModernActionButtons = (props) => {
 	return (
 		<>
 			<RowContainer
-				className={stacked ? css.actionsStacked : centered ? css.actionsCentered : `${css.actions} ${hasTech ? css.actionsTight : ''}`}
+				className={stacked ? css.actionsStacked : centered ? `${css.actionsCentered} ${startAligned ? css.actionsStart : ''}` : `${css.actions} ${hasTech ? css.actionsTight : ''}`}
 				spotlightId="details-action-buttons"
 				onFocus={handleRowFocus}
 				onKeyDown={stacked ? handleStackedKeyDown : handleKeyDown}

@@ -9,9 +9,10 @@ import css from './RatingsRow.module.less';
 // surface is 'homeRows' or 'mediaBar' for the screens that keep their own ratings settings.
 // inline keeps the full size chips on one line with each label after its value.
 // sampleRatings stands in for the plugin's answer, so the settings preview never asks the server.
-const RatingsRow = ({item, serverUrl, compact = false, singleLineWidth, pluginEnabled = true, surface, inline = false, sampleRatings}) => {
+// A screen with no room for the sources' names turns labels off.
+const RatingsRow = ({item, serverUrl, compact = false, singleLineWidth, pluginEnabled = true, surface, inline = false, sampleRatings, labels = true}) => {
 	const settings = ratingSettingsFor(useSettings().settings, surface);
-	const showLabels = settings.showRatingLabels !== false;
+	const showLabels = labels && settings.showRatingLabels !== false;
 	// Badges only choose the chip chrome around each rating. Off means plain, not hidden.
 	const showBadges = settings.showRatingBadges !== false;
 	const enabledSources = settings.mdblistRatingSources;

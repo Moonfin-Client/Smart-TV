@@ -47,7 +47,8 @@ export const STEP_INFO = {
 			{value: 'v4', label: $L('Nouveau'), desc: $L('Full-screen, with sections stacked instead of tabs.')},
 			{value: 'v5', label: $L('Minimalist'), desc: $L('Artwork, one play button and the episodes.')},
 			{value: 'v6', label: $L('Stage'), desc: $L('The poster up front, with play under it and the details beside it.')},
-			{value: 'v7', label: $L('Premiere'), desc: $L('The title centered over a full screen backdrop, with everything else down the page.')}
+			{value: 'v7', label: $L('Premiere'), desc: $L('The title centered over a full screen backdrop, with everything else down the page.')},
+			{value: 'v8', label: $L('Quick Look'), desc: $L('A drawer over the screen you were on, with play and the basics, and the full page a press away.')}
 		]
 	},
 	// The tour's rows are the built-in themes, which the wizard reads from the

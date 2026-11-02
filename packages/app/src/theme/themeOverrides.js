@@ -42,6 +42,7 @@ import nouveauCardsCss from '../views/Details/nouveau/cards/NouveauCards.module.
 import nouveauFooterCss from '../views/Details/nouveau/footer/NouveauDetailsFooter.module.less';
 import nouveauSectionsCss from '../views/Details/nouveau/sections/NouveauSections.module.less';
 import stageCss from '../views/Details/stage/StageDetailContent.module.less';
+import quickLookCss from '../views/Details/quickLook/QuickLookDetailContent.module.less';
 import trackListCss from '../components/DetailTrackList/DetailTrackList.module.less';
 import musicCss from '../views/MusicBrowse/MusicLibrary.module.less';
 import musicScreensCss from '../views/MusicBrowse/MusicScreens.module.less';
@@ -557,6 +558,8 @@ export const buildThemeOverrideCss = (theme, options = {}) => {
 	rule(`.${stageCss.metaRating}`, `background: ${accentA(0.15)};`);
 	rule(`.${stageCss.cardWatched}, .${stageCss.posterWatched}`, `background: ${badgeWatched}; border-color: ${onBadge};`);
 	rule(`.${stageCss.cardWatched} svg, .${stageCss.posterWatched} svg, .${stageCss.cardFavorite} svg, .${stageCss.posterFavorite} svg`, `fill: ${onBadge}; stroke: ${onBadge};`);
+	rule(`.${quickLookCss.season}:focus, .${quickLookCss.open}:focus`, `border-color: ${focusColor};`);
+	rule(`.${quickLookCss.progressFill}, .${quickLookCss.seasonFill}`, `background: ${accent};`);
 	['actionsStacked', 'actionsCentered'].forEach((row) => {
 		rule(`.${modernDetailCss[row]} > .${modernDetailCss.actionBtn}:first-child`, `background-color: ${accent}; color: ${onAccent};`);
 		rule(`.${modernDetailCss[row]} > .${modernDetailCss.actionBtn}:first-child:focus`, `background-color: ${buttonFocused}; border-color: ${focusColor}; color: ${onButtonFocused};`);

@@ -59,6 +59,11 @@ describe('detailSectionLayout', () => {
 		['poster', 'chapters', 'reviews', 'mediaInfo', 'upNext', 'seerrCollection'].forEach((id) => expect(offered.has(id)).toBe(false));
 	});
 
+	it('lists for Quick Look what Modern draws, since that is its full page', () => {
+		const modern = offeredSections('v2', true).map((section) => section.id);
+		expect(offeredSections('v8', true).map((section) => section.id)).toEqual(modern);
+	});
+
 	it('offers the Seerr pieces only when Seerr is', () => {
 		const without = offeredSections('v2', false).map((section) => section.id);
 		expect(without).not.toContain('seerrStats');

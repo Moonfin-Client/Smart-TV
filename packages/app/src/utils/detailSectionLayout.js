@@ -13,6 +13,7 @@ const NOUVEAU = 'v4';
 const MINIMALIST = 'v5';
 const STAGE = 'v6';
 const PREMIERE = 'v7';
+const QUICK_LOOK = 'v8';
 
 // Where a section sits on the settings screen. The Seerr group takes the Seerr display name.
 export const DETAIL_SECTION_GROUPS = [
@@ -62,11 +63,12 @@ export const DETAIL_SECTIONS = [
 
 // Whether picking `style` can put a section on screen. Minimalist only draws video pages and
 // hands every other page to Spotlight, so it also shows whatever Spotlight does. Stage and Premiere
-// hand people and collections to Modern the same way.
+// hand people and collections to Modern the same way, and Quick Look's full page is Modern.
 const DRAWN_BY_MODERN = ['seerrPersonAppearances', 'seerrPersonCrew'];
 export const isAvailableIn = (section, style) =>
 	section.styles.includes(style) ||
 	(style === MINIMALIST && section.styles.includes(SPOTLIGHT)) ||
+	(style === QUICK_LOOK && section.styles.includes(MODERN)) ||
 	((style === STAGE || style === PREMIERE) && section.styles.includes(MODERN) &&
 		(section.group === 'person' || section.group === 'collection' || DRAWN_BY_MODERN.includes(section.id)));
 

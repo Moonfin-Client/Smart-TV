@@ -54,6 +54,12 @@ describe('RatingsRow surfaces', () => {
 		expect(screen.getByText('7.4')).toBeTruthy();
 		expect(screen.queryByText('Community')).toBeNull();
 	});
+
+	test('a screen can leave the names off whatever the setting says', () => {
+		render(<RatingsRow item={movie} serverUrl='http://server' pluginEnabled={false} labels={false} />);
+		expect(screen.getByText('7.4')).toBeTruthy();
+		expect(screen.queryByText('Community')).toBeNull();
+	});
 });
 
 describe('RatingsRow plugin ratings on a surface', () => {

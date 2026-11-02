@@ -670,7 +670,7 @@ export const api = {
 		request(`/Persons?searchTerm=${encodeURIComponent(query)}&Limit=${limit}&Fields=PrimaryImageAspectRatio`, {timeoutMs: PEOPLE_SEARCH_TIMEOUT_MS}),
 
 	getSeasons: (seriesId) =>
-		request(`/Shows/${seriesId}/Seasons?UserId=${currentUser}&Fields=PrimaryImageAspectRatio`),
+		request(`/Shows/${seriesId}/Seasons?UserId=${currentUser}&Fields=PrimaryImageAspectRatio,ChildCount`),
 
 	getEpisodes: (seriesId, seasonId = null) =>
 		request(`/Shows/${seriesId}/Episodes?UserId=${currentUser}${seasonId ? `&SeasonId=${seasonId}` : ''}&Fields=PrimaryImageAspectRatio,Overview,LocationType`),
@@ -1258,7 +1258,7 @@ export const createApiForServer = (serverUrl, token, userId, serverTypeOverride 
 		},
 
 		getSeasons: (seriesId) =>
-			serverRequest(`/Shows/${seriesId}/Seasons?UserId=${userId}&Fields=Overview,PrimaryImageAspectRatio`),
+			serverRequest(`/Shows/${seriesId}/Seasons?UserId=${userId}&Fields=Overview,PrimaryImageAspectRatio,ChildCount`),
 
 		getEpisodes: (seriesId, seasonId = null) =>
 			serverRequest(`/Shows/${seriesId}/Episodes?UserId=${userId}${seasonId ? `&SeasonId=${seasonId}` : ''}&Fields=Overview,PrimaryImageAspectRatio,MediaSources,MediaStreams,LocationType`),
