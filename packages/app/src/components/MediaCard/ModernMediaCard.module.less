@@ -35,6 +35,26 @@
 	box-sizing: border-box;
 }
 
+// Wide art held to the card's left edge. Its height sets its scale, so the card growing over it
+// uncovers more to the right instead of cropping it afresh on every frame.
+.slideArt {
+	object-position: 0 50%;
+}
+
+// The poster laid over the wide art as the card opens and closes, fading off and back on. It takes
+// the frame's room but not its colour, so the focus border on the art beneath shows through.
+.veil {
+	position: absolute;
+	top: 0;
+	left: 0;
+	pointer-events: none;
+}
+
+.card .veil {
+	border-color: transparent !important;
+	box-shadow: none !important;
+}
+
 // OLED mode darkens the chrome, so artwork is lifted to match. The values are
 // written out rather than read from a variable, because the build inlines
 // custom property fallbacks for the older sets.
