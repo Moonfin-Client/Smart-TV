@@ -79,6 +79,17 @@ const readWebapis = (read, fallback) => {
 	}
 };
 
+// A positive HTML video probe can establish a bounded level increase. Missing,
+// uncertain or throwing APIs retain the existing conservative profile.
+const supportsVideoType = (type) => {
+	try {
+		return document.createElement('video').canPlayType(type) === 'probably';
+	} catch (e) {
+		return false;
+	}
+};
+
+
 /**
  * Get model name from webapis (cached).
  * Prefers getRealModel() over getModel() for accurate model string.
@@ -409,6 +420,7 @@ export const getDeviceCapabilities = async () => {
 		hevc: testHevcSupport(),
 		av1: testAv1Support(tizenVersion, modelYear, uhd),
 		vp9: testVp9Support(tizenVersion, uhd),
+		vp8: tizenVersion >= 4 && supportsVideoType('video/webm; codecs="vp8"'),
 
 		...containerSupport,
 
@@ -440,6 +452,7 @@ export const getJellyfinDeviceProfile = async (options = {}) => {
 
 	// WebM-specific profile (VP9/AV1 with WebM audio codecs)
 	const webmVideoCodecs = [];
+	if (caps.vp8) webmVideoCodecs.push('vp8');
 	if (caps.vp9) webmVideoCodecs.push('vp9');
 	if (caps.av1) webmVideoCodecs.push('av1');
 
