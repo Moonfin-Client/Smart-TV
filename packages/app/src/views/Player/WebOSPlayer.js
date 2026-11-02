@@ -1988,7 +1988,10 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 				setDecodedAspectRatio(width / height);
 			}
 
-			setDuration(videoRef.current.duration + streamOffsetRef.current);
+			// A Silo copy's playlist only lists what Silo has produced so far, so its element's duration is that, not the
+			// title's: the scrub bar would end there. The title's runtime stands, and a seek past the playlist goes to Silo.
+			if (seeksThroughServerRef.current && runTimeRef.current > 0) setDuration(runTimeRef.current / 10000000);
+			else setDuration(videoRef.current.duration + streamOffsetRef.current);
 
 			// Whether the sound was decoded or passed on explains what the receiver shows
 			getHostAudioOutput().then((output) => {
