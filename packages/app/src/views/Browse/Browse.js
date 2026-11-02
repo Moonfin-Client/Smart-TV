@@ -187,7 +187,7 @@ const Browse = ({
 
 	const {
 		isLoading, browseMode, allRowData, featuredItems: loadedFeaturedItems, pendingSections, emptySections,
-		setBrowseMode, fetchFreshFeaturedItems, refreshVolatileData, loadSectionsNear
+		setBrowseMode, fetchFreshFeaturedItems, refreshVolatileData, loadSectionsNear, loadMoreRow
 	} = useBrowseData({
 		api,
 		serverUrl,
@@ -966,6 +966,7 @@ const Browse = ({
 								menuOptions={rowMenuOptions}
 								ratingsSurface='homeRows'
 								hideOverview={settings.hideHomeMediaDescription === true}
+								onLoadMore={row.hasMore ? loadMoreRow : undefined}
 							/>
 						);
 					})}

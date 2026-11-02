@@ -9,6 +9,7 @@ import * as connectionPool from '../../services/connectionPool';
 import * as seerrApi from '../../services/seerrApi';
 import browseReducer, {browseInitialState, mergeRowsById} from './browseReducer';
 import {BROWSE_ROW_LOADERS, buildLoaderContext, loadDeferredSections, loadSinceYouWatched} from './browseRowLoaders';
+import {headLengthFor, moreAfter, nextHeadLength, pageableRow} from './rowPaging';
 import {genericCollectionLabel, mergeRecentRows} from '../../utils/mergeRecentRows';
 import {normalizeLatestMediaItems} from '../../utils/latestMediaRowNormalizer';
 import {EXCLUDED_COLLECTION_TYPES, filterItemsByExcludedGenres, matchesContentType} from './browseFilters';
@@ -25,6 +26,14 @@ import {
 } from './browseCache';
 
 const LOAD_FRESH_MS = 10000;
+
+// How long Continue Watching and Next Up start out.
+const RESUME_LIMIT = 12;
+const NEXT_UP_LIMIT = 24;
+
+// Continue Watching and Next Up page on one server. Across servers they're stitched together and
+// have no single list to read further into.
+const volatileRow = (row, result, limit, readHead) => (limit ? pageableRow(row, result, limit, readHead) : row);
 
 // A row that quietly loses its source looks the same as a server with nothing to offer, so the
 // failure is logged before the row carries on empty.
@@ -59,6 +68,32 @@ const useBrowseData = ({
 
 	const settingsRef = useRef(settings);
 	settingsRef.current = settings;
+	const apiRef = useRef(api);
+	apiRef.current = api;
+	const rowsRef = useRef(state.allRowData);
+	rowsRef.current = state.allRowData;
+	const pagingRef = useRef(new Set());
+
+	const readResume = useCallback((limit) => apiRef.current.getResumeItems(limit), []);
+	const readNextUp = useCallback((limit) => apiRef.current.getNextUp(limit, null, settingsRef.current.nextUpMaxDays), []);
+
+	// Reads a row's next page as focus nears its end. A row already being read, or with nothing
+	// more, is left alone.
+	const loadMoreRow = useCallback(async (rowId) => {
+		const row = rowsRef.current.find((entry) => entry.id === rowId);
+		if (!row || !row.hasMore || typeof row.readHead !== 'function' || pagingRef.current.has(rowId)) return;
+		pagingRef.current.add(rowId);
+		const limit = nextHeadLength(row);
+		try {
+			const result = await row.readHead(limit);
+			dispatch({type: 'EXTEND_ROW', id: rowId, items: result?.Items || [], hasMore: moreAfter(result, limit)});
+		} catch (err) {
+			console.warn(`[Browse] Failed to load more of ${rowId}:`, err);
+			dispatch({type: 'EXTEND_ROW', id: rowId, items: [], hasMore: false});
+		} finally {
+			pagingRef.current.delete(rowId);
+		}
+	}, []);
 
 	const recommendations = useMemo(
 		() => ({seerrEnabled, seerrAuthenticated, recommendationsSupported}),
@@ -166,6 +201,8 @@ const useBrowseData = ({
 		lastVolatileRefreshRef.current = Date.now();
 		try {
 			let resumeItems, nextUp;
+			let resumeLimit = 0;
+			let nextUpLimit = 0;
 
 			if (unifiedMode) {
 				[resumeItems, nextUp] = await Promise.all([
@@ -175,30 +212,34 @@ const useBrowseData = ({
 				resumeItems = {Items: resumeItems};
 				nextUp = {Items: nextUp};
 			} else {
+				// Read back as long as the rows on screen, so the cards paged in stay.
+				const shown = (id) => rowsRef.current.find((row) => row.id === id);
+				resumeLimit = headLengthFor(shown('resume'), RESUME_LIMIT);
+				nextUpLimit = headLengthFor(shown('nextup'), NEXT_UP_LIMIT);
 				[resumeItems, nextUp] = await Promise.all([
-					api.getResumeItems(),
-					api.getNextUp(24, null, settings.nextUpMaxDays)
+					readResume(resumeLimit),
+					readNextUp(nextUpLimit)
 				]);
 			}
 
 			const volatileRows = [];
 
 			if (resumeItems.Items?.length > 0) {
-				volatileRows.push({
+				volatileRows.push(volatileRow({
 					id: 'resume',
 					title: $L('Continue Watching'),
 					items: resumeItems.Items,
 					type: 'landscape'
-				});
+				}, resumeItems, resumeLimit, readResume));
 			}
 
 			if (nextUp.Items?.length > 0) {
-				volatileRows.push({
+				volatileRows.push(volatileRow({
 					id: 'nextup',
 					title: $L('Next Up'),
 					items: nextUp.Items,
 					type: 'landscape'
-				});
+				}, nextUp, nextUpLimit, readNextUp));
 			}
 
 			dispatch({type: 'REFRESH_VOLATILE', volatileRows});
@@ -213,7 +254,7 @@ const useBrowseData = ({
 		} catch (e) {
 			console.warn('[Browse] Background refresh failed:', e);
 		}
-	}, [api, unifiedMode, cacheOwner, settings.nextUpMaxDays]);
+	}, [unifiedMode, cacheOwner, settings.nextUpMaxDays, readResume, readNextUp]);
 
 	// Signing in as someone else has to throw the rows away. Leaving the home screen and
 	// coming back must not, and it used to, because an effect runs when it first mounts
@@ -393,8 +434,8 @@ const useBrowseData = ({
 				} else {
 					const results = await Promise.all([
 						api.getLibraries().catch(() => ({Items: []})),
-						api.getResumeItems().catch((err) => emptyRowAfter('resume', err)),
-						api.getNextUp(24, null, settings.nextUpMaxDays).catch((err) => emptyRowAfter('next up', err)),
+						readResume(RESUME_LIMIT).catch((err) => emptyRowAfter('resume', err)),
+						readNextUp(NEXT_UP_LIMIT).catch((err) => emptyRowAfter('next up', err)),
 						api.getUserConfiguration().catch(() => null),
 						mergesContinueWatchingNextUp(settings) ? api.getItems({
 							IncludeItemTypes: 'Episode',
@@ -421,21 +462,21 @@ const useBrowseData = ({
 				const rowData = [];
 
 				if (resumeItems.Items?.length > 0) {
-					rowData.push({
+					rowData.push(volatileRow({
 						id: 'resume',
 						title: $L('Continue Watching'),
 						items: resumeItems.Items,
 						type: 'landscape'
-					});
+					}, resumeItems, unifiedMode ? 0 : RESUME_LIMIT, readResume));
 				}
 
 				if (nextUp.Items?.length > 0) {
-					rowData.push({
+					rowData.push(volatileRow({
 						id: 'nextup',
 						title: $L('Next Up'),
 						items: nextUp.Items,
 						type: 'landscape'
-					});
+					}, nextUp, unifiedMode ? 0 : NEXT_UP_LIMIT, readNextUp));
 				}
 
 				if (libs.length > 0) {
@@ -676,7 +717,8 @@ const useBrowseData = ({
 		setBrowseMode,
 		fetchFreshFeaturedItems,
 		refreshVolatileData,
-		loadSectionsNear
+		loadSectionsNear,
+		loadMoreRow
 	};
 };
 

@@ -46,9 +46,10 @@ describe('ModernMediaRow', () => {
 	it('asks for more once focus reaches the last few cards', () => {
 		const onLoadMore = jest.fn();
 		draw({onLoadMore});
-		focusCard(2);
+		// Six cards, so the last five ask.
+		focusCard(0);
 		expect(onLoadMore).not.toHaveBeenCalled();
-		focusCard(3);
+		focusCard(1);
 		expect(onLoadMore).toHaveBeenCalledWith('trending');
 	});
 
