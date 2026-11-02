@@ -561,6 +561,8 @@ const imageFields = (id, type, item, images) => {
 		if (seriesId && backdrops.length) registerIfMissing(seriesId, 'Backdrop', backdrops[0]);
 		backdrops = [];
 	}
+	// An episode card names its series' backdrop on its own, which is never the episode still.
+	if (isEpisode && seriesId && text(item.series_backdrop_url)) registerIfMissing(seriesId, 'Backdrop', text(item.series_backdrop_url));
 	// Episodes have no logo of their own, so an episode's logo_url is its series'. Recorded there too, the player and
 	// the episode's detail, which comes without one, find it as the series logo.
 	if (isEpisode && seriesId && text(item.logo_url)) registerIfMissing(seriesId, 'Logo', text(item.logo_url));

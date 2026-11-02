@@ -56,6 +56,17 @@ describe('item mapping', () => {
 		});
 	});
 
+	test("a search card's series backdrop becomes the episode's parent backdrop", () => {
+		const episode = siloItemToBaseItem({
+			content_id: 'episode-tvdb-5-1-2', type: 'episode', series_id: 'series-tvdb-5', season_number: 1, episode_number: 2,
+			poster_url: '/series.webp', poster_is_episode_still: false, series_backdrop_url: '/series-backdrop.webp'
+		}, {images: memoryImages()});
+		expect(episode).toMatchObject({
+			ImageTags: {}, BackdropImageTags: [],
+			ParentBackdropItemId: 'series-tvdb-5', ParentBackdropImageTags: ['tag:/series-backdrop.webp']
+		});
+	});
+
 	test("an episode's logo is its series', so the episode's detail without one still has the series logo", () => {
 		const images = memoryImages();
 		const card = siloItemToBaseItem({
