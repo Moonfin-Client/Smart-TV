@@ -26,3 +26,28 @@ describe('Tizen MPEG2 direct play agrees with the server profile', () => {
 		expect(getPlayMethod(source('mpeg2video', 'mkv', {}, {Codec: 'dts'}), caps, {})).toBe('Transcode');
 	});
 });
+
+const device = (model = 'QN55S95BAFXZA', version = '6.5', uhd = true, uhd8K = false, hdr = true) => {
+	global.tizen = {systeminfo: {getCapability: () => version}};
+	global.webapis = {productinfo: {getRealModel: () => model, isUdPanelSupported: () => uhd, is8KPanelSupported: () => uhd8K}, avinfo: {isHdrTvSupport: () => hdr}};
+	let service;
+	jest.isolateModules(() => { service = require('../../../platform-tizen/src/deviceProfile'); });
+	return service;
+};
+afterEach(() => { delete global.tizen; delete global.webapis; jest.restoreAllMocks(); });
+const models = [
+	['UN55KU6300', '2.4', true],
+	['UN40N5200AFXZA', '4', false],
+	['UN32T5300', '5.5', false],
+	['QN55S95BAFXZA', '6.5', true],
+	['GQ65S90C', '7', true],
+	['QN65QN900B', '6.5', true],
+	['QN65QN80HAFXZA', '10', true],
+	['unknown', '6.5', true]
+];
+
+describe('MPEG2 model-independent scope', () => {
+	test.each(models)('%s keeps server-approved MPEG2 playable', async (model, version, uhd) => {
+		expect(getPlayMethod(source('mpeg2video'), await device(model, version, uhd).getDeviceCapabilities(), {})).toBe('DirectPlay');
+	});
+});
