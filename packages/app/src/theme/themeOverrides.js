@@ -41,6 +41,7 @@ import spotlightGridCss from '../views/Details/spotlight/SpotlightGrids.module.l
 import nouveauCardsCss from '../views/Details/nouveau/cards/NouveauCards.module.less';
 import nouveauFooterCss from '../views/Details/nouveau/footer/NouveauDetailsFooter.module.less';
 import nouveauSectionsCss from '../views/Details/nouveau/sections/NouveauSections.module.less';
+import stageCss from '../views/Details/stage/StageDetailContent.module.less';
 import trackListCss from '../components/DetailTrackList/DetailTrackList.module.less';
 import musicCss from '../views/MusicBrowse/MusicLibrary.module.less';
 import musicScreensCss from '../views/MusicBrowse/MusicScreens.module.less';
@@ -547,6 +548,19 @@ export const buildThemeOverrideCss = (theme, options = {}) => {
 	rule(`.${tabBarCss.tab}:focus`, `border-color: ${focusColor};`);
 	rule(`.${overviewCss.spottable}:focus`, `border-color: ${focusColor};`);
 	rule(`.${overviewCss.readMoreBtn}`, `color: ${accent};`);
+
+	// Detail screens, stage layout
+	rule(`.${stageCss.chip}:focus, .${stageCss.name}:focus`, `border-color: ${focusColor};`);
+	rule(`.${stageCss.cell}:focus`, `background: ${accentA(0.1)}; border-color: ${focusColor};`);
+	rule(`.${stageCss.card}:focus .${stageCss.cardArt}::after, .${stageCss.person}:focus .${stageCss.avatarRing}`, `border-color: ${focusColor};`);
+	rule(`.${stageCss.progressFill}, .${stageCss.statusUpcoming}`, `background: ${accent};`);
+	rule(`.${stageCss.metaRating}`, `background: ${accentA(0.15)};`);
+	rule(`.${stageCss.cardWatched}, .${stageCss.posterWatched}`, `background: ${badgeWatched}; border-color: ${onBadge};`);
+	rule(`.${stageCss.cardWatched} svg, .${stageCss.posterWatched} svg, .${stageCss.cardFavorite} svg, .${stageCss.posterFavorite} svg`, `fill: ${onBadge}; stroke: ${onBadge};`);
+	rule(`.${modernDetailCss.actionsStacked} > .${modernDetailCss.actionBtn}:first-child`, `background-color: ${accent}; color: ${onAccent};`);
+	rule(`.${modernDetailCss.actionsStacked} > .${modernDetailCss.actionBtn}:first-child:focus`, `background-color: ${buttonFocused}; border-color: ${focusColor}; color: ${onButtonFocused};`);
+	rule(`.${modernDetailCss.actionsStacked} > .${modernDetailCss.actionActive}`, `background-color: ${accentA(0.18)}; color: ${accent};`);
+	rule(`.${tabBarCss.barFocused}::after`, `border-color: ${focusColor};`);
 
 	// Home screen chrome
 	rule(`.${browseCss.page}`, `background: ${background};`);

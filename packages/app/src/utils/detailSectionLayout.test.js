@@ -51,6 +51,14 @@ describe('detailSectionLayout', () => {
 		expect(minimalist.has('poster')).toBe(false);
 	});
 
+	it('lists for Stage what it draws, plus what Modern draws on the person and collection pages', () => {
+		const stage = new Set(offeredSections('v6', true).map((section) => section.id));
+		['logo', 'tagline', 'cast', 'crew', 'studios', 'extras', 'collections', 'moreLikeThis', 'moreEpisodes', 'seerrSimilar']
+			.forEach((id) => expect(stage.has(id)).toBe(true));
+		['biography', 'playlistOrder', 'seerrPersonCrew'].forEach((id) => expect(stage.has(id)).toBe(true));
+		['poster', 'chapters', 'reviews', 'mediaInfo', 'upNext', 'seerrCollection'].forEach((id) => expect(stage.has(id)).toBe(false));
+	});
+
 	it('offers the Seerr pieces only when Seerr is', () => {
 		const without = offeredSections('v2', false).map((section) => section.id);
 		expect(without).not.toContain('seerrStats');

@@ -65,6 +65,12 @@ describe('SeerrRequestDialog', () => {
 		expect(onSubmit).toHaveBeenCalledWith({is4k: false, seasons: null, serverId: null, profileId: null, rootFolder: null});
 	});
 
+	test('opened from a season card asks for just that season', () => {
+		const onSubmit = setup({season: 2});
+		fireEvent.click(screen.getByText('Submit Request'));
+		expect(onSubmit).toHaveBeenCalledWith({is4k: false, seasons: [2], serverId: null, profileId: null, rootFolder: null});
+	});
+
 	test('names the track in the title when there is no switch', () => {
 		setup({is4k: true});
 		expect(screen.getByText('Request 4K Series')).toBeTruthy();

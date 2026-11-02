@@ -178,7 +178,35 @@ const Minimalist = ({sidebar}) => (
 	</div>
 );
 
-const LAYOUTS = {v1: Classic, v2: Modern, v3: Spotlight, v4: Nouveau, v5: Minimalist};
+// The poster with play and the circles under it on the left, and the title block beside it.
+const Stage = ({sidebar}) => (
+	<div className={css.content} style={{padding: `${rem(172)} ${rem(80)} 0 ${rem(sidebar ? 200 : 80)}`}}>
+		<div className={css.row} style={{alignItems: 'flex-start'}}>
+			<div>
+				<Box width={388} height={582} radius={13} />
+				<Gap size={28} />
+				<Box width={388} height={86} radius={43} />
+				<Gap size={24} />
+				<Boxes widths={[86, 86, 86, 86]} height={86} gap={14.66} radius={43} />
+			</div>
+			<div style={{marginLeft: rem(67), flex: '1 1 auto'}}>
+				<Box width={480} height={110} />
+				<Gap size={16} />
+				<Boxes widths={[63, 36, 84, 72, 63]} height={20} gap={13} radius={4} />
+				<Gap size={14} />
+				<Box width={104} height={48} radius={6} />
+				<Gap size={18} />
+				<Box width="70%" height={20} radius={4} />
+				<Gap size={10} />
+				<Box width="70%" height={20} radius={4} />
+				<Gap size={10} />
+				<Box width="40%" height={20} radius={4} />
+			</div>
+		</div>
+	</div>
+);
+
+const LAYOUTS = {v1: Classic, v2: Modern, v3: Spotlight, v4: Nouveau, v5: Minimalist, v6: Stage};
 
 // Placeholders laid out like the chosen details style while the item loads, so the page fills
 // in where they stood.

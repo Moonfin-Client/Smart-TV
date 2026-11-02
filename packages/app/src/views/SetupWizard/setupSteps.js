@@ -45,7 +45,8 @@ export const STEP_INFO = {
 			{value: 'v2', label: $L('Modern'), desc: $L('Cinematic, with tabs for cast and extras.')},
 			{value: 'v3', label: $L('Spotlight'), desc: $L('Hero-first, with pop-up cards for cast and extras.')},
 			{value: 'v4', label: $L('Nouveau'), desc: $L('Full-screen, with sections stacked instead of tabs.')},
-			{value: 'v5', label: $L('Minimalist'), desc: $L('Artwork, one play button and the episodes.')}
+			{value: 'v5', label: $L('Minimalist'), desc: $L('Artwork, one play button and the episodes.')},
+			{value: 'v6', label: $L('Stage'), desc: $L('The poster up front, with play under it and the details beside it.')}
 		]
 	},
 	// The tour's rows are the built-in themes, which the wizard reads from the

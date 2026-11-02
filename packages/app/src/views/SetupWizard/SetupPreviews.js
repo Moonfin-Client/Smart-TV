@@ -31,6 +31,7 @@ import {genreGlowRgb} from '../Browse/galleryGlow';
 import {DETAIL_ICON_PATHS} from '../Details/detailIcons';
 import {getMediaBadges} from '../Details/detailsMedia';
 import {minimalistScrimAlpha} from '../Details/minimalist/minimalistRules';
+import {STAGE_BUTTON_CAP, stageScrimAlpha} from '../Details/stage/stageRules';
 import {splitNouveauActions} from '../Details/nouveau/nouveauActionSplit';
 import {personalRatingIconPath, personalRatingLabel} from '../Details/personalRatingAction';
 import {materialIconPath} from '../Settings/materialIconMap';
@@ -1136,9 +1137,12 @@ const SAMPLE_ACTIONS = DETAIL_BUTTONS.filter((button) => SAMPLE_ACTION_LOOKS[but
 
 // The film's buttons after Play in the viewer's order, split the way [variant]'s row splits
 // them. Spotlight and Minimalist cap the row at five, Nouveau keeps its own short rule, and
-// Classic and Modern only fold anything away once the viewer sets a count.
+// Classic and Modern only fold anything away once the viewer sets a count. Stage caps at five, which
+// the count can lower but never lift, and draws the subtitle picker as a chip instead.
 const detailActions = (variant, settings) => {
-	const offered = arrange(SAMPLE_ACTIONS, {order: settings[DETAIL_ORDER_KEY], hidden: settings[DETAIL_HIDDEN_KEY]});
+	const stage = variant === 'v6';
+	const offered = arrange(SAMPLE_ACTIONS, {order: settings[DETAIL_ORDER_KEY], hidden: settings[DETAIL_HIDDEN_KEY]})
+		.filter((button) => !stage || button.id !== 'subtitles');
 	const prefLimit = settings.detailButtonsMaxVisible ?? 0;
 	let inline = offered;
 	let more = false;
@@ -1150,7 +1154,9 @@ const detailActions = (variant, settings) => {
 		const capped = variant === 'v3' || variant === 'v5';
 		const {visibleCount, needsOverflow} = countSplit({
 			totalButtons: 1 + offered.length,
-			...applyButtonLimit(prefLimit, {maxVisible: capped ? 5 : 0, overflowAsMenu: capped, countCapped: capped})
+			...(stage
+				? {maxVisible: prefLimit > 0 ? Math.min(prefLimit + 1, STAGE_BUTTON_CAP) : STAGE_BUTTON_CAP, overflowAsMenu: true, countCapped: true}
+				: applyButtonLimit(prefLimit, {maxVisible: capped ? 5 : 0, overflowAsMenu: capped, countCapped: capped}))
 		});
 		if (needsOverflow) {
 			inline = offered.slice(0, Math.max(0, visibleCount - 1));
@@ -1760,9 +1766,78 @@ const MinimalistDetail = ({items, t}) => {
 	);
 };
 
+// The poster on the left with play and the circles under it, and the title, facts and track chips
+// beside it.
+const StageDetail = ({items, t}) => {
+	const {settings} = useSettings();
+	const item = items[0];
+	const meta = detailMeta(item, settings).map((piece) => piece.text).join(' · ');
+	const actions = detailActions('v6', settings);
+	const circles = [...actions.inline.map((action) => action.path), ...(actions.more ? [DETAIL_ICON_PATHS.moreHoriz] : [])];
+	return (
+		<div style={{position: 'relative', width: '100%', height: '100%'}}>
+			{settings.detailsBackdropEnabled !== false && <Artwork url={item.backdropUrl} t={t} />}
+			<div style={{...ABS_FILL, backgroundColor: `rgba(0, 0, 0, ${stageScrimAlpha(settings.backdropBlurDetail)})`}} />
+			<div style={{...ABS_FILL, overflow: 'hidden', padding: '86px 40px 0', display: 'flex', alignItems: 'flex-start'}}>
+				<div style={{width: 194, flexShrink: 0}}>
+					<div style={{position: 'relative', height: 291, borderRadius: 6.5, overflow: 'hidden'}}>
+						<Artwork url={item.posterUrl || item.backdropUrl} t={t} />
+					</div>
+					<div style={{marginTop: 14, height: 43, borderRadius: 21.5, backgroundColor: t.accent, display: 'flex', alignItems: 'center', justifyContent: 'center'}}>
+						<MIcon name='play_arrow' size={20} color={t.onAccent} />
+						<div style={{marginLeft: 6, fontSize: 12, fontWeight: 700, color: t.onAccent}}>{$L('Play')}</div>
+					</div>
+					<div style={{marginTop: 12, display: 'flex'}}>
+						{circles.map((path, i) => (
+							<div key={i} style={{width: 43, height: 43, marginRight: i < 3 ? 7.3 : 0, borderRadius: '50%', border: `1.25px solid ${t.onSurfaceA(0.35)}`, backgroundColor: 'rgba(255, 255, 255, 0.06)', display: 'flex', alignItems: 'center', justifyContent: 'center'}}>
+								<MIcon path={path} size={20} color={t.onSurface} />
+							</div>
+						))}
+					</div>
+				</div>
+				<div style={{marginLeft: 34, flex: '1 1 auto', minWidth: 0}}>
+					<LogoOrTitle item={item} width={300} height={86} alignment='topLeft' fallbackStyle={{fontSize: 31.5, fontWeight: 700, color: t.onSurface}} />
+					{meta && <div style={{marginTop: 10, fontSize: 13, color: t.onSurfaceA(0.75)}}>{meta}</div>}
+					<div style={{marginTop: 6}}>
+						<PreviewRatings item={item} />
+					</div>
+					{item.overview && (
+						<div style={{marginTop: 8, maxWidth: 600, fontSize: 13, lineHeight: 1.45, color: t.onSurfaceA(0.85), ...clampLines(4)}}>
+							{item.overview}
+						</div>
+					)}
+					<div style={{marginTop: 14, display: 'flex'}}>
+						{[$L('Audio'), $L('Subtitle')].map((label, i) => (
+							<div key={label} style={{height: 28, marginLeft: i ? 6 : 0, padding: '0 12px', borderRadius: 14, border: `1px solid ${t.onSurfaceA(0.22)}`, backgroundColor: 'rgba(255, 255, 255, 0.06)', display: 'flex', alignItems: 'center', fontSize: 11, color: t.onSurfaceA(0.7)}}>
+								{label}
+							</div>
+						))}
+					</div>
+				</div>
+			</div>
+		</div>
+	);
+};
+
 const FallbackDetail = ({variant, t}) => {
 	const strong = t.onSurfaceA(0.78);
 	const weak = t.onSurfaceA(0.3);
+	if (variant === 'v6') {
+		return (
+			<div style={{width: '100%', height: '100%', display: 'flex', padding: 10, ...fallBackdrop(t)}}>
+				<div style={{display: 'flex', flexDirection: 'column'}}>
+					<FallPoster width={30} t={t} />
+					<FallBar width={30} height={8} color={strong} style={{marginTop: 5}} />
+				</div>
+				<div style={{marginLeft: 8, display: 'flex', flexDirection: 'column'}}>
+					<FallBar width={52} height={9} color={strong} />
+					<FallBar width={40} height={5} color={weak} style={{marginTop: 5}} />
+					<FallBar width={64} height={5} color={weak} style={{marginTop: 5}} />
+					<FallBar width={58} height={5} color={weak} style={{marginTop: 5}} />
+				</div>
+			</div>
+		);
+	}
 	if (variant === 'v5') {
 		return (
 			<div style={{width: '100%', height: '100%', display: 'flex', flexDirection: 'column', justifyContent: 'flex-end', padding: '0 10px 10px'}}>
@@ -1861,6 +1936,7 @@ export const DetailStylePreview = ({variant}) => {
 		if (variant === 'v3') return <SpotlightDetail items={items} t={t} />;
 		if (variant === 'v4') return <NouveauDetail items={items} t={t} />;
 		if (variant === 'v5') return <MinimalistDetail items={items} t={t} />;
+		if (variant === 'v6') return <StageDetail items={items} t={t} />;
 		return <ModernDetail items={items} t={t} />;
 	}, [variant, t, hideDescription]);
 	return <LivePreview render={render} fallback={<FallbackDetail variant={variant} t={t} />} />;

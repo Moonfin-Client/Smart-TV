@@ -426,6 +426,108 @@
 	max-width: none;
 }
 
+// Stage stacks the row under its poster, at Core's Stage sizes. The first button spans the column,
+// filled with the accent and labeled, and the rest wrap under it as circles. A focused circle keeps
+// its size and shows its label underneath, since the column has no room for it to open up.
+.actionsStacked {
+	display: flex;
+	flex-wrap: wrap;
+	padding-bottom: 34px;
+}
+
+.actionsStacked > .actionBtn {
+	background-color: rgba(255, 255, 255, 0.06);
+	border: 2.5px solid rgba(255, 255, 255, 0.35);
+	height: 86px;
+	justify-content: center;
+	margin-right: 14.66px;
+	overflow: visible;
+	padding: 0;
+	position: relative;
+	width: 86px;
+}
+
+.actionsStacked > .actionBtn:focus {
+	border-width: 4px;
+}
+
+.actionsStacked > .actionBtn ~ .actionBtn ~ .actionBtn ~ .actionBtn ~ .actionBtn {
+	margin-right: 0;
+}
+
+.actionsStacked > .actionBtn .actionIcon {
+	flex: 1 1 auto;
+	height: 100%;
+	width: auto;
+}
+
+.actionsStacked > .actionBtn .actionIcon .icon {
+	height: 40px;
+	width: 40px;
+}
+
+.actionsStacked > .actionBtn:first-child {
+	background-color: #00a4dc;
+	border: 5px solid transparent;
+	margin: 0 0 24px;
+	width: 100%;
+}
+
+.actionsStacked > .actionBtn:first-child:focus {
+	background-color: #fff;
+	border: 5px solid var(--theme-focus-border-color, #00a4dc);
+	color: #00a4dc;
+}
+
+.actionsStacked > .actionBtn:first-child .actionIcon {
+	flex: 0 0 40px;
+	height: 40px;
+	width: 40px;
+}
+
+.actionsStacked > .actionBtn:first-child .actionText {
+	max-width: none;
+	opacity: 1;
+	padding: 0 0 0 13px;
+}
+
+.actionsStacked > .actionBtn:first-child .actionLabel {
+	font-size: 23.4px;
+	font-weight: 700;
+	max-width: none;
+}
+
+// A circle that's on, like a watched title, takes a wash of the accent. A favorite keeps its red.
+.actionsStacked > .actionActive {
+	background-color: rgba(0, 164, 220, 0.18);
+	color: #00a4dc;
+}
+
+.actionsStacked > .actionActive[data-spotlight-id='details-favorite-btn'] {
+	color: #e50914;
+}
+
+.actionsStacked > .actionBtn:not(:first-child) .actionText {
+	color: #fff;
+	left: 50%;
+	margin-top: 10px;
+	padding: 0;
+	position: absolute;
+	text-shadow: 0 1px 4px rgba(0, 0, 0, 0.5);
+	top: 100%;
+	transform: translateX(-50%);
+}
+
+.actionsStacked > .actionBtn:not(:first-child):focus .actionText {
+	max-width: 267px;
+}
+
+.actionsStacked > .actionBtn:not(:first-child) .actionLabel {
+	font-size: 20px;
+	font-weight: 600;
+	max-width: 267px;
+}
+
 .upNext {
 	width: 594px;
 	flex-shrink: 0;

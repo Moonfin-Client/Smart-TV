@@ -416,6 +416,24 @@ describe('the library style', () => {
 	});
 });
 
+describe('the detail screen style', () => {
+	test('sends each style under the name Core stores it by', () => {
+		const names = {v1: 'classic', v2: 'modern', v3: 'spotlight', v4: 'nouveau', v5: 'minimalist', v6: 'stage'};
+		Object.keys(names).forEach((style) => {
+			expect(localToProfile({...defaultSettings, detailScreenStyle: style}, ['detailScreenStyle'])).toEqual({detailScreenStyle: names[style]});
+			expect(profileToLocal({detailScreenStyle: names[style]})).toEqual({detailScreenStyle: style});
+		});
+	});
+
+	test('still reads the values older builds of this app pushed', () => {
+		expect(profileToLocal({detailScreenStyle: 'v4'})).toEqual({detailScreenStyle: 'v4'});
+	});
+
+	test('keeps the style it has when the profile names one this app has no way to draw', () => {
+		expect(profileToLocal({detailScreenStyle: 'carousel'})).toEqual({});
+	});
+});
+
 describe('the library grid settings', () => {
 	test('poster sizes sync under their own names, one for libraries and one for playlists', () => {
 		['small', 'medium', 'large', 'extraLarge'].forEach((size) => {
