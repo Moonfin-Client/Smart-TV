@@ -61,6 +61,7 @@ import {isAtLive, liveWindowFor, nextLiveWindow} from './liveWindow';
 import useLiveRecording from './useLiveRecording';
 import useHeldSeekStep from './useHeldSeekStep';
 import {createServerSeek} from './serverSeek';
+import {copyBufferSeconds} from './copyBuffer';
 import useSiloStreamRenewal from './useSiloStreamRenewal';
 import useStreamReconnect from './useStreamReconnect';
 import useMediaSession from './useMediaSession';
@@ -1665,13 +1666,14 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 
 			if (useHlsJs) {
 				console.log('[Player] Using hls.js for HLS playback (platform version ' + platformVersionRef.current + ')');
+				// A 4K remux runs tens of megabits, so a Silo copy holds only what the TV's media buffer takes.
+				const copyBuffer = siloGrowingHls ? copyBufferSeconds(streamSource?.Bitrate) : null;
 				const hls = new Hls({
 					enableWorker: false,
 					lowLatencyMode: false,
-					maxBufferLength: isVega() ? 10 : 30,
-					maxMaxBufferLength: 60,
-					// A 4K remux runs tens of megabits, so a Silo copy keeps only a short way back.
-					backBufferLength: isVega() ? 10 : (siloGrowingHls ? 30 : Infinity),
+					maxBufferLength: isVega() ? 10 : (copyBuffer ? copyBuffer.ahead : 30),
+					maxMaxBufferLength: copyBuffer ? copyBuffer.ahead : 60,
+					backBufferLength: isVega() ? 10 : (copyBuffer ? copyBuffer.behind : Infinity),
 					...(siloGrowingHls ? {startPosition: resumeTicks > 0 ? streamResumeSec() : 0} : null),
 					startFragPrefetch: true,
 					maxBufferHole: 0.5,
