@@ -7,7 +7,7 @@ jest.mock('./jellyfinApi', () => ({
 jest.mock('./moonbaseEndpoint', () => ({isSiloLogin: () => false}));
 
 import {
-	asSyncPlayCommand, clockSample, createWatchParty, defaultAudioIndex, nextEpisodeId, roomJoinBody, serverOffsetOf,
+	asSyncPlayCommand, clockSample, createWatchParty, defaultAudioIndex, nextEpisodeId, roomJoinBody, roomResumePoint, serverOffsetOf,
 	siloRoomCommandFrom, siloRoomFrom, subtitleIndexFor
 } from './siloWatchParty';
 
@@ -41,6 +41,20 @@ describe('Silo Watch Party mapping', () => {
 		expect(asSyncPlayCommand(command('seek', 'playing')).Command).toBe('Unpause');
 		expect(asSyncPlayCommand(command('seek', 'paused')).Command).toBe('Pause');
 		expect(siloRoomCommandFrom({command_id: 'c'})).toBeNull();
+	});
+
+	test('resumes from the earliest point anyone in the room stopped at', () => {
+		const answer = {items: [{content_id: 'ep1', members: [
+			{profile_id: 'p1', state: 'in_progress', position_seconds: 2530.4},
+			{profile_id: 'p2', state: 'in_progress', position_seconds: 1500.9},
+			{profile_id: 'p3', state: 'unseen'},
+			{profile_id: 'p4', state: 'watched', position_seconds: 0},
+			{profile_id: 'p5', state: 'in_progress', position_seconds: 12}
+		]}]};
+		expect(roomResumePoint(answer, 'ep1')).toEqual({seconds: 1500, profileId: 'p2', notStarted: 1});
+		// Nobody part way through, or barely started, is nothing to resume.
+		expect(roomResumePoint({items: [{content_id: 'ep1', members: [{state: 'unseen'}, {state: 'in_progress', position_seconds: 5}]}]}, 'ep1')).toBeNull();
+		expect(roomResumePoint(answer, 'other')).toBeNull();
 	});
 
 	test('takes the clock offset of the fastest round trip', () => {
@@ -114,7 +128,13 @@ describe('Silo Watch Party room', () => {
 		const answers = {
 			'POST /api/v2/watch-together/rooms': () => ({room: roomJson(), room_access_token: 'rt'}),
 			'POST /api/v2/watch-together/rooms/r1/ws-ticket': () => ({ticket: 'tk', protocol: 'silo.room.v2'}),
-			'PUT /api/v2/watch-together/rooms/r1/staged-selection': (o) => ({room: roomJson({selected_content_id: o.body.content_id, generation: 2})})
+			'PUT /api/v2/watch-together/rooms/r1/staged-selection': (o) => ({room: roomJson({selected_content_id: o.body.content_id, generation: 2})}),
+			'POST /api/v2/watch-together/rooms/r1/member-state': () => ({items: [{content_id: 'ep1', members: [
+				{profile_id: 'p1', state: 'in_progress', position_seconds: 2530},
+				{profile_id: 'p2', state: 'in_progress', position_seconds: 1500}
+			]}]}),
+			'POST /api/v2/watch-together/rooms/r1/playback/start': () => ({room: roomJson({phase: 'playing', playback_state: 'waiting',
+				selected_content_id: 'ep1', generation: 3, selection_revision: 2})})
 		};
 		const silo = {
 			key: 'k', baseUrl: 'http://silo:8090', userId: () => 'p1',
@@ -185,6 +205,28 @@ describe('Silo Watch Party room', () => {
 		expect(frames('transport_request')).toEqual([{type: 'transport_request', action: 'pause', position_seconds: 30, is_paused: true}]);
 		driver.request('seek', 600000000);
 		expect(frames('transport_request')[1]).toMatchObject({action: 'seek', position_seconds: 60});
+	});
+
+	test('a resumed start seeks the room there before the host reports ready at the beginning', async () => {
+		await openRoom();
+		await party.stage('ep1');
+		const resume = await party.resumePoint();
+		expect(resume).toMatchObject({seconds: 1500, profileId: 'p2'});
+		expect(calls.find((c) => c.path.endsWith('/member-state'))).toMatchObject({
+			method: 'POST', body: {content_ids: ['ep1']}, headers: {'X-Room-Token': 'rt'}
+		});
+
+		expect(await party.startPlayback(resume.seconds)).toBe(true);
+		await flush();
+		frame({type: 'snapshot', room: roomJson({phase: 'playing', playback_state: 'waiting', selected_content_id: 'ep1',
+			attached_session_id: 'session-1', generation: 4, selection_revision: 2})});
+		frame({type: 'transport_command', command: {command_id: 'c1', session_id: 'session-1', action: 'seek',
+			position_seconds: 0, execute_at: new Date(Date.now() + 500).toISOString(), playback_state: 'waiting'}});
+		jest.advanceTimersByTime(1500);
+
+		expect(frames('transport_request')).toEqual([{type: 'transport_request', action: 'seek', position_seconds: 1500, is_paused: false}]);
+		const seekAt = sent.findIndex((f) => f.type === 'transport_request');
+		expect(sent.slice(0, seekAt).some((f) => f.type === 'state_report' && f.is_ready)).toBe(false);
 	});
 
 	test('a finished episode closes the player and stages the next for the host', async () => {

@@ -110,6 +110,27 @@ export const siloSuggestionFrom = (json = {}) => {
 	};
 };
 
+// Under this a member has barely started, which isn't worth offering to resume from.
+const RESUME_MIN_SECONDS = 30;
+
+/**
+ * Where a room can pick a title up from, out of what each connected member has watched of it (member-state): the
+ * earliest point any member stopped at, so nobody misses anything they haven't seen. Null when nobody is part way
+ * through. `notStarted` counts the members who haven't begun it, whom resuming takes past the start.
+ */
+export const roomResumePoint = (answer, contentId) => {
+	const entry = (answer?.items || []).find((it) => it?.content_id === contentId);
+	const members = Array.isArray(entry?.members) ? entry.members : [];
+	const started = members.filter((m) => m?.state === 'in_progress' && Number(m.position_seconds) >= RESUME_MIN_SECONDS);
+	if (started.length === 0) return null;
+	const earliest = started.reduce((best, m) => (Number(m.position_seconds) < Number(best.position_seconds) ? m : best));
+	return {
+		seconds: Math.floor(Number(earliest.position_seconds)),
+		profileId: earliest.profile_id || null,
+		notStarted: members.filter((m) => m?.state === 'unseen').length
+	};
+};
+
 // The room's order: most votes first, then oldest.
 export const compareSuggestions = (a, b) => (b.voteCount - a.voteCount) || (a.createdAt - b.createdAt) ||
 	(a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
@@ -222,6 +243,9 @@ export const createWatchPartyApi = ({call, baseUrl}) => {
 		removeSuggestion: (roomId, token, suggestionId) => call(`${rooms}/${roomId}/suggestions/${suggestionId}`,
 			withToken(token, {method: 'DELETE'})),
 		close: (roomId) => call(`${rooms}/${roomId}`, {method: 'DELETE'}),
+		// What each connected member has watched of these titles: unseen, in progress (with a position) or watched.
+		memberState: (roomId, token, contentIds) => call(`${rooms}/${roomId}/member-state`,
+			withToken(token, {method: 'POST', body: {content_ids: contentIds}})),
 		// Single use, at most 30 seconds. It rides in the offered protocols, never the URL.
 		socketTicket: async (roomId, token) => {
 			const answer = await call(`${rooms}/${roomId}/ws-ticket`, withToken(token, {method: 'POST'}));
@@ -284,6 +308,9 @@ export const createWatchParty = ({silo, sync = syncPlay, now = () => Date.now()}
 	let bufferingTimer = null;
 	let bufferingReported = false;
 	let hostStopping = false;
+	// A start the host asked to pick up part way: Silo starts every room at the beginning, so the host seeks the room
+	// there once its player is in, while the room still holds everyone paused waiting for them to load.
+	let pendingResume = null;
 	let aloneTimer = null;
 	let partyPoll = null;
 	let avatarTimer = null;
@@ -339,6 +366,16 @@ export const createWatchParty = ({silo, sync = syncPlay, now = () => Date.now()}
 				send({type: 'attach_session', session_id: session});
 			}
 			return;
+		}
+		if (pendingResume && room.isHost) {
+			const resume = pendingResume;
+			if (room.selectedContentId !== resume.contentId) {
+				pendingResume = null;
+			} else {
+				// Ahead of the ready report, so the room can't set off from the beginning before the seek lands.
+				if (send({type: 'transport_request', action: 'seek', position_seconds: resume.seconds, is_paused: false})) pendingResume = null;
+				return;
+			}
 		}
 		const buffering = isBuffering();
 		if (readyPending()) {
@@ -696,6 +733,7 @@ export const createWatchParty = ({silo, sync = syncPlay, now = () => Date.now()}
 		avatars = {};
 		item = null;
 		openedRevision = null;
+		pendingResume = null;
 		clockSamples.length = 0;
 		endedReason = reason;
 		emit();
@@ -853,8 +891,26 @@ export const createWatchParty = ({silo, sync = syncPlay, now = () => Date.now()}
 			}
 			return stage(picked.Id, fileId);
 		},
-		startPlayback: () => hostAction((a, id) => a.start(id)),
+		// `atSeconds` picks the title up part way for everyone, where resumePoint says the room got to.
+		startPlayback: async (atSeconds = 0) => {
+			pendingResume = atSeconds > 0 && room?.selectedContentId ? {seconds: atSeconds, contentId: room.selectedContentId} : null;
+			const started = await hostAction((a, id) => a.start(id));
+			if (!started) pendingResume = null;
+			return started;
+		},
+		// Where the room could resume the title the host has staged (see roomResumePoint), or null.
+		resumePoint: async () => {
+			const contentId = room?.selectedContentId;
+			if (!api || !room || !contentId) return null;
+			try {
+				return roomResumePoint(await api.memberState(room.roomId, roomToken, [contentId]), contentId);
+			} catch (err) {
+				console.warn('[WatchParty] Reading where members are in the title failed', err);
+				return null;
+			}
+		},
 		stopPlayback: async () => {
+			pendingResume = null;
 			// A stop of the host's own doesn't move on to the next episode.
 			hostStopping = true;
 			const done = await hostAction((a, id) => a.stop(id));

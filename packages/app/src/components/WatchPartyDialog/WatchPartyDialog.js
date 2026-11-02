@@ -7,6 +7,7 @@ import {watchParty, isRoomPlaying, partySource} from '../../services/siloWatchPa
 import useWatchParty from '../../hooks/useWatchParty';
 import useHoldDialogFocus from '../../hooks/useHoldDialogFocus';
 import {isBackKey} from '../../utils/keys';
+import {formatPlaybackDuration} from '../../utils/playbackTimeLabels';
 import {isTvKeyboardVisible} from '../TVKeyboard/keyboardBus';
 import SpottableInput from '../SpottableInput/SpottableInput';
 
@@ -200,6 +201,35 @@ const choiceMatches = (choice, current) => {
 	return Boolean(choice.track) && choice.track.Index === current.index;
 };
 
+// What the host's room knows of where its members are in the staged title, read when the title or who's in the
+// room changes.
+const useResumePoint = (room, playing) => {
+	const [point, setPoint] = useState(null);
+	const contentId = !playing && room.isHost ? room.selectedContentId : null;
+	const who = room.members.filter((m) => m.connected).map((m) => m.profileId).join(',');
+	useEffect(() => {
+		setPoint(null);
+		if (!contentId) return undefined;
+		let live = true;
+		watchParty.resumePoint().then((next) => live && setPoint(next));
+		return () => {
+			live = false;
+		};
+	}, [contentId, who]);
+	return point;
+};
+
+// Whose spot the resume is, and who it takes past the start.
+const resumeHint = (resume, room) => {
+	const name = room.members.find((m) => m.profileId === resume.profileId)?.displayName;
+	const where = name
+		? $L('Where {name} left off, the earliest anyone here has reached.').replace('{name}', name)
+		: $L('The earliest point anyone here has reached.');
+	if (!resume.notStarted) return where;
+	return `${where} ${(resume.notStarted === 1 ? $L("1 person hasn't started it yet.") : $L("{count} people haven't started it yet."))
+		.replace('{count}', String(resume.notStarted))}`;
+};
+
 const RoomView = memo(({party, item, playingItemId}) => {
 	const {room, busy, connected, suggestions, groupSubtitle, groupSubtitlesSupported} = party;
 	const playing = isRoomPlaying(room);
@@ -212,13 +242,24 @@ const RoomView = memo(({party, item, playingItemId}) => {
 		watchParty.setGroupSubtitle(next.track, next.off);
 	}, [choices, at]);
 
+	// Where the room could pick the staged title up, asked again as members come and go.
+	const resume = useResumePoint(room, playing);
+	const startFromTop = useCallback(() => watchParty.startPlayback(0), []);
+	const startResumed = useCallback(() => watchParty.startPlayback(resume?.seconds || 0), [resume]);
+
 	let primary = null;
+	let secondary = null;
 	if (playing && room.isHost) {
 		primary = {label: $L('Back to the lobby'), onClick: watchParty.stopPlayback};
 	} else if (playing && room.selectedContentId !== playingItemId) {
 		primary = {label: $L('Play now'), onClick: watchParty.openPlayer};
 	} else if (!playing && room.isHost && room.selectedContentId) {
-		primary = {label: $L('Start for everyone'), onClick: watchParty.startPlayback};
+		if (resume) {
+			primary = {label: $L('Resume at {time}').replace('{time}', formatPlaybackDuration(resume.seconds)), onClick: startResumed};
+			secondary = {label: $L('Start from the beginning'), onClick: startFromTop};
+		} else {
+			primary = {label: $L('Start for everyone'), onClick: startFromTop};
+		}
 	}
 
 	return (
@@ -248,6 +289,17 @@ const RoomView = memo(({party, item, playingItemId}) => {
 						{primary.label}
 					</SpottableButton>
 				)}
+				{secondary && (
+					<SpottableButton
+						className={`${css.btn} ${css.watchBtn}`}
+						onClick={secondary.onClick}
+						disabled={busy}
+						spotlightId="watchparty-secondary-btn"
+					>
+						{secondary.label}
+					</SpottableButton>
+				)}
+				{secondary && resume && <div className={own.hint}>{resumeHint(resume, room)}</div>}
 			</div>
 
 			{room.isVoting && <VotePanel room={room} suggestions={suggestions} busy={busy} />}
