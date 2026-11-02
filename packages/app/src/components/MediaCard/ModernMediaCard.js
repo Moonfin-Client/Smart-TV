@@ -16,6 +16,7 @@ import {AnimeCardPill} from '../AnimeMarkerPills';
 import IncompleteBadge from '../IncompleteBadge';
 import {isUnownedSeerrTitle, seerrThumbUrl, seerrWideArtUrl, useTmdbThumbsAvailable} from '../../utils/tmdbThumb';
 import useItemMenuHold from '../../hooks/useItemMenuHold';
+import useImageReveal, {markDecoded, pendingArtStyle} from '../../hooks/useImageReveal';
 import {useMediaPreviewSlot} from './MediaPreviewContext';
 
 import css from './ModernMediaCard.module.less';
@@ -68,6 +69,7 @@ const ART_WAIT_MS = 300;
 const ART_MEMORY = 200;
 const loadedArt = new Set();
 const rememberArt = (url) => {
+	markDecoded(url);
 	loadedArt.delete(url);
 	loadedArt.add(url);
 	if (loadedArt.size > ART_MEMORY) loadedArt.delete(loadedArt.values().next().value);
@@ -399,6 +401,8 @@ const ModernMediaCard = ({
 	const imageUrl = closing ? closingUrl : isFocused && (expanded || !canRenderExpanded) ? focusUrl : restingUrl;
 	const showVeil = slides && (isFocused || closing) && Boolean(restingUrl) && !deferImage;
 
+	const {shown: artShown, bind: artBind} = useImageReveal(deferImage ? null : imageUrl);
+
 	const handleImageError = useCallback(() => {
 		if (seerrThumb && imageUrl === seerrThumb) setFailedThumb(seerrThumb);
 	}, [imageUrl, seerrThumb]);
@@ -442,9 +446,11 @@ const ModernMediaCard = ({
 							src={deferImage ? undefined : imageUrl}
 							alt={deferImage ? '' : item?.Name}
 							loading={eagerLoad ? 'eager' : 'lazy'}
+							decoding="async"
 							width={cardWidth}
 							height={imageHeight}
-							style={{height: `${imageHeight}px`}}
+							style={artShown ? {height: `${imageHeight}px`} : {height: `${imageHeight}px`, ...pendingArtStyle}}
+							{...artBind}
 							onError={handleImageError}
 						/>
 						{showVeil && (

@@ -55,20 +55,38 @@ export const cubicBezier = (x1, y1, x2, y2) => {
 // One animation per scroller and axis, since a held key would otherwise stack loops that fight over the offset.
 // Each keeps where it's headed and the last offset it wrote.
 const glides = {x: new WeakMap(), y: new WeakMap()};
+// Every glide under way anywhere, so heavier work can hold off until the screen is still.
+const moving = new Set();
+
+/**
+ * Runs `fn` once no glide is under way, so work that costs frames, like swapping the backdrop,
+ * doesn't land in the middle of one.
+ */
+export const whenStill = (fn) => {
+	if (moving.size === 0) {
+		fn();
+		return;
+	}
+	window.requestAnimationFrame(() => whenStill(fn));
+};
+
+const endGlide = (axis, node, glide) => {
+	window.cancelAnimationFrame(glide.frame);
+	moving.delete(glide);
+	glides[axis].delete(node);
+};
 
 export const stopScrollAnimation = (node) => {
 	['x', 'y'].forEach((axis) => {
 		const glide = glides[axis].get(node);
-		if (glide) window.cancelAnimationFrame(glide.frame);
-		glides[axis].delete(node);
+		if (glide) endGlide(axis, node, glide);
 	});
 };
 
 const animate = (node, axis, target, duration, start, ease = easeOutCubic) => {
 	const {offset} = AXES[axis];
 	const running = glides[axis].get(node);
-	if (running) window.cancelAnimationFrame(running.frame);
-	glides[axis].delete(node);
+	if (running) endGlide(axis, node, running);
 	// A glide under way carries on from the offset it last wrote, whatever the browser's own focus scroll has
 	// done to the node since.
 	const from = running ? running.at : (typeof start === 'number' ? start : node[offset]);
@@ -84,9 +102,10 @@ const animate = (node, axis, target, duration, start, ease = easeOutCubic) => {
 		glide.at = from + distance * ease(t);
 		node[offset] = glide.at;
 		if (t < 1) glide.frame = window.requestAnimationFrame(step);
-		else glides[axis].delete(node);
+		else endGlide(axis, node, glide);
 	};
 	glides[axis].set(node, glide);
+	moving.add(glide);
 	// The first frame goes straight in, so a node the browser scrolled on focus is back where it was before
 	// anything paints.
 	step();

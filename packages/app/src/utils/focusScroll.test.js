@@ -1,5 +1,5 @@
 import {applyPerfTier} from './perfTier';
-import {cubicBezier, glideIntoView, glideScroll, plannedScroll} from './focusScroll';
+import {cubicBezier, glideIntoView, glideScroll, plannedScroll, whenStill} from './focusScroll';
 
 jest.mock('@enact/spotlight', () => ({getPointerMode: () => false}));
 
@@ -30,17 +30,19 @@ describe('focus glides', () => {
 		jest.spyOn(window, 'cancelAnimationFrame').mockImplementation(() => {});
 	});
 
-	afterEach(() => {
-		jest.restoreAllMocks();
-		applyPerfTier(null);
-	});
-
 	const runFor = (ms) => {
 		now += ms;
 		const due = frames;
 		frames = [];
 		due.forEach((fn) => fn());
 	};
+
+	afterEach(() => {
+		// Glides are tracked across the module, so each test lets its own run out.
+		for (let i = 0; i < 10 && frames.length; i++) runFor(1000);
+		jest.restoreAllMocks();
+		applyPerfTier(null);
+	});
 
 	it('jumps on a TV rated low', () => {
 		applyPerfTier('low');
@@ -102,5 +104,21 @@ describe('focus glides', () => {
 			expect(card(x)).toBeGreaterThanOrEqual(previous);
 			previous = card(x);
 		}
+	});
+
+	it('holds work back until every glide has finished', () => {
+		applyPerfTier('high');
+		const idle = jest.fn();
+		whenStill(idle);
+		expect(idle).toHaveBeenCalled();
+
+		glideScroll(lane(0), 'x', 500, 0);
+		const held = jest.fn();
+		whenStill(held);
+		runFor(100);
+		expect(held).not.toHaveBeenCalled();
+		runFor(200);
+		runFor(16);
+		expect(held).toHaveBeenCalled();
 	});
 });
