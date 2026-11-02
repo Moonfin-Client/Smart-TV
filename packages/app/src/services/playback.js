@@ -537,8 +537,11 @@ export const getPlaybackInfo = async (itemId, options = {}) => {
 	const allowDirectStream = playing ? playing.allowDirectStream : options.enableDirectStream !== false;
 	const enableDirectStream = allowDirectStream && options.enableDirectStream !== false;
 
-	// maxBitrate: user-set value (>0), or auto-detect from device capabilities
-	const maxBitrate = options.maxBitrate > 0 ? options.maxBitrate : await autoMaxBitrate(capabilities, creds, !currentSession, api);
+	// maxBitrate: user-set value (>0), or auto-detect from device capabilities. Silo gets only a user-set value:
+	// it fits the stream to the link itself, and a capability ceiling below a file's bitrate rules out a remux
+	// (a Dolby Vision strip to HDR10 among them) for a tone-mapped transcode.
+	const userMaxBitrate = options.maxBitrate > 0 ? options.maxBitrate : null;
+	const maxBitrate = userMaxBitrate || (serverType === 'silo' ? null : await autoMaxBitrate(capabilities, creds, !currentSession, api));
 
 	const requestedStartTime = isLiveTV ? 0 : (options.startPositionTicks || 0);
 	const hasExplicitSubtitle = options.subtitleStreamIndex != null;
