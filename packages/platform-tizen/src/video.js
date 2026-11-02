@@ -140,6 +140,7 @@ export const getSupportedAudioCodecs = (capabilities, _container, passthroughOpt
 	const passthrough = resolvePassthroughSettings(passthroughOptions);
 	const passthroughAllowed = passthrough.passthroughEnabled;
 	const codecs = ['aac', 'mp3', 'flac', 'vorbis', 'pcm', 'wav'];
+	if (capabilities.pcm16) codecs.push('pcm_s16le');
 	// Left alone by the passthrough settings, same as the device profile
 	if (capabilities.ac3) codecs.push('ac3');
 	if (capabilities.eac3) codecs.push('eac3');
@@ -165,6 +166,9 @@ export const isAudioStreamPlayable = (stream, capabilities, passthroughOptions =
 	if (!stream) return false;
 	const codec = (stream.Codec || '').toLowerCase();
 	if (!codec) return true;
+	// Verified LPCM path: 16-bit stereo at up to 48 kHz. Keep 24-bit,
+	// multichannel and higher-rate PCM converting; AVPlay differs from HTML video.
+	if (codec === 'pcm_s16le' && ((stream.Channels || 0) > 2 || (stream.SampleRate || 0) > 48000)) return false;
 	if (DTS_FAMILY_CODECS.includes(codec)) return false;
 	if ((codec === 'truehd' || codec === 'mlp') && streamHasAtmos(stream)) return false;
 	const supported = getSupportedAudioCodecs(capabilities, '', passthroughOptions);
