@@ -10,8 +10,7 @@ const ratingRows = (surface) => ['mdblistEnabled', 'ratingSources', 'showRatingL
 // Settings whose home preview is the media bar rather than the navbar and rows.
 export const MEDIA_BAR_KEYS = ['featuredBarStyle', 'mediaBarOverlayColor', 'mediaBarOverlayOpacity', ...ratingRows('mediaBar')];
 
-// Settings whose home preview holds the first card in focus, since that's where the
-// modern rows draw their ratings.
+// The home rows' own ratings, which the modern rows draw under the focused card.
 export const FOCUSED_CARD_KEYS = ratingRows('homeRows');
 
 export const NAV_BUTTON_KEYS = [
@@ -61,6 +60,7 @@ export const SCENE_BY_KEY = {
 	homeRowsStyle: 'home',
 	homeRowsPosterSize: 'home',
 	fullScreenRows: 'home',
+	hideHomeMediaDescription: 'home',
 	...sceneFor(MEDIA_BAR_KEYS, 'home'),
 	...sceneFor(FOCUSED_CARD_KEYS, 'home'),
 	detailScreenStyle: 'details',

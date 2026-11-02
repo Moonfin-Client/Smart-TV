@@ -25,7 +25,7 @@ jest.mock('../../platform', () => ({getPlatform: () => 'webos'}));
 jest.mock('../Skeleton', () => ({SkeletonHomeRow: () => null, SkeletonRowTitle: () => null}));
 jest.mock('../MediaCard/ModernMediaCard', () => {
 	const React = require('react');
-	return ({item, spotlightId}) => React.createElement('div', {className: 'spottable', tabIndex: -1, 'data-spotlight-id': spotlightId}, item.Name);
+	return ({item, spotlightId, hideOverview}) => React.createElement('div', {className: 'spottable', tabIndex: -1, 'data-spotlight-id': spotlightId, 'data-hide-overview': String(hideOverview)}, item.Name);
 });
 
 const items = Array.from({length: 6}, (_, i) => ({Id: `item${i}`, Name: `Title ${i}`}));
@@ -57,5 +57,13 @@ describe('ModernMediaRow', () => {
 		draw({onFocus});
 		focusCard(0);
 		expect(onFocus).toHaveBeenCalledWith(2);
+	});
+
+	it('hands its cards the choice to hide the description, which shows unless asked', () => {
+		const hidden = () => Array.from(document.querySelectorAll('.spottable')).map((card) => card.getAttribute('data-hide-overview'));
+		const {rerender} = draw();
+		expect(hidden()).toEqual(Array(6).fill('false'));
+		rerender(<ModernMediaRow rowId="trending" title="Trending" items={items} rowIndex={2} hideOverview />);
+		expect(hidden()).toEqual(Array(6).fill('true'));
 	});
 });

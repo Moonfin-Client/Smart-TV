@@ -16,7 +16,7 @@ import {
 	usePreviewPalette
 } from '../../SetupWizard/SetupPreviews';
 import {getPreviewItems} from '../../SetupWizard/setupPreviewData';
-import {FOCUSED_CARD_KEYS, MEDIA_BAR_KEYS, SUBTITLE_HDR_KEYS, sceneOfRow} from './previewRows';
+import {MEDIA_BAR_KEYS, SUBTITLE_HDR_KEYS, sceneOfRow} from './previewRows';
 
 import css from './SettingsLivePreview.module.less';
 
@@ -137,7 +137,7 @@ const SceneView = ({scene, row, hasLiveTv}) => {
 	const railOpen = ['navbarColor', 'navbarOpacity', 'showClock', 'clockDisplay'].indexOf(focusKey) >= 0;
 	return (
 		<>
-			<SettingsHomePreview railOpen={railOpen} focusCard={FOCUSED_CARD_KEYS.indexOf(focusKey) >= 0} hasLiveTv={hasLiveTv} />
+			<SettingsHomePreview railOpen={railOpen} hasLiveTv={hasLiveTv} />
 			{stage === 'screensaver' && <ScreensaverScene />}
 		</>
 	);

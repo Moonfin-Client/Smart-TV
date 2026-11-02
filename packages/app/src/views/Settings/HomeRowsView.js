@@ -64,7 +64,7 @@ const HomeRowsView = ({
 	onLeave
 }) => {
 	useCommitOnLeave(onLeave);
-	const [openGroups, setOpenGroups] = useState(() => new Set(['general']));
+	const [openGroups, setOpenGroups] = useState(() => new Set());
 	const [renderLimit, setRenderLimit] = useState(ROW_RENDER_STEP);
 	const visibleRows = tempHomeRows.filter((row) => isHomeRowVisibleByGates(row, settings, serverHasLiveTv, serverUrl));
 	const enabledRows = visibleRows.filter((row) => row.enabled);
@@ -80,9 +80,10 @@ const HomeRowsView = ({
 		return next;
 	});
 
-	// Nothing here can take focus while the lists load
+	// Nothing here can take focus while the lists load. Once they're in, focus goes to the first
+	// row, since the screen on its own would land on Reset in the title.
 	useEffect(() => {
-		if (!loading) Spotlight.focus('homerows-view');
+		if (!loading) Spotlight.focus(document.querySelector(`[data-spotlight-id="homerows-view"] .${css.listContent} .spottable`) || 'homerows-view');
 	}, [loading]);
 
 	if (loading) {
