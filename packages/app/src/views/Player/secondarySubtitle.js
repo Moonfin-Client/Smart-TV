@@ -3,7 +3,7 @@ import {languageMatches} from '../../utils/audioLanguage';
 import {sortSubtitleStreams} from '../../utils/trackLabels';
 
 const SECONDARY_CODECS = ['srt', 'subrip', 'vtt', 'webvtt'];
-const SECONDARY_DELAY_LIMIT_SECONDS = 5;
+export const SECONDARY_DELAY_LIMIT_SECONDS = 5;
 const TICKS_PER_SECOND = 10000000;
 
 export const DEFAULT_SECONDARY_OFFSET = 8;
