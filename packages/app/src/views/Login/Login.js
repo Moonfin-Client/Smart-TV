@@ -22,6 +22,7 @@ import {CoreAlertDialog} from '../../components/CoreDialog';
 import ProfileCarousel, {PillButton, PillRow} from '../../components/ProfileCarousel';
 import {BRAND_NAMES, ServerTypeIcon} from './loginIcons';
 import {forgottenPinUsername, noteProvedSignIn} from '../../utils/signInPin';
+import {siloNewPasswordIssue, siloNewPasswordMessage} from './siloNewPassword';
 
 import logoAndText from './logo_and_text.png';
 import css from './Login.module.less';
@@ -656,7 +657,8 @@ const Login = ({
 		} catch (err) {
 			setStatus(null);
 			if (err.code === 'password_change_required') {
-				setPasswordChange({minimumLength: err.minimumLength || 0});
+				// The password just typed is the temporary one, which Silo won't take back as the new one.
+				setPasswordChange({minimumLength: err.minimumLength || 0, maximumBytes: err.maximumBytes || 0, temporaryPassword: secret});
 				setPassword('');
 				focusLater('password-input');
 				return false;
@@ -673,6 +675,11 @@ const Login = ({
 	// Replaces the temporary password the sign-in stopped on, then finishes signing in.
 	const changeRequiredPassword = useCallback(async () => {
 		if (!password) return;
+		const issue = siloNewPasswordIssue({newPassword: password, ...passwordChange});
+		if (issue) {
+			setError(siloNewPasswordMessage(issue, passwordChange?.minimumLength));
+			return;
+		}
 		setIsConnecting(true);
 		setError(null);
 		setStatus(isAdding ? $L('Adding user...') : $L('Signing in...'));
@@ -698,7 +705,7 @@ const Login = ({
 			setIsConnecting(false);
 			setStatus(null);
 		}
-	}, [password, isAdding, loginWithToken, server, finishLogin]);
+	}, [password, passwordChange, isAdding, loginWithToken, server, finishLogin]);
 
 	// A Plex Home member signs in with their own plex.tv token, from a switch that checks their PIN, and the server token
 	// plex.tv gives them.

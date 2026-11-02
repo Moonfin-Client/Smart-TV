@@ -175,13 +175,16 @@ export const createSiloApi = ({getBaseUrl, getToken, getUserId, getDeviceInfo, p
 		const capability = password ? await siloRequest(base(), '/api/v2/account/password/capability', {
 			session: opened, profile: false, deviceInfo: getDeviceInfo(), platform
 		}).catch(() => null) : null;
-		if (!capability || capability.allowed === false) {
+		// Silo lets it change here only when it says so, and says so with its state as well, as Moonfin Core reads it.
+		if (!capability || capability.allowed !== true || (capability.state != null && capability.state !== 'available')) {
 			await endLogin(opened);
 			throw Object.assign(siloError(403, {title: 'Silo doesn\'t allow changing this password here'}), {code: 'password_change_unavailable'});
 		}
 		pendingPasswordChange = {opened, account, password};
 		throw Object.assign(siloError(403, {title: 'Silo needs a new password for this account'}), {
-			code: 'password_change_required', minimumLength: capability.minimum_password_length || 0
+			code: 'password_change_required',
+			minimumLength: capability.minimum_password_length || 0,
+			maximumBytes: capability.maximum_password_bytes || 0
 		});
 	};
 
