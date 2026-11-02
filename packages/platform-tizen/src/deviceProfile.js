@@ -79,16 +79,6 @@ const readWebapis = (read, fallback) => {
 	}
 };
 
-// A positive HTML video probe can establish a bounded level increase. Missing,
-// uncertain or throwing APIs retain the existing conservative profile.
-const supportsVideoType = (type) => {
-	try {
-		return document.createElement('video').canPlayType(type) === 'probably';
-	} catch (e) {
-		return false;
-	}
-};
-
 
 /**
  * Get model name from webapis (cached).
@@ -416,10 +406,6 @@ export const getDeviceCapabilities = async () => {
 		dtshd: audioProbe.dtshd,
 		opus: true,
 
-		// Restrict the newly verified PCM-in-MKV path to the S95B family.
-		pcm16: /^(?:(?:QN|QE|QA|GQ)\d{2}S95B|QBQS95$)/.test(modelName) &&
-			supportsVideoType('audio/wav; codecs="1"'),
-
 		// Video codec capabilities
 		hevc: testHevcSupport(),
 		av1: testAv1Support(tizenVersion, modelYear, uhd),
@@ -468,8 +454,7 @@ export const getJellyfinDeviceProfile = async (options = {}) => {
 	// FLAC: Listed in Samsung Music format table (media-specifications.html) as a supported codec
 	// ALAC: Also listed in Music table but omitted here (niche format, m4a container shared with AAC)
 	// NOT supported: DTS (explicitly stated), TrueHD (not documented)
-	const audioCodecs = ['aac', 'mp3', 'flac','vorbis', 'pcm', 'wav'];
-	if (caps.pcm16) audioCodecs.push('pcm_s16le');
+	const audioCodecs = ['aac', 'mp3', 'flac','vorbis', 'pcm', 'wav', 'pcm_s16le'];
 	if (caps.ac3) audioCodecs.push('ac3');
 	if (caps.eac3) audioCodecs.push('eac3');
 	if (caps.opus) audioCodecs.push('opus');
