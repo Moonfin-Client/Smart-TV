@@ -219,10 +219,13 @@ const Details = ({itemId: itemIdProp, initialItem, onPlay, onSelectItem, onSelec
 			return;
 		}
 		const suggested = watchParty.state().room?.isVoting && target.Type === 'Movie';
-		const picked = await watchParty.pick(target);
+		// The version picked on this page, when the title is this page's own and has more than one.
+		const versions = target.Id === item?.Id ? item.MediaSources || [] : [];
+		const version = versions.length > 1 ? (versions[selectedVersionIndex] || versions[0]) : null;
+		const picked = await watchParty.pick(target, version?.Id ? String(version.Id) : null);
 		showToast(!picked ? watchParty.state().error || '' : suggested ? $L('Added to the Watch Party vote') : $L('Picked for the Watch Party'));
 		if (picked) onOpenWatchParty?.();
-	}, [item, watchPartyEpisodeFor, showToast, onOpenWatchParty]);
+	}, [item, selectedVersionIndex, watchPartyEpisodeFor, showToast, onOpenWatchParty]);
 
 	const isLoading = seerrOnly ? seerr.loading : libraryLoading;
 

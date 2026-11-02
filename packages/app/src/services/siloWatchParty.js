@@ -187,7 +187,9 @@ export const createWatchPartyApi = ({call, baseUrl}) => {
 		// The caller picks the room id, so a retry after an uncertain answer gets the same room back.
 		create: async (roomId) => access(await call(rooms, {method: 'POST', body: {room_id: roomId, selection_mode: 'host_pick'}})),
 		join: async (input) => access(await call('/api/v2/watch-together/join', {method: 'POST', body: roomJoinBody(input)})),
-		stage: async (roomId, contentId) => room(await call(`${rooms}/${roomId}/staged-selection`, {method: 'PUT', body: {content_id: contentId}})),
+		// With a file, the room plays that version of the title for everyone.
+		stage: async (roomId, contentId, fileId = null) => room(await call(`${rooms}/${roomId}/staged-selection`,
+			{method: 'PUT', body: {content_id: contentId, ...(fileId ? {file_id: fileId} : null)}})),
 		start: async (roomId) => room(await call(`${rooms}/${roomId}/playback/start`, {method: 'POST'})),
 		stop: async (roomId) => room(await call(`${rooms}/${roomId}/playback/stop`, {method: 'POST'})),
 		setGuestsCanPause: async (roomId, allowed) => room(await call(`${rooms}/${roomId}/policy`,
@@ -758,9 +760,9 @@ export const createWatchParty = ({silo, sync = syncPlay, now = () => Date.now()}
 		}
 	};
 
-	const stage = async (contentId) => {
+	const stage = async (contentId, fileId = null) => {
 		if (!room && !(await enter((a) => a.create(siloNewUuid())))) return false;
-		return hostAction((a, id) => a.stage(id, contentId));
+		return hostAction((a, id) => a.stage(id, contentId, fileId));
 	};
 
 	const setVoting = async (voting) => {
@@ -770,8 +772,8 @@ export const createWatchParty = ({silo, sync = syncPlay, now = () => Date.now()}
 	};
 
 	// Stages after voting was switched off for it. If that fails the vote comes back, so the room has one or the other.
-	const stageOrVoteAgain = async (contentId) => {
-		if (await stage(contentId)) return true;
+	const stageOrVoteAgain = async (contentId, fileId = null) => {
+		if (await stage(contentId, fileId)) return true;
 		const failed = error;
 		await setVoting(true);
 		error = failed;
@@ -836,14 +838,15 @@ export const createWatchParty = ({silo, sync = syncPlay, now = () => Date.now()}
 		join: (input) => enter((a) => a.join(input)),
 		stage,
 		// From a title's page: a movie goes up for the vote in a voting room; anything else is the host's pick, so
-		// voting is switched off for it. Opens a room first when there is none.
-		pick: async (picked) => {
+		// voting is switched off for it. Opens a room first when there is none. `fileId` is the version the host chose
+		// there, which the room then plays; a vote is for the title.
+		pick: async (picked, fileId = null) => {
 			if (room?.isVoting) {
 				if (picked.Type === 'Movie') return suggestMovie(picked);
 				if (!(await setVoting(false))) return false;
-				return stageOrVoteAgain(picked.Id);
+				return stageOrVoteAgain(picked.Id, fileId);
 			}
-			return stage(picked.Id);
+			return stage(picked.Id, fileId);
 		},
 		startPlayback: () => hostAction((a, id) => a.start(id)),
 		stopPlayback: async () => {

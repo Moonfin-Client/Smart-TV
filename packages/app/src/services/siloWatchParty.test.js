@@ -200,6 +200,12 @@ describe('Silo Watch Party room', () => {
 		expect(calls.find((c) => c.path.endsWith('/staged-selection')).body).toEqual({content_id: 'ep2'});
 	});
 
+	test("a pick from a title's page stages the version the host chose there", async () => {
+		await openRoom();
+		expect(await party.pick({Id: 'movie-1', Type: 'Movie'}, '42')).toBe(true);
+		expect(calls.find((c) => c.path.endsWith('/staged-selection')).body).toEqual({content_id: 'movie-1', file_id: '42'});
+	});
+
 	test('a closed room is left with a reason', async () => {
 		await openRoom();
 		frame({type: 'room_closed'});
