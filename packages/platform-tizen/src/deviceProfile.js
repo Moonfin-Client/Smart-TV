@@ -79,6 +79,17 @@ const readWebapis = (read, fallback) => {
 	}
 };
 
+
+// A positive HTML video probe can establish a bounded level increase. Missing,
+// uncertain or throwing APIs retain the existing conservative profile.
+const supportsVideoType = (type) => {
+	try {
+		return document.createElement('video').canPlayType(type) === 'probably';
+	} catch (e) {
+		return false;
+	}
+};
+
 /**
  * Get model name from webapis (cached).
  * Prefers getRealModel() over getModel() for accurate model string.
@@ -592,7 +603,11 @@ export const getJellyfinDeviceProfile = async (options = {}) => {
 	// H.264 Level per Samsung spec tables:
 	// 2018-2019: FHD Level 4.1, UHD Level 5.1
 	// 2020+: FHD Level 4.2, UHD Level 5.1
-	const h264Level = caps.uhd ? '51' : (caps.modelYear >= 2020 ? '42' : '41');
+	// Keep other families unchanged until validated independently.
+	const verifiedLevel52 = /^(?:(?:QN|QE|QA|GQ)\d{2}S95B|QBQS95$)/.test(caps.modelName);
+	const h264Level = caps.uhd
+		? (caps.tizenVersion >= 5 && verifiedLevel52 && supportsVideoType('video/mp4; codecs="avc1.640834"') ? '52' : '51')
+		: (caps.modelYear >= 2020 ? '42' : '41');
 
 	// HEVC Level per Samsung spec tables:
 	// FHD: Level 4.1 (all years)
