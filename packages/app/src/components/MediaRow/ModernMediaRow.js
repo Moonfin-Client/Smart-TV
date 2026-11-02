@@ -11,6 +11,9 @@ import PlaceholderRow from './PlaceholderRow';
 
 import css from './ModernMediaRow.module.less';
 
+// How many cards from a paging row's end focus asks for the next page.
+const LOAD_MORE_AHEAD = 5;
+
 const RowContainer = SpotlightContainerDecorator({
 	enterTo: 'last-focused'
 }, 'div');
@@ -97,7 +100,7 @@ const ModernMediaRow = ({
 		// A row that pages asks for more once focus is among its last few cards.
 		if (onLoadMore && card && card.parentNode) {
 			const index = Array.prototype.indexOf.call(card.parentNode.children, card);
-			if (index >= 0 && index >= itemCount - 3) onLoadMore(rowId);
+			if (index >= 0 && index >= itemCount - LOAD_MORE_AHEAD) onLoadMore(rowId);
 		}
 
 		// A hovered card already sits under the cursor, so nudging the lane

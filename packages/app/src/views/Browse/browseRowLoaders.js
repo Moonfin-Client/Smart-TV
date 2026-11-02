@@ -15,6 +15,7 @@ import {apiSortBy, getGenresIncludeTypes, isPlaylistOrder, resolveSortOrder} fro
 import {collapseLatestTvItems} from '../../utils/latestMediaRowNormalizer';
 import {isPickedRow, isPickedRowShown, isSameServer} from '../../utils/pickedRows';
 import mapBounded from '../../utils/mapBounded';
+import {ROW_MAX_ITEMS, pageableRow} from './rowPaging';
 
 // How many sections from the top load with Home. A picked row below them waits until Home comes
 // near it, so a Home with hundreds of collections doesn't fetch them all up front.
@@ -90,6 +91,13 @@ const expandPlaylistsToItems = async (api, playlists, limit, usePlaylistOrder, s
 	return [].concat(...expanded).slice(0, limit);
 };
 
+// A library's Recently Added, read `limit` cards long. The server's list has no start index, so a
+// longer row is asked for again, and a show's new episodes fold into one card for the series.
+const readLatestHead = (api, lib) => async (limit) => {
+	const latest = await api.getLatest(lib.Id, latestMediaFetchLimitForCollection(lib.CollectionType, limit, ROW_MAX_ITEMS * 2));
+	return {Items: normalizeLatestMediaItems(latest, {collectionType: lib.CollectionType, limit}), hasMore: true};
+};
+
 const loadLatestAndRecentlyReleased = async (ctx) => {
 	const {api, appendRows, eligibleLibraries, settings} = ctx;
 	try {
@@ -160,14 +168,14 @@ const loadLatestAndRecentlyReleased = async (ctx) => {
 				if (items.length > 0) {
 					const libraryTitle = result.lib.Name;
 					const rowId = `latest-${result.lib.Id}`;
-					rows.push({
+					rows.push(pageableRow({
 						id: rowId,
 						title: $L('Recently Added {libraryName}').replace('{libraryName}', libraryTitle),
 						items,
 						library: result.lib,
 						type: result.lib.CollectionType?.toLowerCase() === 'music' ? 'square' : 'portrait',
 						isLatestRow: true
-					});
+					}, {Items: items, hasMore: true}, 16, readLatestHead(api, result.lib)));
 				}
 			}
 		}
@@ -175,14 +183,15 @@ const loadLatestAndRecentlyReleased = async (ctx) => {
 			if (result && result.latest?.Items?.length > 0) {
 				const libraryTitle = result.lib.Name;
 				const rowId = `recently-released-${result.lib.Id}`;
-				rows.push({
+				const lib = result.lib;
+				rows.push(pageableRow({
 					id: rowId,
 					title: $L('Recently Released {libraryName}').replace('{libraryName}', libraryTitle),
 					items: result.latest.Items,
-					library: result.lib,
-					type: result.lib.CollectionType?.toLowerCase() === 'music' ? 'square' : 'portrait',
+					library: lib,
+					type: lib.CollectionType?.toLowerCase() === 'music' ? 'square' : 'portrait',
 					isRecentlyReleasedRow: true
-				});
+				}, result.latest, 16, (limit) => api.getRecentlyReleased(lib.Id, limit, includeItemTypes)));
 			}
 		}
 		appendRows(rows);
@@ -195,21 +204,22 @@ const loadCollections = async (ctx) => {
 	const {api, appendRows, collectionsSortBy, collectionsSortOrder, settings} = ctx;
 	if (!settings.displayCollectionsRows) return;
 	try {
-		const collectionsResult = await scopedGetItems(api, {
+		const readHead = (limit) => scopedGetItems(api, {
 			IncludeItemTypes: 'BoxSet',
 			Recursive: true,
 			SortBy: collectionsSortBy,
 			SortOrder: collectionsSortOrder,
-			Limit: 20,
+			Limit: limit,
 			Fields: `${HOME_ROW_ITEM_FIELDS},DateCreated,PremiereDate,CommunityRating,CriticRating,RunTimeTicks`
-		}).catch(() => null);
+		});
+		const collectionsResult = await readHead(20).catch(() => null);
 		if (collectionsResult?.Items?.length > 0) {
-			appendRows([{
+			appendRows([pageableRow({
 				id: 'collections',
 				title: $L('Collections'),
 				items: collectionsResult.Items,
 				type: 'portrait'
-			}]);
+			}, collectionsResult, 20, readHead)]);
 		}
 	} catch (e) {
 		console.warn('[Browse] Failed to load collections:', e);
@@ -239,17 +249,18 @@ const loadFavorites = async (ctx) => {
 	const {api, appendRows, favoriteSortBy, favoriteSortOrder, settings} = ctx;
 	if (!settings.displayFavoritesRows) return;
 	try {
+		const readFavorites = (rowConfig) => (limit) => scopedGetItems(api, {
+			IncludeItemTypes: rowConfig.includeItemTypes,
+			Filters: 'IsFavorite',
+			SortBy: favoriteSortBy,
+			SortOrder: favoriteSortOrder,
+			Recursive: true,
+			Limit: limit,
+			Fields: HOME_ROW_ITEM_FIELDS
+		});
 		const favoriteResults = await Promise.all(
 			FAVORITE_ROW_CONFIGS.map((rowConfig) =>
-				scopedGetItems(api, {
-					IncludeItemTypes: rowConfig.includeItemTypes,
-					Filters: 'IsFavorite',
-					SortBy: favoriteSortBy,
-					SortOrder: favoriteSortOrder,
-					Recursive: true,
-					Limit: 20,
-					Fields: HOME_ROW_ITEM_FIELDS
-				})
+				readFavorites(rowConfig)(20)
 				.then((result) => ({rowConfig, result}))
 				.catch(() => null)
 			)
@@ -258,12 +269,12 @@ const loadFavorites = async (ctx) => {
 		favoriteResults.filter(Boolean).forEach((favoriteResult) => {
 			const items = favoriteResult?.result?.Items || [];
 			if (items.length === 0) return;
-			rows.push({
+			rows.push(pageableRow({
 				id: favoriteResult.rowConfig.id,
 				title: $L(favoriteResult.rowConfig.title),
 				items,
 				type: favoriteResult.rowConfig.type
-			});
+			}, favoriteResult.result, 20, readFavorites(favoriteResult.rowConfig)));
 		});
 		appendRows(rows);
 	} catch (e) {
@@ -378,13 +389,16 @@ const loadGenres = async (ctx) => {
 
 const loadPlaylistsAndMusic = async (ctx) => {
 	const {api, appendRows, audioAlbumsEnabled, audioArtistsEnabled, audioPlaylistsEnabled, audioRowsSortBy, audioRowsSortOrder, onNowEnabled, playlistsSortBy, playlistsSortOrder, recordingsEnabled, resumeAudioEnabled, settings} = ctx;
+	const readArtists = (limit) => scopedGetItems(api, {IncludeItemTypes: 'MusicArtist', Limit: limit, SortBy: audioRowsSortBy, SortOrder: audioRowsSortOrder, Fields: HOME_ROW_ITEM_FIELDS}, {via: (params) => api.getAlbumArtists(params)});
+	const readAlbums = (limit) => scopedGetItems(api, {IncludeItemTypes: 'MusicAlbum', Recursive: true, SortBy: audioRowsSortBy, SortOrder: audioRowsSortOrder, Limit: limit, Fields: HOME_ROW_ITEM_FIELDS});
+	const readResumeAudio = (limit) => api.getResumeAudioItems(limit);
 	try {
 		const [playlistsResult, audioArtistsResult, audioAlbumsResult, audioPlaylistsResult, resumeAudioResult, recordingsResult, onNowResult] = await Promise.all([
 			settings.displayPlaylistsRows ? api.getPlaylists(playlistsSortBy, playlistsSortOrder).catch(() => null) : Promise.resolve(null),
-			audioArtistsEnabled ? scopedGetItems(api, {IncludeItemTypes: 'MusicArtist', Limit: 20, SortBy: audioRowsSortBy, SortOrder: audioRowsSortOrder, Fields: HOME_ROW_ITEM_FIELDS}, {via: (params) => api.getAlbumArtists(params)}).catch(() => null) : Promise.resolve(null),
-			audioAlbumsEnabled ? scopedGetItems(api, {IncludeItemTypes: 'MusicAlbum', Recursive: true, SortBy: audioRowsSortBy, SortOrder: audioRowsSortOrder, Limit: 20, Fields: HOME_ROW_ITEM_FIELDS}).catch(() => null) : Promise.resolve(null),
+			audioArtistsEnabled ? readArtists(20).catch(() => null) : Promise.resolve(null),
+			audioAlbumsEnabled ? readAlbums(20).catch(() => null) : Promise.resolve(null),
 			audioPlaylistsEnabled ? api.getPlaylists(audioRowsSortBy, audioRowsSortOrder).catch(() => null) : Promise.resolve(null),
-			resumeAudioEnabled ? api.getResumeAudioItems(20).catch(() => null) : Promise.resolve(null),
+			resumeAudioEnabled ? readResumeAudio(20).catch(() => null) : Promise.resolve(null),
 			recordingsEnabled ? api.getLiveTvRecordings().catch(() => null) : Promise.resolve(null),
 			onNowEnabled ? api.getLiveTvAiringPrograms(20).catch(() => null) : Promise.resolve(null)
 		]);
@@ -402,20 +416,20 @@ const loadPlaylistsAndMusic = async (ctx) => {
 			});
 		}
 		if (audioArtistsResult?.Items?.length > 0) {
-			rows.push({
+			rows.push(pageableRow({
 				id: 'audioartists',
 				title: $L('Music Artists'),
 				items: audioArtistsResult.Items,
 				type: 'square'
-			});
+			}, audioArtistsResult, 20, readArtists));
 		}
 		if (audioAlbumsResult?.Items?.length > 0) {
-			rows.push({
+			rows.push(pageableRow({
 				id: 'audioalbums',
 				title: $L('Music Albums'),
 				items: audioAlbumsResult.Items,
 				type: 'square'
-			});
+			}, audioAlbumsResult, 20, readAlbums));
 		}
 		if (audioPlaylistsResult?.Items?.length > 0) {
 			const audioPlaylists = audioPlaylistsResult.Items.filter(item => item.MediaType === 'Audio');
@@ -429,12 +443,12 @@ const loadPlaylistsAndMusic = async (ctx) => {
 			}
 		}
 		if (resumeAudioResult?.Items?.length > 0) {
-			rows.push({
+			rows.push(pageableRow({
 				id: 'resumeaudio',
 				title: $L('Continue Listening'),
 				items: resumeAudioResult.Items,
 				type: 'square'
-			});
+			}, resumeAudioResult, 20, readResumeAudio));
 		}
 		if (recordingsResult?.Items?.length > 0) {
 			rows.push({
@@ -470,13 +484,13 @@ const pickedRowSource = async (ctx, row) => {
 	return {api: createApiForServer(server.url, server.accessToken, server.userId, server.serverType || 'jellyfin'), server};
 };
 
-const loadPickedRowItems = async (ctx, api, row) => {
+const loadPickedRowItems = async (ctx, api, row, limit = PICKED_ROW_LIMIT) => {
 	const {settings} = ctx;
 	// Silo sends a section's whole row at once, in its own order.
 	if (row.source === 'server') return (await api.getServerHomeSectionItems(row.itemId, PICKED_ROW_LIMIT))?.Items || [];
 	if (row.source === 'collections') {
 		return loadCollectionRowItems(api, row.itemId, {
-			limit: PICKED_ROW_LIMIT,
+			limit,
 			usePlaylistOrder: isPlaylistOrder(settings.collectionsRowSortBy),
 			sortBy: ctx.collectionsSortBy,
 			sortOrder: ctx.collectionsSortOrder,
@@ -491,14 +505,14 @@ const loadPickedRowItems = async (ctx, api, row) => {
 			SortBy: ctx.genresSortBy,
 			SortOrder: ctx.genresSortOrder,
 			Recursive: true,
-			Limit: PICKED_ROW_LIMIT,
+			Limit: limit,
 			Fields: HOME_ROW_ITEM_FIELDS
 		});
 		return result?.Items || [];
 	}
 	const playlist = isPlaylistOrder(settings.playlistsRowSortBy)
-		? await api.getPlaylistItems(row.itemId, PICKED_ROW_LIMIT)
-		: await api.getItems({ParentId: row.itemId, SortBy: ctx.playlistsSortBy, SortOrder: ctx.playlistsSortOrder, Limit: PICKED_ROW_LIMIT, Fields: HOME_ROW_ITEM_FIELDS});
+		? await api.getPlaylistItems(row.itemId, limit)
+		: await api.getItems({ParentId: row.itemId, SortBy: ctx.playlistsSortBy, SortOrder: ctx.playlistsSortOrder, Limit: limit, Fields: HOME_ROW_ITEM_FIELDS});
 	const items = playlist?.Items || [];
 	return settings.playlistsRowShowEpisodes ? items : collapseLatestTvItems(items);
 };
@@ -507,26 +521,28 @@ const fetchPluginSectionRow = async (ctx, row) => {
 	try {
 		const source = await pickedRowSource(ctx, row);
 		if (!source) return null;
-		const items = await loadPickedRowItems(ctx, source.api, row);
-		if (items.length === 0) return null;
 		const {server} = source;
-		return {
+		const tagged = (items) => (server
+			? items.map((item) => ({
+				...item,
+				_serverId: server.serverId,
+				_serverName: server.name,
+				_serverUrl: server.url,
+				_serverUserId: server.userId,
+				_serverAccessToken: server.accessToken,
+				_serverType: server.serverType || 'jellyfin'
+			}))
+			: items);
+		const readHead = async (limit) => ({Items: tagged(await loadPickedRowItems(ctx, source.api, row, limit))});
+		const first = await readHead(PICKED_ROW_LIMIT);
+		if (first.Items.length === 0) return null;
+		return pageableRow({
 			id: row.id,
 			title: row.name,
-			items: server
-				? items.map((item) => ({
-					...item,
-					_serverId: server.serverId,
-					_serverName: server.name,
-					_serverUrl: server.url,
-					_serverUserId: server.userId,
-					_serverAccessToken: server.accessToken,
-					_serverType: server.serverType || 'jellyfin'
-				}))
-				: items,
+			items: first.Items,
 			type: 'portrait',
 			isPluginRow: true
-		};
+		}, first, PICKED_ROW_LIMIT, readHead);
 	} catch (_error) {
 		return null;
 	}
