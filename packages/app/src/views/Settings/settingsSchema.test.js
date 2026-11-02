@@ -242,10 +242,10 @@ describe('settings schema', () => {
 });
 
 describe('the details screen style', () => {
-	test('a search for Stage finds the style setting', () => {
+	test.each(['Stage', 'Premiere'])('a search for %s finds the style setting', (name) => {
 		const index = buildSettingsIndex(SETTINGS_SCHEMA, ctx, {resolve, spotlightIdOf});
 
-		expect(matchSettings(index, 'Stage').map((entry) => entry.spotlightId)).toContain('setting-detailScreenStyle');
+		expect(matchSettings(index, name).map((entry) => entry.spotlightId)).toContain('setting-detailScreenStyle');
 	});
 });
 

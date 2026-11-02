@@ -38,6 +38,10 @@ const TRACK_BUTTONS = ['version', 'audio', 'subtitles'];
 // sit under it as circles. The host then decides where focus goes out of it, through
 // onNavigateUp off the first button, onNavigateDown off the circles and onRightEdge off the first
 // button or the last circle. Without onRightEdge the row reads left to right as usual.
+//
+// `centered` is Premiere's row under its centered title: a labeled first button and the circles
+// beside it, each showing its label under it while focused. In a plain or centered row,
+// onNavigateUp and onNavigateDown take Up and Down off any button.
 const ModernActionButtons = (props) => {
 	// Only what the row itself needs. Everything the buttons are built from is read straight off
 	// props by the catalogue.
@@ -46,7 +50,7 @@ const ModernActionButtons = (props) => {
 		hasPlaybackPosition, resumeTimeText, hasTech,
 		handlePlay, handleResume, handleOpenExtras,
 		onFocusRow, downTarget, maxVisibleButtons, overflowAsMenu, menuBackRef,
-		stacked, omitTrackButtons, buttonCap, onNavigateUp, onNavigateDown, onRightEdge
+		stacked, centered, omitTrackButtons, buttonCap, onNavigateUp, onNavigateDown, onRightEdge
 	} = props;
 
 	const [menuOpen, setMenuOpen] = useState(false);
@@ -101,6 +105,13 @@ const ModernActionButtons = (props) => {
 	}, [settings.navbarPosition, onNavigateUp, onNavigateDown, onRightEdge]);
 
 	const handleKeyDown = useCallback((ev) => {
+		const handOff = ev.keyCode === KEYS.UP ? onNavigateUp : ev.keyCode === KEYS.DOWN ? onNavigateDown : null;
+		if (handOff) {
+			ev.preventDefault();
+			ev.stopPropagation();
+			handOff();
+			return;
+		}
 		if (ev.keyCode === KEYS.DOWN) {
 			// Down moves to whatever sits under the row, which 5-way does not reach on its own.
 			if (downTarget && Spotlight.focus(downTarget)) {
@@ -143,7 +154,7 @@ const ModernActionButtons = (props) => {
 			ev.preventDefault();
 			ev.stopPropagation();
 		}
-	}, [settings.navbarPosition, downTarget]);
+	}, [settings.navbarPosition, downTarget, onNavigateUp, onNavigateDown]);
 
 	const catalogue = detailActionCatalogue(props);
 	const offered = omitTrackButtons ? catalogue.filter((btn) => !TRACK_BUTTONS.includes(btn.id)) : catalogue;
@@ -186,7 +197,7 @@ const ModernActionButtons = (props) => {
 	return (
 		<>
 			<RowContainer
-				className={stacked ? css.actionsStacked : `${css.actions} ${hasTech ? css.actionsTight : ''}`}
+				className={stacked ? css.actionsStacked : centered ? css.actionsCentered : `${css.actions} ${hasTech ? css.actionsTight : ''}`}
 				spotlightId="details-action-buttons"
 				onFocus={handleRowFocus}
 				onKeyDown={stacked ? handleStackedKeyDown : handleKeyDown}
@@ -195,8 +206,8 @@ const ModernActionButtons = (props) => {
 					<ActionButton
 						primary
 						path={DETAIL_ICON_PATHS.play}
-						label={stacked ? $L('Resume from {position}').replace('{position}', resumeTimeText) : $L('Resume')}
-						detail={stacked ? null : resumeTimeText}
+						label={stacked || centered ? $L('Resume from {position}').replace('{position}', resumeTimeText) : $L('Resume')}
+						detail={stacked || centered ? null : resumeTimeText}
 						onClick={handleResume}
 						spotlightId="details-primary-btn"
 					/>

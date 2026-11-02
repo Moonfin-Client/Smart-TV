@@ -6,10 +6,10 @@ import css from './MinimalistCards.module.less';
 //
 // The number sits on the artwork rather than in front of the title, so anyone who cannot read the
 // title still has something to count along by.
-// `large` is the same card at Stage's size.
-const MinimalistEpisodeCard = ({imageUrl, title, number, watched, current, width, imageHeight, selectKey, onSelect, large}) => (
+// `large` is the same card at Stage's size, and `wide` a large one with room for a bigger title.
+const MinimalistEpisodeCard = ({imageUrl, title, number, watched, current, width, imageHeight, selectKey, onSelect, large, wide}) => (
 	<SpottableDiv
-		className={`${css.card} ${current ? css.current : ''} ${large ? css.large : ''}`}
+		className={`${css.card} ${current ? css.current : ''} ${large ? css.large : ''} ${wide ? css.wide : ''}`}
 		style={{width: `${width}px`}}
 		data-select-key={selectKey}
 		onClick={onSelect}

@@ -64,6 +64,7 @@ import SpotlightDetailContent from './spotlight/SpotlightDetailContent';
 import NouveauDetailContent from './nouveau/NouveauDetailContent';
 import MinimalistDetailContent from './minimalist/MinimalistDetailContent';
 import StageDetailContent from './stage/StageDetailContent';
+import PremiereDetailContent from './premiere/PremiereDetailContent';
 import PersonScreen from './PersonScreen';
 import PersonDisplayDialog from './PersonDisplayDialog';
 import {offersFavorite} from './personFavorite';
@@ -77,7 +78,9 @@ import css from './Details.module.less';
 
 // Every style past Classic takes the same contract, so the setting only decides which of them
 // draws the screen.
-const DETAIL_CONTENT = {v3: SpotlightDetailContent, v4: NouveauDetailContent, v5: MinimalistDetailContent, v6: StageDetailContent};
+const DETAIL_CONTENT = {
+	v3: SpotlightDetailContent, v4: NouveauDetailContent, v5: MinimalistDetailContent, v6: StageDetailContent, v7: PremiereDetailContent
+};
 // The missing titles already ride in the list a collection's page is handed.
 const NO_ITEMS = [];
 
@@ -1192,7 +1195,7 @@ const Details = ({itemId: itemIdProp, initialItem, onPlay, onSelectItem, onSelec
 	);
 
 	if (settings.detailScreenStyle !== 'v1') {
-		// Spotlight, Minimalist, Nouveau and Stage have no track list, so a playlist always gets Modern's.
+		// Spotlight, Minimalist, Nouveau, Stage and Premiere have no track list, so a playlist always gets Modern's.
 		const DetailContent = (item.Type !== 'Playlist' && DETAIL_CONTENT[settings.detailScreenStyle]) || ModernDetailContent;
 		return (
 			<div className={css.page}>

@@ -206,7 +206,25 @@ const Stage = ({sidebar}) => (
 	</div>
 );
 
-const LAYOUTS = {v1: Classic, v2: Modern, v3: Spotlight, v4: Nouveau, v5: Minimalist, v6: Stage};
+// The title block centered low on the first screen, with Play and the circles under it.
+const Premiere = ({sidebar}) => (
+	<div
+		className={css.content}
+		style={{display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-end', padding: `0 ${rem(154)} ${rem(90)} ${rem(sidebar ? 200 : 154)}`}}
+	>
+		<Box width={701} height={93.5} />
+		<Gap size={23.4} />
+		<Box width={501} height={26.7} radius={4} />
+		<Gap size={23.4} />
+		<Box width={1035} height={23.4} radius={4} />
+		<Gap size={13.4} />
+		<Box width={701} height={23.4} radius={4} />
+		<Gap size={33.4} />
+		<Boxes widths={[250, 83.5, 83.5, 83.5, 83.5]} height={83.5} gap={20} radius={41.75} />
+	</div>
+);
+
+const LAYOUTS = {v1: Classic, v2: Modern, v3: Spotlight, v4: Nouveau, v5: Minimalist, v6: Stage, v7: Premiere};
 
 // Placeholders laid out like the chosen details style while the item loads, so the page fills
 // in where they stood.

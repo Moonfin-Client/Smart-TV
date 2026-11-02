@@ -22,19 +22,22 @@ const CARD_GAP = 20;
 // Stage draws the same rail at its own size, where the pick follows focus along the tabs like Core.
 const LARGE_CARD_WIDTH = 350;
 const LARGE_CARD_GAP = 34;
+// Core steps its card title up a size from this width.
+const WIDE_CARD = 400;
 
 // Season tabs over a rail of episodes, and nothing else. The flow is one way on purpose: a tab picks
 // the season and the rail follows.
 //
 // A host that lays other sections around this one passes where Up and Down leave it, and what Left
-// off the first episode reaches, and how far the rail runs on into the margin on its right.
+// off the first episode reaches, and how far the rail runs on into the margin on its right. A large
+// rail can be given its own card width for the room its host has.
 const MinimalistEpisodes = ({
 	item, settings, serverUrl, seasons = [], episodes = [], seriesEpisodes = [], onSelectEpisode,
-	onNavigateUp, onNavigateDown, onLeftEdge, bleedRight, large = false
+	onNavigateUp, onNavigateDown, onLeftEdge, bleedRight, large = false, cardWidth: largeWidth = LARGE_CARD_WIDTH
 }) => {
 	// The large cards follow the root font the stylesheets scale with, since they're sized here.
 	const scale = large ? rootScale() : 1;
-	const cardWidth = large ? Math.round(LARGE_CARD_WIDTH * scale) : CARD_WIDTH;
+	const cardWidth = large ? Math.round(largeWidth * scale) : CARD_WIDTH;
 	const cardGap = large ? Math.round(LARGE_CARD_GAP * scale) : CARD_GAP;
 
 	const [pickedSeason, setPickedSeason] = useState(null);
@@ -84,8 +87,9 @@ const MinimalistEpisodes = ({
 			selectKey={episode.Id}
 			onSelect={handleSelect}
 			large={large}
+			wide={large && largeWidth >= WIDE_CARD}
 		/>
-	), [serverUrl, settings, handleSelect, item.Type, item.Id, cardWidth, large]);
+	), [serverUrl, settings, handleSelect, item.Type, item.Id, cardWidth, large, largeWidth]);
 
 	if (!seasonEpisodes.length) return null;
 

@@ -32,6 +32,8 @@ import {DETAIL_ICON_PATHS} from '../Details/detailIcons';
 import {getMediaBadges} from '../Details/detailsMedia';
 import {minimalistScrimAlpha} from '../Details/minimalist/minimalistRules';
 import {STAGE_BUTTON_CAP, stageScrimAlpha} from '../Details/stage/stageRules';
+import {premiereDim, premiereScrim} from '../Details/premiere/premiereRules';
+import {scrimStyle} from '../../utils/scrimImage';
 import {splitNouveauActions} from '../Details/nouveau/nouveauActionSplit';
 import {personalRatingIconPath, personalRatingLabel} from '../Details/personalRatingAction';
 import {materialIconPath} from '../Settings/materialIconMap';
@@ -219,7 +221,8 @@ const Artwork = ({url, position = 'center center', imgStyle, t}) => {
 
 const ALIGN_STYLES = {
 	bottomLeft: {alignItems: 'flex-end', justifyContent: 'flex-start', objectPosition: 'left bottom', textAlign: 'left'},
-	topLeft: {alignItems: 'flex-start', justifyContent: 'flex-start', objectPosition: 'left top', textAlign: 'left'}
+	topLeft: {alignItems: 'flex-start', justifyContent: 'flex-start', objectPosition: 'left top', textAlign: 'left'},
+	bottomCenter: {alignItems: 'flex-end', justifyContent: 'center', objectPosition: 'center bottom', textAlign: 'center'}
 };
 
 // The item's logo when it has one, its title otherwise, matching how the real
@@ -1138,11 +1141,12 @@ const SAMPLE_ACTIONS = DETAIL_BUTTONS.filter((button) => SAMPLE_ACTION_LOOKS[but
 // The film's buttons after Play in the viewer's order, split the way [variant]'s row splits
 // them. Spotlight and Minimalist cap the row at five, Nouveau keeps its own short rule, and
 // Classic and Modern only fold anything away once the viewer sets a count. Stage caps at five, which
-// the count can lower but never lift, and draws the subtitle picker as a chip instead.
+// the count can lower but never lift, and draws the subtitle picker as a chip instead. Premiere
+// draws it as a chip too, and on Auto caps at six.
 const detailActions = (variant, settings) => {
 	const stage = variant === 'v6';
 	const offered = arrange(SAMPLE_ACTIONS, {order: settings[DETAIL_ORDER_KEY], hidden: settings[DETAIL_HIDDEN_KEY]})
-		.filter((button) => !stage || button.id !== 'subtitles');
+		.filter((button) => !(stage || variant === 'v7') || button.id !== 'subtitles');
 	const prefLimit = settings.detailButtonsMaxVisible ?? 0;
 	let inline = offered;
 	let more = false;
@@ -1151,12 +1155,12 @@ const detailActions = (variant, settings) => {
 		inline = split.inline;
 		more = split.overflow.length > 0;
 	} else {
-		const capped = variant === 'v3' || variant === 'v5';
+		const cap = {v3: 5, v5: 5, v7: 6}[variant] || 0;
 		const {visibleCount, needsOverflow} = countSplit({
 			totalButtons: 1 + offered.length,
 			...(stage
 				? {maxVisible: prefLimit > 0 ? Math.min(prefLimit + 1, STAGE_BUTTON_CAP) : STAGE_BUTTON_CAP, overflowAsMenu: true, countCapped: true}
-				: applyButtonLimit(prefLimit, {maxVisible: capped ? 5 : 0, overflowAsMenu: capped, countCapped: capped}))
+				: applyButtonLimit(prefLimit, {maxVisible: cap, overflowAsMenu: cap > 0, countCapped: cap > 0}))
 		});
 		if (needsOverflow) {
 			inline = offered.slice(0, Math.max(0, visibleCount - 1));
@@ -1819,9 +1823,63 @@ const StageDetail = ({items, t}) => {
 	);
 };
 
+// The title centered over a backdrop that fills the screen, with play and the circles under it and
+// an arrow hinting at the sections further down.
+const PremiereDetail = ({items, t}) => {
+	const {settings, activeTheme} = useSettings();
+	const item = items[0];
+	const meta = detailMeta(item, settings).map((piece) => piece.text).join(' \u2022 ');
+	const actions = detailActions('v7', settings);
+	const circles = [...actions.inline.map((action) => action.path), ...(actions.more ? [DETAIL_ICON_PATHS.moreHoriz] : [])];
+	const base = toRgbTriplet(activeTheme.colors.background);
+	const scrim = premiereScrim(base, premiereDim(settings.backdropBlurDetail));
+	return (
+		<div style={{position: 'relative', width: '100%', height: '100%', backgroundColor: `rgb(${base})`}}>
+			{settings.detailsBackdropEnabled !== false && <Artwork url={item.backdropUrl} position='center top' t={t} />}
+			<div style={{...ABS_FILL, ...scrimStyle(scrim)}} />
+			<div style={{...ABS_FILL, overflow: 'hidden', padding: '0 77px 10px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-end', textAlign: 'center'}}>
+				<LogoOrTitle item={item} width={434} height={119} alignment='bottomCenter' fallbackStyle={{fontSize: 50, fontWeight: 700, letterSpacing: 3.3, textTransform: 'uppercase', color: t.onSurface}} />
+				{meta && <div style={{marginTop: 10, fontSize: 13, fontWeight: 700, color: t.onSurface}}>{meta}</div>}
+				{item.overview && (
+					<div style={{marginTop: 8, maxWidth: 634, fontSize: 12, lineHeight: 1.5, color: t.onSurfaceA(0.82), ...clampLines(3)}}>
+						{item.overview}
+					</div>
+				)}
+				<div style={{marginTop: 18, paddingBottom: 18, display: 'flex', alignItems: 'center'}}>
+					<div style={{height: 45, padding: '0 13px 0 5px', borderRadius: 22.5, backgroundColor: t.accent, display: 'flex', alignItems: 'center'}}>
+						<div style={{width: 42, display: 'flex', justifyContent: 'center'}}><MIcon name='play_arrow' size={20} color={t.onAccent} /></div>
+						<div style={{marginLeft: 5, fontSize: 11, fontWeight: 700, color: t.onAccent}}>{$L('Play')}</div>
+					</div>
+					{circles.map((path, i) => (
+						<div key={i} style={{width: 43, height: 43, marginLeft: 6.7, borderRadius: '50%', border: `1.25px solid ${t.onSurfaceA(0.35)}`, backgroundColor: 'rgba(255, 255, 255, 0.06)', display: 'flex', alignItems: 'center', justifyContent: 'center'}}>
+							<MIcon path={path} size={20} color={t.onSurface} />
+						</div>
+					))}
+				</div>
+				<div style={{marginTop: 10}}>
+					<MIcon name='keyboard_arrow_down' size={25} color={t.onSurfaceA(0.65)} />
+				</div>
+			</div>
+		</div>
+	);
+};
+
 const FallbackDetail = ({variant, t}) => {
 	const strong = t.onSurfaceA(0.78);
 	const weak = t.onSurfaceA(0.3);
+	if (variant === 'v7') {
+		return (
+			<div style={{width: '100%', height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-end', padding: 10, ...fallBackdrop(t)}}>
+				<FallBar width={60} height={9} color={strong} />
+				<FallBar width={44} height={5} color={weak} style={{marginTop: 5}} />
+				<div style={{marginTop: 5, display: 'flex'}}>
+					<FallBar width={26} height={8} color={strong} />
+					<FallBar width={8} height={8} color={weak} style={{marginLeft: 4}} />
+					<FallBar width={8} height={8} color={weak} style={{marginLeft: 4}} />
+				</div>
+			</div>
+		);
+	}
 	if (variant === 'v6') {
 		return (
 			<div style={{width: '100%', height: '100%', display: 'flex', padding: 10, ...fallBackdrop(t)}}>
@@ -1937,6 +1995,7 @@ export const DetailStylePreview = ({variant}) => {
 		if (variant === 'v4') return <NouveauDetail items={items} t={t} />;
 		if (variant === 'v5') return <MinimalistDetail items={items} t={t} />;
 		if (variant === 'v6') return <StageDetail items={items} t={t} />;
+		if (variant === 'v7') return <PremiereDetail items={items} t={t} />;
 		return <ModernDetail items={items} t={t} />;
 	}, [variant, t, hideDescription]);
 	return <LivePreview render={render} fallback={<FallbackDetail variant={variant} t={t} />} />;

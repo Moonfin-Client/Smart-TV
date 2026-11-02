@@ -279,6 +279,7 @@ export const getDetailScreenStyleOptions = () => [
 	{ value: 'v4', label: $L('Nouveau') },
 	{ value: 'v5', label: $L('Minimalist') },
 	{ value: 'v6', label: $L('Stage') },
+	{ value: 'v7', label: $L('Premiere') },
 	{ value: 'v1', label: $L('Classic') }
 ];
 

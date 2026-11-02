@@ -622,3 +622,13 @@
 .seerrBlock > * + * {
 	margin-top: 18px;
 }
+
+// Premiere's panel, where each cell's width follows how much text it holds, lays the names side by
+// side and wraps them, the way Core does. Kept last so it wins over the stacked names above.
+.weighed .cellNames {
+	.flex-wrap-gap(13.4px);
+	flex-direction: row;
+	flex-wrap: wrap;
+	justify-content: center;
+	margin-top: 13px;
+}
