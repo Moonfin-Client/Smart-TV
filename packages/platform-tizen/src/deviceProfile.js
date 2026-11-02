@@ -79,11 +79,12 @@ const readWebapis = (read, fallback) => {
 	}
 };
 
-// A positive HTML video probe can establish a bounded level increase. Missing,
-// uncertain or throwing APIs retain the existing conservative profile.
+// Match Jellyfin's accepted canPlayType responses. An empty/negative response
+// or an unavailable API retains the existing fallback.
 const supportsVideoType = (type) => {
 	try {
-		return document.createElement('video').canPlayType(type) === 'probably';
+		const result = document.createElement('video').canPlayType(type);
+		return result === 'probably' || result === 'maybe';
 	} catch (e) {
 		return false;
 	}
@@ -614,11 +615,12 @@ export const getJellyfinDeviceProfile = async (options = {}) => {
 	if (caps.uhd8K) {
 		hevcLevel = '183'; // Level 6.1 (6.1 * 30 = 183 in Jellyfin encoding)
 	} else if (caps.uhd) {
-		// Keep other families unchanged until validated independently.
-		const verifiedLevel52 = /^(?:(?:QN|QE|QA|GQ)\d{2}S95B|QBQS95$)/.test(caps.modelName);
-		// Keep 5.1 unless the media API positively confirms Main10 level 5.2.
-		hevcLevel = verifiedLevel52 && (supportsVideoType('video/mp4; codecs="hvc1.2.4.L156"') ||
-			supportsVideoType('video/mp4; codecs="hev1.2.4.L156"')) ? '156' : '153';
+		// A positive Main10 probe at this or a higher level establishes 5.2.
+		// Jellyfin probes 6.1/6.2; some media APIs omit the intermediate 5.2 result.
+		const supportsLevel52 = ['hvc1', 'hev1'].some(codec =>
+			['156', '183', '186'].some(level =>
+				supportsVideoType(`video/mp4; codecs="${codec}.2.4.L${level}"`)));
+		hevcLevel = supportsLevel52 ? '156' : '153';
 	} else {
 		hevcLevel = '123'; // Level 4.1
 	}
