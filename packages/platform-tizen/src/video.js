@@ -194,7 +194,7 @@ export const getPlayMethod = (mediaSource, capabilities, _options, passthroughOp
 	const videoStream = mediaSource.MediaStreams?.find(s => s.Type === 'Video');
 
 	const videoCodec = (videoStream?.Codec || '').toLowerCase();
-	const supportedVideoCodecs = ['h264', 'avc'];
+	const supportedVideoCodecs = ['h264', 'avc', 'mpeg2video'];
 	if (capabilities.hevc) supportedVideoCodecs.push('hevc', 'h265', 'hev1', 'hvc1');
 	if (capabilities.av1) supportedVideoCodecs.push('av1');
 	if (capabilities.vp9) supportedVideoCodecs.push('vp9');
