@@ -144,7 +144,8 @@ export const setServerTimeOffset = (ms) => {
 };
 
 // The playing player, for a room that reports its position on its own schedule. `sample()` is title time, as
-// sendReadyRequest takes it; `sessionId()` the playback session; `isBuffering()` a stall.
+// sendReadyRequest takes it; `sessionId()` the playback session; `isBuffering()` a stall; `seekPending()` a group
+// seek still landing.
 export const attachPlayer = (next) => {
 	player = next;
 	return () => {

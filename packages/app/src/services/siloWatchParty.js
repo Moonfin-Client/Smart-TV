@@ -344,7 +344,7 @@ export const createWatchParty = ({silo, sync = syncPlay, now = () => Date.now()}
 		if (readyPending()) {
 			const near = lastCommand.action !== 'seek' ||
 				Math.abs(positionSeconds() - lastCommand.positionSeconds) <= (room.isHost ? 15 : 1);
-			if (appliedCommandId === lastCommand.commandId && near && !buffering) {
+			if (appliedCommandId === lastCommand.commandId && near && !buffering && !player()?.seekPending?.()) {
 				// A waiting room takes readiness on a state report, so a lost ready heals on the next tick.
 				send({type: 'state_report', session_id: session, command_id: lastCommand.commandId,
 					position_seconds: positionSeconds(), is_paused: isPaused(), is_ready: true});

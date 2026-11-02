@@ -5,7 +5,9 @@
 // converges, each aimed ahead of the room by the time the previous one took, up to 10 s. A set that can land a seek
 // short of its target (on the keyframe before it) misses by more than its load time, so a catch-up's own miss moves the
 // aim for the next one as well: by half of it, since where a seek lands varies by seconds from one to the next, and
-// following each miss in full swings the aim from one side of the room to the other.
+// following each miss in full swings the aim from one side of the room to the other. A catch-up that landed behind
+// never aims shorter than its own load took, though: from no lead at all, half a miss at a time took five catch-ups
+// and two minutes to close a gap one aim at the load time would have.
 
 export const MAX_LOAD_LEAD_MS = 10000;
 export const FIRST_LOAD_WAIT_MS = 10000;
@@ -45,7 +47,12 @@ export const createLoadBudget = () => {
 		onPlaying: (nowMs, missedMs = null) => {
 			if (startedAt == null || playingAt != null) return;
 			playingAt = nowMs;
-			const next = missedMs == null ? nowMs - startedAt : leadMs - missedMs * MISS_GAIN;
+			const tookMs = nowMs - startedAt;
+			let next = tookMs;
+			if (missedMs != null) {
+				next = leadMs - missedMs * MISS_GAIN;
+				if (missedMs < 0) next = Math.max(next, tookMs);
+			}
 			leadMs = Math.min(MAX_LOAD_LEAD_MS, Math.max(0, Math.round(next)));
 		},
 		// Caught up: the next load the room asks for runs at once. The lead is kept, since the media loads no faster.

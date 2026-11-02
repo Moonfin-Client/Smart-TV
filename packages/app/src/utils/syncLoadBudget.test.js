@@ -28,6 +28,18 @@ describe('createLoadBudget', () => {
 		expect(budget.leadMs()).toBe(3250);
 	});
 
+	test('a catch-up that landed behind aims at least as far ahead as it took to load', () => {
+		const budget = createLoadBudget();
+		// No lead yet, a 2 s load, landed 2 s behind: half the miss would aim only 1 s ahead.
+		budget.onStart(0);
+		budget.onPlaying(2000, -2000);
+		expect(budget.leadMs()).toBe(2000);
+		// Ahead is still backed off by half: the load time is no floor then.
+		budget.onStart(20000);
+		budget.onPlaying(21000, 1000);
+		expect(budget.leadMs()).toBe(1500);
+	});
+
 	test('the lead is capped', () => {
 		const budget = createLoadBudget();
 		budget.onStart(0);

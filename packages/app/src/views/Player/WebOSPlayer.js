@@ -62,6 +62,9 @@ import useLiveRecording from './useLiveRecording';
 import useHeldSeekStep from './useHeldSeekStep';
 import {createServerSeek} from './serverSeek';
 import {copyBufferSeconds} from './copyBuffer';
+import {copyReaches} from './copySeek';
+import {bufferedAheadSeconds, createStarveWatch, CUSHION_MAX_MS, CUSHION_SECONDS} from '../../utils/syncStarve';
+import {loadStartLeadMs, nextStartLeadMs, saveStartLeadMs, startDelayMs as groupStartDelayMs, startGapMs, START_STALL_MS} from '../../utils/syncStartLead';
 import useSiloStreamRenewal from './useSiloStreamRenewal';
 import useStreamReconnect from './useStreamReconnect';
 import useMediaSession from './useMediaSession';
@@ -130,6 +133,18 @@ const getWebOSFullscreenRect = () => {
 // A burst of arrow presses on the seek bar becomes one group seek, since every
 // request puts the whole group through a round of buffering.
 const GROUP_SEEK_DEBOUNCE_MS = 600;
+// How long this set takes from play() to moving (utils/syncStartLead.js). It's the set's own, so it carries over
+// from one title to the next and across launches, and the first start of a title, the one everyone watches
+// together, begins early too.
+let learnedStartLeadMs = loadStartLeadMs();
+// How long a seek inside the stream this set already has takes to play, learned the same way: a Watch Party catch-up
+// there aims that far ahead, or every one lands short by it and the room corrects again ten seconds later.
+let learnedLocalSeekMs = 0;
+// With no lead yet, the start it's learned on runs late by it. A set that may pause the room pauses and resumes it
+// once, this long after, so the room starts over with the lead.
+const START_RESYNC_RESUME_MS = 1500;
+// A lead smaller than this isn't worth stopping everyone for.
+const START_RESYNC_MIN_LEAD_MS = 250;
 // A seek that hasn't played by then isn't going to, and stops holding the next one back.
 const SEEK_FLIGHT_TIMEOUT_MS = 15000;
 
@@ -274,6 +289,21 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 	// asked for, can then land short of it on a keyframe, and drops a seek asked for before the last one has played,
 	// so a seek counts as done only once its position has moved steadily forward.
 	const seekInFlightRef = useRef(null);
+	// A group start being timed: when play() was called and from where (ms).
+	const startTimingRef = useRef(null);
+	const startResyncTimerRef = useRef(null);
+	useEffect(() => () => clearTimeout(startResyncTimerRef.current), []);
+	// A Watch Party stream arriving slower than it plays (utils/syncStarve.js), and the wait for it to build up.
+	const starveWatchRef = useRef(createStarveWatch());
+	const cushionRef = useRef(null);
+	const endCushion = useCallback((playOn) => {
+		const cushion = cushionRef.current;
+		if (!cushion) return;
+		clearInterval(cushion.timer);
+		cushionRef.current = null;
+		if (playOn) videoRef.current?.play()?.catch?.(() => {});
+	}, []);
+	useEffect(() => () => endCushion(false), [endCushion]);
 	// A pause the set is sitting out to let the group catch up.
 	const syncWaitTimerRef = useRef(null);
 	const cancelSyncWait = useCallback(() => {
@@ -308,10 +338,15 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 		sessionId: () => playSessionRef.current,
 		// A player held paused never moves, which is what clears stalledRef, so paused it counts as playable once it has
 		// the data to start.
+		// Waiting for the stream to build up is a stall: no reports, and one that lasts pauses the room.
 		isBuffering: () => {
 			const video = videoRef.current;
-			return !video || (video.paused ? video.readyState < 3 : stalledRef.current);
-		}
+			if (!video || cushionRef.current) return true;
+			return video.paused ? video.readyState < 3 : stalledRef.current;
+		},
+		// Until a group seek has landed this set isn't ready for the room: webOS reports a seek's target as its
+		// position at once, which read as there and let the room start a second before it was.
+		seekPending: () => Boolean(groupSeekPendingRef.current || videoRef.current?.seeking)
 	}), [syncPlaySample]);
 	const runTimeRef = useRef(0);
 	const healthMonitorRef = useRef(null);
@@ -1448,14 +1483,22 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 	const canReconnect = useCallback(() => !isLiveTV && renderedRef.current &&
 		(item?._serverType || getServerType()) === 'silo', [isLiveTV, item]);
 
+	// Whether a Silo copy reaches a title position itself: one the playlist already lists.
+	const copySeeksTo = useCallback((ticks) => {
+		if (!seeksThroughServerRef.current) return false;
+		const hls = hlsPlayerRef.current;
+		const details = hls?.levels?.[Math.max(0, hls.currentLevel)]?.details;
+		return copyReaches(details, ticks / 10000000 - streamOffsetRef.current);
+	}, []);
+
 	// Moves the stream to a title position, or has Silo reopen it there when the stream can't seek.
 	const seekVideo = useCallback((seconds) => {
-		if (seeksThroughServerRef.current) {
+		if (seeksThroughServerRef.current && !copySeeksTo(Math.floor(seconds * 10000000))) {
 			seekThroughServer(Math.floor(seconds * 10000000));
 			return;
 		}
 		videoRef.current.currentTime = Math.max(0, seconds - streamOffsetRef.current);
-	}, [seekThroughServer]);
+	}, [seekThroughServer, copySeeksTo]);
 
 	const seekByOffset = useCallback((deltaSec, updateSeekPosition) => {
 		if (isInGroup && !syncPlayCommandRef.current) {
@@ -1503,9 +1546,11 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 		// which would otherwise send every seek to the start.
 		const maxTicks = runTimeRef.current > 10000000 ? runTimeRef.current - 10000000 : Infinity;
 		const clampedTicks = Math.max(0, Math.min(ticks, maxTicks));
+		const originTicks = positionRef.current;
 		positionRef.current = clampedTicks;
 		lastSeekTargetRef.current = null;
-		seekInFlightRef.current = {targetTicks: clampedTicks, issuedAt: Date.now(), fromTicks: null, lastTicks: null, catchUp: false};
+		const local = !seeksThroughServerRef.current || copySeeksTo(clampedTicks);
+		seekInFlightRef.current = {targetTicks: clampedTicks, originTicks, local, issuedAt: Date.now(), fromTicks: null, lastTicks: null, catchUp: false};
 		// Same as seekByOffset, or committing a held scrub shows where it started.
 		setCurrentTime(clampedTicks / 10000000);
 		if (playMethod === 'Transcode') {
@@ -1526,7 +1571,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 			}
 		}
 		return clampedTicks;
-	}, [playMethod, seekVideo]);
+	}, [playMethod, seekVideo, copySeeksTo]);
 
 	// The commanded seek is over, whether the position arrived or the wait ran
 	// out. Either way the set reports Ready with where it really is: the server
@@ -1594,7 +1639,8 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 		// with the pipeline running: unpause, seek, pause once it is there.
 		groupSeekPendingRef.current = {from, target, pauseOnLand};
 		// How long a room's seek takes is how far a catch-up aims.
-		if (syncPlayService.isRoomDriven()) loadBudgetRef.current.onStart(Date.now(), catchUp);
+		// A seek inside a copy's playlist loads nothing new, so it neither waits on the budget nor times the next load.
+		if (syncPlayService.isRoomDriven() && !copySeeksTo(target)) loadBudgetRef.current.onStart(Date.now(), catchUp);
 		if (playToSeek && video.paused) video.play()?.catch?.(() => {});
 		groupSeekPendingRef.current.target = seekToTicks(target);
 		// The seek is on record now; a catch-up's landing moves the next one's aim.
@@ -1603,7 +1649,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 			console.warn('[Player] Group seek did not land within', GROUP_SEEK_SETTLE_TIMEOUT_MS, 'ms, reporting as is');
 			settleGroupSeek();
 		}, GROUP_SEEK_SETTLE_TIMEOUT_MS);
-	}, [clearGroupSeekPending, seekToTicks, settleGroupSeek, readyGate, isInGroup, syncPlaySample]);
+	}, [clearGroupSeekPending, seekToTicks, settleGroupSeek, readyGate, isInGroup, syncPlaySample, copySeeksTo]);
 
 	useEffect(() => {
 		const video = videoRef.current;
@@ -2051,11 +2097,35 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 				setCurrentTime((shown) => (Math.floor(shown) === Math.floor(time) ? shown : time));
 			}
 			const ticks = Math.floor(time * 10000000);
+			const timing = startTimingRef.current;
+			if (timing) {
+				const nowMs = Date.now();
+				const took = groupStartDelayMs({...timing, positionMs: ticks / 10000, atMs: nowMs});
+				if (took != null) {
+					startTimingRef.current = null;
+					const firstLead = learnedStartLeadMs === 0;
+					learnedStartLeadMs = nextStartLeadMs(learnedStartLeadMs, took);
+					saveStartLeadMs(learnedStartLeadMs);
+					syncLog('[Player] SyncPlay start moved', took, 'ms after play(); next start leads by', learnedStartLeadMs, 'ms');
+					// A guest the room doesn't let pause sends nothing here and is in step from the next start on.
+					if (firstLead && learnedStartLeadMs >= START_RESYNC_MIN_LEAD_MS && syncPlayService.isRoomDriven()) {
+						syncLog('[Player] Watch Party resyncing the start with the lead just learned');
+						syncPlayService.sendPauseRequest();
+						clearTimeout(startResyncTimerRef.current);
+						startResyncTimerRef.current = setTimeout(() => syncPlayService.sendPlayRequest(), START_RESYNC_RESUME_MS);
+					}
+				} else if (nowMs - timing.calledAtMs > START_STALL_MS) {
+					startTimingRef.current = null;
+				}
+			}
 			const flight = seekInFlightRef.current;
 			if (flight) {
-				// Moving forward counts from the last time it stood still or jumped back.
+				// Moving forward counts from the last time it stood still or jumped back, and only once it has reached the
+				// target: a seek Silo serves by reloading the stream leaves the old one playing until the new one arrives,
+				// and timed on that, a load of seconds read as tens of milliseconds and a catch-up never aimed far enough.
 				const {seeking, paused} = videoRef.current;
-				if (seeking || paused || stalledRef.current || flight.lastTicks == null || ticks <= flight.lastTicks) flight.fromTicks = ticks;
+				const landed = seekLanded(flight.originTicks, flight.targetTicks, ticks);
+				if (!landed || seeking || paused || stalledRef.current || flight.lastTicks == null || ticks <= flight.lastTicks) flight.fromTicks = ticks;
 				flight.lastTicks = ticks;
 				const movedMs = (ticks - flight.fromTicks) / 10000;
 				if (movedMs > 250) {
@@ -2064,6 +2134,9 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 					const missedMs = flight.catchUp && expected != null ? Math.round((ticks - expected) / 10000) : null;
 					// It started playing about as long ago as it has played since.
 					loadBudgetRef.current.onPlaying(Date.now() - movedMs, missedMs);
+					if (flight.local && seeksThroughServerRef.current) {
+						learnedLocalSeekMs = nextStartLeadMs(learnedLocalSeekMs, Date.now() - movedMs - flight.issuedAt);
+					}
 					syncLog('[Player] seek to', flight.targetTicks / 10000000, 's playing at', time, 's after', Math.round(Date.now() - movedMs - flight.issuedAt), 'ms', missedMs != null ? `, ${missedMs} ms from the room` : '');
 				} else if (Date.now() - flight.issuedAt > SEEK_FLIGHT_TIMEOUT_MS) {
 					seekInFlightRef.current = null;
@@ -3154,6 +3227,8 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 		syncLog('[Player] SyncPlay command', Command, 'at', PositionTicks != null ? PositionTicks / 10000000 : null, 's, delay', delay, 'ms, set at', positionRef.current / 10000000, 's', video.paused ? 'paused' : 'playing');
 		cancelGroupSeek();
 		cancelSyncWait();
+		// The room has moved on from the wait: its command says what to do now.
+		endCushion(false);
 		skipGovernorRef.current.cancel();
 		syncPlayCommandRef.current = true;
 		suppressBufferingUntilRef.current = Date.now() + syncPlayService.BUFFERING_SUPPRESS_MS;
@@ -3170,8 +3245,10 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 				let startTarget = null;
 				if (delay > 0) {
 					// On time: a seek costs a rebuffer the whole group then
-					// waits on, so a difference this small is left alone.
-					if (PositionTicks != null && needsSeek(positionRef.current, PositionTicks)) startTarget = PositionTicks;
+					// waits on, so a difference this small is left alone, and
+					// one this set's start time took up (leadMs below) needs none.
+					const timedIn = video.paused && startGapMs(positionRef.current, PositionTicks) != null;
+					if (PositionTicks != null && !timedIn && needsSeek(positionRef.current, PositionTicks)) startTarget = PositionTicks;
 				} else if (video.paused) {
 					// Late: start where the group has got to by now.
 					const target = syncPlayService.getAdjustedPosition(PositionTicks, When);
@@ -3181,7 +3258,15 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 				// what the last one took, and don't start another until the budget allows, or the set chases the
 				// room round and round.
 				let catchUp = false;
-				if (startTarget != null && syncPlayService.isRoomDriven()) {
+				if (startTarget != null && syncPlayService.isRoomDriven() && !video.paused && starveWatchRef.current.isStarving(Date.now())) {
+					// Ahead is where the stream hasn't arrived yet: a seek there only stalls it again.
+					syncLog('[Player] Watch Party catch-up held: the stream is not keeping up');
+					startTarget = null;
+				} else if (startTarget != null && syncPlayService.isRoomDriven() && copySeeksTo(startTarget + learnedLocalSeekMs * 10000)) {
+					// Already in the copy's playlist: no load to wait on, only the seek's own time to aim past.
+					startTarget += learnedLocalSeekMs * 10000;
+					syncLog('[Player] Watch Party catch-up within the stream, no reload, aimed', learnedLocalSeekMs, 'ms ahead');
+				} else if (startTarget != null && syncPlayService.isRoomDriven()) {
 					const budget = loadBudgetRef.current;
 					if (seekInFlightRef.current) {
 						syncLog('[Player] Watch Party catch-up held: the last seek has not played yet');
@@ -3196,6 +3281,10 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 					}
 				}
 				if (startTarget != null) startGroupSeek(startTarget, false, false, catchUp);
+				// A plain start from paused is timed for the next one's lead; one behind a seek also waits on its load.
+				startTimingRef.current = video.paused && startTarget == null && !groupSeekPendingRef.current
+					? {calledAtMs: Date.now(), fromMs: positionRef.current / 10000}
+					: null;
 				// Already playing: the server answers any Ready it gets while
 				// playing with the last sync point unchanged. That confirms
 				// where the group is; seeking on it restarts the stream for
@@ -3233,13 +3322,20 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 		}
 
 		syncPlayCommandRef.current = false;
-	}, [cancelGroupSeek, cancelSyncWait, startGroupSeek, showFrameIfNone]);
+	}, [cancelGroupSeek, cancelSyncWait, startGroupSeek, showFrameIfNone, copySeeksTo, endCushion]);
 
 	useSyncPlayCommands({
 		lastCommand,
 		isReady: () => !!videoRef.current,
 		execute: executeSyncPlayCommand,
-		onStop: handleBack
+		onStop: handleBack,
+		// A start from paused begins early by the time this set takes to move, and by how far it is behind the start's
+		// position (later, ahead of it), so it is there as the group is; the group's timeline still runs from the
+		// command's time.
+		leadMs: (command) => {
+			if (command.Command !== 'Unpause' || !videoRef.current?.paused || groupSeekPendingRef.current) return 0;
+			return learnedStartLeadMs + (startGapMs(positionRef.current, command.PositionTicks) || 0);
+		}
 	});
 
 	// Commands alone cant hold this in step, because the decoder loses a little
@@ -3330,7 +3426,30 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 			}, delayMs);
 		};
 
+		// Paused, it waits for the stream to build up, and plays on once it has or the wait runs out. A wait that
+		// outlasts the room's grace is reported, and the room pauses for it; its commands end the wait.
+		const startCushion = (v) => {
+			v.pause();
+			const since = Date.now();
+			cushionRef.current = {timer: setInterval(() => {
+				const ahead = bufferedAheadSeconds(v.buffered, v.currentTime);
+				if (ahead >= CUSHION_SECONDS || Date.now() - since >= CUSHION_MAX_MS) {
+					syncLog('[Player] Watch Party stream built up', Math.round(ahead * 10) / 10, 's, playing on');
+					endCushion(true);
+				}
+			}, 250)};
+			syncLog('[Player] Watch Party stream not keeping up: waiting for', CUSHION_SECONDS, 's of it');
+			syncPlayService.sendBufferingRequest(syncPlaySample);
+		};
+
 		const reportBuffering = () => {
+			const v = videoRef.current;
+			// Only a stall of its own, not one a seek of ours set off.
+			if (v && !v.paused && !cushionRef.current && syncPlayService.isRoomDriven() && seeksThroughServerRef.current &&
+				Date.now() >= suppressBufferingUntilRef.current && starveWatchRef.current.onStall(Date.now())) {
+				startCushion(v);
+				return;
+			}
 			const remaining = suppressBufferingUntilRef.current - Date.now();
 			// A 'waiting' inside the window came from our own seek. A genuine
 			// stall must still reach the server eventually, so re-check once
@@ -3355,7 +3474,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 			video.removeEventListener('playing', reportReady);
 			video.removeEventListener('canplay', reportReady);
 		};
-	}, [isInGroup, readyGate, syncPlaySample]);
+	}, [isInGroup, readyGate, syncPlaySample, endCushion]);
 
 	useEffect(() => {
 		const handleKeyDown = (e) => {
