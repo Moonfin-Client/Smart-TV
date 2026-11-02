@@ -147,6 +147,13 @@ const START_RESYNC_RESUME_MS = 1500;
 const START_RESYNC_MIN_LEAD_MS = 250;
 // A seek that hasn't played by then isn't going to, and stops holding the next one back.
 const SEEK_FLIGHT_TIMEOUT_MS = 15000;
+// A Watch Party room waits up to 10 s for its members before it starts anyway, so a room's seek waits a little past
+// that for its picture before reporting ready regardless.
+const ROOM_SEEK_SETTLE_TIMEOUT_MS = 12000;
+// Silo takes a member as ready within a second of the room's position. A set this close to it after a seek stays
+// where it is, since putting it exactly on the target is another seek, and on a stream Silo reloads for every seek
+// another load of seconds.
+const ROOM_READY_TOLERANCE_MS = 900;
 
 const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialSubtitleIndex, initialStartPositionTicks, initialQuality, forceTranscode, onEnded, onBack, onGuide, onPlayNext, onSelectPerson, audioPlaylist, videoQueue, liveTvChannels, onPausedChange, background, onBackground}) => {
 	const {settings, updateSetting} = useSettings();
@@ -1588,16 +1595,30 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 			// the server sends the seek again for anything over half a second
 			// off, which would go round forever. A paused seek puts it exactly
 			// on the target.
-			if (needsSeek(syncPlaySample().positionTicks, pending.target)) seekToTicks(pending.target);
+			const offMs = Math.abs(syncPlaySample().positionTicks - pending.target) / 10000;
+			const closeEnough = syncPlayService.isRoomDriven() && seeksThroughServerRef.current && !copySeeksTo(pending.target) &&
+				offMs <= ROOM_READY_TOLERANCE_MS;
+			if (!closeEnough && needsSeek(syncPlaySample().positionTicks, pending.target)) seekToTicks(pending.target);
 		}
 		if (isInGroup) readyGate.request();
-	}, [clearGroupSeekPending, seekToTicks, readyGate, isInGroup, syncPlaySample]);
+	}, [clearGroupSeekPending, seekToTicks, readyGate, isInGroup, syncPlaySample, copySeeksTo]);
+
+	// webOS puts its clock on a seek's target straight away, while the picture can take seconds more to arrive from
+	// that far into the file, so a Watch Party room's seek counts as landed only once the picture has moved past the
+	// target. Ready any sooner and the room starts without this set, which then chases it. It runs while it waits
+	// (the seek was started playing), so a paused seek is taken at its clock as before.
+	const awaitingPicture = useCallback((pending) => {
+		const video = videoRef.current;
+		const flight = seekInFlightRef.current;
+		return Boolean(syncPlayService.isRoomDriven() && pending.pauseOnLand && video && !video.paused &&
+			flight && !needsSeek(flight.targetTicks, pending.target));
+	}, []);
 
 	const settleGroupSeekIfLanded = useCallback(() => {
 		const pending = groupSeekPendingRef.current;
-		if (!pending || !videoRef.current || videoRef.current.seeking) return;
+		if (!pending || !videoRef.current || videoRef.current.seeking || awaitingPicture(pending)) return;
 		if (seekLanded(pending.from, pending.target, syncPlaySample().positionTicks)) settleGroupSeek();
-	}, [settleGroupSeek, syncPlaySample]);
+	}, [settleGroupSeek, syncPlaySample, awaitingPicture]);
 
 	const handleSeeked = useCallback(() => {
 		// libpgs keeps an ascending list of subtitle timestamps, so a seek back behind
@@ -1645,10 +1666,11 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 		groupSeekPendingRef.current.target = seekToTicks(target);
 		// The seek is on record now; a catch-up's landing moves the next one's aim.
 		if (seekInFlightRef.current) seekInFlightRef.current.catchUp = catchUp;
+		const settleTimeoutMs = syncPlayService.isRoomDriven() ? ROOM_SEEK_SETTLE_TIMEOUT_MS : GROUP_SEEK_SETTLE_TIMEOUT_MS;
 		groupSeekSettleTimerRef.current = setTimeout(() => {
-			console.warn('[Player] Group seek did not land within', GROUP_SEEK_SETTLE_TIMEOUT_MS, 'ms, reporting as is');
+			console.warn('[Player] Group seek did not land within', settleTimeoutMs, 'ms, reporting as is');
 			settleGroupSeek();
-		}, GROUP_SEEK_SETTLE_TIMEOUT_MS);
+		}, settleTimeoutMs);
 	}, [clearGroupSeekPending, seekToTicks, settleGroupSeek, readyGate, isInGroup, syncPlaySample, copySeeksTo]);
 
 	useEffect(() => {
@@ -2159,7 +2181,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 			const pending = groupSeekPendingRef.current;
 			if (!pending || seekLanded(pending.from, pending.target, ticks)) {
 				positionRef.current = ticks;
-				if (pending && !videoRef.current.seeking) settleGroupSeek();
+				if (pending && !videoRef.current.seeking && !awaitingPicture(pending)) settleGroupSeek();
 			}
 
 			// Canvas-mode ASS isn't auto-synced to the video, so drive its clock here.
@@ -2199,7 +2221,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 				setLiveWindow((prev) => nextLiveWindow(prev, next));
 			}
 		}
-	}, [checkSegments, subtitleTrackEvents, subtitleOffset, settleGroupSeek, isAudioMode, updateSecondary, updateCinemaSkip, cinemaSkipActive, isLiveTV]);
+	}, [checkSegments, subtitleTrackEvents, subtitleOffset, settleGroupSeek, awaitingPicture, isAudioMode, updateSecondary, updateCinemaSkip, cinemaSkipActive, isLiveTV]);
 
 	const handleWaiting = useCallback(() => {
 		reconnect.interrupted();
@@ -3303,8 +3325,15 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 				groupHoldRef.current = false;
 				video.pause();
 				syncPlayService.clearSyncReference();
-				if (PositionTicks != null && needsSeek(positionRef.current, PositionTicks)) startGroupSeek(PositionTicks, true);
-				else showFrameIfNone();
+				if (PositionTicks != null && needsSeek(positionRef.current, PositionTicks)) {
+					// webOS moves its clock for a seek made paused but loads nothing until it plays, and on a stream
+					// Silo reloads for every seek the picture then carries on from where it really was. So in a
+					// Watch Party that seek runs playing, and pauses once the picture has moved there.
+					const reloads = syncPlayService.isRoomDriven() && seeksThroughServerRef.current && !copySeeksTo(PositionTicks);
+					startGroupSeek(PositionTicks, true, reloads);
+				} else {
+					showFrameIfNone();
+				}
 				break;
 			}
 			case 'Seek': {
