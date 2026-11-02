@@ -79,6 +79,17 @@ const readWebapis = (read, fallback) => {
 	}
 };
 
+// A positive HTML video probe can establish a bounded level increase. Missing,
+// uncertain or throwing APIs retain the existing conservative profile.
+const supportsVideoType = (type) => {
+	try {
+		return document.createElement('video').canPlayType(type) === 'probably';
+	} catch (e) {
+		return false;
+	}
+};
+
+
 /**
  * Get model name from webapis (cached).
  * Prefers getRealModel() over getModel() for accurate model string.
@@ -405,6 +416,10 @@ export const getDeviceCapabilities = async () => {
 		dtshd: audioProbe.dtshd,
 		opus: true,
 
+		// Restrict the newly verified PCM-in-MKV path to the S95B family.
+		pcm16: /^(?:(?:QN|QE|QA|GQ)\d{2}S95B|QBQS95$)/.test(modelName) &&
+			supportsVideoType('audio/wav; codecs="1"'),
+
 		// Video codec capabilities
 		hevc: testHevcSupport(),
 		av1: testAv1Support(tizenVersion, modelYear, uhd),
@@ -454,6 +469,7 @@ export const getJellyfinDeviceProfile = async (options = {}) => {
 	// ALAC: Also listed in Music table but omitted here (niche format, m4a container shared with AAC)
 	// NOT supported: DTS (explicitly stated), TrueHD (not documented)
 	const audioCodecs = ['aac', 'mp3', 'flac','vorbis', 'pcm', 'wav'];
+	if (caps.pcm16) audioCodecs.push('pcm_s16le');
 	if (caps.ac3) audioCodecs.push('ac3');
 	if (caps.eac3) audioCodecs.push('eac3');
 	if (caps.opus) audioCodecs.push('opus');
@@ -735,6 +751,15 @@ export const getJellyfinDeviceProfile = async (options = {}) => {
 			Conditions: [{ Condition: 'LessThanEqual', Property: 'AudioChannels', Value: '2', IsRequired: true }]
 		});
 	}
+
+	// Match the bounded PCM16 path used by the local player.
+	codecProfiles.push({
+		Type: 'VideoAudio', Codec: 'pcm_s16le',
+		Conditions: [
+			{Condition: 'LessThanEqual', Property: 'AudioChannels', Value: '2', IsRequired: false},
+			{Condition: 'LessThanEqual', Property: 'AudioSampleRate', Value: '48000', IsRequired: false}
+		]
+	});
 
 	// Force any kind of DTS to be transcoded to E-AC3
 	codecProfiles.push({
