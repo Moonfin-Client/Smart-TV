@@ -265,6 +265,14 @@ export const getPlayMethod = (mediaSource, capabilities, _options, passthroughOp
 			// Dolby Vision over a compatible base layer plays that layer on an
 			// HDR10 panel, and an SDR base plays anywhere
 			hdrOk = rangeType.includes('SDR') ? true : (capabilities.hdr10 || capabilities.dolbyVision);
+		} else if (rangeType === 'DOVIINVALID') {
+			// Jellyfin labels AV1 P10.6 invalid, although this combination carries
+			// an HDR10 base. Do not generalize to invalid DV without a known base.
+			const hdr10Base = videoCodec === 'av1' && videoStream.DvProfile === 10 &&
+				videoStream.DvBlSignalCompatibilityId === 6 && videoStream.BlPresentFlag === 1 &&
+				videoStream.ElPresentFlag === 0 && videoStream.ColorTransfer === 'smpte2084' &&
+				videoStream.ColorPrimaries === 'bt2020';
+			hdrOk = capabilities.dolbyVision || (capabilities.hdr10 && hdr10Base);
 		} else if (rangeType.includes('DOLBY') || rangeType.includes('DOVI')) {
 			// a bare DOVI is profile 5, which carries no HDR10 base layer to
 			// fall back on, so it needs a panel that decodes Dolby Vision itself
