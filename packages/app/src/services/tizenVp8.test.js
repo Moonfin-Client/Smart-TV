@@ -1,4 +1,3 @@
-import {clearCapabilitiesCache, getDeviceCapabilities, getJellyfinDeviceProfile} from '../../../platform-tizen/src/deviceProfile';
 import {getPlayMethod} from '../../../platform-tizen/src/video';
 
 const source = (codec, container = 'mkv', video = {}, audio = {}) => ({
@@ -6,38 +5,51 @@ const source = (codec, container = 'mkv', video = {}, audio = {}) => ({
 	MediaStreams: [{Type: 'Video', Index: 0, Codec: codec, Width: 1280, Height: 720, VideoRangeType: 'SDR', ...video},
 		{Type: 'Audio', Index: 1, Codec: 'aac', Channels: 2, SampleRate: 48000, ...audio}]
 });
+const device = (model = 'QN55S95BAFXZA', version = '6.5', uhd = true, uhd8K = false, hdr = true) => {
+	global.tizen = {systeminfo: {getCapability: () => version}};
+	global.webapis = {productinfo: {getRealModel: () => model, isUdPanelSupported: () => uhd, is8KPanelSupported: () => uhd8K}, avinfo: {isHdrTvSupport: () => hdr}};
+	let service;
+	jest.isolateModules(() => { service = require('../../../platform-tizen/src/deviceProfile'); });
+	return service;
+};
+afterEach(() => { delete global.tizen; delete global.webapis; jest.restoreAllMocks(); });
+const models = [
+	['UN55KU6300', '2.4', true],
+	['UN40N5200AFXZA', '4', false],
+	['UN32T5300', '5.5', false],
+	['QN55S95BAFXZA', '6.5', true],
+	['GQ65S90C', '7', true],
+	['QN65QN900B', '6.5', true],
+	['QN65QN80HAFXZA', '10', true],
+	['unknown', '6.5', true]
+];
 
-describe('Tizen VP8 WebM support', () => {
-	beforeEach(() => {
-		global.tizen = {systeminfo: {getCapability: () => '6.5'}};
-		global.webapis = {productinfo: {getRealModel: () => 'QN55S95BAFXZA', isUdPanelSupported: () => true, is8KPanelSupported: () => false}, avinfo: {isHdrTvSupport: () => true}};
-		jest.spyOn(window.HTMLMediaElement.prototype, 'canPlayType').mockReturnValue('probably');
-		clearCapabilitiesCache();
-	});
-	afterEach(() => { delete global.tizen; delete global.webapis; jest.restoreAllMocks(); clearCapabilitiesCache(); });
-
-	test('local and server profile both allow VP8 in WebM', async () => {
-		const caps = await getDeviceCapabilities();
+describe('Probed VP8 WebM across Tizen versions and models', () => {
+	test.each(models)('%s allows probed WebM without a model/year whitelist', async (model, version, uhd) => {
+		jest.spyOn(window.HTMLMediaElement.prototype, 'canPlayType').mockImplementation(type => type === 'video/webm; codecs="vp8"' ? 'maybe' : '');
+		const service = device(model, version, uhd);
+		const caps = await service.getDeviceCapabilities();
+		expect(caps.vp8).toBe(true);
 		expect(getPlayMethod(source('vp8', 'webm', {}, {Codec: 'vorbis'}), caps, {})).toBe('DirectPlay');
-		const profile = await getJellyfinDeviceProfile();
+		const profile = await service.getJellyfinDeviceProfile();
 		expect(profile.DirectPlayProfiles.find(p => p.Container === 'webm').VideoCodec.split(',')).toContain('vp8');
-		expect(profile.DirectPlayProfiles.find(p => p.Container.includes('mp4')).VideoCodec.split(',')).not.toContain('vp8');
 	});
-	test('does not expand VP8 to unverified MP4 or older capabilities', async () => {
-		const caps = await getDeviceCapabilities();
-		expect(getPlayMethod(source('vp8', 'mp4'), caps, {})).not.toBe('DirectPlay');
-		expect(getPlayMethod(source('vp8', 'webm'), {...caps, vp8: false}, {})).not.toBe('DirectPlay');
+	test.each(['', 'no', 'maybe', 'probably'])('interprets canPlayType %j consistently with Jellyfin', async response => {
+		jest.spyOn(window.HTMLMediaElement.prototype, 'canPlayType').mockReturnValue(response);
+		expect((await device().getDeviceCapabilities()).vp8).toBe(['maybe', 'probably'].includes(response));
 	});
-
-	test.each(['', 'maybe'])('keeps VP8 disabled on an uncertain media probe: %s', async result => {
-		window.HTMLMediaElement.prototype.canPlayType.mockReturnValue(result);
-		clearCapabilitiesCache();
-		expect((await getDeviceCapabilities()).vp8).toBe(false);
-		expect((await getJellyfinDeviceProfile()).DirectPlayProfiles.find(p=>p.Container==='webm').VideoCodec.split(',')).not.toContain('vp8');
+	test('an unavailable probe retains conversion', async () => {
+		jest.spyOn(document, 'createElement').mockReturnValue({});
+		expect((await device().getDeviceCapabilities()).vp8).toBe(false);
 	});
-	test('does not expand older Tizen models even when the probe is positive',async()=> {
-		global.tizen.systeminfo.getCapability = () => '3';
-		clearCapabilitiesCache();
-		expect((await getDeviceCapabilities()).vp8).toBe(false);
+	test('a throwing probe retains conversion', async () => {
+		jest.spyOn(window.HTMLMediaElement.prototype, 'canPlayType').mockImplementation(() => { throw new Error('Unavailable'); });
+		expect((await device().getDeviceCapabilities()).vp8).toBe(false);
+	});
+	test.each(['mp4', 'mkv'])('does not expand VP8 into %s', async container => {
+		jest.spyOn(window.HTMLMediaElement.prototype, 'canPlayType').mockReturnValue('probably');
+		const service = device();
+		expect(getPlayMethod(source('vp8', container), await service.getDeviceCapabilities(), {})).not.toBe('DirectPlay');
+		expect((await service.getJellyfinDeviceProfile()).DirectPlayProfiles.find(p => p.Container.includes(container)).VideoCodec.split(',')).not.toContain('vp8');
 	});
 });

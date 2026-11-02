@@ -79,11 +79,12 @@ const readWebapis = (read, fallback) => {
 	}
 };
 
-// A positive HTML video probe can establish a bounded level increase. Missing,
-// uncertain or throwing APIs retain the existing conservative profile.
+// Match Jellyfin's accepted canPlayType responses. An empty/negative response
+// or an unavailable API retains the existing fallback.
 const supportsVideoType = (type) => {
 	try {
-		return document.createElement('video').canPlayType(type) === 'probably';
+		const result = document.createElement('video').canPlayType(type);
+		return result === 'probably' || result === 'maybe';
 	} catch (e) {
 		return false;
 	}
@@ -420,7 +421,7 @@ export const getDeviceCapabilities = async () => {
 		hevc: testHevcSupport(),
 		av1: testAv1Support(tizenVersion, modelYear, uhd),
 		vp9: testVp9Support(tizenVersion, uhd),
-		vp8: tizenVersion >= 4 && supportsVideoType('video/webm; codecs="vp8"'),
+		vp8: supportsVideoType('video/webm; codecs="vp8"'),
 
 		...containerSupport,
 
