@@ -15,7 +15,7 @@ import {librariesForNav} from '../../utils/liveTvLibrary';
 import {isKidsMode} from '../../utils/kidsMode';
 import {shadowToCss, toCssColor, toCssColorWithAlpha} from '../../theme/themeSpec';
 import {resolveOverlayColor} from '../../theme/overlayColors';
-import {SIDEBAR_CONTENT_FOCUS_TARGETS, focusFirstContentTarget} from '../../utils/navFocusTargets';
+import {focusContentFromSidebar, forgetSidebarReturn, rememberSidebarReturn} from '../../utils/navFocusTargets';
 import {KEYS} from '../../utils/keys';
 import SidebarItem from './SidebarItem';
 import SidebarLibraries from './SidebarLibraries';
@@ -125,11 +125,21 @@ const Sidebar = ({
 		if (e.keyCode === KEYS.RIGHT) {
 			e.preventDefault();
 			e.stopPropagation();
-			focusFirstContentTarget(SIDEBAR_CONTENT_FOCUS_TARGETS, 'right');
+			focusContentFromSidebar();
 		} else if (e.keyCode === KEYS.UP || e.keyCode === KEYS.DOWN) {
 			trapVerticalEdges(e);
 		}
 	}, []);
+
+	// Focus arriving from outside the rail marks where right should bring it back to.
+	const {onFocus: expandOnFocus} = handlers;
+	const handleFocus = useCallback((e) => {
+		if (e.relatedTarget && !e.currentTarget.contains(e.relatedTarget)) rememberSidebarReturn(e.relatedTarget);
+		expandOnFocus(e);
+	}, [expandOnFocus]);
+
+	// Picking something in the nav changes what's on screen, so the old spot no longer applies.
+	const handleClickCapture = useCallback(() => forgetSidebarReturn(), []);
 
 	// Slots hand out the theme's nav color cycle in the order items actually
 	// render, so hiding a button never doubles a color on its neighbours.
@@ -146,7 +156,8 @@ const Sidebar = ({
 			onKeyDown={handleNavKeyDown}
 			onMouseEnter={handlers.onMouseEnter}
 			onMouseLeave={handlers.onMouseLeave}
-			onFocus={handlers.onFocus}
+			onFocus={handleFocus}
+			onClickCapture={handleClickCapture}
 			onBlur={handlers.onBlur}
 			spotlightId="navbar"
 		>

@@ -49,3 +49,26 @@ export const focusFirstContentTarget = (targets, fallbackDirection) => {
 	Spotlight.setPointerMode(false);
 	Spotlight.move(fallbackDirection);
 };
+
+// What held focus in the content when focus moved into the sidebar. Pressing
+// right out of the rail goes back there, so leaving a row to peek at the nav
+// doesn't throw the user back to the first card of the first row.
+let sidebarReturnTarget = null;
+
+export const rememberSidebarReturn = (node) => {
+	sidebarReturnTarget = node || null;
+};
+
+export const forgetSidebarReturn = () => {
+	sidebarReturnTarget = null;
+};
+
+// The remembered node only counts while it's still on screen: a view that was
+// swapped out or hidden behind another panel leaves it detached or without an
+// offsetParent, and then the first content target takes over as before.
+export const focusContentFromSidebar = () => {
+	const node = sidebarReturnTarget;
+	sidebarReturnTarget = null;
+	if (node && node.isConnected && node.offsetParent !== null && Spotlight.focus(node)) return;
+	focusFirstContentTarget(SIDEBAR_CONTENT_FOCUS_TARGETS, 'right');
+};
