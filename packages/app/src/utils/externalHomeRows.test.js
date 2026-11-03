@@ -1,11 +1,12 @@
 jest.mock('../services/externalRowsApi', () => ({
+	fetchArrCalendar: jest.fn(),
 	fetchCustomRow: jest.fn(),
 	constructSourceUrl: jest.fn()
 }));
 jest.mock('./fetchTimeout', () => ({fetchWithTimeout: jest.fn()}));
 jest.mock('./uiLocale', () => ({uiLocale: () => 'en-US'}));
 
-import {fetchCustomRow, constructSourceUrl} from '../services/externalRowsApi';
+import {fetchArrCalendar, fetchCustomRow, constructSourceUrl} from '../services/externalRowsApi';
 import seerrApi from '../services/seerrApi';
 import {fetchWithTimeout} from './fetchTimeout';
 import {buildSeasonalRow, fetchCalendarRows, fetchExternalPresetRow, sortExternalItems, validateCustomRow} from './externalHomeRows';
@@ -122,15 +123,33 @@ describe('fetchCalendarRows', () => {
 
 	beforeEach(() => {
 		jest.spyOn(Date, 'now').mockReturnValue(Date.parse('2026-10-27T12:00:00Z'));
-		jest.spyOn(seerrApi, 'getRadarrSettings').mockResolvedValue([{hostname: 'radarr', port: 7878, apiKey: 'key'}]);
+		jest.spyOn(seerrApi, 'getRadarrSettings');
+		fetchArrCalendar.mockReset();
 	});
 	afterEach(() => jest.restoreAllMocks());
 
 	const radarrRow = async (movies) => {
-		fetchWithTimeout.mockResolvedValue({ok: true, json: () => Promise.resolve(movies)});
+		fetchArrCalendar.mockResolvedValue(movies);
 		const [calendar] = await fetchCalendarRows(settings, {radarrEnabled: true});
 		return calendar;
 	};
+
+	it('reads the calendar through the plugin and never the arr connection from Seerr', async () => {
+		await radarrRow([movie(1, 'Out tomorrow', '2026-10-28T00:00:00Z')]);
+		expect(fetchArrCalendar).toHaveBeenCalledWith('radarr', expect.any(String), expect.any(String));
+		expect(seerrApi.getRadarrSettings).not.toHaveBeenCalled();
+		expect(fetchWithTimeout).not.toHaveBeenCalled();
+	});
+
+	it('builds the episode row from the Sonarr calendar the plugin returns', async () => {
+		fetchArrCalendar.mockResolvedValue([
+			{seasonNumber: 2, episodeNumber: 3, airDateUtc: '2099-01-15T20:00:00Z',
+				series: {id: 7, tvdbId: 70, tmdbId: 700, title: 'Airing show', images: []}}
+		]);
+		const [calendar] = await fetchCalendarRows({sonarrCalendarShowEpisodeInfo: true}, {sonarrEnabled: true});
+		expect(fetchArrCalendar).toHaveBeenCalledWith('sonarr', expect.any(String), expect.any(String));
+		expect(calendar.items.map((item) => [item.Name, item.Subtitle])).toEqual([['Airing show', 'S2E3']]);
+	});
 
 	it('keeps a movie on the row through its release day and drops it after', async () => {
 		const calendar = await radarrRow([

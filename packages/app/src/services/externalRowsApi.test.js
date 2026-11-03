@@ -1,4 +1,4 @@
-import {fetchCustomRow, fetchSeasonalRow, fetchTmdbDetails, constructSourceUrl, __resetExternalRowCache} from './externalRowsApi';
+import {fetchArrCalendar, fetchCustomRow, fetchSeasonalRow, fetchTmdbDetails, constructSourceUrl, __resetExternalRowCache} from './externalRowsApi';
 import {fetchWithTimeout} from '../utils/fetchTimeout';
 
 jest.mock('../utils/fetchTimeout', () => ({fetchWithTimeout: jest.fn()}));
@@ -176,6 +176,39 @@ describe('externalRowsApi', () => {
 				.toBe('https://mdblist.com/lists/bob/favs');
 			expect(constructSourceUrl('unknown', 'type', {}))
 				.toBe('');
+		});
+	});
+
+	describe('fetchArrCalendar', () => {
+		it('asks the plugin for the calendar, signed in as the viewer', async () => {
+			fetchWithTimeout.mockResolvedValue(mockJsonResponse([{title: 'Upcoming'}]));
+
+			const items = await fetchArrCalendar('radarr', '2026-11-03', '2026-12-03');
+
+			expect(items).toEqual([{title: 'Upcoming'}]);
+			const [url, init] = fetchWithTimeout.mock.calls[0];
+			expect(url).toBe('http://server/Moonfin/Seerr/Radarr/Calendar?start=2026-11-03&end=2026-12-03');
+			expect(init.headers.Authorization).toBe('MediaBrowser Token="test-token"');
+		});
+
+		it('asks for the Sonarr calendar by its own route', async () => {
+			fetchWithTimeout.mockResolvedValue(mockJsonResponse([]));
+
+			await fetchArrCalendar('sonarr', '2026-11-03', '2026-12-03');
+
+			expect(fetchWithTimeout.mock.calls[0][0]).toBe('http://server/Moonfin/Seerr/Sonarr/Calendar?start=2026-11-03&end=2026-12-03');
+		});
+
+		it('answers an empty calendar when the plugin refuses', async () => {
+			fetchWithTimeout.mockResolvedValue(mockJsonResponse({error: 'Seerr integration is not enabled'}, 503));
+
+			expect(await fetchArrCalendar('radarr', '2026-11-03', '2026-12-03')).toEqual([]);
+		});
+
+		it('answers an empty calendar when the server cannot be reached', async () => {
+			fetchWithTimeout.mockRejectedValue(new Error('timeout'));
+
+			expect(await fetchArrCalendar('radarr', '2026-11-03', '2026-12-03')).toEqual([]);
 		});
 	});
 });

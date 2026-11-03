@@ -1,5 +1,5 @@
 import $L from '@enact/i18n/$L';
-import * as seerrApi from '../services/seerrApi';
+import {fetchArrCalendar} from '../services/externalRowsApi';
 import {fetchWithTimeout} from './fetchTimeout';
 
 const DAYS = [
@@ -49,17 +49,6 @@ export const clearUpcomingEpisodeCache = () => {
 	lastSonarrFetch = 0;
 };
 
-const pickDefaultServer = (servers) => {
-	if (!Array.isArray(servers) || servers.length === 0) return null;
-	return servers.find((s) => s.isDefault && !s.is4k) || servers.find((s) => !s.is4k) || servers[0];
-};
-
-const arrBaseUrl = (server) => {
-	const scheme = server.useSsl ? 'https' : 'http';
-	const base = (server.baseUrl || '').replace(/\/$/, '');
-	return `${scheme}://${server.hostname}:${server.port}${base}`;
-};
-
 const isoDate = (offsetDays) => {
 	const d = new Date();
 	d.setDate(d.getDate() + offsetDays);
@@ -72,29 +61,7 @@ const ensureSonarrCalendar = async () => {
 		return;
 	}
 
-	let servers = [];
-	try {
-		servers = await seerrApi.getSonarrSettings();
-	} catch (err) {
-		void err;
-		return;
-	}
-
-	const server = pickDefaultServer(servers);
-	if (!server || !server.apiKey) return;
-
-	const url = `${arrBaseUrl(server)}/api/v3/calendar?apikey=${encodeURIComponent(server.apiKey)}&start=${isoDate(0)}&end=${isoDate(90)}&includeSeries=true`;
-	let episodes = [];
-	try {
-		const res = await fetchWithTimeout(url, {}, 5000);
-		if (res.ok) {
-			const data = await res.json();
-			if (Array.isArray(data)) episodes = data;
-		}
-	} catch (err) {
-		void err;
-		return;
-	}
+	const episodes = await fetchArrCalendar('sonarr', isoDate(0), isoDate(90));
 
 	sonarrCalendarByTvdb.clear();
 	sonarrCalendarByTmdb.clear();

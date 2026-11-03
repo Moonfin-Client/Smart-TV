@@ -160,6 +160,28 @@ export const fetchSeasonalRow = async ({country} = {}) => {
 	}
 };
 
+// The Radarr or Sonarr calendar between two YYYY-MM-DD days, as the arr app returns it. The
+// plugin fetches it server side, so the arr's API key stays on the server and a TV that can't
+// reach the arr's host (a container name, a LAN address away from home) still gets the
+// calendar. An empty list whenever it can't be read, so the row is left out rather than broken.
+export const fetchArrCalendar = async (service, start, end) => {
+	const baseUrl = getServerUrl();
+	if (!baseUrl) return [];
+	const route = service === 'sonarr' ? 'Sonarr' : 'Radarr';
+	const url = `${baseUrl}/Moonfin/Seerr/${route}/Calendar?start=${encodeURIComponent(start)}&end=${encodeURIComponent(end)}`;
+	try {
+		const response = await mediaServerQueue.run(
+			() => fetchWithTimeout(url, {headers: {'Authorization': getAuthHeader()}}, 10000)
+		);
+		if (!response.ok) return [];
+		const data = await response.json();
+		return Array.isArray(data) ? data : [];
+	} catch (err) {
+		console.warn(`[ExternalRows] ${route} calendar fetch failed:`, err);
+		return [];
+	}
+};
+
 // Builds the human readable third party URL for a configured source. Used only
 // to show the user where a failing custom row points, never for fetching.
 export const constructSourceUrl = (source, type, params = {}) => {

@@ -1,7 +1,6 @@
 import $L from '@enact/i18n/$L';
 import seerrApi from '../services/seerrApi';
-import {fetchCustomRow, constructSourceUrl} from '../services/externalRowsApi';
-import {fetchWithTimeout} from './fetchTimeout';
+import {fetchArrCalendar, fetchCustomRow, constructSourceUrl} from '../services/externalRowsApi';
 import {seasonalTitle} from './seasonalTitles';
 import {uiLocale} from './uiLocale';
 
@@ -271,17 +270,6 @@ export const detectCustomSource = (url) => {
 // connection details stored in Seerr. This is a cross origin request, so it
 // depends on the TV webview allowing it.
 
-const pickDefaultServer = (servers) => {
-	if (!Array.isArray(servers) || servers.length === 0) return null;
-	return servers.find((s) => s.isDefault && !s.is4k) || servers.find((s) => !s.is4k) || servers[0];
-};
-
-const arrBaseUrl = (server) => {
-	const scheme = server.useSsl ? 'https' : 'http';
-	const base = (server.baseUrl || '').replace(/\/$/, '');
-	return `${scheme}://${server.hostname}:${server.port}${base}`;
-};
-
 const isoDate = (offsetDays) => {
 	const d = new Date();
 	d.setDate(d.getDate() + offsetDays);
@@ -306,31 +294,8 @@ const formatCalendarDate = (dateStr) => {
 const releaseDay = (date) => new Date(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate());
 const DAY_MS = 24 * 60 * 60 * 1000;
 
-const arrGet = async (url) => {
-	try {
-		const res = await fetchWithTimeout(url, {}, 5000);
-		if (!res.ok) return [];
-		const data = await res.json();
-		return Array.isArray(data) ? data : [];
-	} catch (err) {
-		console.warn('[Calendar] Fetch failed:', err);
-		return [];
-	}
-};
-
 const fetchRadarrItems = async (settings) => {
-	let servers = [];
-	try {
-		servers = await seerrApi.getRadarrSettings();
-	} catch (err) {
-		void err;
-		return [];
-	}
-	const server = pickDefaultServer(servers);
-	if (!server || !server.apiKey) return [];
-
-	const url = `${arrBaseUrl(server)}/api/v3/calendar?apikey=${encodeURIComponent(server.apiKey)}&start=${isoDate(0)}&end=${isoDate(90)}&unmonitored=true`;
-	const items = await arrGet(url);
+	const items = await fetchArrCalendar('radarr', isoDate(0), isoDate(90));
 
 	const results = [];
 	for (const m of items) {
@@ -384,18 +349,7 @@ const fetchRadarrItems = async (settings) => {
 };
 
 const fetchSonarrItems = async (settings) => {
-	let servers = [];
-	try {
-		servers = await seerrApi.getSonarrSettings();
-	} catch (err) {
-		void err;
-		return [];
-	}
-	const server = pickDefaultServer(servers);
-	if (!server || !server.apiKey) return [];
-
-	const url = `${arrBaseUrl(server)}/api/v3/calendar?apikey=${encodeURIComponent(server.apiKey)}&start=${isoDate(0)}&end=${isoDate(90)}&includeSeries=true`;
-	const episodes = await arrGet(url);
+	const episodes = await fetchArrCalendar('sonarr', isoDate(0), isoDate(90));
 
 	// Keep the earliest upcoming episode per series.
 	const bySeries = {};
