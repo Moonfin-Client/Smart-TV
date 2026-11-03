@@ -523,6 +523,22 @@ export const AuthProvider = ({children}) => {
 		// Silo's refresh token stays good until the login is ended on the server too.
 		await endSiloLoginIfLast(leaving);
 
+		// A Silo profile signs out to its household's profile list on the sign-in screen, not into the next profile.
+		const household = leaving.serverType === 'silo' && activeServerInfo &&
+			(await multiServerManager.getAllServersArray()).find((entry) => entry.serverId === activeServerInfo.serverId);
+		if (household) {
+			await multiServerManager.setActiveServer(household.serverId, household.userId);
+			clearAllCaches();
+			await removeFromStorage('auth');
+			setUser(null);
+			setServerUrl(null);
+			setServerName(null);
+			setAccessToken(null);
+			await loadServers();
+			setIsAuthenticated(false);
+			return;
+		}
+
 		const count = await multiServerManager.getTotalUserCount();
 		if (count > 0) {
 			const active = await multiServerManager.getActiveServer();
@@ -544,7 +560,7 @@ export const AuthProvider = ({children}) => {
 		setUniqueServers([]);
 		setActiveServerInfo(null);
 		setIsAuthenticated(false);
-	}, [activeServerInfo, switchUser, endSiloLoginIfLast]);
+	}, [activeServerInfo, switchUser, endSiloLoginIfLast, loadServers]);
 
 	/**
 	 * Full logout - remove all servers and users
