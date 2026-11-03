@@ -21,6 +21,7 @@ import {CoreAlertDialog} from '../../components/CoreDialog';
 import ProfileCarousel, {PillButton, PillRow} from '../../components/ProfileCarousel';
 import {BRAND_NAMES, ServerTypeIcon} from './loginIcons';
 import {forgottenPinUsername, noteProvedSignIn} from '../../utils/signInPin';
+import {CORE_ICON_PATHS} from '../Settings/settingsCoreIcons';
 
 import logoAndText from './logo_and_text.png';
 import css from './Login.module.less';
@@ -106,6 +107,11 @@ const Login = ({
 	const [signInUser, setSignInUser] = useState(null);
 	const [username, setUsername] = useState('');
 	const [password, setPassword] = useState('');
+	// Shows the password as typed, since a remote's keyboard makes a slip easy and hard to spot.
+	const [passwordShown, setPasswordShown] = useState(false);
+	const togglePasswordShown = useCallback(() => setPasswordShown((shown) => !shown), []);
+	// Hidden again for whoever signs in next.
+	useEffect(() => setPasswordShown(false), [server, signInUser]);
 	const [showQuickConnect, setShowQuickConnect] = useState(false);
 	const [quickConnectCode, setQuickConnectCode] = useState(null);
 	const [connectServers, setConnectServers] = useState([]);
@@ -1141,9 +1147,11 @@ const Login = ({
 
 	const choosePlex = useCallback(() => startPlexSignIn(), [startPlexSignIn]);
 
+	// The keyboard's checkmark lands on the button rather than sending, so what was typed can be looked
+	// over (and shown) before it goes.
 	const handlePasswordKeyDown = useCallback((e) => {
-		if (e.keyCode === KEYS.ENTER) handleSignIn();
-	}, [handleSignIn]);
+		if (e.keyCode === KEYS.ENTER) focusLater('signin-btn');
+	}, []);
 
 	const handleUsernameKeyDown = useCallback((e) => {
 		if (e.keyCode === KEYS.ENTER) focusLater(signInUser?.hasPassword === false ? 'signin-btn' : 'password-input');
@@ -1340,10 +1348,10 @@ const Login = ({
 				</div>
 			)}
 			{signInUser?.hasPassword !== false && (
-				<div className={css.field}>
+				<div className={`${css.field} ${css.passwordRow}`}>
 					<SpottableInput
 						data-spotlight-id="password-input"
-						type="password"
+						type={passwordShown ? 'text' : 'password'}
 						purpose="password"
 						className={css.input}
 						placeholder={server?.serverType === 'plex' ? $L('PIN') : $L('Password')}
@@ -1352,6 +1360,18 @@ const Login = ({
 						onKeyDown={handlePasswordKeyDown}
 						disabled={isConnecting}
 					/>
+					<SpottableButton
+						data-spotlight-id="password-reveal-btn"
+						className={css.revealButton}
+						onClick={togglePasswordShown}
+						aria-label={passwordShown ? $L('Hide password') : $L('Show password')}
+						aria-pressed={passwordShown}
+						disabled={isConnecting}
+					>
+						<svg viewBox="0 0 24 24" aria-hidden="true">
+							<path d={passwordShown ? CORE_ICON_PATHS.visibility_off : CORE_ICON_PATHS.visibility} />
+						</svg>
+					</SpottableButton>
 				</div>
 			)}
 			{error && <div className={css.fieldError}>{error}</div>}
