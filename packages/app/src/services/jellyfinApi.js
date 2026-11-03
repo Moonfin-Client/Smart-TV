@@ -152,6 +152,8 @@ const PLAYBACK_TIMEOUT_MS = 120000;
 const PEOPLE_SEARCH_TIMEOUT_MS = 10000;
 // The playback information dialog waits on this, so it gives up quickly and goes without.
 const OWN_SESSION_TIMEOUT_MS = 1500;
+// Emby's search has never asked for audiobooks, so only Jellyfin's does.
+const searchTypes = (kind) => `Book,${kind === 'jellyfin' ? 'AudioBook,' : ''}Movie,Series,Season,Episode,Video,MusicVideo,Trailer,Program,Playlist,MusicArtist,MusicAlbum,Audio,PhotoAlbum,Photo,BoxSet,Folder`;
 export const HOME_ROW_ITEM_FIELDS = 'DateCreated,PremiereDate,PrimaryImageAspectRatio,OfficialRating,Overview,Genres,GenreItems,ProductionYear,RunTimeTicks,CommunityRating,CriticRating,ProviderIds,ImageTags,BackdropImageTags,ParentBackdropImageTags,ParentBackdropItemId,ParentThumbItemId,ParentLogoItemId,ParentLogoImageTag,SeriesPrimaryImageTag,ParentPrimaryImageTag,SeriesName,SeriesId,ParentIndexNumber,IndexNumber,UserData,AlbumArtist,AlbumId,AlbumPrimaryImageTag';
 
 // The home Next Up row asks the server for a window instead of the whole watch
@@ -663,8 +665,8 @@ export const api = {
 			method: 'DELETE'
 		}),
 
-	search: (query, limit = 240) =>
-		request(`${userRoutes.items()}searchTerm=${encodeURIComponent(query)}&Limit=${limit}&Recursive=true&IncludeItemTypes=Book,Movie,Series,Season,Episode,Video,MusicVideo,Trailer,Program,Playlist,MusicArtist,MusicAlbum,Audio,PhotoAlbum,Photo,BoxSet,Folder&Fields=PrimaryImageAspectRatio,ProductionYear,AlbumArtist,SeriesName,ParentIndexNumber,IndexNumber,ProviderIds,UserData,OfficialRating`),
+	search: (query, limit = 240, types = searchTypes(serverType)) =>
+		request(`${userRoutes.items()}searchTerm=${encodeURIComponent(query)}&Limit=${limit}&Recursive=true&IncludeItemTypes=${types}&Fields=PrimaryImageAspectRatio,ProductionYear,AlbumArtist,SeriesName,ParentIndexNumber,IndexNumber,ProviderIds,UserData,OfficialRating`),
 
 	searchPeople: (query, limit = 24) =>
 		request(`/Persons?searchTerm=${encodeURIComponent(query)}&Limit=${limit}&Fields=PrimaryImageAspectRatio`, {timeoutMs: PEOPLE_SEARCH_TIMEOUT_MS}),
@@ -1244,8 +1246,8 @@ export const createApiForServer = (serverUrl, token, userId, serverTypeOverride 
 		getRandomItem: (includeTypes = 'Movie,Series') =>
 			serverRequest(`${serverUserRoutes.items()}IncludeItemTypes=${includeTypes}&Recursive=true&SortBy=Random&Limit=1&Fields=PrimaryImageAspectRatio,Overview&ExcludeItemTypes=BoxSet`),
 
-		search: (query, limit = 240) =>
-			serverRequest(`${serverUserRoutes.items()}SearchTerm=${encodeURIComponent(query)}&IncludeItemTypes=Book,Movie,Series,Season,Episode,Video,MusicVideo,Trailer,Program,Playlist,MusicArtist,MusicAlbum,Audio,PhotoAlbum,Photo,BoxSet,Folder&Recursive=true&Limit=${limit}&Fields=PrimaryImageAspectRatio,Overview,AlbumArtist,SeriesName,ParentIndexNumber,IndexNumber,ProviderIds,UserData,OfficialRating`),
+		search: (query, limit = 240, types = searchTypes(serverTypeOverride)) =>
+			serverRequest(`${serverUserRoutes.items()}SearchTerm=${encodeURIComponent(query)}&IncludeItemTypes=${types}&Recursive=true&Limit=${limit}&Fields=PrimaryImageAspectRatio,Overview,AlbumArtist,SeriesName,ParentIndexNumber,IndexNumber,ProviderIds,UserData,OfficialRating`),
 
 		searchPeople: (query, limit = 24) =>
 			serverRequest(`/Persons?searchTerm=${encodeURIComponent(query)}&Limit=${limit}&Fields=PrimaryImageAspectRatio`, {timeoutMs: PEOPLE_SEARCH_TIMEOUT_MS}),

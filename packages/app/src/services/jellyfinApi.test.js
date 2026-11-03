@@ -53,6 +53,19 @@ describe('search', () => {
 		expect(urlOf(people)).toContain('/Persons?searchTerm=alien&Limit=24');
 		expect(people[2]).toBe(10000);
 	});
+
+	test('only Jellyfin asks for audiobooks, and a refill asks for its own types', async () => {
+		setServerType('jellyfin');
+		await api.search('alien', 240);
+		await api.search('alien', 24, 'Movie');
+		setServerType('emby');
+		await api.search('alien', 240);
+		const [jellyfin, refill, emby] = platformFetch.mock.calls.map(urlOf);
+		expect(jellyfin).toContain('IncludeItemTypes=Book,AudioBook,Movie,');
+		expect(refill).toContain('Limit=24&Recursive=true&IncludeItemTypes=Movie&');
+		expect(emby).toContain('IncludeItemTypes=Book,Movie,');
+		setServerType('jellyfin');
+	});
 });
 
 describe('libraries', () => {

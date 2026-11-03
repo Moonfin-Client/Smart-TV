@@ -20,7 +20,7 @@ import {KEYS} from '../../utils/keys';
 import {getImageUrl} from '../../utils/helpers';
 import {showsWatchedCheck} from '../../utils/playedState';
 import {isGameLibrary, resolveGameLibraryId} from '../../utils/gameLibrary';
-import {groupSearchResults, aspectClassForType, isCircleType, filterByName, fetchAllGames, filterGames} from '../../utils/searchGroups';
+import {groupSearchResults, aspectClassForType, isCircleType, filterByName, fetchAllGames, filterGames, searchLibrary} from '../../utils/searchGroups';
 import {foldForSearch} from '../../utils/accentFolding';
 import {episodeLine} from '../../utils/liveTvGuide';
 import SpottableInput from '../../components/SpottableInput/SpottableInput';
@@ -116,7 +116,7 @@ const jellyfinSubtitle = (item) => {
 };
 
 const Search = ({onSelectItem, onSelectSeerrItem, onSelectPerson, onSelectGame, onPlayChannel, remoteSearch, musicBar}) => {
-	const {api, serverUrl, hasMultipleServers} = useAuth();
+	const {api, serverUrl, serverType, hasMultipleServers} = useAuth();
 	const {settings} = useSettings();
 	const unifiedMode = settings.unifiedLibraryMode && hasMultipleServers;
 	const {isEnabled: seerrEnabled, api: seerrApi, displayName: seerrName, pluginInfo} = useSeerr();
@@ -222,7 +222,7 @@ const Search = ({onSelectItem, onSelectSeerrItem, onSelectPerson, onSelectGame, 
 			const [libraryResult, channels] = await Promise.all([
 				unifiedMode
 					? connectionPool.searchAllServers(q, GLOBAL_FETCH_LIMIT).then((serverItems) => ({Items: serverItems}))
-					: api.search(q, GLOBAL_FETCH_LIMIT),
+					: searchLibrary(api, q, GLOBAL_FETCH_LIMIT, serverType),
 				hasLiveTvRef.current && !isStudioQuery
 					? api.getLiveTvChannels(0, 500).then((r) => r?.Items || []).catch(() => [])
 					: Promise.resolve([])
@@ -293,7 +293,7 @@ const Search = ({onSelectItem, onSelectSeerrItem, onSelectPerson, onSelectGame, 
 			setGameResults([]);
 			setIsLoading(false);
 		}
-	}, [api, seerrEnabled, seerrApi, unifiedMode, focusAllTab, rememberSearch, settings]);
+	}, [api, serverType, seerrEnabled, seerrApi, unifiedMode, focusAllTab, rememberSearch, settings]);
 
 	// A single word is a title or a name, which the normal search handles, so only
 	// queries of two words or more go to Moonbase.
