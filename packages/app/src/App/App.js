@@ -178,7 +178,7 @@ const PANELS = {
 };
 
 const AppContent = (props) => {
-	const {isAuthenticated, isLoading, logout, serverUrl, serverName, api, user, hasMultipleServers, accessToken, connectionState, revalidateSession, leaveSession, serverType} = useAuth();
+	const {isAuthenticated, isLoading, serverUrl, serverName, api, user, hasMultipleServers, accessToken, connectionState, revalidateSession, leaveSession, serverType} = useAuth();
 	const {settings, activeTheme, syncOnLogin, updateSettings, loaded: settingsLoaded} = useSettings();
 	const {streamNotification, dismissStreamNotification, pluginInfo} = useSeerr();
 	const {pendingPopups, markPopupsRead} = useServerMessages();
@@ -1609,11 +1609,11 @@ const AppContent = (props) => {
 		}
 	}, [navigateTo]);
 
-	const handleSwitchUser = useCallback(async () => {
-		await logout();
+	// The account dialog has signed out already; signing out again here took the next user with it.
+	const handleSignedOut = useCallback(() => {
 		setPanelHistory([]);
 		setPanelIndex(PANELS.LOGIN);
-	}, [logout]);
+	}, []);
 
 	const handleAddServer = useCallback(() => {
 		setPanelHistory([]);
@@ -2207,7 +2207,7 @@ const AppContent = (props) => {
 			<AccountModal
 				open={showAccountModal}
 				onClose={handleCloseAccountModal}
-				onLogout={handleSwitchUser}
+				onLogout={handleSignedOut}
 				onAddServer={handleAddServer}
 				onAddUser={handleAddUser}
 			/>
