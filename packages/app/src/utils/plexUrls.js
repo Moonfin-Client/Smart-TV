@@ -29,6 +29,15 @@ export const withPlexToken = (url, token) => (token
 	? `${url}${url.includes('?') ? '&' : '?'}X-Plex-Token=${encodeURIComponent(token)}`
 	: url);
 
+// Plex can't run plugins, so Moonbase for Plex is a companion service on port 32500 of the Plex server's host. It has no
+// plex.direct certificate, so a plex.direct name goes back to the IPv4 address it spells and the call goes over http.
+export const plexMoonbaseUrl = (serverUrl) => {
+	const host = /^https?:\/\/(\[[^\]]+\]|[^/:?#]+)/i.exec(String(serverUrl || ''))?.[1];
+	if (!host) return null;
+	const plexDirect = /^(\d{1,3}-\d{1,3}-\d{1,3}-\d{1,3})\.[0-9a-f]+\.plex\.direct$/i.exec(host);
+	return `http://${plexDirect ? plexDirect[1].replace(/-/g, '.') : host}:32500`;
+};
+
 const IMAGE_ROUTES = {Primary: 'thumb', Backdrop: 'art', Thumb: 'art', Logo: 'clearLogo', Banner: 'banner', Chapter: 'thumb'};
 // Ids the app makes up for things Plex keeps no picture of under that key.
 export const PREFIXED_ID = /^(section|genre|studio|person|channel|airing|new-collection)[-:]/;

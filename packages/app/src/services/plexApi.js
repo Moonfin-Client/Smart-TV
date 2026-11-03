@@ -9,7 +9,7 @@ import {
 	epoch, list, plexAdditionalParts, plexItems, plexItemsResult, plexItemToJellyfin, plexKeyOf, plexPartItem, plexPartOf,
 	plexPersonToJellyfin, plexSectionToView, plexSourceOf, plexVersion
 } from './plexMapper';
-import {PREFIXED_ID, plexImageUrl, plexQuery, trimSlash, withPlexToken} from '../utils/plexUrls';
+import {PREFIXED_ID, plexImageUrl, plexMoonbaseUrl, plexQuery, trimSlash, withPlexToken} from '../utils/plexUrls';
 
 export const plexIdentity = ({appName, appVersion, deviceName, deviceId}) => ({
 	'X-Plex-Product': appName,
@@ -1155,6 +1155,15 @@ export const createPlexApi = ({getBaseUrl, getToken, getUserId, getDeviceInfo, g
 
 		search: (query, limit = 240) => getItems({SearchTerm: query, Limit: limit}),
 		searchPeople: (query, limit = 24) => getPersons(query, limit),
+
+		// Moonbase for Plex answers with Plex's own metadata, and a person as a cast tag, so both take the usual mapping.
+		smartSearch: async (query, limit = 20) => {
+			const base = plexMoonbaseUrl(getBaseUrl());
+			if (!base) throw notFound('Moonbase for Plex');
+			const result = await send(`${base}/Moonfin/SmartSearch`, {query: {query, limit}});
+			const items = list(result.Items).filter((m) => m && typeof m === 'object');
+			return {...result, Items: items.map((m) => (m.type === 'person' ? plexPersonToJellyfin(m) : plexItemToJellyfin(m)))};
+		},
 
 		getSeasons: async (seriesId) => plexItemsResult(plexItems((await container(`/library/metadata/${seriesId}/children`)).Metadata)
 			.filter((item) => item.Type === 'Season')),
