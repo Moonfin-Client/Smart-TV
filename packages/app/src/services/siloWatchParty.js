@@ -983,7 +983,8 @@ const siloNow = () => {
 	if (!isSiloLogin(serverUrl, token)) return null;
 	const silo = createApiForServer(serverUrl, token, userId, 'silo');
 	return {
-		key: `${serverUrl}|${token}|${userId}`,
+		// Not the token: Silo rotates it on every refresh, and the room stays this profile's through that.
+		key: `${serverUrl}|${userId}`,
 		baseUrl: serverUrl,
 		userId: () => userId,
 		siloCall: silo.siloCall,

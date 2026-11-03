@@ -2781,6 +2781,9 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 				pendingResumeTicksRef.current = currentPositionTicks;
 			}
 			setMediaUrl(result.url);
+			// Silo can hand back the address already playing; the source is set again all the same, or the resume
+			// pending above would hold the position still.
+			setSourceRevision((revision) => revision + 1);
 			if (result.playMethod) setPlayMethod(result.playMethod);
 			setIsHdrContent(isHdrOutput(result.mediaSource, result.playMethod === playback.PlayMethod.Transcode));
 			setMimeType(result.mimeType || 'video/mp4');
@@ -2995,6 +2998,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 					};
 				}
 				setMediaUrl(newUrl);
+				setSourceRevision((revision) => revision + 1);
 				if (result.playMethod) setPlayMethod(result.playMethod);
 				setIsHdrContent(isHdrOutput(result.mediaSource, result.playMethod === playback.PlayMethod.Transcode));
 				setMimeType(result.mimeType || 'video/mp4');

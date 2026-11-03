@@ -15,7 +15,7 @@ import {clearProxiedImageCache} from '../hooks/useProxiedImage';
 import {parseUrl} from '../utils/urlCompat';
 import {noteProvedSignIn} from '../utils/signInPin';
 import {bestPlexAddress} from '../services/plexTv';
-import {onSiloSessionEnded, onSiloTokensRotated, siloServerKey} from '../services/siloSession';
+import {onSiloSessionEnded, onSiloTokensRotated, siloServerKey, siloSessionFor} from '../services/siloSession';
 
 const REVALIDATE_INTERVAL = 5 * 60 * 1000;
 
@@ -631,7 +631,9 @@ export const AuthProvider = ({children}) => {
 
 	// The session socket, and the watched state and remote control it carries, belong to whoever
 	// is signed in, so all of it starts over when the account or the server changes. A server that
-	// restarts forgets what this session can do, so it's told again on every connect.
+	// restarts forgets what this session can do, so it's told again on every connect. A Silo login is
+	// its account, since Silo rotates the token on every refresh.
+	const loginIdentity = siloSessionFor(serverUrl, accessToken)?.accountId || accessToken;
 	useEffect(() => {
 		if (!isAuthenticated) return undefined;
 		serverSocket.connect();
@@ -647,7 +649,7 @@ export const AuthProvider = ({children}) => {
 			serverSocket.disconnect();
 		};
 	// Silo's profiles share the account's token, so switching profile has to start this over too.
-	}, [isAuthenticated, serverUrl, accessToken, user?.Id]); // eslint-disable-line react-hooks/exhaustive-deps
+	}, [isAuthenticated, serverUrl, loginIdentity, user?.Id]); // eslint-disable-line react-hooks/exhaustive-deps
 
 	// Nothing else moves the state off disconnected, so the banner would sit there
 	// until someone pressed Retry. Probe in the background instead and drop it as

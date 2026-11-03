@@ -10,7 +10,7 @@ import * as userDataSync from './userDataSync';
 import {SUPPORTED_COMMANDS} from './remoteControl';
 import {createPlexApi, withEveryMethod} from './plexApi';
 import {createSiloApi, withEverySiloMethod} from './siloApi';
-import {onSiloTokensRotated, siloServerKey, siloSessionFor} from './siloSession';
+import {onSiloTokensRotated, siloServerKey, siloSessionFor, siloSessionOfAccount} from './siloSession';
 import {isPlexServer, registerPlexServer} from '../utils/plexUrls';
 import {registerSiloServer} from '../utils/siloUrls';
 const APP_VERSION = packageJson.version;
@@ -1128,13 +1128,15 @@ export const createApiForServer = (serverUrl, token, userId, serverTypeOverride 
 	// server's title has to reach the one that started it.
 	if (serverTypeOverride === 'silo') {
 		registerSiloServer(url);
-		// Keyed by the account, not the token, which Silo rotates on every refresh. The session found now is kept, since it
-		// only remembers a handful of the tokens it replaced.
-		const found = siloSessionFor(url, token);
-		const key = `${url}|${found ? `account:${found.accountId}` : token}|${userId}`;
+		// Keyed by the account, not the token, which Silo rotates on every refresh. The account found now is kept, since its
+		// session only remembers a handful of the tokens it replaced.
+		const accountId = siloSessionFor(url, token)?.accountId;
+		const key = `${url}|${accountId ? `account:${accountId}` : token}|${userId}`;
 		let silo = siloApis.get(key);
 		if (!silo) {
-			silo = siloApiFor(() => url, () => found?.tokens?.accessToken || siloSessionFor(url, token)?.tokens?.accessToken || token, () => userId);
+			// The account's session as it is now: a sign-in again after the last one ended opens a new one.
+			const session = () => (accountId ? siloSessionOfAccount(url, accountId) : siloSessionFor(url, token));
+			silo = siloApiFor(() => url, () => session()?.tokens?.accessToken || token, () => userId);
 			siloApis.set(key, silo);
 			if (siloApis.size > MAX_SILO_APIS) siloApis.delete(siloApis.keys().next().value);
 		}

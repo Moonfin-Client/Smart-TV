@@ -1345,8 +1345,6 @@ export const changeAudioStream = async (streamIndex, currentPositionTicks) => {
 	return newInfo;
 };
 
-// A seek the stream can't make itself (a Silo remux that only plays forward): the same title is asked for again at
-// the position, which Silo serves by replanning the session there.
 // Whether the playing Silo stream still carries a token the session has since replaced. Silo checks the stream's
 // token= on every segment and range request, so the stream stops once that token expires (Moonfin-Core #2060). The
 // session refreshes at four fifths of a token's life, which leaves the old one time to be swapped out.
@@ -1361,6 +1359,8 @@ export const streamTokenReplaced = (url, serverUrl, currentToken) => {
 export const siloStreamTokenRenewed = () => streamTokenReplaced(currentSession?.mediaSource?.SiloStreamUrl,
 	jellyfinApi.getServerUrl(), jellyfinApi.getApiKey());
 
+// A seek the stream can't make itself (a Silo remux that only plays forward): the same title is asked for again at
+// the position, which Silo serves by replanning the session there.
 export const reanchorAt = (positionTicks) => (currentSession
 	? getPlaybackInfo(currentSession.itemId, {...currentSession, item: currentSessionItem(), startPositionTicks: positionTicks})
 	: null);

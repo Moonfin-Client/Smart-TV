@@ -133,7 +133,6 @@ export const createSiloApi = ({getBaseUrl, getToken, getUserId, getDeviceInfo, p
 		return call(`${plugin}${path}`);
 	};
 
-	// Opens the login a token pair names, as its primary profile, with the account's household.
 	// The household of an open login, signed in as its primary profile.
 	const householdOf = async (opened, account) => {
 		const profiles = (await siloRequest(base(), '/api/v2/profiles', {
@@ -186,6 +185,19 @@ export const createSiloApi = ({getBaseUrl, getToken, getUserId, getDeviceInfo, p
 			minimumLength: capability.minimum_password_length || 0,
 			maximumBytes: capability.maximum_password_bytes || 0
 		});
+	};
+
+	// Checks a profile's PIN, and keeps the proof that unlocks the profile for this login. PIN checks are never
+	// replayed after a refresh, since Silo counts them against its rate limit.
+	const proveProfilePin = async (profileId, pin) => {
+		const answer = await call(`/api/v2/profiles/${encodeURIComponent(profileId)}/verify-pin`, {
+			method: 'POST', body: {pin}, profile: false, refresh: false
+		});
+		if (answer?.valid !== true || !answer.profile_token) return false;
+		setProfileProof(session(), String(profileId), {
+			token: answer.profile_token, expiresAt: answer.expires_at ? Date.parse(answer.expires_at) : 0
+		});
+		return true;
 	};
 
 	// Token pairs of approved device sign-ins, by device code, between the poll and the sign-in.
@@ -366,8 +378,6 @@ export const createSiloApi = ({getBaseUrl, getToken, getUserId, getDeviceInfo, p
 			return openLogin(pair);
 		},
 
-
-
 		// Ends the login on Silo too, so its refresh token dies with it. Signed out here whatever Silo answers.
 		logout: async () => {
 			const current = session();
@@ -426,32 +436,14 @@ export const createSiloApi = ({getBaseUrl, getToken, getUserId, getDeviceInfo, p
 			return profile ? profile.has_pin === true : null;
 		},
 
-		// Checks a profile's PIN, and keeps the proof that unlocks the profile for this login. PIN checks are never
-		// replayed after a refresh, since Silo counts them against its rate limit.
-		verifyProfilePin: async (profileId, pin) => {
-			const answer = await call(`/api/v2/profiles/${encodeURIComponent(profileId)}/verify-pin`, {
-				method: 'POST', body: {pin}, profile: false, refresh: false
-			});
-			if (answer?.valid !== true || !answer.profile_token) return false;
-			setProfileProof(session(), String(profileId), {
-				token: answer.profile_token, expiresAt: answer.expires_at ? Date.parse(answer.expires_at) : 0
-			});
-			return true;
-		},
+		verifyProfilePin: proveProfilePin,
 
 		// Sets (or with null removes) a profile's PIN, as the acting profile; Silo lets the primary profile or an admin do
 		// it. A new PIN retires the proof that unlocked the profile, so it's proved again with the new one.
 		setProfilePin: async (profileId, pin) => {
 			await call(`/api/v2/profiles/${encodeURIComponent(profileId)}`, {method: 'PATCH', body: {pin: pin || null}});
 			accountRead = null;
-			if (pin) {
-				await call(`/api/v2/profiles/${encodeURIComponent(profileId)}/verify-pin`, {method: 'POST', body: {pin}, profile: false, refresh: false})
-					.then((answer) => {
-						if (answer?.valid === true && answer.profile_token) {
-							setProfileProof(session(), String(profileId), {token: answer.profile_token, expiresAt: answer.expires_at ? Date.parse(answer.expires_at) : 0});
-						}
-					});
-			}
+			if (pin) await proveProfilePin(profileId, pin);
 		},
 
 		// A plain request to Silo's /api/v2 as the acting profile, for the request screens (siloSeerr.js).
