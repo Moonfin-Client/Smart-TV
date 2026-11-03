@@ -1,4 +1,4 @@
-import {buildThemeOverrideCss} from './themeOverrides';
+import {applyThemeOverrides, buildThemeOverrideCss, registerThemeSheet} from './themeOverrides';
 import {resolveThemeById} from './themeRegistry';
 import {contrastRatio, inkOn, toCssColor, MIN_BUTTON_CONTRAST} from './themeSpec';
 
@@ -77,6 +77,19 @@ describe('buildThemeOverrideCss', () => {
 		const theme = resolveThemeById('moonfin');
 		expect(buildThemeOverrideCss(theme, {focusBorderColor: '#ff0000'})).toContain('rgb(255, 0, 0)');
 		expect(buildThemeOverrideCss(theme, {focusBorderColor: 'nonsense'})).not.toContain('nonsense');
+	});
+
+	it('rings the screens that load on demand once they hand their stylesheets over', async () => {
+		const theme = resolveThemeById('moonfin');
+		applyThemeOverrides(theme, {focusBorderColor: '#ff0000'});
+		expect(document.getElementById('moonfin-theme-overrides').textContent).not.toContain('chapterItem');
+		registerThemeSheet('player', {liveBtn: 'liveBtn', chapterItem: 'chapterItem'});
+		registerThemeSheet('playerOverlays', {offsetBtn: 'offsetBtn', actionBtn: 'actionBtn', settingItem: 'settingItem', sliderItem: 'sliderItem'});
+		await Promise.resolve();
+		const lines = document.getElementById('moonfin-theme-overrides').textContent.split('\n');
+		const prefix = "html[data-theme-id='moonfin'][data-theme-id]";
+		expect(lines).toContain(`${prefix} .liveBtn:hover, ${prefix} .liveBtn:focus, ${prefix} .chapterItem:hover, ${prefix} .chapterItem:focus { border-color: rgb(255, 0, 0); }`);
+		expect(lines).toContain(`${prefix} .sliderItem:focus-within { border-color: rgb(255, 0, 0); }`);
 	});
 });
 

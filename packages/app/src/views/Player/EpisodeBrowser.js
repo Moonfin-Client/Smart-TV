@@ -14,9 +14,12 @@ import {hidesMediaDescription} from '../Details/detailsMedia';
 import {WatchedCheckIcon} from '../Details/DetailBadges';
 import {SpottableDiv} from './PlayerConstants';
 import useSeriesEpisodes from './useSeriesEpisodes';
+import {registerThemeSheet} from '../../theme/themeOverrides';
 
 import dialogCss from '../../components/CoreDialog/CoreDialog.module.less';
 import css from './EpisodeBrowser.module.less';
+
+registerThemeSheet('episodeBrowser', css);
 
 const CURRENT_EPISODE_ID = 'episodes-current';
 const stopPropagation = (e) => e.stopPropagation();

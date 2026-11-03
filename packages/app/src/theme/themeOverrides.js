@@ -72,6 +72,12 @@ import playbackInfoCss from '../views/Player/PlaybackInfoModal.module.less';
 
 const STYLE_ELEMENT_ID = 'moonfin-theme-overrides';
 
+// Screens that load on demand hand their stylesheets over when they load, since importing one
+// here would move it into the main stylesheet and change which of its rules win ties.
+const lazySheets = {};
+let lastApplied = null;
+let rebuildQueued = false;
+
 const hexAlpha = (hex) => Number.parseInt(hex.slice(1, 3), 16) / 255;
 
 const bumpRadius = (radius, extra) => radiusToCss({
@@ -308,6 +314,7 @@ export const buildThemeOverrideCss = (theme, options = {}) => {
 	rule(`.${settingsCss.listItem}:focus .${achievementsCss.boardValue}, .${settingsCss.listItem}:focus .${achievementsCss.rankGutter}, .${settingsCss.listItem}:focus .${achievementsCss.reward}`, `color: ${invertedStrong};`);
 	rule(`.${settingsCss.actionButton}`, `background: ${buttonNormal}; color: ${onButtonNormal}; border-color: ${tileBorderColor};`);
 	rule(`.${settingsCss.actionButton}:focus`, `background: ${buttonFocused}; border-color: ${focusColor}; color: ${buttonInk};`);
+	rule(`.${settingsCss.logFilter}:focus`, `border-color: ${focusColor};`);
 	rule(`.${settingsCss.dangerButton}:focus`, `background: ${recordingActive} !important; border-color: ${recordingActive} !important; color: #fff;`);
 	// The editors' buttons, Save filled and the rest as text, focus the way the rows do
 	rule(`.${settingsCss.settingsButton}`, `color: ${accent};`);
@@ -388,6 +395,7 @@ export const buildThemeOverrideCss = (theme, options = {}) => {
 	rule(`.${detailsCss.trackPlayed} svg`, `fill: ${accent};`);
 	rule(`.${detailsCss.actionBtn}`, `background: ${os(0.1)}; border-color: ${os(0.2)}; color: ${onBackground};`);
 	rule(`.${detailsCss.actionBtn}:hover, .${detailsCss.actionBtn}:focus`, `background: ${accentA(0.3)}; border-color: ${focusColor};`);
+	rule(`.${detailsCss.personActionBtn}:focus`, `border-color: ${focusColor};`);
 	rule(`.${detailsCss.toast}`, `background: ${surfaceA(0.9)}; color: ${onBackground}; border-color: ${os(0.12)};`);
 	rule(`.${detailsCss.trailerCloseBtn}`, `background: ${os(0.15)}; color: ${onBackground};`);
 
@@ -743,6 +751,24 @@ export const buildThemeOverrideCss = (theme, options = {}) => {
 	rule(`.${ratingsCss.ratingValue}, .${ratingsCss.ratingName}, .${ratingsCss.ratingNameCompact}`, `color: ${onSurface};`);
 	rule(`.${ratingsCss.ratingValueCompact}`, `color: ${onBackground};`);
 
+	// Focus rings on the screens that load on demand
+	const {player, playerOverlays, episodeBrowser, genreBrowse} = lazySheets;
+	const ring = (sheet, names, states) => names.flatMap((name) => states.map((state) => `.${sheet[name]}${state}`)).join(', ');
+	if (player) {
+		rule(ring(player, ['liveBtn', 'chapterItem'], [':hover', ':focus']), `border-color: ${focusColor};`);
+	}
+	if (playerOverlays) {
+		rule(ring(playerOverlays, ['offsetBtn', 'actionBtn', 'settingItem'], [':hover', ':focus']), `border-color: ${focusColor};`);
+		// Older engines drop a whole rule over one selector they can't read, so this stands alone
+		rule(`.${playerOverlays.sliderItem}:focus-within`, `border-color: ${focusColor};`);
+	}
+	if (episodeBrowser) {
+		rule(ring(episodeBrowser, ['episode'], [':hover', ':focus']), `border-color: ${focusColor};`);
+	}
+	if (genreBrowse) {
+		rule(ring(genreBrowse, ['filterButton', 'sortButton', 'letterButton'], [':focus']), `border-color: ${focusColor};`);
+	}
+
 	// Pixel themes square off every fixed radius.
 	if (theme.isPixel) {
 		rule([
@@ -769,6 +795,7 @@ export const buildThemeOverrideCss = (theme, options = {}) => {
 // Creates or refreshes the injected style element. Appending on every call also
 // moves it back to the end of the head.
 export const applyThemeOverrides = (theme, options) => {
+	lastApplied = [theme, options];
 	if (typeof document === 'undefined') return;
 	let element = document.getElementById(STYLE_ELEMENT_ID);
 	if (!element) {
@@ -777,4 +804,15 @@ export const applyThemeOverrides = (theme, options) => {
 	}
 	element.textContent = buildThemeOverrideCss(theme, options);
 	document.head.appendChild(element);
+};
+
+export const registerThemeSheet = (name, css) => {
+	lazySheets[name] = css;
+	if (!lastApplied || rebuildQueued) return;
+	rebuildQueued = true;
+	// A screen's modules load together, so their sheets go in with one rebuild
+	Promise.resolve().then(() => {
+		rebuildQueued = false;
+		applyThemeOverrides(...lastApplied);
+	});
 };
