@@ -118,6 +118,38 @@ describe('a server-approved file without a usable stream URL', () => {
 		expect(api.getPlaybackInfo.mock.calls[1][1].MediaSourceId).toBe(av1.Id);
 	});
 
+	test('retries the selected version when the requested source id is absent from the response', async () => {
+		getDeviceCapabilities.mockResolvedValue({av1: true, hdr10: true, dolbyVision: false});
+		getPlayMethod.mockReturnValue('DirectStream');
+		api.getPlaybackInfo
+			.mockResolvedValueOnce({PlaySessionId: 'first', MediaSources: [
+				{...av1, Id: 'other-version', SupportsDirectPlay: false, SupportsDirectStream: false}, av1
+			]})
+			.mockResolvedValueOnce({PlaySessionId: 'fallback', MediaSources: [{
+				...av1, TranscodingUrl: '/Videos/movie-1/master.m3u8?VideoCodec=h264'
+			}]});
+
+		const result = await playback.getPlaybackInfo(movie.Id, {item: movie, mediaSourceId: 'removed-version'});
+
+		expect(api.getPlaybackInfo).toHaveBeenCalledTimes(2);
+		expect(api.getPlaybackInfo.mock.calls[0][1].MediaSourceId).toBe('removed-version');
+		expect(api.getPlaybackInfo.mock.calls[1][1].MediaSourceId).toBe(av1.Id);
+		expect(result.mediaSourceId).toBe(av1.Id);
+	});
+
+	test.each(['DirectStream', 'Transcode'])('does not force a %s retry when transcoding is disabled', async (method) => {
+		getDeviceCapabilities.mockResolvedValue({av1: true, hdr10: true, dolbyVision: false});
+		getPlayMethod.mockReturnValue(method);
+		api.getPlaybackInfo.mockResolvedValue({PlaySessionId: 'no-url', MediaSources: [av1]});
+
+		await expect(playback.getPlaybackInfo(movie.Id, {
+			item: movie, mediaSourceId: av1.Id, enableTranscoding: false
+		})).rejects.toThrow('No playback URL available');
+
+		expect(api.getPlaybackInfo).toHaveBeenCalledTimes(1);
+		expect(api.getPlaybackInfo.mock.calls[0][1].EnableTranscoding).toBe(false);
+	});
+
 	test('retains an AV1-only profile when no alternative video encode profile exists', async () => {
 		getDeviceCapabilities.mockResolvedValue({av1: true, hdr10: true, dolbyVision: false});
 		getDeviceProfile.mockResolvedValue({TranscodingProfiles: [{Type: 'Video', VideoCodec: 'av1'}]});

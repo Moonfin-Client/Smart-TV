@@ -855,7 +855,8 @@ export const getPlaybackInfo = async (itemId, options = {}) => {
 	// a real transcode instead of passing that source to buildPlaybackUrl.
 	const missingRemuxUrl = playMethod === PlayMethod.DirectStream &&
 		!mediaSource.DirectStreamUrl && !mediaSource.TranscodingUrl;
-	if ((playMethod === PlayMethod.Transcode && !mediaSource.TranscodingUrl) || missingRemuxUrl) {
+	if (options.enableTranscoding !== false &&
+			((playMethod === PlayMethod.Transcode && !mediaSource.TranscodingUrl) || missingRemuxUrl)) {
 		console.log('[playback] No usable negotiated stream URL - re-requesting with transcoding forced');
 		// This fallback must encode the video. Prefer the device's ordinary codecs
 		// over an AV1-only profile that the server may only be able to stream-copy.
@@ -874,7 +875,7 @@ export const getPlaybackInfo = async (itemId, options = {}) => {
 			AudioStreamIndex: audioStreamIndex,
 			SubtitleStreamIndex: sentSubtitleStreamIndex,
 			MaxStreamingBitrate: maxBitrate,
-			MediaSourceId: options.mediaSourceId || mediaSource.Id
+			MediaSourceId: mediaSource.Id
 		});
 
 		if (!playbackInfo.MediaSources?.length) {
