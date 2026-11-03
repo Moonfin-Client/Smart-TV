@@ -107,7 +107,7 @@ const DETAIL_STYLE_NAMES = {v1: 'classic', v2: 'modern', v3: 'spotlight', v4: 'n
 const detailStyleFromServer = (value) => (Object.prototype.hasOwnProperty.call(DETAIL_STYLE_NAMES, value)
 	? value
 	: Object.keys(DETAIL_STYLE_NAMES).find((key) => DETAIL_STYLE_NAMES[key] === value));
-const normalizeDetailScreenStyle = (value) => detailStyleFromServer(value) || 'v2';
+const normalizeDetailScreenStyle = (value) => detailStyleFromServer(value) || defaultSettings.detailScreenStyle;
 
 const normalizeGuid = (id) => {
 	if (!id || typeof id !== 'string') return id;

@@ -290,7 +290,7 @@ export const defaultSettings = {
 	homeRowsStyle: 'v2',
 	modernCardsOnMyMediaRow: false,
 	modernCardTransitionSpeed: 'off',
-	detailScreenStyle: 'v2',
+	detailScreenStyle: 'v9',
 	detailButtonsMaxVisible: 0,
 	personalRatingStyle: 'thumbs',
 	detailExpandedTabs: true,
