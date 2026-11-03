@@ -1,9 +1,7 @@
 import {ACTIONS} from '../stage/stageRules';
-import {quickLookFacts, quickLookFade, quickLookNeighbour, quickLookProgress, quickLookSurface, seasonCardShare} from './quickLookRules';
+import {quickLookFacts, quickLookFade, quickLookNeighbour, quickLookSurface, seasonCardShare} from './quickLookRules';
 
 jest.mock('@enact/i18n/$L', () => (text) => text);
-
-const TICKS_PER_MINUTE = 600000000;
 
 describe('where a press leaves a row of the Quick Look drawer for', () => {
 	const stops = ['stage-tracks', 'quick-look-seasons', 'quick-look-open'];
@@ -35,25 +33,6 @@ describe('the drawer surface', () => {
 	test('hands back the same fade for the same surface, so its baked scrim is reused', () => {
 		expect(quickLookFade('23, 23, 23')).toBe(quickLookFade('23, 23, 23'));
 		expect(quickLookFade('23, 23, 23')).not.toBe(quickLookFade('247, 247, 247'));
-	});
-});
-
-describe('the progress line', () => {
-	const movie = {Type: 'Movie', RunTimeTicks: 120 * TICKS_PER_MINUTE, UserData: {PlaybackPositionTicks: 48 * TICKS_PER_MINUTE}};
-
-	test('shows how far into a film the viewer is and how long is left', () => {
-		expect(quickLookProgress(movie, [])).toEqual({percent: 40, label: '1h 12m remaining'});
-	});
-
-	test('follows the episode a show would resume, numbered', () => {
-		const episode = {Type: 'Episode', ParentIndexNumber: 3, IndexNumber: 4, RunTimeTicks: 40 * TICKS_PER_MINUTE, UserData: {PlaybackPositionTicks: 16 * TICKS_PER_MINUTE}};
-		expect(quickLookProgress({Type: 'Series'}, [episode])).toEqual({percent: 40, label: 'S3:E4 · 24m remaining'});
-	});
-
-	test('has nothing to show with nowhere to resume', () => {
-		expect(quickLookProgress({...movie, UserData: {PlaybackPositionTicks: 0}}, [])).toBe(null);
-		expect(quickLookProgress({...movie, UserData: {...movie.UserData, Played: true}}, [])).toBe(null);
-		expect(quickLookProgress({Type: 'Series'}, [])).toBe(null);
 	});
 });
 

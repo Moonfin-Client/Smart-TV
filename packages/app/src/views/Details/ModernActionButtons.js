@@ -41,8 +41,10 @@ const TRACK_BUTTONS = ['version', 'audio', 'subtitles'];
 //
 // `centered` is Premiere's row under its centered title: a labeled first button and the circles
 // beside it, each showing its label under it while focused. `startAligned` starts that row at the
-// left instead, for Quick Look's drawer. In a plain or centered row, onNavigateUp and
-// onNavigateDown take Up and Down off any button.
+// left instead, for Quick Look's drawer. `frosted` is Frost's toolbar: the first button a white
+// pill and the rest bare icons that take a lighter platter when focused, with the label floating
+// above. In a plain, centered or frosted row, onNavigateUp and onNavigateDown take Up and Down off
+// any button.
 const ModernActionButtons = (props) => {
 	// Only what the row itself needs. Everything the buttons are built from is read straight off
 	// props by the catalogue.
@@ -51,7 +53,7 @@ const ModernActionButtons = (props) => {
 		hasPlaybackPosition, resumeTimeText, hasTech,
 		handlePlay, handleResume, handleOpenExtras,
 		onFocusRow, downTarget, maxVisibleButtons, overflowAsMenu, menuBackRef,
-		stacked, centered, startAligned, omitTrackButtons, buttonCap, onNavigateUp, onNavigateDown, onRightEdge
+		stacked, centered, startAligned, frosted, omitTrackButtons, buttonCap, onNavigateUp, onNavigateDown, onRightEdge
 	} = props;
 
 	const [menuOpen, setMenuOpen] = useState(false);
@@ -198,7 +200,7 @@ const ModernActionButtons = (props) => {
 	return (
 		<>
 			<RowContainer
-				className={stacked ? css.actionsStacked : centered ? `${css.actionsCentered} ${startAligned ? css.actionsStart : ''}` : `${css.actions} ${hasTech ? css.actionsTight : ''}`}
+				className={frosted ? css.actionsFrosted : stacked ? css.actionsStacked : centered ? `${css.actionsCentered} ${startAligned ? css.actionsStart : ''}` : `${css.actions} ${hasTech ? css.actionsTight : ''}`}
 				spotlightId="details-action-buttons"
 				onFocus={handleRowFocus}
 				onKeyDown={stacked ? handleStackedKeyDown : handleKeyDown}
@@ -207,8 +209,8 @@ const ModernActionButtons = (props) => {
 					<ActionButton
 						primary
 						path={DETAIL_ICON_PATHS.play}
-						label={stacked || centered ? $L('Resume from {position}').replace('{position}', resumeTimeText) : $L('Resume')}
-						detail={stacked || centered ? null : resumeTimeText}
+						label={stacked || centered || frosted ? $L('Resume from {position}').replace('{position}', resumeTimeText) : $L('Resume')}
+						detail={stacked || centered || frosted ? null : resumeTimeText}
 						onClick={handleResume}
 						spotlightId="details-primary-btn"
 					/>

@@ -10,7 +10,9 @@ import css from './RatingsRow.module.less';
 // inline keeps the full size chips on one line with each label after its value.
 // sampleRatings stands in for the plugin's answer, so the settings preview never asks the server.
 // A screen with no room for the sources' names turns labels off.
-const RatingsRow = ({item, serverUrl, compact = false, singleLineWidth, pluginEnabled = true, surface, inline = false, sampleRatings, labels = true}) => {
+// columns is Frost's strip, a column per source with its name over its score. The names show there
+// whatever the label setting says, since the strip is nothing without them.
+const RatingsRow = ({item, serverUrl, compact = false, singleLineWidth, pluginEnabled = true, surface, inline = false, sampleRatings, labels = true, columns = false}) => {
 	const settings = ratingSettingsFor(useSettings().settings, surface);
 	const showLabels = labels && settings.showRatingLabels !== false;
 	// Badges only choose the chip chrome around each rating. Off means plain, not hidden.
@@ -101,6 +103,25 @@ const RatingsRow = ({item, serverUrl, compact = false, singleLineWidth, pluginEn
 	useLayoutEffect(fitSingleLine, [fitSingleLine, singleLineWidth, displayRatings, personalRating, communityRating, showCriticRating, showLabels, showBadges]);
 
 	if (!hasContent) return null;
+
+	if (columns) {
+		const entries = [
+			personalRating && {key: 'personal', name: $L('My Rating'), value: personalRating},
+			communityRating && {key: 'community', name: $L('Community'), value: communityRating},
+			showCriticRating && {key: 'critic', name: $L('Rotten Tomatoes'), value: `${item.CriticRating}%`},
+			...displayRatings.map((r) => ({key: r.source, name: r.name, value: r.formatted}))
+		].filter(Boolean).slice(0, 7);
+		return (
+			<div className={css.ratingsColumns}>
+				{entries.map((entry) => (
+					<div key={entry.key} className={css.ratingColumn}>
+						<span className={css.columnName}>{entry.name}</span>
+						<span className={css.columnValue}>{entry.value}</span>
+					</div>
+				))}
+			</div>
+		);
+	}
 
 	if (compact) {
 		const compactClass = `${css.ratingCompact}${showBadges ? ' ' + css.ratingCompactBadge : ''}`;

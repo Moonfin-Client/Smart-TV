@@ -66,6 +66,7 @@ import MinimalistDetailContent from './minimalist/MinimalistDetailContent';
 import StageDetailContent from './stage/StageDetailContent';
 import PremiereDetailContent from './premiere/PremiereDetailContent';
 import QuickLookDetailContent, {QuickLookFrame} from './quickLook/QuickLookDetailContent';
+import FrostDetailContent from './frost/FrostDetailContent';
 import {drawsStage} from './stage/stageRules';
 import PersonScreen from './PersonScreen';
 import PersonDisplayDialog from './PersonDisplayDialog';
@@ -81,7 +82,8 @@ import css from './Details.module.less';
 // Every style past Classic takes the same contract, so the setting only decides which of them
 // draws the screen.
 const DETAIL_CONTENT = {
-	v3: SpotlightDetailContent, v4: NouveauDetailContent, v5: MinimalistDetailContent, v6: StageDetailContent, v7: PremiereDetailContent
+	v3: SpotlightDetailContent, v4: NouveauDetailContent, v5: MinimalistDetailContent, v6: StageDetailContent, v7: PremiereDetailContent,
+	v9: FrostDetailContent
 };
 // The missing titles already ride in the list a collection's page is handed.
 const NO_ITEMS = [];
@@ -1215,7 +1217,7 @@ const Details = ({
 	);
 
 	if (detailStyle !== 'v1') {
-		// Spotlight, Minimalist, Nouveau, Stage and Premiere have no track list, so a playlist always gets Modern's.
+		// Spotlight, Minimalist, Nouveau, Stage, Premiere and Frost have no track list, so a playlist always gets Modern's.
 		const DetailContent = quickLook
 			? QuickLookDetailContent
 			: (item.Type !== 'Playlist' && DETAIL_CONTENT[detailStyle]) || ModernDetailContent;
@@ -1271,7 +1273,7 @@ const Details = ({
 					extras={shownExtras}
 					cast={detailCast}
 					crew={detailCrew}
-					nextUp={quickLook ? nextUp : shownNextUp}
+					nextUp={quickLook || detailStyle === 'v9' ? nextUp : shownNextUp}
 					collectionItems={shownCollectionItems}
 					collectionSections={collectionSections}
 					albumTracks={albumTracks}

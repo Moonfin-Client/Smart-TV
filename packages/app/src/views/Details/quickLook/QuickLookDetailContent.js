@@ -20,10 +20,10 @@ import {RowContainer, SpottableDiv} from '../detailsSpottables';
 import DetailMetaRow from '../DetailMetaRow';
 import ModernActionButtons from '../ModernActionButtons';
 import useDetailPage, {focusAtTop, scrollPage} from '../useDetailPage';
-import {ACTIONS, drawsStage, stageSubtitle} from '../stage/stageRules';
+import {ACTIONS, drawsStage, resumeLine, stageSubtitle} from '../stage/stageRules';
 import {
-	QUICK_LOOK_BUTTON_CAP, QUICK_LOOK_ID, SEASON_GAP, quickLookFacts, quickLookFade, quickLookNeighbour, quickLookProgress,
-	quickLookSurface, seasonCardShare
+	QUICK_LOOK_BUTTON_CAP, QUICK_LOOK_ID, SEASON_GAP, quickLookFacts, quickLookFade, quickLookNeighbour, quickLookSurface,
+	seasonCardShare
 } from './quickLookRules';
 
 import stageCss from '../stage/StageDetailContent.module.less';
@@ -166,7 +166,7 @@ const QuickLookScreen = (props) => {
 	const subtitle = stageSubtitle(item);
 	const overview = Boolean(item.Overview) && !hidesMediaDescription(item, settings) ? cleanOverview(item.Overview) : '';
 	const showImage = settings.detailsBackdropEnabled !== false && Boolean(backdropUrl);
-	const progress = quickLookProgress(item, nextUp);
+	const progress = resumeLine(item, nextUp);
 	const facts = item.Type === 'Series' ? [] : quickLookFacts(item, showsSection);
 
 	const tracks = page.tracksStop({shareRow: true});

@@ -34,7 +34,9 @@ import {minimalistScrimAlpha} from '../Details/minimalist/minimalistRules';
 import {STAGE_BUTTON_CAP, stageScrimAlpha} from '../Details/stage/stageRules';
 import {premiereDim, premiereScrim} from '../Details/premiere/premiereRules';
 import {QUICK_LOOK_BUTTON_CAP, quickLookSurface} from '../Details/quickLook/quickLookRules';
+import {FROST_BUTTON_CAP} from '../Details/frost/frostRules';
 import {scrimStyle} from '../../utils/scrimImage';
+import {serverBlurredUrl} from '../../utils/serverBlur';
 import {splitNouveauActions} from '../Details/nouveau/nouveauActionSplit';
 import {personalRatingIconPath, personalRatingLabel} from '../Details/personalRatingAction';
 import {materialIconPath} from '../Settings/materialIconMap';
@@ -1143,12 +1145,12 @@ const SAMPLE_ACTIONS = DETAIL_BUTTONS.filter((button) => SAMPLE_ACTION_LOOKS[but
 // them. Spotlight and Minimalist cap the row at five, Nouveau keeps its own short rule, and
 // Classic and Modern only fold anything away once the viewer sets a count. Stage caps at five, which
 // the count can lower but never lift, and draws the subtitle picker as a chip instead. Premiere
-// draws it as a chip too, and on Auto caps at six. Quick Look draws the chip and caps at six the
-// way Stage caps at five.
+// draws it as a chip too, and on Auto caps at six. Quick Look and Frost draw the chip and cap at six
+// the way Stage caps at five.
 const detailActions = (variant, settings) => {
-	const buttonCap = {v6: STAGE_BUTTON_CAP, v8: QUICK_LOOK_BUTTON_CAP}[variant];
+	const buttonCap = {v6: STAGE_BUTTON_CAP, v8: QUICK_LOOK_BUTTON_CAP, v9: FROST_BUTTON_CAP}[variant];
 	const offered = arrange(SAMPLE_ACTIONS, {order: settings[DETAIL_ORDER_KEY], hidden: settings[DETAIL_HIDDEN_KEY]})
-		.filter((button) => ['v6', 'v7', 'v8'].indexOf(variant) < 0 || button.id !== 'subtitles');
+		.filter((button) => ['v6', 'v7', 'v8', 'v9'].indexOf(variant) < 0 || button.id !== 'subtitles');
 	const prefLimit = settings.detailButtonsMaxVisible ?? 0;
 	let inline = offered;
 	let more = false;
@@ -1927,9 +1929,81 @@ const QuickLookDetail = ({items, t}) => {
 	);
 };
 
+// The art blurred behind a glass window that holds it sharp, with the toolbar over the window's foot
+// and the bar of tabs under it, at half the size of the stage the page is drawn on.
+const FrostDetail = ({items, t}) => {
+	const {settings} = useSettings();
+	const item = items[0];
+	const meta = detailMeta(item, settings).map((piece) => piece.text).join(' · ');
+	const actions = detailActions('v9', settings);
+	const circles = [...actions.inline.map((action) => action.path), ...(actions.more ? [DETAIL_ICON_PATHS.moreHoriz] : [])];
+	const art = settings.detailsBackdropEnabled !== false ? item.backdropUrl : null;
+	const blurred = serverBlurredUrl(art, 60);
+	const glass = {backgroundColor: 'rgba(48, 48, 54, 0.9)', border: '1px solid rgba(255, 255, 255, 0.08)'};
+	const tabs = [$L('Overview'), $L('Cast & Crew'), $L('More Like This'), $L('Details')];
+	return (
+		<div style={{position: 'relative', width: '100%', height: '100%', overflow: 'hidden'}}>
+			<Artwork url={blurred || art} imgStyle={blurred ? null : {filter: 'blur(30px)', WebkitFilter: 'blur(30px)'}} t={t} />
+			<div style={{...ABS_FILL, backgroundColor: 'rgba(0, 0, 0, 0.55)'}} />
+			<div style={{position: 'absolute', left: 18, top: 9, width: 924, height: 421.5, borderRadius: 33, overflow: 'hidden', backgroundColor: 'rgba(28, 28, 32, 0.55)'}}>
+				{art && <Artwork url={art} t={t} />}
+				<div style={{...ABS_FILL, background: 'linear-gradient(to top, rgba(12, 12, 14, 0.95), rgba(12, 12, 14, 0.74) 50%, rgba(12, 12, 14, 0) 80%)'}} />
+				<div style={{position: 'absolute', left: 42, right: 42, bottom: 48}}>
+					<div style={{fontSize: 48, fontWeight: 800, lineHeight: 1.1, letterSpacing: -1.2, color: '#FFFFFF', ...clampLines(2)}}>{item.title}</div>
+					{meta && <div style={{marginTop: 9, fontSize: 13.5, fontWeight: 500, color: 'rgba(235, 235, 245, 0.78)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis'}}>{meta}</div>}
+					{item.overview && (
+						<div style={{marginTop: 18, width: 498, fontSize: 13.5, lineHeight: 1.45, color: 'rgba(255, 255, 255, 0.9)', ...clampLines(3)}}>
+							{item.overview}
+						</div>
+					)}
+				</div>
+			</div>
+			<div style={{position: 'absolute', left: 0, right: 0, top: 403.5, display: 'flex', justifyContent: 'center'}}>
+				<div style={{display: 'flex', alignItems: 'center', padding: 6, borderRadius: 28.5, ...glass}}>
+					<div style={{height: 45, minWidth: 150, padding: '0 21px', boxSizing: 'border-box', borderRadius: 22.5, backgroundColor: 'rgba(255, 255, 255, 0.86)', display: 'flex', alignItems: 'center', justifyContent: 'center'}}>
+						<MIcon name='play_arrow' size={19} color='#000000' />
+						<div style={{marginLeft: 7.5, fontSize: 14.25, fontWeight: 600, color: '#000000'}}>{$L('Play')}</div>
+					</div>
+					{circles.map((path, i) => (
+						<div key={i} style={{width: 45, height: 45, marginLeft: i ? 4.5 : 9, display: 'flex', alignItems: 'center', justifyContent: 'center'}}>
+							<MIcon path={path} size={19} color='#FFFFFF' />
+						</div>
+					))}
+				</div>
+			</div>
+			<div style={{position: 'absolute', left: 0, right: 0, top: 468, display: 'flex', justifyContent: 'center'}}>
+				<div style={{display: 'flex', padding: 4.5, borderRadius: 22.5, ...glass}}>
+					{tabs.map((label, i) => (
+						<div key={label} style={{height: 36, marginLeft: i ? 3 : 0, padding: '0 13.5px', borderRadius: 18, display: 'flex', alignItems: 'center', fontSize: 12, fontWeight: 600, color: '#FFFFFF', whiteSpace: 'nowrap', backgroundColor: i ? 'transparent' : 'rgba(255, 255, 255, 0.16)'}}>
+							{label}
+						</div>
+					))}
+				</div>
+			</div>
+		</div>
+	);
+};
+
 const FallbackDetail = ({variant, t}) => {
 	const strong = t.onSurfaceA(0.78);
 	const weak = t.onSurfaceA(0.3);
+	if (variant === 'v9') {
+		return (
+			<div style={{position: 'relative', width: '100%', height: '100%', ...fallBackdrop(t)}}>
+				<div style={{...ABS_FILL, backgroundColor: 'rgba(0, 0, 0, 0.45)'}} />
+				<div style={{position: 'absolute', top: 5, right: 8, bottom: 28, left: 8, padding: 10, display: 'flex', flexDirection: 'column', justifyContent: 'flex-end', borderRadius: 12, backgroundColor: t.surfaceA(0.6)}}>
+					<FallBar width={56} height={8} color={strong} />
+					<FallBar width={40} height={5} color={weak} style={{marginTop: 5}} />
+				</div>
+				<div style={{position: 'absolute', left: 0, right: 0, bottom: 22, display: 'flex', justifyContent: 'center'}}>
+					<FallBar width={60} height={12} color={weak} />
+				</div>
+				<div style={{position: 'absolute', left: 0, right: 0, bottom: 5, display: 'flex', justifyContent: 'center'}}>
+					<FallBar width={90} height={10} color={weak} />
+				</div>
+			</div>
+		);
+	}
 	if (variant === 'v8') {
 		return (
 			<div style={{position: 'relative', width: '100%', height: '100%', ...fallBackdrop(t)}}>
@@ -2078,6 +2152,7 @@ export const DetailStylePreview = ({variant}) => {
 		if (variant === 'v6') return <StageDetail items={items} t={t} />;
 		if (variant === 'v7') return <PremiereDetail items={items} t={t} />;
 		if (variant === 'v8') return <QuickLookDetail items={items} t={t} />;
+		if (variant === 'v9') return <FrostDetail items={items} t={t} />;
 		return <ModernDetail items={items} t={t} />;
 	}, [variant, t, hideDescription]);
 	return <LivePreview render={render} fallback={<FallbackDetail variant={variant} t={t} />} />;

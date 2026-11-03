@@ -1,10 +1,8 @@
 import $L from '@enact/i18n/$L';
 
-import {formatDuration} from '../../../utils/helpers';
 import {parseServerDate} from '../../../utils/serverDate';
 import {uiLocale} from '../../../utils/uiLocale';
 import {premiereNeighbour} from '../premiere/premiereRules';
-import {episodeCode} from '../stage/stageRules';
 
 // The drawer's spotlight container, which App brings focus back into.
 export const QUICK_LOOK_ID = 'quick-look';
@@ -33,20 +31,6 @@ const fades = new Map();
 export const quickLookFade = (rgb) => {
 	if (!fades.has(rgb)) fades.set(rgb, [{to: 'bottom', rgb, stops: [[0.4, 0], [1, 1]]}]);
 	return fades.get(rgb);
-};
-
-// How far into the title the viewer is, or for a show into the episode it would resume, and the line
-// beside the bar. Null when there's nowhere to resume.
-export const quickLookProgress = (item, nextUp) => {
-	const target = item.Type === 'Series' ? nextUp?.[0] : item;
-	const runtime = target?.RunTimeTicks;
-	const position = target?.UserData?.PlaybackPositionTicks;
-	if (!target || target.UserData?.Played || !(runtime > 0) || !(position > 0) || position >= runtime) return null;
-	const left = $L('{time} remaining').replace('{time}', formatDuration(runtime - position));
-	return {
-		percent: (position / runtime) * 100,
-		label: [target === item ? null : episodeCode(target), left].filter(Boolean).join(' · ')
-	};
 };
 
 // Who made it and when it came out, a column each, up to four.

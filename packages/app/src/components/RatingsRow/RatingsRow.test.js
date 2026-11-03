@@ -60,6 +60,13 @@ describe('RatingsRow surfaces', () => {
 		expect(screen.getByText('7.4')).toBeTruthy();
 		expect(screen.queryByText('Community')).toBeNull();
 	});
+
+	test('a strip of columns names every source whatever the label setting says', () => {
+		const {container} = render(<RatingsRow item={movie} serverUrl='http://server' pluginEnabled={false} surface='mediaBar' columns />);
+		expect(container.firstChild.children).toHaveLength(2);
+		expect(screen.getByText('Community')).toBeTruthy();
+		expect(screen.getByText('Rotten Tomatoes')).toBeTruthy();
+	});
 });
 
 describe('RatingsRow plugin ratings on a surface', () => {

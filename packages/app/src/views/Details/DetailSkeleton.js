@@ -1,4 +1,5 @@
 import {SkeletonBox, SkeletonShimmer} from '../../components/Skeleton';
+import {frostStageStyle} from './frost/frostRules';
 
 import css from './DetailSkeleton.module.less';
 
@@ -246,7 +247,18 @@ const QuickLook = () => (
 	</div>
 );
 
-const LAYOUTS = {v1: Classic, v2: Modern, v3: Spotlight, v4: Nouveau, v5: Minimalist, v6: Stage, v7: Premiere, v8: QuickLook};
+// Frost's window, toolbar and tab bar, on the same stage the page lays out on.
+const Frost = ({sidebar}) => (
+	<div className={css.content}>
+		<div className={css.frostStage} style={frostStageStyle(!sidebar)}>
+			<SkeletonBox className={css.frostWindow} radius={rem(66)} />
+			<SkeletonBox className={css.frostToolbar} radius={rem(57)} />
+			<SkeletonBox className={css.frostTabs} radius={rem(45)} />
+		</div>
+	</div>
+);
+
+const LAYOUTS = {v1: Classic, v2: Modern, v3: Spotlight, v4: Nouveau, v5: Minimalist, v6: Stage, v7: Premiere, v8: QuickLook, v9: Frost};
 
 // Placeholders laid out like the chosen details style while the item loads, so the page fills
 // in where they stood.

@@ -418,7 +418,7 @@ describe('the library style', () => {
 
 describe('the detail screen style', () => {
 	test('sends each style under the name Core stores it by', () => {
-		const names = {v1: 'classic', v2: 'modern', v3: 'spotlight', v4: 'nouveau', v5: 'minimalist', v6: 'stage', v7: 'premiere', v8: 'quickLook'};
+		const names = {v1: 'classic', v2: 'modern', v3: 'spotlight', v4: 'nouveau', v5: 'minimalist', v6: 'stage', v7: 'premiere', v8: 'quickLook', v9: 'frost'};
 		Object.keys(names).forEach((style) => {
 			expect(localToProfile({...defaultSettings, detailScreenStyle: style}, ['detailScreenStyle'])).toEqual({detailScreenStyle: names[style]});
 			expect(profileToLocal({detailScreenStyle: names[style]})).toEqual({detailScreenStyle: style});

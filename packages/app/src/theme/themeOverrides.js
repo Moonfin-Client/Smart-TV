@@ -566,6 +566,13 @@ export const buildThemeOverrideCss = (theme, options = {}) => {
 		rule(`.${modernDetailCss[row]} > .${modernDetailCss.actionActive}`, `background-color: ${accentA(0.18)}; color: ${accent};`);
 		rule(`.${modernDetailCss[row]} > .${modernDetailCss.actionActive}[data-spotlight-id='details-favorite-btn']`, 'background-color: rgba(255, 71, 87, 0.18); color: #e50914;');
 	});
+	// Frost's toolbar is white on glass whatever the theme, so a focused button keeps the stylesheet's
+	// look rather than the theme's filled one.
+	const frosted = `.${modernDetailCss.actionsFrosted} >`;
+	rule(`${frosted} .${modernDetailCss.actionBtn}:focus`, 'background: transparent; border-color: transparent; color: #fff;');
+	rule(`${frosted} .${modernDetailCss.actionActive}:focus`, 'color: #30d158;');
+	rule(`${frosted} .${modernDetailCss.actionActive}[data-spotlight-id='details-favorite-btn']:focus`, 'color: #ff375f;');
+	rule(`${frosted} .${modernDetailCss.actionBtn}:first-child:focus`, 'background: #fff; background-clip: padding-box; border-color: rgba(255, 255, 255, 0.3); color: #000;');
 	rule(`.${tabBarCss.barFocused}::after`, `border-color: ${focusColor};`);
 
 	// Home screen chrome
