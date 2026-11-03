@@ -99,8 +99,11 @@ import {
 import {getVideoDisplayAspectRatio, getZoomDisplayRect} from './aspectRatioUtils';
 import {describeVideoStream, readVideoSupport} from './videoDiagnostics';
 import useRemotePlayerControls from './useRemotePlayerControls';
+import {registerThemeSheet} from '../../theme/themeOverrides';
 
 import css from './WebOSPlayer.module.less';
+
+registerThemeSheet('player', css);
 
 const getWebOSFullscreenRect = () => {
 	if (typeof window === 'undefined') {
