@@ -1,7 +1,7 @@
 import {createContext, useContext, useState, useEffect, useCallback, useMemo, useRef} from 'react';
 import {getFromStorage, saveToStorage} from '../services/storage';
 import {getMoonfinSettings, getMoonfinThemes, saveMoonfinProfile, moonfinPing} from '../services/seerrApi';
-import {parseThemeSpec} from '../theme/themeSpec';
+import {isValidHexColor, parseThemeSpec} from '../theme/themeSpec';
 import {normalizeOverlayColorKey} from '../theme/overlayColors';
 import {noteAnsweredSettings, SETUP_QUESTION_KEYS} from '../utils/setupWizardGate';
 import {getAvailableThemeList, getAvailableThemes, isBuiltInThemeId, registerStoreTheme, removeStoreTheme, replaceCustomThemes, resolveThemeById} from '../theme/themeRegistry';
@@ -142,6 +142,16 @@ const posterSizeFromServer = oneOf(['small', 'default', 'large', 'xlarge', 'gran
 // Synced as is, unlike the home card sizes, and with no Grandparents size.
 const LIBRARY_POSTER_SIZES = ['small', 'medium', 'large', 'extraLarge'];
 
+// The other clients sync the focus color by name and this app keeps the hex it stands for.
+// Theme Default has no name there, so it goes out empty, which they leave alone.
+const FOCUS_COLORS = {
+	white: '#ffffff', black: '#000000', gray: '#808080', darkBlue: '#003366', purple: '#6a0dad',
+	teal: '#008080', navy: '#000080', charcoal: '#36454f', brown: '#8b4513', darkRed: '#8b0000',
+	darkGreen: '#006400', slate: '#708090', indigo: '#4b0082', moonfinCyan: '#00a4dc',
+	neonPulseMagenta: '#ff2e92', eightBitGold: '#ffcd75'
+};
+const FOCUS_COLOR_NAMES = Object.keys(FOCUS_COLORS);
+
 // The plugin's admin defaults store an unset list as an empty one, which would hide every
 // rating, so an empty list from the server leaves the one we have.
 const surfaceRatingSources = {
@@ -157,6 +167,14 @@ const VALUE_CONVERSIONS = {
 	clockDisplay: {
 		toServer: v => v === '24-hour',
 		fromServer: v => v ? '24-hour' : '12-hour'
+	},
+	focusBorderColor: {
+		toServer: v => (v ? FOCUS_COLOR_NAMES.find((name) => FOCUS_COLORS[name] === v.toLowerCase()) : ''),
+		fromServer: (v) => {
+			if (v === '' || isValidHexColor(v)) return v;
+			const name = FOCUS_COLOR_NAMES.find((key) => key.toLowerCase() === String(v).toLowerCase());
+			return name && FOCUS_COLORS[name];
+		}
 	},
 	featuredTrailerMuted: {
 		toServer: v => !v,

@@ -765,6 +765,22 @@ describe('the per row image types', () => {
 	});
 });
 
+describe('the focus border color', () => {
+	test('goes out under the name the other clients use', () => {
+		expect(localToProfile({focusBorderColor: '#8B0000'}, ['focusBorderColor']).focusColor).toBe('darkRed');
+		expect(localToProfile({focusBorderColor: '#ffcd75'}, ['focusBorderColor']).focusColor).toBe('eightBitGold');
+		expect(localToProfile({focusBorderColor: ''}, ['focusBorderColor']).focusColor).toBe('');
+	});
+
+	test('comes back as the color a name stands for, and keeps what it has for one it doesn\'t know', () => {
+		expect(profileToLocal({focusColor: 'darkRed'}).focusBorderColor).toBe('#8b0000');
+		expect(profileToLocal({focusColor: 'moonfincyan'}).focusBorderColor).toBe('#00a4dc');
+		expect(profileToLocal({focusColor: '#ff2e92'}).focusBorderColor).toBe('#ff2e92');
+		expect(profileToLocal({focusColor: ''}).focusBorderColor).toBe('');
+		expect(profileToLocal({focusColor: 'constructor'})).not.toHaveProperty('focusBorderColor');
+	});
+});
+
 describe('the profile push queue', () => {
 	const creds = {current: {serverUrl: 'http://server', token: 'token'}};
 	const settingsFor = (syncProfile, changes) => ({...defaultSettings, syncProfile, ...changes});

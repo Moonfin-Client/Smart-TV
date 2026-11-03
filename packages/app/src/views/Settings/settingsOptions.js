@@ -731,7 +731,8 @@ export const getAccentColorOptions = () => [
 	{ value: '#708090', label: $L('Slate') },
 	{ value: '#4b0082', label: $L('Indigo') },
 	{ value: '#00a4dc', label: $L('Moonfin Cyan') },
-	{ value: '#ff2e92', label: $L('Neon Magenta') }
+	{ value: '#ff2e92', label: $L('Neon Magenta') },
+	{ value: '#ffcd75', label: $L('8-bit Gold') }
 ];
 
 // The color the navigation and media bar surfaces tint themselves with.
