@@ -44,6 +44,15 @@ describe('buildThemeOverrideCss', () => {
 		}
 	});
 
+	it('writes the Seerr banner in dark ink only on a light fill', () => {
+		const lines = buildThemeOverrideCss(resolveThemeById('moonfin')).split('\n');
+		const ruleFor = (fill) => lines.find((line) => line.includes(`.banner.${fill} {`));
+		expect(ruleFor('pending')).toContain('color: #000000;');
+		['available', 'processing'].forEach((fill) => {
+			expect(ruleFor(fill)).not.toContain('#000000');
+		});
+	});
+
 	it('carries theme fonts as far as the wrapper that names its own', () => {
 		const eightbit = buildThemeOverrideCss(resolveThemeById('8bit_hero'));
 		expect(eightbit).toContain('.sandstone-theme');

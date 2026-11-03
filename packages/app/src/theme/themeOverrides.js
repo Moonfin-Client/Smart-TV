@@ -16,6 +16,7 @@ import {
 	MIN_BUTTON_CONTRAST,
 	isValidHexColor,
 	radiusToCss,
+	relativeLuminance,
 	shadowToCss,
 	toCssColor,
 	toCssColorWithAlpha,
@@ -59,6 +60,7 @@ import backdropCss from '../components/BackdropLayer/BackdropLayer.module.less';
 import browseCss from '../views/Browse/Browse.module.less';
 import mediaCardCss from '../components/MediaCard/MediaCard.module.less';
 import modernCardCss from '../components/MediaCard/ModernMediaCard.module.less';
+import seerrBannerCss from '../components/seerr/SeerrStatusBanner.module.less';
 import mediaRowCss from '../components/MediaRow/MediaRow.module.less';
 import modernRowCss from '../components/MediaRow/ModernMediaRow.module.less';
 import ratingsCss from '../components/RatingsRow/RatingsRow.module.less';
@@ -655,7 +657,19 @@ export const buildThemeOverrideCss = (theme, options = {}) => {
 		rule(`.${cardCss.seerr2}`, `background: ${onSurface}; border-color: ${statusPending};`);
 		rule(`.${cardCss.seerrMissing}`, `background: ${accent};`);
 		rule(`.${cardCss.seerrMissing} svg`, `fill: ${onBadge};`);
+		rule(`.${cardCss.seerrBanner}`, `border-width: ${b.cardBorder.width}px ${b.cardBorder.width}px 0; border-radius: ${b.cardRadius.topLeft}px ${b.cardRadius.topRight}px 0 0;`);
+		rule(`.${cardCss.card}:focus .${cardCss.seerrBanner}`, 'border-width: 4px 4px 0;');
 	}
+
+	// The Seerr banner across a poster, with dark ink on a fill as light as Pending's yellow.
+	const bannerInk = (hex) => (relativeLuminance(hex) > 0.45 ? '#000000' : onBadge);
+	[
+		['available', theme.semantic.statusAvailable],
+		['processing', theme.semantic.statusRequested],
+		['pending', theme.semantic.statusPending]
+	].forEach(([fill, hex]) => {
+		rule(`.${seerrBannerCss.banner}.${seerrBannerCss[fill]}`, `background: ${toCssColor(hex)}; color: ${bannerInk(hex)};`);
+	});
 	rule(`.${mediaCardCss.seriesName}`, `color: ${onSurface};`);
 	rule(`.${mediaCardCss.episodeInfo}, .${modernCardCss.secondaryTitle}`, `color: ${theme.id === 'neon_pulse' ? onSurface : os(0.6)};`);
 	rule(`.${mediaCardCss.homeText} .${mediaCardCss.episodeInfo}`, `color: ${theme.id === 'neon_pulse' ? onSurface : os(0.65)};`);

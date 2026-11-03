@@ -201,6 +201,7 @@ const VALUE_CONVERSIONS = {
 	bookLibraryStyle: oneOf(['classic', 'readingRoom', 'bookstore']),
 	musicLibraryStyle: oneOf(['classic', 'quickAccess', 'immersive']),
 	keyboardStyle: oneOf(['native', 'classic', 'glass', 'docked']),
+	seerrBadgeStyle: oneOf(['badge', 'banner']),
 	seasonalRowCountry: {fromServer: normalizeSeasonalRowCountry},
 	seasonalRowHiddenHolidays: {fromServer: normalizeSeasonalHiddenHolidays},
 	screensaverContentType: {
@@ -330,7 +331,7 @@ export const SYNCABLE_KEYS = [
 	'mergeRadarrSonarrCalendars',
 	'radarrCalendarShowCinema', 'radarrCalendarShowDigital', 'radarrCalendarShowPhysical',
 	'radarrCalendarShowDate', 'sonarrCalendarShowDate', 'sonarrCalendarShowEpisodeInfo',
-	'showSeerrButton', 'seerrShowMissingCollectionItems', 'showSeerrAvailabilityBadges',
+	'showSeerrButton', 'seerrShowMissingCollectionItems', 'showSeerrAvailabilityBadges', 'seerrBadgeStyle',
 	'showServerMessagesButton',
 	'screensaverMode', 'screensaverClockMode',
 	'screensaverBackdrop', 'screensaverComponent', 'screensaverMovement',

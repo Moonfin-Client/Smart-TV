@@ -3,6 +3,7 @@ import Spottable from '@enact/spotlight/Spottable';
 import {getImageUrl, toAbsoluteImageUrl} from '../../utils/helpers';
 import {useSettings} from '../../context/SettingsContext';
 import {SeerrSeasonDot} from '../seerr/SeerrStatusBadge';
+import SeerrStatusBanner, {hasSeerrDot, seerrBadgeStyle, seerrTitleStatus} from '../seerr/SeerrStatusBanner';
 import {showsWatchedCheck} from '../../utils/playedState';
 import SeerrIcon from '../icons/SeerrIcon';
 import {AnimeCardPill} from '../AnimeMarkerPills';
@@ -255,6 +256,10 @@ const MediaCard = ({item, serverUrl, cardType = 'portrait', rowImageType = 'post
 	const unplayedCount = item.UserData?.UnplayedItemCount;
 	const showUnplayedCount = showIndicators && watchedBehavior !== 'hideCount' && !item.UserData?.Played && unplayedCount > 0;
 
+	const seerrStyle = seerrBadgeStyle(settings);
+	const bannerStatus = seerrStyle !== 'banner' ? null
+		: seerrTitleStatus(item) ?? (hasSeerrDot(seerrSeasonStatus) ? seerrSeasonStatus : null);
+
 	const displayTitle = useMemo(() => {
 		if (item.Type === 'Episode' || item.Type === 'Season') {
 			return item.SeriesName || item.Name;
@@ -312,7 +317,7 @@ const MediaCard = ({item, serverUrl, cardType = 'portrait', rowImageType = 'post
 
 	return (
 		<SpottableDiv {...menuHold} className={cardClass} data-media-card onClick={handleClick} onFocus={handleFocus} onBlur={handleBlur} onMouseEnter={onPreviewFocus} onMouseLeave={handleMouseLeave} style={sizeStyle} spotlightId={spotlightId} onSpotlightLeft={onSpotlightLeft} onSpotlightRight={onSpotlightRight}>
-			<div className={previewPhase !== 'idle' ? `${css.imageContainer} ${css.previewHost}` : css.imageContainer} data-card-art>
+			<div className={`${css.imageContainer}${previewPhase !== 'idle' ? ' ' + css.previewHost : ''}${bannerStatus ? ' ' + css.underSeerrBanner : ''}`} data-card-art>
 				{imageUrl ? (
 					<>
 						<img
@@ -364,11 +369,12 @@ const MediaCard = ({item, serverUrl, cardType = 'portrait', rowImageType = 'post
 					<div className={`${css.seerrBadge} ${css.seerrMissing}`}>
 						<SeerrIcon />
 					</div>
-				) : item._seerr && [2, 3, 4, 5].includes(item.mediaInfo?.status) ? (
+				) : seerrStyle === 'badge' && item._seerr && [2, 3, 4, 5].includes(item.mediaInfo?.status) ? (
 					<div className={`${css.seerrBadge} ${css[`seerr${item.mediaInfo.status}`]}`} />
 				) : null}
 
-				<SeerrSeasonDot status={settings?.showSeerrAvailabilityBadges !== false ? seerrSeasonStatus : null} />
+				<SeerrSeasonDot status={seerrStyle === 'badge' ? seerrSeasonStatus : null} />
+				{bannerStatus && <SeerrStatusBanner status={bannerStatus} className={css.seerrBanner} />}
 
 				{showIndicators && showsWatchedCheck(item) && (
 					<div className={css.watchedBadge}>
@@ -386,7 +392,7 @@ const MediaCard = ({item, serverUrl, cardType = 'portrait', rowImageType = 'post
 					</div>
 				)}
 
-				<IncompleteBadge itemId={item.Id} belowFavorite={item.UserData?.IsFavorite} />
+				<IncompleteBadge itemId={item.Id} belowFavorite={item.UserData?.IsFavorite} belowBanner={Boolean(bannerStatus)} />
 				<AnimeCardPill item={item} serverUrl={itemServerUrl} hasProgressBar={showIndicators && progress > 0} />
 			</div>
 

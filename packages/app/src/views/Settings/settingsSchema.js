@@ -43,6 +43,7 @@ import {
 	getContinueWatchingDefaultActionOptions,
 	getNextUpMaxDaysOptions,
 	getOledModeOptions,
+	getSeerrBadgeStyleOptions,
 	getOverlayColorOptions,
 	getPassthroughModeOptions,
 	getPerformanceModeOptions,
@@ -1087,9 +1088,19 @@ export const SETTINGS_SCHEMA = [
 						kind: KIND.TOGGLE,
 						key: 'showSeerrAvailabilityBadges',
 						label: () => $L('Show Seerr Availability Badges'),
-						desc: () => $L('Show season availability badges on media details pages'),
+						desc: () => $L('Show the Seerr status on posters and seasons across the app'),
 						icon: 'check_circle_outline',
 						when: whenSeerr
+					},
+					{
+						kind: KIND.OPTION,
+						key: 'seerrBadgeStyle',
+						label: () => $L('Badge Style'),
+						desc: () => $L("Badge puts Seerr's dot in a corner. Banner runs the status across the top of the poster."),
+						options: getSeerrBadgeStyleOptions,
+						fallback: () => $L('Badge'),
+						icon: 'label_outline',
+						when: (ctx) => whenSeerr(ctx) && ctx.settings.showSeerrAvailabilityBadges !== false
 					},
 					{kind: KIND.INFO, id: 'seerrVariant', label: () => $L('Detected Variant'), value: (ctx) => $L('{seerrLabel} (Seerr v3+)').replace('{seerrLabel}', ctx.seerrLabel), when: (ctx) => ctx.isSeerr, icon: 'info_outline'}
 				]

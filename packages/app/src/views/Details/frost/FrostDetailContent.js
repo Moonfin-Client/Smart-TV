@@ -8,6 +8,7 @@ import SeerrIcon from '../../../components/icons/SeerrIcon';
 import PagedText from '../../../components/PagedText';
 import RatingsRow from '../../../components/RatingsRow';
 import {SeerrSeasonDot} from '../../../components/seerr/SeerrStatusBadge';
+import SeerrStatusBanner, {seerrBadgeStyle, seerrTitleStatus} from '../../../components/seerr/SeerrStatusBanner';
 import {isMdblistEnabled} from '../../../services/mdblistApi';
 import seerrApi from '../../../services/seerrApi';
 import {animateScrollTop} from '../../../utils/focusScroll';
@@ -131,7 +132,7 @@ const FrostScreen = (props) => {
 
 	const navbarTop = settings.navbarPosition !== 'left';
 	const pieces = seerr.pieces || {};
-	const showsBadges = settings.showSeerrAvailabilityBadges !== false;
+	const seerrStyle = seerrBadgeStyle(settings);
 
 	const overview = Boolean(item.Overview) && !hidesMediaDescription(item, settings) ? cleanOverview(item.Overview) : '';
 	const tracks = stageTrackChoices(props);
@@ -550,11 +551,14 @@ const FrostScreen = (props) => {
 			<div className={`${css.scrollBody} ${css.posterGrid}`}>
 				{grid(shownTab, posters, (entry, i) => {
 					const status = entry._seerr ? frostSeerrStatus(entry.mediaInfo?.status) : null;
+					const bannerStatus = seerrStyle === 'banner' ? seerrTitleStatus(entry) : null;
 					return (
 						<SpottableDiv key={entry.cardKey || entry.Id || i} className={css.posterTile} data-frost-key={`${shownTab}:${i}`} data-index={i} onClick={handlePoster}>
-							{thumb(spotlightItemImageUrl(effectiveServerUrl, entry), css.posterThumb, status && showsBadges && (
-								<span className={css.posterBadge}><SeerrSeasonDot status={entry.mediaInfo?.status} /></span>
-							))}
+							{thumb(spotlightItemImageUrl(effectiveServerUrl, entry), css.posterThumb, bannerStatus
+								? <SeerrStatusBanner status={bannerStatus} large />
+								: status && seerrStyle === 'badge' && (
+									<span className={css.posterBadge}><SeerrSeasonDot status={entry.mediaInfo?.status} /></span>
+								))}
 							<div className={css.posterTitle}>{entry.Name}</div>
 							{status && <div className={css.posterStatus} style={{color: status.color}}>{status.label}</div>}
 						</SpottableDiv>

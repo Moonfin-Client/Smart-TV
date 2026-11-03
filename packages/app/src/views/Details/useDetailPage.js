@@ -5,6 +5,7 @@ import SpotlightContainerDecorator from '@enact/spotlight/SpotlightContainerDeco
 
 import {iconViewBox} from '../../components/icons/iconViewBox';
 import {SeerrSeasonDot} from '../../components/seerr/SeerrStatusBadge';
+import SeerrStatusBanner, {hasSeerrDot, seerrBadgeStyle, seerrTitleStatus} from '../../components/seerr/SeerrStatusBanner';
 import {SeerrChips, SeerrFacts, SeerrStreaming} from '../../components/seerr/SeerrSections';
 import {rem, rootScale} from '../../utils/rootScale';
 import {FavoriteHeartIcon, WatchedCheckIcon} from './DetailBadges';
@@ -208,8 +209,16 @@ const useDetailPage = (props, {onNavigateUp, onNavigateDown, bleedRight}) => {
 			</SpottableDiv>
 		);
 	};
+	const seerrStyle = seerrBadgeStyle(settings);
 	const renderLibraryPoster = (entry) => renderCard(entry, handlePosterCard);
-	const renderSeerrPoster = (entry) => renderCard(entry, handleSeerrCard);
+	const renderSeerrPoster = (entry) => {
+		const status = seerrStyle ? seerrTitleStatus(entry) : null;
+		return renderCard(entry, handleSeerrCard, {
+			children: seerrStyle === 'banner'
+				? status && <SeerrStatusBanner status={status} large />
+				: status && <span className={css.cardSeerrDot}><SeerrSeasonDot status={status} /></span>
+		});
+	};
 
 	const renderPerson = (person) => {
 		const photo = castPhotoUrl(person, effectiveServerUrl, 400);
@@ -238,14 +247,18 @@ const useDetailPage = (props, {onNavigateUp, onNavigateDown, bleedRight}) => {
 		wide: true
 	});
 
-	const seasonMarkers = settings.showSeerrAvailabilityBadges !== false ? seerr.seasonMarkers : null;
 	// Core draws a season Seerr knows of as its name on a plain card, with no artwork.
-	const renderSeerrSeason = (season) => renderCard(season, handleSeasonCard, {
-		imageUrl: null,
-		placeholder: season.Name,
-		subtitle: season.episodeCount ? String(season.episodeCount) : null,
-		children: <SeerrSeasonDot status={seasonMarkers?.get(season.seasonNumber)} />
-	});
+	const renderSeerrSeason = (season) => {
+		const status = seerrStyle ? seerr.seasonMarkers?.get(season.seasonNumber) : null;
+		return renderCard(season, handleSeasonCard, {
+			imageUrl: null,
+			placeholder: season.Name,
+			subtitle: season.episodeCount ? String(season.episodeCount) : null,
+			children: seerrStyle === 'banner'
+				? hasSeerrDot(status) && <SeerrStatusBanner status={status} large />
+				: <SeerrSeasonDot status={status} />
+		});
+	};
 
 	const rail = (id, title, items, renderItem, room = POSTER_ROOM, extra) => ({
 		id,

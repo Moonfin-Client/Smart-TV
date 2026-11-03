@@ -7,6 +7,8 @@ import SpotlightContainerDecorator from '@enact/spotlight/SpotlightContainerDeco
 import $L from '@enact/i18n/$L';
 
 import seerrApi from '../../services/seerrApi';
+import {useSettings} from '../../context/SettingsContext';
+import SeerrStatusBanner, {hasSeerrDot, seerrBadgeStyle} from '../../components/seerr/SeerrStatusBanner';
 import CoreDialog from '../../components/CoreDialog';
 import SeerrNotificationToast from '../../components/SeerrNotificationToast';
 import {SeerrButtonRow, SeerrDialogButton, SeerrDivider, SeerrQuotaRow, SeerrToggleRow} from '../../components/seerr/SeerrDialogControls';
@@ -47,6 +49,8 @@ const partYear = (part) => {
 };
 
 const PartCard = memo(function PartCard({part, onSelect}) {
+	const {settings} = useSettings();
+	const badgeStyle = seerrBadgeStyle(settings);
 	const posterUrl = part.posterPath || part.poster_path
 		? seerrApi.getImageUrl(part.posterPath || part.poster_path, 'w342')
 		: null;
@@ -61,7 +65,8 @@ const PartCard = memo(function PartCard({part, onSelect}) {
 				{posterUrl && (
 					<img className={css.partPoster} src={posterUrl} alt="" loading="lazy" />
 				)}
-				{statusInfo && (
+				{badgeStyle === 'banner' && hasSeerrDot(part.mediaInfo?.status) && <SeerrStatusBanner status={part.mediaInfo.status} />}
+				{badgeStyle === 'badge' && statusInfo && (
 					<div className={`${css.partDot} ${css[`partDot_${statusInfo.color}`]}`} />
 				)}
 			</div>

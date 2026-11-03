@@ -348,6 +348,7 @@ export const defaultSettings = {
 	showSeerrButton: true,
 	seerrShowMissingCollectionItems: true,
 	showSeerrAvailabilityBadges: true,
+	seerrBadgeStyle: 'badge',
 	// Off until asked for. An admin who wants it on for everyone can set it in the
 	// plugin's default settings.
 	showServerMessagesButton: false,

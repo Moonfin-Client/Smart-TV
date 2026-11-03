@@ -495,6 +495,21 @@ describe('the book library style', () => {
 	});
 });
 
+describe('the Seerr badge style', () => {
+	test('defaults to badge and syncs under its own name', () => {
+		expect(defaultSettings.seerrBadgeStyle).toBe('badge');
+		expect(SYNCABLE_KEYS).toContain('seerrBadgeStyle');
+		['badge', 'banner'].forEach((style) => {
+			expect(profileToLocal({seerrBadgeStyle: style})).toEqual({seerrBadgeStyle: style});
+			expect(localToProfile({...defaultSettings, seerrBadgeStyle: style}, ['seerrBadgeStyle'])).toEqual({seerrBadgeStyle: style});
+		});
+	});
+
+	test('keeps the style it has when the profile names one it can\'t draw', () => {
+		expect(profileToLocal({seerrBadgeStyle: 'ribbon'})).toEqual({});
+	});
+});
+
 describe('the keyboard style', () => {
 	test('defaults to docked', () => {
 		expect(defaultSettings.keyboardStyle).toBe('docked');

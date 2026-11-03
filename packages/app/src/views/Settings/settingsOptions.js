@@ -457,6 +457,11 @@ export const getExternalRowSortOrderOptions = () => [
 	{ value: 'descending', label: $L('Descending') }
 ];
 
+export const getSeerrBadgeStyleOptions = () => [
+	{ value: 'badge', label: $L('Badge') },
+	{ value: 'banner', label: $L('Banner') }
+];
+
 export const getOledModeOptions = () => [
 	{ value: 'off', label: $L('Off') },
 	{ value: 'subtle', label: $L('Subtle') },
