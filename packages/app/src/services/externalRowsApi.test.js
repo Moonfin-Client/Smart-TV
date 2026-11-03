@@ -1,11 +1,13 @@
 import {fetchArrCalendar, fetchCustomRow, fetchSeasonalRow, fetchTmdbDetails, constructSourceUrl, __resetExternalRowCache} from './externalRowsApi';
 import {fetchWithTimeout} from '../utils/fetchTimeout';
+import {mediaServerQueue, DEFAULT_MAX_CONCURRENT} from '../utils/requestQueue';
 
 jest.mock('../utils/fetchTimeout', () => ({fetchWithTimeout: jest.fn()}));
+let mockToken = 'test-token';
 jest.mock('./jellyfinApi', () => ({
 	getServerUrl: () => 'http://server',
 	getUserId: () => 'user',
-	getAuthHeader: () => 'MediaBrowser Token="test-token"'
+	getAuthHeader: () => `MediaBrowser Token="${mockToken}"`
 }));
 
 const mockJsonResponse = (data, status = 200) => ({
@@ -209,6 +211,22 @@ describe('externalRowsApi', () => {
 			fetchWithTimeout.mockRejectedValue(new Error('timeout'));
 
 			expect(await fetchArrCalendar('radarr', '2026-11-03', '2026-12-03')).toEqual([]);
+		});
+
+		it('signs a queued request with the token of the server it was queued for', async () => {
+			const releases = [];
+			const busy = Array.from({length: DEFAULT_MAX_CONCURRENT}, () =>
+				mediaServerQueue.run(() => new Promise((resolve) => releases.push(resolve))));
+			fetchWithTimeout.mockResolvedValue(mockJsonResponse([]));
+
+			const pending = fetchArrCalendar('radarr', '2026-11-03', '2026-12-03');
+			mockToken = 'other-server-token';
+			releases.forEach((release) => release());
+			await Promise.all(busy);
+			await pending;
+			mockToken = 'test-token';
+
+			expect(fetchWithTimeout.mock.calls[0][1].headers.Authorization).toBe('MediaBrowser Token="test-token"');
 		});
 	});
 });

@@ -169,10 +169,9 @@ export const fetchArrCalendar = async (service, start, end) => {
 	if (!baseUrl) return [];
 	const route = service === 'sonarr' ? 'Sonarr' : 'Radarr';
 	const url = `${baseUrl}/Moonfin/Seerr/${route}/Calendar?start=${encodeURIComponent(start)}&end=${encodeURIComponent(end)}`;
+	const headers = {'Authorization': getAuthHeader()};
 	try {
-		const response = await mediaServerQueue.run(
-			() => fetchWithTimeout(url, {headers: {'Authorization': getAuthHeader()}}, 10000)
-		);
+		const response = await mediaServerQueue.run(() => fetchWithTimeout(url, {headers}, 10000));
 		if (!response.ok) return [];
 		const data = await response.json();
 		return Array.isArray(data) ? data : [];
