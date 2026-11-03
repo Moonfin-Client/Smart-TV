@@ -10,6 +10,27 @@ export {
 	shouldMountRow as shouldMountSearchRow
 } from '../../utils/rowWindow';
 
+// Which item's image a result card shows, and of what type. An episode, programme or recording with no still of
+// its own shows its backdrop, then its series' thumbnail or backdrop, as the Core app does. A track shows its
+// album's.
+export const searchArtworkSource = (item) => {
+	const primary = item.ImageTags?.Primary || item.PrimaryImageTag;
+	if (primary) return {id: item.Id, type: 'Primary', tag: primary};
+	if (item.Type === 'Episode' || item.Type === 'Program' || item.Type === 'Recording') {
+		if (item.BackdropImageTags?.length) return {id: item.Id, type: 'Backdrop', tag: item.BackdropImageTags[0]};
+		if (item.ParentThumbItemId && item.ParentThumbImageTag) {
+			return {id: item.ParentThumbItemId, type: 'Thumb', tag: item.ParentThumbImageTag};
+		}
+		if (item.ParentBackdropItemId && item.ParentBackdropImageTags?.length) {
+			return {id: item.ParentBackdropItemId, type: 'Backdrop', tag: item.ParentBackdropImageTags[0]};
+		}
+	}
+	if (item.Type === 'Audio' && item.AlbumId && item.AlbumPrimaryImageTag) {
+		return {id: item.AlbumId, type: 'Primary', tag: item.AlbumPrimaryImageTag};
+	}
+	return null;
+};
+
 export const searchArtworkOptions = (aspect, tag) => {
 	const options = aspect === 'poster' ? {maxHeight: 300} : {maxWidth: 400};
 	options.quality = 80;
