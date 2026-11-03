@@ -35,6 +35,7 @@ import {STAGE_BUTTON_CAP, stageScrimAlpha} from '../Details/stage/stageRules';
 import {premiereDim, premiereScrim} from '../Details/premiere/premiereRules';
 import {QUICK_LOOK_BUTTON_CAP, quickLookSurface} from '../Details/quickLook/quickLookRules';
 import {FROST_BUTTON_CAP} from '../Details/frost/frostRules';
+import frostCss from '../Details/frost/FrostDetailContent.module.less';
 import {scrimStyle} from '../../utils/scrimImage';
 import {serverBlurredUrl} from '../../utils/serverBlur';
 import {splitNouveauActions} from '../Details/nouveau/nouveauActionSplit';
@@ -298,8 +299,9 @@ const SAMPLE_USER_DATA = {Rating: 8};
 
 // The real ratings row on the sample scores. [surface] picks whose ratings settings it follows,
 // and [zoom] is the share of the TV's size the surrounding preview is drawn at, since the row
-// sizes itself for the full screen.
-const PreviewRatings = ({item, surface, zoom = 0.5, ...rest}) => {
+// sizes itself for the full screen. [className] dresses the zoomed box, which is how Frost's strip
+// keeps its real size and still drops out when there's nothing to rate.
+const PreviewRatings = ({item, surface, zoom = 0.5, className, ...rest}) => {
 	const {settings} = useSettings();
 	const rated = useMemo(() => ({
 		Id: 'preview',
@@ -308,7 +310,7 @@ const PreviewRatings = ({item, surface, zoom = 0.5, ...rest}) => {
 		UserData: SAMPLE_USER_DATA
 	}), [item.communityRating]);
 	return (
-		<div style={{zoom: zoom / rootScale()}}>
+		<div className={className} style={{zoom: zoom / rootScale()}}>
 			<RatingsRow
 				{...rest}
 				item={rated}
@@ -1860,6 +1862,8 @@ const PremiereDetail = ({items, t}) => {
 						</div>
 					))}
 				</div>
+				{/* Stands for the page's Ratings section, which starts under the buttons. */}
+				<PreviewRatings item={item} />
 				<div style={{marginTop: 10}}>
 					<MIcon name='keyboard_arrow_down' size={25} color={t.onSurfaceA(0.65)} />
 				</div>
@@ -1902,6 +1906,9 @@ const QuickLookDetail = ({items, t}) => {
 					<div style={{position: 'relative', padding: '0 21.7px'}}>
 						<div style={{fontSize: 22.5, fontWeight: 700, lineHeight: 1.15, color: t.onSurface, ...clampLines(2)}}>{item.title}</div>
 						{meta && <div style={{marginTop: 5, fontSize: 10, fontWeight: 700, color: t.onSurface, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis'}}>{meta}</div>}
+						<div style={{marginTop: 8.35}}>
+							<PreviewRatings item={item} labels={false} />
+						</div>
 						<div style={{marginTop: 13.4, display: 'flex', alignItems: 'center'}}>
 							<div style={{height: 45, padding: '0 13px 0 5px', borderRadius: 22.5, backgroundColor: t.accent, display: 'flex', alignItems: 'center'}}>
 								<div style={{width: 42, display: 'flex', justifyContent: 'center'}}><MIcon name='play_arrow' size={20} color={t.onAccent} /></div>
@@ -1951,6 +1958,7 @@ const FrostDetail = ({items, t}) => {
 				<div style={{position: 'absolute', left: 42, right: 42, bottom: 48}}>
 					<div style={{fontSize: 48, fontWeight: 800, lineHeight: 1.1, letterSpacing: -1.2, color: '#FFFFFF', ...clampLines(2)}}>{item.title}</div>
 					{meta && <div style={{marginTop: 9, fontSize: 13.5, fontWeight: 500, color: 'rgba(235, 235, 245, 0.78)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis'}}>{meta}</div>}
+					<PreviewRatings item={item} columns className={frostCss.strip} />
 					{item.overview && (
 						<div style={{marginTop: 18, width: 498, fontSize: 13.5, lineHeight: 1.45, color: 'rgba(255, 255, 255, 0.9)', ...clampLines(3)}}>
 							{item.overview}
