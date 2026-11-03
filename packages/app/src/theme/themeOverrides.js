@@ -16,6 +16,7 @@ import {
 	MIN_BUTTON_CONTRAST,
 	isValidHexColor,
 	radiusToCss,
+	relativeLuminance,
 	shadowToCss,
 	toCssColor,
 	toCssColorWithAlpha,
@@ -41,6 +42,8 @@ import spotlightGridCss from '../views/Details/spotlight/SpotlightGrids.module.l
 import nouveauCardsCss from '../views/Details/nouveau/cards/NouveauCards.module.less';
 import nouveauFooterCss from '../views/Details/nouveau/footer/NouveauDetailsFooter.module.less';
 import nouveauSectionsCss from '../views/Details/nouveau/sections/NouveauSections.module.less';
+import stageCss from '../views/Details/stage/StageDetailContent.module.less';
+import quickLookCss from '../views/Details/quickLook/QuickLookDetailContent.module.less';
 import trackListCss from '../components/DetailTrackList/DetailTrackList.module.less';
 import musicCss from '../views/MusicBrowse/MusicLibrary.module.less';
 import musicScreensCss from '../views/MusicBrowse/MusicScreens.module.less';
@@ -57,6 +60,7 @@ import backdropCss from '../components/BackdropLayer/BackdropLayer.module.less';
 import browseCss from '../views/Browse/Browse.module.less';
 import mediaCardCss from '../components/MediaCard/MediaCard.module.less';
 import modernCardCss from '../components/MediaCard/ModernMediaCard.module.less';
+import seerrBannerCss from '../components/seerr/SeerrStatusBanner.module.less';
 import mediaRowCss from '../components/MediaRow/MediaRow.module.less';
 import modernRowCss from '../components/MediaRow/ModernMediaRow.module.less';
 import ratingsCss from '../components/RatingsRow/RatingsRow.module.less';
@@ -548,6 +552,31 @@ export const buildThemeOverrideCss = (theme, options = {}) => {
 	rule(`.${overviewCss.spottable}:focus`, `border-color: ${focusColor};`);
 	rule(`.${overviewCss.readMoreBtn}`, `color: ${accent};`);
 
+	// Detail screens, stage layout
+	rule(`.${stageCss.chip}:focus, .${stageCss.name}:focus`, `border-color: ${focusColor};`);
+	rule(`.${stageCss.cell}:focus`, `background: ${accentA(0.1)}; border-color: ${focusColor};`);
+	rule(`.${stageCss.card}:focus .${stageCss.cardArt}::after, .${stageCss.person}:focus .${stageCss.avatarRing}`, `border-color: ${focusColor};`);
+	rule(`.${stageCss.progressFill}, .${stageCss.statusUpcoming}`, `background: ${accent};`);
+	rule(`.${stageCss.metaRating}`, `background: ${accentA(0.15)};`);
+	rule(`.${stageCss.cardWatched}, .${stageCss.posterWatched}`, `background: ${badgeWatched}; border-color: ${onBadge};`);
+	rule(`.${stageCss.cardWatched} svg, .${stageCss.posterWatched} svg, .${stageCss.cardFavorite} svg, .${stageCss.posterFavorite} svg`, `fill: ${onBadge}; stroke: ${onBadge};`);
+	rule(`.${quickLookCss.season}:focus, .${quickLookCss.open}:focus`, `border-color: ${focusColor};`);
+	rule(`.${quickLookCss.progressFill}, .${quickLookCss.seasonFill}`, `background: ${accent};`);
+	['actionsStacked', 'actionsCentered'].forEach((row) => {
+		rule(`.${modernDetailCss[row]} > .${modernDetailCss.actionBtn}:first-child`, `background-color: ${accent}; color: ${onAccent};`);
+		rule(`.${modernDetailCss[row]} > .${modernDetailCss.actionBtn}:first-child:focus`, `background-color: ${buttonFocused}; border-color: ${focusColor}; color: ${onButtonFocused};`);
+		rule(`.${modernDetailCss[row]} > .${modernDetailCss.actionActive}`, `background-color: ${accentA(0.18)}; color: ${accent};`);
+		rule(`.${modernDetailCss[row]} > .${modernDetailCss.actionActive}[data-spotlight-id='details-favorite-btn']`, 'background-color: rgba(255, 71, 87, 0.18); color: #e50914;');
+	});
+	// Frost's toolbar is white on glass whatever the theme, so a focused button keeps the stylesheet's
+	// look rather than the theme's filled one.
+	const frosted = `.${modernDetailCss.actionsFrosted} >`;
+	rule(`${frosted} .${modernDetailCss.actionBtn}:focus`, 'background: transparent; border-color: transparent; color: #fff;');
+	rule(`${frosted} .${modernDetailCss.actionActive}:focus`, 'color: #30d158;');
+	rule(`${frosted} .${modernDetailCss.actionActive}[data-spotlight-id='details-favorite-btn']:focus`, 'color: #ff375f;');
+	rule(`${frosted} .${modernDetailCss.actionBtn}:first-child:focus`, 'background: #fff; background-clip: padding-box; border-color: rgba(255, 255, 255, 0.3); color: #000;');
+	rule(`.${tabBarCss.barFocused}::after`, `border-color: ${focusColor};`);
+
 	// Home screen chrome
 	rule(`.${browseCss.page}`, `background: ${background};`);
 	rule(`.${browseCss.ayaFrame}`, `background: ${background};`);
@@ -628,7 +657,19 @@ export const buildThemeOverrideCss = (theme, options = {}) => {
 		rule(`.${cardCss.seerr2}`, `background: ${onSurface}; border-color: ${statusPending};`);
 		rule(`.${cardCss.seerrMissing}`, `background: ${accent};`);
 		rule(`.${cardCss.seerrMissing} svg`, `fill: ${onBadge};`);
+		rule(`.${cardCss.seerrBanner}`, `border-width: ${b.cardBorder.width}px ${b.cardBorder.width}px 0; border-radius: ${b.cardRadius.topLeft}px ${b.cardRadius.topRight}px 0 0;`);
+		rule(`.${cardCss.card}:focus .${cardCss.seerrBanner}`, 'border-width: 4px 4px 0;');
 	}
+
+	// The Seerr banner across a poster, with dark ink on a fill as light as Pending's yellow.
+	const bannerInk = (hex) => (relativeLuminance(hex) > 0.45 ? '#000000' : onBadge);
+	[
+		['available', theme.semantic.statusAvailable],
+		['processing', theme.semantic.statusRequested],
+		['pending', theme.semantic.statusPending]
+	].forEach(([fill, hex]) => {
+		rule(`.${seerrBannerCss.banner}.${seerrBannerCss[fill]}`, `background: ${toCssColor(hex)}; color: ${bannerInk(hex)};`);
+	});
 	rule(`.${mediaCardCss.seriesName}`, `color: ${onSurface};`);
 	rule(`.${mediaCardCss.episodeInfo}, .${modernCardCss.secondaryTitle}`, `color: ${theme.id === 'neon_pulse' ? onSurface : os(0.6)};`);
 	rule(`.${mediaCardCss.homeText} .${mediaCardCss.episodeInfo}`, `color: ${theme.id === 'neon_pulse' ? onSurface : os(0.65)};`);

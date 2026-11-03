@@ -95,7 +95,7 @@ const MediaBarScene = () => {
 
 const DetailsScene = () => {
 	const {settings} = useSettings();
-	return <DetailStylePreview variant={settings.detailScreenStyle || 'v2'} />;
+	return <DetailStylePreview variant={settings.detailScreenStyle || 'v9'} />;
 };
 
 // The screensaver as it comes up over home, or nothing while it's switched off.

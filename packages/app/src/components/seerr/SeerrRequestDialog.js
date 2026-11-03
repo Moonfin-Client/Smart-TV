@@ -38,15 +38,16 @@ const SeasonChip = ({label, selected, isAvailable, onClick, ...rest}) => {
  * each time it opens, so every request starts over from the defaults.
  *
  * `qualityToggle` puts a 4K switch on the sheet and `is4k` is only where it starts. Without the
- * switch the sheet asks for that one track and says so in the title.
+ * switch the sheet asks for that one track and says so in the title. A `season` opens it with just
+ * that season ticked.
  */
 const SeerrRequestDialog = ({
 	details, isTv, is4k: startIs4k, qualityToggle, isContinuing, activeRequests, quota,
-	canRequestAdvanced, servers, onSubmit, onClose
+	canRequestAdvanced, servers, season: startSeason, onSubmit, onClose
 }) => {
 	const [is4k, setIs4k] = useState(startIs4k);
-	const [allSeasons, setAllSeasons] = useState(true);
-	const [selectedSeasons, setSelectedSeasons] = useState([]);
+	const [allSeasons, setAllSeasons] = useState(startSeason == null);
+	const [selectedSeasons, setSelectedSeasons] = useState(startSeason == null ? [] : [startSeason]);
 
 	const isAnime = isTv && (details?.keywords || []).some((k) => k.id === ANIME_KEYWORD);
 	const advanced = useSeerrAdvancedRequest({enabled: canRequestAdvanced, isTv, isAnime, is4k, servers});

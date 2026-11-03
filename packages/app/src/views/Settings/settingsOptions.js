@@ -278,6 +278,10 @@ export const getDetailScreenStyleOptions = () => [
 	{ value: 'v3', label: $L('Spotlight') },
 	{ value: 'v4', label: $L('Nouveau') },
 	{ value: 'v5', label: $L('Minimalist') },
+	{ value: 'v6', label: $L('Stage') },
+	{ value: 'v7', label: $L('Premiere') },
+	{ value: 'v8', label: $L('Quick Look') },
+	{ value: 'v9', label: $L('Frost') },
 	{ value: 'v1', label: $L('Classic') }
 ];
 
@@ -451,6 +455,11 @@ export const getExternalRowSortByOptions = () => [
 export const getExternalRowSortOrderOptions = () => [
 	{ value: 'ascending', label: $L('Ascending') },
 	{ value: 'descending', label: $L('Descending') }
+];
+
+export const getSeerrBadgeStyleOptions = () => [
+	{ value: 'badge', label: $L('Badge') },
+	{ value: 'banner', label: $L('Banner') }
 ];
 
 export const getOledModeOptions = () => [

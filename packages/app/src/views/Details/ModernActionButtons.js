@@ -23,12 +23,28 @@ const MenuContainer = SpotlightContainerDecorator({
 // viewer's arrangement, and can send focus back to it by this id.
 export const EXTRAS_BUTTON_ID = 'details-extras-btn';
 
+// The pickers a host can draw on its own instead, with `omitTrackButtons`.
+const TRACK_BUTTONS = ['version', 'audio', 'subtitles'];
+
 // The action row shared by the Modern and Spotlight detail screens. Play and Resume always
 // lead it, and everything after them is in whatever order the viewer arranged in settings,
 // with anything they hid left out.
 //
 // `maxVisibleButtons` caps the row and folds the rest behind an ellipsis. Modern leaves it
-// off and shows every button inline, which is what it has always done.
+// off and shows every button inline, which is what it has always done. `buttonCap` is a cap the
+// viewer's own button count can lower but never lift.
+//
+// `stacked` is Stage's column under the poster: the first button runs the full width and the rest
+// sit under it as circles. The host then decides where focus goes out of it, through
+// onNavigateUp off the first button, onNavigateDown off the circles and onRightEdge off the first
+// button or the last circle. Without onRightEdge the row reads left to right as usual.
+//
+// `centered` is Premiere's row under its centered title: a labeled first button and the circles
+// beside it, each showing its label under it while focused. `startAligned` starts that row at the
+// left instead, for Quick Look's drawer. `frosted` is Frost's toolbar: the first button a white
+// pill and the rest bare icons that take a lighter platter when focused, with the label floating
+// above. In a plain, centered or frosted row, onNavigateUp and onNavigateDown take Up and Down off
+// any button.
 const ModernActionButtons = (props) => {
 	// Only what the row itself needs. Everything the buttons are built from is read straight off
 	// props by the catalogue.
@@ -36,7 +52,8 @@ const ModernActionButtons = (props) => {
 		settings, seerrOnly, isBook, isReadableBook, isPlaylist, playlistTracks, isPerson,
 		hasPlaybackPosition, resumeTimeText, hasTech,
 		handlePlay, handleResume, handleOpenExtras,
-		onFocusRow, downTarget, maxVisibleButtons, overflowAsMenu, menuBackRef
+		onFocusRow, downTarget, maxVisibleButtons, overflowAsMenu, menuBackRef,
+		stacked, centered, startAligned, frosted, omitTrackButtons, buttonCap, onNavigateUp, onNavigateDown, onRightEdge
 	} = props;
 
 	const [menuOpen, setMenuOpen] = useState(false);
@@ -65,7 +82,39 @@ const ModernActionButtons = (props) => {
 		};
 	});
 
+	const handleStackedKeyDown = useCallback((ev) => {
+		const buttons = Array.from(ev.currentTarget.querySelectorAll(`.${css.actionBtn}`));
+		const idx = buttons.indexOf(document.activeElement);
+		if (idx === -1) return;
+		const lead = idx === 0;
+		const last = idx === buttons.length - 1;
+		if (ev.keyCode === KEYS.UP) {
+			if (lead) onNavigateUp?.();
+			else Spotlight.focus(buttons[0]);
+		} else if (ev.keyCode === KEYS.DOWN) {
+			if (lead && !last) Spotlight.focus(buttons[1]);
+			else onNavigateDown?.();
+		} else if (ev.keyCode === KEYS.RIGHT) {
+			if ((lead || last) && onRightEdge) onRightEdge();
+			else if (!last) Spotlight.focus(buttons[idx + 1]);
+		} else if (ev.keyCode === KEYS.LEFT) {
+			if (!lead) Spotlight.focus(buttons[idx - 1]);
+			else if (settings.navbarPosition === 'left') Spotlight.focus('navbar');
+		} else {
+			return;
+		}
+		ev.preventDefault();
+		ev.stopPropagation();
+	}, [settings.navbarPosition, onNavigateUp, onNavigateDown, onRightEdge]);
+
 	const handleKeyDown = useCallback((ev) => {
+		const handOff = ev.keyCode === KEYS.UP ? onNavigateUp : ev.keyCode === KEYS.DOWN ? onNavigateDown : null;
+		if (handOff) {
+			ev.preventDefault();
+			ev.stopPropagation();
+			handOff();
+			return;
+		}
 		if (ev.keyCode === KEYS.DOWN) {
 			// Down moves to whatever sits under the row, which 5-way does not reach on its own.
 			if (downTarget && Spotlight.focus(downTarget)) {
@@ -108,9 +157,10 @@ const ModernActionButtons = (props) => {
 			ev.preventDefault();
 			ev.stopPropagation();
 		}
-	}, [settings.navbarPosition, downTarget]);
+	}, [settings.navbarPosition, downTarget, onNavigateUp, onNavigateDown]);
 
-	const offered = detailActionCatalogue(props);
+	const catalogue = detailActionCatalogue(props);
+	const offered = omitTrackButtons ? catalogue.filter((btn) => !TRACK_BUTTONS.includes(btn.id)) : catalogue;
 	const rowButtons = seerrOnly ? seerrOnlyRow(offered) : offered;
 	const offeredButtons = rowButtons.filter((btn) => btn.when);
 	// Kids Mode sets the saved arrangement aside rather than filtering it, since its own short row
@@ -131,11 +181,13 @@ const ModernActionButtons = (props) => {
 	const prefLimit = isKidsMode(settings) ? 0 : (settings?.detailButtonsMaxVisible ?? 0);
 	const {visibleCount, needsOverflow} = countSplit({
 		totalButtons: leading + customizable.length,
-		...applyButtonLimit(prefLimit, {
-			maxVisible: maxVisibleButtons || 0,
-			overflowAsMenu,
-			countCapped: Boolean(maxVisibleButtons)
-		})
+		...(buttonCap
+			? {maxVisible: prefLimit > 0 ? Math.min(prefLimit + 1, buttonCap) : buttonCap, overflowAsMenu: true, countCapped: true}
+			: applyButtonLimit(prefLimit, {
+				maxVisible: maxVisibleButtons || 0,
+				overflowAsMenu,
+				countCapped: Boolean(maxVisibleButtons)
+			}))
 	});
 	const inline = needsOverflow ? customizable.slice(0, Math.max(0, visibleCount - leading)) : customizable;
 	const behindMenu = needsOverflow ? customizable.slice(Math.max(0, visibleCount - leading)) : [];
@@ -147,9 +199,21 @@ const ModernActionButtons = (props) => {
 
 	return (
 		<>
-			<RowContainer className={`${css.actions} ${hasTech ? css.actionsTight : ''}`} spotlightId="details-action-buttons" onFocus={handleRowFocus} onKeyDown={handleKeyDown}>
+			<RowContainer
+				className={frosted ? css.actionsFrosted : stacked ? css.actionsStacked : centered ? `${css.actionsCentered} ${startAligned ? css.actionsStart : ''}` : `${css.actions} ${hasTech ? css.actionsTight : ''}`}
+				spotlightId="details-action-buttons"
+				onFocus={handleRowFocus}
+				onKeyDown={stacked ? handleStackedKeyDown : handleKeyDown}
+			>
 				{showsResume && (
-					<ActionButton primary path={DETAIL_ICON_PATHS.play} label={$L('Resume')} detail={resumeTimeText} onClick={handleResume} spotlightId="details-primary-btn" />
+					<ActionButton
+						primary
+						path={DETAIL_ICON_PATHS.play}
+						label={stacked || centered || frosted ? $L('Resume from {position}').replace('{position}', resumeTimeText) : $L('Resume')}
+						detail={stacked || centered || frosted ? null : resumeTimeText}
+						onClick={handleResume}
+						spotlightId="details-primary-btn"
+					/>
 				)}
 				{showsPlay && (
 					<ActionButton

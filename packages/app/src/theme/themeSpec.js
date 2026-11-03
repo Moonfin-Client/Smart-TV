@@ -299,7 +299,7 @@ const INK_CROSSOVER = 0.179;
 // the four and a half a paragraph needs.
 export const MIN_BUTTON_CONTRAST = 3;
 
-const relativeLuminance = (hex) => {
+export const relativeLuminance = (hex) => {
 	const channels = toRgbTriplet(hex).split(', ').map(Number);
 	const linear = channels.map((value) => {
 		const part = value / 255;

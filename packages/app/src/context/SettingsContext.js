@@ -101,14 +101,13 @@ const normalizeHomeRowsStyle = (value) => {
 	return value === 'v1' || value === 'v2' ? value : 'v2';
 };
 
-const normalizeDetailScreenStyle = (value) => {
-	if (value === 'classic') return 'v1';
-	if (value === 'modern') return 'v2';
-	if (value === 'spotlight') return 'v3';
-	if (value === 'nouveau') return 'v4';
-	if (value === 'minimalist') return 'v5';
-	return ['v1', 'v2', 'v3', 'v4', 'v5'].indexOf(value) >= 0 ? value : 'v2';
-};
+// Core and the plugin's admin page store the detail style by name. Builds of this app before
+// Stage pushed their own v1 to v5 unconverted, so those still read back.
+const DETAIL_STYLE_NAMES = {v1: 'classic', v2: 'modern', v3: 'spotlight', v4: 'nouveau', v5: 'minimalist', v6: 'stage', v7: 'premiere', v8: 'quickLook', v9: 'frost'};
+const detailStyleFromServer = (value) => (Object.prototype.hasOwnProperty.call(DETAIL_STYLE_NAMES, value)
+	? value
+	: Object.keys(DETAIL_STYLE_NAMES).find((key) => DETAIL_STYLE_NAMES[key] === value));
+const normalizeDetailScreenStyle = (value) => detailStyleFromServer(value) || defaultSettings.detailScreenStyle;
 
 const normalizeGuid = (id) => {
 	if (!id || typeof id !== 'string') return id;
@@ -202,6 +201,7 @@ const VALUE_CONVERSIONS = {
 	bookLibraryStyle: oneOf(['classic', 'readingRoom', 'bookstore']),
 	musicLibraryStyle: oneOf(['classic', 'quickAccess', 'immersive']),
 	keyboardStyle: oneOf(['native', 'classic', 'glass', 'docked']),
+	seerrBadgeStyle: oneOf(['badge', 'banner']),
 	seasonalRowCountry: {fromServer: normalizeSeasonalRowCountry},
 	seasonalRowHiddenHolidays: {fromServer: normalizeSeasonalHiddenHolidays},
 	screensaverContentType: {
@@ -255,6 +255,11 @@ const VALUE_CONVERSIONS = {
 	homeRowImageTypes: {
 		toServer: homeRowImageTypesToServer,
 		fromServer: homeRowImageTypesFromServer
+	},
+	// A style this app can't draw comes back undefined, which keeps the one already picked.
+	detailScreenStyle: {
+		toServer: (v) => DETAIL_STYLE_NAMES[v],
+		fromServer: detailStyleFromServer
 	}
 	// homeRows is missing on purpose. The home layout is two server fields that have to
 	// move together, so it gets resolved whole rather than a key at a time.
@@ -326,7 +331,7 @@ export const SYNCABLE_KEYS = [
 	'mergeRadarrSonarrCalendars',
 	'radarrCalendarShowCinema', 'radarrCalendarShowDigital', 'radarrCalendarShowPhysical',
 	'radarrCalendarShowDate', 'sonarrCalendarShowDate', 'sonarrCalendarShowEpisodeInfo',
-	'showSeerrButton', 'seerrShowMissingCollectionItems', 'showSeerrAvailabilityBadges',
+	'showSeerrButton', 'seerrShowMissingCollectionItems', 'showSeerrAvailabilityBadges', 'seerrBadgeStyle',
 	'showServerMessagesButton',
 	'screensaverMode', 'screensaverClockMode',
 	'screensaverBackdrop', 'screensaverComponent', 'screensaverMovement',

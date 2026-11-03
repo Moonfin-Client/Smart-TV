@@ -23,6 +23,7 @@ const SeerrDialogs = ({seerr, item}) => {
 				<SeerrRequestDialog
 					is4k={seerr.requestDialog.is4k}
 					qualityToggle={seerr.requestDialog.qualityToggle}
+					season={seerr.requestDialog.season}
 					details={seerr.sheetDetails}
 					isTv={isTv}
 					isContinuing={seerr.isContinuing}

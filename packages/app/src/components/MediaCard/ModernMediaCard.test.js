@@ -28,7 +28,8 @@ jest.mock('@enact/spotlight/Spottable', () => (type) => {
 		return React.createElement(type, rest);
 	};
 });
-jest.mock('../../context/SettingsContext', () => ({useSettings: () => ({settings: {}})}));
+let mockSettings = {};
+jest.mock('../../context/SettingsContext', () => ({useSettings: () => ({settings: mockSettings})}));
 jest.mock('../../services/jellyfinApi', () => ({
 	getServerUrl: () => 'http://server',
 	getApiKey: () => 'token',
@@ -76,6 +77,7 @@ const draw = (item, isFocused) => {
 };
 
 beforeEach(() => {
+	mockSettings = {};
 	jest.useFakeTimers();
 	setTmdbThumbsAvailable(true);
 });
@@ -289,4 +291,34 @@ it('holds the artwork back while its row is far from focus', () => {
 	expect(document.querySelector('img').hasAttribute('src')).toBe(false);
 	rerender(<ModernMediaCard item={seerrShow()} serverUrl="http://server" />);
 	expect(document.querySelector('img').getAttribute('src')).toBe(POSTER);
+});
+
+describe('ModernMediaCard Seerr status', () => {
+	const dot = () => document.querySelector('[class~="seerrBadge"]');
+	const banner = () => document.querySelector('[class~="banner"]');
+	const drawCard = (item) => render(<ModernMediaCard item={item} serverUrl="http://server" />);
+
+	it('keeps the corner dot in badge mode', () => {
+		drawCard(seerrShow({mediaInfo: {status: 3}}));
+		expect(dot().className).toContain('seerr3');
+		expect(banner()).toBeNull();
+	});
+
+	it('draws nothing when the badges are off', () => {
+		mockSettings = {showSeerrAvailabilityBadges: false};
+		drawCard(seerrShow({mediaInfo: {status: 3}}));
+		expect(dot()).toBeNull();
+		expect(banner()).toBeNull();
+	});
+
+	it('runs a banner across the top in banner mode', () => {
+		mockSettings = {seerrBadgeStyle: 'banner'};
+		const {rerender} = drawCard(seerrShow({mediaInfo: {status: 3}}));
+		expect(banner().textContent).toBe('REQUESTED');
+		expect(dot()).toBeNull();
+		expect(document.querySelector('[data-card-art]').className).toContain('underSeerrBanner');
+
+		rerender(<ModernMediaCard item={seerrShow()} serverUrl="http://server" />);
+		expect(banner()).toBeNull();
+	});
 });

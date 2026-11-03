@@ -5,6 +5,7 @@ import $L from '@enact/i18n/$L';
 import {useSeerr} from '../../context/SeerrContext';
 import {useSettings} from '../../context/SettingsContext';
 import LoadingSpinner from '../../components/LoadingSpinner';
+import SeerrStatusBanner, {hasSeerrDot, seerrBadgeStyle} from '../../components/seerr/SeerrStatusBanner';
 import * as seerrApi from '../../services/seerrApi';
 import {POSTER_HEIGHTS, POSTER_SIZE_OPTIONS, seerrPosterSize} from '../../utils/gridChrome';
 import {CORE_ICON_PATHS} from '../Settings/settingsCoreIcons';
@@ -39,6 +40,7 @@ const MAX_PAGES = 25;
 const SeerrBrowse = ({browseType, item, mediaType: initialMediaType, onSelectItem, backHandlerRef}) => {
 	const {isEnabled} = useSeerr();
 	const {settings, updateSetting} = useSettings();
+	const badgeStyle = seerrBadgeStyle(settings);
 	const posterSize = seerrPosterSize(settings);
 	const posterHeight = POSTER_HEIGHTS[posterSize];
 	// The card's margin and the title and year under the poster ride on top of the poster size.
@@ -333,6 +335,7 @@ const SeerrBrowse = ({browseType, item, mediaType: initialMediaType, onSelectIte
 		const year = mediaItem.releaseDate?.substring(0, 4) || mediaItem.firstAirDate?.substring(0, 4);
 		const itemMediaType = mediaItem.media_type || mediaItem.mediaType || mediaType;
 		const status = mediaItem.mediaInfo?.status;
+		const banner = badgeStyle === 'banner' && hasSeerrDot(status);
 
 		return (
 			<SpottableDiv
@@ -342,7 +345,7 @@ const SeerrBrowse = ({browseType, item, mediaType: initialMediaType, onSelectIte
 				onFocus={updateBackdrop}
 				data-index={index}
 			>
-				<div className={css.posterWrapper} style={{height: posterHeight}}>
+				<div className={`${css.posterWrapper}${banner ? ' ' + css.underSeerrBanner : ''}`} style={{height: posterHeight}}>
 					{imageUrl ? (
 						<img
 							className={css.poster}
@@ -357,6 +360,7 @@ const SeerrBrowse = ({browseType, item, mediaType: initialMediaType, onSelectIte
 							</svg>
 						</div>
 					)}
+					{banner && <SeerrStatusBanner status={status} className={css.seerrBanner} />}
 					{/* Media type badge - top left */}
 					{itemMediaType && (
 						<div className={`${css.mediaTypeBadge} ${itemMediaType === 'movie' ? css.movieBadge : css.seriesBadge}`}>
@@ -364,7 +368,7 @@ const SeerrBrowse = ({browseType, item, mediaType: initialMediaType, onSelectIte
 						</div>
 					)}
 					{/* Availability badge - top right */}
-					{status && [3, 4, 5].includes(status) && (
+					{badgeStyle === 'badge' && [3, 4, 5].includes(status) && (
 						<div className={`${css.availabilityBadge} ${css[`availability${status}`]}`} />
 					)}
 				</div>
@@ -376,7 +380,7 @@ const SeerrBrowse = ({browseType, item, mediaType: initialMediaType, onSelectIte
 				</div>
 			</SpottableDiv>
 		);
-	}, [handleItemClick, updateBackdrop, loadItems, mediaType, posterHeight]);
+	}, [handleItemClick, updateBackdrop, loadItems, mediaType, posterHeight, badgeStyle]);
 
 	const currentFilter = getFilterOptions().find(o => o.key === mediaType);
 

@@ -288,9 +288,9 @@ export const defaultSettings = {
 	// Per row overrides keyed by row id. An absent id uses the global type above.
 	homeRowImageTypes: {},
 	homeRowsStyle: 'v2',
-	modernCardsOnMyMediaRow: true,
+	modernCardsOnMyMediaRow: false,
 	modernCardTransitionSpeed: 'off',
-	detailScreenStyle: 'v2',
+	detailScreenStyle: 'v9',
 	detailButtonsMaxVisible: 0,
 	personalRatingStyle: 'thumbs',
 	detailExpandedTabs: true,
@@ -348,6 +348,7 @@ export const defaultSettings = {
 	showSeerrButton: true,
 	seerrShowMissingCollectionItems: true,
 	showSeerrAvailabilityBadges: true,
+	seerrBadgeStyle: 'badge',
 	// Off until asked for. An admin who wants it on for everyone can set it in the
 	// plugin's default settings.
 	showServerMessagesButton: false,

@@ -233,6 +233,12 @@ const useSeerrRequests = ({
 		setRequestDialog({is4k: !canRequestHd, qualityToggle: canRequestHd && canRequest4k});
 	}, [canRequestHd, canRequest4k]);
 
+	// A season card opens the same sheet with just that season ticked. Specials have no number
+	// to tick, so they open on every season.
+	const handleRequestSeason = useCallback((season) => {
+		setRequestDialog({is4k: !canRequestHd, qualityToggle: canRequestHd && canRequest4k, season: season > 0 ? season : null});
+	}, [canRequestHd, canRequest4k]);
+
 	const handleSubmitRequest = useCallback(({is4k, seasons, serverId, profileId, rootFolder}) => {
 		setRequestDialog(null);
 		handleRequest(is4k, seasons, {serverId, profileId, rootFolder});
@@ -305,6 +311,7 @@ const useSeerrRequests = ({
 		handleCloseRequestDialog,
 		handleManageRequestsClick,
 		handleRequestChoose,
+		handleRequestSeason,
 		handleReportIssueClick,
 		handleReportSubmit,
 		handleRequestTrack,

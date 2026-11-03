@@ -285,11 +285,11 @@ const useDetailsItem = ({itemId, initialItem, effectiveApi, effectiveServerUrl, 
 			const bg = async () => {
 				let boxSetMembers = [];
 				if (data.Type === 'Series') {
-					// Nouveau and Minimalist show one season's episodes at a time behind a selector.
-					// Asking for the whole run once and splitting it here beats a fetch per season,
+					// Nouveau, Minimalist, Stage, Premiere and Frost show one season's episodes at a time behind a
+					// selector. Asking for the whole run once and splitting it here beats a fetch per season,
 					// since the viewer walks the selector and would otherwise wait at every step.
 					const style = settingsRef.current?.detailScreenStyle;
-					const wantsEpisodes = style === 'v4' || style === 'v5';
+					const wantsEpisodes = ['v4', 'v5', 'v6', 'v7', 'v9'].indexOf(style) >= 0;
 					const [seasonsData, nextUpData, episodesData] = await Promise.all([
 						effectiveApi.getSeasons(itemId).catch(() => null),
 						effectiveApi.getNextUp(1, itemId).catch(() => null),
@@ -307,12 +307,12 @@ const useDetailsItem = ({itemId, initialItem, effectiveApi, effectiveServerUrl, 
 
 				if (data.Type === 'Episode') {
 					const seasonId = data.SeasonId || data.ParentId;
-					// Spotlight and Minimalist offer the whole run grouped by season, which this
-					// episode's own season cant fill. No other style shows it, so no other style
+					// Spotlight, Minimalist, Stage, Premiere and Frost offer the whole run grouped by season,
+					// which this episode's own season can't fill. No other style shows it, so no other style
 					// pays for it, and neither does a viewer who hid More episodes.
 					const episodeStyle = settingsRef.current?.detailScreenStyle;
 					const wantsWholeSeries = Boolean(data.SeriesId) &&
-						(episodeStyle === 'v3' || episodeStyle === 'v5') &&
+						['v3', 'v5', 'v6', 'v7', 'v9'].indexOf(episodeStyle) >= 0 &&
 						sectionVisibility(settingsRef.current?.hiddenDetailSectionsTv)('moreEpisodes');
 					const [seasonData, seriesData] = await Promise.all([
 						data.SeriesId && seasonId

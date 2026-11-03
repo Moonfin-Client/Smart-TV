@@ -66,6 +66,11 @@ import ClassicDetailScreen from './ClassicDetailScreen';
 import SpotlightDetailContent from './spotlight/SpotlightDetailContent';
 import NouveauDetailContent from './nouveau/NouveauDetailContent';
 import MinimalistDetailContent from './minimalist/MinimalistDetailContent';
+import StageDetailContent from './stage/StageDetailContent';
+import PremiereDetailContent from './premiere/PremiereDetailContent';
+import QuickLookDetailContent, {QuickLookFrame} from './quickLook/QuickLookDetailContent';
+import FrostDetailContent from './frost/FrostDetailContent';
+import {drawsStage} from './stage/stageRules';
 import PersonScreen from './PersonScreen';
 import PersonDisplayDialog from './PersonDisplayDialog';
 import {offersFavorite} from './personFavorite';
@@ -79,11 +84,20 @@ import css from './Details.module.less';
 
 // Every style past Classic takes the same contract, so the setting only decides which of them
 // draws the screen.
-const DETAIL_CONTENT = {v3: SpotlightDetailContent, v4: NouveauDetailContent, v5: MinimalistDetailContent};
+const DETAIL_CONTENT = {
+	v3: SpotlightDetailContent, v4: NouveauDetailContent, v5: MinimalistDetailContent, v6: StageDetailContent, v7: PremiereDetailContent,
+	v9: FrostDetailContent
+};
 // The missing titles already ride in the list a collection's page is handed.
 const NO_ITEMS = [];
 
-const Details = ({itemId: itemIdProp, initialItem, onPlay, onSelectItem, onSelectPerson, onSelectStudio, onItemDeleted, autoPlay, onAutoPlayed, seerrNav, backHandlerRef, onOpenWatchParty}) => {
+// `quickLook` draws the title in Quick Look's drawer over the screen underneath, which keeps its own
+// backdrop and theme music. onOpenFullPage(item, replace) opens a full page from it, in its place
+// when `replace` is set and over it otherwise, and onClose closes it.
+const Details = ({
+	itemId: itemIdProp, initialItem, onPlay, onSelectItem, onSelectPerson, onSelectStudio, onItemDeleted, autoPlay, onAutoPlayed,
+	seerrNav, backHandlerRef, quickLook = false, onOpenFullPage, onClose, onOpenWatchParty
+}) => {
 	const {api, serverUrl, user} = useAuth();
 	// Kids Mode has its say before anything on this screen reads a setting, and every piece below
 	// takes what it is handed rather than reaching for the context itself. Held steady across
@@ -94,6 +108,8 @@ const Details = ({itemId: itemIdProp, initialItem, onPlay, onSelectItem, onSelec
 	// agree, and a hidden section reads as one with nothing in it. The data behind it stays,
 	// since playback and the pickers still read it.
 	const showsSection = useMemo(() => sectionVisibility(settings.hiddenDetailSectionsTv), [settings.hiddenDetailSectionsTv]);
+	// Quick Look's full page is Modern.
+	const detailStyle = quickLook ? 'v8' : (settings.detailScreenStyle === 'v8' ? 'v2' : settings.detailScreenStyle);
 	const {pluginInfo, isEnabled: seerrEnabled} = useSeerr();
 	const recommendationsSupported = pluginInfo?.recommendationsSupported === true;
 	const {isInGroup: isSyncPlayInGroup} = useSyncPlay();
@@ -367,6 +383,18 @@ const Details = ({itemId: itemIdProp, initialItem, onPlay, onSelectItem, onSelec
 		Spotlight.focus('details-primary-btn');
 		autoFocusedRef.current = Spotlight.getCurrent();
 	}, [isSeed, seerrOnly, isPersonItem]);
+
+	const handleOpenFullPage = useCallback(() => onOpenFullPage?.(initialItem, true), [onOpenFullPage, initialItem]);
+	const handleOpenSeason = useCallback((season) => onOpenFullPage?.(season), [onOpenFullPage]);
+
+	// Quick Look draws what Stage does, and anything else swaps its drawer for the full page.
+	const loadedType = isLoading ? null : item?.Type;
+	const fullPageOpenedRef = useRef(false);
+	useEffect(() => {
+		if (!quickLook || !loadedType || drawsStage(loadedType) || fullPageOpenedRef.current) return;
+		fullPageOpenedRef.current = true;
+		handleOpenFullPage();
+	}, [quickLook, loadedType, handleOpenFullPage]);
 
 	// A hidden logo falls back to the title text, as a missing one does.
 	const logoUrl = useMemo(
@@ -1043,26 +1071,24 @@ const Details = ({itemId: itemIdProp, initialItem, onPlay, onSelectItem, onSelec
 		};
 	}, [item?.Type, playlistItems, canManagePlaylist, playTrack, handleRemoveFromPlaylist, handlePlaylistItemReorder, handleCollectionMove]);
 
+	const page = (children) => (quickLook
+		? <QuickLookFrame onClose={onClose}>{children}</QuickLookFrame>
+		: <div className={css.page}>{children}</div>);
+
 	// No artwork, name or retry on purpose, since a retry would read as an invitation.
 	if (!seerrOnly && blockedByRating) {
-		return (
-			<div className={css.page}>
-				<div className={css.blocked}>
-					<svg className={css.blockedIcon} viewBox='0 -960 960 960' fill='currentColor' aria-hidden='true' focusable='false'>
-						<path d={MATERIAL_ICON_PATHS.lock} />
-					</svg>
-					<div className={css.blockedText}>{$L("This isn't available")}</div>
-				</div>
+		return page(
+			<div className={css.blocked}>
+				<svg className={css.blockedIcon} viewBox='0 -960 960 960' fill='currentColor' aria-hidden='true' focusable='false'>
+					<path d={MATERIAL_ICON_PATHS.lock} />
+				</svg>
+				<div className={css.blockedText}>{$L("This isn't available")}</div>
 			</div>
 		);
 	}
 
 	if (isLoading || !item) {
-		return (
-			<div className={css.page}>
-				<DetailSkeleton detailStyle={settings.detailScreenStyle} sidebar={settings.navbarPosition === 'left'} />
-			</div>
-		);
+		return page(<DetailSkeleton detailStyle={detailStyle} sidebar={settings.navbarPosition === 'left'} />);
 	}
 
 	const backdropId = getBackdropId(item);
@@ -1255,11 +1281,13 @@ const Details = ({itemId: itemIdProp, initialItem, onPlay, onSelectItem, onSelec
 		</>
 	);
 
-	if (settings.detailScreenStyle !== 'v1') {
-		// Spotlight, Minimalist and Nouveau have no track list, so a playlist always gets Modern's.
-		const DetailContent = (item.Type !== 'Playlist' && DETAIL_CONTENT[settings.detailScreenStyle]) || ModernDetailContent;
-		return (
-			<div className={css.page}>
+	if (detailStyle !== 'v1') {
+		// Spotlight, Minimalist, Nouveau, Stage, Premiere and Frost have no track list, so a playlist always gets Modern's.
+		const DetailContent = quickLook
+			? QuickLookDetailContent
+			: (item.Type !== 'Playlist' && DETAIL_CONTENT[detailStyle]) || ModernDetailContent;
+		return page(
+			<>
 				<DetailContent
 					inSyncPlayGroup={isSyncPlayInGroup || canPickForWatchParty}
 					onWatchWithGroup={canPickForWatchParty ? handlePickForWatchParty : handlePlay}
@@ -1310,7 +1338,7 @@ const Details = ({itemId: itemIdProp, initialItem, onPlay, onSelectItem, onSelec
 					extras={shownExtras}
 					cast={detailCast}
 					crew={detailCrew}
-					nextUp={shownNextUp}
+					nextUp={quickLook || detailStyle === 'v9' ? nextUp : shownNextUp}
 					collectionItems={shownCollectionItems}
 					collectionSections={collectionSections}
 					albumTracks={albumTracks}
@@ -1368,9 +1396,11 @@ const Details = ({itemId: itemIdProp, initialItem, onPlay, onSelectItem, onSelec
 					spotlightBackRef={spotlightBackRef}
 					onReorderPlaylistItem={handlePlaylistItemReorder}
 					onRemovePlaylistItem={handleRemoveFromPlaylist}
+					onOpenFullPage={handleOpenFullPage}
+					onOpenSeason={handleOpenSeason}
 				/>
 				{overlays}
-			</div>
+			</>
 		);
 	}
 

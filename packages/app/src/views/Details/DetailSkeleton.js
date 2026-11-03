@@ -1,4 +1,5 @@
 import {SkeletonBox, SkeletonShimmer} from '../../components/Skeleton';
+import {frostStageStyle} from './frost/frostRules';
 
 import css from './DetailSkeleton.module.less';
 
@@ -178,7 +179,86 @@ const Minimalist = ({sidebar}) => (
 	</div>
 );
 
-const LAYOUTS = {v1: Classic, v2: Modern, v3: Spotlight, v4: Nouveau, v5: Minimalist};
+// The poster with play and the circles under it on the left, and the title block beside it.
+const Stage = ({sidebar}) => (
+	<div className={css.content} style={{padding: `${rem(172)} ${rem(80)} 0 ${rem(sidebar ? 200 : 80)}`}}>
+		<div className={css.row} style={{alignItems: 'flex-start'}}>
+			<div>
+				<Box width={388} height={582} radius={13} />
+				<Gap size={28} />
+				<Box width={388} height={86} radius={43} />
+				<Gap size={24} />
+				<Boxes widths={[86, 86, 86, 86]} height={86} gap={14.66} radius={43} />
+			</div>
+			<div style={{marginLeft: rem(67), flex: '1 1 auto'}}>
+				<Box width={480} height={110} />
+				<Gap size={16} />
+				<Boxes widths={[63, 36, 84, 72, 63]} height={20} gap={13} radius={4} />
+				<Gap size={14} />
+				<Box width={104} height={48} radius={6} />
+				<Gap size={18} />
+				<Box width="70%" height={20} radius={4} />
+				<Gap size={10} />
+				<Box width="70%" height={20} radius={4} />
+				<Gap size={10} />
+				<Box width="40%" height={20} radius={4} />
+			</div>
+		</div>
+	</div>
+);
+
+// The title block centered low on the first screen, with Play and the circles under it.
+const Premiere = ({sidebar}) => (
+	<div
+		className={css.content}
+		style={{display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-end', padding: `0 ${rem(154)} ${rem(90)} ${rem(sidebar ? 200 : 154)}`}}
+	>
+		<Box width={701} height={93.5} />
+		<Gap size={23.4} />
+		<Box width={501} height={26.7} radius={4} />
+		<Gap size={23.4} />
+		<Box width={1035} height={23.4} radius={4} />
+		<Gap size={13.4} />
+		<Box width={701} height={23.4} radius={4} />
+		<Gap size={33.4} />
+		<Boxes widths={[250, 83.5, 83.5, 83.5, 83.5]} height={83.5} gap={20} radius={41.75} />
+	</div>
+);
+
+// Quick Look's drawer: its backdrop over the title block, the buttons and the first lines of the
+// overview. The drawer is the box it fills.
+const QuickLook = () => (
+	<div className={css.content}>
+		<SkeletonBox width="100%" height={`calc(32vh - ${rem(56.8)})`} radius="0" />
+		<div style={{padding: `${rem(26.7)} ${rem(43.4)} 0`}}>
+			<Box width={401} height={46.8} />
+			<Gap size={16.7} />
+			<Box width={334} height={23.4} />
+			<Gap size={33.4} />
+			<Boxes widths={[217, 76.8, 76.8, 76.8, 76.8]} height={76.8} gap={16.7} radius={38.4} />
+			<Gap size={16.7} />
+			{[0, 1, 2].map((i) => (
+				<div key={i}>
+					<Gap size={13.4} />
+					<Box width={i === 2 ? 334 : '100%'} height={20} />
+				</div>
+			))}
+		</div>
+	</div>
+);
+
+// Frost's window, toolbar and tab bar, on the same stage the page lays out on.
+const Frost = ({sidebar}) => (
+	<div className={css.content}>
+		<div className={css.frostStage} style={frostStageStyle(!sidebar)}>
+			<SkeletonBox className={css.frostWindow} radius={rem(66)} />
+			<SkeletonBox className={css.frostToolbar} radius={rem(57)} />
+			<SkeletonBox className={css.frostTabs} radius={rem(45)} />
+		</div>
+	</div>
+);
+
+const LAYOUTS = {v1: Classic, v2: Modern, v3: Spotlight, v4: Nouveau, v5: Minimalist, v6: Stage, v7: Premiere, v8: QuickLook, v9: Frost};
 
 // Placeholders laid out like the chosen details style while the item loads, so the page fills
 // in where they stood.

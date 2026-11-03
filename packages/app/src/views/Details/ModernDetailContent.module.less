@@ -426,6 +426,327 @@
 	max-width: none;
 }
 
+// Stage stacks the row under its poster, at Core's Stage sizes. The first button spans the column,
+// filled with the accent and labeled, and the rest wrap under it as circles. A focused circle keeps
+// its size and shows its label underneath, since the column has no room for it to open up.
+// Premiere centers the same circles in one row beside a labeled first button, and keeps the room
+// under the row for the labels so it doesn't shift as focus moves.
+.actionsStacked {
+	display: flex;
+	flex-wrap: wrap;
+	padding-bottom: 34px;
+}
+
+.actionsStacked > .actionBtn,
+.actionsCentered > .actionBtn {
+	background-color: rgba(255, 255, 255, 0.06);
+	border: 2.5px solid rgba(255, 255, 255, 0.35);
+	height: 86px;
+	justify-content: center;
+	margin-right: 14.66px;
+	overflow: visible;
+	padding: 0;
+	position: relative;
+	width: 86px;
+}
+
+.actionsStacked > .actionBtn:focus,
+.actionsCentered > .actionBtn:focus {
+	border-width: 4px;
+}
+
+.actionsStacked > .actionBtn ~ .actionBtn ~ .actionBtn ~ .actionBtn ~ .actionBtn {
+	margin-right: 0;
+}
+
+.actionsStacked > .actionBtn .actionIcon,
+.actionsCentered > .actionBtn .actionIcon {
+	flex: 1 1 auto;
+	height: 100%;
+	width: auto;
+}
+
+.actionsStacked > .actionBtn .actionIcon .icon,
+.actionsCentered > .actionBtn .actionIcon .icon {
+	height: 40px;
+	width: 40px;
+}
+
+.actionsStacked > .actionBtn:first-child {
+	background-color: #00a4dc;
+	border: 5px solid transparent;
+	margin: 0 0 24px;
+	width: 100%;
+}
+
+.actionsStacked > .actionBtn:first-child:focus {
+	background-color: #fff;
+	border: 5px solid var(--theme-focus-border-color, #00a4dc);
+	color: #00a4dc;
+}
+
+.actionsStacked > .actionBtn:first-child .actionIcon {
+	flex: 0 0 40px;
+	height: 40px;
+	width: 40px;
+}
+
+.actionsStacked > .actionBtn:first-child .actionText,
+.actionsCentered > .actionBtn:first-child .actionText {
+	max-width: none;
+	opacity: 1;
+	padding: 0 0 0 13px;
+}
+
+.actionsStacked > .actionBtn:first-child .actionLabel {
+	font-size: 23.4px;
+	font-weight: 700;
+	max-width: none;
+}
+
+// A circle that's on, like a watched title, takes a wash of the accent. A favorite takes Core's red
+// instead.
+.actionsStacked > .actionActive,
+.actionsCentered > .actionActive {
+	background-color: rgba(0, 164, 220, 0.18);
+	color: #00a4dc;
+}
+
+.actionsStacked > .actionActive[data-spotlight-id='details-favorite-btn'],
+.actionsCentered > .actionActive[data-spotlight-id='details-favorite-btn'] {
+	background-color: rgba(255, 71, 87, 0.18);
+	color: #e50914;
+}
+
+.actionsStacked > .actionBtn:not(:first-child) .actionText,
+.actionsCentered > .actionBtn:not(:first-child) .actionText {
+	color: #fff;
+	left: 50%;
+	margin-top: 10px;
+	padding: 0;
+	position: absolute;
+	text-shadow: 0 1px 4px rgba(0, 0, 0, 0.5);
+	top: 100%;
+	transform: translateX(-50%);
+}
+
+.actionsStacked > .actionBtn:not(:first-child):focus .actionText,
+.actionsCentered > .actionBtn:not(:first-child):focus .actionText {
+	max-width: 267px;
+}
+
+.actionsStacked > .actionBtn:not(:first-child) .actionLabel,
+.actionsCentered > .actionBtn:not(:first-child) .actionLabel {
+	font-size: 20px;
+	font-weight: 600;
+	max-width: 267px;
+}
+
+.actionsCentered {
+	align-items: center;
+	display: flex;
+	flex-wrap: wrap;
+	justify-content: center;
+	padding-bottom: 36.7px;
+}
+
+.actionsCentered > .actionBtn {
+	height: 86.8px;
+	margin: 0 6.7px;
+	width: 86.8px;
+}
+
+// A labeled first button sized to its label, up to Core's widest, rather than spanning the row.
+.actionsCentered > .actionBtn:first-child {
+	background-color: #00a4dc;
+	border-color: transparent;
+	height: 90px;
+	justify-content: flex-start;
+	max-width: 467px;
+	min-width: 0;
+	padding: 0 26.7px 0 10px;
+	width: auto;
+}
+
+.actionsCentered > .actionBtn:first-child:focus {
+	background-color: #fff;
+	border-color: var(--theme-focus-border-color, #00a4dc);
+	color: #00a4dc;
+}
+
+.actionsCentered > .actionBtn:first-child .actionIcon {
+	flex: 0 0 83.5px;
+	width: 83.5px;
+}
+
+.actionsCentered > .actionBtn:first-child .actionText {
+	padding-left: 10px;
+}
+
+.actionsCentered > .actionBtn:first-child .actionLabel {
+	font-size: 21.7px;
+	max-width: 332px;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+// Quick Look starts the same row at the drawer's edge, where it can run onto a second line, so each
+// line keeps the room for its labels and Core's gap under that.
+.actionsStart {
+	justify-content: flex-start;
+	margin: 0 -6.7px -20px;
+	padding-bottom: 0;
+}
+
+.actionsStart > .actionBtn {
+	margin-bottom: 56.7px;
+}
+
+// Frost's toolbar. The first button is a white pill and the rest are bare icons, with the label in a
+// small chip floating above the focused one. The toolbar is glass already, so nothing here blurs.
+.actionsFrosted {
+	align-items: center;
+	display: flex;
+}
+
+.actionsFrosted > .actionBtn {
+	-webkit-backdrop-filter: none;
+	backdrop-filter: none;
+	background: transparent;
+	border: 0;
+	border-radius: 45px;
+	color: #fff;
+	height: 90px;
+	justify-content: center;
+	margin-left: 9px;
+	overflow: visible;
+	padding: 0;
+	position: relative;
+	width: 90px;
+}
+
+.actionsFrosted > .actionBtn:first-child + .actionBtn {
+	margin-left: 18px;
+}
+
+.actionsFrosted > .actionBtn:focus {
+	background: transparent;
+	border: 0;
+	color: #fff;
+	padding: 0;
+}
+
+.actionsFrosted > .actionActive,
+.actionsFrosted > .actionActive:focus {
+	color: #30d158;
+}
+
+.actionsFrosted > .actionActive[data-spotlight-id='details-favorite-btn'],
+.actionsFrosted > .actionActive[data-spotlight-id='details-favorite-btn']:focus {
+	color: #ff375f;
+}
+
+.actionsFrosted > .actionBtn .actionIcon {
+	border-radius: 50%;
+	flex: 0 0 90px;
+	height: 90px;
+	width: 90px;
+}
+
+.actionsFrosted > .actionBtn .actionIcon .icon {
+	height: 37.5px;
+	width: 37.5px;
+}
+
+.actionsFrosted > .actionBtn:focus .actionIcon {
+	background: rgba(255, 255, 255, 0.32);
+	transform: scale(1.12);
+}
+
+.actionsFrosted > .actionBtn,
+.actionsFrosted > .actionBtn .actionIcon {
+	transition: transform 0.18s ease, background-color 0.18s ease;
+
+	:global(.perf-low) &,
+	:global(.perf-mid) & {
+		transition: none;
+	}
+}
+
+.actionsFrosted > .actionBtn:not(:first-child) .actionText,
+.actionsFrosted > .actionBtn:not(:first-child):focus .actionText {
+	background: rgba(36, 36, 40, 0.97);
+	border-radius: 24px;
+	bottom: 100%;
+	color: #fff;
+	left: 50%;
+	margin-bottom: 24px;
+	max-width: none;
+	padding: 10.5px 21px;
+	pointer-events: none;
+	position: absolute;
+	transform: translateX(-50%);
+}
+
+.actionsFrosted > .actionBtn:not(:first-child) .actionLabel {
+	font-size: 21px;
+	font-weight: 600;
+	max-width: none;
+}
+
+// The ring a focused pill wears is its border, kept clear of the fill and pulled back into the
+// row's spacing, so the pill measures the same with or without it.
+.actionsFrosted > .actionBtn:first-child {
+	background: rgba(255, 255, 255, 0.86);
+	background-clip: padding-box;
+	border: 6px solid transparent;
+	border-radius: 51px;
+	color: #000;
+	height: 102px;
+	margin: -6px;
+	min-width: 312px;
+	padding: 0 42px;
+	width: auto;
+}
+
+.actionsFrosted > .actionBtn:first-child:focus {
+	background: #fff;
+	background-clip: padding-box;
+	border: 6px solid rgba(255, 255, 255, 0.3);
+	color: #000;
+	padding: 0 42px;
+	transform: scale(1.06);
+}
+
+.actionsFrosted > .actionBtn:first-child .actionIcon,
+.actionsFrosted > .actionBtn:first-child:focus .actionIcon {
+	background: transparent;
+	flex: 0 0 28.5px;
+	height: 28.5px;
+	transform: none;
+	width: 28.5px;
+}
+
+.actionsFrosted > .actionBtn:first-child .actionIcon .icon {
+	height: 28.5px;
+	width: 28.5px;
+}
+
+.actionsFrosted > .actionBtn:first-child .actionText,
+.actionsFrosted > .actionBtn:first-child:focus .actionText {
+	max-width: none;
+	opacity: 1;
+	padding: 0 0 0 15px;
+}
+
+.actionsFrosted > .actionBtn:first-child .actionLabel {
+	font-size: 28.5px;
+	font-weight: 600;
+	max-width: 450px;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
 .upNext {
 	width: 594px;
 	flex-shrink: 0;

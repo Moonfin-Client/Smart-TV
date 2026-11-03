@@ -241,6 +241,14 @@ describe('settings schema', () => {
 	});
 });
 
+describe('the details screen style', () => {
+	test.each(['Stage', 'Premiere', 'Quick Look', 'Frost'])('a search for %s finds the style setting', (name) => {
+		const index = buildSettingsIndex(SETTINGS_SCHEMA, ctx, {resolve, spotlightIdOf});
+
+		expect(matchSettings(index, name).map((entry) => entry.spotlightId)).toContain('setting-detailScreenStyle');
+	});
+});
+
 describe('the home screen backdrop', () => {
 	const backdropRow = () => SETTINGS_SCHEMA
 		.find((category) => category.id === 'appearance').subcategories

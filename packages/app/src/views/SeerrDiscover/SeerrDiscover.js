@@ -12,6 +12,7 @@ import {modernRowSpacing} from '../../components/MediaCard/modernCardLayout';
 import seerrApi from '../../services/seerrApi';
 import {seerrGenreBackdrop} from '../../utils/seerrGenreArt';
 import LoadingSpinner from '../../components/LoadingSpinner';
+import SeerrStatusBanner, {hasSeerrDot, seerrBadgeStyle} from '../../components/seerr/SeerrStatusBanner';
 import {KEYS} from '../../utils/keys';
 import hydrateRequestMediaItems from '../../utils/seerrHydration';
 import {STREAMING_NETWORKS, MOVIE_STUDIOS, pickShortcutBackdrops, normalizeMediaItem, normalizeRequestItem, seerrBrowseTitle, seerrShortcuts} from '../../utils/seerrHomeRows';
@@ -104,9 +105,12 @@ const toModernItems = (config, rawItems) => {
 
 // Memoized card components for performance
 const MediaCard = memo(function MediaCard({item, mediaType, onSelect, onFocus}) {
+	const {settings} = useSettings();
+	const badgeStyle = seerrBadgeStyle(settings);
 	const posterUrl = seerrApi.getImageUrl(item.poster_path || item.posterPath, 'w342');
 	const title = item.title || item.name;
 	const status = item.mediaInfo?.status;
+	const banner = badgeStyle === 'banner' && hasSeerrDot(status);
 	const itemMediaType = item.media_type || item.mediaType || mediaType;
 
 	const handleClick = useCallback(() => {
@@ -119,18 +123,19 @@ const MediaCard = memo(function MediaCard({item, mediaType, onSelect, onFocus}) 
 
 	return (
 		<SpottableDiv className={css.mediaCard} onClick={handleClick} onFocus={handleFocus}>
-			<div className={css.posterContainer}>
+			<div className={`${css.posterContainer}${banner ? ' ' + css.underSeerrBanner : ''}`}>
 				{posterUrl ? (
 					<img className={css.poster} src={posterUrl} alt={title} loading="lazy" />
 				) : (
 					<div className={css.noPoster}>{title?.[0]}</div>
 				)}
+				{banner && <SeerrStatusBanner status={status} />}
 				{itemMediaType && (
 					<div className={`${css.mediaTypeBadge} ${itemMediaType === 'movie' ? css.movieBadge : css.seriesBadge}`}>
 						{itemMediaType === 'movie' ? $L('Movie') : $L('Series')}
 					</div>
 				)}
-				{status && [2, 3, 4, 5].includes(status) && (
+				{badgeStyle === 'badge' && [2, 3, 4, 5].includes(status) && (
 					<div className={`${css.availabilityBadge} ${css[`availability${status}`]}`} />
 				)}
 			</div>
