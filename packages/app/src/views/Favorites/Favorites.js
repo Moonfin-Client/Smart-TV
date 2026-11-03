@@ -77,7 +77,7 @@ const handleHomeGridKeyDown = createGridKeyDown(css.grid, 'favorites-active-tab'
 const handleLibraryGridKeyDown = createGridKeyDown(css.grid, 'favorites-letter-hash');
 
 const Favorites = ({onSelectItem, onSelectPerson, onSelectSeerrItem, onHome, backHandlerRef}) => {
-	const {api, serverUrl, hasMultipleServers} = useAuth();
+	const {api, serverUrl, hasMultipleServers, serverType} = useAuth();
 	const {isEnabled: requestsEnabled, isAuthenticated: requestsSignedIn} = useSeerr();
 	const {settings} = useSettings();
 	const unifiedMode = settings.unifiedLibraryMode && hasMultipleServers;
@@ -133,6 +133,7 @@ const Favorites = ({onSelectItem, onSelectPerson, onSelectSeerrItem, onHome, bac
 		sortOrder: sortOption.order,
 		unifiedMode,
 		enabled: viewStyleLoaded && isHome,
+		serverType,
 		requestsReady: Boolean(requestsEnabled && requestsSignedIn)
 	});
 

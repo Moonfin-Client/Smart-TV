@@ -21,13 +21,35 @@ const emptyCounts = () => {
 	return counts;
 };
 
+// Silo's own watchlist of library titles, read whole, 200 at a time.
+const SILO_WATCHLIST_PAGE = 200;
+const SILO_WATCHLIST_MAX = 1000;
+const readSiloWatchlist = async (api) => {
+	const items = [];
+	for (let start = 0; start < SILO_WATCHLIST_MAX; start += SILO_WATCHLIST_PAGE) {
+		const result = await api.getItems({
+			Recursive: true,
+			Filters: 'IsInWatchlist',
+			IncludeItemTypes: 'Movie,Series',
+			StartIndex: start,
+			Limit: SILO_WATCHLIST_PAGE,
+			Fields: FAVORITE_TAB_FIELDS
+		});
+		const page = result?.Items || [];
+		items.push(...page);
+		if (page.length < SILO_WATCHLIST_PAGE) break;
+	}
+	return items;
+};
+
 // Request cards past those read so far, so the tab's count says how many there are to page through.
 const unreadRequests = (body) => Math.max(0, (body?.totalResults || 0) - (body?.results?.length || 0));
 
 /**
- * `requestsReady` (signed in to Seerr) decides whether the watchlist tab can show anything.
+ * `serverType` and `requestsReady` (signed in to Seerr, or to Silo's own requests) decide what the
+ * watchlist tab can show.
  */
-const useFavoriteTabs = ({api, sortBy, sortOrder, unifiedMode, enabled = true, requestsReady = false}) => {
+const useFavoriteTabs = ({api, sortBy, sortOrder, unifiedMode, enabled = true, serverType = null, requestsReady = false}) => {
 	const [itemsByKey, setItemsByKey] = useState(emptyBuckets);
 	const [countsByKey, setCountsByKey] = useState(emptyCounts);
 	const [isLoading, setIsLoading] = useState(true);
@@ -113,32 +135,39 @@ const useFavoriteTabs = ({api, sortBy, sortOrder, unifiedMode, enabled = true, r
 		return () => { cancelled = true; };
 	}, [api, sortBy, sortOrder, unifiedMode, enabled]);
 
-	// The watchlist, apart from the favorites since it reads from Seerr, which is only ready once signed in.
+	// The watchlist, apart from the favorites since it reads from the requests service too, which on Silo
+	// is only ready once the signed in profile is.
 	useEffect(() => {
 		const clear = () => {
 			watchlistRef.current = {page: 0, totalPages: 0, loading: false};
 			setItemsByKey((prev) => ({...prev, [WATCHLIST_TAB.key]: []}));
 			setCountsByKey((prev) => ({...prev, [WATCHLIST_TAB.key]: 0}));
 		};
-		if (!enabled || !api || unifiedMode || !requestsReady) {
+		if (!enabled || !api || unifiedMode) {
 			clear();
 			return undefined;
 		}
 		let cancelled = false;
 		const run = async () => {
-			const first = await getWatchlist(1).catch((err) => {
-				console.error('Failed to load the requests watchlist:', err);
-				return null;
-			});
+			const [library, first] = await Promise.all([
+				serverType === 'silo' ? readSiloWatchlist(api).catch((err) => {
+					console.error('Failed to load the Silo watchlist:', err);
+					return [];
+				}) : [],
+				requestsReady ? getWatchlist(1).catch((err) => {
+					console.error('Failed to load the requests watchlist:', err);
+					return null;
+				}) : null
+			]);
 			if (cancelled) return;
 			watchlistRef.current = {page: first?.page || 0, totalPages: first?.totalPages || 0, loading: false};
-			const cards = watchlistCards([], (first?.results || []).map(normalizeMediaItem));
+			const cards = watchlistCards(withoutBlockedItems(library), (first?.results || []).map(normalizeMediaItem));
 			setItemsByKey((prev) => ({...prev, [WATCHLIST_TAB.key]: cards}));
 			setCountsByKey((prev) => ({...prev, [WATCHLIST_TAB.key]: cards.length + unreadRequests(first)}));
 		};
 		run();
 		return () => { cancelled = true; };
-	}, [api, requestsReady, unifiedMode, enabled]);
+	}, [api, serverType, requestsReady, unifiedMode, enabled]);
 
 	const loadMoreWatchlist = useCallback(async () => {
 		const state = watchlistRef.current;

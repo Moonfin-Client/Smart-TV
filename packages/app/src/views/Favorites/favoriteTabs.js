@@ -16,8 +16,9 @@ export const FAVORITE_TABS = [
 	{key: 'song', label: 'Songs', types: 'Audio', cardType: 'square'}
 ];
 
-// The watchlist is a tab of its own after the favorites, as Moonfin Core has it: the Seerr watchlist
-// as request cards. It isn't a favorite, so it counts toward its own tab and not the favorites total.
+// The watchlist is a tab of its own after the favorites, as Moonfin Core has it: the library titles
+// on Silo's watchlist, then the requests watchlist (Seerr's, or Silo's titles the library lacks) as
+// request cards. It isn't a favorite, so it counts toward its own tab and not the favorites total.
 export const WATCHLIST_TAB = {key: 'watchlist', label: 'Watchlist', cardType: 'portrait'};
 
 // Every tab the view can show, in order.
