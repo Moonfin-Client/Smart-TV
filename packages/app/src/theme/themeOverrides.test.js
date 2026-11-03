@@ -131,4 +131,14 @@ describe('ink on a focused row', () => {
 			expect(Math.max(declared, fallback)).toBeGreaterThanOrEqual(MIN_BUTTON_CONTRAST);
 		}
 	});
+
+	it('draws Frost in the theme rather than white on glass', () => {
+		const lines = buildThemeOverrideCss(resolveThemeById('neon_pulse')).split('\n');
+		const ruleFor = (selector) => lines.find((line) => line.includes(`] ${selector} {`) || line.includes(`] ${selector}, `)) || '';
+		expect(ruleFor('.actionsFrosted > .actionBtn:first-child')).toContain('background: rgba(255, 46, 146, 0.86)');
+		expect(ruleFor('.actionsFrosted > .actionBtn:first-child:focus')).toContain('background: rgb(0, 229, 255)');
+		expect(lines.find((line) => line.includes('] .pill:focus, ') && line.includes('] .tab:focus {'))).toContain('background: rgba(0, 229, 255, 0.38)');
+		expect(ruleFor('.window')).toContain('background: rgba(30, 10, 63, 0.55)');
+		expect(lines.filter((line) => line.includes('.actionsFrosted') && /#fff\b|#000\b|#30d158/.test(line))).toEqual([]);
+	});
 });

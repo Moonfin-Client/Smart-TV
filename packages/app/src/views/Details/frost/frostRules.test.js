@@ -1,8 +1,9 @@
+import {resolveThemeById} from '../../../theme/themeRegistry';
 import {MEDIA_STATUS} from '../../../utils/seerrStatus';
 import {ACTIONS, NAVBAR} from '../stage/stageRules';
 import {
-	FROST_STATUS_COLORS, frostCredits, frostInfo, frostNeighbour, frostSeason, frostSeerrGroups, frostSeerrStatus,
-	frostSegments, frostStageFit, frostTabs
+	frostCredits, frostInfo, frostNeighbour, frostScrims, frostSeason, frostSeerrGroups, frostSeerrStatus, frostSegments,
+	frostStageFit, frostStatusColors, frostTabs
 } from './frostRules';
 
 jest.mock('@enact/i18n/$L', () => (text) => text);
@@ -177,10 +178,27 @@ describe('the stage', () => {
 
 describe('where a title stands in Seerr', () => {
 	test('reads as available, requested or pending in their colors, and as not requested otherwise', () => {
-		expect(frostSeerrStatus(MEDIA_STATUS.AVAILABLE)).toEqual({label: 'Available', color: FROST_STATUS_COLORS.available});
-		expect(frostSeerrStatus(MEDIA_STATUS.PROCESSING)).toEqual({label: 'Requested', color: FROST_STATUS_COLORS.requested});
-		expect(frostSeerrStatus(MEDIA_STATUS.PENDING)).toEqual({label: 'Pending', color: FROST_STATUS_COLORS.pending});
-		expect(frostSeerrStatus(undefined)).toEqual({label: 'Not Requested', color: FROST_STATUS_COLORS.none});
+		const colors = frostStatusColors(resolveThemeById('moonfin'));
+		expect(frostSeerrStatus(MEDIA_STATUS.AVAILABLE, colors)).toEqual({label: 'Available', color: colors.available});
+		expect(frostSeerrStatus(MEDIA_STATUS.PROCESSING, colors)).toEqual({label: 'Requested', color: colors.requested});
+		expect(frostSeerrStatus(MEDIA_STATUS.PENDING, colors)).toEqual({label: 'Pending', color: colors.pending});
+		expect(frostSeerrStatus(undefined, colors)).toEqual({label: 'Not Requested', color: colors.none});
+	});
+
+	test('takes its colors from the theme, with not requested in its faded text color', () => {
+		expect(frostStatusColors(resolveThemeById('8bit_hero'))).toEqual({
+			available: 'rgb(56, 183, 100)', requested: 'rgb(93, 39, 93)', pending: 'rgb(255, 205, 117)', none: 'rgba(244, 244, 244, 0.55)'
+		});
+	});
+});
+
+describe('the dim and fade over the art', () => {
+	test('take the background color and hand back the same layers for the same color', () => {
+		const neon = frostScrims('11, 4, 32');
+		expect(frostScrims('11, 4, 32')).toBe(neon);
+		expect(neon.vignette[0].rgb).toBe('11, 4, 32');
+		expect(neon.artFade.map((layer) => layer.rgb)).toEqual(['11, 4, 32', '11, 4, 32']);
+		expect(frostScrims('16, 16, 16')).not.toBe(neon);
 	});
 });
 

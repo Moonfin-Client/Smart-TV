@@ -1,6 +1,7 @@
 import $L from '@enact/i18n/$L';
 
 import seerrApi from '../../../services/seerrApi';
+import {toCssColor, toRgbTriplet} from '../../../theme/themeSpec';
 import {formatFileSize} from '../../../utils/formatFileSize';
 import {formatDuration} from '../../../utils/helpers';
 import {rem, rootScale} from '../../../utils/rootScale';
@@ -166,17 +167,41 @@ export const frostStageStyle = (navbarTop) => {
 	return {...size, WebkitTransform: transform, transform};
 };
 
-// Where a title stands in Seerr, as a label and the color its dot and line take. A title nobody
-// asked for has no color of its own.
-export const FROST_STATUS_COLORS = {available: '#30d158', requested: '#bf5af2', pending: '#ff9f0a', none: 'rgba(235, 235, 245, 0.55)'};
+// scrimStyle caches by the layers it's handed, so each background keeps one copy of them.
+const scrims = new Map();
 
-export const frostSeerrStatus = (status) => {
+// The vignette in the dim over the blurred art and the fade over the window's art, both in the
+// theme's background color. `rgb` is that color as a triplet.
+export const frostScrims = (rgb) => {
+	if (!scrims.has(rgb)) {
+		scrims.set(rgb, {
+			vignette: [{at: [0.5, 0.45], radius: 0.9, rgb, stops: [[0.35, 0], [1, 0.5]]}],
+			artFade: [
+				{to: 'top', rgb, stops: [[0, 0.95], [0.5, 0.74], [0.8, 0]]},
+				{to: 'right', rgb, stops: [[0, 0.5], [0.62, 0]]}
+			]
+		});
+	}
+	return scrims.get(rgb);
+};
+
+// The colors a title's place in Seerr takes from the theme. A title nobody asked for has no color of
+// its own and takes the page's faded text color.
+export const frostStatusColors = (theme) => ({
+	available: toCssColor(theme.semantic.statusAvailable),
+	requested: toCssColor(theme.semantic.statusRequested),
+	pending: toCssColor(theme.semantic.statusPending),
+	none: `rgba(${toRgbTriplet(theme.colors.onBackground)}, 0.55)`
+});
+
+// Where a title stands in Seerr, as a label and the color its dot and line take.
+export const frostSeerrStatus = (status, colors) => {
 	switch (status) {
-		case MEDIA_STATUS.AVAILABLE: return {label: $L('Available'), color: FROST_STATUS_COLORS.available};
-		case MEDIA_STATUS.PARTIALLY_AVAILABLE: return {label: $L('Partially Available'), color: FROST_STATUS_COLORS.available};
-		case MEDIA_STATUS.PROCESSING: return {label: $L('Requested'), color: FROST_STATUS_COLORS.requested};
-		case MEDIA_STATUS.PENDING: return {label: $L('Pending'), color: FROST_STATUS_COLORS.pending};
-		default: return {label: $L('Not Requested'), color: FROST_STATUS_COLORS.none};
+		case MEDIA_STATUS.AVAILABLE: return {label: $L('Available'), color: colors.available};
+		case MEDIA_STATUS.PARTIALLY_AVAILABLE: return {label: $L('Partially Available'), color: colors.available};
+		case MEDIA_STATUS.PROCESSING: return {label: $L('Requested'), color: colors.requested};
+		case MEDIA_STATUS.PENDING: return {label: $L('Pending'), color: colors.pending};
+		default: return {label: $L('Not Requested'), color: colors.none};
 	}
 };
 
