@@ -20,9 +20,9 @@ describe('isStaticLibraryCard', () => {
 		expect(isStaticLibraryCard(false, {modernCardsOnMyMediaRow: false})).toBe(false);
 	});
 
-	test('a set that has never seen the setting keeps its posters', () => {
-		expect(isStaticLibraryCard(true, {})).toBe(false);
-		expect(isStaticLibraryCard(true, undefined)).toBe(false);
+	test('a set that has never seen the setting holds the row static', () => {
+		expect(isStaticLibraryCard(true, {})).toBe(true);
+		expect(isStaticLibraryCard(true, undefined)).toBe(true);
 	});
 });
 

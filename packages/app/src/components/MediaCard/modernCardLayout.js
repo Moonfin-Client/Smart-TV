@@ -8,7 +8,7 @@ const POSTER_SIZE_MULTIPLIERS = {small: 0.8, default: 1, large: 1.2, xlarge: 1.4
 // Recordings tiles as collection folders too, and going by the item would
 // restyle a row the setting says nothing about.
 export const isStaticLibraryCard = (isLibraryRow, settings) =>
-	isLibraryRow === true && settings?.modernCardsOnMyMediaRow === false;
+	isLibraryRow === true && settings?.modernCardsOnMyMediaRow !== true;
 
 // Worked out together because a tile held static sits at the width a card grows
 // to on focus, which is what lines the row up with the ones around it.
