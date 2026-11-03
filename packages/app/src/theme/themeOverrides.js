@@ -14,9 +14,9 @@ import {
 	DEFAULT_ERROR_COLOR,
 	inkOn,
 	MIN_BUTTON_CONTRAST,
-	isValidHexColor,
 	radiusToCss,
 	relativeLuminance,
+	resolveFocusBorderColor,
 	shadowToCss,
 	toCssColor,
 	toCssColorWithAlpha,
@@ -125,9 +125,7 @@ export const buildThemeOverrideCss = (theme, options = {}) => {
 	const statusRequested = toCssColor(theme.semantic.statusRequested);
 	const statusPending = toCssColor(theme.semantic.statusPending);
 
-	const focusColor = isValidHexColor(options.focusBorderColor)
-		? toCssColor(options.focusBorderColor)
-		: toCssColor(b.focusBorder.color);
+	const focusColor = resolveFocusBorderColor(theme, options.focusBorderColor);
 	const focusGlow = b.focusGlow.length ? b.focusGlow.map(shadowToCss).join(', ') : null;
 	const glowOr = (fallback) => focusGlow || fallback;
 	const textGlow = theme.textGlow.length ? theme.textGlow.map(shadowToCss).join(', ') : 'none';

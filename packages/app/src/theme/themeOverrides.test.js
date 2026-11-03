@@ -1,6 +1,6 @@
 import {applyThemeOverrides, buildThemeOverrideCss, registerThemeSheet} from './themeOverrides';
 import {resolveThemeById} from './themeRegistry';
-import {contrastRatio, inkOn, toCssColor, MIN_BUTTON_CONTRAST} from './themeSpec';
+import {contrastRatio, inkOn, resolveFocusBorderColor, toCssColor, MIN_BUTTON_CONTRAST} from './themeSpec';
 
 describe('buildThemeOverrideCss', () => {
 	it('scopes every rule to the active theme id', () => {
@@ -90,6 +90,15 @@ describe('buildThemeOverrideCss', () => {
 		const prefix = "html[data-theme-id='moonfin'][data-theme-id]";
 		expect(lines).toContain(`${prefix} .liveBtn:hover, ${prefix} .liveBtn:focus, ${prefix} .chapterItem:hover, ${prefix} .chapterItem:focus { border-color: rgb(255, 0, 0); }`);
 		expect(lines).toContain(`${prefix} .sliderItem:focus-within { border-color: rgb(255, 0, 0); }`);
+	});
+});
+
+describe('resolveFocusBorderColor', () => {
+	it('falls back to the theme focus border for Theme Default and anything that isn\'t a hex color', () => {
+		const theme = resolveThemeById('moonfin');
+		expect(resolveFocusBorderColor(theme, '#ff0000')).toBe('rgb(255, 0, 0)');
+		expect(resolveFocusBorderColor(theme, '')).toBe('rgb(0, 164, 220)');
+		expect(resolveFocusBorderColor(theme, 'moonfinCyan')).toBe('rgb(0, 164, 220)');
 	});
 });
 

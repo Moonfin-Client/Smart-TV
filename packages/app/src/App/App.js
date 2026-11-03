@@ -74,7 +74,7 @@ import {useThemeMusic} from '../hooks/useThemeMusic';
 import {useAccessSchedule} from '../hooks/useAccessSchedule';
 import {shiftedNow} from '../utils/clock';
 import TimesUp from '../components/TimesUp/TimesUp';
-import {buildThemeCssVars, toRgbTriplet} from '../theme/themeSpec';
+import {buildThemeCssVars, resolveFocusBorderColor, toRgbTriplet} from '../theme/themeSpec';
 import {applyThemeOverrides} from '../theme/themeOverrides';
 import {resolveOverlayColor} from '../theme/overlayColors';
 import Login from '../views/Login';
@@ -584,7 +584,7 @@ const AppContent = (props) => {
 
 	useEffect(() => {
 		const root = document.documentElement;
-		root.style.setProperty('--theme-focus-border-color', settings.focusBorderColor || buildThemeCssVars(activeTheme)['--theme-focus-border-color']);
+		root.style.setProperty('--theme-focus-border-color', resolveFocusBorderColor(activeTheme, settings.focusBorderColor));
 		root.style.setProperty('--theme-navbar-color-rgb', toRgbTriplet(resolveOverlayColor(settings.navbarColor)));
 	}, [activeTheme, settings.focusBorderColor, settings.navbarColor]);
 
