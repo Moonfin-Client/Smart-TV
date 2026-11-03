@@ -266,9 +266,8 @@ export const detectCustomSource = (url) => {
 	return {error: $L('Unrecognized URL. Use a TMDB list/collection, MDBList list, or Letterboxd profile URL.')};
 };
 
-// Upcoming calendars are fetched directly from the arr servers using the
-// connection details stored in Seerr. This is a cross origin request, so it
-// depends on the TV webview allowing it.
+// Upcoming calendars come from the Moonfin plugin, which fetches them from the
+// arr servers on the server side (see fetchArrCalendar).
 
 const isoDate = (offsetDays) => {
 	const d = new Date();
