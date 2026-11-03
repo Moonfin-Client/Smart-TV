@@ -1977,7 +1977,7 @@ const AppContent = (props) => {
 						<Panel />
 						<Panel>
 							{panelIndex === PANELS.FAVORITES && (
-								<Favorites onSelectItem={handleSelectItem} onSelectPerson={handleSelectPerson} onHome={handleHome} backHandlerRef={backHandlerRef} />
+								<Favorites onSelectItem={handleSelectItem} onSelectPerson={handleSelectPerson} onSelectSeerrItem={handleSelectSeerrItem} onHome={handleHome} backHandlerRef={backHandlerRef} />
 							)}
 						</Panel>
 						<Panel>
