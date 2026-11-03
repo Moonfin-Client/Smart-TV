@@ -685,6 +685,9 @@ export const api = {
 		return request(`/Moonfin/Items/${itemId}/Similar?limit=${limit}${userQuery}`);
 	},
 
+	smartSearch: (query, limit = 20) =>
+		request(`/Moonfin/SmartSearch?query=${encodeURIComponent(query)}&limit=${limit}`),
+
 	getGenres: (libraryId, includeItemTypes = 'Movie,Series', sortBy = 'SortName', sortOrder = 'Ascending') => {
 		const params = libraryId ? `&ParentId=${libraryId}` : '';
 		return request(`/Genres?UserId=${currentUser}&SortBy=${encodeURIComponent(sortBy)}&SortOrder=${encodeURIComponent(sortOrder)}&Recursive=true&IncludeItemTypes=${encodeURIComponent(includeItemTypes)}${params}`);
