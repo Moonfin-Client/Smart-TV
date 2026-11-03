@@ -1,4 +1,5 @@
 import {getAuthHeader, getServerUrl, getUserId} from './jellyfinApi';
+import {platformFetch} from './secureFetch';
 import {fetchWithTimeout} from '../utils/fetchTimeout';
 import {mediaServerQueue} from '../utils/requestQueue';
 
@@ -171,7 +172,7 @@ export const fetchArrCalendar = async (service, start, end) => {
 	const url = `${baseUrl}/Moonfin/Seerr/${route}/Calendar?start=${encodeURIComponent(start)}&end=${encodeURIComponent(end)}`;
 	const headers = {'Authorization': getAuthHeader()};
 	try {
-		const response = await mediaServerQueue.run(() => fetchWithTimeout(url, {headers}, 10000));
+		const response = await mediaServerQueue.run(() => platformFetch(url, {headers}, 10000));
 		if (!response.ok) return [];
 		const data = await response.json();
 		return Array.isArray(data) ? data : [];

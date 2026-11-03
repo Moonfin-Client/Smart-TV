@@ -1,8 +1,10 @@
 import {fetchArrCalendar, fetchCustomRow, fetchSeasonalRow, fetchTmdbDetails, constructSourceUrl, __resetExternalRowCache} from './externalRowsApi';
 import {fetchWithTimeout} from '../utils/fetchTimeout';
 import {mediaServerQueue, DEFAULT_MAX_CONCURRENT} from '../utils/requestQueue';
+import {platformFetch} from './secureFetch';
 
 jest.mock('../utils/fetchTimeout', () => ({fetchWithTimeout: jest.fn()}));
+jest.mock('./secureFetch', () => ({platformFetch: jest.fn()}));
 let mockToken = 'test-token';
 jest.mock('./jellyfinApi', () => ({
 	getServerUrl: () => 'http://server',
@@ -20,6 +22,7 @@ describe('externalRowsApi', () => {
 	beforeEach(() => {
 		__resetExternalRowCache();
 		fetchWithTimeout.mockReset();
+		platformFetch.mockReset();
 	});
 
 	describe('fetchCustomRow', () => {
@@ -183,32 +186,44 @@ describe('externalRowsApi', () => {
 
 	describe('fetchArrCalendar', () => {
 		it('asks the plugin for the calendar, signed in as the viewer', async () => {
-			fetchWithTimeout.mockResolvedValue(mockJsonResponse([{title: 'Upcoming'}]));
+			platformFetch.mockResolvedValue(mockJsonResponse([{title: 'Upcoming'}]));
 
 			const items = await fetchArrCalendar('radarr', '2026-11-03', '2026-12-03');
 
 			expect(items).toEqual([{title: 'Upcoming'}]);
-			const [url, init] = fetchWithTimeout.mock.calls[0];
+			const [url, init] = platformFetch.mock.calls[0];
 			expect(url).toBe('http://server/Moonfin/Seerr/Radarr/Calendar?start=2026-11-03&end=2026-12-03');
 			expect(init.headers.Authorization).toBe('MediaBrowser Token="test-token"');
 		});
 
+		it('goes through the platform fetch, which has the TLS fallback for older TVs', async () => {
+			platformFetch.mockResolvedValue(mockJsonResponse([]));
+
+			await fetchArrCalendar('radarr', '2026-11-03', '2026-12-03');
+
+			expect(platformFetch).toHaveBeenCalledWith(
+				'http://server/Moonfin/Seerr/Radarr/Calendar?start=2026-11-03&end=2026-12-03',
+				{headers: {Authorization: 'MediaBrowser Token="test-token"'}},
+				10000
+			);
+		});
+
 		it('asks for the Sonarr calendar by its own route', async () => {
-			fetchWithTimeout.mockResolvedValue(mockJsonResponse([]));
+			platformFetch.mockResolvedValue(mockJsonResponse([]));
 
 			await fetchArrCalendar('sonarr', '2026-11-03', '2026-12-03');
 
-			expect(fetchWithTimeout.mock.calls[0][0]).toBe('http://server/Moonfin/Seerr/Sonarr/Calendar?start=2026-11-03&end=2026-12-03');
+			expect(platformFetch.mock.calls[0][0]).toBe('http://server/Moonfin/Seerr/Sonarr/Calendar?start=2026-11-03&end=2026-12-03');
 		});
 
 		it('answers an empty calendar when the plugin refuses', async () => {
-			fetchWithTimeout.mockResolvedValue(mockJsonResponse({error: 'Seerr integration is not enabled'}, 503));
+			platformFetch.mockResolvedValue(mockJsonResponse({error: 'Seerr integration is not enabled'}, 503));
 
 			expect(await fetchArrCalendar('radarr', '2026-11-03', '2026-12-03')).toEqual([]);
 		});
 
 		it('answers an empty calendar when the server cannot be reached', async () => {
-			fetchWithTimeout.mockRejectedValue(new Error('timeout'));
+			platformFetch.mockRejectedValue(new Error('timeout'));
 
 			expect(await fetchArrCalendar('radarr', '2026-11-03', '2026-12-03')).toEqual([]);
 		});
@@ -217,7 +232,7 @@ describe('externalRowsApi', () => {
 			const releases = [];
 			const busy = Array.from({length: DEFAULT_MAX_CONCURRENT}, () =>
 				mediaServerQueue.run(() => new Promise((resolve) => releases.push(resolve))));
-			fetchWithTimeout.mockResolvedValue(mockJsonResponse([]));
+			platformFetch.mockResolvedValue(mockJsonResponse([]));
 
 			const pending = fetchArrCalendar('radarr', '2026-11-03', '2026-12-03');
 			mockToken = 'other-server-token';
@@ -226,7 +241,7 @@ describe('externalRowsApi', () => {
 			await pending;
 			mockToken = 'test-token';
 
-			expect(fetchWithTimeout.mock.calls[0][1].headers.Authorization).toBe('MediaBrowser Token="test-token"');
+			expect(platformFetch.mock.calls[0][1].headers.Authorization).toBe('MediaBrowser Token="test-token"');
 		});
 	});
 });
