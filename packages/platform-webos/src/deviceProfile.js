@@ -68,7 +68,14 @@ const querySoundSettings = async () => {
 	return result?.settings || {};
 };
 
-const getAudioOutputStatus = async () => {
+// A playback request builds capabilities and then the profile, each asking for the sound path, and a set whose
+// avoutput service is missing asks four times before it gives up: over a second before playback is even asked for.
+// The answer is shared for 30 s.
+const AUDIO_OUTPUT_REUSE_MS = 30000;
+let audioOutputQuery = null;
+let audioOutputAt = 0;
+
+const queryAudioOutputPath = async () => {
 	for (let attempt = 0; attempt < 4; attempt++) {
 		const [status, sound] = await Promise.all([queryAudioOutputStatus(), querySoundSettings()]);
 		const merged = {
@@ -80,6 +87,14 @@ const getAudioOutputStatus = async () => {
 		await delay(150);
 	}
 	return {};
+};
+
+const getAudioOutputStatus = () => {
+	if (!audioOutputQuery || Date.now() - audioOutputAt > AUDIO_OUTPUT_REUSE_MS) {
+		audioOutputAt = Date.now();
+		audioOutputQuery = queryAudioOutputPath();
+	}
+	return audioOutputQuery;
 };
 
 const applyAudioOutputPath = async (baseCaps) => {
@@ -118,6 +133,7 @@ const applyPassthroughSettings = (caps, options = {}) => {
 
 export const clearCapabilitiesCache = () => {
 	cachedCapabilities = null;
+	audioOutputQuery = null;
 };
 
 const getDocumentedContainerSupport = (webosVersion) => {
