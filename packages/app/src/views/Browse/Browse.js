@@ -80,7 +80,7 @@ const Browse = ({
 	backHandlerRef,
 	trailerHidesChrome
 }) => {
-	const {api, serverUrl, accessToken, hasMultipleServers, user} = useAuth();
+	const {api, serverUrl, accessToken, hasMultipleServers, user, serverType} = useAuth();
 	const {settings, activeTheme, loaded: settingsLoaded} = useSettings();
 	// The one place the saved rows are read, so filtering here covers both what gets fetched and
 	// what gets drawn.
@@ -94,8 +94,8 @@ const Browse = ({
 	const {displayCollectionsRows, displayGenresRows, displayPlaylistsRows, unifiedLibraryMode} = settings;
 	const pluginSectionsConfig = useMemo(() => {
 		const gates = {displayCollectionsRows, displayGenresRows, displayPlaylistsRows, unifiedLibraryMode};
-		return homeRowsConfig.filter((row) => isPickedRow(row) && isPickedRowShown(row, gates, serverUrl));
-	}, [homeRowsConfig, displayCollectionsRows, displayGenresRows, displayPlaylistsRows, unifiedLibraryMode, serverUrl]);
+		return homeRowsConfig.filter((row) => isPickedRow(row) && isPickedRowShown(row, gates, serverUrl, serverType));
+	}, [homeRowsConfig, displayCollectionsRows, displayGenresRows, displayPlaylistsRows, unifiedLibraryMode, serverUrl, serverType]);
 	const {isEnabled: seerrEnabled, isAuthenticated: seerrAuthenticated, user: seerrUser, pluginInfo} = useSeerr();
 	const recommendationsSupported = pluginInfo?.recommendationsSupported === true;
 	const seerrUserId = seerrUser?.seerrUserId;

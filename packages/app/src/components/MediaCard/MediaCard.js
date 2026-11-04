@@ -51,7 +51,7 @@ const requestedArtwork = (item, imageType, serverUrl) => {
 			return getImageUrl(serverUrl, item.Id, 'Thumb', {maxWidth: 400, quality: 80});
 		}
 		if (item.ParentThumbItemId) {
-			return getImageUrl(serverUrl, item.ParentThumbItemId, 'Thumb', {maxWidth: 400, quality: 80});
+			return getImageUrl(serverUrl, item.ParentThumbItemId, 'Thumb', {tag: item.ParentThumbImageTag, maxWidth: 400, quality: 80});
 		}
 		if (item.BackdropImageTags?.length > 0) {
 			return getImageUrl(serverUrl, item.Id, 'Backdrop', {maxWidth: 400, quality: 80});
@@ -84,17 +84,20 @@ const requestedArtwork = (item, imageType, serverUrl) => {
 // its Primary image, episodes carry no Thumb tag of their own.
 const episodeArtwork = (item, serverUrl, imageType, useSeriesArt) => {
 	const wide = (url) => (url ? {url, wide: true} : null);
-	const seriesWide = item.ParentThumbItemId
-		? wide(getImageUrl(serverUrl, item.ParentThumbItemId, 'Thumb', {maxWidth: 400, quality: 80}))
-		: item.ParentBackdropItemId
-			? wide(getImageUrl(serverUrl, item.ParentBackdropItemId, 'Backdrop', {maxWidth: 400, quality: 80}))
-			: null;
+	const seriesWide = (item.ParentThumbItemId
+		&& wide(getImageUrl(serverUrl, item.ParentThumbItemId, 'Thumb', {tag: item.ParentThumbImageTag, maxWidth: 400, quality: 80})))
+		|| (item.ParentBackdropItemId
+			&& wide(getImageUrl(serverUrl, item.ParentBackdropItemId, 'Backdrop', {maxWidth: 400, quality: 80})))
+		|| null;
 	const seriesPoster = item.SeriesId && item.SeriesPrimaryImageTag
 		? {url: getImageUrl(serverUrl, item.SeriesId, 'Primary', {maxHeight: 300, quality: 80}), wide: false}
 		: null;
+	// Silo sends a Continue Watching episode's still as its backdrop, with the season poster as its poster.
 	const still = wide(item.ImageTags?.Primary
 		? getImageUrl(serverUrl, item.Id, 'Primary', {maxWidth: 400, quality: 80})
-		: null);
+		: item.BackdropImageTags?.length > 0
+			? getImageUrl(serverUrl, item.Id, 'Backdrop', {tag: item.BackdropImageTags[0], maxWidth: 400, quality: 80})
+			: null);
 
 	if (!useSeriesArt) return still || seriesWide || seriesPoster;
 	// A poster row wants the series poster, anything wider wants the series thumb.
@@ -179,7 +182,7 @@ const MediaCard = ({item, serverUrl, cardType = 'portrait', rowImageType = 'post
 				return getImageUrl(itemServerUrl, item.Id, 'Thumb', {maxWidth: 400, quality: 80});
 			}
 			if (item.ParentThumbItemId) {
-				return getImageUrl(itemServerUrl, item.ParentThumbItemId, 'Thumb', {maxWidth: 400, quality: 80});
+				return getImageUrl(itemServerUrl, item.ParentThumbItemId, 'Thumb', {tag: item.ParentThumbImageTag, maxWidth: 400, quality: 80});
 			}
 			if (item.BackdropImageTags?.length > 0) {
 				return getImageUrl(itemServerUrl, item.Id, 'Backdrop', {maxWidth: 400, quality: 80});

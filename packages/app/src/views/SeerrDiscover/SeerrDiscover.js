@@ -19,7 +19,7 @@ import {CORE_ICON_PATHS} from '../Settings/settingsCoreIcons';
 import {registerThemeSheet} from '../../theme/themeOverrides';
 import {KEYS} from '../../utils/keys';
 import hydrateRequestMediaItems, {hydrateRecentlyAddedItems, hydrateWatchlistItems} from '../../utils/seerrHydration';
-import {STREAMING_NETWORKS, MOVIE_STUDIOS, SEERR_SHORTCUTS, pickShortcutBackdrops, normalizeMediaItem} from '../../utils/seerrHomeRows';
+import {STREAMING_NETWORKS, MOVIE_STUDIOS, pickShortcutBackdrops, normalizeMediaItem, seerrBrowseTitle, seerrShortcuts} from '../../utils/seerrHomeRows';
 import {libraryIdOf} from '../../utils/seerrTarget';
 import {isSupportedSlider, loadDiscoverSliders, loadSliderPage} from '../../utils/seerrSliders';
 import {isScrolledAway} from '../../utils/quickReturn';
@@ -41,8 +41,8 @@ const LOCAL_ROW_LIMIT = 15;
 
 // Core's discover rows and titles, in its default order.
 let _rowConfigs;
-const getRowConfigs = () => (_rowConfigs ??= [
-	{id: 'shortcuts', title: $L('Seerr Browse'), type: 'shortcut'},
+const buildRowConfigs = () => [
+	{id: 'shortcuts', title: seerrBrowseTitle(), type: 'shortcut'},
 	{id: 'recentRequests', title: $L('Recent Requests'), type: 'media'},
 	{id: 'yourWatchlist', title: $L('Your Watchlist'), type: 'media', fetchFn: 'watchlist'},
 	{id: 'recentlyAdded', title: $L('Recently Added'), type: 'media'},
@@ -55,7 +55,14 @@ const getRowConfigs = () => (_rowConfigs ??= [
 	{id: 'genreTv', title: $L('Series Genres'), type: 'genre', mediaType: 'tv'},
 	{id: 'upcomingTv', title: $L('Upcoming Series'), type: 'media', fetchFn: 'upcomingTv'},
 	{id: 'networks', title: $L('Networks'), type: 'network'}
-]);
+];
+
+const getRowConfigs = () => {
+	_rowConfigs ??= buildRowConfigs();
+	// The one title that follows the server, which can change while this module stays loaded.
+	_rowConfigs[0].title = seerrBrowseTitle();
+	return _rowConfigs;
+};
 
 // Where Core puts the pills and the rows on its TV canvas, drawn at 1920. The left rail moves
 // everything in and lets the rows start higher, since no bar sits over them.
@@ -562,7 +569,7 @@ const SeerrDiscover = ({onSelectItem, onSelectGenre, onSelectNetwork, onSelectSt
 
 				const trending = filterDiscoverItems(trendingData.results);
 				// Shuffled once per load, so the tiles keep their stills until the next one.
-				const shortcuts = SEERR_SHORTCUTS.filter((shortcut) => shortcut.key !== 'discover');
+				const shortcuts = seerrShortcuts().filter((shortcut) => shortcut.key !== 'discover');
 				const backdrops = pickShortcutBackdrops(shortcuts, trending.slice().sort(() => Math.random() - 0.5));
 
 				setRows((prev) => ({

@@ -27,8 +27,8 @@ export const SyncPlayProvider = ({children}) => {
 	const listenerRef = useRef(null);
 
 	useEffect(() => {
-		// Emby and Plex have no SyncPlay, and asking them for the clock or a ping only earns errors.
-		if (isAuthenticated && serverType !== 'emby' && serverType !== 'plex' && settings.syncplayEnabled !== false) {
+		// Emby, Plex and Silo have no SyncPlay, and asking them for the clock or a ping only earns errors.
+		if (isAuthenticated && serverType !== 'emby' && serverType !== 'plex' && serverType !== 'silo' && settings.syncplayEnabled !== false) {
 			syncPlayService.start();
 		} else {
 			syncPlayService.stop();
@@ -87,7 +87,9 @@ export const SyncPlayProvider = ({children}) => {
 						setPlayQueueUpdate({
 							item,
 							reason,
-							startsPlayback: !reason || syncPlayService.QUEUE_START_REASONS.includes(reason)
+							startsPlayback: !reason || syncPlayService.QUEUE_START_REASONS.includes(reason),
+							// A Silo Watch Party pins the file, the audio and the host's subtitles.
+							options: data?.PlaybackOptions || null
 						});
 					};
 					// Reorders and repeat/shuffle toggles carry the same item, so

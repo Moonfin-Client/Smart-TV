@@ -1,6 +1,7 @@
 import {useState, useEffect, useCallback, useRef} from 'react';
 import $L from '@enact/i18n/$L';
 
+import {getServerType} from '../../services/jellyfinApi';
 import {getSupportedImageTypes, hasRemoteImages} from './artworkTypes';
 
 // Owns the item being edited: its browsing history, the remote images offered
@@ -24,7 +25,7 @@ const useArtworkItem = ({open, initialItem, api, onError}) => {
 	const loadItem = useCallback(async (itemToLoad) => {
 		const loadId = ++loadIdRef.current;
 		setActiveItem(itemToLoad);
-		const categories = getSupportedImageTypes(itemToLoad.Type);
+		const categories = getSupportedImageTypes(itemToLoad.Type, getServerType());
 		setSupportedCategories(categories);
 		setRemoteImages({});
 		setLoadingCategories({});

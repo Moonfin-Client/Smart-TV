@@ -4,13 +4,14 @@
 import $L from '@enact/i18n/$L';
 
 import {FAVORITE_ROW_IDS, isPluginSourcedRow, isRowEnabledBySetting} from '../../utils/homeRowGates';
-import {isPickedRow, isPickedRowShown, isSameServer, isSeerrSliderRow} from '../../utils/pickedRows';
+import {getServerType} from '../../services/jellyfinApi';
+import {isPickedRow, isPickedRowShown, isSameServer, isSectionTypeRow, isSeerrSliderRow} from '../../utils/pickedRows';
 import {isSliderRowLive} from '../../utils/seerrSliders';
 
 const LIVE_TV_ROW_IDS = ['livetv', 'onnow', 'activerecordings'];
 
 export const isHomeRowVisibleByGates = (row, settings, serverHasLiveTv = true, serverUrl) => {
-	if (isPickedRow(row)) return isPickedRowShown(row, settings, serverUrl);
+	if (isPickedRow(row)) return isPickedRowShown(row, settings, serverUrl, getServerType());
 	if (isSeerrSliderRow(row)) return Boolean(settings.useMoonfinPlugin) && isSameServer(row.serverUrl, serverUrl) && isSliderRowLive(row);
 	if (!serverHasLiveTv && LIVE_TV_ROW_IDS.includes(row.id)) return false;
 	if (isPluginSourcedRow(row.id)) return Boolean(settings.useMoonfinPlugin) && isRowEnabledBySetting(row.id, settings);
@@ -44,7 +45,8 @@ export const mergeFoundRows = (rows, found) => {
 	let changed = false;
 	const kept = [];
 	rows.forEach((row) => {
-		if (!isPickedRow(row)) {
+		// A section-type row stands for whatever section of that type the server has, so it never goes stale.
+		if (!isPickedRow(row) || isSectionTypeRow(row)) {
 			kept.push(row);
 			return;
 		}
@@ -63,6 +65,7 @@ export const mergeFoundRows = (rows, found) => {
 };
 
 export const pickedRowLabel = (row, serverUrl, servers) => {
+	if (row.source === 'server') return $L('Silo Home row');
 	if (row.source === 'genres') return $L('Genres row');
 	if (row.source === 'playlists') return $L('Playlists row');
 	if (isSameServer(row.serverUrl, serverUrl)) return $L('Collections row');

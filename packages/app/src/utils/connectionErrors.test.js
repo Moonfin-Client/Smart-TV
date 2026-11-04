@@ -75,3 +75,27 @@ describe('a refused sign in', () => {
 		expect(getSignInMessage(refused(500))).toBe('Login failed. Please try again.');
 	});
 });
+
+describe('a rate limited sign-in', () => {
+	it('says how long Silo wants waited', () => {
+		expect(getSignInMessage({status: 429, retryAfter: '120'})).toBe('Too many attempts. Try again in 2m.');
+	});
+});
+
+describe('Silo refusals at sign-in', () => {
+	const silo = (status, extra = {}) => Object.assign(new Error('x'), {status, problem: {title: 'x'}, ...extra});
+
+	it('a busy or starting Silo says so, with its wait when it gave one', () => {
+		expect(getSignInMessage(silo(503, {retryAfter: '30'}))).toBe('The server is busy or still starting. Try again in 30s.');
+		expect(getSignInMessage(silo(503))).toBe('The server is busy or still starting. Try again later.');
+	});
+
+	it('a retired API asks for a newer Moonfin', () => {
+		expect(getSignInMessage(silo(410, {code: 'client_upgrade_required'}))).toMatch(/newer version of Moonfin/);
+		expect(getSignInMessage({status: 426})).toMatch(/newer version of Moonfin/);
+	});
+
+	it('another server\'s 503 keeps the generic message', () => {
+		expect(getSignInMessage(Object.assign(new Error('x'), {status: 503}))).toBe('Login failed. Please try again.');
+	});
+});

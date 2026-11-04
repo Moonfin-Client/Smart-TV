@@ -5,6 +5,7 @@ import {isLiveTvLibrary, librariesForNav} from '../../utils/liveTvLibrary';
 import $L from '@enact/i18n/$L';
 
 import {getLogoUrl} from '../../utils/helpers';
+import {isSiloServer} from '../../utils/siloUrls';
 import * as connectionPool from '../../services/connectionPool';
 import * as seerrApi from '../../services/seerrApi';
 import browseReducer, {browseInitialState, mergeRowsById} from './browseReducer';
@@ -357,7 +358,9 @@ const useBrowseData = ({
 				return;
 			}
 
-			const persistedCache = await loadBrowseCache(cacheOwner.serverUrl, cacheOwner.userId);
+			// Silo's artwork is signed and only known once its item is read in this session, so stored rows would come
+			// back without pictures.
+			const persistedCache = isSiloServer(cacheOwner.serverUrl) ? null : await loadBrowseCache(cacheOwner.serverUrl, cacheOwner.userId);
 			const hasValidPersistedCache = persistedCache &&
 				(persistedCache.rowConfigKey || 'per-library') === rowConfigKey &&
 				isCacheValid(persistedCache.timestamp, CACHE_TTL_LIBRARIES) &&

@@ -1,7 +1,11 @@
 jest.mock('./jellyfinApi', () => ({
-	getAuthHeader: () => 'token',
+	getApiKey: () => 'token',
 	getServerUrl: () => 'http://server',
 	api: {getItem: jest.fn()}
+}));
+jest.mock('./moonbaseEndpoint', () => ({
+	moonbaseEndpoint: async (base) => ({base, headers: {Authorization: 'token'}}),
+	moonbaseAssetUrl: (base, path) => `${base}${path}`
 }));
 jest.mock('../utils/requestQueue', () => ({
 	mediaServerQueue: {run: (task) => task()}

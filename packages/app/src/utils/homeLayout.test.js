@@ -287,6 +287,34 @@ describe('the seasonal row in a saved layout', () => {
 	});
 });
 
+describe('Silo home section rows in the layout', () => {
+	const section = (pluginSection, serverId) => ({
+		kind: 'pluginDynamic',
+		type: 'none',
+		enabled: true,
+		order: 1,
+		serverId,
+		pluginSource: 'server',
+		pluginSection,
+		pluginDisplayText: 'Hidden gems'
+	});
+
+	test('a Silo section picked on another client comes back as it was written', () => {
+		const written = section('12', 'http://silo:8090');
+		const rows = homeRowsFromProfile({homeSections: [{type: 'resume', enabled: true, order: 0}, written]});
+		expect(rowById(rows, 'pluginDynamic:server:http://silo:8090:server:12')).toMatchObject({source: 'server', itemId: '12', name: 'Hidden gems'});
+		expect(homeRowsToSections(rows)).toContainEqual(written);
+		expect(homeRowsToRowOrder(rows)).toEqual(['resume']);
+	});
+
+	test('a section-type row from Moonbase\'s defaults names no server and keeps none', () => {
+		const written = section('type:hidden_gems', '');
+		const rows = homeRowsFromProfile({homeSections: [written]});
+		expect(rows.find((row) => row.source === 'server')).toMatchObject({serverUrl: '', itemId: 'type:hidden_gems'});
+		expect(homeRowsToSections(rows)).toContainEqual({...written, order: 0});
+	});
+});
+
 describe('withWatchingNowRow', () => {
 	const layout = () => [
 		{id: 'mdblist_watching_now', enabled: false, order: 0},
