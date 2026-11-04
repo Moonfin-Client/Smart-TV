@@ -247,10 +247,7 @@
 // Core's 20 point banner across the top of the art.
 .imageContainer .seerrBanner,
 .imageContainer .seerrBannerFlush {
-	height: 33px;
-	font-size: 17px;
-	letter-spacing: 1.7px;
-	line-height: 33px;
+	.seerr-banner();
 
 	span {
 		padding: 0 10px;
@@ -349,15 +346,8 @@
 // once focused, and the title and year under every card. The theme sheet colors the ring with
 // the focus border color.
 .focusRing {
-	display: none;
-	position: absolute;
-	top: -8px;
-	left: -8px;
-	right: -8px;
+	.seerr-focus-ring();
 	box-sizing: border-box;
-	border: 5px solid #00a4dc;
-	border-radius: 21px;
-	pointer-events: none;
 	z-index: 1;
 }
 
@@ -365,20 +355,8 @@
 	display: block;
 }
 
-.imageContainer .typeBadge {
-	position: absolute;
-	top: 10px;
-	left: 10px;
-	z-index: 4;
-	padding: 3px 10px;
-	border-radius: 7px;
-	font-size: 17px;
-	letter-spacing: 1.3px;
-	line-height: 22px;
-}
-
-.imageContainer.underSeerrBanner .typeBadge {
-	top: 43px;
+.imageContainer {
+	.seerr-type-badge();
 }
 
 .coreLook .title {

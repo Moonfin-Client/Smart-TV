@@ -362,69 +362,12 @@
 	object-fit: contain;
 }
 
-// The Classic style's posters, sized like the Modern ones, growing from the bottom of their art.
+// A Classic poster's place in its row and its title color. SeerrPosterCard draws the rest, and
+// the Browse grid's titles keep the color they inherit.
 .mediaCard {
 	flex: 0 0 auto;
 	position: relative;
-	cursor: pointer;
-	outline: none;
-
-	&:focus {
-		z-index: 10;
-	}
-}
-
-.posterArt {
-	position: relative;
-	transform-origin: 50% 100%;
-	transition: transform 0.15s linear;
-
-	:global(.perf-low) &,
-	:global(.perf-mid) & {
-		transition: none;
-	}
-}
-
-.mediaCard:focus .posterArt {
-	transform: scale(1.12);
-}
-
-.noZoom .mediaCard:focus .posterArt {
-	transform: none;
-}
-
-.posterContainer {
-	position: absolute;
-	top: 0;
-	left: 0;
-	right: 0;
-	bottom: 0;
-	border-radius: 13px;
-	overflow: hidden;
-	background: rgba(255, 255, 255, 0.05);
-}
-
-.posterRing {
-	display: none;
-	position: absolute;
-	top: -8px;
-	left: -8px;
-	right: -8px;
-	bottom: -8px;
-	border: 5px solid #00a4dc;
-	border-radius: 21px;
-	pointer-events: none;
-}
-
-.mediaCard:focus .posterRing {
-	display: block;
-}
-
-.poster {
-	width: 100%;
-	height: 100%;
-	object-fit: cover;
-	display: block;
+	color: #ffffff;
 }
 
 .noPoster {
@@ -436,46 +379,6 @@
 	justify-content: center;
 	font-size: 64px;
 	color: #666666;
-}
-
-.cardTitle {
-	margin-top: 10px;
-	font-size: 22px;
-	font-weight: 700;
-	line-height: 29px;
-	color: #ffffff;
-	white-space: nowrap;
-	overflow: hidden;
-	text-overflow: ellipsis;
-}
-
-.cardYear {
-	font-size: 20px;
-	line-height: 27px;
-	color: rgba(255, 255, 255, 0.6);
-}
-
-.posterContainer .typeBadge {
-	position: absolute;
-	top: 10px;
-	left: 10px;
-	z-index: 4;
-	padding: 3px 10px;
-	border-radius: 7px;
-	font-size: 17px;
-	letter-spacing: 1.3px;
-	line-height: 22px;
-}
-
-.posterContainer .banner {
-	height: 33px;
-	font-size: 17px;
-	letter-spacing: 1.7px;
-	line-height: 33px;
-}
-
-.underSeerrBanner .typeBadge {
-	top: 43px;
 }
 
 .notConfigured {

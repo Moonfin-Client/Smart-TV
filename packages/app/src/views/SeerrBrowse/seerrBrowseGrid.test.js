@@ -4,14 +4,18 @@ jest.mock('@enact/i18n/$L', () => (text) => text);
 
 describe('browseGridMetrics', () => {
 	const art = ({cellWidth, inset}) => cellWidth - 2 * inset;
+	// From the bottom of one row's caption to the top of the next row's art.
+	const rowGap = ({cellHeight, imageHeight, spacing}) => cellHeight - imageHeight - 70 + spacing;
 
 	test('lays Medium out the way Core does at 1920', () => {
 		const medium = browseGridMetrics('medium');
-		expect(medium).toEqual({columns: 8, spacing: 18, inset: 6, cellWidth: 199, imageHeight: 281, headroom: 43, gridTop: 24, cellHeight: 394});
-		// Core's 189 wide posters sit 30 apart across and 61 apart down, the art 67 under the header.
+		expect(medium).toEqual({columns: 8, spacing: -12, inset: 21, edge: 85, cellWidth: 229, imageHeight: 281, headroom: 43, gridTop: 24, cellHeight: 424});
+		// Core's 189 wide posters start at its 60 point margin, 30 apart across and 61 apart down,
+		// the art 67 under the header.
+		expect(medium.edge + medium.inset).toBe(106);
 		expect(art(medium)).toBe(187);
 		expect(medium.spacing + 2 * medium.inset).toBe(30);
-		expect(medium.spacing + medium.headroom).toBe(61);
+		expect(rowGap(medium)).toBe(61);
 		expect(medium.gridTop + medium.headroom).toBe(67);
 	});
 
@@ -20,23 +24,32 @@ describe('browseGridMetrics', () => {
 		expect(medium.columns).toBe(9);
 		expect(art(medium)).toBe(173);
 		expect(medium.spacing + 2 * medium.inset).toBe(20);
-		expect(medium.spacing + medium.headroom).toBe(27);
+		expect(rowGap(medium)).toBe(27);
 		expect(medium.gridTop + medium.headroom).toBe(33);
+	});
+
+	test.each([true, false])('a focused card in an edge column grows and rings inside the grid, expansion %s', (expansion) => {
+		for (const size of ['small', 'medium', 'large', 'extraLarge']) {
+			const metrics = browseGridMetrics(size, expansion);
+			const growth = expansion ? art(metrics) * 0.06 : 0;
+			expect(metrics.inset).toBeGreaterThanOrEqual(growth + 9);
+		}
 	});
 
 	test.each([
 		[true, {small: 10, medium: 8, large: 7, extraLarge: 6}],
 		[false, {small: 11, medium: 9, large: 7, extraLarge: 6}]
-	])('every size keeps Core\'s columns and fills the 1720px between the margins, expansion %s', (expansion, expected) => {
+	])('every size keeps Core\'s columns and fills the grid between its edges, expansion %s', (expansion, expected) => {
 		for (const size of Object.keys(expected)) {
 			const metrics = browseGridMetrics(size, expansion);
 			const {columns, spacing, cellWidth} = metrics;
+			const width = 1920 - 2 * metrics.edge;
 			expect(columns).toBe(expected[size]);
 			const used = columns * cellWidth + (columns - 1) * spacing;
-			expect(1720 - used).toBeGreaterThanOrEqual(0);
-			expect(1720 - used).toBeLessThan(columns);
+			expect(width - used).toBeGreaterThanOrEqual(0);
+			expect(width - used).toBeLessThan(columns);
 			// Sandstone's own column count from the minimum width it's handed comes out the same.
-			expect(Math.floor((1720 + spacing) / (cellWidth - 4 + spacing))).toBe(columns);
+			expect(Math.floor((width + spacing) / (cellWidth - 4 + spacing))).toBe(columns);
 			expect(Number.isInteger(metrics.inset)).toBe(true);
 		}
 	});

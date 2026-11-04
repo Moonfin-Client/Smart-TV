@@ -1,4 +1,4 @@
-import {useState, useEffect, useCallback, useRef, useMemo} from 'react';
+import {forwardRef, useState, useEffect, useCallback, useImperativeHandle, useRef, useMemo} from 'react';
 import Spottable from '@enact/spotlight/Spottable';
 import Spotlight from '@enact/spotlight';
 import {VirtualGridList} from '@enact/sandstone/VirtualList';
@@ -6,9 +6,7 @@ import $L from '@enact/i18n/$L';
 import {useSeerr} from '../../context/SeerrContext';
 import {useSettings} from '../../context/SettingsContext';
 import LoadingSpinner from '../../components/LoadingSpinner';
-import SeerrStatusBanner, {hasSeerrDot, seerrBadgeStyle} from '../../components/seerr/SeerrStatusBanner';
-import SeerrStatusDot from '../../components/seerr/SeerrStatusDot';
-import SeerrMediaTypeBadge from '../../components/seerr/SeerrMediaTypeBadge';
+import SeerrPosterCard from '../../components/seerr/SeerrPosterCard';
 import * as seerrApi from '../../services/seerrApi';
 import {POSTER_SIZE_OPTIONS, seerrPosterSize} from '../../utils/gridChrome';
 import {registerThemeSheet} from '../../theme/themeOverrides';
@@ -51,7 +49,19 @@ const ToolbarButton = ({icon, label, onClick, spotlightId}) => (
 	</SpottableDiv>
 );
 
-const FocusLine = ({entry}) => {
+const POSTER_PLACEHOLDER = (
+	<div className={css.posterPlaceholder}>
+		<svg viewBox="0 0 24 24" className={css.placeholderIcon}>
+			<path d="M18 4l2 4h-3l-2-4h-2l2 4h-3l-2-4H8l2 4H7L5 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V4h-4z" />
+		</svg>
+	</div>
+);
+
+// The line keeps the focused title itself, so a move across the grid redraws only this line
+// rather than the whole page.
+const FocusLine = forwardRef(function FocusLine(props, ref) {
+	const [entry, setEntry] = useState(null);
+	useImperativeHandle(ref, () => ({show: setEntry}), []);
 	if (!entry) return <div className={css.focusLine} />;
 	const year = yearOf(entry);
 	const status = entry.mediaInfo?.status;
@@ -75,12 +85,11 @@ const FocusLine = ({entry}) => {
 			</div>
 		</div>
 	);
-};
+});
 
 const SeerrBrowse = ({browseType, item, mediaType: initialMediaType, onSelectItem, onHome, backHandlerRef}) => {
 	const {isEnabled} = useSeerr();
 	const {settings, updateSetting} = useSettings();
-	const badgeStyle = seerrBadgeStyle(settings);
 	const posterSize = seerrPosterSize(settings);
 	const zoom = settings.cardFocusZoom !== false;
 	const metrics = useMemo(() => browseGridMetrics(posterSize, zoom), [posterSize, zoom]);
@@ -107,7 +116,6 @@ const SeerrBrowse = ({browseType, item, mediaType: initialMediaType, onSelectIte
 		return initialMediaType || 'movie';
 	});
 	const [initialLoadDone, setInitialLoadDone] = useState(false);
-	const [focusedEntry, setFocusedEntry] = useState(null);
 	const [showFilterModal, setShowFilterModal] = useState(false);
 	const [showSettingsModal, setShowSettingsModal] = useState(false);
 	const [sortBy, setSortBy] = useState(saved?.sortBy || 'popularity.desc');
@@ -127,6 +135,9 @@ const SeerrBrowse = ({browseType, item, mediaType: initialMediaType, onSelectIte
 	const filterOptionsRequestedRef = useRef(false);
 
 	const loadingMoreRef = useRef(false);
+	// The grid asks for more as it draws, and moving focus doesn't redraw it, so a read it asked
+	// for while another was loading or cooling down is asked for again on the next focus move.
+	const loadMissedRef = useRef(false);
 	// Bumped by every fresh load, so a read still in flight from the last one is dropped.
 	const generationRef = useRef(0);
 	const loadCooldownRef = useRef(false);
@@ -134,6 +145,7 @@ const SeerrBrowse = ({browseType, item, mediaType: initialMediaType, onSelectIte
 	const totalPagesRef = useRef(1);
 	const currentPageRef = useRef(1);
 	const scrollToRef = useRef(null);
+	const focusLineRef = useRef(null);
 	const restoredRef = useRef(false);
 	const getScrollTo = useCallback((fn) => {
 		scrollToRef.current = fn;
@@ -173,7 +185,11 @@ const SeerrBrowse = ({browseType, item, mediaType: initialMediaType, onSelectIte
 	}, []);
 
 	const loadMore = useCallback(async () => {
-		if (loadingMoreRef.current || loadCooldownRef.current) return;
+		if (loadingMoreRef.current || loadCooldownRef.current) {
+			loadMissedRef.current = true;
+			return;
+		}
+		loadMissedRef.current = false;
 		const start = currentPageRef.current + 1;
 		const last = Math.min(totalPagesRef.current, MAX_PAGES, start + MAX_PAGES_PER_SCAN - 1);
 		if (start > last) return;
@@ -191,6 +207,7 @@ const SeerrBrowse = ({browseType, item, mediaType: initialMediaType, onSelectIte
 		} finally {
 			if (generation === generationRef.current) {
 				loadingMoreRef.current = false;
+				loadMissedRef.current = false;
 				loadCooldownRef.current = true;
 				setTimeout(() => { loadCooldownRef.current = false; }, 500);
 			}
@@ -232,6 +249,7 @@ const SeerrBrowse = ({browseType, item, mediaType: initialMediaType, onSelectIte
 			}
 			if (generation === generationRef.current) {
 				loadingMoreRef.current = false;
+				loadMissedRef.current = false;
 				setIsLoading(false);
 				setInitialLoadDone(true);
 			}
@@ -252,8 +270,9 @@ const SeerrBrowse = ({browseType, item, mediaType: initialMediaType, onSelectIte
 
 	const handleItemFocus = useCallback((ev) => {
 		const index = ev.currentTarget?.dataset?.index;
-		if (index !== undefined) setFocusedEntry(itemsRef.current[parseInt(index, 10)] || null);
-	}, []);
+		if (index !== undefined) focusLineRef.current?.show(itemsRef.current[parseInt(index, 10)] || null);
+		if (loadMissedRef.current) loadMore();
+	}, [loadMore]);
 
 	const handleItemClick = useCallback((ev) => {
 		const itemIndex = ev.currentTarget?.dataset?.index;
@@ -432,43 +451,21 @@ const SeerrBrowse = ({browseType, item, mediaType: initialMediaType, onSelectIte
 		if (index >= itemsRef.current.length - 8) loadMore();
 		if (!mediaItem) return null;
 
-		const imageUrl = mediaItem.posterPath ? seerrApi.getImageUrl(mediaItem.posterPath, 'w342') : null;
-		const title = mediaItem.title || mediaItem.name;
-		const itemMediaType = mediaItem.media_type || mediaItem.mediaType || mediaType;
-		const status = mediaItem.mediaInfo?.status;
-		const banner = badgeStyle === 'banner' && hasSeerrDot(status);
-
 		return (
-			<SpottableDiv
+			<SeerrPosterCard
 				{...rest}
-				className={css.itemCard}
 				style={{...rest.style, padding: `${metrics.headroom}px ${metrics.inset}px 0`}}
+				item={mediaItem}
+				mediaType={mediaType}
+				imageHeight={metrics.imageHeight}
+				subtitle={cardSubtitle(mediaItem)}
+				placeholder={POSTER_PLACEHOLDER}
 				onClick={handleItemClick}
 				onFocus={handleItemFocus}
 				data-index={index}
-			>
-				<div className={css.art} style={{height: `${metrics.imageHeight}px`}}>
-					<div className={`${css.artClip}${banner ? ' ' + css.underSeerrBanner : ''}`}>
-						{imageUrl ? (
-							<img className={css.poster} src={imageUrl} alt={title} loading="lazy" />
-						) : (
-							<div className={css.posterPlaceholder}>
-								<svg viewBox="0 0 24 24" className={css.placeholderIcon}>
-									<path d="M18 4l2 4h-3l-2-4h-2l2 4h-3l-2-4H8l2 4H7L5 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V4h-4z" />
-								</svg>
-							</div>
-						)}
-						{banner && <SeerrStatusBanner status={status} className={css.banner} />}
-						{itemMediaType && <SeerrMediaTypeBadge mediaType={itemMediaType} className={css.typeBadge} />}
-						{badgeStyle === 'badge' && <SeerrStatusDot status={status} />}
-					</div>
-					<div className={css.ring} />
-				</div>
-				<div className={css.itemName}>{title}</div>
-				<div className={css.itemSubtitle}>{cardSubtitle(mediaItem)}</div>
-			</SpottableDiv>
+			/>
 		);
-	}, [handleItemClick, handleItemFocus, loadMore, mediaType, metrics, badgeStyle]);
+	}, [handleItemClick, handleItemFocus, loadMore, mediaType, metrics]);
 
 	if (!item) {
 		return (
@@ -489,10 +486,10 @@ const SeerrBrowse = ({browseType, item, mediaType: initialMediaType, onSelectIte
 	const statusFilterLabel = STATUS_FILTERS.find((option) => option.key === statusFilter)?.label() || $L('All');
 
 	return (
-		<div className={`${css.page}${zoom ? '' : ' ' + css.noZoom}`}>
+		<div className={css.page}>
 			<div className={css.header}>
 				<div className={css.title}>{item.name || $L('Browse')}</div>
-				<FocusLine entry={focusedEntry} />
+				<FocusLine ref={focusLineRef} />
 				<div className={css.toolbar}>
 					<ToolbarButton icon={CORE_ICON_PATHS.home} label={$L('Home')} onClick={onHome} spotlightId="seerr-browse-home" />
 					<ToolbarButton icon={CORE_ICON_PATHS.sort} label={$L('Sort & Filter')} onClick={handleOpenFilterModal} spotlightId="seerr-browse-sort-button" />
@@ -533,7 +530,7 @@ const SeerrBrowse = ({browseType, item, mediaType: initialMediaType, onSelectIte
 				) : items.length === 0 ? (
 					<div className={css.empty}>{$L('No results')}</div>
 				) : (
-					<div className={css.gridWrapper} style={{top: `${metrics.gridTop}px`}}>
+					<div className={css.gridWrapper} style={{top: `${metrics.gridTop}px`, left: `${metrics.edge}px`, right: `${metrics.edge}px`}}>
 						<VirtualGridList
 							className={css.grid}
 							cbScrollTo={getScrollTo}

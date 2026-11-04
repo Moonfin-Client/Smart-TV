@@ -281,6 +281,50 @@
 	}
 }
 
+// Core's look for a Seerr poster on its 1150 point TV canvas, drawn at 1920. SeerrPosterCard and
+// the Modern cards in the Seerr rows both draw it.
+
+// The MOVIE or SERIES badge in the art's top left corner, dropped under the status banner when
+// the art carries underSeerrBanner. It's called from inside the art's clip so it outranks the
+// badge's own sheet, and the badge needs the typeBadge class.
+.seerr-type-badge() {
+	.typeBadge {
+		position: absolute;
+		top: 10px;
+		left: 10px;
+		z-index: 4;
+		padding: 3px 10px;
+		border-radius: 7px;
+		font-size: 17px;
+		letter-spacing: 1.3px;
+		line-height: 22px;
+	}
+
+	&.underSeerrBanner .typeBadge {
+		top: 43px;
+	}
+}
+
+// The status banner at Core's 20 points.
+.seerr-banner() {
+	height: 33px;
+	font-size: 17px;
+	letter-spacing: 1.7px;
+	line-height: 33px;
+}
+
+// The focus ring standing 3 points off the art. The theme sheet colors it.
+.seerr-focus-ring() {
+	display: none;
+	position: absolute;
+	top: -8px;
+	left: -8px;
+	right: -8px;
+	border: 5px solid #00a4dc;
+	border-radius: 21px;
+	pointer-events: none;
+}
+
 // The settings lay out on a canvas 1150 units wide scaled to the screen. At 1080p one unit is this
 // many pixels, so settings sizes are written in those units.
 @dp: 1.66957px;

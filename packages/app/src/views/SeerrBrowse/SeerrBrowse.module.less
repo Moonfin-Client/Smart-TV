@@ -200,62 +200,12 @@
 
 .gridWrapper {
 	position: absolute;
-	left: 100px;
-	right: 100px;
 	bottom: 0;
 }
 
 .grid {
 	width: 100%;
 	height: 100%;
-}
-
-// A cell keeps its extra row gap at the top, where the focused card grows into it.
-.itemCard {
-	box-sizing: border-box;
-	cursor: pointer;
-	outline: none;
-
-	&:focus {
-		z-index: 10;
-	}
-}
-
-.art {
-	position: relative;
-	transform-origin: 50% 100%;
-	transition: transform 0.15s linear;
-
-	:global(.perf-low) &,
-	:global(.perf-mid) & {
-		transition: none;
-	}
-}
-
-.itemCard:focus .art {
-	transform: scale(1.12);
-}
-
-.noZoom .itemCard:focus .art {
-	transform: none;
-}
-
-.artClip {
-	position: absolute;
-	top: 0;
-	left: 0;
-	right: 0;
-	bottom: 0;
-	border-radius: 13px;
-	overflow: hidden;
-	background: rgba(255, 255, 255, 0.05);
-}
-
-.poster {
-	width: 100%;
-	height: 100%;
-	object-fit: cover;
-	display: block;
 }
 
 .posterPlaceholder {
@@ -270,65 +220,6 @@
 	width: 60px;
 	height: 60px;
 	fill: rgba(255, 255, 255, 0.3);
-}
-
-// Core's ring stands 3px off the art, scaled along with it.
-.ring {
-	display: none;
-	position: absolute;
-	top: -8px;
-	left: -8px;
-	right: -8px;
-	bottom: -8px;
-	border: 5px solid #00a4dc;
-	border-radius: 21px;
-	pointer-events: none;
-}
-
-.itemCard:focus .ring {
-	display: block;
-}
-
-.artClip .typeBadge {
-	position: absolute;
-	top: 10px;
-	left: 10px;
-	z-index: 4;
-	padding: 3px 10px;
-	border-radius: 7px;
-	font-size: 17px;
-	letter-spacing: 1.3px;
-	line-height: 22px;
-}
-
-.artClip .banner {
-	height: 33px;
-	font-size: 17px;
-	letter-spacing: 1.7px;
-	line-height: 33px;
-}
-
-.underSeerrBanner .typeBadge {
-	top: 43px;
-}
-
-.itemName {
-	margin-top: 10px;
-	font-size: 22px;
-	font-weight: 700;
-	line-height: 29px;
-	white-space: nowrap;
-	overflow: hidden;
-	text-overflow: ellipsis;
-}
-
-.itemSubtitle {
-	font-size: 20px;
-	line-height: 27px;
-	color: rgba(255, 255, 255, 0.6);
-	white-space: pre;
-	overflow: hidden;
-	text-overflow: ellipsis;
 }
 
 .footer {

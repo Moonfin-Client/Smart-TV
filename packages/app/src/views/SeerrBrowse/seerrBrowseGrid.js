@@ -23,18 +23,26 @@ export const browseGridMetrics = (posterSize, expansion = true) => {
 	const spacing = Math.round(16 * DP) - ringRoom;
 	const inset = (columnGap - spacing) / 2;
 	const cellWidth = Math.floor((GRID_WIDTH - spacing * (columns - 1)) / columns);
-	const imageHeight = Math.round((cellWidth - 2 * inset) * 1.5);
+	const artWidth = cellWidth - 2 * inset;
+	const imageHeight = Math.round(artWidth * 1.5);
 	const headroom = (expansion ? Math.round(imageHeight * (FOCUS_SCALE - 1)) : 0) + ringRoom;
+	// The grid clips at its sides too, so a focused card in the first or last column would lose
+	// its growth and ring. The grid reaches that much past the margins and every cell takes the
+	// room back as inset, which leaves each column's art and pitch where they were.
+	const growth = expansion ? Math.ceil(artWidth * (FOCUS_SCALE - 1) / 2) : 0;
+	const room = Math.max(0, growth + ringRoom - inset);
 	return {
 		columns,
-		spacing,
-		inset,
-		cellWidth,
+		spacing: spacing - 2 * room,
+		inset: inset + room,
+		edge: (1920 - GRID_WIDTH) / 2 - room,
+		cellWidth: cellWidth + 2 * room,
 		imageHeight,
 		headroom,
 		// Core's 20 point top padding less the room the first row already keeps.
 		gridTop: Math.round(20 * DP) - ringRoom,
-		cellHeight: headroom + imageHeight + Math.round(42 * DP)
+		// The spacing gave up the side room in both directions, so each cell gives it back below.
+		cellHeight: headroom + imageHeight + Math.round(42 * DP) + 2 * room
 	};
 };
 

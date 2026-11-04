@@ -289,8 +289,8 @@ describe('SeerrDiscover in the Classic style', () => {
 		expect(find('[class~="modernRows"]')).toBeNull();
 		const posters = document.querySelectorAll('[data-spotlight-id="discover-row-4"] [class~="mediaCard"]');
 		expect(posters).toHaveLength(20);
-		expect(posters[0].querySelector('[class~="cardTitle"]').textContent).toBe('Trending 1-0');
-		expect(find('[class~="noZoom"]')).toBeNull();
+		expect(posters[0].querySelector('[class~="title"]').textContent).toBe('Trending 1-0');
+		expect(posters[0].classList.contains('zoom')).toBe(true);
 	});
 
 	it('wraps focus around the ends of a row the way Home does', async () => {
@@ -320,6 +320,8 @@ describe('SeerrDiscover in the Classic style', () => {
 	it('drops the focus growth when focus expansion is off', async () => {
 		mockSettings.settings = {homeRowsStyle: 'v1', cardFocusZoom: false};
 		await drawDiscover();
-		expect(find('[class~="container"]').className).toContain('noZoom');
+		const posters = document.querySelectorAll('[data-spotlight-id="discover-row-4"] [class~="mediaCard"]');
+		expect(posters).toHaveLength(20);
+		expect(posters[0].classList.contains('zoom')).toBe(false);
 	});
 });

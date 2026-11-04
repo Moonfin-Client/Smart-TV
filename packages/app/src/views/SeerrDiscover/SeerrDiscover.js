@@ -13,9 +13,7 @@ import {modernCardMetrics, posterSizeScale} from '../../components/MediaCard/mod
 import seerrApi from '../../services/seerrApi';
 import {seerrGenreBackdrop} from '../../utils/seerrGenreArt';
 import LoadingSpinner from '../../components/LoadingSpinner';
-import SeerrStatusBanner, {hasSeerrDot, seerrBadgeStyle} from '../../components/seerr/SeerrStatusBanner';
-import SeerrStatusDot from '../../components/seerr/SeerrStatusDot';
-import SeerrMediaTypeBadge from '../../components/seerr/SeerrMediaTypeBadge';
+import SeerrPosterCard from '../../components/seerr/SeerrPosterCard';
 import {MaterialIcon} from '../../components/icons/materialIcons';
 import {CORE_ICON_PATHS} from '../Settings/settingsCoreIcons';
 import {registerThemeSheet} from '../../theme/themeOverrides';
@@ -143,14 +141,7 @@ const yearOf = (item) => (item.releaseDate || item.release_date || item.firstAir
 
 // The Classic style's poster, with its title and year under it.
 const MediaCard = memo(function MediaCard({item, mediaType, sizes, first, onSelect, onFocus}) {
-	const {settings} = useSettings();
-	const badgeStyle = seerrBadgeStyle(settings);
-	const posterUrl = seerrApi.getImageUrl(item.poster_path || item.posterPath, 'w342');
 	const title = item.title || item.name;
-	const year = yearOf(item);
-	const status = item.mediaInfo?.status;
-	const banner = badgeStyle === 'banner' && hasSeerrDot(status);
-	const itemMediaType = item.media_type || item.mediaType || mediaType;
 
 	const handleClick = useCallback(() => {
 		onSelect?.(item, mediaType);
@@ -161,23 +152,17 @@ const MediaCard = memo(function MediaCard({item, mediaType, sizes, first, onSele
 	}, [item, onFocus]);
 
 	return (
-		<SpottableDiv className={css.mediaCard} style={{width: `${sizes.posterWidth}px`, marginLeft: first ? 0 : `${sizes.posterGap}px`}} onClick={handleClick} onFocus={handleFocus}>
-			<div className={css.posterArt} style={{height: `${sizes.posterHeight}px`}}>
-				<div className={`${css.posterContainer}${banner ? ' ' + css.underSeerrBanner : ''}`}>
-					{posterUrl ? (
-						<img className={css.poster} src={posterUrl} alt={title} loading="lazy" />
-					) : (
-						<div className={css.noPoster}>{title?.[0]}</div>
-					)}
-					{banner && <SeerrStatusBanner status={status} className={css.banner} />}
-					{itemMediaType && <SeerrMediaTypeBadge mediaType={itemMediaType} className={css.typeBadge} />}
-					{badgeStyle === 'badge' && <SeerrStatusDot status={status} />}
-				</div>
-				<div className={css.posterRing} />
-			</div>
-			<div className={css.cardTitle}>{title}</div>
-			{year && <div className={css.cardYear}>{year}</div>}
-		</SpottableDiv>
+		<SeerrPosterCard
+			className={css.mediaCard}
+			style={{width: `${sizes.posterWidth}px`, marginLeft: first ? 0 : `${sizes.posterGap}px`}}
+			item={item}
+			mediaType={mediaType}
+			imageHeight={sizes.posterHeight}
+			subtitle={yearOf(item)}
+			placeholder={<div className={css.noPoster}>{title?.[0]}</div>}
+			onClick={handleClick}
+			onFocus={handleFocus}
+		/>
 	);
 });
 
@@ -900,7 +885,7 @@ const SeerrDiscover = ({onSelectItem, onSelectGenre, onSelectNetwork, onSelectSt
 	));
 
 	return (
-		<div className={`${css.container}${zoom ? '' : ' ' + css.noZoom}`}>
+		<div className={css.container}>
 			{settings.showHomeBackdrop !== false && (
 				<BackdropLayer targetUrl={backdropUrl} blurAmount={0} overlayOpacity={0} fadeMs={600} />
 			)}

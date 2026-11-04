@@ -81,11 +81,12 @@ describe('buildThemeOverrideCss', () => {
 
 	it('rings the Seerr screens in the focus border color, falling back to the theme\'s', async () => {
 		const theme = resolveThemeById('moonfin');
-		registerThemeSheet('seerrDiscover', {tileRing: 'tileRing', posterRing: 'posterRing', pill: 'pill'});
-		registerThemeSheet('seerrBrowse', {ring: 'ring', chip: 'chip', letter: 'letter', toolButton: 'toolButton'});
+		registerThemeSheet('seerrDiscover', {tileRing: 'tileRing', pill: 'pill'});
+		registerThemeSheet('seerrBrowse', {chip: 'chip', letter: 'letter', toolButton: 'toolButton'});
+		registerThemeSheet('seerrPosterCard', {ring: 'ring'});
 		const prefix = "html[data-theme-id='moonfin'][data-theme-id]";
 		const css = buildThemeOverrideCss(theme, {focusBorderColor: '#ff0000'});
-		expect(css).toContain(`${prefix} .tileRing, ${prefix} .posterRing { border-color: rgb(255, 0, 0); }`);
+		expect(css).toContain(`${prefix} .tileRing { border-color: rgb(255, 0, 0); }`);
 		expect(css).toContain(`${prefix} .ring { border-color: rgb(255, 0, 0); }`);
 		expect(css).toContain(`${prefix} .chip:focus, ${prefix} .letter:focus, ${prefix} .toolButton:focus { box-shadow: inset 0 0 0 2px rgb(255, 0, 0); }`);
 		const themeColor = resolveFocusBorderColor(theme, '');

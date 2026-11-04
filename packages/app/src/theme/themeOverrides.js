@@ -761,7 +761,7 @@ export const buildThemeOverrideCss = (theme, options = {}) => {
 	rule(`.${ratingsCss.ratingValueCompact}`, `color: ${onBackground};`);
 
 	// Focus rings on the screens that load on demand
-	const {player, playerOverlays, episodeBrowser, genreBrowse, seerrDiscover, seerrBrowse} = lazySheets;
+	const {player, playerOverlays, episodeBrowser, genreBrowse, seerrDiscover, seerrBrowse, seerrPosterCard} = lazySheets;
 	const ring = (sheet, names, states) => names.flatMap((name) => states.map((state) => `.${sheet[name]}${state}`)).join(', ');
 	if (player) {
 		rule(ring(player, ['liveBtn', 'chapterItem'], [':hover', ':focus']), `border-color: ${focusColor};`);
@@ -779,12 +779,14 @@ export const buildThemeOverrideCss = (theme, options = {}) => {
 	}
 	// Core draws every Seerr ring and focus border in its focus color.
 	if (seerrDiscover) {
-		rule(`.${seerrDiscover.tileRing}, .${seerrDiscover.posterRing}`, `border-color: ${focusColor};`);
+		rule(`.${seerrDiscover.tileRing}`, `border-color: ${focusColor};`);
 		rule(`.${seerrDiscover.pill}:focus`, `border-color: ${focusColor};`);
 	}
 	if (seerrBrowse) {
-		rule(`.${seerrBrowse.ring}`, `border-color: ${focusColor};`);
 		rule(ring(seerrBrowse, ['chip', 'letter', 'toolButton'], [':focus']), `box-shadow: inset 0 0 0 2px ${focusColor};`);
+	}
+	if (seerrPosterCard) {
+		rule(`.${seerrPosterCard.ring}`, `border-color: ${focusColor};`);
 	}
 
 	// Pixel themes square off every fixed radius.
