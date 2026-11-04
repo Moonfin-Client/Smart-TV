@@ -9,7 +9,8 @@ import {
 	homeRowsToRowOrder,
 	homeRowsToSections,
 	mergeHomeRows,
-	withSeasonalRow
+	withSeasonalRow,
+	withWatchingNowRow
 } from './homeLayout';
 
 const enabledIds = (rows) => rows.filter((row) => row.enabled).map((row) => row.id);
@@ -247,6 +248,7 @@ describe('the seasonal row in a saved layout', () => {
 		const saved = [{id: 'resume', enabled: true, order: 0}];
 		expect(rowById(mergeHomeRows(saved), 'seasonal').enabled).toBe(false);
 		expect(rowById(mergeHomeRows(saved, {seasonal: true}), 'seasonal').enabled).toBe(true);
+		expect(rowById(mergeHomeRows(saved, {mdblist_watching_now: true}), 'mdblist_watching_now').enabled).toBe(true);
 	});
 
 	test('a layout that names it keeps its own flag whatever the toggle says', () => {
@@ -310,5 +312,26 @@ describe('Silo home section rows in the layout', () => {
 		const rows = homeRowsFromProfile({homeSections: [written]});
 		expect(rows.find((row) => row.source === 'server')).toMatchObject({serverUrl: '', itemId: 'type:hidden_gems'});
 		expect(homeRowsToSections(rows)).toContainEqual({...written, order: 0});
+	});
+});
+
+describe('withWatchingNowRow', () => {
+	const layout = () => [
+		{id: 'mdblist_watching_now', enabled: false, order: 0},
+		{id: 'resume', enabled: true, order: 1},
+		{id: 'latest-media', enabled: true, order: 2},
+		{id: 'studios', enabled: false, order: 3}
+	];
+
+	test('switching it on moves it right after the last row that is on', () => {
+		const rows = withWatchingNowRow(layout(), true);
+		expect(rows.map((row) => row.id)).toEqual(['resume', 'latest-media', 'mdblist_watching_now', 'studios']);
+		expect(rows.map((row) => row.order)).toEqual([0, 1, 2, 3]);
+	});
+
+	test('switching it off leaves it where it is', () => {
+		const rows = withWatchingNowRow(withWatchingNowRow(layout(), true), false);
+		expect(rows.map((row) => row.id)).toEqual(['resume', 'latest-media', 'mdblist_watching_now', 'studios']);
+		expect(rows.find((row) => row.id === 'mdblist_watching_now').enabled).toBe(false);
 	});
 });

@@ -4,6 +4,7 @@ import {isTrickplayOn} from '../../utils/trickplayLayout';
 import {mediaPreviewMode, mediaPreviewSettings} from '../../utils/mediaPreviewMode';
 import {homeBackdropStyle, homeBackdropSettings} from '../../utils/homeBackdropStyle';
 import {ratingKey} from '../../utils/ratingSources';
+import {withWatchingNowRow} from '../../utils/homeLayout';
 
 import {
 	getAccentColorOptions,
@@ -26,6 +27,7 @@ import {
 	getBookLibraryStyleOptions,
 	getKeyboardStyleOptions,
 	getLibraryStyleOptions,
+	getMediaBarSourceOptions,
 	getMediaPreviewModeOptions,
 	getMusicLibraryStyleOptions,
 	getModernCardTransitionSpeedOptions,
@@ -38,6 +40,7 @@ import {
 	getMediaSegmentActionOptions,
 	getMediaSegmentAutoHideOptions,
 	getNavPositionOptions,
+	getNewReleaseDaysOptions,
 	getNextUpBehaviorOptions,
 	getNextUpCountdownStyleOptions,
 	getContinueWatchingDefaultActionOptions,
@@ -486,6 +489,21 @@ export const SETTINGS_SCHEMA = [
 					...ratingsRows('homeRows'),
 					{kind: KIND.SECTION, id: 'externalSources', label: () => $L('External Sources'), when: whenPlugin},
 					{kind: KIND.NAV, id: 'imdbLists', label: () => $L('IMDb Lists'), desc: () => $L('Configure IMDb Top 250, Popular, and other charts.'), icon: 'movie_outlined', keywords: () => [$L('IMDb Row Sorting'), $L('Sort Order')], action: (ctx) => ctx.actions.openImdbLists(), when: whenPlugin},
+					{
+						kind: KIND.TOGGLE,
+						key: 'mdblistWatchingNowEnabled',
+						label: () => $L('Watching on MDBList'),
+						desc: () => $L('Show what MDBList users are currently watching'),
+						icon: 'public',
+						when: whenPlugin,
+						onToggle: (ctx) => {
+							const enabled = !ctx.settings.mdblistWatchingNowEnabled;
+							ctx.actions.setSettings({
+								mdblistWatchingNowEnabled: enabled,
+								homeRows: withWatchingNowRow(ctx.settings.homeRows, enabled)
+							});
+						}
+					},
 					{kind: KIND.NAV, id: 'externalTmdbLists', label: () => $L('TMDB Lists'), desc: () => $L('Configure Popular, Top Rated, and Trending TMDB lists.'), icon: 'trending_up', keywords: () => [$L('TMDB Row Sorting'), $L('Sort Order')], action: (ctx) => ctx.actions.openExternalTmdbLists(), when: whenPlugin},
 					{kind: KIND.NAV, id: 'seasonalRow', label: () => $L('Seasonal Row'), desc: () => $L('Show a row of holiday movies from your library, with Seerr suggestions when available.'), icon: 'celebration_outlined', keywords: () => ['holiday', 'christmas', 'halloween', 'seasonal'], action: (ctx) => ctx.actions.openSeasonalRow(), when: whenPlugin},
 					{kind: KIND.NAV, id: 'externalCalendars', label: () => $L('Upcoming Calendars'), desc: () => $L('Toggle Upcoming Calendars from Radarr/Sonarr.'), icon: 'calendar_month', action: (ctx) => ctx.actions.openExternalCalendars(), when: (ctx) => whenPlugin(ctx) && whenSeerr(ctx)},
@@ -574,6 +592,9 @@ export const SETTINGS_SCHEMA = [
 					{kind: KIND.OPTION, key: 'mediaBarOverlayColor', label: () => $L('Overlay Color'), options: getOverlayColorOptions, fallback: () => $L('Gray'), icon: 'palette'},
 					{kind: KIND.SLIDER, key: 'mediaBarOverlayOpacity', label: () => $L('Overlay Opacity'), min: 0, max: 100, step: 5, format: percent, icon: 'opacity'},
 					{kind: KIND.SECTION, id: 'mediaSources', label: () => $L('Media Sources')},
+					{kind: KIND.OPTION, key: 'mediaBarSourceType', label: () => $L('Source'), options: getMediaBarSourceOptions, fallback: () => $L('Random'), icon: 'source', padded: true},
+					{kind: KIND.TOGGLE, key: 'mediaBarNewReleaseBanner', label: () => $L('New Release Banner'), desc: () => $L('Flag series with a new season or new episodes that aired recently.'), icon: 'label'},
+					{kind: KIND.OPTION, key: 'mediaBarNewReleaseDays', label: () => $L('New Release Window'), desc: () => $L('How long after an episode airs it still counts as new.'), options: getNewReleaseDaysOptions, fallback: () => $L('30 days'), icon: 'calendar_today_outlined', padded: true},
 					{
 						kind: KIND.NAV,
 						id: 'sourceLibraries',

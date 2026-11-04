@@ -26,8 +26,12 @@ import {keepFocusInView} from '../../utils/focusScroll';
 import {SLEEP_TIMER_MINUTES} from './useSleepTimer';
 import {formatPlaybackTimeSlot, formatPlaybackTrailingTime} from '../../utils/playbackTimeLabels';
 import { useSettings } from '../../context/SettingsContext';
+import {registerThemeSheet} from '../../theme/themeOverrides';
 
 import audioCss from './audio/AudioMode.module.less';
+import overlayCss from './Player.module.less';
+
+registerThemeSheet('playerOverlays', overlayCss);
 
 // The row shows the offset the strip it opens is set to.
 const offsetLabel = (offset) => (offset ? `${offset > 0 ? '+' : ''}${offset.toFixed(1)}s` : $L('None'));

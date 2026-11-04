@@ -185,6 +185,27 @@ describe('sameRowList', () => {
 		expect(sameRowList([row('a', [item('1'), item('9')])], [row('a', [item('1'), item('8')])])).toBe(false);
 		expect(sameRowList([{...row('a'), title: 'X'}], [{...row('a'), title: 'Y'}])).toBe(false);
 	});
+
+	test('detects changes in watching now subtitle or item details', () => {
+		const watchingRow1 = {
+			id: 'mdblist_watching_now',
+			title: 'Watching on MDBList',
+			subtitle: '10 watching now',
+			isWatchingNowRow: true,
+			items: [{Id: '1', Name: 'Movie 1', Rank: 1, Watchers: 10}]
+		};
+		const watchingRow2 = {
+			...watchingRow1,
+			subtitle: '15 watching now'
+		};
+		const watchingRow3 = {
+			...watchingRow1,
+			items: [{Id: '1', Name: 'Movie 1', Rank: 1, Watchers: 15}]
+		};
+		expect(sameRowList([watchingRow1], [watchingRow1])).toBe(true);
+		expect(sameRowList([watchingRow1], [watchingRow2])).toBe(false);
+		expect(sameRowList([watchingRow1], [watchingRow3])).toBe(false);
+	});
 });
 
 // The rows are built from one list and gated by another, so a favourite row added to only

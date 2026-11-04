@@ -10,6 +10,8 @@ import {getPerfTier} from '../../utils/perfTier';
 import {isStaticLibraryCard, modernCardMetrics, getEpisodeLabels, getCardDisplayTitle} from './modernCardLayout';
 import SeerrIcon from '../icons/SeerrIcon';
 import SeerrStatusBanner, {seerrBadgeStyle, seerrTitleStatus} from '../seerr/SeerrStatusBanner';
+import SeerrStatusDot from '../seerr/SeerrStatusDot';
+import SeerrMediaTypeBadge from '../seerr/SeerrMediaTypeBadge';
 import {showsWatchedCheck} from '../../utils/playedState';
 import {AnimeCardPill} from '../AnimeMarkerPills';
 import IncompleteBadge from '../IncompleteBadge';
@@ -63,6 +65,10 @@ const expandTransition = (speed) => {
 };
 
 const ART_WAIT_MS = 300;
+
+// Core draws its cards with no border and rounds them to 8 points on its 1150 canvas, so the
+// look skips the theme's card border and keeps the corners at that size.
+const CORE_ART = {border: 0, borderRadius: '13px', boxShadow: 'none'};
 
 // Wide art that has already come in, so a card focused after its art arrived opens straight away.
 const ART_MEMORY = 200;
@@ -240,7 +246,8 @@ const ModernMediaCard = ({
 	warmFocusArt = false,
 	menuOptions,
 	ratingsSurface,
-	hideOverview = false
+	hideOverview = false,
+	coreLook = false
 }) => {
 	const {settings} = useSettings();
 	const focusTimeoutRef = useRef(null);
@@ -329,7 +336,6 @@ const ModernMediaCard = ({
 	const isSquareItem = item?.Type === 'MusicAlbum' || item?.Type === 'Audio';
 	const {imageHeight, expandedWidth, cardWidth} = modernCardMetrics({
 		posterSize: settings.homeRowsPosterSize,
-		platform,
 		isSquareItem,
 		isStatic: isStaticMyMedia
 	});
@@ -382,10 +388,12 @@ const ModernMediaCard = ({
 	}, [imageUrl, seerrThumb]);
 
 	const extendedSectionWidth = Math.max(detailsWidth || 0, expandedWidth);
+	const artStyle = coreLook ? {...CORE_ART, height: `${imageHeight}px`} : {height: `${imageHeight}px`};
 
 	const cardClassName = [
 		css.card,
 		isFocused ? css.focused : '',
+		coreLook ? css.coreLook : '',
 		platform === 'webos' ? css.platformWebos : '',
 		platform === 'tizen' ? css.platformTizen : '',
 		(platform === 'tizen' || platform === 'webos') && typeof document !== 'undefined' && document.documentElement.classList.contains('legacy')
@@ -412,7 +420,7 @@ const ModernMediaCard = ({
 			onSpotlightLeft={onSpotlightLeft}
 			onSpotlightRight={onSpotlightRight}
 		>
-			<div className={`${css.imageContainer}${previewPhase !== 'idle' ? ' ' + css.previewHost : ''}${bannerStatus ? ' ' + css.underSeerrBanner : ''}`} data-card-art>
+			<div className={`${css.imageContainer}${previewPhase !== 'idle' ? ' ' + css.previewHost : ''}${bannerStatus ? ' ' + css.underSeerrBanner : ''}`} style={coreLook ? CORE_ART : undefined} data-card-art>
 				{imageUrl ? (
 					<>
 						<img
@@ -422,7 +430,7 @@ const ModernMediaCard = ({
 							loading={eagerLoad ? 'eager' : 'lazy'}
 							width={cardWidth}
 							height={imageHeight}
-							style={{height: `${imageHeight}px`}}
+							style={artStyle}
 							onError={handleImageError}
 						/>
 						{(item?.Type === 'Genre' || item?.Type === 'MusicGenre') && (
@@ -433,7 +441,7 @@ const ModernMediaCard = ({
 						)}
 					</>
 				) : (
-					<div className={css.placeholder} style={{height: `${imageHeight}px`}}>
+					<div className={css.placeholder} style={artStyle}>
 						{item?.Type === 'Person' ? (
 							<svg className={css.placeholderIcon} viewBox="0 -960 960 960" fill="currentColor" aria-hidden="true">
 								<path d="M480-480q-66 0-113-47t-47-113q0-66 47-113t113-47q66 0 113 47t47 113q0 66-47 113t-113 47ZM160-160v-112q0-34 17.5-62.5T224-378q62-31 126-46.5T480-440q66 0 130 15.5T736-378q29 15 46.5 43.5T800-272v112H160Z"/>
@@ -465,10 +473,13 @@ const ModernMediaCard = ({
 					<div className={`${css.seerrBadge} ${css.seerrMissing}`}>
 						<SeerrIcon />
 					</div>
-				) : seerrStyle === 'badge' && item?._seerr && [2, 3, 4, 5].includes(item?.mediaInfo?.status) ? (
-					<div className={`${css.seerrBadge} ${css[`seerr${item.mediaInfo.status}`]}`} />
+				) : seerrStyle === 'badge' && item?._seerr ? (
+					<SeerrStatusDot status={item?.mediaInfo?.status} />
 				) : null}
-				{bannerStatus && <SeerrStatusBanner status={bannerStatus} className={css.seerrBanner} />}
+				{bannerStatus && <SeerrStatusBanner status={bannerStatus} className={coreLook ? css.seerrBannerFlush : css.seerrBanner} />}
+				{coreLook && isUnownedSeerrTitle(item) && (
+					<SeerrMediaTypeBadge mediaType={item._seerrMediaType} className={css.typeBadge} />
+				)}
 
 				{showIndicators && showsWatchedCheck(item) && (
 					<div className={css.watchedBadge}>
@@ -489,9 +500,14 @@ const ModernMediaCard = ({
 				<IncompleteBadge itemId={item.Id} belowFavorite={item.UserData?.IsFavorite} belowBanner={Boolean(bannerStatus)} />
 				<AnimeCardPill item={item} serverUrl={itemServerUrl} hasProgressBar={showIndicators && progress > 0} />
 			</div>
+			{coreLook && (
+				<div className={css.focusRing} style={{height: `${imageHeight + 16}px`}} />
+			)}
 
 			<div className={css.title}>{displayTitle}</div>
-			{isFocused ? (
+			{coreLook ? (
+				metadata ? <div className={css.secondaryTitle}>{metadata}</div> : null
+			) : isFocused ? (
 				episodeLabels ? (
 					<>
 						<div className={css.secondaryTitle}>{episodeLabels.full}</div>

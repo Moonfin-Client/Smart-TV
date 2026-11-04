@@ -279,6 +279,9 @@ export const toCssColor = (hex) => {
 	return `rgba(${red}, ${green}, ${blue}, ${Math.round(alpha * 1000) / 1000})`;
 };
 
+export const resolveFocusBorderColor = (theme, setting) =>
+	toCssColor(isValidHexColor(setting) ? setting : theme.borders.focusBorder.color);
+
 // Extract RGB triplet as string for use in rgba(var(...), opacity) syntax
 export const toRgbTriplet = (hex) => {
 	const normalized = normalizeHexColor(hex, 'color');

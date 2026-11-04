@@ -2,6 +2,8 @@ import {getApiKey, getServerUrl, api} from './jellyfinApi';
 import {moonbaseAssetUrl, moonbaseEndpoint} from './moonbaseEndpoint';
 import {mediaServerQueue} from '../utils/requestQueue';
 import {RATING_SETTING_KEYS, ratingKey} from '../utils/ratingSources';
+import {fetchWithTimeout} from '../utils/fetchTimeout';
+import {isPlexServer, plexMoonbaseUrl} from '../utils/plexUrls';
 
 const cache = {};
 const CACHE_TTL_MS = 30 * 60 * 1000;
@@ -376,6 +378,52 @@ export const fetchTmdbSeasonRatings = async (serverUrl, tmdbId, season, options 
 		return null;
 	} catch {
 		return null;
+	}
+};
+
+const watchingNowCache = {};
+const WATCHING_NOW_CACHE_TTL_MS = 4.5 * 60 * 1000;
+
+export const __resetWatchingNowCache = () => {
+	for (const key of Object.keys(watchingNowCache)) {
+		delete watchingNowCache[key];
+	}
+};
+
+export const fetchWatchingNow = async (serverUrl, options = {}) => {
+	const server = serverUrl || getServerUrl();
+	const baseUrl = isPlexServer(server) ? plexMoonbaseUrl(server) : server;
+	if (!baseUrl) return null;
+	const cacheKey = `${baseUrl}|watching_now`;
+	if (!options.forceRefresh) {
+		const cached = watchingNowCache[cacheKey];
+		if (cached && (Date.now() - cached.fetchedAt) < WATCHING_NOW_CACHE_TTL_MS) {
+			return cached.data;
+		}
+	}
+	try {
+		const endpoint = await moonbaseEndpoint(baseUrl, getApiKey());
+		if (!endpoint) return watchingNowCache[cacheKey]?.data || null;
+		const url = `${endpoint.base}/Moonfin/MdbList/WatchingNow?profile=tv`;
+		const fetchOptions = {
+			headers: endpoint.headers
+		};
+		if (options.signal) fetchOptions.signal = options.signal;
+		const response = await mediaServerQueue.run(
+			() => fetchWithTimeout(url, fetchOptions, options.timeoutMs || 10000)
+		);
+		if (!response.ok) return watchingNowCache[cacheKey]?.data || null;
+		const data = await response.json();
+		// A failed MDBList call still answers with an empty list and an error, which shouldn't be kept.
+		if (data && Array.isArray(data.items) && !data.error) {
+			watchingNowCache[cacheKey] = {data, fetchedAt: Date.now()};
+			return data;
+		}
+		return watchingNowCache[cacheKey]?.data || null;
+	} catch (err) {
+		if (err && err.name === 'AbortError') return null;
+		console.warn('[MDBList] WatchingNow fetch failed:', err);
+		return watchingNowCache[cacheKey]?.data || null;
 	}
 };
 

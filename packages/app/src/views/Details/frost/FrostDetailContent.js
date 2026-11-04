@@ -9,8 +9,10 @@ import PagedText from '../../../components/PagedText';
 import RatingsRow from '../../../components/RatingsRow';
 import {SeerrSeasonDot} from '../../../components/seerr/SeerrStatusBadge';
 import SeerrStatusBanner, {seerrBadgeStyle, seerrTitleStatus} from '../../../components/seerr/SeerrStatusBanner';
+import {useSettings} from '../../../context/SettingsContext';
 import {isMdblistEnabled} from '../../../services/mdblistApi';
 import seerrApi from '../../../services/seerrApi';
+import {toRgbTriplet} from '../../../theme/themeSpec';
 import {animateScrollTop} from '../../../utils/focusScroll';
 import {formatDuration, getImageUrl} from '../../../utils/helpers';
 import {KEYS} from '../../../utils/keys';
@@ -32,8 +34,8 @@ import {spotlightItemImageUrl} from '../spotlight/spotlightImages';
 import {Icon} from '../useDetailPage';
 import {ACTIONS, NAVBAR, drawsStage, resumeLine, stageTrackChoices} from '../stage/stageRules';
 import {
-	FROST_BUTTON_CAP, FROST_COLUMNS, FROST_STATUS_COLORS, frostCredits, frostInfo, frostNeighbour, frostSeason,
-	frostSeerrGroups, frostSeerrStatus, frostSegments, frostStageStyle, frostTabs
+	FROST_BUTTON_CAP, FROST_COLUMNS, frostCredits, frostInfo, frostNeighbour, frostScrims, frostSeason, frostSeerrGroups,
+	frostSeerrStatus, frostSegments, frostStageStyle, frostStatusColors, frostTabs
 } from './frostRules';
 
 import css from './FrostDetailContent.module.less';
@@ -70,13 +72,6 @@ const SIDES = {[KEYS.UP]: 'up', [KEYS.DOWN]: 'down', [KEYS.LEFT]: 'left', [KEYS.
 // Server blur for the art behind everything, strong enough that it reads as light rather than a
 // picture. The same amount goes through CSS where the art isn't the server's own.
 const ENVIRONMENT_BLUR = 60;
-
-// Kept at module level since scrimStyle caches by the array it's handed.
-const VIGNETTE = [{at: [0.5, 0.45], radius: 0.9, rgb: '0, 0, 0', stops: [[0.35, 0], [1, 0.5]]}];
-const ART_FADE = [
-	{to: 'top', rgb: '12, 12, 14', stops: [[0, 0.95], [0.5, 0.74], [0.8, 0]]},
-	{to: 'right', rgb: '12, 12, 14', stops: [[0, 0.5], [0.62, 0]]}
-];
 
 // The room kept clear at each end of the stage when the bar of tabs has to shrink to fit.
 const TAB_BAR_MARGIN = 36;
@@ -129,6 +124,10 @@ const FrostScreen = (props) => {
 	const memoryRef = useRef({});
 	// What a key press needs to know, kept current for handlers that outlive a draw.
 	const ctxRef = useRef(null);
+
+	const {activeTheme} = useSettings();
+	const statusColors = frostStatusColors(activeTheme);
+	const scrims = frostScrims(toRgbTriplet(activeTheme.colors.background));
 
 	const navbarTop = settings.navbarPosition !== 'left';
 	const pieces = seerr.pieces || {};
@@ -348,8 +347,8 @@ const FrostScreen = (props) => {
 		}
 		if (!seerr.isActive) return null;
 		const download = seerr.hdDownload;
-		const status = frostSeerrStatus(seerr.hdStatus);
-		const color = download ? FROST_STATUS_COLORS.requested : status.color;
+		const status = frostSeerrStatus(seerr.hdStatus, statusColors);
+		const color = download ? statusColors.requested : status.color;
 		let label = status.label;
 		if (download) {
 			const {leading, percent} = downloadLabelParts(download, true);
@@ -489,7 +488,7 @@ const FrostScreen = (props) => {
 				{seerrSeasons.map((season, i) => {
 					const number = $L('Season {number}').replace('{number}', season.seasonNumber);
 					const year = season.airDate ? String(season.airDate).slice(0, 4) : '';
-					const status = frostSeerrStatus(seerr.seasonMarkers?.get(season.seasonNumber));
+					const status = frostSeerrStatus(seerr.seasonMarkers?.get(season.seasonNumber), statusColors);
 					return (
 						<SpottableDiv key={season.seasonNumber} className={`${css.row} ${css.seasonRow}`} data-frost-key={`seasons:${i}`} data-index={i} onClick={handleSeerrSeason}>
 							{thumb(seerrApi.getImageUrl(season.posterPath, 'w342'), css.seasonPoster)}
@@ -550,7 +549,7 @@ const FrostScreen = (props) => {
 		<div className={`${css.scroll} ${css.gridArea}`} data-frost-scroll>
 			<div className={`${css.scrollBody} ${css.posterGrid}`}>
 				{grid(shownTab, posters, (entry, i) => {
-					const status = entry._seerr ? frostSeerrStatus(entry.mediaInfo?.status) : null;
+					const status = entry._seerr ? frostSeerrStatus(entry.mediaInfo?.status, statusColors) : null;
 					const bannerStatus = seerrStyle === 'banner' ? seerrTitleStatus(entry) : null;
 					return (
 						<SpottableDiv key={entry.cardKey || entry.Id || i} className={css.posterTile} data-frost-key={`${shownTab}:${i}`} data-index={i} onClick={handlePoster}>
@@ -629,13 +628,13 @@ const FrostScreen = (props) => {
 						style={blurredUrl ? undefined : {filter: `blur(${ENVIRONMENT_BLUR}px)`}}
 					/>
 				)}
-				<div className={css.dim} style={scrimStyle(VIGNETTE)} />
+				<div className={css.dim} style={scrimStyle(scrims.vignette)} />
 			</div>
 			<div className={css.stage} style={frostStageStyle(navbarTop)}>
 				<div className={css.window}>
 					<div className={`${css.art} ${shownTab === 'overview' ? '' : css.artHidden}`}>
 						{backdropShown && <img className={css.artImage} src={backdropUrl} alt="" />}
-						<div className={css.artFade} style={scrimStyle(ART_FADE)} />
+						<div className={css.artFade} style={scrimStyle(scrims.artFade)} />
 					</div>
 					{shownTab !== 'overview' && (
 						<div className={css.heading}>

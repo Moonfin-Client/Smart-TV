@@ -1,6 +1,6 @@
-import {buildThemeOverrideCss} from './themeOverrides';
+import {applyThemeOverrides, buildThemeOverrideCss, registerThemeSheet} from './themeOverrides';
 import {resolveThemeById} from './themeRegistry';
-import {contrastRatio, inkOn, toCssColor, MIN_BUTTON_CONTRAST} from './themeSpec';
+import {contrastRatio, inkOn, resolveFocusBorderColor, toCssColor, MIN_BUTTON_CONTRAST} from './themeSpec';
 
 describe('buildThemeOverrideCss', () => {
 	it('scopes every rule to the active theme id', () => {
@@ -78,6 +78,42 @@ describe('buildThemeOverrideCss', () => {
 		expect(buildThemeOverrideCss(theme, {focusBorderColor: '#ff0000'})).toContain('rgb(255, 0, 0)');
 		expect(buildThemeOverrideCss(theme, {focusBorderColor: 'nonsense'})).not.toContain('nonsense');
 	});
+
+	it('rings the Seerr screens in the focus border color, falling back to the theme\'s', async () => {
+		const theme = resolveThemeById('moonfin');
+		registerThemeSheet('seerrDiscover', {tileRing: 'tileRing', pill: 'pill'});
+		registerThemeSheet('seerrBrowse', {chip: 'chip', letter: 'letter', toolButton: 'toolButton'});
+		registerThemeSheet('seerrPosterCard', {ring: 'ring'});
+		const prefix = "html[data-theme-id='moonfin'][data-theme-id]";
+		const css = buildThemeOverrideCss(theme, {focusBorderColor: '#ff0000'});
+		expect(css).toContain(`${prefix} .tileRing { border-color: rgb(255, 0, 0); }`);
+		expect(css).toContain(`${prefix} .ring { border-color: rgb(255, 0, 0); }`);
+		expect(css).toContain(`${prefix} .chip:focus, ${prefix} .letter:focus, ${prefix} .toolButton:focus { box-shadow: inset 0 0 0 2px rgb(255, 0, 0); }`);
+		const themeColor = resolveFocusBorderColor(theme, '');
+		expect(buildThemeOverrideCss(theme, {focusBorderColor: ''})).toContain(`${prefix} .ring { border-color: ${themeColor}; }`);
+	});
+
+	it('rings the screens that load on demand once they hand their stylesheets over', async () => {
+		const theme = resolveThemeById('moonfin');
+		applyThemeOverrides(theme, {focusBorderColor: '#ff0000'});
+		expect(document.getElementById('moonfin-theme-overrides').textContent).not.toContain('chapterItem');
+		registerThemeSheet('player', {liveBtn: 'liveBtn', chapterItem: 'chapterItem'});
+		registerThemeSheet('playerOverlays', {offsetBtn: 'offsetBtn', actionBtn: 'actionBtn', settingItem: 'settingItem', sliderItem: 'sliderItem'});
+		await Promise.resolve();
+		const lines = document.getElementById('moonfin-theme-overrides').textContent.split('\n');
+		const prefix = "html[data-theme-id='moonfin'][data-theme-id]";
+		expect(lines).toContain(`${prefix} .liveBtn:hover, ${prefix} .liveBtn:focus, ${prefix} .chapterItem:hover, ${prefix} .chapterItem:focus { border-color: rgb(255, 0, 0); }`);
+		expect(lines).toContain(`${prefix} .sliderItem:focus-within { border-color: rgb(255, 0, 0); }`);
+	});
+});
+
+describe('resolveFocusBorderColor', () => {
+	it('falls back to the theme focus border for Theme Default and anything that isn\'t a hex color', () => {
+		const theme = resolveThemeById('moonfin');
+		expect(resolveFocusBorderColor(theme, '#ff0000')).toBe('rgb(255, 0, 0)');
+		expect(resolveFocusBorderColor(theme, '')).toBe('rgb(0, 164, 220)');
+		expect(resolveFocusBorderColor(theme, 'moonfinCyan')).toBe('rgb(0, 164, 220)');
+	});
 });
 
 describe('ink on a focused row', () => {
@@ -130,5 +166,15 @@ describe('ink on a focused row', () => {
 			const fallback = contrastRatio(theme.colors.buttonFocused, inkOn(theme.colors.buttonFocused) === '0, 0, 0' ? '#FF000000' : '#FFFFFFFF');
 			expect(Math.max(declared, fallback)).toBeGreaterThanOrEqual(MIN_BUTTON_CONTRAST);
 		}
+	});
+
+	it('draws Frost in the theme rather than white on glass', () => {
+		const lines = buildThemeOverrideCss(resolveThemeById('neon_pulse')).split('\n');
+		const ruleFor = (selector) => lines.find((line) => line.includes(`] ${selector} {`) || line.includes(`] ${selector}, `)) || '';
+		expect(ruleFor('.actionsFrosted > .actionBtn:first-child')).toContain('background: rgba(255, 46, 146, 0.86)');
+		expect(ruleFor('.actionsFrosted > .actionBtn:first-child:focus')).toContain('background: rgb(0, 229, 255)');
+		expect(lines.find((line) => line.includes('] .pill:focus, ') && line.includes('] .tab:focus {'))).toContain('background: rgba(0, 229, 255, 0.38)');
+		expect(ruleFor('.window')).toContain('background: rgba(30, 10, 63, 0.55)');
+		expect(lines.filter((line) => line.includes('.actionsFrosted') && /#fff\b|#000\b|#30d158/.test(line))).toEqual([]);
 	});
 });

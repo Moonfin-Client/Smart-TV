@@ -45,7 +45,7 @@ export const getExternalHomeRowConfigs = () => ([
 const findPreset = (id) => getExternalHomeRowConfigs().find((c) => c.id === id) || null;
 
 const yearOf = (item) => {
-	const year = parseInt(String(item.productionYear || '').slice(0, 4), 10);
+	const year = parseInt(String(item.productionYear || item.year || item.release_date || '').slice(0, 4), 10);
 	return Number.isFinite(year) ? year : undefined;
 };
 
@@ -124,6 +124,53 @@ export const buildSeasonalRow = (payload, hiddenHolidays = []) => {
 		items,
 		isExternalRow: true,
 		isSeasonalRow: true
+	};
+};
+
+export const formatWatchingNowSubtitle = (data) => {
+	if (!data) return '';
+	const usersStr = Number(data.users || 0).toLocaleString();
+	const moviesStr = Number(data.movies || 0).toLocaleString();
+	const showsStr = Number(data.shows || 0).toLocaleString();
+	if (data.mode === 'today') {
+		return $L('{users} watched today \u00b7 {movies} movies \u00b7 {shows} shows')
+			.replace('{users}', usersStr)
+			.replace('{movies}', moviesStr)
+			.replace('{shows}', showsStr);
+	}
+	return $L('{users} watching now \u00b7 {movies} movies \u00b7 {shows} shows')
+		.replace('{users}', usersStr)
+		.replace('{movies}', moviesStr)
+		.replace('{shows}', showsStr);
+};
+
+export const normalizeWatchingNowItem = (item, index) => {
+	const isShow = item.media_type === 'show';
+	const mediaType = isShow ? 'tv' : 'movie';
+	const tmdbId = item.tmdb_id ? String(item.tmdb_id) : null;
+	const imdbId = item.imdb_id || null;
+	const key = imdbId || tmdbId || item.public_id || String(index);
+	const rank = index + 1;
+	return {
+		Id: `ext-mdblist-watching-${key}`,
+		Name: item.title,
+		Type: isShow ? 'Series' : 'Movie',
+		ProductionYear: yearOf(item),
+		Rank: rank,
+		Watchers: item.watchers || 0,
+		ProviderIds: {
+			...(imdbId ? {Imdb: imdbId} : {}),
+			...(tmdbId ? {Tmdb: tmdbId} : {})
+		},
+		_externalBackdropUrl: item.backdrop || null,
+		_externalPosterUrl: item.backdrop || item.poster || null,
+		_externalLogoUrl: item.logo || null,
+		_external: true,
+		mediaInfo: {},
+		_seerr: true,
+		_seerrType: 'item',
+		_seerrMediaType: mediaType,
+		_seerrRaw: seerrRawFor(tmdbId, imdbId, item.title, mediaType)
 	};
 };
 

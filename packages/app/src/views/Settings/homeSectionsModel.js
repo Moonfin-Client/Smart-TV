@@ -27,7 +27,7 @@ export const homeRowGroup = (row) => {
 	if (FAVORITE_ROW_IDS.includes(row.id)) return 'favorites';
 	if (row.source === 'playlists' || row.id === 'playlists') return 'playlists';
 	if (row.source === 'seerr' || row.id.startsWith('seerr_') || row.id === 'radarr_calendar' || row.id === 'sonarr_calendar') return 'seerr';
-	if (row.id.startsWith('tmdb_') || row.id.startsWith('imdb-')) return 'external';
+	if (row.id.startsWith('tmdb_') || row.id.startsWith('imdb-') || row.id === 'mdblist_watching_now') return 'external';
 	return 'general';
 };
 

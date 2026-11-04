@@ -20,8 +20,8 @@ describe('rowPeekHeight', () => {
 	});
 
 	test('modern rows show the title and half of a poster at the chosen size', () => {
-		expect(peek({homeRowsStyle: 'v2'})).toBe(230);
-		expect(peek({homeRowsStyle: 'v2', homeRowsPosterSize: 'large'})).toBe(266);
+		expect(peek({homeRowsStyle: 'v2'})).toBe(150);
+		expect(peek({homeRowsStyle: 'v2', homeRowsPosterSize: 'large'})).toBe(170);
 	});
 
 	test('classic rows follow the shape of the first row', () => {

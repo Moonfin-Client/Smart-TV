@@ -89,8 +89,11 @@ import serverLogger from '../../services/serverLogger';
 import {summarizeAvplayTracks, describeSubtitleStream, describeSubtitleStreams} from './subtitleDiagnostics';
 import {describeVideoStream, readVideoSupport} from './videoDiagnostics';
 import useRemotePlayerControls from './useRemotePlayerControls';
+import {registerThemeSheet} from '../../theme/themeOverrides';
 
 import css from './TizenPlayer.module.less';
+
+registerThemeSheet('player', css);
 
 // AVPlay reads a display rect against a 1920x1080 screen whatever the app renders at, so
 // these stay fixed rather than following the window. Handing it panel pixels on a 4K set
