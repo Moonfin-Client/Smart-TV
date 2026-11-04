@@ -795,18 +795,17 @@ export const getPlaybackInfo = async (itemId, options = {}) => {
 
 	let playMethod = determinePlayMethod(mediaSource, capabilities, options, passthroughSettings);
 
-	// When we let the server pick the user's preferred subtitle (no explicit
-	// index) and it resolved to a bitmap track on a transcode, the server would
-	// burn it into the video, far too slow for a source the user never asked to
-	// re-encode. Re-negotiate without it, PGS still renders client-side from its
-	// .sup URL and burn-in stays an explicit choice. Plex can't hand out a bitmap
-	// track, so there the burn stays.
+	// When the server picks a default PGS track on a transcode, avoid burning it
+	// in while the client renderer is enabled. Keep its index for the .sup URL.
+	// Other bitmap defaults and PGS with rendering disabled need server burn-in.
+	// Plex can't hand out a bitmap track, so there the burn stays.
 	const resolvedSub = serverType !== 'plex' && !hasExplicitSubtitle
 		? findSubtitleStreamByIndex(mediaSource.DefaultSubtitleStreamIndex, mediaSource.MediaStreams)
 		: null;
-	const avoidDefaultSubtitleBurnIn = resolvedSub && (isPgsSubtitleCodec(resolvedSub.Codec) || isBurnInSubtitleCodec(resolvedSub.Codec));
+	const avoidDefaultSubtitleBurnIn = resolvedSub && storedSettings.enablePgsRendering !== false &&
+		isPgsSubtitleCodec(resolvedSub.Codec);
 	if (avoidDefaultSubtitleBurnIn && playMethod === PlayMethod.Transcode) {
-		console.log('[playback] Server default subtitle is bitmap based on transcode, re-negotiating without burn-in');
+		console.log('[playback] Server default subtitle is client-rendered PGS on transcode, re-negotiating without burn-in');
 		const noBurnInfo = await api.getPlaybackInfo(itemId, {
 			DeviceProfile: deviceProfile,
 			StartTimeTicks: requestedStartTime,

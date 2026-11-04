@@ -3,6 +3,7 @@ import * as jellyfinApi from './jellyfinApi';
 import {getDeviceCapabilities, getDeviceProfile} from './deviceProfile';
 import {linkBitrate} from './linkBitrate';
 import {getPlayMethod} from './video';
+import {getFromStorage} from './storage';
 
 jest.mock('./jellyfinApi', () => {
 	const server = {getPlaybackInfo: jest.fn(), closeLiveStream: jest.fn(), reportPlaybackStopped: jest.fn()};
@@ -30,7 +31,7 @@ jest.mock('./video', () => ({
 	canRenderEmbeddedPgsInBand: () => false,
 	rendersSubtitleInHost: () => false
 }));
-jest.mock('./storage', () => ({getFromStorage: async () => ({})}));
+jest.mock('./storage', () => ({getFromStorage: jest.fn()}));
 jest.mock('./serverLogger', () => ({serverLogger: {playback: jest.fn()}}));
 jest.mock('./systemVolume', () => ({getVolumeState: jest.fn(), lastVolumeState: () => null}));
 jest.mock('../platform', () => ({isVega: () => false, isXbox: () => false, isTizen: () => false}));
@@ -45,6 +46,7 @@ beforeEach(async () => {
 	api.reportPlaybackStopped.mockResolvedValue(null);
 	getDeviceProfile.mockResolvedValue({});
 	getPlayMethod.mockReturnValue('DirectPlay');
+	getFromStorage.mockResolvedValue({});
 	api.getPlaybackInfo.mockResolvedValue({
 		PlaySessionId: 'session',
 		MediaSources: [{Id: 'source', SupportsDirectPlay: true, Container: 'mkv', MediaStreams: []}]
@@ -116,6 +118,40 @@ describe('a server-approved file without a usable stream URL', () => {
 			index: 3, isImageBased: true, isBurnIn: false,
 			deliveryUrl: expect.stringContaining(`/Videos/movie-1/${av1.Id}/Subtitles/3/0/Stream.sup`)
 		}));
+	});
+
+	describe.each(['DirectStream', 'Transcode'])('%s without a URL and a server-rendered default', (method) => {
+		test.each([
+			['DVD', 'dvdsub', {}],
+			['DVB', 'dvbsub', {}],
+			['DVB alias', 'dvb_subtitle', {}],
+			['PGS with rendering disabled', 'pgssub', {enablePgsRendering: false}]
+		])('keeps the server responsible for %s subtitles', async (_label, codec, settings) => {
+			getDeviceCapabilities.mockResolvedValue({});
+			getPlayMethod.mockReturnValue(method);
+			getFromStorage.mockResolvedValue(settings);
+			const source = {...av1, DefaultSubtitleStreamIndex: 3, MediaStreams: [
+				...av1.MediaStreams, {Type: 'Subtitle', Index: 3, Codec: codec}
+			]};
+			api.getPlaybackInfo
+				.mockResolvedValueOnce({PlaySessionId: 'first', MediaSources: [source]})
+				.mockResolvedValueOnce({PlaySessionId: 'fallback', MediaSources: [{
+					...source,
+					MediaStreams: [...av1.MediaStreams, {Type: 'Subtitle', Index: 3, Codec: codec, DeliveryMethod: 'Encode'}],
+					TranscodingUrl: '/Videos/movie-1/master.m3u8?VideoCodec=h264&SubtitleStreamIndex=3'
+				}]});
+
+			const result = await playback.getPlaybackInfo(movie.Id, {item: movie});
+
+			expect(api.getPlaybackInfo).toHaveBeenCalledTimes(2);
+			expect(api.getPlaybackInfo.mock.calls[1][1]).toMatchObject({
+				EnableDirectPlay: false, EnableDirectStream: false, EnableTranscoding: true
+			});
+			expect(api.getPlaybackInfo.mock.calls[1][1].SubtitleStreamIndex).toBeUndefined();
+			expect(result.playMethod).toBe('Transcode');
+			expect(result.defaultSubtitleStreamIndex).toBe(3);
+			expect(result.subtitleStreams).toContainEqual(expect.objectContaining({index: 3, isBurnIn: true}));
+		});
 	});
 
 	test.each([
