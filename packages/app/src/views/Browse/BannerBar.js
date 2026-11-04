@@ -6,6 +6,7 @@ import {getImageUrl, getFeaturedBackdropUrl, formatDuration} from '../../utils/h
 import {seerrThumbUrl} from '../../utils/tmdbThumb';
 import RatingsRow from '../../components/RatingsRow';
 import {KEYS} from '../../utils/keys';
+import MediaBarNewReleaseLabel from '../../components/MediaBarNewReleaseLabel';
 import css from './Browse.module.less';
 import {carouselIntervalMs} from '../../utils/carouselTiming';
 import {useScreensaverActive} from '../../hooks/useScreensaverActive';
@@ -39,6 +40,7 @@ const buildMeta = (item) => {
 const BannerBar = memo(({
 	isVisible,
 	featuredItems,
+	newReleases,
 	settings,
 	getItemServerUrl,
 	onSelectItem,
@@ -207,6 +209,8 @@ const BannerBar = memo(({
 					) : (
 						<h2 className={css.bannerTitle}>{currentFeatured.Name}</h2>
 					)}
+
+					<MediaBarNewReleaseLabel release={newReleases?.[currentFeatured.Id]} />
 
 					{meta && <div className={css.bannerMeta}>{meta}</div>}
 

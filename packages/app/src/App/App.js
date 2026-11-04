@@ -1595,7 +1595,7 @@ const AppContent = (props) => {
 				navigateTo(PANELS.SEERR_BROWSE);
 				break;
 			case 'series':
-				setSeerrBrowse({browseType: 'all', item: {name: $L('TV Shows')}, mediaType: 'tv'});
+				setSeerrBrowse({browseType: 'all', item: {name: $L('Series')}, mediaType: 'tv'});
 				navigateTo(PANELS.SEERR_BROWSE);
 				break;
 			case 'requests':
@@ -1869,6 +1869,7 @@ const AppContent = (props) => {
 		panelIndex !== PANELS.ADD_USER &&
 		panelIndex !== PANELS.GENRES &&
 		panelIndex !== PANELS.FAVORITES &&
+		panelIndex !== PANELS.SEERR_BROWSE &&
 		!(panelIndex === PANELS.DETAILS && ['Playlist', 'MusicAlbum', 'MusicArtist'].includes(selectedItem?.Type));
 
 	return (
@@ -1999,6 +2000,7 @@ const AppContent = (props) => {
 									onSelectStudio={handleSelectSeerrStudio}
 									onSelectNetwork={handleSelectSeerrNetwork}
 									onOpenRequests={handleOpenSeerrRequests}
+									onOpenSearch={handleOpenSearch}
 									onOpenShortcut={handleOpenSeerrShortcut}
 								/>
 							)}
@@ -2034,6 +2036,7 @@ const AppContent = (props) => {
 									item={seerrBrowse?.item}
 									mediaType={seerrBrowse?.mediaType}
 									onSelectItem={handleSelectSeerrItem}
+									onHome={handleHome}
 								backHandlerRef={backHandlerRef}
 							/>
 							)}

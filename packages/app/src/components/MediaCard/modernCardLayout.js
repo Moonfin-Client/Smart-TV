@@ -10,12 +10,18 @@ const POSTER_SIZE_MULTIPLIERS = {small: 0.8, default: 1, large: 1.2, xlarge: 1.4
 export const isStaticLibraryCard = (isLibraryRow, settings) =>
 	isLibraryRow === true && settings?.modernCardsOnMyMediaRow !== true;
 
+export const posterSizeScale = (posterSize) => POSTER_SIZE_MULTIPLIERS[posterSize] || 1;
+
+// Core's Medium poster on TV, 120 points tall on its 1150 wide canvas, drawn at 1920.
+const BASE_IMAGE_HEIGHT = 120 * 1920 / 1150;
+
 // Worked out together because a tile held static sits at the width a card grows
 // to on focus, which is what lines the row up with the ones around it.
-export const modernCardMetrics = ({posterSize, platform, isSquareItem, isStatic}) => {
-	const imageHeight = Math.round(360 * (POSTER_SIZE_MULTIPLIERS[posterSize] || 1));
-	const expandedWidth = Math.round(imageHeight * (platform === 'tizen' ? 16 / 9 : 1.65));
-	const posterWidth = isSquareItem ? imageHeight : Math.round((imageHeight * 2) / 3);
+export const modernCardMetrics = ({posterSize, isSquareItem, isStatic}) => {
+	const height = BASE_IMAGE_HEIGHT * posterSizeScale(posterSize);
+	const imageHeight = Math.round(height);
+	const expandedWidth = Math.round(height * 16 / 9);
+	const posterWidth = isSquareItem ? imageHeight : Math.round((height * 2) / 3);
 
 	return {imageHeight, expandedWidth, cardWidth: isStatic ? expandedWidth : posterWidth};
 };

@@ -11,6 +11,7 @@ import {SEASONAL_DENSITIES, normalizeSeasonalTheme} from '../utils/seasonalEffec
 import {normalizeSeasonalHiddenHolidays, normalizeSeasonalRowCountry} from '../utils/seasonalRow';
 import {sharePending} from '../utils/sharePending';
 import {pickedRowsFromLegacySections} from '../utils/pickedRows';
+import {MEDIA_BAR_SOURCES, NEW_RELEASE_DAYS} from '../utils/mediaBarNewRelease';
 import {
 	IMAGES as LOADING_IMAGES,
 	POSITIONS as LOADING_POSITIONS,
@@ -55,6 +56,7 @@ const SERVER_TO_LOCAL = {
 	homeBackdropEnabled: 'showHomeBackdrop',
 	use24HourClock: 'clockDisplay',
 	focusColor: 'focusBorderColor',
+	cardFocusExpansion: 'cardFocusZoom',
 	watchedIndicator: 'watchedIndicatorBehavior',
 	posterSize: 'homeRowsPosterSize',
 	homeImageUseSeriesImage: 'useSeriesThumbnails',
@@ -199,9 +201,11 @@ const VALUE_CONVERSIONS = {
 		toServer: v => CONTENT_TYPE_TO_SERVER[v],
 		fromServer: v => CONTENT_TYPE_FROM_SERVER[v]
 	},
+	// Other clients save the plain library draw as random.
 	mediaBarSourceType: {
-		fromServer: v => (v === 'library' || v === 'collection' ? v : undefined)
+		fromServer: v => (v === 'random' ? 'library' : MEDIA_BAR_SOURCES.includes(v) ? v : undefined)
 	},
+	mediaBarNewReleaseDays: oneOf(NEW_RELEASE_DAYS),
 	liveTvChannelSortBy: {
 		fromServer: v => (['number', 'name', 'favoritesFirst'].includes(v) ? v : undefined)
 	},
@@ -324,6 +328,7 @@ export const SYNCABLE_KEYS = [
 	'replaceSkipOutroWithNextUp',
 	'showHomeBackdrop', 'homeBackdropStyle', 'detailsBackdropEnabled', 'backdropBlurHome', 'backdropBlurDetail',
 	'mediaBarSourceType', 'mediaBarLibraryIds', 'mediaBarCollectionIds', 'mediaBarExternalLists',
+	'mediaBarNewReleaseBanner', 'mediaBarNewReleaseDays',
 	'mediaBarOverlayColor', 'mediaBarOverlayOpacity',
 	'homeRows', 'homeRowsStyle', 'modernCardsOnMyMediaRow', 'detailScreenStyle', 'detailExpandedTabs', 'fullScreenRows', 'homeRowsPosterSize', 'useSeriesThumbnails',
 	'episodePreviewEnabled', 'mediaPreviewMode', 'previewAudioEnabled', 'previewVolume',
@@ -370,6 +375,7 @@ export const SYNCABLE_KEYS = [
 	'detailMetadataOrderTv', 'hiddenDetailMetadataTv',
 	'hiddenDetailSectionsTv',
 	'focusBorderColor',
+	'cardFocusZoom',
 	'navbarOpacity',
 	'navbarColor',
 ];

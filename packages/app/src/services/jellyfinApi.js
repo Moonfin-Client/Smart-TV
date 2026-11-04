@@ -211,6 +211,12 @@ const fetchWithTimeout = (url, options = {}, timeoutMs = DEFAULT_TIMEOUT_MS) =>
 	mediaServerQueue.run(() => platformFetch(url, options, timeoutMs));
 export const getDeviceId = () => deviceId;
 
+// Builds the query string by hand to avoid URLSearchParams issues, leaving out empty values.
+const toQuery = (params) => Object.entries(params)
+	.filter(([, value]) => value !== undefined && value !== null && value !== '')
+	.map(([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(value)}`)
+	.join('&');
+
 const request = async (endpoint, options = {}) => {
 	const url = `${currentServer}${trimQuerySeparator(endpoint)}`;
 	const parentId = parentIdOf(endpoint);
@@ -552,17 +558,9 @@ export const api = {
 
 	getAllLibraries: () => request(`${userRoutes.views()}IncludeHidden=true`),
 
-	getItems: (params = {}) => {
-		// Manually build query string to avoid URLSearchParams issues
-		const queryParts = [];
-		for (const [key, value] of Object.entries(params)) {
-			if (value !== undefined && value !== null && value !== '') {
-				queryParts.push(`${encodeURIComponent(key)}=${encodeURIComponent(value)}`);
-			}
-		}
-		const query = queryParts.join('&');
-		return request(`${userRoutes.items()}${query}`);
-	},
+	getItems: (params = {}) => request(`${userRoutes.items()}${toQuery(params)}`),
+
+	getLatestItems: (params = {}) => request(`${userRoutes.latest()}${toQuery(params)}`),
 
 	getItem: (itemId) => request(userRoutes.item(itemId)),
 

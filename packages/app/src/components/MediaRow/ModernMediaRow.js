@@ -39,7 +39,9 @@ const ModernMediaRow = ({
 	menuOptions,
 	deferImages = false,
 	ratingsSurface,
-	hideOverview = false
+	hideOverview = false,
+	coreLook = false,
+	leadingInset = 0
 }) => {
 	const {settings} = useSettings();
 	const scrollerRef = useRef(null);
@@ -190,6 +192,7 @@ const ModernMediaRow = ({
 		platform === 'webos' ? css.platformWebos : '',
 		platform === 'tizen' ? css.platformTizen : '',
 		settings.fullScreenRows === true ? css.fullScreenRows : '',
+		coreLook ? css.coreLook : '',
 		typeof document !== 'undefined' && document.documentElement.classList.contains('legacy') ? css.platformLegacy : ''
 	].filter(Boolean).join(' ');
 	const rowStyle = typeof rowSpacing === 'number' ? {marginBottom: rowSpacing + 'px'} : undefined;
@@ -197,7 +200,6 @@ const ModernMediaRow = ({
 	if (loading) {
 		const {cardWidth, imageHeight} = modernCardMetrics({
 			posterSize: settings.homeRowsPosterSize,
-			platform,
 			isSquareItem: cardType === 'square'
 		});
 		return (
@@ -229,9 +231,10 @@ const ModernMediaRow = ({
 			onBlur={handleBlur}
 			style={rowStyle}
 		>
-			<h2 className={css.title}>{title}</h2>
+			<h2 className={css.title} style={coreLook ? {paddingLeft: `${leadingInset}px`} : undefined}>{title}</h2>
 			{subtitle && <div className={css.subtitle}>{subtitle}</div>}
-			<div className={css.scroller} ref={scrollerRef} onFocus={handleFocus}>
+			{/* Core starts the cards a little in from the title, 20 points against its 16. */}
+			<div className={css.scroller} ref={scrollerRef} onFocus={handleFocus} style={coreLook ? {paddingLeft: `${leadingInset + 6}px`} : undefined}>
 				<div className={css.items}>
 					{items.map((item, index) => {
 						const spotlightId = `media-${keyPrefix}-${item.Id}`;
@@ -259,6 +262,7 @@ const ModernMediaRow = ({
 								menuOptions={menuOptions}
 								ratingsSurface={ratingsSurface}
 								hideOverview={hideOverview}
+								coreLook={coreLook}
 							/>
 						);
 					})}
@@ -283,6 +287,7 @@ const areRowPropsEqual = (prev, next) => {
 	if (!prev.onLoadMore !== !next.onLoadMore) return false;
 	if (prev.loading !== next.loading || prev.titleWidth !== next.titleWidth || prev.cardType !== next.cardType) return false;
 	if (prev.deferImages !== next.deferImages || prev.ratingsSurface !== next.ratingsSurface || prev.hideOverview !== next.hideOverview) return false;
+	if (prev.coreLook !== next.coreLook || prev.leadingInset !== next.leadingInset) return false;
 	if (prev.items === next.items) return true;
 	if (prev.items?.length !== next.items?.length) return false;
 	for (let i = 0; i < prev.items.length; i++) {

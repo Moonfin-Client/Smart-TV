@@ -14,7 +14,8 @@ import {normalizeLatestMediaItems} from '../../utils/latestMediaRowNormalizer';
 import {EXCLUDED_COLLECTION_TYPES, filterItemsByExcludedGenres, matchesContentType} from './browseFilters';
 import {featuredConfigKey} from './featuredConfig';
 import {withExternalSlides} from './featuredExternal';
-import {readFeaturedSources} from './featuredSources';
+import {readDatedSource, readFeaturedSources} from './featuredSources';
+import {DATED_SOURCES} from '../../utils/mediaBarNewRelease';
 import {shuffleArray} from '../Details/detailsMedia';
 import {withoutBlockedItems} from '../../services/parentalControls';
 import {activeSyncProfile} from '../../context/SettingsContext';
@@ -104,7 +105,9 @@ const useBrowseData = ({
 				items = await mixInExternal([]);
 			}
 
-			if (items.length === 0 && s.useMoonfinPlugin) {
+			// The app reads the dated sources itself, so they work whatever plugin version the server has.
+			const datedSource = DATED_SOURCES.includes(sourceType);
+			if (items.length === 0 && s.useMoonfinPlugin && !datedSource) {
 				// The plugin answers from the synced picks, so it has to read the profile this TV syncs with.
 				const mediaBarResult = await seerrApi.getMoonfinMediaBar(serverUrl, accessToken, activeSyncProfile(s.syncProfile));
 				if (mediaBarResult?.Items?.length) {
@@ -112,12 +115,21 @@ const useBrowseData = ({
 				}
 			}
 
+			// What the bar can show: a title with a backdrop that no setting keeps off it.
+			const isUsable = (item) => item.Type !== 'BoxSet' && item.BackdropImageTags?.length > 0 &&
+				matchesContentType(item, s.featuredContentType) &&
+				filterItemsByExcludedGenres([item], s.excludedGenres).length > 0 && withoutBlockedItems([item]).length > 0;
+			const pickFrom = (pool) => shuffleArray(pool.filter(isUsable)).slice(0, count);
+
+			// Merged libraries keep the random draw, since the dated sources read one server.
+			if (items.length === 0 && datedSource && !unifiedMode) {
+				const options = {contentType: s.featuredContentType, days: s.mediaBarNewReleaseDays};
+				const readSource = async (parentId) => ({Items: await readDatedSource(api, sourceType, parentId, options)});
+				items = pickFrom(await readFeaturedSources(libraryIds.length > 0 ? libraryIds : [null], readSource, isUsable, count));
+			}
+
+			// A dated source with nothing in its window shows random titles instead.
 			if (items.length === 0) {
-				// What the bar can show: a title with a backdrop that no setting keeps off it.
-				const isUsable = (item) => item.Type !== 'BoxSet' && item.BackdropImageTags?.length > 0 &&
-					matchesContentType(item, s.featuredContentType) &&
-					filterItemsByExcludedGenres([item], s.excludedGenres).length > 0 && withoutBlockedItems([item]).length > 0;
-				const pickFrom = (pool) => shuffleArray(pool.filter(isUsable)).slice(0, count);
 				if (sourceType === 'collection' && collectionIds.length > 0) {
 					items = pickFrom(await readFeaturedSources(collectionIds, (cid) => api.getCollectionItems(cid, 50), isUsable, count));
 				} else if (unifiedMode) {

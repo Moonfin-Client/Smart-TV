@@ -8,7 +8,7 @@ const ratingRows = (surface) => ['mdblistEnabled', 'ratingSources', 'showRatingL
 	.map((name) => ratingKey(surface, name));
 
 // Settings whose home preview is the media bar rather than the navbar and rows.
-export const MEDIA_BAR_KEYS = ['featuredBarStyle', 'mediaBarOverlayColor', 'mediaBarOverlayOpacity', ...ratingRows('mediaBar')];
+export const MEDIA_BAR_KEYS = ['featuredBarStyle', 'mediaBarOverlayColor', 'mediaBarOverlayOpacity', 'mediaBarNewReleaseBanner', 'mediaBarNewReleaseDays', ...ratingRows('mediaBar')];
 
 // The home rows' own ratings, which the modern rows draw under the focused card.
 export const FOCUSED_CARD_KEYS = ratingRows('homeRows');
