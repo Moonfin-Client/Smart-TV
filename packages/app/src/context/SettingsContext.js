@@ -1124,6 +1124,16 @@ export function SettingsProvider({children}) {
 						? prev[key]
 						: incoming;
 				}
+				if (resolved.homeRows === undefined && nextValues.mdblistWatchingNowEnabled === true) {
+					const existing = nextValues.homeRows || prev.homeRows || [];
+					const hasRow = existing.some((r) => r.id === 'mdblist_watching_now');
+					const adjusted = hasRow
+						? existing.map((r) => r.id === 'mdblist_watching_now' ? {...r, enabled: true} : r)
+						: [...existing, {id: 'mdblist_watching_now', name: 'Watching on MDBList', enabled: true, order: existing.length}];
+					if (!sameSyncedValue(adjusted, prev.homeRows)) {
+						nextValues.homeRows = adjusted;
+					}
+				}
 				const tmdbApiKey = resolved.tmdbApiKey !== undefined ? resolved.tmdbApiKey : prev.tmdbApiKey;
 				const homeRowsStyle = normalizeHomeRowsStyle(nextValues.homeRowsStyle);
 				const detailScreenStyle = normalizeDetailScreenStyle(nextValues.detailScreenStyle);

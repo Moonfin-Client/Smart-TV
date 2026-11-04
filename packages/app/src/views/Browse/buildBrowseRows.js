@@ -297,6 +297,16 @@ export const buildBrowseRows = ({allRowData, seerrRows, externalRows, homeRowsCo
 	return orderRows([...rows, ...placeholders.map(withSubtitles)], rowOrderMap);
 };
 
+const sameWatchingNowItem = (next, prev) =>
+	next?.Id === prev?.Id &&
+	next?.Name === prev?.Name &&
+	next?.Type === prev?.Type &&
+	next?.Rank === prev?.Rank &&
+	next?.Watchers === prev?.Watchers &&
+	next?._externalBackdropUrl === prev?._externalBackdropUrl &&
+	next?._externalPosterUrl === prev?._externalPosterUrl &&
+	next?._externalLogoUrl === prev?._externalLogoUrl;
+
 // Rebuilding produces a new array every time, which would reload every card on screen. Only
 // the parts a row is drawn from are compared, since nothing else can change its appearance.
 export const sameRowList = (prev, next) => {
@@ -307,6 +317,10 @@ export const sameRowList = (prev, next) => {
 		}
 		const nextItems = next[i].items;
 		const prevItems = prev[i].items;
+		if (next[i].isWatchingNowRow && next[i].subtitle !== prev[i].subtitle) return false;
+		if (next[i].isWatchingNowRow && nextItems.some((item, index) => !sameWatchingNowItem(item, prevItems[index]))) {
+			return false;
+		}
 		if (nextItems[0]?.Id !== prevItems[0]?.Id ||
 			nextItems[nextItems.length - 1]?.Id !== prevItems[prevItems.length - 1]?.Id) {
 			return false;
