@@ -15,7 +15,7 @@ import {apiSortBy, getGenresIncludeTypes, isPlaylistOrder, resolveSortOrder} fro
 import {collapseLatestTvItems} from '../../utils/latestMediaRowNormalizer';
 import {isPickedRow, isPickedRowShown, isSameServer} from '../../utils/pickedRows';
 import mapBounded from '../../utils/mapBounded';
-import {ROW_MAX_ITEMS, pageableRow} from './rowPaging';
+import {pageableRow, readFoldedHead} from './rowPaging';
 
 // How many sections from the top load with Home. A picked row below them waits until Home comes
 // near it, so a Home with hundreds of collections doesn't fetch them all up front.
@@ -93,10 +93,12 @@ const expandPlaylistsToItems = async (api, playlists, limit, usePlaylistOrder, s
 
 // A library's Recently Added, read `limit` cards long. The server's list has no start index, so a
 // longer row is asked for again, and a show's new episodes fold into one card for the series.
-const readLatestHead = (api, lib) => async (limit) => {
-	const latest = await api.getLatest(lib.Id, latestMediaFetchLimitForCollection(lib.CollectionType, limit, ROW_MAX_ITEMS * 2));
-	return {Items: normalizeLatestMediaItems(latest, {collectionType: lib.CollectionType, limit}), hasMore: true};
-};
+const readLatestHead = (api, lib) => (limit) => readFoldedHead(
+	(size) => api.getLatest(lib.Id, size),
+	(latest) => normalizeLatestMediaItems(latest, {collectionType: lib.CollectionType, limit: 0}),
+	limit,
+	latestMediaFetchLimitForCollection(lib.CollectionType, limit, Infinity)
+);
 
 const loadLatestAndRecentlyReleased = async (ctx) => {
 	const {api, appendRows, eligibleLibraries, settings} = ctx;
@@ -484,18 +486,19 @@ const pickedRowSource = async (ctx, row) => {
 	return {api: createApiForServer(server.url, server.accessToken, server.userId, server.serverType || 'jellyfin'), server};
 };
 
-const loadPickedRowItems = async (ctx, api, row, limit = PICKED_ROW_LIMIT) => {
+// A picked row's first `limit` cards, as a list result.
+const loadPickedRowItems = async (ctx, api, row, limit) => {
 	const {settings} = ctx;
 	// Silo sends a section's whole row at once, in its own order.
 	if (row.source === 'server') return (await api.getServerHomeSectionItems(row.itemId, PICKED_ROW_LIMIT))?.Items || [];
 	if (row.source === 'collections') {
-		return loadCollectionRowItems(api, row.itemId, {
+		return {Items: await loadCollectionRowItems(api, row.itemId, {
 			limit,
 			usePlaylistOrder: isPlaylistOrder(settings.collectionsRowSortBy),
 			sortBy: ctx.collectionsSortBy,
 			sortOrder: ctx.collectionsSortOrder,
 			showEpisodes: settings.collectionsRowShowEpisodes
-		});
+		})};
 	}
 	if (row.source === 'genres') {
 		const result = await api.getItems({
@@ -508,13 +511,14 @@ const loadPickedRowItems = async (ctx, api, row, limit = PICKED_ROW_LIMIT) => {
 			Limit: limit,
 			Fields: HOME_ROW_ITEM_FIELDS
 		});
-		return result?.Items || [];
+		return result || {Items: []};
 	}
-	const playlist = isPlaylistOrder(settings.playlistsRowSortBy)
-		? await api.getPlaylistItems(row.itemId, limit)
-		: await api.getItems({ParentId: row.itemId, SortBy: ctx.playlistsSortBy, SortOrder: ctx.playlistsSortOrder, Limit: limit, Fields: HOME_ROW_ITEM_FIELDS});
-	const items = playlist?.Items || [];
-	return settings.playlistsRowShowEpisodes ? items : collapseLatestTvItems(items);
+	const readPlaylist = (size) => (isPlaylistOrder(settings.playlistsRowSortBy)
+		? api.getPlaylistItems(row.itemId, size)
+		: api.getItems({ParentId: row.itemId, SortBy: ctx.playlistsSortBy, SortOrder: ctx.playlistsSortOrder, Limit: size, Fields: HOME_ROW_ITEM_FIELDS}));
+	if (settings.playlistsRowShowEpisodes) return (await readPlaylist(limit)) || {Items: []};
+	// A series' episodes fold into one card, so a head of cards can take a longer read.
+	return readFoldedHead(async (size) => (await readPlaylist(size))?.Items, collapseLatestTvItems, limit);
 };
 
 const fetchPluginSectionRow = async (ctx, row) => {
@@ -533,7 +537,10 @@ const fetchPluginSectionRow = async (ctx, row) => {
 				_serverType: server.serverType || 'jellyfin'
 			}))
 			: items);
-		const readHead = async (limit) => ({Items: tagged(await loadPickedRowItems(ctx, source.api, row, limit))});
+		const readHead = async (limit) => {
+			const result = await loadPickedRowItems(ctx, source.api, row, limit);
+			return {...result, Items: tagged(result.Items || [])};
+		};
 		const first = await readHead(PICKED_ROW_LIMIT);
 		if (first.Items.length === 0) return null;
 		return pageableRow({

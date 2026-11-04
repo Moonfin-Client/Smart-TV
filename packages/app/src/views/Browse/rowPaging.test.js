@@ -1,5 +1,5 @@
 import browseReducer, {browseInitialState} from './browseReducer';
-import {ROW_MAX_ITEMS, extendRow, headLengthFor, moreAfter, nextHeadLength, pageableRow} from './rowPaging';
+import {ROW_MAX_ITEMS, extendRow, headLengthFor, moreAfter, nextHeadLength, pageableRow, readFoldedHead} from './rowPaging';
 
 const cards = (from, to) => Array.from({length: to - from}, (_, i) => ({Id: `i${from + i}`}));
 
@@ -43,11 +43,35 @@ describe('row paging', () => {
 		const readHead = jest.fn();
 		const row = pageableRow({id: 'resume', items: cards(0, 2)}, {Items: cards(0, 2), TotalRecordCount: 4}, 2, readHead);
 		const state = {...browseInitialState, allRowData: [{id: 'nextup', items: []}, row]};
-		const next = browseReducer(state, {type: 'EXTEND_ROW', id: 'resume', items: cards(0, 4), hasMore: false});
+		const next = browseReducer(state, {type: 'EXTEND_ROW', id: 'resume', readHead, items: cards(0, 4), hasMore: false});
 		expect(next.allRowData[0]).toBe(state.allRowData[0]);
 		expect(next.allRowData[1].items).toHaveLength(4);
 		expect(next.allRowData[1].readHead).toBe(readHead);
 		expect(next.allRowData[1].hasMore).toBe(false);
 		expect(browseReducer(state, {type: 'EXTEND_ROW', id: 'gone', items: [], hasMore: false})).toBe(state);
+	});
+
+	it('drops a page read for a row a reload has since replaced', () => {
+		const row = pageableRow({id: 'collections', items: cards(0, 2)}, {Items: cards(0, 2)}, 2, jest.fn());
+		const state = {...browseInitialState, allRowData: [row]};
+		expect(browseReducer(state, {type: 'EXTEND_ROW', id: 'collections', readHead: jest.fn(), items: cards(0, 4), hasMore: true})).toBe(state);
+	});
+
+	it('stops a row at the cap even when a head brings more than a page', () => {
+		const row = {id: 'latest-1', items: cards(0, 95), hasMore: true};
+		const longer = extendRow(row, cards(0, 110), true);
+		expect(longer.items).toHaveLength(ROW_MAX_ITEMS);
+		expect(longer.hasMore).toBe(false);
+	});
+
+	it('reads further when folding leaves a head short, until the list runs out', async () => {
+		// 64 episodes of one show, then one film.
+		const list = [...Array.from({length: 64}, (_, i) => ({Id: `e${i}`, show: 's'})), {Id: 'f', show: 'f'}];
+		const fold = (items) => [...new Map(items.map((item) => [item.show, {Id: item.show}])).values()];
+		const readRaw = jest.fn(async (size) => list.slice(0, size));
+		const head = await readFoldedHead(readRaw, fold, 16, 32);
+		expect(head.Items.map((card) => card.Id)).toEqual(['s', 'f']);
+		expect(head.hasMore).toBe(false);
+		expect(readRaw.mock.calls.map(([size]) => size)).toEqual([32, 64, 128]);
 	});
 });

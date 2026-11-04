@@ -33,17 +33,39 @@ export const nextHeadLength = (row) => Math.min((row.items?.length || 0) + ROW_P
 // Adds the items of a longer head that the row doesn't have yet to its end, leaving the cards
 // already drawn as they are. A head that brought nothing new ends the row.
 export const extendRow = (row, items, hasMore) => {
-	const seen = new Set((row.items || []).map((item) => item.Id));
+	const current = row.items || [];
+	const seen = new Set(current.map((item) => item.Id));
+	// Items added to the top since the row was read can make a head bring more than a page.
 	const added = (items || []).filter((item) => {
 		if (!item || seen.has(item.Id)) return false;
 		seen.add(item.Id);
 		return true;
-	});
+	}).slice(0, Math.max(0, ROW_MAX_ITEMS - current.length));
+	const next = added.length > 0 ? [...current, ...added] : current;
 	return {
 		...row,
-		items: added.length > 0 ? [...row.items, ...added] : row.items,
-		hasMore: added.length > 0 && hasMore
+		items: next,
+		hasMore: added.length > 0 && next.length < ROW_MAX_ITEMS && hasMore
 	};
+};
+
+// How far a folded read goes before giving up on finding another card.
+const MAX_RAW_READ = ROW_MAX_ITEMS * 2;
+
+// Reads a head `limit` cards long from a list whose items fold together, like a show's episodes
+// into one series card. Folding can leave a read short of `limit`, so the raw read doubles
+// until it has the cards, the list runs out, or it reaches MAX_RAW_READ.
+export const readFoldedHead = async (readRaw, fold, limit, rawLimit = limit) => {
+	let size = Math.min(rawLimit, MAX_RAW_READ);
+	for (;;) {
+		const raw = (await readRaw(size)) || [];
+		const items = fold(raw);
+		const full = raw.length >= size;
+		if (items.length >= limit || !full || size >= MAX_RAW_READ) {
+			return {Items: items.slice(0, limit), hasMore: items.length > limit || full};
+		}
+		size = Math.min(size * 2, MAX_RAW_READ);
+	}
 };
 
 // A refreshed row read back as long as the one on screen, so paging in more isn't undone.
