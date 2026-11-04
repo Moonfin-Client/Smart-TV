@@ -9,7 +9,7 @@ import {seasonalCountryParam} from '../../utils/seasonalRow';
 import {resolveDeviceCountry} from '../../utils/deviceCountry';
 import {settleSections} from './browseCache';
 
-// Every card opens in Seerr, owned or not, so this row skips the library match.
+// Owned titles become library items so they open and play without Seerr, the rest open in Seerr.
 const loadWatchingNowRow = async (forceRefresh = false) => {
 	const data = await fetchWatchingNow(null, {forceRefresh});
 	const identified = (data?.items || []).filter((item) => item && (item.imdb_id || item.tmdb_id));
@@ -18,7 +18,7 @@ const loadWatchingNowRow = async (forceRefresh = false) => {
 		id: 'mdblist_watching_now',
 		title: $L('Watching on MDBList'),
 		subtitle: formatWatchingNowSubtitle(data),
-		items: identified.map(normalizeWatchingNowItem),
+		items: await resolveItemsByProviderIds(identified.map(normalizeWatchingNowItem)),
 		isExternalRow: true,
 		isWatchingNowRow: true
 	};

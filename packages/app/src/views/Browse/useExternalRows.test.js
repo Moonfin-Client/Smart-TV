@@ -2,7 +2,7 @@ import {renderHook, waitFor} from '@testing-library/react';
 
 import useExternalRows from './useExternalRows';
 import {memoryCache, resetEmptySections} from './browseCache';
-import {fetchExternalPresetRow} from '../../utils/externalHomeRows';
+import {fetchExternalPresetRow, normalizeWatchingNowItem} from '../../utils/externalHomeRows';
 import {fetchWatchingNow} from '../../services/mdblistApi';
 import {resolveItemsByProviderIds} from '../../services/jellyfinApi';
 
@@ -40,6 +40,7 @@ const load = async () => {
 beforeEach(() => {
 	resetEmptySections();
 	resolveItemsByProviderIds.mockImplementation(async (items) => items);
+	normalizeWatchingNowItem.mockImplementation((item, idx) => ({Id: `ext-${idx}`, Name: item.title, Rank: idx + 1}));
 	jest.spyOn(console, 'warn').mockImplementation(() => {});
 });
 
@@ -62,8 +63,6 @@ describe('empty external rows', () => {
 	});
 
 	test('watching now excludes items without imdb_id or tmdb_id', async () => {
-		const {normalizeWatchingNowItem} = require('../../utils/externalHomeRows');
-		normalizeWatchingNowItem.mockImplementation((item, idx) => ({Id: `ext-${idx}`, Name: item.title, Rank: idx + 1}));
 		fetchWatchingNow.mockResolvedValue({
 			items: [
 				{title: 'Valid Movie', imdb_id: 'tt123456'},
@@ -100,11 +99,11 @@ describe('empty external rows', () => {
 		expect(result.current.pending.map((row) => row.id)).toEqual(['mdblist_watching_now']);
 	});
 
-	test("watching now cards aren't matched against the library", async () => {
+	test('owned watching now titles become library items', async () => {
 		fetchWatchingNow.mockResolvedValue({items: [{title: 'Valid Movie', imdb_id: 'tt123456'}]});
-		resolveItemsByProviderIds.mockClear();
+		resolveItemsByProviderIds.mockImplementation(async (items) => items.map((item) => ({...item, Id: 'library-id', _resolvedFromExternal: true})));
 		const {result} = renderHook(() => useExternalRows({settings: watchingNowSettings, homeRows: watchingNowRows, kidsMode: false}));
 		await waitFor(() => expect(result.current.rows.length).toBe(1));
-		expect(resolveItemsByProviderIds.mock.calls.flatMap(([items]) => items)).toEqual([]);
+		expect(result.current.rows[0].items[0]).toMatchObject({Id: 'library-id', _resolvedFromExternal: true, Rank: 1});
 	});
 });
