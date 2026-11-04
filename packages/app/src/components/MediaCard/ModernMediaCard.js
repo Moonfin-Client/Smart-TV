@@ -391,7 +391,10 @@ const ModernMediaCard = ({
 		}
 		const wideUrl = openUrlRef.current;
 		openUrlRef.current = null;
-		if (!wideUrl || !slides) return undefined;
+		if (!wideUrl || !slides) {
+			setClosingUrl(null);
+			return undefined;
+		}
 		setClosingUrl(wideUrl);
 		const timer = setTimeout(() => setClosingUrl(null), openMs);
 		return () => clearTimeout(timer);
@@ -463,7 +466,7 @@ const ModernMediaCard = ({
 								style={{
 									width: `${cardWidth}px`,
 									height: `${imageHeight}px`,
-									opacity: expanded ? 0 : 1,
+									opacity: expanded && artShown ? 0 : 1,
 									transition: `opacity ${openMs}ms ${EXPAND_CURVE}`
 								}}
 							/>

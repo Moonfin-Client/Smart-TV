@@ -184,6 +184,9 @@ describe('ModernMediaCard sliding open', () => {
 		passArtWait();
 		expect(art(container).getAttribute('src')).toContain('/Images/Thumb');
 		expect(veil(container).getAttribute('src')).toContain('/Images/Primary');
+		// The poster stays over the wide art until that art is shown.
+		expect(veil(container).style.opacity).toBe('1');
+		fireEvent.load(art(container));
 		expect(veil(container).style.opacity).toBe('0');
 	});
 
