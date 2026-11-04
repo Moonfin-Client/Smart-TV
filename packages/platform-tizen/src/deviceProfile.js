@@ -415,7 +415,8 @@ export const getDeviceCapabilities = async () => {
 		// player's info panel. Whether TrueHD is offered also waits on the opt-in.
 		truehdCodecSupported: probeTruehdCodecSupport(),
 		dtshd: audioProbe.dtshd,
-		opus: true,
+		// Samsung's 2016 (Tizen 2.4) specs list Vorbis, not Opus.
+		opus: tizenVersion >= 3,
 
 		// Video codec capabilities
 		hevc: testHevcSupport(),
@@ -520,7 +521,7 @@ export const getJellyfinDeviceProfile = async (options = {}) => {
 			Container: 'webm',
 			Type: 'Video',
 			VideoCodec: webmVideoCodecs.join(','),
-			AudioCodec: 'vorbis,opus' // Samsung spec: WebM audio is Vorbis (+ Opus on some)
+			AudioCodec: caps.opus ? 'vorbis,opus' : 'vorbis'
 		});
 	}
 

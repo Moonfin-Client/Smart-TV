@@ -1,4 +1,4 @@
-import {getPlayMethod} from '../../../platform-tizen/src/video';
+import {getMediaCapabilities, getPlayMethod, getSupportedAudioCodecs} from '../../../platform-tizen/src/video';
 
 const source = (codec, container = 'mkv', video = {}, audio = {}) => ({
 	Container: container, SupportsDirectPlay: true, SupportsDirectStream: true,
@@ -15,6 +15,9 @@ const device = (model = 'QN55S95BAFXZA', version = '6.5', uhd = true, uhd8K = fa
 afterEach(() => { delete global.tizen; delete global.webapis; jest.restoreAllMocks(); });
 const models = [
 	['UN55KU6300', '2.4', true],
+	['UN32K5300', '2.4', false],
+	['unknown', '2.4', true],
+	['UN55MU6300', '3', true],
 	['UN40N5200AFXZA', '4', false],
 	['UN32T5300', '5.5', false],
 	['QN55S95BAFXZA', '6.5', true],
@@ -33,6 +36,24 @@ describe('Probed VP8 WebM across Tizen versions and models', () => {
 		expect(getPlayMethod(source('vp8', 'webm', {}, {Codec: 'vorbis'}), caps, {})).toBe('DirectPlay');
 		const profile = await service.getJellyfinDeviceProfile();
 		expect(profile.DirectPlayProfiles.find(p => p.Container === 'webm').VideoCodec.split(',')).toContain('vp8');
+	});
+	test.each(models)('%s on Tizen %s offers VP8/Opus only after Tizen 2.4', async (model, version, uhd) => {
+		jest.spyOn(window.HTMLMediaElement.prototype, 'canPlayType').mockImplementation(type => type === 'video/webm; codecs="vp8"' ? 'maybe' : '');
+		const service = device(model, version, uhd);
+		const caps = await service.getDeviceCapabilities();
+		const supportsOpus = Number(version) >= 3;
+		const profile = await service.getJellyfinDeviceProfile();
+		const webmProfile = profile.DirectPlayProfiles.find(p => p.Container === 'webm');
+		expect(webmProfile.AudioCodec.split(',').includes('opus')).toBe(supportsOpus);
+		expect(webmProfile.AudioCodec.split(',')).toContain('vorbis');
+		expect(getSupportedAudioCodecs(caps, 'webm').includes('opus')).toBe(supportsOpus);
+		expect(getPlayMethod(source('vp8', 'webm', {}, {Codec: 'opus'}), caps, {})).toBe(supportsOpus ? 'DirectPlay' : 'Transcode');
+	});
+	test.each(['2.4', '3', '6.5'])('fallback capabilities on Tizen %s agree about Opus playback', async version => {
+		global.tizen = {systeminfo: {getCapability: () => version}};
+		const caps = {...await getMediaCapabilities(), vp8: true};
+		expect(getPlayMethod(source('vp8', 'webm', {}, {Codec: 'opus'}), caps, {})).toBe(version === '2.4' ? 'Transcode' : 'DirectPlay');
+		expect(getPlayMethod(source('vp8', 'webm', {}, {Codec: 'vorbis'}), caps, {})).toBe('DirectPlay');
 	});
 	test.each(['', 'no', 'maybe', 'probably'])('interprets canPlayType %j consistently with Jellyfin', async response => {
 		jest.spyOn(window.HTMLMediaElement.prototype, 'canPlayType').mockReturnValue(response);

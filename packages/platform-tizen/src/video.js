@@ -84,7 +84,8 @@ const getDefaultCapabilities = () => {
 		dts: false,
 		dtshd: false,
 		hlsAc3: true,
-		opus: true
+		// Match the device profile: Opus is not documented on Tizen 2.4.
+		opus: tizenVersion >= 3
 	};
 };
 
