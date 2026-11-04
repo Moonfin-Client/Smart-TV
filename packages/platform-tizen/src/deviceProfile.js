@@ -103,6 +103,21 @@ const getModelName = () => {
 	return cachedModelName;
 };
 
+// getModel() returns the lineup used in Samsung's model-group table, whereas
+// getRealModel() includes the region, screen size and retail suffix. Prefer the
+// lineup: regional RU70xx retail codes need not belong to the BASIC1 group.
+// https://developer.samsung.com/smarttv/develop/specifications/tv-model-groups.html
+const is2019Basic1Model = (modelName) => {
+	const retailYear = modelName.match(/^(?:U[ANE]|GU|KU)\d{2,3}([A-Z])/i);
+	// The table also lists URU7000 under 2018. An explicit different hardware
+	// year must not be classified as 2019 just because of that lineup name.
+	if (retailYear && retailYear[1].toUpperCase() !== 'R') return false;
+
+	const lineup = readWebapis(() => webapis.productinfo.getModel(), '') ||
+		modelName.replace(/^(?:U[ANE]|GU|KU)\d{2,3}(RU(?:7000|6900|F58T))(?:[A-Z][A-Z0-9]*)?$/i, 'U$1');
+	return ['URU7000', 'URU6900', 'URUF58T', 'RUF58T'].includes(lineup.toUpperCase());
+};
+
 /**
  * Get firmware string from webapis (cached).
  */
@@ -606,9 +621,14 @@ export const getJellyfinDeviceProfile = async (options = {}) => {
 	// 2020+: FHD Level 4.2, UHD Level 5.1
 	// Jellyfin's native Tizen app allows level 5.2 from Tizen 5 onward,
 	// with a media probe as a fallback on older versions. Preserve FHD limits.
-	const h264Level = caps.uhd
-		? (caps.tizenVersion >= 5 || supportsVideoType('video/mp4; codecs="avc1.640834"') ? '52' : '51')
-		: (caps.modelYear >= 2020 ? '42' : '41');
+	// 2019 BASIC1 hardware is limited to UHD30 / level 5.1. Neither a browser
+	// probe nor newer firmware overrides that restriction; FHD60 remains allowed.
+	// https://developer.samsung.com/smarttv/develop/specifications/media-specifications/2019-tv-video-specifications.html
+	let h264Level = caps.modelYear >= 2020 ? '42' : '41';
+	if (caps.uhd) {
+		h264Level = !is2019Basic1Model(caps.modelName) &&
+			(caps.tizenVersion >= 5 || supportsVideoType('video/mp4; codecs="avc1.640834"')) ? '52' : '51';
+	}
 
 	// HEVC Level per Samsung spec tables:
 	// FHD: Level 4.1 (all years)
