@@ -6,7 +6,7 @@ import {KEYS} from '../../utils/keys';
 import {sameCardUserData} from '../../utils/playedState';
 import {useSettings} from '../../context/SettingsContext';
 import {getPlatform} from '../../platform';
-import {modernCardMetrics} from '../MediaCard/modernCardLayout';
+import {MODERN_CAPTION_ROOM, modernCardMetrics} from '../MediaCard/modernCardLayout';
 import PlaceholderRow from './PlaceholderRow';
 
 import css from './ModernMediaRow.module.less';
@@ -220,6 +220,8 @@ const ModernMediaRow = ({
 	if (!items || items.length === 0) return null;
 
 	const focusedIndex = focusedItemId ? items.findIndex((item) => item.Id === focusedItemId) : -1;
+	// Every row keeps room for three caption lines, so the next row never sits on a card's text.
+	const captionFloor = modernCardMetrics({posterSize: settings.homeRowsPosterSize}).imageHeight + MODERN_CAPTION_ROOM;
 
 	return (
 		<RowContainer
@@ -235,7 +237,7 @@ const ModernMediaRow = ({
 			{subtitle && <div className={css.subtitle}>{subtitle}</div>}
 			{/* Core starts the cards a little in from the title, 20 points against its 16. */}
 			<div className={css.scroller} ref={scrollerRef} onFocus={handleFocus} style={coreLook ? {paddingLeft: `${leadingInset + 6}px`} : undefined}>
-				<div className={css.items}>
+				<div className={css.items} style={coreLook ? undefined : {minHeight: `${captionFloor}px`}}>
 					{items.map((item, index) => {
 						const spotlightId = `media-${keyPrefix}-${item.Id}`;
 						const besideFocus = focusedIndex >= 0 && Math.abs(index - focusedIndex) === 1;

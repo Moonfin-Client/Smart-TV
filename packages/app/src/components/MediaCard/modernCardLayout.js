@@ -26,14 +26,17 @@ export const modernCardMetrics = ({posterSize, isSquareItem, isStatic}) => {
 	return {imageHeight, expandedWidth, cardWidth: isStatic ? expandedWidth : posterWidth};
 };
 
+// Room under a modern card's art for three lines of caption, its title and two lines below.
+export const MODERN_CAPTION_ROOM = 89;
+
 // The space below each modern row. The other clients size the padding slider in their own
-// units, so the stored value lands here as a margin. Below the default it pulls the next row
-// closer in smaller steps, so every stop changes the spacing and the lowest still clears the
-// captions of the row above. Full screen rows pace themselves.
+// units, so the stored value lands here as a margin. Up to 420 it moves in smaller steps, so
+// every stop changes the spacing, and even the lowest stop never reaches into the caption room
+// of the row above. Full screen rows pace themselves.
 export const modernRowSpacing = (settings) => {
 	if (settings?.fullScreenRows) return null;
 	const offset = Math.min(Math.max((settings?.modernHomeRowsPadding ?? 360) - 400, -40), 200);
-	return offset < 20 ? Math.round((offset - 20) * 34 / 60) : Math.max(0, offset - 34);
+	return offset < 20 ? Math.round((offset + 40) * 34 / 60) : Math.max(34, offset);
 };
 
 export const getEpisodeLabels = (item) => {
