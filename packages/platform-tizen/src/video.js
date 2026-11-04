@@ -167,7 +167,13 @@ export const isAudioStreamPlayable = (stream, capabilities, passthroughOptions =
 	if (!codec) return true;
 	// Verified LPCM path: 16-bit stereo at up to 48 kHz. Keep 24-bit,
 	// multichannel and higher-rate PCM converting; AVPlay differs from HTML video.
-	if (codec === 'pcm_s16le' && ((stream.Channels || 0) > 2 || (stream.SampleRate || 0) > 48000)) return false;
+	if (codec === 'pcm') {
+		// Plex reports the PCM format separately from the codec alias.
+		const profile = (stream.Profile || '').toLowerCase();
+		if (profile && profile !== 'pcm_s16le') return false;
+		if (stream.BitDepth != null && Number(stream.BitDepth) !== 16) return false;
+	}
+	if ((codec === 'pcm_s16le' || codec === 'pcm') && ((stream.Channels || 0) > 2 || (stream.SampleRate || 0) > 48000)) return false;
 	if (DTS_FAMILY_CODECS.includes(codec)) return false;
 	if ((codec === 'truehd' || codec === 'mlp') && streamHasAtmos(stream)) return false;
 	const supported = getSupportedAudioCodecs(capabilities, '', passthroughOptions);

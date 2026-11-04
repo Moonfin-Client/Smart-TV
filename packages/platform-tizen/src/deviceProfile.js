@@ -711,10 +711,18 @@ export const getJellyfinDeviceProfile = async (options = {}) => {
 
 	// Match the bounded PCM16 path used by the local player.
 	codecProfiles.push({
-		Type: 'VideoAudio', Codec: 'pcm_s16le',
+		Type: 'VideoAudio', Codec: 'pcm_s16le,pcm',
 		Conditions: [
 			{Condition: 'LessThanEqual', Property: 'AudioChannels', Value: '2', IsRequired: false},
 			{Condition: 'LessThanEqual', Property: 'AudioSampleRate', Value: '48000', IsRequired: false}
+		]
+	});
+	// The generic PCM alias must not bypass the verified PCM16 format.
+	codecProfiles.push({
+		Type: 'VideoAudio', Codec: 'pcm',
+		Conditions: [
+			{Condition: 'Equals', Property: 'AudioProfile', Value: 'pcm_s16le', IsRequired: false},
+			{Condition: 'Equals', Property: 'AudioBitDepth', Value: '16', IsRequired: false}
 		]
 	});
 
