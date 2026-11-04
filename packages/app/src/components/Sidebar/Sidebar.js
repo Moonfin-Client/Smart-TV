@@ -15,7 +15,7 @@ import {librariesForNav} from '../../utils/liveTvLibrary';
 import {isKidsMode} from '../../utils/kidsMode';
 import {shadowToCss, toCssColor, toCssColorWithAlpha} from '../../theme/themeSpec';
 import {resolveOverlayColor} from '../../theme/overlayColors';
-import {focusContentFromSidebar, forgetSidebarReturn, rememberSidebarReturn} from '../../utils/navFocusTargets';
+import {focusContentFromSidebar, rememberSidebarReturn} from '../../utils/navFocusTargets';
 import {KEYS} from '../../utils/keys';
 import SidebarItem from './SidebarItem';
 import SidebarLibraries from './SidebarLibraries';
@@ -138,9 +138,6 @@ const Sidebar = ({
 		expandOnFocus(e);
 	}, [expandOnFocus]);
 
-	// Picking something in the nav changes what's on screen, so the old spot no longer applies.
-	const handleClickCapture = useCallback(() => forgetSidebarReturn(), []);
-
 	// Slots hand out the theme's nav color cycle in the order items actually
 	// render, so hiding a button never doubles a color on its neighbours.
 	let slot = 0;
@@ -157,7 +154,6 @@ const Sidebar = ({
 			onMouseEnter={handlers.onMouseEnter}
 			onMouseLeave={handlers.onMouseLeave}
 			onFocus={handleFocus}
-			onClickCapture={handleClickCapture}
 			onBlur={handlers.onBlur}
 			spotlightId="navbar"
 		>

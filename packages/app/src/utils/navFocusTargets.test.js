@@ -1,20 +1,20 @@
 import Spotlight from '@enact/spotlight';
-import {SIDEBAR_CONTENT_FOCUS_TARGETS, focusContentFromSidebar, forgetSidebarReturn, rememberSidebarReturn} from './navFocusTargets';
+import {SIDEBAR_CONTENT_FOCUS_TARGETS, focusContentFromSidebar, rememberSidebarReturn} from './navFocusTargets';
 
 jest.mock('@enact/spotlight', () => ({focus: jest.fn(), move: jest.fn(), setPointerMode: jest.fn()}));
 
 // jsdom lays nothing out, so offsetParent is always null there. A card counts as
-// on screen here when it's given one.
+// on screen here when it's given one, and like in a browser it has none once it's removed.
 const card = ({shown = true} = {}) => {
 	const node = document.createElement('div');
 	document.body.appendChild(node);
-	Object.defineProperty(node, 'offsetParent', {get: () => (shown ? document.body : null)});
+	Object.defineProperty(node, 'offsetParent', {get: () => (shown && document.body.contains(node) ? document.body : null)});
 	return node;
 };
 
 beforeEach(() => {
 	jest.clearAllMocks();
-	forgetSidebarReturn();
+	rememberSidebarReturn(null);
 	document.body.innerHTML = '';
 });
 
@@ -47,13 +47,13 @@ describe('focusContentFromSidebar', () => {
 		expect(Spotlight.move).toHaveBeenCalledWith('right');
 	});
 
-	it('forgets the card after a nav item is picked', () => {
+	it('goes back to the card on browsers without isConnected', () => {
 		const node = card();
+		Object.defineProperty(node, 'isConnected', {value: undefined});
+		Spotlight.focus.mockImplementation(target => target === node);
 		rememberSidebarReturn(node);
-		forgetSidebarReturn();
-		Spotlight.focus.mockReturnValue(false);
 		focusContentFromSidebar();
-		expect(Spotlight.focus).not.toHaveBeenCalledWith(node);
+		expect(Spotlight.focus).toHaveBeenCalledWith(node);
 	});
 
 	it('uses the remembered card only once', () => {
