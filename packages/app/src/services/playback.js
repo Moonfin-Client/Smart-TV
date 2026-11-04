@@ -801,30 +801,30 @@ export const getPlaybackInfo = async (itemId, options = {}) => {
 	// re-encode. Re-negotiate without it, PGS still renders client-side from its
 	// .sup URL and burn-in stays an explicit choice. Plex can't hand out a bitmap
 	// track, so there the burn stays.
-	if (serverType !== 'plex' && !hasExplicitSubtitle && playMethod === PlayMethod.Transcode &&
-			mediaSource.DefaultSubtitleStreamIndex != null && mediaSource.DefaultSubtitleStreamIndex >= 0) {
-		const resolvedSub = findSubtitleStreamByIndex(mediaSource.DefaultSubtitleStreamIndex, mediaSource.MediaStreams);
-		if (resolvedSub && (isPgsSubtitleCodec(resolvedSub.Codec) || isBurnInSubtitleCodec(resolvedSub.Codec))) {
-			console.log('[playback] Server default subtitle is bitmap based on transcode, re-negotiating without burn-in');
-			const noBurnInfo = await api.getPlaybackInfo(itemId, {
-				DeviceProfile: deviceProfile,
-				StartTimeTicks: requestedStartTime,
-				AutoOpenLiveStream: true,
-				EnableDirectPlay: enableDirectPlay,
-				EnableDirectStream: enableDirectStream,
-				EnableTranscoding: options.enableTranscoding !== false,
-				AudioStreamIndex: audioStreamIndex,
-				SubtitleStreamIndex: -1,
-				MaxStreamingBitrate: maxBitrate,
-				MediaSourceId: options.mediaSourceId || mediaSource.Id
-			});
-			if (noBurnInfo.MediaSources?.length) {
-				mediaSource = noBurnInfo.MediaSources[0];
-				// Keep the resolved index so the player still renders it client-side.
-				mediaSource.DefaultSubtitleStreamIndex = resolvedSub.Index;
-				playbackInfo = noBurnInfo;
-				playMethod = determinePlayMethod(mediaSource, capabilities, options, passthroughSettings);
-			}
+	const resolvedSub = serverType !== 'plex' && !hasExplicitSubtitle
+		? findSubtitleStreamByIndex(mediaSource.DefaultSubtitleStreamIndex, mediaSource.MediaStreams)
+		: null;
+	const avoidDefaultSubtitleBurnIn = resolvedSub && (isPgsSubtitleCodec(resolvedSub.Codec) || isBurnInSubtitleCodec(resolvedSub.Codec));
+	if (avoidDefaultSubtitleBurnIn && playMethod === PlayMethod.Transcode) {
+		console.log('[playback] Server default subtitle is bitmap based on transcode, re-negotiating without burn-in');
+		const noBurnInfo = await api.getPlaybackInfo(itemId, {
+			DeviceProfile: deviceProfile,
+			StartTimeTicks: requestedStartTime,
+			AutoOpenLiveStream: true,
+			EnableDirectPlay: enableDirectPlay,
+			EnableDirectStream: enableDirectStream,
+			EnableTranscoding: options.enableTranscoding !== false,
+			AudioStreamIndex: audioStreamIndex,
+			SubtitleStreamIndex: -1,
+			MaxStreamingBitrate: maxBitrate,
+			MediaSourceId: options.mediaSourceId || mediaSource.Id
+		});
+		if (noBurnInfo.MediaSources?.length) {
+			mediaSource = noBurnInfo.MediaSources[0];
+			// Keep the resolved index so the player still renders it client-side.
+			mediaSource.DefaultSubtitleStreamIndex = resolvedSub.Index;
+			playbackInfo = noBurnInfo;
+			playMethod = determinePlayMethod(mediaSource, capabilities, options, passthroughSettings);
 		}
 	}
 
@@ -873,7 +873,7 @@ export const getPlaybackInfo = async (itemId, options = {}) => {
 			EnableTranscoding: true,
 			...(missingRemuxUrl ? {AllowVideoStreamCopy: false} : {}),
 			AudioStreamIndex: audioStreamIndex,
-			SubtitleStreamIndex: sentSubtitleStreamIndex,
+			SubtitleStreamIndex: avoidDefaultSubtitleBurnIn ? -1 : sentSubtitleStreamIndex,
 			MaxStreamingBitrate: maxBitrate,
 			MediaSourceId: mediaSource.Id
 		});
@@ -883,6 +883,7 @@ export const getPlaybackInfo = async (itemId, options = {}) => {
 		}
 
 		mediaSource = playbackInfo.MediaSources[0];
+		if (avoidDefaultSubtitleBurnIn) mediaSource.DefaultSubtitleStreamIndex = resolvedSub.Index;
 		playMethod = PlayMethod.Transcode;
 		console.log('[playback] After forcing transcode - TranscodingUrl:', mediaSource.TranscodingUrl ? 'present' : 'none');
 	}
