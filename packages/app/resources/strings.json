@@ -2649,5 +2649,11 @@
 	"Sort TMDB rows in ascending or descending order.": "Sort TMDB rows in ascending or descending order.",
 	"Sorting": "Sorting",
 	"TMDB Row Sorting": "TMDB Row Sorting",
-	"◀ ▶ to re-order · DEL to remove": "◀ ▶ to re-order · DEL to remove"
+	"◀ ▶ to re-order · DEL to remove": "◀ ▶ to re-order · DEL to remove",
+	"Watching on MDBList": "Watching on MDBList",
+	"Show live currently watching items from MDBList": "Show live currently watching items from MDBList",
+	"{users} watching now • {movies} movies • {shows} shows": "{users} watching now • {movies} movies • {shows} shows",
+	"{users} watched today • {movies} movies • {shows} shows": "{users} watched today • {movies} movies • {shows} shows",
+	"{count} watching": "{count} watching",
+	"Rank": "Rank"
 }

@@ -475,9 +475,12 @@ export const resolveFromEnvelope = (envelope, adminDefaults, profile) => {
 
 	// Same precedence as everything else, except the layout moves as one unit. The first
 	// profile that has any layout supplies all of it, so admin defaults only reach a user
-	// with no layout of their own. A layout from a client that predates the seasonal row
-	// lacks it, so its own toggle decides how it comes back.
-	const enabledById = {seasonal: resolved.seasonalRowEnabled === true};
+	// with no layout of their own. A layout from a client that predates the seasonal or
+	// watching now row lacks it, so its own toggle decides how it comes back.
+	const enabledById = {
+		seasonal: resolved.seasonalRowEnabled === true,
+		mdblist_watching_now: resolved.mdblistWatchingNowEnabled === true
+	};
 	let homeRows;
 	for (const source of sources) {
 		homeRows = homeRowsFromProfile(source, enabledById);
@@ -668,7 +671,10 @@ export function SettingsProvider({children}) {
 				));
 				let migrated = false;
 				const hasExplicitHomeRowsStyle = Object.prototype.hasOwnProperty.call(stored, 'homeRowsStyle');
-				const mergedHomeRows = mergeHomeRows(stored.homeRows, {seasonal: stored.seasonalRowEnabled === true});
+				const mergedHomeRows = mergeHomeRows(stored.homeRows, {
+					seasonal: stored.seasonalRowEnabled === true,
+					mdblist_watching_now: stored.mdblistWatchingNowEnabled === true
+				});
 				if (mergedHomeRows !== stored.homeRows) {
 					stored.homeRows = mergedHomeRows;
 					migrated = true;

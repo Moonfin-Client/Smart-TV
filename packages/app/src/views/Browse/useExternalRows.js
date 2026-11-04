@@ -101,7 +101,7 @@ const useExternalRows = ({settings, homeRows, kidsMode}) => {
 					try {
 						const data = await fetchWatchingNow();
 						if (data && Array.isArray(data.items)) {
-							const identified = data.items.filter((item) => item && (item.imdb_id || item.tmdb_id || item.public_id));
+							const identified = data.items.filter((item) => item && (item.imdb_id || item.tmdb_id));
 							if (identified.length > 0) {
 								const normItems = identified.map(normalizeWatchingNowItem);
 								watchingNowRow = {
@@ -190,14 +190,22 @@ const useExternalRows = ({settings, homeRows, kidsMode}) => {
 				try {
 					const data = await fetchWatchingNow(null, {forceRefresh: true});
 					if (!data || !Array.isArray(data.items)) return;
-					const identified = data.items.filter((item) => item && (item.imdb_id || item.tmdb_id || item.public_id));
+					const identified = data.items.filter((item) => item && (item.imdb_id || item.tmdb_id));
 					if (identified.length === 0) return;
 					const normItems = identified.map(normalizeWatchingNowItem);
 					const resolvedItems = await resolveItemsByProviderIds(normItems);
 					if (cancelled) return;
+					const newRow = {
+						id: 'mdblist_watching_now',
+						title: $L('Watching on MDBList'),
+						subtitle: formatWatchingNowSubtitle(data),
+						items: resolvedItems,
+						isExternalRow: true,
+						isWatchingNowRow: true
+					};
 					setExternalRows((prevRows) => {
 						const index = prevRows.findIndex((row) => row.id === 'mdblist_watching_now');
-						if (index < 0) return prevRows;
+						if (index < 0) return [...prevRows, newRow];
 						const updated = [...prevRows];
 						updated[index] = {
 							...updated[index],

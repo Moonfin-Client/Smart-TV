@@ -152,27 +152,32 @@ const WatchingNowRow = ({
 		const targetIsCard = e.target.closest('.spottable');
 		if (!targetIsCard) return;
 
-		if (e.keyCode === KEYS.UP) {
-			if (onNavigateUp?.(rowIndex)) {
-				e.preventDefault();
-				e.stopPropagation();
-			}
-		} else if (e.keyCode === KEYS.DOWN) {
-			if (onNavigateDown?.(rowIndex)) {
-				e.preventDefault();
-				e.stopPropagation();
-			}
+		if (e.keyCode === KEYS.UP && onNavigateUp) {
+			e.preventDefault();
+			e.stopPropagation();
+			onNavigateUp(rowIndex);
+		} else if (e.keyCode === KEYS.DOWN && onNavigateDown) {
+			e.preventDefault();
+			e.stopPropagation();
+			onNavigateDown(rowIndex);
 		}
 	}, [rowIndex, onNavigateUp, onNavigateDown]);
 
 	const handleWrapLeft = useCallback((e) => {
 		e.preventDefault();
-		const scroller = scrollerRef.current;
-		if (scroller && items?.length > 1) {
-			scroller.scrollLeft = scroller.scrollWidth;
-			Spotlight.focus(`media-${keyPrefix}-${items[items.length - 1].Id}`);
+		e.stopPropagation();
+		if (settings?.navbarPosition === 'left') {
+			if (!Spotlight.focus('navbar')) {
+				Spotlight.move('left');
+			}
+		} else {
+			const scroller = scrollerRef.current;
+			if (scroller && items?.length > 1) {
+				scroller.scrollLeft = scroller.scrollWidth;
+				Spotlight.focus(`media-${keyPrefix}-${items[items.length - 1].Id}`);
+			}
 		}
-	}, [items, keyPrefix]);
+	}, [items, keyPrefix, settings?.navbarPosition]);
 
 	const handleWrapRight = useCallback((e) => {
 		e.preventDefault();

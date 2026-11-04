@@ -247,6 +247,7 @@ describe('the seasonal row in a saved layout', () => {
 		const saved = [{id: 'resume', enabled: true, order: 0}];
 		expect(rowById(mergeHomeRows(saved), 'seasonal').enabled).toBe(false);
 		expect(rowById(mergeHomeRows(saved, {seasonal: true}), 'seasonal').enabled).toBe(true);
+		expect(rowById(mergeHomeRows(saved, {mdblist_watching_now: true}), 'mdblist_watching_now').enabled).toBe(true);
 	});
 
 	test('a layout that names it keeps its own flag whatever the toggle says', () => {
