@@ -12,6 +12,20 @@ describe('searchArtworkSource', () => {
 			.toEqual({id: 's', type: 'Thumb', tag: 'thumb'});
 	});
 
+	test('a programme shows its own thumbnail before any backdrop', () => {
+		expect(searchArtworkSource({Id: 'p', Type: 'Program', ImageTags: {Thumb: 'own'}, BackdropImageTags: ['b'], ParentThumbItemId: 's', ParentThumbImageTag: 'series'}))
+			.toEqual({id: 'p', type: 'Thumb', tag: 'own'});
+	});
+
+	test("an episode or season with only its series' poster shows that", () => {
+		expect(searchArtworkSource({Id: 'e', Type: 'Episode', ImageTags: {}, SeriesId: 's', SeriesPrimaryImageTag: 'poster'}))
+			.toEqual({id: 's', type: 'Primary', tag: 'poster'});
+		expect(searchArtworkSource({Id: 'e', Type: 'Episode', ImageTags: {}, SeriesId: 's', SeriesPrimaryImageTag: 'poster', ParentBackdropItemId: 's', ParentBackdropImageTags: ['wide']}))
+			.toEqual({id: 's', type: 'Backdrop', tag: 'wide'});
+		expect(searchArtworkSource({Id: 'n', Type: 'Season', ImageTags: {}, SeriesId: 's', SeriesPrimaryImageTag: 'poster'}))
+			.toEqual({id: 's', type: 'Primary', tag: 'poster'});
+	});
+
 	test("a movie never borrows a backdrop, and a track shows its album's cover", () => {
 		expect(searchArtworkSource({Id: 'm', Type: 'Movie', ImageTags: {}, BackdropImageTags: ['b']})).toBeNull();
 		expect(searchArtworkSource({Id: 't', Type: 'Audio', ImageTags: {}, AlbumId: 'a', AlbumPrimaryImageTag: 'cover'}))
