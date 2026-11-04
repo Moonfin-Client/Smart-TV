@@ -98,6 +98,7 @@ describe('Silo Watch Party room', () => {
 	let calls;
 	let party;
 	let episodes;
+	let silo;
 
 	const frame = (data) => socket.onmessage({data: JSON.stringify(data)});
 	const frames = (type) => sent.filter((f) => f.type === type);
@@ -136,7 +137,7 @@ describe('Silo Watch Party room', () => {
 			'POST /api/v2/watch-together/rooms/r1/playback/start': () => ({room: roomJson({phase: 'playing', playback_state: 'waiting',
 				selected_content_id: 'ep1', generation: 3, selection_revision: 2})})
 		};
-		const silo = {
+		silo = {
 			key: 'k', baseUrl: 'http://silo:8090', userId: () => 'p1',
 			siloCall: jest.fn(async (path, options = {}) => {
 				calls.push({path, ...options});
@@ -171,6 +172,19 @@ describe('Silo Watch Party room', () => {
 		expect(socket.protocols).toEqual(['silo.room.v2', 'silo.ticket.tk']);
 		expect(calls.find((c) => c.path.endsWith('/ws-ticket')).headers).toEqual({'X-Room-Token': 'rt'});
 		expect(frames('ping')).toHaveLength(1);
+	});
+
+	test('a failed read of the room\'s title is tried again by Play now', async () => {
+		silo.getItem.mockRejectedValueOnce(new Error('offline'));
+		await openRoom();
+		frame({type: 'snapshot', room: roomJson({phase: 'playing', playback_state: 'waiting', selected_content_id: 'ep1',
+			selected_file_id: 7, generation: 2, selection_revision: 2})});
+		await flush();
+		expect(fed.some((m) => m.Data.Type === 'PlayQueue')).toBe(false);
+		party.openPlayer();
+		await flush();
+		expect(silo.getItem).toHaveBeenCalledTimes(2);
+		expect(fed.some((m) => m.Data.Type === 'PlayQueue')).toBe(true);
 	});
 
 	test('follows a playing room as a SyncPlay group and reports to it', async () => {

@@ -187,6 +187,21 @@ describe('sessions', () => {
 		expect(calls.find((c) => c.path.endsWith('/replan')).body).toMatchObject({operation: 'seek_reanchor', position_seconds: 600});
 	});
 
+	test('a preview ends its session at once, and Play afterwards starts a new one', async () => {
+		const {playback, calls} = setup({
+			'GET /api/v2/playback/capabilities': capabilities,
+			'POST /api/v2/playback/start': plan('original_http', 'k1'),
+			'DELETE /api/v2/playback/s1': {outcome: 'stopped'}
+		});
+		const info = await playback.previewPlaybackInfo('movie-1', {});
+		expect(info.MediaSources[0].SupportsDirectPlay).toBe(true);
+		expect(calls.find((c) => c.method === 'DELETE').body).not.toHaveProperty('position');
+		expect(playback.sessionOf('s1')).toBe(null);
+		await playback.getPlaybackInfo('movie-1', {});
+		expect(calls.filter((c) => c.path === '/api/v2/playback/start')).toHaveLength(2);
+		expect(calls.some((c) => c.path.endsWith('/replan'))).toBe(false);
+	});
+
 	test('progress is numbered, a conflict goes again under the next number, and the stop keeps its id', async () => {
 		let conflicts = 1;
 		const {playback, calls} = setup({

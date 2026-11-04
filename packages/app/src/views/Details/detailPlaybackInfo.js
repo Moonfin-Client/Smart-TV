@@ -44,7 +44,8 @@ export const fetchDetailPlaybackInfo = async (api, {
 	if (audioStreamIndex != null) body.AudioStreamIndex = audioStreamIndex;
 	if (subtitleStreamIndex != null) body.SubtitleStreamIndex = subtitleStreamIndex;
 
-	const result = await api.getPlaybackInfo(itemId, body);
+	// Only Silo has previewPlaybackInfo, since its getPlaybackInfo opens a playback session.
+	const result = await (api.previewPlaybackInfo || api.getPlaybackInfo)(itemId, body);
 	const sources = result?.MediaSources || [];
 	const source = (mediaSourceId && sources.find((s) => s.Id === mediaSourceId)) || sources[0];
 	if (!source) return null;

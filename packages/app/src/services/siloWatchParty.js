@@ -433,11 +433,18 @@ export const createWatchParty = ({silo, sync = syncPlay, now = () => Date.now()}
 		sync.setRoomDriver(null);
 	};
 
-	// The room's item, read once per selection.
+	// The room's item, read once per selection. A failed read isn't kept, so Play now can try it again.
 	const selectedItem = () => {
 		const id = room?.selectedContentId;
 		if (!id || !client) return Promise.resolve(null);
-		if (item?.id !== id) item = {id, promise: client.getItem(id).catch(() => null)};
+		if (item?.id !== id) {
+			const entry = {id};
+			entry.promise = client.getItem(id).catch(() => {
+				if (item === entry) item = null;
+				return null;
+			});
+			item = entry;
+		}
 		return item.promise;
 	};
 

@@ -3276,7 +3276,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 					// On time: a seek costs a rebuffer the whole group then
 					// waits on, so a difference this small is left alone, and
 					// one this set's start time took up (leadMs below) needs none.
-					const timedIn = video.paused && startGapMs(positionRef.current, PositionTicks) != null;
+					const timedIn = syncPlayService.isRoomDriven() && video.paused && startGapMs(positionRef.current, PositionTicks) != null;
 					if (PositionTicks != null && !timedIn && needsSeek(positionRef.current, PositionTicks)) startTarget = PositionTicks;
 				} else if (video.paused) {
 					// Late: start where the group has got to by now.
@@ -3310,8 +3310,8 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 					}
 				}
 				if (startTarget != null) startGroupSeek(startTarget, false, false, catchUp);
-				// A plain start from paused is timed for the next one's lead; one behind a seek also waits on its load.
-				startTimingRef.current = video.paused && startTarget == null && !groupSeekPendingRef.current
+				// In a Watch Party, a plain start from paused is timed for the next start's lead. One behind a seek also waits on its load.
+				startTimingRef.current = syncPlayService.isRoomDriven() && video.paused && startTarget == null && !groupSeekPendingRef.current
 					? {calledAtMs: Date.now(), fromMs: positionRef.current / 10000}
 					: null;
 				// Already playing: the server answers any Ready it gets while
@@ -3365,11 +3365,11 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 		isReady: () => !!videoRef.current,
 		execute: executeSyncPlayCommand,
 		onStop: handleBack,
-		// A start from paused begins early by the time this set takes to move, and by how far it is behind the start's
-		// position (later, ahead of it), so it is there as the group is; the group's timeline still runs from the
-		// command's time.
+		// In a Watch Party, a start from paused runs early by the time this set takes to get moving, plus how far it sits
+		// behind the start's position (or later when it's ahead), so it plays in step with the group. The group's
+		// timeline still counts from the command's time.
 		leadMs: (command) => {
-			if (command.Command !== 'Unpause' || !videoRef.current?.paused || groupSeekPendingRef.current) return 0;
+			if (!syncPlayService.isRoomDriven() || command.Command !== 'Unpause' || !videoRef.current?.paused || groupSeekPendingRef.current) return 0;
 			return learnedStartLeadMs + (startGapMs(positionRef.current, command.PositionTicks) || 0);
 		}
 	});

@@ -271,6 +271,7 @@ export const createSiloApi = ({getBaseUrl, getToken, getUserId, getDeviceInfo, p
 		getThemeSongUrl: extras.getThemeSongUrl,
 		...trackChoices,
 		getPlaybackInfo: playback.getPlaybackInfo,
+		previewPlaybackInfo: playback.previewPlaybackInfo,
 		reportPlaybackStart: playback.reportPlaybackStart,
 		reportPlaybackProgress: playback.reportPlaybackProgress,
 		reportPlaybackStopped: async (info) => {

@@ -6,6 +6,7 @@ import * as connectionPool from '../../services/connectionPool';
 import {withoutBlockedItems} from '../../services/parentalControls';
 import {getWatchlist} from '../../services/seerrApi';
 import {normalizeMediaItem} from '../../utils/seerrHomeRows';
+import {hydrateWatchlistItems} from '../../utils/seerrHydration';
 
 import {ALL_FAVORITE_TABS, FAVORITE_TABS, FAVORITE_TAB_FIELDS, FAVORITE_TAB_PAGE_SIZE, FAVORITE_TAB_TYPES, WATCHLIST_TAB, bucketByTab, visibleTabs, watchlistCards} from './favoriteTabs';
 
@@ -159,9 +160,10 @@ const useFavoriteTabs = ({api, sortBy, sortOrder, unifiedMode, enabled = true, s
 					return null;
 				}) : null
 			]);
+			const requestCards = (await hydrateWatchlistItems(first?.results || [])).map(normalizeMediaItem);
 			if (cancelled) return;
 			watchlistRef.current = {page: first?.page || 0, totalPages: first?.totalPages || 0, loading: false};
-			const cards = watchlistCards(withoutBlockedItems(library), (first?.results || []).map(normalizeMediaItem));
+			const cards = watchlistCards(withoutBlockedItems(library), requestCards);
 			setItemsByKey((prev) => ({...prev, [WATCHLIST_TAB.key]: cards}));
 			setCountsByKey((prev) => ({...prev, [WATCHLIST_TAB.key]: cards.length + unreadRequests(first)}));
 		};
@@ -175,9 +177,9 @@ const useFavoriteTabs = ({api, sortBy, sortOrder, unifiedMode, enabled = true, s
 		state.loading = true;
 		try {
 			const body = await getWatchlist(state.page + 1);
+			const cards = (await hydrateWatchlistItems(body?.results || [])).map(normalizeMediaItem);
 			if (watchlistRef.current !== state) return;
 			state.page = body?.page || state.page + 1;
-			const cards = (body?.results || []).map(normalizeMediaItem);
 			if (cards.length === 0) {
 				state.totalPages = state.page;
 				return;

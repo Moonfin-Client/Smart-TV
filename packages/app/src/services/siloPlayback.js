@@ -580,7 +580,7 @@ export const createSiloPlayback = ({call, getBaseUrl, getUserId, getAccessToken,
 		}
 	};
 
-	const start = async (itemId, body, item) => {
+	const start = async (itemId, body, item, preview = false) => {
 		const profileId = getUserId();
 		if (!profileId) throw new Error('Silo playback needs the profile it plays as');
 		const file = await fileOf(itemId, body.MediaSourceId, item);
@@ -647,6 +647,10 @@ export const createSiloPlayback = ({call, getBaseUrl, getUserId, getAccessToken,
 			recoveries: 0,
 			bandwidthCapKbps: sent.bandwidth_cap_kbps || null
 		};
+		if (preview) {
+			stop(session, 0).catch(() => {}); // eslint-disable-line no-use-before-define
+			return asPlaybackInfo(session, body.SubtitleStreamIndex);
+		}
 		sessions[sessionId] = session;
 		await freshenStreamAuth();
 		return playingTracks(session, asPlaybackInfo(session, body.SubtitleStreamIndex));
@@ -777,6 +781,9 @@ export const createSiloPlayback = ({call, getBaseUrl, getUserId, getAccessToken,
 			const live = liveSessionOf(itemId);
 			return live ? replan(live, body) : start(itemId, body, item);
 		},
+
+		// What Play would get, for the details screen. Silo only answers inside a session, so it's ended right away.
+		previewPlaybackInfo: (itemId, body = {}, item = null) => start(itemId, body, item, true),
 
 		// Silo opens the session when the start answers, so there's nothing to say at the start.
 		reportPlaybackStart: async () => null,
