@@ -16,6 +16,8 @@ import SeerrTileRow from '../../components/SeerrTileRow';
 import LibraryButtonRow from '../../components/LibraryButtonRow';
 import {SkeletonShimmer, skeletonTitleWidths} from '../../components/Skeleton';
 import {getImageUrl, getBackdropId} from '../../utils/helpers';
+import {loadNewReleases} from '../../utils/mediaBarNewRelease';
+import {createApiForServer} from '../../services/jellyfinApi';
 import {channelForProgram, isLiveTvProgram} from '../../utils/liveTvLibrary';
 import {focusedCardIndex, cardToRestore, focusedRowIndex, rowToRestore} from '../../utils/rowFocusMemory';
 import {radiusToCss, shadowToCss, toCssColor} from '../../theme/themeSpec';
@@ -220,6 +222,26 @@ const Browse = ({
 		() => withoutBlockedOrUnrated(loadedFeaturedItems, parentalFilter, false),
 		[loadedFeaturedItems, parentalFilter]
 	);
+
+	// Kept beside the slides rather than on them, since a new slide list sends every bar back to its
+	// first slide.
+	const [newReleases, setNewReleases] = useState(null);
+	const newReleaseBanner = settings.mediaBarNewReleaseBanner;
+	const newReleaseDays = settings.mediaBarNewReleaseDays;
+	useEffect(() => {
+		if (!newReleaseBanner || !showFeaturedBar || featuredItems.length === 0) return undefined;
+		let cancelled = false;
+		const apiFor = (item) => (item._serverUrl && item._serverAccessToken
+			? createApiForServer(item._serverUrl, item._serverAccessToken, item._serverUserId)
+			: api);
+		loadNewReleases(featuredItems, newReleaseDays, apiFor).then((releases) => {
+			if (!cancelled) setNewReleases(releases);
+		});
+		return () => {
+			cancelled = true;
+		};
+	}, [api, featuredItems, newReleaseBanner, newReleaseDays, showFeaturedBar]);
+	const shownReleases = newReleaseBanner ? newReleases : null;
 
 	const mergeContinueWatchingNextUp = mergesContinueWatchingNextUp(settings);
 
@@ -788,6 +810,7 @@ const Browse = ({
 							isVisible={browseMode === 'featured'}
 							browseVisible={isVisible}
 							featuredItems={featuredItems}
+							newReleases={shownReleases}
 							api={api}
 							settings={settings}
 							settingsLoaded={settingsLoaded}
@@ -803,6 +826,7 @@ const Browse = ({
 							rowPeek={rowPeek}
 							browseVisible={isVisible}
 							featuredItems={featuredItems}
+							newReleases={shownReleases}
 							api={api}
 							settings={settings}
 							settingsLoaded={settingsLoaded}
@@ -815,6 +839,7 @@ const Browse = ({
 						<BannerBar
 							isVisible={browseMode === 'featured'}
 							featuredItems={featuredItems}
+							newReleases={shownReleases}
 							settings={settings}
 							getItemServerUrl={getItemServerUrl}
 							onSelectItem={handleSelectExternalItem}
@@ -837,6 +862,7 @@ const Browse = ({
 							isVisible={browseMode === 'featured'}
 							browseVisible={isVisible}
 							featuredItems={featuredItems}
+							newReleases={shownReleases}
 							serverUrl={serverUrl}
 							api={api}
 							settings={settings}
@@ -852,6 +878,7 @@ const Browse = ({
 							rowPeek={rowPeek}
 							browseVisible={isVisible}
 							featuredItems={featuredItems}
+							newReleases={shownReleases}
 							serverUrl={serverUrl}
 							api={api}
 							settings={settings}

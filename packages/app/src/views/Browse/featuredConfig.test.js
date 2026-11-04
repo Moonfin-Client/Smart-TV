@@ -35,6 +35,8 @@ describe('featuredConfigKey', () => {
 	test.each([
 		['useMoonfinPlugin', {useMoonfinPlugin: true}],
 		['mediaBarSourceType', {mediaBarSourceType: 'collection'}],
+		['mediaBarSourceType', {mediaBarSourceType: 'newReleases'}],
+		['mediaBarNewReleaseDays', {mediaBarNewReleaseDays: 7}],
 		['featuredContentType', {featuredContentType: 'Movie'}],
 		['featuredItemCount', {featuredItemCount: 40}],
 		['mediaBarLibraryIds', {mediaBarLibraryIds: ['lib2']}],

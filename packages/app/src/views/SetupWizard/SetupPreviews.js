@@ -15,6 +15,7 @@ import {useAchievements} from '../../context/AchievementsContext';
 import useUserAvatar from '../../hooks/useUserAvatar';
 import LoadingAnimationLayer from '../../components/LoadingAnimation';
 import RatingsRow from '../../components/RatingsRow';
+import MediaBarNewReleaseLabel from '../../components/MediaBarNewReleaseLabel';
 import {iconViewBox} from '../../components/icons/iconViewBox';
 import {getRtFallbackIcon} from '../../components/icons/rtIcons';
 import {buildDisplayRatings, isMdblistEnabled} from '../../services/mdblistApi';
@@ -598,6 +599,7 @@ const MoonfinBar = ({items, t}) => {
 					height={120}
 					fallbackStyle={{fontSize: 28, fontWeight: 800, lineHeight: 1.05, color: t.onSurface, textShadow: TEXT_SHADOW}}
 				/>
+				<MediaBarNewReleaseLabel release={item.newRelease} small />
 			</div>
 			<div style={{position: 'absolute', left: 0, right: 0, bottom: 0, padding: '0 24px 36px 24px'}}>
 				<div style={{padding: '12px 16px', backgroundColor: t.overlayA(0.75), borderRadius: 16, border: t.cardBorder}}>
@@ -639,6 +641,7 @@ const MakdBar = ({items, t}) => {
 					height={Math.min(300, Math.max(90, DESIGN_H * 0.35))}
 					fallbackStyle={{fontSize: 30, fontWeight: 800, lineHeight: 1.05, color: t.onSurface, textShadow: TEXT_SHADOW}}
 				/>
+				<MediaBarNewReleaseLabel release={item.newRelease} small />
 			</div>
 			<div style={{position: 'absolute', left: 50, bottom: 20, width: contentWidth}}>
 				<MetadataWrap item={item} t={t} />
@@ -836,6 +839,7 @@ const GalleryBar = ({items, t}) => {
 								>
 									{active.title.toUpperCase()}
 								</div>
+								<MediaBarNewReleaseLabel release={active.newRelease} small />
 								<div style={{marginTop: 12, display: 'flex', flexWrap: 'wrap'}}>
 									{active.runtimeMinutes && <GalleryBadge text={runtimeText(active.runtimeMinutes)} t={t} />}
 									{active.officialRating && <GalleryBadge text={active.officialRating} outlined t={t} />}
@@ -887,6 +891,7 @@ const BannerBar = ({items, t}) => {
 							height={56}
 							fallbackStyle={{fontSize: 22, fontWeight: 800, color: t.onSurface, textShadow: `0px 0px 10px ${t.scrimA(0.8)}`}}
 						/>
+						<MediaBarNewReleaseLabel release={item.newRelease} small />
 						<div style={{marginTop: 6, fontSize: 12, fontWeight: 600, color: t.onSurfaceA(0.75)}}>
 							{parts.join('  ·  ')}
 						</div>
@@ -922,6 +927,7 @@ const AyaBar = ({items, t}) => {
 							alignment='topLeft'
 							fallbackStyle={{fontSize: 32, fontWeight: 700, letterSpacing: -0.5, lineHeight: 1.0, color: t.onSurface, textShadow: `0px 0px 20px ${t.scrimA(0.72)}`}}
 						/>
+						<MediaBarNewReleaseLabel release={item.newRelease} small />
 					</div>
 					<div style={{position: 'absolute', top: 22, right: 24}}>
 						<Dots count={5} active={16} inactive={10} inactiveAlpha={0.30} gap={2.5} pillActive height={2} t={t} />
@@ -2109,12 +2115,21 @@ const FallbackDetail = ({variant, t}) => {
 // The pickable previews
 // ---------------------------------------------------------------------------
 
+// The bar only labels a series when something aired lately, so while the banner is on the first
+// series stands in with a sample, moved to the front where every mode draws it.
+const withNewReleasePreview = (items, on) => {
+	const lead = on ? items.findIndex((item) => item.type === 'Series') : -1;
+	if (lead < 0) return items;
+	return [{...items[lead], newRelease: {kind: 'newSeason', season: 2}}, ...items.filter((_, i) => i !== lead)];
+};
+
 export const MediaBarPreview = ({mode}) => {
 	const t = usePreviewPalette();
 	const {settings} = useSettings();
 	const hideDescription = !!settings.hideHomeMediaDescription;
+	const newReleaseBanner = !!settings.mediaBarNewReleaseBanner;
 	const render = useCallback((shown) => {
-		const items = hideDescription ? shown.map((item) => ({...item, overview: ''})) : shown;
+		const items = withNewReleasePreview(hideDescription ? shown.map((item) => ({...item, overview: ''})) : shown, newReleaseBanner);
 		if (mode === 'makd') return <MakdBar items={items} t={t} />;
 		if (mode === 'bookshelf') return <BookshelfBar items={items} t={t} />;
 		if (mode === 'gallery') return <GalleryBar items={items} t={t} />;
@@ -2124,7 +2139,7 @@ export const MediaBarPreview = ({mode}) => {
 		// packs them tighter than the style default to show more than one.
 		if (mode === 'off') return <HomeRowsScreen items={items} t={t} modern focusFirst rowGapOverride={24} />;
 		return <MoonfinBar items={items} t={t} />;
-	}, [mode, t, hideDescription]);
+	}, [mode, t, hideDescription, newReleaseBanner]);
 	return <LivePreview render={render} fallback={<FallbackMediaBar mode={mode} t={t} />} fallbackAspect={16 / 7} />;
 };
 

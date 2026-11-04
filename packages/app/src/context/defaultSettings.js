@@ -163,6 +163,8 @@ export const defaultSettings = {
 	mediaBarOverlayColor: 'gray',
 	mediaBarOverlayOpacity: 50,
 	mediaBarSourceType: 'library',
+	mediaBarNewReleaseBanner: true,
+	mediaBarNewReleaseDays: 30,
 	mediaBarLibraryIds: [],
 	mediaBarCollectionIds: [],
 	mediaBarExternalLists: [],

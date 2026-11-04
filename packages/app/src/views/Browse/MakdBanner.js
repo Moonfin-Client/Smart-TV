@@ -6,6 +6,7 @@ import $L from '@enact/i18n/$L';
 import {getFeaturedBackdropUrl, formatDuration} from '../../utils/helpers';
 import RatingsRow from '../../components/RatingsRow';
 import {KEYS} from '../../utils/keys';
+import MediaBarNewReleaseLabel from '../../components/MediaBarNewReleaseLabel';
 import useTrailerPreview from './useTrailerPreview';
 import css from './Browse.module.less';
 import {carouselIntervalMs} from '../../utils/carouselTiming';
@@ -21,6 +22,7 @@ const MakdBanner = memo(({
 	isVisible,
 	browseVisible = true,
 	featuredItems,
+	newReleases,
 	serverUrl,
 	api,
 	settings,
@@ -247,6 +249,7 @@ const MakdBanner = memo(({
 					{currentFeatured.LogoUrl ? (
 						<div className={css.makdLogo}>
 							<img src={currentFeatured.LogoUrl} alt={`${currentFeatured.Name} logo`} />
+							<MediaBarNewReleaseLabel release={newReleases?.[currentFeatured.Id]} />
 						</div>
 					) : null}
 
@@ -254,6 +257,7 @@ const MakdBanner = memo(({
 						{!currentFeatured.LogoUrl && (
 							<h2 className={css.makdTitle}>{currentFeatured.Name}</h2>
 						)}
+						{!currentFeatured.LogoUrl && <MediaBarNewReleaseLabel release={newReleases?.[currentFeatured.Id]} />}
 
 						<div className={css.makdMeta}>
 							{currentFeatured.ProductionYear && (
