@@ -781,6 +781,14 @@ describe('the focus border color', () => {
 	});
 });
 
+describe('the focus expansion toggle', () => {
+	test('syncs under Core\'s name both ways', () => {
+		expect(profileToLocal({cardFocusExpansion: false}).cardFocusZoom).toBe(false);
+		expect(profileToLocal({cardFocusExpansion: true}).cardFocusZoom).toBe(true);
+		expect(localToProfile({cardFocusZoom: false}, ['cardFocusZoom'])).toEqual({cardFocusExpansion: false});
+	});
+});
+
 describe('the profile push queue', () => {
 	const creds = {current: {serverUrl: 'http://server', token: 'token'}};
 	const settingsFor = (syncProfile, changes) => ({...defaultSettings, syncProfile, ...changes});

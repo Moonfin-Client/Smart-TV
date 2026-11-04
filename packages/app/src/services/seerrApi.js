@@ -724,11 +724,13 @@ export const PERMISSIONS = {
 	REQUEST_4K_MOVIE: 2048,
 	REQUEST_4K_TV: 4096,
 	REQUEST_ADVANCED: 8192,
+	REQUEST_VIEW: 16384,
 	REQUEST_MOVIE: 262144,
 	REQUEST_TV: 524288,
 	MANAGE_ISSUES: 1048576,
 	VIEW_ISSUES: 2097152,
-	CREATE_ISSUES: 4194304
+	CREATE_ISSUES: 4194304,
+	RECENT_VIEW: 67108864
 };
 
 const normalizePermissionValue = (userPermissions) => {
@@ -997,6 +999,10 @@ export const getMyRequests = async (requestedByUserId, take = 50, skip = 0) => {
 	return result;
 };
 
+// Core's Recent Requests read, everyone's or just the one user's.
+export const getRecentRequests = async (requestedBy, take = 15) =>
+	request(`/request?skip=0&take=${take}${requestedBy != null ? `&requestedBy=${requestedBy}` : ''}`);
+
 export const getRecentlyAdded = async (take = 20) => {
 	return request(`/media?filter=allavailable&sort=mediaAdded&take=${take}`);
 };
@@ -1234,6 +1240,7 @@ export default {
 	declineRequest,
 	retryRequest,
 	getMyRequests,
+	getRecentRequests,
 	getRecentlyAdded,
 	getWatchlist,
 	addToWatchlist,

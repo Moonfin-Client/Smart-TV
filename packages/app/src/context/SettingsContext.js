@@ -55,6 +55,7 @@ const SERVER_TO_LOCAL = {
 	homeBackdropEnabled: 'showHomeBackdrop',
 	use24HourClock: 'clockDisplay',
 	focusColor: 'focusBorderColor',
+	cardFocusExpansion: 'cardFocusZoom',
 	watchedIndicator: 'watchedIndicatorBehavior',
 	posterSize: 'homeRowsPosterSize',
 	homeImageUseSeriesImage: 'useSeriesThumbnails',
@@ -369,6 +370,7 @@ export const SYNCABLE_KEYS = [
 	'detailMetadataOrderTv', 'hiddenDetailMetadataTv',
 	'hiddenDetailSectionsTv',
 	'focusBorderColor',
+	'cardFocusZoom',
 	'navbarOpacity',
 	'navbarColor',
 ];

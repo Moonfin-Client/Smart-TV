@@ -294,14 +294,34 @@ it('holds the artwork back while its row is far from focus', () => {
 });
 
 describe('ModernMediaCard Seerr status', () => {
-	const dot = () => document.querySelector('[class~="seerrBadge"]');
+	const dot = () => document.querySelector('[class~="dot"]');
 	const banner = () => document.querySelector('[class~="banner"]');
 	const drawCard = (item) => render(<ModernMediaCard item={item} serverUrl="http://server" />);
 
 	it('keeps the corner dot in badge mode', () => {
 		drawCard(seerrShow({mediaInfo: {status: 3}}));
-		expect(dot().className).toContain('seerr3');
+		expect(dot().className).toContain('processing');
 		expect(banner()).toBeNull();
+	});
+
+	it('draws Core\'s mark for each status and none for an unknown one', () => {
+		const {rerender} = drawCard(seerrShow({mediaInfo: {status: 5}}));
+		expect(dot().className).toContain('available');
+		rerender(<ModernMediaCard item={seerrShow({mediaInfo: {status: 4}})} serverUrl="http://server" />);
+		expect(dot().className).toContain('partial');
+		rerender(<ModernMediaCard item={seerrShow({mediaInfo: {status: 2}})} serverUrl="http://server" />);
+		expect(dot().className).toContain('pending');
+		rerender(<ModernMediaCard item={seerrShow({mediaInfo: {status: 1}})} serverUrl="http://server" />);
+		expect(dot()).toBeNull();
+	});
+
+	it('adds the type badge and the focus ring only in the Core look', () => {
+		const {rerender} = drawCard(seerrShow());
+		expect(document.querySelector('[class~="typeBadge"]')).toBeNull();
+		expect(document.querySelector('[class~="focusRing"]')).toBeNull();
+		rerender(<ModernMediaCard item={seerrShow()} serverUrl="http://server" coreLook />);
+		expect(document.querySelector('[class~="typeBadge"]').textContent).toBe('SERIES');
+		expect(document.querySelector('[class~="focusRing"]')).not.toBeNull();
 	});
 
 	it('draws nothing when the badges are off', () => {
