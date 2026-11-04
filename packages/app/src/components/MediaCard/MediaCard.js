@@ -41,6 +41,10 @@ const requestedArtwork = (item, imageType, serverUrl) => {
 		if (item.ImageTags?.Thumb) {
 			return getImageUrl(serverUrl, item.Id, 'Thumb', {maxWidth: 400, quality: 80});
 		}
+		// A title matched from an outside list keeps the list's backdrop when the library has no wide art for it.
+		if (item._resolvedFromExternal && item._externalBackdropUrl) {
+			return toAbsoluteImageUrl(item._externalBackdropUrl, serverUrl);
+		}
 	}
 	if (imageType === 'thumb') {
 		if (item.ImageTags?.Thumb) {
