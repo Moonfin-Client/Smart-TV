@@ -24,6 +24,14 @@ const loadWatchingNowRow = async (forceRefresh = false) => {
 	};
 };
 
+const withRow = (rows, row) => {
+	const index = rows.findIndex((r) => r.id === row.id);
+	if (index < 0) return [...rows, row];
+	const updated = [...rows];
+	updated[index] = row;
+	return updated;
+};
+
 // Home rows built from TMDB and IMDb charts, lists the viewer pasted a URL for, and the
 // Radarr and Sonarr calendars. Items arrive as provider ids, so every row is resolved against
 // the local library first: what the server owns becomes playable, the rest falls back to Seerr.
@@ -111,8 +119,6 @@ const useExternalRows = ({settings, homeRows, kidsMode}) => {
 					seasonalRow = buildSeasonalRow(await fetchSeasonalRow({country}), settings.seasonalRowHiddenHolidays || []);
 				}
 
-				const watchingNowRow = watchingNowEnabled ? await loadWatchingNowRow() : null;
-
 				const allRows = [
 					...presetData,
 					...customData,
@@ -158,29 +164,32 @@ const useExternalRows = ({settings, homeRows, kidsMode}) => {
 				}
 
 				if (!cancelled) {
-					const built = [...presetRows, ...builtCustomRows, seasonalRow, watchingNowRow, ...resolvedCalendarRows].filter(Boolean);
-					settleSections(pendingRows.map((row) => row.id), built);
-					setExternalRows(built);
+					const built = [...presetRows, ...builtCustomRows, seasonalRow, ...resolvedCalendarRows].filter(Boolean);
+					settleSections(pendingRows.filter((row) => row.id !== 'mdblist_watching_now').map((row) => row.id), built);
+					// Watching Now loads on its own, so a row it already put up stays.
+					setExternalRows((prevRows) => [...built, ...(watchingNowEnabled ? prevRows.filter((r) => r.id === 'mdblist_watching_now') : [])]);
 				}
 			} catch (err) {
 				console.warn('[Browse] Failed to fetch and resolve external rows:', err);
 			}
-			if (!cancelled) setPending([]);
+			if (!cancelled) setPending((prevPending) => prevPending.filter((row) => row.id === 'mdblist_watching_now'));
 		})();
 
 		if (watchingNowEnabled) {
+			// Loaded apart so a slow MDBList answer doesn't hold back the other rows.
+			loadWatchingNowRow().then((row) => {
+				if (cancelled) return;
+				settleSections(['mdblist_watching_now'], row ? [row] : []);
+				setExternalRows((prevRows) => (row ? withRow(prevRows, row) : prevRows.filter((r) => r.id !== 'mdblist_watching_now')));
+				setPending((prevPending) => prevPending.filter((r) => r.id !== 'mdblist_watching_now'));
+			});
+
 			refreshTimer = setInterval(async () => {
 				// The player takes Home down with it, so only a hidden app is left to skip.
 				if (document.hidden) return;
 				const row = await loadWatchingNowRow(true);
 				if (!row || cancelled) return;
-				setExternalRows((prevRows) => {
-					const index = prevRows.findIndex((r) => r.id === row.id);
-					if (index < 0) return [...prevRows, row];
-					const updated = [...prevRows];
-					updated[index] = row;
-					return updated;
-				});
+				setExternalRows((prevRows) => withRow(prevRows, row));
 			}, 5 * 60 * 1000);
 		}
 

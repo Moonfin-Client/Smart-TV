@@ -26,7 +26,7 @@ const WatchingNowOverlay = ({item}) => (
 	<>
 		<div className={css.scrim} />
 		<span className={css.rank}>{item.Rank}</span>
-		<span className={css.type}>{item._mediaType.toUpperCase()}</span>
+		<span className={css.type}>{(item.Type === 'Series' ? $L('Show') : $L('Movie')).toUpperCase()}</span>
 		<div className={css.logoBox}>
 			<CardLogo url={item._externalLogoUrl} name={item.Name} />
 		</div>

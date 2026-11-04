@@ -165,7 +165,6 @@ export const normalizeWatchingNowItem = (item, index) => {
 		_externalPosterUrl: item.backdrop || item.poster || null,
 		_externalLogoUrl: item.logo || null,
 		_external: true,
-		_mediaType: item.media_type || 'movie',
 		mediaInfo: {},
 		_seerr: true,
 		_seerrType: 'item',

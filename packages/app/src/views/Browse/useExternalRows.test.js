@@ -91,6 +91,15 @@ describe('empty external rows', () => {
 		expect(fetchWatchingNow).toHaveBeenLastCalledWith(null, {forceRefresh: true});
 	});
 
+	test("a slow watching now feed doesn't hold back the other rows", async () => {
+		fetchWatchingNow.mockReturnValue(new Promise(() => {}));
+		fetchExternalPresetRow.mockResolvedValue([{Id: 'a', Name: 'A'}]);
+		const bothRows = [...homeRows, ...watchingNowRows];
+		const {result} = renderHook(() => useExternalRows({settings: watchingNowSettings, homeRows: bothRows, kidsMode: false}));
+		await waitFor(() => expect(result.current.rows.map((row) => row.id)).toEqual(['tmdb_popular_movies']));
+		expect(result.current.pending.map((row) => row.id)).toEqual(['mdblist_watching_now']);
+	});
+
 	test("watching now cards aren't matched against the library", async () => {
 		fetchWatchingNow.mockResolvedValue({items: [{title: 'Valid Movie', imdb_id: 'tt123456'}]});
 		resolveItemsByProviderIds.mockClear();

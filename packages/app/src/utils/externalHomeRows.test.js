@@ -235,7 +235,6 @@ describe('WatchingNow helpers', () => {
 		const normalized = normalizeWatchingNowItem({title: 'Severance', media_type: 'show', tmdb_id: 95396}, 1);
 		expect(normalized.Type).toBe('Series');
 		expect(normalized._seerrMediaType).toBe('tv');
-		expect(normalized._mediaType).toBe('show');
 		expect(normalized.Rank).toBe(2);
 	});
 });
