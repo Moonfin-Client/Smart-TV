@@ -86,12 +86,14 @@ const useBrowseData = ({
 		if (!row || !row.hasMore || typeof row.readHead !== 'function' || pagingRef.current.has(rowId)) return;
 		pagingRef.current.add(rowId);
 		const limit = nextHeadLength(row);
-		let page = {items: [], hasMore: false};
+		let page;
 		try {
 			const result = await row.readHead(limit);
 			page = {items: result?.Items || [], hasMore: moreAfter(result, limit)};
 		} catch (err) {
+			// The row keeps its hasMore, so the next focus near the end tries again.
 			console.warn(`[Browse] Failed to load more of ${rowId}:`, err);
+			return;
 		} finally {
 			pagingRef.current.delete(rowId);
 		}
