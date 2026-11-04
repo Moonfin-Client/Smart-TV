@@ -85,7 +85,8 @@ export const DEFAULT_HOME_ROWS = [
 	{id: 'librarybuttons', name: 'Library Buttons', enabled: false, order: 62},
 	{id: 'studios', name: 'Studios', enabled: false, order: 63},
 	{id: 'seasonal', name: 'Seasonal Row', enabled: false, order: 64},
-	{id: 'onnow', name: 'On Now', enabled: false, order: 65}
+	{id: 'onnow', name: 'On Now', enabled: false, order: 65},
+	{id: 'mdblist_watching_now', name: 'Watching on MDBList', enabled: false, order: 66}
 ];
 
 export const TV_TO_SERVER_ROW = {

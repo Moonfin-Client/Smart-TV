@@ -1,8 +1,9 @@
 import {useEffect, useState} from 'react';
 import $L from '@enact/i18n/$L';
 
-import {getExternalHomeRowConfigs, fetchExternalPresetRow, fetchCustomHomeRow, fetchCalendarRows, buildSeasonalRow} from '../../utils/externalHomeRows';
+import {getExternalHomeRowConfigs, fetchExternalPresetRow, fetchCustomHomeRow, fetchCalendarRows, buildSeasonalRow, formatWatchingNowSubtitle, normalizeWatchingNowItem} from '../../utils/externalHomeRows';
 import {fetchSeasonalRow} from '../../services/externalRowsApi';
+import {fetchWatchingNow} from '../../services/mdblistApi';
 import {resolveItemsByProviderIds} from '../../services/jellyfinApi';
 import {seasonalCountryParam} from '../../utils/seasonalRow';
 import {resolveDeviceCountry} from '../../utils/deviceCountry';
@@ -32,13 +33,15 @@ const useExternalRows = ({settings, homeRows, kidsMode}) => {
 		const calendarsEnabled = radarrEnabled || sonarrEnabled;
 		// The seasonal row is stored as a home row and as its own synced toggle, and both have to be on.
 		const seasonalEnabled = settings.seasonalRowEnabled === true && rows.some((r) => r.enabled && r.id === 'seasonal');
-		if (enabledPresets.length === 0 && customRows.length === 0 && !calendarsEnabled && !seasonalEnabled) {
+		const watchingNowEnabled = settings.mdblistWatchingNowEnabled === true && rows.some((r) => r.enabled && r.id === 'mdblist_watching_now');
+		if (enabledPresets.length === 0 && customRows.length === 0 && !calendarsEnabled && !seasonalEnabled && !watchingNowEnabled) {
 			setExternalRows([]);
 			setPending([]);
 			return undefined;
 		}
 
 		let cancelled = false;
+		let refreshTimer = null;
 		const presetConfigs = getExternalHomeRowConfigs();
 		const mergedCalendars = radarrEnabled && sonarrEnabled && settings.mergeRadarrSonarrCalendars;
 		const pendingRows = [
@@ -48,6 +51,7 @@ const useExternalRows = ({settings, homeRows, kidsMode}) => {
 				.map((cfg) => ({id: cfg.id, title: cfg.title})),
 			...customRows.map((row) => ({id: `external-${row.id}`, title: row.name || row.title || $L('Custom'), isCustomRow: true})),
 			...(seasonalEnabled ? [{id: 'seasonal', title: $L('Seasonal Row')}] : []),
+			...(watchingNowEnabled ? [{id: 'mdblist_watching_now', title: $L('Watching on MDBList')}] : []),
 			...(mergedCalendars ? [{id: 'radarr_calendar', title: $L('Upcoming Releases'), isCalendarMerged: true}] : []),
 			...(radarrEnabled && !mergedCalendars ? [{id: 'radarr_calendar', title: $L('Upcoming Movies')}] : []),
 			...(sonarrEnabled && !mergedCalendars ? [{id: 'sonarr_calendar', title: $L('Upcoming Episodes')}] : [])
@@ -92,9 +96,33 @@ const useExternalRows = ({settings, homeRows, kidsMode}) => {
 					seasonalRow = buildSeasonalRow(await fetchSeasonalRow({country}), settings.seasonalRowHiddenHolidays || []);
 				}
 
+				let watchingNowRow = null;
+				if (watchingNowEnabled) {
+					try {
+						const data = await fetchWatchingNow();
+						if (data && Array.isArray(data.items)) {
+							const identified = data.items.filter((item) => item && (item.imdb_id || item.tmdb_id || item.public_id));
+							if (identified.length > 0) {
+								const normItems = identified.map(normalizeWatchingNowItem);
+								watchingNowRow = {
+									id: 'mdblist_watching_now',
+									title: $L('Watching on MDBList'),
+									subtitle: formatWatchingNowSubtitle(data),
+									items: normItems,
+									isExternalRow: true,
+									isWatchingNowRow: true
+								};
+							}
+						}
+					} catch (err) {
+						console.warn('[Browse] Failed to fetch watching now row:', err);
+					}
+				}
+
 				const allRows = [
 					...presetData,
 					...customData,
+					...(watchingNowRow ? [watchingNowRow] : []),
 					...calendarRows.map((r) => ({...r, isCalendarRow: true}))
 				].filter((r) => r && r.items && r.items.length > 0);
 
@@ -112,6 +140,7 @@ const useExternalRows = ({settings, homeRows, kidsMode}) => {
 				const presetRows = [];
 				const builtCustomRows = [];
 				const resolvedCalendarRows = [];
+				const resolvedWatchingNowRows = [];
 
 				for (let i = 0; i < allRows.length; i++) {
 					const r = allRows[i];
@@ -120,6 +149,15 @@ const useExternalRows = ({settings, homeRows, kidsMode}) => {
 
 					if (r.isCalendarRow) {
 						resolvedCalendarRows.push({...r, items: resolvedItems});
+					} else if (r.isWatchingNowRow) {
+						resolvedWatchingNowRows.push({
+							id: r.id,
+							title: r.title,
+							subtitle: r.subtitle,
+							items: resolvedItems,
+							isExternalRow: true,
+							isWatchingNowRow: true
+						});
 					} else {
 						const resolvedRow = {
 							id: r.id,
@@ -137,7 +175,7 @@ const useExternalRows = ({settings, homeRows, kidsMode}) => {
 				}
 
 				if (!cancelled) {
-					const built = [...presetRows, ...builtCustomRows, seasonalRow, ...resolvedCalendarRows].filter(Boolean);
+					const built = [...presetRows, ...builtCustomRows, seasonalRow, ...resolvedWatchingNowRows, ...resolvedCalendarRows].filter(Boolean);
 					settleSections(pendingRows.map((row) => row.id), built);
 					setExternalRows(built);
 				}
@@ -147,11 +185,39 @@ const useExternalRows = ({settings, homeRows, kidsMode}) => {
 			if (!cancelled) setPending([]);
 		})();
 
+		if (watchingNowEnabled) {
+			refreshTimer = setInterval(async () => {
+				try {
+					const data = await fetchWatchingNow(null, {forceRefresh: true});
+					if (!data || !Array.isArray(data.items)) return;
+					const identified = data.items.filter((item) => item && (item.imdb_id || item.tmdb_id || item.public_id));
+					if (identified.length === 0) return;
+					const normItems = identified.map(normalizeWatchingNowItem);
+					const resolvedItems = await resolveItemsByProviderIds(normItems);
+					if (cancelled) return;
+					setExternalRows((prevRows) => {
+						const index = prevRows.findIndex((row) => row.id === 'mdblist_watching_now');
+						if (index < 0) return prevRows;
+						const updated = [...prevRows];
+						updated[index] = {
+							...updated[index],
+							subtitle: formatWatchingNowSubtitle(data),
+							items: resolvedItems
+						};
+						return updated;
+					});
+				} catch {
+					// Transient refresh errors leave existing row visible
+				}
+			}, 5 * 60 * 1000);
+		}
+
 		return () => {
 			cancelled = true;
+			if (refreshTimer) clearInterval(refreshTimer);
 		};
 	}, [settings.useMoonfinPlugin, homeRows, kidsMode, settings.homeRows, settings.customHomeRows,
-		settings.uiLanguage,
+		settings.uiLanguage, settings.mdblistWatchingNowEnabled,
 		settings.seasonalRowEnabled, settings.seasonalRowCountry, settings.seasonalRowHiddenHolidays,
 		settings.mergeRadarrSonarrCalendars,
 		settings.radarrCalendarShowCinema, settings.radarrCalendarShowDigital, settings.radarrCalendarShowPhysical,

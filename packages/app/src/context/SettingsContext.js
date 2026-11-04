@@ -291,6 +291,7 @@ export const SYNCABLE_KEYS = [
 	'nextUpMaxDays',
 	'hiddenContinueWatchingItems', 'hiddenNextUpSeries',
 	'mdblistEnabled', 'mdblistRatingSources', 'tmdbEpisodeRatingsEnabled',
+	'mdblistWatchingNowEnabled',
 	'imdbTop250MoviesEnabled', 'imdbTop250TvShowsEnabled', 'imdbMostPopularMoviesEnabled',
 	'imdbMostPopularTvShowsEnabled', 'imdbLowestRatedMoviesEnabled', 'imdbTopEnglishMoviesEnabled',
 	'imdbRowsSortBy', 'imdbRowsSortOrder', 'tmdbRowsSortBy', 'tmdbRowsSortOrder', 'seerrRowsSortBy', 'seerrRowsSortOrder',

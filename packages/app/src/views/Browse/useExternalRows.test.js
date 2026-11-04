@@ -15,9 +15,12 @@ jest.mock('../../utils/externalHomeRows', () => ({
 	fetchExternalPresetRow: jest.fn(),
 	fetchCustomHomeRow: jest.fn(),
 	fetchCalendarRows: jest.fn(),
-	buildSeasonalRow: jest.fn()
+	buildSeasonalRow: jest.fn(),
+	formatWatchingNowSubtitle: jest.fn(() => '1,000 watching now'),
+	normalizeWatchingNowItem: jest.fn((item, idx) => ({Id: `ext-${idx}`, Name: item.title, Rank: idx + 1}))
 }));
 jest.mock('../../services/externalRowsApi', () => ({fetchSeasonalRow: jest.fn()}));
+jest.mock('../../services/mdblistApi', () => ({fetchWatchingNow: jest.fn()}));
 jest.mock('../../services/jellyfinApi', () => ({resolveItemsByProviderIds: async (items) => items}));
 jest.mock('../../utils/deviceCountry', () => ({resolveDeviceCountry: async () => 'US'}));
 
