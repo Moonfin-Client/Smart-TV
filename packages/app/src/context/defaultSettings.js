@@ -186,6 +186,7 @@ export const defaultSettings = {
 	mediaBarMdblistRatingSources: ['stars', 'imdb', 'tmdb', 'tomatoes', 'metacritic'],
 	mediaBarShowRatingLabels: true,
 	mediaBarShowRatingBadges: true,
+	mdblistWatchingNowEnabled: false,
 	imdbTop250MoviesEnabled: false,
 	imdbTop250TvShowsEnabled: false,
 	imdbMostPopularMoviesEnabled: false,

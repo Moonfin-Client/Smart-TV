@@ -1010,8 +1010,9 @@ const Details = ({
 		? <QuickLookFrame onClose={onClose}>{children}</QuickLookFrame>
 		: <div className={css.page}>{children}</div>);
 
-	// No artwork, name or retry on purpose, since a retry would read as an invitation.
-	if (!seerrOnly && blockedByRating) {
+	// No artwork, name or retry on purpose, since a retry would read as an invitation. A title only
+	// Seerr knows lands here too once Seerr has nothing to say about it, such as when it isn't set up.
+	if ((!seerrOnly && blockedByRating) || (seerrOnly && !isLoading && !item)) {
 		return page(
 			<div className={css.blocked}>
 				<svg className={css.blockedIcon} viewBox='0 -960 960 960' fill='currentColor' aria-hidden='true' focusable='false'>

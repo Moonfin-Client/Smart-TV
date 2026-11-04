@@ -14,6 +14,7 @@ import MediaPreviewContext from '../../components/MediaCard/MediaPreviewContext'
 import {modernRowSpacing} from '../../components/MediaCard/modernCardLayout';
 import SeerrTileRow from '../../components/SeerrTileRow';
 import LibraryButtonRow from '../../components/LibraryButtonRow';
+import WatchingNowRow from '../../components/WatchingNowRow';
 import {SkeletonShimmer, skeletonTitleWidths} from '../../components/Skeleton';
 import {getImageUrl, getBackdropId} from '../../utils/helpers';
 import {loadNewReleases} from '../../utils/mediaBarNewRelease';
@@ -955,6 +956,26 @@ const Browse = ({
 									rowIndex={index}
 									onNavigateUp={handleNavigateUp}
 									onNavigateDown={handleNavigateDown}
+									registerRowRef={registerRowRef}
+								/>
+							);
+						}
+						if (row.isWatchingNowRow) {
+							return (
+								<WatchingNowRow
+									key={row.id}
+									rowId={row.id}
+									title={row.title}
+									subtitle={row.subtitle}
+									items={row.items}
+									serverUrl={serverUrl}
+									onSelectItem={rowSelect.external}
+									onFocus={handleRowFocus}
+									onFocusItem={handleFocusItem}
+									rowIndex={index}
+									onNavigateUp={handleNavigateUp}
+									onNavigateDown={handleNavigateDown}
+									rowSpacing={rowSpacing}
 									registerRowRef={registerRowRef}
 								/>
 							);

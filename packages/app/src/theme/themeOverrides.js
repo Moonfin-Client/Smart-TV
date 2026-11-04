@@ -66,6 +66,7 @@ import seerrDotCss from '../components/seerr/SeerrStatusDot.module.less';
 import mediaRowCss from '../components/MediaRow/MediaRow.module.less';
 import modernRowCss from '../components/MediaRow/ModernMediaRow.module.less';
 import ratingsCss from '../components/RatingsRow/RatingsRow.module.less';
+import watchingNowRowCss from '../components/WatchingNowRow/WatchingNowRow.module.less';
 import itemMenuCss from '../components/ItemContextMenu/ItemContextMenu.module.less';
 import skeletonCss from '../components/Skeleton/Skeleton.module.less';
 import playlistSortFilterCss from '../components/PlaylistSortFilterBar/PlaylistSortFilterBar.module.less';
@@ -747,6 +748,8 @@ export const buildThemeOverrideCss = (theme, options = {}) => {
 	// Row shells
 	rule(`.${mediaRowCss.title}, .${modernRowCss.title}`, `color: ${onSurface}; text-shadow: ${textGlow};`);
 	rule(`.${mediaRowCss.subtitle}, .${modernRowCss.subtitle}`, `color: ${os(0.5)};`);
+	rule(`.${watchingNowRowCss.subtitle}`, `color: ${os(0.95)};`);
+	rule(`.${watchingNowRowCss.globeIcon}`, `color: ${onSurface};`);
 	rule(`.${mediaRowCss.seeAll}`, `background: ${os(0.08)}; color: ${os(0.7)};`);
 	rule(`.${mediaRowCss.seeAll}:focus`, `border-color: ${accent}; background: ${accentA(0.22)}; color: ${onSurface}; box-shadow: 0 0 14px 1px ${accentA(0.45)};`);
 	rule(`.${mediaRowCss.seeAllChevron}`, `color: ${accent};`);
