@@ -58,9 +58,10 @@ describe('fetchWithTimeout', () => {
 		});
 		const promise = fetchWithTimeout('http://x');
 		promise.catch(() => {});
-		jest.advanceTimersByTime(1000);
+		jest.advanceTimersByTime(29999);
 		expect(receivedSignal.aborted).toBe(false);
-		jest.advanceTimersByTime(30000);
+		jest.advanceTimersByTime(1);
+		expect(receivedSignal.aborted).toBe(true);
 		await expect(promise).rejects.toMatchObject({name: 'AbortError'});
 	});
 
