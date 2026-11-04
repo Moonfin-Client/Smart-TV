@@ -126,7 +126,13 @@ const mergeContinueAndNextUp = (allRowData, hiddenCWMap, hiddenNUMap) => {
 	});
 
 	if (combinedItems.length === 0) return null;
-	return {id: 'continue-nextup', title: $L('Continue Watching & Next Up'), items: combinedItems, type: 'landscape'};
+	return {
+		id: 'continue-nextup',
+		title: $L('Continue Watching & Next Up'),
+		items: combinedItems,
+		type: 'landscape',
+		hasMore: Boolean(resumeRow?.hasMore || nextUpRow?.hasMore)
+	};
 };
 
 // The source label the other clients print under external row titles.
