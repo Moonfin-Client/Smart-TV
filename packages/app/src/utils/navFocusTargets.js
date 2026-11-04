@@ -59,16 +59,11 @@ export const rememberSidebarReturn = (node) => {
 	sidebarReturnTarget = node || null;
 };
 
-export const forgetSidebarReturn = () => {
-	sidebarReturnTarget = null;
-};
-
-// The remembered node only counts while it's still on screen: a view that was
-// swapped out or hidden behind another panel leaves it detached or without an
-// offsetParent, and then the first content target takes over as before.
+// The remembered node only counts while it's still on screen. One from a view that was swapped out
+// or hidden behind another panel has no offsetParent.
 export const focusContentFromSidebar = () => {
 	const node = sidebarReturnTarget;
 	sidebarReturnTarget = null;
-	if (node && node.isConnected && node.offsetParent !== null && Spotlight.focus(node)) return;
+	if (node && node.offsetParent !== null && Spotlight.focus(node)) return;
 	focusFirstContentTarget(SIDEBAR_CONTENT_FOCUS_TARGETS, 'right');
 };
