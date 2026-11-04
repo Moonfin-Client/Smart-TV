@@ -1,90 +1,47 @@
-import {useCallback, useRef, useEffect, memo} from 'react';
-import Spottable from '@enact/spotlight/Spottable';
+import {useCallback, useRef, useEffect, useState, memo} from 'react';
 import SpotlightContainerDecorator from '@enact/spotlight/SpotlightContainerDecorator';
 import Spotlight from '@enact/spotlight';
 import $L from '@enact/i18n/$L';
+import MediaCard from '../MediaCard';
 import {KEYS} from '../../utils/keys';
 import {useSettings} from '../../context/SettingsContext';
+import {CORE_ICON_PATHS} from '../../views/Settings/settingsCoreIcons';
 
+import rowCss from '../MediaRow/MediaRow.module.less';
 import css from './WatchingNowRow.module.less';
 
 const RowContainer = SpotlightContainerDecorator({
-	enterTo: 'last-focused'
+	enterTo: 'last-focused',
+	defaultElement: '[data-media-card]'
 }, 'div');
 
-const SpottableDiv = Spottable('div');
+const CardLogo = ({url, name}) => {
+	const [failed, setFailed] = useState(false);
+	const handleError = useCallback(() => setFailed(true), []);
+	if (!url || failed) return <div className={css.logoTitle}>{name}</div>;
+	return <img className={css.logo} src={url} alt={name} onError={handleError} />;
+};
 
-const FOCUS_SETTLE_MS = 50;
-
-const WatchingNowCard = memo(function WatchingNowCard({
-	item,
-	spotlightId,
-	onSelect,
-	onFocusItem,
-	onSpotlightLeft,
-	onSpotlightRight
-}) {
-	const focusTimeoutRef = useRef(null);
-	const handleClick = useCallback(() => onSelect?.(item), [item, onSelect]);
-
-	useEffect(() => {
-		return () => {
-			if (focusTimeoutRef.current) clearTimeout(focusTimeoutRef.current);
-		};
-	}, []);
-
-	const handleFocus = useCallback(() => {
-		if (focusTimeoutRef.current) clearTimeout(focusTimeoutRef.current);
-		focusTimeoutRef.current = setTimeout(() => onFocusItem?.(item), FOCUS_SETTLE_MS);
-	}, [item, onFocusItem]);
-
-	const backdrop = item._externalBackdropUrl || item._externalPosterUrl;
-	const isSeries = item.Type === 'Series';
-	const typeLabel = isSeries ? $L('Show') : $L('Movie');
-	const watchers = Number(item.Watchers || 0).toLocaleString();
-	const watchersLabel = $L('{count} watching').replace('{count}', watchers);
-	const ariaLabel = `${item.Name}, ${$L('Rank')} ${item.Rank}, ${watchersLabel}, ${typeLabel}`;
-
-	return (
-		<SpottableDiv
-			className={css.card}
-			spotlightId={spotlightId}
-			onClick={handleClick}
-			onFocus={handleFocus}
-			onSpotlightLeft={onSpotlightLeft}
-			onSpotlightRight={onSpotlightRight}
-			role="button"
-			tabIndex={0}
-			aria-label={ariaLabel}
-		>
-			{backdrop && <img className={css.backdrop} src={backdrop} alt="" loading="lazy" />}
-			<div className={css.overlay}>
-				<div className={css.topBar}>
-					<span className={css.rankBadge}>#{item.Rank}</span>
-					<span className={css.liveBadge}>
-						<span className={css.watcherDot} />
-						{watchersLabel}
-					</span>
-				</div>
-				<div className={css.centerContent}>
-					{item._externalLogoUrl ? (
-						<img className={css.logo} src={item._externalLogoUrl} alt={item.Name} loading="lazy" />
-					) : (
-						<div className={css.titleFallback}>{item.Name}</div>
-					)}
-				</div>
-				<div className={css.bottomBar}>
-					<span className={css.typePill}>{typeLabel}</span>
-				</div>
-			</div>
-		</SpottableDiv>
-	);
-});
+const WatchingNowOverlay = ({item}) => (
+	<>
+		<div className={css.scrim} />
+		<span className={css.rank}>{item.Rank}</span>
+		<span className={css.type}>{item._mediaType.toUpperCase()}</span>
+		<div className={css.logoBox}>
+			<CardLogo url={item._externalLogoUrl} name={item.Name} />
+		</div>
+		<div className={css.watchers}>
+			<span className={css.watcherDot} />
+			{$L('{count} watching').replace('{count}', String(item.Watchers))}
+		</div>
+	</>
+);
 
 const WatchingNowRow = ({
 	title,
 	subtitle,
 	items,
+	serverUrl,
 	onSelectItem,
 	onFocus,
 	onFocusItem,
@@ -92,7 +49,7 @@ const WatchingNowRow = ({
 	rowId,
 	onNavigateUp,
 	onNavigateDown,
-	className,
+	rowSpacing,
 	registerRowRef
 }) => {
 	const {settings} = useSettings();
@@ -100,8 +57,6 @@ const WatchingNowRow = ({
 	const scrollerRectRef = useRef(null);
 	const scrollTimeoutRef = useRef(null);
 	const rowElementRef = useRef(null);
-
-	const keyPrefix = rowId || title || rowIndex || '';
 
 	useEffect(() => {
 		const el = rowElementRef.current;
@@ -117,10 +72,6 @@ const WatchingNowRow = ({
 		window.addEventListener('resize', invalidate);
 		return () => window.removeEventListener('resize', invalidate);
 	}, [settings.navbarPosition]);
-
-	const handleSelect = useCallback((item) => {
-		onSelectItem?.(item);
-	}, [onSelectItem]);
 
 	const handleFocus = useCallback((e) => {
 		onFocus?.(rowIndex);
@@ -149,9 +100,6 @@ const WatchingNowRow = ({
 	}, [rowIndex, onFocus]);
 
 	const handleKeyDown = useCallback((e) => {
-		const targetIsCard = e.target.closest('.spottable');
-		if (!targetIsCard) return;
-
 		if (e.keyCode === KEYS.UP && onNavigateUp) {
 			e.preventDefault();
 			e.stopPropagation();
@@ -166,70 +114,68 @@ const WatchingNowRow = ({
 	const handleWrapLeft = useCallback((e) => {
 		e.preventDefault();
 		e.stopPropagation();
-		if (settings?.navbarPosition === 'left') {
+		if (settings.navbarPosition === 'left') {
 			if (!Spotlight.focus('navbar')) {
 				Spotlight.move('left');
 			}
 		} else {
-			const scroller = scrollerRef.current;
-			if (scroller && items?.length > 1) {
-				scroller.scrollLeft = scroller.scrollWidth;
-				Spotlight.focus(`media-${keyPrefix}-${items[items.length - 1].Id}`);
-			}
+			Spotlight.focus(`media-${rowId}-${items[items.length - 1].Id}`);
 		}
-	}, [items, keyPrefix, settings?.navbarPosition]);
+	}, [items, rowId, settings.navbarPosition]);
 
 	const handleWrapRight = useCallback((e) => {
 		e.preventDefault();
-		const scroller = scrollerRef.current;
-		if (scroller && items?.length > 1) {
-			scroller.scrollLeft = 0;
-			Spotlight.focus(`media-${keyPrefix}-${items[0].Id}`);
-		}
-	}, [items, keyPrefix]);
+		e.stopPropagation();
+		Spotlight.focus(`media-${rowId}-${items[0].Id}`);
+	}, [items, rowId]);
 
 	if (!items || items.length === 0) return null;
 
-	const rowTitle = title || $L('Watching on MDBList');
+	const rowClassName = [
+		rowCss.row,
+		settings.fullScreenRows === true ? rowCss.fullScreenRows : '',
+		settings.fullScreenRows === true && settings.homeRowOverlay !== false ? rowCss.withOverlay : ''
+	].filter(Boolean).join(' ');
+	const rowStyle = typeof rowSpacing === 'number' ? {marginBottom: rowSpacing + 'px'} : undefined;
 
 	return (
 		<RowContainer
 			ref={rowElementRef}
-			className={`${css.row} ${className || ''}`}
+			className={rowClassName}
 			spotlightId={`row-${rowIndex}`}
 			data-row-index={rowIndex}
 			data-row-id={rowId}
 			onKeyDown={handleKeyDown}
+			style={rowStyle}
 		>
 			<div className={css.header}>
-				<svg className={css.globeIcon} viewBox="0 -960 960 960">
-					<path d="M480-80q-83 0-156-31.5T197-197q-54-54-85.5-127T80-480q0-83 31.5-156T197-763q54-54 127-85.5T480-880q83 0 156 31.5T763-763q54 54 85.5 127T880-480q0 83-31.5 156T763-197q-54 54-127 85.5T480-80Zm0-82q26-36 45-78t31-88H404q12 46 31 88t45 78Zm-104-16q-18-33-31.5-68.5T322-328H208q32 57 78.5 98.5T376-178Zm208 0q43-40 79.5-81.5T742-328H638q-9 43-22.5 78.5T584-178ZM170-408h136q-3-20-4.5-39.5T300-488q0-20 1.5-39.5T306-568H170q-5 20-7.5 39.5T160-488q0 20 2.5 39.5T170-408Zm216 0h188q3-20 4.5-39.5T580-488q0-20-1.5-39.5T574-568H386q-3 20-4.5-39.5T380-488q0 20 1.5 39.5T386-408Zm268 0h136q5-20 7.5-39.5T800-488q0-20-2.5-39.5T790-568H654q3 20 4.5 39.5T660-488q0 20-1.5 39.5T654-408Zm-70-240h104q-32-57-78.5-98.5T584-782q18 33 31.5 68.5T638-648Zm-234 0h152q-12-46-31-88t-45-78q-26 36-45 78t-31 88Zm-196 0h114q9-43 22.5-78.5T376-782q-43 40-79.5 81.5T208-648Z" />
-				</svg>
-				<h2 className={css.title}>
-					{rowTitle}
-					<span className={css.pulsingDot} />
-				</h2>
+				<svg className={css.globeIcon} viewBox="0 0 24 24"><path d={CORE_ICON_PATHS.public} /></svg>
+				<h2 className={`${rowCss.title} ${css.title}`}>{title}</h2>
 			</div>
-			{subtitle && <div className={css.subtitle}>{subtitle}</div>}
-			<div className={css.scroller} ref={scrollerRef} onFocus={handleFocus}>
-				<div className={css.items}>
-					{items.map((item, index) => {
-						const spotlightId = `media-${keyPrefix}-${item.Id}`;
-						const isFirst = index === 0;
-						const isLast = index === items.length - 1;
-
-						return (
-							<WatchingNowCard
-								key={`${keyPrefix}-${item.Id}-${index}`}
-								item={item}
-								spotlightId={spotlightId}
-								onSelect={handleSelect}
-								onFocusItem={onFocusItem}
-								onSpotlightLeft={isFirst ? handleWrapLeft : null}
-								onSpotlightRight={isLast ? handleWrapRight : null}
-							/>
-						);
-					})}
+			{subtitle && (
+				<div className={css.summary}>
+					<span className={css.liveDot} />
+					<span className={css.subtitle}>{subtitle}</span>
+				</div>
+			)}
+			<div className={rowCss.scroller} ref={scrollerRef} onFocus={handleFocus}>
+				<div className={rowCss.items}>
+					{items.map((item, index) => (
+						<MediaCard
+							key={`${rowId}-${item.Id}-${index}`}
+							item={item}
+							serverUrl={serverUrl}
+							cardType="landscape"
+							onSelect={onSelectItem}
+							onFocusItem={onFocusItem}
+							eagerLoad={rowIndex === 0}
+							spotlightId={`media-${rowId}-${item.Id}`}
+							onSpotlightLeft={index === 0 ? handleWrapLeft : null}
+							onSpotlightRight={index === items.length - 1 ? handleWrapRight : null}
+							overlay={<WatchingNowOverlay item={item} />}
+							showInfo={false}
+						/>
+					))}
 				</div>
 			</div>
 		</RowContainer>
@@ -237,4 +183,3 @@ const WatchingNowRow = ({
 };
 
 export default memo(WatchingNowRow);
-

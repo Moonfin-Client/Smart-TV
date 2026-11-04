@@ -4,6 +4,7 @@ import {isTrickplayOn} from '../../utils/trickplayLayout';
 import {mediaPreviewMode, mediaPreviewSettings} from '../../utils/mediaPreviewMode';
 import {homeBackdropStyle, homeBackdropSettings} from '../../utils/homeBackdropStyle';
 import {ratingKey} from '../../utils/ratingSources';
+import {withWatchingNowRow} from '../../utils/homeLayout';
 
 import {
 	getAccentColorOptions,
@@ -492,19 +493,14 @@ export const SETTINGS_SCHEMA = [
 						kind: KIND.TOGGLE,
 						key: 'mdblistWatchingNowEnabled',
 						label: () => $L('Watching on MDBList'),
-						desc: () => $L('Top trending and popular media right now'),
+						desc: () => $L('Show what MDBList users are currently watching'),
 						icon: 'public',
 						when: whenPlugin,
 						onToggle: (ctx) => {
-							const nextValue = !ctx.settings.mdblistWatchingNowEnabled;
-							const rows = ctx.settings.homeRows || [];
-							const hasRow = rows.some((r) => r.id === 'mdblist_watching_now');
-							const updatedHomeRows = hasRow
-								? rows.map((r) => r.id === 'mdblist_watching_now' ? {...r, enabled: nextValue} : r)
-								: [...rows, {id: 'mdblist_watching_now', name: 'Watching on MDBList', enabled: nextValue, order: rows.length}];
+							const enabled = !ctx.settings.mdblistWatchingNowEnabled;
 							ctx.actions.setSettings({
-								mdblistWatchingNowEnabled: nextValue,
-								homeRows: updatedHomeRows
+								mdblistWatchingNowEnabled: enabled,
+								homeRows: withWatchingNowRow(ctx.settings.homeRows, enabled)
 							});
 						}
 					},

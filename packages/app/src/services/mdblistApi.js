@@ -2,6 +2,7 @@ import {getAuthHeader, getServerUrl, api} from './jellyfinApi';
 import {mediaServerQueue} from '../utils/requestQueue';
 import {RATING_SETTING_KEYS, ratingKey} from '../utils/ratingSources';
 import {fetchWithTimeout} from '../utils/fetchTimeout';
+import {isPlexServer, plexMoonbaseUrl} from '../utils/plexUrls';
 
 const cache = {};
 const CACHE_TTL_MS = 30 * 60 * 1000;
@@ -382,7 +383,8 @@ export const __resetWatchingNowCache = () => {
 };
 
 export const fetchWatchingNow = async (serverUrl, options = {}) => {
-	const baseUrl = serverUrl || getServerUrl();
+	const server = serverUrl || getServerUrl();
+	const baseUrl = isPlexServer(server) ? plexMoonbaseUrl(server) : server;
 	if (!baseUrl) return null;
 	const cacheKey = `${baseUrl}|watching_now`;
 	if (!options.forceRefresh) {
@@ -392,7 +394,7 @@ export const fetchWatchingNow = async (serverUrl, options = {}) => {
 		}
 	}
 	try {
-		const url = `${baseUrl}/Moonfin/MdbList/WatchingNow`;
+		const url = `${baseUrl}/Moonfin/MdbList/WatchingNow?profile=tv`;
 		const fetchOptions = {
 			headers: {'Authorization': getAuthHeader()}
 		};
@@ -402,7 +404,8 @@ export const fetchWatchingNow = async (serverUrl, options = {}) => {
 		);
 		if (!response.ok) return watchingNowCache[cacheKey]?.data || null;
 		const data = await response.json();
-		if (data && Array.isArray(data.items)) {
+		// A failed MDBList call still answers with an empty list and an error, which shouldn't be kept.
+		if (data && Array.isArray(data.items) && !data.error) {
 			watchingNowCache[cacheKey] = {data, fetchedAt: Date.now()};
 			return data;
 		}

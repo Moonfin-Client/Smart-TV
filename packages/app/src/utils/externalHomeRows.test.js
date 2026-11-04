@@ -211,7 +211,7 @@ describe('WatchingNow helpers', () => {
 		const item = {
 			title: 'Inception',
 			year: 2010,
-			mediatype: 'movie',
+			media_type: 'movie',
 			watchers: 85,
 			imdb_id: 'tt1375666',
 			tmdb_id: 27205,
@@ -229,5 +229,13 @@ describe('WatchingNow helpers', () => {
 		expect(normalized._externalBackdropUrl).toBe(item.backdrop);
 		expect(normalized._externalLogoUrl).toBe(item.logo);
 		expect(normalized._seerrRaw).toEqual({mediaId: 27205, mediaType: 'movie'});
+	});
+
+	it('normalizes a show as a series', () => {
+		const normalized = normalizeWatchingNowItem({title: 'Severance', media_type: 'show', tmdb_id: 95396}, 1);
+		expect(normalized.Type).toBe('Series');
+		expect(normalized._seerrMediaType).toBe('tv');
+		expect(normalized._mediaType).toBe('show');
+		expect(normalized.Rank).toBe(2);
 	});
 });

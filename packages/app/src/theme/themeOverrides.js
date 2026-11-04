@@ -746,12 +746,10 @@ export const buildThemeOverrideCss = (theme, options = {}) => {
 	rule(`.${modernCardCss.platformWebos} .${modernCardCss.previewFrame}, .${modernCardCss.platformWebos} .${modernCardCss.previewRing}`, `border-radius: ${bumpRadius(b.cardRadius, 2)};`);
 
 	// Row shells
-	rule(`.${mediaRowCss.title}, .${modernRowCss.title}, .${watchingNowRowCss.title}`, `color: ${onSurface}; text-shadow: ${textGlow};`);
+	rule(`.${mediaRowCss.title}, .${modernRowCss.title}`, `color: ${onSurface}; text-shadow: ${textGlow};`);
 	rule(`.${mediaRowCss.subtitle}, .${modernRowCss.subtitle}`, `color: ${os(0.5)};`);
-	rule(`.${watchingNowRowCss.subtitle}`, `color: ${theme.id === 'neon_pulse' ? onSurface : os(0.95)};`);
+	rule(`.${watchingNowRowCss.subtitle}`, `color: ${os(0.95)};`);
 	rule(`.${watchingNowRowCss.globeIcon}`, `color: ${onSurface};`);
-	rule(`.${watchingNowRowCss.card}`, `background: ${surface}; border-radius: ${cardRadius};`);
-	rule(`.${watchingNowRowCss.card}:focus`, `border-color: ${focusColor}; border-width: 4px; box-shadow: ${glowOr('0 8px 24px rgba(0, 0, 0, 0.6)')};`);
 	rule(`.${mediaRowCss.seeAll}`, `background: ${os(0.08)}; color: ${os(0.7)};`);
 	rule(`.${mediaRowCss.seeAll}:focus`, `border-color: ${accent}; background: ${accentA(0.22)}; color: ${onSurface}; box-shadow: 0 0 14px 1px ${accentA(0.45)};`);
 	rule(`.${mediaRowCss.seeAllChevron}`, `color: ${accent};`);

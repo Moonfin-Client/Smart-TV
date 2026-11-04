@@ -12,15 +12,7 @@ const resolvedToLocal = (resolved) => {
 		seasonal: local.seasonalRowEnabled === true,
 		mdblist_watching_now: local.mdblistWatchingNowEnabled === true
 	});
-	if (homeRows !== undefined) {
-		local.homeRows = homeRows;
-	} else if (local.mdblistWatchingNowEnabled === true) {
-		const existing = local.homeRows || [];
-		const hasRow = existing.some((r) => r.id === 'mdblist_watching_now');
-		local.homeRows = hasRow
-			? existing.map((r) => r.id === 'mdblist_watching_now' ? {...r, enabled: true} : r)
-			: [...existing, {id: 'mdblist_watching_now', name: 'Watching on MDBList', enabled: true, order: existing.length}];
-	}
+	if (homeRows !== undefined) local.homeRows = homeRows;
 	return local;
 };
 

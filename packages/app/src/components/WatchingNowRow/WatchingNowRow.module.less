@@ -1,260 +1,140 @@
-.row {
-	margin-bottom: 30px;
-	overflow: visible;
-	padding-left: 60px;
-	padding-right: 60px;
-	contain: layout style;
-	content-visibility: auto;
-	contain-intrinsic-size: 0 340px;
-	contain-intrinsic-size: auto 340px;
+// Core's sizes times 1.67, the scale its TV layout draws at. The row, title and cards are the classic row's.
 
-	&:first-child {
-		margin-top: 40px;
-	}
-}
-
-.header {
+.header,
+.summary,
+.watchers {
 	display: -webkit-flex;
 	display: flex;
 	-webkit-align-items: center;
 	align-items: center;
+}
+
+.header {
 	margin: 0 0 4px 0;
 }
 
 .globeIcon {
-	width: 26px;
-	height: 26px;
+	width: 30px;
+	height: 30px;
 	margin-right: 10px;
+	-webkit-flex-shrink: 0;
+	flex-shrink: 0;
 	fill: currentColor;
 	color: #ffffff;
-	flex-shrink: 0;
+	color: var(--theme-text-primary);
 }
 
 .title {
-	font-size: 28px;
-	font-weight: 600;
 	margin: 0;
-	color: #ffffff;
-	display: -webkit-flex;
-	display: flex;
-	-webkit-align-items: center;
-	align-items: center;
 }
 
-@keyframes pulse {
-	0% {
-		opacity: 0.4;
-		transform: scale(0.85);
-	}
-	50% {
-		opacity: 1;
-		transform: scale(1.15);
-		box-shadow: 0 0 10px #00e054;
-	}
-	100% {
-		opacity: 0.4;
-		transform: scale(0.85);
-	}
+.summary {
+	margin: 0 0 20px 0;
 }
 
-.pulsingDot {
-	display: inline-block;
-	width: 10px;
-	height: 10px;
+.liveDot,
+.watcherDot {
+	margin-right: 10px;
 	border-radius: 50%;
-	background-color: #00e054;
-	box-shadow: 0 0 6px #00e054;
-	animation: pulse 2s infinite ease-in-out;
-	margin-left: 10px;
-	vertical-align: middle;
+	-webkit-flex-shrink: 0;
 	flex-shrink: 0;
+	background: #22c55e;
+}
+
+.liveDot {
+	width: 13px;
+	height: 13px;
+	box-shadow: 0 0 8px 3px rgba(34, 197, 94, 0.67);
 }
 
 .subtitle {
-	font-size: 19px;
+	font-size: 22px;
 	font-weight: 700;
 	color: rgba(255, 255, 255, 0.95);
-	margin: 2px 0 12px 0;
-	letter-spacing: 0.2px;
 }
 
-.scroller {
-	overflow-x: auto;
-	overflow-y: visible;
-	padding-left: 60px;
-	padding-right: 60px;
-	scrollbar-width: none;
-	margin-left: -60px;
-	margin-right: -60px;
-	-webkit-overflow-scrolling: touch;
-	transform: translateZ(0);
-	will-change: scroll-position;
-	contain: layout style;
-
-	&::-webkit-scrollbar {
-		display: none;
-	}
-}
-
-.items {
-	display: -webkit-flex;
-	display: flex;
-	padding: 20px 0;
-	width: -webkit-max-content;
-	width: max-content;
-	transform: translateZ(0);
-	contain: layout style;
-
-	> * + * {
-		margin-left: 24px;
-	}
-}
-
-.card {
-	position: relative;
-	flex-shrink: 0;
-	width: 384px;
-	height: 216px;
-	border-radius: 12px;
-	overflow: hidden;
-	cursor: pointer;
-	outline: none;
-	background: #1a1a1a;
-	border: 3px solid transparent;
-	transform: translateZ(0);
-	will-change: transform;
-	transition: transform 0.15s ease;
-	box-sizing: border-box;
-
-	&:focus {
-		border-color: #00a4dc;
-		transform: scale(1.05) translateZ(0);
-	}
-}
-
-.backdrop {
-	width: 100%;
-	height: 100%;
-	object-fit: cover;
-	display: block;
-	pointer-events: none;
-}
-
-.overlay {
+.scrim {
 	position: absolute;
 	top: 0;
-	left: 0;
 	right: 0;
 	bottom: 0;
-	background: linear-gradient(to top, rgba(0, 0, 0, 0.88) 0%, rgba(0, 0, 0, 0.25) 55%, rgba(0, 0, 0, 0.5) 100%);
-	display: -webkit-flex;
-	display: flex;
-	-webkit-flex-direction: column;
-	flex-direction: column;
-	-webkit-justify-content: space-between;
-	justify-content: space-between;
-	padding: 12px;
-	box-sizing: border-box;
+	left: 0;
+	background: linear-gradient(to bottom, rgba(0, 0, 0, 0.25) 0%, rgba(0, 0, 0, 0) 40%, rgba(0, 0, 0, 0.85) 100%);
 	pointer-events: none;
 }
 
-.topBar {
-	display: -webkit-flex;
-	display: flex;
-	-webkit-justify-content: space-between;
-	justify-content: space-between;
-	-webkit-align-items: flex-start;
-	align-items: flex-start;
-	width: 100%;
-}
-
-.rankBadge {
-	background: rgba(0, 0, 0, 0.75);
-	border: 1px solid rgba(255, 255, 255, 0.25);
-	border-radius: 8px;
-	padding: 3px 8px;
-	font-size: 14px;
-	font-weight: 700;
+.rank {
+	position: absolute;
+	top: 17px;
+	left: 20px;
+	font-size: 30px;
+	font-weight: 900;
+	line-height: 1;
 	color: #ffffff;
-	letter-spacing: 0.5px;
+	text-shadow: 0 0 10px #000000, 0 0 20px rgba(0, 0, 0, 0.87);
 }
 
-.liveBadge {
-	background: rgba(0, 0, 0, 0.75);
-	border: 1px solid rgba(255, 255, 255, 0.25);
-	border-radius: 16px;
+.type {
+	position: absolute;
+	top: 17px;
+	right: 20px;
 	padding: 3px 10px;
-	font-size: 13px;
-	font-weight: 600;
+	border: 1px solid rgba(255, 255, 255, 0.24);
+	border-radius: 7px;
+	background: rgba(0, 0, 0, 0.65);
+	font-size: 17px;
+	font-weight: 800;
+	letter-spacing: 1.3px;
+	line-height: 1.2;
 	color: #ffffff;
-	display: -webkit-flex;
-	display: flex;
-	-webkit-align-items: center;
-	align-items: center;
 }
 
-.watcherDot {
-	width: 8px;
-	height: 8px;
-	border-radius: 50%;
-	background-color: #00e054;
-	box-shadow: 0 0 6px #00e054;
-	margin-right: 6px;
-	flex-shrink: 0;
-}
-
-.centerContent {
-	-webkit-flex: 1;
-	flex: 1;
+.logoBox {
+	position: absolute;
+	left: 23px;
+	right: 23px;
+	bottom: 43px;
+	height: 73px;
 	display: -webkit-flex;
 	display: flex;
-	-webkit-align-items: center;
-	align-items: center;
+	-webkit-align-items: flex-end;
+	align-items: flex-end;
 	-webkit-justify-content: center;
 	justify-content: center;
-	width: 100%;
-	max-height: 110px;
-	padding: 0 8px;
-	box-sizing: border-box;
 }
 
 .logo {
-	max-width: 80%;
-	max-height: 75px;
+	max-width: 100%;
+	max-height: 100%;
 	object-fit: contain;
-	filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.8));
 }
 
-.titleFallback {
-	font-size: 20px;
-	font-weight: 700;
-	color: #ffffff;
-	text-align: center;
-	text-shadow: 0 2px 8px rgba(0, 0, 0, 0.9);
+.logoTitle {
 	display: -webkit-box;
-	-webkit-line-clamp: 2;
 	-webkit-box-orient: vertical;
+	-webkit-line-clamp: 2;
 	overflow: hidden;
-}
-
-.bottomBar {
-	display: -webkit-flex;
-	display: flex;
-	-webkit-justify-content: flex-end;
-	justify-content: flex-end;
-	-webkit-align-items: flex-end;
-	align-items: flex-end;
-	width: 100%;
-}
-
-.typePill {
-	background: rgba(255, 255, 255, 0.22);
-	border-radius: 6px;
-	padding: 2px 8px;
-	font-size: 12px;
-	font-weight: 700;
+	text-align: center;
+	font-size: 23px;
+	font-weight: 800;
+	line-height: 1.2;
 	color: #ffffff;
-	text-transform: uppercase;
-	letter-spacing: 0.5px;
+	text-shadow: 0 0 10px #000000;
 }
 
+.watchers {
+	position: absolute;
+	left: 20px;
+	bottom: 13px;
+	font-size: 18px;
+	font-weight: 600;
+	line-height: 1.2;
+	color: #ffffff;
+	text-shadow: 0 0 7px #000000;
+}
+
+.watcherDot {
+	width: 12px;
+	height: 12px;
+	box-shadow: 0 0 7px 2px rgba(34, 197, 94, 0.53);
+}

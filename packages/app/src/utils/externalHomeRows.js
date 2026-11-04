@@ -132,19 +132,20 @@ export const formatWatchingNowSubtitle = (data) => {
 	const moviesStr = Number(data.movies || 0).toLocaleString();
 	const showsStr = Number(data.shows || 0).toLocaleString();
 	if (data.mode === 'today') {
-		return $L('{users} watched today \u2022 {movies} movies \u2022 {shows} shows')
+		return $L('{users} watched today \u00b7 {movies} movies \u00b7 {shows} shows')
 			.replace('{users}', usersStr)
 			.replace('{movies}', moviesStr)
 			.replace('{shows}', showsStr);
 	}
-	return $L('{users} watching now \u2022 {movies} movies \u2022 {shows} shows')
+	return $L('{users} watching now \u00b7 {movies} movies \u00b7 {shows} shows')
 		.replace('{users}', usersStr)
 		.replace('{movies}', moviesStr)
 		.replace('{shows}', showsStr);
 };
 
 export const normalizeWatchingNowItem = (item, index) => {
-	const mediaType = item.mediatype === 'show' ? 'tv' : 'movie';
+	const isShow = item.media_type === 'show';
+	const mediaType = isShow ? 'tv' : 'movie';
 	const tmdbId = item.tmdb_id ? String(item.tmdb_id) : null;
 	const imdbId = item.imdb_id || null;
 	const key = imdbId || tmdbId || item.public_id || String(index);
@@ -152,7 +153,7 @@ export const normalizeWatchingNowItem = (item, index) => {
 	return {
 		Id: `ext-mdblist-watching-${key}`,
 		Name: item.title,
-		Type: item.mediatype === 'show' ? 'Series' : 'Movie',
+		Type: isShow ? 'Series' : 'Movie',
 		ProductionYear: yearOf(item),
 		Rank: rank,
 		Watchers: item.watchers || 0,
@@ -164,7 +165,7 @@ export const normalizeWatchingNowItem = (item, index) => {
 		_externalPosterUrl: item.backdrop || item.poster || null,
 		_externalLogoUrl: item.logo || null,
 		_external: true,
-		_serverName: 'MDBList',
+		_mediaType: item.media_type || 'movie',
 		mediaInfo: {},
 		_seerr: true,
 		_seerrType: 'item',

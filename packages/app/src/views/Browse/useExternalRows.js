@@ -9,6 +9,21 @@ import {seasonalCountryParam} from '../../utils/seasonalRow';
 import {resolveDeviceCountry} from '../../utils/deviceCountry';
 import {settleSections} from './browseCache';
 
+// Every card opens in Seerr, owned or not, so this row skips the library match.
+const loadWatchingNowRow = async (forceRefresh = false) => {
+	const data = await fetchWatchingNow(null, {forceRefresh});
+	const identified = (data?.items || []).filter((item) => item && (item.imdb_id || item.tmdb_id));
+	if (identified.length === 0) return null;
+	return {
+		id: 'mdblist_watching_now',
+		title: $L('Watching on MDBList'),
+		subtitle: formatWatchingNowSubtitle(data),
+		items: identified.map(normalizeWatchingNowItem),
+		isExternalRow: true,
+		isWatchingNowRow: true
+	};
+};
+
 // Home rows built from TMDB and IMDb charts, lists the viewer pasted a URL for, and the
 // Radarr and Sonarr calendars. Items arrive as provider ids, so every row is resolved against
 // the local library first: what the server owns becomes playable, the rest falls back to Seerr.
@@ -96,33 +111,11 @@ const useExternalRows = ({settings, homeRows, kidsMode}) => {
 					seasonalRow = buildSeasonalRow(await fetchSeasonalRow({country}), settings.seasonalRowHiddenHolidays || []);
 				}
 
-				let watchingNowRow = null;
-				if (watchingNowEnabled) {
-					try {
-						const data = await fetchWatchingNow();
-						if (data && Array.isArray(data.items)) {
-							const identified = data.items.filter((item) => item && (item.imdb_id || item.tmdb_id));
-							if (identified.length > 0) {
-								const normItems = identified.map(normalizeWatchingNowItem);
-								watchingNowRow = {
-									id: 'mdblist_watching_now',
-									title: $L('Watching on MDBList'),
-									subtitle: formatWatchingNowSubtitle(data),
-									items: normItems,
-									isExternalRow: true,
-									isWatchingNowRow: true
-								};
-							}
-						}
-					} catch (err) {
-						console.warn('[Browse] Failed to fetch watching now row:', err);
-					}
-				}
+				const watchingNowRow = watchingNowEnabled ? await loadWatchingNowRow() : null;
 
 				const allRows = [
 					...presetData,
 					...customData,
-					...(watchingNowRow ? [watchingNowRow] : []),
 					...calendarRows.map((r) => ({...r, isCalendarRow: true}))
 				].filter((r) => r && r.items && r.items.length > 0);
 
@@ -140,7 +133,6 @@ const useExternalRows = ({settings, homeRows, kidsMode}) => {
 				const presetRows = [];
 				const builtCustomRows = [];
 				const resolvedCalendarRows = [];
-				const resolvedWatchingNowRows = [];
 
 				for (let i = 0; i < allRows.length; i++) {
 					const r = allRows[i];
@@ -149,15 +141,6 @@ const useExternalRows = ({settings, homeRows, kidsMode}) => {
 
 					if (r.isCalendarRow) {
 						resolvedCalendarRows.push({...r, items: resolvedItems});
-					} else if (r.isWatchingNowRow) {
-						resolvedWatchingNowRows.push({
-							id: r.id,
-							title: r.title,
-							subtitle: r.subtitle,
-							items: resolvedItems,
-							isExternalRow: true,
-							isWatchingNowRow: true
-						});
 					} else {
 						const resolvedRow = {
 							id: r.id,
@@ -175,7 +158,7 @@ const useExternalRows = ({settings, homeRows, kidsMode}) => {
 				}
 
 				if (!cancelled) {
-					const built = [...presetRows, ...builtCustomRows, seasonalRow, ...resolvedWatchingNowRows, ...resolvedCalendarRows].filter(Boolean);
+					const built = [...presetRows, ...builtCustomRows, seasonalRow, watchingNowRow, ...resolvedCalendarRows].filter(Boolean);
 					settleSections(pendingRows.map((row) => row.id), built);
 					setExternalRows(built);
 				}
@@ -187,36 +170,17 @@ const useExternalRows = ({settings, homeRows, kidsMode}) => {
 
 		if (watchingNowEnabled) {
 			refreshTimer = setInterval(async () => {
-				try {
-					const data = await fetchWatchingNow(null, {forceRefresh: true});
-					if (!data || !Array.isArray(data.items)) return;
-					const identified = data.items.filter((item) => item && (item.imdb_id || item.tmdb_id));
-					if (identified.length === 0) return;
-					const normItems = identified.map(normalizeWatchingNowItem);
-					const resolvedItems = await resolveItemsByProviderIds(normItems);
-					if (cancelled) return;
-					const newRow = {
-						id: 'mdblist_watching_now',
-						title: $L('Watching on MDBList'),
-						subtitle: formatWatchingNowSubtitle(data),
-						items: resolvedItems,
-						isExternalRow: true,
-						isWatchingNowRow: true
-					};
-					setExternalRows((prevRows) => {
-						const index = prevRows.findIndex((row) => row.id === 'mdblist_watching_now');
-						if (index < 0) return [...prevRows, newRow];
-						const updated = [...prevRows];
-						updated[index] = {
-							...updated[index],
-							subtitle: formatWatchingNowSubtitle(data),
-							items: resolvedItems
-						};
-						return updated;
-					});
-				} catch {
-					// Transient refresh errors leave existing row visible
-				}
+				// The player takes Home down with it, so only a hidden app is left to skip.
+				if (document.hidden) return;
+				const row = await loadWatchingNowRow(true);
+				if (!row || cancelled) return;
+				setExternalRows((prevRows) => {
+					const index = prevRows.findIndex((r) => r.id === row.id);
+					if (index < 0) return [...prevRows, row];
+					const updated = [...prevRows];
+					updated[index] = row;
+					return updated;
+				});
 			}, 5 * 60 * 1000);
 		}
 

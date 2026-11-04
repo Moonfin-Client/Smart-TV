@@ -100,7 +100,7 @@ const episodeArtwork = (item, serverUrl, imageType, useSeriesArt) => {
 	return preferred || still;
 };
 
-const MediaCard = ({item, serverUrl, cardType = 'portrait', rowImageType = 'poster', onSelect, onFocusItem, showServerBadge = false, eagerLoad = false, deferImage = false, seerrSeasonStatus, spotlightId, onSpotlightLeft, onSpotlightRight, menuOptions, size, current = false, homeText = false}) => {
+const MediaCard = ({item, serverUrl, cardType = 'portrait', rowImageType = 'poster', onSelect, onFocusItem, showServerBadge = false, eagerLoad = false, deferImage = false, seerrSeasonStatus, spotlightId, onSpotlightLeft, onSpotlightRight, menuOptions, size, current = false, homeText = false, overlay = null, showInfo = true}) => {
 	const {settings} = useSettings();
 	const focusTimeoutRef = useRef(null);
 
@@ -394,9 +394,10 @@ const MediaCard = ({item, serverUrl, cardType = 'portrait', rowImageType = 'post
 
 				<IncompleteBadge itemId={item.Id} belowFavorite={item.UserData?.IsFavorite} belowBanner={Boolean(bannerStatus)} />
 				<AnimeCardPill item={item} serverUrl={itemServerUrl} hasProgressBar={showIndicators && progress > 0} />
+				{overlay}
 			</div>
 
-			<div className={css.info}>
+			{showInfo && <div className={css.info}>
 				{isBanner ? (
 					line(css.title, [displayTitle, episodeInfo || musicInfo || item.Subtitle].filter(Boolean).join('  \u2022  '))
 				) : episodeInfo ? (
@@ -417,7 +418,7 @@ const MediaCard = ({item, serverUrl, cardType = 'portrait', rowImageType = 'post
 				) : (
 					line(css.title, displayTitle)
 				)}
-			</div>
+			</div>}
 		</SpottableDiv>
 	);
 };

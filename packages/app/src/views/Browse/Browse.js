@@ -968,12 +968,14 @@ const Browse = ({
 									title={row.title}
 									subtitle={row.subtitle}
 									items={row.items}
-									onSelectItem={rowSelect.external}
+									serverUrl={serverUrl}
+									onSelectItem={rowSelect.seerr}
 									onFocus={handleRowFocus}
 									onFocusItem={handleFocusItem}
 									rowIndex={index}
 									onNavigateUp={handleNavigateUp}
 									onNavigateDown={handleNavigateDown}
+									rowSpacing={rowSpacing}
 									registerRowRef={registerRowRef}
 								/>
 							);

@@ -4,6 +4,7 @@ import useExternalRows from './useExternalRows';
 import {memoryCache, resetEmptySections} from './browseCache';
 import {fetchExternalPresetRow} from '../../utils/externalHomeRows';
 import {fetchWatchingNow} from '../../services/mdblistApi';
+import {resolveItemsByProviderIds} from '../../services/jellyfinApi';
 
 jest.mock('@enact/i18n/$L', () => ({__esModule: true, default: (str) => str}));
 jest.mock('../../services/storage', () => ({
@@ -22,11 +23,13 @@ jest.mock('../../utils/externalHomeRows', () => ({
 }));
 jest.mock('../../services/externalRowsApi', () => ({fetchSeasonalRow: jest.fn()}));
 jest.mock('../../services/mdblistApi', () => ({fetchWatchingNow: jest.fn()}));
-jest.mock('../../services/jellyfinApi', () => ({__esModule: true, resolveItemsByProviderIds: async (items) => items}));
+jest.mock('../../services/jellyfinApi', () => ({__esModule: true, resolveItemsByProviderIds: jest.fn(async (items) => items)}));
 jest.mock('../../utils/deviceCountry', () => ({resolveDeviceCountry: async () => 'US'}));
 
 const settings = {useMoonfinPlugin: true};
 const homeRows = [{id: 'tmdb_popular_movies', enabled: true}];
+const watchingNowSettings = {useMoonfinPlugin: true, mdblistWatchingNowEnabled: true};
+const watchingNowRows = [{id: 'mdblist_watching_now', enabled: true}];
 
 const load = async () => {
 	const {result} = renderHook(() => useExternalRows({settings, homeRows, kidsMode: false}));
@@ -36,10 +39,14 @@ const load = async () => {
 
 beforeEach(() => {
 	resetEmptySections();
+	resolveItemsByProviderIds.mockImplementation(async (items) => items);
 	jest.spyOn(console, 'warn').mockImplementation(() => {});
 });
 
-afterEach(() => jest.restoreAllMocks());
+afterEach(() => {
+	jest.useRealTimers();
+	jest.restoreAllMocks();
+});
 
 describe('empty external rows', () => {
 	test('a row that came back empty holds no place on the next load', async () => {
@@ -63,11 +70,32 @@ describe('empty external rows', () => {
 				{title: 'Invalid Movie', public_id: 'pub123'}
 			]
 		});
-		const testSettings = {useMoonfinPlugin: true, mdblistWatchingNowEnabled: true};
-		const testHomeRows = [{id: 'mdblist_watching_now', enabled: true}];
-		const {result} = renderHook(() => useExternalRows({settings: testSettings, homeRows: testHomeRows, kidsMode: false}));
+		const {result} = renderHook(() => useExternalRows({settings: watchingNowSettings, homeRows: watchingNowRows, kidsMode: false}));
 		await waitFor(() => expect(result.current.rows.length).toBe(1));
 		expect(result.current.rows[0].items.length).toBe(1);
 		expect(result.current.rows[0].items[0].Name).toBe('Valid Movie');
+	});
+
+	test('watching now skips its refresh while the app is hidden', async () => {
+		jest.useFakeTimers();
+		fetchWatchingNow.mockClear();
+		fetchWatchingNow.mockResolvedValue({items: [{title: 'Valid Movie', imdb_id: 'tt123456'}]});
+		let hidden = true;
+		jest.spyOn(document, 'hidden', 'get').mockImplementation(() => hidden);
+		renderHook(() => useExternalRows({settings: watchingNowSettings, homeRows: watchingNowRows, kidsMode: false}));
+		await jest.advanceTimersByTimeAsync(5 * 60 * 1000);
+		expect(fetchWatchingNow).toHaveBeenCalledTimes(1);
+		hidden = false;
+		await jest.advanceTimersByTimeAsync(5 * 60 * 1000);
+		expect(fetchWatchingNow).toHaveBeenCalledTimes(2);
+		expect(fetchWatchingNow).toHaveBeenLastCalledWith(null, {forceRefresh: true});
+	});
+
+	test("watching now cards aren't matched against the library", async () => {
+		fetchWatchingNow.mockResolvedValue({items: [{title: 'Valid Movie', imdb_id: 'tt123456'}]});
+		resolveItemsByProviderIds.mockClear();
+		const {result} = renderHook(() => useExternalRows({settings: watchingNowSettings, homeRows: watchingNowRows, kidsMode: false}));
+		await waitFor(() => expect(result.current.rows.length).toBe(1));
+		expect(resolveItemsByProviderIds.mock.calls.flatMap(([items]) => items)).toEqual([]);
 	});
 });

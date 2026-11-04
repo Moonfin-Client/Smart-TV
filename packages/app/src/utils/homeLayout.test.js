@@ -9,7 +9,8 @@ import {
 	homeRowsToRowOrder,
 	homeRowsToSections,
 	mergeHomeRows,
-	withSeasonalRow
+	withSeasonalRow,
+	withWatchingNowRow
 } from './homeLayout';
 
 const enabledIds = (rows) => rows.filter((row) => row.enabled).map((row) => row.id);
@@ -283,5 +284,26 @@ describe('the seasonal row in a saved layout', () => {
 	test('a layout without the row gets one when it is switched on', () => {
 		const rows = withSeasonalRow([{id: 'resume', enabled: true, order: 0}], true);
 		expect(rows.map((row) => row.id)).toEqual(['resume', 'seasonal']);
+	});
+});
+
+describe('withWatchingNowRow', () => {
+	const layout = () => [
+		{id: 'mdblist_watching_now', enabled: false, order: 0},
+		{id: 'resume', enabled: true, order: 1},
+		{id: 'latest-media', enabled: true, order: 2},
+		{id: 'studios', enabled: false, order: 3}
+	];
+
+	test('switching it on moves it right after the last row that is on', () => {
+		const rows = withWatchingNowRow(layout(), true);
+		expect(rows.map((row) => row.id)).toEqual(['resume', 'latest-media', 'mdblist_watching_now', 'studios']);
+		expect(rows.map((row) => row.order)).toEqual([0, 1, 2, 3]);
+	});
+
+	test('switching it off leaves it where it is', () => {
+		const rows = withWatchingNowRow(withWatchingNowRow(layout(), true), false);
+		expect(rows.map((row) => row.id)).toEqual(['resume', 'latest-media', 'mdblist_watching_now', 'studios']);
+		expect(rows.find((row) => row.id === 'mdblist_watching_now').enabled).toBe(false);
 	});
 });
