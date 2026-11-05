@@ -1207,6 +1207,9 @@ export const createPlexApi = ({getBaseUrl, getToken, getUserId, getDeviceInfo, g
 		getCollectionItems: (collectionId, limit = 50, sortBy = null, sortOrder = 'Ascending', startIndex = 0) =>
 			getItems({ParentId: collectionId, Limit: limit, SortBy: sortBy, SortOrder: sortOrder, ...(startIndex > 0 ? {StartIndex: startIndex} : null)}),
 
+		getCollectionMembers: (collectionId, limit = 500, startIndex = 0) =>
+			getItems({ParentId: collectionId, Limit: limit, ...(startIndex > 0 ? {StartIndex: startIndex} : null)}),
+
 		setFavorite: (itemId, isFavorite) => rate(itemId, isFavorite ? PLEX_FAVORITE_RATING : -1),
 		setWatched: (itemId, watched) => scrobble(watched ? '/:/scrobble' : '/:/unscrobble', itemId),
 

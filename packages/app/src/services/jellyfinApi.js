@@ -768,7 +768,7 @@ export const api = {
 		request(`${userRoutes.items()}ParentId=${collectionId}&Limit=${limit}${startIndex > 0 ? `&StartIndex=${startIndex}` : ''}&Recursive=true&Fields=PrimaryImageAspectRatio,Overview,Genres,ProviderIds,RemoteTrailers,OfficialRating&HasBackdrop=true${sortBy ? `&SortBy=${encodeURIComponent(sortBy)}&SortOrder=${encodeURIComponent(sortOrder)}` : ''}`),
 
 	getCollectionMembers: (collectionId, limit = 500, startIndex = 0) =>
-		request(`${userRoutes.items()}ParentId=${collectionId}&Limit=${limit}${startIndex > 0 ? `&StartIndex=${startIndex}` : ''}&Recursive=true`),
+		request(`${userRoutes.items()}ParentId=${collectionId}&Limit=${limit}${startIndex > 0 ? `&StartIndex=${startIndex}` : ''}`),
 
 	// Get all movies and series for genres page
 	getAllItems: (limit = 10000) =>
@@ -1284,7 +1284,7 @@ export const createApiForServer = (serverUrl, token, userId, serverTypeOverride 
 			serverRequest(`${serverUserRoutes.items()}ParentId=${collectionId}&Limit=${limit}${startIndex > 0 ? `&StartIndex=${startIndex}` : ''}&Recursive=true&Fields=PrimaryImageAspectRatio,Overview,Genres,ProviderIds,RemoteTrailers,OfficialRating&HasBackdrop=true${sortBy ? `&SortBy=${encodeURIComponent(sortBy)}&SortOrder=${encodeURIComponent(sortOrder)}` : ''}`),
 
 		getCollectionMembers: (collectionId, limit = 500, startIndex = 0) =>
-			serverRequest(`${serverUserRoutes.items()}ParentId=${collectionId}&Limit=${limit}${startIndex > 0 ? `&StartIndex=${startIndex}` : ''}&Recursive=true`),
+			serverRequest(`${serverUserRoutes.items()}ParentId=${collectionId}&Limit=${limit}${startIndex > 0 ? `&StartIndex=${startIndex}` : ''}`),
 
 		getRandomItems: (contentType = 'both', limit = 10, parentId = null, genreName = null, fields = 'PrimaryImageAspectRatio,Overview,Genres,ProviderIds,OfficialRating') => {
 			let includeTypes;
