@@ -1073,9 +1073,34 @@ export const createPlexApi = ({getBaseUrl, getToken, getUserId, getDeviceInfo, g
 		getRecentlyReleased: (libraryId, limit = 20, includeItemTypes = 'Movie,Series') =>
 			getItems({ParentId: libraryId, IncludeItemTypes: includeItemTypes, SortBy: 'PremiereDate', SortOrder: 'Descending', Limit: limit}),
 
-		getCollections: async (limit = 50, sortBy = 'SortName', sortOrder = 'Ascending') => {
-			const res = await getItems({IncludeItemTypes: 'BoxSet', SortBy: sortBy, SortOrder: sortOrder, smart: 0});
-			const items = (res?.Items || []).filter((item) => !item._smart && item.smart !== 1 && item.smart !== '1' && item.smart !== true);
+		getCollections: async (limit = 50, sortBy = 'SortName', sortOrder = 'Ascending', {editableOnly = false} = {}) => {
+			const pageSize = Math.max(Number(limit) || 50, 50);
+			const items = [];
+			let startIndex = 0;
+			for (let pageIndex = 0; pageIndex < 200; pageIndex++) {
+				const res = await getItems({
+					IncludeItemTypes: 'BoxSet',
+					SortBy: sortBy,
+					SortOrder: sortOrder,
+					StartIndex: startIndex,
+					Limit: pageSize,
+					...(editableOnly ? {smart: 0} : {})
+				});
+				const batch = Array.isArray(res?.Items) ? res.Items : [];
+				if (batch.length === 0) break;
+				for (const item of batch) {
+					if (!editableOnly || (!item._smart && item.smart !== 1 && item.smart !== '1' && item.smart !== true)) {
+						items.push(item);
+					}
+				}
+				startIndex += batch.length;
+				const totalSize = Number(res?.TotalRecordCount);
+				if (Number.isFinite(totalSize) && totalSize >= 0) {
+					if (startIndex >= totalSize) break;
+				} else if (batch.length < pageSize) {
+					break;
+				}
+			}
 			return page(items, 0, limit);
 		},
 

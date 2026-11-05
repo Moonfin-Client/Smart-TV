@@ -84,6 +84,8 @@ export const ItemMenuProvider = ({children, onPlay, onOpenItem, backRef}) => {
 	const [toast, setToast] = useState(null);
 	const returnFocusRef = useRef(null);
 	const artworkBackRef = useRef(null);
+	const removePlaylistBackRef = useRef(null);
+	const removeCollectionBackRef = useRef(null);
 
 	const actionsFor = useCallback((item, options, memberships = {}) => {
 		if (!item || fromSeerr(item)) return [];
@@ -231,7 +233,7 @@ export const ItemMenuProvider = ({children, onPlay, onOpenItem, backRef}) => {
 		const api = getApiForItem(item) || activeApi;
 		const userData = item.UserData || {};
 		const openPlaylistPicker = async () => {
-			const freshPlaylists = await getPlaylistsContaining(item, api, {serverUrl, userId: user?.Id});
+			const freshPlaylists = await getPlaylistsContaining(item, api, {serverUrl, userId: user?.Id, forceRefresh: true});
 			setDialog({kind: 'removePlaylistPicker', item, api, playlists: freshPlaylists});
 		};
 		switch (id) {
@@ -358,8 +360,11 @@ export const ItemMenuProvider = ({children, onPlay, onOpenItem, backRef}) => {
 		if (!backRef) return undefined;
 		backRef.current = () => {
 			if (dialog?.kind === 'artwork' && artworkBackRef.current?.()) return true;
-			if (dialog?.kind === 'removeCollectionPicker' || dialog?.kind === 'removePlaylistPicker') {
-				return true;
+			if (dialog?.kind === 'removeCollectionPicker') {
+				return Boolean(removeCollectionBackRef.current?.());
+			}
+			if (dialog?.kind === 'removePlaylistPicker') {
+				return Boolean(removePlaylistBackRef.current?.());
 			}
 			if (dialog) {
 				closeDialog();
@@ -444,6 +449,7 @@ export const ItemMenuProvider = ({children, onPlay, onOpenItem, backRef}) => {
 				userId={dialog?.item?._serverUserId || user?.Id}
 				onClose={closeDialog}
 				onSuccess={showToast}
+				backHandlerRef={removePlaylistBackRef}
 			/>
 			<RemoveFromCollectionModal
 				open={dialog?.kind === 'removeCollectionPicker'}
@@ -454,6 +460,7 @@ export const ItemMenuProvider = ({children, onPlay, onOpenItem, backRef}) => {
 				userId={dialog?.item?._serverUserId || user?.Id}
 				onClose={closeDialog}
 				onSuccess={showToast}
+				backHandlerRef={removeCollectionBackRef}
 			/>
 			<IdentifyModal
 				open={dialog?.kind === 'identify'}

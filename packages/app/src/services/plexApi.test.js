@@ -113,6 +113,35 @@ describe('items', () => {
 		expect(query(on)).toMatchObject({key: '55', rating: '10'});
 		expect(query(off)).toMatchObject({key: '55', rating: '-1'});
 	});
+
+	test('getCollections keeps smart collections by default and pages editable collections across totalSize', async () => {
+		answer({'/library/all': {MediaContainer: {totalSize: 2, Metadata: [
+			{ratingKey: 'c1', type: 'collection', title: 'Manual'},
+			{ratingKey: 'c2', type: 'collection', title: 'Smart', smart: '1'}
+		]}}});
+		const all = await plex.getCollections(50);
+		expect(all.Items.map((i) => i.Id)).toEqual(['c1', 'c2']);
+		expect(query(urls()[0]).smart).toBeUndefined();
+
+		corsFreeFetch.mockClear();
+		corsFreeFetch.mockImplementation((url) => {
+			const q = query(url);
+			if (q['X-Plex-Container-Start'] === '0') {
+				return reply({MediaContainer: {totalSize: 3, Metadata: [
+					{ratingKey: 'c1', type: 'collection', title: 'Col 1'},
+					{ratingKey: 'c2', type: 'collection', title: 'Smart Col', smart: 1}
+				]}});
+			}
+			return reply({MediaContainer: {totalSize: 3, Metadata: [
+				{ratingKey: 'c3', type: 'collection', title: 'Col 3'}
+			]}});
+		});
+		const editable = await plex.getCollections(50, 'SortName', 'Ascending', {editableOnly: true});
+		expect(editable.Items.map((i) => i.Id)).toEqual(['c1', 'c3']);
+		expect(urls()).toHaveLength(2);
+		expect(query(urls()[0])).toMatchObject({smart: '0', 'X-Plex-Container-Start': '0', 'X-Plex-Container-Size': '50'});
+		expect(query(urls()[1])).toMatchObject({smart: '0', 'X-Plex-Container-Start': '2', 'X-Plex-Container-Size': '50'});
+	});
 });
 
 describe('playback', () => {

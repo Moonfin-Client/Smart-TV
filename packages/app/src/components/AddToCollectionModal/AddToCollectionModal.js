@@ -39,7 +39,7 @@ const AddToCollectionModal = ({open, itemId, item, api, serverUrl, userId, onClo
 		setCreating(false);
 		setNewName('');
 		// Where only some collections can take items (a Silo profile's own), the list is just those.
-		(api.getEditableCollections ? api.getEditableCollections() : api.getCollections(COLLECTION_FETCH_LIMIT)).then(result => {
+		(api.getEditableCollections ? api.getEditableCollections() : api.getCollections(COLLECTION_FETCH_LIMIT, 'SortName', 'Ascending', {editableOnly: true})).then(result => {
 			setCollections(result?.Items || []);
 			setLoading(false);
 		}).catch(() => {
