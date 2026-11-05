@@ -283,6 +283,9 @@ export const ItemMenuProvider = ({children, onPlay, onOpenItem, backRef}) => {
 					setDialog({kind: 'removePlaylistPicker', item, api, playlists: playlistMemberships || []});
 				}
 				break;
+			case 'removeFromPlaylistPicker':
+				setDialog({kind: 'removePlaylistPicker', item, api, playlists: playlistMemberships || []});
+				break;
 			case 'moveUp':
 				playlist.move(item, -1);
 				break;

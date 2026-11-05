@@ -109,6 +109,9 @@ export const itemMenuActions = (item, {
 		} else if (Array.isArray(playlistMemberships) && playlistMemberships.length > 0) {
 			actions.push({id: 'removeFromPlaylist', icon: MENU_ICON_PATHS.playlistRemove, label: $L('Remove from Playlist')});
 		}
+		if (playlist?.canManage && playlist.canRemove === false && Array.isArray(playlistMemberships) && playlistMemberships.length > 0) {
+			actions.push({id: 'removeFromPlaylistPicker', icon: MENU_ICON_PATHS.playlistRemove, label: $L('Remove from Playlist')});
+		}
 		if ((isJellyfin || (isSilo && SILO_ADMIN_TYPES.includes(type))) && isAdmin) {
 			actions.push({id: 'refreshMetadata', icon: MENU_ICON_PATHS.refresh, label: $L('Refresh Metadata')});
 			if (IDENTIFIABLE_TYPES.indexOf(type) !== -1) {
