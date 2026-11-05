@@ -15,7 +15,7 @@
  * one, taking every other client's disabled rows and plugin rows with it.
  */
 
-import {PICK_SOURCES, isPickedRow, isSeerrSliderRow, makePickedRow, makeSeerrSliderRow} from './pickedRows';
+import {PICK_SOURCES, isPickedRow, isSeerrSliderRow, isServerSectionRow, makePickedRow, makeSeerrSliderRow} from './pickedRows';
 
 export const DEFAULT_HOME_ROWS = [
 	{id: 'resume', name: 'Continue Watching', enabled: true, order: 0},
@@ -85,7 +85,8 @@ export const DEFAULT_HOME_ROWS = [
 	{id: 'librarybuttons', name: 'Library Buttons', enabled: false, order: 62},
 	{id: 'studios', name: 'Studios', enabled: false, order: 63},
 	{id: 'seasonal', name: 'Seasonal Row', enabled: false, order: 64},
-	{id: 'onnow', name: 'On Now', enabled: false, order: 65}
+	{id: 'onnow', name: 'On Now', enabled: false, order: 65},
+	{id: 'mdblist_watching_now', name: 'Watching on MDBList', enabled: false, order: 66}
 ];
 
 export const TV_TO_SERVER_ROW = {
@@ -195,6 +196,23 @@ export const withSeasonalRow = (rows, enabled) => {
 	return sorted.map((row, order) => ({...row, order}));
 };
 
+// The Watching on MDBList row with its toggle applied. Switching it on moves it right after the
+// last row that's on, and switching it off keeps its place.
+export const withWatchingNowRow = (rows, enabled) => {
+	const sorted = [...(rows || [])].sort((left, right) => left.order - right.order);
+	const index = sorted.findIndex((row) => row.id === 'mdblist_watching_now');
+	const current = index >= 0 ? sorted.splice(index, 1)[0] : DEFAULT_HOME_ROWS.find((row) => row.id === 'mdblist_watching_now');
+	let insertAt = index >= 0 ? index : sorted.length;
+	if (enabled) {
+		insertAt = 0;
+		sorted.forEach((row, i) => {
+			if (row.enabled) insertAt = i + 1;
+		});
+	}
+	sorted.splice(insertAt, 0, {...current, enabled});
+	return sorted.map((row, order) => ({...row, order}));
+};
+
 // Sections this client has no row for, meaning plugin rows and any type belonging to a
 // client with rows this one lacks. They get handed back verbatim so that writing a
 // layout from the TV never destroys them. Null means we haven't read the server's
@@ -224,6 +242,10 @@ const pickedRowFromSection = (section) => {
 			sliderType: section.pluginAdditionalData,
 			name: section.pluginDisplayText || ''
 		});
+	}
+	// Silo's own sections keep the section in pluginSection, as Moonfin-Core and Moonbase write them.
+	if (source === 'server' && section.pluginSection) {
+		return makePickedRow({source, serverUrl: section.serverId || '', itemId: String(section.pluginSection), name: section.pluginDisplayText || ''});
 	}
 	if (!PICK_SOURCES[source] || !section.pluginAdditionalData || !section.serverId) return undefined;
 	return makePickedRow({
@@ -290,6 +312,7 @@ const rowToSection = (row, order) => {
 	if (isSeerrSliderRow(row)) {
 		return {...plugin, pluginSource: 'seerr', pluginSection: row.sliderId, pluginAdditionalData: row.sliderType};
 	}
+	if (isServerSectionRow(row)) return {...plugin, pluginSource: 'server', pluginSection: row.itemId};
 	if (isPickedRow(row)) {
 		return {...plugin, pluginSource: row.source, pluginSection: PICK_SOURCES[row.source].section, pluginAdditionalData: row.itemId};
 	}

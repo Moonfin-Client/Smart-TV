@@ -1,14 +1,19 @@
 jest.mock('./jellyfinApi', () => ({
-	getAuthHeader: () => 'token',
+	getApiKey: () => 'token',
 	getServerUrl: () => 'http://server',
 	api: {getItem: jest.fn()}
+}));
+jest.mock('./moonbaseEndpoint', () => ({
+	moonbaseEndpoint: async (base) => ({base, headers: {Authorization: 'token'}}),
+	moonbaseAssetUrl: (base, path) => `${base}${path}`
 }));
 jest.mock('../utils/requestQueue', () => ({
 	mediaServerQueue: {run: (task) => task()}
 }));
 
-import {fetchRatings, isMdblistEnabled, ratingSettingsFor} from './mdblistApi';
+import {fetchRatings, fetchWatchingNow, isMdblistEnabled, ratingSettingsFor, __resetWatchingNowCache} from './mdblistApi';
 import {api} from './jellyfinApi';
+import {registerPlexServer} from '../utils/plexUrls';
 
 const respondWith = (ratings) => {
 	global.fetch = jest.fn(() => Promise.resolve({
@@ -96,5 +101,69 @@ describe('ratingSettingsFor', () => {
 		expect(isMdblistEnabled(settings, 'homeRows')).toBe(false);
 		expect(isMdblistEnabled(settings, 'mediaBar')).toBe(true);
 		expect(isMdblistEnabled({...settings, useMoonfinPlugin: false}, 'mediaBar')).toBe(false);
+	});
+});
+
+describe('fetchWatchingNow', () => {
+	beforeEach(() => {
+		__resetWatchingNowCache();
+	});
+
+	afterEach(() => {
+		delete global.fetch;
+	});
+
+	test('fetches watching now feed and caches response', async () => {
+		const payload = {
+			mode: 'live',
+			users: 1500,
+			movies: 800,
+			shows: 700,
+			items: [
+				{id: '1', title: 'Example Movie', watchers: 120}
+			]
+		};
+		global.fetch = jest.fn(() => Promise.resolve({
+			ok: true,
+			json: () => Promise.resolve(payload)
+		}));
+
+		const res1 = await fetchWatchingNow('http://server');
+		expect(res1).toEqual(payload);
+		expect(global.fetch).toHaveBeenCalledTimes(1);
+
+		// Second call uses cache
+		const res2 = await fetchWatchingNow('http://server');
+		expect(res2).toEqual(payload);
+		expect(global.fetch).toHaveBeenCalledTimes(1);
+	});
+
+	test('returns null when server call fails', async () => {
+		global.fetch = jest.fn(() => Promise.resolve({
+			ok: false,
+			status: 500
+		}));
+
+		const res = await fetchWatchingNow('http://server');
+		expect(res).toBeNull();
+	});
+
+	test("doesn't keep an answer that carries an error", async () => {
+		global.fetch = jest.fn(() => Promise.resolve({
+			ok: true,
+			json: () => Promise.resolve({items: [], error: 'MDBList unreachable'})
+		}));
+
+		expect(await fetchWatchingNow('http://server')).toBeNull();
+		await fetchWatchingNow('http://server');
+		expect(global.fetch).toHaveBeenCalledTimes(2);
+	});
+
+	test('asks Moonbase for Plex next to a Plex server', async () => {
+		registerPlexServer('http://plex:32400', 'plex-token');
+		global.fetch = jest.fn(() => Promise.resolve({ok: true, json: () => Promise.resolve({items: []})}));
+
+		await fetchWatchingNow('http://plex:32400');
+		expect(global.fetch.mock.calls[0][0]).toBe('http://plex:32500/Moonfin/MdbList/WatchingNow?profile=tv');
 	});
 });

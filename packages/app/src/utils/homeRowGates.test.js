@@ -85,3 +85,14 @@ describe('the seasonal row', () => {
 		expect(isPluginSourcedRow('seasonal')).toBe(true);
 	});
 });
+
+describe('the watching now row', () => {
+	test('answers to its own toggle and is off until it is switched on', () => {
+		expect(isRowEnabledBySetting('mdblist_watching_now', settings())).toBe(false);
+		expect(isRowEnabledBySetting('mdblist_watching_now', settings({mdblistWatchingNowEnabled: true}))).toBe(true);
+	});
+
+	test('comes through the plugin too, so the editor hides it while the plugin is off', () => {
+		expect(isPluginSourcedRow('mdblist_watching_now')).toBe(true);
+	});
+});

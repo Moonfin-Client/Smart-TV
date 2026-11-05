@@ -16,7 +16,7 @@ const clampBlur = (amount) => {
 
 const FADE_CLASS = {corner: css.cornerFadeDown, top: css.topFade};
 
-const BackdropLayer = memo(({targetUrl: requestedUrl, blurAmount, overlayOpacity, placement}) => {
+const BackdropLayer = memo(({targetUrl: requestedUrl, blurAmount, overlayOpacity, placement, fadeMs}) => {
 	const blurredUrl = serverBlurredUrl(requestedUrl, blurAmount);
 	const targetUrl = blurredUrl || requestedUrl;
 	const layerARef = useRef(null);
@@ -66,7 +66,10 @@ const BackdropLayer = memo(({targetUrl: requestedUrl, blurAmount, overlayOpacity
 				incoming.style.backgroundImage = `url(${targetUrl})`;
 
 				incoming.offsetHeight; // eslint-disable-line @babel/no-unused-expressions
-				incoming.style.transition = '';
+				// A screen can ask for its own fade, and the stylesheet's stands otherwise.
+				const fade = fadeMs ? `opacity ${fadeMs}ms ease` : '';
+				incoming.style.transition = fade;
+				outgoing.style.transition = fade;
 				incoming.style.opacity = '1';
 				outgoing.style.opacity = '0';
 
@@ -80,7 +83,7 @@ const BackdropLayer = memo(({targetUrl: requestedUrl, blurAmount, overlayOpacity
 			img.onerror = settle;
 			img.src = targetUrl;
 		}, BACKDROP_DEBOUNCE_MS);
-	}, [targetUrl]);
+	}, [targetUrl, fadeMs]);
 
 	const effectiveBlur = blurredUrl ? 0 : clampBlur(blurAmount);
 	const filter = effectiveBlur > 0 ? `blur(${effectiveBlur}px)` : 'none';

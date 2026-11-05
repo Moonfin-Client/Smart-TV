@@ -62,9 +62,11 @@ import browseCss from '../views/Browse/Browse.module.less';
 import mediaCardCss from '../components/MediaCard/MediaCard.module.less';
 import modernCardCss from '../components/MediaCard/ModernMediaCard.module.less';
 import seerrBannerCss from '../components/seerr/SeerrStatusBanner.module.less';
+import seerrDotCss from '../components/seerr/SeerrStatusDot.module.less';
 import mediaRowCss from '../components/MediaRow/MediaRow.module.less';
 import modernRowCss from '../components/MediaRow/ModernMediaRow.module.less';
 import ratingsCss from '../components/RatingsRow/RatingsRow.module.less';
+import watchingNowRowCss from '../components/WatchingNowRow/WatchingNowRow.module.less';
 import itemMenuCss from '../components/ItemContextMenu/ItemContextMenu.module.less';
 import skeletonCss from '../components/Skeleton/Skeleton.module.less';
 import playlistSortFilterCss from '../components/PlaylistSortFilterBar/PlaylistSortFilterBar.module.less';
@@ -709,15 +711,22 @@ export const buildThemeOverrideCss = (theme, options = {}) => {
 		rule(`.${cardCss.favoriteBadge}`, `background: ${recordingActive}; border-color: ${onBadge};`);
 		rule(`.${cardCss.favoriteBadge} svg`, `fill: ${onBadge}; stroke: ${onBadge};`);
 		rule(`.${cardCss.serverBadge}`, `background: ${surface}; color: ${onSurface};`);
-		rule(`.${cardCss.seerr5}`, `background: ${onSurface}; border-color: ${statusAvailable};`);
-		rule(`.${cardCss.seerr4}`, `background: ${statusAvailable};`);
-		rule(`.${cardCss.seerr3}`, `border-color: ${statusRequested};`);
-		rule(`.${cardCss.seerr2}`, `background: ${onSurface}; border-color: ${statusPending};`);
 		rule(`.${cardCss.seerrMissing}`, `background: ${accent};`);
 		rule(`.${cardCss.seerrMissing} svg`, `fill: ${onBadge};`);
 		rule(`.${cardCss.seerrBanner}`, `border-width: ${b.cardBorder.width}px ${b.cardBorder.width}px 0; border-radius: ${b.cardRadius.topLeft}px ${b.cardRadius.topRight}px 0 0;`);
 		rule(`.${cardCss.card}:focus .${cardCss.seerrBanner}`, 'border-width: 4px 4px 0;');
 	}
+
+	rule(`.${mediaCardCss.seerr5}`, `background: ${onSurface}; border-color: ${statusAvailable};`);
+	rule(`.${mediaCardCss.seerr4}`, `background: ${statusAvailable};`);
+	rule(`.${mediaCardCss.seerr3}`, `border-color: ${statusRequested};`);
+	rule(`.${mediaCardCss.seerr2}`, `background: ${onSurface}; border-color: ${statusPending};`);
+	rule(`.${modernCardCss.focusRing}`, `border-color: ${focusColor};`);
+	rule(`.${seerrDotCss.dot}`, `background: ${onBadge}; border-color: ${onBadge};`);
+	rule(`.${seerrDotCss.available}`, `border-color: ${statusAvailable}; color: ${statusAvailable};`);
+	rule(`.${seerrDotCss.partial}`, `background: ${statusAvailable}; border-color: ${statusAvailable}; color: ${onBadge};`);
+	rule(`.${seerrDotCss.processing}`, `border-color: ${statusRequested}; color: ${statusRequested};`);
+	rule(`.${seerrDotCss.pending}`, `border-color: ${statusPending}; color: ${statusPending};`);
 
 	// The Seerr banner across a poster, with dark ink on a fill as light as Pending's yellow.
 	const bannerInk = (hex) => (relativeLuminance(hex) > 0.45 ? '#000000' : onBadge);
@@ -739,6 +748,8 @@ export const buildThemeOverrideCss = (theme, options = {}) => {
 	// Row shells
 	rule(`.${mediaRowCss.title}, .${modernRowCss.title}`, `color: ${onSurface}; text-shadow: ${textGlow};`);
 	rule(`.${mediaRowCss.subtitle}, .${modernRowCss.subtitle}`, `color: ${os(0.5)};`);
+	rule(`.${watchingNowRowCss.subtitle}`, `color: ${os(0.95)};`);
+	rule(`.${watchingNowRowCss.globeIcon}`, `color: ${onSurface};`);
 	rule(`.${mediaRowCss.seeAll}`, `background: ${os(0.08)}; color: ${os(0.7)};`);
 	rule(`.${mediaRowCss.seeAll}:focus`, `border-color: ${accent}; background: ${accentA(0.22)}; color: ${onSurface}; box-shadow: 0 0 14px 1px ${accentA(0.45)};`);
 	rule(`.${mediaRowCss.seeAllChevron}`, `color: ${accent};`);
@@ -750,7 +761,7 @@ export const buildThemeOverrideCss = (theme, options = {}) => {
 	rule(`.${ratingsCss.ratingValueCompact}`, `color: ${onBackground};`);
 
 	// Focus rings on the screens that load on demand
-	const {player, playerOverlays, episodeBrowser, genreBrowse} = lazySheets;
+	const {player, playerOverlays, episodeBrowser, genreBrowse, seerrDiscover, seerrBrowse, seerrPosterCard} = lazySheets;
 	const ring = (sheet, names, states) => names.flatMap((name) => states.map((state) => `.${sheet[name]}${state}`)).join(', ');
 	if (player) {
 		rule(ring(player, ['liveBtn', 'chapterItem'], [':hover', ':focus']), `border-color: ${focusColor};`);
@@ -765,6 +776,17 @@ export const buildThemeOverrideCss = (theme, options = {}) => {
 	}
 	if (genreBrowse) {
 		rule(ring(genreBrowse, ['filterButton', 'sortButton', 'letterButton'], [':focus']), `border-color: ${focusColor};`);
+	}
+	// Core draws every Seerr ring and focus border in its focus color.
+	if (seerrDiscover) {
+		rule(`.${seerrDiscover.tileRing}`, `border-color: ${focusColor};`);
+		rule(`.${seerrDiscover.pill}:focus`, `border-color: ${focusColor};`);
+	}
+	if (seerrBrowse) {
+		rule(ring(seerrBrowse, ['chip', 'letter', 'toolButton'], [':focus']), `box-shadow: inset 0 0 0 2px ${focusColor};`);
+	}
+	if (seerrPosterCard) {
+		rule(`.${seerrPosterCard.ring}`, `border-color: ${focusColor};`);
 	}
 
 	// Pixel themes square off every fixed radius.

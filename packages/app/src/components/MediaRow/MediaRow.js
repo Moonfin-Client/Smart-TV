@@ -9,6 +9,7 @@ import {glideIntoView} from '../../utils/focusScroll';
 import {KEYS} from '../../utils/keys';
 import {sameCardUserData} from '../../utils/playedState';
 import {useSettings} from '../../context/SettingsContext';
+import {nearRowEnd} from '../../views/Browse/rowPaging';
 
 import css from './MediaRow.module.less';
 
@@ -46,7 +47,8 @@ const MediaRow = ({
 	loading,
 	titleWidth,
 	deferImages = false,
-	homeText = false
+	homeText = false,
+	onLoadMore
 }) => {
 	const {settings} = useSettings();
 	const scrollerRef = useRef(null);
@@ -66,8 +68,19 @@ const MediaRow = ({
 		onSelectItem?.(item);
 	}, [onSelectItem]);
 
+	const itemCount = items?.length || 0;
+
 	const handleFocus = useCallback((e) => {
 		onFocus?.(rowIndex);
+
+		// A row that pages asks for more once focus is among its last few cards, early enough that
+		// the next page is usually in before the end is reached.
+		const focused = e.target.closest('[data-media-card]');
+		if (onLoadMore && focused && focused.parentNode) {
+			const cards = focused.parentNode.querySelectorAll('[data-media-card]');
+			const index = Array.prototype.indexOf.call(cards, focused);
+			if (nearRowEnd(index, itemCount)) onLoadMore(rowId);
+		}
 
 		// A hovered card already sits under the cursor, so nudging the lane
 		// would only slide it away from the pointer.
@@ -85,7 +98,7 @@ const MediaRow = ({
 				glideIntoView(scroller, card, 'x', 50, start);
 			});
 		}
-	}, [onFocus, rowIndex]);
+	}, [onFocus, rowIndex, onLoadMore, itemCount, rowId]);
 
 	const handleKeyDown = useCallback((e) => {
 		if (e.keyCode === KEYS.UP && onNavigateUp) {
@@ -202,6 +215,8 @@ const MediaRow = ({
 
 const areRowPropsEqual = (prev, next) => {
 	if (prev.rowId !== next.rowId) return false;
+	// Presence only, since a caller's inline arrow would defeat the comparator.
+	if (!prev.onLoadMore !== !next.onLoadMore) return false;
 	if (prev.title !== next.title) return false;
 	if (prev.cardType !== next.cardType) return false;
 	if (prev.rowImageType !== next.rowImageType) return false;

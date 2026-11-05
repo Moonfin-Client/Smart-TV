@@ -15,7 +15,11 @@ jest.mock('react/jsx-dev-runtime', () => {
 	};
 });
 jest.mock('@enact/i18n/$L', () => (text) => text);
-jest.mock('../../services/jellyfinApi', () => ({getAuthHeader: () => '', getServerUrl: () => '', api: {}}));
+jest.mock('../../services/jellyfinApi', () => ({getApiKey: () => '', getServerUrl: () => '', api: {}}));
+jest.mock('../../services/moonbaseEndpoint', () => ({
+	moonbaseEndpoint: async (base) => ({base, headers: {}}),
+	moonbaseAssetUrl: (base, path) => `${base}${path}`
+}));
 jest.mock('../../utils/requestQueue', () => ({mediaServerQueue: {run: (task) => task()}}));
 
 const mockSettings = {

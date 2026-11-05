@@ -77,7 +77,8 @@ jobs:
   # ───────────────────────────────────────────────
   build-vega:
     name: Build Vega
-    runs-on: ubuntu-latest
+    # Deadsnakes doesn't build Python 3.8 for the amd64v3 packages the 26.04 runners install from.
+    runs-on: ubuntu-24.04
     outputs:
       result: ${{ steps.build.outcome }}
     steps:

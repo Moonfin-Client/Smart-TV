@@ -1,0 +1,54 @@
+.release {
+	display: flex;
+	flex-direction: column;
+	align-items: flex-start;
+	margin-top: 13px;
+	color: var(--theme-text-primary, #fff);
+	text-shadow: 0 0 4px rgba(0, 0, 0, 0.54);
+}
+
+/* The bar ties two lines together, so a label alone goes without it. */
+.withDetail {
+	padding-left: 17px;
+	border-left: 3px solid var(--theme-text-primary, #fff);
+}
+
+.label,
+.detail {
+	max-width: 650px;
+	overflow: hidden;
+	white-space: nowrap;
+	text-overflow: ellipsis;
+	font-weight: 700;
+}
+
+.label {
+	font-size: 23px;
+	line-height: 1.2;
+	letter-spacing: 2px;
+	text-transform: uppercase;
+}
+
+.detail {
+	font-size: 40px;
+	line-height: 1.15;
+}
+
+/* The settings previews draw everything smaller. */
+.small {
+	margin-top: 8px;
+
+	&.withDetail {
+		padding-left: 10px;
+		border-left-width: 2px;
+	}
+
+	.label {
+		font-size: 14px;
+		letter-spacing: 1.2px;
+	}
+
+	.detail {
+		font-size: 24px;
+	}
+}

@@ -30,6 +30,7 @@ export const isRowEnabledBySetting = (rowId, settings) => {
 	if (rowId === 'imdb-lowest-rated') return settings.imdbLowestRatedMoviesEnabled;
 	if (rowId === 'imdb-top-english') return settings.imdbTopEnglishMoviesEnabled;
 	if (rowId === 'seasonal') return settings.seasonalRowEnabled === true;
+	if (rowId === 'mdblist_watching_now') return settings.mdblistWatchingNowEnabled === true;
 	return true;
 };
 
@@ -40,4 +41,5 @@ export const isPluginSourcedRow = (rowId) =>
 	rowId.startsWith('tmdb_') ||
 	rowId === 'radarr_calendar' ||
 	rowId === 'sonarr_calendar' ||
-	rowId === 'seasonal';
+	rowId === 'seasonal' ||
+	rowId === 'mdblist_watching_now';
