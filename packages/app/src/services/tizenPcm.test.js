@@ -83,15 +83,17 @@ describe('Tizen PCM aliases from Plex', () => {
 		expect(getPlayMethod(media, caps, {})).toBe('Transcode');
 	});
 
-	test('advertises PCM alias format and bounds to the server', async () => {
+	test('keeps server PCM constraints independent of Plex format metadata', async () => {
 		const profile = await device().getJellyfinDeviceProfile();
-		const conditions = profile.CodecProfiles.filter(p => p.Type === 'VideoAudio' && p.Codec?.split(',').includes('pcm'))
-			.flatMap(p => p.Conditions);
-		expect(conditions).toEqual(expect.arrayContaining([
-			{Condition: 'Equals', Property: 'AudioProfile', Value: 'pcm_s16le', IsRequired: false},
-			{Condition: 'Equals', Property: 'AudioBitDepth', Value: '16', IsRequired: false},
-			{Condition: 'LessThanEqual', Property: 'AudioChannels', Value: '2', IsRequired: false},
-			{Condition: 'LessThanEqual', Property: 'AudioSampleRate', Value: '48000', IsRequired: false}
-		]));
+		const pcmProfiles = profile.CodecProfiles.filter(p => p.Type === 'VideoAudio' && p.Codec?.split(',').some(codec => codec === 'pcm_s16le' || codec === 'pcm'));
+		expect(pcmProfiles).toEqual([
+			expect.objectContaining({
+				Codec: 'pcm_s16le,pcm',
+				Conditions: [
+					{Condition: 'LessThanEqual', Property: 'AudioChannels', Value: '2', IsRequired: false},
+					{Condition: 'LessThanEqual', Property: 'AudioSampleRate', Value: '48000', IsRequired: false}
+				]
+			})
+		]);
 	});
 });
