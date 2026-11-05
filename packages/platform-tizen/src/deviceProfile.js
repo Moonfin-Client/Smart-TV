@@ -254,12 +254,14 @@ export const testHevcSupport = () => {
 
 /**
  * AV1 support - Listed in Samsung per-year video spec tables from 2020 onwards.
- * 2020 (Tizen 5.5): AV1 on Premium/Standard/Basic1 UHD tiers (WebM container only)
+ * 2020 (Tizen 5.5): every tier but the FHD only 20TV_BASIC2. 2018 and 2019 sets updated to
+ * Tizen 5.5 have no AV1 decoder, so a 2020 set is told apart by its model year, and an FHD
+ * panel is left out, which also drops the few FHD Basic1 sets.
  * 2021 (Tizen 6): AV1 on ALL tiers including FHD models
- * 2022+ (Tizen 6.5+): AV1 on all tiers; 8K Premium models also support AV1 in MP4/MKV/TS
+ * 2022+ (Tizen 6.5+): AV1 on all tiers, and 8K Premium models also support AV1 in MP4/MKV/TS
  */
-export const testAv1Support = (tizenVersion = 4) => {
-	return tizenVersion >= 5.5;
+export const testAv1Support = (tizenVersion = 4, modelYear = 2018, uhd = false) => {
+	return tizenVersion >= 6 || (tizenVersion >= 5.5 && modelYear >= 2020 && uhd);
 };
 
 /**
@@ -405,7 +407,7 @@ export const getDeviceCapabilities = async () => {
 
 		// Video codec capabilities
 		hevc: testHevcSupport(),
-		av1: testAv1Support(tizenVersion),
+		av1: testAv1Support(tizenVersion, modelYear, uhd),
 		vp9: testVp9Support(tizenVersion, uhd),
 
 		...containerSupport,

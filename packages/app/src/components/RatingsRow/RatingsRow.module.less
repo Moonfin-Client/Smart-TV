@@ -158,3 +158,95 @@
 }
 
 .ratingsRow { .flex-wrap-gap(6px; 9px); }
+
+// The classic home info area keeps its ratings on one 40px line, each label after its
+// value. It comes after the gap mixin above so its spacing wins.
+.ratingsRowInline {
+	flex-wrap: nowrap;
+	height: 40px;
+	overflow: hidden;
+	margin: 12px -5px 0;
+
+	> * {
+		margin: 0 5px;
+		flex-shrink: 0;
+	}
+
+	.ratingItem {
+		flex-direction: row;
+		align-items: center;
+		height: 40px;
+		box-sizing: border-box;
+		padding: 0 12px;
+		border-radius: 8px;
+	}
+
+	.ratingItemPlain {
+		padding: 0;
+	}
+
+	.ratingIcon {
+		height: 28px;
+		margin-right: 8px;
+	}
+
+	.communityStar,
+	.personalStar {
+		margin-right: 8px;
+	}
+
+	.ratingValue {
+		line-height: 28px;
+	}
+
+	// Opacity rather than a color, since the themes set the label color.
+	.ratingName {
+		font-size: 18px;
+		line-height: 28px;
+		margin: 0 0 0 8px;
+		opacity: 0.7;
+	}
+}
+
+// Frost's strip.
+.ratingsColumns {
+	display: flex;
+	height: 100%;
+}
+
+.ratingColumn {
+	align-items: center;
+	display: flex;
+	flex: 1 1 0;
+	flex-direction: column;
+	justify-content: center;
+	min-width: 0;
+	padding: 0 6px;
+}
+
+.ratingColumn + .ratingColumn {
+	border-left: 1.5px solid rgba(255, 255, 255, 0.14);
+}
+
+.columnName {
+	color: rgba(235, 235, 245, 0.62);
+	font-size: 18px;
+	font-weight: 600;
+	letter-spacing: 0.9px;
+	line-height: 1.25;
+	max-width: 100%;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	text-transform: uppercase;
+	white-space: nowrap;
+}
+
+.columnValue {
+	color: rgba(255, 255, 255, 0.94);
+	font-size: 42px;
+	font-weight: 700;
+	letter-spacing: -0.75px;
+	line-height: 1.15;
+	margin-top: 6px;
+	white-space: nowrap;
+}

@@ -39,6 +39,12 @@ describe('program facts', () => {
 		expect(episodeLine({})).toBe('');
 	});
 
+	test('leaves out a title that repeats the program name', () => {
+		expect(episodeLine({Name: 'College Football', EpisodeTitle: 'College Football'})).toBe('');
+		expect(episodeLine({Name: 'College Football', EpisodeTitle: 'College Football', ParentIndexNumber: 2, IndexNumber: 9})).toBe('(S2:E9)');
+		expect(episodeLine({Name: 'College Football', EpisodeTitle: 'South Alabama at Kentucky'})).toBe('South Alabama at Kentucky');
+	});
+
 	test('unescapes quotes a guide source left escaped', () => {
 		expect(episodeLine({EpisodeTitle: '\\"Raygun\\"'})).toBe('"Raygun"');
 	});

@@ -144,6 +144,7 @@ const seriesEntry = (id, name, members, folder) => {
 		Name: name,
 		Type: 'BookSeries',
 		ChildCount: members.length,
+		Members: members,
 		StackCovers: covered.slice(0, 3).map((member) => ({Id: member.Id, Tag: member.ImageTags.Primary}))
 	};
 	if (folder) entry.IsFolder = true;

@@ -27,12 +27,12 @@
 	text-overflow: ellipsis;
 }
 
+// It sits under the chips that move between the book screens.
 .page {
-	position: fixed;
-	top: 0;
-	left: 0;
-	right: 0;
-	bottom: 0;
+	position: relative;
+	-webkit-flex: 1;
+	flex: 1;
+	min-height: 0;
 	display: -webkit-flex;
 	display: flex;
 	-webkit-flex-direction: column;

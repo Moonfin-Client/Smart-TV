@@ -74,6 +74,15 @@ describe('profileToLocal', () => {
 		expect(profileToLocal({posterSize: 'huge'}).homeRowsPosterSize).toBeUndefined();
 	});
 
+	test("takes the other clients' media bar sources and new release settings", () => {
+		expect(profileToLocal({mediaBarSourceType: 'newReleases'}).mediaBarSourceType).toBe('newReleases');
+		expect(profileToLocal({mediaBarSourceType: 'recentlyAdded'}).mediaBarSourceType).toBe('recentlyAdded');
+		expect(profileToLocal({mediaBarSourceType: 'random'}).mediaBarSourceType).toBe('library');
+		expect(profileToLocal({mediaBarSourceType: 'trending'}).mediaBarSourceType).toBeUndefined();
+		expect(profileToLocal({mediaBarNewReleaseBanner: false, mediaBarNewReleaseDays: 14})).toEqual({mediaBarNewReleaseBanner: false, mediaBarNewReleaseDays: 14});
+		expect(profileToLocal({mediaBarNewReleaseDays: 45}).mediaBarNewReleaseDays).toBeUndefined();
+	});
+
 	test('ignores a screensaver mode this app has no way to draw', () => {
 		expect(profileToLocal({screensaverMode: 'off'}).screensaverMode).toBeUndefined();
 		expect(profileToLocal({screensaverMode: 'logo'}).screensaverMode).toBe('logo');
@@ -200,7 +209,7 @@ describe('localToProfile', () => {
 		const profile = localToProfile(defaultSettings);
 
 		expect(profile.classicHomeRowsPadding).toBe(30);
-		expect(profile.modernHomeRowsPadding).toBe(420);
+		expect(profile.modernHomeRowsPadding).toBe(360);
 	});
 
 	test('sends the card size under the names the other clients use', () => {
@@ -315,6 +324,84 @@ describe('SYNCABLE_KEYS', () => {
 		expect(SYNCABLE_KEYS).toContain('mediaPreviewMode');
 		expect(SYNCABLE_KEYS).toContain('previewAudioEnabled');
 	});
+
+	test('syncs every calendar setting under its own name', () => {
+		const calendarKeys = [
+			'showCalendarButton', 'calendarStyle', 'calendarWeekStart', 'calendarScope', 'calendarShowEpisodes',
+			'calendarShowMovies', 'calendarLibraryIds', 'calendarIncludeUnmonitored', 'calendarShowSpecials',
+			'calendarShowBadges', 'calendarColorBy', 'calendarImageType', 'calendarSpoilerSafe', 'calendarSelectAction',
+			'calendarRequestButton', 'calendarReminders', 'calendarRowSeeAll', 'showNextAirDate'
+		];
+		const profile = localToProfile({...defaultSettings, calendarReminders: true}, calendarKeys);
+
+		expect(Object.keys(profile).sort()).toEqual([...calendarKeys].sort());
+		expect(profile.calendarLibraryIds).toEqual([]);
+		expect(profileToLocal({calendarStyle: 'countdown', calendarLibraryIds: ['a']})).toEqual({calendarStyle: 'countdown', calendarLibraryIds: ['a']});
+	});
+});
+
+describe('the home rows and media bar ratings settings', () => {
+	const SERVER_KEYS = {
+		homeRowsMdblistEnabled: 'homeRowsMdblistEnabled',
+		homeRowsMdblistRatingSources: 'homeRowsMdblistRatingSources',
+		homeRowsTmdbEpisodeRatingsEnabled: 'homeRowsTmdbEpisodeRatingsEnabled',
+		homeRowsShowRatingLabels: 'homeRowsMdblistShowRatingNames',
+		homeRowsShowRatingBadges: 'homeRowsMdblistShowRatingBadges',
+		mediaBarMdblistEnabled: 'mediaBarMdblistEnabled',
+		mediaBarMdblistRatingSources: 'mediaBarMdblistRatingSources',
+		mediaBarShowRatingLabels: 'mediaBarMdblistShowRatingNames',
+		mediaBarShowRatingBadges: 'mediaBarMdblistShowRatingBadges'
+	};
+
+	test('default like the plain ones, except home rows start with labels off', () => {
+		for (const local of Object.keys(SERVER_KEYS)) {
+			const plain = local.replace(/^(homeRows|mediaBar)(.)/, (all, surface, first) => first.toLowerCase());
+			const expected = local === 'homeRowsShowRatingLabels' ? false : defaultSettings[plain];
+			expect({local, value: defaultSettings[local]}).toEqual({local, value: expected});
+		}
+	});
+
+	test('travel under the shared server names', () => {
+		const local = {
+			homeRowsMdblistEnabled: false,
+			homeRowsMdblistRatingSources: ['imdb', 'myanimelist'],
+			homeRowsTmdbEpisodeRatingsEnabled: false,
+			homeRowsShowRatingLabels: true,
+			homeRowsShowRatingBadges: false,
+			mediaBarMdblistEnabled: false,
+			mediaBarMdblistRatingSources: ['metacriticuser', 'stars'],
+			mediaBarShowRatingLabels: false,
+			mediaBarShowRatingBadges: false
+		};
+		const profile = localToProfile({...defaultSettings, ...local}, Object.keys(SERVER_KEYS));
+
+		expect(profile).toEqual({
+			homeRowsMdblistEnabled: false,
+			homeRowsMdblistRatingSources: ['imdb', 'myAnimeList'],
+			homeRowsTmdbEpisodeRatingsEnabled: false,
+			homeRowsMdblistShowRatingNames: true,
+			homeRowsMdblistShowRatingBadges: false,
+			mediaBarMdblistEnabled: false,
+			mediaBarMdblistRatingSources: ['metacriticUser', 'stars'],
+			mediaBarMdblistShowRatingNames: false,
+			mediaBarMdblistShowRatingBadges: false
+		});
+		expect(profileToLocal(profile)).toEqual(local);
+	});
+
+	test('an empty source list from the server keeps the one this device has', () => {
+		expect(profileToLocal({homeRowsMdblistRatingSources: [], mediaBarMdblistRatingSources: []})).toEqual({});
+
+		const resolved = resolveFromEnvelope({tv: {}, global: {}}, {homeRowsMdblistRatingSources: [], mediaBarMdblistRatingSources: ['imdb']});
+		expect(resolved).not.toHaveProperty('homeRowsMdblistRatingSources');
+		expect(resolved.mediaBarMdblistRatingSources).toEqual(['imdb']);
+	});
+
+	test('leave the plain ratings settings alone', () => {
+		const local = profileToLocal({homeRowsMdblistShowRatingNames: true, mediaBarMdblistRatingSources: ['imdb']});
+
+		expect(local).toEqual({homeRowsShowRatingLabels: true, mediaBarMdblistRatingSources: ['imdb']});
+	});
 });
 
 describe('the backdrop toggles', () => {
@@ -352,6 +439,51 @@ describe('the library style', () => {
 	});
 });
 
+describe('the detail screen style', () => {
+	test('sends each style under the name Core stores it by', () => {
+		const names = {v1: 'classic', v2: 'modern', v3: 'spotlight', v4: 'nouveau', v5: 'minimalist', v6: 'stage', v7: 'premiere', v8: 'quickLook', v9: 'frost'};
+		Object.keys(names).forEach((style) => {
+			expect(localToProfile({...defaultSettings, detailScreenStyle: style}, ['detailScreenStyle'])).toEqual({detailScreenStyle: names[style]});
+			expect(profileToLocal({detailScreenStyle: names[style]})).toEqual({detailScreenStyle: style});
+		});
+	});
+
+	test('still reads the values older builds of this app pushed', () => {
+		expect(profileToLocal({detailScreenStyle: 'v4'})).toEqual({detailScreenStyle: 'v4'});
+	});
+
+	test('keeps the style it has when the profile names one this app has no way to draw', () => {
+		expect(profileToLocal({detailScreenStyle: 'carousel'})).toEqual({});
+	});
+});
+
+describe('the library grid settings', () => {
+	test('poster sizes sync under their own names, one for libraries and one for playlists', () => {
+		['small', 'medium', 'large', 'extraLarge'].forEach((size) => {
+			expect(profileToLocal({libraryPosterSize: size, playlistPosterSize: size})).toEqual({libraryPosterSize: size, playlistPosterSize: size});
+			expect(localToProfile({...defaultSettings, libraryPosterSize: size}, ['libraryPosterSize'])).toEqual({libraryPosterSize: size});
+		});
+	});
+
+	test('an unpicked poster size stays off the profile', () => {
+		expect(defaultSettings.libraryPosterSize).toBeNull();
+		expect(localToProfile(defaultSettings, ['libraryPosterSize', 'playlistPosterSize'])).toEqual({});
+		expect(profileToLocal({libraryPosterSize: 'grandparents'})).toEqual({});
+	});
+
+	test('titles under posters is on until turned off and syncs as it is', () => {
+		expect(defaultSettings.libraryCardTitles).toBe(true);
+		expect(profileToLocal({libraryCardTitles: false})).toEqual({libraryCardTitles: false});
+		expect(localToProfile({...defaultSettings, libraryCardTitles: false}, ['libraryCardTitles'])).toEqual({libraryCardTitles: false});
+	});
+
+	test('neither folder view nor the alphabet syncs', () => {
+		expect(SYNCABLE_KEYS).not.toContain('folderViewMode');
+		expect(SYNCABLE_KEYS).not.toContain('showAlphabeticalFilters');
+		expect(profileToLocal({enableFolderView: true})).toEqual({});
+	});
+});
+
 describe('the music library style', () => {
 	test('defaults to immersive', () => {
 		expect(defaultSettings.musicLibraryStyle).toBe('immersive');
@@ -383,6 +515,21 @@ describe('the book library style', () => {
 
 	test('keeps the style it has when the profile names one this app has no way to draw', () => {
 		expect(profileToLocal({bookLibraryStyle: 'immersive'})).toEqual({});
+	});
+});
+
+describe('the Seerr badge style', () => {
+	test('defaults to badge and syncs under its own name', () => {
+		expect(defaultSettings.seerrBadgeStyle).toBe('badge');
+		expect(SYNCABLE_KEYS).toContain('seerrBadgeStyle');
+		['badge', 'banner'].forEach((style) => {
+			expect(profileToLocal({seerrBadgeStyle: style})).toEqual({seerrBadgeStyle: style});
+			expect(localToProfile({...defaultSettings, seerrBadgeStyle: style}, ['seerrBadgeStyle'])).toEqual({seerrBadgeStyle: style});
+		});
+	});
+
+	test('keeps the style it has when the profile names one it can\'t draw', () => {
+		expect(profileToLocal({seerrBadgeStyle: 'ribbon'})).toEqual({});
 	});
 });
 
@@ -638,6 +785,30 @@ describe('the per row image types', () => {
 		expect(resolved.homeRowImageTypes).toEqual({genres: 'thumb', resume: 'banner'});
 		expect(resolveFromEnvelope({}, {homeRowImageTypes: 'genres:thumb'}).homeRowImageTypes).toEqual({genres: 'thumb'});
 		expect(resolveFromEnvelope({}, {})).not.toHaveProperty('homeRowImageTypes');
+	});
+});
+
+describe('the focus border color', () => {
+	test('goes out under the name the other clients use', () => {
+		expect(localToProfile({focusBorderColor: '#8B0000'}, ['focusBorderColor']).focusColor).toBe('darkRed');
+		expect(localToProfile({focusBorderColor: '#ffcd75'}, ['focusBorderColor']).focusColor).toBe('eightBitGold');
+		expect(localToProfile({focusBorderColor: ''}, ['focusBorderColor']).focusColor).toBe('');
+	});
+
+	test('comes back as the color a name stands for, and keeps what it has for one it doesn\'t know', () => {
+		expect(profileToLocal({focusColor: 'darkRed'}).focusBorderColor).toBe('#8b0000');
+		expect(profileToLocal({focusColor: 'moonfincyan'}).focusBorderColor).toBe('#00a4dc');
+		expect(profileToLocal({focusColor: '#ff2e92'}).focusBorderColor).toBe('#ff2e92');
+		expect(profileToLocal({focusColor: ''}).focusBorderColor).toBe('');
+		expect(profileToLocal({focusColor: 'constructor'})).not.toHaveProperty('focusBorderColor');
+	});
+});
+
+describe('the focus expansion toggle', () => {
+	test('syncs under Core\'s name both ways', () => {
+		expect(profileToLocal({cardFocusExpansion: false}).cardFocusZoom).toBe(false);
+		expect(profileToLocal({cardFocusExpansion: true}).cardFocusZoom).toBe(true);
+		expect(localToProfile({cardFocusZoom: false}, ['cardFocusZoom'])).toEqual({cardFocusExpansion: false});
 	});
 });
 

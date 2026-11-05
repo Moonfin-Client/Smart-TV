@@ -1,4 +1,4 @@
-import {useState, useEffect, useCallback, useMemo, memo} from 'react';
+import {useState, useEffect, useCallback, useMemo, useRef, memo} from 'react';
 import Spottable from '@enact/spotlight/Spottable';
 import SpotlightContainerDecorator from '@enact/spotlight/SpotlightContainerDecorator';
 import Spotlight from '@enact/spotlight';
@@ -6,9 +6,9 @@ import $L from '@enact/i18n/$L';
 import {useAuth} from '../../context/AuthContext';
 import {pointerHover} from '../../utils/focusScroll';
 import LoadingSpinner from '../../components/LoadingSpinner';
-import {formatClockTime, formatDayLabel} from '../../utils/clock';
+import {formatDayLabel} from '../../utils/clock';
 import {useSettings} from '../../context/SettingsContext';
-import IncompleteBadge from '../../components/IncompleteBadge';
+import IncompleteBadge, {incompleteDetailText} from '../../components/IncompleteBadge';
 import {
 	canKeepAsComplete, keepAsComplete, refreshIncompleteRecordings, useIncompleteRecording
 } from '../../services/incompleteRecordings';
@@ -121,19 +121,6 @@ const friendlyDate = (date) => {
 	return formatDayLabel(date);
 };
 
-// How much of the program a recording missed, and what the plugin found for the rest of it.
-const incompleteDetail = (entry, clockDisplay) => {
-	const at = (date) => `${formatDayLabel(new Date(date))} ${formatClockTime(new Date(date), clockDisplay)}`;
-	let found = null;
-	if (entry.state === 'scheduled' && entry.scheduledStart) found = $L('Complete showing scheduled {dateTime}').replace('{dateTime}', at(entry.scheduledStart));
-	else if (entry.state === 'recorded' && entry.recordedAt) found = $L('Complete copy recorded {dateTime}').replace('{dateTime}', at(entry.recordedAt));
-	else if (entry.state === 'notFound') found = $L('No complete showing found');
-	const minutes = $L('{recorded} of {expected} min')
-		.replace('{recorded}', entry.recordedMinutes)
-		.replace('{expected}', entry.expectedMinutes);
-	return [$L('Incomplete'), minutes, found].filter(Boolean).join(' · ');
-};
-
 const Recordings = ({onPlayRecording, onBack, backHandlerRef}) => {
 	const {api, serverUrl} = useAuth();
 	const {settings} = useSettings();
@@ -144,6 +131,19 @@ const Recordings = ({onPlayRecording, onBack, backHandlerRef}) => {
 	const [activeTab, setActiveTab] = useState('recordings');
 	const [selectedItem, setSelectedItem] = useState(null);
 	const selectedIncomplete = useIncompleteRecording(selectedItem?.type === 'recording' ? selectedItem.item.Id : null);
+	// The schedule is read again whenever a series rule changes, since the rule decides which showings
+	// are booked. Those reads can overlap and finish in any order, so each is numbered and only one
+	// newer than the last applied replaces the list.
+	const timerReads = useRef({started: 0, applied: 0});
+	const reloadTimers = useCallback(() => {
+		const read = ++timerReads.current.started;
+		return api.getLiveTvTimers().then((result) => {
+			if (read < timerReads.current.applied) return;
+			timerReads.current.applied = read;
+			const now = Date.now();
+			setTimers((result?.Items || []).filter((timer) => isUpcomingTimer(timer, now)));
+		}, () => {});
+	}, [api]);
 
 	useEffect(() => {
 		if (!backHandlerRef) return;
@@ -163,14 +163,14 @@ const Recordings = ({onPlayRecording, onBack, backHandlerRef}) => {
 		// on its own, so a server without series flags just loses that rail.
 		const loadData = async () => {
 			setIsLoading(true);
-			const [recent, series, movies, sports, kids, timersResult, seriesTimersResult] = await Promise.all([
+			const [recent, series, movies, sports, kids, seriesTimersResult] = await Promise.all([
 				api.getLiveTvRecordings({limit: 40}).catch(() => null),
 				api.getLiveTvRecordings({limit: 60, isSeries: true}).catch(() => null),
 				api.getLiveTvRecordings({limit: 60, isMovie: true}).catch(() => null),
 				api.getLiveTvRecordings({limit: 60, isSports: true}).catch(() => null),
 				api.getLiveTvRecordings({limit: 60, isKids: true}).catch(() => null),
-				api.getLiveTvTimers().catch(() => null),
-				api.getLiveTvSeriesTimers().catch(() => null)
+				api.getLiveTvSeriesTimers().catch(() => null),
+				reloadTimers()
 			]);
 			setRecordingRows({
 				recent: recent?.Items || [],
@@ -179,15 +179,13 @@ const Recordings = ({onPlayRecording, onBack, backHandlerRef}) => {
 				sports: sports?.Items || [],
 				kids: kids?.Items || []
 			});
-			const now = Date.now();
-			setTimers((timersResult?.Items || []).filter((timer) => isUpcomingTimer(timer, now)));
 			setSeriesTimers(seriesTimersResult?.Items || []);
 			setIsLoading(false);
 		};
 
 		loadData();
 		refreshIncompleteRecordings();
-	}, [api]);
+	}, [api, reloadTimers]);
 
 	// Timers airing within a day open the recordings tab, like core's first rail.
 	const scheduledSoon = useMemo(() => {
@@ -266,6 +264,8 @@ const Recordings = ({onPlayRecording, onBack, backHandlerRef}) => {
 		if (selectedItem?.item?.Id) {
 			try {
 				await api.cancelLiveTvTimer(selectedItem.item.Id);
+				// A read started before the cancel can still return the cancelled timer.
+				timerReads.current.applied = ++timerReads.current.started;
 				setTimers(prev => prev.filter(t => t.Id !== selectedItem.item.Id));
 				setSelectedItem(null);
 			} catch (err) {
@@ -273,12 +273,6 @@ const Recordings = ({onPlayRecording, onBack, backHandlerRef}) => {
 			}
 		}
 	}, [api, selectedItem]);
-
-	// A series rule decides which showings are booked, so the schedule is read again once it changes.
-	const reloadTimers = useCallback(() => api.getLiveTvTimers().then((result) => {
-		const now = Date.now();
-		setTimers((result?.Items || []).filter((timer) => isUpcomingTimer(timer, now)));
-	}, () => {}), [api]);
 
 	const handleCancelSelectedSeriesTimer = useCallback(async () => {
 		if (selectedItem?.item?.Id) {
@@ -469,7 +463,7 @@ const Recordings = ({onPlayRecording, onBack, backHandlerRef}) => {
 								)}
 							</div>
 							{selectedIncomplete && (
-								<div className={css.incompleteLine}>{incompleteDetail(selectedIncomplete, settings.clockDisplay)}</div>
+								<div className={css.incompleteLine}>{incompleteDetailText(selectedIncomplete, settings.clockDisplay)}</div>
 							)}
 						</div>
 						<div className={css.dialogActions}>

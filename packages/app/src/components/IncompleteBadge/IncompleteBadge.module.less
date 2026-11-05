@@ -28,3 +28,35 @@
 .belowFavorite {
 	top: 40px;
 }
+
+.belowBanner {
+	top: 28px;
+
+	&.belowFavorite {
+		top: 60px;
+	}
+}
+
+// Beside an episode's runtime, at the smaller size an episode row uses.
+.inline {
+	position: static;
+	flex-shrink: 0;
+	height: 21px;
+	padding: 0 8px 0 6px;
+	border-radius: 10.5px;
+	font-size: 12px;
+
+	svg {
+		width: 12px;
+		height: 12px;
+		margin-right: 3px;
+	}
+}
+
+// The status line under an incomplete recording's title on the details screen.
+.line {
+	margin-top: 8px;
+	color: #e0a33c;
+	font-size: 20px;
+	font-weight: 600;
+}

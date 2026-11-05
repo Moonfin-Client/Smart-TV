@@ -23,6 +23,8 @@ const ctx = {
 	romm: {available: true},
 	seerrLabel: 'Seerr',
 	isSeerr: true,
+	hasLiveTv: true,
+	serverType: 'jellyfin',
 	hasMultipleServers: false,
 	isWebOS: true,
 	isTizen: false,
@@ -186,6 +188,37 @@ describe('settings schema', () => {
 		expect(toggle.when(ctx)).toBeFalsy();
 	});
 
+	test('Show Libraries Individually is offered only while libraries show in the navigation bar', () => {
+		const toggle = allRows().find(({row}) => row.key === 'showLibrariesIndividually').row;
+		expect(defaultSettings.showLibrariesIndividually).toBe(false);
+		expect(toggle.when(ctx)).toBe(true);
+		expect(toggle.when({...ctx, settings: {...defaultSettings, navbarPosition: 'left'}})).toBe(true);
+		expect(toggle.when({...ctx, settings: {...defaultSettings, showLibrariesInToolbar: false}})).toBe(false);
+	});
+
+	test('the Live TV and SyncPlay button switches only show where the navbar could draw the button', () => {
+		const shown = (key, overrides, settings = {}) => allRows().find(({row}) => row.key === key).row
+			.when({...ctx, ...overrides, settings: {...defaultSettings, ...settings}});
+		expect(shown('showLiveTvButton', {})).toBe(true);
+		expect(shown('showLiveTvButton', {hasLiveTv: false})).toBe(false);
+		expect(shown('showSyncPlayButton', {})).toBe(true);
+		expect(shown('showSyncPlayButton', {serverType: 'emby'})).toBe(true);
+		expect(shown('showSyncPlayButton', {serverType: 'plex'})).toBe(false);
+		expect(shown('showSyncPlayButton', {}, {syncplayEnabled: false})).toBe(false);
+	});
+
+	test("Secondary Subtitles is off by default and follows the default language, with its own language only while it's on", () => {
+		const subtitles = allScreens().find(({sub}) => sub.id === 'subtitles').sub.rows;
+		const keys = subtitles.map((row) => row.key);
+		expect(keys.indexOf('secondarySubtitlesEnabled')).toBe(keys.indexOf('subtitleLanguage') + 1);
+		expect(defaultSettings.secondarySubtitlesEnabled).toBe(false);
+
+		const language = subtitles.find((row) => row.key === 'preferredSecondarySubtitleLanguage');
+		expect(language.when(ctx)).toBe(false);
+		expect(language.when({...ctx, settings: {...defaultSettings, secondarySubtitlesEnabled: true}})).toBe(true);
+		expect(language.when({...ctx, settings: {...defaultSettings, secondarySubtitlesEnabled: true, subtitleMode: 'none'}})).toBe(false);
+	});
+
 	// The fallback stands in for the value on the row's chip, so it's one of the chip texts
 	test('every option row falls back to what one of its own options shows on the chip', () => {
 		const mismatched = [];
@@ -208,6 +241,14 @@ describe('settings schema', () => {
 	});
 });
 
+describe('the details screen style', () => {
+	test.each(['Stage', 'Premiere', 'Quick Look', 'Frost'])('a search for %s finds the style setting', (name) => {
+		const index = buildSettingsIndex(SETTINGS_SCHEMA, ctx, {resolve, spotlightIdOf});
+
+		expect(matchSettings(index, name).map((entry) => entry.spotlightId)).toContain('setting-detailScreenStyle');
+	});
+});
+
 describe('the home screen backdrop', () => {
 	const backdropRow = () => SETTINGS_SCHEMA
 		.find((category) => category.id === 'appearance').subcategories
@@ -215,14 +256,15 @@ describe('the home screen backdrop', () => {
 		.find((row) => row.key === 'homeBackdropStyle');
 	const withSettings = (settings) => ({...ctx, settings: {...defaultSettings, ...settings}});
 
-	test('is a three way choice in place of the switch', () => {
+	test('is a choice in place of the switch', () => {
 		const row = backdropRow();
 		expect(row.kind).toBe(KIND.OPTION);
 		expect(row.label()).toBe('Home Screen Backdrop');
 		expect(row.options(ctx).map((option) => [option.value, option.label])).toEqual([
 			['off', 'Off'],
 			['fullScreen', 'Full Screen'],
-			['corner', 'Corner']
+			['corner', 'Corner'],
+			['top', 'Top']
 		]);
 		expect(allRows().some(({row: other}) => other.key === 'showHomeBackdrop')).toBe(false);
 	});
@@ -232,16 +274,18 @@ describe('the home screen backdrop', () => {
 		expect(row.value(withSettings({showHomeBackdrop: false, homeBackdropStyle: 'corner'}))).toBe('off');
 		expect(row.value(withSettings({showHomeBackdrop: true}))).toBe('fullScreen');
 		expect(row.value(withSettings({showHomeBackdrop: true, homeBackdropStyle: 'corner'}))).toBe('corner');
+		expect(row.value(withSettings({showHomeBackdrop: true, homeBackdropStyle: 'top'}))).toBe('top');
 	});
 
 	test('a choice writes both keys in one update', () => {
 		const setSettings = jest.fn();
 		const withActions = {...ctx, actions: {setSettings}};
-		['off', 'fullScreen', 'corner'].forEach((style) => backdropRow().onSelect(withActions, style));
+		['off', 'fullScreen', 'corner', 'top'].forEach((style) => backdropRow().onSelect(withActions, style));
 		expect(setSettings.mock.calls).toEqual([
 			[{showHomeBackdrop: false, homeBackdropStyle: 'off'}],
 			[{showHomeBackdrop: true, homeBackdropStyle: 'fullScreen'}],
-			[{showHomeBackdrop: true, homeBackdropStyle: 'corner'}]
+			[{showHomeBackdrop: true, homeBackdropStyle: 'corner'}],
+			[{showHomeBackdrop: true, homeBackdropStyle: 'top'}]
 		]);
 	});
 });
@@ -299,5 +343,41 @@ describe('the media preview switches', () => {
 			expect(row.when(withSettings({episodePreviewEnabled: true, mediaPreviewMode: 'media'}))).toBe(true);
 			expect(row.when(withSettings({episodePreviewEnabled: true, mediaPreviewMode: 'trailer'}))).toBe(true);
 		});
+	});
+});
+
+describe('the ratings sections', () => {
+	const screen = (id) => SETTINGS_SCHEMA
+		.find((category) => category.id === 'appearance').subcategories
+		.find((sub) => sub.id === id);
+	const ratingsKeys = (id) => screen(id).rows.filter((row) => KEYED.includes(row.kind)).map((row) => row.key)
+		.filter((key) => /(mdblistEnabled|episodeRatingsEnabled|showRating(Labels|Badges))$/i.test(key));
+	const withSettings = (settings) => ({...ctx, settings: {...defaultSettings, ...settings}});
+
+	test('home rows and the media bar each change their own copy', () => {
+		expect(ratingsKeys('detailsPage')).toEqual(['mdblistEnabled', 'tmdbEpisodeRatingsEnabled', 'showRatingLabels', 'showRatingBadges']);
+		expect(ratingsKeys('homeScreen')).toEqual(['homeRowsMdblistEnabled', 'homeRowsTmdbEpisodeRatingsEnabled', 'homeRowsShowRatingLabels', 'homeRowsShowRatingBadges']);
+		expect(ratingsKeys('mediaBar')).toEqual(['mediaBarMdblistEnabled', 'mediaBarShowRatingLabels', 'mediaBarShowRatingBadges']);
+	});
+
+	test('the sources and reset rows open on their own surface', () => {
+		const openRatingSources = jest.fn();
+		const resetRatingsSettings = jest.fn();
+		const withActions = {...ctx, actions: {openRatingSources, resetRatingsSettings}};
+		for (const [id, prefix] of [['detailsPage', ''], ['homeScreen', 'homeRows'], ['mediaBar', 'mediaBar']]) {
+			const rows = screen(id).rows;
+			rows.find((row) => /^(r|.+R)atingSources$/.test(row.id)).action(withActions);
+			rows.find((row) => /^(r|.+R)esetRatings$/.test(row.id)).action(withActions);
+			expect(openRatingSources).toHaveBeenLastCalledWith(prefix);
+			expect(resetRatingsSettings).toHaveBeenLastCalledWith(prefix);
+		}
+	});
+
+	test('the media bar section only shows for the styles that draw ratings', () => {
+		const shown = (featuredBarStyle) => screen('mediaBar').rows
+			.filter((row) => row.id === 'mediaBarRatings' || row.key === 'mediaBarMdblistEnabled')
+			.map((row) => row.when(withSettings({featuredBarStyle})));
+		for (const style of ['moonfin', 'makd', 'gallery', 'banner']) expect(shown(style)).toEqual([true, true]);
+		for (const style of ['bookshelf', 'aya', 'off']) expect(shown(style)).toEqual([false, false]);
 	});
 });

@@ -14,8 +14,11 @@ import MediaPreviewContext from '../../components/MediaCard/MediaPreviewContext'
 import {modernRowSpacing} from '../../components/MediaCard/modernCardLayout';
 import SeerrTileRow from '../../components/SeerrTileRow';
 import LibraryButtonRow from '../../components/LibraryButtonRow';
+import WatchingNowRow from '../../components/WatchingNowRow';
 import {SkeletonShimmer, skeletonTitleWidths} from '../../components/Skeleton';
 import {getImageUrl, getBackdropId} from '../../utils/helpers';
+import {loadNewReleases} from '../../utils/mediaBarNewRelease';
+import {createApiForServer} from '../../services/jellyfinApi';
 import {channelForProgram, isLiveTvProgram} from '../../utils/liveTvLibrary';
 import {focusedCardIndex, cardToRestore, focusedRowIndex, rowToRestore} from '../../utils/rowFocusMemory';
 import {radiusToCss, shadowToCss, toCssColor} from '../../theme/themeSpec';
@@ -58,6 +61,9 @@ const LOADING_ROW_TITLE_WIDTHS = skeletonTitleWidths(4, 24);
 
 let lastFocusState = null;
 
+// The Radarr and Sonarr rows, or the one they merge into, which keeps the Radarr id.
+const CALENDAR_ROW_IDS = ['radarr_calendar', 'sonarr_calendar'];
+
 const Browse = ({
 	onSelectItem,
 	onSelectLibrary,
@@ -69,6 +75,7 @@ const Browse = ({
 	onSelectSeerrStudio,
 	onSelectSeerrNetwork,
 	onOpenSeerrShortcut,
+	onOpenCalendarMonth,
 	isVisible = true,
 	onFocusItemThemeMusic,
 	onBlurItemThemeMusic,
@@ -77,7 +84,7 @@ const Browse = ({
 	backHandlerRef,
 	trailerHidesChrome
 }) => {
-	const {api, serverUrl, accessToken, hasMultipleServers, user} = useAuth();
+	const {api, serverUrl, accessToken, hasMultipleServers, user, serverType} = useAuth();
 	const {settings, activeTheme, loaded: settingsLoaded} = useSettings();
 	// The one place the saved rows are read, so filtering here covers both what gets fetched and
 	// what gets drawn.
@@ -91,8 +98,8 @@ const Browse = ({
 	const {displayCollectionsRows, displayGenresRows, displayPlaylistsRows, unifiedLibraryMode} = settings;
 	const pluginSectionsConfig = useMemo(() => {
 		const gates = {displayCollectionsRows, displayGenresRows, displayPlaylistsRows, unifiedLibraryMode};
-		return homeRowsConfig.filter((row) => isPickedRow(row) && isPickedRowShown(row, gates, serverUrl));
-	}, [homeRowsConfig, displayCollectionsRows, displayGenresRows, displayPlaylistsRows, unifiedLibraryMode, serverUrl]);
+		return homeRowsConfig.filter((row) => isPickedRow(row) && isPickedRowShown(row, gates, serverUrl, serverType));
+	}, [homeRowsConfig, displayCollectionsRows, displayGenresRows, displayPlaylistsRows, unifiedLibraryMode, serverUrl, serverType]);
 	const {isEnabled: seerrEnabled, isAuthenticated: seerrAuthenticated, user: seerrUser, pluginInfo} = useSeerr();
 	const recommendationsSupported = pluginInfo?.recommendationsSupported === true;
 	const seerrUserId = seerrUser?.seerrUserId;
@@ -101,7 +108,9 @@ const Browse = ({
 		seerrAuthenticated,
 		seerrUserId,
 		homeRows: homeRowsConfig,
-		serverUrl
+		serverUrl,
+		sortBy: settings.seerrRowsSortBy,
+		sortOrder: settings.seerrRowsSortOrder
 	});
 	const {rows: externalRows, pending: externalPending} = useExternalRows({settings, homeRows: homeRowsConfig, kidsMode});
 	const pendingRows = useMemo(() => [...seerrPending, ...externalPending], [seerrPending, externalPending]);
@@ -176,14 +185,16 @@ const Browse = ({
 	const RowComponent = useModernRows ? ModernMediaRow : ClassicMediaRow;
 	const showTopInfoArea = !useModernRows && settings.homeRowOverlay !== false;
 	// The other clients size these sliders in their own units, so the stored value
-	// lands here as the space below each row. Full screen rows pace themselves.
+	// lands here as the space below each row. Classic rows count from the slider's
+	// lowest step, so they sit a little closer at every setting. Full screen rows pace
+	// themselves.
 	const rowSpacing = settings.fullScreenRows ? null : useModernRows
 		? modernRowSpacing(settings)
-		: Math.max(0, settings.classicHomeRowsPadding ?? 30);
+		: Math.max(0, (settings.classicHomeRowsPadding ?? 30) - 10);
 
 	const {
-		isLoading, browseMode, allRowData, featuredItems: loadedFeaturedItems, pendingSections,
-		setBrowseMode, fetchFreshFeaturedItems, refreshVolatileData, loadSectionsNear
+		isLoading, browseMode, allRowData, featuredItems: loadedFeaturedItems, pendingSections, emptySections,
+		setBrowseMode, fetchFreshFeaturedItems, refreshVolatileData, loadSectionsNear, loadMoreRow
 	} = useBrowseData({
 		api,
 		serverUrl,
@@ -216,6 +227,26 @@ const Browse = ({
 		() => withoutBlockedOrUnrated(loadedFeaturedItems, parentalFilter, false),
 		[loadedFeaturedItems, parentalFilter]
 	);
+
+	// Kept beside the slides rather than on them, since a new slide list sends every bar back to its
+	// first slide.
+	const [newReleases, setNewReleases] = useState(null);
+	const newReleaseBanner = settings.mediaBarNewReleaseBanner;
+	const newReleaseDays = settings.mediaBarNewReleaseDays;
+	useEffect(() => {
+		if (!newReleaseBanner || !showFeaturedBar || featuredItems.length === 0) return undefined;
+		let cancelled = false;
+		const apiFor = (item) => (item._serverUrl && item._serverAccessToken
+			? createApiForServer(item._serverUrl, item._serverAccessToken, item._serverUserId)
+			: api);
+		loadNewReleases(featuredItems, newReleaseDays, apiFor).then((releases) => {
+			if (!cancelled) setNewReleases(releases);
+		});
+		return () => {
+			cancelled = true;
+		};
+	}, [api, featuredItems, newReleaseBanner, newReleaseDays, showFeaturedBar]);
+	const shownReleases = newReleaseBanner ? newReleases : null;
 
 	const mergeContinueWatchingNextUp = mergesContinueWatchingNextUp(settings);
 
@@ -257,13 +288,14 @@ const Browse = ({
 			pluginSectionsConfig,
 			settings: rowBuildSettings,
 			pendingSections,
-			pendingRows
+			pendingRows,
+			emptySections
 		});
 		const prev = prevFilteredRowsRef.current;
 		if (sameRowList(prev, result)) return prev;
 		prevFilteredRowsRef.current = result;
 		return result;
-	}, [allRowData, seerrRows, externalRows, homeRowsConfig, pluginSectionsConfig, rowBuildSettings, pendingSections, pendingRows]);
+	}, [allRowData, seerrRows, externalRows, homeRowsConfig, pluginSectionsConfig, rowBuildSettings, pendingSections, pendingRows, emptySections]);
 	// The rows can come back from a cache built before the watched state last moved, so what's
 	// known now is laid over them rather than fetched again.
 	const filteredRows = useUserDataRows(builtRows);
@@ -595,6 +627,14 @@ const Browse = ({
 		}
 	}, [onSelectItem, onSelectLibrary, onOpenRecordings, onPlayRecording, onBlurItemThemeMusic, onLeaveThemeMusic, rememberFocus, mediaPreview]);
 
+	const handleCalendarSeeAll = useCallback(() => {
+		mediaPreview.stop('select');
+		onBlurItemThemeMusic?.();
+		onLeaveThemeMusic?.();
+		rememberFocus();
+		onOpenCalendarMonth?.(new Date());
+	}, [onOpenCalendarMonth, onBlurItemThemeMusic, onLeaveThemeMusic, rememberFocus, mediaPreview]);
+
 	const handleSelectGenreItem = useCallback((item) => {
 		mediaPreview.stop('select');
 		onBlurItemThemeMusic?.();
@@ -650,15 +690,17 @@ const Browse = ({
 	// handler that cant navigate. These always call the current one.
 	const latestSelectRef = useRef(null);
 	useLayoutEffect(() => {
-		latestSelectRef.current = {item: handleSelectItem, genre: handleSelectGenreItem, seerr: handleSelectSeerrItem, external: handleSelectExternalItem};
-	}, [handleSelectItem, handleSelectGenreItem, handleSelectSeerrItem, handleSelectExternalItem]);
+		latestSelectRef.current = {item: handleSelectItem, genre: handleSelectGenreItem, seerr: handleSelectSeerrItem, external: handleSelectExternalItem, calendar: handleCalendarSeeAll};
+	}, [handleSelectItem, handleSelectGenreItem, handleSelectSeerrItem, handleSelectExternalItem, handleCalendarSeeAll]);
 	const rowSelect = useMemo(() => ({
 		item: (picked, autoPlay) => latestSelectRef.current.item(picked, autoPlay),
 		cwPlay: (picked) => latestSelectRef.current.item(picked, true),
 		genre: (picked) => latestSelectRef.current.genre(picked),
 		seerr: (picked) => latestSelectRef.current.seerr(picked),
-		external: (picked) => latestSelectRef.current.external(picked)
+		external: (picked) => latestSelectRef.current.external(picked),
+		calendar: () => latestSelectRef.current.calendar()
 	}), []);
+	const calendarSeeAll = settings.calendarRowSeeAll !== false && pluginInfo?.calendarAvailable === true && Boolean(onOpenCalendarMonth);
 
 	const continueWatchingMenuOptions = useMemo(() => ({
 		isContinueWatchingOrNextUp: true,
@@ -774,7 +816,7 @@ const Browse = ({
 				<BackdropLayer
 					targetUrl={targetBackdropUrl}
 					blurAmount={settings.backdropBlurHome}
-					inCorner={homeBackdropStyle(settings) === 'corner'}
+					placement={homeBackdropStyle(settings)}
 				/>
 
 				{featuredItems.length > 0 && showFeaturedBar !== false && (
@@ -783,6 +825,7 @@ const Browse = ({
 							isVisible={browseMode === 'featured'}
 							browseVisible={isVisible}
 							featuredItems={featuredItems}
+							newReleases={shownReleases}
 							api={api}
 							settings={settings}
 							settingsLoaded={settingsLoaded}
@@ -798,6 +841,7 @@ const Browse = ({
 							rowPeek={rowPeek}
 							browseVisible={isVisible}
 							featuredItems={featuredItems}
+							newReleases={shownReleases}
 							api={api}
 							settings={settings}
 							settingsLoaded={settingsLoaded}
@@ -810,6 +854,7 @@ const Browse = ({
 						<BannerBar
 							isVisible={browseMode === 'featured'}
 							featuredItems={featuredItems}
+							newReleases={shownReleases}
 							settings={settings}
 							getItemServerUrl={getItemServerUrl}
 							onSelectItem={handleSelectExternalItem}
@@ -832,6 +877,7 @@ const Browse = ({
 							isVisible={browseMode === 'featured'}
 							browseVisible={isVisible}
 							featuredItems={featuredItems}
+							newReleases={shownReleases}
 							serverUrl={serverUrl}
 							api={api}
 							settings={settings}
@@ -847,6 +893,7 @@ const Browse = ({
 							rowPeek={rowPeek}
 							browseVisible={isVisible}
 							featuredItems={featuredItems}
+							newReleases={shownReleases}
 							serverUrl={serverUrl}
 							api={api}
 							settings={settings}
@@ -927,6 +974,26 @@ const Browse = ({
 								/>
 							);
 						}
+						if (row.isWatchingNowRow) {
+							return (
+								<WatchingNowRow
+									key={row.id}
+									rowId={row.id}
+									title={row.title}
+									subtitle={row.subtitle}
+									items={row.items}
+									serverUrl={serverUrl}
+									onSelectItem={rowSelect.external}
+									onFocus={handleRowFocus}
+									onFocusItem={handleFocusItem}
+									rowIndex={index}
+									onNavigateUp={handleNavigateUp}
+									onNavigateDown={handleNavigateDown}
+									rowSpacing={rowSpacing}
+									registerRowRef={registerRowRef}
+								/>
+							);
+						}
 						const isCwOrNextUp = row.id === 'continue-nextup' || row.id === 'resume' || row.id === 'nextup';
 						const shouldPlayImmediately = isCwOrNextUp && settings.continueWatchingDefaultAction === 'play';
 						let selectHandler = shouldPlayImmediately
@@ -959,6 +1026,10 @@ const Browse = ({
 								registerRowRef={registerRowRef}
 								deferImages={!NATIVE_LAZY_IMAGES && index >= imageRows}
 								menuOptions={rowMenuOptions}
+								ratingsSurface='homeRows'
+								hideOverview={settings.hideHomeMediaDescription === true}
+								onLoadMore={row.hasMore ? loadMoreRow : undefined}
+								onCalendarSeeAll={calendarSeeAll && CALENDAR_ROW_IDS.indexOf(row.id) >= 0 ? rowSelect.calendar : undefined}
 							/>
 						);
 					})}

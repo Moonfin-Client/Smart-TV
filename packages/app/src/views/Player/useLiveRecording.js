@@ -2,7 +2,7 @@ import {useCallback, useEffect, useRef, useState} from 'react';
 import $L from '@enact/i18n/$L';
 
 import {programEnd, programStart, seriesChoiceFlags, seriesChoiceOf} from '../../utils/liveTvGuide';
-import {offersLaterShowing, requestLaterShowing} from '../../services/incompleteRecordings';
+import {recordAiring, recordAiringMessage} from '../../utils/recordAiring';
 
 const MINUTE = 60000;
 
@@ -92,18 +92,31 @@ const useLiveRecording = ({api, program, controlsVisible, onChanged}) => {
 		toast,
 		clearToast,
 		prepare,
-		offersLaterShowing: !timer && offersLaterShowing(current, now),
-		// A failed request for the later showing still leaves the recording running.
-		record: (alsoLater) => run(async () => {
-			await api.createLiveTvTimer(current.Id);
-			if (!alsoLater) return null;
+		// The Record workflow with the prompt host the dialog passes in. Back on the prompt records
+		// nothing and says nothing.
+		record: async ({prompt, setLoading, channel}) => {
+			if (busyRef.current) return;
+			busyRef.current = true;
+			let message = null;
 			try {
-				await requestLaterShowing(current.Id);
+				const outcome = await recordAiring({
+					program: current,
+					start: new Date(programStart(current)),
+					createTimer: () => api.createLiveTvTimer(current.Id),
+					prompt,
+					setLoading,
+					stillValid: () => programRef.current?.Id === current.Id,
+					channel
+				});
+				message = recordAiringMessage(outcome);
+				if (message) onChanged?.();
 			} catch {
-				return $L("Recording started, but couldn't request a later showing.");
+				message = $L('Unable to create recording');
 			}
-			return $L('Recording started. A later showing will be recorded too.');
-		}, $L('Program set to record'), $L('Unable to create recording')),
+			busyRef.current = false;
+			if (message) showToast(message);
+			refresh().catch(() => {});
+		},
 		cancel: () => run(() => api.cancelLiveTvTimer(timer.Id), $L('Recording cancelled'), $L('Failed to cancel recording')),
 		recordSeries: (key) => run(
 			() => api.createLiveTvSeriesTimer(current.Id, seriesChoiceFlags(key)),

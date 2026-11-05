@@ -28,7 +28,8 @@ jest.mock('@enact/spotlight/Spottable', () => (type) => {
 		return React.createElement(type, rest);
 	};
 });
-jest.mock('../../context/SettingsContext', () => ({useSettings: () => ({settings: {}})}));
+let mockSettings = {};
+jest.mock('../../context/SettingsContext', () => ({useSettings: () => ({settings: mockSettings})}));
 jest.mock('../../services/jellyfinApi', () => ({
 	getServerUrl: () => 'http://server',
 	getApiKey: () => 'token',
@@ -76,6 +77,7 @@ const draw = (item, isFocused) => {
 };
 
 beforeEach(() => {
+	mockSettings = {};
 	jest.useFakeTimers();
 	setTmdbThumbsAvailable(true);
 });
@@ -159,6 +161,19 @@ describe('ModernMediaCard growing on focus', () => {
 		rerender(<ModernMediaCard item={thumbed('beside')} serverUrl="http://server" isFocused />);
 		expect(shown()).toContain('/Images/Thumb');
 		expect(loads).toHaveLength(1);
+	});
+});
+
+describe('ModernMediaCard description', () => {
+	const film = {Id: 'described', Name: 'Film', Type: 'Movie', ProductionYear: 2020, Overview: 'A story.', ImageTags: {Primary: 'p'}};
+
+	it('shows under the focused card unless the row hides it', () => {
+		const {rerender} = render(<ModernMediaCard item={film} serverUrl="http://server" isFocused />);
+		passArtWait();
+		expect(screen.getByText('A story.')).toBeTruthy();
+		rerender(<ModernMediaCard item={film} serverUrl="http://server" isFocused hideOverview />);
+		expect(screen.queryByText('A story.')).toBeNull();
+		expect(screen.getByText('Film')).toBeTruthy();
 	});
 });
 
@@ -276,4 +291,54 @@ it('holds the artwork back while its row is far from focus', () => {
 	expect(document.querySelector('img').hasAttribute('src')).toBe(false);
 	rerender(<ModernMediaCard item={seerrShow()} serverUrl="http://server" />);
 	expect(document.querySelector('img').getAttribute('src')).toBe(POSTER);
+});
+
+describe('ModernMediaCard Seerr status', () => {
+	const dot = () => document.querySelector('[class~="dot"]');
+	const banner = () => document.querySelector('[class~="banner"]');
+	const drawCard = (item) => render(<ModernMediaCard item={item} serverUrl="http://server" />);
+
+	it('keeps the corner dot in badge mode', () => {
+		drawCard(seerrShow({mediaInfo: {status: 3}}));
+		expect(dot().className).toContain('processing');
+		expect(banner()).toBeNull();
+	});
+
+	it('draws Core\'s mark for each status and none for an unknown one', () => {
+		const {rerender} = drawCard(seerrShow({mediaInfo: {status: 5}}));
+		expect(dot().className).toContain('available');
+		rerender(<ModernMediaCard item={seerrShow({mediaInfo: {status: 4}})} serverUrl="http://server" />);
+		expect(dot().className).toContain('partial');
+		rerender(<ModernMediaCard item={seerrShow({mediaInfo: {status: 2}})} serverUrl="http://server" />);
+		expect(dot().className).toContain('pending');
+		rerender(<ModernMediaCard item={seerrShow({mediaInfo: {status: 1}})} serverUrl="http://server" />);
+		expect(dot()).toBeNull();
+	});
+
+	it('adds the type badge and the focus ring only in the Core look', () => {
+		const {rerender} = drawCard(seerrShow());
+		expect(document.querySelector('[class~="typeBadge"]')).toBeNull();
+		expect(document.querySelector('[class~="focusRing"]')).toBeNull();
+		rerender(<ModernMediaCard item={seerrShow()} serverUrl="http://server" coreLook />);
+		expect(document.querySelector('[class~="typeBadge"]').textContent).toBe('SERIES');
+		expect(document.querySelector('[class~="focusRing"]')).not.toBeNull();
+	});
+
+	it('draws nothing when the badges are off', () => {
+		mockSettings = {showSeerrAvailabilityBadges: false};
+		drawCard(seerrShow({mediaInfo: {status: 3}}));
+		expect(dot()).toBeNull();
+		expect(banner()).toBeNull();
+	});
+
+	it('runs a banner across the top in banner mode', () => {
+		mockSettings = {seerrBadgeStyle: 'banner'};
+		const {rerender} = drawCard(seerrShow({mediaInfo: {status: 3}}));
+		expect(banner().textContent).toBe('REQUESTED');
+		expect(dot()).toBeNull();
+		expect(document.querySelector('[data-card-art]').className).toContain('underSeerrBanner');
+
+		rerender(<ModernMediaCard item={seerrShow()} serverUrl="http://server" />);
+		expect(banner()).toBeNull();
+	});
 });

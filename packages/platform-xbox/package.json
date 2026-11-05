@@ -1,6 +1,6 @@
 {
 	"name": "@moonfin/platform-xbox",
-	"version": "2.10.0",
+	"version": "3.0.0",
 	"private": true,
 	"main": "src/index.js",
 	"exports": {
@@ -13,6 +13,7 @@
 		"./deviceInfo": "./src/deviceInfo.js",
 		"./video": "./src/video.js",
 		"./volume": "./src/volume.js",
-		"./countryCode": "./src/countryCode.js"
+		"./countryCode": "./src/countryCode.js",
+		"./socket": "./src/socket.js"
 	}
 }

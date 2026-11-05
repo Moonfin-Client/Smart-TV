@@ -2,6 +2,7 @@ import {useCallback, useMemo, useState} from 'react';
 import Spotlight from '@enact/spotlight';
 
 import DetailsTabBar from '../../../components/DetailsTabBar';
+import {rootScale} from '../../../utils/rootScale';
 import {RowContainer} from '../detailsSpottables';
 import {effectiveSeason, groupEpisodesBySeason, seasonOptions} from '../nouveau/nouveauSeasons';
 import NouveauRail from '../nouveau/sections/NouveauRail';
@@ -17,14 +18,28 @@ export const EPISODES_ID = 'minimalist-episodes';
 
 const SEASON_TABS_ID = 'minimalist-season-tabs';
 const CARD_WIDTH = 266;
-const CARD_IMAGE_HEIGHT = (CARD_WIDTH * 9) / 16;
 const CARD_GAP = 20;
+// Stage draws the same rail at its own size, where the pick follows focus along the tabs like Core.
+const LARGE_CARD_WIDTH = 350;
+const LARGE_CARD_GAP = 34;
+// Core steps its card title up a size from this width.
+const WIDE_CARD = 400;
 
 // Season tabs over a rail of episodes, and nothing else. The flow is one way on purpose: a tab picks
 // the season and the rail follows.
+//
+// A host that lays other sections around this one passes where Up and Down leave it, and what Left
+// off the first episode reaches, and how far the rail runs on into the margin on its right. A large
+// rail can be given its own card width for the room its host has.
 const MinimalistEpisodes = ({
-	item, settings, serverUrl, seasons = [], episodes = [], seriesEpisodes = [], onSelectEpisode
+	item, settings, serverUrl, seasons = [], episodes = [], seriesEpisodes = [], onSelectEpisode,
+	onNavigateUp, onNavigateDown, onLeftEdge, bleedRight, large = false, cardWidth: largeWidth = LARGE_CARD_WIDTH
 }) => {
+	// The large cards follow the root font the stylesheets scale with, since they're sized here.
+	const scale = large ? rootScale() : 1;
+	const cardWidth = large ? Math.round(largeWidth * scale) : CARD_WIDTH;
+	const cardGap = large ? Math.round(LARGE_CARD_GAP * scale) : CARD_GAP;
+
 	const [pickedSeason, setPickedSeason] = useState(null);
 
 	// A season already carries its own episodes. A series, or one episode of one, is given the whole
@@ -55,22 +70,26 @@ const MinimalistEpisodes = ({
 	// Up out of the rail lands on the tabs when there are any, and otherwise carries on to the
 	// buttons, which is where the section starts without them.
 	const handleNavigateUp = useCallback(() => {
-		Spotlight.focus(showsTabs ? SEASON_TABS_ID : 'details-action-buttons');
-	}, [showsTabs]);
+		if (showsTabs) Spotlight.focus(SEASON_TABS_ID);
+		else if (onNavigateUp) onNavigateUp();
+		else Spotlight.focus('details-action-buttons');
+	}, [showsTabs, onNavigateUp]);
 
 	const renderEpisode = useCallback((episode) => (
 		<MinimalistEpisodeCard
-			imageUrl={minimalistCardUrl(serverUrl, episode, {settings, cardWidth: CARD_WIDTH})}
+			imageUrl={minimalistCardUrl(serverUrl, episode, {settings, cardWidth})}
 			title={episode.Name}
 			number={episode.IndexNumber}
 			watched={episode.UserData?.Played}
 			current={item.Type === 'Episode' && episode.Id === item.Id}
-			width={CARD_WIDTH}
-			imageHeight={CARD_IMAGE_HEIGHT}
+			width={cardWidth}
+			imageHeight={(cardWidth * 9) / 16}
 			selectKey={episode.Id}
 			onSelect={handleSelect}
+			large={large}
+			wide={large && largeWidth >= WIDE_CARD}
 		/>
-	), [serverUrl, settings, handleSelect, item.Type, item.Id]);
+	), [serverUrl, settings, handleSelect, item.Type, item.Id, cardWidth, large, largeWidth]);
 
 	if (!seasonEpisodes.length) return null;
 
@@ -80,18 +99,23 @@ const MinimalistEpisodes = ({
 				<DetailsTabBar
 					tabs={tabs}
 					activeId={String(activeSeason)}
-					expanded={false}
+					expanded={large}
+					onSelect={large ? handleSeasonActivate : undefined}
 					onActivate={handleSeasonActivate}
 					spotlightId={SEASON_TABS_ID}
-					className={css.seasonBar}
+					className={large ? css.seasonBarLarge : css.seasonBar}
+					large={large}
 				/>
 			)}
 			<NouveauRail
 				items={seasonEpisodes}
-				gap={CARD_GAP}
+				gap={cardGap}
 				spotlightId='minimalist-episode-rail'
 				navbarPosition={settings.navbarPosition}
 				onNavigateUp={handleNavigateUp}
+				onNavigateDown={onNavigateDown}
+				onLeftEdge={onLeftEdge}
+				bleedRight={bleedRight}
 				renderItem={renderEpisode}
 				itemMenu
 			/>

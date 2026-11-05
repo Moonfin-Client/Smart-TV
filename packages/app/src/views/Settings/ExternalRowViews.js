@@ -9,6 +9,7 @@ import {seasonalCountryLabel, seasonalTitle} from '../../utils/seasonalTitles';
 import {renderCheck, renderSettingsIcon, renderToggle} from './settingsIcons';
 import {SpottableDiv} from './settingsSpottables';
 import {SectionTitle, ToggleRow} from './settingsRows';
+import {ExternalRowSortRows} from './HomeRowToggleViews';
 import SettingsView from './SettingsView';
 
 import css from './Settings.module.less';
@@ -16,11 +17,21 @@ import css from './Settings.module.less';
 // Home rows that come from somewhere other than the Jellyfin library: TMDB charts, the
 // Radarr and Sonarr calendars, and lists the viewer pastes a URL for.
 
-export const ExternalTmdbListsView = ({enabledMap, onToggleRow}) => (
+export const ExternalTmdbListsView = ({enabledMap, onToggleRow, settings, onOpenOptions}) => (
 	<SettingsView spotlightId='external-tmdb-lists-view' title={$L('TMDB Lists')} clean>
 		<div className={css.viewDescription}>
 			{$L('Choose which TMDB chart rows appear on the home screen.')}
 		</div>
+		<ExternalRowSortRows
+			settings={settings}
+			sortByKey='tmdbRowsSortBy'
+			sortOrderKey='tmdbRowsSortOrder'
+			title={$L('TMDB Row Sorting')}
+			desc={$L('Sort TMDB rows by name, release date, rating, and more.')}
+			orderDesc={$L('Sort TMDB rows in ascending or descending order.')}
+			onOpenOptions={onOpenOptions}
+		/>
+		<SectionTitle>{$L('TMDB Lists')}</SectionTitle>
 		{TMDB_PRESETS.map((cfg) => (
 			<SpottableDiv
 				key={cfg.id}
@@ -37,7 +48,7 @@ export const ExternalTmdbListsView = ({enabledMap, onToggleRow}) => (
 	</SettingsView>
 );
 
-export const ExternalCalendarsView = ({enabledMap, settings, onToggleRow, onToggleSetting}) => {
+export const ExternalCalendarsView = ({enabledMap, settings, calendarAvailable, onToggleRow, onToggleSetting}) => {
 	const radarrOn = enabledMap.get('radarr_calendar') === true;
 	const sonarrOn = enabledMap.get('sonarr_calendar') === true;
 	const toggleRow = (settingKey, title, desc, icon) => (
@@ -80,6 +91,8 @@ export const ExternalCalendarsView = ({enabledMap, settings, onToggleRow, onTogg
 			{sonarrOn && toggleRow('sonarrCalendarShowDate', $L('Show Release Date'), '', 'tv')}
 			{radarrOn && sonarrOn &&
 				toggleRow('mergeRadarrSonarrCalendars', $L('Merge Into One Row'), $L('Combine Radarr and Sonarr into a single upcoming row'), 'list')}
+			{calendarAvailable &&
+				toggleRow('calendarRowSeeAll', $L('See All card'), $L('End the upcoming rows with a card that opens the calendar'), 'calendar_view_month')}
 		</SettingsView>
 	);
 };

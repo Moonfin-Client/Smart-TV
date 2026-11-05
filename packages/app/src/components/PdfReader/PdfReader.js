@@ -1,9 +1,17 @@
 import {useState, useEffect, useCallback, useRef} from 'react';
 import $L from '@enact/i18n/$L';
+import Spotlight from '@enact/spotlight';
 import {isBackKey, KEYS} from '../../utils/keys';
 import {fetchBook, loadScript, startPage} from '../../utils/books';
+import {FIXED_LAYOUT_INVERT_KEY} from '../../utils/readerSettings';
+import {ModalContainer} from '../../utils/spotlightContainers';
+import {getFromStorage, saveToStorage} from '../../services/storage';
+import {CORE_ICON_PATHS} from '../../views/Settings/settingsCoreIcons';
 import useBookProgress from '../../hooks/useBookProgress';
+import useReturnFocus from '../../hooks/useReturnFocus';
+import {ChromeButton} from '../EpubReader/ReaderPanels';
 import viewerCss from '../ComicViewer/ComicViewer.module.less';
+import menuCss from '../EpubReader/EpubReader.module.less';
 import css from './PdfReader.module.less';
 
 const loadPdfJs = () => loadScript('reader/pdf.min.js').then(() => {
@@ -18,11 +26,18 @@ const PdfReader = ({item, serverUrl, accessToken, onClose}) => {
 	const [rendering, setRendering] = useState(false);
 	const [error, setError] = useState(null);
 	const [showInfo, setShowInfo] = useState(true);
+	const [chrome, setChrome] = useState(false);
+	const [invert, setInvert] = useState(false);
 	const canvasRef = useRef(null);
 	const infoTimerRef = useRef(null);
 	const count = doc ? doc.numPages : 0;
 
 	useBookProgress(item, currentPage, count);
+	useReturnFocus(chrome);
+
+	useEffect(() => {
+		if (chrome) Spotlight.focus('pdf-invert');
+	}, [chrome]);
 
 	useEffect(() => {
 		if (!item) return;
@@ -30,7 +45,11 @@ const PdfReader = ({item, serverUrl, accessToken, onClose}) => {
 		let opened = null;
 		const open = async () => {
 			try {
-				const [lib, buffer] = await Promise.all([loadPdfJs(), fetchBook(item, serverUrl, accessToken)]);
+				const [lib, buffer, storedInvert] = await Promise.all([
+					loadPdfJs(),
+					fetchBook(item, serverUrl, accessToken),
+					getFromStorage(FIXED_LAYOUT_INVERT_KEY).catch(() => null)
+				]);
 				// Fonts compiled to code are how CVE-2024-4367 runs script, so they're
 				// drawn without it.
 				opened = await lib.getDocument({data: new Uint8Array(buffer), isEvalSupported: false}).promise;
@@ -38,6 +57,7 @@ const PdfReader = ({item, serverUrl, accessToken, onClose}) => {
 					opened.destroy();
 					return;
 				}
+				setInvert(storedInvert === true);
 				setDoc(opened);
 				setCurrentPage(startPage(item, opened.numPages));
 				setLoading(false);
@@ -109,8 +129,13 @@ const PdfReader = ({item, serverUrl, accessToken, onClose}) => {
 			if (isBackKey(e)) {
 				e.preventDefault();
 				e.stopPropagation();
-				onClose?.();
-			} else if (key === KEYS.RIGHT || key === KEYS.DOWN) {
+				if (chrome) setChrome(false);
+				else onClose?.();
+				return;
+			}
+			// The menu is walked with the remote like any other screen.
+			if (chrome) return;
+			if (key === KEYS.RIGHT || key === KEYS.DOWN) {
 				e.preventDefault();
 				e.stopPropagation();
 				turn(1);
@@ -120,18 +145,24 @@ const PdfReader = ({item, serverUrl, accessToken, onClose}) => {
 				turn(-1);
 			} else if (key === KEYS.ENTER || key === KEYS.SPACE) {
 				e.preventDefault();
-				setShowInfo(prev => !prev);
+				e.stopPropagation();
+				if (doc) setChrome(true);
 			}
 		};
 
 		window.addEventListener('keydown', handleKeyDown, true);
 		return () => window.removeEventListener('keydown', handleKeyDown, true);
-	}, [onClose, turn]);
+	}, [onClose, turn, chrome, doc]);
+
+	const toggleInvert = useCallback(() => {
+		setInvert(!invert);
+		saveToStorage(FIXED_LAYOUT_INVERT_KEY, !invert).catch(() => {});
+	}, [invert]);
 
 	return (
 		<div className={viewerCss.viewer}>
 			<div className={viewerCss.imageContainer}>
-				<canvas ref={canvasRef} className={css.page} />
+				<canvas ref={canvasRef} className={css.page + (invert ? ' ' + viewerCss.inverted : '')} />
 			</div>
 			{rendering && !loading && !error && (
 				<div className={viewerCss.loading}>
@@ -147,7 +178,7 @@ const PdfReader = ({item, serverUrl, accessToken, onClose}) => {
 					</div>
 				</div>
 			)}
-			{!loading && !error && (
+			{!loading && !error && !chrome && (
 				<div className={viewerCss.infoOverlay + (showInfo ? ' ' + viewerCss.infoVisible : '')}>
 					<div className={viewerCss.topBar}>
 						<div className={viewerCss.title}>{item.Name || $L('Book')}</div>
@@ -156,9 +187,17 @@ const PdfReader = ({item, serverUrl, accessToken, onClose}) => {
 						<div className={viewerCss.pageCounter}>
 							{currentPage + 1} / {count}
 						</div>
-						<div className={viewerCss.navHint}>{'◀ ▶ ' + $L('Navigate')} &nbsp; {'OK ' + $L('Toggle info')} &nbsp; {$L('Back') + ' ' + $L('Close')}</div>
+						<div className={viewerCss.navHint}>{'◀ ▶ ' + $L('Navigate')} &nbsp; {'OK ' + $L('Menu')} &nbsp; {$L('Back') + ' ' + $L('Close')}</div>
 					</div>
 				</div>
+			)}
+			{chrome && (
+				<ModalContainer className={menuCss.chrome} spotlightId="pdf-chrome">
+					<div className={menuCss.chromeTop}>
+						<div className={menuCss.chromeTitle}>{item.Name || $L('Book')}</div>
+						<ChromeButton icon={CORE_ICON_PATHS.invert_colors} label={$L('Invert Colors (fixed layout)')} spotlightId="pdf-invert" onClick={toggleInvert} />
+					</div>
+				</ModalContainer>
 			)}
 		</div>
 	);

@@ -1,0 +1,763 @@
+@import '../../styles/mixins.less';
+
+// The six music category screens. Theme colors come from themeOverrides, and the tile palette
+// on the genre stations and mix cards is set inline.
+
+.page {
+	position: fixed;
+	top: 0;
+	left: 0;
+	right: 0;
+	bottom: 0;
+	display: -webkit-flex;
+	display: flex;
+	-webkit-flex-direction: column;
+	flex-direction: column;
+	background: #0a0a0a;
+	color: #fff;
+}
+
+// The category pills over every screen, the same strip the Immersive header draws.
+.strip {
+	-webkit-flex-shrink: 0;
+	flex-shrink: 0;
+	display: -webkit-flex;
+	display: flex;
+	-webkit-align-items: center;
+	align-items: center;
+	padding: 18px 60px 0;
+}
+
+.stripName {
+	-webkit-flex: 0 1 auto;
+	flex: 0 1 auto;
+	max-width: 420px;
+	margin-right: 28px;
+	font-size: 24px;
+	font-weight: 800;
+	color: #fff;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	.descender-room();
+}
+
+// Classic's chips over a category screen, in the strip's place. They scroll sideways when they
+// don't fit, with room above and below for the focus glow.
+.screenChips {
+	position: relative;
+	-webkit-flex-shrink: 0;
+	flex-shrink: 0;
+	display: -webkit-flex;
+	display: flex;
+	-webkit-align-items: center;
+	align-items: center;
+	padding: 18px 60px 14px;
+	overflow-x: auto;
+	overflow-y: hidden;
+	scrollbar-width: none;
+
+	&::-webkit-scrollbar {
+		display: none;
+	}
+
+	> * {
+		-webkit-flex-shrink: 0;
+		flex-shrink: 0;
+		white-space: nowrap;
+	}
+
+	svg {
+		width: 24px;
+		height: 24px;
+		fill: currentColor;
+	}
+}
+
+// The open category's chip while focus is elsewhere. Focused, it looks like any Classic chip.
+.screenChips .chipCurrent:not(:focus) {
+	background: rgba(0, 164, 220, 0.16);
+	color: #00a4dc;
+}
+
+// The tab pills here change color at once, since a fade repaints every frame in software
+// raster on Tizen.
+.strip [data-id],
+.header [data-id] {
+	-webkit-transition: none;
+	transition: none;
+}
+
+// What's under the strip or beside the rail, swapped when a category switches screens.
+.screen {
+	position: relative;
+	-webkit-flex: 1;
+	flex: 1;
+	min-width: 0;
+	min-height: 0;
+	display: -webkit-flex;
+	display: flex;
+	-webkit-flex-direction: column;
+	flex-direction: column;
+}
+
+// The focus code scrolls by offsetTop, so the scroller has to be the offset parent.
+.scroller {
+	position: relative;
+	-webkit-flex: 1;
+	flex: 1;
+	min-height: 0;
+	overflow-y: auto;
+	overflow-x: hidden;
+	padding-bottom: 60px;
+	scrollbar-width: none;
+
+	&::-webkit-scrollbar {
+		display: none;
+	}
+}
+
+.body {
+	position: relative;
+	-webkit-flex: 1;
+	flex: 1;
+	min-height: 0;
+	display: -webkit-flex;
+	display: flex;
+}
+
+.header {
+	-webkit-flex-shrink: 0;
+	flex-shrink: 0;
+	display: -webkit-flex;
+	display: flex;
+	-webkit-align-items: flex-end;
+	align-items: flex-end;
+	padding: 18px 60px 0;
+}
+
+.headerFlush {
+	padding: 18px 0 0;
+}
+
+.heading {
+	-webkit-flex: 1;
+	flex: 1;
+	min-width: 0;
+}
+
+.titleLine {
+	display: -webkit-flex;
+	display: flex;
+	-webkit-align-items: baseline;
+	align-items: baseline;
+}
+
+.titleLineCentered {
+	-webkit-align-items: center;
+	align-items: center;
+}
+
+.title {
+	-webkit-flex: 0 1 auto;
+	flex: 0 1 auto;
+	min-width: 0;
+	margin: 0;
+	font-size: 48px;
+	font-weight: 800;
+	line-height: 1.15;
+	color: #fff;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.count {
+	-webkit-flex: 0 0 auto;
+	flex: 0 0 auto;
+	margin-left: 20px;
+	font-size: 22px;
+	color: rgba(255, 255, 255, 0.65);
+	white-space: nowrap;
+}
+
+.titleExtra {
+	-webkit-flex: 0 1 auto;
+	flex: 0 1 auto;
+	min-width: 0;
+	margin-left: 36px;
+}
+
+.controls {
+	-webkit-flex: 0 0 auto;
+	flex: 0 0 auto;
+	display: -webkit-flex;
+	display: flex;
+	-webkit-align-items: center;
+	align-items: center;
+	margin-left: 24px;
+}
+
+// Sized to sit beside the tab bar. A border rather than a ring shows focus, so nothing moves.
+.pill {
+	-webkit-flex: 0 0 auto;
+	flex: 0 0 auto;
+	display: -webkit-flex;
+	display: flex;
+	-webkit-align-items: center;
+	align-items: center;
+	height: 55px;
+	padding: 0 24px;
+	box-sizing: border-box;
+	border-radius: 28px;
+	border: 3px solid transparent;
+	background: rgba(255, 255, 255, 0.08);
+	color: #fff;
+	font-size: 19px;
+	font-weight: 600;
+	white-space: nowrap;
+	cursor: pointer;
+
+	svg {
+		width: 24px;
+		height: 24px;
+		margin-right: 10px;
+		fill: currentColor;
+	}
+
+	&:focus {
+		outline: none;
+		background: #fff;
+		border-color: #fff;
+		color: #000;
+	}
+}
+
+// The Filter pill's glyph while a genre is picked.
+.pill .accentIcon {
+	fill: #00a4dc;
+}
+
+.pillPrimary {
+	background: #00a4dc;
+	color: #fff;
+}
+
+.empty {
+	padding: 48px 60px 0;
+	font-size: 20px;
+	text-align: center;
+	color: rgba(255, 255, 255, 0.5);
+}
+
+.eyebrow {
+	font-size: 18px;
+	font-weight: 700;
+	letter-spacing: 1.5px;
+	text-transform: uppercase;
+	color: #00a4dc;
+}
+
+.grid {
+	padding: 24px 60px 0;
+}
+
+.gridBesideRail {
+	padding-right: 130px;
+}
+
+.cardRow {
+	display: -webkit-flex;
+	display: flex;
+	margin-bottom: 18px;
+}
+
+.letter {
+	padding-top: 6px;
+	margin-bottom: 12px;
+	font-size: 36px;
+	font-weight: 800;
+	color: #00a4dc;
+}
+
+.rail {
+	position: absolute;
+	top: 12px;
+	right: 36px;
+	padding: 9px 6px;
+	border-radius: 21px;
+	background: rgba(255, 255, 255, 0.05);
+}
+
+.railLetter {
+	width: 38px;
+	height: 28px;
+	margin-bottom: 1px;
+	border-radius: 9px;
+	font-size: 17px;
+	font-weight: 600;
+	line-height: 28px;
+	text-align: center;
+	color: rgba(255, 255, 255, 0.7);
+	cursor: pointer;
+
+	&:focus {
+		outline: none;
+		box-shadow: 0 0 0 3px #fff;
+	}
+}
+
+.railCurrent {
+	font-weight: 800;
+	color: #00a4dc;
+}
+
+// The album opened under its row. The caret sits wholly above it so the two never overlap.
+.albumPanel {
+	position: relative;
+	display: -webkit-flex;
+	display: flex;
+	margin: 6px 0 30px;
+	padding: 30px 36px;
+	border-radius: 24px;
+	background: rgba(255, 255, 255, 0.06);
+}
+
+.caret {
+	position: absolute;
+	top: -14px;
+	width: 0;
+	height: 0;
+	border-left: 14px solid transparent;
+	border-right: 14px solid transparent;
+	border-bottom: 14px solid rgba(255, 255, 255, 0.06);
+}
+
+.panelInfo {
+	-webkit-flex: 0 0 495px;
+	flex: 0 0 495px;
+	width: 495px;
+	min-width: 0;
+	margin-right: 48px;
+}
+
+.panelTitle {
+	margin-top: 8px;
+	font-size: 40px;
+	font-weight: 800;
+	line-height: 1.1;
+	color: #fff;
+	display: -webkit-box;
+	-webkit-box-orient: vertical;
+	-webkit-line-clamp: 2;
+	overflow: hidden;
+}
+
+.meta,
+.subMeta {
+	margin-top: 6px;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.meta {
+	font-size: 21px;
+	color: rgba(255, 255, 255, 0.75);
+}
+
+.subMeta {
+	font-size: 19px;
+	color: rgba(255, 255, 255, 0.65);
+}
+
+.panelButtons {
+	display: -webkit-flex;
+	display: flex;
+	margin-top: 28px;
+}
+
+.panelTracks {
+	-webkit-flex: 1;
+	flex: 1;
+	min-width: 0;
+}
+
+.loading {
+	padding: 12px;
+	font-size: 20px;
+	color: rgba(255, 255, 255, 0.5);
+}
+
+.twoColumns {
+	display: -webkit-flex;
+	display: flex;
+	-webkit-flex-wrap: wrap;
+	flex-wrap: wrap;
+
+	> * {
+		width: calc(50% - 36px);
+		box-sizing: border-box;
+	}
+}
+
+.mixes {
+	display: -webkit-flex;
+	display: flex;
+	padding: 24px 60px 0;
+
+	> * {
+		-webkit-flex: 1;
+		flex: 1;
+		min-width: 0;
+	}
+}
+
+.mix {
+	position: relative;
+	height: 225px;
+	padding: 27px 30px;
+	box-sizing: border-box;
+	border-radius: 24px;
+	display: -webkit-flex;
+	display: flex;
+	-webkit-flex-direction: column;
+	flex-direction: column;
+	color: #fff;
+	cursor: pointer;
+
+	&:focus {
+		outline: none;
+		box-shadow: 0 0 0 3px #fff;
+	}
+}
+
+.mixAccent {
+	background: #00a4dc;
+}
+
+.mixEyebrow {
+	font-size: 18px;
+	font-weight: 700;
+	letter-spacing: 1.8px;
+	text-transform: uppercase;
+	opacity: 0.85;
+}
+
+.mixTitle {
+	margin-top: 9px;
+	font-size: 36px;
+	font-weight: 800;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.mixLine {
+	margin-top: 6px;
+	padding-right: 84px;
+	font-size: 21px;
+	line-height: 1.25;
+	opacity: 0.85;
+}
+
+.mixPlay {
+	position: absolute;
+	right: 24px;
+	bottom: 24px;
+	width: 72px;
+	height: 72px;
+	border-radius: 50%;
+	background: #fff;
+	color: #101010;
+	display: -webkit-flex;
+	display: flex;
+	-webkit-align-items: center;
+	-webkit-justify-content: center;
+	align-items: center;
+	justify-content: center;
+
+	svg {
+		width: 39px;
+		height: 39px;
+		fill: currentColor;
+	}
+}
+
+.lists {
+	display: -webkit-flex;
+	display: flex;
+	padding: 36px 60px 0;
+
+	> * {
+		-webkit-flex: 1;
+		flex: 1;
+		min-width: 0;
+	}
+}
+
+.split {
+	-webkit-flex: 1;
+	flex: 1;
+	min-height: 0;
+	display: -webkit-flex;
+	display: flex;
+	padding: 0 60px;
+}
+
+.listColumn {
+	-webkit-flex: 0 0 570px;
+	flex: 0 0 570px;
+	width: 570px;
+	min-height: 0;
+	display: -webkit-flex;
+	display: flex;
+	-webkit-flex-direction: column;
+	flex-direction: column;
+}
+
+.playlistList {
+	position: relative;
+	-webkit-flex: 1;
+	flex: 1;
+	min-height: 0;
+	overflow-y: auto;
+	padding: 18px 0 30px;
+	scrollbar-width: none;
+
+	&::-webkit-scrollbar {
+		display: none;
+	}
+}
+
+.playlistRow {
+	display: -webkit-flex;
+	display: flex;
+	-webkit-align-items: center;
+	align-items: center;
+	height: 90px;
+	padding: 0 18px;
+	box-sizing: border-box;
+	border-radius: 18px;
+	color: #fff;
+	cursor: pointer;
+
+	&:focus {
+		outline: none;
+		background: rgba(255, 255, 255, 0.12);
+		box-shadow: inset 0 0 0 3px #fff;
+	}
+}
+
+.playlistShown {
+	background: rgba(0, 164, 220, 0.16);
+}
+
+.playlistArt {
+	-webkit-flex: 0 0 66px;
+	flex: 0 0 66px;
+	width: 66px;
+	height: 66px;
+	border-radius: 12px;
+	object-fit: cover;
+	background: rgba(255, 255, 255, 0.06);
+}
+
+// Stands in for a playlist with no art of its own.
+.artPlaceholder {
+	display: -webkit-flex;
+	display: flex;
+	-webkit-align-items: center;
+	-webkit-justify-content: center;
+	align-items: center;
+	justify-content: center;
+	color: rgba(255, 255, 255, 0.45);
+
+	svg {
+		width: 50%;
+		height: 50%;
+		fill: currentColor;
+	}
+}
+
+.playlistText {
+	-webkit-flex: 1;
+	flex: 1;
+	min-width: 0;
+	margin-left: 21px;
+}
+
+.playlistName {
+	font-size: 22px;
+	font-weight: 700;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.detail {
+	position: relative;
+	-webkit-flex: 1;
+	flex: 1;
+	min-width: 0;
+	margin-left: 54px;
+	padding: 33px 0 60px;
+	overflow-y: auto;
+	scrollbar-width: none;
+
+	&::-webkit-scrollbar {
+		display: none;
+	}
+}
+
+.detailTop {
+	display: -webkit-flex;
+	display: flex;
+	-webkit-align-items: flex-end;
+	align-items: flex-end;
+}
+
+.detailArt {
+	-webkit-flex: 0 0 300px;
+	flex: 0 0 300px;
+	width: 300px;
+	height: 300px;
+	border-radius: 21px;
+	object-fit: cover;
+	background: rgba(255, 255, 255, 0.08);
+}
+
+.detailInfo {
+	-webkit-flex: 1;
+	flex: 1;
+	min-width: 0;
+	margin-left: 42px;
+}
+
+.detailTitle {
+	margin-top: 8px;
+	font-size: 52px;
+	font-weight: 800;
+	line-height: 1.05;
+	letter-spacing: -1px;
+	color: #fff;
+	display: -webkit-box;
+	-webkit-box-orient: vertical;
+	-webkit-line-clamp: 2;
+	overflow: hidden;
+}
+
+.detailTracks {
+	margin-top: 33px;
+}
+
+.genreList {
+	padding: 30px 0 0 60px;
+}
+
+// A fixed height, so which rows are on screen can be worked out from the scroll offset.
+.genreRow {
+	display: -webkit-flex;
+	display: flex;
+	-webkit-align-items: center;
+	align-items: center;
+	height: 260px;
+	margin-bottom: 30px;
+}
+
+.station {
+	-webkit-flex: 0 0 345px;
+	flex: 0 0 345px;
+	width: 345px;
+	height: 240px;
+	padding: 24px 27px;
+	box-sizing: border-box;
+	border-radius: 24px;
+	display: -webkit-flex;
+	display: flex;
+	-webkit-flex-direction: column;
+	flex-direction: column;
+	color: #fff;
+	cursor: pointer;
+
+	&:focus {
+		outline: none;
+		box-shadow: 0 0 0 3px #fff;
+	}
+}
+
+.stationName {
+	font-size: 36px;
+	font-weight: 800;
+	line-height: 1.15;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.stationMeta {
+	margin-top: 3px;
+	font-size: 21px;
+	opacity: 0.85;
+}
+
+.stationChip {
+	margin-top: auto;
+	-webkit-align-self: flex-start;
+	align-self: flex-start;
+	display: -webkit-flex;
+	display: flex;
+	-webkit-align-items: center;
+	align-items: center;
+	height: 54px;
+	padding: 0 21px 0 15px;
+	border-radius: 27px;
+	background: rgba(0, 0, 0, 0.3);
+	font-size: 21px;
+	font-weight: 700;
+
+	svg {
+		width: 30px;
+		height: 30px;
+		margin-right: 9px;
+		fill: currentColor;
+	}
+}
+
+.genreShelf {
+	-webkit-flex: 1;
+	flex: 1;
+	min-width: 0;
+	display: -webkit-flex;
+	display: flex;
+	overflow-x: auto;
+	overflow-y: hidden;
+	padding: 6px 60px 6px 33px;
+	scrollbar-width: none;
+
+	&::-webkit-scrollbar {
+		display: none;
+	}
+}
+
+.shelfPlaceholder {
+	-webkit-flex: 0 0 176px;
+	flex: 0 0 176px;
+	width: 176px;
+	height: 176px;
+	border-radius: 12px;
+	background: rgba(255, 255, 255, 0.06);
+}
+
+.favoritesContent {
+	padding: 24px 60px 0;
+}
+
+.controls      { .flex-row-gap(15px); }
+.screenChips   { .flex-row-gap(10px); }
+.cardRow       { .flex-row-gap(30px); }
+.panelButtons  { .flex-row-gap(12px); }
+.mixes         { .flex-row-gap(30px); }
+.lists         { .flex-row-gap(60px); }
+.genreShelf    { .flex-row-gap(24px); }
+.twoColumns    { .flex-wrap-gap(0; 36px); }

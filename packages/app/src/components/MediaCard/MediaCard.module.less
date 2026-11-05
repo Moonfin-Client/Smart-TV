@@ -17,7 +17,8 @@
 		transform: scale(1.05) translateZ(0);
 		z-index: 10;
 
-		.image {
+		.image,
+		.placeholder {
 			border-color: var(--theme-focus-border-color, #ffffff);
 			box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6);
 			border-width: 4px;
@@ -204,6 +205,34 @@
 	text-overflow: ellipsis;
 }
 
+// Classic home rows draw two left aligned lines under the art, the name and then its
+// detail, with the line heights set so every row comes out the same height.
+.homeText {
+	text-align: left;
+
+	// Room for three lines, the title's and two details', so even the lowest padding keeps the
+	// next row off a card's text.
+	.info {
+		padding: 16px 0 0;
+		min-height: 86px;
+	}
+
+	.title,
+	.seriesName {
+		font-size: 22px;
+		font-weight: 600;
+		line-height: 30px;
+		margin: 0;
+	}
+
+	.episodeInfo {
+		font-size: 20px;
+		font-weight: 400;
+		line-height: 28px;
+		color: rgba(255, 255, 255, 0.65);
+	}
+}
+
 .progressBar {
 	position: absolute;
 	bottom: 6px;
@@ -285,6 +314,30 @@
 		height: 14px;
 		color: #ffffff;
 		fill: #ffffff;
+	}
+}
+
+// The banner sits inside the art's own border, so the focus ring still shows all the way around.
+.seerrBanner {
+	border: var(--theme-card-border, 4px solid transparent);
+	border-color: transparent;
+	border-bottom-width: 0;
+	border-radius: var(--theme-card-radius, 20px) var(--theme-card-radius, 20px) 0 0;
+	background-clip: padding-box;
+	box-sizing: content-box;
+}
+
+.card:focus .seerrBanner {
+	border-width: 4px 4px 0;
+}
+
+.underSeerrBanner {
+	.serverBadge,
+	.seerrBadge,
+	.watchedBadge,
+	.unplayedCount,
+	.favoriteBadge {
+		top: 28px;
 	}
 }
 

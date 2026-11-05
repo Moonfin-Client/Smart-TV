@@ -20,7 +20,8 @@ import {
 	recordingMark, resolveCellIndexAt, seasonEpisodeLabel, seriesChoiceFlags, seriesChoiceOf
 } from '../../utils/liveTvGuide';
 import SeriesEpisodeChoices from '../../components/SeriesEpisodeChoices';
-import {offersLaterShowing, requestLaterShowing} from '../../services/incompleteRecordings';
+import {useRecordPrompt} from '../../components/RecordPrompt';
+import {RECORD_OUTCOME, outcomeAddsFutureShowing, recordAiring, recordAiringMessage, recordPromptChannel} from '../../utils/recordAiring';
 import {ChannelCell, ProgramCell} from './GuideCells';
 import {GUIDE_ICONS, GuideIcon} from './GuideIcons';
 import GuideHero from './GuideHero';
@@ -243,6 +244,7 @@ const LiveTV = ({onPlayChannel, onRecordings, backHandlerRef}) => {
 		: GUIDE_FILTERS), [serverType]);
 	const {settings, updateSetting} = useSettings();
 	const clockDisplay = settings.clockDisplay;
+	const {prompt: openRecordPrompt, setLoading: setRecordPromptLoading, handleBack: handleRecordPromptBack, element: recordPromptElement} = useRecordPrompt(clockDisplay);
 
 	const storeRef = useRef(null);
 	if (!storeRef.current) {
@@ -790,21 +792,35 @@ const LiveTV = ({onPlayChannel, onRecordings, backHandlerRef}) => {
 		}
 	}, [restoreGridFocus, showToast]);
 
-	// The answer to the later showing prompt. A failed request still leaves the recording running.
-	const handleRecordNow = useCallback((alsoLater) => {
-		const target = dialogRef.current.program;
-		runDialogAction(async () => {
-			await store.toggleProgramRecording(target);
-			if (!alsoLater) return null;
-			try {
-				await requestLaterShowing(target.Id);
-			} catch {
-				return $L("Recording started, but couldn't request a later showing.");
+	// Record on a program with no timer yet. Back on the Record prompt leaves the program dialog open.
+	const handleRecordProgram = useCallback(async (target) => {
+		if (actionBusyRef.current) return;
+		actionBusyRef.current = true;
+		try {
+			const channel = store.channelForId(target.ChannelId);
+			const outcome = await recordAiring({
+				program: target,
+				start: new Date(programStart(target)),
+				createTimer: () => store.toggleProgramRecording(target),
+				prompt: openRecordPrompt,
+				setLoading: setRecordPromptLoading,
+				stillValid: () => dialogRef.current?.program?.Id === target.Id,
+				channel: channel ? recordPromptChannel(channel.ChannelNumber, channel.Name) : undefined
+			});
+			if (outcome === RECORD_OUTCOME.cancelled) {
+				actionBusyRef.current = false;
+				if (dialogRef.current?.program?.Id === target.Id) setTimeout(() => Spotlight.focus('livetv-record'), 0);
+				return;
 			}
-			store.refreshRecordings().catch(() => {});
-			return $L('Recording started. A later showing will be recorded too.');
-		}, $L('Program set to record'), $L('Unable to create recording'));
-	}, [runDialogAction, store]);
+			if (outcomeAddsFutureShowing(outcome)) await store.refreshRecordings().catch(() => {});
+			setDialog(null);
+			showToast(recordAiringMessage(outcome));
+			setTimeout(restoreGridFocus, 0);
+		} catch {
+			actionBusyRef.current = false;
+			showToast($L('Unable to create recording'));
+		}
+	}, [openRecordPrompt, setRecordPromptLoading, restoreGridFocus, showToast, store]);
 
 	const openSeriesChoice = useCallback((target, rule = null) => {
 		setDialog({type: 'series', program: target, rule});
@@ -924,6 +940,7 @@ const LiveTV = ({onPlayChannel, onRecordings, backHandlerRef}) => {
 	useEffect(() => {
 		if (!backHandlerRef) return undefined;
 		const handler = () => {
+			if (handleRecordPromptBack()) return true;
 			if (dialogRef.current) {
 				if (dialogRef.current.type === 'sort' || dialogRef.current.type === 'date') {
 					setDialog(null);
@@ -939,7 +956,7 @@ const LiveTV = ({onPlayChannel, onRecordings, backHandlerRef}) => {
 		return () => {
 			if (backHandlerRef.current === handler) backHandlerRef.current = null;
 		};
-	}, [backHandlerRef, closeDialog, consumeBackIfExploring, focusWindowBar]);
+	}, [backHandlerRef, closeDialog, consumeBackIfExploring, focusWindowBar, handleRecordPromptBack]);
 
 	// ------------------------------------------------------------------------------------------
 	// Channel numbers typed on the remote
@@ -1301,17 +1318,17 @@ const LiveTV = ({onPlayChannel, onRecordings, backHandlerRef}) => {
 						<div className={css.dialogActions}>
 							{!programEnded && (
 								<SpottableButton
+									spotlightId="livetv-record"
 									className={`${css.dialogBtn} ${programHasTimer ? css.danger : ''} ${recordingNow ? 'spottable-default' : ''}`}
 									onClick={() => { // eslint-disable-line react/jsx-no-bind
-										if (!programHasTimer && offersLaterShowing(program, Date.now())) {
-											setDialog({type: 'later', program});
-											setTimeout(() => Spotlight.focus('livetv-later'), 100);
+										if (!programHasTimer) {
+											handleRecordProgram(program);
 											return;
 										}
 										runDialogAction(
 											() => store.toggleProgramRecording(program),
-											programHasTimer ? $L('Recording cancelled') : $L('Program set to record'),
-											programHasTimer ? $L('Failed to cancel recording') : $L('Unable to create recording')
+											$L('Recording cancelled'),
+											$L('Failed to cancel recording')
 										);
 									}}
 								>
@@ -1384,30 +1401,7 @@ const LiveTV = ({onPlayChannel, onRecordings, backHandlerRef}) => {
 				</div>
 			)}
 
-			{dialog?.type === 'later' && (
-				<div className={css.dialogScrim}>
-					<PopupContainer className={css.dialog} spotlightId="livetv-later">
-						<div className={css.dialogTitle}>{dialog.program.Name}</div>
-						<div className={css.dialogBody}>
-							<div className={css.dialogTime}>{$L('This program has already started. Also record a later showing?')}</div>
-						</div>
-						<div className={css.dialogActions}>
-							<SpottableButton
-								className={`${css.dialogBtn} spottable-default`}
-								onClick={() => handleRecordNow(true)} // eslint-disable-line react/jsx-no-bind
-							>
-								{$L('Also Record a Later Showing')}
-							</SpottableButton>
-							<SpottableButton
-								className={css.dialogBtn}
-								onClick={() => handleRecordNow(false)} // eslint-disable-line react/jsx-no-bind
-							>
-								{$L('Just Record Now')}
-							</SpottableButton>
-						</div>
-					</PopupContainer>
-				</div>
-			)}
+			{recordPromptElement}
 
 			{toast && <div key={toast.key} className={css.toast}>{toast.message}</div>}
 		</div>

@@ -83,60 +83,32 @@
 	-webkit-line-clamp: 4;
 }
 
-// Sized like the server messages window, with the header held still while the text scrolls.
+// As wide as the messages window, since a review is read at length.
 .dialog {
-	box-sizing: border-box;
-	width: 1100px;
-	max-width: 90vw;
-	max-height: 80vh;
-	display: flex;
-	flex-direction: column;
-	padding: 28px 32px;
-	background: var(--theme-surface, #1a1a1a);
-	border-radius: 16px;
-	color: #ffffff;
+	max-width: (720 * @dp);
 }
 
-.dialogHeader {
-	display: flex;
-	align-items: center;
-	flex-shrink: 0;
-	margin-bottom: 20px;
-}
-
-.dialogAuthor {
-	flex: 1;
-	min-width: 0;
-	margin-right: 20px;
-
-	.avatar {
-		width: 72px;
-		height: 72px;
-		font-size: 32px;
-	}
-
-	.authorName {
-		font-size: 28px;
-	}
-
-	.meta {
-		font-size: 20px;
-	}
-}
-
+// The text scrolls inside the body rather than the body itself, so it can page on Up and Down.
 .dialogBody {
-	flex: 1;
+	display: -webkit-box;
+	display: -webkit-flex;
+	display: flex;
+	-webkit-box-orient: vertical;
+	-webkit-flex-direction: column;
+	flex-direction: column;
+}
+
+.dialogText {
+	-webkit-box-flex: 0;
+	-webkit-flex: 0 1 auto;
+	flex: 0 1 auto;
 	min-height: 0;
 	overflow-y: auto;
-	padding-right: 12px;
+	padding: (8 * @dp) (24 * @dp) (16 * @dp);
 	outline: none;
+	scrollbar-width: none;
 
-	// The messages reader is sized for a card, and a review is read at length.
-	> div {
-		margin-top: 0;
-		font-size: 23px;
-		line-height: 1.5;
-		color: rgba(255, 255, 255, 0.86);
-		.flex-col-gap(18px);
+	&::-webkit-scrollbar {
+		display: none;
 	}
 }

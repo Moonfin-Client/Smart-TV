@@ -5,17 +5,18 @@ import {useSettings} from '../../context/SettingsContext';
 import {useAuth} from '../../context/AuthContext';
 import {useSeerr} from '../../context/SeerrContext';
 import {useSyncPlay} from '../../context/SyncPlayContext';
+import useWatchParty from '../../hooks/useWatchParty';
 import {useServerMessages} from '../../context/ServerMessagesContext';
 import {useAchievements} from '../../context/AchievementsContext';
 import SeerrIcon from '../icons/SeerrIcon';
 import SyncPlayIcon from '../icons/SyncPlayIcon';
-import {FavoritesIcon, FriendsIcon, GenresIcon, HomeIcon, LiveTvIcon, MessagesIcon, SearchIcon, SettingsIcon, ShuffleIcon} from '../icons/navIcons';
+import {CalendarIcon, FavoritesIcon, FriendsIcon, GenresIcon, HomeIcon, LiveTvIcon, MessagesIcon, SearchIcon, SettingsIcon, ShuffleIcon, libraryNavIcon} from '../icons/navIcons';
 import useClock from '../../hooks/useClock';
 import {librariesForNav} from '../../utils/liveTvLibrary';
 import {isKidsMode} from '../../utils/kidsMode';
 import {shadowToCss, toCssColor, toCssColorWithAlpha} from '../../theme/themeSpec';
 import {resolveOverlayColor} from '../../theme/overlayColors';
-import {SIDEBAR_CONTENT_FOCUS_TARGETS, focusFirstContentTarget} from '../../utils/navFocusTargets';
+import {focusContentFromSidebar, rememberSidebarReturn} from '../../utils/navFocusTargets';
 import {KEYS} from '../../utils/keys';
 import SidebarItem from './SidebarItem';
 import SidebarLibraries from './SidebarLibraries';
@@ -24,6 +25,13 @@ import useSidebarExpansion from './useSidebarExpansion';
 import {SidebarMusicCard} from '../MiniMusicPlayer/MiniMusicPlayer';
 
 import css from './Sidebar.module.less';
+
+// A library as a row of its own, for Show Libraries Individually. It holds the library itself
+// rather than its id, since two servers, or two users of one server, can list the same id.
+const SidebarLibraryItem = ({library, slot, onSelectLibrary}) => {
+	const handleClick = useCallback(() => onSelectLibrary?.(library), [library, onSelectLibrary]);
+	return <SidebarItem Icon={libraryNavIcon(library)} slot={slot} label={library.Name} onClick={handleClick} />;
+};
 
 const SidebarContainer = SpotlightContainerDecorator({
 	enterTo: 'default-element',
@@ -58,6 +66,7 @@ const Sidebar = ({
 	onFavorites,
 	onLiveTv,
 	onDiscover,
+	onCalendar,
 	onSettings,
 	onSelectLibrary,
 	onUserMenu,
@@ -69,9 +78,12 @@ const Sidebar = ({
 	hideForTrailer
 }) => {
 	const {settings, activeTheme} = useSettings();
-	const {isEnabled: seerrEnabled, displayName} = useSeerr();
+	const {isEnabled: seerrEnabled, displayName, pluginInfo} = useSeerr();
 	const {serverType} = useAuth();
 	const {isInGroup} = useSyncPlay();
+	// On Silo the button opens its Watch Party instead.
+	const {room: watchPartyRoom} = useWatchParty();
+	const onSilo = serverType === 'silo';
 	const {messages, unreadCount} = useServerMessages();
 	const {socialAvailable, badgeCount: friendsBadge} = useAchievements();
 	// The nav bar has always honoured this; the sidebar rendered the clock
@@ -86,6 +98,7 @@ const Sidebar = ({
 	const kidsMode = isKidsMode(settings);
 	const showLiveTv = !kidsMode && settings.showLiveTvButton !== false && hasLiveTv;
 	const showSeerr = !kidsMode && seerrEnabled && settings.showSeerrButton !== false;
+	const showCalendar = !kidsMode && settings.showCalendarButton !== false && pluginInfo?.calendarAvailable === true;
 	const showSyncPlay = !kidsMode && serverType !== 'plex' && settings.syncplayEnabled !== false && settings.showSyncPlayButton !== false;
 	const navLibraries = librariesForNav(libraries, showLiveTv, {hideLiveTv: kidsMode});
 	const showLibraries = !kidsMode && settings.showLibrariesInToolbar !== false && navLibraries.length > 0;
@@ -118,11 +131,18 @@ const Sidebar = ({
 		if (e.keyCode === KEYS.RIGHT) {
 			e.preventDefault();
 			e.stopPropagation();
-			focusFirstContentTarget(SIDEBAR_CONTENT_FOCUS_TARGETS, 'right');
+			focusContentFromSidebar();
 		} else if (e.keyCode === KEYS.UP || e.keyCode === KEYS.DOWN) {
 			trapVerticalEdges(e);
 		}
 	}, []);
+
+	// Focus arriving from outside the rail marks where right should bring it back to.
+	const {onFocus: expandOnFocus} = handlers;
+	const handleFocus = useCallback((e) => {
+		if (e.relatedTarget && !e.currentTarget.contains(e.relatedTarget)) rememberSidebarReturn(e.relatedTarget);
+		expandOnFocus(e);
+	}, [expandOnFocus]);
 
 	// Slots hand out the theme's nav color cycle in the order items actually
 	// render, so hiding a button never doubles a color on its neighbours.
@@ -139,7 +159,7 @@ const Sidebar = ({
 			onKeyDown={handleNavKeyDown}
 			onMouseEnter={handlers.onMouseEnter}
 			onMouseLeave={handlers.onMouseLeave}
-			onFocus={handlers.onFocus}
+			onFocus={handleFocus}
 			onBlur={handlers.onBlur}
 			spotlightId="navbar"
 		>
@@ -172,11 +192,24 @@ const Sidebar = ({
 						<SidebarItem Icon={SeerrIcon} slot={nextSlot()} label={displayName} onClick={onDiscover} />
 					)}
 
-					{showSyncPlay && (
-						<SidebarItem Icon={SyncPlayIcon} slot={nextSlot()} label={$L('SyncPlay')} onClick={onSyncPlay} active={isInGroup} />
+					{showCalendar && (
+						<SidebarItem Icon={CalendarIcon} slot={nextSlot()} label={$L('Calendar')} onClick={onCalendar} />
 					)}
 
-					{showLibraries && (
+					{showSyncPlay && (
+						<SidebarItem Icon={SyncPlayIcon} slot={nextSlot()} label={onSilo ? $L('Watch Party') : $L('SyncPlay')} onClick={onSyncPlay} active={onSilo ? Boolean(watchPartyRoom) : isInGroup} />
+					)}
+
+					{showLibraries && (settings.showLibrariesIndividually === true ? (
+						navLibraries.map((library) => (
+							<SidebarLibraryItem
+								key={`${library._serverId || ''}:${library._serverUserId || ''}:${library.Id}`}
+								library={library}
+								slot={nextSlot()}
+								onSelectLibrary={onSelectLibrary}
+							/>
+						))
+					) : (
 						<SidebarLibraries
 							libraries={navLibraries}
 							slot={nextSlot()}
@@ -184,7 +217,7 @@ const Sidebar = ({
 							onToggle={toggleLibraries}
 							onSelectLibrary={onSelectLibrary}
 						/>
-					)}
+					))}
 
 					{showMessages && (
 						<SidebarItem Icon={MessagesIcon} slot={nextSlot()} label={$L('Messages')} onClick={onMessages} spotlightId="navbar-messages" badge={unreadCount} />

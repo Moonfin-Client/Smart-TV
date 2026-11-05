@@ -1,97 +1,29 @@
 @import '../../styles/mixins.less';
 
-// The video keeps playing under this, so it only dims the picture. The panel floats over it
-// as a framed card with room around it.
-.overlay {
-	position: fixed;
-	top: 0;
-	left: 0;
-	right: 0;
-	bottom: 0;
-	z-index: 2000;
-	display: flex;
-	justify-content: flex-end;
-	align-items: stretch;
-	box-sizing: border-box;
-	padding: 40px;
-	background: rgba(0, 0, 0, 0.5);
-}
-
 .panel {
-	display: flex;
-	flex-direction: column;
-	width: 940px;
-	max-width: 65%;
-	box-sizing: border-box;
-	padding: 36px 40px 24px;
-	// Opaque enough to stand off the picture without the wide blurred shadow, which is the
-	// costliest thing on it for a TV to paint.
-	background: rgba(12, 14, 20, 0.96);
-	border: 2px solid rgba(255, 255, 255, 0.28);
-	border-radius: 28px;
+	max-width: (760 * @dp);
 }
 
-// The series logo, drawn as tall as the header allows and never wider than the panel.
 .logo {
 	display: block;
-	flex-shrink: 0;
-	align-self: flex-start;
-	height: 96px;
+	height: (36 * @dp);
 	max-width: 100%;
-	margin: 0 0 20px;
 	object-fit: contain;
+	object-position: left center;
 }
 
-.seriesName {
-	margin: 0 0 22px;
-	font-size: 40px;
-	font-weight: 700;
-	color: #ffffff;
-	white-space: nowrap;
-	overflow: hidden;
-	text-overflow: ellipsis;
+// A set height, so changing season doesn't resize the dialog.
+.content {
+	display: flex;
+	flex-direction: column;
+	height: 70vh;
+	min-height: 0;
+	margin-top: (8 * @dp);
 }
 
-// One line of season pills that scrolls sideways when there are more than fit.
 .tabs {
-	position: relative;
 	flex-shrink: 0;
-	margin-bottom: 20px;
-	padding: 6px 0;
-	white-space: nowrap;
-	overflow-x: auto;
-	overflow-y: hidden;
-
-	&::-webkit-scrollbar {
-		display: none;
-	}
-}
-
-.tab {
-	display: inline-block;
-	margin-right: 12px;
-	padding: 12px 28px;
-	font-size: 24px;
-	font-weight: 600;
-	color: rgba(255, 255, 255, 0.85);
-	background: rgba(255, 255, 255, 0.1);
-	border: 3px solid transparent;
-	border-radius: 34px;
-	outline: none;
-	cursor: pointer;
-
-	&:hover,
-	&:focus {
-		background: rgba(var(--theme-accent-rgb, 0, 164, 220), 0.3);
-		border-color: var(--accent-color, #00a4dc);
-		color: #ffffff;
-	}
-}
-
-.tabActive {
-	background: rgba(var(--theme-accent-rgb, 0, 164, 220), 0.25);
-	border-color: rgba(var(--theme-accent-rgb, 0, 164, 220), 0.6);
-	color: #ffffff;
+	padding: (4 * @dp) (20 * @dp) (12 * @dp);
 }
 
 .list {
@@ -100,7 +32,7 @@
 	min-height: 0;
 	overflow-y: auto;
 	overflow-x: hidden;
-	padding: 6px 6px 0 0;
+	padding: 0 (20 * @dp);
 
 	&::-webkit-scrollbar {
 		display: none;
@@ -129,7 +61,7 @@
 	&:hover,
 	&:focus {
 		background: rgba(var(--theme-accent-rgb, 0, 164, 220), 0.3);
-		border-color: var(--accent-color, #00a4dc);
+		border-color: var(--theme-focus-border-color, #00a4dc);
 	}
 }
 
@@ -229,12 +161,4 @@
 	overflow: hidden;
 	-webkit-line-clamp: 3;
 	-webkit-box-orient: vertical;
-}
-
-.footer {
-	flex-shrink: 0;
-	margin: 14px 0 0;
-	font-size: 20px;
-	text-align: center;
-	color: rgba(255, 255, 255, 0.5);
 }

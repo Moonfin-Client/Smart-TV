@@ -1,4 +1,5 @@
 import {isTizen, isVega, isWebOS, isXbox} from '../platform';
+import {originFreeFetch} from './secureFetch';
 import serverLogger from './serverLogger';
 import {readTrailerManifest} from './video';
 
@@ -91,7 +92,7 @@ function requestJson (url, options, timeoutMs = REQUEST_TIMEOUT_MS, requestName 
 	return new Promise(function (resolve) {
 		let timer = setTimeout(function () { resolve(null); }, timeoutMs);
 
-		fetch(url, options)
+		originFreeFetch(url, options, timeoutMs)
 			.then(function (resp) {
 				if (!resp.ok) {
 					clearTimeout(timer);

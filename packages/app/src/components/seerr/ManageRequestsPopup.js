@@ -1,70 +1,68 @@
-import {memo, useCallback, useEffect} from 'react';
-import Popup from '@enact/sandstone/Popup';
-import Button from '@enact/sandstone/Button';
+import {memo, useCallback, useState} from 'react';
 import $L from '@enact/i18n/$L';
 
-import {LastFocusedContainer, safeFocus} from './seerrFocus';
+import CoreDialog from '../CoreDialog';
+import {SeerrButtonRow, SeerrDialogButton} from './SeerrDialogControls';
 
-import css from './SeerrPopups.module.less';
+import css from './ManageRequestsPopup.module.less';
 
 // Approving or declining the requests waiting on this title, for a viewer allowed to moderate.
 
-const requestedByName = (request) => request?.requestedBy?.displayName ||
-	request?.requestedBy?.username ||
-	request?.requestedBy?.plexUsername ||
-	$L('Unknown');
-
-const seasonSummary = (request) => {
-	const numbers = (request?.seasons || [])
-		.map((s) => s.seasonNumber)
-		.filter((n) => n > 0);
-	if (numbers.length === 0) return '';
-	return `${$L('Seasons')} ${numbers.join(', ')}`;
+const requestedByLabel = (request) => {
+	const user = request?.requestedBy;
+	const name = user?.displayName ?? user?.username ?? user?.email ?? $L('Unknown');
+	const label = $L('Requested by {name}').replace('{name}', name);
+	return request?.is4k ? `${label} · ${$L('4K')}` : label;
 };
 
-const ManageRequestRow = ({request, onResolve}) => {
-	const handleApprove = useCallback(() => onResolve(request.id, true), [request.id, onResolve]);
-	const handleDecline = useCallback(() => onResolve(request.id, false), [request.id, onResolve]);
-	const seasons = seasonSummary(request);
+export const ManageRequestsPopup = memo(({open, pendingRequests, onResolve, onClose}) => {
+	// Only one answer goes out at a time.
+	const [busy, setBusy] = useState(false);
+
+	const handleResolve = useCallback(async (e) => {
+		const {requestId, action} = e.currentTarget.dataset;
+		setBusy(true);
+		try {
+			await onResolve(Number(requestId), action === 'approve');
+		} finally {
+			setBusy(false);
+		}
+	}, [onResolve]);
+
+	const onPress = busy ? null : handleResolve;
 
 	return (
-		<div className={css.manageRow}>
-			<div className={css.manageRowInfo}>
-				<span className={css.manageRowName}>{requestedByName(request)}</span>
-				<span className={css.manageRowMeta}>
-					{request.is4k ? '4K' : 'HD'}{seasons ? ` · ${seasons}` : ''}
-				</span>
-			</div>
-			<div className={css.manageRowButtons}>
-				<Button className={css.manageApproveButton} onClick={handleApprove}>{$L('Approve')}</Button>
-				<Button className={css.manageDeclineButton} onClick={handleDecline}>{$L('Decline')}</Button>
-			</div>
-		</div>
-	);
-};
-
-export const ManageRequestsPopup = memo(({open, pendingRequests, title, onResolve, onClose}) => {
-	useEffect(() => {
-		if (!open) return;
-		window.requestAnimationFrame(() => {
-			safeFocus('manage-requests-list');
-		});
-	}, [open]);
-
-	return (
-		<Popup open={open} onClose={onClose} position="center">
-			<div className={`${css.popupSurface} ${css.managePopupContent}`}>
-				<h2 className={css.managePopupTitle}>{$L('Manage Requests')}</h2>
-				<p className={css.managePopupSubtitle}>{title}</p>
-				<LastFocusedContainer className={css.manageList} spotlightId="manage-requests-list">
-					{(pendingRequests || []).map((request) => (
-						<ManageRequestRow key={request.id} request={request} onResolve={onResolve} />
-					))}
-				</LastFocusedContainer>
-				<div className={css.managePopupButtons}>
-					<Button className={css.manageCloseButton} onClick={onClose}>{$L('Close')}</Button>
+		<CoreDialog
+			open={open}
+			onClose={onClose}
+			title={$L('Manage Requests')}
+			spotlightId="manage-requests"
+			bodyClassName={css.body}
+		>
+			{(pendingRequests || []).map((request) => (
+				<div key={request.id}>
+					<div className={css.requester}>{requestedByLabel(request)}</div>
+					<SeerrButtonRow>
+						<SeerrDialogButton
+							label={$L('Approve')}
+							icon="checkCircleOutline"
+							primary
+							primaryColor="#388e3c"
+							data-request-id={request.id}
+							data-action="approve"
+							onClick={onPress}
+						/>
+						<SeerrDialogButton
+							label={$L('Decline')}
+							icon="cancelOutlined"
+							foreground="#e57373"
+							data-request-id={request.id}
+							data-action="decline"
+							onClick={onPress}
+						/>
+					</SeerrButtonRow>
 				</div>
-			</div>
-		</Popup>
+			))}
+		</CoreDialog>
 	);
 });

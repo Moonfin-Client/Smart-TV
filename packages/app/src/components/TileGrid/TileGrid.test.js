@@ -148,4 +148,14 @@ describe('TileGrid', () => {
 		rerender(<TileGrid dataSize={500} itemSize={ITEM_SIZE} renderTile={renderTile} spotlightId="grid" resetKey="b" />);
 		expect(grid.getAttribute('data-index')).toBe('0');
 	});
+
+	test('starts a new shorter list from its first tile too', () => {
+		const {grid, press, rerender} = setup({resetKey: 'a'});
+		fireEvent.focus(grid);
+		press('down');
+		press('down');
+		press('down');
+		rerender(<TileGrid dataSize={7} itemSize={ITEM_SIZE} renderTile={renderTile} spotlightId="grid" resetKey="b" />);
+		expect(grid.getAttribute('data-index')).toBe('0');
+	});
 });

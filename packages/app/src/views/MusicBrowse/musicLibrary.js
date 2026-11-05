@@ -4,13 +4,14 @@ import {KEYS} from '../../utils/keys';
 import {MUSIC_CHIPS} from './MusicChips';
 import {nextMusicNode} from './musicFocus';
 
-// Where a row's See All goes. Last Played has nowhere of its own to send you, so it gets none.
+// Where a row's See All goes, named for the screen it opens. Last Played has nowhere of its own
+// to send you, so it gets none.
 export const SEE_ALL_TARGET = {
 	latestMusic: 'albums',
-	favorites: 'favorites',
+	favorites: 'favoriteAlbums',
 	playlists: 'playlists',
 	albumArtists: 'albumArtists',
-	artists: 'artists',
+	artists: 'allArtists',
 	albums: 'albums'
 };
 
@@ -48,7 +49,7 @@ export const songSubtitle = (song) => {
 
 const chip = (id) => MUSIC_CHIPS.find((c) => c.id === id);
 
-// The grids the tabs and the rail open. Artists lists the album artists, and Favorites holds
+// The categories the tabs and the rail open. Artists lists the album artists, and Favorites holds
 // every favorite in the library whatever its type.
 export const MUSIC_CATEGORIES = [
 	{...chip('artists'), id: 'albumArtists'},
@@ -106,9 +107,10 @@ const DIRECTIONS = {[KEYS.UP]: 'up', [KEYS.DOWN]: 'down', [KEYS.LEFT]: 'left', [
 
 // The arrows inside one section of the page. Spotlight moves within it. At its edge up and down
 // go to `onUp` and `onDown` when the section has its own stop there, like a See All, and to the
-// section before or after it otherwise. Left goes to `onLeft` when the screen has somewhere for
-// it, and anything else holds focus rather than jumping to whatever lies that way.
-export const handleSectionKey = (e, {node, chain, focusNode, onLeft, onUp, onDown}) => {
+// section before or after it otherwise. Left and right go to `onLeft` and `onRight` when the
+// screen has somewhere for them, and anything else holds focus rather than jumping to whatever
+// lies that way.
+export const handleSectionKey = (e, {node, chain, focusNode, onLeft, onRight, onUp, onDown}) => {
 	const direction = DIRECTIONS[e.keyCode];
 	if (!direction) return;
 	const target = e.target;
@@ -118,6 +120,7 @@ export const handleSectionKey = (e, {node, chain, focusNode, onLeft, onUp, onDow
 	e.stopPropagation();
 	if (direction === 'left' || direction === 'right') {
 		if (direction === 'left') onLeft?.();
+		else onRight?.();
 		return;
 	}
 	const own = direction === 'up' ? onUp : onDown;

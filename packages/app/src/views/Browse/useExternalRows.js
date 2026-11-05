@@ -1,11 +1,36 @@
 import {useEffect, useState} from 'react';
 import $L from '@enact/i18n/$L';
 
-import {getExternalHomeRowConfigs, fetchExternalPresetRow, fetchCustomHomeRow, fetchCalendarRows, buildSeasonalRow} from '../../utils/externalHomeRows';
+import {getExternalHomeRowConfigs, fetchExternalPresetRow, fetchCustomHomeRow, fetchCalendarRows, buildSeasonalRow, formatWatchingNowSubtitle, normalizeWatchingNowItem} from '../../utils/externalHomeRows';
 import {fetchSeasonalRow} from '../../services/externalRowsApi';
+import {fetchWatchingNow} from '../../services/mdblistApi';
 import {resolveItemsByProviderIds} from '../../services/jellyfinApi';
 import {seasonalCountryParam} from '../../utils/seasonalRow';
 import {resolveDeviceCountry} from '../../utils/deviceCountry';
+import {settleSections} from './browseCache';
+
+// Owned titles become library items so they open and play without Seerr, the rest open in Seerr.
+const loadWatchingNowRow = async (forceRefresh = false) => {
+	const data = await fetchWatchingNow(null, {forceRefresh});
+	const identified = (data?.items || []).filter((item) => item && (item.imdb_id || item.tmdb_id));
+	if (identified.length === 0) return null;
+	return {
+		id: 'mdblist_watching_now',
+		title: $L('Watching on MDBList'),
+		subtitle: formatWatchingNowSubtitle(data),
+		items: await resolveItemsByProviderIds(identified.map(normalizeWatchingNowItem)),
+		isExternalRow: true,
+		isWatchingNowRow: true
+	};
+};
+
+const withRow = (rows, row) => {
+	const index = rows.findIndex((r) => r.id === row.id);
+	if (index < 0) return [...rows, row];
+	const updated = [...rows];
+	updated[index] = row;
+	return updated;
+};
 
 // Home rows built from TMDB and IMDb charts, lists the viewer pasted a URL for, and the
 // Radarr and Sonarr calendars. Items arrive as provider ids, so every row is resolved against
@@ -31,33 +56,42 @@ const useExternalRows = ({settings, homeRows, kidsMode}) => {
 		const calendarsEnabled = radarrEnabled || sonarrEnabled;
 		// The seasonal row is stored as a home row and as its own synced toggle, and both have to be on.
 		const seasonalEnabled = settings.seasonalRowEnabled === true && rows.some((r) => r.enabled && r.id === 'seasonal');
-		if (enabledPresets.length === 0 && customRows.length === 0 && !calendarsEnabled && !seasonalEnabled) {
+		const watchingNowEnabled = settings.mdblistWatchingNowEnabled === true && rows.some((r) => r.enabled && r.id === 'mdblist_watching_now');
+		if (enabledPresets.length === 0 && customRows.length === 0 && !calendarsEnabled && !seasonalEnabled && !watchingNowEnabled) {
 			setExternalRows([]);
 			setPending([]);
 			return undefined;
 		}
 
 		let cancelled = false;
+		let refreshTimer = null;
 		const presetConfigs = getExternalHomeRowConfigs();
 		const mergedCalendars = radarrEnabled && sonarrEnabled && settings.mergeRadarrSonarrCalendars;
-		setPending([
+		const pendingRows = [
 			...enabledPresets
 				.map((id) => presetConfigs.find((c) => c.id === id))
 				.filter(Boolean)
 				.map((cfg) => ({id: cfg.id, title: cfg.title})),
 			...customRows.map((row) => ({id: `external-${row.id}`, title: row.name || row.title || $L('Custom'), isCustomRow: true})),
 			...(seasonalEnabled ? [{id: 'seasonal', title: $L('Seasonal Row')}] : []),
+			...(watchingNowEnabled ? [{id: 'mdblist_watching_now', title: $L('Watching on MDBList')}] : []),
 			...(mergedCalendars ? [{id: 'radarr_calendar', title: $L('Upcoming Releases'), isCalendarMerged: true}] : []),
 			...(radarrEnabled && !mergedCalendars ? [{id: 'radarr_calendar', title: $L('Upcoming Movies')}] : []),
 			...(sonarrEnabled && !mergedCalendars ? [{id: 'sonarr_calendar', title: $L('Upcoming Episodes')}] : [])
-		]);
+		];
+		setPending(pendingRows);
 
 		(async () => {
 			try {
 				const presetData = await Promise.all(enabledPresets.map(async (id) => {
 					const cfg = presetConfigs.find((c) => c.id === id);
 					if (!cfg) return null;
-					const items = await fetchExternalPresetRow(id, {language: settings.uiLanguage});
+					const imdb = id.startsWith('imdb-');
+					const items = await fetchExternalPresetRow(id, {
+						language: settings.uiLanguage,
+						sortBy: imdb ? settings.imdbRowsSortBy : settings.tmdbRowsSortBy,
+						sortOrder: imdb ? settings.imdbRowsSortOrder : settings.tmdbRowsSortOrder
+					});
 					return {id, title: cfg.title, items: items || []};
 				}));
 
@@ -130,23 +164,46 @@ const useExternalRows = ({settings, homeRows, kidsMode}) => {
 				}
 
 				if (!cancelled) {
-					setExternalRows([...presetRows, ...builtCustomRows, seasonalRow, ...resolvedCalendarRows].filter(Boolean));
+					const built = [...presetRows, ...builtCustomRows, seasonalRow, ...resolvedCalendarRows].filter(Boolean);
+					settleSections(pendingRows.filter((row) => row.id !== 'mdblist_watching_now').map((row) => row.id), built);
+					// Watching Now loads on its own, so a row it already put up stays.
+					setExternalRows((prevRows) => [...built, ...(watchingNowEnabled ? prevRows.filter((r) => r.id === 'mdblist_watching_now') : [])]);
 				}
 			} catch (err) {
 				console.warn('[Browse] Failed to fetch and resolve external rows:', err);
 			}
-			if (!cancelled) setPending([]);
+			if (!cancelled) setPending((prevPending) => prevPending.filter((row) => row.id === 'mdblist_watching_now'));
 		})();
+
+		if (watchingNowEnabled) {
+			// Loaded apart so a slow MDBList answer doesn't hold back the other rows.
+			loadWatchingNowRow().then((row) => {
+				if (cancelled) return;
+				settleSections(['mdblist_watching_now'], row ? [row] : []);
+				setExternalRows((prevRows) => (row ? withRow(prevRows, row) : prevRows.filter((r) => r.id !== 'mdblist_watching_now')));
+				setPending((prevPending) => prevPending.filter((r) => r.id !== 'mdblist_watching_now'));
+			});
+
+			refreshTimer = setInterval(async () => {
+				// The player takes Home down with it, so only a hidden app is left to skip.
+				if (document.hidden) return;
+				const row = await loadWatchingNowRow(true);
+				if (!row || cancelled) return;
+				setExternalRows((prevRows) => withRow(prevRows, row));
+			}, 5 * 60 * 1000);
+		}
 
 		return () => {
 			cancelled = true;
+			if (refreshTimer) clearInterval(refreshTimer);
 		};
 	}, [settings.useMoonfinPlugin, homeRows, kidsMode, settings.homeRows, settings.customHomeRows,
-		settings.uiLanguage,
+		settings.uiLanguage, settings.mdblistWatchingNowEnabled,
 		settings.seasonalRowEnabled, settings.seasonalRowCountry, settings.seasonalRowHiddenHolidays,
 		settings.mergeRadarrSonarrCalendars,
 		settings.radarrCalendarShowCinema, settings.radarrCalendarShowDigital, settings.radarrCalendarShowPhysical,
-		settings.radarrCalendarShowDate, settings.sonarrCalendarShowDate, settings.sonarrCalendarShowEpisodeInfo]);
+		settings.radarrCalendarShowDate, settings.sonarrCalendarShowDate, settings.sonarrCalendarShowEpisodeInfo,
+		settings.imdbRowsSortBy, settings.imdbRowsSortOrder, settings.tmdbRowsSortBy, settings.tmdbRowsSortOrder]);
 
 	return {rows: externalRows, pending};
 };

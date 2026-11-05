@@ -94,11 +94,11 @@ export const seasonEpisodeLabel = (program) => {
 };
 
 // The episode title and its (S1:E5) numbering, each on its own when the listing carries only one
-// of them. Empty when there's nothing to show.
+// of them. A title that only repeats the program name is left out. Empty when there's nothing to show.
 export const episodeLine = (program) => {
 	const title = episodeTitleOf(program).trim();
 	const label = seasonEpisodeLabel(program);
-	return [title, label ? `(${label})` : ''].filter(Boolean).join(' ');
+	return [title !== (program?.Name || '').trim() && title, label ? `(${label})` : ''].filter(Boolean).join(' ');
 };
 
 export const hasTimer = (program) => program?.TimerId != null;

@@ -3,10 +3,11 @@ import $L from '@enact/i18n/$L';
 
 import * as playback from '../../services/playback';
 import {fetchTmdbSeasonRatings, resolveSeriesTmdbId, isRatingSourceAllowed} from '../../services/mdblistApi';
-import {getItemAudioPref, getSeriesAudioPref} from '../../services/subtitlePrefs';
+import {getItemAudioPref, getSeriesAudioPref, syncSeriesTrackChoices} from '../../services/subtitlePrefs';
 import {fromServerStream, matchSeriesTrackIndex} from '../../utils/seriesTrackPrefs';
 import {detailsSubtitlePosition} from '../Player/initialSubtitle';
 import {findParentCollections} from './parentCollection';
+import {compareFeatures} from './extraCategories';
 import {fetchAllPlaylistItems} from './playlistItems';
 import {canScoreSeedLocally, getOnlineRecommendations, getRecommendations, mergeRecommendations} from '../../services/homeRecommendations';
 import {fetchMissingCollectionItems} from './seerrMissingCollectionItems';
@@ -240,8 +241,11 @@ const useDetailsItem = ({itemId, initialItem, effectiveApi, effectiveServerUrl, 
 			setItem(tagWithServerInfo(data));
 			setIsSeed(false);
 			setSelectedVersionIndex(0);
+			// A series' track choice made on another device comes in before this page reads it.
+			const tracksSynced = syncSeriesTrackChoices(tagWithServerInfo(data));
 			const ms = data.MediaSources?.[0];
 			if (ms) {
+				await tracksSynced;
 				const initAudioStreams = ms.MediaStreams?.filter(s => s.Type === 'Audio') || [];
 				// A track remembered for the title or its series shows as active, and only
 				// when there is none does the server's own default stand in.
@@ -281,11 +285,11 @@ const useDetailsItem = ({itemId, initialItem, effectiveApi, effectiveServerUrl, 
 			const bg = async () => {
 				let boxSetMembers = [];
 				if (data.Type === 'Series') {
-					// Nouveau and Minimalist show one season's episodes at a time behind a selector.
-					// Asking for the whole run once and splitting it here beats a fetch per season,
+					// Nouveau, Minimalist, Stage, Premiere and Frost show one season's episodes at a time behind a
+					// selector. Asking for the whole run once and splitting it here beats a fetch per season,
 					// since the viewer walks the selector and would otherwise wait at every step.
 					const style = settingsRef.current?.detailScreenStyle;
-					const wantsEpisodes = style === 'v4' || style === 'v5';
+					const wantsEpisodes = ['v4', 'v5', 'v6', 'v7', 'v9'].indexOf(style) >= 0;
 					const [seasonsData, nextUpData, episodesData] = await Promise.all([
 						effectiveApi.getSeasons(itemId).catch(() => null),
 						effectiveApi.getNextUp(1, itemId).catch(() => null),
@@ -303,12 +307,12 @@ const useDetailsItem = ({itemId, initialItem, effectiveApi, effectiveServerUrl, 
 
 				if (data.Type === 'Episode') {
 					const seasonId = data.SeasonId || data.ParentId;
-					// Spotlight and Minimalist offer the whole run grouped by season, which this
-					// episode's own season cant fill. No other style shows it, so no other style
+					// Spotlight, Minimalist, Stage, Premiere and Frost offer the whole run grouped by season,
+					// which this episode's own season can't fill. No other style shows it, so no other style
 					// pays for it, and neither does a viewer who hid More episodes.
 					const episodeStyle = settingsRef.current?.detailScreenStyle;
 					const wantsWholeSeries = Boolean(data.SeriesId) &&
-						(episodeStyle === 'v3' || episodeStyle === 'v5') &&
+						['v3', 'v5', 'v6', 'v7', 'v9'].indexOf(episodeStyle) >= 0 &&
 						sectionVisibility(settingsRef.current?.hiddenDetailSectionsTv)('moreEpisodes');
 					const [seasonData, seriesData] = await Promise.all([
 						data.SeriesId && seasonId
@@ -436,7 +440,7 @@ const useDetailsItem = ({itemId, initialItem, effectiveApi, effectiveServerUrl, 
 				setSimilarLoaded(true);
 				const parts = (partsData?.Items || []).map((part) => ({...part, _additionalPart: true}));
 				if (extrasData || parts.length) {
-					setExtras(tagWithServerInfo(withoutBlockedItems([...parts, ...(extrasData || []).filter(e => e.Id !== itemId)])));
+					setExtras(tagWithServerInfo(withoutBlockedItems([...parts, ...(extrasData || []).filter(e => e.Id !== itemId).sort(compareFeatures)])));
 				}
 				const collections = await collectionsLookup;
 				for (const boxSet of collections) {

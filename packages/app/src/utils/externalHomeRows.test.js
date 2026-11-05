@@ -8,7 +8,7 @@ jest.mock('./uiLocale', () => ({uiLocale: () => 'en-US'}));
 import {fetchCustomRow, constructSourceUrl} from '../services/externalRowsApi';
 import seerrApi from '../services/seerrApi';
 import {fetchWithTimeout} from './fetchTimeout';
-import {buildSeasonalRow, fetchCalendarRows, fetchExternalPresetRow, validateCustomRow} from './externalHomeRows';
+import {buildSeasonalRow, fetchCalendarRows, fetchExternalPresetRow, formatWatchingNowSubtitle, normalizeWatchingNowItem, sortExternalItems, validateCustomRow} from './externalHomeRows';
 
 const listUrl = 'https://mdblist.com/lists/user/list';
 const row = {source: 'mdblist', type: 'user_list', params: {username: 'user', listname: 'list'}};
@@ -144,5 +144,97 @@ describe('fetchCalendarRows', () => {
 	it('labels a release with the day Radarr gives, wherever the TV is', async () => {
 		const calendar = await radarrRow([movie(1, 'Out today', '2026-10-27T00:00:00Z')]);
 		expect(calendar.items[0].Subtitle).toBe('Cinema: Oct 27');
+	});
+});
+
+describe('sortExternalItems', () => {
+	const film = (Name, ProductionYear, CommunityRating) => ({Name, ProductionYear, CommunityRating});
+	const items = [film('Metropolis', 1927, 8.3), film('M', 1931, 8.3), film('City Lights', 1931, 8.5), film('The Kid', 1921, 8.2)];
+	const sorted = (by, order) => sortExternalItems(items, by, order).map((item) => item.Name);
+
+	it('keeps the list order by default', () => {
+		expect(sorted('none', 'ascending')).toEqual(['Metropolis', 'M', 'City Lights', 'The Kid']);
+	});
+
+	it('falls back to the name for a shared year in either direction', () => {
+		expect(sorted('releaseDate', 'ascending')).toEqual(['The Kid', 'Metropolis', 'City Lights', 'M']);
+		expect(sorted('releaseDate', 'descending')).toEqual(['City Lights', 'M', 'Metropolis', 'The Kid']);
+	});
+
+	it('sorts by the community rating', () => {
+		expect(sorted('rating', 'descending')).toEqual(['City Lights', 'M', 'Metropolis', 'The Kid']);
+	});
+
+	it('sorts by name, ignoring case', () => {
+		expect(sorted('name', 'descending')).toEqual(['The Kid', 'Metropolis', 'M', 'City Lights']);
+	});
+
+	it('sorts by popularity', () => {
+		const charted = [{Name: 'A', Popularity: 12}, {Name: 'B', Popularity: 80}, {Name: 'C'}];
+		expect(sortExternalItems(charted, 'popularity', 'descending').map((item) => item.Name)).toEqual(['B', 'A', 'C']);
+	});
+
+	it('keeps every item in a shuffle', () => {
+		expect(sorted('shuffle', 'ascending').sort()).toEqual(['City Lights', 'M', 'Metropolis', 'The Kid']);
+	});
+
+	it('sorts the whole chart before cutting the row to size', async () => {
+		fetchCustomRow.mockResolvedValue([
+			{name: 'Zulu', providerIds: {Tmdb: '1'}},
+			{name: 'Yankee', providerIds: {Tmdb: '2'}},
+			{name: 'Alpha', providerIds: {Tmdb: '3'}}
+		]);
+
+		const cut = await fetchExternalPresetRow('tmdb_popular_movies', {limit: 2, sortBy: 'name', sortOrder: 'ascending'});
+		expect(cut.map((item) => item.Name)).toEqual(['Alpha', 'Yankee']);
+	});
+});
+
+describe('WatchingNow helpers', () => {
+	it('formats live summary subtitle correctly in live mode', () => {
+		const data = {mode: 'live', users: 1250, movies: 540, shows: 710};
+		const subtitle = formatWatchingNowSubtitle(data);
+		expect(subtitle).toContain('1,250 watching now');
+		expect(subtitle).toContain('540 movies');
+		expect(subtitle).toContain('710 shows');
+	});
+
+	it('formats live summary subtitle correctly in today mode', () => {
+		const data = {mode: 'today', users: 9500, movies: 4200, shows: 5300};
+		const subtitle = formatWatchingNowSubtitle(data);
+		expect(subtitle).toContain('9,500 watched today');
+		expect(subtitle).toContain('4,200 movies');
+		expect(subtitle).toContain('5,300 shows');
+	});
+
+	it('normalizes watching now item with 1-based rank and seerr metadata', () => {
+		const item = {
+			title: 'Inception',
+			year: 2010,
+			media_type: 'movie',
+			watchers: 85,
+			imdb_id: 'tt1375666',
+			tmdb_id: 27205,
+			backdrop: 'https://image.tmdb.org/t/p/w780/8ZTVqvKDQ8emSGUEMjsS4yHAwrp.jpg',
+			logo: 'https://image.tmdb.org/t/p/w500/inception_logo.png'
+		};
+		const normalized = normalizeWatchingNowItem(item, 0);
+
+		expect(normalized.Rank).toBe(1);
+		expect(normalized.Name).toBe('Inception');
+		expect(normalized.Type).toBe('Movie');
+		expect(normalized.ProductionYear).toBe(2010);
+		expect(normalized.Watchers).toBe(85);
+		expect(normalized.ProviderIds).toEqual({Imdb: 'tt1375666', Tmdb: '27205'});
+		expect(normalized._externalBackdropUrl).toBe(item.backdrop);
+		expect(normalized._externalLogoUrl).toBe(item.logo);
+		expect(normalized._seerrRaw).toEqual({mediaId: 27205, mediaType: 'movie'});
+	});
+
+	it('normalizes a show as a series', () => {
+		const normalized = normalizeWatchingNowItem({title: 'Severance', media_type: 'show', tmdb_id: 95396}, 1);
+		expect(normalized.Type).toBe('Series');
+		expect(normalized._seerrMediaType).toBe('tv');
+		expect(normalized.Rank).toBe(2);
 	});
 });

@@ -130,6 +130,17 @@ describe('merged continue watching', () => {
 	test('nothing to continue means no row at all', () => {
 		expect(merged({allRowData: [row('resume', []), row('nextup', [])]})).toEqual([]);
 	});
+
+	test('the merged row stops at 100 cards and asks for no more', () => {
+		const many = (prefix, count) => Array.from({length: count}, (_, i) => item(`${prefix}${i}`));
+		const rows = merged({
+			allRowData: [row('resume', many('r', 70), {hasMore: true}), row('nextup', many('n', 60), {hasMore: true})]
+		});
+		expect(rows[0].items).toHaveLength(100);
+		expect(rows[0].hasMore).toBe(false);
+		const short = merged({allRowData: [row('resume', many('r', 20), {hasMore: true}), row('nextup', many('n', 10))]});
+		expect(short[0].hasMore).toBe(true);
+	});
 });
 
 describe('ordering', () => {
@@ -184,6 +195,27 @@ describe('sameRowList', () => {
 		expect(sameRowList([row('a', [item('1')])], [row('a', [item('2')])])).toBe(false);
 		expect(sameRowList([row('a', [item('1'), item('9')])], [row('a', [item('1'), item('8')])])).toBe(false);
 		expect(sameRowList([{...row('a'), title: 'X'}], [{...row('a'), title: 'Y'}])).toBe(false);
+	});
+
+	test('detects changes in watching now subtitle or item details', () => {
+		const watchingRow1 = {
+			id: 'mdblist_watching_now',
+			title: 'Watching on MDBList',
+			subtitle: '10 watching now',
+			isWatchingNowRow: true,
+			items: [{Id: '1', Name: 'Movie 1', Rank: 1, Watchers: 10}]
+		};
+		const watchingRow2 = {
+			...watchingRow1,
+			subtitle: '15 watching now'
+		};
+		const watchingRow3 = {
+			...watchingRow1,
+			items: [{Id: '1', Name: 'Movie 1', Rank: 1, Watchers: 15}]
+		};
+		expect(sameRowList([watchingRow1], [watchingRow1])).toBe(true);
+		expect(sameRowList([watchingRow1], [watchingRow2])).toBe(false);
+		expect(sameRowList([watchingRow1], [watchingRow3])).toBe(false);
 	});
 });
 
@@ -347,6 +379,17 @@ describe('loading placeholders', () => {
 		});
 
 		expect(rows.map((r) => [r.id, Boolean(r.isPlaceholder)])).toEqual([['collections', false]]);
+	});
+
+	test('a section known to come back empty holds no place while it loads', () => {
+		const rows = build({
+			homeRowsConfig: [...config, {id: 'imdb-top250-movies', enabled: true, order: 6}],
+			pendingSections: ['collections', 'sinceyouwatched1'],
+			pendingRows: [{id: 'imdb-top250-movies', title: 'IMDb Top 250 Movies'}],
+			emptySections: new Set(['sinceyouwatched1', 'imdb-top250-movies'])
+		});
+
+		expect(rows.map((r) => r.id)).toEqual(['collections']);
 	});
 
 	test('a plugin section is titled and gated by the plugin list', () => {

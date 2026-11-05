@@ -34,3 +34,8 @@ export const normalizeRatingSources = (sources) => {
 
 export const ratingSourcesToServer = (sources) =>
 	Array.isArray(sources) ? sources.map((source) => LOCAL_TO_SERVER[source] || source) : sources;
+
+// Home rows and the media bar keep their own copies of these, named with the surface in front.
+export const RATING_SETTING_KEYS = ['mdblistEnabled', 'mdblistRatingSources', 'tmdbEpisodeRatingsEnabled', 'showRatingLabels', 'showRatingBadges'];
+
+export const ratingKey = (surface, key) => (surface ? surface + key[0].toUpperCase() + key.slice(1) : key);

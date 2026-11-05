@@ -12,7 +12,7 @@
   <Identity
     Name="Moonfin.Xbox"
     Publisher="CN=Moonfin"
-    Version="2.10.0.0" />
+    Version="3.0.0.0" />
 
   <mp:PhoneIdentity PhoneProductId="2c8c4172-3723-42ed-ace2-54c236dbaa16" PhonePublisherId="00000000-0000-0000-0000-000000000000"/>
 

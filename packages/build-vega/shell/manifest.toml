@@ -3,7 +3,7 @@ schema-version = 1
 [package]
 title = "Moonfin"
 # version follows packages/app/package.json, build.js keeps it in step
-version = "2.10.0"
+version = "3.0.0"
 id = "org.moonfin.androidtv"
 icon = "@image/icon.png"
 

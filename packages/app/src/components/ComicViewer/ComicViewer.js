@@ -1,13 +1,38 @@
 import {useState, useEffect, useCallback, useRef} from 'react';
 import $L from '@enact/i18n/$L';
-import {KEYS} from '../../utils/keys';
+import Spotlight from '@enact/spotlight';
+import Spottable from '@enact/spotlight/Spottable';
+import {isBackKey, KEYS} from '../../utils/keys';
 import {fetchBook, startPage} from '../../utils/books';
 import {openComicPages} from '../../utils/comicPages';
+import {FIXED_LAYOUT_INVERT_KEY} from '../../utils/readerSettings';
+import {ModalContainer} from '../../utils/spotlightContainers';
+import {getFromStorage, saveToStorage} from '../../services/storage';
+import {CORE_ICON_PATHS} from '../../views/Settings/settingsCoreIcons';
 import useBookProgress from '../../hooks/useBookProgress';
+import useReturnFocus from '../../hooks/useReturnFocus';
 import css from './ComicViewer.module.less';
+
+const SpottableDiv = Spottable('div');
 
 // Pages this far from the current one stay ready, the rest are let go.
 const KEEP_AROUND = 2;
+const DIRECTION_KEY = 'book_reader_comic_direction';
+const AUTO_HIDE_KEY = 'book_reader_comic_auto_hide';
+const HIDE_AFTER_MS = 4000;
+
+// Left and right follow the reading direction, so in a right to left comic Left is the next page.
+export const comicPageStep = (keyCode, rtl) => {
+	if (keyCode === KEYS.RIGHT) return rtl ? -1 : 1;
+	if (keyCode === KEYS.LEFT) return rtl ? 1 : -1;
+	return 0;
+};
+
+const ControlToggle = ({icon, active, label, ...rest}) => (
+	<SpottableDiv className={css.toggle + (active ? ' ' + css.toggleOn : '')} aria-label={label} {...rest}>
+		<svg viewBox="0 0 24 24" aria-hidden="true"><path d={icon} /></svg>
+	</SpottableDiv>
+);
 
 const ComicViewer = ({item, archive, serverUrl, accessToken, onClose}) => {
 	const [count, setCount] = useState(0);
@@ -17,11 +42,20 @@ const ComicViewer = ({item, archive, serverUrl, accessToken, onClose}) => {
 	const [error, setError] = useState(null);
 	const [imageLoaded, setImageLoaded] = useState(false);
 	const [showInfo, setShowInfo] = useState(true);
-	const infoTimerRef = useRef(null);
+	const [invert, setInvert] = useState(false);
+	const [rtl, setRtl] = useState(false);
+	const [autoHide, setAutoHide] = useState(true);
+	const hideTimerRef = useRef(null);
+	const hoveredRef = useRef(false);
+	const barsRef = useRef(null);
 	const sourceRef = useRef(null);
 	const urlsRef = useRef({});
+	const ready = !loading && !error && count > 0;
+	const live = useRef({});
+	live.current = {showInfo, autoHide, ready};
 
 	useBookProgress(item, currentPage, count);
+	useReturnFocus(showInfo);
 
 	useEffect(() => {
 		if (!item) return;
@@ -29,13 +63,21 @@ const ComicViewer = ({item, archive, serverUrl, accessToken, onClose}) => {
 		let cancelled = false;
 		const open = async () => {
 			try {
-				const buffer = await fetchBook(item, serverUrl, accessToken);
+				const [buffer, storedInvert, storedDirection, storedAutoHide] = await Promise.all([
+					fetchBook(item, serverUrl, accessToken),
+					getFromStorage(FIXED_LAYOUT_INVERT_KEY).catch(() => null),
+					getFromStorage(DIRECTION_KEY).catch(() => null),
+					getFromStorage(AUTO_HIDE_KEY).catch(() => null)
+				]);
 				const source = await openComicPages(buffer, archive);
 				if (cancelled) {
 					source.close();
 					return;
 				}
 				sourceRef.current = source;
+				setInvert(storedInvert === true);
+				setRtl(storedDirection === 'rtl');
+				setAutoHide(storedAutoHide !== false);
 				setCount(source.names.length);
 				setCurrentPage(startPage(item, source.names.length));
 				setLoading(false);
@@ -83,57 +125,96 @@ const ComicViewer = ({item, archive, serverUrl, accessToken, onClose}) => {
 		setUrls({...urlsRef.current});
 	}, [currentPage, count]);
 
-	const resetInfoTimer = useCallback(() => {
-		setShowInfo(true);
-		if (infoTimerRef.current) clearTimeout(infoTimerRef.current);
-		infoTimerRef.current = setTimeout(() => setShowInfo(false), 4000);
+	// The bars hide a few seconds after they show unless they're set to stay, and not while the
+	// pointer rests on them.
+	const scheduleHide = useCallback(() => {
+		clearTimeout(hideTimerRef.current);
+		const {showInfo: visible, autoHide: fading, ready: open} = live.current;
+		if (!open || !fading || !visible || hoveredRef.current) return;
+		hideTimerRef.current = setTimeout(() => setShowInfo(false), HIDE_AFTER_MS);
 	}, []);
 
 	useEffect(() => {
-		resetInfoTimer();
-		return () => {
-			if (infoTimerRef.current) clearTimeout(infoTimerRef.current);
-		};
-	}, [currentPage]); // eslint-disable-line react-hooks/exhaustive-deps
+		scheduleHide();
+		return () => clearTimeout(hideTimerRef.current);
+	}, [showInfo, autoHide, ready, scheduleHide]);
 
-	const goNext = useCallback(() => {
-		if (count <= 1) return;
-		setImageLoaded(false);
-		setCurrentPage(prev => Math.min(prev + 1, count - 1));
-		resetInfoTimer();
-	}, [count, resetInfoTimer]);
+	// Focus goes back where it was when the bars hide, and if that can't happen it still leaves
+	// them, so a stray OK can't press a control nobody can see.
+	useEffect(() => {
+		if (showInfo) return;
+		hoveredRef.current = false;
+		if (barsRef.current && barsRef.current.contains(document.activeElement)) document.activeElement.blur();
+	}, [showInfo]);
 
-	const goPrev = useCallback(() => {
-		if (count <= 1) return;
+	const turn = useCallback((step) => {
+		const next = Math.min(Math.max(currentPage + step, 0), count - 1);
+		if (next === currentPage) return;
 		setImageLoaded(false);
-		setCurrentPage(prev => Math.max(prev - 1, 0));
-		resetInfoTimer();
-	}, [count, resetInfoTimer]);
+		setCurrentPage(next);
+	}, [count, currentPage]);
 
 	useEffect(() => {
 		const handleKeyDown = (e) => {
 			const key = e.keyCode;
-			if (key === KEYS.BACK || key === KEYS.ESCAPE || key === KEYS.BACKSPACE) {
+			if (showInfo) scheduleHide();
+			if (isBackKey(e)) {
 				e.preventDefault();
 				e.stopPropagation();
-				onClose?.();
-			} else if (key === 39 || key === 40) {
-				e.preventDefault();
-				e.stopPropagation();
-				goNext();
-			} else if (key === 37 || key === 38) {
-				e.preventDefault();
-				e.stopPropagation();
-				goPrev();
-			} else if (key === 13 || key === 32) {
-				e.preventDefault();
-				setShowInfo(prev => !prev);
+				if (showInfo && ready) setShowInfo(false);
+				else onClose?.();
+				return;
 			}
+			const arrow = key === KEYS.LEFT || key === KEYS.RIGHT || key === KEYS.UP || key === KEYS.DOWN;
+			if (!(arrow || key === KEYS.ENTER || key === KEYS.SPACE)) return;
+			// The remote walks the bars while they're up. A press from outside only brings focus in.
+			if (ready && showInfo && barsRef.current && barsRef.current.contains(document.activeElement)) return;
+			e.preventDefault();
+			e.stopPropagation();
+			if (!ready) return;
+			if (showInfo) {
+				Spotlight.focus('comic-controls');
+				return;
+			}
+			const step = comicPageStep(key, rtl);
+			if (step) turn(step);
+			else setShowInfo(true);
 		};
 
 		window.addEventListener('keydown', handleKeyDown, true);
 		return () => window.removeEventListener('keydown', handleKeyDown, true);
-	}, [onClose, goNext, goPrev]);
+	}, [onClose, turn, showInfo, ready, rtl, scheduleHide]);
+
+	const handlePointerMove = useCallback(() => {
+		if (!autoHide || !ready) return;
+		if (showInfo) scheduleHide();
+		else setShowInfo(true);
+	}, [autoHide, ready, showInfo, scheduleHide]);
+
+	const holdBars = useCallback(() => {
+		hoveredRef.current = true;
+		clearTimeout(hideTimerRef.current);
+	}, []);
+
+	const releaseBars = useCallback(() => {
+		hoveredRef.current = false;
+		scheduleHide();
+	}, [scheduleHide]);
+
+	const toggleDirection = useCallback(() => {
+		setRtl(!rtl);
+		saveToStorage(DIRECTION_KEY, rtl ? 'ltr' : 'rtl').catch(() => {});
+	}, [rtl]);
+
+	const toggleInvert = useCallback(() => {
+		setInvert(!invert);
+		saveToStorage(FIXED_LAYOUT_INVERT_KEY, !invert).catch(() => {});
+	}, [invert]);
+
+	const toggleAutoHide = useCallback(() => {
+		setAutoHide(!autoHide);
+		saveToStorage(AUTO_HIDE_KEY, !autoHide).catch(() => {});
+	}, [autoHide]);
 
 	const handleImageLoad = useCallback(() => {
 		setImageLoaded(true);
@@ -174,14 +255,14 @@ const ComicViewer = ({item, archive, serverUrl, accessToken, onClose}) => {
 
 	const url = urls[currentPage];
 	return (
-		<div className={css.viewer}>
+		<div className={css.viewer} onMouseMove={handlePointerMove}>
 			<div className={css.imageContainer}>
 				{url && (
 					<img
 						key={currentPage}
 						src={url}
 						alt={$L('Page') + ' ' + (currentPage + 1)}
-						className={css.page + (imageLoaded ? ' ' + css.pageLoaded : '')}
+						className={css.page + (imageLoaded ? ' ' + css.pageLoaded : '') + (invert ? ' ' + css.inverted : '')}
 						onLoad={handleImageLoad}
 					/>
 				)}
@@ -196,11 +277,28 @@ const ComicViewer = ({item, archive, serverUrl, accessToken, onClose}) => {
 				<div className={css.topBar}>
 					<div className={css.title}>{item.Name || $L('Comic')}</div>
 				</div>
-				<div className={css.bottomBar}>
-					<div className={css.pageCounter}>
-						{currentPage + 1} / {count}
+				<div ref={barsRef} className={css.bottomStack} onMouseEnter={holdBars} onMouseLeave={releaseBars}>
+					<ModalContainer className={css.controlsBar} spotlightId="comic-controls">
+						<ControlToggle
+							icon={rtl ? CORE_ICON_PATHS.format_textdirection_r_to_l : CORE_ICON_PATHS.format_textdirection_l_to_r}
+							active={rtl}
+							label={rtl ? $L('Right to left (manga)') : $L('Left to right')}
+							onClick={toggleDirection}
+						/>
+						<ControlToggle icon={CORE_ICON_PATHS.invert_colors} active={invert} label={$L('Invert colors')} onClick={toggleInvert} />
+						<ControlToggle
+							icon={autoHide ? CORE_ICON_PATHS.visibility_off : CORE_ICON_PATHS.visibility}
+							active={autoHide}
+							label={autoHide ? $L('Controls hide automatically') : $L('Controls stay visible')}
+							onClick={toggleAutoHide}
+						/>
+					</ModalContainer>
+					<div className={css.bottomBar}>
+						<div className={css.pageCounter}>
+							{currentPage + 1} / {count}
+						</div>
+						<div className={css.navHint}>{'◀ ▶ ' + $L('Navigate')} &nbsp; {'OK ' + $L('Menu')}</div>
 					</div>
-					<div className={css.navHint}>{'◀ ▶ ' + $L('Navigate')} &nbsp; {'OK ' + $L('Toggle info')} &nbsp; {$L('Back') + ' ' + $L('Close')}</div>
 				</div>
 			</div>
 		</div>

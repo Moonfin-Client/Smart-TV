@@ -1,5 +1,6 @@
 jest.mock('../platform', () => ({isTizen: jest.fn(), isVega: jest.fn(), isWebOS: jest.fn(), isXbox: jest.fn()}));
 jest.mock('./serverLogger', () => ({__esModule: true, default: {warn: jest.fn(), LOG_CATEGORIES: {PLAYBACK: 'Playback'}}}));
+jest.mock('./storage', () => ({getFromStorage: jest.fn(() => Promise.resolve({}))}));
 jest.mock('./video', () => ({readTrailerManifest: jest.fn()}));
 
 import {isTizen, isVega, isWebOS, isXbox} from '../platform';
@@ -228,6 +229,7 @@ describe('keepOriginalAudioTrack', () => {
 describe('fetchVideoStream', () => {
 	afterEach(() => {
 		delete global.fetch;
+		delete window.PalmServiceBridge;
 	});
 
 	test('cuts the picture out of the manifest on Fire TV, and leaves one it cant read whole', async () => {
@@ -289,6 +291,39 @@ describe('fetchVideoStream', () => {
 			['VISIONOS', undefined],
 			['VISIONOS', 'visitor-4']
 		]);
+	});
+
+	test('asks YouTube through the app service on webOS, since YouTube turns away a page at file://', async () => {
+		isWebOS.mockReturnValue(true);
+		global.fetch = jest.fn();
+		const calls = [];
+		window.PalmServiceBridge = function () {
+			this.call = (uri, payload) => {
+				calls.push({uri, payload: JSON.parse(payload)});
+				setTimeout(() => this.onservicecallback(JSON.stringify({returnValue: true, status: 200, headers: {}, body: JSON.stringify(dubbedAnswer())})));
+			};
+			this.cancel = () => {};
+		};
+
+		const stream = await fetchVideoStream('vid', true);
+
+		expect(stream.url).toBe(HLS_URL);
+		expect(global.fetch).not.toHaveBeenCalled();
+		expect(calls).toHaveLength(1);
+		expect(calls[0].uri).toBe('luna://org.moonfin.webos.service/fetch');
+		expect(calls[0].payload).toMatchObject({url: 'https://www.youtube.com/youtubei/v1/player?prettyPrint=false', method: 'POST'});
+		expect(JSON.parse(calls[0].payload.body).videoId).toBe('vid');
+	});
+
+	test('asks YouTube with a plain fetch off webOS', async () => {
+		global.fetch = jest.fn(() => Promise.resolve({ok: true, json: () => Promise.resolve(dubbedAnswer())}));
+		window.PalmServiceBridge = jest.fn();
+
+		const stream = await fetchVideoStream('vid', true);
+
+		expect(stream.url).toBe(HLS_URL);
+		expect(window.PalmServiceBridge).not.toHaveBeenCalled();
+		expect(global.fetch.mock.calls[0][1]).not.toHaveProperty('signal');
 	});
 });
 

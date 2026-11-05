@@ -55,6 +55,7 @@ jobs:
             const webos    = outcomes.webos;
             const tizen    = outcomes.tizen;
             const vega     = outcomes.vega;
+            const xbox     = outcomes.xbox;
             // A build from before the suite was wired in reports no outcome, which is
             // not the same as the tests failing.
             const tests    = outcomes.tests;
@@ -67,6 +68,7 @@ jobs:
 
             const overallSuccess = webos === 'success' && tizen === 'success' &&
               (vega === undefined || vega === 'success') &&
+              (xbox === undefined || xbox === 'success') &&
               (tests === undefined || tests === 'success');
 
             const marker = '<!-- moonfin-build-result -->';
@@ -86,7 +88,10 @@ jobs:
                 `| **Tizen Legacy** | ✅ Passed | [Moonfin_Tizen_Legacy_*.wgt](${artifactsUrl}) |`,
               );
               if (vega !== undefined) {
-                lines.push(`| **Vega** | ✅ Passed | web bundle and shell checks |`);
+                lines.push(`| **Vega** | ${icon(vega)} ${label(vega)} | [Moonfin_Vega_*.vpkg](${artifactsUrl}) |`);
+              }
+              if (xbox !== undefined) {
+                lines.push(`| **Xbox** | ${icon(xbox)} ${label(xbox)} | [Moonfin_Xbox_*.zip](${artifactsUrl}) |`);
               }
             } else {
               lines.push(
@@ -99,6 +104,9 @@ jobs:
               );
               if (vega !== undefined) {
                 lines.push(`| **Vega build** | ${icon(vega)} ${label(vega)} |`);
+              }
+              if (xbox !== undefined) {
+                lines.push(`| **Xbox build** | ${icon(xbox)} ${label(xbox)} |`);
               }
               if (tests !== undefined) {
                 lines.push(`| **Tests** | ${icon(tests)} ${label(tests)} |`);

@@ -1,14 +1,20 @@
 import {useState, useEffect, useLayoutEffect, useRef, useMemo, useCallback} from 'react';
 import $L from '@enact/i18n/$L';
-import {fetchRatings, fetchEpisodeRatings, buildDisplayRatings, getContentType, getTmdbId, getSelectionSource, isRatingSourceEnabled} from '../../services/mdblistApi';
+import {fetchRatings, fetchEpisodeRatings, buildDisplayRatings, getContentType, getTmdbId, getSelectionSource, isRatingSourceEnabled, ratingSettingsFor} from '../../services/mdblistApi';
 import {useSettings} from '../../context/SettingsContext';
 import {normalizeRatingStyle, personalRatingOf} from '../../utils/personalRating';
 import {getRtFallbackIcon} from '../icons/rtIcons';
 import css from './RatingsRow.module.less';
 
-const RatingsRow = ({item, serverUrl, compact = false, singleLineWidth, pluginEnabled = true}) => {
-	const {settings} = useSettings();
-	const showLabels = settings.showRatingLabels !== false;
+// surface is 'homeRows' or 'mediaBar' for the screens that keep their own ratings settings.
+// inline keeps the full size chips on one line with each label after its value.
+// sampleRatings stands in for the plugin's answer, so the settings preview never asks the server.
+// A screen with no room for the sources' names turns labels off.
+// columns is Frost's strip, a column per source with its name over its score. The names show there
+// whatever the label setting says, since the strip is nothing without them.
+const RatingsRow = ({item, serverUrl, compact = false, singleLineWidth, pluginEnabled = true, surface, inline = false, sampleRatings, labels = true, columns = false}) => {
+	const settings = ratingSettingsFor(useSettings().settings, surface);
+	const showLabels = labels && settings.showRatingLabels !== false;
 	// Badges only choose the chip chrome around each rating. Off means plain, not hidden.
 	const showBadges = settings.showRatingBadges !== false;
 	const enabledSources = settings.mdblistRatingSources;
@@ -26,7 +32,7 @@ const RatingsRow = ({item, serverUrl, compact = false, singleLineWidth, pluginEn
 	const episodeRatingsEnabled = settings.tmdbEpisodeRatingsEnabled === true && isRatingSourceEnabled(settings, 'tmdb');
 
 	useEffect(() => {
-		if (!pluginEnabled || !item || !serverUrl) {
+		if (!pluginEnabled || !item || !serverUrl || sampleRatings) {
 			setAllRatings([]);
 			return;
 		}
@@ -61,14 +67,15 @@ const RatingsRow = ({item, serverUrl, compact = false, singleLineWidth, pluginEn
 
 		fetchRatings(serverUrl, item, {signal: controller.signal, sourcesKey}).then(apply);
 		return () => controller.abort();
-	}, [item, serverUrl, pluginEnabled, episodeRatingsEnabled, sourcesKey]);
+	}, [item, serverUrl, pluginEnabled, episodeRatingsEnabled, sourcesKey, sampleRatings]);
 
+	const shownRatings = sampleRatings && pluginEnabled ? sampleRatings : allRatings;
 	const displayRatings = useMemo(() => {
-		if (!Array.isArray(enabledSources)) return allRatings;
-		return allRatings
+		if (!Array.isArray(enabledSources)) return shownRatings;
+		return shownRatings
 			.filter(r => enabledSources.includes(getSelectionSource(r.source)))
 			.sort((a, b) => enabledSources.indexOf(getSelectionSource(a.source)) - enabledSources.indexOf(getSelectionSource(b.source)));
-	}, [allRatings, enabledSources]);
+	}, [shownRatings, enabledSources]);
 
 	// The viewer's own score leads the row, formatted the way their chosen
 	// rating style reads. It never waits on the plugin, since it comes from the
@@ -80,7 +87,7 @@ const RatingsRow = ({item, serverUrl, compact = false, singleLineWidth, pluginEn
 	const communityRating = isRatingSourceEnabled(settings, 'stars') && item && item.CommunityRating ? item.CommunityRating.toFixed(1) : null;
 	// The server's own critic rating stands in until plugin ratings actually
 	// arrive, so it stays visible when there's no API key or nothing came back.
-	const showCriticRating = allRatings.length === 0 && item && item.CriticRating != null;
+	const showCriticRating = shownRatings.length === 0 && item && item.CriticRating != null;
 	const hasContent = personalRating || communityRating || displayRatings.length > 0 || showCriticRating;
 
 	// Zoom rather than a scale transform, so the line gives back its height too.
@@ -96,6 +103,25 @@ const RatingsRow = ({item, serverUrl, compact = false, singleLineWidth, pluginEn
 	useLayoutEffect(fitSingleLine, [fitSingleLine, singleLineWidth, displayRatings, personalRating, communityRating, showCriticRating, showLabels, showBadges]);
 
 	if (!hasContent) return null;
+
+	if (columns) {
+		const entries = [
+			personalRating && {key: 'personal', name: $L('My Rating'), value: personalRating},
+			communityRating && {key: 'community', name: $L('Community'), value: communityRating},
+			showCriticRating && {key: 'critic', name: $L('Rotten Tomatoes'), value: `${item.CriticRating}%`},
+			...displayRatings.map((r) => ({key: r.source, name: r.name, value: r.formatted}))
+		].filter(Boolean).slice(0, 7);
+		return (
+			<div className={css.ratingsColumns}>
+				{entries.map((entry) => (
+					<div key={entry.key} className={css.ratingColumn}>
+						<span className={css.columnName}>{entry.name}</span>
+						<span className={css.columnValue}>{entry.value}</span>
+					</div>
+				))}
+			</div>
+		);
+	}
 
 	if (compact) {
 		const compactClass = `${css.ratingCompact}${showBadges ? ' ' + css.ratingCompactBadge : ''}`;
@@ -159,7 +185,7 @@ const RatingsRow = ({item, serverUrl, compact = false, singleLineWidth, pluginEn
 
 	const itemClass = `${css.ratingItem}${showBadges ? '' : ' ' + css.ratingItemPlain}`;
 	return (
-		<div className={css.ratingsRow}>
+		<div className={inline ? `${css.ratingsRow} ${css.ratingsRowInline}` : css.ratingsRow}>
 			{personalRating && (
 				<div className={itemClass}>
 					<div className={css.ratingTop}>

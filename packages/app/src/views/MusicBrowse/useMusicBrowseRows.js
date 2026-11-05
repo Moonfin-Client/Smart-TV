@@ -4,7 +4,7 @@ import $L from '@enact/i18n/$L';
 const ROW_LIMIT = 30;
 const PLAYLIST_WORKERS = 4;
 const FIELDS = 'PrimaryImageAspectRatio,ProductionYear,ImageTags,UserData,AlbumArtist,AlbumArtists,Artists,ChildCount,RecursiveItemCount';
-const PLAYLIST_FIELDS = 'PrimaryImageAspectRatio,ImageTags,MediaType,ChildCount,RecursiveItemCount';
+export const PLAYLIST_FIELDS = 'PrimaryImageAspectRatio,ImageTags,MediaType,ChildCount,RecursiveItemCount';
 
 // Albums and favorites are the only rows that carry a release year, so the rest
 // fall back to name when that sort is picked.
@@ -20,7 +20,7 @@ const resolveSort = (sortOption, type) => {
 
 // A playlist only belongs in a music library when everything in it is audio, and
 // the server won't answer that, so each one has to be opened to find out.
-const filterAudioPlaylists = async (api, playlists) => {
+export const filterAudioPlaylists = async (api, playlists) => {
 	const audioPlaylists = [];
 	const queue = playlists.slice();
 	const workerCount = Math.min(PLAYLIST_WORKERS, queue.length);

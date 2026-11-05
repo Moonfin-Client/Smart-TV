@@ -421,13 +421,16 @@ class CardBuilder {
 		if (!all.length) return null;
 
 		const currentSeason = item?.ParentIndexNumber;
-		const seasonOf = (episode) => (episode.ParentIndexNumber != null
-			? episode.ParentIndexNumber
-			: (currentSeason != null ? currentSeason : 1));
+		// Across the whole run an episode with no season number is a special, while in a
+		// single season's list it belongs to the season being shown.
+		const defaultSeason = seriesEpisodes.length ? 0 : (currentSeason != null ? currentSeason : 1);
+		const seasonOf = (episode) => (episode.ParentIndexNumber != null ? episode.ParentIndexNumber : defaultSeason);
+		const nameOf = (episode) => (episode.Name || '').toLowerCase();
+		const byName = (a, b) => (nameOf(a) < nameOf(b) ? -1 : nameOf(a) > nameOf(b) ? 1 : 0);
 
 		const groups = new Map();
 		[...all]
-			.sort((a, b) => (seasonOf(a) - seasonOf(b)) || ((a.IndexNumber || 0) - (b.IndexNumber || 0)))
+			.sort((a, b) => (seasonOf(a) - seasonOf(b)) || ((a.IndexNumber || 0) - (b.IndexNumber || 0)) || byName(a, b))
 			.forEach((episode) => {
 				const season = seasonOf(episode);
 				if (!groups.has(season)) groups.set(season, []);

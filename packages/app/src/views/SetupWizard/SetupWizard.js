@@ -4,7 +4,7 @@
 // else is in here. It only ever asks about things it cant work out on its
 // own, and only about things a person can answer by looking.
 
-import {useState, useEffect, useRef, useCallback, useMemo} from 'react';
+import {Fragment, useState, useEffect, useRef, useCallback, useMemo} from 'react';
 import Spottable from '@enact/spotlight/Spottable';
 import Spotlight from '@enact/spotlight';
 import $L from '@enact/i18n/$L';
@@ -13,44 +13,35 @@ import {useAuth} from '../../context/AuthContext';
 import {useSettings, isServerSyncInitialized} from '../../context/SettingsContext';
 import {getActiveServer} from '../../services/multiServerManager';
 import {isBuiltInThemeId, resolveThemeById} from '../../theme/themeRegistry';
-import {toCssColor, toRgbTriplet} from '../../theme/themeSpec';
+import {toCssColor} from '../../theme/themeSpec';
 import LoadingSpinner from '../../components/LoadingSpinner';
-import {rootScale} from '../../utils/rootScale';
-import {remainingSteps, markComplete, deferThisLaunch, SETUP_QUESTION_STEPS} from '../../utils/setupWizardGate';
+import {remainingSteps, markComplete, deferThisLaunch} from '../../utils/setupWizardGate';
 import {ModalContainer} from '../../utils/spotlightContainers';
-import {keepFocusInView} from '../../utils/focusScroll';
+import {keepFocusInView, pointerHover} from '../../utils/focusScroll';
 import {getAudioLanguageOptions, getSubtitleLanguageOptions, getSubtitleModeOptions, getLabel} from '../Settings/settingsOptions';
 import {ensurePreviewItemsLoaded} from './setupPreviewData';
 import {MediaBarPreview, NavbarPreview, HomeRowsPreview, DetailStylePreview, SetupIcon, usePreviewPalette} from './SetupPreviews';
+import {STEP_INFO, LANGUAGE_PATH, tourDescription} from './setupSteps';
 import css from './SetupWizard.module.less';
 
 const SpottableDiv = Spottable('div');
 
-const MEDIA_BAR_MODES = ['moonfin', 'makd', 'bookshelf', 'gallery', 'banner', 'aya', 'off'];
-
-// Seven styles in one line would leave each too small to judge, so they sit
-// four across and wrap onto a second row.
-const MEDIA_BAR_COLUMNS = 4;
-
-// What each card adds to its own width, from the margin the card carries.
-const CARD_GUTTER = 24;
-
-// Spotlight goes to whatever is nearest in a direction, and the cards just above the buttons are
-// nearer than Next at the far end of the row. These point Right from Back and from the last card
-// at Next, and Left from Next at Back.
+// Spotlight goes to whatever is nearest in a direction. These keep the option
+// list one straight line: Up from its top to Skip, Right and Down out of it to
+// Next, and Left from Next to Back.
 const NEXT_TARGET = '[data-spotlight-id="setup-wizard-next"]';
 const BACK_TARGET = '[data-spotlight-id="setup-wizard-back"]';
+const SKIP_TARGET = '[data-spotlight-id="setup-wizard-skip"]';
 
-const mediaBarLabel = (mode) => {
-	switch (mode) {
-		case 'makd': return $L('MakD');
-		case 'bookshelf': return $L('Bookshelf');
-		case 'gallery': return $L('Gallery');
-		case 'banner': return $L('Banner');
-		case 'aya': return $L('Aya');
-		case 'off': return $L('Off');
-		default: return $L('Moonfin');
-	}
+const rowIdFor = (step, value) => `setup-opt-${step}-${value}`;
+
+// The languages path sits under the last row of the tour, so reaching that row
+// scrolls the column right to the end to bring the path in with it.
+const keepColumnInView = (ev) => {
+	keepFocusInView(ev);
+	if (pointerHover()) return;
+	const spots = ev.currentTarget.querySelectorAll('.spottable');
+	if (ev.target === spots[spots.length - 1]) ev.currentTarget.scrollTop = ev.currentTarget.scrollHeight;
 };
 
 const subtitleModeDescription = (mode) => {
@@ -73,64 +64,82 @@ const questionFor = (step) => {
 	}
 };
 
-const useBodySize = () => {
-	const ref = useRef(null);
-	const [size, setSize] = useState({width: 0, height: 0});
-	useEffect(() => {
-		const measure = () => {
-			const node = ref.current;
-			if (!node) return;
-			setSize((prev) => (
-				prev.width === node.offsetWidth && prev.height === node.offsetHeight
-					? prev
-					: {width: node.offsetWidth, height: node.offsetHeight}
-			));
-		};
-		measure();
-		window.addEventListener('resize', measure);
-		return () => window.removeEventListener('resize', measure);
-	});
-	return [ref, size];
+// The tour shows the media bar that was picked, in whichever theme is on.
+const stagePreview = (step, value, mediaBarMode) => {
+	switch (step) {
+		case 'navbar': return <NavbarPreview position={value} />;
+		case 'mediaBar': return <MediaBarPreview mode={value} />;
+		case 'homeRows': return <HomeRowsPreview modern={value === 'v2'} />;
+		case 'detailStyle': return <DetailStylePreview variant={value} />;
+		default: return <MediaBarPreview mode={mediaBarMode} />;
+	}
 };
 
-// One pickable layout, shown rather than described.
-const OptionCard = ({spotlightId, label, hint, selected, preview, onSelect, width, t, ...rest}) => {
+// One choice in the list. Focusing it previews it on the stage, OK picks it.
+const OptionRow = ({spotlightId, value, label, selected, swatch, onPick, onPreview, t, ...rest}) => {
 	const [focused, setFocused] = useState(false);
-	const handleFocus = useCallback(() => setFocused(true), []);
+	const handleFocus = useCallback(() => {
+		setFocused(true);
+		onPreview(value);
+	}, [onPreview, value]);
 	const handleBlur = useCallback(() => setFocused(false), []);
-	const borderColor = focused ? t.onSurface : t.onSurfaceA(selected ? 0.34 : 0.14);
+	const handleClick = useCallback(() => onPick(value), [onPick, value]);
+	let ring = t.onSurfaceA(0.4);
+	if (selected) ring = t.accent;
+	else if (focused) ring = 'rgba(16, 16, 16, 0.5)';
 	return (
 		<SpottableDiv
 			{...rest}
 			spotlightId={spotlightId}
-			className={css.optionCard}
-			style={{width}}
-			onClick={onSelect}
+			className={css.optionRow}
+			style={{
+				backgroundColor: focused ? t.onSurface : 'transparent',
+				color: focused ? '#101010' : t.onSurfaceA(0.82),
+				fontWeight: focused ? 600 : 400
+			}}
+			onClick={handleClick}
 			onFocus={handleFocus}
 			onBlur={handleBlur}
 		>
-			<div
-				className={css.optionPreviewBorder}
-				style={{
-					border: `${focused ? 4 : 2}px solid ${borderColor}`,
-					boxShadow: focused ? `0px 0px 44px 2px ${t.onSurfaceA(0.34)}` : 'none',
-					transform: focused ? 'scale(1.035)' : 'scale(1)'
-				}}
-			>
-				<div className={css.optionPreviewFrame} style={{backgroundColor: t.surface}}>
-					{preview}
-				</div>
+			<div className={css.radio} style={{borderColor: ring}}>
+				{selected && <div className={css.radioDot} style={{backgroundColor: t.accent}} />}
 			</div>
-			<div className={css.optionLabelRow}>
-				{selected && <div className={css.selectedDot} style={{backgroundColor: t.onSurface}} />}
-				<div className={css.optionLabel} style={{color: selected ? t.onSurface : t.onSurfaceA(0.7), fontWeight: selected ? 600 : 400}}>
-					{label}
+			<div className={css.optionLabel}>{label}</div>
+			{selected && (
+				<div className={css.currentTag} style={{color: focused ? 'rgba(16, 16, 16, 0.6)' : t.onSurfaceA(0.55)}}>
+					{$L('Current')}
 				</div>
-			</div>
-			{hint && <div className={css.optionHint} style={{color: t.onSurfaceA(0.55)}}>{hint}</div>}
+			)}
+			{swatch}
 		</SpottableDiv>
 	);
 };
+
+const ThemeSwatch = ({themeId, t}) => {
+	const colors = resolveThemeById(themeId).colors;
+	return (
+		<div
+			className={css.swatch}
+			style={{
+				background: `radial-gradient(circle, ${toCssColor(colors.accent)} 40%, ${toCssColor(colors.surface)} 43%)`,
+				boxShadow: `0 0 0 2px ${t.onSurfaceA(0.2)}`
+			}}
+		/>
+	);
+};
+
+const SettingsPath = ({crumbs, name, className, t}) => (
+	<div className={className ? `${css.path} ${className}` : css.path}>
+		<span className={css.pathGear}><SetupIcon name='settings' size={24} color={t.onSurfaceA(0.55)} /></span>
+		{crumbs.map((crumb) => (
+			<Fragment key={crumb}>
+				<span style={{color: t.onSurfaceA(0.6)}}>{crumb}</span>
+				<span className={css.pathChevron}><SetupIcon name='chevron_right' size={18} color={t.onSurfaceA(0.4)} /></span>
+			</Fragment>
+		))}
+		<span style={{color: t.onSurface, fontWeight: 600}}>{name}</span>
+	</div>
+);
 
 const TextButton = ({spotlightId, label, onSelect, onFocusChange, t, ...rest}) => {
 	const [focused, setFocused] = useState(false);
@@ -184,39 +193,6 @@ const PrimaryButton = ({spotlightId, label, onSelect, t, ...rest}) => {
 	);
 };
 
-const ThemeSwatch = ({theme, selected, onSelect, t}) => {
-	const [focused, setFocused] = useState(false);
-	const handleFocus = useCallback(() => setFocused(true), []);
-	const handleBlur = useCallback(() => setFocused(false), []);
-	const spec = resolveThemeById(theme.id);
-	return (
-		<SpottableDiv
-			spotlightId={`setup-wizard-theme-${theme.id}`}
-			className={css.themeSwatch}
-			onClick={onSelect}
-			onFocus={handleFocus}
-			onBlur={handleBlur}
-		>
-			<div
-				className={css.swatchBox}
-				style={{
-					background: `linear-gradient(to bottom right, ${toCssColor(spec.colors.surface)}, ${toCssColor(spec.colors.background)})`,
-					border: `${focused ? 4 : 2}px solid ${focused ? t.onSurface : t.onSurfaceA(selected ? 0.4 : 0.16)}`,
-					boxShadow: focused ? `0px 0px 36px ${t.onSurfaceA(0.3)}` : 'none'
-				}}
-			>
-				<div className={css.swatchInner}>
-					<div className={css.swatchAccentDot} style={{backgroundColor: toCssColor(spec.colors.accent)}} />
-					<div className={css.swatchBar} style={{backgroundColor: `rgba(${toRgbTriplet(spec.colors.onSurface)}, 0.7)`}} />
-				</div>
-			</div>
-			<div className={css.swatchLabel} style={{color: t.onSurfaceA(selected ? 1 : 0.62)}}>
-				{theme.displayName}
-			</div>
-		</SpottableDiv>
-	);
-};
-
 // The box a playback row sits in, lit up while focused.
 const panelStyle = (t, focused, radius) => ({
 	borderRadius: radius,
@@ -241,12 +217,13 @@ const SwitchValue = ({on, t}) => (
 
 // One playback setting: its name, an optional line under it, and its current
 // answer on the right.
-const SettingRow = ({spotlightId, label, hint, trailing, onSelect, t}) => {
+const SettingRow = ({spotlightId, label, hint, trailing, onSelect, t, ...rest}) => {
 	const [focused, setFocused] = useState(false);
 	const handleFocus = useCallback(() => setFocused(true), []);
 	const handleBlur = useCallback(() => setFocused(false), []);
 	return (
 		<SpottableDiv
+			{...rest}
 			spotlightId={spotlightId}
 			className={css.settingRow}
 			style={panelStyle(t, focused, 16)}
@@ -265,13 +242,14 @@ const SettingRow = ({spotlightId, label, hint, trailing, onSelect, t}) => {
 
 // A header that shows the current answers while folded, opening downwards
 // into its children when pressed.
-const CollapsibleSection = ({spotlightId, expanded, icon, title, badge, summary, onToggle, t, children}) => {
+const CollapsibleSection = ({spotlightId, expanded, icon, title, badge, summary, onToggle, t, children, ...rest}) => {
 	const [focused, setFocused] = useState(false);
 	const handleFocus = useCallback(() => setFocused(true), []);
 	const handleBlur = useCallback(() => setFocused(false), []);
 	return (
 		<div className={css.collapsible}>
 			<SpottableDiv
+				{...rest}
 				spotlightId={spotlightId}
 				className={css.collapsibleHeader}
 				style={panelStyle(t, focused, 20)}
@@ -347,62 +325,16 @@ const OptionPicker = ({title, options, current, descriptionOf, onPick, onClose, 
 	);
 };
 
-// The closing screen. Pick a look, the optional playback languages, then a
-// list of what else lives in Settings. Only the theme writes anything here,
-// the languages go out with the rest of the answers.
-const TourStep = ({t, playback}) => {
-	const {availableThemes, activeThemeId, selectThemeById} = useSettings();
-	const builtIns = availableThemes.filter((theme) => isBuiltInThemeId(theme.id));
-	const bullets = [
-		$L('Seerr requests'),
-		$L('SyncPlay watch parties'),
-		$L('Live TV'),
-		$L('Custom themes'),
-		$L('And plenty more')
-	];
-	return (
-		<div className={css.tourScroll} onFocus={keepFocusInView}>
-			<div className={css.tourLabel} style={{color: t.onSurfaceA(0.62)}}>{$L('Pick a look')}</div>
-			<div className={css.swatchRow}>
-				{builtIns.map((theme) => (
-					<ThemeSwatch
-						key={theme.id}
-						theme={theme}
-						selected={activeThemeId === theme.id}
-						// Written straight away rather than held back with the rest,
-						// because the point is that the wizard restyles around you as
-						// you move across the row.
-						onSelect={() => selectThemeById(theme.id)} // eslint-disable-line react/jsx-no-bind
-						t={t}
-					/>
-				))}
-			</div>
-			{playback}
-			<div className={css.tourMoreBox} style={{backgroundColor: t.onSurfaceA(0.04), border: `2px solid ${t.onSurfaceA(0.14)}`}}>
-				<div className={css.tourMoreHeader} style={{color: t.onSurface}}>
-					<SetupIcon name='settings' size={36} color={t.onSurface} style={{marginRight: 16}} />
-					{$L('There is more waiting in Settings')}
-				</div>
-				{bullets.map((entry) => (
-					<div key={entry} className={css.tourBullet} style={{color: t.onSurfaceA(0.65)}}>
-						<div className={css.tourBulletMark}>{'•'}</div>
-						<div>{entry}</div>
-					</div>
-				))}
-			</div>
-		</div>
-	);
-};
-
 const SetupWizard = ({onDone, backHandlerRef}) => {
 	const {api, serverUrl, user} = useAuth();
-	const {settings, initialSyncSettled, updateSettings, activeThemeId} = useSettings();
+	const {settings, initialSyncSettled, updateSettings, activeThemeId, availableThemes, selectThemeById} = useSettings();
 	const t = usePreviewPalette();
 
 	const [steps, setSteps] = useState([]);
 	const [index, setIndex] = useState(0);
 	const [ready, setReady] = useState(false);
-	const [advancing, setAdvancing] = useState(true);
+	// The option on the stage, which follows focus down the list.
+	const [previewed, setPreviewed] = useState(null);
 	const [answers, setAnswers] = useState({});
 	const [playbackExpanded, setPlaybackExpanded] = useState(false);
 	const [picker, setPicker] = useState(null);
@@ -464,13 +396,11 @@ const SetupWizard = ({onDone, backHandlerRef}) => {
 		// Costs nothing once artwork is in, and gives a slow server another
 		// chance to fill the previews before the next step shows them.
 		ensurePreviewItemsLoaded(api);
-		setAdvancing(true);
 		setIndex((value) => value + 1);
 	}, [api, finish]);
 
 	const goBack = useCallback(() => {
 		if (indexRef.current === 0) return;
-		setAdvancing(false);
 		setIndex((value) => value - 1);
 	}, []);
 
@@ -559,36 +489,44 @@ const SetupWizard = ({onDone, backHandlerRef}) => {
 		return held != null ? held : settings[settingKey];
 	}, [answers, settings]);
 
-	// Land focus on the choice already in effect, the way every step opens.
+	const info = step ? STEP_INFO[step] : null;
+
+	// The tour's choices are the built-in themes, with the same line under each.
+	const options = useMemo(() => {
+		if (!info) return [];
+		if (info.options) return info.options();
+		const desc = tourDescription();
+		return availableThemes
+			.filter((theme) => isBuiltInThemeId(theme.id))
+			.map((theme) => ({value: theme.id, label: theme.displayName, desc}));
+	}, [info, availableThemes]);
+
+	const selected = info && info.settingKey ? selectedFor(info.settingKey) : activeThemeId;
+	const shownValue = previewed && previewed.step === step ? previewed.value : selected;
+	const shown = options.find((option) => option.value === shownValue) || options[0];
+
+	// Land focus on the choice already in effect, the way every step opens. A
+	// value the list doesnt carry, like a custom theme, lands on the first row.
 	useEffect(() => {
-		if (!step) return;
-		const question = SETUP_QUESTION_STEPS.find((entry) => entry.step === step);
-		const target = question
-			? `setup-card-${step}-${selectedFor(question.settingKey)}`
-			: `setup-wizard-theme-${activeThemeId}`;
-		const timer = setTimeout(() => Spotlight.focus(target), 50);
+		if (!step || options.length === 0) return undefined;
+		const timer = setTimeout(() => {
+			if (!Spotlight.focus(rowIdFor(step, selected))) Spotlight.focus(rowIdFor(step, options[0].value));
+		}, 50);
 		return () => clearTimeout(timer);
 	}, [step]); // eslint-disable-line react-hooks/exhaustive-deps
-
-	const [bodyRef, bodySize] = useBodySize();
-
-	// Sized from the width the row gives each card and from the height the
-	// body can hold, so a focused card grows without running out of the step.
-	// labelAllowance is the room the text under the preview needs.
-	// The body is measured in screen pixels, while the gutter, the label room
-	// and the card's margin come from the stylesheet and grow with the UI
-	// scale, so they're scaled to match.
-	const cardWidthFor = useCallback((columns, rows, labelAllowance) => {
-		if (!bodySize.width) return 240;
-		const scale = rootScale();
-		const byWidth = (bodySize.width - CARD_GUTTER * scale * columns) / columns;
-		const byHeight = ((bodySize.height / rows) - (labelAllowance + 24) * scale) * (16 / 9);
-		return Math.floor(Math.min(840, Math.max(160, Math.min(byWidth, byHeight))));
-	}, [bodySize]);
 
 	const pick = useCallback((settingKey, value) => {
 		setAnswers((prev) => ({...prev, [settingKey]: value}));
 	}, []);
+
+	// Theme is written straight away rather than held back with the rest,
+	// because the point is that the wizard restyles around you.
+	const pickOption = useCallback((value) => {
+		if (info.settingKey) pick(info.settingKey, value);
+		else selectThemeById(value);
+	}, [info, pick, selectThemeById]);
+
+	const previewOption = useCallback((value) => setPreviewed({step, value}), [step]);
 
 	const openPicker = useCallback((next) => {
 		pickerOpenerRef.current = document.activeElement;
@@ -634,6 +572,8 @@ const SetupWizard = ({onDone, backHandlerRef}) => {
 				summary={[audioLabel, subtitlesOn ? subtitleLabel : null, modeLabel].filter(Boolean).join(' · ')}
 				onToggle={togglePlayback}
 				t={t}
+				data-spot-right={NEXT_TARGET}
+				data-spot-down={playbackExpanded ? undefined : NEXT_TARGET}
 			>
 				<SettingRow
 					spotlightId='setup-wizard-audioLanguage'
@@ -641,6 +581,7 @@ const SetupWizard = ({onDone, backHandlerRef}) => {
 					trailing={<ChosenValue label={audioLabel} t={t} />}
 					onSelect={() => openPicker({settingKey: 'audioLanguage', title: $L('Default Audio Language'), options: audioOptions, current: audio})} // eslint-disable-line react/jsx-no-bind
 					t={t}
+					data-spot-right={NEXT_TARGET}
 				/>
 				<SettingRow
 					spotlightId='setup-wizard-preferDefaultAudioTrack'
@@ -649,6 +590,7 @@ const SetupWizard = ({onDone, backHandlerRef}) => {
 					trailing={<SwitchValue on={Boolean(selectedFor('preferDefaultAudioTrack'))} t={t} />}
 					onSelect={togglePreferDefaultAudio}
 					t={t}
+					data-spot-right={NEXT_TARGET}
 				/>
 				{/* Mode stays above the language so hiding the language doesnt move the focused row. */}
 				<SettingRow
@@ -657,6 +599,8 @@ const SetupWizard = ({onDone, backHandlerRef}) => {
 					trailing={<ChosenValue label={modeLabel} t={t} />}
 					onSelect={() => openPicker({settingKey: 'subtitleMode', title: $L('Subtitle Mode'), options: modeOptions, current: mode, descriptionOf: subtitleModeDescription})} // eslint-disable-line react/jsx-no-bind
 					t={t}
+					data-spot-right={NEXT_TARGET}
+					data-spot-down={subtitlesOn ? undefined : NEXT_TARGET}
 				/>
 				{subtitlesOn && (
 					<SettingRow
@@ -665,6 +609,8 @@ const SetupWizard = ({onDone, backHandlerRef}) => {
 						trailing={<ChosenValue label={subtitleLabel} t={t} />}
 						onSelect={() => openPicker({settingKey: 'subtitleLanguage', title: $L('Default Subtitle Language'), options: subtitleOptions, current: subtitle})} // eslint-disable-line react/jsx-no-bind
 						t={t}
+						data-spot-right={NEXT_TARGET}
+						data-spot-down={NEXT_TARGET}
 					/>
 				)}
 			</CollapsibleSection>
@@ -675,130 +621,105 @@ const SetupWizard = ({onDone, backHandlerRef}) => {
 		skipFocusedRef.current = focused;
 	}, []);
 
-	const stepContent = useMemo(() => {
-		if (!step) return null;
-		if (step === 'navbar') {
-			const selected = selectedFor('navbarPosition');
-			const width = cardWidthFor(2, 1, 60);
-			return (
-				<div className={css.optionRow}>
-					<OptionCard spotlightId='setup-card-navbar-top' label={$L('Top Bar')} selected={selected === 'top'} preview={<NavbarPreview position='top' />} onSelect={() => pick('navbarPosition', 'top')} width={width} t={t} /> {/* eslint-disable-line react/jsx-no-bind */}
-					<OptionCard spotlightId='setup-card-navbar-left' label={$L('Left Sidebar')} selected={selected === 'left'} preview={<NavbarPreview position='left' />} onSelect={() => pick('navbarPosition', 'left')} width={width} t={t} data-spot-right={NEXT_TARGET} /> {/* eslint-disable-line react/jsx-no-bind */}
-				</div>
-			);
-		}
-		if (step === 'mediaBar') {
-			const selected = selectedFor('featuredBarStyle');
-			const width = cardWidthFor(MEDIA_BAR_COLUMNS, 2, 60);
-			// Capping the row keeps the wrap at four. A card sized down to fit
-			// the height would otherwise let a fifth slip onto the line. The
-			// spare pixel keeps rounding in the scaled margins from wrapping the
-			// fourth, and is far too little to let a fifth in.
-			const rowStyle = {
-				maxWidth: MEDIA_BAR_COLUMNS * (width + CARD_GUTTER * rootScale()) + 1,
-				margin: '0 auto'
-			};
-			return (
-				<div className={css.optionRow} style={rowStyle}>
-					{MEDIA_BAR_MODES.map((mode) => (
-						<OptionCard
-							key={mode}
-							spotlightId={`setup-card-mediaBar-${mode}`}
-							label={mediaBarLabel(mode)}
-							selected={selected === mode}
-							preview={<MediaBarPreview mode={mode} />}
-							onSelect={() => pick('featuredBarStyle', mode)} // eslint-disable-line react/jsx-no-bind
-							width={width}
-							t={t}
-							data-spot-right={mode === MEDIA_BAR_MODES[MEDIA_BAR_MODES.length - 1] ? NEXT_TARGET : undefined}
-						/>
-					))}
-				</div>
-			);
-		}
-		if (step === 'homeRows') {
-			const selected = selectedFor('homeRowsStyle');
-			const width = cardWidthFor(2, 1, 110);
-			return (
-				<div className={css.optionRow}>
-					<OptionCard spotlightId='setup-card-homeRows-v1' label={$L('Classic')} hint={$L('Compact. More rows on screen at once.')} selected={selected === 'v1'} preview={<HomeRowsPreview modern={false} />} onSelect={() => pick('homeRowsStyle', 'v1')} width={width} t={t} /> {/* eslint-disable-line react/jsx-no-bind */}
-					<OptionCard spotlightId='setup-card-homeRows-v2' label={$L('Modern')} hint={$L('Larger cards with titles underneath.')} selected={selected === 'v2'} preview={<HomeRowsPreview modern />} onSelect={() => pick('homeRowsStyle', 'v2')} width={width} t={t} data-spot-right={NEXT_TARGET} /> {/* eslint-disable-line react/jsx-no-bind */}
-				</div>
-			);
-		}
-		if (step === 'detailStyle') {
-			const selected = selectedFor('detailScreenStyle');
-			const width = cardWidthFor(5, 1, 110);
-			return (
-				<div className={css.optionRow}>
-					<OptionCard spotlightId='setup-card-detailStyle-v1' label={$L('Classic')} hint={$L('Everything centred in one stack.')} selected={selected === 'v1'} preview={<DetailStylePreview variant='v1' />} onSelect={() => pick('detailScreenStyle', 'v1')} width={width} t={t} /> {/* eslint-disable-line react/jsx-no-bind */}
-					<OptionCard spotlightId='setup-card-detailStyle-v2' label={$L('Modern')} hint={$L('Cinematic, with tabs for cast and extras.')} selected={selected === 'v2'} preview={<DetailStylePreview variant='v2' />} onSelect={() => pick('detailScreenStyle', 'v2')} width={width} t={t} /> {/* eslint-disable-line react/jsx-no-bind */}
-					<OptionCard spotlightId='setup-card-detailStyle-v3' label={$L('Spotlight')} hint={$L('Artwork first, with cards that open what they name.')} selected={selected === 'v3'} preview={<DetailStylePreview variant='v3' />} onSelect={() => pick('detailScreenStyle', 'v3')} width={width} t={t} /> {/* eslint-disable-line react/jsx-no-bind */}
-					<OptionCard spotlightId='setup-card-detailStyle-v4' label={$L('Nouveau')} hint={$L('Every section stacked down one page.')} selected={selected === 'v4'} preview={<DetailStylePreview variant='v4' />} onSelect={() => pick('detailScreenStyle', 'v4')} width={width} t={t} /> {/* eslint-disable-line react/jsx-no-bind */}
-					<OptionCard spotlightId='setup-card-detailStyle-v5' label={$L('Minimalist')} hint={$L('Artwork, one play button and the episodes.')} selected={selected === 'v5'} preview={<DetailStylePreview variant='v5' />} onSelect={() => pick('detailScreenStyle', 'v5')} width={width} t={t} data-spot-right={NEXT_TARGET} /> {/* eslint-disable-line react/jsx-no-bind */}
-				</div>
-			);
-		}
-		return <TourStep t={t} playback={playbackSection} />;
-	}, [step, selectedFor, cardWidthFor, pick, playbackSection, t]);
+	const mediaBarMode = selectedFor('featuredBarStyle');
+	// Kept as one element so a render that leaves the stage alone, like focus
+	// moving between buttons, doesnt rebuild the preview.
+	const stage = useMemo(() => (shown ? stagePreview(step, shown.value, mediaBarMode) : null), [step, shown, mediaBarMode]);
 
 	const isLast = ready && index >= steps.length - 1;
+	const lastOption = options.length - 1;
 
 	return (
 		<div className={css.root} style={{backgroundColor: t.background}}>
-			<div
-				className={css.surface}
-				style={{
-					background: `linear-gradient(to bottom right, ${t.backgroundA(0.97)}, ${t.surfaceA(0.96)})`,
-					border: `2px solid ${t.onSurfaceA(0.22)}`,
-					boxShadow: `0px 0px 80px 2px ${t.scrimA(0.35)}`
-				}}
-			>
-				{!ready && (
-					<div className={css.loadingBox}>
-						<LoadingSpinner />
-					</div>
-				)}
-				{ready && (
-					<>
-						<div className={css.topBar}>
-							<div className={css.stepDots}>
-								{steps.map((name, i) => (
-									<div key={name} className={css.stepDot} style={{backgroundColor: i === index ? t.onSurface : t.onSurfaceA(0.24)}} />
-								))}
-							</div>
-							<TextButton
-								spotlightId='setup-wizard-skip'
-								label={$L('Skip setup')}
-								onSelect={skip}
-								onFocusChange={handleSkipFocusChange}
-								t={t}
-							/>
+			{!ready && (
+				<div className={css.loadingBox}>
+					<LoadingSpinner />
+				</div>
+			)}
+			{ready && info && (
+				<>
+					<div className={css.header}>
+						<div className={css.segments}>
+							{steps.map((name, i) => {
+								let color = t.onSurfaceA(0.18);
+								if (i < index) color = t.onSurface;
+								else if (i === index) color = t.accent;
+								return <div key={name} className={css.segment} style={{backgroundColor: color}} />;
+							})}
 						</div>
+						<div className={css.stepText} style={{color: t.onSurfaceA(0.6)}}>
+							{$L('Step {n} of {total}').replace('{n}', String(index + 1)).replace('{total}', String(steps.length))}
+						</div>
+						<div className={css.chip} style={{backgroundColor: t.onSurfaceA(0.08), borderColor: t.onSurfaceA(0.16), color: t.onSurface}}>
+							{info.settingName()}
+						</div>
+						<div className={css.headerSpacer} />
+						<TextButton
+							spotlightId='setup-wizard-skip'
+							label={$L('Skip setup')}
+							onSelect={skip}
+							onFocusChange={handleSkipFocusChange}
+							t={t}
+						/>
+					</div>
+					<div className={css.column} onFocus={keepColumnInView}>
 						<div className={css.question} style={{color: t.onSurface}}>
 							{questionFor(step)}
 						</div>
-						<div className={css.stepBody} ref={bodyRef}>
-							<div key={step} className={`${css.stepInner} ${step === 'tour' ? css.stepInnerTour : ''} ${advancing ? css.stepEnterForward : css.stepEnterBackward}`}>
-								{stepContent}
-							</div>
+						<div className={css.optionList}>
+							{options.map((option, i) => (
+								<OptionRow
+									key={option.value}
+									spotlightId={rowIdFor(step, option.value)}
+									value={option.value}
+									label={option.label}
+									selected={option.value === selected}
+									swatch={info.settingKey ? null : <ThemeSwatch themeId={option.value} t={t} />}
+									onPick={pickOption}
+									onPreview={previewOption}
+									t={t}
+									data-spot-up={i === 0 ? SKIP_TARGET : undefined}
+									data-spot-down={i === lastOption && step !== 'tour' ? NEXT_TARGET : undefined}
+									data-spot-right={NEXT_TARGET}
+								/>
+							))}
 						</div>
-						<div className={css.actions}>
+						{playbackSection}
+						{playbackSection && (
+							<SettingsPath crumbs={LANGUAGE_PATH.crumbs()} name={LANGUAGE_PATH.settingName()} className={css.languagePath} t={t} />
+						)}
+					</div>
+					<div className={css.stage} style={{backgroundColor: t.surface, borderColor: t.onSurfaceA(0.2)}}>
+						{stage}
+					</div>
+					{shown && (
+						<div className={css.caption}>
+							<div className={css.captionName} style={{color: t.onSurface}}>{shown.label}</div>
+							<div className={css.captionDesc} style={{color: t.onSurfaceA(0.62)}}>{shown.desc}</div>
+							<SettingsPath crumbs={info.crumbs()} name={info.settingName()} t={t} />
+						</div>
+					)}
+					<div className={css.footer}>
+						<div className={css.footerSlot}>
 							{index > 0 && (
 								<TextButton spotlightId='setup-wizard-back' label={$L('Back')} onSelect={goBack} t={t} data-spot-right={NEXT_TARGET} />
 							)}
-							<div className={css.actionsSpacer} />
+						</div>
+						<div className={css.hint} style={{color: t.onSurfaceA(0.5)}}>
+							{$L('Up and down to preview · OK to choose · Back twice to skip')}
+						</div>
+						<div className={`${css.footerSlot} ${css.footerSlotEnd}`}>
 							<PrimaryButton
 								spotlightId='setup-wizard-next'
 								label={isLast ? $L('Done') : $L('Next')}
 								onSelect={advance}
 								t={t}
-								data-spot-left={index > 0 ? BACK_TARGET : undefined}
+								data-spot-left={index > 0 ? BACK_TARGET : `[data-spotlight-id="${rowIdFor(step, shown ? shown.value : '')}"]`}
 							/>
 						</div>
-					</>
-				)}
-			</div>
+					</div>
+				</>
+			)}
 			{picker && (
 				<OptionPicker
 					title={picker.title}

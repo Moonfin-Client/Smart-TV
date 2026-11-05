@@ -8,17 +8,23 @@ import {useSettings} from '../../context/SettingsContext';
 import * as jellyfinApi from '../../services/jellyfinApi';
 import * as embyConnect from '../../services/embyConnect';
 import * as plexTv from '../../services/plexTv';
+import {probeSilo} from '../../services/siloApi';
 import * as multiServerManager from '../../services/multiServerManager';
 import {discoverLocalServers} from '../../services/serverDiscovery';
 import {generateCandidates, normalizeServerBaseUrl, quickConnectApprovalUrl} from '../../utils/serverUrl';
 import {drawQrCode} from '../../utils/qrCanvas';
-import {classifyError, detectServerType, getConnectionMessage, getSignInMessage, isSignInForbidden, isVersionSupported, supportsQuickConnectWebLink, INVALID_ADDRESS, SERVER_NOT_JELLYFIN, INSECURE_CERT, MIN_SERVER_VERSION} from '../../utils/connectionErrors';
+import {classifyError, detectServerType, getConnectionMessage, getSignInMessage, isSignInForbidden, isVersionSupported, supportsQuickConnectWebLink, INVALID_ADDRESS, SERVER_NOT_JELLYFIN, VERSION_UNSUPPORTED, INSECURE_CERT, MIN_SERVER_VERSION} from '../../utils/connectionErrors';
 import {KEYS} from '../../utils/keys';
 import SpottableInput from '../../components/SpottableInput/SpottableInput';
 import {subscribeTvKeyboardVisibility} from '../../components/TVKeyboard/keyboardBus';
-import {MaterialIcon, ServerTypeIcon} from './loginIcons';
+import {MaterialIcon} from '../../components/icons/materialIcons';
+import {CoreAlertDialog} from '../../components/CoreDialog';
+import ProfileCarousel, {PillButton, PillRow} from '../../components/ProfileCarousel';
+import {BRAND_NAMES, ServerTypeIcon} from './loginIcons';
 import {forgottenPinUsername, noteProvedSignIn} from '../../utils/signInPin';
+import {siloNewPasswordIssue, siloNewPasswordMessage} from './siloNewPassword';
 
+import logoAndText from './logo_and_text.png';
 import css from './Login.module.less';
 
 const SpottableButton = Spottable('button');
@@ -35,8 +41,14 @@ const LONG_PRESS_DELAY = 500;
 
 const focusLater = (id) => setTimeout(() => Spotlight.focus(`[data-spotlight-id="${id}"]`), 100);
 
-const formatQuickConnectCode = (code) => (code.length === 6 ? `${code.slice(0, 3)} ${code.slice(3)}` : code);
+// Jellyfin's six digits read 3+3, Silo's eight 4+4.
+const formatQuickConnectCode = (code) => {
+	if (code.length === 6) return `${code.slice(0, 3)} ${code.slice(3)}`;
+	if (code.length === 8) return `${code.slice(0, 4)} ${code.slice(4)}`;
+	return code;
+};
 
+// Silo's device sign-in stands in for Quick Connect.
 const hasQuickConnect = (target) => target?.serverType !== 'emby' && target?.serverType !== 'plex';
 
 // plex.tv asks apps to check a code once a second.
@@ -48,6 +60,11 @@ const plexAccountToken = (accounts, serverId) => accounts
 	.sort((a, b) => String(b.lastConnected || '').localeCompare(String(a.lastConnected || '')))[0]?.plexToken || null;
 
 const plexErrorMessage = (err) => (err?.status === 401 ? getSignInMessage(err) : getConnectionMessage(classifyError(err)));
+
+// These say more than the general advice to check the address, so the add dialog keeps their own line.
+const SPECIFIC_FAILURES = [INVALID_ADDRESS, SERVER_NOT_JELLYFIN, VERSION_UNSUPPORTED];
+
+const FOUND_TILES = {emby: css.tileEmby, silo: css.tileSilo};
 
 // Where a press should land once the password half of the screen is showing
 const credentialFocusTarget = (user) => {
@@ -99,8 +116,14 @@ const Login = ({
 	const [signInUser, setSignInUser] = useState(null);
 	const [username, setUsername] = useState('');
 	const [password, setPassword] = useState('');
+	// A Silo account signed in with a temporary password, waiting for a new one: {minimumLength}.
+	const [passwordChange, setPasswordChange] = useState(null);
 	const [showQuickConnect, setShowQuickConnect] = useState(false);
 	const [quickConnectCode, setQuickConnectCode] = useState(null);
+	// Silo names its own approval page, with the code filled in.
+	const [quickConnectLink, setQuickConnectLink] = useState(null);
+	// Bumped when a code ran out, so a fresh one is asked for.
+	const [quickConnectRound, setQuickConnectRound] = useState(0);
 	const [connectServers, setConnectServers] = useState([]);
 	const [connectSession, setConnectSession] = useState(null);
 	const [error, setError] = useState(null);
@@ -114,6 +137,7 @@ const Login = ({
 	const [plexNeedsCode, setPlexNeedsCode] = useState(false);
 
 	const pageRef = useRef(null);
+	const panelRef = useRef(null);
 	const quickConnectTimer = useRef(null);
 	const qrCanvasRef = useRef(null);
 	const bootstrapped = useRef(false);
@@ -133,8 +157,9 @@ const Login = ({
 
 	// The QR sits beside the code and the buttons, so its room is kept while the code
 	// is still on its way instead of the card jumping when it arrives.
-	const showQuickConnectQr = supportsQuickConnect && showQuickConnect && supportsQuickConnectWebLink(server?.version);
-	const quickConnectQrUrl = showQuickConnectQr ? quickConnectApprovalUrl(server?.url, quickConnectCode) : null;
+	const onSilo = server?.serverType === 'silo';
+	const showQuickConnectQr = supportsQuickConnect && showQuickConnect && (onSilo ? Boolean(quickConnectLink) : supportsQuickConnectWebLink(server?.version));
+	const quickConnectQrUrl = showQuickConnectQr ? (onSilo ? quickConnectLink : quickConnectApprovalUrl(server?.url, quickConnectCode)) : null;
 
 	useEffect(() => {
 		drawQrCode(qrCanvasRef.current, quickConnectQrUrl);
@@ -165,12 +190,14 @@ const Login = ({
 			if (!visible || !anchor) return;
 			clearTimeout(scrollTimer);
 			scrollTimer = setTimeout(() => {
-				const page = pageRef.current;
-				if (!page) return;
+				const panel = panelRef.current;
+				const inPanel = panel && panel.contains(anchor);
+				const scroller = inPanel ? panel : pageRef.current;
+				if (!scroller) return;
 				const field = anchor.getBoundingClientRect();
-				const view = page.getBoundingClientRect();
-				const delta = field.top - view.top - view.height * 0.12;
-				if (delta > 0) page.scrollTop += delta;
+				const view = scroller.getBoundingClientRect();
+				const delta = field.top - view.top - (inPanel ? 0 : view.height * 0.12);
+				if (delta > 0) scroller.scrollTop += delta;
 			}, 200);
 		});
 		return () => {
@@ -185,6 +212,7 @@ const Login = ({
 			quickConnectTimer.current = null;
 		}
 		setQuickConnectCode(null);
+		setQuickConnectLink(null);
 	}, []);
 
 	useEffect(() => () => {
@@ -437,7 +465,7 @@ const Login = ({
 	const probeServer = useCallback(async (input) => {
 		const candidates = generateCandidates(input);
 		if (candidates.length === 0) {
-			return {error: getConnectionMessage(INVALID_ADDRESS)};
+			return {error: getConnectionMessage(INVALID_ADDRESS), errorType: INVALID_ADDRESS};
 		}
 
 		// The probe asks the Jellyfin way, even when a Plex server was signed in before.
@@ -448,6 +476,22 @@ const Login = ({
 			jellyfinApi.setServer(candidate);
 
 			try {
+				// Silo's own API is asked first: its web app answers Jellyfin's probe with a page.
+				const siloInfo = await probeSilo(candidate);
+				if (siloInfo) {
+					jellyfinApi.setServerType('silo');
+					return {
+						server: {
+							serverId: null,
+							url: candidate,
+							name: siloInfo.ServerName || candidate,
+							serverType: 'silo',
+							version: siloInfo.Version || null,
+							loginDisclaimer: siloInfo.LoginDisclaimer || null
+						}
+					};
+				}
+
 				const info = await jellyfinApi.api.getPublicInfo();
 				if (!info) continue;
 
@@ -462,7 +506,8 @@ const Login = ({
 					return {
 						error: $L('Server version {version} is not supported. Minimum: {minimum}.')
 							.replace('{version}', info.Version)
-							.replace('{minimum}', MIN_SERVER_VERSION)
+							.replace('{minimum}', MIN_SERVER_VERSION),
+						errorType: VERSION_UNSUPPORTED
 					};
 				}
 
@@ -478,6 +523,14 @@ const Login = ({
 					}
 				};
 			} catch (err) {
+				if (err.siloApiUnsupported) {
+					return {
+						error: err.serverIsNewer
+							? $L('This Silo server needs a newer version of Moonfin. Update Moonfin to use it.')
+							: $L('This Silo server is too old for this version of Moonfin. Update Silo to use it.'),
+						errorType: VERSION_UNSUPPORTED
+					};
+				}
 				const errType = classifyError(err);
 				// A cert rejection (from the https candidate / proxy probe) is the
 				// most actionable diagnosis, don't let a weaker network failure
@@ -488,7 +541,7 @@ const Login = ({
 			}
 		}
 
-		return {error: getConnectionMessage(lastErrorType)};
+		return {error: getConnectionMessage(lastErrorType), errorType: lastErrorType};
 	}, []);
 
 	const connectTo = useCallback(async (input, {inDialog = false} = {}) => {
@@ -497,7 +550,7 @@ const Login = ({
 		else setError(null);
 
 		const result = await probeServer(input);
-		// Only Jellyfin and Emby answer that probe, so a Plex server goes to its plex.tv sign in.
+		// Only Jellyfin, Emby and Silo answer that probe, so a Plex server goes to its plex.tv sign in.
 		const plex = result.error ? await plexTv.findServerAt(input) : null;
 		setStatus(null);
 		setIsConnecting(false);
@@ -508,7 +561,7 @@ const Login = ({
 		}
 
 		if (result.error) {
-			if (inDialog) setDialogError(result.error);
+			if (inDialog) setDialogError(result);
 			else setError(result.error);
 			focusLater(inDialog ? 'add-connect-btn' : 'add-server-btn');
 			return;
@@ -602,13 +655,57 @@ const Login = ({
 			finishLogin(result);
 			return true;
 		} catch (err) {
-			setError(getSignInMessage(err));
 			setStatus(null);
+			if (err.code === 'password_change_required') {
+				// The password just typed is the temporary one, which Silo won't take back as the new one.
+				setPasswordChange({minimumLength: err.minimumLength || 0, maximumBytes: err.maximumBytes || 0, temporaryPassword: secret});
+				setPassword('');
+				focusLater('password-input');
+				return false;
+			}
+			setError(err.code === 'password_change_unavailable'
+				? $L("This account's password has to be changed in Silo's web app before signing in here.")
+				: getSignInMessage(err));
 			return false;
 		} finally {
 			setIsConnecting(false);
 		}
 	}, [server, login, isAdding, finishLogin]);
+
+	// Replaces the temporary password the sign-in stopped on, then finishes signing in.
+	const changeRequiredPassword = useCallback(async () => {
+		if (!password) return;
+		const issue = siloNewPasswordIssue({newPassword: password, ...passwordChange});
+		if (issue) {
+			setError(siloNewPasswordMessage(issue, passwordChange?.minimumLength));
+			return;
+		}
+		setIsConnecting(true);
+		setError(null);
+		setStatus(isAdding ? $L('Adding user...') : $L('Signing in...'));
+		try {
+			const authResult = await jellyfinApi.api.changeRequiredPassword(password);
+			setPasswordChange(null);
+			setPassword('');
+			const result = await loginWithToken(jellyfinApi.getServerUrl(), authResult, {
+				serverName: server?.name, serverType: server?.serverType, serverVersion: server?.version,
+				isAddingNewServer: isAdding, switchToNewUser: true
+			});
+			finishLogin(result);
+		} catch (err) {
+			if (err.code === 'password_changed_sign_in' || err.status === 401) {
+				setPasswordChange(null);
+				setPassword('');
+				setError($L('The password changed. Sign in with the new one.'));
+			} else {
+				// Silo says why a new password was refused (too short, too long).
+				setError(err.status === 422 || err.status === 400 ? err.message : getSignInMessage(err));
+			}
+		} finally {
+			setIsConnecting(false);
+			setStatus(null);
+		}
+	}, [password, passwordChange, isAdding, loginWithToken, server, finishLogin]);
 
 	// A Plex Home member signs in with their own plex.tv token, from a switch that checks their PIN, and the server token
 	// plex.tv gives them.
@@ -687,6 +784,12 @@ const Login = ({
 	const pollQuickConnect = useCallback(async (secret) => {
 		try {
 			const state = await jellyfinApi.api.getQuickConnectState(secret);
+			// A Silo code that ran out (or was declined) is done; the screen asks for a fresh one.
+			if (state.Expired) {
+				stopQuickConnect();
+				setQuickConnectRound((n) => n + 1);
+				return;
+			}
 			if (!state.Authenticated) return;
 
 			stopQuickConnect();
@@ -724,6 +827,7 @@ const Login = ({
 			const result = await jellyfinApi.api.initiateQuickConnect();
 			if (!result?.Code || !result?.Secret) return;
 			setQuickConnectCode(result.Code);
+			setQuickConnectLink(result.VerificationUriComplete || null);
 			quickConnectTimer.current = setInterval(() => pollQuickConnect(result.Secret), QUICK_CONNECT_POLL);
 			focusLater('back-btn');
 		} catch {
@@ -737,7 +841,7 @@ const Login = ({
 		if (quickConnectTimer.current || quickConnectCode) return;
 		startQuickConnect();
 	// eslint-disable-next-line react-hooks/exhaustive-deps
-	}, [step, showQuickConnect, supportsQuickConnect]);
+	}, [step, showQuickConnect, supportsQuickConnect, quickConnectRound]);
 
 	const selectQuickConnect = useCallback(() => {
 		if (showQuickConnect) return;
@@ -924,12 +1028,16 @@ const Login = ({
 		focusLater('add-address-input');
 	}, []);
 
-	const openAddDialog = useCallback(() => {
-		setAddressValue('');
+	const showChooseStep = useCallback(() => {
 		setDialogError(null);
 		setDialog({kind: 'add', step: 'choose'});
 		focusLater('add-choice-address');
 	}, []);
+
+	const openAddDialog = useCallback(() => {
+		setAddressValue('');
+		showChooseStep();
+	}, [showChooseStep]);
 
 	const handleBack = useCallback(() => {
 		if (step === 'plex' || step === 'plex-servers') {
@@ -952,7 +1060,7 @@ const Login = ({
 		}
 		if (dialog) {
 			if (dialog.step === 'found') showAddressStep();
-			else if (dialog.step === 'address' && !isConnecting) openAddDialog();
+			else if (dialog.step === 'address' && !isConnecting) showChooseStep();
 			else if (!isConnecting) closeDialog();
 			return true;
 		}
@@ -968,6 +1076,15 @@ const Login = ({
 			return true;
 		}
 		if (step === 'signin') {
+			if (passwordChange) {
+				// Giving up the change ends the login it was waiting on.
+				setPasswordChange(null);
+				setPassword('');
+				setError(null);
+				jellyfinApi.api.cancelRequiredPasswordChange?.();
+				focusLater('password-input');
+				return true;
+			}
 			stopQuickConnect();
 			if (users.length > 0) {
 				setStep('users');
@@ -987,7 +1104,7 @@ const Login = ({
 			return true;
 		}
 		return false;
-	}, [dialog, closeDialog, showAddressStep, openAddDialog, isConnecting, step, users.length, isAdding, goToServers, stopQuickConnect, cancelAddServerFlow, onServerAdded, plexUsePassword, stopPlexPolling, requestPlexPin]);
+	}, [dialog, closeDialog, showAddressStep, showChooseStep, isConnecting, step, users.length, isAdding, goToServers, stopQuickConnect, cancelAddServerFlow, onServerAdded, plexUsePassword, stopPlexPolling, requestPlexPin, passwordChange]);
 
 	useEffect(() => {
 		if (!backHandlerRef) return undefined;
@@ -1077,24 +1194,44 @@ const Login = ({
 		focusLater('add-server-btn');
 	}, [dialog, removeServerEntry]);
 
-	const handleUserClick = useCallback((e) => {
-		const {userId} = e.currentTarget.dataset;
-		const user = users.find((item) => String(item.id) === String(userId));
+	const handleUserActivate = useCallback((item) => {
+		const user = users.find((entry) => String(entry.id) === String(item.id));
 		if (user) handleUserSelect(user);
 	}, [users, handleUserSelect]);
+
+	// A token resumes without asking, so only someone without one is told what they'll need.
+	const userCarouselItems = useMemo(() => users.map((user) => {
+		const pin = !user.hasToken && user.plexHome && user.hasPassword;
+		let line = null;
+		if (user.hasToken) line = {text: $L('Signed in on this device')};
+		else if (pin) line = {text: $L('PIN required'), lock: true};
+		else if (user.hasPassword) line = {text: $L('Password required')};
+		return {
+			key: user.id,
+			id: user.id,
+			name: user.name,
+			imageUrl: user.imageTag ? jellyfinApi.getUserImageUrl(jellyfinApi.getServerUrl(), user.id, user.imageTag, server?.serverType) : null,
+			badge: pin ? 'pin' : null,
+			lines: line ? [line] : []
+		};
+	}), [users, server]);
 
 	const handleAddUser = useCallback(() => {
 		if (server) goToSignIn(server, null);
 	}, [server, goToSignIn]);
 
 	const handleSignIn = useCallback(() => {
+		if (passwordChange) {
+			changeRequiredPassword();
+			return;
+		}
 		if (server?.serverType === 'plex') {
 			signInPlexHome(signInUser, password);
 			return;
 		}
 		if (!username.trim()) return;
 		signIn(username.trim(), password);
-	}, [server, signInUser, username, password, signIn, signInPlexHome]);
+	}, [server, signInUser, username, password, signIn, signInPlexHome, passwordChange, changeRequiredPassword]);
 
 	const handlePlexCodeChange = useCallback((e) => setPlexCode(e.target.value), []);
 
@@ -1167,134 +1304,103 @@ const Login = ({
 		</SpottableDiv>
 	);
 
-	const renderServers = () => {
-		const actions = [
-			<SpottableButton
-				key="add"
-				data-spotlight-id="add-server-btn"
-				className={css.outlineButton}
-				onClick={openAddDialog}
-				disabled={isConnecting}
-			>
-				<MaterialIcon name="add" className={css.outlineButtonIcon} />
-				{$L('Add Server')}
-			</SpottableButton>
-		];
+	const renderServers = () => (
+		<FocusArea className={css.card}>
+			{uniqueServers.length > 0 && (
+				<div>
+					<div className={css.sectionTitle}>{$L('Saved Servers')}</div>
+					{uniqueServers.map((entry, index) => renderTile({
+						key: entry.serverId,
+						spotlightId: `saved-${index}`,
+						serverType: entry.serverType,
+						name: entry.name,
+						detail: entry.version ? `${foundAt(entry)} • ${entry.version}` : foundAt(entry),
+						'data-server-id': entry.serverId,
+						onClick: handleSavedClick,
+						onKeyDown: handleSavedKeyDown,
+						onKeyUp: handleSavedKeyUp
+					}))}
+				</div>
+			)}
 
-		if (isAdding) {
-			actions.push(
-				<SpottableButton
-					key="cancel"
-					data-spotlight-id="cancel-add-btn"
-					className={css.outlineButton}
-					onClick={handleBack}
-				>
-					{$L('Cancel')}
-				</SpottableButton>
-			);
-		}
-
-		return (
-			<FocusArea className={css.card}>
-				{uniqueServers.length > 0 && (
-					<div>
-						<div className={css.sectionTitle}>{$L('Saved Servers')}</div>
-						{uniqueServers.map((entry, index) => renderTile({
-							key: entry.serverId,
-							spotlightId: `saved-${index}`,
-							serverType: entry.serverType,
-							name: entry.name,
-							detail: entry.version ? `${foundAt(entry)} • ${entry.version}` : foundAt(entry),
-							'data-server-id': entry.serverId,
-							onClick: handleSavedClick,
-							onKeyDown: handleSavedKeyDown,
-							onKeyUp: handleSavedKeyUp
-						}))}
-					</div>
+			<div className={uniqueServers.length > 0 ? css.sectionGap : ''}>
+				<div className={css.sectionTitle}>{$L('Discovered Servers')}</div>
+				{listedDiscovered.length > 0
+					? listedDiscovered.map((found, index) => renderTile({
+						key: found.id,
+						spotlightId: `discovered-${index}`,
+						serverType: found.serverType,
+						name: found.name,
+						detail: found.address,
+						'data-index': index,
+						onClick: handleDiscoveredClick
+					}))
+					: isDiscovering
+						? <div className={css.spinnerRow}><div className={css.spinner} /></div>
+						: <div className={css.emptyHint}>{$L('None found')}</div>}
+				{isDiscovering && listedDiscovered.length > 0 && (
+					<div className={css.spinnerRowTight}><div className={`${css.spinner} ${css.spinnerSmall}`} /></div>
 				)}
-
-				<div className={uniqueServers.length > 0 ? css.formBlock : ''}>
-					<div className={css.sectionTitle}>{$L('Discovered Servers')}</div>
-					{listedDiscovered.length > 0
-						? listedDiscovered.map((found, index) => renderTile({
-							key: found.id,
-							spotlightId: `discovered-${index}`,
-							serverType: found.serverType,
-							name: found.name,
-							detail: found.address,
-							'data-index': index,
-							onClick: handleDiscoveredClick
-						}))
-						: isDiscovering
-							? <div className={css.spinnerRow}><div className={css.spinner} /></div>
-							: <div className={css.emptyHint}>{$L('None found')}</div>}
-					{isDiscovering && listedDiscovered.length > 0 && (
-						<div className={css.spinnerRowTight}><div className={`${css.spinner} ${css.spinnerSmall}`} /></div>
-					)}
-				</div>
-
-				{error && <div className={css.errorText}>{error}</div>}
-
-				<div className={`${css.actionRow} ${actions.length === 2 ? '' : css.actionColumn}`}>
-					{actions}
-				</div>
-			</FocusArea>
-		);
-	};
-
-	const renderUsers = () => (
-		<FocusArea className={`${css.card} ${css.cardCentered}`}>
-			<p className={css.serverLabel}>{server?.name}</p>
-			<h1 className={css.title}>{$L("Who's watching?")}</h1>
-			{server?.loginDisclaimer && <p className={css.disclaimer}>{server.loginDisclaimer}</p>}
-
-			<div className={css.userRow}>
-				<div className={css.userRowInner}>
-					{users.map((user, index) => (
-						<SpottableDiv
-							key={user.id}
-							data-spotlight-id={`user-${index}`}
-							data-user-id={user.id}
-							className={css.userCard}
-							onClick={handleUserClick}
-						>
-							{user.imageTag ? (
-								<img
-									src={jellyfinApi.getUserImageUrl(jellyfinApi.getServerUrl(), user.id, user.imageTag, server?.serverType)}
-									alt={user.name}
-									className={css.userAvatar}
-								/>
-							) : (
-								<div className={css.userAvatarPlaceholder}>
-									<MaterialIcon name="personFilled" className={css.placeholderIcon} />
-								</div>
-							)}
-							<div className={css.userName}>{user.name}</div>
-						</SpottableDiv>
-					))}
-				</div>
 			</div>
 
 			{error && <div className={css.errorText}>{error}</div>}
 
-			<div className={`${css.actionRow} ${css.actionRowWide}`}>
+			<div className={css.actionRow}>
 				<SpottableButton
-					data-spotlight-id="add-user-btn"
-					className={css.outlineButton}
-					onClick={handleAddUser}
+					data-spotlight-id="add-server-btn"
+					className={css.addServerButton}
+					onClick={openAddDialog}
+					disabled={isConnecting}
 				>
-					<MaterialIcon name="person" className={css.outlineButtonIcon} />
-					{$L('Add User')}
-				</SpottableButton>
-				<SpottableButton
-					data-spotlight-id="select-server-btn"
-					className={css.outlineButton}
-					onClick={goToServers}
-				>
-					<MaterialIcon name="home" className={css.outlineButtonIcon} />
-					{$L('Select Server')}
+					<span className={css.addServerPlus}>
+						<MaterialIcon name="addRounded" className={css.addServerPlusIcon} />
+					</span>
+					<span className={css.addServerText}>
+						<span className={css.addServerTitle}>{$L('Add Server')}</span>
+						<span className={css.addServerSubtitle}>{$L('By address, or with a Plex or Emby Connect account')}</span>
+					</span>
+					{['jellyfin', 'emby', 'plex', 'silo'].map((type) => (
+						<ServerTypeIcon key={type} serverType={type} className={css.addServerBrand} />
+					))}
 				</SpottableButton>
 			</div>
+		</FocusArea>
+	);
+
+	// The carousel takes the whole screen, so this step draws its own logo and status.
+	const renderUsers = () => (
+		<FocusArea className={css.usersScreen}>
+			<div className={css.usersTop}>
+				<img src={logoAndText} alt="Moonfin" className={css.usersLogo} />
+				{server?.name && (
+					<span className={css.usersServer}>
+						<MaterialIcon name="dnsOutlined" className={css.usersServerIcon} />
+						{server.name}
+					</span>
+				)}
+			</div>
+
+			<div className={css.usersMain}>
+				<h1 className={css.usersTitle}>{$L("Who's watching?")}</h1>
+				<ProfileCarousel
+					key={server?.serverId}
+					items={userCarouselItems}
+					spotlightId="user-0"
+					onActivate={handleUserActivate}
+				/>
+				{status && !dialog && <div className={`${css.statusMessage} ${css.usersStatus}`}>{status}</div>}
+				{server?.loginDisclaimer && <p className={`${css.disclaimer} ${css.usersNote}`}>{server.loginDisclaimer}</p>}
+				{error && <div className={`${css.errorText} ${css.usersNote}`}>{error}</div>}
+			</div>
+
+			<PillRow>
+				<PillButton data-spotlight-id="add-user-btn" icon="person" onClick={handleAddUser}>
+					{$L('Add User')}
+				</PillButton>
+				<PillButton data-spotlight-id="select-server-btn" icon="home" onClick={goToServers}>
+					{$L('Select Server')}
+				</PillButton>
+			</PillRow>
 		</FocusArea>
 	);
 
@@ -1307,7 +1413,7 @@ const Login = ({
 					<div className={`${css.spinner} ${css.spinnerAccent}`} />
 					<div className={css.statusLine}>{$L('Waiting for authorization...')}</div>
 				</div>
-			) : (!error && <div className={css.spinnerRow}><div className={css.spinner} /></div>)}
+			) : (!error && <div className={css.codeSpinner}><div className={`${css.spinner} ${css.spinnerLarge}`} /></div>)}
 			{error && <div className={css.fieldError}>{error}</div>}
 			<div className={css.buttonWrap}>
 				<SpottableButton
@@ -1323,7 +1429,13 @@ const Login = ({
 
 	const renderCredentials = () => (
 		<div className={css.formBlock}>
-			{!signInUser && (
+			{passwordChange && (
+				<p className={css.signInSubtitle}>
+					{$L("This account's password has to be changed before signing in. Choose a new one of at least {count} characters.")
+						.replace('{count}', String(passwordChange.minimumLength || 1))}
+				</p>
+			)}
+			{!signInUser && !passwordChange && (
 				<div className={css.field}>
 					<SpottableInput
 						data-spotlight-id="username-input"
@@ -1346,7 +1458,7 @@ const Login = ({
 						type="password"
 						purpose="password"
 						className={css.input}
-						placeholder={server?.serverType === 'plex' ? $L('PIN') : $L('Password')}
+						placeholder={passwordChange ? $L('New password') : (server?.serverType === 'plex' ? $L('PIN') : $L('Password'))}
 						value={password}
 						onChange={handlePasswordChange}
 						onKeyDown={handlePasswordKeyDown}
@@ -1367,9 +1479,9 @@ const Login = ({
 					data-spotlight-id="signin-btn"
 					className={css.outlineButton}
 					onClick={handleSignIn}
-					disabled={isConnecting || !username.trim()}
+					disabled={isConnecting}
 				>
-					{isConnecting ? $L('Signing in...') : $L('Sign In')}
+					{isConnecting ? <span className={`${css.spinner} ${css.buttonSpinner}`} /> : (passwordChange ? $L('Change Password') : $L('Sign In'))}
 				</SpottableButton>
 			</div>
 		</div>
@@ -1617,118 +1729,182 @@ const Login = ({
 		</FocusArea>
 	);
 
+	const renderRoundButton = (spotlightId, icon, label, onClick) => (
+		<SpottableButton
+			data-spotlight-id={spotlightId}
+			className={css.roundButton}
+			onClick={onClick}
+			disabled={isConnecting}
+			aria-label={label}
+		>
+			<MaterialIcon name={icon} className={css.roundButtonIcon} />
+		</SpottableButton>
+	);
+
+	const renderPanelHeader = ({title, subtitle, onBack}) => (
+		<div className={css.panelHeader}>
+			{onBack && renderRoundButton('add-back-btn', 'arrowBack', $L('Back'), onBack)}
+			<div className={css.panelHeading}>
+				<h2 className={css.panelTitle}>{title}</h2>
+				<p className={css.panelSubtitle}>{subtitle}</p>
+			</div>
+			{renderRoundButton('add-close-btn', 'closeRounded', $L('Close'), closeDialog)}
+		</div>
+	);
+
+	const renderChoice = ({spotlightId, tileClass, icon, title, detail, onClick}) => (
+		<SpottableDiv data-spotlight-id={spotlightId} className={css.choiceCard} onClick={onClick}>
+			<div className={`${css.choiceTile} ${tileClass}`}>{icon}</div>
+			<div className={css.choiceBody}>
+				<div className={css.choiceTitle}>{title}</div>
+				<div className={css.choiceDetail}>{detail}</div>
+			</div>
+			<div className={css.choiceArrow}>
+				<MaterialIcon name="arrowForward" className={css.choiceArrowIcon} />
+			</div>
+		</SpottableDiv>
+	);
+
+	const renderChooseStep = () => (
+		<div>
+			{renderPanelHeader({title: $L('Add Server'), subtitle: $L('Choose how you\'d like to connect.')})}
+			<div className={css.choiceList}>
+				{renderChoice({
+					spotlightId: 'add-choice-address',
+					tileClass: css.tileAccent,
+					icon: <MaterialIcon name="language" className={css.choiceGlyph} />,
+					title: $L('Server Address'),
+					detail: $L('Jellyfin, Emby or Silo on your network or online'),
+					onClick: showAddressStep
+				})}
+				{renderChoice({
+					spotlightId: 'add-choice-plex',
+					tileClass: css.tilePlex,
+					icon: <ServerTypeIcon serverType="plex" className={css.choiceGlyphPlex} />,
+					title: $L('Sign in with Plex'),
+					detail: $L('Use your Plex account to find its servers'),
+					onClick: choosePlex
+				})}
+				{renderChoice({
+					spotlightId: 'add-choice-emby',
+					tileClass: css.tileEmby,
+					icon: <ServerTypeIcon serverType="emby" className={css.choiceGlyph} />,
+					title: $L('Emby Connect'),
+					detail: $L('Sign in with your Emby Connect account'),
+					onClick: chooseEmbyConnect
+				})}
+			</div>
+		</div>
+	);
+
+	const renderNotice = ({error: message, errorType}) => {
+		const warning = errorType === INSECURE_CERT;
+		const detail = warning || SPECIFIC_FAILURES.includes(errorType)
+			? message
+			: $L('Check the address and port, and that the server is running.');
+		return (
+			<div className={`${css.notice} ${warning ? css.noticeWarning : ''}`}>
+				<MaterialIcon name={warning ? 'shield' : 'error'} className={css.noticeIcon} />
+				<div className={css.noticeBody}>
+					{!warning && <div className={css.noticeTitle}>{$L('Unable to connect to server')}</div>}
+					<div className={css.noticeText}>{detail}</div>
+				</div>
+			</div>
+		);
+	};
+
+	const renderAddressStep = () => (
+		<div>
+			{renderPanelHeader({
+				title: $L('Connect to Server'),
+				subtitle: $L('The same address you\'d open in a browser, including the port.'),
+				onBack: showChooseStep
+			})}
+			<div className={css.fieldLabel}>{$L('Server Address')}</div>
+			<div className={css.inputWithIcon}>
+				<MaterialIcon name="language" className={css.inputIcon} />
+				<SpottableInput
+					data-spotlight-id="add-address-input"
+					type="text"
+					purpose="url"
+					recents={serverRecents}
+					className={`${css.input} ${css.addressInput}`}
+					placeholder="https://your-server.example.com"
+					value={addressValue}
+					onChange={handleAddressChange}
+					onKeyDown={handleAddressKeyDown}
+					disabled={isConnecting}
+				/>
+			</div>
+			<SpottableButton
+				data-spotlight-id="add-connect-btn"
+				className={`${css.primaryButton} ${css.connectButton}`}
+				onClick={submitAddress}
+				disabled={isConnecting}
+			>
+				{isConnecting ? <span className={`${css.spinner} ${css.primarySpinner}`} /> : $L('Connect')}
+			</SpottableButton>
+			<div className={css.addressHint}>
+				{isConnecting
+					? $L('Checking {address}').replace('{address}', addressValue.trim())
+					: $L('Works with Jellyfin, Emby and Silo. A Plex address opens the Plex sign-in.')}
+			</div>
+			{dialogError && renderNotice(dialogError)}
+		</div>
+	);
+
+	const renderFoundStep = (found) => (
+		<div>
+			<div className={css.foundHeader}>
+				<span className={css.foundCheck}>
+					<MaterialIcon name="checkRounded" className={css.foundCheckIcon} />
+				</span>
+				<h2 className={css.panelTitle}>{$L('Server found')}</h2>
+			</div>
+			<div className={css.foundCard}>
+				<div className={`${css.foundTile} ${FOUND_TILES[found.serverType] || css.tileJellyfin}`}>
+					<ServerTypeIcon serverType={found.serverType} className={css.foundGlyph} />
+				</div>
+				<div className={css.foundBody}>
+					<div className={css.foundName}>{found.name}</div>
+					<div className={css.chipRow}>
+						<span className={css.chip}>{BRAND_NAMES[found.serverType]}</span>
+						{found.version && <span className={css.chip}>{`${$L('Version')} ${found.version}`}</span>}
+					</div>
+					<div className={css.foundAddress}>{found.url}</div>
+				</div>
+			</div>
+			<p className={css.foundNote}>{$L('Continue to choose who\'s signing in.')}</p>
+			<div className={css.foundActions}>
+				<SpottableButton
+					data-spotlight-id="add-other-address-btn"
+					className={css.ghostButton}
+					onClick={showAddressStep}
+				>
+					{$L('Use a different address')}
+				</SpottableButton>
+				<SpottableButton
+					data-spotlight-id="add-continue-btn"
+					className={css.primaryButton}
+					onClick={continueToServer}
+				>
+					{$L('Continue')}
+				</SpottableButton>
+			</div>
+		</div>
+	);
+
 	const renderDialog = () => {
-		if (dialog?.kind === 'add' && dialog.step === 'choose') {
-			return (
-				<div className={css.dialogScrim}>
-					<DialogArea className={css.dialog}>
-						<h2 className={css.dialogTitle}>{$L('Add Server')}</h2>
-						<p className={css.dialogNote}>{$L('Choose how you\'d like to connect.')}</p>
-						<SpottableDiv data-spotlight-id="add-choice-address" className={css.tile} onClick={showAddressStep}>
-							<MaterialIcon name="dns" className={css.tileIcon} />
-							<div className={css.tileBody}>
-								<div className={css.tileName}>{$L('Server Address')}</div>
-								<div className={css.tileDetail}>{$L('Jellyfin, Emby or Plex on your network or online')}</div>
-							</div>
-						</SpottableDiv>
-						{renderTile({
-							key: 'plex',
-							spotlightId: 'add-choice-plex',
-							serverType: 'plex',
-							name: $L('Sign in with Plex'),
-							detail: $L('Use your Plex account to find its servers'),
-							onClick: choosePlex
-						})}
-						{renderTile({
-							key: 'emby',
-							spotlightId: 'add-choice-emby',
-							serverType: 'emby',
-							name: $L('Emby Connect'),
-							detail: $L('Sign in with your Emby Connect account'),
-							onClick: chooseEmbyConnect
-						})}
-					</DialogArea>
-				</div>
-			);
-		}
-
-		if (dialog?.kind === 'add' && dialog.step === 'found') {
-			const found = dialog.server;
-			return (
-				<div className={css.dialogScrim}>
-					<DialogArea className={css.dialog}>
-						<h2 className={css.dialogTitle}>{$L('Server found')}</h2>
-						<div className={css.tile}>
-							<ServerTypeIcon serverType={found.serverType} className={css.tileIcon} />
-							<div className={css.tileBody}>
-								<div className={css.tileName}>{found.name}</div>
-								<div className={css.tileDetail}>{found.version ? `${found.url} • ${found.version}` : found.url}</div>
-							</div>
-						</div>
-						<p className={css.dialogNote}>{$L('Continue to choose who\'s signing in.')}</p>
-						<div className={css.dialogActions}>
-							<SpottableButton
-								data-spotlight-id="add-other-address-btn"
-								className={`${css.outlineButton} ${css.dialogButton}`}
-								onClick={showAddressStep}
-							>
-								{$L('Use a different address')}
-							</SpottableButton>
-							<SpottableButton
-								data-spotlight-id="add-continue-btn"
-								className={`${css.outlineButton} ${css.dialogButton}`}
-								onClick={continueToServer}
-							>
-								{$L('Continue')}
-							</SpottableButton>
-						</div>
-					</DialogArea>
-				</div>
-			);
-		}
-
 		if (dialog?.kind === 'add') {
 			return (
-				<div className={css.dialogScrim}>
-					<DialogArea className={css.dialog}>
-						<h2 className={css.dialogTitle}>{$L('Connect to Server')}</h2>
-						<p className={css.dialogNote}>{$L('The same address you\'d open in a browser, including the port.')}</p>
-						<div className={css.inputWithIcon}>
-							<MaterialIcon name="dns" className={css.inputIcon} />
-							<SpottableInput
-								data-spotlight-id="add-address-input"
-								type="text"
-								purpose="url"
-								recents={serverRecents}
-								className={css.input}
-								placeholder="https://your-server.example.com"
-								value={addressValue}
-								onChange={handleAddressChange}
-								onKeyDown={handleAddressKeyDown}
-								disabled={isConnecting}
-							/>
-						</div>
-						{dialogError && <div className={css.fieldError}>{dialogError}</div>}
-						{status
-							? <div className={css.statusLine}>{status}</div>
-							: !dialogError && <div className={css.statusLine}>{$L('Works with Jellyfin, Emby and Plex.')}</div>}
-						<div className={css.dialogActions}>
-							<SpottableButton
-								data-spotlight-id="add-cancel-btn"
-								className={`${css.outlineButton} ${css.dialogButton}`}
-								onClick={openAddDialog}
-								disabled={isConnecting}
-							>
-								{$L('Back')}
-							</SpottableButton>
-							<SpottableButton
-								data-spotlight-id="add-connect-btn"
-								className={`${css.outlineButton} ${css.dialogButton}`}
-								onClick={submitAddress}
-								disabled={isConnecting}
-							>
-								{isConnecting ? $L('Connecting...') : $L('Connect')}
-							</SpottableButton>
+				<div className={`${css.panelScrim} ${keyboardOpen ? css.panelScrimKeyboard : ''}`}>
+					<DialogArea className={css.panel}>
+						<div ref={panelRef} className={css.panelScroll}>
+							<div key={dialog.step} className={css.stepEntrance}>
+								{dialog.step === 'choose' && renderChooseStep()}
+								{dialog.step === 'address' && renderAddressStep()}
+								{dialog.step === 'found' && renderFoundStep(dialog.server)}
+							</div>
 						</div>
 					</DialogArea>
 				</div>
@@ -1737,30 +1913,18 @@ const Login = ({
 
 		if (dialog?.kind === 'remove') {
 			return (
-				<div className={css.dialogScrim}>
-					<DialogArea className={css.dialog}>
-						<h2 className={css.dialogTitle}>{$L('Remove Server')}</h2>
-						<p className={css.serverLabel}>
-							{$L('Remove "{serverName}" from your servers?').replace('{serverName}', dialog.server.name)}
-						</p>
-						<div className={css.dialogActions}>
-							<SpottableButton
-								data-spotlight-id="remove-cancel-btn"
-								className={`${css.outlineButton} ${css.dialogButton}`}
-								onClick={closeDialog}
-							>
-								{$L('Cancel')}
-							</SpottableButton>
-							<SpottableButton
-								data-spotlight-id="remove-confirm-btn"
-								className={`${css.outlineButton} ${css.dialogButton}`}
-								onClick={handleConfirmRemove}
-							>
-								{$L('Remove')}
-							</SpottableButton>
-						</div>
-					</DialogArea>
-				</div>
+				<CoreAlertDialog
+					open
+					onClose={closeDialog}
+					title={$L('Remove Server')}
+					spotlightId="remove-server-dialog"
+					actions={[
+						{label: $L('Cancel'), onClick: closeDialog, spotlightId: 'remove-cancel-btn'},
+						{label: $L('Remove'), onClick: handleConfirmRemove, spotlightId: 'remove-confirm-btn'}
+					]}
+				>
+					{$L('Remove "{serverName}" from your servers?').replace('{serverName}', dialog.server.name)}
+				</CoreAlertDialog>
 			);
 		}
 
@@ -1771,18 +1935,18 @@ const Login = ({
 	const isWide = (step === 'signin' && showQuickConnectQr) || Boolean(plexQrUrl);
 
 	return (
-		<div className={css.page} ref={pageRef}>
+		<div className={`${css.page} ${step === 'users' ? css.pageUsers : ''}`} ref={pageRef}>
 			<div className={css.spacerTop} />
 			<div className={`${css.frame} ${isNarrow ? (isWide ? css.frameWide : css.frameNarrow) : ''}`}>
 				<div className={css.logoSection}>
 					<img
-						src="resources/banner-dark.png"
+						src={logoAndText}
 						alt="Moonfin"
 						className={`${css.logo} ${isNarrow ? css.logoSmall : ''}`}
 					/>
 				</div>
 
-				{status && !dialog && <div className={css.statusMessage}>{status}</div>}
+				{status && !dialog && step !== 'users' && <div className={css.statusMessage}>{status}</div>}
 
 				{step === 'servers' && renderServers()}
 				{step === 'users' && renderUsers()}

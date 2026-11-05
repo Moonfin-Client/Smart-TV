@@ -13,7 +13,7 @@ const ICONS = {
 		watched: 'check_circle_outline', favorite: 'favorite_border', personalRating: 'star_outline',
 		goToSeries: 'tv', playlist: 'playlist_add', collection: 'library_add', deleteFiles: 'delete_outline',
 		artwork: 'image', seerrWatchlist: 'bookmark_border', seerrReportIssue: 'report_problem_outlined',
-		seerrManage: 'rule', admin: 'settings'
+		seerrManage: 'rule', keepAsComplete: 'task_alt', admin: 'settings'
 	},
 	osd: {
 		chapters: 'bookmark_outline_rounded', subtitles: 'subtitles_outlined', audio: 'audiotrack_outlined',

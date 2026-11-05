@@ -3,6 +3,8 @@ import {isSignInPinEnabled} from '../../utils/signInPin';
 import {isTrickplayOn} from '../../utils/trickplayLayout';
 import {mediaPreviewMode, mediaPreviewSettings} from '../../utils/mediaPreviewMode';
 import {homeBackdropStyle, homeBackdropSettings} from '../../utils/homeBackdropStyle';
+import {ratingKey} from '../../utils/ratingSources';
+import {withWatchingNowRow} from '../../utils/homeLayout';
 
 import {
 	getAccentColorOptions,
@@ -18,7 +20,6 @@ import {
 	getEnabledRatingSourcesSummary,
 	getFeaturedBarStyleOptions,
 	getFeaturedItemCountOptions,
-	getFolderViewModeOptions,
 	getGenresRowItemFilterOptions,
 	getHomeRowSortOptions, getPlaylistCollectionSortOptions,
 	getHomeBackdropStyleOptions,
@@ -26,6 +27,7 @@ import {
 	getBookLibraryStyleOptions,
 	getKeyboardStyleOptions,
 	getLibraryStyleOptions,
+	getMediaBarSourceOptions,
 	getMediaPreviewModeOptions,
 	getMusicLibraryStyleOptions,
 	getModernCardTransitionSpeedOptions,
@@ -38,11 +40,13 @@ import {
 	getMediaSegmentActionOptions,
 	getMediaSegmentAutoHideOptions,
 	getNavPositionOptions,
+	getNewReleaseDaysOptions,
 	getNextUpBehaviorOptions,
 	getNextUpCountdownStyleOptions,
 	getContinueWatchingDefaultActionOptions,
 	getNextUpMaxDaysOptions,
 	getOledModeOptions,
+	getSeerrBadgeStyleOptions,
 	getOverlayColorOptions,
 	getPassthroughModeOptions,
 	getPerformanceModeOptions,
@@ -83,7 +87,13 @@ import {
 	getWatchedIndicatorOptions,
 	getZoomModeOptions,
 	getTrickplayModeOptions,
-	getRecentlyReleasedSeriesTypeOptions
+	getRecentlyReleasedSeriesTypeOptions,
+	getCalendarStyleOptions,
+	getCalendarWeekStartOptions,
+	getCalendarScopeOptions,
+	getCalendarColorByOptions,
+	getCalendarImageTypeOptions,
+	getCalendarSelectActionOptions
 } from './settingsOptions';
 import {resolveOverlayColor} from '../../theme/overlayColors';
 
@@ -120,6 +130,39 @@ export const KIND = {
 
 export const resolve = (value, ctx) => (typeof value === 'function' ? value(ctx) : value);
 
+// Home rows and the media bar each get their own copy of the details page ratings rows,
+// with the keys prefixed by the surface. The media bar only shows movies and series, so it
+// has no episode ratings.
+const ratingsRows = (prefix, rowWhen) => {
+	const key = (name) => ratingKey(prefix, name);
+	const rows = [
+		{kind: KIND.SECTION, id: key('ratings'), label: () => $L('Ratings')},
+		{kind: KIND.TOGGLE, key: key('mdblistEnabled'), label: () => $L('Additional Ratings'), desc: () => $L('Show MDBList and TMDB ratings'), icon: 'star'},
+		{
+			kind: KIND.NAV,
+			id: key('ratingSources'),
+			label: () => $L('Rating Sources'),
+			desc: (ctx) => getEnabledRatingSourcesSummary(ctx.settings[key('mdblistRatingSources')]),
+			icon: 'reorder',
+			action: (ctx) => ctx.actions.openRatingSources(prefix)
+		},
+		prefix !== 'mediaBar' && {kind: KIND.TOGGLE, key: key('tmdbEpisodeRatingsEnabled'), label: () => $L('Episode Ratings'), desc: () => $L('Show ratings on individual episodes'), icon: 'stars'},
+		{kind: KIND.TOGGLE, key: key('showRatingLabels'), label: () => $L('Rating Labels'), desc: () => $L('Show labels next to rating icons'), icon: 'label'},
+		{kind: KIND.TOGGLE, key: key('showRatingBadges'), label: () => $L('Rating Badges'), desc: () => $L('Show decorative badges behind ratings'), icon: 'style'},
+		{
+			kind: KIND.NAV,
+			id: key('resetRatings'),
+			label: () => $L('Reset Ratings'),
+			desc: (ctx) => (ctx.ratingsResetArmed
+				? $L('Press again to put every ratings setting back to its default')
+				: $L('Restores the sources, their order, and the ratings toggles')),
+			icon: 'restore',
+			action: (ctx) => ctx.actions.resetRatingsSettings(prefix)
+		}
+	].filter(Boolean);
+	return rowWhen ? rows.map((row) => ({...row, when: rowWhen})) : rows;
+};
+
 // The spotlight id the row will carry once rendered, which is what a search result
 // focuses after it opens the screen.
 export const spotlightIdOf = (row) => {
@@ -143,8 +186,11 @@ const whenRewatchEnabled = (ctx) => whenRewatch(ctx) && ctx.settings.displayRewa
 const whenPlugin = (ctx) => ctx.settings.useMoonfinPlugin;
 const whenHdrSubtitles = (ctx) => ctx.settings.subtitleHdrSeparate;
 const whenSeerr = (ctx) => ctx.seerr.isEnabled;
+const whenCalendar = (ctx) => ctx.seerr.pluginInfo?.calendarAvailable === true;
 const whenScreensaver = (ctx) => ctx.settings.screensaverEnabled;
 const whenMediaPreview = (ctx) => mediaPreviewMode(ctx.settings) !== 'off';
+// Aya, Bookshelf and Off draw no ratings, so their media bar has nothing for these to change.
+const whenMediaBarRatings = (ctx) => ['moonfin', 'makd', 'gallery', 'banner'].includes(ctx.settings.featuredBarStyle);
 const whenScreensaverLibrary = (ctx) => ctx.settings.screensaverEnabled && ctx.settings.screensaverBackdrop === 'library';
 const whenScreensaverComponent = (ctx) => ctx.settings.screensaverEnabled && ctx.settings.screensaverComponent !== 'none';
 const whenScreensaverStatic = (ctx) => whenScreensaverComponent(ctx) && ctx.settings.screensaverMovement === 'staticCorner';
@@ -390,11 +436,12 @@ export const SETTINGS_SCHEMA = [
 					{kind: KIND.OPTION, key: 'shuffleContentType', label: () => $L('Shuffle Content Type Filter'), options: getContentTypeOptions, fallback: () => $L('Movies & TV Shows'), icon: 'shuffle', when: (ctx) => ctx.settings.showShuffleButton, valueAsSubtitle: true},
 					{kind: KIND.TOGGLE, key: 'showGenresButton', label: () => $L('Show Genres Button'), desc: () => $L('Show the genres button in the navigation bar'), icon: 'theater_comedy'},
 					{kind: KIND.TOGGLE, key: 'showFavoritesButton', label: () => $L('Show Favorites Button'), desc: () => $L('Show the favorites button in the navigation bar'), icon: 'favorite'},
-					{kind: KIND.TOGGLE, key: 'showLiveTvButton', label: () => $L('Show Live TV Button'), desc: () => $L('Show the Live TV button in the navigation bar when the server has a Live TV library'), icon: 'live_tv'},
+					{kind: KIND.TOGGLE, key: 'showLiveTvButton', label: () => $L('Show Live TV Button'), desc: () => $L('Show the Live TV button in the navigation bar when the server has a Live TV library'), icon: 'live_tv', when: (ctx) => ctx.hasLiveTv},
 					{kind: KIND.TOGGLE, key: 'showLibrariesInToolbar', label: () => $L('Show Libraries in Toolbar'), desc: () => $L('Show the libraries button in the navigation bar'), icon: 'video_library'},
-					{kind: KIND.TOGGLE, key: 'showSyncPlayButton', label: () => $L('SyncPlay Button'), desc: () => $L('Show the SyncPlay button on the navigation bar'), icon: 'groups'},
-					{kind: KIND.OPTION, key: 'folderViewMode', label: () => $L('Enable Folder View'), desc: () => $L('Show folder browsing option'), options: getFolderViewModeOptions, fallback: () => $L('Per Library'), icon: 'folder'},
+					{kind: KIND.TOGGLE, key: 'showLibrariesIndividually', label: () => $L('Show Libraries Individually'), desc: () => $L('Show each library as its own button in the navigation bar instead of in the Libraries menu'), icon: 'video_library', when: (ctx) => ctx.settings.showLibrariesInToolbar !== false},
+					{kind: KIND.TOGGLE, key: 'showSyncPlayButton', label: () => $L('SyncPlay Button'), desc: () => $L('Show the SyncPlay button on the navigation bar'), icon: 'groups', when: (ctx) => ctx.serverType !== 'plex' && ctx.settings.syncplayEnabled !== false},
 					{kind: KIND.TOGGLE, key: 'showSeerrButton', label: (ctx) => $L('Show {seerrLabel} Button').replace('{seerrLabel}', ctx.seerrLabel), desc: () => $L('Show the Seerr button in the navigation bar'), when: whenSeerr, icon: 'seerr'},
+					{kind: KIND.TOGGLE, key: 'showCalendarButton', label: () => $L('Show Calendar Button'), desc: () => $L('Show the calendar of upcoming episodes and movies in the navigation bar'), when: whenCalendar, icon: 'calendar_month_rounded'},
 					{kind: KIND.TOGGLE, key: 'showServerMessagesButton', label: () => $L('Show Messages Button'), desc: () => $L('Adds a button to the menu for messages sent by your server admin'), icon: 'info_outline_rounded'},
 					{kind: KIND.TOGGLE, key: 'showFriendsButton', label: () => $L('Show Friends Button'), desc: () => $L('Friends and chat from the Achievement Badges plugin'), icon: 'people_alt_rounded', when: (ctx) => ctx.achievements.socialAvailable}
 				]
@@ -447,12 +494,28 @@ export const SETTINGS_SCHEMA = [
 						onSelect: (ctx, style) => ctx.actions.setSettings(homeBackdropSettings(style))
 					},
 					{kind: KIND.TOGGLE, key: 'hideHomeMediaDescription', label: () => $L('Hide Media Description'), desc: () => $L('Hide the movie or episode descriptive text.'), icon: 'description_outlined'},
+					...ratingsRows('homeRows'),
 					{kind: KIND.SECTION, id: 'externalSources', label: () => $L('External Sources'), when: whenPlugin},
-					{kind: KIND.NAV, id: 'imdbLists', label: () => $L('IMDb Lists'), desc: () => $L('Configure IMDb Top 250, Popular, and other charts.'), icon: 'movie_outlined', action: (ctx) => ctx.actions.openImdbLists(), when: whenPlugin},
-					{kind: KIND.NAV, id: 'externalTmdbLists', label: () => $L('TMDB Lists'), desc: () => $L('Configure Popular, Top Rated, and Trending TMDB lists.'), icon: 'trending_up', action: (ctx) => ctx.actions.openExternalTmdbLists(), when: whenPlugin},
+					{kind: KIND.NAV, id: 'imdbLists', label: () => $L('IMDb Lists'), desc: () => $L('Configure IMDb Top 250, Popular, and other charts.'), icon: 'movie_outlined', keywords: () => [$L('IMDb Row Sorting'), $L('Sort Order')], action: (ctx) => ctx.actions.openImdbLists(), when: whenPlugin},
+					{
+						kind: KIND.TOGGLE,
+						key: 'mdblistWatchingNowEnabled',
+						label: () => $L('Watching on MDBList'),
+						desc: () => $L('Show what MDBList users are currently watching'),
+						icon: 'public',
+						when: whenPlugin,
+						onToggle: (ctx) => {
+							const enabled = !ctx.settings.mdblistWatchingNowEnabled;
+							ctx.actions.setSettings({
+								mdblistWatchingNowEnabled: enabled,
+								homeRows: withWatchingNowRow(ctx.settings.homeRows, enabled)
+							});
+						}
+					},
+					{kind: KIND.NAV, id: 'externalTmdbLists', label: () => $L('TMDB Lists'), desc: () => $L('Configure Popular, Top Rated, and Trending TMDB lists.'), icon: 'trending_up', keywords: () => [$L('TMDB Row Sorting'), $L('Sort Order')], action: (ctx) => ctx.actions.openExternalTmdbLists(), when: whenPlugin},
 					{kind: KIND.NAV, id: 'seasonalRow', label: () => $L('Seasonal Row'), desc: () => $L('Show a row of holiday movies from your library, with Seerr suggestions when available.'), icon: 'celebration_outlined', keywords: () => ['holiday', 'christmas', 'halloween', 'seasonal'], action: (ctx) => ctx.actions.openSeasonalRow(), when: whenPlugin},
 					{kind: KIND.NAV, id: 'externalCalendars', label: () => $L('Upcoming Calendars'), desc: () => $L('Toggle Upcoming Calendars from Radarr/Sonarr.'), icon: 'calendar_month', action: (ctx) => ctx.actions.openExternalCalendars(), when: (ctx) => whenPlugin(ctx) && whenSeerr(ctx)},
-					{kind: KIND.NAV, id: 'seerrHomeRows', label: (ctx) => `${ctx.seerrLabel} ${$L('Rows')}`, desc: () => $L('Configure Seerr Discovery Rows.'), icon: 'list', action: (ctx) => ctx.actions.openSeerrHomeRows(), when: (ctx) => whenPlugin(ctx) && whenSeerr(ctx)},
+					{kind: KIND.NAV, id: 'seerrHomeRows', label: (ctx) => `${ctx.seerrLabel} ${$L('Rows')}`, desc: () => $L('Configure Seerr Discovery Rows.'), icon: 'list', keywords: () => [$L('Seerr Row Sorting'), $L('Sort Order')], action: (ctx) => ctx.actions.openSeerrHomeRows(), when: (ctx) => whenPlugin(ctx) && whenSeerr(ctx)},
 					{
 						kind: KIND.NAV,
 						id: 'externalCustomRows',
@@ -537,6 +600,9 @@ export const SETTINGS_SCHEMA = [
 					{kind: KIND.OPTION, key: 'mediaBarOverlayColor', label: () => $L('Overlay Color'), options: getOverlayColorOptions, fallback: () => $L('Gray'), icon: 'palette'},
 					{kind: KIND.SLIDER, key: 'mediaBarOverlayOpacity', label: () => $L('Overlay Opacity'), min: 0, max: 100, step: 5, format: percent, icon: 'opacity'},
 					{kind: KIND.SECTION, id: 'mediaSources', label: () => $L('Media Sources')},
+					{kind: KIND.OPTION, key: 'mediaBarSourceType', label: () => $L('Source'), options: getMediaBarSourceOptions, fallback: () => $L('Random'), icon: 'source', padded: true},
+					{kind: KIND.TOGGLE, key: 'mediaBarNewReleaseBanner', label: () => $L('New Release Banner'), desc: () => $L('Flag series with a new season or new episodes that aired recently.'), icon: 'label'},
+					{kind: KIND.OPTION, key: 'mediaBarNewReleaseDays', label: () => $L('New Release Window'), desc: () => $L('How long after an episode airs it still counts as new.'), options: getNewReleaseDaysOptions, fallback: () => $L('30 days'), icon: 'calendar_today_outlined', padded: true},
 					{
 						kind: KIND.NAV,
 						id: 'sourceLibraries',
@@ -585,7 +651,8 @@ export const SETTINGS_SCHEMA = [
 					{kind: KIND.TOGGLE, key: 'featuredTrailerPreview', label: () => $L('Trailer Preview'), desc: () => $L('Auto-play trailers in the media bar after 3 seconds'), icon: 'movie_outlined'},
 					{kind: KIND.TOGGLE, key: 'featuredTrailerMuted', label: () => $L('Mute Trailer Audio'), desc: () => $L('Mute trailer previews in the featured media bar'), icon: 'volume_up', when: (ctx) => ctx.settings.featuredTrailerPreview},
 					{kind: KIND.SLIDER, key: 'trailerVolume', label: () => $L('Trailer Volume'), desc: () => $L('How loud trailers play in the featured media bar and details screen'), min: 0, max: 100, step: 5, format: percent, icon: 'volume_down', when: (ctx) => ctx.settings.featuredTrailerPreview},
-					{kind: KIND.TOGGLE, key: 'mediaBarTrailerCaptions', label: () => $L('Trailer Captions'), desc: () => $L('Show captions on YouTube trailers'), icon: 'closed_caption_outlined'}
+					{kind: KIND.TOGGLE, key: 'mediaBarTrailerCaptions', label: () => $L('Trailer Captions'), desc: () => $L('Show captions on YouTube trailers'), icon: 'closed_caption_outlined'},
+					...ratingsRows('mediaBar', whenMediaBarRatings)
 				]
 			},
 			{
@@ -599,12 +666,14 @@ export const SETTINGS_SCHEMA = [
 					{kind: KIND.NAV, id: 'hideLibraries', label: () => $L('Library Visibility'), desc: () => $L('Toggle home page visibility per library'), icon: 'visibility', action: (ctx) => ctx.actions.openLibraries()},
 					{kind: KIND.NAV, id: 'libraryOrder', label: () => $L('Library Order'), desc: () => $L('Choose the order of your libraries'), icon: 'swap_vert', keywords: () => ['reorder libraries', 'sort libraries', 'my media', 'navbar'], action: (ctx) => ctx.actions.openLibraryOrder()},
 					{kind: KIND.TOGGLE, key: 'unifiedLibraryMode', label: () => $L('Multi-Server Libraries'), desc: () => $L('Show libraries from all connected servers'), icon: 'dns'},
+					{kind: KIND.TOGGLE, key: 'showBookDiscoverTab', label: () => $L('Show Book Library Discovery'), desc: () => $L('Browse titles from Open Library and LibriVox in your book and audiobook libraries'), icon: 'explore'},
 					{kind: KIND.SECTION, id: 'libraryView', label: () => $L('Library View')},
 					{kind: KIND.OPTION, key: 'libraryStyle', label: () => $L('Video Library Style'), desc: () => $L('Classic is the original header with a row of icons. Modern puts search, sort, group and filters in one labeled bar. Docked moves them into a panel down the left side.'), options: getLibraryStyleOptions, fallback: () => $L('Classic'), icon: 'view_sidebar'},
 					{kind: KIND.OPTION, key: 'bookLibraryStyle', label: () => $L('Book Library Style'), desc: () => $L("Classic is the original shelves under a featured title. Reading Room leads with what you're reading on large cards. Bookstore browses the whole library in a grid."), options: getBookLibraryStyleOptions, fallback: () => $L('Bookstore'), icon: 'auto_stories_outlined'},
 					{kind: KIND.OPTION, key: 'musicLibraryStyle', label: () => $L('Music Library Style'), desc: () => $L("Classic is the original rows under a Jump Back In card. Quick Access starts with a grid of your recent albums and playlists. Immersive leads with the album you're listening to."), options: getMusicLibraryStyleOptions, fallback: () => $L('Immersive'), icon: 'queue_music'},
 					{kind: KIND.TOGGLE, key: 'groupItemsIntoCollections', label: () => $L('Group Items into Collections'), desc: () => $L('Hide Collection associated library items when browsing libraries'), icon: 'collections_bookmark'},
 					{kind: KIND.TOGGLE, key: 'showMediaDetailsOnLibraryPage', label: () => $L('Show Media Details'), desc: () => $L('Show details of the selected item at the top of Library pages.'), icon: 'info_outline'},
+					{kind: KIND.TOGGLE, key: 'libraryCardTitles', label: () => $L('Titles Under Posters'), desc: () => $L("Show each item's title and details below its artwork in library grids."), icon: 'text_fields'},
 					{kind: KIND.TOGGLE, key: 'hideBackdropsInLibraries', label: () => $L('Library Backdrops'), icon: 'photo', isOn: (ctx) => !ctx.settings.hideBackdropsInLibraries},
 					{kind: KIND.TOGGLE, key: 'useDetailedSubHeadings', label: () => $L('Use Detailed Sub-Headings'), desc: () => $L('Show detailed or minimal subrow on Library pages.'), icon: 'subtitles'}
 				]
@@ -617,7 +686,7 @@ export const SETTINGS_SCHEMA = [
 				description: () => $L('Layout, buttons, sections, ratings, and theme music'),
 				rows: [
 					{kind: KIND.SECTION, id: 'detailsDisplay', label: () => $L('Display')},
-					{kind: KIND.OPTION, key: 'detailScreenStyle', label: () => $L('Details Screen Style'), desc: () => $L('Classic is the original centered moonfin layout. Modern is a responsive cinematic layout. Spotlight is a hero-first layout with pop-up content cards. Nouveau is a full-screen layout with sections stacked down the page. Minimalist is artwork, one play button and the episodes.'), options: getDetailScreenStyleOptions, fallback: () => $L('Modern'), icon: 'movie_outlined'},
+					{kind: KIND.OPTION, key: 'detailScreenStyle', label: () => $L('Details Screen Style'), desc: () => $L('Classic is the original centered moonfin layout. Modern is a responsive cinematic layout. Spotlight is a hero-first layout with pop-up content cards. Nouveau is a full-screen layout with sections stacked down the page. Minimalist is artwork, one play button and the episodes. Stage leads with the poster, with play under it and the details beside it. Premiere centers the title over a backdrop that fills the screen, with every section down the page under it. Quick Look opens a drawer over the screen you were on, with the full page a press away. Frost floats the title in a glass window over a blurred copy of its art, with its parts in tabs under the buttons.'), options: getDetailScreenStyleOptions, fallback: () => $L('Modern'), icon: 'movie_outlined'},
 					{kind: KIND.OPTION, key: 'personalRatingStyle', label: () => $L('Personal Rating Style'), options: getPersonalRatingStyleOptions, fallback: () => $L('Like / dislike'), icon: 'rate_review'},
 					{kind: KIND.TOGGLE, key: 'detailsBackdropEnabled', label: () => $L('Details Screen Backdrop'), icon: 'photo'},
 					{
@@ -649,32 +718,10 @@ export const SETTINGS_SCHEMA = [
 					{kind: KIND.TOGGLE, key: 'detailExpandedTabs', label: () => $L('Expanded Tabs'), desc: () => $L('Automatically show tab content while browsing tabs. Turn off to open and close each tab manually.'), icon: 'tab', when: (ctx) => ctx.settings.detailScreenStyle === 'v2'},
 					{kind: KIND.TOGGLE, key: 'detailShowTechnicalDetails', label: () => $L('Show Technical Details'), desc: () => $L('Show codec, resolution, and stream information in banner summary'), icon: 'info_outline'},
 					{kind: KIND.TOGGLE, key: 'hideDetailsMediaDescription', label: () => $L('Hide Media Description'), desc: () => $L('Hide the movie or episode descriptive text.'), icon: 'description_outlined'},
-					{kind: KIND.TOGGLE, key: 'detailUseSeriesThumbnails', label: () => $L('Use Series Thumbnails'), desc: () => $L('Replace thumbnails on the details page with the series thumbnail'), icon: 'image_outlined', when: (ctx) => ['v1', 'v4', 'v5'].indexOf(ctx.settings.detailScreenStyle) >= 0},
+					{kind: KIND.TOGGLE, key: 'detailUseSeriesThumbnails', label: () => $L('Use Series Thumbnails'), desc: () => $L('Replace thumbnails on the details page with the series thumbnail'), icon: 'image_outlined', when: (ctx) => ['v1', 'v4', 'v5', 'v6', 'v7'].indexOf(ctx.settings.detailScreenStyle) >= 0},
 					{kind: KIND.SECTION, id: 'recommendations', label: () => $L('Recommendations')},
 					{kind: KIND.OPTION, key: 'recommendationSystemSource', label: () => $L('Recommendation System'), desc: () => $L('Moonfin scores your own library, Jellyfin takes the picks from the server, TMDb uses Seerr, and Hybrid leads with the server then tops up locally'), options: getRecommendationSystemSourceOptions, fallback: () => $L('Moonfin Recommends'), icon: 'auto_awesome'},
-					{kind: KIND.SECTION, id: 'ratings', label: () => $L('Ratings')},
-					{kind: KIND.TOGGLE, key: 'mdblistEnabled', label: () => $L('Additional Ratings'), desc: () => $L('Show MDBList and TMDB ratings'), icon: 'star'},
-					{
-						kind: KIND.NAV,
-						id: 'ratingSources',
-						label: () => $L('Rating Sources'),
-						desc: (ctx) => getEnabledRatingSourcesSummary(ctx.settings.mdblistRatingSources),
-						icon: 'reorder',
-						action: (ctx) => ctx.actions.openRatingSources()
-					},
-					{kind: KIND.TOGGLE, key: 'tmdbEpisodeRatingsEnabled', label: () => $L('Episode Ratings'), desc: () => $L('Show ratings on individual episodes'), icon: 'stars'},
-					{kind: KIND.TOGGLE, key: 'showRatingLabels', label: () => $L('Rating Labels'), desc: () => $L('Show labels next to rating icons'), icon: 'label'},
-					{kind: KIND.TOGGLE, key: 'showRatingBadges', label: () => $L('Rating Badges'), desc: () => $L('Show decorative badges behind ratings'), icon: 'style'},
-					{
-						kind: KIND.NAV,
-						id: 'resetRatings',
-						label: () => $L('Reset Ratings'),
-						desc: (ctx) => (ctx.ratingsResetArmed
-							? $L('Press again to put every ratings setting back to its default')
-							: $L('Restores the sources, their order, and the ratings toggles')),
-						icon: 'restore',
-						action: (ctx) => ctx.actions.resetRatingsSettings()
-					},
+					...ratingsRows(''),
 					{kind: KIND.SECTION, id: 'themeMusic', label: () => $L('Theme Music')},
 					{kind: KIND.TOGGLE, key: 'themeMusicEnabled', label: () => $L('Theme Music'), desc: () => $L('Play theme music on detail pages'), icon: 'music_note'},
 					{kind: KIND.SLIDER, key: 'themeMusicVolume', label: () => $L('Theme Music Volume'), min: 0, max: 100, step: 5, format: percent, icon: 'volume_down'},
@@ -691,7 +738,8 @@ export const SETTINGS_SCHEMA = [
 				rows: [
 					{kind: KIND.SECTION, id: 'seasonalEffects', label: () => $L('Seasonal Effects')},
 					{kind: KIND.OPTION, key: 'seasonalTheme', label: () => $L('Seasonal Surprise'), options: getSeasonalThemeOptions, fallback: () => $L('None'), icon: 'auto_awesome', padded: true},
-					{kind: KIND.OPTION, key: 'seasonalDensity', label: () => $L('Density'), options: getSeasonalDensityOptions, fallback: () => $L('Normal'), icon: 'grain', padded: true}
+					{kind: KIND.OPTION, key: 'seasonalDensity', label: () => $L('Density'), options: getSeasonalDensityOptions, fallback: () => $L('Normal'), icon: 'grain', padded: true},
+					{kind: KIND.TOGGLE, key: 'seasonalFollower', label: () => $L('Focus Follower'), desc: () => $L("A holiday piece, like Halloween's planchette, follows what you select on Home"), icon: 'ads_click'}
 				]
 			},
 			{
@@ -914,7 +962,8 @@ export const SETTINGS_SCHEMA = [
 					},
 					{kind: KIND.SECTION, id: 'subtitleStream', label: () => $L('Subtitle Stream'), when: whenSubtitlesOn},
 					{kind: KIND.OPTION, key: 'subtitleLanguage', label: () => $L('Default Subtitle Language'), options: getSubtitleLanguageOptions, fallback: () => $L('None'), icon: 'language', when: whenSubtitlesOn, padded: true},
-					{kind: KIND.OPTION, key: 'preferredSecondarySubtitleLanguage', label: () => $L('Preferred Secondary Subtitle Language'), options: getSubtitleLanguageOptions, fallback: () => $L('None'), icon: 'language', when: whenSubtitlesOn, padded: true},
+					{kind: KIND.TOGGLE, key: 'secondarySubtitlesEnabled', label: () => $L('Secondary Subtitles'), desc: () => $L('Show a second subtitle track at the same time. The subtitle menu then asks for the primary or secondary track first'), icon: 'subtitles_outlined', keywords: () => ['dual subtitles', 'two subtitles'], when: whenSubtitlesOn},
+					{kind: KIND.OPTION, key: 'preferredSecondarySubtitleLanguage', label: () => $L('Preferred Secondary Subtitle Language'), options: getSubtitleLanguageOptions, fallback: () => $L('None'), icon: 'language', when: (ctx) => whenSubtitlesOn(ctx) && ctx.settings.secondarySubtitlesEnabled === true, padded: true},
 					{kind: KIND.OPTION, key: 'fallbackSubtitleLanguage', label: () => $L('Fallback Subtitle Language'), options: getSubtitleLanguageOptions, fallback: () => $L('None'), icon: 'language', when: whenSubtitlesOn, padded: true},
 					{kind: KIND.TOGGLE, key: 'preferSdhSubtitles', label: () => $L('Prefer SDH Subtitles'), desc: () => $L('Prioritize SDH/CC subtitle tracks when auto-selecting.'), icon: 'hearing', when: whenSubtitlesOn},
 					{kind: KIND.TOGGLE, key: 'preferTextSubtitles', label: () => $L('Prefer text subtitles'), desc: () => $L('Prioritize text-based subtitles (SRT, VTT) over image-based formats (PGS, VobSub)'), icon: 'subtitles', when: whenSubtitlesOn},
@@ -987,6 +1036,7 @@ export const SETTINGS_SCHEMA = [
 					{kind: KIND.OPTION, key: 'nextUpCountdownStyle', label: () => $L('Media Segment Countdown'), options: getNextUpCountdownStyleOptions, fallback: () => $L('Both'), icon: 'timer_outlined', when: (ctx) => ctx.settings.nextUpBehavior !== 'disabled'},
 					{kind: KIND.SLIDER, key: 'nextUpTimeout', label: () => $L('Next Up Timeout'), min: 0, max: 30, step: 1, format: (v) => (v === 0 ? $L('Instant') : `${v}s`), icon: 'timer', when: (ctx) => ctx.settings.nextUpBehavior !== 'disabled'},
 					{kind: KIND.TOGGLE, key: 'replaceSkipOutroWithNextUp', label: () => $L('Replace Skip Outro with Next Up Display'), desc: () => $L('Show the Next Up overlay instead of the Skip Outro button.'), icon: 'skip_next', when: (ctx) => ctx.settings.outroAction !== 'none'},
+					{kind: KIND.TOGGLE, key: 'showNextAirDate', label: () => $L('Next air date at the end'), desc: () => $L("When the next episode isn't in your library yet, the end of episode card says when it airs"), icon: 'event_available_outlined', when: (ctx) => ctx.settings.nextUpBehavior !== 'disabled'},
 					{kind: KIND.OPTION, key: 'stillWatchingBehavior', label: () => $L('Still Watching Prompt'), options: getStillWatchingBehaviorOptions, fallback: () => $L('3 episodes'), desc: () => $L('Prompt to Continue Watching after X consecutive episodes.'), icon: 'visibility'}
 				]
 			},
@@ -1068,11 +1118,62 @@ export const SETTINGS_SCHEMA = [
 						kind: KIND.TOGGLE,
 						key: 'showSeerrAvailabilityBadges',
 						label: () => $L('Show Seerr Availability Badges'),
-						desc: () => $L('Show season availability badges on media details pages'),
+						desc: () => $L('Show the Seerr status on posters and seasons across the app'),
 						icon: 'check_circle_outline',
 						when: whenSeerr
 					},
+					{
+						kind: KIND.OPTION,
+						key: 'seerrBadgeStyle',
+						label: () => $L('Badge Style'),
+						desc: () => $L("Badge puts Seerr's dot in a corner. Banner runs the status across the top of the poster."),
+						options: getSeerrBadgeStyleOptions,
+						fallback: () => $L('Badge'),
+						icon: 'label_outline',
+						when: (ctx) => whenSeerr(ctx) && ctx.settings.showSeerrAvailabilityBadges !== false
+					},
 					{kind: KIND.INFO, id: 'seerrVariant', label: () => $L('Detected Variant'), value: (ctx) => $L('{seerrLabel} (Seerr v3+)').replace('{seerrLabel}', ctx.seerrLabel), when: (ctx) => ctx.isSeerr, icon: 'info_outline'}
+				]
+			},
+			{
+				id: 'calendar',
+				clean: true,
+				icon: 'calendar_month',
+				label: () => $L('Calendar'),
+				description: () => $L('Style, filters and actions for the calendar'),
+				when: whenCalendar,
+				rows: [
+					{kind: KIND.SECTION, id: 'calendarView', label: () => $L('View')},
+					{kind: KIND.OPTION, key: 'calendarStyle', label: () => $L('Calendar style'), desc: () => $L('What the Calendar button opens. The full month is one button away in both.'), options: getCalendarStyleOptions, fallback: () => $L('Agenda'), icon: 'view_agenda_outlined'},
+					{kind: KIND.OPTION, key: 'calendarWeekStart', label: () => $L('Week starts on'), options: getCalendarWeekStartOptions, fallback: () => $L('Auto'), icon: 'date_range_outlined'},
+					{kind: KIND.SECTION, id: 'calendarWhatShows', label: () => $L('What shows')},
+					{kind: KIND.OPTION, key: 'calendarScope', label: () => $L('Show'), desc: () => $L('My shows keeps the series you favorited or started watching'), options: getCalendarScopeOptions, fallback: () => $L('Everything'), icon: 'filter_list'},
+					{kind: KIND.TOGGLE, key: 'calendarShowEpisodes', label: () => $L('Episodes'), icon: 'live_tv'},
+					{kind: KIND.TOGGLE, key: 'calendarShowMovies', label: () => $L('Movies'), icon: 'movie_outlined'},
+					// Shared with the Upcoming Movies row, so the row and the screen list the same release types.
+					{kind: KIND.TOGGLE, key: 'radarrCalendarShowCinema', label: () => $L('Show Upcoming Cinema Releases'), icon: 'theater_comedy', when: (ctx) => ctx.settings.calendarShowMovies !== false},
+					{kind: KIND.TOGGLE, key: 'radarrCalendarShowDigital', label: () => $L('Show Upcoming Digital Releases'), icon: 'tv', when: (ctx) => ctx.settings.calendarShowMovies !== false},
+					{kind: KIND.TOGGLE, key: 'radarrCalendarShowPhysical', label: () => $L('Show Upcoming Physical Releases'), icon: 'album', when: (ctx) => ctx.settings.calendarShowMovies !== false},
+					{
+						kind: KIND.NAV,
+						id: 'calendarLibraries',
+						label: () => $L('Libraries'),
+						desc: (ctx) => (Array.isArray(ctx.settings.calendarLibraryIds) && ctx.settings.calendarLibraryIds.length > 0
+							? countLabel(ctx.settings.calendarLibraryIds.length)
+							: $L('All Libraries')),
+						icon: 'video_library_outlined',
+						action: (ctx) => ctx.actions.openCalendarLibraries()
+					},
+					{kind: KIND.TOGGLE, key: 'calendarIncludeUnmonitored', label: () => $L('Include unmonitored'), desc: () => $L("Also list episodes and movies Sonarr and Radarr aren't set to download"), icon: 'visibility_outlined'},
+					{kind: KIND.TOGGLE, key: 'calendarShowSpecials', label: () => $L('Specials'), desc: () => $L('Season 0 episodes, like extras and holiday specials'), icon: 'star_outline'},
+					{kind: KIND.SECTION, id: 'calendarLook', label: () => $L('Looks')},
+					{kind: KIND.TOGGLE, key: 'calendarShowBadges', label: () => $L('Premiere and finale tags'), desc: () => $L('Mark premieres, finales and new seasons'), icon: 'new_releases_outlined'},
+					{kind: KIND.OPTION, key: 'calendarColorBy', label: () => $L('Color by'), desc: () => $L("Type tells episodes from movies. Status shows what's in your library, coming up or missing."), options: getCalendarColorByOptions, fallback: () => $L('Type'), icon: 'palette_outlined'},
+					{kind: KIND.OPTION, key: 'calendarImageType', label: () => $L('Card image'), desc: () => $L('The artwork on the Countdown rows'), options: getCalendarImageTypeOptions, fallback: () => $L('Poster'), icon: 'image_outlined'},
+					{kind: KIND.TOGGLE, key: 'calendarSpoilerSafe', label: () => $L('Spoiler safe'), desc: () => $L("Hide episode titles and stills for shows you're behind on"), icon: 'visibility_off_outlined'},
+					{kind: KIND.SECTION, id: 'calendarActions', label: () => $L('Actions')},
+					{kind: KIND.OPTION, key: 'calendarSelectAction', label: () => $L('Selecting an item'), desc: () => $L("What OK or a tap does on something that's already in your library"), options: getCalendarSelectActionOptions, fallback: () => $L('Open details'), icon: 'touch_app_outlined'},
+					{kind: KIND.TOGGLE, key: 'calendarRequestButton', label: () => $L('Request button'), desc: (ctx) => $L('Show the {seerrLabel} request button on missing movies and seasons').replace('{seerrLabel}', ctx.seerrLabel), icon: 'add_circle_outline', when: whenSeerr}
 				]
 			},
 			{

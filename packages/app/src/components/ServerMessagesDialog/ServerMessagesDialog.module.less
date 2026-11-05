@@ -1,175 +1,174 @@
 @import '../../styles/mixins.less';
 
-@accent: var(--accent-color, #00a4dc);
-@text: var(--theme-text-primary, #fff);
-@muted: var(--theme-text-secondary, rgba(255, 255, 255, 0.7));
+@accent-rgb: var(--theme-accent-rgb, 0, 164, 220);
+@on-surface-rgb: var(--theme-on-surface-rgb, 255, 255, 255);
 
-.modal {
-	padding: 28px 32px;
-	width: 1100px;
-	max-width: 90vw;
-	max-height: 80vh;
+// Wider than the usual dialog, since a long message in a narrow column reads badly on a TV.
+.panel {
+	max-width: (720 * @dp);
+}
+
+// The list scrolls on its own so the mark all button stays put under it.
+.panelBody {
+	display: -webkit-box;
+	display: -webkit-flex;
+	display: flex;
+	-webkit-box-orient: vertical;
+	-webkit-flex-direction: column;
+	flex-direction: column;
+}
+
+.list {
+	-webkit-box-flex: 0;
+	-webkit-flex: 0 1 auto;
+	flex: 0 1 auto;
+	min-height: 0;
 	overflow-y: auto;
-	background: var(--theme-surface, #1a1a1a);
-	border-radius: 16px;
-}
+	padding: (4 * @dp) (16 * @dp);
+	scrollbar-width: none;
 
-.header {
-	display: flex;
-	align-items: center;
-	justify-content: space-between;
-	margin-bottom: 20px;
-}
-
-.title {
-	font-size: 28px;
-	font-weight: 600;
-	color: @text;
-	margin: 0;
-}
-
-.closeBtn {
-	width: 44px;
-	height: 44px;
-	display: flex;
-	align-items: center;
-	justify-content: center;
-	background: rgba(var(--theme-on-surface-rgb, 255, 255, 255), 0.1);
-	border: none;
-	border-radius: 50%;
-	color: @muted;
-	cursor: pointer;
-	transition: all 0.2s;
-	padding: 0;
-
-	svg {
-		width: 22px;
-		height: 22px;
-	}
-
-	&:focus {
-		outline: none;
-		background: @accent;
-		color: var(--theme-on-accent, #fff);
-		transform: scale(1.1);
+	&::-webkit-scrollbar {
+		display: none;
 	}
 }
 
 .empty {
-	font-size: 20px;
-	color: @muted;
-	padding: 8px 0 16px;
+	padding: (12 * @dp) (24 * @dp) (20 * @dp);
+	font-size: (14 * @dp);
+	color: rgba(@on-surface-rgb, 0.6);
+	outline: none;
+}
+
+.footer {
+	-webkit-flex-shrink: 0;
+	flex-shrink: 0;
+	padding: (8 * @dp) (16 * @dp) 0;
+	text-align: center;
 }
 
 .card {
-	border: 2px solid transparent;
-	border-radius: 16px;
-	background: rgba(var(--theme-on-surface-rgb, 255, 255, 255), 0.06);
-	transition: border-color 0.15s ease;
+	margin-bottom: (8 * @dp);
+	padding: (14 * @dp);
+	border: (1 * @dp) solid transparent;
+	border-radius: (16 * @dp);
+	background: rgba(var(--theme-surface-variant-rgb, 42, 42, 42), 0.95);
+}
+
+.cardFocused {
+	border-width: (2 * @dp);
 }
 
 .cardBody {
+	display: -webkit-box;
+	display: -webkit-flex;
 	display: flex;
+	-webkit-box-align: start;
+	-webkit-align-items: flex-start;
 	align-items: flex-start;
-	padding: 18px 20px;
 	cursor: pointer;
 	outline: none;
 }
 
 .cardIcon {
-	width: 30px;
-	height: 30px;
+	-webkit-flex-shrink: 0;
 	flex-shrink: 0;
-	margin-right: 16px;
-	margin-top: 2px;
+	width: (22 * @dp);
+	height: (22 * @dp);
+	margin-right: (12 * @dp);
 }
 
 .cardText {
-	flex: 1;
+	-webkit-box-flex: 1;
+	-webkit-flex: 1 1 0;
+	flex: 1 1 0;
 	min-width: 0;
 }
 
 .cardTitleRow {
+	display: -webkit-box;
+	display: -webkit-flex;
 	display: flex;
+	-webkit-box-align: center;
+	-webkit-align-items: center;
 	align-items: center;
 }
 
 .cardTitle {
-	flex: 1;
+	-webkit-box-flex: 1;
+	-webkit-flex: 1 1 0;
+	flex: 1 1 0;
 	min-width: 0;
-	font-size: 22px;
+	font-size: (15 * @dp);
 	font-weight: 600;
-	color: @text;
-	overflow: hidden;
-	text-overflow: ellipsis;
-	white-space: nowrap;
+	color: rgb(@on-surface-rgb);
 }
 
 .unreadDot {
-	width: 12px;
-	height: 12px;
-	border-radius: 50%;
-	margin-left: 12px;
+	-webkit-flex-shrink: 0;
 	flex-shrink: 0;
+	width: (8 * @dp);
+	height: (8 * @dp);
+	margin-left: (8 * @dp);
+	border-radius: 50%;
 }
 
 .cardDate {
-	font-size: 15px;
-	color: rgba(var(--theme-on-surface-rgb, 255, 255, 255), 0.5);
-	margin-top: 2px;
+	margin-top: (2 * @dp);
+	font-size: (11 * @dp);
+	color: rgba(@on-surface-rgb, 0.5);
 }
 
 .preview {
-	margin-top: 8px;
-	font-size: 19px;
-	line-height: 1.35;
-	color: @muted;
-	white-space: pre-line;
+	margin-top: (6 * @dp);
 	overflow: hidden;
 	display: -webkit-box;
 	-webkit-box-orient: vertical;
 	-webkit-line-clamp: 2;
+	white-space: pre-line;
+	font-size: (13 * @dp);
+	line-height: 1.35;
+	color: rgba(@on-surface-rgb, 0.75);
 }
 
-.cardActions {
-	display: flex;
-	flex-wrap: wrap;
-	padding: 0 20px 18px 66px;
-	.flex-wrap-gap(10px);
+// The opened text keeps the gap the preview had above it.
+.cardText > .body {
+	margin-top: (6 * @dp);
 }
 
-.footer {
-	display: flex;
-	justify-content: center;
-	margin-top: 16px;
+// Lines up under the text, past the icon and its gap.
+.cardAction {
+	margin: (10 * @dp) 0 0 (34 * @dp);
 }
 
-.button {
-	padding: 12px 24px;
-	border-radius: 12px;
-	border: 2px solid transparent;
-	background: rgba(var(--theme-on-surface-rgb, 255, 255, 255), 0.1);
-	color: @text;
-	font-size: 19px;
+.textButton {
+	padding: (8 * @dp) (14 * @dp);
+	border: none;
+	border-radius: (8 * @dp);
+	background: rgba(@accent-rgb, 0.16);
+	font-family: inherit;
+	font-size: (13 * @dp);
 	font-weight: 600;
+	line-height: 1.17;
+	color: rgb(@on-surface-rgb);
 	cursor: pointer;
 	outline: none;
-	transition: all 0.15s ease;
 
 	&:focus {
-		background: @accent;
-		border-color: #fff;
+		background: rgb(@accent-rgb);
 		color: var(--theme-on-accent, #fff);
 	}
 }
 
-// The opened body
+// The opened body, shared with the review reader
 .body {
-	margin-top: 8px;
-	font-size: 19px;
-	line-height: 1.4;
-	color: @muted;
-	.flex-col-gap(8px);
+	font-size: (13 * @dp);
+	line-height: 1.35;
+	color: rgba(@on-surface-rgb, 0.75);
+
+	strong {
+		font-weight: 700;
+		color: rgb(@on-surface-rgb);
+	}
 }
 
 .paragraph {
@@ -178,81 +177,88 @@
 }
 
 .h1 {
-	font-size: 24px;
+	font-size: (17 * @dp);
 	font-weight: 700;
-	color: @text;
+	color: rgb(@on-surface-rgb);
 }
 
 .h2 {
-	font-size: 22px;
+	font-size: (15 * @dp);
 	font-weight: 700;
-	color: @text;
+	color: rgb(@on-surface-rgb);
 }
 
 .h3 {
-	font-size: 20px;
+	font-size: (14 * @dp);
 	font-weight: 600;
-	color: @text;
+	color: rgb(@on-surface-rgb);
 }
 
 .mdList {
 	margin: 0;
-	padding-left: 28px;
+	padding-left: (24 * @dp);
 }
 
 .quote {
 	margin: 0;
-	padding-left: 14px;
-	border-left: 3px solid rgba(var(--theme-on-surface-rgb, 255, 255, 255), 0.25);
+	padding-left: (10 * @dp);
+	border-left: (3 * @dp) solid rgba(@on-surface-rgb, 0.25);
 }
 
 .code {
 	font-family: monospace;
-	font-size: 17px;
-	padding: 0 4px;
-	border-radius: 4px;
-	background: rgba(var(--theme-on-surface-rgb, 255, 255, 255), 0.07);
+	font-size: (12 * @dp);
 }
 
 .codeBlock {
 	margin: 0;
-	padding: 10px 12px;
-	border-radius: 6px;
+	padding: (8 * @dp);
+	border-radius: (6 * @dp);
+	background: rgba(@on-surface-rgb, 0.07);
 	font-family: monospace;
-	font-size: 17px;
+	font-size: (12 * @dp);
 	white-space: pre-wrap;
-	background: rgba(var(--theme-on-surface-rgb, 255, 255, 255), 0.07);
 }
 
 .link {
-	color: @accent;
-	text-decoration: underline;
+	color: rgb(@accent-rgb);
 }
 
-// The QR code in place of the list
-.qrPanel {
+// A link as a QR code
+
+.qr {
+	padding: (8 * @dp) 0 (16 * @dp);
 	text-align: center;
 }
 
-.hint {
-	font-size: 18px;
-	color: @muted;
-	margin-top: 8px;
-	word-break: break-all;
-}
-
-.qrContainer {
-	display: flex;
-	justify-content: center;
-	margin: 20px 0;
+.qrBox {
+	display: inline-block;
+	padding: (12 * @dp);
+	border-radius: (12 * @dp);
+	background: rgb(@on-surface-rgb);
+	line-height: 0;
 }
 
 .qrCanvas {
-	background: #ffffff;
-	border-radius: 8px;
+	display: block;
+	width: (180 * @dp);
+	height: (180 * @dp);
 }
 
-// The spacing helpers sit last so a child's own margin further up cant win.
-.list > * + * {
-	margin-top: 10px;
+.qrHint {
+	margin-top: (16 * @dp);
+	font-size: (13 * @dp);
+	color: rgba(@on-surface-rgb, 0.7);
+}
+
+.qrUrl {
+	margin-top: (4 * @dp);
+	font-size: (11 * @dp);
+	color: rgba(@on-surface-rgb, 0.54);
+	word-wrap: break-word;
+}
+
+// The spacing helper sits last so a child's own margin further up can't win.
+.body {
+	.flex-col-gap((6 * @dp));
 }

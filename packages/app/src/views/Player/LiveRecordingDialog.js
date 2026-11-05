@@ -4,6 +4,7 @@ import $L from '@enact/i18n/$L';
 
 import TrackOptionRow, {TrackDivider} from '../../components/TrackOptionRow';
 import SeriesEpisodeChoices from '../../components/SeriesEpisodeChoices';
+import {useRecordPrompt} from '../../components/RecordPrompt';
 import {ModalContainer} from '../../utils/spotlightContainers';
 import {formatClockTime, formatDayLabel} from '../../utils/clock';
 import {DEFAULT_SERIES_CHOICE, episodeLine, programEnd, programStart, seriesChoiceOf} from '../../utils/liveTvGuide';
@@ -12,8 +13,10 @@ import recCss from './LiveRecordingDialog.module.less';
 
 // What the Record button in the live player opens: the airing program's recording, its series
 // rule, and the episode choice a new or changed series rule asks for.
-const LiveRecordingDialog = ({css, recording, clockDisplay, onClose, stopPropagation}) => {
+const LiveRecordingDialog = ({css, recording, clockDisplay, channel, onClose, stopPropagation}) => {
 	const [view, setView] = useState(null);
+	const [recordingAiring, setRecordingAiring] = useState(false);
+	const {prompt, setLoading, element: promptElement} = useRecordPrompt(clockDisplay);
 	const {program, timer, seriesTimerId, nextSeriesRecording} = recording;
 
 	const act = (action) => {
@@ -30,10 +33,15 @@ const LiveRecordingDialog = ({css, recording, clockDisplay, onClose, stopPropaga
 		recording.loadSeriesRule().then((rule) => (rule ? show({type: 'series', rule}) : onClose()));
 	};
 
+	// The Record prompt takes over from this dialog while it's needed, and the dialog closes once
+	// the recording is set or the prompt is backed out of.
 	const handleRecord = () => {
-		if (timer) act(recording.cancel);
-		else if (recording.offersLaterShowing) show({type: 'later'});
-		else act(() => recording.record(false));
+		if (timer) {
+			act(recording.cancel);
+			return;
+		}
+		setRecordingAiring(true);
+		recording.record({prompt, setLoading, channel}).then(onClose);
 	};
 
 	const frame = (title, body) => (
@@ -45,24 +53,7 @@ const LiveRecordingDialog = ({css, recording, clockDisplay, onClose, stopPropaga
 		</div>
 	);
 
-	if (view?.type === 'later') {
-		return frame(program.Name, (
-			<>
-				<div className={recCss.details}>{$L('This program has already started. Also record a later showing?')}</div>
-				<div className={css.trackList}>
-					<TrackOptionRow
-						label={$L('Also Record a Later Showing')}
-						data-selected="true"
-						onClick={() => act(() => recording.record(true))} // eslint-disable-line react/jsx-no-bind
-					/>
-					<TrackOptionRow
-						label={$L('Just Record Now')}
-						onClick={() => act(() => recording.record(false))} // eslint-disable-line react/jsx-no-bind
-					/>
-				</div>
-			</>
-		));
-	}
+	if (recordingAiring) return promptElement;
 
 	if (view?.type === 'series') {
 		const {rule} = view;

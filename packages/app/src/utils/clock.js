@@ -17,3 +17,7 @@ export const formatClockTime = (date, clockDisplay) => {
 	}
 	return `${String(hours).padStart(2, '0')}:${minutes}`;
 };
+
+// Weekday and time, such as Thu 8:00 PM, in the viewer's clock format.
+export const formatShowingTime = (date, clockDisplay) =>
+	`${date.toLocaleDateString(uiLocale(), {weekday: 'short'})} ${formatClockTime(date, clockDisplay)}`;

@@ -1,3 +1,5 @@
+import {siloImageUrl} from './siloUrls';
+
 /**
  * Jellyfin 12 dropped every /Users/{userId}/... route from its OpenAPI spec.
  * They still answer, but the server marks them kept for backwards compatibility
@@ -41,6 +43,8 @@ export const legacyAuthHeader = (type, authHeader) =>
 // Jellyfin 12 serves the avatar from /UserImage and discards the sizing hints on
 // both spellings of the route, so only Emby is still sent them.
 export const buildUserImageUrl = (serverUrl, userId, imageTag, type) => {
+	// A Silo profile's avatar came with the profile, recorded as the profile's picture.
+	if (type === 'silo') return siloImageUrl(serverUrl, userId, 'Primary');
 	// Plex keeps every account's avatar on plex.tv, under its uuid.
 	if (type === 'plex') return `https://plex.tv/users/${encodeURIComponent(userId)}/avatar`;
 	const tag = imageTag ? `&tag=${encodeURIComponent(imageTag)}` : '';

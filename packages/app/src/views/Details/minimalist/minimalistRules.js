@@ -1,5 +1,9 @@
+import $L from '@enact/i18n/$L';
+
 import {getImageUrl} from '../../../utils/helpers';
+import {DETAIL_ICON_PATHS} from '../detailIcons';
 import {seriesThumbUrl} from '../detailsMedia';
+import {getExtraCategoryLabel, groupExtrasByCategory} from '../extraCategories';
 
 // The item types Minimalist draws. Everything else falls through to Spotlight, which already knows
 // how to draw a person, an album or a playlist.
@@ -12,6 +16,22 @@ export const drawsMinimalist = (type) => MINIMALIST_TYPES.indexOf(type) >= 0;
 const TYPES_WITH_EPISODES = ['Series', 'Season', 'Episode'];
 
 export const showsEpisodes = (type) => TYPES_WITH_EPISODES.indexOf(type) >= 0;
+
+// A page without episodes has no rail to put extras in, so they open from a button in the row
+// instead. Kids Mode keeps to its own fixed set of buttons. The list is already empty when the
+// Extras section is switched off.
+export const showsExtrasButton = (type, extras, kidsMode) =>
+	!showsEpisodes(type) && !kidsMode && extras.length > 0;
+
+// What the Extras button opens, one widescreen grid per kind of extra.
+export const minimalistExtrasCard = (extras) => ({
+	id: 'extras',
+	title: $L('Extras'),
+	icon: DETAIL_ICON_PATHS.videoLibraryOutlined,
+	sections: groupExtrasByCategory(extras).map(({key, items}) => ({
+		kind: 'media', title: getExtraCategoryLabel(key), count: items.length, items, aspect: 'landscape'
+	}))
+});
 
 // A flat darkening over the artwork rather than a gradient.
 //

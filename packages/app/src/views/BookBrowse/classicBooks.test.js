@@ -30,8 +30,9 @@ describe('classicShelves', () => {
 		expect(shelves.map((s) => s.id)).toEqual(['resume', 'latestBooks', 'latestAudiobooks', 'latestComics', 'authors', 'genres', 'favorites', 'allTitles']);
 		expect(shelves[shelves.length - 1].title).toBe('All Titles');
 		expect(shelves.filter((s) => s.mixFormats).map((s) => s.id)).toEqual(['resume', 'favorites', 'allTitles']);
-		expect(shelves.find((s) => s.id === 'genres').seeAll).toEqual({genres: true});
-		expect(shelves.find((s) => s.id === 'latestAudiobooks').seeAll).toEqual({types: 'AudioBook'});
+		expect(shelves.find((s) => s.id === 'genres').seeAll).toEqual({id: 'genres'});
+		expect(shelves.find((s) => s.id === 'latestAudiobooks').seeAll).toEqual({id: 'titles', scope: 'audiobooks'});
+		expect(shelves.find((s) => s.id === 'resume').seeAll).toEqual({id: 'titles', scope: 'all', sort: 'datePlayed'});
 	});
 
 	it('keeps a format to its own titles, with no authors for comics', () => {

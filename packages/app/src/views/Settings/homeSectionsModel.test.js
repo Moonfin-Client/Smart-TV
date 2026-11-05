@@ -2,7 +2,7 @@
 // English source string, so handing the string straight back is faithful enough here.
 jest.mock('@enact/i18n/$L', () => ({__esModule: true, default: (str) => str}));
 
-import {makePickedRow} from '../../utils/pickedRows';
+import {isPickedRowShown, makePickedRow} from '../../utils/pickedRows';
 import {homeRowGroup, isHomeRowVisibleByGates, mergeFoundRows, pickedRowLabel} from './homeSectionsModel';
 
 const settings = (over = {}) => ({
@@ -128,5 +128,25 @@ describe('homeRowGroup', () => {
 		expect(homeRowGroup({id: 'radarr_calendar'})).toBe('seerr');
 		expect(homeRowGroup({id: 'tmdb_popular_tv'})).toBe('external');
 		expect(homeRowGroup({id: 'imdb-top250-movies'})).toBe('external');
+	});
+});
+
+describe('Silo home section rows', () => {
+	const silo = (itemId, name = '') => makePickedRow({source: 'server', serverUrl: 'http://silo', itemId, name}, false, 0);
+
+	test('a section Silo no longer has is dropped, a section-type row stays, and new sections come back off', () => {
+		const rows = [silo('1', 'Old'), silo('2', 'Gone'), silo('type:seasonal_themed', 'Seasonal picks')];
+		const merged = mergeFoundRows(rows, [silo('1', 'Renamed'), silo('5', 'Hidden gems')]);
+		expect(merged.rows.map((row) => [row.itemId, row.name])).toEqual([['1', 'Renamed'], ['type:seasonal_themed', 'Seasonal picks']]);
+		expect(merged.added.map((row) => row.itemId)).toEqual(['5']);
+	});
+
+	test('show only on Silo, on their own server or any server when Moonbase named none', () => {
+		const ownServer = silo('1');
+		const anyServer = makePickedRow({source: 'server', serverUrl: '', itemId: 'type:hidden_gems', name: ''}, true, 0);
+		expect(isPickedRowShown(ownServer, settings(), 'http://silo/', 'silo')).toBe(true);
+		expect(isPickedRowShown(anyServer, settings(), 'http://other', 'silo')).toBe(true);
+		expect(isPickedRowShown(ownServer, settings(), 'http://other', 'silo')).toBe(false);
+		expect(isPickedRowShown(anyServer, settings(), 'http://jf', 'jellyfin')).toBe(false);
 	});
 });

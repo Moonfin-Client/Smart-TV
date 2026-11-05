@@ -1,6 +1,7 @@
+import {DETAIL_ICON_PATHS} from '../detailIcons';
 import {
-	drawsMinimalist, minimalistBranding, minimalistCardUrl, minimalistScrimAlpha,
-	minimalistStillUrl, showsEpisodes
+	drawsMinimalist, minimalistBranding, minimalistCardUrl, minimalistExtrasCard, minimalistScrimAlpha,
+	minimalistStillUrl, showsEpisodes, showsExtrasButton
 } from './minimalistRules';
 
 const SERVER = 'https://tv.example';
@@ -28,6 +29,42 @@ describe('what it draws', () => {
 		expect(showsEpisodes('Season')).toBe(true);
 		expect(showsEpisodes('Episode')).toBe(true);
 		expect(showsEpisodes('Movie')).toBe(false);
+	});
+});
+
+describe('the Extras button', () => {
+	const extras = [{Id: 'bts-1', ExtraType: 'BehindTheScenes', Name: 'Making of'}];
+
+	test('shows on a movie with extras', () => {
+		expect(showsExtrasButton('Movie', extras, false)).toBe(true);
+		expect(showsExtrasButton('Video', extras, false)).toBe(true);
+	});
+
+	// A switched off Extras section hands the screen an empty list.
+	test('stays away when there are no extras to open', () => {
+		expect(showsExtrasButton('Movie', [], false)).toBe(false);
+	});
+
+	test('stays out of Kids Mode', () => {
+		expect(showsExtrasButton('Movie', extras, true)).toBe(false);
+	});
+
+	test('stays off the pages that carry episodes', () => {
+		['Series', 'Season', 'Episode'].forEach((type) => {
+			expect(showsExtrasButton(type, extras, false)).toBe(false);
+		});
+	});
+
+	test('opens one widescreen grid per kind of extra', () => {
+		const trailer = {Id: 't1', ExtraType: 'Trailer', Name: 'Trailer'};
+		const card = minimalistExtrasCard([trailer, ...extras]);
+
+		expect(card.title).toBe('Extras');
+		expect(card.icon).toBe(DETAIL_ICON_PATHS.videoLibraryOutlined);
+		expect(card.sections).toEqual([
+			{kind: 'media', title: 'Behind the Scenes', count: 1, items: extras, aspect: 'landscape'},
+			{kind: 'media', title: 'Trailers', count: 1, items: [trailer], aspect: 'landscape'}
+		]);
 	});
 });
 

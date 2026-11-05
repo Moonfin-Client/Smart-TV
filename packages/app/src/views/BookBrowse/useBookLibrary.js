@@ -29,15 +29,18 @@ export const loadBookRow = (api, params) => loadBookItems(api, {
 	...params
 }).then((result) => result?.Items || [], () => []);
 
-// Only the collections holding something this library shows are kept. The first page is all
-// that's checked, so the count is a floor while more are left.
-const loadBookCollections = async (api, parentId, types) => {
-	const result = await api.getItems({ParentId: parentId, IncludeItemTypes: 'BoxSet', Recursive: true, SortBy: 'SortName', SortOrder: 'Ascending', Limit: ROW_LIMIT, Fields: 'ChildCount,PrimaryImageAspectRatio', EnableTotalRecordCount: true});
+// Only the collections holding something this library shows are kept, each with the first few
+// of those as `Covers`. Only `limit` of them are checked, so the count is a floor while more are left.
+export const loadBookCollections = async (api, parentId, types, limit = ROW_LIMIT) => {
+	const result = await api.getItems({ParentId: parentId, IncludeItemTypes: 'BoxSet', Recursive: true, SortBy: 'SortName', SortOrder: 'Ascending', Limit: limit, Fields: 'ChildCount,PrimaryImageAspectRatio,Overview', EnableTotalRecordCount: true});
 	const boxes = result?.Items || [];
 	const wanted = types.split(',');
-	const holding = await Promise.all(boxes.map((box) => api.getItems({ParentId: box.Id, IncludeItemTypes: types, Recursive: true, Limit: 8})
-		.then((inside) => (inside?.Items || []).some((item) => wanted.includes(item.Type)), () => false)));
-	return {items: boxes.filter((_, i) => holding[i]), isFloor: (result?.TotalRecordCount || 0) > boxes.length};
+	const held = await Promise.all(boxes.map((box) => api.getItems({ParentId: box.Id, IncludeItemTypes: types, Recursive: true, Limit: 8, ImageTypeLimit: 1})
+		.then((inside) => (inside?.Items || []).filter((item) => wanted.includes(item.Type)), () => [])));
+	return {
+		items: boxes.map((box, i) => ({...box, Covers: held[i].slice(0, 5)})).filter((box) => box.Covers.length > 0),
+		isFloor: (result?.TotalRecordCount || 0) > boxes.length
+	};
 };
 
 const EMPTY = {
@@ -64,7 +67,7 @@ const itemsOf = (result) => result?.Items || [];
 // Everything the book library styles share, read at once: what's being read, every title for the
 // counts and series, the folders the series group by, and the authors, genres, favorites and
 // collections. A failed read leaves its part empty.
-const useBookLibrary = ({api, library, genreLimit}) => {
+const useBookLibrary = ({api, library}) => {
 	const [state, setState] = useState(EMPTY);
 
 	useEffect(() => {
@@ -80,7 +83,7 @@ const useBookLibrary = ({api, library, genreLimit}) => {
 			quietly(loadBookItems(api, {ParentId: parentId, IncludeItemTypes: types, Recursive: true, Limit: 5000, SortBy: 'SortName', SortOrder: 'Ascending', Fields: 'SeriesName,ParentId,Path,People,AlbumArtist,Artists', EnableTotalRecordCount: false})),
 			quietly(api.getItems({ParentId: parentId, IncludeItemTypes: 'Folder', Recursive: true, Fields: 'ParentId', EnableImageTypes: 'Primary', ImageTypeLimit: 1, EnableTotalRecordCount: false})),
 			quietly(api.getArtists({ParentId: parentId, SortBy: 'SortName', SortOrder: 'Ascending', Limit: ROW_LIMIT, Fields: 'PrimaryImageAspectRatio,SortName', EnableTotalRecordCount: true})),
-			quietly(api.getMusicGenres({ParentId: parentId, IncludeItemTypes: types, Limit: genreLimit, Fields: 'ItemCounts,PrimaryImageAspectRatio', EnableTotalRecordCount: true})),
+			quietly(api.getMusicGenres({ParentId: parentId, IncludeItemTypes: types, Fields: 'ItemCounts,PrimaryImageAspectRatio', EnableTotalRecordCount: true})),
 			quietly(loadBookItems(api, {ParentId: parentId, IncludeItemTypes: types, Filters: 'IsFavorite', SortBy: 'SortName', SortOrder: 'Ascending', Recursive: true, Limit: ROW_LIMIT, Fields: BOOK_FIELDS, EnableTotalRecordCount: true})),
 			quietly(loadBookCollections(api, parentId, types), {items: [], isFloor: false})
 		]).then(([resume, titleResult, folderResult, artistResult, genreResult, favoriteResult, collections]) => {
@@ -109,7 +112,7 @@ const useBookLibrary = ({api, library, genreLimit}) => {
 			});
 		});
 		return () => { cancelled = true; };
-	}, [api, library, genreLimit]);
+	}, [api, library]);
 
 	return state;
 };

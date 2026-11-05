@@ -32,7 +32,7 @@ export const MusicSection = ({title, sectionRef, bodyClassName, seeAllId, onSeeA
 
 export const shelfSeeAllId = (rowId) => `music-see-all-${rowId}`;
 
-// A row of square cards under its title, with artists drawn round. `seeAllTarget` names the grid
+// A row of square cards under its title, with artists drawn round. `seeAllTarget` names the screen
 // its See All opens, if it has one.
 export const MusicShelf = ({row, rowIndex, serverUrl, onSelectItem, registerRowRef, seeAllTarget, onOpenGrid, ...keys}) => {
 	const sectionRef = useCallback((el) => registerRowRef(rowIndex, el), [registerRowRef, rowIndex]);

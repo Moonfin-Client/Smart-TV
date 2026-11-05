@@ -1,8 +1,8 @@
 // The request flow: what the viewer is allowed to ask for, which popup that takes them
-// through, and cancelling or reporting a problem afterwards. HD and 4K are tracked separately
+// through, and canceling or reporting a problem afterwards. HD and 4K are tracked separately
 // and each has its own control, so everything here works one track at a time.
 
-import {useCallback, useMemo, useState} from 'react';
+import {useCallback, useEffect, useMemo, useState} from 'react';
 import $L from '@enact/i18n/$L';
 
 import seerrApi, {canRequestMovies, canRequestTv, canRequest4kMovies, canRequest4kTv, hasAdvancedRequestPermission, canCreateIssues, canManageRequests} from '../../services/seerrApi';
@@ -18,37 +18,26 @@ const useSeerrRequests = ({
 	userPermissions, currentUserId, is4kEnabled, hdStatus, status4k
 }) => {
 	const [requesting, setRequesting] = useState(false);
-	const [showQualityPopup, setShowQualityPopup] = useState(false);
-	const [showSeasonPopup, setShowSeasonPopup] = useState(false);
-	const [showAdvancedPopup, setShowAdvancedPopup] = useState(false);
-	const [pendingIs4k, setPendingIs4k] = useState(false);
-	const [pendingSeasons, setPendingSeasons] = useState(null);
+	// The request sheet while it's up: which track it starts on and whether it can switch.
+	const [requestDialog, setRequestDialog] = useState(null);
 	const [showCancelPopup, setShowCancelPopup] = useState(false);
 	// Which track the cancel popup is about.
 	const [cancelScope, setCancelScope] = useState(false);
 	const [showReportPopup, setShowReportPopup] = useState(false);
 	const [showManagePopup, setShowManagePopup] = useState(false);
 
-	const handleCloseQualityPopup = useCallback(() => setShowQualityPopup(false), []);
-	const handleCloseSeasonPopup = useCallback(() => setShowSeasonPopup(false), []);
-	const handleCloseAdvancedPopup = useCallback(() => setShowAdvancedPopup(false), []);
+	const handleCloseRequestDialog = useCallback(() => setRequestDialog(null), []);
 	const handleCloseCancelPopup = useCallback(() => setShowCancelPopup(false), []);
 	const handleCloseReportPopup = useCallback(() => setShowReportPopup(false), []);
 	const handleCloseManagePopup = useCallback(() => setShowManagePopup(false), []);
 
-	// BACK dismisses the innermost popup. Handed back rather than installed on a handler ref,
-	// because the detail screen already owns that ref for its own overlays and one of the two
-	// would otherwise overwrite the other.
+	// Handed back rather than installed on a handler ref, because the detail screen already owns
+	// that ref for its own overlays and one of the two would otherwise overwrite the other. The
+	// dialogs answer Back themselves, topmost first, so this only keeps the press off the screen.
 	const closeTopPopup = useCallback(() => {
 		if (closeSeerrTagsDialog()) return true;
-		if (showManagePopup) { setShowManagePopup(false); return true; }
-		if (showQualityPopup) { setShowQualityPopup(false); return true; }
-		if (showReportPopup) { setShowReportPopup(false); return true; }
-		if (showAdvancedPopup) { setShowAdvancedPopup(false); return true; }
-		if (showSeasonPopup) { setShowSeasonPopup(false); return true; }
-		if (showCancelPopup) { setShowCancelPopup(false); return true; }
-		return false;
-	}, [showQualityPopup, showSeasonPopup, showAdvancedPopup, showCancelPopup, showReportPopup, showManagePopup]);
+		return Boolean(requestDialog) || showCancelPopup || showManagePopup || showReportPopup;
+	}, [requestDialog, showCancelPopup, showReportPopup, showManagePopup]);
 
 	// Issue reports need the seerr internal media id, so the title has to be at least
 	// partially available on the server before the button is offered.
@@ -85,32 +74,31 @@ const useSeerrRequests = ({
 		r => r.status === REQUEST_STATUS.PENDING || r.status === REQUEST_STATUS.APPROVED
 	), [requests]);
 	const pendingRequests = useMemo(() => requests.filter(r => r.status === REQUEST_STATUS.PENDING), [requests]);
+
+	// Answering the last request leaves nothing to manage, so the sheet closes.
+	useEffect(() => {
+		if (showManagePopup && pendingRequests.length === 0) setShowManagePopup(false);
+	}, [showManagePopup, pendingRequests]);
 	const hasOpenHdRequest = useMemo(() => activeRequests.some(r => !r.is4k), [activeRequests]);
 	const hasOpenFourKRequest = useMemo(() => activeRequests.some(r => r.is4k), [activeRequests]);
 
-	const getSeasonStatusMap = useCallback((is4k) => {
+	const seasonStatusMapHd = useMemo(() => {
 		const statusMap = new Map();
-		if (!requests || requests.length === 0) return statusMap;
-
 		requests.forEach(req => {
-			if (req.is4k === is4k) {
-				req.seasons?.forEach(seasonReq => {
-					const existingStatus = statusMap.get(seasonReq.seasonNumber);
-					const newStatus = seasonReq.status;
-					if (!existingStatus ||
-						(isSeasonRerequestable(existingStatus) && !isSeasonRerequestable(newStatus)) ||
-						(newStatus === REQUEST_STATUS.COMPLETED) ||
-						(newStatus === REQUEST_STATUS.APPROVED && existingStatus === REQUEST_STATUS.PENDING)) {
-						statusMap.set(seasonReq.seasonNumber, newStatus);
-					}
-				});
-			}
+			if (req.is4k !== false) return;
+			req.seasons?.forEach(seasonReq => {
+				const existingStatus = statusMap.get(seasonReq.seasonNumber);
+				const newStatus = seasonReq.status;
+				if (!existingStatus ||
+					(isSeasonRerequestable(existingStatus) && !isSeasonRerequestable(newStatus)) ||
+					(newStatus === REQUEST_STATUS.COMPLETED) ||
+					(newStatus === REQUEST_STATUS.APPROVED && existingStatus === REQUEST_STATUS.PENDING)) {
+					statusMap.set(seasonReq.seasonNumber, newStatus);
+				}
+			});
 		});
 		return statusMap;
 	}, [requests]);
-
-	const seasonStatusMapHd = useMemo(() => getSeasonStatusMap(false), [getSeasonStatusMap]);
-	const seasonStatusMap4k = useMemo(() => getSeasonStatusMap(true), [getSeasonStatusMap]);
 
 	// What to mark each season card with, keyed by season number. The server keeps its own
 	// per-season list and that wins where it exists, and the requests fill in the seasons it
@@ -210,8 +198,6 @@ const useSeerrRequests = ({
 	const handleRequest = useCallback(async (is4K = false, seasons = null, advancedOptions = null) => {
 		if (requesting) return;
 
-		setShowSeasonPopup(false);
-		setShowAdvancedPopup(false);
 		setRequesting(true);
 		try {
 			const options = {
@@ -236,44 +222,27 @@ const useSeerrRequests = ({
 		}
 	}, [mediaId, mediaType, requesting, reloadDetails, setError]);
 
-	const proceedWithRequest = useCallback((is4K, seasons = null) => {
-		if (hasAdvanced) {
-			setPendingIs4k(is4K);
-			setPendingSeasons(seasons);
-			setShowAdvancedPopup(true);
-		} else {
-			handleRequest(is4K, seasons);
-		}
-	}, [hasAdvanced, handleRequest]);
-
-	// A series asks which seasons first, everything else goes straight on to the request.
+	// A track's own button asks for just that track.
 	const handleRequestTrack = useCallback((is4k) => {
-		setShowQualityPopup(false);
-		if (mediaType === 'tv' && details?.seasons?.length > 0) {
-			setPendingIs4k(is4k);
-			setShowSeasonPopup(true);
-			return;
-		}
-		proceedWithRequest(is4k);
-	}, [mediaType, details?.seasons, proceedWithRequest]);
+		setRequestDialog({is4k, qualityToggle: false});
+	}, []);
 
-	// The single request control for a title with nothing owned. A viewer allowed
-	// both tracks picks one first, anyone else goes straight to the track they hold.
+	// The single request control for a title with nothing owned. The sheet starts on HD unless
+	// only 4K is open, and gets a quality switch when both are.
 	const handleRequestChoose = useCallback(() => {
-		if (canRequestHd && canRequest4k) {
-			setShowQualityPopup(true);
-			return;
-		}
-		handleRequestTrack(canRequest4k);
-	}, [canRequestHd, canRequest4k, handleRequestTrack]);
+		setRequestDialog({is4k: !canRequestHd, qualityToggle: canRequestHd && canRequest4k});
+	}, [canRequestHd, canRequest4k]);
 
-	const handleSeasonConfirm = useCallback((selectedSeasons) => {
-		proceedWithRequest(pendingIs4k, selectedSeasons);
-	}, [pendingIs4k, proceedWithRequest]);
+	// A season card opens the same sheet with just that season ticked. Specials have no number
+	// to tick, so they open on every season.
+	const handleRequestSeason = useCallback((season) => {
+		setRequestDialog({is4k: !canRequestHd, qualityToggle: canRequestHd && canRequest4k, season: season > 0 ? season : null});
+	}, [canRequestHd, canRequest4k]);
 
-	const handleAdvancedConfirm = useCallback((advancedOptions) => {
-		handleRequest(pendingIs4k, pendingSeasons, advancedOptions);
-	}, [pendingIs4k, pendingSeasons, handleRequest]);
+	const handleSubmitRequest = useCallback(({is4k, seasons, serverId, profileId, rootFolder}) => {
+		setRequestDialog(null);
+		handleRequest(is4k, seasons, {serverId, profileId, rootFolder});
+	}, [handleRequest]);
 
 	const handleCancelTrack = useCallback((is4k) => {
 		setCancelScope(is4k);
@@ -334,39 +303,33 @@ const useSeerrRequests = ({
 		canRequestHd,
 		closeTopPopup,
 		fourKDeclined,
-		handleAdvancedConfirm,
 		handleCancelConfirm,
-		handleCloseAdvancedPopup,
 		handleCloseCancelPopup,
 		handleCloseManagePopup,
 		handleCloseReportPopup,
 		handleCancelTrack,
-		handleCloseQualityPopup,
-		handleCloseSeasonPopup,
+		handleCloseRequestDialog,
 		handleManageRequestsClick,
 		handleRequestChoose,
+		handleRequestSeason,
 		handleReportIssueClick,
 		handleReportSubmit,
 		handleRequestTrack,
 		handleResolveRequest,
-		handleSeasonConfirm,
+		handleSubmitRequest,
 		hasAdvanced,
 		canCancelHd,
 		canCancel4k,
 		hdDeclined,
-		pendingIs4k,
+		isContinuing,
 		pendingRequests,
+		requestDialog,
 		requestLabel,
 		requestLabel4k,
 		seasonMarkers,
-		seasonStatusMap4k,
-		seasonStatusMapHd,
-		showAdvancedPopup,
 		showCancelPopup,
 		showManagePopup,
-		showQualityPopup,
 		showReportPopup,
-		showSeasonPopup,
 		statusPills
 	};
 };

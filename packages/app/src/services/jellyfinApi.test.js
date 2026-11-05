@@ -53,6 +53,19 @@ describe('search', () => {
 		expect(urlOf(people)).toContain('/Persons?searchTerm=alien&Limit=24');
 		expect(people[2]).toBe(10000);
 	});
+
+	test('only Jellyfin asks for audiobooks, and a refill asks for its own types', async () => {
+		setServerType('jellyfin');
+		await api.search('alien', 240);
+		await api.search('alien', 24, 'Movie');
+		setServerType('emby');
+		await api.search('alien', 240);
+		const [jellyfin, refill, emby] = platformFetch.mock.calls.map(urlOf);
+		expect(jellyfin).toContain('IncludeItemTypes=Book,AudioBook,Movie,');
+		expect(refill).toContain('Limit=24&Recursive=true&IncludeItemTypes=Movie&');
+		expect(emby).toContain('IncludeItemTypes=Book,Movie,');
+		setServerType('jellyfin');
+	});
 });
 
 describe('libraries', () => {
@@ -230,5 +243,17 @@ describe('creating a playlist', () => {
 		setServerType('jellyfin');
 		await createApiForServer('http://other', 'tok', 'u2', 'emby').createPlaylist('Mix', ['a']);
 		expect(sentBody()).toEqual({Name: 'Mix', Ids: 'a', UserId: 'u2'});
+	});
+});
+
+describe('Silo apis for other servers', () => {
+	test('stay the same across a token rotation, so the playback sessions they started are still theirs', () => {
+		const {openSiloSession} = require('./siloSession');
+		const session = openSiloSession('http://silo2:8090', 'acct-1', {accessToken: 'T0', refreshToken: 'R0', expiresAt: Date.now() + 3600000, lifetimeMs: 3600000});
+		const before = createApiForServer('http://silo2:8090', 'T0', 'p1', 'silo');
+		session.aliases = ['T0', ...session.aliases];
+		session.tokens = {...session.tokens, accessToken: 'T1'};
+		expect(createApiForServer('http://silo2:8090', 'T1', 'p1', 'silo')).toBe(before);
+		expect(createApiForServer('http://silo2:8090', 'T1', 'p2', 'silo')).not.toBe(before);
 	});
 });

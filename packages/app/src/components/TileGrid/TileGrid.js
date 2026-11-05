@@ -74,8 +74,9 @@ const TileGrid = memo(({className, dataSize, itemSize, renderTile, spotlightId, 
 		setFirstRow(0);
 	}, [resetKey]);
 
+	// Reads the latest index, so a new list that also arrives shorter keeps the reset above.
 	useEffect(() => {
-		if (dataSize > 0 && focusIndex >= dataSize) setFocusIndex(dataSize - 1);
+		if (dataSize > 0 && focusIndex >= dataSize) setFocusIndex((index) => Math.min(index, dataSize - 1));
 	}, [dataSize, focusIndex]);
 
 	const moveTo = useCallback((index, scroll) => {

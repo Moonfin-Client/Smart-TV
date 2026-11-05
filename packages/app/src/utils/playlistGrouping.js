@@ -93,13 +93,17 @@ export const playlistCategoryFromItems = (items) => {
 	return 'Mixed';
 };
 
+// Anything outside the known sections lands in Mixed rather than vanishing.
+export const playlistCategory = (item, resolvedCategories) => {
+	const resolved = resolvedCategories[item.Id] || playlistSummaryCategory(item);
+	return PLAYLIST_CATEGORIES.indexOf(resolved) !== -1 ? resolved : 'Mixed';
+};
+
 export const groupPlaylists = (playlists, resolvedCategories) => {
 	const buckets = {};
 	for (let i = 0; i < (playlists || []).length; i++) {
 		const item = playlists[i];
-		const resolved = resolvedCategories[item.Id] || playlistSummaryCategory(item);
-		// Anything outside the known sections lands in Mixed rather than vanishing
-		const category = PLAYLIST_CATEGORIES.indexOf(resolved) !== -1 ? resolved : 'Mixed';
+		const category = playlistCategory(item, resolvedCategories);
 		if (!buckets[category]) buckets[category] = [];
 		buckets[category].push(item);
 	}

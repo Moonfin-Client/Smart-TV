@@ -2,7 +2,13 @@ import {fetchCustomRow, fetchSeasonalRow, fetchTmdbDetails, constructSourceUrl, 
 import {fetchWithTimeout} from '../utils/fetchTimeout';
 
 jest.mock('../utils/fetchTimeout', () => ({fetchWithTimeout: jest.fn()}));
+const mockSilo = {type: 'jellyfin', sections: [], items: {}};
 jest.mock('./jellyfinApi', () => ({
+	getServerType: () => mockSilo.type,
+	api: {
+		getServerHomeSections: async () => mockSilo.sections,
+		getServerHomeSectionItems: async (id) => ({Items: mockSilo.items[id] || []})
+	},
 	getServerUrl: () => 'http://server',
 	getUserId: () => 'user',
 	getAuthHeader: () => 'MediaBrowser Token="test-token"'
@@ -32,6 +38,7 @@ describe('externalRowsApi', () => {
 				name: 'Spirited Away',
 				type: 'Movie',
 				productionYear: 2001,
+				Popularity: 41.5,
 				posterUrl: '/poster.jpg',
 				providerIds: {Tmdb: '129'}
 			}
@@ -48,6 +55,7 @@ describe('externalRowsApi', () => {
 			expect(items[0].name).toBe('Spirited Away');
 			expect(items[0].type).toBe('Movie');
 			expect(items[0].productionYear).toBe(2001);
+			expect(items[0].popularity).toBe(41.5);
 			expect(items[0].providerIds.Tmdb).toBe('129');
 			expect(fetchWithTimeout).toHaveBeenCalledTimes(1);
 
@@ -118,6 +126,17 @@ describe('externalRowsApi', () => {
 	});
 
 	describe('fetchSeasonalRow', () => {
+		it('reads Silo\'s own Seasonal Picks section on Silo, without asking Moonbase', async () => {
+			mockSilo.type = 'silo';
+			mockSilo.sections = [{id: '3', kind: 'hidden_gems', title: 'Hidden gems'}, {id: '7', kind: 'seasonal_themed', title: 'Spooky picks'}];
+			mockSilo.items = {7: [{Id: 'a'}, {Id: 'b'}]};
+			const row = await fetchSeasonalRow({country: 'US'});
+			mockSilo.type = 'jellyfin';
+			expect(fetchWithTimeout).not.toHaveBeenCalled();
+			expect(row).toMatchObject({holiday: 'silo', title: 'Spooky picks', suggestions: []});
+			expect(row.items.map((i) => i.Id).sort()).toEqual(['a', 'b']);
+		});
+
 		it('fetches seasonal row with country query parameter', async () => {
 			fetchWithTimeout.mockResolvedValue(mockJsonResponse({
 				holiday: 'halloween',

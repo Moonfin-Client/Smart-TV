@@ -1,0 +1,189 @@
+@import '../../styles/mixins.less';
+
+@on-surface-rgb: var(--theme-on-surface-rgb, 255, 255, 255);
+@seerr-accent: var(--theme-status-downloading, #6366f1);
+
+.scrim {
+	position: fixed;
+	top: 0;
+	left: 0;
+	right: 0;
+	bottom: 0;
+	z-index: 2000;
+	.flex-center();
+	-webkit-box-pack: center;
+	-webkit-justify-content: center;
+	justify-content: center;
+	padding: (24 * @dp) (40 * @dp);
+	box-sizing: border-box;
+	background: rgba(0, 0, 0, 0.54);
+}
+
+// A block rather than a flex column, since older engines squeeze a flex column's rows to fit
+// instead of scrolling them.
+.panel {
+	box-sizing: border-box;
+	width: (380 * @dp);
+	max-height: 100%;
+	overflow-y: auto;
+	padding: (20 * @dp) 0;
+	border: (1 * @dp) solid rgba(142, 200, 240, 0.33);
+	border-radius: (20 * @dp);
+	background: rgba(var(--theme-surface-rgb, 26, 26, 26), 0.9);
+	color: rgb(@on-surface-rgb);
+	font-family: 'Roboto', 'Sandstone', sans-serif;
+	font-size: (14 * @dp);
+	line-height: 1.43;
+	letter-spacing: (0.25 * @dp);
+	text-align: left;
+	scrollbar-width: none;
+
+	&::-webkit-scrollbar {
+		display: none;
+	}
+}
+
+.title {
+	padding: (8 * @dp) (24 * @dp);
+	font-size: (20 * @dp);
+	font-weight: 600;
+}
+
+.subtitle {
+	padding: (4 * @dp) (24 * @dp);
+	color: rgba(@on-surface-rgb, 0.7);
+}
+
+// The line sits in the middle of 16 units, held by padding so it can't collapse into a margin.
+.divider {
+	box-sizing: content-box;
+	height: (1 * @dp);
+	padding: (7.5 * @dp) 0;
+	background: rgba(@on-surface-rgb, 0.078);
+	background-clip: content-box;
+}
+
+.sectionHeader {
+	padding: (12 * @dp) (24 * @dp) (4 * @dp);
+	font-size: (13 * @dp);
+	font-weight: 500;
+	color: rgba(@on-surface-rgb, 0.72);
+}
+
+.tile {
+	.flex-center();
+	padding: (12 * @dp) (24 * @dp);
+	font-size: (15 * @dp);
+	cursor: pointer;
+	outline: none;
+
+	&:focus {
+		background: rgba(255, 255, 255, 0.12);
+	}
+}
+
+.radio,
+.check {
+	.flex-center();
+	-webkit-box-pack: center;
+	-webkit-justify-content: center;
+	justify-content: center;
+	-webkit-flex-shrink: 0;
+	flex-shrink: 0;
+	box-sizing: border-box;
+	width: (18 * @dp);
+	height: (18 * @dp);
+	margin-right: (12 * @dp);
+	border: (2 * @dp) solid rgba(@on-surface-rgb, 0.5);
+}
+
+.radio {
+	border-radius: 50%;
+}
+
+.check {
+	border-radius: (4 * @dp);
+}
+
+.markOn {
+	border-color: @seerr-accent;
+	background: @seerr-accent;
+}
+
+.radioDot {
+	width: (8 * @dp);
+	height: (8 * @dp);
+	border-radius: 50%;
+	background: rgb(@on-surface-rgb);
+}
+
+.checkGlyph {
+	-webkit-flex-shrink: 0;
+	flex-shrink: 0;
+	width: (14 * @dp);
+	height: (14 * @dp);
+	color: rgb(@on-surface-rgb);
+}
+
+.tileLabel {
+	-webkit-box-flex: 1;
+	-webkit-flex: 1 1 0;
+	flex: 1 1 0;
+	min-width: 0;
+	color: rgba(@on-surface-rgb, 0.7);
+}
+
+.checkLabel {
+	color: rgba(@on-surface-rgb, 0.72);
+}
+
+.tileLabelOn {
+	color: rgb(@on-surface-rgb);
+}
+
+.sortArrow {
+	-webkit-flex-shrink: 0;
+	flex-shrink: 0;
+	width: (16 * @dp);
+	height: (16 * @dp);
+	margin-left: (12 * @dp);
+	color: @seerr-accent;
+}
+
+.expander {
+	font-size: (13 * @dp);
+	font-weight: 500;
+	color: rgba(@on-surface-rgb, 0.72);
+}
+
+.expanderLabel {
+	-webkit-box-flex: 1;
+	-webkit-flex: 1 1 0;
+	flex: 1 1 0;
+	min-width: 0;
+}
+
+.expanderCount {
+	padding-right: (8 * @dp);
+	font-weight: 600;
+	color: @seerr-accent;
+}
+
+.expanderIcon {
+	-webkit-flex-shrink: 0;
+	flex-shrink: 0;
+	width: (18 * @dp);
+	height: (18 * @dp);
+}
+
+.clear {
+	color: @seerr-accent;
+}
+
+.clearIcon {
+	-webkit-flex-shrink: 0;
+	flex-shrink: 0;
+	width: (18 * @dp);
+	height: (18 * @dp);
+	margin-right: (12 * @dp);
+}

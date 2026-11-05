@@ -67,7 +67,7 @@ const usePauseWhileNavigating = (ref, enabled) => {
 	}, [ref, enabled]);
 };
 
-const SeasonalTheme = ({theme, density}) => {
+const SeasonalTheme = ({theme, density, follower = true}) => {
 	const effect = normalizeSeasonalTheme(theme);
 	const level = normalizeSeasonalDensity(density);
 	const tier = getPerfTier();
@@ -88,7 +88,7 @@ const SeasonalTheme = ({theme, density}) => {
 				{particles.flyers.map(flyer => <Flyer key={flyer.key} flyer={flyer} />)}
 				{particles.bursts.map(burst => <Burst key={burst.key} burst={burst} />)}
 			</div>
-			<SeasonalFollower key={effect} effect={effect} />
+			{follower && <SeasonalFollower key={effect} effect={effect} />}
 		</>
 	);
 };

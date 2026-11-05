@@ -40,7 +40,8 @@ const jsonRequest = async (path, {method = 'GET', body, timeout = 20000} = {}) =
 	return text ? JSON.parse(text) : null;
 };
 
-export const getLibraries = () => jsonRequest('Libraries');
+// Moonbase for Silo has no games, and Silo answers an unknown path with its web app.
+export const getLibraries = () => (getServerType() === 'silo' ? Promise.resolve([]) : jsonRequest('Libraries'));
 export const getSystems = (libraryId) => jsonRequest(`${enc(libraryId)}/Systems`);
 export const getGames = (libraryId, system) =>
 	jsonRequest(`${enc(libraryId)}/Games${system ? `?system=${enc(system)}` : ''}`);

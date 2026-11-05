@@ -37,6 +37,20 @@
 	mask-image: linear-gradient(to top, @cornerFade);
 }
 
+// Top leaves the picture where the full screen one sits and fades it out toward the middle the
+// same way. The mask only covers the top half, so the bottom half is hidden.
+.topFade {
+	.fill();
+	-webkit-mask-image: linear-gradient(to top, @cornerFade);
+	mask-image: linear-gradient(to top, @cornerFade);
+	-webkit-mask-size: 100% 50%;
+	mask-size: 100% 50%;
+	-webkit-mask-position: top;
+	mask-position: top;
+	-webkit-mask-repeat: no-repeat;
+	mask-repeat: no-repeat;
+}
+
 .globalBackdropImage {
 	position: absolute;
 	top: -3%;

@@ -194,6 +194,11 @@ export const platformFetch = async (url, options = {}, timeoutMs) => {
 	}
 };
 
+export const originFreeFetch = (url, options = {}, timeoutMs) => {
+	const canProxy = isWebOS() && isHttps(url) && typeof window !== 'undefined' && window.PalmServiceBridge;
+	return canProxy ? proxyRequest(url, options, timeoutMs, false) : fetch(url, options);
+};
+
 // A Plex server only lets app.plex.tv read its answers across origins, and the page on
 // Fire TV sits at file://, so the shell makes those requests there.
 export const corsFreeFetch = async (url, options = {}, timeoutMs) => {

@@ -152,6 +152,12 @@ describe('SeasonalTheme', () => {
 		}
 	});
 
+	test('leaves the follower out when Focus Follower is off, but keeps the particles', () => {
+		render(<SeasonalTheme theme="halloween" density="light" follower={false} />);
+		expect(count('.follower')).toBe(0);
+		expect(count('.particle')).toBeGreaterThan(0);
+	});
+
 	describe('following focus', () => {
 		let page;
 		let art;

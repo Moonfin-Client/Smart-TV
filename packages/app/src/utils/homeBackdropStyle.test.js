@@ -6,8 +6,9 @@ describe('homeBackdropStyle', () => {
 		expect(homeBackdropStyle({showHomeBackdrop: false})).toBe('off');
 	});
 
-	test('a switch that is on goes in the corner only when asked to', () => {
+	test('a switch that is on goes in the corner or across the top only when asked to', () => {
 		expect(homeBackdropStyle({showHomeBackdrop: true, homeBackdropStyle: 'corner'})).toBe('corner');
+		expect(homeBackdropStyle({showHomeBackdrop: true, homeBackdropStyle: 'top'})).toBe('top');
 		expect(homeBackdropStyle({showHomeBackdrop: true, homeBackdropStyle: 'fullScreen'})).toBe('fullScreen');
 	});
 
@@ -17,6 +18,7 @@ describe('homeBackdropStyle', () => {
 		expect(homeBackdropStyle(null)).toBe('fullScreen');
 		// An older app turning the switch back on after Off was picked here
 		expect(homeBackdropStyle({showHomeBackdrop: true, homeBackdropStyle: 'off'})).toBe('fullScreen');
+		expect(homeBackdropStyle({showHomeBackdrop: true, homeBackdropStyle: 'something new'})).toBe('fullScreen');
 	});
 });
 

@@ -1,5 +1,5 @@
 import {useState, useMemo, useCallback, useRef, useEffect} from 'react';
-import {isMdblistEnabled, isRatingSourceAllowed} from '../../services/mdblistApi';
+import {isMdblistEnabled} from '../../services/mdblistApi';
 import $L from '@enact/i18n/$L';
 import Spottable from '@enact/spotlight/Spottable';
 import SpotlightContainerDecorator from '@enact/spotlight/SpotlightContainerDecorator';
@@ -7,11 +7,12 @@ import Spotlight from '@enact/spotlight';
 import {Scroller} from '@enact/sandstone/Scroller';
 
 import MediaCard from '../../components/MediaCard';
-import {SeerrStatusBadge, SeerrDownloadBars} from '../../components/seerr/SeerrStatusBadge';
+import {SeerrDownloadBars} from '../../components/seerr/SeerrStatusBadge';
 import {SeerrChips, SeerrFacts, SeerrStreaming, SeerrCollectionBanner} from '../../components/seerr/SeerrSections';
 import RatingsRow from '../../components/RatingsRow';
 import DetailsTabBar from '../../components/DetailsTabBar';
 import ModernActionButtons from './ModernActionButtons';
+import DetailMetaRow from './DetailMetaRow';
 import {getImageUrl, formatDuration} from '../../utils/helpers';
 import {formatPlaybackDuration} from '../../utils/playbackTimeLabels';
 import {castPhotoUrl, hidesMediaDescription} from './detailsMedia';
@@ -23,12 +24,10 @@ import {ReviewCards} from './ReviewCard';
 import {KEYS} from '../../utils/keys';
 import {DETAIL_ICON_PATHS} from './detailIcons';
 import {iconViewBox} from '../../components/icons/iconViewBox';
-import {arrange} from '../../utils/buttonLayout';
-import {DETAIL_METADATA} from '../../utils/detailMetadataLayout';
-import {fetchUpcomingEpisode, formatUpcomingEpisode} from '../../utils/upcomingEpisode';
 import {episodeCardTitle} from '../../utils/episodeCardTitle';
 import useItemMenuHold, {itemWithIdAt} from '../../hooks/useItemMenuHold';
 import {AnimeEpisodePills, AnimeItemPills} from '../../components/AnimeMarkerPills';
+import IncompleteBadge, {IncompleteDetailLine} from '../../components/IncompleteBadge';
 import {scrimStyle} from '../../utils/scrimImage';
 import PlaylistSortFilterBar, {EmptyPlaylistFilterState, EmptyPlaylistState} from '../../components/PlaylistSortFilterBar';
 import {
@@ -86,8 +85,8 @@ const ModernDetailContent = (props) => {
 		item, effectiveServerUrl, effectiveApi, serverToken, settings, showsSection,
 		isEpisode, isSeries, isSeason, isPerson, isBoxSet, isAlbum, isMusicArtist, isPlaylist,
 		backdropUrl, posterUrl, logoUrl, onLogoError,
-		year, runtime, endsAt, officialRating, seasonCount, genres, tagline,
-		seasons, episodes, similar, reviews = [], onSelectReview, extras, cast, crew = [], nextUp, collectionItems, collectionSections = [], albumTracks, artistAlbums, playlistItems, personMovies, personSeries, birthDate, birthPlace, episodeRatings,
+		tagline,
+		seasons, episodes, similar, reviews = [], onSelectReview, extras, cast, crew = [], nextUp, collectionItems, collectionSections = [], albumTracks, artistAlbums, playlistItems, personMovies, personSeries, birthDate, birthPlace,
 		techBadges = [], techSize, overviewBackRef,
 		mediaSource, supportsMediaSourceSelection, selectedAudioIndex, selectedSubtitleIndex,
 		handleChapterSelect, handleExtraSelect, playTrack, playlistMenu,
@@ -318,83 +317,6 @@ const ModernDetailContent = (props) => {
 		[tmdbCompanies, studios, effectiveServerUrl, serverToken]
 	);
 
-	const [upcomingEpisode, setUpcomingEpisode] = useState(null);
-
-	useEffect(() => {
-		let cancelled = false;
-		if (!isSeries && !isSeason) {
-			setUpcomingEpisode(null);
-			return undefined;
-		}
-		fetchUpcomingEpisode({item, settings, serverUrl: effectiveServerUrl, serverToken})
-			.then((res) => {
-				if (!cancelled) setUpcomingEpisode(res);
-			})
-			.catch(() => {});
-		return () => {
-			cancelled = true;
-		};
-	}, [item, isSeries, isSeason, settings, effectiveServerUrl, serverToken]);
-
-	const upcomingEpisodeText = useMemo(() => formatUpcomingEpisode(upcomingEpisode), [upcomingEpisode]);
-
-	// Metadata pieces, arranged according to the user's settings.
-	// A piece carries its kind so the status can render as a coloured pill and
-	// the runtime can lead with a clock.
-	const metaPieces = useMemo(() => {
-		const orderedItems = arrange(DETAIL_METADATA, {
-			order: settings.detailMetadataOrderTv,
-			hidden: settings.hiddenDetailMetadataTv
-		});
-
-		const pieceFor = (id) => {
-			switch (id) {
-				case 'year':
-					return year ? [{kind: 'text', text: String(year)}] : [];
-				case 'parentalRating':
-					return officialRating ? [{kind: 'text', text: officialRating}] : [];
-				case 'runtimeAndSeasons': {
-					const parts = [];
-					if (isSeries && seasonCount) {
-						parts.push({kind: 'text', text: $L('{count} Seasons').replace('{count}', seasonCount)});
-					} else if (isSeason && episodes.length) {
-						parts.push({kind: 'text', text: $L('{count} Episodes').replace('{count}', episodes.length)});
-					} else if (isEpisode && item.ParentIndexNumber != null && item.IndexNumber != null) {
-						let label = `S${item.ParentIndexNumber}:E${item.IndexNumber}`;
-						const rating = episodeRatings?.[item.IndexNumber];
-						const showEpisodeRating = settings.tmdbEpisodeRatingsEnabled && isRatingSourceAllowed(settings.mdblistRatingSources, 'tmdb');
-						if (showEpisodeRating && rating) label += ` · ${rating}`;
-						parts.push({kind: 'text', text: label});
-					} else if (isPlaylist) {
-						const count = displayedPlaylistTracks.length;
-						const totalTicks = displayedPlaylistTracks.reduce((sum, t) => sum + (t.RunTimeTicks || 0), 0);
-						parts.push({kind: 'text', text: `${count} ${count !== 1 ? $L('Items') : $L('Item')}`});
-						if (totalTicks > 0) parts.push({kind: 'runtime', text: formatDuration(totalTicks)});
-					} else if (runtime) {
-						parts.push({kind: 'runtime', text: runtime});
-						if (endsAt) parts.push({kind: 'text', text: endsAt});
-					}
-					return parts;
-				}
-				case 'status':
-					if (isSeries && item.Status === 'Continuing') return [{kind: 'status', text: $L('Continuing')}];
-					if (isSeries && item.Status === 'Ended') return [{kind: 'status', text: $L('Ended'), ended: true}];
-					return [];
-				case 'upcomingEpisodeDate':
-					if (upcomingEpisodeText) return [{kind: 'upcoming', text: upcomingEpisodeText}];
-					return [];
-				case 'genres':
-					return genres.length ? [{kind: 'text', text: genres.slice(0, 3).join(' · ')}] : [];
-				case 'seerrAvailability':
-					return seerr.statusPills?.length > 0 ? [{kind: 'seerr'}] : [];
-				default:
-					return [];
-			}
-		};
-
-		return orderedItems.flatMap((itemDef) => pieceFor(itemDef.id));
-	}, [settings.detailMetadataOrderTv, settings.hiddenDetailMetadataTv, year, officialRating, isSeries, seasonCount, isSeason, episodes.length, isEpisode, item.ParentIndexNumber, item.IndexNumber, item.Status, episodeRatings, settings.tmdbEpisodeRatingsEnabled, settings.mdblistRatingSources, runtime, endsAt, genres, upcomingEpisodeText, seerr.statusPills, isPlaylist, displayedPlaylistTracks]);
-
 	const handleCastClick = useCallback((ev) => {
 		const personId = ev.currentTarget.dataset.personId;
 		const person = cast.find((c) => c.Id === personId) || crew.find((c) => c.Id === personId);
@@ -547,7 +469,10 @@ const ModernDetailContent = (props) => {
 						</div>
 						<div className={css.episodeBody}>
 							<span className={css.episodeName}>{episodeCardTitle(ep.Name, ep.IndexNumber)}</span>
-							{epRuntime && <span className={css.episodeMeta}>{epRuntime}</span>}
+							<div className={css.episodeMetaRow}>
+								{epRuntime && <span className={css.episodeMeta}>{epRuntime}</span>}
+								<IncompleteBadge itemId={ep.Id} inline />
+							</div>
 							<AnimeEpisodePills episode={ep} serverUrl={effectiveServerUrl} large />
 							{ep.Overview && !hidesMediaDescription(ep, settings) && <p className={css.episodeOverview}>{ep.Overview}</p>}
 						</div>
@@ -866,36 +791,8 @@ const ModernDetailContent = (props) => {
 			{isPerson && posterUrl && <img className={css.personAvatar} src={posterUrl} alt="" />}
 			{heroTitle()}
 			{personBorn()}
-			{metaPieces.length > 0 && (
-				<div className={css.metaRow}>
-					{metaPieces.map((piece, i) => {
-						if (piece.kind === 'seerr') {
-							return <SeerrStatusBadge key={i} seerr={seerr} className={css.metaBadge} />;
-						}
-						return (
-							<span key={i} className={css.metaItem}>
-								{piece.kind === 'runtime' && (
-									<svg className={css.metaIcon} viewBox="0 -960 960 960" fill="currentColor" aria-hidden="true">
-										<path d={DETAIL_ICON_PATHS.schedule} />
-									</svg>
-								)}
-								{piece.kind === 'upcoming' && (
-									<span className={`${css.statusBadge} ${css.statusUpcoming}`}>
-										<svg className={css.metaIcon} viewBox="0 -960 960 960" fill="currentColor" aria-hidden="true">
-											<path d={DETAIL_ICON_PATHS.calendar} />
-										</svg>
-										{piece.text}
-									</span>
-								)}
-								{piece.kind === 'status' && (
-									<span className={`${css.statusBadge} ${piece.ended ? css.statusEnded : ''}`}>{piece.text}</span>
-								)}
-								{(piece.kind === 'text' || piece.kind === 'runtime') && piece.text}
-							</span>
-						);
-					})}
-				</div>
-			)}
+			<DetailMetaRow {...props} playlistTracks={displayedPlaylistTracks} />
+			<IncompleteDetailLine itemId={item.Id} clockDisplay={settings.clockDisplay} />
 			<AnimeItemPills item={item} serverUrl={effectiveServerUrl} large />
 			{hasTech && (
 				<div className={css.techRow}>

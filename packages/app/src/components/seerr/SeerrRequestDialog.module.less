@@ -1,0 +1,171 @@
+@import '../../styles/mixins.less';
+
+@accent-rgb: var(--theme-accent-rgb, 0, 164, 220);
+
+// Request sheet
+
+.body {
+	padding: (8 * @dp) (24 * @dp) (20 * @dp);
+	font-size: (14 * @dp);
+	line-height: 1.43;
+	letter-spacing: (0.25 * @dp);
+}
+
+.continuing {
+	.flex-center();
+	margin-bottom: (12 * @dp);
+	padding: (10 * @dp) (14 * @dp);
+	border: (1 * @dp) solid rgba(34, 197, 94, 0.4);
+	border-radius: (8 * @dp);
+	background: rgba(34, 197, 94, 0.15);
+}
+
+.continuingIcon {
+	-webkit-flex-shrink: 0;
+	flex-shrink: 0;
+	width: (20 * @dp);
+	height: (20 * @dp);
+	margin-right: (10 * @dp);
+	color: var(--theme-status-available, #22c55e);
+}
+
+.continuingText {
+	-webkit-box-flex: 1;
+	-webkit-flex: 1 1 0;
+	flex: 1 1 0;
+	min-width: 0;
+	font-size: (13 * @dp);
+	font-weight: 500;
+	color: #fff;
+}
+
+.seasons {
+	padding: (8 * @dp) 0 0 (8 * @dp);
+}
+
+.seasonWrap {
+	display: -webkit-box;
+	display: -webkit-flex;
+	display: flex;
+	-webkit-flex-wrap: wrap;
+	flex-wrap: wrap;
+	.flex-wrap-gap((8 * @dp));
+}
+
+.quota {
+	margin-top: (12 * @dp);
+}
+
+.actions {
+	margin-top: (20 * @dp);
+}
+
+// Season chips
+
+.chip {
+	.flex-center();
+	box-sizing: border-box;
+	padding: (8 * @dp) (14 * @dp);
+	border-radius: (999 * @dp);
+	background: rgba(255, 255, 255, 0.08);
+	font-size: (13 * @dp);
+	color: rgba(255, 255, 255, 0.7);
+	cursor: pointer;
+	outline: none;
+
+	// The focus ring sits inside the pill's edge.
+	&:focus {
+		box-shadow: inset 0 0 0 (2 * @dp) rgb(@accent-rgb);
+	}
+}
+
+.chipSelected {
+	background: rgb(@accent-rgb);
+	color: #fff;
+}
+
+.chipDisabled {
+	background: rgba(255, 255, 255, 0.04);
+	color: rgba(255, 255, 255, 0.38);
+	cursor: default;
+}
+
+.chipSelected.chipDisabled {
+	background: rgb(@accent-rgb);
+}
+
+.chipCheck {
+	-webkit-flex-shrink: 0;
+	flex-shrink: 0;
+	width: (14 * @dp);
+	height: (14 * @dp);
+	margin-right: (6 * @dp);
+	color: var(--theme-status-available, #22c55e);
+}
+
+// Advanced options
+
+.advancedHeader {
+	color: rgba(255, 255, 255, 0.7);
+}
+
+.advancedTitle {
+	-webkit-box-flex: 1;
+	-webkit-flex: 1 1 0;
+	flex: 1 1 0;
+	min-width: 0;
+}
+
+.advancedChevron {
+	-webkit-flex-shrink: 0;
+	flex-shrink: 0;
+	width: (24 * @dp);
+	height: (24 * @dp);
+}
+
+.advancedBody {
+	margin-top: (8 * @dp);
+}
+
+.advancedRow ~ .advancedRow {
+	margin-top: (12 * @dp);
+}
+
+.advancedLoading {
+	.flex-center();
+	-webkit-box-pack: center;
+	-webkit-justify-content: center;
+	justify-content: center;
+	padding: (16 * @dp);
+}
+
+.spinner {
+	box-sizing: border-box;
+	width: (36 * @dp);
+	height: (36 * @dp);
+	border: (2 * @dp) solid transparent;
+	border-top-color: rgb(@accent-rgb);
+	border-radius: 50%;
+	animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+	to {
+		transform: rotate(360deg);
+	}
+}
+
+.advancedEmpty {
+	padding: (8 * @dp);
+	color: rgba(255, 255, 255, 0.54);
+}
+
+// Cancel confirm
+
+.cancelAlert {
+	background: #1a1a2e;
+}
+
+.cancelMessage {
+	color: rgba(255, 255, 255, 0.7);
+}

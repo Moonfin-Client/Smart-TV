@@ -204,6 +204,25 @@ describe('MusicTabs', () => {
 		expect(onOpenGrid).toHaveBeenCalledWith('favoriteItems');
 	});
 
+	test('over a category screen its own pill rests highlighted, opens nothing, and Overview opens', () => {
+		jest.useFakeTimers();
+		const onOpenGrid = jest.fn();
+		render(<MusicTabs current="albums" onOpenGrid={onOpenGrid} activeSpotlightId="current-pill" />);
+		const albums = screen.getByText('Albums');
+		expect(albums.className).toContain('tabActive');
+		expect(albums.dataset.spotlightId).toBe('current-pill');
+		fireEvent.click(albums);
+		expect(onOpenGrid).not.toHaveBeenCalled();
+		const songs = screen.getByText('Songs');
+		fireEvent.focus(songs);
+		fireEvent.focusOut(songs);
+		act(() => jest.runAllTimers());
+		jest.useRealTimers();
+		expect(albums.className).toContain('tabActive');
+		fireEvent.click(screen.getByText('Overview'));
+		expect(onOpenGrid).toHaveBeenCalledWith('overview');
+	});
+
 	test('lists the categories in order', () => {
 		render(<MusicTabs onOpenGrid={jest.fn()} />);
 		expect(Array.from(document.querySelectorAll('[data-id]'), (el) => el.dataset.id))

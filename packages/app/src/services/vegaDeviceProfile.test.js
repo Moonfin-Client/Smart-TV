@@ -69,6 +69,14 @@ describe('the Vega device profile', () => {
 		expect(getPlayMethod(source({SupportsDirectPlay: false}), capabilities)).toBe('DirectStream');
 	});
 
+	test("an audio track other than the first one has the server remux, since the WebView can't switch tracks", async () => {
+		const profile = await getJellyfinDeviceProfile();
+		expect(profile.CodecProfiles).toContainEqual({
+			Type: 'VideoAudio',
+			Conditions: [{Condition: 'Equals', Property: 'IsSecondaryAudio', Value: 'false', IsRequired: false}]
+		});
+	});
+
 	test('live TV gets an H.264 TS profile after the fMP4 one, since the server only takes TS for a channel', async () => {
 		const profile = await getJellyfinDeviceProfile();
 		expect(profile.TranscodingProfiles[1]).toMatchObject({Protocol: 'hls', Container: 'ts', VideoCodec: 'h264', AudioCodec: 'aac', Context: 'Streaming'});

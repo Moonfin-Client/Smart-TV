@@ -204,6 +204,14 @@ export const getJellyfinDeviceProfile = async () => {
 			Conditions: [
 				{Condition: 'LessThanEqual', Property: 'AudioChannels', Value: '8', IsRequired: false}
 			]
+		},
+		// The WebView always plays a file's first audio track, so picking any other one has the
+		// server remux the stream with it.
+		{
+			Type: 'VideoAudio',
+			Conditions: [
+				{Condition: 'Equals', Property: 'IsSecondaryAudio', Value: 'false', IsRequired: false}
+			]
 		}
 	];
 

@@ -23,7 +23,9 @@ import {scrimStyle} from '../../utils/scrimImage';
 import {serverBlurredUrl} from '../../utils/serverBlur';
 import BookCard, {BookEmptyState, BookIcon} from './BookCard';
 import {openBookItem, readOrListen} from './bookNavigation';
-import useBookLibrary, {BOOK_FIELDS, loadBookRow} from './useBookLibrary';
+import {TITLES, screenFor} from './bookScreens';
+import {focusStrip} from './BookScreenParts';
+import {BOOK_FIELDS, loadBookRow} from './useBookLibrary';
 
 import css from './ClassicBooks.module.less';
 
@@ -38,6 +40,7 @@ const idForNode = (node) => FOCUS_IDS[node] || (node.startsWith('row:') ? `book-
 const seeAllId = (rowId) => `book-see-all-${rowId}`;
 
 const CARD_WIDTH = 198;
+const GENRE_CHIPS = 15;
 const AVATAR_SIZE = {width: CARD_WIDTH, height: CARD_WIDTH};
 const INSET = 48;
 const HERO_FADE = [{to: 'bottom', rgb: '10, 10, 10', stops: [[0, 0.25], [0.55, 0.6], [1, 1]]}];
@@ -124,31 +127,29 @@ export const classicShelves = ({library, scope, mixed, data, extra, series, auth
 	const showAudiobooks = all || scope === SCOPE_AUDIOBOOKS;
 	const showComics = all || scope === SCOPE_COMICS;
 	const scoped = (items) => (all ? items : items.filter((item) => matchesScope(item, scope)));
-	const typesSeeAll = {types: scopedTypes(library, scope)};
-	const audioSeeAll = {types: scopedTypes(library, SCOPE_AUDIOBOOKS)};
-	const bookSeeAll = {types: 'Book'};
 	const mixFormats = mixed && all;
+	const titlesIn = (shelfScope, sort) => screenFor(TITLES, mixed ? shelfScope : SCOPE_ALL, sort);
 
 	let last;
-	if (scope === SCOPE_BOOKS) last = {id: 'allBooks', title: $L('Books'), items: extra.allBooks, seeAll: bookSeeAll};
-	else if (scope === SCOPE_AUDIOBOOKS) last = {id: 'allAudiobooks', title: $L('Audiobooks'), items: extra.allAudiobooks, seeAll: audioSeeAll};
-	else if (scope === SCOPE_COMICS) last = {id: 'allComics', title: $L('Comics'), items: extra.allComics, seeAll: bookSeeAll};
+	if (scope === SCOPE_BOOKS) last = {id: 'allBooks', title: $L('Books'), items: extra.allBooks, seeAll: titlesIn(SCOPE_BOOKS, 'name')};
+	else if (scope === SCOPE_AUDIOBOOKS) last = {id: 'allAudiobooks', title: $L('Audiobooks'), items: extra.allAudiobooks, seeAll: titlesIn(SCOPE_AUDIOBOOKS, 'name')};
+	else if (scope === SCOPE_COMICS) last = {id: 'allComics', title: $L('Comics'), items: extra.allComics, seeAll: titlesIn(SCOPE_COMICS, 'name')};
 	else {
 		const title = mixed ? $L('All Titles') : (audioLibrary ? $L('Audiobooks') : $L('Books'));
-		last = {id: 'allTitles', title, items: extra.all, seeAll: typesSeeAll, mixFormats};
+		last = {id: 'allTitles', title, items: extra.all, seeAll: titlesIn(SCOPE_ALL, 'name'), mixFormats};
 	}
 
 	return [
-		{id: 'resume', title: audioLibrary ? $L('Continue Listening') : $L('Continue Reading'), items: scoped(data.resume), seeAll: typesSeeAll, mixFormats},
-		showBooks && !audioLibrary && {id: 'latestBooks', title: $L('Latest Books'), items: extra.latestBooks, seeAll: bookSeeAll},
-		showAudiobooks && {id: 'latestAudiobooks', title: $L('Latest Audiobooks'), items: extra.latestAudiobooks, seeAll: audioSeeAll},
-		showComics && !audioLibrary && {id: 'latestComics', title: $L('Latest Comics'), items: extra.latestComics, seeAll: bookSeeAll},
-		all && {id: 'lastPlayed', title: $L('Last Played'), items: extra.lastPlayed, seeAll: audioSeeAll},
-		all && {id: 'series', title: $L('Series'), items: series, seeAll: {folder: true}},
+		{id: 'resume', title: audioLibrary ? $L('Continue Listening') : $L('Continue Reading'), items: scoped(data.resume), seeAll: titlesIn(scope, 'datePlayed'), mixFormats},
+		showBooks && !audioLibrary && {id: 'latestBooks', title: $L('Latest Books'), items: extra.latestBooks, seeAll: titlesIn(SCOPE_BOOKS)},
+		showAudiobooks && {id: 'latestAudiobooks', title: $L('Latest Audiobooks'), items: extra.latestAudiobooks, seeAll: titlesIn(SCOPE_AUDIOBOOKS)},
+		showComics && !audioLibrary && {id: 'latestComics', title: $L('Latest Comics'), items: extra.latestComics, seeAll: titlesIn(SCOPE_COMICS)},
+		all && {id: 'lastPlayed', title: $L('Last Played'), items: extra.lastPlayed, seeAll: titlesIn(SCOPE_AUDIOBOOKS, 'datePlayed')},
+		all && {id: 'series', title: $L('Series'), items: series, seeAll: {id: 'series'}},
 		{id: 'authors', title: $L('Authors'), items: authors, kind: 'avatar'},
-		all && {id: 'genres', title: $L('Genres'), items: data.genres, kind: 'chip', seeAll: {genres: true}},
-		all && {id: 'collections', title: $L('Collections'), items: data.collections, seeAll: typesSeeAll},
-		all && {id: 'favorites', title: $L('Favorites'), items: data.favorites, seeAll: typesSeeAll, mixFormats},
+		all && {id: 'genres', title: $L('Genres'), items: data.genres.slice(0, GENRE_CHIPS), kind: 'chip', seeAll: {id: 'genres'}},
+		all && {id: 'collections', title: $L('Collections'), items: data.collections, seeAll: {id: 'collections'}},
+		all && {id: 'favorites', title: $L('Favorites'), items: data.favorites, seeAll: {id: 'favorites'}, mixFormats},
 		last
 	].filter((shelf) => shelf && shelf.items.length > 0);
 };
@@ -264,9 +265,9 @@ const Shelf = ({shelf, index, serverUrl, onSelect, registerRowRef, onSeeAll, key
 };
 
 // The Classic book library: the title being read over its blurred cover, a band of counts, the
-// format filter for a library holding more than one, and shelves of titles under it.
-const ClassicBooks = ({library, api, serverUrl, onSelectItem, onOpenGrid, onPlay}) => {
-	const data = useBookLibrary({api, library, genreLimit: 15});
+// format filter for a library holding more than one, and shelves of titles under it, each See All
+// opening its destination.
+const ClassicBooks = ({library, api, serverUrl, data, onSelectItem, onOpenGrid, onOpenScreen, onPlay}) => {
 	const [extra, setExtra] = useState(null);
 	const [scopeChoice, setScope] = useState(SCOPE_ALL);
 	const initialFocusRef = useRef(false);
@@ -281,7 +282,7 @@ const ClassicBooks = ({library, api, serverUrl, onSelectItem, onOpenGrid, onPlay
 		return () => { cancelled = true; };
 	}, [api, library]);
 
-	const loading = data.loading || !extra;
+	const loading = !extra;
 	const mixed = isMixedLibrary(library, data.counts);
 	const scopes = useMemo(() => availableScopes(data.counts), [data.counts]);
 	// A reload, or a switch to a library with one format, can take away the format that was picked,
@@ -313,8 +314,9 @@ const ClassicBooks = ({library, api, serverUrl, onSelectItem, onOpenGrid, onPlay
 
 	const {scrollerRef, chainRef, lastNodeRef, registerRowRef, registerNode, focusNode} = useMusicBrowseFocus(chain, idForNode);
 
+	// Up off the first stop goes to the strip over the page.
 	const sectionKey = useCallback((node, extraKeys) => (e) => (
-		handleSectionKey(e, {node, chain: chainRef.current, focusNode, ...extraKeys})
+		handleSectionKey(e, {node, chain: chainRef.current, focusNode, ...(node === chainRef.current[0] ? {onUp: focusStrip} : {}), ...extraKeys})
 	), [chainRef, focusNode]);
 	// Up from a shelf with a See All stops there first, and Down from it goes back into the shelf.
 	const seeAllKeys = useCallback((node, id) => ({
@@ -335,13 +337,15 @@ const ClassicBooks = ({library, api, serverUrl, onSelectItem, onOpenGrid, onPlay
 	// reloads that pull the focused card out from under it.
 	useEffect(() => {
 		if (loading) return;
+		const active = document.activeElement;
+		const focused = active && active !== document.body && active.classList?.contains('spottable');
+		// Picked from the strip, Overview opens with focus still on it.
 		if (!initialFocusRef.current) {
 			initialFocusRef.current = true;
-			if (chain.length) focusNode(chain[0]);
+			if (!focused && chain.length) focusNode(chain[0]);
 			return;
 		}
-		const active = document.activeElement;
-		if (active && active !== document.body && active.classList?.contains('spottable')) return;
+		if (focused) return;
 		const remembered = lastNodeRef.current;
 		if (chain.length) focusNode(chain.includes(remembered) ? remembered : chain[0]);
 	}, [loading, chain, focusNode, lastNodeRef]);
@@ -391,7 +395,7 @@ const ClassicBooks = ({library, api, serverUrl, onSelectItem, onOpenGrid, onPlay
 							serverUrl={serverUrl}
 							onSelect={handleSelect}
 							registerRowRef={registerRowRef}
-							onSeeAll={onOpenGrid}
+							onSeeAll={onOpenScreen}
 							keys={keys}
 						/>
 					);

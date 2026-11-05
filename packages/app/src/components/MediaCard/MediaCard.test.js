@@ -27,7 +27,8 @@ jest.mock('@enact/spotlight/Spottable', () => (type) => {
 		return React.createElement(type, rest);
 	};
 });
-jest.mock('../../context/SettingsContext', () => ({useSettings: () => ({settings: {}})}));
+let mockSettings = {};
+jest.mock('../../context/SettingsContext', () => ({useSettings: () => ({settings: mockSettings})}));
 jest.mock('../../services/jellyfinApi', () => ({
 	getServerUrl: () => 'http://server',
 	getApiKey: () => 'token',
@@ -65,7 +66,10 @@ const draw = (item, rowImageType) => {
 	};
 };
 
-beforeEach(() => setTmdbThumbsAvailable(true));
+beforeEach(() => {
+	mockSettings = {};
+	setTmdbThumbsAvailable(true);
+});
 afterAll(() => setTmdbThumbsAvailable(false));
 
 describe('MediaCard in a Thumb row', () => {
@@ -241,5 +245,143 @@ describe('MediaCard with the media preview', () => {
 		fireEvent.click(previewCard());
 
 		expect(frame()).toBeNull();
+	});
+});
+
+describe('MediaCard text in classic home rows', () => {
+	const lines = (item, homeText) => {
+		const {unmount} = render(<MediaCard item={item} serverUrl="http://server" homeText={homeText} />);
+		const card = document.querySelector('[class~="card"]');
+		const text = Array.from(card.querySelector('[class~="info"]').children).map((line) => line.textContent);
+		const home = card.classList.contains('homeText');
+		unmount();
+		return {text, home};
+	};
+	const movie = {Id: 'm1', Type: 'Movie', Name: 'Avatar', ProductionYear: 2009};
+	const series = {Id: 's1', Type: 'Series', Name: 'Devs', ProductionYear: 2020};
+	const episode = {Id: 'e1', Type: 'Episode', Name: 'The Strike', SeriesName: 'The Nanny', ParentIndexNumber: 2, IndexNumber: 13};
+
+	test('a movie and a series get their year under the name', () => {
+		expect(lines(movie, true)).toEqual({text: ['Avatar', '2009'], home: true});
+		expect(lines(series, true)).toEqual({text: ['Devs', '2020'], home: true});
+	});
+
+	test('an episode keeps its series over its number and name', () => {
+		expect(lines(episode, true)).toEqual({text: ['The Nanny', 'S2:E13 - The Strike'], home: true});
+	});
+
+	test('cards outside the home rows keep their single line', () => {
+		expect(lines(movie, false)).toEqual({text: ['Avatar'], home: false});
+	});
+
+	// A scrolling line carries a second copy of its text, so the copies show which lines move.
+	const focusCard = (homeText, textWidth) => {
+		const width = jest.spyOn(window.HTMLElement.prototype, 'offsetWidth', 'get').mockReturnValue(textWidth);
+		render(<MediaCard item={episode} serverUrl="http://server" homeText={homeText} />);
+		const card = document.querySelector('[class~="card"]');
+		const copies = () => card.querySelector('[class~="info"]').querySelectorAll('[aria-hidden="true"]').length;
+		return {card, copies, restore: () => width.mockRestore()};
+	};
+
+	test('both lines scroll while the card has focus when they are too long for it', () => {
+		const {card, copies, restore} = focusCard(true, 400);
+		expect(copies()).toBe(0);
+		fireEvent.focus(card);
+		expect(copies()).toBe(2);
+		fireEvent.blur(card);
+		expect(copies()).toBe(0);
+		restore();
+	});
+
+	test('lines that fit stay still on focus', () => {
+		const {card, copies, restore} = focusCard(true, 0);
+		fireEvent.focus(card);
+		expect(copies()).toBe(0);
+		restore();
+	});
+
+	test('cards outside the home rows never scroll', () => {
+		const {card, copies, restore} = focusCard(false, 400);
+		fireEvent.focus(card);
+		expect(copies()).toBe(0);
+		restore();
+	});
+});
+
+describe('MediaCard Seerr status', () => {
+	const dot = () => document.querySelector('[class~="seerrBadge"]');
+	const banner = () => document.querySelector('[class~="banner"]');
+	const art = () => document.querySelector('[data-card-art]');
+	const drawPoster = (item, props) => render(<MediaCard item={item} serverUrl="http://server" rowImageType="poster" {...props} />);
+
+	it('keeps the corner dot in badge mode', () => {
+		drawPoster(seerrMovie({mediaInfo: {status: 4}}));
+		expect(dot().className).toContain('seerr4');
+		expect(banner()).toBeNull();
+	});
+
+	it('shows no dot for a title Seerr has no status for', () => {
+		drawPoster(seerrMovie());
+		expect(dot()).toBeNull();
+		expect(banner()).toBeNull();
+	});
+
+	it('draws nothing when the badges are off', () => {
+		mockSettings = {showSeerrAvailabilityBadges: false, seerrBadgeStyle: 'banner'};
+		drawPoster(seerrMovie({mediaInfo: {status: 4}}));
+		expect(dot()).toBeNull();
+		expect(banner()).toBeNull();
+	});
+
+	it('runs a banner across a Seerr title and drops the badges below it', () => {
+		mockSettings = {seerrBadgeStyle: 'banner'};
+		drawPoster(seerrMovie({mediaInfo: {status: 4}, UserData: {IsFavorite: true}}));
+		expect(banner().textContent).toBe('PARTIALLY AVAILABLE');
+		expect(dot()).toBeNull();
+		expect(art().className).toContain('underSeerrBanner');
+		expect(document.querySelector('[class~="favoriteBadge"]')).not.toBeNull();
+	});
+
+	it('leaves a title nobody requested without a banner', () => {
+		mockSettings = {seerrBadgeStyle: 'banner'};
+		drawPoster(seerrMovie());
+		expect(banner()).toBeNull();
+		expect(art().className).not.toContain('underSeerrBanner');
+	});
+
+	it('gives a season a banner only for a status it would have had a dot for', () => {
+		mockSettings = {seerrBadgeStyle: 'banner'};
+		const season = {Id: 'season1', Name: 'Season 1', Type: 'Season', ImageTags: {Primary: 'p'}};
+		const {rerender} = drawPoster(season, {seerrSeasonStatus: 5});
+		expect(banner().textContent).toBe('AVAILABLE');
+
+		rerender(<MediaCard item={season} serverUrl="http://server" rowImageType="poster" seerrSeasonStatus={1} />);
+		expect(banner()).toBeNull();
+		expect(art().className).not.toContain('underSeerrBanner');
+	});
+
+	it('leaves library items and outside list titles without a banner', () => {
+		mockSettings = {seerrBadgeStyle: 'banner'};
+		drawPoster(libraryMovie());
+		expect(banner()).toBeNull();
+		drawPoster(seerrMovie({Id: 'ext-imdb-1', _external: true}));
+		expect(banner()).toBeNull();
+	});
+});
+
+describe('MediaCard with its own overlay', () => {
+	it('draws the overlay in place of the library badges and drops the name below', () => {
+		const owned = {Id: 'm1', Name: 'Owned', Type: 'Movie', ImageTags: {Primary: 'p'}, UserData: {IsFavorite: true, Played: true}};
+		render(<MediaCard item={owned} serverUrl="http://server" cardType="landscape" overlay={<span data-overlay />} showInfo={false} />);
+		expect(document.querySelector('[data-overlay]')).not.toBeNull();
+		expect(document.querySelector('[class~="favoriteBadge"]')).toBeNull();
+		expect(document.querySelector('[class~="watchedBadge"]')).toBeNull();
+		expect(document.querySelector('[class~="info"]')).toBeNull();
+	});
+
+	it("keeps an owned title's list backdrop when the library has no wide art for it", () => {
+		const owned = {Id: 'm1', Name: 'Owned', Type: 'Movie', ImageTags: {Primary: 'p'}, _external: true, _resolvedFromExternal: true, _externalBackdropUrl: BACKDROP};
+		render(<MediaCard item={owned} serverUrl="http://server" cardType="landscape" rowImageType="backdrop" />);
+		expect(document.querySelector('img').getAttribute('src')).toBe(BACKDROP);
 	});
 });

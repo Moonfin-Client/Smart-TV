@@ -1,10 +1,10 @@
 import {useCallback, useRef, useState} from 'react';
 
 import {DEFAULT_HOME_ROWS} from '../../context/SettingsContext';
-import {createApiForServer} from '../../services/jellyfinApi';
+import {createApiForServer, getServerType} from '../../services/jellyfinApi';
 import {SEERR_CONFIG_TO_SECTION} from '../../utils/seerrHomeRows';
 import {getGenresIncludeTypes} from '../../utils/homeRowSorting';
-import {makePickedRow, makeSeerrSliderRow, serverKey} from '../../utils/pickedRows';
+import {isSameServer, isSectionTypeRow, makePickedRow, makeSeerrSliderRow, serverKey} from '../../utils/pickedRows';
 import {loadDiscoverSliders, reconcileSliderRows} from '../../utils/seerrSliders';
 import {isHomeRowVisibleByGates, mergeFoundRows} from './homeSectionsModel';
 import {editedListKey} from './settingsRows';
@@ -26,7 +26,7 @@ const otherServers = (servers, serverUrl) => {
 
 // Everything that can have a row of its own: the collections, genres and playlists of the lists
 // switched on, and the collections of the other signed in servers while multi-server libraries is on
-const findPickableRows = async ({api, serverUrl, servers, settings}) => {
+const findPickableRows = async ({api, serverUrl, servers, settings, rows = []}) => {
 	const lists = [];
 	const add = (source, url, request) => lists.push(request.then(
 		(result) => (result?.Items || []).map((item) => makePickedRow({source, serverUrl: url, itemId: String(item.Id), name: item.Name}, false, 0)),
@@ -43,6 +43,15 @@ const findPickableRows = async ({api, serverUrl, servers, settings}) => {
 	}
 	if (settings.displayGenresRows) add('genres', serverUrl, api.getGenres(undefined, getGenresIncludeTypes(settings.genresRowItemFilter)));
 	if (settings.displayPlaylistsRows) add('playlists', serverUrl, api.getPlaylists());
+	// Silo's own home sections. One a section-type row (from Moonbase's defaults) already stands for isn't listed again.
+	if (getServerType() === 'silo') {
+		const typed = new Set(rows.filter((row) => isSectionTypeRow(row) && (!row.serverUrl || isSameServer(row.serverUrl, serverUrl)))
+			.map((row) => row.itemId));
+		add('server', serverUrl, api.getServerHomeSections().then((sections) => {
+			const standIns = new Set(typed);
+			return {Items: sections.filter((section) => !standIns.delete(`type:${section.kind}`)).map((section) => ({Id: section.id, Name: section.title}))};
+		}));
+	}
 	return [].concat(...await Promise.all(lists));
 };
 
@@ -118,7 +127,7 @@ const useHomeRowsEditor = ({api, serverUrl, servers, settings, updateSetting, up
 		// A failed slider read leaves the slider rows alone, rather than reading as Seerr having none
 		// and dropping them all.
 		Promise.all([
-			findPickableRows({api, serverUrl, servers, settings}).catch(() => []),
+			findPickableRows({api, serverUrl, servers, settings, rows}).catch(() => []),
 			settings.useMoonfinPlugin ? loadDiscoverSliders({force: true}).catch(() => null) : null
 		])
 			.then(([found, sliders]) => {

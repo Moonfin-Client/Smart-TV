@@ -205,36 +205,3 @@ export const parseMarkdown = (source) => {
 	flush();
 	return blocks;
 };
-
-const walkInlines = (nodes, visit) => {
-	nodes.forEach((node) => {
-		visit(node);
-		if (node.children) walkInlines(node.children, visit);
-	});
-};
-
-const inlineText = (nodes) => {
-	let out = '';
-	walkInlines(nodes, (node) => {
-		if (node.type === 'text' || node.type === 'code') out += node.text;
-	});
-	return out;
-};
-
-// Every link in the text, each once, with the words it was written on. A TV
-// has nowhere to point a link, so these get offered on their own after the
-// text instead.
-export const markdownLinks = (blocks) => {
-	const seen = {};
-	const links = [];
-	const collect = (nodes) => walkInlines(nodes, (node) => {
-		if (node.type !== 'link' || !node.href || seen[node.href]) return;
-		seen[node.href] = true;
-		links.push({href: node.href, label: inlineText(node.children) || node.href});
-	});
-	blocks.forEach((block) => {
-		if (block.type === 'list') block.items.forEach(collect);
-		else if (block.children) collect(block.children);
-	});
-	return links;
-};

@@ -20,6 +20,14 @@ const Choice = ({label, selected, className, ...rest}) => (
 	</SpottableDiv>
 );
 
+export const ChromeButton = ({icon, mark, label, ...rest}) => (
+	<SpottableDiv className={css.chromeButton} {...rest}>
+		{icon && <svg viewBox="0 0 24 24" aria-hidden="true"><path d={icon} /></svg>}
+		{mark && <span className={css.chromeMark}>{mark}</span>}
+		<span>{label}</span>
+	</SpottableDiv>
+);
+
 const percent = (value) => Math.round(value * 100) + '%';
 
 // Chapters to jump to, and the places this TV has bookmarked in the book.

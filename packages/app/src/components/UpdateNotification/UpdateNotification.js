@@ -1,134 +1,77 @@
-/**
- * UpdateNotification component
- * Shows a popup when a new version is available
- */
-
-import {useCallback, useEffect, useRef, useMemo} from 'react';
-import Popup from '@enact/sandstone/Popup';
-import Button from '@enact/sandstone/Button';
-import Heading from '@enact/sandstone/Heading';
-import Scroller from '@enact/sandstone/Scroller';
+import {useCallback, useEffect, useMemo, useState} from 'react';
 import Spotlight from '@enact/spotlight';
+import Spottable from '@enact/spotlight/Spottable';
 import $L from '@enact/i18n/$L';
 
+import CoreDialog from '../CoreDialog';
+import PagedText from '../PagedText';
 import {KEYS} from '../../utils/keys';
 import {renderReleaseNotes} from '../../utils/releaseNotes';
+import {MaterialIcon} from '../icons/materialIcons';
 
 import css from './UpdateNotification.module.less';
 
-const OK_BUTTON_ID = 'update-ok-btn';
+const SpottableDiv = Spottable('div');
 
+const UPDATE_ID = 'update-dialog';
+const NOTES_ID = 'update-notes-dialog';
+
+// Offers the release notes for a new version. A TV has no browser to send anyone to, so the
+// notes open here instead, and either way the update counts as seen once this closes.
 const UpdateNotification = ({updateInfo, formattedNotes, onDismiss}) => {
-	const panelRef = useRef(null);
-
-	const handleDismiss = useCallback(() => {
-		if (onDismiss) {
-			onDismiss();
-		}
-	}, [onDismiss]);
-
+	const [showNotes, setShowNotes] = useState(false);
+	const open = Boolean(updateInfo);
 	const htmlNotes = useMemo(() => renderReleaseNotes(formattedNotes), [formattedNotes]);
 
-	const holdsFocus = useCallback(() => {
-		const current = Spotlight.getCurrent();
-		return Boolean(current && panelRef.current && panelRef.current.contains(current));
-	}, []);
-
-	// Asked for by id because Button does not forward a ref, so there is no
-	// element to hand Spotlight. The panel animates in, so the first ask can
-	// land before there is anything to take it.
 	useEffect(() => {
-		if (!updateInfo) return;
+		if (!open) setShowNotes(false);
+	}, [open]);
 
-		let timer = null;
-		let attempts = 0;
-		const focusOk = () => {
-			Spotlight.focus(OK_BUTTON_ID);
-			attempts += 1;
-			if (attempts < 5 && !holdsFocus()) {
-				timer = setTimeout(focusOk, 150);
-			}
-		};
-
-		timer = setTimeout(focusOk, 100);
-		return () => clearTimeout(timer);
-	}, [updateInfo, holdsFocus]);
-
-	// Spotlight only fences off moves that start inside the panel, so focus can
-	// still be taken by the screen behind. Every press after that drives the
-	// screen instead of the panel.
+	// This can open while the screen behind is still loading and taking focus for itself, which
+	// Spotlight lets happen since only moves that start inside the dialog are fenced off. Every
+	// press after that would drive the screen, so the first arrow brings focus back.
 	useEffect(() => {
-		if (!updateInfo) return;
-
+		if (!open) return undefined;
+		const id = showNotes ? NOTES_ID : UPDATE_ID;
 		const handleKey = (e) => {
 			const code = e.keyCode || e.which;
 			if (code !== KEYS.UP && code !== KEYS.DOWN && code !== KEYS.LEFT && code !== KEYS.RIGHT) return;
-			if (holdsFocus()) return;
+			const panel = document.querySelector(`[data-spotlight-id="${id}"]`);
+			const current = Spotlight.getCurrent();
+			if (!panel || (current && panel.contains(current))) return;
 			e.preventDefault();
 			e.stopPropagation();
-			Spotlight.focus(OK_BUTTON_ID);
+			Spotlight.focus(id);
 		};
-
 		window.addEventListener('keydown', handleKey, true);
 		return () => window.removeEventListener('keydown', handleKey, true);
-	}, [updateInfo, holdsFocus]);
+	}, [open, showNotes]);
 
-	if (!updateInfo) {
-		return null;
-	}
+	const handleShowNotes = useCallback(() => setShowNotes(true), []);
+
+	const title = open ? $L('v{version} Available').replace('{version}', updateInfo.latestVersion) : '';
 
 	return (
-		<Popup
-			open
-			onClose={handleDismiss}
-			position="center"
-			noAutoDismiss
-			scrimType="translucent"
-			spotlightRestrict="self-only"
-		>
-			<div className={css.overlay}>
-				<div
-					ref={panelRef}
-					className={css.modal}
-					style={{
-						width: '1400px',
-						minWidth: '1200px'
-					}}
-				>
-					<Heading size="small" className={css.title}>
-						{$L('Update available')}
-					</Heading>
-
-					<div className={css.versionInfo}>
-						<span className={css.newVersion}>{$L('Version')} {updateInfo.latestVersion}</span>
-						<span className={css.currentVersion}>
-							{$L('Current:')} {updateInfo.currentVersion}
-						</span>
-					</div>
-
-					<Scroller
-						className={css.notesScroller}
-						direction="vertical"
-						focusableScrollbar
-					>
-						<div
-							className={css.notes}
-							ref={(el) => { if (el) el.innerHTML = htmlNotes; }}
-						/>
-					</Scroller>
-
-					<div className={css.buttons}>
-						<Button
-							spotlightId={OK_BUTTON_ID}
-							size="small"
-							onClick={handleDismiss}
-						>
-							{$L('OK')}
-						</Button>
-					</div>
-				</div>
-			</div>
-		</Popup>
+		<>
+			<CoreDialog open={open && !showNotes} onClose={onDismiss} title={title} showCancel spotlightId={UPDATE_ID}>
+				<SpottableDiv className={css.option} onClick={handleShowNotes}>
+					<MaterialIcon name="articleOutlined" className={css.optionIcon} />
+					<span className={css.optionLabel}>{$L('Read Release Notes')}</span>
+				</SpottableDiv>
+			</CoreDialog>
+			<CoreDialog
+				open={open && showNotes}
+				onClose={onDismiss}
+				title={title}
+				spotlightId={NOTES_ID}
+				className={css.notesPanel}
+				bodyClassName={css.notesBody}
+			>
+				<PagedText className={css.notesText}>
+					<div className={css.notes} ref={(el) => { if (el) el.innerHTML = htmlNotes; }} />
+				</PagedText>
+			</CoreDialog>
+		</>
 	);
 };
 

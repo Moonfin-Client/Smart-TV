@@ -51,6 +51,16 @@ export const getExtraCategoryLabel = (key) => {
 	}
 };
 
+// Special features by their number, then by name ignoring case. A season number on one plays no
+// part, and one without a number sorts as zero.
+export const compareFeatures = (a, b) => {
+	const byIndex = (a.IndexNumber ?? 0) - (b.IndexNumber ?? 0);
+	if (byIndex) return byIndex;
+	const nameA = (a.Name || '').toLowerCase();
+	const nameB = (b.Name || '').toLowerCase();
+	return nameA < nameB ? -1 : nameA > nameB ? 1 : 0;
+};
+
 // Extras bucketed by section, in EXTRA_CATEGORIES order, with the empty sections left out.
 export const groupExtrasByCategory = (extras = []) => {
 	const byCategory = new Map();

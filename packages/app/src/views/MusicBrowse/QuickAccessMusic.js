@@ -43,7 +43,7 @@ const IconFilter = () => (
 const IconOverview = () => (
 	<svg viewBox="0 0 24 24"><path d="M3 13h8V3H3v10zm0 8h8v-6H3v6zm10 0h8V11h-8v10zm0-18v6h8V3h-8z" /></svg>
 );
-const IconCategory = ({d}) => (
+export const IconCategory = ({d}) => (
 	<svg viewBox="0 -960 960 960"><path d={d} /></svg>
 );
 
@@ -156,8 +156,7 @@ const QuickAccessMusic = ({library, api, serverUrl, onSelectItem, onOpenGrid, on
 	const quickWidth = rem((gridWidth - QUICK_GAP * (quickColumns - 1)) / quickColumns);
 
 	const renderShelf = (row, index) => {
-		// The newest albums have no grid of their own to open.
-		const seeAllTarget = row.id === 'latestMusic' ? null : SEE_ALL_TARGET[row.id];
+		const seeAllTarget = SEE_ALL_TARGET[row.id];
 		return (
 			<MusicShelf
 				key={row.id}

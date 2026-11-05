@@ -1,0 +1,668 @@
+@import '../../../styles/mixins.less';
+
+// Sizes are Moonfin Core's Stage measurements, which are laid out for a 1150 point wide TV screen,
+// times 1.67 for this app's 1920 wide one.
+
+@shadow: 0 1px 4px rgba(0, 0, 0, 0.5);
+@focus: var(--theme-focus-border-color, #00a4dc);
+
+.backdrop {
+	background: #0b0d10;
+	bottom: 0;
+	left: 0;
+	overflow: hidden;
+	position: absolute;
+	right: 0;
+	top: 0;
+}
+
+.backdropImage {
+	height: 100%;
+	object-fit: cover;
+	width: 100%;
+}
+
+// A flat wash, since the page sits on the picture rather than beside it. The alpha comes from the
+// opacity setting.
+.scrim {
+	bottom: 0;
+	left: 0;
+	position: absolute;
+	right: 0;
+	top: 0;
+}
+
+// A plain scrolling element rather than a component, because the page moves focus between its
+// sections itself and a scroller component would answer the same focus events.
+.scroller {
+	bottom: 0;
+	left: 0;
+	overflow-x: hidden;
+	overflow-y: auto;
+	position: absolute;
+	right: 0;
+	top: 0;
+	-ms-overflow-style: none;
+	scrollbar-width: none;
+}
+
+.scroller::-webkit-scrollbar {
+	display: none;
+}
+
+.content {
+	padding: 172px 80px 80px;
+}
+
+.sidebarOffset {
+	padding-left: 200px;
+}
+
+.top {
+	align-items: flex-start;
+	display: flex;
+}
+
+.posterColumn {
+	flex: 0 0 388px;
+	width: 388px;
+}
+
+.poster {
+	background: rgba(255, 255, 255, 0.06);
+	border-radius: 13px;
+	height: 582px;
+	overflow: hidden;
+	position: relative;
+	width: 388px;
+}
+
+// An episode's still keeps its own shape rather than being cropped into a poster.
+.posterWide {
+	height: 218px;
+}
+
+.posterImage {
+	height: 100%;
+	object-fit: cover;
+	width: 100%;
+}
+
+.posterPlaceholder {
+	fill: rgba(255, 255, 255, 0.3);
+	height: 64px;
+	left: 50%;
+	margin: -32px 0 0 -32px;
+	position: absolute;
+	top: 50%;
+	width: 64px;
+}
+
+.posterFavorite {
+	.favorite-badge(43px, 25px);
+	left: 10px;
+	top: 10px;
+}
+
+.posterWatched {
+	.watched-badge(43px, 26px);
+	right: 10px;
+	top: 10px;
+}
+
+.progressTrack {
+	background: rgba(0, 0, 0, 0.54);
+	border-radius: 5px;
+	bottom: 10px;
+	height: 10px;
+	left: 10px;
+	overflow: hidden;
+	position: absolute;
+	right: 10px;
+}
+
+.progressFill {
+	background: #00a4dc;
+	height: 100%;
+}
+
+.actions {
+	margin-top: 28px;
+}
+
+.beside {
+	flex: 1 1 auto;
+	margin-left: 67px;
+	min-width: 0;
+}
+
+.logo {
+	display: block;
+	max-height: 173px;
+	max-width: 600px;
+}
+
+.title {
+	color: #fff;
+	display: -webkit-box;
+	font-size: 63px;
+	font-weight: 700;
+	line-height: 1.1;
+	margin: 0;
+	overflow: hidden;
+	-webkit-box-orient: vertical;
+	-webkit-line-clamp: 2;
+}
+
+.subtitle {
+	color: #fff;
+	display: -webkit-box;
+	font-size: 43px;
+	font-weight: 600;
+	line-height: 1.1;
+	margin-top: 13px;
+	overflow: hidden;
+	-webkit-box-orient: vertical;
+	-webkit-line-clamp: 2;
+}
+
+.meta {
+	margin-top: 17px;
+}
+
+// The facts line, drawn the way Core's metadata row draws it: bold, dot separated, the age
+// rating in an accent tag and the status in a colored one.
+.metaRow {
+	align-items: center;
+	color: #fff;
+	display: flex;
+	flex-wrap: wrap;
+	font-size: 20px;
+	font-weight: 700;
+	line-height: 1.6;
+	text-shadow: @shadow;
+}
+
+.metaItem {
+	align-items: center;
+	display: inline-flex;
+}
+
+.metaItem:not(:first-child)::before {
+	color: rgba(255, 255, 255, 0.6);
+	content: '\2022';
+	font-weight: 400;
+	margin: 0 10px;
+}
+
+.metaIcon {
+	display: none;
+}
+
+.metaRating {
+	background: rgba(0, 164, 220, 0.15);
+	border-radius: 7px;
+	font-size: 18px;
+	font-weight: 500;
+	line-height: 1.4;
+	padding: 3px 10px;
+}
+
+.statusBadge {
+	border-radius: 7px;
+	color: #fff;
+	font-size: 18px;
+	font-weight: 600;
+	line-height: 1.4;
+	padding: 3px 10px;
+	text-shadow: none;
+	background: #2e7d32;
+}
+
+.statusEnded {
+	background: #b71c1c;
+}
+
+.statusUpcoming {
+	align-items: center;
+	background: #00a4dc;
+	display: inline-flex;
+}
+
+.statusUpcoming .metaIcon {
+	display: block;
+	height: 18px;
+	margin-right: 6px;
+	width: 18px;
+}
+
+.metaBadge {
+	margin-left: 10px;
+}
+
+.techRow {
+	.flex-wrap-gap(7px; 10px);
+	display: flex;
+	flex-wrap: wrap;
+	margin-top: 10px;
+}
+
+.techChip {
+	border: 2px solid rgba(255, 255, 255, 0.3);
+	border-radius: 7px;
+	color: #fff;
+	font-size: 18px;
+	font-weight: 600;
+	line-height: 1.4;
+	padding: 4px 12px;
+}
+
+.ratings {
+	margin-top: 17px;
+}
+
+.tagline {
+	color: rgba(255, 255, 255, 0.82);
+	font-size: 27px;
+	font-style: italic;
+	line-height: 1.5;
+	margin-top: 20px;
+}
+
+.overview {
+	margin-top: 20px;
+	max-width: 1436px;
+}
+
+.besideStop {
+	margin-top: 30px;
+}
+
+.belowStop {
+	margin-top: 47px;
+}
+
+// The audio, subtitle and version pickers. A focused chip fills in and its content darkens to
+// read on the fill, which is Core's solid focus.
+.chipRow {
+	.flex-wrap-gap(17px);
+	display: flex;
+	flex-wrap: wrap;
+}
+
+.chip {
+	align-items: center;
+	background: rgba(255, 255, 255, 0.06);
+	border: 2px solid rgba(255, 255, 255, 0.22);
+	border-radius: 34px;
+	box-sizing: border-box;
+	color: #fff;
+	display: flex;
+	height: 68px;
+	outline: none;
+	padding: 0 23px;
+}
+
+.chip:focus {
+	background: #f2f2f2;
+	border-color: @focus;
+	color: #212121;
+}
+
+.chipIcon {
+	color: rgba(255, 255, 255, 0.62);
+	flex: 0 0 30px;
+	height: 30px;
+	margin-right: 13px;
+	width: 30px;
+}
+
+.chipLabel {
+	color: rgba(255, 255, 255, 0.62);
+	font-size: 20px;
+	margin-right: 13px;
+}
+
+.chip:focus .chipIcon,
+.chip:focus .chipLabel {
+	color: rgba(33, 33, 33, 0.62);
+}
+
+.chipValue {
+	font-size: 23.4px;
+	font-weight: 600;
+	max-width: 400px;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+// Quick Look's chips share one line, and useDetailPage caps each at an even share of it.
+.chipRowShared {
+	flex-wrap: nowrap;
+	margin: 0 -6.7px;
+}
+
+.chipRowShared > .chip {
+	flex: 0 1 auto;
+	margin: 0 6.7px;
+	min-width: 0;
+}
+
+.chipRowShared .chipValue {
+	min-width: 0;
+}
+
+// The people and studios behind a film, one cell each, side by side in one panel. A cell takes
+// focus first, and OK opens it so its names can be picked.
+.panel {
+	background: rgba(255, 255, 255, 0.03);
+	border: 2px solid rgba(255, 255, 255, 0.06);
+	border-radius: 20px;
+	display: flex;
+}
+
+.cell {
+	border: 2.5px solid transparent;
+	box-sizing: border-box;
+	flex: 1 1 0;
+	min-width: 0;
+	outline: none;
+	padding: 23px 27px;
+	text-align: center;
+}
+
+.cellDivided {
+	border-left: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.cellFirst {
+	border-radius: 18px 0 0 18px;
+}
+
+.cellLast {
+	border-radius: 0 18px 18px 0;
+}
+
+.cellFirst.cellLast {
+	border-radius: 18px;
+}
+
+.cell:focus {
+	background: rgba(0, 164, 220, 0.1);
+	border: 2.5px solid @focus;
+}
+
+.cellTitle {
+	color: rgba(255, 255, 255, 0.4);
+	font-size: 18.4px;
+	font-weight: 600;
+	letter-spacing: 1.7px;
+	text-transform: uppercase;
+}
+
+.cellNames {
+	align-items: center;
+	display: flex;
+	flex-direction: column;
+	margin-top: 13px;
+}
+
+.name {
+	background: rgba(255, 255, 255, 0.04);
+	border: 2.5px solid rgba(255, 255, 255, 0.1);
+	border-radius: 13px;
+	color: rgba(255, 255, 255, 0.85);
+	font-size: 20px;
+	line-height: 1.5;
+	max-width: 100%;
+	outline: none;
+	overflow: hidden;
+	padding: 7px 17px;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.name ~ .name {
+	margin-top: 13px;
+}
+
+.name:focus {
+	background: rgba(0, 164, 220, 0.15);
+	border-color: @focus;
+	color: #fff;
+}
+
+.rowTitle {
+	color: #fff;
+	font-size: 36.7px;
+	font-weight: 400;
+	line-height: 1.27;
+	margin: 0;
+}
+
+// A focused poster grows from its bottom edge, ring and all, by Core's TV focus scale.
+.card {
+	outline: none;
+	position: relative;
+	width: 250px;
+}
+
+.cardArt {
+	height: 375px;
+	position: relative;
+	transform-origin: 50% 100%;
+	transition: transform 0.15s ease-out;
+
+	:global(.perf-low) &,
+	:global(.perf-mid) & {
+		transition: none;
+	}
+}
+
+.card:focus .cardArt {
+	transform: scale(1.12);
+}
+
+.noZoom:focus .cardArt {
+	transform: none;
+}
+
+.card:focus .cardArt::after {
+	border: 5px solid @focus;
+	border-radius: 21px;
+	bottom: -8px;
+	content: '';
+	left: -8px;
+	position: absolute;
+	right: -8px;
+	top: -8px;
+}
+
+.cardClip {
+	background: rgba(255, 255, 255, 0.06);
+	border-radius: 13px;
+	height: 100%;
+	overflow: hidden;
+	position: relative;
+}
+
+.cardImage {
+	height: 100%;
+	object-fit: cover;
+	width: 100%;
+}
+
+// Core's stand in for a season with no poster: the name, spaced out, on a dark wash.
+.cardPlaceholder {
+	align-items: center;
+	background: linear-gradient(160deg, rgba(40, 70, 90, 0.55), rgba(30, 32, 38, 0.85));
+	color: rgba(255, 255, 255, 0.55);
+	display: flex;
+	font-size: 25px;
+	font-weight: 600;
+	height: 100%;
+	justify-content: center;
+	letter-spacing: 6px;
+	text-transform: uppercase;
+}
+
+.cardFavorite {
+	.favorite-badge(37px, 21px);
+	left: 10px;
+	top: 10px;
+}
+
+.cardWatched {
+	.watched-badge(37px, 22px);
+	right: 10px;
+	top: 10px;
+}
+
+// A Seerr title's dot, in the corner and at the size the watched mark takes on a library card.
+.cardSeerrDot {
+	height: 37px;
+	position: absolute;
+	right: 10px;
+	top: 10px;
+	width: 37px;
+	z-index: 5;
+}
+
+.cardSeerrDot > div {
+	box-sizing: border-box;
+	height: 100%;
+	left: 0;
+	top: 0;
+	width: 100%;
+}
+
+.cardTitle {
+	color: #fff;
+	font-size: 21.7px;
+	font-weight: 700;
+	line-height: 1.3;
+	margin-top: 10px;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	text-shadow: @shadow;
+	white-space: nowrap;
+}
+
+.cardSubtitle {
+	color: rgba(255, 255, 255, 0.6);
+	font-size: 20px;
+	line-height: 1.3;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	text-shadow: @shadow;
+	white-space: nowrap;
+}
+
+.extraCard {
+	width: 284px;
+}
+
+.extraCard .cardArt {
+	height: 160px;
+}
+
+// A face in the cast row. The ring sits a little off the avatar and only shows with focus. Core
+// gives the row a fixed height, which the cards hold here.
+.person {
+	min-height: 307px;
+	outline: none;
+	text-align: center;
+	transition: transform 0.15s ease-out;
+	width: 167px;
+
+	:global(.perf-low) &,
+	:global(.perf-mid) & {
+		transition: none;
+	}
+}
+
+.person:focus {
+	transform: scale(1.05);
+}
+
+// Core's cast list starts a little in from the edge.
+[data-card-index='0'] > .person {
+	margin-left: 6.7px;
+}
+
+.person.noZoom:focus {
+	transform: none;
+}
+
+.avatarRing {
+	border: 2.5px solid transparent;
+	border-radius: 50%;
+	display: inline-block;
+	padding: 3.3px;
+}
+
+.person:focus .avatarRing {
+	border-color: @focus;
+}
+
+.avatar {
+	background: rgba(255, 255, 255, 0.08);
+	border-radius: 50%;
+	height: 150px;
+	overflow: hidden;
+	position: relative;
+	width: 150px;
+}
+
+.avatarImage {
+	height: 100%;
+	object-fit: cover;
+	width: 100%;
+}
+
+.avatarIcon {
+	fill: rgba(255, 255, 255, 0.54);
+	height: 53px;
+	left: 50%;
+	margin: -27px 0 0 -27px;
+	position: absolute;
+	top: 50%;
+	width: 53px;
+}
+
+.personName {
+	-webkit-box-orient: vertical;
+	-webkit-line-clamp: 2;
+	color: #fff;
+	display: -webkit-box;
+	font-size: 20px;
+	font-weight: 600;
+	line-height: 1.35;
+	margin-top: 17px;
+	overflow: hidden;
+}
+
+.personRole {
+	-webkit-box-orient: vertical;
+	-webkit-line-clamp: 3;
+	color: rgba(255, 255, 255, 0.6);
+	display: -webkit-box;
+	font-size: 18.4px;
+	line-height: 1.35;
+	overflow: hidden;
+}
+
+.seerrBlock > * + * {
+	margin-top: 18px;
+}
+
+// Premiere's panel, where each cell's width follows how much text it holds, lays the names side by
+// side and wraps them, the way Core does. Kept last so it wins over the stacked names above.
+.weighed .cellNames {
+	.flex-wrap-gap(13.4px);
+	flex-direction: row;
+	flex-wrap: wrap;
+	justify-content: center;
+	margin-top: 13px;
+}

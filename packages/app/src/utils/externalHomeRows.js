@@ -45,7 +45,7 @@ export const getExternalHomeRowConfigs = () => ([
 const findPreset = (id) => getExternalHomeRowConfigs().find((c) => c.id === id) || null;
 
 const yearOf = (item) => {
-	const year = parseInt(String(item.productionYear || '').slice(0, 4), 10);
+	const year = parseInt(String(item.productionYear || item.year || item.release_date || '').slice(0, 4), 10);
 	return Number.isFinite(year) ? year : undefined;
 };
 
@@ -89,6 +89,7 @@ const normalizeExternalItem = (item, rowId, source) => {
 		OfficialRating: item.officialRating ?? null,
 		Overview: item.overview || null,
 		CommunityRating: item.rating ?? null,
+		Popularity: item.popularity ?? null,
 		Genres: Array.isArray(item.genres) ? item.genres : [],
 		RunTimeTicks: item.runTimeTicks ?? null,
 		_externalPosterUrl: item.posterUrl ? seerrApi.getImageUrl(item.posterUrl, 'w342') : null,
@@ -118,24 +119,75 @@ export const buildSeasonalRow = (payload, hiddenHolidays = []) => {
 	return {
 		id: 'seasonal',
 		holiday: payload.holiday,
-		title: seasonalTitle(payload.holiday),
+		// Silo names its own seasonal section.
+		title: payload.title || seasonalTitle(payload.holiday),
 		items,
 		isExternalRow: true,
 		isSeasonalRow: true
 	};
 };
 
+export const formatWatchingNowSubtitle = (data) => {
+	if (!data) return '';
+	const usersStr = Number(data.users || 0).toLocaleString();
+	const moviesStr = Number(data.movies || 0).toLocaleString();
+	const showsStr = Number(data.shows || 0).toLocaleString();
+	if (data.mode === 'today') {
+		return $L('{users} watched today \u00b7 {movies} movies \u00b7 {shows} shows')
+			.replace('{users}', usersStr)
+			.replace('{movies}', moviesStr)
+			.replace('{shows}', showsStr);
+	}
+	return $L('{users} watching now \u00b7 {movies} movies \u00b7 {shows} shows')
+		.replace('{users}', usersStr)
+		.replace('{movies}', moviesStr)
+		.replace('{shows}', showsStr);
+};
+
+export const normalizeWatchingNowItem = (item, index) => {
+	const isShow = item.media_type === 'show';
+	const mediaType = isShow ? 'tv' : 'movie';
+	const tmdbId = item.tmdb_id ? String(item.tmdb_id) : null;
+	const imdbId = item.imdb_id || null;
+	const key = imdbId || tmdbId || item.public_id || String(index);
+	const rank = index + 1;
+	return {
+		Id: `ext-mdblist-watching-${key}`,
+		Name: item.title,
+		Type: isShow ? 'Series' : 'Movie',
+		ProductionYear: yearOf(item),
+		Rank: rank,
+		Watchers: item.watchers || 0,
+		ProviderIds: {
+			...(imdbId ? {Imdb: imdbId} : {}),
+			...(tmdbId ? {Tmdb: tmdbId} : {})
+		},
+		_externalBackdropUrl: item.backdrop || null,
+		_externalPosterUrl: item.backdrop || item.poster || null,
+		_externalLogoUrl: item.logo || null,
+		_external: true,
+		mediaInfo: {},
+		_seerr: true,
+		_seerrType: 'item',
+		_seerrMediaType: mediaType,
+		_seerrRaw: seerrRawFor(tmdbId, imdbId, item.title, mediaType)
+	};
+};
+
+const shuffled = (items) => {
+	const out = [...items];
+	for (let i = out.length - 1; i > 0; i--) {
+		const j = Math.floor(Math.random() * (i + 1));
+		[out[i], out[j]] = [out[j], out[i]];
+	}
+	return out;
+};
+
 // Client side sorting for custom rows.
 const applySorting = (items, sortBy, sortOrder) => {
 	if (!sortBy || sortBy === 'none') return items;
+	if (sortBy === 'shuffle') return shuffled(items);
 	const sorted = [...items];
-	if (sortBy === 'shuffle') {
-		for (let i = sorted.length - 1; i > 0; i--) {
-			const j = Math.floor(Math.random() * (i + 1));
-			[sorted[i], sorted[j]] = [sorted[j], sorted[i]];
-		}
-		return sorted;
-	}
 	const dir = sortOrder === 'desc' ? -1 : 1;
 	sorted.sort((a, b) => {
 		let av;
@@ -154,6 +206,30 @@ const applySorting = (items, sortBy, sortOrder) => {
 	return sorted;
 };
 
+const EXTERNAL_SORT_KEYS = {
+	releaseDate: (item) => item.ProductionYear || 0,
+	rating: (item) => item.CommunityRating || 0,
+	popularity: (item) => item.Popularity || 0
+};
+
+// The order the IMDb, TMDB and Seerr rows' sort settings ask for. Ties go to the name, since a
+// release date is often only a year.
+export const sortExternalItems = (items, sortBy, sortOrder) => {
+	if (!sortBy || sortBy === 'none' || !items.length) return items;
+	if (sortBy === 'shuffle') return shuffled(items);
+	const byName = (a, b) => {
+		const x = (a.Name || '').toLowerCase();
+		const y = (b.Name || '').toLowerCase();
+		return x < y ? -1 : x > y ? 1 : 0;
+	};
+	const key = EXTERNAL_SORT_KEYS[sortBy];
+	const dir = sortOrder === 'descending' ? -1 : 1;
+	return [...items].sort((a, b) => {
+		const cmp = key ? key(a) - key(b) : byName(a, b);
+		return cmp === 0 ? byName(a, b) : cmp * dir;
+	});
+};
+
 // TMDB's movie and TV charts don't say what each result is, so the chart's path decides.
 // Trending says per result, which matters for the list that mixes both.
 const chartItemType = (path) => {
@@ -162,13 +238,16 @@ const chartItemType = (path) => {
 	return null;
 };
 
-// Fetches a preset TMDB or IMDb chart row.
+// Fetches a preset TMDB or IMDb chart row. The whole chart is sorted before the row is cut to size.
 export const fetchExternalPresetRow = async (rowId, options = {}) => {
 	const cfg = findPreset(rowId);
 	if (!cfg) return [];
 	const items = await fetchCustomRow({source: cfg.source, type: cfg.type, params: {}}, options);
 	const type = chartItemType(cfg.type);
-	return items.slice(0, options.limit || HOME_ROW_LIMIT).map((it) => normalizeExternalItem(type ? {...it, type} : it, rowId, cfg.source));
+	const limit = options.limit || HOME_ROW_LIMIT;
+	const pool = options.sortBy && options.sortBy !== 'none' ? items : items.slice(0, limit);
+	const normalized = pool.map((it) => normalizeExternalItem(type ? {...it, type} : it, rowId, cfg.source));
+	return sortExternalItems(normalized, options.sortBy, options.sortOrder).slice(0, limit);
 };
 
 // Fetches a user configured custom row. `row` is the stored config
@@ -287,7 +366,11 @@ const arrGet = async (url) => {
 	}
 };
 
-const fetchRadarrItems = async (settings) => {
+// Moonbase answers with the arr's own JSON and keeps the API key on the server. A plugin without
+// the route, or a server the arr isn't linked to, falls back to asking the arr directly.
+const radarrCalendar = async () => {
+	const proxied = await seerrApi.getArrCalendar('Radarr', {start: isoDate(0), end: isoDate(90), unmonitored: true});
+	if (proxied.items) return proxied.items;
 	let servers = [];
 	try {
 		servers = await seerrApi.getRadarrSettings();
@@ -297,9 +380,12 @@ const fetchRadarrItems = async (settings) => {
 	}
 	const server = pickDefaultServer(servers);
 	if (!server || !server.apiKey) return [];
+	return arrGet(`${arrBaseUrl(server)}/api/v3/calendar?apikey=${encodeURIComponent(server.apiKey)}&start=${isoDate(0)}&end=${isoDate(90)}&unmonitored=true`);
+};
 
-	const url = `${arrBaseUrl(server)}/api/v3/calendar?apikey=${encodeURIComponent(server.apiKey)}&start=${isoDate(0)}&end=${isoDate(90)}&unmonitored=true`;
-	const items = await arrGet(url);
+const fetchRadarrItems = async (settings) => {
+	// On Silo, Silo's own calendar in Radarr's shape.
+	const items = await (seerrApi.getSiloCalendar('movie', isoDate(0), isoDate(90)) || radarrCalendar());
 
 	const results = [];
 	for (const m of items) {
@@ -352,7 +438,9 @@ const fetchRadarrItems = async (settings) => {
 	return results;
 };
 
-const fetchSonarrItems = async (settings) => {
+const sonarrCalendar = async () => {
+	const proxied = await seerrApi.getArrCalendar('Sonarr', {start: isoDate(0), end: isoDate(90)});
+	if (proxied.items) return proxied.items;
 	let servers = [];
 	try {
 		servers = await seerrApi.getSonarrSettings();
@@ -362,9 +450,12 @@ const fetchSonarrItems = async (settings) => {
 	}
 	const server = pickDefaultServer(servers);
 	if (!server || !server.apiKey) return [];
+	return arrGet(`${arrBaseUrl(server)}/api/v3/calendar?apikey=${encodeURIComponent(server.apiKey)}&start=${isoDate(0)}&end=${isoDate(90)}&includeSeries=true`);
+};
 
-	const url = `${arrBaseUrl(server)}/api/v3/calendar?apikey=${encodeURIComponent(server.apiKey)}&start=${isoDate(0)}&end=${isoDate(90)}&includeSeries=true`;
-	const episodes = await arrGet(url);
+const fetchSonarrItems = async (settings) => {
+	// On Silo, Silo's own calendar in Sonarr's shape.
+	const episodes = await (seerrApi.getSiloCalendar('tv', isoDate(0), isoDate(90)) || sonarrCalendar());
 
 	// Keep the earliest upcoming episode per series.
 	const bySeries = {};

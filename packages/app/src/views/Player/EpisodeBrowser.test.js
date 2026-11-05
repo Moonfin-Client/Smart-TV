@@ -20,15 +20,13 @@ jest.mock('react/jsx-dev-runtime', () => {
 });
 
 // Spottable and the spotlight containers need the framework's own React.
-jest.mock('./PlayerConstants', () => {
+jest.mock('@enact/spotlight/Spottable', () => (type) => {
 	const React = require('react');
-	const plain = (tag) => ({spotlightId, ...props}) => React.createElement(tag, props); // eslint-disable-line no-unused-vars
-	return {SpottableButton: plain('button'), SpottableDiv: plain('div')};
+	return ({spotlightId, ...props}) => React.createElement(type, props); // eslint-disable-line no-unused-vars
 });
-jest.mock('../../utils/spotlightContainers', () => {
+jest.mock('@enact/spotlight/SpotlightContainerDecorator', () => (config, type) => {
 	const React = require('react');
-	const container = ({spotlightId, ...props}) => React.createElement('div', props); // eslint-disable-line no-unused-vars
-	return {ModalContainer: container, ActiveTabContainer: container};
+	return ({spotlightId, ...props}) => React.createElement(type, props); // eslint-disable-line no-unused-vars
 });
 jest.mock('@enact/spotlight', () => ({__esModule: true, default: {focus: jest.fn(() => true), getPointerMode: () => false}}));
 jest.mock('../../services/jellyfinApi', () => ({getServerUrl: () => 'http://server'}));
@@ -82,8 +80,8 @@ describe('EpisodeBrowser', () => {
 	it('lists the series, its seasons and each episode with its season, number, title and description', () => {
 		open();
 		expect(screen.getByText('The Show')).toBeTruthy();
-		expect(screen.getByText('Season 1', {selector: 'button'})).toBeTruthy();
-		expect(screen.getByText('Season 2', {selector: 'button'})).toBeTruthy();
+		expect(screen.getByText('Season 1', {selector: '[data-id]'})).toBeTruthy();
+		expect(screen.getByText('Season 2', {selector: '[data-id]'})).toBeTruthy();
 		expect(screen.getByText('Season 1 · Episode 1')).toBeTruthy();
 		expect(screen.getByText('Pilot')).toBeTruthy();
 		expect(screen.getByText('It begins.')).toBeTruthy();
@@ -95,7 +93,7 @@ describe('EpisodeBrowser', () => {
 		const logo = document.querySelector('img[src="http://server/logo.png"]');
 		expect(logo).not.toBeNull();
 		expect(logo.getAttribute('alt')).toBe('The Show');
-		expect(screen.queryByRole('heading', {name: 'The Show'})).toBeNull();
+		expect(screen.queryByText('The Show')).toBeNull();
 	});
 
 	it('falls back to the series name when there is no logo, and reports one that will not load', () => {
@@ -148,7 +146,7 @@ describe('EpisodeBrowser', () => {
 
 	it('switches season from the tab strip', () => {
 		open();
-		fireEvent.click(screen.getByText('Season 2', {selector: 'button'}));
+		fireEvent.click(screen.getByText('Season 2', {selector: '[data-id]'}));
 		expect(mockEpisodes.selectSeason).toHaveBeenCalledWith('s2');
 	});
 
@@ -211,12 +209,10 @@ describe('EpisodeBrowser', () => {
 			expect(document.querySelector('[data-active-tab="true"]').textContent).toBe('Season 2');
 		});
 
-		it('scrolls the strip so the open season is in the middle of it', () => {
-			mockEpisodes = {...mockEpisodes, selectedSeasonId: 's2'};
+		it('leaves the tabs out when there is only one season', () => {
+			mockEpisodes = {...mockEpisodes, seasons: [{Id: 's1', Name: 'Season 1'}]};
 			open();
-			// jsdom has no layout, so offsets are zero and the strip is left at the start.
-			const strip = document.querySelector('[data-active-tab="true"]').parentNode;
-			expect(strip.scrollLeft).toBe(0);
+			expect(count('[data-id]')).toBe(0);
 		});
 	});
 

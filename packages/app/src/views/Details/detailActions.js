@@ -58,7 +58,7 @@ export const detailActionCatalogue = (props) => {
 		showsPersonalRating, personalRatingStyle, handleOpenRatingDialog,
 		handleOpenVersionModal, handleOpenAudioModal, handleOpenSubtitleModal, handleOpenPlaylistModal,
 		handleOpenCollectionModal, handleOpenDeleteDialog, handleOpenIdentifyModal,
-		canChangeArtwork, handleOpenArtworkModal, handleOpenPersonDisplayModal
+		canChangeArtwork, handleOpenArtworkModal, handleOpenPersonDisplayModal, handleKeepAsComplete
 	} = props;
 
 	// Asking and taking back are separate buttons sharing one arrangement
@@ -121,6 +121,7 @@ export const detailActionCatalogue = (props) => {
 		{id: 'seerrWatchlist', when: seerr.showsWatchlist, render: () => <ActionButton path={seerr.onWatchlist ? DETAIL_ICON_PATHS.watchlistOn : DETAIL_ICON_PATHS.watchlist} label={seerr.onWatchlist ? $L('On Watchlist') : $L('Add to Watchlist')} active={seerr.onWatchlist} onClick={seerr.toggleWatchlist} />},
 		{id: 'seerrReportIssue', when: seerr.showsReportIssue, render: () => <ActionButton path={DETAIL_ICON_PATHS.reportIssue} label={$L('Report Issue')} onClick={seerr.handleReportIssueClick} />},
 		{id: 'seerrManage', when: seerr.showsManage, render: () => <ActionButton path={DETAIL_ICON_PATHS.manageRequests} label={$L('Manage Requests')} onClick={seerr.handleManageRequestsClick} />},
+		{id: 'keepAsComplete', when: Boolean(handleKeepAsComplete), render: () => <ActionButton path={DETAIL_ICON_PATHS.keepAsComplete} label={$L('Keep as Complete')} onClick={handleKeepAsComplete} />},
 		{id: 'admin', when: Boolean(handleOpenIdentifyModal), render: () => <ActionButton path={DETAIL_ICON_PATHS.admin} label={$L('Admin Controls')} onClick={handleOpenIdentifyModal} />}
 	];
 };

@@ -16,12 +16,13 @@ import {keepFocusInView} from '../../utils/focusScroll';
 import {KEYS} from '../../utils/keys';
 import {rem} from '../../utils/rootScale';
 import {scrimStyle} from '../../utils/scrimImage';
-import LibrarySkeleton from '../Library/LibrarySkeleton';
 import {handleSectionKey} from '../MusicBrowse/musicLibrary';
 import useMusicBrowseFocus from '../MusicBrowse/useMusicBrowseFocus';
 import BookCard, {BookEmptyState, BookIcon} from './BookCard';
 import {bookMenuItem, openBookItem, readOrListen} from './bookNavigation';
-import useBookLibrary, {loadBookRow} from './useBookLibrary';
+import {TITLES, screenFor} from './bookScreens';
+import {focusStrip} from './BookScreenParts';
+import {loadBookRow} from './useBookLibrary';
 
 import css from './ReadingRoomBooks.module.less';
 
@@ -55,6 +56,7 @@ const RECENT_COUNT = 20;
 const AUTHOR_COUNT = 6;
 const AUTHOR_COLUMNS = 2;
 const GENRE_COLUMNS = 3;
+const GENRE_COUNT = 6;
 const CARD_WIDTH = 267;
 
 // Each cover behind the front one sits a ninth of a cover's width further right, a little higher
@@ -195,9 +197,8 @@ const Grid = ({items, columns, render}) => rowsOf(items, columns).map((row, r) =
 
 // The Reading Room book library: the library's name in a serif over what's being read on large
 // cards, then the newest titles, the series fanned out, and the authors and genres as tiles.
-const ReadingRoomBooks = ({library, api, serverUrl, onSelectItem, onOpenGrid, onPlay, onSearch}) => {
+const ReadingRoomBooks = ({library, api, serverUrl, data, onSelectItem, onOpenGrid, onOpenScreen, onPlay, onSearch}) => {
 	const {settings} = useSettings();
-	const data = useBookLibrary({api, library, genreLimit: 6});
 	const [scope, setScope] = useState(SCOPE_ALL);
 	const [recent, setRecent] = useState([]);
 	const [onButton, setOnButton] = useState(false);
@@ -229,7 +230,7 @@ const ReadingRoomBooks = ({library, api, serverUrl, onSelectItem, onOpenGrid, on
 
 	const resume = data.resume;
 	const authors = data.authors.slice(0, AUTHOR_COUNT);
-	const genres = data.genres;
+	const genres = data.genres.slice(0, GENRE_COUNT);
 	const series = data.series;
 	const empty = data.counts.all === 0 && resume.length === 0;
 	const hasTitles = data.counts.all > 0;
@@ -254,8 +255,9 @@ const ReadingRoomBooks = ({library, api, serverUrl, onSelectItem, onOpenGrid, on
 		return refs;
 	}, [registerNode]);
 
+	// Up off the first stop goes to the chips over the page.
 	const sectionKey = useCallback((node, extra) => (e) => (
-		handleSectionKey(e, {node, chain: chainRef.current, focusNode, ...extra})
+		handleSectionKey(e, {node, chain: chainRef.current, focusNode, ...(node === chainRef.current[0] ? {onUp: focusStrip} : {}), ...extra})
 	), [chainRef, focusNode]);
 	// Up from a row with a See All stops there first, and Down from it goes back into the row.
 	const seeAllKeys = useCallback((node) => ({
@@ -277,9 +279,9 @@ const ReadingRoomBooks = ({library, api, serverUrl, onSelectItem, onOpenGrid, on
 	const selectContinue = useCallback((item, e) => (
 		onButtonRef.current && e.type !== 'click' ? readItem(item) : openItem(item)
 	), [readItem, openItem]);
-	const browseAll = useCallback(() => onOpenGrid({types: scopedTypes(library, activeScope)}), [onOpenGrid, library, activeScope]);
-	const openSeriesFolders = useCallback(() => onOpenGrid({folder: true}), [onOpenGrid]);
-	const openGenres = useCallback(() => onOpenGrid({genres: true}), [onOpenGrid]);
+	const browseAll = useCallback(() => onOpenScreen(screenFor(TITLES, activeScope)), [onOpenScreen, activeScope]);
+	const openSeriesFolders = useCallback(() => onOpenScreen({id: 'series'}), [onOpenScreen]);
+	const openGenres = useCallback(() => onOpenScreen({id: 'genres'}), [onOpenScreen]);
 
 	const continueItemAt = useCallback((target) => bookMenuItem(itemWithIdAt(resume, 'data-book-id', target)), [resume]);
 	const continueMenu = useItemMenuHold(continueItemAt);
@@ -317,33 +319,25 @@ const ReadingRoomBooks = ({library, api, serverUrl, onSelectItem, onOpenGrid, on
 		onDown: () => Spotlight.focus(IDS[GENRES])
 	}), [sectionKey, genresBesideAuthors]);
 
-	// The first load lands under the header. After that focus only moves when a reload took the
-	// focused stop away.
+	// The first load lands under the header, unless Overview was picked from the chips, which keep
+	// focus. After that focus only moves when a reload took the focused stop away.
 	useEffect(() => {
-		if (data.loading) return;
+		const active = document.activeElement;
+		const focused = active && active !== document.body && active.classList?.contains('spottable');
 		if (!initialFocusRef.current) {
 			initialFocusRef.current = true;
+			if (focused) return;
 			focusNode(chain[1] || chain[0]);
 			// The page stays at the top as it lands, so the header is still in view.
 			if (scrollerRef.current) scrollerRef.current.scrollTop = 0;
 			return;
 		}
-		const active = document.activeElement;
-		if (active && active !== document.body && active.classList?.contains('spottable')) return;
+		if (focused) return;
 		const last = lastNodeRef.current;
 		focusNode(chain.includes(last) ? last : chain[0]);
-	}, [data.loading, chain, focusNode, lastNodeRef, scrollerRef]);
+	}, [chain, focusNode, lastNodeRef, scrollerRef]);
 
 	const name = library?.Name || $L('Books');
-	if (data.loading) {
-		return (
-			<div className={css.page}>
-				<div className={css.scroller}>
-					<LibrarySkeleton gridWidth={window.innerWidth - 174} cardWidth={CARD_WIDTH} posterHeight={CARD_WIDTH * 1.5} padX={16} minRowGap={20} showText />
-				</div>
-			</div>
-		);
-	}
 
 	const stats = [
 		titlesLabel(data.counts.all),

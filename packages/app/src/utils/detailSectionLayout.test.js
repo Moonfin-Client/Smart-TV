@@ -39,6 +39,8 @@ describe('detailSectionLayout', () => {
 		expect(isAvailableIn(byId('mediaInfo'), 'v1')).toBe(false);
 		expect(isAvailableIn(byId('mediaInfo'), 'v4')).toBe(true);
 		expect(isAvailableIn(byId('mediaInfo'), 'v3')).toBe(true);
+		expect(isAvailableIn(byId('versionBadge'), 'v3')).toBe(true);
+		expect(isAvailableIn(byId('versionBadge'), 'v1')).toBe(false);
 	});
 
 	it('lists for Minimalist whatever Spotlight draws for the pages it hands over', () => {
@@ -47,6 +49,30 @@ describe('detailSectionLayout', () => {
 		ids('v3').forEach((id) => expect(minimalist.has(id)).toBe(true));
 		expect(minimalist.has('logo')).toBe(true);
 		expect(minimalist.has('poster')).toBe(false);
+	});
+
+	it.each([['Stage', 'v6'], ['Premiere', 'v7']])('lists for %s what it draws, plus what Modern draws on the person and collection pages', (name, style) => {
+		const offered = new Set(offeredSections(style, true).map((section) => section.id));
+		['logo', 'tagline', 'cast', 'crew', 'studios', 'extras', 'collections', 'moreLikeThis', 'moreEpisodes', 'seerrSimilar']
+			.forEach((id) => expect(offered.has(id)).toBe(true));
+		['biography', 'playlistOrder', 'seerrPersonCrew'].forEach((id) => expect(offered.has(id)).toBe(true));
+		['poster', 'chapters', 'reviews', 'mediaInfo', 'upNext', 'seerrCollection'].forEach((id) => expect(offered.has(id)).toBe(false));
+	});
+
+	it('lists for Frost what its tabs draw, plus what Modern draws on the person and collection pages', () => {
+		const offered = new Set(offeredSections('v9', true).map((section) => section.id));
+		[
+			'cast', 'crew', 'studios', 'extras', 'moreLikeThis', 'moreEpisodes', 'mediaInfo',
+			'seerrRecommendations', 'seerrSimilar', 'seerrStats', 'seerrStreaming', 'seerrGenresTags'
+		].forEach((id) => expect(offered.has(id)).toBe(true));
+		['biography', 'playlistOrder', 'seerrPersonCrew'].forEach((id) => expect(offered.has(id)).toBe(true));
+		['logo', 'tagline', 'poster', 'chapters', 'reviews', 'collections', 'upNext', 'seerrCollection']
+			.forEach((id) => expect(offered.has(id)).toBe(false));
+	});
+
+	it('lists for Quick Look what Modern draws, since that is its full page', () => {
+		const modern = offeredSections('v2', true).map((section) => section.id);
+		expect(offeredSections('v8', true).map((section) => section.id)).toEqual(modern);
 	});
 
 	it('offers the Seerr pieces only when Seerr is', () => {

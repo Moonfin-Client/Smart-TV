@@ -47,6 +47,12 @@ function buildCaList () {
 // The trust list is constant, so compute it once at startup.
 var CA_LIST = buildCaList();
 
+var SECURE_CONTEXT = null;
+if (!(tls.rootCertificates && tls.rootCertificates.length)) {
+	SECURE_CONTEXT = tls.createSecureContext();
+	EXTRA_CA.forEach(function (pem) { SECURE_CONTEXT.context.addCACert(pem); });
+}
+
 var CERT_ERROR_CODES = {
 	UNABLE_TO_GET_ISSUER_CERT: 1,
 	UNABLE_TO_GET_ISSUER_CERT_LOCALLY: 1,
@@ -90,6 +96,9 @@ function doRequest (params, message) {
 	if (isHttps) {
 		if (params.insecure) {
 			options.rejectUnauthorized = false;
+		} else if (SECURE_CONTEXT) {
+			options.secureContext = SECURE_CONTEXT;
+			options.rejectUnauthorized = true;
 		} else {
 			options.ca = CA_LIST;
 			options.rejectUnauthorized = true;

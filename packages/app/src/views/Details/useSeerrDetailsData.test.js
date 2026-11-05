@@ -149,3 +149,26 @@ describe('the open Seerr details page', () => {
 		expect(refreshes()).toBe(refreshesAtClose);
 	});
 });
+
+describe('moving to another title', () => {
+	test('never shows the last title\'s answer on the new one', async () => {
+		seerrApi.getMovieRecommendations.mockImplementation(async (id, page) => ({results: page === 1 ? [{id: 1, title: 'Iron Man'}] : []}));
+		const seen = [];
+		const {rerender} = renderHook((props) => {
+			const data = useSeerrDetailsData(props);
+			if (props.mediaId === 603) seen.push({id: data.details?.id, loading: data.loading, recommendations: data.recommendations.length});
+			return data;
+		}, {initialProps: {mediaId: 299534, mediaType: 'movie', contextUser: null}});
+		await elapse(0);
+
+		let finish;
+		seerrApi.getMovie.mockImplementation(() => new Promise((resolve) => { finish = resolve; }));
+		rerender({mediaId: 603, mediaType: 'movie', contextUser: null});
+		expect(seen.length).toBeGreaterThan(0);
+		expect(seen.every((render) => render.id === undefined && render.loading && render.recommendations === 0)).toBe(true);
+
+		await act(async () => finish({id: 603, title: 'The Matrix', mediaInfo}));
+		await elapse(0);
+		expect(seen[seen.length - 1]).toEqual({id: 603, loading: false, recommendations: 1});
+	});
+});

@@ -30,7 +30,12 @@ export const memoryCache = {
 	// throw the rows away, apart from an ordinary return to the home screen, which is the
 	// whole reason the cache is here. Emptying the rows leaves it alone, since a refresh
 	// still belongs to the same account.
-	owner: null
+	owner: null,
+	// Sections known to come back empty, because their last load did or the first load for the
+	// account found nothing stored for them. Their placeholders stay hidden while they load
+	// again, so an empty section doesn't flash its title on every load. A refresh keeps them.
+	emptySections: new Set(),
+	emptySectionsSeeded: false
 };
 
 // A refresh keeps the media bar unless the caller asks for it, or an account change clears everything.
@@ -47,6 +52,35 @@ export const clearMemoryCache = ({keepFeatured = false} = {}) => {
 export const isCacheValid = (timestamp, ttl) => {
 	if (!timestamp) return false;
 	return Date.now() - timestamp < ttl;
+};
+
+// Stored rows older than this say nothing about which sections are empty now.
+const STORED_ROWS_MAX_AGE = 3 * 24 * 60 * 60 * 1000;
+
+const fillsSection = (row, id) => row.items?.length > 0 && (row.id === id ||
+	(id === 'latest-media' && row.isLatestRow) || (id === 'recently-released' && row.isRecentlyReleasedRow));
+
+export const resetEmptySections = () => {
+	memoryCache.emptySections = new Set();
+	memoryCache.emptySectionsSeeded = false;
+};
+
+// Called only for a load that went through, since a failed one says nothing about the section.
+export const settleSections = (ids, rows) => ids.forEach((id) => {
+	if ((rows || []).some((row) => fillsSection(row, id))) memoryCache.emptySections.delete(id);
+	else memoryCache.emptySections.add(id);
+});
+
+// The first load for an account has no loads of its own to go on, so a section the stored rows
+// hold nothing for counts as empty. On Now is left out, since its rows only hold for the minutes
+// they describe.
+export const seedEmptySections = (ids, stored) => {
+	if (memoryCache.emptySectionsSeeded) return;
+	memoryCache.emptySectionsSeeded = true;
+	if (!stored?.rowData?.length || !isCacheValid(stored.timestamp, STORED_ROWS_MAX_AGE)) return;
+	ids.forEach((id) => {
+		if (id !== 'onnow' && !stored.rowData.some((row) => fillsSection(row, id))) memoryCache.emptySections.add(id);
+	});
 };
 
 // Genre tiles borrow a library item's artwork. Keeping only the fields the card reads stops
@@ -149,7 +183,9 @@ export const saveBrowseCache = (rowData, libraries, featuredItems, {serverUrl, u
 		saveTimer = null;
 		try {
 			await saveToStorage(STORAGE_KEY_BROWSE, {
-				rowData: rowData.map((row) => ({...row, items: row.items.map(stripItemForCache)})),
+				// A row's reader can't be stored, so a row read back from storage can't page until
+				// Home loads it again.
+				rowData: rowData.map((row) => ({...row, readHead: undefined, hasMore: false, items: row.items.map(stripItemForCache)})),
 				libraries,
 				featuredItems,
 				timestamp: Date.now(),

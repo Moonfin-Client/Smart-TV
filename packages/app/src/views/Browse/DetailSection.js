@@ -8,14 +8,17 @@ import css from './Browse.module.less';
 const FOCUS_ITEM_DEBOUNCE_MS = 400;
 const DETAIL_GENRES_LIMIT = 3;
 
-// Plain text and chips share one bullet separated line: year, S:E, certification
-// chip, runtime, resolution chip, then genres.
-const buildInfoParts = (item) => {
+// Plain text and chips share one bullet separated line: an episode's number and name,
+// year, certification chip, runtime, resolution chip, then genres.
+export const buildInfoParts = (item) => {
 	const parts = [];
-	if (item.ProductionYear) parts.push({text: String(item.ProductionYear)});
-	if (item.Type === 'Episode' && item.ParentIndexNumber != null && item.IndexNumber != null) {
-		parts.push({text: `S${item.ParentIndexNumber}:E${item.IndexNumber}`});
+	if (item.Type === 'Episode') {
+		const number = item.ParentIndexNumber != null && item.IndexNumber != null
+			? `S${item.ParentIndexNumber}:E${item.IndexNumber}` : null;
+		const lead = [number, item.Name].filter(Boolean).join(' - ');
+		if (lead) parts.push({text: lead, lead: true});
 	}
+	if (item.ProductionYear) parts.push({text: String(item.ProductionYear)});
 	if (item.OfficialRating) parts.push({chip: item.OfficialRating});
 	if (item.RunTimeTicks && item.Type !== 'Series') {
 		const dur = formatDuration(item.RunTimeTicks);
@@ -28,12 +31,8 @@ const buildInfoParts = (item) => {
 	return parts;
 };
 
-const detailTitleFor = (item) => {
-	if (item.Type === 'Episode') {
-		return [item.SeriesName, item.Name].filter(Boolean).join(' - ');
-	}
-	return item.Name;
-};
+// An episode is titled by its series, since the info line carries its own name.
+export const detailTitleFor = (item) => (item.Type === 'Episode' && item.SeriesName) || item.Name;
 
 // Episodes borrow their series logo, everything else carries its own.
 const detailLogoUrl = (item, serverUrl) => {
@@ -137,11 +136,11 @@ const DetailSection = forwardRef(({
 								{i > 0 && <span className={css.infoDot}>{'\u2022'}</span>}
 								{part.chip
 									? <span className={css.infoBadge}>{part.chip}</span>
-									: <span className={css.infoText}>{part.text}</span>}
+									: <span className={part.lead ? css.infoLead : css.infoText}>{part.text}</span>}
 							</span>
 						))}
 					</div>
-					<RatingsRow item={focusedItem} serverUrl={getItemServerUrl(focusedItem)} pluginEnabled={isMdblistEnabled(settings)} />
+					<RatingsRow item={focusedItem} serverUrl={getItemServerUrl(focusedItem)} surface='homeRows' inline pluginEnabled={isMdblistEnabled(settings, 'homeRows')} />
 					{!settings.hideHomeMediaDescription && focusedItem.Overview && (
 						<p className={css.detailSummary}>{focusedItem.Overview}</p>
 					)}

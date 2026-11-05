@@ -1,5 +1,5 @@
 jest.mock('./storage', () => ({getFromStorage: jest.fn(), saveToStorage: jest.fn()}));
-jest.mock('./jellyfinApi', () => ({getAuthHeader: () => 'auth', getServerUrl: () => 'http://a'}));
+jest.mock('./jellyfinApi', () => ({getAuthHeader: () => 'auth', getServerType: () => 'jellyfin', getServerUrl: () => 'http://a'}));
 jest.mock('../utils/requestQueue', () => ({mediaServerQueue: {run: (task) => task()}}));
 
 const DAY_MS = 24 * 60 * 60 * 1000;

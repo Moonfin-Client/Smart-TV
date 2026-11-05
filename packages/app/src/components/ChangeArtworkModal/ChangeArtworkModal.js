@@ -3,6 +3,7 @@ import Spotlight from '@enact/spotlight';
 import $L from '@enact/i18n/$L';
 import {Scroller} from '@enact/sandstone/Scroller';
 
+import {getServerType} from '../../services/jellyfinApi';
 import ArtworkCategoryGrid from './ArtworkCategoryGrid';
 import ArtworkCategoryRow from './ArtworkCategoryRow';
 import ArtworkFilterBar from './ArtworkFilterBar';
@@ -41,6 +42,8 @@ const ChangeArtworkModal = ({open, item: initialItem, api, serverUrl, onClose, o
 		clearAllConfirm, openClearAllConfirm, closeClearAllConfirm
 	} = overlays;
 	const {deleteImage, downloadImage, clearAllArtwork, hasChanged} = actions;
+	// Silo can't delete artwork, only pick another.
+	const canDelete = getServerType() !== 'silo';
 	const isGridView = focusedCategory !== null;
 
 	const handleWarningDismiss = useCallback(() => {
@@ -132,7 +135,7 @@ const ChangeArtworkModal = ({open, item: initialItem, api, serverUrl, onClose, o
 						onlyShowInterfaceLanguage={filters.onlyShowInterfaceLanguage}
 						onOpenSources={openSources}
 						onToggleLanguage={filters.toggleLanguageFilter}
-						onClearAll={openClearAllConfirm}
+						onClearAll={canDelete ? openClearAllConfirm : null}
 					/>
 				)}
 
@@ -147,7 +150,7 @@ const ChangeArtworkModal = ({open, item: initialItem, api, serverUrl, onClose, o
 									category={category}
 									remoteList={(item.remoteImages[category] || []).filter(filters.shouldShowImage)}
 									loading={item.loadingCategories[category]}
-									onRequestDelete={openDeleteConfirm}
+									onRequestDelete={canDelete ? openDeleteConfirm : null}
 									onSelectRemote={openPreview}
 									onViewAll={openCategory}
 								/>
@@ -161,7 +164,7 @@ const ChangeArtworkModal = ({open, item: initialItem, api, serverUrl, onClose, o
 							remoteList={gridRemoteImages}
 							selectedResolution={filters.selectedResolution}
 							onSelectResolution={filters.setSelectedResolution}
-							onRequestDelete={openDeleteConfirm}
+							onRequestDelete={canDelete ? openDeleteConfirm : null}
 							onSelectRemote={openPreview}
 							onBack={closeCategory}
 						/>

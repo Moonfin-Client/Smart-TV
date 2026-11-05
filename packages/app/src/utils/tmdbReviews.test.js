@@ -3,7 +3,7 @@ jest.mock('./uiLocale', () => ({uiLocale: () => 'en-US'}));
 
 import {
 	clearTmdbReviewsCache, loadTmdbReviews, parseReviews, reviewDateLabel, reviewInitial,
-	reviewPreview, reviewRatingLabel, reviewsLanguage, reviewsQuery
+	reviewMeta, reviewPreview, reviewRatingLabel, reviewsLanguage, reviewsQuery
 } from './tmdbReviews';
 
 const answer = (reviews) => ({success: true, totalResults: reviews.length, reviews});
@@ -64,6 +64,8 @@ describe('the TMDB reviews helpers', () => {
 		expect(reviewRatingLabel(null)).toBe('');
 		expect(reviewDateLabel('2021-06-23T10:11:12.000Z')).toBe('Jun 23, 2021');
 		expect(reviewDateLabel('not a date')).toBe('');
+		expect(reviewMeta({rating: 8, createdAt: '2024-02-14T12:00:00.000Z'})).toBe('8 / 10 · Feb 14, 2024');
+		expect(reviewMeta({rating: null, createdAt: null})).toBe('');
 		expect(reviewInitial(' brett')).toBe('B');
 		expect(reviewInitial('')).toBe('?');
 		expect(reviewPreview('## A heading\n\nSome **bold** words and a [link](https://x.y).\n\n> quoted')).toBe('A heading Some bold words and a link. quoted');

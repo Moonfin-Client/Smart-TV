@@ -5,25 +5,37 @@ import {isLiveTvLibrary, librariesForNav} from '../../utils/liveTvLibrary';
 import $L from '@enact/i18n/$L';
 
 import {getLogoUrl} from '../../utils/helpers';
+import {isSiloServer} from '../../utils/siloUrls';
 import * as connectionPool from '../../services/connectionPool';
 import * as seerrApi from '../../services/seerrApi';
 import browseReducer, {browseInitialState, mergeRowsById} from './browseReducer';
 import {BROWSE_ROW_LOADERS, buildLoaderContext, loadDeferredSections, loadSinceYouWatched} from './browseRowLoaders';
+import {headLengthFor, moreAfter, nextHeadLength, pageableRow, withRowPage} from './rowPaging';
 import {genericCollectionLabel, mergeRecentRows} from '../../utils/mergeRecentRows';
 import {normalizeLatestMediaItems} from '../../utils/latestMediaRowNormalizer';
 import {EXCLUDED_COLLECTION_TYPES, filterItemsByExcludedGenres, matchesContentType} from './browseFilters';
 import {featuredConfigKey} from './featuredConfig';
 import {withExternalSlides} from './featuredExternal';
-import {readFeaturedSources} from './featuredSources';
+import {readDatedSource, readFeaturedSources} from './featuredSources';
+import {DATED_SOURCES} from '../../utils/mediaBarNewRelease';
 import {shuffleArray} from '../Details/detailsMedia';
 import {withoutBlockedItems} from '../../services/parentalControls';
 import {activeSyncProfile} from '../../context/SettingsContext';
 import {
 	CACHE_TTL_LIBRARIES, CACHE_TTL_VOLATILE, VOLATILE_REFRESH_COOLDOWN_MS,
-	cancelPendingCacheSave, clearBrowseCache, clearMemoryCache, isCacheValid, loadBrowseCache, memoryCache, saveBrowseCache
+	cancelPendingCacheSave, clearBrowseCache, clearMemoryCache, isCacheValid, loadBrowseCache, memoryCache, resetEmptySections, saveBrowseCache,
+	seedEmptySections, settleSections
 } from './browseCache';
 
 const LOAD_FRESH_MS = 10000;
+
+// How long Continue Watching and Next Up start out.
+const RESUME_LIMIT = 12;
+const NEXT_UP_LIMIT = 24;
+
+// Continue Watching and Next Up page on one server. Across servers they're stitched together and
+// have no single list to read further into.
+const volatileRow = (row, result, limit, readHead) => (limit ? pageableRow(row, result, limit, readHead) : row);
 
 // A row that quietly loses its source looks the same as a server with nothing to offer, so the
 // failure is logged before the row carries on empty.
@@ -58,6 +70,49 @@ const useBrowseData = ({
 
 	const settingsRef = useRef(settings);
 	settingsRef.current = settings;
+	const apiRef = useRef(api);
+	apiRef.current = api;
+	const rowsRef = useRef(state.allRowData);
+	rowsRef.current = state.allRowData;
+	const pagingRef = useRef(new Set());
+
+	const readResume = useCallback((limit) => apiRef.current.getResumeItems(limit), []);
+	const readNextUp = useCallback((limit) => apiRef.current.getNextUp(limit, null, settingsRef.current.nextUpMaxDays), []);
+
+	// Reads a row's next page as focus nears its end. A row already being read, or with nothing
+	// more, is left alone.
+	const loadRowPage = useCallback(async (rowId) => {
+		const row = rowsRef.current.find((entry) => entry.id === rowId);
+		if (!row || !row.hasMore || typeof row.readHead !== 'function' || pagingRef.current.has(rowId)) return;
+		pagingRef.current.add(rowId);
+		const limit = nextHeadLength(row);
+		let page;
+		try {
+			const result = await row.readHead(limit);
+			page = {items: result?.Items || [], hasMore: moreAfter(result, limit)};
+		} catch (err) {
+			pagingRef.current.delete(rowId);
+			// The row keeps its hasMore, so the next focus near the end tries again.
+			console.warn(`[Browse] Failed to load more of ${rowId}:`, err);
+			return;
+		}
+		// The next focus can come before the page is drawn. Reading the row as it was, it would ask
+		// for this page again, find nothing new and end the row.
+		rowsRef.current = withRowPage(rowsRef.current, rowId, row.readHead, page.items, page.hasMore);
+		pagingRef.current.delete(rowId);
+		// The reader goes with the page, so a page read for a row that a reload has since replaced
+		// is dropped rather than added to the new one.
+		dispatch({type: 'EXTEND_ROW', id: rowId, readHead: row.readHead, ...page});
+		// The warm cache holds the row too, so coming back to Home keeps the cards paged in.
+		if (memoryCache.rowData) {
+			memoryCache.rowData = withRowPage(memoryCache.rowData, rowId, row.readHead, page.items, page.hasMore);
+		}
+	}, []);
+
+	// The merged Continue Watching & Next Up row is drawn from both rows, so it pages both.
+	const loadMoreRow = useCallback((rowId) => (rowId === 'continue-nextup'
+		? Promise.all([loadRowPage('resume'), loadRowPage('nextup')])
+		: loadRowPage(rowId)), [loadRowPage]);
 
 	const recommendations = useMemo(
 		() => ({seerrEnabled, seerrAuthenticated, recommendationsSupported}),
@@ -103,7 +158,9 @@ const useBrowseData = ({
 				items = await mixInExternal([]);
 			}
 
-			if (items.length === 0 && s.useMoonfinPlugin) {
+			// The app reads the dated sources itself, so they work whatever plugin version the server has.
+			const datedSource = DATED_SOURCES.includes(sourceType);
+			if (items.length === 0 && s.useMoonfinPlugin && !datedSource) {
 				// The plugin answers from the synced picks, so it has to read the profile this TV syncs with.
 				const mediaBarResult = await seerrApi.getMoonfinMediaBar(serverUrl, accessToken, activeSyncProfile(s.syncProfile));
 				if (mediaBarResult?.Items?.length) {
@@ -111,12 +168,21 @@ const useBrowseData = ({
 				}
 			}
 
+			// What the bar can show: a title with a backdrop that no setting keeps off it.
+			const isUsable = (item) => item.Type !== 'BoxSet' && item.BackdropImageTags?.length > 0 &&
+				matchesContentType(item, s.featuredContentType) &&
+				filterItemsByExcludedGenres([item], s.excludedGenres).length > 0 && withoutBlockedItems([item]).length > 0;
+			const pickFrom = (pool) => shuffleArray(pool.filter(isUsable)).slice(0, count);
+
+			// Merged libraries keep the random draw, since the dated sources read one server.
+			if (items.length === 0 && datedSource && !unifiedMode) {
+				const options = {contentType: s.featuredContentType, days: s.mediaBarNewReleaseDays};
+				const readSource = async (parentId) => ({Items: await readDatedSource(api, sourceType, parentId, options)});
+				items = pickFrom(await readFeaturedSources(libraryIds.length > 0 ? libraryIds : [null], readSource, isUsable, count));
+			}
+
+			// A dated source with nothing in its window shows random titles instead.
 			if (items.length === 0) {
-				// What the bar can show: a title with a backdrop that no setting keeps off it.
-				const isUsable = (item) => item.Type !== 'BoxSet' && item.BackdropImageTags?.length > 0 &&
-					matchesContentType(item, s.featuredContentType) &&
-					filterItemsByExcludedGenres([item], s.excludedGenres).length > 0 && withoutBlockedItems([item]).length > 0;
-				const pickFrom = (pool) => shuffleArray(pool.filter(isUsable)).slice(0, count);
 				if (sourceType === 'collection' && collectionIds.length > 0) {
 					items = pickFrom(await readFeaturedSources(collectionIds, (cid) => api.getCollectionItems(cid, 50), isUsable, count));
 				} else if (unifiedMode) {
@@ -165,6 +231,8 @@ const useBrowseData = ({
 		lastVolatileRefreshRef.current = Date.now();
 		try {
 			let resumeItems, nextUp;
+			let resumeLimit = 0;
+			let nextUpLimit = 0;
 
 			if (unifiedMode) {
 				[resumeItems, nextUp] = await Promise.all([
@@ -174,30 +242,34 @@ const useBrowseData = ({
 				resumeItems = {Items: resumeItems};
 				nextUp = {Items: nextUp};
 			} else {
+				// Read back as long as the rows on screen, so the cards paged in stay.
+				const shown = (id) => rowsRef.current.find((row) => row.id === id);
+				resumeLimit = headLengthFor(shown('resume'), RESUME_LIMIT);
+				nextUpLimit = headLengthFor(shown('nextup'), NEXT_UP_LIMIT);
 				[resumeItems, nextUp] = await Promise.all([
-					api.getResumeItems(),
-					api.getNextUp(24, null, settings.nextUpMaxDays)
+					readResume(resumeLimit),
+					readNextUp(nextUpLimit)
 				]);
 			}
 
 			const volatileRows = [];
 
 			if (resumeItems.Items?.length > 0) {
-				volatileRows.push({
+				volatileRows.push(volatileRow({
 					id: 'resume',
 					title: $L('Continue Watching'),
 					items: resumeItems.Items,
 					type: 'landscape'
-				});
+				}, resumeItems, resumeLimit, readResume));
 			}
 
 			if (nextUp.Items?.length > 0) {
-				volatileRows.push({
+				volatileRows.push(volatileRow({
 					id: 'nextup',
 					title: $L('Next Up'),
 					items: nextUp.Items,
 					type: 'landscape'
-				});
+				}, nextUp, nextUpLimit, readNextUp));
 			}
 
 			dispatch({type: 'REFRESH_VOLATILE', volatileRows});
@@ -212,7 +284,7 @@ const useBrowseData = ({
 		} catch (e) {
 			console.warn('[Browse] Background refresh failed:', e);
 		}
-	}, [api, unifiedMode, cacheOwner, settings.nextUpMaxDays]);
+	}, [unifiedMode, cacheOwner, settings.nextUpMaxDays, readResume, readNextUp]);
 
 	// Signing in as someone else has to throw the rows away. Leaving the home screen and
 	// coming back must not, and it used to, because an effect runs when it first mounts
@@ -224,6 +296,7 @@ const useBrowseData = ({
 	useEffect(() => {
 		if (memoryCache.owner === owner) return;
 		clearMemoryCache();
+		resetEmptySections();
 		memoryCache.owner = owner;
 	}, [owner]);
 
@@ -279,7 +352,9 @@ const useBrowseData = ({
 		if (due.length === 0) return;
 		due.forEach((section) => deferred.sections.delete(section.id));
 		loadDeferredSections(deferred.ctx, due, (id) => {
-			if (deferredRef.current === deferred) dispatch({type: 'SECTIONS_DONE', sections: [id]});
+			if (deferredRef.current !== deferred) return;
+			settleSections([id], memoryCache.rowData);
+			dispatch({type: 'SECTIONS_DONE', sections: [id]});
 		});
 	}, []);
 
@@ -341,7 +416,9 @@ const useBrowseData = ({
 				return;
 			}
 
-			const persistedCache = await loadBrowseCache(cacheOwner.serverUrl, cacheOwner.userId);
+			// Silo's artwork is signed and only known once its item is read in this session, so stored rows would come
+			// back without pictures.
+			const persistedCache = isSiloServer(cacheOwner.serverUrl) ? null : await loadBrowseCache(cacheOwner.serverUrl, cacheOwner.userId);
 			const hasValidPersistedCache = persistedCache &&
 				(persistedCache.rowConfigKey || 'per-library') === rowConfigKey &&
 				isCacheValid(persistedCache.timestamp, CACHE_TTL_LIBRARIES) &&
@@ -372,6 +449,7 @@ const useBrowseData = ({
 		const fetchAllData = async () => {
 			try {
 				let libs, resumeItems, nextUp, userConfig, recentlyPlayed;
+				const storedRows = memoryCache.emptySectionsSeeded || unifiedMode ? null : loadBrowseCache(cacheOwner.serverUrl, cacheOwner.userId);
 
 				if (unifiedMode) {
 					const [libsArray, resumeArray, nextUpArray] = await Promise.all([
@@ -388,8 +466,8 @@ const useBrowseData = ({
 				} else {
 					const results = await Promise.all([
 						api.getLibraries().catch(() => ({Items: []})),
-						api.getResumeItems().catch((err) => emptyRowAfter('resume', err)),
-						api.getNextUp(24, null, settings.nextUpMaxDays).catch((err) => emptyRowAfter('next up', err)),
+						readResume(RESUME_LIMIT).catch((err) => emptyRowAfter('resume', err)),
+						readNextUp(NEXT_UP_LIMIT).catch((err) => emptyRowAfter('next up', err)),
 						api.getUserConfiguration().catch(() => null),
 						mergesContinueWatchingNextUp(settings) ? api.getItems({
 							IncludeItemTypes: 'Episode',
@@ -416,21 +494,21 @@ const useBrowseData = ({
 				const rowData = [];
 
 				if (resumeItems.Items?.length > 0) {
-					rowData.push({
+					rowData.push(volatileRow({
 						id: 'resume',
 						title: $L('Continue Watching'),
 						items: resumeItems.Items,
 						type: 'landscape'
-					});
+					}, resumeItems, unifiedMode ? 0 : RESUME_LIMIT, readResume));
 				}
 
 				if (nextUp.Items?.length > 0) {
-					rowData.push({
+					rowData.push(volatileRow({
 						id: 'nextup',
 						title: $L('Next Up'),
 						items: nextUp.Items,
 						type: 'landscape'
-					});
+					}, nextUp, unifiedMode ? 0 : NEXT_UP_LIMIT, readNextUp));
 				}
 
 				if (libs.length > 0) {
@@ -580,6 +658,8 @@ const useBrowseData = ({
 					appendRows
 				});
 				const loaderSections = BROWSE_ROW_LOADERS.map(({sections}) => sections(loaderContext));
+				const stored = await storedRows;
+				if (storedRows && !cancelled) seedEmptySections([].concat(...loaderSections), stored);
 				if (!cancelled) {
 					loaderContextRef.current = loaderContext;
 					deferredRef.current = {ctx: loaderContext, sections: new Map(loaderContext.deferredPluginSections.map((section) => [section.id, section]))};
@@ -588,10 +668,12 @@ const useBrowseData = ({
 				dispatch({type: 'SET_LOADING', value: false});
 				if (!cancelled) {
 					BROWSE_ROW_LOADERS.forEach(({load}, index) => {
-						const done = () => {
-							if (!cancelled) dispatch({type: 'SECTIONS_DONE', sections: loaderSections[index]});
+						const done = (loaded) => {
+							if (cancelled) return;
+							if (loaded) settleSections(loaderSections[index], memoryCache.rowData);
+							dispatch({type: 'SECTIONS_DONE', sections: loaderSections[index]});
 						};
-						Promise.resolve(load(loaderContext)).then(done, done);
+						Promise.resolve(load(loaderContext)).then(() => done(true), () => done(false));
 					});
 				}
 
@@ -663,10 +745,12 @@ const useBrowseData = ({
 		allRowData: state.allRowData,
 		featuredItems: state.featuredItems,
 		pendingSections: state.pendingSections,
+		emptySections: memoryCache.emptySections,
 		setBrowseMode,
 		fetchFreshFeaturedItems,
 		refreshVolatileData,
-		loadSectionsNear
+		loadSectionsNear,
+		loadMoreRow
 	};
 };
 

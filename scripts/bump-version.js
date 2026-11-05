@@ -95,7 +95,7 @@ if (doWebos) {
 		manifest.version = newVersion;
 		// The build renames the package it produces, and this has to name what the
 		// release actually carries.
-		manifest.ipkUrl = `Moonfin_webOS_${newVersion}.ipk`;
+		manifest.ipkUrl = `Moonfin_webOS_v${newVersion}.ipk`;
 		if (manifest.ipkHash) manifest.ipkHash.sha256 = '';
 		fs.writeFileSync(manifestPath, JSON.stringify(manifest, null, 2) + '\n');
 		console.log(`  build-webos/org.moonfin.webos.manifest.json: ${old} → ${newVersion}`);

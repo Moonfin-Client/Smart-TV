@@ -2,6 +2,9 @@
 
 export const READER_SETTINGS_KEY = 'book_reader_settings';
 
+// Turns comic and PDF pages negative. The one switch covers both readers.
+export const FIXED_LAYOUT_INVERT_KEY = 'book_reader_fixed_layout_invert';
+
 export const READER_DEFAULTS = {
 	pageTheme: 'original',
 	fontFamily: 'serif',

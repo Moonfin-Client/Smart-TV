@@ -3,8 +3,7 @@ import $L from '@enact/i18n/$L';
 import Spottable from '@enact/spotlight/Spottable';
 import SpotlightContainerDecorator from '@enact/spotlight/SpotlightContainerDecorator';
 import {VirtualGridList} from '@enact/sandstone/VirtualList';
-import Popup from '@enact/sandstone/Popup';
-import Button from '@enact/sandstone/Button';
+import {portal, useDialogLayer} from '../../components/CoreDialog';
 import {useAuth} from '../../context/AuthContext';
 import {useSettings} from '../../context/SettingsContext';
 import * as connectionPool from '../../services/connectionPool';
@@ -14,8 +13,13 @@ import {withoutBlocked} from '../../utils/parentalFilter';
 import LoadingSpinner from '../../components/LoadingSpinner';
 import {getImageUrl, getBackdropId, getPrimaryImageId} from '../../utils/helpers';
 import {serverBlurredUrl} from '../../utils/serverBlur';
+import {ModalContainer} from '../../utils/spotlightContainers';
+import {registerThemeSheet} from '../../theme/themeOverrides';
 
+import dialogCss from '../../components/CoreDialog/CoreDialog.module.less';
 import css from './GenreBrowse.module.less';
+
+registerThemeSheet('genreBrowse', css);
 
 const SpottableDiv = Spottable('div');
 const SpottableButton = Spottable('button');
@@ -40,6 +44,32 @@ const FILTER_OPTIONS = [
 const LETTERS = ['#', 'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z'];
 
 const BACKDROP_DEBOUNCE_MS = 300;
+
+// The sort and filter panel, with the library sort panel's fill and border rather than the usual
+// dialog's.
+const FilterSortDialog = ({open, onClose, spotlightId, title, children}) => {
+	const handleScrimClick = useDialogLayer({open, onClose, spotlightId});
+	if (!open) return null;
+	return portal(
+		<div className={dialogCss.scrim} onClick={handleScrimClick}>
+			<ModalContainer spotlightId={spotlightId} className={css.filterDialog}>
+				<h2 className={css.filterTitle}>{title}</h2>
+				{children}
+			</ModalContainer>
+		</div>
+	);
+};
+
+const RadioTile = ({label, selected, ...rest}) => (
+	<SpottableDiv
+		{...rest}
+		data-selected={selected ? 'true' : undefined}
+		className={`${css.radioTile} ${selected ? css.radioTileSelected : ''}`}
+	>
+		<span className={css.radio} />
+		<span className={css.radioLabel}>{label}</span>
+	</SpottableDiv>
+);
 
 const GenreBrowse = ({genre, libraryId, onSelectItem, backHandlerRef}) => {
 	const {api, serverUrl} = useAuth();
@@ -316,20 +346,15 @@ const GenreBrowse = ({genre, libraryId, onSelectItem, backHandlerRef}) => {
 		};
 	}, []);
 
+	// A pick applies right away and the dialog stays up until Back, like the library's sort panel.
 	const handleSortSelect = useCallback((ev) => {
 		const key = ev.currentTarget?.dataset?.sortKey;
-		if (key) {
-			setSortBy(key);
-			setShowSortModal(false);
-		}
+		if (key) setSortBy(key);
 	}, []);
 
 	const handleFilterSelect = useCallback((ev) => {
 		const key = ev.currentTarget?.dataset?.filterKey;
-		if (key) {
-			setFilterType(key);
-			setShowFilterModal(false);
-		}
+		if (key) setFilterType(key);
 	}, []);
 
 	// Holding OK on a card opens its menu, found from the card the press landed on.
@@ -510,51 +535,29 @@ const GenreBrowse = ({genre, libraryId, onSelectItem, backHandlerRef}) => {
 				</GridContainer>
 			</div>
 
-			<Popup
-				open={showSortModal}
-				onClose={handleCloseModal}
-				position="center"
-				scrimType="translucent"
-				noAutoDismiss
-			>
-				<div className={css.popupContent}>
-					<div className={css.modalTitle}>{$L('Sort By')}</div>
-					{SORT_OPTIONS.map((option) => (
-						<Button
-							key={option.key}
-							className={css.popupOption}
-							selected={sortBy === option.key}
-							onClick={handleSortSelect}
-							data-sort-key={option.key}
-						>
-							{$L(option.label)}
-						</Button>
-					))}
-				</div>
-			</Popup>
+			<FilterSortDialog open={showSortModal} onClose={handleCloseModal} spotlightId="genre-sort-dialog" title={$L('Sort By')}>
+				{SORT_OPTIONS.map((option) => (
+					<RadioTile
+						key={option.key}
+						label={$L(option.label)}
+						selected={sortBy === option.key}
+						onClick={handleSortSelect}
+						data-sort-key={option.key}
+					/>
+				))}
+			</FilterSortDialog>
 
-			<Popup
-				open={showFilterModal}
-				onClose={handleCloseModal}
-				position="center"
-				scrimType="translucent"
-				noAutoDismiss
-			>
-				<div className={css.popupContent}>
-					<div className={css.modalTitle}>{$L('Filter')}</div>
-					{FILTER_OPTIONS.map((option) => (
-						<Button
-							key={option.key}
-							className={css.popupOption}
-							selected={filterType === option.key}
-							onClick={handleFilterSelect}
-							data-filter-key={option.key}
-						>
-							{$L(option.label)}
-						</Button>
-					))}
-				</div>
-			</Popup>
+			<FilterSortDialog open={showFilterModal} onClose={handleCloseModal} spotlightId="genre-filter-dialog" title={$L('Filter')}>
+				{FILTER_OPTIONS.map((option) => (
+					<RadioTile
+						key={option.key}
+						label={$L(option.label)}
+						selected={filterType === option.key}
+						onClick={handleFilterSelect}
+						data-filter-key={option.key}
+					/>
+				))}
+			</FilterSortDialog>
 		</div>
 	);
 };

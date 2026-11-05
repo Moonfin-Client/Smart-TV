@@ -73,6 +73,7 @@ const DetailActionButtons = ({
 	onOpenCollectionModal,
 	onOpenDeleteDialog,
 	onOpenIdentifyModal,
+	onKeepAsComplete,
 	maxVisibleButtons,
 	overflowAsMenu
 }) => {
@@ -265,6 +266,14 @@ const DetailActionButtons = ({
 					<BtnIcon path={DETAIL_ICON_PATHS.manageRequests}/>
 				</div>
 				<span className={css.btnLabel}>{$L('Manage Requests')}</span>
+			</SpottableDiv>
+		)},
+		{id: 'keepAsComplete', when: Boolean(onKeepAsComplete), render: () => (
+			<SpottableDiv className={css.btnWrapper} onClick={onKeepAsComplete}>
+				<div className={css.btnAction}>
+					<BtnIcon path={DETAIL_ICON_PATHS.keepAsComplete}/>
+				</div>
+				<span className={css.btnLabel}>{$L('Keep as Complete')}</span>
 			</SpottableDiv>
 		)},
 		{id: 'admin', when: canIdentify, render: () => (

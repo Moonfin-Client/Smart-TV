@@ -290,11 +290,6 @@
 		color: @accent;
 		font-weight: 700;
 	}
-
-	&.active {
-		color: @accent;
-		font-weight: 700;
-	}
 }
 
 /* ── Modern ──────────────────────────────────────────────── */
@@ -325,6 +320,30 @@
 	-webkit-flex: 1;
 	flex: 1;
 	min-width: 0;
+}
+
+.barDivider {
+	-webkit-flex-shrink: 0;
+	flex-shrink: 0;
+	width: 1px;
+	height: 40px;
+	margin: 0 6px;
+	background: rgba(255, 255, 255, 0.1);
+	background: rgba(var(--theme-on-surface-rgb, 255, 255, 255), 0.1);
+}
+
+/* The controls keep their natural width up to a share of the bar and scroll sideways past it,
+   so a long sort name never squeezes the search. */
+.barControls {
+	display: -webkit-flex;
+	display: flex;
+	-webkit-align-items: center;
+	align-items: center;
+	-webkit-flex-shrink: 0;
+	flex-shrink: 0;
+	max-width: 62%;
+	overflow-x: hidden;
+	overflow-y: hidden;
 }
 
 /* The toolbar button, grown to the height of the search field beside it. */
@@ -483,6 +502,24 @@
 	font-weight: 600;
 }
 
+.dockChevron {
+	width: 26px;
+	height: 26px;
+	-webkit-flex-shrink: 0;
+	flex-shrink: 0;
+	fill: currentColor;
+	opacity: 0.5;
+}
+
+.dockCaption {
+	margin-bottom: 12px;
+	font-size: 17px;
+	font-weight: 500;
+	letter-spacing: 1px;
+	color: rgba(255, 255, 255, 0.6);
+	color: rgba(var(--theme-on-surface-rgb, 255, 255, 255), 0.6);
+}
+
 .dockLetters {
 	margin-top: 20px;
 	padding-top: 24px;
@@ -497,6 +534,12 @@
 	-webkit-flex-wrap: wrap;
 	flex-wrap: wrap;
 	width: 364px;
+}
+
+/* ── Group tabs ──────────────────────────────────────────── */
+/* One chip per category over a grid of the one picked, inset to line up with the grid. */
+.groupTabs {
+	padding: 4px 87px 10px;
 }
 
 /* ── Grid ────────────────────────────────────────────────── */
@@ -650,27 +693,6 @@
 	fill: var(--theme-text-muted, rgba(255, 255, 255, 0.3));
 }
 
-/* ── Status Bar ──────────────────────────────────────────── */
-.statusBar {
-	display: -webkit-flex;
-	display: flex;
-	-webkit-align-items: center;
-	align-items: center;
-	padding: 6px 48px 10px;
-}
-
-.statusText {
-	-webkit-flex: 1;
-	flex: 1;
-	font-size: 14px;
-	color: var(--theme-text-muted, rgba(255, 255, 255, 0.35));
-}
-
-.statusCount {
-	font-size: 14px;
-	color: var(--theme-text-muted, rgba(255, 255, 255, 0.35));
-}
-
 /* ── Loading / Empty states ──────────────────────────────── */
 .skeletonGrid {
 	display: -webkit-flex;
@@ -719,7 +741,8 @@
 	color: var(--theme-text-secondary, rgba(255, 255, 255, 0.5));
 }
 
-/* ── Sort & Filter Slide-Out Panel ───────────────────────── */
+/* ── Sort & Filter, Display and Group By dialogs ─────────── */
+/* Centered over the screen, each scrolling inside itself once it runs taller than the screen. */
 .sortPanelOverlay {
 	position: fixed;
 	top: 0;
@@ -730,19 +753,22 @@
 	z-index: 100;
 	display: -webkit-flex;
 	display: flex;
-	-webkit-justify-content: flex-end;
-	justify-content: flex-end;
+	-webkit-align-items: center;
+	align-items: center;
+	-webkit-justify-content: center;
+	justify-content: center;
 }
 
 .sortPanel {
-	/* 380px inside, with the padding and border counted in so the panel stops at the screen edge. */
-	width: 445px;
-	height: 100%;
+	width: 560px;
+	max-height: 88vh;
 	box-sizing: border-box;
 	background: rgba(var(--theme-surface-rgb, 20, 20, 40), 0.92);
 	backdrop-filter: blur(16px) saturate(1.3);
 	-webkit-backdrop-filter: blur(16px) saturate(1.3);
-	padding: 40px 32px;
+	padding: 30px 24px;
+	border-radius: 28px;
+	border: 1px solid rgba(var(--theme-on-surface-rgb, 255, 255, 255), 0.18);
 	overflow-y: auto;
 	scrollbar-width: none;
 	-ms-overflow-style: none;
@@ -751,36 +777,39 @@
 		display: none;
 		width: 0;
 	}
-
-	animation: slideIn 0.25s ease-out;
-	border-left: 1px solid rgba(var(--theme-on-surface-rgb, 255, 255, 255), 0.08);
 }
 
-@keyframes slideIn {
-	from {
-		transform: translateX(100%);
-	}
-	to {
-		transform: translateX(0);
-	}
+/* Display and Group By hold short lists, so they sit a little narrower. */
+.dialogNarrow {
+	width: 500px;
 }
 
 .sortPanelTitle {
-	font-size: 32px;
-	font-weight: 700;
+	font-size: 29px;
+	font-weight: 600;
 	color: var(--theme-text-primary, white);
-	margin: 0 0 32px 0;
+	margin: 0 12px 12px;
 }
 
 .filterSection {
-	border-top: 1px solid rgba(var(--theme-on-surface-rgb, 255, 255, 255), 0.1);
-	padding-top: 24px;
+	border-top: 1px solid rgba(var(--theme-on-surface-rgb, 255, 255, 255), 0.12);
+	margin-top: 8px;
+	padding-top: 8px;
+}
 
-	/* The panel title already sits above the first group, so it needs no line of its own. */
-	&:first-of-type {
-		border-top: none;
-		padding-top: 0;
-	}
+/* A plain heading over a set of choices, with a line above it the way the sections have. */
+.dialogHeading {
+	border-top: 1px solid rgba(var(--theme-on-surface-rgb, 255, 255, 255), 0.12);
+	margin-top: 8px;
+	padding: 20px 16px 6px;
+	font-size: 19px;
+	font-weight: 500;
+	color: rgba(var(--theme-on-surface-rgb, 255, 255, 255), 0.72);
+}
+
+.dialogRule {
+	border-top: 1px solid rgba(var(--theme-on-surface-rgb, 255, 255, 255), 0.12);
+	margin: 8px 0;
 }
 
 /* Each group collapses to this heading, so it reads as a label but takes focus. */
@@ -807,16 +836,17 @@
 }
 
 .sectionHeaderOpen {
-	margin-bottom: 12px;
+	margin-bottom: 4px;
 }
 
+/* The title takes the room the summary and the arrow leave it. */
 .sectionHeaderLabel {
-	font-size: 15px;
-	font-weight: 600;
-	color: var(--theme-text-muted, rgba(255, 255, 255, 0.45));
-	text-transform: uppercase;
-	letter-spacing: 1px;
-	margin-left: 10px;
+	-webkit-flex: 1;
+	flex: 1;
+	min-width: 0;
+	font-size: 19px;
+	font-weight: 500;
+	color: rgba(var(--theme-on-surface-rgb, 255, 255, 255), 0.72);
 	text-align: left;
 
 	.sectionHeader:focus &,
@@ -827,11 +857,10 @@
 
 /* What the group is set to while it is closed, so a filter cant hide behind a heading. */
 .sectionSummary {
-	margin-left: auto;
-	padding-left: 12px;
+	padding: 0 12px;
 	max-width: 45%;
-	font-size: 15px;
-	font-weight: 500;
+	font-size: 19px;
+	font-weight: 600;
 	color: @accent;
 	white-space: nowrap;
 	overflow: hidden;
@@ -839,19 +868,15 @@
 }
 
 .sectionChevron {
-	width: 18px;
-	height: 18px;
+	width: 26px;
+	height: 26px;
 	-webkit-flex-shrink: 0;
 	flex-shrink: 0;
-	fill: var(--theme-text-muted, rgba(255, 255, 255, 0.45));
-	-webkit-transition: -webkit-transform 0.15s ease;
-	transition: transform 0.15s ease;
-}
+	fill: rgba(var(--theme-on-surface-rgb, 255, 255, 255), 0.72);
 
-.sectionChevronOpen {
-	-webkit-transform: rotate(90deg);
-	transform: rotate(90deg);
-	fill: @accent;
+	.sectionHeader:focus & {
+		fill: var(--theme-text-primary, white);
+	}
 }
 
 /* ── Sort / Filter option rows ───────────────────────────── */
@@ -967,61 +992,13 @@
 	fill: var(--theme-on-accent, white);
 }
 
-/* ── Settings Panel Rows ─────────────────────────────────── */
-.settingsHeader {
-	font-size: 14px;
-	font-weight: 600;
-	color: var(--theme-text-muted, rgba(255, 255, 255, 0.4));
-	text-transform: uppercase;
-	letter-spacing: 1.5px;
-	margin-bottom: 4px;
-}
-
-.settingRow {
-	display: -webkit-flex;
-	display: flex;
-	-webkit-flex-direction: column;
-	flex-direction: column;
-	width: 100%;
-	background: none;
-	border: 2px solid transparent;
-	border-radius: 8px;
-	padding: 18px 16px;
-	cursor: pointer;
-	transition: all 0.15s ease;
-	text-align: left;
-
-	& ~ & {
-		margin-top: 4px;
-	}
-
-	&:focus {
-		outline: none;
-		background: var(--theme-button-active, rgba(255, 255, 255, 0.1));
-		border-color: @accent;
-	}
-}
-
-.settingLabel {
-	font-size: 19px;
-	font-weight: 600;
-	color: var(--theme-text-primary, white);
-}
-
-.settingValue {
-	font-size: 16px;
-	color: var(--theme-text-muted, rgba(255, 255, 255, 0.55));
-	margin-top: 4px;
-}
-
 :global(html[data-theme-id='neon_pulse']) {
 	.libraryTitle,
 	.focusedName,
 	.sortPanelTitle,
 	.modalTitle,
 	.musicLibraryTitle,
-	.musicSectionTitle,
-	.settingLabel {
+	.musicSectionTitle {
 		color: var(--theme-accent, #ff2e92);
 		text-shadow: var(--theme-text-glow, 0 0 8px rgba(255, 46, 146, 0.35));
 		font-family: 'NeonPulseDisplay', sans-serif;
@@ -1032,11 +1009,9 @@
 	.itemCount,
 	.focusedMeta,
 	.metaItem,
-	.statusText,
-	.statusCount,
 	.sectionHeaderLabel,
-	.settingsHeader,
-	.settingValue,
+	.dialogHeading,
+	.dockCaption,
 	.cardSubtitle,
 	.musicViewLabel,
 	.pillValue {
@@ -1068,16 +1043,9 @@
 	.musicViewBtn:focus,
 	.letterButton:focus,
 	.sortOption:focus,
-	.settingRow:focus,
 	.breadcrumbItem:focus {
 		border-color: var(--theme-accent, #ff2e92);
 		background: rgba(var(--theme-accent-rgb, 255, 46, 146), 0.15);
-	}
-
-	.letterButton.active {
-		background: var(--theme-accent, #ff2e92);
-		color: var(--theme-on-accent, #fff);
-		box-shadow: 0 0 8px rgba(var(--theme-accent-rgb, 255, 46, 146), 0.35);
 	}
 
 	.sortOption.sortOptionActive {
@@ -1098,6 +1066,7 @@
 // declares its own margin further up cant beat them.
 .focusedMeta { .flex-wrap-gap(6px; 12px); }
 .modernBar { .flex-row-gap(6px); }
+.barControls { .flex-row-gap(6px); }
 .barPill { .flex-row-gap(10px); }
 .dockRow { .flex-row-gap(12px); }
 .dockRows { .flex-col-gap(4px); }

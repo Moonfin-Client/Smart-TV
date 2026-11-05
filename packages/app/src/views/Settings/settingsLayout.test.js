@@ -11,7 +11,7 @@ const SCREENS = {
 	appearance: ['appearance', 'navigationBar*', 'homeScreen*', 'rowOptions*', 'mediaBar*', 'libraries*', 'detailsPage*', 'seasonalEffects*', 'loadingAnimation*', 'screensaver*'],
 	playback: ['player', 'playbackTime*', 'qualityDecoding', 'audio', 'subtitles', 'subtitleCustomization*', 'skippingAutoplay', 'syncPlay'],
 	storage: ['storage'],
-	integrations: ['seerr', 'achievements', 'romm'],
+	integrations: ['seerr', 'calendar', 'achievements', 'romm'],
 	about: ['about', 'diagnostics*'],
 	kidsMode: ['kidsModeExit']
 };
@@ -22,9 +22,9 @@ const SECTIONS = {
 	'general.general': ['language', 'clock', 'input', 'behavior', 'performance'],
 	'appearance.appearance': ['navigation', 'layout', 'theme', 'display', 'extras'],
 	'appearance.navigationBar': ['navAppearance', 'navButtons'],
-	'appearance.homeScreen': ['contents', 'looks', 'externalSources'],
+	'appearance.homeScreen': ['contents', 'looks', 'homeRowsRatings', 'externalSources'],
 	'appearance.rowOptions': ['continueWatchingAndNextUp', 'recentlyAdded', 'audio', 'collections', 'favorites', 'genres', 'playlists', 'rewatch', 'sinceYouWatched', 'studios'],
-	'appearance.mediaBar': ['mediaBarGeneral', 'mediaSources', 'mediaBarBehavior', 'trailers'],
+	'appearance.mediaBar': ['mediaBarGeneral', 'mediaSources', 'mediaBarBehavior', 'trailers', 'mediaBarRatings'],
 	'appearance.libraries': ['librariesGeneral', 'libraryView'],
 	'appearance.detailsPage': ['detailsDisplay', 'mediaDetailsAndSpoilers', 'recommendations', 'ratings', 'themeMusic'],
 	'playback.player': ['mediaPlayerBehavior', 'trickPlay'],

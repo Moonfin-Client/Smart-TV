@@ -1,63 +1,51 @@
-import {AdvancedOptionsPopup} from '../../components/seerr/AdvancedOptionsPopup';
 import {CancelRequestPopup} from '../../components/seerr/CancelRequestPopup';
 import {ManageRequestsPopup} from '../../components/seerr/ManageRequestsPopup';
-import {QualitySelectionPopup} from '../../components/seerr/QualitySelectionPopup';
 import {ReportIssuePopup} from '../../components/seerr/ReportIssuePopup';
-import {SeasonSelectionPopup} from '../../components/seerr/SeasonSelectionPopup';
+import SeerrRequestDialog from '../../components/seerr/SeerrRequestDialog';
 
 // The popups the Seerr actions raise. They all run off the overlay, so a screen with no Seerr
 // side renders nothing at all here.
-const SeerrDialogs = ({seerr, title}) => {
+const SeerrDialogs = ({seerr, item}) => {
 	if (!seerr.isActive) return null;
 
 	const isTv = seerr.mediaType === 'tv';
+	const isEpisode = item?.Type === 'Episode';
+	const isSeason = item?.Type === 'Season';
+	// A season or episode page asks about its series
+	const title = (isEpisode || isSeason) && item.SeriesName ? item.SeriesName : item?.Name;
+	let reportSeason = null;
+	if (isEpisode) reportSeason = item.ParentIndexNumber;
+	else if (isSeason) reportSeason = item.IndexNumber;
 
 	return (
 		<>
-			<QualitySelectionPopup
-				open={seerr.showQualityPopup}
-				title={title}
-				hdStatus={seerr.hdStatus}
-				status4k={seerr.status4k}
-				canRequestHd={seerr.canRequestHd}
-				canRequest4k={seerr.canRequest4k}
-				quota={isTv ? seerr.quota?.tv : seerr.quota?.movie}
-				isTv={isTv}
-				onSelect={seerr.handleRequestTrack}
-				onClose={seerr.handleCloseQualityPopup}
-			/>
-
-			{isTv && (
-				<SeasonSelectionPopup
-					open={seerr.showSeasonPopup}
-					title={title}
-					seasons={seerr.details?.seasons}
-					seasonStatusMap={seerr.pendingIs4k ? seerr.seasonStatusMap4k : seerr.seasonStatusMapHd}
-					quota={seerr.quota?.tv}
-					onConfirm={seerr.handleSeasonConfirm}
-					onClose={seerr.handleCloseSeasonPopup}
+			{seerr.requestDialog && (
+				<SeerrRequestDialog
+					is4k={seerr.requestDialog.is4k}
+					qualityToggle={seerr.requestDialog.qualityToggle}
+					season={seerr.requestDialog.season}
+					details={seerr.sheetDetails}
+					isTv={isTv}
+					isContinuing={seerr.isContinuing}
+					activeRequests={seerr.activeRequests}
+					quota={isTv ? seerr.quota?.tv : seerr.quota?.movie}
+					canRequestAdvanced={seerr.hasAdvanced}
+					servers={seerr.servers}
+					onSubmit={seerr.handleSubmitRequest}
+					onClose={seerr.handleCloseRequestDialog}
 				/>
 			)}
 
 			{seerr.showsReportIssue && (
 				<ReportIssuePopup
 					open={seerr.showReportPopup}
-					title={title}
 					isTv={isTv}
-					seasons={seerr.details?.seasons}
+					seasons={seerr.sheetDetails?.seasons}
+					numberOfSeasons={seerr.sheetDetails?.numberOfSeasons}
+					initialSeason={reportSeason}
+					initialEpisode={isEpisode ? item.IndexNumber : null}
 					onSubmit={seerr.handleReportSubmit}
 					onClose={seerr.handleCloseReportPopup}
-				/>
-			)}
-
-			{seerr.hasAdvanced && (
-				<AdvancedOptionsPopup
-					open={seerr.showAdvancedPopup}
-					title={title}
-					servers={seerr.servers}
-					is4k={seerr.pendingIs4k}
-					onConfirm={seerr.handleAdvancedConfirm}
-					onClose={seerr.handleCloseAdvancedPopup}
 				/>
 			)}
 
@@ -73,7 +61,6 @@ const SeerrDialogs = ({seerr, title}) => {
 				<ManageRequestsPopup
 					open={seerr.showManagePopup}
 					pendingRequests={seerr.pendingRequests}
-					title={title}
 					onResolve={seerr.handleResolveRequest}
 					onClose={seerr.handleCloseManagePopup}
 				/>

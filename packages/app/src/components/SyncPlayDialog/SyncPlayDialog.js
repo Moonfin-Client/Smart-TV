@@ -7,6 +7,7 @@ import {useSyncPlay} from '../../context/SyncPlayContext';
 import {isBackKey} from '../../utils/keys';
 import {isTvKeyboardVisible} from '../TVKeyboard/keyboardBus';
 import SpottableInput from '../SpottableInput/SpottableInput';
+import useHoldDialogFocus from '../../hooks/useHoldDialogFocus';
 
 import css from './SyncPlayDialog.module.less';
 
@@ -51,18 +52,20 @@ const SyncPlayDialog = ({open, onClose, playingItemId, onWatch}) => {
 	const [isLeaving, setIsLeaving] = useState(false);
 	const refreshIntervalRef = useRef(null);
 
+	const focusDefault = useCallback(() => {
+		if (isInGroup) {
+			if (!Spotlight.focus('syncplay-watch-btn')) Spotlight.focus('syncplay-leave-btn');
+		} else {
+			Spotlight.focus('syncplay-input');
+		}
+	}, [isInGroup]);
 	useEffect(() => {
 		if (open) {
-			const t = setTimeout(() => {
-				if (isInGroup) {
-					if (!Spotlight.focus('syncplay-watch-btn')) Spotlight.focus('syncplay-leave-btn');
-				} else {
-					Spotlight.focus('syncplay-input');
-				}
-			}, 100);
+			const t = setTimeout(focusDefault, 100);
 			return () => clearTimeout(t);
 		}
-	}, [open, isInGroup]);
+	}, [open, focusDefault]);
+	useHoldDialogFocus(open, 'syncplay-dialog', focusDefault);
 
 	useEffect(() => {
 		if (open && !isInGroup) {

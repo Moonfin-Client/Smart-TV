@@ -2,6 +2,7 @@ import {Fragment, useEffect, useMemo, useState} from 'react';
 import $L from '@enact/i18n/$L';
 
 import RatingsRow from '../../../../components/RatingsRow';
+import {IncompleteDetailLine} from '../../../../components/IncompleteBadge';
 import {SeerrStatusBadge} from '../../../../components/seerr/SeerrStatusBadge';
 import {isMdblistEnabled} from '../../../../services/mdblistApi';
 import {formatPlaybackEndsAt} from '../../../../utils/playbackTimeLabels';
@@ -125,6 +126,7 @@ const NouveauHero = (props) => {
 					))}
 				</div>
 			)}
+			<IncompleteDetailLine itemId={item.Id} clockDisplay={settings.clockDisplay} />
 			{(techBadges.length > 0 || techSize) && (
 				<div className={css.tech}>
 					{techBadges.map((badge, i) => <span key={i} className={css.techChip}>{badge.label}</span>)}
