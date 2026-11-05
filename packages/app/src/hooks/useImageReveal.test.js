@@ -41,6 +41,20 @@ describe('useImageReveal', () => {
 		expect(result.current.shown).toBe(true);
 	});
 
+	test('ignores a decode that settles after the image moved on to other art', async () => {
+		let fail;
+		const img = {src: 'old', currentSrc: 'old', decode: () => new Promise((resolve, reject) => {
+			fail = reject;
+		})};
+		const {result} = renderHook(() => useImageReveal('http://server/e.jpg'));
+		act(() => result.current.bind.onLoad({currentTarget: img}));
+		img.src = 'new';
+		img.currentSrc = 'new';
+		await act(async () => fail(new Error('aborted')));
+		expect(isDecoded('http://server/e.jpg')).toBe(false);
+		expect(result.current.shown).toBe(false);
+	});
+
 	test('counts a card with no art as shown', () => {
 		const {result} = renderHook(() => useImageReveal(null));
 		expect(result.current.shown).toBe(true);

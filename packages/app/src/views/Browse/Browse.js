@@ -38,7 +38,7 @@ import {buildBrowseRows, sameRowList} from './buildBrowseRows';
 import {markHomeReady} from '../../utils/homeReady';
 import {homeBackdropStyle} from '../../utils/homeBackdropStyle';
 import {rem} from '../../utils/rootScale';
-import {glideScroll} from '../../utils/focusScroll';
+import {glideScroll, stopScrollAnimation} from '../../utils/focusScroll';
 import {rowImageType, rowPeekHeight} from './rowPeek';
 
 import css from './Browse.module.less';
@@ -794,7 +794,11 @@ const Browse = ({
 
 	// Rows mode leaves the scroller wherever the last row pinned it, and the peek shows its top.
 	useLayoutEffect(() => {
-		if (rowPeek && contentRowsRef.current) contentRowsRef.current.scrollTop = 0;
+		const container = contentRowsRef.current;
+		if (!rowPeek || !container) return;
+		// A row glide still under way would write its offset back over this on its next frame.
+		stopScrollAnimation(container);
+		container.scrollTop = 0;
 	}, [rowPeek]);
 
 	const navOffsetClass = settings.navbarPosition === 'left' ? css.sidebarOffset : css.topbarOffset;

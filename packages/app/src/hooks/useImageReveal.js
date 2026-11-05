@@ -28,6 +28,8 @@ const useImageReveal = (url) => {
 	const reveal = useCallback((img) => {
 		const loaded = img.currentSrc || img.src;
 		const show = () => {
+			// The image moved on to other art while this one was decoding.
+			if ((img.currentSrc || img.src) !== loaded) return;
 			markDecoded(url);
 			setReadyUrl(url);
 		};

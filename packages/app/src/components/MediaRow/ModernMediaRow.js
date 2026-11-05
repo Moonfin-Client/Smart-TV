@@ -274,10 +274,10 @@ const ModernMediaRow = ({
 					{items.map((item, index) => {
 						const spotlightId = `media-${keyPrefix}-${item.Id}`;
 						// Wide art loads ahead for the cards a step or two along from focus, and in a row
-						// focus isn't in, for the card it would land on.
+						// focus isn't in, for the card it would land on, unless the row's images are held back.
 						const besideFocus = focusedIndex >= 0
 							? index !== focusedIndex && Math.abs(index - focusedIndex) <= WARM_REACH
-							: index === landingIndex;
+							: !deferImages && index === landingIndex;
 						const isFirst = index === 0;
 						const isLast = index === items.length - 1 && !onCalendarSeeAll;
 						return (
