@@ -31,6 +31,7 @@ import {
 } from '../../utils/seerrStatus';
 import {uiLocale} from '../../utils/uiLocale';
 import {KEYS} from '../../utils/keys';
+import {getServerType} from '../../services/jellyfinApi';
 import {measureTextWidth} from '../../utils/measureText';
 import css from './SeerrRequests.module.less';
 
@@ -729,13 +730,14 @@ const SeerrRequests = ({onSelectItem, onClose, initialTab = 'requests', backHand
 						onSelect={handleTabSelect}
 						value="requests"
 					/>
-					<TabPill
+					{/* Silo's requests have no issues. */}
+					{getServerType() !== 'silo' && <TabPill
 						label={$L('Issues')}
 						count={counts.open}
 						selected={tab === 'issues'}
 						onSelect={handleTabSelect}
 						value="issues"
-					/>
+					/>}
 				</PillContainer>
 				<PillContainer className={css.filterRow} spotlightId="hub-filters">
 					{tab === 'requests'

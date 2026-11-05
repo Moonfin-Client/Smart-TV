@@ -4,6 +4,7 @@
 import {useSyncExternalStore} from 'react';
 import {getApiKey, getServerUrl, getTokenParam} from '../services/jellyfinApi';
 import {isLegacyTizen, isWebOS} from '../platform';
+import {knownSiloMoonbase, moonbaseAssetUrl} from '../services/moonbaseEndpoint';
 
 // Whether the plugin can hand thumbs out. App keeps it in step with the plugin ping, so a
 // card can ask without reading the Seerr context.
@@ -53,7 +54,9 @@ export const seerrThumbUrl = (item) => {
 	// The sets that load TMDB images over http, since https to TMDB can fail there, ask the
 	// plugin to send them to TMDB over http too.
 	const scheme = isWebOS() || isLegacyTizen() ? '&scheme=http' : '';
-	return `${server}/Moonfin/Tmdb/Thumb?type=${item._seerrMediaType}&${id}${scheme}&${getTokenParam()}=${encodeURIComponent(token)}`;
+	const path = `/Moonfin/Tmdb/Thumb?type=${item._seerrMediaType}&${id}${scheme}`;
+	if (knownSiloMoonbase(server)) return moonbaseAssetUrl(server, path, token);
+	return `${server}${path}&${getTokenParam()}=${encodeURIComponent(token)}`;
 };
 
 // The wide picture such a title shows, the plugin thumb first and the plain backdrop when

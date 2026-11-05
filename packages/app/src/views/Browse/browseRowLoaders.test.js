@@ -3,7 +3,7 @@ import {makePickedRow} from '../../utils/pickedRows';
 import {loadSinceYouWatchedRows} from '../../services/homeRecommendations';
 
 jest.mock('@enact/i18n/$L', () => ({__esModule: true, default: (str) => str}));
-jest.mock('../../services/jellyfinApi', () => ({HOME_ROW_ITEM_FIELDS: 'Fields', createApiForServer: jest.fn()}));
+jest.mock('../../services/jellyfinApi', () => ({HOME_ROW_ITEM_FIELDS: 'Fields', createApiForServer: jest.fn(), getServerType: () => 'jellyfin'}));
 jest.mock('../../services/multiServerManager', () => ({getAllServersArray: async () => []}));
 jest.mock('../../services/homeRecommendations', () => ({loadSinceYouWatchedRows: jest.fn(), loadRewatchItems: jest.fn()}));
 

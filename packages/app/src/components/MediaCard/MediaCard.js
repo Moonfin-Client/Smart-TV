@@ -41,13 +41,17 @@ const requestedArtwork = (item, imageType, serverUrl) => {
 		if (item.ImageTags?.Thumb) {
 			return getImageUrl(serverUrl, item.Id, 'Thumb', {maxWidth: 400, quality: 80});
 		}
+		// A title matched from an outside list keeps the list's backdrop when the library has no wide art for it.
+		if (item._resolvedFromExternal && item._externalBackdropUrl) {
+			return toAbsoluteImageUrl(item._externalBackdropUrl, serverUrl);
+		}
 	}
 	if (imageType === 'thumb') {
 		if (item.ImageTags?.Thumb) {
 			return getImageUrl(serverUrl, item.Id, 'Thumb', {maxWidth: 400, quality: 80});
 		}
 		if (item.ParentThumbItemId) {
-			return getImageUrl(serverUrl, item.ParentThumbItemId, 'Thumb', {maxWidth: 400, quality: 80});
+			return getImageUrl(serverUrl, item.ParentThumbItemId, 'Thumb', {tag: item.ParentThumbImageTag, maxWidth: 400, quality: 80});
 		}
 		if (item.BackdropImageTags?.length > 0) {
 			return getImageUrl(serverUrl, item.Id, 'Backdrop', {maxWidth: 400, quality: 80});
@@ -80,17 +84,20 @@ const requestedArtwork = (item, imageType, serverUrl) => {
 // its Primary image, episodes carry no Thumb tag of their own.
 const episodeArtwork = (item, serverUrl, imageType, useSeriesArt) => {
 	const wide = (url) => (url ? {url, wide: true} : null);
-	const seriesWide = item.ParentThumbItemId
-		? wide(getImageUrl(serverUrl, item.ParentThumbItemId, 'Thumb', {maxWidth: 400, quality: 80}))
-		: item.ParentBackdropItemId
-			? wide(getImageUrl(serverUrl, item.ParentBackdropItemId, 'Backdrop', {maxWidth: 400, quality: 80}))
-			: null;
+	const seriesWide = (item.ParentThumbItemId
+		&& wide(getImageUrl(serverUrl, item.ParentThumbItemId, 'Thumb', {tag: item.ParentThumbImageTag, maxWidth: 400, quality: 80})))
+		|| (item.ParentBackdropItemId
+			&& wide(getImageUrl(serverUrl, item.ParentBackdropItemId, 'Backdrop', {maxWidth: 400, quality: 80})))
+		|| null;
 	const seriesPoster = item.SeriesId && item.SeriesPrimaryImageTag
 		? {url: getImageUrl(serverUrl, item.SeriesId, 'Primary', {maxHeight: 300, quality: 80}), wide: false}
 		: null;
+	// Silo sends a Continue Watching episode's still as its backdrop, with the season poster as its poster.
 	const still = wide(item.ImageTags?.Primary
 		? getImageUrl(serverUrl, item.Id, 'Primary', {maxWidth: 400, quality: 80})
-		: null);
+		: item.BackdropImageTags?.length > 0
+			? getImageUrl(serverUrl, item.Id, 'Backdrop', {tag: item.BackdropImageTags[0], maxWidth: 400, quality: 80})
+			: null);
 
 	if (!useSeriesArt) return still || seriesWide || seriesPoster;
 	// A poster row wants the series poster, anything wider wants the series thumb.
@@ -100,7 +107,7 @@ const episodeArtwork = (item, serverUrl, imageType, useSeriesArt) => {
 	return preferred || still;
 };
 
-const MediaCard = ({item, serverUrl, cardType = 'portrait', rowImageType = 'poster', onSelect, onFocusItem, showServerBadge = false, eagerLoad = false, deferImage = false, seerrSeasonStatus, spotlightId, onSpotlightLeft, onSpotlightRight, menuOptions, size, current = false, homeText = false}) => {
+const MediaCard = ({item, serverUrl, cardType = 'portrait', rowImageType = 'poster', onSelect, onFocusItem, showServerBadge = false, eagerLoad = false, deferImage = false, seerrSeasonStatus, spotlightId, onSpotlightLeft, onSpotlightRight, menuOptions, size, current = false, homeText = false, overlay = null, showInfo = true}) => {
 	const {settings} = useSettings();
 	const focusTimeoutRef = useRef(null);
 
@@ -175,7 +182,7 @@ const MediaCard = ({item, serverUrl, cardType = 'portrait', rowImageType = 'post
 				return getImageUrl(itemServerUrl, item.Id, 'Thumb', {maxWidth: 400, quality: 80});
 			}
 			if (item.ParentThumbItemId) {
-				return getImageUrl(itemServerUrl, item.ParentThumbItemId, 'Thumb', {maxWidth: 400, quality: 80});
+				return getImageUrl(itemServerUrl, item.ParentThumbItemId, 'Thumb', {tag: item.ParentThumbImageTag, maxWidth: 400, quality: 80});
 			}
 			if (item.BackdropImageTags?.length > 0) {
 				return getImageUrl(itemServerUrl, item.Id, 'Backdrop', {maxWidth: 400, quality: 80});
@@ -355,48 +362,52 @@ const MediaCard = ({item, serverUrl, cardType = 'portrait', rowImageType = 'post
 					</>
 				)}
 
-				{showIndicators && progress > 0 && (
-					<div className={css.progressBar}>
-						<div className={css.progress} style={{width: `${progress}%`}} />
-					</div>
+				{overlay || (
+					<>
+						{showIndicators && progress > 0 && (
+							<div className={css.progressBar}>
+								<div className={css.progress} style={{width: `${progress}%`}} />
+							</div>
+						)}
+
+						{(showServerBadge || item._external) && item._serverName && (
+							<div className={css.serverBadge}>{item._serverName}</div>
+						)}
+
+						{item._seerr && item._seerrMissing ? (
+							<div className={`${css.seerrBadge} ${css.seerrMissing}`}>
+								<SeerrIcon />
+							</div>
+						) : seerrStyle === 'badge' && item._seerr && [2, 3, 4, 5].includes(item.mediaInfo?.status) ? (
+							<div className={`${css.seerrBadge} ${css[`seerr${item.mediaInfo.status}`]}`} />
+						) : null}
+
+						<SeerrSeasonDot status={seerrStyle === 'badge' ? seerrSeasonStatus : null} />
+						{bannerStatus && <SeerrStatusBanner status={bannerStatus} className={css.seerrBanner} />}
+
+						{showIndicators && showsWatchedCheck(item) && (
+							<div className={css.watchedBadge}>
+								<svg viewBox="0 0 24 24"><path fill="white" d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>
+							</div>
+						)}
+
+						{showUnplayedCount && (
+							<div className={css.unplayedCount}>{unplayedCount}</div>
+						)}
+
+						{item.UserData?.IsFavorite && (
+							<div className={css.favoriteBadge}>
+								<svg viewBox="0 0 24 24"><path fill="currentColor" d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>
+							</div>
+						)}
+
+						<IncompleteBadge itemId={item.Id} belowFavorite={item.UserData?.IsFavorite} belowBanner={Boolean(bannerStatus)} />
+						<AnimeCardPill item={item} serverUrl={itemServerUrl} hasProgressBar={showIndicators && progress > 0} />
+					</>
 				)}
-
-				{(showServerBadge || item._external) && item._serverName && (
-					<div className={css.serverBadge}>{item._serverName}</div>
-				)}
-
-				{item._seerr && item._seerrMissing ? (
-					<div className={`${css.seerrBadge} ${css.seerrMissing}`}>
-						<SeerrIcon />
-					</div>
-				) : seerrStyle === 'badge' && item._seerr && [2, 3, 4, 5].includes(item.mediaInfo?.status) ? (
-					<div className={`${css.seerrBadge} ${css[`seerr${item.mediaInfo.status}`]}`} />
-				) : null}
-
-				<SeerrSeasonDot status={seerrStyle === 'badge' ? seerrSeasonStatus : null} />
-				{bannerStatus && <SeerrStatusBanner status={bannerStatus} className={css.seerrBanner} />}
-
-				{showIndicators && showsWatchedCheck(item) && (
-					<div className={css.watchedBadge}>
-						<svg viewBox="0 0 24 24"><path fill="white" d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>
-					</div>
-				)}
-
-				{showUnplayedCount && (
-					<div className={css.unplayedCount}>{unplayedCount}</div>
-				)}
-
-				{item.UserData?.IsFavorite && (
-					<div className={css.favoriteBadge}>
-						<svg viewBox="0 0 24 24"><path fill="currentColor" d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>
-					</div>
-				)}
-
-				<IncompleteBadge itemId={item.Id} belowFavorite={item.UserData?.IsFavorite} belowBanner={Boolean(bannerStatus)} />
-				<AnimeCardPill item={item} serverUrl={itemServerUrl} hasProgressBar={showIndicators && progress > 0} />
 			</div>
 
-			<div className={css.info}>
+			{showInfo && <div className={css.info}>
 				{isBanner ? (
 					line(css.title, [displayTitle, episodeInfo || musicInfo || item.Subtitle].filter(Boolean).join('  \u2022  '))
 				) : episodeInfo ? (
@@ -417,7 +428,7 @@ const MediaCard = ({item, serverUrl, cardType = 'portrait', rowImageType = 'post
 				) : (
 					line(css.title, displayTitle)
 				)}
-			</div>
+			</div>}
 		</SpottableDiv>
 	);
 };

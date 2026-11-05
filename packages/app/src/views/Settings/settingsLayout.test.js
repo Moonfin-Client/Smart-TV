@@ -11,7 +11,7 @@ const SCREENS = {
 	appearance: ['appearance', 'navigationBar*', 'homeScreen*', 'rowOptions*', 'mediaBar*', 'libraries*', 'detailsPage*', 'seasonalEffects*', 'loadingAnimation*', 'screensaver*'],
 	playback: ['player', 'playbackTime*', 'qualityDecoding', 'audio', 'subtitles', 'subtitleCustomization*', 'skippingAutoplay', 'syncPlay'],
 	storage: ['storage'],
-	integrations: ['seerr', 'achievements', 'romm'],
+	integrations: ['seerr', 'calendar', 'achievements', 'romm'],
 	about: ['about', 'diagnostics*'],
 	kidsMode: ['kidsModeExit']
 };

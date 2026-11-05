@@ -1,0 +1,50 @@
+// Core's 20 point dot on its TV canvas, with the icon at six tenths of it and the dash a
+// little wider.
+.dot {
+	position: absolute;
+	top: 10px;
+	right: 10px;
+	z-index: 3;
+	width: 33px;
+	height: 33px;
+	box-sizing: border-box;
+	border-radius: 50%;
+	border: 2.5px solid #ffffff;
+	background: #ffffff;
+	box-shadow: 0 2.5px 7px rgba(0, 0, 0, 0.6);
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	pointer-events: none;
+}
+
+.icon {
+	width: 20px;
+	height: 20px;
+}
+
+.available {
+	border-color: #22c55e;
+	color: #22c55e;
+}
+
+.partial {
+	background: #22c55e;
+	border-color: #22c55e;
+	color: #ffffff;
+
+	.icon {
+		width: 22px;
+		height: 22px;
+	}
+}
+
+.processing {
+	border-color: #9333ea;
+	color: #9333ea;
+}
+
+.pending {
+	border-color: #eab308;
+	color: #eab308;
+}

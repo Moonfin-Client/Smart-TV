@@ -7,7 +7,7 @@ import {runPlayerCommand} from '../../services/remoteControl';
 import {getServerUrl} from '../../services/jellyfinApi';
 import {artUrlFor, IconMusicNote} from '../../views/Player/audio/audioArt';
 import {SpottableButton, SpottableDiv, IconPrevious, IconPlay, IconPause, IconNext, IconStop} from '../../views/Player/PlayerConstants';
-import {CONTENT_FOCUS_TARGETS, SIDEBAR_CONTENT_FOCUS_TARGETS, focusFirstContentTarget} from '../../utils/navFocusTargets';
+import {CONTENT_FOCUS_TARGETS, focusContentFromSidebar, focusFirstContentTarget} from '../../utils/navFocusTargets';
 import {KEYS} from '../../utils/keys';
 
 import css from './MiniMusicPlayer.module.less';
@@ -87,7 +87,7 @@ export const SidebarMusicCard = ({item, paused, expanded, onOpen}) => {
 		e.stopPropagation();
 		const right = e.keyCode === KEYS.RIGHT;
 		if (!Spotlight.move(right ? 'right' : 'left') && right) {
-			focusFirstContentTarget(SIDEBAR_CONTENT_FOCUS_TARGETS, 'right');
+			focusContentFromSidebar();
 		}
 	}, []);
 

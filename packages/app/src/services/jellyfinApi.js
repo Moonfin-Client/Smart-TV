@@ -9,7 +9,10 @@ import {makeUserRoutes, trimQuerySeparator, legacyAuthHeader, buildUserImageUrl}
 import * as userDataSync from './userDataSync';
 import {SUPPORTED_COMMANDS} from './remoteControl';
 import {createPlexApi, withEveryMethod} from './plexApi';
+import {createSiloApi, withEverySiloMethod} from './siloApi';
+import {onSiloTokensRotated, siloServerKey, siloSessionFor, siloSessionOfAccount} from './siloSession';
 import {isPlexServer, registerPlexServer} from '../utils/plexUrls';
+import {registerSiloServer} from '../utils/siloUrls';
 const APP_VERSION = packageJson.version;
 
 const PLATFORM_IDENTITY = {
@@ -42,7 +45,7 @@ export const setServer = (serverUrl) => {
 };
 
 export const setServerType = (type) => {
-	serverType = type === 'emby' || type === 'plex' ? type : 'jellyfin';
+	serverType = type === 'emby' || type === 'plex' || type === 'silo' ? type : 'jellyfin';
 	// eslint-disable-next-line no-use-before-define
 	applyServerType();
 };
@@ -152,6 +155,8 @@ const PLAYBACK_TIMEOUT_MS = 120000;
 const PEOPLE_SEARCH_TIMEOUT_MS = 10000;
 // The playback information dialog waits on this, so it gives up quickly and goes without.
 const OWN_SESSION_TIMEOUT_MS = 1500;
+// Emby's search has never asked for audiobooks, so only Jellyfin's does.
+const searchTypes = (kind) => `Book,${kind === 'jellyfin' ? 'AudioBook,' : ''}Movie,Series,Season,Episode,Video,MusicVideo,Trailer,Program,Playlist,MusicArtist,MusicAlbum,Audio,PhotoAlbum,Photo,BoxSet,Folder`;
 export const HOME_ROW_ITEM_FIELDS = 'DateCreated,PremiereDate,PrimaryImageAspectRatio,OfficialRating,Overview,Genres,GenreItems,ProductionYear,RunTimeTicks,CommunityRating,CriticRating,ProviderIds,ImageTags,BackdropImageTags,ParentBackdropImageTags,ParentBackdropItemId,ParentThumbItemId,ParentLogoItemId,ParentLogoImageTag,SeriesPrimaryImageTag,ParentPrimaryImageTag,SeriesName,SeriesId,ParentIndexNumber,IndexNumber,UserData,AlbumArtist,AlbumId,AlbumPrimaryImageTag';
 
 // The home Next Up row asks the server for a window instead of the whole watch
@@ -208,6 +213,12 @@ const readQueryFilters = (send, userId, parentId, includeItemTypes) => {
 const fetchWithTimeout = (url, options = {}, timeoutMs = DEFAULT_TIMEOUT_MS) =>
 	mediaServerQueue.run(() => platformFetch(url, options, timeoutMs));
 export const getDeviceId = () => deviceId;
+
+// Builds the query string by hand to avoid URLSearchParams issues, leaving out empty values.
+const toQuery = (params) => Object.entries(params)
+	.filter(([, value]) => value !== undefined && value !== null && value !== '')
+	.map(([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(value)}`)
+	.join('&');
 
 const request = async (endpoint, options = {}) => {
 	const url = `${currentServer}${trimQuerySeparator(endpoint)}`;
@@ -281,7 +292,7 @@ let capabilitiesSent = null;
 // Signing in reports what this session can do and the socket opening a moment later would send it
 // again, so the socket skips a report made for the same session in the last few seconds.
 export function reportCapabilities({unlessRecent = false} = {}) {
-	if (!currentServer || !accessToken || serverType === 'plex') return;
+	if (!currentServer || !accessToken || serverType === 'plex' || serverType === 'silo') return;
 	const session = `${currentServer}|${accessToken}`;
 	if (unlessRecent && capabilitiesSent?.session === session && Date.now() - capabilitiesSent.at < 10000) return;
 	capabilitiesSent = {session, at: Date.now()};
@@ -550,17 +561,9 @@ export const api = {
 
 	getAllLibraries: () => request(`${userRoutes.views()}IncludeHidden=true`),
 
-	getItems: (params = {}) => {
-		// Manually build query string to avoid URLSearchParams issues
-		const queryParts = [];
-		for (const [key, value] of Object.entries(params)) {
-			if (value !== undefined && value !== null && value !== '') {
-				queryParts.push(`${encodeURIComponent(key)}=${encodeURIComponent(value)}`);
-			}
-		}
-		const query = queryParts.join('&');
-		return request(`${userRoutes.items()}${query}`);
-	},
+	getItems: (params = {}) => request(`${userRoutes.items()}${toQuery(params)}`),
+
+	getLatestItems: (params = {}) => request(`${userRoutes.latest()}${toQuery(params)}`),
 
 	getItem: (itemId) => request(userRoutes.item(itemId)),
 
@@ -663,8 +666,8 @@ export const api = {
 			method: 'DELETE'
 		}),
 
-	search: (query, limit = 240) =>
-		request(`${userRoutes.items()}searchTerm=${encodeURIComponent(query)}&Limit=${limit}&Recursive=true&IncludeItemTypes=Book,Movie,Series,Season,Episode,Video,MusicVideo,Trailer,Program,Playlist,MusicArtist,MusicAlbum,Audio,PhotoAlbum,Photo,BoxSet,Folder&Fields=PrimaryImageAspectRatio,ProductionYear,AlbumArtist,SeriesName,ParentIndexNumber,IndexNumber,ProviderIds,UserData,OfficialRating`),
+	search: (query, limit = 240, types = searchTypes(serverType)) =>
+		request(`${userRoutes.items()}searchTerm=${encodeURIComponent(query)}&Limit=${limit}&Recursive=true&IncludeItemTypes=${types}&Fields=PrimaryImageAspectRatio,ProductionYear,AlbumArtist,SeriesName,ParentIndexNumber,IndexNumber,ProviderIds,UserData,OfficialRating`),
 
 	searchPeople: (query, limit = 24) =>
 		request(`/Persons?searchTerm=${encodeURIComponent(query)}&Limit=${limit}&Fields=PrimaryImageAspectRatio`, {timeoutMs: PEOPLE_SEARCH_TIMEOUT_MS}),
@@ -1031,6 +1034,15 @@ export const api = {
 	checkWriteAccess: () =>
 		request('/Moonfin/Libraries/CheckWriteAccess'),
 
+	getRepositories: () => request('/Repositories'),
+
+	setRepositories: (repositories) => request('/Repositories', {method: 'POST', body: repositories}),
+
+	installPackage: (name, params) =>
+		request(`/Packages/Installed/${encodeURIComponent(name)}?${toQuery(params)}`, {method: 'POST'}),
+
+	restartServer: () => request('/System/Restart', {method: 'POST'}),
+
 	// The same shape createApiForServer answers with, so anything holding a per server cache can
 	// tell the two apart without knowing which kind it was handed.
 	getServerInfo: () => ({
@@ -1061,21 +1073,40 @@ const plexApiFor = (readUrl, readToken, readUserId) => withEveryMethod(createPle
 
 const plexMethods = plexApiFor(() => currentServer, () => accessToken, () => currentUser);
 
-let plexActive = false;
+const siloApiFor = (readUrl, readToken, readUserId) => withEverySiloMethod(createSiloApi({
+	getBaseUrl: readUrl,
+	getToken: readToken,
+	getUserId: readUserId,
+	getDeviceInfo,
+	platform: platformTag
+}), methodNames);
+
+const siloMethods = siloApiFor(() => currentServer, () => accessToken, () => currentUser);
+
+// The Silo apis built for other servers (and profiles), oldest first.
+const siloApis = new Map();
+const MAX_SILO_APIS = 8;
+
+// Silo rotates the account's tokens on every refresh. The signed-in session follows, so the api keeps finding it.
+onSiloTokensRotated((session, previousToken) => {
+	if (accessToken === previousToken && siloServerKey(currentServer) === session.server) accessToken = session.tokens.accessToken;
+});
+
+const METHODS_BY_TYPE = {plex: plexMethods, silo: siloMethods};
+let activeMethods = jellyfinMethods;
 
 // The api object everything imports stays the same object, with its methods swapped for the kind of server signed in.
 const applyServerType = () => {
-	const wantPlex = serverType === 'plex';
-	if (wantPlex) registerPlexServer(currentServer, accessToken);
-	if (wantPlex === plexActive) return;
-	plexActive = wantPlex;
-	// Plex adds methods Jellyfin doesn't have, and those have to go again.
-	if (!wantPlex) {
-		Object.keys(api).forEach((name) => {
-			if (!Object.prototype.hasOwnProperty.call(jellyfinMethods, name)) delete api[name];
-		});
-	}
-	Object.assign(api, wantPlex ? plexMethods : jellyfinMethods);
+	if (serverType === 'plex') registerPlexServer(currentServer, accessToken);
+	if (serverType === 'silo') registerSiloServer(currentServer);
+	const wanted = METHODS_BY_TYPE[serverType] || jellyfinMethods;
+	if (wanted === activeMethods) return;
+	activeMethods = wanted;
+	// Plex and Silo add methods Jellyfin doesn't have, and those have to go again.
+	Object.keys(api).forEach((name) => {
+		if (!Object.prototype.hasOwnProperty.call(wanted, name)) delete api[name];
+	});
+	Object.assign(api, wanted);
 };
 
 /**
@@ -1099,6 +1130,26 @@ export const createApiForServer = (serverUrl, token, userId, serverTypeOverride 
 	if (serverTypeOverride === 'plex' || isPlexServer(url)) {
 		registerPlexServer(url, token);
 		return plexApiFor(() => url, () => token, () => userId);
+	}
+
+	// The token may have rotated since it was saved, and the session it belonged to still knows it. One api per server,
+	// login and profile, since it holds the playback sessions it started: a stop or progress report for another
+	// server's title has to reach the one that started it.
+	if (serverTypeOverride === 'silo') {
+		registerSiloServer(url);
+		// Keyed by the account, not the token, which Silo rotates on every refresh. The account found now is kept, since its
+		// session only remembers a handful of the tokens it replaced.
+		const accountId = siloSessionFor(url, token)?.accountId;
+		const key = `${url}|${accountId ? `account:${accountId}` : token}|${userId}`;
+		let silo = siloApis.get(key);
+		if (!silo) {
+			// The account's session as it is now: a sign-in again after the last one ended opens a new one.
+			const session = () => (accountId ? siloSessionOfAccount(url, accountId) : siloSessionFor(url, token));
+			silo = siloApiFor(() => url, () => session()?.tokens?.accessToken || token, () => userId);
+			siloApis.set(key, silo);
+			if (siloApis.size > MAX_SILO_APIS) siloApis.delete(siloApis.keys().next().value);
+		}
+		return silo;
 	}
 
 	const getServerAuthHeader = () => buildAuthHeader(serverTypeOverride, token);
@@ -1244,8 +1295,8 @@ export const createApiForServer = (serverUrl, token, userId, serverTypeOverride 
 		getRandomItem: (includeTypes = 'Movie,Series') =>
 			serverRequest(`${serverUserRoutes.items()}IncludeItemTypes=${includeTypes}&Recursive=true&SortBy=Random&Limit=1&Fields=PrimaryImageAspectRatio,Overview&ExcludeItemTypes=BoxSet`),
 
-		search: (query, limit = 240) =>
-			serverRequest(`${serverUserRoutes.items()}SearchTerm=${encodeURIComponent(query)}&IncludeItemTypes=Book,Movie,Series,Season,Episode,Video,MusicVideo,Trailer,Program,Playlist,MusicArtist,MusicAlbum,Audio,PhotoAlbum,Photo,BoxSet,Folder&Recursive=true&Limit=${limit}&Fields=PrimaryImageAspectRatio,Overview,AlbumArtist,SeriesName,ParentIndexNumber,IndexNumber,ProviderIds,UserData,OfficialRating`),
+		search: (query, limit = 240, types = searchTypes(serverTypeOverride)) =>
+			serverRequest(`${serverUserRoutes.items()}SearchTerm=${encodeURIComponent(query)}&IncludeItemTypes=${types}&Recursive=true&Limit=${limit}&Fields=PrimaryImageAspectRatio,Overview,AlbumArtist,SeriesName,ParentIndexNumber,IndexNumber,ProviderIds,UserData,OfficialRating`),
 
 		searchPeople: (query, limit = 24) =>
 			serverRequest(`/Persons?searchTerm=${encodeURIComponent(query)}&Limit=${limit}&Fields=PrimaryImageAspectRatio`, {timeoutMs: PEOPLE_SEARCH_TIMEOUT_MS}),

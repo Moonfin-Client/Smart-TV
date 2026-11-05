@@ -1,6 +1,7 @@
 import $L from '@enact/i18n/$L';
 import * as seerrApi from '../services/seerrApi';
 import {fetchWithTimeout} from './fetchTimeout';
+import {moonbaseEndpoint} from '../services/moonbaseEndpoint';
 
 const DAYS = [
 	'Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'
@@ -72,28 +73,33 @@ const ensureSonarrCalendar = async () => {
 		return;
 	}
 
-	let servers = [];
-	try {
-		servers = await seerrApi.getSonarrSettings();
-	} catch (err) {
-		void err;
-		return;
-	}
-
-	const server = pickDefaultServer(servers);
-	if (!server || !server.apiKey) return;
-
-	const url = `${arrBaseUrl(server)}/api/v3/calendar?apikey=${encodeURIComponent(server.apiKey)}&start=${isoDate(0)}&end=${isoDate(90)}&includeSeries=true`;
-	let episodes = [];
-	try {
-		const res = await fetchWithTimeout(url, {}, 5000);
-		if (res.ok) {
-			const data = await res.json();
-			if (Array.isArray(data)) episodes = data;
+	// Through Moonbase first, which keeps the API key on the server. A plugin without the route falls
+	// back to asking Sonarr directly.
+	let episodes = (await seerrApi.getArrCalendar('Sonarr', {start: isoDate(0), end: isoDate(90)})).items;
+	if (!episodes) {
+		let servers = [];
+		try {
+			servers = await seerrApi.getSonarrSettings();
+		} catch (err) {
+			void err;
+			return;
 		}
-	} catch (err) {
-		void err;
-		return;
+
+		const server = pickDefaultServer(servers);
+		if (!server || !server.apiKey) return;
+
+		const url = `${arrBaseUrl(server)}/api/v3/calendar?apikey=${encodeURIComponent(server.apiKey)}&start=${isoDate(0)}&end=${isoDate(90)}&includeSeries=true`;
+		episodes = [];
+		try {
+			const res = await fetchWithTimeout(url, {}, 5000);
+			if (res.ok) {
+				const data = await res.json();
+				if (Array.isArray(data)) episodes = data;
+			}
+		} catch (err) {
+			void err;
+			return;
+		}
 	}
 
 	sonarrCalendarByTvdb.clear();
@@ -197,17 +203,13 @@ export const fetchUpcomingEpisode = async ({item, settings, serverUrl, serverTok
 
 		if (settings?.useMoonfinPlugin && serverUrl && serverToken) {
 			try {
-				const proxyUrl = `${serverUrl}/Moonfin/Tmdb/NextEpisode?tmdbId=${encodeURIComponent(tmdbId)}`;
-				const res = await fetchWithTimeout(
-					proxyUrl,
-					{
-						headers: {
-							Authorization: `MediaBrowser Token="${serverToken}"`
-						}
-					},
+				const endpoint = await moonbaseEndpoint(serverUrl, serverToken);
+				const res = endpoint && await fetchWithTimeout(
+					`${endpoint.base}/Moonfin/Tmdb/NextEpisode?tmdbId=${encodeURIComponent(tmdbId)}`,
+					{headers: endpoint.headers},
 					5000
 				);
-				if (res.ok) {
+				if (res?.ok) {
 					const data = await res.json();
 					if (data.success && data.airDate) {
 						const info = {

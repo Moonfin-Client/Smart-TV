@@ -5,7 +5,7 @@ jest.mock('../../components/MediaCard/MediaCard', () => ({
 
 import {defaultSettings} from '../../context/defaultSettings';
 
-import {rowPeekHeight} from './rowPeek';
+import {rowImageType, rowPeekHeight} from './rowPeek';
 
 const continueRow = {id: 'continue-nextup', type: 'landscape'};
 const latestRow = {id: 'latest-movies', isLatestRow: true, type: 'portrait'};
@@ -20,8 +20,8 @@ describe('rowPeekHeight', () => {
 	});
 
 	test('modern rows show the title and half of a poster at the chosen size', () => {
-		expect(peek({homeRowsStyle: 'v2'})).toBe(230);
-		expect(peek({homeRowsStyle: 'v2', homeRowsPosterSize: 'large'})).toBe(266);
+		expect(peek({homeRowsStyle: 'v2'})).toBe(150);
+		expect(peek({homeRowsStyle: 'v2', homeRowsPosterSize: 'large'})).toBe(170);
 	});
 
 	test('classic rows follow the shape of the first row', () => {
@@ -29,5 +29,20 @@ describe('rowPeekHeight', () => {
 		expect(peek({homeRowsStyle: 'v1'}, latestRow)).toBe(249);
 		expect(peek({homeRowsStyle: 'v1', homeRowImageTypes: {'latest-media': 'thumb'}}, latestRow)).toBe(177);
 		expect(peek({homeRowsStyle: 'v1', homeRowsPosterSize: 'small'}, {id: 'favoriteAlbums', type: 'square'})).toBe(165);
+	});
+});
+
+describe('rowImageType', () => {
+	const classic = {...defaultSettings, homeRowsStyle: 'v1', homeRowsImageType: 'poster'};
+
+	test('the merged Continue Watching row takes the Continue Watching override, then Next Up', () => {
+		expect(rowImageType(continueRow, {...classic, homeRowImageTypes: {resume: 'thumb'}})).toBe('thumb');
+		expect(rowImageType(continueRow, {...classic, homeRowImageTypes: {nextup: 'banner'}})).toBe('banner');
+		expect(rowImageType(continueRow, {...classic, homeRowImageTypes: {resume: 'thumb', nextup: 'banner'}})).toBe('thumb');
+		expect(rowImageType(continueRow, classic)).toBe('poster');
+	});
+
+	test('modern rows ignore the overrides', () => {
+		expect(rowImageType(continueRow, {...classic, homeRowsStyle: 'v2', homeRowImageTypes: {resume: 'thumb'}})).toBe('poster');
 	});
 });

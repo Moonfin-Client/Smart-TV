@@ -6,7 +6,7 @@ import Hls from 'hls.js';
 import * as playback from '../../services/playback';
 import {getImageUrl, getLogoUrl} from '../../utils/helpers';
 import {transcodesAudioCodec} from '../../utils/deviceProfileTuning';
-import {api as jellyfinApi, createApiForServer, getServerUrl} from '../../services/jellyfinApi';
+import {api as jellyfinApi, createApiForServer, getServerType, getServerUrl} from '../../services/jellyfinApi';
 import {getApiForItem} from '../../services/connectionPool';
 import {isVega} from '../../platform';
 import {isPlexUrl} from '../../utils/plexUrls';
@@ -61,12 +61,20 @@ import useLiveProgram from './useLiveProgram';
 import {isAtLive, liveWindowFor, nextLiveWindow} from './liveWindow';
 import useLiveRecording from './useLiveRecording';
 import useHeldSeekStep from './useHeldSeekStep';
+import {createServerSeek} from './serverSeek';
+import {copyBufferSeconds} from './copyBuffer';
+import {copyReaches} from './copySeek';
+import {bufferedAheadSeconds, createStarveWatch, CUSHION_MAX_MS, CUSHION_SECONDS} from '../../utils/syncStarve';
+import {loadStartLeadMs, nextStartLeadMs, saveStartLeadMs, startDelayMs as groupStartDelayMs, startGapMs, START_STALL_MS} from '../../utils/syncStartLead';
+import useSiloStreamRenewal from './useSiloStreamRenewal';
+import useStreamReconnect from './useStreamReconnect';
 import useMediaSession from './useMediaSession';
 import {hasTrickplayPreview} from '../../components/TrickplayPreview';
 import {isTrickplayOn} from '../../utils/trickplayLayout';
 import useChannelCarousel, {liveTvApiFor} from './useChannelCarousel';
 import ChannelCarousel from './ChannelCarousel';
 import NextUpOverlay from './NextUpOverlay';
+import useNextAirDate from './useNextAirDate';
 import SkipSegmentOverlay from './SkipSegmentOverlay';
 import StillWatchingDialog from './StillWatchingDialog';
 import useBufferingAnimation from './useBufferingAnimation';
@@ -75,10 +83,12 @@ import LiveFailedCard from './LiveFailedCard';
 import LoadingAnimationLayer from '../../components/LoadingAnimation';
 import useSleepTimer from './useSleepTimer';
 import useSyncPlayCommands from './useSyncPlayCommands';
+import playbackErrorMessage from './playbackErrorMessage';
 import useSegmentPopups, {isSkipPromptFocused} from './useSegmentPopups';
 import useChannelKeys from './useChannelKeys';
 import {isPreroll, nextInQueue, shouldAutoAdvance} from '../../utils/cinemaMode';
 import {driftMs, needsSeek, seekLanded, correctionOptions, DRIFT_CHECK_MS, GROUP_SEEK_SETTLE_TIMEOUT_MS} from '../../utils/syncDrift';
+import {createLoadBudget, CONVERGED_MS} from '../../utils/syncLoadBudget';
 import {createReadyGate} from '../../utils/syncReady';
 import {createSkipGovernor, chooseCorrection, STALL_DEBOUNCE_MS} from '../../utils/syncCorrection';
 import {syncLog} from '../../utils/syncLog';
@@ -100,8 +110,11 @@ import {
 import {getVideoDisplayAspectRatio, getZoomDisplayRect} from './aspectRatioUtils';
 import {describeVideoStream, readVideoSupport} from './videoDiagnostics';
 import useRemotePlayerControls from './useRemotePlayerControls';
+import {registerThemeSheet} from '../../theme/themeOverrides';
 
 import css from './WebOSPlayer.module.less';
+
+registerThemeSheet('player', css);
 
 const getWebOSFullscreenRect = () => {
 	if (typeof window === 'undefined') {
@@ -125,6 +138,27 @@ const getWebOSFullscreenRect = () => {
 // A burst of arrow presses on the seek bar becomes one group seek, since every
 // request puts the whole group through a round of buffering.
 const GROUP_SEEK_DEBOUNCE_MS = 600;
+// How long this set takes from play() to moving (utils/syncStartLead.js). It's the set's own, so it carries over
+// from one title to the next and across launches, and the first start of a title, the one everyone watches
+// together, begins early too.
+let learnedStartLeadMs = loadStartLeadMs();
+// How long a seek inside the stream this set already has takes to play, learned the same way: a Watch Party catch-up
+// there aims that far ahead, or every one lands short by it and the room corrects again ten seconds later.
+let learnedLocalSeekMs = 0;
+// With no lead yet, the start it's learned on runs late by it. A set that may pause the room pauses and resumes it
+// once, this long after, so the room starts over with the lead.
+const START_RESYNC_RESUME_MS = 1500;
+// A lead smaller than this isn't worth stopping everyone for.
+const START_RESYNC_MIN_LEAD_MS = 250;
+// A seek that hasn't played by then isn't going to, and stops holding the next one back.
+const SEEK_FLIGHT_TIMEOUT_MS = 15000;
+// A Watch Party room waits up to 10 s for its members before it starts anyway, so a room's seek waits a little past
+// that for its picture before reporting ready regardless.
+const ROOM_SEEK_SETTLE_TIMEOUT_MS = 12000;
+// Silo takes a member as ready within a second of the room's position. A set this close to it after a seek stays
+// where it is, since putting it exactly on the target is another seek, and on a stream Silo reloads for every seek
+// another load of seconds.
+const ROOM_READY_TOLERANCE_MS = 900;
 
 const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialSubtitleIndex, initialStartPositionTicks, initialQuality, forceTranscode, onEnded, onBack, onGuide, onPlayNext, onSelectPerson, audioPlaylist, videoQueue, liveTvChannels, onPausedChange, background, onBackground}) => {
 	const {settings, updateSetting} = useSettings();
@@ -192,6 +226,9 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 	const [remoteSubtitleError, setRemoteSubtitleError] = useState(null);
 	const [mediaSegments, setMediaSegments] = useState(null);
 	const [nextEpisode, setNextEpisode] = useState(null);
+	const nextAirDate = useNextAirDate({item, nextEpisode, settings});
+	// Up once an episode with nothing after it in the library has ended, over its last frame.
+	const [airDateCard, setAirDateCard] = useState(false);
 	const [isSeeking, setIsSeeking] = useState(false);
 	const [seekPosition, setSeekPosition] = useState(0);
 	const [mediaSourceId, setMediaSourceId] = useState(null);
@@ -240,11 +277,17 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 	const stalledRef = useRef(false);
 	// Whether the pipeline has drawn a frame of the current item yet.
 	const renderedRef = useRef(false);
+	// Whether the source set now has played, as opposed to the item.
+	const sourcePlayedRef = useRef(false);
+	// Where the playing stream starts in the title (a Silo remux opened mid-title counts from there), and whether its
+	// seeks go back to Silo. Positions and seeks in the player are title time; only the element's are the stream's.
+	const streamOffsetRef = useRef(0);
+	const seeksThroughServerRef = useRef(false);
 	const syncPlaySample = useCallback(() => {
 		const video = videoRef.current;
 		return {
 			isPlaying: Boolean(video && !video.paused) && !groupHoldRef.current,
-			positionTicks: video ? Math.floor(video.currentTime * 10000000) : 0
+			positionTicks: video ? Math.floor((video.currentTime + streamOffsetRef.current) * 10000000) : 0
 		};
 	}, []);
 	const readyGate = useMemo(() => createReadyGate({
@@ -255,6 +298,27 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 	// Corrective skips are attempts that have to land and render before the
 	// drift is measured again; see syncCorrection.js for the loop this stops.
 	const skipGovernorRef = useRef(createSkipGovernor());
+	// Watch Party seeks, which this set takes as loads (syncLoadBudget.js): even one inside the buffer rebuffers.
+	const loadBudgetRef = useRef(createLoadBudget());
+	// The seek this pipeline is still carrying out. A set reports the target as its position the moment a seek is
+	// asked for, can then land short of it on a keyframe, and drops a seek asked for before the last one has played,
+	// so a seek counts as done only once its position has moved steadily forward.
+	const seekInFlightRef = useRef(null);
+	// A group start being timed: when play() was called and from where (ms).
+	const startTimingRef = useRef(null);
+	const startResyncTimerRef = useRef(null);
+	useEffect(() => () => clearTimeout(startResyncTimerRef.current), []);
+	// A Watch Party stream arriving slower than it plays (utils/syncStarve.js), and the wait for it to build up.
+	const starveWatchRef = useRef(createStarveWatch());
+	const cushionRef = useRef(null);
+	const endCushion = useCallback((playOn) => {
+		const cushion = cushionRef.current;
+		if (!cushion) return;
+		clearInterval(cushion.timer);
+		cushionRef.current = null;
+		if (playOn) videoRef.current?.play()?.catch?.(() => {});
+	}, []);
+	useEffect(() => () => endCushion(false), [endCushion]);
 	// A pause the set is sitting out to let the group catch up.
 	const syncWaitTimerRef = useRef(null);
 	const cancelSyncWait = useCallback(() => {
@@ -263,6 +327,8 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 	}, []);
 	useEffect(() => {
 		skipGovernorRef.current.reset();
+		loadBudgetRef.current.reset();
+		seekInFlightRef.current = null;
 		renderedRef.current = false;
 		// Held for the group, the set waits paused for the server's Unpause:
 		// after a join, when the server is waiting on this set's Ready, or
@@ -281,6 +347,22 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 	const handlersRef = useRef({});
 	const positionRef = useRef(0);
 	const playSessionRef = useRef(null);
+	// A Silo Watch Party reports where this player is and which session it plays (siloWatchParty.js).
+	useEffect(() => syncPlayService.attachPlayer({
+		sample: syncPlaySample,
+		sessionId: () => playSessionRef.current,
+		// A player held paused never moves, which is what clears stalledRef, so paused it counts as playable once it has
+		// the data to start.
+		// Waiting for the stream to build up is a stall: no reports, and one that lasts pauses the room.
+		isBuffering: () => {
+			const video = videoRef.current;
+			if (!video || cushionRef.current) return true;
+			return video.paused ? video.readyState < 3 : stalledRef.current;
+		},
+		// Until a group seek has landed this set isn't ready for the room: webOS reports a seek's target as its
+		// position at once, which read as there and let the room start a second before it was.
+		seekPending: () => Boolean(groupSeekPendingRef.current || videoRef.current?.seeking)
+	}), [syncPlaySample]);
 	const runTimeRef = useRef(0);
 	const healthMonitorRef = useRef(null);
 	const unregisterAppStateRef = useRef(null);
@@ -1072,6 +1154,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 				liveRecovery?.tuned();
 				setVideoDisplayAspectRatio(getVideoDisplayAspectRatio(result.mediaSource));
 				playSessionRef.current = result.playSessionId;
+				if (isInGroup) syncPlayService.playerSessionOpened();
 
 				positionRef.current = startPosition;
 				lastSeekTargetRef.current = null;
@@ -1241,7 +1324,10 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 					if (queued) {
 						setNextEpisode(queued);
 					} else if (item.Type === 'Episode') {
-						playback.getNextEpisode(item).then(setNextEpisode);
+						// A queue that grew while this was asked (a server's shuffle) keeps its own order.
+						playback.getNextEpisode(item).then((next) => {
+							if (!nextInQueue(videoQueueRef.current, item)) setNextEpisode(next);
+						});
 					}
 				}
 
@@ -1253,7 +1339,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 				if (skipTo && onPlayNext) {
 					onPlayNext(skipTo);
 				} else {
-					setError(err.message || $L('Failed to load media'));
+					setError(playbackErrorMessage(err));
 				}
 			} finally {
 				if (!cancelled) setIsLoading(false);
@@ -1286,7 +1372,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 
 			// Its loop polls forever otherwise, and the next item starts its own.
 			disposeTextSource();
-			const videoTime = videoElement ? videoElement.currentTime : 0;
+			const videoTime = videoElement ? videoElement.currentTime + streamOffsetRef.current : 0;
 			const videoTicks = Math.floor(videoTime * 10000000);
 			const currentPos = videoTicks > 0 ? videoTicks : positionRef.current;
 
@@ -1388,7 +1474,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 		const at = video.currentTime;
 		// A pipeline that has not drawn yet may not report its position yet
 		// either, and a seek to a reading like that would move the set.
-		if (Math.abs(at * 10000000 - positionRef.current) > 10000000) return;
+		if (Math.abs((at + streamOffsetRef.current) * 10000000 - positionRef.current) > 10000000) return;
 		syncLog('[Player] no frame drawn yet, seeking in place at', at);
 		video.currentTime = at;
 	}, [playMethod]);
@@ -1418,6 +1504,58 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 		return live ? [live.start, live.edge] : [0, Math.max(0, duration - 1)];
 	}, [duration]);
 
+	// Silo replans the session at the position and the new stream opens there.
+	// Has Silo replan the session at a title position and opens the stream it gives. Rejects when it couldn't.
+	const reopenSiloAt = useCallback(async (ticks) => {
+		const result = await playback.reanchorAt(ticks);
+		if (!result?.url) throw new Error('Silo gave no stream to reopen');
+		pendingResumeTicksRef.current = ticks;
+		setMediaUrl(result.url);
+		// Silo can hand back the address the element already has; the source is set again all the same.
+		setSourceRevision((revision) => revision + 1);
+		if (result.playMethod) setPlayMethod(result.playMethod);
+		setIsHdrContent(isHdrOutput(result.mediaSource, result.playMethod === playback.PlayMethod.Transcode));
+		setMimeType(result.mimeType || 'video/mp4');
+	}, []);
+
+	const seekThroughServer = useMemo(() => createServerSeek(async (ticks) => {
+		try {
+			await reopenSiloAt(ticks);
+		} catch (err) {
+			console.error('[Player] Seek through the server failed:', err);
+		}
+	}), [reopenSiloAt]);
+
+	const reopenSiloStream = useCallback(() => seekThroughServer(positionRef.current), [seekThroughServer]);
+	useSiloStreamRenewal(isPaused, reopenSiloStream);
+
+	// A Silo stream that played and then lost its connection is reopened where it was (Core #2060). Silo's protocol has
+	// that be an unchanged replan, not a failure one, since the route was fine.
+	const {reconnect, reconnectingLabel} = useStreamReconnect({
+		itemId: item?.Id,
+		reopen: () => reopenSiloAt(positionRef.current),
+		onLost: () => setError($L('The connection to the server was lost.'))
+	});
+	const canReconnect = useCallback(() => !isLiveTV && renderedRef.current &&
+		(item?._serverType || getServerType()) === 'silo', [isLiveTV, item]);
+
+	// Whether a Silo copy reaches a title position itself: one the playlist already lists.
+	const copySeeksTo = useCallback((ticks) => {
+		if (!seeksThroughServerRef.current) return false;
+		const hls = hlsPlayerRef.current;
+		const details = hls?.levels?.[Math.max(0, hls.currentLevel)]?.details;
+		return copyReaches(details, ticks / 10000000 - streamOffsetRef.current);
+	}, []);
+
+	// Moves the stream to a title position, or has Silo reopen it there when the stream can't seek.
+	const seekVideo = useCallback((seconds) => {
+		if (seeksThroughServerRef.current && !copySeeksTo(Math.floor(seconds * 10000000))) {
+			seekThroughServer(Math.floor(seconds * 10000000));
+			return;
+		}
+		videoRef.current.currentTime = Math.max(0, seconds - streamOffsetRef.current);
+	}, [seekThroughServer, copySeeksTo]);
+
 	const seekByOffset = useCallback((deltaSec, updateSeekPosition) => {
 		if (isInGroup && !syncPlayCommandRef.current) {
 			// Presses accumulate on the pending target so a burst lands once.
@@ -1427,7 +1565,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 		}
 		const baseTime = (playMethod === 'Transcode')
 			? ((lastSeekTargetRef.current != null ? lastSeekTargetRef.current : positionRef.current) / 10000000)
-			: (videoRef.current ? videoRef.current.currentTime : 0);
+			: (videoRef.current ? videoRef.current.currentTime + streamOffsetRef.current : 0);
 		const [minSeek, maxSeek] = seekBounds();
 		const newTime = Math.max(minSeek, Math.min(maxSeek, baseTime + deltaSec));
 		const newTicks = Math.floor(newTime * 10000000);
@@ -1442,7 +1580,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 				// The last timeupdate is from before the seek, and a scrub's bar falls back to it.
 				setCurrentTime(newTime);
 				try {
-					videoRef.current.currentTime = newTime;
+					seekVideo(newTime);
 				} catch (e) {
 					console.warn('[Player] seekByOffset: failed to set currentTime:', e);
 				}
@@ -1452,27 +1590,30 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 			if (healthMonitorRef.current) healthMonitorRef.current.reset();
 			setCurrentTime(newTime);
 			try {
-				videoRef.current.currentTime = newTime;
+				seekVideo(newTime);
 			} catch (e) {
 				console.warn('[Player] seekByOffset: failed to set currentTime:', e);
 			}
 		}
-	}, [seekBounds, playMethod, isInGroup, groupSeekTo]);
+	}, [seekBounds, playMethod, isInGroup, groupSeekTo, seekVideo]);
 
 	const seekToTicks = useCallback((ticks) => {
 		// 1s before the end, or unclamped while the runtime is still unknown,
 		// which would otherwise send every seek to the start.
 		const maxTicks = runTimeRef.current > 10000000 ? runTimeRef.current - 10000000 : Infinity;
 		const clampedTicks = Math.max(0, Math.min(ticks, maxTicks));
+		const originTicks = positionRef.current;
 		positionRef.current = clampedTicks;
 		lastSeekTargetRef.current = null;
+		const local = !seeksThroughServerRef.current || copySeeksTo(clampedTicks);
+		seekInFlightRef.current = {targetTicks: clampedTicks, originTicks, local, issuedAt: Date.now(), fromTicks: null, lastTicks: null, catchUp: false};
 		// Same as seekByOffset, or committing a held scrub shows where it started.
 		setCurrentTime(clampedTicks / 10000000);
 		if (playMethod === 'Transcode') {
 			lastSeekTimeRef.current = Date.now();
 			if (healthMonitorRef.current) healthMonitorRef.current.reset();
 			try {
-				videoRef.current.currentTime = clampedTicks / 10000000;
+				seekVideo(clampedTicks / 10000000);
 			} catch (e) {
 				console.warn('[Player] seekToTicks: failed to set currentTime:', e);
 			}
@@ -1480,13 +1621,13 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 			lastSeekTimeRef.current = Date.now();
 			if (healthMonitorRef.current) healthMonitorRef.current.reset();
 			try {
-				videoRef.current.currentTime = clampedTicks / 10000000;
+				seekVideo(clampedTicks / 10000000);
 			} catch (e) {
 				console.warn('[Player] seekToTicks: failed to set currentTime:', e);
 			}
 		}
 		return clampedTicks;
-	}, [playMethod]);
+	}, [playMethod, seekVideo, copySeeksTo]);
 
 	// The commanded seek is over, whether the position arrived or the wait ran
 	// out. Either way the set reports Ready with where it really is: the server
@@ -1503,16 +1644,30 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 			// the server sends the seek again for anything over half a second
 			// off, which would go round forever. A paused seek puts it exactly
 			// on the target.
-			if (needsSeek(syncPlaySample().positionTicks, pending.target)) seekToTicks(pending.target);
+			const offMs = Math.abs(syncPlaySample().positionTicks - pending.target) / 10000;
+			const closeEnough = syncPlayService.isRoomDriven() && seeksThroughServerRef.current && !copySeeksTo(pending.target) &&
+				offMs <= ROOM_READY_TOLERANCE_MS;
+			if (!closeEnough && needsSeek(syncPlaySample().positionTicks, pending.target)) seekToTicks(pending.target);
 		}
 		if (isInGroup) readyGate.request();
-	}, [clearGroupSeekPending, seekToTicks, readyGate, isInGroup, syncPlaySample]);
+	}, [clearGroupSeekPending, seekToTicks, readyGate, isInGroup, syncPlaySample, copySeeksTo]);
+
+	// webOS puts its clock on a seek's target straight away, while the picture can take seconds more to arrive from
+	// that far into the file, so a Watch Party room's seek counts as landed only once the picture has moved past the
+	// target. Ready any sooner and the room starts without this set, which then chases it. It runs while it waits
+	// (the seek was started playing), so a paused seek is taken at its clock as before.
+	const awaitingPicture = useCallback((pending) => {
+		const video = videoRef.current;
+		const flight = seekInFlightRef.current;
+		return Boolean(syncPlayService.isRoomDriven() && pending.pauseOnLand && video && !video.paused &&
+			flight && !needsSeek(flight.targetTicks, pending.target));
+	}, []);
 
 	const settleGroupSeekIfLanded = useCallback(() => {
 		const pending = groupSeekPendingRef.current;
-		if (!pending || !videoRef.current || videoRef.current.seeking) return;
+		if (!pending || !videoRef.current || videoRef.current.seeking || awaitingPicture(pending)) return;
 		if (seekLanded(pending.from, pending.target, syncPlaySample().positionTicks)) settleGroupSeek();
-	}, [settleGroupSeek, syncPlaySample]);
+	}, [settleGroupSeek, syncPlaySample, awaitingPicture]);
 
 	const handleSeeked = useCallback(() => {
 		// libpgs keeps an ascending list of subtitle timestamps, so a seek back behind
@@ -1530,7 +1685,8 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 	// reports Ready, so the report waits for the seek to land. A Seek command
 	// leaves the set paused there for the Unpause that follows once everyone
 	// has arrived.
-	const startGroupSeek = useCallback((target, pauseOnLand, playToSeek = false) => {
+	// `catchUp` is a Watch Party correction this set chose to load for, which the load budget counts.
+	const startGroupSeek = useCallback((target, pauseOnLand, playToSeek = false, catchUp = false) => {
 		const video = videoRef.current;
 		if (!video) return;
 		const pending = groupSeekPendingRef.current;
@@ -1552,13 +1708,19 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 		// record before the pipeline is started for it. A seek lands sooner
 		// with the pipeline running: unpause, seek, pause once it is there.
 		groupSeekPendingRef.current = {from, target, pauseOnLand};
+		// How long a room's seek takes is how far a catch-up aims.
+		// A seek inside a copy's playlist loads nothing new, so it neither waits on the budget nor times the next load.
+		if (syncPlayService.isRoomDriven() && !copySeeksTo(target)) loadBudgetRef.current.onStart(Date.now(), catchUp);
 		if (playToSeek && video.paused) video.play()?.catch?.(() => {});
 		groupSeekPendingRef.current.target = seekToTicks(target);
+		// The seek is on record now; a catch-up's landing moves the next one's aim.
+		if (seekInFlightRef.current) seekInFlightRef.current.catchUp = catchUp;
+		const settleTimeoutMs = syncPlayService.isRoomDriven() ? ROOM_SEEK_SETTLE_TIMEOUT_MS : GROUP_SEEK_SETTLE_TIMEOUT_MS;
 		groupSeekSettleTimerRef.current = setTimeout(() => {
-			console.warn('[Player] Group seek did not land within', GROUP_SEEK_SETTLE_TIMEOUT_MS, 'ms, reporting as is');
+			console.warn('[Player] Group seek did not land within', settleTimeoutMs, 'ms, reporting as is');
 			settleGroupSeek();
-		}, GROUP_SEEK_SETTLE_TIMEOUT_MS);
-	}, [clearGroupSeekPending, seekToTicks, settleGroupSeek, readyGate, isInGroup, syncPlaySample]);
+		}, settleTimeoutMs);
+	}, [clearGroupSeekPending, seekToTicks, settleGroupSeek, readyGate, isInGroup, syncPlaySample, copySeeksTo]);
 
 	useEffect(() => {
 		const video = videoRef.current;
@@ -1579,8 +1741,14 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 
 		const setSourceAndPlay = () => {
 			console.log('[Player] Setting video source now');
+			sourcePlayedRef.current = false;
 
 			destroyHlsPlayer();
+
+			const streamSource = playback.getCurrentSession()?.mediaSource;
+			streamOffsetRef.current = (streamSource?.SiloTimelineOffsetTicks || 0) / 10000000;
+			seeksThroughServerRef.current = streamSource?.SiloSeeksThroughServer === true;
+			const streamResumeSec = () => Math.max(0, pendingResumeTicksRef.current / 10000000 - streamOffsetRef.current);
 
 			let srcUrl = mediaUrl;
 			const isHls = mimeType === 'application/x-mpegURL' || mediaUrl.includes('.m3u8');
@@ -1589,10 +1757,10 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 				// Where a seek made before the first frame shows never lands, the file is
 				// opened at its start and the resume waits for that frame.
 				video.addEventListener('loadeddata', () => {
-					if (video.src === mediaUrl && pendingResumeTicksRef.current > 0) video.currentTime = pendingResumeTicksRef.current / 10000000;
+					if (video.src === mediaUrl && pendingResumeTicksRef.current > 0) video.currentTime = streamResumeSec();
 				}, {once: true});
 			} else if (resumeTicks > 0) {
-				const resumeSec = resumeTicks / 10000000;
+				const resumeSec = streamResumeSec();
 				srcUrl = mediaUrl + '#t=' + resumeSec;
 				console.log('[Player] Appending media fragment #t=' + resumeSec + ' for resume (' + resumeTicks + ' ticks)');
 			}
@@ -1604,8 +1772,11 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 			// shortcut: a high bitrate Plex remux can still run the stick out of memory, give hls.js a shell loader if it does.
 			const nativeHlsOk = !forceHlsJsRef.current && !(isVega() && !isLiveTV && !isPlexUrl(mediaUrl))
 				&& !!(video.canPlayType('application/x-mpegURL').replace(/no/, ''));
-			const useHlsJs = isHls && !nativeHlsOk && Hls.isSupported();
-			console.log('[Player] Source type:', { isHls, mimeType, autoplay: video.autoplay, platformVersion: platformVersionRef.current, nativeHlsOk, useHlsJs, forceHlsJs: forceHlsJsRef.current });
+			// Silo's copy remux is a playlist that grows as it's copied. webOS's own player takes it for live, opens near its
+			// newest segments and can't seek it at all, so a start or resume lands half a minute late. hls.js honours a start.
+			const siloGrowingHls = isHls && !!streamSource?.SiloDelivery && seeksThroughServerRef.current;
+			const useHlsJs = isHls && (!nativeHlsOk || siloGrowingHls) && Hls.isSupported();
+			console.log('[Player] Source type:', { isHls, mimeType, autoplay: video.autoplay, platformVersion: platformVersionRef.current, nativeHlsOk, siloGrowingHls, useHlsJs, forceHlsJs: forceHlsJsRef.current });
 
 			while (video.firstChild) video.removeChild(video.firstChild);
 			video.removeAttribute('src');
@@ -1613,12 +1784,15 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 
 			if (useHlsJs) {
 				console.log('[Player] Using hls.js for HLS playback (platform version ' + platformVersionRef.current + ')');
+				// A 4K remux runs tens of megabits, so a Silo copy holds only what the TV's media buffer takes.
+				const copyBuffer = siloGrowingHls ? copyBufferSeconds(streamSource?.Bitrate) : null;
 				const hls = new Hls({
 					enableWorker: false,
 					lowLatencyMode: false,
-					maxBufferLength: isVega() ? 10 : 30,
-					maxMaxBufferLength: 60,
-					backBufferLength: isVega() ? 10 : Infinity,
+					maxBufferLength: isVega() ? 10 : (copyBuffer ? copyBuffer.ahead : 30),
+					maxMaxBufferLength: copyBuffer ? copyBuffer.ahead : 60,
+					backBufferLength: isVega() ? 10 : (copyBuffer ? copyBuffer.behind : Infinity),
+					...(siloGrowingHls ? {startPosition: resumeTicks > 0 ? streamResumeSec() : 0} : null),
 					startFragPrefetch: true,
 					maxBufferHole: 0.5,
 					nudgeMaxRetry: 5,
@@ -1702,7 +1876,8 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 
 				video.autoplay = false; // play() called from FRAG_BUFFERED instead
 				hls.attachMedia(video);
-				hls.loadSource(srcUrl);
+				// hls.js takes its start from startPosition, not a #t= in the address.
+				hls.loadSource(siloGrowingHls ? mediaUrl : srcUrl);
 			} else {
 				destroyHlsPlayer();
 				chooseHostReader(video, playback.getCurrentSession());
@@ -1725,7 +1900,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 					sourceTransitionRef.current = false;
 					transcodeRetryCountRef.current = 0;
 					if (pendingResumeTicksRef.current > 0) {
-						const seekSec = pendingResumeTicksRef.current / 10000000;
+						const seekSec = streamResumeSec();
 						if (video.currentTime < seekSec * 0.5) {
 							console.log('[Player] #t= fragment did not seek - using currentTime fallback:', seekSec, 's');
 							video.currentTime = seekSec;
@@ -1773,7 +1948,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 			playbackStartTimeoutRef.current = setTimeout(() => {
 				video.removeEventListener('timeupdate', onFirstTimeUpdate);
 				sourceTransitionRef.current = false;
-				const expectedStart = resumeTicks > 0 ? resumeTicks / 10000000 : 0;
+				const expectedStart = resumeTicks > 0 ? Math.max(0, resumeTicks / 10000000 - streamOffsetRef.current) : 0;
 				const noProgress = expectedStart > 0
 					? (video.currentTime < expectedStart * 0.5 && (video.readyState < 3 || video.paused))
 					: (video.currentTime === 0 && (video.readyState < 3 || video.paused));
@@ -1930,7 +2105,10 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 				setDecodedAspectRatio(width / height);
 			}
 
-			setDuration(videoRef.current.duration);
+			// A Silo copy's playlist only lists what Silo has produced so far, so its element's duration is that, not the
+			// title's: the scrub bar would end there. The title's runtime stands, and a seek past the playlist goes to Silo.
+			if (seeksThroughServerRef.current && runTimeRef.current > 0) setDuration(runTimeRef.current / 10000000);
+			else setDuration(videoRef.current.duration + streamOffsetRef.current);
 
 			// Whether the sound was decoded or passed on explains what the receiver shows
 			getHostAudioOutput().then((output) => {
@@ -1966,16 +2144,19 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 	}, [handleUnhealthy, holdForGroup]);
 
 	const handlePause = useCallback(() => {
+		reconnect.interrupted();
 		setIsPaused(true);
 		healthMonitorRef.current?.setPaused(true);
 		liveRecovery?.update({playing: false});
 		playback.reportProgress(positionRef.current, { isPaused: true, eventName: 'pause' });
-	}, [liveRecovery]);
+	}, [liveRecovery, reconnect]);
 
 	const handleTimeUpdate = useCallback(() => {
-		if (videoRef.current) {
-			const rawTime = videoRef.current.currentTime;
-			const time = rawTime;
+		// Until a stream that starts mid-title has loaded, the element still holds the last stream's time, and until a
+		// resume seek lands it reads the file's start, which would go to the server as the position.
+		if (pendingResumeTicksRef.current > 0) return;
+		if (videoRef.current && (videoRef.current.readyState > 0 || !streamOffsetRef.current)) {
+			const time = videoRef.current.currentTime + streamOffsetRef.current;
 			// Each update redraws the whole player, which is what makes an open picker or the episode
 			// panel drag on the weaker sets. A modal hides the OSD and the OSD only shows whole seconds,
 			// so the time only moves when it would show, and the first tick after a modal closes catches
@@ -1987,9 +2168,56 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 				setCurrentTime((shown) => (Math.floor(shown) === Math.floor(time) ? shown : time));
 			}
 			const ticks = Math.floor(time * 10000000);
+			const timing = startTimingRef.current;
+			if (timing) {
+				const nowMs = Date.now();
+				const took = groupStartDelayMs({...timing, positionMs: ticks / 10000, atMs: nowMs});
+				if (took != null) {
+					startTimingRef.current = null;
+					const firstLead = learnedStartLeadMs === 0;
+					learnedStartLeadMs = nextStartLeadMs(learnedStartLeadMs, took);
+					saveStartLeadMs(learnedStartLeadMs);
+					syncLog('[Player] SyncPlay start moved', took, 'ms after play(); next start leads by', learnedStartLeadMs, 'ms');
+					// A guest the room doesn't let pause sends nothing here and is in step from the next start on.
+					if (firstLead && learnedStartLeadMs >= START_RESYNC_MIN_LEAD_MS && syncPlayService.isRoomDriven()) {
+						syncLog('[Player] Watch Party resyncing the start with the lead just learned');
+						syncPlayService.sendPauseRequest();
+						clearTimeout(startResyncTimerRef.current);
+						startResyncTimerRef.current = setTimeout(() => syncPlayService.sendPlayRequest(), START_RESYNC_RESUME_MS);
+					}
+				} else if (nowMs - timing.calledAtMs > START_STALL_MS) {
+					startTimingRef.current = null;
+				}
+			}
+			const flight = seekInFlightRef.current;
+			if (flight) {
+				// Moving forward counts from the last time it stood still or jumped back, and only once it has reached the
+				// target: a seek Silo serves by reloading the stream leaves the old one playing until the new one arrives,
+				// and timed on that, a load of seconds read as tens of milliseconds and a catch-up never aimed far enough.
+				const {seeking, paused} = videoRef.current;
+				const landed = seekLanded(flight.originTicks, flight.targetTicks, ticks);
+				if (!landed || seeking || paused || stalledRef.current || flight.lastTicks == null || ticks <= flight.lastTicks) flight.fromTicks = ticks;
+				flight.lastTicks = ticks;
+				const movedMs = (ticks - flight.fromTicks) / 10000;
+				if (movedMs > 250) {
+					seekInFlightRef.current = null;
+					const expected = syncPlayService.getExpectedPositionTicks();
+					const missedMs = flight.catchUp && expected != null ? Math.round((ticks - expected) / 10000) : null;
+					// It started playing about as long ago as it has played since.
+					loadBudgetRef.current.onPlaying(Date.now() - movedMs, missedMs);
+					if (flight.local && seeksThroughServerRef.current) {
+						learnedLocalSeekMs = nextStartLeadMs(learnedLocalSeekMs, Date.now() - movedMs - flight.issuedAt);
+					}
+					syncLog('[Player] seek to', flight.targetTicks / 10000000, 's playing at', time, 's after', Math.round(Date.now() - movedMs - flight.issuedAt), 'ms', missedMs != null ? `, ${missedMs} ms from the room` : '');
+				} else if (Date.now() - flight.issuedAt > SEEK_FLIGHT_TIMEOUT_MS) {
+					seekInFlightRef.current = null;
+					syncLog('[Player] seek to', flight.targetTicks / 10000000, 's never played, now at', time, 's');
+				}
+			}
 			if (ticks !== positionRef.current) {
 				stalledRef.current = false;
 				renderedRef.current = true;
+				sourcePlayedRef.current = true;
 			}
 			skipGovernorRef.current.observe({
 				nowMs: Date.now(),
@@ -2002,7 +2230,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 			const pending = groupSeekPendingRef.current;
 			if (!pending || seekLanded(pending.from, pending.target, ticks)) {
 				positionRef.current = ticks;
-				if (pending && !videoRef.current.seeking) settleGroupSeek();
+				if (pending && !videoRef.current.seeking && !awaitingPicture(pending)) settleGroupSeek();
 			}
 
 			// Canvas-mode ASS isn't auto-synced to the video, so drive its clock here.
@@ -2042,9 +2270,10 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 				setLiveWindow((prev) => nextLiveWindow(prev, next));
 			}
 		}
-	}, [checkSegments, subtitleTrackEvents, subtitleOffset, settleGroupSeek, isAudioMode, updateSecondary, updateCinemaSkip, cinemaSkipActive, isLiveTV]);
+	}, [checkSegments, subtitleTrackEvents, subtitleOffset, settleGroupSeek, awaitingPicture, isAudioMode, updateSecondary, updateCinemaSkip, cinemaSkipActive, isLiveTV]);
 
 	const handleWaiting = useCallback(() => {
+		reconnect.interrupted();
 		setIsBuffering(true);
 		stalledRef.current = true;
 		liveRecovery?.update({buffering: true});
@@ -2052,9 +2281,10 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 		if (healthMonitorRef.current && (Date.now() - lastSeekTimeRef.current > 15000)) {
 			healthMonitorRef.current.recordBuffer();
 		}
-	}, [liveRecovery]);
+	}, [liveRecovery, reconnect]);
 
 	const handlePlaying = useCallback(() => {
+		reconnect.playing();
 		markChannelPlaying();
 		setIsBuffering(false);
 		stalledRef.current = false;
@@ -2071,7 +2301,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 		if (isInGroup && !groupHoldRef.current) {
 			skipGovernorRef.current.onStart({nowMs: Date.now(), fromMs: positionRef.current / 10000});
 		}
-	}, [holdForGroup, isInGroup, markChannelPlaying, liveRecovery]);
+	}, [holdForGroup, isInGroup, markChannelPlaying, liveRecovery, reconnect]);
 
 	const handleEnded = useCallback(async () => {
 		if (sourceTransitionRef.current) {
@@ -2094,6 +2324,13 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 			return;
 		}
 
+		// The library has nothing after this episode, so the card says when the next one airs.
+		if (nextAirDate && !audioPlaylist) {
+			hideControls();
+			setAirDateCard(true);
+			return;
+		}
+
 		isCleaningUpRef.current = true;
 		destroyHlsPlayer();
 		await cleanupVideoElement(videoRef.current);
@@ -2108,9 +2345,36 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 		} else {
 			onEnded?.();
 		}
-	}, [onEnded, onPlayNext, nextEpisode, audioPlaylist, repeatMode, restartCurrent, getNextStep, settings.autoPlay, item, liveRecovery, shouldHoldForStillWatching]);
+	}, [onEnded, onPlayNext, nextEpisode, nextAirDate, hideControls, audioPlaylist, repeatMode, restartCurrent, getNextStep, settings.autoPlay, item, liveRecovery, shouldHoldForStillWatching]);
+
+	// The episode has ended, so closing the card leaves the player.
+	const closeAirDateCard = useCallback(async () => {
+		setAirDateCard(false);
+		isCleaningUpRef.current = true;
+		destroyHlsPlayer();
+		await cleanupVideoElement(videoRef.current);
+		onEnded?.();
+	}, [onEnded]);
+
+	const airDateTimeout = settings.nextUpTimeout ?? 7;
+	useEffect(() => {
+		if (!airDateCard || airDateTimeout <= 0) return undefined;
+		const timer = setTimeout(closeAirDateCard, airDateTimeout * 1000);
+		return () => clearTimeout(timer);
+	}, [airDateCard, airDateTimeout, closeAirDateCard]);
 
 	const handleError = useCallback(async () => {
+		// A network failure, or a source Silo stopped serving (a token it no longer takes), after the stream had played.
+		// A decode error is the file's and goes on below. While a reconnect runs, its own attempts' failures are its to
+		// count.
+		// A source that never played (a track or quality the set can't play) is for the fallbacks below.
+		const code = videoRef.current?.error?.code;
+		if (!isPaused && canReconnect() &&
+			(reconnect.reconnecting || code === 2 || (code === 4 && sourcePlayedRef.current))) {
+			playbackStartTimedOutRef.current = false;
+			reconnect.lost(`error ${code || 'timeout'}`);
+			return;
+		}
 		const startFailure = playbackStartTimedOutRef.current && !isPaused;
 		// A channel that fails to open reads as paused too, so only the viewer's own pause holds a live error back.
 		const paused = isPaused || (!isLiveTV && videoRef.current?.paused);
@@ -2287,7 +2551,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 		} finally {
 			isHandlingErrorRef.current = false;
 		}
-	}, [hasTriedTranscode, playMethod, item, selectedQuality, settings.maxBitrate, settings.stereoUpmixEnabled, mediaSourceId, isPaused, isLiveTV, videoQueue, onPlayNext, liveRecovery]);
+	}, [hasTriedTranscode, playMethod, item, selectedQuality, settings.maxBitrate, settings.stereoUpmixEnabled, mediaSourceId, isPaused, isLiveTV, videoQueue, onPlayNext, liveRecovery, canReconnect, reconnect]);
 
 	useEffect(() => {
 		handlersRef.current = {
@@ -2306,7 +2570,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 	const teardownPlayback = useCallback(async () => {
 		cancelNextEpisodeCountdown();
 		const currentPos = videoRef.current
-			? Math.floor(videoRef.current.currentTime * 10000000)
+			? Math.floor((videoRef.current.currentTime + streamOffsetRef.current) * 10000000)
 			: positionRef.current;
 		await playback.reportStop(currentPos);
 
@@ -2432,8 +2696,8 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 			if (isPaused) {
 				const rewind = settings.unpauseRewind || 0;
 				if (rewind > 0) {
-					const newTime = Math.max(0, videoRef.current.currentTime - rewind);
-					videoRef.current.currentTime = newTime;
+					const newTime = Math.max(0, videoRef.current.currentTime + streamOffsetRef.current - rewind);
+					seekVideo(newTime);
 				}
 				videoRef.current.play();
 				healthMonitorRef.current?.setPaused(false);
@@ -2444,7 +2708,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 				liveRecovery?.setPaused(true);
 			}
 		}
-	}, [isPaused, settings.unpauseRewind, isInGroup, showControls, noteViewerActivity, resumeHeldScrub, liveRecovery]);
+	}, [isPaused, settings.unpauseRewind, isInGroup, showControls, noteViewerActivity, resumeHeldScrub, liveRecovery, seekVideo]);
 
 	// A pointer click on the picture plays or pauses and brings the controls up. Clicks on a control, an
 	// open picker or the still watching question bubble up here as well, so they only bring the controls up.
@@ -2580,7 +2844,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 	// the video, which needs a stream reload whenever one is picked or dropped
 	const reloadWithSubtitleIndex = useCallback(async (subIndex) => {
 		const currentPositionTicks = videoRef.current
-			? Math.floor(videoRef.current.currentTime * 10000000)
+			? Math.floor((videoRef.current.currentTime + streamOffsetRef.current) * 10000000)
 			: positionRef.current || 0;
 		const result = await playback.changeSubtitleStream(subIndex);
 		if (result?.url) {
@@ -2589,6 +2853,9 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 				pendingResumeTicksRef.current = currentPositionTicks;
 			}
 			setMediaUrl(result.url);
+			// Silo can hand back the address already playing; the source is set again all the same, or the resume
+			// pending above would hold the position still.
+			setSourceRevision((revision) => revision + 1);
 			if (result.playMethod) setPlayMethod(result.playMethod);
 			setIsHdrContent(isHdrOutput(result.mediaSource, result.playMethod === playback.PlayMethod.Transcode));
 			setMimeType(result.mimeType || 'video/mp4');
@@ -2733,7 +3000,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 				return;
 			}
 
-			const startTicks = Math.floor((videoRef.current?.currentTime || 0) * 10000000);
+			const startTicks = Math.floor(((videoRef.current?.currentTime || 0) + streamOffsetRef.current) * 10000000);
 			const info = await jellyfinApi.getPlaybackInfo(item.Id, {
 				StartTimeTicks: startTicks,
 				MediaSourceId: mediaSourceId,
@@ -2782,7 +3049,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 			}
 
 			const currentPositionTicks = videoRef.current
-				? Math.floor(videoRef.current.currentTime * 10000000)
+				? Math.floor((videoRef.current.currentTime + streamOffsetRef.current) * 10000000)
 				: positionRef.current || 0;
 
 			const result = await playback.changeAudioStream(index, currentPositionTicks);
@@ -2806,6 +3073,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 					};
 				}
 				setMediaUrl(newUrl);
+				setSourceRevision((revision) => revision + 1);
 				if (result.playMethod) setPlayMethod(result.playMethod);
 				setIsHdrContent(isHdrOutput(result.mediaSource, result.playMethod === playback.PlayMethod.Transcode));
 				setMimeType(result.mimeType || 'video/mp4');
@@ -2844,7 +3112,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 		// load sit out the webOS decoder release wait, about three seconds.
 		release: async () => {
 			cancelNextEpisodeCountdown();
-			await playback.reportStop(videoRef.current ? Math.floor(videoRef.current.currentTime * 10000000) : positionRef.current);
+			await playback.reportStop(videoRef.current ? Math.floor((videoRef.current.currentTime + streamOffsetRef.current) * 10000000) : positionRef.current);
 		},
 		seek: (ticks) => {
 			dropScrub();
@@ -3060,6 +3328,8 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 		syncLog('[Player] SyncPlay command', Command, 'at', PositionTicks != null ? PositionTicks / 10000000 : null, 's, delay', delay, 'ms, set at', positionRef.current / 10000000, 's', video.paused ? 'paused' : 'playing');
 		cancelGroupSeek();
 		cancelSyncWait();
+		// The room has moved on from the wait: its command says what to do now.
+		endCushion(false);
 		skipGovernorRef.current.cancel();
 		syncPlayCommandRef.current = true;
 		suppressBufferingUntilRef.current = Date.now() + syncPlayService.BUFFERING_SUPPRESS_MS;
@@ -3076,14 +3346,46 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 				let startTarget = null;
 				if (delay > 0) {
 					// On time: a seek costs a rebuffer the whole group then
-					// waits on, so a difference this small is left alone.
-					if (PositionTicks != null && needsSeek(positionRef.current, PositionTicks)) startTarget = PositionTicks;
+					// waits on, so a difference this small is left alone, and
+					// one this set's start time took up (leadMs below) needs none.
+					const timedIn = syncPlayService.isRoomDriven() && video.paused && startGapMs(positionRef.current, PositionTicks) != null;
+					if (PositionTicks != null && !timedIn && needsSeek(positionRef.current, PositionTicks)) startTarget = PositionTicks;
 				} else if (video.paused) {
 					// Late: start where the group has got to by now.
 					const target = syncPlayService.getAdjustedPosition(PositionTicks, When);
 					if (target != null && needsSeek(positionRef.current, target)) startTarget = target;
 				}
-				if (startTarget != null) startGroupSeek(startTarget, false);
+				// In a Watch Party a load lands late by its load time, and the room doesn't wait for it: aim ahead by
+				// what the last one took, and don't start another until the budget allows, or the set chases the
+				// room round and round.
+				let catchUp = false;
+				if (startTarget != null && syncPlayService.isRoomDriven() && !video.paused && starveWatchRef.current.isStarving(Date.now())) {
+					// Ahead is where the stream hasn't arrived yet: a seek there only stalls it again.
+					syncLog('[Player] Watch Party catch-up held: the stream is not keeping up');
+					startTarget = null;
+				} else if (startTarget != null && syncPlayService.isRoomDriven() && copySeeksTo(startTarget + learnedLocalSeekMs * 10000)) {
+					// Already in the copy's playlist: no load to wait on, only the seek's own time to aim past.
+					startTarget += learnedLocalSeekMs * 10000;
+					syncLog('[Player] Watch Party catch-up within the stream, no reload, aimed', learnedLocalSeekMs, 'ms ahead');
+				} else if (startTarget != null && syncPlayService.isRoomDriven()) {
+					const budget = loadBudgetRef.current;
+					if (seekInFlightRef.current) {
+						syncLog('[Player] Watch Party catch-up held: the last seek has not played yet');
+						startTarget = null;
+					} else if (!budget.allows(Date.now())) {
+						syncLog('[Player] Watch Party catch-up held: a load ran too recently');
+						startTarget = null;
+					} else {
+						catchUp = true;
+						startTarget += budget.leadMs() * 10000;
+						syncLog('[Player] Watch Party catch-up aimed', budget.leadMs(), 'ms ahead');
+					}
+				}
+				if (startTarget != null) startGroupSeek(startTarget, false, false, catchUp);
+				// In a Watch Party, a plain start from paused is timed for the next start's lead. One behind a seek also waits on its load.
+				startTimingRef.current = syncPlayService.isRoomDriven() && video.paused && startTarget == null && !groupSeekPendingRef.current
+					? {calledAtMs: Date.now(), fromMs: positionRef.current / 10000}
+					: null;
 				// Already playing: the server answers any Ready it gets while
 				// playing with the last sync point unchanged. That confirms
 				// where the group is; seeking on it restarts the stream for
@@ -3102,8 +3404,15 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 				groupHoldRef.current = false;
 				video.pause();
 				syncPlayService.clearSyncReference();
-				if (PositionTicks != null && needsSeek(positionRef.current, PositionTicks)) startGroupSeek(PositionTicks, true);
-				else showFrameIfNone();
+				if (PositionTicks != null && needsSeek(positionRef.current, PositionTicks)) {
+					// webOS moves its clock for a seek made paused but loads nothing until it plays, and on a stream
+					// Silo reloads for every seek the picture then carries on from where it really was. So in a
+					// Watch Party that seek runs playing, and pauses once the picture has moved there.
+					const reloads = syncPlayService.isRoomDriven() && seeksThroughServerRef.current && !copySeeksTo(PositionTicks);
+					startGroupSeek(PositionTicks, true, reloads);
+				} else {
+					showFrameIfNone();
+				}
 				break;
 			}
 			case 'Seek': {
@@ -3121,13 +3430,20 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 		}
 
 		syncPlayCommandRef.current = false;
-	}, [cancelGroupSeek, cancelSyncWait, startGroupSeek, showFrameIfNone]);
+	}, [cancelGroupSeek, cancelSyncWait, startGroupSeek, showFrameIfNone, copySeeksTo, endCushion]);
 
 	useSyncPlayCommands({
 		lastCommand,
 		isReady: () => !!videoRef.current,
 		execute: executeSyncPlayCommand,
-		onStop: handleBack
+		onStop: handleBack,
+		// In a Watch Party, a start from paused runs early by the time this set takes to get moving, plus how far it sits
+		// behind the start's position (or later when it's ahead), so it plays in step with the group. The group's
+		// timeline still counts from the command's time.
+		leadMs: (command) => {
+			if (!syncPlayService.isRoomDriven() || command.Command !== 'Unpause' || !videoRef.current?.paused || groupSeekPendingRef.current) return 0;
+			return learnedStartLeadMs + (startGapMs(positionRef.current, command.PositionTicks) || 0);
+		}
 	});
 
 	// Commands alone cant hold this in step, because the decoder loses a little
@@ -3142,6 +3458,13 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 			if (!video || syncPlayCommandRef.current || groupSeekPendingRef.current) return;
 			const expected = syncPlayService.getExpectedPositionTicks(correction.extraOffsetMs);
 			const drift = driftMs(positionRef.current, expected);
+			if (syncPlayService.isRoomDriven()) {
+				// A Watch Party corrects this set itself, through the load budget; a second corrector skipping on
+				// its own piles seeks onto a pipeline still carrying out the last one.
+				if (drift != null && Math.abs(drift) <= CONVERGED_MS) loadBudgetRef.current.onConverged();
+				else if (drift != null) syncLog('[Player] Watch Party drift', drift, 'ms');
+				return;
+			}
 			const nowMs = Date.now();
 			const positionMs = positionRef.current / 10000;
 			const verdict = skipGovernorRef.current.evaluate({
@@ -3211,7 +3534,30 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 			}, delayMs);
 		};
 
+		// Paused, it waits for the stream to build up, and plays on once it has or the wait runs out. A wait that
+		// outlasts the room's grace is reported, and the room pauses for it; its commands end the wait.
+		const startCushion = (v) => {
+			v.pause();
+			const since = Date.now();
+			cushionRef.current = {timer: setInterval(() => {
+				const ahead = bufferedAheadSeconds(v.buffered, v.currentTime);
+				if (ahead >= CUSHION_SECONDS || Date.now() - since >= CUSHION_MAX_MS) {
+					syncLog('[Player] Watch Party stream built up', Math.round(ahead * 10) / 10, 's, playing on');
+					endCushion(true);
+				}
+			}, 250)};
+			syncLog('[Player] Watch Party stream not keeping up: waiting for', CUSHION_SECONDS, 's of it');
+			syncPlayService.sendBufferingRequest(syncPlaySample);
+		};
+
 		const reportBuffering = () => {
+			const v = videoRef.current;
+			// Only a stall of its own, not one a seek of ours set off.
+			if (v && !v.paused && !cushionRef.current && syncPlayService.isRoomDriven() && seeksThroughServerRef.current &&
+				Date.now() >= suppressBufferingUntilRef.current && starveWatchRef.current.onStall(Date.now())) {
+				startCushion(v);
+				return;
+			}
 			const remaining = suppressBufferingUntilRef.current - Date.now();
 			// A 'waiting' inside the window came from our own seek. A genuine
 			// stall must still reach the server eventually, so re-check once
@@ -3236,13 +3582,21 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 			video.removeEventListener('playing', reportReady);
 			video.removeEventListener('canplay', reportReady);
 		};
-	}, [isInGroup, readyGate, syncPlaySample]);
+	}, [isInGroup, readyGate, syncPlaySample, endCushion]);
 
 	useEffect(() => {
 		const handleKeyDown = (e) => {
 			// Music playing behind the other screens leaves the remote to them, all but its media keys.
 			if (background && !isMediaKey(e)) return;
 			const key = e.key || e.keyCode;
+			// The air date card holds the remote, with OK on its close button and Back closing it.
+			if (airDateCard) {
+				if (key === 'Enter' || e.keyCode === 13) return;
+				e.preventDefault();
+				e.stopPropagation();
+				if (isBackKey(e) || key === 'GoBack') closeAirDateCard();
+				return;
+			}
 			// The channel carousel takes every key while it's up.
 			if (carouselOpenRef.current) return;
 			// The pointer timing out isn't the viewer asking for the controls. It's left alone rather than
@@ -3516,7 +3870,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 			)}
 
 
-			{!isLoading && (reconnecting || showBuffering) && <LoadingAnimationLayer label={reconnecting || $L('Loading Stream...')} />}
+			{!isLoading && (reconnecting || reconnectingLabel || showBuffering) && <LoadingAnimationLayer label={reconnecting || reconnectingLabel || $L('Loading Stream...')} />}
 
 			{!isLoading && !error && isPaused && settings.showDescriptionOnPause && item?.Overview && !isAudioMode && !activeModal && !controlsVisible && (
 				<div className={css.pauseDescriptionOverlay}>
@@ -3526,6 +3880,16 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 
 			{askStillWatching && (
 				<StillWatchingDialog onContinue={handleStillWatchingContinue} onStop={handleStillWatchingStop} />
+			)}
+
+			{airDateCard && nextAirDate && (
+				<NextEpisodeContainer spotlightRestrict="self-only">
+					<NextUpOverlay
+						airDate={nextAirDate}
+						minimal={settings.nextUpBehavior === 'minimal'}
+						onDismiss={closeAirDateCard}
+					/>
+				</NextEpisodeContainer>
 			)}
 
 			{!isLoading && !error && (showSkipCredits || showNextEpisode) && nextEpisode && !isAudioMode && !activeModal && !controlsVisible && (

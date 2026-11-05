@@ -14,9 +14,9 @@ import {
 	DEFAULT_ERROR_COLOR,
 	inkOn,
 	MIN_BUTTON_CONTRAST,
-	isValidHexColor,
 	radiusToCss,
 	relativeLuminance,
+	resolveFocusBorderColor,
 	shadowToCss,
 	toCssColor,
 	toCssColorWithAlpha,
@@ -62,15 +62,23 @@ import browseCss from '../views/Browse/Browse.module.less';
 import mediaCardCss from '../components/MediaCard/MediaCard.module.less';
 import modernCardCss from '../components/MediaCard/ModernMediaCard.module.less';
 import seerrBannerCss from '../components/seerr/SeerrStatusBanner.module.less';
+import seerrDotCss from '../components/seerr/SeerrStatusDot.module.less';
 import mediaRowCss from '../components/MediaRow/MediaRow.module.less';
 import modernRowCss from '../components/MediaRow/ModernMediaRow.module.less';
 import ratingsCss from '../components/RatingsRow/RatingsRow.module.less';
+import watchingNowRowCss from '../components/WatchingNowRow/WatchingNowRow.module.less';
 import itemMenuCss from '../components/ItemContextMenu/ItemContextMenu.module.less';
 import skeletonCss from '../components/Skeleton/Skeleton.module.less';
 import playlistSortFilterCss from '../components/PlaylistSortFilterBar/PlaylistSortFilterBar.module.less';
 import playbackInfoCss from '../views/Player/PlaybackInfoModal.module.less';
 
 const STYLE_ELEMENT_ID = 'moonfin-theme-overrides';
+
+// Screens that load on demand hand their stylesheets over when they load, since importing one
+// here would move it into the main stylesheet and change which of its rules win ties.
+const lazySheets = {};
+let lastApplied = null;
+let rebuildQueued = false;
 
 const hexAlpha = (hex) => Number.parseInt(hex.slice(1, 3), 16) / 255;
 
@@ -119,9 +127,7 @@ export const buildThemeOverrideCss = (theme, options = {}) => {
 	const statusRequested = toCssColor(theme.semantic.statusRequested);
 	const statusPending = toCssColor(theme.semantic.statusPending);
 
-	const focusColor = isValidHexColor(options.focusBorderColor)
-		? toCssColor(options.focusBorderColor)
-		: toCssColor(b.focusBorder.color);
+	const focusColor = resolveFocusBorderColor(theme, options.focusBorderColor);
 	const focusGlow = b.focusGlow.length ? b.focusGlow.map(shadowToCss).join(', ') : null;
 	const glowOr = (fallback) => focusGlow || fallback;
 	const textGlow = theme.textGlow.length ? theme.textGlow.map(shadowToCss).join(', ') : 'none';
@@ -308,6 +314,7 @@ export const buildThemeOverrideCss = (theme, options = {}) => {
 	rule(`.${settingsCss.listItem}:focus .${achievementsCss.boardValue}, .${settingsCss.listItem}:focus .${achievementsCss.rankGutter}, .${settingsCss.listItem}:focus .${achievementsCss.reward}`, `color: ${invertedStrong};`);
 	rule(`.${settingsCss.actionButton}`, `background: ${buttonNormal}; color: ${onButtonNormal}; border-color: ${tileBorderColor};`);
 	rule(`.${settingsCss.actionButton}:focus`, `background: ${buttonFocused}; border-color: ${focusColor}; color: ${buttonInk};`);
+	rule(`.${settingsCss.logFilter}:focus`, `border-color: ${focusColor};`);
 	rule(`.${settingsCss.dangerButton}:focus`, `background: ${recordingActive} !important; border-color: ${recordingActive} !important; color: #fff;`);
 	// The editors' buttons, Save filled and the rest as text, focus the way the rows do
 	rule(`.${settingsCss.settingsButton}`, `color: ${accent};`);
@@ -388,6 +395,7 @@ export const buildThemeOverrideCss = (theme, options = {}) => {
 	rule(`.${detailsCss.trackPlayed} svg`, `fill: ${accent};`);
 	rule(`.${detailsCss.actionBtn}`, `background: ${os(0.1)}; border-color: ${os(0.2)}; color: ${onBackground};`);
 	rule(`.${detailsCss.actionBtn}:hover, .${detailsCss.actionBtn}:focus`, `background: ${accentA(0.3)}; border-color: ${focusColor};`);
+	rule(`.${detailsCss.personActionBtn}:focus`, `border-color: ${focusColor};`);
 	rule(`.${detailsCss.toast}`, `background: ${surfaceA(0.9)}; color: ${onBackground}; border-color: ${os(0.12)};`);
 	rule(`.${detailsCss.trailerCloseBtn}`, `background: ${os(0.15)}; color: ${onBackground};`);
 
@@ -703,15 +711,22 @@ export const buildThemeOverrideCss = (theme, options = {}) => {
 		rule(`.${cardCss.favoriteBadge}`, `background: ${recordingActive}; border-color: ${onBadge};`);
 		rule(`.${cardCss.favoriteBadge} svg`, `fill: ${onBadge}; stroke: ${onBadge};`);
 		rule(`.${cardCss.serverBadge}`, `background: ${surface}; color: ${onSurface};`);
-		rule(`.${cardCss.seerr5}`, `background: ${onSurface}; border-color: ${statusAvailable};`);
-		rule(`.${cardCss.seerr4}`, `background: ${statusAvailable};`);
-		rule(`.${cardCss.seerr3}`, `border-color: ${statusRequested};`);
-		rule(`.${cardCss.seerr2}`, `background: ${onSurface}; border-color: ${statusPending};`);
 		rule(`.${cardCss.seerrMissing}`, `background: ${accent};`);
 		rule(`.${cardCss.seerrMissing} svg`, `fill: ${onBadge};`);
 		rule(`.${cardCss.seerrBanner}`, `border-width: ${b.cardBorder.width}px ${b.cardBorder.width}px 0; border-radius: ${b.cardRadius.topLeft}px ${b.cardRadius.topRight}px 0 0;`);
 		rule(`.${cardCss.card}:focus .${cardCss.seerrBanner}`, 'border-width: 4px 4px 0;');
 	}
+
+	rule(`.${mediaCardCss.seerr5}`, `background: ${onSurface}; border-color: ${statusAvailable};`);
+	rule(`.${mediaCardCss.seerr4}`, `background: ${statusAvailable};`);
+	rule(`.${mediaCardCss.seerr3}`, `border-color: ${statusRequested};`);
+	rule(`.${mediaCardCss.seerr2}`, `background: ${onSurface}; border-color: ${statusPending};`);
+	rule(`.${modernCardCss.focusRing}`, `border-color: ${focusColor};`);
+	rule(`.${seerrDotCss.dot}`, `background: ${onBadge}; border-color: ${onBadge};`);
+	rule(`.${seerrDotCss.available}`, `border-color: ${statusAvailable}; color: ${statusAvailable};`);
+	rule(`.${seerrDotCss.partial}`, `background: ${statusAvailable}; border-color: ${statusAvailable}; color: ${onBadge};`);
+	rule(`.${seerrDotCss.processing}`, `border-color: ${statusRequested}; color: ${statusRequested};`);
+	rule(`.${seerrDotCss.pending}`, `border-color: ${statusPending}; color: ${statusPending};`);
 
 	// The Seerr banner across a poster, with dark ink on a fill as light as Pending's yellow.
 	const bannerInk = (hex) => (relativeLuminance(hex) > 0.45 ? '#000000' : onBadge);
@@ -733,6 +748,8 @@ export const buildThemeOverrideCss = (theme, options = {}) => {
 	// Row shells
 	rule(`.${mediaRowCss.title}, .${modernRowCss.title}`, `color: ${onSurface}; text-shadow: ${textGlow};`);
 	rule(`.${mediaRowCss.subtitle}, .${modernRowCss.subtitle}`, `color: ${os(0.5)};`);
+	rule(`.${watchingNowRowCss.subtitle}`, `color: ${os(0.95)};`);
+	rule(`.${watchingNowRowCss.globeIcon}`, `color: ${onSurface};`);
 	rule(`.${mediaRowCss.seeAll}`, `background: ${os(0.08)}; color: ${os(0.7)};`);
 	rule(`.${mediaRowCss.seeAll}:focus`, `border-color: ${accent}; background: ${accentA(0.22)}; color: ${onSurface}; box-shadow: 0 0 14px 1px ${accentA(0.45)};`);
 	rule(`.${mediaRowCss.seeAllChevron}`, `color: ${accent};`);
@@ -742,6 +759,39 @@ export const buildThemeOverrideCss = (theme, options = {}) => {
 	rule(`.${ratingsCss.ratingItemPlain}`, `background: transparent;`);
 	rule(`.${ratingsCss.ratingValue}, .${ratingsCss.ratingName}, .${ratingsCss.ratingNameCompact}`, `color: ${onSurface};`);
 	rule(`.${ratingsCss.ratingValueCompact}`, `color: ${onBackground};`);
+
+	// Focus rings on the screens that load on demand
+	const {player, playerOverlays, episodeBrowser, genreBrowse, seerrDiscover, seerrBrowse, seerrPosterCard, calendar} = lazySheets;
+	const ring = (sheet, names, states) => names.flatMap((name) => states.map((state) => `.${sheet[name]}${state}`)).join(', ');
+	if (player) {
+		rule(ring(player, ['liveBtn', 'chapterItem'], [':hover', ':focus']), `border-color: ${focusColor};`);
+	}
+	if (playerOverlays) {
+		rule(ring(playerOverlays, ['offsetBtn', 'actionBtn', 'settingItem'], [':hover', ':focus']), `border-color: ${focusColor};`);
+		// Older engines drop a whole rule over one selector they can't read, so this stands alone
+		rule(`.${playerOverlays.sliderItem}:focus-within`, `border-color: ${focusColor};`);
+	}
+	if (episodeBrowser) {
+		rule(ring(episodeBrowser, ['episode'], [':hover', ':focus']), `border-color: ${focusColor};`);
+	}
+	if (genreBrowse) {
+		rule(ring(genreBrowse, ['filterButton', 'sortButton', 'letterButton'], [':focus']), `border-color: ${focusColor};`);
+	}
+	// Core draws every Seerr ring and focus border in its focus color.
+	if (seerrDiscover) {
+		rule(`.${seerrDiscover.tileRing}`, `border-color: ${focusColor};`);
+		rule(`.${seerrDiscover.pill}:focus`, `border-color: ${focusColor};`);
+	}
+	if (seerrBrowse) {
+		rule(ring(seerrBrowse, ['chip', 'letter', 'toolButton'], [':focus']), `box-shadow: inset 0 0 0 2px ${focusColor};`);
+	}
+	if (seerrPosterCard) {
+		rule(`.${seerrPosterCard.ring}`, `border-color: ${focusColor};`);
+	}
+	if (calendar) {
+		rule(`.${calendar.row}:focus::after, .${calendar.card}:focus::after, .${calendar.cell}:focus::after`, `border-color: ${focusColor};`);
+		rule(`.${calendar.button}:focus, .${calendar.tab}:focus`, `background: ${onSurface} !important; border-color: ${focusColor}; color: ${inkOn(c.onSurface) === '0, 0, 0' ? 'rgba(0, 0, 0, 0.87)' : '#fff'};`);
+	}
 
 	// Pixel themes square off every fixed radius.
 	if (theme.isPixel) {
@@ -769,6 +819,7 @@ export const buildThemeOverrideCss = (theme, options = {}) => {
 // Creates or refreshes the injected style element. Appending on every call also
 // moves it back to the end of the head.
 export const applyThemeOverrides = (theme, options) => {
+	lastApplied = [theme, options];
 	if (typeof document === 'undefined') return;
 	let element = document.getElementById(STYLE_ELEMENT_ID);
 	if (!element) {
@@ -777,4 +828,15 @@ export const applyThemeOverrides = (theme, options) => {
 	}
 	element.textContent = buildThemeOverrideCss(theme, options);
 	document.head.appendChild(element);
+};
+
+export const registerThemeSheet = (name, css) => {
+	lazySheets[name] = css;
+	if (!lastApplied || rebuildQueued) return;
+	rebuildQueued = true;
+	// A screen's modules load together, so their sheets go in with one rebuild
+	Promise.resolve().then(() => {
+		rebuildQueued = false;
+		applyThemeOverrides(...lastApplied);
+	});
 };

@@ -8,9 +8,19 @@ const EMBY_PATH = 'M327.065 642.186C281.668 596.326 244.327 558.818 244.085 558.
 // The chevron Plex marks itself with.
 const PLEX_PATH = 'M64 24H128L192 128L128 232H64L128 128Z';
 
-export const BRAND_NAMES = {jellyfin: 'Jellyfin', emby: 'Emby', plex: 'Plex'};
+// Silo's glyph: a silo whose bands show what's behind it.
+const SILO_PATH = 'M6 9A6 6 0 0 1 18 9V10.8H6ZM6 12.2H18V14.3H6ZM6 15.7H18V17.8H6ZM6 19.2H18V21H6Z';
+
+export const BRAND_NAMES = {jellyfin: 'Jellyfin', emby: 'Emby', plex: 'Plex', silo: 'Silo'};
 
 export const ServerTypeIcon = ({serverType, className}) => {
+	if (serverType === 'silo') {
+		return (
+			<svg className={className} viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+				<path d={SILO_PATH} />
+			</svg>
+		);
+	}
 	if (serverType === 'plex') {
 		return (
 			<svg className={className} viewBox="0 0 256 256" fill="currentColor" aria-hidden="true">

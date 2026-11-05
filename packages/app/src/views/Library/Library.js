@@ -268,7 +268,7 @@ const Library = ({library, genreFilter, studioFilter, onSelectItem, onViewPhoto,
 	const isBookLibrary = isBookLibraryType(library?.CollectionType);
 	const [restoredBookGrid] = useState(() => (bookGridReturn?.libraryId === library?.Id ? bookGridReturn : null));
 	// The music category screen that's open, from musicScreenFor.
-	const [musicScreen, setMusicScreen] = useState(() => (musicScreenReturn?.libraryId === library?.Id ? musicScreenReturn.screen : null));
+	const [musicScreen, setMusicScreen] = useState(() => (musicScreenReturn && musicScreenReturn.libraryId === library?.Id ? musicScreenReturn.screen : null));
 	// The book library screen that's open, from bookScreens, kept with its library so another one
 	// opens at its own root.
 	const [bookScreenOf, setBookScreenOf] = useState(() => (bookScreenReturn?.libraryId === library?.Id ? bookScreenReturn : null));

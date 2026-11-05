@@ -11,12 +11,14 @@ const MODERN_CARDS_TOP = 50;
 export const rowImageType = (row, settings) => {
 	const key = row.isLatestRow ? 'latest-media'
 		: row.isRecentlyReleasedRow ? 'recently-released' : row.id;
-	const override = settings.homeRowsStyle === 'v1' ? (settings.homeRowImageTypes || {})[key] : undefined;
+	const overrides = settings.homeRowsStyle === 'v1' ? (settings.homeRowImageTypes || {}) : {};
+	// Continue Watching merged with Next Up is set under the two rows it's made of, Continue Watching first.
+	const override = key === 'continue-nextup' ? (overrides.resume || overrides.nextup) : overrides[key];
 	return override || settings.homeRowsImageType;
 };
 
 // The shape a classic card asks for. Any artwork other than a poster draws wide.
-const classicShape = (cardType, imageType) => {
+export const classicShape = (cardType, imageType) => {
 	if (cardType === 'square' || cardType === 'circle') return 'square';
 	if (imageType === 'banner') return 'banner';
 	return cardType === 'landscape' || (imageType && imageType !== 'poster') ? 'landscape' : 'portrait';

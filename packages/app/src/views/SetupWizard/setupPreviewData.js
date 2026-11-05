@@ -36,6 +36,7 @@ const adaptItem = (item) => {
 	const posterId = getPrimaryImageId(item);
 	return {
 		title: item.Name || '',
+		type: item.Type || null,
 		year: item.ProductionYear || null,
 		officialRating: item.OfficialRating || null,
 		runtimeMinutes: ticksToMinutes(item.RunTimeTicks),

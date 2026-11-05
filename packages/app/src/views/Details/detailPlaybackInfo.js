@@ -29,8 +29,9 @@ export const fetchDetailPlaybackInfo = async (api, {
 	// Asked without a profile the server answers that it supports everything, so the line would
 	// read as direct play for every title on every set.
 	const deviceProfile = await getDeviceProfile(serverType, {}, api).catch(() => null);
-	// The cap playback itself asks with, the viewer's own when they set one and the set's otherwise.
-	const maxStreamingBitrate = maxBitrate > 0 ? maxBitrate : deviceProfile?.MaxStreamingBitrate;
+	// The cap playback itself asks with, the viewer's own when they set one and the set's otherwise. Silo
+	// gets only the viewer's own, as in playback.
+	const maxStreamingBitrate = maxBitrate > 0 ? maxBitrate : serverType === 'silo' ? null : deviceProfile?.MaxStreamingBitrate;
 
 	const body = {
 		EnableDirectPlay: true,
@@ -43,7 +44,8 @@ export const fetchDetailPlaybackInfo = async (api, {
 	if (audioStreamIndex != null) body.AudioStreamIndex = audioStreamIndex;
 	if (subtitleStreamIndex != null) body.SubtitleStreamIndex = subtitleStreamIndex;
 
-	const result = await api.getPlaybackInfo(itemId, body);
+	// Only Silo has previewPlaybackInfo, since its getPlaybackInfo opens a playback session.
+	const result = await (api.previewPlaybackInfo || api.getPlaybackInfo)(itemId, body);
 	const sources = result?.MediaSources || [];
 	const source = (mediaSourceId && sources.find((s) => s.Id === mediaSourceId)) || sources[0];
 	if (!source) return null;

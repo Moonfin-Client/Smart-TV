@@ -44,6 +44,14 @@ describe('preview navbar buttons', () => {
 		expect(withSettings({showFriendsButton: true}, {socialAvailable: true})).toContain('friends');
 	});
 
+	test('the Calendar button follows Seerr when the plugin offers the calendar', () => {
+		expect(ids({seerrEnabled: true})).not.toContain('calendar');
+		expect(ids({seerrEnabled: true, calendarAvailable: true, serverType: 'jellyfin'}).slice(5, 8)).toEqual(['syncplay', 'seerr', 'calendar']);
+		expect(ids({rail: true, seerrEnabled: true, calendarAvailable: true, serverType: 'jellyfin'}).slice(5, 8)).toEqual(['seerr', 'calendar', 'syncplay']);
+		expect(withSettings({showCalendarButton: false}, {calendarAvailable: true})).not.toContain('calendar');
+		expect(withSettings({kidsModeEnabled: true}, {calendarAvailable: true})).not.toContain('calendar');
+	});
+
 	test('Messages shows whenever its switch is on, messages or not', () => {
 		expect(ids()).not.toContain('messages');
 		expect(withSettings({showServerMessagesButton: true})).toContain('messages');

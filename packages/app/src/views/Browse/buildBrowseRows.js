@@ -9,6 +9,7 @@ import {withoutBlocked, withoutBlockedOrUnrated} from '../../utils/parentalFilte
 
 import {SERVER_TO_TV_ROW, TV_TO_SERVER_ROW} from '../../utils/homeLayout';
 import {FAVORITE_ROW_CONFIGS, isHiddenByMap, parseHiddenMap} from './browseFilters';
+import {ROW_MAX_ITEMS} from './rowPaging';
 import {isRowEnabledBySetting} from '../../utils/homeRowGates';
 
 // Titles are resolved on every build rather than stored, so a row that came out of the cache
@@ -28,7 +29,8 @@ const ROW_TITLES = {
 	resumeaudio: () => $L('Continue Listening'),
 	activerecordings: () => $L('Recordings'),
 	livetv: () => $L('Live TV'),
-	onnow: () => $L('On Now')
+	onnow: () => $L('On Now'),
+	mdblist_watching_now: () => $L('Watching on MDBList')
 };
 
 const libraryTitle = (library) => (library._serverName
@@ -126,7 +128,14 @@ const mergeContinueAndNextUp = (allRowData, hiddenCWMap, hiddenNUMap) => {
 	});
 
 	if (combinedItems.length === 0) return null;
-	return {id: 'continue-nextup', title: $L('Continue Watching & Next Up'), items: combinedItems, type: 'landscape'};
+	// Each row it's drawn from pages up to the cap, so the two together are held to it too.
+	return {
+		id: 'continue-nextup',
+		title: $L('Continue Watching & Next Up'),
+		items: combinedItems.slice(0, ROW_MAX_ITEMS),
+		type: 'landscape',
+		hasMore: combinedItems.length < ROW_MAX_ITEMS && Boolean(resumeRow?.hasMore || nextUpRow?.hasMore)
+	};
 };
 
 // The source label the other clients print under external row titles.
@@ -296,6 +305,16 @@ export const buildBrowseRows = ({allRowData, seerrRows, externalRows, homeRowsCo
 	return orderRows([...rows, ...placeholders.map(withSubtitles)], rowOrderMap);
 };
 
+const sameWatchingNowItem = (next, prev) =>
+	next?.Id === prev?.Id &&
+	next?.Name === prev?.Name &&
+	next?.Type === prev?.Type &&
+	next?.Rank === prev?.Rank &&
+	next?.Watchers === prev?.Watchers &&
+	next?._externalBackdropUrl === prev?._externalBackdropUrl &&
+	next?._externalPosterUrl === prev?._externalPosterUrl &&
+	next?._externalLogoUrl === prev?._externalLogoUrl;
+
 // Rebuilding produces a new array every time, which would reload every card on screen. Only
 // the parts a row is drawn from are compared, since nothing else can change its appearance.
 export const sameRowList = (prev, next) => {
@@ -306,6 +325,10 @@ export const sameRowList = (prev, next) => {
 		}
 		const nextItems = next[i].items;
 		const prevItems = prev[i].items;
+		if (next[i].isWatchingNowRow && next[i].subtitle !== prev[i].subtitle) return false;
+		if (next[i].isWatchingNowRow && nextItems.some((item, index) => !sameWatchingNowItem(item, prevItems[index]))) {
+			return false;
+		}
 		if (nextItems[0]?.Id !== prevItems[0]?.Id ||
 			nextItems[nextItems.length - 1]?.Id !== prevItems[prevItems.length - 1]?.Id) {
 			return false;

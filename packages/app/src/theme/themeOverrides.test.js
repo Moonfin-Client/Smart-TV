@@ -1,6 +1,6 @@
-import {buildThemeOverrideCss} from './themeOverrides';
+import {applyThemeOverrides, buildThemeOverrideCss, registerThemeSheet} from './themeOverrides';
 import {resolveThemeById} from './themeRegistry';
-import {contrastRatio, inkOn, toCssColor, MIN_BUTTON_CONTRAST} from './themeSpec';
+import {contrastRatio, inkOn, resolveFocusBorderColor, toCssColor, MIN_BUTTON_CONTRAST} from './themeSpec';
 
 describe('buildThemeOverrideCss', () => {
 	it('scopes every rule to the active theme id', () => {
@@ -77,6 +77,42 @@ describe('buildThemeOverrideCss', () => {
 		const theme = resolveThemeById('moonfin');
 		expect(buildThemeOverrideCss(theme, {focusBorderColor: '#ff0000'})).toContain('rgb(255, 0, 0)');
 		expect(buildThemeOverrideCss(theme, {focusBorderColor: 'nonsense'})).not.toContain('nonsense');
+	});
+
+	it('rings the Seerr screens in the focus border color, falling back to the theme\'s', async () => {
+		const theme = resolveThemeById('moonfin');
+		registerThemeSheet('seerrDiscover', {tileRing: 'tileRing', pill: 'pill'});
+		registerThemeSheet('seerrBrowse', {chip: 'chip', letter: 'letter', toolButton: 'toolButton'});
+		registerThemeSheet('seerrPosterCard', {ring: 'ring'});
+		const prefix = "html[data-theme-id='moonfin'][data-theme-id]";
+		const css = buildThemeOverrideCss(theme, {focusBorderColor: '#ff0000'});
+		expect(css).toContain(`${prefix} .tileRing { border-color: rgb(255, 0, 0); }`);
+		expect(css).toContain(`${prefix} .ring { border-color: rgb(255, 0, 0); }`);
+		expect(css).toContain(`${prefix} .chip:focus, ${prefix} .letter:focus, ${prefix} .toolButton:focus { box-shadow: inset 0 0 0 2px rgb(255, 0, 0); }`);
+		const themeColor = resolveFocusBorderColor(theme, '');
+		expect(buildThemeOverrideCss(theme, {focusBorderColor: ''})).toContain(`${prefix} .ring { border-color: ${themeColor}; }`);
+	});
+
+	it('rings the screens that load on demand once they hand their stylesheets over', async () => {
+		const theme = resolveThemeById('moonfin');
+		applyThemeOverrides(theme, {focusBorderColor: '#ff0000'});
+		expect(document.getElementById('moonfin-theme-overrides').textContent).not.toContain('chapterItem');
+		registerThemeSheet('player', {liveBtn: 'liveBtn', chapterItem: 'chapterItem'});
+		registerThemeSheet('playerOverlays', {offsetBtn: 'offsetBtn', actionBtn: 'actionBtn', settingItem: 'settingItem', sliderItem: 'sliderItem'});
+		await Promise.resolve();
+		const lines = document.getElementById('moonfin-theme-overrides').textContent.split('\n');
+		const prefix = "html[data-theme-id='moonfin'][data-theme-id]";
+		expect(lines).toContain(`${prefix} .liveBtn:hover, ${prefix} .liveBtn:focus, ${prefix} .chapterItem:hover, ${prefix} .chapterItem:focus { border-color: rgb(255, 0, 0); }`);
+		expect(lines).toContain(`${prefix} .sliderItem:focus-within { border-color: rgb(255, 0, 0); }`);
+	});
+});
+
+describe('resolveFocusBorderColor', () => {
+	it('falls back to the theme focus border for Theme Default and anything that isn\'t a hex color', () => {
+		const theme = resolveThemeById('moonfin');
+		expect(resolveFocusBorderColor(theme, '#ff0000')).toBe('rgb(255, 0, 0)');
+		expect(resolveFocusBorderColor(theme, '')).toBe('rgb(0, 164, 220)');
+		expect(resolveFocusBorderColor(theme, 'moonfinCyan')).toBe('rgb(0, 164, 220)');
 	});
 });
 

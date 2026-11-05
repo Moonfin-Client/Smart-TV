@@ -6,11 +6,12 @@ import {useAuth} from '../../context/AuthContext';
 import {useSettings} from '../../context/SettingsContext';
 import {useSeerr} from '../../context/SeerrContext';
 import {useSyncPlay} from '../../context/SyncPlayContext';
+import useWatchParty from '../../hooks/useWatchParty';
 import {useServerMessages} from '../../context/ServerMessagesContext';
 import {useAchievements} from '../../context/AchievementsContext';
 import SeerrIcon from '../icons/SeerrIcon';
 import SyncPlayIcon from '../icons/SyncPlayIcon';
-import {FavoritesIcon, FriendsIcon, GenresIcon, HomeIcon, LiveTvIcon, MessagesIcon, SearchIcon, SettingsIcon, ShuffleIcon, libraryNavIcon} from '../icons/navIcons';
+import {CalendarIcon, FavoritesIcon, FriendsIcon, GenresIcon, HomeIcon, LiveTvIcon, MessagesIcon, SearchIcon, SettingsIcon, ShuffleIcon, libraryNavIcon} from '../icons/navIcons';
 import useClock from '../../hooks/useClock';
 import {librariesForNav} from '../../utils/liveTvLibrary';
 import {isKidsMode} from '../../utils/kidsMode';
@@ -50,6 +51,7 @@ const NavBar = ({
 	onFavorites,
 	onLiveTv,
 	onDiscover,
+	onCalendar,
 	onSettings,
 	onSelectLibrary,
 	onUserMenu,
@@ -61,9 +63,12 @@ const NavBar = ({
 	hideForTrailer
 }) => {
 	const {settings, activeTheme} = useSettings();
-	const {isEnabled: seerrEnabled, displayName} = useSeerr();
+	const {isEnabled: seerrEnabled, displayName, pluginInfo} = useSeerr();
 	const {isInGroup} = useSyncPlay();
+	// On Silo the button opens its Watch Party instead.
+	const {room: watchPartyRoom} = useWatchParty();
 	const {serverType} = useAuth();
+	const onSilo = serverType === 'silo';
 	const {messages, unreadCount} = useServerMessages();
 	const {socialAvailable, badgeCount: friendsBadge} = useAchievements();
 	const [libraryMenuOpen, setLibraryMenuOpen] = useState(false);
@@ -78,7 +83,8 @@ const NavBar = ({
 	const kidsMode = isKidsMode(settings);
 	const showLiveTv = !kidsMode && settings.showLiveTvButton !== false && hasLiveTv;
 	const showSeerr = !kidsMode && seerrEnabled && settings.showSeerrButton !== false;
-	// Plex has no SyncPlay.
+	const showCalendar = !kidsMode && settings.showCalendarButton !== false && pluginInfo?.calendarAvailable === true;
+	// Plex has no SyncPlay; Silo's button opens its Watch Party.
 	const showSyncPlay = !kidsMode && serverType !== 'plex' && settings.syncplayEnabled !== false && settings.showSyncPlayButton !== false;
 	const navLibraries = librariesForNav(libraries, showLiveTv, {hideLiveTv: kidsMode});
 	const showLibraries = !kidsMode && settings.showLibrariesInToolbar !== false && navLibraries.length > 0;
@@ -109,6 +115,7 @@ const NavBar = ({
 	// Whatever sits immediately left of the libraries group, which depends on how
 	// many of the optional buttons are turned on.
 	const librariesLeftTargetId = useMemo(() => {
+		if (showCalendar) return 'navbar-calendar';
 		if (showSeerr) return 'navbar-discover';
 		if (showSyncPlay) return 'navbar-syncplay';
 		if (showLiveTv) return 'navbar-livetv';
@@ -116,7 +123,7 @@ const NavBar = ({
 		if (showGenres) return 'navbar-genres';
 		if (showShuffle) return 'navbar-shuffle';
 		return 'navbar-search';
-	}, [showSeerr, showSyncPlay, showLiveTv, showFavorites, showGenres, showShuffle]);
+	}, [showCalendar, showSeerr, showSyncPlay, showLiveTv, showFavorites, showGenres, showShuffle]);
 
 	const handlePillFocus = useCallback((e) => {
 		if (pointerHover()) return;
@@ -172,11 +179,15 @@ const NavBar = ({
 					)}
 
 					{showSyncPlay && (
-						<NavPillButton Icon={SyncPlayIcon} slot={nextSlot()} label={$L('SyncPlay')} onClick={onSyncPlay} spotlightId="navbar-syncplay" active={isInGroup} />
+						<NavPillButton Icon={SyncPlayIcon} slot={nextSlot()} label={onSilo ? $L('Watch Party') : $L('SyncPlay')} onClick={onSyncPlay} spotlightId="navbar-syncplay" active={onSilo ? Boolean(watchPartyRoom) : isInGroup} />
 					)}
 
 					{showSeerr && (
 						<NavPillButton Icon={SeerrIcon} slot={nextSlot()} label={displayName} onClick={onDiscover} spotlightId="navbar-discover" />
+					)}
+
+					{showCalendar && (
+						<NavPillButton Icon={CalendarIcon} slot={nextSlot()} label={$L('Calendar')} onClick={onCalendar} spotlightId="navbar-calendar" />
 					)}
 
 					{showLibraries && (settings.showLibrariesIndividually === true ? (

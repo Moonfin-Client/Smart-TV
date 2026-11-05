@@ -1,0 +1,79 @@
+@import '../../styles/mixins.less';
+
+// The card's width and the art's height follow the poster size and are set on the elements.
+.card {
+	box-sizing: border-box;
+	cursor: pointer;
+	outline: none;
+
+	&:focus {
+		z-index: 10;
+	}
+}
+
+// A focused poster grows from the bottom of its art when focus expansion is on.
+.art {
+	position: relative;
+	transform-origin: 50% 100%;
+	transition: transform 0.15s linear;
+
+	:global(.perf-low) &,
+	:global(.perf-mid) & {
+		transition: none;
+	}
+}
+
+.zoom:focus .art {
+	transform: scale(1.12);
+}
+
+.clip {
+	position: absolute;
+	top: 0;
+	left: 0;
+	right: 0;
+	bottom: 0;
+	border-radius: 13px;
+	overflow: hidden;
+	background: rgba(255, 255, 255, 0.05);
+	.seerr-type-badge();
+}
+
+.poster {
+	width: 100%;
+	height: 100%;
+	object-fit: cover;
+	display: block;
+}
+
+.clip .banner {
+	.seerr-banner();
+}
+
+.ring {
+	.seerr-focus-ring();
+	bottom: -8px;
+}
+
+.card:focus .ring {
+	display: block;
+}
+
+.title {
+	margin-top: 10px;
+	font-size: 22px;
+	font-weight: 700;
+	line-height: 29px;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.subtitle {
+	font-size: 20px;
+	line-height: 27px;
+	color: rgba(255, 255, 255, 0.6);
+	white-space: pre;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}

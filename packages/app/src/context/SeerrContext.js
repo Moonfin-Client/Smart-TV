@@ -14,7 +14,8 @@ const STREAM_RECONNECT_MAX_MS = 60000;
 export const SeerrProvider = ({children}) => {
 	const {settings, syncFromServer} = useSettings();
 	const pluginEnabled = settings.useMoonfinPlugin;
-	const {serverUrl: authServerUrl, accessToken: authAccessToken, serverType: authServerType} = useAuth();
+	const {serverUrl: authServerUrl, accessToken: authAccessToken, serverType: authServerType, user: authUser} = useAuth();
+	const authProfileId = authUser?.Id || null;
 	const [isEnabled, setIsEnabled] = useState(false);
 	const [isAuthenticated, setIsAuthenticated] = useState(false);
 	const [isLoading, setIsLoading] = useState(true);
@@ -274,6 +275,26 @@ export const SeerrProvider = ({children}) => {
 		);
 	}, [authAccessToken, authServerUrl, authServerType, isLoading, pluginEnabled, isEnabled, isMoonfin, configureWithMoonfin, stopSettingsStream]);
 
+	// Silo's requests answer for a profile, which a start up from the stored config can ask for before the
+	// signed in profile is back. The status is asked again once it is, and whenever the profile changes,
+	// since each profile has its own say over requests.
+	useEffect(() => {
+		if (authServerType !== 'silo' || !authProfileId || isLoading || !isEnabled || !isMoonfin) return undefined;
+		let stale = false;
+		seerrApi.getMoonfinStatus().then((status) => {
+			if (stale) return;
+			setIsAuthenticated(Boolean(status?.authenticated));
+			setUser(status?.authenticated ? {
+				displayName: status.displayName,
+				seerrUserId: status.seerrUserId,
+				permissions: status.permissions ?? 0xFFFFFFFF
+			} : null);
+		}).catch((e) => console.log('[Seerr] Silo requests status failed:', e.message));
+		return () => {
+			stale = true;
+		};
+	}, [authServerType, authProfileId, isLoading, isEnabled, isMoonfin]);
+
 	const loginWithMoonfin = useCallback(async (username, password, authType = 'jellyfin') => {
 		const normalizedAuthType = normalizeMoonfinAuthType(authType);
 		await seerrApi.moonfinLogin(username, password, normalizedAuthType);
@@ -366,7 +387,8 @@ export const SeerrProvider = ({children}) => {
 			isMoonfin,
 			variant,
 			displayName,
-			pluginInfo,
+			// A Plex server has no plugin, and the last one's answer would light up its features there.
+			pluginInfo: authServerType === 'plex' ? null : pluginInfo,
 			moonfinAuthType,
 			api: seerrApi,
 			configureWithMoonfin,
