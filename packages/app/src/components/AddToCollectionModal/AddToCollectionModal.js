@@ -4,6 +4,7 @@ import Spotlight from '@enact/spotlight';
 import SpotlightContainerDecorator from '@enact/spotlight/SpotlightContainerDecorator';
 import $L from '@enact/i18n/$L';
 import {isBackKey} from '../../utils/keys';
+import {useAuth} from '../../context/AuthContext';
 import {canonicalServerKey, notifyItemAddedToCollection} from '../../services/itemMembershipService';
 import SpottableInput from '../SpottableInput/SpottableInput';
 import {isTvKeyboardVisible} from '../TVKeyboard/keyboardBus';
@@ -23,6 +24,9 @@ const SpottableButton = Spottable('button');
 const COLLECTION_FETCH_LIMIT = 500;
 
 const AddToCollectionModal = ({open, itemId, item, api, serverUrl, userId, onClose, onSuccess}) => {
+	const auth = useAuth();
+	const effectiveServerUrl = serverUrl || item?._serverUrl || auth?.serverUrl;
+	const effectiveUserId = userId || item?._serverUserId || auth?.user?.Id;
 	const [collections, setCollections] = useState([]);
 	const [loading, setLoading] = useState(true);
 	const [creating, setCreating] = useState(false);
@@ -81,14 +85,17 @@ const AddToCollectionModal = ({open, itemId, item, api, serverUrl, userId, onClo
 		setAdding(true);
 		try {
 			await api.addToCollection(collectionId, [itemId]);
-			const serverKey = canonicalServerKey(item || {Id: itemId}, {serverUrl, userId});
+			const serverKey = canonicalServerKey(item || {Id: itemId}, {
+				serverUrl: effectiveServerUrl,
+				userId: effectiveUserId
+			});
 			notifyItemAddedToCollection(serverKey, collectionId, [itemId]);
 			onSuccess?.($L('Added to collection'));
 			onClose?.();
 		} catch { /* no-op */ } finally {
 			setAdding(false);
 		}
-	}, [api, itemId, item, serverUrl, userId, adding, onSuccess, onClose]);
+	}, [api, itemId, item, effectiveServerUrl, effectiveUserId, adding, onSuccess, onClose]);
 
 	const handleCollectionClick = useCallback((ev) => {
 		const collectionId = ev.currentTarget.dataset.collectionId;
@@ -106,14 +113,17 @@ const AddToCollectionModal = ({open, itemId, item, api, serverUrl, userId, onClo
 		setAdding(true);
 		try {
 			const created = await api.createCollection(name, [itemId]);
-			const serverKey = canonicalServerKey(item || {Id: itemId}, {serverUrl, userId});
+			const serverKey = canonicalServerKey(item || {Id: itemId}, {
+				serverUrl: effectiveServerUrl,
+				userId: effectiveUserId
+			});
 			notifyItemAddedToCollection(serverKey, created?.Id || name, [itemId]);
 			onSuccess?.($L('Created "{name}" and added item').replace('{name}', name));
 			onClose?.();
 		} catch { /* no-op */ } finally {
 			setAdding(false);
 		}
-	}, [api, itemId, item, serverUrl, userId, newName, adding, onSuccess, onClose]);
+	}, [api, itemId, item, effectiveServerUrl, effectiveUserId, newName, adding, onSuccess, onClose]);
 
 	const handleInputKeyDown = useCallback((ev) => {
 		if (ev.keyCode === 13) {

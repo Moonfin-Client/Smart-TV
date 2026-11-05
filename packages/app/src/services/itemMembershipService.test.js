@@ -118,5 +118,55 @@ describe('itemMembershipService', () => {
 		notifyItemRemovedFromCollection(serverKey, 'c1', 'm1');
 		expect(getCachedCollectionsContaining(item, ctx)).toEqual([]);
 	});
+
+	test('pages through playlist and collection items beyond the first page', async () => {
+		const playlistFirstPage = Array.from({length: 300}, (_, idx) => ({
+			Id: `pl-item-${idx}`,
+			PlaylistItemId: `entry-${idx}`
+		}));
+		const collectionFirstPage = Array.from({length: 500}, (_, idx) => ({
+			Id: `col-item-${idx}`
+		}));
+
+		const api = {
+			getPlaylists: jest.fn(async () => ({
+				Items: [{Id: 'pl-large', Name: 'Large Playlist'}]
+			})),
+			getPlaylistItems: jest.fn(async (_id, _limit, startIndex = 0) => ({
+				Items: startIndex === 0
+					? playlistFirstPage
+					: [{Id: 'm-late', PlaylistItemId: 'entry-301'}],
+				TotalRecordCount: 301
+			})),
+			getCollections: jest.fn(async () => ({
+				Items: [{Id: 'col-large', Name: 'Large Collection'}]
+			})),
+			getCollectionItems: jest.fn(async (_colId, _limit, _sortBy, _sortOrder, startIndex = 0) => ({
+				Items: startIndex === 0
+					? collectionFirstPage
+					: [{Id: 'm-late'}],
+				TotalRecordCount: 501
+			}))
+		};
+
+		const item = {Id: 'm-late', Type: 'Movie', Name: 'Late Entry'};
+		const ctx = {serverUrl: 'http://jf', userId: 'u1', canManageCollections: true};
+
+		const playlists = await getPlaylistsContaining(item, api, ctx);
+		expect(playlists).toEqual([
+			{playlistId: 'pl-large', playlistName: 'Large Playlist', entryId: 'entry-301'}
+		]);
+		expect(api.getPlaylistItems).toHaveBeenCalledTimes(2);
+		expect(api.getPlaylistItems).toHaveBeenNthCalledWith(1, 'pl-large', 300, 0);
+		expect(api.getPlaylistItems).toHaveBeenNthCalledWith(2, 'pl-large', 300, 300);
+
+		const collections = await getCollectionsContaining(item, api, ctx);
+		expect(collections).toEqual([
+			{collectionId: 'col-large', collectionName: 'Large Collection'}
+		]);
+		expect(api.getCollectionItems).toHaveBeenCalledTimes(2);
+		expect(api.getCollectionItems).toHaveBeenNthCalledWith(1, 'col-large', 500);
+		expect(api.getCollectionItems).toHaveBeenNthCalledWith(2, 'col-large', 500, null, 'Ascending', 500);
+	});
 });
 

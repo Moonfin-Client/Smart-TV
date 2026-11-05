@@ -764,8 +764,8 @@ export const api = {
 		request(`${userRoutes.items()}IncludeItemTypes=Movie,Series&Recursive=true&SortBy=DateCreated&SortOrder=Descending&Limit=${limit}&Fields=${encodeURIComponent(fields)}&ExcludeItemTypes=BoxSet`),
 
 	// With no sort the server hands back the arrangement the collection keeps
-	getCollectionItems: (collectionId, limit = 50, sortBy = null, sortOrder = 'Ascending') =>
-		request(`${userRoutes.items()}ParentId=${collectionId}&Limit=${limit}&Recursive=true&Fields=PrimaryImageAspectRatio,Overview,Genres,ProviderIds,RemoteTrailers,OfficialRating&HasBackdrop=true${sortBy ? `&SortBy=${encodeURIComponent(sortBy)}&SortOrder=${encodeURIComponent(sortOrder)}` : ''}`),
+	getCollectionItems: (collectionId, limit = 50, sortBy = null, sortOrder = 'Ascending', startIndex = 0) =>
+		request(`${userRoutes.items()}ParentId=${collectionId}&Limit=${limit}${startIndex > 0 ? `&StartIndex=${startIndex}` : ''}&Recursive=true&Fields=PrimaryImageAspectRatio,Overview,Genres,ProviderIds,RemoteTrailers,OfficialRating&HasBackdrop=true${sortBy ? `&SortBy=${encodeURIComponent(sortBy)}&SortOrder=${encodeURIComponent(sortOrder)}` : ''}`),
 
 	// Get all movies and series for genres page
 	getAllItems: (limit = 10000) =>
@@ -1276,6 +1276,9 @@ export const createApiForServer = (serverUrl, token, userId, serverTypeOverride 
 
 		getCollections: (limit = 50, sortBy = 'SortName', sortOrder = 'Ascending') =>
 			serverRequest(`${serverUserRoutes.items()}IncludeItemTypes=BoxSet&Recursive=true&SortBy=${encodeURIComponent(sortBy)}&SortOrder=${encodeURIComponent(sortOrder)}&Limit=${limit}&Fields=PrimaryImageAspectRatio,ProductionYear,OfficialRating`),
+
+		getCollectionItems: (collectionId, limit = 50, sortBy = null, sortOrder = 'Ascending', startIndex = 0) =>
+			serverRequest(`${serverUserRoutes.items()}ParentId=${collectionId}&Limit=${limit}${startIndex > 0 ? `&StartIndex=${startIndex}` : ''}&Recursive=true&Fields=PrimaryImageAspectRatio,Overview,Genres,ProviderIds,RemoteTrailers,OfficialRating&HasBackdrop=true${sortBy ? `&SortBy=${encodeURIComponent(sortBy)}&SortOrder=${encodeURIComponent(sortOrder)}` : ''}`),
 
 		getRandomItems: (contentType = 'both', limit = 10, parentId = null, genreName = null, fields = 'PrimaryImageAspectRatio,Overview,Genres,ProviderIds,OfficialRating') => {
 			let includeTypes;

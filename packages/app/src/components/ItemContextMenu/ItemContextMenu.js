@@ -10,12 +10,15 @@ import {getApiForItem} from '../../services/connectionPool';
 import {api as activeApi, getServerType} from '../../services/jellyfinApi';
 import {parseHiddenMap} from '../../views/Browse/browseFilters';
 import {
+	canonicalServerKey,
 	clearMembershipCache,
 	getCachedCollectionsContaining,
 	getCachedPlaylistsContaining,
 	getCollectionsContaining,
 	getPlaylistsContaining,
 	isExternalItem,
+	notifyItemRemovedFromCollection,
+	notifyItemRemovedFromPlaylist,
 	warmMembershipCache
 } from '../../services/itemMembershipService';
 import AddToCollectionModal from '../AddToCollectionModal';
@@ -268,7 +271,14 @@ export const ItemMenuProvider = ({children, onPlay, onOpenItem, backRef}) => {
 				break;
 			case 'removeFromPlaylist':
 				if (playlist?.canManage) {
-					playlist.remove(item);
+					const removed = await playlist.remove(item);
+					if (removed !== false) {
+						notifyItemRemovedFromPlaylist(
+							canonicalServerKey(item, {serverUrl, userId: user?.Id}),
+							playlist.playlistId,
+							item.Id
+						);
+					}
 				} else {
 					setDialog({kind: 'removePlaylistPicker', item, api, playlists: playlistMemberships || []});
 				}
@@ -302,7 +312,7 @@ export const ItemMenuProvider = ({children, onPlay, onOpenItem, backRef}) => {
 			default:
 				break;
 		}
-	}, [onPlay, onOpenItem, settings.hiddenContinueWatchingItems, settings.hiddenNextUpSeries, updateSetting, updateSettings, showToast]);
+	}, [onPlay, onOpenItem, settings.hiddenContinueWatchingItems, settings.hiddenNextUpSeries, updateSetting, updateSettings, serverUrl, user?.Id, showToast]);
 
 	const handleSelect = useCallback((ev) => {
 		const id = ev.currentTarget.dataset.action;
@@ -327,15 +337,23 @@ export const ItemMenuProvider = ({children, onPlay, onOpenItem, backRef}) => {
 		closeDialog();
 		try {
 			await collectionRemoval.remove(item);
+			notifyItemRemovedFromCollection(
+				canonicalServerKey(item, {serverUrl, userId: user?.Id}),
+				collectionRemoval.collectionId,
+				item.Id
+			);
 		} catch (err) {
 			showToast(`${$L('Failed to remove from collection')}: ${describeError(err)}`);
 		}
-	}, [dialog, closeDialog, showToast]);
+	}, [dialog, closeDialog, serverUrl, user?.Id, showToast]);
 
 	useEffect(() => {
 		if (!backRef) return undefined;
 		backRef.current = () => {
 			if (dialog?.kind === 'artwork' && artworkBackRef.current?.()) return true;
+			if (dialog?.kind === 'removeCollectionPicker' || dialog?.kind === 'removePlaylistPicker') {
+				return true;
+			}
 			if (dialog) {
 				closeDialog();
 				return true;
