@@ -28,20 +28,23 @@ describe('the webOS sound path', () => {
 		clearCapabilitiesCache();
 	});
 
-	afterEach(() => jest.restoreAllMocks());
-
 	test('one playback start asks the TV once', async () => {
-		await getDeviceCapabilities();
-		await getJellyfinDeviceProfile();
+		const start = {};
+		await getDeviceCapabilities(start);
+		await getJellyfinDeviceProfile(start);
 		expect(mockSoundReads).toHaveBeenCalledTimes(1);
 	});
 
-	test('the next start sees a receiver switched on since the last one', async () => {
-		expect((await getDeviceCapabilities()).externalAudioPathActive).toBe(false);
+	test('the next start sees a receiver switched on right after the last one', async () => {
+		expect((await getDeviceCapabilities({})).externalAudioPathActive).toBe(false);
 		mockSoundOutput = 'external_arc';
-		const later = Date.now() + 10000;
-		jest.spyOn(Date, 'now').mockReturnValue(later);
-		expect((await getDeviceCapabilities()).externalAudioPathActive).toBe(true);
+		expect((await getDeviceCapabilities({})).externalAudioPathActive).toBe(true);
+		expect(mockSoundReads).toHaveBeenCalledTimes(2);
+	});
+
+	test('a read outside a playback start always asks', async () => {
+		await getDeviceCapabilities();
+		await getDeviceCapabilities();
 		expect(mockSoundReads).toHaveBeenCalledTimes(2);
 	});
 });

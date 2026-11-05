@@ -70,11 +70,10 @@ const querySoundSettings = async () => {
 
 // A playback request builds capabilities and then the profile, each asking for the sound path, and a set whose
 // avoutput service is missing asks four times before it gives up: over a second before playback is even asked for.
-// The two asks in one start share the answer. The next start asks again, since the sound output can change
-// between them, and a stale receiver answer would send lossless audio to the TV speakers.
-const AUDIO_OUTPUT_REUSE_MS = 5000;
-let audioOutputQuery = null;
-let audioOutputSettledAt = 0;
+// Both reads get the request's options object, so they share one answer keyed by it. Any other read asks the TV
+// again, since the sound output can change between playbacks and a stale receiver answer would send lossless audio
+// to the TV speakers.
+const audioOutputQueries = new WeakMap();
 
 const queryAudioOutputPath = async () => {
 	for (let attempt = 0; attempt < 4; attempt++) {
@@ -90,23 +89,14 @@ const queryAudioOutputPath = async () => {
 	return {};
 };
 
-// The window runs from when the answer came in, since the ask itself can take over a second.
-const getAudioOutputStatus = () => {
-	const expired = audioOutputSettledAt && Date.now() - audioOutputSettledAt > AUDIO_OUTPUT_REUSE_MS;
-	if (!audioOutputQuery || expired) {
-		const query = queryAudioOutputPath();
-		const settled = () => {
-			if (audioOutputQuery === query) audioOutputSettledAt = Date.now();
-		};
-		audioOutputQuery = query;
-		audioOutputSettledAt = 0;
-		query.then(settled, settled);
-	}
-	return audioOutputQuery;
+const getAudioOutputStatus = (request) => {
+	if (!request || typeof request !== 'object') return queryAudioOutputPath();
+	if (!audioOutputQueries.has(request)) audioOutputQueries.set(request, queryAudioOutputPath());
+	return audioOutputQueries.get(request);
 };
 
-const applyAudioOutputPath = async (baseCaps) => {
-	const audioOutputStatus = await getAudioOutputStatus();
+const applyAudioOutputPath = async (baseCaps, request) => {
+	const audioOutputStatus = await getAudioOutputStatus(request);
 	const receiverPassthrough = isLosslessPassthroughOutput(audioOutputStatus);
 
 	const dts = receiverPassthrough
@@ -141,7 +131,6 @@ const applyPassthroughSettings = (caps, options = {}) => {
 
 export const clearCapabilitiesCache = () => {
 	cachedCapabilities = null;
-	audioOutputQuery = null;
 };
 
 const getDocumentedContainerSupport = (webosVersion) => {
@@ -248,8 +237,8 @@ export const getDtsContainerSupport = (webosVersion, rawEdidType = null) => {
 
 export const testAc3Support = () => true;
 
-export const getDeviceCapabilities = async () => {
-	if (cachedCapabilities) return applyAudioOutputPath(cachedCapabilities);
+export const getDeviceCapabilities = async (request) => {
+	if (cachedCapabilities) return applyAudioOutputPath(cachedCapabilities, request);
 
 	let deviceInfoData = {};
 	let configData = {};
@@ -374,7 +363,7 @@ export const getDeviceCapabilities = async () => {
 	};
 
 	console.log('[deviceProfile] Capabilities:', cachedCapabilities);
-	return applyAudioOutputPath(cachedCapabilities);
+	return applyAudioOutputPath(cachedCapabilities, request);
 };
 
 const buildVideoRangeTypes = (caps) => {
@@ -669,7 +658,7 @@ const buildDirectPlayProfiles = (caps) => {
 };
 
 export const getJellyfinDeviceProfile = async (options = {}) => {
-	const baseCaps = await getDeviceCapabilities();
+	const baseCaps = await getDeviceCapabilities(options);
 	const caps = applyPassthroughSettings(baseCaps, options);
 
 	const videoRangeTypes = buildVideoRangeTypes(caps);
