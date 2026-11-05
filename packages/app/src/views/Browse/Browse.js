@@ -61,6 +61,9 @@ const LOADING_ROW_TITLE_WIDTHS = skeletonTitleWidths(4, 24);
 
 let lastFocusState = null;
 
+// The Radarr and Sonarr rows, or the one they merge into, which keeps the Radarr id.
+const CALENDAR_ROW_IDS = ['radarr_calendar', 'sonarr_calendar'];
+
 const Browse = ({
 	onSelectItem,
 	onSelectLibrary,
@@ -72,6 +75,7 @@ const Browse = ({
 	onSelectSeerrStudio,
 	onSelectSeerrNetwork,
 	onOpenSeerrShortcut,
+	onOpenCalendarMonth,
 	isVisible = true,
 	onFocusItemThemeMusic,
 	onBlurItemThemeMusic,
@@ -623,6 +627,14 @@ const Browse = ({
 		}
 	}, [onSelectItem, onSelectLibrary, onOpenRecordings, onPlayRecording, onBlurItemThemeMusic, onLeaveThemeMusic, rememberFocus, mediaPreview]);
 
+	const handleCalendarSeeAll = useCallback(() => {
+		mediaPreview.stop('select');
+		onBlurItemThemeMusic?.();
+		onLeaveThemeMusic?.();
+		rememberFocus();
+		onOpenCalendarMonth?.(new Date());
+	}, [onOpenCalendarMonth, onBlurItemThemeMusic, onLeaveThemeMusic, rememberFocus, mediaPreview]);
+
 	const handleSelectGenreItem = useCallback((item) => {
 		mediaPreview.stop('select');
 		onBlurItemThemeMusic?.();
@@ -678,15 +690,17 @@ const Browse = ({
 	// handler that cant navigate. These always call the current one.
 	const latestSelectRef = useRef(null);
 	useLayoutEffect(() => {
-		latestSelectRef.current = {item: handleSelectItem, genre: handleSelectGenreItem, seerr: handleSelectSeerrItem, external: handleSelectExternalItem};
-	}, [handleSelectItem, handleSelectGenreItem, handleSelectSeerrItem, handleSelectExternalItem]);
+		latestSelectRef.current = {item: handleSelectItem, genre: handleSelectGenreItem, seerr: handleSelectSeerrItem, external: handleSelectExternalItem, calendar: handleCalendarSeeAll};
+	}, [handleSelectItem, handleSelectGenreItem, handleSelectSeerrItem, handleSelectExternalItem, handleCalendarSeeAll]);
 	const rowSelect = useMemo(() => ({
 		item: (picked, autoPlay) => latestSelectRef.current.item(picked, autoPlay),
 		cwPlay: (picked) => latestSelectRef.current.item(picked, true),
 		genre: (picked) => latestSelectRef.current.genre(picked),
 		seerr: (picked) => latestSelectRef.current.seerr(picked),
-		external: (picked) => latestSelectRef.current.external(picked)
+		external: (picked) => latestSelectRef.current.external(picked),
+		calendar: () => latestSelectRef.current.calendar()
 	}), []);
+	const calendarSeeAll = settings.calendarRowSeeAll !== false && pluginInfo?.calendarAvailable === true && Boolean(onOpenCalendarMonth);
 
 	const continueWatchingMenuOptions = useMemo(() => ({
 		isContinueWatchingOrNextUp: true,
@@ -1015,6 +1029,7 @@ const Browse = ({
 								ratingsSurface='homeRows'
 								hideOverview={settings.hideHomeMediaDescription === true}
 								onLoadMore={row.hasMore ? loadMoreRow : undefined}
+								onCalendarSeeAll={calendarSeeAll && CALENDAR_ROW_IDS.indexOf(row.id) >= 0 ? rowSelect.calendar : undefined}
 							/>
 						);
 					})}

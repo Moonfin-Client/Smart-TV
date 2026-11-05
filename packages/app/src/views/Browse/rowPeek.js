@@ -18,7 +18,7 @@ export const rowImageType = (row, settings) => {
 };
 
 // The shape a classic card asks for. Any artwork other than a poster draws wide.
-const classicShape = (cardType, imageType) => {
+export const classicShape = (cardType, imageType) => {
 	if (cardType === 'square' || cardType === 'circle') return 'square';
 	if (imageType === 'banner') return 'banner';
 	return cardType === 'landscape' || (imageType && imageType !== 'poster') ? 'landscape' : 'portrait';

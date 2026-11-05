@@ -73,6 +73,7 @@ import {isTrickplayOn} from '../../utils/trickplayLayout';
 import useChannelCarousel, {liveTvApiFor} from './useChannelCarousel';
 import ChannelCarousel from './ChannelCarousel';
 import NextUpOverlay from './NextUpOverlay';
+import useNextAirDate from './useNextAirDate';
 import SkipSegmentOverlay from './SkipSegmentOverlay';
 import StillWatchingDialog from './StillWatchingDialog';
 import useBufferingAnimation from './useBufferingAnimation';
@@ -224,6 +225,9 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 	const [remoteSubtitleError, setRemoteSubtitleError] = useState(null);
 	const [mediaSegments, setMediaSegments] = useState(null);
 	const [nextEpisode, setNextEpisode] = useState(null);
+	const nextAirDate = useNextAirDate({item, nextEpisode, settings});
+	// Up once an episode with nothing after it in the library has ended, over its last frame.
+	const [airDateCard, setAirDateCard] = useState(false);
 	const [isSeeking, setIsSeeking] = useState(false);
 	const [seekPosition, setSeekPosition] = useState(0);
 	const [mediaSourceId, setMediaSourceId] = useState(null);
@@ -2278,6 +2282,13 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 			return;
 		}
 
+		// The library has nothing after this episode, so the card says when the next one airs.
+		if (nextAirDate && !audioPlaylist) {
+			hideControls();
+			setAirDateCard(true);
+			return;
+		}
+
 		isCleaningUpRef.current = true;
 		destroyHlsPlayer();
 		await cleanupVideoElement(videoRef.current);
@@ -2292,7 +2303,23 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 		} else {
 			onEnded?.();
 		}
-	}, [onEnded, onPlayNext, nextEpisode, audioPlaylist, repeatMode, restartCurrent, getNextStep, settings.autoPlay, item, liveRecovery, shouldHoldForStillWatching]);
+	}, [onEnded, onPlayNext, nextEpisode, nextAirDate, hideControls, audioPlaylist, repeatMode, restartCurrent, getNextStep, settings.autoPlay, item, liveRecovery, shouldHoldForStillWatching]);
+
+	// The episode has ended, so closing the card leaves the player.
+	const closeAirDateCard = useCallback(async () => {
+		setAirDateCard(false);
+		isCleaningUpRef.current = true;
+		destroyHlsPlayer();
+		await cleanupVideoElement(videoRef.current);
+		onEnded?.();
+	}, [onEnded]);
+
+	const airDateTimeout = settings.nextUpTimeout ?? 7;
+	useEffect(() => {
+		if (!airDateCard || airDateTimeout <= 0) return undefined;
+		const timer = setTimeout(closeAirDateCard, airDateTimeout * 1000);
+		return () => clearTimeout(timer);
+	}, [airDateCard, airDateTimeout, closeAirDateCard]);
 
 	const handleError = useCallback(async () => {
 		// A network failure, or a source Silo stopped serving (a token it no longer takes), after the stream had played.
@@ -3517,6 +3544,14 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 			// Music playing behind the other screens leaves the remote to them, all but its media keys.
 			if (background && !isMediaKey(e)) return;
 			const key = e.key || e.keyCode;
+			// The air date card holds the remote, with OK on its close button and Back closing it.
+			if (airDateCard) {
+				if (key === 'Enter' || e.keyCode === 13) return;
+				e.preventDefault();
+				e.stopPropagation();
+				if (isBackKey(e) || key === 'GoBack') closeAirDateCard();
+				return;
+			}
 			// The channel carousel takes every key while it's up.
 			if (carouselOpenRef.current) return;
 			// The pointer timing out isn't the viewer asking for the controls. It's left alone rather than
@@ -3800,6 +3835,16 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 
 			{askStillWatching && (
 				<StillWatchingDialog onContinue={handleStillWatchingContinue} onStop={handleStillWatchingStop} />
+			)}
+
+			{airDateCard && nextAirDate && (
+				<NextEpisodeContainer spotlightRestrict="self-only">
+					<NextUpOverlay
+						airDate={nextAirDate}
+						minimal={settings.nextUpBehavior === 'minimal'}
+						onDismiss={closeAirDateCard}
+					/>
+				</NextEpisodeContainer>
 			)}
 
 			{!isLoading && !error && (showSkipCredits || showNextEpisode) && nextEpisode && !isAudioMode && !activeModal && !controlsVisible && (

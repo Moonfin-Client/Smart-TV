@@ -2,7 +2,7 @@ import $L from '@enact/i18n/$L';
 
 import SeerrIcon from '../../components/icons/SeerrIcon';
 import SyncPlayIcon from '../../components/icons/SyncPlayIcon';
-import {FavoritesIcon, FriendsIcon, GenresIcon, HomeIcon, LibrariesIcon, LiveTvIcon, MessagesIcon, SearchIcon, SettingsIcon, ShuffleIcon, libraryNavIcon} from '../../components/icons/navIcons';
+import {CalendarIcon, FavoritesIcon, FriendsIcon, GenresIcon, HomeIcon, LibrariesIcon, LiveTvIcon, MessagesIcon, SearchIcon, SettingsIcon, ShuffleIcon, libraryNavIcon} from '../../components/icons/navIcons';
 import {librariesForNav} from '../../utils/liveTvLibrary';
 import {isKidsMode} from '../../utils/kidsMode';
 
@@ -10,12 +10,13 @@ import {isKidsMode} from '../../utils/kidsMode';
 // sidebar's order, which puts Seerr ahead of SyncPlay. [libraries] is null while they aren't
 // known, and then one Libraries button stands in for them. Messages skips the real navbar's
 // check that the server has any, or its switch would seem to do nothing on a quiet server.
-export const previewNavButtons = ({settings, rail = false, hasLiveTv = false, seerrEnabled = false, seerrLabel = '', serverType = null, socialAvailable = false, libraries = null}) => {
+export const previewNavButtons = ({settings, rail = false, hasLiveTv = false, seerrEnabled = false, seerrLabel = '', calendarAvailable = false, serverType = null, socialAvailable = false, libraries = null}) => {
 	const kidsMode = isKidsMode(settings);
 	const showLiveTv = !kidsMode && settings.showLiveTvButton !== false && hasLiveTv;
 	const syncPlay = !kidsMode && serverType !== 'plex' && settings.syncplayEnabled !== false && settings.showSyncPlayButton !== false &&
 		{id: 'syncplay', label: $L('SyncPlay'), Icon: SyncPlayIcon};
 	const seerr = !kidsMode && seerrEnabled && settings.showSeerrButton !== false && {id: 'seerr', label: seerrLabel, Icon: SeerrIcon};
+	const calendar = !kidsMode && calendarAvailable && settings.showCalendarButton !== false && {id: 'calendar', label: $L('Calendar'), Icon: CalendarIcon};
 	const navLibraries = libraries ? librariesForNav(libraries, showLiveTv, {hideLiveTv: kidsMode}) : null;
 	let libraryButtons = [];
 	if (!kidsMode && settings.showLibrariesInToolbar !== false && (!navLibraries || navLibraries.length > 0)) {
@@ -30,7 +31,7 @@ export const previewNavButtons = ({settings, rail = false, hasLiveTv = false, se
 		settings.showGenresButton !== false && {id: 'genres', label: $L('Genres'), Icon: GenresIcon},
 		settings.showFavoritesButton !== false && {id: 'favorites', label: $L('Favorites'), Icon: FavoritesIcon},
 		showLiveTv && {id: 'livetv', label: $L('Live TV'), Icon: LiveTvIcon},
-		...(rail ? [seerr, syncPlay] : [syncPlay, seerr]),
+		...(rail ? [seerr, calendar, syncPlay] : [syncPlay, seerr, calendar]),
 		...libraryButtons,
 		settings.showServerMessagesButton === true && {id: 'messages', label: $L('Messages'), Icon: MessagesIcon},
 		!kidsMode && socialAvailable && settings.showFriendsButton === true && {id: 'friends', label: $L('Friends'), Icon: FriendsIcon},

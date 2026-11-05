@@ -324,6 +324,20 @@ describe('SYNCABLE_KEYS', () => {
 		expect(SYNCABLE_KEYS).toContain('mediaPreviewMode');
 		expect(SYNCABLE_KEYS).toContain('previewAudioEnabled');
 	});
+
+	test('syncs every calendar setting under its own name', () => {
+		const calendarKeys = [
+			'showCalendarButton', 'calendarStyle', 'calendarWeekStart', 'calendarScope', 'calendarShowEpisodes',
+			'calendarShowMovies', 'calendarLibraryIds', 'calendarIncludeUnmonitored', 'calendarShowSpecials',
+			'calendarShowBadges', 'calendarColorBy', 'calendarImageType', 'calendarSpoilerSafe', 'calendarSelectAction',
+			'calendarRequestButton', 'calendarReminders', 'calendarRowSeeAll', 'showNextAirDate'
+		];
+		const profile = localToProfile({...defaultSettings, calendarReminders: true}, calendarKeys);
+
+		expect(Object.keys(profile).sort()).toEqual([...calendarKeys].sort());
+		expect(profile.calendarLibraryIds).toEqual([]);
+		expect(profileToLocal({calendarStyle: 'countdown', calendarLibraryIds: ['a']})).toEqual({calendarStyle: 'countdown', calendarLibraryIds: ['a']});
+	});
 });
 
 describe('the home rows and media bar ratings settings', () => {

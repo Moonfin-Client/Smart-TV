@@ -366,7 +366,11 @@ const arrGet = async (url) => {
 	}
 };
 
+// Moonbase answers with the arr's own JSON and keeps the API key on the server. A plugin without
+// the route, or a server the arr isn't linked to, falls back to asking the arr directly.
 const radarrCalendar = async () => {
+	const proxied = await seerrApi.getArrCalendar('Radarr', {start: isoDate(0), end: isoDate(90), unmonitored: true});
+	if (proxied.items) return proxied.items;
 	let servers = [];
 	try {
 		servers = await seerrApi.getRadarrSettings();
@@ -435,6 +439,8 @@ const fetchRadarrItems = async (settings) => {
 };
 
 const sonarrCalendar = async () => {
+	const proxied = await seerrApi.getArrCalendar('Sonarr', {start: isoDate(0), end: isoDate(90)});
+	if (proxied.items) return proxied.items;
 	let servers = [];
 	try {
 		servers = await seerrApi.getSonarrSettings();

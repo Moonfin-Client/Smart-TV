@@ -31,6 +31,11 @@ jest.mock('../MediaCard/ModernMediaCard', () => {
 		React.createElement('div'));
 });
 
+jest.mock('./CalendarSeeAllCard', () => {
+	const React = require('react');
+	return ({spotlightId}) => React.createElement('div', {className: 'spottable', tabIndex: -1, 'data-spotlight-id': spotlightId});
+});
+
 const items = Array.from({length: 6}, (_, i) => ({Id: `item${i}`, Name: `Title ${i}`}));
 
 const draw = (props) => render(<ModernMediaRow rowId="trending" title="Trending" items={items} rowIndex={2} {...props} />);
@@ -64,6 +69,14 @@ describe('ModernMediaRow', () => {
 		expect(onLoadMore).not.toHaveBeenCalled();
 		focusCard(11);
 		expect(onLoadMore).toHaveBeenCalledWith('trending');
+	});
+
+	it('ends the row with the calendar See all card only when asked to', () => {
+		const ids = () => Array.from(document.querySelectorAll('.spottable')).map((card) => card.getAttribute('data-spotlight-id'));
+		const {rerender} = draw();
+		expect(ids()).not.toContain('media-trending-calendar-see-all');
+		rerender(<ModernMediaRow rowId="trending" title="Trending" items={items} rowIndex={2} onCalendarSeeAll={() => {}} />);
+		expect(ids()[ids().length - 1]).toBe('media-trending-calendar-see-all');
 	});
 
 	it('still tells the screen which row took focus', () => {
