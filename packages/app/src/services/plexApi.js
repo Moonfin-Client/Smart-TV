@@ -1094,6 +1094,7 @@ export const createPlexApi = ({getBaseUrl, getToken, getUserId, getDeviceInfo, g
 					}
 				}
 				startIndex += batch.length;
+				if (!editableOnly && limit != null && items.length >= limit) break;
 				const totalSize = Number(res?.TotalRecordCount);
 				if (Number.isFinite(totalSize) && totalSize >= 0) {
 					if (startIndex >= totalSize) break;
