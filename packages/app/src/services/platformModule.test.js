@@ -1,8 +1,8 @@
 jest.mock('../platform', () => ({getPlatform: jest.fn()}));
-jest.mock('@moonfin/platform-tizen/storage', () => ({name: 'tizen'}), {virtual: true});
-jest.mock('@moonfin/platform-webos/storage', () => ({name: 'webos'}), {virtual: true});
-jest.mock('@moonfin/platform-vega/storage', () => ({name: 'vega'}), {virtual: true});
-jest.mock('@moonfin/platform-xbox/storage', () => ({name: 'xbox'}), {virtual: true});
+jest.mock('@moonfin/platform-tizen/storage', () => ({name: 'tizen'}));
+jest.mock('@moonfin/platform-webos/storage', () => ({name: 'webos'}));
+jest.mock('@moonfin/platform-vega/storage', () => ({name: 'vega'}));
+jest.mock('@moonfin/platform-xbox/storage', () => ({name: 'xbox'}));
 
 import {getPlatform} from '../platform';
 import {resolvePlatformModule} from './platformModule';
