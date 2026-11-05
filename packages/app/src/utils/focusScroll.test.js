@@ -44,8 +44,8 @@ describe('focus glides', () => {
 		applyPerfTier(null);
 	});
 
-	it('jumps on a TV rated low', () => {
-		applyPerfTier('low');
+	it.each(['low', 'mid'])('jumps on a TV rated %s', (tier) => {
+		applyPerfTier(tier);
 		const node = lane();
 		expect(glideScroll(node, 'x', 400)).toBe(400);
 		expect(node.scrollLeft).toBe(400);

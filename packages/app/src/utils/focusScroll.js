@@ -133,7 +133,7 @@ export const glideScroll = (node, axis, target, start, {duration = GLIDE_MS, eas
 	const clamped = Math.max(0, Math.min(target, node[total] - node[size]));
 	const running = glides[axis].get(node);
 	if (running && Math.abs(running.target - clamped) < 1) return clamped;
-	if (getPerfTier() === 'low') {
+	if (getPerfTier() !== 'high') {
 		stopScrollAnimation(node);
 		node[offset] = clamped;
 		return clamped;
