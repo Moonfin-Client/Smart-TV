@@ -120,6 +120,7 @@ export const ItemMenuProvider = ({children, onPlay, onOpenItem, backRef}) => {
 
 	useEffect(() => {
 		playlistPickerRequestRef.current += 1;
+		setDialog((prev) => (prev?.kind === 'removePlaylistPicker' ? null : prev));
 		clearMembershipCache();
 		if (user?.Id && serverUrl) {
 			const isAdmin = Boolean(user?.Policy?.IsAdministrator);
