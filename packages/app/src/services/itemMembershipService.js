@@ -113,9 +113,14 @@ const fetchAllCollectionItems = async (api, collectionId, isStale) => {
 	let startIndex = 0;
 	while (startIndex < MAX_PAGED_ITEMS) {
 		if (isStale?.()) break;
-		const res = startIndex === 0
-			? await api.getCollectionItems(collectionId, COLLECTION_FETCH_LIMIT)
-			: await api.getCollectionItems(collectionId, COLLECTION_FETCH_LIMIT, null, 'Ascending', startIndex);
+		let res;
+		if (api.getCollectionMembers) {
+			res = await api.getCollectionMembers(collectionId, COLLECTION_FETCH_LIMIT, startIndex);
+		} else {
+			res = startIndex === 0
+				? await api.getCollectionItems(collectionId, COLLECTION_FETCH_LIMIT)
+				: await api.getCollectionItems(collectionId, COLLECTION_FETCH_LIMIT, null, 'Ascending', startIndex);
+		}
 		const page = Array.isArray(res?.Items) ? res.Items : [];
 		allItems.push(...page);
 		startIndex += page.length;
@@ -310,7 +315,7 @@ export const getCollectionsContaining = async (item, api, context = {}) => {
 
 	for (const [colId, colName] of ancestorBoxSets.entries()) {
 		if (!results.some((c) => c.collectionId === colId)) {
-			if (api.getCollectionItems) {
+			if (api.getCollectionMembers || api.getCollectionItems) {
 				try {
 					const members = await fetchAllCollectionItems(api, colId, () => generation !== sessionGeneration);
 					if (generation !== sessionGeneration) return [];

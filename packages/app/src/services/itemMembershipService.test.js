@@ -168,5 +168,30 @@ describe('itemMembershipService', () => {
 		expect(api.getCollectionItems).toHaveBeenNthCalledWith(1, 'col-large', 500);
 		expect(api.getCollectionItems).toHaveBeenNthCalledWith(2, 'col-large', 500, null, 'Ascending', 500);
 	});
+
+	test('prefers unfiltered getCollectionMembers when provided by Jellyfin/Emby API', async () => {
+		const api = {
+			getCollections: jest.fn(async () => ({
+				Items: [{Id: 'col-1', Name: 'No Backdrop Collection'}]
+			})),
+			getCollectionMembers: jest.fn(async () => ({
+				Items: [{Id: 'm-nobackdrop'}],
+				TotalRecordCount: 1
+			})),
+			getCollectionItems: jest.fn(async () => ({
+				Items: []
+			}))
+		};
+
+		const item = {Id: 'm-nobackdrop', Type: 'Movie', Name: 'Poster Only Movie'};
+		const ctx = {serverUrl: 'http://jf', userId: 'u1', canManageCollections: true};
+
+		const collections = await getCollectionsContaining(item, api, ctx);
+		expect(collections).toEqual([
+			{collectionId: 'col-1', collectionName: 'No Backdrop Collection'}
+		]);
+		expect(api.getCollectionMembers).toHaveBeenCalledWith('col-1', 500, 0);
+		expect(api.getCollectionItems).not.toHaveBeenCalled();
+	});
 });
 
