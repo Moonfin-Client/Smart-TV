@@ -17,7 +17,7 @@
 
 import {unzlibSync} from 'fflate';
 
-const ID = {
+export const ID = {
 	Segment: 0x18538067,
 	SeekHead: 0x114d9b74,
 	Seek: 0x4dbb,
@@ -30,6 +30,8 @@ const ID = {
 	TrackNumber: 0xd7,
 	TrackType: 0x83,
 	CodecID: 0x86,
+	Language: 0x22b59c,
+	LanguageIETF: 0x22b59d,
 	ContentEncodings: 0x6d80,
 	ContentEncoding: 0x6240,
 	ContentEncodingScope: 0x5032,
@@ -47,6 +49,7 @@ const ID = {
 	Cluster: 0x1f43b675,
 	BlockGroup: 0xa0,
 	Block: 0xa1,
+	BlockDuration: 0x9b,
 	SimpleBlock: 0xa3
 };
 
@@ -70,7 +73,7 @@ const RESTART_TOLERANCE_MS = 1000;
 
 const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
-const readVint = (bytes, offset, stripMarker) => {
+export const readVint = (bytes, offset, stripMarker) => {
 	const first = bytes[offset];
 	if (first === undefined) return null;
 	let length = 1;
@@ -88,7 +91,7 @@ const readVint = (bytes, offset, stripMarker) => {
 	return {value, length, unknown: stripMarker ? value === (2 ** (7 * length) - 1) : false};
 };
 
-const readElementHeader = (bytes, offset) => {
+export const readElementHeader = (bytes, offset) => {
 	const id = readVint(bytes, offset, false);
 	if (!id) return null;
 	const size = readVint(bytes, offset + id.length, true);
@@ -101,7 +104,7 @@ const readElementHeader = (bytes, offset) => {
 	};
 };
 
-const readUint = (bytes, offset, length) => {
+export const readUint = (bytes, offset, length) => {
 	let value = 0;
 	for (let i = 0; i < length; i++) value = value * 256 + bytes[offset + i];
 	return value;
@@ -117,7 +120,7 @@ const readString = (bytes, offset, length) => {
  * Walk the children of a master element. An element whose body runs past `end` is still
  * handed to `visit`, because the top level Segment always does, but the walk stops there.
  */
-const forEachChild = (bytes, start, end, visit) => {
+export const forEachChild = (bytes, start, end, visit) => {
 	let offset = start;
 	while (offset < end) {
 		const header = readElementHeader(bytes, offset);
@@ -130,7 +133,7 @@ const forEachChild = (bytes, start, end, visit) => {
 };
 
 /**
- * Parse a Tracks element into `{number, type, codec, compressionAlgorithm, compressionSettings,
+ * Parse a Tracks element into `{number, type, codec, language, compressionAlgorithm, compressionSettings,
  * unsupportedEncoding}` entries. The compression fields are only set when the compression applies to frames.
  */
 export const parseTracks = (bytes, start, size) => {
@@ -141,6 +144,7 @@ export const parseTracks = (bytes, start, size) => {
 			number: 0,
 			type: 0,
 			codec: '',
+			language: '',
 			compressionAlgorithm: null,
 			compressionSettings: null,
 			unsupportedEncoding: false
@@ -156,6 +160,13 @@ export const parseTracks = (bytes, start, size) => {
 					break;
 				case ID.CodecID:
 					track.codec = readString(bytes, childBody, child.size);
+					break;
+				case ID.Language:
+					if (!track.language) track.language = readString(bytes, childBody, child.size);
+					break;
+				// The IETF tag is the newer of the two and wins when both are set.
+				case ID.LanguageIETF:
+					track.language = readString(bytes, childBody, child.size);
 					break;
 				case ID.ContentEncodings:
 					forEachChild(bytes, childBody, childBody + child.size, (encoding, encodingBody) => {

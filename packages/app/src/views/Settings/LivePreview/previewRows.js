@@ -15,7 +15,7 @@ export const FOCUSED_CARD_KEYS = ratingRows('homeRows');
 
 export const NAV_BUTTON_KEYS = [
 	'showShuffleButton', 'showGenresButton', 'showFavoritesButton', 'showLiveTvButton', 'showLibrariesInToolbar',
-	'showLibrariesIndividually', 'syncplayEnabled', 'showSyncPlayButton', 'showSeerrButton', 'showServerMessagesButton',
+	'showLibrariesIndividually', 'syncplayEnabled', 'showSyncPlayButton', 'showSeerrButton', 'showCalendarButton', 'showServerMessagesButton',
 	'showFriendsButton'
 ];
 

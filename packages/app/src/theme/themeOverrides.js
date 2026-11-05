@@ -761,7 +761,7 @@ export const buildThemeOverrideCss = (theme, options = {}) => {
 	rule(`.${ratingsCss.ratingValueCompact}`, `color: ${onBackground};`);
 
 	// Focus rings on the screens that load on demand
-	const {player, playerOverlays, episodeBrowser, genreBrowse, seerrDiscover, seerrBrowse, seerrPosterCard} = lazySheets;
+	const {player, playerOverlays, episodeBrowser, genreBrowse, seerrDiscover, seerrBrowse, seerrPosterCard, calendar} = lazySheets;
 	const ring = (sheet, names, states) => names.flatMap((name) => states.map((state) => `.${sheet[name]}${state}`)).join(', ');
 	if (player) {
 		rule(ring(player, ['liveBtn', 'chapterItem'], [':hover', ':focus']), `border-color: ${focusColor};`);
@@ -787,6 +787,10 @@ export const buildThemeOverrideCss = (theme, options = {}) => {
 	}
 	if (seerrPosterCard) {
 		rule(`.${seerrPosterCard.ring}`, `border-color: ${focusColor};`);
+	}
+	if (calendar) {
+		rule(`.${calendar.row}:focus::after, .${calendar.card}:focus::after, .${calendar.cell}:focus::after`, `border-color: ${focusColor};`);
+		rule(`.${calendar.button}:focus, .${calendar.tab}:focus`, `background: ${onSurface} !important; border-color: ${focusColor}; color: ${inkOn(c.onSurface) === '0, 0, 0' ? 'rgba(0, 0, 0, 0.87)' : '#fff'};`);
 	}
 
 	// Pixel themes square off every fixed radius.

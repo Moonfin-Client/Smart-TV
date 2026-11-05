@@ -802,3 +802,34 @@ export const getRecentlyReleasedSeriesTypeOptions = () => [
 	{ value: 'season', label: $L('Season') },
 	{ value: 'episode', label: $L('Episode') }
 ];
+
+export const getCalendarStyleOptions = () => [
+	{ value: 'agenda', label: $L('Agenda') },
+	{ value: 'countdown', label: $L('Countdown') }
+];
+
+export const getCalendarWeekStartOptions = () => [
+	{ value: 'locale', label: $L('Auto') },
+	{ value: 'sunday', label: $L('Sunday') },
+	{ value: 'monday', label: $L('Monday') }
+];
+
+export const getCalendarScopeOptions = () => [
+	{ value: 'everything', label: $L('Everything') },
+	{ value: 'myShows', label: $L('My shows') }
+];
+
+export const getCalendarColorByOptions = () => [
+	{ value: 'type', label: $L('Type') },
+	{ value: 'status', label: $L('Status') }
+];
+
+export const getCalendarImageTypeOptions = () => [
+	{ value: 'poster', label: $L('Poster') },
+	{ value: 'thumb', label: $L('Thumbnail') }
+];
+
+export const getCalendarSelectActionOptions = () => [
+	{ value: 'details', label: $L('Open details') },
+	{ value: 'play', label: $L('Play when in library') }
+];

@@ -10,7 +10,7 @@ import {useServerMessages} from '../../context/ServerMessagesContext';
 import {useAchievements} from '../../context/AchievementsContext';
 import SeerrIcon from '../icons/SeerrIcon';
 import SyncPlayIcon from '../icons/SyncPlayIcon';
-import {FavoritesIcon, FriendsIcon, GenresIcon, HomeIcon, LiveTvIcon, MessagesIcon, SearchIcon, SettingsIcon, ShuffleIcon, libraryNavIcon} from '../icons/navIcons';
+import {CalendarIcon, FavoritesIcon, FriendsIcon, GenresIcon, HomeIcon, LiveTvIcon, MessagesIcon, SearchIcon, SettingsIcon, ShuffleIcon, libraryNavIcon} from '../icons/navIcons';
 import useClock from '../../hooks/useClock';
 import {librariesForNav} from '../../utils/liveTvLibrary';
 import {isKidsMode} from '../../utils/kidsMode';
@@ -66,6 +66,7 @@ const Sidebar = ({
 	onFavorites,
 	onLiveTv,
 	onDiscover,
+	onCalendar,
 	onSettings,
 	onSelectLibrary,
 	onUserMenu,
@@ -77,7 +78,7 @@ const Sidebar = ({
 	hideForTrailer
 }) => {
 	const {settings, activeTheme} = useSettings();
-	const {isEnabled: seerrEnabled, displayName} = useSeerr();
+	const {isEnabled: seerrEnabled, displayName, pluginInfo} = useSeerr();
 	const {serverType} = useAuth();
 	const {isInGroup} = useSyncPlay();
 	// On Silo the button opens its Watch Party instead.
@@ -97,6 +98,7 @@ const Sidebar = ({
 	const kidsMode = isKidsMode(settings);
 	const showLiveTv = !kidsMode && settings.showLiveTvButton !== false && hasLiveTv;
 	const showSeerr = !kidsMode && seerrEnabled && settings.showSeerrButton !== false;
+	const showCalendar = !kidsMode && settings.showCalendarButton !== false && pluginInfo?.calendarAvailable === true;
 	const showSyncPlay = !kidsMode && serverType !== 'plex' && settings.syncplayEnabled !== false && settings.showSyncPlayButton !== false;
 	const navLibraries = librariesForNav(libraries, showLiveTv, {hideLiveTv: kidsMode});
 	const showLibraries = !kidsMode && settings.showLibrariesInToolbar !== false && navLibraries.length > 0;
@@ -188,6 +190,10 @@ const Sidebar = ({
 
 					{showSeerr && (
 						<SidebarItem Icon={SeerrIcon} slot={nextSlot()} label={displayName} onClick={onDiscover} />
+					)}
+
+					{showCalendar && (
+						<SidebarItem Icon={CalendarIcon} slot={nextSlot()} label={$L('Calendar')} onClick={onCalendar} />
 					)}
 
 					{showSyncPlay && (

@@ -9,12 +9,19 @@ import {useSettings} from '../../context/SettingsContext';
 import {getPlatform} from '../../platform';
 import {MODERN_CAPTION_ROOM, modernCardMetrics} from '../MediaCard/modernCardLayout';
 import PlaceholderRow from './PlaceholderRow';
+import CalendarSeeAllCard from './CalendarSeeAllCard';
 import {nearRowEnd} from '../../views/Browse/rowPaging';
 
 import css from './ModernMediaRow.module.less';
 
 // How many cards either side of focus load their wide art ahead.
 const WARM_REACH = 2;
+
+// The See all card keeps a poster's size, since it doesn't grow on focus like the title cards.
+const seeAllSize = (posterSize) => {
+	const {cardWidth, imageHeight} = modernCardMetrics({posterSize});
+	return {width: cardWidth, height: imageHeight};
+};
 
 const RowContainer = SpotlightContainerDecorator({
 	enterTo: 'last-focused'
@@ -46,7 +53,8 @@ const ModernMediaRow = ({
 	ratingsSurface,
 	hideOverview = false,
 	coreLook = false,
-	leadingInset = 0
+	leadingInset = 0,
+	onCalendarSeeAll
 }) => {
 	const {settings} = useSettings();
 	const scrollerRef = useRef(null);
@@ -175,6 +183,8 @@ const ModernMediaRow = ({
 	const handleFocusedChange = useCallback((itemId) => {
 		setFocusedItemId(itemId || null);
 	}, []);
+	// The See all card isn't a title, so the card before it folds back up.
+	const handleSeeAllFocus = useCallback(() => setFocusedItemId(null), []);
 
 	const handleKeyDown = useCallback((e) => {
 		if (e.keyCode === KEYS.UP && onNavigateUp) {
@@ -196,9 +206,9 @@ const ModernMediaRow = ({
 				Spotlight.move('left');
 			}
 		} else {
-			Spotlight.focus(`media-${keyPrefix}-${items[items.length - 1].Id}`);
+			Spotlight.focus(onCalendarSeeAll ? `media-${keyPrefix}-calendar-see-all` : `media-${keyPrefix}-${items[items.length - 1].Id}`);
 		}
-	}, [items, keyPrefix, settings.navbarPosition]);
+	}, [items, keyPrefix, settings.navbarPosition, onCalendarSeeAll]);
 
 	const handleWrapRight = useCallback((e) => {
 		e.preventDefault();
@@ -269,7 +279,7 @@ const ModernMediaRow = ({
 							? index !== focusedIndex && Math.abs(index - focusedIndex) <= WARM_REACH
 							: index === landingIndex;
 						const isFirst = index === 0;
-						const isLast = index === items.length - 1;
+						const isLast = index === items.length - 1 && !onCalendarSeeAll;
 						return (
 							<ModernMediaCard
 								key={`${keyPrefix}-${item.Id}-${index}`}
@@ -295,6 +305,15 @@ const ModernMediaRow = ({
 							/>
 						);
 					})}
+					{onCalendarSeeAll && (
+						<CalendarSeeAllCard
+							{...seeAllSize(settings.homeRowsPosterSize)}
+							spotlightId={`media-${keyPrefix}-calendar-see-all`}
+							onClick={onCalendarSeeAll}
+							onFocus={handleSeeAllFocus}
+							onSpotlightRight={handleWrapRight}
+						/>
+					)}
 				</div>
 			</div>
 		</RowContainer>
@@ -317,6 +336,7 @@ const areRowPropsEqual = (prev, next) => {
 	if (prev.loading !== next.loading || prev.titleWidth !== next.titleWidth || prev.cardType !== next.cardType) return false;
 	if (prev.deferImages !== next.deferImages || prev.ratingsSurface !== next.ratingsSurface || prev.hideOverview !== next.hideOverview) return false;
 	if (prev.coreLook !== next.coreLook || prev.leadingInset !== next.leadingInset) return false;
+	if (!prev.onCalendarSeeAll !== !next.onCalendarSeeAll) return false;
 	if (prev.items === next.items) return true;
 	if (prev.items?.length !== next.items?.length) return false;
 	for (let i = 0; i < prev.items.length; i++) {

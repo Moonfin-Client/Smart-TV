@@ -5,11 +5,13 @@ import Spottable from '@enact/spotlight/Spottable';
 import MediaCard from '../MediaCard';
 import {classicCardSize} from '../MediaCard/MediaCard';
 import PlaceholderRow from './PlaceholderRow';
+import CalendarSeeAllCard from './CalendarSeeAllCard';
 import {glideIntoView} from '../../utils/focusScroll';
 import {KEYS} from '../../utils/keys';
 import {sameCardUserData} from '../../utils/playedState';
 import {useSettings} from '../../context/SettingsContext';
 import {nearRowEnd} from '../../views/Browse/rowPaging';
+import {classicShape} from '../../views/Browse/rowPeek';
 
 import css from './MediaRow.module.less';
 
@@ -42,6 +44,7 @@ const MediaRow = ({
 	registerRowRef,
 	onSeeAll,
 	seeAllLabel,
+	onCalendarSeeAll,
 	spotlightId: rowSpotlightId,
 	menuOptions,
 	loading,
@@ -120,9 +123,9 @@ const MediaRow = ({
 				Spotlight.move('left');
 			}
 		} else {
-			Spotlight.focus(`media-${keyPrefix}-${items[items.length - 1].Id}`);
+			Spotlight.focus(onCalendarSeeAll ? `media-${keyPrefix}-calendar-see-all` : `media-${keyPrefix}-${items[items.length - 1].Id}`);
 		}
-	}, [items, keyPrefix, settings.navbarPosition]);
+	}, [items, keyPrefix, settings.navbarPosition, onCalendarSeeAll]);
 
 	const handleWrapRight = useCallback((e) => {
 		e.preventDefault();
@@ -185,7 +188,7 @@ const MediaRow = ({
 						{items.map((item, index) => {
 							const spotlightId = `media-${keyPrefix}-${item.Id}`;
 							const isFirst = index === 0;
-							const isLast = index === items.length - 1;
+							const isLast = index === items.length - 1 && !onCalendarSeeAll;
 
 							return (
 								<MediaCard
@@ -207,6 +210,14 @@ const MediaRow = ({
 								/>
 							);
 						})}
+						{onCalendarSeeAll && (
+							<CalendarSeeAllCard
+								{...classicCardSize(classicShape(cardType, rowImageType), settings.homeRowsPosterSize)}
+								spotlightId={`media-${keyPrefix}-calendar-see-all`}
+								onClick={onCalendarSeeAll}
+								onSpotlightRight={handleWrapRight}
+							/>
+						)}
 				</div>
 			</div>
 		</RowContainer>
@@ -234,6 +245,7 @@ const areRowPropsEqual = (prev, next) => {
 	// Compare presence, not identity: an inline arrow from a caller would defeat
 	// the whole comparator.
 	if (!prev.onSeeAll !== !next.onSeeAll) return false;
+	if (!prev.onCalendarSeeAll !== !next.onCalendarSeeAll) return false;
 	if (prev.items === next.items) return true;
 	if (prev.items?.length !== next.items?.length) return false;
 	for (let i = 0; i < prev.items.length; i++) {

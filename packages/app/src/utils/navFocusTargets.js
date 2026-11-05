@@ -28,7 +28,9 @@ export const CONTENT_FOCUS_TARGETS = [
 	'person-overview',
 	'person-action-favorite',
 	'search-input',
-	'livetv-guide'
+	'livetv-guide',
+	'calendar-view',
+	'calendar-month-view'
 ];
 
 // The sidebar enters the details screen from the side, where the whole button

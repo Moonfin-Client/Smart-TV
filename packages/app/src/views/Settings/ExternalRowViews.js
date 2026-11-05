@@ -48,7 +48,7 @@ export const ExternalTmdbListsView = ({enabledMap, onToggleRow, settings, onOpen
 	</SettingsView>
 );
 
-export const ExternalCalendarsView = ({enabledMap, settings, onToggleRow, onToggleSetting}) => {
+export const ExternalCalendarsView = ({enabledMap, settings, calendarAvailable, onToggleRow, onToggleSetting}) => {
 	const radarrOn = enabledMap.get('radarr_calendar') === true;
 	const sonarrOn = enabledMap.get('sonarr_calendar') === true;
 	const toggleRow = (settingKey, title, desc, icon) => (
@@ -91,6 +91,8 @@ export const ExternalCalendarsView = ({enabledMap, settings, onToggleRow, onTogg
 			{sonarrOn && toggleRow('sonarrCalendarShowDate', $L('Show Release Date'), '', 'tv')}
 			{radarrOn && sonarrOn &&
 				toggleRow('mergeRadarrSonarrCalendars', $L('Merge Into One Row'), $L('Combine Radarr and Sonarr into a single upcoming row'), 'list')}
+			{calendarAvailable &&
+				toggleRow('calendarRowSeeAll', $L('See All card'), $L('End the upcoming rows with a card that opens the calendar'), 'calendar_view_month')}
 		</SettingsView>
 	);
 };
