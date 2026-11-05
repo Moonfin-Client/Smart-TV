@@ -1357,11 +1357,12 @@ const AppContent = (props) => {
 		// Music stopped from the mini player ends wherever the viewer already is.
 		if (panelIndex === PANELS.PLAYER) {
 			handleBack();
-			// A viewer in a Watch Party goes back to its room, where they can rejoin, rather than to the item's page.
+			// A viewer in a Watch Party or a SyncPlay group goes back to its dialog, where they can rejoin, rather than to the item's page.
 			if (watchPartyRoom) openWatchParty();
+			else if (isSyncPlayInGroup) openSyncPlay();
 		}
 		window.dispatchEvent(new CustomEvent('moonfin:browseRefresh'));
-	}, [handleBack, panelHistory, selectedItem, playingItem, panelIndex, watchPartyRoom, openWatchParty]);
+	}, [handleBack, panelHistory, selectedItem, playingItem, panelIndex, watchPartyRoom, openWatchParty, isSyncPlayInGroup, openSyncPlay]);
 
 	const handlePlayerBackground = useCallback(() => {
 		setMusicInBackground(true);
