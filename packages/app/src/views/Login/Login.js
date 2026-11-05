@@ -117,7 +117,6 @@ const Login = ({
 	const [signInUser, setSignInUser] = useState(null);
 	const [username, setUsername] = useState('');
 	const [password, setPassword] = useState('');
-	// Shows the password as typed, since a remote's keyboard makes a slip easy and hard to spot.
 	const [passwordShown, setPasswordShown] = useState(false);
 	const togglePasswordShown = useCallback(() => setPasswordShown((shown) => !shown), []);
 	// Hidden again for whoever signs in next.
@@ -1253,11 +1252,9 @@ const Login = ({
 
 	const choosePlex = useCallback(() => startPlexSignIn(), [startPlexSignIn]);
 
-	// The keyboard's checkmark lands on the button rather than sending, so what was typed can be looked
-	// over (and shown) before it goes.
 	const handlePasswordKeyDown = useCallback((e) => {
-		if (e.keyCode === KEYS.ENTER) focusLater('signin-btn');
-	}, []);
+		if (e.keyCode === KEYS.ENTER) handleSignIn();
+	}, [handleSignIn]);
 
 	const handleUsernameKeyDown = useCallback((e) => {
 		if (e.keyCode === KEYS.ENTER) focusLater(signInUser?.hasPassword === false ? 'signin-btn' : 'password-input');
@@ -1477,7 +1474,6 @@ const Login = ({
 						className={css.revealButton}
 						onClick={togglePasswordShown}
 						aria-label={passwordShown ? $L('Hide password') : $L('Show password')}
-						aria-pressed={passwordShown}
 						disabled={isConnecting}
 					>
 						<svg viewBox="0 0 24 24" aria-hidden="true">
