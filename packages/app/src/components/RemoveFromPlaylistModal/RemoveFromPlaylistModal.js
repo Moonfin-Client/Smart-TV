@@ -28,8 +28,10 @@ const RemoveFromPlaylistModal = ({open, item, playlists = [], loading = false, a
 	}, [open]);
 
 	useEffect(() => {
-		if (!open || (loading && !confirming)) return undefined;
-		const target = confirming ? 'remove-playlist-confirm-btn' : 'remove-playlist-modal';
+		if (!open) return undefined;
+		let target = 'remove-playlist-modal';
+		if (confirming) target = 'remove-playlist-confirm-btn';
+		else if (loading) target = 'remove-playlist-loading-cancel-btn';
 		const t = setTimeout(() => Spotlight.focus(target), 100);
 		return () => clearTimeout(t);
 	}, [open, loading, confirming]);
@@ -135,7 +137,18 @@ const RemoveFromPlaylistModal = ({open, item, playlists = [], loading = false, a
 				) : (
 					<>
 						{loading && (
-							<p className={css.message}>{$L('Loading playlists…')}</p>
+							<>
+								<p className={css.message}>{$L('Loading playlists…')}</p>
+								<div className={css.formButtons}>
+									<SpottableButton
+										className={`${css.btn} spottable-default`}
+										onClick={onClose}
+										spotlightId="remove-playlist-loading-cancel-btn"
+									>
+										{$L('Cancel')}
+									</SpottableButton>
+								</div>
+							</>
 						)}
 
 						{!loading && playlists.length === 0 && (
