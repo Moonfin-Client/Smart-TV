@@ -3,6 +3,7 @@ import AddToCollectionModal from '../../components/AddToCollectionModal';
 import DeleteItemDialog from '../../components/DeleteItemDialog';
 import ChangeArtworkModal from '../../components/ChangeArtworkModal';
 import IdentifyModal from '../../components/IdentifyModal';
+import {useAuth} from '../../context/AuthContext';
 
 import css from './Details.module.less';
 
@@ -17,54 +18,66 @@ const DetailDialogs = ({
 	onToast,
 	toastMessage,
 	onToastEnd
-}) => (
-	<>
-		<AddToPlaylistModal
-			open={modals.showPlaylistModal}
-			itemId={item?.Id}
-			api={api}
-			onClose={modals.handleClosePlaylistModal}
-			onSuccess={onToast}
-		/>
+}) => {
+	const auth = useAuth();
+	const effectiveServerUrl = item?._serverUrl || serverUrl || auth?.serverUrl;
+	const effectiveUserId = item?._serverUserId || auth?.user?.Id;
 
-		<AddToCollectionModal
-			open={modals.showCollectionModal}
-			itemId={item?.Id}
-			api={api}
-			onClose={modals.handleCloseCollectionModal}
-			onSuccess={onToast}
-		/>
+	return (
+		<>
+			<AddToPlaylistModal
+				open={modals.showPlaylistModal}
+				itemId={item?.Id}
+				item={item}
+				api={api}
+				serverUrl={effectiveServerUrl}
+				userId={effectiveUserId}
+				onClose={modals.handleClosePlaylistModal}
+				onSuccess={onToast}
+			/>
 
-		<IdentifyModal
-			open={modals.showIdentifyModal}
-			item={item}
-			api={api}
-			onClose={modals.handleCloseIdentifyModal}
-			onApplied={onItemRefreshed}
-			onSuccess={onToast}
-		/>
+			<AddToCollectionModal
+				open={modals.showCollectionModal}
+				itemId={item?.Id}
+				item={item}
+				api={api}
+				serverUrl={effectiveServerUrl}
+				userId={effectiveUserId}
+				onClose={modals.handleCloseCollectionModal}
+				onSuccess={onToast}
+			/>
 
-		<DeleteItemDialog
-			open={modals.showDeleteDialog}
-			itemName={item?.Name}
-			onCancel={modals.handleCloseDeleteDialog}
-			onConfirm={onConfirmDelete}
-		/>
+			<IdentifyModal
+				open={modals.showIdentifyModal}
+				item={item}
+				api={api}
+				onClose={modals.handleCloseIdentifyModal}
+				onApplied={onItemRefreshed}
+				onSuccess={onToast}
+			/>
 
-		<ChangeArtworkModal
-			open={modals.showArtworkModal}
-			item={item}
-			api={api}
-			serverUrl={serverUrl}
-			onClose={modals.handleCloseArtworkModal}
-			onSuccess={onToast}
-			backHandlerRef={modals.artworkModalBackRef}
-		/>
+			<DeleteItemDialog
+				open={modals.showDeleteDialog}
+				itemName={item?.Name}
+				onCancel={modals.handleCloseDeleteDialog}
+				onConfirm={onConfirmDelete}
+			/>
 
-		{toastMessage && (
-			<div className={css.toast} onAnimationEnd={onToastEnd}>{toastMessage}</div>
-		)}
-	</>
-);
+			<ChangeArtworkModal
+				open={modals.showArtworkModal}
+				item={item}
+				api={api}
+				serverUrl={serverUrl}
+				onClose={modals.handleCloseArtworkModal}
+				onSuccess={onToast}
+				backHandlerRef={modals.artworkModalBackRef}
+			/>
+
+			{toastMessage && (
+				<div className={css.toast} onAnimationEnd={onToastEnd}>{toastMessage}</div>
+			)}
+		</>
+	);
+};
 
 export default DetailDialogs;

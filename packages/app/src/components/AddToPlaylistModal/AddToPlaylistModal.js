@@ -4,6 +4,7 @@ import Spotlight from '@enact/spotlight';
 import SpotlightContainerDecorator from '@enact/spotlight/SpotlightContainerDecorator';
 import $L from '@enact/i18n/$L';
 import {isBackKey} from '../../utils/keys';
+import {useAuth} from '../../context/AuthContext';
 import {canonicalServerKey, notifyItemAddedToPlaylist} from '../../services/itemMembershipService';
 import SpottableInput from '../SpottableInput/SpottableInput';
 import {isTvKeyboardVisible} from '../TVKeyboard/keyboardBus';
@@ -20,6 +21,9 @@ const SpottableDiv = Spottable('div');
 const SpottableButton = Spottable('button');
 
 const AddToPlaylistModal = ({open, itemId, item, api, serverUrl, userId, onClose, onSuccess}) => {
+	const auth = useAuth();
+	const effectiveServerUrl = serverUrl || item?._serverUrl || auth?.serverUrl;
+	const effectiveUserId = userId || item?._serverUserId || auth?.user?.Id;
 	const [playlists, setPlaylists] = useState([]);
 	const [loading, setLoading] = useState(true);
 	const [creating, setCreating] = useState(false);
@@ -77,14 +81,17 @@ const AddToPlaylistModal = ({open, itemId, item, api, serverUrl, userId, onClose
 		setAdding(true);
 		try {
 			await api.addToPlaylist(playlistId, [itemId]);
-			const serverKey = canonicalServerKey(item || {Id: itemId}, {serverUrl, userId});
+			const serverKey = canonicalServerKey(item || {Id: itemId}, {
+				serverUrl: effectiveServerUrl,
+				userId: effectiveUserId
+			});
 			notifyItemAddedToPlaylist(serverKey, playlistId, [itemId], api);
 			onSuccess?.($L('Added to playlist'));
 			onClose?.();
 		} catch { /* no-op */ } finally {
 			setAdding(false);
 		}
-	}, [api, itemId, item, serverUrl, userId, adding, onSuccess, onClose]);
+	}, [api, itemId, item, effectiveServerUrl, effectiveUserId, adding, onSuccess, onClose]);
 
 	const handlePlaylistClick = useCallback((ev) => {
 		const plId = ev.currentTarget.dataset.playlistId;
@@ -102,14 +109,17 @@ const AddToPlaylistModal = ({open, itemId, item, api, serverUrl, userId, onClose
 		setAdding(true);
 		try {
 			const created = await api.createPlaylist(name, [itemId]);
-			const serverKey = canonicalServerKey(item || {Id: itemId}, {serverUrl, userId});
+			const serverKey = canonicalServerKey(item || {Id: itemId}, {
+				serverUrl: effectiveServerUrl,
+				userId: effectiveUserId
+			});
 			notifyItemAddedToPlaylist(serverKey, created?.Id || name, [itemId], api);
 			onSuccess?.($L('Created "{name}" and added item').replace('{name}', name));
 			onClose?.();
 		} catch { /* no-op */ } finally {
 			setAdding(false);
 		}
-	}, [api, itemId, item, serverUrl, userId, newName, adding, onSuccess, onClose]);
+	}, [api, itemId, item, effectiveServerUrl, effectiveUserId, newName, adding, onSuccess, onClose]);
 
 	const handleInputKeyDown = useCallback((ev) => {
 		if (ev.keyCode === 13) {

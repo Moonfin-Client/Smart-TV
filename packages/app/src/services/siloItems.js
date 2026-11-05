@@ -1177,8 +1177,8 @@ export const createSiloItems = ({call, images, getConfiguration, mediaSources, g
 
 		getCollections: (limit = 50, sortBy = 'SortName', sortOrder = 'Ascending') => collections({sortBy, sortOrder, limit}),
 
-		getCollectionItems: (collectionId, limit = 50, sortBy = null, sortOrder = 'Ascending') =>
-			getItems({ParentId: collectionId, Limit: limit, ...(sortBy ? {SortBy: sortBy, SortOrder: sortOrder} : null)}),
+		getCollectionItems: (collectionId, limit = 50, sortBy = null, sortOrder = 'Ascending', startIndex = 0) =>
+			getItems({ParentId: collectionId, Limit: limit, ...(startIndex > 0 ? {StartIndex: startIndex} : null), ...(sortBy ? {SortBy: sortBy, SortOrder: sortOrder} : null)}),
 
 		getItemCollections: async (itemId) => asResult(await personalCollections(itemId)),
 
