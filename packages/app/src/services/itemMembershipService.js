@@ -111,11 +111,23 @@ const fetchAllPlaylistItems = async (api, playlistId, isStale) => {
 const fetchAllCollectionItems = async (api, collectionId, isStale) => {
 	const allItems = [];
 	let startIndex = 0;
+	let useMembersEndpoint = Boolean(api.getCollectionMembers);
 	while (startIndex < MAX_PAGED_ITEMS) {
 		if (isStale?.()) break;
 		let res;
-		if (api.getCollectionMembers) {
-			res = await api.getCollectionMembers(collectionId, COLLECTION_FETCH_LIMIT, startIndex);
+		if (useMembersEndpoint) {
+			try {
+				res = await api.getCollectionMembers(collectionId, COLLECTION_FETCH_LIMIT, startIndex);
+			} catch (err) {
+				if (err?.status === 501 && api.getCollectionItems) {
+					useMembersEndpoint = false;
+					res = startIndex === 0
+						? await api.getCollectionItems(collectionId, COLLECTION_FETCH_LIMIT)
+						: await api.getCollectionItems(collectionId, COLLECTION_FETCH_LIMIT, null, 'Ascending', startIndex);
+				} else {
+					throw err;
+				}
+			}
 		} else {
 			res = startIndex === 0
 				? await api.getCollectionItems(collectionId, COLLECTION_FETCH_LIMIT)

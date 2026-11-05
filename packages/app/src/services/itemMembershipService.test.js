@@ -193,5 +193,29 @@ describe('itemMembershipService', () => {
 		expect(api.getCollectionMembers).toHaveBeenCalledWith('col-1', 500, 0);
 		expect(api.getCollectionItems).not.toHaveBeenCalled();
 	});
+
+	test('falls back to getCollectionItems when getCollectionMembers rejects with 501', async () => {
+		const api = {
+			getCollections: jest.fn(async () => ({
+				Items: [{Id: 'col-plex', Name: 'Plex Collection'}]
+			})),
+			getCollectionMembers: jest.fn(async () => {
+				throw Object.assign(new Error('Unsupported'), {status: 501});
+			}),
+			getCollectionItems: jest.fn(async () => ({
+				Items: [{Id: 'm-plex'}],
+				TotalRecordCount: 1
+			}))
+		};
+
+		const item = {Id: 'm-plex', Type: 'Movie', Name: 'Plex Movie'};
+		const ctx = {serverUrl: 'http://plex', userId: 'u1', canManageCollections: true};
+
+		const collections = await getCollectionsContaining(item, api, ctx);
+		expect(collections).toEqual([
+			{collectionId: 'col-plex', collectionName: 'Plex Collection'}
+		]);
+		expect(api.getCollectionItems).toHaveBeenCalledWith('col-plex', 500);
+	});
 });
 
