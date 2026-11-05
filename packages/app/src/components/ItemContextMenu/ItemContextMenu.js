@@ -86,6 +86,7 @@ export const ItemMenuProvider = ({children, onPlay, onOpenItem, backRef}) => {
 	const artworkBackRef = useRef(null);
 	const removePlaylistBackRef = useRef(null);
 	const removeCollectionBackRef = useRef(null);
+	const playlistPickerRequestRef = useRef(0);
 
 	const actionsFor = useCallback((item, options, memberships = {}) => {
 		if (!item || fromSeerr(item)) return [];
@@ -118,6 +119,7 @@ export const ItemMenuProvider = ({children, onPlay, onOpenItem, backRef}) => {
 	}, [user, serverUrl]);
 
 	useEffect(() => {
+		playlistPickerRequestRef.current += 1;
 		clearMembershipCache();
 		if (user?.Id && serverUrl) {
 			const isAdmin = Boolean(user?.Policy?.IsAdministrator);
@@ -141,11 +143,13 @@ export const ItemMenuProvider = ({children, onPlay, onOpenItem, backRef}) => {
 	const clearToast = useCallback(() => setToast(null), []);
 
 	const closeDialog = useCallback(() => {
+		playlistPickerRequestRef.current += 1;
 		setDialog(null);
 		restoreFocus();
 	}, [restoreFocus]);
 
 	const open = useCallback((item, options) => {
+		playlistPickerRequestRef.current += 1;
 		const playlistMemberships = options?.playlistMemberships ??
 			getCachedPlaylistsContaining(item, {serverUrl, userId: user?.Id});
 		const collectionMemberships = options?.collectionMemberships ??
@@ -230,11 +234,28 @@ export const ItemMenuProvider = ({children, onPlay, onOpenItem, backRef}) => {
 	}, [dialog]);
 
 	const run = useCallback(async (id, item, collectionRemoval, playlist, playlistMemberships, collectionMemberships) => {
+		playlistPickerRequestRef.current += 1;
 		const api = getApiForItem(item) || activeApi;
 		const userData = item.UserData || {};
 		const openPlaylistPicker = async () => {
-			const freshPlaylists = await getPlaylistsContaining(item, api, {serverUrl, userId: user?.Id, forceRefresh: true});
-			setDialog({kind: 'removePlaylistPicker', item, api, playlists: freshPlaylists});
+			const requestId = ++playlistPickerRequestRef.current;
+			setDialog({kind: 'removePlaylistPicker', item, api, playlists: [], loading: true});
+			try {
+				const freshPlaylists = await getPlaylistsContaining(item, api, {serverUrl, userId: user?.Id, forceRefresh: true});
+				if (playlistPickerRequestRef.current !== requestId) return;
+				setDialog((prev) => (
+					prev?.kind === 'removePlaylistPicker' && prev.item?.Id === item.Id
+						? {kind: 'removePlaylistPicker', item, api, playlists: freshPlaylists, loading: false}
+						: prev
+				));
+			} catch {
+				if (playlistPickerRequestRef.current !== requestId) return;
+				setDialog((prev) => (
+					prev?.kind === 'removePlaylistPicker' && prev.item?.Id === item.Id
+						? {kind: 'removePlaylistPicker', item, api, playlists: playlistMemberships || [], loading: false}
+						: prev
+				));
+			}
 		};
 		switch (id) {
 			// From a playlist row, Play means the playlist from that row on.
@@ -444,6 +465,7 @@ export const ItemMenuProvider = ({children, onPlay, onOpenItem, backRef}) => {
 				open={dialog?.kind === 'removePlaylistPicker'}
 				item={dialog?.item}
 				playlists={dialog?.playlists}
+				loading={Boolean(dialog?.loading)}
 				api={dialog?.api}
 				serverUrl={dialog?.item?._serverUrl || serverUrl}
 				userId={dialog?.item?._serverUserId || user?.Id}

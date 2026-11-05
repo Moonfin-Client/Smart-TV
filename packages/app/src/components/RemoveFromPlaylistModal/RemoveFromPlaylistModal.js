@@ -17,7 +17,7 @@ const DialogContainer = SpotlightContainerDecorator({
 const SpottableDiv = Spottable('div');
 const SpottableButton = Spottable('button');
 
-const RemoveFromPlaylistModal = ({open, item, playlists = [], api, serverUrl, userId, onClose, onSuccess, backHandlerRef}) => {
+const RemoveFromPlaylistModal = ({open, item, playlists = [], loading = false, api, serverUrl, userId, onClose, onSuccess, backHandlerRef}) => {
 	const [confirming, setConfirming] = useState(null);
 	const [removing, setRemoving] = useState(false);
 
@@ -28,11 +28,11 @@ const RemoveFromPlaylistModal = ({open, item, playlists = [], api, serverUrl, us
 	}, [open]);
 
 	useEffect(() => {
-		if (!open) return undefined;
+		if (!open || (loading && !confirming)) return undefined;
 		const target = confirming ? 'remove-playlist-confirm-btn' : 'remove-playlist-modal';
 		const t = setTimeout(() => Spotlight.focus(target), 100);
 		return () => clearTimeout(t);
-	}, [open, confirming]);
+	}, [open, loading, confirming]);
 
 	useEffect(() => {
 		if (!backHandlerRef) return undefined;
@@ -41,6 +41,7 @@ const RemoveFromPlaylistModal = ({open, item, playlists = [], api, serverUrl, us
 			return undefined;
 		}
 		const handler = () => {
+			if (removing) return true;
 			if (confirming) {
 				setConfirming(null);
 			} else {
@@ -52,7 +53,7 @@ const RemoveFromPlaylistModal = ({open, item, playlists = [], api, serverUrl, us
 		return () => {
 			if (backHandlerRef.current === handler) backHandlerRef.current = null;
 		};
-	}, [backHandlerRef, open, confirming, onClose]);
+	}, [backHandlerRef, open, removing, confirming, onClose]);
 
 	useEffect(() => {
 		if (!open || backHandlerRef) return undefined;
@@ -60,6 +61,7 @@ const RemoveFromPlaylistModal = ({open, item, playlists = [], api, serverUrl, us
 			if (isBackKey(e)) {
 				e.preventDefault();
 				e.stopPropagation();
+				if (removing) return;
 				if (confirming) {
 					setConfirming(null);
 				} else {
@@ -69,7 +71,7 @@ const RemoveFromPlaylistModal = ({open, item, playlists = [], api, serverUrl, us
 		};
 		window.addEventListener('keydown', handleKey, true);
 		return () => window.removeEventListener('keydown', handleKey, true);
-	}, [open, backHandlerRef, confirming, onClose]);
+	}, [open, backHandlerRef, removing, confirming, onClose]);
 
 	const handleSelectPlaylist = useCallback((ev) => {
 		const playlistId = ev.currentTarget.dataset.playlistId;
@@ -132,11 +134,15 @@ const RemoveFromPlaylistModal = ({open, item, playlists = [], api, serverUrl, us
 					</div>
 				) : (
 					<>
-						{playlists.length === 0 && (
+						{loading && (
+							<p className={css.message}>{$L('Loading playlists…')}</p>
+						)}
+
+						{!loading && playlists.length === 0 && (
 							<p className={css.message}>{$L('No playlists found')}</p>
 						)}
 
-						{playlists.map((pl, index) => (
+						{!loading && playlists.map((pl, index) => (
 							<SpottableDiv
 								key={`${pl.playlistId}:${pl.entryId}`}
 								className={index === 0 ? `${css.playlistRow} spottable-default` : css.playlistRow}

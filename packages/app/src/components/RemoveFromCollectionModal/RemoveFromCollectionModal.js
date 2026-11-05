@@ -41,6 +41,7 @@ const RemoveFromCollectionModal = ({open, item, collections = [], api, serverUrl
 			return undefined;
 		}
 		const handler = () => {
+			if (removing) return true;
 			if (confirming) {
 				setConfirming(null);
 			} else {
@@ -52,7 +53,7 @@ const RemoveFromCollectionModal = ({open, item, collections = [], api, serverUrl
 		return () => {
 			if (backHandlerRef.current === handler) backHandlerRef.current = null;
 		};
-	}, [backHandlerRef, open, confirming, onClose]);
+	}, [backHandlerRef, open, removing, confirming, onClose]);
 
 	useEffect(() => {
 		if (!open || backHandlerRef) return undefined;
@@ -60,6 +61,7 @@ const RemoveFromCollectionModal = ({open, item, collections = [], api, serverUrl
 			if (isBackKey(e)) {
 				e.preventDefault();
 				e.stopPropagation();
+				if (removing) return;
 				if (confirming) {
 					setConfirming(null);
 				} else {
@@ -69,7 +71,7 @@ const RemoveFromCollectionModal = ({open, item, collections = [], api, serverUrl
 		};
 		window.addEventListener('keydown', handleKey, true);
 		return () => window.removeEventListener('keydown', handleKey, true);
-	}, [open, backHandlerRef, confirming, onClose]);
+	}, [open, backHandlerRef, removing, confirming, onClose]);
 
 	const handleSelectCollection = useCallback((ev) => {
 		const collectionId = ev.currentTarget.dataset.collectionId;
