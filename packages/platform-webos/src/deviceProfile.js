@@ -70,10 +70,11 @@ const querySoundSettings = async () => {
 
 // A playback request builds capabilities and then the profile, each asking for the sound path, and a set whose
 // avoutput service is missing asks four times before it gives up: over a second before playback is even asked for.
-// The answer is shared for 30 s.
-const AUDIO_OUTPUT_REUSE_MS = 30000;
+// The two asks in one start share the answer. The next start asks again, since the sound output can change
+// between them, and a stale receiver answer would send lossless audio to the TV speakers.
+const AUDIO_OUTPUT_REUSE_MS = 5000;
 let audioOutputQuery = null;
-let audioOutputAt = 0;
+let audioOutputSettledAt = 0;
 
 const queryAudioOutputPath = async () => {
 	for (let attempt = 0; attempt < 4; attempt++) {
@@ -89,10 +90,17 @@ const queryAudioOutputPath = async () => {
 	return {};
 };
 
+// The window runs from when the answer came in, since the ask itself can take over a second.
 const getAudioOutputStatus = () => {
-	if (!audioOutputQuery || Date.now() - audioOutputAt > AUDIO_OUTPUT_REUSE_MS) {
-		audioOutputAt = Date.now();
-		audioOutputQuery = queryAudioOutputPath();
+	const expired = audioOutputSettledAt && Date.now() - audioOutputSettledAt > AUDIO_OUTPUT_REUSE_MS;
+	if (!audioOutputQuery || expired) {
+		const query = queryAudioOutputPath();
+		const settled = () => {
+			if (audioOutputQuery === query) audioOutputSettledAt = Date.now();
+		};
+		audioOutputQuery = query;
+		audioOutputSettledAt = 0;
+		query.then(settled, settled);
 	}
 	return audioOutputQuery;
 };
