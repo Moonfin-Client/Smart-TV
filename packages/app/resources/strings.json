@@ -2643,6 +2643,8 @@
 	"Why": "Why",
 	"WRITERS": "WRITERS",
 	"Wait for ASS/SSA subtitles": "Wait for ASS/SSA subtitles",
+	"Read embedded text subtitles from the file": "Read embedded text subtitles from the file",
+	"Show SRT subtitles from inside the file instead of waiting for the server to extract them": "Show SRT subtitles from inside the file instead of waiting for the server to extract them",
 	"Waiting for authorization...": "Waiting for authorization...",
 	"Waiting for members...": "Waiting for members...",
 	"Warning: No Write Access": "Warning: No Write Access",

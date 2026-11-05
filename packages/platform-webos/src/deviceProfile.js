@@ -873,7 +873,12 @@ export const getJellyfinDeviceProfile = async (options = {}) => {
 		}
 	];
 
+	// Embed covers the SRT tracks inside the file, which the client reads itself, and External
+	// still covers sidecar files.
+	const embeddedTextProfiles = options.embedTextSubtitles ?
+		['srt', 'subrip'].map((Format) => ({Format, Method: 'Embed'})) : [];
 	const subtitleProfiles = [
+		...embeddedTextProfiles,
 		{Format: 'vtt', Method: 'External'},
 		{Format: 'srt', Method: 'External'},
 		{Format: 'ass', Method: 'External'},
