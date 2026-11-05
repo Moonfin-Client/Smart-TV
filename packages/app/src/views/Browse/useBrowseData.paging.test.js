@@ -90,17 +90,10 @@ describe('paging a home row', () => {
 		const result = await pageableHome();
 		expect(readLengths()).toEqual([12]);
 		// The second call comes before React draws the first page, as it does when a key is held on a slow TV.
-		await result.current.loadMoreRow('resume', 11);
-		await result.current.loadMoreRow('resume', 26);
+		await result.current.loadMoreRow('resume');
+		await result.current.loadMoreRow('resume');
 		expect(readLengths()).toEqual([12, 27, 42]);
 		await waitFor(() => expect(resumeRow(result).items).toHaveLength(42));
 		expect(resumeRow(result).hasMore).toBe(true);
-	});
-
-	test('a card measured against a shorter row than the one now held asks for nothing', async () => {
-		const result = await pageableHome();
-		await result.current.loadMoreRow('resume', 11);
-		await result.current.loadMoreRow('resume', 12);
-		expect(readLengths()).toEqual([12, 27]);
 	});
 });

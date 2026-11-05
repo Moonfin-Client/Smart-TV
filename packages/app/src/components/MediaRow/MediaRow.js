@@ -87,7 +87,7 @@ const MediaRow = ({
 		if (onLoadMore && focused && focused.parentNode) {
 			const cards = focused.parentNode.querySelectorAll('[data-media-card]');
 			const index = Array.prototype.indexOf.call(cards, focused);
-			if (nearRowEnd(index, itemCount)) onLoadMore(rowId, index);
+			if (nearRowEnd(index, itemCount)) onLoadMore(rowId);
 		}
 
 		// A hovered card already sits under the cursor, so nudging the lane

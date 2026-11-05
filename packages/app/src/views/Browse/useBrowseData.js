@@ -10,7 +10,7 @@ import * as connectionPool from '../../services/connectionPool';
 import * as seerrApi from '../../services/seerrApi';
 import browseReducer, {browseInitialState, mergeRowsById} from './browseReducer';
 import {BROWSE_ROW_LOADERS, buildLoaderContext, loadDeferredSections, loadSinceYouWatched} from './browseRowLoaders';
-import {headLengthFor, moreAfter, nearRowEnd, nextHeadLength, pageableRow, withRowPage} from './rowPaging';
+import {headLengthFor, moreAfter, nextHeadLength, pageableRow, withRowPage} from './rowPaging';
 import {genericCollectionLabel, mergeRecentRows} from '../../utils/mergeRecentRows';
 import {normalizeLatestMediaItems} from '../../utils/latestMediaRowNormalizer';
 import {EXCLUDED_COLLECTION_TYPES, filterItemsByExcludedGenres, matchesContentType} from './browseFilters';
@@ -81,12 +81,9 @@ const useBrowseData = ({
 
 	// Reads a row's next page as focus nears its end. A row already being read, or with nothing
 	// more, is left alone.
-	const loadRowPage = useCallback(async (rowId, focusedIndex) => {
+	const loadRowPage = useCallback(async (rowId) => {
 		const row = rowsRef.current.find((entry) => entry.id === rowId);
 		if (!row || !row.hasMore || typeof row.readHead !== 'function' || pagingRef.current.has(rowId)) return;
-		// A card's position can come from a draw made before the last page landed, so it's checked
-		// against the row as it is now.
-		if (focusedIndex != null && !nearRowEnd(focusedIndex, row.items?.length || 0)) return;
 		pagingRef.current.add(rowId);
 		const limit = nextHeadLength(row);
 		let page;
@@ -112,11 +109,10 @@ const useBrowseData = ({
 		}
 	}, []);
 
-	// The merged Continue Watching & Next Up row is drawn from both rows, so it pages both. Its
-	// card positions span both, so neither is checked against them.
-	const loadMoreRow = useCallback((rowId, focusedIndex) => (rowId === 'continue-nextup'
+	// The merged Continue Watching & Next Up row is drawn from both rows, so it pages both.
+	const loadMoreRow = useCallback((rowId) => (rowId === 'continue-nextup'
 		? Promise.all([loadRowPage('resume'), loadRowPage('nextup')])
-		: loadRowPage(rowId, focusedIndex)), [loadRowPage]);
+		: loadRowPage(rowId)), [loadRowPage]);
 
 	const recommendations = useMemo(
 		() => ({seerrEnabled, seerrAuthenticated, recommendationsSupported}),

@@ -9,6 +9,7 @@ import {withoutBlocked, withoutBlockedOrUnrated} from '../../utils/parentalFilte
 
 import {SERVER_TO_TV_ROW, TV_TO_SERVER_ROW} from '../../utils/homeLayout';
 import {FAVORITE_ROW_CONFIGS, isHiddenByMap, parseHiddenMap} from './browseFilters';
+import {ROW_MAX_ITEMS} from './rowPaging';
 import {isRowEnabledBySetting} from '../../utils/homeRowGates';
 
 // Titles are resolved on every build rather than stored, so a row that came out of the cache
@@ -127,12 +128,13 @@ const mergeContinueAndNextUp = (allRowData, hiddenCWMap, hiddenNUMap) => {
 	});
 
 	if (combinedItems.length === 0) return null;
+	// Each row it's drawn from pages up to the cap, so the two together are held to it too.
 	return {
 		id: 'continue-nextup',
 		title: $L('Continue Watching & Next Up'),
-		items: combinedItems,
+		items: combinedItems.slice(0, ROW_MAX_ITEMS),
 		type: 'landscape',
-		hasMore: Boolean(resumeRow?.hasMore || nextUpRow?.hasMore)
+		hasMore: combinedItems.length < ROW_MAX_ITEMS && Boolean(resumeRow?.hasMore || nextUpRow?.hasMore)
 	};
 };
 

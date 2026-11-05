@@ -100,7 +100,7 @@ const ModernMediaRow = ({
 			// The lane has an element beside each card, so only the cards are counted.
 			const cards = Array.prototype.filter.call(card.parentNode.children, (el) => el.classList.contains('spottable'));
 			const index = cards.indexOf(card);
-			if (nearRowEnd(index, itemCount)) onLoadMore(rowId, index);
+			if (nearRowEnd(index, itemCount)) onLoadMore(rowId);
 		}
 
 		// A hovered card already sits under the cursor, so nudging the lane

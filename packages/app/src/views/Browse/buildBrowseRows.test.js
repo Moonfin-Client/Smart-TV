@@ -130,6 +130,17 @@ describe('merged continue watching', () => {
 	test('nothing to continue means no row at all', () => {
 		expect(merged({allRowData: [row('resume', []), row('nextup', [])]})).toEqual([]);
 	});
+
+	test('the merged row stops at 100 cards and asks for no more', () => {
+		const many = (prefix, count) => Array.from({length: count}, (_, i) => item(`${prefix}${i}`));
+		const rows = merged({
+			allRowData: [row('resume', many('r', 70), {hasMore: true}), row('nextup', many('n', 60), {hasMore: true})]
+		});
+		expect(rows[0].items).toHaveLength(100);
+		expect(rows[0].hasMore).toBe(false);
+		const short = merged({allRowData: [row('resume', many('r', 20), {hasMore: true}), row('nextup', many('n', 10))]});
+		expect(short[0].hasMore).toBe(true);
+	});
 });
 
 describe('ordering', () => {
