@@ -29,10 +29,12 @@ const RemoveFromCollectionModal = ({open, item, collections = [], api, serverUrl
 
 	useEffect(() => {
 		if (!open) return undefined;
-		const target = confirming ? 'remove-collection-confirm-btn' : 'remove-collection-modal';
+		let target = 'remove-collection-modal';
+		if (confirming) target = 'remove-collection-confirm-btn';
+		else if (collections.length === 0) target = 'remove-collection-empty-cancel-btn';
 		const t = setTimeout(() => Spotlight.focus(target), 100);
 		return () => clearTimeout(t);
-	}, [open, confirming]);
+	}, [open, confirming, collections.length]);
 
 	useEffect(() => {
 		if (!backHandlerRef) return undefined;
@@ -135,7 +137,18 @@ const RemoveFromCollectionModal = ({open, item, collections = [], api, serverUrl
 				) : (
 					<>
 						{collections.length === 0 && (
-							<p className={css.message}>{$L('No collections found')}</p>
+							<>
+								<p className={css.message}>{$L('No collections found')}</p>
+								<div className={css.formButtons}>
+									<SpottableButton
+										className={`${css.btn} spottable-default`}
+										onClick={onClose}
+										spotlightId="remove-collection-empty-cancel-btn"
+									>
+										{$L('Cancel')}
+									</SpottableButton>
+								</div>
+							</>
 						)}
 
 						{collections.map((col, index) => (

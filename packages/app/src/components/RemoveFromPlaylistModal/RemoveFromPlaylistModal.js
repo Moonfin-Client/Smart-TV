@@ -31,10 +31,10 @@ const RemoveFromPlaylistModal = ({open, item, playlists = [], loading = false, a
 		if (!open) return undefined;
 		let target = 'remove-playlist-modal';
 		if (confirming) target = 'remove-playlist-confirm-btn';
-		else if (loading) target = 'remove-playlist-loading-cancel-btn';
+		else if (loading || playlists.length === 0) target = 'remove-playlist-loading-cancel-btn';
 		const t = setTimeout(() => Spotlight.focus(target), 100);
 		return () => clearTimeout(t);
-	}, [open, loading, confirming]);
+	}, [open, loading, confirming, playlists.length]);
 
 	useEffect(() => {
 		if (!backHandlerRef) return undefined;
@@ -137,22 +137,23 @@ const RemoveFromPlaylistModal = ({open, item, playlists = [], loading = false, a
 				) : (
 					<>
 						{loading && (
-							<>
-								<p className={css.message}>{$L('Loading playlists…')}</p>
-								<div className={css.formButtons}>
-									<SpottableButton
-										className={`${css.btn} spottable-default`}
-										onClick={onClose}
-										spotlightId="remove-playlist-loading-cancel-btn"
-									>
-										{$L('Cancel')}
-									</SpottableButton>
-								</div>
-							</>
+							<p className={css.message}>{$L('Loading playlists…')}</p>
 						)}
 
 						{!loading && playlists.length === 0 && (
 							<p className={css.message}>{$L('No playlists found')}</p>
+						)}
+
+						{(loading || playlists.length === 0) && (
+							<div className={css.formButtons}>
+								<SpottableButton
+									className={`${css.btn} spottable-default`}
+									onClick={onClose}
+									spotlightId="remove-playlist-loading-cancel-btn"
+								>
+									{$L('Cancel')}
+								</SpottableButton>
+							</div>
 						)}
 
 						{!loading && playlists.map((pl, index) => (
