@@ -1,8 +1,9 @@
-import {clearCapabilitiesCache, getJellyfinDeviceProfile} from '../../../platform-tizen/src/deviceProfile';
+const MODEL_2020 = 'GU55TU8379UXZG';
+const MODEL_2019 = 'UN55RU7100FXZA';
 
-// Minimal stand-in for the TV APIs. Anything not stubbed falls back to the
-// profile's own defaults, the same way a set that refuses a call does.
-const stubTv = ({uhd, modelYear, tizenVersion = '5.5'}) => {
+// Stands in for the TV APIs the profile reads. Anything not stubbed falls back
+// to the profile's own defaults, the same way a set that refuses a call does.
+const stubTv = ({uhd, model, tizenVersion}) => {
 	window.tizen = {
 		systeminfo: {
 			getCapability: () => tizenVersion
@@ -12,8 +13,9 @@ const stubTv = ({uhd, modelYear, tizenVersion = '5.5'}) => {
 		productinfo: {
 			isUdPanelSupported: () => uhd,
 			is8KPanelSupported: () => false,
-			getModelCode: () => `${modelYear}_TEST`,
-			getSmartTVServerVersion: () => `T-TEST${modelYear}`
+			getRealModel: () => model,
+			getModel: () => model,
+			getFirmware: () => ''
 		}
 	};
 };
@@ -22,45 +24,61 @@ const h264Profiles = (profile) => profile.CodecProfiles.filter((p) => p.Type ===
 
 const levelOf = (codecProfile) => codecProfile.Conditions.find((c) => c.Property === 'VideoLevel')?.Value;
 
-// Mirrors how the server picks limits: every profile whose ApplyConditions hold
-// counts, and the lowest level wins.
+// Mirrors the server: a profile counts when its ApplyConditions hold, an unknown
+// value only holds when the condition isn't required, and the lowest level wins.
+const heightConditionHolds = (condition, height) => {
+	if (height == null) return !condition.IsRequired;
+	return height <= Number(condition.Value);
+};
+
 const maxLevelFor = (profile, height) => Math.min(
 	...h264Profiles(profile)
-		.filter((p) => (p.ApplyConditions || []).every((c) => c.Property !== 'Height' || height <= Number(c.Value)))
+		.filter((p) => (p.ApplyConditions || []).every((c) => c.Property !== 'Height' || heightConditionHolds(c, height)))
 		.map(levelOf)
 		.filter(Boolean)
 		.map(Number)
 );
 
-describe('Tizen H.264 level limits', () => {
-	// Capabilities are cached per app run, and each test here is a different TV
-	beforeEach(() => clearCapabilitiesCache());
+// The module caches the model and capabilities per app run, and each test here
+// is a different TV, so every test loads its own copy.
+const profileFor = (tv) => {
+	stubTv(tv);
+	jest.resetModules();
+	return require('../../../platform-tizen/src/deviceProfile').getJellyfinDeviceProfile();
+};
 
+describe('Tizen H.264 level limits', () => {
 	afterEach(() => {
 		delete window.tizen;
 		delete window.webapis;
 	});
 
 	test('a UHD set keeps Level 5.1 for 4K sources', async () => {
-		stubTv({uhd: true, modelYear: 2020});
-		const profile = await getJellyfinDeviceProfile();
+		const profile = await profileFor({uhd: true, model: MODEL_2020, tizenVersion: '5.5'});
 
 		expect(maxLevelFor(profile, 2160)).toBe(51);
 	});
 
-	test('a UHD set limits 1080p sources to the FHD level', async () => {
-		stubTv({uhd: true, modelYear: 2020});
-		const profile = await getJellyfinDeviceProfile();
-		const limited = maxLevelFor(profile, 1080);
+	test('a 2020 UHD set limits 1080p sources to Level 4.2', async () => {
+		const profile = await profileFor({uhd: true, model: MODEL_2020, tizenVersion: '5.5'});
 
-		// Level 5.0 and up, as in x264 encodes with many reference frames, must not pass
-		expect(limited).toBeLessThan(50);
-		expect([41, 42]).toContain(limited);
+		expect(maxLevelFor(profile, 1080)).toBe(42);
+	});
+
+	test('a 2019 UHD set limits 1080p sources to Level 4.1', async () => {
+		const profile = await profileFor({uhd: true, model: MODEL_2019, tizenVersion: '5.0'});
+
+		expect(maxLevelFor(profile, 1080)).toBe(41);
+	});
+
+	test('an unknown height keeps the UHD level', async () => {
+		const profile = await profileFor({uhd: true, model: MODEL_2020, tizenVersion: '5.5'});
+
+		expect(maxLevelFor(profile, null)).toBe(51);
 	});
 
 	test('only UHD sets get the extra resolution profile', async () => {
-		stubTv({uhd: false, modelYear: 2020});
-		const profile = await getJellyfinDeviceProfile();
+		const profile = await profileFor({uhd: false, model: MODEL_2020, tizenVersion: '5.5'});
 
 		expect(h264Profiles(profile).some((p) => p.ApplyConditions)).toBe(false);
 	});

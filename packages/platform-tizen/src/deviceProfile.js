@@ -627,7 +627,8 @@ export const getJellyfinDeviceProfile = async (options = {}) => {
 		// Without this limit such a file is direct played or remuxed with its video
 		// copied, and AVPlay fails. The server applies every matching profile, so this
 		// one lowers the level below for FHD sources and forces a real video transcode.
-		// 1088 covers encodes that report their uncropped coded height.
+		// 1088 covers encodes that report their uncropped coded height. The height is
+		// required because the server counts an unknown value as a match otherwise.
 		...(caps.uhd ? [{
 			Type: 'Video',
 			Codec: 'h264',
@@ -636,7 +637,7 @@ export const getJellyfinDeviceProfile = async (options = {}) => {
 					Condition: 'LessThanEqual',
 					Property: 'Height',
 					Value: '1088',
-					IsRequired: false
+					IsRequired: true
 				}
 			],
 			Conditions: [
