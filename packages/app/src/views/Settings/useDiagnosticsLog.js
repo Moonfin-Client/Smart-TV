@@ -38,6 +38,7 @@ const useDiagnosticsLog = ({currentViewName, pushView, serverType, pluginInfo}) 
 
 	let sendUnavailableReason = null;
 	if (serverType === 'plex') sendUnavailableReason = $L("Plex servers don't take client logs.");
+	else if (serverType === 'silo') sendUnavailableReason = $L("Silo servers don't take client logs.");
 	else if (!acceptsReports(serverType, pluginInfo?.clientLogSupported)) {
 		sendUnavailableReason = $L('This Emby server needs the Moonfin plugin, with client log upload turned on.');
 	}

@@ -6,6 +6,7 @@ import {useAuth} from '../../context/AuthContext';
 import {useSettings} from '../../context/SettingsContext';
 import {useSeerr} from '../../context/SeerrContext';
 import {useSyncPlay} from '../../context/SyncPlayContext';
+import useWatchParty from '../../hooks/useWatchParty';
 import {useServerMessages} from '../../context/ServerMessagesContext';
 import {useAchievements} from '../../context/AchievementsContext';
 import SeerrIcon from '../icons/SeerrIcon';
@@ -63,7 +64,10 @@ const NavBar = ({
 	const {settings, activeTheme} = useSettings();
 	const {isEnabled: seerrEnabled, displayName} = useSeerr();
 	const {isInGroup} = useSyncPlay();
+	// On Silo the button opens its Watch Party instead.
+	const {room: watchPartyRoom} = useWatchParty();
 	const {serverType} = useAuth();
+	const onSilo = serverType === 'silo';
 	const {messages, unreadCount} = useServerMessages();
 	const {socialAvailable, badgeCount: friendsBadge} = useAchievements();
 	const [libraryMenuOpen, setLibraryMenuOpen] = useState(false);
@@ -78,7 +82,7 @@ const NavBar = ({
 	const kidsMode = isKidsMode(settings);
 	const showLiveTv = !kidsMode && settings.showLiveTvButton !== false && hasLiveTv;
 	const showSeerr = !kidsMode && seerrEnabled && settings.showSeerrButton !== false;
-	// Plex has no SyncPlay.
+	// Plex has no SyncPlay; Silo's button opens its Watch Party.
 	const showSyncPlay = !kidsMode && serverType !== 'plex' && settings.syncplayEnabled !== false && settings.showSyncPlayButton !== false;
 	const navLibraries = librariesForNav(libraries, showLiveTv, {hideLiveTv: kidsMode});
 	const showLibraries = !kidsMode && settings.showLibrariesInToolbar !== false && navLibraries.length > 0;
@@ -172,7 +176,7 @@ const NavBar = ({
 					)}
 
 					{showSyncPlay && (
-						<NavPillButton Icon={SyncPlayIcon} slot={nextSlot()} label={$L('SyncPlay')} onClick={onSyncPlay} spotlightId="navbar-syncplay" active={isInGroup} />
+						<NavPillButton Icon={SyncPlayIcon} slot={nextSlot()} label={onSilo ? $L('Watch Party') : $L('SyncPlay')} onClick={onSyncPlay} spotlightId="navbar-syncplay" active={onSilo ? Boolean(watchPartyRoom) : isInGroup} />
 					)}
 
 					{showSeerr && (

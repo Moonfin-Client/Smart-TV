@@ -1067,6 +1067,8 @@ export const createPlexApi = ({getBaseUrl, getToken, getUserId, getDeviceInfo, g
 			? api.getLatest(libraryId, limit)
 			: plexItems((await container('/library/recentlyAdded', paging(0, limit))).Metadata)),
 
+		getLatestItems: ({ParentId, Limit} = {}) => api.getLatestMedia(ParentId, Limit),
+
 		getRecentlyReleased: (libraryId, limit = 20, includeItemTypes = 'Movie,Series') =>
 			getItems({ParentId: libraryId, IncludeItemTypes: includeItemTypes, SortBy: 'PremiereDate', SortOrder: 'Descending', Limit: limit}),
 

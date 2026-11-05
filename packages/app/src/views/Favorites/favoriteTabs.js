@@ -16,6 +16,14 @@ export const FAVORITE_TABS = [
 	{key: 'song', label: 'Songs', types: 'Audio', cardType: 'square'}
 ];
 
+// The watchlist is a tab of its own after the favorites, as Moonfin Core has it: the library titles
+// on Silo's watchlist, then the requests watchlist (Seerr's, or Silo's titles the library lacks) as
+// request cards. It isn't a favorite, so it counts toward its own tab and not the favorites total.
+export const WATCHLIST_TAB = {key: 'watchlist', label: 'Watchlist', cardType: 'portrait'};
+
+// Every tab the view can show, in order.
+export const ALL_FAVORITE_TABS = [...FAVORITE_TABS, WATCHLIST_TAB];
+
 // Status draws the continuing or ended chip, MediaStreams the resolution chip, and
 // the backdrop tags the picture behind the grid. Series names, album ids and parent
 // backdrop tags all arrive without being asked for.
@@ -44,7 +52,29 @@ export const bucketByTab = (items) => {
 };
 
 export const visibleTabs = (itemsByKey) => {
-	return FAVORITE_TABS.filter((tab) => (itemsByKey?.[tab.key]?.length || 0) > 0);
+	return ALL_FAVORITE_TABS.filter((tab) => (itemsByKey?.[tab.key]?.length || 0) > 0);
+};
+
+const tmdbIdOf = (item) => {
+	const ids = item?.ProviderIds || {};
+	const id = ids.Tmdb ?? ids.tmdb ?? ids.TMDB;
+	return id == null ? null : String(id);
+};
+
+/**
+ * The watchlist tab's cards: the library titles first, then the request cards for titles the library
+ * doesn't already show. `requestCards` are home row Seerr cards (normalizeMediaItem).
+ */
+export const watchlistCards = (libraryItems, requestCards) => {
+	const held = new Set((libraryItems || []).map((item) => `${item.Type}:${tmdbIdOf(item)}`));
+	const seen = new Set();
+	const requests = (requestCards || []).filter((card) => {
+		const key = `${card.Type}:${card._seerrRaw?.mediaId}`;
+		if (held.has(key) || seen.has(key)) return false;
+		seen.add(key);
+		return true;
+	});
+	return [...(libraryItems || []), ...requests];
 };
 
 // The selected tab disappears when its last favorite is removed, so the index
@@ -100,6 +130,9 @@ export const cardMetrics = (cardType, imageSize) => {
 // A song with no art of its own borrows the cover of the album it came off.
 export const favoriteCardImage = (item, cardType) => {
 	if (!item) return {imageId: null, imageType: 'Primary'};
+
+	// A watchlist request card carries its own TMDB poster, since the server has no item for it.
+	if (item._externalPosterUrl) return {imageId: null, imageType: 'Primary', url: item._externalPosterUrl};
 
 	if (cardType === 'landscape' && item.ImageTags?.Thumb) {
 		return {imageId: item.Id, imageType: 'Thumb'};

@@ -65,12 +65,15 @@ namespace Moonfin.Xbox
 
         private readonly NativePlayer nativePlayer;
 
+        private readonly SocketRelay socketRelay;
+
         public MainPage()
         {
             InitializeComponent();
             Current = this;
 
             nativePlayer = new NativePlayer(VideoHost, VideoBackdrop, Dispatcher, SendToPage, authority => insecureHosts.Contains(authority));
+            socketRelay = new SocketRelay(Dispatcher, SendToPage, authority => insecureHosts.Contains(authority));
 
             // Xbox keeps a border around the content for sets that cut the edges off. The web
             // app lays itself out for a TV already, so it is given the whole screen.
@@ -219,8 +222,9 @@ namespace Moonfin.Xbox
             if (IsAppPage(args.Uri))
             {
                 pageReady = false;
-                // A page that loads afresh knows nothing of what the last one left playing.
+                // A page that loads afresh knows nothing of what the last one left playing or open.
                 _ = nativePlayer.CloseAsync();
+                socketRelay.CloseAll();
                 return;
             }
             // Anything else would run in a WebView that has the bridge, so it never loads here.
@@ -311,6 +315,7 @@ namespace Moonfin.Xbox
             pageReady = false;
             SetDisplayActive(false);
             _ = nativePlayer.CloseAsync();
+            socketRelay.CloseAll();
 
             DateTimeOffset now = DateTimeOffset.UtcNow;
             bool again = now - lastFailure < FailureWindow;
@@ -339,6 +344,7 @@ namespace Moonfin.Xbox
             webView = null;
             pageReady = false;
             _ = nativePlayer.CloseAsync();
+            socketRelay.CloseAll();
             WebViewHost.Children.Clear();
             try
             {
@@ -416,6 +422,7 @@ namespace Moonfin.Xbox
 
                 default:
                     if (nativePlayer.Handle(message)) break;
+                    if (socketRelay.Handle(message)) break;
                     HostLog.Write("bridge", "Unknown message " + message.Type);
                     Reply(message, null, "Unknown message " + message.Type);
                     break;

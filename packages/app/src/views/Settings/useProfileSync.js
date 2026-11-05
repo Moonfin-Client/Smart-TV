@@ -8,7 +8,10 @@ import {seedLanguagePreferences} from '../../utils/languagePrefSeed';
 
 const resolvedToLocal = (resolved) => {
 	const local = profileToLocal(resolved);
-	const homeRows = homeRowsFromProfile(resolved, {seasonal: local.seasonalRowEnabled === true});
+	const homeRows = homeRowsFromProfile(resolved, {
+		seasonal: local.seasonalRowEnabled === true,
+		mdblist_watching_now: local.mdblistWatchingNowEnabled === true
+	});
 	if (homeRows !== undefined) local.homeRows = homeRows;
 	return local;
 };

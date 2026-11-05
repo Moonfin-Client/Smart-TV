@@ -5,6 +5,7 @@ import {useSettings} from '../../context/SettingsContext';
 import {useAuth} from '../../context/AuthContext';
 import {useSeerr} from '../../context/SeerrContext';
 import {useSyncPlay} from '../../context/SyncPlayContext';
+import useWatchParty from '../../hooks/useWatchParty';
 import {useServerMessages} from '../../context/ServerMessagesContext';
 import {useAchievements} from '../../context/AchievementsContext';
 import SeerrIcon from '../icons/SeerrIcon';
@@ -15,7 +16,7 @@ import {librariesForNav} from '../../utils/liveTvLibrary';
 import {isKidsMode} from '../../utils/kidsMode';
 import {shadowToCss, toCssColor, toCssColorWithAlpha} from '../../theme/themeSpec';
 import {resolveOverlayColor} from '../../theme/overlayColors';
-import {SIDEBAR_CONTENT_FOCUS_TARGETS, focusFirstContentTarget} from '../../utils/navFocusTargets';
+import {focusContentFromSidebar, rememberSidebarReturn} from '../../utils/navFocusTargets';
 import {KEYS} from '../../utils/keys';
 import SidebarItem from './SidebarItem';
 import SidebarLibraries from './SidebarLibraries';
@@ -79,6 +80,9 @@ const Sidebar = ({
 	const {isEnabled: seerrEnabled, displayName} = useSeerr();
 	const {serverType} = useAuth();
 	const {isInGroup} = useSyncPlay();
+	// On Silo the button opens its Watch Party instead.
+	const {room: watchPartyRoom} = useWatchParty();
+	const onSilo = serverType === 'silo';
 	const {messages, unreadCount} = useServerMessages();
 	const {socialAvailable, badgeCount: friendsBadge} = useAchievements();
 	// The nav bar has always honoured this; the sidebar rendered the clock
@@ -125,11 +129,18 @@ const Sidebar = ({
 		if (e.keyCode === KEYS.RIGHT) {
 			e.preventDefault();
 			e.stopPropagation();
-			focusFirstContentTarget(SIDEBAR_CONTENT_FOCUS_TARGETS, 'right');
+			focusContentFromSidebar();
 		} else if (e.keyCode === KEYS.UP || e.keyCode === KEYS.DOWN) {
 			trapVerticalEdges(e);
 		}
 	}, []);
+
+	// Focus arriving from outside the rail marks where right should bring it back to.
+	const {onFocus: expandOnFocus} = handlers;
+	const handleFocus = useCallback((e) => {
+		if (e.relatedTarget && !e.currentTarget.contains(e.relatedTarget)) rememberSidebarReturn(e.relatedTarget);
+		expandOnFocus(e);
+	}, [expandOnFocus]);
 
 	// Slots hand out the theme's nav color cycle in the order items actually
 	// render, so hiding a button never doubles a color on its neighbours.
@@ -146,7 +157,7 @@ const Sidebar = ({
 			onKeyDown={handleNavKeyDown}
 			onMouseEnter={handlers.onMouseEnter}
 			onMouseLeave={handlers.onMouseLeave}
-			onFocus={handlers.onFocus}
+			onFocus={handleFocus}
 			onBlur={handlers.onBlur}
 			spotlightId="navbar"
 		>
@@ -180,7 +191,7 @@ const Sidebar = ({
 					)}
 
 					{showSyncPlay && (
-						<SidebarItem Icon={SyncPlayIcon} slot={nextSlot()} label={$L('SyncPlay')} onClick={onSyncPlay} active={isInGroup} />
+						<SidebarItem Icon={SyncPlayIcon} slot={nextSlot()} label={onSilo ? $L('Watch Party') : $L('SyncPlay')} onClick={onSyncPlay} active={onSilo ? Boolean(watchPartyRoom) : isInGroup} />
 					)}
 
 					{showLibraries && (settings.showLibrariesIndividually === true ? (

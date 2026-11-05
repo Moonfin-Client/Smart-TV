@@ -6,8 +6,9 @@ import {KEYS} from '../../utils/keys';
 import {sameCardUserData} from '../../utils/playedState';
 import {useSettings} from '../../context/SettingsContext';
 import {getPlatform} from '../../platform';
-import {modernCardMetrics} from '../MediaCard/modernCardLayout';
+import {MODERN_CAPTION_ROOM, modernCardMetrics} from '../MediaCard/modernCardLayout';
 import PlaceholderRow from './PlaceholderRow';
+import {nearRowEnd} from '../../views/Browse/rowPaging';
 
 import css from './ModernMediaRow.module.less';
 
@@ -39,7 +40,9 @@ const ModernMediaRow = ({
 	menuOptions,
 	deferImages = false,
 	ratingsSurface,
-	hideOverview = false
+	hideOverview = false,
+	coreLook = false,
+	leadingInset = 0
 }) => {
 	const {settings} = useSettings();
 	const scrollerRef = useRef(null);
@@ -94,8 +97,10 @@ const ModernMediaRow = ({
 		const card = e.target.closest('.spottable');
 		// A row that pages asks for more once focus is among its last few cards.
 		if (onLoadMore && card && card.parentNode) {
-			const index = Array.prototype.indexOf.call(card.parentNode.children, card);
-			if (index >= 0 && index >= itemCount - 3) onLoadMore(rowId);
+			// The lane has an element beside each card, so only the cards are counted.
+			const cards = Array.prototype.filter.call(card.parentNode.children, (el) => el.classList.contains('spottable'));
+			const index = cards.indexOf(card);
+			if (nearRowEnd(index, itemCount)) onLoadMore(rowId);
 		}
 
 		// A hovered card already sits under the cursor, so nudging the lane
@@ -190,6 +195,7 @@ const ModernMediaRow = ({
 		platform === 'webos' ? css.platformWebos : '',
 		platform === 'tizen' ? css.platformTizen : '',
 		settings.fullScreenRows === true ? css.fullScreenRows : '',
+		coreLook ? css.coreLook : '',
 		typeof document !== 'undefined' && document.documentElement.classList.contains('legacy') ? css.platformLegacy : ''
 	].filter(Boolean).join(' ');
 	const rowStyle = typeof rowSpacing === 'number' ? {marginBottom: rowSpacing + 'px'} : undefined;
@@ -197,7 +203,6 @@ const ModernMediaRow = ({
 	if (loading) {
 		const {cardWidth, imageHeight} = modernCardMetrics({
 			posterSize: settings.homeRowsPosterSize,
-			platform,
 			isSquareItem: cardType === 'square'
 		});
 		return (
@@ -218,6 +223,8 @@ const ModernMediaRow = ({
 	if (!items || items.length === 0) return null;
 
 	const focusedIndex = focusedItemId ? items.findIndex((item) => item.Id === focusedItemId) : -1;
+	// Every row keeps room for three caption lines, so the next row never sits on a card's text.
+	const captionFloor = modernCardMetrics({posterSize: settings.homeRowsPosterSize}).imageHeight + MODERN_CAPTION_ROOM;
 
 	return (
 		<RowContainer
@@ -229,10 +236,11 @@ const ModernMediaRow = ({
 			onBlur={handleBlur}
 			style={rowStyle}
 		>
-			<h2 className={css.title}>{title}</h2>
+			<h2 className={css.title} style={coreLook ? {paddingLeft: `${leadingInset}px`} : undefined}>{title}</h2>
 			{subtitle && <div className={css.subtitle}>{subtitle}</div>}
-			<div className={css.scroller} ref={scrollerRef} onFocus={handleFocus}>
-				<div className={css.items}>
+			{/* Core starts the cards a little in from the title, 20 points against its 16. */}
+			<div className={css.scroller} ref={scrollerRef} onFocus={handleFocus} style={coreLook ? {paddingLeft: `${leadingInset + 6}px`} : undefined}>
+				<div className={css.items} style={coreLook ? undefined : {minHeight: `${captionFloor}px`}}>
 					{items.map((item, index) => {
 						const spotlightId = `media-${keyPrefix}-${item.Id}`;
 						const besideFocus = focusedIndex >= 0 && Math.abs(index - focusedIndex) === 1;
@@ -259,6 +267,7 @@ const ModernMediaRow = ({
 								menuOptions={menuOptions}
 								ratingsSurface={ratingsSurface}
 								hideOverview={hideOverview}
+								coreLook={coreLook}
 							/>
 						);
 					})}
@@ -283,6 +292,7 @@ const areRowPropsEqual = (prev, next) => {
 	if (!prev.onLoadMore !== !next.onLoadMore) return false;
 	if (prev.loading !== next.loading || prev.titleWidth !== next.titleWidth || prev.cardType !== next.cardType) return false;
 	if (prev.deferImages !== next.deferImages || prev.ratingsSurface !== next.ratingsSurface || prev.hideOverview !== next.hideOverview) return false;
+	if (prev.coreLook !== next.coreLook || prev.leadingInset !== next.leadingInset) return false;
 	if (prev.items === next.items) return true;
 	if (prev.items?.length !== next.items?.length) return false;
 	for (let i = 0; i < prev.items.length; i++) {

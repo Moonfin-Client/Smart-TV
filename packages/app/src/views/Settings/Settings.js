@@ -1619,7 +1619,7 @@ const Settings = ({ onBack, onLibrariesChanged, onRunSetupWizard, onSelectItem, 
 			)}
 			{viewName === 'rowImageTypes' && (
 				<RowImageTypesView
-					rows={(settings.homeRows || []).filter((row) => row.enabled && row.id !== 'librarybuttons' && !isPickedRow(row) && !isSeerrSliderRow(row))}
+					rows={(settings.homeRows || []).filter((row) => row.enabled && row.id !== 'librarybuttons' && row.id !== 'mdblist_watching_now' && !isPickedRow(row) && !isSeerrSliderRow(row))}
 					overrides={settings.homeRowImageTypes || {}}
 					globalLabel={getLabel(getImageTypeOptions(), settings.homeRowsImageType, $L('Poster'))}
 					onCycleRow={cycleRowImageType}

@@ -245,3 +245,15 @@ describe('creating a playlist', () => {
 		expect(sentBody()).toEqual({Name: 'Mix', Ids: 'a', UserId: 'u2'});
 	});
 });
+
+describe('Silo apis for other servers', () => {
+	test('stay the same across a token rotation, so the playback sessions they started are still theirs', () => {
+		const {openSiloSession} = require('./siloSession');
+		const session = openSiloSession('http://silo2:8090', 'acct-1', {accessToken: 'T0', refreshToken: 'R0', expiresAt: Date.now() + 3600000, lifetimeMs: 3600000});
+		const before = createApiForServer('http://silo2:8090', 'T0', 'p1', 'silo');
+		session.aliases = ['T0', ...session.aliases];
+		session.tokens = {...session.tokens, accessToken: 'T1'};
+		expect(createApiForServer('http://silo2:8090', 'T1', 'p1', 'silo')).toBe(before);
+		expect(createApiForServer('http://silo2:8090', 'T1', 'p2', 'silo')).not.toBe(before);
+	});
+});

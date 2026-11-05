@@ -111,7 +111,11 @@ export const useThemeMusic = () => {
 			if (songs.length === 0 || currentItemIdRef.current !== itemId || heldRef.current) return;
 
 			const song = songs[Math.floor(Math.random() * songs.length)];
-			const url = buildAudioUrl(song.Id);
+			// Silo hands each play its own short-lived address.
+			const url = song.SiloThemeOwnerId
+				? await jellyfinApi.api.getThemeSongUrl(song.SiloThemeOwnerId, song.Id)
+				: buildAudioUrl(song.Id);
+			if (!url || currentItemIdRef.current !== itemId || heldRef.current) return;
 
 			const audio = new window.Audio();
 			// A profile synced from another client can hold null here, which keeps

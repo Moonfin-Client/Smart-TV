@@ -1,5 +1,6 @@
 import {getTokenParam} from '../../services/jellyfinApi';
 import {isPlexServer, plexImageUrl} from '../../utils/plexUrls';
+import {isSiloServer, siloImageUrl} from '../../utils/siloUrls';
 
 const TICKS_PER_MINUTE = 600000000;
 
@@ -12,6 +13,7 @@ export const buildItemImageUrl = (item, fallbackServerUrl, fallbackAccessToken) 
 
 	const tag = item.ImageTags?.Primary || item.SeriesPrimaryImageTag || item.ParentThumbImageTag || '';
 	if (isPlexServer(serverUrl)) return plexImageUrl(serverUrl, item.Id, 'Primary', {fillWidth: 320, fillHeight: 480, tag}) || '';
+	if (isSiloServer(serverUrl)) return siloImageUrl(serverUrl, item.Id, 'Primary', {tag}) || '';
 	const tagParam = tag ? `&tag=${encodeURIComponent(tag)}` : '';
 	const tokenParam = accessToken ? `&${getTokenParam(item._serverType)}=${encodeURIComponent(accessToken)}` : '';
 

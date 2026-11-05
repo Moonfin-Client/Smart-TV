@@ -22,6 +22,22 @@ export const getContentTypeOptions = () => [
 	{ value: 'tv', label: $L('TV Shows Only') }
 ];
 
+export const getMediaBarSourceOptions = () => [
+	{ value: 'library', label: $L('Random') },
+	{ value: 'collection', label: $L('Collections') },
+	{ value: 'recentlyAdded', label: $L('Recently Added') },
+	{ value: 'recentlyReleased', label: $L('Recently Released') },
+	{ value: 'newReleases', label: $L('New Seasons & Episodes') }
+];
+
+export const getNewReleaseDaysOptions = () => [
+	{ value: 7, label: $L('7 days') },
+	{ value: 14, label: $L('14 days') },
+	{ value: 30, label: $L('30 days') },
+	{ value: 60, label: $L('60 days') },
+	{ value: 90, label: $L('90 days') }
+];
+
 export const getFeaturedBarStyleOptions = () => [
 	{ value: 'moonfin', label: $L('Moonfin') },
 	{ value: 'makd', label: $L('MakD') },

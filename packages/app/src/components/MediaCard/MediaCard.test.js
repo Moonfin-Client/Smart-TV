@@ -368,3 +368,20 @@ describe('MediaCard Seerr status', () => {
 		expect(banner()).toBeNull();
 	});
 });
+
+describe('MediaCard with its own overlay', () => {
+	it('draws the overlay in place of the library badges and drops the name below', () => {
+		const owned = {Id: 'm1', Name: 'Owned', Type: 'Movie', ImageTags: {Primary: 'p'}, UserData: {IsFavorite: true, Played: true}};
+		render(<MediaCard item={owned} serverUrl="http://server" cardType="landscape" overlay={<span data-overlay />} showInfo={false} />);
+		expect(document.querySelector('[data-overlay]')).not.toBeNull();
+		expect(document.querySelector('[class~="favoriteBadge"]')).toBeNull();
+		expect(document.querySelector('[class~="watchedBadge"]')).toBeNull();
+		expect(document.querySelector('[class~="info"]')).toBeNull();
+	});
+
+	it("keeps an owned title's list backdrop when the library has no wide art for it", () => {
+		const owned = {Id: 'm1', Name: 'Owned', Type: 'Movie', ImageTags: {Primary: 'p'}, _external: true, _resolvedFromExternal: true, _externalBackdropUrl: BACKDROP};
+		render(<MediaCard item={owned} serverUrl="http://server" cardType="landscape" rowImageType="backdrop" />);
+		expect(document.querySelector('img').getAttribute('src')).toBe(BACKDROP);
+	});
+});
