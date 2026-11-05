@@ -70,6 +70,13 @@ describe('withStudioLogos', () => {
 		expect(indie._studioLogoUrl).toBeUndefined();
 	});
 
+	test('uses the image the plugin links on TMDB when it gives one', () => {
+		const white = 'https://image.tmdb.org/t/p/w500_filter(duotone,ffffff,bababa)/hbo.png';
+		const list = {success: true, companies: [{id: -49, name: 'HBO', hasLogo: true, logoUrl: white}]};
+		const [hbo] = withStudioLogos([{Id: 'a', Name: 'HBO'}], list, SERVER, 'tok');
+		expect(hbo._studioLogoUrl).toBe(white);
+	});
+
 	test('leaves a near miss alone rather than guess', () => {
 		const [studio] = withStudioLogos([{Id: 'a', Name: '20th Century Fox Animation'}], logoList, SERVER, 'tok');
 		expect(studio._studioLogoUrl).toBeUndefined();

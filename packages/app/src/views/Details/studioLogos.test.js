@@ -14,6 +14,11 @@ describe('normalizeStudioName', () => {
 });
 
 describe('studioLogoIndex', () => {
+	it('takes the image the plugin links on TMDB over its own copy', () => {
+		const white = 'https://image.tmdb.org/t/p/w500_filter(duotone,ffffff,bababa)/hbo.png';
+		expect(studioLogoUrlFor('HBO', index([{id: -49, name: 'HBO', hasLogo: true, logoUrl: white}]))).toBe(white);
+	});
+
 	it('leaves out the companies with no logo', () => {
 		expect(studioLogoUrlFor('Nothing', index([{id: 1, name: 'Nothing', hasLogo: false}]))).toBeNull();
 	});

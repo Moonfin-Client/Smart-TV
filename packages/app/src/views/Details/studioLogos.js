@@ -4,11 +4,12 @@ import {getTokenParam} from '../../services/jellyfinApi';
 // without either.
 export const normalizeStudioName = (name) => String(name || '').toLowerCase().replace(/[^a-z0-9]/g, '');
 
-// Logos always come from TMDB, through the plugin's server side cache, which holds its own key
-// so the client only needs the plugin to be switched on.
-const logoUrlFor = (company, serverUrl, token) => (
-	company?.hasLogo ? `${serverUrl}/Moonfin/Tmdb/StudioImage/${company.id}?${getTokenParam()}=${token}` : null
-);
+// Logos always come from TMDB. The plugin links each one there, white when it's a dark logo,
+// and an older plugin only serves its own cached copy.
+const logoUrlFor = (company, serverUrl, token) => {
+	if (!company?.hasLogo) return null;
+	return company.logoUrl || `${serverUrl}/Moonfin/Tmdb/StudioImage/${company.id}?${getTokenParam()}=${token}`;
+};
 
 // Indexes the TMDB companies under both their exact and their normalized names. Two of them
 // can share a normalized key, Apple TV and Apple TV+ for one, so the first of those wins and
