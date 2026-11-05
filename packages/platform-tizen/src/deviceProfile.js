@@ -622,6 +622,32 @@ export const getJellyfinDeviceProfile = async (options = {}) => {
 	if (caps.dolbyVision) hevcRangeTypes.push('DOVI', 'DOVIWithEL', 'DOVIWithELHDR10Plus');
 
 	const codecProfiles = [
+		// Samsung ties the H.264 level to the resolution: Level 5.1 is only specified
+		// for UHD, so a UHD panel still can't decode every 1080p Level 5.x stream.
+		// Without this limit such a file is direct played or remuxed with its video
+		// copied, and AVPlay fails. The server applies every matching profile, so this
+		// one lowers the level below for FHD sources and forces a real video transcode.
+		// 1088 covers encodes that report their uncropped coded height.
+		...(caps.uhd ? [{
+			Type: 'Video',
+			Codec: 'h264',
+			ApplyConditions: [
+				{
+					Condition: 'LessThanEqual',
+					Property: 'Height',
+					Value: '1088',
+					IsRequired: false
+				}
+			],
+			Conditions: [
+				{
+					Condition: 'LessThanEqual',
+					Property: 'VideoLevel',
+					Value: caps.modelYear >= 2020 ? '42' : '41',
+					IsRequired: false
+				}
+			]
+		}] : []),
 		{
 			Type: 'Video',
 			Codec: 'h264',
