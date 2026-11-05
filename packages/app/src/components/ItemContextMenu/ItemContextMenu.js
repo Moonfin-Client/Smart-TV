@@ -89,10 +89,10 @@ export const ItemMenuProvider = ({children, onPlay, onOpenItem, backRef}) => {
 		if (!item || fromSeerr(item)) return [];
 		const isJellyfin = (item._serverType || getServerType()) === 'jellyfin';
 		const isAdmin = Boolean(user?.Policy?.IsAdministrator);
-		// Jellyfin only lets a user touch collections on their own server with the permission for
+		// Jellyfin and Plex only let a user touch collections on their own server with the permission for
 		// it. An item from another server is left to that server to refuse.
 		const sameServer = !item._serverUrl || item._serverUrl === serverUrl;
-		const canManageCollections = !(getServerType() === 'jellyfin' && sameServer) ||
+		const canManageCollections = !(['jellyfin', 'plex'].includes(getServerType()) && sameServer) ||
 			Boolean(user?.Policy?.EnableCollectionManagement) || isAdmin;
 		const playlist = options?.playlist;
 		const playlistMemberships = memberships.playlistMemberships ??
@@ -119,7 +119,7 @@ export const ItemMenuProvider = ({children, onPlay, onOpenItem, backRef}) => {
 		clearMembershipCache();
 		if (user?.Id && serverUrl) {
 			const isAdmin = Boolean(user?.Policy?.IsAdministrator);
-			const canManageCollections = getServerType() !== 'jellyfin' ||
+			const canManageCollections = !['jellyfin', 'plex'].includes(getServerType()) ||
 				Boolean(user?.Policy?.EnableCollectionManagement) || isAdmin;
 			warmMembershipCache(activeApi, {
 				serverUrl,
@@ -173,7 +173,7 @@ export const ItemMenuProvider = ({children, onPlay, onOpenItem, backRef}) => {
 		const api = getApiForItem(item) || activeApi;
 		const isAdmin = Boolean(user?.Policy?.IsAdministrator);
 		const sameServer = !item._serverUrl || item._serverUrl === serverUrl;
-		const canManageCollections = !(getServerType() === 'jellyfin' && sameServer) ||
+		const canManageCollections = !(['jellyfin', 'plex'].includes(getServerType()) && sameServer) ||
 			Boolean(user?.Policy?.EnableCollectionManagement) || isAdmin;
 
 		getPlaylistsContaining(item, api, {serverUrl, userId: user?.Id}).then((newPl) => {
@@ -230,6 +230,10 @@ export const ItemMenuProvider = ({children, onPlay, onOpenItem, backRef}) => {
 	const run = useCallback(async (id, item, collectionRemoval, playlist, playlistMemberships, collectionMemberships) => {
 		const api = getApiForItem(item) || activeApi;
 		const userData = item.UserData || {};
+		const openPlaylistPicker = async () => {
+			const freshPlaylists = await getPlaylistsContaining(item, api, {serverUrl, userId: user?.Id});
+			setDialog({kind: 'removePlaylistPicker', item, api, playlists: freshPlaylists});
+		};
 		switch (id) {
 			// From a playlist row, Play means the playlist from that row on.
 			case 'play':
@@ -280,11 +284,11 @@ export const ItemMenuProvider = ({children, onPlay, onOpenItem, backRef}) => {
 						);
 					}
 				} else {
-					setDialog({kind: 'removePlaylistPicker', item, api, playlists: playlistMemberships || []});
+					await openPlaylistPicker();
 				}
 				break;
 			case 'removeFromPlaylistPicker':
-				setDialog({kind: 'removePlaylistPicker', item, api, playlists: playlistMemberships || []});
+				await openPlaylistPicker();
 				break;
 			case 'moveUp':
 				playlist.move(item, -1);

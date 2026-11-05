@@ -287,6 +287,7 @@ export const plexItemToJellyfin = (m) => {
 	if (m.playlistItemID != null) item.PlaylistItemId = String(m.playlistItemID);
 	// Removing a playlist only drops the list, never the media in it.
 	if (type === 'playlist') item.CanDelete = true;
+	if (type === 'collection' && (m.smart === 1 || m.smart === '1' || m.smart === true)) item._smart = true;
 	if (m.summary != null) item.Overview = m.summary;
 	if (m.year != null) item.ProductionYear = m.year;
 	const premiere = date(m.originallyAvailableAt);

@@ -217,5 +217,30 @@ describe('itemMembershipService', () => {
 		]);
 		expect(api.getCollectionItems).toHaveBeenCalledWith('col-plex', 500);
 	});
+
+	test('excludes non-editable Silo ancestors via api.canEditCollection', async () => {
+		const api = {
+			getAncestors: jest.fn(async () => [
+				{Id: 'col-shared', Name: 'Shared Collection', Type: 'BoxSet', _silo: {collection_type: 'manual', creator_profile_id: 'other'}},
+				{Id: 'col-own', Name: 'Own Collection', Type: 'BoxSet', _silo: {collection_type: 'manual', creator_profile_id: 'u1'}}
+			]),
+			canEditCollection: jest.fn((box) => box?._silo?.creator_profile_id === 'u1'),
+			getEditableCollections: jest.fn(async () => ({Items: []})),
+			getCollectionMembers: jest.fn(async () => ({
+				Items: [{Id: 'm1'}]
+			}))
+		};
+
+		const item = {Id: 'm1', Type: 'Movie', Name: 'Silo Movie'};
+		const ctx = {serverUrl: 'http://silo', userId: 'u1', canManageCollections: true};
+
+		const collections = await getCollectionsContaining(item, api, ctx);
+		expect(collections).toEqual([
+			{collectionId: 'col-own', collectionName: 'Own Collection'}
+		]);
+		expect(api.canEditCollection).toHaveBeenCalled();
+		expect(api.getCollectionMembers).toHaveBeenCalledTimes(1);
+		expect(api.getCollectionMembers).toHaveBeenCalledWith('col-own', 500, 0);
+	});
 });
 

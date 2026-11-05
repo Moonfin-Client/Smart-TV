@@ -305,7 +305,13 @@ export const getCollectionsContaining = async (item, api, context = {}) => {
 			if (Array.isArray(ancestors)) {
 				for (const ancestor of ancestors) {
 					if (ancestor?.Type === 'BoxSet' && ancestor.Id && ancestor.Name) {
-						ancestorBoxSets.set(String(ancestor.Id), String(ancestor.Name));
+						if (typeof api.canEditCollection === 'function' && api.canEditCollection(ancestor) === false) {
+							continue;
+						}
+						if (ancestor._smart || ancestor.smart === 1 || ancestor.smart === '1' || ancestor.smart === true) {
+							continue;
+						}
+						ancestorBoxSets.set(String(ancestor.Id), {name: String(ancestor.Name), ancestor});
 					}
 				}
 			}
@@ -325,8 +331,11 @@ export const getCollectionsContaining = async (item, api, context = {}) => {
 
 	const results = [...getCachedCollectionsContaining(item, context)];
 
-	for (const [colId, colName] of ancestorBoxSets.entries()) {
+	for (const [colId, {name: colName, ancestor}] of ancestorBoxSets.entries()) {
 		if (!results.some((c) => c.collectionId === colId)) {
+			if (typeof api.canEditCollection === 'function' && api.canEditCollection(ancestor) === false) {
+				continue;
+			}
 			if (api.getCollectionMembers || api.getCollectionItems) {
 				try {
 					const members = await fetchAllCollectionItems(api, colId, () => generation !== sessionGeneration);
