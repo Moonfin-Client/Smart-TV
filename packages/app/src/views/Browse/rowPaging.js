@@ -6,6 +6,10 @@
 
 export const ROW_PAGE_SIZE = 15;
 export const ROW_MAX_ITEMS = 100;
+// How many cards from a row's end focus asks for the next page.
+const ROW_PAGE_AHEAD = 5;
+
+export const nearRowEnd = (index, length) => index >= 0 && index >= length - ROW_PAGE_AHEAD;
 
 // Whether a list read `limit` long may have more behind it. A count the server gave is trusted,
 // and without one a full read is taken to mean there's more.
@@ -48,6 +52,12 @@ export const extendRow = (row, items, hasMore) => {
 		hasMore: added.length > 0 && next.length < ROW_MAX_ITEMS && hasMore
 	};
 };
+
+// Adds a page to the row it was read for. A row a reload has since replaced has another reader,
+// so it's left alone.
+export const withRowPage = (rows, rowId, readHead, items, hasMore) => rows.map((row) => (
+	row.id === rowId && row.readHead === readHead ? extendRow(row, items, hasMore) : row
+));
 
 // How far a folded read goes before giving up on finding another card.
 const MAX_RAW_READ = ROW_MAX_ITEMS * 2;

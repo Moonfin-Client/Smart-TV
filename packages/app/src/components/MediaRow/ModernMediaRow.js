@@ -8,11 +8,9 @@ import {useSettings} from '../../context/SettingsContext';
 import {getPlatform} from '../../platform';
 import {MODERN_CAPTION_ROOM, modernCardMetrics} from '../MediaCard/modernCardLayout';
 import PlaceholderRow from './PlaceholderRow';
+import {nearRowEnd} from '../../views/Browse/rowPaging';
 
 import css from './ModernMediaRow.module.less';
-
-// How many cards from a paging row's end focus asks for the next page.
-const LOAD_MORE_AHEAD = 5;
 
 const RowContainer = SpotlightContainerDecorator({
 	enterTo: 'last-focused'
@@ -99,8 +97,10 @@ const ModernMediaRow = ({
 		const card = e.target.closest('.spottable');
 		// A row that pages asks for more once focus is among its last few cards.
 		if (onLoadMore && card && card.parentNode) {
-			const index = Array.prototype.indexOf.call(card.parentNode.children, card);
-			if (index >= 0 && index >= itemCount - LOAD_MORE_AHEAD) onLoadMore(rowId);
+			// The lane has an element beside each card, so only the cards are counted.
+			const cards = Array.prototype.filter.call(card.parentNode.children, (el) => el.classList.contains('spottable'));
+			const index = cards.indexOf(card);
+			if (nearRowEnd(index, itemCount)) onLoadMore(rowId, index);
 		}
 
 		// A hovered card already sits under the cursor, so nudging the lane

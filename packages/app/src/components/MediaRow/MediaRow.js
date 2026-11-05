@@ -8,6 +8,7 @@ import PlaceholderRow from './PlaceholderRow';
 import {KEYS} from '../../utils/keys';
 import {sameCardUserData} from '../../utils/playedState';
 import {useSettings} from '../../context/SettingsContext';
+import {nearRowEnd} from '../../views/Browse/rowPaging';
 
 import css from './MediaRow.module.less';
 
@@ -19,9 +20,6 @@ const RowContainer = SpotlightContainerDecorator({
 	// tile that sits ahead of them.
 	defaultElement: '[data-media-card]'
 }, 'div');
-
-// How many cards from a paging row's end focus asks for the next page.
-const LOAD_MORE_AHEAD = 5;
 
 const MediaRow = ({
 	title,
@@ -89,7 +87,7 @@ const MediaRow = ({
 		if (onLoadMore && focused && focused.parentNode) {
 			const cards = focused.parentNode.querySelectorAll('[data-media-card]');
 			const index = Array.prototype.indexOf.call(cards, focused);
-			if (index >= 0 && index >= itemCount - LOAD_MORE_AHEAD) onLoadMore(rowId);
+			if (nearRowEnd(index, itemCount)) onLoadMore(rowId, index);
 		}
 
 		// A hovered card already sits under the cursor, so nudging the lane
