@@ -1101,7 +1101,7 @@ export const createPlexApi = ({getBaseUrl, getToken, getUserId, getDeviceInfo, g
 					break;
 				}
 			}
-			return page(items, 0, limit);
+			return page(items, 0, editableOnly ? null : limit);
 		},
 
 		// Studio pages filter by name, so the id just has to be unique and free of commas. Plex's encoded key is both.
