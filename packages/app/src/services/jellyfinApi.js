@@ -1034,6 +1034,15 @@ export const api = {
 	checkWriteAccess: () =>
 		request('/Moonfin/Libraries/CheckWriteAccess'),
 
+	getRepositories: () => request('/Repositories'),
+
+	setRepositories: (repositories) => request('/Repositories', {method: 'POST', body: repositories}),
+
+	installPackage: (name, params) =>
+		request(`/Packages/Installed/${encodeURIComponent(name)}?${toQuery(params)}`, {method: 'POST'}),
+
+	restartServer: () => request('/System/Restart', {method: 'POST'}),
+
 	// The same shape createApiForServer answers with, so anything holding a per server cache can
 	// tell the two apart without knowing which kind it was handed.
 	getServerInfo: () => ({
