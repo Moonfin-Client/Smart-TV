@@ -1005,8 +1005,11 @@ const Browse = ({
 						const rowMenuOptions = isCwOrNextUp
 							? continueWatchingMenuOptions
 							: undefined;
+						// Studio art is a wide logo that Modern's portrait cards would crop, so the row stays
+						// classic in either style.
+						const Row = row.id === 'studios' ? ClassicMediaRow : RowComponent;
 						return (
-							<RowComponent
+							<Row
 								key={row.id}
 								rowId={row.id}
 								title={row.title}

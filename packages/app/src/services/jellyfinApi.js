@@ -699,6 +699,8 @@ export const api = {
 	getStudioCompanies: (tmdbId, mediaType) =>
 		request(`/Moonfin/Tmdb/ProductionCompanies?tmdbId=${encodeURIComponent(tmdbId)}&type=${mediaType === 'tv' ? 'tv' : 'movie'}`),
 
+	getStudioLogos: () => request('/Moonfin/Tmdb/StudioLogos'),
+
 	getTmdbReviews: (tmdbId, mediaType, language) =>
 		request(`/Moonfin/Tmdb/Reviews?tmdbId=${encodeURIComponent(tmdbId)}&type=${mediaType === 'tv' ? 'tv' : 'movie'}&language=${encodeURIComponent(language || 'en-US')}`),
 

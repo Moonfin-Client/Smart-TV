@@ -153,6 +153,7 @@ const MediaCard = ({item, serverUrl, cardType = 'portrait', rowImageType = 'post
 	const isSquare = !isBanner && (isCircle || cardType === 'square' || (cardType === 'portrait' && !isLandscape && (item.Type === 'MusicAlbum' || item.Type === 'MusicArtist' || item.Type === 'Audio')));
 
 	const imageUrl = useMemo(() => {
+		if (item._studioLogoUrl) return item._studioLogoUrl;
 		// Ahead of the external poster, which would otherwise keep the card a poster.
 		if (seerrWide) return seerrWide;
 

@@ -6,7 +6,7 @@ import {scopedGetItems} from '../../services/libraryScope';
 import {genericCollectionLabel, mergeRecentRows} from '../../utils/mergeRecentRows';
 import {latestMediaFetchLimitForCollection, normalizeLatestMediaItems} from '../../utils/latestMediaRowNormalizer';
 
-import {HOME_ROW_ITEM_FIELDS, createApiForServer, getServerType} from '../../services/jellyfinApi';
+import {HOME_ROW_ITEM_FIELDS, createApiForServer, getApiKey, getServerType} from '../../services/jellyfinApi';
 import {getAllServersArray} from '../../services/multiServerManager';
 import {loadSinceYouWatchedRows, loadRewatchItems} from '../../services/homeRecommendations';
 import {FAVORITE_ROW_CONFIGS, getItemGenreNames, stableIndex} from './browseFilters';
@@ -15,6 +15,7 @@ import {apiSortBy, getGenresIncludeTypes, isPlaylistOrder, resolveSortOrder} fro
 import {collapseLatestTvItems} from '../../utils/latestMediaRowNormalizer';
 import {isPickedRow, isPickedRowShown, isSameServer} from '../../utils/pickedRows';
 import mapBounded from '../../utils/mapBounded';
+import {studioLogoIndex} from '../Details/studioLogos';
 import {pageableRow, readFoldedHead} from './rowPaging';
 
 // How many sections from the top load with Home. A picked row below them waits until Home comes
@@ -228,17 +229,29 @@ const loadCollections = async (ctx) => {
 	}
 };
 
+// A studio carries no TMDB id, so it borrows Moonbase's TMDB logo when the names match. Only an
+// exact match counts, since a looser one would hand out wrong logos across a whole library.
+export const withStudioLogos = (studios, logoList, serverUrl, token) => {
+	if (!logoList?.success || !Array.isArray(logoList.companies)) return studios;
+	const {byName} = studioLogoIndex(logoList.companies, serverUrl, token);
+	return studios.map((studio) => {
+		const logo = byName.get(String(studio.Name || '').trim().toLowerCase());
+		return logo ? {...studio, _studioLogoUrl: logo} : studio;
+	});
+};
+
 const loadStudios = async (ctx) => {
-	const {api, appendRows, studiosEnabled, settings} = ctx;
+	const {api, appendRows, studiosEnabled, settings, serverUrl} = ctx;
 	if (!studiosEnabled) return;
 	const sortBy = apiSortBy(settings.studiosRowSortBy || 'SortName');
 	try {
+		const logos = settings.useMoonfinPlugin && api.getStudioLogos ? api.getStudioLogos().catch(() => null) : null;
 		const result = await api.getStudios(20, sortBy, resolveSortOrder(sortBy, settings.studiosRowSortOrder)).catch(() => null);
 		if (result?.Items?.length > 0) {
 			appendRows([{
 				id: 'studios',
 				title: $L('Studios'),
-				items: result.Items,
+				items: withStudioLogos(result.Items, await logos, serverUrl, getApiKey()),
 				type: 'landscape'
 			}]);
 		}

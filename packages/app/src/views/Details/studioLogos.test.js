@@ -2,7 +2,7 @@ import {normalizeStudioName, studioLogoIndex, studioLogoUrlFor, studioCardsFor} 
 
 const SERVER = 'https://tv.example';
 const TOKEN = 'tok';
-const logo = (id) => `${SERVER}/Moonfin/Tmdb/StudioImage/${id}?api_key=${TOKEN}`;
+const logo = (id) => `${SERVER}/Moonfin/Tmdb/StudioImage/${id}?ApiKey=${TOKEN}`;
 const index = (companies) => studioLogoIndex(companies, SERVER, TOKEN);
 
 describe('normalizeStudioName', () => {
