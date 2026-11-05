@@ -795,17 +795,16 @@ export const getPlaybackInfo = async (itemId, options = {}) => {
 
 	let playMethod = determinePlayMethod(mediaSource, capabilities, options, passthroughSettings);
 
-	// When the server picks a default PGS track on a transcode, avoid burning it
-	// in while the client renderer is enabled. Keep its index for the .sup URL.
-	// Other bitmap defaults and PGS with rendering disabled need server burn-in.
+	// Avoid automatically burning an unselected bitmap default into a transcode.
+	// Keep its index for client-side selection; burn-in stays an explicit choice.
 	// Plex can't hand out a bitmap track, so there the burn stays.
 	const resolvedSub = serverType !== 'plex' && !hasExplicitSubtitle
 		? findSubtitleStreamByIndex(mediaSource.DefaultSubtitleStreamIndex, mediaSource.MediaStreams)
 		: null;
-	const avoidDefaultSubtitleBurnIn = resolvedSub && storedSettings.enablePgsRendering !== false &&
-		isPgsSubtitleCodec(resolvedSub.Codec);
+	const avoidDefaultSubtitleBurnIn = resolvedSub &&
+		(isPgsSubtitleCodec(resolvedSub.Codec) || isBurnInSubtitleCodec(resolvedSub.Codec));
 	if (avoidDefaultSubtitleBurnIn && playMethod === PlayMethod.Transcode) {
-		console.log('[playback] Server default subtitle is client-rendered PGS on transcode, re-negotiating without burn-in');
+		console.log('[playback] Server default subtitle is bitmap based on transcode, re-negotiating without burn-in');
 		const noBurnInfo = await api.getPlaybackInfo(itemId, {
 			DeviceProfile: deviceProfile,
 			StartTimeTicks: requestedStartTime,
@@ -848,10 +847,8 @@ export const getPlaybackInfo = async (itemId, options = {}) => {
 		dolbyVision: capabilities.dolbyVision
 	});
 
-	// The server can approve direct play while the player rejects it (for example,
-	// AV1 with a Dolby Vision range this TV cannot render). The local decision can
-	// then be DirectStream even though the server returned no remux URL. Negotiate
-	// a real transcode instead of passing that source to buildPlaybackUrl.
+	// If the local DirectStream decision differs from the server's, there may be
+	// no remux URL. Negotiate a real transcode before calling buildPlaybackUrl.
 	const missingRemuxUrl = playMethod === PlayMethod.DirectStream &&
 		!mediaSource.DirectStreamUrl && !mediaSource.TranscodingUrl;
 	if (options.enableTranscoding !== false &&

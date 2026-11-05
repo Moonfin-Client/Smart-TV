@@ -304,7 +304,7 @@ export const getPlayMethod = (mediaSource, capabilities, _options, passthroughOp
 		return 'DirectPlay';
 	}
 
-	if (mediaSource.SupportsDirectStream && videoOk && containerOk && codecContainerOk) {
+	if (mediaSource.SupportsDirectStream && videoOk && containerOk && hdrOk && codecContainerOk) {
 		return 'DirectStream';
 	}
 

@@ -4,6 +4,7 @@ import {getDeviceCapabilities, getDeviceProfile} from './deviceProfile';
 import {linkBitrate} from './linkBitrate';
 import {getPlayMethod} from './video';
 import {getFromStorage} from './storage';
+import {getPlayMethod as getTizenPlayMethod} from '../../../platform-tizen/src/video';
 
 jest.mock('./jellyfinApi', () => {
 	const server = {getPlaybackInfo: jest.fn(), closeLiveStream: jest.fn(), reportPlaybackStopped: jest.fn()};
@@ -58,6 +59,31 @@ describe('a server-approved file without a usable stream URL', () => {
 		Id: 'av1-hdr-version', Container: 'mkv', SupportsDirectPlay: true, SupportsDirectStream: true,
 		MediaStreams: [{Type: 'Video', Codec: 'av1', VideoRangeType: 'DOVIInvalid'}]
 	};
+
+	test.each(['av1', 'hevc'])('renegotiates rejected %s HDR through the existing Transcode path', async (codec) => {
+		getDeviceCapabilities.mockResolvedValue({av1: true, hevc: true, hdr10: true, dolbyVision: false});
+		const profile = {TranscodingProfiles: [
+			{Type: 'Video', VideoCodec: 'hevc,h264'}, {Type: 'Video', VideoCodec: 'av1'}
+		]};
+		getDeviceProfile.mockResolvedValue(profile);
+		getPlayMethod.mockImplementation(getTizenPlayMethod);
+		const source = {...av1, MediaStreams: [{Type: 'Video', Codec: codec, VideoRangeType: 'DOVIInvalid'}]};
+		api.getPlaybackInfo
+			.mockResolvedValueOnce({PlaySessionId: 'first', MediaSources: [source]})
+			.mockResolvedValueOnce({PlaySessionId: 'fallback', MediaSources: [{
+				...source, TranscodingUrl: '/Videos/movie-1/master.m3u8?VideoCodec=h264'
+			}]});
+
+		const result = await playback.getPlaybackInfo(movie.Id, {item: movie, mediaSourceId: source.Id});
+
+		expect(result.playMethod).toBe('Transcode');
+		expect(result.url).toContain('/Videos/movie-1/master.m3u8');
+		expect(api.getPlaybackInfo).toHaveBeenCalledTimes(2);
+		const retry = api.getPlaybackInfo.mock.calls[1][1];
+		expect(retry).toMatchObject({EnableDirectPlay: false, EnableDirectStream: false, EnableTranscoding: true, MediaSourceId: source.Id});
+		expect(retry.AllowVideoStreamCopy).toBeUndefined();
+		expect(retry.DeviceProfile).toEqual(api.getPlaybackInfo.mock.calls[0][1].DeviceProfile);
+	});
 
 	test('requests a real transcode URL for the selected AV1 version when no remux URL was returned', async () => {
 		getDeviceCapabilities.mockResolvedValue({av1: true, hdr10: true, dolbyVision: false});
@@ -120,13 +146,13 @@ describe('a server-approved file without a usable stream URL', () => {
 		}));
 	});
 
-	describe.each(['DirectStream', 'Transcode'])('%s without a URL and a server-rendered default', (method) => {
+	describe.each(['DirectStream', 'Transcode'])('%s without a URL and an unselected bitmap default', (method) => {
 		test.each([
-			['DVD', 'dvdsub', {}],
+			['DVD/VobSub', 'dvdsub', {}],
 			['DVB', 'dvbsub', {}],
 			['DVB alias', 'dvb_subtitle', {}],
 			['PGS with rendering disabled', 'pgssub', {enablePgsRendering: false}]
-		])('keeps the server responsible for %s subtitles', async (_label, codec, settings) => {
+		])('keeps %s out of the transcode', async (_label, codec, settings) => {
 			getDeviceCapabilities.mockResolvedValue({});
 			getPlayMethod.mockReturnValue(method);
 			getFromStorage.mockResolvedValue(settings);
@@ -136,22 +162,44 @@ describe('a server-approved file without a usable stream URL', () => {
 			api.getPlaybackInfo
 				.mockResolvedValueOnce({PlaySessionId: 'first', MediaSources: [source]})
 				.mockResolvedValueOnce({PlaySessionId: 'fallback', MediaSources: [{
-					...source,
-					MediaStreams: [...av1.MediaStreams, {Type: 'Subtitle', Index: 3, Codec: codec, DeliveryMethod: 'Encode'}],
-					TranscodingUrl: '/Videos/movie-1/master.m3u8?VideoCodec=h264&SubtitleStreamIndex=3'
+					...source, DefaultSubtitleStreamIndex: -1,
+					TranscodingUrl: '/Videos/movie-1/master.m3u8?VideoCodec=h264&SubtitleStreamIndex=-1'
 				}]});
 
 			const result = await playback.getPlaybackInfo(movie.Id, {item: movie});
 
 			expect(api.getPlaybackInfo).toHaveBeenCalledTimes(2);
 			expect(api.getPlaybackInfo.mock.calls[1][1]).toMatchObject({
-				EnableDirectPlay: false, EnableDirectStream: false, EnableTranscoding: true
+				EnableDirectPlay: method === 'Transcode', EnableDirectStream: method === 'Transcode', EnableTranscoding: true
 			});
-			expect(api.getPlaybackInfo.mock.calls[1][1].SubtitleStreamIndex).toBeUndefined();
+			expect(api.getPlaybackInfo.mock.calls[1][1].SubtitleStreamIndex).toBe(-1);
 			expect(result.playMethod).toBe('Transcode');
 			expect(result.defaultSubtitleStreamIndex).toBe(3);
-			expect(result.subtitleStreams).toContainEqual(expect.objectContaining({index: 3, isBurnIn: true}));
+			expect(result.url).toContain('SubtitleStreamIndex=-1');
 		});
+	});
+
+	test('avoids encoding an ordinary audio remux for an unselected DVD/VobSub default', async () => {
+		getDeviceCapabilities.mockResolvedValue({});
+		getPlayMethod.mockReturnValue('Transcode');
+		const source = {
+			Id: 'ordinary-movie', Container: 'mkv', DefaultSubtitleStreamIndex: 3,
+			MediaStreams: [{Type: 'Video', Codec: 'h264'}, {Type: 'Subtitle', Index: 3, Codec: 'dvdsub'}],
+			TranscodingUrl: '/Videos/movie-1/master.m3u8?VideoCodec=h264&SubtitleStreamIndex=3'
+		};
+		api.getPlaybackInfo
+			.mockResolvedValueOnce({PlaySessionId: 'first', MediaSources: [source]})
+			.mockResolvedValueOnce({PlaySessionId: 'no-burn', MediaSources: [{
+				...source, DefaultSubtitleStreamIndex: -1,
+				TranscodingUrl: '/Videos/movie-1/master.m3u8?VideoCodec=copy&AudioCodec=ac3&SubtitleStreamIndex=-1'
+			}]});
+
+		const result = await playback.getPlaybackInfo(movie.Id, {item: movie});
+
+		expect(api.getPlaybackInfo).toHaveBeenCalledTimes(2);
+		expect(api.getPlaybackInfo.mock.calls[1][1].SubtitleStreamIndex).toBe(-1);
+		expect(result.url).toContain('VideoCodec=copy');
+		expect(result.defaultSubtitleStreamIndex).toBe(3);
 	});
 
 	test.each([
