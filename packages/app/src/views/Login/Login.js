@@ -22,7 +22,6 @@ import {CoreAlertDialog} from '../../components/CoreDialog';
 import ProfileCarousel, {PillButton, PillRow} from '../../components/ProfileCarousel';
 import {BRAND_NAMES, ServerTypeIcon} from './loginIcons';
 import {forgottenPinUsername, noteProvedSignIn} from '../../utils/signInPin';
-import {CORE_ICON_PATHS} from '../Settings/settingsCoreIcons';
 import {siloNewPasswordIssue, siloNewPasswordMessage} from './siloNewPassword';
 
 import logoAndText from './logo_and_text.png';
@@ -117,10 +116,6 @@ const Login = ({
 	const [signInUser, setSignInUser] = useState(null);
 	const [username, setUsername] = useState('');
 	const [password, setPassword] = useState('');
-	const [passwordShown, setPasswordShown] = useState(false);
-	const togglePasswordShown = useCallback(() => setPasswordShown((shown) => !shown), []);
-	// Hidden again for whoever signs in next.
-	useEffect(() => setPasswordShown(false), [server, signInUser]);
 	// A Silo account signed in with a temporary password, waiting for a new one: {minimumLength}.
 	const [passwordChange, setPasswordChange] = useState(null);
 	const [showQuickConnect, setShowQuickConnect] = useState(false);
@@ -1457,10 +1452,10 @@ const Login = ({
 				</div>
 			)}
 			{signInUser?.hasPassword !== false && (
-				<div className={`${css.field} ${css.passwordRow}`}>
+				<div className={css.field}>
 					<SpottableInput
 						data-spotlight-id="password-input"
-						type={passwordShown ? 'text' : 'password'}
+						type="password"
 						purpose="password"
 						className={css.input}
 						placeholder={passwordChange ? $L('New password') : (server?.serverType === 'plex' ? $L('PIN') : $L('Password'))}
@@ -1469,17 +1464,6 @@ const Login = ({
 						onKeyDown={handlePasswordKeyDown}
 						disabled={isConnecting}
 					/>
-					<SpottableButton
-						data-spotlight-id="password-reveal-btn"
-						className={css.revealButton}
-						onClick={togglePasswordShown}
-						aria-label={passwordShown ? $L('Hide password') : $L('Show password')}
-						disabled={isConnecting}
-					>
-						<svg viewBox="0 0 24 24" aria-hidden="true">
-							<path d={passwordShown ? CORE_ICON_PATHS.visibility_off : CORE_ICON_PATHS.visibility} />
-						</svg>
-					</SpottableButton>
 				</div>
 			)}
 			{error && <div className={css.fieldError}>{error}</div>}
