@@ -51,6 +51,8 @@ export const itemMenuActions = (item, {
 	canManageCollections = false,
 	inCollection = false,
 	playlist = null,
+	playlistMemberships = [],
+	collectionMemberships = [],
 	isContinueWatchingOrNextUp = false,
 	playImmediately = false
 } = {}) => {
@@ -92,9 +94,7 @@ export const itemMenuActions = (item, {
 		});
 		if (canManageCollections) {
 			actions.push({id: 'addToCollection', icon: DETAIL_ICON_PATHS.collection, label: $L('Add to Collection')});
-			// Only for the collection whose page the menu was opened from. An item can belong to
-			// several, and pulling it out of one the viewer isn't looking at would be a surprise.
-			if (inCollection) {
+			if (inCollection || (Array.isArray(collectionMemberships) && collectionMemberships.length > 0)) {
 				actions.push({id: 'removeFromCollection', icon: MENU_ICON_PATHS.playlistRemove, label: $L('Remove from Collection')});
 			}
 		}
@@ -106,6 +106,8 @@ export const itemMenuActions = (item, {
 			const canMove = playlist.canMove !== false;
 			if (canMove && !playlist.first) actions.push({id: 'moveUp', icon: MENU_ICON_PATHS.arrowUpward, label: $L('Move Up')});
 			if (canMove && !playlist.last) actions.push({id: 'moveDown', icon: MENU_ICON_PATHS.arrowDownward, label: $L('Move Down')});
+		} else if (Array.isArray(playlistMemberships) && playlistMemberships.length > 0) {
+			actions.push({id: 'removeFromPlaylist', icon: MENU_ICON_PATHS.playlistRemove, label: $L('Remove from Playlist')});
 		}
 		if ((isJellyfin || (isSilo && SILO_ADMIN_TYPES.includes(type))) && isAdmin) {
 			actions.push({id: 'refreshMetadata', icon: MENU_ICON_PATHS.refresh, label: $L('Refresh Metadata')});

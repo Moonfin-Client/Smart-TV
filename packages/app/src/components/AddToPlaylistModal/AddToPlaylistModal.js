@@ -4,6 +4,7 @@ import Spotlight from '@enact/spotlight';
 import SpotlightContainerDecorator from '@enact/spotlight/SpotlightContainerDecorator';
 import $L from '@enact/i18n/$L';
 import {isBackKey} from '../../utils/keys';
+import {canonicalServerKey, notifyItemAddedToPlaylist} from '../../services/itemMembershipService';
 import SpottableInput from '../SpottableInput/SpottableInput';
 import {isTvKeyboardVisible} from '../TVKeyboard/keyboardBus';
 
@@ -18,7 +19,7 @@ const DialogContainer = SpotlightContainerDecorator({
 const SpottableDiv = Spottable('div');
 const SpottableButton = Spottable('button');
 
-const AddToPlaylistModal = ({open, itemId, api, onClose, onSuccess}) => {
+const AddToPlaylistModal = ({open, itemId, item, api, serverUrl, userId, onClose, onSuccess}) => {
 	const [playlists, setPlaylists] = useState([]);
 	const [loading, setLoading] = useState(true);
 	const [creating, setCreating] = useState(false);
@@ -76,12 +77,14 @@ const AddToPlaylistModal = ({open, itemId, api, onClose, onSuccess}) => {
 		setAdding(true);
 		try {
 			await api.addToPlaylist(playlistId, [itemId]);
+			const serverKey = canonicalServerKey(item || {Id: itemId}, {serverUrl, userId});
+			notifyItemAddedToPlaylist(serverKey, playlistId, [itemId], api);
 			onSuccess?.($L('Added to playlist'));
 			onClose?.();
 		} catch { /* no-op */ } finally {
 			setAdding(false);
 		}
-	}, [api, itemId, adding, onSuccess, onClose]);
+	}, [api, itemId, item, serverUrl, userId, adding, onSuccess, onClose]);
 
 	const handlePlaylistClick = useCallback((ev) => {
 		const plId = ev.currentTarget.dataset.playlistId;
@@ -98,13 +101,15 @@ const AddToPlaylistModal = ({open, itemId, api, onClose, onSuccess}) => {
 		if (!name || adding) return;
 		setAdding(true);
 		try {
-			await api.createPlaylist(name, [itemId]);
+			const created = await api.createPlaylist(name, [itemId]);
+			const serverKey = canonicalServerKey(item || {Id: itemId}, {serverUrl, userId});
+			notifyItemAddedToPlaylist(serverKey, created?.Id || name, [itemId], api);
 			onSuccess?.($L('Created "{name}" and added item').replace('{name}', name));
 			onClose?.();
 		} catch { /* no-op */ } finally {
 			setAdding(false);
 		}
-	}, [api, itemId, newName, adding, onSuccess, onClose]);
+	}, [api, itemId, item, serverUrl, userId, newName, adding, onSuccess, onClose]);
 
 	const handleInputKeyDown = useCallback((ev) => {
 		if (ev.keyCode === 13) {
