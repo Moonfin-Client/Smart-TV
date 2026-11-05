@@ -54,8 +54,8 @@ export const createInBandTextSource = ({streamUrl, subtitleOrdinal, language, ge
 	const clusterDataOffsets = new Map();
 	const decoder = new TextDecoder('utf-8');
 
-	const requestRange = async (start, end) => {
-		const response = await fetch(streamUrl, {headers: {Range: `bytes=${start}-${end}`}});
+	const requestRange = async (start, end, signal) => {
+		const response = await fetch(streamUrl, {headers: {Range: `bytes=${start}-${end}`}, signal});
 		if (response.status === 206) return new Uint8Array(await response.arrayBuffer());
 		if (response.body) response.body.cancel().catch(() => {});
 		// A 200 here is the whole file, which would also make every offset wrong.
@@ -63,10 +63,14 @@ export const createInBandTextSource = ({streamUrl, subtitleOrdinal, language, ge
 	};
 
 	// One deadline covers the body as well as the headers, since a body that stalls hangs as
-	// surely as a server that never answers.
-	const withDeadline = (promise) => new Promise((resolve, reject) => {
-		const timer = setTimeout(() => reject(new Error('range request timed out')), fetchTimeoutMs);
-		promise.then((value) => {
+	// surely as a server that never answers. Aborting also frees the connection, where the TV can.
+	const requestWithDeadline = (start, end) => new Promise((resolve, reject) => {
+		const controller = typeof AbortController === 'undefined' ? null : new AbortController();
+		const timer = setTimeout(() => {
+			if (controller) controller.abort();
+			reject(new Error('range request timed out'));
+		}, fetchTimeoutMs);
+		requestRange(start, end, controller?.signal).then((value) => {
 			clearTimeout(timer);
 			resolve(value);
 		}, (err) => {
@@ -79,7 +83,7 @@ export const createInBandTextSource = ({streamUrl, subtitleOrdinal, language, ge
 	const fetchRange = async (start, end) => {
 		for (let attempt = 1; ; attempt++) {
 			try {
-				return await withDeadline(requestRange(start, end));
+				return await requestWithDeadline(start, end);
 			} catch (err) {
 				const transient = !(err.status < 500);
 				if (!transient || disposed) throw err;

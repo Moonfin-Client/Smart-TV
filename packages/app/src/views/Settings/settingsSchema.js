@@ -974,7 +974,7 @@ export const SETTINGS_SCHEMA = [
 					{kind: KIND.TOGGLE, key: 'enablePgsRendering', label: () => $L('PGS Direct Play'), desc: () => $L('Direct play PGS subtitles'), icon: 'image', when: whenSubtitlesOn},
 					{kind: KIND.TOGGLE, key: 'assDirectPlay', label: () => $L('ASS/SSA Direct Play'), desc: () => $L('Direct play ASS/SSA subtitles'), icon: 'text_snippet', when: whenSubtitlesOn},
 					{kind: KIND.TOGGLE, key: 'waitForAssSubtitles', label: () => $L('Wait for ASS/SSA subtitles'), desc: () => $L('Hold the video until styled subtitles are ready so the first lines show'), icon: 'timer', when: (ctx) => whenSubtitlesOn(ctx) && ctx.isWebOS && ctx.settings.assDirectPlay !== false},
-					{kind: KIND.TOGGLE, key: 'webosEmbeddedTextSubtitles', label: () => $L('Read embedded text subtitles from the file'), desc: () => $L('Use the text subtitle tracks inside the video file. For servers that cannot extract them.'), icon: 'subtitles', when: (ctx) => whenSubtitlesOn(ctx) && ctx.isWebOS}
+					{kind: KIND.TOGGLE, key: 'webosEmbeddedTextSubtitles', label: () => $L('Read embedded text subtitles from the file'), desc: () => $L('Show SRT subtitles from inside the file instead of waiting for the server to extract them'), icon: 'subtitles', when: (ctx) => whenSubtitlesOn(ctx) && ctx.isWebOS}
 				]
 			},
 			{

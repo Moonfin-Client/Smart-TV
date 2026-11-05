@@ -162,6 +162,7 @@ describe('createInBandTextSource', () => {
 		open({fetchTimeoutMs: 20});
 		expect(await source.ready).toBe(false);
 		expect(global.fetch).toHaveBeenCalledTimes(3);
+		expect(global.fetch.mock.calls.every(([, init]) => init.signal.aborted)).toBe(true);
 	});
 
 	test('times out a body that never arrives', async () => {
