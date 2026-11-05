@@ -17,7 +17,7 @@ const DialogContainer = SpotlightContainerDecorator({
 const SpottableDiv = Spottable('div');
 const SpottableButton = Spottable('button');
 
-const RemoveFromCollectionModal = ({open, item, collections = [], api, serverUrl, userId, onClose, onSuccess}) => {
+const RemoveFromCollectionModal = ({open, item, collections = [], api, serverUrl, userId, onClose, onSuccess, backHandlerRef}) => {
 	const [confirming, setConfirming] = useState(null);
 	const [removing, setRemoving] = useState(false);
 
@@ -35,7 +35,27 @@ const RemoveFromCollectionModal = ({open, item, collections = [], api, serverUrl
 	}, [open, confirming]);
 
 	useEffect(() => {
-		if (!open) return undefined;
+		if (!backHandlerRef) return undefined;
+		if (!open) {
+			backHandlerRef.current = null;
+			return undefined;
+		}
+		const handler = () => {
+			if (confirming) {
+				setConfirming(null);
+			} else {
+				onClose?.();
+			}
+			return true;
+		};
+		backHandlerRef.current = handler;
+		return () => {
+			if (backHandlerRef.current === handler) backHandlerRef.current = null;
+		};
+	}, [backHandlerRef, open, confirming, onClose]);
+
+	useEffect(() => {
+		if (!open || backHandlerRef) return undefined;
 		const handleKey = (e) => {
 			if (isBackKey(e)) {
 				e.preventDefault();
@@ -49,7 +69,7 @@ const RemoveFromCollectionModal = ({open, item, collections = [], api, serverUrl
 		};
 		window.addEventListener('keydown', handleKey, true);
 		return () => window.removeEventListener('keydown', handleKey, true);
-	}, [open, confirming, onClose]);
+	}, [open, backHandlerRef, confirming, onClose]);
 
 	const handleSelectCollection = useCallback((ev) => {
 		const collectionId = ev.currentTarget.dataset.collectionId;

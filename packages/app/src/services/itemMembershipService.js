@@ -222,7 +222,7 @@ const syncCollections = (api, serverKey) => {
 		try {
 			const res = await (api.getEditableCollections
 				? api.getEditableCollections()
-				: api.getCollections(COLLECTION_FETCH_LIMIT));
+				: api.getCollections(COLLECTION_FETCH_LIMIT, 'SortName', 'Ascending', {editableOnly: true}));
 			if (isStale()) return;
 			const items = Array.isArray(res?.Items) ? res.Items : [];
 			const previous = collectionMembersByServer.get(serverKey);
