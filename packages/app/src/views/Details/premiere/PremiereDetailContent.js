@@ -26,14 +26,13 @@ import {premiereDim, premiereNeighbour, premiereScrim} from './premiereRules';
 import stageCss from '../stage/StageDetailContent.module.less';
 import css from './PremiereDetailContent.module.less';
 
-// The title centered over its backdrop, filling the first screen, with the buttons under it. Every
-// other part of the page is a framed section further down, each its own stop for the D-pad, and an
-// arrow at the foot of the backdrop hints at them. A title that's only in Seerr gets the same page
-// with Request in place of play, its seasons as request cards and Seerr's own sections.
+// The title centered over its backdrop, filling the first screen, with the buttons and ratings
+// under it. Every other part of the page is a framed section further down, each its own stop for
+// the D-pad, and an arrow at the foot of the backdrop hints at them. A title that's only in Seerr
+// gets the same page with Request in place of play, its seasons as request cards and Seerr's own
+// sections.
 
 const SHOW_TYPES = ['Series', 'Season', 'Episode'];
-
-const RATINGS_ID = 'premiere-ratings';
 
 // How far under the top of the screen a section settles once focus brings it up.
 const SECTION_TOP = 40;
@@ -67,8 +66,8 @@ const PremiereScreen = (props) => {
 
 	// Focus lands first and the page is put back where it was, so the browser's own scroll to the
 	// focused card never runs ahead, and then the section is brought up near the top of the screen,
-	// so the page reads down one section at a time. A section that drew nothing, like ratings that
-	// never came, has no height and is passed over.
+	// so the page reads down one section at a time. A section that drew nothing has no height and is
+	// passed over.
 	const focusStop = useCallback((id) => {
 		const scroller = scrollerRef.current;
 		const section = scroller?.querySelector(`[data-stage-stop="${id}"]`);
@@ -176,12 +175,6 @@ const PremiereScreen = (props) => {
 	const stops = [
 		showStop,
 		framed(page.tracksStop(), $L('Audio & Subtitles')),
-		{
-			id: RATINGS_ID,
-			whole: true,
-			title: $L('Ratings'),
-			node: <RatingsRow item={item} serverUrl={effectiveServerUrl} pluginEnabled={isMdblistEnabled(settings)} />
-		},
 		framed(page.factsStop({weighByText: true}), $L('Details')),
 		...page.rowStops()
 	].filter(Boolean);
@@ -231,6 +224,9 @@ const PremiereScreen = (props) => {
 						onNavigateUp={handleActionsUp}
 						onNavigateDown={handleActionsDown}
 					/>
+				</div>
+				<div className={css.ratings}>
+					<RatingsRow item={item} serverUrl={effectiveServerUrl} pluginEnabled={isMdblistEnabled(settings)} />
 				</div>
 				{stops.length > 0 && (
 					<svg className={css.arrow} viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
