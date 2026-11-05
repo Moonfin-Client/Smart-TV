@@ -14,8 +14,11 @@ import MediaPreviewContext from '../../components/MediaCard/MediaPreviewContext'
 import {modernRowSpacing} from '../../components/MediaCard/modernCardLayout';
 import SeerrTileRow from '../../components/SeerrTileRow';
 import LibraryButtonRow from '../../components/LibraryButtonRow';
+import WatchingNowRow from '../../components/WatchingNowRow';
 import {SkeletonShimmer, skeletonTitleWidths} from '../../components/Skeleton';
 import {getImageUrl, getBackdropId} from '../../utils/helpers';
+import {loadNewReleases} from '../../utils/mediaBarNewRelease';
+import {createApiForServer} from '../../services/jellyfinApi';
 import {channelForProgram, isLiveTvProgram} from '../../utils/liveTvLibrary';
 import {focusedCardIndex, cardToRestore, focusedRowIndex, rowToRestore} from '../../utils/rowFocusMemory';
 import {radiusToCss, shadowToCss, toCssColor} from '../../theme/themeSpec';
@@ -77,7 +80,7 @@ const Browse = ({
 	backHandlerRef,
 	trailerHidesChrome
 }) => {
-	const {api, serverUrl, accessToken, hasMultipleServers, user} = useAuth();
+	const {api, serverUrl, accessToken, hasMultipleServers, user, serverType} = useAuth();
 	const {settings, activeTheme, loaded: settingsLoaded} = useSettings();
 	// The one place the saved rows are read, so filtering here covers both what gets fetched and
 	// what gets drawn.
@@ -91,8 +94,8 @@ const Browse = ({
 	const {displayCollectionsRows, displayGenresRows, displayPlaylistsRows, unifiedLibraryMode} = settings;
 	const pluginSectionsConfig = useMemo(() => {
 		const gates = {displayCollectionsRows, displayGenresRows, displayPlaylistsRows, unifiedLibraryMode};
-		return homeRowsConfig.filter((row) => isPickedRow(row) && isPickedRowShown(row, gates, serverUrl));
-	}, [homeRowsConfig, displayCollectionsRows, displayGenresRows, displayPlaylistsRows, unifiedLibraryMode, serverUrl]);
+		return homeRowsConfig.filter((row) => isPickedRow(row) && isPickedRowShown(row, gates, serverUrl, serverType));
+	}, [homeRowsConfig, displayCollectionsRows, displayGenresRows, displayPlaylistsRows, unifiedLibraryMode, serverUrl, serverType]);
 	const {isEnabled: seerrEnabled, isAuthenticated: seerrAuthenticated, user: seerrUser, pluginInfo} = useSeerr();
 	const recommendationsSupported = pluginInfo?.recommendationsSupported === true;
 	const seerrUserId = seerrUser?.seerrUserId;
@@ -187,7 +190,7 @@ const Browse = ({
 
 	const {
 		isLoading, browseMode, allRowData, featuredItems: loadedFeaturedItems, pendingSections, emptySections,
-		setBrowseMode, fetchFreshFeaturedItems, refreshVolatileData, loadSectionsNear
+		setBrowseMode, fetchFreshFeaturedItems, refreshVolatileData, loadSectionsNear, loadMoreRow
 	} = useBrowseData({
 		api,
 		serverUrl,
@@ -220,6 +223,26 @@ const Browse = ({
 		() => withoutBlockedOrUnrated(loadedFeaturedItems, parentalFilter, false),
 		[loadedFeaturedItems, parentalFilter]
 	);
+
+	// Kept beside the slides rather than on them, since a new slide list sends every bar back to its
+	// first slide.
+	const [newReleases, setNewReleases] = useState(null);
+	const newReleaseBanner = settings.mediaBarNewReleaseBanner;
+	const newReleaseDays = settings.mediaBarNewReleaseDays;
+	useEffect(() => {
+		if (!newReleaseBanner || !showFeaturedBar || featuredItems.length === 0) return undefined;
+		let cancelled = false;
+		const apiFor = (item) => (item._serverUrl && item._serverAccessToken
+			? createApiForServer(item._serverUrl, item._serverAccessToken, item._serverUserId)
+			: api);
+		loadNewReleases(featuredItems, newReleaseDays, apiFor).then((releases) => {
+			if (!cancelled) setNewReleases(releases);
+		});
+		return () => {
+			cancelled = true;
+		};
+	}, [api, featuredItems, newReleaseBanner, newReleaseDays, showFeaturedBar]);
+	const shownReleases = newReleaseBanner ? newReleases : null;
 
 	const mergeContinueWatchingNextUp = mergesContinueWatchingNextUp(settings);
 
@@ -788,6 +811,7 @@ const Browse = ({
 							isVisible={browseMode === 'featured'}
 							browseVisible={isVisible}
 							featuredItems={featuredItems}
+							newReleases={shownReleases}
 							api={api}
 							settings={settings}
 							settingsLoaded={settingsLoaded}
@@ -803,6 +827,7 @@ const Browse = ({
 							rowPeek={rowPeek}
 							browseVisible={isVisible}
 							featuredItems={featuredItems}
+							newReleases={shownReleases}
 							api={api}
 							settings={settings}
 							settingsLoaded={settingsLoaded}
@@ -815,6 +840,7 @@ const Browse = ({
 						<BannerBar
 							isVisible={browseMode === 'featured'}
 							featuredItems={featuredItems}
+							newReleases={shownReleases}
 							settings={settings}
 							getItemServerUrl={getItemServerUrl}
 							onSelectItem={handleSelectExternalItem}
@@ -837,6 +863,7 @@ const Browse = ({
 							isVisible={browseMode === 'featured'}
 							browseVisible={isVisible}
 							featuredItems={featuredItems}
+							newReleases={shownReleases}
 							serverUrl={serverUrl}
 							api={api}
 							settings={settings}
@@ -852,6 +879,7 @@ const Browse = ({
 							rowPeek={rowPeek}
 							browseVisible={isVisible}
 							featuredItems={featuredItems}
+							newReleases={shownReleases}
 							serverUrl={serverUrl}
 							api={api}
 							settings={settings}
@@ -932,6 +960,26 @@ const Browse = ({
 								/>
 							);
 						}
+						if (row.isWatchingNowRow) {
+							return (
+								<WatchingNowRow
+									key={row.id}
+									rowId={row.id}
+									title={row.title}
+									subtitle={row.subtitle}
+									items={row.items}
+									serverUrl={serverUrl}
+									onSelectItem={rowSelect.external}
+									onFocus={handleRowFocus}
+									onFocusItem={handleFocusItem}
+									rowIndex={index}
+									onNavigateUp={handleNavigateUp}
+									onNavigateDown={handleNavigateDown}
+									rowSpacing={rowSpacing}
+									registerRowRef={registerRowRef}
+								/>
+							);
+						}
 						const isCwOrNextUp = row.id === 'continue-nextup' || row.id === 'resume' || row.id === 'nextup';
 						const shouldPlayImmediately = isCwOrNextUp && settings.continueWatchingDefaultAction === 'play';
 						let selectHandler = shouldPlayImmediately
@@ -966,6 +1014,7 @@ const Browse = ({
 								menuOptions={rowMenuOptions}
 								ratingsSurface='homeRows'
 								hideOverview={settings.hideHomeMediaDescription === true}
+								onLoadMore={row.hasMore ? loadMoreRow : undefined}
 							/>
 						);
 					})}

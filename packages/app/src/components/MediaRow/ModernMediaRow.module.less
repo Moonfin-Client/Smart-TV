@@ -97,3 +97,38 @@
 	margin-left: -48px;
 	margin-right: -48px;
 }
+
+// Core's Seerr rows on its TV canvas: a 73px header, then 509px holding the cards 10px down and
+// the focused card's details under it. The insets come in from the screen, since they follow
+// the navbar.
+.row.coreLook {
+	padding-left: 0;
+	padding-right: 0;
+	margin: 0;
+	contain-intrinsic-size: 0 582px;
+	contain-intrinsic-size: auto 582px;
+}
+
+.coreLook .title {
+	margin: 0;
+	padding: 13px 0;
+	font-size: 37px;
+	font-weight: 700;
+	line-height: 47px;
+}
+
+.coreLook .scroller {
+	margin-left: 0;
+	margin-right: 0;
+	padding-right: 33px;
+	height: 509px;
+	box-sizing: border-box;
+}
+
+.coreLook .items {
+	padding: 10px 0 0;
+
+	> * + * {
+		margin-left: 28px;
+	}
+}

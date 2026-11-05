@@ -1,4 +1,4 @@
-import {getAuthHeader, getServerUrl} from './jellyfinApi';
+import {getAuthHeader, getServerType, getServerUrl} from './jellyfinApi';
 import {mediaServerQueue} from '../utils/requestQueue';
 import {getFromStorage, saveToStorage} from './storage';
 
@@ -50,7 +50,8 @@ let featureOffAt = 0;
 // The audio half can be off while filler markers stay on, so it latches on its own.
 let itemFeatureOffAt = 0;
 
-const featureOff = () => featureOffAt > 0 && (Date.now() - featureOffAt) < CACHE_TTL_MS;
+// Moonbase for Silo has no anime markers.
+const featureOff = () => getServerType() === 'silo' || (featureOffAt > 0 && (Date.now() - featureOffAt) < CACHE_TTL_MS);
 const itemFeatureOff = () => featureOff() || (itemFeatureOffAt > 0 && (Date.now() - itemFeatureOffAt) < CACHE_TTL_MS);
 
 const normalizeId = (id) => String(id || '').replace(/-/g, '').toLowerCase();

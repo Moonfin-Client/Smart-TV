@@ -1,5 +1,6 @@
 import {useCallback, useState} from 'react';
 import {bareId} from '../../utils/libraryScopeRules';
+import {DATED_SOURCES} from '../../utils/mediaBarNewRelease';
 
 const withIdToggled = (id) => (prev) => (prev.includes(id) ? prev.filter((entry) => entry !== id) : [...prev, id]);
 
@@ -83,13 +84,14 @@ const useMediaBarSources = ({api, settings, updateSettings, pushView, popView}) 
 		popView();
 	}, [tempMediaBarExternalLists, updateSettings, popView]);
 
+	// The dated sources read the picked libraries too, so saving them keeps that choice.
 	const saveMediaBarLibraries = useCallback(() => {
 		updateSettings({
-			mediaBarSourceType: 'library',
+			mediaBarSourceType: DATED_SOURCES.includes(settings.mediaBarSourceType) ? settings.mediaBarSourceType : 'library',
 			mediaBarLibraryIds: tempMediaBarLibraryIds
 		});
 		popView();
-	}, [tempMediaBarLibraryIds, updateSettings, popView]);
+	}, [settings.mediaBarSourceType, tempMediaBarLibraryIds, updateSettings, popView]);
 
 	const saveMediaBarCollections = useCallback(() => {
 		updateSettings({

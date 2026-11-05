@@ -1,4 +1,4 @@
-import {FAVORITE_TABS, FAVORITE_TAB_TYPES, bucketByTab, cardMetrics, clampTabIndex, favoriteCardImage, tabKeyForType, visibleTabs} from './favoriteTabs';
+import {FAVORITE_TABS, FAVORITE_TAB_TYPES, WATCHLIST_TAB, bucketByTab, cardMetrics, clampTabIndex, favoriteCardImage, tabKeyForType, visibleTabs, watchlistCards} from './favoriteTabs';
 
 describe('FAVORITE_TABS', () => {
 	it('lists every type once, in order', () => {
@@ -148,5 +148,25 @@ describe('favoriteCardImage', () => {
 	it('has nothing to draw for an item with no art anywhere', () => {
 		expect(favoriteCardImage({Id: 'x', Type: 'MusicArtist', ImageTags: {}}, 'circle')).toEqual({imageId: null, imageType: 'Primary'});
 		expect(favoriteCardImage(null, 'portrait')).toEqual({imageId: null, imageType: 'Primary'});
+	});
+});
+
+describe('the watchlist tab', () => {
+	const libraryFilm = {Id: 'lib1', Type: 'Movie', Name: 'Held', ProviderIds: {Tmdb: '11'}};
+	const card = (id, type = 'Movie') => ({Id: `seerr-${type === 'Movie' ? 'movie' : 'tv'}-${id}`, Type: type, _seerr: true, _seerrRaw: {mediaId: id}, _externalPosterUrl: `https://image.tmdb.org/p/${id}.jpg`});
+
+	it('leads with the library titles and leaves out request cards the library already shows', () => {
+		const cards = watchlistCards([libraryFilm], [card(11), card(22), card(11, 'Series'), card(22)]);
+		expect(cards.map((item) => item.Id)).toEqual(['lib1', 'seerr-movie-22', 'seerr-tv-11']);
+	});
+
+	it('shows after the favorites once it has anything in it', () => {
+		const tabs = visibleTabs({movie: [libraryFilm], watchlist: [card(22)]});
+		expect(tabs.map((tab) => tab.key)).toEqual(['movie', WATCHLIST_TAB.key]);
+		expect(visibleTabs({movie: [libraryFilm], watchlist: []}).map((tab) => tab.key)).toEqual(['movie']);
+	});
+
+	it('draws a request card from its own poster', () => {
+		expect(favoriteCardImage(card(22), 'portrait').url).toBe('https://image.tmdb.org/p/22.jpg');
 	});
 });

@@ -6,6 +6,7 @@ import $L from '@enact/i18n/$L';
 import {getFeaturedBackdropUrl, formatDuration} from '../../utils/helpers';
 import RatingsRow from '../../components/RatingsRow';
 import {KEYS} from '../../utils/keys';
+import MediaBarNewReleaseLabel from '../../components/MediaBarNewReleaseLabel';
 import useTrailerPreview from './useTrailerPreview';
 import css from './Browse.module.less';
 import {carouselIntervalMs} from '../../utils/carouselTiming';
@@ -23,6 +24,7 @@ const FeaturedBanner = memo(({
 	rowPeek = 0,
 	browseVisible = true,
 	featuredItems,
+	newReleases,
 	serverUrl,
 	api,
 	settings,
@@ -260,6 +262,7 @@ const FeaturedBanner = memo(({
 					) : (
 						<h1 className={css.featuredTitle}>{currentFeatured.Name}</h1>
 					)}
+					<MediaBarNewReleaseLabel release={newReleases?.[currentFeatured.Id]} />
 				</div>
 
 				<div

@@ -183,7 +183,9 @@ export const saveBrowseCache = (rowData, libraries, featuredItems, {serverUrl, u
 		saveTimer = null;
 		try {
 			await saveToStorage(STORAGE_KEY_BROWSE, {
-				rowData: rowData.map((row) => ({...row, items: row.items.map(stripItemForCache)})),
+				// A row's reader can't be stored, so a row read back from storage can't page until
+				// Home loads it again.
+				rowData: rowData.map((row) => ({...row, readHead: undefined, hasMore: false, items: row.items.map(stripItemForCache)})),
 				libraries,
 				featuredItems,
 				timestamp: Date.now(),

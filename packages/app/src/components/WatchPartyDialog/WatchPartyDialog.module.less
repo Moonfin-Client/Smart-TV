@@ -1,0 +1,60 @@
+@import '../../styles/mixins.less';
+
+.banner {
+	padding: 12px 16px;
+	margin-bottom: 12px;
+	border-radius: 8px;
+	background: rgba(220, 70, 70, 0.2);
+	font-size: 20px;
+}
+
+.hint {
+	font-size: 18px;
+	opacity: 0.7;
+	margin-bottom: 12px;
+}
+
+.code {
+	font-size: 36px;
+	letter-spacing: 4px;
+}
+
+.member {
+	display: flex;
+	align-items: center;
+}
+
+.offline {
+	opacity: 0.5;
+}
+
+.avatar {
+	width: 32px;
+	height: 32px;
+	border-radius: 50%;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	background: rgba(255, 255, 255, 0.15);
+	font-size: 16px;
+	overflow: hidden;
+}
+
+.muted {
+	opacity: 0.6;
+}
+
+.row {
+	display: flex;
+	align-items: center;
+	padding: 6px 0;
+	font-size: 20px;
+}
+
+.grow {
+	flex: 1;
+}
+
+.member   { .flex-row-gap(12px); }
+.row      { .flex-row-gap(10px); }
+.settings { .flex-col-gap(10px); }

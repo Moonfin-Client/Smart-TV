@@ -1,6 +1,7 @@
 import $L from '@enact/i18n/$L';
 import * as seerrApi from '../services/seerrApi';
 import {fetchWithTimeout} from './fetchTimeout';
+import {moonbaseEndpoint} from '../services/moonbaseEndpoint';
 
 const DAYS = [
 	'Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'
@@ -197,17 +198,13 @@ export const fetchUpcomingEpisode = async ({item, settings, serverUrl, serverTok
 
 		if (settings?.useMoonfinPlugin && serverUrl && serverToken) {
 			try {
-				const proxyUrl = `${serverUrl}/Moonfin/Tmdb/NextEpisode?tmdbId=${encodeURIComponent(tmdbId)}`;
-				const res = await fetchWithTimeout(
-					proxyUrl,
-					{
-						headers: {
-							Authorization: `MediaBrowser Token="${serverToken}"`
-						}
-					},
+				const endpoint = await moonbaseEndpoint(serverUrl, serverToken);
+				const res = endpoint && await fetchWithTimeout(
+					`${endpoint.base}/Moonfin/Tmdb/NextEpisode?tmdbId=${encodeURIComponent(tmdbId)}`,
+					{headers: endpoint.headers},
 					5000
 				);
-				if (res.ok) {
+				if (res?.ok) {
 					const data = await res.json();
 					if (data.success && data.airDate) {
 						const info = {

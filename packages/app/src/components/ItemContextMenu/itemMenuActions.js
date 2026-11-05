@@ -11,6 +11,8 @@ const MEDIA_TYPES = ['Movie', 'Episode', 'Series', 'Season', 'Audio', 'MusicAlbu
 // seasons qualify because Identify goes to their series.
 const IDENTIFIABLE_TYPES = ['Movie', 'Series', 'Season', 'Episode', 'BoxSet', 'Person', 'MusicAlbum', 'MusicArtist', 'Book', 'Trailer', 'MusicVideo'];
 
+const SILO_ADMIN_TYPES = ['Movie', 'Series', 'Season', 'Episode'];
+
 const ARTWORK_FOLDER_TYPES = ['Folder', 'CollectionFolder', 'UserView', 'Genre', 'MusicGenre', 'Studio', 'Network'];
 
 export const MENU_ICON_PATHS = {
@@ -44,6 +46,8 @@ const hasProgress = (item) => {
 export const itemMenuActions = (item, {
 	isAdmin = false,
 	isJellyfin = true,
+	// Silo's admin item routes: refresh, Identify (movies and shows) and artwork for the catalog's titles.
+	isSilo = false,
 	canManageCollections = false,
 	inCollection = false,
 	playlist = null,
@@ -103,7 +107,7 @@ export const itemMenuActions = (item, {
 			if (canMove && !playlist.first) actions.push({id: 'moveUp', icon: MENU_ICON_PATHS.arrowUpward, label: $L('Move Up')});
 			if (canMove && !playlist.last) actions.push({id: 'moveDown', icon: MENU_ICON_PATHS.arrowDownward, label: $L('Move Down')});
 		}
-		if (isJellyfin && isAdmin) {
+		if ((isJellyfin || (isSilo && SILO_ADMIN_TYPES.includes(type))) && isAdmin) {
 			actions.push({id: 'refreshMetadata', icon: MENU_ICON_PATHS.refresh, label: $L('Refresh Metadata')});
 			if (IDENTIFIABLE_TYPES.indexOf(type) !== -1) {
 				actions.push({id: 'identify', icon: MENU_ICON_PATHS.search, label: $L('Identify')});
@@ -112,7 +116,7 @@ export const itemMenuActions = (item, {
 	}
 
 	const artworkType = MEDIA_TYPES.indexOf(type) !== -1 || ARTWORK_FOLDER_TYPES.indexOf(type) !== -1;
-	if (artworkType && isJellyfin && isAdmin) {
+	if (((artworkType && isJellyfin) || (isSilo && SILO_ADMIN_TYPES.includes(type))) && isAdmin) {
 		actions.push({id: 'changeArtwork', icon: DETAIL_ICON_PATHS.artwork, label: $L('Change Artwork')});
 	}
 
@@ -123,10 +127,17 @@ export const itemMenuActions = (item, {
 	return actions;
 };
 
-// Emby and Plex take an item off resume and keep its progress. Jellyfin can only clear the play state, and
+// Emby, Plex and Silo take an item off resume and keep its progress. Jellyfin can only clear the play state, and
 // the audiobook Continue row ignores Emby's flag, so audio is always cleared.
 export const hideFromResume = (api, item, serverType) => {
 	const audio = item.Type === 'Audio' || item.Type === 'AudioBook' || item.MediaType === 'Audio';
+	// Silo hides a title as of its last progress, which it finds on the item.
+	if (serverType === 'silo') return api.hideFromResume(item.Id, item).catch(() => {});
 	if ((serverType === 'emby' || serverType === 'plex') && !audio) return api.hideFromResume(item.Id).catch(() => {});
 	return api.setWatched(item.Id, false).catch(() => {});
 };
+
+// Silo keeps its own Next Up dismissals. Elsewhere hiding from Next Up is the same as from resume.
+export const hideFromNextUp = (api, item, serverType) => (serverType === 'silo'
+	? api.hideFromNextUp(item).catch(() => {})
+	: hideFromResume(api, item, serverType));

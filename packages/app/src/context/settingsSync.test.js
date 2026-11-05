@@ -74,6 +74,15 @@ describe('profileToLocal', () => {
 		expect(profileToLocal({posterSize: 'huge'}).homeRowsPosterSize).toBeUndefined();
 	});
 
+	test("takes the other clients' media bar sources and new release settings", () => {
+		expect(profileToLocal({mediaBarSourceType: 'newReleases'}).mediaBarSourceType).toBe('newReleases');
+		expect(profileToLocal({mediaBarSourceType: 'recentlyAdded'}).mediaBarSourceType).toBe('recentlyAdded');
+		expect(profileToLocal({mediaBarSourceType: 'random'}).mediaBarSourceType).toBe('library');
+		expect(profileToLocal({mediaBarSourceType: 'trending'}).mediaBarSourceType).toBeUndefined();
+		expect(profileToLocal({mediaBarNewReleaseBanner: false, mediaBarNewReleaseDays: 14})).toEqual({mediaBarNewReleaseBanner: false, mediaBarNewReleaseDays: 14});
+		expect(profileToLocal({mediaBarNewReleaseDays: 45}).mediaBarNewReleaseDays).toBeUndefined();
+	});
+
 	test('ignores a screensaver mode this app has no way to draw', () => {
 		expect(profileToLocal({screensaverMode: 'off'}).screensaverMode).toBeUndefined();
 		expect(profileToLocal({screensaverMode: 'logo'}).screensaverMode).toBe('logo');
@@ -778,6 +787,14 @@ describe('the focus border color', () => {
 		expect(profileToLocal({focusColor: '#ff2e92'}).focusBorderColor).toBe('#ff2e92');
 		expect(profileToLocal({focusColor: ''}).focusBorderColor).toBe('');
 		expect(profileToLocal({focusColor: 'constructor'})).not.toHaveProperty('focusBorderColor');
+	});
+});
+
+describe('the focus expansion toggle', () => {
+	test('syncs under Core\'s name both ways', () => {
+		expect(profileToLocal({cardFocusExpansion: false}).cardFocusZoom).toBe(false);
+		expect(profileToLocal({cardFocusExpansion: true}).cardFocusZoom).toBe(true);
+		expect(localToProfile({cardFocusZoom: false}, ['cardFocusZoom'])).toEqual({cardFocusExpansion: false});
 	});
 });
 

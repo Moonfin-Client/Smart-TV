@@ -31,6 +31,7 @@ import {
 	initialCardCount,
 	expandedCardCount,
 	searchArtworkOptions,
+	searchArtworkSource,
 	shouldMountSearchRow
 } from './searchWindow';
 
@@ -619,18 +620,10 @@ const Search = ({onSelectItem, onSelectSeerrItem, onSelectPerson, onSelectGame, 
 		const {aspect, card, img} = cardSizeClass(item.Type);
 		const circle = isCircleType(item.Type);
 		const itemServerUrl = item._serverUrl || serverUrl;
-		const primaryTag = item.ImageTags?.Primary || item.PrimaryImageTag;
-		let imageUrl = primaryTag
-			? getImageUrl(itemServerUrl, item.Id, 'Primary', searchArtworkOptions(aspect, primaryTag))
+		const artwork = searchArtworkSource(item);
+		const imageUrl = artwork
+			? getImageUrl(itemServerUrl, artwork.id, artwork.type, searchArtworkOptions(aspect, artwork.tag))
 			: null;
-		if (!imageUrl && item.Type === 'Audio' && item.AlbumId && item.AlbumPrimaryImageTag) {
-			imageUrl = getImageUrl(
-				itemServerUrl,
-				item.AlbumId,
-				'Primary',
-				searchArtworkOptions(aspect, item.AlbumPrimaryImageTag)
-			);
-		}
 		return (
 			<SpottableDiv
 				key={item.Id}
