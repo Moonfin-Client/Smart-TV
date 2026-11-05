@@ -53,7 +53,7 @@ describe('ModernMediaRow', () => {
 		focusCard(0);
 		expect(onLoadMore).not.toHaveBeenCalled();
 		focusCard(1);
-		expect(onLoadMore).toHaveBeenCalledWith('trending', 1);
+		expect(onLoadMore).toHaveBeenCalledWith('trending');
 	});
 
 	it('counts only the cards when it finds how near the end focus is', () => {
@@ -63,7 +63,7 @@ describe('ModernMediaRow', () => {
 		focusCard(10);
 		expect(onLoadMore).not.toHaveBeenCalled();
 		focusCard(11);
-		expect(onLoadMore).toHaveBeenCalledWith('trending', 11);
+		expect(onLoadMore).toHaveBeenCalledWith('trending');
 	});
 
 	it('still tells the screen which row took focus', () => {
