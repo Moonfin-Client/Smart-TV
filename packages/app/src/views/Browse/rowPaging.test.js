@@ -1,5 +1,5 @@
 import browseReducer, {browseInitialState} from './browseReducer';
-import {ROW_MAX_ITEMS, extendRow, headLengthFor, moreAfter, nextHeadLength, pageableRow, readFoldedHead} from './rowPaging';
+import {ROW_MAX_ITEMS, extendRow, headLengthFor, moreAfter, nearRowEnd, nextHeadLength, pageableRow, readFoldedHead, withRowPage} from './rowPaging';
 
 const cards = (from, to) => Array.from({length: to - from}, (_, i) => ({Id: `i${from + i}`}));
 
@@ -32,6 +32,20 @@ describe('row paging', () => {
 	it('ends a row whose next page brought nothing new', () => {
 		const row = {id: 'latest-1', items: cards(0, 3), hasMore: true};
 		expect(extendRow(row, cards(0, 3), true).hasMore).toBe(false);
+	});
+
+	it('asks for the next page from the last five cards on', () => {
+		expect(nearRowEnd(10, 16)).toBe(false);
+		expect(nearRowEnd(11, 16)).toBe(true);
+		expect(nearRowEnd(-1, 3)).toBe(false);
+	});
+
+	it('adds a page only to the row it was read for', () => {
+		const readHead = jest.fn();
+		const rows = [{id: 'latest-1', items: cards(0, 2), readHead, hasMore: true}, {id: 'latest-1', items: cards(0, 2), readHead: jest.fn(), hasMore: true}];
+		const next = withRowPage(rows, 'latest-1', readHead, cards(0, 4), true);
+		expect(next[0].items).toHaveLength(4);
+		expect(next[1]).toBe(rows[1]);
 	});
 
 	it('reads a refreshed row back as long as the one on screen', () => {

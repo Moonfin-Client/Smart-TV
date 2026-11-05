@@ -9,7 +9,7 @@ import * as connectionPool from '../../services/connectionPool';
 import * as seerrApi from '../../services/seerrApi';
 import browseReducer, {browseInitialState, mergeRowsById} from './browseReducer';
 import {BROWSE_ROW_LOADERS, buildLoaderContext, loadDeferredSections, loadSinceYouWatched} from './browseRowLoaders';
-import {extendRow, headLengthFor, moreAfter, nextHeadLength, pageableRow} from './rowPaging';
+import {headLengthFor, moreAfter, nearRowEnd, nextHeadLength, pageableRow, withRowPage} from './rowPaging';
 import {genericCollectionLabel, mergeRecentRows} from '../../utils/mergeRecentRows';
 import {normalizeLatestMediaItems} from '../../utils/latestMediaRowNormalizer';
 import {EXCLUDED_COLLECTION_TYPES, filterItemsByExcludedGenres, matchesContentType} from './browseFilters';
@@ -79,9 +79,12 @@ const useBrowseData = ({
 
 	// Reads a row's next page as focus nears its end. A row already being read, or with nothing
 	// more, is left alone.
-	const loadRowPage = useCallback(async (rowId) => {
+	const loadRowPage = useCallback(async (rowId, focusedIndex) => {
 		const row = rowsRef.current.find((entry) => entry.id === rowId);
 		if (!row || !row.hasMore || typeof row.readHead !== 'function' || pagingRef.current.has(rowId)) return;
+		// A card's position can come from a draw made before the last page landed, so it's checked
+		// against the row as it is now.
+		if (focusedIndex != null && !nearRowEnd(focusedIndex, row.items?.length || 0)) return;
 		pagingRef.current.add(rowId);
 		const limit = nextHeadLength(row);
 		let page;
@@ -89,27 +92,29 @@ const useBrowseData = ({
 			const result = await row.readHead(limit);
 			page = {items: result?.Items || [], hasMore: moreAfter(result, limit)};
 		} catch (err) {
+			pagingRef.current.delete(rowId);
 			// The row keeps its hasMore, so the next focus near the end tries again.
 			console.warn(`[Browse] Failed to load more of ${rowId}:`, err);
 			return;
-		} finally {
-			pagingRef.current.delete(rowId);
 		}
+		// The next focus can come before the page is drawn. Reading the row as it was, it would ask
+		// for this page again, find nothing new and end the row.
+		rowsRef.current = withRowPage(rowsRef.current, rowId, row.readHead, page.items, page.hasMore);
+		pagingRef.current.delete(rowId);
 		// The reader goes with the page, so a page read for a row that a reload has since replaced
 		// is dropped rather than added to the new one.
 		dispatch({type: 'EXTEND_ROW', id: rowId, readHead: row.readHead, ...page});
 		// The warm cache holds the row too, so coming back to Home keeps the cards paged in.
 		if (memoryCache.rowData) {
-			memoryCache.rowData = memoryCache.rowData.map((cached) => (
-				cached.id === rowId && cached.readHead === row.readHead ? extendRow(cached, page.items, page.hasMore) : cached
-			));
+			memoryCache.rowData = withRowPage(memoryCache.rowData, rowId, row.readHead, page.items, page.hasMore);
 		}
 	}, []);
 
-	// The merged Continue Watching & Next Up row is drawn from both rows, so it pages both.
-	const loadMoreRow = useCallback((rowId) => (rowId === 'continue-nextup'
+	// The merged Continue Watching & Next Up row is drawn from both rows, so it pages both. Its
+	// card positions span both, so neither is checked against them.
+	const loadMoreRow = useCallback((rowId, focusedIndex) => (rowId === 'continue-nextup'
 		? Promise.all([loadRowPage('resume'), loadRowPage('nextup')])
-		: loadRowPage(rowId)), [loadRowPage]);
+		: loadRowPage(rowId, focusedIndex)), [loadRowPage]);
 
 	const recommendations = useMemo(
 		() => ({seerrEnabled, seerrAuthenticated, recommendationsSupported}),
