@@ -396,6 +396,7 @@ export const createPlexApi = ({getBaseUrl, getToken, getUserId, getDeviceInfo, g
 		}
 		const query = {};
 		if (types.length && path.endsWith('/all')) query.type = types.join(',');
+		if (q.smart != null) query.smart = q.smart;
 		if (path === '/playlists' && sectionKey) query.sectionID = sectionKey;
 		if (sort.length) query.sort = sort.join(',');
 		if (searchTerm) query.title = searchTerm;
@@ -1072,8 +1073,11 @@ export const createPlexApi = ({getBaseUrl, getToken, getUserId, getDeviceInfo, g
 		getRecentlyReleased: (libraryId, limit = 20, includeItemTypes = 'Movie,Series') =>
 			getItems({ParentId: libraryId, IncludeItemTypes: includeItemTypes, SortBy: 'PremiereDate', SortOrder: 'Descending', Limit: limit}),
 
-		getCollections: (limit = 50, sortBy = 'SortName', sortOrder = 'Ascending') =>
-			getItems({IncludeItemTypes: 'BoxSet', SortBy: sortBy, SortOrder: sortOrder, Limit: limit}),
+		getCollections: async (limit = 50, sortBy = 'SortName', sortOrder = 'Ascending') => {
+			const res = await getItems({IncludeItemTypes: 'BoxSet', SortBy: sortBy, SortOrder: sortOrder, smart: 0});
+			const items = (res?.Items || []).filter((item) => !item._smart && item.smart !== 1 && item.smart !== '1' && item.smart !== true);
+			return page(items, 0, limit);
+		},
 
 		// Studio pages filter by name, so the id just has to be unique and free of commas. Plex's encoded key is both.
 		getStudios: (limit = 20, sortBy = 'SortName', sortOrder = 'Ascending') =>
