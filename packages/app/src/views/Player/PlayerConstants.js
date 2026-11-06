@@ -29,6 +29,9 @@ export const getQualityPresets = () => (_qualityPresets ??= [
 
 export const CONTROLS_HIDE_DELAY = 5000;
 
+// How long a slideshow video that failed to play stays up before the slideshow moves on.
+export const SLIDESHOW_ERROR_DELAY = 2500;
+
 // Only the skip prompt waits on this and it runs alongside playback, so waiting out
 // a slow answer costs nothing and losing the prompt for the episode costs the viewer.
 export const SEGMENT_FETCH_TIMEOUT = 20000;

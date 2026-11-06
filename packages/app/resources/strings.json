@@ -2831,5 +2831,14 @@
 	"New Episodes": "New Episodes",
 	"7 days": "7 days",
 	"14 days": "14 days",
-	"60 days": "60 days"
+	"60 days": "60 days",
+	"Slideshow": "Slideshow",
+	"OK Slideshow": "OK Slideshow",
+	"This photo can't be shown": "This photo can't be shown",
+	"Slideshow Interval": "Slideshow Interval",
+	"How long each photo stays on screen": "How long each photo stays on screen",
+	"Play Videos in Slideshow": "Play Videos in Slideshow",
+	"Play the videos in a folder in full. When off, the slideshow skips them.": "Play the videos in a folder in full. When off, the slideshow skips them.",
+	"Video Sound in Slideshow": "Video Sound in Slideshow",
+	"When off, slideshow videos start muted": "When off, slideshow videos start muted"
 }

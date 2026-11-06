@@ -863,6 +863,31 @@ const Library = ({library, genreFilter, studioFilter, onSelectItem, onViewPhoto,
 		landedRef.current = false;
 	}, [library]);
 
+	// How many photos and videos the open folder holds, so the viewer can show an exact total before the rest of
+	// the folder has loaded. Only a folder view lists a folder's own items, so it is the only one this covers.
+	const countPhotos = useCallback(() => {
+		if (!isFolderView || !currentFolderId) return;
+		const statusFilters = [];
+		if (favoritesOnly) statusFilters.push('IsFavorite');
+		if (filters.playedFilter === 'watched') statusFilters.push('IsPlayed');
+		if (filters.playedFilter === 'unwatched') statusFilters.push('IsUnplayed');
+		if (filters.playedFilter === 'inProgress') statusFilters.push('IsResumable');
+		if (filters.likedFilter === 'liked') statusFilters.push('Likes');
+		if (filters.likedFilter === 'disliked') statusFilters.push('Dislikes');
+		effectiveApi.getItems({
+			ParentId: currentFolderId,
+			IncludeItemTypes: 'Photo,Video',
+			Limit: 1,
+			EnableTotalRecordCount: true,
+			...(statusFilters.length > 0 ? {Filters: statusFilters.join(',')} : {}),
+			...buildFilterParams({...filters, genreFilters: genreFilter ? [] : openedGenre ? [openedGenre] : filters.genreFilters})
+		}).then((result) => {
+			if (result && result.TotalRecordCount > 0) {
+				window.dispatchEvent(new CustomEvent('moonfin:libraryPhotoCount', {detail: result.TotalRecordCount}));
+			}
+		}).catch(() => {});
+	}, [isFolderView, currentFolderId, effectiveApi, favoritesOnly, filters, genreFilter, openedGenre]);
+
 	const handleItemClick = useCallback((ev) => {
 		const itemIndex = ev.currentTarget?.dataset?.index;
 		if (itemIndex === undefined) return;
@@ -879,7 +904,18 @@ const Library = ({library, genreFilter, studioFilter, onSelectItem, onViewPhoto,
 				return;
 			}
 			if (item.Type === 'Photo' && onViewPhoto) {
-				onViewPhoto(item, itemsRef.current);
+				// A slideshow can take the library off screen for a video, so it can note where to come back to.
+				// The viewer pages in the rest of the folder as it nears the end of what's loaded.
+				onViewPhoto(item, itemsRef.current, {
+					loaded: apiFetchIndexRef.current,
+					total: totalCount,
+					noteReturn: (itemId) => {
+						// An item a rebuilt library hasn't loaded yet pages in until it turns up.
+						const at = itemsRef.current.findIndex((entry) => entry.Id === itemId);
+						returnTo = {libraryId, itemId, index: at >= 0 ? at : Infinity, folderStack};
+					}
+				});
+				if (apiFetchIndexRef.current < totalCount) countPhotos();
 			} else {
 				returnTo = {libraryId, itemId: item.Id, index, folderStack};
 				bookGridReturn = bookGridView ? {libraryId, view: bookGridView, genre: openedGenre, search: searchQuery} : null;
@@ -888,9 +924,40 @@ const Library = ({library, genreFilter, studioFilter, onSelectItem, onViewPhoto,
 				onSelectItem?.(item);
 			}
 		}
-	}, [isFolderView, onSelectItem, onViewPhoto, libraryId, bookGridView, folderStack, openedGenre, searchQuery, handleOpenBookGrid, musicScreen, bookScreen]);
+	}, [isFolderView, onSelectItem, onViewPhoto, libraryId, bookGridView, folderStack, openedGenre, searchQuery, handleOpenBookGrid, musicScreen, bookScreen, totalCount, countPhotos]);
 
 	const {getScrollTo: getGridScrollTo, quickReturn, scrollTo: scrollGridTo} = useQuickReturnGrid('library-grid');
+
+	// The photo viewer closing on a photo other than the one it opened on lands on that photo's tile. The grid
+	// already has focus, so taking it again reports nothing and the header would stay on the old item.
+	useEffect(() => {
+		const onFocusItem = (ev) => {
+			const index = itemsRef.current.findIndex((entry) => entry.Id === ev.detail);
+			if (index < 0) return;
+			scrollGridTo({index, focus: true});
+			setFocusedItem(itemsRef.current[index]);
+		};
+		window.addEventListener('moonfin:focusLibraryItem', onFocusItem);
+		return () => window.removeEventListener('moonfin:focusLibraryItem', onFocusItem);
+	}, [scrollGridTo]);
+
+	// The photo viewer reads on through the folder as it nears the end of what's loaded, one page at a time like
+	// scrolling would, and is told what the grid has after each one. This runs on whichever Library is on screen,
+	// so the viewer carries on when the library was rebuilt after a video.
+	useEffect(() => {
+		const onLoadMore = () => {
+			if (apiFetchIndexRef.current > 0 && apiFetchIndexRef.current < totalCount && loadItemsRef.current) {
+				loadItemsRef.current(apiFetchIndexRef.current, true);
+			}
+		};
+		window.addEventListener('moonfin:libraryLoadMore', onLoadMore);
+		return () => window.removeEventListener('moonfin:libraryLoadMore', onLoadMore);
+	}, [totalCount]);
+
+	useEffect(() => {
+		if (!totalCount) return;
+		window.dispatchEvent(new CustomEvent('moonfin:libraryItems', {detail: {items, loaded: apiFetchIndexRef.current, total: totalCount}}));
+	}, [items, totalCount]);
 
 	const handleScrollStop = useCallback(() => {
 		if (apiFetchIndexRef.current < totalCount && !isLoading && !loadingMoreRef.current) {

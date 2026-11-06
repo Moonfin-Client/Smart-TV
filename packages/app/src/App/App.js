@@ -62,6 +62,7 @@ import useWatchParty from '../hooks/useWatchParty';
 import {watchParty, isRoomPlaying} from '../services/siloWatchParty';
 import {extendServerShuffle} from '../services/serverShuffle';
 import PhotoViewer from '../components/PhotoViewer';
+import {isSlideshowVideo, stepIndex, viewerItems} from '../components/PhotoViewer/usePhotoSlideshow';
 import ComicViewer from '../components/ComicViewer';
 import EpubReader from '../components/EpubReader';
 import PdfReader from '../components/PdfReader';
@@ -357,6 +358,20 @@ const AppContent = (props) => {
 	const prevUserIdRef = useRef(null);
 	const [photoViewerItem, setPhotoViewerItem] = useState(null);
 	const [photoViewerItems, setPhotoViewerItems] = useState([]);
+	// Set by the photo's Slideshow button. While a slideshow video plays the viewer is hidden, but stays
+	// open under the player so the slideshow carries on from it.
+	const [slideshowRunning, setSlideshowRunning] = useState(false);
+	const [slideshowVideo, setSlideshowVideo] = useState(false);
+	const slideshowIndexRef = useRef(0);
+	// Hands the library the item to come back to, since a video takes the library off screen.
+	const photoReturnRef = useRef(null);
+	// How much of the folder the library has fetched, out of how many items it holds, for paging the viewer on.
+	const [photoPaging, setPhotoPaging] = useState({loaded: 0, total: 0});
+	const photoPagingRef = useRef({loaded: 0, total: 0});
+	const photoMoreRef = useRef(false);
+	const photoMoreTimerRef = useRef(null);
+	// The folder's exact number of photos and videos once the library has counted them, or 0 until then.
+	const [photoCount, setPhotoCount] = useState(0);
 	const [reading, setReading] = useState(null);
 	const BookReader = reading ? BOOK_READERS[reading.reader.kind] : null;
 	const [unreadableBook, setUnreadableBook] = useState(null);
@@ -1150,15 +1165,100 @@ const AppContent = (props) => {
 		handleSelectItem({Id: deepLink.id, Type: deepLink.type === 'episode' ? 'Episode' : 'Movie'}, settings.continueWatchingDefaultAction === 'play');
 	}, [deepLink, isAuthenticated, settingsLoaded, user, pinPending, timesUp, handleSelectItem, settings.continueWatchingDefaultAction]);
 
-	const handleViewPhoto = useCallback((item, siblings) => {
+	const handleViewPhoto = useCallback((item, siblings, source) => {
+		photoReturnRef.current = source?.noteReturn || null;
+		photoPagingRef.current = {loaded: source?.loaded || 0, total: source?.total || 0};
+		photoMoreRef.current = false;
+		setPhotoPaging(photoPagingRef.current);
+		setPhotoCount(0);
 		setPhotoViewerItem(item);
 		setPhotoViewerItems(siblings || []);
 	}, []);
 
-	const handleClosePhotoViewer = useCallback(() => {
+	// The viewer asks for the next page of the folder as it nears the end of what it has. The page's library loads it
+	// and reports back, and if that library was rebuilt after a video and is still behind what the viewer
+	// already holds, the request is repeated until it reaches past it.
+	const dispatchMorePhotos = useCallback(() => {
+		const {loaded, total} = photoPagingRef.current;
+		if (loaded >= total) return;
+		clearTimeout(photoMoreTimerRef.current);
+		photoMoreRef.current = true;
+		photoMoreTimerRef.current = setTimeout(() => { photoMoreRef.current = false; }, 10000);
+		window.dispatchEvent(new CustomEvent('moonfin:libraryLoadMore'));
+	}, []);
+
+	const requestMorePhotos = useCallback(() => {
+		if (!photoMoreRef.current) dispatchMorePhotos();
+	}, [dispatchMorePhotos]);
+
+	useEffect(() => {
+		if (!photoViewerItem) return undefined;
+		const onLibraryItems = (ev) => {
+			const {items, loaded, total} = ev.detail;
+			const before = photoPagingRef.current.loaded;
+			photoPagingRef.current = {loaded: Math.max(before, loaded), total};
+			setPhotoPaging(photoPagingRef.current);
+			setPhotoViewerItems((prev) => {
+				const known = new Set(prev.map((entry) => entry.Id));
+				const added = items.filter((entry) => !known.has(entry.Id));
+				return added.length ? prev.concat(added) : prev;
+			});
+			if (!photoMoreRef.current) return;
+			if (loaded > before || loaded >= total) {
+				photoMoreRef.current = false;
+				clearTimeout(photoMoreTimerRef.current);
+			} else {
+				dispatchMorePhotos();
+			}
+		};
+		window.addEventListener('moonfin:libraryItems', onLibraryItems);
+		const onPhotoCount = (ev) => setPhotoCount(ev.detail);
+		window.addEventListener('moonfin:libraryPhotoCount', onPhotoCount);
+		return () => {
+			window.removeEventListener('moonfin:libraryItems', onLibraryItems);
+			window.removeEventListener('moonfin:libraryPhotoCount', onPhotoCount);
+			photoMoreRef.current = false;
+			clearTimeout(photoMoreTimerRef.current);
+		};
+	}, [photoViewerItem, dispatchMorePhotos]);
+
+	// How many more photos and videos the folder holds than the viewer has: the library's exact count when it has
+	// one, otherwise the items it hasn't fetched yet, which may turn out to include a few that aren't photos.
+	const photoMoreCount = useMemo(() => {
+		if (photoPaging.loaded >= photoPaging.total) return 0;
+		if (!photoCount) return photoPaging.total - photoPaging.loaded;
+		return Math.max(1, photoCount - viewerItems(photoViewerItems, photoViewerItem).length);
+	}, [photoPaging, photoCount, photoViewerItems, photoViewerItem]);
+
+	const handleClosePhotoViewer = useCallback((lastShown) => {
+		photoReturnRef.current = null;
+		photoPagingRef.current = {loaded: 0, total: 0};
+		setPhotoPaging(photoPagingRef.current);
+		setPhotoCount(0);
+		setSlideshowRunning(false);
+		setSlideshowVideo(false);
 		setPhotoViewerItem(null);
 		setPhotoViewerItems([]);
+		if (lastShown?.Id) {
+			setTimeout(() => window.dispatchEvent(new CustomEvent('moonfin:focusLibraryItem', {detail: lastShown.Id})), 50);
+		}
 	}, []);
+
+	// Leaving the app or the TV going to standby ends the slideshow, which also lets the screen sleep again.
+	useEffect(() => {
+		if (!slideshowRunning) return undefined;
+		const onVisibility = () => {
+			if (document.hidden) setSlideshowRunning(false);
+		};
+		document.addEventListener('visibilitychange', onVisibility);
+		return () => document.removeEventListener('visibilitychange', onVisibility);
+	}, [slideshowRunning]);
+
+	// A player left by any route other than the slideshow's own callbacks (a relaunch, a blocked item, the
+	// guide) must not leave the viewer hidden. The handoff to the player sets both together, so it isn't caught here.
+	useEffect(() => {
+		if (slideshowVideo && panelIndex !== PANELS.PLAYER) handleClosePhotoViewer();
+	}, [slideshowVideo, panelIndex, handleClosePhotoViewer]);
 
 	const handleCloseReader = useCallback(() => {
 		setReading(null);
@@ -1367,6 +1467,63 @@ const AppContent = (props) => {
 		}
 		window.dispatchEvent(new CustomEvent('moonfin:browseRefresh'));
 	}, [handleBack, panelHistory, selectedItem, playingItem, panelIndex, watchPartyRoom, openWatchParty, isSyncPlayInGroup, openSyncPlay]);
+
+	const handleSlideshowPlayVideo = useCallback(async (video, index) => {
+		slideshowIndexRef.current = index;
+		if (photoReturnRef.current) photoReturnRef.current(video.Id);
+		if (backgroundMusic) await remoteControl.releasePlayer();
+		setSlideshowVideo(true);
+		setPlayingItem(video);
+		setPlaybackOptions(null);
+		setIsResume(false);
+		navigateTo(PANELS.PLAYER);
+	}, [navigateTo, backgroundMusic]);
+
+	// Moves a slideshow video on, to a video swapped in the player where it is (the panel history stays as
+	// it was) or to a photo, which takes the player off screen and shows the viewer on it again. Browsing
+	// plays the videos it steps onto the same way, and one that ends there stays on its own still.
+	const moveSlideshow = useCallback((dir, auto) => {
+		const videos = settings.photoSlideshowVideos !== false;
+		const list = viewerItems(photoViewerItems, photoViewerItem);
+		const index = auto && !slideshowRunning
+			? slideshowIndexRef.current
+			: stepIndex(list, slideshowIndexRef.current, dir, {skipVideos: auto && !videos});
+		const target = list[index];
+		slideshowIndexRef.current = index;
+		if (target && target.Type === 'Video' && (slideshowRunning ? isSlideshowVideo(target, videos) : !auto)) {
+			if (photoReturnRef.current) photoReturnRef.current(target.Id);
+			setPlayingItem(target);
+			setPlaybackOptions(null);
+			setIsResume(false);
+			return;
+		}
+		if (target) setPhotoViewerItem(target);
+		setSlideshowVideo(false);
+		handlePlayerEnd();
+	}, [settings.photoSlideshowVideos, photoViewerItems, photoViewerItem, slideshowRunning, handlePlayerEnd]);
+
+	const handleSlideshowExit = useCallback(() => {
+		handleClosePhotoViewer();
+		handlePlayerEnd();
+	}, [handleClosePhotoViewer, handlePlayerEnd]);
+
+	// The player calls these some time after it was rendered, so they read the latest through a ref.
+	const slideshowApiRef = useRef(null);
+	slideshowApiRef.current = {
+		step: (dir) => moveSlideshow(dir, false),
+		ended: () => moveSlideshow(1, true),
+		exit: handleSlideshowExit
+	};
+	const slideshowCallbacks = useMemo(() => ({
+		onStep: (dir) => slideshowApiRef.current.step(dir),
+		onEnded: () => slideshowApiRef.current.ended(),
+		onExit: () => slideshowApiRef.current.exit()
+	}), []);
+	const slideshowSound = settings.photoSlideshowVideoSound !== false;
+	const playerSlideshow = useMemo(
+		() => (slideshowVideo ? {...slideshowCallbacks, muted: slideshowRunning && !slideshowSound} : undefined),
+		[slideshowVideo, slideshowRunning, slideshowSound, slideshowCallbacks]
+	);
 
 	const handlePlayerBackground = useCallback(() => {
 		setMusicInBackground(true);
@@ -2244,8 +2401,9 @@ const AppContent = (props) => {
 							liveTvChannels={playbackOptions?.liveTvChannels}
 							background={backgroundMusic}
 							onBackground={handlePlayerBackground}
-							onEnded={handlePlayerEnd}
-							onBack={handlePlayerEnd}
+							onEnded={slideshowVideo ? slideshowCallbacks.onEnded : handlePlayerEnd}
+							onBack={slideshowVideo ? slideshowCallbacks.onExit : handlePlayerEnd}
+							slideshow={playerSlideshow}
 							onGuide={handlePlayerGuide}
 							onPlayNext={handlePlayNext}
 							onSelectPerson={handleSelectPersonFromPlayer}
@@ -2366,11 +2524,16 @@ const AppContent = (props) => {
 				onClose={handleCloseServerMessages}
 				backHandlerRef={serverMessagesBackRef}
 			/>
-			{photoViewerItem && (
+			{photoViewerItem && !slideshowVideo && (
 				<PhotoViewer
 					item={photoViewerItem}
 					items={photoViewerItems}
 					serverUrl={serverUrl}
+					running={slideshowRunning}
+					moreCount={photoMoreCount}
+					onNeedMore={requestMorePhotos}
+					onSlideshowChange={setSlideshowRunning}
+					onPlayVideo={handleSlideshowPlayVideo}
 					onClose={handleClosePhotoViewer}
 				/>
 			)}
