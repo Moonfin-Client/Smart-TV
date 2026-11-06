@@ -729,16 +729,11 @@ const Library = ({library, genreFilter, studioFilter, onSelectItem, onViewPhoto,
 	}, [playlistGrouped, playlistTypesFiltered, isLoading, allItems, effectiveApi]);
 
 	const groupRowsRef = useRef(null);
-	const groupRowRefs = useRef(new Map());
-	const registerGroupRowRef = useCallback((rowIndex, el) => {
-		if (el) groupRowRefs.current.set(rowIndex, el);
-		else groupRowRefs.current.delete(rowIndex);
-	}, []);
 
 	const scrollToGroupRow = useCallback((rowIndex) => {
-		const row = groupRowRefs.current.get(rowIndex);
 		const container = groupRowsRef.current;
-		if (row && container) glideScroll(container, 'y', row.offsetTop - 10);
+		const row = container?.querySelector(`[data-row-index="${rowIndex}"]`);
+		if (row) glideScroll(container, 'y', row.offsetTop - 10);
 		Spotlight.focus(`library-group-row-${rowIndex}`);
 	}, []);
 
@@ -1832,7 +1827,6 @@ const Library = ({library, genreFilter, studioFilter, onSelectItem, onViewPhoto,
 									onFocusItem={setFocusedItem}
 									onNavigateUp={handleGroupNavigateUp}
 									onNavigateDown={handleGroupNavigateDown}
-									registerRowRef={registerGroupRowRef}
 									posterLabels
 								/>
 							))}
