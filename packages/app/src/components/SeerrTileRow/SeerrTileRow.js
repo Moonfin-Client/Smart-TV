@@ -2,7 +2,7 @@ import {useCallback, useRef, useEffect, memo} from 'react';
 import Spottable from '@enact/spotlight/Spottable';
 import SpotlightContainerDecorator from '@enact/spotlight/SpotlightContainerDecorator';
 import Spotlight from '@enact/spotlight';
-import {glideIntoView} from '../../utils/focusScroll';
+import {glideToCard} from '../../utils/focusScroll';
 import {KEYS} from '../../utils/keys';
 import {useSettings} from '../../context/SettingsContext';
 
@@ -99,7 +99,7 @@ const SeerrTileRow = ({
 			// Read before the browser's own focus scroll moves the lane, so the glide starts from what was on screen.
 			const start = scroller.scrollLeft;
 			scrollTimeoutRef.current = window.requestAnimationFrame(() => {
-				glideIntoView(scroller, card, 'x', 50, start);
+				glideToCard(scroller, card, start);
 			});
 		}
 	}, [onFocus, rowIndex]);

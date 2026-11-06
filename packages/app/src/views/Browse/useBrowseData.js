@@ -109,10 +109,13 @@ const useBrowseData = ({
 		}
 	}, []);
 
-	// The merged Continue Watching & Next Up row is drawn from both rows, so it pages both.
-	const loadMoreRow = useCallback((rowId) => (rowId === 'continue-nextup'
-		? Promise.all([loadRowPage('resume'), loadRowPage('nextup')])
-		: loadRowPage(rowId)), [loadRowPage]);
+	// The merged Continue Watching & Next Up row reads Continue Watching to its end before Next Up,
+	// so every page lands after the cards already drawn.
+	const loadMoreRow = useCallback((rowId) => {
+		if (rowId !== 'continue-nextup') return loadRowPage(rowId);
+		const resume = rowsRef.current.find((row) => row.id === 'resume');
+		return loadRowPage(resume?.hasMore ? 'resume' : 'nextup');
+	}, [loadRowPage]);
 
 	const recommendations = useMemo(
 		() => ({seerrEnabled, seerrAuthenticated, recommendationsSupported}),

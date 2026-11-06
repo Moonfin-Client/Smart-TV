@@ -6,7 +6,7 @@ import MediaCard from '../MediaCard';
 import {classicCardSize} from '../MediaCard/MediaCard';
 import PlaceholderRow from './PlaceholderRow';
 import CalendarSeeAllCard from './CalendarSeeAllCard';
-import {glideIntoView} from '../../utils/focusScroll';
+import {glideToCard} from '../../utils/focusScroll';
 import {KEYS} from '../../utils/keys';
 import {sameCardUserData} from '../../utils/playedState';
 import {useSettings} from '../../context/SettingsContext';
@@ -99,7 +99,7 @@ const MediaRow = ({
 			// Read before the browser's own focus scroll moves the lane, so the glide starts from what was on screen.
 			const start = scroller.scrollLeft;
 			scrollTimeoutRef.current = window.requestAnimationFrame(() => {
-				glideIntoView(scroller, card, 'x', 50, start);
+				glideToCard(scroller, card, start);
 			});
 		}
 	}, [onFocus, rowIndex, onLoadMore, itemCount, rowId]);

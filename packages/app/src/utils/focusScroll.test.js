@@ -1,4 +1,4 @@
-import {cubicBezier, glideIntoView, glideScroll, plannedScroll, setSmoothScrolling, whenStill} from './focusScroll';
+import {cubicBezier, glideScroll, glideToCard, setSmoothScrolling, whenStill} from './focusScroll';
 
 jest.mock('@enact/spotlight', () => ({getPointerMode: () => false}));
 
@@ -8,14 +8,19 @@ const lane = (scrollLeft = 0) => {
 	Object.defineProperty(node, 'clientWidth', {value: 1000});
 	Object.defineProperty(node, 'scrollWidth', {value: 3000});
 	node.scrollLeft = scrollLeft;
-	node.getBoundingClientRect = () => ({left: 0, right: 1000, top: 0, bottom: 300});
 	return node;
 };
 
-// A card at `left` within the content, placed on screen by the lane's offset now.
-const cardIn = (node, left, width = 200) => ({
-	getBoundingClientRect: () => ({left: left - node.scrollLeft, right: left + width - node.scrollLeft})
-});
+// Cards side by side in one row, each at its own offset.
+const cardsAt = (...lefts) => {
+	const items = document.createElement('div');
+	return lefts.map((left) => {
+		const card = document.createElement('div');
+		Object.defineProperty(card, 'offsetLeft', {value: left});
+		items.appendChild(card);
+		return card;
+	});
+};
 
 describe('focus glides', () => {
 	let frames;
@@ -67,7 +72,6 @@ describe('focus glides', () => {
 		expect(node.scrollLeft).toBeLessThan(500);
 		runFor(300);
 		expect(node.scrollLeft).toBe(500);
-		expect(plannedScroll(node, 'x')).toBe(500);
 	});
 
 	it("starts the clock on the first frame, so a slow one doesn't use up the glide", () => {
@@ -85,19 +89,11 @@ describe('focus glides', () => {
 		expect(glideScroll(lane(), 'x', -50)).toBe(0);
 	});
 
-	it('measures a held key from where the lane is headed, so it does not fall behind', () => {
-		const node = lane(0);
-		// The card past the right edge brings the lane to 250.
-		expect(glideIntoView(node, cardIn(node, 1000), 'x', 50, 0)).toBe(250);
-		runFor(50);
-		// Mid glide, the next card along is measured against 250, not the offset now.
-		expect(glideIntoView(node, cardIn(node, 1200), 'x', 50, node.scrollLeft)).toBe(450);
-	});
-
-	it('leaves a card that is already in view where it is', () => {
-		const node = lane(100);
-		expect(glideIntoView(node, cardIn(node, 400), 'x', 50, 100)).toBe(100);
-		expect(node.scrollLeft).toBe(100);
+	it('parks the focused card where the first one sits, until the row runs out', () => {
+		const cards = cardsAt(60, 280, 500, 2900);
+		expect(glideToCard(lane(0), cards[0], 0)).toBe(0);
+		expect(glideToCard(lane(0), cards[2], 0)).toBe(440);
+		expect(glideToCard(lane(0), cards[3], 0)).toBe(2000);
 	});
 
 	it('follows a CSS curve, so a glide keeps step with a transition on it', () => {

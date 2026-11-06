@@ -29,6 +29,12 @@ describe('row paging', () => {
 		expect(longer.hasMore).toBe(true);
 	});
 
+	it('marks where the paged cards begin and keeps that mark on later pages', () => {
+		const once = extendRow({id: 'resume', items: cards(0, 3), hasMore: true}, cards(0, 5), true);
+		expect(once.pagedFrom).toBe(3);
+		expect(extendRow(once, cards(0, 7), true).pagedFrom).toBe(3);
+	});
+
 	it('ends a row whose next page brought nothing new', () => {
 		const row = {id: 'latest-1', items: cards(0, 3), hasMore: true};
 		expect(extendRow(row, cards(0, 3), true).hasMore).toBe(false);

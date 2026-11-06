@@ -127,6 +127,17 @@ describe('merged continue watching', () => {
 		expect(combined.items.find((i) => i.Id === 'queued').UserData.LastPlayedDate).toBe('2026-03-01');
 	});
 
+	test('cards paged in later go after the ones already drawn, even when played more recently', () => {
+		const played = (Id, date) => item(Id, {UserData: {LastPlayedDate: date}});
+		const rows = merged({
+			allRowData: [
+				row('resume', [played('a', '2026-01-02'), played('late', '2026-01-01'), played('paged', '2026-03-01')], {pagedFrom: 2}),
+				row('nextup', [played('b', '2026-01-03'), played('new', '2026-04-01'), item('a')], {pagedFrom: 1})
+			]
+		});
+		expect(rows[0].items.map((i) => i.Id)).toEqual(['b', 'a', 'late', 'paged', 'new']);
+	});
+
 	test('nothing to continue means no row at all', () => {
 		expect(merged({allRowData: [row('resume', []), row('nextup', [])]})).toEqual([]);
 	});

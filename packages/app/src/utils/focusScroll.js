@@ -13,8 +13,8 @@ const SCROLL_PADDING = 24;
 export const pointerHover = () => Spotlight.getPointerMode();
 
 const AXES = {
-	x: {offset: 'scrollLeft', start: 'left', end: 'right', size: 'clientWidth', total: 'scrollWidth'},
-	y: {offset: 'scrollTop', start: 'top', end: 'bottom', size: 'clientHeight', total: 'scrollHeight'}
+	x: {offset: 'scrollLeft', size: 'clientWidth', total: 'scrollWidth'},
+	y: {offset: 'scrollTop', size: 'clientHeight', total: 'scrollHeight'}
 };
 
 // How long a row takes to glide to a newly focused card, and the ease-out it glides with.
@@ -125,15 +125,6 @@ export const animateScrollTop = (node, target, duration) => animate(node, 'y', t
 export const isGliding = (node, axis) => glides[axis].has(node);
 
 /**
- * Where a scroller is headed on an axis: a running glide's target, or else `fallback`, or its offset now.
- */
-export const plannedScroll = (node, axis, fallback) => {
-	const glide = glides[axis].get(node);
-	if (glide) return glide.target;
-	return typeof fallback === 'number' ? fallback : node[AXES[axis].offset];
-};
-
-/**
  * Moves a scroller to `target` on an axis, gliding there unless Smooth Scrolling is off.
  * `start` is the offset the scroller showed before the browser's own focus scroll moved it, read in a focus
  * handler, so the move starts from what was on screen. `duration` and `ease` time the glide to match something
@@ -155,23 +146,12 @@ export const glideScroll = (node, axis, target, start, {duration = GLIDE_MS, eas
 };
 
 /**
- * Brings a focused card fully into its scroller on an axis, `padding` clear of the edge, measured from where the
- * scroller is headed rather than where it is mid glide, so a held key doesn't fall behind. `start` is as for
- * glideScroll.
+ * Glides a row so the focused card sits where the row's first item sits at rest, which keeps focus at the leading
+ * edge while the row moves under it. The last few cards can't scroll that far and keep what's left. `start` is as
+ * for glideScroll.
  */
-export const glideIntoView = (scroller, card, axis, padding, start) => {
-	const a = AXES[axis];
-	const planned = plannedScroll(scroller, axis, start);
-	const shift = planned - scroller[a.offset];
-	const view = scroller.getBoundingClientRect();
-	const rect = card.getBoundingClientRect();
-	const cardStart = rect[a.start] - shift;
-	const cardEnd = rect[a.end] - shift;
-	let target = planned;
-	if (cardStart < view[a.start]) target -= view[a.start] - cardStart + padding;
-	else if (cardEnd > view[a.end]) target += cardEnd - view[a.end] + padding;
-	return glideScroll(scroller, axis, target, start);
-};
+export const glideToCard = (scroller, card, start) =>
+	glideScroll(scroller, 'x', card.offsetLeft - card.parentNode.firstElementChild.offsetLeft, start);
 
 /**
  * Scrolls the focused element into view inside its container, on whichever axis
