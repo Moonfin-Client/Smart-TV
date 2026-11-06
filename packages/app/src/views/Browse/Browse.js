@@ -38,7 +38,7 @@ import {buildBrowseRows, sameRowList} from './buildBrowseRows';
 import {markHomeReady} from '../../utils/homeReady';
 import {homeBackdropStyle} from '../../utils/homeBackdropStyle';
 import {rem} from '../../utils/rootScale';
-import {glideScroll, stopScrollAnimation} from '../../utils/focusScroll';
+import {glideScroll, isGliding, smoothScrollingOn, stopScrollAnimation} from '../../utils/focusScroll';
 import {rowImageType, rowPeekHeight} from './rowPeek';
 
 import css from './Browse.module.less';
@@ -389,9 +389,10 @@ const Browse = ({
 
 		// A row is only measured once it renders, so landing on one that was still
 		// standing in at a guessed height leaves it above the screen with its cards
-		// cut off. Settling once it is real puts it where it was asked to go.
-		restRowScroll(rowIndex);
-		settleRow(rowIndex, 2);
+		// cut off. Settling once it is real puts it where it was asked to go. A glide from rest leaves the move
+		// to the settle passes, so it doesn't set off before the row losing focus has shrunk.
+		if (!smoothScrollingOn() || isGliding(container, 'y')) restRowScroll(rowIndex);
+		settleRow(rowIndex, 2, container.scrollTop);
 
 		if (thenFocus) {
 			let attempts = 0;

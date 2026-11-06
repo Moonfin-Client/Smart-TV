@@ -27,6 +27,7 @@ import {isBackKey, KEYS} from '../utils/keys';
 import {drawsStage} from '../views/Details/stage/stageRules';
 import {QUICK_LOOK_ID} from '../views/Details/quickLook/quickLookRules';
 import {applyPerfTier} from '../utils/perfTier';
+import {setSmoothScrolling} from '../utils/focusScroll';
 import {isLiveTvChannel, isLiveTvLibrary} from '../utils/liveTvLibrary';
 import {OLED_TUNING} from '../utils/oledMode';
 import {isTizen} from '../platform';
@@ -588,6 +589,10 @@ const AppContent = (props) => {
 	useEffect(() => {
 		applyPerfTier(settings.performanceMode === 'auto' ? null : settings.performanceMode);
 	}, [settings.performanceMode]);
+
+	useEffect(() => {
+		setSmoothScrolling(settings.smoothScrolling);
+	}, [settings.smoothScrolling]);
 
 	// The surfaces are crushed on the theme itself, so all this has to do is tell
 	// the stylesheet which artwork boost to draw with.

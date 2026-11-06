@@ -1,5 +1,4 @@
-import {applyPerfTier} from './perfTier';
-import {cubicBezier, glideIntoView, glideScroll, plannedScroll, whenStill} from './focusScroll';
+import {cubicBezier, glideIntoView, glideScroll, plannedScroll, setSmoothScrolling, whenStill} from './focusScroll';
 
 jest.mock('@enact/spotlight', () => ({getPointerMode: () => false}));
 
@@ -41,19 +40,23 @@ describe('focus glides', () => {
 		// Glides are tracked across the module, so each test lets its own run out.
 		for (let i = 0; i < 10 && frames.length; i++) runFor(1000);
 		jest.restoreAllMocks();
-		applyPerfTier(null);
+		setSmoothScrolling(true);
 	});
 
-	it.each(['low', 'mid'])('jumps on a TV rated %s', (tier) => {
-		applyPerfTier(tier);
+	it('jumps with Smooth Scrolling off, unless the glide keeps step with something else moving', () => {
+		setSmoothScrolling(false);
 		const node = lane();
 		expect(glideScroll(node, 'x', 400)).toBe(400);
 		expect(node.scrollLeft).toBe(400);
 		expect(frames).toHaveLength(0);
+
+		const timed = lane();
+		glideScroll(timed, 'x', 400, 0, {duration: 180, ease: (t) => t});
+		expect(timed.scrollLeft).toBe(0);
+		expect(frames).toHaveLength(1);
 	});
 
 	it('glides from where the lane was before the focus scroll, and lands on the target', () => {
-		applyPerfTier('high');
 		const node = lane(0);
 		// The browser's own focus scroll has already moved the lane.
 		node.scrollLeft = 300;
@@ -62,19 +65,27 @@ describe('focus glides', () => {
 		runFor(110);
 		expect(node.scrollLeft).toBeGreaterThan(0);
 		expect(node.scrollLeft).toBeLessThan(500);
-		runFor(200);
+		runFor(300);
 		expect(node.scrollLeft).toBe(500);
 		expect(plannedScroll(node, 'x')).toBe(500);
 	});
 
+	it("starts the clock on the first frame, so a slow one doesn't use up the glide", () => {
+		const node = lane(0);
+		glideScroll(node, 'x', 500, 0);
+		expect(node.scrollLeft).toBe(0);
+		// The frame that paints the focus change takes 150 ms.
+		runFor(150);
+		expect(node.scrollLeft).toBeGreaterThan(0);
+		expect(node.scrollLeft).toBeLessThan(200);
+	});
+
 	it('keeps the target inside the lane', () => {
-		applyPerfTier('low');
 		expect(glideScroll(lane(), 'x', 5000)).toBe(2000);
 		expect(glideScroll(lane(), 'x', -50)).toBe(0);
 	});
 
 	it('measures a held key from where the lane is headed, so it does not fall behind', () => {
-		applyPerfTier('high');
 		const node = lane(0);
 		// The card past the right edge brings the lane to 250.
 		expect(glideIntoView(node, cardIn(node, 1000), 'x', 50, 0)).toBe(250);
@@ -84,7 +95,6 @@ describe('focus glides', () => {
 	});
 
 	it('leaves a card that is already in view where it is', () => {
-		applyPerfTier('high');
 		const node = lane(100);
 		expect(glideIntoView(node, cardIn(node, 400), 'x', 50, 100)).toBe(100);
 		expect(node.scrollLeft).toBe(100);
@@ -107,7 +117,6 @@ describe('focus glides', () => {
 	});
 
 	it('holds work back until every glide has finished', () => {
-		applyPerfTier('high');
 		const idle = jest.fn();
 		whenStill(idle);
 		expect(idle).toHaveBeenCalled();
@@ -117,7 +126,7 @@ describe('focus glides', () => {
 		whenStill(held);
 		runFor(100);
 		expect(held).not.toHaveBeenCalled();
-		runFor(200);
+		runFor(300);
 		runFor(16);
 		expect(held).toHaveBeenCalled();
 	});

@@ -365,7 +365,8 @@ export const SETTINGS_SCHEMA = [
 					{kind: KIND.SECTION, id: 'behavior', label: () => $L('Behavior')},
 					{kind: KIND.TOGGLE, key: 'exitConfirmation', label: () => $L('Confirm Exit'), desc: () => $L('Show confirmation before exiting'), icon: 'exit_to_app'},
 					{kind: KIND.SECTION, id: 'performance', label: () => $L('Performance')},
-					{kind: KIND.OPTION, key: 'performanceMode', label: () => $L('Performance'), options: getPerformanceModeOptions, fallback: () => $L('Auto'), icon: 'speed_outlined'}
+					{kind: KIND.OPTION, key: 'performanceMode', label: () => $L('Performance'), options: getPerformanceModeOptions, fallback: () => $L('Auto'), icon: 'speed_outlined'},
+					{kind: KIND.TOGGLE, key: 'smoothScrolling', label: () => $L('Smooth Scrolling'), desc: () => $L('Glide between rows and cards instead of jumping. Can stutter on slower TVs.'), icon: 'swipe'}
 				]
 			}
 		]

@@ -2,7 +2,7 @@ import {useCallback, useRef, useEffect, useState, memo} from 'react';
 import SpotlightContainerDecorator from '@enact/spotlight/SpotlightContainerDecorator';
 import Spotlight from '@enact/spotlight';
 import ModernMediaCard, {expandEase, expandMs} from '../MediaCard/ModernMediaCard';
-import {glideScroll, stopScrollAnimation} from '../../utils/focusScroll';
+import {glideScroll} from '../../utils/focusScroll';
 import {KEYS} from '../../utils/keys';
 import {sameCardUserData} from '../../utils/playedState';
 import {useSettings} from '../../context/SettingsContext';
@@ -134,6 +134,7 @@ const ModernMediaRow = ({
 			// and keep what's left.
 			// Read before the browser's own focus scroll moves the lane, so the slide starts from what was on screen.
 			const start = scroller.scrollLeft;
+			const shownAt = card.getBoundingClientRect().left - scroller.getBoundingClientRect().left;
 			scrollTimeoutRef.current = window.requestAnimationFrame(() => {
 				const cards = Array.prototype.filter.call(card.parentNode.children, (el) => el.classList.contains('spottable'));
 				if (!scrollerLayoutRef.current) {
@@ -155,16 +156,12 @@ const ModernMediaRow = ({
 					cardStart += parseFloat(cards[i].style.width) + layout.gap;
 				}
 				// With the cards animating, the lane slides on the same timing and curve, so the card opening, the
-				// one closing and the rest of the row all move as one.
+				// one closing and the rest of the row all move as one. Cards that open instantly would jump the new one
+				// ahead, so the slide starts from where it sat on screen instead.
 				const openMs = expandMs(settings.modernCardTransitionSpeed);
-				let rest;
-				if (openMs) {
-					rest = glideScroll(scroller, 'x', cardStart, start, {duration: openMs, ease: expandEase});
-				} else {
-					stopScrollAnimation(scroller);
-					scroller.scrollLeft = cardStart;
-					rest = scroller.scrollLeft;
-				}
+				const rest = openMs ?
+					glideScroll(scroller, 'x', cardStart, start, {duration: openMs, ease: expandEase}) :
+					glideScroll(scroller, 'x', cardStart, layout.paddingLeft + cardStart - shownAt);
 				const cardLeft = layout.paddingLeft + cardStart - rest;
 				setDetails({
 					spotlightId: card.getAttribute('data-spotlight-id'),

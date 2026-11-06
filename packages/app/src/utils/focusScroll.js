@@ -1,7 +1,5 @@
 import Spotlight from '@enact/spotlight';
 
-import {getPerfTier} from './perfTier';
-
 // Spotlight focuses without scrolling, so anything taller than its box has to
 // bring the focused row into view itself. scrollIntoView options are ignored on
 // older Tizen and webOS WebKit, which would leave the row parked off screen, so
@@ -21,7 +19,14 @@ const AXES = {
 
 // How long a row takes to glide to a newly focused card, and the ease-out it glides with.
 const GLIDE_MS = 220;
+const FRAME_MS = 16;
 const easeOutCubic = (t) => 1 - Math.pow(1 - t, 3);
+
+let smooth = true;
+export const setSmoothScrolling = (on) => {
+	smooth = on !== false;
+};
+export const smoothScrollingOn = () => smooth;
 
 /**
  * The CSS cubic-bezier timing function, so a scroll can keep step with a transition on the same curve.
@@ -96,8 +101,11 @@ const animate = (node, axis, target, duration, start, ease = easeOutCubic) => {
 		return;
 	}
 	const glide = {target, at: from, frame: 0};
-	const started = Date.now();
+	// The clock starts on the next frame, already a frame in, since the frame that paints the focus change can
+	// take 100 ms on a slow TV and would otherwise use up most of the glide.
+	let started = 0;
 	const step = () => {
+		if (!started) started = Date.now() - FRAME_MS;
 		const t = Math.min(1, (Date.now() - started) / duration);
 		glide.at = from + distance * ease(t);
 		node[offset] = glide.at;
@@ -106,12 +114,15 @@ const animate = (node, axis, target, duration, start, ease = easeOutCubic) => {
 	};
 	glides[axis].set(node, glide);
 	moving.add(glide);
-	// The first frame goes straight in, so a node the browser scrolled on focus is back where it was before
+	// The start goes straight in, so a node the browser scrolled on focus is back where it was before
 	// anything paints.
-	step();
+	node[offset] = from;
+	glide.frame = window.requestAnimationFrame(step);
 };
 
 export const animateScrollTop = (node, target, duration) => animate(node, 'y', target, duration);
+
+export const isGliding = (node, axis) => glides[axis].has(node);
 
 /**
  * Where a scroller is headed on an axis: a running glide's target, or else `fallback`, or its offset now.
@@ -123,17 +134,18 @@ export const plannedScroll = (node, axis, fallback) => {
 };
 
 /**
- * Moves a scroller to `target` on an axis, gliding there on a TV that can keep up and jumping on one that can't.
+ * Moves a scroller to `target` on an axis, gliding there unless Smooth Scrolling is off.
  * `start` is the offset the scroller showed before the browser's own focus scroll moved it, read in a focus
  * handler, so the move starts from what was on screen. `duration` and `ease` time the glide to match something
- * else moving with it. Gives back the target, kept within the scroller's range.
+ * else moving with it, so a glide given an `ease` runs even with Smooth Scrolling off. Gives back the target,
+ * kept within the scroller's range.
  */
 export const glideScroll = (node, axis, target, start, {duration = GLIDE_MS, ease} = {}) => {
 	const {offset, size, total} = AXES[axis];
 	const clamped = Math.max(0, Math.min(target, node[total] - node[size]));
 	const running = glides[axis].get(node);
 	if (running && Math.abs(running.target - clamped) < 1) return clamped;
-	if (getPerfTier() !== 'high') {
+	if (!smooth && !ease) {
 		stopScrollAnimation(node);
 		node[offset] = clamped;
 		return clamped;
