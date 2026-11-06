@@ -97,13 +97,14 @@ describe('buildThemeOverrideCss', () => {
 		const theme = resolveThemeById('moonfin');
 		applyThemeOverrides(theme, {focusBorderColor: '#ff0000'});
 		expect(document.getElementById('moonfin-theme-overrides').textContent).not.toContain('chapterItem');
-		registerThemeSheet('player', {liveBtn: 'liveBtn', chapterItem: 'chapterItem'});
+		registerThemeSheet('player', {liveBtn: 'liveBtn', chapterItem: 'chapterItem', trackItem: 'trackItem'});
 		registerThemeSheet('playerOverlays', {offsetBtn: 'offsetBtn', actionBtn: 'actionBtn', settingItem: 'settingItem', sliderItem: 'sliderItem'});
 		await Promise.resolve();
 		const lines = document.getElementById('moonfin-theme-overrides').textContent.split('\n');
 		const prefix = "html[data-theme-id='moonfin'][data-theme-id]";
 		expect(lines).toContain(`${prefix} .liveBtn:hover, ${prefix} .liveBtn:focus, ${prefix} .chapterItem:hover, ${prefix} .chapterItem:focus { border-color: rgb(255, 0, 0); }`);
 		expect(lines).toContain(`${prefix} .sliderItem:focus-within { border-color: rgb(255, 0, 0); }`);
+		expect(lines).toContain(`${prefix} .trackItem:focus { background: rgba(0, 164, 220, 0.3); }`);
 	});
 });
 
