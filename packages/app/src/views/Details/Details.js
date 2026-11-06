@@ -1580,7 +1580,9 @@ const Details = ({
 					episodes={episodes}
 					episodeRatings={episodeRatings}
 					actionButtons={actionButtons}
+					extras={shownExtras}
 					onEpisodeSelect={handleEpisodeSelect}
+					onExtraSelect={handleExtraSelect}
 				/>
 			</DetailScrollPage>
 		);
