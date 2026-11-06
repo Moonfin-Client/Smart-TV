@@ -31,6 +31,14 @@ export const SCREENSAVER_KEYS = [
 	'screensaverEnabled', 'screensaverDimmingLevel', 'screensaverBackdrop', 'screensaverComponent', 'screensaverMovement',
 	'screensaverSize', 'screensaverPosition'
 ];
+// The Calendar screen's settings and its Libraries link. The Radarr release types are shared with the
+// Upcoming Movies row, week start only changes the month grid and the select action only acts on a press,
+// so those are left out.
+export const CALENDAR_KEYS = [
+	'calendarStyle', 'calendarScope', 'calendarShowEpisodes', 'calendarShowMovies', 'calendarLibraries',
+	'calendarIncludeUnmonitored', 'calendarShowSpecials', 'calendarShowBadges', 'calendarColorBy', 'calendarImageType',
+	'calendarSpoilerSafe', 'calendarRequestButton'
+];
 
 // The screens and sections whose every tile keeps the stage on one look, with the scene it's
 // drawn on. A tile there that doesn't change the look still keeps it up and says it isn't shown.
@@ -89,7 +97,8 @@ export const SCENE_BY_KEY = {
 	...sceneFor([...LOADING_KEYS, 'loadingAnimation', ...TRICKPLAY_KEYS], 'player'),
 	...sceneFor([...SUBTITLE_LOOK_KEYS, 'subtitleCustomization'], 'player'),
 	...sceneFor([...SCREENSAVER_KEYS, 'screensaver'], 'home'),
-	keyboardStyle: 'search'
+	keyboardStyle: 'search',
+	...sceneFor(CALENDAR_KEYS, 'calendar')
 };
 
 let rowsBySpotlightId = null;

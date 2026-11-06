@@ -9,8 +9,12 @@ import css from './Calendar.module.less';
 
 const PageContainer = SpotlightContainerDecorator({enterTo: 'last-focused'}, 'div');
 
-/** What the Calendar button opens: the calendar style the user picked. Both have a Full calendar button. */
-const Calendar = ({onSelectItem, onSelectSeerrItem, onOpenMonth}) => {
+/**
+ * What the Calendar button opens: the calendar style the user picked. Both have a Full calendar button.
+ * [settingsPreview] draws it in the settings preview, which sits over this screen when Settings opens
+ * from it, so the preview keeps out of Spotlight and leaves the screen's ids and focus alone.
+ */
+const Calendar = ({onSelectItem, onSelectSeerrItem, onOpenMonth, settingsPreview = false}) => {
 	const {settings} = useSettings();
 	const countdown = settings.calendarStyle === 'countdown';
 	const c = useCalendar({tick: countdown});
@@ -19,8 +23,8 @@ const Calendar = ({onSelectItem, onSelectSeerrItem, onOpenMonth}) => {
 	const sidebar = settings.navbarPosition === 'left';
 	const View = countdown ? CalendarCountdown : CalendarAgenda;
 	return (
-		<PageContainer className={`${css.page} ${sidebar ? css.pageSidebar : ''}`} spotlightId="calendar-view" style={{background: look.bg(1)}}>
-			<View c={c} look={look} actions={actions} onOpenMonth={onOpenMonth} />
+		<PageContainer className={`${css.page} ${sidebar ? css.pageSidebar : ''}`} spotlightId={settingsPreview ? undefined : 'calendar-view'} spotlightDisabled={settingsPreview} style={{background: look.bg(1)}}>
+			<View c={c} look={look} actions={actions} onOpenMonth={onOpenMonth} settingsPreview={settingsPreview} />
 		</PageContainer>
 	);
 };

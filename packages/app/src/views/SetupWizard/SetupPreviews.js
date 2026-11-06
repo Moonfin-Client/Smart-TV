@@ -1040,7 +1040,7 @@ const TopNavbarPreview = ({items, t, userName, modern, focusFirst, hasLiveTv}) =
 					</div>
 				)}
 			</div>
-			<NavbarRows items={items} t={t} modern={modern} focusFirst={focusFirst} />
+			{items && <NavbarRows items={items} t={t} modern={modern} focusFirst={focusFirst} />}
 		</div>
 	);
 };
@@ -1059,7 +1059,7 @@ const LeftNavbarPreview = ({items, t, userName, modern, open = false, focusFirst
 	return (
 		<div style={{position: 'relative', width: '100%', height: '100%', display: 'flex', overflow: 'hidden'}}>
 			<div style={{width: 72, flexShrink: 0}} />
-			<NavbarRows items={items} t={t} topInset={24} modern={modern} focusFirst={focusFirst} />
+			{items && <NavbarRows items={items} t={t} topInset={24} modern={modern} focusFirst={focusFirst} />}
 			<div
 				style={{
 					position: 'absolute',
@@ -2198,6 +2198,25 @@ export const SettingsHomePreview = ({railOpen = false, hasLiveTv = false}) => {
 			: <TopNavbarPreview items={items} t={t} userName={user?.Name} modern={modern} focusFirst={modern} hasLiveTv={hasLiveTv} />
 	), [position, modern, railOpen, t, user?.Name, hasLiveTv]);
 	return <LivePreview render={render} fallback={<FallbackNavbar position={position} t={t} />} />;
+};
+
+// One of the app's own screens under the navbar, which sits where it's set the way home draws it.
+// The screen is laid out at the TV's size, and nothing on it takes the pointer.
+export const SettingsScreenPreview = ({hasLiveTv = false, children}) => {
+	const t = usePreviewPalette();
+	const {user} = useAuth();
+	const {settings} = useSettings();
+	const Navbar = settings.navbarPosition === 'left' ? LeftNavbarPreview : TopNavbarPreview;
+	return (
+		<PreviewScreen>
+			<div style={{...ABS_FILL, overflow: 'hidden', pointerEvents: 'none'}}>
+				<div style={{position: 'absolute', top: 0, left: 0, width: DESIGN_W * 2, height: DESIGN_H * 2, transform: 'scale(0.5)', transformOrigin: 'top left'}}>
+					{children}
+				</div>
+				<Navbar t={t} userName={user?.Name} hasLiveTv={hasLiveTv} />
+			</div>
+		</PreviewScreen>
+	);
 };
 
 const SHADOWED = {color: '#FFFFFF', textShadow: '0px 0px 6px #000000'};

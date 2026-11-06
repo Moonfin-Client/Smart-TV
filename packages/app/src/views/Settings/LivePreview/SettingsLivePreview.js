@@ -1,10 +1,11 @@
 /* eslint-disable react/jsx-no-bind */
-import {useLayoutEffect, useMemo, useRef, useState} from 'react';
+import {Suspense, lazy, useLayoutEffect, useMemo, useRef, useState} from 'react';
 import $L from '@enact/i18n/$L';
 import Spottable from '@enact/spotlight/Spottable';
 import SpotlightContainerDecorator from '@enact/spotlight/SpotlightContainerDecorator';
 
 import {SettingsOverride, useSettings} from '../../../context/SettingsContext';
+import {useSeerr} from '../../../context/SeerrContext';
 import ScreensaverPreview from '../../../components/Screensaver/ScreensaverPreview';
 import {KEYS} from '../../../utils/keys';
 import {
@@ -13,6 +14,7 @@ import {
 	MediaBarPreview,
 	PlayerPreview,
 	SettingsHomePreview,
+	SettingsScreenPreview,
 	usePreviewPalette
 } from '../../SetupWizard/SetupPreviews';
 import {getPreviewItems} from '../../SetupWizard/setupPreviewData';
@@ -21,6 +23,9 @@ import {MEDIA_BAR_KEYS, SUBTITLE_HDR_KEYS, sceneOfRow} from './previewRows';
 import css from './SettingsLivePreview.module.less';
 
 export const SCENES = ['home', 'details', 'player', 'search'];
+
+// The calendar's code and styles load the first time its scene shows, as they do for the screen.
+const CalendarPage = lazy(() => import('../../Calendar'));
 
 export const sceneChipId = (scene) => `preview-scene-${scene}`;
 
@@ -84,7 +89,8 @@ const SCENE_LABELS = {
 	home: () => $L('Home'),
 	details: () => $L('Details Page'),
 	player: () => $L('Player'),
-	search: () => $L('Search')
+	search: () => $L('Search'),
+	calendar: () => $L('Calendar')
 };
 
 // Read inside the override, so a picker's option shows before it's saved.
@@ -129,6 +135,15 @@ const SceneView = ({scene, row, hasLiveTv}) => {
 	const stage = row && row.stage && sceneOfRow(row) === scene ? row.stage : null;
 	if (scene === 'details') return <DetailsScene />;
 	if (scene === 'search') return <KeyboardPreview />;
+	if (scene === 'calendar') {
+		return (
+			<SettingsScreenPreview hasLiveTv={hasLiveTv}>
+				<Suspense fallback={null}>
+					<CalendarPage settingsPreview />
+				</Suspense>
+			</SettingsScreenPreview>
+		);
+	}
 	if (scene === 'player') {
 		return <PlayerPreview moment={STAGE_MOMENTS[stage] || PLAYER_MOMENTS[focusKey] || 'middle'} hdr={SUBTITLE_HDR_KEYS.indexOf(focusKey) >= 0} />;
 	}
@@ -148,7 +163,13 @@ const SceneView = ({scene, row, hasLiveTv}) => {
 // chip shows its scene, and [onLeaveChips] takes Left off the first one.
 const SettingsLivePreview = ({scene, row, trying, onPickScene, onLeaveChips, hasLiveTv}) => {
 	const t = usePreviewPalette();
-	const overrides = useMemo(() => (trying ? {[trying.key]: trying.value} : null), [trying]);
+	const {pluginInfo} = useSeerr();
+	const scenes = pluginInfo?.calendarAvailable === true ? [...SCENES, 'calendar'] : SCENES;
+	// Only the calendar's style is drawn before it's saved, since trying one of its filters would load
+	// the calendar again.
+	const overrides = useMemo(() => (
+		trying && (scene !== 'calendar' || trying.key === 'calendarStyle') ? {[trying.key]: trying.value} : null
+	), [trying, scene]);
 	const tryingHere = !!(trying && row && trying.key === row.key);
 	const live = tryingHere ? trying.index : (row ? row.saved : -1);
 	const frameRef = useRef(null);
@@ -162,7 +183,7 @@ const SettingsLivePreview = ({scene, row, trying, onPickScene, onLeaveChips, has
 					<span className={css.label}>{$L('Live preview')}</span>
 				</div>
 				<ChipRow className={css.chips} spotlightId='preview-scene-chips' onBlur={resetChipRow}>
-					{SCENES.map((id, index) => (
+					{scenes.map((id, index) => (
 						<Chip
 							key={id}
 							spotlightId={sceneChipId(id)}

@@ -1172,7 +1172,7 @@ export const SETTINGS_SCHEMA = [
 					{kind: KIND.SECTION, id: 'calendarLook', label: () => $L('Looks')},
 					{kind: KIND.TOGGLE, key: 'calendarShowBadges', label: () => $L('Premiere and finale tags'), desc: () => $L('Mark premieres, finales and new seasons'), icon: 'new_releases_outlined'},
 					{kind: KIND.OPTION, key: 'calendarColorBy', label: () => $L('Color by'), desc: () => $L("Type tells episodes from movies. Status shows what's in your library, coming up or missing."), options: getCalendarColorByOptions, fallback: () => $L('Type'), icon: 'palette_outlined'},
-					{kind: KIND.OPTION, key: 'calendarImageType', label: () => $L('Card image'), desc: () => $L('The artwork on the Countdown rows'), options: getCalendarImageTypeOptions, fallback: () => $L('Poster'), icon: 'image_outlined'},
+					{kind: KIND.OPTION, key: 'calendarImageType', label: () => $L('Card image'), desc: () => $L('The artwork on the Countdown rows'), options: getCalendarImageTypeOptions, fallback: () => $L('Poster'), icon: 'image_outlined', when: (ctx) => ctx.settings.calendarStyle === 'countdown'},
 					{kind: KIND.TOGGLE, key: 'calendarSpoilerSafe', label: () => $L('Spoiler safe'), desc: () => $L("Hide episode titles and stills for shows you're behind on"), icon: 'visibility_off_outlined'},
 					{kind: KIND.SECTION, id: 'calendarActions', label: () => $L('Actions')},
 					{kind: KIND.OPTION, key: 'calendarSelectAction', label: () => $L('Selecting an item'), desc: () => $L("What OK or a tap does on something that's already in your library"), options: getCalendarSelectActionOptions, fallback: () => $L('Open details'), icon: 'touch_app_outlined'},

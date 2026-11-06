@@ -114,16 +114,17 @@ const Row = ({title, entries, poster, c, look, clockDisplay, onSelect, spotlight
  * A hero for the next thing to air, with a countdown, over rows of what's coming this week and
  * what's ready now. With nothing coming up, the newest ready item takes the hero and the timer goes.
  */
-const CalendarCountdown = ({c, look, actions: baseActions, onOpenMonth: baseOpenMonth}) => {
+const CalendarCountdown = ({c, look, actions: baseActions, onOpenMonth: baseOpenMonth, settingsPreview}) => {
 	const {settings} = useSettings();
 	const restoreFocusRef = useRef(returnFocus);
 	const leaveFocusRef = useRef(null);
 	useEffect(() => {
+		if (settingsPreview) return undefined;
 		returnFocus = null;
 		return () => {
 			returnFocus = leaveFocusRef.current;
 		};
-	}, []);
+	}, [settingsPreview]);
 	const remember = useCallback((fn) => (...args) => {
 		leaveFocusRef.current = focusedSpotlightId();
 		fn?.(...args);
@@ -145,12 +146,12 @@ const CalendarCountdown = ({c, look, actions: baseActions, onOpenMonth: baseOpen
 	const heroKey = hero?.key;
 	const focusedRef = useRef(null);
 	useEffect(() => {
-		if (!heroKey || focusedRef.current === heroKey) return;
+		if (settingsPreview || !heroKey || focusedRef.current === heroKey) return;
 		focusedRef.current = heroKey;
 		const restore = restoreFocusRef.current;
 		restoreFocusRef.current = null;
 		if (!(restore && Spotlight.focus(restore))) Spotlight.focus(HERO_FIRST);
-	}, [heroKey]);
+	}, [heroKey, settingsPreview]);
 
 	if (c.loading || c.problem || !hero) {
 		return (
@@ -159,7 +160,7 @@ const CalendarCountdown = ({c, look, actions: baseActions, onOpenMonth: baseOpen
 					<div className={`${css.title} ${css.titleSmall}`}>{$L('Calendar')}</div>
 					<CalendarButton label={$L('Full calendar')} icon="calendar_month_rounded" compact onClick={onOpenMonth} spotlightId="calendar-full" />
 				</div>
-				<CalendarState c={c} empty emptyText={$L('Nothing coming up')} />
+				<CalendarState c={c} empty emptyText={$L('Nothing coming up')} settingsPreview={settingsPreview} />
 			</div>
 		);
 	}
@@ -171,10 +172,10 @@ const CalendarCountdown = ({c, look, actions: baseActions, onOpenMonth: baseOpen
 		<div className={`${css.countdownPage} ${css.countdownScroller}`}>
 			<Hero entry={hero} counting={Boolean(next)} c={c} look={look} actions={actions} clockDisplay={clockDisplay} onOpenMonth={onOpenMonth} />
 			{week.length > 0 && (
-				<Row title={$L('Coming up this week')} entries={week} poster={poster} c={c} look={look} clockDisplay={clockDisplay} onSelect={handleSelect} spotlightId="calendar-week-row" />
+				<Row title={$L('Coming up this week')} entries={week} poster={poster} c={c} look={look} clockDisplay={clockDisplay} onSelect={handleSelect} spotlightId={settingsPreview ? undefined : 'calendar-week-row'} />
 			)}
 			{readyRow.length > 0 && (
-				<Row title={$L('Ready to watch')} entries={readyRow} poster={false} c={c} look={look} clockDisplay={clockDisplay} onSelect={handleSelect} spotlightId="calendar-ready-row" />
+				<Row title={$L('Ready to watch')} entries={readyRow} poster={false} c={c} look={look} clockDisplay={clockDisplay} onSelect={handleSelect} spotlightId={settingsPreview ? undefined : 'calendar-ready-row'} />
 			)}
 		</div>
 	);

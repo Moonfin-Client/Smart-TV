@@ -1,4 +1,5 @@
 import {act, cleanup, fireEvent, render, screen, waitFor, within} from '@testing-library/react';
+import Spotlight from '@enact/spotlight';
 
 import {defaultSettings} from '../../../context/defaultSettings';
 import {describeRow} from './previewRows';
@@ -19,21 +20,42 @@ jest.mock('react/jsx-dev-runtime', () => {
 jest.mock('@enact/i18n/$L', () => (text) => text);
 jest.mock('@enact/spotlight/Spottable', () => (type) => {
 	const React = require('react');
-	return ({spotlightId, ...props}) => React.createElement(type, {...props, 'data-spotlight-id': spotlightId});
+	return ({spotlightId, onSpotlightLeft, onSpotlightRight, ...props}) => React.createElement(type, {...props, 'data-spotlight-id': spotlightId}); // eslint-disable-line no-unused-vars
 });
 jest.mock('@enact/spotlight/SpotlightContainerDecorator', () => (config, type) => {
 	const React = require('react');
-	return ({spotlightId, ...props}) => React.createElement(type, {...props, 'data-spotlight-id': spotlightId});
+	return ({spotlightId, spotlightDisabled, ...props}) => React.createElement(type, {
+		...props, 'data-spotlight-id': spotlightId, 'data-spotlight-container-disabled': spotlightDisabled
+	});
 });
 let mockSettings = {};
-jest.mock('../../../context/SettingsContext', () => ({
-	useSettings: () => ({settings: mockSettings, activeTheme: require('../../../theme/themeRegistry').resolveThemeById('moonfin')}),
-	SettingsOverride: ({children}) => children
-}));
+// An override lays its settings over the saved ones, the way the real one does.
+jest.mock('../../../context/SettingsContext', () => {
+	const React = require('react');
+	const Overrides = React.createContext(null);
+	return {
+		useSettings: () => ({
+			settings: {...mockSettings, ...React.useContext(Overrides)},
+			activeTheme: require('../../../theme/themeRegistry').resolveThemeById('moonfin')
+		}),
+		SettingsOverride: ({overrides, children}) => React.createElement(Overrides.Provider, {value: overrides}, children)
+	};
+});
 jest.mock('../../../context/AuthContext', () => ({useAuth: () => ({user: {Id: 'u', Name: 'Ana'}, serverType: 'jellyfin', serverUrl: 'http://server'})}));
-jest.mock('../../../context/SeerrContext', () => ({useSeerr: () => ({isEnabled: false, displayName: 'Seerr'})}));
+let mockSeerr = {};
+jest.mock('../../../context/SeerrContext', () => ({useSeerr: () => mockSeerr}));
+// One episode two days out, the way the server's Sonarr calendar sends it.
+const mockEpisode = () => require('../../../utils/calendarEntries').parseSonarrEntry({
+	id: 11, seasonNumber: 2, episodeNumber: 3, title: 'The Return', airDateUtc: new Date(Date.now() + 2 * 86400000).toISOString(),
+	monitored: true, images: [], series: {title: 'Night Shift', tmdbId: 7, images: []}, moonfinItemId: 'series1', moonfinLibraryIds: ['tv']
+});
+jest.mock('../../../services/calendarApi', () => ({
+	loadCalendar: jest.fn(() => Promise.resolve({entries: [mockEpisode()], problem: null})),
+	seriesProgress: () => Promise.resolve({})
+}));
 jest.mock('../../../context/AchievementsContext', () => ({useAchievements: () => ({socialAvailable: false})}));
 jest.mock('../../../components/RatingsRow', () => () => null);
+jest.mock('../../../components/LoadingSpinner', () => () => null);
 const mockItems = Array.from({length: 4}, (_, i) => ({
 	title: `Film ${i}`, year: 2000 + i, officialRating: 'PG', runtimeMinutes: 100, genres: ['Drama'], overview: 'A story.',
 	communityRating: 7, posterUrl: null, backdropUrl: null, logoUrl: null
@@ -53,6 +75,10 @@ const draw = (settings, rowId, scene, props) => {
 };
 
 describe('SettingsLivePreview', () => {
+	beforeEach(() => {
+		mockSeerr = {isEnabled: false, displayName: 'Seerr', pluginInfo: null};
+	});
+
 	// Runs first, since the player tests below draw the controls once they've loaded.
 	test('the player\'s controls load the first time the player scene shows', async () => {
 		draw({}, 'setting-osdButtons', 'player');
@@ -238,6 +264,39 @@ describe('SettingsLivePreview', () => {
 		unmount();
 		draw(hdr, 'setting-subtitleColor', 'player');
 		expect(color()).toBe('rgb(255, 255, 255)');
+	});
+
+	test('the Calendar chip only shows while the server offers the calendar', () => {
+		const chips = () => Array.from(find('.chips').children).map((chip) => chip.textContent);
+		const {unmount} = draw({}, 'setting-clockDisplay', 'home');
+		expect(chips()).toEqual(['Home', 'Details Page', 'Player', 'Search']);
+		unmount();
+		mockSeerr = {...mockSeerr, pluginInfo: {calendarAvailable: true}};
+		draw({}, 'setting-clockDisplay', 'home');
+		expect(chips()).toEqual(['Home', 'Details Page', 'Player', 'Search', 'Calendar']);
+	});
+
+	test('the calendar scene draws the user\'s calendar in the style being tried, and nothing in it takes focus', async () => {
+		mockSeerr = {...mockSeerr, pluginInfo: {calendarAvailable: true}};
+		const focus = jest.spyOn(Spotlight, 'focus');
+		try {
+			const {unmount} = draw({}, 'setting-calendarShowBadges', 'calendar');
+			expect(await screen.findByText('Upcoming')).toBeTruthy();
+			expect(screen.getAllByText('Night Shift').length).toBeGreaterThan(0);
+			expect(screen.getByText('Shows on the Calendar preview')).toBeTruthy();
+			expect(find('.page').getAttribute('data-spotlight-container-disabled')).toBe('true');
+			unmount();
+			draw({}, 'setting-calendarStyle', 'calendar', {trying: {key: 'calendarStyle', value: 'countdown', index: 1}});
+			expect(await screen.findByText('Starts in')).toBeTruthy();
+			expect(screen.queryByText('Upcoming')).toBeNull();
+			cleanup();
+			// Its other settings wait until they're saved, or My shows would empty the list here.
+			draw({}, 'setting-calendarScope', 'calendar', {trying: {key: 'calendarScope', value: 'myShows', index: 1}});
+			await waitFor(() => expect(screen.getAllByText('Night Shift').length).toBeGreaterThan(0));
+			expect(focus).not.toHaveBeenCalled();
+		} finally {
+			focus.mockRestore();
+		}
 	});
 
 	test('Left off the first chip leaves the row, and focusing a chip shows its scene', () => {

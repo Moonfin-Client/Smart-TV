@@ -144,14 +144,16 @@ const Preview = ({entry: e, c, look, actions, clockDisplay, onBackToList}) => {
 };
 
 /** The day by day list with a preview of the focused entry beside it. */
-const CalendarAgenda = ({c, look, actions: baseActions, onOpenMonth: baseOpenMonth}) => {
+const CalendarAgenda = ({c, look, actions: baseActions, onOpenMonth: baseOpenMonth, settingsPreview}) => {
 	const {settings} = useSettings();
 	const clockDisplay = settings.clockDisplay;
-	const [recent, setRecent] = useState(() => Boolean(returnTo?.recent));
-	const [focusedKey, setFocusedKey] = useState(() => returnTo?.focusedKey || null);
-	const restoreKeyRef = useRef(returnTo?.focusedKey || null);
-	const restoreFocusRef = useRef(returnTo?.focusId || null);
-	returnTo = null;
+	// The settings preview leaves the place Back returns to for the screen itself.
+	const kept = settingsPreview ? null : returnTo;
+	const [recent, setRecent] = useState(() => Boolean(kept?.recent));
+	const [focusedKey, setFocusedKey] = useState(() => kept?.focusedKey || null);
+	const restoreKeyRef = useRef(kept?.focusedKey || null);
+	const restoreFocusRef = useRef(kept?.focusId || null);
+	if (!settingsPreview) returnTo = null;
 
 	// Leaving through one of the list's own pages keeps its place, any other way out lets it go.
 	const keepRef = useRef(false);
@@ -159,8 +161,8 @@ const CalendarAgenda = ({c, look, actions: baseActions, onOpenMonth: baseOpenMon
 	placeRef.current = {recent, focusedKey};
 	const leaveFocusRef = useRef(null);
 	useEffect(() => () => {
-		returnTo = keepRef.current ? {...placeRef.current, focusId: leaveFocusRef.current} : null;
-	}, []);
+		if (!settingsPreview) returnTo = keepRef.current ? {...placeRef.current, focusId: leaveFocusRef.current} : null;
+	}, [settingsPreview]);
 	const keepPlace = useCallback(() => {
 		keepRef.current = true;
 		leaveFocusRef.current = focusedSpotlightId();
@@ -200,7 +202,7 @@ const CalendarAgenda = ({c, look, actions: baseActions, onOpenMonth: baseOpenMon
 
 	const hasRows = !c.loading && !c.problem && list.length > 0;
 	useEffect(() => {
-		if (!hasRows || shownRef.current === list.length) return;
+		if (settingsPreview || !hasRows || shownRef.current === list.length) return;
 		const first = shownRef.current < 0;
 		shownRef.current = list.length;
 		if (!first && !calendarHasFocus()) return;
@@ -212,7 +214,7 @@ const CalendarAgenda = ({c, look, actions: baseActions, onOpenMonth: baseOpenMon
 			const node = document.querySelector(`[data-spotlight-id="${id}"]`);
 			if (node) centerIn(node.parentElement, node);
 		}
-	}, [hasRows, list]);
+	}, [hasRows, list, settingsPreview]);
 
 	let lastDay = null;
 	const rows = [];
@@ -247,7 +249,7 @@ const CalendarAgenda = ({c, look, actions: baseActions, onOpenMonth: baseOpenMon
 					<TabChip label={$L('Recently aired')} selected={recent} accent={look.accent} onSelect={showRecent} spotlightId="calendar-tab-recent" />
 					<CalendarButton label={$L('Full calendar')} icon="calendar_month_rounded" compact onClick={onOpenMonth} spotlightId="calendar-full" onSpotlightRight={stayPut} />
 				</div>
-				<CalendarState c={c} empty={list.length === 0} emptyText={recent ? $L('Nothing aired recently') : $L('Nothing coming up')}>
+				<CalendarState c={c} empty={list.length === 0} emptyText={recent ? $L('Nothing aired recently') : $L('Nothing coming up')} settingsPreview={settingsPreview}>
 					<div className={css.listScroller}>{rows}</div>
 				</CalendarState>
 			</div>
