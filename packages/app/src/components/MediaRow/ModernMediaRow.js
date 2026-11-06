@@ -49,6 +49,7 @@ const ModernMediaRow = ({
 	ratingsSurface,
 	hideOverview = false,
 	coreLook = false,
+	posterLabels = false,
 	leadingInset = 0,
 	onCalendarSeeAll
 }) => {
@@ -278,6 +279,7 @@ const ModernMediaRow = ({
 								ratingsSurface={ratingsSurface}
 								hideOverview={hideOverview}
 								coreLook={coreLook}
+								posterLabels={posterLabels}
 							/>
 						);
 					})}
@@ -311,7 +313,7 @@ const areRowPropsEqual = (prev, next) => {
 	if (!prev.onLoadMore !== !next.onLoadMore) return false;
 	if (prev.loading !== next.loading || prev.titleWidth !== next.titleWidth || prev.cardType !== next.cardType) return false;
 	if (prev.deferImages !== next.deferImages || prev.ratingsSurface !== next.ratingsSurface || prev.hideOverview !== next.hideOverview) return false;
-	if (prev.coreLook !== next.coreLook || prev.leadingInset !== next.leadingInset) return false;
+	if (prev.coreLook !== next.coreLook || prev.leadingInset !== next.leadingInset || prev.posterLabels !== next.posterLabels) return false;
 	if (!prev.onCalendarSeeAll !== !next.onCalendarSeeAll) return false;
 	if (prev.items === next.items) return true;
 	if (prev.items?.length !== next.items?.length) return false;

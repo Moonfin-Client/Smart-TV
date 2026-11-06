@@ -1031,6 +1031,7 @@ const Browse = ({
 								menuOptions={rowMenuOptions}
 								ratingsSurface='homeRows'
 								hideOverview={settings.hideHomeMediaDescription === true}
+								posterLabels={!row.isSeerrRow && !row.isOnlineRecoRow && !row.isGenreRow}
 								onLoadMore={row.hasMore ? loadMoreRow : undefined}
 								onCalendarSeeAll={calendarSeeAll && CALENDAR_ROW_IDS.indexOf(row.id) >= 0 ? rowSelect.calendar : undefined}
 							/>

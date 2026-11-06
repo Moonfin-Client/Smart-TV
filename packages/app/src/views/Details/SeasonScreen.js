@@ -9,6 +9,7 @@ import {SpottableDiv} from './detailsSpottables';
 import {PosterBadges, WatchedCheckIcon, FavoriteHeartIcon} from './DetailBadges';
 import {AnimeEpisodePills} from '../../components/AnimeMarkerPills';
 import IncompleteBadge from '../../components/IncompleteBadge';
+import PosterLabels from '../../components/PosterLabels';
 import useItemMenuHold, {itemWithIdAt} from '../../hooks/useItemMenuHold';
 import {getApiKey} from '../../services/jellyfinApi';
 import {moonbaseAssetUrl} from '../../services/moonbaseEndpoint';
@@ -96,6 +97,13 @@ const SeasonScreen = ({
 									<FavoriteHeartIcon />
 								</div>
 							)}
+							<PosterLabels
+								item={ep}
+								serverUrl={serverUrl}
+								scale={0.8}
+								top={ep.UserData?.IsFavorite ? 42 : 8}
+								topRight={isPlayed ? 42 : 8}
+							/>
 						</div>
 						<div className={css.seasonEpBody}>
 							<div className={css.seasonEpTop}>

@@ -15,6 +15,7 @@ import SeerrMediaTypeBadge from '../seerr/SeerrMediaTypeBadge';
 import {showsWatchedCheck} from '../../utils/playedState';
 import {AnimeCardPill} from '../AnimeMarkerPills';
 import IncompleteBadge from '../IncompleteBadge';
+import PosterLabels from '../PosterLabels';
 import {isUnownedSeerrTitle, seerrThumbUrl, seerrWideArtUrl, useTmdbThumbsAvailable} from '../../utils/tmdbThumb';
 import useItemMenuHold from '../../hooks/useItemMenuHold';
 import {useMediaPreviewSlot} from './MediaPreviewContext';
@@ -247,7 +248,8 @@ const ModernMediaCard = ({
 	menuOptions,
 	ratingsSurface,
 	hideOverview = false,
-	coreLook = false
+	coreLook = false,
+	posterLabels = false
 }) => {
 	const {settings} = useSettings();
 	const focusTimeoutRef = useRef(null);
@@ -499,6 +501,15 @@ const ModernMediaCard = ({
 
 				<IncompleteBadge itemId={item.Id} belowFavorite={item.UserData?.IsFavorite} belowBanner={Boolean(bannerStatus)} />
 				<AnimeCardPill item={item} serverUrl={itemServerUrl} hasProgressBar={showIndicators && progress > 0} />
+				{posterLabels && (
+					<PosterLabels
+						item={item}
+						serverUrl={itemServerUrl}
+						top={item.UserData?.IsFavorite ? 40 : 8}
+						topRight={(showIndicators && showsWatchedCheck(item)) || ((showServerBadge || item._external) && item._serverName) ? 40 : 8}
+						bottom={showIndicators && progress > 0 ? 26 : 8}
+					/>
+				)}
 			</div>
 			{coreLook && (
 				<div className={css.focusRing} style={{height: `${imageHeight + 16}px`}} />

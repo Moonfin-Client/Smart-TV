@@ -804,6 +804,14 @@ describe('the focus border color', () => {
 	});
 });
 
+describe('the poster labels toggle', () => {
+	test('is on by default and syncs both ways', () => {
+		expect(defaultSettings.showPosterLabels).toBe(true);
+		expect(profileToLocal({showPosterLabels: false}).showPosterLabels).toBe(false);
+		expect(localToProfile({showPosterLabels: false}, ['showPosterLabels'])).toEqual({showPosterLabels: false});
+	});
+});
+
 describe('the focus expansion toggle', () => {
 	test('syncs under Core\'s name both ways', () => {
 		expect(profileToLocal({cardFocusExpansion: false}).cardFocusZoom).toBe(false);

@@ -263,6 +263,7 @@ export const defaultSettings = {
 	loadingAnimationSpeed: 'fast',
 	showLoadingAnimationText: true,
 	watchedIndicatorBehavior: 'always',
+	showPosterLabels: true,
 	cardFocusZoom: true,
 	useDetailedSubHeadings: true,
 	showMediaDetailsOnLibraryPage: true,

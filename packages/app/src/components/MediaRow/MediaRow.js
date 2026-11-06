@@ -50,6 +50,7 @@ const MediaRow = ({
 	titleWidth,
 	deferImages = false,
 	homeText = false,
+	posterLabels = false,
 	onLoadMore
 }) => {
 	const {settings} = useSettings();
@@ -222,6 +223,7 @@ const MediaRow = ({
 									onSpotlightRight={isLast ? handleWrapRight : null}
 									menuOptions={menuOptions}
 									homeText={homeText}
+									posterLabels={posterLabels}
 								/>
 							);
 						})}
@@ -256,7 +258,7 @@ const areRowPropsEqual = (prev, next) => {
 	if (prev.menuOptions !== next.menuOptions) return false;
 	if (prev.spotlightId !== next.spotlightId) return false;
 	if (prev.loading !== next.loading || prev.titleWidth !== next.titleWidth) return false;
-	if (prev.deferImages !== next.deferImages) return false;
+	if (prev.deferImages !== next.deferImages || prev.posterLabels !== next.posterLabels) return false;
 	// Compare presence, not identity: an inline arrow from a caller would defeat
 	// the whole comparator.
 	if (!prev.onSeeAll !== !next.onSeeAll) return false;

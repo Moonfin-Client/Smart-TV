@@ -13,6 +13,7 @@ import BookBrowse from '../BookBrowse';
 import BackdropLayer from '../../components/BackdropLayer';
 import TileGrid from '../../components/TileGrid';
 import IncompleteBadge from '../../components/IncompleteBadge';
+import PosterLabels from '../../components/PosterLabels';
 import {getImageUrl, getPrimaryImageId, formatDuration} from '../../utils/helpers';
 import useQuickReturnGrid from '../../hooks/useQuickReturnGrid';
 import {useSettings} from '../../context/SettingsContext';
@@ -1342,6 +1343,13 @@ const Library = ({library, genreFilter, studioFilter, onSelectItem, onViewPhoto,
 						<svg viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z" /></svg>
 					</div>
 				)}
+				<PosterLabels
+					item={item}
+					serverUrl={effectiveServerUrl}
+					top={item.UserData?.IsFavorite ? 40 : 8}
+					topRight={item.UserData?.Played ? 40 : 8}
+					height={posterHeight}
+				/>
 				{showCardText && (
 					<div className={css.cardText}>
 						<div className={css.cardTitle}>{item.Name}</div>
@@ -1813,6 +1821,7 @@ const Library = ({library, genreFilter, studioFilter, onSelectItem, onViewPhoto,
 									onNavigateUp={handleGroupNavigateUp}
 									onNavigateDown={handleGroupNavigateDown}
 									registerRowRef={registerGroupRowRef}
+									posterLabels
 								/>
 							))}
 						</div>

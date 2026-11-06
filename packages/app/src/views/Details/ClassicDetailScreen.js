@@ -25,6 +25,7 @@ import {DETAIL_ICON_PATHS} from './detailIcons';
 import {showsWatchedCheck} from '../../utils/playedState';
 import {AnimeEpisodePills, AnimeItemPills} from '../../components/AnimeMarkerPills';
 import IncompleteBadge, {IncompleteDetailLine} from '../../components/IncompleteBadge';
+import PosterLabels from '../../components/PosterLabels';
 import useItemMenuHold, {itemWithIdAt} from '../../hooks/useItemMenuHold';
 import {getApiKey} from '../../services/jellyfinApi';
 import {moonbaseAssetUrl} from '../../services/moonbaseEndpoint';
@@ -403,6 +404,13 @@ const ClassicDetailScreen = ({
 												<FavoriteHeartIcon />
 											</div>
 										)}
+										<PosterLabels
+											item={ep}
+											serverUrl={serverUrl}
+											scale={0.8}
+											top={ep.UserData?.IsFavorite ? 42 : 8}
+											topRight={ep.UserData?.Played ? 42 : 8}
+										/>
 									</div>
 									<div className={css.episodeInfo}>
 										<span className={css.episodeEpNumber}>E{ep.IndexNumber || '?'}</span>
