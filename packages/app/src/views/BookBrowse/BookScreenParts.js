@@ -127,10 +127,10 @@ const handleHeaderKey = (e, screenId, onUp) => {
 	else if (direction === 'left') focusRail();
 };
 
-export const ScreenHeader = ({screenId, title, count, onUp, children, below}) => {
+export const ScreenHeader = ({screenId, title, count, onUp, children, below, settingsPreview}) => {
 	const handleKeyDown = useCallback((e) => handleHeaderKey(e, screenId, onUp), [screenId, onUp]);
 	return (
-		<HeaderContainer className={bookCss.header} spotlightId={headerSpotlightId(screenId)} onKeyDown={handleKeyDown}>
+		<HeaderContainer className={bookCss.header} spotlightId={settingsPreview ? undefined : headerSpotlightId(screenId)} onKeyDown={handleKeyDown}>
 			<div className={bookCss.headerTop}>
 				<div className={css.heading}>
 					<div className={css.titleLine}>

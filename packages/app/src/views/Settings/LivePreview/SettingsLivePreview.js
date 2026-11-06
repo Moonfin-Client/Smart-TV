@@ -36,7 +36,7 @@ const firstLibrary = (libraries, types) => (libraries || [])
 
 // The settings each scene drawn by a real screen tries before they're saved, which are its styles.
 // The rest wait, since trying one of them can make the screen load again.
-const TRIED_KEYS = {calendar: ['calendarStyle'], library: ['libraryStyle', 'musicLibraryStyle']};
+const TRIED_KEYS = {calendar: ['calendarStyle'], library: ['libraryStyle', 'musicLibraryStyle', 'bookLibraryStyle']};
 
 export const sceneChipId = (scene) => `preview-scene-${scene}`;
 
@@ -185,11 +185,13 @@ const SceneView = ({scene, row, hasLiveTv, library}) => {
 const SettingsLivePreview = ({scene, row, trying, onPickScene, onLeaveChips, hasLiveTv}) => {
 	const t = usePreviewPalette();
 	const {pluginInfo} = useSeerr();
-	// The music style draws the first music library, and everything else the first video library,
-	// or the music library when there's no video one.
+	// The music and book styles draw the first music or book library, and everything else the first
+	// video library, or else the music one, or else the book one.
 	const video = firstLibrary(memoryCache.libraries, ['movies', 'tvshows']);
 	const music = firstLibrary(memoryCache.libraries, ['music']);
-	const library = (row && row.key === 'musicLibraryStyle' && music) || video || music;
+	const books = firstLibrary(memoryCache.libraries, ['books', 'audiobooks']);
+	const focusKey = row ? row.key : null;
+	const library = (focusKey === 'musicLibraryStyle' && music) || (focusKey === 'bookLibraryStyle' && books) || video || music || books;
 	const scenes = SCENES.concat(pluginInfo?.calendarAvailable === true ? ['calendar'] : [], library ? ['library'] : []);
 	const tried = TRIED_KEYS[scene];
 	const overrides = useMemo(() => (

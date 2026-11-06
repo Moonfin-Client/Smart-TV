@@ -146,17 +146,16 @@ describe('settings live preview rows', () => {
 		expect(describeRow('setting-screensaver', defaultSettings)).toMatchObject({key: 'screensaver', scene: 'home', stage: 'screensaver'});
 	});
 
-	test('the video and music library settings show the library, and the book style leaves the preview alone', () => {
+	test('the video, music and book library settings all show the library', () => {
 		expect(LIBRARY_KEYS).toEqual([
-			'libraryStyle', 'musicLibraryStyle', 'groupItemsIntoCollections', 'showMediaDetailsOnLibraryPage', 'libraryCardTitles',
-			'hideBackdropsInLibraries', 'useDetailedSubHeadings'
+			'libraryStyle', 'musicLibraryStyle', 'bookLibraryStyle', 'groupItemsIntoCollections', 'showMediaDetailsOnLibraryPage',
+			'libraryCardTitles', 'hideBackdropsInLibraries', 'useDetailedSubHeadings'
 		]);
 		LIBRARY_KEYS.forEach((key) => {
 			const row = describeRow(`setting-${key}`, defaultSettings);
 			expect(row).toMatchObject({key, scene: 'library', stage: null});
 			expect(sceneOfRow(row)).toBe('library');
 		});
-		expect(describeRow('setting-bookLibraryStyle', defaultSettings)).toMatchObject({scene: null, stage: null});
 	});
 
 	test('every Calendar screen tile the calendar draws shows it, and the others leave the preview alone', () => {

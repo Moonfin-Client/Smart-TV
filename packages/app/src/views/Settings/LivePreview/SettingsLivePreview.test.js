@@ -65,7 +65,8 @@ jest.mock('../../Library', () => {
 		const {settings} = useSettings();
 		return React.createElement('div', null,
 			React.createElement('div', null, `${library ? library.Name : 'none'} in ${settings.libraryStyle}, grouped ${settings.groupItemsIntoCollections}, preview ${settingsPreview}`),
-			React.createElement('div', null, `music ${settings.musicLibraryStyle}`)
+			React.createElement('div', null, `music ${settings.musicLibraryStyle}`),
+			React.createElement('div', null, `book ${settings.bookLibraryStyle}`)
 		);
 	};
 	return {__esModule: true, default: LibraryStub};
@@ -314,9 +315,9 @@ describe('SettingsLivePreview', () => {
 		}
 	});
 
-	test('the Library chip only shows with a video or music library, and comes after Calendar', () => {
+	test('the Library chip only shows with a video, music or book library, and comes after Calendar', () => {
 		const chips = () => Array.from(find('.chips').children).map((chip) => chip.textContent);
-		memoryCache.libraries = [{Id: 'b', Name: 'Books', CollectionType: 'books'}];
+		memoryCache.libraries = [{Id: 'p', Name: 'Photos', CollectionType: 'homevideos'}];
 		const {unmount} = draw({}, 'setting-clockDisplay', 'home');
 		expect(chips()).toEqual(['Home', 'Details Page', 'Player', 'Search']);
 		unmount();
@@ -347,6 +348,35 @@ describe('SettingsLivePreview', () => {
 		memoryCache.libraries = [{Id: 'mu', Name: 'Music', CollectionType: 'music'}];
 		draw(saved, 'setting-libraryCardTitles', 'library');
 		expect(await screen.findByText('Music in classic, grouped false, preview true')).toBeTruthy();
+		expect(chips()).toEqual(['Home', 'Details Page', 'Player', 'Search', 'Library']);
+	});
+
+	test('Book Library Style draws the first book or audiobook library in the book style being tried', async () => {
+		const chips = () => Array.from(find('.chips').children).map((chip) => chip.textContent);
+		memoryCache.libraries = [
+			{Id: 'f', Name: 'Films', CollectionType: 'movies'}, {Id: 'mu', Name: 'Music', CollectionType: 'music'},
+			{Id: 'ab', Name: 'Audiobooks', CollectionType: 'audiobooks'}, {Id: 'b', Name: 'Books', CollectionType: 'books'}
+		];
+		const saved = {libraryStyle: 'classic', bookLibraryStyle: 'bookstore', groupItemsIntoCollections: false};
+		const {unmount} = draw(saved, 'setting-bookLibraryStyle', 'library');
+		expect(await screen.findByText('Audiobooks in classic, grouped false, preview true')).toBeTruthy();
+		expect(screen.getByText('book bookstore')).toBeTruthy();
+		expect(screen.getByText('Shows on the Library preview')).toBeTruthy();
+		unmount();
+		draw(saved, 'setting-bookLibraryStyle', 'library', {trying: {key: 'bookLibraryStyle', value: 'readingRoom', index: 2}});
+		expect(await screen.findByText('book readingRoom')).toBeTruthy();
+		cleanup();
+		draw(saved, 'setting-libraryCardTitles', 'library');
+		expect(await screen.findByText('Films in classic, grouped false, preview true')).toBeTruthy();
+		cleanup();
+		// Without a video library the other rows fall back to music, and without either to the books.
+		memoryCache.libraries = [{Id: 'b', Name: 'Books', CollectionType: 'books'}, {Id: 'mu', Name: 'Music', CollectionType: 'music'}];
+		draw(saved, 'setting-libraryCardTitles', 'library');
+		expect(await screen.findByText('Music in classic, grouped false, preview true')).toBeTruthy();
+		cleanup();
+		memoryCache.libraries = [{Id: 'b', Name: 'Books', CollectionType: 'books'}];
+		draw(saved, 'setting-libraryCardTitles', 'library');
+		expect(await screen.findByText('Books in classic, grouped false, preview true')).toBeTruthy();
 		expect(chips()).toEqual(['Home', 'Details Page', 'Player', 'Search', 'Library']);
 	});
 
