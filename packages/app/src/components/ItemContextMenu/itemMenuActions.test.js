@@ -68,8 +68,8 @@ describe('itemMenuActions', () => {
 
 	test('adds Remove from Playlist right below Add to Playlist when playlistMemberships is non-empty', () => {
 		expect(ids(movie(), {playlistMemberships: [{playlistId: 'p1', playlistName: 'The Hux List', entryId: 'e1'}]}))
-			.toEqual(['play', 'watched', 'favorite', 'addToPlaylist', 'removeFromPlaylist']);
-		expect(labelOf(movie(), 'removeFromPlaylist', {playlistMemberships: [{playlistId: 'p1', playlistName: 'The Hux List', entryId: 'e1'}]}))
+			.toEqual(['play', 'watched', 'favorite', 'addToPlaylist', 'removeFromPlaylistPicker']);
+		expect(labelOf(movie(), 'removeFromPlaylistPicker', {playlistMemberships: [{playlistId: 'p1', playlistName: 'The Hux List', entryId: 'e1'}]}))
 			.toBe('Remove from Playlist');
 	});
 

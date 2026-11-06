@@ -4,6 +4,7 @@ import Spotlight from '@enact/spotlight';
 import SpotlightContainerDecorator from '@enact/spotlight/SpotlightContainerDecorator';
 import $L from '@enact/i18n/$L';
 import {isBackKey} from '../../utils/keys';
+import {useAuth} from '../../context/AuthContext';
 import {canonicalServerKey, notifyItemRemovedFromCollection} from '../../services/itemMembershipService';
 
 import css from '../AddToCollectionModal/AddToCollectionModal.module.less';
@@ -17,7 +18,8 @@ const DialogContainer = SpotlightContainerDecorator({
 const SpottableDiv = Spottable('div');
 const SpottableButton = Spottable('button');
 
-const RemoveFromCollectionModal = ({open, item, collections = [], api, serverUrl, userId, onClose, onSuccess, backHandlerRef}) => {
+const RemoveFromCollectionModal = ({open, item, collections = [], api, onClose, onSuccess, backHandlerRef}) => {
+	const {serverUrl, user} = useAuth();
 	const [confirming, setConfirming] = useState(null);
 	const [removing, setRemoving] = useState(false);
 
@@ -86,7 +88,7 @@ const RemoveFromCollectionModal = ({open, item, collections = [], api, serverUrl
 		setRemoving(true);
 		try {
 			await api.removeFromCollection(confirming.collectionId, [item.Id]);
-			const serverKey = canonicalServerKey(item, {serverUrl, userId});
+			const serverKey = canonicalServerKey(item, {serverUrl, userId: user?.Id});
 			notifyItemRemovedFromCollection(serverKey, confirming.collectionId, item.Id);
 			onSuccess?.($L('Removed from {collection}').replace('{collection}', confirming.collectionName));
 			onClose?.();
@@ -95,7 +97,7 @@ const RemoveFromCollectionModal = ({open, item, collections = [], api, serverUrl
 		} finally {
 			setRemoving(false);
 		}
-	}, [confirming, removing, api, item, serverUrl, userId, onSuccess, onClose]);
+	}, [confirming, removing, api, item, serverUrl, user, onSuccess, onClose]);
 
 	const handleCancelConfirm = useCallback(() => {
 		setConfirming(null);

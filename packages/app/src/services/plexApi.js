@@ -396,7 +396,6 @@ export const createPlexApi = ({getBaseUrl, getToken, getUserId, getDeviceInfo, g
 		}
 		const query = {};
 		if (types.length && path.endsWith('/all')) query.type = types.join(',');
-		if (q.smart != null) query.smart = q.smart;
 		if (path === '/playlists' && sectionKey) query.sectionID = sectionKey;
 		if (sort.length) query.sort = sort.join(',');
 		if (searchTerm) query.title = searchTerm;
@@ -1074,35 +1073,9 @@ export const createPlexApi = ({getBaseUrl, getToken, getUserId, getDeviceInfo, g
 			getItems({ParentId: libraryId, IncludeItemTypes: includeItemTypes, SortBy: 'PremiereDate', SortOrder: 'Descending', Limit: limit}),
 
 		getCollections: async (limit = 50, sortBy = 'SortName', sortOrder = 'Ascending', {editableOnly = false} = {}) => {
-			const pageSize = Math.max(Number(limit) || 50, 50);
-			const items = [];
-			let startIndex = 0;
-			for (let pageIndex = 0; pageIndex < 200; pageIndex++) {
-				const res = await getItems({
-					IncludeItemTypes: 'BoxSet',
-					SortBy: sortBy,
-					SortOrder: sortOrder,
-					StartIndex: startIndex,
-					Limit: pageSize,
-					...(editableOnly ? {smart: 0} : {})
-				});
-				const batch = Array.isArray(res?.Items) ? res.Items : [];
-				if (batch.length === 0) break;
-				for (const item of batch) {
-					if (!editableOnly || (!item._smart && item.smart !== 1 && item.smart !== '1' && item.smart !== true)) {
-						items.push(item);
-					}
-				}
-				startIndex += batch.length;
-				if (!editableOnly && limit != null && items.length >= limit) break;
-				const totalSize = Number(res?.TotalRecordCount);
-				if (Number.isFinite(totalSize) && totalSize >= 0) {
-					if (startIndex >= totalSize) break;
-				} else if (batch.length < pageSize) {
-					break;
-				}
-			}
-			return page(items, 0, editableOnly ? null : limit);
+			const result = await getItems({IncludeItemTypes: 'BoxSet', SortBy: sortBy, SortOrder: sortOrder, Limit: limit});
+			// A smart collection fills itself from a filter, so nothing can be added to it or taken out.
+			return editableOnly ? {...result, Items: result.Items.filter((item) => !item._smart)} : result;
 		},
 
 		// Studio pages filter by name, so the id just has to be unique and free of commas. Plex's encoded key is both.
@@ -1234,8 +1207,8 @@ export const createPlexApi = ({getBaseUrl, getToken, getUserId, getDeviceInfo, g
 
 		getPreviewItems: (limit = 10) => getItems({IncludeItemTypes: 'Movie,Series', SortBy: 'DateCreated', SortOrder: 'Descending', Limit: limit}),
 
-		getCollectionItems: (collectionId, limit = 50, sortBy = null, sortOrder = 'Ascending', startIndex = 0) =>
-			getItems({ParentId: collectionId, Limit: limit, SortBy: sortBy, SortOrder: sortOrder, ...(startIndex > 0 ? {StartIndex: startIndex} : null)}),
+		getCollectionItems: (collectionId, limit = 50, sortBy = null, sortOrder = 'Ascending') =>
+			getItems({ParentId: collectionId, Limit: limit, SortBy: sortBy, SortOrder: sortOrder}),
 
 		getCollectionMembers: (collectionId, limit = 500, startIndex = 0) =>
 			getItems({ParentId: collectionId, Limit: limit, ...(startIndex > 0 ? {StartIndex: startIndex} : null)}),
