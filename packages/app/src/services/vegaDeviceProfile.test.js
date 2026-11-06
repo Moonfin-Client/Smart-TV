@@ -39,12 +39,24 @@ describe('the Vega device profile', () => {
 	test('reads the model, the OS and the display from the shell and the probes', () => {
 		expect(capabilities.modelName).toBe('AFTCR001');
 		expect(capabilities.vegaVersionDisplay).toBe('Vega OS 2.0');
-		expect(capabilities.uhd).toBe(false);
+		expect(capabilities.uhd).toBe(true);
 		expect(capabilities.hdr10).toBe(false);
 		expect(capabilities.hevc).toBe(true);
 		expect(capabilities.av1).toBe(false);
 		expect(capabilities.ac3).toBe(false);
 		expect(capabilities.nativeHls).toBe(true);
+	});
+
+	test('only the 4K sticks take 4K over a 1080p output', async () => {
+		jest.spyOn(window.HTMLMediaElement.prototype, 'canPlayType').mockImplementation(canPlayType);
+		Object.defineProperty(window.navigator, 'userAgent', {value: STICK_UA.replace('AFTCR001', 'AFTCL001'), configurable: true});
+		clearCapabilitiesCache();
+		expect((await getDeviceCapabilities()).uhd).toBe(false);
+
+		// The tests after this one read the 3rd Gen stick's cached answer.
+		Object.defineProperty(window.navigator, 'userAgent', {value: STICK_UA, configurable: true});
+		clearCapabilitiesCache();
+		await getDeviceCapabilities();
 	});
 
 	test('offers the server only what the WebView decodes', async () => {

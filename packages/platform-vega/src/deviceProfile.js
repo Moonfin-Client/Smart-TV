@@ -8,6 +8,9 @@ import {modelFromUserAgent} from './deviceInfo';
 
 export const MAX_BITRATE = 120_000_000;
 
+// These sticks decode 4K and scale it down themselves when they output 1080p.
+const UHD_MODELS = ['AFTCA002', 'AFTCR001'];
+
 let cachedCapabilities = null;
 let probeElement = null;
 
@@ -28,12 +31,13 @@ export const getDeviceCapabilities = async () => {
 	const display = bootData()?.display;
 	const hdr = display?.hdr || [];
 	const version = detectVegaVersion();
+	const model = modelFromUserAgent(navigator.userAgent);
 
 	cachedCapabilities = {
-		modelName: modelFromUserAgent(navigator.userAgent) || 'Fire TV',
+		modelName: model || 'Fire TV',
 		vegaVersionDisplay: version ? `Vega OS ${version}` : 'Vega OS',
 
-		uhd: (display?.width || window.screen.width) >= 3840,
+		uhd: (display?.width || window.screen.width) >= 3840 || UHD_MODELS.includes(model),
 		uhd8K: false,
 
 		hdr10: hdr.includes('hdr10'),
