@@ -39,10 +39,11 @@ export const CALENDAR_KEYS = [
 	'calendarIncludeUnmonitored', 'calendarShowSpecials', 'calendarShowBadges', 'calendarColorBy', 'calendarImageType',
 	'calendarSpoilerSafe', 'calendarRequestButton'
 ];
-// The video library settings. The book and music library styles draw other screens, so they're left out.
+// The library settings. The music style draws the music library and the rest the video library. The
+// book library style is left out, since the preview doesn't draw the book library.
 export const LIBRARY_KEYS = [
-	'libraryStyle', 'groupItemsIntoCollections', 'showMediaDetailsOnLibraryPage', 'libraryCardTitles', 'hideBackdropsInLibraries',
-	'useDetailedSubHeadings'
+	'libraryStyle', 'musicLibraryStyle', 'groupItemsIntoCollections', 'showMediaDetailsOnLibraryPage', 'libraryCardTitles',
+	'hideBackdropsInLibraries', 'useDetailedSubHeadings'
 ];
 
 // The screens and sections whose every tile keeps the stage on one look, with the scene it's

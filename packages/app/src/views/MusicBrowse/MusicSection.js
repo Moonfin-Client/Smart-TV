@@ -34,7 +34,7 @@ export const shelfSeeAllId = (rowId) => `music-see-all-${rowId}`;
 
 // A row of square cards under its title, with artists drawn round. `seeAllTarget` names the screen
 // its See All opens, if it has one.
-export const MusicShelf = ({row, rowIndex, serverUrl, onSelectItem, registerRowRef, seeAllTarget, onOpenGrid, ...keys}) => {
+export const MusicShelf = ({row, rowIndex, serverUrl, onSelectItem, registerRowRef, seeAllTarget, onOpenGrid, settingsPreview, ...keys}) => {
 	const sectionRef = useCallback((el) => registerRowRef(rowIndex, el), [registerRowRef, rowIndex]);
 	const handleSeeAll = useCallback(() => onOpenGrid(seeAllTarget), [onOpenGrid, seeAllTarget]);
 	return (
@@ -46,7 +46,7 @@ export const MusicShelf = ({row, rowIndex, serverUrl, onSelectItem, registerRowR
 			onSeeAll={seeAllTarget ? handleSeeAll : null}
 			{...keys}
 		>
-			<ShelfRow className={css.shelfRow} spotlightId={`row-${rowIndex}`} onFocus={keepFocusInView}>
+			<ShelfRow className={css.shelfRow} spotlightId={settingsPreview ? `music-preview-row-${rowIndex}` : `row-${rowIndex}`} onFocus={keepFocusInView}>
 				{row.items.map((item) => (
 					<MediaCard
 						key={item.Id}

@@ -63,7 +63,10 @@ jest.mock('../../Library', () => {
 	const {useSettings} = require('../../../context/SettingsContext');
 	const LibraryStub = ({library, settingsPreview}) => {
 		const {settings} = useSettings();
-		return React.createElement('div', null, `${library ? library.Name : 'none'} in ${settings.libraryStyle}, grouped ${settings.groupItemsIntoCollections}, preview ${settingsPreview}`);
+		return React.createElement('div', null,
+			React.createElement('div', null, `${library ? library.Name : 'none'} in ${settings.libraryStyle}, grouped ${settings.groupItemsIntoCollections}, preview ${settingsPreview}`),
+			React.createElement('div', null, `music ${settings.musicLibraryStyle}`)
+		);
 	};
 	return {__esModule: true, default: LibraryStub};
 });
@@ -311,9 +314,9 @@ describe('SettingsLivePreview', () => {
 		}
 	});
 
-	test('the Library chip only shows with a Movies or Shows library, and comes after Calendar', () => {
+	test('the Library chip only shows with a video or music library, and comes after Calendar', () => {
 		const chips = () => Array.from(find('.chips').children).map((chip) => chip.textContent);
-		memoryCache.libraries = [{Id: 'mu', Name: 'Music', CollectionType: 'music'}];
+		memoryCache.libraries = [{Id: 'b', Name: 'Books', CollectionType: 'books'}];
 		const {unmount} = draw({}, 'setting-clockDisplay', 'home');
 		expect(chips()).toEqual(['Home', 'Details Page', 'Player', 'Search']);
 		unmount();
@@ -321,6 +324,30 @@ describe('SettingsLivePreview', () => {
 		mockSeerr = {...mockSeerr, pluginInfo: {calendarAvailable: true}};
 		draw({}, 'setting-clockDisplay', 'home');
 		expect(chips()).toEqual(['Home', 'Details Page', 'Player', 'Search', 'Calendar', 'Library']);
+	});
+
+	test('Music Library Style draws the first music library in the music style being tried, and the rest draw the video library', async () => {
+		const chips = () => Array.from(find('.chips').children).map((chip) => chip.textContent);
+		memoryCache.libraries = [
+			{Id: 'f', Name: 'Films', CollectionType: 'movies'}, {Id: 'mu', Name: 'Music', CollectionType: 'music'}, {Id: 'c', Name: 'Concerts', CollectionType: 'music'}
+		];
+		const saved = {libraryStyle: 'classic', musicLibraryStyle: 'immersive', groupItemsIntoCollections: false};
+		const {unmount} = draw(saved, 'setting-musicLibraryStyle', 'library');
+		expect(await screen.findByText('Music in classic, grouped false, preview true')).toBeTruthy();
+		expect(screen.getByText('music immersive')).toBeTruthy();
+		expect(screen.getByText('Shows on the Library preview')).toBeTruthy();
+		unmount();
+		draw(saved, 'setting-musicLibraryStyle', 'library', {trying: {key: 'musicLibraryStyle', value: 'quickAccess', index: 1}});
+		expect(await screen.findByText('music quickAccess')).toBeTruthy();
+		cleanup();
+		draw(saved, 'setting-libraryCardTitles', 'library');
+		expect(await screen.findByText('Films in classic, grouped false, preview true')).toBeTruthy();
+		cleanup();
+		// With no video library the chip still shows, and every library setting draws the music library.
+		memoryCache.libraries = [{Id: 'mu', Name: 'Music', CollectionType: 'music'}];
+		draw(saved, 'setting-libraryCardTitles', 'library');
+		expect(await screen.findByText('Music in classic, grouped false, preview true')).toBeTruthy();
+		expect(chips()).toEqual(['Home', 'Details Page', 'Player', 'Search', 'Library']);
 	});
 
 	test('the library scene draws the first Movies or Shows library in the user\'s order, in the style being tried', async () => {

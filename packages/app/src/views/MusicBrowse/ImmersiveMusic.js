@@ -68,7 +68,7 @@ const columnsFor = (available, gap, step, min, max) => Math.min(max, Math.max(mi
 // The Immersive music library: the album being listened to on a hero over its own blurred art,
 // with Play, Shuffle and Favorite and its songs beside it, then the newest albums, what played
 // last, the genres and the rows.
-const ImmersiveMusic = ({library, api, serverUrl, onSelectItem, onOpenGrid, onPlay, onSearch, onHome, backHandlerRef}) => {
+const ImmersiveMusic = ({library, api, serverUrl, onSelectItem, onOpenGrid, onPlay, onSearch, onHome, backHandlerRef, settingsPreview}) => {
 	const {settings, updateSetting} = useSettings();
 	const initialFocusRef = useRef(false);
 	const {rows, isLoading, featured} = useMusicBrowseRows({api, library, settings});
@@ -221,7 +221,7 @@ const ImmersiveMusic = ({library, api, serverUrl, onSelectItem, onOpenGrid, onPl
 	// First focus once there is something to focus, then a backstop for reloads
 	// that pull the focused section out from under us.
 	useEffect(() => {
-		if (isLoading || showFilter) return;
+		if (settingsPreview || isLoading || showFilter) return;
 		if (!initialFocusRef.current) {
 			initialFocusRef.current = true;
 			focusNode(chain[1] || chain[0]);
@@ -230,7 +230,7 @@ const ImmersiveMusic = ({library, api, serverUrl, onSelectItem, onOpenGrid, onPl
 		const active = document.activeElement;
 		if (active && active !== document.body && active.classList?.contains('spottable')) return;
 		focusNode(clampMusicNode(chain, lastNodeRef.current || chain[0]));
-	}, [isLoading, showFilter, rows, chain, focusNode, lastNodeRef]);
+	}, [isLoading, showFilter, rows, chain, focusNode, lastNodeRef, settingsPreview]);
 
 	const latestColumns = columnsFor(available, LATEST_GAP, 200, 3, 8);
 	const latestCard = useMemo(() => {
@@ -262,12 +262,12 @@ const ImmersiveMusic = ({library, api, serverUrl, onSelectItem, onOpenGrid, onPl
 							<div className={css.backdropScrim} style={scrimStyle(TOP_FADE)} />
 						</>
 					)}
-					<HeaderContainer className={css.header} spotlightId={MUSIC_FOCUS_IDS.header} onKeyDown={handleHeaderKey}>
+					<HeaderContainer className={css.header} spotlightId={settingsPreview ? undefined : MUSIC_FOCUS_IDS.header} onKeyDown={handleHeaderKey}>
 						<SpottableDiv className={css.headerBtn} spotlightId={MUSIC_FOCUS_IDS.home} onClick={onHome} aria-label={$L('Home')}>
 							<HomeIcon />
 						</SpottableDiv>
 						<div className={css.libraryName}>{library?.Name || $L('Music')}</div>
-						<MusicTabs onOpenGrid={onOpenGrid} />
+						<MusicTabs onOpenGrid={onOpenGrid} spotlightId={settingsPreview ? 'music-preview-tabs' : undefined} />
 						<div className={css.headerActions}>
 							<SpottableDiv className={css.headerBtn} spotlightId="music-search-btn" onClick={onSearch} aria-label={$L('Search Music')}>
 								<SearchIcon />
@@ -392,6 +392,7 @@ const ImmersiveMusic = ({library, api, serverUrl, onSelectItem, onOpenGrid, onPl
 								registerRowRef={registerRowRef}
 								seeAllTarget={SEE_ALL_TARGET[row.id]}
 								onOpenGrid={onOpenGrid}
+								settingsPreview={settingsPreview}
 								{...seeAllKeys(rowNode(index), shelfSeeAllId(row.id))}
 							/>
 						))}

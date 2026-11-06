@@ -30,13 +30,13 @@ export const SCENES = ['home', 'details', 'player', 'search'];
 const CalendarPage = lazy(() => import('../../Calendar'));
 const LibraryPage = lazy(() => import('../../Library'));
 
-// The first Movies or Shows library in the order the server lists them, which is the user's own.
-const previewLibrary = (libraries) => (libraries || [])
-	.find((library) => ['movies', 'tvshows'].indexOf((library.CollectionType || '').toLowerCase()) >= 0) || null;
+// The first library of one of [types] in the order the server lists them, which is the user's own.
+const firstLibrary = (libraries, types) => (libraries || [])
+	.find((library) => types.indexOf((library.CollectionType || '').toLowerCase()) >= 0) || null;
 
-// The one setting each scene drawn by a real screen tries before it's saved. The rest wait, since
-// trying one of them can make the screen load again.
-const TRIED_KEYS = {calendar: 'calendarStyle', library: 'libraryStyle'};
+// The settings each scene drawn by a real screen tries before they're saved, which are its styles.
+// The rest wait, since trying one of them can make the screen load again.
+const TRIED_KEYS = {calendar: ['calendarStyle'], library: ['libraryStyle', 'musicLibraryStyle']};
 
 export const sceneChipId = (scene) => `preview-scene-${scene}`;
 
@@ -160,7 +160,7 @@ const SceneView = ({scene, row, hasLiveTv, library}) => {
 		return (
 			<SettingsScreenPreview navbar={false}>
 				<Suspense fallback={null}>
-					<LibraryPage library={library} settingsPreview />
+					<LibraryPage key={library && library.Id} library={library} settingsPreview />
 				</Suspense>
 			</SettingsScreenPreview>
 		);
@@ -185,11 +185,15 @@ const SceneView = ({scene, row, hasLiveTv, library}) => {
 const SettingsLivePreview = ({scene, row, trying, onPickScene, onLeaveChips, hasLiveTv}) => {
 	const t = usePreviewPalette();
 	const {pluginInfo} = useSeerr();
-	const library = previewLibrary(memoryCache.libraries);
+	// The music style draws the first music library, and everything else the first video library,
+	// or the music library when there's no video one.
+	const video = firstLibrary(memoryCache.libraries, ['movies', 'tvshows']);
+	const music = firstLibrary(memoryCache.libraries, ['music']);
+	const library = (row && row.key === 'musicLibraryStyle' && music) || video || music;
 	const scenes = SCENES.concat(pluginInfo?.calendarAvailable === true ? ['calendar'] : [], library ? ['library'] : []);
 	const tried = TRIED_KEYS[scene];
 	const overrides = useMemo(() => (
-		trying && (!tried || trying.key === tried) ? {[trying.key]: trying.value} : null
+		trying && (!tried || tried.indexOf(trying.key) >= 0) ? {[trying.key]: trying.value} : null
 	), [trying, tried]);
 	const tryingHere = !!(trying && row && trying.key === row.key);
 	const live = tryingHere ? trying.index : (row ? row.saved : -1);

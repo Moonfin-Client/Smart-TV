@@ -31,7 +31,7 @@ import {useStorage} from '../../hooks/useStorage';
 import {NO_FILTERS, buildFilterParams, facetRows, hasActiveFilters} from '../../utils/libraryFilters';
 import {alphabetApplies, librarySortKeys, orderByMyRating, savedSortOrder, sortField, sortLabel as librarySortLabel} from '../../utils/librarySorts';
 import {foldForSearch} from '../../utils/accentFolding';
-import {keepFocusInView} from '../../utils/focusScroll';
+import {glideScroll, keepFocusInView} from '../../utils/focusScroll';
 import {PanelContainer} from '../../utils/spotlightContainers';
 import {KEYS} from '../../utils/keys';
 import useSortSettingsPanels from '../../hooks/useSortSettingsPanels';
@@ -271,7 +271,7 @@ const Library = ({library, genreFilter, studioFilter, onSelectItem, onViewPhoto,
 	const isBookLibrary = isBookLibraryType(library?.CollectionType);
 	const [restoredBookGrid] = useState(() => (bookGridReturn?.libraryId === library?.Id ? bookGridReturn : null));
 	// The music category screen that's open, from musicScreenFor.
-	const [musicScreen, setMusicScreen] = useState(() => (musicScreenReturn && musicScreenReturn.libraryId === library?.Id ? musicScreenReturn.screen : null));
+	const [musicScreen, setMusicScreen] = useState(() => (!settingsPreview && musicScreenReturn && musicScreenReturn.libraryId === library?.Id ? musicScreenReturn.screen : null));
 	// The book library screen that's open, from bookScreens, kept with its library so another one
 	// opens at its own root.
 	const [bookScreenOf, setBookScreenOf] = useState(() => (bookScreenReturn?.libraryId === library?.Id ? bookScreenReturn : null));
@@ -738,7 +738,7 @@ const Library = ({library, genreFilter, studioFilter, onSelectItem, onViewPhoto,
 	const scrollToGroupRow = useCallback((rowIndex) => {
 		const row = groupRowRefs.current.get(rowIndex);
 		const container = groupRowsRef.current;
-		if (row && container) container.scrollTop = Math.max(0, row.offsetTop - 10);
+		if (row && container) glideScroll(container, 'y', row.offsetTop - 10);
 		Spotlight.focus(`library-group-row-${rowIndex}`);
 	}, []);
 
@@ -1663,6 +1663,7 @@ const Library = ({library, genreFilter, studioFilter, onSelectItem, onViewPhoto,
 				onSearch={onSearch}
 				onHome={onHome}
 				backHandlerRef={backHandlerRef}
+				settingsPreview={settingsPreview}
 			/>
 		);
 	}
