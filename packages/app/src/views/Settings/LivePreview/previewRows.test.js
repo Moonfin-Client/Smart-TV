@@ -2,7 +2,7 @@ import {defaultSettings} from '../../../context/defaultSettings';
 import {KIND, SETTINGS_SCHEMA} from '../settingsSchema';
 import {
 	SCENE_BY_KEY, MEDIA_BAR_KEYS, FOCUSED_CARD_KEYS, NAV_BUTTON_KEYS, LOADING_KEYS, TRICKPLAY_KEYS, SCREENSAVER_KEYS,
-	SUBTITLE_LOOK_KEYS, SUBTITLE_HDR_KEYS, CALENDAR_KEYS, describeRow, sceneOfRow
+	SUBTITLE_LOOK_KEYS, SUBTITLE_HDR_KEYS, CALENDAR_KEYS, LIBRARY_KEYS, describeRow, sceneOfRow
 } from './previewRows';
 
 describe('settings live preview rows', () => {
@@ -144,6 +144,18 @@ describe('settings live preview rows', () => {
 		expect(sceneOfRow(timeout)).toBe('home');
 		expect(describeRow('setting-screensaverLibraries', defaultSettings)).toMatchObject({key: null, stage: 'screensaver'});
 		expect(describeRow('setting-screensaver', defaultSettings)).toMatchObject({key: 'screensaver', scene: 'home', stage: 'screensaver'});
+	});
+
+	test('the video library settings show the library, and the book and music styles leave the preview alone', () => {
+		expect(LIBRARY_KEYS).toEqual(['libraryStyle', 'groupItemsIntoCollections', 'showMediaDetailsOnLibraryPage', 'libraryCardTitles', 'hideBackdropsInLibraries', 'useDetailedSubHeadings']);
+		LIBRARY_KEYS.forEach((key) => {
+			const row = describeRow(`setting-${key}`, defaultSettings);
+			expect(row).toMatchObject({key, scene: 'library', stage: null});
+			expect(sceneOfRow(row)).toBe('library');
+		});
+		['bookLibraryStyle', 'musicLibraryStyle'].forEach((key) => {
+			expect(describeRow(`setting-${key}`, defaultSettings)).toMatchObject({scene: null, stage: null});
+		});
 	});
 
 	test('every Calendar screen tile the calendar draws shows it, and the others leave the preview alone', () => {

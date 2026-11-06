@@ -18,14 +18,25 @@ import {
 	usePreviewPalette
 } from '../../SetupWizard/SetupPreviews';
 import {getPreviewItems} from '../../SetupWizard/setupPreviewData';
+import {memoryCache} from '../../Browse/browseCache';
 import {MEDIA_BAR_KEYS, SUBTITLE_HDR_KEYS, sceneOfRow} from './previewRows';
 
 import css from './SettingsLivePreview.module.less';
 
 export const SCENES = ['home', 'details', 'player', 'search'];
 
-// The calendar's code and styles load the first time its scene shows, as they do for the screen.
+// The calendar's and library's code and styles load the first time their scene shows, as they do
+// for the screens.
 const CalendarPage = lazy(() => import('../../Calendar'));
+const LibraryPage = lazy(() => import('../../Library'));
+
+// The first Movies or Shows library in the order the server lists them, which is the user's own.
+const previewLibrary = (libraries) => (libraries || [])
+	.find((library) => ['movies', 'tvshows'].indexOf((library.CollectionType || '').toLowerCase()) >= 0) || null;
+
+// The one setting each scene drawn by a real screen tries before it's saved. The rest wait, since
+// trying one of them can make the screen load again.
+const TRIED_KEYS = {calendar: 'calendarStyle', library: 'libraryStyle'};
 
 export const sceneChipId = (scene) => `preview-scene-${scene}`;
 
@@ -90,7 +101,8 @@ const SCENE_LABELS = {
 	details: () => $L('Details Page'),
 	player: () => $L('Player'),
 	search: () => $L('Search'),
-	calendar: () => $L('Calendar')
+	calendar: () => $L('Calendar'),
+	library: () => $L('Library')
 };
 
 // Read inside the override, so a picker's option shows before it's saved.
@@ -129,7 +141,7 @@ const PLAYER_MOMENTS = {introAction: 'intro', nextUpBehavior: 'end', showDescrip
 // The subtitle look is judged with the controls away, the way most of a film is watched.
 const STAGE_MOMENTS = {loading: 'loading', trickplay: 'seek', subtitles: 'watching'};
 
-const SceneView = ({scene, row, hasLiveTv}) => {
+const SceneView = ({scene, row, hasLiveTv, library}) => {
 	const focusKey = row ? row.key : null;
 	// A screen that keeps one look on the stage draws it on its own scene.
 	const stage = row && row.stage && sceneOfRow(row) === scene ? row.stage : null;
@@ -140,6 +152,15 @@ const SceneView = ({scene, row, hasLiveTv}) => {
 			<SettingsScreenPreview hasLiveTv={hasLiveTv}>
 				<Suspense fallback={null}>
 					<CalendarPage settingsPreview />
+				</Suspense>
+			</SettingsScreenPreview>
+		);
+	}
+	if (scene === 'library') {
+		return (
+			<SettingsScreenPreview navbar={false}>
+				<Suspense fallback={null}>
+					<LibraryPage library={library} settingsPreview />
 				</Suspense>
 			</SettingsScreenPreview>
 		);
@@ -164,12 +185,12 @@ const SceneView = ({scene, row, hasLiveTv}) => {
 const SettingsLivePreview = ({scene, row, trying, onPickScene, onLeaveChips, hasLiveTv}) => {
 	const t = usePreviewPalette();
 	const {pluginInfo} = useSeerr();
-	const scenes = pluginInfo?.calendarAvailable === true ? [...SCENES, 'calendar'] : SCENES;
-	// Only the calendar's style is drawn before it's saved, since trying one of its filters would load
-	// the calendar again.
+	const library = previewLibrary(memoryCache.libraries);
+	const scenes = SCENES.concat(pluginInfo?.calendarAvailable === true ? ['calendar'] : [], library ? ['library'] : []);
+	const tried = TRIED_KEYS[scene];
 	const overrides = useMemo(() => (
-		trying && (scene !== 'calendar' || trying.key === 'calendarStyle') ? {[trying.key]: trying.value} : null
-	), [trying, scene]);
+		trying && (!tried || trying.key === tried) ? {[trying.key]: trying.value} : null
+	), [trying, tried]);
 	const tryingHere = !!(trying && row && trying.key === row.key);
 	const live = tryingHere ? trying.index : (row ? row.saved : -1);
 	const frameRef = useRef(null);
@@ -208,7 +229,7 @@ const SettingsLivePreview = ({scene, row, trying, onPickScene, onLeaveChips, has
 			</div>
 			<div ref={frameRef} className={css.frame} style={frameWidth === null ? null : {width: frameWidth}}>
 				<SettingsOverride overrides={overrides}>
-					<SceneView scene={scene} row={row} hasLiveTv={hasLiveTv} />
+					<SceneView scene={scene} row={row} hasLiveTv={hasLiveTv} library={library} />
 				</SettingsOverride>
 			</div>
 			{row && (

@@ -39,6 +39,11 @@ export const CALENDAR_KEYS = [
 	'calendarIncludeUnmonitored', 'calendarShowSpecials', 'calendarShowBadges', 'calendarColorBy', 'calendarImageType',
 	'calendarSpoilerSafe', 'calendarRequestButton'
 ];
+// The video library settings. The book and music library styles draw other screens, so they're left out.
+export const LIBRARY_KEYS = [
+	'libraryStyle', 'groupItemsIntoCollections', 'showMediaDetailsOnLibraryPage', 'libraryCardTitles', 'hideBackdropsInLibraries',
+	'useDetailedSubHeadings'
+];
 
 // The screens and sections whose every tile keeps the stage on one look, with the scene it's
 // drawn on. A tile there that doesn't change the look still keeps it up and says it isn't shown.
@@ -98,7 +103,8 @@ export const SCENE_BY_KEY = {
 	...sceneFor([...SUBTITLE_LOOK_KEYS, 'subtitleCustomization'], 'player'),
 	...sceneFor([...SCREENSAVER_KEYS, 'screensaver'], 'home'),
 	keyboardStyle: 'search',
-	...sceneFor(CALENDAR_KEYS, 'calendar')
+	...sceneFor(CALENDAR_KEYS, 'calendar'),
+	...sceneFor(LIBRARY_KEYS, 'library')
 };
 
 let rowsBySpotlightId = null;

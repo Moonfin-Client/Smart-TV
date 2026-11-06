@@ -7,6 +7,7 @@
 
 import {lazy, Suspense, useState, useEffect, useMemo, useRef, useCallback} from 'react';
 import $L from '@enact/i18n/$L';
+import SpotlightContainerDecorator from '@enact/spotlight/SpotlightContainerDecorator';
 
 import {useSettings} from '../../context/SettingsContext';
 import {useAuth} from '../../context/AuthContext';
@@ -2200,21 +2201,26 @@ export const SettingsHomePreview = ({railOpen = false, hasLiveTv = false}) => {
 	return <LivePreview render={render} fallback={<FallbackNavbar position={position} t={t} />} />;
 };
 
-// One of the app's own screens under the navbar, which sits where it's set the way home draws it.
-// The screen is laid out at the TV's size, and nothing on it takes the pointer.
-export const SettingsScreenPreview = ({hasLiveTv = false, children}) => {
+const ScreenContainer = SpotlightContainerDecorator({}, 'div');
+
+// One of the app's own screens, laid out at the window's size and scaled onto the design screen the
+// way the player's controls are, since a screen can size itself from the window. A screen that has
+// the navbar gets it where it's set, the way home draws it. Nothing on it takes focus or the pointer.
+export const SettingsScreenPreview = ({hasLiveTv = false, navbar = true, children}) => {
 	const t = usePreviewPalette();
 	const {user} = useAuth();
 	const {settings} = useSettings();
 	const Navbar = settings.navbarPosition === 'left' ? LeftNavbarPreview : TopNavbarPreview;
+	const screenWidth = window.innerWidth || DESIGN_W;
+	const ratio = DESIGN_W / screenWidth;
 	return (
 		<PreviewScreen>
-			<div style={{...ABS_FILL, overflow: 'hidden', pointerEvents: 'none'}}>
-				<div style={{position: 'absolute', top: 0, left: 0, width: DESIGN_W * 2, height: DESIGN_H * 2, transform: 'scale(0.5)', transformOrigin: 'top left'}}>
+			<ScreenContainer spotlightDisabled style={{...ABS_FILL, overflow: 'hidden', pointerEvents: 'none'}}>
+				<div style={{position: 'absolute', top: 0, left: 0, width: screenWidth, height: DESIGN_H / ratio, transform: `scale(${ratio})`, transformOrigin: 'top left'}}>
 					{children}
 				</div>
-				<Navbar t={t} userName={user?.Name} hasLiveTv={hasLiveTv} />
-			</div>
+				{navbar && <Navbar t={t} userName={user?.Name} hasLiveTv={hasLiveTv} />}
+			</ScreenContainer>
 		</PreviewScreen>
 	);
 };

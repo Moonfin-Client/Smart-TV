@@ -2,6 +2,7 @@ import {act, cleanup, fireEvent, render, screen, waitFor, within} from '@testing
 import Spotlight from '@enact/spotlight';
 
 import {defaultSettings} from '../../../context/defaultSettings';
+import {memoryCache} from '../../Browse/browseCache';
 import {describeRow} from './previewRows';
 import SettingsLivePreview from './SettingsLivePreview';
 
@@ -56,6 +57,16 @@ jest.mock('../../../services/calendarApi', () => ({
 jest.mock('../../../context/AchievementsContext', () => ({useAchievements: () => ({socialAvailable: false})}));
 jest.mock('../../../components/RatingsRow', () => () => null);
 jest.mock('../../../components/LoadingSpinner', () => () => null);
+// The library screen is tested on its own, so here it only says what it was handed.
+jest.mock('../../Library', () => {
+	const React = require('react');
+	const {useSettings} = require('../../../context/SettingsContext');
+	const LibraryStub = ({library, settingsPreview}) => {
+		const {settings} = useSettings();
+		return React.createElement('div', null, `${library ? library.Name : 'none'} in ${settings.libraryStyle}, grouped ${settings.groupItemsIntoCollections}, preview ${settingsPreview}`);
+	};
+	return {__esModule: true, default: LibraryStub};
+});
 const mockItems = Array.from({length: 4}, (_, i) => ({
 	title: `Film ${i}`, year: 2000 + i, officialRating: 'PG', runtimeMinutes: 100, genres: ['Drama'], overview: 'A story.',
 	communityRating: 7, posterUrl: null, backdropUrl: null, logoUrl: null
@@ -77,6 +88,7 @@ const draw = (settings, rowId, scene, props) => {
 describe('SettingsLivePreview', () => {
 	beforeEach(() => {
 		mockSeerr = {isEnabled: false, displayName: 'Seerr', pluginInfo: null};
+		memoryCache.libraries = null;
 	});
 
 	// Runs first, since the player tests below draw the controls once they've loaded.
@@ -297,6 +309,37 @@ describe('SettingsLivePreview', () => {
 		} finally {
 			focus.mockRestore();
 		}
+	});
+
+	test('the Library chip only shows with a Movies or Shows library, and comes after Calendar', () => {
+		const chips = () => Array.from(find('.chips').children).map((chip) => chip.textContent);
+		memoryCache.libraries = [{Id: 'mu', Name: 'Music', CollectionType: 'music'}];
+		const {unmount} = draw({}, 'setting-clockDisplay', 'home');
+		expect(chips()).toEqual(['Home', 'Details Page', 'Player', 'Search']);
+		unmount();
+		memoryCache.libraries = [{Id: 'mu', Name: 'Music', CollectionType: 'music'}, {Id: 'f', Name: 'Films', CollectionType: 'movies'}];
+		mockSeerr = {...mockSeerr, pluginInfo: {calendarAvailable: true}};
+		draw({}, 'setting-clockDisplay', 'home');
+		expect(chips()).toEqual(['Home', 'Details Page', 'Player', 'Search', 'Calendar', 'Library']);
+	});
+
+	test('the library scene draws the first Movies or Shows library in the user\'s order, in the style being tried', async () => {
+		memoryCache.libraries = [
+			{Id: 'mu', Name: 'Music', CollectionType: 'music'}, {Id: 's', Name: 'Shows', CollectionType: 'TvShows'}, {Id: 'f', Name: 'Films', CollectionType: 'movies'}
+		];
+		const saved = {libraryStyle: 'classic', groupItemsIntoCollections: false};
+		const {unmount} = draw(saved, 'setting-libraryStyle', 'library');
+		expect(await screen.findByText('Shows in classic, grouped false, preview true')).toBeTruthy();
+		expect(screen.getByText('Shows on the Library preview')).toBeTruthy();
+		// The library screen has no navbar, so the preview draws none over it.
+		expect(find('.frame svg')).toBeNull();
+		unmount();
+		draw(saved, 'setting-libraryStyle', 'library', {trying: {key: 'libraryStyle', value: 'docked', index: 2}});
+		expect(await screen.findByText('Shows in docked, grouped false, preview true')).toBeTruthy();
+		cleanup();
+		// Its other settings wait until they're saved.
+		draw(saved, 'setting-groupItemsIntoCollections', 'library', {trying: {key: 'groupItemsIntoCollections', value: true, index: 0}});
+		expect(await screen.findByText('Shows in classic, grouped false, preview true')).toBeTruthy();
 	});
 
 	test('Left off the first chip leaves the row, and focusing a chip shows its scene', () => {
