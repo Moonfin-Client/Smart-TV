@@ -165,8 +165,8 @@ export const isAudioStreamPlayable = (stream, capabilities, passthroughOptions =
 	if (!stream) return false;
 	const codec = (stream.Codec || '').toLowerCase();
 	if (!codec) return true;
-	// Verified LPCM path: 16-bit stereo at up to 48 kHz. Keep 24-bit,
-	// multichannel and higher-rate PCM converting; AVPlay differs from HTML video.
+	// Samsung doesn't document LPCM limits, so only the 16-bit stereo at up to 48 kHz that played on an S95B
+	// skips conversion.
 	if (codec === 'pcm') {
 		// Plex reports the PCM format separately from the codec alias.
 		const profile = (stream.Profile || '').toLowerCase();

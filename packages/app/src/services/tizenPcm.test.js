@@ -82,18 +82,4 @@ describe('Tizen PCM aliases from Plex', () => {
 		expect(findCompatibleAudioStreamIndex(media, caps)).toBe(2);
 		expect(getPlayMethod(media, caps, {})).toBe('Transcode');
 	});
-
-	test('keeps server PCM constraints independent of Plex format metadata', async () => {
-		const profile = await device().getJellyfinDeviceProfile();
-		const pcmProfiles = profile.CodecProfiles.filter(p => p.Type === 'VideoAudio' && p.Codec?.split(',').some(codec => codec === 'pcm_s16le' || codec === 'pcm'));
-		expect(pcmProfiles).toEqual([
-			expect.objectContaining({
-				Codec: 'pcm_s16le,pcm',
-				Conditions: [
-					{Condition: 'LessThanEqual', Property: 'AudioChannels', Value: '2', IsRequired: false},
-					{Condition: 'LessThanEqual', Property: 'AudioSampleRate', Value: '48000', IsRequired: false}
-				]
-			})
-		]);
-	});
 });

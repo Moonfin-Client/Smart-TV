@@ -736,12 +736,23 @@ export const getJellyfinDeviceProfile = async (options = {}) => {
 		});
 	}
 
-	// Match the bounded PCM16 path used by the local player.
+	// The same PCM16 limits isAudioStreamPlayable checks.
 	codecProfiles.push({
-		Type: 'VideoAudio', Codec: 'pcm_s16le,pcm',
+		Type: 'VideoAudio',
+		Codec: 'pcm_s16le',
 		Conditions: [
-			{Condition: 'LessThanEqual', Property: 'AudioChannels', Value: '2', IsRequired: false},
-			{Condition: 'LessThanEqual', Property: 'AudioSampleRate', Value: '48000', IsRequired: false}
+			{
+				Condition: 'LessThanEqual',
+				Property: 'AudioChannels',
+				Value: '2',
+				IsRequired: false
+			},
+			{
+				Condition: 'LessThanEqual',
+				Property: 'AudioSampleRate',
+				Value: '48000',
+				IsRequired: false
+			}
 		]
 	});
 
