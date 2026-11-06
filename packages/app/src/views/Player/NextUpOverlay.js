@@ -2,7 +2,7 @@ import $L from '@enact/i18n/$L';
 import {SpottableButton} from './PlayerConstants';
 import {CountdownRing, PlayGlyph, formatRemaining, useOverlayFocus} from './overlayParts';
 import AnimeMarkerPills, {useEpisodeMarker, hasAnimeMarkerPills} from '../../components/AnimeMarkerPills';
-import {airsText} from './useNextAirDate';
+import {airsText} from '../../utils/calendarEntries';
 
 import css from './NextUpOverlay.module.less';
 

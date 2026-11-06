@@ -311,7 +311,8 @@ describe('row subtitles', () => {
 			externalRows: [
 				{id: 'imdb-top250-movies', title: 'IMDb Top 250 Movies', items: [item('1')]},
 				{id: 'tmdb_popular_movies', title: 'Popular Movies', items: [item('2')]},
-				{id: 'radarr_calendar', title: 'Radarr Upcoming', items: [item('3')]}
+				{id: 'radarr_calendar', title: 'Radarr Upcoming', items: [item('3')]},
+				{id: 'sonarr_calendar', title: 'Sonarr Upcoming', items: [item('4')]}
 			],
 			settings: settings({imdbTop250MoviesEnabled: true})
 		});
@@ -319,7 +320,16 @@ describe('row subtitles', () => {
 		const byId = Object.fromEntries(rows.map((r) => [r.id, r.subtitle]));
 		expect(byId['imdb-top250-movies']).toBe('IMDb List');
 		expect(byId['tmdb_popular_movies']).toBe('TMDB Lists');
-		expect(byId['radarr_calendar']).toBe('Radarr and Sonarr Calendars');
+		expect(byId['radarr_calendar']).toBe('Radarr Calendar');
+		expect(byId['sonarr_calendar']).toBe('Sonarr Calendar');
+	});
+
+	test('the merged calendar row names both calendars', () => {
+		const rows = build({
+			externalRows: [{id: 'radarr_calendar', title: 'Upcoming Releases', items: [item('1')], isCalendarMerged: true}]
+		});
+
+		expect(rows[0].subtitle).toBe('Radarr and Sonarr Calendars');
 	});
 
 	test('library rows stay without one', () => {

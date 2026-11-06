@@ -804,6 +804,19 @@ describe('the focus border color', () => {
 	});
 });
 
+describe('the calendar row hide downloaded toggles', () => {
+	test('are on by default and sync under their own names both ways', () => {
+		const keys = ['radarrCalendarHideDownloaded', 'sonarrCalendarHideDownloaded'];
+		for (const key of keys) {
+			expect(defaultSettings[key]).toBe(true);
+			expect(SYNCABLE_KEYS).toContain(key);
+			expect(profileToLocal({[key]: false})[key]).toBe(false);
+		}
+		expect(localToProfile({radarrCalendarHideDownloaded: false, sonarrCalendarHideDownloaded: true}, keys))
+			.toEqual({radarrCalendarHideDownloaded: false, sonarrCalendarHideDownloaded: true});
+	});
+});
+
 describe('the poster labels toggle', () => {
 	test('is on by default and syncs both ways', () => {
 		expect(defaultSettings.showPosterLabels).toBe(true);

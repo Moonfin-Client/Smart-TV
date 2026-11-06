@@ -299,10 +299,11 @@ const MediaCard = ({item, serverUrl, cardType = 'portrait', rowImageType = 'post
 		return null;
 	}, [item.Type, item.AlbumArtist, item.AlbumArtists, item.Artists]);
 
-	// Classic home rows give a movie or series its year as the second line.
+	// Classic home rows give a movie or series its year as the second line, and a calendar card says when it releases.
 	const yearInfo = homeText && (item.Type === 'Movie' || item.Type === 'Series') && item.ProductionYear
 		? String(item.ProductionYear)
 		: null;
+	const secondLine = (item._calendarDate && item.Subtitle) || yearInfo || item.Subtitle;
 	// A home card's line that doesn't fit scrolls while the card has focus.
 	const line = (className, text) => (homeText
 		? <LoopMarquee className={className} text={text} active={focused} />
@@ -437,10 +438,10 @@ const MediaCard = ({item, serverUrl, cardType = 'portrait', rowImageType = 'post
 						{line(css.title, displayTitle)}
 						{line(css.episodeInfo, musicInfo)}
 					</>
-				) : (yearInfo || item.Subtitle) ? (
+				) : secondLine ? (
 					<>
 						{line(css.title, displayTitle)}
-						{line(css.episodeInfo, yearInfo || item.Subtitle)}
+						{line(css.episodeInfo, secondLine)}
 					</>
 				) : (
 					line(css.title, displayTitle)

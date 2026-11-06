@@ -1,6 +1,9 @@
 // The Sonarr and Radarr calendars that Moonbase hands out, turned into one list of entries the
 // Calendar screen filters and draws.
 
+import $L from '@enact/i18n/$L';
+import {uiLocale} from './uiLocale';
+
 export const BADGE = {
 	seriesPremiere: 'seriesPremiere',
 	seasonPremiere: 'seasonPremiere',
@@ -300,3 +303,10 @@ export const followsEpisode = (info, season, episode) => {
 export const daysBetween = (from, to) => Math.round(
 	(Date.UTC(to.getFullYear(), to.getMonth(), to.getDate()) - Date.UTC(from.getFullYear(), from.getMonth(), from.getDate())) / 86400000
 );
+
+/** Like "Today (Nov 3)" or "In 6 days (Nov 11)". */
+export const airsText = (date, now = new Date()) => {
+	const days = daysBetween(now, date);
+	const when = days === 0 ? $L('Today') : days === 1 ? $L('Tomorrow') : $L('In {days} days').replace('{days}', String(days));
+	return `${when} (${date.toLocaleDateString(uiLocale(), {month: 'short', day: 'numeric'})})`;
+};

@@ -327,7 +327,8 @@ const ModernMediaCard = ({
 
 	const displayTitle = useMemo(() => getCardDisplayTitle(item), [item]);
 
-	const metadata = useMemo(() => getMetadataLine(item), [item]);
+	// A calendar card leads with when it releases.
+	const metadata = useMemo(() => [item?._calendarDate && item.Subtitle, getMetadataLine(item)].filter(Boolean).join(' • '), [item]);
 	const episodeLabels = useMemo(() => getEpisodeLabels(item), [item]);
 	const shouldShowOverview = useMemo(() => ['Movie', 'Series', 'Episode'].includes(item?.Type), [item?.Type]);
 	const overviewText = useMemo(() => {

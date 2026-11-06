@@ -143,7 +143,9 @@ const rowSubtitleFor = (row) => {
 	if (row.subtitle) return row.subtitle;
 	if (row.id?.startsWith('imdb-')) return $L('IMDb List');
 	if (row.id?.startsWith('tmdb_')) return $L('TMDB Lists');
-	if (row.id === 'radarr_calendar' || row.id === 'sonarr_calendar' || row.id === 'merged_calendar') return $L('Radarr and Sonarr Calendars');
+	if (row.isCalendarMerged) return $L('Radarr and Sonarr Calendars');
+	if (row.id === 'radarr_calendar') return $L('Radarr Calendar');
+	if (row.id === 'sonarr_calendar') return $L('Sonarr Calendar');
 	if (row.id === 'seasonal') return $L('Seasonal');
 	return undefined;
 };

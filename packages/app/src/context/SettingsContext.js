@@ -355,6 +355,7 @@ export const SYNCABLE_KEYS = [
 	'mergeRadarrSonarrCalendars',
 	'radarrCalendarShowCinema', 'radarrCalendarShowDigital', 'radarrCalendarShowPhysical',
 	'radarrCalendarShowDate', 'sonarrCalendarShowDate', 'sonarrCalendarShowEpisodeInfo',
+	'radarrCalendarHideDownloaded', 'sonarrCalendarHideDownloaded',
 	'showSeerrButton', 'seerrShowMissingCollectionItems', 'showSeerrAvailabilityBadges', 'seerrBadgeStyle',
 	'showCalendarButton', 'calendarStyle', 'calendarWeekStart', 'calendarScope', 'calendarShowEpisodes', 'calendarShowMovies',
 	'calendarLibraryIds', 'calendarIncludeUnmonitored', 'calendarShowSpecials', 'calendarShowBadges', 'calendarColorBy',

@@ -79,6 +79,7 @@ export const ExternalCalendarsView = ({enabledMap, settings, calendarAvailable, 
 			{radarrOn && toggleRow('radarrCalendarShowDigital', $L('Show Digital Releases'), '', 'movie')}
 			{radarrOn && toggleRow('radarrCalendarShowPhysical', $L('Show Physical Releases'), '', 'movie')}
 			{radarrOn && toggleRow('radarrCalendarShowDate', $L('Show Release Date'), '', 'movie')}
+			{radarrOn && toggleRow('radarrCalendarHideDownloaded', $L('Hide Movies Already on the Server'), '', 'movie')}
 			<SpottableDiv className={css.listItem} onClick={() => onToggleRow('sonarr_calendar')} spotlightId='calendar-sonarr'>
 				{renderSettingsIcon('tv')}
 				<div className={css.listItemBody}>
@@ -89,6 +90,7 @@ export const ExternalCalendarsView = ({enabledMap, settings, calendarAvailable, 
 			</SpottableDiv>
 			{sonarrOn && toggleRow('sonarrCalendarShowEpisodeInfo', $L('Show Episode Information'), '', 'tv')}
 			{sonarrOn && toggleRow('sonarrCalendarShowDate', $L('Show Release Date'), '', 'tv')}
+			{sonarrOn && toggleRow('sonarrCalendarHideDownloaded', $L('Hide Episodes Already on the Server'), '', 'tv')}
 			{radarrOn && sonarrOn &&
 				toggleRow('mergeRadarrSonarrCalendars', $L('Merge Into One Row'), $L('Combine Radarr and Sonarr into a single upcoming row'), 'list')}
 			{calendarAvailable &&

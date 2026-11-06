@@ -1,5 +1,7 @@
+jest.mock('./uiLocale', () => ({uiLocale: () => 'en-US'}));
+
 import {
-	BADGE, PROBLEM, addDays, buildEntries, calendarAllows, daysBetween, followsEpisode, inLibrary, isoDay, monthGridDays,
+	BADGE, PROBLEM, addDays, airsText, buildEntries, calendarAllows, daysBetween, followsEpisode, inLibrary, isoDay, monthGridDays,
 	nextOf, parseRadarrEntries, parseSonarrEntry, problemFrom, readyToWatchOf, recentOf, seriesProgressOf, statusAt,
 	thisWeekOf, upcomingOf, worstProblem
 } from './calendarEntries';
@@ -275,5 +277,14 @@ describe('daysBetween', () => {
 		expect(daysBetween(from, new Date(2026, 10, 6, 0, 10))).toBe(1);
 		expect(daysBetween(from, addDays(from, 6))).toBe(6);
 		expect(daysBetween(from, new Date(2026, 10, 4))).toBe(-1);
+	});
+});
+
+describe('airsText', () => {
+	it('names the day by how far off it is, then the date', () => {
+		const now = new Date(2026, 10, 5, 23, 30);
+		expect(airsText(new Date(2026, 10, 5, 8), now)).toBe('Today (Nov 5)');
+		expect(airsText(new Date(2026, 10, 6, 0, 10), now)).toBe('Tomorrow (Nov 6)');
+		expect(airsText(new Date(2026, 10, 8), now)).toBe('In 3 days (Nov 8)');
 	});
 });

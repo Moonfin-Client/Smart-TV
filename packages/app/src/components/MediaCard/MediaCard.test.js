@@ -266,6 +266,11 @@ describe('MediaCard text in classic home rows', () => {
 		expect(lines(series, true)).toEqual({text: ['Devs', '2020'], home: true});
 	});
 
+	test('a calendar card says when it releases instead of its year', () => {
+		const calendar = {...movie, _calendarDate: '2026-11-08T00:00:00.000Z', Subtitle: 'Digital · In 3 days (Nov 8)'};
+		expect(lines(calendar, true)).toEqual({text: ['Avatar', 'Digital · In 3 days (Nov 8)'], home: true});
+	});
+
 	test('an episode keeps its series over its number and name', () => {
 		expect(lines(episode, true)).toEqual({text: ['The Nanny', 'S2:E13 - The Strike'], home: true});
 	});

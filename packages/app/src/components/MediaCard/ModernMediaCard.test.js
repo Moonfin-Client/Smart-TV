@@ -227,6 +227,12 @@ describe('ModernMediaCard description', () => {
 	});
 });
 
+it('keeps a calendar card\'s release line ahead of its year on focus', () => {
+	const item = {Id: 'calendar', Name: 'Film', Type: 'Movie', ProductionYear: 2026, _calendarDate: '2026-11-08T00:00:00.000Z', Subtitle: 'Digital · In 3 days (Nov 8)'};
+	render(<ModernMediaCard item={item} serverUrl="http://server" isFocused />);
+	expect(screen.getByText('Digital · In 3 days (Nov 8) • 2026')).toBeTruthy();
+});
+
 // A controller that records what the card asks of it and lets a test move the phase.
 const fakeController = () => {
 	const listeners = {};
