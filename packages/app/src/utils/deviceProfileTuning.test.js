@@ -36,7 +36,6 @@ const orientedCaps = (long, short) => ([
 	}
 ]);
 
-// The codec profile the platform wrote stays as it was, and the caps come after it.
 const caps = (tuned) => tuned.CodecProfiles.slice(1);
 
 const fhdPanel = {uhd: false, uhd8K: false};

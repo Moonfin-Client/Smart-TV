@@ -63,11 +63,9 @@ const resolutionConditions = ({width, height}) => ([
 	{Condition: 'LessThanEqual', Property: 'Height', Value: String(height), IsRequired: false}
 ]);
 
-// A cap is written as a landscape box, but a portrait source is the same box turned on
-// its side, so a 2160x3840 phone video is no bigger than a 3840x2160 one. Width and
-// height conditions can't swap places, so the box is sent as two profiles and the
-// source's own width picks which one applies. A source no wider than the box's short
-// side can only be portrait, and its height gets the long side to fit in.
+// A cap is a landscape box, but a portrait source is the same box turned on its side.
+// Conditions can't swap width and height, so it goes out as two profiles and the source's
+// width picks one. A source no wider than the short side is portrait and gets the long side.
 const orientedResolutionProfiles = ({width, height}) => {
 	const long = Math.max(width, height);
 	const short = Math.min(width, height);
