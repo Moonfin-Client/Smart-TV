@@ -47,7 +47,7 @@ const profileFor = (tv) => {
 	return require('../../../platform-tizen/src/deviceProfile').getJellyfinDeviceProfile();
 };
 
-describe('Tizen H.264 level limits', () => {
+describe('Tizen H.264 limits', () => {
 	afterEach(() => {
 		delete window.tizen;
 		delete window.webapis;
@@ -81,5 +81,12 @@ describe('Tizen H.264 level limits', () => {
 		const profile = await profileFor({uhd: false, model: MODEL_2020, tizenVersion: '5.5'});
 
 		expect(h264Profiles(profile).some((p) => p.ApplyConditions)).toBe(false);
+	});
+
+	test('anamorphic H.264 is only converted below Tizen 6', async () => {
+		const blocksAnamorphic = (profile) => h264Profiles(profile).some((p) => p.Conditions.some((c) => c.Property === 'IsAnamorphic'));
+
+		expect(blocksAnamorphic(await profileFor({uhd: true, model: MODEL_2020, tizenVersion: '5.5'}))).toBe(true);
+		expect(blocksAnamorphic(await profileFor({uhd: true, model: MODEL_2020, tizenVersion: '10.0'}))).toBe(false);
 	});
 });

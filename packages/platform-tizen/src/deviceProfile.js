@@ -653,12 +653,13 @@ export const getJellyfinDeviceProfile = async (options = {}) => {
 			Type: 'Video',
 			Codec: 'h264',
 			Conditions: [
-				{
+				// Tizen 6 and later show non-square pixels at the right shape.
+				...(isOldTizen ? [{
 					Condition: 'NotEquals',
 					Property: 'IsAnamorphic',
 					Value: 'true',
 					IsRequired: false
-				},
+				}] : []),
 				{
 					Condition: 'NotEquals',
 					Property: 'IsInterlaced',
