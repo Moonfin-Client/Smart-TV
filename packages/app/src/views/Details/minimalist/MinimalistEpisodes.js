@@ -88,6 +88,8 @@ const MinimalistEpisodes = ({
 			onSelect={handleSelect}
 			large={large}
 			wide={large && largeWidth >= WIDE_CARD}
+			episode={episode}
+			serverUrl={serverUrl}
 		/>
 	), [serverUrl, settings, handleSelect, item.Type, item.Id, cardWidth, large, largeWidth]);
 

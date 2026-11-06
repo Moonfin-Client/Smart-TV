@@ -8,8 +8,10 @@ import {showsWatchedCheck} from '../../utils/playedState';
 import SeerrIcon from '../icons/SeerrIcon';
 import {AnimeCardPill} from '../AnimeMarkerPills';
 import IncompleteBadge from '../IncompleteBadge';
+import PosterLabels from '../PosterLabels';
 import LoopMarquee from '../LoopMarquee';
 import useItemMenuHold from '../../hooks/useItemMenuHold';
+import useImageReveal, {pendingArtStyle} from '../../hooks/useImageReveal';
 import {isUnownedSeerrTitle, seerrThumbUrl, seerrWideArtUrl, useTmdbThumbsAvailable} from '../../utils/tmdbThumb';
 import {useMediaPreviewSlot} from './MediaPreviewContext';
 
@@ -107,7 +109,7 @@ const episodeArtwork = (item, serverUrl, imageType, useSeriesArt) => {
 	return preferred || still;
 };
 
-const MediaCard = ({item, serverUrl, cardType = 'portrait', rowImageType = 'poster', onSelect, onFocusItem, showServerBadge = false, eagerLoad = false, deferImage = false, seerrSeasonStatus, spotlightId, onSpotlightLeft, onSpotlightRight, menuOptions, size, current = false, homeText = false, overlay = null, showInfo = true}) => {
+const MediaCard = ({item, serverUrl, cardType = 'portrait', rowImageType = 'poster', onSelect, onFocusItem, showServerBadge = false, eagerLoad = false, deferImage = false, seerrSeasonStatus, spotlightId, onSpotlightLeft, onSpotlightRight, menuOptions, size, current = false, homeText = false, overlay = null, showInfo = true, posterLabels = false}) => {
 	const {settings} = useSettings();
 	const focusTimeoutRef = useRef(null);
 
@@ -153,6 +155,7 @@ const MediaCard = ({item, serverUrl, cardType = 'portrait', rowImageType = 'post
 	const isSquare = !isBanner && (isCircle || cardType === 'square' || (cardType === 'portrait' && !isLandscape && (item.Type === 'MusicAlbum' || item.Type === 'MusicArtist' || item.Type === 'Audio')));
 
 	const imageUrl = useMemo(() => {
+		if (item._studioLogoUrl) return item._studioLogoUrl;
 		// Ahead of the external poster, which would otherwise keep the card a poster.
 		if (seerrWide) return seerrWide;
 
@@ -211,6 +214,8 @@ const MediaCard = ({item, serverUrl, cardType = 'portrait', rowImageType = 'post
 		// item already said it has nothing behind.
 		return null;
 	}, [isLandscape, item, itemServerUrl, rowArtwork, episodeArtUrl, seerrWide]);
+
+	const {shown: artShown, bind: artBind} = useImageReveal(deferImage ? null : imageUrl);
 
 	const handleImageError = useCallback(() => {
 		if (seerrThumb && imageUrl === seerrThumb) setFailedThumb(seerrThumb);
@@ -318,9 +323,10 @@ const MediaCard = ({item, serverUrl, cardType = 'portrait', rowImageType = 'post
 	const imgSizeStyle = sized ? {height: cardHeight + 'px'} : undefined;
 	// Logos and studio art have to sit inside the card whole. Everything else takes
 	// the cover the stylesheet already applies, so it stays out of the inline style.
-	const imgStyle = imageType === 'logo' || item.Type === 'Studio' || item.Type === 'Network'
+	const fitStyle = imageType === 'logo' || item.Type === 'Studio' || item.Type === 'Network'
 		? {...imgSizeStyle, objectFit: 'contain'}
 		: imgSizeStyle;
+	const imgStyle = artShown ? fitStyle : {...fitStyle, ...pendingArtStyle};
 
 	return (
 		<SpottableDiv {...menuHold} className={cardClass} data-media-card onClick={handleClick} onFocus={handleFocus} onBlur={handleBlur} onMouseEnter={onPreviewFocus} onMouseLeave={handleMouseLeave} style={sizeStyle} spotlightId={spotlightId} onSpotlightLeft={onSpotlightLeft} onSpotlightRight={onSpotlightRight}>
@@ -332,9 +338,11 @@ const MediaCard = ({item, serverUrl, cardType = 'portrait', rowImageType = 'post
 							src={deferImage ? undefined : imageUrl}
 							alt={deferImage ? '' : item.Name}
 							loading={eagerLoad ? 'eager' : 'lazy'}
+							decoding="async"
 							width={cardWidth}
 							height={cardHeight}
 							style={imgStyle}
+							{...artBind}
 							onError={handleImageError}
 						/>
 						{(item?.Type === 'Genre' || item?.Type === 'MusicGenre') && (
@@ -403,6 +411,15 @@ const MediaCard = ({item, serverUrl, cardType = 'portrait', rowImageType = 'post
 
 						<IncompleteBadge itemId={item.Id} belowFavorite={item.UserData?.IsFavorite} belowBanner={Boolean(bannerStatus)} />
 						<AnimeCardPill item={item} serverUrl={itemServerUrl} hasProgressBar={showIndicators && progress > 0} />
+						{posterLabels && (
+							<PosterLabels
+								item={item}
+								serverUrl={itemServerUrl}
+								top={item.UserData?.IsFavorite ? 40 : 8}
+								topRight={(showIndicators && showsWatchedCheck(item)) || ((showServerBadge || item._external) && item._serverName) ? 40 : 8}
+								bottom={showIndicators && progress > 0 ? 26 : 8}
+							/>
+						)}
 					</>
 				)}
 			</div>

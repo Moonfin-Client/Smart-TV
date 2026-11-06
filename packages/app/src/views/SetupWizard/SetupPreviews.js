@@ -993,6 +993,7 @@ const useNavButtons = (rail, hasLiveTv) => {
 		hasLiveTv,
 		seerrEnabled: seerr.isEnabled,
 		seerrLabel: seerr.displayName,
+		calendarAvailable: seerr.pluginInfo?.calendarAvailable === true,
 		serverType,
 		socialAvailable,
 		libraries: memoryCache.libraries

@@ -38,6 +38,7 @@ import {buildBrowseRows, sameRowList} from './buildBrowseRows';
 import {markHomeReady} from '../../utils/homeReady';
 import {homeBackdropStyle} from '../../utils/homeBackdropStyle';
 import {rem} from '../../utils/rootScale';
+import {glideScroll, stopScrollAnimation} from '../../utils/focusScroll';
 import {rowImageType, rowPeekHeight} from './rowPeek';
 
 import css from './Browse.module.less';
@@ -61,6 +62,9 @@ const LOADING_ROW_TITLE_WIDTHS = skeletonTitleWidths(4, 24);
 
 let lastFocusState = null;
 
+// The Radarr and Sonarr rows, or the one they merge into, which keeps the Radarr id.
+const CALENDAR_ROW_IDS = ['radarr_calendar', 'sonarr_calendar'];
+
 const Browse = ({
 	onSelectItem,
 	onSelectLibrary,
@@ -72,6 +76,7 @@ const Browse = ({
 	onSelectSeerrStudio,
 	onSelectSeerrNetwork,
 	onOpenSeerrShortcut,
+	onOpenCalendarMonth,
 	isVisible = true,
 	onFocusItemThemeMusic,
 	onBlurItemThemeMusic,
@@ -325,7 +330,7 @@ const Browse = ({
 	// With the info overlay above the rows the row pins right under the overlay,
 	// leaving a tall row its room below at every UI scale. Without the overlay
 	// the scroller itself starts under the navbar, so the row pins at its top.
-	const restRowScroll = useCallback((rowIndex) => {
+	const restRowScroll = useCallback((rowIndex, start) => {
 		const container = contentRowsRef.current;
 		if (!container) return;
 		// The ref a row hands over is the spotlight container component rather
@@ -342,22 +347,25 @@ const Browse = ({
 		const {showTopInfoArea: overlay, navbarPosition} = liveRef.current;
 		const topbarOffset = overlay && navbarPosition !== 'left' ? 20 : 0;
 		const top = Math.max(0, targetRow.offsetTop - topbarOffset);
-		if (Math.abs(container.scrollTop - top) > 1) container.scrollTop = top;
+		glideScroll(container, 'y', top, start);
 	}, []);
 
 	// Focus scrolling lands wherever the engine likes, sometimes with the row's bottom past the
 	// screen, and it lands after the focus handlers, so the row is put back at its resting spot on
 	// the frames behind it. However many moves ask, each frame settles once.
-	const settleRef = useRef({row: -1, passes: 0, frame: 0});
-	const settleRow = useCallback((rowIndex, passes) => {
+	// `start` is where the rows sat before the browser's focus scroll moved them, so the glide begins from there.
+	const settleRef = useRef({row: -1, passes: 0, frame: 0, start: undefined});
+	const settleRow = useCallback((rowIndex, passes, start) => {
 		const settle = settleRef.current;
 		settle.row = rowIndex;
+		if (typeof start === 'number' && settle.start === undefined) settle.start = start;
 		settle.passes = Math.max(settle.passes, passes);
 		if (settle.frame) return;
 		const step = () => {
 			settle.frame = 0;
 			pinMainScroll();
-			restRowScroll(settle.row);
+			restRowScroll(settle.row, settle.start);
+			settle.start = undefined;
 			settle.passes -= 1;
 			if (settle.passes > 0) settle.frame = window.requestAnimationFrame(step);
 		};
@@ -623,6 +631,14 @@ const Browse = ({
 		}
 	}, [onSelectItem, onSelectLibrary, onOpenRecordings, onPlayRecording, onBlurItemThemeMusic, onLeaveThemeMusic, rememberFocus, mediaPreview]);
 
+	const handleCalendarSeeAll = useCallback(() => {
+		mediaPreview.stop('select');
+		onBlurItemThemeMusic?.();
+		onLeaveThemeMusic?.();
+		rememberFocus();
+		onOpenCalendarMonth?.(new Date());
+	}, [onOpenCalendarMonth, onBlurItemThemeMusic, onLeaveThemeMusic, rememberFocus, mediaPreview]);
+
 	const handleSelectGenreItem = useCallback((item) => {
 		mediaPreview.stop('select');
 		onBlurItemThemeMusic?.();
@@ -678,15 +694,17 @@ const Browse = ({
 	// handler that cant navigate. These always call the current one.
 	const latestSelectRef = useRef(null);
 	useLayoutEffect(() => {
-		latestSelectRef.current = {item: handleSelectItem, genre: handleSelectGenreItem, seerr: handleSelectSeerrItem, external: handleSelectExternalItem};
-	}, [handleSelectItem, handleSelectGenreItem, handleSelectSeerrItem, handleSelectExternalItem]);
+		latestSelectRef.current = {item: handleSelectItem, genre: handleSelectGenreItem, seerr: handleSelectSeerrItem, external: handleSelectExternalItem, calendar: handleCalendarSeeAll};
+	}, [handleSelectItem, handleSelectGenreItem, handleSelectSeerrItem, handleSelectExternalItem, handleCalendarSeeAll]);
 	const rowSelect = useMemo(() => ({
 		item: (picked, autoPlay) => latestSelectRef.current.item(picked, autoPlay),
 		cwPlay: (picked) => latestSelectRef.current.item(picked, true),
 		genre: (picked) => latestSelectRef.current.genre(picked),
 		seerr: (picked) => latestSelectRef.current.seerr(picked),
-		external: (picked) => latestSelectRef.current.external(picked)
+		external: (picked) => latestSelectRef.current.external(picked),
+		calendar: () => latestSelectRef.current.calendar()
 	}), []);
+	const calendarSeeAll = settings.calendarRowSeeAll !== false && pluginInfo?.calendarAvailable === true && Boolean(onOpenCalendarMonth);
 
 	const continueWatchingMenuOptions = useMemo(() => ({
 		isContinueWatchingOrNextUp: true,
@@ -742,7 +760,7 @@ const Browse = ({
 			pinMainScroll();
 			return;
 		}
-		settleRow(rowIndex, rowChanged ? 2 : 1);
+		settleRow(rowIndex, rowChanged ? 2 : 1, contentRowsRef.current?.scrollTop);
 	}, [setBrowseMode, pinMainScroll, settleRow, loadSectionsNear]);
 
 	const backdropTimerRef = useRef(null);
@@ -776,7 +794,11 @@ const Browse = ({
 
 	// Rows mode leaves the scroller wherever the last row pinned it, and the peek shows its top.
 	useLayoutEffect(() => {
-		if (rowPeek && contentRowsRef.current) contentRowsRef.current.scrollTop = 0;
+		const container = contentRowsRef.current;
+		if (!rowPeek || !container) return;
+		// A row glide still under way would write its offset back over this on its next frame.
+		stopScrollAnimation(container);
+		container.scrollTop = 0;
 	}, [rowPeek]);
 
 	const navOffsetClass = settings.navbarPosition === 'left' ? css.sidebarOffset : css.topbarOffset;
@@ -991,8 +1013,11 @@ const Browse = ({
 						const rowMenuOptions = isCwOrNextUp
 							? continueWatchingMenuOptions
 							: undefined;
+						// Studio art is a wide logo that Modern's portrait cards would crop, so the row stays
+						// classic in either style.
+						const Row = row.id === 'studios' ? ClassicMediaRow : RowComponent;
 						return (
-							<RowComponent
+							<Row
 								key={row.id}
 								rowId={row.id}
 								title={row.title}
@@ -1014,7 +1039,9 @@ const Browse = ({
 								menuOptions={rowMenuOptions}
 								ratingsSurface='homeRows'
 								hideOverview={settings.hideHomeMediaDescription === true}
+								posterLabels={!row.isSeerrRow && !row.isOnlineRecoRow && !row.isGenreRow}
 								onLoadMore={row.hasMore ? loadMoreRow : undefined}
+								onCalendarSeeAll={calendarSeeAll && CALENDAR_ROW_IDS.indexOf(row.id) >= 0 ? rowSelect.calendar : undefined}
 							/>
 						);
 					})}

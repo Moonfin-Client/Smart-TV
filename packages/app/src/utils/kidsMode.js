@@ -88,7 +88,9 @@ const KIDS_MODE_BLOCKED_PANELS = [
 	'SEERR_DISCOVER',
 	'SEERR_REQUESTS',
 	'SEERR_BROWSE',
-	'SEERR_PERSON'
+	'SEERR_PERSON',
+	'CALENDAR',
+	'CALENDAR_MONTH'
 ];
 
 export const blockedPanels = (panels) =>

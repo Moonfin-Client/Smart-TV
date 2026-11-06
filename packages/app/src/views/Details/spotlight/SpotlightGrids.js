@@ -24,7 +24,7 @@ const Icon = ({path}) => (
 	</svg>
 );
 
-const MediaGrid = ({items, serverUrl, aspect, seasonStatus, currentId, onSelect, firstSpotlightId, menuOptions}) => (
+const MediaGrid = ({items, serverUrl, aspect, seasonStatus, currentId, onSelect, firstSpotlightId, menuOptions, posterLabels}) => (
 	<RowContainer className={css.grid}>
 		{items.map((item, index) => (
 			<MediaCard
@@ -37,6 +37,7 @@ const MediaGrid = ({items, serverUrl, aspect, seasonStatus, currentId, onSelect,
 				onSelect={onSelect}
 				spotlightId={index === 0 ? firstSpotlightId : undefined}
 				menuOptions={menuOptions}
+				posterLabels={posterLabels}
 			/>
 		))}
 	</RowContainer>
@@ -156,7 +157,7 @@ const ChaptersGrid = ({item, serverUrl, onSelect, firstSpotlightId}) => {
 const SpotlightSection = ({section, serverUrl, actions, seerr, firstSpotlightId}) => {
 	switch (section.kind) {
 		case 'media':
-			return <MediaGrid items={section.items} serverUrl={serverUrl} aspect={section.aspect} seasonStatus={section.seasonStatus} currentId={section.currentId} onSelect={actions.openItem} firstSpotlightId={firstSpotlightId} menuOptions={section.collectionMembers ? actions.collectionMenu : undefined} />;
+			return <MediaGrid items={section.items} serverUrl={serverUrl} aspect={section.aspect} seasonStatus={section.seasonStatus} currentId={section.currentId} onSelect={actions.openItem} firstSpotlightId={firstSpotlightId} menuOptions={section.collectionMembers ? actions.collectionMenu : undefined} posterLabels={section.posterLabels} />;
 		case 'seerr':
 			return <SeerrGrid items={section.items} serverUrl={serverUrl} showCredit={section.showCredit} onSelect={actions.openSeerrItem} firstSpotlightId={firstSpotlightId} />;
 		case 'people':

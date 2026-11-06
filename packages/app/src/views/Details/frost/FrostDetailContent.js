@@ -6,6 +6,7 @@ import {portal, useDialogLayer} from '../../../components/CoreDialog/CoreDialog'
 import {IncompleteDetailLine} from '../../../components/IncompleteBadge';
 import SeerrIcon from '../../../components/icons/SeerrIcon';
 import PagedText from '../../../components/PagedText';
+import PosterLabels from '../../../components/PosterLabels';
 import RatingsRow from '../../../components/RatingsRow';
 import {SeerrSeasonDot} from '../../../components/seerr/SeerrStatusBadge';
 import SeerrStatusBanner, {seerrBadgeStyle, seerrTitleStatus} from '../../../components/seerr/SeerrStatusBanner';
@@ -458,7 +459,12 @@ const FrostScreen = (props) => {
 					const progress = resumeLine(episode);
 					return (
 						<SpottableDiv key={episode.Id} className={css.row} data-frost-key={`episodes:${i}`} data-index={i} onClick={handleEpisode}>
-							{thumb(tag ? getImageUrl(effectiveServerUrl, episode.Id, 'Primary', {maxWidth: 400, quality: 90, tag}) : null, css.still)}
+							{thumb(
+								tag ? getImageUrl(effectiveServerUrl, episode.Id, 'Primary', {maxWidth: 400, quality: 90, tag}) : null,
+								css.still,
+								// Held further in, clear of the still's large rounded corners.
+								<PosterLabels item={episode} serverUrl={effectiveServerUrl} scale={0.8} inset={14} top={14} topRight={14} bottom={14} />
+							)}
 							<div className={css.rowText}>
 								{episode.IndexNumber != null && (
 									<div className={css.caps}>{$L('Episode {number}').replace('{number}', episode.IndexNumber)}</div>

@@ -17,6 +17,7 @@ import useSkipFailedTrack from './audio/useSkipFailedTrack';
 import {handleAudioFocusKey, exitAudioPanel, nextAudioFocusRow, focusAudioRow, forgetDockFocus} from './audio/audioFocus';
 import {detectPlatformVersion, getH264FallbackProfile} from '../../services/deviceProfile';
 import {initPgsRenderer, initPgsInBandRenderer, disposePgsRenderer} from '../../utils/pgsRenderer';
+import {createInBandTextSource} from '../../utils/mkvTextSource';
 import {supportsAssRenderer, initAssCanvasRenderer, disposeAssRenderer, setAssTime, clearAssCanvas} from '../../utils/assRenderer';
 import {waitForAssReady} from '../../utils/assRendererReady';
 import {
@@ -73,6 +74,7 @@ import {isTrickplayOn} from '../../utils/trickplayLayout';
 import useChannelCarousel, {liveTvApiFor} from './useChannelCarousel';
 import ChannelCarousel from './ChannelCarousel';
 import NextUpOverlay from './NextUpOverlay';
+import useNextAirDate from './useNextAirDate';
 import SkipSegmentOverlay from './SkipSegmentOverlay';
 import StillWatchingDialog from './StillWatchingDialog';
 import useBufferingAnimation from './useBufferingAnimation';
@@ -224,6 +226,9 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 	const [remoteSubtitleError, setRemoteSubtitleError] = useState(null);
 	const [mediaSegments, setMediaSegments] = useState(null);
 	const [nextEpisode, setNextEpisode] = useState(null);
+	const nextAirDate = useNextAirDate({item, nextEpisode, settings});
+	// Up once an episode with nothing after it in the library has ended, over its last frame.
+	const [airDateCard, setAirDateCard] = useState(false);
 	const [isSeeking, setIsSeeking] = useState(false);
 	const [seekPosition, setSeekPosition] = useState(0);
 	const [mediaSourceId, setMediaSourceId] = useState(null);
@@ -396,6 +401,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 	const lastSeekTimeRef = useRef(0);
 	const mediaUrlRef = useRef(null);
 	const pgsRendererRef = useRef(null);
+	const textSourceRef = useRef(null);
 	// Invalidates async PGS starts when the user changes track/item before one finishes.
 	const pgsInitGenRef = useRef(0);
 	// Re-runs the PGS setup of the current subtitle, for a seek that left the in band
@@ -756,6 +762,39 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 		});
 	}, [trackSubtitleFetch]);
 
+	const disposeTextSource = useCallback(() => {
+		textSourceRef.current?.dispose();
+		textSourceRef.current = null;
+	}, []);
+
+	// An SRT track left inside the file is read out of it near the playhead, and only a
+	// track that can't be read that way is asked of the server.
+	const startInBandText = useCallback((stream) => {
+		disposeTextSource();
+		setSubtitleTrackEvents(null);
+		const {streamUrl, ordinal, language} = stream.inBandText;
+		const source = createInBandTextSource({
+			streamUrl,
+			subtitleOrdinal: ordinal,
+			language,
+			// The overlay looks lines up at the video time minus the offset, so the window does too.
+			getTime: () => (videoRef.current?.currentTime || 0) - subtitleOffsetRef.current,
+			onEvents: (events) => {
+				if (textSourceRef.current === source) setSubtitleTrackEvents((previous) => [...(previous || []), ...events]);
+			}
+		});
+		textSourceRef.current = source;
+		source.ready.then((ok) => {
+			if (textSourceRef.current !== source) return;
+			serverLogger.playback(ok ?
+				'Playback: reading the embedded text track out of the file' :
+				'Playback: embedded text track unreadable from the file, fetching it from the server', {index: stream.index, ordinal, language});
+			if (ok) return;
+			textSourceRef.current = null;
+			loadTextTrack(stream);
+		});
+	}, [disposeTextSource, loadTextTrack]);
+
 	useEffect(() => {
 		const init = async () => {
 			await initPlayerPlatform();
@@ -1006,6 +1045,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 			// or burned in never reaches loadSubtitleData to clear these.
 			pgsInitGenRef.current++;
 			disposePgsRenderer(pgsRendererRef.current);
+			disposeTextSource();
 			pgsRendererRef.current = null;
 			pgsInitRef.current = null;
 			disposeAssRenderer(assRendererRef.current);
@@ -1190,6 +1230,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 				const loadSubtitleData = async (sub) => {
 					pgsInitGenRef.current++;
 					disposePgsRenderer(pgsRendererRef.current);
+					disposeTextSource();
 					pgsRendererRef.current = null;
 					pgsInitRef.current = null;
 					assInitGenRef.current++;
@@ -1213,6 +1254,8 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 					} else if (sub && sub.hostRendered) {
 						showHostSubtitle(videoRef.current, sub.index);
 						setSubtitleTrackEvents(null);
+					} else if (sub && sub.inBandText) {
+						startInBandText(sub);
 					} else if (sub && sub.isTextBased) {
 						loadTextTrack(sub);
 					} else if (sub && sub.isImageBased && settings.enablePgsRendering) {
@@ -1320,12 +1363,15 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 				clearTimeout(scrubSettleTimerRef.current);
 				pgsInitGenRef.current++; // eslint-disable-line react-hooks/exhaustive-deps
 				disposePgsRenderer(pgsRendererRef.current);
+				disposeTextSource();
 				pgsInitRef.current = null;
 				disposeAssRenderer(assRendererRef.current);
 				clearAssCanvas(assCanvas);
 				return;
 			}
 
+			// Its loop polls forever otherwise, and the next item starts its own.
+			disposeTextSource();
 			const videoTime = videoElement ? videoElement.currentTime + streamOffsetRef.current : 0;
 			const videoTicks = Math.floor(videoTime * 10000000);
 			const currentPos = videoTicks > 0 ? videoTicks : positionRef.current;
@@ -1362,7 +1408,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 			}
 		};
 	// eslint-disable-next-line react-hooks/exhaustive-deps
-	}, [item, resume, onPlayNext, selectedQuality, settings.maxBitrate, settings.preferTranscode, settings.forceDirectPlay, settings.forceTruehdPassthrough, forceTranscode, settings.subtitleMode, settings.introAction, settings.outroAction, initialAudioIndex, initialSubtitleIndex, tuneRevision, loadTextTrack]);
+	}, [item, resume, onPlayNext, selectedQuality, settings.maxBitrate, settings.preferTranscode, settings.forceDirectPlay, settings.forceTruehdPassthrough, forceTranscode, settings.subtitleMode, settings.introAction, settings.outroAction, initialAudioIndex, initialSubtitleIndex, tuneRevision, loadTextTrack, startInBandText, disposeTextSource]);
 
 	// Another client can queue more while this plays, and what it puts behind this plays next.
 	useEffect(() => {
@@ -2278,6 +2324,13 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 			return;
 		}
 
+		// The library has nothing after this episode, so the card says when the next one airs.
+		if (nextAirDate && !audioPlaylist) {
+			hideControls();
+			setAirDateCard(true);
+			return;
+		}
+
 		isCleaningUpRef.current = true;
 		destroyHlsPlayer();
 		await cleanupVideoElement(videoRef.current);
@@ -2292,7 +2345,23 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 		} else {
 			onEnded?.();
 		}
-	}, [onEnded, onPlayNext, nextEpisode, audioPlaylist, repeatMode, restartCurrent, getNextStep, settings.autoPlay, item, liveRecovery, shouldHoldForStillWatching]);
+	}, [onEnded, onPlayNext, nextEpisode, nextAirDate, hideControls, audioPlaylist, repeatMode, restartCurrent, getNextStep, settings.autoPlay, item, liveRecovery, shouldHoldForStillWatching]);
+
+	// The episode has ended, so closing the card leaves the player.
+	const closeAirDateCard = useCallback(async () => {
+		setAirDateCard(false);
+		isCleaningUpRef.current = true;
+		destroyHlsPlayer();
+		await cleanupVideoElement(videoRef.current);
+		onEnded?.();
+	}, [onEnded]);
+
+	const airDateTimeout = settings.nextUpTimeout ?? 7;
+	useEffect(() => {
+		if (!airDateCard || airDateTimeout <= 0) return undefined;
+		const timer = setTimeout(closeAirDateCard, airDateTimeout * 1000);
+		return () => clearTimeout(timer);
+	}, [airDateCard, airDateTimeout, closeAirDateCard]);
 
 	const handleError = useCallback(async () => {
 		// A network failure, or a source Silo stopped serving (a token it no longer takes), after the stream had played.
@@ -2799,6 +2868,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 
 		pgsInitGenRef.current++;
 		disposePgsRenderer(pgsRendererRef.current);
+		disposeTextSource();
 		pgsRendererRef.current = null;
 		pgsInitRef.current = null;
 		assInitGenRef.current++;
@@ -2848,6 +2918,8 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 				setSubtitleTrackEvents(null);
 			} else if (stream && stream.isAss && supportsAssRenderer()) {
 				await initAssRendererForStream(stream);
+			} else if (stream && stream.inBandText) {
+				startInBandText(stream);
 			} else if (stream && stream.isTextBased) {
 				loadTextTrack(stream);
 			} else if (stream && stream.isImageBased && settings.enablePgsRendering) {
@@ -2864,7 +2936,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 		if (shouldClose) {
 			closeModal();
 		}
-	}, [item, subtitleStreams, closeModal, settings.enablePgsRendering, initAssRendererForStream, initPgsRendererForStream, loadTextTrack, reloadWithSubtitleIndex, releaseSecondaryIfPrimary, clearSubtitleFetch]);
+	}, [item, subtitleStreams, closeModal, settings.enablePgsRendering, initAssRendererForStream, initPgsRendererForStream, loadTextTrack, startInBandText, disposeTextSource, reloadWithSubtitleIndex, releaseSecondaryIfPrimary, clearSubtitleFetch]);
 
 	const handleOpenRemoteSubtitleSearch = useCallback(async () => {
 		if (!item?.Id) return;
@@ -3517,6 +3589,14 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 			// Music playing behind the other screens leaves the remote to them, all but its media keys.
 			if (background && !isMediaKey(e)) return;
 			const key = e.key || e.keyCode;
+			// The air date card holds the remote, with OK on its close button and Back closing it.
+			if (airDateCard) {
+				if (key === 'Enter' || e.keyCode === 13) return;
+				e.preventDefault();
+				e.stopPropagation();
+				if (isBackKey(e) || key === 'GoBack') closeAirDateCard();
+				return;
+			}
 			// The channel carousel takes every key while it's up.
 			if (carouselOpenRef.current) return;
 			// The pointer timing out isn't the viewer asking for the controls. It's left alone rather than
@@ -3800,6 +3880,16 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 
 			{askStillWatching && (
 				<StillWatchingDialog onContinue={handleStillWatchingContinue} onStop={handleStillWatchingStop} />
+			)}
+
+			{airDateCard && nextAirDate && (
+				<NextEpisodeContainer spotlightRestrict="self-only">
+					<NextUpOverlay
+						airDate={nextAirDate}
+						minimal={settings.nextUpBehavior === 'minimal'}
+						onDismiss={closeAirDateCard}
+					/>
+				</NextEpisodeContainer>
 			)}
 
 			{!isLoading && !error && (showSkipCredits || showNextEpisode) && nextEpisode && !isAudioMode && !activeModal && !controlsVisible && (

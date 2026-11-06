@@ -107,6 +107,8 @@ const GameSystem = lazy(() => import('../views/GameSystem'));
 const GameDetails = lazy(() => import('../views/GameDetails'));
 const GamePlayer = lazy(() => import('../views/GamePlayer'));
 const SetupWizard = lazy(() => import('../views/SetupWizard'));
+const Calendar = lazy(() => import('../views/Calendar'));
+const CalendarMonth = lazy(() => import('../views/Calendar/CalendarMonth'));
 
 import '../styles/perf-overrides.less';
 import css from './App.module.less';
@@ -178,7 +180,9 @@ const PANELS = {
 	GAME_DETAILS: 19,
 	GAME_PLAYER: 20,
 	SEERR_COLLECTION: 21,
-	GAME_SYSTEM: 22
+	GAME_SYSTEM: 22,
+	CALENDAR: 23,
+	CALENDAR_MONTH: 24
 };
 
 const AppContent = (props) => {
@@ -1357,11 +1361,12 @@ const AppContent = (props) => {
 		// Music stopped from the mini player ends wherever the viewer already is.
 		if (panelIndex === PANELS.PLAYER) {
 			handleBack();
-			// A viewer in a Watch Party goes back to its room, where they can rejoin, rather than to the item's page.
+			// A viewer in a Watch Party or a SyncPlay group goes back to its dialog, where they can rejoin, rather than to the item's page.
 			if (watchPartyRoom) openWatchParty();
+			else if (isSyncPlayInGroup) openSyncPlay();
 		}
 		window.dispatchEvent(new CustomEvent('moonfin:browseRefresh'));
-	}, [handleBack, panelHistory, selectedItem, playingItem, panelIndex, watchPartyRoom, openWatchParty]);
+	}, [handleBack, panelHistory, selectedItem, playingItem, panelIndex, watchPartyRoom, openWatchParty, isSyncPlayInGroup, openSyncPlay]);
 
 	const handlePlayerBackground = useCallback(() => {
 		setMusicInBackground(true);
@@ -1534,6 +1539,16 @@ const AppContent = (props) => {
 
 	const handleOpenSeerr = useCallback(() => {
 		navigateTo(PANELS.SEERR_DISCOVER);
+	}, [navigateTo]);
+
+	const [calendarMonthDay, setCalendarMonthDay] = useState(null);
+	const handleOpenCalendar = useCallback(() => {
+		if (panelIndex !== PANELS.CALENDAR) navigateTo(PANELS.CALENDAR);
+	}, [navigateTo, panelIndex]);
+	// The month grid opens at the day given, today when there's none.
+	const handleOpenCalendarMonth = useCallback((day) => {
+		setCalendarMonthDay(day instanceof Date ? day : null);
+		navigateTo(PANELS.CALENDAR_MONTH);
 	}, [navigateTo]);
 
 	const handleHome = useCallback(() => {
@@ -1907,6 +1922,9 @@ const AppContent = (props) => {
 			case PANELS.SEERR_BROWSE:
 			case PANELS.SEERR_PERSON:
 				return 'discover';
+			case PANELS.CALENDAR:
+			case PANELS.CALENDAR_MONTH:
+				return 'calendar';
 			case PANELS.LIBRARY: return selectedLibrary?.Id || '';
 			default: return '';
 		}
@@ -1943,6 +1961,7 @@ const AppContent = (props) => {
 					onFavorites={handleOpenFavorites}
 					onLiveTv={handleOpenLiveTv}
 					onDiscover={handleOpenSeerr}
+					onCalendar={handleOpenCalendar}
 					onSyncPlay={settings.syncplayEnabled !== false ? openWatchTogether : undefined}
 					onSettings={handleOpenSettings}
 					onSelectLibrary={handleSelectLibrary}
@@ -1965,6 +1984,7 @@ const AppContent = (props) => {
 					onFavorites={handleOpenFavorites}
 					onLiveTv={handleOpenLiveTv}
 					onDiscover={handleOpenSeerr}
+					onCalendar={handleOpenCalendar}
 					onSyncPlay={settings.syncplayEnabled !== false ? openWatchTogether : undefined}
 					onSettings={handleOpenSettings}
 					onSelectLibrary={handleSelectLibrary}
@@ -2187,6 +2207,24 @@ const AppContent = (props) => {
 								/>
 							)}
 						</Panel>
+						<Panel>
+							{panelIndex === PANELS.CALENDAR && (
+								<Calendar
+									onSelectItem={handleSelectItem}
+									onSelectSeerrItem={handleSelectSeerrItem}
+									onOpenMonth={handleOpenCalendarMonth}
+								/>
+							)}
+						</Panel>
+						<Panel>
+							{panelIndex === PANELS.CALENDAR_MONTH && (
+								<CalendarMonth
+									initialDay={calendarMonthDay}
+									onSelectItem={handleSelectItem}
+									onSelectSeerrItem={handleSelectSeerrItem}
+								/>
+							)}
+						</Panel>
 					</Panels>
 				</Suspense>
 				{/* Its own boundary, so a screen loading for the first time can't swap out music playing behind it. */}
@@ -2230,6 +2268,7 @@ const AppContent = (props) => {
 							onSelectSeerrStudio={handleSelectSeerrStudio}
 							onSelectSeerrNetwork={handleSelectSeerrNetwork}
 							onOpenSeerrShortcut={handleOpenSeerrShortcut}
+							onOpenCalendarMonth={handleOpenCalendarMonth}
 							isVisible={panelIndex === PANELS.BROWSE && !showSettingsPanel && !pickingHousehold}
 							backHandlerRef={backHandlerRef}
 							onFocusItemThemeMusic={backgroundMusic ? undefined : themeMusic.playThemeMusicDelayed}

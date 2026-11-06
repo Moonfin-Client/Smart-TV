@@ -324,6 +324,20 @@ describe('SYNCABLE_KEYS', () => {
 		expect(SYNCABLE_KEYS).toContain('mediaPreviewMode');
 		expect(SYNCABLE_KEYS).toContain('previewAudioEnabled');
 	});
+
+	test('syncs every calendar setting under its own name', () => {
+		const calendarKeys = [
+			'showCalendarButton', 'calendarStyle', 'calendarWeekStart', 'calendarScope', 'calendarShowEpisodes',
+			'calendarShowMovies', 'calendarLibraryIds', 'calendarIncludeUnmonitored', 'calendarShowSpecials',
+			'calendarShowBadges', 'calendarColorBy', 'calendarImageType', 'calendarSpoilerSafe', 'calendarSelectAction',
+			'calendarRequestButton', 'calendarReminders', 'calendarRowSeeAll', 'showNextAirDate'
+		];
+		const profile = localToProfile({...defaultSettings, calendarReminders: true}, calendarKeys);
+
+		expect(Object.keys(profile).sort()).toEqual([...calendarKeys].sort());
+		expect(profile.calendarLibraryIds).toEqual([]);
+		expect(profileToLocal({calendarStyle: 'countdown', calendarLibraryIds: ['a']})).toEqual({calendarStyle: 'countdown', calendarLibraryIds: ['a']});
+	});
 });
 
 describe('the home rows and media bar ratings settings', () => {
@@ -787,6 +801,14 @@ describe('the focus border color', () => {
 		expect(profileToLocal({focusColor: '#ff2e92'}).focusBorderColor).toBe('#ff2e92');
 		expect(profileToLocal({focusColor: ''}).focusBorderColor).toBe('');
 		expect(profileToLocal({focusColor: 'constructor'})).not.toHaveProperty('focusBorderColor');
+	});
+});
+
+describe('the poster labels toggle', () => {
+	test('is on by default and syncs both ways', () => {
+		expect(defaultSettings.showPosterLabels).toBe(true);
+		expect(profileToLocal({showPosterLabels: false}).showPosterLabels).toBe(false);
+		expect(localToProfile({showPosterLabels: false}, ['showPosterLabels'])).toEqual({showPosterLabels: false});
 	});
 });
 

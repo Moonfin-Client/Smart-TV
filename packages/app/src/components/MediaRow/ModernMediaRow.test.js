@@ -26,9 +26,14 @@ jest.mock('../Skeleton', () => ({SkeletonHomeRow: () => null, SkeletonRowTitle: 
 // Like the real card, each one leaves an element beside it in the lane.
 jest.mock('../MediaCard/ModernMediaCard', () => {
 	const React = require('react');
-	return ({item, spotlightId, hideOverview}) => React.createElement(React.Fragment, null,
-		React.createElement('div', {className: 'spottable', tabIndex: -1, 'data-spotlight-id': spotlightId, 'data-hide-overview': String(hideOverview)}, item.Name),
+	return ({item, spotlightId, hideOverview, warmFocusArt}) => React.createElement(React.Fragment, null,
+		React.createElement('div', {className: 'spottable', tabIndex: -1, 'data-spotlight-id': spotlightId, 'data-hide-overview': String(hideOverview), 'data-warm': String(warmFocusArt)}, item.Name),
 		React.createElement('div'));
+});
+
+jest.mock('./CalendarSeeAllCard', () => {
+	const React = require('react');
+	return ({spotlightId}) => React.createElement('div', {className: 'spottable', tabIndex: -1, 'data-spotlight-id': spotlightId});
 });
 
 const items = Array.from({length: 6}, (_, i) => ({Id: `item${i}`, Name: `Title ${i}`}));
@@ -64,6 +69,22 @@ describe('ModernMediaRow', () => {
 		expect(onLoadMore).not.toHaveBeenCalled();
 		focusCard(11);
 		expect(onLoadMore).toHaveBeenCalledWith('trending');
+	});
+
+	it('loads wide art ahead for the card a row is entered on, unless its images are held back', () => {
+		const warm = () => Array.from(document.querySelectorAll('.spottable')).map((card) => card.getAttribute('data-warm'));
+		const {rerender} = draw();
+		expect(warm()).toEqual(['true', 'false', 'false', 'false', 'false', 'false']);
+		rerender(<ModernMediaRow rowId="trending" title="Trending" items={items} rowIndex={2} deferImages />);
+		expect(warm()).not.toContain('true');
+	});
+
+	it('ends the row with the calendar See all card only when asked to', () => {
+		const ids = () => Array.from(document.querySelectorAll('.spottable')).map((card) => card.getAttribute('data-spotlight-id'));
+		const {rerender} = draw();
+		expect(ids()).not.toContain('media-trending-calendar-see-all');
+		rerender(<ModernMediaRow rowId="trending" title="Trending" items={items} rowIndex={2} onCalendarSeeAll={() => {}} />);
+		expect(ids()[ids().length - 1]).toBe('media-trending-calendar-see-all');
 	});
 
 	it('still tells the screen which row took focus', () => {

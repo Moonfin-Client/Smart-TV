@@ -730,6 +730,8 @@ const NouveauDetailContent = (props) => {
 				selectKey={episode.Id}
 				onArtworkSelect={onEpisodeArtwork}
 				onDetailsSelect={onEpisodeDetails}
+				episode={episode}
+				serverUrl={effectiveServerUrl}
 			/>
 		);
 	}

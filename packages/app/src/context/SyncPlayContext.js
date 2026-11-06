@@ -12,7 +12,8 @@ const sameItemId = (a, b) => !!a && !!b && String(a).replace(/-/g, '').toLowerCa
 export const useSyncPlay = () => useContext(SyncPlayContext);
 
 export const SyncPlayProvider = ({children}) => {
-	const {isAuthenticated, serverType} = useAuth();
+	const {isAuthenticated, serverType, user} = useAuth();
+	const userId = user?.Id;
 	const {settings} = useSettings();
 	const [group, setGroup] = useState(null);
 	const [groups, setGroups] = useState([]);
@@ -38,14 +39,22 @@ export const SyncPlayProvider = ({children}) => {
 		};
 	}, [isAuthenticated, serverType, settings.syncplayEnabled]);
 
-	useEffect(() => {
-		if (settings.syncplayEnabled !== false) return;
+	const forgetGroup = useCallback(() => {
+		queueSeqRef.current++;
+		queueItemRef.current = null;
 		setIsDialogOpen(false);
 		setGroup(null);
 		setGroups([]);
 		setPlayQueue(null);
 		setPlayQueueUpdate(null);
-	}, [settings.syncplayEnabled]);
+	}, []);
+
+	useEffect(() => {
+		if (settings.syncplayEnabled === false) forgetGroup();
+	}, [settings.syncplayEnabled, forgetGroup]);
+
+	// A group belongs to the account that joined it, so it's forgotten when that account signs out or another one signs in.
+	useEffect(() => forgetGroup, [userId, forgetGroup]);
 
 	useEffect(() => {
 		if (listenerRef.current) {

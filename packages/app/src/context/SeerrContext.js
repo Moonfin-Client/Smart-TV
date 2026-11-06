@@ -387,7 +387,8 @@ export const SeerrProvider = ({children}) => {
 			isMoonfin,
 			variant,
 			displayName,
-			pluginInfo,
+			// A Plex server has no plugin, and the last one's answer would light up its features there.
+			pluginInfo: authServerType === 'plex' ? null : pluginInfo,
 			moonfinAuthType,
 			api: seerrApi,
 			configureWithMoonfin,

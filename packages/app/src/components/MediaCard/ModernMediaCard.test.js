@@ -164,6 +164,56 @@ describe('ModernMediaCard growing on focus', () => {
 	});
 });
 
+describe('ModernMediaCard sliding open', () => {
+	// Medium, as the card times it.
+	const OPEN_MS = 180;
+	const thumbed = (id) => ({Id: id, Name: 'Film', Type: 'Movie', ProductionYear: 2020, ImageTags: {Primary: 'p', Thumb: 't'}});
+	const art = (container) => container.querySelector('[data-card-art] img:not([alt=""])');
+	const veil = (container) => container.querySelector('[data-card-art] img[alt=""]');
+
+	beforeEach(() => {
+		mockSettings = {modernCardTransitionSpeed: 'medium'};
+	});
+	afterEach(() => {
+		mockSettings = {};
+	});
+
+	it('fades the poster off the wide art as the card opens', () => {
+		const {container} = render(<ModernMediaCard item={thumbed('opens')} serverUrl="http://server" isFocused />);
+		expect(veil(container).style.opacity).toBe('1');
+		passArtWait();
+		expect(art(container).getAttribute('src')).toContain('/Images/Thumb');
+		expect(veil(container).getAttribute('src')).toContain('/Images/Primary');
+		// The poster stays over the wide art until that art is shown.
+		expect(veil(container).style.opacity).toBe('1');
+		fireEvent.load(art(container));
+		expect(veil(container).style.opacity).toBe('0');
+	});
+
+	it('holds the wide art while the card slides shut, then goes back to the poster', () => {
+		const {container, rerender} = render(<ModernMediaCard item={thumbed('closes')} serverUrl="http://server" isFocused />);
+		passArtWait();
+		rerender(<ModernMediaCard item={thumbed('closes')} serverUrl="http://server" />);
+		expect(art(container).getAttribute('src')).toContain('/Images/Thumb');
+		expect(veil(container).style.opacity).toBe('1');
+
+		act(() => {
+			jest.advanceTimersByTime(OPEN_MS);
+		});
+		expect(art(container).getAttribute('src')).toContain('/Images/Primary');
+		expect(veil(container)).toBeNull();
+	});
+
+	it('opens at once with no poster over it when the transition is off', () => {
+		mockSettings = {modernCardTransitionSpeed: 'off'};
+		const {container, rerender} = render(<ModernMediaCard item={thumbed('instant')} serverUrl="http://server" isFocused />);
+		passArtWait();
+		expect(veil(container)).toBeNull();
+		rerender(<ModernMediaCard item={thumbed('instant')} serverUrl="http://server" />);
+		expect(art(container).getAttribute('src')).toContain('/Images/Primary');
+	});
+});
+
 describe('ModernMediaCard description', () => {
 	const film = {Id: 'described', Name: 'Film', Type: 'Movie', ProductionYear: 2020, Overview: 'A story.', ImageTags: {Primary: 'p'}};
 

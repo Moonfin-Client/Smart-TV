@@ -1,0 +1,107 @@
+@import '../../styles/mixins.less';
+
+.frame {
+	position: absolute;
+	top: 0;
+	right: 0;
+	bottom: 0;
+	left: 0;
+	z-index: 5;
+	pointer-events: none;
+}
+
+.corner {
+	position: absolute;
+	display: flex;
+	flex-direction: column;
+	max-width: ~'calc(100% - 16px)';
+}
+
+.topLeft,
+.bottomLeft {
+	align-items: flex-start;
+}
+
+.topRight,
+.bottomRight {
+	align-items: flex-end;
+}
+
+.topLeft,
+.topRight {
+	.flex-col-gap(6px);
+}
+
+// A bottom corner stacks upwards, so the first label sits in the corner.
+.bottomLeft,
+.bottomRight {
+	flex-direction: column-reverse;
+
+	> * + * {
+		margin-bottom: 6px;
+	}
+}
+
+// The card's own badges come before the labels in the markup and can load later, so the labels make
+// room for them.
+[data-card-overlay='incomplete'] ~ .frame .topLeft {
+	margin-top: 32px;
+}
+
+[data-card-overlay='anime'] ~ .frame .bottomLeft {
+	margin-bottom: 30px;
+}
+
+.pill {
+	display: flex;
+	align-items: center;
+	box-sizing: border-box;
+	max-width: 100%;
+	font-weight: 700;
+	letter-spacing: 0.8px;
+	line-height: 1.2;
+	white-space: nowrap;
+	box-shadow: 0 2px 7px rgba(0, 0, 0, 0.35);
+}
+
+.icon,
+.flag {
+	display: block;
+	flex-shrink: 0;
+}
+
+.flag {
+	border-radius: 3px;
+}
+
+.text {
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.flagOnly {
+	position: relative;
+	display: block;
+	flex-shrink: 0;
+	overflow: hidden;
+	box-shadow: 0 2px 7px rgba(0, 0, 0, 0.35);
+
+	img {
+		display: block;
+		width: 100%;
+		height: 100%;
+	}
+
+	// A faint edge, so a mostly white flag still reads on a light poster.
+	&::after {
+		content: '';
+		position: absolute;
+		top: 0;
+		right: 0;
+		bottom: 0;
+		left: 0;
+		border: 0.8px solid rgba(0, 0, 0, 0.25);
+		border-radius: inherit;
+	}
+}

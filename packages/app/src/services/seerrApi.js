@@ -871,6 +871,29 @@ export const getSiloCalendar = (type, start, end) => {
 	return silo ? silo.calendar(type, start, end).catch(() => []) : null;
 };
 
+// A Sonarr or Radarr calendar through Moonbase, which keeps the arr's API key on the server and
+// places each title in a library. It takes the server's own sign-in, not a Seerr session. items is
+// null when the plugin didn't answer, with the status and body that say why.
+export const getArrCalendar = async (service, {start, end, unmonitored = false}, serverUrl, token) => {
+	const sUrl = serverUrl || jellyfinServerUrl;
+	const sToken = token || jellyfinAccessToken;
+	if (!sUrl || !sToken) return {items: null, status: 404, body: ''};
+	const query = `start=${start}&end=${end}${unmonitored ? '&unmonitored=true' : ''}`;
+	const result = await moonbaseFetch(sUrl, sToken, `/Moonfin/Seerr/${service}/Calendar?${query}`, {
+		method: 'GET',
+		headers: {'Accept': 'application/json'},
+		timeout: 20000
+	});
+	if (!result.success) return {items: null, status: 0, body: result.error || ''};
+	if (result.status >= 400) return {items: null, status: result.status, body: result.body};
+	try {
+		const data = JSON.parse(result.body);
+		return {items: Array.isArray(data) ? data : [], status: result.status, body: ''};
+	} catch (e) {
+		return {items: null, status: 0, body: ''};
+	}
+};
+
 export const getRadarrSettings = async () => {
 	return request('/settings/radarr');
 };
@@ -1246,6 +1269,7 @@ export default {
 	getSonarrServers,
 	getSonarrServerDetails,
 	getSiloCalendar,
+	getArrCalendar,
 	getRadarrSettings,
 	getSonarrSettings,
 	discover,

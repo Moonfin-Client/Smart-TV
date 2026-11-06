@@ -25,7 +25,7 @@ export const hasAnimeMarkerPills = (marker, audio) => Boolean(
 );
 
 // The pills for one episode, season or movie.
-const AnimeMarkerPills = ({marker, audio, compact, large, max, className = ''}) => {
+const AnimeMarkerPills = ({marker, audio, compact, large, max, className = '', overlay}) => {
 	const kind = marker?.kind ? KIND_PILLS[marker.kind] : null;
 	const recap = marker?.recap === true;
 	const audioKind = audio || marker?.audio;
@@ -42,7 +42,7 @@ const AnimeMarkerPills = ({marker, audio, compact, large, max, className = ''}) 
 	const rowClass = `${css.row} ${size} ${className}`.trim();
 
 	return (
-		<span className={rowClass}>
+		<span className={rowClass} data-card-overlay={overlay}>
 			{shown.map(p => <span key={p.key} className={`${css.pill} ${p.tone}`}>{$L(p.label)}</span>)}
 		</span>
 	);

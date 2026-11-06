@@ -1,4 +1,4 @@
-import {memo, useCallback, useMemo, useRef, useEffect, useState} from 'react';
+import {memo, useCallback, useMemo, useRef, useEffect, useLayoutEffect, useState} from 'react';
 import {isMdblistEnabled} from '../../services/mdblistApi';
 import Spottable from '@enact/spotlight/Spottable';
 import $L from '@enact/i18n/$L';
@@ -7,6 +7,7 @@ import {getImageUrl, toAbsoluteImageUrl} from '../../utils/helpers';
 import {useSettings} from '../../context/SettingsContext';
 import {getPlatform} from '../../platform';
 import {getPerfTier} from '../../utils/perfTier';
+import {cubicBezier} from '../../utils/focusScroll';
 import {isStaticLibraryCard, modernCardMetrics, getEpisodeLabels, getCardDisplayTitle} from './modernCardLayout';
 import SeerrIcon from '../icons/SeerrIcon';
 import SeerrStatusBanner, {seerrBadgeStyle, seerrTitleStatus} from '../seerr/SeerrStatusBanner';
@@ -15,8 +16,10 @@ import SeerrMediaTypeBadge from '../seerr/SeerrMediaTypeBadge';
 import {showsWatchedCheck} from '../../utils/playedState';
 import {AnimeCardPill} from '../AnimeMarkerPills';
 import IncompleteBadge from '../IncompleteBadge';
+import PosterLabels from '../PosterLabels';
 import {isUnownedSeerrTitle, seerrThumbUrl, seerrWideArtUrl, useTmdbThumbsAvailable} from '../../utils/tmdbThumb';
 import useItemMenuHold from '../../hooks/useItemMenuHold';
+import useImageReveal, {markDecoded, pendingArtStyle} from '../../hooks/useImageReveal';
 import {useMediaPreviewSlot} from './MediaPreviewContext';
 
 import css from './ModernMediaCard.module.less';
@@ -59,10 +62,9 @@ const EXPAND_MS = {extraSlow: 450, slow: 300, medium: 180, fast: 90, off: 0};
 const EXPAND_CURVE = 'cubic-bezier(0.65, 0, 0.35, 1)';
 
 // The lower tiers open the card instantly, as the rest of their effects go.
-const expandTransition = (speed) => {
-	const ms = getPerfTier() === 'high' ? EXPAND_MS[speed] || 0 : 0;
-	return ms ? `width ${ms}ms ${EXPAND_CURVE}` : 'none';
-};
+export const expandMs = (speed) => (getPerfTier() === 'high' ? EXPAND_MS[speed] || 0 : 0);
+// The same curve for the row, which scrolls in step with its cards opening and closing.
+export const expandEase = cubicBezier(0.65, 0, 0.35, 1);
 
 const ART_WAIT_MS = 300;
 
@@ -74,6 +76,7 @@ const CORE_ART = {border: 0, borderRadius: '13px', boxShadow: 'none'};
 const ART_MEMORY = 200;
 const loadedArt = new Set();
 const rememberArt = (url) => {
+	markDecoded(url);
 	loadedArt.delete(url);
 	loadedArt.add(url);
 	if (loadedArt.size > ART_MEMORY) loadedArt.delete(loadedArt.values().next().value);
@@ -247,12 +250,13 @@ const ModernMediaCard = ({
 	menuOptions,
 	ratingsSurface,
 	hideOverview = false,
-	coreLook = false
+	coreLook = false,
+	posterLabels = false
 }) => {
 	const {settings} = useSettings();
 	const focusTimeoutRef = useRef(null);
 	const platform = useMemo(() => getPlatform(), []);
-	const transition = expandTransition(settings.modernCardTransitionSpeed);
+	const openMs = expandMs(settings.modernCardTransitionSpeed);
 
 	useEffect(() => {
 		return () => {
@@ -381,7 +385,34 @@ const ModernMediaCard = ({
 	}, [warmFocusArt, swapsArt, focusUrl, item]);
 
 	const expanded = isFocused && canRenderExpanded && (!swapsArt || artArrived || loadedArt.has(focusUrl));
-	const imageUrl = isFocused && (expanded || !canRenderExpanded) ? focusUrl : restingUrl;
+
+	// An animated card slides its wide art in from the poster's edge, the poster fading off it, and on the
+	// way back holds the wide art while it slides shut under the poster fading back in.
+	const slides = openMs > 0 && swapsArt;
+	const [closingUrl, setClosingUrl] = useState(null);
+	const openUrlRef = useRef(null);
+	useLayoutEffect(() => {
+		if (expanded) {
+			openUrlRef.current = focusUrl;
+			setClosingUrl(null);
+			return undefined;
+		}
+		const wideUrl = openUrlRef.current;
+		openUrlRef.current = null;
+		if (!wideUrl || !slides) {
+			setClosingUrl(null);
+			return undefined;
+		}
+		setClosingUrl(wideUrl);
+		const timer = setTimeout(() => setClosingUrl(null), openMs);
+		return () => clearTimeout(timer);
+	}, [expanded, focusUrl, slides, openMs]);
+	const closing = slides && !expanded && Boolean(closingUrl);
+
+	const imageUrl = closing ? closingUrl : isFocused && (expanded || !canRenderExpanded) ? focusUrl : restingUrl;
+	const showVeil = slides && (isFocused || closing) && Boolean(restingUrl) && !deferImage;
+
+	const {shown: artShown, bind: artBind} = useImageReveal(deferImage ? null : imageUrl);
 
 	const handleImageError = useCallback(() => {
 		if (seerrThumb && imageUrl === seerrThumb) setFailedThumb(seerrThumb);
@@ -412,7 +443,7 @@ const ModernMediaCard = ({
 			onMouseLeave={handleMouseLeave}
 			style={{
 				width: `${expanded ? expandedWidth : cardWidth}px`,
-				transition,
+				transition: openMs ? `width ${openMs}ms ${EXPAND_CURVE}` : 'none',
 				'--modern-card-image-height': `${imageHeight}px`,
 				'--modern-card-expanded-width': `${expandedWidth}px`
 			}}
@@ -424,15 +455,32 @@ const ModernMediaCard = ({
 				{imageUrl ? (
 					<>
 						<img
-							className={css.image}
+							className={slides && imageUrl !== restingUrl ? `${css.image} ${css.slideArt}` : css.image}
 							src={deferImage ? undefined : imageUrl}
 							alt={deferImage ? '' : item?.Name}
 							loading={eagerLoad ? 'eager' : 'lazy'}
+							decoding="async"
 							width={cardWidth}
 							height={imageHeight}
-							style={artStyle}
+							style={artShown ? artStyle : {...artStyle, ...pendingArtStyle}}
+							{...artBind}
 							onError={handleImageError}
 						/>
+						{showVeil && (
+							<img
+								className={`${css.image} ${css.veil}`}
+								src={restingUrl}
+								alt=""
+								width={cardWidth}
+								height={imageHeight}
+								style={{
+									...artStyle,
+									width: `${cardWidth}px`,
+									opacity: expanded && artShown ? 0 : 1,
+									transition: `opacity ${openMs}ms ${EXPAND_CURVE}`
+								}}
+							/>
+						)}
 						{(item?.Type === 'Genre' || item?.Type === 'MusicGenre') && (
 							<>
 								<div className={css.genreOverlay} />
@@ -499,6 +547,15 @@ const ModernMediaCard = ({
 
 				<IncompleteBadge itemId={item.Id} belowFavorite={item.UserData?.IsFavorite} belowBanner={Boolean(bannerStatus)} />
 				<AnimeCardPill item={item} serverUrl={itemServerUrl} hasProgressBar={showIndicators && progress > 0} />
+				{posterLabels && (
+					<PosterLabels
+						item={item}
+						serverUrl={itemServerUrl}
+						top={item.UserData?.IsFavorite ? 40 : 8}
+						topRight={(showIndicators && showsWatchedCheck(item)) || ((showServerBadge || item._external) && item._serverName) ? 40 : 8}
+						bottom={showIndicators && progress > 0 ? 26 : 8}
+					/>
+				)}
 			</div>
 			{coreLook && (
 				<div className={css.focusRing} style={{height: `${imageHeight + 16}px`}} />
