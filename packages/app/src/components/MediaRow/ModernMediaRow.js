@@ -1,7 +1,8 @@
 import {useCallback, useRef, useEffect, useState, memo} from 'react';
 import SpotlightContainerDecorator from '@enact/spotlight/SpotlightContainerDecorator';
 import Spotlight from '@enact/spotlight';
-import ModernMediaCard from '../MediaCard/ModernMediaCard';
+import ModernMediaCard, {expandEase, expandMs} from '../MediaCard/ModernMediaCard';
+import {glideScroll, stopScrollAnimation} from '../../utils/focusScroll';
 import {KEYS} from '../../utils/keys';
 import {sameCardUserData} from '../../utils/playedState';
 import {useSettings} from '../../context/SettingsContext';
@@ -12,6 +13,9 @@ import CalendarSeeAllCard from './CalendarSeeAllCard';
 import {nearRowEnd} from '../../views/Browse/rowPaging';
 
 import css from './ModernMediaRow.module.less';
+
+// How many cards either side of focus load their wide art ahead.
+const WARM_REACH = 2;
 
 // The See all card keeps a poster's size, since it doesn't grow on focus like the title cards.
 const seeAllSize = (posterSize) => {
@@ -59,6 +63,7 @@ const ModernMediaRow = ({
 	const scrollTimeoutRef = useRef(null);
 	const rowElementRef = useRef(null);
 	const [focusedItemId, setFocusedItemId] = useState(null);
+	const lastFocusedIdRef = useRef(null);
 	const [details, setDetails] = useState(null);
 	const platform = useRef(getPlatform()).current;
 
@@ -127,6 +132,8 @@ const ModernMediaRow = ({
 			// The focused card parks at the leading edge, so the ratings and overview
 			// under it get the rest of the row. The last cards can't scroll that far
 			// and keep what's left.
+			// Read before the browser's own focus scroll moves the lane, so the slide starts from what was on screen.
+			const start = scroller.scrollLeft;
 			scrollTimeoutRef.current = window.requestAnimationFrame(() => {
 				const cards = Array.prototype.filter.call(card.parentNode.children, (el) => el.classList.contains('spottable'));
 				if (!scrollerLayoutRef.current) {
@@ -147,15 +154,25 @@ const ModernMediaRow = ({
 				for (let i = 0; i < cards.length && cards[i] !== card; i++) {
 					cardStart += parseFloat(cards[i].style.width) + layout.gap;
 				}
-				scroller.scrollLeft = cardStart;
-				const cardLeft = layout.paddingLeft + cardStart - scroller.scrollLeft;
+				// With the cards animating, the lane slides on the same timing and curve, so the card opening, the
+				// one closing and the rest of the row all move as one.
+				const openMs = expandMs(settings.modernCardTransitionSpeed);
+				let rest;
+				if (openMs) {
+					rest = glideScroll(scroller, 'x', cardStart, start, {duration: openMs, ease: expandEase});
+				} else {
+					stopScrollAnimation(scroller);
+					scroller.scrollLeft = cardStart;
+					rest = scroller.scrollLeft;
+				}
+				const cardLeft = layout.paddingLeft + cardStart - rest;
 				setDetails({
 					spotlightId: card.getAttribute('data-spotlight-id'),
 					width: layout.width - layout.paddingRight - cardLeft
 				});
 			});
 		}
-	}, [onFocus, rowIndex, onLoadMore, itemCount, rowId]);
+	}, [onFocus, rowIndex, onLoadMore, itemCount, rowId, settings.modernCardTransitionSpeed]);
 
 	const handleBlur = useCallback((e) => {
 		const nextTarget = e.relatedTarget;
@@ -234,6 +251,9 @@ const ModernMediaRow = ({
 	if (!items || items.length === 0) return null;
 
 	const focusedIndex = focusedItemId ? items.findIndex((item) => item.Id === focusedItemId) : -1;
+	if (focusedIndex >= 0) lastFocusedIdRef.current = focusedItemId;
+	// The row is entered on its last focused card, or its first.
+	const landingIndex = Math.max(0, items.findIndex((item) => item.Id === lastFocusedIdRef.current));
 	// Every row keeps room for three caption lines, so the next row never sits on a card's text.
 	const captionFloor = modernCardMetrics({posterSize: settings.homeRowsPosterSize}).imageHeight + MODERN_CAPTION_ROOM;
 
@@ -254,7 +274,11 @@ const ModernMediaRow = ({
 				<div className={css.items} style={coreLook ? undefined : {minHeight: `${captionFloor}px`}}>
 					{items.map((item, index) => {
 						const spotlightId = `media-${keyPrefix}-${item.Id}`;
-						const besideFocus = focusedIndex >= 0 && Math.abs(index - focusedIndex) === 1;
+						// Wide art loads ahead for the cards a step or two along from focus, and in a row
+						// focus isn't in, for the card it would land on, unless the row's images are held back.
+						const besideFocus = focusedIndex >= 0
+							? index !== focusedIndex && Math.abs(index - focusedIndex) <= WARM_REACH
+							: !deferImages && index === landingIndex;
 						const isFirst = index === 0;
 						const isLast = index === items.length - 1 && !onCalendarSeeAll;
 						return (

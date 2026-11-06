@@ -11,6 +11,7 @@ import IncompleteBadge from '../IncompleteBadge';
 import PosterLabels from '../PosterLabels';
 import LoopMarquee from '../LoopMarquee';
 import useItemMenuHold from '../../hooks/useItemMenuHold';
+import useImageReveal, {pendingArtStyle} from '../../hooks/useImageReveal';
 import {isUnownedSeerrTitle, seerrThumbUrl, seerrWideArtUrl, useTmdbThumbsAvailable} from '../../utils/tmdbThumb';
 import {useMediaPreviewSlot} from './MediaPreviewContext';
 
@@ -214,6 +215,8 @@ const MediaCard = ({item, serverUrl, cardType = 'portrait', rowImageType = 'post
 		return null;
 	}, [isLandscape, item, itemServerUrl, rowArtwork, episodeArtUrl, seerrWide]);
 
+	const {shown: artShown, bind: artBind} = useImageReveal(deferImage ? null : imageUrl);
+
 	const handleImageError = useCallback(() => {
 		if (seerrThumb && imageUrl === seerrThumb) setFailedThumb(seerrThumb);
 	}, [imageUrl, seerrThumb]);
@@ -320,9 +323,10 @@ const MediaCard = ({item, serverUrl, cardType = 'portrait', rowImageType = 'post
 	const imgSizeStyle = sized ? {height: cardHeight + 'px'} : undefined;
 	// Logos and studio art have to sit inside the card whole. Everything else takes
 	// the cover the stylesheet already applies, so it stays out of the inline style.
-	const imgStyle = imageType === 'logo' || item.Type === 'Studio' || item.Type === 'Network'
+	const fitStyle = imageType === 'logo' || item.Type === 'Studio' || item.Type === 'Network'
 		? {...imgSizeStyle, objectFit: 'contain'}
 		: imgSizeStyle;
+	const imgStyle = artShown ? fitStyle : {...fitStyle, ...pendingArtStyle};
 
 	return (
 		<SpottableDiv {...menuHold} className={cardClass} data-media-card onClick={handleClick} onFocus={handleFocus} onBlur={handleBlur} onMouseEnter={onPreviewFocus} onMouseLeave={handleMouseLeave} style={sizeStyle} spotlightId={spotlightId} onSpotlightLeft={onSpotlightLeft} onSpotlightRight={onSpotlightRight}>
@@ -334,9 +338,11 @@ const MediaCard = ({item, serverUrl, cardType = 'portrait', rowImageType = 'post
 							src={deferImage ? undefined : imageUrl}
 							alt={deferImage ? '' : item.Name}
 							loading={eagerLoad ? 'eager' : 'lazy'}
+							decoding="async"
 							width={cardWidth}
 							height={cardHeight}
 							style={imgStyle}
+							{...artBind}
 							onError={handleImageError}
 						/>
 						{(item?.Type === 'Genre' || item?.Type === 'MusicGenre') && (
