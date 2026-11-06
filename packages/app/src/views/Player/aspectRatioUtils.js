@@ -35,6 +35,14 @@ export const getVideoDisplayAspectRatio = (mediaSource) => {
 	return null;
 };
 
+// Jellyfin reports the stream as stored, so a phone video saved sideways with a rotation flag is
+// declared 16:9 while the TV decodes and shows it portrait. The decoder's orientation is the one on screen.
+export const matchDecodedOrientation = (displayAspect, decodedAspect) => {
+	if (!(displayAspect > 0) || !(decodedAspect > 0)) return displayAspect;
+	const turned = (displayAspect > 1 && decodedAspect < 1) || (displayAspect < 1 && decodedAspect > 1);
+	return turned ? 1 / displayAspect : displayAspect;
+};
+
 export const getZoomDisplayRect = (screenRect, aspectRatio, zoomMode) => {
 	const screenWidth = Math.max(1, Number(screenRect?.width) || 1920);
 	const screenHeight = Math.max(1, Number(screenRect?.height) || 1080);
