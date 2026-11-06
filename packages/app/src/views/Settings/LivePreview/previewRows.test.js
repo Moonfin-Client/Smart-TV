@@ -2,7 +2,7 @@ import {defaultSettings} from '../../../context/defaultSettings';
 import {KIND, SETTINGS_SCHEMA} from '../settingsSchema';
 import {
 	SCENE_BY_KEY, MEDIA_BAR_KEYS, FOCUSED_CARD_KEYS, NAV_BUTTON_KEYS, LOADING_KEYS, TRICKPLAY_KEYS, SCREENSAVER_KEYS,
-	SUBTITLE_LOOK_KEYS, SUBTITLE_HDR_KEYS, CALENDAR_KEYS, LIBRARY_KEYS, describeRow, sceneOfRow
+	SUBTITLE_LOOK_KEYS, SUBTITLE_HDR_KEYS, CALENDAR_KEYS, LIBRARY_KEYS, SEASONAL_KEYS, describeRow, sceneOfRow
 } from './previewRows';
 
 describe('settings live preview rows', () => {
@@ -144,6 +144,14 @@ describe('settings live preview rows', () => {
 		expect(sceneOfRow(timeout)).toBe('home');
 		expect(describeRow('setting-screensaverLibraries', defaultSettings)).toMatchObject({key: null, stage: 'screensaver'});
 		expect(describeRow('setting-screensaver', defaultSettings)).toMatchObject({key: 'screensaver', scene: 'home', stage: 'screensaver'});
+	});
+
+	test('the seasonal effect and density show on home, and the focus follower leaves the preview alone', () => {
+		expect(SEASONAL_KEYS).toEqual(['seasonalTheme', 'seasonalDensity']);
+		SEASONAL_KEYS.forEach((key) => {
+			expect(describeRow(`setting-${key}`, defaultSettings)).toMatchObject({key, scene: 'home', stage: null});
+		});
+		expect(describeRow('setting-seasonalFollower', defaultSettings)).toMatchObject({scene: null, stage: null});
 	});
 
 	test('the video, music and book library settings all show the library', () => {

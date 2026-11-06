@@ -39,6 +39,9 @@ export const CALENDAR_KEYS = [
 	'calendarIncludeUnmonitored', 'calendarShowSpecials', 'calendarShowBadges', 'calendarColorBy', 'calendarImageType',
 	'calendarSpoilerSafe', 'calendarRequestButton'
 ];
+// The seasonal effect's settings, which draw the effect over home. The focus follower is left out,
+// since nothing in the preview holds focus for it to follow.
+export const SEASONAL_KEYS = ['seasonalTheme', 'seasonalDensity'];
 // The library settings. The music and book styles draw their own libraries and the rest the video library.
 export const LIBRARY_KEYS = [
 	'libraryStyle', 'musicLibraryStyle', 'bookLibraryStyle', 'groupItemsIntoCollections', 'showMediaDetailsOnLibraryPage',
@@ -103,6 +106,7 @@ export const SCENE_BY_KEY = {
 	...sceneFor([...SUBTITLE_LOOK_KEYS, 'subtitleCustomization'], 'player'),
 	...sceneFor([...SCREENSAVER_KEYS, 'screensaver'], 'home'),
 	keyboardStyle: 'search',
+	...sceneFor(SEASONAL_KEYS, 'home'),
 	...sceneFor(CALENDAR_KEYS, 'calendar'),
 	...sceneFor(LIBRARY_KEYS, 'library')
 };

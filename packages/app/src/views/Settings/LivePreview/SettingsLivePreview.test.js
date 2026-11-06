@@ -3,6 +3,8 @@ import Spotlight from '@enact/spotlight';
 
 import {defaultSettings} from '../../../context/defaultSettings';
 import {memoryCache} from '../../Browse/browseCache';
+import {FALL_COUNTS} from '../../../components/SeasonalTheme/seasonalParticles';
+import {getPerfTier} from '../../../utils/perfTier';
 import {describeRow} from './previewRows';
 import SettingsLivePreview from './SettingsLivePreview';
 
@@ -397,6 +399,24 @@ describe('SettingsLivePreview', () => {
 		// Its other settings wait until they're saved.
 		draw(saved, 'setting-groupItemsIntoCollections', 'library', {trying: {key: 'groupItemsIntoCollections', value: true, index: 0}});
 		expect(await screen.findByText('Shows in classic, grouped false, preview true')).toBeTruthy();
+	});
+
+	test('the seasonal settings draw the real effect over home in what\'s being tried, and every other setting takes it away', () => {
+		const particles = () => document.querySelectorAll('.frame .overlay .particle').length;
+		const falls = FALL_COUNTS[getPerfTier()];
+		const {unmount} = draw({seasonalTheme: 'none', seasonalDensity: 'normal'}, 'setting-seasonalTheme', 'home', {trying: {key: 'seasonalTheme', value: 'snow', index: 1}});
+		expect(particles()).toBe(falls.normal);
+		unmount();
+		draw({seasonalTheme: 'snow', seasonalDensity: 'normal'}, 'setting-seasonalDensity', 'home', {trying: {key: 'seasonalDensity', value: 'heavy', index: 2}});
+		expect(particles()).toBe(falls.heavy);
+		// The preview has no focus for the follower to follow.
+		expect(find('.frame .follower')).toBeNull();
+		cleanup();
+		for (const rowId of ['setting-seasonalFollower', 'setting-clockDisplay']) {
+			draw({seasonalTheme: 'snow', seasonalDensity: 'normal'}, rowId, 'home');
+			expect(find('.overlay')).toBeNull();
+			cleanup();
+		}
 	});
 
 	test('Left off the first chip leaves the row, and focusing a chip shows its scene', () => {

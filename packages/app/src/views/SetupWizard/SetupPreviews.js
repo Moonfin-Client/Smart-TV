@@ -2186,39 +2186,50 @@ export const DetailStylePreview = ({variant}) => {
 // Home as the settings live preview draws it: the navbar where it's set, with its
 // buttons, labels and clock, over the rows in their set style and card size. Modern rows
 // hold their first card in focus with its ratings and description under it, the way Home
-// looks once a row has focus. [railOpen] opens the left rail.
-export const SettingsHomePreview = ({railOpen = false, hasLiveTv = false}) => {
+// looks once a row has focus. [railOpen] opens the left rail, and [over] is drawn over all of
+// it at the window's size, the way the seasonal effect sits over the real Home.
+export const SettingsHomePreview = ({railOpen = false, hasLiveTv = false, over = null}) => {
 	const t = usePreviewPalette();
 	const {user} = useAuth();
 	const {settings} = useSettings();
 	const position = settings.navbarPosition === 'left' ? 'left' : 'top';
 	const modern = settings.homeRowsStyle !== 'v1';
 	const render = useCallback((items) => (
-		position === 'left'
-			? <LeftNavbarPreview items={items} t={t} userName={user?.Name} modern={modern} open={railOpen} focusFirst={modern} hasLiveTv={hasLiveTv} />
-			: <TopNavbarPreview items={items} t={t} userName={user?.Name} modern={modern} focusFirst={modern} hasLiveTv={hasLiveTv} />
-	), [position, modern, railOpen, t, user?.Name, hasLiveTv]);
+		<>
+			{position === 'left'
+				? <LeftNavbarPreview items={items} t={t} userName={user?.Name} modern={modern} open={railOpen} focusFirst={modern} hasLiveTv={hasLiveTv} />
+				: <TopNavbarPreview items={items} t={t} userName={user?.Name} modern={modern} focusFirst={modern} hasLiveTv={hasLiveTv} />}
+			{over && <WindowLayer>{over}</WindowLayer>}
+		</>
+	), [position, modern, railOpen, t, user?.Name, hasLiveTv, over]);
 	return <LivePreview render={render} fallback={<FallbackNavbar position={position} t={t} />} />;
+};
+
+// A layer laid out at the window's size and scaled onto the design screen, the way the player's
+// controls are, since the app's own screens size themselves from the window.
+const WindowLayer = ({children}) => {
+	const screenWidth = window.innerWidth || DESIGN_W;
+	const ratio = DESIGN_W / screenWidth;
+	return (
+		<div style={{position: 'absolute', top: 0, left: 0, width: screenWidth, height: DESIGN_H / ratio, transform: `scale(${ratio})`, transformOrigin: 'top left'}}>
+			{children}
+		</div>
+	);
 };
 
 const ScreenContainer = SpotlightContainerDecorator({}, 'div');
 
-// One of the app's own screens, laid out at the window's size and scaled onto the design screen the
-// way the player's controls are, since a screen can size itself from the window. A screen that has
-// the navbar gets it where it's set, the way home draws it. Nothing on it takes focus or the pointer.
+// One of the app's own screens on a window sized layer. A screen that has the navbar gets it where
+// it's set, the way home draws it. Nothing on it takes focus or the pointer.
 export const SettingsScreenPreview = ({hasLiveTv = false, navbar = true, children}) => {
 	const t = usePreviewPalette();
 	const {user} = useAuth();
 	const {settings} = useSettings();
 	const Navbar = settings.navbarPosition === 'left' ? LeftNavbarPreview : TopNavbarPreview;
-	const screenWidth = window.innerWidth || DESIGN_W;
-	const ratio = DESIGN_W / screenWidth;
 	return (
 		<PreviewScreen>
 			<ScreenContainer spotlightDisabled style={{...ABS_FILL, overflow: 'hidden', pointerEvents: 'none'}}>
-				<div style={{position: 'absolute', top: 0, left: 0, width: screenWidth, height: DESIGN_H / ratio, transform: `scale(${ratio})`, transformOrigin: 'top left'}}>
-					{children}
-				</div>
+				<WindowLayer>{children}</WindowLayer>
 				{navbar && <Navbar t={t} userName={user?.Name} hasLiveTv={hasLiveTv} />}
 			</ScreenContainer>
 		</PreviewScreen>

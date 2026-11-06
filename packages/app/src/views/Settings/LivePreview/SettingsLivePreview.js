@@ -7,6 +7,7 @@ import SpotlightContainerDecorator from '@enact/spotlight/SpotlightContainerDeco
 import {SettingsOverride, useSettings} from '../../../context/SettingsContext';
 import {useSeerr} from '../../../context/SeerrContext';
 import ScreensaverPreview from '../../../components/Screensaver/ScreensaverPreview';
+import SeasonalTheme from '../../../components/SeasonalTheme';
 import {KEYS} from '../../../utils/keys';
 import {
 	DetailStylePreview,
@@ -19,7 +20,7 @@ import {
 } from '../../SetupWizard/SetupPreviews';
 import {getPreviewItems} from '../../SetupWizard/setupPreviewData';
 import {memoryCache} from '../../Browse/browseCache';
-import {MEDIA_BAR_KEYS, SUBTITLE_HDR_KEYS, sceneOfRow} from './previewRows';
+import {MEDIA_BAR_KEYS, SEASONAL_KEYS, SUBTITLE_HDR_KEYS, sceneOfRow} from './previewRows';
 
 import css from './SettingsLivePreview.module.less';
 
@@ -116,6 +117,13 @@ const DetailsScene = () => {
 	return <DetailStylePreview variant={settings.detailScreenStyle || 'v9'} />;
 };
 
+// The real seasonal effect as it falls over home, in the effect and density being tried. Home's
+// own effect behind Settings steps aside while this one is up.
+const SeasonalScene = () => {
+	const {settings} = useSettings();
+	return <SeasonalTheme theme={settings.seasonalTheme} density={settings.seasonalDensity} follower={false} settingsPreview />;
+};
+
 // The screensaver as it comes up over home, or nothing while it's switched off.
 const ScreensaverScene = () => {
 	const {settings} = useSettings();
@@ -173,7 +181,7 @@ const SceneView = ({scene, row, hasLiveTv, library}) => {
 	const railOpen = ['navbarColor', 'navbarOpacity', 'showClock', 'clockDisplay'].indexOf(focusKey) >= 0;
 	return (
 		<>
-			<SettingsHomePreview railOpen={railOpen} hasLiveTv={hasLiveTv} />
+			<SettingsHomePreview railOpen={railOpen} hasLiveTv={hasLiveTv} over={SEASONAL_KEYS.indexOf(focusKey) >= 0 ? <SeasonalScene /> : null} />
 			{stage === 'screensaver' && <ScreensaverScene />}
 		</>
 	);
