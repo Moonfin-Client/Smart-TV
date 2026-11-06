@@ -9,6 +9,7 @@ import {createApiForServer} from './jellyfinApi';
 import {withoutBlockedItems} from './parentalControls';
 import {deduplicateMediaItems} from '../utils/mediaDedup';
 import {latestMediaFetchLimitForCollection} from '../utils/latestMediaRowNormalizer';
+import {searchLibrary} from '../utils/searchGroups';
 
 /**
  * Execute a request to all servers and aggregate results
@@ -326,15 +327,15 @@ export const getRandomItemsFromAllServers = async (contentType = 'both', limit =
 };
 
 // Runs one search on every server and ranks the answers by how well they match the query.
-const searchEveryServer = async (query, limit, search) => {
+const searchEveryServer = async (query, limit, search, cut = true) => {
 	// Calculate per-server limit for distribution
 	const servers = await multiServerManager.getAllServersArray();
 	const serverCount = servers.length;
 	const perServerLimit = Math.ceil((limit * 1.5) / Math.max(serverCount, 1));
 
 	return executeAll(
-		async (api) => {
-			const result = await search(api, perServerLimit);
+		async (api, server) => {
+			const result = await search(api, perServerLimit, server);
 			return result.Items || [];
 		},
 		{
@@ -351,19 +352,21 @@ const searchEveryServer = async (query, limit, search) => {
 				return aName.localeCompare(bName);
 			},
 			dedupe: 'provider',
-			limit: limit // Respect the total limit setting
+			limit: cut ? limit : null
 		}
 	);
 };
 
 /**
- * Search across all servers
+ * Search across all servers. Each row is capped on its own, so the merged results
+ * aren't cut, or the rows a server refilled could be pushed out again.
  * @param {string} query - Search query
- * @param {number} limit - Total max results to return
+ * @param {number} limit - Results to ask for, shared between the servers
  * @returns {Promise<Array>} Search results from all servers
  */
 export const searchAllServers = (query, limit = 20) =>
-	searchEveryServer(query, limit, (api, perServerLimit) => api.search(query, perServerLimit));
+	searchEveryServer(query, limit, (api, perServerLimit, server) =>
+		searchLibrary(api, query, perServerLimit, server.serverType || 'jellyfin'), false);
 
 /**
  * Search people across all servers

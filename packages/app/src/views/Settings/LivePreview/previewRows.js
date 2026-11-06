@@ -8,14 +8,14 @@ const ratingRows = (surface) => ['mdblistEnabled', 'ratingSources', 'showRatingL
 	.map((name) => ratingKey(surface, name));
 
 // Settings whose home preview is the media bar rather than the navbar and rows.
-export const MEDIA_BAR_KEYS = ['featuredBarStyle', 'mediaBarOverlayColor', 'mediaBarOverlayOpacity', ...ratingRows('mediaBar')];
+export const MEDIA_BAR_KEYS = ['featuredBarStyle', 'mediaBarOverlayColor', 'mediaBarOverlayOpacity', 'mediaBarNewReleaseBanner', 'mediaBarNewReleaseDays', ...ratingRows('mediaBar')];
 
 // The home rows' own ratings, which the modern rows draw under the focused card.
 export const FOCUSED_CARD_KEYS = ratingRows('homeRows');
 
 export const NAV_BUTTON_KEYS = [
 	'showShuffleButton', 'showGenresButton', 'showFavoritesButton', 'showLiveTvButton', 'showLibrariesInToolbar',
-	'showLibrariesIndividually', 'syncplayEnabled', 'showSyncPlayButton', 'showSeerrButton', 'showServerMessagesButton',
+	'showLibrariesIndividually', 'syncplayEnabled', 'showSyncPlayButton', 'showSeerrButton', 'showCalendarButton', 'showServerMessagesButton',
 	'showFriendsButton'
 ];
 
@@ -30,6 +30,22 @@ export const SUBTITLE_LOOK_KEYS = [...SUBTITLE_STYLE_KEYS, ...SUBTITLE_HDR_KEYS]
 export const SCREENSAVER_KEYS = [
 	'screensaverEnabled', 'screensaverDimmingLevel', 'screensaverBackdrop', 'screensaverComponent', 'screensaverMovement',
 	'screensaverSize', 'screensaverPosition'
+];
+// The Calendar screen's settings and its Libraries link. The Radarr release types are shared with the
+// Upcoming Movies row, week start only changes the month grid and the select action only acts on a press,
+// so those are left out.
+export const CALENDAR_KEYS = [
+	'calendarStyle', 'calendarScope', 'calendarShowEpisodes', 'calendarShowMovies', 'calendarLibraries',
+	'calendarIncludeUnmonitored', 'calendarShowSpecials', 'calendarShowBadges', 'calendarColorBy', 'calendarImageType',
+	'calendarSpoilerSafe', 'calendarRequestButton'
+];
+// The seasonal effect's settings, which draw the effect over home. The focus follower is left out,
+// since nothing in the preview holds focus for it to follow.
+export const SEASONAL_KEYS = ['seasonalTheme', 'seasonalDensity'];
+// The library settings. The music and book styles draw their own libraries and the rest the video library.
+export const LIBRARY_KEYS = [
+	'libraryStyle', 'musicLibraryStyle', 'bookLibraryStyle', 'groupItemsIntoCollections', 'showMediaDetailsOnLibraryPage',
+	'libraryCardTitles', 'hideBackdropsInLibraries', 'useDetailedSubHeadings'
 ];
 
 // The screens and sections whose every tile keeps the stage on one look, with the scene it's
@@ -89,7 +105,10 @@ export const SCENE_BY_KEY = {
 	...sceneFor([...LOADING_KEYS, 'loadingAnimation', ...TRICKPLAY_KEYS], 'player'),
 	...sceneFor([...SUBTITLE_LOOK_KEYS, 'subtitleCustomization'], 'player'),
 	...sceneFor([...SCREENSAVER_KEYS, 'screensaver'], 'home'),
-	keyboardStyle: 'search'
+	keyboardStyle: 'search',
+	...sceneFor(SEASONAL_KEYS, 'home'),
+	...sceneFor(CALENDAR_KEYS, 'calendar'),
+	...sceneFor(LIBRARY_KEYS, 'library')
 };
 
 let rowsBySpotlightId = null;

@@ -68,7 +68,14 @@ const querySoundSettings = async () => {
 	return result?.settings || {};
 };
 
-const getAudioOutputStatus = async () => {
+// A playback request builds capabilities and then the profile, each asking for the sound path, and a set whose
+// avoutput service is missing asks four times before it gives up: over a second before playback is even asked for.
+// Both reads get the request's options object, so they share one answer keyed by it. Any other read asks the TV
+// again, since the sound output can change between playbacks and a stale receiver answer would send lossless audio
+// to the TV speakers.
+const audioOutputQueries = new WeakMap();
+
+const queryAudioOutputPath = async () => {
 	for (let attempt = 0; attempt < 4; attempt++) {
 		const [status, sound] = await Promise.all([queryAudioOutputStatus(), querySoundSettings()]);
 		const merged = {
@@ -82,8 +89,14 @@ const getAudioOutputStatus = async () => {
 	return {};
 };
 
-const applyAudioOutputPath = async (baseCaps) => {
-	const audioOutputStatus = await getAudioOutputStatus();
+const getAudioOutputStatus = (request) => {
+	if (!request || typeof request !== 'object') return queryAudioOutputPath();
+	if (!audioOutputQueries.has(request)) audioOutputQueries.set(request, queryAudioOutputPath());
+	return audioOutputQueries.get(request);
+};
+
+const applyAudioOutputPath = async (baseCaps, request) => {
+	const audioOutputStatus = await getAudioOutputStatus(request);
 	const receiverPassthrough = isLosslessPassthroughOutput(audioOutputStatus);
 
 	const dts = receiverPassthrough
@@ -224,8 +237,8 @@ export const getDtsContainerSupport = (webosVersion, rawEdidType = null) => {
 
 export const testAc3Support = () => true;
 
-export const getDeviceCapabilities = async () => {
-	if (cachedCapabilities) return applyAudioOutputPath(cachedCapabilities);
+export const getDeviceCapabilities = async (request) => {
+	if (cachedCapabilities) return applyAudioOutputPath(cachedCapabilities, request);
 
 	let deviceInfoData = {};
 	let configData = {};
@@ -350,7 +363,7 @@ export const getDeviceCapabilities = async () => {
 	};
 
 	console.log('[deviceProfile] Capabilities:', cachedCapabilities);
-	return applyAudioOutputPath(cachedCapabilities);
+	return applyAudioOutputPath(cachedCapabilities, request);
 };
 
 const buildVideoRangeTypes = (caps) => {
@@ -645,7 +658,7 @@ const buildDirectPlayProfiles = (caps) => {
 };
 
 export const getJellyfinDeviceProfile = async (options = {}) => {
-	const baseCaps = await getDeviceCapabilities();
+	const baseCaps = await getDeviceCapabilities(options);
 	const caps = applyPassthroughSettings(baseCaps, options);
 
 	const videoRangeTypes = buildVideoRangeTypes(caps);
@@ -860,7 +873,12 @@ export const getJellyfinDeviceProfile = async (options = {}) => {
 		}
 	];
 
+	// Embed covers the SRT tracks inside the file, which the client reads itself, and External
+	// still covers sidecar files.
+	const embeddedTextProfiles = options.embedTextSubtitles ?
+		['srt', 'subrip'].map((Format) => ({Format, Method: 'Embed'})) : [];
 	const subtitleProfiles = [
+		...embeddedTextProfiles,
 		{Format: 'vtt', Method: 'External'},
 		{Format: 'srt', Method: 'External'},
 		{Format: 'ass', Method: 'External'},

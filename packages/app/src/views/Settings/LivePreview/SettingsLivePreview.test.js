@@ -1,6 +1,10 @@
 import {act, cleanup, fireEvent, render, screen, waitFor, within} from '@testing-library/react';
+import Spotlight from '@enact/spotlight';
 
 import {defaultSettings} from '../../../context/defaultSettings';
+import {memoryCache} from '../../Browse/browseCache';
+import {FALL_COUNTS} from '../../../components/SeasonalTheme/seasonalParticles';
+import {getPerfTier} from '../../../utils/perfTier';
 import {describeRow} from './previewRows';
 import SettingsLivePreview from './SettingsLivePreview';
 
@@ -19,21 +23,56 @@ jest.mock('react/jsx-dev-runtime', () => {
 jest.mock('@enact/i18n/$L', () => (text) => text);
 jest.mock('@enact/spotlight/Spottable', () => (type) => {
 	const React = require('react');
-	return ({spotlightId, ...props}) => React.createElement(type, {...props, 'data-spotlight-id': spotlightId});
+	return ({spotlightId, onSpotlightLeft, onSpotlightRight, ...props}) => React.createElement(type, {...props, 'data-spotlight-id': spotlightId}); // eslint-disable-line no-unused-vars
 });
 jest.mock('@enact/spotlight/SpotlightContainerDecorator', () => (config, type) => {
 	const React = require('react');
-	return ({spotlightId, ...props}) => React.createElement(type, {...props, 'data-spotlight-id': spotlightId});
+	return ({spotlightId, spotlightDisabled, ...props}) => React.createElement(type, {
+		...props, 'data-spotlight-id': spotlightId, 'data-spotlight-container-disabled': spotlightDisabled
+	});
 });
 let mockSettings = {};
-jest.mock('../../../context/SettingsContext', () => ({
-	useSettings: () => ({settings: mockSettings, activeTheme: require('../../../theme/themeRegistry').resolveThemeById('moonfin')}),
-	SettingsOverride: ({children}) => children
-}));
+// An override lays its settings over the saved ones, the way the real one does.
+jest.mock('../../../context/SettingsContext', () => {
+	const React = require('react');
+	const Overrides = React.createContext(null);
+	return {
+		useSettings: () => ({
+			settings: {...mockSettings, ...React.useContext(Overrides)},
+			activeTheme: require('../../../theme/themeRegistry').resolveThemeById('moonfin')
+		}),
+		SettingsOverride: ({overrides, children}) => React.createElement(Overrides.Provider, {value: overrides}, children)
+	};
+});
 jest.mock('../../../context/AuthContext', () => ({useAuth: () => ({user: {Id: 'u', Name: 'Ana'}, serverType: 'jellyfin', serverUrl: 'http://server'})}));
-jest.mock('../../../context/SeerrContext', () => ({useSeerr: () => ({isEnabled: false, displayName: 'Seerr'})}));
+let mockSeerr = {};
+jest.mock('../../../context/SeerrContext', () => ({useSeerr: () => mockSeerr}));
+// One episode two days out, the way the server's Sonarr calendar sends it.
+const mockEpisode = () => require('../../../utils/calendarEntries').parseSonarrEntry({
+	id: 11, seasonNumber: 2, episodeNumber: 3, title: 'The Return', airDateUtc: new Date(Date.now() + 2 * 86400000).toISOString(),
+	monitored: true, images: [], series: {title: 'Night Shift', tmdbId: 7, images: []}, moonfinItemId: 'series1', moonfinLibraryIds: ['tv']
+});
+jest.mock('../../../services/calendarApi', () => ({
+	loadCalendar: jest.fn(() => Promise.resolve({entries: [mockEpisode()], problem: null})),
+	seriesProgress: () => Promise.resolve({})
+}));
 jest.mock('../../../context/AchievementsContext', () => ({useAchievements: () => ({socialAvailable: false})}));
 jest.mock('../../../components/RatingsRow', () => () => null);
+jest.mock('../../../components/LoadingSpinner', () => () => null);
+// The library screen is tested on its own, so here it only says what it was handed.
+jest.mock('../../Library', () => {
+	const React = require('react');
+	const {useSettings} = require('../../../context/SettingsContext');
+	const LibraryStub = ({library, settingsPreview}) => {
+		const {settings} = useSettings();
+		return React.createElement('div', null,
+			React.createElement('div', null, `${library ? library.Name : 'none'} in ${settings.libraryStyle}, grouped ${settings.groupItemsIntoCollections}, preview ${settingsPreview}`),
+			React.createElement('div', null, `music ${settings.musicLibraryStyle}`),
+			React.createElement('div', null, `book ${settings.bookLibraryStyle}`)
+		);
+	};
+	return {__esModule: true, default: LibraryStub};
+});
 const mockItems = Array.from({length: 4}, (_, i) => ({
 	title: `Film ${i}`, year: 2000 + i, officialRating: 'PG', runtimeMinutes: 100, genres: ['Drama'], overview: 'A story.',
 	communityRating: 7, posterUrl: null, backdropUrl: null, logoUrl: null
@@ -53,6 +92,11 @@ const draw = (settings, rowId, scene, props) => {
 };
 
 describe('SettingsLivePreview', () => {
+	beforeEach(() => {
+		mockSeerr = {isEnabled: false, displayName: 'Seerr', pluginInfo: null};
+		memoryCache.libraries = null;
+	});
+
 	// Runs first, since the player tests below draw the controls once they've loaded.
 	test('the player\'s controls load the first time the player scene shows', async () => {
 		draw({}, 'setting-osdButtons', 'player');
@@ -238,6 +282,141 @@ describe('SettingsLivePreview', () => {
 		unmount();
 		draw(hdr, 'setting-subtitleColor', 'player');
 		expect(color()).toBe('rgb(255, 255, 255)');
+	});
+
+	test('the Calendar chip only shows while the server offers the calendar', () => {
+		const chips = () => Array.from(find('.chips').children).map((chip) => chip.textContent);
+		const {unmount} = draw({}, 'setting-clockDisplay', 'home');
+		expect(chips()).toEqual(['Home', 'Details Page', 'Player', 'Search']);
+		unmount();
+		mockSeerr = {...mockSeerr, pluginInfo: {calendarAvailable: true}};
+		draw({}, 'setting-clockDisplay', 'home');
+		expect(chips()).toEqual(['Home', 'Details Page', 'Player', 'Search', 'Calendar']);
+	});
+
+	test('the calendar scene draws the user\'s calendar in the style being tried, and nothing in it takes focus', async () => {
+		mockSeerr = {...mockSeerr, pluginInfo: {calendarAvailable: true}};
+		const focus = jest.spyOn(Spotlight, 'focus');
+		try {
+			const {unmount} = draw({}, 'setting-calendarShowBadges', 'calendar');
+			expect(await screen.findByText('Upcoming')).toBeTruthy();
+			expect(screen.getAllByText('Night Shift').length).toBeGreaterThan(0);
+			expect(screen.getByText('Shows on the Calendar preview')).toBeTruthy();
+			expect(find('.page').getAttribute('data-spotlight-container-disabled')).toBe('true');
+			unmount();
+			draw({}, 'setting-calendarStyle', 'calendar', {trying: {key: 'calendarStyle', value: 'countdown', index: 1}});
+			expect(await screen.findByText('Starts in')).toBeTruthy();
+			expect(screen.queryByText('Upcoming')).toBeNull();
+			cleanup();
+			// Its other settings wait until they're saved, or My shows would empty the list here.
+			draw({}, 'setting-calendarScope', 'calendar', {trying: {key: 'calendarScope', value: 'myShows', index: 1}});
+			await waitFor(() => expect(screen.getAllByText('Night Shift').length).toBeGreaterThan(0));
+			expect(focus).not.toHaveBeenCalled();
+		} finally {
+			focus.mockRestore();
+		}
+	});
+
+	test('the Library chip only shows with a video, music or book library, and comes after Calendar', () => {
+		const chips = () => Array.from(find('.chips').children).map((chip) => chip.textContent);
+		memoryCache.libraries = [{Id: 'p', Name: 'Photos', CollectionType: 'homevideos'}];
+		const {unmount} = draw({}, 'setting-clockDisplay', 'home');
+		expect(chips()).toEqual(['Home', 'Details Page', 'Player', 'Search']);
+		unmount();
+		memoryCache.libraries = [{Id: 'mu', Name: 'Music', CollectionType: 'music'}, {Id: 'f', Name: 'Films', CollectionType: 'movies'}];
+		mockSeerr = {...mockSeerr, pluginInfo: {calendarAvailable: true}};
+		draw({}, 'setting-clockDisplay', 'home');
+		expect(chips()).toEqual(['Home', 'Details Page', 'Player', 'Search', 'Calendar', 'Library']);
+	});
+
+	test('Music Library Style draws the first music library in the music style being tried, and the rest draw the video library', async () => {
+		const chips = () => Array.from(find('.chips').children).map((chip) => chip.textContent);
+		memoryCache.libraries = [
+			{Id: 'f', Name: 'Films', CollectionType: 'movies'}, {Id: 'mu', Name: 'Music', CollectionType: 'music'}, {Id: 'c', Name: 'Concerts', CollectionType: 'music'}
+		];
+		const saved = {libraryStyle: 'classic', musicLibraryStyle: 'immersive', groupItemsIntoCollections: false};
+		const {unmount} = draw(saved, 'setting-musicLibraryStyle', 'library');
+		expect(await screen.findByText('Music in classic, grouped false, preview true')).toBeTruthy();
+		expect(screen.getByText('music immersive')).toBeTruthy();
+		expect(screen.getByText('Shows on the Library preview')).toBeTruthy();
+		unmount();
+		draw(saved, 'setting-musicLibraryStyle', 'library', {trying: {key: 'musicLibraryStyle', value: 'quickAccess', index: 1}});
+		expect(await screen.findByText('music quickAccess')).toBeTruthy();
+		cleanup();
+		draw(saved, 'setting-libraryCardTitles', 'library');
+		expect(await screen.findByText('Films in classic, grouped false, preview true')).toBeTruthy();
+		cleanup();
+		// With no video library the chip still shows, and every library setting draws the music library.
+		memoryCache.libraries = [{Id: 'mu', Name: 'Music', CollectionType: 'music'}];
+		draw(saved, 'setting-libraryCardTitles', 'library');
+		expect(await screen.findByText('Music in classic, grouped false, preview true')).toBeTruthy();
+		expect(chips()).toEqual(['Home', 'Details Page', 'Player', 'Search', 'Library']);
+	});
+
+	test('Book Library Style draws the first book or audiobook library in the book style being tried', async () => {
+		const chips = () => Array.from(find('.chips').children).map((chip) => chip.textContent);
+		memoryCache.libraries = [
+			{Id: 'f', Name: 'Films', CollectionType: 'movies'}, {Id: 'mu', Name: 'Music', CollectionType: 'music'},
+			{Id: 'ab', Name: 'Audiobooks', CollectionType: 'audiobooks'}, {Id: 'b', Name: 'Books', CollectionType: 'books'}
+		];
+		const saved = {libraryStyle: 'classic', bookLibraryStyle: 'bookstore', groupItemsIntoCollections: false};
+		const {unmount} = draw(saved, 'setting-bookLibraryStyle', 'library');
+		expect(await screen.findByText('Audiobooks in classic, grouped false, preview true')).toBeTruthy();
+		expect(screen.getByText('book bookstore')).toBeTruthy();
+		expect(screen.getByText('Shows on the Library preview')).toBeTruthy();
+		unmount();
+		draw(saved, 'setting-bookLibraryStyle', 'library', {trying: {key: 'bookLibraryStyle', value: 'readingRoom', index: 2}});
+		expect(await screen.findByText('book readingRoom')).toBeTruthy();
+		cleanup();
+		draw(saved, 'setting-libraryCardTitles', 'library');
+		expect(await screen.findByText('Films in classic, grouped false, preview true')).toBeTruthy();
+		cleanup();
+		// Without a video library the other rows fall back to music, and without either to the books.
+		memoryCache.libraries = [{Id: 'b', Name: 'Books', CollectionType: 'books'}, {Id: 'mu', Name: 'Music', CollectionType: 'music'}];
+		draw(saved, 'setting-libraryCardTitles', 'library');
+		expect(await screen.findByText('Music in classic, grouped false, preview true')).toBeTruthy();
+		cleanup();
+		memoryCache.libraries = [{Id: 'b', Name: 'Books', CollectionType: 'books'}];
+		draw(saved, 'setting-libraryCardTitles', 'library');
+		expect(await screen.findByText('Books in classic, grouped false, preview true')).toBeTruthy();
+		expect(chips()).toEqual(['Home', 'Details Page', 'Player', 'Search', 'Library']);
+	});
+
+	test('the library scene draws the first Movies or Shows library in the user\'s order, in the style being tried', async () => {
+		memoryCache.libraries = [
+			{Id: 'mu', Name: 'Music', CollectionType: 'music'}, {Id: 's', Name: 'Shows', CollectionType: 'TvShows'}, {Id: 'f', Name: 'Films', CollectionType: 'movies'}
+		];
+		const saved = {libraryStyle: 'classic', groupItemsIntoCollections: false};
+		const {unmount} = draw(saved, 'setting-libraryStyle', 'library');
+		expect(await screen.findByText('Shows in classic, grouped false, preview true')).toBeTruthy();
+		expect(screen.getByText('Shows on the Library preview')).toBeTruthy();
+		// The library screen has no navbar, so the preview draws none over it.
+		expect(find('.frame svg')).toBeNull();
+		unmount();
+		draw(saved, 'setting-libraryStyle', 'library', {trying: {key: 'libraryStyle', value: 'docked', index: 2}});
+		expect(await screen.findByText('Shows in docked, grouped false, preview true')).toBeTruthy();
+		cleanup();
+		// Its other settings wait until they're saved.
+		draw(saved, 'setting-groupItemsIntoCollections', 'library', {trying: {key: 'groupItemsIntoCollections', value: true, index: 0}});
+		expect(await screen.findByText('Shows in classic, grouped false, preview true')).toBeTruthy();
+	});
+
+	test('the seasonal settings draw the real effect over home in what\'s being tried, and every other setting takes it away', () => {
+		const particles = () => document.querySelectorAll('.frame .overlay .particle').length;
+		const falls = FALL_COUNTS[getPerfTier()];
+		const {unmount} = draw({seasonalTheme: 'none', seasonalDensity: 'normal'}, 'setting-seasonalTheme', 'home', {trying: {key: 'seasonalTheme', value: 'snow', index: 1}});
+		expect(particles()).toBe(falls.normal);
+		unmount();
+		draw({seasonalTheme: 'snow', seasonalDensity: 'normal'}, 'setting-seasonalDensity', 'home', {trying: {key: 'seasonalDensity', value: 'heavy', index: 2}});
+		expect(particles()).toBe(falls.heavy);
+		// The preview has no focus for the follower to follow.
+		expect(find('.frame .follower')).toBeNull();
+		cleanup();
+		for (const rowId of ['setting-seasonalFollower', 'setting-clockDisplay']) {
+			draw({seasonalTheme: 'snow', seasonalDensity: 'normal'}, rowId, 'home');
+			expect(find('.overlay')).toBeNull();
+			cleanup();
+		}
 	});
 
 	test('Left off the first chip leaves the row, and focusing a chip shows its scene', () => {

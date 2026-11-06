@@ -196,6 +196,13 @@ describe('settings schema', () => {
 		expect(toggle.when({...ctx, settings: {...defaultSettings, showLibrariesInToolbar: false}})).toBe(false);
 	});
 
+	test('Card image only shows while the saved calendar style is Countdown, the one style that draws it', () => {
+		const picker = allRows().find(({row}) => row.key === 'calendarImageType').row;
+		expect(defaultSettings.calendarStyle).toBe('agenda');
+		expect(picker.when(ctx)).toBe(false);
+		expect(picker.when({...ctx, settings: {...defaultSettings, calendarStyle: 'countdown'}})).toBe(true);
+	});
+
 	test('the Live TV and SyncPlay button switches only show where the navbar could draw the button', () => {
 		const shown = (key, overrides, settings = {}) => allRows().find(({row}) => row.key === key).row
 			.when({...ctx, ...overrides, settings: {...defaultSettings, ...settings}});
@@ -242,7 +249,7 @@ describe('settings schema', () => {
 });
 
 describe('the details screen style', () => {
-	test.each(['Stage', 'Premiere'])('a search for %s finds the style setting', (name) => {
+	test.each(['Stage', 'Premiere', 'Quick Look', 'Frost'])('a search for %s finds the style setting', (name) => {
 		const index = buildSettingsIndex(SETTINGS_SCHEMA, ctx, {resolve, spotlightIdOf});
 
 		expect(matchSettings(index, name).map((entry) => entry.spotlightId)).toContain('setting-detailScreenStyle');

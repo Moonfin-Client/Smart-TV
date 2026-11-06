@@ -1,9 +1,9 @@
-import {buildLoaderContext, loadDeferredSections, loadSinceYouWatched} from './browseRowLoaders';
+import {buildLoaderContext, loadDeferredSections, loadSinceYouWatched, withStudioLogos} from './browseRowLoaders';
 import {makePickedRow} from '../../utils/pickedRows';
 import {loadSinceYouWatchedRows} from '../../services/homeRecommendations';
 
 jest.mock('@enact/i18n/$L', () => ({__esModule: true, default: (str) => str}));
-jest.mock('../../services/jellyfinApi', () => ({HOME_ROW_ITEM_FIELDS: 'Fields', createApiForServer: jest.fn()}));
+jest.mock('../../services/jellyfinApi', () => ({HOME_ROW_ITEM_FIELDS: 'Fields', createApiForServer: jest.fn(), getServerType: () => 'jellyfin', getTokenParam: () => 'ApiKey', getApiKey: () => 'tok'}));
 jest.mock('../../services/multiServerManager', () => ({getAllServersArray: async () => []}));
 jest.mock('../../services/homeRecommendations', () => ({loadSinceYouWatchedRows: jest.fn(), loadRewatchItems: jest.fn()}));
 
@@ -54,5 +54,36 @@ describe('loadSinceYouWatched', () => {
 		await loadSinceYouWatched(ctx);
 		expect(loadSinceYouWatchedRows.mock.calls[1][3]).toBe(true);
 		expect(ctx.appendRows).toHaveBeenCalledWith([expect.objectContaining({title: 'Since you watched Heat', isOnlineRecoRow: true})]);
+	});
+});
+
+describe('withStudioLogos', () => {
+	const logoList = {success: true, companies: [
+		{id: 25, name: '20th Century Fox', hasLogo: true},
+		{id: -49, name: 'HBO', hasLogo: true},
+		{id: 7, name: 'No Logo Films', hasLogo: false}
+	]};
+
+	test('gives a studio the logo whose name matches, whatever its case or spacing', () => {
+		const [fox, indie] = withStudioLogos([{Id: 'a', Name: '20th century FOX '}, {Id: 'b', Name: 'No Logo Films'}], logoList, SERVER, 'tok');
+		expect(fox._studioLogoUrl).toBe(`${SERVER}/Moonfin/Tmdb/StudioImage/25?ApiKey=tok`);
+		expect(indie._studioLogoUrl).toBeUndefined();
+	});
+
+	test('uses the image the plugin links on TMDB when it gives one', () => {
+		const white = 'https://image.tmdb.org/t/p/w500_filter(duotone,ffffff,bababa)/hbo.png';
+		const list = {success: true, companies: [{id: -49, name: 'HBO', hasLogo: true, logoUrl: white}]};
+		const [hbo] = withStudioLogos([{Id: 'a', Name: 'HBO'}], list, SERVER, 'tok');
+		expect(hbo._studioLogoUrl).toBe(white);
+	});
+
+	test('leaves a near miss alone rather than guess', () => {
+		const [studio] = withStudioLogos([{Id: 'a', Name: '20th Century Fox Animation'}], logoList, SERVER, 'tok');
+		expect(studio._studioLogoUrl).toBeUndefined();
+	});
+
+	test('hands the studios back untouched when the plugin has no list', () => {
+		const studios = [{Id: 'a', Name: 'HBO'}];
+		expect(withStudioLogos(studios, null, SERVER, 'tok')).toBe(studios);
 	});
 });

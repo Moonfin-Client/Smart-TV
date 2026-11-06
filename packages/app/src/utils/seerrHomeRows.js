@@ -1,11 +1,13 @@
 import $L from '@enact/i18n/$L';
 import seerrApi from '../services/seerrApi';
+import {getServerType} from '../services/jellyfinApi';
 import {seerrGenreBackdrop} from './seerrGenreArt';
 import hydrateRequestMediaItems, {hydrateRecentlyAddedItems, hydrateWatchlistItems} from './seerrHydration';
 import {libraryIdOf} from './seerrTarget';
 
 const HOME_ROW_LIMIT = 20;
 
+// Core's networks and studios, in its order.
 export const STREAMING_NETWORKS = [
 	{id: 213, name: 'Netflix', logo: 'wwemzKWzjKYJFfCeiB57q3r4Bcm.png'},
 	{id: 2739, name: 'Disney+', logo: 'gJ8VX6JSu3ciXHuC2dDGAo2lvwM.png'},
@@ -13,24 +15,44 @@ export const STREAMING_NETWORKS = [
 	{id: 2552, name: 'Apple TV+', logo: '4KAy34EHvRM25Ih8wb82AuGU7zJ.png'},
 	{id: 453, name: 'Hulu', logo: 'pqUTCleNUiTLAVlelGxUgWn1ELh.png'},
 	{id: 49, name: 'HBO', logo: 'tuomPhY2UtuPTqqFnKMVHvSb724.png'},
+	{id: 4353, name: 'Discovery+', logo: '1D1bS3Dyw4ScYnFWTlBOvJXC3nb.png'},
+	{id: 2, name: 'ABC', logo: 'ndAvF4JLsliGreX87jAc9GdjmJY.png'},
+	{id: 19, name: 'FOX', logo: '1DSpHrWyOORkL9N2QHX7Adt31mQ.png'},
+	{id: 359, name: 'Cinemax', logo: '6mSHSquNpfLgDdv6VnOOvC5Uz2h.png'},
+	{id: 174, name: 'AMC', logo: 'pmvRmATOCaDykE6JrVoeYxlFHw3.png'},
+	{id: 67, name: 'Showtime', logo: 'Allse9kbjiP6ExaQrnSpIhkurEi.png'},
+	{id: 318, name: 'Starz', logo: '8GJjw3HHsAJYwIWKIPBPfqMxlEa.png'},
+	{id: 71, name: 'The CW', logo: 'ge9hzeaU7nMtQ4PjkFlc68dGAJ9.png'},
+	{id: 6, name: 'NBC', logo: 'o3OedEP0f9mfZr33jz2BfXOUK5.png'},
+	{id: 16, name: 'CBS', logo: 'nm8d7P7MJNiBLdgIzUK0gkuEA4r.png'},
 	{id: 4330, name: 'Paramount+', logo: 'fi83B1oztoS47xxcemFdPMhIzK.png'},
+	{id: 4, name: 'BBC One', logo: 'mVn7xESaTNmjBUyUtGNvDQd3CT1.png'},
+	{id: 56, name: 'Cartoon Network', logo: 'c5OC6oVCg6QP4eqzW6XIq17CQjI.png'},
+	{id: 80, name: 'Adult Swim', logo: '9AKyspxVzywuaMuZ1Bvilu8sXly.png'},
+	{id: 13, name: 'Nickelodeon', logo: 'ikZXxg6GnwpzqiZbRPhJGaZapqB.png'},
 	{id: 3353, name: 'Peacock', logo: 'gIAcGTjKKr0KOHL5s4O36roJ8p7.png'}
 ];
 
 export const MOVIE_STUDIOS = [
 	{id: 2, name: 'Disney', logo: 'wdrCwmRnLFJhEoH8GSfymY85KHT.png'},
-	{id: 127928, name: '20th Century', logo: 'h0rjX5vjW5r8yEnUBStFarjcLT4.png'},
+	{id: 127928, name: '20th Century Studios', logo: 'h0rjX5vjW5r8yEnUBStFarjcLT4.png'},
 	{id: 34, name: 'Sony Pictures', logo: 'GagSvqWlyPdkFHMfQ3pNq6ix9P.png'},
-	{id: 174, name: 'Warner Bros.', logo: 'ky0xOc5OrhzkZ1N6KyUxacfQsCk.png'},
+	{id: 174, name: 'Warner Bros. Pictures', logo: 'ky0xOc5OrhzkZ1N6KyUxacfQsCk.png'},
 	{id: 33, name: 'Universal', logo: '8lvHyhjr8oUKOOy2dKXoALWKdp0.png'},
 	{id: 4, name: 'Paramount', logo: 'fycMZt242LVjagMByZOLUGbCvv3.png'},
-	{id: 420, name: 'Marvel', logo: 'hUzeosd33nzE5MCNsZxCGEKTXaQ.png'},
+	{id: 3, name: 'Pixar', logo: '1TjvGVDMYsj6JBxOAkUHpPEwLf7.png'},
+	{id: 521, name: 'DreamWorks', logo: 'kP7t6RwGz2AvvTkvnI1uteEwHet.png'},
+	{id: 420, name: 'Marvel Studios', logo: 'hUzeosd33nzE5MCNsZxCGEKTXaQ.png'},
 	{id: 9993, name: 'DC', logo: '2Tc1P3Ac8M479naPp1kYT3izLS5.png'},
 	{id: 41077, name: 'A24', logo: '1ZXsGaFPgrgS6ZZGS37AqD5uU12.png'}
 ];
 
+// Silo's requests have no issues, and aren't Seerr.
+const onSilo = () => getServerType() === 'silo';
+export const seerrBrowseTitle = () => (onSilo() ? $L('Browse') : $L('Seerr Browse'));
+
 export const getSeerrHomeRowConfigs = () => [
-	{id: 'shortcuts', title: $L('Seerr Browse'), type: 'shortcut', cardType: 'landscape'},
+	{id: 'shortcuts', title: seerrBrowseTitle(), type: 'shortcut', cardType: 'landscape'},
 	{id: 'myRequests', title: $L('Recent Requests'), type: 'request', cardType: 'portrait'},
 	{id: 'yourWatchlist', title: $L('Your Watchlist'), type: 'media', cardType: 'portrait'},
 	{id: 'recentlyAdded', title: $L('Recently Added'), type: 'media', cardType: 'portrait'},
@@ -125,10 +147,12 @@ export const normalizeRequestItem = (request) => {
 export const SEERR_SHORTCUTS = [
 	{key: 'discover', name: () => $L('Discover')},
 	{key: 'movies', name: () => $L('Movies')},
-	{key: 'series', name: () => $L('TV Shows')},
+	{key: 'series', name: () => $L('Series')},
 	{key: 'requests', name: () => $L('Requests')},
 	{key: 'issues', name: () => $L('Issues')}
 ];
+
+export const seerrShortcuts = () => (onSilo() ? SEERR_SHORTCUTS.filter((shortcut) => shortcut.key !== 'issues') : SEERR_SHORTCUTS);
 
 // A tile is a fraction of the screen, so it asks for a still cut to its own size.
 // The full size one is kept alongside, since focusing a tile is what paints the
@@ -232,8 +256,8 @@ export const fetchSeerrHomeRow = async (rowId, {userId} = {}) => {
 				// leaves a usable row.
 				const trending = await seerrApi.trending(1).catch(() => ({results: []}));
 				const results = (trending.results || []).slice().sort(() => Math.random() - 0.5);
-				const backdrops = pickShortcutBackdrops(SEERR_SHORTCUTS, results);
-				return SEERR_SHORTCUTS.map((shortcut) => normalizeShortcutItem(shortcut, backdrops[shortcut.key]));
+				const backdrops = pickShortcutBackdrops(seerrShortcuts(), results);
+				return seerrShortcuts().map((shortcut) => normalizeShortcutItem(shortcut, backdrops[shortcut.key]));
 			}
 			case 'trending':
 				return ((await seerrApi.trending(1)).results || []).slice(0, HOME_ROW_LIMIT).map(normalizeMediaItem);

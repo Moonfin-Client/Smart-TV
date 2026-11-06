@@ -1,4 +1,4 @@
-import {memo, useCallback, useMemo, useRef, useEffect, useState} from 'react';
+import {memo, useCallback, useMemo, useRef, useEffect, useLayoutEffect, useState} from 'react';
 import {isMdblistEnabled} from '../../services/mdblistApi';
 import Spottable from '@enact/spotlight/Spottable';
 import $L from '@enact/i18n/$L';
@@ -7,13 +7,19 @@ import {getImageUrl, toAbsoluteImageUrl} from '../../utils/helpers';
 import {useSettings} from '../../context/SettingsContext';
 import {getPlatform} from '../../platform';
 import {getPerfTier} from '../../utils/perfTier';
+import {cubicBezier} from '../../utils/focusScroll';
 import {isStaticLibraryCard, modernCardMetrics, getEpisodeLabels, getCardDisplayTitle} from './modernCardLayout';
 import SeerrIcon from '../icons/SeerrIcon';
+import SeerrStatusBanner, {seerrBadgeStyle, seerrTitleStatus} from '../seerr/SeerrStatusBanner';
+import SeerrStatusDot from '../seerr/SeerrStatusDot';
+import SeerrMediaTypeBadge from '../seerr/SeerrMediaTypeBadge';
 import {showsWatchedCheck} from '../../utils/playedState';
 import {AnimeCardPill} from '../AnimeMarkerPills';
 import IncompleteBadge from '../IncompleteBadge';
+import PosterLabels from '../PosterLabels';
 import {isUnownedSeerrTitle, seerrThumbUrl, seerrWideArtUrl, useTmdbThumbsAvailable} from '../../utils/tmdbThumb';
 import useItemMenuHold from '../../hooks/useItemMenuHold';
+import useImageReveal, {markDecoded, pendingArtStyle} from '../../hooks/useImageReveal';
 import {useMediaPreviewSlot} from './MediaPreviewContext';
 
 import css from './ModernMediaCard.module.less';
@@ -56,17 +62,21 @@ const EXPAND_MS = {extraSlow: 450, slow: 300, medium: 180, fast: 90, off: 0};
 const EXPAND_CURVE = 'cubic-bezier(0.65, 0, 0.35, 1)';
 
 // The lower tiers open the card instantly, as the rest of their effects go.
-const expandTransition = (speed) => {
-	const ms = getPerfTier() === 'high' ? EXPAND_MS[speed] || 0 : 0;
-	return ms ? `width ${ms}ms ${EXPAND_CURVE}` : 'none';
-};
+export const expandMs = (speed) => (getPerfTier() === 'high' ? EXPAND_MS[speed] || 0 : 0);
+// The same curve for the row, which scrolls in step with its cards opening and closing.
+export const expandEase = cubicBezier(0.65, 0, 0.35, 1);
 
 const ART_WAIT_MS = 300;
+
+// Core draws its cards with no border and rounds them to 8 points on its 1150 canvas, so the
+// look skips the theme's card border and keeps the corners at that size.
+const CORE_ART = {border: 0, borderRadius: '13px', boxShadow: 'none'};
 
 // Wide art that has already come in, so a card focused after its art arrived opens straight away.
 const ART_MEMORY = 200;
 const loadedArt = new Set();
 const rememberArt = (url) => {
+	markDecoded(url);
 	loadedArt.delete(url);
 	loadedArt.add(url);
 	if (loadedArt.size > ART_MEMORY) loadedArt.delete(loadedArt.values().next().value);
@@ -118,7 +128,7 @@ const cardImageUrl = (item, focused, {itemServerUrl, isStaticMyMedia, seerrWide,
 			? getImageUrl(itemServerUrl, seriesPosterId, 'Primary', {maxHeight: 360, quality: 80})
 			: null;
 		const seriesThumb = item.ParentThumbItemId
-			? getImageUrl(itemServerUrl, item.ParentThumbItemId, 'Thumb', {maxWidth: 600, quality: 80})
+			? getImageUrl(itemServerUrl, item.ParentThumbItemId, 'Thumb', {tag: item.ParentThumbImageTag, maxWidth: 600, quality: 80})
 			: null;
 		const episodeThumb = item.ImageTags?.Primary
 			? getImageUrl(itemServerUrl, item.Id, 'Primary', {maxWidth: 600, quality: 80})
@@ -159,7 +169,7 @@ const cardImageUrl = (item, focused, {itemServerUrl, isStaticMyMedia, seerrWide,
 				return getImageUrl(itemServerUrl, item.Id, 'Thumb', {tag: item.ImageTags.Thumb, maxWidth: 600, quality: 80});
 			}
 			if (item.ParentThumbItemId) {
-				return getImageUrl(itemServerUrl, item.ParentThumbItemId, 'Thumb', {maxWidth: 600, quality: 80});
+				return getImageUrl(itemServerUrl, item.ParentThumbItemId, 'Thumb', {tag: item.ParentThumbImageTag, maxWidth: 600, quality: 80});
 			}
 			if (item.BackdropImageTags?.length > 0) {
 				return getImageUrl(itemServerUrl, item.Id, 'Backdrop', {tag: item.BackdropImageTags[0], maxWidth: 600, quality: 80});
@@ -203,7 +213,7 @@ const cardImageUrl = (item, focused, {itemServerUrl, isStaticMyMedia, seerrWide,
 			return getImageUrl(itemServerUrl, item.Id, 'Thumb', {maxWidth: 600, quality: 80});
 		}
 		if (item.ParentThumbItemId) {
-			return getImageUrl(itemServerUrl, item.ParentThumbItemId, 'Thumb', {maxWidth: 600, quality: 80});
+			return getImageUrl(itemServerUrl, item.ParentThumbItemId, 'Thumb', {tag: item.ParentThumbImageTag, maxWidth: 600, quality: 80});
 		}
 		if (item.BackdropImageTags?.length > 0) {
 			return getImageUrl(itemServerUrl, item.Id, 'Backdrop', {maxWidth: 600, quality: 80});
@@ -239,12 +249,14 @@ const ModernMediaCard = ({
 	warmFocusArt = false,
 	menuOptions,
 	ratingsSurface,
-	hideOverview = false
+	hideOverview = false,
+	coreLook = false,
+	posterLabels = false
 }) => {
 	const {settings} = useSettings();
 	const focusTimeoutRef = useRef(null);
 	const platform = useMemo(() => getPlatform(), []);
-	const transition = expandTransition(settings.modernCardTransitionSpeed);
+	const openMs = expandMs(settings.modernCardTransitionSpeed);
 
 	useEffect(() => {
 		return () => {
@@ -310,10 +322,13 @@ const ModernMediaCard = ({
 	const showIndicators = watchedBehavior === 'always' || watchedBehavior === 'hideCount' || (watchedBehavior === 'episodesOnly' && item?.Type === 'Episode');
 	const unplayedCount = item?.UserData?.UnplayedItemCount;
 	const showUnplayedCount = showIndicators && watchedBehavior !== 'hideCount' && !item?.UserData?.Played && unplayedCount > 0;
+	const seerrStyle = seerrBadgeStyle(settings);
+	const bannerStatus = seerrStyle === 'banner' ? seerrTitleStatus(item) : null;
 
 	const displayTitle = useMemo(() => getCardDisplayTitle(item), [item]);
 
-	const metadata = useMemo(() => getMetadataLine(item), [item]);
+	// A calendar card leads with when it releases.
+	const metadata = useMemo(() => [item?._calendarDate && item.Subtitle, getMetadataLine(item)].filter(Boolean).join(' • '), [item]);
 	const episodeLabels = useMemo(() => getEpisodeLabels(item), [item]);
 	const shouldShowOverview = useMemo(() => ['Movie', 'Series', 'Episode'].includes(item?.Type), [item?.Type]);
 	const overviewText = useMemo(() => {
@@ -326,7 +341,6 @@ const ModernMediaCard = ({
 	const isSquareItem = item?.Type === 'MusicAlbum' || item?.Type === 'Audio';
 	const {imageHeight, expandedWidth, cardWidth} = modernCardMetrics({
 		posterSize: settings.homeRowsPosterSize,
-		platform,
 		isSquareItem,
 		isStatic: isStaticMyMedia
 	});
@@ -372,17 +386,46 @@ const ModernMediaCard = ({
 	}, [warmFocusArt, swapsArt, focusUrl, item]);
 
 	const expanded = isFocused && canRenderExpanded && (!swapsArt || artArrived || loadedArt.has(focusUrl));
-	const imageUrl = isFocused && (expanded || !canRenderExpanded) ? focusUrl : restingUrl;
+
+	// An animated card slides its wide art in from the poster's edge, the poster fading off it, and on the
+	// way back holds the wide art while it slides shut under the poster fading back in.
+	const slides = openMs > 0 && swapsArt;
+	const [closingUrl, setClosingUrl] = useState(null);
+	const openUrlRef = useRef(null);
+	useLayoutEffect(() => {
+		if (expanded) {
+			openUrlRef.current = focusUrl;
+			setClosingUrl(null);
+			return undefined;
+		}
+		const wideUrl = openUrlRef.current;
+		openUrlRef.current = null;
+		if (!wideUrl || !slides) {
+			setClosingUrl(null);
+			return undefined;
+		}
+		setClosingUrl(wideUrl);
+		const timer = setTimeout(() => setClosingUrl(null), openMs);
+		return () => clearTimeout(timer);
+	}, [expanded, focusUrl, slides, openMs]);
+	const closing = slides && !expanded && Boolean(closingUrl);
+
+	const imageUrl = closing ? closingUrl : isFocused && (expanded || !canRenderExpanded) ? focusUrl : restingUrl;
+	const showVeil = slides && (isFocused || closing) && Boolean(restingUrl) && !deferImage;
+
+	const {shown: artShown, bind: artBind} = useImageReveal(deferImage ? null : imageUrl);
 
 	const handleImageError = useCallback(() => {
 		if (seerrThumb && imageUrl === seerrThumb) setFailedThumb(seerrThumb);
 	}, [imageUrl, seerrThumb]);
 
 	const extendedSectionWidth = Math.max(detailsWidth || 0, expandedWidth);
+	const artStyle = coreLook ? {...CORE_ART, height: `${imageHeight}px`} : {height: `${imageHeight}px`};
 
 	const cardClassName = [
 		css.card,
 		isFocused ? css.focused : '',
+		coreLook ? css.coreLook : '',
 		platform === 'webos' ? css.platformWebos : '',
 		platform === 'tizen' ? css.platformTizen : '',
 		(platform === 'tizen' || platform === 'webos') && typeof document !== 'undefined' && document.documentElement.classList.contains('legacy')
@@ -401,7 +444,7 @@ const ModernMediaCard = ({
 			onMouseLeave={handleMouseLeave}
 			style={{
 				width: `${expanded ? expandedWidth : cardWidth}px`,
-				transition,
+				transition: openMs ? `width ${openMs}ms ${EXPAND_CURVE}` : 'none',
 				'--modern-card-image-height': `${imageHeight}px`,
 				'--modern-card-expanded-width': `${expandedWidth}px`
 			}}
@@ -409,19 +452,36 @@ const ModernMediaCard = ({
 			onSpotlightLeft={onSpotlightLeft}
 			onSpotlightRight={onSpotlightRight}
 		>
-			<div className={previewPhase !== 'idle' ? `${css.imageContainer} ${css.previewHost}` : css.imageContainer} data-card-art>
+			<div className={`${css.imageContainer}${previewPhase !== 'idle' ? ' ' + css.previewHost : ''}${bannerStatus ? ' ' + css.underSeerrBanner : ''}`} style={coreLook ? CORE_ART : undefined} data-card-art>
 				{imageUrl ? (
 					<>
 						<img
-							className={css.image}
+							className={slides && imageUrl !== restingUrl ? `${css.image} ${css.slideArt}` : css.image}
 							src={deferImage ? undefined : imageUrl}
 							alt={deferImage ? '' : item?.Name}
 							loading={eagerLoad ? 'eager' : 'lazy'}
+							decoding="async"
 							width={cardWidth}
 							height={imageHeight}
-							style={{height: `${imageHeight}px`}}
+							style={artShown ? artStyle : {...artStyle, ...pendingArtStyle}}
+							{...artBind}
 							onError={handleImageError}
 						/>
+						{showVeil && (
+							<img
+								className={`${css.image} ${css.veil}`}
+								src={restingUrl}
+								alt=""
+								width={cardWidth}
+								height={imageHeight}
+								style={{
+									...artStyle,
+									width: `${cardWidth}px`,
+									opacity: expanded && artShown ? 0 : 1,
+									transition: `opacity ${openMs}ms ${EXPAND_CURVE}`
+								}}
+							/>
+						)}
 						{(item?.Type === 'Genre' || item?.Type === 'MusicGenre') && (
 							<>
 								<div className={css.genreOverlay} />
@@ -430,7 +490,7 @@ const ModernMediaCard = ({
 						)}
 					</>
 				) : (
-					<div className={css.placeholder} style={{height: `${imageHeight}px`}}>
+					<div className={css.placeholder} style={artStyle}>
 						{item?.Type === 'Person' ? (
 							<svg className={css.placeholderIcon} viewBox="0 -960 960 960" fill="currentColor" aria-hidden="true">
 								<path d="M480-480q-66 0-113-47t-47-113q0-66 47-113t113-47q66 0 113 47t47 113q0 66-47 113t-113 47ZM160-160v-112q0-34 17.5-62.5T224-378q62-31 126-46.5T480-440q66 0 130 15.5T736-378q29 15 46.5 43.5T800-272v112H160Z"/>
@@ -462,9 +522,13 @@ const ModernMediaCard = ({
 					<div className={`${css.seerrBadge} ${css.seerrMissing}`}>
 						<SeerrIcon />
 					</div>
-				) : item?._seerr && [2, 3, 4, 5].includes(item?.mediaInfo?.status) ? (
-					<div className={`${css.seerrBadge} ${css[`seerr${item.mediaInfo.status}`]}`} />
+				) : seerrStyle === 'badge' && item?._seerr ? (
+					<SeerrStatusDot status={item?.mediaInfo?.status} />
 				) : null}
+				{bannerStatus && <SeerrStatusBanner status={bannerStatus} className={coreLook ? css.seerrBannerFlush : css.seerrBanner} />}
+				{coreLook && isUnownedSeerrTitle(item) && (
+					<SeerrMediaTypeBadge mediaType={item._seerrMediaType} className={css.typeBadge} />
+				)}
 
 				{showIndicators && showsWatchedCheck(item) && (
 					<div className={css.watchedBadge}>
@@ -482,12 +546,26 @@ const ModernMediaCard = ({
 					</div>
 				)}
 
-				<IncompleteBadge itemId={item.Id} belowFavorite={item.UserData?.IsFavorite} />
+				<IncompleteBadge itemId={item.Id} belowFavorite={item.UserData?.IsFavorite} belowBanner={Boolean(bannerStatus)} />
 				<AnimeCardPill item={item} serverUrl={itemServerUrl} hasProgressBar={showIndicators && progress > 0} />
+				{posterLabels && (
+					<PosterLabels
+						item={item}
+						serverUrl={itemServerUrl}
+						top={item.UserData?.IsFavorite ? 40 : 8}
+						topRight={(showIndicators && showsWatchedCheck(item)) || ((showServerBadge || item._external) && item._serverName) ? 40 : 8}
+						bottom={showIndicators && progress > 0 ? 26 : 8}
+					/>
+				)}
 			</div>
+			{coreLook && (
+				<div className={css.focusRing} style={{height: `${imageHeight + 16}px`}} />
+			)}
 
 			<div className={css.title}>{displayTitle}</div>
-			{isFocused ? (
+			{coreLook ? (
+				metadata ? <div className={css.secondaryTitle}>{metadata}</div> : null
+			) : isFocused ? (
 				episodeLabels ? (
 					<>
 						<div className={css.secondaryTitle}>{episodeLabels.full}</div>

@@ -7,6 +7,7 @@
 
 import {lazy, Suspense, useState, useEffect, useMemo, useRef, useCallback} from 'react';
 import $L from '@enact/i18n/$L';
+import SpotlightContainerDecorator from '@enact/spotlight/SpotlightContainerDecorator';
 
 import {useSettings} from '../../context/SettingsContext';
 import {useAuth} from '../../context/AuthContext';
@@ -15,6 +16,7 @@ import {useAchievements} from '../../context/AchievementsContext';
 import useUserAvatar from '../../hooks/useUserAvatar';
 import LoadingAnimationLayer from '../../components/LoadingAnimation';
 import RatingsRow from '../../components/RatingsRow';
+import MediaBarNewReleaseLabel from '../../components/MediaBarNewReleaseLabel';
 import {iconViewBox} from '../../components/icons/iconViewBox';
 import {getRtFallbackIcon} from '../../components/icons/rtIcons';
 import {buildDisplayRatings, isMdblistEnabled} from '../../services/mdblistApi';
@@ -33,7 +35,11 @@ import {getMediaBadges} from '../Details/detailsMedia';
 import {minimalistScrimAlpha} from '../Details/minimalist/minimalistRules';
 import {STAGE_BUTTON_CAP, stageScrimAlpha} from '../Details/stage/stageRules';
 import {premiereDim, premiereScrim} from '../Details/premiere/premiereRules';
+import {QUICK_LOOK_BUTTON_CAP, quickLookSurface} from '../Details/quickLook/quickLookRules';
+import {FROST_BUTTON_CAP} from '../Details/frost/frostRules';
+import frostCss from '../Details/frost/FrostDetailContent.module.less';
 import {scrimStyle} from '../../utils/scrimImage';
+import {serverBlurredUrl} from '../../utils/serverBlur';
 import {splitNouveauActions} from '../Details/nouveau/nouveauActionSplit';
 import {personalRatingIconPath, personalRatingLabel} from '../Details/personalRatingAction';
 import {materialIconPath} from '../Settings/materialIconMap';
@@ -295,8 +301,9 @@ const SAMPLE_USER_DATA = {Rating: 8};
 
 // The real ratings row on the sample scores. [surface] picks whose ratings settings it follows,
 // and [zoom] is the share of the TV's size the surrounding preview is drawn at, since the row
-// sizes itself for the full screen.
-const PreviewRatings = ({item, surface, zoom = 0.5, ...rest}) => {
+// sizes itself for the full screen. [className] dresses the zoomed box, which is how Frost's strip
+// keeps its real size and still drops out when there's nothing to rate.
+const PreviewRatings = ({item, surface, zoom = 0.5, className, ...rest}) => {
 	const {settings} = useSettings();
 	const rated = useMemo(() => ({
 		Id: 'preview',
@@ -305,7 +312,7 @@ const PreviewRatings = ({item, surface, zoom = 0.5, ...rest}) => {
 		UserData: SAMPLE_USER_DATA
 	}), [item.communityRating]);
 	return (
-		<div style={{zoom: zoom / rootScale()}}>
+		<div className={className} style={{zoom: zoom / rootScale()}}>
 			<RatingsRow
 				{...rest}
 				item={rated}
@@ -593,6 +600,7 @@ const MoonfinBar = ({items, t}) => {
 					height={120}
 					fallbackStyle={{fontSize: 28, fontWeight: 800, lineHeight: 1.05, color: t.onSurface, textShadow: TEXT_SHADOW}}
 				/>
+				<MediaBarNewReleaseLabel release={item.newRelease} small />
 			</div>
 			<div style={{position: 'absolute', left: 0, right: 0, bottom: 0, padding: '0 24px 36px 24px'}}>
 				<div style={{padding: '12px 16px', backgroundColor: t.overlayA(0.75), borderRadius: 16, border: t.cardBorder}}>
@@ -634,6 +642,7 @@ const MakdBar = ({items, t}) => {
 					height={Math.min(300, Math.max(90, DESIGN_H * 0.35))}
 					fallbackStyle={{fontSize: 30, fontWeight: 800, lineHeight: 1.05, color: t.onSurface, textShadow: TEXT_SHADOW}}
 				/>
+				<MediaBarNewReleaseLabel release={item.newRelease} small />
 			</div>
 			<div style={{position: 'absolute', left: 50, bottom: 20, width: contentWidth}}>
 				<MetadataWrap item={item} t={t} />
@@ -831,6 +840,7 @@ const GalleryBar = ({items, t}) => {
 								>
 									{active.title.toUpperCase()}
 								</div>
+								<MediaBarNewReleaseLabel release={active.newRelease} small />
 								<div style={{marginTop: 12, display: 'flex', flexWrap: 'wrap'}}>
 									{active.runtimeMinutes && <GalleryBadge text={runtimeText(active.runtimeMinutes)} t={t} />}
 									{active.officialRating && <GalleryBadge text={active.officialRating} outlined t={t} />}
@@ -882,6 +892,7 @@ const BannerBar = ({items, t}) => {
 							height={56}
 							fallbackStyle={{fontSize: 22, fontWeight: 800, color: t.onSurface, textShadow: `0px 0px 10px ${t.scrimA(0.8)}`}}
 						/>
+						<MediaBarNewReleaseLabel release={item.newRelease} small />
 						<div style={{marginTop: 6, fontSize: 12, fontWeight: 600, color: t.onSurfaceA(0.75)}}>
 							{parts.join('  ·  ')}
 						</div>
@@ -917,6 +928,7 @@ const AyaBar = ({items, t}) => {
 							alignment='topLeft'
 							fallbackStyle={{fontSize: 32, fontWeight: 700, letterSpacing: -0.5, lineHeight: 1.0, color: t.onSurface, textShadow: `0px 0px 20px ${t.scrimA(0.72)}`}}
 						/>
+						<MediaBarNewReleaseLabel release={item.newRelease} small />
 					</div>
 					<div style={{position: 'absolute', top: 22, right: 24}}>
 						<Dots count={5} active={16} inactive={10} inactiveAlpha={0.30} gap={2.5} pillActive height={2} t={t} />
@@ -982,6 +994,7 @@ const useNavButtons = (rail, hasLiveTv) => {
 		hasLiveTv,
 		seerrEnabled: seerr.isEnabled,
 		seerrLabel: seerr.displayName,
+		calendarAvailable: seerr.pluginInfo?.calendarAvailable === true,
 		serverType,
 		socialAvailable,
 		libraries: memoryCache.libraries
@@ -1028,7 +1041,7 @@ const TopNavbarPreview = ({items, t, userName, modern, focusFirst, hasLiveTv}) =
 					</div>
 				)}
 			</div>
-			<NavbarRows items={items} t={t} modern={modern} focusFirst={focusFirst} />
+			{items && <NavbarRows items={items} t={t} modern={modern} focusFirst={focusFirst} />}
 		</div>
 	);
 };
@@ -1047,7 +1060,7 @@ const LeftNavbarPreview = ({items, t, userName, modern, open = false, focusFirst
 	return (
 		<div style={{position: 'relative', width: '100%', height: '100%', display: 'flex', overflow: 'hidden'}}>
 			<div style={{width: 72, flexShrink: 0}} />
-			<NavbarRows items={items} t={t} topInset={24} modern={modern} focusFirst={focusFirst} />
+			{items && <NavbarRows items={items} t={t} topInset={24} modern={modern} focusFirst={focusFirst} />}
 			<div
 				style={{
 					position: 'absolute',
@@ -1142,11 +1155,12 @@ const SAMPLE_ACTIONS = DETAIL_BUTTONS.filter((button) => SAMPLE_ACTION_LOOKS[but
 // them. Spotlight and Minimalist cap the row at five, Nouveau keeps its own short rule, and
 // Classic and Modern only fold anything away once the viewer sets a count. Stage caps at five, which
 // the count can lower but never lift, and draws the subtitle picker as a chip instead. Premiere
-// draws it as a chip too, and on Auto caps at six.
+// draws it as a chip too, and on Auto caps at six. Quick Look and Frost draw the chip and cap at six
+// the way Stage caps at five.
 const detailActions = (variant, settings) => {
-	const stage = variant === 'v6';
+	const buttonCap = {v6: STAGE_BUTTON_CAP, v8: QUICK_LOOK_BUTTON_CAP, v9: FROST_BUTTON_CAP}[variant];
 	const offered = arrange(SAMPLE_ACTIONS, {order: settings[DETAIL_ORDER_KEY], hidden: settings[DETAIL_HIDDEN_KEY]})
-		.filter((button) => !(stage || variant === 'v7') || button.id !== 'subtitles');
+		.filter((button) => ['v6', 'v7', 'v8', 'v9'].indexOf(variant) < 0 || button.id !== 'subtitles');
 	const prefLimit = settings.detailButtonsMaxVisible ?? 0;
 	let inline = offered;
 	let more = false;
@@ -1158,8 +1172,8 @@ const detailActions = (variant, settings) => {
 		const cap = {v3: 5, v5: 5, v7: 6}[variant] || 0;
 		const {visibleCount, needsOverflow} = countSplit({
 			totalButtons: 1 + offered.length,
-			...(stage
-				? {maxVisible: prefLimit > 0 ? Math.min(prefLimit + 1, STAGE_BUTTON_CAP) : STAGE_BUTTON_CAP, overflowAsMenu: true, countCapped: true}
+			...(buttonCap
+				? {maxVisible: prefLimit > 0 ? Math.min(prefLimit + 1, buttonCap) : buttonCap, overflowAsMenu: true, countCapped: true}
 				: applyButtonLimit(prefLimit, {maxVisible: cap, overflowAsMenu: cap > 0, countCapped: cap > 0}))
 		});
 		if (needsOverflow) {
@@ -1856,8 +1870,130 @@ const PremiereDetail = ({items, t}) => {
 						</div>
 					))}
 				</div>
+				{/* Stands for the page's Ratings section, which starts under the buttons. */}
+				<PreviewRatings item={item} />
 				<div style={{marginTop: 10}}>
 					<MIcon name='keyboard_arrow_down' size={25} color={t.onSurfaceA(0.65)} />
+				</div>
+			</div>
+		</div>
+	);
+};
+
+// The drawer down the right over a dimmed row of titles, with its backdrop, the title, play and the
+// circles, and Open full page at its foot.
+const QuickLookDetail = ({items, t}) => {
+	const {settings, activeTheme} = useSettings();
+	const item = items[0];
+	const meta = detailMeta(item, settings).map((piece) => piece.text).join(' · ');
+	const actions = detailActions('v8', settings);
+	const circles = [...actions.inline.map((action) => action.path), ...(actions.more ? [DETAIL_ICON_PATHS.moreHoriz] : [])];
+	const surface = quickLookSurface(toRgbTriplet(activeTheme.colors.background), toRgbTriplet(activeTheme.colors.onBackground));
+	const showImage = settings.detailsBackdropEnabled !== false && Boolean(item.backdropUrl);
+	return (
+		<div style={{position: 'relative', width: '100%', height: '100%'}}>
+			<div style={{...ABS_FILL, padding: 30, display: 'flex', alignItems: 'flex-start'}}>
+				{items.slice(0, 5).map((shown, i) => (
+					<div key={i} style={{position: 'relative', flex: '1 1 0', height: 270, marginLeft: i ? 10 : 0, borderRadius: 7, overflow: 'hidden'}}>
+						<Artwork url={shown.posterUrl || shown.backdropUrl} t={t} />
+					</div>
+				))}
+			</div>
+			<div style={{...ABS_FILL, backgroundColor: 'rgba(0, 0, 0, 0.62)'}} />
+			<div style={{position: 'absolute', top: 0, right: 0, bottom: 0, width: '50%', display: 'flex', flexDirection: 'column', backgroundColor: `rgb(${surface})`, borderLeft: '1px solid rgba(255, 255, 255, 0.1)'}}>
+				<div style={{position: 'relative', paddingTop: showImage ? 144.6 : 53.5}}>
+					{showImage && (
+						<div style={{position: 'absolute', top: 0, left: 0, right: 0, height: 173}}>
+							<Artwork url={item.backdropUrl} position='center 30%' t={t} />
+							<div style={{...ABS_FILL, background: `linear-gradient(to bottom, rgba(${surface}, 0) 40%, rgb(${surface}))`}} />
+						</div>
+					)}
+					<div style={{position: 'absolute', top: 11.7, right: 11.7, padding: '5px 10px', borderRadius: 999, backgroundColor: 'rgba(0, 0, 0, 0.5)', fontSize: 10, color: 'rgba(255, 255, 255, 0.85)'}}>
+						{$L('Back to close')}
+					</div>
+					<div style={{position: 'relative', padding: '0 21.7px'}}>
+						<div style={{fontSize: 22.5, fontWeight: 700, lineHeight: 1.15, color: t.onSurface, ...clampLines(2)}}>{item.title}</div>
+						{meta && <div style={{marginTop: 5, fontSize: 10, fontWeight: 700, color: t.onSurface, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis'}}>{meta}</div>}
+						<div style={{marginTop: 8.35}}>
+							<PreviewRatings item={item} labels={false} />
+						</div>
+						<div style={{marginTop: 13.4, display: 'flex', alignItems: 'center'}}>
+							<div style={{height: 45, padding: '0 13px 0 5px', borderRadius: 22.5, backgroundColor: t.accent, display: 'flex', alignItems: 'center'}}>
+								<div style={{width: 42, display: 'flex', justifyContent: 'center'}}><MIcon name='play_arrow' size={20} color={t.onAccent} /></div>
+								<div style={{marginLeft: 5, fontSize: 11, fontWeight: 700, color: t.onAccent}}>{$L('Play')}</div>
+							</div>
+							{circles.map((path, i) => (
+								<div key={i} style={{width: 43, height: 43, marginLeft: 6.7, borderRadius: '50%', border: `1.25px solid ${t.onSurfaceA(0.35)}`, backgroundColor: 'rgba(255, 255, 255, 0.06)', display: 'flex', alignItems: 'center', justifyContent: 'center'}}>
+									<MIcon path={path} size={20} color={t.onSurface} />
+								</div>
+							))}
+						</div>
+						{item.overview && (
+							<div style={{marginTop: 10, fontSize: 11.7, lineHeight: 1.5, color: t.onSurfaceA(0.82), ...clampLines(3)}}>
+								{item.overview}
+							</div>
+						)}
+					</div>
+				</div>
+				<div style={{flex: '1 1 auto'}} />
+				<div style={{margin: '6.7px 21.7px 18.3px', height: 38.4, borderRadius: 19.2, border: `1px solid ${t.onSurfaceA(0.25)}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11.7, fontWeight: 600, color: t.onSurface}}>
+					{$L('Open full page')}
+				</div>
+			</div>
+		</div>
+	);
+};
+
+// The art blurred behind a glass window that holds it sharp, with the toolbar over the window's foot
+// and the bar of tabs under it, at half the size of the stage the page is drawn on.
+const FrostDetail = ({items, t}) => {
+	const {settings} = useSettings();
+	const item = items[0];
+	const meta = detailMeta(item, settings).map((piece) => piece.text).join(' · ');
+	const actions = detailActions('v9', settings);
+	const circles = [...actions.inline.map((action) => action.path), ...(actions.more ? [DETAIL_ICON_PATHS.moreHoriz] : [])];
+	const art = settings.detailsBackdropEnabled !== false ? item.backdropUrl : null;
+	const blurred = serverBlurredUrl(art, 60);
+	const glass = {backgroundColor: 'rgba(48, 48, 54, 0.9)', border: '1px solid rgba(255, 255, 255, 0.08)'};
+	const tabs = [$L('Overview'), $L('Cast & Crew'), $L('More Like This'), $L('Details')];
+	return (
+		<div style={{position: 'relative', width: '100%', height: '100%', overflow: 'hidden'}}>
+			<Artwork url={blurred || art} imgStyle={blurred ? null : {filter: 'blur(30px)', WebkitFilter: 'blur(30px)'}} t={t} />
+			<div style={{...ABS_FILL, backgroundColor: 'rgba(0, 0, 0, 0.55)'}} />
+			<div style={{position: 'absolute', left: 18, top: 9, width: 924, height: 421.5, borderRadius: 33, overflow: 'hidden', backgroundColor: 'rgba(28, 28, 32, 0.55)'}}>
+				{art && <Artwork url={art} t={t} />}
+				<div style={{...ABS_FILL, background: 'linear-gradient(to top, rgba(12, 12, 14, 0.95), rgba(12, 12, 14, 0.74) 50%, rgba(12, 12, 14, 0) 80%)'}} />
+				<div style={{position: 'absolute', left: 42, right: 42, bottom: 48}}>
+					<div style={{fontSize: 48, fontWeight: 800, lineHeight: 1.1, letterSpacing: -1.2, color: '#FFFFFF', ...clampLines(2)}}>{item.title}</div>
+					{meta && <div style={{marginTop: 9, fontSize: 13.5, fontWeight: 500, color: 'rgba(235, 235, 245, 0.78)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis'}}>{meta}</div>}
+					<PreviewRatings item={item} columns className={frostCss.strip} />
+					{item.overview && (
+						<div style={{marginTop: 18, width: 498, fontSize: 13.5, lineHeight: 1.45, color: 'rgba(255, 255, 255, 0.9)', ...clampLines(3)}}>
+							{item.overview}
+						</div>
+					)}
+				</div>
+			</div>
+			<div style={{position: 'absolute', left: 0, right: 0, top: 403.5, display: 'flex', justifyContent: 'center'}}>
+				<div style={{display: 'flex', alignItems: 'center', padding: 6, borderRadius: 28.5, ...glass}}>
+					<div style={{height: 45, minWidth: 150, padding: '0 21px', boxSizing: 'border-box', borderRadius: 22.5, backgroundColor: 'rgba(255, 255, 255, 0.86)', display: 'flex', alignItems: 'center', justifyContent: 'center'}}>
+						<MIcon name='play_arrow' size={19} color='#000000' />
+						<div style={{marginLeft: 7.5, fontSize: 14.25, fontWeight: 600, color: '#000000'}}>{$L('Play')}</div>
+					</div>
+					{circles.map((path, i) => (
+						<div key={i} style={{width: 45, height: 45, marginLeft: i ? 4.5 : 9, display: 'flex', alignItems: 'center', justifyContent: 'center'}}>
+							<MIcon path={path} size={19} color='#FFFFFF' />
+						</div>
+					))}
+				</div>
+			</div>
+			<div style={{position: 'absolute', left: 0, right: 0, top: 468, display: 'flex', justifyContent: 'center'}}>
+				<div style={{display: 'flex', padding: 4.5, borderRadius: 22.5, ...glass}}>
+					{tabs.map((label, i) => (
+						<div key={label} style={{height: 36, marginLeft: i ? 3 : 0, padding: '0 13.5px', borderRadius: 18, display: 'flex', alignItems: 'center', fontSize: 12, fontWeight: 600, color: '#FFFFFF', whiteSpace: 'nowrap', backgroundColor: i ? 'transparent' : 'rgba(255, 255, 255, 0.16)'}}>
+							{label}
+						</div>
+					))}
 				</div>
 			</div>
 		</div>
@@ -1867,6 +2003,41 @@ const PremiereDetail = ({items, t}) => {
 const FallbackDetail = ({variant, t}) => {
 	const strong = t.onSurfaceA(0.78);
 	const weak = t.onSurfaceA(0.3);
+	if (variant === 'v9') {
+		return (
+			<div style={{position: 'relative', width: '100%', height: '100%', ...fallBackdrop(t)}}>
+				<div style={{...ABS_FILL, backgroundColor: 'rgba(0, 0, 0, 0.45)'}} />
+				<div style={{position: 'absolute', top: 5, right: 8, bottom: 28, left: 8, padding: 10, display: 'flex', flexDirection: 'column', justifyContent: 'flex-end', borderRadius: 12, backgroundColor: t.surfaceA(0.6)}}>
+					<FallBar width={56} height={8} color={strong} />
+					<FallBar width={40} height={5} color={weak} style={{marginTop: 5}} />
+				</div>
+				<div style={{position: 'absolute', left: 0, right: 0, bottom: 22, display: 'flex', justifyContent: 'center'}}>
+					<FallBar width={60} height={12} color={weak} />
+				</div>
+				<div style={{position: 'absolute', left: 0, right: 0, bottom: 5, display: 'flex', justifyContent: 'center'}}>
+					<FallBar width={90} height={10} color={weak} />
+				</div>
+			</div>
+		);
+	}
+	if (variant === 'v8') {
+		return (
+			<div style={{position: 'relative', width: '100%', height: '100%', ...fallBackdrop(t)}}>
+				<div style={{...ABS_FILL, backgroundColor: 'rgba(0, 0, 0, 0.62)'}} />
+				<div style={{position: 'absolute', top: 0, right: 0, bottom: 0, width: '50%', padding: 8, display: 'flex', flexDirection: 'column', backgroundColor: t.surface}}>
+					<div style={{flex: '1 1 0'}} />
+					<FallBar width={48} height={8} color={strong} />
+					<FallBar width={36} height={5} color={weak} style={{marginTop: 5}} />
+					<div style={{marginTop: 5, display: 'flex'}}>
+						<FallBar width={22} height={8} color={strong} />
+						<FallBar width={8} height={8} color={weak} style={{marginLeft: 4}} />
+						<FallBar width={8} height={8} color={weak} style={{marginLeft: 4}} />
+					</div>
+					<div style={{flex: '2 1 0'}} />
+				</div>
+			</div>
+		);
+	}
 	if (variant === 'v7') {
 		return (
 			<div style={{width: '100%', height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-end', padding: 10, ...fallBackdrop(t)}}>
@@ -1946,12 +2117,21 @@ const FallbackDetail = ({variant, t}) => {
 // The pickable previews
 // ---------------------------------------------------------------------------
 
+// The bar only labels a series when something aired lately, so while the banner is on the first
+// series stands in with a sample, moved to the front where every mode draws it.
+const withNewReleasePreview = (items, on) => {
+	const lead = on ? items.findIndex((item) => item.type === 'Series') : -1;
+	if (lead < 0) return items;
+	return [{...items[lead], newRelease: {kind: 'newSeason', season: 2}}, ...items.filter((_, i) => i !== lead)];
+};
+
 export const MediaBarPreview = ({mode}) => {
 	const t = usePreviewPalette();
 	const {settings} = useSettings();
 	const hideDescription = !!settings.hideHomeMediaDescription;
+	const newReleaseBanner = !!settings.mediaBarNewReleaseBanner;
 	const render = useCallback((shown) => {
-		const items = hideDescription ? shown.map((item) => ({...item, overview: ''})) : shown;
+		const items = withNewReleasePreview(hideDescription ? shown.map((item) => ({...item, overview: ''})) : shown, newReleaseBanner);
 		if (mode === 'makd') return <MakdBar items={items} t={t} />;
 		if (mode === 'bookshelf') return <BookshelfBar items={items} t={t} />;
 		if (mode === 'gallery') return <GalleryBar items={items} t={t} />;
@@ -1961,7 +2141,7 @@ export const MediaBarPreview = ({mode}) => {
 		// packs them tighter than the style default to show more than one.
 		if (mode === 'off') return <HomeRowsScreen items={items} t={t} modern focusFirst rowGapOverride={24} />;
 		return <MoonfinBar items={items} t={t} />;
-	}, [mode, t, hideDescription]);
+	}, [mode, t, hideDescription, newReleaseBanner]);
 	return <LivePreview render={render} fallback={<FallbackMediaBar mode={mode} t={t} />} fallbackAspect={16 / 7} />;
 };
 
@@ -1996,6 +2176,8 @@ export const DetailStylePreview = ({variant}) => {
 		if (variant === 'v5') return <MinimalistDetail items={items} t={t} />;
 		if (variant === 'v6') return <StageDetail items={items} t={t} />;
 		if (variant === 'v7') return <PremiereDetail items={items} t={t} />;
+		if (variant === 'v8') return <QuickLookDetail items={items} t={t} />;
+		if (variant === 'v9') return <FrostDetail items={items} t={t} />;
 		return <ModernDetail items={items} t={t} />;
 	}, [variant, t, hideDescription]);
 	return <LivePreview render={render} fallback={<FallbackDetail variant={variant} t={t} />} />;
@@ -2004,19 +2186,54 @@ export const DetailStylePreview = ({variant}) => {
 // Home as the settings live preview draws it: the navbar where it's set, with its
 // buttons, labels and clock, over the rows in their set style and card size. Modern rows
 // hold their first card in focus with its ratings and description under it, the way Home
-// looks once a row has focus. [railOpen] opens the left rail.
-export const SettingsHomePreview = ({railOpen = false, hasLiveTv = false}) => {
+// looks once a row has focus. [railOpen] opens the left rail, and [over] is drawn over all of
+// it at the window's size, the way the seasonal effect sits over the real Home.
+export const SettingsHomePreview = ({railOpen = false, hasLiveTv = false, over = null}) => {
 	const t = usePreviewPalette();
 	const {user} = useAuth();
 	const {settings} = useSettings();
 	const position = settings.navbarPosition === 'left' ? 'left' : 'top';
 	const modern = settings.homeRowsStyle !== 'v1';
 	const render = useCallback((items) => (
-		position === 'left'
-			? <LeftNavbarPreview items={items} t={t} userName={user?.Name} modern={modern} open={railOpen} focusFirst={modern} hasLiveTv={hasLiveTv} />
-			: <TopNavbarPreview items={items} t={t} userName={user?.Name} modern={modern} focusFirst={modern} hasLiveTv={hasLiveTv} />
-	), [position, modern, railOpen, t, user?.Name, hasLiveTv]);
+		<>
+			{position === 'left'
+				? <LeftNavbarPreview items={items} t={t} userName={user?.Name} modern={modern} open={railOpen} focusFirst={modern} hasLiveTv={hasLiveTv} />
+				: <TopNavbarPreview items={items} t={t} userName={user?.Name} modern={modern} focusFirst={modern} hasLiveTv={hasLiveTv} />}
+			{over && <WindowLayer>{over}</WindowLayer>}
+		</>
+	), [position, modern, railOpen, t, user?.Name, hasLiveTv, over]);
 	return <LivePreview render={render} fallback={<FallbackNavbar position={position} t={t} />} />;
+};
+
+// A layer laid out at the window's size and scaled onto the design screen, the way the player's
+// controls are, since the app's own screens size themselves from the window.
+const WindowLayer = ({children}) => {
+	const screenWidth = window.innerWidth || DESIGN_W;
+	const ratio = DESIGN_W / screenWidth;
+	return (
+		<div style={{position: 'absolute', top: 0, left: 0, width: screenWidth, height: DESIGN_H / ratio, transform: `scale(${ratio})`, transformOrigin: 'top left'}}>
+			{children}
+		</div>
+	);
+};
+
+const ScreenContainer = SpotlightContainerDecorator({}, 'div');
+
+// One of the app's own screens on a window sized layer. A screen that has the navbar gets it where
+// it's set, the way home draws it. Nothing on it takes focus or the pointer.
+export const SettingsScreenPreview = ({hasLiveTv = false, navbar = true, children}) => {
+	const t = usePreviewPalette();
+	const {user} = useAuth();
+	const {settings} = useSettings();
+	const Navbar = settings.navbarPosition === 'left' ? LeftNavbarPreview : TopNavbarPreview;
+	return (
+		<PreviewScreen>
+			<ScreenContainer spotlightDisabled style={{...ABS_FILL, overflow: 'hidden', pointerEvents: 'none'}}>
+				<WindowLayer>{children}</WindowLayer>
+				{navbar && <Navbar t={t} userName={user?.Name} hasLiveTv={hasLiveTv} />}
+			</ScreenContainer>
+		</PreviewScreen>
+	);
 };
 
 const SHADOWED = {color: '#FFFFFF', textShadow: '0px 0px 6px #000000'};

@@ -28,7 +28,9 @@ export const CONTENT_FOCUS_TARGETS = [
 	'person-overview',
 	'person-action-favorite',
 	'search-input',
-	'livetv-guide'
+	'livetv-guide',
+	'calendar-view',
+	'calendar-month-view'
 ];
 
 // The sidebar enters the details screen from the side, where the whole button
@@ -48,4 +50,22 @@ export const focusFirstContentTarget = (targets, fallbackDirection) => {
 	}
 	Spotlight.setPointerMode(false);
 	Spotlight.move(fallbackDirection);
+};
+
+// What held focus in the content when focus moved into the sidebar. Pressing
+// right out of the rail goes back there, so leaving a row to peek at the nav
+// doesn't throw the user back to the first card of the first row.
+let sidebarReturnTarget = null;
+
+export const rememberSidebarReturn = (node) => {
+	sidebarReturnTarget = node || null;
+};
+
+// The remembered node only counts while it's still on screen. One from a view that was swapped out
+// or hidden behind another panel has no offsetParent.
+export const focusContentFromSidebar = () => {
+	const node = sidebarReturnTarget;
+	sidebarReturnTarget = null;
+	if (node && node.offsetParent !== null && Spotlight.focus(node)) return;
+	focusFirstContentTarget(SIDEBAR_CONTENT_FOCUS_TARGETS, 'right');
 };

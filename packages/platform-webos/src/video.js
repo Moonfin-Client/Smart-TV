@@ -2,7 +2,9 @@
 // Capability detection is handled by deviceProfile.js - this module focuses on
 // playback decisions, audio codec checks, and Luna hardware control.
 
+import serverLogger from '@moonfin/app/src/services/serverLogger';
 import {videoRangeTypeOf} from '@moonfin/app/src/utils/videoRange';
+import {detectWebOSVersion} from './webosVersion';
 
 let lunaClient = null;
 let isLunaAvailable = false;
@@ -60,7 +62,7 @@ const lunaCall = (service, method, parameters = {}) => {
 			method,
 			parameters,
 			onSuccess: resolve,
-			onFailure: (err) => reject(new Error(err.errorText || 'Luna call failed'))
+			onFailure: (err) => reject(Object.assign(new Error(err.errorText || 'Luna call failed'), {errorCode: err.errorCode}))
 		});
 	});
 };
@@ -366,29 +368,108 @@ export const canRenderEmbeddedPgsInBand = () =>
 	typeof Response === 'function' &&
 	typeof fetch === 'function';
 
-export const setDisplayWindow = async (rect) => {
-	if (!isLunaAvailable) return false;
+// Before webOS 6 the TV keeps the picture's shape inside the video element's box, so a box the size
+// of the screen can't stretch it. The TV's video output service can, given the id of the playing
+// pipeline, which the WebView puts on the element as mediaId.
+const PIPELINE_NOT_READY = 53;
+const outputWindow = {video: null, rect: null, active: false, inFlight: false, rerun: false, failures: 0, refreshes: 0, timer: null};
 
+const callOutputWindow = async (video, rect) => {
+	const width = video.videoWidth;
+	const height = video.videoHeight;
+	if (!video.mediaId || !width || !height) return 'pending';
+
+	const output = {x: rect.destX, y: rect.destY, width: rect.destWidth, height: rect.destHeight};
+	// The TV letterboxes a source to its own shape, so Stretch hands it one the shape of the output.
+	const original = rect.mode === 'stretch'
+		? {x: 0, y: 0, width, height: Math.round((width * output.height) / output.width)}
+		: {x: 0, y: 0, width, height};
+	const source = rect.mode === 'stretch' ? original : {x: rect.x, y: rect.y, width: rect.width, height: rect.height};
 	try {
-		await lunaCall('com.webos.service.avoutput', 'video/setDisplayWindow', {
-			sourceInput: {
-				x: rect.x || 0,
-				y: rect.y || 0,
-				width: rect.width || 1920,
-				height: rect.height || 1080
-			},
-			outputDestination: {
-				x: rect.destX || 0,
-				y: rect.destY || 0,
-				width: rect.destWidth || 1920,
-				height: rect.destHeight || 1080
-			}
+		await lunaCall('com.webos.service.videooutput', 'display/setDisplayWindow', {
+			context: video.mediaId,
+			sourcePort: 3,
+			originalInput: original,
+			sourceInput: source,
+			displayOutput: output,
+			fullScreen: false
 		});
-		return true;
+		return 'ok';
 	} catch (e) {
-		console.warn('[webosVideo] setDisplayWindow failed:', e.message);
+		return e.errorCode === PIPELINE_NOT_READY ? 'pending' : 'failed';
+	}
+};
+
+const stopOutputWindow = () => {
+	clearTimeout(outputWindow.timer);
+	Object.assign(outputWindow, {video: null, rect: null, active: false, failures: 0, refreshes: 0, timer: null});
+};
+
+const sendOutputWindow = async () => {
+	if (outputWindow.inFlight) {
+		outputWindow.rerun = true;
+		return;
+	}
+	const {video, rect} = outputWindow;
+	if (!video) return;
+
+	clearTimeout(outputWindow.timer);
+	outputWindow.inFlight = true;
+	const result = await callOutputWindow(video, rect);
+	outputWindow.inFlight = false;
+	if (outputWindow.rerun || outputWindow.rect !== rect) {
+		outputWindow.rerun = false;
+		sendOutputWindow();
+		return;
+	}
+
+	if (result === 'ok') {
+		if (!outputWindow.active && rect.mode === 'stretch') serverLogger.playback('Playback: the TV took the Stretch window');
+		outputWindow.failures = 0;
+		outputWindow.active = rect.mode === 'stretch';
+		if (!outputWindow.active) {
+			stopOutputWindow();
+			return;
+		}
+		// The TV can drop the window, so it's sent again now and then while Stretch is on.
+		outputWindow.timer = setTimeout(sendOutputWindow, outputWindow.refreshes++ < 5 ? 3000 : 30000);
+		return;
+	}
+
+	outputWindow.failures++;
+	if (outputWindow.failures < (result === 'pending' ? 40 : 5)) {
+		outputWindow.timer = setTimeout(sendOutputWindow, 500);
+		return;
+	}
+	serverLogger.playback('Playback: the TV refused the zoom window', {mode: rect.mode, mediaId: Boolean(video.mediaId)});
+	stopOutputWindow();
+};
+
+// Added once per element and left there, since it does nothing unless that element holds a Stretch window.
+const resendOutputWindow = (event) => {
+	if (outputWindow.active && outputWindow.video === event.currentTarget) sendOutputWindow();
+};
+
+export const setDisplayWindow = async (rect) => {
+	const video = rect?.video;
+	if (!isLunaAvailable || !video || detectWebOSVersion() >= 6) return false;
+
+	// The element's box already shows Fit and Zoom to Fill, so the TV is only told while Stretch is on,
+	// and once more after to take it back.
+	const live = outputWindow.video === video && (outputWindow.active || outputWindow.inFlight);
+	if (rect.mode !== 'stretch' && !live) {
+		stopOutputWindow();
 		return false;
 	}
+	if (outputWindow.video !== video) {
+		stopOutputWindow();
+		outputWindow.video = video;
+	}
+	video.addEventListener('playing', resendOutputWindow);
+	outputWindow.rect = rect;
+	outputWindow.failures = 0;
+	sendOutputWindow();
+	return true;
 };
 
 export const registerAppStateObserver = (onForeground, onBackground) => {
@@ -562,6 +643,7 @@ export const cleanupVideoElement = async (videoElement) => {
 
 	console.log('[webosVideo] Cleaning up video element resources');
 
+	if (outputWindow.video === videoElement) stopOutputWindow();
 	try { videoElement.pause(); } catch (e) { /* ignore */ }
 
 	// Remove any <source> children

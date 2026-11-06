@@ -5,6 +5,7 @@ import SpotlightContainerDecorator from '@enact/spotlight/SpotlightContainerDeco
 
 import {iconViewBox} from '../../components/icons/iconViewBox';
 import {SeerrSeasonDot} from '../../components/seerr/SeerrStatusBadge';
+import SeerrStatusBanner, {hasSeerrDot, seerrBadgeStyle, seerrTitleStatus} from '../../components/seerr/SeerrStatusBanner';
 import {SeerrChips, SeerrFacts, SeerrStreaming} from '../../components/seerr/SeerrSections';
 import {rem, rootScale} from '../../utils/rootScale';
 import {FavoriteHeartIcon, WatchedCheckIcon} from './DetailBadges';
@@ -27,6 +28,9 @@ const TrapContainer = SpotlightContainerDecorator({enterTo: 'default-element', l
 // Core's spacing for a row of posters: the gap between cards, the room above and beside a focused
 // card for it to grow into, and how far the cards sit under the row's title.
 const POSTER_ROOM = {gap: 35.7, clearance: 58, bleed: 30, titleGap: 72};
+
+// The room between chips sharing a row, which StageDetailContent.module.less keeps too.
+const CHIP_GAP = 13.4;
 
 // Past this the toolbar along the top fades out, so it never sits over the rows scrolled up to it.
 const TOOLBAR_HIDES_AT = 24;
@@ -205,8 +209,16 @@ const useDetailPage = (props, {onNavigateUp, onNavigateDown, bleedRight}) => {
 			</SpottableDiv>
 		);
 	};
+	const seerrStyle = seerrBadgeStyle(settings);
 	const renderLibraryPoster = (entry) => renderCard(entry, handlePosterCard);
-	const renderSeerrPoster = (entry) => renderCard(entry, handleSeerrCard);
+	const renderSeerrPoster = (entry) => {
+		const status = seerrStyle ? seerrTitleStatus(entry) : null;
+		return renderCard(entry, handleSeerrCard, {
+			children: seerrStyle === 'banner'
+				? status && <SeerrStatusBanner status={status} large />
+				: status && <span className={css.cardSeerrDot}><SeerrSeasonDot status={status} /></span>
+		});
+	};
 
 	const renderPerson = (person) => {
 		const photo = castPhotoUrl(person, effectiveServerUrl, 400);
@@ -235,14 +247,18 @@ const useDetailPage = (props, {onNavigateUp, onNavigateDown, bleedRight}) => {
 		wide: true
 	});
 
-	const seasonMarkers = settings.showSeerrAvailabilityBadges !== false ? seerr.seasonMarkers : null;
 	// Core draws a season Seerr knows of as its name on a plain card, with no artwork.
-	const renderSeerrSeason = (season) => renderCard(season, handleSeasonCard, {
-		imageUrl: null,
-		placeholder: season.Name,
-		subtitle: season.episodeCount ? String(season.episodeCount) : null,
-		children: <SeerrSeasonDot status={seasonMarkers?.get(season.seasonNumber)} />
-	});
+	const renderSeerrSeason = (season) => {
+		const status = seerrStyle ? seerr.seasonMarkers?.get(season.seasonNumber) : null;
+		return renderCard(season, handleSeasonCard, {
+			imageUrl: null,
+			placeholder: season.Name,
+			subtitle: season.episodeCount ? String(season.episodeCount) : null,
+			children: seerrStyle === 'banner'
+				? hasSeerrDot(status) && <SeerrStatusBanner status={status} large />
+				: <SeerrSeasonDot status={status} />
+		});
+	};
 
 	const rail = (id, title, items, renderItem, room = POSTER_ROOM, extra) => ({
 		id,
@@ -289,10 +305,13 @@ const useDetailPage = (props, {onNavigateUp, onNavigateDown, bleedRight}) => {
 		)
 	});
 
-	// The audio, subtitle and version pickers with what each is set to.
-	const tracksStop = () => {
+	// The audio, subtitle and version pickers with what each is set to. With `shareRow` they split one
+	// row between them and leave their names off, for a column too narrow for them to wrap. Each keeps
+	// its own width up to an even share.
+	const tracksStop = ({shareRow = false} = {}) => {
 		const choices = stageTrackChoices(props);
 		if (!choices.length) return null;
+		const share = shareRow ? {maxWidth: `calc(${100 / choices.length}% - ${rem(CHIP_GAP)})`} : undefined;
 		const openers = {audio: handleOpenAudioModal, subtitles: handleOpenSubtitleModal, version: handleOpenVersionModal};
 		const looks = {
 			audio: {label: $L('Audio'), icon: DETAIL_ICON_PATHS.audio},
@@ -302,11 +321,11 @@ const useDetailPage = (props, {onNavigateUp, onNavigateDown, bleedRight}) => {
 		return {
 			id: 'stage-tracks',
 			node: (
-				<RowContainer className={css.chipRow} spotlightId="stage-tracks">
+				<RowContainer className={shareRow ? `${css.chipRow} ${css.chipRowShared}` : css.chipRow} spotlightId="stage-tracks">
 					{choices.map((choice) => (
-						<SpottableDiv key={choice.id} className={css.chip} onClick={openers[choice.id]}>
+						<SpottableDiv key={choice.id} className={css.chip} style={share} onClick={openers[choice.id]}>
 							<Icon path={looks[choice.id].icon} className={css.chipIcon} />
-							<span className={css.chipLabel}>{looks[choice.id].label}</span>
+							{!shareRow && <span className={css.chipLabel}>{looks[choice.id].label}</span>}
 							<span className={css.chipValue}>{choice.current}</span>
 						</SpottableDiv>
 					))}

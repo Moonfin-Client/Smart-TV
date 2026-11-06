@@ -17,13 +17,13 @@ jobs:
   # ───────────────────────────────────────────────
   build-webos:
     name: Build webOS
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     outputs:
       result: ${{ steps.build.outcome }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
           node-version: lts/*
           cache: npm
@@ -35,7 +35,7 @@ jobs:
         id: build
         run: npm run build:webos
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v6
         if: success()
         with:
           name: webos
@@ -48,13 +48,13 @@ jobs:
   # ───────────────────────────────────────────────
   build-tizen:
     name: Build Tizen
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     outputs:
       result: ${{ steps.build.outcome }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
           node-version: lts/*
           cache: npm
@@ -66,7 +66,7 @@ jobs:
         id: build
         run: npm run build:tizen:all
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v6
         if: success()
         with:
           name: tizen
@@ -77,13 +77,14 @@ jobs:
   # ───────────────────────────────────────────────
   build-vega:
     name: Build Vega
-    runs-on: ubuntu-latest
+    # Deadsnakes doesn't build Python 3.8 for the amd64v3 packages the 26.04 runners install from.
+    runs-on: ubuntu-24.04
     outputs:
       result: ${{ steps.build.outcome }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
           node-version: 22
           cache: npm
@@ -115,7 +116,7 @@ jobs:
           npm run lint
           npm test
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v6
         if: success()
         with:
           name: vega
@@ -130,9 +131,9 @@ jobs:
     outputs:
       result: ${{ steps.build.outcome }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
           node-version: lts/*
           cache: npm
@@ -154,7 +155,7 @@ jobs:
           if (-not (Get-ChildItem xbox-zip/Dependencies)) { throw 'MSBuild left no dependencies to zip' }
           Compress-Archive xbox-zip/* "$($msix.BaseName).zip"
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v6
         if: success()
         with:
           name: xbox
@@ -167,7 +168,7 @@ jobs:
         if: startsWith(github.ref, 'refs/tags/')
         run: npm run build:xbox -- --store --no-web
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v6
         if: startsWith(github.ref, 'refs/tags/')
         with:
           name: xbox-store
@@ -178,13 +179,13 @@ jobs:
   # ───────────────────────────────────────────────
   test:
     name: Test
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     outputs:
       result: ${{ steps.jest.outcome }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
           node-version: lts/*
           cache: npm
@@ -206,7 +207,7 @@ jobs:
     # is the one that never gets one.
     if: always() && github.event_name == 'pull_request'
     needs: [build-webos, build-tizen, build-vega, build-xbox, test]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     steps:
       - name: Write outcomes.json
         run: |
@@ -222,7 +223,7 @@ jobs:
           }
           EOF
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v6
         with:
           name: build-results
           path: outcomes.json
@@ -234,13 +235,13 @@ jobs:
     name: Create Draft Release
     if: startsWith(github.ref, 'refs/tags/')
     needs: [build-webos, build-tizen, build-vega, build-xbox]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v7
         with:
           merge-multiple: true
 
-      - uses: softprops/action-gh-release@v2
+      - uses: softprops/action-gh-release@v3
         with:
           draft: true
           generate_release_notes: true

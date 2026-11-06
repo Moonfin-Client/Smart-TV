@@ -28,7 +28,8 @@ jest.mock('@enact/spotlight/Spottable', () => (type) => {
 		return React.createElement(type, rest);
 	};
 });
-jest.mock('../../context/SettingsContext', () => ({useSettings: () => ({settings: {}})}));
+let mockSettings = {};
+jest.mock('../../context/SettingsContext', () => ({useSettings: () => ({settings: mockSettings})}));
 jest.mock('../../services/jellyfinApi', () => ({
 	getServerUrl: () => 'http://server',
 	getApiKey: () => 'token',
@@ -76,6 +77,7 @@ const draw = (item, isFocused) => {
 };
 
 beforeEach(() => {
+	mockSettings = {};
 	jest.useFakeTimers();
 	setTmdbThumbsAvailable(true);
 });
@@ -162,6 +164,56 @@ describe('ModernMediaCard growing on focus', () => {
 	});
 });
 
+describe('ModernMediaCard sliding open', () => {
+	// Medium, as the card times it.
+	const OPEN_MS = 180;
+	const thumbed = (id) => ({Id: id, Name: 'Film', Type: 'Movie', ProductionYear: 2020, ImageTags: {Primary: 'p', Thumb: 't'}});
+	const art = (container) => container.querySelector('[data-card-art] img:not([alt=""])');
+	const veil = (container) => container.querySelector('[data-card-art] img[alt=""]');
+
+	beforeEach(() => {
+		mockSettings = {modernCardTransitionSpeed: 'medium'};
+	});
+	afterEach(() => {
+		mockSettings = {};
+	});
+
+	it('fades the poster off the wide art as the card opens', () => {
+		const {container} = render(<ModernMediaCard item={thumbed('opens')} serverUrl="http://server" isFocused />);
+		expect(veil(container).style.opacity).toBe('1');
+		passArtWait();
+		expect(art(container).getAttribute('src')).toContain('/Images/Thumb');
+		expect(veil(container).getAttribute('src')).toContain('/Images/Primary');
+		// The poster stays over the wide art until that art is shown.
+		expect(veil(container).style.opacity).toBe('1');
+		fireEvent.load(art(container));
+		expect(veil(container).style.opacity).toBe('0');
+	});
+
+	it('holds the wide art while the card slides shut, then goes back to the poster', () => {
+		const {container, rerender} = render(<ModernMediaCard item={thumbed('closes')} serverUrl="http://server" isFocused />);
+		passArtWait();
+		rerender(<ModernMediaCard item={thumbed('closes')} serverUrl="http://server" />);
+		expect(art(container).getAttribute('src')).toContain('/Images/Thumb');
+		expect(veil(container).style.opacity).toBe('1');
+
+		act(() => {
+			jest.advanceTimersByTime(OPEN_MS);
+		});
+		expect(art(container).getAttribute('src')).toContain('/Images/Primary');
+		expect(veil(container)).toBeNull();
+	});
+
+	it('opens at once with no poster over it when the transition is off', () => {
+		mockSettings = {modernCardTransitionSpeed: 'off'};
+		const {container, rerender} = render(<ModernMediaCard item={thumbed('instant')} serverUrl="http://server" isFocused />);
+		passArtWait();
+		expect(veil(container)).toBeNull();
+		rerender(<ModernMediaCard item={thumbed('instant')} serverUrl="http://server" />);
+		expect(art(container).getAttribute('src')).toContain('/Images/Primary');
+	});
+});
+
 describe('ModernMediaCard description', () => {
 	const film = {Id: 'described', Name: 'Film', Type: 'Movie', ProductionYear: 2020, Overview: 'A story.', ImageTags: {Primary: 'p'}};
 
@@ -173,6 +225,12 @@ describe('ModernMediaCard description', () => {
 		expect(screen.queryByText('A story.')).toBeNull();
 		expect(screen.getByText('Film')).toBeTruthy();
 	});
+});
+
+it('keeps a calendar card\'s release line ahead of its year on focus', () => {
+	const item = {Id: 'calendar', Name: 'Film', Type: 'Movie', ProductionYear: 2026, _calendarDate: '2026-11-08T00:00:00.000Z', Subtitle: 'Digital · In 3 days (Nov 8)'};
+	render(<ModernMediaCard item={item} serverUrl="http://server" isFocused />);
+	expect(screen.getByText('Digital · In 3 days (Nov 8) • 2026')).toBeTruthy();
 });
 
 // A controller that records what the card asks of it and lets a test move the phase.
@@ -289,4 +347,54 @@ it('holds the artwork back while its row is far from focus', () => {
 	expect(document.querySelector('img').hasAttribute('src')).toBe(false);
 	rerender(<ModernMediaCard item={seerrShow()} serverUrl="http://server" />);
 	expect(document.querySelector('img').getAttribute('src')).toBe(POSTER);
+});
+
+describe('ModernMediaCard Seerr status', () => {
+	const dot = () => document.querySelector('[class~="dot"]');
+	const banner = () => document.querySelector('[class~="banner"]');
+	const drawCard = (item) => render(<ModernMediaCard item={item} serverUrl="http://server" />);
+
+	it('keeps the corner dot in badge mode', () => {
+		drawCard(seerrShow({mediaInfo: {status: 3}}));
+		expect(dot().className).toContain('processing');
+		expect(banner()).toBeNull();
+	});
+
+	it('draws Core\'s mark for each status and none for an unknown one', () => {
+		const {rerender} = drawCard(seerrShow({mediaInfo: {status: 5}}));
+		expect(dot().className).toContain('available');
+		rerender(<ModernMediaCard item={seerrShow({mediaInfo: {status: 4}})} serverUrl="http://server" />);
+		expect(dot().className).toContain('partial');
+		rerender(<ModernMediaCard item={seerrShow({mediaInfo: {status: 2}})} serverUrl="http://server" />);
+		expect(dot().className).toContain('pending');
+		rerender(<ModernMediaCard item={seerrShow({mediaInfo: {status: 1}})} serverUrl="http://server" />);
+		expect(dot()).toBeNull();
+	});
+
+	it('adds the type badge and the focus ring only in the Core look', () => {
+		const {rerender} = drawCard(seerrShow());
+		expect(document.querySelector('[class~="typeBadge"]')).toBeNull();
+		expect(document.querySelector('[class~="focusRing"]')).toBeNull();
+		rerender(<ModernMediaCard item={seerrShow()} serverUrl="http://server" coreLook />);
+		expect(document.querySelector('[class~="typeBadge"]').textContent).toBe('SERIES');
+		expect(document.querySelector('[class~="focusRing"]')).not.toBeNull();
+	});
+
+	it('draws nothing when the badges are off', () => {
+		mockSettings = {showSeerrAvailabilityBadges: false};
+		drawCard(seerrShow({mediaInfo: {status: 3}}));
+		expect(dot()).toBeNull();
+		expect(banner()).toBeNull();
+	});
+
+	it('runs a banner across the top in banner mode', () => {
+		mockSettings = {seerrBadgeStyle: 'banner'};
+		const {rerender} = drawCard(seerrShow({mediaInfo: {status: 3}}));
+		expect(banner().textContent).toBe('REQUESTED');
+		expect(dot()).toBeNull();
+		expect(document.querySelector('[data-card-art]').className).toContain('underSeerrBanner');
+
+		rerender(<ModernMediaCard item={seerrShow()} serverUrl="http://server" />);
+		expect(banner()).toBeNull();
+	});
 });

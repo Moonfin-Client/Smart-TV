@@ -337,6 +337,22 @@
 	white-space: nowrap;
 }
 
+// Quick Look's chips share one line, and useDetailPage caps each at an even share of it.
+.chipRowShared {
+	flex-wrap: nowrap;
+	margin: 0 -6.7px;
+}
+
+.chipRowShared > .chip {
+	flex: 0 1 auto;
+	margin: 0 6.7px;
+	min-width: 0;
+}
+
+.chipRowShared .chipValue {
+	min-width: 0;
+}
+
 // The people and studios behind a film, one cell each, side by side in one panel. A cell takes
 // focus first, and OK opens it so its names can be picked.
 .panel {
@@ -501,6 +517,24 @@
 	.watched-badge(37px, 22px);
 	right: 10px;
 	top: 10px;
+}
+
+// A Seerr title's dot, in the corner and at the size the watched mark takes on a library card.
+.cardSeerrDot {
+	height: 37px;
+	position: absolute;
+	right: 10px;
+	top: 10px;
+	width: 37px;
+	z-index: 5;
+}
+
+.cardSeerrDot > div {
+	box-sizing: border-box;
+	height: 100%;
+	left: 0;
+	top: 0;
+	width: 100%;
 }
 
 .cardTitle {

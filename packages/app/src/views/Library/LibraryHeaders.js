@@ -134,9 +134,9 @@ const Pill = ({path, label, value, onClick, spotlightId, children}) => (
 // library has no use for comes in without a handler and stays out of the bar.
 export const ModernBar = memo(({
 	sortLabel, sortAscending, groupLabel, showLabel, searchQuery,
-	onSearchChange, onHome, onSort, onGroup, onShow, onShuffle, onSettings, onKeyDown
+	onSearchChange, onHome, onSort, onGroup, onShow, onShuffle, onSettings, onKeyDown, settingsPreview
 }) => (
-	<ToolbarContainer className={css.modernBar} spotlightId="library-bar" onKeyDown={onKeyDown}>
+	<ToolbarContainer className={css.modernBar} spotlightId={settingsPreview ? undefined : 'library-bar'} onKeyDown={onKeyDown}>
 		<IconButton path={HOME_ICON} onClick={onHome} spotlightId="library-home-btn" />
 		<span className={css.barDivider} />
 		<Search className={css.barSearch} value={searchQuery} onChange={onSearchChange} />
@@ -154,8 +154,8 @@ export const ModernBar = memo(({
 	</ToolbarContainer>
 ));
 
-export const ModernLetters = memo(({onSelect}) => (
-	<ToolbarContainer className={css.letterRow} spotlightId="library-letters" onKeyDown={handleLetterRowKeyDown}>
+export const ModernLetters = memo(({onSelect, settingsPreview}) => (
+	<ToolbarContainer className={css.letterRow} spotlightId={settingsPreview ? undefined : 'library-letters'} onKeyDown={handleLetterRowKeyDown}>
 		<Letters onSelect={onSelect} />
 	</ToolbarContainer>
 ));
@@ -176,9 +176,9 @@ export const LibraryDock = memo(({
 	isFolderView, folderStack, rootName, displayName, shownCount, onBreadcrumb,
 	sortLabel, sortAscending, groupLabel, showLabel, displayLabel, searchQuery,
 	showLetters, onLetterSelect,
-	onSearchChange, onHome, onSort, onGroup, onShow, onShuffle, onSettings
+	onSearchChange, onHome, onSort, onGroup, onShow, onShuffle, onSettings, settingsPreview
 }) => (
-	<ToolbarContainer className={css.dock} spotlightId="library-dock" onKeyDown={handleDockKeyDown}>
+	<ToolbarContainer className={css.dock} spotlightId={settingsPreview ? undefined : 'library-dock'} onKeyDown={handleDockKeyDown}>
 		<div className={css.dockHeader}>
 			<IconButton path={HOME_ICON} onClick={onHome} spotlightId="library-home-btn" />
 			<div className={css.dockTitle}>

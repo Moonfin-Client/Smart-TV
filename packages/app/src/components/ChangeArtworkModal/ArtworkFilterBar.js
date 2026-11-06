@@ -20,13 +20,15 @@ const ArtworkFilterBar = ({hasSources, onlyShowInterfaceLanguage, onOpenSources,
 		>
 			{onlyShowInterfaceLanguage ? $L('Show All Languages') : $L('Local Language Only')}
 		</SpottableButton>
-		<SpottableButton
-			className={`${css.filterBtn} ${css.clearAllBtn}`}
-			onClick={onClearAll}
-			spotlightId="clear-all-btn"
-		>
-			{$L('Clear All Artwork')}
-		</SpottableButton>
+		{onClearAll && (
+			<SpottableButton
+				className={`${css.filterBtn} ${css.clearAllBtn}`}
+				onClick={onClearAll}
+				spotlightId="clear-all-btn"
+			>
+				{$L('Clear All Artwork')}
+			</SpottableButton>
+		)}
 	</div>
 );
 

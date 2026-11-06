@@ -13,6 +13,8 @@ const NOUVEAU = 'v4';
 const MINIMALIST = 'v5';
 const STAGE = 'v6';
 const PREMIERE = 'v7';
+const QUICK_LOOK = 'v8';
+const FROST = 'v9';
 
 // Where a section sits on the settings screen. The Seerr group takes the Seerr display name.
 export const DETAIL_SECTION_GROUPS = [
@@ -35,21 +37,21 @@ export const DETAIL_SECTIONS = [
 	{id: 'poster', label: 'Poster', group: 'header', styles: [CLASSIC]},
 	{id: 'versionBadge', label: 'Version badge', group: 'header', styles: [SPOTLIGHT]},
 	{id: 'upNext', label: 'Next Up', group: 'header', styles: [CLASSIC, MODERN]},
-	{id: 'cast', label: 'Cast', subtitle: 'Also on collection pages', group: 'sections', styles: [CLASSIC, MODERN, SPOTLIGHT, NOUVEAU, STAGE, PREMIERE]},
-	{id: 'crew', label: 'Directors & writers', group: 'sections', styles: [CLASSIC, MODERN, SPOTLIGHT, NOUVEAU, STAGE, PREMIERE]},
-	{id: 'studios', label: 'Studios', group: 'sections', styles: [CLASSIC, MODERN, SPOTLIGHT, NOUVEAU, STAGE, PREMIERE]},
+	{id: 'cast', label: 'Cast', subtitle: 'Also on collection pages', group: 'sections', styles: [CLASSIC, MODERN, SPOTLIGHT, NOUVEAU, STAGE, PREMIERE, FROST]},
+	{id: 'crew', label: 'Directors & writers', group: 'sections', styles: [CLASSIC, MODERN, SPOTLIGHT, NOUVEAU, STAGE, PREMIERE, FROST]},
+	{id: 'studios', label: 'Studios', group: 'sections', styles: [CLASSIC, MODERN, SPOTLIGHT, NOUVEAU, STAGE, PREMIERE, FROST]},
 	{id: 'chapters', label: 'Chapters', group: 'sections', styles: [CLASSIC, MODERN, SPOTLIGHT, NOUVEAU]},
-	{id: 'extras', label: 'Extras', group: 'sections', styles: [CLASSIC, MODERN, SPOTLIGHT, NOUVEAU, STAGE, PREMIERE]},
+	{id: 'extras', label: 'Extras', group: 'sections', styles: [CLASSIC, MODERN, SPOTLIGHT, NOUVEAU, STAGE, PREMIERE, FROST]},
 	{id: 'collections', label: 'Collections', group: 'sections', styles: [CLASSIC, MODERN, SPOTLIGHT, STAGE, PREMIERE]},
-	{id: 'moreLikeThis', label: 'More Like This', subtitle: 'Also similar albums and artists', group: 'sections', styles: [CLASSIC, MODERN, SPOTLIGHT, NOUVEAU, STAGE, PREMIERE]},
+	{id: 'moreLikeThis', label: 'More Like This', subtitle: 'Also similar albums and artists', group: 'sections', styles: [CLASSIC, MODERN, SPOTLIGHT, NOUVEAU, STAGE, PREMIERE, FROST]},
 	{id: 'reviews', label: 'Reviews', group: 'sections', styles: [CLASSIC, MODERN, SPOTLIGHT, NOUVEAU]},
-	{id: 'moreEpisodes', label: 'More episodes', subtitle: 'On episode pages', group: 'sections', styles: [CLASSIC, MODERN, SPOTLIGHT, STAGE, PREMIERE]},
-	{id: 'mediaInfo', label: 'Media info', subtitle: 'File, streams and Direct Play check', group: 'sections', styles: [MODERN, SPOTLIGHT, NOUVEAU]},
-	{id: 'seerrGenresTags', label: 'Genres & tags', group: 'seerr', styles: [CLASSIC, MODERN, SPOTLIGHT, NOUVEAU, STAGE, PREMIERE]},
-	{id: 'seerrStats', label: 'Stats', group: 'seerr', styles: [CLASSIC, MODERN, SPOTLIGHT, NOUVEAU, STAGE, PREMIERE]},
-	{id: 'seerrStreaming', label: 'Streaming services', group: 'seerr', styles: [CLASSIC, MODERN, SPOTLIGHT, NOUVEAU, STAGE, PREMIERE]},
-	{id: 'seerrRecommendations', label: 'Recommendations', group: 'seerr', styles: [CLASSIC, MODERN, SPOTLIGHT, NOUVEAU, STAGE, PREMIERE]},
-	{id: 'seerrSimilar', label: 'Similar titles', group: 'seerr', styles: [CLASSIC, MODERN, SPOTLIGHT, NOUVEAU, STAGE, PREMIERE]},
+	{id: 'moreEpisodes', label: 'More episodes', subtitle: 'On episode pages', group: 'sections', styles: [CLASSIC, MODERN, SPOTLIGHT, STAGE, PREMIERE, FROST]},
+	{id: 'mediaInfo', label: 'Media info', subtitle: 'File, streams and Direct Play check', group: 'sections', styles: [MODERN, SPOTLIGHT, NOUVEAU, FROST]},
+	{id: 'seerrGenresTags', label: 'Genres & tags', group: 'seerr', styles: [CLASSIC, MODERN, SPOTLIGHT, NOUVEAU, STAGE, PREMIERE, FROST]},
+	{id: 'seerrStats', label: 'Stats', group: 'seerr', styles: [CLASSIC, MODERN, SPOTLIGHT, NOUVEAU, STAGE, PREMIERE, FROST]},
+	{id: 'seerrStreaming', label: 'Streaming services', group: 'seerr', styles: [CLASSIC, MODERN, SPOTLIGHT, NOUVEAU, STAGE, PREMIERE, FROST]},
+	{id: 'seerrRecommendations', label: 'Recommendations', group: 'seerr', styles: [CLASSIC, MODERN, SPOTLIGHT, NOUVEAU, STAGE, PREMIERE, FROST]},
+	{id: 'seerrSimilar', label: 'Similar titles', group: 'seerr', styles: [CLASSIC, MODERN, SPOTLIGHT, NOUVEAU, STAGE, PREMIERE, FROST]},
 	{id: 'seerrCollection', label: 'Collection banner', group: 'seerr', styles: [CLASSIC, MODERN]},
 	{id: 'seerrPersonAppearances', label: 'Appearances', subtitle: 'On person pages', group: 'seerr', styles: [CLASSIC, MODERN, SPOTLIGHT, NOUVEAU]},
 	{id: 'seerrPersonCrew', label: 'Crew credits', subtitle: 'On person pages', group: 'seerr', styles: [CLASSIC, MODERN, SPOTLIGHT, NOUVEAU]},
@@ -61,13 +63,14 @@ export const DETAIL_SECTIONS = [
 ];
 
 // Whether picking `style` can put a section on screen. Minimalist only draws video pages and
-// hands every other page to Spotlight, so it also shows whatever Spotlight does. Stage and Premiere
-// hand people and collections to Modern the same way.
+// hands every other page to Spotlight, so it also shows whatever Spotlight does. Stage, Premiere and
+// Frost hand people and collections to Modern the same way, and Quick Look's full page is Modern.
 const DRAWN_BY_MODERN = ['seerrPersonAppearances', 'seerrPersonCrew'];
 export const isAvailableIn = (section, style) =>
 	section.styles.includes(style) ||
 	(style === MINIMALIST && section.styles.includes(SPOTLIGHT)) ||
-	((style === STAGE || style === PREMIERE) && section.styles.includes(MODERN) &&
+	(style === QUICK_LOOK && section.styles.includes(MODERN)) ||
+	((style === STAGE || style === PREMIERE || style === FROST) && section.styles.includes(MODERN) &&
 		(section.group === 'person' || section.group === 'collection' || DRAWN_BY_MODERN.includes(section.id)));
 
 // The sections the settings screen lists for a style. The Seerr ones only make sense once the

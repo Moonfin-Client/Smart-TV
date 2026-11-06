@@ -13,6 +13,7 @@ import BookBrowse from '../BookBrowse';
 import BackdropLayer from '../../components/BackdropLayer';
 import TileGrid from '../../components/TileGrid';
 import IncompleteBadge from '../../components/IncompleteBadge';
+import PosterLabels from '../../components/PosterLabels';
 import {getImageUrl, getPrimaryImageId, formatDuration} from '../../utils/helpers';
 import useQuickReturnGrid from '../../hooks/useQuickReturnGrid';
 import {useSettings} from '../../context/SettingsContext';
@@ -30,7 +31,7 @@ import {useStorage} from '../../hooks/useStorage';
 import {NO_FILTERS, buildFilterParams, facetRows, hasActiveFilters} from '../../utils/libraryFilters';
 import {alphabetApplies, librarySortKeys, orderByMyRating, savedSortOrder, sortField, sortLabel as librarySortLabel} from '../../utils/librarySorts';
 import {foldForSearch} from '../../utils/accentFolding';
-import {keepFocusInView} from '../../utils/focusScroll';
+import {glideScroll, keepFocusInView} from '../../utils/focusScroll';
 import {PanelContainer} from '../../utils/spotlightContainers';
 import {KEYS} from '../../utils/keys';
 import useSortSettingsPanels from '../../hooks/useSortSettingsPanels';
@@ -248,7 +249,9 @@ const handleTabsKeyDown = {
 // focus move that only changes the header would redraw the whole grid.
 const GridList = memo(VirtualGridList);
 
-const Library = ({library, genreFilter, studioFilter, onSelectItem, onViewPhoto, onHome, onPlay, onSearch, backHandlerRef}) => {
+// [settingsPreview] draws the library in the settings preview with its first card held as the
+// focused one. It stays out of Spotlight and leaves focus and the places Back returns to alone.
+const Library = ({library, genreFilter, studioFilter, onSelectItem, onViewPhoto, onHome, onPlay, onSearch, backHandlerRef, settingsPreview = false}) => {
 	const {api, serverUrl, serverType} = useAuth();
 	const {settings, updateSetting} = useSettings();
 	const libraryServerType = library?._serverType || serverType;
@@ -266,18 +269,19 @@ const Library = ({library, genreFilter, studioFilter, onSelectItem, onViewPhoto,
 
 	const isMusicLibrary = library?.CollectionType?.toLowerCase() === 'music';
 	const isBookLibrary = isBookLibraryType(library?.CollectionType);
-	const [restoredBookGrid] = useState(() => (bookGridReturn?.libraryId === library?.Id ? bookGridReturn : null));
+	const [restoredBookGrid] = useState(() => (!settingsPreview && bookGridReturn?.libraryId === library?.Id ? bookGridReturn : null));
 	// The music category screen that's open, from musicScreenFor.
-	const [musicScreen, setMusicScreen] = useState(() => (musicScreenReturn?.libraryId === library?.Id ? musicScreenReturn.screen : null));
+	const [musicScreen, setMusicScreen] = useState(() => (!settingsPreview && musicScreenReturn && musicScreenReturn.libraryId === library?.Id ? musicScreenReturn.screen : null));
 	// The book library screen that's open, from bookScreens, kept with its library so another one
 	// opens at its own root.
-	const [bookScreenOf, setBookScreenOf] = useState(() => (bookScreenReturn?.libraryId === library?.Id ? bookScreenReturn : null));
+	const [bookScreenOf, setBookScreenOf] = useState(() => (!settingsPreview && bookScreenReturn?.libraryId === library?.Id ? bookScreenReturn : null));
 	const bookScreen = bookScreenOf && bookScreenOf.libraryId === library?.Id ? bookScreenOf.screen : null;
 	useEffect(() => {
+		if (settingsPreview) return;
 		bookGridReturn = null;
 		musicScreenReturn = null;
 		bookScreenReturn = null;
-	}, []);
+	}, [settingsPreview]);
 	const isSeriesLibrary = library?.CollectionType?.toLowerCase() === 'tvshows';
 	const isPlaylistLibrary = library?.CollectionType?.toLowerCase() === 'playlists';
 	const isSquareDefault = isMusicLibrary || isPlaylistLibrary;
@@ -338,7 +342,7 @@ const Library = ({library, genreFilter, studioFilter, onSelectItem, onViewPhoto,
 	const canFolderView = library != null && !isFilterMode && !musicGridView && !bookGridView;
 	const isFolderView = (canFolderView && (folderView === 'on' || (folderView !== 'off' && (isMixedContentLibrary || isHomeVideosLibrary)))) ||
 		Boolean(bookGridView?.folders);
-	const [folderStack, setFolderStack] = useState(() => (returnTo?.libraryId === libraryId && returnTo.folderStack) || []);
+	const [folderStack, setFolderStack] = useState(() => (!settingsPreview && returnTo?.libraryId === libraryId && returnTo.folderStack) || []);
 	const currentFolderId = folderStack.length > 0 ? folderStack[folderStack.length - 1].id : library?.Id;
 	const currentFolderCollectionType = folderStack.length > 0 ? folderStack[folderStack.length - 1].collectionType?.toLowerCase() : null;
 	// A genre browse can be narrowed to one library from the panel, which holds until the next genre.
@@ -725,16 +729,11 @@ const Library = ({library, genreFilter, studioFilter, onSelectItem, onViewPhoto,
 	}, [playlistGrouped, playlistTypesFiltered, isLoading, allItems, effectiveApi]);
 
 	const groupRowsRef = useRef(null);
-	const groupRowRefs = useRef(new Map());
-	const registerGroupRowRef = useCallback((rowIndex, el) => {
-		if (el) groupRowRefs.current.set(rowIndex, el);
-		else groupRowRefs.current.delete(rowIndex);
-	}, []);
 
 	const scrollToGroupRow = useCallback((rowIndex) => {
-		const row = groupRowRefs.current.get(rowIndex);
 		const container = groupRowsRef.current;
-		if (row && container) container.scrollTop = Math.max(0, row.offsetTop - 10);
+		const row = container?.querySelector(`[data-row-index="${rowIndex}"]`);
+		if (row) glideScroll(container, 'y', row.offsetTop - 10);
 		Spotlight.focus(`library-group-row-${rowIndex}`);
 	}, []);
 
@@ -1008,7 +1007,7 @@ const Library = ({library, genreFilter, studioFilter, onSelectItem, onViewPhoto,
 	// Coming back from an item lands on it, pulling in pages until it turns up, or giving up a page
 	// past where it was.
 	useEffect(() => {
-		if (dialogOpen || apiFetchIndexRef.current === 0) return undefined;
+		if (settingsPreview || dialogOpen || apiFetchIndexRef.current === 0) return undefined;
 		if (items.length === 0 || isLoading || initialFocusDoneRef.current) return undefined;
 		const back = returnTo && returnTo.libraryId === libraryId && !groupedActive ? returnTo : null;
 		const index = back ? items.findIndex((item) => item.Id === back.itemId) : -1;
@@ -1025,7 +1024,14 @@ const Library = ({library, genreFilter, studioFilter, onSelectItem, onViewPhoto,
 			initialFocusDoneRef.current = true;
 		}, 100);
 		return () => clearTimeout(id);
-	}, [items, isLoading, groupedActive, showGroupRows, dialogOpen, libraryId, totalCount, loadItems, scrollGridTo]);
+	}, [items, isLoading, groupedActive, showGroupRows, dialogOpen, libraryId, totalCount, loadItems, scrollGridTo, settingsPreview]);
+
+	useEffect(() => {
+		if (settingsPreview) setFocusedItem(items[0] || null);
+	}, [settingsPreview, items]);
+
+	// The preview's containers go without the screen's ids, so Spotlight can't mistake one for the other.
+	const ownId = (id) => (settingsPreview ? undefined : id);
 
 	const handleOpenSort = useCallback(() => {
 		openerRef.current = 'library-sort-btn';
@@ -1342,6 +1348,13 @@ const Library = ({library, genreFilter, studioFilter, onSelectItem, onViewPhoto,
 						<svg viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z" /></svg>
 					</div>
 				)}
+				<PosterLabels
+					item={item}
+					serverUrl={effectiveServerUrl}
+					top={item.UserData?.IsFavorite ? 40 : 8}
+					topRight={item.UserData?.Played ? 40 : 8}
+					height={posterHeight}
+				/>
 				{showCardText && (
 					<div className={css.cardText}>
 						<div className={css.cardTitle}>{item.Name}</div>
@@ -1356,7 +1369,7 @@ const Library = ({library, genreFilter, studioFilter, onSelectItem, onViewPhoto,
 		items[index] ? (
 			<SpottableDiv
 				{...rest}
-				className={css.itemCard}
+				className={settingsPreview && index === 0 ? `${css.itemCard} ${css.focused}` : css.itemCard}
 				style={{padding: cellPadding}}
 				onClick={handleItemClick}
 				// eslint-disable-next-line react/jsx-no-bind
@@ -1370,13 +1383,13 @@ const Library = ({library, genreFilter, studioFilter, onSelectItem, onViewPhoto,
 				{renderCard(index)}
 			</div>
 		)
-	), [items, renderCard, cellPadding, handleItemClick]);
+	), [items, renderCard, cellPadding, handleItemClick, settingsPreview]);
 
 	const renderTile = useCallback((index, focused, style) => (
-		<div className={focused ? `${css.itemCard} ${css.focused}` : css.itemCard} style={{...style, padding: cellPadding}} data-index={index}>
+		<div className={focused || (settingsPreview && index === 0) ? `${css.itemCard} ${css.focused}` : css.itemCard} style={{...style, padding: cellPadding}} data-index={index}>
 			{renderCard(index)}
 		</div>
-	), [renderCard, cellPadding]);
+	), [renderCard, cellPadding, settingsPreview]);
 
 	const tileFocusTimerRef = useRef(null);
 	const handleTileFocus = useCallback((index) => {
@@ -1416,7 +1429,8 @@ const Library = ({library, genreFilter, studioFilter, onSelectItem, onViewPhoto,
 		onGroup: canGroup ? handleOpenGroupBy : null,
 		onShow: isMusicLibrary ? null : handleOpenPlayedFilter,
 		onShuffle: isSongs ? handleShuffle : null,
-		onSettings: isMusicLibrary ? null : handleOpenDisplay
+		onSettings: isMusicLibrary ? null : handleOpenDisplay,
+		settingsPreview
 	};
 	const displayLabel = isPlaylistLibrary ? '' : imageTypeLabel;
 
@@ -1610,6 +1624,7 @@ const Library = ({library, genreFilter, studioFilter, onSelectItem, onViewPhoto,
 				onPlay={handleBookScreenPlay}
 				onSearch={onSearch}
 				backHandlerRef={backHandlerRef}
+				settingsPreview={settingsPreview}
 			/>
 		);
 	}
@@ -1644,6 +1659,7 @@ const Library = ({library, genreFilter, studioFilter, onSelectItem, onViewPhoto,
 				onSearch={onSearch}
 				onHome={onHome}
 				backHandlerRef={backHandlerRef}
+				settingsPreview={settingsPreview}
 			/>
 		);
 	}
@@ -1735,7 +1751,7 @@ const Library = ({library, genreFilter, studioFilter, onSelectItem, onViewPhoto,
 				)}
 
 				{libraryStyle === 'classic' && (
-					<ToolbarContainer className={css.toolbar} spotlightId="library-toolbar" onKeyDown={toolbarKeyDown}>
+					<ToolbarContainer className={css.toolbar} spotlightId={ownId('library-toolbar')} onKeyDown={toolbarKeyDown}>
 						<SpottableButton className={css.toolbarBtn} onClick={onHome} spotlightId="library-home-btn">
 							<Icon path={HOME_ICON} className={css.toolbarIcon} />
 						</SpottableButton>
@@ -1765,7 +1781,7 @@ const Library = ({library, genreFilter, studioFilter, onSelectItem, onViewPhoto,
 					</ToolbarContainer>
 				)}
 				{libraryStyle === 'modern' && showLetters && (
-					<ModernLetters onSelect={handleLetterSelect} />
+					<ModernLetters onSelect={handleLetterSelect} settingsPreview={settingsPreview} />
 				)}
 
 				{groupTabs && (
@@ -1776,12 +1792,12 @@ const Library = ({library, genreFilter, studioFilter, onSelectItem, onViewPhoto,
 							activeSpotlightId={GROUP_TAB_ID}
 							onActivate={handleGroupTab}
 							expanded={false}
-							spotlightId="library-group-tabs"
+							spotlightId={ownId('library-group-tabs')}
 						/>
 					</div>
 				)}
 
-				<GridContainer className={css.gridContainer} spotlightId="library-grid-area">
+				<GridContainer className={css.gridContainer} spotlightId={ownId('library-grid-area')}>
 					{(isLoading || !storageReady) && items.length === 0 ? (
 						<div className={css.gridWrapper}>
 							<LibrarySkeleton
@@ -1802,7 +1818,7 @@ const Library = ({library, genreFilter, studioFilter, onSelectItem, onViewPhoto,
 								<MediaRow
 									key={group.name}
 									rowId={`library-group-${group.name}`}
-									spotlightId={`library-group-row-${index}`}
+									spotlightId={settingsPreview ? `library-preview-row-${index}` : `library-group-row-${index}`}
 									title={group.name}
 									items={group.items}
 									serverUrl={effectiveServerUrl}
@@ -1812,7 +1828,7 @@ const Library = ({library, genreFilter, studioFilter, onSelectItem, onViewPhoto,
 									onFocusItem={setFocusedItem}
 									onNavigateUp={handleGroupNavigateUp}
 									onNavigateDown={handleGroupNavigateDown}
-									registerRowRef={registerGroupRowRef}
+									posterLabels
 								/>
 							))}
 						</div>
@@ -1846,7 +1862,7 @@ const Library = ({library, genreFilter, studioFilter, onSelectItem, onViewPhoto,
 									spacing={0}
 									onScrollStop={handleScrollStop}
 									onKeyDown={gridKeyDown}
-									spotlightId="library-grid"
+									spotlightId={ownId('library-grid')}
 								/>
 							)}
 						</div>

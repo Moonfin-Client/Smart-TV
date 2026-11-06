@@ -9,7 +9,7 @@ import {
 	epoch, list, plexAdditionalParts, plexItems, plexItemsResult, plexItemToJellyfin, plexKeyOf, plexPartItem, plexPartOf,
 	plexPersonToJellyfin, plexSectionToView, plexSourceOf, plexVersion
 } from './plexMapper';
-import {PREFIXED_ID, plexImageUrl, plexQuery, trimSlash, withPlexToken} from '../utils/plexUrls';
+import {PREFIXED_ID, plexImageUrl, plexMoonbaseUrl, plexQuery, trimSlash, withPlexToken} from '../utils/plexUrls';
 
 export const plexIdentity = ({appName, appVersion, deviceName, deviceId}) => ({
 	'X-Plex-Product': appName,
@@ -1067,11 +1067,16 @@ export const createPlexApi = ({getBaseUrl, getToken, getUserId, getDeviceInfo, g
 			? api.getLatest(libraryId, limit)
 			: plexItems((await container('/library/recentlyAdded', paging(0, limit))).Metadata)),
 
+		getLatestItems: ({ParentId, Limit} = {}) => api.getLatestMedia(ParentId, Limit),
+
 		getRecentlyReleased: (libraryId, limit = 20, includeItemTypes = 'Movie,Series') =>
 			getItems({ParentId: libraryId, IncludeItemTypes: includeItemTypes, SortBy: 'PremiereDate', SortOrder: 'Descending', Limit: limit}),
 
-		getCollections: (limit = 50, sortBy = 'SortName', sortOrder = 'Ascending') =>
-			getItems({IncludeItemTypes: 'BoxSet', SortBy: sortBy, SortOrder: sortOrder, Limit: limit}),
+		getCollections: async (limit = 50, sortBy = 'SortName', sortOrder = 'Ascending', {editableOnly = false} = {}) => {
+			const result = await getItems({IncludeItemTypes: 'BoxSet', SortBy: sortBy, SortOrder: sortOrder, Limit: limit});
+			// A smart collection fills itself from a filter, so nothing can be added to it or taken out.
+			return editableOnly ? {...result, Items: result.Items.filter((item) => !item._smart)} : result;
+		},
 
 		// Studio pages filter by name, so the id just has to be unique and free of commas. Plex's encoded key is both.
 		getStudios: (limit = 20, sortBy = 'SortName', sortOrder = 'Ascending') =>
@@ -1156,6 +1161,15 @@ export const createPlexApi = ({getBaseUrl, getToken, getUserId, getDeviceInfo, g
 		search: (query, limit = 240) => getItems({SearchTerm: query, Limit: limit}),
 		searchPeople: (query, limit = 24) => getPersons(query, limit),
 
+		// Moonbase for Plex answers with Plex's own metadata, and a person as a cast tag, so both take the usual mapping.
+		smartSearch: async (query, limit = 20) => {
+			const base = plexMoonbaseUrl(getBaseUrl());
+			if (!base) throw notFound('Moonbase for Plex');
+			const result = await send(`${base}/Moonfin/SmartSearch`, {query: {query, limit}});
+			const items = list(result.Items).filter((m) => m && typeof m === 'object');
+			return {...result, Items: items.map((m) => (m.type === 'person' ? plexPersonToJellyfin(m) : plexItemToJellyfin(m)))};
+		},
+
 		getSeasons: async (seriesId) => plexItemsResult(plexItems((await container(`/library/metadata/${seriesId}/children`)).Metadata)
 			.filter((item) => item.Type === 'Season')),
 
@@ -1195,6 +1209,9 @@ export const createPlexApi = ({getBaseUrl, getToken, getUserId, getDeviceInfo, g
 
 		getCollectionItems: (collectionId, limit = 50, sortBy = null, sortOrder = 'Ascending') =>
 			getItems({ParentId: collectionId, Limit: limit, SortBy: sortBy, SortOrder: sortOrder}),
+
+		getCollectionMembers: (collectionId, limit = 500, startIndex = 0) =>
+			getItems({ParentId: collectionId, Limit: limit, ...(startIndex > 0 ? {StartIndex: startIndex} : null)}),
 
 		setFavorite: (itemId, isFavorite) => rate(itemId, isFavorite ? PLEX_FAVORITE_RATING : -1),
 		setWatched: (itemId, watched) => scrobble(watched ? '/:/scrobble' : '/:/unscrobble', itemId),

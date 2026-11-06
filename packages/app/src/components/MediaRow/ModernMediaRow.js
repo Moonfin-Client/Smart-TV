@@ -1,15 +1,27 @@
 import {useCallback, useRef, useEffect, useState, memo} from 'react';
 import SpotlightContainerDecorator from '@enact/spotlight/SpotlightContainerDecorator';
 import Spotlight from '@enact/spotlight';
-import ModernMediaCard from '../MediaCard/ModernMediaCard';
+import ModernMediaCard, {expandEase, expandMs} from '../MediaCard/ModernMediaCard';
+import {glideScroll} from '../../utils/focusScroll';
 import {KEYS} from '../../utils/keys';
 import {sameCardUserData} from '../../utils/playedState';
 import {useSettings} from '../../context/SettingsContext';
 import {getPlatform} from '../../platform';
-import {modernCardMetrics} from '../MediaCard/modernCardLayout';
+import {MODERN_CAPTION_ROOM, modernCardMetrics} from '../MediaCard/modernCardLayout';
 import PlaceholderRow from './PlaceholderRow';
+import CalendarSeeAllCard from './CalendarSeeAllCard';
+import {nearRowEnd} from '../../views/Browse/rowPaging';
 
 import css from './ModernMediaRow.module.less';
+
+// How many cards either side of focus load their wide art ahead.
+const WARM_REACH = 2;
+
+// The See all card keeps a poster's size, since it doesn't grow on focus like the title cards.
+const seeAllSize = (posterSize) => {
+	const {cardWidth, imageHeight} = modernCardMetrics({posterSize});
+	return {width: cardWidth, height: imageHeight};
+};
 
 const RowContainer = SpotlightContainerDecorator({
 	enterTo: 'last-focused'
@@ -39,7 +51,11 @@ const ModernMediaRow = ({
 	menuOptions,
 	deferImages = false,
 	ratingsSurface,
-	hideOverview = false
+	hideOverview = false,
+	coreLook = false,
+	posterLabels = false,
+	leadingInset = 0,
+	onCalendarSeeAll
 }) => {
 	const {settings} = useSettings();
 	const scrollerRef = useRef(null);
@@ -47,6 +63,7 @@ const ModernMediaRow = ({
 	const scrollTimeoutRef = useRef(null);
 	const rowElementRef = useRef(null);
 	const [focusedItemId, setFocusedItemId] = useState(null);
+	const lastFocusedIdRef = useRef(null);
 	const [details, setDetails] = useState(null);
 	const platform = useRef(getPlatform()).current;
 
@@ -94,8 +111,10 @@ const ModernMediaRow = ({
 		const card = e.target.closest('.spottable');
 		// A row that pages asks for more once focus is among its last few cards.
 		if (onLoadMore && card && card.parentNode) {
-			const index = Array.prototype.indexOf.call(card.parentNode.children, card);
-			if (index >= 0 && index >= itemCount - 3) onLoadMore(rowId);
+			// The lane has an element beside each card, so only the cards are counted.
+			const cards = Array.prototype.filter.call(card.parentNode.children, (el) => el.classList.contains('spottable'));
+			const index = cards.indexOf(card);
+			if (nearRowEnd(index, itemCount)) onLoadMore(rowId);
 		}
 
 		// A hovered card already sits under the cursor, so nudging the lane
@@ -113,6 +132,9 @@ const ModernMediaRow = ({
 			// The focused card parks at the leading edge, so the ratings and overview
 			// under it get the rest of the row. The last cards can't scroll that far
 			// and keep what's left.
+			// Read before the browser's own focus scroll moves the lane, so the slide starts from what was on screen.
+			const start = scroller.scrollLeft;
+			const shownAt = card.getBoundingClientRect().left - scroller.getBoundingClientRect().left;
 			scrollTimeoutRef.current = window.requestAnimationFrame(() => {
 				const cards = Array.prototype.filter.call(card.parentNode.children, (el) => el.classList.contains('spottable'));
 				if (!scrollerLayoutRef.current) {
@@ -133,15 +155,21 @@ const ModernMediaRow = ({
 				for (let i = 0; i < cards.length && cards[i] !== card; i++) {
 					cardStart += parseFloat(cards[i].style.width) + layout.gap;
 				}
-				scroller.scrollLeft = cardStart;
-				const cardLeft = layout.paddingLeft + cardStart - scroller.scrollLeft;
+				// With the cards animating, the lane slides on the same timing and curve, so the card opening, the
+				// one closing and the rest of the row all move as one. Cards that open instantly would jump the new one
+				// ahead, so the slide starts from where it sat on screen instead.
+				const openMs = expandMs(settings.modernCardTransitionSpeed);
+				const rest = openMs ?
+					glideScroll(scroller, 'x', cardStart, start, {duration: openMs, ease: expandEase}) :
+					glideScroll(scroller, 'x', cardStart, layout.paddingLeft + cardStart - shownAt);
+				const cardLeft = layout.paddingLeft + cardStart - rest;
 				setDetails({
 					spotlightId: card.getAttribute('data-spotlight-id'),
 					width: layout.width - layout.paddingRight - cardLeft
 				});
 			});
 		}
-	}, [onFocus, rowIndex, onLoadMore, itemCount, rowId]);
+	}, [onFocus, rowIndex, onLoadMore, itemCount, rowId, settings.modernCardTransitionSpeed]);
 
 	const handleBlur = useCallback((e) => {
 		const nextTarget = e.relatedTarget;
@@ -153,6 +181,8 @@ const ModernMediaRow = ({
 	const handleFocusedChange = useCallback((itemId) => {
 		setFocusedItemId(itemId || null);
 	}, []);
+	// The See all card isn't a title, so the card before it folds back up.
+	const handleSeeAllFocus = useCallback(() => setFocusedItemId(null), []);
 
 	const handleKeyDown = useCallback((e) => {
 		if (e.keyCode === KEYS.UP && onNavigateUp) {
@@ -174,9 +204,9 @@ const ModernMediaRow = ({
 				Spotlight.move('left');
 			}
 		} else {
-			Spotlight.focus(`media-${keyPrefix}-${items[items.length - 1].Id}`);
+			Spotlight.focus(onCalendarSeeAll ? `media-${keyPrefix}-calendar-see-all` : `media-${keyPrefix}-${items[items.length - 1].Id}`);
 		}
-	}, [items, keyPrefix, settings.navbarPosition]);
+	}, [items, keyPrefix, settings.navbarPosition, onCalendarSeeAll]);
 
 	const handleWrapRight = useCallback((e) => {
 		e.preventDefault();
@@ -190,6 +220,7 @@ const ModernMediaRow = ({
 		platform === 'webos' ? css.platformWebos : '',
 		platform === 'tizen' ? css.platformTizen : '',
 		settings.fullScreenRows === true ? css.fullScreenRows : '',
+		coreLook ? css.coreLook : '',
 		typeof document !== 'undefined' && document.documentElement.classList.contains('legacy') ? css.platformLegacy : ''
 	].filter(Boolean).join(' ');
 	const rowStyle = typeof rowSpacing === 'number' ? {marginBottom: rowSpacing + 'px'} : undefined;
@@ -197,7 +228,6 @@ const ModernMediaRow = ({
 	if (loading) {
 		const {cardWidth, imageHeight} = modernCardMetrics({
 			posterSize: settings.homeRowsPosterSize,
-			platform,
 			isSquareItem: cardType === 'square'
 		});
 		return (
@@ -218,6 +248,11 @@ const ModernMediaRow = ({
 	if (!items || items.length === 0) return null;
 
 	const focusedIndex = focusedItemId ? items.findIndex((item) => item.Id === focusedItemId) : -1;
+	if (focusedIndex >= 0) lastFocusedIdRef.current = focusedItemId;
+	// The row is entered on its last focused card, or its first.
+	const landingIndex = Math.max(0, items.findIndex((item) => item.Id === lastFocusedIdRef.current));
+	// Every row keeps room for three caption lines, so the next row never sits on a card's text.
+	const captionFloor = modernCardMetrics({posterSize: settings.homeRowsPosterSize}).imageHeight + MODERN_CAPTION_ROOM;
 
 	return (
 		<RowContainer
@@ -229,15 +264,20 @@ const ModernMediaRow = ({
 			onBlur={handleBlur}
 			style={rowStyle}
 		>
-			<h2 className={css.title}>{title}</h2>
+			<h2 className={css.title} style={coreLook ? {paddingLeft: `${leadingInset}px`} : undefined}>{title}</h2>
 			{subtitle && <div className={css.subtitle}>{subtitle}</div>}
-			<div className={css.scroller} ref={scrollerRef} onFocus={handleFocus}>
-				<div className={css.items}>
+			{/* Core starts the cards a little in from the title, 20 points against its 16. */}
+			<div className={css.scroller} ref={scrollerRef} onFocus={handleFocus} style={coreLook ? {paddingLeft: `${leadingInset + 6}px`} : undefined}>
+				<div className={css.items} style={coreLook ? undefined : {minHeight: `${captionFloor}px`}}>
 					{items.map((item, index) => {
 						const spotlightId = `media-${keyPrefix}-${item.Id}`;
-						const besideFocus = focusedIndex >= 0 && Math.abs(index - focusedIndex) === 1;
+						// Wide art loads ahead for the cards a step or two along from focus, and in a row
+						// focus isn't in, for the card it would land on, unless the row's images are held back.
+						const besideFocus = focusedIndex >= 0
+							? index !== focusedIndex && Math.abs(index - focusedIndex) <= WARM_REACH
+							: !deferImages && index === landingIndex;
 						const isFirst = index === 0;
-						const isLast = index === items.length - 1;
+						const isLast = index === items.length - 1 && !onCalendarSeeAll;
 						return (
 							<ModernMediaCard
 								key={`${keyPrefix}-${item.Id}-${index}`}
@@ -259,9 +299,20 @@ const ModernMediaRow = ({
 								menuOptions={menuOptions}
 								ratingsSurface={ratingsSurface}
 								hideOverview={hideOverview}
+								coreLook={coreLook}
+								posterLabels={posterLabels}
 							/>
 						);
 					})}
+					{onCalendarSeeAll && (
+						<CalendarSeeAllCard
+							{...seeAllSize(settings.homeRowsPosterSize)}
+							spotlightId={`media-${keyPrefix}-calendar-see-all`}
+							onClick={onCalendarSeeAll}
+							onFocus={handleSeeAllFocus}
+							onSpotlightRight={handleWrapRight}
+						/>
+					)}
 				</div>
 			</div>
 		</RowContainer>
@@ -283,6 +334,8 @@ const areRowPropsEqual = (prev, next) => {
 	if (!prev.onLoadMore !== !next.onLoadMore) return false;
 	if (prev.loading !== next.loading || prev.titleWidth !== next.titleWidth || prev.cardType !== next.cardType) return false;
 	if (prev.deferImages !== next.deferImages || prev.ratingsSurface !== next.ratingsSurface || prev.hideOverview !== next.hideOverview) return false;
+	if (prev.coreLook !== next.coreLook || prev.leadingInset !== next.leadingInset || prev.posterLabels !== next.posterLabels) return false;
+	if (!prev.onCalendarSeeAll !== !next.onCalendarSeeAll) return false;
 	if (prev.items === next.items) return true;
 	if (prev.items?.length !== next.items?.length) return false;
 	for (let i = 0; i < prev.items.length; i++) {

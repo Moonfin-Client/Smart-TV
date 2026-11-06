@@ -3,6 +3,7 @@
 // are already on screen.
 
 import {mergeRowPreservingRefs} from '../../utils/volatileRows';
+import {extendRow} from './rowPaging';
 
 export const browseInitialState = {
 	isLoading: true,
@@ -69,6 +70,13 @@ export default function browseReducer (state, action) {
 				return state;
 			}
 			return {...state, allRowData: next};
+		}
+		case 'EXTEND_ROW': {
+			const index = state.allRowData.findIndex((row) => row.id === action.id);
+			if (index < 0 || state.allRowData[index].readHead !== action.readHead) return state;
+			const allRowData = state.allRowData.slice();
+			allRowData[index] = extendRow(allRowData[index], action.items, action.hasMore);
+			return {...state, allRowData};
 		}
 		case 'SET_ROW_DATA':
 			return {...state, allRowData: dedupeById(action.rowData)};

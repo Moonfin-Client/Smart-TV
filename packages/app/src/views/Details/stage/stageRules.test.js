@@ -1,9 +1,11 @@
 import {
-	ACTIONS, NAVBAR, alignDelta, drawsStage, revealDelta, stageNeighbour, stagePoster, stageScrimAlpha, stageSubtitle,
-	stageTrackChoices
+	ACTIONS, NAVBAR, alignDelta, drawsStage, resumeLine, revealDelta, stageNeighbour, stagePoster, stageScrimAlpha,
+	stageSubtitle, stageTrackChoices
 } from './stageRules';
 
 const SERVER = 'https://tv.example';
+
+const TICKS_PER_MINUTE = 600000000;
 
 describe('what Stage draws', () => {
 	test('takes the video types and leaves the rest to Modern', () => {
@@ -117,5 +119,24 @@ describe('scrolling a section into view', () => {
 		expect(alignDelta({top: 100, bottom: 400}, view)).toBe(0);
 		expect(alignDelta({top: 900, bottom: 1200}, view)).toBe(690);
 		expect(alignDelta({top: -100, bottom: 200}, view)).toBe(-310);
+	});
+});
+
+describe('the resume line', () => {
+	const movie = {Type: 'Movie', RunTimeTicks: 120 * TICKS_PER_MINUTE, UserData: {PlaybackPositionTicks: 48 * TICKS_PER_MINUTE}};
+
+	test('shows how far into a film the viewer is and how long is left', () => {
+		expect(resumeLine(movie, [])).toEqual({percent: 40, label: '1h 12m remaining'});
+	});
+
+	test('follows the episode a show would resume, numbered', () => {
+		const episode = {Type: 'Episode', ParentIndexNumber: 3, IndexNumber: 4, RunTimeTicks: 40 * TICKS_PER_MINUTE, UserData: {PlaybackPositionTicks: 16 * TICKS_PER_MINUTE}};
+		expect(resumeLine({Type: 'Series'}, [episode])).toEqual({percent: 40, label: 'S3:E4 · 24m remaining'});
+	});
+
+	test('has nothing to show with nowhere to resume', () => {
+		expect(resumeLine({...movie, UserData: {PlaybackPositionTicks: 0}}, [])).toBe(null);
+		expect(resumeLine({...movie, UserData: {...movie.UserData, Played: true}}, [])).toBe(null);
+		expect(resumeLine({Type: 'Series'}, [])).toBe(null);
 	});
 });

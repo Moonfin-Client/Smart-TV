@@ -74,6 +74,15 @@ describe('profileToLocal', () => {
 		expect(profileToLocal({posterSize: 'huge'}).homeRowsPosterSize).toBeUndefined();
 	});
 
+	test("takes the other clients' media bar sources and new release settings", () => {
+		expect(profileToLocal({mediaBarSourceType: 'newReleases'}).mediaBarSourceType).toBe('newReleases');
+		expect(profileToLocal({mediaBarSourceType: 'recentlyAdded'}).mediaBarSourceType).toBe('recentlyAdded');
+		expect(profileToLocal({mediaBarSourceType: 'random'}).mediaBarSourceType).toBe('library');
+		expect(profileToLocal({mediaBarSourceType: 'trending'}).mediaBarSourceType).toBeUndefined();
+		expect(profileToLocal({mediaBarNewReleaseBanner: false, mediaBarNewReleaseDays: 14})).toEqual({mediaBarNewReleaseBanner: false, mediaBarNewReleaseDays: 14});
+		expect(profileToLocal({mediaBarNewReleaseDays: 45}).mediaBarNewReleaseDays).toBeUndefined();
+	});
+
 	test('ignores a screensaver mode this app has no way to draw', () => {
 		expect(profileToLocal({screensaverMode: 'off'}).screensaverMode).toBeUndefined();
 		expect(profileToLocal({screensaverMode: 'logo'}).screensaverMode).toBe('logo');
@@ -315,6 +324,20 @@ describe('SYNCABLE_KEYS', () => {
 		expect(SYNCABLE_KEYS).toContain('mediaPreviewMode');
 		expect(SYNCABLE_KEYS).toContain('previewAudioEnabled');
 	});
+
+	test('syncs every calendar setting under its own name', () => {
+		const calendarKeys = [
+			'showCalendarButton', 'calendarStyle', 'calendarWeekStart', 'calendarScope', 'calendarShowEpisodes',
+			'calendarShowMovies', 'calendarLibraryIds', 'calendarIncludeUnmonitored', 'calendarShowSpecials',
+			'calendarShowBadges', 'calendarColorBy', 'calendarImageType', 'calendarSpoilerSafe', 'calendarSelectAction',
+			'calendarRequestButton', 'calendarReminders', 'calendarRowSeeAll', 'showNextAirDate'
+		];
+		const profile = localToProfile({...defaultSettings, calendarReminders: true}, calendarKeys);
+
+		expect(Object.keys(profile).sort()).toEqual([...calendarKeys].sort());
+		expect(profile.calendarLibraryIds).toEqual([]);
+		expect(profileToLocal({calendarStyle: 'countdown', calendarLibraryIds: ['a']})).toEqual({calendarStyle: 'countdown', calendarLibraryIds: ['a']});
+	});
 });
 
 describe('the home rows and media bar ratings settings', () => {
@@ -418,7 +441,7 @@ describe('the library style', () => {
 
 describe('the detail screen style', () => {
 	test('sends each style under the name Core stores it by', () => {
-		const names = {v1: 'classic', v2: 'modern', v3: 'spotlight', v4: 'nouveau', v5: 'minimalist', v6: 'stage', v7: 'premiere'};
+		const names = {v1: 'classic', v2: 'modern', v3: 'spotlight', v4: 'nouveau', v5: 'minimalist', v6: 'stage', v7: 'premiere', v8: 'quickLook', v9: 'frost'};
 		Object.keys(names).forEach((style) => {
 			expect(localToProfile({...defaultSettings, detailScreenStyle: style}, ['detailScreenStyle'])).toEqual({detailScreenStyle: names[style]});
 			expect(profileToLocal({detailScreenStyle: names[style]})).toEqual({detailScreenStyle: style});
@@ -492,6 +515,21 @@ describe('the book library style', () => {
 
 	test('keeps the style it has when the profile names one this app has no way to draw', () => {
 		expect(profileToLocal({bookLibraryStyle: 'immersive'})).toEqual({});
+	});
+});
+
+describe('the Seerr badge style', () => {
+	test('defaults to badge and syncs under its own name', () => {
+		expect(defaultSettings.seerrBadgeStyle).toBe('badge');
+		expect(SYNCABLE_KEYS).toContain('seerrBadgeStyle');
+		['badge', 'banner'].forEach((style) => {
+			expect(profileToLocal({seerrBadgeStyle: style})).toEqual({seerrBadgeStyle: style});
+			expect(localToProfile({...defaultSettings, seerrBadgeStyle: style}, ['seerrBadgeStyle'])).toEqual({seerrBadgeStyle: style});
+		});
+	});
+
+	test('keeps the style it has when the profile names one it can\'t draw', () => {
+		expect(profileToLocal({seerrBadgeStyle: 'ribbon'})).toEqual({});
 	});
 });
 
@@ -747,6 +785,51 @@ describe('the per row image types', () => {
 		expect(resolved.homeRowImageTypes).toEqual({genres: 'thumb', resume: 'banner'});
 		expect(resolveFromEnvelope({}, {homeRowImageTypes: 'genres:thumb'}).homeRowImageTypes).toEqual({genres: 'thumb'});
 		expect(resolveFromEnvelope({}, {})).not.toHaveProperty('homeRowImageTypes');
+	});
+});
+
+describe('the focus border color', () => {
+	test('goes out under the name the other clients use', () => {
+		expect(localToProfile({focusBorderColor: '#8B0000'}, ['focusBorderColor']).focusColor).toBe('darkRed');
+		expect(localToProfile({focusBorderColor: '#ffcd75'}, ['focusBorderColor']).focusColor).toBe('eightBitGold');
+		expect(localToProfile({focusBorderColor: ''}, ['focusBorderColor']).focusColor).toBe('');
+	});
+
+	test('comes back as the color a name stands for, and keeps what it has for one it doesn\'t know', () => {
+		expect(profileToLocal({focusColor: 'darkRed'}).focusBorderColor).toBe('#8b0000');
+		expect(profileToLocal({focusColor: 'moonfincyan'}).focusBorderColor).toBe('#00a4dc');
+		expect(profileToLocal({focusColor: '#ff2e92'}).focusBorderColor).toBe('#ff2e92');
+		expect(profileToLocal({focusColor: ''}).focusBorderColor).toBe('');
+		expect(profileToLocal({focusColor: 'constructor'})).not.toHaveProperty('focusBorderColor');
+	});
+});
+
+describe('the calendar row hide downloaded toggles', () => {
+	test('are on by default and sync under their own names both ways', () => {
+		const keys = ['radarrCalendarHideDownloaded', 'sonarrCalendarHideDownloaded'];
+		for (const key of keys) {
+			expect(defaultSettings[key]).toBe(true);
+			expect(SYNCABLE_KEYS).toContain(key);
+			expect(profileToLocal({[key]: false})[key]).toBe(false);
+		}
+		expect(localToProfile({radarrCalendarHideDownloaded: false, sonarrCalendarHideDownloaded: true}, keys))
+			.toEqual({radarrCalendarHideDownloaded: false, sonarrCalendarHideDownloaded: true});
+	});
+});
+
+describe('the poster labels toggle', () => {
+	test('is on by default and syncs both ways', () => {
+		expect(defaultSettings.showPosterLabels).toBe(true);
+		expect(profileToLocal({showPosterLabels: false}).showPosterLabels).toBe(false);
+		expect(localToProfile({showPosterLabels: false}, ['showPosterLabels'])).toEqual({showPosterLabels: false});
+	});
+});
+
+describe('the focus expansion toggle', () => {
+	test('syncs under Core\'s name both ways', () => {
+		expect(profileToLocal({cardFocusExpansion: false}).cardFocusZoom).toBe(false);
+		expect(profileToLocal({cardFocusExpansion: true}).cardFocusZoom).toBe(true);
+		expect(localToProfile({cardFocusZoom: false}, ['cardFocusZoom'])).toEqual({cardFocusExpansion: false});
 	});
 });
 

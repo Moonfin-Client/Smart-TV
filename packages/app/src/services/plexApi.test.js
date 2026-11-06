@@ -80,6 +80,22 @@ describe('items', () => {
 		expect(query(urls()[0])).toMatchObject({query: 'alien', includeCollections: '1', limit: '40'});
 	});
 
+	test('smart search asks Moonbase for Plex next to the server and maps its answer like any Plex item', async () => {
+		corsFreeFetch.mockImplementation(() => reply({Ready: true, Seerr: [], Items: [
+			{ratingKey: '7', key: '/library/metadata/7', type: 'movie', title: 'The Mask', year: 1994, thumb: '/library/metadata/7/thumb/1'},
+			{type: 'person', id: 12345, tag: 'Jim Carrey', thumb: 'https://metadata-static.plex.tv/p.jpg'}
+		]}));
+		const result = await plex.smartSearch('jim carrey mask', 20);
+		const [url] = urls();
+		expect(url.split('?')[0]).toBe('http://plex:32500/Moonfin/SmartSearch');
+		expect(query(url)).toMatchObject({query: 'jim carrey mask', limit: '20', 'X-Plex-Token': 'tok'});
+		expect(result.Ready).toBe(true);
+		expect(result.Items).toMatchObject([
+			{Id: '7', Name: 'The Mask', Type: 'Movie', ProductionYear: 1994, ImageTags: {Primary: '/library/metadata/7/thumb/1'}},
+			{Id: 'person-12345', Name: 'Jim Carrey', Type: 'Person', ImageTags: {Primary: 'https://metadata-static.plex.tv/p.jpg'}}
+		]);
+	});
+
 	test('continue watching splits into resume and next up', async () => {
 		answer({'/hubs/continueWatching/items': {MediaContainer: {Metadata: [
 			{ratingKey: '10', type: 'movie', viewOffset: 5000},
@@ -96,6 +112,15 @@ describe('items', () => {
 		expect(on).toContain('/:/rate?');
 		expect(query(on)).toMatchObject({key: '55', rating: '10'});
 		expect(query(off)).toMatchObject({key: '55', rating: '-1'});
+	});
+
+	test('getCollections keeps smart collections by default and leaves them out when only editable ones are wanted', async () => {
+		answer({'/library/all': {MediaContainer: {totalSize: 2, Metadata: [
+			{ratingKey: 'c1', type: 'collection', title: 'Manual'},
+			{ratingKey: 'c2', type: 'collection', title: 'Smart', smart: '1'}
+		]}}});
+		expect((await plex.getCollections(50)).Items.map((i) => i.Id)).toEqual(['c1', 'c2']);
+		expect((await plex.getCollections(50, 'SortName', 'Ascending', {editableOnly: true})).Items.map((i) => i.Id)).toEqual(['c1']);
 	});
 });
 

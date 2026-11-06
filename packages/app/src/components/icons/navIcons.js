@@ -35,6 +35,7 @@ export const ChevronDownIcon = (props) => <NavIcon {...props} path={PATHS.chevro
 export const MessagesIcon = (props) => <NavIcon {...props} path={PATHS.messages} />;
 export const FriendsIcon = (props) => <NavIcon {...props} path={PATHS.friends} />;
 export const LiveTvIcon = (props) => <NavIcon {...props} path={PATHS.liveTv} />;
+export const CalendarIcon = (props) => <NavIcon {...props} path={CORE_ICON_PATHS.calendar_month_rounded} />;
 
 const libraryIcons = {};
 

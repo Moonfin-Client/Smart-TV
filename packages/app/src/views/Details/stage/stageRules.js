@@ -1,7 +1,7 @@
 import $L from '@enact/i18n/$L';
 
 import {DETAIL_HIDDEN_KEY, hiddenSet} from '../../../utils/buttonLayout';
-import {getImageUrl} from '../../../utils/helpers';
+import {formatDuration, getImageUrl} from '../../../utils/helpers';
 
 // The item types Stage draws. Everything else, a person, an album or a collection, goes to Modern,
 // which already knows how to lay those out.
@@ -36,14 +36,30 @@ export const stagePoster = (serverUrl, item, settings) => {
 	return {url: own ? getImageUrl(serverUrl, item.Id, 'Primary', {maxWidth: 720, quality: 90, tag: own}) : null, wide};
 };
 
+// An episode's place in its show, like S1:E2.
+export const episodeCode = (item) => (item.ParentIndexNumber != null && item.IndexNumber != null
+	? `S${item.ParentIndexNumber}:E${item.IndexNumber}`
+	: null);
+
+// How far into the title the viewer is, or for a show into the episode it would resume, and the line
+// beside the bar. Null when there's nowhere to resume.
+export const resumeLine = (item, nextUp) => {
+	const target = item.Type === 'Series' ? nextUp?.[0] : item;
+	const runtime = target?.RunTimeTicks;
+	const position = target?.UserData?.PlaybackPositionTicks;
+	if (!target || target.UserData?.Played || !(runtime > 0) || !(position > 0) || position >= runtime) return null;
+	const left = $L('{time} remaining').replace('{time}', formatDuration(runtime - position));
+	return {
+		percent: (position / runtime) * 100,
+		label: [target === item ? null : episodeCode(target), left].filter(Boolean).join(' · ')
+	};
+};
+
 // The line under the show's name on a season or an episode.
 export const stageSubtitle = (item) => {
 	if (item.Type === 'Season') return item.Name || '';
 	if (item.Type !== 'Episode') return '';
-	const number = item.ParentIndexNumber != null && item.IndexNumber != null
-		? `S${item.ParentIndexNumber}:E${item.IndexNumber}`
-		: null;
-	return [number, item.Name].filter(Boolean).join(' · ');
+	return [episodeCode(item), item.Name].filter(Boolean).join(' · ');
 };
 
 const streamName = (stream) => stream?.DisplayTitle || stream?.Language || $L('Unknown');

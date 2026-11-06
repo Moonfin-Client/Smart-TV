@@ -13,6 +13,7 @@ import {RATING_SETTING_KEYS, ratingKey} from '../../utils/ratingSources';
 import {useSeerr} from '../../context/SeerrContext';
 import {useAchievements} from '../../context/AchievementsContext';
 import {useDeviceInfo} from '../../hooks/useDeviceInfo';
+import {usePosterLabelsAvailable} from '../../services/posterBadgesApi';
 import {isBackKey} from '../../utils/keys';
 import {isTvKeyboardVisible} from '../../components/TVKeyboard/keyboardBus';
 import {isTizen, isVega, isWebOS, isXbox} from '../../platform';
@@ -44,6 +45,7 @@ import useButtonLayoutEditor from './useButtonLayoutEditor';
 import useLibraryVisibility from './useLibraryVisibility';
 import useMediaBarSources from './useMediaBarSources';
 import useScreensaverSources from './useScreensaverSources';
+import useCalendarLibraries from './useCalendarLibraries';
 import useDiagnosticsLog from './useDiagnosticsLog';
 import {openDeviceProbe} from '../../utils/deviceProbe';
 import renderDescriptorRow from './settingsDescriptorRow';
@@ -128,6 +130,7 @@ const Settings = ({ onBack, onLibrariesChanged, onRunSetupWizard, onSelectItem, 
 	const { capabilities } = useDeviceInfo();
 	const seerr = useSeerr();
 	const achievements = useAchievements();
+	const posterLabelsAvailable = usePosterLabelsAvailable(settings.useMoonfinPlugin);
 	const romm = useRommAccount({serverUrl, accessToken});
 	const isSeerr = seerr.isMoonfin && seerr.variant === 'seerr';
 	const bootLocaleRef = useRef(settings.uiLanguage);
@@ -304,6 +307,8 @@ const Settings = ({ onBack, onLibrariesChanged, onRunSetupWizard, onSelectItem, 
 				Spotlight.focus('media-bar-external-lists-view');
 			} else if (cv.view === 'screensaverLibraries') {
 				Spotlight.focus('screensaver-libraries-view');
+			} else if (cv.view === 'calendarLibraries') {
+				Spotlight.focus('calendar-libraries-view');
 			} else if (cv.view === 'screensaverCollections') {
 				Spotlight.focus('screensaver-collections-view');
 			} else if (cv.view === 'screensaverGenres') {
@@ -874,6 +879,10 @@ const Settings = ({ onBack, onLibrariesChanged, onRunSetupWizard, onSelectItem, 
 	} = useScreensaverSources({api, settings, updateSettings, pushView, popView});
 
 	const {
+		calendarLibraries, tempCalendarLibraryIds, calendarLibrariesLoading, openCalendarLibraries, toggleCalendarLibrary, saveCalendarLibraries
+	} = useCalendarLibraries({api, settings, updateSettings, pushView, popView});
+
+	const {
 		logEntries, logFilter, setLogFilter, logRenderLimit, setLogRenderLimit,
 		logMessage, sendingReport, sendUnavailableReason, openDiagnostics, handleClearLogs, handleSendReport
 	} = useDiagnosticsLog({currentViewName: currentView.view, pushView, serverType, pluginInfo: seerr.pluginInfo});
@@ -1106,6 +1115,7 @@ const Settings = ({ onBack, onLibrariesChanged, onRunSetupWizard, onSelectItem, 
 		seerrLabel,
 		isSeerr,
 		hasLiveTv,
+		posterLabelsAvailable,
 		serverType,
 		isWebOS: isWebOS(),
 		isTizen: isTizen(),
@@ -1145,6 +1155,7 @@ const Settings = ({ onBack, onLibrariesChanged, onRunSetupWizard, onSelectItem, 
 			openScreensaverLibraries,
 			openScreensaverCollections,
 			openScreensaverGenres,
+			openCalendarLibraries,
 			openImdbLists,
 			openSeasonalRow,
 			openExternalTmdbLists,
@@ -1163,11 +1174,11 @@ const Settings = ({ onBack, onLibrariesChanged, onRunSetupWizard, onSelectItem, 
 			openDeviceProbe: canProbeDevice ? openDeviceProbe : null
 		}
 	}), [
-		settings, capabilities, seerr, achievements, romm, seerrLabel, isSeerr, hasLiveTv, serverType, serverUrl, ratingsResetArmed, resetRatingsSettings, toggleExperimentalTruehd, updateSetting, updateSettings, refreshPlugin,
+		settings, capabilities, seerr, achievements, romm, seerrLabel, isSeerr, hasLiveTv, posterLabelsAvailable, serverType, serverUrl, ratingsResetArmed, resetRatingsSettings, toggleExperimentalTruehd, updateSetting, updateSettings, refreshPlugin,
 		serverVersion, availableThemes, activeThemeId, openThemes, openThemeStore, openHomeRows,
 		openDetailButtons, openOsdButtons, openDetailMetadata, openDetailSections, openDiagnostics,
 		signInPin, toggleSignInPin, changeSignInPin, removeSignInPin, openKidsMode, openLibraries, openLibraryOrder, openParentalControls, openSubtitleDownloadLanguages, openTranscodeAudioCodecs, openQrLink, openRatingSources, openRowImageTypes, openExcludedGenres, openMediaBarLibraries,
-		openMediaBarCollections, openMediaBarExternalLists, openScreensaverLibraries, openScreensaverCollections, openScreensaverGenres,
+		openMediaBarCollections, openMediaBarExternalLists, openScreensaverLibraries, openScreensaverCollections, openScreensaverGenres, openCalendarLibraries,
 		openImdbLists, openSeasonalRow, openExternalTmdbLists, openExternalCalendars,
 		openExternalCustomRows, openSeerrHomeRows, openScreen, onRunSetupWizard, canProbeDevice
 	]);
@@ -1569,6 +1580,7 @@ const Settings = ({ onBack, onLibrariesChanged, onRunSetupWizard, onSelectItem, 
 			{viewName === 'externalCalendars' && (
 				<ExternalCalendarsView
 					enabledMap={homeRowEnabledMap}
+					calendarAvailable={seerr.pluginInfo?.calendarAvailable === true}
 					settings={settings}
 					onToggleRow={toggleHomeRowEnabled}
 					onToggleSetting={toggleSetting}
@@ -1619,7 +1631,7 @@ const Settings = ({ onBack, onLibrariesChanged, onRunSetupWizard, onSelectItem, 
 			)}
 			{viewName === 'rowImageTypes' && (
 				<RowImageTypesView
-					rows={(settings.homeRows || []).filter((row) => row.enabled && row.id !== 'librarybuttons' && !isPickedRow(row) && !isSeerrSliderRow(row))}
+					rows={(settings.homeRows || []).filter((row) => row.enabled && row.id !== 'librarybuttons' && row.id !== 'mdblist_watching_now' && !isPickedRow(row) && !isSeerrSliderRow(row))}
 					overrides={settings.homeRowImageTypes || {}}
 					globalLabel={getLabel(getImageTypeOptions(), settings.homeRowsImageType, $L('Poster'))}
 					onCycleRow={cycleRowImageType}
@@ -1778,6 +1790,25 @@ const Settings = ({ onBack, onLibrariesChanged, onRunSetupWizard, onSelectItem, 
 					onToggleSelection={toggleMediaBarExternalList}
 					onCancel={popView}
 					onSave={saveMediaBarExternalLists}
+				/>
+			)}
+			{viewName === 'calendarLibraries' && (
+				<MediaBarSourceView
+					viewSpotlightId='calendar-libraries-view'
+					title={$L('Libraries')}
+					description={$L('Choose which libraries the calendar lists. With none picked it lists every library.')}
+					loadingLabel={$L('Loading libraries...')}
+					loading={calendarLibrariesLoading}
+					items={calendarLibraries}
+					itemIdKey='Id'
+					itemNameKey='Name'
+					selectedIds={tempCalendarLibraryIds}
+					itemSpotlightPrefix='calendar-lib'
+					cancelSpotlightId='calendar-lib-cancel'
+					saveSpotlightId='calendar-lib-save'
+					onToggleSelection={toggleCalendarLibrary}
+					onCancel={popView}
+					onSave={saveCalendarLibraries}
 				/>
 			)}
 			{viewName === 'screensaverLibraries' && (

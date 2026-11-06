@@ -4,6 +4,10 @@ import {mediaServerQueue} from '../utils/requestQueue';
 import {normalizeWatchlistBody} from './seerrApi.watchlistShape';
 import {sharePending} from '../utils/sharePending';
 import {isPlexUrl} from '../utils/plexUrls';
+import {isSiloLogin, moonbaseEndpoint} from './moonbaseEndpoint';
+import {createApiForServer, getUserId} from './jellyfinApi';
+import {createSiloSeerr} from './siloSeerr';
+import {loadSiloSessions} from './siloSession';
 
 let moonfinMode = false;
 let jellyfinServerUrl = null;
@@ -23,6 +27,26 @@ export const setMoonfinMode = (enabled) => {
 };
 
 export const isMoonfinMode = () => moonfinMode;
+
+// On a Silo server the request screens run on Silo's own requests, answered in Seerr's shapes. One per server, since it
+// keeps the ids it handed out.
+let siloSeerr = null;
+const siloSeerrNow = () => {
+	if (!isSiloLogin(jellyfinServerUrl, jellyfinAccessToken)) return null;
+	if (siloSeerr?.server !== jellyfinServerUrl) {
+		// Silo's request routes name the acting profile, read at call time since it can switch.
+		const silo = () => createApiForServer(jellyfinServerUrl, jellyfinAccessToken, getUserId(), 'silo');
+		siloSeerr = {server: jellyfinServerUrl, ...createSiloSeerr({call: (path, options) => silo().siloCall(path, options), baseUrl: jellyfinServerUrl})};
+	}
+	return siloSeerr;
+};
+
+// The same, once the stored Silo logins are read. Seerr starts up from its own stored config, often before those
+// are, and a Silo login it can't recognise yet would be sent to a Moonbase that isn't there.
+const siloSeerrReady = async () => {
+	await loadSiloSessions();
+	return siloSeerrNow();
+};
 
 const fetchRequest = async (params) => {
 	const {url, method = 'GET', headers = {}, body, timeout = 15000} = params;
@@ -57,6 +81,14 @@ const fetchRequest = async (params) => {
 	}
 };
 
+// A request to one of Moonbase's own routes, signed the way this server wants. A server without Moonbase answers as one
+// without the plugin.
+const moonbaseFetch = async (sUrl, sToken, path, params) => {
+	const endpoint = await moonbaseEndpoint(sUrl, sToken);
+	if (!endpoint) return {success: true, status: 404, headers: {}, body: ''};
+	return fetchRequest({...params, url: `${endpoint.base}${path}`, headers: {...params.headers, ...endpoint.headers}});
+};
+
 // What a server said went wrong, capped. The message ends up in the diagnostic
 // report, and a raw body from a proxy in front of the server is an error page
 // that can carry paths or tokens.
@@ -70,6 +102,8 @@ const moonfinRequest = async (endpoint, options = {}) => {
 	if (!jellyfinServerUrl || !jellyfinAccessToken) {
 		throw new Error('Moonfin not configured');
 	}
+	const silo = await siloSeerrReady();
+	if (silo) return silo.request(endpoint, options);
 
 	const path = endpoint.replace(/^\//, '');
 	const url = `${jellyfinServerUrl}/Moonfin/Seerr/Api/${path}`;
@@ -165,6 +199,8 @@ export const getMoonfinStatus = async () => {
 	if (!jellyfinServerUrl || !jellyfinAccessToken) {
 		throw new Error('Moonfin not configured');
 	}
+	const silo = await siloSeerrReady();
+	if (silo) return silo.status();
 
 	const url = `${jellyfinServerUrl}/Moonfin/Seerr/Status`;
 	const result = await fetchRequest({
@@ -196,6 +232,12 @@ export const moonfinLogin = async (username, password, authType = 'jellyfin') =>
 		throw new Error('Moonfin not configured');
 	}
 
+	// Signing in to Seerr has no meaning on Silo: the Silo session is the requests session.
+	const silo = await siloSeerrReady();
+	if (silo) {
+		const status = await silo.status();
+		return {success: status.authenticated, ...status};
+	}
 	const normalizedAuthType = authType === 'local' ? 'local' : 'jellyfin';
 
 	return moonfinAuthRequest(
@@ -216,6 +258,7 @@ export const moonfinLogout = async () => {
 		throw new Error('Moonfin not configured');
 	}
 
+	if (await siloSeerrReady()) return null;
 	return moonfinAuthRequest(
 `${jellyfinServerUrl}/Moonfin/Seerr/Logout`,
 'DELETE',
@@ -230,6 +273,8 @@ export const moonfinValidate = async () => {
 		throw new Error('Moonfin not configured');
 	}
 
+	const silo = await siloSeerrReady();
+	if (silo) return {valid: (await silo.status()).authenticated};
 	return moonfinAuthRequest(
 `${jellyfinServerUrl}/Moonfin/Seerr/Validate`,
 'GET',
@@ -276,9 +321,7 @@ const pingOnce = async (sUrl, sToken) => {
 		throw new Error('Server URL and token required');
 	}
 
-	const url = `${sUrl}/Moonfin/Ping`;
-	const result = await fetchRequest({
-		url,
+	const result = await moonbaseFetch(sUrl, sToken, `/Moonfin/Ping`, {
 		method: 'GET',
 		headers: {
 			'Accept': 'application/json',
@@ -314,8 +357,7 @@ export const getMoonfinMessages = async (serverUrl, token) => {
 		throw new Error('Server URL and token required');
 	}
 
-	const result = await fetchRequest({
-		url: `${sUrl}/Moonfin/Messages`,
+	const result = await moonbaseFetch(sUrl, sToken, `/Moonfin/Messages`, {
 		method: 'GET',
 		headers: {
 			'Accept': 'application/json',
@@ -345,6 +387,9 @@ export const getMoonfinConfig = async (serverUrl, token) => {
 		throw new Error('Server URL and token required');
 	}
 
+	// Silo's requests are its own, named as such.
+	await loadSiloSessions();
+	if (isSiloLogin(sUrl, sToken)) return {variant: 'seerr', displayName: 'Requests'};
 	const url = `${sUrl}/Moonfin/Seerr/Config`;
 	const result = await fetchRequest({
 		url,
@@ -377,9 +422,7 @@ export const getMoonfinSettings = async (serverUrl, token) => {
 		throw new Error('Server URL and token required');
 	}
 
-	const url = `${sUrl}/Moonfin/Settings`;
-	const result = await fetchRequest({
-		url,
+	const result = await moonbaseFetch(sUrl, sToken, `/Moonfin/Settings`, {
 		method: 'GET',
 		headers: {
 			'Accept': 'application/json',
@@ -410,9 +453,7 @@ export const getMoonfinThemes = async (serverUrl, token) => {
 		throw new Error('Server URL and token required');
 	}
 
-	const url = `${sUrl}/Moonfin/Themes`;
-	const result = await fetchRequest({
-		url,
+	const result = await moonbaseFetch(sUrl, sToken, `/Moonfin/Themes`, {
 		method: 'GET',
 		headers: {
 			'Accept': 'application/json',
@@ -445,9 +486,7 @@ export const getMoonfinResolvedProfile = async (profileName, serverUrl, token) =
 		throw new Error('Server URL and token required');
 	}
 
-	const url = `${sUrl}/Moonfin/Settings/Resolved/${profileName}`;
-	const result = await fetchRequest({
-		url,
+	const result = await moonbaseFetch(sUrl, sToken, `/Moonfin/Settings/Resolved/${profileName}`, {
 		method: 'GET',
 		headers: {
 			'Accept': 'application/json',
@@ -481,11 +520,8 @@ export const deleteMoonfinProfile = async (profileName, serverUrl, token) => {
 		throw new Error('Server URL and token required');
 	}
 
-	const url = profileName === 'global'
-		? `${sUrl}/Moonfin/Settings`
-		: `${sUrl}/Moonfin/Settings/Profile/${profileName}`;
-	const result = await fetchRequest({
-		url,
+	const path = profileName === 'global' ? '/Moonfin/Settings' : `/Moonfin/Settings/Profile/${profileName}`;
+	const result = await moonbaseFetch(sUrl, sToken, path, {
 		method: 'DELETE',
 		headers: {
 			'Accept': 'application/json',
@@ -511,9 +547,7 @@ export const saveMoonfinProfile = async (profileName, profile, serverUrl, token)
 		throw new Error('Server URL and token required');
 	}
 
-	const url = `${sUrl}/Moonfin/Settings/Profile/${profileName}`;
-	const result = await fetchRequest({
-		url,
+	const result = await moonbaseFetch(sUrl, sToken, `/Moonfin/Settings/Profile/${profileName}`, {
 		method: 'POST',
 		headers: {
 			'Content-Type': 'application/json',
@@ -544,6 +578,8 @@ export const subscribeMoonfinSettingsStream = (serverUrl, token, onEvent, onErro
 		throw new Error('Server URL and token required');
 	}
 	if (isPlexUrl(sUrl)) throw new Error('Plex servers have no settings stream');
+	// Silo can't stream a plugin's answer, so settings arrive at sign-in and on a manual sync.
+	if (isSiloLogin(sUrl, sToken)) throw new Error('Silo servers have no settings stream');
 
 	let closed = false;
 	const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
@@ -685,9 +721,7 @@ export const getMoonfinMediaBar = async (serverUrl, token, profile = 'tv') => {
 	const sToken = token || jellyfinAccessToken;
 	if (!sUrl || !sToken) return null;
 
-	const url = `${sUrl}/Moonfin/MediaBar?profile=${encodeURIComponent(profile)}`;
-	const result = await fetchRequest({
-		url,
+	const result = await moonbaseFetch(sUrl, sToken, `/Moonfin/MediaBar?profile=${encodeURIComponent(profile)}`, {
 		method: 'GET',
 		headers: {
 			'Accept': 'application/json',
@@ -724,11 +758,13 @@ export const PERMISSIONS = {
 	REQUEST_4K_MOVIE: 2048,
 	REQUEST_4K_TV: 4096,
 	REQUEST_ADVANCED: 8192,
+	REQUEST_VIEW: 16384,
 	REQUEST_MOVIE: 262144,
 	REQUEST_TV: 524288,
 	MANAGE_ISSUES: 1048576,
 	VIEW_ISSUES: 2097152,
-	CREATE_ISSUES: 4194304
+	CREATE_ISSUES: 4194304,
+	RECENT_VIEW: 67108864
 };
 
 const normalizePermissionValue = (userPermissions) => {
@@ -828,6 +864,36 @@ export const getSonarrServerDetails = async (serverId) => {
 // Full Radarr/Sonarr connection settings (hostname, port, apiKey, useSsl,
 // baseUrl) used to fetch upcoming calendars directly from the arr servers.
 // These are Seerr admin settings, so they require an admin Seerr session.
+// Silo's own calendar in Radarr's (`movie`) or Sonarr's (`tv`) shape, or null when the requests aren't Silo's, whose
+// calendars come from the arr servers themselves.
+export const getSiloCalendar = (type, start, end) => {
+	const silo = siloSeerrNow();
+	return silo ? silo.calendar(type, start, end).catch(() => []) : null;
+};
+
+// A Sonarr or Radarr calendar through Moonbase, which keeps the arr's API key on the server and
+// places each title in a library. It takes the server's own sign-in, not a Seerr session. items is
+// null when the plugin didn't answer, with the status and body that say why.
+export const getArrCalendar = async (service, {start, end, unmonitored = false}, serverUrl, token) => {
+	const sUrl = serverUrl || jellyfinServerUrl;
+	const sToken = token || jellyfinAccessToken;
+	if (!sUrl || !sToken) return {items: null, status: 404, body: ''};
+	const query = `start=${start}&end=${end}${unmonitored ? '&unmonitored=true' : ''}`;
+	const result = await moonbaseFetch(sUrl, sToken, `/Moonfin/Seerr/${service}/Calendar?${query}`, {
+		method: 'GET',
+		headers: {'Accept': 'application/json'},
+		timeout: 20000
+	});
+	if (!result.success) return {items: null, status: 0, body: result.error || ''};
+	if (result.status >= 400) return {items: null, status: result.status, body: result.body};
+	try {
+		const data = JSON.parse(result.body);
+		return {items: Array.isArray(data) ? data : [], status: result.status, body: ''};
+	} catch (e) {
+		return {items: null, status: 0, body: ''};
+	}
+};
+
 export const getRadarrSettings = async () => {
 	return request('/settings/radarr');
 };
@@ -996,6 +1062,10 @@ export const getMyRequests = async (requestedByUserId, take = 50, skip = 0) => {
 	const result = await request(`/request?filter=all&requestedBy=${requestedByUserId}&take=${take}&skip=${skip}&sort=modified`);
 	return result;
 };
+
+// Core's Recent Requests read, everyone's or just the one user's.
+export const getRecentRequests = async (requestedBy, take = 15) =>
+	request(`/request?skip=0&take=${take}${requestedBy != null ? `&requestedBy=${requestedBy}` : ''}`);
 
 export const getRecentlyAdded = async (take = 20) => {
 	return request(`/media?filter=allavailable&sort=mediaAdded&take=${take}`);
@@ -1198,6 +1268,8 @@ export default {
 	getRadarrServerDetails,
 	getSonarrServers,
 	getSonarrServerDetails,
+	getSiloCalendar,
+	getArrCalendar,
 	getRadarrSettings,
 	getSonarrSettings,
 	discover,
@@ -1234,6 +1306,7 @@ export default {
 	declineRequest,
 	retryRequest,
 	getMyRequests,
+	getRecentRequests,
 	getRecentlyAdded,
 	getWatchlist,
 	addToWatchlist,

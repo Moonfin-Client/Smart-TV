@@ -15,7 +15,11 @@ jest.mock('react/jsx-dev-runtime', () => {
 	};
 });
 jest.mock('@enact/i18n/$L', () => (text) => text);
-jest.mock('../../services/jellyfinApi', () => ({getAuthHeader: () => '', getServerUrl: () => '', api: {}}));
+jest.mock('../../services/jellyfinApi', () => ({getApiKey: () => '', getServerUrl: () => '', api: {}}));
+jest.mock('../../services/moonbaseEndpoint', () => ({
+	moonbaseEndpoint: async (base) => ({base, headers: {}}),
+	moonbaseAssetUrl: (base, path) => `${base}${path}`
+}));
 jest.mock('../../utils/requestQueue', () => ({mediaServerQueue: {run: (task) => task()}}));
 
 const mockSettings = {
@@ -53,6 +57,19 @@ describe('RatingsRow surfaces', () => {
 		draw('mediaBar');
 		expect(screen.getByText('7.4')).toBeTruthy();
 		expect(screen.queryByText('Community')).toBeNull();
+	});
+
+	test('a screen can leave the names off whatever the setting says', () => {
+		render(<RatingsRow item={movie} serverUrl='http://server' pluginEnabled={false} labels={false} />);
+		expect(screen.getByText('7.4')).toBeTruthy();
+		expect(screen.queryByText('Community')).toBeNull();
+	});
+
+	test('a strip of columns names every source whatever the label setting says', () => {
+		const {container} = render(<RatingsRow item={movie} serverUrl='http://server' pluginEnabled={false} surface='mediaBar' columns />);
+		expect(container.firstChild.children).toHaveLength(2);
+		expect(screen.getByText('Community')).toBeTruthy();
+		expect(screen.getByText('Rotten Tomatoes')).toBeTruthy();
 	});
 });
 

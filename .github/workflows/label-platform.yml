@@ -18,10 +18,10 @@ concurrency:
 
 jobs:
   label:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     steps:
       - name: Apply platform, server and type labels
-        uses: actions/github-script@v7
+        uses: actions/github-script@v8
         with:
           script: |
             // Only the relevant section is read. Scanning the whole body matched the

@@ -5,6 +5,7 @@ import {initStorage, getFromStorage, saveToStorage, removeFromStorage} from '../
 import * as multiServerManager from '../services/multiServerManager';
 import {clearImageCache} from '../services/imageProxy';
 import {clearAnimeMarkerCache} from '../services/animeMarkersApi';
+import {clearPosterBadges} from '../services/posterBadgesApi';
 import {resetLibraryScope} from '../services/libraryScope';
 import {resetBlockedContentGate} from '../services/blockedContentGate';
 import * as serverSocket from '../services/serverSocket';
@@ -15,8 +16,17 @@ import {clearProxiedImageCache} from '../hooks/useProxiedImage';
 import {parseUrl} from '../utils/urlCompat';
 import {noteProvedSignIn} from '../utils/signInPin';
 import {bestPlexAddress} from '../services/plexTv';
+import {onSiloSessionEnded, onSiloTokensRotated, siloServerKey, siloSessionFor} from '../services/siloSession';
 
 const REVALIDATE_INTERVAL = 5 * 60 * 1000;
+
+// Set when a Silo sign-in brought a household of several profiles, so the app asks who's watching once it opens.
+let householdToPick = false;
+export const takeHouseholdPick = () => {
+	const pick = householdToPick;
+	householdToPick = false;
+	return pick;
+};
 const BACKOFF_DELAYS = [5000, 10000, 20000];
 const RECOVERY_MAX_DELAY = 60000;
 
@@ -41,6 +51,7 @@ const clearAllCaches = () => {
 	// Verdicts are keyed by bare item id, so they would otherwise follow the user onto
 	// the next server and label its items from the previous one.
 	clearAnimeMarkerCache();
+	clearPosterBadges();
 	// The policy and the hidden library list belong to the account that just left.
 	resetLibraryScope();
 	resetBlockedContentGate();
@@ -87,6 +98,33 @@ export const AuthProvider = ({children}) => {
 			return {allServers: [], unique: [], active: null};
 		}
 	}, []);
+
+	// Silo rotates an account's token pair on every refresh, so the saved users holding the old access token move to the
+	// new one. A refresh Silo refuses ends the login, and the app goes back to sign-in.
+	useEffect(() => {
+		const offRotated = onSiloTokensRotated(async (session, previousToken) => {
+			const next = session.tokens.accessToken;
+			setAccessToken((current) => (current === previousToken ? next : current));
+			const stale = (await multiServerManager.getAllServersArray())
+				.filter((entry) => entry.serverType === 'silo' && entry.accessToken === previousToken);
+			for (const entry of stale) {
+				// eslint-disable-next-line no-await-in-loop
+				await multiServerManager.updateServer(entry.serverId, null, entry.userId, {accessToken: next});
+			}
+			if (stale.length) loadServers();
+		});
+		const offEnded = onSiloSessionEnded((session) => {
+			if (jellyfinApi.getServerType() !== 'silo' || siloServerKey(jellyfinApi.getServerUrl()) !== session.server) return;
+			console.warn('[AUTH] Silo refused the session refresh, requiring re-login');
+			jellyfinApi.setAuth(null, null);
+			setAccessToken(null);
+			setIsAuthenticated(false);
+		});
+		return () => {
+			offRotated();
+			offEnded();
+		};
+	}, [loadServers]);
 
 	// A Plex server can move between its addresses, so a saved one is checked for the best before it's used, and the
 	// saved servers are read again once a better one is stored.
@@ -182,6 +220,21 @@ export const AuthProvider = ({children}) => {
 		init();
 	}, [loadServers, addressFor]);
 
+	// Silo's household: every profile is saved as a user of this server, sharing the account's token, so the user picker
+	// is the "Who's watching" list.
+	const saveSiloHousehold = async (server, savedName, serverId, result, sType, sVersion) => {
+		if (!result.SiloAccountId) return;
+		householdToPick = (result.SiloUsers || []).length > 1;
+		for (const profile of result.SiloUsers || [result.User]) {
+			if (profile.Id !== result.User.Id) {
+				// eslint-disable-next-line no-await-in-loop
+				await multiServerManager.addServer(server, savedName, profile.Id, profile.Name, result.AccessToken, profile.PrimaryImageTag, sType, sVersion);
+			}
+			// eslint-disable-next-line no-await-in-loop
+			await multiServerManager.updateServer(serverId, null, profile.Id, {siloAccountId: result.SiloAccountId, siloHasPin: profile.SiloHasPin === true});
+		}
+	};
+
 	const login = useCallback(async (server, username, password, options = {}) => {
 		const {serverName: sName, serverType: sType = 'jellyfin', serverVersion: sVersion = null, isAddingNewServer = false, switchToNewUser = true} = options;
 
@@ -215,6 +268,7 @@ export const AuthProvider = ({children}) => {
 			sType,
 			sVersion
 		);
+		await saveSiloHousehold(server, finalServerName, serverResult.serverId, result, sType, sVersion);
 
 		// Always switch to the newly logged in user
 		const shouldSwitch = switchToNewUser || !isAddingNewServer;
@@ -278,6 +332,7 @@ export const AuthProvider = ({children}) => {
 			sVersion
 		);
 		if (serverFields || userFields) await multiServerManager.updateServer(serverResult.serverId, serverFields, authResult.User.Id, userFields);
+		await saveSiloHousehold(server, finalServerName, serverResult.serverId, authResult, sType, sVersion);
 
 		// Always switch to the newly logged in user
 		const shouldSwitch = switchToNewUser || !isAddingNewServer;
@@ -369,12 +424,29 @@ export const AuthProvider = ({children}) => {
 		}
 	}, [loadServers, addressFor]);
 
+	// A Silo login is the account's, shared by its household profiles, so it ends on the server (which retires its
+	// refresh token) only with the last of them saved here.
+	const endSiloLoginIfLast = useCallback(async (entry) => {
+		if (entry?.serverType !== 'silo' || !entry.accessToken) return;
+		const shared = (await multiServerManager.getAllServersArray())
+			.some((other) => other.serverType === 'silo' && other.accessToken === entry.accessToken);
+		if (shared) return;
+		try {
+			await jellyfinApi.createApiForServer(entry.url, entry.accessToken, entry.userId, 'silo').logout();
+		} catch (e) {
+			console.warn('[AUTH] Ending the Silo login failed:', e);
+		}
+	}, []);
+
 	/**
 	 * Remove a server/user
 	 */
 	const removeUser = useCallback(async (serverId, userId) => {
 		try {
+			const removed = (await multiServerManager.getAllServersArray())
+				.find((entry) => entry.serverId === serverId && entry.userId === userId);
 			await multiServerManager.removeServer(serverId, userId);
+			await endSiloLoginIfLast(removed);
 
 			// Check if we still have any users
 			const count = await multiServerManager.getTotalUserCount();
@@ -399,7 +471,7 @@ export const AuthProvider = ({children}) => {
 			console.error('[AUTH] Error removing user:', error);
 			return false;
 		}
-	}, [loadServers, switchUser]);
+	}, [loadServers, switchUser, endSiloLoginIfLast]);
 
 	/**
 	 * Forget a server and every account saved against it
@@ -443,8 +515,30 @@ export const AuthProvider = ({children}) => {
 
 	const logout = useCallback(async () => {
 		await remoteControl.runPlayerCommand('stop');
+		const leaving = {
+			serverType: jellyfinApi.getServerType(), url: jellyfinApi.getServerUrl(), accessToken: jellyfinApi.getApiKey(),
+			userId: jellyfinApi.getUserId()
+		};
 		if (activeServerInfo) {
 			await multiServerManager.removeServer(activeServerInfo.serverId, activeServerInfo.userId);
+		}
+		// Silo's refresh token stays good until the login is ended on the server too.
+		await endSiloLoginIfLast(leaving);
+
+		// A Silo profile signs out to its household's profile list on the sign-in screen, not into the next profile.
+		const household = leaving.serverType === 'silo' && activeServerInfo &&
+			(await multiServerManager.getAllServersArray()).find((entry) => entry.serverId === activeServerInfo.serverId);
+		if (household) {
+			await multiServerManager.setActiveServer(household.serverId, household.userId);
+			clearAllCaches();
+			await removeFromStorage('auth');
+			setUser(null);
+			setServerUrl(null);
+			setServerName(null);
+			setAccessToken(null);
+			await loadServers();
+			setIsAuthenticated(false);
+			return;
 		}
 
 		const count = await multiServerManager.getTotalUserCount();
@@ -468,7 +562,7 @@ export const AuthProvider = ({children}) => {
 		setUniqueServers([]);
 		setActiveServerInfo(null);
 		setIsAuthenticated(false);
-	}, [activeServerInfo, switchUser]);
+	}, [activeServerInfo, switchUser, endSiloLoginIfLast, loadServers]);
 
 	/**
 	 * Full logout - remove all servers and users
@@ -483,6 +577,12 @@ export const AuthProvider = ({children}) => {
 		for (const server of allServers) {
 			await multiServerManager.removeServer(server.serverId, server.userId);
 		}
+		const siloLogins = allServers.filter((server, i) => server.serverType === 'silo' &&
+			allServers.findIndex((other) => other.accessToken === server.accessToken) === i);
+		for (const entry of siloLogins) {
+			// eslint-disable-next-line no-await-in-loop
+			await endSiloLoginIfLast(entry);
+		}
 
 		await removeFromStorage('auth');
 		setUser(null);
@@ -493,7 +593,7 @@ export const AuthProvider = ({children}) => {
 		setUniqueServers([]);
 		setActiveServerInfo(null);
 		setIsAuthenticated(false);
-	}, []);
+	}, [endSiloLoginIfLast]);
 
 	const [connectionState, setConnectionState] = useState('connected');
 	const lastRevalidateRef = useRef(0);
@@ -549,7 +649,9 @@ export const AuthProvider = ({children}) => {
 
 	// The session socket, and the watched state and remote control it carries, belong to whoever
 	// is signed in, so all of it starts over when the account or the server changes. A server that
-	// restarts forgets what this session can do, so it's told again on every connect.
+	// restarts forgets what this session can do, so it's told again on every connect. A Silo login is
+	// its account, since Silo rotates the token on every refresh.
+	const loginIdentity = siloSessionFor(serverUrl, accessToken)?.accountId || accessToken;
 	useEffect(() => {
 		if (!isAuthenticated) return undefined;
 		serverSocket.connect();
@@ -564,7 +666,8 @@ export const AuthProvider = ({children}) => {
 			userDataSync.reset();
 			serverSocket.disconnect();
 		};
-	}, [isAuthenticated, serverUrl, accessToken]);
+	// Silo's profiles share the account's token, so switching profile has to start this over too.
+	}, [isAuthenticated, serverUrl, loginIdentity, user?.Id]); // eslint-disable-line react-hooks/exhaustive-deps
 
 	// Nothing else moves the state off disconnected, so the banner would sit there
 	// until someone pressed Retry. Probe in the background instead and drop it as

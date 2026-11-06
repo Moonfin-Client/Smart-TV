@@ -715,6 +715,11 @@
 	justify-content: center;
 }
 
+.underSeerrBanner .watchedIndicator,
+.underSeerrBanner .unplayedCount {
+	top: 28px;
+}
+
 .seasonName {
 	margin-top: 10px;
 	font-size: 18px;
@@ -1418,7 +1423,7 @@
 
 	&:focus {
 		background: rgba(var(--theme-accent-rgb, 0, 164, 220), 0.3);
-		border-color: var(--accent-color, #00a4dc);
+		border-color: var(--theme-focus-border-color, #00a4dc);
 		transform: scale(1.05);
 	}
 }

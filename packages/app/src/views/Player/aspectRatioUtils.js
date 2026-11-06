@@ -41,29 +41,20 @@ export const getZoomDisplayRect = (screenRect, aspectRatio, zoomMode) => {
 	const screenAspect = screenWidth / screenHeight;
 	const targetAspect = Number.isFinite(aspectRatio) && aspectRatio > 0 ? aspectRatio : screenAspect;
 
-	if (zoomMode === 'stretch') {
+	// Zoom to Fill covers the screen too, since its source is cut down to the screen's shape.
+	if (zoomMode === 'stretch' || zoomMode === 'fill') {
 		return {x: 0, y: 0, width: screenWidth, height: screenHeight};
 	}
 
 	let width;
 	let height;
 
-	if (zoomMode === 'fill') {
-		if (targetAspect > screenAspect) {
-			height = screenHeight;
-			width = Math.round(height * targetAspect);
-		} else {
-			width = screenWidth;
-			height = Math.round(width / targetAspect);
-		}
+	if (targetAspect > screenAspect) {
+		width = screenWidth;
+		height = Math.round(width / targetAspect);
 	} else {
-		if (targetAspect > screenAspect) {
-			width = screenWidth;
-			height = Math.round(width / targetAspect);
-		} else {
-			height = screenHeight;
-			width = Math.round(height * targetAspect);
-		}
+		height = screenHeight;
+		width = Math.round(height * targetAspect);
 	}
 
 	const x = Math.round((screenWidth - width) / 2);

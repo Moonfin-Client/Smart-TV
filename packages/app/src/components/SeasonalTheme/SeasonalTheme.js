@@ -1,4 +1,4 @@
-import {memo, useEffect, useMemo, useRef} from 'react';
+import {memo, useEffect, useMemo, useRef, useState} from 'react';
 
 import {getPerfTier} from '../../utils/perfTier';
 import {normalizeSeasonalDensity, normalizeSeasonalTheme} from '../../utils/seasonalEffects';
@@ -67,7 +67,32 @@ const usePauseWhileNavigating = (ref, enabled) => {
 	}, [ref, enabled]);
 };
 
-const SeasonalTheme = ({theme, density, follower = true}) => {
+// The settings preview draws an effect over its own Home while Home's sits behind Settings, so
+// Home's steps aside for as long as a preview's is up and only one effect animates at a time.
+let previewCount = 0;
+const previewListeners = new Set();
+const countPreview = (change) => {
+	previewCount += change;
+	previewListeners.forEach((notify) => notify(previewCount));
+};
+
+const usePreviewTurn = (settingsPreview) => {
+	const [heldForPreview, setHeld] = useState(false);
+	useEffect(() => {
+		if (settingsPreview) {
+			countPreview(1);
+			return () => countPreview(-1);
+		}
+		const listener = (count) => setHeld(count > 0);
+		previewListeners.add(listener);
+		listener(previewCount);
+		return () => previewListeners.delete(listener);
+	}, [settingsPreview]);
+	return heldForPreview;
+};
+
+// [settingsPreview] marks the settings preview's copy of the effect.
+const SeasonalTheme = ({theme, density, follower = true, settingsPreview = false}) => {
 	const effect = normalizeSeasonalTheme(theme);
 	const level = normalizeSeasonalDensity(density);
 	const tier = getPerfTier();
@@ -76,7 +101,8 @@ const SeasonalTheme = ({theme, density, follower = true}) => {
 		[effect, level, tier]
 	);
 	const overlayRef = useRef(null);
-	const active = Boolean(effect) && effect !== 'none';
+	const heldForPreview = usePreviewTurn(settingsPreview);
+	const active = Boolean(effect) && effect !== 'none' && !heldForPreview;
 	usePauseWhileNavigating(overlayRef, active && PAUSE_TIERS.includes(tier));
 
 	if (!active) return null;

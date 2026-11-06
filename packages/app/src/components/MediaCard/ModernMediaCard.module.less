@@ -35,6 +35,26 @@
 	box-sizing: border-box;
 }
 
+// Wide art held to the card's left edge. Its height sets its scale, so the card growing over it
+// uncovers more to the right instead of cropping it afresh on every frame.
+.slideArt {
+	object-position: 0 50%;
+}
+
+// The poster laid over the wide art as the card opens and closes, fading off and back on. It takes
+// the frame's room but not its colour, so the focus border on the art beneath shows through.
+.veil {
+	position: absolute;
+	top: 0;
+	left: 0;
+	pointer-events: none;
+}
+
+.card .veil {
+	border-color: transparent !important;
+	box-shadow: none !important;
+}
+
 // OLED mode darkens the chrome, so artwork is lifted to match. The values are
 // written out rather than read from a variable, because the build inlines
 // custom property fallbacks for the older sets.
@@ -130,7 +150,7 @@
 }
 
 .overview {
-	font-size: 18px;
+	font-size: 20px;
 	font-weight: 400;
 	color: var(--theme-text-secondary, rgba(255, 255, 255, 0.7));
 	margin-top: 8px;
@@ -220,23 +240,38 @@
 	box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
 }
 
-.seerr5 {
-	background: var(--theme-on-surface, #fff);
-	border: 3px solid var(--theme-status-available, #22c55e);
+// The banner sits inside the art's own border, so the focus ring still shows all the way around.
+.seerrBanner {
+	border: var(--theme-card-border, 4px solid transparent);
+	border-color: transparent;
+	border-bottom-width: 0;
+	border-radius: var(--theme-card-radius, 20px) var(--theme-card-radius, 20px) 0 0;
+	background-clip: padding-box;
+	box-sizing: content-box;
 }
 
-.seerr4 {
-	background: var(--theme-status-available, #22c55e);
+.card:focus .seerrBanner {
+	border-width: 4px 4px 0;
 }
 
-.seerr3 {
-	background: transparent;
-	border: 3px solid var(--theme-accent, #9333ea);
+.underSeerrBanner {
+	.serverBadge,
+	.seerrBadge,
+	.watchedBadge,
+	.unplayedCount,
+	.favoriteBadge {
+		top: 43px;
+	}
 }
 
-.seerr2 {
-	background: var(--theme-on-surface, #fff);
-	border: 3px solid var(--theme-status-pending, #eab308);
+// Core's 20 point banner across the top of the art.
+.imageContainer .seerrBanner,
+.imageContainer .seerrBannerFlush {
+	.seerr-banner();
+
+	span {
+		padding: 0 10px;
+	}
 }
 
 .seerrMissing {
@@ -263,10 +298,6 @@
 
 .platformTizen .title {
 	font-size: 22px;
-}
-
-.platformTizen .overview {
-	font-size: 17px;
 }
 
 .platformLegacy .extendedSection {
@@ -325,4 +356,46 @@
 .platformWebos .previewFrame,
 .platformWebos .previewRing {
 	border-radius: calc(var(--theme-card-radius, 20px) + 2px);
+}
+
+// Core's look for the Seerr rows: no card border or shadow, a ring standing 3px off the art
+// once focused, and the title and year under every card. The theme sheet colors the ring with
+// the focus border color.
+.focusRing {
+	.seerr-focus-ring();
+	box-sizing: border-box;
+	z-index: 1;
+}
+
+.card:focus .focusRing {
+	display: block;
+}
+
+.imageContainer {
+	.seerr-type-badge();
+}
+
+.coreLook .title {
+	margin-top: 10px;
+	font-size: 22px;
+	font-weight: 700;
+	line-height: 29px;
+}
+
+.coreLook .secondaryTitle {
+	margin-top: 0;
+	font-size: 20px;
+	font-weight: 400;
+	line-height: 27px;
+}
+
+.coreLook .extendedSection {
+	margin-top: 7px;
+	min-height: 0;
+}
+
+.coreLook .overview {
+	margin-top: 7px;
+	font-size: 20px;
+	line-height: 1.4;
 }

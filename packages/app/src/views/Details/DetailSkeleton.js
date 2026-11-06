@@ -1,4 +1,5 @@
 import {SkeletonBox, SkeletonShimmer} from '../../components/Skeleton';
+import {frostStageStyle} from './frost/frostRules';
 
 import css from './DetailSkeleton.module.less';
 
@@ -224,7 +225,40 @@ const Premiere = ({sidebar}) => (
 	</div>
 );
 
-const LAYOUTS = {v1: Classic, v2: Modern, v3: Spotlight, v4: Nouveau, v5: Minimalist, v6: Stage, v7: Premiere};
+// Quick Look's drawer: its backdrop over the title block, the buttons and the first lines of the
+// overview. The drawer is the box it fills.
+const QuickLook = () => (
+	<div className={css.content}>
+		<SkeletonBox width="100%" height={`calc(32vh - ${rem(56.8)})`} radius="0" />
+		<div style={{padding: `${rem(26.7)} ${rem(43.4)} 0`}}>
+			<Box width={401} height={46.8} />
+			<Gap size={16.7} />
+			<Box width={334} height={23.4} />
+			<Gap size={33.4} />
+			<Boxes widths={[217, 76.8, 76.8, 76.8, 76.8]} height={76.8} gap={16.7} radius={38.4} />
+			<Gap size={16.7} />
+			{[0, 1, 2].map((i) => (
+				<div key={i}>
+					<Gap size={13.4} />
+					<Box width={i === 2 ? 334 : '100%'} height={20} />
+				</div>
+			))}
+		</div>
+	</div>
+);
+
+// Frost's window, toolbar and tab bar, on the same stage the page lays out on.
+const Frost = ({sidebar}) => (
+	<div className={css.content}>
+		<div className={css.frostStage} style={frostStageStyle(!sidebar)}>
+			<SkeletonBox className={css.frostWindow} radius={rem(66)} />
+			<SkeletonBox className={css.frostToolbar} radius={rem(57)} />
+			<SkeletonBox className={css.frostTabs} radius={rem(45)} />
+		</div>
+	</div>
+);
+
+const LAYOUTS = {v1: Classic, v2: Modern, v3: Spotlight, v4: Nouveau, v5: Minimalist, v6: Stage, v7: Premiere, v8: QuickLook, v9: Frost};
 
 // Placeholders laid out like the chosen details style while the item loads, so the page fills
 // in where they stood.

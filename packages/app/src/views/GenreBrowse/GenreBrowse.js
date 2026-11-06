@@ -14,9 +14,12 @@ import LoadingSpinner from '../../components/LoadingSpinner';
 import {getImageUrl, getBackdropId, getPrimaryImageId} from '../../utils/helpers';
 import {serverBlurredUrl} from '../../utils/serverBlur';
 import {ModalContainer} from '../../utils/spotlightContainers';
+import {registerThemeSheet} from '../../theme/themeOverrides';
 
 import dialogCss from '../../components/CoreDialog/CoreDialog.module.less';
 import css from './GenreBrowse.module.less';
+
+registerThemeSheet('genreBrowse', css);
 
 const SpottableDiv = Spottable('div');
 const SpottableButton = Spottable('button');

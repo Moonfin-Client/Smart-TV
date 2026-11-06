@@ -203,7 +203,7 @@ export const getPlayMethod = (mediaSource, capabilities, _options, passthroughOp
 	const videoStream = mediaSource.MediaStreams?.find(s => s.Type === 'Video');
 
 	const videoCodec = (videoStream?.Codec || '').toLowerCase();
-	const supportedVideoCodecs = ['h264', 'avc'];
+	const supportedVideoCodecs = ['h264', 'avc', 'mpeg2video'];
 	if (capabilities.hevc) supportedVideoCodecs.push('hevc', 'h265', 'hev1', 'hvc1');
 	if (capabilities.av1) supportedVideoCodecs.push('av1');
 	if (capabilities.vp9) supportedVideoCodecs.push('vp9');
@@ -239,10 +239,13 @@ export const getPlayMethod = (mediaSource, capabilities, _options, passthroughOp
 	const videoOk = !videoCodec || supportedVideoCodecs.includes(videoCodec);
 	const audioOk = defaultPlayable;
 	const containerOk = !container || supportedContainers.includes(container);
+	// Jellyfin can report MP4's ffprobe format list as its first alias, mov.
+	// Match the MP4 codec rules already advertised in our server profile.
+	const codecContainer = container === 'mov' ? 'mp4' : container;
 
 	// Samsung docs: "HEVC: Supported only for MKV/MP4/TS containers"
 	const hevcContainerOk = videoCodec === 'hevc' || videoCodec === 'h265' || videoCodec === 'hev1' || videoCodec === 'hvc1'
-		? ['mp4', 'mkv', 'matroska', 'ts', 'mpegts', 'm4v'].includes(container)
+		? ['mp4', 'mkv', 'matroska', 'ts', 'mpegts', 'm4v'].includes(codecContainer)
 		: true;
 
 	// VP9 container support:
@@ -250,7 +253,7 @@ export const getPlayMethod = (mediaSource, capabilities, _options, passthroughOp
 	// decoder is container agnostic and Tizen's media framework demuxes
 	// MKV/MP4/WebM equally well for VP9 content.
 	const vp9ContainerOk = videoCodec === 'vp9'
-		? ['webm', 'mkv', 'matroska', 'mp4', 'm4v'].includes(container)
+		? ['webm', 'mkv', 'matroska', 'mp4', 'm4v'].includes(codecContainer)
 		: true;
 
 	// AV1 container support:
@@ -258,7 +261,7 @@ export const getPlayMethod = (mediaSource, capabilities, _options, passthroughOp
 	// 8K Premium 2022+ models additionally support TS/AVI containers.
 	const av1GeneralContainers = capabilities.uhd8K && capabilities.tizenVersion >= 6.5;
 	const av1ContainerOk = videoCodec === 'av1'
-		? (['webm', 'mkv', 'matroska', 'mp4', 'm4v'].includes(container) ||
+		? (['webm', 'mkv', 'matroska', 'mp4', 'm4v'].includes(codecContainer) ||
 			(av1GeneralContainers && ['ts', 'mpegts', 'avi'].includes(container)))
 		: true;
 

@@ -207,3 +207,46 @@
 		opacity: 0.7;
 	}
 }
+
+// Frost's strip.
+.ratingsColumns {
+	display: flex;
+	height: 100%;
+}
+
+.ratingColumn {
+	align-items: center;
+	display: flex;
+	flex: 1 1 0;
+	flex-direction: column;
+	justify-content: center;
+	min-width: 0;
+	padding: 0 6px;
+}
+
+.ratingColumn + .ratingColumn {
+	border-left: 1.5px solid rgba(255, 255, 255, 0.14);
+}
+
+.columnName {
+	color: rgba(235, 235, 245, 0.62);
+	font-size: 18px;
+	font-weight: 600;
+	letter-spacing: 0.9px;
+	line-height: 1.25;
+	max-width: 100%;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	text-transform: uppercase;
+	white-space: nowrap;
+}
+
+.columnValue {
+	color: rgba(255, 255, 255, 0.94);
+	font-size: 42px;
+	font-weight: 700;
+	letter-spacing: -0.75px;
+	line-height: 1.15;
+	margin-top: 6px;
+	white-space: nowrap;
+}

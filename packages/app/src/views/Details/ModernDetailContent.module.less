@@ -590,6 +590,163 @@
 	text-overflow: ellipsis;
 }
 
+// Quick Look starts the same row at the drawer's edge, where it can run onto a second line, so each
+// line keeps the room for its labels and Core's gap under that.
+.actionsStart {
+	justify-content: flex-start;
+	margin: 0 -6.7px -20px;
+	padding-bottom: 0;
+}
+
+.actionsStart > .actionBtn {
+	margin-bottom: 56.7px;
+}
+
+// Frost's toolbar. The first button is a white pill and the rest are bare icons, with the label in a
+// small chip floating above the focused one. The toolbar is glass already, so nothing here blurs.
+.actionsFrosted {
+	align-items: center;
+	display: flex;
+}
+
+.actionsFrosted > .actionBtn {
+	-webkit-backdrop-filter: none;
+	backdrop-filter: none;
+	background: transparent;
+	border: 0;
+	border-radius: 45px;
+	color: #fff;
+	height: 90px;
+	justify-content: center;
+	margin-left: 9px;
+	overflow: visible;
+	padding: 0;
+	position: relative;
+	width: 90px;
+}
+
+.actionsFrosted > .actionBtn:first-child + .actionBtn {
+	margin-left: 18px;
+}
+
+.actionsFrosted > .actionBtn:focus {
+	background: transparent;
+	border: 0;
+	color: #fff;
+	padding: 0;
+}
+
+.actionsFrosted > .actionActive,
+.actionsFrosted > .actionActive:focus {
+	color: #30d158;
+}
+
+.actionsFrosted > .actionActive[data-spotlight-id='details-favorite-btn'],
+.actionsFrosted > .actionActive[data-spotlight-id='details-favorite-btn']:focus {
+	color: #ff375f;
+}
+
+.actionsFrosted > .actionBtn .actionIcon {
+	border-radius: 50%;
+	flex: 0 0 90px;
+	height: 90px;
+	width: 90px;
+}
+
+.actionsFrosted > .actionBtn .actionIcon .icon {
+	height: 37.5px;
+	width: 37.5px;
+}
+
+.actionsFrosted > .actionBtn:focus .actionIcon {
+	background: rgba(255, 255, 255, 0.32);
+	transform: scale(1.12);
+}
+
+.actionsFrosted > .actionBtn,
+.actionsFrosted > .actionBtn .actionIcon {
+	transition: transform 0.18s ease, background-color 0.18s ease;
+
+	:global(.perf-low) &,
+	:global(.perf-mid) & {
+		transition: none;
+	}
+}
+
+.actionsFrosted > .actionBtn:not(:first-child) .actionText,
+.actionsFrosted > .actionBtn:not(:first-child):focus .actionText {
+	background: rgba(36, 36, 40, 0.97);
+	border-radius: 24px;
+	bottom: 100%;
+	color: #fff;
+	left: 50%;
+	margin-bottom: 24px;
+	max-width: none;
+	padding: 10.5px 21px;
+	pointer-events: none;
+	position: absolute;
+	transform: translateX(-50%);
+}
+
+.actionsFrosted > .actionBtn:not(:first-child) .actionLabel {
+	font-size: 21px;
+	font-weight: 600;
+	max-width: none;
+}
+
+// The ring a focused pill wears is its border, kept clear of the fill and pulled back into the
+// row's spacing, so the pill measures the same with or without it.
+.actionsFrosted > .actionBtn:first-child {
+	background: rgba(255, 255, 255, 0.86);
+	background-clip: padding-box;
+	border: 6px solid transparent;
+	border-radius: 51px;
+	color: #000;
+	height: 102px;
+	margin: -6px;
+	min-width: 312px;
+	padding: 0 42px;
+	width: auto;
+}
+
+.actionsFrosted > .actionBtn:first-child:focus {
+	background: #fff;
+	background-clip: padding-box;
+	border: 6px solid rgba(255, 255, 255, 0.3);
+	color: #000;
+	padding: 0 42px;
+	transform: scale(1.06);
+}
+
+.actionsFrosted > .actionBtn:first-child .actionIcon,
+.actionsFrosted > .actionBtn:first-child:focus .actionIcon {
+	background: transparent;
+	flex: 0 0 28.5px;
+	height: 28.5px;
+	transform: none;
+	width: 28.5px;
+}
+
+.actionsFrosted > .actionBtn:first-child .actionIcon .icon {
+	height: 28.5px;
+	width: 28.5px;
+}
+
+.actionsFrosted > .actionBtn:first-child .actionText,
+.actionsFrosted > .actionBtn:first-child:focus .actionText {
+	max-width: none;
+	opacity: 1;
+	padding: 0 0 0 15px;
+}
+
+.actionsFrosted > .actionBtn:first-child .actionLabel {
+	font-size: 28.5px;
+	font-weight: 600;
+	max-width: 450px;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
 .upNext {
 	width: 594px;
 	flex-shrink: 0;

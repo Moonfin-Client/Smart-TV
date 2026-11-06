@@ -244,8 +244,8 @@ describe('mkvPgsSource', () => {
 		expect(header.segmentDataOffset).toBeGreaterThan(0);
 		expect(header.cuesOffset).not.toBeNull();
 		expect(header.tracks).toEqual([
-			{number: 1, type: 1, codec: 'V_MPEGH/ISO/HEVC', compressionAlgorithm: null, compressionSettings: null, unsupportedEncoding: false},
-			{number: 2, type: 17, codec: 'S_HDMV/PGS', compressionAlgorithm: null, compressionSettings: null, unsupportedEncoding: false}
+			{number: 1, type: 1, codec: 'V_MPEGH/ISO/HEVC', language: '', compressionAlgorithm: null, compressionSettings: null, unsupportedEncoding: false},
+			{number: 2, type: 17, codec: 'S_HDMV/PGS', language: '', compressionAlgorithm: null, compressionSettings: null, unsupportedEncoding: false}
 		]);
 	});
 
@@ -261,7 +261,7 @@ describe('mkvPgsSource', () => {
 
 	test('parses a tracks element with a zlib content encoding', () => {
 		expect(pgsTrackWithEncoding([element(0x5034, element(0x4254, uintBytes(0, 1)))])).toEqual({
-			number: 7, type: 17, codec: 'S_HDMV/PGS', compressionAlgorithm: 0, compressionSettings: null, unsupportedEncoding: false
+			number: 7, type: 17, codec: 'S_HDMV/PGS', language: '', compressionAlgorithm: 0, compressionSettings: null, unsupportedEncoding: false
 		});
 	});
 

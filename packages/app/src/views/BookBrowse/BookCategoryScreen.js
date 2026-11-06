@@ -54,7 +54,9 @@ const entryIcon = (entry) => (entry.key === OVERVIEW ? <CoreIcon name={entry.ico
 // left, Classic's pill strip or Reading Room's chips over it. The nav stays mounted across a
 // switch, so focus stays on it. With no `screen`, Classic and Reading Room show `overview` and
 // Bookstore shows All Titles.
-const BookCategoryScreen = ({style, screen, library, data, showDiscover, overview, onOpenScreen, ...rest}) => {
+const BookCategoryScreen = ({style, screen, library, data, showDiscover, overview, onOpenScreen, settingsPreview, ...rest}) => {
+	// The preview's nav takes ids of its own, so Spotlight can't mistake it for the screen's.
+	const chipsId = settingsPreview ? 'book-preview-chips' : CHIPS_ID;
 	const nav = bookNavFor(style);
 	const shown = nav === 'rail' ? screen || ROOT_SCREEN : screen;
 	const current = navKeyFor(style, shown);
@@ -70,10 +72,10 @@ const BookCategoryScreen = ({style, screen, library, data, showDiscover, overvie
 
 	// The chips open with the open entry's chip in view.
 	useLayoutEffect(() => {
-		const row = document.querySelector(`[data-spotlight-id="${CHIPS_ID}"]`);
+		const row = document.querySelector(`[data-spotlight-id="${chipsId}"]`);
 		const chip = row?.querySelector('[data-current="true"]');
 		if (chip) row.scrollLeft = Math.max(0, chip.offsetLeft - (row.clientWidth - chip.offsetWidth) / 2);
-	}, []);
+	}, [chipsId]);
 
 	const openEntry = useCallback((key) => {
 		if (key === current) {
@@ -109,6 +111,7 @@ const BookCategoryScreen = ({style, screen, library, data, showDiscover, overvie
 			data={data}
 			onBack={handleBack}
 			onOpenScreen={onOpenScreen}
+			settingsPreview={settingsPreview}
 			{...rest}
 		/>
 	) : <div className={bookCss.overview}>{overview}</div>;
@@ -119,7 +122,7 @@ const BookCategoryScreen = ({style, screen, library, data, showDiscover, overvie
 			<div className={css.page}>
 				<div className={css.strip} onKeyDown={handleStripKey}>
 					<div className={css.stripName}>{libraryName}</div>
-					<MusicTabs pills={tabs} current={current} onOpenGrid={openEntry} spotlightId={STRIP_ID} activeSpotlightId={STRIP_CURRENT_ID} />
+					<MusicTabs pills={tabs} current={current} onOpenGrid={openEntry} spotlightId={settingsPreview ? 'book-preview-strip' : STRIP_ID} activeSpotlightId={STRIP_CURRENT_ID} />
 				</div>
 				{content}
 			</div>
@@ -129,7 +132,7 @@ const BookCategoryScreen = ({style, screen, library, data, showDiscover, overvie
 	if (nav === 'chips') {
 		return (
 			<div className={css.page}>
-				<ChipsContainer className={css.screenChips} spotlightId={CHIPS_ID} onKeyDown={handleStripKey} onFocus={keepFocusInView}>
+				<ChipsContainer className={css.screenChips} spotlightId={chipsId} onKeyDown={handleStripKey} onFocus={keepFocusInView}>
 					{entries.map((entry) => {
 						const isCurrent = entry.key === current;
 						return (
@@ -156,7 +159,7 @@ const BookCategoryScreen = ({style, screen, library, data, showDiscover, overvie
 	return (
 		<RailWidthContext.Provider value={RAIL_WIDTH}>
 			<div className={railCss.page}>
-				<RailContainer className={railCss.rail} spotlightId="book-rail" onKeyDown={handleRailKey} onFocus={keepFocusInView}>
+				<RailContainer className={railCss.rail} spotlightId={settingsPreview ? undefined : 'book-rail'} onKeyDown={handleRailKey} onFocus={keepFocusInView}>
 					<div className={railCss.railTitle}>{libraryName}</div>
 					<div className={railCss.railSubtitle}>{titlesLabel(data.counts.all)}</div>
 					{entries.map((entry) => {

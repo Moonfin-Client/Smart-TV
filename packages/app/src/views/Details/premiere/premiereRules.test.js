@@ -2,16 +2,16 @@ import {ACTIONS, NAVBAR} from '../stage/stageRules';
 import {factsWeight, premiereDim, premiereNeighbour, premiereScrim} from './premiereRules';
 
 describe('where a press leaves a Premiere section for', () => {
-	const stops = ['episodes', 'tracks', 'ratings', 'cast'];
+	const stops = ['episodes', 'tracks', 'facts', 'cast'];
 
 	test('runs down the sections in order and keeps Down at the last', () => {
 		expect(premiereNeighbour(stops, ACTIONS, 'down', true)).toBe('episodes');
-		expect(premiereNeighbour(stops, 'tracks', 'down', true)).toBe('ratings');
+		expect(premiereNeighbour(stops, 'tracks', 'down', true)).toBe('facts');
 		expect(premiereNeighbour(stops, 'cast', 'down', true)).toBe(null);
 	});
 
 	test('walks back up to the buttons from the first section', () => {
-		expect(premiereNeighbour(stops, 'ratings', 'up', false)).toBe('tracks');
+		expect(premiereNeighbour(stops, 'facts', 'up', false)).toBe('tracks');
 		expect(premiereNeighbour(stops, 'episodes', 'up', false)).toBe(ACTIONS);
 	});
 

@@ -9,7 +9,10 @@ import {SpottableDiv} from './detailsSpottables';
 import {PosterBadges, WatchedCheckIcon, FavoriteHeartIcon} from './DetailBadges';
 import {AnimeEpisodePills} from '../../components/AnimeMarkerPills';
 import IncompleteBadge from '../../components/IncompleteBadge';
+import PosterLabels from '../../components/PosterLabels';
 import useItemMenuHold, {itemWithIdAt} from '../../hooks/useItemMenuHold';
+import {getApiKey} from '../../services/jellyfinApi';
+import {moonbaseAssetUrl} from '../../services/moonbaseEndpoint';
 
 import css from './Details.module.less';
 
@@ -94,6 +97,13 @@ const SeasonScreen = ({
 									<FavoriteHeartIcon />
 								</div>
 							)}
+							<PosterLabels
+								item={ep}
+								serverUrl={serverUrl}
+								scale={0.8}
+								top={ep.UserData?.IsFavorite ? 42 : 8}
+								topRight={isPlayed ? 42 : 8}
+							/>
 						</div>
 						<div className={css.seasonEpBody}>
 							<div className={css.seasonEpTop}>
@@ -102,7 +112,7 @@ const SeasonScreen = ({
 									{epRuntime && <span>{epRuntime}</span>}
 									{episodeRatings[ep.IndexNumber] != null && (
 										<span className={css.tmdbBadge}>
-											<img className={css.tmdbIcon} src={`${serverUrl}/Moonfin/Assets/tmdb.svg`} alt="TMDB" />
+											<img className={css.tmdbIcon} src={moonbaseAssetUrl(serverUrl, '/Moonfin/Assets/tmdb.svg', getApiKey())} alt="TMDB" />
 											{episodeRatings[ep.IndexNumber].toFixed(1)}
 										</span>
 									)}

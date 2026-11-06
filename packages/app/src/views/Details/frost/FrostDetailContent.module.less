@@ -1,0 +1,1108 @@
+// The glass is a flat translucent fill with no blur behind it and no shadow under it, since old webOS
+// and Tizen can't blur live and Tizen paints in software. The art behind everything comes from the
+// server already blurred.
+
+@muted: rgba(235, 235, 245, 0.62);
+@platter: rgba(255, 255, 255, 0.14);
+@ornament: rgba(48, 48, 54, 0.9);
+
+// A hairline rim, brighter along the top edge, drawn over the box without taking any room.
+.rim() {
+	&::after {
+		border: 1.5px solid rgba(255, 255, 255, 0.08);
+		border-radius: inherit;
+		border-top-color: rgba(255, 255, 255, 0.24);
+		bottom: 0;
+		content: '';
+		left: 0;
+		pointer-events: none;
+		position: absolute;
+		right: 0;
+		top: 0;
+	}
+}
+
+.motion(@value) {
+	transition: @value;
+
+	:global(.perf-low) &,
+	:global(.perf-mid) & {
+		transition: none;
+	}
+}
+
+.fill() {
+	bottom: 0;
+	left: 0;
+	position: absolute;
+	right: 0;
+	top: 0;
+}
+
+.lines(@count) {
+	display: -webkit-box;
+	overflow: hidden;
+	-webkit-box-orient: vertical;
+	-webkit-line-clamp: @count;
+}
+
+.ellipsis() {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.frost {
+	.fill();
+	color: #fff;
+	overflow: hidden;
+}
+
+.environment {
+	.fill();
+	overflow: hidden;
+}
+
+.environmentImage,
+.artImage {
+	height: 100%;
+	object-fit: cover;
+	width: 100%;
+}
+
+// The dim over the art, with the vignette baked into the image the page sets on it.
+.dim {
+	.fill();
+	background-color: rgba(0, 0, 0, 0.55);
+}
+
+// Its size comes from the page, which shapes it to the room the navigation leaves.
+.stage {
+	left: 0;
+	position: absolute;
+	top: 0;
+	transform-origin: 0 0;
+}
+
+.window {
+	.rim();
+	background: rgba(28, 28, 32, 0.55);
+	border-radius: 66px;
+	bottom: 219px;
+	left: 36px;
+	overflow: hidden;
+	position: absolute;
+	right: 36px;
+	top: 18px;
+}
+
+// Overview shows the art sharp, and every other tab fades it out so the window reads as glass.
+.art {
+	.fill();
+	.motion(opacity 0.5s ease);
+}
+
+.artHidden {
+	opacity: 0;
+}
+
+.artFade {
+	.fill();
+	background-image:
+		linear-gradient(to top, rgba(12, 12, 14, 0.95), rgba(12, 12, 14, 0.74) 50%, rgba(12, 12, 14, 0) 80%),
+		linear-gradient(to right, rgba(12, 12, 14, 0.5), rgba(12, 12, 14, 0) 62%);
+}
+
+.heading {
+	left: 84px;
+	position: absolute;
+	top: 48px;
+}
+
+.headingCaps {
+	color: @muted;
+	font-size: 21px;
+	font-weight: 600;
+	letter-spacing: 0.9px;
+	line-height: 27px;
+	text-transform: uppercase;
+}
+
+.headingTitle {
+	font-size: 54px;
+	font-weight: 800;
+	letter-spacing: -1.05px;
+	line-height: 63px;
+	margin: 3px 0 0;
+}
+
+// Overview: everything stacked from the window's foot up.
+
+.overview {
+	.fill();
+	box-sizing: border-box;
+	display: flex;
+	flex-direction: column;
+	justify-content: flex-end;
+	padding: 0 84px 75px;
+
+	> * {
+		flex-shrink: 0;
+	}
+}
+
+.title {
+	.lines(2);
+	font-size: 96px;
+	font-weight: 800;
+	letter-spacing: -2.4px;
+	line-height: 105px;
+	margin: 0;
+}
+
+// DetailMetaRow is handed this stylesheet, so the classes after this one keep the names it looks for.
+.metaLine {
+	align-items: center;
+	color: rgba(235, 235, 245, 0.78);
+	display: flex;
+	flex-wrap: wrap;
+	font-size: 27px;
+	font-weight: 500;
+	line-height: 33px;
+	margin-top: 18px;
+}
+
+.metaRow {
+	align-items: center;
+	display: flex;
+	white-space: nowrap;
+}
+
+.metaItem {
+	align-items: center;
+	display: inline-flex;
+}
+
+.metaItem + .metaItem::before {
+	content: '\00b7';
+	margin: 0 12px;
+}
+
+.metaIcon {
+	display: none;
+}
+
+.metaRating,
+.techChip {
+	align-items: center;
+	border: 1.5px solid rgba(235, 235, 245, 0.55);
+	border-radius: 7.5px;
+	box-sizing: border-box;
+	color: rgba(235, 235, 245, 0.85);
+	display: flex;
+	font-size: 18px;
+	font-weight: 700;
+	height: 33px;
+	letter-spacing: 0.9px;
+	padding: 0 9px;
+}
+
+.metaRow + .techChip {
+	margin-left: 21px;
+}
+
+.techChip + .techChip {
+	margin-left: 9px;
+}
+
+.statusBadge {
+	background: #2e7d32;
+	border-radius: 7.5px;
+	color: #fff;
+	font-size: 18px;
+	font-weight: 700;
+	line-height: 30px;
+	padding: 0 9px;
+}
+
+.statusEnded {
+	background: #b71c1c;
+}
+
+.statusUpcoming {
+	align-items: center;
+	background: #00a4dc;
+	display: inline-flex;
+}
+
+.statusUpcoming .metaIcon {
+	display: block;
+	height: 18px;
+	margin-right: 6px;
+	width: 18px;
+}
+
+// How far in the viewer is, or where a title only in Seerr stands.
+.status {
+	align-items: center;
+	color: rgba(235, 235, 245, 0.8);
+	display: flex;
+	font-size: 24px;
+	font-weight: 500;
+	height: 33px;
+	margin-top: 21px;
+}
+
+.statusDot {
+	border-radius: 50%;
+	flex: none;
+	height: 15px;
+	margin-right: 18px;
+	width: 15px;
+}
+
+.statusTrack {
+	background: rgba(255, 255, 255, 0.25);
+	border-radius: 4.5px;
+	flex: none;
+	height: 7.5px;
+	margin-right: 18px;
+	overflow: hidden;
+	width: 165px;
+}
+
+.barFill {
+	background: #fff;
+	height: 100%;
+}
+
+.statusLabel {
+	.ellipsis();
+}
+
+// The ratings strip, with hairlines over and under it. Ratings that never came leave it empty, and
+// then it isn't drawn at all.
+.strip {
+	border-bottom: 1.5px solid rgba(255, 255, 255, 0.14);
+	border-top: 1.5px solid rgba(255, 255, 255, 0.14);
+	box-sizing: border-box;
+	height: 150px;
+	margin-top: 21px;
+}
+
+.strip:empty {
+	display: none;
+}
+
+.lower {
+	align-items: flex-start;
+	display: flex;
+	margin-top: 21px;
+}
+
+// The focus platter reaches past the text, so the text lines up with the title. It's nudged rather
+// than given a margin, so what sits beside it keeps its place.
+.lowerText {
+	flex: none;
+	left: -18px;
+	position: relative;
+	width: 996px;
+}
+
+.text {
+	.motion(~'background-color 0.2s ease, transform 0.2s ease');
+	border-radius: 30px;
+	outline: none;
+	padding: 15px 18px;
+}
+
+.text:focus {
+	background: @platter;
+	transform: scale(1.02);
+}
+
+.textBody {
+	.lines(3);
+	color: rgba(255, 255, 255, 0.9);
+	font-size: 27px;
+	line-height: 39px;
+	margin: 0;
+}
+
+.credits {
+	.ellipsis();
+	color: rgba(255, 255, 255, 0.92);
+	font-size: 24px;
+	line-height: 33px;
+	padding: 9px 18px 0;
+}
+
+.credit + .credit {
+	margin-left: 27px;
+}
+
+.creditLabel {
+	color: @muted;
+	font-weight: 600;
+	margin-right: 10.5px;
+}
+
+// The track pickers, or for a title only in Seerr where it streams, at the far side of the overview.
+.side {
+	flex: none;
+	margin: 3px 0 0 auto;
+	width: 534px;
+}
+
+.track {
+	.motion(~'background-color 0.2s ease, transform 0.2s ease');
+	align-items: center;
+	background: rgba(255, 255, 255, 0.1);
+	border-radius: 30px;
+	box-sizing: border-box;
+	display: flex;
+	height: 60px;
+	outline: none;
+	padding: 0 21px;
+}
+
+.track + .track {
+	margin-top: 9px;
+}
+
+.track:focus {
+	background: rgba(255, 255, 255, 0.32);
+	transform: scale(1.04);
+}
+
+.trackIcon {
+	flex: none;
+	height: 27px;
+	width: 27px;
+}
+
+.trackName {
+	flex: none;
+	font-size: 24px;
+	font-weight: 600;
+	margin-left: 15px;
+}
+
+.trackValue {
+	.ellipsis();
+	color: rgba(235, 235, 245, 0.72);
+	flex: 1 1 auto;
+	font-size: 24px;
+	margin-left: 15px;
+	min-width: 0;
+	text-align: right;
+}
+
+.trackChevron {
+	color: @muted;
+	flex: none;
+	height: 18px;
+	margin-left: 12px;
+	width: 18px;
+}
+
+.watchHeading {
+	color: @muted;
+	font-size: 19.5px;
+	font-weight: 600;
+	letter-spacing: 0.9px;
+	line-height: 24px;
+	padding: 0 24px 12px;
+	text-transform: uppercase;
+}
+
+.watchCard {
+	align-items: center;
+	background: rgba(255, 255, 255, 0.1);
+	border-radius: 33px;
+	display: flex;
+	padding: 18px 24px 18px 18px;
+}
+
+.watchLogo {
+	background: rgba(255, 255, 255, 0.12);
+	border-radius: 19.5px;
+	flex: none;
+	height: 78px;
+	object-fit: cover;
+	width: 78px;
+}
+
+.watchText {
+	flex: 1 1 auto;
+	margin-left: 21px;
+	min-width: 0;
+}
+
+.watchName {
+	.ellipsis();
+	display: block;
+	font-size: 27px;
+	font-weight: 600;
+	line-height: 34.5px;
+}
+
+.watchOthers {
+	.ellipsis();
+	color: rgba(235, 235, 245, 0.68);
+	display: block;
+	font-size: 22.5px;
+	line-height: 28.5px;
+}
+
+// The season or segment pills at the top right of a tab.
+
+.pills {
+	background: rgba(255, 255, 255, 0.08);
+	border-radius: 37.5px;
+	box-sizing: border-box;
+	max-width: 1000px;
+	padding: 6px;
+	position: absolute;
+	right: 72px;
+	top: 66px;
+}
+
+.pillRow {
+	display: flex;
+	overflow: hidden;
+}
+
+.pill {
+	.motion(~'background-color 0.2s ease, transform 0.2s ease');
+	align-items: center;
+	border-radius: 31.5px;
+	color: rgba(235, 235, 245, 0.68);
+	display: flex;
+	flex: none;
+	font-size: 24px;
+	font-weight: 600;
+	height: 63px;
+	outline: none;
+	padding: 0 30px;
+	white-space: nowrap;
+}
+
+.pill + .pill {
+	margin-left: 6px;
+}
+
+.pillSelected {
+	background: rgba(255, 255, 255, 0.18);
+	color: #fff;
+}
+
+.pill:focus {
+	background: rgba(255, 255, 255, 0.38);
+	color: #fff;
+	transform: scale(1.06);
+}
+
+// The other tabs scroll inside the window, and the page moves them itself as focus goes down.
+
+.scroll {
+	overflow: hidden;
+	position: absolute;
+}
+
+.scrollBody {
+	padding: 6px 0;
+}
+
+// Each runs down to the overview's foot, inset from the window's sides.
+.listArea {
+	bottom: 75px;
+	left: 60px;
+	right: 60px;
+	top: 162px;
+}
+
+.castArea {
+	bottom: 75px;
+	left: 72px;
+	right: 72px;
+	top: 162px;
+}
+
+.gridArea {
+	bottom: 75px;
+	left: 60px;
+	right: 60px;
+	top: 168px;
+}
+
+.gridRow {
+	align-items: flex-start;
+	display: flex;
+}
+
+.thumbImage {
+	height: 100%;
+	left: 0;
+	object-fit: cover;
+	position: absolute;
+	top: 0;
+	width: 100%;
+}
+
+// Episodes, and the seasons of a show only in Seerr
+
+.row {
+	.motion(background-color 0.2s ease);
+	align-items: center;
+	border-radius: 42px;
+	box-sizing: border-box;
+	display: flex;
+	height: 180px;
+	outline: none;
+	padding: 9px 33px 9px 9px;
+}
+
+.row + .row {
+	margin-top: 12px;
+}
+
+.row:focus {
+	background: @platter;
+}
+
+.still {
+	.motion(transform 0.2s ease);
+	background: #1c1c1e;
+	border-radius: 33px;
+	flex: none;
+	height: 162px;
+	overflow: hidden;
+	position: relative;
+	width: 288px;
+}
+
+.row:focus .still {
+	transform: scale(1.05);
+}
+
+.rowText {
+	flex: 1 1 auto;
+	margin-left: 33px;
+	min-width: 0;
+}
+
+.caps {
+	color: @muted;
+	font-size: 19.5px;
+	font-weight: 600;
+	letter-spacing: 0.9px;
+	line-height: 24px;
+	text-transform: uppercase;
+}
+
+.rowName {
+	.ellipsis();
+	font-size: 30px;
+	font-weight: 600;
+	line-height: 39px;
+	margin-top: 4.5px;
+}
+
+.seasonName {
+	.ellipsis();
+	font-size: 33px;
+	font-weight: 700;
+	line-height: 42px;
+	margin-top: 4.5px;
+}
+
+.rowOverview {
+	.lines(2);
+	color: rgba(235, 235, 245, 0.65);
+	font-size: 22.5px;
+	line-height: 30px;
+	margin-top: 4.5px;
+}
+
+.rowSide {
+	align-items: flex-end;
+	color: rgba(235, 235, 245, 0.72);
+	display: flex;
+	flex: none;
+	flex-direction: column;
+	font-size: 22.5px;
+	font-weight: 500;
+	width: 210px;
+}
+
+.rowRuntime {
+	align-items: center;
+	display: flex;
+}
+
+.playedIcon {
+	color: @muted;
+	height: 25.5px;
+	margin-right: 10.5px;
+	width: 25.5px;
+}
+
+.rowBar {
+	background: rgba(255, 255, 255, 0.25);
+	border-radius: 4.5px;
+	height: 7.5px;
+	margin-top: 12px;
+	overflow: hidden;
+	width: 150px;
+}
+
+.rowLeft {
+	font-size: 21px;
+	margin-top: 12px;
+}
+
+// A season of a show only in Seerr shows its poster at its own shape where an episode has its still.
+.seasonRow {
+	padding-right: 39px;
+}
+
+.seasonPoster {
+	.motion(transform 0.2s ease);
+	background: #1c1c1e;
+	border-radius: 24px;
+	flex: none;
+	height: 162px;
+	overflow: hidden;
+	position: relative;
+	width: 108px;
+}
+
+.row:focus .seasonPoster {
+	transform: scale(1.05);
+}
+
+.statusPill {
+	align-items: center;
+	background: rgba(255, 255, 255, 0.08);
+	border-radius: 25.5px;
+	display: flex;
+	flex: none;
+	font-size: 24px;
+	font-weight: 600;
+	height: 51px;
+	margin-left: 24px;
+	padding: 0 24px;
+	white-space: nowrap;
+}
+
+.statusPill .statusDot {
+	margin-right: 13.5px;
+}
+
+// Cast & Crew
+
+.castGrid .gridRow + .gridRow {
+	margin-top: 12px;
+}
+
+.castTile {
+	.motion(background-color 0.2s ease);
+	border-radius: 45px;
+	box-sizing: border-box;
+	flex: none;
+	height: 306px;
+	outline: none;
+	padding: 21px 12px 0;
+	text-align: center;
+	width: 20%;
+}
+
+.castTile:focus {
+	background: @platter;
+}
+
+.avatar {
+	.motion(transform 0.2s ease);
+	background: #1c1c1e;
+	border-radius: 50%;
+	height: 174px;
+	margin: 0 auto;
+	overflow: hidden;
+	position: relative;
+	width: 174px;
+}
+
+.castTile:focus .avatar {
+	transform: scale(1.06);
+}
+
+.avatarImage {
+	height: 100%;
+	object-fit: cover;
+	object-position: center 20%;
+	width: 100%;
+}
+
+.avatarIcon {
+	color: @muted;
+	height: 60px;
+	left: 57px;
+	position: absolute;
+	top: 57px;
+	width: 60px;
+}
+
+.castName {
+	.ellipsis();
+	font-size: 27px;
+	font-weight: 600;
+	line-height: 34.5px;
+	margin-top: 18px;
+}
+
+.castRole {
+	.ellipsis();
+	color: rgba(235, 235, 245, 0.65);
+	font-size: 22.5px;
+	line-height: 28.5px;
+}
+
+// Extras
+
+.extrasGrid .gridRow + .gridRow {
+	margin-top: 15px;
+}
+
+.extraTile {
+	.motion(background-color 0.2s ease);
+	border-radius: 45px;
+	box-sizing: border-box;
+	flex: none;
+	outline: none;
+	padding: 15px 15px 24px;
+	width: calc((100% - 30px) / 3);
+}
+
+.extraTile + .extraTile {
+	margin-left: 15px;
+}
+
+.extraTile:focus {
+	background: @platter;
+}
+
+.wideThumb {
+	.motion(transform 0.2s ease);
+	background: #1c1c1e;
+	border-radius: 30px;
+	height: 288px;
+	overflow: hidden;
+	position: relative;
+}
+
+.extraTile:focus .wideThumb {
+	transform: scale(1.04);
+}
+
+.extraName {
+	.ellipsis();
+	font-size: 27px;
+	font-weight: 600;
+	line-height: 34.5px;
+	margin: 21px 6px 0;
+}
+
+// More Like This, and Seerr's titles
+
+.posterGrid .gridRow + .gridRow {
+	margin-top: 9px;
+}
+
+.posterTile {
+	.motion(background-color 0.2s ease);
+	border-radius: 36px;
+	box-sizing: border-box;
+	flex: none;
+	outline: none;
+	padding: 12px 12px 18px;
+	width: calc((100% - 54px) / 7);
+}
+
+.posterTile + .posterTile {
+	margin-left: 9px;
+}
+
+.posterTile:focus {
+	background: @platter;
+}
+
+.posterThumb {
+	.motion(transform 0.2s ease);
+	background: #1c1c1e;
+	border-radius: 24px;
+	height: 0;
+	overflow: hidden;
+	padding-bottom: 150%;
+	position: relative;
+}
+
+.posterTile:focus .posterThumb {
+	transform: scale(1.05);
+}
+
+.posterBadge {
+	height: 39px;
+	position: absolute;
+	right: 12px;
+	top: 12px;
+	width: 39px;
+}
+
+.posterBadge > div {
+	box-shadow: none;
+	box-sizing: border-box;
+	height: 100%;
+	left: 0;
+	top: 0;
+	width: 100%;
+}
+
+.posterTitle {
+	.ellipsis();
+	color: rgba(255, 255, 255, 0.9);
+	font-size: 22.5px;
+	font-weight: 600;
+	line-height: 28.5px;
+	margin: 15px 3px 0;
+}
+
+.posterStatus {
+	.ellipsis();
+	font-size: 19.5px;
+	font-weight: 500;
+	line-height: 25.5px;
+	margin: 3px 3px 0;
+}
+
+// Details and Seerr's About: label and value cards in two columns, the whole of it one stop.
+
+.details {
+	align-items: flex-start;
+	display: flex;
+	left: 84px;
+	outline: none;
+	position: absolute;
+	right: 84px;
+	top: 168px;
+}
+
+.detailsColumn {
+	flex: 1 1 0;
+	min-width: 0;
+}
+
+.detailsColumn + .detailsColumn {
+	margin-left: 42px;
+}
+
+.group + .group {
+	margin-top: 24px;
+}
+
+.groupTitle {
+	color: @muted;
+	font-size: 19.5px;
+	font-weight: 600;
+	letter-spacing: 0.9px;
+	line-height: 24px;
+	padding: 0 27px 10.5px;
+	text-transform: uppercase;
+}
+
+.card {
+	.motion(background-color 0.2s ease);
+	background: rgba(255, 255, 255, 0.06);
+	border-radius: 33px;
+}
+
+.details:focus .card {
+	background: rgba(255, 255, 255, 0.12);
+}
+
+.infoRow {
+	align-items: center;
+	display: flex;
+	font-size: 24px;
+	line-height: 33px;
+	margin-left: 27px;
+	padding: 13.5px 27px 13.5px 0;
+}
+
+.infoRow + .infoRow {
+	border-top: 1.5px solid rgba(255, 255, 255, 0.08);
+}
+
+.infoLogo {
+	border-radius: 12px;
+	flex: none;
+	height: 45px;
+	margin-right: 24px;
+	object-fit: cover;
+	width: 45px;
+}
+
+.infoLabel {
+	color: @muted;
+	flex: none;
+}
+
+.infoValue {
+	.lines(2);
+	color: rgba(255, 255, 255, 0.94);
+	flex: 1 1 auto;
+	margin-left: 24px;
+	min-width: 0;
+	overflow-wrap: break-word;
+	text-align: right;
+}
+
+// The toolbar over the window's foot.
+
+.toolbar {
+	bottom: 159px;
+	display: flex;
+	justify-content: center;
+	left: 0;
+	position: absolute;
+	right: 0;
+}
+
+.toolbarPane {
+	.rim();
+	background: @ornament;
+	border-radius: 57px;
+	padding: 12px;
+	position: relative;
+}
+
+// The title's parts as a bar of tabs under the toolbar, with their names always showing.
+
+.tabBar {
+	bottom: 54px;
+	display: flex;
+	justify-content: center;
+	left: 0;
+	position: absolute;
+	right: 0;
+}
+
+.tabPane {
+	.rim();
+	background: @ornament;
+	border-radius: 45px;
+	display: flex;
+	flex: none;
+	padding: 9px;
+	position: relative;
+	transform-origin: 50% 0;
+}
+
+.tab {
+	.motion(~'background-color 0.2s ease, transform 0.2s ease');
+	align-items: center;
+	border-radius: 36px;
+	display: flex;
+	flex: none;
+	height: 72px;
+	outline: none;
+	padding: 0 27px;
+}
+
+.tab + .tab {
+	margin-left: 6px;
+}
+
+.tabSelected {
+	background: rgba(255, 255, 255, 0.16);
+}
+
+.tab:focus {
+	background: rgba(255, 255, 255, 0.38);
+	transform: scale(1.04);
+}
+
+.tabIcon {
+	flex: none;
+	height: 33px;
+	width: 33px;
+}
+
+.tabLabel {
+	font-size: 24px;
+	font-weight: 600;
+	margin-left: 15px;
+	white-space: nowrap;
+}
+
+// Read More, over everything and outside the stage.
+
+.readMoreScrim {
+	align-items: center;
+	background: rgba(0, 0, 0, 0.5);
+	bottom: 0;
+	box-sizing: border-box;
+	display: flex;
+	justify-content: center;
+	left: 0;
+	padding: 90px 120px;
+	position: fixed;
+	right: 0;
+	top: 0;
+	z-index: 2000;
+}
+
+.readMore {
+	background: rgba(36, 36, 40, 0.97);
+	border-radius: 60px;
+	box-sizing: border-box;
+	color: #fff;
+	display: flex;
+	flex-direction: column;
+	max-height: 100%;
+	padding: 66px 78px;
+	width: 1320px;
+}
+
+.readMoreTitle {
+	flex: none;
+	font-size: 54px;
+	font-weight: 800;
+	letter-spacing: -1.05px;
+	line-height: 63px;
+	margin: 0;
+}
+
+.readMoreMeta {
+	color: rgba(235, 235, 245, 0.65);
+	flex: none;
+	font-size: 24px;
+	font-weight: 500;
+	margin-top: 9px;
+}
+
+.readMoreText {
+	color: rgba(255, 255, 255, 0.92);
+	flex: 0 1 auto;
+	font-size: 30px;
+	line-height: 48px;
+	margin-top: 33px;
+	min-height: 0;
+	outline: none;
+	overflow-y: auto;
+	scrollbar-width: none;
+}
+
+.readMoreText::-webkit-scrollbar {
+	display: none;
+}

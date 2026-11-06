@@ -8,26 +8,35 @@ const POSTER_SIZE_MULTIPLIERS = {small: 0.8, default: 1, large: 1.2, xlarge: 1.4
 // Recordings tiles as collection folders too, and going by the item would
 // restyle a row the setting says nothing about.
 export const isStaticLibraryCard = (isLibraryRow, settings) =>
-	isLibraryRow === true && settings?.modernCardsOnMyMediaRow === false;
+	isLibraryRow === true && settings?.modernCardsOnMyMediaRow !== true;
+
+export const posterSizeScale = (posterSize) => POSTER_SIZE_MULTIPLIERS[posterSize] || 1;
+
+// Core's Medium poster on TV, 120 points tall on its 1150 wide canvas, drawn at 1920.
+const BASE_IMAGE_HEIGHT = 120 * 1920 / 1150;
 
 // Worked out together because a tile held static sits at the width a card grows
 // to on focus, which is what lines the row up with the ones around it.
-export const modernCardMetrics = ({posterSize, platform, isSquareItem, isStatic}) => {
-	const imageHeight = Math.round(360 * (POSTER_SIZE_MULTIPLIERS[posterSize] || 1));
-	const expandedWidth = Math.round(imageHeight * (platform === 'tizen' ? 16 / 9 : 1.65));
-	const posterWidth = isSquareItem ? imageHeight : Math.round((imageHeight * 2) / 3);
+export const modernCardMetrics = ({posterSize, isSquareItem, isStatic}) => {
+	const height = BASE_IMAGE_HEIGHT * posterSizeScale(posterSize);
+	const imageHeight = Math.round(height);
+	const expandedWidth = Math.round(height * 16 / 9);
+	const posterWidth = isSquareItem ? imageHeight : Math.round((height * 2) / 3);
 
 	return {imageHeight, expandedWidth, cardWidth: isStatic ? expandedWidth : posterWidth};
 };
 
+// Room under a modern card's art for three lines of caption, its title and two lines below.
+export const MODERN_CAPTION_ROOM = 89;
+
 // The space below each modern row. The other clients size the padding slider in their own
-// units, so the stored value lands here as a margin. Below the default it pulls the next row
-// closer in smaller steps, so every stop changes the spacing and the lowest still clears the
-// captions of the row above. Full screen rows pace themselves.
+// units, so the stored value lands here as a margin. Up to 420 it moves in smaller steps, so
+// every stop changes the spacing, and even the lowest stop never reaches into the caption room
+// of the row above. Full screen rows pace themselves.
 export const modernRowSpacing = (settings) => {
 	if (settings?.fullScreenRows) return null;
 	const offset = Math.min(Math.max((settings?.modernHomeRowsPadding ?? 360) - 400, -40), 200);
-	return offset < 20 ? Math.round((offset - 20) * 34 / 60) : Math.max(0, offset - 34);
+	return offset < 20 ? Math.round((offset + 40) * 34 / 60) : Math.max(34, offset);
 };
 
 export const getEpisodeLabels = (item) => {

@@ -1,7 +1,8 @@
 import {defaultSettings} from '../../../context/defaultSettings';
+import {KIND, SETTINGS_SCHEMA} from '../settingsSchema';
 import {
 	SCENE_BY_KEY, MEDIA_BAR_KEYS, FOCUSED_CARD_KEYS, NAV_BUTTON_KEYS, LOADING_KEYS, TRICKPLAY_KEYS, SCREENSAVER_KEYS,
-	SUBTITLE_LOOK_KEYS, SUBTITLE_HDR_KEYS, describeRow, sceneOfRow
+	SUBTITLE_LOOK_KEYS, SUBTITLE_HDR_KEYS, CALENDAR_KEYS, LIBRARY_KEYS, SEASONAL_KEYS, describeRow, sceneOfRow
 } from './previewRows';
 
 describe('settings live preview rows', () => {
@@ -143,6 +144,43 @@ describe('settings live preview rows', () => {
 		expect(sceneOfRow(timeout)).toBe('home');
 		expect(describeRow('setting-screensaverLibraries', defaultSettings)).toMatchObject({key: null, stage: 'screensaver'});
 		expect(describeRow('setting-screensaver', defaultSettings)).toMatchObject({key: 'screensaver', scene: 'home', stage: 'screensaver'});
+	});
+
+	test('the seasonal effect and density show on home, and the focus follower leaves the preview alone', () => {
+		expect(SEASONAL_KEYS).toEqual(['seasonalTheme', 'seasonalDensity']);
+		SEASONAL_KEYS.forEach((key) => {
+			expect(describeRow(`setting-${key}`, defaultSettings)).toMatchObject({key, scene: 'home', stage: null});
+		});
+		expect(describeRow('setting-seasonalFollower', defaultSettings)).toMatchObject({scene: null, stage: null});
+	});
+
+	test('the video, music and book library settings all show the library', () => {
+		expect(LIBRARY_KEYS).toEqual([
+			'libraryStyle', 'musicLibraryStyle', 'bookLibraryStyle', 'groupItemsIntoCollections', 'showMediaDetailsOnLibraryPage',
+			'libraryCardTitles', 'hideBackdropsInLibraries', 'useDetailedSubHeadings'
+		]);
+		LIBRARY_KEYS.forEach((key) => {
+			const row = describeRow(`setting-${key}`, defaultSettings);
+			expect(row).toMatchObject({key, scene: 'library', stage: null});
+			expect(sceneOfRow(row)).toBe('library');
+		});
+	});
+
+	test('every Calendar screen tile the calendar draws shows it, and the others leave the preview alone', () => {
+		const releaseTypes = ['radarrCalendarShowCinema', 'radarrCalendarShowDigital', 'radarrCalendarShowPhysical',
+			'calendarWeekStart', 'calendarSelectAction'];
+		const calendar = SETTINGS_SCHEMA.flatMap((category) => category.subcategories).find((sub) => sub.id === 'calendar');
+		const tiles = calendar.rows.filter((row) => row.kind !== KIND.SECTION).map((row) => row.key || row.id);
+		expect(tiles.filter((key) => releaseTypes.indexOf(key) < 0).sort()).toEqual([...CALENDAR_KEYS].sort());
+		CALENDAR_KEYS.forEach((key) => {
+			const row = describeRow(`setting-${key}`, defaultSettings);
+			expect(row).toMatchObject({key, scene: 'calendar', stage: null});
+			expect(sceneOfRow(row)).toBe('calendar');
+		});
+		releaseTypes.forEach((key) => {
+			expect(describeRow(`setting-${key}`, defaultSettings)).toMatchObject({scene: null, stage: null});
+		});
+		expect(SCENE_BY_KEY.showCalendarButton).toBe('home');
 	});
 
 	test('a row on no stage switches to its own scene, or none', () => {

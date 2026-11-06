@@ -49,7 +49,7 @@ export const IconCategory = ({d}) => (
 
 // The Quick Access music library: a rail of categories and playlists down the left, and the
 // albums and playlists played last as a grid to jump straight back into, over the rows.
-const QuickAccessMusic = ({library, api, serverUrl, onSelectItem, onOpenGrid, onPlay, onSearch, onHome, backHandlerRef}) => {
+const QuickAccessMusic = ({library, api, serverUrl, onSelectItem, onOpenGrid, onPlay, onSearch, onHome, backHandlerRef, settingsPreview}) => {
 	const {settings, updateSetting} = useSettings();
 	const initialFocusRef = useRef(false);
 	const {rows, isLoading} = useMusicBrowseRows({api, library, settings});
@@ -140,7 +140,7 @@ const QuickAccessMusic = ({library, api, serverUrl, onSelectItem, onOpenGrid, on
 	// First focus once there is something to focus, then a backstop for reloads
 	// that pull the focused section out from under us.
 	useEffect(() => {
-		if (isLoading || showFilter) return;
+		if (settingsPreview || isLoading || showFilter) return;
 		if (!initialFocusRef.current) {
 			initialFocusRef.current = true;
 			focusNode(chain[1] || chain[0]);
@@ -149,7 +149,7 @@ const QuickAccessMusic = ({library, api, serverUrl, onSelectItem, onOpenGrid, on
 		const active = document.activeElement;
 		if (active && active !== document.body && active.classList?.contains('spottable')) return;
 		focusNode(clampMusicNode(chain, lastNodeRef.current || chain[0]));
-	}, [isLoading, showFilter, rows, chain, focusNode, lastNodeRef]);
+	}, [isLoading, showFilter, rows, chain, focusNode, lastNodeRef, settingsPreview]);
 
 	const gridWidth = window.innerWidth / rootScale() - RAIL_WIDTH - INSET * 2;
 	const quickColumns = Math.min(4, Math.max(2, Math.floor(gridWidth / 240)));
@@ -167,6 +167,7 @@ const QuickAccessMusic = ({library, api, serverUrl, onSelectItem, onOpenGrid, on
 				registerRowRef={registerRowRef}
 				seeAllTarget={seeAllTarget}
 				onOpenGrid={onOpenGrid}
+				settingsPreview={settingsPreview}
 				{...(seeAllTarget ? seeAllKeys(rowNode(index), shelfSeeAllId(row.id)) : {onKeyDown: sectionKey(rowNode(index))})}
 			/>
 		);
@@ -175,7 +176,7 @@ const QuickAccessMusic = ({library, api, serverUrl, onSelectItem, onOpenGrid, on
 	return (
 		<div className={classicCss.page}>
 			<div className={css.quickBody}>
-				<RailContainer className={css.rail} spotlightId="music-rail" onKeyDown={handleRailKey} onFocus={keepFocusInView}>
+				<RailContainer className={css.rail} spotlightId={settingsPreview ? undefined : 'music-rail'} onKeyDown={handleRailKey} onFocus={keepFocusInView}>
 					<div className={css.railHeader}>
 						<SpottableDiv className={css.headerBtn} spotlightId={MUSIC_FOCUS_IDS.home} onClick={onHome} aria-label={$L('Home')}>
 							<HomeIcon />
@@ -209,7 +210,7 @@ const QuickAccessMusic = ({library, api, serverUrl, onSelectItem, onOpenGrid, on
 					<HeaderContainer
 						className={css.quickHeader}
 						ref={registerHeader}
-						spotlightId={MUSIC_FOCUS_IDS[HEADER]}
+						spotlightId={settingsPreview ? undefined : MUSIC_FOCUS_IDS[HEADER]}
 						onKeyDown={handleHeaderKey}
 					>
 						<div className={css.quickTitle}>{hasQuick ? $L('Jump Back In') : (library?.Name || $L('Music'))}</div>

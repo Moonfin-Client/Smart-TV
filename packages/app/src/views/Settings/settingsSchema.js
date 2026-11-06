@@ -4,6 +4,7 @@ import {isTrickplayOn} from '../../utils/trickplayLayout';
 import {mediaPreviewMode, mediaPreviewSettings} from '../../utils/mediaPreviewMode';
 import {homeBackdropStyle, homeBackdropSettings} from '../../utils/homeBackdropStyle';
 import {ratingKey} from '../../utils/ratingSources';
+import {withWatchingNowRow} from '../../utils/homeLayout';
 
 import {
 	getAccentColorOptions,
@@ -26,6 +27,7 @@ import {
 	getBookLibraryStyleOptions,
 	getKeyboardStyleOptions,
 	getLibraryStyleOptions,
+	getMediaBarSourceOptions,
 	getMediaPreviewModeOptions,
 	getMusicLibraryStyleOptions,
 	getModernCardTransitionSpeedOptions,
@@ -38,11 +40,13 @@ import {
 	getMediaSegmentActionOptions,
 	getMediaSegmentAutoHideOptions,
 	getNavPositionOptions,
+	getNewReleaseDaysOptions,
 	getNextUpBehaviorOptions,
 	getNextUpCountdownStyleOptions,
 	getContinueWatchingDefaultActionOptions,
 	getNextUpMaxDaysOptions,
 	getOledModeOptions,
+	getSeerrBadgeStyleOptions,
 	getOverlayColorOptions,
 	getPassthroughModeOptions,
 	getPerformanceModeOptions,
@@ -83,7 +87,13 @@ import {
 	getWatchedIndicatorOptions,
 	getZoomModeOptions,
 	getTrickplayModeOptions,
-	getRecentlyReleasedSeriesTypeOptions
+	getRecentlyReleasedSeriesTypeOptions,
+	getCalendarStyleOptions,
+	getCalendarWeekStartOptions,
+	getCalendarScopeOptions,
+	getCalendarColorByOptions,
+	getCalendarImageTypeOptions,
+	getCalendarSelectActionOptions
 } from './settingsOptions';
 import {resolveOverlayColor} from '../../theme/overlayColors';
 
@@ -176,6 +186,7 @@ const whenRewatchEnabled = (ctx) => whenRewatch(ctx) && ctx.settings.displayRewa
 const whenPlugin = (ctx) => ctx.settings.useMoonfinPlugin;
 const whenHdrSubtitles = (ctx) => ctx.settings.subtitleHdrSeparate;
 const whenSeerr = (ctx) => ctx.seerr.isEnabled;
+const whenCalendar = (ctx) => ctx.seerr.pluginInfo?.calendarAvailable === true;
 const whenScreensaver = (ctx) => ctx.settings.screensaverEnabled;
 const whenMediaPreview = (ctx) => mediaPreviewMode(ctx.settings) !== 'off';
 // Aya, Bookshelf and Off draw no ratings, so their media bar has nothing for these to change.
@@ -354,7 +365,8 @@ export const SETTINGS_SCHEMA = [
 					{kind: KIND.SECTION, id: 'behavior', label: () => $L('Behavior')},
 					{kind: KIND.TOGGLE, key: 'exitConfirmation', label: () => $L('Confirm Exit'), desc: () => $L('Show confirmation before exiting'), icon: 'exit_to_app'},
 					{kind: KIND.SECTION, id: 'performance', label: () => $L('Performance')},
-					{kind: KIND.OPTION, key: 'performanceMode', label: () => $L('Performance'), options: getPerformanceModeOptions, fallback: () => $L('Auto'), icon: 'speed_outlined'}
+					{kind: KIND.OPTION, key: 'performanceMode', label: () => $L('Performance'), options: getPerformanceModeOptions, fallback: () => $L('Auto'), icon: 'speed_outlined'},
+					{kind: KIND.TOGGLE, key: 'smoothScrolling', label: () => $L('Smooth Scrolling'), desc: () => $L('Glide between rows and cards instead of jumping. Can stutter on slower TVs.'), icon: 'swipe'}
 				]
 			}
 		]
@@ -402,6 +414,8 @@ export const SETTINGS_SCHEMA = [
 					{kind: KIND.OPTION, key: 'oledMode', label: () => $L('OLED Mode'), desc: () => $L('Deepen blacks and enrich artwork. Best on OLED displays.'), options: getOledModeOptions, fallback: () => $L('Off'), icon: 'contrast'},
 					{kind: KIND.OPTION, key: 'backdropBlurHome', label: () => $L('Browsing Background Blur'), options: getBlurOptions, fallback: () => $L('Medium'), icon: 'blur_circular'},
 					{kind: KIND.OPTION, key: 'watchedIndicatorBehavior', label: () => $L('Watched Indicators'), options: getWatchedIndicatorOptions, fallback: () => $L('Always'), icon: 'check_circle'},
+					// Only when the server gives this viewer labels, since it would switch nothing otherwise.
+					{kind: KIND.TOGGLE, key: 'showPosterLabels', label: () => $L('Poster Labels'), desc: () => $L('Show the labels on posters, such as 4K or HDR'), icon: 'label_outline', when: (ctx) => ctx.posterLabelsAvailable},
 					{kind: KIND.SECTION, id: 'extras', label: () => $L('Extras')},
 					{kind: KIND.NAV, id: 'seasonalEffects', label: () => $L('Seasonal Effects'), desc: () => $L('Visual effects and seasonal decorations'), icon: 'auto_awesome', action: (ctx) => ctx.actions.openScreen('appearance', 'seasonalEffects', 'setting-seasonalEffects')},
 					{kind: KIND.NAV, id: 'loadingAnimation', label: () => $L('Loading Animation'), desc: () => $L('Customize the loading animations used throughout Moonfin'), icon: 'motion_photos_on_outlined', action: (ctx) => ctx.actions.openScreen('appearance', 'loadingAnimation', 'setting-loadingAnimation')},
@@ -430,6 +444,7 @@ export const SETTINGS_SCHEMA = [
 					{kind: KIND.TOGGLE, key: 'showLibrariesIndividually', label: () => $L('Show Libraries Individually'), desc: () => $L('Show each library as its own button in the navigation bar instead of in the Libraries menu'), icon: 'video_library', when: (ctx) => ctx.settings.showLibrariesInToolbar !== false},
 					{kind: KIND.TOGGLE, key: 'showSyncPlayButton', label: () => $L('SyncPlay Button'), desc: () => $L('Show the SyncPlay button on the navigation bar'), icon: 'groups', when: (ctx) => ctx.serverType !== 'plex' && ctx.settings.syncplayEnabled !== false},
 					{kind: KIND.TOGGLE, key: 'showSeerrButton', label: (ctx) => $L('Show {seerrLabel} Button').replace('{seerrLabel}', ctx.seerrLabel), desc: () => $L('Show the Seerr button in the navigation bar'), when: whenSeerr, icon: 'seerr'},
+					{kind: KIND.TOGGLE, key: 'showCalendarButton', label: () => $L('Show Calendar Button'), desc: () => $L('Show the calendar of upcoming episodes and movies in the navigation bar'), when: whenCalendar, icon: 'calendar_month_rounded'},
 					{kind: KIND.TOGGLE, key: 'showServerMessagesButton', label: () => $L('Show Messages Button'), desc: () => $L('Adds a button to the menu for messages sent by your server admin'), icon: 'info_outline_rounded'},
 					{kind: KIND.TOGGLE, key: 'showFriendsButton', label: () => $L('Show Friends Button'), desc: () => $L('Friends and chat from the Achievement Badges plugin'), icon: 'people_alt_rounded', when: (ctx) => ctx.achievements.socialAvailable}
 				]
@@ -485,6 +500,21 @@ export const SETTINGS_SCHEMA = [
 					...ratingsRows('homeRows'),
 					{kind: KIND.SECTION, id: 'externalSources', label: () => $L('External Sources'), when: whenPlugin},
 					{kind: KIND.NAV, id: 'imdbLists', label: () => $L('IMDb Lists'), desc: () => $L('Configure IMDb Top 250, Popular, and other charts.'), icon: 'movie_outlined', keywords: () => [$L('IMDb Row Sorting'), $L('Sort Order')], action: (ctx) => ctx.actions.openImdbLists(), when: whenPlugin},
+					{
+						kind: KIND.TOGGLE,
+						key: 'mdblistWatchingNowEnabled',
+						label: () => $L('Watching on MDBList'),
+						desc: () => $L('Show what MDBList users are currently watching'),
+						icon: 'public',
+						when: whenPlugin,
+						onToggle: (ctx) => {
+							const enabled = !ctx.settings.mdblistWatchingNowEnabled;
+							ctx.actions.setSettings({
+								mdblistWatchingNowEnabled: enabled,
+								homeRows: withWatchingNowRow(ctx.settings.homeRows, enabled)
+							});
+						}
+					},
 					{kind: KIND.NAV, id: 'externalTmdbLists', label: () => $L('TMDB Lists'), desc: () => $L('Configure Popular, Top Rated, and Trending TMDB lists.'), icon: 'trending_up', keywords: () => [$L('TMDB Row Sorting'), $L('Sort Order')], action: (ctx) => ctx.actions.openExternalTmdbLists(), when: whenPlugin},
 					{kind: KIND.NAV, id: 'seasonalRow', label: () => $L('Seasonal Row'), desc: () => $L('Show a row of holiday movies from your library, with Seerr suggestions when available.'), icon: 'celebration_outlined', keywords: () => ['holiday', 'christmas', 'halloween', 'seasonal'], action: (ctx) => ctx.actions.openSeasonalRow(), when: whenPlugin},
 					{kind: KIND.NAV, id: 'externalCalendars', label: () => $L('Upcoming Calendars'), desc: () => $L('Toggle Upcoming Calendars from Radarr/Sonarr.'), icon: 'calendar_month', action: (ctx) => ctx.actions.openExternalCalendars(), when: (ctx) => whenPlugin(ctx) && whenSeerr(ctx)},
@@ -573,6 +603,9 @@ export const SETTINGS_SCHEMA = [
 					{kind: KIND.OPTION, key: 'mediaBarOverlayColor', label: () => $L('Overlay Color'), options: getOverlayColorOptions, fallback: () => $L('Gray'), icon: 'palette'},
 					{kind: KIND.SLIDER, key: 'mediaBarOverlayOpacity', label: () => $L('Overlay Opacity'), min: 0, max: 100, step: 5, format: percent, icon: 'opacity'},
 					{kind: KIND.SECTION, id: 'mediaSources', label: () => $L('Media Sources')},
+					{kind: KIND.OPTION, key: 'mediaBarSourceType', label: () => $L('Source'), options: getMediaBarSourceOptions, fallback: () => $L('Random'), icon: 'source', padded: true},
+					{kind: KIND.TOGGLE, key: 'mediaBarNewReleaseBanner', label: () => $L('New Release Banner'), desc: () => $L('Flag series with a new season or new episodes that aired recently.'), icon: 'label'},
+					{kind: KIND.OPTION, key: 'mediaBarNewReleaseDays', label: () => $L('New Release Window'), desc: () => $L('How long after an episode airs it still counts as new.'), options: getNewReleaseDaysOptions, fallback: () => $L('30 days'), icon: 'calendar_today_outlined', padded: true},
 					{
 						kind: KIND.NAV,
 						id: 'sourceLibraries',
@@ -656,7 +689,7 @@ export const SETTINGS_SCHEMA = [
 				description: () => $L('Layout, buttons, sections, ratings, and theme music'),
 				rows: [
 					{kind: KIND.SECTION, id: 'detailsDisplay', label: () => $L('Display')},
-					{kind: KIND.OPTION, key: 'detailScreenStyle', label: () => $L('Details Screen Style'), desc: () => $L('Classic is the original centered moonfin layout. Modern is a responsive cinematic layout. Spotlight is a hero-first layout with pop-up content cards. Nouveau is a full-screen layout with sections stacked down the page. Minimalist is artwork, one play button and the episodes. Stage leads with the poster, with play under it and the details beside it. Premiere centers the title over a backdrop that fills the screen, with every section down the page under it.'), options: getDetailScreenStyleOptions, fallback: () => $L('Modern'), icon: 'movie_outlined'},
+					{kind: KIND.OPTION, key: 'detailScreenStyle', label: () => $L('Details Screen Style'), desc: () => $L('How a movie or show looks when you open it.'), options: getDetailScreenStyleOptions, fallback: () => $L('Modern'), icon: 'movie_outlined'},
 					{kind: KIND.OPTION, key: 'personalRatingStyle', label: () => $L('Personal Rating Style'), options: getPersonalRatingStyleOptions, fallback: () => $L('Like / dislike'), icon: 'rate_review'},
 					{kind: KIND.TOGGLE, key: 'detailsBackdropEnabled', label: () => $L('Details Screen Backdrop'), icon: 'photo'},
 					{
@@ -943,7 +976,8 @@ export const SETTINGS_SCHEMA = [
 					{kind: KIND.SECTION, id: 'subtitleRendering', label: () => $L('Subtitle Rendering'), when: whenSubtitlesOn},
 					{kind: KIND.TOGGLE, key: 'enablePgsRendering', label: () => $L('PGS Direct Play'), desc: () => $L('Direct play PGS subtitles'), icon: 'image', when: whenSubtitlesOn},
 					{kind: KIND.TOGGLE, key: 'assDirectPlay', label: () => $L('ASS/SSA Direct Play'), desc: () => $L('Direct play ASS/SSA subtitles'), icon: 'text_snippet', when: whenSubtitlesOn},
-					{kind: KIND.TOGGLE, key: 'waitForAssSubtitles', label: () => $L('Wait for ASS/SSA subtitles'), desc: () => $L('Hold the video until styled subtitles are ready so the first lines show'), icon: 'timer', when: (ctx) => whenSubtitlesOn(ctx) && ctx.isWebOS && ctx.settings.assDirectPlay !== false}
+					{kind: KIND.TOGGLE, key: 'waitForAssSubtitles', label: () => $L('Wait for ASS/SSA subtitles'), desc: () => $L('Hold the video until styled subtitles are ready so the first lines show'), icon: 'timer', when: (ctx) => whenSubtitlesOn(ctx) && ctx.isWebOS && ctx.settings.assDirectPlay !== false},
+					{kind: KIND.TOGGLE, key: 'webosEmbeddedTextSubtitles', label: () => $L('Read embedded text subtitles from the file'), desc: () => $L('Show SRT subtitles from inside the file instead of waiting for the server to extract them'), icon: 'subtitles', when: (ctx) => whenSubtitlesOn(ctx) && ctx.isWebOS}
 				]
 			},
 			{
@@ -1006,6 +1040,7 @@ export const SETTINGS_SCHEMA = [
 					{kind: KIND.OPTION, key: 'nextUpCountdownStyle', label: () => $L('Media Segment Countdown'), options: getNextUpCountdownStyleOptions, fallback: () => $L('Both'), icon: 'timer_outlined', when: (ctx) => ctx.settings.nextUpBehavior !== 'disabled'},
 					{kind: KIND.SLIDER, key: 'nextUpTimeout', label: () => $L('Next Up Timeout'), min: 0, max: 30, step: 1, format: (v) => (v === 0 ? $L('Instant') : `${v}s`), icon: 'timer', when: (ctx) => ctx.settings.nextUpBehavior !== 'disabled'},
 					{kind: KIND.TOGGLE, key: 'replaceSkipOutroWithNextUp', label: () => $L('Replace Skip Outro with Next Up Display'), desc: () => $L('Show the Next Up overlay instead of the Skip Outro button.'), icon: 'skip_next', when: (ctx) => ctx.settings.outroAction !== 'none'},
+					{kind: KIND.TOGGLE, key: 'showNextAirDate', label: () => $L('Next air date at the end'), desc: () => $L("When the next episode isn't in your library yet, the end of episode card says when it airs"), icon: 'event_available_outlined', when: (ctx) => ctx.settings.nextUpBehavior !== 'disabled'},
 					{kind: KIND.OPTION, key: 'stillWatchingBehavior', label: () => $L('Still Watching Prompt'), options: getStillWatchingBehaviorOptions, fallback: () => $L('3 episodes'), desc: () => $L('Prompt to Continue Watching after X consecutive episodes.'), icon: 'visibility'}
 				]
 			},
@@ -1087,11 +1122,62 @@ export const SETTINGS_SCHEMA = [
 						kind: KIND.TOGGLE,
 						key: 'showSeerrAvailabilityBadges',
 						label: () => $L('Show Seerr Availability Badges'),
-						desc: () => $L('Show season availability badges on media details pages'),
+						desc: () => $L('Show the Seerr status on posters and seasons across the app'),
 						icon: 'check_circle_outline',
 						when: whenSeerr
 					},
+					{
+						kind: KIND.OPTION,
+						key: 'seerrBadgeStyle',
+						label: () => $L('Badge Style'),
+						desc: () => $L("Badge puts Seerr's dot in a corner. Banner runs the status across the top of the poster."),
+						options: getSeerrBadgeStyleOptions,
+						fallback: () => $L('Badge'),
+						icon: 'label_outline',
+						when: (ctx) => whenSeerr(ctx) && ctx.settings.showSeerrAvailabilityBadges !== false
+					},
 					{kind: KIND.INFO, id: 'seerrVariant', label: () => $L('Detected Variant'), value: (ctx) => $L('{seerrLabel} (Seerr v3+)').replace('{seerrLabel}', ctx.seerrLabel), when: (ctx) => ctx.isSeerr, icon: 'info_outline'}
+				]
+			},
+			{
+				id: 'calendar',
+				clean: true,
+				icon: 'calendar_month',
+				label: () => $L('Calendar'),
+				description: () => $L('Style, filters and actions for the calendar'),
+				when: whenCalendar,
+				rows: [
+					{kind: KIND.SECTION, id: 'calendarView', label: () => $L('View')},
+					{kind: KIND.OPTION, key: 'calendarStyle', label: () => $L('Calendar style'), desc: () => $L('What the Calendar button opens. The full month is one button away in both.'), options: getCalendarStyleOptions, fallback: () => $L('Agenda'), icon: 'view_agenda_outlined'},
+					{kind: KIND.OPTION, key: 'calendarWeekStart', label: () => $L('Week starts on'), options: getCalendarWeekStartOptions, fallback: () => $L('Auto'), icon: 'date_range_outlined'},
+					{kind: KIND.SECTION, id: 'calendarWhatShows', label: () => $L('What shows')},
+					{kind: KIND.OPTION, key: 'calendarScope', label: () => $L('Show'), desc: () => $L('My shows keeps the series you favorited or started watching'), options: getCalendarScopeOptions, fallback: () => $L('Everything'), icon: 'filter_list'},
+					{kind: KIND.TOGGLE, key: 'calendarShowEpisodes', label: () => $L('Episodes'), icon: 'live_tv'},
+					{kind: KIND.TOGGLE, key: 'calendarShowMovies', label: () => $L('Movies'), icon: 'movie_outlined'},
+					// Shared with the Upcoming Movies row, so the row and the screen list the same release types.
+					{kind: KIND.TOGGLE, key: 'radarrCalendarShowCinema', label: () => $L('Show Upcoming Cinema Releases'), icon: 'theater_comedy', when: (ctx) => ctx.settings.calendarShowMovies !== false},
+					{kind: KIND.TOGGLE, key: 'radarrCalendarShowDigital', label: () => $L('Show Upcoming Digital Releases'), icon: 'tv', when: (ctx) => ctx.settings.calendarShowMovies !== false},
+					{kind: KIND.TOGGLE, key: 'radarrCalendarShowPhysical', label: () => $L('Show Upcoming Physical Releases'), icon: 'album', when: (ctx) => ctx.settings.calendarShowMovies !== false},
+					{
+						kind: KIND.NAV,
+						id: 'calendarLibraries',
+						label: () => $L('Libraries'),
+						desc: (ctx) => (Array.isArray(ctx.settings.calendarLibraryIds) && ctx.settings.calendarLibraryIds.length > 0
+							? countLabel(ctx.settings.calendarLibraryIds.length)
+							: $L('All Libraries')),
+						icon: 'video_library_outlined',
+						action: (ctx) => ctx.actions.openCalendarLibraries()
+					},
+					{kind: KIND.TOGGLE, key: 'calendarIncludeUnmonitored', label: () => $L('Include unmonitored'), desc: () => $L("Also list episodes and movies Sonarr and Radarr aren't set to download"), icon: 'visibility_outlined'},
+					{kind: KIND.TOGGLE, key: 'calendarShowSpecials', label: () => $L('Specials'), desc: () => $L('Season 0 episodes, like extras and holiday specials'), icon: 'star_outline'},
+					{kind: KIND.SECTION, id: 'calendarLook', label: () => $L('Looks')},
+					{kind: KIND.TOGGLE, key: 'calendarShowBadges', label: () => $L('Premiere and finale tags'), desc: () => $L('Mark premieres, finales and new seasons'), icon: 'new_releases_outlined'},
+					{kind: KIND.OPTION, key: 'calendarColorBy', label: () => $L('Color by'), desc: () => $L("Type tells episodes from movies. Status shows what's in your library, coming up or missing."), options: getCalendarColorByOptions, fallback: () => $L('Type'), icon: 'palette_outlined'},
+					{kind: KIND.OPTION, key: 'calendarImageType', label: () => $L('Card image'), desc: () => $L('The artwork on the Countdown rows'), options: getCalendarImageTypeOptions, fallback: () => $L('Poster'), icon: 'image_outlined', when: (ctx) => ctx.settings.calendarStyle === 'countdown'},
+					{kind: KIND.TOGGLE, key: 'calendarSpoilerSafe', label: () => $L('Spoiler safe'), desc: () => $L("Hide episode titles and stills for shows you're behind on"), icon: 'visibility_off_outlined'},
+					{kind: KIND.SECTION, id: 'calendarActions', label: () => $L('Actions')},
+					{kind: KIND.OPTION, key: 'calendarSelectAction', label: () => $L('Selecting an item'), desc: () => $L("What OK or a tap does on something that's already in your library"), options: getCalendarSelectActionOptions, fallback: () => $L('Open details'), icon: 'touch_app_outlined'},
+					{kind: KIND.TOGGLE, key: 'calendarRequestButton', label: () => $L('Request button'), desc: (ctx) => $L('Show the {seerrLabel} request button on missing movies and seasons').replace('{seerrLabel}', ctx.seerrLabel), icon: 'add_circle_outline', when: whenSeerr}
 				]
 			},
 			{

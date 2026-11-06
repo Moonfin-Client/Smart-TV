@@ -2,7 +2,6 @@ import {isStaticLibraryCard, modernCardMetrics, modernRowSpacing, getCardDisplay
 
 const metrics = (over = {}) => modernCardMetrics({
 	posterSize: 'default',
-	platform: 'webos',
 	isSquareItem: false,
 	isStatic: false,
 	...over
@@ -20,48 +19,44 @@ describe('isStaticLibraryCard', () => {
 		expect(isStaticLibraryCard(false, {modernCardsOnMyMediaRow: false})).toBe(false);
 	});
 
-	test('a set that has never seen the setting keeps its posters', () => {
-		expect(isStaticLibraryCard(true, {})).toBe(false);
-		expect(isStaticLibraryCard(true, undefined)).toBe(false);
+	test('a set that has never seen the setting holds the row static', () => {
+		expect(isStaticLibraryCard(true, {})).toBe(true);
+		expect(isStaticLibraryCard(true, undefined)).toBe(true);
 	});
 });
 
 describe('modernCardMetrics', () => {
 	test('scales the image with the size preset and falls back to the default', () => {
-		expect(metrics({posterSize: 'small'}).imageHeight).toBe(288);
-		expect(metrics().imageHeight).toBe(360);
-		expect(metrics({posterSize: 'xlarge'}).imageHeight).toBe(504);
-		expect(metrics({posterSize: 'nonsense'}).imageHeight).toBe(360);
+		expect(metrics({posterSize: 'small'}).imageHeight).toBe(160);
+		expect(metrics().imageHeight).toBe(200);
+		expect(metrics({posterSize: 'xlarge'}).imageHeight).toBe(280);
+		expect(metrics({posterSize: 'nonsense'}).imageHeight).toBe(200);
 	});
 
 	test('keeps Grandparents at the Extra Large height', () => {
-		expect(metrics({posterSize: 'grandparents'}).imageHeight).toBe(504);
+		expect(metrics({posterSize: 'grandparents'}).imageHeight).toBe(280);
 	});
 
 	test('a poster is two thirds of its height and a sleeve is square', () => {
-		expect(metrics().cardWidth).toBe(240);
-		expect(metrics({isSquareItem: true}).cardWidth).toBe(360);
+		expect(metrics().cardWidth).toBe(134);
+		expect(metrics({isSquareItem: true}).cardWidth).toBe(200);
 	});
 
 	test('a static My Media tile is as wide as a focused card, so the rows line up', () => {
-		for (const platform of ['tizen', 'webos']) {
-			const {expandedWidth, cardWidth} = metrics({platform, isStatic: true});
-			expect(cardWidth).toBe(expandedWidth);
-		}
+		const {expandedWidth, cardWidth} = metrics({isStatic: true});
+		expect(cardWidth).toBe(expandedWidth);
 	});
 
 	test('growing on focus never makes a card narrower than it sits', () => {
-		for (const platform of ['tizen', 'webos']) {
-			for (const isSquareItem of [true, false]) {
-				const {expandedWidth, cardWidth} = metrics({platform, isSquareItem});
-				expect(expandedWidth).toBeGreaterThanOrEqual(cardWidth);
-			}
+		for (const isSquareItem of [true, false]) {
+			const {expandedWidth, cardWidth} = metrics({isSquareItem});
+			expect(expandedWidth).toBeGreaterThanOrEqual(cardWidth);
 		}
 	});
 
-	test('Tizen grows wider than the web players do', () => {
-		expect(metrics({platform: 'tizen'}).expandedWidth).toBe(640);
-		expect(metrics({platform: 'webos'}).expandedWidth).toBe(594);
+	test('a focused card opens to 16:9 on every platform, as Core draws it', () => {
+		expect(metrics().expandedWidth).toBe(356);
+		expect(metrics({posterSize: 'small'}).expandedWidth).toBe(285);
 	});
 });
 
@@ -105,14 +100,14 @@ describe('Modern card labels and titles', () => {
 });
 
 describe('modernRowSpacing', () => {
-	test('turns the padding slider into the space below a row, every stop changing it', () => {
-		expect(modernRowSpacing({})).toBe(-34);
-		expect(modernRowSpacing({modernHomeRowsPadding: 420})).toBe(0);
-		expect(modernRowSpacing({modernHomeRowsPadding: 500})).toBe(66);
-		expect(modernRowSpacing({modernHomeRowsPadding: 560})).toBe(126);
-		expect(modernRowSpacing({modernHomeRowsPadding: 400})).toBe(-11);
-		expect(modernRowSpacing({modernHomeRowsPadding: 380})).toBe(-23);
-		expect(modernRowSpacing({modernHomeRowsPadding: 360})).toBe(-34);
+	test('turns the padding slider into the space below a row, every stop changing it and none overlapping', () => {
+		expect(modernRowSpacing({})).toBe(0);
+		expect(modernRowSpacing({modernHomeRowsPadding: 420})).toBe(34);
+		expect(modernRowSpacing({modernHomeRowsPadding: 500})).toBe(100);
+		expect(modernRowSpacing({modernHomeRowsPadding: 560})).toBe(160);
+		expect(modernRowSpacing({modernHomeRowsPadding: 400})).toBe(23);
+		expect(modernRowSpacing({modernHomeRowsPadding: 380})).toBe(11);
+		expect(modernRowSpacing({modernHomeRowsPadding: 360})).toBe(0);
 	});
 
 	test('leaves full screen rows to pace themselves', () => {
