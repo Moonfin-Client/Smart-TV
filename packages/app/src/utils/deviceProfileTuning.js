@@ -63,6 +63,28 @@ const resolutionConditions = ({width, height}) => ([
 	{Condition: 'LessThanEqual', Property: 'Height', Value: String(height), IsRequired: false}
 ]);
 
+// A cap is written as a landscape box, but a portrait source is the same box turned on
+// its side, so a 2160x3840 phone video is no bigger than a 3840x2160 one. Width and
+// height conditions can't swap places, so the box is sent as two profiles and the
+// source's own width picks which one applies. A source no wider than the box's short
+// side can only be portrait, and its height gets the long side to fit in.
+const orientedResolutionProfiles = ({width, height}) => {
+	const long = Math.max(width, height);
+	const short = Math.min(width, height);
+	return [
+		{
+			Type: 'Video',
+			ApplyConditions: [{Condition: 'GreaterThanEqual', Property: 'Width', Value: String(short + 1), IsRequired: false}],
+			Conditions: resolutionConditions({width: long, height: short})
+		},
+		{
+			Type: 'Video',
+			ApplyConditions: [{Condition: 'LessThanEqual', Property: 'Width', Value: String(short), IsRequired: false}],
+			Conditions: [{Condition: 'LessThanEqual', Property: 'Height', Value: String(long), IsRequired: false}]
+		}
+	];
+};
+
 export const applyProfileTuning = (profile, settings = {}, capabilities, {isLiveTV = false} = {}) => {
 	if (!profile) return profile;
 
@@ -81,18 +103,8 @@ export const applyProfileTuning = (profile, settings = {}, capabilities, {isLive
 	const tuned = {...profile};
 
 	if (resolution) {
-		tuned.CodecProfiles = (tuned.CodecProfiles || []).map((codecProfile) => {
-			if (codecProfile.Type !== 'Video') return codecProfile;
-			return {
-				...codecProfile,
-				Conditions: [...(codecProfile.Conditions || []), ...resolutionConditions(resolution)]
-			};
-		});
-		// A codec without its own profile still has to obey the cap.
-		tuned.CodecProfiles = [
-			...tuned.CodecProfiles,
-			{Type: 'Video', Conditions: resolutionConditions(resolution)}
-		];
+		// A profile with no codec applies to every codec, so the cap reaches those without a profile of their own.
+		tuned.CodecProfiles = [...(tuned.CodecProfiles || []), ...orientedResolutionProfiles(resolution)];
 		// The conditions above decide whether to transcode. These decide how big
 		// the transcode comes out, which the server otherwise works out only when
 		// the video stream is what sent it to the transcoder.
