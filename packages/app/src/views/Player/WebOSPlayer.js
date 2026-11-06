@@ -489,7 +489,9 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 			destX: destRect.x,
 			destY: destRect.y,
 			destWidth: destRect.width,
-			destHeight: destRect.height
+			destHeight: destRect.height,
+			mode: zoomMode,
+			video: videoRef.current
 		});
 	}, [decodedAspectRatio, videoDisplayAspectRatio, zoomMode, isAudioMode]);
 
