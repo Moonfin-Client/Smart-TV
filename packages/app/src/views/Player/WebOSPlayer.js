@@ -107,7 +107,7 @@ import {
 	remoteSubtitleDownloadError,
 	remoteSubtitleNotAppearedMessage
 } from './remoteSubtitleUtils';
-import {getVideoDisplayAspectRatio, getZoomDisplayRect} from './aspectRatioUtils';
+import {getVideoDisplayAspectRatio, getZoomDisplayRect, matchDecodedOrientation} from './aspectRatioUtils';
 import {describeStreamUrl, describeVideoStream, readVideoSupport} from './videoDiagnostics';
 import useRemotePlayerControls from './useRemotePlayerControls';
 import {registerThemeSheet} from '../../theme/themeOverrides';
@@ -449,7 +449,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 
 		const decodedAspect = Number.isFinite(decodedAspectRatio) && decodedAspectRatio > 0 ? decodedAspectRatio : null;
 		const targetAspect = Number.isFinite(videoDisplayAspectRatio) && videoDisplayAspectRatio > 0
-			? videoDisplayAspectRatio
+			? matchDecodedOrientation(videoDisplayAspectRatio, decodedAspect)
 			: decodedAspect;
 		const destRect = getZoomDisplayRect(screenRect, targetAspect, zoomMode);
 
@@ -584,7 +584,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 		const decodedAspect = Number.isFinite(decodedAspectRatio) && decodedAspectRatio > 0
 			? decodedAspectRatio : null;
 		const targetAspect = (Number.isFinite(videoDisplayAspectRatio) && videoDisplayAspectRatio > 0
-			? videoDisplayAspectRatio : decodedAspect) || screenAspect;
+			? matchDecodedOrientation(videoDisplayAspectRatio, decodedAspect) : decodedAspect) || screenAspect;
 
 		// Content width when scaled to full height, and height when scaled to full width.
 		const wAtFullHeight = Math.round(sh * targetAspect);
