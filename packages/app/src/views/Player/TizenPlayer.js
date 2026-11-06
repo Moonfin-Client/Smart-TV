@@ -37,6 +37,7 @@ import {selectPreferredAudioStream} from '../../utils/audioTrackSelection';
 import {applyResumeRewind, skipBackSeconds, skipForwardSeconds, zoomInternalFromSetting, zoomSettingFromInternal} from '../../utils/playbackTuning';
 import {getZoomModeOptions} from '../Settings/settingsOptions';
 import {saveAudioPref, saveSubtitlePref} from '../../services/subtitlePrefs';
+import {getVolumeState, setMuted as setSystemMuted} from '../../services/systemVolume';
 import {resolveSeriesAudio} from './initialAudio';
 import {resolveInitialSubtitle} from './initialSubtitle';
 import {api as jellyfinApi, createApiForServer, getServerType, getServerUrl} from '../../services/jellyfinApi';
@@ -66,7 +67,7 @@ import useSkipFailedTrack from './audio/useSkipFailedTrack';
 import {handleAudioFocusKey, exitAudioPanel, nextAudioFocusRow, focusAudioRow, forgetDockFocus} from './audio/audioFocus';
 import useSegmentPopups, {isSkipPromptFocused} from './useSegmentPopups';
 import useChannelKeys from './useChannelKeys';
-import {NextEpisodeContainer, CONTROLS_HIDE_DELAY, withTimeout, SEGMENT_FETCH_TIMEOUT, ASS_FETCH_INDICATOR_LIMIT} from './PlayerConstants';
+import {NextEpisodeContainer, CONTROLS_HIDE_DELAY, SLIDESHOW_ERROR_DELAY, withTimeout, SEGMENT_FETCH_TIMEOUT, ASS_FETCH_INDICATOR_LIMIT} from './PlayerConstants';
 import {waitForAssReady} from '../../utils/assRendererReady';
 import NextUpOverlay from './NextUpOverlay';
 import useNextAirDate from './useNextAirDate';
@@ -149,7 +150,7 @@ const avplaySeek = (titleMs) => {
 	return seekStream(titleMs);
 };
 
-const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialSubtitleIndex, initialStartPositionTicks, initialQuality, forceTranscode, onEnded, onBack, onGuide, onPlayNext, onSelectPerson, audioPlaylist, videoQueue, liveTvChannels, onPausedChange, background, onBackground}) => {
+const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialSubtitleIndex, initialStartPositionTicks, initialQuality, forceTranscode, onEnded, onBack, onGuide, onPlayNext, onSelectPerson, audioPlaylist, videoQueue, liveTvChannels, onPausedChange, background, onBackground, slideshow}) => {
 	const {settings, updateSetting} = useSettings();
 	const {isInGroup, lastCommand} = useSyncPlay();
 	const syncPlayCommandRef = useRef(false);
@@ -1727,7 +1728,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 				// in the background instead of holding up playback
 				if (shouldUseAudioMode) {
 					setControlsVisible(true);
-				} else if (!isLiveTV) {
+				} else if (!isLiveTV && !slideshow) {
 					withTimeout(playback.getMediaSegments(item.Id), SEGMENT_FETCH_TIMEOUT).then((segments) => {
 						if (stillCurrent()) setMediaSegments(segments);
 					}).catch((segmentErr) => {
@@ -2072,6 +2073,14 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 		// the next up countdown can load the next one during the stop, leave its player alone
 		if (generation !== loadGenerationRef.current) return;
 
+		// A slideshow video has no next episode or prompts, it hands over to the slideshow.
+		if (slideshow) {
+			cleanupAVPlay();
+			avplayReadyRef.current = false;
+			slideshow.onEnded?.();
+			return;
+		}
+
 		if (repeatMode === 'one') {
 			restartCurrent();
 			return;
@@ -2097,7 +2106,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 		} else {
 			onEnded?.();
 		}
-	}, [onEnded, onPlayNext, nextEpisode, nextAirDate, hideControls, stopTimeUpdatePolling, audioPlaylist, repeatMode, restartCurrent, getNextStep, settings.autoPlay, item, liveRecovery, shouldHoldForStillWatching]);
+	}, [onEnded, onPlayNext, nextEpisode, nextAirDate, hideControls, stopTimeUpdatePolling, audioPlaylist, repeatMode, restartCurrent, getNextStep, settings.autoPlay, item, liveRecovery, shouldHoldForStillWatching, slideshow]);
 
 	// The episode has ended, so closing the card leaves the player.
 	const closeAirDateCard = useCallback(() => {
@@ -2259,6 +2268,46 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 	useEffect(() => {
 		handleBackRef.current = handleBack;
 	}, [handleBack]);
+
+	// Previous or next item of a slideshow, which stops this video and hands over to the slideshow.
+	// One step at a time: a press while the stop is still going out would stop the same video twice.
+	const slideshowSteppingRef = useRef(false);
+	useEffect(() => {
+		slideshowSteppingRef.current = false;
+	}, [item]);
+	const stepSlideshow = useCallback(async (dir) => {
+		await teardownPlayback();
+		slideshow?.onStep?.(dir);
+	}, [teardownPlayback, slideshow]);
+
+	// A slideshow video that can't play moves on after a moment, so the slideshow never stalls on it.
+	useEffect(() => {
+		if (!slideshow || !error) return undefined;
+		const timer = setTimeout(async () => {
+			await teardownPlayback();
+			slideshow.onEnded?.();
+		}, SLIDESHOW_ERROR_DELAY);
+		return () => clearTimeout(timer);
+	}, [slideshow, error, teardownPlayback]);
+
+	// AVPlay has no mute of its own, so slideshow videos that start muted mute the TV, until they're done.
+	const slideshowMuted = slideshow?.muted === true;
+	useEffect(() => {
+		if (!slideshowMuted) return undefined;
+		let released = false;
+		let muted = false;
+		getVolumeState().then((state) => {
+			if (released || !state || state.muted) return null;
+			return setSystemMuted(true).then((ok) => {
+				muted = ok;
+				if (released && ok) setSystemMuted(false);
+			});
+		}).catch(() => {});
+		return () => {
+			released = true;
+			if (muted) setSystemMuted(false);
+		};
+	}, [slideshowMuted]);
 
 	// an error swallowed during pause means the pipeline may be dead, so after
 	// resuming check that playback actually moves and recover if it doesnt
@@ -3440,6 +3489,26 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 
 			// Left/Right when controls hidden -> show controls and focus on seekbar
 			if (!controlsVisible && !activeModal) {
+				// A slideshow video keeps the arrows for moving between items and leaves the transport
+				// to OK, which brings the controls up on the progress bar.
+				if (slideshow) {
+					if (key === 'ArrowLeft' || e.keyCode === 37 || key === 'ArrowRight' || e.keyCode === 39) {
+						e.preventDefault();
+						e.stopPropagation();
+						if (!slideshowSteppingRef.current) {
+							slideshowSteppingRef.current = true;
+							stepSlideshow(key === 'ArrowLeft' || e.keyCode === 37 ? -1 : 1);
+						}
+						return;
+					}
+					if (key === 'Enter' || e.keyCode === 13) {
+						e.preventDefault();
+						e.stopPropagation();
+						showControls();
+						setFocusRow('progress');
+						return;
+					}
+				}
 				if ((key === 'Enter' || e.keyCode === 13) && (isSkipPromptFocused() || showSkipCredits || showNextEpisode)) {
 					return;
 				}

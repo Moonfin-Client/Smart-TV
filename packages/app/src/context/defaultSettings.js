@@ -272,6 +272,9 @@ export const defaultSettings = {
 	useDetailedSubHeadings: true,
 	showMediaDetailsOnLibraryPage: true,
 	libraryCardTitles: true,
+	photoSlideshowInterval: 5,
+	photoSlideshowVideos: true,
+	photoSlideshowVideoSound: true,
 	// Null until someone picks a size, so library grids follow the home card size.
 	libraryPosterSize: null,
 	playlistPosterSize: null,
