@@ -244,6 +244,25 @@ describe('the docked keyboard', () => {
 		expect(document.body.textContent).not.toContain('secret');
 	});
 
+	test('shows a password from the chip above the keys, and starts as dots again next time', () => {
+		const {onReveal} = open({value: 'secret', purpose: 'password', password: true, onReveal: jest.fn()});
+		press(UP);
+		tap();
+		expect(onReveal).toHaveBeenLastCalledWith(true);
+		expect(document.body.textContent).toContain('secret');
+		expect(document.body.textContent).toContain('Hide password');
+		act(() => {
+			openTvKeyboard({value: 'secret', purpose: 'password', password: true});
+		});
+		expect(document.body.textContent).not.toContain('secret');
+	});
+
+	test('doesnt mark a hidden password inside the chip\'s own words', () => {
+		open({value: 'pass', purpose: 'password', password: true});
+		expect(document.body.textContent).toContain('Show password');
+		expect(document.querySelector('.match')).toBeNull();
+	});
+
 	test('a number field gets only the pad, with no rail or hints', () => {
 		const {onChange} = open({value: '12', purpose: 'numeric'});
 		expect(shownKey('MODE_LOWER')).toBeNull();
