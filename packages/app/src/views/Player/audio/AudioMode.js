@@ -4,7 +4,6 @@ import {artUrlFor, IconMusicNote} from './audioArt';
 import {forgetDockFocus} from './audioFocus';
 import {getApiForItem} from '../../../services/connectionPool';
 import {api as jellyfinApi} from '../../../services/jellyfinApi';
-import {useAuth} from '../../../context/AuthContext';
 import AddToPlaylistModal from '../../../components/AddToPlaylistModal';
 import LoopMarquee from '../../../components/LoopMarquee';
 import AmbientBackground from './AmbientBackground';
@@ -33,7 +32,6 @@ const AudioMode = ({
 	onClosePlaylist
 }) => {
 	const queueScrollRef = useRef(null);
-	const auth = useAuth();
 	const [toast, setToast] = useState(null);
 	const artUrl = artUrlFor(item, serverUrl);
 	const panelFocused = focusRow === 'panel';
@@ -91,8 +89,6 @@ const AudioMode = ({
 				itemId={item?.Id}
 				item={item}
 				api={itemApi}
-				serverUrl={item?._serverUrl || serverUrl || auth?.serverUrl}
-				userId={item?._serverUserId || auth?.user?.Id}
 				onClose={onClosePlaylist}
 				onSuccess={showToast}
 			/>

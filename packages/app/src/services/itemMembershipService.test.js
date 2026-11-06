@@ -58,7 +58,7 @@ describe('itemMembershipService', () => {
 				{Id: 'col-direct', Name: 'Becky Collection', Type: 'BoxSet'}
 			]),
 			getCollections: jest.fn(async () => ({Items: []})),
-			getCollectionItems: jest.fn(async (colId) => ({
+			getCollectionMembers: jest.fn(async (colId) => ({
 				Items: colId === 'col-direct' ? [{Id: 'm1'}] : [{Id: 'col-direct'}]
 			}))
 		};
@@ -97,7 +97,7 @@ describe('itemMembershipService', () => {
 		const serverKey = canonicalServerKey(item, ctx);
 
 		const lookup = getPlaylistsContaining(item, api, ctx);
-		notifyItemAddedToPlaylist(serverKey, 'pl-1', ['m1'], api);
+		notifyItemAddedToPlaylist(serverKey);
 		resolveFirst({Items: []});
 
 		const result = await lookup;
@@ -108,7 +108,7 @@ describe('itemMembershipService', () => {
 		// Collection add/remove notifications update cached sets
 		const colApi = {
 			getCollections: jest.fn(async () => ({Items: [{Id: 'c1', Name: 'Col 1'}]})),
-			getCollectionItems: jest.fn(async () => ({Items: []}))
+			getCollectionMembers: jest.fn(async () => ({Items: []}))
 		};
 		await getCollectionsContaining(item, colApi, ctx);
 		notifyItemAddedToCollection(serverKey, 'c1', ['m1']);
@@ -141,7 +141,7 @@ describe('itemMembershipService', () => {
 			getCollections: jest.fn(async () => ({
 				Items: [{Id: 'col-large', Name: 'Large Collection'}]
 			})),
-			getCollectionItems: jest.fn(async (_colId, _limit, _sortBy, _sortOrder, startIndex = 0) => ({
+			getCollectionMembers: jest.fn(async (_colId, _limit, startIndex) => ({
 				Items: startIndex === 0
 					? collectionFirstPage
 					: [{Id: 'm-late'}],
@@ -157,65 +157,25 @@ describe('itemMembershipService', () => {
 			{playlistId: 'pl-large', playlistName: 'Large Playlist', entryId: 'entry-301'}
 		]);
 		expect(api.getPlaylistItems).toHaveBeenCalledTimes(2);
-		expect(api.getPlaylistItems).toHaveBeenNthCalledWith(1, 'pl-large', 300, 0);
-		expect(api.getPlaylistItems).toHaveBeenNthCalledWith(2, 'pl-large', 300, 300);
+		expect(api.getPlaylistItems).toHaveBeenNthCalledWith(1, 'pl-large', 300, 0, true);
+		expect(api.getPlaylistItems).toHaveBeenNthCalledWith(2, 'pl-large', 300, 300, true);
 
 		const collections = await getCollectionsContaining(item, api, ctx);
 		expect(collections).toEqual([
 			{collectionId: 'col-large', collectionName: 'Large Collection'}
 		]);
-		expect(api.getCollectionItems).toHaveBeenCalledTimes(2);
-		expect(api.getCollectionItems).toHaveBeenNthCalledWith(1, 'col-large', 500);
-		expect(api.getCollectionItems).toHaveBeenNthCalledWith(2, 'col-large', 500, null, 'Ascending', 500);
+		expect(api.getCollectionMembers).toHaveBeenCalledTimes(2);
+		expect(api.getCollectionMembers).toHaveBeenNthCalledWith(1, 'col-large', 500, 0);
+		expect(api.getCollectionMembers).toHaveBeenNthCalledWith(2, 'col-large', 500, 500);
 	});
 
-	test('prefers unfiltered getCollectionMembers when provided by Jellyfin/Emby API', async () => {
+	test('leaves out a playlist entry the server gave no entry id, since it cant be removed', async () => {
 		const api = {
-			getCollections: jest.fn(async () => ({
-				Items: [{Id: 'col-1', Name: 'No Backdrop Collection'}]
-			})),
-			getCollectionMembers: jest.fn(async () => ({
-				Items: [{Id: 'm-nobackdrop'}],
-				TotalRecordCount: 1
-			})),
-			getCollectionItems: jest.fn(async () => ({
-				Items: []
-			}))
+			getPlaylists: jest.fn(async () => ({Items: [{Id: 'pl-1', Name: 'The Hux List'}]})),
+			getPlaylistItems: jest.fn(async () => ({Items: [{Id: 'm1'}]}))
 		};
 
-		const item = {Id: 'm-nobackdrop', Type: 'Movie', Name: 'Poster Only Movie'};
-		const ctx = {serverUrl: 'http://jf', userId: 'u1', canManageCollections: true};
-
-		const collections = await getCollectionsContaining(item, api, ctx);
-		expect(collections).toEqual([
-			{collectionId: 'col-1', collectionName: 'No Backdrop Collection'}
-		]);
-		expect(api.getCollectionMembers).toHaveBeenCalledWith('col-1', 500, 0);
-		expect(api.getCollectionItems).not.toHaveBeenCalled();
-	});
-
-	test('falls back to getCollectionItems when getCollectionMembers rejects with 501', async () => {
-		const api = {
-			getCollections: jest.fn(async () => ({
-				Items: [{Id: 'col-plex', Name: 'Plex Collection'}]
-			})),
-			getCollectionMembers: jest.fn(async () => {
-				throw Object.assign(new Error('Unsupported'), {status: 501});
-			}),
-			getCollectionItems: jest.fn(async () => ({
-				Items: [{Id: 'm-plex'}],
-				TotalRecordCount: 1
-			}))
-		};
-
-		const item = {Id: 'm-plex', Type: 'Movie', Name: 'Plex Movie'};
-		const ctx = {serverUrl: 'http://plex', userId: 'u1', canManageCollections: true};
-
-		const collections = await getCollectionsContaining(item, api, ctx);
-		expect(collections).toEqual([
-			{collectionId: 'col-plex', collectionName: 'Plex Collection'}
-		]);
-		expect(api.getCollectionItems).toHaveBeenCalledWith('col-plex', 500);
+		expect(await getPlaylistsContaining({Id: 'm1', Type: 'Movie'}, api, {serverUrl: 'http://jf', userId: 'u1'})).toEqual([]);
 	});
 
 	test('excludes non-editable Silo ancestors via api.canEditCollection', async () => {

@@ -4,6 +4,7 @@ import Spotlight from '@enact/spotlight';
 import SpotlightContainerDecorator from '@enact/spotlight/SpotlightContainerDecorator';
 import $L from '@enact/i18n/$L';
 import {isBackKey} from '../../utils/keys';
+import {useAuth} from '../../context/AuthContext';
 import {canonicalServerKey, notifyItemRemovedFromPlaylist} from '../../services/itemMembershipService';
 
 import css from '../AddToPlaylistModal/AddToPlaylistModal.module.less';
@@ -17,7 +18,8 @@ const DialogContainer = SpotlightContainerDecorator({
 const SpottableDiv = Spottable('div');
 const SpottableButton = Spottable('button');
 
-const RemoveFromPlaylistModal = ({open, item, playlists = [], loading = false, api, serverUrl, userId, onClose, onSuccess, backHandlerRef}) => {
+const RemoveFromPlaylistModal = ({open, item, playlists = [], loading = false, api, onClose, onSuccess, backHandlerRef}) => {
+	const {serverUrl, user} = useAuth();
 	const [confirming, setConfirming] = useState(null);
 	const [removing, setRemoving] = useState(false);
 
@@ -86,7 +88,7 @@ const RemoveFromPlaylistModal = ({open, item, playlists = [], loading = false, a
 		setRemoving(true);
 		try {
 			await api.removeFromPlaylist(confirming.playlistId, [confirming.entryId]);
-			const serverKey = canonicalServerKey(item, {serverUrl, userId});
+			const serverKey = canonicalServerKey(item, {serverUrl, userId: user?.Id});
 			notifyItemRemovedFromPlaylist(serverKey, confirming.playlistId, item.Id);
 			onSuccess?.($L('Removed from {playlist}').replace('{playlist}', confirming.playlistName));
 			onClose?.();
@@ -95,7 +97,7 @@ const RemoveFromPlaylistModal = ({open, item, playlists = [], loading = false, a
 		} finally {
 			setRemoving(false);
 		}
-	}, [confirming, removing, api, item, serverUrl, userId, onSuccess, onClose]);
+	}, [confirming, removing, api, item, serverUrl, user, onSuccess, onClose]);
 
 	const handleCancelConfirm = useCallback(() => {
 		setConfirming(null);

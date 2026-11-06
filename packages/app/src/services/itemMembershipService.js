@@ -4,31 +4,24 @@
 const CACHE_TTL_MS = 5 * 60 * 1000;
 const COLLECTION_FETCH_LIMIT = 500;
 const PLAYLIST_ITEMS_LIMIT = 300;
-const MAX_CONCURRENT_BATCH = 16;
+// Scanning a large library at once would flood the server and the TV.
+const MAX_CONCURRENT_BATCH = 8;
 const MAX_PAGED_ITEMS = 5000;
 
 let sessionGeneration = 0;
 
-// serverKey -> Map<playlistId, Array<{itemId, entryId}>>
+// Per server, each playlist's entries as {itemId, entryId}.
 const playlistItemsByServer = new Map();
-// serverKey -> Map<playlistId, string>
 const playlistNamesByServer = new Map();
-// serverKey -> number (timestamp)
 const playlistLastFetched = new Map();
-// serverKey -> Promise<void>
 const playlistInFlight = new Map();
-// serverKey -> number
 const playlistMutationGenerations = new Map();
 
-// serverKey -> Map<collectionId, Set<string>>
+// Per server, the ids of each collection's items.
 const collectionMembersByServer = new Map();
-// serverKey -> Map<collectionId, string>
 const collectionNamesByServer = new Map();
-// serverKey -> number (timestamp)
 const collectionLastFetched = new Map();
-// serverKey -> Promise<void>
 const collectionInFlight = new Map();
-// serverKey -> number
 const collectionMutationGenerations = new Map();
 
 export const isExternalItem = (item) => {
@@ -91,58 +84,26 @@ export const getCachedCollectionsContaining = (item, context = {}) => {
 	return result;
 };
 
-const fetchAllPlaylistItems = async (api, playlistId, isStale) => {
+const fetchAllPages = async (fetchPage, pageSize, isStale) => {
 	const allItems = [];
 	let startIndex = 0;
 	while (startIndex < MAX_PAGED_ITEMS) {
 		if (isStale?.()) break;
-		const res = await api.getPlaylistItems(playlistId, PLAYLIST_ITEMS_LIMIT, startIndex);
+		const res = await fetchPage(startIndex);
 		const page = Array.isArray(res?.Items) ? res.Items : [];
 		allItems.push(...page);
 		startIndex += page.length;
 		const total = typeof res?.TotalRecordCount === 'number' ? res.TotalRecordCount : null;
-		if (page.length < PLAYLIST_ITEMS_LIMIT || (total !== null && startIndex >= total)) {
-			break;
-		}
+		if (page.length < pageSize || (total !== null && startIndex >= total)) break;
 	}
 	return allItems;
 };
 
-const fetchAllCollectionItems = async (api, collectionId, isStale) => {
-	const allItems = [];
-	let startIndex = 0;
-	let useMembersEndpoint = Boolean(api.getCollectionMembers);
-	while (startIndex < MAX_PAGED_ITEMS) {
-		if (isStale?.()) break;
-		let res;
-		if (useMembersEndpoint) {
-			try {
-				res = await api.getCollectionMembers(collectionId, COLLECTION_FETCH_LIMIT, startIndex);
-			} catch (err) {
-				if (err?.status === 501 && api.getCollectionItems) {
-					useMembersEndpoint = false;
-					res = startIndex === 0
-						? await api.getCollectionItems(collectionId, COLLECTION_FETCH_LIMIT)
-						: await api.getCollectionItems(collectionId, COLLECTION_FETCH_LIMIT, null, 'Ascending', startIndex);
-				} else {
-					throw err;
-				}
-			}
-		} else {
-			res = startIndex === 0
-				? await api.getCollectionItems(collectionId, COLLECTION_FETCH_LIMIT)
-				: await api.getCollectionItems(collectionId, COLLECTION_FETCH_LIMIT, null, 'Ascending', startIndex);
-		}
-		const page = Array.isArray(res?.Items) ? res.Items : [];
-		allItems.push(...page);
-		startIndex += page.length;
-		const total = typeof res?.TotalRecordCount === 'number' ? res.TotalRecordCount : null;
-		if (page.length < COLLECTION_FETCH_LIMIT || (total !== null && startIndex >= total)) {
-			break;
-		}
-	}
-	return allItems;
-};
+const fetchAllPlaylistItems = (api, playlistId, isStale) => fetchAllPages(
+	(startIndex) => api.getPlaylistItems(playlistId, PLAYLIST_ITEMS_LIMIT, startIndex, true), PLAYLIST_ITEMS_LIMIT, isStale);
+
+const fetchAllCollectionItems = (api, collectionId, isStale) => fetchAllPages(
+	(startIndex) => api.getCollectionMembers(collectionId, COLLECTION_FETCH_LIMIT, startIndex), COLLECTION_FETCH_LIMIT, isStale);
 
 const syncPlaylists = (api, serverKey) => {
 	if (!api?.getPlaylists) return Promise.resolve();
@@ -177,7 +138,8 @@ const syncPlaylists = (api, serverKey) => {
 						const members = [];
 						for (const m of memberList) {
 							const itemId = m?.Id != null ? String(m.Id) : '';
-							const entryId = m?.PlaylistItemId != null ? String(m.PlaylistItemId) : itemId;
+							// Removal goes by the entry id, so an entry without one can't be offered.
+							const entryId = m?.PlaylistItemId != null ? String(m.PlaylistItemId) : '';
 							if (itemId && entryId) {
 								members.push({itemId, entryId});
 							}
@@ -195,7 +157,7 @@ const syncPlaylists = (api, serverKey) => {
 			playlistItemsByServer.set(serverKey, itemMap);
 			playlistLastFetched.set(serverKey, Date.now());
 		} catch {
-			// Ignore network errors
+			// A scan that fails leaves the last one in place.
 		} finally {
 			if (playlistInFlight.get(serverKey) === promise) {
 				playlistInFlight.delete(serverKey);
@@ -208,7 +170,7 @@ const syncPlaylists = (api, serverKey) => {
 };
 
 const syncCollections = (api, serverKey) => {
-	if (!api?.getCollections && !api?.getEditableCollections) return Promise.resolve();
+	if (!api?.getCollectionMembers || (!api.getCollections && !api.getEditableCollections)) return Promise.resolve();
 	const existing = collectionInFlight.get(serverKey);
 	if (existing) return existing;
 
@@ -228,30 +190,27 @@ const syncCollections = (api, serverKey) => {
 			const previous = collectionMembersByServer.get(serverKey);
 			const nameMap = new Map();
 			const memberMap = new Map();
-			const candidates = [];
 
 			for (const boxSet of items) {
 				const id = boxSet?.Id != null ? String(boxSet.Id) : '';
 				const name = boxSet?.Name != null ? String(boxSet.Name) : '';
-				if (!id || !name) continue;
-				nameMap.set(id, name);
-				candidates.push({id, name});
+				if (id && name) nameMap.set(id, name);
 			}
+			const ids = [...nameMap.keys()];
 
-			for (let i = 0; i < candidates.length; i += MAX_CONCURRENT_BATCH) {
+			for (let i = 0; i < ids.length; i += MAX_CONCURRENT_BATCH) {
 				if (isStale()) return;
-				const batch = candidates.slice(i, i + MAX_CONCURRENT_BATCH);
-				await Promise.all(batch.map(async (candidate) => {
+				await Promise.all(ids.slice(i, i + MAX_CONCURRENT_BATCH).map(async (id) => {
 					try {
-						const membersList = await fetchAllCollectionItems(api, candidate.id, isStale);
+						const membersList = await fetchAllCollectionItems(api, id, isStale);
 						const memberIds = new Set();
 						for (const m of membersList) {
 							if (m?.Id != null) memberIds.add(String(m.Id));
 						}
-						memberMap.set(candidate.id, memberIds);
+						memberMap.set(id, memberIds);
 					} catch {
-						const old = previous?.get(candidate.id);
-						if (old) memberMap.set(candidate.id, old);
+						const old = previous?.get(id);
+						if (old) memberMap.set(id, old);
 					}
 				}));
 			}
@@ -261,7 +220,7 @@ const syncCollections = (api, serverKey) => {
 			collectionMembersByServer.set(serverKey, memberMap);
 			collectionLastFetched.set(serverKey, Date.now());
 		} catch {
-			// Ignore network errors
+			// A scan that fails leaves the last one in place.
 		} finally {
 			if (collectionInFlight.get(serverKey) === promise) {
 				collectionInFlight.delete(serverKey);
@@ -278,7 +237,7 @@ export const getPlaylistsContaining = async (item, api, context = {}) => {
 	const serverKey = canonicalServerKey(item, context);
 	const generation = sessionGeneration;
 
-	if (context.forceRefresh || !isFresh(playlistLastFetched, serverKey)) {
+	if (!isFresh(playlistLastFetched, serverKey)) {
 		await syncPlaylists(api, serverKey);
 		if (generation !== sessionGeneration) return [];
 		if (!playlistLastFetched.has(serverKey)) {
@@ -304,23 +263,17 @@ export const getCollectionsContaining = async (item, api, context = {}) => {
 			if (generation !== sessionGeneration) return [];
 			if (Array.isArray(ancestors)) {
 				for (const ancestor of ancestors) {
-					if (ancestor?.Type === 'BoxSet' && ancestor.Id && ancestor.Name) {
-						if (typeof api.canEditCollection === 'function' && api.canEditCollection(ancestor) === false) {
-							continue;
-						}
-						if (ancestor._smart || ancestor.smart === 1 || ancestor.smart === '1' || ancestor.smart === true) {
-							continue;
-						}
-						ancestorBoxSets.set(String(ancestor.Id), {name: String(ancestor.Name), ancestor});
+					if (ancestor?.Type === 'BoxSet' && ancestor.Id && ancestor.Name && api.canEditCollection?.(ancestor) !== false) {
+						ancestorBoxSets.set(String(ancestor.Id), String(ancestor.Name));
 					}
 				}
 			}
 		} catch {
-			// Ignore ancestor lookup failures
+			// The scanned collections still answer without the ancestors.
 		}
 	}
 
-	if (context.forceRefresh || !isFresh(collectionLastFetched, serverKey)) {
+	if (!isFresh(collectionLastFetched, serverKey)) {
 		await syncCollections(api, serverKey);
 		if (generation !== sessionGeneration) return [];
 		if (!collectionLastFetched.has(serverKey)) {
@@ -331,20 +284,14 @@ export const getCollectionsContaining = async (item, api, context = {}) => {
 
 	const results = [...getCachedCollectionsContaining(item, context)];
 
-	for (const [colId, {name: colName, ancestor}] of ancestorBoxSets.entries()) {
+	for (const [colId, colName] of ancestorBoxSets.entries()) {
 		if (!results.some((c) => c.collectionId === colId)) {
-			if (typeof api.canEditCollection === 'function' && api.canEditCollection(ancestor) === false) {
+			try {
+				const members = await fetchAllCollectionItems(api, colId, () => generation !== sessionGeneration);
+				if (generation !== sessionGeneration) return [];
+				if (!members.some((m) => String(m?.Id) === String(item.Id))) continue;
+			} catch {
 				continue;
-			}
-			if (api.getCollectionMembers || api.getCollectionItems) {
-				try {
-					const members = await fetchAllCollectionItems(api, colId, () => generation !== sessionGeneration);
-					if (generation !== sessionGeneration) return [];
-					const isDirectMember = members.some((m) => String(m?.Id) === String(item.Id));
-					if (!isDirectMember) continue;
-				} catch {
-					continue;
-				}
 			}
 			results.push({collectionId: colId, collectionName: colName});
 		}
@@ -353,43 +300,19 @@ export const getCollectionsContaining = async (item, api, context = {}) => {
 	return results;
 };
 
-export const notifyItemAddedToPlaylist = (serverKey, playlistId, itemIds, api) => {
+// The server hands out the entry id a removal needs, so the next menu that opens reads it.
+export const notifyItemAddedToPlaylist = (serverKey) => {
 	if (!serverKey) return;
 	playlistMutationGenerations.set(serverKey, (playlistMutationGenerations.get(serverKey) || 0) + 1);
 	playlistLastFetched.delete(serverKey);
-	if (api?.getPlaylists) {
-		const generation = sessionGeneration;
-		const inFlight = playlistInFlight.get(serverKey);
-		if (inFlight) {
-			inFlight.finally(() => {
-				if (
-					generation === sessionGeneration &&
-					!playlistInFlight.has(serverKey) &&
-					!playlistLastFetched.has(serverKey)
-				) {
-					syncPlaylists(api, serverKey);
-				}
-			});
-		} else {
-			syncPlaylists(api, serverKey);
-		}
-	}
 };
 
 export const notifyItemRemovedFromPlaylist = (serverKey, playlistId, itemId) => {
 	if (!serverKey) return;
 	playlistMutationGenerations.set(serverKey, (playlistMutationGenerations.get(serverKey) || 0) + 1);
-	const serverPlaylists = playlistItemsByServer.get(serverKey);
-	if (serverPlaylists && itemId != null) {
-		if (playlistId != null && serverPlaylists.has(String(playlistId))) {
-			const filtered = serverPlaylists.get(String(playlistId)).filter((m) => m.itemId !== String(itemId));
-			serverPlaylists.set(String(playlistId), filtered);
-		} else if (playlistId == null) {
-			for (const [plId, members] of serverPlaylists.entries()) {
-				serverPlaylists.set(plId, members.filter((m) => m.itemId !== String(itemId)));
-			}
-		}
-	}
+	const playlists = playlistItemsByServer.get(serverKey);
+	const members = playlists?.get(String(playlistId));
+	if (members) playlists.set(String(playlistId), members.filter((m) => m.itemId !== String(itemId)));
 	playlistLastFetched.delete(serverKey);
 };
 
@@ -409,28 +332,8 @@ export const notifyItemAddedToCollection = (serverKey, collectionId, itemIds = [
 export const notifyItemRemovedFromCollection = (serverKey, collectionId, itemId) => {
 	if (!serverKey) return;
 	collectionMutationGenerations.set(serverKey, (collectionMutationGenerations.get(serverKey) || 0) + 1);
-	const serverCollections = collectionMembersByServer.get(serverKey);
-	if (serverCollections && itemId != null) {
-		if (collectionId != null && serverCollections.has(String(collectionId))) {
-			serverCollections.get(String(collectionId)).delete(String(itemId));
-		} else if (collectionId == null) {
-			for (const set of serverCollections.values()) {
-				set.delete(String(itemId));
-			}
-		}
-	}
+	collectionMembersByServer.get(serverKey)?.get(String(collectionId))?.delete(String(itemId));
 	collectionLastFetched.delete(serverKey);
-};
-
-export const warmMembershipCache = (api, {serverUrl = '', userId = '', canManageCollections = true, supportsPlaylists = true} = {}) => {
-	if (!api) return;
-	const serverKey = canonicalServerKey(null, {serverUrl, userId});
-	if (supportsPlaylists && !isFresh(playlistLastFetched, serverKey)) {
-		syncPlaylists(api, serverKey);
-	}
-	if (canManageCollections && !isFresh(collectionLastFetched, serverKey)) {
-		syncCollections(api, serverKey);
-	}
 };
 
 export const clearMembershipCache = () => {

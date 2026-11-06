@@ -23,10 +23,9 @@ const SpottableButton = Spottable('button');
 // The picker has to list every collection, not just the first page.
 const COLLECTION_FETCH_LIMIT = 500;
 
-const AddToCollectionModal = ({open, itemId, item, api, serverUrl, userId, onClose, onSuccess}) => {
-	const auth = useAuth();
-	const effectiveServerUrl = serverUrl || item?._serverUrl || auth?.serverUrl;
-	const effectiveUserId = userId || item?._serverUserId || auth?.user?.Id;
+const AddToCollectionModal = ({open, itemId, item, api, onClose, onSuccess}) => {
+	const {serverUrl, user} = useAuth();
+	const serverKey = canonicalServerKey(item || {Id: itemId}, {serverUrl, userId: user?.Id});
 	const [collections, setCollections] = useState([]);
 	const [loading, setLoading] = useState(true);
 	const [creating, setCreating] = useState(false);
@@ -85,17 +84,13 @@ const AddToCollectionModal = ({open, itemId, item, api, serverUrl, userId, onClo
 		setAdding(true);
 		try {
 			await api.addToCollection(collectionId, [itemId]);
-			const serverKey = canonicalServerKey(item || {Id: itemId}, {
-				serverUrl: effectiveServerUrl,
-				userId: effectiveUserId
-			});
 			notifyItemAddedToCollection(serverKey, collectionId, [itemId]);
 			onSuccess?.($L('Added to collection'));
 			onClose?.();
 		} catch { /* no-op */ } finally {
 			setAdding(false);
 		}
-	}, [api, itemId, item, effectiveServerUrl, effectiveUserId, adding, onSuccess, onClose]);
+	}, [api, itemId, serverKey, adding, onSuccess, onClose]);
 
 	const handleCollectionClick = useCallback((ev) => {
 		const collectionId = ev.currentTarget.dataset.collectionId;
@@ -112,18 +107,14 @@ const AddToCollectionModal = ({open, itemId, item, api, serverUrl, userId, onClo
 		if (!name || adding) return;
 		setAdding(true);
 		try {
-			const created = await api.createCollection(name, [itemId]);
-			const serverKey = canonicalServerKey(item || {Id: itemId}, {
-				serverUrl: effectiveServerUrl,
-				userId: effectiveUserId
-			});
-			notifyItemAddedToCollection(serverKey, created?.Id || name, [itemId]);
+			await api.createCollection(name, [itemId]);
+			notifyItemAddedToCollection(serverKey);
 			onSuccess?.($L('Created "{name}" and added item').replace('{name}', name));
 			onClose?.();
 		} catch { /* no-op */ } finally {
 			setAdding(false);
 		}
-	}, [api, itemId, item, effectiveServerUrl, effectiveUserId, newName, adding, onSuccess, onClose]);
+	}, [api, itemId, serverKey, newName, adding, onSuccess, onClose]);
 
 	const handleInputKeyDown = useCallback((ev) => {
 		if (ev.keyCode === 13) {

@@ -18,8 +18,7 @@ import {
 	getPlaylistsContaining,
 	isExternalItem,
 	notifyItemRemovedFromCollection,
-	notifyItemRemovedFromPlaylist,
-	warmMembershipCache
+	notifyItemRemovedFromPlaylist
 } from '../../services/itemMembershipService';
 import AddToCollectionModal from '../AddToCollectionModal';
 import AddToPlaylistModal from '../AddToPlaylistModal';
@@ -28,7 +27,7 @@ import RemoveFromPlaylistModal from '../RemoveFromPlaylistModal';
 import ChangeArtworkModal from '../ChangeArtworkModal';
 import IdentifyModal from '../IdentifyModal';
 import {iconViewBox} from '../icons/iconViewBox';
-import {hideFromNextUp, hideFromResume, itemMenuActions} from './itemMenuActions';
+import {hideFromNextUp, hideFromResume, itemMenuActions, MEDIA_TYPES} from './itemMenuActions';
 
 import css from './ItemContextMenu.module.less';
 
@@ -73,6 +72,14 @@ const seriesOf = (item) => {
 	return series;
 };
 
+// Jellyfin and Plex only let a user touch collections on their own server with the permission for
+// it. An item from another server is left to that server to refuse.
+const canManageCollectionsOf = (item, user, serverUrl) => {
+	const sameServer = !item._serverUrl || item._serverUrl === serverUrl;
+	return !(['jellyfin', 'plex'].includes(getServerType()) && sameServer) ||
+		Boolean(user?.Policy?.EnableCollectionManagement) || Boolean(user?.Policy?.IsAdministrator);
+};
+
 // Holds the long press menu for every card in the app, along with the dialogs its entries open.
 // A card asks for it through useItemMenu. `backRef` is how the app's back key reaches whatever
 // is open here before it reaches the screen underneath.
@@ -92,11 +99,7 @@ export const ItemMenuProvider = ({children, onPlay, onOpenItem, backRef}) => {
 		if (!item || fromSeerr(item)) return [];
 		const isJellyfin = (item._serverType || getServerType()) === 'jellyfin';
 		const isAdmin = Boolean(user?.Policy?.IsAdministrator);
-		// Jellyfin and Plex only let a user touch collections on their own server with the permission for
-		// it. An item from another server is left to that server to refuse.
 		const sameServer = !item._serverUrl || item._serverUrl === serverUrl;
-		const canManageCollections = !(['jellyfin', 'plex'].includes(getServerType()) && sameServer) ||
-			Boolean(user?.Policy?.EnableCollectionManagement) || isAdmin;
 		const playlist = options?.playlist;
 		const playlistMemberships = memberships.playlistMemberships ??
 			options?.playlistMemberships ??
@@ -108,7 +111,7 @@ export const ItemMenuProvider = ({children, onPlay, onOpenItem, backRef}) => {
 			isAdmin,
 			isJellyfin,
 			isSilo: (item._serverType || getServerType()) === 'silo' && sameServer,
-			canManageCollections,
+			canManageCollections: canManageCollectionsOf(item, user, serverUrl),
 			inCollection: Boolean(options?.collectionRemoval),
 			playlist: playlist ? {canManage: playlist.canManage, canRemove: playlist.canRemove, canMove: playlist.canMove, ...playlist.positionOf(item)} : null,
 			playlistMemberships,
@@ -122,18 +125,7 @@ export const ItemMenuProvider = ({children, onPlay, onOpenItem, backRef}) => {
 		playlistPickerRequestRef.current += 1;
 		setDialog((prev) => (prev?.kind === 'removePlaylistPicker' ? null : prev));
 		clearMembershipCache();
-		if (user?.Id && serverUrl) {
-			const isAdmin = Boolean(user?.Policy?.IsAdministrator);
-			const canManageCollections = !['jellyfin', 'plex'].includes(getServerType()) ||
-				Boolean(user?.Policy?.EnableCollectionManagement) || isAdmin;
-			warmMembershipCache(activeApi, {
-				serverUrl,
-				userId: user.Id,
-				canManageCollections,
-				supportsPlaylists: getServerType() !== 'silo'
-			});
-		}
-	}, [user?.Id, user?.Policy?.IsAdministrator, user?.Policy?.EnableCollectionManagement, serverUrl]);
+	}, [user?.Id, serverUrl]);
 
 	const restoreFocus = useCallback(() => {
 		const node = returnFocusRef.current;
@@ -174,14 +166,12 @@ export const ItemMenuProvider = ({children, onPlay, onOpenItem, backRef}) => {
 	const menuItem = menu?.item;
 
 	useEffect(() => {
-		if (!menuItem || isExternalItem(menuItem)) return undefined;
+		// Only these types get the remove actions, so nothing else starts a scan.
+		if (!menuItem || isExternalItem(menuItem) || !MEDIA_TYPES.includes(menuItem.Type)) return undefined;
 		let cancelled = false;
 		const item = menuItem;
 		const api = getApiForItem(item) || activeApi;
-		const isAdmin = Boolean(user?.Policy?.IsAdministrator);
-		const sameServer = !item._serverUrl || item._serverUrl === serverUrl;
-		const canManageCollections = !(['jellyfin', 'plex'].includes(getServerType()) && sameServer) ||
-			Boolean(user?.Policy?.EnableCollectionManagement) || isAdmin;
+		const canManageCollections = canManageCollectionsOf(item, user, serverUrl);
 
 		getPlaylistsContaining(item, api, {serverUrl, userId: user?.Id}).then((newPl) => {
 			if (cancelled) return;
@@ -224,7 +214,7 @@ export const ItemMenuProvider = ({children, onPlay, onOpenItem, backRef}) => {
 		return () => {
 			cancelled = true;
 		};
-	}, [menuItem, actionsFor, serverUrl, user?.Id, user?.Policy?.IsAdministrator, user?.Policy?.EnableCollectionManagement]);
+	}, [menuItem, actionsFor, serverUrl, user]);
 
 	useEffect(() => {
 		if (menu) Spotlight.focus(MENU_ID);
@@ -242,7 +232,7 @@ export const ItemMenuProvider = ({children, onPlay, onOpenItem, backRef}) => {
 			const requestId = ++playlistPickerRequestRef.current;
 			setDialog({kind: 'removePlaylistPicker', item, api, playlists: [], loading: true});
 			try {
-				const freshPlaylists = await getPlaylistsContaining(item, api, {serverUrl, userId: user?.Id, forceRefresh: true});
+				const freshPlaylists = await getPlaylistsContaining(item, api, {serverUrl, userId: user?.Id});
 				if (playlistPickerRequestRef.current !== requestId) return;
 				setDialog((prev) => (
 					prev?.kind === 'removePlaylistPicker' && prev.item?.Id === item.Id
@@ -297,20 +287,13 @@ export const ItemMenuProvider = ({children, onPlay, onOpenItem, backRef}) => {
 			case 'addToPlaylist':
 				setDialog({kind: 'playlist', item, api});
 				break;
-			case 'removeFromPlaylist':
-				if (playlist?.canManage) {
-					const removed = await playlist.remove(item);
-					if (removed !== false) {
-						notifyItemRemovedFromPlaylist(
-							canonicalServerKey(item, {serverUrl, userId: user?.Id}),
-							playlist.playlistId,
-							item.Id
-						);
-					}
-				} else {
-					await openPlaylistPicker();
+			case 'removeFromPlaylist': {
+				const removed = await playlist.remove(item);
+				if (removed !== false) {
+					notifyItemRemovedFromPlaylist(canonicalServerKey(item, {serverUrl, userId: user?.Id}), playlist.playlistId, item.Id);
 				}
 				break;
+			}
 			case 'removeFromPlaylistPicker':
 				await openPlaylistPicker();
 				break;
@@ -447,8 +430,6 @@ export const ItemMenuProvider = ({children, onPlay, onOpenItem, backRef}) => {
 				itemId={dialog?.item?.Id}
 				item={dialog?.item}
 				api={dialog?.api}
-				serverUrl={dialog?.item?._serverUrl || serverUrl}
-				userId={dialog?.item?._serverUserId || user?.Id}
 				onClose={closeDialog}
 				onSuccess={showToast}
 			/>
@@ -457,8 +438,6 @@ export const ItemMenuProvider = ({children, onPlay, onOpenItem, backRef}) => {
 				itemId={dialog?.item?.Id}
 				item={dialog?.item}
 				api={dialog?.api}
-				serverUrl={dialog?.item?._serverUrl || serverUrl}
-				userId={dialog?.item?._serverUserId || user?.Id}
 				onClose={closeDialog}
 				onSuccess={showToast}
 			/>
@@ -468,8 +447,6 @@ export const ItemMenuProvider = ({children, onPlay, onOpenItem, backRef}) => {
 				playlists={dialog?.playlists}
 				loading={Boolean(dialog?.loading)}
 				api={dialog?.api}
-				serverUrl={dialog?.item?._serverUrl || serverUrl}
-				userId={dialog?.item?._serverUserId || user?.Id}
 				onClose={closeDialog}
 				onSuccess={showToast}
 				backHandlerRef={removePlaylistBackRef}
@@ -479,8 +456,6 @@ export const ItemMenuProvider = ({children, onPlay, onOpenItem, backRef}) => {
 				item={dialog?.item}
 				collections={dialog?.collections}
 				api={dialog?.api}
-				serverUrl={dialog?.item?._serverUrl || serverUrl}
-				userId={dialog?.item?._serverUserId || user?.Id}
 				onClose={closeDialog}
 				onSuccess={showToast}
 				backHandlerRef={removeCollectionBackRef}
