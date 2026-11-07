@@ -83,6 +83,15 @@ describe('the Vega device profile', () => {
 		expect(getPlayMethod(source({SupportsDirectPlay: false}), capabilities)).toBe('DirectStream');
 	});
 
+	test('Dolby Vision with an HDR10 base layer, Profile 7 included, direct plays where HDR10 does', () => {
+		const dovi = (range) => source({MediaStreams: [{Type: 'Video', Codec: 'hevc', VideoRangeType: range}, {Type: 'Audio', Codec: 'aac', Index: 1}]});
+		for (const range of ['DOVIWithEL', 'DOVIWithELHDR10Plus', 'DOVIWithHDR10', 'DOVIInvalid']) {
+			expect(getPlayMethod(dovi(range), {...capabilities, hdr10: true})).toBe('DirectPlay');
+			expect(getPlayMethod(dovi(range), capabilities)).toBe('Transcode');
+		}
+		expect(getPlayMethod(dovi('DOVI'), {...capabilities, hdr10: true})).toBe('Transcode');
+	});
+
 	test("an audio track other than the first one has the server remux, since the WebView can't switch tracks", async () => {
 		const profile = await getJellyfinDeviceProfile();
 		expect(profile.CodecProfiles).toContainEqual({
