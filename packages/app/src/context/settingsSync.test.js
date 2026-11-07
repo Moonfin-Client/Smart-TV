@@ -616,7 +616,7 @@ describe('localToProfile for the seasonal effect', () => {
 
 describe('the seasonal row settings', () => {
 	test('are syncable', () => {
-		for (const key of ['seasonalRowEnabled', 'seasonalRowCountry', 'seasonalRowHiddenHolidays']) {
+		for (const key of ['seasonalRowEnabled', 'seasonalRowCountry', 'seasonalRowHiddenHolidays', 'seasonalRowAllYear']) {
 			expect(SYNCABLE_KEYS).toContain(key);
 		}
 	});

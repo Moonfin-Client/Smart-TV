@@ -143,10 +143,11 @@ const fetchSiloSeasonalRow = async () => {
 };
 
 // The seasonal row Moonbase built for this user. Owned movies arrive as library items and
-// suggestions in the custom row shape. A holiday of null means there is no row today.
-export const fetchSeasonalRow = async ({country} = {}) => {
+// suggestions in the custom row shape. A holiday of null means there's no row today. allYear
+// asks for a row outside the holiday dates too.
+export const fetchSeasonalRow = async ({country, allYear = false} = {}) => {
 	if (getServerType() === 'silo') return fetchSiloSeasonalRow();
-	const key = `${cacheScope()}|seasonal:${country || ''}`;
+	const key = `${cacheScope()}|seasonal:${country || ''}:${allYear}`;
 	const cached = cache[key];
 	if (cached && (Date.now() - cached.fetchedAt) < CACHE_TTL_MS) {
 		return cached.payload;
@@ -159,7 +160,8 @@ export const fetchSeasonalRow = async ({country} = {}) => {
 	const headers = {'Authorization': getAuthHeader()};
 
 	try {
-		const url = `${baseUrl}/Moonfin/Seasonal/Row` + (country ? `?country=${encodeURIComponent(country)}` : '');
+		const query = [country && `country=${encodeURIComponent(country)}`, allYear && 'allYear=true'].filter(Boolean).join('&');
+		const url = `${baseUrl}/Moonfin/Seasonal/Row` + (query ? `?${query}` : '');
 		const response = await mediaServerQueue.run(
 			() => fetchWithTimeout(url, {headers}, 10000)
 		);

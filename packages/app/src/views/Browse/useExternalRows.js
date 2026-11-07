@@ -119,7 +119,7 @@ const useExternalRows = ({settings, homeRows, kidsMode}) => {
 				let seasonalRow = null;
 				if (seasonalEnabled) {
 					const country = seasonalCountryParam(settings.seasonalRowCountry, await resolveDeviceCountry());
-					seasonalRow = buildSeasonalRow(await fetchSeasonalRow({country}), settings.seasonalRowHiddenHolidays || []);
+					seasonalRow = buildSeasonalRow(await fetchSeasonalRow({country, allYear: settings.seasonalRowAllYear === true}), settings.seasonalRowHiddenHolidays || []);
 				}
 
 				const allRows = [
@@ -202,7 +202,7 @@ const useExternalRows = ({settings, homeRows, kidsMode}) => {
 		};
 	}, [settings.useMoonfinPlugin, homeRows, kidsMode, settings.homeRows, settings.customHomeRows,
 		settings.uiLanguage, settings.mdblistWatchingNowEnabled,
-		settings.seasonalRowEnabled, settings.seasonalRowCountry, settings.seasonalRowHiddenHolidays,
+		settings.seasonalRowEnabled, settings.seasonalRowCountry, settings.seasonalRowHiddenHolidays, settings.seasonalRowAllYear,
 		settings.mergeRadarrSonarrCalendars,
 		settings.radarrCalendarShowCinema, settings.radarrCalendarShowDigital, settings.radarrCalendarShowPhysical,
 		settings.radarrCalendarShowDate, settings.sonarrCalendarShowDate, settings.sonarrCalendarShowEpisodeInfo,

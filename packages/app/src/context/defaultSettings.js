@@ -205,6 +205,7 @@ export const defaultSettings = {
 	seasonalRowEnabled: false,
 	seasonalRowCountry: 'auto',
 	seasonalRowHiddenHolidays: [],
+	seasonalRowAllYear: false,
 	sinceYouWatchedSource: 'local',
 	sinceYouWatchedSourceItem: 'recentlyWatched',
 	sinceYouWatchedSourceType: 'movies',
