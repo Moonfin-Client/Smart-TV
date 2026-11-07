@@ -11,6 +11,9 @@ export const MAX_BITRATE = 120_000_000;
 // These sticks decode 4K and scale it down themselves when they output 1080p.
 const UHD_MODELS = ['AFTCA002', 'AFTCR001'];
 
+// Amazon rates the Fire TV Stick HD's H.264 decoder up to Level 4.
+const H264_LEVEL_CAPS = {AFTCL001: '40'};
+
 let cachedCapabilities = null;
 let probeElement = null;
 
@@ -175,7 +178,7 @@ export const getJellyfinDeviceProfile = async () => {
 			Conditions: [
 				{Condition: 'EqualsAny', Property: 'VideoProfile', Value: 'high|main|baseline|constrained baseline', IsRequired: false},
 				{Condition: 'EqualsAny', Property: 'VideoRangeType', Value: 'SDR', IsRequired: false},
-				{Condition: 'LessThanEqual', Property: 'VideoLevel', Value: caps.uhd ? '51' : '42', IsRequired: false}
+				{Condition: 'LessThanEqual', Property: 'VideoLevel', Value: H264_LEVEL_CAPS[caps.modelName] || (caps.uhd ? '51' : '42'), IsRequired: false}
 			]
 		},
 		{

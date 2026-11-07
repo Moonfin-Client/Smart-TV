@@ -47,11 +47,13 @@ describe('the Vega device profile', () => {
 		expect(capabilities.nativeHls).toBe(true);
 	});
 
-	test('only the 4K sticks take 4K over a 1080p output', async () => {
+	test('the HD stick gets neither 4K over a 1080p output nor H.264 above Level 4', async () => {
 		jest.spyOn(window.HTMLMediaElement.prototype, 'canPlayType').mockImplementation(canPlayType);
 		Object.defineProperty(window.navigator, 'userAgent', {value: STICK_UA.replace('AFTCR001', 'AFTCL001'), configurable: true});
 		clearCapabilitiesCache();
 		expect((await getDeviceCapabilities()).uhd).toBe(false);
+		const h264 = (await getJellyfinDeviceProfile()).CodecProfiles.find((p) => p.Codec === 'h264');
+		expect(h264.Conditions.find((c) => c.Property === 'VideoLevel').Value).toBe('40');
 
 		// The tests after this one read the 3rd Gen stick's cached answer.
 		Object.defineProperty(window.navigator, 'userAgent', {value: STICK_UA, configurable: true});

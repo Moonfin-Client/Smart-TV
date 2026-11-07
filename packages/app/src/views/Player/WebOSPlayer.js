@@ -108,7 +108,7 @@ import {
 	remoteSubtitleNotAppearedMessage
 } from './remoteSubtitleUtils';
 import {getVideoDisplayAspectRatio, getZoomDisplayRect} from './aspectRatioUtils';
-import {describeVideoStream, readVideoSupport} from './videoDiagnostics';
+import {describeStreamUrl, describeVideoStream, readVideoSupport} from './videoDiagnostics';
 import useRemotePlayerControls from './useRemotePlayerControls';
 import {registerThemeSheet} from '../../theme/themeOverrides';
 
@@ -954,17 +954,19 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 	const [sourceRevision, setSourceRevision] = useState(0);
 	const directAllowed = !forceTranscode && !settings.preferTranscode;
 
-	const releaseLiveChannel = useCallback(async () => {
+	const tearDownLiveStream = useCallback(async () => {
 		isCleaningUpRef.current = true;
 		destroyHlsPlayer();
 		await cleanupVideoElement(videoRef.current);
-		await playback.reportStop(positionRef.current);
 	}, []);
 
+	const releaseLiveChannel = useCallback(async () => {
+		await tearDownLiveStream();
+		await playback.reportStop(positionRef.current);
+	}, [tearDownLiveStream]);
+
 	const reResolveLiveChannel = useCallback(async (route) => {
-		isCleaningUpRef.current = true;
-		destroyHlsPlayer();
-		await cleanupVideoElement(videoRef.current);
+		await tearDownLiveStream();
 		const result = await reopenLiveChannel({
 			item,
 			mediaSourceId,
@@ -983,12 +985,19 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 		setMimeType(result.mimeType || 'video/mp4');
 		setMediaUrl(result.url);
 		setSourceRevision((revision) => revision + 1);
-	}, [item, playMethod, selectedQuality, settings.maxBitrate, settings.stereoUpmixEnabled, mediaSourceId, directAllowed]);
+	}, [tearDownLiveStream, item, playMethod, selectedQuality, settings.maxBitrate, settings.stereoUpmixEnabled, mediaSourceId, directAllowed]);
+
+	const reloadLiveChannel = useCallback(async () => {
+		await tearDownLiveStream();
+		isCleaningUpRef.current = false;
+		setSourceRevision((revision) => revision + 1);
+	}, [tearDownLiveStream]);
 
 	const {recovery: liveRecovery, reconnecting} = useLiveRecovery({
 		isLiveTV,
 		itemId: item.Id,
 		reResolve: reResolveLiveChannel,
+		reload: reloadLiveChannel,
 		release: releaseLiveChannel,
 		onLost: () => setError($L('Failed to play {name}').replace('{name}', item.Name || '')),
 		isDirectPlay: () => playMethod === playback.PlayMethod.DirectPlay
@@ -2370,7 +2379,21 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 		// A decode error is the file's and goes on below. While a reconnect runs, its own attempts' failures are its to
 		// count.
 		// A source that never played (a track or quality the set can't play) is for the fallbacks below.
-		const code = videoRef.current?.error?.code;
+		const mediaError = videoRef.current?.error;
+		const code = mediaError?.code;
+		if (mediaError && !isCleaningUpRef.current) {
+			serverLogger.playback('Playback: the player reported an error', {
+				code,
+				message: mediaError.message || null,
+				playMethod,
+				mimeType,
+				stream: describeStreamUrl(mediaUrl),
+				decoded: {width: videoRef.current.videoWidth, height: videoRef.current.videoHeight},
+				readyState: videoRef.current.readyState,
+				networkState: videoRef.current.networkState,
+				position: videoRef.current.currentTime
+			});
+		}
 		if (!isPaused && canReconnect() &&
 			(reconnect.reconnecting || code === 2 || (code === 4 && sourcePlayedRef.current))) {
 			playbackStartTimedOutRef.current = false;
@@ -2553,7 +2576,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 		} finally {
 			isHandlingErrorRef.current = false;
 		}
-	}, [hasTriedTranscode, playMethod, item, selectedQuality, settings.maxBitrate, settings.stereoUpmixEnabled, mediaSourceId, isPaused, isLiveTV, videoQueue, onPlayNext, liveRecovery, canReconnect, reconnect]);
+	}, [hasTriedTranscode, playMethod, mimeType, mediaUrl, item, selectedQuality, settings.maxBitrate, settings.stereoUpmixEnabled, mediaSourceId, isPaused, isLiveTV, videoQueue, onPlayNext, liveRecovery, canReconnect, reconnect]);
 
 	useEffect(() => {
 		handlersRef.current = {

@@ -6,6 +6,10 @@
 // next failure gives the channel up. A clean minute since the last attempt
 // restores the budget, and so does a recovered channel playing for 20s.
 //
+// A stream the player turns away is still being made by the server, so short
+// of the last attempt it's opened again as it is. Re-resolving would restart
+// the tuner and the transcode only to send the same stream back.
+//
 // Gaps are measured from the end of the previous attempt, since a tune can
 // itself take 17s or more: 4s before attempt 1 and the give up, then 10s and
 // 20s so a restarting server can come back.
@@ -37,6 +41,8 @@ const gapBefore = (attempt) => {
  * @param {Object} options
  * @param {Function} options.reResolve - asks the server for the channel again and opens the new
  *   stream, taking {disableDirectPlay, forceTranscode}. It throws when the channel cant be had.
+ * @param {Function} [options.reload] - opens the stream the server is already making again, keeping the
+ *   tuner and the transcode. Without it every attempt re-resolves.
  * @param {Function} options.release - stops the player and reports the stop, which frees the tuner
  * @param {Function} options.onLost - shows that the channel is gone and offers Retry
  * @param {Function} options.onStatus - receives {attempt, maxAttempts} while an attempt is under
@@ -49,6 +55,7 @@ const gapBefore = (attempt) => {
  */
 export const createLiveRecovery = ({
 	reResolve,
+	reload,
 	release,
 	onLost,
 	onStatus,
@@ -233,12 +240,17 @@ export const createLiveRecovery = ({
 			player.playing = false;
 			player.buffering = false;
 			const serverServed = attempt >= LIVE_RECOVERY_MAX_ATTEMPTS;
-			const forceTranscode = serverServed && !isDirectPlay();
-			let route = '';
-			if (forceTranscode) route = ', forcing a transcode since the server already serves it';
-			else if (serverServed) route = ' without direct play, letting the server serve it';
-			log(`Live recovery: ${trigger}, attempt ${attempt} of ${LIVE_RECOVERY_MAX_ATTEMPTS}, re-resolving the channel${route}`);
-			await reResolve({disableDirectPlay: serverServed, forceTranscode});
+			if (reload && trigger === 'source-error' && !serverServed && !isDirectPlay()) {
+				log(`Live recovery: ${trigger}, attempt ${attempt} of ${LIVE_RECOVERY_MAX_ATTEMPTS}, reopening the stream the server is already making`);
+				await reload();
+			} else {
+				const forceTranscode = serverServed && !isDirectPlay();
+				let route = '';
+				if (forceTranscode) route = ', forcing a transcode since the server already serves it';
+				else if (serverServed) route = ' without direct play, letting the server serve it';
+				log(`Live recovery: ${trigger}, attempt ${attempt} of ${LIVE_RECOVERY_MAX_ATTEMPTS}, re-resolving the channel${route}`);
+				await reResolve({disableDirectPlay: serverServed, forceTranscode});
+			}
 			if (armedFor === intent) openStream();
 		} catch (err) {
 			// The source is gone rather than stalled. Only the last attempt gives up,
