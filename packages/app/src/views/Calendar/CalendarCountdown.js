@@ -43,10 +43,10 @@ const Countdown = ({target, now}) => {
 	);
 };
 
-const Hero = ({entry: e, counting, c, look, actions, clockDisplay, onOpenMonth}) => {
+const Hero = ({entry: e, counting, c, look, actions, clockDisplay, dateFormat, onOpenMonth}) => {
 	const spoilers = c.hidesSpoilers(e);
 	const kicker = counting
-		? [look.badgeOf(e), calendarWhen(e, c.today, clockDisplay)].filter(Boolean).join(' · ')
+		? [look.badgeOf(e), calendarWhen(e, c.today, clockDisplay, dateFormat)].filter(Boolean).join(' · ')
 		: $L('Ready to watch');
 	const subtitle = calendarSubtitle(e, spoilers);
 	const art = e.backdropUrl || (!spoilers ? e.stillUrl : null);
@@ -80,7 +80,7 @@ const Hero = ({entry: e, counting, c, look, actions, clockDisplay, onOpenMonth})
 	);
 };
 
-const Card = memo(({entry: e, poster, look, now, today, spoilers, clockDisplay, onSelect}) => {
+const Card = memo(({entry: e, poster, look, now, today, spoilers, clockDisplay, dateFormat, onSelect}) => {
 	const handleClick = useCallback(() => onSelect(e), [e, onSelect]);
 	// Centered in its row, and the row in the page.
 	const handleFocus = useCallback((ev) => {
@@ -89,7 +89,7 @@ const Card = memo(({entry: e, poster, look, now, today, spoilers, clockDisplay, 
 		centerIn(scroller, card, true, scroller.parentElement);
 		centerIn(card.closest(`.${css.countdownScroller}`), card);
 	}, []);
-	const line = inLibrary(e) ? calendarSubtitle(e, spoilers) : calendarWhen(e, today, clockDisplay);
+	const line = inLibrary(e) ? calendarSubtitle(e, spoilers) : calendarWhen(e, today, clockDisplay, dateFormat);
 	return (
 		<SpottableDiv className={`${css.card} ${poster ? css.cardPoster : css.cardThumb}`} onClick={handleClick} onFocus={handleFocus} spotlightId={`calendar-card-${e.key}`}>
 			<CalendarArt url={poster ? e.posterUrl : thumbOf(e, spoilers)} icon={artIcon(e)} className={css.cardArt} thumb />
@@ -99,12 +99,12 @@ const Card = memo(({entry: e, poster, look, now, today, spoilers, clockDisplay, 
 	);
 });
 
-const Row = ({title, entries, poster, c, look, clockDisplay, onSelect, spotlightId}) => (
+const Row = ({title, entries, poster, c, look, clockDisplay, dateFormat, onSelect, spotlightId}) => (
 	<div className={css.cardRow}>
 		<div className={css.cardRowTitle}>{title}</div>
 		<RowContainer className={css.cardScroller} spotlightId={spotlightId}>
 			{entries.map((e) => (
-				<Card key={e.key} entry={e} poster={poster} look={look} now={c.now} today={c.today} spoilers={c.hidesSpoilers(e)} clockDisplay={clockDisplay} onSelect={onSelect} />
+				<Card key={e.key} entry={e} poster={poster} look={look} now={c.now} today={c.today} spoilers={c.hidesSpoilers(e)} clockDisplay={clockDisplay} dateFormat={dateFormat} onSelect={onSelect} />
 			))}
 		</RowContainer>
 	</div>
@@ -138,6 +138,7 @@ const CalendarCountdown = ({c, look, actions: baseActions, onOpenMonth: baseOpen
 	}), [baseActions, remember]);
 	const onOpenMonth = useMemo(() => remember(baseOpenMonth), [baseOpenMonth, remember]);
 	const clockDisplay = settings.clockDisplay;
+	const dateFormat = settings.dateFormat;
 	const next = nextOf(c.entries, c.now);
 	const ready = readyToWatchOf(c.entries, c.today);
 	const hero = next || ready[0] || null;
@@ -170,12 +171,12 @@ const CalendarCountdown = ({c, look, actions: baseActions, onOpenMonth: baseOpen
 	const poster = settings.calendarImageType !== 'thumb';
 	return (
 		<div className={`${css.countdownPage} ${css.countdownScroller}`}>
-			<Hero entry={hero} counting={Boolean(next)} c={c} look={look} actions={actions} clockDisplay={clockDisplay} onOpenMonth={onOpenMonth} />
+			<Hero entry={hero} counting={Boolean(next)} c={c} look={look} actions={actions} clockDisplay={clockDisplay} dateFormat={dateFormat} onOpenMonth={onOpenMonth} />
 			{week.length > 0 && (
-				<Row title={$L('Coming up this week')} entries={week} poster={poster} c={c} look={look} clockDisplay={clockDisplay} onSelect={handleSelect} spotlightId={settingsPreview ? undefined : 'calendar-week-row'} />
+				<Row title={$L('Coming up this week')} entries={week} poster={poster} c={c} look={look} clockDisplay={clockDisplay} dateFormat={dateFormat} onSelect={handleSelect} spotlightId={settingsPreview ? undefined : 'calendar-week-row'} />
 			)}
 			{readyRow.length > 0 && (
-				<Row title={$L('Ready to watch')} entries={readyRow} poster={false} c={c} look={look} clockDisplay={clockDisplay} onSelect={handleSelect} spotlightId={settingsPreview ? undefined : 'calendar-ready-row'} />
+				<Row title={$L('Ready to watch')} entries={readyRow} poster={false} c={c} look={look} clockDisplay={clockDisplay} dateFormat={dateFormat} onSelect={handleSelect} spotlightId={settingsPreview ? undefined : 'calendar-ready-row'} />
 			)}
 		</div>
 	);

@@ -85,6 +85,12 @@ describe('profileToLocal', () => {
 		expect(profileToLocal({mediaBarNewReleaseDays: 45}).mediaBarNewReleaseDays).toBeUndefined();
 	});
 
+	test("takes the other clients' date format", () => {
+		expect(profileToLocal({dateFormat: 'dayMonth'}).dateFormat).toBe('dayMonth');
+		expect(profileToLocal({dateFormat: 'monthDay'}).dateFormat).toBe('monthDay');
+		expect(profileToLocal({dateFormat: 'yearFirst'}).dateFormat).toBeUndefined();
+	});
+
 	test('ignores a screensaver mode this app has no way to draw', () => {
 		expect(profileToLocal({screensaverMode: 'off'}).screensaverMode).toBeUndefined();
 		expect(profileToLocal({screensaverMode: 'logo'}).screensaverMode).toBe('logo');

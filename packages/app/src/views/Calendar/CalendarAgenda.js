@@ -4,7 +4,7 @@ import Spotlight from '@enact/spotlight';
 import Spottable from '@enact/spotlight/Spottable';
 import {useSettings} from '../../context/SettingsContext';
 import {uiLocale} from '../../utils/uiLocale';
-import {formatDayLabel} from '../../utils/clock';
+import {formatShortDayName} from '../../utils/dateFormat';
 import {inLibrary, recentOf, sameDay, upcomingOf} from '../../utils/calendarEntries';
 import {
 	CalendarArt, CalendarButton, CalendarTag, artIcon, calendarDayName, calendarSubtitle, calendarTime, calendarWhen, centerIn, focusedSpotlightId, thumbOf, titleButton
@@ -66,13 +66,13 @@ const stayPut = (ev) => {
 
 const longDate = (day) => day.toLocaleDateString(uiLocale(), {month: 'long', day: 'numeric'});
 
-const DayHeader = ({day, today, accent, first}) => {
-	const name = calendarDayName(day, today);
+const DayHeader = ({day, today, dateFormat, accent, first}) => {
+	const name = calendarDayName(day, today, dateFormat);
 	const isToday = sameDay(day, today);
 	return (
 		<div className={`${css.dayHeader} ${first ? css.dayHeaderFirst : ''}`}>
 			<span className={css.dayName} style={isToday ? {color: accent} : undefined}>{name}</span>
-			{name !== formatDayLabel(day) && <span className={css.dayDate}>{longDate(day)}</span>}
+			{name !== formatShortDayName(day, dateFormat) && <span className={css.dayDate}>{longDate(day)}</span>}
 		</div>
 	);
 };
@@ -101,9 +101,9 @@ const calendarHasFocus = () => {
 let returnTo = null;
 
 /** The pane beside the list for the focused entry. */
-const Preview = ({entry: e, c, look, actions, clockDisplay, onBackToList}) => {
+const Preview = ({entry: e, c, look, actions, clockDisplay, dateFormat, onBackToList}) => {
 	const spoilers = c.hidesSpoilers(e);
-	const kicker = [look.badgeOf(e), calendarWhen(e, c.today, clockDisplay)].filter(Boolean).join(' · ');
+	const kicker = [look.badgeOf(e), calendarWhen(e, c.today, clockDisplay, dateFormat)].filter(Boolean).join(' · ');
 	const subtitle = calendarSubtitle(e, spoilers);
 	const art = (!spoilers && e.stillUrl) || e.backdropUrl;
 	const buttons = [];
@@ -147,6 +147,7 @@ const Preview = ({entry: e, c, look, actions, clockDisplay, onBackToList}) => {
 const CalendarAgenda = ({c, look, actions: baseActions, onOpenMonth: baseOpenMonth, settingsPreview}) => {
 	const {settings} = useSettings();
 	const clockDisplay = settings.clockDisplay;
+	const dateFormat = settings.dateFormat;
 	// The settings preview leaves the place Back returns to for the screen itself.
 	const kept = settingsPreview ? null : returnTo;
 	const [recent, setRecent] = useState(() => Boolean(kept?.recent));
@@ -220,7 +221,7 @@ const CalendarAgenda = ({c, look, actions: baseActions, onOpenMonth: baseOpenMon
 	const rows = [];
 	list.forEach((e, i) => {
 		if (!lastDay || !sameDay(lastDay, e.day)) {
-			rows.push(<DayHeader key={`day-${e.day.getTime()}`} day={e.day} today={c.today} accent={look.accent} first={!lastDay} />);
+			rows.push(<DayHeader key={`day-${e.day.getTime()}`} day={e.day} today={c.today} dateFormat={dateFormat} accent={look.accent} first={!lastDay} />);
 			lastDay = e.day;
 		}
 		rows.push(
@@ -254,7 +255,7 @@ const CalendarAgenda = ({c, look, actions: baseActions, onOpenMonth: baseOpenMon
 				</CalendarState>
 			</div>
 			<div className={css.previewPane}>
-				{preview && <Preview entry={preview} c={c} look={look} actions={actions} clockDisplay={clockDisplay} onBackToList={backToList} />}
+				{preview && <Preview entry={preview} c={c} look={look} actions={actions} clockDisplay={clockDisplay} dateFormat={dateFormat} onBackToList={backToList} />}
 			</div>
 		</div>
 	);

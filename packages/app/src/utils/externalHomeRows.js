@@ -400,7 +400,7 @@ const fetchRadarrItems = async (settings) => {
 		const tmdbId = m.tmdbId ? String(m.tmdbId) : null;
 		const imdbId = m.imdbId || null;
 
-		const release = airsText(releaseDay(soonest), today);
+		const release = airsText(releaseDay(soonest), today, settings.dateFormat);
 		const subtitle = settings.radarrCalendarShowDate ? (showFormat ? `${format} \u00b7 ${release}` : release) : '';
 		const fanart = m.images?.find((i) => i.coverType === 'fanart');
 
@@ -468,7 +468,7 @@ const fetchSonarrItems = async (settings) => {
 		const tmdbId = series.tmdbId ? String(series.tmdbId) : null;
 		const imdbId = series.imdbId || null;
 		const epInfo = settings.sonarrCalendarShowEpisodeInfo ? `S${ep.seasonNumber ?? 0}:E${ep.episodeNumber ?? 0}` : '';
-		const dateStr = settings.sonarrCalendarShowDate ? airsText(new Date(air), today) : '';
+		const dateStr = settings.sonarrCalendarShowDate ? airsText(new Date(air), today, settings.dateFormat) : '';
 		const subtitle = [epInfo, dateStr].filter(Boolean).join(' \u00b7 ');
 		const fanart = series.images?.find((i) => i.coverType === 'fanart');
 

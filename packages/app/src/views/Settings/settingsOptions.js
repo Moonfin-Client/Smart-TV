@@ -29,6 +29,12 @@ export const getMediaBarSourceOptions = () => [
 	{ value: 'newReleases', label: $L('New Seasons & Episodes') }
 ];
 
+export const getDateFormatOptions = () => [
+	{ value: 'system', label: $L('Locale Default') },
+	{ value: 'monthDay', label: $L('Month / Day (Nov 10)') },
+	{ value: 'dayMonth', label: $L('Day / Month (10 Nov)') }
+];
+
 export const getNewReleaseDaysOptions = () => [
 	{ value: 7, label: $L('7 days') },
 	{ value: 14, label: $L('14 days') },

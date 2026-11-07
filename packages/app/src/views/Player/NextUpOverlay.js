@@ -3,6 +3,7 @@ import {SpottableButton} from './PlayerConstants';
 import {CountdownRing, PlayGlyph, formatRemaining, useOverlayFocus} from './overlayParts';
 import AnimeMarkerPills, {useEpisodeMarker, hasAnimeMarkerPills} from '../../components/AnimeMarkerPills';
 import {airsText} from '../../utils/calendarEntries';
+import {useSettings} from '../../context/SettingsContext';
 
 import css from './NextUpOverlay.module.less';
 
@@ -25,6 +26,7 @@ const episodeLabel = (episode) => {
  * airs, with the close button as its only one.
  */
 const NextUpOverlay = ({episode, airDate, imageUrl, serverUrl, countdown, timeout, countdownStyle, minimal, onPlay, onDismiss}) => {
+	const {settings} = useSettings();
 	useOverlayFocus(airDate ? 'next-up-dismiss-btn' : 'next-up-play-btn');
 
 	const counting = !airDate && countdown != null && timeout > 0;
@@ -51,7 +53,7 @@ const NextUpOverlay = ({episode, airDate, imageUrl, serverUrl, countdown, timeou
 						</div>
 					)}
 					<div className={css.title}>{airDate ? airDate.title : episode?.Name}</div>
-					{airDate && <div className={css.airs}>{airsText(airDate.date)}</div>}
+					{airDate && <div className={css.airs}>{airsText(airDate.date, new Date(), settings.dateFormat)}</div>}
 					{showTimer && (
 						<div className={css.timer}>
 							{$L('Ends in {time}').replace('{time}', formatRemaining(countdown))}

@@ -12,6 +12,7 @@ import {normalizeSeasonalHiddenHolidays, normalizeSeasonalRowCountry} from '../u
 import {sharePending} from '../utils/sharePending';
 import {pickedRowsFromLegacySections} from '../utils/pickedRows';
 import {LEGACY_MEDIA_BAR_SOURCES, MEDIA_BAR_SOURCES, NEW_RELEASE_DAYS} from '../utils/mediaBarNewRelease';
+import {DATE_FORMATS} from '../utils/dateFormat';
 import {
 	IMAGES as LOADING_IMAGES,
 	POSITIONS as LOADING_POSITIONS,
@@ -170,6 +171,7 @@ const VALUE_CONVERSIONS = {
 		toServer: v => v === '24-hour',
 		fromServer: v => v ? '24-hour' : '12-hour'
 	},
+	dateFormat: oneOf(DATE_FORMATS),
 	focusBorderColor: {
 		toServer: v => (v ? FOCUS_COLOR_NAMES.find((name) => FOCUS_COLORS[name] === v.toLowerCase()) : ''),
 		fromServer: (v) => {
@@ -310,7 +312,7 @@ export const SYNCABLE_KEYS = [
 	'homeRowsShowRatingLabels', 'homeRowsShowRatingBadges',
 	'mediaBarMdblistEnabled', 'mediaBarMdblistRatingSources', 'mediaBarShowRatingLabels', 'mediaBarShowRatingBadges',
 	'themeMusicEnabled', 'themeMusicVolume', 'themeMusicOnHomeRows',
-	'homeRowsImageType', 'homeRowImageTypes', 'showClock', 'clockDisplay',
+	'homeRowsImageType', 'homeRowImageTypes', 'showClock', 'clockDisplay', 'dateFormat',
 	'homeRowOverlay',
 	'excludedGenres',
 	'autoAdvance', 'autoAdvanceInterval',

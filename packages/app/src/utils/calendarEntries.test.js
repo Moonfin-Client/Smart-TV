@@ -287,4 +287,10 @@ describe('airsText', () => {
 		expect(airsText(new Date(2026, 10, 6, 0, 10), now)).toBe('Tomorrow (Nov 6)');
 		expect(airsText(new Date(2026, 10, 8), now)).toBe('In 3 days (Nov 8)');
 	});
+
+	it('puts the date in the order the Date Format setting picks', () => {
+		const now = new Date(2026, 10, 5, 23, 30);
+		expect(airsText(new Date(2026, 10, 8), now, 'dayMonth')).toBe('In 3 days (8 Nov)');
+		expect(airsText(new Date(2026, 10, 8), now, 'monthDay')).toBe('In 3 days (Nov 8)');
+	});
 });

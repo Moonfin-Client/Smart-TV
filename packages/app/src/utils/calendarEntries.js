@@ -2,7 +2,7 @@
 // Calendar screen filters and draws.
 
 import $L from '@enact/i18n/$L';
-import {uiLocale} from './uiLocale';
+import {formatShortDate} from './dateFormat';
 
 export const BADGE = {
 	seriesPremiere: 'seriesPremiere',
@@ -305,8 +305,8 @@ export const daysBetween = (from, to) => Math.round(
 );
 
 /** Like "Today (Nov 3)" or "In 6 days (Nov 11)". */
-export const airsText = (date, now = new Date()) => {
+export const airsText = (date, now = new Date(), dateFormat) => {
 	const days = daysBetween(now, date);
 	const when = days === 0 ? $L('Today') : days === 1 ? $L('Tomorrow') : $L('In {days} days').replace('{days}', String(days));
-	return `${when} (${date.toLocaleDateString(uiLocale(), {month: 'short', day: 'numeric'})})`;
+	return `${when} (${formatShortDate(date, dateFormat)})`;
 };

@@ -109,7 +109,8 @@ const useExternalRows = ({settings, homeRows, kidsMode}) => {
 					radarrCalendarHideDownloaded: settings.radarrCalendarHideDownloaded,
 					sonarrCalendarShowDate: settings.sonarrCalendarShowDate,
 					sonarrCalendarShowEpisodeInfo: settings.sonarrCalendarShowEpisodeInfo,
-					sonarrCalendarHideDownloaded: settings.sonarrCalendarHideDownloaded
+					sonarrCalendarHideDownloaded: settings.sonarrCalendarHideDownloaded,
+					dateFormat: settings.dateFormat
 				};
 				const calendarRows = calendarsEnabled ? await fetchCalendarRows(calendarSettings, {radarrEnabled, sonarrEnabled}) : [];
 
@@ -205,7 +206,7 @@ const useExternalRows = ({settings, homeRows, kidsMode}) => {
 		settings.mergeRadarrSonarrCalendars,
 		settings.radarrCalendarShowCinema, settings.radarrCalendarShowDigital, settings.radarrCalendarShowPhysical,
 		settings.radarrCalendarShowDate, settings.sonarrCalendarShowDate, settings.sonarrCalendarShowEpisodeInfo,
-		settings.radarrCalendarHideDownloaded, settings.sonarrCalendarHideDownloaded,
+		settings.radarrCalendarHideDownloaded, settings.sonarrCalendarHideDownloaded, settings.dateFormat,
 		settings.imdbRowsSortBy, settings.imdbRowsSortOrder, settings.tmdbRowsSortBy, settings.tmdbRowsSortOrder]);
 
 	return {rows: externalRows, pending};

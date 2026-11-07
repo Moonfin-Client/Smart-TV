@@ -27,6 +27,7 @@ import {
 	getBookLibraryStyleOptions,
 	getKeyboardStyleOptions,
 	getLibraryStyleOptions,
+	getDateFormatOptions,
 	getMediaBarSourceOptions,
 	getMediaPreviewModeOptions,
 	getMusicLibraryStyleOptions,
@@ -359,6 +360,7 @@ export const SETTINGS_SCHEMA = [
 						isOn: (ctx) => ctx.settings.clockDisplay === '24-hour',
 						onToggle: (ctx) => ctx.actions.setSetting('clockDisplay', ctx.settings.clockDisplay === '24-hour' ? '12-hour' : '24-hour')
 					},
+					{kind: KIND.OPTION, key: 'dateFormat', label: () => $L('Date Format'), desc: () => $L('Choose between month-day, day-month, or locale default for calendar and release dates'), options: getDateFormatOptions, fallback: () => $L('Locale Default'), icon: 'calendar_today_outlined', padded: true},
 					{kind: KIND.SLIDER, key: 'timeOffsetHours', label: () => $L('Clock Offset'), desc: () => $L('Correct the clock when the TV reports the wrong time'), min: -12, max: 12, step: 1, format: hourOffset, icon: 'more_time'},
 					{kind: KIND.SECTION, id: 'input', label: () => $L('Input')},
 					{kind: KIND.OPTION, key: 'keyboardStyle', label: () => $L('Keyboard Style'), desc: () => $L("Native uses your TV's own keyboard. Classic is the original Moonfin keyboard. Glass is a frosted panel with larger keys. Docked fills the bottom of the screen and shows what you type above the keys."), options: getKeyboardStyleOptions, fallback: () => $L('Docked'), icon: 'keyboard_alt_outlined'},
