@@ -622,7 +622,7 @@ export const SETTINGS_SCHEMA = [
 						label: () => $L('Source Collections'),
 						desc: (ctx) => (Array.isArray(ctx.settings.mediaBarCollectionIds) && ctx.settings.mediaBarCollectionIds.length > 0
 							? countLabel(ctx.settings.mediaBarCollectionIds.length)
-							: $L('All collections')),
+							: $L('None selected')),
 						icon: 'collections_bookmark',
 						action: (ctx) => ctx.actions.openMediaBarCollections()
 					},

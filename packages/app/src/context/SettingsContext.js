@@ -11,7 +11,7 @@ import {SEASONAL_DENSITIES, normalizeSeasonalTheme} from '../utils/seasonalEffec
 import {normalizeSeasonalHiddenHolidays, normalizeSeasonalRowCountry} from '../utils/seasonalRow';
 import {sharePending} from '../utils/sharePending';
 import {pickedRowsFromLegacySections} from '../utils/pickedRows';
-import {MEDIA_BAR_SOURCES, NEW_RELEASE_DAYS} from '../utils/mediaBarNewRelease';
+import {LEGACY_MEDIA_BAR_SOURCES, MEDIA_BAR_SOURCES, NEW_RELEASE_DAYS} from '../utils/mediaBarNewRelease';
 import {
 	IMAGES as LOADING_IMAGES,
 	POSITIONS as LOADING_POSITIONS,
@@ -201,9 +201,8 @@ const VALUE_CONVERSIONS = {
 		toServer: v => CONTENT_TYPE_TO_SERVER[v],
 		fromServer: v => CONTENT_TYPE_FROM_SERVER[v]
 	},
-	// Other clients save the plain library draw as random.
 	mediaBarSourceType: {
-		fromServer: v => (v === 'random' ? 'library' : MEDIA_BAR_SOURCES.includes(v) ? v : undefined)
+		fromServer: v => (MEDIA_BAR_SOURCES.includes(v) ? v : LEGACY_MEDIA_BAR_SOURCES.includes(v) ? 'random' : undefined)
 	},
 	mediaBarNewReleaseDays: oneOf(NEW_RELEASE_DAYS),
 	liveTvChannelSortBy: {
@@ -725,6 +724,10 @@ export function SettingsProvider({children}) {
 				if (stored.trickPlayEnabled === false && stored.trickPlayMode === undefined) {
 					// Was a switch before it became a choice of how the preview shows.
 					stored.trickPlayMode = 'disabled';
+					migrated = true;
+				}
+				if (LEGACY_MEDIA_BAR_SOURCES.includes(stored.mediaBarSourceType)) {
+					stored.mediaBarSourceType = 'random';
 					migrated = true;
 				}
 				const navbarColorKey = normalizeOverlayColorKey(stored.navbarColor);

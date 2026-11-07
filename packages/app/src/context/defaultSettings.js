@@ -165,7 +165,7 @@ export const defaultSettings = {
 	mediaBarTrailerCaptions: false,
 	mediaBarOverlayColor: 'gray',
 	mediaBarOverlayOpacity: 50,
-	mediaBarSourceType: 'library',
+	mediaBarSourceType: 'random',
 	mediaBarNewReleaseBanner: true,
 	mediaBarNewReleaseDays: 30,
 	mediaBarLibraryIds: [],

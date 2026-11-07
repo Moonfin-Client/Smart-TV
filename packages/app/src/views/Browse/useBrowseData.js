@@ -139,14 +139,16 @@ const useBrowseData = ({
 			memoryCache.featuredConfigKey = configKey;
 			dispatch({type: 'SET_FEATURED_ITEMS', items});
 		};
-		const sourceType = s.mediaBarSourceType || 'library';
+		const sourceType = s.mediaBarSourceType || 'random';
 		// The saved picks sync across servers and can name a library access has since been revoked
 		// for, so only what this server still offers and the policy still allows is trusted.
 		const views = unifiedMode || !s.mediaBarLibraryIds?.length ? null : (await api.getLibraries().catch(() => null))?.Items;
 		const onThisServer = (s.mediaBarLibraryIds || []).filter((id) => !views || views.some((view) => view.Id === id));
 		const libraryIds = await retainPermitted(api, onThisServer);
 		const collectionIds = s.mediaBarCollectionIds || [];
-		const hasSourceFilter = (sourceType === 'collection' && collectionIds.length > 0) || libraryIds.length > 0;
+		// The picked libraries and collections draw as one pool, whatever the source type.
+		const sourceIds = [...libraryIds, ...collectionIds];
+		const hasSourceFilter = sourceIds.length > 0;
 		// Kids Mode hides every outside list on Home, and the lists come through the plugin.
 		const externalIds = s.useMoonfinPlugin && !isKidsMode(s) ? s.mediaBarExternalLists || [] : [];
 		const mixInExternal = (picked) => withExternalSlides(picked, externalIds, s, {serverUrl, accessToken});
@@ -181,17 +183,19 @@ const useBrowseData = ({
 			if (items.length === 0 && datedSource && !unifiedMode) {
 				const options = {contentType: s.featuredContentType, days: s.mediaBarNewReleaseDays};
 				const readSource = async (parentId) => ({Items: await readDatedSource(api, sourceType, parentId, options)});
-				items = pickFrom(await readFeaturedSources(libraryIds.length > 0 ? libraryIds : [null], readSource, isUsable, count));
+				items = pickFrom(await readFeaturedSources(hasSourceFilter ? sourceIds : [null], readSource, isUsable, count));
 			}
 
 			// A dated source with nothing in its window shows random titles instead.
 			if (items.length === 0) {
-				if (sourceType === 'collection' && collectionIds.length > 0) {
-					items = pickFrom(await readFeaturedSources(collectionIds, (cid) => api.getCollectionItems(cid, 50), isUsable, count));
-				} else if (unifiedMode) {
+				// Picked collections live on this server, so they keep the draw on it.
+				if (unifiedMode && collectionIds.length === 0) {
 					items = await connectionPool.getRandomItemsFromAllServers(s.featuredContentType, count, libraryIds);
-				} else if (libraryIds.length > 0) {
-					items = pickFrom(await readFeaturedSources(libraryIds, (lid) => api.getRandomItems(s.featuredContentType, count * 2, lid), isUsable, count));
+				} else if (hasSourceFilter) {
+					const readSource = (id) => (collectionIds.includes(id)
+						? api.getCollectionItems(id, 50)
+						: api.getRandomItems(s.featuredContentType, count * 2, id));
+					items = pickFrom(await readFeaturedSources(sourceIds, readSource, isUsable, count));
 				} else {
 					const randomItems = await api.getRandomItems(s.featuredContentType, count);
 					items = randomItems?.Items || [];

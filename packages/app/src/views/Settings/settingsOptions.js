@@ -23,8 +23,7 @@ export const getContentTypeOptions = () => [
 ];
 
 export const getMediaBarSourceOptions = () => [
-	{ value: 'library', label: $L('Random') },
-	{ value: 'collection', label: $L('Collections') },
+	{ value: 'random', label: $L('Random') },
 	{ value: 'recentlyAdded', label: $L('Recently Added') },
 	{ value: 'recentlyReleased', label: $L('Recently Released') },
 	{ value: 'newReleases', label: $L('New Seasons & Episodes') }
