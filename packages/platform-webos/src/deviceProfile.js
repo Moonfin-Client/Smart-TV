@@ -99,9 +99,11 @@ const applyAudioOutputPath = async (baseCaps, request) => {
 	const audioOutputStatus = await getAudioOutputStatus(request);
 	const receiverPassthrough = isLosslessPassthroughOutput(audioOutputStatus);
 
-	const dts = receiverPassthrough
+	const setDts = baseCaps.dtsBase || baseCaps.dts || emptyDtsSupport;
+	// A set without DTS can't pass it through either, which is how LG's 2025 sets are.
+	const dts = receiverPassthrough && (setDts.mkv || setDts.mp4 || setDts.ts)
 		? {mkv: true, mp4: true, ts: true, avi: false}
-		: (baseCaps.dtsBase || baseCaps.dts || emptyDtsSupport);
+		: setDts;
 
 	return {
 		...baseCaps,
@@ -199,6 +201,13 @@ const canPlayHevcLevel61 = () => {
 		|| video.canPlayType('video/mp4; codecs="hev1.2.4.L183"').replace(/no/, ''));
 };
 
+const canPlayDts = () => {
+	if (typeof document === 'undefined') return false;
+	const video = document.createElement('video');
+	return !!(video.canPlayType('video/mp4; codecs="dts-"').replace(/no/, '')
+		|| video.canPlayType('video/mp4; codecs="dts+"').replace(/no/, ''));
+};
+
 // DTS support varies by webOS version AND container:
 //   webOS 4/4.5: DTS in AVI + MKV (unconditionally supported)
 //   webOS 5/6/22: DTS in MKV only
@@ -210,14 +219,15 @@ const canPlayHevcLevel61 = () => {
 // supported. We treat the three cases separately:
 //   edidType present + contains 'dts' -> DTS in MKV + MP4 + TS
 //   edidType present + no 'dts'       -> DTS not supported (explicit negative)
-//   edidType absent (null/undefined)  -> unknown; fall back to MKV-only (safe default)
+//   edidType absent (null/undefined)  -> DTS in MKV only when the set's own engine says it plays DTS.
+//     LG's 2025 sets have no DTS at all and refuse the key to apps, so assuming it left them silent.
 //
 // Note on soundbars: When the TV can decode DTS, connecting a non-DTS soundbar causes
 // the TV to decode to 2.0 PCM, losing surround channels. No Luna API exposes this.
 export const getDtsContainerSupport = (webosVersion, rawEdidType = null) => {
 	if (webosVersion >= 23) {
 		if (rawEdidType == null) {
-			return { mkv: true, mp4: false, ts: false, avi: false };
+			return { mkv: canPlayDts(), mp4: false, ts: false, avi: false };
 		}
 		const edidHasDts = rawEdidType.toLowerCase().includes('dts');
 		return {
