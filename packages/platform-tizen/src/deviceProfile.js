@@ -79,6 +79,18 @@ const readWebapis = (read, fallback) => {
 	}
 };
 
+// Match Jellyfin's accepted canPlayType responses. An empty/negative response
+// or an unavailable API retains the existing fallback.
+const supportsVideoType = (type) => {
+	try {
+		const result = document.createElement('video').canPlayType(type);
+		return result === 'probably' || result === 'maybe';
+	} catch (e) {
+		return false;
+	}
+};
+
+
 /**
  * Get model name from webapis (cached).
  * Prefers getRealModel() over getModel() for accurate model string.
@@ -603,8 +615,12 @@ export const getJellyfinDeviceProfile = async (options = {}) => {
 	if (caps.uhd8K) {
 		hevcLevel = '183'; // Level 6.1 (6.1 * 30 = 183 in Jellyfin encoding)
 	} else if (caps.uhd) {
-		// Use 5.1 (153) as safe default. Premium models support 5.2 (156)
-		hevcLevel = '153'; // Level 5.1
+		// A positive Main10 probe at this or a higher level establishes 5.2.
+		// Jellyfin probes 6.1/6.2; some media APIs omit the intermediate 5.2 result.
+		const supportsLevel52 = ['hvc1', 'hev1'].some(codec =>
+			['156', '183', '186'].some(level =>
+				supportsVideoType(`video/mp4; codecs="${codec}.2.4.L${level}"`)));
+		hevcLevel = supportsLevel52 ? '156' : '153';
 	} else {
 		hevcLevel = '123'; // Level 4.1
 	}
