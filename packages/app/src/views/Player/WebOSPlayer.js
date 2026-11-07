@@ -93,7 +93,7 @@ import {createReadyGate} from '../../utils/syncReady';
 import {createSkipGovernor, chooseCorrection, STALL_DEBOUNCE_MS} from '../../utils/syncCorrection';
 import {syncLog} from '../../utils/syncLog';
 import {
-	NextEpisodeContainer, CONTROLS_HIDE_DELAY,
+	NextEpisodeContainer, CONTROLS_HIDE_DELAY, SLIDESHOW_ERROR_DELAY,
 	withTimeout, SEGMENT_FETCH_TIMEOUT, ASS_READY_WAIT, ASS_FETCH_INDICATOR_LIMIT
 } from './PlayerConstants';
 import {
@@ -160,7 +160,7 @@ const ROOM_SEEK_SETTLE_TIMEOUT_MS = 12000;
 // another load of seconds.
 const ROOM_READY_TOLERANCE_MS = 900;
 
-const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialSubtitleIndex, initialStartPositionTicks, initialQuality, forceTranscode, onEnded, onBack, onGuide, onPlayNext, onSelectPerson, audioPlaylist, videoQueue, liveTvChannels, onPausedChange, background, onBackground}) => {
+const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialSubtitleIndex, initialStartPositionTicks, initialQuality, forceTranscode, onEnded, onBack, onGuide, onPlayNext, onSelectPerson, audioPlaylist, videoQueue, liveTvChannels, onPausedChange, background, onBackground, slideshow}) => {
 	const {settings, updateSetting} = useSettings();
 	const {isInGroup, lastCommand} = useSyncPlay();
 	const syncPlayCommandRef = useRef(false);
@@ -225,6 +225,10 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 	const [isDownloadingRemoteSubtitle, setIsDownloadingRemoteSubtitle] = useState(false);
 	const [remoteSubtitleError, setRemoteSubtitleError] = useState(null);
 	const [mediaSegments, setMediaSegments] = useState(null);
+	const slideshowMuted = slideshow?.muted === true;
+	// The source effect reads it from here, so a change in it only sets the volume and doesn't reload the video.
+	const slideshowMutedRef = useRef(slideshowMuted);
+	slideshowMutedRef.current = slideshowMuted;
 	const [nextEpisode, setNextEpisode] = useState(null);
 	const nextAirDate = useNextAirDate({item, nextEpisode, settings});
 	// Up once an episode with nothing after it in the library has ended, over its last frame.
@@ -1322,7 +1326,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 				// Audio mode: always show controls, skip video-only features
 				if (shouldUseAudioMode) {
 					setControlsVisible(true);
-				} else if (!isLiveTV) {
+				} else if (!isLiveTV && !slideshow) {
 					withTimeout(playback.getMediaSegments(item.Id), SEGMENT_FETCH_TIMEOUT).then((segments) => {
 						if (!cancelled) setMediaSegments(segments);
 					}).catch((segmentErr) => {
@@ -1745,7 +1749,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 		// autoplay must be re-set because hls.js path overrides it to false
 		video.autoplay = true;
 
-		video.muted = false;
+		video.muted = slideshowMutedRef.current;
 		video.defaultMuted = false;
 		video.volume = 1;
 		video.removeAttribute('muted');
@@ -2008,6 +2012,10 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 			destroyHlsPlayer();
 		};
 	}, [mediaUrl, isLoading, mimeType, playMethod, error, settings.videoStartDelay, isLiveTV, sourceRevision]);
+
+	useEffect(() => {
+		if (videoRef.current) videoRef.current.muted = slideshowMuted;
+	}, [slideshowMuted]);
 
 	const showControls = useCallback((isModalOpen = activeModal) => {
 		setControlsVisible(true);
@@ -2330,6 +2338,15 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 		// the next up countdown can load the next one during the stop, leave its player alone
 		if (prevItemIdRef.current !== item.Id) return;
 
+		// A slideshow video has no next episode or prompts, it hands over to the slideshow.
+		if (slideshow) {
+			isCleaningUpRef.current = true;
+			destroyHlsPlayer();
+			await cleanupVideoElement(videoRef.current);
+			slideshow.onEnded?.();
+			return;
+		}
+
 		if (repeatMode === 'one') {
 			restartCurrent();
 			return;
@@ -2356,7 +2373,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 		} else {
 			onEnded?.();
 		}
-	}, [onEnded, onPlayNext, nextEpisode, nextAirDate, hideControls, audioPlaylist, repeatMode, restartCurrent, getNextStep, settings.autoPlay, item, liveRecovery, shouldHoldForStillWatching]);
+	}, [onEnded, onPlayNext, nextEpisode, nextAirDate, hideControls, audioPlaylist, repeatMode, restartCurrent, getNextStep, settings.autoPlay, item, liveRecovery, shouldHoldForStillWatching, slideshow]);
 
 	// The episode has ended, so closing the card leaves the player.
 	const closeAirDateCard = useCallback(async () => {
@@ -2619,6 +2636,27 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 	useEffect(() => {
 		handleBackRef.current = handleBack;
 	}, [handleBack]);
+
+	// Previous or next item of a slideshow, which stops this video and hands over to the slideshow.
+	// One step at a time: a press while the stop is still going out would stop the same video twice.
+	const slideshowSteppingRef = useRef(false);
+	useEffect(() => {
+		slideshowSteppingRef.current = false;
+	}, [item]);
+	const stepSlideshow = useCallback(async (dir) => {
+		await teardownPlayback();
+		slideshow?.onStep?.(dir);
+	}, [teardownPlayback, slideshow]);
+
+	// A slideshow video that can't play moves on after a moment, so the slideshow never stalls on it.
+	useEffect(() => {
+		if (!slideshow || !error) return undefined;
+		const timer = setTimeout(async () => {
+			await teardownPlayback();
+			slideshow.onEnded?.();
+		}, SLIDESHOW_ERROR_DELAY);
+		return () => clearTimeout(timer);
+	}, [slideshow, error, teardownPlayback]);
 
 	// Play during a held scrub is what commits it, landing on the scrubbed spot and playing on
 	// from there.
@@ -3721,6 +3759,26 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 
 			// Left/Right when controls hidden -> show controls and focus on seekbar
 			if (!controlsVisible && !activeModal) {
+				// A slideshow video keeps the arrows for moving between items and leaves the transport
+				// to OK, which brings the controls up on the progress bar.
+				if (slideshow) {
+					if (key === 'ArrowLeft' || e.keyCode === 37 || key === 'ArrowRight' || e.keyCode === 39) {
+						e.preventDefault();
+						e.stopPropagation();
+						if (!slideshowSteppingRef.current) {
+							slideshowSteppingRef.current = true;
+							stepSlideshow(key === 'ArrowLeft' || e.keyCode === 37 ? -1 : 1);
+						}
+						return;
+					}
+					if (key === 'Enter' || e.keyCode === 13) {
+						e.preventDefault();
+						e.stopPropagation();
+						showControls();
+						setFocusRow('progress');
+						return;
+					}
+				}
 				if ((key === 'Enter' || e.keyCode === 13) && (isSkipPromptFocused() || showSkipCredits || showNextEpisode)) {
 					return;
 				}

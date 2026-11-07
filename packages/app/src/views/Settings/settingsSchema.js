@@ -680,7 +680,11 @@ export const SETTINGS_SCHEMA = [
 					{kind: KIND.TOGGLE, key: 'showMediaDetailsOnLibraryPage', label: () => $L('Show Media Details'), desc: () => $L('Show details of the selected item at the top of Library pages.'), icon: 'info_outline'},
 					{kind: KIND.TOGGLE, key: 'libraryCardTitles', label: () => $L('Titles Under Posters'), desc: () => $L("Show each item's title and details below its artwork in library grids."), icon: 'text_fields'},
 					{kind: KIND.TOGGLE, key: 'hideBackdropsInLibraries', label: () => $L('Library Backdrops'), icon: 'photo', isOn: (ctx) => !ctx.settings.hideBackdropsInLibraries},
-					{kind: KIND.TOGGLE, key: 'useDetailedSubHeadings', label: () => $L('Use Detailed Sub-Headings'), desc: () => $L('Show detailed or minimal subrow on Library pages.'), icon: 'subtitles'}
+					{kind: KIND.TOGGLE, key: 'useDetailedSubHeadings', label: () => $L('Use Detailed Sub-Headings'), desc: () => $L('Show detailed or minimal subrow on Library pages.'), icon: 'subtitles'},
+					{kind: KIND.SECTION, id: 'librariesPhotos', label: () => $L('Photos')},
+					{kind: KIND.SLIDER, key: 'photoSlideshowInterval', label: () => $L('Slideshow Interval'), desc: () => $L('How long each photo stays on screen'), min: 3, max: 30, step: 1, format: seconds, icon: 'timer'},
+					{kind: KIND.TOGGLE, key: 'photoSlideshowVideos', label: () => $L('Play Videos in Slideshow'), desc: () => $L('Play the videos in a folder in full. When off, the slideshow skips them.'), icon: 'movie'},
+					{kind: KIND.TOGGLE, key: 'photoSlideshowVideoSound', label: () => $L('Video Sound in Slideshow'), desc: () => $L('When off, slideshow videos start muted'), icon: 'volume_up', when: (ctx) => ctx.settings.photoSlideshowVideos}
 				]
 			},
 			{
