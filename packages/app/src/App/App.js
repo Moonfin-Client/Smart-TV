@@ -693,6 +693,7 @@ const AppContent = (props) => {
 		}
 	});
 	recheckAccessRef.current = recheckAccess;
+	const playerEndRef = useRef(null);
 	const timesUpRef = useRef(false);
 	timesUpRef.current = timesUp;
 
@@ -756,12 +757,9 @@ const AppContent = (props) => {
 			// there must not be allowed to skip it.
 			try {
 				releaseVideoElements();
-				setPlayingItem(null);
-				setPanelHistory([]);
+				// The player closes the way Back closes it, so the viewer lands where they were.
+				playerEndRef.current?.();
 				setPinCheckCount((count) => count + 1);
-				if (isAuthenticated) {
-					setPanelIndex(PANELS.BROWSE);
-				}
 				recheckAccessRef.current?.();
 			} finally {
 				activateApp();
@@ -799,7 +797,7 @@ const AppContent = (props) => {
 				cleanupHandlersRef.current();
 			}
 		};
-	}, [isAuthenticated, performAppCleanup, releaseVideoElements, revalidateSession]);
+	}, [performAppCleanup, releaseVideoElements, revalidateSession]);
 
 	useEffect(() => {
 		if (!isAuthenticated || !user?.Id) {
@@ -1371,6 +1369,7 @@ const AppContent = (props) => {
 		}
 		window.dispatchEvent(new CustomEvent('moonfin:browseRefresh'));
 	}, [handleBack, panelHistory, selectedItem, playingItem, panelIndex, watchPartyRoom, openWatchParty, isSyncPlayInGroup, openSyncPlay]);
+	playerEndRef.current = handlePlayerEnd;
 
 	const handlePlayerBackground = useCallback(() => {
 		setMusicInBackground(true);
