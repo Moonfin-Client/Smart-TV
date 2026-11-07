@@ -615,11 +615,13 @@ export const getJellyfinDeviceProfile = async (options = {}) => {
 	// only a Dolby Vision panel gets it as is and the rest get a remux with the
 	// Dolby Vision taken out. A bare DOVI is profile 5, which has no base to
 	// fall back on.
-	const hevcRangeTypes = ['SDR', 'DOVIWithSDR'];
-	if (caps.hdr10) hevcRangeTypes.push('HDR10', 'DOVIWithHDR10', 'DOVIInvalid');
-	if (caps.hdr10Plus) hevcRangeTypes.push('HDR10Plus', 'DOVIWithHDR10Plus');
-	if (caps.hlg) hevcRangeTypes.push('HLG', 'DOVIWithHLG');
-	if (caps.dolbyVision) hevcRangeTypes.push('DOVI', 'DOVIWithEL', 'DOVIWithELHDR10Plus');
+	// HEVC and AV1 must advertise the same ranges the local HDR check accepts.
+	// DOVIInvalid does not establish a compatible base layer for an HDR10 panel.
+	const videoRangeTypes = ['SDR', 'DOVIWithSDR'];
+	if (caps.hdr10) videoRangeTypes.push('HDR10', 'DOVIWithHDR10');
+	if (caps.hdr10Plus) videoRangeTypes.push('HDR10Plus', 'DOVIWithHDR10Plus');
+	if (caps.hlg) videoRangeTypes.push('HLG', 'DOVIWithHLG');
+	if (caps.dolbyVision) videoRangeTypes.push('DOVI', 'DOVIWithEL', 'DOVIWithELHDR10Plus', 'DOVIInvalid');
 
 	const codecProfiles = [
 		// Samsung ties the H.264 level to the resolution: Level 5.1 is only specified
@@ -706,7 +708,7 @@ export const getJellyfinDeviceProfile = async (options = {}) => {
 				{
 					Condition: 'EqualsAny',
 					Property: 'VideoRangeType',
-					Value: hevcRangeTypes.join('|'),
+					Value: videoRangeTypes.join('|'),
 					IsRequired: false
 				}
 			]
@@ -789,6 +791,12 @@ export const getJellyfinDeviceProfile = async (options = {}) => {
 					Condition: 'LessThanEqual',
 					Property: 'VideoBitDepth',
 					Value: caps.hdr10 ? '10' : '8',
+					IsRequired: false
+				},
+				{
+					Condition: 'EqualsAny',
+					Property: 'VideoRangeType',
+					Value: videoRangeTypes.join('|'),
 					IsRequired: false
 				}
 			]
