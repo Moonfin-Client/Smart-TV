@@ -1,5 +1,4 @@
 /* eslint-disable react/jsx-no-bind */
-import {useState} from 'react';
 import $L from '@enact/i18n/$L';
 
 import LoadingSpinner from '../../components/LoadingSpinner';
@@ -106,39 +105,6 @@ export const BlockedRatingsView = ({ratings, blocked, loading, loadFailed, onTog
 	);
 };
 
-// A list of ticks with the ticked ones first. With a cap, the unticked rows dim once
-// it is reached.
-export const CheckListView = ({spotlightId, rowIdPrefix, title, lead, options, picked, max = Infinity, onToggle}) => {
-	// Ordered once on open, so a press never moves the row under focus
-	const [ordered] = useState(() => [
-		...options.filter(({value}) => picked.includes(value)),
-		...options.filter(({value}) => !picked.includes(value))
-	]);
-	return (
-		<SettingsView spotlightId={spotlightId} title={title} clean>
-			<div className={css.editorLead}>{lead}</div>
-			{ordered.map(({value, label}) => {
-				const ticked = picked.includes(value);
-				const locked = !ticked && picked.length >= max;
-				return (
-					<SpottableDiv
-						key={value}
-						className={css.listItem}
-						style={locked ? {opacity: 0.4} : undefined}
-						onClick={() => onToggle(value)}
-						spotlightId={`${rowIdPrefix}-${value}`}
-					>
-						{renderSettingsIcon(ticked ? 'check_box' : 'check_box_outline_blank', false, true)}
-						<div className={css.listItemBody}>
-							<div className={css.listItemHeading}>{label}</div>
-						</div>
-					</SpottableDiv>
-				);
-			})}
-		</SettingsView>
-	);
-};
-
 // One row per enabled home section. Clicking cycles Default and the four
 // image types, writing through immediately like the plain settings rows do.
 export const RowImageTypesView = ({rows, overrides, globalLabel, onCycleRow}) => (
@@ -168,33 +134,6 @@ export const RowImageTypesView = ({rows, overrides, globalLabel, onCycleRow}) =>
 		{rows.length === 0 && (
 			<div className={css.viewDescription}>{$L('No home rows are enabled')}</div>
 		)}
-	</SettingsView>
-);
-
-export const ExcludedGenresView = ({text, onTextChange, onCancel, onSave}) => (
-	<SettingsView spotlightId='excluded-genres-view' title={$L('Excluded Genres')} clean>
-		<div className={css.viewDescription}>
-			{$L('Enter a comma-separated list of genre names to hide from the featured media bar.')}
-		</div>
-		<div className={css.inputGroup}>
-			<label>{$L('Genres')}</label>
-			<SpottableInput
-				className={css.input}
-				type='text'
-				value={text}
-				onChange={(e) => onTextChange(e.target.value)}
-				placeholder={$L('Example: horror, reality, documentary')}
-				spotlightId='excluded-genres-input'
-			/>
-		</div>
-		<div className={css.actionBar}>
-			<SettingsButton onClick={onCancel} spotlightId='excluded-genres-cancel'>
-				{$L('Cancel')}
-			</SettingsButton>
-			<SettingsButton primary onClick={onSave} spotlightId='excluded-genres-save'>
-				{$L('Save')}
-			</SettingsButton>
-		</div>
 	</SettingsView>
 );
 

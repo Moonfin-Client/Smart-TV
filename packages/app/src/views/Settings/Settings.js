@@ -50,7 +50,7 @@ import useDiagnosticsLog from './useDiagnosticsLog';
 import {openDeviceProbe} from '../../utils/deviceProbe';
 import renderDescriptorRow from './settingsDescriptorRow';
 import {NavRow} from './settingsRows';
-import {CategoriesView, CategoryView, OptionsDialog, SubcategoryView} from './BrowseViews';
+import {CategoriesView, CategoryView, ChecklistDialog, OptionsDialog, SubcategoryView} from './BrowseViews';
 import {SettingsEnterContext, SettingsTitleContext} from './SettingsView';
 import {ThemesView, ThemeStoreView} from './ThemeViews';
 import AchievementsScreens, {ACHIEVEMENT_VIEWS} from './achievements/AchievementsScreens';
@@ -65,7 +65,7 @@ import useParentalFilter from '../../hooks/useParentalFilter';
 import useSignInPin from '../../hooks/useSignInPin';
 import {SeerrHomeRowsView, ImdbListsView} from './HomeRowToggleViews';
 import {ExternalTmdbListsView, ExternalCalendarsView, ExternalCustomRowsView, SeasonalRowView} from './ExternalRowViews';
-import {RatingSourcesView, ExcludedGenresView, PinCodeView, BlockedRatingsView, RowImageTypesView, CheckListView} from './PickerViews';
+import {RatingSourcesView, PinCodeView, BlockedRatingsView, RowImageTypesView} from './PickerViews';
 import {KidsModeSetView, KidsModeExitView} from './KidsModeViews';
 import HomeRowsView from './HomeRowsView';
 import ButtonLayoutView from './ButtonLayoutView';
@@ -73,8 +73,6 @@ import DetailSectionsView from './DetailSectionsView';
 import DiagnosticsView from './DiagnosticsView';
 import LibrariesView from './LibrariesView';
 import LibraryOrderView from './LibraryOrderView';
-import MediaBarSourceView from './MediaBarSourceView';
-import {mediaBarExternalListOptions} from '../Browse/featuredExternal';
 import SeerrAccountPanel from './SeerrAccountPanel';
 import RommAccountPanel from './RommAccountPanel';
 import MoonbasePanel from './MoonbasePanel';
@@ -114,6 +112,9 @@ const FIRST_ROW_VIEWS = {
 	detailSections: 'detail-sections-view',
 	ratingSources: 'rating-sources-view'
 };
+
+// A picker or checklist is drawn over the screen it was opened from, which stays mounted under it
+const isOverlay = (view) => view.view === 'options' || view.view === 'checklist';
 
 // With [liveCategory] set, the stack starts at that category's page instead of the category
 // list, [onRootBack] takes Back at that root, and [onPreviewTry] hears which option a picker
@@ -181,13 +182,13 @@ const Settings = ({ onBack, onLibrariesChanged, onRunSetupWizard, onSelectItem, 
 	const pageRef = useRef(null);
 
 	const pushView = useCallback((view) => {
-		if (view.view !== 'options') navActionRef.current = 'push';
+		if (!isOverlay(view)) navActionRef.current = 'push';
 		setNavStack((prev) => [...prev, view]);
 	}, []);
 
 	const popView = useCallback(() => {
 		const stack = navStackRef.current;
-		if (stack.length > 1 && stack[stack.length - 1].view !== 'options') {
+		if (stack.length > 1 && !isOverlay(stack[stack.length - 1])) {
 			navActionRef.current = 'pop';
 			slideOutLeavingPage(pageRef.current);
 		}
@@ -201,6 +202,8 @@ const Settings = ({ onBack, onLibrariesChanged, onRunSetupWizard, onSelectItem, 
 			return prev.slice(0, -1);
 		});
 	}, [onBack, onRootBack]);
+
+	const openChecklist = useCallback((checklist) => pushView({view: 'checklist', ...checklist}), [pushView]);
 
 	const [serverVersion, setServerVersion] = useState(null);
 	const [clearDataDialogOpen, setClearDataDialogOpen] = useState(false);
@@ -219,7 +222,6 @@ const Settings = ({ onBack, onLibrariesChanged, onRunSetupWizard, onSelectItem, 
 	const openedRatingSourcesRef = useRef('');
 	// Which surface's list the sources screen is editing, empty for the plain one.
 	const [ratingSourcesSurface, setRatingSourcesSurface] = useState('');
-	const [tempExcludedGenresText, setTempExcludedGenresText] = useState('');
 	const [customRowUrl, setCustomRowUrl] = useState('');
 	const [customRowName, setCustomRowName] = useState('');
 	const [customRowError, setCustomRowError] = useState('');
@@ -263,6 +265,8 @@ const Settings = ({ onBack, onLibrariesChanged, onRunSetupWizard, onSelectItem, 
 			} else if (cv.view === 'options') {
 				const idx = cv.options?.findIndex((o) => o.value === cv.value);
 				Spotlight.focus(idx >= 0 ? `opt-${idx}` : 'opt-0');
+			} else if (cv.view === 'checklist') {
+				Spotlight.focus(cv.options.length > 0 ? 'chk-0' : 'chk-save');
 			} else if (cv.view === 'themes') {
 				const selectedId = availableThemes.find((t) => t.id === activeThemeId)?.id;
 				Spotlight.focus(selectedId ? `theme-card-${selectedId}` : 'themes-view');
@@ -287,32 +291,12 @@ const Settings = ({ onBack, onLibrariesChanged, onRunSetupWizard, onSelectItem, 
 				Spotlight.focus('library-order-view');
 			} else if (cv.view === 'blockedRatings') {
 				Spotlight.focus('blocked-ratings-view');
-			} else if (cv.view === 'subtitleDownloadLanguages') {
-				Spotlight.focus('subtitle-download-languages-view');
-			} else if (cv.view === 'transcodeAudioCodecs') {
-				Spotlight.focus('transcode-audio-codecs-view');
 			} else if (cv.view === 'qrLink') {
 				Spotlight.focus('qr-link-close');
 			} else if (cv.view === 'rowImageTypes') {
 				Spotlight.focus('row-image-types-view');
-			} else if (cv.view === 'excludedGenres') {
-				Spotlight.focus('excluded-genres-input');
 			} else if (cv.view === 'pinCode') {
 				Spotlight.focus('pin-code-input');
-			} else if (cv.view === 'mediaBarLibraries') {
-				Spotlight.focus('media-bar-libraries-view');
-			} else if (cv.view === 'mediaBarCollections') {
-				Spotlight.focus('media-bar-collections-view');
-			} else if (cv.view === 'mediaBarExternalLists') {
-				Spotlight.focus('media-bar-external-lists-view');
-			} else if (cv.view === 'screensaverLibraries') {
-				Spotlight.focus('screensaver-libraries-view');
-			} else if (cv.view === 'calendarLibraries') {
-				Spotlight.focus('calendar-libraries-view');
-			} else if (cv.view === 'screensaverCollections') {
-				Spotlight.focus('screensaver-collections-view');
-			} else if (cv.view === 'screensaverGenres') {
-				Spotlight.focus('screensaver-genres-view');
 			} else {
 				// Any screen not named above would otherwise leave focus where it
 				// already was, which is outside the panel. Each screen is a single
@@ -514,33 +498,27 @@ const Settings = ({ onBack, onLibrariesChanged, onRunSetupWizard, onSelectItem, 
 	}, []);
 
 	const openSubtitleDownloadLanguages = useCallback(() => {
-		pushView({view: 'subtitleDownloadLanguages', returnFocusTo: 'setting-subtitleDownloadLanguages'});
-	}, [pushView]);
+		openChecklist({
+			title: $L('Subtitle Download Languages'),
+			options: getSubtitleLanguageOptions().filter((option) => option.value),
+			picked: settings.subtitleDownloadLanguages || [],
+			max: MAX_SUBTITLE_DOWNLOAD_LANGUAGES,
+			onSave: (picked) => updateSetting('subtitleDownloadLanguages', picked),
+			returnFocusTo: 'setting-subtitleDownloadLanguages'
+		});
+	}, [openChecklist, settings.subtitleDownloadLanguages, updateSetting]);
 
-	const toggleSubtitleDownloadLanguage = useCallback((language) => {
-		const picked = settings.subtitleDownloadLanguages || [];
-		if (picked.includes(language)) {
-			updateSetting('subtitleDownloadLanguages', picked.filter((value) => value !== language));
-		} else if (picked.length < MAX_SUBTITLE_DOWNLOAD_LANGUAGES) {
-			updateSetting('subtitleDownloadLanguages', [...picked, language]);
-		}
-	}, [settings.subtitleDownloadLanguages, updateSetting]);
-
-	// Only the codecs this device's transcode can turn into something else are offered, and
-	// the list is settled before the screen opens since it orders its rows once.
-	const [transcodeAudioOptions, setTranscodeAudioOptions] = useState([]);
+	// Only the codecs this device's transcode can turn into something else are offered
 	const openTranscodeAudioCodecs = useCallback(async () => {
 		const profile = await getDeviceProfile(serverType, {}, api).catch(() => null);
-		setTranscodeAudioOptions(getTranscodeAudioCodecOptions().filter(({value}) => !profile || canTranscodeAudioCodecAway(profile, value)));
-		pushView({view: 'transcodeAudioCodecs', returnFocusTo: 'setting-transcodeAudioCodecs'});
-	}, [serverType, api, pushView]);
-
-	const toggleTranscodeAudioCodec = useCallback((codec) => {
-		const picked = settings.transcodeAudioCodecs || [];
-		updateSetting('transcodeAudioCodecs', picked.includes(codec)
-			? picked.filter((value) => value !== codec)
-			: [...picked, codec]);
-	}, [settings.transcodeAudioCodecs, updateSetting]);
+		openChecklist({
+			title: $L('Transcode Audio Codecs'),
+			options: getTranscodeAudioCodecOptions().filter(({value}) => !profile || canTranscodeAudioCodecAway(profile, value)),
+			picked: settings.transcodeAudioCodecs || [],
+			onSave: (picked) => updateSetting('transcodeAudioCodecs', picked),
+			returnFocusTo: 'setting-transcodeAudioCodecs'
+		});
+	}, [serverType, api, openChecklist, settings.transcodeAudioCodecs, updateSetting]);
 
 	const openRatingSources = useCallback((surface = '') => {
 		const stored = settings[ratingKey(surface, 'mdblistRatingSources')];
@@ -605,22 +583,6 @@ const Settings = ({ onBack, onLibrariesChanged, onRunSetupWizard, onSelectItem, 
 		openedRatingSourcesRef.current = tempRatingSources.join(',');
 		updateSetting(ratingKey(ratingSourcesSurface, 'mdblistRatingSources'), tempRatingSources);
 	}, [tempRatingSources, ratingSourcesSurface, updateSetting]);
-
-	const openExcludedGenres = useCallback(() => {
-		const excluded = Array.isArray(settings.excludedGenres) ? settings.excludedGenres : [];
-		setTempExcludedGenresText(excluded.join(', '));
-		pushView({view: 'excludedGenres', returnFocusTo: 'setting-excludedGenres'});
-	}, [settings.excludedGenres, pushView]);
-
-	const saveExcludedGenres = useCallback(() => {
-		const parsed = tempExcludedGenresText
-			.split(',')
-			.map((value) => value.trim())
-			.filter(Boolean);
-		const normalized = [...new Set(parsed.map((value) => value.toLowerCase()))];
-		updateSetting('excludedGenres', normalized);
-		popView();
-	}, [tempExcludedGenresText, updateSetting, popView]);
 
 	const {userId, record: signInPin, account: pinAccount, latest: latestSignInPin, save: saveSignInPin} = useSignInPin();
 
@@ -864,23 +826,14 @@ const Settings = ({ onBack, onLibrariesChanged, onRunSetupWizard, onSelectItem, 
 	}, [hiddenDetailSections, updateSetting]);
 
 	const {
-		mediaBarLibraries, mediaBarCollections, tempMediaBarLibraryIds, tempMediaBarCollectionIds, tempMediaBarExternalLists,
-		mediaBarSourcesLoading, openMediaBarLibraries, openMediaBarCollections, openMediaBarExternalLists,
-		toggleMediaBarLibrary, toggleMediaBarCollection, toggleMediaBarExternalList,
-		saveMediaBarLibraries, saveMediaBarCollections, saveMediaBarExternalLists
-	} = useMediaBarSources({api, settings, updateSettings, pushView, popView});
+		openMediaBarLibraries, openMediaBarCollections, openMediaBarExternalLists, openExcludedGenres
+	} = useMediaBarSources({api, settings, updateSettings, openChecklist, tmdbAvailable: seerr.pluginInfo?.tmdbAvailable === true});
 
 	const {
-		screensaverLibraries, screensaverCollections, screensaverGenres,
-		tempScreensaverLibraryIds, tempScreensaverCollectionIds, tempScreensaverGenres,
-		screensaverSourcesLoading, openScreensaverLibraries, openScreensaverCollections, openScreensaverGenres,
-		toggleScreensaverLibrary, toggleScreensaverCollection, toggleScreensaverGenre,
-		saveScreensaverLibraries, saveScreensaverCollections, saveScreensaverGenres
-	} = useScreensaverSources({api, settings, updateSettings, pushView, popView});
+		openScreensaverLibraries, openScreensaverCollections, openScreensaverGenres
+	} = useScreensaverSources({api, settings, updateSettings, openChecklist});
 
-	const {
-		calendarLibraries, tempCalendarLibraryIds, calendarLibrariesLoading, openCalendarLibraries, toggleCalendarLibrary, saveCalendarLibraries
-	} = useCalendarLibraries({api, settings, updateSettings, pushView, popView});
+	const {calendarLibraries, openCalendarLibraries} = useCalendarLibraries({api, settings, updateSettings, openChecklist});
 
 	const {
 		logEntries, logFilter, setLogFilter, logRenderLimit, setLogRenderLimit,
@@ -1127,6 +1080,7 @@ const Settings = ({ onBack, onLibrariesChanged, onRunSetupWizard, onSelectItem, 
 		activeThemeId,
 		ratingsResetArmed,
 		signInPin,
+		calendarLibraries,
 		actions: {
 			openThemes,
 			openThemeStore,
@@ -1174,7 +1128,7 @@ const Settings = ({ onBack, onLibrariesChanged, onRunSetupWizard, onSelectItem, 
 			openDeviceProbe: canProbeDevice ? openDeviceProbe : null
 		}
 	}), [
-		settings, capabilities, seerr, achievements, romm, seerrLabel, isSeerr, hasLiveTv, posterLabelsAvailable, serverType, serverUrl, ratingsResetArmed, resetRatingsSettings, toggleExperimentalTruehd, updateSetting, updateSettings, refreshPlugin,
+		settings, capabilities, seerr, achievements, romm, seerrLabel, isSeerr, hasLiveTv, posterLabelsAvailable, serverType, serverUrl, ratingsResetArmed, resetRatingsSettings, toggleExperimentalTruehd, updateSetting, updateSettings, refreshPlugin, calendarLibraries,
 		serverVersion, availableThemes, activeThemeId, openThemes, openThemeStore, openHomeRows,
 		openDetailButtons, openOsdButtons, openDetailMetadata, openDetailSections, openDiagnostics,
 		signInPin, toggleSignInPin, changeSignInPin, removeSignInPin, openKidsMode, openLibraries, openLibraryOrder, openParentalControls, openSubtitleDownloadLanguages, openTranscodeAudioCodecs, openQrLink, openRatingSources, openRowImageTypes, openExcludedGenres, openMediaBarLibraries,
@@ -1255,6 +1209,11 @@ const Settings = ({ onBack, onLibrariesChanged, onRunSetupWizard, onSelectItem, 
 				returnFocusTo: `subcat-${sub.id}`
 			});
 	}, [pushView, currentView.id]);
+
+	const saveChecklist = useCallback((picked) => {
+		currentView.onSave(picked);
+		popView();
+	}, [currentView, popView]);
 
 	const selectOptionValue = useCallback((value) => {
 		if (currentView.onSelect) {
@@ -1429,9 +1388,7 @@ const Settings = ({ onBack, onLibrariesChanged, onRunSetupWizard, onSelectItem, 
 
 	const homeRowEnabledMap = new Map((settings.homeRows || []).map((r) => [r.id, r.enabled]));
 
-	// A picker is drawn over the screen it was opened from, which stays mounted under it
-	const optionsOpen = currentView.view === 'options';
-	const baseDepth = optionsOpen ? navStack.length - 2 : navStack.length - 1;
+	const baseDepth = isOverlay(currentView) ? navStack.length - 2 : navStack.length - 1;
 	const baseView = navStack[baseDepth];
 	const viewName = baseView.view;
 	// Each screen on the stack is its own mount, so one screen opened from another starts fresh
@@ -1640,29 +1597,6 @@ const Settings = ({ onBack, onLibrariesChanged, onRunSetupWizard, onSelectItem, 
 			{viewName === 'qrLink' && (
 				<QrLinkView title={baseView.label} url={baseView.url} onClose={popView} />
 			)}
-			{viewName === 'subtitleDownloadLanguages' && (
-				<CheckListView
-					spotlightId='subtitle-download-languages-view'
-					rowIdPrefix='subtitle-download-language'
-					title={$L('Subtitle Download Languages')}
-					lead={$L('Languages to search when downloading subtitles, up to {max}. With none ticked, the default subtitle language is searched, or one language is picked from the video when that is not set.').replace('{max}', MAX_SUBTITLE_DOWNLOAD_LANGUAGES)}
-					options={getSubtitleLanguageOptions().filter((option) => option.value)}
-					picked={settings.subtitleDownloadLanguages || []}
-					max={MAX_SUBTITLE_DOWNLOAD_LANGUAGES}
-					onToggle={toggleSubtitleDownloadLanguage}
-				/>
-			)}
-			{viewName === 'transcodeAudioCodecs' && (
-				<CheckListView
-					spotlightId='transcode-audio-codecs-view'
-					rowIdPrefix='transcode-audio-codec'
-					title={$L('Transcode Audio Codecs')}
-					lead={$L('The server converts audio in these formats instead of sending it as is.')}
-					options={transcodeAudioOptions}
-					picked={settings.transcodeAudioCodecs || []}
-					onToggle={toggleTranscodeAudioCodec}
-				/>
-			)}
 			{viewName === 'blockedRatings' && (
 				<BlockedRatingsView
 					ratings={sortRatingsBySeverity([...new Set([...(availableRatings || []), ...blockedRatings])])}
@@ -1670,14 +1604,6 @@ const Settings = ({ onBack, onLibrariesChanged, onRunSetupWizard, onSelectItem, 
 					loading={availableRatings === null}
 					loadFailed={ratingsLoadFailed}
 					onToggleRating={toggleBlockedRating}
-				/>
-			)}
-			{viewName === 'excludedGenres' && (
-				<ExcludedGenresView
-					text={tempExcludedGenresText}
-					onTextChange={setTempExcludedGenresText}
-					onCancel={popView}
-					onSave={saveExcludedGenres}
 				/>
 			)}
 			{viewName === 'kidsModeSet' && (
@@ -1736,150 +1662,32 @@ const Settings = ({ onBack, onLibrariesChanged, onRunSetupWizard, onSelectItem, 
 					onToggle={toggleDetailSection}
 				/>
 			)}
-			{viewName === 'mediaBarLibraries' && (
-				<MediaBarSourceView
-					viewSpotlightId='media-bar-libraries-view'
-					title={$L('Media Bar Source Libraries')}
-					description={$L('Choose which libraries are used for featured media when source type is Libraries.')}
-					loadingLabel={$L('Loading libraries...')}
-					loading={mediaBarSourcesLoading}
-					items={mediaBarLibraries}
-					itemIdKey='Id'
-					itemNameKey='Name'
-					selectedIds={tempMediaBarLibraryIds}
-					itemSpotlightPrefix='media-bar-lib'
-					cancelSpotlightId='media-bar-lib-cancel'
-					saveSpotlightId='media-bar-lib-save'
-					onToggleSelection={toggleMediaBarLibrary}
-					onCancel={popView}
-					onSave={saveMediaBarLibraries}
-				/>
-			)}
-			{viewName === 'mediaBarCollections' && (
-				<MediaBarSourceView
-					viewSpotlightId='media-bar-collections-view'
-					title={$L('Media Bar Source Collections')}
-					description={$L('Choose which collections are used for featured media when source type is Collections.')}
-					loadingLabel={$L('Loading collections...')}
-					loading={mediaBarSourcesLoading}
-					items={mediaBarCollections}
-					itemIdKey='Id'
-					itemNameKey='Name'
-					selectedIds={tempMediaBarCollectionIds}
-					itemSpotlightPrefix='media-bar-collection'
-					cancelSpotlightId='media-bar-collection-cancel'
-					saveSpotlightId='media-bar-collection-save'
-					onToggleSelection={toggleMediaBarCollection}
-					onCancel={popView}
-					onSave={saveMediaBarCollections}
-				/>
-			)}
-			{viewName === 'mediaBarExternalLists' && (
-				<MediaBarSourceView
-					viewSpotlightId='media-bar-external-lists-view'
-					title={$L('External Lists')}
-					description={$L('Choose which IMDb, TMDB and custom lists the media bar also draws from.')}
-					loading={false}
-					items={mediaBarExternalListOptions(settings.customHomeRows, seerr.pluginInfo?.tmdbAvailable === true)}
-					itemIdKey='Id'
-					itemNameKey='Name'
-					selectedIds={tempMediaBarExternalLists}
-					itemSpotlightPrefix='media-bar-external-list'
-					cancelSpotlightId='media-bar-external-list-cancel'
-					saveSpotlightId='media-bar-external-list-save'
-					onToggleSelection={toggleMediaBarExternalList}
-					onCancel={popView}
-					onSave={saveMediaBarExternalLists}
-				/>
-			)}
-			{viewName === 'calendarLibraries' && (
-				<MediaBarSourceView
-					viewSpotlightId='calendar-libraries-view'
-					title={$L('Libraries')}
-					description={$L('Choose which libraries the calendar lists. With none picked it lists every library.')}
-					loadingLabel={$L('Loading libraries...')}
-					loading={calendarLibrariesLoading}
-					items={calendarLibraries}
-					itemIdKey='Id'
-					itemNameKey='Name'
-					selectedIds={tempCalendarLibraryIds}
-					itemSpotlightPrefix='calendar-lib'
-					cancelSpotlightId='calendar-lib-cancel'
-					saveSpotlightId='calendar-lib-save'
-					onToggleSelection={toggleCalendarLibrary}
-					onCancel={popView}
-					onSave={saveCalendarLibraries}
-				/>
-			)}
-			{viewName === 'screensaverLibraries' && (
-				<MediaBarSourceView
-					viewSpotlightId='screensaver-libraries-view'
-					title={$L('Source Libraries')}
-					description={$L('Choose which libraries the screensaver picks artwork from.')}
-					loadingLabel={$L('Loading libraries...')}
-					loading={screensaverSourcesLoading}
-					items={screensaverLibraries}
-					itemIdKey='Id'
-					itemNameKey='Name'
-					selectedIds={tempScreensaverLibraryIds}
-					itemSpotlightPrefix='screensaver-lib'
-					cancelSpotlightId='screensaver-lib-cancel'
-					saveSpotlightId='screensaver-lib-save'
-					onToggleSelection={toggleScreensaverLibrary}
-					onCancel={popView}
-					onSave={saveScreensaverLibraries}
-				/>
-			)}
-			{viewName === 'screensaverCollections' && (
-				<MediaBarSourceView
-					viewSpotlightId='screensaver-collections-view'
-					title={$L('Source Collections')}
-					description={$L('Choose which collections the screensaver picks artwork from.')}
-					loadingLabel={$L('Loading collections...')}
-					loading={screensaverSourcesLoading}
-					items={screensaverCollections}
-					itemIdKey='Id'
-					itemNameKey='Name'
-					selectedIds={tempScreensaverCollectionIds}
-					itemSpotlightPrefix='screensaver-collection'
-					cancelSpotlightId='screensaver-collection-cancel'
-					saveSpotlightId='screensaver-collection-save'
-					onToggleSelection={toggleScreensaverCollection}
-					onCancel={popView}
-					onSave={saveScreensaverCollections}
-				/>
-			)}
-			{viewName === 'screensaverGenres' && (
-				<MediaBarSourceView
-					viewSpotlightId='screensaver-genres-view'
-					title={$L('Excluded Genres')}
-					description={$L('Artwork from the genres you pick here is left out of the screensaver.')}
-					loadingLabel={$L('Loading genres...')}
-					loading={screensaverSourcesLoading}
-					items={screensaverGenres}
-					itemIdKey='Id'
-					itemNameKey='Name'
-					selectedIds={tempScreensaverGenres}
-					itemSpotlightPrefix='screensaver-genre'
-					cancelSpotlightId='screensaver-genre-cancel'
-					saveSpotlightId='screensaver-genre-save'
-					onToggleSelection={toggleScreensaverGenre}
-					onCancel={popView}
-					onSave={saveScreensaverGenres}
-				/>
-			)}
 			</Fragment>
 			</SettingsEnterContext.Provider>
 			</SettingsTitleContext.Provider>
-			{optionsOpen && (
+			{currentView.view === 'options' && (
 				<div onFocus={handleOptionFocus}>
 					<OptionsDialog
 						title={currentView.title}
 						options={currentView.options}
 						currentValue={currentView.settingKey === '__themeSelection' ? activeThemeId : currentView.value}
+						swatchOf={currentView.swatchOf}
+						swatchEdge={currentView.swatchEdge}
+						subtitleOf={currentView.subtitleOf}
 						onSelect={selectOptionValue}
 					/>
 				</div>
+			)}
+			{currentView.view === 'checklist' && (
+				<ChecklistDialog
+					title={currentView.title}
+					options={currentView.options}
+					picked={currentView.picked}
+					max={currentView.max}
+					sortByLabel={currentView.sortByLabel}
+					onSave={saveChecklist}
+					onCancel={popView}
+				/>
 			)}
 			<ClearDataDialog
 				open={clearDataDialogOpen}

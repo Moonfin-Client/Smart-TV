@@ -1,39 +1,42 @@
-import {useCallback, useState} from 'react';
+import {useCallback, useEffect, useState} from 'react';
+import $L from '@enact/i18n/$L';
+import {asOptions} from './useMediaBarSources';
 
 // Sonarr and Radarr titles only land in these, so other kinds of library aren't offered.
 const CALENDAR_LIBRARY_TYPES = ['movies', 'tvshows', 'mixed'];
 
-/** The libraries the Calendar screen lists, picked the way the screensaver's sources are. */
-const useCalendarLibraries = ({api, settings, updateSettings, pushView, popView}) => {
+/**
+ * The libraries the Calendar screen lists, loaded with the settings since the row names the
+ * picked ones the way Core's does, and the checklist that picks them in the server's order.
+ */
+const useCalendarLibraries = ({api, settings, updateSettings, openChecklist}) => {
 	const [calendarLibraries, setCalendarLibraries] = useState([]);
-	const [tempCalendarLibraryIds, setTempCalendarLibraryIds] = useState([]);
-	const [calendarLibrariesLoading, setCalendarLibrariesLoading] = useState(false);
 
-	const openCalendarLibraries = useCallback(async () => {
-		pushView({view: 'calendarLibraries', returnFocusTo: 'setting-calendarLibraries'});
-		setCalendarLibrariesLoading(true);
-		setTempCalendarLibraryIds(Array.isArray(settings.calendarLibraryIds) ? [...settings.calendarLibraryIds] : []);
-		try {
-			const result = await api.getAllLibraries();
-			setCalendarLibraries((result?.Items || []).filter((lib) => !lib?.CollectionType || CALENDAR_LIBRARY_TYPES.indexOf(lib.CollectionType) >= 0));
-		} catch (err) {
+	useEffect(() => {
+		let live = true;
+		Promise.resolve(api.getAllLibraries()).then((result) => {
+			if (!live) return;
+			setCalendarLibraries((result?.Items || [])
+				.filter((lib) => !lib?.CollectionType || CALENDAR_LIBRARY_TYPES.indexOf(lib.CollectionType) >= 0));
+		}, (err) => {
 			void err;
-			setCalendarLibraries([]);
-		} finally {
-			setCalendarLibrariesLoading(false);
-		}
-	}, [api, pushView, settings.calendarLibraryIds]);
+		});
+		return () => {
+			live = false;
+		};
+	}, [api]);
 
-	const toggleCalendarLibrary = useCallback((id) => {
-		setTempCalendarLibraryIds((prev) => (prev.indexOf(id) >= 0 ? prev.filter((entry) => entry !== id) : [...prev, id]));
-	}, []);
+	const openCalendarLibraries = useCallback(() => {
+		openChecklist({
+			title: $L('Libraries'),
+			options: asOptions(calendarLibraries),
+			picked: Array.isArray(settings.calendarLibraryIds) ? settings.calendarLibraryIds : [],
+			onSave: (picked) => updateSettings({calendarLibraryIds: picked}),
+			returnFocusTo: 'setting-calendarLibraries'
+		});
+	}, [calendarLibraries, openChecklist, settings.calendarLibraryIds, updateSettings]);
 
-	const saveCalendarLibraries = useCallback(() => {
-		updateSettings({calendarLibraryIds: tempCalendarLibraryIds});
-		popView();
-	}, [tempCalendarLibraryIds, updateSettings, popView]);
-
-	return {calendarLibraries, tempCalendarLibraryIds, calendarLibrariesLoading, openCalendarLibraries, toggleCalendarLibrary, saveCalendarLibraries};
+	return {calendarLibraries, openCalendarLibraries};
 };
 
 export default useCalendarLibraries;

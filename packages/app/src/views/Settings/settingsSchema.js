@@ -79,6 +79,7 @@ import {
 	getSubtitleColorOptions,
 	getSubtitleLanguageOptions,
 	getSubtitleModeOptions,
+	subtitleModeHint,
 	getSubtitlePositionOptions,
 	getSubtitleShadowColorOptions,
 	getSubtitleSizeOptions,
@@ -96,7 +97,8 @@ import {
 	getCalendarImageTypeOptions,
 	getCalendarSelectActionOptions
 } from './settingsOptions';
-import {resolveOverlayColor} from '../../theme/overlayColors';
+import {overlaySwatchColor} from '../../theme/overlayColors';
+import {MAX_SUBTITLE_DOWNLOAD_LANGUAGES} from '../Player/remoteSubtitleUtils';
 
 // This module describes every settings screen as data. Settings.js renders it and the
 // search index reads it, so a row only ever has to be written once. It deliberately
@@ -109,13 +111,16 @@ import {resolveOverlayColor} from '../../theme/overlayColors';
 //
 // `clean` marks the screens that set their headings in NotoSans. On a picker row, `padded` gives a
 // text or number picker roomier padding, and `valueAsSubtitle` writes the value under the title
-// with a chevron instead of in a bubble. `colorTile` draws a colour row as a bare icon with the
-// colour on the end, and `plainIcon` drops the tile behind a row's icon.
+// with a chevron instead of in a bubble. `colorTile` draws a color row as a bare icon with the
+// color on the end, and `plainIcon` drops the tile behind a row's icon. `swatchOf` and
+// `subtitleOf` add a swatch or a line under each choice in the picker itself.
 // A picker row that stands for more than one setting reads its choice with `value` and writes
 // it with `onSelect`.
 //
 // Every piece of text is a function rather than a string, because $L reads the active
 // locale when it is called and the bundle is not loaded when this module is imported.
+
+const ownColor = (value) => value;
 
 export const KIND = {
 	TOGGLE: 'toggle',
@@ -214,6 +219,14 @@ const whenTruehdOptIn = (ctx) => ctx.settings.audioPassthroughMode !== 'disabled
 const whenSubtitlesOn = (ctx) => ctx.settings.subtitleMode !== 'none';
 
 const countLabel = (count) => $L('{count} selected').replace('{count}', String(count));
+
+// What a checklist row's bubble says, like Core's: the picked labels it knows, or the empty label
+const pickedLabels = (picked, options, emptyLabel) => {
+	const labels = (Array.isArray(picked) ? picked : [])
+		.map((value) => options.find((option) => option.value === value)?.label)
+		.filter(Boolean);
+	return labels.length > 0 ? labels.join(', ') : emptyLabel;
+};
 
 export const SETTINGS_SCHEMA = [
 	{
@@ -433,7 +446,7 @@ export const SETTINGS_SCHEMA = [
 				rows: [
 					{kind: KIND.SECTION, id: 'navAppearance', label: () => $L('Appearance')},
 					{kind: KIND.OPTION, key: 'navbarPosition', label: () => $L('Navigation Style'), options: getNavPositionOptions, fallback: () => $L('Top Bar'), icon: 'view_sidebar'},
-					{kind: KIND.OPTION, key: 'navbarColor', label: () => $L('Navbar Color'), options: getOverlayColorOptions, fallback: () => $L('Gray'), icon: 'palette', swatch: (ctx) => resolveOverlayColor(ctx.settings.navbarColor)},
+					{kind: KIND.OPTION, key: 'navbarColor', label: () => $L('Navbar Color'), options: getOverlayColorOptions, fallback: () => $L('Gray'), icon: 'palette', swatch: (ctx) => overlaySwatchColor(ctx.settings.navbarColor), swatchOf: overlaySwatchColor, swatchEdge: true},
 					{kind: KIND.SLIDER, key: 'navbarOpacity', label: () => $L('Navbar Opacity'), min: 0, max: 100, step: 5, format: percent, icon: 'opacity'},
 					{kind: KIND.TOGGLE, key: 'navbarAlwaysExpanded', label: () => $L('Always Expand Navbar Labels'), desc: () => $L('Always show text labels in the top navigation bar'), icon: 'unfold_more', when: (ctx) => ctx.settings.navbarPosition !== 'left'},
 					{kind: KIND.SECTION, id: 'navButtons', label: () => $L('Buttons')},
@@ -614,8 +627,9 @@ export const SETTINGS_SCHEMA = [
 						label: () => $L('Source Libraries'),
 						desc: (ctx) => (Array.isArray(ctx.settings.mediaBarLibraryIds) && ctx.settings.mediaBarLibraryIds.length > 0
 							? countLabel(ctx.settings.mediaBarLibraryIds.length)
-							: $L('All Libraries')),
+							: $L('None selected')),
 						icon: 'folder',
+						chevron: false,
 						action: (ctx) => ctx.actions.openMediaBarLibraries()
 					},
 					{
@@ -626,6 +640,7 @@ export const SETTINGS_SCHEMA = [
 							? countLabel(ctx.settings.mediaBarCollectionIds.length)
 							: $L('None selected')),
 						icon: 'collections_bookmark',
+						chevron: false,
 						action: (ctx) => ctx.actions.openMediaBarCollections()
 					},
 					{
@@ -636,6 +651,7 @@ export const SETTINGS_SCHEMA = [
 							? countLabel(ctx.settings.mediaBarExternalLists.length)
 							: $L('None selected')),
 						icon: 'public',
+						chevron: false,
 						action: (ctx) => ctx.actions.openMediaBarExternalLists(),
 						when: whenPlugin
 					},
@@ -644,9 +660,10 @@ export const SETTINGS_SCHEMA = [
 						id: 'excludedGenres',
 						label: () => $L('Excluded Genres'),
 						desc: (ctx) => (Array.isArray(ctx.settings.excludedGenres) && ctx.settings.excludedGenres.length > 0
-							? ctx.settings.excludedGenres.join(', ')
-							: $L('None')),
+							? countLabel(ctx.settings.excludedGenres.length)
+							: $L('None excluded')),
 						icon: 'label_off',
+						chevron: false,
 						action: (ctx) => ctx.actions.openExcludedGenres()
 					},
 					{kind: KIND.SECTION, id: 'mediaBarBehavior', label: () => $L('Behavior')},
@@ -794,6 +811,7 @@ export const SETTINGS_SCHEMA = [
 							: $L('All (Default)')),
 						icon: 'folder',
 						when: whenScreensaverLibrary,
+						chevron: false,
 						action: (ctx) => ctx.actions.openScreensaverLibraries()
 					},
 					{
@@ -805,6 +823,7 @@ export const SETTINGS_SCHEMA = [
 							: $L('None selected')),
 						icon: 'collections_bookmark',
 						when: whenScreensaverLibrary,
+						chevron: false,
 						action: (ctx) => ctx.actions.openScreensaverCollections()
 					},
 					{
@@ -812,10 +831,11 @@ export const SETTINGS_SCHEMA = [
 						id: 'screensaverGenres',
 						label: () => $L('Excluded Genres'),
 						desc: (ctx) => (Array.isArray(ctx.settings.screensaverExcludedGenres) && ctx.settings.screensaverExcludedGenres.length > 0
-							? ctx.settings.screensaverExcludedGenres.join(', ')
+							? countLabel(ctx.settings.screensaverExcludedGenres.length)
 							: $L('None excluded')),
 						icon: 'label_off',
 						when: whenScreensaverLibrary,
+						chevron: false,
 						action: (ctx) => ctx.actions.openScreensaverGenres()
 					},
 					{kind: KIND.OPTION, key: 'screensaverMaxRating', label: () => $L('Max Age Rating'), options: getAgeRatingOptions, fallback: 'PG-13', icon: 'shield', when: whenScreensaverLibrary, padded: true},
@@ -931,12 +951,8 @@ export const SETTINGS_SCHEMA = [
 						kind: KIND.NAV,
 						id: 'transcodeAudioCodecs',
 						label: () => $L('Transcode Audio Codecs'),
-						desc: (ctx) => {
-							const picked = ctx.settings.transcodeAudioCodecs || [];
-							if (picked.length === 0) return $L('None');
-							const options = getTranscodeAudioCodecOptions();
-							return picked.map((codec) => options.find((option) => option.value === codec)?.label || codec).join(', ');
-						},
+						desc: () => $L('The server converts audio in these formats instead of sending it as is.'),
+						bubble: (ctx) => pickedLabels(ctx.settings.transcodeAudioCodecs, getTranscodeAudioCodecOptions(), $L('None')),
 						icon: 'transform',
 						action: (ctx) => ctx.actions.openTranscodeAudioCodecs()
 					}
@@ -951,17 +967,13 @@ export const SETTINGS_SCHEMA = [
 				description: () => $L('Change subtitle modes, default languages, appearance, and rendering options.'),
 				rows: [
 					{kind: KIND.SECTION, id: 'subtitlesGeneral', label: () => $L('General')},
-					{kind: KIND.OPTION, key: 'subtitleMode', label: () => $L('Subtitle Mode'), options: getSubtitleModeOptions, fallback: () => $L('Flagged'), icon: 'subtitles'},
+					{kind: KIND.OPTION, key: 'subtitleMode', label: () => $L('Subtitle Mode'), options: getSubtitleModeOptions, subtitleOf: subtitleModeHint, fallback: () => $L('Flagged'), icon: 'subtitles'},
 					{
 						kind: KIND.NAV,
 						id: 'subtitleDownloadLanguages',
 						label: () => $L('Subtitle Download Languages'),
-						desc: (ctx) => {
-							const picked = ctx.settings.subtitleDownloadLanguages || [];
-							if (picked.length === 0) return $L('Auto');
-							const options = getSubtitleLanguageOptions();
-							return picked.map((code) => options.find((option) => option.value === code)?.label || code).join(', ');
-						},
+						desc: () => $L('Languages to search when downloading subtitles, up to {max}. With none ticked, the default subtitle language is searched, or one language is picked from the video when that is not set.').replace('{max}', String(MAX_SUBTITLE_DOWNLOAD_LANGUAGES)),
+						bubble: (ctx) => pickedLabels(ctx.settings.subtitleDownloadLanguages, getSubtitleLanguageOptions(), $L('Auto')),
 						icon: 'download',
 						action: (ctx) => ctx.actions.openSubtitleDownloadLanguages()
 					},
@@ -992,12 +1004,12 @@ export const SETTINGS_SCHEMA = [
 				description: () => $L('Customize subtitle appearance'),
 				rows: [
 					{kind: KIND.CUSTOM, id: 'subtitlePreview', render: 'subtitlePreview'},
-					{kind: KIND.OPTION, key: 'subtitleColor', label: () => $L('Text Fill Color'), options: getSubtitleColorOptions, fallback: () => $L('White'), icon: 'format_color_text', colorTile: (ctx) => ctx.settings.subtitleColor},
+					{kind: KIND.OPTION, key: 'subtitleColor', label: () => $L('Text Fill Color'), options: getSubtitleColorOptions, fallback: () => $L('White'), icon: 'format_color_text', colorTile: (ctx) => ctx.settings.subtitleColor, swatchOf: ownColor},
 					{kind: KIND.SLIDER, key: 'subtitleOpacity', label: () => $L('Text Opacity'), min: 0, max: 100, step: 5, format: percent, icon: 'opacity', plainIcon: true},
-					{kind: KIND.OPTION, key: 'subtitleShadowColor', label: () => $L('Shadow Color'), options: getSubtitleShadowColorOptions, fallback: () => $L('Black'), icon: 'border_color', colorTile: (ctx) => ctx.settings.subtitleShadowColor},
+					{kind: KIND.OPTION, key: 'subtitleShadowColor', label: () => $L('Shadow Color'), options: getSubtitleShadowColorOptions, fallback: () => $L('Black'), icon: 'border_color', colorTile: (ctx) => ctx.settings.subtitleShadowColor, swatchOf: ownColor},
 					{kind: KIND.SLIDER, key: 'subtitleShadowOpacity', label: () => $L('Shadow Opacity'), min: 0, max: 100, step: 5, format: percent, icon: 'opacity', plainIcon: true},
 					{kind: KIND.SLIDER, key: 'subtitleShadowBlur', label: () => $L('Shadow Size (Blur)'), min: 0, max: 1, step: 0.1, format: (v) => (v || 0.1).toFixed(1), icon: 'blur_on', plainIcon: true},
-					{kind: KIND.OPTION, key: 'subtitleBackgroundColor', label: () => $L('Background Color'), options: getSubtitleBackgroundColorOptions, fallback: () => $L('Black'), icon: 'format_color_fill', colorTile: (ctx) => ctx.settings.subtitleBackgroundColor},
+					{kind: KIND.OPTION, key: 'subtitleBackgroundColor', label: () => $L('Background Color'), options: getSubtitleBackgroundColorOptions, fallback: () => $L('Black'), icon: 'format_color_fill', colorTile: (ctx) => ctx.settings.subtitleBackgroundColor, swatchOf: ownColor},
 					{kind: KIND.SLIDER, key: 'subtitleBackground', label: () => $L('Background Opacity'), min: 0, max: 100, step: 5, format: percent, icon: 'opacity', plainIcon: true},
 					{kind: KIND.OPTION, key: 'subtitleSize', label: () => $L('Subtitle Size'), options: getSubtitleSizeOptions, fallback: () => $L('Medium'), icon: 'format_size', plainIcon: true},
 					{kind: KIND.OPTION, key: 'subtitlePosition', label: () => $L('Subtitle Position'), options: getSubtitlePositionOptions, fallback: () => $L('Bottom'), icon: 'vertical_align_bottom', plainIcon: true},
@@ -1010,12 +1022,12 @@ export const SETTINGS_SCHEMA = [
 						desc: () => $L('White is much brighter in HDR than in SDR, so a dimmer style here avoids the glare'),
 						icon: 'hdr_on'
 					},
-					{kind: KIND.OPTION, key: 'subtitleColorHdr', label: () => $L('Text Fill Color'), options: getSubtitleColorOptions, fallback: () => $L('Gray'), icon: 'format_color_text', when: whenHdrSubtitles, colorTile: (ctx) => ctx.settings.subtitleColorHdr},
+					{kind: KIND.OPTION, key: 'subtitleColorHdr', label: () => $L('Text Fill Color'), options: getSubtitleColorOptions, fallback: () => $L('Gray'), icon: 'format_color_text', when: whenHdrSubtitles, colorTile: (ctx) => ctx.settings.subtitleColorHdr, swatchOf: ownColor},
 					{kind: KIND.SLIDER, key: 'subtitleOpacityHdr', label: () => $L('Text Opacity'), min: 0, max: 100, step: 5, format: percent, icon: 'opacity', when: whenHdrSubtitles, plainIcon: true},
-					{kind: KIND.OPTION, key: 'subtitleShadowColorHdr', label: () => $L('Shadow Color'), options: getSubtitleShadowColorOptions, fallback: () => $L('Black'), icon: 'border_color', when: whenHdrSubtitles, colorTile: (ctx) => ctx.settings.subtitleShadowColorHdr},
+					{kind: KIND.OPTION, key: 'subtitleShadowColorHdr', label: () => $L('Shadow Color'), options: getSubtitleShadowColorOptions, fallback: () => $L('Black'), icon: 'border_color', when: whenHdrSubtitles, colorTile: (ctx) => ctx.settings.subtitleShadowColorHdr, swatchOf: ownColor},
 					{kind: KIND.SLIDER, key: 'subtitleShadowOpacityHdr', label: () => $L('Shadow Opacity'), min: 0, max: 100, step: 5, format: percent, icon: 'opacity', when: whenHdrSubtitles, plainIcon: true},
 					{kind: KIND.SLIDER, key: 'subtitleShadowBlurHdr', label: () => $L('Shadow Size (Blur)'), min: 0, max: 1, step: 0.1, format: (v) => (v || 0.1).toFixed(1), icon: 'blur_on', when: whenHdrSubtitles, plainIcon: true},
-					{kind: KIND.OPTION, key: 'subtitleBackgroundColorHdr', label: () => $L('Background Color'), options: getSubtitleBackgroundColorOptions, fallback: () => $L('Black'), icon: 'format_color_fill', when: whenHdrSubtitles, colorTile: (ctx) => ctx.settings.subtitleBackgroundColorHdr},
+					{kind: KIND.OPTION, key: 'subtitleBackgroundColorHdr', label: () => $L('Background Color'), options: getSubtitleBackgroundColorOptions, fallback: () => $L('Black'), icon: 'format_color_fill', when: whenHdrSubtitles, colorTile: (ctx) => ctx.settings.subtitleBackgroundColorHdr, swatchOf: ownColor},
 					{kind: KIND.SLIDER, key: 'subtitleBackgroundHdr', label: () => $L('Background Opacity'), min: 0, max: 100, step: 5, format: percent, icon: 'opacity', when: whenHdrSubtitles, plainIcon: true},
 					{kind: KIND.OPTION, key: 'subtitleSizeHdr', label: () => $L('Subtitle Size'), options: getSubtitleSizeOptions, fallback: () => $L('Medium'), icon: 'format_size', when: whenHdrSubtitles, plainIcon: true},
 					{kind: KIND.OPTION, key: 'subtitlePositionHdr', label: () => $L('Subtitle Position'), options: getSubtitlePositionOptions, fallback: () => $L('Bottom'), icon: 'vertical_align_bottom', when: whenHdrSubtitles, plainIcon: true},
@@ -1164,10 +1176,9 @@ export const SETTINGS_SCHEMA = [
 						kind: KIND.NAV,
 						id: 'calendarLibraries',
 						label: () => $L('Libraries'),
-						desc: (ctx) => (Array.isArray(ctx.settings.calendarLibraryIds) && ctx.settings.calendarLibraryIds.length > 0
-							? countLabel(ctx.settings.calendarLibraryIds.length)
-							: $L('All Libraries')),
+						bubble: (ctx) => pickedLabels(ctx.settings.calendarLibraryIds, (ctx.calendarLibraries || []).map((lib) => ({value: lib.Id, label: lib.Name})), $L('All Libraries')),
 						icon: 'video_library_outlined',
+						when: (ctx) => ctx.calendarLibraries?.length > 0,
 						action: (ctx) => ctx.actions.openCalendarLibraries()
 					},
 					{kind: KIND.TOGGLE, key: 'calendarIncludeUnmonitored', label: () => $L('Include unmonitored'), desc: () => $L("Also list episodes and movies Sonarr and Radarr aren't set to download"), icon: 'visibility_outlined'},

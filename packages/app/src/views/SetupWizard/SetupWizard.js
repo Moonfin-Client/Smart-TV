@@ -20,7 +20,7 @@ import LoadingSpinner from '../../components/LoadingSpinner';
 import {remainingSteps, markComplete, deferThisLaunch} from '../../utils/setupWizardGate';
 import {ModalContainer} from '../../utils/spotlightContainers';
 import {keepFocusInView, pointerHover} from '../../utils/focusScroll';
-import {getAudioLanguageOptions, getSubtitleLanguageOptions, getSubtitleModeOptions, getLabel} from '../Settings/settingsOptions';
+import {getAudioLanguageOptions, getSubtitleLanguageOptions, getSubtitleModeOptions, getLabel, subtitleModeHint} from '../Settings/settingsOptions';
 import {ensurePreviewItemsLoaded} from './setupPreviewData';
 import {MediaBarPreview, NavbarPreview, HomeRowsPreview, DetailStylePreview, SetupIcon, usePreviewPalette} from './SetupPreviews';
 import {STEP_INFO, LANGUAGE_PATH, tourDescription} from './setupSteps';
@@ -46,16 +46,6 @@ const keepColumnInView = (ev) => {
 	if (pointerHover()) return;
 	const spots = ev.currentTarget.querySelectorAll('.spottable');
 	if (ev.target === spots[spots.length - 1]) ev.currentTarget.scrollTop = ev.currentTarget.scrollHeight;
-};
-
-const subtitleModeDescription = (mode) => {
-	switch (mode) {
-		case 'always': return $L('Automatically loads and displays subtitles every time a video starts.');
-		case 'foreign': return $L('Automatically turns on subtitles if the default audio track is in a foreign language.');
-		case 'forced': return $L('Only loads subtitles explicitly tagged with the forced metadata flag.');
-		case 'none': return $L('Completely disables automatic subtitle loading.');
-		default: return $L("Plays tracks internally flagged in the media file's metadata as \"default\" or \"forced\".");
-	}
 };
 
 const questionFor = (step) => {
@@ -654,7 +644,7 @@ const SetupWizard = ({onDone, backHandlerRef}) => {
 					spotlightId='setup-wizard-subtitleMode'
 					label={$L('Subtitle Mode')}
 					trailing={<ChosenValue label={modeLabel} t={t} />}
-					onSelect={() => openPicker({settingKey: 'subtitleMode', title: $L('Subtitle Mode'), options: modeOptions, current: mode, descriptionOf: subtitleModeDescription})} // eslint-disable-line react/jsx-no-bind
+					onSelect={() => openPicker({settingKey: 'subtitleMode', title: $L('Subtitle Mode'), options: modeOptions, current: mode, descriptionOf: subtitleModeHint})} // eslint-disable-line react/jsx-no-bind
 					t={t}
 					data-spot-right={NEXT_TARGET}
 					data-spot-down={subtitlesOn ? undefined : below}

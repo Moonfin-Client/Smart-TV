@@ -458,6 +458,15 @@ export const getSubtitleModeOptions = () => [
 	{ value: 'none', label: $L('None') }
 ];
 
+// What each subtitle mode does, under its name in the picker
+export const subtitleModeHint = (mode) => ({
+	default: $L('Plays tracks internally flagged in the media file\'s metadata as "default" or "forced".'),
+	always: $L('Automatically loads and displays subtitles every time a video starts.'),
+	foreign: $L('Automatically turns on subtitles if the default audio track is in a foreign language.'),
+	forced: $L('Only loads subtitles explicitly tagged with the forced metadata flag.'),
+	none: $L('Completely disables automatic subtitle loading.')
+})[mode];
+
 export const getSortOrderOptions = () => [
 	{ value: 'auto', label: $L('Auto') },
 	{ value: 'Ascending', label: $L('Ascending') },
