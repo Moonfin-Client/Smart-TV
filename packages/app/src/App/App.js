@@ -71,7 +71,7 @@ import SettingsPanel from '../components/SettingsPanel';
 import ShuffleOverlay from '../components/ShuffleOverlay';
 import SpottableInput from '../components/SpottableInput/SpottableInput';
 import TVKeyboard from '../components/TVKeyboard/TVKeyboard';
-import {isTvKeyboardVisible, closeTvKeyboard} from '../components/TVKeyboard/keyboardBus';
+import {isTvKeyboardVisible, closeTvKeyboard, subscribeTvKeyboardVisibility} from '../components/TVKeyboard/keyboardBus';
 import useInactivityTimer from '../hooks/useInactivityTimer';
 import useSignInPin from '../hooks/useSignInPin';
 import {useThemeMusic} from '../hooks/useThemeMusic';
@@ -369,6 +369,7 @@ const AppContent = (props) => {
 	const isPinGateActive = pinPending && isSignInPinEnabled(signInPin);
 	// Until the server has said whether the account has a PIN, nothing behind the gate shows.
 	const isPinChecking = pinPending && !isPinGateActive && pinChecked !== pinSession;
+	const [pinKeyboardOpen, setPinKeyboardOpen] = useState(false);
 	const screensaverTimeout = Number(settings.screensaverTimeout || 90);
 	const screensaverEnabled = Boolean(
 		settings.screensaverEnabled &&
@@ -526,6 +527,12 @@ const AppContent = (props) => {
 			Spotlight.focus('[data-spotlight-id="app-pin-input"]');
 		}, 100);
 		return () => clearTimeout(timer);
+	}, [isPinGateActive]);
+
+	useEffect(() => {
+		if (!isPinGateActive) return;
+		setPinKeyboardOpen(isTvKeyboardVisible());
+		return subscribeTvKeyboardVisibility(({visible}) => setPinKeyboardOpen(visible));
 	}, [isPinGateActive]);
 
 	const fetchLibraries = useCallback(async () => {
@@ -1862,7 +1869,7 @@ const AppContent = (props) => {
 	if (isPinGateActive) {
 		return (
 			<div className={css.app} {...props}>
-				<div className={css.pinGate}>
+				<div className={`${css.pinGate} ${pinKeyboardOpen ? css.pinGateKeyboard : ''}`}>
 					<div className={css.pinCard}>
 						<h2 className={css.pinTitle}>{$L('Enter PIN')}</h2>
 						<p className={css.pinSubtitle}>{$L('This profile is protected by a 4-digit PIN.')}</p>
