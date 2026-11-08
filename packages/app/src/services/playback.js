@@ -538,12 +538,14 @@ export const getPlaybackInfo = async (itemId, options = {}) => {
 	// Force Transcode or Prefer Transcoding turned off. A stop clears it with the
 	// session.
 	const playing = currentSession?.itemId === itemId ? currentSession : null;
-	const allowDirectPlay = playing ? playing.allowDirectPlay : options.enableDirectPlay !== false;
-	const allowDirectStream = playing ? playing.allowDirectStream : options.enableDirectStream !== false;
-	const enableDirectStream = allowDirectStream && options.enableDirectStream !== false;
 	// A fallback after the TV refused the file asks for a real encode, since a remux would hand it the
-	// same video and audio it just refused. That holds while the item plays, so a track switch keeps it.
-	const allowStreamCopy = (playing ? playing.allowStreamCopy !== false : true) && options.allowStreamCopy !== false;
+	// same video and audio it just refused. It also rules out the direct routes the TV refused. All of
+	// that holds while the item plays, so a track switch or a reload doesn't go back to them.
+	const refusedByTv = options.allowStreamCopy === false;
+	const allowDirectPlay = !refusedByTv && (playing ? playing.allowDirectPlay : options.enableDirectPlay !== false);
+	const allowDirectStream = !refusedByTv && (playing ? playing.allowDirectStream : options.enableDirectStream !== false);
+	const enableDirectStream = allowDirectStream && options.enableDirectStream !== false;
+	const allowStreamCopy = !refusedByTv && (playing ? playing.allowStreamCopy !== false : true);
 	const streamCopyFields = allowStreamCopy ? {} : {AllowVideoStreamCopy: false, AllowAudioStreamCopy: false};
 
 	// maxBitrate: user-set value (>0), or auto-detect from device capabilities. Silo gets only a user-set value:

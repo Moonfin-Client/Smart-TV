@@ -246,6 +246,16 @@ describe('transcode preferences', () => {
 		expect(lastRequest()).toMatchObject({AllowVideoStreamCopy: false, AllowAudioStreamCopy: false, AudioStreamIndex: 3});
 	});
 
+	test('a reload after the fallback keeps the TV off the routes it refused', async () => {
+		answerMovie();
+		await playback.getPlaybackInfo(movie.Id, {item: movie});
+		await playback.getPlaybackInfo(movie.Id, {item: movie, enableDirectPlay: false, enableDirectStream: false, allowStreamCopy: false});
+		await playback.getPlaybackInfo(movie.Id, {item: movie, startPositionTicks: 100});
+		expect(lastRequest()).toMatchObject({
+			EnableDirectPlay: false, EnableDirectStream: false, AllowVideoStreamCopy: false, AllowAudioStreamCopy: false
+		});
+	});
+
 	test('a stop lets the next load copy streams again', async () => {
 		answerMovie();
 		await playback.getPlaybackInfo(movie.Id, {item: movie, allowStreamCopy: false});
