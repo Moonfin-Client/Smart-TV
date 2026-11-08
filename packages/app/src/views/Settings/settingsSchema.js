@@ -1229,7 +1229,7 @@ export const SETTINGS_SCHEMA = [
 				rows: [
 					{kind: KIND.CUSTOM, id: 'aboutHeader', render: 'aboutHeader'},
 					{kind: KIND.SECTION, id: 'appInfo', label: () => $L('APP INFO')},
-					{kind: KIND.INFO, id: 'appVersion', label: () => $L('Version'), value: () => process.env.REACT_APP_VERSION || '0.0.0', icon: 'info_outline'},
+					{kind: KIND.INFO, id: 'appVersion', label: () => $L('Version'), value: () => process.env.REACT_APP_VERSION || '0.0.0', icon: 'info_outline', onSelect: (ctx) => ctx.actions.pressVersion()},
 					{
 						kind: KIND.INFO,
 						id: 'platform',

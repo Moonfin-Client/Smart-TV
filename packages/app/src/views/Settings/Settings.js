@@ -1,4 +1,4 @@
-import {Fragment, useCallback, useState, useEffect, useLayoutEffect, useMemo, useRef} from 'react';
+import {Fragment, Suspense, lazy, useCallback, useState, useEffect, useLayoutEffect, useMemo, useRef} from 'react';
 import {
 	hashPin, isPinShaped, pinMatches, lockoutRemaining, registerFailedAttempt, clearedLockout, tooManyAttempts, KIDS_PIN
 } from '../../utils/pinLockout';
@@ -56,6 +56,7 @@ import {ThemesView, ThemeStoreView} from './ThemeViews';
 import AchievementsScreens, {ACHIEVEMENT_VIEWS} from './achievements/AchievementsScreens';
 import FriendsScreens, {FRIENDS_VIEWS} from './friends/FriendsScreens';
 import {isConfirmSpendOpen} from './achievements/ConfirmSpendDialog';
+import useAfterHoursTrigger, {isAfterHoursOpen} from '../AfterHours/useAfterHoursTrigger';
 import {kidsModeNeedsPin} from '../../utils/kidsMode';
 import {sortRatingsBySeverity} from '../../utils/parentalFilter';
 import {isPickedRow, isSeerrSliderRow} from '../../utils/pickedRows';
@@ -80,6 +81,8 @@ import {LOG_RENDER_STEP} from './useDiagnosticsLog';
 import {DETAIL_SECTIONS_HIDDEN_KEY, toggleHiddenSection} from '../../utils/detailSectionLayout';
 
 import css from './Settings.module.less';
+
+const AfterHours = lazy(() => import('../AfterHours'));
 
 // The screen being left slides out over the one it goes back to. It's a copy of the leaving
 // screen with nothing in it spotlight can land on, since the real one is gone by the next render.
@@ -337,8 +340,8 @@ const Settings = ({ onBack, onLibrariesChanged, onRunSetupWizard, onSelectItem, 
 		const handleKeyDown = (e) => {
 			if (isTvKeyboardVisible()) return;
 			if (!isBackKey(e)) return;
-			// A confirm is a layer of its own and closes itself on this key.
-			if (isConfirmSpendOpen()) return;
+			// A confirm is a layer of its own and closes itself on this key, and so is the arcade.
+			if (isConfirmSpendOpen() || isAfterHoursOpen()) return;
 			e.preventDefault();
 			e.stopPropagation();
 			if (onLiveBackRef.current && onLiveBackRef.current()) return;
@@ -1058,6 +1061,7 @@ const Settings = ({ onBack, onLibrariesChanged, onRunSetupWizard, onSelectItem, 
 	}, [resetSettings, logoutAll]);
 
 	const canProbeDevice = isXbox() && !!serverUrl && !!accessToken;
+	const afterHours = useAfterHoursTrigger();
 
 	const settingsCtx = useMemo(() => ({
 		settings,
@@ -1123,6 +1127,7 @@ const Settings = ({ onBack, onLibrariesChanged, onRunSetupWizard, onSelectItem, 
 			setSettings: updateSettings,
 			refreshPlugin,
 			runSetupAgain: onRunSetupWizard,
+			pressVersion: afterHours.press,
 			// The probe page ships with the Xbox build, and its report goes to the server
 			// the user is signed in to, so it is only offered there and then.
 			openDeviceProbe: canProbeDevice ? openDeviceProbe : null
@@ -1134,7 +1139,7 @@ const Settings = ({ onBack, onLibrariesChanged, onRunSetupWizard, onSelectItem, 
 		signInPin, toggleSignInPin, changeSignInPin, removeSignInPin, openKidsMode, openLibraries, openLibraryOrder, openParentalControls, openSubtitleDownloadLanguages, openTranscodeAudioCodecs, openQrLink, openRatingSources, openRowImageTypes, openExcludedGenres, openMediaBarLibraries,
 		openMediaBarCollections, openMediaBarExternalLists, openScreensaverLibraries, openScreensaverCollections, openScreensaverGenres, openCalendarLibraries,
 		openImdbLists, openSeasonalRow, openExternalTmdbLists, openExternalCalendars,
-		openExternalCustomRows, openSeerrHomeRows, openScreen, onRunSetupWizard, canProbeDevice
+		openExternalCustomRows, openSeerrHomeRows, openScreen, onRunSetupWizard, canProbeDevice, afterHours.press
 	]);
 
 	// The live preview's inspector names rows with the same context the list draws them with.
@@ -1694,6 +1699,12 @@ const Settings = ({ onBack, onLibrariesChanged, onRunSetupWizard, onSelectItem, 
 				onCancel={closeClearDataDialog}
 				onConfirm={handleClearAllData}
 			/>
+			{afterHours.toast}
+			{afterHours.open && (
+				<Suspense fallback={null}>
+					<AfterHours onClose={afterHours.close} />
+				</Suspense>
+			)}
 		</div>
 	);
 };

@@ -1,0 +1,38 @@
+@import '../../styles/mixins.less';
+
+.toast {
+	position: fixed;
+	left: 50%;
+	bottom: 68px;
+	z-index: 2200;
+	transform: translateX(-50%);
+	display: flex;
+	align-items: center;
+	.flex-row-gap(28px);
+	padding: 24px 44px;
+	border: 2px solid #2c2756;
+	border-radius: 999px;
+	background: rgba(20, 17, 46, 0.97);
+	color: #ece8ff;
+	font-size: 36px;
+	white-space: nowrap;
+}
+
+.dots i {
+	display: inline-block;
+	width: 18px;
+	height: 18px;
+	margin-left: 10px;
+	border-radius: 50%;
+	background: #2c2756;
+}
+
+.dots .on {
+	background: #ffc94a;
+}
+
+.done {
+	border-color: #ffc94a;
+	color: #ffc94a;
+	font-weight: 700;
+}

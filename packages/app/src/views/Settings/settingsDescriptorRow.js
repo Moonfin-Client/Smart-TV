@@ -107,6 +107,7 @@ const renderDescriptorRow = (row, ctx, index, deps) => {
 					label={text(row.label)}
 					value={text(row.value)}
 					icon={text(row.icon)}
+					onClick={row.onSelect ? () => row.onSelect(ctx) : undefined}
 				/>
 			);
 		case KIND.CUSTOM:
