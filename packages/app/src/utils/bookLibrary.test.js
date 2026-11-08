@@ -66,7 +66,7 @@ describe('bookSeriesEntries', () => {
 	const issue = (id, parent, extra) => ({Id: id, Type: 'Book', Name: id, Path: `/c/${id}.cbz`, ParentId: parent, ImageTags: {Primary: `t${id}`}, ...extra});
 
 	it('groups comics by the folder they sit in, but not the library roots', () => {
-		const series = bookSeriesEntries([issue('s1', 'saga'), issue('s2', 'saga'), issue('r1', 'root'), issue('r2', 'root')], folders);
+		const series = bookSeriesEntries([issue('s1', 'saga'), issue('s2', 'saga'), issue('r1', 'root'), issue('r2', 'root')], folders, true);
 		expect(series).toHaveLength(1);
 		expect(series[0]).toMatchObject({Id: 'saga', Name: 'Saga', Type: 'BookSeries', ChildCount: 2, IsFolder: true, PrimaryImageItemId: 's1'});
 		expect(series[0].StackCovers).toEqual([{Id: 's1', Tag: 'ts1'}, {Id: 's2', Tag: 'ts2'}]);
@@ -75,14 +75,14 @@ describe('bookSeriesEntries', () => {
 	it('leaves ebooks in an author folder ungrouped, and groups them by series name instead', () => {
 		const dune = {...epub, ParentId: 'herbert', SeriesName: 'Dune'};
 		const messiah = {...dune, Id: 'e2', Name: 'Dune Messiah', SeriesName: ' Dune '};
-		const series = bookSeriesEntries([dune, messiah], folders);
+		const series = bookSeriesEntries([dune, messiah], folders, false);
 		expect(series).toEqual([expect.objectContaining({Id: 'bookSeries:Dune', ChildCount: 2})]);
 		expect(series[0].IsFolder).toBeUndefined();
 	});
 
 	it('drops a named series whose books already show as a series folder', () => {
 		const named = {SeriesName: 'Saga'};
-		expect(bookSeriesEntries([issue('s1', 'saga', named), issue('s2', 'saga', named)], folders).map((s) => s.Id)).toEqual(['saga']);
+		expect(bookSeriesEntries([issue('s1', 'saga', named), issue('s2', 'saga', named)], folders, true).map((s) => s.Id)).toEqual(['saga']);
 	});
 });
 

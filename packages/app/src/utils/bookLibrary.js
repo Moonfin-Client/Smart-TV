@@ -161,7 +161,7 @@ const seriesEntry = (id, name, members, folder) => {
 // the library's roots, the only folders whose parent isn't another of its folders. Ebooks are
 // filed by author and audiobooks split into chapter files, so neither groups by folder. Books
 // sharing a series name are a series too, unless every one of them already sits in a series folder.
-export const bookSeriesEntries = (titles, folders) => {
+export const bookSeriesEntries = (titles, folders, bookFoldersAsSeries) => {
 	const folderIds = new Set(folders.map((folder) => folder.Id));
 	const seriesFolders = new Map(folders.filter((folder) => folderIds.has(folder.ParentId)).map((folder) => [folder.Id, folder]));
 	const byFolder = new Map();
@@ -171,7 +171,7 @@ export const bookSeriesEntries = (titles, folders) => {
 		groups.get(key).push(title);
 	};
 	titles.forEach((title) => {
-		if (isComicItem(title) && seriesFolders.has(title.ParentId)) add(byFolder, title.ParentId, title);
+		if (bookFoldersAsSeries && seriesFolders.has(title.ParentId)) add(byFolder, title.ParentId, title);
 		const name = String(title.SeriesName || '').trim();
 		if (name) add(byName, name, title);
 	});
