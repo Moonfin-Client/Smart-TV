@@ -130,6 +130,7 @@ const Login = ({
 	const [status, setStatus] = useState(null);
 	const [isConnecting, setIsConnecting] = useState(false);
 	const [keyboardOpen, setKeyboardOpen] = useState(false);
+	const [keyboardOnPage, setKeyboardOnPage] = useState(false);
 	const [plexPin, setPlexPin] = useState(null);
 	const [plexServers, setPlexServers] = useState([]);
 	const [plexUsePassword, setPlexUsePassword] = useState(false);
@@ -183,11 +184,13 @@ const Login = ({
 	// When a keyboard opens, a spacer grows under the card and the active field
 	// gets pulled toward the top so it stays visible above the keys. The scroll
 	// waits out the spacer growing, since before that there is no room to move.
-	// A dialog makes its own room above the keys, so the spacer stays shut then.
+	// A field in the Add Server panel gets its room from the panel, so the spacer
+	// stays shut for that one.
 	useEffect(() => {
 		let scrollTimer = null;
 		const unsubscribe = subscribeTvKeyboardVisibility(({visible, anchor}) => {
 			setKeyboardOpen(visible);
+			setKeyboardOnPage(Boolean(visible && anchor && !panelRef.current?.contains(anchor)));
 			if (!visible || !anchor) return;
 			clearTimeout(scrollTimer);
 			scrollTimer = setTimeout(() => {
@@ -1963,7 +1966,7 @@ const Login = ({
 					</div>
 				)}
 
-				<div className={`${css.keyboardSpacer} ${keyboardOpen && !dialog ? css.keyboardSpacerOpen : ''}`} />
+				<div className={`${css.keyboardSpacer} ${keyboardOnPage ? css.keyboardSpacerOpen : ''}`} />
 			</div>
 			<div className={css.spacerBottom} />
 			{renderDialog()}
