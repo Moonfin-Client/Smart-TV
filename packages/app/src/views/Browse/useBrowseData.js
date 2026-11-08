@@ -355,16 +355,19 @@ const useBrowseData = ({
 	// screen stay until the new ones are in, so focus keeps its place, and a server that can't be
 	// reached, say on waking from standby before the network is back, leaves them as they were.
 	// The media bar is drawn again with them, since it can be holding the same title.
-	const refreshingRecentRef = useRef(false);
+	// Both go by who the rows belong to, so a read for the previous user doesn't hold up the next one's.
+	const refreshingRecentRef = useRef(null);
 	// A read that failed leaves the rows stale, so without a pause every return to Home would
 	// read every library again. The next show or resume after it tries again.
-	const lastRecentAttemptRef = useRef(0);
+	const lastRecentAttemptRef = useRef({owner: null, at: 0});
 	const refreshRecentRows = async () => {
-		if (refreshingRecentRef.current || Date.now() - lastRecentAttemptRef.current < VOLATILE_REFRESH_COOLDOWN_MS) return;
-		refreshingRecentRef.current = true;
-		lastRecentAttemptRef.current = Date.now();
-		const generation = loadGenerationRef.current;
 		const startedFor = memoryCache.owner;
+		const lastAttempt = lastRecentAttemptRef.current;
+		if (refreshingRecentRef.current === startedFor ||
+			(lastAttempt.owner === startedFor && Date.now() - lastAttempt.at < VOLATILE_REFRESH_COOLDOWN_MS)) return;
+		refreshingRecentRef.current = startedFor;
+		lastRecentAttemptRef.current = {owner: startedFor, at: Date.now()};
+		const generation = loadGenerationRef.current;
 		try {
 			const currentApi = apiRef.current;
 			const currentSettings = settingsRef.current;
@@ -412,7 +415,7 @@ const useBrowseData = ({
 		} catch (e) {
 			console.warn('[Browse] Failed to refresh the recent rows:', e);
 		} finally {
-			refreshingRecentRef.current = false;
+			if (refreshingRecentRef.current === startedFor) refreshingRecentRef.current = null;
 		}
 	};
 	refreshRecentRowsRef.current = refreshRecentRows;
