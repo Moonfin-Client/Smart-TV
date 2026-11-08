@@ -41,6 +41,7 @@ const CHAPTER_THUMB = {maxWidth: 400, quality: 90};
 // state this screen has no other use for.
 const ClassicDetailScreen = ({
 	item,
+	bookSeriesItem,
 	serverUrl,
 	serverToken,
 	settings,
@@ -185,6 +186,10 @@ const ClassicDetailScreen = ({
 
 	const {parts: additionalParts, others: otherExtras} = splitAdditionalParts(extras);
 
+	const itemName = bookSeriesItem !== null
+			? bookSeriesItem.Name
+			: item.Name;
+
 	return (
 		<>
 			<div className={css.detailsHeader}>
@@ -203,11 +208,11 @@ const ClassicDetailScreen = ({
 							<img
 								src={logoUrl}
 								className={css.logoImage}
-								alt={item.Name}
+								alt={itemName}
 								onError={onLogoError}
 							/>
 						) : (
-							<h1 className={css.title}>{item.Name}</h1>
+							<h1 className={css.title}>{itemName}</h1>
 						)}
 					</div>
 
@@ -402,6 +407,16 @@ const ClassicDetailScreen = ({
 					onSelectItem={onSelectItem}
 					className={css.inlineRow}
 					menuOptions={collectionMenu}
+				/>
+			)}
+
+			{bookSeriesItem != null && (
+				<MediaRow
+					title={$L('Books')}
+					items={bookSeriesItem.Members}
+					serverUrl={serverUrl}
+					onSelectItem={onSelectItem}
+					className={css.inlineRow}
 				/>
 			)}
 

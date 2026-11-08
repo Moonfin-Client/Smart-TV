@@ -1603,6 +1603,7 @@ const Details = ({
 		<DetailScrollPage backdrop={backdrop} scrollerRef={pageScrollerRef} onScrollTo={handlePageScrollTo} sidebarDocked={sidebarDocked} footer={overlays}>
 			<ClassicDetailScreen
 				item={item}
+				bookSeriesItem={bookSeriesItem}
 				collectionMenu={collectionMenu}
 				serverUrl={effectiveServerUrl}
 				serverToken={initialItem?._serverAccessToken || jellyfinApi.getApiKey()}
