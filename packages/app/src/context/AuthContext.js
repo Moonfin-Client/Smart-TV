@@ -519,8 +519,9 @@ export const AuthProvider = ({children}) => {
 			serverType: jellyfinApi.getServerType(), url: jellyfinApi.getServerUrl(), accessToken: jellyfinApi.getApiKey(),
 			userId: jellyfinApi.getUserId()
 		};
+		// Signing out leaves the server saved, as Moonfin Core does, so it can be signed in to again from the list.
 		if (activeServerInfo) {
-			await multiServerManager.removeServer(activeServerInfo.serverId, activeServerInfo.userId);
+			await multiServerManager.removeServer(activeServerInfo.serverId, activeServerInfo.userId, {keepServer: true});
 		}
 		// Silo's refresh token stays good until the login is ended on the server too.
 		await endSiloLoginIfLast(leaving);
@@ -558,8 +559,8 @@ export const AuthProvider = ({children}) => {
 		setServerUrl(null);
 		setServerName(null);
 		setAccessToken(null);
-		setServers([]);
-		setUniqueServers([]);
+		// The servers stay saved, so the list is read back rather than emptied.
+		await loadServers();
 		setActiveServerInfo(null);
 		setIsAuthenticated(false);
 	}, [activeServerInfo, switchUser, endSiloLoginIfLast, loadServers]);
