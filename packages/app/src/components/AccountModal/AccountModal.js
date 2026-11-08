@@ -128,6 +128,11 @@ const AccountModal = ({
 		(s) => activeServerInfo?.serverId === s.serverId && activeServerInfo?.userId === s.userId
 	);
 	const activeEntry = activeIndex >= 0 ? sortedServers[activeIndex] : null;
+	// Sign Out already takes a Silo profile's whole household, so Sign Out All Users is only offered for more than that.
+	const othersBesideSignOut = activeEntry
+		? sortedServers.some((s) => s !== activeEntry && !(activeEntry.serverType === 'silo' &&
+			s.serverId === activeEntry.serverId && s.accessToken === activeEntry.accessToken))
+		: hasMultipleUsers;
 
 	const items = useMemo(() => sortedServers.map((server, index) => {
 		const isActive = index === activeIndex;
@@ -190,7 +195,7 @@ const AccountModal = ({
 							<PillButton onClick={handleLogout} data-spotlight-id="account-logout">
 								{$L('Sign Out')}
 							</PillButton>
-							{hasMultipleUsers && (
+							{othersBesideSignOut && (
 								<PillButton danger onClick={handleLogoutAll} data-spotlight-id="account-logout-all">
 									{$L('Sign Out All Users')}
 								</PillButton>
