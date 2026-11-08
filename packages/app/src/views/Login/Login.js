@@ -1153,6 +1153,7 @@ const Login = ({
 			clearTimeout(press.timer);
 			window.removeEventListener('keydown', press.onRepeat, true);
 			window.removeEventListener('keyup', press.onRelease, true);
+			window.removeEventListener('blur', press.end);
 			savedHold.current = null;
 		};
 		press.onRepeat = (ev) => {
@@ -1173,6 +1174,8 @@ const Login = ({
 		}, LONG_PRESS_DELAY);
 		window.addEventListener('keydown', press.onRepeat, true);
 		window.addEventListener('keyup', press.onRelease, true);
+		// The release never arrives if the app loses focus mid-press.
+		window.addEventListener('blur', press.end);
 		savedHold.current = press;
 	}, [uniqueServers]);
 
