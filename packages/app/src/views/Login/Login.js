@@ -15,6 +15,7 @@ import {generateCandidates, normalizeServerBaseUrl, quickConnectApprovalUrl} fro
 import {drawQrCode} from '../../utils/qrCanvas';
 import {classifyError, detectServerType, getConnectionMessage, getSignInMessage, isSignInForbidden, isVersionSupported, supportsQuickConnectWebLink, INVALID_ADDRESS, SERVER_NOT_JELLYFIN, VERSION_UNSUPPORTED, INSECURE_CERT, MIN_SERVER_VERSION} from '../../utils/connectionErrors';
 import {KEYS} from '../../utils/keys';
+import {isSelectKey} from '../../utils/longPress';
 import SpottableInput from '../../components/SpottableInput/SpottableInput';
 import {subscribeTvKeyboardVisibility} from '../../components/TVKeyboard/keyboardBus';
 import {MaterialIcon} from '../../components/icons/materialIcons';
@@ -141,8 +142,7 @@ const Login = ({
 	const quickConnectTimer = useRef(null);
 	const qrCanvasRef = useRef(null);
 	const bootstrapped = useRef(false);
-	const suppressClick = useRef(false);
-	const longPressTimer = useRef(null);
+	const savedHold = useRef(null);
 	const plexQrRef = useRef(null);
 	const plexPollTimer = useRef(null);
 	const plexPinRef = useRef(null);
@@ -217,7 +217,7 @@ const Login = ({
 
 	useEffect(() => () => {
 		if (quickConnectTimer.current) clearInterval(quickConnectTimer.current);
-		if (longPressTimer.current) clearTimeout(longPressTimer.current);
+		savedHold.current?.end();
 	}, []);
 
 	const serverRecents = useMemo(
@@ -1141,26 +1141,40 @@ const Login = ({
 	}, [submitAddress]);
 
 	// Hold select on a saved server to forget it, the way the other clients do.
+	// The key is still down when the dialog's Cancel takes the focus, and its repeats or its
+	// release would press Cancel and close the dialog again. So the press is followed on the
+	// window from its first keydown, and once it has become a hold the rest of it is marked
+	// handled. That also keeps the release from opening the server.
 	const handleSavedKeyDown = useCallback((e) => {
-		if (e.keyCode !== KEYS.ENTER || longPressTimer.current) return;
+		if (!isSelectKey(e) || savedHold.current) return;
 		const {serverId} = e.currentTarget.dataset;
-		longPressTimer.current = setTimeout(() => {
-			longPressTimer.current = null;
-			suppressClick.current = true;
+		const press = {held: false};
+		press.end = () => {
+			clearTimeout(press.timer);
+			window.removeEventListener('keydown', press.onRepeat, true);
+			window.removeEventListener('keyup', press.onRelease, true);
+			savedHold.current = null;
+		};
+		press.onRepeat = (ev) => {
+			if (press.held && isSelectKey(ev)) ev.preventDefault();
+		};
+		press.onRelease = (ev) => {
+			if (!isSelectKey(ev)) return;
+			press.end();
+			if (press.held) ev.preventDefault();
+		};
+		press.timer = setTimeout(() => {
+			press.held = true;
 			const entry = uniqueServers.find((item) => item.serverId === serverId);
 			if (entry) {
 				setDialog({kind: 'remove', server: entry});
 				focusLater('remove-cancel-btn');
 			}
 		}, LONG_PRESS_DELAY);
+		window.addEventListener('keydown', press.onRepeat, true);
+		window.addEventListener('keyup', press.onRelease, true);
+		savedHold.current = press;
 	}, [uniqueServers]);
-
-	const handleSavedKeyUp = useCallback(() => {
-		if (longPressTimer.current) {
-			clearTimeout(longPressTimer.current);
-			longPressTimer.current = null;
-		}
-	}, []);
 
 	// A saved Plex server found on this network shows once, at the address it answered on.
 	const foundAt = useCallback((entry) => (entry.serverType === 'plex'
@@ -1170,10 +1184,6 @@ const Login = ({
 		!uniqueServers.some((entry) => entry.machineId === found.id)), [discovered, uniqueServers]);
 
 	const handleSavedClick = useCallback((e) => {
-		if (suppressClick.current) {
-			suppressClick.current = false;
-			return;
-		}
 		const {serverId} = e.currentTarget.dataset;
 		const entry = uniqueServers.find((item) => item.serverId === serverId);
 		if (entry) openServer({...entry, url: foundAt(entry)});
@@ -1317,8 +1327,7 @@ const Login = ({
 						detail: entry.version ? `${foundAt(entry)} • ${entry.version}` : foundAt(entry),
 						'data-server-id': entry.serverId,
 						onClick: handleSavedClick,
-						onKeyDown: handleSavedKeyDown,
-						onKeyUp: handleSavedKeyUp
+						onKeyDown: handleSavedKeyDown
 					}))}
 				</div>
 			)}
