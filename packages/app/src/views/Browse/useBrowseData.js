@@ -356,9 +356,13 @@ const useBrowseData = ({
 	// reached, say on waking from standby before the network is back, leaves them as they were.
 	// The media bar is drawn again with them, since it can be holding the same title.
 	const refreshingRecentRef = useRef(false);
+	// A read that failed leaves the rows stale, so without a pause every return to Home would
+	// read every library again. The next show or resume after it tries again.
+	const lastRecentAttemptRef = useRef(0);
 	const refreshRecentRows = async () => {
-		if (refreshingRecentRef.current) return;
+		if (refreshingRecentRef.current || Date.now() - lastRecentAttemptRef.current < VOLATILE_REFRESH_COOLDOWN_MS) return;
 		refreshingRecentRef.current = true;
+		lastRecentAttemptRef.current = Date.now();
 		const generation = loadGenerationRef.current;
 		const startedFor = memoryCache.owner;
 		try {

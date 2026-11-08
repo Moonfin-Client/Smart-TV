@@ -171,6 +171,28 @@ describe('refreshing Continue Watching and Next Up', () => {
 		expect(recentIds(result)).toEqual(['new']);
 	});
 
+	// A failed read leaves the rows stale, which mustn't send every return to Home back to the server.
+	test('a failed read is tried again only after a pause', async () => {
+		const result = await staleHome();
+		getLatest.mockImplementation(async () => {
+			throw new Error('timeout');
+		});
+		jest.spyOn(console, 'warn').mockImplementation(() => {});
+		await result.current.refreshVolatileData(true);
+		await waitFor(() => expect(getLatest).toHaveBeenCalledTimes(1));
+		await new Promise((resolve) => setTimeout(resolve, 0));
+
+		await result.current.refreshVolatileData(true);
+		await new Promise((resolve) => setTimeout(resolve, 0));
+		expect(getLatest).toHaveBeenCalledTimes(1);
+
+		getLatest.mockImplementation(async () => [{Id: 'other', Name: 'Other', Type: 'Movie'}]);
+		const muchLater = Date.now() + 61000;
+		Date.now.mockImplementation(() => muchLater);
+		await result.current.refreshVolatileData(true);
+		await waitFor(() => expect(recentIds(result)).toEqual(['other']));
+	});
+
 	// Cutting a paged row back to its first read would take away the card focus is on.
 	test('a row paged further is read back as long', async () => {
 		const cache = cacheAged(10);
