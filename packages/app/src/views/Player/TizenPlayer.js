@@ -501,6 +501,8 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 			? mergeEpisodePeople({episodePeople: people, parentActors: []})
 			: people);
 		resolvedCastItemIdRef.current = null;
+		setIsLoadingCastMembers(false);
+		setActiveModal((prev) => (prev === 'cast' ? null : prev));
 	}, [item]);
 
 

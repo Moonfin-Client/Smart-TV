@@ -20,7 +20,7 @@ import {getActiveParentalFilter, withoutBlockedItems} from '../../services/paren
 import * as userDataSync from '../../services/userDataSync';
 import {useUserDataVersion} from '../../hooks/useUserDataSync';
 import {isStreamlessStaticSource, probedSources} from '../../utils/placeholderSource';
-import {mergeEpisodePeople, resolveParentCast} from '../../utils/episodeCast';
+import {mergeEpisodeCast, mergeEpisodePeople, resolveParentCast} from '../../utils/episodeCast';
 
 // Everything the screen shows about one item. The item itself is fetched first and rendered
 // on its own, then the rows that hang off it fill in behind, because waiting for all of them
@@ -305,18 +305,15 @@ const useDetailsItem = ({itemId, initialItem, effectiveApi, effectiveServerUrl, 
 
 				if (data.Type === 'Season') {
 					const hasActors = Array.isArray(data.People) && data.People.some((p) => p.Type === 'Actor');
-					const parentCast = !hasActors && data.SeriesId
-						? resolveParentCast({apiClient: effectiveApi, seriesId: data.SeriesId})
-						: null;
+					if (!hasActors && data.SeriesId) {
+						resolveParentCast({apiClient: effectiveApi, seriesId: data.SeriesId}).then((parentActors) => {
+							if (cancelled || !parentActors?.length) return;
+							setCast(mergeEpisodeCast({episodeActors: data.People || [], parentActors}));
+						});
+					}
 					const episodesData = await effectiveApi.getEpisodes(data.SeriesId, data.Id).catch(() => null);
 					if (cancelled) return;
 					if (episodesData) setEpisodes(tagWithServerInfo(withoutBlockedItems(episodesData.Items || [], fallbackRating)));
-					if (parentCast) {
-						parentCast.then((parentActors) => {
-							if (cancelled || !parentActors?.length) return;
-							setCast(mergeEpisodePeople({episodePeople: data.People || [], parentActors}));
-						});
-					}
 				}
 
 				if (data.Type === 'Episode') {
@@ -328,10 +325,13 @@ const useDetailsItem = ({itemId, initialItem, effectiveApi, effectiveServerUrl, 
 					const wantsWholeSeries = Boolean(data.SeriesId) &&
 						['v3', 'v5', 'v6', 'v7', 'v9'].indexOf(episodeStyle) >= 0 &&
 						sectionVisibility(settingsRef.current?.hiddenDetailSectionsTv)('moreEpisodes');
-					const parentCast = resolveParentCast({
+					resolveParentCast({
 						apiClient: effectiveApi,
 						seasonId,
 						seriesId: data.SeriesId
+					}).then((parentActors) => {
+						if (cancelled || !parentActors?.length) return;
+						setCast(mergeEpisodePeople({episodePeople: data.People || [], parentActors}));
 					});
 					const [seasonData, seriesData] = await Promise.all([
 						data.SeriesId && seasonId
@@ -342,10 +342,6 @@ const useDetailsItem = ({itemId, initialItem, effectiveApi, effectiveServerUrl, 
 					if (cancelled) return;
 					if (seasonData) setEpisodes(tagWithServerInfo(withoutBlockedItems(seasonData.Items || [], fallbackRating)));
 					if (seriesData) setSeriesEpisodes(tagWithServerInfo(withoutBlockedItems(seriesData.Items || [], fallbackRating)));
-					parentCast.then((parentActors) => {
-						if (cancelled || !parentActors?.length) return;
-						setCast(mergeEpisodePeople({episodePeople: data.People || [], parentActors}));
-					});
 				}
 
 				if (data.Type === 'BoxSet') {
