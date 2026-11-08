@@ -623,7 +623,7 @@ function PixelPurge () {
 	}
 	g.update = dt => {
 		const p = g.p, b = g.b; g.t += dt; p.hdr -= dt; p.shrink -= dt;
-		const drift = 4 + g.t * 0.06; for (const k of g.blocks) {k.y += drift * dt; k.flash = (k.flash || 0) - dt;} g.rowY += drift * dt;
+		const drift = 2 + g.t * 0.025; for (const k of g.blocks) {k.y += drift * dt; k.flash = (k.flash || 0) - dt;} g.rowY += drift * dt;
 		if (g.rowY >= TOP + BH + GAP) {g.rowY -= BH + GAP; row(g.rowY);}
 		p.cw = 60 * (p.hdr > 0 ? 2 : 1) * (p.shrink > 0 ? 0.65 : 1);
 		p.x += clamp(p.tx - p.x, -330 * dt, 330 * dt); p.x = clamp(p.x, p.cw / 2, W - p.cw / 2);
