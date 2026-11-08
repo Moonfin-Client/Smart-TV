@@ -74,16 +74,20 @@ export const createSiloApi = ({getBaseUrl, getToken, getUserId, getDeviceInfo, p
 	const call = async (path, options = {}) => {
 		await loadSiloSessions();
 		const current = options.public ? null : session();
+		const named = options.profileId === undefined ? getUserId() : options.profileId;
+		const profileId = named && options.profile !== false ? String(named) : null;
 		try {
-			return await siloRequest(base(), path, {
+			const answer = await siloRequest(base(), path, {
 				session: current,
 				profileId: getUserId(),
 				deviceInfo: getDeviceInfo(),
 				platform,
 				...options
 			});
+			// A request that works as the profile means it's unlocked again, so a later locking is reported too.
+			if (profileId && lockedReported === profileId) lockedReported = null;
+			return answer;
 		} catch (err) {
-			const profileId = getUserId() ? String(getUserId()) : null;
 			// Once per locking, so the requests still in flight don't keep sending the app back to the gate.
 			if (err?.code === 'profile_verification_required' && profileId && lockedReported !== profileId) {
 				lockedReported = profileId;

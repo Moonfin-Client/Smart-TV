@@ -129,28 +129,34 @@ export const AuthProvider = ({children}) => {
 			const token = jellyfinApi.getApiKey();
 			const userId = jellyfinApi.getUserId();
 			jellyfinApi.setAuth(null, null);
-			const saved = (await multiServerManager.getAllServersArray())
-				.filter((entry) => entry.serverType === 'silo' && siloServerKey(entry.url) === session.server);
-			const self = saved.find((entry) => entry.userId === userId);
-			const household = saved.filter((entry) => (entry.siloAccountId
-				? entry.siloAccountId === session.accountId
-				: Boolean(token) && entry.accessToken === token));
-			for (const entry of household) {
-				// eslint-disable-next-line no-await-in-loop
-				await multiServerManager.removeServer(entry.serverId, entry.userId);
+			// Signed out whatever the storage does, or the screens stay up sending requests without a token.
+			try {
+				const saved = (await multiServerManager.getAllServersArray())
+					.filter((entry) => entry.serverType === 'silo' && siloServerKey(entry.url) === session.server);
+				const self = saved.find((entry) => entry.userId === userId);
+				const household = self
+					? saved.filter((entry) => multiServerManager.sameSiloHousehold(entry, {...self, siloAccountId: session.accountId}, token))
+					: saved.filter((entry) => entry.siloAccountId === session.accountId);
+				if (self) {
+					siloSignInAgain = {
+						server: {serverId: self.serverId, url: self.url, name: self.name, serverType: 'silo', version: null},
+						username: self.username
+					};
+				}
+				for (const entry of household) {
+					// eslint-disable-next-line no-await-in-loop
+					await multiServerManager.removeServer(entry.serverId, entry.userId);
+				}
+				clearAllCaches();
+				await removeFromStorage('auth');
+			} catch (err) {
+				console.error('[AUTH] Forgetting the ended Silo login failed:', err);
+			} finally {
+				setUser(null);
+				setAccessToken(null);
+				await loadServers().catch(() => {});
+				setIsAuthenticated(false);
 			}
-			if (self) {
-				siloSignInAgain = {
-					server: {serverId: self.serverId, url: self.url, name: self.name, serverType: 'silo', version: null},
-					username: self.username
-				};
-			}
-			clearAllCaches();
-			await removeFromStorage('auth');
-			setUser(null);
-			setAccessToken(null);
-			await loadServers();
-			setIsAuthenticated(false);
 		});
 		return () => {
 			offRotated();

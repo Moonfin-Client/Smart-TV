@@ -409,9 +409,14 @@ const AppContent = (props) => {
 		return () => window.removeEventListener('moonfin:trailerPreview', handleTrailerPreview);
 	}, []);
 
-	// Silo stopped taking a remembered PIN's proof, so the PIN is asked for again.
+	// Silo stopped taking a remembered PIN's proof, so the PIN is asked for again. Only a check that has passed starts
+	// over: a gate already up keeps what's typed, and the sign in proof Forgot PIN relies on.
+	const pinPassedNowRef = useRef(false);
+	pinPassedNowRef.current = Boolean(pinSession) && pinPassed === pinSession;
 	useEffect(() => {
-		const handleProfileLocked = () => setPinCheckCount((count) => count + 1);
+		const handleProfileLocked = () => {
+			if (pinPassedNowRef.current) setPinCheckCount((count) => count + 1);
+		};
 		window.addEventListener('moonfin:siloProfileLocked', handleProfileLocked);
 		return () => window.removeEventListener('moonfin:siloProfileLocked', handleProfileLocked);
 	}, []);
@@ -1466,11 +1471,11 @@ const AppContent = (props) => {
 
 	// A Silo sign-in with several household profiles asks who's watching, once the setup and any PIN are out of the way.
 	useEffect(() => {
-		if (isAuthenticated && !setupWizardActive && !isPinGateActive && takeHouseholdPick()) {
+		if (isAuthenticated && !setupWizardActive && !pinPending && takeHouseholdPick()) {
 			setPickingHousehold(true);
 			setShowAccountModal(true);
 		}
-	}, [isAuthenticated, setupWizardActive, isPinGateActive]);
+	}, [isAuthenticated, setupWizardActive, pinPending]);
 
 	const handleOpenAccountModal = useCallback(() => {
 		setShowAccountModal(true);
