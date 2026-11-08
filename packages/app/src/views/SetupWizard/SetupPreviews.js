@@ -14,6 +14,7 @@ import {useAuth} from '../../context/AuthContext';
 import {useSeerr} from '../../context/SeerrContext';
 import {useAchievements} from '../../context/AchievementsContext';
 import useUserAvatar from '../../hooks/useUserAvatar';
+import BackdropLayer from '../../components/BackdropLayer';
 import LoadingAnimationLayer from '../../components/LoadingAnimation';
 import RatingsRow from '../../components/RatingsRow';
 import MediaBarNewReleaseLabel from '../../components/MediaBarNewReleaseLabel';
@@ -26,6 +27,7 @@ import {arrange, countSplit, applyButtonLimit, DETAIL_BUTTONS, DETAIL_ORDER_KEY,
 import {formatClockTime} from '../../utils/clock';
 import {DETAIL_METADATA, DETAIL_METADATA_ORDER_KEY, DETAIL_METADATA_HIDDEN_KEY} from '../../utils/detailMetadataLayout';
 import {formatFileSize} from '../../utils/formatFileSize';
+import {homeBackdropStyle} from '../../utils/homeBackdropStyle';
 import {normalizeRatingStyle} from '../../utils/personalRating';
 import {rootScale} from '../../utils/rootScale';
 import {memoryCache} from '../Browse/browseCache';
@@ -1378,7 +1380,7 @@ const ModernDetail = ({items, t}) => {
 	}
 	return (
 		<div style={{position: 'relative', width: '100%', height: '100%'}}>
-			<Artwork url={item.backdropUrl} position='right center' t={t} />
+			{settings.detailsBackdropEnabled !== false && <Artwork url={item.backdropUrl} position='right center' t={t} />}
 			<div style={{...ABS_FILL, backgroundColor: `rgba(0, 0, 0, ${alpha})`}} />
 			<div
 				style={{
@@ -1645,7 +1647,7 @@ const SpotlightDetail = ({items, t}) => {
 	));
 	return (
 		<div style={{position: 'relative', width: '100%', height: '100%'}}>
-			<Artwork url={item.backdropUrl} position='right center' t={t} />
+			{settings.detailsBackdropEnabled !== false && <Artwork url={item.backdropUrl} position='right center' t={t} />}
 			<div style={{...ABS_FILL, backgroundColor: `rgba(0, 0, 0, ${alpha})`}} />
 			<div style={{...ABS_FILL, background: `linear-gradient(to right, ${t.backgroundA(1.0 * gradientScale)} 0%, ${t.backgroundA(0.90 * gradientScale)} 35%, ${t.backgroundA(0.45 * gradientScale)} 60%, ${t.backgroundA(0)} 85%)`}} />
 			<div style={{...ABS_FILL, background: `linear-gradient(to top, ${t.backgroundA(1.0 * gradientScale)} 0%, ${t.backgroundA(0.80 * gradientScale)} 45%, ${t.backgroundA(0)} 80%)`}} />
@@ -1714,7 +1716,7 @@ const NouveauDetail = ({items, t}) => {
 	if (item.genres.length > 0) meta.push(<span key='genres' style={{...metaStyle, marginLeft: 16}}>{item.genres.slice(0, 3).join(' · ')}</span>);
 	return (
 		<div style={{position: 'relative', width: '100%', height: '100%'}}>
-			<Artwork url={item.backdropUrl} position='right center' t={t} />
+			{settings.detailsBackdropEnabled !== false && <Artwork url={item.backdropUrl} position='right center' t={t} />}
 			<div style={{...ABS_FILL, backgroundColor: `rgba(0, 0, 0, ${alpha})`}} />
 			<div style={{...ABS_FILL, background: `linear-gradient(to right, ${t.backgroundA(0.96 * gradientScale)} 0%, ${t.backgroundA(0.86 * gradientScale)} 18%, ${t.backgroundA(0.58 * gradientScale)} 38%, ${t.backgroundA(0.22 * gradientScale)} 60%, ${t.backgroundA(0)} 82%)`}} />
 			<div style={{...ABS_FILL, background: `linear-gradient(to top, ${t.backgroundA(1.0 * gradientScale)} 0%, ${t.backgroundA(0.96 * gradientScale)} 20%, ${t.backgroundA(0.76 * gradientScale)} 45%, ${t.backgroundA(0)} 80%)`}} />
@@ -1754,7 +1756,7 @@ const MinimalistDetail = ({items, t}) => {
 	const cardWidth = 118;
 	return (
 		<div style={{position: 'relative', width: '100%', height: '100%'}}>
-			<Artwork url={item.backdropUrl} position='right center' t={t} />
+			{settings.detailsBackdropEnabled !== false && <Artwork url={item.backdropUrl} position='right center' t={t} />}
 			<div style={{...ABS_FILL, backgroundColor: `rgba(0, 0, 0, ${minimalistScrimAlpha(settings.backdropBlurDetail)})`}} />
 			<div style={{...ABS_FILL, padding: '0 28px 24px', display: 'flex', flexDirection: 'column', justifyContent: 'flex-end'}}>
 				<LogoOrTitle item={item} width={220} height={52} fallbackStyle={{fontSize: 30, fontWeight: 700, color: t.onSurface}} />
@@ -2184,7 +2186,8 @@ export const DetailStylePreview = ({variant}) => {
 };
 
 // Home as the settings live preview draws it: the navbar where it's set, with its
-// buttons, labels and clock, over the rows in their set style and card size. Modern rows
+// buttons, labels and clock, over the rows in their set style and card size, with the first
+// card's backdrop behind them where Home Screen Backdrop puts it, when Home would draw one. Modern rows
 // hold their first card in focus with its ratings and description under it, the way Home
 // looks once a row has focus. [railOpen] opens the left rail, and [over] is drawn over all of
 // it at the window's size, the way the seasonal effect sits over the real Home.
@@ -2194,14 +2197,22 @@ export const SettingsHomePreview = ({railOpen = false, hasLiveTv = false, over =
 	const {settings} = useSettings();
 	const position = settings.navbarPosition === 'left' ? 'left' : 'top';
 	const modern = settings.homeRowsStyle !== 'v1';
+	const backdrop = homeBackdropStyle(settings);
+	// Home only gets a backdrop from Classic rows or the Aya bar, and an older TV never draws one.
+	const fed = (!modern || settings.featuredBarStyle === 'aya') &&
+		!(typeof document !== 'undefined' && document.documentElement.classList.contains('legacy'));
+	const blur = settings.backdropBlurHome;
 	const render = useCallback((items) => (
 		<>
-			{position === 'left'
-				? <LeftNavbarPreview items={items} t={t} userName={user?.Name} modern={modern} open={railOpen} focusFirst={modern} hasLiveTv={hasLiveTv} />
-				: <TopNavbarPreview items={items} t={t} userName={user?.Name} modern={modern} focusFirst={modern} hasLiveTv={hasLiveTv} />}
+			<BackdropLayer targetUrl={backdrop === 'off' || !fed ? '' : items[0].backdropUrl} blurAmount={blur} placement={backdrop} />
+			<div style={{position: 'relative', height: '100%'}}>
+				{position === 'left'
+					? <LeftNavbarPreview items={items} t={t} userName={user?.Name} modern={modern} open={railOpen} focusFirst={modern} hasLiveTv={hasLiveTv} />
+					: <TopNavbarPreview items={items} t={t} userName={user?.Name} modern={modern} focusFirst={modern} hasLiveTv={hasLiveTv} />}
+			</div>
 			{over && <WindowLayer>{over}</WindowLayer>}
 		</>
-	), [position, modern, railOpen, t, user?.Name, hasLiveTv, over]);
+	), [position, modern, railOpen, t, user?.Name, hasLiveTv, over, backdrop, blur, fed]);
 	return <LivePreview render={render} fallback={<FallbackNavbar position={position} t={t} />} />;
 };
 

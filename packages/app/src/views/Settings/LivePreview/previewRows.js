@@ -77,6 +77,7 @@ export const SCENE_BY_KEY = {
 	homeRowsPosterSize: 'home',
 	fullScreenRows: 'home',
 	hideHomeMediaDescription: 'home',
+	homeBackdropStyle: 'home',
 	...sceneFor(MEDIA_BAR_KEYS, 'home'),
 	...sceneFor(FOCUSED_CARD_KEYS, 'home'),
 	detailScreenStyle: 'details',
@@ -187,6 +188,8 @@ export const describeRow = (spotlightId, settings, schema = null) => {
 	// A link the preview draws stands in for the settings its screen edits.
 	const key = row.key || (SCENE_BY_KEY[row.id] ? row.id : null);
 	const title = safeResolve(row.label, ctx, '');
+	// A picker that reads more than one setting marks the choice it shows in the list.
+	const current = row.value ? safeResolve(row.value, ctx, settings[row.key]) : settings[row.key];
 	return {
 		key,
 		title,
@@ -195,7 +198,7 @@ export const describeRow = (spotlightId, settings, schema = null) => {
 		scene: key ? SCENE_BY_KEY[key] || null : null,
 		stage: row.stage || null,
 		options,
-		saved: options.findIndex((option) => option.value === settings[row.key])
+		saved: options.findIndex((option) => option.value === current)
 	};
 };
 
