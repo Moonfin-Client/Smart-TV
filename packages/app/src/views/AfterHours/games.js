@@ -227,7 +227,7 @@ function hud (c, score, icons, t) {
 
 // Things on the ceiling are built in floor space and mirrored with H-y.
 function BufferRun () {
-	const G = 232, C = H - G, g = {};
+	const G = 232, C = H - G, JUMP = 540, GRAVITY = 1500, g = {};
 	let sky = null;
 	const stars = Array.from({length: 40}, () => ({x: R(0, W), y: R(C + 4, 170), s: R(0.5, 1.6)}));
 	const blds = Array.from({length: 9}, (_, i) => ({w: R(40, 68), h: R(30, 84), off: i * 72}));
@@ -238,25 +238,36 @@ function BufferRun () {
 		return {x: p.x - w / 2, y: Math.min(a, b), w, h: Math.abs(b - a)};
 	};
 	const world = o => (o.side > 0 ? o : {x: o.x, y: H - o.y - o.h, w: o.w, h: o.h});
-	g.reset = () => Object.assign(g, {over: false, t: 0, dist: 0, bonus: 0, score: 0, speed: 210, next: 1.2, things: [], inv: 0, flipAt: 3,
+	g.reset = () => Object.assign(g, {over: false, t: 0, dist: 0, bonus: 0, score: 0, speed: 170, next: 1.2, things: [], inv: 0, flipAt: 3,
 		p: {x: 72, y: G - 20, vy: 0, grav: 1, ground: true, jumps: 0, slide: 0, slideQ: 0, shield: 0, dash: 0, wantFlip: 0}});
 	function spawn () {
 		const r = Math.random(), x = W + 20, T = g.things, side = Math.random() < 0.7 ? g.p.grav : -g.p.grav;
-		if (g.t > 5 && Math.random() < 0.12) {T.push({k: Math.random() < 0.55 ? 'directPlay' : 'skipIntro', x, y: G - R(58, 84), w: 22, h: 22, pick: 1, side}); return;}
+		if (g.t > 5 && Math.random() < 0.12) {T.push({k: Math.random() < 0.55 ? 'directPlay' : 'skipIntro', x, y: G - R(58, 84), w: 22, h: 22, pick: 1, side}); return 0;}
 		if (r < 0.3) T.push({k: 'cable', x, y: G - 18, w: 26, h: 18, side});
 		else if (r < 0.48 && g.t > 4) T.push({k: 'banner', x, y: C, w: 34, h: G - 30 - C, side: Math.random() < 0.5 ? 1 : -1});
 		else if (r < 0.64 && g.t > 8) T.push({k: 'lagBat', x, y: 0, y0: R(150, 168), ph: R(0, TAU), w: 22, h: 14, side});
 		else if (r < 0.8 && g.t > 12) T.push({k: 'gremlin', x, y: G - 18, w: 18, h: 18, vy: 0, hop: R(0.3, 0.8), side});
-		else for (let i = 0; i < 5; i++) T.push({k: 'popcorn', x: x + i * 20, y: G - 46 - Math.sin(i / 4 * Math.PI) * 38, w: 12, h: 12, pick: 1, side});
+		else return popcornArc(x, side);
+		return 0;
+	}
+	// The five pieces sit along 80 percent of a jump's path at the current speed, so one jump can take them all.
+	// Returns how long the arc takes to pass, so the next spawn waits for it.
+	function popcornArc (x, side) {
+		const air = 2 * JUMP / GRAVITY, span = 0.8 * air;
+		for (let i = 0; i < 5; i++) {
+			const t = air / 2 + (i - 2) * span / 4, f = JUMP * t - GRAVITY / 2 * t * t;
+			g.things.push({k: 'popcorn', x: x + i * g.speed * span / 4, y: G - 27 - f, w: 12, h: 12, pick: 1, side});
+		}
+		return span;
 	}
 	g.update = dt => {
-		const p = g.p; g.t += dt; g.speed = Math.min(520, 210 + g.t * 6);
+		const p = g.p; g.t += dt; g.speed = Math.min(520, 170 + g.t * 4.5);
 		const v = g.speed * (p.dash > 0 ? 1.5 : 1); g.dist += v * dt; g.score = Math.floor(g.dist / 8) + g.bonus;
-		p.vy += 1500 * p.grav * dt; p.y += p.vy * dt;
+		p.vy += GRAVITY * p.grav * dt; p.y += p.vy * dt;
 		const rest = p.grav > 0 ? G - 20 : C + 20;
 		if ((p.y - rest) * p.grav >= 0) {p.y = rest; p.vy = 0; p.jumps = 0; p.ground = true; if (p.slideQ) {p.slide = 0.6; p.slideQ = 0;}}
 		p.slide = Math.max(0, p.slide - dt); p.dash -= dt; p.shield -= dt; g.inv -= dt;
-		if ((g.next -= dt) <= 0) {spawn(); g.next = Math.max(0.45, R(0.8, 1.4) * 260 / g.speed);}
+		if ((g.next -= dt) <= 0) {const pass = spawn(); g.next = Math.max(0.45, R(0.8, 1.4) * 260 / g.speed) + pass;}
 		const pb = box(p);
 		for (const o of g.things) {
 			o.x -= v * dt;
@@ -274,7 +285,7 @@ function BufferRun () {
 	};
 	g.jump = () => {
 		const p = g.p;
-		if (p.jumps === 0) {p.vy = -540 * p.grav; p.jumps = 1; p.ground = false; p.slide = 0; sfx(g, 'jump');}
+		if (p.jumps === 0) {p.vy = -JUMP * p.grav; p.jumps = 1; p.ground = false; p.slide = 0; sfx(g, 'jump');}
 		else if (p.jumps === 1) {p.grav *= -1; p.vy = 300 * p.grav; p.jumps = 2; sfx(g, 'whoosh');}
 	};
 	g.duck = () => {

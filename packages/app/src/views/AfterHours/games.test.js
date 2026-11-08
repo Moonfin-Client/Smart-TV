@@ -37,6 +37,25 @@ describe('After Hours games', () => {
 		drawShade(c);
 	});
 
+	test('one well timed jump takes all five pieces of a popcorn arc', () => {
+		const piecesTaken = (jumpAt) => {
+			const g = makeGame('buffer-run', SHELF);
+			g.reset();
+			g.next = 0;
+			// The first two draws pick popcorn and put it on the runner's side.
+			const random = jest.spyOn(Math, 'random').mockReturnValueOnce(0.9).mockReturnValueOnce(0.1);
+			g.update(1 / 60);
+			random.mockRestore();
+			const arc = g.things.filter((o) => o.k === 'popcorn');
+			for (let i = 1; i < 5 * 60 && !g.over; i++) {
+				if (i === jumpAt) g.jump();
+				g.update(1 / 60);
+			}
+			return arc.filter((o) => o.dead).length;
+		};
+		expect(Math.max(...Array.from({length: 4 * 60}, (_, i) => piecesTaken(i)))).toBe(5);
+	});
+
 	test('every game has a How to play cast and every entry has a sprite to draw', () => {
 		expect(Object.keys(CAST)).toEqual(GAME_IDS);
 		const c = fakeContext();
