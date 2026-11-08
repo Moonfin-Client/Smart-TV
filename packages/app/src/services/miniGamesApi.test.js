@@ -56,12 +56,20 @@ describe('After Hours scores', () => {
 		expect(parseBoard({})).toEqual([]);
 	});
 
-	test('a device board keeps the best three runs and a tie goes to the earlier one', () => {
+	test('a device board keeps the best three people and a tie goes to the earlier run', () => {
 		const board = [run('a', 300), run('b', 200), run('c', 100)];
 		expect(placeRun(board, run('d', 200))).toEqual({list: [board[0], board[1], run('d', 200)], rank: 3});
 		expect(placeRun(board, run('e', 400)).rank).toBe(1);
 		expect(placeRun(board, run('f', 100))).toEqual({list: board, rank: null});
 		expect(placeRun(undefined, run('g', 0))).toEqual({list: [run('g', 0)], rank: 1});
+	});
+
+	test('a device board keeps only each person\'s best run', () => {
+		const board = [run('a', 300), run('b', 200), run('c', 100)];
+		expect(placeRun(board, run('b', 250))).toEqual({list: [board[0], run('b', 250), board[2]], rank: 2});
+		expect(placeRun(board, run('c', 500))).toEqual({list: [run('c', 500), board[0], board[1]], rank: 1});
+		expect(placeRun(board, run('a', 150))).toEqual({list: board, rank: null});
+		expect(placeRun(board, run('b', 200))).toEqual({list: board, rank: null});
 	});
 
 	test('a run that places is saved beside the other games', async () => {

@@ -46,12 +46,16 @@ export const loadDeviceBoards = async () => {
 	}
 };
 
-// Puts a run into a device board. Ties go to the earlier run, so a new one only passes a strictly lower score.
+// Keeps one row per person, like the server. A run only places if it beats that person's own best,
+// and a tie goes to the earlier run.
 export const placeRun = (board, run) => {
-	const list = (board || []).slice();
+	const rows = board || [];
+	const own = rows.find((row) => row.userName === run.userName);
+	if (own && own.score >= run.score) return {list: rows.slice(0, 3), rank: null};
+	const list = rows.filter((row) => row !== own);
 	let at = list.findIndex((row) => run.score > row.score);
 	if (at < 0) at = list.length;
-	if (at >= 3) return {list: list.slice(0, 3), rank: null};
+	if (at >= 3) return {list: rows.slice(0, 3), rank: null};
 	list.splice(at, 0, run);
 	return {list: list.slice(0, 3), rank: at + 1};
 };
