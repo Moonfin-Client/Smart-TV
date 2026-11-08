@@ -305,16 +305,17 @@ const useDetailsItem = ({itemId, initialItem, effectiveApi, effectiveServerUrl, 
 
 				if (data.Type === 'Season') {
 					const hasActors = Array.isArray(data.People) && data.People.some((p) => p.Type === 'Actor');
-					const [episodesData, parentActors] = await Promise.all([
-						effectiveApi.getEpisodes(data.SeriesId, data.Id).catch(() => null),
-						!hasActors && data.SeriesId
-							? resolveParentCast({apiClient: effectiveApi, seriesId: data.SeriesId})
-							: null
-					]);
+					const parentCast = !hasActors && data.SeriesId
+						? resolveParentCast({apiClient: effectiveApi, seriesId: data.SeriesId})
+						: null;
+					const episodesData = await effectiveApi.getEpisodes(data.SeriesId, data.Id).catch(() => null);
 					if (cancelled) return;
 					if (episodesData) setEpisodes(tagWithServerInfo(withoutBlockedItems(episodesData.Items || [], fallbackRating)));
-					if (parentActors?.length > 0) {
-						setCast(mergeEpisodePeople({episodePeople: data.People || [], parentActors}));
+					if (parentCast) {
+						parentCast.then((parentActors) => {
+							if (cancelled || !parentActors?.length) return;
+							setCast(mergeEpisodePeople({episodePeople: data.People || [], parentActors}));
+						});
 					}
 				}
 
@@ -327,23 +328,24 @@ const useDetailsItem = ({itemId, initialItem, effectiveApi, effectiveServerUrl, 
 					const wantsWholeSeries = Boolean(data.SeriesId) &&
 						['v3', 'v5', 'v6', 'v7', 'v9'].indexOf(episodeStyle) >= 0 &&
 						sectionVisibility(settingsRef.current?.hiddenDetailSectionsTv)('moreEpisodes');
-					const [seasonData, seriesData, parentActors] = await Promise.all([
+					const parentCast = resolveParentCast({
+						apiClient: effectiveApi,
+						seasonId,
+						seriesId: data.SeriesId
+					});
+					const [seasonData, seriesData] = await Promise.all([
 						data.SeriesId && seasonId
 							? effectiveApi.getEpisodes(data.SeriesId, seasonId).catch(() => null)
 							: null,
-						wantsWholeSeries ? effectiveApi.getEpisodes(data.SeriesId).catch(() => null) : null,
-						resolveParentCast({
-							apiClient: effectiveApi,
-							seasonId,
-							seriesId: data.SeriesId
-						})
+						wantsWholeSeries ? effectiveApi.getEpisodes(data.SeriesId).catch(() => null) : null
 					]);
 					if (cancelled) return;
 					if (seasonData) setEpisodes(tagWithServerInfo(withoutBlockedItems(seasonData.Items || [], fallbackRating)));
 					if (seriesData) setSeriesEpisodes(tagWithServerInfo(withoutBlockedItems(seriesData.Items || [], fallbackRating)));
-					if (parentActors?.length > 0) {
+					parentCast.then((parentActors) => {
+						if (cancelled || !parentActors?.length) return;
 						setCast(mergeEpisodePeople({episodePeople: data.People || [], parentActors}));
-					}
+					});
 				}
 
 				if (data.Type === 'BoxSet') {

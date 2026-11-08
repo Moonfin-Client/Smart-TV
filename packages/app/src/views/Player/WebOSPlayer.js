@@ -258,6 +258,8 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 	);
 
 	const resolvedCastItemIdRef = useRef(null);
+	const latestItemIdRef = useRef(null);
+	latestItemIdRef.current = item?.Id;
 
 	const hasCastMembers = useMemo(() => {
 		if (castMembers.length > 0) return true;
@@ -3291,7 +3293,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 				seasonId,
 				seriesId
 			});
-			if (currentItemId !== item?.Id) return;
+			if (currentItemId !== latestItemIdRef.current) return;
 			const episodePeople = Array.isArray(item?.People) ? item.People : [];
 			if (parentActors.length > 0) {
 				setCastMembers(mergeEpisodePeople({
@@ -3308,7 +3310,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 		} catch (err) {
 			// Do not cache error so subsequent opens can retry
 		} finally {
-			if (currentItemId === item?.Id) {
+			if (currentItemId === latestItemIdRef.current) {
 				setIsLoadingCastMembers(false);
 			}
 		}
