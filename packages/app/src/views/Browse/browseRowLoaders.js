@@ -101,7 +101,7 @@ const readLatestHead = (api, lib) => (limit) => readFoldedHead(
 	latestMediaFetchLimitForCollection(lib.CollectionType, limit, Infinity)
 );
 
-const loadLatestAndRecentlyReleased = async (ctx) => {
+export const loadLatestAndRecentlyReleased = async (ctx) => {
 	const {api, appendRows, eligibleLibraries, settings} = ctx;
 	try {
 		let includeItemTypes = 'Movie,Series';

@@ -30,8 +30,12 @@ jest.mock('./browseCache', () => {
 
 const empty = async () => ({Items: []});
 const getResumeItems = jest.fn();
+const getLibraries = jest.fn(empty);
+const getLatest = jest.fn();
 const api = {
-	getLibraries: empty,
+	getLibraries,
+	getLatest,
+	getRecentlyReleased: empty,
 	getResumeItems,
 	getNextUp: empty,
 	getItems: empty,
@@ -59,7 +63,7 @@ const cacheAged = (minutes) => ({
 	userId: 'user-a',
 	rowData: [
 		{id: 'resume', title: 'Continue Watching', items: [{Id: 'item'}]},
-		{id: 'latest-lib', title: 'Recently Added', items: [{Id: 'new'}]}
+		{id: 'latest-lib', title: 'Recently Added', items: [{Id: 'new'}], isLatestRow: true}
 	],
 	libraries: [{Id: 'lib'}],
 	featuredItems: [{Id: 'featured'}],
@@ -78,6 +82,9 @@ beforeEach(() => {
 	memoryCache.owner = null;
 	loadBrowseCache.mockReset();
 	getResumeItems.mockImplementation(empty);
+	getLibraries.mockReset();
+	getLibraries.mockImplementation(empty);
+	getLatest.mockReset();
 });
 
 afterEach(() => jest.restoreAllMocks());
@@ -104,5 +111,97 @@ describe('refreshing Continue Watching and Next Up', () => {
 		jest.spyOn(Date, 'now').mockImplementation(() => later);
 		await result.current.refreshVolatileData(true);
 		expect(getResumeItems).toHaveBeenCalledTimes(2);
+	});
+
+	// Recently Added wasn't read again, so it keeps its age, or it would never expire.
+	test("refreshing them doesn't make Recently Added look newly read", async () => {
+		const cache = cacheAged(10);
+		loadBrowseCache.mockImplementation(async () => cache);
+		const {result} = renderHook((p) => useBrowseData(p), {initialProps: props('token-a', 'user-a')});
+		await waitFor(() => expect(result.current.allRowData.length).toBeGreaterThan(0));
+		await waitFor(() => expect(getResumeItems).toHaveBeenCalledTimes(1));
+		expect(memoryCache.recentAt).toBe(cache.timestamp);
+	});
+
+	// Home read more than the stored copy's lifetime ago, as a TV that leaves the app running has it.
+	const staleHome = async () => {
+		const cache = cacheAged(10);
+		loadBrowseCache.mockImplementation(async () => cache);
+		const {result} = renderHook((p) => useBrowseData(p), {initialProps: props('token-a', 'user-a')});
+		await waitFor(() => expect(result.current.allRowData.length).toBeGreaterThan(0));
+		await waitFor(() => expect(getResumeItems).toHaveBeenCalledTimes(1));
+		getLibraries.mockImplementation(async () => ({Items: [{Id: 'lib', Name: 'Movies', CollectionType: 'movies'}]}));
+		getLatest.mockImplementation(async () => [{Id: 'other', Name: 'Other', Type: 'Movie'}]);
+		const later = Date.now() + 25 * 60000;
+		jest.spyOn(Date, 'now').mockImplementation(() => later);
+		return result;
+	};
+	const recentIds = (result) => result.current.allRowData.find((row) => row.id === 'latest-lib')?.items.map((item) => item.Id);
+
+	// Without this a title removed from the server stays in Recently Added until the app restarts.
+	test('Recently Added is read again in place once it is older than the stored copy lasts', async () => {
+		const result = await staleHome();
+		await result.current.refreshVolatileData(true);
+		await waitFor(() => expect(recentIds(result)).toEqual(['other']));
+		expect(result.current.isLoading).toBe(false);
+	});
+
+	// Waking from standby can come before the network does.
+	test("a server that can't be reached leaves the rows as they were", async () => {
+		const result = await staleHome();
+		getLibraries.mockImplementation(async () => {
+			throw new Error('offline');
+		});
+		jest.spyOn(console, 'warn').mockImplementation(() => {});
+		await result.current.refreshVolatileData(true);
+		await waitFor(() => expect(getLibraries).toHaveBeenCalledTimes(1));
+		expect(recentIds(result)).toEqual(['new']);
+	});
+
+	// The loader passes over a library it couldn't read, which would otherwise look like an emptied row.
+	test("a library that can't be read leaves the rows as they were", async () => {
+		const result = await staleHome();
+		getLatest.mockImplementation(async () => {
+			throw new Error('timeout');
+		});
+		jest.spyOn(console, 'warn').mockImplementation(() => {});
+		await result.current.refreshVolatileData(true);
+		await waitFor(() => expect(getLatest).toHaveBeenCalled());
+		await new Promise((resolve) => setTimeout(resolve, 0));
+		expect(recentIds(result)).toEqual(['new']);
+	});
+
+	// Cutting a paged row back to its first read would take away the card focus is on.
+	test('a row paged further is read back as long', async () => {
+		const cache = cacheAged(10);
+		cache.rowData[1] = {...cache.rowData[1], items: Array.from({length: 20}, (_, i) => ({Id: `old${i}`}))};
+		loadBrowseCache.mockImplementation(async () => cache);
+		const {result} = renderHook((p) => useBrowseData(p), {initialProps: props('token-a', 'user-a')});
+		await waitFor(() => expect(result.current.allRowData.length).toBeGreaterThan(0));
+		await waitFor(() => expect(getResumeItems).toHaveBeenCalledTimes(1));
+		getLibraries.mockImplementation(async () => ({Items: [{Id: 'lib', Name: 'Movies', CollectionType: 'movies'}]}));
+		getLatest.mockImplementation(async (id, limit) => Array.from({length: Math.min(limit, 40)}, (_, i) => ({Id: `n${i}`, Name: `N${i}`, Type: 'Movie'})));
+		const later = Date.now() + 25 * 60000;
+		jest.spyOn(Date, 'now').mockImplementation(() => later);
+		await result.current.refreshVolatileData(true);
+		await waitFor(() => expect(recentIds(result)?.[0]).toBe('n0'));
+		expect(recentIds(result)).toHaveLength(20);
+	});
+
+	// Stored rows can still be in date while the recent rows in them aren't.
+	test('a start from stored rows reads stale recent rows again', async () => {
+		const cache = {...cacheAged(1), recentAt: Date.now() - 40 * 60000};
+		loadBrowseCache.mockImplementation(async () => cache);
+		getLibraries.mockImplementation(async () => ({Items: [{Id: 'lib', Name: 'Movies', CollectionType: 'movies'}]}));
+		getLatest.mockImplementation(async () => [{Id: 'other', Name: 'Other', Type: 'Movie'}]);
+		const {result} = renderHook((p) => useBrowseData(p), {initialProps: props('token-a', 'user-a')});
+		await waitFor(() => expect(recentIds(result)).toEqual(['other']));
+	});
+
+	// Opening the app again resumes it on the screen it was left on, which is often Home.
+	test('coming back to the app catches the rows up too', async () => {
+		const result = await staleHome();
+		document.dispatchEvent(new Event('visibilitychange'));
+		await waitFor(() => expect(recentIds(result)).toEqual(['other']));
 	});
 });
