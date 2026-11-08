@@ -2946,5 +2946,11 @@
 	"A title from your library. The overhang gets trimmed off.": "A title from your library. The overhang gets trimmed off.",
 	"Three perfect drops in a row grow it a lot wider.": "Three perfect drops in a row grow it a lot wider.",
 	"Falls from cleared blocks. Catching it shrinks the scrubber.": "Falls from cleared blocks. Catching it shrinks the scrubber.",
-	"Perfect": "Perfect"
+	"Perfect": "Perfect",
+	"Episode Director": "Episode Director",
+	"{role} (Episode Director)": "{role} (Episode Director)",
+	"Episode Writer": "Episode Writer",
+	"{role} (Episode Writer)": "{role} (Episode Writer)",
+	"Guest Star": "Guest Star",
+	"{role} (Guest Star)": "{role} (Guest Star)"
 }
