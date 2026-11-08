@@ -3,7 +3,8 @@
 
 import {
 	SILO_API_MAJOR, closeSiloSession, isClientUpgradeRequired, loadSiloSessions, needsRefresh, openSiloSession, profileProof,
-	needsStreamRefresh, refreshSiloSession, setProfileProof, siloError, siloHeaders, siloRequest, siloSessionFor, tokensFrom
+	needsStreamRefresh, refreshSiloSession, rememberProfilePin, rememberedProfileUnlocked, remembersProfilePin, setProfileProof,
+	siloError, siloHeaders, siloRequest, siloSessionFor, tokensFrom
 } from './siloSession';
 import {createSiloAdminItems} from './siloAdminItems';
 import {createSiloRemoteSubtitles} from './siloRemoteSubtitles';
@@ -438,6 +439,21 @@ export const createSiloApi = ({getBaseUrl, getToken, getUserId, getDeviceInfo, p
 		},
 
 		verifyProfilePin: proveProfilePin,
+
+		// Whether the profile's PIN is remembered on this device, choosing it, and whether a remembered PIN unlocks the
+		// profile now without asking.
+		remembersProfilePin: async (profileId) => {
+			await loadSiloSessions();
+			return remembersProfilePin(session(), String(profileId));
+		},
+		rememberProfilePin: async (profileId, remember) => {
+			await loadSiloSessions();
+			rememberProfilePin(session(), String(profileId), remember);
+		},
+		rememberedProfileUnlocked: async (profileId) => {
+			await loadSiloSessions();
+			return rememberedProfileUnlocked(session(), String(profileId));
+		},
 
 		// Sets (or with null removes) a profile's PIN, as the acting profile; Silo lets the primary profile or an admin do
 		// it. A new PIN retires the proof that unlocked the profile, so it's proved again with the new one.

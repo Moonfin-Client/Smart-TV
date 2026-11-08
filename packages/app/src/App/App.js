@@ -61,6 +61,8 @@ import WatchPartyDialog from '../components/WatchPartyDialog';
 import useWatchParty from '../hooks/useWatchParty';
 import {watchParty, isRoomPlaying} from '../services/siloWatchParty';
 import {extendServerShuffle} from '../services/serverShuffle';
+import {rememberSignInPin, signInPinRemembered, signInPinStillUnlocked} from '../services/serverPinApi';
+import {MaterialIcon} from '../components/icons/materialIcons';
 import PhotoViewer from '../components/PhotoViewer';
 import ComicViewer from '../components/ComicViewer';
 import EpubReader from '../components/EpubReader';
@@ -326,6 +328,10 @@ const AppContent = (props) => {
 	const [pinPassed, setPinPassed] = useState(null);
 	const [pinChecked, setPinChecked] = useState(null);
 	const [pinVerifying, setPinVerifying] = useState(false);
+	// Whether a Silo profile's PIN is to be remembered on this device (null where there's no such choice), and the
+	// check it was read for. A remembered PIN that still unlocks the profile skips the gate.
+	const [pinRemember, setPinRemember] = useState(null);
+	const [pinRememberRead, setPinRememberRead] = useState(null);
 	// Whether the check under way follows a sign in with the account's password or Quick Connect,
 	// which lets Forgot PIN clear the PIN, and whether Forgot PIN is what sent the viewer to sign in.
 	const pinProofRef = useRef({session: null, proved: false, forgotten: false});
@@ -366,7 +372,7 @@ const AppContent = (props) => {
 	const {userId, record: signInPin, account: pinAccount, latest: latestSignInPin, save: saveSignInPin} = useSignInPin();
 	const pinSession = isAuthenticated && userId ? `${userId}:${pinCheckCount}` : null;
 	const pinPending = Boolean(pinSession) && pinPassed !== pinSession;
-	const isPinGateActive = pinPending && isSignInPinEnabled(signInPin);
+	const isPinGateActive = pinPending && isSignInPinEnabled(signInPin) && pinRememberRead === pinSession;
 	// Until the server has said whether the account has a PIN, nothing behind the gate shows.
 	const isPinChecking = pinPending && !isPinGateActive && pinChecked !== pinSession;
 	const [pinKeyboardOpen, setPinKeyboardOpen] = useState(false);
@@ -464,7 +470,18 @@ const AppContent = (props) => {
 		}
 		let cancelled = false;
 		const before = latestSignInPin();
-		refreshSignInPin(before, pinAccount).then(async (next) => {
+		signInPinStillUnlocked(pinAccount).then(async (unlocked) => {
+			if (cancelled) return;
+			if (unlocked) {
+				setPinPassed(pinSession);
+				setPinChecked(pinSession);
+				return;
+			}
+			const remember = await signInPinRemembered(pinAccount);
+			if (cancelled) return;
+			setPinRemember(remember);
+			setPinRememberRead(pinSession);
+			const next = await refreshSignInPin(before, pinAccount);
 			if (cancelled) return;
 			if (next !== before) saveSignInPin(next);
 			if (isSignInPinEnabled(next) && pinProofRef.current.forgotten) {
@@ -1790,6 +1807,8 @@ const AppContent = (props) => {
 		const session = pinSession;
 		const before = latestSignInPin();
 		setPinVerifying(true);
+		// Chosen first, so the proof the check brings back is kept or not.
+		if (pinRemember !== null) await rememberSignInPin(pinAccount, pinRemember);
 		const result = await verifySignInPin(before, pinCodeInput, pinAccount);
 		setPinVerifying(false);
 		if (result.record !== before) saveSignInPin(result.record);
@@ -1801,7 +1820,9 @@ const AppContent = (props) => {
 		}
 		setPinCodeError(signInPinMessage(result));
 		Spotlight.focus('[data-spotlight-id="app-pin-input"]');
-	}, [pinVerifying, pinSession, pinCodeInput, pinAccount, latestSignInPin, saveSignInPin]);
+	}, [pinVerifying, pinSession, pinCodeInput, pinAccount, pinRemember, latestSignInPin, saveSignInPin]);
+
+	const handlePinRememberToggle = useCallback(() => setPinRemember((remember) => !remember), []);
 
 	// Right after signing in with the password or Quick Connect the PIN just clears. Otherwise the
 	// account goes back to its sign in, and the PIN clears once that proves who it is.
@@ -1885,6 +1906,18 @@ const AppContent = (props) => {
 							spotlightId='app-pin-input'
 						/>
 						{pinCodeError && <div className={css.pinError}>{pinCodeError}</div>}
+						{pinRemember !== null && (
+							<SpottableButton
+								className={css.pinRemember}
+								onClick={handlePinRememberToggle}
+								spotlightId='app-pin-remember'
+								role='checkbox'
+								aria-checked={pinRemember}
+							>
+								<MaterialIcon name={pinRemember ? 'checkBox' : 'checkBoxBlank'} className={css.pinRememberIcon} />
+								{$L('Remember PIN on this device')}
+							</SpottableButton>
+						)}
 						<div className={css.pinActions}>
 							<SpottableButton
 								className={css.pinButton}

@@ -520,26 +520,20 @@ export const AuthProvider = ({children}) => {
 			userId: jellyfinApi.getUserId()
 		};
 		if (activeServerInfo) {
+			// Signing out of a Silo profile signs its whole account out: every profile of the household goes, whichever
+			// one is in use. They share the account's token.
+			const household = leaving.serverType === 'silo' && leaving.accessToken
+				? (await multiServerManager.getAllServersArray()).filter((entry) => entry.serverId === activeServerInfo.serverId &&
+					entry.userId !== activeServerInfo.userId && entry.accessToken === leaving.accessToken)
+				: [];
+			for (const entry of household) {
+				// eslint-disable-next-line no-await-in-loop
+				await multiServerManager.removeServer(entry.serverId, entry.userId);
+			}
 			await multiServerManager.removeServer(activeServerInfo.serverId, activeServerInfo.userId);
 		}
 		// Silo's refresh token stays good until the login is ended on the server too.
 		await endSiloLoginIfLast(leaving);
-
-		// A Silo profile signs out to its household's profile list on the sign-in screen, not into the next profile.
-		const household = leaving.serverType === 'silo' && activeServerInfo &&
-			(await multiServerManager.getAllServersArray()).find((entry) => entry.serverId === activeServerInfo.serverId);
-		if (household) {
-			await multiServerManager.setActiveServer(household.serverId, household.userId);
-			clearAllCaches();
-			await removeFromStorage('auth');
-			setUser(null);
-			setServerUrl(null);
-			setServerName(null);
-			setAccessToken(null);
-			await loadServers();
-			setIsAuthenticated(false);
-			return;
-		}
 
 		const count = await multiServerManager.getTotalUserCount();
 		if (count > 0) {
@@ -562,7 +556,7 @@ export const AuthProvider = ({children}) => {
 		setUniqueServers([]);
 		setActiveServerInfo(null);
 		setIsAuthenticated(false);
-	}, [activeServerInfo, switchUser, endSiloLoginIfLast, loadServers]);
+	}, [activeServerInfo, switchUser, endSiloLoginIfLast]);
 
 	/**
 	 * Full logout - remove all servers and users
