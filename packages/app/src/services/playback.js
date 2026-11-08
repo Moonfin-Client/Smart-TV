@@ -699,6 +699,7 @@ export const getPlaybackInfo = async (itemId, options = {}) => {
 			maxBitrate: options.maxBitrate,
 			allowDirectPlay,
 			allowDirectStream,
+			allowStreamCopy,
 			serverCredentials: creds
 		});
 

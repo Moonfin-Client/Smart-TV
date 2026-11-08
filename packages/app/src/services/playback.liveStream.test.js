@@ -256,6 +256,13 @@ describe('transcode preferences', () => {
 		});
 	});
 
+	test('a live channel reloaded after the fallback still asks for a real encode', async () => {
+		answerLive('live-a', 'live-b');
+		await playback.getPlaybackInfo(channel.Id, {item: channel, allowStreamCopy: false});
+		await playback.getPlaybackInfo(channel.Id, {item: channel});
+		expect(lastRequest()).toMatchObject({AllowVideoStreamCopy: false, AllowAudioStreamCopy: false});
+	});
+
 	test('a stop lets the next load copy streams again', async () => {
 		answerMovie();
 		await playback.getPlaybackInfo(movie.Id, {item: movie, allowStreamCopy: false});
