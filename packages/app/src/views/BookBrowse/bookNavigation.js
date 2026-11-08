@@ -2,8 +2,7 @@
 // a genre opens the titles in it, and a folder, a folder series among them, opens in folder view.
 // Everything else, a collection included, opens its details.
 export const openBookItem = (item, {onSelectItem, onOpenGrid}) => {
-	if (item.Type === 'BookSeries' && !item.IsFolder) onOpenGrid({search: item.Name});
-	else if (item.Type === 'Genre') onOpenGrid({genre: item.Name});
+	if (item.Type === 'Genre') onOpenGrid({genre: item.Name});
 	else if (item.Type !== 'BoxSet' && (item.IsFolder || item.Type === 'Folder' || item.Type === 'CollectionFolder')) onOpenGrid({folder: item});
 	else onSelectItem(item);
 };

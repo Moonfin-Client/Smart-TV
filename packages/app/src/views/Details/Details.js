@@ -61,6 +61,7 @@ import ReviewDialog from './ReviewDialog';
 import PersonalRatingDialog from '../../components/PersonalRatingDialog';
 import {clampRating, clearedRatingPatch, isRatableItemType, normalizeRatingStyle, numericRatingPatch, thumbRatingPatch} from '../../utils/personalRating';
 import {personCalendarDate, personDateLines, splitFilmography} from '../../utils/personCredits';
+import {readingOrder, seriesProgress} from '../BookBrowse/bookScreens';
 import {mergeCollectionWithMissing, mergeMissingByReleaseOrder} from './seerrMissingCollectionItems';
 import ClassicDetailScreen from './ClassicDetailScreen';
 import SpotlightDetailContent from './spotlight/SpotlightDetailContent';
@@ -114,6 +115,15 @@ const Details = ({
 	const recommendationsSupported = pluginInfo?.recommendationsSupported === true;
 	const {isInGroup: isSyncPlayInGroup} = useSyncPlay();
 	const {room: watchPartyRoom} = useWatchParty();
+
+	let bookSeriesItem = null;
+	if (initialItem?.Type === "BookSeries") {
+		bookSeriesItem = initialItem;
+		const books = readingOrder(bookSeriesItem.Members || []);
+		const progress = seriesProgress(books);
+		initialItem = books.find(book => book === progress.next);
+		itemIdProp = initialItem.Id;
+	}
 
 	const effectiveApi = useMemo(() => {
 		if (initialItem?._serverUrl && initialItem._serverAccessToken) {
@@ -1297,6 +1307,7 @@ const Details = ({
 					onWatchWithGroup={canPickForWatchParty ? handlePickForWatchParty : handlePlay}
 					key={item.Id}
 					item={item}
+					bookSeriesItem={bookSeriesItem}
 					settings={settings}
 					showsSection={showsSection}
 					seerr={seerr}
