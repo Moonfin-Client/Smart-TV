@@ -65,15 +65,27 @@ export const createSiloApi = ({getBaseUrl, getToken, getUserId, getDeviceInfo, p
 	const session = () => siloSessionFor(base(), getToken());
 
 	// Every request names the profile acting, except the account-wide ones (`profile: false`).
+	// A remembered PIN's proof that Silo stops taking (the PIN changed or was reset) is dropped, and the app is told,
+	// so the PIN gate comes back instead of every request failing.
 	const call = async (path, options = {}) => {
 		await loadSiloSessions();
-		return siloRequest(base(), path, {
-			session: options.public ? null : session(),
-			profileId: getUserId(),
-			deviceInfo: getDeviceInfo(),
-			platform,
-			...options
-		});
+		const current = options.public ? null : session();
+		try {
+			return await siloRequest(base(), path, {
+				session: current,
+				profileId: getUserId(),
+				deviceInfo: getDeviceInfo(),
+				platform,
+				...options
+			});
+		} catch (err) {
+			const profileId = getUserId() ? String(getUserId()) : null;
+			if (err?.code === 'profile_verification_required' && profileId && profileProof(current, profileId)) {
+				setProfileProof(current, profileId, null);
+				if (typeof window !== 'undefined') window.dispatchEvent(new CustomEvent('moonfin:siloProfileLocked'));
+			}
+			throw err;
+		}
 	};
 
 	// Artwork is recorded under this server, where getImageUrl finds it.

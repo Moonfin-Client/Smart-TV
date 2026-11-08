@@ -1,6 +1,6 @@
 import {corsFreeFetch} from './secureFetch';
 import {createSiloApi, probeSilo} from './siloApi';
-import {resetSiloSessions} from './siloSession';
+import {openSiloSession, profileProof, resetSiloSessions, setProfileProof, tokensFrom} from './siloSession';
 
 jest.mock('./secureFetch', () => ({corsFreeFetch: jest.fn()}));
 jest.mock('./storage', () => ({getFromStorage: () => Promise.resolve(null), saveToStorage: () => Promise.resolve()}));
@@ -223,5 +223,23 @@ describe('a temporary password', () => {
 		});
 		await expect(silo.authenticateByName('brady', 'temp')).rejects.toMatchObject({code: 'password_change_unavailable'});
 		expect(calls()).toContain('POST /api/v2/auth/logout');
+	});
+});
+
+describe('remembered PIN proofs', () => {
+	test('a proof Silo stops taking is dropped, and the app is told to ask again', async () => {
+		const session = openSiloSession(SERVER, '7', tokensFrom({access_token: 'a1', refresh_token: 'r1', expires_in: 900}));
+		setProfileProof(session, 'kid', {token: 'old-proof', expiresAt: 0});
+		token = 'a1';
+		userId = 'kid';
+		const locked = jest.fn();
+		window.addEventListener('moonfin:siloProfileLocked', locked);
+		answer({'/api/v2/x': () => reply(403, {type: 'x/profile_verification_required', title: 'Verify', status: 403})});
+
+		await expect(silo.siloCall('/api/v2/x')).rejects.toMatchObject({code: 'profile_verification_required'});
+
+		expect(profileProof(session, 'kid')).toBe(null);
+		expect(locked).toHaveBeenCalledTimes(1);
+		window.removeEventListener('moonfin:siloProfileLocked', locked);
 	});
 });

@@ -120,8 +120,14 @@ export const loadSiloSessions = () => {
 		loaded = getFromStorage(STORAGE_KEY).then((stored) => {
 			(Array.isArray(stored) ? stored : []).forEach((entry) => {
 				if (!entry?.server || !entry.accountId || !entry.tokens?.accessToken) return;
-				if (sessions.some((s) => s.server === entry.server && s.accountId === entry.accountId)) return;
 				const remember = entry.remember || {};
+				// A session opened before the stored ones were read keeps its own login, and takes the stored choices
+				// it hasn't made itself.
+				const open = sessions.find((s) => s.server === entry.server && s.accountId === entry.accountId);
+				if (open) {
+					open.remember = {...remember, ...open.remember};
+					return;
+				}
 				sessions.push({
 					...entry, aliases: entry.aliases || [], remember, proofs: keptProofs({proofs: entry.proofs, remember}), identity: 0,
 					refreshing: null
