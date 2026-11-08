@@ -183,6 +183,7 @@ const Login = ({
 	// When a keyboard opens, a spacer grows under the card and the active field
 	// gets pulled toward the top so it stays visible above the keys. The scroll
 	// waits out the spacer growing, since before that there is no room to move.
+	// A dialog makes its own room above the keys, so the spacer stays shut then.
 	useEffect(() => {
 		let scrollTimer = null;
 		const unsubscribe = subscribeTvKeyboardVisibility(({visible, anchor}) => {
@@ -1979,7 +1980,7 @@ const Login = ({
 					</div>
 				)}
 
-				<div className={`${css.keyboardSpacer} ${keyboardOpen ? css.keyboardSpacerOpen : ''}`} />
+				<div className={`${css.keyboardSpacer} ${keyboardOpen && !dialog ? css.keyboardSpacerOpen : ''}`} />
 			</div>
 			<div className={css.spacerBottom} />
 			{renderDialog()}
