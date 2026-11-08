@@ -1782,7 +1782,9 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 						enableDirectPlay: false,
 						enableDirectStream: false,
 						enableTranscoding: true,
-						forceDirectPlay: false
+						forceDirectPlay: false,
+						// a remux copies the same video and audio the TV just refused
+						allowStreamCopy: false
 					});
 					if (!stillCurrent()) return;
 					if (!transcodeResult?.url) throw prepareErr;
@@ -2199,6 +2201,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 					enableDirectPlay: false,
 					enableDirectStream: false,
 					enableTranscoding: true,
+					allowStreamCopy: false,
 					mediaSourceId: mediaSourceId,
 					item: item,
 					stereoUpmixEnabled: settings.stereoUpmixEnabled

@@ -229,6 +229,30 @@ describe('transcode preferences', () => {
 		await playback.changeAudioStream(3, 0);
 		expect(lastRequest()).toMatchObject({EnableDirectPlay: false, EnableDirectStream: true});
 	});
+
+	test('a normal load leaves stream copy to the server', async () => {
+		answerMovie();
+		await playback.getPlaybackInfo(movie.Id, {item: movie});
+		expect(lastRequest()).not.toHaveProperty('AllowVideoStreamCopy');
+		expect(lastRequest()).not.toHaveProperty('AllowAudioStreamCopy');
+	});
+
+	test('a fallback that turns stream copy off asks for a real encode, and an audio switch keeps it', async () => {
+		answerMovie();
+		await playback.getPlaybackInfo(movie.Id, {item: movie});
+		await playback.getPlaybackInfo(movie.Id, {item: movie, enableDirectPlay: false, enableDirectStream: false, allowStreamCopy: false});
+		expect(lastRequest()).toMatchObject({AllowVideoStreamCopy: false, AllowAudioStreamCopy: false});
+		await playback.changeAudioStream(3, 0);
+		expect(lastRequest()).toMatchObject({AllowVideoStreamCopy: false, AllowAudioStreamCopy: false, AudioStreamIndex: 3});
+	});
+
+	test('a stop lets the next load copy streams again', async () => {
+		answerMovie();
+		await playback.getPlaybackInfo(movie.Id, {item: movie, allowStreamCopy: false});
+		await playback.reportStop(0);
+		await playback.getPlaybackInfo(movie.Id, {item: movie});
+		expect(lastRequest()).not.toHaveProperty('AllowVideoStreamCopy');
+	});
 });
 
 describe('the source id PlaybackInfo is pinned to', () => {
