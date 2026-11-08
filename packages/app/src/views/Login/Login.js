@@ -1746,7 +1746,7 @@ const Login = ({
 			{onBack && renderRoundButton('add-back-btn', 'arrowBack', $L('Back'), onBack)}
 			<div className={css.panelHeading}>
 				<h2 className={css.panelTitle}>{title}</h2>
-				<p className={css.panelSubtitle}>{subtitle}</p>
+				{subtitle && <p className={css.panelSubtitle}>{subtitle}</p>}
 			</div>
 			{renderRoundButton('add-close-btn', 'closeRounded', $L('Close'), closeDialog)}
 		</div>
@@ -1813,11 +1813,13 @@ const Login = ({
 		);
 	};
 
+	// The keyboard leaves room for the field and Connect but not the help lines around them,
+	// so those wait until it closes.
 	const renderAddressStep = () => (
 		<div>
 			{renderPanelHeader({
 				title: $L('Connect to Server'),
-				subtitle: $L('The same address you\'d open in a browser, including the port.'),
+				subtitle: keyboardOpen ? null : $L('The same address you\'d open in a browser, including the port.'),
 				onBack: showChooseStep
 			})}
 			<div className={css.fieldLabel}>{$L('Server Address')}</div>
@@ -1844,11 +1846,13 @@ const Login = ({
 			>
 				{isConnecting ? <span className={`${css.spinner} ${css.primarySpinner}`} /> : $L('Connect')}
 			</SpottableButton>
-			<div className={css.addressHint}>
-				{isConnecting
-					? $L('Checking {address}').replace('{address}', addressValue.trim())
-					: $L('Works with Jellyfin, Emby and Silo. A Plex address opens the Plex sign-in.')}
-			</div>
+			{(isConnecting || !keyboardOpen) && (
+				<div className={css.addressHint}>
+					{isConnecting
+						? $L('Checking {address}').replace('{address}', addressValue.trim())
+						: $L('Works with Jellyfin, Emby and Silo. A Plex address opens the Plex sign-in.')}
+				</div>
+			)}
 			{dialogError && renderNotice(dialogError)}
 		</div>
 	);
