@@ -84,7 +84,7 @@ export const actorsOf = async (apiClient, id) => {
  * @param {string} [options.seriesId]
  * @returns {Promise<Array>}
  */
-export const resolveParentCast = async ({apiClient, seasonId, seriesId}) => {
+export const resolveParentCast = async ({ apiClient, seasonId, seriesId }) => {
 	if (!apiClient) return [];
 
 	if (seasonId) {
@@ -109,7 +109,7 @@ export const resolveParentCast = async ({apiClient, seasonId, seriesId}) => {
  * @param {Array} [options.parentActors]
  * @returns {Array}
  */
-export const mergeEpisodeCast = ({episodeActors = [], parentActors = []} = {}) => {
+export const mergeEpisodeCast = ({ episodeActors = [], parentActors = [] } = {}) => {
 	const formattedEpisodeActors = episodeActors.map((p) => {
 		if (p.Type !== 'GuestStar') return p;
 		return {
@@ -152,22 +152,15 @@ export const mergeEpisodeCast = ({episodeActors = [], parentActors = []} = {}) =
  * @param {Array} [options.parentActors]
  * @returns {Array}
  */
-export const mergeEpisodePeople = ({episodePeople = [], parentActors = []} = {}) => {
-	const episodeCast = [];
+export const mergeEpisodePeople = ({ episodePeople = [], parentActors = [] } = {}) => {
+	const episodeActors = [];
 	const episodeCrew = [];
 
 	for (const p of episodePeople) {
 		if (!p) continue;
 		const type = p.Type;
 		if (type === 'Actor' || type === 'GuestStar') {
-			if (type === 'GuestStar') {
-				episodeCast.push({
-					...p,
-					Role: formatGuestStarRole(p.Role)
-				});
-			} else {
-				episodeCast.push(p);
-			}
+			episodeActors.push(p);
 		} else if (type === 'Director') {
 			episodeCrew.push({
 				...p,
@@ -183,27 +176,6 @@ export const mergeEpisodePeople = ({episodePeople = [], parentActors = []} = {})
 		}
 	}
 
-	const existingIds = new Set();
-	const existingNames = new Set();
-	for (const p of episodeCast) {
-		if (p.Id) {
-			existingIds.add(String(p.Id));
-		} else if (p.Name) {
-			existingNames.add(p.Name.trim().toLowerCase());
-		}
-	}
-
-	const mergedCast = [...episodeCast];
-	for (const p of parentActors) {
-		if (!p) continue;
-		if (p.Id) {
-			if (existingIds.has(String(p.Id))) continue;
-		} else if (p.Name) {
-			if (existingNames.has(p.Name.trim().toLowerCase())) continue;
-		}
-		mergedCast.push(p);
-	}
-
-	return [...mergedCast, ...episodeCrew];
+	return [...mergeEpisodeCast({ episodeActors, parentActors }), ...episodeCrew];
 };
 
