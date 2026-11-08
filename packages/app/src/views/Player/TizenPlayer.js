@@ -1732,7 +1732,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 				console.log('[Player] playMethod:', result.playMethod, 'mimeType:', result.mimeType, 'container:', result.mediaSource?.Container, 'transcodingContainer:', result.mediaSource?.TranscodingContainer);
 
 				const wantsNativeAudio = pendingAudioIndex != null && result.playMethod !== playback.PlayMethod.Transcode;
-				const wantsNativeSub = pendingSubAction?.type === 'native' && !!pendingSubAction.stream;
+				let wantsNativeSub = pendingSubAction?.type === 'native' && !!pendingSubAction.stream;
 				pendingTracksRef.current = {
 					audioIndex: wantsNativeAudio ? pendingAudioIndex : null,
 					audioApplied: !wantsNativeAudio,
@@ -1745,14 +1745,69 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 				};
 				activeNativeSubRef.current = null;
 
-				await openAndPrepare({
-					url: result.url,
-					playMethod: result.playMethod,
-					mediaSource: result.mediaSource,
-					resumeTicks: startPosition,
-					hasNativePendingSub: wantsNativeSub,
-					shouldAbort: () => !stillCurrent()
-				});
+				try {
+					await openAndPrepare({
+						url: result.url,
+						playMethod: result.playMethod,
+						mediaSource: result.mediaSource,
+						resumeTicks: startPosition,
+						hasNativePendingSub: wantsNativeSub,
+						shouldAbort: () => !stillCurrent()
+					});
+				} catch (prepareErr) {
+					// AVPlay refusing a direct stream at prepare rejects here and never
+					// reaches onerror, so the transcode fallback in handleError never ran
+					// and a file the server could convert just showed an error.
+					if (!stillCurrent() || isLiveTV || isPreroll(item) ||
+							result.playMethod === playback.PlayMethod.Transcode) {
+						throw prepareErr;
+					}
+					serverLogger.playback('Playback: direct stream rejected at prepare, falling back to transcode', {
+						itemId: item?.Id,
+						playMethod: result.playMethod,
+						container: result.mediaSource?.Container,
+						error: prepareErr?.message || String(prepareErr)
+					});
+					setHasTriedTranscode(true);
+					cleanupAVPlay();
+					avplayReadyRef.current = false;
+
+					const chosenAudioIndex = pendingAudioIndex != null ? pendingAudioIndex : result.selectedAudioStreamIndex;
+					const chosenSubIndex = pendingSubAction?.stream?.index;
+					const transcodeResult = await playback.getPlaybackInfo(item.Id, {
+						...playbackInfoOptions,
+						mediaSourceId: playbackInfoOptions.mediaSourceId || result.mediaSourceId,
+						audioStreamIndex: chosenAudioIndex != null ? chosenAudioIndex : undefined,
+						subtitleStreamIndex: chosenSubIndex != null ? chosenSubIndex : playbackInfoOptions.subtitleStreamIndex,
+						enableDirectPlay: false,
+						enableDirectStream: false,
+						enableTranscoding: true,
+						forceDirectPlay: false
+					});
+					if (!stillCurrent()) return;
+					if (!transcodeResult?.url) throw prepareErr;
+					result = transcodeResult;
+					applyPlaybackResult(result);
+
+					// the transcode carries only the chosen audio track and no embedded
+					// subtitle tracks, so the subtitle is drawn client side or burnt in
+					if (pendingSubAction?.stream) {
+						const sub = (result.subtitleStreams || []).find((s) => s.index === pendingSubAction.stream.index) || pendingSubAction.stream;
+						pendingSubAction = decideSubtitleAction(sub);
+						if (sub.isBurnIn) burnInSubtitleRef.current = sub.index;
+					}
+					wantsNativeSub = false;
+					pendingTracksRef.current = null;
+
+					await openAndPrepare({
+						url: result.url,
+						playMethod: result.playMethod,
+						mediaSource: result.mediaSource,
+						resumeTicks: startPosition,
+						hasNativePendingSub: false,
+						shouldAbort: () => !stillCurrent()
+					});
+				}
 				if (!stillCurrent()) return;
 				liveRecoveryRef.current?.tuned();
 
