@@ -860,6 +860,17 @@ const AppContent = (props) => {
 		}
 	}, [isLoading, isAuthenticated, authChecked]);
 
+	// Losing the sign-in mid-session (Silo ended the login after a password change, or the server refused the token)
+	// goes back to sign-in, as Moonfin Core does. Otherwise the screen stayed up making requests nobody could answer.
+	const wasAuthenticatedRef = useRef(isAuthenticated);
+	useEffect(() => {
+		const was = wasAuthenticatedRef.current;
+		wasAuthenticatedRef.current = isAuthenticated;
+		if (!was || isAuthenticated || !authChecked) return;
+		setPanelHistory([]);
+		setPanelIndex(PANELS.LOGIN);
+	}, [isAuthenticated, authChecked]);
+
 	const kidsBlockedPanels = useMemo(() => blockedPanels(PANELS), []);
 
 	const showPanel = useCallback((panel) => {
