@@ -27,6 +27,14 @@ export const takeHouseholdPick = () => {
 	householdToPick = false;
 	return pick;
 };
+// Set when Silo ended the login under the signed-in profile, so the sign-in screen opens for that server with the
+// profile's name filled in, as Moonfin Core does: {server, username}.
+let siloSignInAgain = null;
+export const takeSiloSignInAgain = () => {
+	const again = siloSignInAgain;
+	siloSignInAgain = null;
+	return again;
+};
 const BACKOFF_DELAYS = [5000, 10000, 20000];
 const RECOVERY_MAX_DELAY = 60000;
 
@@ -113,11 +121,35 @@ export const AuthProvider = ({children}) => {
 			}
 			if (stale.length) loadServers();
 		});
-		const offEnded = onSiloSessionEnded((session) => {
+		// The password changed, or the account's sessions were signed out: the login was the whole household's, so every
+		// saved profile of the account goes, and sign-in opens for it with the name filled in.
+		const offEnded = onSiloSessionEnded(async (session) => {
 			if (jellyfinApi.getServerType() !== 'silo' || siloServerKey(jellyfinApi.getServerUrl()) !== session.server) return;
 			console.warn('[AUTH] Silo refused the session refresh, requiring re-login');
+			const token = jellyfinApi.getApiKey();
+			const userId = jellyfinApi.getUserId();
 			jellyfinApi.setAuth(null, null);
+			const saved = (await multiServerManager.getAllServersArray())
+				.filter((entry) => entry.serverType === 'silo' && siloServerKey(entry.url) === session.server);
+			const self = saved.find((entry) => entry.userId === userId);
+			const household = saved.filter((entry) => (entry.siloAccountId
+				? entry.siloAccountId === session.accountId
+				: Boolean(token) && entry.accessToken === token));
+			for (const entry of household) {
+				// eslint-disable-next-line no-await-in-loop
+				await multiServerManager.removeServer(entry.serverId, entry.userId);
+			}
+			if (self) {
+				siloSignInAgain = {
+					server: {serverId: self.serverId, url: self.url, name: self.name, serverType: 'silo', version: null},
+					username: self.username
+				};
+			}
+			clearAllCaches();
+			await removeFromStorage('auth');
+			setUser(null);
 			setAccessToken(null);
+			await loadServers();
 			setIsAuthenticated(false);
 		});
 		return () => {
@@ -524,11 +556,8 @@ export const AuthProvider = ({children}) => {
 			// one is in use. They're the entries of the same account, or failing a saved account, of the same token.
 			const saved = leaving.serverType === 'silo' ? await multiServerManager.getAllServersArray() : [];
 			const self = saved.find((entry) => entry.serverId === activeServerInfo.serverId && entry.userId === activeServerInfo.userId);
-			const household = saved.filter((entry) => entry.serverId === activeServerInfo.serverId &&
-				entry.userId !== activeServerInfo.userId &&
-				(self?.siloAccountId
-					? entry.siloAccountId === self.siloAccountId
-					: Boolean(leaving.accessToken) && entry.accessToken === leaving.accessToken));
+			const household = saved.filter((entry) => entry !== self &&
+				multiServerManager.sameSiloHousehold(entry, self, leaving.accessToken));
 			for (const entry of household) {
 				// eslint-disable-next-line no-await-in-loop
 				await multiServerManager.removeServer(entry.serverId, entry.userId);

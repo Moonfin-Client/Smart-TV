@@ -24,6 +24,12 @@ export const getAllServers = async () => {
 	return serversData;
 };
 
+// Whether a saved entry is a profile of the same Silo household as `self` (itself included): the same account on the
+// same server, or failing a saved account, the same token. Sign Out removes the household together.
+export const sameSiloHousehold = (entry, self, token = self?.accessToken) => Boolean(self) && self.serverType === 'silo' &&
+	entry.serverId === self.serverId &&
+	(self.siloAccountId ? entry.siloAccountId === self.siloAccountId : Boolean(token) && entry.accessToken === token);
+
 /**
  * Get all servers as array (for compatibility and rendering)
  * Each user on each server is returned as a separate entry

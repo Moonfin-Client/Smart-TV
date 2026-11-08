@@ -3,7 +3,7 @@ import Spottable from '@enact/spotlight/Spottable';
 import SpotlightContainerDecorator from '@enact/spotlight/SpotlightContainerDecorator';
 import Spotlight from '@enact/spotlight';
 import $L from '@enact/i18n/$L';
-import {useAuth} from '../../context/AuthContext';
+import {takeSiloSignInAgain, useAuth} from '../../context/AuthContext';
 import {useSettings} from '../../context/SettingsContext';
 import * as jellyfinApi from '../../services/jellyfinApi';
 import * as embyConnect from '../../services/embyConnect';
@@ -606,6 +606,14 @@ const Login = ({
 
 		if (pendingServer?.url) {
 			connectTo(pendingServer.url);
+			return;
+		}
+
+		// Silo ended the login, so that account signs in again, its name filled in.
+		const again = takeSiloSignInAgain();
+		if (again) {
+			const kept = uniqueServers.find((entry) => entry.url === again.server.url);
+			openServer(kept || again.server, {forceSignIn: true, signInAs: {name: again.username, hasPassword: true}});
 			return;
 		}
 

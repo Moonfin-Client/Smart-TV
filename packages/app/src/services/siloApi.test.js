@@ -240,6 +240,10 @@ describe('remembered PIN proofs', () => {
 
 		expect(profileProof(session, 'kid')).toBe(null);
 		expect(locked).toHaveBeenCalledTimes(1);
+
+		// Requests still in flight say so again, without sending the app back to the gate again.
+		await expect(silo.siloCall('/api/v2/x')).rejects.toMatchObject({code: 'profile_verification_required'});
+		expect(locked).toHaveBeenCalledTimes(1);
 		window.removeEventListener('moonfin:siloProfileLocked', locked);
 	});
 });
