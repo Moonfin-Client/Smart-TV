@@ -175,6 +175,16 @@ describe('PIN proofs', () => {
 		expect(profileProof(restored, 'teen')).toBe(null);
 		expect(remembersProfilePin(restored, 'teen')).toBe(false);
 	});
+
+	test('a session opened before the stored ones are read keeps their choices', async () => {
+		getFromStorage.mockImplementationOnce(() => Promise.resolve([{
+			server: SERVER, accountId: 'acc-1', tokens: tokensFrom(pair('a', 'r')), remember: {teen: false}
+		}]));
+		const session = openSiloSession(SERVER, 'acc-1', tokensFrom(pair('b', 'r2')));
+		await loadSiloSessions();
+		expect(remembersProfilePin(session, 'teen')).toBe(false);
+		expect(session.tokens.accessToken).toBe('b');
+	});
 });
 
 describe('needsStreamRefresh', () => {

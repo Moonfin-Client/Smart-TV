@@ -413,6 +413,13 @@ const AppContent = (props) => {
 		return () => window.removeEventListener('moonfin:trailerPreview', handleTrailerPreview);
 	}, []);
 
+	// Silo stopped taking a remembered PIN's proof, so the PIN is asked for again.
+	useEffect(() => {
+		const handleProfileLocked = () => setPinCheckCount((count) => count + 1);
+		window.addEventListener('moonfin:siloProfileLocked', handleProfileLocked);
+		return () => window.removeEventListener('moonfin:siloProfileLocked', handleProfileLocked);
+	}, []);
+
 	useEffect(() => {
 		const handleDetailsChrome = (e) => setDetailsHidesNavbar(!!e.detail?.hidden);
 		window.addEventListener('moonfin:detailsChrome', handleDetailsChrome);
@@ -479,6 +486,9 @@ const AppContent = (props) => {
 			if (unlocked) {
 				setPinPassed(pinSession);
 				setPinChecked(pinSession);
+				// The record still follows the server, so a PIN removed there stops being asked for once the proof runs out.
+				const refreshed = await refreshSignInPin(before, pinAccount);
+				if (!cancelled && refreshed !== before) saveSignInPin(refreshed);
 				return;
 			}
 			const remember = await signInPinRemembered(pinAccount);

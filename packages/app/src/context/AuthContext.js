@@ -521,11 +521,14 @@ export const AuthProvider = ({children}) => {
 		};
 		if (activeServerInfo) {
 			// Signing out of a Silo profile signs its whole account out: every profile of the household goes, whichever
-			// one is in use. They share the account's token.
-			const household = leaving.serverType === 'silo' && leaving.accessToken
-				? (await multiServerManager.getAllServersArray()).filter((entry) => entry.serverId === activeServerInfo.serverId &&
-					entry.userId !== activeServerInfo.userId && entry.accessToken === leaving.accessToken)
-				: [];
+			// one is in use. They're the entries of the same account, or failing a saved account, of the same token.
+			const saved = leaving.serverType === 'silo' ? await multiServerManager.getAllServersArray() : [];
+			const self = saved.find((entry) => entry.serverId === activeServerInfo.serverId && entry.userId === activeServerInfo.userId);
+			const household = saved.filter((entry) => entry.serverId === activeServerInfo.serverId &&
+				entry.userId !== activeServerInfo.userId &&
+				(self?.siloAccountId
+					? entry.siloAccountId === self.siloAccountId
+					: Boolean(leaving.accessToken) && entry.accessToken === leaving.accessToken));
 			for (const entry of household) {
 				// eslint-disable-next-line no-await-in-loop
 				await multiServerManager.removeServer(entry.serverId, entry.userId);
