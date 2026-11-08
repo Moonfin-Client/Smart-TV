@@ -1824,9 +1824,9 @@ const AppContent = (props) => {
 		const session = pinSession;
 		const before = latestSignInPin();
 		setPinVerifying(true);
-		// Chosen first, so the proof the check brings back is kept or not.
-		if (pinRemember !== null) await rememberSignInPin(pinAccount, pinRemember);
 		const result = await verifySignInPin(before, pinCodeInput, pinAccount);
+		// Only the right PIN confirms the choice, which then keeps the proof it brought back or not.
+		if (result.outcome === PIN_ACCEPTED && pinRemember !== null) await rememberSignInPin(pinAccount, pinRemember);
 		setPinVerifying(false);
 		if (result.record !== before) saveSignInPin(result.record);
 		setPinCodeInput('');
