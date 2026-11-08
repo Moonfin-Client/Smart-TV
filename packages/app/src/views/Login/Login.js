@@ -1813,8 +1813,9 @@ const Login = ({
 		);
 	};
 
-	// The keyboard leaves room for the field and Connect but not the help lines around them,
-	// so those wait until it closes.
+	// The keyboard leaves room for the field and Connect but not the lines around them, so the
+	// help and any error from the last try wait until it closes. The field is disabled while
+	// connecting, so the keyboard is already down for the Checking line.
 	const renderAddressStep = () => (
 		<div>
 			{renderPanelHeader({
@@ -1846,14 +1847,14 @@ const Login = ({
 			>
 				{isConnecting ? <span className={`${css.spinner} ${css.primarySpinner}`} /> : $L('Connect')}
 			</SpottableButton>
-			{(isConnecting || !keyboardOpen) && (
+			{!keyboardOpen && (
 				<div className={css.addressHint}>
 					{isConnecting
 						? $L('Checking {address}').replace('{address}', addressValue.trim())
 						: $L('Works with Jellyfin, Emby and Silo. A Plex address opens the Plex sign-in.')}
 				</div>
 			)}
-			{dialogError && renderNotice(dialogError)}
+			{dialogError && !keyboardOpen && renderNotice(dialogError)}
 		</div>
 	);
 
