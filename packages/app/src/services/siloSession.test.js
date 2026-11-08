@@ -185,6 +185,16 @@ describe('PIN proofs', () => {
 		expect(remembersProfilePin(session, 'teen')).toBe(false);
 		expect(session.tokens.accessToken).toBe('b');
 	});
+
+	test('a session opened early also takes the remembered proofs', async () => {
+		getFromStorage.mockImplementationOnce(() => Promise.resolve([{
+			server: SERVER, accountId: 'acc-1', tokens: tokensFrom(pair('a', 'r')), remember: {kid: true},
+			proofs: {kid: {token: 'kid-proof', expiresAt: 0}}
+		}]));
+		const session = openSiloSession(SERVER, 'acc-1', tokensFrom(pair('b', 'r2')));
+		await loadSiloSessions();
+		expect(rememberedProfileUnlocked(session, 'kid')).toBe(true);
+	});
 });
 
 describe('needsStreamRefresh', () => {

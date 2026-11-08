@@ -244,6 +244,13 @@ describe('remembered PIN proofs', () => {
 		// Requests still in flight say so again, without sending the app back to the gate again.
 		await expect(silo.siloCall('/api/v2/x')).rejects.toMatchObject({code: 'profile_verification_required'});
 		expect(locked).toHaveBeenCalledTimes(1);
+
+		// Once a request works as the profile again, a later locking is reported again.
+		answer({'/api/v2/x': {}});
+		await silo.siloCall('/api/v2/x');
+		answer({'/api/v2/x': () => reply(403, {type: 'x/profile_verification_required', title: 'Verify', status: 403})});
+		await expect(silo.siloCall('/api/v2/x')).rejects.toMatchObject({code: 'profile_verification_required'});
+		expect(locked).toHaveBeenCalledTimes(2);
 		window.removeEventListener('moonfin:siloProfileLocked', locked);
 	});
 });
