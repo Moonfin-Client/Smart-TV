@@ -24,6 +24,10 @@ import {
 
 const SYSTEM_INFO_PATH = '/api/v2/system/info';
 
+// The profile last reported locked to the app, until its PIN is proved again. Shared by every api instance, since the
+// PIN gate proves it through one of its own.
+let lockedReported = null;
+
 const trimSlash = (url) => String(url || '').replace(/\/+$/, '');
 const unsupported = (what) => Promise.reject(Object.assign(new Error(`${what} isn't supported on Silo`), {status: 501}));
 
@@ -80,8 +84,10 @@ export const createSiloApi = ({getBaseUrl, getToken, getUserId, getDeviceInfo, p
 			});
 		} catch (err) {
 			const profileId = getUserId() ? String(getUserId()) : null;
-			if (err?.code === 'profile_verification_required' && profileId && profileProof(current, profileId)) {
-				setProfileProof(current, profileId, null);
+			// Once per locking, so the requests still in flight don't keep sending the app back to the gate.
+			if (err?.code === 'profile_verification_required' && profileId && lockedReported !== profileId) {
+				lockedReported = profileId;
+				if (profileProof(current, profileId)) setProfileProof(current, profileId, null);
 				if (typeof window !== 'undefined') window.dispatchEvent(new CustomEvent('moonfin:siloProfileLocked'));
 			}
 			throw err;
@@ -207,6 +213,7 @@ export const createSiloApi = ({getBaseUrl, getToken, getUserId, getDeviceInfo, p
 			method: 'POST', body: {pin}, profile: false, refresh: false
 		});
 		if (answer?.valid !== true || !answer.profile_token) return false;
+		lockedReported = null;
 		setProfileProof(session(), String(profileId), {
 			token: answer.profile_token, expiresAt: answer.expires_at ? Date.parse(answer.expires_at) : 0
 		});
