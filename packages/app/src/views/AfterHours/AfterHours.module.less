@@ -262,15 +262,49 @@
 	}
 }
 
-.hint {
+// The in-game row sits just right of the score box the game draws at 32, 28, 368 by 84.
+.hudRow {
 	position: absolute;
-	right: 40px;
-	bottom: 36px;
+	left: 432px;
+	right: 32px;
+	top: 28px;
+	height: 84px;
+	display: flex;
+	align-items: center;
+}
+
+.hint {
+	height: 84px;
+	box-sizing: border-box;
+	display: flex;
+	align-items: center;
+	flex-shrink: 0;
 	background: rgba(8, 6, 22, 0.78);
 	border-radius: 20px;
-	padding: 16px 24px;
+	padding: 0 24px;
 	font-size: 30px;
 	color: @muted;
+}
+
+.controlsSlot {
+	flex: 1;
+	display: flex;
+	justify-content: center;
+	margin-left: 24px;
+}
+
+.playControls {
+	background: rgba(8, 6, 22, 0.8);
+	border-radius: 42px;
+	padding: 16px 32px;
+	font-size: 28px;
+	color: @ink;
+	text-align: center;
+	transition: opacity 0.4s;
+}
+
+.faded {
+	opacity: 0;
 }
 
 .panel {

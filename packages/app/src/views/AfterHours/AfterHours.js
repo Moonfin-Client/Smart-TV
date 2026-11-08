@@ -10,7 +10,7 @@ import {genreGlowRgb} from '../Browse/galleryGlow';
 import {fetchBoard, loadDeviceBoards, postScore, recordDeviceRun} from '../../services/miniGamesApi';
 import {getFromStorage, saveToStorage} from '../../services/storage';
 import {GAME_IDS, H, W, drawDim, drawShade, makeGame, simulate} from './games';
-import HowToPlay from './HowToPlay';
+import HowToPlay, {remoteLines} from './HowToPlay';
 import {isSoundOn, loadSounds, playSound, setSoundOn, sleepAudio, startMusic, stopMusic, unlockAudio} from './sound';
 
 import css from './AfterHours.module.less';
@@ -108,6 +108,9 @@ const AfterHours = ({onClose}) => {
 	const [soundOn, setSoundState] = useState(isSoundOn());
 	// {id, from}, where from is 'first', 'menu' or 'pause'.
 	const [howTo, setHowTo] = useState(null);
+	// The run whose controls line is showing, or 0 once it has faded.
+	const [controlsRun, setControlsRun] = useState(0);
+	const remote = useMemo(remoteLines, []);
 
 	const rootRef = useRef(null);
 	const canvasRef = useRef(null);
@@ -240,9 +243,16 @@ const AfterHours = ({onClose}) => {
 		gameIdRef.current = id;
 		steerRef.current = 0;
 		runRef.current++;
+		setControlsRun(runRef.current);
 		setResult(null);
 		setScreen('play');
 	}, [shelf]);
+
+	useEffect(() => {
+		if (!controlsRun) return undefined;
+		const timer = setTimeout(() => setControlsRun(0), 4000);
+		return () => clearTimeout(timer);
+	}, [controlsRun]);
 
 	const toArcade = useCallback(() => {
 		playSound('back');
@@ -495,7 +505,14 @@ const AfterHours = ({onClose}) => {
 				</div>
 			)}
 
-			{screen === 'play' && <div className={css.hint}><kbd>{$L('Back')}</kbd> {$L('Pause')}</div>}
+			{screen === 'play' && (
+				<div className={css.hudRow}>
+					<div className={css.hint}><kbd>{$L('Back')}</kbd> {$L('Pause')}</div>
+					<div className={css.controlsSlot}>
+						<div className={controlsRun ? css.playControls : `${css.playControls} ${css.faded}`}>{remote[gameIdRef.current]}</div>
+					</div>
+				</div>
+			)}
 
 			{screen === 'pause' && (
 				<div className={css.pause}>

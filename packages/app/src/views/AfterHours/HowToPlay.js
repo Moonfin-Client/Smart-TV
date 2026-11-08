@@ -5,7 +5,7 @@ import {CAST, drawIcon} from './games';
 import css from './AfterHours.module.less';
 
 // A controls line stays under about 90 characters, so a translation still fits.
-const remoteLines = () => ({
+export const remoteLines = () => ({
 	'buffer-run': $L('OK jumps, again mid-air to flip sides. Down slides. On the ceiling Up and Down swap.'),
 	'fast-forward': $L('Up and Down change lanes. OK jumps.'),
 	'cable-crawl': $L('Arrows turn. The cable never stops.'),
