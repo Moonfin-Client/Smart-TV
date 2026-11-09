@@ -1199,12 +1199,6 @@ export const fetchItemChapters = async (itemId, item) => {
 	return [];
 };
 
-export const getChapterImageUrl = (itemId, chapterIndex, width = 320) => {
-	const serverUrl = jellyfinApi.getServerUrl();
-	const apiKey = jellyfinApi.getApiKey();
-	return `${serverUrl}/Items/${itemId}/Images/Chapter/${chapterIndex}?maxWidth=${width}&${jellyfinApi.getTokenParam()}=${apiKey}`;
-};
-
 export const getTrickplayInfo = async (itemId) => {
 	if (jellyfinApi.getServerType() === 'emby') return null;
 	try {
@@ -1804,7 +1798,6 @@ export default {
 	getPlaybackUrl,
 	getSubtitleUrl,
 	fetchItemChapters,
-	getChapterImageUrl,
 	getTrickplayInfo,
 	getMediaSegments,
 	getIntroMarkers,
