@@ -42,7 +42,7 @@ const PlayerOsd = ({item, paused, subtitles, progress, focus, measureBar}) => {
 		isPaused: paused, audioStreams: SAMPLE_AUDIO, subtitleStreams: SAMPLE_SUBTITLES, chapters: SAMPLE_CHAPTERS,
 		nextEpisode: true, isAudioMode: false, isLiveTV: false, selectedQuality: null,
 		selectedSubtitleIndex: subtitles ? SAMPLE_SUBTITLES[0].index : -1, canDownloadRemoteSubtitles: true, hasCastMembers: true,
-		zoomModeLabel: zoomOption && zoomOption.label, zoomModeKey: zoomKey, sleepMinutes: null, canBrowseEpisodes: true
+		zoomModeLabel: zoomOption && zoomOption.label, zoomModeKey: zoomKey, sleepMinutes: null, canBrowseEpisodes: true, canFavorite: true
 	});
 	const {displayLogoUrl, logoLoadFailed, logoHeightPx, handleLogoError} = useOsdLogo(item && item.logoUrl);
 	const title = item ? item.title : '';

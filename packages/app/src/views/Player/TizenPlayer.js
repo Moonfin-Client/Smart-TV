@@ -225,6 +225,8 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 	const [currentSubtitleText, setCurrentSubtitleText] = useState(null);
 	const {loading: subtitleFetching, track: trackSubtitleFetch, clear: clearSubtitleFetch} = useSubtitleFetch();
 	const [controlsVisible, setControlsVisible] = useState(false);
+	const controlsVisibleRef = useRef(false);
+	controlsVisibleRef.current = controlsVisible;
 	const [activeModal, setActiveModal] = useState(null);
 	// Read by the time update, which runs from an interval or a media event and so sees no fresh state.
 	const episodesOpenRef = useRef(false);
@@ -477,7 +479,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 		selectedSubtitleIndex, canDownloadRemoteSubtitles: !isAudioMode && Boolean(item?.Id), hasCastMembers, zoomModeLabel, zoomModeKey: zoomMode,
 		sleepMinutes,
 		canBrowseEpisodes: canBrowseEpisodes({item, isLiveTV, isAudioMode}),
-		isFavorite, hasLyrics: lyrics.lines.length > 0, audioPanel,
+		isFavorite, canFavorite: !isPreroll(item) && Boolean(item?.Id), hasLyrics: lyrics.lines.length > 0, audioPanel,
 		recordable: liveRecording.available, recordMark: liveRecording.mark
 	});
 	const prepareRecording = liveRecording.prepare;
@@ -1693,7 +1695,11 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 				const shouldUseAudioMode = !!result.isAudio || item?.MediaType === 'Audio' || item?.Type === 'Audio';
 				setIsAudioMode(shouldUseAudioMode);
 				// The next track keeps the music player's focus wherever the remote left it.
-				setFocusRow((row) => (shouldUseAudioMode && (row === 'panel' || row === 'progress') ? row : 'bottom'));
+				// A video's controls open on the seek bar.
+				setFocusRow((row) => {
+					if (shouldUseAudioMode) return row === 'panel' || row === 'progress' ? row : 'bottom';
+					return isLiveTV ? 'bottom' : 'progress';
+				});
 				setIsFavorite(!!item.UserData?.IsFavorite);
 
 				// Audio mode: always show controls, skip video-only features.
@@ -1907,6 +1913,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 	// Controls Auto-hide
 	// ==============================
 	const showControls = useCallback((isModalOpen = activeModal) => {
+		if (!controlsVisibleRef.current && !isAudioMode && !isLiveTV) setFocusRow('progress');
 		setControlsVisible(true);
 		if (controlsTimeoutRef.current) {
 			clearTimeout(controlsTimeoutRef.current);
@@ -1920,7 +1927,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 				setControlsVisible(false);
 			}, CONTROLS_HIDE_DELAY);
 		}
-	}, [activeModal, isAudioMode]);
+	}, [activeModal, isAudioMode, isLiveTV]);
 
 	const hideControls = useCallback(() => {
 		setControlsVisible(false);
@@ -3365,6 +3372,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 					// Hidden controls keep focus, so the focused one would get this key
 					// too and toggle playback straight back.
 					e.stopPropagation();
+					showControls();
 					handlePlayPause();
 					return;
 				}
@@ -3379,6 +3387,15 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 					showControls();
 					setFocusRow('progress');
 					scrubBy(heldSeekStep(key === 'ArrowLeft' || e.keyCode === 37 ? -1 : 1));
+					return;
+				}
+				// Up and Down only bring the controls up onto the seek bar, so the hidden control
+				// that kept focus mustn't move it as well. The skip prompts keep their own keys.
+				if ((key === 'ArrowUp' || e.keyCode === 38 || key === 'ArrowDown' || e.keyCode === 40) &&
+					!isSkipPromptFocused() && !showSkipCredits && !showNextEpisode) {
+					e.preventDefault();
+					e.stopPropagation();
+					showControls();
 					return;
 				}
 				e.preventDefault();

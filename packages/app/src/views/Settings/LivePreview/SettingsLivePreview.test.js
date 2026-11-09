@@ -297,13 +297,13 @@ describe('SettingsLivePreview', () => {
 		const {unmount} = draw({}, 'setting-osdButtons', 'player');
 		expect(labels('transportButtons')).toEqual(['Previous', 'Seek back', 'Pause', 'Seek forward', 'Next Episode']);
 		expect(labels('controlButtonsBottom')).toEqual([
-			'Chapters', 'Episodes', 'Subtitles', 'Audio', 'Cast & Crew', 'Playback Quality', 'Zoom (Fit)', 'Sleep timer', 'Playback Information'
+			'Add to Favorites', 'Chapters', 'Episodes', 'Subtitles', 'Audio', 'Cast & Crew', 'Playback Quality', 'Zoom (Fit)', 'Sleep timer', 'Playback Information'
 		]);
 		unmount();
 		draw({osdButtonOrderTv: ['audio', 'subtitles', 'zoom'], hiddenOsdButtonsTv: ['episodes', 'sleep'], playerZoomMode: 'autoCrop'}, 'setting-osdButtons', 'player');
 		// A button never placed follows the one declared before it, the way the player orders them.
 		expect(labels('controlButtonsBottom')).toEqual([
-			'Chapters', 'Audio', 'Cast & Crew', 'Playback Quality', 'Subtitles', 'Zoom (Zoom to Fill)', 'Playback Information'
+			'Add to Favorites', 'Chapters', 'Audio', 'Cast & Crew', 'Playback Quality', 'Subtitles', 'Zoom (Zoom to Fill)', 'Playback Information'
 		]);
 		// A zoom other than Fit lights the button up, the way the player does.
 		expect(screen.getByText('Zoom (Zoom to Fill)').previousSibling.className).toContain('controlBtnActive');
