@@ -805,7 +805,7 @@ const NouveauDetailContent = (props) => {
 				className={`${css.backdrop} ${isPerson ? css.backdropPerson : ''}`}
 				style={backdropStyle}
 			>
-				{backdropUrl && <img className={css.backdropImage} src={backdropUrl} alt="" />}
+				{settings.detailsBackdropEnabled !== false && backdropUrl && <img className={css.backdropImage} src={backdropUrl} alt="" />}
 				<div className={css.scrim} style={scrimStyle(SCRIM, backdropStyle['--gradient-scale'])} />
 			</div>
 			<div ref={scrollerRef} className={css.scroller}>

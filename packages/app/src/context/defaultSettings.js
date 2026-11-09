@@ -337,7 +337,7 @@ export const defaultSettings = {
 	themeMusicOnHomeRows: false,
 	themeMusicLoop: true,
 	showRatingLabels: true,
-	showRatingBadges: true,
+	showRatingBadges: false,
 	screensaverAgeFilter: false,
 	screensaverMaxRating: 13,
 	uiScale: 1.0,

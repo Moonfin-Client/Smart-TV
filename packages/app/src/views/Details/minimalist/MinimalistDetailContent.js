@@ -81,7 +81,7 @@ const MinimalistDetailContent = (props) => {
 	return (
 		<>
 			<div className={css.backdrop}>
-				{backdropUrl && <img className={css.backdropImage} src={backdropUrl} alt="" />}
+				{settings.detailsBackdropEnabled !== false && backdropUrl && <img className={css.backdropImage} src={backdropUrl} alt="" />}
 				<div className={css.scrim} style={scrimStyle} />
 			</div>
 			<div className={`${css.content} ${settings.navbarPosition === 'left' ? css.sidebarOffset : ''}`}>
