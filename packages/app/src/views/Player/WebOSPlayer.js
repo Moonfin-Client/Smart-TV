@@ -2065,6 +2065,15 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 		}
 	}, []);
 
+	// Moving to another episode tears down the old load, timer included, while
+	// the controls the viewer used to get there stay up. Once the new one is
+	// playing they hide on their own again, like after any other press.
+	useEffect(() => {
+		if (isLoading || isAudioMode || !controlsVisibleRef.current) return;
+		showControls();
+	// eslint-disable-next-line react-hooks/exhaustive-deps
+	}, [isLoading]);
+
 	// Handle playback health issues - if the health monitor detects stalled
 	// playback (no progress for extended period), fall back to transcoding.
 	const handleUnhealthy = useCallback(async () => {
