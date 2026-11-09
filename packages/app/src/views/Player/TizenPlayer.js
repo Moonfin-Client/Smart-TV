@@ -2009,14 +2009,10 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 		}
 	}, []);
 
-	// Moving to another episode tears down the old load, timer included, while
-	// the controls the viewer used to get there stay up. Once the new one is
-	// playing they hide on their own again, like after any other press.
+	// A new item's load clears the hide timer, so re-arm it for controls still up.
 	useEffect(() => {
-		if (isLoading || isAudioMode || !controlsVisibleRef.current) return;
-		showControls();
-	// eslint-disable-next-line react-hooks/exhaustive-deps
-	}, [isLoading]);
+		if (!isLoading && !isAudioMode && controlsVisibleRef.current) showControls();
+	}, [isLoading]); // eslint-disable-line react-hooks/exhaustive-deps
 
 	// No track indexes travel along. The session only records an index the
 	// viewer asked for, so a subtitle the player picked on its own reads as
