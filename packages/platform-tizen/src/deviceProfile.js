@@ -79,6 +79,18 @@ const readWebapis = (read, fallback) => {
 	}
 };
 
+// Match Jellyfin's accepted canPlayType responses. An empty/negative response
+// or an unavailable API retains the existing fallback.
+const supportsVideoType = (type) => {
+	try {
+		const result = document.createElement('video').canPlayType(type);
+		return result === 'probably' || result === 'maybe';
+	} catch (e) {
+		return false;
+	}
+};
+
+
 /**
  * Get model name from webapis (cached).
  * Prefers getRealModel() over getModel() for accurate model string.
@@ -403,12 +415,14 @@ export const getDeviceCapabilities = async () => {
 		// player's info panel. Whether TrueHD is offered also waits on the opt-in.
 		truehdCodecSupported: probeTruehdCodecSupport(),
 		dtshd: audioProbe.dtshd,
-		opus: true,
+		// Samsung's 2016 (Tizen 2.4) specs list Vorbis, not Opus.
+		opus: tizenVersion >= 3,
 
 		// Video codec capabilities
 		hevc: testHevcSupport(),
 		av1: testAv1Support(tizenVersion, modelYear, uhd),
 		vp9: testVp9Support(tizenVersion, uhd),
+		vp8: supportsVideoType('video/webm; codecs="vp8"'),
 
 		...containerSupport,
 
@@ -440,6 +454,7 @@ export const getJellyfinDeviceProfile = async (options = {}) => {
 
 	// WebM-specific profile (VP9/AV1 with WebM audio codecs)
 	const webmVideoCodecs = [];
+	if (caps.vp8) webmVideoCodecs.push('vp8');
 	if (caps.vp9) webmVideoCodecs.push('vp9');
 	if (caps.av1) webmVideoCodecs.push('av1');
 
@@ -506,7 +521,7 @@ export const getJellyfinDeviceProfile = async (options = {}) => {
 			Container: 'webm',
 			Type: 'Video',
 			VideoCodec: webmVideoCodecs.join(','),
-			AudioCodec: 'vorbis,opus' // Samsung spec: WebM audio is Vorbis (+ Opus on some)
+			AudioCodec: caps.opus ? 'vorbis,opus' : 'vorbis'
 		});
 	}
 
