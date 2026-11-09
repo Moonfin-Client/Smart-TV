@@ -335,6 +335,40 @@ describe('SettingsLivePreview', () => {
 		expect(find('.playerControls')).not.toBeNull();
 	});
 
+	test('with the controls up the subtitle sits over the bar and its time row, and with them away it keeps its place', () => {
+		const bottom = () => parseFloat(find('.subtitleOverlay').style.bottom);
+		// The controls fill a 1080 high layer drawn at half size, so 75px up the frame is 150 of the player's pixels.
+		let tops = {};
+		const rect = jest.spyOn(window.HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function () {
+			if (this.classList.contains('playerControls')) return {top: 0, bottom: 540, left: 0, right: 960, width: 960, height: 540};
+			const top = tops[Object.keys(tops).find((name) => this.classList.contains(name))];
+			return top === undefined ? {top: 0, bottom: 0, left: 0, right: 0, width: 0, height: 0} : {top, bottom: top, left: 0, right: 0, width: 0, height: 0};
+		});
+		const tall = jest.spyOn(window.HTMLElement.prototype, 'offsetHeight', 'get').mockImplementation(function () {
+			return this.classList.contains('playerControls') ? 1080 : 0;
+		});
+		try {
+			// The time row tops the controls, then with no row the thumb does, and the line clears either by 12px.
+			for (const next of [{progressContainer: 465, seekIndicator: 480}, {progressContainer: 490, seekIndicator: 465}]) {
+				tops = next;
+				draw({subtitlePosition: 'bottom'}, 'setting-subtitleMode', 'player');
+				expect(bottom()).toBeCloseTo(100 * (150 + 12) / 1080, 5);
+				cleanup();
+			}
+			// A line already set higher stays where it is.
+			draw({subtitlePosition: 'higher'}, 'setting-subtitleMode', 'player');
+			expect(bottom()).toBe(40);
+			cleanup();
+			// The subtitle look is judged with the controls away, so the line keeps its own place.
+			draw({subtitlePosition: 'bottom'}, 'setting-subtitleColor', 'player');
+			expect(find('.playerControls')).toBeNull();
+			expect(bottom()).toBe(10);
+		} finally {
+			rect.mockRestore();
+			tall.mockRestore();
+		}
+	});
+
 	test('an HDR subtitle tile draws the HDR style', () => {
 		const color = () => find('.subtitleText').style.color;
 		const hdr = {subtitleHdrSeparate: true, subtitleColor: '#ffffff', subtitleColorHdr: '#808080'};
