@@ -341,9 +341,14 @@ export const defaultSettings = {
 	screensaverMaxRating: 13,
 	uiScale: 1.0,
 	enablePgsRendering: true,
+	// The Watch Parties master toggle, kept on its old SyncPlay key.
 	syncplayEnabled: true,
 	syncplayAutoOpen: false,
 	showSyncPlayButton: true,
+	// What Start makes on Jellyfin with Moonbase, moonbase or syncplay, while joining follows the room.
+	watchPartyService: 'moonbase',
+	watchPartyChatOverlay: true,
+	watchPartyAlerts: false,
 	videoStartDelay: 0,
 	liveTvSkipGuide: false,
 	liveTvChannelSortBy: 'number',

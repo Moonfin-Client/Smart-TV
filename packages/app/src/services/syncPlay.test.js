@@ -73,6 +73,33 @@ describe('SyncPlay ping', () => {
 		expect(serverSocket.isConnected()).toBe(true);
 	});
 
+	test('asks the server for the time only while in a group', async () => {
+		const clockCount = () => global.fetch.mock.calls.filter(([url]) => url === 'https://server/GetUtcTime').length;
+		const flush = async () => {
+			for (let i = 0; i < 5; i++) await Promise.resolve(); // eslint-disable-line no-await-in-loop
+		};
+		jest.advanceTimersByTime(120000);
+		await flush();
+		expect(clockCount()).toBe(0);
+
+		groupUpdate('GroupJoined');
+		await flush();
+		expect(clockCount()).toBe(1);
+		for (let i = 0; i < 5; i++) {
+			jest.advanceTimersByTime(1000);
+			await flush(); // eslint-disable-line no-await-in-loop
+		}
+		jest.advanceTimersByTime(30000);
+		await flush();
+		const inGroup = clockCount();
+		expect(inGroup).toBeGreaterThan(5);
+
+		groupUpdate('GroupLeft');
+		jest.advanceTimersByTime(120000);
+		await flush();
+		expect(clockCount()).toBe(inGroup);
+	});
+
 	test.each(['GroupLeft', 'NotInGroup', 'GroupDoesNotExist'])('goes quiet again on %s', (type) => {
 		groupUpdate('GroupJoined');
 		groupUpdate(type);
@@ -227,6 +254,28 @@ describe('SyncPlay group position', () => {
 		groupUpdate('GroupLeft', {GroupId: 'g1'});
 		expect(service.getGroupPositionTicks()).toBeNull();
 		expect(service.getGroupState()).toBeNull();
+	});
+});
+
+describe('SyncPlay driven by a Moonbase watch party', () => {
+	test('isn\'t treated as a self-correcting room, but its requests still go to the room', () => {
+		global.fetch = jest.fn();
+		let service;
+		jest.isolateModules(() => {
+			service = require('./syncPlay');
+		});
+		const driver = {correctsDrift: false, request: jest.fn(), readyOwed: () => false, ready: jest.fn(), buffering: jest.fn()};
+		service.setRoomDriver(driver);
+		expect(service.isRoomDriven()).toBe(false);
+		expect(service.isSelfCorrectingRoom()).toBe(true);
+		service.sendPlayRequest();
+		expect(driver.request).toHaveBeenCalledWith('play');
+		service.setRoomDriver({...driver, correctsDrift: true});
+		expect(service.isRoomDriven()).toBe(true);
+		expect(service.isSelfCorrectingRoom()).toBe(false);
+		service.setRoomDriver(null);
+		expect(global.fetch).not.toHaveBeenCalled();
+		delete global.fetch;
 	});
 });
 

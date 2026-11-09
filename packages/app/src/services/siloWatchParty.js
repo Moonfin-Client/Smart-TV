@@ -7,30 +7,51 @@
 // (Core's `_correctsByRate` is off on TV), so the players' own drift seeks are what Core does there too.
 //
 // Silo's rules for the numbers below: docs/architecture/watch-party-synchronization.md in silo-server.
+//
+// Moonbase hosts the same rooms on Jellyfin, Emby and Plex with Silo's room JSON and message types, so one client runs
+// both, but over HTTP long-poll because old TV browsers can't hold a socket.
 
-import {createApiForServer, getApiKey, getServerUrl, getUserId} from './jellyfinApi';
+import {api as serverApi, createApiForServer, getApiKey, getServerType, getServerUrl, getUserId} from './jellyfinApi';
 import {getDeviceCapabilities} from './deviceProfile';
 import * as syncPlay from './syncPlay';
 import {findSiloMoonbase} from './siloMoonbase';
-import {isSiloLogin} from './moonbaseEndpoint';
+import {isSiloLogin, moonbaseEndpoint} from './moonbaseEndpoint';
 import {siloNewUuid} from './siloPlayback';
 import {openSiloSocket} from './siloSocket';
+import {platformFetch} from './secureFetch';
+import {plexMoonbaseUrl, trimSlash} from '../utils/plexUrls';
 
 export const SILO_ROOM_PROTOCOL = 'silo.room.v2';
 const TICKS_PER_SECOND = 10000000;
 const RECONNECT_DELAYS_MS = [500, 1000, 2000, 5000];
 const REPORT_MS = 1500;
+// Moonbase judges a member's status against the room every 2 s, so its reports come at that pace.
+const MOONBASE_REPORT_MS = 2000;
 const WAITING_REPORT_MS = 500;
 const BUFFERING_GRACE_MS = 2000;
 const ALONE_MS = 10 * 60 * 1000;
 const PARTY_POLL_MS = 15000;
 const AVATAR_MS = 10 * 60 * 1000;
+// Moonbase holds an Events call up to 25 s, so anything past this is a dead connection.
+const EVENTS_TIMEOUT_MS = 35000;
+const CALL_TIMEOUT_MS = 15000;
+const CONFIG_MS = 60 * 1000;
+const CHAT_KEEP = 50;
+const REACTION_MS = 4000;
+
+export const REACTIONS = ['love', 'haha', 'wow', 'sad', 'fire', 'popcorn'];
 
 const text = (value) => (typeof value === 'string' && value ? value : null);
+const count = (value) => (Number.isFinite(Number(value)) && value !== null && value !== '' ? Number(value) : null);
+const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
-/** A room snapshot (`WatchTogetherRoomSnapshot`), as the room routes and the socket's `snapshot` frame send it. */
+/**
+ * A room snapshot (`WatchTogetherRoomSnapshot`), as the room routes and the socket's `snapshot` frame send it. Moonbase
+ * sends the same fields plus the extensions read at the end, which a Silo room leaves at their defaults.
+ */
 export const siloRoomFrom = (json = {}) => {
 	const file = json.selected_file_id;
+	const policy = json.guest_control_policy || 'host_only';
 	return {
 		roomId: json.room_id || '',
 		// lobby, playing or ended
@@ -43,8 +64,14 @@ export const siloRoomFrom = (json = {}) => {
 		selectedContentId: text(json.selected_content_id),
 		selectedFileId: typeof file === 'number' || text(file) ? String(file) : null,
 		code: json.code || '',
-		guestsCanPause: json.guest_control_policy === 'guest_play_pause',
+		// Silo says guest_play_pause, Moonbase keeps guests_can_pause for parity and adds everyone.
+		guestsCanPause: policy === 'guest_play_pause' || policy === 'guests_can_pause',
+		everyoneControls: policy === 'everyone',
+		guestControlPolicy: policy,
 		anchorPositionSeconds: Number(json.anchor_position_seconds) || 0,
+		// Moonbase: the server time the anchor applies to, and whether the room is paused there.
+		anchorAt: Date.parse(json.anchor_at || '') || null,
+		isPaused: json.is_paused === true,
 		// Orders snapshots: an older one never replaces a newer one.
 		generation: Number(json.generation) || 0,
 		isHost: json.self_role === 'host',
@@ -56,8 +83,104 @@ export const siloRoomFrom = (json = {}) => {
 			displayName: m.display_name || '',
 			isHost: m.is_host === true,
 			isSelf: m.is_self === true,
-			connected: m.connected === true
-		}))
+			connected: m.connected === true,
+			// joining, ready, in_sync, catching_up, buffering or not_watching, from the member's own reports
+			status: text(m.status),
+			avatarUrl: text(m.avatar_url)
+		})),
+		selfMemberId: text(json.self_member_id),
+		hasPin: json.has_pin === true,
+		invitePath: text(json.invite_path),
+		// The invite page's full address, as the server sees it from outside (newer Moonbase builds).
+		inviteUrl: text(json.invite_url),
+		contentTitle: json.content_title || '',
+		contentType: json.content_type || '',
+		seriesName: json.series_name || '',
+		season: count(json.season),
+		episode: count(json.episode),
+		chatEnabled: json.chat_enabled !== false,
+		reactionsEnabled: json.reactions_enabled !== false
+	};
+};
+
+/** A room in Moonbase's `GET /Rooms` list. It has no code, so joining it goes by its id. */
+export const roomSummaryFrom = (json) => {
+	if (!json || !text(json.room_id)) return null;
+	return {
+		kind: 'watchparty',
+		roomId: json.room_id,
+		hostName: json.host_name || '',
+		memberCount: Number(json.member_count) || 0,
+		membersPreview: (Array.isArray(json.members_preview) ? json.members_preview : []).filter(text),
+		phase: json.phase || 'lobby',
+		playbackState: json.playback_state || 'idle',
+		positionSeconds: Number(json.position_seconds) || 0,
+		selectedContentId: text(json.selected_content_id),
+		contentTitle: json.content_title || '',
+		contentType: json.content_type || '',
+		seriesName: json.series_name || '',
+		season: count(json.season),
+		episode: count(json.episode),
+		hasPin: json.has_pin === true,
+		everyoneControls: json.guest_control_policy === 'everyone',
+		isMember: json.is_member === true,
+		createdAt: Date.parse(json.created_at || '') || 0
+	};
+};
+
+/** A Jellyfin SyncPlay group from `/SyncPlay/List`, in the room list's shape. */
+export const syncPlayGroupFrom = (group) => {
+	if (!group || !text(group.GroupId)) return null;
+	const participants = (Array.isArray(group.Participants) ? group.Participants : []).filter(text);
+	return {
+		kind: 'syncplay',
+		roomId: group.GroupId,
+		hostName: group.GroupName || '',
+		memberCount: participants.length,
+		membersPreview: participants.slice(0, 3),
+		playbackState: String(group.State || 'Idle').toLowerCase(),
+		createdAt: Date.parse(group.LastUpdatedAt || '') || 0
+	};
+};
+
+/** The rooms the list and the home row show: newest Moonbase rooms first, then SyncPlay groups. */
+export const mergePartyRooms = (rooms = [], groups = []) => [
+	...rooms.filter(Boolean).sort((a, b) => b.createdAt - a.createdAt),
+	...groups.filter(Boolean)
+];
+
+/** Moonbase rooms in `rooms` that weren't in `seenIds` and that this user isn't already in, for the alert banner. */
+export const newPartyRooms = (seenIds, rooms) => rooms.filter((r) => r.kind === 'watchparty' && !r.isMember && !seenIds.has(r.roomId));
+
+/** A title with its year in brackets, unless its name already ends with it, as some libraries name them. */
+export const titleWithYear = (title, year) => {
+	const name = String(title || '');
+	const suffix = year ? `(${year})` : '';
+	return !suffix || name.trim().slice(-suffix.length) === suffix ? name : `${name} ${suffix}`;
+};
+
+/** A Moonbase code as people read it: K7Q29M shows as K7Q 29M. */
+export const formatRoomCode = (code) => {
+	const raw = String(code || '');
+	return raw.length === 6 ? `${raw.slice(0, 3)} ${raw.slice(3)}` : raw;
+};
+
+/** What a member typed to join a Moonbase room: the code, or the invite link that carries it. */
+export const moonbaseJoinBody = (input) => {
+	const typed = String(input || '').trim();
+	const fromLink = /\/Party\/([^/?#\s]+)/i.exec(typed) || /[?&]code=([^&#\s]+)/i.exec(typed);
+	return {code: (fromLink ? decodeURIComponent(fromLink[1]) : typed).replace(/[\s-]/g, '').toUpperCase()};
+};
+
+/** A chat line from Moonbase. */
+export const chatMessageFrom = (json) => {
+	if (!json || !text(json.text)) return null;
+	return {
+		id: String(json.id || ''),
+		memberId: text(json.member_id),
+		displayName: json.display_name || '',
+		text: json.text,
+		sentAt: Date.parse(json.sent_at || '') || 0
 	};
 };
 
@@ -76,7 +199,11 @@ export const siloRoomCommandFrom = (json = {}) => {
 		positionSeconds: Number(json.position_seconds) || 0,
 		executeAt: json.execute_at,
 		// The room's state once the command has run.
-		playbackState: json.playback_state || ''
+		playbackState: json.playback_state || '',
+		// Moonbase names who asked for it, and marks the start that follows the wait for everyone's player.
+		byMemberId: text(json.by_member_id),
+		byName: json.by_display_name || '',
+		countdown: json.countdown === true
 	};
 };
 
@@ -262,6 +389,51 @@ export const createWatchPartyApi = ({call, baseUrl}) => {
 	};
 };
 
+/**
+ * Moonbase's room routes, shaped like Silo's so the party below runs on either. `call(path, options)` is a request
+ * under `<moonbase>/Moonfin/WatchParty` that throws with the answer's `status` and `code`. Every room call carries the
+ * member's token from the create or join answer, so this api belongs to one room.
+ */
+export const createMoonbaseWatchPartyApi = ({call}) => {
+	let token = null;
+	const opened = (answer) => {
+		if (!answer?.room || !text(answer.token)) throw new Error('Expected a watch party room from Moonbase');
+		token = answer.token;
+		return {room: siloRoomFrom(answer.room), token};
+	};
+	const room = (answer) => {
+		if (!answer?.room) throw new Error('Expected a watch party room from Moonbase');
+		return siloRoomFrom(answer.room);
+	};
+	const inRoom = (roomId, path, options = {}) => call(`/Rooms/${encodeURIComponent(roomId)}${path}`,
+		{...options, headers: {...options.headers, 'X-Moonfin-Room-Token': token}});
+	const post = (body) => ({method: 'POST', ...(body ? {body} : null)});
+	return {
+		config: () => call('/Config'),
+		rooms: async () => ((await call('/Rooms'))?.rooms || []).map(roomSummaryFrom).filter(Boolean),
+		create: async (roomId) => opened(await call('/Rooms', post({room_id: roomId}))),
+		join: async (input, pin) => opened(await call('/Join', post({...moonbaseJoinBody(input), ...(pin ? {pin} : null)}))),
+		joinRoom: async (roomId, pin) => opened(await call('/Join', post({room_id: roomId, ...(pin ? {pin} : null)}))),
+		stage: async (roomId, contentId) => room(await inRoom(roomId, '/Stage', post({content_id: contentId}))),
+		start: async (roomId, positionSeconds) => room(await inRoom(roomId, '/Start', post({position_seconds: positionSeconds || 0}))),
+		stop: async (roomId) => room(await inRoom(roomId, '/Stop', post())),
+		setPolicy: async (roomId, policy) => room(await inRoom(roomId, '/Policy', post({guest_control_policy: policy}))),
+		setPin: async (roomId, pin) => room(await inRoom(roomId, '/Pin', post({pin: pin || null}))),
+		setVoting: async (roomId, voting) => room(await inRoom(roomId, '/Voting', post({voting}))),
+		suggestions: async (roomId) => ((await inRoom(roomId, '/Suggestions'))?.suggestions || [])
+			.map((row) => siloSuggestionFrom(row || {})).filter(Boolean).sort(compareSuggestions),
+		suggest: (roomId, _token, {contentId}) => inRoom(roomId, '/Suggestions', post({content_id: contentId})),
+		vote: (roomId, _token, suggestionId, voted) => inRoom(roomId, `/Suggestions/${encodeURIComponent(suggestionId)}/Vote`, post({voted})),
+		removeSuggestion: (roomId, _token, suggestionId) => inRoom(roomId, `/Suggestions/${encodeURIComponent(suggestionId)}`, {method: 'DELETE'}),
+		promote: async (roomId, memberId) => room(await inRoom(roomId, '/Promote', post({member_id: memberId}))),
+		remove: (roomId, memberId) => inRoom(roomId, '/Remove', post({member_id: memberId})),
+		close: (roomId) => inRoom(roomId, '/Close', post()),
+		leave: (roomId) => inRoom(roomId, '/Leave', post()),
+		events: (roomId, cursor) => inRoom(roomId, `/Events?cursor=${Number(cursor) || 0}&wait=25`, {timeoutMs: EVENTS_TIMEOUT_MS}),
+		messages: (roomId, messages) => inRoom(roomId, '/Messages', post({messages}))
+	};
+};
+
 const describeError = (err) => {
 	if (err?.status === 404) return 'No room has that code.';
 	return err?.problem?.detail || err?.message || String(err);
@@ -269,15 +441,19 @@ const describeError = (err) => {
 
 /**
  * The app's one Watch Party. `silo()` is a Silo api (createApiForServer's) for the signed-in profile, or null when the
- * current server isn't Silo; `sync` is syncPlay.js. Listeners hear every change of `state()`.
+ * current server isn't Silo, and `moonbase()` is the same for a Jellyfin, Emby or Plex login with a `call` to its
+ * Moonbase. `sync` is syncPlay.js. Listeners hear every change of `state()`.
  */
-export const createWatchParty = ({silo, sync = syncPlay, now = () => Date.now()}) => {
+export const createWatchParty = ({silo, moonbase = () => null, sync = syncPlay, now = () => Date.now()}) => {
 	const listeners = new Set();
 	let client = null;
+	// silo or moonbase, for the room we're in
+	let kind = null;
 	let api = null;
 	let room = null;
 	let roomToken = null;
 	let error = null;
+	let errorCode = null;
 	let endedReason = null;
 	let busy = false;
 	let connected = false;
@@ -286,6 +462,25 @@ export const createWatchParty = ({silo, sync = syncPlay, now = () => Date.now()}
 	let groupSubtitlesSupported = false;
 	let avatars = {};
 	let item = null;
+
+	// Moonbase only: the chat, reactions in flight, the latest toast, and the start's wait and countdown (local ms).
+	let chat = [];
+	let reactions = [];
+	let toast = null;
+	let countdownAt = null;
+	let countdownTimer = null;
+	let waitingSince = null;
+	let feedSeq = 0;
+	// A join that needs the room's PIN, kept so the PIN can be sent with it.
+	let lastJoin = null;
+	let pinRequest = null;
+	let cursor = 0;
+	let everConnected = false;
+	// The lobby status this member last answered, so a status-only report goes once per change.
+	let lobbyReportedFor = '';
+	let noSessionStatus = null;
+	let lineUpFor = null;
+	let configCache = null;
 
 	let socket = null;
 	let socketGeneration = 0;
@@ -315,11 +510,44 @@ export const createWatchParty = ({silo, sync = syncPlay, now = () => Date.now()}
 	let partyPoll = null;
 	let avatarTimer = null;
 
-	const state = () => ({room, connected, busy, error, endedReason, suggestions, groupSubtitle, groupSubtitlesSupported});
+	const state = () => ({room, connected, busy, error, errorCode, endedReason, suggestions, groupSubtitle, groupSubtitlesSupported,
+		backend: kind, chat, reactions, toast, countdownAt, waitingSince, pinRequest});
 	const emit = () => listeners.forEach((listener) => listener(state()));
 
+	const current = () => {
+		const s = silo();
+		if (s) return {client: s, kind: 'silo'};
+		const m = moonbase();
+		return m ? {client: m, kind: 'moonbase'} : null;
+	};
+	const apiFor = (backend) => (backend.kind === 'moonbase'
+		? createMoonbaseWatchPartyApi({call: backend.client.call})
+		: createWatchPartyApi({call: backend.client.siloCall, baseUrl: backend.client.baseUrl}));
+
+	const showToast = (next) => {
+		toast = {id: ++feedSeq, ...next};
+	};
+
+	// Moonbase takes messages by POST and answers a ping's pong in the reply.
+	const postMessages = (messages) => {
+		const id = room?.roomId;
+		api.messages(id, messages).then((answer) => {
+			if (room?.roomId !== id) return;
+			(Array.isArray(answer?.messages) ? answer.messages : []).forEach(onFrame); // eslint-disable-line no-use-before-define
+		}).catch((err) => {
+			if (room?.roomId !== id) return;
+			if (err?.status === 404) leaveRoom('closed'); // eslint-disable-line no-use-before-define
+			else console.info('[WatchParty]', err?.code || err?.status, err?.message || '');
+		});
+	};
+
 	const send = (message) => {
-		if (!socket || !connected) return false;
+		if (!connected) return false;
+		if (kind === 'moonbase') {
+			postMessages([message]);
+			return true;
+		}
+		if (!socket) return false;
 		socket.send(JSON.stringify(message));
 		return true;
 	};
@@ -354,9 +582,51 @@ export const createWatchParty = ({silo, sync = syncPlay, now = () => Date.now()}
 
 	// Reports
 
+	// Moonbase shows everyone the status each member reports, and Silo takes none.
+	const withStatus = (status) => (kind === 'moonbase' ? {status} : null);
+
+	// A Moonbase lobby shows who's ready, so a member says so once its long-poll runs, and once more only if the
+	// server shows another status after that.
+	const reportLobby = () => {
+		if (kind !== 'moonbase' || !connected || !room || isRoomPlaying(room)) return;
+		const status = String(room.members.find((m) => m.isSelf)?.status);
+		if (status === 'ready' || status === lobbyReportedFor) return;
+		lobbyReportedFor = status;
+		send({type: 'state_report', session_id: null, position_seconds: 0, is_paused: true, status: 'ready'});
+	};
+
+	// Unlike Silo, Moonbase sends no command to a player that attaches after the room's play, or missed it while it
+	// prepared, so it gets the play from here, once per command, from where the room has got to.
+	const lineUp = () => {
+		const session = sessionId();
+		if (kind !== 'moonbase' || !attached() || room.playbackState !== 'playing' || room.isPaused || isBuffering()) return;
+		if (player()?.sample().isPlaying !== false) return;
+		const serverNow = now() + serverOffsetOf(clockSamples);
+		if (lastCommand && serverNow < Date.parse(lastCommand.executeAt) + 1500) return;
+		const key = `${session}:${lastCommand?.commandId || 'join'}`;
+		if (lineUpFor === key) return;
+		lineUpFor = key;
+		const executeAtMs = serverNow + 1000;
+		const from = room.anchorAt != null
+			? {seconds: room.anchorPositionSeconds, at: room.anchorAt}
+			: {seconds: lastCommand?.positionSeconds || 0, at: Date.parse(lastCommand?.executeAt || '') || executeAtMs};
+		sync.feedRoomMessage({MessageType: 'SyncPlayCommand', Data: asSyncPlayCommand({
+			action: 'play', positionSeconds: from.seconds + Math.max(0, executeAtMs - from.at) / 1000,
+			executeAt: new Date(executeAtMs).toISOString(), playbackState: 'playing'
+		})});
+	};
+
 	const tick = () => {
 		const session = sessionId();
-		if (!connected || !isRoomPlaying(room) || !session) return;
+		if (!connected || !isRoomPlaying(room)) return;
+		if (!session) {
+			// With the player closed or still opening, Moonbase hears that once per change.
+			const away = room.playbackState === 'waiting' ? 'joining' : 'not_watching';
+			if (kind === 'moonbase' && noSessionStatus !== away &&
+				send({type: 'state_report', session_id: null, position_seconds: 0, is_paused: true, status: away})) noSessionStatus = away;
+			return;
+		}
+		noSessionStatus = null;
 		if (room.attachedSessionId !== session) {
 			// Again after five seconds: an attach the server refused (sent just before the room started) isn't retried
 			// by anything else.
@@ -367,6 +637,7 @@ export const createWatchParty = ({silo, sync = syncPlay, now = () => Date.now()}
 			}
 			return;
 		}
+		lineUp();
 		if (pendingResume && room.isHost) {
 			const resume = pendingResume;
 			if (room.selectedContentId !== resume.contentId) {
@@ -384,18 +655,20 @@ export const createWatchParty = ({silo, sync = syncPlay, now = () => Date.now()}
 			if (appliedCommandId === lastCommand.commandId && near && !buffering && !player()?.seekPending?.()) {
 				// A waiting room takes readiness on a state report, so a lost ready heals on the next tick.
 				send({type: 'state_report', session_id: session, command_id: lastCommand.commandId,
-					position_seconds: positionSeconds(), is_paused: isPaused(), is_ready: true});
+					position_seconds: positionSeconds(), is_paused: isPaused(), is_ready: true, ...withStatus('ready')});
 				return;
 			}
 		}
 		// A stalled player reports where it stopped, not a decision.
 		if (buffering) return;
+		// In sync or catching up is the server's to judge from the position, which a member can't see from its side.
+		const status = readyPending() ? 'joining' : (player()?.seekPending?.() ? 'catching_up' : null);
 		send({type: 'state_report', session_id: session, ...(appliedCommandId ? {command_id: appliedCommandId} : null),
-			position_seconds: positionSeconds(), is_paused: isPaused()});
+			position_seconds: positionSeconds(), is_paused: isPaused(), ...(status ? withStatus(status) : null)});
 	};
 
 	const scheduleReports = () => {
-		const every = isRoomPlaying(room) ? (readyPending() ? WAITING_REPORT_MS : REPORT_MS) : null;
+		const every = isRoomPlaying(room) ? (readyPending() ? WAITING_REPORT_MS : (kind === 'moonbase' ? MOONBASE_REPORT_MS : REPORT_MS)) : null;
 		if (every === reportEvery) return;
 		clearInterval(reportTimer);
 		reportEvery = every;
@@ -485,6 +758,44 @@ export const createWatchParty = ({silo, sync = syncPlay, now = () => Date.now()}
 			tick();
 		}, delay);
 		scheduleReports();
+		if (kind !== 'moonbase') return;
+		if (command.countdown) {
+			// The 3, 2, 1 runs out when the play does.
+			countdownAt = now() + delay;
+			clearTimeout(countdownTimer);
+			countdownTimer = setTimeout(() => {
+				countdownAt = null;
+				emit();
+			}, delay + 600);
+		} else if (command.byMemberId && command.byMemberId !== room?.selfMemberId && command.playbackState !== 'waiting') {
+			showToast({kind: command.action, name: command.byName, seconds: command.positionSeconds});
+		}
+		emit();
+	};
+
+	const onNotice = (frame) => {
+		const self = Boolean(room?.selfMemberId) && frame.member_id === room.selfMemberId;
+		const name = frame.display_name || '';
+		switch (frame.kind) {
+			case 'joined':
+			case 'left':
+				if (self) return;
+				showToast({kind: frame.kind, name});
+				break;
+			case 'host_changed':
+				showToast({kind: 'host', name, self});
+				break;
+			case 'switched':
+				showToast({kind: 'switched', name, title: frame.content_title || ''});
+				break;
+			case 'no_access':
+				showToast({kind: 'no_access'});
+				break;
+			default:
+				// policy_changed shows from the snapshot that carries the new policy.
+				return;
+		}
+		emit();
 	};
 
 	// Next episode, staged for the host when one finishes.
@@ -568,6 +879,11 @@ export const createWatchParty = ({silo, sync = syncPlay, now = () => Date.now()}
 			openedRevision = null;
 			stopFollowing();
 		}
+		if (kind === 'moonbase') {
+			if (next.guestControlPolicy !== previous.guestControlPolicy) showToast({kind: 'policy', everyone: next.everyoneControls});
+			waitingSince = isRoomPlaying(next) && next.playbackState === 'waiting' ? (waitingSince || now()) : null;
+			reportLobby();
+		}
 		checkAlone();
 		scheduleReports();
 		emit();
@@ -590,10 +906,11 @@ export const createWatchParty = ({silo, sync = syncPlay, now = () => Date.now()}
 
 	let leaveRoom = null;
 
+	// A socket frame's text, or a message from Moonbase's long-poll as it was parsed.
 	const onFrame = (raw) => {
-		let frame;
+		let frame = raw;
 		try {
-			frame = JSON.parse(raw);
+			if (typeof raw === 'string') frame = JSON.parse(raw);
 		} catch {
 			return;
 		}
@@ -623,6 +940,33 @@ export const createWatchParty = ({silo, sync = syncPlay, now = () => Date.now()}
 				if (frame.code === 'not_found' || frame.code === 'gone') leaveRoom('closed');
 				else console.info('[WatchParty]', frame.code, frame.message || '');
 				break;
+			case 'removed':
+				leaveRoom('removed');
+				break;
+			case 'chat': {
+				const message = chatMessageFrom(frame.message);
+				if (!message) break;
+				chat = [...chat, {...message, receivedAt: now()}].slice(-CHAT_KEEP);
+				emit();
+				break;
+			}
+			case 'chat_history':
+				// Old lines never pop up over the video, so they carry no arrival time.
+				chat = (Array.isArray(frame.messages) ? frame.messages : []).map(chatMessageFrom).filter(Boolean)
+					.map((m) => ({...m, receivedAt: 0})).slice(-CHAT_KEEP);
+				emit();
+				break;
+			case 'reaction': {
+				if (REACTIONS.indexOf(frame.reaction) < 0) break;
+				const at = now();
+				reactions = [...reactions.filter((r) => at - r.at < REACTION_MS),
+					{id: ++feedSeq, reaction: frame.reaction, name: frame.display_name || '', memberId: text(frame.member_id), at}];
+				emit();
+				break;
+			}
+			case 'notice':
+				onNotice(frame);
+				break;
 			default:
 				break;
 		}
@@ -639,7 +983,56 @@ export const createWatchParty = ({silo, sync = syncPlay, now = () => Date.now()}
 		}, delay);
 	};
 
-	connect = async () => {
+	// Moonbase keeps one Events call open at a time, and the first (cursor 0) answers at once with a snapshot and the
+	// chat so far.
+	const onPollConnected = () => {
+		connected = true;
+		reconnectAttempt = 0;
+		attachSentFor = null;
+		samplesThisSocket = 0;
+		noSessionStatus = null;
+		lobbyReportedFor = '';
+		if (everConnected) showToast({kind: 'reconnected'});
+		everConnected = true;
+		sendPing();
+		loadSuggestions();
+		emit();
+	};
+
+	const pollEvents = async () => {
+		if (!room || !roomToken) return;
+		const generation = ++socketGeneration;
+		while (room && generation === socketGeneration) {
+			const started = now();
+			let answer;
+			try {
+				answer = await api.events(room.roomId, cursor); // eslint-disable-line no-await-in-loop
+			} catch (err) {
+				if (generation !== socketGeneration) return;
+				// The room is gone, or this member's token no longer gets in.
+				if (err?.status === 403 || err?.status === 404) {
+					leaveRoom('closed');
+					return;
+				}
+				if (connected) {
+					connected = false;
+					showToast({kind: 'reconnecting'});
+					emit();
+				}
+				await wait(RECONNECT_DELAYS_MS[Math.min(reconnectAttempt++, RECONNECT_DELAYS_MS.length - 1)]); // eslint-disable-line no-await-in-loop
+				continue;
+			}
+			if (generation !== socketGeneration || !room) return;
+			if (!connected) onPollConnected();
+			if (Number.isFinite(Number(answer?.cursor))) cursor = Number(answer.cursor);
+			const messages = Array.isArray(answer?.messages) ? answer.messages : [];
+			messages.forEach(onFrame);
+			// An empty answer that came straight back would otherwise spin.
+			if (!messages.length && now() - started < 1000) await wait(1000); // eslint-disable-line no-await-in-loop
+		}
+	};
+
+	const connectSocket = async () => {
 		if (!room || !roomToken) return;
 		const generation = ++socketGeneration;
 		let ticket;
@@ -686,6 +1079,8 @@ export const createWatchParty = ({silo, sync = syncPlay, now = () => Date.now()}
 		};
 		next.onerror = () => {};
 	};
+
+	connect = () => (kind === 'moonbase' ? pollEvents() : connectSocket());
 
 	// Moonbase: the host's subtitles and members' avatars
 
@@ -742,36 +1137,60 @@ export const createWatchParty = ({silo, sync = syncPlay, now = () => Date.now()}
 		openedRevision = null;
 		pendingResume = null;
 		clockSamples.length = 0;
+		clearTimeout(countdownTimer);
+		chat = [];
+		reactions = [];
+		toast = null;
+		countdownAt = null;
+		waitingSince = null;
+		cursor = 0;
+		everConnected = false;
+		lineUpFor = null;
+		kind = null;
 		endedReason = reason;
 		emit();
 	};
 
+	// Leaving on purpose tells Moonbase straight away, where Silo only notices the socket go.
+	const depart = () => {
+		if (kind === 'moonbase' && api && room) api.leave(room.roomId).catch(() => {});
+		leaveRoom(null);
+	};
+
 	const enter = async (request) => {
-		const next = silo();
+		const next = current();
 		if (!next) return false;
-		const nextApi = createWatchPartyApi({call: next.siloCall, baseUrl: next.baseUrl});
+		const nextApi = apiFor(next);
 		busy = true;
 		error = null;
+		errorCode = null;
 		endedReason = null;
 		emit();
 		try {
 			const opened = await request(nextApi);
-			if (room) leaveRoom(null);
-			client = next;
+			if (room) depart();
+			client = next.client;
+			kind = next.kind;
 			api = nextApi;
 			room = opened.room;
 			roomToken = opened.token;
+			pinRequest = null;
 			checkAlone();
 			connect();
 			loadSuggestions();
-			loadParty();
-			publishAvatar();
-			// Avatars of members who join, and a host's subtitle change, arrive within this.
-			partyPoll = setInterval(loadParty, PARTY_POLL_MS);
-			avatarTimer = setInterval(publishAvatar, AVATAR_MS);
+			if (kind === 'silo') {
+				loadParty();
+				publishAvatar();
+				// Avatars of members who join, and a host's subtitle change, arrive within this.
+				partyPoll = setInterval(loadParty, PARTY_POLL_MS);
+				avatarTimer = setInterval(publishAvatar, AVATAR_MS);
+			}
 			return true;
 		} catch (err) {
 			error = describeError(err);
+			errorCode = text(err?.code);
+			// The room wants its PIN: the same join goes again with it.
+			pinRequest = errorCode === 'pin_required' || errorCode === 'wrong_pin' ? lastJoin : null;
 			return false;
 		} finally {
 			busy = false;
@@ -783,12 +1202,14 @@ export const createWatchParty = ({silo, sync = syncPlay, now = () => Date.now()}
 		if (!room || !api) return false;
 		busy = true;
 		error = null;
+		errorCode = null;
 		emit();
 		try {
 			onRoom(await request(api, room.roomId));
 			return true;
 		} catch (err) {
 			error = describeError(err);
+			errorCode = text(err?.code);
 			return false;
 		} finally {
 			busy = false;
@@ -799,12 +1220,14 @@ export const createWatchParty = ({silo, sync = syncPlay, now = () => Date.now()}
 	const roomCall = async (request) => {
 		if (!room || !roomToken || !api) return false;
 		error = null;
+		errorCode = null;
 		try {
 			await request(api, room.roomId, roomToken);
 			await loadSuggestions();
 			return true;
 		} catch (err) {
 			error = describeError(err);
+			errorCode = text(err?.code);
 			emit();
 			return false;
 		}
@@ -836,6 +1259,33 @@ export const createWatchParty = ({silo, sync = syncPlay, now = () => Date.now()}
 		subtitle: movie.ProductionYear ? String(movie.ProductionYear) : null
 	}));
 
+	const join = (input, pin) => {
+		lastJoin = {input};
+		return enter((a) => a.join(input, pin));
+	};
+
+	const joinRoom = (summary, pin) => {
+		// Joining the room this is already in would leave it first, so picking it again from Home keeps it.
+		if (room && room.roomId === summary.roomId) return Promise.resolve(true);
+		lastJoin = {roomId: summary.roomId, hostName: summary.hostName || ''};
+		return enter((a) => a.joinRoom(summary.roomId, pin));
+	};
+
+	// Moonbase's settings for parties, kept a minute. Null without Moonbase, or when it can't host them (404).
+	const readConfig = async (force = false) => {
+		const backend = current();
+		if (backend?.kind !== 'moonbase') return null;
+		if (!force && configCache?.key === backend.client.key && now() - configCache.at < CONFIG_MS) return configCache.value;
+		let value = null;
+		try {
+			value = await apiFor(backend).config();
+		} catch {
+			value = null;
+		}
+		configCache = {key: backend.client.key, at: now(), value};
+		return value;
+	};
+
 	const end = async () => {
 		if (!room || !api) return;
 		try {
@@ -848,9 +1298,18 @@ export const createWatchParty = ({silo, sync = syncPlay, now = () => Date.now()}
 
 	// What syncPlay.js hands the room while it follows it.
 	const driver = {
-		// Requests carry where this player was; guests without control are ignored, as in Core.
+		// Silo's server corrects a drifting member itself, and Moonbase's leaves that to the players.
+		get correctsDrift() {
+			return kind !== 'moonbase';
+		},
+		// Requests carry where this player was, and a guest without control is told so instead.
 		request: (action, positionTicks) => {
-			if (!attached() || !room?.canControlTransport) return;
+			if (!attached()) return;
+			if (!room?.canControlTransport) {
+				showToast({kind: 'host_only'});
+				emit();
+				return;
+			}
 			const seconds = action === 'seek' ? positionTicks / TICKS_PER_SECOND : positionSeconds();
 			send({type: 'transport_request', action, position_seconds: Math.max(0, seconds), is_paused: isPaused()});
 		},
@@ -875,17 +1334,39 @@ export const createWatchParty = ({silo, sync = syncPlay, now = () => Date.now()}
 			return () => listeners.delete(listener);
 		},
 		isSilo: () => Boolean(silo()),
+		// silo or moonbase for the signed-in server, or null when neither can host a party.
+		backend: () => current()?.kind || null,
 		available: async () => {
-			const s = silo();
-			if (!s) return false;
+			const backend = current();
+			if (!backend) return false;
+			if (backend.kind === 'moonbase') return (await readConfig())?.enabled === true;
 			try {
-				return await createWatchPartyApi({call: s.siloCall, baseUrl: s.baseUrl}).available();
+				return await apiFor(backend).available();
 			} catch {
 				return false;
 			}
 		},
+		config: readConfig,
+		// Moonbase's rooms this user can watch. Throws when the server can't be asked.
+		listRooms: async () => {
+			const backend = current();
+			return backend?.kind === 'moonbase' ? apiFor(backend).rooms() : [];
+		},
 		create: () => enter((a) => a.create(siloNewUuid())),
-		join: (input) => enter((a) => a.join(input)),
+		join,
+		// A room from the list, which has no code.
+		joinRoom,
+		joinWithPin: (pin) => {
+			const request = pinRequest;
+			if (!request) return Promise.resolve(false);
+			return request.roomId ? joinRoom(request, pin) : join(request.input, pin);
+		},
+		cancelPin: () => {
+			pinRequest = null;
+			error = null;
+			errorCode = null;
+			emit();
+		},
 		stage,
 		// From a title's page: a movie goes up for the vote in a voting room; anything else is the host's pick, so
 		// voting is switched off for it. Opens a room first when there is none. `fileId` is the version the host chose
@@ -900,15 +1381,16 @@ export const createWatchParty = ({silo, sync = syncPlay, now = () => Date.now()}
 		},
 		// `atSeconds` picks the title up part way for everyone, where resumePoint says the room got to.
 		startPlayback: async (atSeconds = 0) => {
-			pendingResume = atSeconds > 0 && room?.selectedContentId ? {seconds: atSeconds, contentId: room.selectedContentId} : null;
-			const started = await hostAction((a, id) => a.start(id));
+			// Moonbase starts where it's asked, but Silo starts at the top, so the host seeks the room there after.
+			pendingResume = kind === 'silo' && atSeconds > 0 && room?.selectedContentId ? {seconds: atSeconds, contentId: room.selectedContentId} : null;
+			const started = await hostAction((a, id) => a.start(id, atSeconds));
 			if (!started) pendingResume = null;
 			return started;
 		},
 		// Where the room could resume the title the host has staged (see roomResumePoint), or null.
 		resumePoint: async () => {
 			const contentId = room?.selectedContentId;
-			if (!api || !room || !contentId) return null;
+			if (!api?.memberState || !room || !contentId) return null;
 			try {
 				return roomResumePoint(await api.memberState(room.roomId, roomToken, [contentId]), contentId);
 			} catch (err) {
@@ -925,6 +1407,35 @@ export const createWatchParty = ({silo, sync = syncPlay, now = () => Date.now()}
 			return done;
 		},
 		setGuestsCanPause: (allowed) => hostAction((a, id) => a.setGuestsCanPause(id, allowed)),
+		// Moonbase host controls.
+		setEveryoneControls: (on) => hostAction((a, id) => a.setPolicy(id, on ? 'everyone' : 'host_only')),
+		setPin: (pin) => hostAction((a, id) => a.setPin(id, pin || null)),
+		promote: (memberId) => hostAction((a, id) => a.promote(id, memberId)),
+		removeMember: async (memberId) => {
+			if (!room || !api?.remove) return false;
+			try {
+				await api.remove(room.roomId, memberId);
+				return true;
+			} catch (err) {
+				error = describeError(err);
+				errorCode = text(err?.code);
+				emit();
+				return false;
+			}
+		},
+		sendChat: (message) => {
+			const line = String(message || '').trim();
+			if (kind !== 'moonbase' || !line || room?.chatEnabled === false) return false;
+			return send({type: 'chat', text: line.slice(0, 500)});
+		},
+		sendReaction: (reaction) => (kind === 'moonbase' && REACTIONS.indexOf(reaction) >= 0 && room?.reactionsEnabled !== false
+			? send({type: 'reaction', reaction}) : false),
+		// The invite page's address, which the TV shows as a QR code.
+		inviteUrl: () => {
+			if (kind !== 'moonbase' || !room) return null;
+			if (room.inviteUrl) return room.inviteUrl;
+			return room.invitePath ? `${trimSlash(client?.moonbaseBase?.() || '')}${room.invitePath}` : null;
+		},
 		setVoting,
 		searchMovies: async (query) => {
 			if (!client || !String(query || '').trim()) return [];
@@ -943,12 +1454,13 @@ export const createWatchParty = ({silo, sync = syncPlay, now = () => Date.now()}
 		// Host: subtitles for everyone at the next start. `track` is a subtitle MediaStream, or null with `off` false to
 		// leave them to each member.
 		setGroupSubtitle: async (track, off = false) => {
-			if (!room?.isHost || !api) return false;
+			if (!room?.isHost || !api?.moonbase) return false;
 			const choice = off ? {off: true} : track ? {index: track.Index, ...(track.Language ? {language: track.Language} : null)} : null;
 			try {
 				await api.moonbase(room.roomId, {method: 'PUT', body: {subtitle: choice}});
 			} catch (err) {
 				error = describeError(err);
+				errorCode = text(err?.code);
 				emit();
 				return false;
 			}
@@ -958,7 +1470,7 @@ export const createWatchParty = ({silo, sync = syncPlay, now = () => Date.now()}
 		},
 		selectedItem,
 		avatarUrlFor: (profileId) => {
-			const link = avatars[profileId];
+			const link = avatars[profileId] || room?.members.find((m) => m.profileId === profileId)?.avatarUrl;
 			if (!link || !client) return null;
 			return /^https?:/.test(link) ? link : `${String(client.baseUrl).replace(/\/+$/, '')}/${String(link).replace(/^\/+/, '')}`;
 		},
@@ -968,15 +1480,16 @@ export const createWatchParty = ({silo, sync = syncPlay, now = () => Date.now()}
 		},
 		end,
 		// Leaves without ending the room. A host's room closes on its own two minutes later unless they come back.
-		leave: () => leaveRoom(null),
+		leave: depart,
 		clearEndedReason: () => {
 			endedReason = null;
 			emit();
 		},
 		// After a user or server switch, or a sign-out: a room that belongs to another login is left.
 		onSessionChanged: () => {
-			const next = silo();
-			if (room && (!next || next.key !== client?.key)) leaveRoom(null);
+			configCache = null;
+			const next = current();
+			if (room && (!next || next.client.key !== client?.key)) leaveRoom(null);
 		}
 	};
 };
@@ -1001,4 +1514,46 @@ const siloNow = () => {
 	};
 };
 
-export const watchParty = createWatchParty({silo: siloNow});
+const moonbaseBase = () => (getServerType() === 'plex' ? plexMoonbaseUrl(getServerUrl()) : getServerUrl());
+
+// A request under Moonbase's watch party routes, through the app's own fetch so old webOS sets reach https servers.
+const moonbaseCall = async (path, {method = 'GET', body, headers, timeoutMs = CALL_TIMEOUT_MS} = {}) => {
+	const endpoint = await moonbaseEndpoint(moonbaseBase(), getApiKey());
+	if (!endpoint) throw Object.assign(new Error('No Moonbase on this server'), {status: 404});
+	const response = await platformFetch(`${endpoint.base}/Moonfin/WatchParty${path}`, {
+		method,
+		headers: {...endpoint.headers, Accept: 'application/json', ...(body ? {'Content-Type': 'application/json'} : null), ...headers},
+		body: body ? JSON.stringify(body) : undefined
+	}, timeoutMs);
+	const raw = await response.text();
+	let json = null;
+	try {
+		json = raw ? JSON.parse(raw) : null;
+	} catch {
+		json = null;
+	}
+	if (!response.ok) {
+		throw Object.assign(new Error(text(json?.message) || `Watch party request failed (${response.status})`),
+			{status: response.status, code: text(json?.code)});
+	}
+	return json;
+};
+
+// The signed-in Jellyfin, Emby or Plex login, whose Moonbase may host parties. Silo keeps its own.
+const moonbaseNow = () => {
+	const serverUrl = getServerUrl();
+	const token = getApiKey();
+	const userId = getUserId();
+	if (!serverUrl || !token || !userId || getServerType() === 'silo' || isSiloLogin(serverUrl, token)) return null;
+	return {
+		key: `${serverUrl}|${userId}`,
+		baseUrl: serverUrl,
+		moonbaseBase,
+		call: moonbaseCall,
+		getItem: (id) => serverApi.getItem(id),
+		getEpisodes: (seriesId) => serverApi.getEpisodes(seriesId),
+		getItems: (params) => serverApi.getItems(params)
+	};
+};
+
+export const watchParty = createWatchParty({silo: siloNow, moonbase: moonbaseNow});

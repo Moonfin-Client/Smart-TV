@@ -987,7 +987,6 @@ const NavAvatar = ({name, size = 40}) => {
 // shell says there's a library for it, and the libraries are the ones home already loaded.
 const useNavButtons = (rail, hasLiveTv) => {
 	const {settings} = useSettings();
-	const {serverType} = useAuth();
 	const seerr = useSeerr();
 	const {socialAvailable} = useAchievements();
 	return previewNavButtons({
@@ -997,7 +996,6 @@ const useNavButtons = (rail, hasLiveTv) => {
 		seerrEnabled: seerr.isEnabled,
 		seerrLabel: seerr.displayName,
 		calendarAvailable: seerr.pluginInfo?.calendarAvailable === true,
-		serverType,
 		socialAvailable,
 		libraries: memoryCache.libraries
 	});

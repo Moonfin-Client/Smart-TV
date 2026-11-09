@@ -122,7 +122,8 @@
 	white-space: nowrap;
 	font-family: inherit;
 
-	&:disabled {
+	&:disabled,
+	&[aria-disabled='true'] {
 		opacity: 0.5;
 		cursor: default;
 	}

@@ -51,9 +51,23 @@ export const driftAction = (drift, options = {}) => {
 	return {type: 'none'};
 };
 
-export const needsSeek = (currentTicks, targetTicks) => {
+export const needsSeek = (currentTicks, targetTicks, toleranceMs = SEEK_TOLERANCE_MS) => {
 	if (targetTicks == null || currentTicks == null) return true;
-	return Math.abs(currentTicks - targetTicks) / TICKS_PER_MS > SEEK_TOLERANCE_MS;
+	return Math.abs(currentTicks - targetTicks) / TICKS_PER_MS > toleranceMs;
+};
+
+// A Samsung seek lands on a keyframe, which can be seconds past a target a fraction of a second away. In a watch
+// party that corrects itself, a smaller gap is left to the drift check, which waits it out without seeking.
+export const PARTY_SEEK_TOLERANCE_MS = 1000;
+
+// Ahead of the group by up to this much, such a set holds back by the gap rather than seeking back, which is exact.
+export const PARTY_HOLD_BACK_MAX_MS = 10000;
+// How long after a seek lands while the room plays such a set reads how far ahead it came down.
+export const PARTY_LANDING_READ_MS = 1000;
+export const partyHoldBackMs = (currentTicks, targetTicks) => {
+	if (currentTicks == null || targetTicks == null) return 0;
+	const aheadMs = (currentTicks - targetTicks) / TICKS_PER_MS;
+	return aheadMs > SEEK_TOLERANCE_MS && aheadMs <= PARTY_HOLD_BACK_MAX_MS ? Math.round(aheadMs) : 0;
 };
 
 // A television keeps playing the old buffer, and reporting the old position,
