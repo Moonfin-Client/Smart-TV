@@ -1493,5 +1493,6 @@
     "Configure IMDb Top 250, Popular, and other charts.": "Configura las listas Top 250, Popular y otras de IMDb.",
     "Configure Popular, Top Rated, and Trending TMDB lists.": "Configura las listas de TMDB Populares, Mejor valoradas y Tendencias.",
     "Configure Seerr Discovery Rows.": "Configurar filas de descubrimiento de Seerr.",
-    "Confirm": "Confirmar"
+    "Confirm": "Confirmar",
+    "Confirm Delete": "Confirmar eliminación"
 }
