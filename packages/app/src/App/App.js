@@ -380,12 +380,16 @@ const AppContent = (props) => {
 	const signInPinRef = useRef(signInPin);
 	signInPinRef.current = signInPin;
 	// A PIN set on another device while the app was away is only known to the server. One found there is kept,
-	// so the gate still asks for it if the server can't be reached when the gate checks again.
+	// so the gate still asks for it if the server can't be reached when the gate checks again. An answer that
+	// arrives after the profile changed, or after another check started, belongs to neither and is dropped.
+	const pinSessionRef = useRef(pinSession);
+	pinSessionRef.current = pinSession;
 	const pinAddedElsewhereRef = useRef(null);
 	pinAddedElsewhereRef.current = async () => {
+		const session = pinSession;
 		const before = latestSignInPin();
 		const next = await refreshSignInPin(before, pinAccount);
-		if (!isSignInPinEnabled(next)) return false;
+		if (pinSessionRef.current !== session || !isSignInPinEnabled(next)) return false;
 		if (next !== before) saveSignInPin(next);
 		return true;
 	};
