@@ -103,7 +103,16 @@ export const needsStreamRefresh = (tokens, now = Date.now()) => Boolean(tokens?.
 const sessions = [];
 let loaded = null;
 
-const persist = () => saveToStorage(STORAGE_KEY, sessions.map(({server, accountId, tokens, aliases}) => ({server, accountId, tokens, aliases})))
+// A profile's PIN proof is kept across app starts only when the viewer asked for its PIN to be remembered.
+const keptProofs = ({proofs, remember}) => Object.keys(proofs || {}).reduce((kept, id) => {
+	if (remember?.[id] === true) kept[id] = proofs[id];
+	return kept;
+}, {});
+
+const persist = () => saveToStorage(STORAGE_KEY, sessions.map((session) => {
+	const {server, accountId, tokens, aliases, remember} = session;
+	return {server, accountId, tokens, aliases, remember, proofs: keptProofs(session)};
+}))
 	.catch((err) => console.warn('[Silo] Saving the session failed:', err));
 
 export const loadSiloSessions = () => {
@@ -111,8 +120,19 @@ export const loadSiloSessions = () => {
 		loaded = getFromStorage(STORAGE_KEY).then((stored) => {
 			(Array.isArray(stored) ? stored : []).forEach((entry) => {
 				if (!entry?.server || !entry.accountId || !entry.tokens?.accessToken) return;
-				if (sessions.some((s) => s.server === entry.server && s.accountId === entry.accountId)) return;
-				sessions.push({...entry, aliases: entry.aliases || [], proofs: {}, identity: 0, refreshing: null});
+				const remember = entry.remember || {};
+				// A session opened before the stored ones were read keeps its own login, and takes the stored choices
+				// and remembered proofs it hasn't got itself.
+				const open = sessions.find((s) => s.server === entry.server && s.accountId === entry.accountId);
+				if (open) {
+					open.remember = {...remember, ...open.remember};
+					open.proofs = {...keptProofs({proofs: entry.proofs, remember: open.remember}), ...open.proofs};
+					return;
+				}
+				sessions.push({
+					...entry, aliases: entry.aliases || [], remember, proofs: keptProofs({proofs: entry.proofs, remember}), identity: 0,
+					refreshing: null
+				});
 			});
 		}).catch(() => {});
 	}
@@ -148,7 +168,7 @@ export const openSiloSession = (server, accountId, tokens) => {
 	const base = siloServerKey(server);
 	let session = siloSessionOfAccount(base, accountId);
 	if (!session) {
-		session = {server: base, accountId, aliases: [], proofs: {}, identity: 0, refreshing: null};
+		session = {server: base, accountId, aliases: [], remember: {}, proofs: {}, identity: 0, refreshing: null};
 		sessions.push(session);
 	}
 	if (session.tokens?.accessToken && session.tokens.accessToken !== tokens.accessToken) {
@@ -175,6 +195,7 @@ export const setProfileProof = (session, profileId, proof) => {
 	if (!session) return;
 	if (proof?.token) session.proofs[profileId] = proof;
 	else delete session.proofs[profileId];
+	if (session.remember?.[profileId] === true) persist();
 };
 
 export const profileProof = (session, profileId, now = Date.now()) => {
@@ -185,6 +206,21 @@ export const profileProof = (session, profileId, now = Date.now()) => {
 		return null;
 	}
 	return proof.token;
+};
+
+// Whether a profile's PIN is remembered on this device, as last chosen at the PIN prompt (yes until the viewer says
+// otherwise). Remembered, its proof is kept across app starts and the prompt is skipped while the proof lasts;
+// otherwise it's asked for at every start and switch.
+export const remembersProfilePin = (session, profileId) => session?.remember?.[profileId] !== false;
+
+// A remembered PIN's proof that still unlocks the profile, so the prompt can be skipped.
+export const rememberedProfileUnlocked = (session, profileId) => session?.remember?.[profileId] === true &&
+	Boolean(profileProof(session, profileId));
+
+export const rememberProfilePin = (session, profileId, remember) => {
+	if (!session) return;
+	session.remember = {...session.remember, [profileId]: remember === true};
+	persist();
 };
 
 const readBody = async (response) => {

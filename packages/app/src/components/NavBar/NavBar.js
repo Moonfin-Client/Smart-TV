@@ -2,7 +2,6 @@ import {memo, useCallback, useMemo, useState} from 'react';
 import $L from '@enact/i18n/$L';
 import Spotlight from '@enact/spotlight';
 import SpotlightContainerDecorator from '@enact/spotlight/SpotlightContainerDecorator';
-import {useAuth} from '../../context/AuthContext';
 import {useSettings} from '../../context/SettingsContext';
 import {useSeerr} from '../../context/SeerrContext';
 import {useSyncPlay} from '../../context/SyncPlayContext';
@@ -65,10 +64,7 @@ const NavBar = ({
 	const {settings, activeTheme} = useSettings();
 	const {isEnabled: seerrEnabled, displayName, pluginInfo} = useSeerr();
 	const {isInGroup} = useSyncPlay();
-	// On Silo the button opens its Watch Party instead.
 	const {room: watchPartyRoom} = useWatchParty();
-	const {serverType} = useAuth();
-	const onSilo = serverType === 'silo';
 	const {messages, unreadCount} = useServerMessages();
 	const {socialAvailable, badgeCount: friendsBadge} = useAchievements();
 	const [libraryMenuOpen, setLibraryMenuOpen] = useState(false);
@@ -84,8 +80,8 @@ const NavBar = ({
 	const showLiveTv = !kidsMode && settings.showLiveTvButton !== false && hasLiveTv;
 	const showSeerr = !kidsMode && seerrEnabled && settings.showSeerrButton !== false;
 	const showCalendar = !kidsMode && settings.showCalendarButton !== false && pluginInfo?.calendarAvailable === true;
-	// Plex has no SyncPlay; Silo's button opens its Watch Party.
-	const showSyncPlay = !kidsMode && serverType !== 'plex' && settings.syncplayEnabled !== false && settings.showSyncPlayButton !== false;
+	// Every server type gets the button, and the screen says so when Moonbase is missing.
+	const showSyncPlay = !kidsMode && settings.syncplayEnabled !== false && settings.showSyncPlayButton !== false;
 	const navLibraries = librariesForNav(libraries, showLiveTv, {hideLiveTv: kidsMode});
 	const showLibraries = !kidsMode && settings.showLibrariesInToolbar !== false && navLibraries.length > 0;
 	// Only with something to show, so the menu never has a button that does nothing.
@@ -179,7 +175,7 @@ const NavBar = ({
 					)}
 
 					{showSyncPlay && (
-						<NavPillButton Icon={SyncPlayIcon} slot={nextSlot()} label={onSilo ? $L('Watch Party') : $L('SyncPlay')} onClick={onSyncPlay} spotlightId="navbar-syncplay" active={onSilo ? Boolean(watchPartyRoom) : isInGroup} />
+						<NavPillButton Icon={SyncPlayIcon} slot={nextSlot()} label={$L('Watch Parties')} onClick={onSyncPlay} spotlightId="navbar-syncplay" active={Boolean(watchPartyRoom) || isInGroup} />
 					)}
 
 					{showSeerr && (

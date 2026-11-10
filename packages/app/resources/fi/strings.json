@@ -103,7 +103,7 @@
     "Channels": "Kanavat",
     "Chapter": "Luku",
     "Chapters": "Luvut",
-    "Charcoal": "Puuhiili",
+    "Charcoal": "Tuhka",
     "Check for Updates": "Tarkista päivitykset",
     "Chinese": "kiinalainen",
     "Choose between various media bar styles, or turn the media bar off": "Valitse eri mediapalkkityylien välillä tai poista mediapalkki käytöstä",
@@ -2369,7 +2369,7 @@
     "AUDIO": "AUDIO",
     "Audio & Subtitles": "Audio & Tekstitykset",
     "Bitrate, resolution, transcoding, and codec support": "Bittinopeus, resoluutio, transkoodaus ja koodekkien tuki",
-    "Capture media, login and network logs and send them to the server as a report": "Kerää media-, kirjautumis- ja verkkolokit ja lähetä ne palvelimelle raporttina",
+    "Capture media, login and network logs and send them to the server as a report": "Kerää media, kirjautumis ja verkkolokit ja lähetä ne palvelimelle raporttina",
     "Capture media, Seerr login, network and other diagnostics so they can be sent to the server as a report.": "Kerää media kirjautumis ja verkkolokit ja lähetä ne palvelimelle raporttina.",
     "Choose type of items to recommend": "Valitse suositeltavat kohteet",
     "Choose which source item to base recommendations on": "Valitse mihin lähteisiin suositukset perustuvat",
@@ -3101,5 +3101,7 @@
     "Removing...": "Poistetaan...",
     "Sonarr Calendar": "Sonarr kalenteri",
     "Read embedded text subtitles from the file": "Lue tiedostosta upotetut tekstitykset",
-    "Show SRT subtitles from inside the file instead of waiting for the server to extract them": "Näytä SRT tekstitykset suoraan tiedostosta sen sijaan, että odotettaisiin, että palvelin purkaa ne"
+    "Show SRT subtitles from inside the file instead of waiting for the server to extract them": "Näytä SRT tekstitykset suoraan tiedostosta sen sijaan, että odotettaisiin, että palvelin purkaa ne",
+    "Show All Year": "Näytä koko vuosi",
+    "Show a holiday row outside the holiday dates too, a different ticked holiday each day.": "Näytä lomarivi myös lomapäivien ulkopuolella, jokaiselle päivälle eri merkitty lomapäivä."
 }

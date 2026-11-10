@@ -69,7 +69,7 @@ export const LANGUAGE_PATH = {
 // Every theme row on the tour says the same thing about what else is in Settings.
 export const tourDescription = () => `${$L('There is more waiting in Settings')}: ${[
 	$L('Seerr requests'),
-	$L('SyncPlay watch parties'),
+	$L('Watch Parties'),
 	$L('Live TV'),
 	$L('Custom themes'),
 	$L('And plenty more')

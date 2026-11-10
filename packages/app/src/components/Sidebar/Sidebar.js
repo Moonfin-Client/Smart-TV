@@ -2,7 +2,6 @@ import {memo, useCallback, useMemo} from 'react';
 import $L from '@enact/i18n/$L';
 import SpotlightContainerDecorator, {spotlightDefaultClass} from '@enact/spotlight/SpotlightContainerDecorator';
 import {useSettings} from '../../context/SettingsContext';
-import {useAuth} from '../../context/AuthContext';
 import {useSeerr} from '../../context/SeerrContext';
 import {useSyncPlay} from '../../context/SyncPlayContext';
 import useWatchParty from '../../hooks/useWatchParty';
@@ -79,11 +78,8 @@ const Sidebar = ({
 }) => {
 	const {settings, activeTheme} = useSettings();
 	const {isEnabled: seerrEnabled, displayName, pluginInfo} = useSeerr();
-	const {serverType} = useAuth();
 	const {isInGroup} = useSyncPlay();
-	// On Silo the button opens its Watch Party instead.
 	const {room: watchPartyRoom} = useWatchParty();
-	const onSilo = serverType === 'silo';
 	const {messages, unreadCount} = useServerMessages();
 	const {socialAvailable, badgeCount: friendsBadge} = useAchievements();
 	// The nav bar has always honoured this; the sidebar rendered the clock
@@ -99,7 +95,7 @@ const Sidebar = ({
 	const showLiveTv = !kidsMode && settings.showLiveTvButton !== false && hasLiveTv;
 	const showSeerr = !kidsMode && seerrEnabled && settings.showSeerrButton !== false;
 	const showCalendar = !kidsMode && settings.showCalendarButton !== false && pluginInfo?.calendarAvailable === true;
-	const showSyncPlay = !kidsMode && serverType !== 'plex' && settings.syncplayEnabled !== false && settings.showSyncPlayButton !== false;
+	const showSyncPlay = !kidsMode && settings.syncplayEnabled !== false && settings.showSyncPlayButton !== false;
 	const navLibraries = librariesForNav(libraries, showLiveTv, {hideLiveTv: kidsMode});
 	const showLibraries = !kidsMode && settings.showLibrariesInToolbar !== false && navLibraries.length > 0;
 	// Only with something to show, so the rail never has a row that does nothing.
@@ -197,7 +193,7 @@ const Sidebar = ({
 					)}
 
 					{showSyncPlay && (
-						<SidebarItem Icon={SyncPlayIcon} slot={nextSlot()} label={onSilo ? $L('Watch Party') : $L('SyncPlay')} onClick={onSyncPlay} active={onSilo ? Boolean(watchPartyRoom) : isInGroup} />
+						<SidebarItem Icon={SyncPlayIcon} slot={nextSlot()} label={$L('Watch Parties')} onClick={onSyncPlay} active={Boolean(watchPartyRoom) || isInGroup} />
 					)}
 
 					{showLibraries && (settings.showLibrariesIndividually === true ? (

@@ -9,6 +9,7 @@ import {useSeerr} from '../../../context/SeerrContext';
 import ScreensaverPreview from '../../../components/Screensaver/ScreensaverPreview';
 import SeasonalTheme from '../../../components/SeasonalTheme';
 import {KEYS} from '../../../utils/keys';
+import {homeBackdropSettings} from '../../../utils/homeBackdropStyle';
 import {
 	DetailStylePreview,
 	KeyboardPreview,
@@ -202,9 +203,11 @@ const SettingsLivePreview = ({scene, row, trying, onPickScene, onLeaveChips, has
 	const library = (focusKey === 'musicLibraryStyle' && music) || (focusKey === 'bookLibraryStyle' && books) || video || music || books;
 	const scenes = SCENES.concat(pluginInfo?.calendarAvailable === true ? ['calendar'] : [], library ? ['library'] : []);
 	const tried = TRIED_KEYS[scene];
-	const overrides = useMemo(() => (
-		trying && (!tried || tried.indexOf(trying.key) >= 0) ? {[trying.key]: trying.value} : null
-	), [trying, tried]);
+	const overrides = useMemo(() => {
+		if (!trying || (tried && tried.indexOf(trying.key) < 0)) return null;
+		// Home's backdrop picker saves its switch along with the style, so both are tried together.
+		return trying.key === 'homeBackdropStyle' ? homeBackdropSettings(trying.value) : {[trying.key]: trying.value};
+	}, [trying, tried]);
 	const tryingHere = !!(trying && row && trying.key === row.key);
 	const live = tryingHere ? trying.index : (row ? row.saved : -1);
 	const frameRef = useRef(null);

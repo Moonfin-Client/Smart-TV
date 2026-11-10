@@ -1,11 +1,13 @@
 import {corsFreeFetch} from './secureFetch';
+import {getFromStorage, saveToStorage} from './storage';
 import {
-	needsRefresh, onSiloSessionEnded, onSiloTokensRotated, openSiloSession, profileProof, resetSiloSessions, setProfileProof,
-	siloDeviceId, siloHeaders, siloRequest, siloSessionFor, tokensFrom
+	loadSiloSessions, needsRefresh, onSiloSessionEnded, onSiloTokensRotated, openSiloSession, profileProof, rememberProfilePin,
+	rememberedProfileUnlocked, remembersProfilePin, resetSiloSessions, setProfileProof, siloDeviceId, siloHeaders, siloRequest,
+	siloSessionFor, siloSessionOfAccount, tokensFrom
 } from './siloSession';
 
 jest.mock('./secureFetch', () => ({corsFreeFetch: jest.fn()}));
-jest.mock('./storage', () => ({getFromStorage: () => Promise.resolve(null), saveToStorage: () => Promise.resolve()}));
+jest.mock('./storage', () => ({getFromStorage: jest.fn(), saveToStorage: jest.fn()}));
 
 const SERVER = 'http://silo:8090';
 const device = {appName: 'Moonfin for webOS', appVersion: '3.0.0', deviceName: 'LG Smart TV', deviceId: 'moonfin_webos_abc'};
@@ -22,6 +24,8 @@ const pair = (access, refresh, expiresIn = 900) => ({access_token: access, refre
 beforeEach(() => {
 	resetSiloSessions();
 	corsFreeFetch.mockReset();
+	getFromStorage.mockImplementation(() => Promise.resolve(null));
+	saveToStorage.mockImplementation(() => Promise.resolve());
 });
 
 describe('headers', () => {
@@ -148,6 +152,48 @@ describe('PIN proofs', () => {
 		setProfileProof(session, 'kid', {token: 'proof', expiresAt: 2000});
 		expect(profileProof(session, 'kid', 1000)).toBe('proof');
 		expect(profileProof(session, 'kid', 3000)).toBe(null);
+	});
+
+	test('a remembered PIN keeps its proof across app starts, and one asked every time does not', async () => {
+		const session = openSiloSession(SERVER, 'acc-1', tokensFrom(pair('a', 'r')));
+		expect(remembersProfilePin(session, 'kid')).toBe(true);
+		rememberProfilePin(session, 'kid', true);
+		rememberProfilePin(session, 'teen', false);
+		setProfileProof(session, 'kid', {token: 'kid-proof', expiresAt: 0});
+		setProfileProof(session, 'teen', {token: 'teen-proof', expiresAt: 0});
+		expect(rememberedProfileUnlocked(session, 'kid')).toBe(true);
+		expect(rememberedProfileUnlocked(session, 'teen')).toBe(false);
+
+		const saved = saveToStorage.mock.calls[saveToStorage.mock.calls.length - 1][1];
+		expect(saved[0].proofs).toEqual({kid: {token: 'kid-proof', expiresAt: 0}});
+
+		resetSiloSessions();
+		getFromStorage.mockImplementationOnce(() => Promise.resolve(saved));
+		await loadSiloSessions();
+		const restored = siloSessionOfAccount(SERVER, 'acc-1');
+		expect(profileProof(restored, 'kid')).toBe('kid-proof');
+		expect(profileProof(restored, 'teen')).toBe(null);
+		expect(remembersProfilePin(restored, 'teen')).toBe(false);
+	});
+
+	test('a session opened before the stored ones are read keeps their choices', async () => {
+		getFromStorage.mockImplementationOnce(() => Promise.resolve([{
+			server: SERVER, accountId: 'acc-1', tokens: tokensFrom(pair('a', 'r')), remember: {teen: false}
+		}]));
+		const session = openSiloSession(SERVER, 'acc-1', tokensFrom(pair('b', 'r2')));
+		await loadSiloSessions();
+		expect(remembersProfilePin(session, 'teen')).toBe(false);
+		expect(session.tokens.accessToken).toBe('b');
+	});
+
+	test('a session opened early also takes the remembered proofs', async () => {
+		getFromStorage.mockImplementationOnce(() => Promise.resolve([{
+			server: SERVER, accountId: 'acc-1', tokens: tokensFrom(pair('a', 'r')), remember: {kid: true},
+			proofs: {kid: {token: 'kid-proof', expiresAt: 0}}
+		}]));
+		const session = openSiloSession(SERVER, 'acc-1', tokensFrom(pair('b', 'r2')));
+		await loadSiloSessions();
+		expect(rememberedProfileUnlocked(session, 'kid')).toBe(true);
 	});
 });
 

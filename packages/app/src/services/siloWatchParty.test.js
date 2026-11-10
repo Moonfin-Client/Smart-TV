@@ -214,6 +214,8 @@ describe('Silo Watch Party room', () => {
 		expect(driver.readyOwed()).toBe(true);
 		jest.advanceTimersByTime(1000);
 		expect(frames('state_report').pop()).toMatchObject({command_id: 'c1', is_ready: true, position_seconds: 30, is_paused: true});
+		// Statuses are Moonbase's extension, Silo never gets one.
+		expect(frames('state_report').some((f) => 'status' in f)).toBe(false);
 
 		driver.request('pause');
 		expect(frames('transport_request')).toEqual([{type: 'transport_request', action: 'pause', position_seconds: 30, is_paused: true}]);

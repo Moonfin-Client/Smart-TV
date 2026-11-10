@@ -27,6 +27,14 @@ export const takeHouseholdPick = () => {
 	householdToPick = false;
 	return pick;
 };
+// Set when Silo ended the login under the signed-in profile, so the sign-in screen opens for that server with the
+// profile's name filled in, as Moonfin Core does: {server, username}.
+let siloSignInAgain = null;
+export const takeSiloSignInAgain = () => {
+	const again = siloSignInAgain;
+	siloSignInAgain = null;
+	return again;
+};
 const BACKOFF_DELAYS = [5000, 10000, 20000];
 const RECOVERY_MAX_DELAY = 60000;
 
@@ -113,12 +121,42 @@ export const AuthProvider = ({children}) => {
 			}
 			if (stale.length) loadServers();
 		});
-		const offEnded = onSiloSessionEnded((session) => {
+		// The password changed, or the account's sessions were signed out: the login was the whole household's, so every
+		// saved profile of the account goes, and sign-in opens for it with the name filled in.
+		const offEnded = onSiloSessionEnded(async (session) => {
 			if (jellyfinApi.getServerType() !== 'silo' || siloServerKey(jellyfinApi.getServerUrl()) !== session.server) return;
 			console.warn('[AUTH] Silo refused the session refresh, requiring re-login');
+			const token = jellyfinApi.getApiKey();
+			const userId = jellyfinApi.getUserId();
 			jellyfinApi.setAuth(null, null);
-			setAccessToken(null);
-			setIsAuthenticated(false);
+			// Signed out whatever the storage does, or the screens stay up sending requests without a token.
+			try {
+				const saved = (await multiServerManager.getAllServersArray())
+					.filter((entry) => entry.serverType === 'silo' && siloServerKey(entry.url) === session.server);
+				const self = saved.find((entry) => entry.userId === userId);
+				const household = self
+					? saved.filter((entry) => multiServerManager.sameSiloHousehold(entry, {...self, siloAccountId: session.accountId}, token))
+					: saved.filter((entry) => entry.siloAccountId === session.accountId);
+				if (self) {
+					siloSignInAgain = {
+						server: {serverId: self.serverId, url: self.url, name: self.name, serverType: 'silo', version: null},
+						username: self.username
+					};
+				}
+				for (const entry of household) {
+					// eslint-disable-next-line no-await-in-loop
+					await multiServerManager.removeServer(entry.serverId, entry.userId);
+				}
+				clearAllCaches();
+				await removeFromStorage('auth');
+			} catch (err) {
+				console.error('[AUTH] Forgetting the ended Silo login failed:', err);
+			} finally {
+				setUser(null);
+				setAccessToken(null);
+				await loadServers().catch(() => {});
+				setIsAuthenticated(false);
+			}
 		});
 		return () => {
 			offRotated();
@@ -521,26 +559,20 @@ export const AuthProvider = ({children}) => {
 		};
 		// Signing out leaves the server saved, as Moonfin Core does, so it can be signed in to again from the list.
 		if (activeServerInfo) {
+			// Signing out of a Silo profile signs its whole account out: every profile of the household goes, whichever
+			// one is in use. They're the entries of the same account, or failing a saved account, of the same token.
+			const saved = leaving.serverType === 'silo' ? await multiServerManager.getAllServersArray() : [];
+			const self = saved.find((entry) => entry.serverId === activeServerInfo.serverId && entry.userId === activeServerInfo.userId);
+			const household = saved.filter((entry) => entry !== self &&
+				multiServerManager.sameSiloHousehold(entry, self, leaving.accessToken));
+			for (const entry of household) {
+				// eslint-disable-next-line no-await-in-loop
+				await multiServerManager.removeServer(entry.serverId, entry.userId);
+			}
 			await multiServerManager.removeServer(activeServerInfo.serverId, activeServerInfo.userId, {keepServer: true});
 		}
 		// Silo's refresh token stays good until the login is ended on the server too.
 		await endSiloLoginIfLast(leaving);
-
-		// A Silo profile signs out to its household's profile list on the sign-in screen, not into the next profile.
-		const household = leaving.serverType === 'silo' && activeServerInfo &&
-			(await multiServerManager.getAllServersArray()).find((entry) => entry.serverId === activeServerInfo.serverId);
-		if (household) {
-			await multiServerManager.setActiveServer(household.serverId, household.userId);
-			clearAllCaches();
-			await removeFromStorage('auth');
-			setUser(null);
-			setServerUrl(null);
-			setServerName(null);
-			setAccessToken(null);
-			await loadServers();
-			setIsAuthenticated(false);
-			return;
-		}
 
 		const count = await multiServerManager.getTotalUserCount();
 		if (count > 0) {

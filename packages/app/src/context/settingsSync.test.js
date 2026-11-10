@@ -33,6 +33,14 @@ describe('profileToLocal', () => {
 		expect(local.hiddenOsdButtonsTv).toEqual(['audio']);
 	});
 
+	test('syncs the Watch Parties settings, and keeps a service it doesn\'t know out', () => {
+		expect(profileToLocal({syncPlayEnabled: false, watchPartyService: 'syncplay', watchPartyChatOverlay: false, watchPartyAlerts: true}))
+			.toEqual({syncplayEnabled: false, watchPartyService: 'syncplay', watchPartyChatOverlay: false, watchPartyAlerts: true});
+		expect(profileToLocal({watchPartyService: 'discord'})).toEqual({});
+		expect(localToProfile({watchPartyService: 'moonbase', watchPartyAlerts: false}, ['watchPartyService', 'watchPartyAlerts']))
+			.toMatchObject({watchPartyService: 'moonbase', watchPartyAlerts: false});
+	});
+
 	test('takes detailButtonsMaxVisible under its own name', () => {
 		const local = profileToLocal({
 			detailButtonsMaxVisible: 3
@@ -361,10 +369,11 @@ describe('the home rows and media bar ratings settings', () => {
 		mediaBarShowRatingBadges: 'mediaBarMdblistShowRatingBadges'
 	};
 
-	test('default like the plain ones, except home rows start with labels off', () => {
+	test('default like the plain ones, except home rows start with labels off and only details start without badges', () => {
+		const own = {homeRowsShowRatingLabels: false, homeRowsShowRatingBadges: true, mediaBarShowRatingBadges: true};
 		for (const local of Object.keys(SERVER_KEYS)) {
 			const plain = local.replace(/^(homeRows|mediaBar)(.)/, (all, surface, first) => first.toLowerCase());
-			const expected = local === 'homeRowsShowRatingLabels' ? false : defaultSettings[plain];
+			const expected = local in own ? own[local] : defaultSettings[plain];
 			expect({local, value: defaultSettings[local]}).toEqual({local, value: expected});
 		}
 	});
