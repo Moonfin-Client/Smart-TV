@@ -3543,9 +3543,11 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 				if (key === 'ArrowUp' || e.keyCode === 38) {
 					e.preventDefault();
 					// Nothing sits above the seek bar, so Up there puts the controls away. The
-					// seek bar's own handler would show them again, so it doesn't get the key.
+					// seek bar's own handler would show them again, so it doesn't get the key and
+					// the scrub it would have settled is settled here.
 					if (focusRow === 'progress') {
 						e.stopPropagation();
+						executeDeferredSeek();
 						hideControls();
 						return;
 					}
