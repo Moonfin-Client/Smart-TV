@@ -379,6 +379,9 @@ const AppContent = (props) => {
 	const isPinGateActive = pinPending && isSignInPinEnabled(signInPin) && pinRememberRead === pinSession;
 	const signInPinRef = useRef(signInPin);
 	signInPinRef.current = signInPin;
+	// A PIN set on another device while the app was away is only known to the server.
+	const pinAddedElsewhereRef = useRef(null);
+	pinAddedElsewhereRef.current = async () => isSignInPinEnabled(await refreshSignInPin(latestSignInPin(), pinAccount));
 	// Until the server has said whether the account has a PIN, nothing behind the gate shows.
 	const isPinChecking = pinPending && !isPinGateActive && pinChecked !== pinSession;
 	const [pinKeyboardOpen, setPinKeyboardOpen] = useState(false);
@@ -805,9 +808,16 @@ const AppContent = (props) => {
 				// again, which takes the whole app down to the gate, so its player closes the way Back closes it.
 				// The player is left to let go of its video itself, since one released first reads as at the start
 				// and the stop it reports would wipe the resume position.
-				if (isSignInPinEnabled(signInPinRef.current)) {
+				const askForPin = () => {
 					playerEndRef.current?.();
 					setPinCheckCount((count) => count + 1);
+				};
+				if (isSignInPinEnabled(signInPinRef.current)) {
+					askForPin();
+				} else {
+					pinAddedElsewhereRef.current?.().then((added) => {
+						if (added) askForPin();
+					});
 				}
 				recheckAccessRef.current?.();
 			} finally {
