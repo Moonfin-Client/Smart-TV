@@ -63,6 +63,7 @@ import mediaCardCss from '../components/MediaCard/MediaCard.module.less';
 import modernCardCss from '../components/MediaCard/ModernMediaCard.module.less';
 import seerrBannerCss from '../components/seerr/SeerrStatusBanner.module.less';
 import seerrDotCss from '../components/seerr/SeerrStatusDot.module.less';
+import seerrDownloadCss from '../components/SeerrDownloadProgress/SeerrDownloadProgress.module.less';
 import mediaRowCss from '../components/MediaRow/MediaRow.module.less';
 import modernRowCss from '../components/MediaRow/ModernMediaRow.module.less';
 import ratingsCss from '../components/RatingsRow/RatingsRow.module.less';
@@ -128,6 +129,7 @@ export const buildThemeOverrideCss = (theme, options = {}) => {
 	const statusAvailable = toCssColor(theme.semantic.statusAvailable);
 	const statusRequested = toCssColor(theme.semantic.statusRequested);
 	const statusPending = toCssColor(theme.semantic.statusPending);
+	const statusError = toCssColor(theme.semantic.statusError);
 
 	const focusColor = resolveFocusBorderColor(theme, options.focusBorderColor);
 	const focusGlow = b.focusGlow.length ? b.focusGlow.map(shadowToCss).join(', ') : null;
@@ -763,6 +765,9 @@ export const buildThemeOverrideCss = (theme, options = {}) => {
 	rule(`.${seerrDotCss.partial}`, `background: ${statusAvailable}; border-color: ${statusAvailable}; color: ${onBadge};`);
 	rule(`.${seerrDotCss.processing}`, `border-color: ${statusRequested}; color: ${statusRequested};`);
 	rule(`.${seerrDotCss.pending}`, `border-color: ${statusPending}; color: ${statusPending};`);
+	rule(`.${seerrDownloadCss.fill}`, `background: ${rangeProgress};`);
+	rule(`.${seerrDownloadCss.stalled} .${seerrDownloadCss.fill}`, `background: ${statusPending};`);
+	rule(`.${seerrDownloadCss.failed} .${seerrDownloadCss.fill}`, `background: ${statusError};`);
 
 	// The Seerr banner across a poster, with dark ink on a fill as light as Pending's yellow.
 	const bannerInk = (hex) => (relativeLuminance(hex) > 0.45 ? '#000000' : onBadge);

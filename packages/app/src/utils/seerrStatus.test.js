@@ -4,8 +4,11 @@ import {
 	MEDIA_STATUS,
 	REQUEST_STATUS,
 	getRequestStatusInfo,
+	DOWNLOAD_STATE,
 	getDownloadSummary,
+	parseTimeLeft,
 	formatBytes,
+	formatDownloadTimeLeft,
 	downloadLabelParts,
 	isMediaInFlight
 } from './seerrStatus';
@@ -64,14 +67,11 @@ describe('getDownloadSummary', () => {
 		expect(summary.totalBytes).toBe(5 * GB);
 		expect(summary.downloadedBytes).toBe(2 * GB);
 		expect(summary.fraction).toBeCloseTo(0.4);
-		expect(summary.isImporting).toBe(false);
+		expect(summary.state).toBe(DOWNLOAD_STATE.DOWNLOADING);
+		expect(summary.isWaitingForImport).toBe(false);
 	});
 
-	test('nothing left to fetch means importing', () => {
-		expect(getDownloadSummary([{downloadId: 'dl', size: 10, sizeLeft: 0}]).isImporting).toBe(true);
-	});
-
-	test('entries without a size are left out, and no sizes at all is nothing', () => {
+	test('entries without a download id are left out, and none at all is nothing', () => {
 		expect(getDownloadSummary([{size: 0}, {}])).toBeNull();
 		expect(getDownloadSummary([])).toBeNull();
 		expect(getDownloadSummary(null)).toBeNull();
@@ -88,6 +88,129 @@ describe('getDownloadSummary', () => {
 	});
 });
 
+describe('download state', () => {
+	const stateOf = (...items) => getDownloadSummary(items).state;
+
+	test('a warning reads as stalled, and older Sonarr capitalises it', () => {
+		expect(stateOf({downloadId: 'a', size: GB, sizeLeft: GB, status: 'warning'})).toBe(DOWNLOAD_STATE.STALLED);
+		expect(stateOf({downloadId: 'a', size: GB, sizeLeft: GB, status: 'Warning'})).toBe(DOWNLOAD_STATE.STALLED);
+	});
+
+	test('an unreachable client reads as stalled, a waiting one as queued, a paused one as paused', () => {
+		expect(stateOf({downloadId: 'a', size: GB, sizeLeft: GB, status: 'downloadClientUnavailable'})).toBe(DOWNLOAD_STATE.STALLED);
+		expect(stateOf({downloadId: 'a', size: GB, sizeLeft: GB, status: 'queued'})).toBe(DOWNLOAD_STATE.QUEUED);
+		expect(stateOf({downloadId: 'a', size: GB, sizeLeft: GB, status: 'paused'})).toBe(DOWNLOAD_STATE.PAUSED);
+	});
+
+	test('a finished download waits for the import', () => {
+		const summary = getDownloadSummary([{downloadId: 'a', size: GB, sizeLeft: 0, status: 'downloading'}]);
+
+		expect(summary.state).toBe(DOWNLOAD_STATE.WAITING_FOR_IMPORT);
+		expect(summary.isWaitingForImport).toBe(true);
+		expect(summary.fraction).toBe(1);
+	});
+
+	test('a completed download fills the bar even with bytes left', () => {
+		const summary = getDownloadSummary([{downloadId: 'a', size: GB, sizeLeft: 10, status: 'completed'}]);
+
+		expect(summary.state).toBe(DOWNLOAD_STATE.WAITING_FOR_IMPORT);
+		expect(summary.fraction).toBe(1);
+	});
+
+	test('a download with no bytes left reported is not finished', () => {
+		const summary = getDownloadSummary([{downloadId: 'a', size: GB}]);
+
+		expect(summary.state).toBe(DOWNLOAD_STATE.DOWNLOADING);
+		expect(summary.fraction).toBe(0);
+	});
+
+	test('bytes left below zero or past the size are held to the download', () => {
+		expect(getDownloadSummary([{downloadId: 'a', size: GB, sizeLeft: -5}]).state).toBe(DOWNLOAD_STATE.WAITING_FOR_IMPORT);
+		const over = getDownloadSummary([{downloadId: 'a', size: GB, sizeLeft: 2 * GB}]);
+		expect(over.downloadedBytes).toBe(0);
+		expect(over.fraction).toBe(0);
+	});
+
+	test('a stalled download outranks a finished one', () => {
+		const done = {downloadId: 'a', size: GB, sizeLeft: 0, status: 'completed'};
+		const stalled = {downloadId: 'b', size: GB, sizeLeft: GB, status: 'warning'};
+		expect(getDownloadSummary([done, stalled])).toMatchObject({state: DOWNLOAD_STATE.STALLED, fraction: 0.5});
+	});
+
+	test('a failed download stays failed even when it finished', () => {
+		expect(stateOf({downloadId: 'a', size: GB, sizeLeft: 0, status: 'failed'})).toBe(DOWNLOAD_STATE.FAILED);
+	});
+
+	test('the worst download decides', () => {
+		const downloading = {downloadId: 'a', size: GB, sizeLeft: GB / 2, status: 'downloading'};
+		const stalled = {downloadId: 'b', size: GB, sizeLeft: GB, status: 'warning'};
+		const failed = {downloadId: 'c', size: GB, sizeLeft: GB, status: 'failed'};
+		const paused = {downloadId: 'd', size: GB, sizeLeft: GB, status: 'paused'};
+
+		expect(stateOf(downloading, stalled)).toBe(DOWNLOAD_STATE.STALLED);
+		expect(stateOf(stalled, failed)).toBe(DOWNLOAD_STATE.FAILED);
+		expect(stateOf(paused, downloading)).toBe(DOWNLOAD_STATE.DOWNLOADING);
+	});
+
+	test('one finished episode does not hide the one still downloading', () => {
+		const done = {downloadId: 'a', size: GB, sizeLeft: 0, status: 'completed'};
+		const going = {downloadId: 'b', size: GB, sizeLeft: GB / 2, status: 'downloading'};
+
+		expect(stateOf(done, going)).toBe(DOWNLOAD_STATE.DOWNLOADING);
+	});
+
+	test('a sizeless download still shows its state and keeps the bar short of full', () => {
+		const magnet = {downloadId: 'm', status: 'warning'};
+		expect(getDownloadSummary([magnet])).toMatchObject({state: DOWNLOAD_STATE.STALLED, fraction: 0, totalBytes: 0});
+
+		const done = {downloadId: 'a', size: GB, sizeLeft: 0, status: 'downloading'};
+		const sizeless = {downloadId: 'b', status: 'downloading'};
+		expect(getDownloadSummary([done, sizeless]).fraction).toBe(0.99);
+	});
+});
+
+describe('download time left', () => {
+	const going = (id, timeLeft, status = 'downloading') => ({downloadId: id, size: GB, sizeLeft: GB / 2, status, timeLeft});
+
+	test('the slowest active download sets it', () => {
+		expect(getDownloadSummary([going('a', '00:10:00'), going('b', '01:05:00')]).timeLeftSeconds).toBe(3900);
+	});
+
+	test('unknown when one active download has no estimate, or another is paused', () => {
+		expect(getDownloadSummary([going('a', '00:10:00'), going('b', null)]).timeLeftSeconds).toBeNull();
+		expect(getDownloadSummary([going('a', '00:10:00'), going('b', '00:05:00', 'paused')]).timeLeftSeconds).toBeNull();
+	});
+
+	test('a finished sibling does not count against it', () => {
+		const done = {downloadId: 'z', size: GB, sizeLeft: 0, status: 'completed', timeLeft: '00:00:00'};
+		expect(getDownloadSummary([done, going('a', '00:10:00')]).timeLeftSeconds).toBe(600);
+	});
+
+	test('none for a stalled download, even with an estimate', () => {
+		expect(getDownloadSummary([going('a', '00:10:00', 'warning')]).timeLeftSeconds).toBeNull();
+	});
+
+	test('parses the TimeSpan forms Radarr and Sonarr send', () => {
+		expect(parseTimeLeft('00:12:30')).toBe(750);
+		expect(parseTimeLeft('1.02:03:04')).toBe(93784);
+		expect(parseTimeLeft('00:00:05.1234567')).toBe(5);
+		expect(parseTimeLeft(' 00:01:00 ')).toBe(60);
+		expect(parseTimeLeft('26:00:00')).toBe(93600);
+		expect(parseTimeLeft('-00:00:05')).toBeNull();
+		expect(parseTimeLeft(60)).toBeNull();
+		expect(parseTimeLeft('soon')).toBeNull();
+		expect(parseTimeLeft(null)).toBeNull();
+	});
+
+	test('reads as minutes, hours, or both, rounded up', () => {
+		expect(formatDownloadTimeLeft(1)).toBe('1m left');
+		expect(formatDownloadTimeLeft(12 * 60)).toBe('12m left');
+		expect(formatDownloadTimeLeft(2 * 3600)).toBe('2h left');
+		expect(formatDownloadTimeLeft(3900)).toBe('1h 5m left');
+		expect(formatDownloadTimeLeft(26 * 3600)).toBe('26h left');
+	});
+});
+
 describe('formatBytes', () => {
 	test('picks the unit that fits', () => {
 		expect(formatBytes(512)).toBe('512 B');
@@ -99,7 +222,7 @@ describe('formatBytes', () => {
 });
 
 describe('downloadLabelParts', () => {
-	const summary = {fraction: 0.09, isImporting: false, totalBytes: 15 * GB, downloadedBytes: 1.4 * GB};
+	const summary = {fraction: 0.09, state: DOWNLOAD_STATE.DOWNLOADING, totalBytes: 15 * GB, downloadedBytes: 1.4 * GB};
 
 	test('wide: the verb, both sizes and the percentage', () => {
 		expect(downloadLabelParts(summary)).toEqual({leading: 'Downloading · 1.4 GB / 15.0 GB', percent: '9%'});
@@ -110,22 +233,43 @@ describe('downloadLabelParts', () => {
 	});
 
 	test("both halves use the total's unit", () => {
-		const small = {fraction: 0.5, isImporting: false, totalBytes: 12.4 * GB, downloadedBytes: 330.9 * MB};
+		const small = {fraction: 0.5, state: DOWNLOAD_STATE.DOWNLOADING, totalBytes: 12.4 * GB, downloadedBytes: 330.9 * MB};
 
 		expect(downloadLabelParts(small, true).leading).toBe('0.3 GB / 12.4 GB');
-		const mb = {fraction: 0.5, isImporting: false, totalBytes: 700 * MB, downloadedBytes: 350 * MB};
+		const mb = {fraction: 0.5, state: DOWNLOAD_STATE.DOWNLOADING, totalBytes: 700 * MB, downloadedBytes: 350 * MB};
 		expect(downloadLabelParts(mb, true).leading).toBe('350.0 MB / 700.0 MB');
 	});
 
 	test('no usable sizes: the verb stands in, and compact keeps only the percentage', () => {
-		const bare = {fraction: 0.09, isImporting: false};
+		const bare = {fraction: 0.09, state: DOWNLOAD_STATE.DOWNLOADING};
 
 		expect(downloadLabelParts(bare)).toEqual({leading: 'Downloading', percent: '9%'});
 		expect(downloadLabelParts(bare, true)).toEqual({leading: null, percent: '9%'});
 	});
 
-	test('importing says so instead of a stuck 100%', () => {
-		expect(downloadLabelParts({fraction: 1, isImporting: true, totalBytes: GB, downloadedBytes: GB})).toEqual({leading: 'Importing', percent: null});
+	test('the time left follows the percentage on the full bar only, in the verb\'s place', () => {
+		const timed = {...summary, timeLeftSeconds: 3900};
+
+		expect(downloadLabelParts(timed)).toEqual({leading: '1.4 GB / 15.0 GB', percent: '9% · 1h 5m left'});
+		expect(downloadLabelParts(timed, true)).toEqual({leading: '1.4 GB / 15.0 GB', percent: '9%'});
+		expect(downloadLabelParts({fraction: 0.09, state: DOWNLOAD_STATE.DOWNLOADING, timeLeftSeconds: 60})).toEqual({leading: 'Downloading', percent: '9% · 1m left'});
+	});
+
+	test('a stuck download says why, with the sizes when there is room', () => {
+		const stalled = {...summary, fraction: 0, state: DOWNLOAD_STATE.STALLED, downloadedBytes: 0};
+
+		expect(downloadLabelParts(stalled)).toEqual({leading: 'Stalled · 0.0 GB / 15.0 GB', percent: '0%'});
+		expect(downloadLabelParts(stalled, true)).toEqual({leading: 'Stalled', percent: '0%'});
+		expect(downloadLabelParts({...summary, state: DOWNLOAD_STATE.FAILED}, true).leading).toBe('Download failed');
+		expect(downloadLabelParts({...summary, state: DOWNLOAD_STATE.PAUSED}, true).leading).toBe('Paused');
+		expect(downloadLabelParts({fraction: 0, state: DOWNLOAD_STATE.QUEUED}).leading).toBe('Queued');
+	});
+
+	test('a finished download waits for the import instead of a stuck 100%', () => {
+		const done = {fraction: 1, state: DOWNLOAD_STATE.WAITING_FOR_IMPORT, totalBytes: GB, downloadedBytes: GB};
+
+		expect(downloadLabelParts(done)).toEqual({leading: 'Downloaded, waiting for import', percent: null});
+		expect(downloadLabelParts(done, true)).toEqual({leading: 'Downloaded', percent: null});
 	});
 });
 
@@ -152,6 +296,11 @@ describe('isMediaInFlight', () => {
 
 	test('a partly available title with a download running is in flight', () => {
 		const media = {status: MEDIA_STATUS.PARTIALLY_AVAILABLE, downloadStatus: [{downloadId: 'dl', size: 100, sizeLeft: 40}]};
+		expect(isMediaInFlight(media, false)).toBe(true);
+	});
+
+	test('a download with no size yet still keeps the title in flight', () => {
+		const media = {status: MEDIA_STATUS.PROCESSING, downloadStatus: [{downloadId: 'm', status: 'warning'}]};
 		expect(isMediaInFlight(media, false)).toBe(true);
 	});
 

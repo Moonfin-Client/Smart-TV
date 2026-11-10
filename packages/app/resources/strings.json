@@ -3048,5 +3048,9 @@
 	"{role} (Episode Writer)": "{role} (Episode Writer)",
 	"Guest Star": "Guest Star",
 	"{role} (Guest Star)": "{role} (Guest Star)",
-	"Remember PIN on this device": "Remember PIN on this device"
+	"Remember PIN on this device": "Remember PIN on this device",
+	"Stalled": "Stalled",
+	"Queued": "Queued",
+	"Downloaded": "Downloaded",
+	"Downloaded, waiting for import": "Downloaded, waiting for import"
 }
