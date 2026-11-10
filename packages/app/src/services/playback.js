@@ -1654,11 +1654,11 @@ class PlaybackHealthMonitor {
 		this.isPaused = false;
 	}
 
+	// Resuming starts a fresh stall window too, or a pause longer than the limit reads as a stall
+	// before the first progress comes in.
 	setPaused(paused) {
 		this.isPaused = paused;
-		if (paused) {
-			this.lastProgressTime = Date.now();
-		}
+		this.lastProgressTime = Date.now();
 	}
 
 	recordBuffer() {
