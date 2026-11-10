@@ -33,7 +33,8 @@ export const CARD_ICONS = {
 	appearances: DETAIL_ICON_PATHS.starOutline,
 	crew: DETAIL_ICON_PATHS.movieCreationOutlined,
 	seerrDetails: MATERIAL_ICON_PATHS.info,
-	fileDetails: MATERIAL_ICON_PATHS.info
+	fileDetails: MATERIAL_ICON_PATHS.info,
+	books: MATERIAL_ICON_PATHS.menu_book,
 };
 
 // A runtime for a card subtitle or the hero's metadata row: "1h 32m", "2h", or "48m". The
@@ -110,13 +111,18 @@ class CardBuilder {
 	// Which cards this item gets and in what order, each still unbuilt so a caller after one
 	// card does not pay for the rest.
 	factories() {
-		const {item, seerrOnly} = this.s;
+		const {item, seerrOnly, bookSeriesItem} = this.s;
 		if (seerrOnly) {
 			return {
 				seerr_details: () => this.seerrDetailsCard(),
 				people: () => this.peopleCard(),
 				similar: () => this.similarCard(),
 				reviews: () => this.reviewsCard()
+			};
+		}
+		if (bookSeriesItem !== null) {
+			return {
+				books: () => this.booksCard(),
 			};
 		}
 		switch (item?.Type) {
@@ -334,6 +340,18 @@ class CardBuilder {
 					? mergeMissingByReleaseOrder(collection.items || [], collection.missingItems || [])
 					: (collection.items || []))
 			].filter(Boolean)))
+		};
+	}
+
+	booksCard() {
+		const {bookSeriesItem, fallbackImageUrl} = this.s;
+		return {
+			id: 'books',
+			title: $L('Books'),
+			subtitle: countLabel(bookSeriesItem.ChildCount, $L('1 book'), $L('{count} books')),
+			imageUrl: fallbackImageUrl,
+			icon: CARD_ICONS.books,
+			sections: [mediaSection($L('Books'), bookSeriesItem.Members || [])]
 		};
 	}
 
