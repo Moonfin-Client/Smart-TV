@@ -36,4 +36,11 @@ describe('removeServer', () => {
 		expect(await getAllServersArray()).toEqual([]);
 		expect(await getUniqueServers()).toMatchObject([{serverId, name: 'Jellyfin', userCount: 0}]);
 	});
+
+	test('a server kept with no users is still forgotten by id', async () => {
+		const {serverId} = await addServer('http://jf:8096', 'Jellyfin', 'u1', 'brady', 'token');
+		await removeServer(serverId, 'u1', {keepServer: true});
+		await removeServer(serverId);
+		expect(await getUniqueServers()).toEqual([]);
+	});
 });

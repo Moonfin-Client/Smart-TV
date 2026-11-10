@@ -604,10 +604,10 @@ export const AuthProvider = ({children}) => {
 		// Clear all caches first
 		clearAllCaches();
 
-		// Remove all servers
+		// Remove all servers, including ones kept after their last user signed out
 		const allServers = await multiServerManager.getAllServersArray();
-		for (const server of allServers) {
-			await multiServerManager.removeServer(server.serverId, server.userId);
+		for (const server of await multiServerManager.getUniqueServers()) {
+			await multiServerManager.removeServer(server.serverId);
 		}
 		const siloLogins = allServers.filter((server, i) => server.serverType === 'silo' &&
 			allServers.findIndex((other) => other.accessToken === server.accessToken) === i);
