@@ -30,7 +30,7 @@ const ticksToMinutes = (ticks) => {
 	return Math.round(ticks / 600000000);
 };
 
-const adaptItem = (item) => {
+export const adaptItem = (item) => {
 	const serverUrl = jellyfinApi.getServerUrl();
 	const backdropId = getBackdropId(item);
 	const posterId = getPrimaryImageId(item);

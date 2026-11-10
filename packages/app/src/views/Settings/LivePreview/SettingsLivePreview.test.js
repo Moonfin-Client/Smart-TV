@@ -44,7 +44,8 @@ jest.mock('../../../context/SettingsContext', () => {
 		SettingsOverride: ({overrides, children}) => React.createElement(Overrides.Provider, {value: overrides}, children)
 	};
 });
-jest.mock('../../../context/AuthContext', () => ({useAuth: () => ({user: {Id: 'u', Name: 'Ana'}, serverType: 'jellyfin', serverUrl: 'http://server'})}));
+let mockAuth = {};
+jest.mock('../../../context/AuthContext', () => ({useAuth: () => mockAuth}));
 let mockSeerr = {};
 jest.mock('../../../context/SeerrContext', () => ({useSeerr: () => mockSeerr}));
 // One episode two days out, the way the server's Sonarr calendar sends it.
@@ -58,6 +59,10 @@ jest.mock('../../../services/calendarApi', () => ({
 }));
 jest.mock('../../../context/AchievementsContext', () => ({useAchievements: () => ({socialAvailable: false})}));
 jest.mock('../../../components/RatingsRow', () => () => null);
+let mockParentalFilter = require('../../../utils/parentalFilter').parentalFilterFromRatings([]);
+jest.mock('../../../hooks/useParentalFilter', () => () => ({parentalFilter: mockParentalFilter}));
+// Home's card pulls in the context menu and its Sandstone screens, and the preview only reads its size.
+jest.mock('../../../components/MediaCard/MediaCard', () => ({classicCardSize: () => ({width: 0, height: 0})}));
 jest.mock('../../../components/LoadingSpinner', () => () => null);
 // The real layer fades its picture in once it loads, so here it only says what it was handed.
 jest.mock('../../../components/BackdropLayer', () => {
@@ -82,7 +87,14 @@ const mockItems = Array.from({length: 4}, (_, i) => ({
 	title: `Film ${i}`, year: 2000 + i, officialRating: 'PG', runtimeMinutes: 100, genres: ['Drama'], overview: 'A story.',
 	communityRating: 7, posterUrl: null, backdropUrl: null, logoUrl: null
 }));
-jest.mock('../../SetupWizard/setupPreviewData', () => ({getPreviewItems: () => mockItems, subscribePreviewItems: () => () => {}}));
+jest.mock('../../SetupWizard/setupPreviewData', () => ({
+	getPreviewItems: () => mockItems,
+	subscribePreviewItems: () => () => {},
+	adaptItem: (item) => ({
+		title: item.Name, type: item.Type, year: item.ProductionYear || null, officialRating: null, runtimeMinutes: null, genres: [],
+		overview: null, communityRating: null, posterUrl: null, backdropUrl: item.backdropUrl || null, logoUrl: null
+	})
+}));
 
 // jsdom lays nothing out, so the seek bar measures as a box at its parent's corner.
 Object.defineProperty(window.HTMLElement.prototype, 'offsetParent', {configurable: true, get () {
@@ -90,6 +102,12 @@ Object.defineProperty(window.HTMLElement.prototype, 'offsetParent', {configurabl
 }});
 
 const find = (selector) => document.querySelector(selector);
+
+// The focused card's width over its height, so a card that grew is over 1 and a poster under it.
+const focusedCardShape = () => {
+	const ring = Array.from(document.querySelectorAll('.frame div')).find((node) => node.style.border.indexOf('3px solid') === 0);
+	return parseFloat(ring.parentNode.style.width) / parseFloat(ring.parentNode.style.height);
+};
 
 const draw = (settings, rowId, scene, props) => {
 	mockSettings = {...defaultSettings, ...settings};
@@ -99,6 +117,7 @@ const draw = (settings, rowId, scene, props) => {
 describe('SettingsLivePreview', () => {
 	beforeEach(() => {
 		mockSeerr = {isEnabled: false, displayName: 'Seerr', pluginInfo: null};
+		mockAuth = {user: {Id: 'u', Name: 'Ana'}, serverType: 'jellyfin', serverUrl: 'http://server', hasMultipleServers: false};
 		memoryCache.libraries = null;
 	});
 
@@ -138,6 +157,17 @@ describe('SettingsLivePreview', () => {
 		}
 		draw({homeRowsStyle: 'v1'}, 'setting-homeRowsStyle', 'home');
 		expect(rings()).toBe(0);
+	});
+
+	test('a focused modern film grows with no year, rating or description, as on Home', () => {
+		const saved = {...mockItems[0]};
+		Object.assign(mockItems[0], {type: 'Movie', year: null, runtimeMinutes: null, genres: [], overview: null, communityRating: null});
+		try {
+			draw({homeRowsStyle: 'v2'}, 'setting-homeRowsStyle', 'home');
+			expect(focusedCardShape()).toBeGreaterThan(1);
+		} finally {
+			Object.assign(mockItems[0], saved);
+		}
 	});
 
 	test('Hide Media Description takes the description off the classic info area and the focused modern card', () => {
@@ -526,3 +556,192 @@ describe('SettingsLivePreview', () => {
 		expect(onPickScene).toHaveBeenCalledWith('player');
 	});
 });
+
+describe('the audio and Collections Row Options', () => {
+	// Each test talks to a server of its own, so nothing one loads is drawn in the next.
+	let server = 0;
+	const alien = {Id: 'c1', Name: 'Alien Collection', Type: 'BoxSet', ProductionYear: 1979, backdropUrl: 'alien-backdrop'};
+	const batman = {Id: 'c2', Name: 'Batman Collection', Type: 'BoxSet', ProductionYear: 1989};
+	const collectionsOn = (extra = {}) => ({
+		displayCollectionsRows: true,
+		homeRowsStyle: 'v1',
+		mergeContinueWatchingNextUp: false,
+		homeRows: [{id: 'collections', name: 'Collections', enabled: true, order: 0}, {id: 'resume', name: 'Continue Watching', enabled: true, order: 1}],
+		...extra
+	});
+	const sortedByName = async () => ({Items: [alien, batman]});
+	const notice = () => find('.notice');
+	const firstCardTitles = () => screen.getAllByText(/Collection$/).map((node) => node.textContent);
+
+	beforeEach(() => {
+		server += 1;
+		mockAuth = {...mockAuth, serverUrl: `http://server${server}`, api: {getItems: jest.fn(sortedByName)}};
+		memoryCache.rowData = [{id: 'resume', title: 'Continue Watching', items: [{Id: 'r1', Name: 'Resumed Film', Type: 'Movie'}], type: 'landscape'}];
+	});
+
+	afterEach(() => {
+		memoryCache.rowData = null;
+		mockParentalFilter = require('../../../utils/parentalFilter').parentalFilterFromRatings([]);
+	});
+
+	test('with the Collections row off in Rows, Home stays as it is and a notice says where to turn it on', () => {
+		draw(collectionsOn({homeRows: [{id: 'collections', name: 'Collections', enabled: false, order: 0}]}), 'setting-collectionsRowSortBy', 'home');
+		expect(notice().textContent).toBe('The Collections row is turned off. To show it, go to Rows, open Collections under Disabled, and turn it on.');
+		expect(screen.getByText('Turn on a row in Rows, under Disabled')).toBeTruthy();
+		expect(screen.getAllByText('Continue Watching').length).toBeGreaterThan(0);
+		expect(mockAuth.api.getItems).not.toHaveBeenCalled();
+	});
+
+	test('with the Display switch off too, the notice and the inspector ask for the switch first', () => {
+		draw(collectionsOn({displayCollectionsRows: false, homeRows: []}), 'setting-displayCollectionsRows', 'home');
+		expect(notice().textContent).toBe('To see the Collections row on Home, first turn on Display Collections Rows. Then go to Rows, open Collections under Disabled, and turn it on.');
+		expect(screen.getByText('Turn on Display Collections Rows, then turn on a row in Rows')).toBeTruthy();
+	});
+
+	test('the audio notice names the rows and the General group they sit in', () => {
+		draw({displayAudioRows: true, homeRows: []}, 'setting-audioRowsSortBy', 'home');
+		expect(notice().textContent).toBe('Music Artists, Music Albums and Music Playlists are all turned off. To show one, go to Rows, open General under Disabled, and turn it on.');
+	});
+
+	test('Kids Mode and Multi-Server Libraries each say they keep the rows off Home', () => {
+		const {unmount} = draw(collectionsOn({kidsModeEnabled: true}), 'setting-collectionsRowSortBy', 'home');
+		expect(notice().textContent).toBe("Kids Mode keeps these rows off Home, so these settings don't change it.");
+		expect(screen.getByText('Kids Mode keeps this off Home')).toBeTruthy();
+		unmount();
+		mockAuth = {...mockAuth, hasMultipleServers: true};
+		draw(collectionsOn({unifiedLibraryMode: true}), 'setting-collectionsRowSortBy', 'home');
+		expect(notice().textContent).toBe("Home leaves these rows out while Multi-Server Libraries is on, so these settings don't change it.");
+		expect(mockAuth.api.getItems).not.toHaveBeenCalled();
+	});
+
+	test('with the Display switch off and the row on in Rows, Home simply goes without it', () => {
+		draw(collectionsOn({displayCollectionsRows: false}), 'setting-displayCollectionsRows', 'home');
+		expect(notice()).toBeNull();
+		expect(screen.queryByText('Collections')).toBeNull();
+		expect(mockAuth.api.getItems).not.toHaveBeenCalled();
+	});
+
+	test('the row draws on top with its first card focused, and Home\'s rows follow in Home\'s order', async () => {
+		draw(collectionsOn(), 'setting-collectionsRowSortBy', 'home');
+		await screen.findByText('Collections');
+		const titles = Array.from(document.querySelectorAll('.frame div')).map((node) => node.textContent);
+		expect(titles.indexOf('Collections')).toBeLessThan(titles.indexOf('Continue Watching'));
+		expect(screen.getByText('Resumed Film')).toBeTruthy();
+		// Classic's info area reads the focused card, and the backdrop comes from it.
+		expect(screen.getAllByText('Alien Collection').length).toBe(2);
+		expect(find('.homeBackdrop').dataset.url).toBe('alien-backdrop');
+		const rings = Array.from(document.querySelectorAll('.frame div')).filter((node) => node.style.border.indexOf('3px solid') === 0);
+		expect(rings.length).toBe(1);
+		expect(notice()).toBeNull();
+		expect(screen.getByText('Shows on the Home preview')).toBeTruthy();
+	});
+
+	test('a sort being tried loads the row in that order, and the old one stays up until it does', async () => {
+		let release;
+		mockAuth.api.getItems.mockImplementation((params) => (params.SortBy.indexOf('PremiereDate') === 0
+			? new Promise((resolve) => {
+				release = () => resolve({Items: [batman, alien]});
+			})
+			: sortedByName()));
+		const {rerender} = draw(collectionsOn(), 'setting-collectionsRowSortBy', 'home');
+		await waitFor(() => expect(firstCardTitles()[0]).toBe('Alien Collection'));
+		const row = describeRow('setting-collectionsRowSortBy', mockSettings);
+		rerender(<SettingsLivePreview scene='home' row={row} trying={{key: 'collectionsRowSortBy', value: 'PremiereDate', index: 3}} onPickScene={() => {}} onLeaveChips={() => {}} />);
+		await waitFor(() => expect(mockAuth.api.getItems).toHaveBeenCalledWith(expect.objectContaining({IncludeItemTypes: 'BoxSet', SortBy: expect.stringMatching(/^PremiereDate/)})));
+		expect(firstCardTitles()[0]).toBe('Alien Collection');
+		await act(async () => release());
+		await waitFor(() => expect(firstCardTitles()[0]).toBe('Batman Collection'));
+	});
+
+	test('a focused modern collection with nothing to show under it stays a poster, as on Home', async () => {
+		mockAuth.api.getItems.mockImplementation(async () => ({Items: [{Id: 'c3', Name: 'Bare Collection', Type: 'BoxSet'}]}));
+		draw(collectionsOn({homeRowsStyle: 'v2'}), 'setting-collectionsRowSortBy', 'home');
+		await screen.findByText('Bare Collection');
+		expect(focusedCardShape()).toBeLessThan(1);
+	});
+
+	test('with no collections on the server, a notice says Home leaves the row out', async () => {
+		mockAuth.api.getItems.mockImplementation(async () => ({Items: []}));
+		draw(collectionsOn(), 'setting-collectionsRowSortBy', 'home');
+		await waitFor(() => expect(notice().textContent).toBe('There are no collections to show, so Home leaves this row out.'));
+	});
+
+	test('Show Individual Episodes says it only changes single collection rows', async () => {
+		draw(collectionsOn(), 'setting-collectionsRowShowEpisodes', 'home');
+		await waitFor(() => expect(find('.caption').textContent).toBe('This only changes rows for a single collection added in Rows. The Collections row looks the same.'));
+	});
+
+	test('on a Modern row an album stays square even focused, and an artist draws as a poster, as on Home', async () => {
+		mockAuth.api.getItems.mockImplementation(async () => ({Items: [{Id: 'a1', Name: 'Hybrid Theory', Type: 'MusicAlbum', ProductionYear: 2000}]}));
+		mockAuth.api.getAlbumArtists = jest.fn(async () => ({Items: [{Id: 'p1', Name: 'Linkin Park', Type: 'MusicArtist'}]}));
+		draw({displayAudioRows: true, homeRowsStyle: 'v2', homeRows: [
+			{id: 'audioalbums', name: 'Music Albums', enabled: true, order: 0},
+			{id: 'audioartists', name: 'Music Artists', enabled: true, order: 1}
+		]}, 'setting-audioRowsSortBy', 'home');
+		await screen.findByText('Music Artists');
+		const shape = (title) => {
+			const card = screen.getByText(title).parentElement;
+			return parseFloat(card.style.width) / parseFloat(card.firstChild.style.height);
+		};
+		expect(shape('Hybrid Theory')).toBe(1);
+		expect(shape('Linkin Park')).toBeCloseTo(2 / 3);
+		expect(mockAuth.api.getItems).toHaveBeenCalledWith(expect.objectContaining({IncludeItemTypes: 'MusicAlbum', SortBy: expect.stringMatching(/^SortName/)}));
+		expect(mockAuth.api.getAlbumArtists).toHaveBeenCalledWith(expect.objectContaining({IncludeItemTypes: 'MusicArtist'}));
+	});
+
+	test("a row that fails to load isn't taken for an empty one, and is asked for again next time", async () => {
+		mockAuth.api.getItems.mockImplementation(async () => {
+			throw new Error('server error');
+		});
+		const {unmount} = draw(collectionsOn(), 'setting-collectionsRowSortBy', 'home');
+		await waitFor(() => expect(mockAuth.api.getItems).toHaveBeenCalledTimes(1));
+		// Lets the failed load settle before looking for a notice.
+		await act(() => new Promise((resolve) => setTimeout(resolve, 0)));
+		expect(notice()).toBeNull();
+		unmount();
+		mockAuth.api.getItems.mockImplementation(sortedByName);
+		draw(collectionsOn(), 'setting-collectionsRowSortBy', 'home');
+		await screen.findByText('Collections');
+		expect(mockAuth.api.getItems).toHaveBeenCalledTimes(2);
+	});
+
+	test("another user on the same server sees their own rows, not the last user's", async () => {
+		const {unmount} = draw(collectionsOn(), 'setting-collectionsRowSortBy', 'home');
+		await screen.findByText('Resumed Film');
+		unmount();
+		mockAuth = {...mockAuth, user: {Id: 'kid', Name: 'Kid'}, api: {getItems: jest.fn(async () => ({Items: [batman]}))}};
+		memoryCache.rowData = [];
+		draw(collectionsOn(), 'setting-collectionsRowSortBy', 'home');
+		await waitFor(() => expect(firstCardTitles()[0]).toBe('Batman Collection'));
+		expect(screen.queryByText('Resumed Film')).toBeNull();
+		expect(screen.queryByText('Alien Collection')).toBeNull();
+	});
+
+	test('blocked ratings are left out the way Home leaves them out', async () => {
+		mockParentalFilter = require('../../../utils/parentalFilter').parentalFilterFromRatings(['R']);
+		mockAuth.api.getItems.mockImplementation(async () => ({Items: [{...alien, OfficialRating: 'R'}, batman]}));
+		draw(collectionsOn(), 'setting-collectionsRowSortBy', 'home');
+		await waitFor(() => expect(firstCardTitles()[0]).toBe('Batman Collection'));
+		expect(screen.queryByText('Alien Collection')).toBeNull();
+	});
+
+	test("single collections added in Rows count as on Home, so there's no notice to turn the row on", () => {
+		const picked = {id: `pluginDynamic:collections:${mockAuth.serverUrl}:collection:c1`, name: 'Alien Collection', source: 'collections', itemId: 'c1', serverUrl: mockAuth.serverUrl, enabled: true, order: 0};
+		draw(collectionsOn({homeRows: [{id: 'collections', name: 'Collections', enabled: false, order: 1}, picked]}), 'setting-collectionsRowSortBy', 'home');
+		expect(notice()).toBeNull();
+		expect(find('.caption').textContent).toBe('The Collections row is off, so this only changes the single collections added in Rows.');
+		expect(screen.getByText('Shows on the Home preview')).toBeTruthy();
+	});
+
+	test('the audio rows draw on a server with no films for the sample rows', async () => {
+		const pool = mockItems.splice(0);
+		try {
+			mockAuth.api.getItems.mockImplementation(async () => ({Items: [{Id: 'a1', Name: 'Hybrid Theory', Type: 'MusicAlbum'}]}));
+			draw({displayAudioRows: true, homeRows: [{id: 'audioalbums', name: 'Music Albums', enabled: true, order: 0}]}, 'setting-audioRowsSortBy', 'home');
+			await screen.findByText('Music Albums');
+		} finally {
+			mockItems.push(...pool);
+		}
+	});
+});
+

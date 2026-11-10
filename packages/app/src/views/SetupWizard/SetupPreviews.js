@@ -5,7 +5,7 @@
 // real screen's proportions. The artwork comes from the viewer's own library,
 // with drawn stand ins until it arrives.
 
-import {lazy, Suspense, useState, useEffect, useMemo, useRef, useCallback} from 'react';
+import {Fragment, lazy, Suspense, useState, useEffect, useMemo, useRef, useCallback} from 'react';
 import $L from '@enact/i18n/$L';
 import SpotlightContainerDecorator from '@enact/spotlight/SpotlightContainerDecorator';
 
@@ -206,9 +206,10 @@ const FallbackFrame = ({aspect = 16 / 10, children}) => {
 	);
 };
 
-const LivePreview = ({render, fallback, fallbackAspect}) => {
+// [ownRows] draws the screen even before the sample items arrive, since it brings rows of its own.
+const LivePreview = ({render, fallback, fallbackAspect, ownRows = false}) => {
 	const items = usePreviewItems();
-	if (items.length === 0) return <FallbackFrame aspect={fallbackAspect}>{fallback}</FallbackFrame>;
+	if (items.length === 0 && !ownRows) return <FallbackFrame aspect={fallbackAspect}>{fallback}</FallbackFrame>;
 	return <PreviewScreen>{render(items)}</PreviewScreen>;
 };
 
@@ -433,18 +434,35 @@ const clampLines = (lines) => ({
 // Home rows
 // ---------------------------------------------------------------------------
 
-const RowCard = ({item, height, aspect, imageUrl, progress, t}) => {
+const FocusRing = ({t}) => (
+	<div
+		style={{
+			position: 'absolute',
+			top: -3.5,
+			bottom: -3.5,
+			left: -3.5,
+			right: -3.5,
+			borderRadius: t.cardRadiusRing,
+			border: `3px solid ${t.focusBorderColor}`
+		}}
+	/>
+);
+
+const RowCard = ({item, height, aspect, imageUrl, progress, focused = false, t}) => {
 	const width = height * aspect;
 	return (
 		<div style={{width, flexShrink: 0, marginRight: 12}}>
-			<div style={{position: 'relative', width, height, borderRadius: t.cardRadius, overflow: 'hidden'}}>
-				<Artwork url={imageUrl || item.posterUrl} t={t} />
-				{progress != null && (
-					<div style={{position: 'absolute', left: 6, right: 6, bottom: 6, height: 6, borderRadius: 3, overflow: 'hidden', display: 'flex'}}>
-						<div style={{width: `${Math.round(progress * 100)}%`, backgroundColor: t.accent}} />
-						<div style={{flex: '1 1 auto', backgroundColor: t.scrimA(0.54)}} />
-					</div>
-				)}
+			<div style={{position: 'relative', width, height}}>
+				<div style={{...ABS_FILL, borderRadius: t.cardRadius, overflow: 'hidden'}}>
+					<Artwork url={imageUrl || item.posterUrl} t={t} />
+					{progress != null && (
+						<div style={{position: 'absolute', left: 6, right: 6, bottom: 6, height: 6, borderRadius: 3, overflow: 'hidden', display: 'flex'}}>
+							<div style={{width: `${Math.round(progress * 100)}%`, backgroundColor: t.accent}} />
+							<div style={{flex: '1 1 auto', backgroundColor: t.scrimA(0.54)}} />
+						</div>
+					)}
+				</div>
+				{focused && <FocusRing t={t} />}
 			</div>
 			<div style={{marginTop: 6, fontSize: 13, fontWeight: 700, color: t.onSurface, textShadow: TEXT_SHADOW, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis'}}>
 				{item.title}
@@ -469,17 +487,7 @@ const FocusedRowCard = ({item, posterHeight, t}) => {
 				<div style={{position: 'absolute', top: 0, left: 0, width, height: posterHeight, borderRadius: t.cardRadius, overflow: 'hidden'}}>
 					<Artwork url={item.backdropUrl || item.posterUrl} t={t} />
 				</div>
-				<div
-					style={{
-						position: 'absolute',
-						top: -3.5,
-						bottom: -3.5,
-						left: -3.5,
-						right: -3.5,
-						borderRadius: t.cardRadiusRing,
-						border: `3px solid ${t.focusBorderColor}`
-					}}
-				/>
+				<FocusRing t={t} />
 			</div>
 			<div style={{marginTop: 6, fontSize: 13, fontWeight: 700, color: t.onSurface, textShadow: TEXT_SHADOW, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis'}}>
 				{item.title}
@@ -503,20 +511,36 @@ const FocusedRowCard = ({item, posterHeight, t}) => {
 	);
 };
 
-const HomeRow = ({title, items, t, modern, thumbs = false, offset = 0, withFocus = false, posterHeight, thumbHeight}) => {
+// A modern card shows an album or a song square, the way Home does.
+const SQUARE_ITEM_TYPES = ['MusicAlbum', 'Audio'];
+
+// A focused modern card only grows when it has something to show underneath, as on Home, where a
+// film, show or episode always does since it falls back to saying it has no description.
+const growsOnFocus = (item) => Boolean(item.year || item.genres.length || item.runtimeMinutes || item.communityRating) ||
+	['Movie', 'Series', 'Episode'].indexOf(item.type) >= 0;
+
+// The sample rows cycle the wizard's items through eight cards. A row of Home's own ([real])
+// draws the cards it has, square where Home draws them square: every card of a [square] Classic
+// row, or an album's on a Modern one.
+const HomeRow = ({title, items, t, modern, thumbs = false, offset = 0, withFocus = false, posterHeight, thumbHeight, real = false, square = false}) => {
 	const cards = [];
-	for (let i = 0; i < 8; i++) {
-		if (withFocus && i === 0) {
-			cards.push(<FocusedRowCard key={i} item={itemAt(items, offset)} posterHeight={posterHeight} t={t} />);
+	const count = real ? Math.min(8, items.length) : 8;
+	for (let i = 0; i < count; i++) {
+		const item = real ? items[i] : itemAt(items, i + offset);
+		const isSquare = modern ? SQUARE_ITEM_TYPES.indexOf(item.type) >= 0 : square;
+		const focused = withFocus && i === 0;
+		if (focused && modern && !isSquare && growsOnFocus(item)) {
+			cards.push(<FocusedRowCard key={i} item={item} posterHeight={posterHeight} t={t} />);
 		} else {
 			cards.push(
 				<RowCard
 					key={i}
-					item={itemAt(items, i + offset)}
+					item={item}
 					height={thumbs ? thumbHeight : posterHeight}
-					aspect={thumbs ? 16 / 9 : 2 / 3}
-					imageUrl={thumbs ? itemAt(items, i + offset).backdropUrl : null}
-					progress={thumbs && i === 0 ? 0.35 : (thumbs && i === 1 ? 0.7 : null)}
+					aspect={thumbs ? 16 / 9 : (isSquare ? 1 : 2 / 3)}
+					imageUrl={thumbs ? item.backdropUrl : null}
+					progress={thumbs && !real && i === 0 ? 0.35 : (thumbs && !real && i === 1 ? 0.7 : null)}
+					focused={focused}
 					t={t}
 				/>
 			);
@@ -537,7 +561,9 @@ const HomeRow = ({title, items, t, modern, thumbs = false, offset = 0, withFocus
 // Card Size as a scale of Default, the size the rows are drawn at otherwise.
 const POSTER_SIZE_SCALE = {small: 0.8, default: 1, large: 1.2, xlarge: 1.4, grandparents: 2};
 
-const HomeRowsColumn = ({items, t, modern, focusFirst = false, rowGapOverride}) => {
+// [rows] are Home's own rows, each {id, title, items, square, thumbs}, drawn in place of the
+// sample ones with the first of them leading.
+const HomeRowsColumn = ({items, rows, t, modern, focusFirst = false, rowGapOverride}) => {
 	const {settings} = useSettings();
 	const sizeScale = POSTER_SIZE_SCALE[settings.homeRowsPosterSize] || 1;
 	const posterHeight = (modern ? 240 : 150) * ROW_SCALE * sizeScale;
@@ -545,7 +571,7 @@ const HomeRowsColumn = ({items, t, modern, focusFirst = false, rowGapOverride}) 
 	// Expanded Rows gives each row a screen of its own, so the next one starts below the frame.
 	let rowGap = rowGapOverride != null ? rowGapOverride : (modern ? 60 : 18);
 	if (settings.fullScreenRows === true) rowGap = DESIGN_H;
-	const first = items[0];
+	const first = rows ? rows[0].items[0] : items[0];
 	return (
 		<div style={{paddingLeft: ROW_LEFT_INSET - 16, paddingTop: 16}}>
 			{!modern && (
@@ -571,11 +597,31 @@ const HomeRowsColumn = ({items, t, modern, focusFirst = false, rowGapOverride}) 
 					</div>
 				</div>
 			)}
-			<HomeRow title={$L('Continue Watching')} items={items} t={t} modern={modern} thumbs={!modern} withFocus={focusFirst} posterHeight={posterHeight} thumbHeight={thumbHeight} />
-			<div style={{height: rowGap}} />
-			<HomeRow title={$L('Recently Added')} items={items} t={t} modern={modern} offset={3} posterHeight={posterHeight} thumbHeight={thumbHeight} />
-			<div style={{height: rowGap}} />
-			<HomeRow title={$L('Next Up')} items={items} t={t} modern={modern} thumbs={!modern} offset={6} posterHeight={posterHeight} thumbHeight={thumbHeight} />
+			{rows ? rows.map((row, index) => (
+				<Fragment key={row.id}>
+					{index > 0 && <div style={{height: rowGap}} />}
+					<HomeRow
+						real
+						title={row.title}
+						items={row.items}
+						square={row.square}
+						thumbs={!modern && row.thumbs}
+						t={t}
+						modern={modern}
+						withFocus={focusFirst && index === 0}
+						posterHeight={posterHeight}
+						thumbHeight={thumbHeight}
+					/>
+				</Fragment>
+			)) : (
+				<>
+					<HomeRow title={$L('Continue Watching')} items={items} t={t} modern={modern} thumbs={!modern} withFocus={focusFirst} posterHeight={posterHeight} thumbHeight={thumbHeight} />
+					<div style={{height: rowGap}} />
+					<HomeRow title={$L('Recently Added')} items={items} t={t} modern={modern} offset={3} posterHeight={posterHeight} thumbHeight={thumbHeight} />
+					<div style={{height: rowGap}} />
+					<HomeRow title={$L('Next Up')} items={items} t={t} modern={modern} thumbs={!modern} offset={6} posterHeight={posterHeight} thumbHeight={thumbHeight} />
+				</>
+			)}
 		</div>
 	);
 };
@@ -1001,9 +1047,9 @@ const useNavButtons = (rail, hasLiveTv) => {
 	});
 };
 
-const NavbarRows = ({items, t, topInset = 12, modern = true, focusFirst = false}) => (
+const NavbarRows = ({items, rows, t, topInset = 12, modern = true, focusFirst = false}) => (
 	<div style={{flex: '1 1 auto', overflow: 'hidden', paddingTop: topInset}}>
-		<HomeRowsColumn items={items} t={t} modern={modern} focusFirst={focusFirst} rowGapOverride={24} />
+		<HomeRowsColumn items={items} rows={rows} t={t} modern={modern} focusFirst={focusFirst} rowGapOverride={24} />
 	</div>
 );
 
@@ -1012,7 +1058,7 @@ const NavbarRows = ({items, t, topInset = 12, modern = true, focusFirst = false}
 // right, all floating straight over the content. Everything is drawn at half the real
 // bar's size, since the design screen is half of 1920, and the pill stops at the real one's
 // 1400px cap and clips where the real one scrolls.
-const TopNavbarPreview = ({items, t, userName, modern, focusFirst, hasLiveTv}) => {
+const TopNavbarPreview = ({items, rows, t, userName, modern, focusFirst, hasLiveTv}) => {
 	const {settings} = useSettings();
 	const buttons = useNavButtons(false, hasLiveTv);
 	const expanded = !!settings.navbarAlwaysExpanded;
@@ -1041,7 +1087,7 @@ const TopNavbarPreview = ({items, t, userName, modern, focusFirst, hasLiveTv}) =
 					</div>
 				)}
 			</div>
-			{items && <NavbarRows items={items} t={t} modern={modern} focusFirst={focusFirst} />}
+			{items && <NavbarRows items={items} rows={rows} t={t} modern={modern} focusFirst={focusFirst} />}
 		</div>
 	);
 };
@@ -1053,14 +1099,14 @@ const TopNavbarPreview = ({items, t, userName, modern, focusFirst, hasLiveTv}) =
 // buttons center between them, and a list too long to fit runs off the bottom
 // rather than over the user. The clock only shows while the rail is open, though
 // its room is kept either way.
-const LeftNavbarPreview = ({items, t, userName, modern, open = false, focusFirst, hasLiveTv}) => {
+const LeftNavbarPreview = ({items, rows, t, userName, modern, open = false, focusFirst, hasLiveTv}) => {
 	const {settings} = useSettings();
 	const buttons = useNavButtons(true, hasLiveTv);
 	const clock = settings.showClock === false ? null : formatClockTime(new Date(), settings.clockDisplay);
 	return (
 		<div style={{position: 'relative', width: '100%', height: '100%', display: 'flex', overflow: 'hidden'}}>
 			<div style={{width: 72, flexShrink: 0}} />
-			{items && <NavbarRows items={items} t={t} topInset={24} modern={modern} focusFirst={focusFirst} />}
+			{items && <NavbarRows items={items} rows={rows} t={t} topInset={24} modern={modern} focusFirst={focusFirst} />}
 			<div
 				style={{
 					position: 'absolute',
@@ -2188,8 +2234,10 @@ export const DetailStylePreview = ({variant}) => {
 // card's backdrop behind them where Home Screen Backdrop puts it, when Home would draw one. Modern rows
 // hold their first card in focus with its ratings and description under it, the way Home
 // looks once a row has focus. [railOpen] opens the left rail, and [over] is drawn over all of
-// it at the window's size, the way the seasonal effect sits over the real Home.
-export const SettingsHomePreview = ({railOpen = false, hasLiveTv = false, over = null}) => {
+// it at the window's size, the way the seasonal effect sits over the real Home. [rows] draws
+// Home's own rows instead of the samples, with the D-pad on the first card of the first one in
+// either style, and the backdrop from that card when it has one.
+export const SettingsHomePreview = ({railOpen = false, hasLiveTv = false, over = null, rows = null}) => {
 	const t = usePreviewPalette();
 	const {user} = useAuth();
 	const {settings} = useSettings();
@@ -2200,18 +2248,19 @@ export const SettingsHomePreview = ({railOpen = false, hasLiveTv = false, over =
 	const fed = (!modern || settings.featuredBarStyle === 'aya') &&
 		!(typeof document !== 'undefined' && document.documentElement.classList.contains('legacy'));
 	const blur = settings.backdropBlurHome;
+	const focusFirst = modern || Boolean(rows);
 	const render = useCallback((items) => (
 		<>
-			<BackdropLayer targetUrl={backdrop === 'off' || !fed ? '' : items[0].backdropUrl} blurAmount={blur} placement={backdrop} />
+			<BackdropLayer targetUrl={backdrop === 'off' || !fed ? '' : (rows && rows[0].items[0].backdropUrl) || (items[0] ? items[0].backdropUrl : '')} blurAmount={blur} placement={backdrop} />
 			<div style={{position: 'relative', height: '100%'}}>
 				{position === 'left'
-					? <LeftNavbarPreview items={items} t={t} userName={user?.Name} modern={modern} open={railOpen} focusFirst={modern} hasLiveTv={hasLiveTv} />
-					: <TopNavbarPreview items={items} t={t} userName={user?.Name} modern={modern} focusFirst={modern} hasLiveTv={hasLiveTv} />}
+					? <LeftNavbarPreview items={items} rows={rows} t={t} userName={user?.Name} modern={modern} open={railOpen} focusFirst={focusFirst} hasLiveTv={hasLiveTv} />
+					: <TopNavbarPreview items={items} rows={rows} t={t} userName={user?.Name} modern={modern} focusFirst={focusFirst} hasLiveTv={hasLiveTv} />}
 			</div>
 			{over && <WindowLayer>{over}</WindowLayer>}
 		</>
-	), [position, modern, railOpen, t, user?.Name, hasLiveTv, over, backdrop, blur, fed]);
-	return <LivePreview render={render} fallback={<FallbackNavbar position={position} t={t} />} />;
+	), [position, modern, railOpen, t, user?.Name, hasLiveTv, over, backdrop, blur, fed, rows, focusFirst]);
+	return <LivePreview render={render} fallback={<FallbackNavbar position={position} t={t} />} ownRows={Boolean(rows)} />;
 };
 
 // A layer laid out at the window's size and scaled onto the design screen, the way the player's
