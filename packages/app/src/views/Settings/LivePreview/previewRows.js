@@ -48,6 +48,11 @@ export const LIBRARY_KEYS = [
 	'libraryCardTitles', 'hideBackdropsInLibraries', 'useDetailedSubHeadings'
 ];
 
+// The Row Options settings for the audio and Collections rows, which draw Home with the D-pad on
+// the first row they change.
+export const AUDIO_ROW_OPTION_KEYS = ['displayAudioRows', 'audioRowsSortBy', 'audioRowsSortOrder'];
+export const COLLECTIONS_ROW_OPTION_KEYS = ['displayCollectionsRows', 'collectionsRowSortBy', 'collectionsRowSortOrder', 'collectionsRowShowEpisodes'];
+
 // The screens and sections whose every tile keeps the stage on one look, with the scene it's
 // drawn on. A tile there that doesn't change the look still keeps it up and says it isn't shown.
 const STAGES = {
@@ -80,6 +85,7 @@ export const SCENE_BY_KEY = {
 	homeBackdropStyle: 'home',
 	...sceneFor(MEDIA_BAR_KEYS, 'home'),
 	...sceneFor(FOCUSED_CARD_KEYS, 'home'),
+	...sceneFor([...AUDIO_ROW_OPTION_KEYS, ...COLLECTIONS_ROW_OPTION_KEYS], 'home'),
 	detailScreenStyle: 'details',
 	personalRatingStyle: 'details',
 	detailsBackdropEnabled: 'details',
