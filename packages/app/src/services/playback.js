@@ -1654,11 +1654,11 @@ class PlaybackHealthMonitor {
 		this.isPaused = false;
 	}
 
+	// Coming out of a pause starts the wait for progress again too, or a pause of more than the stall
+	// limit reads as a stall the moment play is pressed, before the first time update can land.
 	setPaused(paused) {
 		this.isPaused = paused;
-		if (paused) {
-			this.lastProgressTime = Date.now();
-		}
+		this.lastProgressTime = Date.now();
 	}
 
 	recordBuffer() {
