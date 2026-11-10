@@ -1,4 +1,4 @@
-import {buildLoaderContext, loadDeferredSections, loadSinceYouWatched, withStudioLogos} from './browseRowLoaders';
+import {buildLoaderContext, loadDeferredSections, loadGenres, loadSinceYouWatched, withStudioLogos} from './browseRowLoaders';
 import {makePickedRow} from '../../utils/pickedRows';
 import {loadSinceYouWatchedRows} from '../../services/homeRecommendations';
 
@@ -85,5 +85,28 @@ describe('withStudioLogos', () => {
 	test('hands the studios back untouched when the plugin has no list', () => {
 		const studios = [{Id: 'a', Name: 'HBO'}];
 		expect(withStudioLogos(studios, null, SERVER, 'tok')).toBe(studios);
+	});
+});
+
+describe('loadGenres', () => {
+	const genres = ['Action', 'War', 'Drama'].map((Name) => ({Id: Name, Name}));
+	const loadWith = async (genresRowSortOrder) => {
+		const ctx = buildLoaderContext({
+			api: {getGenres: jest.fn(async () => ({Items: genres})), getItems: jest.fn(async () => ({Items: []}))},
+			serverUrl: SERVER,
+			settings: {displayGenresRows: true, genresRowSortBy: 'SortName', genresRowSortOrder},
+			homeRowsConfig: [{id: 'genres', enabled: true}],
+			eligibleLibraries: [],
+			appendRows: jest.fn()
+		});
+		await loadGenres(ctx);
+		expect(ctx.api.getGenres).toHaveBeenCalledWith(undefined, 'Movie,Series', 'SortName', genresRowSortOrder === 'Descending' ? 'Descending' : 'Ascending');
+		return ctx.appendRows.mock.calls[0][0][0].items.map((genre) => genre.Name);
+	};
+
+	test('keeps a name sort in the chosen order', async () => {
+		expect(await loadWith('Descending')).toEqual(['War', 'Drama', 'Action']);
+		expect(await loadWith('Ascending')).toEqual(['Action', 'Drama', 'War']);
+		expect(await loadWith('auto')).toEqual(['Action', 'Drama', 'War']);
 	});
 });
