@@ -1755,9 +1755,8 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 						shouldAbort: () => !stillCurrent()
 					});
 				} catch (prepareErr) {
-					// AVPlay refusing a direct stream at prepare rejects here and never
-					// reaches onerror, so the transcode fallback in handleError never ran
-					// and a file the server could convert just showed an error.
+					// AVPlay refusing a stream at prepare rejects here without reaching
+					// onerror, so handleError's fallback never sees it.
 					if (!stillCurrent() || isLiveTV || isPreroll(item) ||
 							result.playMethod === playback.PlayMethod.Transcode) {
 						throw prepareErr;
@@ -1782,9 +1781,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 						enableDirectPlay: false,
 						enableDirectStream: false,
 						enableTranscoding: true,
-						forceDirectPlay: false,
-						// a remux copies the same video and audio the TV just refused
-						allowStreamCopy: false
+						forceDirectPlay: false
 					});
 					if (!stillCurrent()) return;
 					if (!transcodeResult?.url) throw prepareErr;
@@ -2201,7 +2198,6 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 					enableDirectPlay: false,
 					enableDirectStream: false,
 					enableTranscoding: true,
-					allowStreamCopy: false,
 					mediaSourceId: mediaSourceId,
 					item: item,
 					stereoUpmixEnabled: settings.stereoUpmixEnabled
