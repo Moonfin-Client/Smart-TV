@@ -557,7 +557,6 @@ export const AuthProvider = ({children}) => {
 			serverType: jellyfinApi.getServerType(), url: jellyfinApi.getServerUrl(), accessToken: jellyfinApi.getApiKey(),
 			userId: jellyfinApi.getUserId()
 		};
-		// Signing out leaves the server saved, as Moonfin Core does, so it can be signed in to again from the list.
 		if (activeServerInfo) {
 			// Signing out of a Silo profile signs its whole account out: every profile of the household goes, whichever
 			// one is in use. They're the entries of the same account, or failing a saved account, of the same token.
@@ -591,7 +590,7 @@ export const AuthProvider = ({children}) => {
 		setServerUrl(null);
 		setServerName(null);
 		setAccessToken(null);
-		// The servers stay saved, so the list is read back rather than emptied.
+		// Signed-out servers stay saved, so the sign-in list still shows them.
 		await loadServers();
 		setActiveServerInfo(null);
 		setIsAuthenticated(false);
@@ -734,7 +733,8 @@ export const AuthProvider = ({children}) => {
 	const serverCount = useMemo(() => uniqueServers.length, [uniqueServers]);
 	const totalUserCount = useMemo(() => servers.length, [servers]);
 	const hasMultipleUsers = useMemo(() => servers.length > 1, [servers]);
-	const hasMultipleServers = useMemo(() => uniqueServers.length > 1, [uniqueServers]);
+	// A signed-out server has nobody to fetch as, so it doesn't count.
+	const hasMultipleServers = useMemo(() => uniqueServers.filter((entry) => entry.userCount > 0).length > 1, [uniqueServers]);
 
 	const contextValue = useMemo(() => ({
 		// Auth state

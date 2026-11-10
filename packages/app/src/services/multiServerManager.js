@@ -344,7 +344,6 @@ export const removeServer = async (serverId, userId, {keepServer = false} = {}) 
 	if (userId && servers[serverId].users[userId]) {
 		delete servers[serverId].users[userId];
 
-		// If no users left, remove the entire server, unless only the user is signing out
 		const remainingUsers = Object.keys(servers[serverId].users);
 		if (remainingUsers.length === 0 && !keepServer) {
 			delete servers[serverId];
