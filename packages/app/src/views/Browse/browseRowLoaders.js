@@ -215,6 +215,15 @@ export const readCollections = (api, sortBy, sortOrder, limit) => scopedGetItems
 export const readMusicArtists = (api, sortBy, sortOrder, limit) => scopedGetItems(api, {IncludeItemTypes: 'MusicArtist', Limit: limit, SortBy: sortBy, SortOrder: sortOrder, Fields: HOME_ROW_ITEM_FIELDS}, {via: (params) => api.getAlbumArtists(params)});
 export const readMusicAlbums = (api, sortBy, sortOrder, limit) => scopedGetItems(api, {IncludeItemTypes: 'MusicAlbum', Recursive: true, SortBy: sortBy, SortOrder: sortOrder, Limit: limit, Fields: HOME_ROW_ITEM_FIELDS});
 export const audioPlaylistsOf = (result) => (result?.Items || []).filter((item) => item.MediaType === 'Audio');
+export const readFavorites = (api, includeItemTypes, sortBy, sortOrder, limit) => scopedGetItems(api, {
+	IncludeItemTypes: includeItemTypes,
+	Filters: 'IsFavorite',
+	SortBy: sortBy,
+	SortOrder: sortOrder,
+	Recursive: true,
+	Limit: limit,
+	Fields: HOME_ROW_ITEM_FIELDS
+});
 
 const loadCollections = async (ctx) => {
 	const {api, appendRows, collectionsSortBy, collectionsSortOrder, settings} = ctx;
@@ -270,18 +279,10 @@ const loadFavorites = async (ctx) => {
 	const {api, appendRows, favoriteSortBy, favoriteSortOrder, settings} = ctx;
 	if (!settings.displayFavoritesRows) return;
 	try {
-		const readFavorites = (rowConfig) => (limit) => scopedGetItems(api, {
-			IncludeItemTypes: rowConfig.includeItemTypes,
-			Filters: 'IsFavorite',
-			SortBy: favoriteSortBy,
-			SortOrder: favoriteSortOrder,
-			Recursive: true,
-			Limit: limit,
-			Fields: HOME_ROW_ITEM_FIELDS
-		});
+		const readRow = (rowConfig) => (limit) => readFavorites(api, rowConfig.includeItemTypes, favoriteSortBy, favoriteSortOrder, limit);
 		const favoriteResults = await Promise.all(
 			FAVORITE_ROW_CONFIGS.map((rowConfig) =>
-				readFavorites(rowConfig)(20)
+				readRow(rowConfig)(20)
 				.then((result) => ({rowConfig, result}))
 				.catch(() => null)
 			)
@@ -295,7 +296,7 @@ const loadFavorites = async (ctx) => {
 				title: $L(favoriteResult.rowConfig.title),
 				items,
 				type: favoriteResult.rowConfig.type
-			}, favoriteResult.result, 20, readFavorites(favoriteResult.rowConfig)));
+			}, favoriteResult.result, 20, readRow(favoriteResult.rowConfig)));
 		});
 		appendRows(rows);
 	} catch (e) {

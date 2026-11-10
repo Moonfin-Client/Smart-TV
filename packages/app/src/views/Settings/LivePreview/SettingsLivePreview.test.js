@@ -745,3 +745,102 @@ describe('the audio and Collections Row Options', () => {
 	});
 });
 
+describe('the Favorites Row Options', () => {
+	// Each test talks to a server of its own, so nothing one loads is drawn in the next.
+	let server = 0;
+	const dune = {Id: 'f1', Name: 'Dune', Type: 'Movie'};
+	const arrival = {Id: 'f2', Name: 'Arrival', Type: 'Movie'};
+	const severance = {Id: 's1', Name: 'Severance', Type: 'Series'};
+	const favoritesOn = (extra = {}) => ({
+		displayFavoritesRows: true,
+		homeRowsStyle: 'v1',
+		mergeContinueWatchingNextUp: false,
+		homeRows: [
+			{id: 'favoriteMovies', name: 'Favorite Movies', enabled: true, order: 0},
+			{id: 'favoriteSeries', name: 'Favorite Series', enabled: true, order: 1},
+			{id: 'resume', name: 'Continue Watching', enabled: true, order: 2}
+		],
+		...extra
+	});
+	const notice = () => find('.notice');
+	const favoritesOf = (byType) => async (params) => ({Items: byType[params.IncludeItemTypes] || []});
+
+	beforeEach(() => {
+		server += 1;
+		mockAuth = {...mockAuth, serverUrl: `http://favorites${server}`, api: {getItems: jest.fn(favoritesOf({Movie: [dune, arrival], Series: [severance]}))}};
+		memoryCache.rowData = [{id: 'resume', title: 'Continue Watching', items: [{Id: 'r1', Name: 'Resumed Film', Type: 'Movie'}], type: 'landscape'}];
+	});
+
+	afterEach(() => {
+		memoryCache.rowData = null;
+	});
+
+	test('with the Favorites rows off in Rows, the notice and the inspector say where to turn one on', () => {
+		draw(favoritesOn({homeRows: [{id: 'favoriteMovies', name: 'Favorite Movies', enabled: false, order: 0}]}), 'setting-favoritesRowSortBy', 'home');
+		expect(notice().textContent).toBe('The Favorites rows are all turned off. To show one, go to Rows, open Favorites under Disabled, and turn it on.');
+		expect(screen.getByText('Turn on a row in Rows, under Disabled')).toBeTruthy();
+		expect(mockAuth.api.getItems).not.toHaveBeenCalled();
+	});
+
+	test('with the Display switch off too, the notice and the inspector ask for the switch first', () => {
+		draw(favoritesOn({displayFavoritesRows: false, homeRows: []}), 'setting-displayFavoritesRows', 'home');
+		expect(notice().textContent).toBe('To see a Favorites row on Home, first turn on Display Favorites Rows. Then go to Rows, open Favorites under Disabled, and turn one on.');
+		expect(screen.getByText('Turn on Display Favorites Rows, then turn on a row in Rows')).toBeTruthy();
+	});
+
+	test('each row is asked for the way Home asks, only the favorites of its own type', async () => {
+		draw(favoritesOn(), 'setting-favoritesRowSortBy', 'home');
+		await screen.findByText('Favorite Movies');
+		expect(mockAuth.api.getItems).toHaveBeenCalledWith(expect.objectContaining({IncludeItemTypes: 'Movie', Filters: 'IsFavorite', Recursive: true, SortBy: expect.stringMatching(/^SortName/)}));
+		expect(mockAuth.api.getItems).toHaveBeenCalledWith(expect.objectContaining({IncludeItemTypes: 'Series', Filters: 'IsFavorite'}));
+		// Only the rows on in Rows are asked for.
+		expect(mockAuth.api.getItems).toHaveBeenCalledTimes(2);
+		const titles = Array.from(document.querySelectorAll('.frame div')).map((node) => node.textContent);
+		expect(titles.indexOf('Favorite Movies')).toBeLessThan(titles.indexOf('Favorite Series'));
+		expect(titles.indexOf('Favorite Series')).toBeLessThan(titles.indexOf('Continue Watching'));
+	});
+
+	test('an empty Favorites row is skipped, so the first one with something in it takes focus', async () => {
+		mockAuth.api.getItems.mockImplementation(favoritesOf({Series: [severance]}));
+		draw(favoritesOn(), 'setting-favoritesRowSortBy', 'home');
+		await screen.findByText('Favorite Series');
+		expect(screen.queryByText('Favorite Movies')).toBeNull();
+		// Classic's info area reads the focused card.
+		expect(screen.getAllByText('Severance').length).toBe(2);
+	});
+
+	test('with a row above the Favorites rows in Home\'s order, the preview starts at the Favorites row', async () => {
+		draw(favoritesOn({homeRows: [
+			{id: 'resume', name: 'Continue Watching', enabled: true, order: 0},
+			{id: 'favoriteMovies', name: 'Favorite Movies', enabled: true, order: 1}
+		]}), 'setting-favoritesRowSortBy', 'home');
+		await screen.findByText('Favorite Movies');
+		expect(screen.queryByText('Continue Watching')).toBeNull();
+		expect(screen.queryByText('Resumed Film')).toBeNull();
+		// Classic's info area reads the focused card.
+		expect(screen.getAllByText('Dune').length).toBe(2);
+	});
+
+	test('a sort being tried loads the rows in that order', async () => {
+		mockAuth.api.getItems.mockImplementation(async (params) => ({Items: params.IncludeItemTypes !== 'Movie' ? []
+			: params.SortBy.indexOf('DateCreated') === 0 ? [arrival, dune] : [dune, arrival]}));
+		const {rerender} = draw(favoritesOn(), 'setting-favoritesRowSortBy', 'home');
+		await waitFor(() => expect(screen.getAllByText('Dune').length).toBe(2));
+		const row = describeRow('setting-favoritesRowSortBy', mockSettings);
+		rerender(<SettingsLivePreview scene='home' row={row} trying={{key: 'favoritesRowSortBy', value: 'DateCreated', index: 1}} onPickScene={() => {}} onLeaveChips={() => {}} />);
+		await waitFor(() => expect(screen.getAllByText('Arrival').length).toBe(2));
+		expect(mockAuth.api.getItems).toHaveBeenCalledWith(expect.objectContaining({IncludeItemTypes: 'Movie', SortBy: expect.stringMatching(/^DateCreated/)}));
+	});
+
+	test('with nothing favorited, a notice says Home leaves the rows out', async () => {
+		mockAuth.api.getItems.mockImplementation(async () => ({Items: []}));
+		draw(favoritesOn(), 'setting-favoritesRowSortBy', 'home');
+		await waitFor(() => expect(notice().textContent).toBe('There are no favorites to show, so Home leaves these rows out.'));
+	});
+
+	test('Kids Mode says it keeps the rows off Home', () => {
+		draw(favoritesOn({kidsModeEnabled: true}), 'setting-favoritesRowSortOrder', 'home');
+		expect(notice().textContent).toBe("Kids Mode keeps these rows off Home, so these settings don't change it.");
+		expect(mockAuth.api.getItems).not.toHaveBeenCalled();
+	});
+});

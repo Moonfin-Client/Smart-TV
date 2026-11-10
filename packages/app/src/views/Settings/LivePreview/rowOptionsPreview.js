@@ -1,5 +1,5 @@
-// The Home preview for the audio and Collections Row Options. It draws Home the way it looks
-// with the D-pad on the first row the setting changes: that row on top with its first card
+// The Home preview for the audio, Collections and Favorites Row Options. It draws Home the way it
+// looks with the D-pad on the first row the setting changes: that row on top with its first card
 // focused, loaded in the sort being looked at, and Home's own rows below it in Home's order.
 
 import {useEffect, useMemo, useState} from 'react';
@@ -10,11 +10,13 @@ import useParentalFilter from '../../../hooks/useParentalFilter';
 import {isKidsMode, kidsModeRows} from '../../../utils/kidsMode';
 import {isPickedRow, isPickedRowShown} from '../../../utils/pickedRows';
 import {memoryCache} from '../../Browse/browseCache';
-import {audioPlaylistsOf, buildLoaderContext, readCollections, readMusicAlbums, readMusicArtists} from '../../Browse/browseRowLoaders';
+import {FAVORITE_ROW_IDS} from '../../../utils/homeRowGates';
+import {FAVORITE_ROW_CONFIGS} from '../../Browse/browseFilters';
+import {audioPlaylistsOf, buildLoaderContext, readCollections, readFavorites, readMusicAlbums, readMusicArtists} from '../../Browse/browseRowLoaders';
 import {buildBrowseRows} from '../../Browse/buildBrowseRows';
 import {classicShape, rowImageType} from '../../Browse/rowPeek';
 import {adaptItem} from '../../SetupWizard/setupPreviewData';
-import {AUDIO_ROW_OPTION_KEYS, COLLECTIONS_ROW_OPTION_KEYS} from './previewRows';
+import {AUDIO_ROW_OPTION_KEYS, COLLECTIONS_ROW_OPTION_KEYS, FAVORITES_ROW_OPTION_KEYS} from './previewRows';
 
 // Each group of rows its Row Options settings change, with the Display switch over the group.
 // Continue Listening isn't sorted by the audio settings, so it isn't one of them.
@@ -28,12 +30,29 @@ const GROUPS = {
 		display: 'displayCollectionsRows',
 		rowIds: ['collections'],
 		keys: COLLECTIONS_ROW_OPTION_KEYS
+	},
+	favorites: {
+		display: 'displayFavoritesRows',
+		rowIds: FAVORITE_ROW_IDS,
+		keys: FAVORITES_ROW_OPTION_KEYS
 	}
 };
 
 const groupOf = (key) => Object.keys(GROUPS).find((id) => GROUPS[id].keys.indexOf(key) >= 0) || null;
 
-const displaySwitchName = (group) => (group === 'audio' ? $L('Display Audio Rows') : $L('Display Collections Rows'));
+const DISPLAY_SWITCH_NAMES = {
+	audio: () => $L('Display Audio Rows'),
+	collections: () => $L('Display Collections Rows'),
+	favorites: () => $L('Display Favorites Rows')
+};
+const displaySwitchName = (group) => DISPLAY_SWITCH_NAMES[group]();
+
+// The heading the Rows screen lists each group's disabled rows under.
+const ROWS_GROUP_NAMES = {
+	audio: () => $L('General'),
+	collections: () => $L('Collections'),
+	favorites: () => $L('Favorites')
+};
 
 // Home's rows in Home's order, without the ones Kids Mode keeps off.
 const homeRowsOf = (settings) => kidsModeRows([...(settings.homeRows || [])].sort((a, b) => a.order - b.order), isKidsMode(settings));
@@ -79,6 +98,10 @@ const offNotice = (group, reason, settings) => {
 		text = on
 			? $L('Music Artists, Music Albums and Music Playlists are all turned off. To show one, go to Rows, open {group} under {disabled}, and turn it on.')
 			: $L('To see Music Artists, Music Albums or Music Playlists on Home, first turn on {setting}. Then go to Rows, open {group} under {disabled}, and turn one on.');
+	} else if (group === 'favorites') {
+		text = on
+			? $L('The Favorites rows are all turned off. To show one, go to Rows, open {group} under {disabled}, and turn it on.')
+			: $L('To see a Favorites row on Home, first turn on {setting}. Then go to Rows, open {group} under {disabled}, and turn one on.');
 	} else {
 		text = on
 			? $L('The Collections row is turned off. To show it, go to Rows, open {group} under {disabled}, and turn it on.')
@@ -86,15 +109,19 @@ const offNotice = (group, reason, settings) => {
 	}
 	return text
 		.replace('{setting}', displaySwitchName(group))
-		.replace('{group}', group === 'audio' ? $L('General') : $L('Collections'))
+		.replace('{group}', ROWS_GROUP_NAMES[group]())
 		.replace('{disabled}', $L('Disabled'));
 };
 
-const ROW_TITLES = {
-	audioartists: () => $L('Music Artists'),
-	audioalbums: () => $L('Music Albums'),
-	audioplaylists: () => $L('Music Playlists'),
-	collections: () => $L('Collections')
+const FAVORITE_ROWS = Object.fromEntries(FAVORITE_ROW_CONFIGS.map((row) => [row.id, row]));
+
+// Each row's title and card type, the same as Home gives it.
+const ROWS = {
+	audioartists: {title: () => $L('Music Artists'), type: 'square'},
+	audioalbums: {title: () => $L('Music Albums'), type: 'square'},
+	audioplaylists: {title: () => $L('Music Playlists'), type: 'square'},
+	collections: {title: () => $L('Collections'), type: 'portrait'},
+	...Object.fromEntries(FAVORITE_ROW_CONFIGS.map((row) => [row.id, {title: () => $L(row.title), type: row.type}]))
 };
 
 const ROW_LIMIT = 20;
@@ -102,15 +129,16 @@ const READERS = {audioartists: readMusicArtists, audioalbums: readMusicAlbums, c
 
 const readRow = async (api, rowId, sortBy, sortOrder) => {
 	if (rowId === 'audioplaylists') return audioPlaylistsOf(await api.getPlaylists(sortBy, sortOrder));
+	if (FAVORITE_ROWS[rowId]) return (await readFavorites(api, FAVORITE_ROWS[rowId].includeItemTypes, sortBy, sortOrder, ROW_LIMIT))?.Items || [];
 	return (await READERS[rowId](api, sortBy, sortOrder, ROW_LIMIT))?.Items || [];
 };
 
 // The sort each group's rows load with, worked out the way Home works it out.
 const sortFor = (group, settings) => {
 	const ctx = buildLoaderContext({settings, homeRowsConfig: []});
-	return group === 'audio'
-		? {sortBy: ctx.audioRowsSortBy, sortOrder: ctx.audioRowsSortOrder}
-		: {sortBy: ctx.collectionsSortBy, sortOrder: ctx.collectionsSortOrder};
+	if (group === 'audio') return {sortBy: ctx.audioRowsSortBy, sortOrder: ctx.audioRowsSortOrder};
+	if (group === 'favorites') return {sortBy: ctx.favoriteSortBy, sortOrder: ctx.favoriteSortOrder};
+	return {sortBy: ctx.collectionsSortBy, sortOrder: ctx.collectionsSortOrder};
 };
 
 // What came back for each row and sort, kept for a few minutes so scrubbing back to a sort
@@ -180,6 +208,13 @@ const previewRow = (row, settings) => {
 	};
 };
 
+// What the preview says when a group's rows are on but the server has nothing for them.
+const EMPTY_NOTES = {
+	audio: () => $L("There's no music to show, so Home leaves these rows out."),
+	collections: () => $L('There are no collections to show, so Home leaves this row out.'),
+	favorites: () => $L('There are no favorites to show, so Home leaves these rows out.')
+};
+
 // What the Home preview draws for the Row Options setting [key] with [settings], the saved ones
 // with the value being tried laid over them. Null for any other setting. Otherwise [rows] are
 // the rows to draw, the edited one first, or null to leave Home as it is; [notice] says why the
@@ -242,7 +277,7 @@ export const useRowOptionsHome = (key, settings) => {
 		const allRowData = [...seenRows.values()].filter((row) => GROUPS[group].rowIds.indexOf(row.id) < 0);
 		wanted.forEach((id) => {
 			if (fetched[id].length > 0) {
-				allRowData.push({id, title: ROW_TITLES[id](), items: fetched[id], type: group === 'audio' ? 'square' : 'portrait'});
+				allRowData.push({id, title: ROWS[id].title(), items: fetched[id], type: ROWS[id].type});
 			}
 		});
 		const pluginSectionsConfig = homeRows.filter((row) => isPickedRow(row) && isPickedRowShown(row, settings, serverUrl, serverType));
@@ -274,8 +309,6 @@ export const useRowOptionsHome = (key, settings) => {
 	}
 	if (built && built.rows) return {rows: built.rows, notice: null, caption};
 	// Nothing came back yet, or there's nothing to show. Home leaves an empty row out.
-	const empty = group === 'audio'
-		? $L("There's no music to show, so Home leaves these rows out.")
-		: $L('There are no collections to show, so Home leaves this row out.');
+	const empty = EMPTY_NOTES[group]();
 	return {rows: null, notice: built && built.empty ? empty : null, caption};
 };
