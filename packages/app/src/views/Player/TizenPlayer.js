@@ -1778,8 +1778,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 						mediaSourceId: playbackInfoOptions.mediaSourceId || result.mediaSourceId,
 						audioStreamIndex: chosenAudioIndex != null ? chosenAudioIndex : undefined,
 						subtitleStreamIndex: chosenSubIndex != null ? chosenSubIndex : playbackInfoOptions.subtitleStreamIndex,
-						enableDirectPlay: false,
-						enableDirectStream: false,
+						directRefused: true,
 						enableTranscoding: true,
 						forceDirectPlay: false
 					});
@@ -2195,8 +2194,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 				const result = await playback.getPlaybackInfo(item.Id, {
 					startPositionTicks: positionRef.current,
 					maxBitrate: selectedQuality || settings.maxBitrate,
-					enableDirectPlay: false,
-					enableDirectStream: false,
+					directRefused: true,
 					enableTranscoding: true,
 					mediaSourceId: mediaSourceId,
 					item: item,
