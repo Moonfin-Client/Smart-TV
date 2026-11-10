@@ -31,7 +31,7 @@ const NouveauHero = (props) => {
 	const {
 		item, settings, showsSection, seerr, genres = [], year, officialRating, runtime, seasonCount,
 		episodes = [], techBadges = [], techSize, logoUrl, onLogoError,
-		effectiveServerUrl, serverToken, overviewBackRef, isPerson
+		effectiveServerUrl, serverToken, overviewBackRef, isPerson, bookSeriesItem
 	} = props;
 
 	const isSeason = item.Type === 'Season';
@@ -79,14 +79,18 @@ const NouveauHero = (props) => {
 		(!isPerson || showsSection('biography'));
 
 	const renderBranding = () => {
-		if (!logoUrl) return <h1 className={css.title}>{item.Name}</h1>;
+		const itemName = bookSeriesItem !== null
+				? bookSeriesItem.Name
+				: item.Name;
+
+		if (!logoUrl) return <h1 className={css.title}>{itemName}</h1>;
 
 		// A season's logo belongs to its series, so the season's own name goes beside it.
 		if (isSeason) {
 			return (
 				<div className={css.branding}>
 					<img className={css.logoCompanion} src={logoUrl} onError={onLogoError} alt="" />
-					<span className={css.companionTitle}>{item.Name}</span>
+					<span className={css.companionTitle}>{itemName}</span>
 				</div>
 			);
 		}

@@ -37,7 +37,7 @@ import {
 	peopleAvatarSize, peopleCardWidth
 } from './nouveauMetrics';
 import {
-	SECTION_CHAPTERS, SECTION_COLLECTION, SECTION_DETAILS, SECTION_DISCOVERY, SECTION_EPISODES,
+	SECTION_CHAPTERS, SECTION_COLLECTION, SECTION_DETAILS, SECTION_DISCOVERY, SECTION_EPISODES, SECTION_BOOKS,
 	SECTION_EXTRAS, SECTION_PARENT_COLLECTIONS, SECTION_PARTS, SECTION_PEOPLE, SECTION_REVIEWS, nouveauSectionOrder,
 	seerrDiscoveryExpected
 } from './nouveauSections';
@@ -81,7 +81,7 @@ const NouveauDetailContent = (props) => {
 		onSelectItem, onSelectSeerrCard, handleEpisodePlay, isSeries,
 		episodes = [], seriesEpisodes = [], nextUp = [], seasons = [],
 		collectionItems = [], collectionSections = [], playlistItems = [], effectiveApi,
-		mediaSource, selectedAudioIndex, selectedSubtitleIndex,
+		mediaSource, selectedAudioIndex, selectedSubtitleIndex, bookSeriesItem,
 		spotlightBackRef, overviewBackRef, seerrNav, onSelectStudio, loadMoreCollectionItems, collectionMenu, collectionOrder
 	} = props;
 
@@ -153,6 +153,7 @@ const NouveauDetailContent = (props) => {
 	const sections = useMemo(() => {
 		if (isPerson) return [...personRails.map((rail) => rail.id), SECTION_DETAILS];
 
+		const isBookSeries = bookSeriesItem !== null;
 		const seerrState = seerr || {};
 		return nouveauSectionOrder({
 			type: item.Type,
@@ -177,11 +178,12 @@ const NouveauDetailContent = (props) => {
 			// still counts, which is what lets the rail give its slot up rather than hold it.
 			seerrResolved: seerrState.loading !== true,
 			seerrSimilarCount: (seerrState.similarCards || []).length,
-			seerrRecommendationCount: (seerrState.recommendationCards || []).length
+			seerrRecommendationCount: (seerrState.recommendationCards || []).length,
+			isBookSeries: isBookSeries
 		});
 	}, [
 		item.Type, chapters, item.ProviderIds, isPerson, personRails, additionalParts.length, otherExtras.length, cast.length,
-		crew.length, similarLoaded, similar.length, reviews.length, seerrOnly, seerr, showsSection, parentCollectionCount
+		crew.length, similarLoaded, similar.length, reviews.length, seerrOnly, seerr, showsSection, parentCollectionCount, bookSeriesItem
 	]);
 
 	// A series arrives as one run of episodes and shows a season at a time, so the selector only
@@ -478,6 +480,21 @@ const NouveauDetailContent = (props) => {
 					renderItem={renderExtra}
 				/>
 			);
+		}
+
+		if (id === SECTION_BOOKS) {
+			return (
+				<NouveauRail
+					title={$L('Books')}
+					items={bookSeriesItem.Members}
+					gap={RAIL_GAP}
+					spotlightId={`nouveau-rail-${id}-similar`}
+					navbarPosition={settings.navbarPosition}
+					onNavigateUp={handleNavigateUp}
+					onNavigateDown={handleNavigateDown}
+					renderItem={renderPosterCard}
+				/>
+			)
 		}
 
 		if (id === SECTION_DETAILS) {
