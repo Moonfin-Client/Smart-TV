@@ -379,9 +379,16 @@ const AppContent = (props) => {
 	const isPinGateActive = pinPending && isSignInPinEnabled(signInPin) && pinRememberRead === pinSession;
 	const signInPinRef = useRef(signInPin);
 	signInPinRef.current = signInPin;
-	// A PIN set on another device while the app was away is only known to the server.
+	// A PIN set on another device while the app was away is only known to the server. One found there is kept,
+	// so the gate still asks for it if the server can't be reached when the gate checks again.
 	const pinAddedElsewhereRef = useRef(null);
-	pinAddedElsewhereRef.current = async () => isSignInPinEnabled(await refreshSignInPin(latestSignInPin(), pinAccount));
+	pinAddedElsewhereRef.current = async () => {
+		const before = latestSignInPin();
+		const next = await refreshSignInPin(before, pinAccount);
+		if (!isSignInPinEnabled(next)) return false;
+		if (next !== before) saveSignInPin(next);
+		return true;
+	};
 	// Until the server has said whether the account has a PIN, nothing behind the gate shows.
 	const isPinChecking = pinPending && !isPinGateActive && pinChecked !== pinSession;
 	const [pinKeyboardOpen, setPinKeyboardOpen] = useState(false);
