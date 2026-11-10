@@ -78,6 +78,7 @@ export const SCENE_BY_KEY = {
 	...sceneFor(NAV_BUTTON_KEYS, 'home'),
 	navbarColor: 'home',
 	navbarOpacity: 'home',
+	focusBorderColor: 'home',
 	homeRowsStyle: 'home',
 	homeRowsPosterSize: 'home',
 	fullScreenRows: 'home',

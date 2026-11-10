@@ -187,7 +187,7 @@ const SceneView = ({scene, row, hasLiveTv, library, homeRows}) => {
 	const railOpen = ['navbarColor', 'navbarOpacity', 'showClock', 'clockDisplay'].indexOf(focusKey) >= 0;
 	return (
 		<>
-			<SettingsHomePreview railOpen={railOpen} hasLiveTv={hasLiveTv} over={SEASONAL_KEYS.indexOf(focusKey) >= 0 ? <SeasonalScene /> : null} rows={homeRows} />
+			<SettingsHomePreview railOpen={railOpen} hasLiveTv={hasLiveTv} over={SEASONAL_KEYS.indexOf(focusKey) >= 0 ? <SeasonalScene /> : null} rows={homeRows} focusCard={focusKey === 'focusBorderColor'} />
 			{stage === 'screensaver' && <ScreensaverScene />}
 		</>
 	);

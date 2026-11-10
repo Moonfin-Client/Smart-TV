@@ -159,6 +159,15 @@ describe('SettingsLivePreview', () => {
 		expect(rings()).toBe(0);
 	});
 
+	test('Focus Border Color rings the first card in its color, in either row style', () => {
+		const rings = () => Array.from(document.querySelectorAll('.frame div')).filter((node) => node.style.border.indexOf('3px solid') === 0);
+		for (const homeRowsStyle of ['v2', 'v1']) {
+			const {unmount} = draw({homeRowsStyle, focusBorderColor: '#FF0000'}, 'setting-focusBorderColor', 'home');
+			expect(rings().map((ring) => ring.style.borderColor)).toEqual(['rgb(255, 0, 0)']);
+			unmount();
+		}
+	});
+
 	test('a focused modern film grows with no year, rating or description, as on Home', () => {
 		const saved = {...mockItems[0]};
 		Object.assign(mockItems[0], {type: 'Movie', year: null, runtimeMinutes: null, genres: [], overview: null, communityRating: null});

@@ -21,7 +21,7 @@ import MediaBarNewReleaseLabel from '../../components/MediaBarNewReleaseLabel';
 import {iconViewBox} from '../../components/icons/iconViewBox';
 import {getRtFallbackIcon} from '../../components/icons/rtIcons';
 import {buildDisplayRatings, isMdblistEnabled} from '../../services/mdblistApi';
-import {toCssColor, toRgbTriplet, radiusToCss} from '../../theme/themeSpec';
+import {resolveFocusBorderColor, toCssColor, toRgbTriplet, radiusToCss} from '../../theme/themeSpec';
 import {resolveOverlayColor} from '../../theme/overlayColors';
 import {arrange, countSplit, applyButtonLimit, DETAIL_BUTTONS, DETAIL_ORDER_KEY, DETAIL_HIDDEN_KEY} from '../../utils/buttonLayout';
 import {formatClockTime} from '../../utils/clock';
@@ -126,9 +126,9 @@ export const usePreviewPalette = () => {
 			cardRadiusRing: grownRadius(activeTheme.borders.cardRadius, 3.5),
 			chipBorder: `${activeTheme.borders.chipBorder.width}px solid ${toCssColor(activeTheme.borders.chipBorder.color)}`,
 			cardBorder: `${activeTheme.borders.cardBorder.width}px solid ${toCssColor(activeTheme.borders.cardBorder.color)}`,
-			focusBorderColor: toCssColor(activeTheme.borders.focusBorder.color)
+			focusBorderColor: resolveFocusBorderColor(activeTheme, settings.focusBorderColor)
 		};
-	}, [activeTheme, settings.mediaBarOverlayColor, settings.mediaBarOverlayOpacity, settings.navbarColor, settings.navbarOpacity]);
+	}, [activeTheme, settings.focusBorderColor, settings.mediaBarOverlayColor, settings.mediaBarOverlayOpacity, settings.navbarColor, settings.navbarOpacity]);
 };
 
 const usePreviewItems = () => {
@@ -2236,8 +2236,9 @@ export const DetailStylePreview = ({variant}) => {
 // looks once a row has focus. [railOpen] opens the left rail, and [over] is drawn over all of
 // it at the window's size, the way the seasonal effect sits over the real Home. [rows] draws
 // Home's own rows instead of the samples, with the D-pad on the first card of the first one in
-// either style, and the backdrop from that card when it has one.
-export const SettingsHomePreview = ({railOpen = false, hasLiveTv = false, over = null, rows = null}) => {
+// either style, and the backdrop from that card when it has one. [focusCard] holds the first card in
+// focus in Classic rows too, so Focus Border Color has a ring to show on.
+export const SettingsHomePreview = ({railOpen = false, hasLiveTv = false, over = null, rows = null, focusCard = false}) => {
 	const t = usePreviewPalette();
 	const {user} = useAuth();
 	const {settings} = useSettings();
@@ -2248,7 +2249,7 @@ export const SettingsHomePreview = ({railOpen = false, hasLiveTv = false, over =
 	const fed = (!modern || settings.featuredBarStyle === 'aya') &&
 		!(typeof document !== 'undefined' && document.documentElement.classList.contains('legacy'));
 	const blur = settings.backdropBlurHome;
-	const focusFirst = modern || Boolean(rows);
+	const focusFirst = modern || Boolean(rows) || focusCard;
 	const render = useCallback((items) => (
 		<>
 			<BackdropLayer targetUrl={backdrop === 'off' || !fed ? '' : (rows && rows[0].items[0].backdropUrl) || (items[0] ? items[0].backdropUrl : '')} blurAmount={blur} placement={backdrop} />
