@@ -2334,7 +2334,6 @@ const PlayerControlsPreview = ({moment, hdr}) => {
 	}, [ratio]);
 	const item = items[0];
 	const next = items[1] || item;
-	const zoom = settings.playerZoomMode || 'fit';
 	const paused = moment === 'paused';
 	const describing = paused && !!settings.showDescriptionOnPause;
 	const subtitles = !describing && settings.subtitleMode !== 'none';
@@ -2357,18 +2356,21 @@ const PlayerControlsPreview = ({moment, hdr}) => {
 	const scrub = seeking && (
 		<ScrubThumbnails frameWidth={DESIGN_W} frameHeight={DESIGN_H} trackLeft={bar.left} trackWidth={bar.width} floor={bar.floor} scale={ratio} progress={progress} />
 	);
-	// The picture is drawn as a 2.39:1 film, so each zoom mode shows plainly.
+	// The picture is drawn as a 2.39:1 film, so each zoom mode shows plainly. The subtitle look
+	// fills the screen with it instead, or the line would sit on a bar where a dark outline or
+	// shadow can't be seen.
+	const fit = moment === 'watching' ? 'autoCrop' : (settings.playerZoomMode || 'fit');
 	let frame = {position: 'absolute', left: 0, right: 0, top: 69, height: 402};
 	let frameInner = null;
-	if (zoom === 'autoCrop') frame = {position: 'absolute', top: 0, bottom: 0, left: -165, right: -165};
-	if (zoom === 'stretch') {
+	if (fit === 'autoCrop') frame = {position: 'absolute', top: 0, bottom: 0, left: -165, right: -165};
+	if (fit === 'stretch') {
 		frame = {position: 'absolute', left: 0, right: 0, top: 0, height: 402};
 		frameInner = {transform: 'scaleY(1.3433)', transformOrigin: 'top left'};
 	}
 	return (
 		<PreviewScreen>
 			<div style={{...ABS_FILL, backgroundColor: '#000000', overflow: 'hidden'}}>
-				<div style={{...frame, overflow: zoom === 'stretch' ? 'visible' : 'hidden', ...frameInner}}>
+				<div style={{...frame, overflow: fit === 'stretch' ? 'visible' : 'hidden', ...frameInner}}>
 					<Artwork url={item && item.backdropUrl} t={t} />
 				</div>
 				{coverScrub && scrub}
