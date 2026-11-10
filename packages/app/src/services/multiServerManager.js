@@ -24,6 +24,14 @@ export const getAllServers = async () => {
 	return serversData;
 };
 
+// Whether a saved entry is a profile of the same Silo household as `self` (itself included): on the same server, the
+// same account, or the same token (profiles saved before their account was, share it). Sign Out removes the household
+// together, and ending the login needs every profile holding its token gone.
+export const sameSiloHousehold = (entry, self, token = self?.accessToken) => Boolean(self) && self.serverType === 'silo' &&
+	entry.serverId === self.serverId &&
+	((Boolean(self.siloAccountId) && entry.siloAccountId === self.siloAccountId) ||
+		(Boolean(token) && entry.accessToken === token));
+
 /**
  * Get all servers as array (for compatibility and rendering)
  * Each user on each server is returned as a separate entry
@@ -321,9 +329,11 @@ export const addServer = async (serverUrl, serverName, userId, username, accessT
  * Remove a user from a server (or entire server if last user)
  * @param {string} serverId - Server ID
  * @param {string} userId - User ID to remove
+ * @param {Object} [options]
+ * @param {boolean} [options.keepServer] - Keep the server saved when its last user goes (signing out)
  * @returns {Promise<boolean>} Success status
  */
-export const removeServer = async (serverId, userId) => {
+export const removeServer = async (serverId, userId, {keepServer = false} = {}) => {
 	const servers = await getAllServers();
 
 	if (!servers[serverId]) {
@@ -334,9 +344,8 @@ export const removeServer = async (serverId, userId) => {
 	if (userId && servers[serverId].users[userId]) {
 		delete servers[serverId].users[userId];
 
-		// If no users left, remove the entire server
 		const remainingUsers = Object.keys(servers[serverId].users);
-		if (remainingUsers.length === 0) {
+		if (remainingUsers.length === 0 && !keepServer) {
 			delete servers[serverId];
 			console.log('[MULTI-SERVER] Removed server (no users left):', serverId);
 		} else {

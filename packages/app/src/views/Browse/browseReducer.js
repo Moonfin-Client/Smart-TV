@@ -42,6 +42,17 @@ export function mergeRowsById (existingRows, incomingRows) {
 	return [...merged, ...incoming.values()];
 }
 
+const isRecentRow = (row) => Boolean(row?.isLatestRow || row?.isRecentlyReleasedRow);
+
+// Recently Added and Recently Released read again as a set. They take the place of the ones
+// before them, and a row the server no longer fills goes, which merging by id would leave behind.
+export function replaceRecentRows (existingRows, recentRows) {
+	const at = existingRows.findIndex(isRecentRow);
+	const kept = existingRows.filter((row) => !isRecentRow(row));
+	const index = at < 0 ? kept.length : at;
+	return [...kept.slice(0, index), ...recentRows, ...kept.slice(index)];
+}
+
 export default function browseReducer (state, action) {
 	switch (action.type) {
 		case 'SET_INITIAL_DATA':
@@ -55,6 +66,8 @@ export default function browseReducer (state, action) {
 			if (action.rows.length === 0) return state;
 			return {...state, allRowData: mergeRowsById(state.allRowData, action.rows)};
 		}
+		case 'REPLACE_RECENT_ROWS':
+			return {...state, allRowData: replaceRecentRows(state.allRowData, action.rows)};
 		case 'REFRESH_VOLATILE': {
 			const prevVolatile = new Map();
 			state.allRowData.forEach((row) => {
