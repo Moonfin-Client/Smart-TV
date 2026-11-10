@@ -840,7 +840,7 @@ const ModernDetailContent = (props) => {
 	return (
 		<>
 			<div className={`${css.backdrop} ${isPerson ? css.backdropPerson : ''}`} style={backdropStyle}>
-				{backdropUrl && !isPerson && <img className={css.backdropImage} src={backdropUrl} alt="" />}
+				{settings.detailsBackdropEnabled !== false && backdropUrl && !isPerson && <img className={css.backdropImage} src={backdropUrl} alt="" />}
 				<div className={css.scrim} style={scrimStyle(isPerson ? PERSON_SCRIM : SCRIM, gradientScale)} />
 			</div>
 			<Scroller cbScrollTo={handleScrollTo} onScroll={handleScroll} className={css.scroller} direction="vertical" horizontalScrollbar="hidden" verticalScrollbar="hidden">

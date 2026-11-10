@@ -50,6 +50,17 @@ describe('settings live preview rows', () => {
 		expect(SCENE_BY_KEY.homeRowsTmdbEpisodeRatingsEnabled).toBeUndefined();
 	});
 
+	test('Home Screen Backdrop shows on home and marks the choice the list shows', () => {
+		const saved = (settings) => {
+			const row = describeRow('setting-homeBackdropStyle', {...defaultSettings, ...settings});
+			expect(row.scene).toBe('home');
+			return row.options[row.saved].value;
+		};
+		expect(saved({showHomeBackdrop: true, homeBackdropStyle: 'corner'})).toBe('corner');
+		// An app that only knows the switch turns it off and leaves the style alone.
+		expect(saved({showHomeBackdrop: false, homeBackdropStyle: 'fullScreen'})).toBe('off');
+	});
+
 	test('a link the preview doesn\'t draw reports no status', () => {
 		expect(describeRow('setting-diagnosticsLogging', defaultSettings)).toMatchObject({key: null, scene: null});
 	});

@@ -215,6 +215,11 @@ export const getScreensaverDimmingOptions = () => [
 	{ value: 100, label: $L('100%') }
 ];
 
+export const getWatchPartyServiceOptions = () => [
+	{ value: 'moonbase', label: $L('Watch Party') },
+	{ value: 'syncplay', label: $L('SyncPlay') }
+];
+
 export const getNavPositionOptions = () => [
 	{ value: 'top', label: $L('Top Bar') },
 	{ value: 'left', label: $L('Left Sidebar') }

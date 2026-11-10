@@ -59,6 +59,11 @@ jest.mock('../../../services/calendarApi', () => ({
 jest.mock('../../../context/AchievementsContext', () => ({useAchievements: () => ({socialAvailable: false})}));
 jest.mock('../../../components/RatingsRow', () => () => null);
 jest.mock('../../../components/LoadingSpinner', () => () => null);
+// The real layer fades its picture in once it loads, so here it only says what it was handed.
+jest.mock('../../../components/BackdropLayer', () => {
+	const React = require('react');
+	return ({targetUrl, placement}) => React.createElement('div', {className: 'homeBackdrop', 'data-url': targetUrl, 'data-placement': placement});
+});
 // The library screen is tested on its own, so here it only says what it was handed.
 jest.mock('../../Library', () => {
 	const React = require('react');
@@ -208,6 +213,62 @@ describe('SettingsLivePreview', () => {
 		}
 	});
 
+	test('Home Screen Backdrop draws the first card\'s backdrop behind home where the choice being tried puts it, and none while it\'s off', () => {
+		const backdrop = () => find('.frame .homeBackdrop');
+		mockItems[0].backdropUrl = 'backdrop0.jpg';
+		try {
+			const {unmount} = draw({homeRowsStyle: 'v1', showHomeBackdrop: true, homeBackdropStyle: 'corner'}, 'setting-homeBackdropStyle', 'home');
+			expect(screen.getByText('Shows on the Home preview')).toBeTruthy();
+			expect(backdrop().getAttribute('data-placement')).toBe('corner');
+			expect(backdrop().getAttribute('data-url')).toBe('backdrop0.jpg');
+			unmount();
+			for (const [value, index] of [['fullScreen', 1], ['top', 3], ['off', 0]]) {
+				// Saved off, so trying a style has to turn the switch back on with it.
+				draw({homeRowsStyle: 'v1', showHomeBackdrop: false, homeBackdropStyle: 'off'}, 'setting-homeBackdropStyle', 'home', {trying: {key: 'homeBackdropStyle', value, index}});
+				expect(backdrop().getAttribute('data-placement')).toBe(value);
+				expect(backdrop().getAttribute('data-url')).toBe(value === 'off' ? '' : 'backdrop0.jpg');
+				cleanup();
+			}
+			draw({homeRowsStyle: 'v1', showHomeBackdrop: true, homeBackdropStyle: 'top'}, 'setting-homeBackdropStyle', 'home', {trying: {key: 'homeBackdropStyle', value: 'off', index: 0}});
+			expect(backdrop().getAttribute('data-url')).toBe('');
+			cleanup();
+		} finally {
+			mockItems[0].backdropUrl = null;
+		}
+	});
+
+	test('Modern rows draw no home backdrop unless the Aya bar feeds one, as on Home', () => {
+		const url = () => find('.frame .homeBackdrop').getAttribute('data-url');
+		mockItems[0].backdropUrl = 'backdrop0.jpg';
+		try {
+			draw({homeRowsStyle: 'v2', featuredBarStyle: 'moonfin', showHomeBackdrop: true, homeBackdropStyle: 'fullScreen'}, 'setting-homeBackdropStyle', 'home');
+			expect(url()).toBe('');
+			cleanup();
+			draw({homeRowsStyle: 'v2', featuredBarStyle: 'aya', showHomeBackdrop: true, homeBackdropStyle: 'fullScreen'}, 'setting-homeBackdropStyle', 'home');
+			expect(url()).toBe('backdrop0.jpg');
+		} finally {
+			mockItems[0].backdropUrl = null;
+		}
+	});
+
+	test('Details Screen Backdrop takes the backdrop off every detail style and keeps the page', () => {
+		const art = () => document.querySelectorAll('.frame img[src="backdrop0.jpg"]').length;
+		Object.assign(mockItems[0], {backdropUrl: 'backdrop0.jpg', posterUrl: 'poster0.jpg'});
+		try {
+			for (const detailScreenStyle of ['v1', 'v2', 'v3', 'v4', 'v5', 'v6', 'v7', 'v8', 'v9']) {
+				draw({detailScreenStyle, detailsBackdropEnabled: true}, 'setting-detailsBackdropEnabled', 'details');
+				expect(art()).toBeGreaterThan(0);
+				cleanup();
+				draw({detailScreenStyle, detailsBackdropEnabled: false}, 'setting-detailsBackdropEnabled', 'details');
+				expect(art()).toBe(0);
+				expect(screen.getAllByText('Film 0').length).toBeGreaterThan(0);
+				cleanup();
+			}
+		} finally {
+			Object.assign(mockItems[0], {backdropUrl: null, posterUrl: null});
+		}
+	});
+
 	test('a screensaver tile draws the screensaver over home while it\'s on', () => {
 		const {unmount} = draw({screensaverEnabled: true, screensaverComponent: 'clock'}, 'setting-screensaverTimeout', 'home');
 		expect(find('.fill')).not.toBeNull();
@@ -236,13 +297,13 @@ describe('SettingsLivePreview', () => {
 		const {unmount} = draw({}, 'setting-osdButtons', 'player');
 		expect(labels('transportButtons')).toEqual(['Previous', 'Seek back', 'Pause', 'Seek forward', 'Next Episode']);
 		expect(labels('controlButtonsBottom')).toEqual([
-			'Chapters', 'Episodes', 'Subtitles', 'Audio', 'Cast & Crew', 'Playback Quality', 'Zoom (Fit)', 'Sleep timer', 'Playback Information'
+			'Add to Favorites', 'Chapters', 'Episodes', 'Subtitles', 'Audio', 'Cast & Crew', 'Playback Quality', 'Zoom (Fit)', 'Sleep timer', 'Playback Information'
 		]);
 		unmount();
 		draw({osdButtonOrderTv: ['audio', 'subtitles', 'zoom'], hiddenOsdButtonsTv: ['episodes', 'sleep'], playerZoomMode: 'autoCrop'}, 'setting-osdButtons', 'player');
 		// A button never placed follows the one declared before it, the way the player orders them.
 		expect(labels('controlButtonsBottom')).toEqual([
-			'Chapters', 'Audio', 'Cast & Crew', 'Playback Quality', 'Subtitles', 'Zoom (Zoom to Fill)', 'Playback Information'
+			'Add to Favorites', 'Chapters', 'Audio', 'Cast & Crew', 'Playback Quality', 'Subtitles', 'Zoom (Zoom to Fill)', 'Playback Information'
 		]);
 		// A zoom other than Fit lights the button up, the way the player does.
 		expect(screen.getByText('Zoom (Zoom to Fill)').previousSibling.className).toContain('controlBtnActive');
@@ -272,6 +333,40 @@ describe('SettingsLivePreview', () => {
 		draw({}, 'setting-subtitleMode', 'player');
 		expect(line()).not.toBeNull();
 		expect(find('.playerControls')).not.toBeNull();
+	});
+
+	test('with the controls up the subtitle sits over the bar and its time row, and with them away it keeps its place', () => {
+		const bottom = () => parseFloat(find('.subtitleOverlay').style.bottom);
+		// The controls fill a 1080 high layer drawn at half size, so 75px up the frame is 150 of the player's pixels.
+		let tops = {};
+		const rect = jest.spyOn(window.HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function () {
+			if (this.classList.contains('playerControls')) return {top: 0, bottom: 540, left: 0, right: 960, width: 960, height: 540};
+			const top = tops[Object.keys(tops).find((name) => this.classList.contains(name))];
+			return top === undefined ? {top: 0, bottom: 0, left: 0, right: 0, width: 0, height: 0} : {top, bottom: top, left: 0, right: 0, width: 0, height: 0};
+		});
+		const tall = jest.spyOn(window.HTMLElement.prototype, 'offsetHeight', 'get').mockImplementation(function () {
+			return this.classList.contains('playerControls') ? 1080 : 0;
+		});
+		try {
+			// The time row tops the controls, then with no row the thumb does, and the line clears either by 12px.
+			for (const next of [{progressContainer: 465, seekIndicator: 480}, {progressContainer: 490, seekIndicator: 465}]) {
+				tops = next;
+				draw({subtitlePosition: 'bottom'}, 'setting-subtitleMode', 'player');
+				expect(bottom()).toBeCloseTo(100 * (150 + 12) / 1080, 5);
+				cleanup();
+			}
+			// A line already set higher stays where it is.
+			draw({subtitlePosition: 'higher'}, 'setting-subtitleMode', 'player');
+			expect(bottom()).toBe(40);
+			cleanup();
+			// The subtitle look is judged with the controls away, so the line keeps its own place.
+			draw({subtitlePosition: 'bottom'}, 'setting-subtitleColor', 'player');
+			expect(find('.playerControls')).toBeNull();
+			expect(bottom()).toBe(10);
+		} finally {
+			rect.mockRestore();
+			tall.mockRestore();
+		}
 	});
 
 	test('an HDR subtitle tile draws the HDR style', () => {

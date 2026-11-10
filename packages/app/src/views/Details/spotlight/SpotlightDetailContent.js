@@ -362,7 +362,7 @@ const SpotlightDetailContent = (props) => {
 	return (
 		<>
 			<div className={`${css.backdrop} ${isPerson ? css.backdropPerson : ''}`} style={backdropStyle}>
-				{backdropUrl && <img className={css.backdropImage} src={backdropUrl} alt="" />}
+				{settings.detailsBackdropEnabled !== false && backdropUrl && <img className={css.backdropImage} src={backdropUrl} alt="" />}
 				<div className={css.scrim} style={scrimStyle(SCRIM, backdropStyle['--gradient-scale'])} />
 			</div>
 			<div className={`${css.page} ${settings.navbarPosition === 'left' ? css.sidebarOffset : css.topbarOffset}`} onFocus={keepFocusInView}>

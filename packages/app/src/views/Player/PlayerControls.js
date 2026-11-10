@@ -1,4 +1,4 @@
-import {useCallback, useMemo} from 'react';
+import {useCallback, useMemo, useState} from 'react';
 import $L from '@enact/i18n/$L';
 import {getImageUrl} from '../../utils/helpers';
 import {getServerUrl} from '../../services/jellyfinApi';
@@ -12,11 +12,14 @@ import {getPlatform} from '../../platform';
 import {ModalContainer} from '../../utils/spotlightContainers';
 import {numberedTrackName, sortSubtitleStreams, subtitleTrackDetail, audioTrackDetail} from '../../utils/trackLabels';
 import TrackOptionRow, {TrackDivider} from '../../components/TrackOptionRow';
+import LoopMarquee from '../../components/LoopMarquee';
 import EpisodeBrowser from './EpisodeBrowser';
 import PlaybackInfoModal from './PlaybackInfoModal';
 import {SpottableButton, SpottableDiv, formatTime, getQualityPresets} from './PlayerConstants';
 import {useOsdLogo} from './playerOsd';
 import LiveRecordingDialog, {LiveRecordingToast} from './LiveRecordingDialog';
+import WatchPartyQuickBar from '../../components/WatchPartyDialog/WatchPartyQuickBar';
+import {PartyPanel} from '../../components/WatchPartyDialog/PartyPeople';
 import {recordPromptChannel} from '../../utils/recordAiring';
 import {formatClockTime} from '../../utils/clock';
 import {AT_LIVE_SECONDS} from './liveWindow';
@@ -152,6 +155,13 @@ const PlayerControls = ({
 		if (!person) return;
 		handleSelectCastMember?.(person);
 	}, [castMembers, handleSelectCastMember]);
+
+	const [focusedChapterTicks, setFocusedChapterTicks] = useState(null);
+	const handleChapterFocus = useCallback((e) => {
+		keepFocusInView(e);
+		setFocusedChapterTicks(e.target.dataset.ticks || null);
+	}, []);
+	const handleChapterBlur = useCallback(() => setFocusedChapterTicks(null), []);
 
 	const durationMs = duration * 1000;
 	const chapterMarks = useMemo(
@@ -612,12 +622,14 @@ const PlayerControls = ({
 				<div className={css.trackModal} onClick={closeModal}>
 					<ModalContainer className={`${css.modalContent} ${css.chaptersModal}`} onClick={stopPropagation} data-modal="chapter" spotlightId="chapter-modal">
 						<h2 className={css.modalTitle}>{$L('Chapters')}</h2>
-						<div className={css.trackList}>
-							{chapters.map((chapter) => {
+						<div className={css.chapterRow} onFocus={handleChapterFocus} onBlur={handleChapterBlur}>
+							{chapters.map((chapter, i) => {
 								const chapterTime = chapter.startPositionTicks / 10000000;
 								const isCurrent = currentTime >= chapterTime &&
-									(chapters.indexOf(chapter) === chapters.length - 1 ||
-									 currentTime < chapters[chapters.indexOf(chapter) + 1].startPositionTicks / 10000000);
+									(i === chapters.length - 1 || currentTime < chapters[i + 1].startPositionTicks / 10000000);
+								const imageUrl = chapter.imageTag
+									? getImageUrl(item?._serverUrl || getServerUrl(), item?.Id, `Chapter/${chapter.index}`, {maxWidth: 400, tag: chapter.imageTag})
+									: null;
 								return (
 									<SpottableButton
 										key={chapter.index}
@@ -625,9 +637,17 @@ const PlayerControls = ({
 										data-ticks={chapter.startPositionTicks}
 										data-selected={isCurrent ? 'true' : undefined}
 										onClick={handleSelectChapter}
+										aria-label={`${chapter.name} ${formatTime(chapterTime)}`}
 									>
+										<div className={css.chapterThumb}>
+											{imageUrl ? (
+												<img src={imageUrl} alt="" aria-hidden="true" />
+											) : (
+												<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M4 6H2v14c0 1.1.9 2 2 2h14v-2H4V6zm16-4H8c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-8 12.5v-9l6 4.5-6 4.5z" /></svg>
+											)}
+										</div>
+										<LoopMarquee className={css.chapterName} text={chapter.name} active={focusedChapterTicks === String(chapter.startPositionTicks)} />
 										<span className={css.chapterTime}>{formatTime(chapterTime)}</span>
-										<span className={css.chapterName}>{chapter.name}</span>
 									</SpottableButton>
 								);
 							})}
@@ -691,6 +711,9 @@ const PlayerControls = ({
 					</ModalContainer>
 				</div>
 			)}
+
+			{activeModal === 'partyChat' && <WatchPartyQuickBar onClose={closeModal} stopPropagation={stopPropagation} />}
+			{activeModal === 'party' && <PartyPanel onClose={closeModal} stopPropagation={stopPropagation} />}
 
 			{activeModal === 'info' && (
 				<PlaybackInfoModal

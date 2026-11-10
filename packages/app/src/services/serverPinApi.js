@@ -95,6 +95,24 @@ export const verifyServerPin = async (account, pin) => {
 	}
 };
 
+// On Silo the viewer chooses whether the profile's PIN is remembered on this device: null elsewhere, where there's no
+// choice, and otherwise the last choice made (yes until it's turned down).
+export const signInPinRemembered = async (account) => {
+	const silo = siloFor(account);
+	return silo ? silo.remembersProfilePin(account.userId).catch(() => true) : null;
+};
+
+export const rememberSignInPin = async (account, remember) => {
+	const silo = siloFor(account);
+	if (silo) await silo.rememberProfilePin(account.userId, remember).catch(() => {});
+};
+
+// Whether a remembered Silo PIN still unlocks the profile, so it needn't be asked for.
+export const signInPinStillUnlocked = async (account) => {
+	const silo = siloFor(account);
+	return silo ? silo.rememberedProfileUnlocked(account.userId).catch(() => false) : false;
+};
+
 // On Silo a PIN already set is checked first (Silo itself doesn't ask for it), so a wrong one still counts as a guess.
 const siloWrite = async (silo, profileId, pin, currentPin) => {
 	try {
