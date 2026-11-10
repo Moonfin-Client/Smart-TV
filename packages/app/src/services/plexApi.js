@@ -1072,8 +1072,11 @@ export const createPlexApi = ({getBaseUrl, getToken, getUserId, getDeviceInfo, g
 		getRecentlyReleased: (libraryId, limit = 20, includeItemTypes = 'Movie,Series') =>
 			getItems({ParentId: libraryId, IncludeItemTypes: includeItemTypes, SortBy: 'PremiereDate', SortOrder: 'Descending', Limit: limit}),
 
-		getCollections: (limit = 50, sortBy = 'SortName', sortOrder = 'Ascending') =>
-			getItems({IncludeItemTypes: 'BoxSet', SortBy: sortBy, SortOrder: sortOrder, Limit: limit}),
+		getCollections: async (limit = 50, sortBy = 'SortName', sortOrder = 'Ascending', {editableOnly = false} = {}) => {
+			const result = await getItems({IncludeItemTypes: 'BoxSet', SortBy: sortBy, SortOrder: sortOrder, Limit: limit});
+			// A smart collection fills itself from a filter, so nothing can be added to it or taken out.
+			return editableOnly ? {...result, Items: result.Items.filter((item) => !item._smart)} : result;
+		},
 
 		// Studio pages filter by name, so the id just has to be unique and free of commas. Plex's encoded key is both.
 		getStudios: (limit = 20, sortBy = 'SortName', sortOrder = 'Ascending') =>
@@ -1206,6 +1209,9 @@ export const createPlexApi = ({getBaseUrl, getToken, getUserId, getDeviceInfo, g
 
 		getCollectionItems: (collectionId, limit = 50, sortBy = null, sortOrder = 'Ascending') =>
 			getItems({ParentId: collectionId, Limit: limit, SortBy: sortBy, SortOrder: sortOrder}),
+
+		getCollectionMembers: (collectionId, limit = 500, startIndex = 0) =>
+			getItems({ParentId: collectionId, Limit: limit, ...(startIndex > 0 ? {StartIndex: startIndex} : null)}),
 
 		setFavorite: (itemId, isFavorite) => rate(itemId, isFavorite ? PLEX_FAVORITE_RATING : -1),
 		setWatched: (itemId, watched) => scrobble(watched ? '/:/scrobble' : '/:/unscrobble', itemId),

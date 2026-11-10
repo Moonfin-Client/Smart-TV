@@ -171,7 +171,7 @@ const TitlePanel = ({item, api, serverUrl, caretLeft, favorite, onFavorite, onRe
 
 // Every title in a format as a cover grid. Picking one opens it in a panel under its row rather than
 // leaving the screen. Bookstore keeps what's being read over it, and leaves the format to its rail.
-const BookTitlesScreen = ({screen, style, library, data, api, serverUrl, onSelectItem, onOpenGrid, onPlay, onBack, backHandlerRef}) => {
+const BookTitlesScreen = ({screen, style, library, data, api, serverUrl, onSelectItem, onOpenGrid, onPlay, onBack, backHandlerRef, settingsPreview}) => {
 	const bookstore = bookNavFor(style) === 'rail';
 	const mixed = isMixedLibrary(library, data.counts);
 	const [scopeChoice, setScope] = useState(screen.scope || SCOPE_ALL);
@@ -220,7 +220,7 @@ const BookTitlesScreen = ({screen, style, library, data, api, serverUrl, onSelec
 		}
 		return closePanel();
 	});
-	useScreenFocus('titles', loaded && !showGenres);
+	useScreenFocus('titles', !settingsPreview && loaded && !showGenres);
 
 	const pickSort = useCallback((id) => {
 		setSortChoice(id);
@@ -298,14 +298,14 @@ const BookTitlesScreen = ({screen, style, library, data, api, serverUrl, onSelec
 				{resume.length > 0 && (
 					<div className={bookCss.continueRow}>
 						<h2 className={bookCss.sectionTitle}>{isAudiobookLibrary(library) ? $L('Continue Listening') : $L('Continue Reading')}</h2>
-						<RowContainer {...continueMenu} className={railCss.continueRow} spotlightId={CONTINUE_ID} onKeyDown={handleContinueKey} onFocus={keepFocusInView}>
+						<RowContainer {...continueMenu} className={railCss.continueRow} spotlightId={settingsPreview ? undefined : CONTINUE_ID} onKeyDown={handleContinueKey} onFocus={keepFocusInView}>
 							{resume.map((item, index) => (
 								<ContinueTile key={item.Id} item={item} index={index} serverUrl={serverUrl} onPlay={readItem} onClick={handleContinueClick} />
 							))}
 						</RowContainer>
 					</div>
 				)}
-				<ScreenHeader screenId="titles" title={titlesHeading(scope)} count={count} onUp={focusContinue}>
+				<ScreenHeader screenId="titles" title={titlesHeading(scope)} count={count} onUp={focusContinue} settingsPreview={settingsPreview}>
 					{!bookstore && mixed && <DetailsTabBar tabs={scopeTabs} activeId={scope} expanded={false} onActivate={setScope} />}
 					<DetailsTabBar tabs={SORTS} activeId={sort.id} expanded={false} onActivate={pickSort} />
 					<SpottableDiv className={css.pill} spotlightId={FILTER_ID} onClick={openGenres}>

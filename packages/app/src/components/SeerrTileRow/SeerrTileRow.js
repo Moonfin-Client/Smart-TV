@@ -2,6 +2,7 @@ import {useCallback, useRef, useEffect, memo} from 'react';
 import Spottable from '@enact/spotlight/Spottable';
 import SpotlightContainerDecorator from '@enact/spotlight/SpotlightContainerDecorator';
 import Spotlight from '@enact/spotlight';
+import {glideToCard} from '../../utils/focusScroll';
 import {KEYS} from '../../utils/keys';
 import {useSettings} from '../../context/SettingsContext';
 
@@ -70,7 +71,6 @@ const SeerrTileRow = ({
 }) => {
 	const {settings} = useSettings();
 	const scrollerRef = useRef(null);
-	const scrollerRectRef = useRef(null);
 	const scrollTimeoutRef = useRef(null);
 	const rowElementRef = useRef(null);
 
@@ -82,14 +82,6 @@ const SeerrTileRow = ({
 		return () => registerRowRef?.(rowIndex, null);
 	}, [rowIndex, registerRowRef]);
 
-	useEffect(() => {
-		scrollerRectRef.current = null;
-		const invalidate = () => {
-			scrollerRectRef.current = null;
-		};
-		window.addEventListener('resize', invalidate);
-		return () => window.removeEventListener('resize', invalidate);
-	}, [settings.navbarPosition]);
 
 	const handleSelect = useCallback((item) => {
 		onSelectItem?.(item);
@@ -104,17 +96,10 @@ const SeerrTileRow = ({
 			if (scrollTimeoutRef.current) {
 				window.cancelAnimationFrame(scrollTimeoutRef.current);
 			}
+			// Read before the browser's own focus scroll moves the lane, so the glide starts from what was on screen.
+			const start = scroller.scrollLeft;
 			scrollTimeoutRef.current = window.requestAnimationFrame(() => {
-				const cardRect = card.getBoundingClientRect();
-				if (!scrollerRectRef.current) {
-					scrollerRectRef.current = scroller.getBoundingClientRect();
-				}
-				const scrollerRect = scrollerRectRef.current;
-				if (cardRect.left < scrollerRect.left) {
-					scroller.scrollLeft -= (scrollerRect.left - cardRect.left + 50);
-				} else if (cardRect.right > scrollerRect.right) {
-					scroller.scrollLeft += (cardRect.right - scrollerRect.right + 50);
-				}
+				glideToCard(scroller, card, start);
 			});
 		}
 	}, [onFocus, rowIndex]);

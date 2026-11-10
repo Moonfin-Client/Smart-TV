@@ -22,7 +22,7 @@ const MusicChipIcon = ({d}) => (
 	<svg viewBox="0 -960 960 960" fill="currentColor" width="24" height="24"><path d={d} /></svg>
 );
 
-const MusicChips = ({onSelect, onKeyDown, registerNode}) => {
+const MusicChips = ({onSelect, onKeyDown, registerNode, settingsPreview}) => {
 	const handleRef = useCallback((el) => registerNode(CHIPS, el), [registerNode]);
 
 	const handleClick = useCallback((e) => {
@@ -34,7 +34,7 @@ const MusicChips = ({onSelect, onKeyDown, registerNode}) => {
 		<ChipsContainer
 			className={css.chips}
 			ref={handleRef}
-			spotlightId={MUSIC_FOCUS_IDS[CHIPS]}
+			spotlightId={settingsPreview ? undefined : MUSIC_FOCUS_IDS[CHIPS]}
 			onKeyDown={onKeyDown}
 		>
 			{MUSIC_CHIPS.map((chip) => (

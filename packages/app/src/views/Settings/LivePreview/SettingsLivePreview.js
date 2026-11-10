@@ -1,26 +1,46 @@
 /* eslint-disable react/jsx-no-bind */
-import {useLayoutEffect, useMemo, useRef, useState} from 'react';
+import {Suspense, lazy, useLayoutEffect, useMemo, useRef, useState} from 'react';
 import $L from '@enact/i18n/$L';
 import Spottable from '@enact/spotlight/Spottable';
 import SpotlightContainerDecorator from '@enact/spotlight/SpotlightContainerDecorator';
 
 import {SettingsOverride, useSettings} from '../../../context/SettingsContext';
+import {useAuth} from '../../../context/AuthContext';
+import {useSeerr} from '../../../context/SeerrContext';
 import ScreensaverPreview from '../../../components/Screensaver/ScreensaverPreview';
+import SeasonalTheme from '../../../components/SeasonalTheme';
 import {KEYS} from '../../../utils/keys';
+import {homeBackdropSettings} from '../../../utils/homeBackdropStyle';
 import {
 	DetailStylePreview,
 	KeyboardPreview,
 	MediaBarPreview,
 	PlayerPreview,
 	SettingsHomePreview,
+	SettingsScreenPreview,
 	usePreviewPalette
 } from '../../SetupWizard/SetupPreviews';
 import {getPreviewItems} from '../../SetupWizard/setupPreviewData';
-import {MEDIA_BAR_KEYS, SUBTITLE_HDR_KEYS, sceneOfRow} from './previewRows';
+import {memoryCache} from '../../Browse/browseCache';
+import {MEDIA_BAR_KEYS, SEASONAL_KEYS, SUBTITLE_HDR_KEYS, sceneOfRow} from './previewRows';
+import {rowOptionsBlockedReason, useRowOptionsHome} from './rowOptionsPreview';
 
 import css from './SettingsLivePreview.module.less';
 
 export const SCENES = ['home', 'details', 'player', 'search'];
+
+// The calendar's and library's code and styles load the first time their scene shows, as they do
+// for the screens.
+const CalendarPage = lazy(() => import('../../Calendar'));
+const LibraryPage = lazy(() => import('../../Library'));
+
+// The first library of one of [types] in the order the server lists them, which is the user's own.
+const firstLibrary = (libraries, types) => (libraries || [])
+	.find((library) => types.indexOf((library.CollectionType || '').toLowerCase()) >= 0) || null;
+
+// The settings each scene drawn by a real screen tries before they're saved, which are its styles.
+// The rest wait, since trying one of them can make the screen load again.
+const TRIED_KEYS = {calendar: ['calendarStyle'], library: ['libraryStyle', 'musicLibraryStyle', 'bookLibraryStyle']};
 
 export const sceneChipId = (scene) => `preview-scene-${scene}`;
 
@@ -84,7 +104,9 @@ const SCENE_LABELS = {
 	home: () => $L('Home'),
 	details: () => $L('Details Page'),
 	player: () => $L('Player'),
-	search: () => $L('Search')
+	search: () => $L('Search'),
+	calendar: () => $L('Calendar'),
+	library: () => $L('Library')
 };
 
 // Read inside the override, so a picker's option shows before it's saved.
@@ -96,6 +118,13 @@ const MediaBarScene = () => {
 const DetailsScene = () => {
 	const {settings} = useSettings();
 	return <DetailStylePreview variant={settings.detailScreenStyle || 'v9'} />;
+};
+
+// The real seasonal effect as it falls over home, in the effect and density being tried. Home's
+// own effect behind Settings steps aside while this one is up.
+const SeasonalScene = () => {
+	const {settings} = useSettings();
+	return <SeasonalTheme theme={settings.seasonalTheme} density={settings.seasonalDensity} follower={false} settingsPreview />;
 };
 
 // The screensaver as it comes up over home, or nothing while it's switched off.
@@ -119,16 +148,37 @@ const ScreensaverScene = () => {
 	);
 };
 
+// The status dot and line of a setting that needs something else turned on first.
+const BLOCKED_COLOR = '#FFC107';
+
 const PLAYER_MOMENTS = {introAction: 'intro', nextUpBehavior: 'end', showDescriptionOnPause: 'paused'};
 // The subtitle look is judged with the controls away, the way most of a film is watched.
 const STAGE_MOMENTS = {loading: 'loading', trickplay: 'seek', subtitles: 'watching'};
 
-const SceneView = ({scene, row, hasLiveTv}) => {
+const SceneView = ({scene, row, hasLiveTv, library, homeRows}) => {
 	const focusKey = row ? row.key : null;
 	// A screen that keeps one look on the stage draws it on its own scene.
 	const stage = row && row.stage && sceneOfRow(row) === scene ? row.stage : null;
 	if (scene === 'details') return <DetailsScene />;
 	if (scene === 'search') return <KeyboardPreview />;
+	if (scene === 'calendar') {
+		return (
+			<SettingsScreenPreview hasLiveTv={hasLiveTv}>
+				<Suspense fallback={null}>
+					<CalendarPage settingsPreview />
+				</Suspense>
+			</SettingsScreenPreview>
+		);
+	}
+	if (scene === 'library') {
+		return (
+			<SettingsScreenPreview navbar={false}>
+				<Suspense fallback={null}>
+					<LibraryPage key={library && library.Id} library={library} settingsPreview />
+				</Suspense>
+			</SettingsScreenPreview>
+		);
+	}
 	if (scene === 'player') {
 		return <PlayerPreview moment={STAGE_MOMENTS[stage] || PLAYER_MOMENTS[focusKey] || 'middle'} hdr={SUBTITLE_HDR_KEYS.indexOf(focusKey) >= 0} />;
 	}
@@ -137,7 +187,7 @@ const SceneView = ({scene, row, hasLiveTv}) => {
 	const railOpen = ['navbarColor', 'navbarOpacity', 'showClock', 'clockDisplay'].indexOf(focusKey) >= 0;
 	return (
 		<>
-			<SettingsHomePreview railOpen={railOpen} hasLiveTv={hasLiveTv} />
+			<SettingsHomePreview railOpen={railOpen} hasLiveTv={hasLiveTv} over={SEASONAL_KEYS.indexOf(focusKey) >= 0 ? <SeasonalScene /> : null} rows={homeRows} />
 			{stage === 'screensaver' && <ScreensaverScene />}
 		</>
 	);
@@ -148,7 +198,27 @@ const SceneView = ({scene, row, hasLiveTv}) => {
 // chip shows its scene, and [onLeaveChips] takes Left off the first one.
 const SettingsLivePreview = ({scene, row, trying, onPickScene, onLeaveChips, hasLiveTv}) => {
 	const t = usePreviewPalette();
-	const overrides = useMemo(() => (trying ? {[trying.key]: trying.value} : null), [trying]);
+	const {pluginInfo} = useSeerr();
+	const {settings} = useSettings();
+	const {hasMultipleServers} = useAuth();
+	// The music and book styles draw the first music or book library, and everything else the first
+	// video library, or else the music one, or else the book one.
+	const video = firstLibrary(memoryCache.libraries, ['movies', 'tvshows']);
+	const music = firstLibrary(memoryCache.libraries, ['music']);
+	const books = firstLibrary(memoryCache.libraries, ['books', 'audiobooks']);
+	const focusKey = row ? row.key : null;
+	const library = (focusKey === 'musicLibraryStyle' && music) || (focusKey === 'bookLibraryStyle' && books) || video || music || books;
+	const scenes = SCENES.concat(pluginInfo?.calendarAvailable === true ? ['calendar'] : [], library ? ['library'] : []);
+	const tried = TRIED_KEYS[scene];
+	const overrides = useMemo(() => {
+		if (!trying || (tried && tried.indexOf(trying.key) < 0)) return null;
+		// Home's backdrop picker saves its switch along with the style, so both are tried together.
+		return trying.key === 'homeBackdropStyle' ? homeBackdropSettings(trying.value) : {[trying.key]: trying.value};
+	}, [trying, tried]);
+	// The audio and Collections Row Options draw Home's own rows, loaded with the value being tried.
+	const withTried = useMemo(() => (overrides ? {...settings, ...overrides} : settings), [settings, overrides]);
+	const rowOptions = useRowOptionsHome(scene === 'home' ? focusKey : null, withTried);
+	const blocked = row && row.key ? rowOptionsBlockedReason(row.key, withTried, hasMultipleServers) : null;
 	const tryingHere = !!(trying && row && trying.key === row.key);
 	const live = tryingHere ? trying.index : (row ? row.saved : -1);
 	const frameRef = useRef(null);
@@ -162,7 +232,7 @@ const SettingsLivePreview = ({scene, row, trying, onPickScene, onLeaveChips, has
 					<span className={css.label}>{$L('Live preview')}</span>
 				</div>
 				<ChipRow className={css.chips} spotlightId='preview-scene-chips' onBlur={resetChipRow}>
-					{SCENES.map((id, index) => (
+					{scenes.map((id, index) => (
 						<Chip
 							key={id}
 							spotlightId={sceneChipId(id)}
@@ -187,19 +257,26 @@ const SettingsLivePreview = ({scene, row, trying, onPickScene, onLeaveChips, has
 			</div>
 			<div ref={frameRef} className={css.frame} style={frameWidth === null ? null : {width: frameWidth}}>
 				<SettingsOverride overrides={overrides}>
-					<SceneView scene={scene} row={row} hasLiveTv={hasLiveTv} />
+					<SceneView scene={scene} row={row} hasLiveTv={hasLiveTv} library={library} homeRows={rowOptions ? rowOptions.rows : null} />
 				</SettingsOverride>
+				{rowOptions && rowOptions.notice && (
+					<div className={css.notice}>
+						<div className={css.noticeText}>{rowOptions.notice}</div>
+					</div>
+				)}
+				{rowOptions && !rowOptions.notice && rowOptions.caption && <div className={css.caption}>{rowOptions.caption}</div>}
 			</div>
 			{row && (
 				<div className={css.inspector}>
 					{/* A link opens a screen of its own settings, so it only has a status when the preview draws what that screen edits. */}
 					{row.key && (
 						<div className={css.status}>
-							<span className={css.statusDot} style={{backgroundColor: row.scene ? t.accent : 'rgba(255, 255, 255, 0.4)'}} />
-							<span className={row.scene ? css.statusOn : css.statusOff}>
-								{row.scene
+							<span className={css.statusDot} style={{backgroundColor: blocked ? BLOCKED_COLOR : (row.scene ? t.accent : 'rgba(255, 255, 255, 0.4)')}} />
+							{/* A setting that can't change Home as the rows are set up says what to turn on instead. */}
+							<span className={blocked ? css.statusBlocked : (row.scene ? css.statusOn : css.statusOff)}>
+								{blocked || (row.scene
 									? $L('Shows on the {screen} preview').replace('{screen}', SCENE_LABELS[row.scene]())
-									: $L('Not shown in the preview')}
+									: $L('Not shown in the preview'))}
 							</span>
 						</div>
 					)}

@@ -2,6 +2,7 @@ import {useCallback, useEffect, useLayoutEffect, useRef, useState} from 'react';
 import Spotlight from '@enact/spotlight';
 
 import {KEYS} from '../../utils/keys';
+import {relativeLuminance} from '../../theme/themeSpec';
 import {SettingsGlyph, renderSettingsIcon, renderToggle, renderChevron} from './settingsIcons';
 import {SpottableDiv} from './settingsSpottables';
 
@@ -38,6 +39,9 @@ const bodyClass = (hasLine, wraps, threeLine) => {
 };
 
 const rowClass = (tight) => (tight ? `${css.listItem} ${css.listItemTight}` : css.listItem);
+
+// Core rings a navbar swatch in dark ink when it's nearly white and in faint onSurface otherwise
+export const swatchEdgeClass = (color) => (relativeLuminance(color) > 0.8 ? css.swatchEdgeLight : css.swatchEdge);
 
 export const ToggleRow = ({settingKey, title, desc, icon, checked, onToggle}) => {
 	const [lineRef, wraps] = useWraps(desc);
@@ -81,7 +85,7 @@ export const OptionRow = ({settingKey, title, desc, caption, swatch, colorTile, 
 					<div ref={lineRef} className={css.listItemCaption}>{caption}</div>
 				</div>
 				<div className={css.listItemTrailing}>
-					{swatch ? <div className={css.colorSwatch} style={{background: swatch}} /> : renderChevron()}
+					{swatch ? <div className={`${css.colorSwatch} ${swatchEdgeClass(swatch)}`} style={{background: swatch}} /> : renderChevron()}
 				</div>
 			</SpottableDiv>
 		);
@@ -104,7 +108,7 @@ export const OptionRow = ({settingKey, title, desc, caption, swatch, colorTile, 
 	);
 };
 
-export const NavRow = ({id, spotlightId, title, desc, icon, onClick}) => {
+export const NavRow = ({id, spotlightId, title, desc, icon, chevron = true, onClick}) => {
 	const [lineRef, wraps] = useWraps(desc);
 	return (
 		<SpottableDiv className={rowClass(false)} onClick={onClick} spotlightId={spotlightId || `setting-${id}`}>
@@ -113,16 +117,16 @@ export const NavRow = ({id, spotlightId, title, desc, icon, onClick}) => {
 				<div className={css.listItemHeading}>{title}</div>
 				{desc && <div ref={lineRef} className={css.listItemCaption}>{desc}</div>}
 			</div>
-			<div className={css.listItemTrailing}>{renderChevron()}</div>
+			{chevron && <div className={css.listItemTrailing}>{renderChevron()}</div>}
 		</SpottableDiv>
 	);
 };
 
 // A fact rather than a setting. It still takes the focus, so the screen can be read row by row.
-export const InfoRow = ({id, label, value, icon}) => {
+export const InfoRow = ({id, label, value, icon, onClick}) => {
 	const [lineRef, wraps] = useWraps(value);
 	return (
-		<SpottableDiv className={rowClass(false)} spotlightId={`info-${id}`}>
+		<SpottableDiv className={rowClass(false)} spotlightId={`info-${id}`} onClick={onClick}>
 			{renderSettingsIcon(icon)}
 			<div className={bodyClass(!!value, wraps)}>
 				<div className={css.listItemHeading}>{label}</div>

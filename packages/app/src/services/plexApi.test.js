@@ -113,6 +113,15 @@ describe('items', () => {
 		expect(query(on)).toMatchObject({key: '55', rating: '10'});
 		expect(query(off)).toMatchObject({key: '55', rating: '-1'});
 	});
+
+	test('getCollections keeps smart collections by default and leaves them out when only editable ones are wanted', async () => {
+		answer({'/library/all': {MediaContainer: {totalSize: 2, Metadata: [
+			{ratingKey: 'c1', type: 'collection', title: 'Manual'},
+			{ratingKey: 'c2', type: 'collection', title: 'Smart', smart: '1'}
+		]}}});
+		expect((await plex.getCollections(50)).Items.map((i) => i.Id)).toEqual(['c1', 'c2']);
+		expect((await plex.getCollections(50, 'SortName', 'Ascending', {editableOnly: true})).Items.map((i) => i.Id)).toEqual(['c1']);
+	});
 });
 
 describe('playback', () => {

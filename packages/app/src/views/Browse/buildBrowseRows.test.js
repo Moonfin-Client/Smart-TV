@@ -127,6 +127,17 @@ describe('merged continue watching', () => {
 		expect(combined.items.find((i) => i.Id === 'queued').UserData.LastPlayedDate).toBe('2026-03-01');
 	});
 
+	test('cards paged in later go after the ones already drawn, even when played more recently', () => {
+		const played = (Id, date) => item(Id, {UserData: {LastPlayedDate: date}});
+		const rows = merged({
+			allRowData: [
+				row('resume', [played('a', '2026-01-02'), played('late', '2026-01-01'), played('paged', '2026-03-01')], {pagedFrom: 2}),
+				row('nextup', [played('b', '2026-01-03'), played('new', '2026-04-01'), item('a')], {pagedFrom: 1})
+			]
+		});
+		expect(rows[0].items.map((i) => i.Id)).toEqual(['b', 'a', 'late', 'paged', 'new']);
+	});
+
 	test('nothing to continue means no row at all', () => {
 		expect(merged({allRowData: [row('resume', []), row('nextup', [])]})).toEqual([]);
 	});
@@ -195,6 +206,12 @@ describe('sameRowList', () => {
 		expect(sameRowList([row('a', [item('1')])], [row('a', [item('2')])])).toBe(false);
 		expect(sameRowList([row('a', [item('1'), item('9')])], [row('a', [item('1'), item('8')])])).toBe(false);
 		expect(sameRowList([{...row('a'), title: 'X'}], [{...row('a'), title: 'Y'}])).toBe(false);
+	});
+
+	test('sees a reorder that keeps the first and last item', () => {
+		const before = row('a', [item('1'), item('2'), item('3'), item('4')]);
+		const after = row('a', [item('1'), item('3'), item('2'), item('4')]);
+		expect(sameRowList([before], [after])).toBe(false);
 	});
 
 	test('detects changes in watching now subtitle or item details', () => {
@@ -311,7 +328,8 @@ describe('row subtitles', () => {
 			externalRows: [
 				{id: 'imdb-top250-movies', title: 'IMDb Top 250 Movies', items: [item('1')]},
 				{id: 'tmdb_popular_movies', title: 'Popular Movies', items: [item('2')]},
-				{id: 'radarr_calendar', title: 'Radarr Upcoming', items: [item('3')]}
+				{id: 'radarr_calendar', title: 'Radarr Upcoming', items: [item('3')]},
+				{id: 'sonarr_calendar', title: 'Sonarr Upcoming', items: [item('4')]}
 			],
 			settings: settings({imdbTop250MoviesEnabled: true})
 		});
@@ -319,7 +337,16 @@ describe('row subtitles', () => {
 		const byId = Object.fromEntries(rows.map((r) => [r.id, r.subtitle]));
 		expect(byId['imdb-top250-movies']).toBe('IMDb List');
 		expect(byId['tmdb_popular_movies']).toBe('TMDB Lists');
-		expect(byId['radarr_calendar']).toBe('Radarr and Sonarr Calendars');
+		expect(byId['radarr_calendar']).toBe('Radarr Calendar');
+		expect(byId['sonarr_calendar']).toBe('Sonarr Calendar');
+	});
+
+	test('the merged calendar row names both calendars', () => {
+		const rows = build({
+			externalRows: [{id: 'radarr_calendar', title: 'Upcoming Releases', items: [item('1')], isCalendarMerged: true}]
+		});
+
+		expect(rows[0].subtitle).toBe('Radarr and Sonarr Calendars');
 	});
 
 	test('library rows stay without one', () => {

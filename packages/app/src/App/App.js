@@ -27,6 +27,7 @@ import {isBackKey, KEYS} from '../utils/keys';
 import {drawsStage} from '../views/Details/stage/stageRules';
 import {QUICK_LOOK_ID} from '../views/Details/quickLook/quickLookRules';
 import {applyPerfTier} from '../utils/perfTier';
+import {setSmoothScrolling} from '../utils/focusScroll';
 import {isLiveTvChannel, isLiveTvLibrary} from '../utils/liveTvLibrary';
 import {OLED_TUNING} from '../utils/oledMode';
 import {isTizen} from '../platform';
@@ -47,7 +48,6 @@ import UpdateNotification from '../components/UpdateNotification';
 import {ItemMenuProvider} from '../components/ItemContextMenu';
 import SeerrNotificationToast from '../components/SeerrNotificationToast';
 import ServerMessagesDialog from '../components/ServerMessagesDialog';
-import DebugOverlay from '../components/DebugOverlay'; // Red Button on TV remote toggles this
 import NavBar from '../components/NavBar';
 import Sidebar from '../components/Sidebar';
 import AccountModal from '../components/AccountModal';
@@ -59,8 +59,12 @@ import NoConnection from '../components/NoConnection/NoConnection';
 import SyncPlayDialog from '../components/SyncPlayDialog';
 import WatchPartyDialog from '../components/WatchPartyDialog';
 import useWatchParty from '../hooks/useWatchParty';
+import {onOpenWatchParties, useWatchPartyBackend, useWatchTogetherReturn} from '../hooks/useWatchPartyRooms';
+import WatchPartyLayer from '../components/WatchPartyDialog/WatchPartyLayer';
 import {watchParty, isRoomPlaying} from '../services/siloWatchParty';
 import {extendServerShuffle} from '../services/serverShuffle';
+import {rememberSignInPin, signInPinRemembered, signInPinStillUnlocked} from '../services/serverPinApi';
+import {MaterialIcon} from '../components/icons/materialIcons';
 import PhotoViewer from '../components/PhotoViewer';
 import ComicViewer from '../components/ComicViewer';
 import EpubReader from '../components/EpubReader';
@@ -71,7 +75,7 @@ import SettingsPanel from '../components/SettingsPanel';
 import ShuffleOverlay from '../components/ShuffleOverlay';
 import SpottableInput from '../components/SpottableInput/SpottableInput';
 import TVKeyboard from '../components/TVKeyboard/TVKeyboard';
-import {isTvKeyboardVisible, closeTvKeyboard} from '../components/TVKeyboard/keyboardBus';
+import {isTvKeyboardVisible, closeTvKeyboard, subscribeTvKeyboardVisibility} from '../components/TVKeyboard/keyboardBus';
 import useInactivityTimer from '../hooks/useInactivityTimer';
 import useSignInPin from '../hooks/useSignInPin';
 import {useThemeMusic} from '../hooks/useThemeMusic';
@@ -112,6 +116,8 @@ const CalendarMonth = lazy(() => import('../views/Calendar/CalendarMonth'));
 
 import '../styles/perf-overrides.less';
 import css from './App.module.less';
+
+const partyRoom = (state) => state.room;
 
 const MAX_HISTORY_LENGTH = 10;
 const SpottableButton = Spottable('button');
@@ -310,7 +316,7 @@ const AppContent = (props) => {
 	const [showExitDialog, setShowExitDialog] = useState(false);
 	// Silo's Watch Party, in SyncPlay's place on Silo.
 	const [watchPartyOpen, setWatchPartyOpen] = useState(false);
-	const {room: watchPartyRoom} = useWatchParty();
+	const watchPartyRoom = useWatchParty(partyRoom);
 	const openWatchParty = useCallback(() => setWatchPartyOpen(true), []);
 	const closeWatchParty = useCallback(() => setWatchPartyOpen(false), []);
 	const [showSettingsPanel, setShowSettingsPanel] = useState(false);
@@ -326,6 +332,10 @@ const AppContent = (props) => {
 	const [pinPassed, setPinPassed] = useState(null);
 	const [pinChecked, setPinChecked] = useState(null);
 	const [pinVerifying, setPinVerifying] = useState(false);
+	// Whether a Silo profile's PIN is to be remembered on this device (null where there's no such choice), and the
+	// check it was read for. A remembered PIN that still unlocks the profile skips the gate.
+	const [pinRemember, setPinRemember] = useState(null);
+	const [pinRememberRead, setPinRememberRead] = useState(null);
 	// Whether the check under way follows a sign in with the account's password or Quick Connect,
 	// which lets Forgot PIN clear the PIN, and whether Forgot PIN is what sent the viewer to sign in.
 	const pinProofRef = useRef({session: null, proved: false, forgotten: false});
@@ -366,9 +376,10 @@ const AppContent = (props) => {
 	const {userId, record: signInPin, account: pinAccount, latest: latestSignInPin, save: saveSignInPin} = useSignInPin();
 	const pinSession = isAuthenticated && userId ? `${userId}:${pinCheckCount}` : null;
 	const pinPending = Boolean(pinSession) && pinPassed !== pinSession;
-	const isPinGateActive = pinPending && isSignInPinEnabled(signInPin);
+	const isPinGateActive = pinPending && isSignInPinEnabled(signInPin) && pinRememberRead === pinSession;
 	// Until the server has said whether the account has a PIN, nothing behind the gate shows.
 	const isPinChecking = pinPending && !isPinGateActive && pinChecked !== pinSession;
+	const [pinKeyboardOpen, setPinKeyboardOpen] = useState(false);
 	const screensaverTimeout = Number(settings.screensaverTimeout || 90);
 	const screensaverEnabled = Boolean(
 		settings.screensaverEnabled &&
@@ -400,6 +411,18 @@ const AppContent = (props) => {
 		};
 		window.addEventListener('moonfin:trailerPreview', handleTrailerPreview);
 		return () => window.removeEventListener('moonfin:trailerPreview', handleTrailerPreview);
+	}, []);
+
+	// Silo stopped taking a remembered PIN's proof, so the PIN is asked for again. Only a check that has passed starts
+	// over: a gate already up keeps what's typed, and the sign in proof Forgot PIN relies on.
+	const pinPassedNowRef = useRef(false);
+	pinPassedNowRef.current = Boolean(pinSession) && pinPassed === pinSession;
+	useEffect(() => {
+		const handleProfileLocked = () => {
+			if (pinPassedNowRef.current) setPinCheckCount((count) => count + 1);
+		};
+		window.addEventListener('moonfin:siloProfileLocked', handleProfileLocked);
+		return () => window.removeEventListener('moonfin:siloProfileLocked', handleProfileLocked);
 	}, []);
 
 	useEffect(() => {
@@ -463,7 +486,21 @@ const AppContent = (props) => {
 		}
 		let cancelled = false;
 		const before = latestSignInPin();
-		refreshSignInPin(before, pinAccount).then(async (next) => {
+		signInPinStillUnlocked(pinAccount).then(async (unlocked) => {
+			if (cancelled) return;
+			if (unlocked) {
+				setPinPassed(pinSession);
+				setPinChecked(pinSession);
+				// The record still follows the server, so a PIN removed there stops being asked for once the proof runs out.
+				const refreshed = await refreshSignInPin(before, pinAccount);
+				if (!cancelled && refreshed !== before) saveSignInPin(refreshed);
+				return;
+			}
+			const remember = await signInPinRemembered(pinAccount);
+			if (cancelled) return;
+			setPinRemember(remember);
+			setPinRememberRead(pinSession);
+			const next = await refreshSignInPin(before, pinAccount);
 			if (cancelled) return;
 			if (next !== before) saveSignInPin(next);
 			if (isSignInPinEnabled(next) && pinProofRef.current.forgotten) {
@@ -528,6 +565,12 @@ const AppContent = (props) => {
 		return () => clearTimeout(timer);
 	}, [isPinGateActive]);
 
+	useEffect(() => {
+		if (!isPinGateActive) return;
+		setPinKeyboardOpen(isTvKeyboardVisible());
+		return subscribeTvKeyboardVisibility(({visible}) => setPinKeyboardOpen(visible));
+	}, [isPinGateActive]);
+
 	const fetchLibraries = useCallback(async () => {
 		if (isAuthenticated && api && user) {
 			try {
@@ -588,6 +631,10 @@ const AppContent = (props) => {
 	useEffect(() => {
 		applyPerfTier(settings.performanceMode === 'auto' ? null : settings.performanceMode);
 	}, [settings.performanceMode]);
+
+	useEffect(() => {
+		setSmoothScrolling(settings.smoothScrolling);
+	}, [settings.smoothScrolling]);
 
 	// The surfaces are crushed on the theme itself, so all this has to do is tell
 	// the stylesheet which artwork boost to draw with.
@@ -689,6 +736,7 @@ const AppContent = (props) => {
 		}
 	});
 	recheckAccessRef.current = recheckAccess;
+	const playerEndRef = useRef(null);
 	const timesUpRef = useRef(false);
 	timesUpRef.current = timesUp;
 
@@ -752,12 +800,9 @@ const AppContent = (props) => {
 			// there must not be allowed to skip it.
 			try {
 				releaseVideoElements();
-				setPlayingItem(null);
-				setPanelHistory([]);
+				// The player closes the way Back closes it, so the viewer lands where they were.
+				playerEndRef.current?.();
 				setPinCheckCount((count) => count + 1);
-				if (isAuthenticated) {
-					setPanelIndex(PANELS.BROWSE);
-				}
 				recheckAccessRef.current?.();
 			} finally {
 				activateApp();
@@ -795,7 +840,7 @@ const AppContent = (props) => {
 				cleanupHandlersRef.current();
 			}
 		};
-	}, [isAuthenticated, performAppCleanup, releaseVideoElements, revalidateSession]);
+	}, [performAppCleanup, releaseVideoElements, revalidateSession]);
 
 	useEffect(() => {
 		if (!isAuthenticated || !user?.Id) {
@@ -819,6 +864,17 @@ const AppContent = (props) => {
 			}
 		}
 	}, [isLoading, isAuthenticated, authChecked]);
+
+	// Losing the sign-in mid-session (Silo ended the login after a password change, or the server refused the token)
+	// goes back to sign-in, as Moonfin Core does. Otherwise the screen stayed up making requests nobody could answer.
+	const wasAuthenticatedRef = useRef(isAuthenticated);
+	useEffect(() => {
+		const was = wasAuthenticatedRef.current;
+		wasAuthenticatedRef.current = isAuthenticated;
+		if (!was || isAuthenticated || !authChecked) return;
+		setPanelHistory([]);
+		setPanelIndex(PANELS.LOGIN);
+	}, [isAuthenticated, authChecked]);
 
 	const kidsBlockedPanels = useMemo(() => blockedPanels(PANELS), []);
 
@@ -1248,18 +1304,18 @@ const AppContent = (props) => {
 		}
 		// Music left playing behind the screens reports its stop before the new item opens.
 		if (backgroundMusic) await remoteControl.releasePlayer();
-		// Plex and Silo have no SyncPlay, so their items neither join a group nor open it.
+		// Plex and Silo have no SyncPlay, and a watch party's room isn't a Jellyfin group, so neither joins nor opens one.
 		const itemOnPlex = ['plex', 'silo'].includes(item._serverType || serverType);
-		if (isSyncPlayInGroup && !itemOnPlex) {
+		if (isSyncPlayInGroup && !itemOnPlex && !watchPartyRoom) {
 			syncPlaySetNewQueue([item.Id]);
-		} else if (!itemOnPlex && settings.syncplayEnabled !== false && settings.syncplayAutoOpen) {
+		} else if (!itemOnPlex && !watchPartyRoom && settings.syncplayEnabled !== false && settings.syncplayAutoOpen) {
 			openSyncPlay();
 		}
 		setPlayingItem(item);
 		setPlaybackOptions(options || null);
 		setIsResume(!!resume);
 		navigateTo(PANELS.PLAYER);
-	}, [navigateTo, isSyncPlayInGroup, openSyncPlay, serverType, settings.syncplayAutoOpen, settings.syncplayEnabled, syncPlaySetNewQueue, backgroundMusic, openBook]);
+	}, [navigateTo, isSyncPlayInGroup, openSyncPlay, serverType, settings.syncplayAutoOpen, settings.syncplayEnabled, syncPlaySetNewQueue, backgroundMusic, openBook, watchPartyRoom]);
 
 	const playSyncPlayItem = useCallback((item, options = null) => {
 		if (panelIndex === PANELS.PLAYER && playingItem?.Id === item.Id) return;
@@ -1307,7 +1363,20 @@ const AppContent = (props) => {
 	useEffect(() => {
 		watchParty.onSessionChanged();
 	}, [isAuthenticated, serverUrl, user?.Id, accessToken]);
-	const openWatchTogether = serverType === 'silo' ? openWatchParty : openSyncPlay;
+	// Jellyfin without Moonbase, or already in a SyncPlay group, keeps the SyncPlay dialog.
+	const partyBackend = useWatchPartyBackend(`${isAuthenticated}|${serverUrl}|${user?.Id}`);
+	const openWatchTogether = useMemo(() => {
+		if (watchPartyRoom || serverType === 'silo') return openWatchParty;
+		if (serverType === 'jellyfin' && (isSyncPlayInGroup || !partyBackend.available)) return openSyncPlay;
+		return openWatchParty;
+	}, [watchPartyRoom, serverType, isSyncPlayInGroup, partyBackend.available, openWatchParty, openSyncPlay]);
+	// Settings stays open under it, so closing it is one step back to the row that opened it.
+	useEffect(() => onOpenWatchParties(() => openWatchTogether()), [openWatchTogether]);
+	useWatchTogetherReturn(watchPartyOpen || syncPlayDialogOpen, panelIndex === PANELS.PLAYER);
+	// A party that starts from there opens its player, which Settings mustn't cover.
+	useEffect(() => {
+		if (panelIndex === PANELS.PLAYER) setShowSettingsPanel(false);
+	}, [panelIndex]);
 
 	// Moving on to another item from inside the player. The next episode starts at the top, and
 	// one the viewer picked by hand from the episode browser passes `resume` so an episode they
@@ -1375,6 +1444,7 @@ const AppContent = (props) => {
 		}
 		window.dispatchEvent(new CustomEvent('moonfin:browseRefresh'));
 	}, [handleBack, panelHistory, selectedItem, playingItem, panelIndex, watchPartyRoom, openWatchParty, isSyncPlayInGroup, openSyncPlay]);
+	playerEndRef.current = handlePlayerEnd;
 
 	const handlePlayerBackground = useCallback(() => {
 		setMusicInBackground(true);
@@ -1426,11 +1496,11 @@ const AppContent = (props) => {
 
 	// A Silo sign-in with several household profiles asks who's watching, once the setup and any PIN are out of the way.
 	useEffect(() => {
-		if (isAuthenticated && !setupWizardActive && !isPinGateActive && takeHouseholdPick()) {
+		if (isAuthenticated && !setupWizardActive && !pinPending && takeHouseholdPick()) {
 			setPickingHousehold(true);
 			setShowAccountModal(true);
 		}
-	}, [isAuthenticated, setupWizardActive, isPinGateActive]);
+	}, [isAuthenticated, setupWizardActive, pinPending]);
 
 	const handleOpenAccountModal = useCallback(() => {
 		setShowAccountModal(true);
@@ -1789,6 +1859,8 @@ const AppContent = (props) => {
 		const before = latestSignInPin();
 		setPinVerifying(true);
 		const result = await verifySignInPin(before, pinCodeInput, pinAccount);
+		// Only the right PIN confirms the choice, which then keeps the proof it brought back or not.
+		if (result.outcome === PIN_ACCEPTED && pinRemember !== null) await rememberSignInPin(pinAccount, pinRemember);
 		setPinVerifying(false);
 		if (result.record !== before) saveSignInPin(result.record);
 		setPinCodeInput('');
@@ -1799,7 +1871,9 @@ const AppContent = (props) => {
 		}
 		setPinCodeError(signInPinMessage(result));
 		Spotlight.focus('[data-spotlight-id="app-pin-input"]');
-	}, [pinVerifying, pinSession, pinCodeInput, pinAccount, latestSignInPin, saveSignInPin]);
+	}, [pinVerifying, pinSession, pinCodeInput, pinAccount, pinRemember, latestSignInPin, saveSignInPin]);
+
+	const handlePinRememberToggle = useCallback(() => setPinRemember((remember) => !remember), []);
 
 	// Right after signing in with the password or Quick Connect the PIN just clears. Otherwise the
 	// account goes back to its sign in, and the PIN clears once that proves who it is.
@@ -1867,7 +1941,7 @@ const AppContent = (props) => {
 	if (isPinGateActive) {
 		return (
 			<div className={css.app} {...props}>
-				<div className={css.pinGate}>
+				<div className={`${css.pinGate} ${pinKeyboardOpen ? css.pinGateKeyboard : ''}`}>
 					<div className={css.pinCard}>
 						<h2 className={css.pinTitle}>{$L('Enter PIN')}</h2>
 						<p className={css.pinSubtitle}>{$L('This profile is protected by a 4-digit PIN.')}</p>
@@ -1883,6 +1957,18 @@ const AppContent = (props) => {
 							spotlightId='app-pin-input'
 						/>
 						{pinCodeError && <div className={css.pinError}>{pinCodeError}</div>}
+						{pinRemember !== null && (
+							<SpottableButton
+								className={css.pinRemember}
+								onClick={handlePinRememberToggle}
+								spotlightId='app-pin-remember'
+								role='checkbox'
+								aria-checked={pinRemember}
+							>
+								<MaterialIcon name={pinRemember ? 'checkBox' : 'checkBoxBlank'} className={css.pinRememberIcon} />
+								{$L('Remember PIN on this device')}
+							</SpottableButton>
+						)}
 						<div className={css.pinActions}>
 							<SpottableButton
 								className={css.pinButton}
@@ -2336,7 +2422,9 @@ const AppContent = (props) => {
 				open={watchPartyOpen}
 				onClose={closeWatchParty}
 				playingItemId={panelIndex === PANELS.PLAYER ? playingItem?.Id : null}
+				onOpenSyncPlay={openSyncPlay}
 			/>
+			{watchPartyPlaying && panelIndex === PANELS.PLAYER && <WatchPartyLayer />}
 			<ShuffleOverlay
 				open={showShuffleOverlay}
 				onClose={handleCloseShuffleOverlay}
@@ -2424,7 +2512,6 @@ const AppContent = (props) => {
 				<SeasonalTheme theme={settings.seasonalTheme} density={settings.seasonalDensity} follower={settings.seasonalFollower} />
 			)}
 			<NoConnection />
-			<DebugOverlay />
 			{connectionState !== 'connected' && isAuthenticated && (
 				<div className={css.connectionBanner}>
 					<span>{connectionState === 'reconnecting' ? $L('Reconnecting to server...') : $L('Lost connection to server')}</span>

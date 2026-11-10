@@ -6,6 +6,7 @@ import MediaCard from '../MediaCard';
 import {classicCardSize} from '../MediaCard/MediaCard';
 import PlaceholderRow from './PlaceholderRow';
 import CalendarSeeAllCard from './CalendarSeeAllCard';
+import {glideToCard} from '../../utils/focusScroll';
 import {KEYS} from '../../utils/keys';
 import {sameCardUserData} from '../../utils/playedState';
 import {useSettings} from '../../context/SettingsContext';
@@ -50,11 +51,11 @@ const MediaRow = ({
 	titleWidth,
 	deferImages = false,
 	homeText = false,
+	posterLabels = false,
 	onLoadMore
 }) => {
 	const {settings} = useSettings();
 	const scrollerRef = useRef(null);
-	const scrollerRectRef = useRef(null);
 	const scrollTimeoutRef = useRef(null);
 	const rowElementRef = useRef(null);
 
@@ -66,14 +67,6 @@ const MediaRow = ({
 		return () => registerRowRef?.(rowIndex, null);
 	}, [rowIndex, registerRowRef, loading]);
 
-	useEffect(() => {
-		scrollerRectRef.current = null;
-		const invalidate = () => {
-			scrollerRectRef.current = null;
-		};
-		window.addEventListener('resize', invalidate);
-		return () => window.removeEventListener('resize', invalidate);
-	}, [settings.navbarPosition]);
 
 	const handleSelect = useCallback((item) => {
 		onSelectItem?.(item);
@@ -103,17 +96,10 @@ const MediaRow = ({
 			if (scrollTimeoutRef.current) {
 				window.cancelAnimationFrame(scrollTimeoutRef.current);
 			}
+			// Read before the browser's own focus scroll moves the lane, so the glide starts from what was on screen.
+			const start = scroller.scrollLeft;
 			scrollTimeoutRef.current = window.requestAnimationFrame(() => {
-				const cardRect = card.getBoundingClientRect();
-				if (!scrollerRectRef.current) {
-					scrollerRectRef.current = scroller.getBoundingClientRect();
-				}
-				const scrollerRect = scrollerRectRef.current;
-				if (cardRect.left < scrollerRect.left) {
-					scroller.scrollLeft -= (scrollerRect.left - cardRect.left + 50);
-				} else if (cardRect.right > scrollerRect.right) {
-					scroller.scrollLeft += (cardRect.right - scrollerRect.right + 50);
-				}
+				glideToCard(scroller, card, start);
 			});
 		}
 	}, [onFocus, rowIndex, onLoadMore, itemCount, rowId]);
@@ -222,6 +208,7 @@ const MediaRow = ({
 									onSpotlightRight={isLast ? handleWrapRight : null}
 									menuOptions={menuOptions}
 									homeText={homeText}
+									posterLabels={posterLabels}
 								/>
 							);
 						})}
@@ -256,7 +243,7 @@ const areRowPropsEqual = (prev, next) => {
 	if (prev.menuOptions !== next.menuOptions) return false;
 	if (prev.spotlightId !== next.spotlightId) return false;
 	if (prev.loading !== next.loading || prev.titleWidth !== next.titleWidth) return false;
-	if (prev.deferImages !== next.deferImages) return false;
+	if (prev.deferImages !== next.deferImages || prev.posterLabels !== next.posterLabels) return false;
 	// Compare presence, not identity: an inline arrow from a caller would defeat
 	// the whole comparator.
 	if (!prev.onSeeAll !== !next.onSeeAll) return false;

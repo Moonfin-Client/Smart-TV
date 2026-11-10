@@ -3,6 +3,7 @@ import Spotlight from '@enact/spotlight';
 import Spottable from '@enact/spotlight/Spottable';
 import Accelerator from '@enact/spotlight/Accelerator';
 import {KEYS} from '../../utils/keys';
+import {smoothScrollingOn} from '../../utils/focusScroll';
 import {gridLayout, moveIndex, scrollRowFor} from './tileGridMath';
 
 import css from './TileGrid.module.less';
@@ -19,6 +20,7 @@ const translateY = (y) => {
 	const value = `translateY(${y}px)`;
 	return {WebkitTransform: value, transform: value};
 };
+const NO_SLIDE = {WebkitTransition: 'none', transition: 'none'};
 
 const Tile = memo(({index, focused, left, width, height, renderTile}) => (
 	renderTile(index, focused, {position: 'absolute', top: 0, left, width, height})
@@ -177,7 +179,7 @@ const TileGrid = memo(({className, dataSize, itemSize, renderTile, spotlightId, 
 			onWheel={handleWheel}
 		>
 			<div className={css.viewport} ref={viewportRef}>
-				<div className={css.track} style={translateY(-firstRow * layout.rowHeight)}>
+				<div className={css.track} style={{...translateY(-firstRow * layout.rowHeight), ...(smoothScrollingOn() ? null : NO_SLIDE)}}>
 					{rows.map((row) => (
 						<Row
 							key={row % pool}

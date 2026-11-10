@@ -1,0 +1,575 @@
+// The arcade keeps its own palette whatever the theme, so nothing here goes through the theme overrides.
+@import '../../styles/mixins.less';
+
+@font-face {
+	font-family: 'Jersey 10';
+	src: url('../../../resources/fonts/Jersey10-Regular.woff') format('woff');
+	font-weight: normal;
+	font-display: swap;
+}
+
+@font-face {
+	font-family: 'JetBrains Mono';
+	src: url('../../../resources/fonts/JetBrainsMono-Bold.woff') format('woff');
+	font-weight: 700;
+	font-display: swap;
+}
+
+@night: #0c0a1f;
+@panel: #151231;
+@panel2: #1c1840;
+@line: #2c2756;
+@ink: #ece8ff;
+@muted: #a8a2cf;
+@blue: #00a4dc;
+@gold: #ffc94a;
+@coral: #ff6b85;
+@mint: #5ef2c0;
+@display: 'Jersey 10', Impact, sans-serif;
+@mono: 'JetBrains Mono', monospace;
+
+.arcade {
+	position: fixed;
+	top: 0;
+	left: 0;
+	width: 100%;
+	height: 100%;
+	z-index: 2100;
+	overflow: hidden;
+	background: #0d0b22;
+	color: @ink;
+	font-family: 'Roboto', sans-serif;
+	line-height: 1.4;
+	outline: none;
+
+	kbd {
+		font: 700 24px @mono;
+		background: @panel2;
+		border: 2px solid @line;
+		border-bottom-width: 6px;
+		border-radius: 12px;
+		padding: 2px 14px;
+		color: @ink;
+	}
+}
+
+.screen {
+	position: absolute;
+	top: 0;
+	left: 0;
+	width: 100%;
+	height: 100%;
+}
+
+.heading {
+	display: block;
+	font: 700 24px @mono;
+	letter-spacing: 0.14em;
+	text-transform: uppercase;
+	color: @muted;
+}
+
+.menu {
+	position: absolute;
+	top: 0;
+	left: 0;
+	width: 100%;
+	height: 100%;
+}
+
+.brand {
+	position: absolute;
+	left: 96px;
+	top: 60px;
+
+	span {
+		.heading();
+	}
+
+	b {
+		font: 400 92px/0.9 @display;
+		color: @gold;
+	}
+}
+
+.info {
+	position: absolute;
+	left: 96px;
+	top: 244px;
+	width: 880px;
+
+	h3 {
+		font: 400 132px/0.88 @display;
+		margin: 12px 0 20px;
+	}
+
+	p {
+		margin: 0;
+		color: #d4cff2;
+		font-size: 34px;
+	}
+}
+
+.genre {
+	font: 700 24px @mono;
+	letter-spacing: 0.12em;
+	text-transform: uppercase;
+	color: @blue;
+}
+
+.chips {
+	display: flex;
+	.flex-row-gap(36px);
+	margin-top: 32px;
+	font-size: 30px;
+	color: @muted;
+}
+
+.topBox {
+	position: absolute;
+	right: 80px;
+	top: 80px;
+	width: 540px;
+	background: rgba(21, 18, 49, 0.88);
+	border: 2px solid @line;
+	border-radius: 28px;
+	padding: 24px 32px 12px;
+}
+
+.board {
+	list-style: none;
+	margin: 12px 0 0;
+	padding: 0;
+
+	li {
+		display: flex;
+		align-items: baseline;
+		padding: 12px 8px;
+		border-top: 2px dashed @line;
+		border-radius: 12px;
+		font-size: 32px;
+	}
+
+	li:first-child {
+		border-top: 0;
+	}
+}
+
+.rank {
+	flex: none;
+	width: 48px;
+	font: 400 48px/1 @display;
+	color: @gold;
+}
+
+.name {
+	flex: 1;
+	min-width: 0;
+	margin: 0 20px;
+	font-weight: 700;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.score {
+	flex: none;
+	font: 700 30px @mono;
+}
+
+.mine {
+	background: linear-gradient(90deg, rgba(255, 201, 74, 0.18), transparent);
+}
+
+.tag {
+	font: 700 18px @mono;
+	color: @night;
+	background: @gold;
+	border-radius: 8px;
+	padding: 2px 10px;
+	margin-left: 14px;
+	vertical-align: 4px;
+}
+
+.tagNew {
+	background: @mint;
+}
+
+.empty {
+	padding: 16px 8px 20px;
+	font-size: 28px;
+	color: @muted;
+}
+
+.row {
+	position: absolute;
+	left: 96px;
+	bottom: 60px;
+	display: flex;
+	white-space: nowrap;
+	transition: transform 0.35s;
+
+	:global(.perf-low) &,
+	:global(.perf-mid) & {
+		transition: none;
+	}
+}
+
+.card {
+	flex: none;
+	width: 300px;
+	margin-right: 28px;
+	display: flex;
+	flex-direction: column;
+	font-size: 28px;
+	font-weight: 700;
+	color: @muted;
+	transform-origin: 50% 100%;
+	transition: transform 0.25s;
+
+	:global(.perf-low) &,
+	:global(.perf-mid) & {
+		transition: none;
+	}
+
+	span {
+		margin-top: 16px;
+	}
+}
+
+.thumb {
+	display: block;
+	width: 300px;
+	height: 168px;
+	border-radius: 20px;
+	background: #000;
+	box-shadow: 0 0 0 2px @line;
+}
+
+.trophy {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	background: @panel;
+}
+
+.focused {
+	transform: scale(1.1);
+	color: @ink;
+
+	.thumb {
+		box-shadow: 0 0 0 6px @gold;
+	}
+}
+
+// The in-game row sits just right of the score box the game draws at 32, 28, 368 by 84.
+.hudRow {
+	position: absolute;
+	left: 432px;
+	right: 32px;
+	top: 28px;
+	height: 84px;
+	display: flex;
+	align-items: center;
+}
+
+.hint {
+	height: 84px;
+	box-sizing: border-box;
+	display: flex;
+	align-items: center;
+	flex-shrink: 0;
+	background: rgba(8, 6, 22, 0.78);
+	border-radius: 20px;
+	padding: 0 24px;
+	font-size: 30px;
+	color: @muted;
+}
+
+.controlsSlot {
+	flex: 1;
+	display: flex;
+	justify-content: center;
+	margin-left: 24px;
+}
+
+.playControls {
+	background: rgba(8, 6, 22, 0.8);
+	border-radius: 42px;
+	padding: 16px 32px;
+	font-size: 28px;
+	color: @ink;
+	text-align: center;
+	transition: opacity 0.4s;
+}
+
+.faded {
+	opacity: 0;
+}
+
+.panel {
+	background: rgba(21, 18, 49, 0.92);
+	border: 2px solid @line;
+	border-radius: 28px;
+	padding: 28px 36px 16px;
+}
+
+.button {
+	padding: 24px 40px;
+	border-radius: 24px;
+	background: @panel2;
+	border: 2px solid @line;
+	font-weight: 700;
+	font-size: 34px;
+}
+
+.buttonFocused {
+	background: @gold;
+	border-color: @gold;
+	color: @night;
+}
+
+.pause {
+	position: absolute;
+	top: 0;
+	left: 0;
+	width: 100%;
+	height: 100%;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+
+	.panel {
+		width: 600px;
+		padding-bottom: 36px;
+	}
+
+	h3 {
+		font: 400 80px/1 @display;
+		margin: 0 0 24px;
+	}
+
+	.button {
+		margin-top: 16px;
+	}
+}
+
+.over {
+	position: absolute;
+	top: 0;
+	left: 0;
+	width: 100%;
+	height: 100%;
+	box-sizing: border-box;
+	display: flex;
+	align-items: center;
+	padding: 0 160px;
+
+	.panel {
+		flex: none;
+		width: 660px;
+		margin-left: 80px;
+		box-sizing: border-box;
+	}
+}
+
+.overMain {
+	flex: 1;
+	min-width: 0;
+}
+
+.gameOver {
+	font: 400 156px/0.85 @display;
+	color: @coral;
+}
+
+.final {
+	font: 700 80px @mono;
+	margin: 24px 0 4px;
+}
+
+.newRank {
+	font: 400 64px/1 @display;
+	color: @gold;
+}
+
+.buttons {
+	display: flex;
+	.flex-row-gap(24px);
+	margin-top: 52px;
+}
+
+.source {
+	font-size: 26px;
+	color: @muted;
+	margin-top: 20px;
+}
+
+.boards {
+	position: absolute;
+	top: 0;
+	left: 0;
+	width: 100%;
+	height: 100%;
+	box-sizing: border-box;
+	padding: 60px 96px;
+	background: #0d0b22;
+}
+
+.boardsHead {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	margin-bottom: 32px;
+
+	b {
+		font: 400 100px/0.9 @display;
+		color: @gold;
+	}
+
+	span {
+		font-size: 30px;
+		color: @muted;
+	}
+}
+
+.boardGrid {
+	display: flex;
+	flex-wrap: wrap;
+	.flex-wrap-gap(28px);
+}
+
+.boardCard {
+	width: 548px;
+	box-sizing: border-box;
+	background: @panel;
+	border: 2px solid @line;
+	border-radius: 24px;
+	padding: 20px 28px 8px;
+
+	h4 {
+		margin: 0;
+		font: 400 52px/1 @display;
+	}
+
+	.board {
+		margin-top: 4px;
+	}
+
+	.board li {
+		font-size: 28px;
+		padding: 8px;
+	}
+
+	.rank {
+		font-size: 40px;
+	}
+
+	.score {
+		font-size: 26px;
+	}
+}
+
+.howTo {
+	position: absolute;
+	top: 0;
+	left: 0;
+	width: 100%;
+	height: 100%;
+	box-sizing: border-box;
+	padding: 44px 120px;
+
+	h3 {
+		font: 400 88px/0.9 @display;
+		margin: 6px 0 16px;
+	}
+
+	.buttons {
+		margin-top: 28px;
+	}
+}
+
+.controls {
+	display: flex;
+	align-items: baseline;
+	font-size: 30px;
+	color: #d4cff2;
+
+	b {
+		flex: none;
+		width: 150px;
+		font: 700 22px @mono;
+		letter-spacing: 0.12em;
+		text-transform: uppercase;
+		color: @muted;
+	}
+}
+
+.groups {
+	display: flex;
+	margin-top: 28px;
+	.flex-row-gap(56px);
+}
+
+.group {
+	flex: 1;
+	min-width: 0;
+
+	h4 {
+		margin: 0 0 6px;
+		padding-bottom: 14px;
+		border-bottom: 2px solid @line;
+		font: 700 23px @mono;
+		letter-spacing: 0.12em;
+		text-transform: uppercase;
+	}
+}
+
+.enemy {
+	color: @coral;
+}
+
+.obstacle {
+	color: @muted;
+}
+
+.power {
+	color: @mint;
+}
+
+.item {
+	display: flex;
+	align-items: center;
+	padding: 8px 0;
+
+	> div {
+		flex: 1;
+		min-width: 0;
+	}
+
+	b {
+		display: block;
+		font-size: 30px;
+	}
+
+	// Up to three lines in the column, which a translation 40 percent longer than English still fits.
+	// The ellipsis only shows past that.
+	span {
+		display: -webkit-box;
+		-webkit-box-orient: vertical;
+		-webkit-line-clamp: 3;
+		overflow: hidden;
+		font-size: 24px;
+		line-height: 1.35;
+		color: @muted;
+	}
+}
+
+.icon {
+	flex: none;
+	width: 88px;
+	height: 88px;
+	margin-right: 24px;
+	border-radius: 20px;
+	background: @panel;
+}

@@ -2,7 +2,7 @@ import {renderHook, waitFor} from '@testing-library/react';
 
 import useExternalRows from './useExternalRows';
 import {memoryCache, resetEmptySections} from './browseCache';
-import {fetchExternalPresetRow, normalizeWatchingNowItem} from '../../utils/externalHomeRows';
+import {fetchCalendarRows, fetchExternalPresetRow, normalizeWatchingNowItem} from '../../utils/externalHomeRows';
 import {fetchWatchingNow} from '../../services/mdblistApi';
 import {resolveItemsByProviderIds} from '../../services/jellyfinApi';
 
@@ -105,5 +105,20 @@ describe('empty external rows', () => {
 		const {result} = renderHook(() => useExternalRows({settings: watchingNowSettings, homeRows: watchingNowRows, kidsMode: false}));
 		await waitFor(() => expect(result.current.rows.length).toBe(1));
 		expect(result.current.rows[0].items[0]).toMatchObject({Id: 'library-id', _resolvedFromExternal: true, Rank: 1});
+	});
+});
+
+describe('calendar rows', () => {
+	test('a new date format rebuilds them in that order', async () => {
+		fetchCalendarRows.mockResolvedValue([]);
+		const rows = [{id: 'radarr_calendar', enabled: true}];
+		const {rerender} = renderHook(
+			({dateFormat}) => useExternalRows({settings: {useMoonfinPlugin: true, dateFormat}, homeRows: rows, kidsMode: false}),
+			{initialProps: {dateFormat: 'system'}}
+		);
+		await waitFor(() => expect(fetchCalendarRows).toHaveBeenLastCalledWith(expect.objectContaining({dateFormat: 'system'}), expect.anything()));
+
+		rerender({dateFormat: 'dayMonth'});
+		await waitFor(() => expect(fetchCalendarRows).toHaveBeenLastCalledWith(expect.objectContaining({dateFormat: 'dayMonth'}), expect.anything()));
 	});
 });

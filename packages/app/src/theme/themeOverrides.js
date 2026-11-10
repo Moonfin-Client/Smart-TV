@@ -101,6 +101,8 @@ export const buildThemeOverrideCss = (theme, options = {}) => {
 	const scrim = (a) => `rgba(${scrimRgb}, ${a})`;
 	const accentA = (a) => `rgba(${accentRgb}, ${a})`;
 	const surfaceA = (a) => `rgba(${surfaceRgb}, ${a})`;
+	// Core units in rem, so a 720p set scales them too
+	const rem = (dp) => `${(dp * 1.66957 / 24).toFixed(4)}rem`;
 
 	const background = toCssColor(c.background);
 	const onBackground = toCssColor(c.onBackground);
@@ -225,13 +227,12 @@ export const buildThemeOverrideCss = (theme, options = {}) => {
 	}
 
 	// The pixel face runs far larger than a normal one, so settings text shrinks to 60 percent
-	// under a pixel theme. Sizes here are in rem so a 720p set scales them too.
+	// under a pixel theme.
 	if (theme.isPixel) {
-		const rem = (dp) => `${(dp * 1.66957 / 24).toFixed(4)}rem`;
 		const dpRem = (dp) => rem(dp * 0.6);
 		const sizes = {
 			appBarTitle: 22, sectionTitle: 12, listItemHeading: 14, listItemCaption: 12, listItemDescriptionSmall: 11,
-			valueBubble: 11, searchInput: 14, dialogTitle: 14, aboutVersion: 14, input: 14, editorHint: 12,
+			valueBubble: 11, searchInput: 14, dialogTitle: 18, aboutVersion: 14, input: 14, editorHint: 12,
 			editorLead: 14, settingsButton: 14, syncSubtle: 12, syncStatusTitle: 16,
 			syncSwitchLabel: 11, syncChip: 11, syncCaption: 12, syncTransferTitle: 14, syncResetButton: 14, syncMessage: 12
 		};
@@ -250,8 +251,40 @@ export const buildThemeOverrideCss = (theme, options = {}) => {
 	rule(`.${panelCss.scrim}`, `background: ${scrim(0.54)};`);
 	rule(`.${settingsCss.page}, .${settingsCss.viewContainer}, .${settingsCss.appBar}`, `background-color: ${background};`);
 	rule(`.${settingsCss.appBarScrolled}`, `background-image: linear-gradient(${accentA(0.08)}, ${accentA(0.08)});`);
-	rule(`.${settingsCss.appBarTitle}, .${settingsCss.dialogTitle}`, `color: ${onSurface};`);
+	rule(`.${settingsCss.appBarTitle}`, `color: ${onSurface};`);
 	rule(`.${settingsCss.sectionTitle}`, `color: ${accent};`);
+	// Pickers and checklists follow Core's dialog theme: the surface made opaque, the theme's
+	// corners, accent controls, and rows that fill with the focused button color under black ink.
+	const dialogShape = theme.isGlass
+		? `border-radius: ${rem(20)}; border: ${rem(1)} solid rgba(255, 255, 255, 0.2);`
+		: (theme.isPixel ? `border-radius: 0; border: ${rem(2)} solid ${surfaceVariant};` : '');
+	rule(`.${settingsCss.dialog}`, `background: rgb(${surfaceRgb}); ${dialogShape}`);
+	if (theme.isPixel) {
+		rule(`.${settingsCss.dialogOption}, .${settingsCss.checkRow}, .${settingsCss.dialogFilledButton}`, 'border-radius: 0;');
+	}
+	rule(`.${settingsCss.dialogOption}, .${settingsCss.checkRow}`, `color: ${onSurface};`);
+	rule(`.${settingsCss.dialogOption}:focus, .${settingsCss.checkRow}:focus`, `background: ${buttonFocused}; color: rgba(0, 0, 0, 0.87);`);
+	rule(`.${settingsCss.dialogRadio}`, `color: ${os(0.45)};`);
+	rule(`.${settingsCss.dialogRadioOn}`, `color: ${accent};`);
+	rule(`.${settingsCss.dialogOption}:focus .${settingsCss.dialogRadio}`, 'color: rgba(0, 0, 0, 0.5);');
+	rule(`.${settingsCss.dialogOption}:focus .${settingsCss.dialogRadioOn}`, 'color: rgba(0, 0, 0, 0.87);');
+	rule(`.${settingsCss.dialogHint}`, `color: ${os(0.65)};`);
+	rule(`.${settingsCss.dialogOption}:focus .${settingsCss.dialogHint}`, 'color: rgba(0, 0, 0, 0.6);');
+	rule(`.${settingsCss.checkBox}`, `border-color: ${accent};`);
+	rule(`.${settingsCss.checkBoxOn}`, `background: ${accent}; color: ${onAccent};`);
+	rule(`.${settingsCss.checkRow}:focus .${settingsCss.checkBox}`, 'border-color: rgba(0, 0, 0, 0.8);');
+	rule(`.${settingsCss.checkRow}:focus .${settingsCss.checkBoxOn}`, 'border-color: rgba(0, 0, 0, 0.87); background: rgba(0, 0, 0, 0.87); color: #fff;');
+	rule(`.${settingsCss.dialogButton}`, `color: ${accent};`);
+	rule(`.${settingsCss.dialogButton}:focus`, `background: ${accentA(0.1)};`);
+	rule(`.${settingsCss.dialogFilledButton}`, `background: ${buttonNormal}; color: ${onButtonNormal};`);
+	rule(`.${settingsCss.dialogFilledButton}:focus`, `background: ${buttonNormal}; background-image: linear-gradient(${toCssColorWithAlpha(c.onButtonNormal, 0.1)}, ${toCssColorWithAlpha(c.onButtonNormal, 0.1)});`);
+	// Neon Pulse's dialog titles glow in its accent, and the pixel theme sets the picker's title in its own font
+	if (theme.textGlow.length) {
+		rule(`.${settingsCss.dialogTitle}, .${settingsCss.checklistTitle}`, `color: ${accent}; text-shadow: ${textGlow}; letter-spacing: 0.4px;`);
+	}
+	if (theme.fontFamily) {
+		rule(`.${settingsCss.dialogTitle}`, `font-family: '${theme.fontFamily}', sans-serif;`);
+	}
 	rule(`.${settingsCss.listItem}, .${settingsCss.themeCard}`, `background: ${surfaceA(0.82)}; border-color: ${tileBorderColor};`);
 	rule(`.${settingsCss.listItem}:focus, .${settingsCss.themeCard}:focus`, tileFocus);
 	rule(`.${settingsCss.listItemSelected}, .${settingsCss.themeCardSelected}`, `border-color: ${accent};`);
@@ -280,7 +313,11 @@ export const buildThemeOverrideCss = (theme, options = {}) => {
 	// Plain tiles keep the stock dark type's text colours whatever the theme
 	rule(`.${settingsCss.listItemPlain} .${settingsCss.listItemHeading}, .${settingsCss.listItemPlain}:focus .${settingsCss.listItemHeading}`, `color: #e6e0e9;`);
 	rule(`.${settingsCss.listItemPlain} .${settingsCss.listItemCaption}, .${settingsCss.listItemPlain}:focus .${settingsCss.listItemCaption}`, `color: #cac4d0;`);
-	rule(`.${settingsCss.colorCircle}`, `border: ${chipBorder};`);
+	// Core strokes a swatch with the chip border in its own units, which a 1px border draws too faint
+	const swatchRing = `${Math.max(1, Math.round(b.chipBorder.width * 1.66957))}px solid ${toCssColor(b.chipBorder.color)}`;
+	rule(`.${settingsCss.colorCircle}, .${settingsCss.colorSwatch}`, `border: ${swatchRing};`);
+	rule(`.${settingsCss.swatchEdge}`, `border-color: ${os(0.24)};`);
+	rule(`.${settingsCss.swatchEdgeLight}`, 'border-color: rgba(0, 0, 0, 0.38);');
 	rule(`.${settingsCss.subtitlePreview}`, `background: linear-gradient(to bottom right, ${surfaceVariant}, ${scrim(0.8)});`);
 	rule(`.${settingsCss.listItem}:focus .${settingsCss.listItemIcon}`, `background: ${accentA(0.22)}; border-color: ${accentA(0.64)}; color: ${invertedSoft};`);
 	rule(`.${settingsCss.valueBubble}`, `background: ${accentA(0.1)}; border-color: ${accentA(0.35)}; color: ${accent};`);
@@ -295,7 +332,6 @@ export const buildThemeOverrideCss = (theme, options = {}) => {
 	rule(`.${settingsCss.sliderThumb}`, `background: ${toCssColor(c.rangeThumb)};`);
 	rule(`.${settingsCss.sliderTick}`, `background: ${os(0.38)};`);
 	rule(`.${settingsCss.divider}`, `background: ${os(0.12)};`);
-	rule(`.${settingsCss.dialog}`, `background: ${surface};`);
 	rule(`.${settingsCss.aboutVersion}`, `color: ${onSurface};`);
 	rule(`.${settingsCss.aboutDivider}`, `background: ${onSurface};`);
 	rule(`.${settingsCss.input}, .${settingsCss.searchInput}`, `background: ${surfaceVariant}; color: ${onSurface};`);
@@ -765,6 +801,7 @@ export const buildThemeOverrideCss = (theme, options = {}) => {
 	const ring = (sheet, names, states) => names.flatMap((name) => states.map((state) => `.${sheet[name]}${state}`)).join(', ');
 	if (player) {
 		rule(ring(player, ['liveBtn', 'chapterItem'], [':hover', ':focus']), `border-color: ${focusColor};`);
+		rule(`.${player.trackItem}:focus`, `background: ${accentA(0.3)};`);
 	}
 	if (playerOverlays) {
 		rule(ring(playerOverlays, ['offsetBtn', 'actionBtn', 'settingItem'], [':hover', ':focus']), `border-color: ${focusColor};`);

@@ -7,7 +7,9 @@ export const NEW_EPISODES = 'newEpisodes';
 
 // The sources that read a library newest first rather than at random.
 export const DATED_SOURCES = ['recentlyAdded', 'recentlyReleased', 'newReleases'];
-export const MEDIA_BAR_SOURCES = ['library', 'collection', ...DATED_SOURCES];
+export const MEDIA_BAR_SOURCES = ['random', ...DATED_SOURCES];
+// The library and collection sources saved before, which draw like random now.
+export const LEGACY_MEDIA_BAR_SOURCES = ['library', 'collection'];
 export const NEW_RELEASE_DAYS = [7, 14, 30, 60, 90];
 
 // The fewest episodes a season released at once has. A two episode premiere is still a season

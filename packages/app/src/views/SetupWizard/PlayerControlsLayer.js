@@ -2,6 +2,7 @@
 // player's own code and stylesheet. It's loaded the first time the player scene shows, so the
 // player's styles don't load with the app.
 
+import {useLayoutEffect, useRef, useState} from 'react';
 import {useSettings} from '../../context/SettingsContext';
 import {usePlayerButtons, useOsdLogo} from '../Player/playerOsd';
 import SubtitleTextOverlay from '../Player/SubtitleTextOverlay';
@@ -9,7 +10,8 @@ import {getZoomModeOptions} from '../Settings/settingsOptions';
 import {chapterMarkerPositions} from '../../utils/chapterMarkers';
 import {formatPlaybackTimeSlot} from '../../utils/playbackTimeLabels';
 import {zoomInternalFromSetting, zoomSettingFromInternal} from '../../utils/playbackTuning';
-import {resolveSubtitleStyleSettings} from '../../utils/subtitleConstants';
+import {rootScale} from '../../utils/rootScale';
+import {getSubtitleOverlayStyle, resolveSubtitleStyleSettings} from '../../utils/subtitleConstants';
 // The webOS player's controls and subtitles share these rules.
 import playerCss from '../Player/TizenPlayer.module.less';
 
@@ -32,9 +34,26 @@ const SAMPLE_SUBTITLES = [{index: 3}];
 // What the player's stylesheet gives the focused control, since nothing in the preview takes focus.
 const FOCUSED_BUTTON = {backgroundColor: 'rgba(255, 255, 255, 0.22)', borderColor: '#FFFFFF'};
 
+// The room left between the subtitle and the controls, in the player's pixels at 1080p.
+const SUBTITLE_GAP = 12;
+
+// How far up the screen the bar and the time row over it reach, as a percent of its height, with
+// the gap added. The thumb rises past the bar's top edge, so it counts when there's no time row.
+const controlsFloor = (controls) => {
+	const box = controls.getBoundingClientRect();
+	if (!box.height || !controls.offsetHeight) return 0;
+	const topOf = (name) => {
+		const node = controls.querySelector(`.${name}`);
+		return node ? node.getBoundingClientRect().top : box.bottom;
+	};
+	const top = Math.min(topOf(playerCss.progressContainer), topOf(playerCss.seekIndicator));
+	if (top >= box.bottom) return 0;
+	return ((box.bottom - top) / box.height + SUBTITLE_GAP * rootScale() / controls.offsetHeight) * 100;
+};
+
 // The player's on-screen controls for the sample episode, built from the same buttons, logo and
 // time labels the player uses. [focus] is what holds the remote, the play button or the bar.
-const PlayerOsd = ({item, paused, subtitles, progress, focus, measureBar}) => {
+const PlayerOsd = ({item, paused, subtitles, progress, focus, measureBar, controlsRef}) => {
 	const {settings} = useSettings();
 	const zoomKey = zoomInternalFromSetting(settings.playerZoomMode);
 	const zoomOption = getZoomModeOptions().find((option) => option.value === zoomSettingFromInternal(zoomKey));
@@ -42,7 +61,7 @@ const PlayerOsd = ({item, paused, subtitles, progress, focus, measureBar}) => {
 		isPaused: paused, audioStreams: SAMPLE_AUDIO, subtitleStreams: SAMPLE_SUBTITLES, chapters: SAMPLE_CHAPTERS,
 		nextEpisode: true, isAudioMode: false, isLiveTV: false, selectedQuality: null,
 		selectedSubtitleIndex: subtitles ? SAMPLE_SUBTITLES[0].index : -1, canDownloadRemoteSubtitles: true, hasCastMembers: true,
-		zoomModeLabel: zoomOption && zoomOption.label, zoomModeKey: zoomKey, sleepMinutes: null, canBrowseEpisodes: true
+		zoomModeLabel: zoomOption && zoomOption.label, zoomModeKey: zoomKey, sleepMinutes: null, canBrowseEpisodes: true, canFavorite: true
 	});
 	const {displayLogoUrl, logoLoadFailed, logoHeightPx, handleLogoError} = useOsdLogo(item && item.logoUrl);
 	const title = item ? item.title : '';
@@ -75,7 +94,7 @@ const PlayerOsd = ({item, paused, subtitles, progress, focus, measureBar}) => {
 		);
 	};
 	return (
-		<div className={`${playerCss.playerControls} ${playerCss.visible}`}>
+		<div ref={controlsRef} className={`${playerCss.playerControls} ${playerCss.visible}`}>
 			<div className={playerCss.controlsTop}>
 				<div className={playerCss.mediaInfo}>
 					{displayLogoUrl && !logoLoadFailed ? (
@@ -114,17 +133,31 @@ const PlayerOsd = ({item, paused, subtitles, progress, focus, measureBar}) => {
 
 const PlayerControlsLayer = ({item, hdr, subtitles, controls, paused, progress, focus, measureBar}) => {
 	const {settings} = useSettings();
+	const controlsRef = useRef(null);
+	const [floor, setFloor] = useState(0);
+	// Any setting being tried can move the bar or its time row, so it's measured again with each one.
+	useLayoutEffect(() => {
+		setFloor(controlsRef.current ? controlsFloor(controlsRef.current) : 0);
+	}, [controls, settings]);
+	const style = resolveSubtitleStyleSettings(settings, hdr);
+	// While the controls are up the line moves above them rather than hiding behind the bar. The
+	// overlay only takes a height it's handed through an absolute position.
+	const lifted = floor > parseFloat(getSubtitleOverlayStyle(style).bottom)
+		? {...style, subtitlePosition: 'absolute', subtitlePositionAbsolute: 100 - floor}
+		: style;
 	return (
 		<>
 			{subtitles && (
 				<SubtitleTextOverlay
 					css={playerCss}
-					settings={resolveSubtitleStyleSettings(settings, hdr)}
+					settings={lifted}
 					primaryText={SUBTITLE_LINES[settings.subtitleLanguage] || 'Wait, did you hear that?'}
 				/>
 			)}
 			{controls && (
-				<PlayerOsd item={item} paused={paused} subtitles={subtitles} progress={progress} focus={focus} measureBar={measureBar} />
+				<PlayerOsd
+					item={item} paused={paused} subtitles={subtitles} progress={progress} focus={focus} measureBar={measureBar} controlsRef={controlsRef}
+				/>
 			)}
 		</>
 	);

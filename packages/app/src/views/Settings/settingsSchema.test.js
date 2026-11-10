@@ -196,15 +196,37 @@ describe('settings schema', () => {
 		expect(toggle.when({...ctx, settings: {...defaultSettings, showLibrariesInToolbar: false}})).toBe(false);
 	});
 
-	test('the Live TV and SyncPlay button switches only show where the navbar could draw the button', () => {
+	test('Card image only shows while the saved calendar style is Countdown, the one style that draws it', () => {
+		const picker = allRows().find(({row}) => row.key === 'calendarImageType').row;
+		expect(defaultSettings.calendarStyle).toBe('agenda');
+		expect(picker.when(ctx)).toBe(false);
+		expect(picker.when({...ctx, settings: {...defaultSettings, calendarStyle: 'countdown'}})).toBe(true);
+	});
+
+	test('the Live TV and Watch Parties button switches only show where the navbar could draw the button', () => {
 		const shown = (key, overrides, settings = {}) => allRows().find(({row}) => row.key === key).row
 			.when({...ctx, ...overrides, settings: {...defaultSettings, ...settings}});
 		expect(shown('showLiveTvButton', {})).toBe(true);
 		expect(shown('showLiveTvButton', {hasLiveTv: false})).toBe(false);
 		expect(shown('showSyncPlayButton', {})).toBe(true);
 		expect(shown('showSyncPlayButton', {serverType: 'emby'})).toBe(true);
-		expect(shown('showSyncPlayButton', {serverType: 'plex'})).toBe(false);
+		// Moonbase hosts watch parties on Plex too.
+		expect(shown('showSyncPlayButton', {serverType: 'plex'})).toBe(true);
 		expect(shown('showSyncPlayButton', {}, {syncplayEnabled: false})).toBe(false);
+	});
+
+	test('the Watch Parties screen follows what the server can host', () => {
+		const row = (id) => allRows().find(({row: r}) => r.key === id || r.id === id).row;
+		const on = (id, overrides, settings = {}) => Boolean(row(id).when({...ctx, ...overrides, settings: {...defaultSettings, ...settings}}));
+		const moonbase = {watchParties: {moonbase: true}};
+		expect(on('watchPartyService', {...moonbase, serverType: 'jellyfin'})).toBe(true);
+		expect(on('watchPartyService', {...moonbase, serverType: 'emby'})).toBe(false);
+		expect(on('watchPartyService', {serverType: 'jellyfin'})).toBe(false);
+		expect(on('watchPartyChatOverlay', moonbase)).toBe(true);
+		expect(on('watchPartyAlerts', {})).toBe(false);
+		expect(on('watchPartiesNeedMoonbase', {watchParties: {needsMoonbase: true}})).toBe(true);
+		expect(on('openWatchParties', {}, {syncplayEnabled: false})).toBe(false);
+		expect(defaultSettings).toMatchObject({syncplayEnabled: true, watchPartyService: 'moonbase', watchPartyChatOverlay: true, watchPartyAlerts: false});
 	});
 
 	test("Secondary Subtitles is off by default and follows the default language, with its own language only while it's on", () => {

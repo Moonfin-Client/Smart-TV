@@ -35,35 +35,34 @@ export const getVideoDisplayAspectRatio = (mediaSource) => {
 	return null;
 };
 
+// Jellyfin reports the stream as stored, so a phone video saved sideways with a rotation flag is
+// declared 16:9 while the TV decodes and shows it portrait. The decoder's orientation is the one on screen.
+export const matchDecodedOrientation = (displayAspect, decodedAspect) => {
+	if (!(displayAspect > 0) || !(decodedAspect > 0)) return displayAspect;
+	const turned = (displayAspect > 1 && decodedAspect < 1) || (displayAspect < 1 && decodedAspect > 1);
+	return turned ? 1 / displayAspect : displayAspect;
+};
+
 export const getZoomDisplayRect = (screenRect, aspectRatio, zoomMode) => {
 	const screenWidth = Math.max(1, Number(screenRect?.width) || 1920);
 	const screenHeight = Math.max(1, Number(screenRect?.height) || 1080);
 	const screenAspect = screenWidth / screenHeight;
 	const targetAspect = Number.isFinite(aspectRatio) && aspectRatio > 0 ? aspectRatio : screenAspect;
 
-	if (zoomMode === 'stretch') {
+	// Zoom to Fill covers the screen too, since its source is cut down to the screen's shape.
+	if (zoomMode === 'stretch' || zoomMode === 'fill') {
 		return {x: 0, y: 0, width: screenWidth, height: screenHeight};
 	}
 
 	let width;
 	let height;
 
-	if (zoomMode === 'fill') {
-		if (targetAspect > screenAspect) {
-			height = screenHeight;
-			width = Math.round(height * targetAspect);
-		} else {
-			width = screenWidth;
-			height = Math.round(width / targetAspect);
-		}
+	if (targetAspect > screenAspect) {
+		width = screenWidth;
+		height = Math.round(width / targetAspect);
 	} else {
-		if (targetAspect > screenAspect) {
-			width = screenWidth;
-			height = Math.round(width / targetAspect);
-		} else {
-			height = screenHeight;
-			width = Math.round(height * targetAspect);
-		}
+		height = screenHeight;
+		width = Math.round(height * targetAspect);
 	}
 
 	const x = Math.round((screenWidth - width) / 2);

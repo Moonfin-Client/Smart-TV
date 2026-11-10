@@ -1,6 +1,7 @@
 import {act, fireEvent, render} from '@testing-library/react';
 import Spotlight from '@enact/spotlight';
 
+import {setSmoothScrolling} from '../../utils/focusScroll';
 import TileGrid from './TileGrid';
 
 // The CLI ships a second copy of React, so the components' JSX goes through the copy under test.
@@ -41,7 +42,10 @@ beforeEach(() => {
 	Spotlight.focus.mockClear();
 });
 
-afterEach(() => jest.restoreAllMocks());
+afterEach(() => {
+	jest.restoreAllMocks();
+	setSmoothScrolling(true);
+});
 
 const setup = (props = {}) => {
 	const onFocusIndex = jest.fn();
@@ -101,6 +105,17 @@ describe('TileGrid', () => {
 		expect(track().style.transform).toBe('translateY(-600px)');
 		expect(grid.getAttribute('data-scrolled')).toBe('true');
 		expect(document.querySelectorAll('[style*="translateY"]').length).toBeLessThanOrEqual(1 + 4);
+	});
+
+	test('moves the rows without sliding when Smooth Scrolling is off', () => {
+		setSmoothScrolling(false);
+		const {grid, press, track} = setup();
+		fireEvent.focus(grid);
+		press('down');
+		press('down');
+		press('down');
+		expect(track().style.transform).toBe('translateY(-600px)');
+		expect(track().style.transition).toBe('none');
 	});
 
 	test('lets the page scroll it back to the start and focus it', () => {

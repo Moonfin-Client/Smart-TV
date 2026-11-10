@@ -74,8 +74,9 @@
 	}
 }
 
+// Chrome 38 sizes a 0% basis in a column with no set height as zero, which squashes the dialog to its header.
 .content {
-	flex: 1;
+	flex: 1 1 auto;
 	overflow-y: auto;
 	padding: 20px 28px 28px;
 }
@@ -122,7 +123,8 @@
 	white-space: nowrap;
 	font-family: inherit;
 
-	&:disabled {
+	&:disabled,
+	&[aria-disabled='true'] {
 		opacity: 0.5;
 		cursor: default;
 	}

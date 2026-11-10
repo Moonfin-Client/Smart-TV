@@ -11,6 +11,7 @@ import {useSyncPlay} from '../../context/SyncPlayContext';
 import {watchParty} from '../../services/siloWatchParty';
 import {startServerShuffle} from '../../services/serverShuffle';
 import useWatchParty from '../../hooks/useWatchParty';
+import {useWatchPartyBackend} from '../../hooks/useWatchPartyRooms';
 import * as jellyfinApi from '../../services/jellyfinApi';
 import {searchesForTrailer} from '../../services/youtubeTrailer';
 import {canKeepAsComplete, keepAsComplete, useIncompleteRecording} from '../../services/incompleteRecordings';
@@ -206,10 +207,14 @@ const Details = ({
 	);
 	const item = seerrOnly ? seerrItem : data.item;
 
-	// On Silo the host picks what a Watch Party watches; anyone else can open a party by picking. The party is the
-	// signed-in server's, so items from another server can't be picked.
-	const canPickForWatchParty = jellyfinApi.getServerType() === 'silo' && (!initialItem?._serverUrl || initialItem._serverUrl === serverUrl) &&
-		(!watchPartyRoom || watchPartyRoom.isHost);
+	// Silo, or Moonbase unless Jellyfin is set to start SyncPlay, lets the host pick what a party watches and anyone else
+	// open one by picking, but only from the signed-in server, since the party is that server's.
+	const partyBackend = useWatchPartyBackend(`${serverUrl}|${user?.Id}`);
+	const startsMoonbaseParty = partyBackend.backend === 'moonbase' && partyBackend.available && !isSyncPlayInGroup &&
+		storedSettings.syncplayEnabled !== false &&
+		(jellyfinApi.getServerType() !== 'jellyfin' || storedSettings.watchPartyService !== 'syncplay');
+	const canPickForWatchParty = (jellyfinApi.getServerType() === 'silo' || Boolean(watchPartyRoom) || startsMoonbaseParty) &&
+		(!initialItem?._serverUrl || initialItem._serverUrl === serverUrl) && (!watchPartyRoom || watchPartyRoom.isHost);
 
 	// A room plays files, so a series stands for its Next Up, else its first unwatched episode (specials left out),
 	// and a season for its first unwatched episode.
@@ -246,12 +251,12 @@ const Details = ({
 	const isLoading = seerrOnly ? seerr.loading : libraryLoading;
 
 	const {cast: detailCast, crew: detailCrew} = useMemo(() => {
-		const split = splitCastAndCrew(seerrOnly ? item?.People || [] : cast);
+		const split = splitCastAndCrew(seerrOnly ? item?.People || [] : cast, 20, item?.Type === 'Episode');
 		return {
 			cast: showsSection('cast') ? split.cast : [],
 			crew: showsSection('crew') ? split.crew : []
 		};
-	}, [seerrOnly, item?.People, cast, showsSection]);
+	}, [seerrOnly, item?.People, item?.Type, cast, showsSection]);
 
 	// The Seerr popups have to answer BACK before the screen's own overlays do, and the ref is
 	// how they reach the handler useDetailsModals owns.
@@ -956,8 +961,10 @@ const Details = ({
 		try {
 			await effectiveApi.removeFromPlaylist(item.Id, [entryId]);
 			showToast($L('Removed from playlist'));
+			return true;
 		} catch {
 			setPlaylistItems(prevItems);
+			return false;
 		}
 	}, [playlistItems, effectiveApi, item, showToast, setPlaylistItems]);
 
@@ -1028,8 +1035,8 @@ const Details = ({
 
 	// A card on a collection's own page can be taken out of that collection from its menu.
 	const collectionMenu = useMemo(() => (item?.Type === 'BoxSet' ? {
-		collectionRemoval: {collectionName: item.Name || '', remove: removeFromCollection}
-	} : null), [item?.Type, item?.Name, removeFromCollection]);
+		collectionRemoval: {collectionId: item.Id, collectionName: item.Name || '', remove: removeFromCollection}
+	} : null), [item?.Type, item?.Id, item?.Name, removeFromCollection]);
 
 	// Reordering needs an entry id per track, which only a real playlist carries.
 	const canManagePlaylist = item?.Type === 'Playlist' && playlistItems.length > 0 &&
@@ -1059,6 +1066,7 @@ const Details = ({
 			: candidate.Id === entry.Id));
 		return {
 			playlist: {
+				playlistId: item.Id,
 				canManage: canManagePlaylist,
 				positionOf: (entry) => {
 					const at = indexOf(entry);
@@ -1069,7 +1077,7 @@ const Details = ({
 				move: (entry, direction) => handlePlaylistItemReorder(indexOf(entry), direction)
 			}
 		};
-	}, [item?.Type, playlistItems, canManagePlaylist, playTrack, handleRemoveFromPlaylist, handlePlaylistItemReorder, handleCollectionMove]);
+	}, [item?.Type, item?.Id, playlistItems, canManagePlaylist, playTrack, handleRemoveFromPlaylist, handlePlaylistItemReorder, handleCollectionMove]);
 
 	const page = (children) => (quickLook
 		? <QuickLookFrame onClose={onClose}>{children}</QuickLookFrame>
@@ -1577,7 +1585,9 @@ const Details = ({
 					episodes={episodes}
 					episodeRatings={episodeRatings}
 					actionButtons={actionButtons}
+					extras={shownExtras}
 					onEpisodeSelect={handleEpisodeSelect}
+					onExtraSelect={handleExtraSelect}
 				/>
 			</DetailScrollPage>
 		);

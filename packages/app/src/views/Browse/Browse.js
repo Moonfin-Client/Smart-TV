@@ -28,6 +28,10 @@ import MakdBanner from './MakdBanner';
 import GalleryBanner from './GalleryBanner';
 import AyaBanner from './AyaBanner';
 import BannerBar from './BannerBar';
+import WatchPartyRow, {WatchPartyAlert, useWatchPartyHomeRow} from '../../components/WatchPartyDialog/WatchPartyRow';
+import {watchParty} from '../../services/siloWatchParty';
+import {openWatchParties} from '../../hooks/useWatchPartyRooms';
+import {useSyncPlay} from '../../context/SyncPlayContext';
 import BookshelfBar from './BookshelfBar';
 import BackdropLayer from '../../components/BackdropLayer';
 import useBrowseData from './useBrowseData';
@@ -38,6 +42,7 @@ import {buildBrowseRows, sameRowList} from './buildBrowseRows';
 import {markHomeReady} from '../../utils/homeReady';
 import {homeBackdropStyle} from '../../utils/homeBackdropStyle';
 import {rem} from '../../utils/rootScale';
+import {glideScroll, isGliding, smoothScrollingOn, stopScrollAnimation} from '../../utils/focusScroll';
 import {rowImageType, rowPeekHeight} from './rowPeek';
 
 import css from './Browse.module.less';
@@ -298,7 +303,33 @@ const Browse = ({
 	}, [allRowData, seerrRows, externalRows, homeRowsConfig, pluginSectionsConfig, rowBuildSettings, pendingSections, pendingRows, emptySections]);
 	// The rows can come back from a cache built before the watched state last moved, so what's
 	// known now is laid over them rather than fetched again.
-	const filteredRows = useUserDataRows(builtRows);
+	const dataRows = useUserDataRows(builtRows);
+	// Watch Parties lead the rows while any exist, except on Silo, which has no list of them.
+	const {joinGroup: joinSyncPlayGroup, openDialog: openSyncPlayDialog} = useSyncPlay();
+	const {row: partyRow, alert: partyAlert} = useWatchPartyHomeRow({
+		enabled: !kidsMode && serverType !== 'silo' && settings.syncplayEnabled !== false,
+		active: isVisible,
+		sessionKey: `${serverUrl}|${user?.Id}`,
+		withSyncPlay: serverType === 'jellyfin',
+		alerts: settings.watchPartyAlerts === true
+	});
+	const filteredRows = useMemo(() => (partyRow ? [partyRow, ...dataRows] : dataRows), [partyRow, dataRows]);
+	const handleJoinParty = useCallback(async (room) => {
+		if (room.kind === 'syncplay') {
+			if (await joinSyncPlayGroup(room.roomId)) openSyncPlayDialog();
+			return;
+		}
+		watchParty.joinRoom(room);
+		openWatchParties();
+	}, [joinSyncPlayGroup, openSyncPlayDialog]);
+	const handleStartParty = useCallback(() => {
+		if (serverType === 'jellyfin' && settings.watchPartyService === 'syncplay') {
+			openSyncPlayDialog();
+			return;
+		}
+		watchParty.create();
+		openWatchParties();
+	}, [serverType, settings.watchPartyService, openSyncPlayDialog]);
 	const hasFocusableRow = filteredRows.some((row) => !row.isPlaceholder);
 
 	const focusRow = useCallback((rowIndex, cardIndex, cardId) => {
@@ -329,7 +360,7 @@ const Browse = ({
 	// With the info overlay above the rows the row pins right under the overlay,
 	// leaving a tall row its room below at every UI scale. Without the overlay
 	// the scroller itself starts under the navbar, so the row pins at its top.
-	const restRowScroll = useCallback((rowIndex) => {
+	const restRowScroll = useCallback((rowIndex, start) => {
 		const container = contentRowsRef.current;
 		if (!container) return;
 		// The ref a row hands over is the spotlight container component rather
@@ -346,22 +377,25 @@ const Browse = ({
 		const {showTopInfoArea: overlay, navbarPosition} = liveRef.current;
 		const topbarOffset = overlay && navbarPosition !== 'left' ? 20 : 0;
 		const top = Math.max(0, targetRow.offsetTop - topbarOffset);
-		if (Math.abs(container.scrollTop - top) > 1) container.scrollTop = top;
+		glideScroll(container, 'y', top, start);
 	}, []);
 
 	// Focus scrolling lands wherever the engine likes, sometimes with the row's bottom past the
 	// screen, and it lands after the focus handlers, so the row is put back at its resting spot on
 	// the frames behind it. However many moves ask, each frame settles once.
-	const settleRef = useRef({row: -1, passes: 0, frame: 0});
-	const settleRow = useCallback((rowIndex, passes) => {
+	// `start` is where the rows sat before the browser's focus scroll moved them, so the glide begins from there.
+	const settleRef = useRef({row: -1, passes: 0, frame: 0, start: undefined});
+	const settleRow = useCallback((rowIndex, passes, start) => {
 		const settle = settleRef.current;
 		settle.row = rowIndex;
+		if (typeof start === 'number' && settle.start === undefined) settle.start = start;
 		settle.passes = Math.max(settle.passes, passes);
 		if (settle.frame) return;
 		const step = () => {
 			settle.frame = 0;
 			pinMainScroll();
-			restRowScroll(settle.row);
+			restRowScroll(settle.row, settle.start);
+			settle.start = undefined;
 			settle.passes -= 1;
 			if (settle.passes > 0) settle.frame = window.requestAnimationFrame(step);
 		};
@@ -385,9 +419,10 @@ const Browse = ({
 
 		// A row is only measured once it renders, so landing on one that was still
 		// standing in at a guessed height leaves it above the screen with its cards
-		// cut off. Settling once it is real puts it where it was asked to go.
-		restRowScroll(rowIndex);
-		settleRow(rowIndex, 2);
+		// cut off. Settling once it is real puts it where it was asked to go. A glide from rest leaves the move
+		// to the settle passes, so it doesn't set off before the row losing focus has shrunk.
+		if (!smoothScrollingOn() || isGliding(container, 'y')) restRowScroll(rowIndex);
+		settleRow(rowIndex, 2, container.scrollTop);
 
 		if (thenFocus) {
 			let attempts = 0;
@@ -756,7 +791,7 @@ const Browse = ({
 			pinMainScroll();
 			return;
 		}
-		settleRow(rowIndex, rowChanged ? 2 : 1);
+		settleRow(rowIndex, rowChanged ? 2 : 1, contentRowsRef.current?.scrollTop);
 	}, [setBrowseMode, pinMainScroll, settleRow, loadSectionsNear]);
 
 	const backdropTimerRef = useRef(null);
@@ -790,7 +825,11 @@ const Browse = ({
 
 	// Rows mode leaves the scroller wherever the last row pinned it, and the peek shows its top.
 	useLayoutEffect(() => {
-		if (rowPeek && contentRowsRef.current) contentRowsRef.current.scrollTop = 0;
+		const container = contentRowsRef.current;
+		if (!rowPeek || !container) return;
+		// A row glide still under way would write its offset back over this on its next frame.
+		stopScrollAnimation(container);
+		container.scrollTop = 0;
 	}, [rowPeek]);
 
 	const navOffsetClass = settings.navbarPosition === 'left' ? css.sidebarOffset : css.topbarOffset;
@@ -812,6 +851,7 @@ const Browse = ({
 
 	return (
 		<div className={css.page}>
+			<WatchPartyAlert room={partyAlert} />
 			<div className={`${css.mainContent} ${navOffsetClass} ${rowPeek ? css.rowPeek : ''}`} ref={mainContentRef}>
 				<BackdropLayer
 					targetUrl={targetBackdropUrl}
@@ -974,6 +1014,25 @@ const Browse = ({
 								/>
 							);
 						}
+						if (row.isWatchPartyRow) {
+							return (
+								<WatchPartyRow
+									key={row.id}
+									rowId={row.id}
+									title={row.title}
+									items={row.items}
+									labels={serverType === 'jellyfin'}
+									onFocus={handleRowFocus}
+									rowIndex={index}
+									onNavigateUp={handleNavigateUp}
+									onNavigateDown={handleNavigateDown}
+									rowSpacing={rowSpacing}
+									registerRowRef={registerRowRef}
+									onJoin={handleJoinParty}
+									onStart={handleStartParty}
+								/>
+							);
+						}
 						if (row.isWatchingNowRow) {
 							return (
 								<WatchingNowRow
@@ -1005,8 +1064,11 @@ const Browse = ({
 						const rowMenuOptions = isCwOrNextUp
 							? continueWatchingMenuOptions
 							: undefined;
+						// Studio art is a wide logo that Modern's portrait cards would crop, so the row stays
+						// classic in either style.
+						const Row = row.id === 'studios' ? ClassicMediaRow : RowComponent;
 						return (
-							<RowComponent
+							<Row
 								key={row.id}
 								rowId={row.id}
 								title={row.title}
@@ -1028,6 +1090,7 @@ const Browse = ({
 								menuOptions={rowMenuOptions}
 								ratingsSurface='homeRows'
 								hideOverview={settings.hideHomeMediaDescription === true}
+								posterLabels={!row.isSeerrRow && !row.isOnlineRecoRow && !row.isGenreRow}
 								onLoadMore={row.hasMore ? loadMoreRow : undefined}
 								onCalendarSeeAll={calendarSeeAll && CALENDAR_ROW_IDS.indexOf(row.id) >= 0 ? rowSelect.calendar : undefined}
 							/>

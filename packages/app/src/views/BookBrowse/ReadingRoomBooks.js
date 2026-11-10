@@ -197,7 +197,7 @@ const Grid = ({items, columns, render}) => rowsOf(items, columns).map((row, r) =
 
 // The Reading Room book library: the library's name in a serif over what's being read on large
 // cards, then the newest titles, the series fanned out, and the authors and genres as tiles.
-const ReadingRoomBooks = ({library, api, serverUrl, data, onSelectItem, onOpenGrid, onOpenScreen, onPlay, onSearch}) => {
+const ReadingRoomBooks = ({library, api, serverUrl, data, onSelectItem, onOpenGrid, onOpenScreen, onPlay, onSearch, settingsPreview}) => {
 	const {settings} = useSettings();
 	const [scope, setScope] = useState(SCOPE_ALL);
 	const [recent, setRecent] = useState([]);
@@ -322,6 +322,7 @@ const ReadingRoomBooks = ({library, api, serverUrl, data, onSelectItem, onOpenGr
 	// The first load lands under the header, unless Overview was picked from the chips, which keep
 	// focus. After that focus only moves when a reload took the focused stop away.
 	useEffect(() => {
+		if (settingsPreview) return;
 		const active = document.activeElement;
 		const focused = active && active !== document.body && active.classList?.contains('spottable');
 		if (!initialFocusRef.current) {
@@ -335,7 +336,7 @@ const ReadingRoomBooks = ({library, api, serverUrl, data, onSelectItem, onOpenGr
 		if (focused) return;
 		const last = lastNodeRef.current;
 		focusNode(chain.includes(last) ? last : chain[0]);
-	}, [chain, focusNode, lastNodeRef, scrollerRef]);
+	}, [chain, focusNode, lastNodeRef, scrollerRef, settingsPreview]);
 
 	const name = library?.Name || $L('Books');
 
@@ -411,7 +412,7 @@ const ReadingRoomBooks = ({library, api, serverUrl, data, onSelectItem, onOpenGr
 						{recent.length > 0 && (
 							<div className={css.section} ref={sectionRefs[RECENT]}>
 								<SectionHeader title={$L('Recently Added')} node={RECENT} onSeeAll={browseAll} onSeeAllKeyDown={recentKeys.onSeeAllKeyDown} />
-								<RowContainer className={css.row} spotlightId={IDS[RECENT]} onFocus={keepFocusInView} onKeyDown={recentKeys.onKeyDown}>
+								<RowContainer className={css.row} spotlightId={settingsPreview ? undefined : IDS[RECENT]} onFocus={keepFocusInView} onKeyDown={recentKeys.onKeyDown}>
 									{recent.map((item) => (
 										<BookCard key={item.Id} item={item} serverUrl={serverUrl} width={CARD_WIDTH} showFormat={mixed} onSelect={openItem} />
 									))}
@@ -422,7 +423,7 @@ const ReadingRoomBooks = ({library, api, serverUrl, data, onSelectItem, onOpenGr
 						{series.length > 0 && (
 							<div className={css.section} ref={sectionRefs[SERIES]}>
 								<SectionHeader title={$L('Series')} node={SERIES} onSeeAll={openSeriesFolders} onSeeAllKeyDown={seriesKeys.onSeeAllKeyDown} />
-								<RowContainer className={css.row} spotlightId={IDS[SERIES]} onFocus={keepFocusInView} onKeyDown={seriesKeys.onKeyDown}>
+								<RowContainer className={css.row} spotlightId={settingsPreview ? undefined : IDS[SERIES]} onFocus={keepFocusInView} onKeyDown={seriesKeys.onKeyDown}>
 									{series.map((item) => <SeriesTile key={item.Id} item={item} serverUrl={serverUrl} onSelect={openItem} />)}
 								</RowContainer>
 							</div>

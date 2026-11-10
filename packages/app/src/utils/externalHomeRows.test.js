@@ -118,17 +118,22 @@ describe('buildSeasonalRow', () => {
 
 describe('fetchCalendarRows', () => {
 	const settings = {radarrCalendarShowCinema: true, radarrCalendarShowDate: true};
-	const movie = (tmdbId, title, inCinemas) => ({tmdbId, title, inCinemas, images: []});
+	const movie = (tmdbId, title, inCinemas, extra = {}) => ({tmdbId, title, inCinemas, images: [], ...extra});
 
 	beforeEach(() => {
-		jest.spyOn(Date, 'now').mockReturnValue(Date.parse('2026-10-27T12:00:00Z'));
+		jest.useFakeTimers();
+		jest.setSystemTime(new Date(2026, 9, 27, 12));
 		jest.spyOn(seerrApi, 'getRadarrSettings').mockResolvedValue([{hostname: 'radarr', port: 7878, apiKey: 'key'}]);
+		jest.spyOn(seerrApi, 'getSonarrSettings').mockResolvedValue([{hostname: 'sonarr', port: 8989, apiKey: 'key'}]);
 	});
-	afterEach(() => jest.restoreAllMocks());
+	afterEach(() => {
+		jest.useRealTimers();
+		jest.restoreAllMocks();
+	});
 
-	const radarrRow = async (movies) => {
+	const radarrRow = async (movies, extra = {}) => {
 		fetchWithTimeout.mockResolvedValue({ok: true, json: () => Promise.resolve(movies)});
-		const [calendar] = await fetchCalendarRows(settings, {radarrEnabled: true});
+		const [calendar] = await fetchCalendarRows({...settings, ...extra}, {radarrEnabled: true});
 		return calendar;
 	};
 
@@ -143,7 +148,83 @@ describe('fetchCalendarRows', () => {
 
 	it('labels a release with the day Radarr gives, wherever the TV is', async () => {
 		const calendar = await radarrRow([movie(1, 'Out today', '2026-10-27T00:00:00Z')]);
-		expect(calendar.items[0].Subtitle).toBe('Cinema: Oct 27');
+		expect(calendar.items[0].Subtitle).toBe('Cinema \u00b7 Today (Oct 27)');
+	});
+
+	it('leaves out a movie Radarr already has only while the setting is on', async () => {
+		const movies = [
+			movie(1, 'Downloaded', '2026-10-28T00:00:00Z', {hasFile: true}),
+			movie(2, 'Missing', '2026-10-29T00:00:00Z')
+		];
+
+		expect((await radarrRow(movies, {radarrCalendarHideDownloaded: true})).items.map((item) => item.Name)).toEqual(['Missing']);
+		expect((await radarrRow(movies, {radarrCalendarHideDownloaded: false})).items.map((item) => item.Name)).toEqual(['Downloaded', 'Missing']);
+	});
+
+	it('names the release format only when more than one kind of date could show', async () => {
+		const digital = [{tmdbId: 1, title: 'Streaming', digitalRelease: '2026-10-30T00:00:00Z', physicalRelease: '2026-12-01T00:00:00Z', images: []}];
+		const only = {radarrCalendarShowCinema: false, radarrCalendarShowDigital: true};
+
+		expect((await radarrRow(digital, only)).items[0].Subtitle).toBe('In 3 days (Oct 30)');
+		expect((await radarrRow(digital, {...only, radarrCalendarShowPhysical: true})).items[0].Subtitle).toBe('Digital \u00b7 In 3 days (Oct 30)');
+		expect((await radarrRow(digital, {...only, radarrCalendarShowDate: false})).items[0].Subtitle).toBe('');
+	});
+
+	it('reads two releases on one day as the physical one', async () => {
+		const sameDay = [{tmdbId: 1, title: 'Both', digitalRelease: '2026-10-30T00:00:00Z', physicalRelease: '2026-10-30T00:00:00Z', images: []}];
+
+		expect((await radarrRow(sameDay, {radarrCalendarShowDigital: true, radarrCalendarShowPhysical: true})).items[0].Subtitle).toBe('Physical \u00b7 In 3 days (Oct 30)');
+	});
+
+	const sonarrSettings = {sonarrCalendarShowEpisodeInfo: true, sonarrCalendarShowDate: true, sonarrCalendarHideDownloaded: true};
+	const episode = (tvdbId, title, number, airs, hasFile = false) => ({
+		series: {tvdbId, title, images: []},
+		seasonNumber: 1,
+		episodeNumber: number,
+		airDateUtc: airs.toISOString(),
+		hasFile
+	});
+	const sonarrRow = async (calendar, extra = {}) => {
+		fetchWithTimeout.mockResolvedValue({ok: true, json: () => Promise.resolve(calendar)});
+		const [sonarr] = await fetchCalendarRows({...sonarrSettings, ...extra}, {sonarrEnabled: true});
+		return sonarr;
+	};
+	const shown = (calendar) => calendar.items.map((item) => `${item.Name} ${item.Subtitle}`);
+
+	const episodes = [
+		episode(1, 'Show A', 1, new Date(2026, 9, 26, 21)),
+		episode(1, 'Show A', 2, new Date(2026, 9, 27, 8), true),
+		episode(1, 'Show A', 3, new Date(2026, 10, 3, 21)),
+		episode(2, 'Show B', 5, new Date(2026, 9, 28, 21), true),
+		episode(3, 'Show C', 1, new Date(2026, 9, 29, 21))
+	];
+
+	it('shows each series by its first episode from today on that is not downloaded yet', async () => {
+		expect(shown(await sonarrRow(episodes))).toEqual([
+			'Show C S1:E1 \u00b7 In 2 days (Oct 29)',
+			'Show A S1:E3 \u00b7 In 7 days (Nov 3)'
+		]);
+	});
+
+	it('keeps downloaded episodes while the setting is off', async () => {
+		expect(shown(await sonarrRow(episodes, {sonarrCalendarHideDownloaded: false}))).toEqual([
+			'Show A S1:E2 \u00b7 Today (Oct 27)',
+			'Show B S1:E5 \u00b7 Tomorrow (Oct 28)',
+			'Show C S1:E1 \u00b7 In 2 days (Oct 29)'
+		]);
+	});
+
+	it('shows just the episode or just the date when the other is turned off', async () => {
+		const one = [episode(3, 'Show C', 4, new Date(2026, 9, 28, 21))];
+
+		expect((await sonarrRow(one, {sonarrCalendarShowDate: false})).items[0].Subtitle).toBe('S1:E4');
+		expect((await sonarrRow(one, {sonarrCalendarShowEpisodeInfo: false})).items[0].Subtitle).toBe('Tomorrow (Oct 28)');
+	});
+
+	it('reads a missing season or episode number as 0', async () => {
+		const unnumbered = [{...episode(3, 'Show C', 4, new Date(2026, 9, 28, 21)), seasonNumber: undefined, episodeNumber: undefined}];
+
+		expect((await sonarrRow(unnumbered, {sonarrCalendarShowDate: false})).items[0].Subtitle).toBe('S0:E0');
 	});
 });
 

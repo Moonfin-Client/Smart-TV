@@ -274,6 +274,7 @@ export const frostInfo = (item, {showsSection, mediaSource, seerr}) => {
 		const video = streams.find((stream) => stream.Type === 'Video');
 		media.push(
 			[$L('Version'), (item.MediaSources || []).length > 1 ? names(item.MediaSources) : ''],
+			[$L('File'), String(mediaSource.Path || '').split(/[\\/]/).pop()],
 			[$L('Video'), video ? videoLines(video).join(' · ') : ''],
 			[$L('Container'), mediaSource.Container ? String(mediaSource.Container).toUpperCase() : ''],
 			[$L('Size'), formatFileSize(mediaSource.Size)]

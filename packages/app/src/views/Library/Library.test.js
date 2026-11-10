@@ -1,4 +1,5 @@
 import {act, fireEvent, render, screen} from '@testing-library/react';
+import Spotlight from '@enact/spotlight';
 
 import {getFromStorage, saveToStorage} from '../../services/storage';
 import Library from './Library';
@@ -136,4 +137,38 @@ test('a library with no type opens in folder view with its folders first, until 
 
 	expect(mockApi.getItems).toHaveBeenCalledTimes(1);
 	expect(mockApi.getItems.mock.calls[0][0]).toMatchObject({Recursive: true, ExcludeItemTypes: 'Folder,CollectionFolder,UserView,PhotoAlbum'});
+});
+
+// The landing waits a beat after the first page, so the check waits past it.
+const pastLanding = () => act(async () => { await new Promise((resolve) => setTimeout(resolve, 150)); });
+const CONTAINER_IDS = ['library-toolbar', 'library-bar', 'library-dock', 'library-letters', 'library-grid-area'];
+const containerIds = () => CONTAINER_IDS.filter((id) => document.querySelector(`[data-spotlight-id="${id}"]`));
+
+test('the screen lands focus on Home and keeps its own container ids', async () => {
+	renderLibrary();
+	await settle();
+	await pastLanding();
+
+	expect(Spotlight.focus).toHaveBeenCalledWith('library-home-btn');
+	expect(containerIds()).toEqual(['library-toolbar', 'library-grid-area']);
+	expect(screen.queryByText('Alien')).toBeNull();
+});
+
+test('the settings preview holds its first card, takes no focus and leaves the screen\'s container ids to it in every style', async () => {
+	const saved = mockSettings.settings;
+	try {
+		for (const libraryStyle of ['classic', 'modern', 'docked']) {
+			mockSettings.settings = {...saved, libraryStyle, showAlphabeticalFilters: true};
+			const {unmount} = render(<Library library={movies} settingsPreview />);
+			await settle();
+			await pastLanding();
+
+			expect(screen.getByText('Alien')).toBeTruthy();
+			expect(containerIds()).toEqual([]);
+			unmount();
+		}
+		expect(Spotlight.focus).not.toHaveBeenCalled();
+	} finally {
+		mockSettings.settings = saved;
+	}
 });

@@ -13,6 +13,7 @@ import {withoutBlockedItems} from '../../services/parentalControls';
 import BackdropLayer from '../../components/BackdropLayer';
 import DetailsTabBar from '../../components/DetailsTabBar';
 import IncompleteBadge from '../../components/IncompleteBadge';
+import PosterLabels from '../../components/PosterLabels';
 import LoadingSpinner from '../../components/LoadingSpinner';
 import {getBackdropId, getImageUrl} from '../../utils/helpers';
 import {showsWatchedCheck} from '../../utils/playedState';
@@ -431,6 +432,13 @@ const Favorites = ({onSelectItem, onSelectPerson, onSelectSeerrItem, onHome, bac
 							<svg viewBox="0 0 24 24"><path fill="white" d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>
 						</div>
 					)}
+					<PosterLabels
+						item={item}
+						serverUrl={itemServerUrl}
+						top={unifiedMode && item._serverName ? 40 : 8}
+						topRight={showsWatchedCheck(item) ? 40 : 8}
+						height={posterHeight}
+					/>
 				</div>
 			</SpottableDiv>
 		);

@@ -1,4 +1,4 @@
-import {createSkipGovernor, chooseCorrection, ATTEMPT_DEADLINE_MS, SETTLE_WINDOW_MS, MAX_FAILED_ATTEMPTS, MAX_SKIPS_PER_ITEM, DEFAULT_SEEK_ALLOWANCE_MS, MAX_SEEK_ALLOWANCE_MS, ALLOWANCE_DECAY_MS, MAX_WAIT_MS, RETRY_MARGIN_MS} from './syncCorrection';
+import {createSkipGovernor, chooseCorrection, afterResume, ATTEMPT_DEADLINE_MS, SETTLE_WINDOW_MS, MAX_FAILED_ATTEMPTS, MAX_SKIPS_PER_ITEM, DEFAULT_SEEK_ALLOWANCE_MS, MAX_SEEK_ALLOWANCE_MS, ALLOWANCE_DECAY_MS, MAX_WAIT_MS, RETRY_MARGIN_MS} from './syncCorrection';
 import {correctionOptions} from './syncDrift';
 
 const playing = (nowMs, positionMs, driftMs) => ({nowMs, positionMs, driftMs, isPlaying: true, isBuffering: false});
@@ -211,6 +211,17 @@ describe('seek allowance', () => {
 
 describe('chooseCorrection', () => {
 	const options = correctionOptions({});
+
+	test('right after a resume, a gap over a second is put right', () => {
+		expect(chooseCorrection(1700, 'skip', options, 1500)).toEqual({type: 'none'});
+		expect(chooseCorrection(1700, 'skip', afterResume(options, 3000), 1500)).toEqual({type: 'wait', ms: 1700});
+		expect(chooseCorrection(-1300, 'skip', afterResume(options, 3000), 1500)).toEqual({type: 'skip', aheadMs: 1500});
+		expect(chooseCorrection(800, 'skip', afterResume(options, 3000), 1500)).toEqual({type: 'none'});
+		// Later in the run the usual threshold is back.
+		expect(chooseCorrection(1700, 'skip', afterResume(options, 16000), 1500)).toEqual({type: 'none'});
+		// A user who asked for less than a second keeps it.
+		expect(afterResume({...options, skipThresholdMs: 500}, 1000).skipThresholdMs).toBe(500);
+	});
 
 	test('does nothing on a deferred verdict whatever the drift', () => {
 		expect(chooseCorrection(-30000, 'defer', options, 1500)).toEqual({type: 'none'});

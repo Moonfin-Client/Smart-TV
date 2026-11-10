@@ -152,10 +152,8 @@ export const ESSENTIAL_KEY_NAMES = [
 	'MediaRewind',
 	'MediaFastForward',
 	'MediaPlayPause',
+	// Red takes a track out of a playlist. The other color keys stay with the TV.
 	'ColorF0Red',
-	'ColorF1Green',
-	'ColorF2Yellow',
-	'ColorF3Blue',
 	'Info',
 	'Search',
 	'ChannelUp',

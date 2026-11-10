@@ -1,9 +1,9 @@
 import $L from '@enact/i18n/$L';
 import seerrApi from '../services/seerrApi';
 import {fetchCustomRow, constructSourceUrl} from '../services/externalRowsApi';
+import {airsText, daysBetween} from './calendarEntries';
 import {fetchWithTimeout} from './fetchTimeout';
 import {seasonalTitle} from './seasonalTitles';
-import {uiLocale} from './uiLocale';
 
 const HOME_ROW_LIMIT = 20;
 const VALIDATE_TIMEOUT_MS = 45000;
@@ -342,17 +342,9 @@ const posterFrom = (images) => {
 	return poster ? (poster.remoteUrl || poster.url || null) : null;
 };
 
-const formatCalendarDate = (dateStr) => {
-	if (!dateStr) return '';
-	const d = new Date(dateStr);
-	if (Number.isNaN(d.getTime())) return '';
-	return d.toLocaleDateString(uiLocale(), {month: 'short', day: 'numeric'});
-};
-
 // Radarr gives a release as midnight UTC on its day, which is the day before anywhere west of
 // UTC, so the day is read as it's written.
 const releaseDay = (date) => new Date(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate());
-const DAY_MS = 24 * 60 * 60 * 1000;
 
 const arrGet = async (url) => {
 	try {
@@ -387,32 +379,29 @@ const fetchRadarrItems = async (settings) => {
 	// On Silo, Silo's own calendar in Radarr's shape.
 	const items = await (seerrApi.getSiloCalendar('movie', isoDate(0), isoDate(90)) || radarrCalendar());
 
+	const today = new Date();
+	// Cinema dates keep their label, so a date alone never reads as a release on the server. Digital
+	// and physical together keep it too, since a stream and a disc can come out months apart.
+	const showFormat = settings.radarrCalendarShowCinema || (settings.radarrCalendarShowDigital && settings.radarrCalendarShowPhysical);
+
 	const results = [];
 	for (const m of items) {
-		const dates = [];
-		if (settings.radarrCalendarShowCinema && m.inCinemas) dates.push(m.inCinemas);
-		if (settings.radarrCalendarShowDigital && m.digitalRelease) dates.push(m.digitalRelease);
-		if (settings.radarrCalendarShowPhysical && m.physicalRelease) dates.push(m.physicalRelease);
+		// Radarr already has a file for it, so it's on the server and not upcoming.
+		if (settings.radarrCalendarHideDownloaded && m.hasFile === true) continue;
+		const releases = [];
+		if (settings.radarrCalendarShowCinema && m.inCinemas) releases.push({date: new Date(m.inCinemas), format: $L('Cinema')});
+		if (settings.radarrCalendarShowDigital && m.digitalRelease) releases.push({date: new Date(m.digitalRelease), format: $L('Digital')});
+		if (settings.radarrCalendarShowPhysical && m.physicalRelease) releases.push({date: new Date(m.physicalRelease), format: $L('Physical')});
 		// A release stays on the row through its own day.
-		const since = Date.now() - DAY_MS;
-		const upcoming = dates.map((d) => new Date(d)).filter((d) => !Number.isNaN(d.getTime()) && d.getTime() > since);
+		const upcoming = releases.filter(({date}) => !Number.isNaN(date.getTime()) && daysBetween(today, releaseDay(date)) >= 0);
 		if (!upcoming.length) continue;
-		const soonest = upcoming.sort((a, b) => a - b)[0];
+		// Two releases on one day go by the later kind, so physical wins.
+		const {date: soonest, format} = upcoming.reduce((best, next) => (next.date <= best.date ? next : best));
 		const tmdbId = m.tmdbId ? String(m.tmdbId) : null;
 		const imdbId = m.imdbId || null;
 
-		let releaseType = '';
-		const soonestTime = soonest.getTime();
-		if (m.inCinemas && new Date(m.inCinemas).getTime() === soonestTime) {
-			releaseType = $L('Cinema: ');
-		} else if (m.digitalRelease && new Date(m.digitalRelease).getTime() === soonestTime) {
-			releaseType = $L('Digital: ');
-		} else if (m.physicalRelease && new Date(m.physicalRelease).getTime() === soonestTime) {
-			releaseType = $L('Physical: ');
-		}
-
-		const dateStr = settings.radarrCalendarShowDate ? formatCalendarDate(releaseDay(soonest)) : '';
-		const subtitle = dateStr ? `${releaseType}${dateStr}` : '';
+		const release = airsText(releaseDay(soonest), today, settings.dateFormat);
+		const subtitle = settings.radarrCalendarShowDate ? (showFormat ? `${format} \u00b7 ${release}` : release) : '';
 		const fanart = m.images?.find((i) => i.coverType === 'fanart');
 
 		results.push({
@@ -457,16 +446,19 @@ const fetchSonarrItems = async (settings) => {
 	// On Silo, Silo's own calendar in Sonarr's shape.
 	const episodes = await (seerrApi.getSiloCalendar('tv', isoDate(0), isoDate(90)) || sonarrCalendar());
 
-	// Keep the earliest upcoming episode per series.
+	// The first episode per series airing today or later, past the downloaded ones when those are
+	// hidden. A series with nothing left drops out of the row.
+	const today = new Date();
 	const bySeries = {};
 	for (const ep of episodes) {
 		const series = ep.series || {};
 		const key = series.tvdbId || series.id;
 		if (!key) continue;
+		if (settings.sonarrCalendarHideDownloaded && ep.hasFile === true) continue;
 		const air = ep.airDateUtc || ep.airDate;
 		if (!air) continue;
 		const airDate = new Date(air);
-		if (Number.isNaN(airDate.getTime()) || airDate < new Date()) continue;
+		if (Number.isNaN(airDate.getTime()) || daysBetween(today, airDate) < 0) continue;
 		if (!bySeries[key] || airDate < new Date(bySeries[key].air)) {
 			bySeries[key] = {ep, series, air};
 		}
@@ -475,10 +467,9 @@ const fetchSonarrItems = async (settings) => {
 	return Object.values(bySeries).map(({ep, series, air}) => {
 		const tmdbId = series.tmdbId ? String(series.tmdbId) : null;
 		const imdbId = series.imdbId || null;
-		const epInfo = settings.sonarrCalendarShowEpisodeInfo && ep.seasonNumber != null && ep.episodeNumber != null
-			? `S${ep.seasonNumber}E${ep.episodeNumber}` : '';
-		const dateStr = settings.sonarrCalendarShowDate ? formatCalendarDate(air) : '';
-		const subtitle = [epInfo, dateStr].filter(Boolean).join(' - ');
+		const epInfo = settings.sonarrCalendarShowEpisodeInfo ? `S${ep.seasonNumber ?? 0}:E${ep.episodeNumber ?? 0}` : '';
+		const dateStr = settings.sonarrCalendarShowDate ? airsText(new Date(air), today, settings.dateFormat) : '';
+		const subtitle = [epInfo, dateStr].filter(Boolean).join(' \u00b7 ');
 		const fanart = series.images?.find((i) => i.coverType === 'fanart');
 
 		return {

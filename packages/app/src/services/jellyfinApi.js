@@ -146,6 +146,9 @@ export const buildEmbyAuthHeader = (token) => buildAuthHeader('emby', token);
 // Past roughly this much of a query string, servers and the proxies in front of them start
 // refusing the URL outright, so a long list of ids travels in a body instead.
 const CHANNEL_IDS_URL_LIMIT = 1800;
+const PLAYLIST_ITEM_FIELDS = 'Fields=PrimaryImageAspectRatio,ProductionYear,AlbumArtist,DateCreated,SortName';
+// Enough to find which playlists hold an item and remove it again.
+const ENTRY_ID_FIELDS = 'Fields=PlaylistItemId&EnableImages=false&EnableUserData=false';
 const LIVE_TV_CATEGORY_FLAGS = {movies: 'IsMovie', series: 'IsSeries', sports: 'IsSports', news: 'IsNews', kids: 'IsKids'};
 
 const DEFAULT_TIMEOUT_MS = 15000;
@@ -699,6 +702,8 @@ export const api = {
 	getStudioCompanies: (tmdbId, mediaType) =>
 		request(`/Moonfin/Tmdb/ProductionCompanies?tmdbId=${encodeURIComponent(tmdbId)}&type=${mediaType === 'tv' ? 'tv' : 'movie'}`),
 
+	getStudioLogos: () => request('/Moonfin/Tmdb/StudioLogos'),
+
 	getTmdbReviews: (tmdbId, mediaType, language) =>
 		request(`/Moonfin/Tmdb/Reviews?tmdbId=${encodeURIComponent(tmdbId)}&type=${mediaType === 'tv' ? 'tv' : 'movie'}&language=${encodeURIComponent(language || 'en-US')}`),
 
@@ -764,6 +769,9 @@ export const api = {
 	// With no sort the server hands back the arrangement the collection keeps
 	getCollectionItems: (collectionId, limit = 50, sortBy = null, sortOrder = 'Ascending') =>
 		request(`${userRoutes.items()}ParentId=${collectionId}&Limit=${limit}&Recursive=true&Fields=PrimaryImageAspectRatio,Overview,Genres,ProviderIds,RemoteTrailers,OfficialRating&HasBackdrop=true${sortBy ? `&SortBy=${encodeURIComponent(sortBy)}&SortOrder=${encodeURIComponent(sortOrder)}` : ''}`),
+
+	getCollectionMembers: (collectionId, limit = 500, startIndex = 0) =>
+		request(`${userRoutes.items()}ParentId=${collectionId}&Limit=${limit}${startIndex > 0 ? `&StartIndex=${startIndex}` : ''}`),
 
 	// Get all movies and series for genres page
 	getAllItems: (limit = 10000) =>
@@ -986,8 +994,8 @@ export const api = {
 	getInstantMix: (itemId, limit = 50) =>
 		request(`/Items/${itemId}/InstantMix?UserId=${currentUser}&Limit=${limit}&Fields=PrimaryImageAspectRatio,ProductionYear,AlbumArtist`),
 
-	getPlaylistItems: (playlistId, limit = 300, startIndex = 0) =>
-		request(`/Playlists/${playlistId}/Items?UserId=${currentUser}&StartIndex=${startIndex}&Limit=${limit}&Fields=PrimaryImageAspectRatio,ProductionYear,AlbumArtist,DateCreated,SortName`),
+	getPlaylistItems: (playlistId, limit = 300, startIndex = 0, entryIdsOnly = false) =>
+		request(`/Playlists/${playlistId}/Items?UserId=${currentUser}&StartIndex=${startIndex}&Limit=${limit}&${entryIdsOnly ? ENTRY_ID_FIELDS : PLAYLIST_ITEM_FIELDS}`),
 
 	movePlaylistItem: (playlistId, itemId, newIndex) =>
 		request(`/Playlists/${playlistId}/Items/${itemId}/Move/${newIndex}`, {
@@ -1033,6 +1041,15 @@ export const api = {
 
 	checkWriteAccess: () =>
 		request('/Moonfin/Libraries/CheckWriteAccess'),
+
+	getRepositories: () => request('/Repositories'),
+
+	setRepositories: (repositories) => request('/Repositories', {method: 'POST', body: repositories}),
+
+	installPackage: (name, params) =>
+		request(`/Packages/Installed/${encodeURIComponent(name)}?${toQuery(params)}`, {method: 'POST'}),
+
+	restartServer: () => request('/System/Restart', {method: 'POST'}),
 
 	// The same shape createApiForServer answers with, so anything holding a per server cache can
 	// tell the two apart without knowing which kind it was handed.
@@ -1266,6 +1283,9 @@ export const createApiForServer = (serverUrl, token, userId, serverTypeOverride 
 		getCollections: (limit = 50, sortBy = 'SortName', sortOrder = 'Ascending') =>
 			serverRequest(`${serverUserRoutes.items()}IncludeItemTypes=BoxSet&Recursive=true&SortBy=${encodeURIComponent(sortBy)}&SortOrder=${encodeURIComponent(sortOrder)}&Limit=${limit}&Fields=PrimaryImageAspectRatio,ProductionYear,OfficialRating`),
 
+		getCollectionMembers: (collectionId, limit = 500, startIndex = 0) =>
+			serverRequest(`${serverUserRoutes.items()}ParentId=${collectionId}&Limit=${limit}${startIndex > 0 ? `&StartIndex=${startIndex}` : ''}`),
+
 		getRandomItems: (contentType = 'both', limit = 10, parentId = null, genreName = null, fields = 'PrimaryImageAspectRatio,Overview,Genres,ProviderIds,OfficialRating') => {
 			let includeTypes;
 			switch (contentType) {
@@ -1423,8 +1443,8 @@ export const createApiForServer = (serverUrl, token, userId, serverTypeOverride 
 		getInstantMix: (itemId, limit = 50) =>
 			serverRequest(`/Items/${itemId}/InstantMix?UserId=${userId}&Limit=${limit}&Fields=PrimaryImageAspectRatio,ProductionYear,AlbumArtist`),
 
-		getPlaylistItems: (playlistId, limit = 300, startIndex = 0) =>
-			serverRequest(`/Playlists/${playlistId}/Items?UserId=${userId}&StartIndex=${startIndex}&Limit=${limit}&Fields=PrimaryImageAspectRatio,ProductionYear,AlbumArtist,DateCreated,SortName`),
+		getPlaylistItems: (playlistId, limit = 300, startIndex = 0, entryIdsOnly = false) =>
+			serverRequest(`/Playlists/${playlistId}/Items?UserId=${userId}&StartIndex=${startIndex}&Limit=${limit}&${entryIdsOnly ? ENTRY_ID_FIELDS : PLAYLIST_ITEM_FIELDS}`),
 
 		movePlaylistItem: (playlistId, itemId, newIndex) =>
 			serverRequest(`/Playlists/${playlistId}/Items/${itemId}/Move/${newIndex}`, {

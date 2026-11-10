@@ -23,11 +23,16 @@ export const getContentTypeOptions = () => [
 ];
 
 export const getMediaBarSourceOptions = () => [
-	{ value: 'library', label: $L('Random') },
-	{ value: 'collection', label: $L('Collections') },
+	{ value: 'random', label: $L('Random') },
 	{ value: 'recentlyAdded', label: $L('Recently Added') },
 	{ value: 'recentlyReleased', label: $L('Recently Released') },
 	{ value: 'newReleases', label: $L('New Seasons & Episodes') }
+];
+
+export const getDateFormatOptions = () => [
+	{ value: 'system', label: $L('Locale Default') },
+	{ value: 'monthDay', label: $L('Month / Day (Nov 10)') },
+	{ value: 'dayMonth', label: $L('Day / Month (10 Nov)') }
 ];
 
 export const getNewReleaseDaysOptions = () => [
@@ -208,6 +213,11 @@ export const getScreensaverDimmingOptions = () => [
 	{ value: 50, label: $L('50%') },
 	{ value: 75, label: $L('75%') },
 	{ value: 100, label: $L('100%') }
+];
+
+export const getWatchPartyServiceOptions = () => [
+	{ value: 'moonbase', label: $L('Watch Party') },
+	{ value: 'syncplay', label: $L('SyncPlay') }
 ];
 
 export const getNavPositionOptions = () => [
@@ -452,6 +462,15 @@ export const getSubtitleModeOptions = () => [
 	{ value: 'forced', label: $L('Forced') },
 	{ value: 'none', label: $L('None') }
 ];
+
+// What each subtitle mode does, under its name in the picker
+export const subtitleModeHint = (mode) => ({
+	default: $L('Plays tracks internally flagged in the media file\'s metadata as "default" or "forced".'),
+	always: $L('Automatically loads and displays subtitles every time a video starts.'),
+	foreign: $L('Automatically turns on subtitles if the default audio track is in a foreign language.'),
+	forced: $L('Only loads subtitles explicitly tagged with the forced metadata flag.'),
+	none: $L('Completely disables automatic subtitle loading.')
+})[mode];
 
 export const getSortOrderOptions = () => [
 	{ value: 'auto', label: $L('Auto') },

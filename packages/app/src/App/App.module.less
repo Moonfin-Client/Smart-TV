@@ -182,6 +182,11 @@
 	padding: 32px;
 }
 
+// The keyboard opens over the bottom of the screen, so the card moves up out of its way.
+.pinGateKeyboard {
+	align-items: flex-start;
+}
+
 .pinCard {
 	// 92vw only wins below 696px wide, which no TV is.
 	width: 640px;
@@ -223,6 +228,31 @@
 	margin-top: 12px;
 	color: #ff9f9f;
 	font-size: 1rem;
+}
+
+.pinRemember {
+	display: flex;
+	align-items: center;
+	margin-top: 18px;
+	padding: 0.6rem 0.9rem;
+	font-size: 1.05rem;
+	color: rgba(255, 255, 255, 0.86);
+	background: transparent;
+	border: 1px solid transparent;
+	border-radius: 12px;
+
+	&:focus,
+	&:hover {
+		background: rgba(255, 255, 255, 0.1);
+		border-color: rgba(255, 255, 255, 0.3);
+	}
+}
+
+.pinRememberIcon {
+	width: 1.6rem;
+	height: 1.6rem;
+	margin-right: 12px;
+	flex-shrink: 0;
 }
 
 .pinActions {

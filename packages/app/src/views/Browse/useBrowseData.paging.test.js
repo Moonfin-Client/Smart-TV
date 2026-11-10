@@ -96,4 +96,10 @@ describe('paging a home row', () => {
 		await waitFor(() => expect(resumeRow(result).items).toHaveLength(42));
 		expect(resumeRow(result).hasMore).toBe(true);
 	});
+
+	test('the merged Continue Watching & Next Up row pages Continue Watching while it has more', async () => {
+		const result = await pageableHome();
+		await result.current.loadMoreRow('continue-nextup');
+		expect(readLengths()).toEqual([12, 27]);
+	});
 });

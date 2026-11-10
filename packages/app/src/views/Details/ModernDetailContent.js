@@ -28,6 +28,7 @@ import {episodeCardTitle} from '../../utils/episodeCardTitle';
 import useItemMenuHold, {itemWithIdAt} from '../../hooks/useItemMenuHold';
 import {AnimeEpisodePills, AnimeItemPills} from '../../components/AnimeMarkerPills';
 import IncompleteBadge, {IncompleteDetailLine} from '../../components/IncompleteBadge';
+import PosterLabels from '../../components/PosterLabels';
 import {scrimStyle} from '../../utils/scrimImage';
 import PlaylistSortFilterBar, {EmptyPlaylistFilterState, EmptyPlaylistState} from '../../components/PlaylistSortFilterBar';
 import {
@@ -466,6 +467,7 @@ const ModernDetailContent = (props) => {
 							{thumb ? <img src={thumb} alt="" /> : <div className={css.chapterThumbPlaceholder} />}
 							{ep.UserData?.Played && <div className={css.episodeWatched}><Icon path={DETAIL_ICON_PATHS.watched} /></div>}
 							{progress > 0 && <div className={css.thumbProgress}><div style={{width: `${Math.min(progress, 100)}%`}} /></div>}
+							<PosterLabels item={ep} serverUrl={effectiveServerUrl} scale={0.8} topRight={ep.UserData?.Played ? 46 : 8} />
 						</div>
 						<div className={css.episodeBody}>
 							<span className={css.episodeName}>{episodeCardTitle(ep.Name, ep.IndexNumber)}</span>
@@ -838,7 +840,7 @@ const ModernDetailContent = (props) => {
 	return (
 		<>
 			<div className={`${css.backdrop} ${isPerson ? css.backdropPerson : ''}`} style={backdropStyle}>
-				{backdropUrl && !isPerson && <img className={css.backdropImage} src={backdropUrl} alt="" />}
+				{settings.detailsBackdropEnabled !== false && backdropUrl && !isPerson && <img className={css.backdropImage} src={backdropUrl} alt="" />}
 				<div className={css.scrim} style={scrimStyle(isPerson ? PERSON_SCRIM : SCRIM, gradientScale)} />
 			</div>
 			<Scroller cbScrollTo={handleScrollTo} onScroll={handleScroll} className={css.scroller} direction="vertical" horizontalScrollbar="hidden" verticalScrollbar="hidden">

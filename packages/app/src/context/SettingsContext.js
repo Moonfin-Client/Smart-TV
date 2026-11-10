@@ -11,7 +11,8 @@ import {SEASONAL_DENSITIES, normalizeSeasonalTheme} from '../utils/seasonalEffec
 import {normalizeSeasonalHiddenHolidays, normalizeSeasonalRowCountry} from '../utils/seasonalRow';
 import {sharePending} from '../utils/sharePending';
 import {pickedRowsFromLegacySections} from '../utils/pickedRows';
-import {MEDIA_BAR_SOURCES, NEW_RELEASE_DAYS} from '../utils/mediaBarNewRelease';
+import {LEGACY_MEDIA_BAR_SOURCES, MEDIA_BAR_SOURCES, NEW_RELEASE_DAYS} from '../utils/mediaBarNewRelease';
+import {DATE_FORMATS} from '../utils/dateFormat';
 import {
 	IMAGES as LOADING_IMAGES,
 	POSITIONS as LOADING_POSITIONS,
@@ -162,6 +163,7 @@ const surfaceRatingSources = {
 };
 
 const VALUE_CONVERSIONS = {
+	watchPartyService: oneOf(['moonbase', 'syncplay']),
 	homeRowsPosterSize: {
 		toServer: v => POSTER_SIZES_TO_SERVER[v] || v,
 		fromServer: v => posterSizeFromServer(POSTER_SIZES_FROM_SERVER[v] || v)
@@ -170,6 +172,7 @@ const VALUE_CONVERSIONS = {
 		toServer: v => v === '24-hour',
 		fromServer: v => v ? '24-hour' : '12-hour'
 	},
+	dateFormat: oneOf(DATE_FORMATS),
 	focusBorderColor: {
 		toServer: v => (v ? FOCUS_COLOR_NAMES.find((name) => FOCUS_COLORS[name] === v.toLowerCase()) : ''),
 		fromServer: (v) => {
@@ -201,9 +204,8 @@ const VALUE_CONVERSIONS = {
 		toServer: v => CONTENT_TYPE_TO_SERVER[v],
 		fromServer: v => CONTENT_TYPE_FROM_SERVER[v]
 	},
-	// Other clients save the plain library draw as random.
 	mediaBarSourceType: {
-		fromServer: v => (v === 'random' ? 'library' : MEDIA_BAR_SOURCES.includes(v) ? v : undefined)
+		fromServer: v => (MEDIA_BAR_SOURCES.includes(v) ? v : LEGACY_MEDIA_BAR_SOURCES.includes(v) ? 'random' : undefined)
 	},
 	mediaBarNewReleaseDays: oneOf(NEW_RELEASE_DAYS),
 	liveTvChannelSortBy: {
@@ -303,7 +305,7 @@ export const SYNCABLE_KEYS = [
 	'rewatchIncludeMovies', 'rewatchIncludeShows', 'rewatchIncludeCollections', 'rewatchSortBy',
 	'navbarPosition', 'featuredBarStyle', 'mediaBarRowPeek', 'featuredContentType', 'featuredItemCount',
 	'featuredTrailerPreview', 'featuredTrailerMuted', 'trailerVolume', 'mediaBarTrailerCaptions', 'unifiedLibraryMode', 'seasonalTheme', 'seasonalDensity', 'seasonalFollower',
-	'seasonalRowEnabled', 'seasonalRowCountry', 'seasonalRowHiddenHolidays',
+	'seasonalRowEnabled', 'seasonalRowCountry', 'seasonalRowHiddenHolidays', 'seasonalRowAllYear',
 	'visualTheme', 'customThemeId',
 	'showRatingLabels',
 	'showRatingBadges',
@@ -311,14 +313,14 @@ export const SYNCABLE_KEYS = [
 	'homeRowsShowRatingLabels', 'homeRowsShowRatingBadges',
 	'mediaBarMdblistEnabled', 'mediaBarMdblistRatingSources', 'mediaBarShowRatingLabels', 'mediaBarShowRatingBadges',
 	'themeMusicEnabled', 'themeMusicVolume', 'themeMusicOnHomeRows',
-	'homeRowsImageType', 'homeRowImageTypes', 'showClock', 'clockDisplay',
+	'homeRowsImageType', 'homeRowImageTypes', 'showClock', 'clockDisplay', 'dateFormat',
 	'homeRowOverlay',
 	'excludedGenres',
 	'autoAdvance', 'autoAdvanceInterval',
 	'displayFavoritesRows', 'displayCollectionsRows', 'displayGenresRows', 'displayPlaylistsRows',
 	'displayAudioRows', 'displayRewatchRow', 'playlistsRowShowEpisodes',
 	'favoritesRowSortBy', 'collectionsRowSortBy', 'genresRowSortBy', 'genresRowItemFilter', 'collectionsRowShowEpisodes',
-	'stillWatchingBehavior', 'watchedIndicatorBehavior',
+	'stillWatchingBehavior', 'watchedIndicatorBehavior', 'showPosterLabels',
 	// Core stores these as enums and syncs them by name, which is the same string this
 	// client stores, so they need no conversion on the way to the server.
 	'playbackTimeAboveLeft', 'playbackTimeAboveCenter', 'playbackTimeAboveRight',
@@ -340,6 +342,7 @@ export const SYNCABLE_KEYS = [
 	'keyboardStyle',
 	'syncplayEnabled', 'syncplayAutoOpen',
 	'showSyncPlayButton',
+	'watchPartyService', 'watchPartyChatOverlay', 'watchPartyAlerts',
 	'syncPlayAdvancedCorrectionEnabled', 'syncPlayEnableSyncCorrection',
 	'syncPlayUseSkipToSync', 'syncPlayMinDelaySkipToSync', 'syncPlayExtraTimeOffset',
 	'videoStartDelay', 'cinemaModeEnabled', 'cinemaModeEpisodesEnabled', 'cinemaModeSkipEnabled',
@@ -355,6 +358,7 @@ export const SYNCABLE_KEYS = [
 	'mergeRadarrSonarrCalendars',
 	'radarrCalendarShowCinema', 'radarrCalendarShowDigital', 'radarrCalendarShowPhysical',
 	'radarrCalendarShowDate', 'sonarrCalendarShowDate', 'sonarrCalendarShowEpisodeInfo',
+	'radarrCalendarHideDownloaded', 'sonarrCalendarHideDownloaded',
 	'showSeerrButton', 'seerrShowMissingCollectionItems', 'showSeerrAvailabilityBadges', 'seerrBadgeStyle',
 	'showCalendarButton', 'calendarStyle', 'calendarWeekStart', 'calendarScope', 'calendarShowEpisodes', 'calendarShowMovies',
 	'calendarLibraryIds', 'calendarIncludeUnmonitored', 'calendarShowSpecials', 'calendarShowBadges', 'calendarColorBy',
@@ -724,6 +728,10 @@ export function SettingsProvider({children}) {
 				if (stored.trickPlayEnabled === false && stored.trickPlayMode === undefined) {
 					// Was a switch before it became a choice of how the preview shows.
 					stored.trickPlayMode = 'disabled';
+					migrated = true;
+				}
+				if (LEGACY_MEDIA_BAR_SOURCES.includes(stored.mediaBarSourceType)) {
+					stored.mediaBarSourceType = 'random';
 					migrated = true;
 				}
 				const navbarColorKey = normalizeOverlayColorKey(stored.navbarColor);

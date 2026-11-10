@@ -1,23 +1,14 @@
 import {useEffect, useState} from 'react';
-import $L from '@enact/i18n/$L';
 import {api as jellyfinApi, getApiKey, getServerUrl} from '../../services/jellyfinApi';
 import {getApiForItem} from '../../services/connectionPool';
 import {fetchUpcomingEpisode} from '../../utils/upcomingEpisode';
 import {daysBetween, followsEpisode} from '../../utils/calendarEntries';
-import {uiLocale} from '../../utils/uiLocale';
 
 // Sonarr gives an instant, TMDB a bare day, which is that local day.
 const airDateOf = (value) => {
 	const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(value || ''));
 	const date = m ? new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3])) : new Date(value);
 	return Number.isNaN(date.getTime()) ? null : date;
-};
-
-/** Like "Today (Nov 3)" or "In 6 days (Nov 11)". */
-export const airsText = (date, now = new Date()) => {
-	const days = daysBetween(now, date);
-	const when = days === 0 ? $L('Today') : days === 1 ? $L('Tomorrow') : $L('In {days} days').replace('{days}', String(days));
-	return `${when} (${date.toLocaleDateString(uiLocale(), {month: 'short', day: 'numeric'})})`;
 };
 
 /**

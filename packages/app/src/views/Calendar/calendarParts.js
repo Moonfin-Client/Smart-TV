@@ -5,7 +5,8 @@ import Spottable from '@enact/spotlight/Spottable';
 import {useSettings} from '../../context/SettingsContext';
 import {useSeerr} from '../../context/SeerrContext';
 import seerrApi from '../../services/seerrApi';
-import {formatClockTime, formatDayLabel} from '../../utils/clock';
+import {formatClockTime} from '../../utils/clock';
+import {formatShortDayName} from '../../utils/dateFormat';
 import {toCssColor, toCssColorWithAlpha} from '../../theme/themeSpec';
 import {registerThemeSheet} from '../../theme/themeOverrides';
 import {BADGE, PROBLEM, daysBetween, inLibrary, isEpisode, isMovie, playableId, statusAt} from '../../utils/calendarEntries';
@@ -88,17 +89,17 @@ export const artIcon = (e) => (isMovie(e) ? 'movie_outlined' : 'tv_rounded');
 
 export const calendarTime = (e, clockDisplay) => (e.hasTime ? formatClockTime(e.date, clockDisplay) : $L('All day'));
 
-export const calendarDayName = (day, today) => {
+export const calendarDayName = (day, today, dateFormat) => {
 	const diff = daysBetween(today, day);
 	if (diff === 0) return $L('Today');
 	if (diff === 1) return $L('Tomorrow');
 	if (diff === -1) return $L('Yesterday');
-	return formatDayLabel(day);
+	return formatShortDayName(day, dateFormat);
 };
 
 /** When it airs, like "Today at 9:00 PM", or the day alone for a movie. */
-export const calendarWhen = (e, today, clockDisplay) => {
-	const day = calendarDayName(e.day, today);
+export const calendarWhen = (e, today, clockDisplay, dateFormat) => {
+	const day = calendarDayName(e.day, today, dateFormat);
 	if (!e.hasTime) return day;
 	return $L('{day} at {time}').replace('{day}', day).replace('{time}', calendarTime(e, clockDisplay));
 };

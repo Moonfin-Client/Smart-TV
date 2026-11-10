@@ -2,15 +2,21 @@ import {useCallback, useEffect, useMemo, useState} from 'react';
 import $L from '@enact/i18n/$L';
 import {autocropLogoUrl} from '../../utils/logoAutocrop';
 import {
-	IconPlay, IconPause, IconRewind, IconForward, IconSubtitle, IconSubtitleOff, IconAudio,
-	IconChapters, IconEpisodes, IconPrevious, IconNext, IconQuality, IconInfo, IconCast, IconZoom,
+	IconPlay, IconPause, IconSubtitle, IconSubtitleOff, IconAudio,
+	IconChapters, IconEpisodes, IconPrevious, IconNext, IconQuality, IconInfo, IconCast, IconZoom, IconChat,
 	IconShuffle, IconRepeat, IconRepeatOne, IconSleep, IconGuide, IconChannels,
 	IconFavorite, IconFavoriteFilled, IconPlaylistAdd, IconLyrics, IconQueueMusic, IconLiveRewind, IconLiveForward,
-	IconLivePlay, IconLivePause, IconLiveTv, IconRecord, IconSeriesRecord, LIVE_RED
+	IconLivePlay, IconLivePause, IconLiveTv, IconRecord, IconSeriesRecord, LIVE_RED,
+	FAVORITE_PINK, seekBackIcon, seekForwardIcon
 } from './PlayerConstants';
 import {MARK_SKIPPED_GREY} from '../LiveTV/GuideIcons';
 import {arrange, OSD_BUTTONS, OSD_ORDER_KEY, OSD_HIDDEN_KEY} from '../../utils/buttonLayout';
 import {useSettings} from '../../context/SettingsContext';
+import {skipBackSeconds, skipForwardSeconds} from '../../utils/playbackTuning';
+import useWatchParty from '../../hooks/useWatchParty';
+import {isRoomPlaying} from '../../services/siloWatchParty';
+
+const inPlayingParty = (state) => state.backend === 'moonbase' && isRoomPlaying(state.room);
 
 // The buttons and the title logo of the player's on-screen controls, kept apart from the
 // controls themselves so the Settings preview can draw the same ones without loading the player.
@@ -20,10 +26,14 @@ export const usePlayerButtons = ({
 	nextEpisode, isAudioMode, isLiveTV, liveRewind, atLive, hasNextTrack, hasPrevTrack,
 	shuffleMode, repeatMode, selectedQuality,
 	selectedSubtitleIndex, canDownloadRemoteSubtitles, hasCastMembers, zoomModeLabel, zoomModeKey,
-	sleepMinutes, canBrowseEpisodes = false, isFavorite, hasLyrics, audioPanel, recordable, recordMark
+	sleepMinutes, canBrowseEpisodes = false, isFavorite, canFavorite = false, hasLyrics, audioPanel, recordable, recordMark
 }) => {
 	const {settings} = useSettings();
+	const backSeconds = skipBackSeconds(settings);
+	const forwardSeconds = skipForwardSeconds(settings);
 	const topButtons = useMemo(() => {
+		const SeekBackIcon = seekBackIcon(backSeconds);
+		const SeekForwardIcon = seekForwardIcon(forwardSeconds);
 		if (isAudioMode) {
 			return [
 				{id: 'shuffle', icon: <IconShuffle />, label: $L('Shuffle'), action: 'shuffle', active: shuffleMode},
@@ -37,9 +47,9 @@ export const usePlayerButtons = ({
 		if (!isLiveTV) {
 			buttons.push(
 				{id: 'previous', icon: <IconPrevious />, label: $L('Previous'), action: 'prevTrack'},
-				{id: 'rewind', icon: <IconRewind />, label: $L('Seek back'), action: 'rewind'},
+				{id: 'rewind', icon: <SeekBackIcon />, label: $L('Seek back'), action: 'rewind'},
 				{id: 'playPause', icon: isPaused ? <IconPlay /> : <IconPause />, label: isPaused ? $L('Play') : $L('Pause'), action: 'playPause'},
-				{id: 'forward', icon: <IconForward />, label: $L('Seek forward'), action: 'forward'}
+				{id: 'forward', icon: <SeekForwardIcon />, label: $L('Seek forward'), action: 'forward'}
 			);
 			if (hasNextTrack) {
 				buttons.push(
@@ -60,10 +70,12 @@ export const usePlayerButtons = ({
 			] : [playPause]));
 		}
 		return buttons;
-	}, [isPaused, isAudioMode, isLiveTV, liveRewind, atLive, nextEpisode, hasNextTrack, hasPrevTrack, shuffleMode, repeatMode]);
+	}, [isPaused, isAudioMode, isLiveTV, liveRewind, atLive, nextEpisode, hasNextTrack, hasPrevTrack, shuffleMode, repeatMode, backSeconds, forwardSeconds]);
 
 	const osdOrder = settings[OSD_ORDER_KEY];
 	const osdHidden = settings[OSD_HIDDEN_KEY];
+	// A Moonbase party adds its chat bar and its people, ahead of the arranged buttons and outside the arrangement.
+	const inParty = useWatchParty(inPlayingParty);
 
 	const bottomButtons = useMemo(() => {
 		// In audio mode these flank the transport, with the track actions on the left and the panel toggles on the right.
@@ -100,7 +112,17 @@ export const usePlayerButtons = ({
 				{id: 'info', icon: <IconInfo />, label: $L('Playback Information'), action: 'info'}
 			], {order: osdOrder, hidden: osdHidden});
 		}
-		return arrange([
+		const partyButtons = inParty ? [
+			{id: 'partyChat', icon: <IconChat />, label: $L('Chat'), action: 'partyChat'},
+			{id: 'party', icon: <IconCast />, label: $L('Your watch party'), action: 'party'}
+		] : [];
+		return [...partyButtons, ...arrange([
+			...(canFavorite ? [{
+				id: 'favorite',
+				icon: isFavorite ? <IconFavoriteFilled color={FAVORITE_PINK} /> : <IconFavorite />,
+				label: isFavorite ? $L('Remove from Favorites') : $L('Add to Favorites'),
+				action: 'favorite'
+			}] : []),
 			...(chapters.length > 0 ? [{id: 'chapters', icon: <IconChapters />, label: $L('Chapters'), action: 'chapter'}] : []),
 			// Only an episode has a season to browse, so a movie never gets this button.
 			...(canBrowseEpisodes ? [{id: 'episodes', icon: <IconEpisodes />, label: $L('Episodes'), action: 'episodes'}] : []),
@@ -113,8 +135,8 @@ export const usePlayerButtons = ({
 			{id: 'zoom', icon: <IconZoom />, label: $L('Zoom').concat(` (${zoomModeLabel})`), action: 'zoom', active: zoomModeKey !== 'fit'},
 			{id: 'sleep', icon: <IconSleep />, label: $L('Sleep timer'), action: 'sleep', active: sleepMinutes != null},
 			{id: 'info', icon: <IconInfo />, label: $L('Playback Information'), action: 'info'}
-		], {order: osdOrder, hidden: osdHidden, catalogue: OSD_BUTTONS});
-	}, [audioStreams.length, chapters.length, canBrowseEpisodes, subtitleStreams.length, isAudioMode, isLiveTV, selectedQuality, selectedSubtitleIndex, canDownloadRemoteSubtitles, hasCastMembers, zoomModeLabel, zoomModeKey, sleepMinutes, osdOrder, osdHidden, isFavorite, hasLyrics, audioPanel, recordable, recordMark]);
+		], {order: osdOrder, hidden: osdHidden, catalogue: OSD_BUTTONS})];
+	}, [inParty, audioStreams.length, chapters.length, canBrowseEpisodes, subtitleStreams.length, isAudioMode, isLiveTV, selectedQuality, selectedSubtitleIndex, canDownloadRemoteSubtitles, hasCastMembers, zoomModeLabel, zoomModeKey, sleepMinutes, osdOrder, osdHidden, isFavorite, canFavorite, hasLyrics, audioPanel, recordable, recordMark]);
 
 	return {topButtons, bottomButtons};
 };

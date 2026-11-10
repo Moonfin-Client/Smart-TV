@@ -6,6 +6,7 @@ import SpotlightContainerDecorator from '@enact/spotlight/SpotlightContainerDeco
 import LocaleInfo from 'ilib/lib/LocaleInfo';
 import {useSettings} from '../../context/SettingsContext';
 import {uiLocale} from '../../utils/uiLocale';
+import {formatFullDate, formatShortDayName} from '../../utils/dateFormat';
 import {BADGE, entriesOn, isoDay, monthGridDays, sameDay, startOfDay} from '../../utils/calendarEntries';
 import {CalendarButton, CalendarTag, calendarDayName, focusedSpotlightId, useCalendarActions, useCalendarLook} from './calendarParts';
 import {AgendaRow, focusInstead, rowId} from './CalendarAgenda';
@@ -117,6 +118,11 @@ const CalendarMonth = ({initialDay, onSelectItem, onSelectSeerrItem}) => {
 		return out;
 	}, [c.entries]);
 	const locale = uiLocale();
+	const dayName = calendarDayName(selected, c.today, settings.dateFormat);
+	const fullDate = formatFullDate(selected, settings.dateFormat);
+	// Today, tomorrow and yesterday keep their word above the date. Any other
+	// day's name would only repeat the date.
+	const relativeDay = dayName !== formatShortDayName(selected, settings.dateFormat);
 
 	const canGoBack = month > c.windowStart;
 	const canGoForward = new Date(month.getFullYear(), month.getMonth() + 1, 1) < c.windowEnd;
@@ -215,8 +221,8 @@ const CalendarMonth = ({initialDay, onSelectItem, onSelectSeerrItem}) => {
 					</CalendarState>
 				</div>
 				<div className={css.dayPanel}>
-					<div className={css.dayPanelName}>{calendarDayName(selected, c.today)}</div>
-					<div className={css.dayPanelDate}>{selected.toLocaleDateString(locale, {month: 'long', day: 'numeric', year: 'numeric'})}</div>
+					<div className={css.dayPanelName}>{relativeDay ? dayName : fullDate}</div>
+					{relativeDay && <div className={css.dayPanelDate}>{fullDate}</div>}
 					{dayEntries.length === 0 ? (
 						<div className={css.dayPanelEmpty}>{$L('Nothing on this day')}</div>
 					) : (

@@ -39,12 +39,26 @@ describe('the Vega device profile', () => {
 	test('reads the model, the OS and the display from the shell and the probes', () => {
 		expect(capabilities.modelName).toBe('AFTCR001');
 		expect(capabilities.vegaVersionDisplay).toBe('Vega OS 2.0');
-		expect(capabilities.uhd).toBe(false);
+		expect(capabilities.uhd).toBe(true);
 		expect(capabilities.hdr10).toBe(false);
 		expect(capabilities.hevc).toBe(true);
 		expect(capabilities.av1).toBe(false);
 		expect(capabilities.ac3).toBe(false);
 		expect(capabilities.nativeHls).toBe(true);
+	});
+
+	test('the HD stick gets neither 4K over a 1080p output nor H.264 above Level 4', async () => {
+		jest.spyOn(window.HTMLMediaElement.prototype, 'canPlayType').mockImplementation(canPlayType);
+		Object.defineProperty(window.navigator, 'userAgent', {value: STICK_UA.replace('AFTCR001', 'AFTCL001'), configurable: true});
+		clearCapabilitiesCache();
+		expect((await getDeviceCapabilities()).uhd).toBe(false);
+		const h264 = (await getJellyfinDeviceProfile()).CodecProfiles.find((p) => p.Codec === 'h264');
+		expect(h264.Conditions.find((c) => c.Property === 'VideoLevel').Value).toBe('40');
+
+		// The tests after this one read the 3rd Gen stick's cached answer.
+		Object.defineProperty(window.navigator, 'userAgent', {value: STICK_UA, configurable: true});
+		clearCapabilitiesCache();
+		await getDeviceCapabilities();
 	});
 
 	test('offers the server only what the WebView decodes', async () => {
@@ -67,6 +81,15 @@ describe('the Vega device profile', () => {
 		expect(getPlayMethod(source({MediaStreams: [{Type: 'Video', Codec: 'hevc', VideoRangeType: 'HDR10'}, {Type: 'Audio', Codec: 'aac', Index: 1}]}), capabilities)).toBe('Transcode');
 		expect(getPlayMethod(source({Container: 'avi'}), capabilities)).toBe('Transcode');
 		expect(getPlayMethod(source({SupportsDirectPlay: false}), capabilities)).toBe('DirectStream');
+	});
+
+	test('Dolby Vision with an HDR10 base layer, Profile 7 included, direct plays where HDR10 does', () => {
+		const dovi = (range) => source({MediaStreams: [{Type: 'Video', Codec: 'hevc', VideoRangeType: range}, {Type: 'Audio', Codec: 'aac', Index: 1}]});
+		for (const range of ['DOVIWithEL', 'DOVIWithELHDR10Plus', 'DOVIWithHDR10', 'DOVIInvalid']) {
+			expect(getPlayMethod(dovi(range), {...capabilities, hdr10: true})).toBe('DirectPlay');
+			expect(getPlayMethod(dovi(range), capabilities)).toBe('Transcode');
+		}
+		expect(getPlayMethod(dovi('DOVI'), {...capabilities, hdr10: true})).toBe('Transcode');
 	});
 
 	test("an audio track other than the first one has the server remux, since the WebView can't switch tracks", async () => {

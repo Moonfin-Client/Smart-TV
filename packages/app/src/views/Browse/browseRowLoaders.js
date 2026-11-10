@@ -6,7 +6,7 @@ import {scopedGetItems} from '../../services/libraryScope';
 import {genericCollectionLabel, mergeRecentRows} from '../../utils/mergeRecentRows';
 import {latestMediaFetchLimitForCollection, normalizeLatestMediaItems} from '../../utils/latestMediaRowNormalizer';
 
-import {HOME_ROW_ITEM_FIELDS, createApiForServer, getServerType} from '../../services/jellyfinApi';
+import {HOME_ROW_ITEM_FIELDS, createApiForServer, getApiKey, getServerType} from '../../services/jellyfinApi';
 import {getAllServersArray} from '../../services/multiServerManager';
 import {loadSinceYouWatchedRows, loadRewatchItems} from '../../services/homeRecommendations';
 import {FAVORITE_ROW_CONFIGS, getItemGenreNames, stableIndex} from './browseFilters';
@@ -15,6 +15,7 @@ import {apiSortBy, getGenresIncludeTypes, isPlaylistOrder, resolveSortOrder} fro
 import {collapseLatestTvItems} from '../../utils/latestMediaRowNormalizer';
 import {isPickedRow, isPickedRowShown, isSameServer} from '../../utils/pickedRows';
 import mapBounded from '../../utils/mapBounded';
+import {studioLogoIndex} from '../Details/studioLogos';
 import {pageableRow, readFoldedHead} from './rowPaging';
 
 // How many sections from the top load with Home. A picked row below them waits until Home comes
@@ -100,7 +101,7 @@ const readLatestHead = (api, lib) => (limit) => readFoldedHead(
 	latestMediaFetchLimitForCollection(lib.CollectionType, limit, Infinity)
 );
 
-const loadLatestAndRecentlyReleased = async (ctx) => {
+export const loadLatestAndRecentlyReleased = async (ctx) => {
 	const {api, appendRows, eligibleLibraries, settings} = ctx;
 	try {
 		let includeItemTypes = 'Movie,Series';
@@ -202,18 +203,24 @@ const loadLatestAndRecentlyReleased = async (ctx) => {
 	}
 };
 
+// Shared with the Settings preview, so it reads these rows the way Home does.
+export const readCollections = (api, sortBy, sortOrder, limit) => scopedGetItems(api, {
+	IncludeItemTypes: 'BoxSet',
+	Recursive: true,
+	SortBy: sortBy,
+	SortOrder: sortOrder,
+	Limit: limit,
+	Fields: `${HOME_ROW_ITEM_FIELDS},DateCreated,PremiereDate,CommunityRating,CriticRating,RunTimeTicks`
+});
+export const readMusicArtists = (api, sortBy, sortOrder, limit) => scopedGetItems(api, {IncludeItemTypes: 'MusicArtist', Limit: limit, SortBy: sortBy, SortOrder: sortOrder, Fields: HOME_ROW_ITEM_FIELDS}, {via: (params) => api.getAlbumArtists(params)});
+export const readMusicAlbums = (api, sortBy, sortOrder, limit) => scopedGetItems(api, {IncludeItemTypes: 'MusicAlbum', Recursive: true, SortBy: sortBy, SortOrder: sortOrder, Limit: limit, Fields: HOME_ROW_ITEM_FIELDS});
+export const audioPlaylistsOf = (result) => (result?.Items || []).filter((item) => item.MediaType === 'Audio');
+
 const loadCollections = async (ctx) => {
 	const {api, appendRows, collectionsSortBy, collectionsSortOrder, settings} = ctx;
 	if (!settings.displayCollectionsRows) return;
 	try {
-		const readHead = (limit) => scopedGetItems(api, {
-			IncludeItemTypes: 'BoxSet',
-			Recursive: true,
-			SortBy: collectionsSortBy,
-			SortOrder: collectionsSortOrder,
-			Limit: limit,
-			Fields: `${HOME_ROW_ITEM_FIELDS},DateCreated,PremiereDate,CommunityRating,CriticRating,RunTimeTicks`
-		});
+		const readHead = (limit) => readCollections(api, collectionsSortBy, collectionsSortOrder, limit);
 		const collectionsResult = await readHead(20).catch(() => null);
 		if (collectionsResult?.Items?.length > 0) {
 			appendRows([pageableRow({
@@ -228,17 +235,29 @@ const loadCollections = async (ctx) => {
 	}
 };
 
+// A studio carries no TMDB id, so it borrows Moonbase's TMDB logo when the names match. Only an
+// exact match counts, since a looser one would hand out wrong logos across a whole library.
+export const withStudioLogos = (studios, logoList, serverUrl, token) => {
+	if (!logoList?.success || !Array.isArray(logoList.companies)) return studios;
+	const {byName} = studioLogoIndex(logoList.companies, serverUrl, token);
+	return studios.map((studio) => {
+		const logo = byName.get(String(studio.Name || '').trim().toLowerCase());
+		return logo ? {...studio, _studioLogoUrl: logo} : studio;
+	});
+};
+
 const loadStudios = async (ctx) => {
-	const {api, appendRows, studiosEnabled, settings} = ctx;
+	const {api, appendRows, studiosEnabled, settings, serverUrl} = ctx;
 	if (!studiosEnabled) return;
 	const sortBy = apiSortBy(settings.studiosRowSortBy || 'SortName');
 	try {
+		const logos = settings.useMoonfinPlugin && api.getStudioLogos ? api.getStudioLogos().catch(() => null) : null;
 		const result = await api.getStudios(20, sortBy, resolveSortOrder(sortBy, settings.studiosRowSortOrder)).catch(() => null);
 		if (result?.Items?.length > 0) {
 			appendRows([{
 				id: 'studios',
 				title: $L('Studios'),
-				items: result.Items,
+				items: withStudioLogos(result.Items, await logos, serverUrl, getApiKey()),
 				type: 'landscape'
 			}]);
 		}
@@ -391,8 +410,8 @@ const loadGenres = async (ctx) => {
 
 const loadPlaylistsAndMusic = async (ctx) => {
 	const {api, appendRows, audioAlbumsEnabled, audioArtistsEnabled, audioPlaylistsEnabled, audioRowsSortBy, audioRowsSortOrder, onNowEnabled, playlistsSortBy, playlistsSortOrder, recordingsEnabled, resumeAudioEnabled, settings} = ctx;
-	const readArtists = (limit) => scopedGetItems(api, {IncludeItemTypes: 'MusicArtist', Limit: limit, SortBy: audioRowsSortBy, SortOrder: audioRowsSortOrder, Fields: HOME_ROW_ITEM_FIELDS}, {via: (params) => api.getAlbumArtists(params)});
-	const readAlbums = (limit) => scopedGetItems(api, {IncludeItemTypes: 'MusicAlbum', Recursive: true, SortBy: audioRowsSortBy, SortOrder: audioRowsSortOrder, Limit: limit, Fields: HOME_ROW_ITEM_FIELDS});
+	const readArtists = (limit) => readMusicArtists(api, audioRowsSortBy, audioRowsSortOrder, limit);
+	const readAlbums = (limit) => readMusicAlbums(api, audioRowsSortBy, audioRowsSortOrder, limit);
 	const readResumeAudio = (limit) => api.getResumeAudioItems(limit);
 	try {
 		const [playlistsResult, audioArtistsResult, audioAlbumsResult, audioPlaylistsResult, resumeAudioResult, recordingsResult, onNowResult] = await Promise.all([
@@ -433,16 +452,14 @@ const loadPlaylistsAndMusic = async (ctx) => {
 				type: 'square'
 			}, audioAlbumsResult, 20, readAlbums));
 		}
-		if (audioPlaylistsResult?.Items?.length > 0) {
-			const audioPlaylists = audioPlaylistsResult.Items.filter(item => item.MediaType === 'Audio');
-			if (audioPlaylists.length > 0) {
-				rows.push({
-					id: 'audioplaylists',
-					title: $L('Music Playlists'),
-					items: audioPlaylists,
-					type: 'square'
-				});
-			}
+		const audioPlaylists = audioPlaylistsOf(audioPlaylistsResult);
+		if (audioPlaylists.length > 0) {
+			rows.push({
+				id: 'audioplaylists',
+				title: $L('Music Playlists'),
+				items: audioPlaylists,
+				type: 'square'
+			});
 		}
 		if (resumeAudioResult?.Items?.length > 0) {
 			rows.push(pageableRow({

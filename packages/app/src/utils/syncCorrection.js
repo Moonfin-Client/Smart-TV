@@ -205,6 +205,14 @@ export const createSkipGovernor = () => {
 	};
 };
 
+// A resume in a watch party can come back a keyframe off, under the usual threshold for the rest of the run, so for a
+// while after one anything over a second is put right.
+export const RESUME_WINDOW_MS = 15000;
+export const RESUME_TOLERANCE_MS = 1000;
+export const afterResume = (options, msSinceResume) => (msSinceResume >= 0 && msSinceResume < RESUME_WINDOW_MS
+	? {...options, skipThresholdMs: Math.min(options.skipThresholdMs, RESUME_TOLERANCE_MS)}
+	: options);
+
 // What to do about a measured drift, given the governor's verdict. Behind,
 // only a skip makes up time, aimed ahead by the seek allowance so it lands on
 // the group however far behind it started, and under the skip threshold a

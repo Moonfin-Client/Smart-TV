@@ -16,7 +16,8 @@ const ICONS = {
 		seerrManage: 'rule', keepAsComplete: 'task_alt', admin: 'settings'
 	},
 	osd: {
-		chapters: 'bookmark_outline_rounded', subtitles: 'subtitles_outlined', audio: 'audiotrack_outlined',
+		favorite: 'favorite_border', chapters: 'bookmark_outline_rounded', episodes: 'video_library_outlined',
+		subtitles: 'subtitles_outlined', audio: 'audiotrack_outlined',
 		castAndCrew: 'people_outline_rounded', quality: 'video_settings_outlined', zoom: 'zoom_out_map',
 		sleep: 'bedtime', info: 'info_outline_rounded'
 	},

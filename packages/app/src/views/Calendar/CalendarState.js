@@ -9,12 +9,12 @@ import {CalendarButton, CalendarIcon, problemText} from './calendarParts';
 import css from './Calendar.module.less';
 
 /** The loading, problem and empty states every view shares, or the children once there's something to show. */
-const CalendarState = ({c, empty, emptyText, children}) => {
+const CalendarState = ({c, empty, emptyText, settingsPreview, children}) => {
 	const {displayName} = useSeerr();
 	const retry = c.problem && c.problem !== PROBLEM.adminsOnly;
 	useEffect(() => {
-		if (retry) Spotlight.focus('calendar-retry');
-	}, [retry]);
+		if (retry && !settingsPreview) Spotlight.focus('calendar-retry');
+	}, [retry, settingsPreview]);
 
 	if (c.loading) return <div className={css.message}><LoadingSpinner /></div>;
 	if (c.problem) {

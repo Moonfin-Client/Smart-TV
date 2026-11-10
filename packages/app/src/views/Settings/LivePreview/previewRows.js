@@ -31,6 +31,27 @@ export const SCREENSAVER_KEYS = [
 	'screensaverEnabled', 'screensaverDimmingLevel', 'screensaverBackdrop', 'screensaverComponent', 'screensaverMovement',
 	'screensaverSize', 'screensaverPosition'
 ];
+// The Calendar screen's settings and its Libraries link. The Radarr release types are shared with the
+// Upcoming Movies row, week start only changes the month grid and the select action only acts on a press,
+// so those are left out.
+export const CALENDAR_KEYS = [
+	'calendarStyle', 'calendarScope', 'calendarShowEpisodes', 'calendarShowMovies', 'calendarLibraries',
+	'calendarIncludeUnmonitored', 'calendarShowSpecials', 'calendarShowBadges', 'calendarColorBy', 'calendarImageType',
+	'calendarSpoilerSafe', 'calendarRequestButton'
+];
+// The seasonal effect's settings, which draw the effect over home. The focus follower is left out,
+// since nothing in the preview holds focus for it to follow.
+export const SEASONAL_KEYS = ['seasonalTheme', 'seasonalDensity'];
+// The library settings. The music and book styles draw their own libraries and the rest the video library.
+export const LIBRARY_KEYS = [
+	'libraryStyle', 'musicLibraryStyle', 'bookLibraryStyle', 'groupItemsIntoCollections', 'showMediaDetailsOnLibraryPage',
+	'libraryCardTitles', 'hideBackdropsInLibraries', 'useDetailedSubHeadings'
+];
+
+// The Row Options settings for the audio and Collections rows, which draw Home with the D-pad on
+// the first row they change.
+export const AUDIO_ROW_OPTION_KEYS = ['displayAudioRows', 'audioRowsSortBy', 'audioRowsSortOrder'];
+export const COLLECTIONS_ROW_OPTION_KEYS = ['displayCollectionsRows', 'collectionsRowSortBy', 'collectionsRowSortOrder', 'collectionsRowShowEpisodes'];
 
 // The screens and sections whose every tile keeps the stage on one look, with the scene it's
 // drawn on. A tile there that doesn't change the look still keeps it up and says it isn't shown.
@@ -61,8 +82,10 @@ export const SCENE_BY_KEY = {
 	homeRowsPosterSize: 'home',
 	fullScreenRows: 'home',
 	hideHomeMediaDescription: 'home',
+	homeBackdropStyle: 'home',
 	...sceneFor(MEDIA_BAR_KEYS, 'home'),
 	...sceneFor(FOCUSED_CARD_KEYS, 'home'),
+	...sceneFor([...AUDIO_ROW_OPTION_KEYS, ...COLLECTIONS_ROW_OPTION_KEYS], 'home'),
 	detailScreenStyle: 'details',
 	personalRatingStyle: 'details',
 	detailsBackdropEnabled: 'details',
@@ -89,7 +112,10 @@ export const SCENE_BY_KEY = {
 	...sceneFor([...LOADING_KEYS, 'loadingAnimation', ...TRICKPLAY_KEYS], 'player'),
 	...sceneFor([...SUBTITLE_LOOK_KEYS, 'subtitleCustomization'], 'player'),
 	...sceneFor([...SCREENSAVER_KEYS, 'screensaver'], 'home'),
-	keyboardStyle: 'search'
+	keyboardStyle: 'search',
+	...sceneFor(SEASONAL_KEYS, 'home'),
+	...sceneFor(CALENDAR_KEYS, 'calendar'),
+	...sceneFor(LIBRARY_KEYS, 'library')
 };
 
 let rowsBySpotlightId = null;
@@ -168,6 +194,8 @@ export const describeRow = (spotlightId, settings, schema = null) => {
 	// A link the preview draws stands in for the settings its screen edits.
 	const key = row.key || (SCENE_BY_KEY[row.id] ? row.id : null);
 	const title = safeResolve(row.label, ctx, '');
+	// A picker that reads more than one setting marks the choice it shows in the list.
+	const current = row.value ? safeResolve(row.value, ctx, settings[row.key]) : settings[row.key];
 	return {
 		key,
 		title,
@@ -176,7 +204,7 @@ export const describeRow = (spotlightId, settings, schema = null) => {
 		scene: key ? SCENE_BY_KEY[key] || null : null,
 		stage: row.stage || null,
 		options,
-		saved: options.findIndex((option) => option.value === settings[row.key])
+		saved: options.findIndex((option) => option.value === current)
 	};
 };
 

@@ -12,16 +12,19 @@ import $L from '@enact/i18n/$L';
 import {useAuth} from '../../context/AuthContext';
 import {useSettings, isServerSyncInitialized} from '../../context/SettingsContext';
 import {getActiveServer} from '../../services/multiServerManager';
+import {moonfinPing} from '../../services/seerrApi';
+import {MaterialIcon} from '../../components/icons/materialIcons';
 import {isBuiltInThemeId, resolveThemeById} from '../../theme/themeRegistry';
 import {toCssColor} from '../../theme/themeSpec';
 import LoadingSpinner from '../../components/LoadingSpinner';
 import {remainingSteps, markComplete, deferThisLaunch} from '../../utils/setupWizardGate';
 import {ModalContainer} from '../../utils/spotlightContainers';
 import {keepFocusInView, pointerHover} from '../../utils/focusScroll';
-import {getAudioLanguageOptions, getSubtitleLanguageOptions, getSubtitleModeOptions, getLabel} from '../Settings/settingsOptions';
+import {getAudioLanguageOptions, getSubtitleLanguageOptions, getSubtitleModeOptions, getLabel, subtitleModeHint} from '../Settings/settingsOptions';
 import {ensurePreviewItemsLoaded} from './setupPreviewData';
 import {MediaBarPreview, NavbarPreview, HomeRowsPreview, DetailStylePreview, SetupIcon, usePreviewPalette} from './SetupPreviews';
 import {STEP_INFO, LANGUAGE_PATH, tourDescription} from './setupSteps';
+import MoonbaseDialog from './MoonbaseDialog';
 import css from './SetupWizard.module.less';
 
 const SpottableDiv = Spottable('div');
@@ -32,6 +35,7 @@ const SpottableDiv = Spottable('div');
 const NEXT_TARGET = '[data-spotlight-id="setup-wizard-next"]';
 const BACK_TARGET = '[data-spotlight-id="setup-wizard-back"]';
 const SKIP_TARGET = '[data-spotlight-id="setup-wizard-skip"]';
+const MOONBASE_TARGET = '[data-spotlight-id="setup-wizard-moonbase"]';
 
 const rowIdFor = (step, value) => `setup-opt-${step}-${value}`;
 
@@ -42,16 +46,6 @@ const keepColumnInView = (ev) => {
 	if (pointerHover()) return;
 	const spots = ev.currentTarget.querySelectorAll('.spottable');
 	if (ev.target === spots[spots.length - 1]) ev.currentTarget.scrollTop = ev.currentTarget.scrollHeight;
-};
-
-const subtitleModeDescription = (mode) => {
-	switch (mode) {
-		case 'always': return $L('Automatically loads and displays subtitles every time a video starts.');
-		case 'foreign': return $L('Automatically turns on subtitles if the default audio track is in a foreign language.');
-		case 'forced': return $L('Only loads subtitles explicitly tagged with the forced metadata flag.');
-		case 'none': return $L('Completely disables automatic subtitle loading.');
-		default: return $L("Plays tracks internally flagged in the media file's metadata as \"default\" or \"forced\".");
-	}
 };
 
 const questionFor = (step) => {
@@ -272,6 +266,34 @@ const CollapsibleSection = ({spotlightId, expanded, icon, title, badge, summary,
 	);
 };
 
+const MoonbaseRow = ({installed, onSelect, t, ...rest}) => {
+	const [focused, setFocused] = useState(false);
+	const handleFocus = useCallback(() => setFocused(true), []);
+	const handleBlur = useCallback(() => setFocused(false), []);
+	return (
+		<SpottableDiv
+			{...rest}
+			spotlightId='setup-wizard-moonbase'
+			className={`${css.collapsibleHeader} ${css.moonbaseRow}`}
+			style={panelStyle(t, focused, 20)}
+			onClick={onSelect}
+			onFocus={handleFocus}
+			onBlur={handleBlur}
+		>
+			<MaterialIcon name='dnsRounded' className={css.moonbaseIcon} style={{color: t.onSurface}} />
+			<div className={css.collapsibleText}>
+				<div className={css.collapsibleTitle} style={{color: t.onSurface}}>{$L('Add Moonbase to your server')}</div>
+				<div className={css.moonbaseHint} style={{color: t.onSurfaceA(0.65)}}>{$L('A free server plugin that unlocks more of Moonfin')}</div>
+			</div>
+			{installed ? (
+				<div className={css.moonbaseInstalled} style={{color: t.onSurface}}>{$L('Installed')}</div>
+			) : (
+				<SetupIcon name='chevron_right' size={32} color={t.onSurfaceA(0.55)} style={{flexShrink: 0}} />
+			)}
+		</SpottableDiv>
+	);
+};
+
 const PickerOption = ({option, selected, description, onPick, t}) => {
 	const [focused, setFocused] = useState(false);
 	const handleFocus = useCallback(() => setFocused(true), []);
@@ -326,7 +348,7 @@ const OptionPicker = ({title, options, current, descriptionOf, onPick, onClose, 
 };
 
 const SetupWizard = ({onDone, backHandlerRef}) => {
-	const {api, serverUrl, user} = useAuth();
+	const {api, serverUrl, accessToken, serverType, user} = useAuth();
 	const {settings, initialSyncSettled, updateSettings, activeThemeId, availableThemes, selectThemeById} = useSettings();
 	const t = usePreviewPalette();
 
@@ -338,6 +360,9 @@ const SetupWizard = ({onDone, backHandlerRef}) => {
 	const [answers, setAnswers] = useState({});
 	const [playbackExpanded, setPlaybackExpanded] = useState(false);
 	const [picker, setPicker] = useState(null);
+	const [offerMoonbase, setOfferMoonbase] = useState(false);
+	const [moonbaseOpen, setMoonbaseOpen] = useState(false);
+	const [moonbaseInstalled, setMoonbaseInstalled] = useState(false);
 
 	const syncSettledRef = useRef(initialSyncSettled);
 	syncSettledRef.current = initialSyncSettled;
@@ -348,6 +373,8 @@ const SetupWizard = ({onDone, backHandlerRef}) => {
 	const pickerRef = useRef(picker);
 	pickerRef.current = picker;
 	const pickerOpenerRef = useRef(null);
+	const moonbaseOpenRef = useRef(moonbaseOpen);
+	moonbaseOpenRef.current = moonbaseOpen;
 	const answersRef = useRef(answers);
 	answersRef.current = answers;
 	const stepsRef = useRef(steps);
@@ -416,6 +443,8 @@ const SetupWizard = ({onDone, backHandlerRef}) => {
 	useEffect(() => {
 		if (!backHandlerRef) return undefined;
 		backHandlerRef.current = () => {
+			// The dialog closes itself on Back.
+			if (moonbaseOpenRef.current) return true;
 			if (pickerRef.current) {
 				closePicker();
 				return;
@@ -471,6 +500,13 @@ const SetupWizard = ({onDone, backHandlerRef}) => {
 				return;
 			}
 			if (cancelled) return;
+			// Not waited on, since only the last step needs it.
+			moonfinPing(serverUrl, accessToken).then(
+				(ping) => ping?.installed === false || ping?.settingsSyncEnabled === false,
+				() => true
+			).then((missing) => {
+				if (!cancelled) setOfferMoonbase(missing);
+			});
 			setSteps(remaining);
 			setReady(true);
 		};
@@ -541,6 +577,16 @@ const SetupWizard = ({onDone, backHandlerRef}) => {
 	}, [pick, closePicker]);
 
 	const togglePlayback = useCallback(() => setPlaybackExpanded((value) => !value), []);
+	const openMoonbase = useCallback(() => {
+		if (!moonbaseInstalled) setMoonbaseOpen(true);
+	}, [moonbaseInstalled]);
+	const closeMoonbase = useCallback((installed) => {
+		setMoonbaseOpen(false);
+		if (!installed) return;
+		setMoonbaseInstalled(true);
+		// The server was marked as having no plugin, so turn it on now that it does.
+		updateSettings({useMoonfinPlugin: true});
+	}, [updateSettings]);
 	const togglePreferDefaultAudio = useCallback(() => {
 		pick('preferDefaultAudioTrack', !selectedFor('preferDefaultAudioTrack'));
 	}, [pick, selectedFor]);
@@ -562,6 +608,7 @@ const SetupWizard = ({onDone, backHandlerRef}) => {
 		const subtitleLabel = getLabel(subtitleOptions, subtitle, subtitle);
 		const modeLabel = getLabel(modeOptions, mode, $L('Flagged'));
 		const subtitlesOn = mode !== 'none';
+		const below = offerMoonbase ? MOONBASE_TARGET : NEXT_TARGET;
 		return (
 			<CollapsibleSection
 				spotlightId='setup-wizard-playback'
@@ -573,7 +620,7 @@ const SetupWizard = ({onDone, backHandlerRef}) => {
 				onToggle={togglePlayback}
 				t={t}
 				data-spot-right={NEXT_TARGET}
-				data-spot-down={playbackExpanded ? undefined : NEXT_TARGET}
+				data-spot-down={playbackExpanded ? undefined : below}
 			>
 				<SettingRow
 					spotlightId='setup-wizard-audioLanguage'
@@ -597,10 +644,10 @@ const SetupWizard = ({onDone, backHandlerRef}) => {
 					spotlightId='setup-wizard-subtitleMode'
 					label={$L('Subtitle Mode')}
 					trailing={<ChosenValue label={modeLabel} t={t} />}
-					onSelect={() => openPicker({settingKey: 'subtitleMode', title: $L('Subtitle Mode'), options: modeOptions, current: mode, descriptionOf: subtitleModeDescription})} // eslint-disable-line react/jsx-no-bind
+					onSelect={() => openPicker({settingKey: 'subtitleMode', title: $L('Subtitle Mode'), options: modeOptions, current: mode, descriptionOf: subtitleModeHint})} // eslint-disable-line react/jsx-no-bind
 					t={t}
 					data-spot-right={NEXT_TARGET}
-					data-spot-down={subtitlesOn ? undefined : NEXT_TARGET}
+					data-spot-down={subtitlesOn ? undefined : below}
 				/>
 				{subtitlesOn && (
 					<SettingRow
@@ -610,12 +657,12 @@ const SetupWizard = ({onDone, backHandlerRef}) => {
 						onSelect={() => openPicker({settingKey: 'subtitleLanguage', title: $L('Default Subtitle Language'), options: subtitleOptions, current: subtitle})} // eslint-disable-line react/jsx-no-bind
 						t={t}
 						data-spot-right={NEXT_TARGET}
-						data-spot-down={NEXT_TARGET}
+						data-spot-down={below}
 					/>
 				)}
 			</CollapsibleSection>
 		);
-	}, [step, selectedFor, playbackExpanded, togglePlayback, togglePreferDefaultAudio, openPicker, t]);
+	}, [step, selectedFor, playbackExpanded, togglePlayback, togglePreferDefaultAudio, openPicker, offerMoonbase, t]);
 
 	const handleSkipFocusChange = useCallback((focused) => {
 		skipFocusedRef.current = focused;
@@ -688,6 +735,15 @@ const SetupWizard = ({onDone, backHandlerRef}) => {
 						{playbackSection && (
 							<SettingsPath crumbs={LANGUAGE_PATH.crumbs()} name={LANGUAGE_PATH.settingName()} className={css.languagePath} t={t} />
 						)}
+						{playbackSection && offerMoonbase && (
+							<MoonbaseRow
+								installed={moonbaseInstalled}
+								onSelect={openMoonbase}
+								t={t}
+								data-spot-right={NEXT_TARGET}
+								data-spot-down={NEXT_TARGET}
+							/>
+						)}
 					</div>
 					<div className={css.stage} style={{backgroundColor: t.surface, borderColor: t.onSurfaceA(0.2)}}>
 						{stage}
@@ -720,6 +776,13 @@ const SetupWizard = ({onDone, backHandlerRef}) => {
 					</div>
 				</>
 			)}
+			<MoonbaseDialog
+				open={moonbaseOpen}
+				api={api}
+				serverType={serverType}
+				isAdmin={Boolean(user?.Policy?.IsAdministrator)}
+				onClose={closeMoonbase}
+			/>
 			{picker && (
 				<OptionPicker
 					title={picker.title}

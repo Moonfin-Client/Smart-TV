@@ -5,7 +5,7 @@ import {isKidsMode} from '../../utils/kidsMode';
 export const featuredConfigKey = (settings = {}, unifiedMode) => JSON.stringify([
 	unifiedMode === true,
 	settings.useMoonfinPlugin === true,
-	settings.mediaBarSourceType || 'library',
+	settings.mediaBarSourceType || 'random',
 	settings.featuredContentType ?? null,
 	settings.featuredItemCount ?? null,
 	settings.mediaBarNewReleaseDays ?? null,

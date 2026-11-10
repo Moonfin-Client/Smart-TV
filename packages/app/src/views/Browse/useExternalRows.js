@@ -106,8 +106,11 @@ const useExternalRows = ({settings, homeRows, kidsMode}) => {
 					radarrCalendarShowDigital: settings.radarrCalendarShowDigital,
 					radarrCalendarShowPhysical: settings.radarrCalendarShowPhysical,
 					radarrCalendarShowDate: settings.radarrCalendarShowDate,
+					radarrCalendarHideDownloaded: settings.radarrCalendarHideDownloaded,
 					sonarrCalendarShowDate: settings.sonarrCalendarShowDate,
-					sonarrCalendarShowEpisodeInfo: settings.sonarrCalendarShowEpisodeInfo
+					sonarrCalendarShowEpisodeInfo: settings.sonarrCalendarShowEpisodeInfo,
+					sonarrCalendarHideDownloaded: settings.sonarrCalendarHideDownloaded,
+					dateFormat: settings.dateFormat
 				};
 				const calendarRows = calendarsEnabled ? await fetchCalendarRows(calendarSettings, {radarrEnabled, sonarrEnabled}) : [];
 
@@ -116,7 +119,7 @@ const useExternalRows = ({settings, homeRows, kidsMode}) => {
 				let seasonalRow = null;
 				if (seasonalEnabled) {
 					const country = seasonalCountryParam(settings.seasonalRowCountry, await resolveDeviceCountry());
-					seasonalRow = buildSeasonalRow(await fetchSeasonalRow({country}), settings.seasonalRowHiddenHolidays || []);
+					seasonalRow = buildSeasonalRow(await fetchSeasonalRow({country, allYear: settings.seasonalRowAllYear === true}), settings.seasonalRowHiddenHolidays || []);
 				}
 
 				const allRows = [
@@ -199,10 +202,11 @@ const useExternalRows = ({settings, homeRows, kidsMode}) => {
 		};
 	}, [settings.useMoonfinPlugin, homeRows, kidsMode, settings.homeRows, settings.customHomeRows,
 		settings.uiLanguage, settings.mdblistWatchingNowEnabled,
-		settings.seasonalRowEnabled, settings.seasonalRowCountry, settings.seasonalRowHiddenHolidays,
+		settings.seasonalRowEnabled, settings.seasonalRowCountry, settings.seasonalRowHiddenHolidays, settings.seasonalRowAllYear,
 		settings.mergeRadarrSonarrCalendars,
 		settings.radarrCalendarShowCinema, settings.radarrCalendarShowDigital, settings.radarrCalendarShowPhysical,
 		settings.radarrCalendarShowDate, settings.sonarrCalendarShowDate, settings.sonarrCalendarShowEpisodeInfo,
+		settings.radarrCalendarHideDownloaded, settings.sonarrCalendarHideDownloaded, settings.dateFormat,
 		settings.imdbRowsSortBy, settings.imdbRowsSortOrder, settings.tmdbRowsSortBy, settings.tmdbRowsSortOrder]);
 
 	return {rows: externalRows, pending};

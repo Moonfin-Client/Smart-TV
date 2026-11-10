@@ -6,9 +6,11 @@ import {formatDuration, getImageUrl} from '../../utils/helpers';
 import {hidesMediaDescription} from './detailsMedia';
 import {isMdblistEnabled} from '../../services/mdblistApi';
 import {SpottableDiv} from './detailsSpottables';
+import ClassicExtrasRow from './ClassicExtrasRow';
 import {PosterBadges, WatchedCheckIcon, FavoriteHeartIcon} from './DetailBadges';
 import {AnimeEpisodePills} from '../../components/AnimeMarkerPills';
 import IncompleteBadge from '../../components/IncompleteBadge';
+import PosterLabels from '../../components/PosterLabels';
 import useItemMenuHold, {itemWithIdAt} from '../../hooks/useItemMenuHold';
 import {getApiKey} from '../../services/jellyfinApi';
 import {moonbaseAssetUrl} from '../../services/moonbaseEndpoint';
@@ -31,7 +33,9 @@ const SeasonScreen = ({
 	episodes,
 	episodeRatings,
 	actionButtons,
-	onEpisodeSelect
+	extras,
+	onEpisodeSelect,
+	onExtraSelect
 }) => (
 	<>
 		<div className={css.seasonDetailHeader}>
@@ -96,6 +100,13 @@ const SeasonScreen = ({
 									<FavoriteHeartIcon />
 								</div>
 							)}
+							<PosterLabels
+								item={ep}
+								serverUrl={serverUrl}
+								scale={0.8}
+								top={ep.UserData?.IsFavorite ? 42 : 8}
+								topRight={isPlayed ? 42 : 8}
+							/>
 						</div>
 						<div className={css.seasonEpBody}>
 							<div className={css.seasonEpTop}>
@@ -119,6 +130,8 @@ const SeasonScreen = ({
 				);
 			})}
 		</EpisodeList>
+
+		{extras.length > 0 && <ClassicExtrasRow title={$L('Extras')} items={extras} serverUrl={serverUrl} onExtraSelect={onExtraSelect} />}
 	</>
 );
 

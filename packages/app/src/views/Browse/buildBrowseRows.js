@@ -86,20 +86,28 @@ const isRowEnabled = (row, {enabledRowIdsSet, enabledPluginIds, settings}) => {
 	return enabledRowIdsSet.has(row.id) || enabledRowIdsSet.has(TV_TO_SERVER_ROW[row.id]) || enabledRowIdsSet.has(SERVER_TO_TV_ROW[row.id]);
 };
 
+// A row's cards from before it paged, and the ones paging added.
+const headAndTail = (row) => {
+	const items = row?.items || [];
+	const from = row?.pagedFrom ?? items.length;
+	return [items.slice(0, from), items.slice(from)];
+};
+
 // Continue Watching and Next Up become one row, ordered by what was played most recently. An
 // episode queued as next up has never been played, so it borrows the date from its series to
-// sit in the right place.
+// sit in the right place. Pages added later go after the cards already drawn, so the row never
+// shifts under focus.
 const mergeContinueAndNextUp = (allRowData, hiddenCWMap, hiddenNUMap) => {
 	const resumeRow = allRowData.find((r) => r.id === 'resume');
 	const nextUpRow = allRowData.find((r) => r.id === 'nextup');
 	const recentlyPlayed = allRowData.find((r) => r.id === 'recentlyplayed');
 	if (!resumeRow && !nextUpRow) return null;
 
-	const resumeItems = (resumeRow?.items || []).filter((item) => !isHiddenByMap(item, hiddenCWMap, false));
-	const nextUpItems = (nextUpRow?.items || []).filter((item) => !isHiddenByMap(item, hiddenNUMap, true));
+	const [resumeHead, resumeTail] = headAndTail(resumeRow).map((items) => items.filter((item) => !isHiddenByMap(item, hiddenCWMap, false)));
+	const [nextUpHead, nextUpTail] = headAndTail(nextUpRow).map((items) => items.filter((item) => !isHiddenByMap(item, hiddenNUMap, true)));
 
 	const seriesLastPlayedMap = new Map();
-	[...resumeItems, ...(recentlyPlayed?.items || [])].forEach((item) => {
+	[...resumeHead, ...headAndTail(recentlyPlayed)[0]].forEach((item) => {
 		const seriesId = item.SeriesId;
 		const lastPlayed = item.UserData?.LastPlayedDate;
 		if (!seriesId || !lastPlayed) return;
@@ -107,8 +115,8 @@ const mergeContinueAndNextUp = (allRowData, hiddenCWMap, hiddenNUMap) => {
 		if (!existing || lastPlayed > existing) seriesLastPlayedMap.set(seriesId, lastPlayed);
 	});
 
-	const resumeItemIds = new Set(resumeItems.map((item) => item.Id));
-	const filteredNextUp = nextUpItems
+	const resumeItemIds = new Set(resumeHead.map((item) => item.Id));
+	const filteredNextUp = nextUpHead
 		.filter((item) => !resumeItemIds.has(item.Id))
 		.map((item) => {
 			const seriesLastPlayed = seriesLastPlayedMap.get(item.SeriesId);
@@ -118,7 +126,7 @@ const mergeContinueAndNextUp = (allRowData, hiddenCWMap, hiddenNUMap) => {
 			return item;
 		});
 
-	const combinedItems = [...resumeItems, ...filteredNextUp].sort((a, b) => {
+	const headItems = [...resumeHead, ...filteredNextUp].sort((a, b) => {
 		const aLastPlayed = a.UserData?.LastPlayedDate;
 		const bLastPlayed = b.UserData?.LastPlayedDate;
 		if (aLastPlayed && bLastPlayed) return bLastPlayed.localeCompare(aLastPlayed);
@@ -126,6 +134,13 @@ const mergeContinueAndNextUp = (allRowData, hiddenCWMap, hiddenNUMap) => {
 		if (bLastPlayed) return 1;
 		return 0;
 	});
+	const seen = new Set(headItems.map((item) => item.Id));
+	const pagedItems = [...resumeTail, ...nextUpTail].filter((item) => {
+		if (seen.has(item.Id)) return false;
+		seen.add(item.Id);
+		return true;
+	});
+	const combinedItems = [...headItems, ...pagedItems];
 
 	if (combinedItems.length === 0) return null;
 	// Each row it's drawn from pages up to the cap, so the two together are held to it too.
@@ -143,7 +158,9 @@ const rowSubtitleFor = (row) => {
 	if (row.subtitle) return row.subtitle;
 	if (row.id?.startsWith('imdb-')) return $L('IMDb List');
 	if (row.id?.startsWith('tmdb_')) return $L('TMDB Lists');
-	if (row.id === 'radarr_calendar' || row.id === 'sonarr_calendar' || row.id === 'merged_calendar') return $L('Radarr and Sonarr Calendars');
+	if (row.isCalendarMerged) return $L('Radarr and Sonarr Calendars');
+	if (row.id === 'radarr_calendar') return $L('Radarr Calendar');
+	if (row.id === 'sonarr_calendar') return $L('Sonarr Calendar');
 	if (row.id === 'seasonal') return $L('Seasonal');
 	return undefined;
 };
@@ -329,10 +346,7 @@ export const sameRowList = (prev, next) => {
 		if (next[i].isWatchingNowRow && nextItems.some((item, index) => !sameWatchingNowItem(item, prevItems[index]))) {
 			return false;
 		}
-		if (nextItems[0]?.Id !== prevItems[0]?.Id ||
-			nextItems[nextItems.length - 1]?.Id !== prevItems[prevItems.length - 1]?.Id) {
-			return false;
-		}
+		if (nextItems.some((item, index) => item?.Id !== prevItems[index]?.Id)) return false;
 	}
 	return true;
 };

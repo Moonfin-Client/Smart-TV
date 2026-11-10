@@ -101,6 +101,8 @@ const AUDIO_CONTAINERS = ['mp3', 'aac', 'm4a', 'm4b', 'flac', 'ogg', 'oga', 'opu
 const rangeOk = (videoStream, capabilities) => {
 	const rangeType = (videoRangeTypeOf(videoStream) || '').toUpperCase();
 	if (!rangeType || rangeType === 'SDR') return true;
+	// Profile 7 and DOVIInvalid play as their HDR10 base layer, though their names don't say HDR10
+	if (rangeType === 'DOVIWITHEL' || rangeType === 'DOVIINVALID') return capabilities.hdr10;
 	if (rangeType.startsWith('DOVIWITH')) {
 		if (rangeType.includes('HDR10')) return capabilities.hdr10;
 		if (rangeType.includes('HLG')) return capabilities.hlg;

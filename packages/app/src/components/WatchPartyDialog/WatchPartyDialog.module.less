@@ -55,6 +55,422 @@
 	flex: 1;
 }
 
+// Moonbase's screens are wider than Silo's dialog: the room list, the PIN prompt and the lobby.
+
+.wide {
+	width: 1640px;
+	max-width: 94vw;
+	max-height: 90vh;
+}
+
+.titleNote {
+	margin-left: 18px;
+	font-size: 20px;
+	font-weight: 400;
+	opacity: 0.65;
+}
+
+.dot {
+	display: inline-block;
+	width: 11px;
+	height: 11px;
+	border-radius: 50%;
+	flex: none;
+}
+
+.chip {
+	display: inline-flex;
+	align-items: center;
+	height: 32px;
+	padding: 0 14px;
+	border-radius: 999px;
+	font-size: 17px;
+	font-weight: 500;
+	white-space: nowrap;
+}
+
+.chipParty {
+	background: #0b3a4c;
+	color: #8fdcf7;
+	border: 1px solid #1d6f8f;
+}
+
+.chipSyncPlay {
+	background: #2e2e2e;
+	color: #e6e6e6;
+	border: 1px solid #6a6a6a;
+}
+
+.chipIcon {
+	width: 17px;
+	height: 17px;
+	margin-right: 6px;
+}
+
+.rooms {
+	display: flex;
+	align-items: flex-start;
+}
+
+.roomsActions {
+	display: flex;
+	flex-direction: column;
+	width: 460px;
+	flex: none;
+}
+
+.bigAction {
+	display: flex;
+	align-items: center;
+	height: 92px;
+	padding: 0 28px;
+	border: 3px solid transparent;
+	border-radius: 18px;
+	background: rgba(255, 255, 255, 0.1);
+	color: #fff;
+	font-family: inherit;
+	font-size: 25px;
+	font-weight: 500;
+	text-align: left;
+	cursor: pointer;
+	outline: none;
+
+	&:focus {
+		background: #fff;
+		color: #101010;
+	}
+
+	&:disabled,
+	&[aria-disabled='true'] {
+		opacity: 0.5;
+	}
+}
+
+.bigActionIcon {
+	width: 34px;
+	height: 34px;
+	margin-right: 18px;
+	color: #00a4dc;
+}
+
+.codeInput {
+	flex: none;
+}
+
+.tilesColumn {
+	flex: 1;
+	min-width: 0;
+	margin-left: 56px;
+}
+
+.tiles {
+	display: flex;
+	flex-wrap: wrap;
+}
+
+.roomsCount {
+	display: block;
+	margin-bottom: 14px;
+	font-size: 21px;
+	opacity: 0.65;
+}
+
+.tile {
+	display: flex;
+	flex-direction: column;
+	width: 470px;
+	padding: 8px;
+	border: 3px solid transparent;
+	border-radius: 18px;
+	cursor: pointer;
+	outline: none;
+
+	&:focus {
+		border-color: #fff;
+		background: rgba(255, 255, 255, 0.08);
+	}
+}
+
+.tileArt {
+	position: relative;
+	display: block;
+	height: 270px;
+	border-radius: 14px;
+	overflow: hidden;
+	background: #222;
+}
+
+.tileImage {
+	position: absolute;
+	top: 0;
+	left: 0;
+	width: 100%;
+	height: 100%;
+	object-fit: cover;
+}
+
+.tileChips {
+	position: absolute;
+	top: 14px;
+	left: 14px;
+	display: flex;
+}
+
+.tileTitle {
+	margin-top: 12px;
+	font-size: 25px;
+	font-weight: 500;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.tileMeta {
+	display: flex;
+	align-items: center;
+	margin-top: 6px;
+	font-size: 19px;
+	color: #bdbdbd;
+}
+
+.needs {
+	display: flex;
+	flex-direction: column;
+	padding: 24px;
+	border-radius: 16px;
+	background: #1e1e1e;
+}
+
+.needsTitle {
+	font-size: 24px;
+	font-weight: 500;
+	margin-bottom: 10px;
+}
+
+.pinPrompt {
+	display: flex;
+	flex-direction: column;
+	max-width: 620px;
+}
+
+.error {
+	display: flex;
+	align-items: center;
+	padding: 12px 18px;
+	border-radius: 12px;
+	background: #2a1d1d;
+	border: 1px solid #4a2c2c;
+	font-size: 20px;
+	color: #ffd6d6;
+}
+
+.lobby {
+	display: flex;
+	align-items: flex-start;
+}
+
+.invite {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	width: 400px;
+	flex: none;
+	padding: 30px;
+	border-radius: 20px;
+	background: rgba(255, 255, 255, 0.06);
+	text-align: center;
+}
+
+.inviteTitle {
+	font-size: 24px;
+	font-weight: 500;
+}
+
+.qr {
+	width: 270px;
+	height: 270px;
+	border-radius: 12px;
+	background: #fff;
+}
+
+.inviteHint {
+	font-size: 19px;
+	line-height: 1.45;
+	opacity: 0.7;
+}
+
+.bigCode {
+	font-size: 44px;
+	font-weight: 700;
+	letter-spacing: 6px;
+}
+
+.lobbyMiddle {
+	display: flex;
+	flex-direction: column;
+	flex: 1;
+	min-width: 0;
+	margin: 0 40px;
+}
+
+.lobbySide {
+	width: 460px;
+	flex: none;
+}
+
+// Home: the Watch Parties row and the alert for a party that just started
+
+.partyCard {
+	position: relative;
+	width: 384px;
+	height: 216px;
+	flex: none;
+	border-radius: 12px;
+	overflow: hidden;
+	background: #222;
+	cursor: pointer;
+	outline: none;
+
+	&:focus {
+		box-shadow: 0 0 0 4px #fff;
+	}
+}
+
+.partyCardImage {
+	position: absolute;
+	top: 0;
+	left: 0;
+	width: 100%;
+	height: 100%;
+	object-fit: cover;
+}
+
+.partyCardChips {
+	position: absolute;
+	top: 12px;
+	left: 12px;
+	display: flex;
+}
+
+.partyCardState {
+	position: absolute;
+	left: 12px;
+	bottom: 12px;
+	display: flex;
+	align-items: center;
+	height: 34px;
+	padding: 0 12px;
+	border-radius: 9px;
+	background: rgba(16, 16, 16, 0.85);
+	font-size: 17px;
+	font-weight: 500;
+	color: #fff;
+}
+
+.partyStart {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	justify-content: center;
+	border: 3px dashed #4a4a4a;
+	background: transparent;
+	color: #d6d6d6;
+	font-size: 22px;
+	font-weight: 500;
+}
+
+.partyStartIcon {
+	width: 44px;
+	height: 44px;
+	margin-bottom: 10px;
+}
+
+.alert {
+	position: fixed;
+	top: 36px;
+	right: 60px;
+	z-index: 1200;
+	width: 640px;
+	border-radius: 20px;
+	background: #1e1e1e;
+	border: 1px solid #333;
+	overflow: hidden;
+	color: #fff;
+	pointer-events: none;
+}
+
+.alertBody {
+	display: flex;
+	padding: 22px;
+}
+
+.alertPoster {
+	width: 84px;
+	height: 126px;
+	border-radius: 10px;
+	object-fit: cover;
+	flex: none;
+}
+
+.alertText {
+	display: flex;
+	flex-direction: column;
+	flex: 1;
+	min-width: 0;
+}
+
+.alertHead {
+	display: flex;
+	align-items: center;
+	font-size: 23px;
+	font-weight: 500;
+}
+
+.alertAvatar {
+	width: 38px;
+	height: 38px;
+	font-size: 16px;
+}
+
+.alertLine {
+	font-size: 20px;
+	color: #d6d6d6;
+}
+
+.alertNote {
+	font-size: 18px;
+	color: #a8a8a8;
+}
+
+.alertTrack {
+	display: block;
+	height: 5px;
+	background: #2a2a2a;
+}
+
+.alertProgress {
+	display: block;
+	height: 100%;
+	background: #00a4dc;
+	transform-origin: left center;
+	animation: alertTime 8s linear forwards;
+}
+
+@keyframes alertTime {
+	from { transform: scaleX(1); }
+	to { transform: scaleX(0); }
+}
+
 .member   { .flex-row-gap(12px); }
 .row      { .flex-row-gap(10px); }
 .settings { .flex-col-gap(10px); }
+.tileChips, .partyCardChips { .flex-row-gap(8px); }
+.tileMeta, .partyCardState { .flex-row-gap(8px); }
+.roomsActions { .flex-col-gap(16px); }
+.tiles    { .flex-wrap-gap(26px); }
+.pinPrompt { .flex-col-gap(16px); }
+.invite   { .flex-col-gap(18px); }
+.lobbyMiddle { .flex-col-gap(16px); }
+.alertBody { .flex-row-gap(20px); }
+.alertText { .flex-col-gap(8px); }
+.alertHead { .flex-row-gap(12px); }

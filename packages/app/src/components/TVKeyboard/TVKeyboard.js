@@ -405,6 +405,7 @@ class TVKeyboardHost extends Component {
 			textState: textModel.makeState(''),
 			shifted: false,
 			numericPage: false,
+			revealed: false,
 			row: 0,
 			col: 0,
 			popup: null,
@@ -451,6 +452,7 @@ class TVKeyboardHost extends Component {
 			textState: textModel.makeState(options.value || ''),
 			shifted: false,
 			numericPage: false,
+			revealed: false,
 			row: 0,
 			// The docked rail sits in the first column, so typing starts one over from it
 			col: this.look() === 'docked' && options.purpose !== 'numeric' ? 1 : 0,
@@ -585,6 +587,9 @@ class TVKeyboardHost extends Component {
 			if (!text) return (session.recents || []).slice(0, 5).map((value) => ({value, submitOnTap: true}));
 			return suggestions.map((value) => ({value, submitOnTap: true}));
 		}
+		if (session.password && purpose !== 'numeric') {
+			return [{value: this.state.revealed ? $L('Hide password') : $L('Show password'), reveal: true}];
+		}
 		return [];
 	}
 
@@ -695,6 +700,10 @@ class TVKeyboardHost extends Component {
 
 	activateChip(chip) {
 		if (!chip) return;
+		if (chip.reveal) {
+			this.setState((prev) => ({revealed: !prev.revealed}), () => this.state.session?.onReveal?.(this.state.revealed));
+			return;
+		}
 		if (chip.submitOnTap || chip.replaceOnTap) {
 			this.applyText(textModel.makeState(chip.value));
 		} else {
@@ -1125,8 +1134,8 @@ class TVKeyboardHost extends Component {
 	// The dock can cover the field, so it shows the text itself. The ghost finishes
 	// the first suggestion that starts with what has been typed and would replace it.
 	renderEcho(palette, numberPad, chips) {
-		const {session, textState} = this.state;
-		const shown = session.password ? textState.text.replace(/[\s\S]/g, '•') : textState.text;
+		const {session, textState, revealed} = this.state;
+		const shown = session.password && !revealed ? textState.text.replace(/[\s\S]/g, '•') : textState.text;
 		const after = shown.slice(textState.cursor);
 		let ghost = '';
 		if (!session.password && !after && shown) {
@@ -1157,9 +1166,10 @@ class TVKeyboardHost extends Component {
 
 	renderSuggestions(palette, chips) {
 		if (!chips.length) return null;
-		const {row, col, textState} = this.state;
+		const {row, col, textState, session} = this.state;
 		const activeIndex = row === -1 ? Math.min(col, chips.length - 1) : -1;
-		const typed = textState.text.toLowerCase();
+		// A password marked inside the show password chip would give it away.
+		const typed = session.password ? '' : textState.text.toLowerCase();
 		return (
 			<div className={css.suggestions}>
 				{chips.map((chip, index) => {

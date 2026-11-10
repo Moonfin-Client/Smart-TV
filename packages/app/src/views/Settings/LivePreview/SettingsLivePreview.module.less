@@ -135,6 +135,49 @@
 	color: rgba(255, 255, 255, 0.55);
 }
 
+.statusBlocked {
+	font-size: (12.5 * @dp);
+	font-weight: 600;
+	color: #FFC107;
+}
+
+// Why the rows can't be on Home, over the dimmed preview at the size of the text around it
+// rather than the scaled-down screen's.
+.notice {
+	position: absolute;
+	top: 0;
+	right: 0;
+	bottom: 0;
+	left: 0;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	padding: (24 * @dp);
+	background-color: rgba(0, 0, 0, 0.7);
+}
+
+.noticeText {
+	max-width: (380 * @dp);
+	font-size: (12.5 * @dp);
+	line-height: 1.45;
+	font-weight: 600;
+	color: #FFFFFF;
+	text-align: center;
+}
+
+// A note along the bottom of the preview.
+.caption {
+	position: absolute;
+	right: 0;
+	bottom: 0;
+	left: 0;
+	padding: (8 * @dp) (14 * @dp);
+	background-color: rgba(0, 0, 0, 0.72);
+	font-size: (12.5 * @dp);
+	line-height: 1.4;
+	color: rgba(255, 255, 255, 0.85);
+}
+
 .title {
 	margin-top: (8 * @dp);
 	font-size: (19 * @dp);

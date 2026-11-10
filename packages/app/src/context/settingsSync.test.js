@@ -33,6 +33,14 @@ describe('profileToLocal', () => {
 		expect(local.hiddenOsdButtonsTv).toEqual(['audio']);
 	});
 
+	test('syncs the Watch Parties settings, and keeps a service it doesn\'t know out', () => {
+		expect(profileToLocal({syncPlayEnabled: false, watchPartyService: 'syncplay', watchPartyChatOverlay: false, watchPartyAlerts: true}))
+			.toEqual({syncplayEnabled: false, watchPartyService: 'syncplay', watchPartyChatOverlay: false, watchPartyAlerts: true});
+		expect(profileToLocal({watchPartyService: 'discord'})).toEqual({});
+		expect(localToProfile({watchPartyService: 'moonbase', watchPartyAlerts: false}, ['watchPartyService', 'watchPartyAlerts']))
+			.toMatchObject({watchPartyService: 'moonbase', watchPartyAlerts: false});
+	});
+
 	test('takes detailButtonsMaxVisible under its own name', () => {
 		const local = profileToLocal({
 			detailButtonsMaxVisible: 3
@@ -77,10 +85,18 @@ describe('profileToLocal', () => {
 	test("takes the other clients' media bar sources and new release settings", () => {
 		expect(profileToLocal({mediaBarSourceType: 'newReleases'}).mediaBarSourceType).toBe('newReleases');
 		expect(profileToLocal({mediaBarSourceType: 'recentlyAdded'}).mediaBarSourceType).toBe('recentlyAdded');
-		expect(profileToLocal({mediaBarSourceType: 'random'}).mediaBarSourceType).toBe('library');
+		expect(profileToLocal({mediaBarSourceType: 'random'}).mediaBarSourceType).toBe('random');
+		expect(profileToLocal({mediaBarSourceType: 'library'}).mediaBarSourceType).toBe('random');
+		expect(profileToLocal({mediaBarSourceType: 'collection'}).mediaBarSourceType).toBe('random');
 		expect(profileToLocal({mediaBarSourceType: 'trending'}).mediaBarSourceType).toBeUndefined();
 		expect(profileToLocal({mediaBarNewReleaseBanner: false, mediaBarNewReleaseDays: 14})).toEqual({mediaBarNewReleaseBanner: false, mediaBarNewReleaseDays: 14});
 		expect(profileToLocal({mediaBarNewReleaseDays: 45}).mediaBarNewReleaseDays).toBeUndefined();
+	});
+
+	test("takes the other clients' date format", () => {
+		expect(profileToLocal({dateFormat: 'dayMonth'}).dateFormat).toBe('dayMonth');
+		expect(profileToLocal({dateFormat: 'monthDay'}).dateFormat).toBe('monthDay');
+		expect(profileToLocal({dateFormat: 'yearFirst'}).dateFormat).toBeUndefined();
 	});
 
 	test('ignores a screensaver mode this app has no way to draw', () => {
@@ -353,10 +369,11 @@ describe('the home rows and media bar ratings settings', () => {
 		mediaBarShowRatingBadges: 'mediaBarMdblistShowRatingBadges'
 	};
 
-	test('default like the plain ones, except home rows start with labels off', () => {
+	test('default like the plain ones, except home rows start with labels off and only details start without badges', () => {
+		const own = {homeRowsShowRatingLabels: false, homeRowsShowRatingBadges: true, mediaBarShowRatingBadges: true};
 		for (const local of Object.keys(SERVER_KEYS)) {
 			const plain = local.replace(/^(homeRows|mediaBar)(.)/, (all, surface, first) => first.toLowerCase());
-			const expected = local === 'homeRowsShowRatingLabels' ? false : defaultSettings[plain];
+			const expected = local in own ? own[local] : defaultSettings[plain];
 			expect({local, value: defaultSettings[local]}).toEqual({local, value: expected});
 		}
 	});
@@ -608,7 +625,7 @@ describe('localToProfile for the seasonal effect', () => {
 
 describe('the seasonal row settings', () => {
 	test('are syncable', () => {
-		for (const key of ['seasonalRowEnabled', 'seasonalRowCountry', 'seasonalRowHiddenHolidays']) {
+		for (const key of ['seasonalRowEnabled', 'seasonalRowCountry', 'seasonalRowHiddenHolidays', 'seasonalRowAllYear']) {
 			expect(SYNCABLE_KEYS).toContain(key);
 		}
 	});
@@ -801,6 +818,27 @@ describe('the focus border color', () => {
 		expect(profileToLocal({focusColor: '#ff2e92'}).focusBorderColor).toBe('#ff2e92');
 		expect(profileToLocal({focusColor: ''}).focusBorderColor).toBe('');
 		expect(profileToLocal({focusColor: 'constructor'})).not.toHaveProperty('focusBorderColor');
+	});
+});
+
+describe('the calendar row hide downloaded toggles', () => {
+	test('are on by default and sync under their own names both ways', () => {
+		const keys = ['radarrCalendarHideDownloaded', 'sonarrCalendarHideDownloaded'];
+		for (const key of keys) {
+			expect(defaultSettings[key]).toBe(true);
+			expect(SYNCABLE_KEYS).toContain(key);
+			expect(profileToLocal({[key]: false})[key]).toBe(false);
+		}
+		expect(localToProfile({radarrCalendarHideDownloaded: false, sonarrCalendarHideDownloaded: true}, keys))
+			.toEqual({radarrCalendarHideDownloaded: false, sonarrCalendarHideDownloaded: true});
+	});
+});
+
+describe('the poster labels toggle', () => {
+	test('is on by default and syncs both ways', () => {
+		expect(defaultSettings.showPosterLabels).toBe(true);
+		expect(profileToLocal({showPosterLabels: false}).showPosterLabels).toBe(false);
+		expect(localToProfile({showPosterLabels: false}, ['showPosterLabels'])).toEqual({showPosterLabels: false});
 	});
 });
 

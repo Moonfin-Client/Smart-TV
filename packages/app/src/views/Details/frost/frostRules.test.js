@@ -214,6 +214,7 @@ describe('what the overview and the Details tab say', () => {
 	};
 	const cast = ['One', 'Two', 'Three', 'Four'].map((Name) => ({Name}));
 	const source = {
+		Path: '/media/movies/Film (2026)/Film (2026) - 4K.mkv',
 		Container: 'mkv',
 		Size: 2 * 1024 * 1024 * 1024,
 		MediaStreams: [
@@ -245,9 +246,10 @@ describe('what the overview and the Details tab say', () => {
 		expect(groups[0].rows.map(([label]) => label)).toEqual(['Studios', 'Release Date', 'Runtime', 'Parental Rating', 'Director', 'Writer', 'Genres']);
 		expect(groups[0].rows[0][1]).toBe('Universal, Syncopy');
 		expect(groups[1].rows).toEqual([['Audio', 'ENG, ?'], ['Subtitles', 'FRE']]);
-		expect(groups[2].rows.map(([label]) => label)).toEqual(['Version', 'Video', 'Container', 'Size']);
-		expect(groups[2].rows[2][1]).toBe('MKV');
-		expect(groups[2].rows[3][1]).toBe('2.00 GB');
+		expect(groups[2].rows.map(([label]) => label)).toEqual(['Version', 'File', 'Video', 'Container', 'Size']);
+		expect(groups[2].rows[1][1]).toBe('Film (2026) - 4K.mkv');
+		expect(groups[2].rows[3][1]).toBe('MKV');
+		expect(groups[2].rows[4][1]).toBe('2.00 GB');
 	});
 
 	test('leaves out what the viewer hid and what there is nothing to say about', () => {

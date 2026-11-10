@@ -35,7 +35,8 @@ export const pageableRow = (row, result, limit, readHead) => ({
 export const nextHeadLength = (row) => Math.min((row.items?.length || 0) + ROW_PAGE_SIZE, ROW_MAX_ITEMS);
 
 // Adds the items of a longer head that the row doesn't have yet to its end, leaving the cards
-// already drawn as they are. A head that brought nothing new ends the row.
+// already drawn as they are. A head that brought nothing new ends the row. `pagedFrom` marks where
+// the paged cards begin.
 export const extendRow = (row, items, hasMore) => {
 	const current = row.items || [];
 	const seen = new Set(current.map((item) => item.Id));
@@ -49,6 +50,7 @@ export const extendRow = (row, items, hasMore) => {
 	return {
 		...row,
 		items: next,
+		pagedFrom: row.pagedFrom ?? current.length,
 		hasMore: added.length > 0 && next.length < ROW_MAX_ITEMS && hasMore
 	};
 };
