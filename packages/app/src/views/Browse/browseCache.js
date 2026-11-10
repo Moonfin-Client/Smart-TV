@@ -26,6 +26,9 @@ export const memoryCache = {
 	rowConfigKey: null,
 	// The media bar settings the shown items were drawn for; a set drawn for other settings replaces them.
 	featuredConfigKey: null,
+	// When Recently Added and Recently Released were last read. The timestamp above moves whenever
+	// Continue Watching and Next Up are read again, which says nothing about these.
+	recentAt: null,
 	// Whose rows these are. Kept so a fresh mount can tell an account change, which has to
 	// throw the rows away, apart from an ordinary return to the home screen, which is the
 	// whole reason the cache is here. Emptying the rows leaves it alone, since a refresh
@@ -44,6 +47,7 @@ export const clearMemoryCache = ({keepFeatured = false} = {}) => {
 	memoryCache.libraries = null;
 	memoryCache.timestamp = null;
 	memoryCache.rowConfigKey = null;
+	memoryCache.recentAt = null;
 	if (keepFeatured) return;
 	memoryCache.featuredItems = null;
 	memoryCache.featuredConfigKey = null;
@@ -192,6 +196,7 @@ export const saveBrowseCache = (rowData, libraries, featuredItems, {serverUrl, u
 				serverUrl,
 				userId,
 				rowConfigKey: memoryCache.rowConfigKey,
+				recentAt: memoryCache.recentAt,
 				featuredConfigKey
 			});
 			lastSignature = signature;

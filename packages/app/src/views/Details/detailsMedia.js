@@ -53,7 +53,7 @@ const normalizeRoles = (role) => role
 // The people on an item, split the way the detail screens present them: actors
 // in Cast, directors and writers merged into Crew. Somebody who both directed
 // and acted belongs with the crew, so their name is kept out of the cast.
-export const splitCastAndCrew = (people = [], limit = 20) => {
+export const splitCastAndCrew = (people = [], limit = 20, isEpisode = false) => {
 	const directors = people.filter((p) => p.Type === 'Director');
 	const writers = people.filter((p) => p.Type === 'Writer');
 	const crewNames = new Set([...directors, ...writers].map((p) => p.Name));
@@ -63,10 +63,21 @@ export const splitCastAndCrew = (people = [], limit = 20) => {
 		.slice(0, limit);
 
 	const merged = new Map();
+	const directorFallback = isEpisode ? $L('Episode Director') : $L('Director');
+	const writerFallback = isEpisode ? $L('Episode Writer') : $L('Writer');
+
 	const addCrew = (person, fallbackRole) => {
 		const key = person.Id || person.Name;
 		if (!key) return;
-		const roles = normalizeRoles(person.Role?.trim() || fallbackRole);
+		let rawRole = person.Role?.trim() || fallbackRole;
+		if (isEpisode) {
+			if (person.Type === 'Director' && (!rawRole || rawRole.toLowerCase() === 'director')) {
+				rawRole = fallbackRole;
+			} else if (person.Type === 'Writer' && (!rawRole || rawRole.toLowerCase() === 'writer')) {
+				rawRole = fallbackRole;
+			}
+		}
+		const roles = normalizeRoles(rawRole);
 		const existing = merged.get(key);
 		if (existing) {
 			roles.forEach((r) => existing.roles.add(r));
@@ -74,8 +85,8 @@ export const splitCastAndCrew = (people = [], limit = 20) => {
 			merged.set(key, {person, roles: new Set(roles)});
 		}
 	};
-	directors.forEach((d) => addCrew(d, $L('Director')));
-	writers.forEach((w) => addCrew(w, $L('Writer')));
+	directors.forEach((d) => addCrew(d, directorFallback));
+	writers.forEach((w) => addCrew(w, writerFallback));
 
 	const crew = Array.from(merged.values())
 		.map(({person, roles}) => ({...person, Role: Array.from(roles).join('\n')}))
