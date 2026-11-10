@@ -6,6 +6,7 @@
 
 import {getImageUrl, getBackdropId, getPrimaryImageId, getLogoUrl} from '../../utils/helpers';
 import * as jellyfinApi from '../../services/jellyfinApi';
+import {showsWatchedCheck} from '../../utils/playedState';
 
 let items = [];
 let loading = false;
@@ -45,7 +46,11 @@ export const adaptItem = (item) => {
 		communityRating: typeof item.CommunityRating === 'number' ? item.CommunityRating : null,
 		posterUrl: posterId ? getImageUrl(serverUrl, posterId, 'Primary', {maxWidth: 400, quality: 85}) : null,
 		backdropUrl: backdropId ? getImageUrl(serverUrl, backdropId, 'Backdrop', {maxWidth: 1280, quality: 85}) : null,
-		logoUrl: getLogoUrl(serverUrl, item, {maxWidth: 800, quality: 90})
+		logoUrl: getLogoUrl(serverUrl, item, {maxWidth: 800, quality: 90}),
+		// What a card's watched indicators read.
+		played: showsWatchedCheck(item),
+		playedPercentage: item.UserData?.PlayedPercentage || 0,
+		unplayedCount: item.UserData?.UnplayedItemCount || 0
 	};
 };
 

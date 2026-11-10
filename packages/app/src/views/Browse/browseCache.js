@@ -14,10 +14,21 @@ export const CACHE_TTL_LIBRARIES = 30 * 60 * 1000;
 export const VOLATILE_REFRESH_COOLDOWN_MS = 60 * 1000;
 const CACHE_SAVE_DEBOUNCE_MS = 3000;
 
+let homeRows = null;
+const rowDataListeners = new Set();
+
 // Read and written across mounts on purpose, so leaving Browse and coming back doesn't
 // refetch everything.
 export const memoryCache = {
-	rowData: null,
+	// Every loader writes Home's rows here, and the Settings preview listens so it can redraw as
+	// Home reloads behind Settings.
+	get rowData () {
+		return homeRows;
+	},
+	set rowData (next) {
+		homeRows = next;
+		rowDataListeners.forEach((listener) => listener());
+	},
 	libraries: null,
 	featuredItems: null,
 	timestamp: null,
@@ -39,6 +50,11 @@ export const memoryCache = {
 	// again, so an empty section doesn't flash its title on every load. A refresh keeps them.
 	emptySections: new Set(),
 	emptySectionsSeeded: false
+};
+
+export const subscribeRowData = (listener) => {
+	rowDataListeners.add(listener);
+	return () => rowDataListeners.delete(listener);
 };
 
 // A refresh keeps the media bar unless the caller asks for it, or an account change clears everything.

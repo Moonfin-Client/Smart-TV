@@ -109,10 +109,11 @@ const SCENE_LABELS = {
 	library: () => $L('Library')
 };
 
-// Read inside the override, so a picker's option shows before it's saved.
-const MediaBarScene = () => {
+// Read inside the override, so a picker's option shows before it's saved. [rows] are Home's own,
+// the first of them peeking under the bar while Peek Home Rows is on.
+const MediaBarScene = ({rows}) => {
 	const {settings} = useSettings();
-	return <MediaBarPreview mode={settings.featuredBarStyle || 'moonfin'} />;
+	return <MediaBarPreview mode={settings.featuredBarStyle || 'moonfin'} rows={rows} />;
 };
 
 const DetailsScene = () => {
@@ -182,7 +183,7 @@ const SceneView = ({scene, row, hasLiveTv, library, homeRows}) => {
 	if (scene === 'player') {
 		return <PlayerPreview moment={STAGE_MOMENTS[stage] || PLAYER_MOMENTS[focusKey] || 'middle'} hdr={SUBTITLE_HDR_KEYS.indexOf(focusKey) >= 0} />;
 	}
-	if (MEDIA_BAR_KEYS.indexOf(focusKey) >= 0) return <MediaBarScene />;
+	if (MEDIA_BAR_KEYS.indexOf(focusKey) >= 0) return <MediaBarScene rows={homeRows} />;
 	// The left rail only paints its color and shows its clock while it's open.
 	const railOpen = ['navbarColor', 'navbarOpacity', 'showClock', 'clockDisplay'].indexOf(focusKey) >= 0;
 	return (
@@ -215,9 +216,10 @@ const SettingsLivePreview = ({scene, row, trying, onPickScene, onLeaveChips, has
 		// Home's backdrop picker saves its switch along with the style, so both are tried together.
 		return trying.key === 'homeBackdropStyle' ? homeBackdropSettings(trying.value) : {[trying.key]: trying.value};
 	}, [trying, tried]);
-	// The audio and Collections Row Options draw Home's own rows, loaded with the value being tried.
+	// The Row Options and the settings for Home's rows and cards draw Home's own rows, loaded and
+	// laid out with the value being tried.
 	const withTried = useMemo(() => (overrides ? {...settings, ...overrides} : settings), [settings, overrides]);
-	const rowOptions = useRowOptionsHome(scene === 'home' ? focusKey : null, withTried);
+	const rowOptions = useRowOptionsHome(scene === 'home' ? focusKey : null, withTried, row ? row.rowId : null);
 	const blocked = row && row.key ? rowOptionsBlockedReason(row.key, withTried, hasMultipleServers) : null;
 	const tryingHere = !!(trying && row && trying.key === row.key);
 	const live = tryingHere ? trying.index : (row ? row.saved : -1);

@@ -31,6 +31,7 @@ import {homeBackdropStyle} from '../../utils/homeBackdropStyle';
 import {normalizeRatingStyle} from '../../utils/personalRating';
 import {rootScale} from '../../utils/rootScale';
 import {memoryCache} from '../Browse/browseCache';
+import {homeRowSpacing, rowPeekHeight} from '../Browse/rowPeek';
 import {genreGlowRgb} from '../Browse/galleryGlow';
 import {DETAIL_ICON_PATHS} from '../Details/detailIcons';
 import {getMediaBadges} from '../Details/detailsMedia';
@@ -448,19 +449,52 @@ const FocusRing = ({t}) => (
 	/>
 );
 
-const RowCard = ({item, height, aspect, imageUrl, progress, focused = false, t}) => {
-	const width = height * aspect;
+const BADGE_COLORS = {
+	backgroundColor: 'var(--theme-badge-watched, rgba(0, 164, 220, 0.9))',
+	border: '1px solid var(--theme-on-badge, #ffffff)',
+	color: 'var(--theme-on-badge, #ffffff)'
+};
+
+// The watched indicators Home's cards draw as Watched Indicators allows them: the progress bar,
+// the watched mark, and the count of episodes left to watch. [progress] runs from 0 to 1.
+const CardIndicators = ({item, progress, t}) => {
+	const {settings} = useSettings();
+	const behavior = settings.watchedIndicatorBehavior || 'always';
+	if (!(behavior === 'always' || behavior === 'hideCount' || (behavior === 'episodesOnly' && item.type === 'Episode'))) return null;
+	const count = behavior !== 'hideCount' && !item.played && item.unplayedCount > 0;
 	return (
-		<div style={{width, flexShrink: 0, marginRight: 12}}>
+		<>
+			{progress > 0 && (
+				<div style={{position: 'absolute', left: 6, right: 6, bottom: 6, height: 6, borderRadius: 3, overflow: 'hidden', display: 'flex'}}>
+					<div style={{width: `${Math.round(progress * 100)}%`, backgroundColor: t.accent}} />
+					<div style={{flex: '1 1 auto', backgroundColor: t.scrimA(0.54)}} />
+				</div>
+			)}
+			{item.played && (
+				<div style={{position: 'absolute', top: 4, right: 4, width: 12, height: 12, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', ...BADGE_COLORS}}>
+					<MIcon name='check' size={9} color='currentColor' />
+				</div>
+			)}
+			{count && (
+				<div style={{position: 'absolute', top: 4, right: 4, padding: '0 4px', borderRadius: 7, fontSize: 9, fontWeight: 700, lineHeight: '12px', ...BADGE_COLORS}}>
+					{item.unplayedCount}
+				</div>
+			)}
+		</>
+	);
+};
+
+// A [classic] card grows on focus while Focus Expansion Animation is on, as Home's does.
+const RowCard = ({item, height, aspect, imageUrl, progress, focused = false, classic = false, t}) => {
+	const {settings} = useSettings();
+	const width = height * aspect;
+	const grown = classic && focused && settings.cardFocusZoom;
+	return (
+		<div style={{width, flexShrink: 0, marginRight: 12, transform: grown ? 'scale(1.05)' : null}}>
 			<div style={{position: 'relative', width, height}}>
 				<div style={{...ABS_FILL, borderRadius: t.cardRadius, overflow: 'hidden'}}>
 					<Artwork url={imageUrl || item.posterUrl} t={t} />
-					{progress != null && (
-						<div style={{position: 'absolute', left: 6, right: 6, bottom: 6, height: 6, borderRadius: 3, overflow: 'hidden', display: 'flex'}}>
-							<div style={{width: `${Math.round(progress * 100)}%`, backgroundColor: t.accent}} />
-							<div style={{flex: '1 1 auto', backgroundColor: t.scrimA(0.54)}} />
-						</div>
-					)}
+					<CardIndicators item={item} progress={progress} t={t} />
 				</div>
 				{focused && <FocusRing t={t} />}
 			</div>
@@ -485,7 +519,8 @@ const FocusedRowCard = ({item, posterHeight, t}) => {
 		<div style={{width, flexShrink: 0, marginRight: 12}}>
 			<div style={{position: 'relative', width, height: posterHeight}}>
 				<div style={{position: 'absolute', top: 0, left: 0, width, height: posterHeight, borderRadius: t.cardRadius, overflow: 'hidden'}}>
-					<Artwork url={item.backdropUrl || item.posterUrl} t={t} />
+					<Artwork url={item.focusUrl || item.backdropUrl || item.posterUrl} t={t} />
+					<CardIndicators item={item} progress={(item.playedPercentage || 0) / 100} t={t} />
 				</div>
 				<FocusRing t={t} />
 			</div>
@@ -519,28 +554,35 @@ const SQUARE_ITEM_TYPES = ['MusicAlbum', 'Audio'];
 const growsOnFocus = (item) => Boolean(item.year || item.genres.length || item.runtimeMinutes || item.communityRating) ||
 	['Movie', 'Series', 'Episode'].indexOf(item.type) >= 0;
 
+// Each Classic card shape's width over its height, from MediaCard's sizes.
+const SHAPE_ASPECT = {portrait: 2 / 3, landscape: 16 / 9, square: 1, banner: 1168 / 216};
+
+const isWideShape = (shape) => shape === 'landscape' || shape === 'banner';
+
 // The sample rows cycle the wizard's items through eight cards. A row of Home's own ([real])
-// draws the cards it has, square where Home draws them square: every card of a [square] Classic
-// row, or an album's on a Modern one.
-const HomeRow = ({title, items, t, modern, thumbs = false, offset = 0, withFocus = false, posterHeight, thumbHeight, real = false, square = false}) => {
+// draws the cards it has with the art Home's cards pick. A Classic row draws every card in its
+// [shape], and a Modern one draws posters, with an album square the way Home does.
+const HomeRow = ({title, items, t, modern, shape = 'portrait', offset = 0, withFocus = false, posterHeight, thumbHeight, real = false}) => {
 	const cards = [];
 	const count = real ? Math.min(8, items.length) : 8;
 	for (let i = 0; i < count; i++) {
 		const item = real ? items[i] : itemAt(items, i + offset);
-		const isSquare = modern ? SQUARE_ITEM_TYPES.indexOf(item.type) >= 0 : square;
+		const cardShape = modern ? (SQUARE_ITEM_TYPES.indexOf(item.type) >= 0 ? 'square' : 'portrait') : shape;
+		const wide = isWideShape(cardShape);
 		const focused = withFocus && i === 0;
-		if (focused && modern && !isSquare && growsOnFocus(item)) {
+		if (focused && modern && cardShape !== 'square' && growsOnFocus(item)) {
 			cards.push(<FocusedRowCard key={i} item={item} posterHeight={posterHeight} t={t} />);
 		} else {
 			cards.push(
 				<RowCard
 					key={i}
 					item={item}
-					height={thumbs ? thumbHeight : posterHeight}
-					aspect={thumbs ? 16 / 9 : (isSquare ? 1 : 2 / 3)}
-					imageUrl={thumbs ? item.backdropUrl : null}
-					progress={thumbs && !real && i === 0 ? 0.35 : (thumbs && !real && i === 1 ? 0.7 : null)}
+					height={wide ? thumbHeight : posterHeight}
+					aspect={SHAPE_ASPECT[cardShape]}
+					imageUrl={real ? item.cardUrl : (wide ? item.backdropUrl : null)}
+					progress={real ? item.playedPercentage / 100 : (wide && i < 2 ? [0.35, 0.7][i] : 0)}
 					focused={focused}
+					classic={!modern}
 					t={t}
 				/>
 			);
@@ -561,23 +603,28 @@ const HomeRow = ({title, items, t, modern, thumbs = false, offset = 0, withFocus
 // Card Size as a scale of Default, the size the rows are drawn at otherwise.
 const POSTER_SIZE_SCALE = {small: 0.8, default: 1, large: 1.2, xlarge: 1.4, grandparents: 2};
 
-// [rows] are Home's own rows, each {id, title, items, square, thumbs}, drawn in place of the
-// sample ones with the first of them leading.
-const HomeRowsColumn = ({items, rows, t, modern, focusFirst = false, rowGapOverride}) => {
-	const {settings} = useSettings();
+// The poster and thumb heights the rows' cards draw at, in the card size being looked at.
+const rowCardHeights = (settings, modern) => {
 	const sizeScale = POSTER_SIZE_SCALE[settings.homeRowsPosterSize] || 1;
-	const posterHeight = (modern ? 240 : 150) * ROW_SCALE * sizeScale;
-	const thumbHeight = 110 * ROW_SCALE * sizeScale;
-	// Expanded Rows gives each row a screen of its own, so the next one starts below the frame.
-	let rowGap = rowGapOverride != null ? rowGapOverride : (modern ? 60 : 18);
-	if (settings.fullScreenRows === true) rowGap = DESIGN_H;
+	return {posterHeight: (modern ? 240 : 150) * ROW_SCALE * sizeScale, thumbHeight: 110 * ROW_SCALE * sizeScale};
+};
+
+// [rows] are Home's own rows, each {id, title, items, shape}, drawn in place of the sample ones
+// with the first of them leading.
+const HomeRowsColumn = ({items, rows, t, modern, focusFirst = false}) => {
+	const {settings} = useSettings();
+	const {posterHeight, thumbHeight} = rowCardHeights(settings, modern);
+	// The space Home leaves below each row, at the design screen's half size. Expanded Rows gives
+	// each row a screen of its own, so the next one starts below the frame.
+	const spacing = homeRowSpacing({...settings, homeRowsStyle: modern ? 'v2' : 'v1'});
+	const rowGap = spacing === null ? DESIGN_H : spacing / 2;
 	const first = rows ? rows[0].items[0] : items[0];
 	return (
 		<div style={{paddingLeft: ROW_LEFT_INSET - 16, paddingTop: 16}}>
-			{!modern && (
-				// Classic keeps the info overlay band above the rows, so its
-				// preview starts with one. Modern shows its metadata under the
-				// focused card instead.
+			{!modern && settings.homeRowOverlay !== false && (
+				// Classic keeps the info overlay band above the rows while Home
+				// Row Info Overlay is on, so its preview starts with one. Modern
+				// shows its metadata under the focused card instead.
 				<div style={{padding: '24px 16px 12px 16px'}}>
 					<div style={{height: 145, overflow: 'hidden'}}>
 						<div style={{fontSize: 26, fontWeight: 800, color: t.onSurface, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis'}}>
@@ -604,8 +651,7 @@ const HomeRowsColumn = ({items, rows, t, modern, focusFirst = false, rowGapOverr
 						real
 						title={row.title}
 						items={row.items}
-						square={row.square}
-						thumbs={!modern && row.thumbs}
+						shape={row.shape}
 						t={t}
 						modern={modern}
 						withFocus={focusFirst && index === 0}
@@ -615,20 +661,20 @@ const HomeRowsColumn = ({items, rows, t, modern, focusFirst = false, rowGapOverr
 				</Fragment>
 			)) : (
 				<>
-					<HomeRow title={$L('Continue Watching')} items={items} t={t} modern={modern} thumbs={!modern} withFocus={focusFirst} posterHeight={posterHeight} thumbHeight={thumbHeight} />
+					<HomeRow title={$L('Continue Watching')} items={items} t={t} modern={modern} shape='landscape' withFocus={focusFirst} posterHeight={posterHeight} thumbHeight={thumbHeight} />
 					<div style={{height: rowGap}} />
 					<HomeRow title={$L('Recently Added')} items={items} t={t} modern={modern} offset={3} posterHeight={posterHeight} thumbHeight={thumbHeight} />
 					<div style={{height: rowGap}} />
-					<HomeRow title={$L('Next Up')} items={items} t={t} modern={modern} thumbs={!modern} offset={6} posterHeight={posterHeight} thumbHeight={thumbHeight} />
+					<HomeRow title={$L('Next Up')} items={items} t={t} modern={modern} shape='landscape' offset={6} posterHeight={posterHeight} thumbHeight={thumbHeight} />
 				</>
 			)}
 		</div>
 	);
 };
 
-const HomeRowsScreen = ({items, t, modern, focusFirst = false, rowGapOverride}) => (
+const HomeRowsScreen = ({items, t, modern, focusFirst = false}) => (
 	<div style={{width: '100%', height: '100%', overflow: 'hidden'}}>
-		<HomeRowsColumn items={items} t={t} modern={modern} focusFirst={focusFirst} rowGapOverride={rowGapOverride} />
+		<HomeRowsColumn items={items} t={t} modern={modern} focusFirst={focusFirst} />
 	</div>
 );
 
@@ -636,7 +682,8 @@ const HomeRowsScreen = ({items, t, modern, focusFirst = false, rowGapOverride}) 
 // Media bar modes
 // ---------------------------------------------------------------------------
 
-const MoonfinBar = ({items, t}) => {
+// [rowPeek] is the room Home's first row takes along the bottom, which the bar's content sits above.
+const MoonfinBar = ({items, t, rowPeek = 0}) => {
 	const item = items[0];
 	return (
 		<div style={{position: 'relative', width: '100%', height: '100%'}}>
@@ -650,7 +697,7 @@ const MoonfinBar = ({items, t}) => {
 				/>
 				<MediaBarNewReleaseLabel release={item.newRelease} small />
 			</div>
-			<div style={{position: 'absolute', left: 0, right: 0, bottom: 0, padding: '0 24px 36px 24px'}}>
+			<div style={{position: 'absolute', left: 0, right: 0, bottom: rowPeek, padding: '0 24px 36px 24px'}}>
 				<div style={{padding: '12px 16px', backgroundColor: t.overlayA(0.75), borderRadius: 16, border: t.cardBorder}}>
 					<MetadataWrap item={item} t={t} />
 					<PreviewRatings item={item} surface='mediaBar' compact />
@@ -661,22 +708,22 @@ const MoonfinBar = ({items, t}) => {
 					)}
 				</div>
 			</div>
-			<div style={{position: 'absolute', left: 0, right: 0, bottom: 8, display: 'flex', justifyContent: 'center'}}>
+			<div style={{position: 'absolute', left: 0, right: 0, bottom: 8 + rowPeek, display: 'flex', justifyContent: 'center'}}>
 				<div style={{padding: '6px 12px', backgroundColor: t.scrimA(0.55), borderRadius: 12}}>
 					<Dots count={5} active={10} inactive={8} inactiveAlpha={0.5} t={t} />
 				</div>
 			</div>
-			<div style={{position: 'absolute', left: 0, top: '50%', transform: 'translateY(-50%)'}}>
+			<div style={{position: 'absolute', left: 0, top: (DESIGN_H - rowPeek) / 2, transform: 'translateY(-50%)'}}>
 				<NavArrow name='chevron_left' t={t} />
 			</div>
-			<div style={{position: 'absolute', right: 0, top: '50%', transform: 'translateY(-50%)'}}>
+			<div style={{position: 'absolute', right: 0, top: (DESIGN_H - rowPeek) / 2, transform: 'translateY(-50%)'}}>
 				<NavArrow name='chevron_right' t={t} />
 			</div>
 		</div>
 	);
 };
 
-const MakdBar = ({items, t}) => {
+const MakdBar = ({items, t, rowPeek = 0}) => {
 	const item = items[0];
 	const contentWidth = Math.min(560, Math.max(280, DESIGN_W * 0.42));
 	return (
@@ -692,7 +739,7 @@ const MakdBar = ({items, t}) => {
 				/>
 				<MediaBarNewReleaseLabel release={item.newRelease} small />
 			</div>
-			<div style={{position: 'absolute', left: 50, bottom: 20, width: contentWidth}}>
+			<div style={{position: 'absolute', left: 50, bottom: 20 + rowPeek, width: contentWidth}}>
 				<MetadataWrap item={item} t={t} />
 				<PreviewRatings item={item} surface='mediaBar' compact />
 				{item.overview && (
@@ -701,7 +748,7 @@ const MakdBar = ({items, t}) => {
 					</div>
 				)}
 			</div>
-			<div style={{position: 'absolute', right: 20, bottom: 24}}>
+			<div style={{position: 'absolute', right: 20, bottom: 24 + rowPeek}}>
 				<Dots count={5} active={9} inactive={7} inactiveAlpha={0.45} gap={5} t={t} />
 			</div>
 		</div>
@@ -848,7 +895,7 @@ const GalleryIdlePanel = ({item, index, t}) => (
 	</div>
 );
 
-const GalleryBar = ({items, t}) => {
+const GalleryBar = ({items, t, rowPeek = 0}) => {
 	const active = items[0];
 	const idlePanels = [];
 	for (let i = 1; i < 5; i++) {
@@ -862,7 +909,7 @@ const GalleryBar = ({items, t}) => {
 					background: `radial-gradient(ellipse 110% 110% at 40% 55%, ${glowColorA(active.genres, 0.42)} 0%, ${glowColorA(active.genres, 0.14)} 45%, ${t.backgroundA(0)} 100%)`
 				}}
 			/>
-			<div style={{position: 'absolute', top: DESIGN_H * 0.09, bottom: DESIGN_H * 0.03, left: 24, right: 24, borderRadius: 18, overflow: 'hidden', display: 'flex'}}>
+			<div style={{position: 'absolute', top: DESIGN_H * 0.09, bottom: DESIGN_H * 0.03 + rowPeek, left: 24, right: 24, borderRadius: 18, overflow: 'hidden', display: 'flex'}}>
 				<div style={{flex: '16 1 0%', minWidth: 0, paddingLeft: 3, paddingRight: 3, display: 'flex', flexDirection: 'column'}}>
 					<div style={{height: 30, flexShrink: 0}} />
 					<div style={{flex: '1 1 auto', position: 'relative', borderRadius: 14, overflow: 'hidden'}}>
@@ -959,10 +1006,11 @@ const BannerBar = ({items, t}) => {
 };
 
 // Artwork first, with the logo top left and the page marks top right. The bar
-// takes 65 percent of the screen, so the rows always show underneath it.
-const AyaBar = ({items, t}) => {
+// takes 65 percent of the screen, so the rows always show underneath it. With
+// [rowPeek] it grows down to the peeking row, which is drawn over the space left.
+const AyaBar = ({items, t, rowPeek = 0}) => {
 	const item = items[0];
-	const barHeight = DESIGN_H * 0.65 - 103;
+	const barHeight = rowPeek ? DESIGN_H - 103 - rowPeek : DESIGN_H * 0.65 - 103;
 	return (
 		<div style={{width: '100%', height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden'}}>
 			<div style={{padding: '71px 80px 32px 80px', flexShrink: 0}}>
@@ -983,9 +1031,11 @@ const AyaBar = ({items, t}) => {
 					</div>
 				</div>
 			</div>
-			<div style={{flex: '1 1 auto', overflow: 'hidden'}}>
-				<HomeRowsColumn items={items} t={t} modern />
-			</div>
+			{!rowPeek && (
+				<div style={{flex: '1 1 auto', overflow: 'hidden'}}>
+					<HomeRowsColumn items={items} t={t} modern />
+				</div>
+			)}
 		</div>
 	);
 };
@@ -1049,7 +1099,7 @@ const useNavButtons = (rail, hasLiveTv) => {
 
 const NavbarRows = ({items, rows, t, topInset = 12, modern = true, focusFirst = false}) => (
 	<div style={{flex: '1 1 auto', overflow: 'hidden', paddingTop: topInset}}>
-		<HomeRowsColumn items={items} rows={rows} t={t} modern={modern} focusFirst={focusFirst} rowGapOverride={24} />
+		<HomeRowsColumn items={items} rows={rows} t={t} modern={modern} focusFirst={focusFirst} />
 	</div>
 );
 
@@ -2171,23 +2221,69 @@ const withNewReleasePreview = (items, on) => {
 	return [{...items[lead], newRelease: {kind: 'newSeason', season: 2}}, ...items.filter((_, i) => i !== lead)];
 };
 
-export const MediaBarPreview = ({mode}) => {
+// How much of Home's first [row] shows along the bottom of the bar while Peek Home Rows is on: its
+// title and the top half of its cards, as on Home, or zero where Home's bar has no peek. The
+// preview's cards aren't drawn at Home's size, so it's measured from them.
+const rowPeekCover = (settings, mode, row, modern) => {
+	if (!rowPeekHeight({...settings, featuredBarStyle: mode}, row)) return 0;
+	const {posterHeight, thumbHeight} = rowCardHeights(settings, modern);
+	// The row title's padding and line of text, then the cards' own padding above them.
+	return (modern ? 7 : 24) + 19 + 5 + (!modern && isWideShape(row.shape) ? thumbHeight : posterHeight) / 2;
+};
+
+// Home's first row along the bottom of the bar, from [top] down. [row] is Home's own, or with
+// none known the sample Continue Watching row.
+const PeekRow = ({row, items, t, modern, top}) => {
+	const {settings} = useSettings();
+	const {posterHeight, thumbHeight} = rowCardHeights(settings, modern);
+	return (
+		<div style={{position: 'absolute', left: 0, right: 0, top, bottom: 0, overflow: 'hidden', paddingLeft: ROW_LEFT_INSET - 16}}>
+			<HomeRow
+				real={Boolean(row.items)}
+				title={row.title}
+				items={row.items || items}
+				shape={row.shape}
+				t={t}
+				modern={modern}
+				posterHeight={posterHeight}
+				thumbHeight={thumbHeight}
+			/>
+		</div>
+	);
+};
+
+// [rows] are Home's own rows, the first of which peeks along the bottom while Peek Home Rows is
+// on. The bars lay their content out above it and the Bookshelf scales down from the top, the
+// way Home makes room for it.
+export const MediaBarPreview = ({mode, rows = null}) => {
 	const t = usePreviewPalette();
 	const {settings} = useSettings();
 	const hideDescription = !!settings.hideHomeMediaDescription;
 	const newReleaseBanner = !!settings.mediaBarNewReleaseBanner;
 	const render = useCallback((shown) => {
 		const items = withNewReleasePreview(hideDescription ? shown.map((item) => ({...item, overview: ''})) : shown, newReleaseBanner);
-		if (mode === 'makd') return <MakdBar items={items} t={t} />;
-		if (mode === 'bookshelf') return <BookshelfBar items={items} t={t} />;
-		if (mode === 'gallery') return <GalleryBar items={items} t={t} />;
-		if (mode === 'banner') return <BannerBar items={items} t={t} />;
-		if (mode === 'aya') return <AyaBar items={items} t={t} />;
-		// The rows carry the whole screen with the bar off, so the preview
-		// packs them tighter than the style default to show more than one.
-		if (mode === 'off') return <HomeRowsScreen items={items} t={t} modern focusFirst rowGapOverride={24} />;
-		return <MoonfinBar items={items} t={t} />;
-	}, [mode, t, hideDescription, newReleaseBanner]);
+		const modern = settings.homeRowsStyle !== 'v1';
+		const first = rows ? rows[0] : {id: 'resume', title: $L('Continue Watching'), shape: 'landscape'};
+		const peek = rowPeekCover(settings, mode, first, modern);
+		let bar;
+		if (mode === 'makd') bar = <MakdBar items={items} t={t} rowPeek={peek} />;
+		else if (mode === 'bookshelf') {
+			bar = peek
+				? <div style={{height: '100%', transform: `scale(${(DESIGN_H - peek) / DESIGN_H})`, transformOrigin: '50% 0'}}><BookshelfBar items={items} t={t} /></div>
+				: <BookshelfBar items={items} t={t} />;
+		} else if (mode === 'gallery') bar = <GalleryBar items={items} t={t} rowPeek={peek} />;
+		else if (mode === 'banner') bar = <BannerBar items={items} t={t} />;
+		else if (mode === 'aya') bar = <AyaBar items={items} t={t} rowPeek={peek} />;
+		else if (mode === 'off') bar = <HomeRowsScreen items={items} t={t} modern focusFirst />;
+		else bar = <MoonfinBar items={items} t={t} rowPeek={peek} />;
+		if (!peek) return bar;
+		return (
+			<>
+				{bar}
+				<PeekRow row={first} items={items} t={t} modern={modern} top={DESIGN_H - peek} />
+			</>
+		);
+	}, [mode, t, hideDescription, newReleaseBanner, settings, rows]);
 	return <LivePreview render={render} fallback={<FallbackMediaBar mode={mode} t={t} />} fallbackAspect={16 / 7} />;
 };
 

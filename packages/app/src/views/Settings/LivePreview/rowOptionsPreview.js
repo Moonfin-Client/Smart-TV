@@ -1,39 +1,142 @@
-// The Home preview for the audio and Collections Row Options. It draws Home the way it looks
-// with the D-pad on the first row the setting changes: that row on top with its first card
-// focused, loaded in the sort being looked at, and Home's own rows below it in Home's order.
+// The Home preview drawn from Home's own rows. A Row Options setting draws Home the way it looks
+// with the D-pad on the first row it changes: that row on top with its first card focused,
+// loaded in the sort being looked at, and Home's own rows below it in Home's order. The settings
+// that change which rows show or how their cards look draw Home's rows from the first one they
+// change, and the media bar ones take Home's first row for the rows peeking under the bar.
 
-import {useEffect, useMemo, useState} from 'react';
+import {useEffect, useMemo, useState, useSyncExternalStore} from 'react';
 import $L from '@enact/i18n/$L';
 
 import {useAuth} from '../../../context/AuthContext';
 import useParentalFilter from '../../../hooks/useParentalFilter';
-import {isKidsMode, kidsModeRows} from '../../../utils/kidsMode';
+import {episodeArtwork, modernCardImageUrl, requestedArtwork} from '../../../components/MediaCard/cardArtwork';
+import {FAVORITE_ROW_IDS} from '../../../utils/homeRowGates';
+import {isKidsMode, kidsModeRows, mergesContinueWatchingNextUp} from '../../../utils/kidsMode';
 import {isPickedRow, isPickedRowShown} from '../../../utils/pickedRows';
-import {memoryCache} from '../../Browse/browseCache';
-import {audioPlaylistsOf, buildLoaderContext, readCollections, readMusicAlbums, readMusicArtists} from '../../Browse/browseRowLoaders';
+import {showsWatchedCheck} from '../../../utils/playedState';
+import {memoryCache, subscribeRowData} from '../../Browse/browseCache';
+import {
+	audioPlaylistsOf, buildLoaderContext, loadFavorites, loadGenres, loadPlaylistsAndMusic, loadStudios, readCollections,
+	readMusicAlbums, readMusicArtists
+} from '../../Browse/browseRowLoaders';
 import {buildBrowseRows} from '../../Browse/buildBrowseRows';
-import {classicShape, rowImageType} from '../../Browse/rowPeek';
+import {classicShape, imageTypeRowId, rowImageType} from '../../Browse/rowPeek';
 import {adaptItem} from '../../SetupWizard/setupPreviewData';
-import {AUDIO_ROW_OPTION_KEYS, COLLECTIONS_ROW_OPTION_KEYS} from './previewRows';
+import {
+	AUDIO_ROW_OPTION_KEYS, COLLECTIONS_ROW_OPTION_KEYS, FAVORITES_ROW_OPTION_KEYS, GENRES_ROW_OPTION_KEYS, HOME_LOOK_KEYS,
+	MEDIA_BAR_KEYS, PLAYLISTS_ROW_OPTION_KEYS, STUDIOS_ROW_OPTION_KEYS
+} from './previewRows';
 
-// Each group of rows its Row Options settings change, with the Display switch over the group.
-// Continue Listening isn't sorted by the audio settings, so it isn't one of them.
+const ROW_LIMIT = 20;
+const ROW_TITLES = {
+	audioartists: () => $L('Music Artists'),
+	audioalbums: () => $L('Music Albums'),
+	audioplaylists: () => $L('Music Playlists'),
+	collections: () => $L('Collections')
+};
+const READERS = {audioartists: readMusicArtists, audioalbums: readMusicAlbums, collections: readCollections};
+
+// The audio and Collections rows are read one by one, so a row the server fails on is told
+// apart from an empty one.
+const readRows = (ctx, ids) => Promise.all(ids.map(async (id) => {
+	const audio = id !== 'collections';
+	const sortBy = audio ? ctx.audioRowsSortBy : ctx.collectionsSortBy;
+	const sortOrder = audio ? ctx.audioRowsSortOrder : ctx.collectionsSortOrder;
+	const items = id === 'audioplaylists'
+		? audioPlaylistsOf(await ctx.api.getPlaylists(sortBy, sortOrder))
+		: (await READERS[id](ctx.api, sortBy, sortOrder, ROW_LIMIT))?.Items || [];
+	return {id, title: ROW_TITLES[id](), items, type: audio ? 'square' : 'portrait'};
+}));
+
+// Home's own loader for the group, handing back the rows it would have added to Home. The loaders
+// take a failed request for an empty one, so a failure shows as no rows until the sample expires.
+const rowsFrom = (load) => async (ctx) => {
+	const rows = [];
+	await load({...ctx, appendRows: (added) => rows.push(...added)});
+	return rows;
+};
+
+// When a row's group is off in Rows, the notice names the row or rows to turn on.
+const singleRowOff = (name) => (on) => (on
+	? $L('The {row} row is turned off. To show it, go to Rows, open {group} under {disabled}, and turn it on.')
+	: $L('To see the {row} row on Home, first turn on {setting}. Then go to Rows, open {group} under {disabled}, and turn it on.')
+).replace('{row}', name());
+
+// Each group of rows its Row Options settings change, with the Display switch over the group,
+// how its rows are read, and the group the Rows screen lists them under. Continue Listening
+// isn't sorted by the audio settings, so it isn't one of them.
 const GROUPS = {
 	audio: {
 		display: 'displayAudioRows',
 		rowIds: ['audioartists', 'audioalbums', 'audioplaylists'],
-		keys: AUDIO_ROW_OPTION_KEYS
+		keys: AUDIO_ROW_OPTION_KEYS,
+		load: readRows,
+		switchName: () => $L('Display Audio Rows'),
+		rowsGroup: () => $L('General'),
+		offText: (on) => (on
+			? $L('Music Artists, Music Albums and Music Playlists are all turned off. To show one, go to Rows, open {group} under {disabled}, and turn it on.')
+			: $L('To see Music Artists, Music Albums or Music Playlists on Home, first turn on {setting}. Then go to Rows, open {group} under {disabled}, and turn one on.')),
+		empty: () => $L("There's no music to show, so Home leaves these rows out.")
 	},
 	collections: {
 		display: 'displayCollectionsRows',
 		rowIds: ['collections'],
-		keys: COLLECTIONS_ROW_OPTION_KEYS
+		keys: COLLECTIONS_ROW_OPTION_KEYS,
+		load: readRows,
+		switchName: () => $L('Display Collections Rows'),
+		rowsGroup: () => $L('Collections'),
+		offText: (on) => (on
+			? $L('The Collections row is turned off. To show it, go to Rows, open {group} under {disabled}, and turn it on.')
+			: $L('To see the Collections row on Home, first turn on {setting}. Then go to Rows, open {group} under {disabled}, and turn it on.')),
+		empty: () => $L('There are no collections to show, so Home leaves this row out.')
+	},
+	favorites: {
+		display: 'displayFavoritesRows',
+		rowIds: FAVORITE_ROW_IDS,
+		keys: FAVORITES_ROW_OPTION_KEYS,
+		load: rowsFrom(loadFavorites),
+		switchName: () => $L('Display Favorites Rows'),
+		rowsGroup: () => $L('Favorites'),
+		offText: (on) => (on
+			? $L('The Favorites rows are all turned off. To show one, go to Rows, open {group} under {disabled}, and turn it on.')
+			: $L('To see the Favorites rows on Home, first turn on {setting}. Then go to Rows, open {group} under {disabled}, and turn one on.')),
+		empty: () => $L('There are no favorites to show, so Home leaves these rows out.')
+	},
+	genres: {
+		display: 'displayGenresRows',
+		rowIds: ['genres'],
+		keys: GENRES_ROW_OPTION_KEYS,
+		load: rowsFrom(loadGenres),
+		switchName: () => $L('Display Genres Rows'),
+		rowsGroup: () => $L('Genres and Studios'),
+		offText: singleRowOff(() => $L('Genres')),
+		empty: () => $L('There are no genres to show, so Home leaves this row out.')
+	},
+	playlists: {
+		display: 'displayPlaylistsRows',
+		rowIds: ['playlists'],
+		keys: PLAYLISTS_ROW_OPTION_KEYS,
+		load: rowsFrom(loadPlaylistsAndMusic),
+		switchName: () => $L('Display Playlist Rows'),
+		rowsGroup: () => $L('Playlists'),
+		offText: singleRowOff(() => $L('Playlists')),
+		empty: () => $L('There are no playlists to show, so Home leaves this row out.')
+	},
+	studios: {
+		display: 'displayStudiosRows',
+		rowIds: ['studios'],
+		keys: STUDIOS_ROW_OPTION_KEYS,
+		load: rowsFrom(loadStudios),
+		switchName: () => $L('Display Studio Row'),
+		rowsGroup: () => $L('Genres and Studios'),
+		offText: singleRowOff(() => $L('Studios')),
+		empty: () => $L('There are no studios to show, so Home leaves this row out.')
 	}
 };
 
 const groupOf = (key) => Object.keys(GROUPS).find((id) => GROUPS[id].keys.indexOf(key) >= 0) || null;
 
-const displaySwitchName = (group) => (group === 'audio' ? $L('Display Audio Rows') : $L('Display Collections Rows'));
+const drawsHomeRows = (key) => HOME_LOOK_KEYS.indexOf(key) >= 0 || MEDIA_BAR_KEYS.indexOf(key) >= 0;
 
 // Home's rows in Home's order, without the ones Kids Mode keeps off.
 const homeRowsOf = (settings) => kidsModeRows([...(settings.homeRows || [])].sort((a, b) => a.order - b.order), isKidsMode(settings));
@@ -63,7 +166,7 @@ export const rowOptionsBlockedReason = (key, settings, hasMultipleServers) => {
 		case 'kids': return $L('Kids Mode keeps this off Home');
 		case 'rows': return settings[GROUPS[group].display]
 			? $L('Turn on a row in Rows, under {disabled}').replace('{disabled}', $L('Disabled'))
-			: $L('Turn on {setting}, then turn on a row in Rows').replace('{setting}', displaySwitchName(group));
+			: $L('Turn on {setting}, then turn on a row in Rows').replace('{setting}', GROUPS[group].switchName());
 		default: return null;
 	}
 };
@@ -73,81 +176,50 @@ export const rowOptionsBlockedReason = (key, settings, hasMultipleServers) => {
 const offNotice = (group, reason, settings) => {
 	if (reason === 'unified') return $L("Home leaves these rows out while Multi-Server Libraries is on, so these settings don't change it.");
 	if (reason === 'kids') return $L("Kids Mode keeps these rows off Home, so these settings don't change it.");
-	const on = settings[GROUPS[group].display];
-	let text;
-	if (group === 'audio') {
-		text = on
-			? $L('Music Artists, Music Albums and Music Playlists are all turned off. To show one, go to Rows, open {group} under {disabled}, and turn it on.')
-			: $L('To see Music Artists, Music Albums or Music Playlists on Home, first turn on {setting}. Then go to Rows, open {group} under {disabled}, and turn one on.');
-	} else {
-		text = on
-			? $L('The Collections row is turned off. To show it, go to Rows, open {group} under {disabled}, and turn it on.')
-			: $L('To see the Collections row on Home, first turn on {setting}. Then go to Rows, open {group} under {disabled}, and turn it on.');
-	}
-	return text
-		.replace('{setting}', displaySwitchName(group))
-		.replace('{group}', group === 'audio' ? $L('General') : $L('Collections'))
+	return GROUPS[group].offText(Boolean(settings[GROUPS[group].display]))
+		.replace('{setting}', GROUPS[group].switchName())
+		.replace('{group}', GROUPS[group].rowsGroup())
 		.replace('{disabled}', $L('Disabled'));
 };
 
-const ROW_TITLES = {
-	audioartists: () => $L('Music Artists'),
-	audioalbums: () => $L('Music Albums'),
-	audioplaylists: () => $L('Music Playlists'),
-	collections: () => $L('Collections')
-};
-
-const ROW_LIMIT = 20;
-const READERS = {audioartists: readMusicArtists, audioalbums: readMusicAlbums, collections: readCollections};
-
-const readRow = async (api, rowId, sortBy, sortOrder) => {
-	if (rowId === 'audioplaylists') return audioPlaylistsOf(await api.getPlaylists(sortBy, sortOrder));
-	return (await READERS[rowId](api, sortBy, sortOrder, ROW_LIMIT))?.Items || [];
-};
-
-// The sort each group's rows load with, worked out the way Home works it out.
-const sortFor = (group, settings) => {
-	const ctx = buildLoaderContext({settings, homeRowsConfig: []});
-	return group === 'audio'
-		? {sortBy: ctx.audioRowsSortBy, sortOrder: ctx.audioRowsSortOrder}
-		: {sortBy: ctx.collectionsSortBy, sortOrder: ctx.collectionsSortOrder};
-};
-
-// What came back for each row and sort, kept for a few minutes so scrubbing back to a sort
-// draws it at once. A row that failed or timed out isn't kept, so the next look asks again.
+// What came back for each group and sort, kept for a few minutes so scrubbing back to a sort
+// draws it at once. A load that failed or timed out isn't kept, so the next look asks again.
 const SAMPLE_TTL = 5 * 60 * 1000;
 const SAMPLE_TIMEOUT = 8000;
 const samples = new Map();
 
-const sampleKey = (owner, rowId, sort) => `${owner}|${rowId}|${sort.sortBy}|${sort.sortOrder}`;
-
 const cachedSample = (key) => {
 	const entry = samples.get(key);
 	if (!entry || Date.now() - entry.at > SAMPLE_TTL) return undefined;
-	return entry.items;
+	return entry.rows;
 };
 
-const fetchSample = (api, key, rowId, sort) => {
+const fetchSample = (key, load) => {
 	const entry = samples.get(key);
 	if (entry && entry.pending) return entry.pending;
 	let timer;
 	const timeout = new Promise((resolve) => {
 		timer = setTimeout(() => resolve(null), SAMPLE_TIMEOUT);
 	});
-	const pending = Promise.race([readRow(api, rowId, sort.sortBy, sort.sortOrder).catch(() => null), timeout])
-		.then((items) => {
+	const pending = Promise.race([load().catch(() => null), timeout])
+		.then((rows) => {
 			clearTimeout(timer);
-			if (items) samples.set(key, {items, at: Date.now()});
+			if (rows) samples.set(key, {rows, at: Date.now()});
 			else samples.delete(key);
-			return items;
+			return rows;
 		});
 	samples.set(key, {pending, at: Date.now()});
 	return pending;
 };
 
-// Home's rows as the preview last found them, for the user they belong to. Every Row Options
-// change reloads Home behind Settings, and a list caught mid-reload is missing rows, so a row
-// stays as it was until Home has it again.
+const byId = (rows) => Object.fromEntries((rows || []).map((row) => [row.id, row]));
+
+const isRecentRow = (row) => Boolean(row.isLatestRow || row.isRecentlyReleasedRow);
+
+// Home's rows as the preview last found them, for the user they belong to. A setting change
+// reloads Home behind Settings, and a list caught mid-reload is missing rows, so a row stays as
+// it was until Home has it again. The recent rows arrive together, per library or merged by
+// type, so a new set of them replaces the old one whole.
 const seenRows = new Map();
 let seenFor = null;
 
@@ -156,126 +228,160 @@ const rememberHomeRows = (owner, rowData) => {
 		seenRows.clear();
 		seenFor = owner;
 	}
-	(rowData || []).forEach((row) => {
-		if (row && row.id && Array.isArray(row.items) && row.items.length > 0) seenRows.set(row.id, row);
-	});
+	const rows = (rowData || []).filter((row) => row && row.id && Array.isArray(row.items) && row.items.length > 0);
+	if (rows.some(isRecentRow)) {
+		[...seenRows.values()].filter(isRecentRow).forEach((row) => seenRows.delete(row.id));
+	}
+	rows.forEach((row) => seenRows.set(row.id, row));
 };
 
-const loadedRows = (group, ids, results) => ({group, rows: Object.fromEntries(ids.map((id, index) => [id, results[index]]))});
+// Home writes its rows as each of its loaders finishes, and the preview draws every write.
+const useHomeRowData = () => useSyncExternalStore(subscribeRowData, () => memoryCache.rowData);
+
+// Whether an item wears a watched indicator: watch progress, the watched mark or a count of
+// episodes left.
+const hasIndicator = (item) => item.UserData?.PlayedPercentage > 0 || showsWatchedCheck(item) || item.UserData?.UnplayedItemCount > 0;
+
+// The first of Home's rows that shows what [key] changes: the row being given an image type,
+// a row with watched indicators, or one with episodes. Null for a setting any row shows.
+const rowShowing = (key, focusRowId) => {
+	if (focusRowId) {
+		return (row) => {
+			const id = imageTypeRowId(row);
+			return id === focusRowId || (id === 'continue-nextup' && (focusRowId === 'resume' || focusRowId === 'nextup'));
+		};
+	}
+	if (key === 'watchedIndicatorBehavior') return (row) => row.items.some(hasIndicator);
+	if (key === 'useSeriesThumbnails') return (row) => row.items.some((item) => item.Type === 'Episode');
+	return null;
+};
+
+// An item with the artwork its card on Home picks: the modern card's at rest and focused, or the
+// classic card's for the row's image type. A wide classic card without that art falls back to
+// a thumb or backdrop, and a genre card draws on one of its own items.
+const previewItem = (item, {modern, imageType, shape, serverUrl, useSeriesThumbnails}) => {
+	const adapted = adaptItem(item);
+	const itemServerUrl = item._serverUrl || serverUrl;
+	if (modern) {
+		const look = {itemServerUrl, isStaticMyMedia: false, useSeriesThumbnails};
+		return {...adapted, cardUrl: modernCardImageUrl(item, false, look), focusUrl: modernCardImageUrl(item, true, look)};
+	}
+	const art = (item.Type === 'Genre' && item._representative) || item;
+	const episode = item.Type === 'Episode' && shape !== 'banner' ? episodeArtwork(item, itemServerUrl, imageType, useSeriesThumbnails) : null;
+	const wide = shape === 'landscape' ? requestedArtwork(art, 'thumb', itemServerUrl) || adapted.backdropUrl : null;
+	return {
+		...adapted,
+		cardUrl: item._studioLogoUrl || (episode && episode.url) || requestedArtwork(art, imageType, itemServerUrl) || wide ||
+			(art === item ? adapted : adaptItem(art)).posterUrl
+	};
+};
+
+const previewRow = (row, settings, serverUrl) => {
+	const imageType = rowImageType(row, settings);
+	const shape = classicShape(row.type, imageType);
+	const look = {modern: settings.homeRowsStyle !== 'v1', imageType, shape, serverUrl, useSeriesThumbnails: settings.useSeriesThumbnails};
+	return {id: row.id, title: row.title, items: row.items.slice(0, 8).map((item) => previewItem(item, look)), shape};
+};
 
 // Wait this long after a sort changes before asking for it, so scrubbing through the choices
 // only loads the one that's stopped on.
 const SETTLE_MS = 150;
-// The edited row and up to this many below it, which is all the preview has room for.
+// The focused row and up to this many below it, which is all the preview has room for.
 const ROWS_SHOWN = 4;
 
-const previewRow = (row, settings) => {
-	const shape = classicShape(row.type, rowImageType(row, settings));
-	return {
-		id: row.id,
-		title: row.title,
-		items: row.items.slice(0, 8).map(adaptItem),
-		square: shape === 'square',
-		thumbs: shape === 'landscape' || shape === 'banner'
-	};
-};
-
-// What the Home preview draws for the Row Options setting [key] with [settings], the saved ones
-// with the value being tried laid over them. Null for any other setting. Otherwise [rows] are
-// the rows to draw, the edited one first, or null to leave Home as it is; [notice] says why the
-// rows can't be on Home, and [caption] is a note under the preview.
-export const useRowOptionsHome = (key, settings) => {
+// What the Home preview draws for the setting [key] with [settings], the saved ones with the value
+// being tried laid over them, and [focusRowId] the row an image type is being set for. Null for a
+// setting it doesn't draw. Otherwise [rows] are Home's rows to draw, the focused one first, or
+// null to draw the sample rows. [notice] says why a Row Options setting's rows can't be on Home,
+// and [caption] is a note under the preview.
+export const useRowOptionsHome = (key, settings, focusRowId = null) => {
 	const {api, serverUrl, serverType, hasMultipleServers, user} = useAuth();
 	const {parentalFilter} = useParentalFilter();
+	const rowData = useHomeRowData();
 	// Rows differ between users of one server, so everything kept is kept per user.
 	const owner = `${serverUrl}|${user?.Id || ''}`;
 	const group = groupOf(key);
+	const handled = Boolean(group) || drawsHomeRows(key);
 	const reason = group ? offReason(group, settings, hasMultipleServers) : null;
 	const displayOn = Boolean(group && settings[GROUPS[group].display]);
 	const homeRows = useMemo(() => homeRowsOf(settings), [settings]);
 	const wanted = useMemo(() => (group
 		? homeRows.filter((row) => row.enabled && GROUPS[group].rowIds.indexOf(row.id) >= 0).map((row) => row.id)
 		: []), [group, homeRows]);
-	const sort = useMemo(() => (group ? sortFor(group, settings) : null), [group, settings]);
-	const active = Boolean(group && !reason && displayOn && api);
-	const keys = active ? wanted.map((id) => sampleKey(owner, id, sort)) : [];
-	const signature = keys.join(',');
+	const active = Boolean(group && !reason && displayOn && api && wanted.length > 0);
+	const sampleKey = active ? [owner, group, wanted.join(','), ...GROUPS[group].keys.map((name) => settings[name])].join('|') : null;
 
 	// The rows last loaded for this group, kept up while a new sort loads so nothing flashes.
 	const [loaded, setLoaded] = useState(null);
-	const cached = keys.map(cachedSample);
-	const ready = keys.length > 0 && cached.every((items) => items !== undefined);
+	const cached = sampleKey ? cachedSample(sampleKey) : undefined;
+	const ready = cached !== undefined;
 
 	useEffect(() => {
-		if (!active || ready || wanted.length === 0) return undefined;
+		if (!active || ready) return undefined;
 		let cancelled = false;
 		const timer = setTimeout(() => {
-			Promise.all(wanted.map((id, index) => fetchSample(api, keys[index], id, sort))).then((results) => {
-				if (!cancelled) setLoaded(loadedRows(group, wanted, results));
+			const ctx = buildLoaderContext({api, serverUrl, settings, homeRowsConfig: homeRows.filter((row) => wanted.indexOf(row.id) >= 0)});
+			fetchSample(sampleKey, () => GROUPS[group].load(ctx, wanted)).then((rows) => {
+				if (!cancelled) setLoaded({group, rows: byId(rows)});
 			});
 		}, SETTLE_MS);
 		return () => {
 			cancelled = true;
 			clearTimeout(timer);
 		};
-		// The signature names every row and sort the effect reads.
-	}, [active, ready, signature]); // eslint-disable-line react-hooks/exhaustive-deps
+		// The sample key names every row and setting the load reads.
+	}, [active, ready, sampleKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
 	// A sort drawn straight from what was kept becomes the one held up while the next one loads.
 	useEffect(() => {
-		if (ready) setLoaded(loadedRows(group, wanted, cached));
-	}, [ready, signature]); // eslint-disable-line react-hooks/exhaustive-deps
+		if (ready) setLoaded({group, rows: byId(cached)});
+	}, [ready, sampleKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
-	const rowData = memoryCache.rowData;
 	const built = useMemo(() => {
-		if (!active || wanted.length === 0) return null;
+		if (!handled) return null;
 		rememberHomeRows(owner, rowData);
+		const groupIds = active ? GROUPS[group].rowIds : [];
 		// A row loaded for an older sort stays up until the new one is in, and until the group's
 		// rows first load, Home's own rows stand in for them. A row that failed to load keeps Home's.
-		const earlier = loaded && loaded.group === group ? loaded.rows : {};
-		const results = ready ? cached : null;
-		const fetched = {};
-		wanted.forEach((id, index) => {
-			const home = seenRows.get(id);
-			fetched[id] = (results ? results[index] : earlier[id]) || (home ? home.items : []);
-		});
-		const allRowData = [...seenRows.values()].filter((row) => GROUPS[group].rowIds.indexOf(row.id) < 0);
-		wanted.forEach((id) => {
-			if (fetched[id].length > 0) {
-				allRowData.push({id, title: ROW_TITLES[id](), items: fetched[id], type: group === 'audio' ? 'square' : 'portrait'});
-			}
-		});
+		const results = ready ? byId(cached) : (loaded && loaded.group === group ? loaded.rows : {});
+		const fetched = Object.fromEntries(wanted.map((id) => [id, results[id] || seenRows.get(id) || null]));
+		const allRowData = [
+			...[...seenRows.values()].filter((row) => groupIds.indexOf(row.id) < 0),
+			...(active ? wanted.map((id) => fetched[id]).filter((row) => row && row.items.length > 0) : [])
+		];
 		const pluginSectionsConfig = homeRows.filter((row) => isPickedRow(row) && isPickedRowShown(row, settings, serverUrl, serverType));
 		const rows = buildBrowseRows({
-			allRowData, seerrRows: [], externalRows: [], homeRowsConfig: homeRows, pluginSectionsConfig, settings: {...settings, parentalFilter}
-		});
-		const focusedAt = rows.findIndex((row) => GROUPS[group].rowIds.indexOf(row.id) >= 0 && row.items.length > 0);
-		if (focusedAt < 0) return {rows: null, empty: ready && wanted.every((id) => fetched[id].length === 0)};
+			allRowData,
+			seerrRows: [],
+			externalRows: [],
+			homeRowsConfig: homeRows,
+			pluginSectionsConfig,
+			settings: {...settings, mergeContinueWatchingNextUp: mergesContinueWatchingNextUp(settings), parentalFilter}
+		}).filter((row) => Array.isArray(row.items) && row.items.length > 0 && !row.isPlaceholder);
+		const groupAt = rows.findIndex((row) => groupIds.indexOf(row.id) >= 0);
+		const showing = rowShowing(key, focusRowId);
+		const focusedAt = groupAt >= 0 ? groupAt : Math.max(0, showing ? rows.findIndex(showing) : 0);
 		return {
-			rows: rows.slice(focusedAt)
-				.filter((row) => Array.isArray(row.items) && row.items.length > 0 && !row.isPlaceholder)
-				.slice(0, ROWS_SHOWN)
-				.map((row) => previewRow(row, settings)),
-			empty: false
+			rows: rows.length > 0 ? rows.slice(focusedAt, focusedAt + ROWS_SHOWN).map((row) => previewRow(row, settings, serverUrl)) : null,
+			inGroup: groupAt >= 0,
+			empty: active && ready && wanted.every((id) => !fetched[id] || fetched[id].items.length === 0)
 		};
-		// The signature and ready cover what was loaded and kept, and loaded what's held up.
-	}, [active, signature, ready, loaded, owner, rowData, homeRows, settings, parentalFilter, serverUrl, serverType]); // eslint-disable-line react-hooks/exhaustive-deps
+		// The sample key and ready cover what was loaded and kept, and loaded what's held up.
+	}, [handled, active, sampleKey, ready, loaded, owner, rowData, homeRows, settings, parentalFilter, serverUrl, serverType, key, focusRowId]); // eslint-disable-line react-hooks/exhaustive-deps
 
-	if (!group) return null;
+	if (!handled) return null;
+	const drawn = built.rows;
+	if (!group) return {rows: drawn, notice: null, caption: null};
 	const caption = key === 'collectionsRowShowEpisodes'
 		? $L('This only changes rows for a single collection added in Rows. The Collections row looks the same.')
 		: null;
-	if (reason) return {rows: null, notice: offNotice(group, reason, settings), caption: null};
+	if (reason) return {rows: drawn, notice: offNotice(group, reason, settings), caption: null};
 	// With the switch off Home simply goes without these rows, which is what it already shows.
-	if (!displayOn || !api) return {rows: null, notice: null, caption};
+	if (!displayOn || !api) return {rows: drawn, notice: null, caption};
 	// Only single collections added in Rows are on Home, and the preview doesn't draw those yet.
 	if (wanted.length === 0) {
-		return {rows: null, notice: null, caption: $L('The Collections row is off, so this only changes the single collections added in Rows.')};
+		return {rows: drawn, notice: null, caption: $L('The Collections row is off, so this only changes the single collections added in Rows.')};
 	}
-	if (built && built.rows) return {rows: built.rows, notice: null, caption};
-	// Nothing came back yet, or there's nothing to show. Home leaves an empty row out.
-	const empty = group === 'audio'
-		? $L("There's no music to show, so Home leaves these rows out.")
-		: $L('There are no collections to show, so Home leaves this row out.');
-	return {rows: null, notice: built && built.empty ? empty : null, caption};
+	// Home leaves an empty row out.
+	return {rows: drawn, notice: !built.inGroup && built.empty ? GROUPS[group].empty() : null, caption};
 };

@@ -246,7 +246,7 @@ export const withStudioLogos = (studios, logoList, serverUrl, token) => {
 	});
 };
 
-const loadStudios = async (ctx) => {
+export const loadStudios = async (ctx) => {
 	const {api, appendRows, studiosEnabled, settings, serverUrl} = ctx;
 	if (!studiosEnabled) return;
 	const sortBy = apiSortBy(settings.studiosRowSortBy || 'SortName');
@@ -266,7 +266,7 @@ const loadStudios = async (ctx) => {
 	}
 };
 
-const loadFavorites = async (ctx) => {
+export const loadFavorites = async (ctx) => {
 	const {api, appendRows, favoriteSortBy, favoriteSortOrder, settings} = ctx;
 	if (!settings.displayFavoritesRows) return;
 	try {
@@ -303,7 +303,7 @@ const loadFavorites = async (ctx) => {
 	}
 };
 
-const loadGenres = async (ctx) => {
+export const loadGenres = async (ctx) => {
 	const {api, appendRows, genresIncludeTypes, genresSortBy, genresSortOrder, settings} = ctx;
 	if (!settings.displayGenresRows) return;
 	try {
@@ -408,7 +408,7 @@ const loadGenres = async (ctx) => {
 	}
 };
 
-const loadPlaylistsAndMusic = async (ctx) => {
+export const loadPlaylistsAndMusic = async (ctx) => {
 	const {api, appendRows, audioAlbumsEnabled, audioArtistsEnabled, audioPlaylistsEnabled, audioRowsSortBy, audioRowsSortOrder, onNowEnabled, playlistsSortBy, playlistsSortOrder, recordingsEnabled, resumeAudioEnabled, settings} = ctx;
 	const readArtists = (limit) => readMusicArtists(api, audioRowsSortBy, audioRowsSortOrder, limit);
 	const readAlbums = (limit) => readMusicAlbums(api, audioRowsSortBy, audioRowsSortOrder, limit);

@@ -92,7 +92,8 @@ jest.mock('../../SetupWizard/setupPreviewData', () => ({
 	subscribePreviewItems: () => () => {},
 	adaptItem: (item) => ({
 		title: item.Name, type: item.Type, year: item.ProductionYear || null, officialRating: null, runtimeMinutes: null, genres: [],
-		overview: null, communityRating: null, posterUrl: null, backdropUrl: item.backdropUrl || null, logoUrl: null
+		overview: null, communityRating: null, posterUrl: null, backdropUrl: item.backdropUrl || null, logoUrl: null,
+		played: Boolean(item.UserData?.Played), playedPercentage: item.UserData?.PlayedPercentage || 0, unplayedCount: item.UserData?.UnplayedItemCount || 0
 	})
 }));
 
@@ -139,13 +140,17 @@ describe('SettingsLivePreview', () => {
 		expect(screen.getByText('Language, clock, input, and performance')).toBeTruthy();
 	});
 
-	test('expanded rows keep the next row off the screen', () => {
+	test('rows sit as far apart as Home spaces them, and expanded rows keep the next row off the screen', () => {
 		const spacerAbove = (title) => screen.getByText(title).parentElement.previousSibling.style.height;
-		const {unmount} = draw({fullScreenRows: false}, 'setting-fullScreenRows', 'home');
-		expect(spacerAbove('Recently Added')).toBe('24px');
-		unmount();
-		draw({fullScreenRows: true}, 'setting-fullScreenRows', 'home');
-		expect(spacerAbove('Recently Added')).toBe('540px');
+		// Half of Home's space below each row, since the design screen is half of 1920.
+		for (const [settings, gap] of [
+			[{}, '0px'], [{modernHomeRowsPadding: 560}, '80px'], [{homeRowsStyle: 'v1'}, '10px'],
+			[{homeRowsStyle: 'v1', classicHomeRowsPadding: 130}, '60px'], [{fullScreenRows: true}, '540px']
+		]) {
+			draw(settings, 'setting-fullScreenRows', 'home');
+			expect(spacerAbove('Recently Added')).toBe(gap);
+			cleanup();
+		}
 	});
 
 	test('modern rows hold their first card in focus on every home tile, and classic rows hold none', () => {
@@ -589,6 +594,8 @@ describe('the audio and Collections Row Options', () => {
 	});
 
 	afterEach(() => {
+		// Unmount first, since the preview redraws when Home's rows change.
+		cleanup();
 		memoryCache.rowData = null;
 		mockParentalFilter = require('../../../utils/parentalFilter').parentalFilterFromRatings([]);
 	});
@@ -754,3 +761,172 @@ describe('the audio and Collections Row Options', () => {
 	});
 });
 
+describe('Home\'s own rows', () => {
+	let server = 100;
+	const heat = {Id: 'm1', Name: 'Heat', Type: 'Movie', ImageTags: {Primary: 'p', Thumb: 't', Banner: 'b'}, BackdropImageTags: ['bd'], UserData: {PlayedPercentage: 40}};
+	const fargo = {Id: 's2', Name: 'Fargo', Type: 'Series', ImageTags: {Primary: 'p'}, UserData: {UnplayedItemCount: 3}};
+	const pilot = {
+		Id: 'e1', Name: 'Pilot', Type: 'Episode', SeriesId: 's1', SeriesName: 'Lost', SeriesPrimaryImageTag: 'sp', ParentThumbItemId: 's1',
+		ParentThumbImageTag: 'st', ImageTags: {Primary: 'ep'}, UserData: {Played: true}
+	};
+	const alien = {Id: 'm2', Name: 'Alien', Type: 'Movie', ImageTags: {Primary: 'p', Thumb: 't'}};
+	const home = (extra = {}) => ({
+		homeRowsStyle: 'v1',
+		homeRowOverlay: false,
+		mergeContinueWatchingNextUp: false,
+		homeRows: [
+			{id: 'latest-media', name: 'Recently Added', enabled: true, order: 0},
+			{id: 'resume', name: 'Continue Watching', enabled: true, order: 1},
+			{id: 'nextup', name: 'Next Up', enabled: true, order: 2}
+		],
+		...extra
+	});
+	const rowTitles = () => ['Recently Added Films', 'Continue Watching', 'Next Up', 'Favorite Movies'].filter((title) => screen.queryAllByText(title).length > 0);
+	const cardOf = (title) => screen.getAllByText(title).map((node) => node.parentElement).find((node) => node.style.width);
+	const artOf = (title) => cardOf(title).querySelector('img').getAttribute('src');
+	const shapeOf = (title) => {
+		const card = cardOf(title);
+		return parseFloat(card.style.width) / parseFloat(card.firstChild.style.height);
+	};
+	const focusedCard = () => Array.from(document.querySelectorAll('.frame div')).find((node) => node.style.border.indexOf('3px solid') === 0).parentNode.parentNode;
+
+	beforeEach(() => {
+		server += 1;
+		mockAuth = {...mockAuth, serverUrl: `http://server${server}`, api: {getItems: jest.fn(async () => ({Items: [alien]}))}};
+		memoryCache.rowData = [
+			{id: 'latest-lib', title: 'Recently Added Films', isLatestRow: true, items: [alien], type: 'portrait'},
+			{id: 'resume', title: 'Continue Watching', items: [heat, fargo], type: 'landscape'},
+			{id: 'nextup', title: 'Next Up', items: [pilot], type: 'landscape'}
+		];
+	});
+
+	afterEach(() => {
+		cleanup();
+		memoryCache.rowData = null;
+	});
+
+	test('Watched Indicators starts at the first row wearing them, and draws them the way the one being tried allows', () => {
+		const shown = () => ({
+			progress: Boolean(cardOf('Heat').querySelector('div[style*="width: 40%"]')),
+			count: within(cardOf('Fargo')).queryByText('3') !== null,
+			check: Boolean(cardOf('Pilot').querySelector('svg'))
+		});
+		const {rerender} = draw(home(), 'setting-watchedIndicatorBehavior', 'home');
+		expect(rowTitles()).toEqual(['Continue Watching', 'Next Up']);
+		expect(within(focusedCard()).getByText('Heat')).toBeTruthy();
+		expect(shown()).toEqual({progress: true, count: true, check: true});
+		const row = describeRow('setting-watchedIndicatorBehavior', mockSettings);
+		const expected = {hideCount: {progress: true, count: false, check: true}, episodesOnly: {progress: false, count: false, check: true}, never: {progress: false, count: false, check: false}};
+		Object.keys(expected).forEach((value, index) => {
+			rerender(<SettingsLivePreview scene='home' row={row} trying={{key: 'watchedIndicatorBehavior', value, index}} onPickScene={() => {}} onLeaveChips={() => {}} />);
+			expect(shown()).toEqual(expected[value]);
+		});
+	});
+
+	test('Display Series Thumbnails starts at the first row with an episode and swaps its still for the series art, in either style', () => {
+		draw(home(), 'setting-useSeriesThumbnails', 'home');
+		expect(rowTitles()).toEqual(['Next Up']);
+		expect(artOf('Pilot')).toContain('/Items/e1/Images/Primary');
+		cleanup();
+		// A Classic poster row takes the series poster and a wider one the series thumb, as Home's cards do.
+		draw(home({useSeriesThumbnails: true}), 'setting-useSeriesThumbnails', 'home');
+		expect(artOf('Pilot')).toContain('/Items/s1/Images/Primary');
+		cleanup();
+		draw(home({useSeriesThumbnails: true, homeRowsImageType: 'thumb'}), 'setting-useSeriesThumbnails', 'home');
+		expect(artOf('Pilot')).toContain('/Items/s1/Images/Thumb');
+		cleanup();
+		// A Modern card shows the series art once it's focused.
+		draw(home({homeRowsStyle: 'v2', useSeriesThumbnails: true}), 'setting-useSeriesThumbnails', 'home');
+		expect(focusedCard().querySelector('img').getAttribute('src')).toContain('/Items/s1/Images/Thumb');
+	});
+
+	test('a row on the image type screen is drawn first in its artwork and shape, and the global type reshapes the rest', () => {
+		draw(home({homeRowImageTypes: {resume: 'banner'}}), 'row-image-type-resume', 'home');
+		expect(screen.getByText('Shows on the Home preview')).toBeTruthy();
+		expect(rowTitles()).toEqual(['Continue Watching', 'Next Up']);
+		expect(shapeOf('Heat')).toBeCloseTo(1168 / 216);
+		expect(artOf('Heat')).toContain('/Items/m1/Images/Banner');
+		cleanup();
+		// Merged with Next Up, the row is set under Continue Watching.
+		draw(home({mergeContinueWatchingNextUp: true}), 'row-image-type-nextup', 'home');
+		expect(screen.getByText('Continue Watching & Next Up')).toBeTruthy();
+		expect(screen.queryByText('Alien')).toBeNull();
+		cleanup();
+		draw(home({homeRowsImageType: 'thumb'}), 'setting-homeRowsImageType', 'home');
+		expect(shapeOf('Alien')).toBeCloseTo(16 / 9);
+		expect(artOf('Alien')).toContain('/Items/m2/Images/Thumb');
+		cleanup();
+		draw(home(), 'setting-homeRowsImageType', 'home');
+		expect(shapeOf('Alien')).toBeCloseTo(2 / 3);
+	});
+
+	test('Focus Expansion Animation grows the focused Classic card, and Info Overlay brings back the info band', () => {
+		draw(home(), 'setting-cardFocusZoom', 'home');
+		expect(rowTitles()).toEqual(['Recently Added Films', 'Continue Watching', 'Next Up']);
+		expect(focusedCard().style.transform).toBe('scale(1.05)');
+		expect(screen.getAllByText('Alien')).toHaveLength(1);
+		cleanup();
+		draw(home({cardFocusZoom: false, homeRowOverlay: true}), 'setting-homeRowOverlay', 'home');
+		expect(focusedCard().style.transform).toBe('');
+		expect(screen.getAllByText('Alien')).toHaveLength(2);
+	});
+
+	test('the preview follows Home as it loads its rows again behind Settings', async () => {
+		memoryCache.rowData = [];
+		draw(home(), 'setting-cardFocusZoom', 'home');
+		expect(screen.queryByText('Heat')).toBeNull();
+		act(() => {
+			memoryCache.rowData = [{id: 'resume', title: 'Continue Watching', items: [heat], type: 'landscape'}];
+		});
+		expect(screen.getByText('Heat')).toBeTruthy();
+	});
+
+	test('the Rows screen draws its arrangement before it\'s saved', () => {
+		const settings = home();
+		const draft = [settings.homeRows[2], settings.homeRows[0], settings.homeRows[1]].map((entry, order) => ({...entry, order}));
+		draw(settings, 'homerow-nextup', 'home', {trying: {key: 'homeRows', value: draft, index: -1}});
+		expect(screen.getByText('Shows on the Home preview')).toBeTruthy();
+		expect(rowTitles()).toEqual(['Recently Added Films', 'Continue Watching', 'Next Up']);
+		const titles = Array.from(document.querySelectorAll('.frame div')).map((node) => node.textContent);
+		expect(titles.indexOf('Next Up')).toBeLessThan(titles.indexOf('Recently Added Films'));
+	});
+
+	test('a Favorites sort being tried loads Home\'s favorites rows through Home\'s own loader, in that sort', async () => {
+		const settings = home({displayFavoritesRows: true, homeRows: [
+			{id: 'resume', name: 'Continue Watching', enabled: true, order: 0},
+			{id: 'favoriteMovies', name: 'Favorite Movies', enabled: true, order: 1}
+		]});
+		const {rerender} = draw(settings, 'setting-favoritesRowSortBy', 'home');
+		await waitFor(() => expect(rowTitles()).toEqual(['Favorite Movies']));
+		expect(mockAuth.api.getItems).toHaveBeenCalledWith(expect.objectContaining({Filters: 'IsFavorite', IncludeItemTypes: 'Movie', SortBy: expect.stringMatching(/^SortName/)}));
+		expect(within(focusedCard()).getByText('Alien')).toBeTruthy();
+		const row = describeRow('setting-favoritesRowSortBy', mockSettings);
+		rerender(<SettingsLivePreview scene='home' row={row} trying={{key: 'favoritesRowSortBy', value: 'DateCreated', index: 1}} onPickScene={() => {}} onLeaveChips={() => {}} />);
+		await waitFor(() => expect(mockAuth.api.getItems).toHaveBeenCalledWith(expect.objectContaining({Filters: 'IsFavorite', SortBy: expect.stringMatching(/^DateCreated/)})));
+	});
+
+	test('with the Favorites rows off in Rows, a notice names them and the group they sit in', () => {
+		draw(home({displayFavoritesRows: true}), 'setting-favoritesRowSortBy', 'home');
+		expect(find('.notice').textContent).toBe('The Favorites rows are all turned off. To show one, go to Rows, open Favorites under Disabled, and turn it on.');
+		cleanup();
+		draw(home({displayStudiosRows: false}), 'setting-studiosRowSortBy', 'home');
+		expect(find('.notice').textContent).toBe('To see the Studios row on Home, first turn on Display Studio Row. Then go to Rows, open Genres and Studios under Disabled, and turn it on.');
+		expect(screen.getByText('Turn on Display Studio Row, then turn on a row in Rows')).toBeTruthy();
+	});
+
+	test('Peek Home Rows draws Home\'s first row along the bottom of the bars that have a peek', () => {
+		const peekTop = () => {
+			const title = screen.queryByText('Recently Added Films');
+			return title ? title.parentElement.parentElement.style.top : null;
+		};
+		draw(home({mediaBarRowPeek: true, featuredBarStyle: 'moonfin'}), 'setting-mediaBarRowPeek', 'home');
+		// The title band and half of a Classic poster, up from the bottom of the 540 tall screen.
+		expect(peekTop()).toBe(`${540 - (24 + 19 + 5 + 60)}px`);
+		cleanup();
+		draw(home({mediaBarRowPeek: true, featuredBarStyle: 'banner'}), 'setting-mediaBarRowPeek', 'home');
+		expect(peekTop()).toBeNull();
+		cleanup();
+		draw(home({mediaBarRowPeek: false}), 'setting-featuredBarStyle', 'home');
+		expect(peekTop()).toBeNull();
+	});
+});

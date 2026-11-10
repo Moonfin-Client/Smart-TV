@@ -2,7 +2,7 @@ import {defaultSettings} from '../../../context/defaultSettings';
 import {KIND, SETTINGS_SCHEMA} from '../settingsSchema';
 import {
 	SCENE_BY_KEY, MEDIA_BAR_KEYS, FOCUSED_CARD_KEYS, NAV_BUTTON_KEYS, LOADING_KEYS, TRICKPLAY_KEYS, SCREENSAVER_KEYS,
-	SUBTITLE_LOOK_KEYS, SUBTITLE_HDR_KEYS, CALENDAR_KEYS, LIBRARY_KEYS, SEASONAL_KEYS, describeRow, sceneOfRow
+	SUBTITLE_LOOK_KEYS, SUBTITLE_HDR_KEYS, CALENDAR_KEYS, LIBRARY_KEYS, SEASONAL_KEYS, HOME_LOOK_KEYS, describeRow, sceneOfRow
 } from './previewRows';
 
 describe('settings live preview rows', () => {
@@ -13,6 +13,33 @@ describe('settings live preview rows', () => {
 		});
 		[...MEDIA_BAR_KEYS, ...FOCUSED_CARD_KEYS].forEach((key) => {
 			expect(SCENE_BY_KEY[key]).toBe('home');
+		});
+	});
+
+	test('every Home rows, Row Options and card setting shows on Home, and Peek Home Rows on the media bar', () => {
+		[
+			'homeRowsImageType', 'rowImageTypes', 'homeRows', 'seasonalRow', 'displayFavoritesRows', 'displayGenresRows', 'displayPlaylistsRows',
+			'displayRewatchRow', 'displayStudiosRows', 'mergeContinueWatchingNextUp', 'mergeRecentRowsByType', 'favoritesRowSortBy',
+			'favoritesRowSortOrder', 'genresRowSortBy', 'genresRowSortOrder', 'playlistsRowSortBy', 'playlistsRowSortOrder', 'studiosRowSortBy',
+			'studiosRowSortOrder', 'watchedIndicatorBehavior', 'useSeriesThumbnails', 'cardFocusZoom', 'classicHomeRowsPadding',
+			'modernHomeRowsPadding', 'homeRowOverlay', 'mediaBarRowPeek'
+		].forEach((key) => expect(SCENE_BY_KEY[key]).toBe('home'));
+		expect(HOME_LOOK_KEYS).toEqual(expect.arrayContaining(['homeRows', 'rowImageTypes', 'seasonalRow', 'watchedIndicatorBehavior']));
+		expect(MEDIA_BAR_KEYS).toContain('mediaBarRowPeek');
+	});
+
+	test('the Rows, image type and Seasonal Row screens report their rows as the link that opens them', () => {
+		const settings = {...defaultSettings, homeRows: [{id: 'nextup', name: 'Next Up', enabled: true, order: 0}]};
+		['homerow-resume', 'homerows-group-favorites', 'homerows-view'].forEach((id) => {
+			expect(describeRow(id, settings)).toMatchObject({key: 'homeRows', title: 'Rows', scene: 'home', rowId: null});
+		});
+		// The image type screen names the row it sets and keeps the screen in its path.
+		expect(describeRow('row-image-type-nextup', settings)).toMatchObject({
+			key: 'rowImageTypes', title: 'Next Up', scene: 'home', rowId: 'nextup', path: 'Appearance › Home Screen › Looks › Image Type per Row'
+		});
+		expect(describeRow('row-image-types-view', settings)).toMatchObject({key: 'rowImageTypes', rowId: null});
+		['setting-seasonalRowEnabled', 'setting-seasonalRowAllYear', 'seasonal-country-auto', 'seasonal-holiday-christmas'].forEach((id) => {
+			expect(describeRow(id, settings)).toMatchObject({key: 'seasonalRow', title: 'Seasonal Row', scene: 'home'});
 		});
 	});
 
