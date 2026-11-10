@@ -79,6 +79,17 @@ describe('saveBrowseCache', () => {
 		const saved = mockSaveToStorage.mock.calls[0][1];
 		expect(saved.recentAt).toBe(1);
 	});
+
+	test('saves the row key the rows were built for', () => {
+		const rows = [{id: 'released', items: [{Id: 'series1'}]}];
+		saveBrowseCache(rows, memoryCache.libraries, memoryCache.featuredItems, {serverUrl: 'http://server', userId: 'user'});
+		memoryCache.rowConfigKey = 'per-library:season';
+		jest.runAllTimers();
+
+		const saved = mockSaveToStorage.mock.calls[mockSaveToStorage.mock.calls.length - 1][1];
+		expect(saved.rowData[0].id).toBe('released');
+		expect(saved.rowConfigKey).toBe('per-library');
+	});
 });
 
 describe('clearBrowseCache', () => {

@@ -1,4 +1,4 @@
-import {renderHook, waitFor} from '@testing-library/react';
+import {act, renderHook, waitFor} from '@testing-library/react';
 
 import useBrowseData from './useBrowseData';
 import {clearMemoryCache, loadBrowseCache, memoryCache} from './browseCache';
@@ -132,6 +132,34 @@ describe('Home loads again when a row setting changes', () => {
 		await changed({recentlyReleasedSeriesType: 'series'}, {recentlyReleasedSeriesType: 'episode'}, [],
 			() => expect(api.getRecentlyReleased).toHaveBeenCalled());
 		await waitFor(() => expect(api.getRecentlyReleased).toHaveBeenCalledWith('movies', 16, 'Movie,Episode'));
+	});
+
+	test('a load a newer one took over leaves the newer rows in place', async () => {
+		const settings = {displayStudiosRows: true};
+		const config = rows('studios');
+		const libraries = api.getLibraries;
+		try {
+			const {result, rerender} = renderHook((p) => useBrowseData(p), {initialProps: props(settings, config)});
+			await waitFor(() => expect(result.current.isLoading).toBe(false));
+			let release;
+			api.getLibraries = jest.fn()
+				.mockImplementationOnce(() => new Promise((resolve) => {
+					release = resolve;
+				}))
+				.mockImplementation(libraries);
+			api.getStudios.mockImplementation(async () => ({Items: [{Id: 'studio', Name: 'Studio'}]}));
+			rerender(props({...settings, studiosRowSortBy: 'DateCreated'}, config));
+			rerender(props({...settings, studiosRowSortBy: 'Random'}, config));
+			const hasStudios = () => result.current.allRowData.some((row) => row.id === 'studios');
+			await waitFor(() => expect(hasStudios()).toBe(true));
+			await act(async () => {
+				release(await libraries());
+				await new Promise((resolve) => setTimeout(resolve, 50));
+			});
+			expect(hasStudios()).toBe(true);
+		} finally {
+			api.getLibraries = libraries;
+		}
 	});
 
 	test("rows stored for another Recently Released Series Sort By aren't reused at start", async () => {

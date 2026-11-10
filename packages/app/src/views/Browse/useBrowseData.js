@@ -610,6 +610,8 @@ const useBrowseData = ({
 					userConfig = results[3];
 					recentlyPlayed = results[4];
 				}
+				// A newer load took over while this one waited, so the rows are left to it.
+				if (cancelled) return;
 
 				memoryCache.libraries = libs;
 				memoryCache.recentAt = Date.now();
@@ -705,6 +707,7 @@ const useBrowseData = ({
 						latestItemsExcludes,
 						EXCLUDED_COLLECTION_TYPES
 					);
+					if (cancelled) return;
 					const newRows = [];
 					if (settings.mergeRecentRowsByType) {
 						const entries = latestResults
