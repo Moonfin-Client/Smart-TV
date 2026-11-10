@@ -79,6 +79,7 @@ import RommAccountPanel from './RommAccountPanel';
 import MoonbasePanel from './MoonbasePanel';
 import {LOG_RENDER_STEP} from './useDiagnosticsLog';
 import {DETAIL_SECTIONS_HIDDEN_KEY, toggleHiddenSection} from '../../utils/detailSectionLayout';
+import {isWatchTogetherOpen, openWatchParties, useWatchPartyBackend} from '../../hooks/useWatchPartyRooms';
 
 import css from './Settings.module.less';
 
@@ -340,8 +341,8 @@ const Settings = ({ onBack, onLibrariesChanged, onRunSetupWizard, onSelectItem, 
 		const handleKeyDown = (e) => {
 			if (isTvKeyboardVisible()) return;
 			if (!isBackKey(e)) return;
-			// A confirm is a layer of its own and closes itself on this key, and so is the arcade.
-			if (isConfirmSpendOpen() || isAfterHoursOpen()) return;
+			// A confirm is a layer of its own and closes itself on this key, and so are the arcade and Watch Parties.
+			if (isConfirmSpendOpen() || isAfterHoursOpen() || isWatchTogetherOpen()) return;
 			e.preventDefault();
 			e.stopPropagation();
 			if (onLiveBackRef.current && onLiveBackRef.current()) return;
@@ -1062,6 +1063,16 @@ const Settings = ({ onBack, onLibrariesChanged, onRunSetupWizard, onSelectItem, 
 
 	const canProbeDevice = isXbox() && !!serverUrl && !!accessToken;
 	const afterHours = useAfterHoursTrigger();
+	const partyBackend = useWatchPartyBackend(`${serverUrl}|${user?.Id}`);
+	// Emby and Plex have no SyncPlay to fall back on, so they say what's missing, or that the admin turned parties off.
+	const watchParties = useMemo(() => {
+		const onMoonbase = partyBackend.checked && partyBackend.backend === 'moonbase';
+		return {
+			moonbase: onMoonbase && partyBackend.available,
+			needsMoonbase: onMoonbase && !partyBackend.config && serverType !== 'jellyfin',
+			turnedOff: onMoonbase && partyBackend.config?.enabled === false
+		};
+	}, [partyBackend, serverType]);
 
 	const settingsCtx = useMemo(() => ({
 		settings,
@@ -1085,7 +1096,9 @@ const Settings = ({ onBack, onLibrariesChanged, onRunSetupWizard, onSelectItem, 
 		ratingsResetArmed,
 		signInPin,
 		calendarLibraries,
+		watchParties,
 		actions: {
+			openWatchParties,
 			openThemes,
 			openThemeStore,
 			openHomeRows,
@@ -1139,7 +1152,7 @@ const Settings = ({ onBack, onLibrariesChanged, onRunSetupWizard, onSelectItem, 
 		signInPin, toggleSignInPin, changeSignInPin, removeSignInPin, openKidsMode, openLibraries, openLibraryOrder, openParentalControls, openSubtitleDownloadLanguages, openTranscodeAudioCodecs, openQrLink, openRatingSources, openRowImageTypes, openExcludedGenres, openMediaBarLibraries,
 		openMediaBarCollections, openMediaBarExternalLists, openScreensaverLibraries, openScreensaverCollections, openScreensaverGenres, openCalendarLibraries,
 		openImdbLists, openSeasonalRow, openExternalTmdbLists, openExternalCalendars,
-		openExternalCustomRows, openSeerrHomeRows, openScreen, onRunSetupWizard, canProbeDevice, afterHours.press
+		openExternalCustomRows, openSeerrHomeRows, openScreen, onRunSetupWizard, canProbeDevice, afterHours.press, watchParties
 	]);
 
 	// The live preview's inspector names rows with the same context the list draws them with.

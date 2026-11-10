@@ -36,10 +36,8 @@ describe('preview navbar buttons', () => {
 	});
 
 	test('buttons that need the server or a plugin only show when it has them', () => {
-		expect(ids({hasLiveTv: true, serverType: 'jellyfin', seerrEnabled: true, seerrLabel: 'Seerr'}))
+		expect(ids({hasLiveTv: true, seerrEnabled: true, seerrLabel: 'Seerr'}))
 			.toEqual(['home', 'search', 'shuffle', 'genres', 'favorites', 'livetv', 'syncplay', 'seerr', 'libraries', 'settings']);
-		expect(ids({serverType: 'emby'})).toContain('syncplay');
-		expect(ids({serverType: 'plex'})).not.toContain('syncplay');
 		expect(withSettings({showFriendsButton: true})).not.toContain('friends');
 		expect(withSettings({showFriendsButton: true}, {socialAvailable: true})).toContain('friends');
 	});

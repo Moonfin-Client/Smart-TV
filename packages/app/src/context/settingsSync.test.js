@@ -33,6 +33,14 @@ describe('profileToLocal', () => {
 		expect(local.hiddenOsdButtonsTv).toEqual(['audio']);
 	});
 
+	test('syncs the Watch Parties settings, and keeps a service it doesn\'t know out', () => {
+		expect(profileToLocal({syncPlayEnabled: false, watchPartyService: 'syncplay', watchPartyChatOverlay: false, watchPartyAlerts: true}))
+			.toEqual({syncplayEnabled: false, watchPartyService: 'syncplay', watchPartyChatOverlay: false, watchPartyAlerts: true});
+		expect(profileToLocal({watchPartyService: 'discord'})).toEqual({});
+		expect(localToProfile({watchPartyService: 'moonbase', watchPartyAlerts: false}, ['watchPartyService', 'watchPartyAlerts']))
+			.toMatchObject({watchPartyService: 'moonbase', watchPartyAlerts: false});
+	});
+
 	test('takes detailButtonsMaxVisible under its own name', () => {
 		const local = profileToLocal({
 			detailButtonsMaxVisible: 3

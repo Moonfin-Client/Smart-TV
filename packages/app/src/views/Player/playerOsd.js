@@ -3,7 +3,7 @@ import $L from '@enact/i18n/$L';
 import {autocropLogoUrl} from '../../utils/logoAutocrop';
 import {
 	IconPlay, IconPause, IconSubtitle, IconSubtitleOff, IconAudio,
-	IconChapters, IconEpisodes, IconPrevious, IconNext, IconQuality, IconInfo, IconCast, IconZoom,
+	IconChapters, IconEpisodes, IconPrevious, IconNext, IconQuality, IconInfo, IconCast, IconZoom, IconChat,
 	IconShuffle, IconRepeat, IconRepeatOne, IconSleep, IconGuide, IconChannels,
 	IconFavorite, IconFavoriteFilled, IconPlaylistAdd, IconLyrics, IconQueueMusic, IconLiveRewind, IconLiveForward,
 	IconLivePlay, IconLivePause, IconLiveTv, IconRecord, IconSeriesRecord, LIVE_RED,
@@ -13,6 +13,10 @@ import {MARK_SKIPPED_GREY} from '../LiveTV/GuideIcons';
 import {arrange, OSD_BUTTONS, OSD_ORDER_KEY, OSD_HIDDEN_KEY} from '../../utils/buttonLayout';
 import {useSettings} from '../../context/SettingsContext';
 import {skipBackSeconds, skipForwardSeconds} from '../../utils/playbackTuning';
+import useWatchParty from '../../hooks/useWatchParty';
+import {isRoomPlaying} from '../../services/siloWatchParty';
+
+const inPlayingParty = (state) => state.backend === 'moonbase' && isRoomPlaying(state.room);
 
 // The buttons and the title logo of the player's on-screen controls, kept apart from the
 // controls themselves so the Settings preview can draw the same ones without loading the player.
@@ -70,6 +74,8 @@ export const usePlayerButtons = ({
 
 	const osdOrder = settings[OSD_ORDER_KEY];
 	const osdHidden = settings[OSD_HIDDEN_KEY];
+	// A Moonbase party adds its chat bar and its people, ahead of the arranged buttons and outside the arrangement.
+	const inParty = useWatchParty(inPlayingParty);
 
 	const bottomButtons = useMemo(() => {
 		// In audio mode these flank the transport, with the track actions on the left and the panel toggles on the right.
@@ -106,7 +112,11 @@ export const usePlayerButtons = ({
 				{id: 'info', icon: <IconInfo />, label: $L('Playback Information'), action: 'info'}
 			], {order: osdOrder, hidden: osdHidden});
 		}
-		return arrange([
+		const partyButtons = inParty ? [
+			{id: 'partyChat', icon: <IconChat />, label: $L('Chat'), action: 'partyChat'},
+			{id: 'party', icon: <IconCast />, label: $L('Your watch party'), action: 'party'}
+		] : [];
+		return [...partyButtons, ...arrange([
 			...(canFavorite ? [{
 				id: 'favorite',
 				icon: isFavorite ? <IconFavoriteFilled color={FAVORITE_PINK} /> : <IconFavorite />,
@@ -125,8 +135,8 @@ export const usePlayerButtons = ({
 			{id: 'zoom', icon: <IconZoom />, label: $L('Zoom').concat(` (${zoomModeLabel})`), action: 'zoom', active: zoomModeKey !== 'fit'},
 			{id: 'sleep', icon: <IconSleep />, label: $L('Sleep timer'), action: 'sleep', active: sleepMinutes != null},
 			{id: 'info', icon: <IconInfo />, label: $L('Playback Information'), action: 'info'}
-		], {order: osdOrder, hidden: osdHidden, catalogue: OSD_BUTTONS});
-	}, [audioStreams.length, chapters.length, canBrowseEpisodes, subtitleStreams.length, isAudioMode, isLiveTV, selectedQuality, selectedSubtitleIndex, canDownloadRemoteSubtitles, hasCastMembers, zoomModeLabel, zoomModeKey, sleepMinutes, osdOrder, osdHidden, isFavorite, canFavorite, hasLyrics, audioPanel, recordable, recordMark]);
+		], {order: osdOrder, hidden: osdHidden, catalogue: OSD_BUTTONS})];
+	}, [inParty, audioStreams.length, chapters.length, canBrowseEpisodes, subtitleStreams.length, isAudioMode, isLiveTV, selectedQuality, selectedSubtitleIndex, canDownloadRemoteSubtitles, hasCastMembers, zoomModeLabel, zoomModeKey, sleepMinutes, osdOrder, osdHidden, isFavorite, canFavorite, hasLyrics, audioPanel, recordable, recordMark]);
 
 	return {topButtons, bottomButtons};
 };

@@ -38,6 +38,7 @@ import {
 	chooseHostReader
 } from '../../services/video';
 import {KEYS, isBackKey, isMediaKey} from '../../utils/keys';
+import {isTvKeyboardVisible} from '../../components/TVKeyboard/keyboardBus';
 import {useSettings} from '../../context/SettingsContext';
 import {useSyncPlay} from '../../context/SyncPlayContext';
 import * as syncPlayService from '../../services/syncPlay';
@@ -87,10 +88,11 @@ import playbackErrorMessage from './playbackErrorMessage';
 import useSegmentPopups, {isSkipPromptFocused} from './useSegmentPopups';
 import useChannelKeys from './useChannelKeys';
 import {isPreroll, nextInQueue, shouldAutoAdvance} from '../../utils/cinemaMode';
-import {driftMs, needsSeek, seekLanded, correctionOptions, DRIFT_CHECK_MS, GROUP_SEEK_SETTLE_TIMEOUT_MS} from '../../utils/syncDrift';
+import {driftMs, needsSeek, seekLanded, correctionOptions, partyHoldBackMs, DRIFT_CHECK_MS, GROUP_SEEK_SETTLE_TIMEOUT_MS,
+	PARTY_SEEK_TOLERANCE_MS} from '../../utils/syncDrift';
 import {createLoadBudget, CONVERGED_MS} from '../../utils/syncLoadBudget';
 import {createReadyGate} from '../../utils/syncReady';
-import {createSkipGovernor, chooseCorrection, STALL_DEBOUNCE_MS} from '../../utils/syncCorrection';
+import {createSkipGovernor, chooseCorrection, afterResume, STALL_DEBOUNCE_MS} from '../../utils/syncCorrection';
 import {syncLog} from '../../utils/syncLog';
 import {
 	NextEpisodeContainer, CONTROLS_HIDE_DELAY,
@@ -182,6 +184,8 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 	// up. Startup calls play() more than once (autoplay, metadata, HLS), so
 	// one pause isn't enough; every play is answered while this holds.
 	const groupHoldRef = useRef(isInGroup);
+	// When the group's last play ran here, for the tighter check after a resume.
+	const resumedAtRef = useRef(0);
 
 	const [mediaUrl, setMediaUrl] = useState(null);
 	const [mimeType, setMimeType] = useState('video/mp4');
@@ -348,18 +352,31 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 	const containerRef = useRef(null);
 	const handlersRef = useRef({});
 	const positionRef = useRef(0);
+	// A set paused ahead of the room waits out the gap before playing. That's exact, where a seek back would reload
+	// the stream.
+	const holdBack = useCallback((ms) => {
+		cancelSyncWait();
+		syncWaitTimerRef.current = setTimeout(() => {
+			syncWaitTimerRef.current = null;
+			videoRef.current?.play()?.catch?.(() => {});
+			skipGovernorRef.current.onStart({nowMs: Date.now(), fromMs: positionRef.current / 10000});
+		}, ms);
+	}, [cancelSyncWait]);
 	const playSessionRef = useRef(null);
 	// A Silo Watch Party reports where this player is and which session it plays (siloWatchParty.js).
 	useEffect(() => syncPlayService.attachPlayer({
-		sample: syncPlaySample,
+		// A pause taken to let the room catch up still reports as playing, or the room lines this set up again from an
+		// anchor that can trail everyone else.
+		sample: () => (syncWaitTimerRef.current ? {...syncPlaySample(), isPlaying: true} : syncPlaySample()),
 		sessionId: () => playSessionRef.current,
 		// A player held paused never moves, which is what clears stalledRef, so paused it counts as playable once it has
-		// the data to start.
+		// the data to start. webOS stays at HAVE_CURRENT_DATA after a paused seek, even after canplay, and play() waits
+		// for data from there, so that's enough.
 		// Waiting for the stream to build up is a stall: no reports, and one that lasts pauses the room.
 		isBuffering: () => {
 			const video = videoRef.current;
 			if (!video || cushionRef.current) return true;
-			return video.paused ? video.readyState < 3 : stalledRef.current;
+			return video.paused ? video.readyState < 2 : stalledRef.current;
 		},
 		// Until a group seek has landed this set isn't ready for the room: webOS reports a seek's target as its
 		// position at once, which read as there and let the room start a second before it was.
@@ -3321,6 +3338,8 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 			case 'zoom': handleToggleZoom(); break;
 			case 'sleep': openModal('sleep'); break;
 			case 'info': openModal('info'); break;
+			case 'partyChat':
+			case 'party': openModal(action); break;
 			case 'channels': openCarousel(); break;
 			case 'guide': handleOpenGuide(); break;
 			case 'next': handlePlayNextNow(); break;
@@ -3369,23 +3388,34 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 		switch (Command) {
 			case 'Unpause': {
 				groupHoldRef.current = false;
+				resumedAtRef.current = Date.now();
 				// The group is playing again, so a seek still landing must
 				// not pause the set when it does.
 				if (groupSeekPendingRef.current) groupSeekPendingRef.current.pauseOnLand = false;
 				// The sync point is the position at the command's own time,
 				// which for a late arrival or an echo is not now.
 				syncPlayService.setSyncReference(PositionTicks != null ? PositionTicks : positionRef.current, syncPlayService.whenToServerMs(When));
+				// A room that corrects itself doesn't wait for this set's seek, which reloads a remux for seconds, so a
+				// set paused ahead holds back by the gap, and a gap under a second is left to the drift check.
+				const party = syncPlayService.isSelfCorrectingRoom();
+				const holdMs = party && video.paused && PositionTicks != null
+					? partyHoldBackMs(positionRef.current, delay > 0 ? PositionTicks : syncPlayService.getAdjustedPosition(PositionTicks, When)) : 0;
+				if (holdMs > 0) {
+					holdBack(holdMs);
+					break;
+				}
+				const tolerance = party ? PARTY_SEEK_TOLERANCE_MS : undefined;
 				let startTarget = null;
 				if (delay > 0) {
 					// On time: a seek costs a rebuffer the whole group then
 					// waits on, so a difference this small is left alone, and
 					// one this set's start time took up (leadMs below) needs none.
 					const timedIn = syncPlayService.isRoomDriven() && video.paused && startGapMs(positionRef.current, PositionTicks) != null;
-					if (PositionTicks != null && !timedIn && needsSeek(positionRef.current, PositionTicks)) startTarget = PositionTicks;
+					if (PositionTicks != null && !timedIn && needsSeek(positionRef.current, PositionTicks, tolerance)) startTarget = PositionTicks;
 				} else if (video.paused) {
 					// Late: start where the group has got to by now.
 					const target = syncPlayService.getAdjustedPosition(PositionTicks, When);
-					if (target != null && needsSeek(positionRef.current, target)) startTarget = target;
+					if (target != null && needsSeek(positionRef.current, target, tolerance)) startTarget = target;
 				}
 				// In a Watch Party a load lands late by its load time, and the room doesn't wait for it: aim ahead by
 				// what the last one took, and don't start another until the budget allows, or the set chases the
@@ -3436,7 +3466,9 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 				groupHoldRef.current = false;
 				video.pause();
 				syncPlayService.clearSyncReference();
-				if (PositionTicks != null && needsSeek(positionRef.current, PositionTicks)) {
+				// A seek made paused only runs at the next play, and on a remux that play can stall for good. So in a room
+				// that corrects itself the pause stays put, and the resume holds back or seeks as it starts.
+				if (PositionTicks != null && !syncPlayService.isSelfCorrectingRoom() && needsSeek(positionRef.current, PositionTicks)) {
 					// webOS moves its clock for a seek made paused but loads nothing until it plays, and on a stream
 					// Silo reloads for every seek the picture then carries on from where it really was. So in a
 					// Watch Party that seek runs playing, and pauses once the picture has moved there.
@@ -3462,7 +3494,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 		}
 
 		syncPlayCommandRef.current = false;
-	}, [cancelGroupSeek, cancelSyncWait, startGroupSeek, showFrameIfNone, copySeeksTo, endCushion]);
+	}, [cancelGroupSeek, cancelSyncWait, startGroupSeek, showFrameIfNone, copySeeksTo, endCushion, holdBack]);
 
 	useSyncPlayCommands({
 		lastCommand,
@@ -3507,7 +3539,8 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 				isBuffering: video.seeking || stalledRef.current
 			});
 			if (verdict === 'defer') return;
-			const action = chooseCorrection(drift, verdict, correction, skipGovernorRef.current.seekAllowanceMs());
+			const options = syncPlayService.isSelfCorrectingRoom() ? afterResume(correction, nowMs - resumedAtRef.current) : correction;
+			const action = chooseCorrection(drift, verdict, options, skipGovernorRef.current.seekAllowanceMs());
 
 			if (action.type === 'skip') {
 				const targetTicks = expected + action.aheadMs * 10000;
@@ -3620,6 +3653,8 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 		const handleKeyDown = (e) => {
 			// Music playing behind the other screens leaves the remote to them, all but its media keys.
 			if (background && !isMediaKey(e)) return;
+			// The keyboard over a party's chat bar takes every key, Back included.
+			if (isTvKeyboardVisible()) return;
 			const key = e.key || e.keyCode;
 			// The air date card holds the remote, with OK on its close button and Back closing it.
 			if (airDateCard) {

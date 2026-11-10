@@ -41,6 +41,7 @@ import {
 	getMediaSegmentActionOptions,
 	getMediaSegmentAutoHideOptions,
 	getNavPositionOptions,
+	getWatchPartyServiceOptions,
 	getNewReleaseDaysOptions,
 	getNextUpBehaviorOptions,
 	getNextUpCountdownStyleOptions,
@@ -213,7 +214,10 @@ const xboxPassesThrough = (ctx) => whenXboxPassthrough(ctx) && !!ctx.settings.xb
 const whenCertificateChoice = (ctx) => ctx.isWebOS || ctx.isVega || ctx.isXbox;
 // Samsung sets decode AC3 and E-AC3 themselves, so these two toggles only do anything on webOS
 const whenWebOSPassthrough = (ctx) => whenPassthrough(ctx) && ctx.isWebOS;
-const whenSyncCorrection = (ctx) => ctx.settings.syncPlayAdvancedCorrectionEnabled !== false;
+const whenWatchParties = (ctx) => ctx.settings.syncplayEnabled !== false;
+const whenSyncCorrection = (ctx) => whenWatchParties(ctx) && ctx.settings.syncPlayAdvancedCorrectionEnabled !== false;
+// Chat, alerts and the choice of what Start makes come with Moonbase's parties.
+const whenMoonbaseParties = (ctx) => whenWatchParties(ctx) && ctx.watchParties?.moonbase === true;
 // TrueHD only reaches a receiver while something may bitstream, in auto and manual mode alike
 const whenTruehdOptIn = (ctx) => ctx.settings.audioPassthroughMode !== 'disabled' && !ctx.settings.downmixToStereo;
 const whenSubtitlesOn = (ctx) => ctx.settings.subtitleMode !== 'none';
@@ -457,7 +461,7 @@ export const SETTINGS_SCHEMA = [
 					{kind: KIND.TOGGLE, key: 'showLiveTvButton', label: () => $L('Show Live TV Button'), desc: () => $L('Show the Live TV button in the navigation bar when the server has a Live TV library'), icon: 'live_tv', when: (ctx) => ctx.hasLiveTv},
 					{kind: KIND.TOGGLE, key: 'showLibrariesInToolbar', label: () => $L('Show Libraries in Toolbar'), desc: () => $L('Show the libraries button in the navigation bar'), icon: 'video_library'},
 					{kind: KIND.TOGGLE, key: 'showLibrariesIndividually', label: () => $L('Show Libraries Individually'), desc: () => $L('Show each library as its own button in the navigation bar instead of in the Libraries menu'), icon: 'video_library', when: (ctx) => ctx.settings.showLibrariesInToolbar !== false},
-					{kind: KIND.TOGGLE, key: 'showSyncPlayButton', label: () => $L('SyncPlay Button'), desc: () => $L('Show the SyncPlay button on the navigation bar'), icon: 'groups', when: (ctx) => ctx.serverType !== 'plex' && ctx.settings.syncplayEnabled !== false},
+					{kind: KIND.TOGGLE, key: 'showSyncPlayButton', label: () => $L('Watch Parties Button'), desc: () => $L('Show the Watch Parties button on the navigation bar'), icon: 'groups', when: (ctx) => ctx.settings.syncplayEnabled !== false},
 					{kind: KIND.TOGGLE, key: 'showSeerrButton', label: (ctx) => $L('Show {seerrLabel} Button').replace('{seerrLabel}', ctx.seerrLabel), desc: () => $L('Show the Seerr button in the navigation bar'), when: whenSeerr, icon: 'seerr'},
 					{kind: KIND.TOGGLE, key: 'showCalendarButton', label: () => $L('Show Calendar Button'), desc: () => $L('Show the calendar of upcoming episodes and movies in the navigation bar'), when: whenCalendar, icon: 'calendar_month_rounded'},
 					{kind: KIND.TOGGLE, key: 'showServerMessagesButton', label: () => $L('Show Messages Button'), desc: () => $L('Adds a button to the menu for messages sent by your server admin'), icon: 'info_outline_rounded'},
@@ -851,7 +855,7 @@ export const SETTINGS_SCHEMA = [
 		alwaysMenu: true,
 		when: (ctx) => !ctx.settings.kidsModeEnabled,
 		label: () => $L('Playback'),
-		description: () => $L('Player, quality, audio, subtitles, skipping, and SyncPlay'),
+		description: () => $L('Player, quality, audio, subtitles, skipping, and Watch Parties'),
 		icon: 'play_circle',
 		subcategories: [
 			{
@@ -1063,17 +1067,23 @@ export const SETTINGS_SCHEMA = [
 				id: 'syncPlay',
 				icon: 'groups',
 				section: () => $L('Watch Together'),
-				label: () => $L('SyncPlay'),
-				description: () => $L('Synchronization logic for group sessions'),
+				label: () => $L('Watch Parties'),
+				description: () => $L('Watch with friends on this server, everyone in step'),
 				rows: [
-					{kind: KIND.SECTION, id: 'syncPlayOptions', label: () => $L('SyncPlay Options')},
-					{kind: KIND.TOGGLE, key: 'syncplayEnabled', label: () => $L('SyncPlay Enabled'), desc: () => $L('Enable group watching features'), icon: 'groups'},
-					{kind: KIND.TOGGLE, key: 'syncplayAutoOpen', label: () => $L('Open SyncPlay'), desc: () => $L('Automatically open SyncPlay dialog when starting playback'), icon: 'group_work'},
-					{kind: KIND.TOGGLE, key: 'syncPlayAdvancedCorrectionEnabled', label: () => $L('Advanced Correction'), desc: () => $L('Enable fine-grained sync logic'), icon: 'tune'},
-					{kind: KIND.TOGGLE, key: 'syncPlayEnableSyncCorrection', label: () => $L('Sync Correction'), desc: () => $L('Automatically adjust playback to stay in sync'), icon: 'sync', when: whenSyncCorrection},
+					{kind: KIND.SECTION, id: 'syncPlayOptions', label: () => $L('Watch Parties')},
+					{kind: KIND.TOGGLE, key: 'syncplayEnabled', label: () => $L('Watch Parties'), desc: () => $L('Watch with friends on this server, everyone in step'), icon: 'groups'},
+					{kind: KIND.TEXT, id: 'watchPartiesNeedMoonbase', text: () => `${$L('Watch Parties need Moonbase on this server')}. ${$L('Ask whoever runs the server to install the Moonbase plugin. On Jellyfin, SyncPlay still works without it.')}`, when: (ctx) => whenWatchParties(ctx) && ctx.watchParties?.needsMoonbase === true},
+					{kind: KIND.TEXT, id: 'watchPartiesTurnedOff', text: () => $L('Watch Parties are turned off on this server.'), when: (ctx) => whenWatchParties(ctx) && ctx.watchParties?.turnedOff === true},
+					{kind: KIND.OPTION, key: 'watchPartyService', label: () => $L('Start parties with'), desc: () => $L('You can join rooms of both kinds'), options: getWatchPartyServiceOptions, fallback: () => $L('Watch Party'), icon: 'group_work', when: (ctx) => whenMoonbaseParties(ctx) && ctx.serverType === 'jellyfin'},
+					{kind: KIND.NAV, id: 'openWatchParties', label: () => $L('Open Watch Parties'), desc: () => $L('Start one or join one in progress'), icon: 'groups', action: (ctx) => ctx.actions.openWatchParties?.(), when: whenWatchParties},
+					{kind: KIND.TOGGLE, key: 'watchPartyChatOverlay', label: () => $L('Show chat over the video'), desc: () => $L('New messages show for a few seconds'), icon: 'subtitles', when: whenMoonbaseParties},
+					{kind: KIND.TOGGLE, key: 'watchPartyAlerts', label: () => $L('Party alerts'), desc: () => $L('Show a banner when someone on this server starts one'), icon: 'notifications_active', when: whenMoonbaseParties},
+					{kind: KIND.TOGGLE, key: 'syncplayAutoOpen', label: () => $L('Open SyncPlay'), desc: () => $L('Automatically open SyncPlay dialog when starting playback'), icon: 'group_work', when: (ctx) => whenWatchParties(ctx) && ctx.serverType === 'jellyfin'},
+					{kind: KIND.TOGGLE, key: 'syncPlayAdvancedCorrectionEnabled', label: () => $L('Sync correction'), desc: () => $L('Keep this device in step with the room'), icon: 'tune', when: whenWatchParties},
+					{kind: KIND.TOGGLE, key: 'syncPlayEnableSyncCorrection', label: () => $L('Correct drift'), desc: () => $L('Automatically adjust playback to stay in sync'), icon: 'sync', when: whenSyncCorrection},
 					{kind: KIND.TOGGLE, key: 'syncPlayUseSkipToSync', label: () => $L('Skip to Sync'), desc: () => $L('Use seeking to sync'), icon: 'skip_next', when: whenSyncCorrection},
 					{kind: KIND.SLIDER, key: 'syncPlayMinDelaySkipToSync', label: () => $L('Minimum Skip Delay'), min: 0, max: 15000, step: 250, format: milliseconds, icon: 'timer', when: (ctx) => whenSyncCorrection(ctx) && ctx.settings.syncPlayUseSkipToSync},
-					{kind: KIND.SLIDER, key: 'syncPlayExtraTimeOffset', label: () => $L('SyncPlay Extra Offset'), min: -2000, max: 2000, step: 100, format: milliseconds, icon: 'schedule'}
+					{kind: KIND.SLIDER, key: 'syncPlayExtraTimeOffset', label: () => $L('Extra offset'), min: -2000, max: 2000, step: 100, format: milliseconds, icon: 'schedule', when: whenWatchParties}
 				]
 			}
 		]

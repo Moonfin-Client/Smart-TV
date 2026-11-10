@@ -18,6 +18,8 @@ import PlaybackInfoModal from './PlaybackInfoModal';
 import {SpottableButton, SpottableDiv, formatTime, getQualityPresets} from './PlayerConstants';
 import {useOsdLogo} from './playerOsd';
 import LiveRecordingDialog, {LiveRecordingToast} from './LiveRecordingDialog';
+import WatchPartyQuickBar from '../../components/WatchPartyDialog/WatchPartyQuickBar';
+import {PartyPanel} from '../../components/WatchPartyDialog/PartyPeople';
 import {recordPromptChannel} from '../../utils/recordAiring';
 import {formatClockTime} from '../../utils/clock';
 import {AT_LIVE_SECONDS} from './liveWindow';
@@ -709,6 +711,9 @@ const PlayerControls = ({
 					</ModalContainer>
 				</div>
 			)}
+
+			{activeModal === 'partyChat' && <WatchPartyQuickBar onClose={closeModal} stopPropagation={stopPropagation} />}
+			{activeModal === 'party' && <PartyPanel onClose={closeModal} stopPropagation={stopPropagation} />}
 
 			{activeModal === 'info' && (
 				<PlaybackInfoModal

@@ -59,6 +59,8 @@ import NoConnection from '../components/NoConnection/NoConnection';
 import SyncPlayDialog from '../components/SyncPlayDialog';
 import WatchPartyDialog from '../components/WatchPartyDialog';
 import useWatchParty from '../hooks/useWatchParty';
+import {onOpenWatchParties, useWatchPartyBackend, useWatchTogetherReturn} from '../hooks/useWatchPartyRooms';
+import WatchPartyLayer from '../components/WatchPartyDialog/WatchPartyLayer';
 import {watchParty, isRoomPlaying} from '../services/siloWatchParty';
 import {extendServerShuffle} from '../services/serverShuffle';
 import PhotoViewer from '../components/PhotoViewer';
@@ -112,6 +114,8 @@ const CalendarMonth = lazy(() => import('../views/Calendar/CalendarMonth'));
 
 import '../styles/perf-overrides.less';
 import css from './App.module.less';
+
+const partyRoom = (state) => state.room;
 
 const MAX_HISTORY_LENGTH = 10;
 const SpottableButton = Spottable('button');
@@ -310,7 +314,7 @@ const AppContent = (props) => {
 	const [showExitDialog, setShowExitDialog] = useState(false);
 	// Silo's Watch Party, in SyncPlay's place on Silo.
 	const [watchPartyOpen, setWatchPartyOpen] = useState(false);
-	const {room: watchPartyRoom} = useWatchParty();
+	const watchPartyRoom = useWatchParty(partyRoom);
 	const openWatchParty = useCallback(() => setWatchPartyOpen(true), []);
 	const closeWatchParty = useCallback(() => setWatchPartyOpen(false), []);
 	const [showSettingsPanel, setShowSettingsPanel] = useState(false);
@@ -1257,18 +1261,18 @@ const AppContent = (props) => {
 		}
 		// Music left playing behind the screens reports its stop before the new item opens.
 		if (backgroundMusic) await remoteControl.releasePlayer();
-		// Plex and Silo have no SyncPlay, so their items neither join a group nor open it.
+		// Plex and Silo have no SyncPlay, and a watch party's room isn't a Jellyfin group, so neither joins nor opens one.
 		const itemOnPlex = ['plex', 'silo'].includes(item._serverType || serverType);
-		if (isSyncPlayInGroup && !itemOnPlex) {
+		if (isSyncPlayInGroup && !itemOnPlex && !watchPartyRoom) {
 			syncPlaySetNewQueue([item.Id]);
-		} else if (!itemOnPlex && settings.syncplayEnabled !== false && settings.syncplayAutoOpen) {
+		} else if (!itemOnPlex && !watchPartyRoom && settings.syncplayEnabled !== false && settings.syncplayAutoOpen) {
 			openSyncPlay();
 		}
 		setPlayingItem(item);
 		setPlaybackOptions(options || null);
 		setIsResume(!!resume);
 		navigateTo(PANELS.PLAYER);
-	}, [navigateTo, isSyncPlayInGroup, openSyncPlay, serverType, settings.syncplayAutoOpen, settings.syncplayEnabled, syncPlaySetNewQueue, backgroundMusic, openBook]);
+	}, [navigateTo, isSyncPlayInGroup, openSyncPlay, serverType, settings.syncplayAutoOpen, settings.syncplayEnabled, syncPlaySetNewQueue, backgroundMusic, openBook, watchPartyRoom]);
 
 	const playSyncPlayItem = useCallback((item, options = null) => {
 		if (panelIndex === PANELS.PLAYER && playingItem?.Id === item.Id) return;
@@ -1316,7 +1320,20 @@ const AppContent = (props) => {
 	useEffect(() => {
 		watchParty.onSessionChanged();
 	}, [isAuthenticated, serverUrl, user?.Id, accessToken]);
-	const openWatchTogether = serverType === 'silo' ? openWatchParty : openSyncPlay;
+	// Jellyfin without Moonbase, or already in a SyncPlay group, keeps the SyncPlay dialog.
+	const partyBackend = useWatchPartyBackend(`${isAuthenticated}|${serverUrl}|${user?.Id}`);
+	const openWatchTogether = useMemo(() => {
+		if (watchPartyRoom || serverType === 'silo') return openWatchParty;
+		if (serverType === 'jellyfin' && (isSyncPlayInGroup || !partyBackend.available)) return openSyncPlay;
+		return openWatchParty;
+	}, [watchPartyRoom, serverType, isSyncPlayInGroup, partyBackend.available, openWatchParty, openSyncPlay]);
+	// Settings stays open under it, so closing it is one step back to the row that opened it.
+	useEffect(() => onOpenWatchParties(() => openWatchTogether()), [openWatchTogether]);
+	useWatchTogetherReturn(watchPartyOpen || syncPlayDialogOpen, panelIndex === PANELS.PLAYER);
+	// A party that starts from there opens its player, which Settings mustn't cover.
+	useEffect(() => {
+		if (panelIndex === PANELS.PLAYER) setShowSettingsPanel(false);
+	}, [panelIndex]);
 
 	// Moving on to another item from inside the player. The next episode starts at the top, and
 	// one the viewer picked by hand from the episode browser passes `resume` so an episode they
@@ -2338,7 +2355,9 @@ const AppContent = (props) => {
 				open={watchPartyOpen}
 				onClose={closeWatchParty}
 				playingItemId={panelIndex === PANELS.PLAYER ? playingItem?.Id : null}
+				onOpenSyncPlay={openSyncPlay}
 			/>
+			{watchPartyPlaying && panelIndex === PANELS.PLAYER && <WatchPartyLayer />}
 			<ShuffleOverlay
 				open={showShuffleOverlay}
 				onClose={handleCloseShuffleOverlay}
