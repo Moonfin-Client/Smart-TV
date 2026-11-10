@@ -29,7 +29,6 @@ import {
 	setDisplayWindow,
 	getSharedVideoElement,
 	setupVisibilityHandler,
-	setupPlatformLifecycle,
 	leavesPlayerInBackground,
 	resumesAfterFirstFrame,
 	showHostSubtitle,
@@ -858,7 +857,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 		onPausedChange?.(isPaused);
 	}, [isPaused, onPausedChange]);
 
-	// Handle webOS app visibility and relaunch events to properly pause/cleanup video
+	// Handle webOS app visibility events to properly pause/cleanup video
 	useEffect(() => {
 		let wasPlaying = false;
 
@@ -909,22 +908,12 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 			}
 		};
 
-		const handleRelaunch = (params) => {
-			console.log('[Player] App relaunched with params:', params);
-			destroyHlsPlayer();
-			if (videoRef.current) {
-				cleanupVideoElement(videoRef.current);
-			}
-		};
-
 		const removeVisibilityHandler = setupVisibilityHandler(handleAppHidden, handleAppVisible);
-		const removeLifecycleHandler = setupPlatformLifecycle(handleRelaunch);
 		window.addEventListener('pagehide', handleAppExit);
 		window.addEventListener('beforeunload', handleAppExit);
 
 		return () => {
 			removeVisibilityHandler();
-			removeLifecycleHandler();
 			window.removeEventListener('pagehide', handleAppExit);
 			window.removeEventListener('beforeunload', handleAppExit);
 		};

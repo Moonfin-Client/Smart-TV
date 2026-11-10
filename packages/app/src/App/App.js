@@ -377,6 +377,8 @@ const AppContent = (props) => {
 	const pinSession = isAuthenticated && userId ? `${userId}:${pinCheckCount}` : null;
 	const pinPending = Boolean(pinSession) && pinPassed !== pinSession;
 	const isPinGateActive = pinPending && isSignInPinEnabled(signInPin) && pinRememberRead === pinSession;
+	const signInPinRef = useRef(signInPin);
+	signInPinRef.current = signInPin;
 	// Until the server has said whether the account has a PIN, nothing behind the gate shows.
 	const isPinChecking = pinPending && !isPinGateActive && pinChecked !== pinSession;
 	const [pinKeyboardOpen, setPinKeyboardOpen] = useState(false);
@@ -799,10 +801,14 @@ const AppContent = (props) => {
 			// The app is held in the background until it activates, so a throw on the way
 			// there must not be allowed to skip it.
 			try {
-				releaseVideoElements();
-				// The player closes the way Back closes it, so the viewer lands where they were.
-				playerEndRef.current?.();
-				setPinCheckCount((count) => count + 1);
+				// Coming back leaves the app as it was, the player included. A profile behind a PIN is asked for it
+				// again, which takes the whole app down to the gate, so its player closes the way Back closes it.
+				// The player is left to let go of its video itself, since one released first reads as at the start
+				// and the stop it reports would wipe the resume position.
+				if (isSignInPinEnabled(signInPinRef.current)) {
+					playerEndRef.current?.();
+					setPinCheckCount((count) => count + 1);
+				}
 				recheckAccessRef.current?.();
 			} finally {
 				activateApp();
