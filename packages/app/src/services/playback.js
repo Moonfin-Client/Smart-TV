@@ -536,10 +536,12 @@ export const getPlaybackInfo = async (itemId, options = {}) => {
 	// What the first request for an item allowed holds for every later one while
 	// it plays, so a track switch, a reopen or a fallback never brings back what
 	// Force Transcode or Prefer Transcoding turned off. A stop clears it with the
-	// session.
+	// session. A fallback after the TV refused the direct routes turns them off
+	// the same way.
 	const playing = currentSession?.itemId === itemId ? currentSession : null;
-	const allowDirectPlay = playing ? playing.allowDirectPlay : options.enableDirectPlay !== false;
-	const allowDirectStream = playing ? playing.allowDirectStream : options.enableDirectStream !== false;
+	const directRefused = options.directRefused === true;
+	const allowDirectPlay = !directRefused && (playing ? playing.allowDirectPlay : options.enableDirectPlay !== false);
+	const allowDirectStream = !directRefused && (playing ? playing.allowDirectStream : options.enableDirectStream !== false);
 	const enableDirectStream = allowDirectStream && options.enableDirectStream !== false;
 
 	// maxBitrate: user-set value (>0), or auto-detect from device capabilities. Silo gets only a user-set value:
