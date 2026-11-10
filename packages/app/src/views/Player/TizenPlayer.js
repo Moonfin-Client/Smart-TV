@@ -44,6 +44,7 @@ import {getApiForItem} from '../../services/connectionPool';
 import PlayerControls from './PlayerControls';
 import {usePlayerButtons} from './playerOsd';
 import {canBrowseEpisodes} from '../../utils/episodeBrowser';
+import {mergeEpisodePeople, resolveParentCast} from '../../utils/episodeCast';
 import useLiveProgram from './useLiveProgram';
 import {isAtLive, liveWindowFor, nextLiveWindow} from './liveWindow';
 import useLiveRecording from './useLiveRecording';
@@ -440,9 +441,13 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 		[settings, isHdrContent]
 	);
 
+	const resolvedCastItemIdRef = useRef(null);
+	const latestItemIdRef = useRef(null);
+	latestItemIdRef.current = item?.Id;
+
 	const hasCastMembers = useMemo(() => {
 		if (castMembers.length > 0) return true;
-		return item?.Type === 'Episode' && Boolean(item?.SeriesId);
+		return item?.Type === 'Episode' && Boolean(item?.SeriesId || item?.SeasonId || item?.ParentId);
 	}, [castMembers.length, item]);
 
 	// handleBack is defined further down, so the timer reaches it through a ref
@@ -499,7 +504,12 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 
 	useEffect(() => {
 		const people = Array.isArray(item?.People) ? item.People : [];
-		setCastMembers(people);
+		setCastMembers(item?.Type === 'Episode'
+			? mergeEpisodePeople({episodePeople: people, parentActors: []})
+			: people);
+		resolvedCastItemIdRef.current = null;
+		setIsLoadingCastMembers(false);
+		setActiveModal((prev) => (prev === 'cast' ? null : prev));
 	}, [item]);
 
 
@@ -2842,21 +2852,40 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 
 	const handleOpenCast = useCallback(async () => {
 		openModal('cast');
-		if (castMembers.length > 0 || !(item?.Type === 'Episode' && item?.SeriesId)) return;
+		if (item?.Type !== 'Episode') return;
+		const seasonId = item?.SeasonId || item?.ParentId;
+		const seriesId = item?.SeriesId;
+		if (!seasonId && !seriesId) return;
+		if (resolvedCastItemIdRef.current === item?.Id) return;
 
+		const currentItemId = item?.Id;
 		setIsLoadingCastMembers(true);
 		try {
-			const apiClient = item._serverUrl
+			const apiClient = getApiForItem(item) || (item._serverUrl
 				? createApiForServer(item._serverUrl, item._serverAccessToken, item._serverUserId)
-				: jellyfinApi;
-			const seriesItem = await apiClient.getItem(item.SeriesId);
-			setCastMembers(Array.isArray(seriesItem?.People) ? seriesItem.People : []);
+				: jellyfinApi);
+			const parentActors = await resolveParentCast({
+				apiClient,
+				seasonId,
+				seriesId
+			});
+			if (currentItemId !== latestItemIdRef.current) return;
+			// A failed lookup also comes back empty, so only a found cast stops the next open from asking again.
+			if (parentActors.length > 0) {
+				setCastMembers(mergeEpisodePeople({
+					episodePeople: Array.isArray(item?.People) ? item.People : [],
+					parentActors
+				}));
+				resolvedCastItemIdRef.current = currentItemId;
+			}
 		} catch (err) {
-			setCastMembers([]);
+			// Not cached, so the next open tries again
 		} finally {
-			setIsLoadingCastMembers(false);
+			if (currentItemId === latestItemIdRef.current) {
+				setIsLoadingCastMembers(false);
+			}
 		}
-	}, [openModal, castMembers.length, item]);
+	}, [openModal, item]);
 
 	const handleSelectCastMember = useCallback((person) => {
 		if (!person?.Id || !onSelectPerson) return;
