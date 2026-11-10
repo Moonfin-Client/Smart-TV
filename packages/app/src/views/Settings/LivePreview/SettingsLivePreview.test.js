@@ -103,6 +103,12 @@ Object.defineProperty(window.HTMLElement.prototype, 'offsetParent', {configurabl
 
 const find = (selector) => document.querySelector(selector);
 
+// The focused card's width over its height, so a card that grew is over 1 and a poster under it.
+const focusedCardShape = () => {
+	const ring = Array.from(document.querySelectorAll('.frame div')).find((node) => node.style.border.indexOf('3px solid') === 0);
+	return parseFloat(ring.parentNode.style.width) / parseFloat(ring.parentNode.style.height);
+};
+
 const draw = (settings, rowId, scene, props) => {
 	mockSettings = {...defaultSettings, ...settings};
 	return render(<SettingsLivePreview scene={scene} row={describeRow(rowId, mockSettings)} trying={null} onPickScene={() => {}} onLeaveChips={() => {}} {...props} />);
@@ -151,6 +157,17 @@ describe('SettingsLivePreview', () => {
 		}
 		draw({homeRowsStyle: 'v1'}, 'setting-homeRowsStyle', 'home');
 		expect(rings()).toBe(0);
+	});
+
+	test('a focused modern film grows with no year, rating or description, as on Home', () => {
+		const saved = {...mockItems[0]};
+		Object.assign(mockItems[0], {type: 'Movie', year: null, runtimeMinutes: null, genres: [], overview: null, communityRating: null});
+		try {
+			draw({homeRowsStyle: 'v2'}, 'setting-homeRowsStyle', 'home');
+			expect(focusedCardShape()).toBeGreaterThan(1);
+		} finally {
+			Object.assign(mockItems[0], saved);
+		}
 	});
 
 	test('Hide Media Description takes the description off the classic info area and the focused modern card', () => {
@@ -634,6 +651,13 @@ describe('the audio and Collections Row Options', () => {
 		expect(firstCardTitles()[0]).toBe('Alien Collection');
 		await act(async () => release());
 		await waitFor(() => expect(firstCardTitles()[0]).toBe('Batman Collection'));
+	});
+
+	test('a focused modern collection with nothing to show under it stays a poster, as on Home', async () => {
+		mockAuth.api.getItems.mockImplementation(async () => ({Items: [{Id: 'c3', Name: 'Bare Collection', Type: 'BoxSet'}]}));
+		draw(collectionsOn({homeRowsStyle: 'v2'}), 'setting-collectionsRowSortBy', 'home');
+		await screen.findByText('Bare Collection');
+		expect(focusedCardShape()).toBeLessThan(1);
 	});
 
 	test('with no collections on the server, a notice says Home leaves the row out', async () => {

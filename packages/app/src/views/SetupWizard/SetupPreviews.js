@@ -514,8 +514,10 @@ const FocusedRowCard = ({item, posterHeight, t}) => {
 // A modern card shows an album or a song square, the way Home does.
 const SQUARE_ITEM_TYPES = ['MusicAlbum', 'Audio'];
 
-// A focused modern card only grows when it has something to show underneath, as on Home.
-const growsOnFocus = (item) => Boolean(item.year || item.overview || item.communityRating);
+// A focused modern card only grows when it has something to show underneath, as on Home, where a
+// film, show or episode always does since it falls back to saying it has no description.
+const growsOnFocus = (item) => Boolean(item.year || item.genres.length || item.runtimeMinutes || item.communityRating) ||
+	['Movie', 'Series', 'Episode'].indexOf(item.type) >= 0;
 
 // The sample rows cycle the wizard's items through eight cards. A row of Home's own ([real])
 // draws the cards it has, square where Home draws them square: every card of a [square] Classic

@@ -7,12 +7,10 @@ import $L from '@enact/i18n/$L';
 
 import {useAuth} from '../../../context/AuthContext';
 import useParentalFilter from '../../../hooks/useParentalFilter';
-import {HOME_ROW_ITEM_FIELDS} from '../../../services/jellyfinApi';
-import {scopedGetItems} from '../../../services/libraryScope';
 import {isKidsMode, kidsModeRows} from '../../../utils/kidsMode';
 import {isPickedRow, isPickedRowShown} from '../../../utils/pickedRows';
 import {memoryCache} from '../../Browse/browseCache';
-import {buildLoaderContext} from '../../Browse/browseRowLoaders';
+import {audioPlaylistsOf, buildLoaderContext, readCollections, readMusicAlbums, readMusicArtists} from '../../Browse/browseRowLoaders';
 import {buildBrowseRows} from '../../Browse/buildBrowseRows';
 import {classicShape, rowImageType} from '../../Browse/rowPeek';
 import {adaptItem} from '../../SetupWizard/setupPreviewData';
@@ -100,25 +98,11 @@ const ROW_TITLES = {
 };
 
 const ROW_LIMIT = 20;
-const COLLECTION_FIELDS = `${HOME_ROW_ITEM_FIELDS},DateCreated,PremiereDate,CommunityRating,CriticRating,RunTimeTicks`;
+const READERS = {audioartists: readMusicArtists, audioalbums: readMusicAlbums, collections: readCollections};
 
-// The first page of a row, asked for the way Home's row loaders ask for it. Keep these in step
-// with loadCollections and loadPlaylistsAndMusic in browseRowLoaders.js.
 const readRow = async (api, rowId, sortBy, sortOrder) => {
-	if (rowId === 'audioartists') {
-		const artists = await scopedGetItems(api, {IncludeItemTypes: 'MusicArtist', Limit: ROW_LIMIT, SortBy: sortBy, SortOrder: sortOrder, Fields: HOME_ROW_ITEM_FIELDS}, {via: (params) => api.getAlbumArtists(params)});
-		return artists?.Items || [];
-	}
-	if (rowId === 'audioalbums') {
-		const albums = await scopedGetItems(api, {IncludeItemTypes: 'MusicAlbum', Recursive: true, SortBy: sortBy, SortOrder: sortOrder, Limit: ROW_LIMIT, Fields: HOME_ROW_ITEM_FIELDS});
-		return albums?.Items || [];
-	}
-	if (rowId === 'audioplaylists') {
-		const playlists = await api.getPlaylists(sortBy, sortOrder);
-		return (playlists?.Items || []).filter((item) => item.MediaType === 'Audio');
-	}
-	const result = await scopedGetItems(api, {IncludeItemTypes: 'BoxSet', Recursive: true, SortBy: sortBy, SortOrder: sortOrder, Limit: ROW_LIMIT, Fields: COLLECTION_FIELDS});
-	return result?.Items || [];
+	if (rowId === 'audioplaylists') return audioPlaylistsOf(await api.getPlaylists(sortBy, sortOrder));
+	return (await READERS[rowId](api, sortBy, sortOrder, ROW_LIMIT))?.Items || [];
 };
 
 // The sort each group's rows load with, worked out the way Home works it out.
