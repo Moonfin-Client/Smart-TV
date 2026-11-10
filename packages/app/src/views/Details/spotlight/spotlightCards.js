@@ -120,7 +120,7 @@ class CardBuilder {
 				reviews: () => this.reviewsCard()
 			};
 		}
-		if (bookSeriesItem !== null) {
+		if (bookSeriesItem?.ChildCount > 2) {
 			return {
 				books: () => this.booksCard(),
 			};
@@ -345,13 +345,15 @@ class CardBuilder {
 
 	booksCard() {
 		const {bookSeriesItem, fallbackImageUrl} = this.s;
+		const items = bookSeriesItem?.Members ?? [];
+		const itemCount = bookSeriesItem?.ChildCount ?? 0;
 		return {
 			id: 'books',
 			title: $L('Books'),
-			subtitle: countLabel(bookSeriesItem.ChildCount, $L('1 book'), $L('{count} books')),
+			subtitle: countLabel(itemCount, $L('1 book'), $L('{count} books')),
 			imageUrl: fallbackImageUrl,
 			icon: CARD_ICONS.books,
-			sections: [mediaSection($L('Books'), bookSeriesItem.Members || [])]
+			sections: [mediaSection($L('Books'), items)]
 		};
 	}
 
