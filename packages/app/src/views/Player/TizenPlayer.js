@@ -3542,12 +3542,15 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 
 				if (key === 'ArrowUp' || e.keyCode === 38) {
 					e.preventDefault();
+					// Nothing sits above the seek bar, so Up there puts the controls away. The
+					// seek bar's own handler would show them again, so it doesn't get the key.
+					if (focusRow === 'progress') {
+						e.stopPropagation();
+						hideControls();
+						return;
+					}
 					setFocusRow(prev => {
 						if (prev === 'bottom') return !isLiveTV ? 'progress' : 'bottom';
-						if (prev === 'progress') {
-							window.requestAnimationFrame(() => Spotlight.focus('play-pause-btn'));
-							return 'bottom';
-						}
 						return 'bottom';
 					});
 					return;
