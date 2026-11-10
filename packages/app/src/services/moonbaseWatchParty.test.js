@@ -258,6 +258,11 @@ describe('Moonbase watch party', () => {
 			anchor_position_seconds: 100, anchor_at: new Date(anchorAt).toISOString()})});
 		const driver = sync.setRoomDriver.mock.calls[0][0];
 		expect(driver.correctsDrift).toBe(false);
+		// The player opens where the room has got to, not where the snapshot's anchor was.
+		await flush();
+		const queue = fed.find((m) => m.Data?.Type === 'PlayQueue');
+		expect(queue.Data.Data.StartPositionTicks / 1e7).toBeGreaterThan(119.5);
+		expect(queue.Data.Data.StartPositionTicks / 1e7).toBeLessThan(120.6);
 		const plays = () => fed.filter((m) => m.MessageType === 'SyncPlayCommand' && m.Data.Command === 'Unpause');
 		driver.ready();
 		jest.advanceTimersByTime(3000);

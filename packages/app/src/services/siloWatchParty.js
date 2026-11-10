@@ -728,10 +728,15 @@ export const createWatchParty = ({silo, moonbase = () => null, sync = syncPlay, 
 		const source = partySource(raw, target.selectedFileId);
 		const audio = defaultAudioIndex(source);
 		const subtitles = subtitleIndexFor(groupSubtitle, source);
+		// Snapshots only come on changes, so a player reopened mid-run starts where the room is now instead of seeking
+		// there after it opens.
+		const running = target.playbackState === 'playing' && !target.isPaused && target.anchorAt != null;
+		const startSeconds = target.anchorPositionSeconds +
+			(running ? Math.max(0, now() + serverOffsetOf(clockSamples) - target.anchorAt) / 1000 : 0);
 		sync.feedRoomMessage({MessageType: 'SyncPlayGroupUpdate', Data: {Type: 'PlayQueue', Data: {
 			Playlist: [{ItemId: target.selectedContentId, PlaylistItemId: `${target.roomId}:${target.selectionRevision}`}],
 			PlayingItemIndex: 0,
-			StartPositionTicks: Math.round(target.anchorPositionSeconds * TICKS_PER_SECOND),
+			StartPositionTicks: Math.round(startSeconds * TICKS_PER_SECOND),
 			IsPlaying: false,
 			Reason: 'NewPlaylist',
 			PlaybackOptions: {
