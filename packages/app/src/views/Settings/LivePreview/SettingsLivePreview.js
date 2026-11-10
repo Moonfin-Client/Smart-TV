@@ -152,7 +152,10 @@ const ScreensaverScene = () => {
 // The status dot and line of a setting that needs something else turned on first.
 const BLOCKED_COLOR = '#FFC107';
 
-const PLAYER_MOMENTS = {introAction: 'intro', nextUpBehavior: 'end', showDescriptionOnPause: 'paused'};
+const PLAYER_MOMENTS = {
+	introAction: 'intro', nextUpCountdownStyle: 'countdown', replaceSkipOutroWithNextUp: 'outro', nextUpBehavior: 'end', nextUpTimeout: 'end',
+	showNextAirDate: 'airDate', showDescriptionOnPause: 'paused'
+};
 // The subtitle look is judged with the controls away, the way most of a film is watched.
 const STAGE_MOMENTS = {loading: 'loading', trickplay: 'seek', subtitles: 'watching'};
 

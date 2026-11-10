@@ -2408,7 +2408,9 @@ const PlayerLoading = () => (
 // intro prompt at the start and Next Up at the end. [moment] picks one of those, or paused,
 // which draws the paused description in place of the controls the way the player does, or
 // watching, the picture and subtitles with the controls away. Loading is the screen before
-// the stream starts, and seek holds a scrub with its thumbnails over the bar. [hdr] draws the
+// the stream starts, and seek holds a scrub with its thumbnails over the bar. Countdown is the
+// intro with its skip prompt up whatever the intro action, outro is the start of the credits,
+// and airDate is the end of an episode the library has nothing after. [hdr] draws the
 // subtitles in their HDR style.
 export const PlayerPreview = ({moment = 'middle', hdr = false}) => {
 	if (moment === 'loading') return <PlayerLoading />;
@@ -2432,15 +2434,32 @@ const PlayerControlsPreview = ({moment, hdr}) => {
 	const item = items[0];
 	const next = items[1] || item;
 	const paused = moment === 'paused';
+	// A scrub holds playback the way the player's does, only while there are thumbnails to look at.
+	const scrubPaused = moment === 'seek' && settings.trickPlayPauseWhileScrubbing !== false && settings.trickPlayMode !== 'disabled';
 	const describing = paused && !!settings.showDescriptionOnPause;
 	const subtitles = !describing && settings.subtitleMode !== 'none';
-	const controls = !describing && moment !== 'watching';
 	const intro = settings.introAction || 'ask';
+	const outro = settings.outroAction || 'ask';
 	const nextUp = settings.nextUpBehavior || 'extended';
+	const timeout = settings.nextUpTimeout ?? 7;
+	const outroCard = settings.replaceSkipOutroWithNextUp === true && nextUp !== 'disabled';
+	let skip = null;
+	if (moment === 'countdown' || (moment === 'intro' && intro === 'ask')) skip = 'intro';
+	else if (moment === 'outro' && outro === 'ask' && !outroCard) skip = 'outro';
+	// With autoplay the card counts down from the timeout, and at Instant the next episode starts
+	// without one. The credits' card comes up before that countdown starts.
+	let card = null;
+	if (moment === 'end' && nextUp !== 'disabled' && !(settings.autoPlay && timeout <= 0)) card = {countdown: settings.autoPlay ? timeout : null};
+	else if (moment === 'outro' && outroCard && outro === 'ask') card = {countdown: null};
+	else if (moment === 'airDate' && nextUp !== 'disabled' && settings.showNextAirDate !== false) card = {airDate: true};
+	// The next episode card only comes up with the controls away, and an episode that's ended has none.
+	const controls = !describing && moment !== 'watching' && moment !== 'airDate' && !card;
 	let progress = 0.42;
-	if (moment === 'intro') {
-		progress = intro === 'auto' ? 0.15 : 0.07;
-	} else if (moment === 'end') {
+	if (moment === 'intro' || moment === 'countdown') {
+		progress = moment === 'intro' && intro === 'auto' ? 0.15 : 0.07;
+	} else if (moment === 'outro') {
+		progress = 0.97;
+	} else if (moment === 'end' || moment === 'airDate') {
 		progress = 0.99;
 	} else if (moment === 'seek') {
 		progress = 0.3;
@@ -2483,32 +2502,11 @@ const PlayerControlsPreview = ({moment, hdr}) => {
 				<div style={{position: 'absolute', top: 0, left: 0, width: screenWidth, height: DESIGN_H / ratio, transform: `scale(${ratio})`, transformOrigin: 'top left'}}>
 					<Suspense fallback={null}>
 						<PlayerControlsLayer
-							item={item} hdr={hdr} subtitles={subtitles} controls={controls} paused={paused}
-							progress={progress} focus={focus} measureBar={moment === 'seek' ? measureBar : null}
+							item={item} next={next} hdr={hdr} subtitles={subtitles} controls={controls} paused={paused || scrubPaused}
+							progress={progress} focus={focus} measureBar={moment === 'seek' ? measureBar : null} skip={skip} card={card}
 						/>
 					</Suspense>
 				</div>
-				{moment === 'intro' && intro === 'ask' && (
-					<div style={{position: 'absolute', right: 36, bottom: 126, padding: '10px 20px', borderRadius: 999, backgroundColor: '#FFFFFF', color: '#000000', fontSize: 15, fontWeight: 700}}>
-						{$L('Skip Intro')}
-					</div>
-				)}
-				{moment === 'end' && nextUp === 'extended' && (
-					<div style={{position: 'absolute', right: 32, top: 28, width: 270, borderRadius: 12, overflow: 'hidden', backgroundColor: 'rgba(0, 0, 0, 0.85)'}}>
-						<div style={{position: 'relative', height: 140}}>
-							<Artwork url={next && next.backdropUrl} t={t} />
-						</div>
-						<div style={{padding: 12}}>
-							<div style={{fontSize: 11, fontWeight: 700, textTransform: 'uppercase', color: t.accent}}>{$L('Up Next')}</div>
-							<div style={{...SHADOWED, marginTop: 4, fontSize: 16, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis'}}>{next ? next.title : ''}</div>
-						</div>
-					</div>
-				)}
-				{moment === 'end' && nextUp === 'minimal' && (
-					<div style={{...SHADOWED, position: 'absolute', right: 32, top: 28, padding: '9px 16px', borderRadius: 999, backgroundColor: 'rgba(0, 0, 0, 0.8)', fontSize: 14, fontWeight: 600}}>
-						{`${$L('Up Next')}: ${next ? next.title : ''}`}
-					</div>
-				)}
 				{!coverScrub && scrub}
 			</div>
 		</PreviewScreen>

@@ -145,11 +145,21 @@ describe('settings live preview rows', () => {
 		TRICKPLAY_KEYS.forEach((key) => {
 			expect(describeRow(`setting-${key}`, defaultSettings)).toMatchObject({scene: 'player', stage: 'trickplay'});
 		});
-		// A tile in the section that doesn't change the look still keeps it, and says it isn't shown.
-		expect(describeRow('setting-trickPlayPauseWhileScrubbing', defaultSettings)).toMatchObject({scene: null, stage: 'trickplay'});
+		expect(describeRow('setting-trickPlayPauseWhileScrubbing', defaultSettings)).toMatchObject({key: 'trickPlayPauseWhileScrubbing', scene: 'player', stage: 'trickplay'});
 		// The rest of the player screen keeps its own moments.
 		expect(describeRow('setting-showDescriptionOnPause', defaultSettings).stage).toBeNull();
 		expect(describeRow('setting-loadingAnimation', defaultSettings)).toMatchObject({key: 'loadingAnimation', scene: 'player', stage: 'loading'});
+	});
+
+	test('the skip and next episode settings show the player at their own moments', () => {
+		['introAction', 'nextUpBehavior', 'nextUpCountdownStyle', 'nextUpTimeout', 'replaceSkipOutroWithNextUp', 'showNextAirDate'].forEach((key) => {
+			const row = describeRow(`setting-${key}`, defaultSettings);
+			expect(row).toMatchObject({key, scene: 'player', stage: null});
+			expect(sceneOfRow(row)).toBe('player');
+		});
+		// The slider names no choices, and the countdown picker marks the saved one.
+		expect(describeRow('setting-nextUpTimeout', defaultSettings).options).toEqual([]);
+		expect(describeRow('setting-nextUpCountdownStyle', {...defaultSettings, nextUpCountdownStyle: 'timer'}).saved).toBe(1);
 	});
 
 	test('the player buttons link and the chapter marks show the player', () => {

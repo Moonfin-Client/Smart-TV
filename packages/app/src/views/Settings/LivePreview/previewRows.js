@@ -25,7 +25,7 @@ export const NAV_BUTTON_KEYS = [
 // The settings that change how the loading animation, the scrub thumbnails and the
 // screensaver look, each drawn on the stage rather than in a preview of its own.
 export const LOADING_KEYS = ['loadingAnimationImage', 'loadingAnimationSize', 'loadingAnimationPosition', 'loadingAnimationSpeed', 'showLoadingAnimationText'];
-export const TRICKPLAY_KEYS = ['trickPlayMode', 'trickPlayPreviewScale', 'trickPlayVerticalPosition', 'trickPlayFollowScrub'];
+export const TRICKPLAY_KEYS = ['trickPlayMode', 'trickPlayPreviewScale', 'trickPlayVerticalPosition', 'trickPlayFollowScrub', 'trickPlayPauseWhileScrubbing'];
 // The subtitle appearance settings, drawn on the player's subtitle line. The HDR ones draw it in
 // the HDR style.
 export const SUBTITLE_HDR_KEYS = ['subtitleHdrSeparate', ...SUBTITLE_STYLE_KEYS.map(hdrKeyFor)];
@@ -128,8 +128,7 @@ export const SCENE_BY_KEY = {
 	], 'player'),
 	subtitleMode: 'player',
 	subtitleLanguage: 'player',
-	introAction: 'player',
-	nextUpBehavior: 'player',
+	...sceneFor(['introAction', 'nextUpBehavior', 'nextUpCountdownStyle', 'nextUpTimeout', 'replaceSkipOutroWithNextUp', 'showNextAirDate'], 'player'),
 	...sceneFor([...LOADING_KEYS, 'loadingAnimation', ...TRICKPLAY_KEYS], 'player'),
 	...sceneFor([...SUBTITLE_LOOK_KEYS, 'subtitleCustomization'], 'player'),
 	...sceneFor([...SCREENSAVER_KEYS, 'screensaver'], 'home'),

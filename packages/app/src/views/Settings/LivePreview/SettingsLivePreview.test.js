@@ -423,6 +423,142 @@ describe('SettingsLivePreview', () => {
 		expect(color()).toBe('rgb(255, 255, 255)');
 	});
 
+	describe('the skip prompt and the next episode card', () => {
+		// The card asks for the remote a frame after it draws, so that frame runs here and not in a later test.
+		beforeEach(() => jest.spyOn(window, 'requestAnimationFrame').mockImplementation((step) => {
+			step();
+			return 0;
+		}));
+		afterEach(() => window.requestAnimationFrame.mockRestore());
+		const skipPrompt = () => find('[data-spotlight-id="preview-skip-segment-btn"]');
+		const nextCard = () => {
+			const close = find('[data-spotlight-id="next-up-dismiss-btn"]');
+			return close && close.closest('.card');
+		};
+		const tryOn = (rerender, key, value) => rerender(
+			<SettingsLivePreview scene='player' row={describeRow(`setting-${key}`, mockSettings)} trying={{key, value, index: 0}} onPickScene={() => {}} onLeaveChips={() => {}} />
+		);
+		// What a countdown draws: the ring, the number in it, and the timer line.
+		const countdownOf = (node) => ({
+			ring: Boolean(node.querySelector('.ring')),
+			number: node.querySelector('.ringNumber') ? node.querySelector('.ringNumber').textContent : null,
+			timer: node.querySelector('.timer') ? node.querySelector('.timer').textContent : null
+		});
+
+		test('Media Segment Countdown draws the intro\'s skip prompt in the style being tried, whatever the intro action', () => {
+			const {rerender} = draw({introAction: 'auto'}, 'setting-nextUpCountdownStyle', 'player');
+			expect(within(skipPrompt()).getByText('Skip Intro')).toBeTruthy();
+			// The prompt is the player's own, kept off the remote.
+			expect(skipPrompt().closest('[data-spotlight-container-disabled="true"]')).not.toBeNull();
+			const expected = {
+				both: {ring: true, number: '45', timer: null},
+				progressBar: {ring: true, number: null, timer: null},
+				timer: {ring: false, number: null, timer: 'Ends in :45'},
+				none: {ring: false, number: null, timer: null}
+			};
+			Object.keys(expected).forEach((value) => {
+				tryOn(rerender, 'nextUpCountdownStyle', value);
+				expect(within(skipPrompt()).getByText('Skip Intro')).toBeTruthy();
+				expect(countdownOf(skipPrompt())).toEqual(expected[value]);
+			});
+			// The intro action's own tile only draws the prompt while it asks.
+			cleanup();
+			draw({introAction: 'auto'}, 'setting-introAction', 'player');
+			expect(skipPrompt()).toBeNull();
+			cleanup();
+			draw({introAction: 'ask'}, 'setting-introAction', 'player');
+			expect(within(skipPrompt()).getByText('Skip Intro')).toBeTruthy();
+		});
+
+		test('Next Up Timeout holds the card\'s countdown at the timeout being tried, in the countdown style', () => {
+			const {rerender} = draw({autoPlay: true, nextUpCountdownStyle: 'both'}, 'setting-nextUpTimeout', 'player');
+			expect(within(nextCard()).getByText('Up Next')).toBeTruthy();
+			expect(within(nextCard()).getByText('S1:E2')).toBeTruthy();
+			expect(within(nextCard()).getByText('Film 1')).toBeTruthy();
+			expect(countdownOf(nextCard())).toEqual({ring: true, number: null, timer: 'Ends in :07'});
+			// The card only comes up with the controls away.
+			expect(find('.playerControls')).toBeNull();
+			tryOn(rerender, 'nextUpTimeout', 25);
+			expect(countdownOf(nextCard()).timer).toBe('Ends in :25');
+			expect(nextCard().querySelector('.ringValue').getAttribute('stroke-dashoffset')).toBe('0');
+			// At Instant the next episode starts with no card.
+			tryOn(rerender, 'nextUpTimeout', 0);
+			expect(nextCard()).toBeNull();
+			expect(find('.playerControls')).not.toBeNull();
+			cleanup();
+			// The countdown follows the style, and without autoplay the card doesn't count at all.
+			draw({autoPlay: true, nextUpCountdownStyle: 'progressBar', nextUpTimeout: 12}, 'setting-nextUpTimeout', 'player');
+			expect(countdownOf(nextCard())).toEqual({ring: true, number: null, timer: null});
+			cleanup();
+			draw({autoPlay: false, nextUpTimeout: 12}, 'setting-nextUpTimeout', 'player');
+			expect(countdownOf(nextCard())).toEqual({ring: false, number: null, timer: null});
+			expect(find('[data-spotlight-id="next-up-play-btn"]')).not.toBeNull();
+		});
+
+		test('Next air date at the end draws the air date card while it\'s on, and nothing once Next Up is disabled', () => {
+			const {rerender} = draw({showNextAirDate: true}, 'setting-showNextAirDate', 'player');
+			expect(within(nextCard()).getByText('S1:E2')).toBeTruthy();
+			expect(within(nextCard()).getByText(/^In 3 days \(/)).toBeTruthy();
+			// It only says when the episode airs, with no picture, countdown or Play Next.
+			expect(nextCard().querySelector('img')).toBeNull();
+			expect(countdownOf(nextCard())).toEqual({ring: false, number: null, timer: null});
+			expect(find('[data-spotlight-id="next-up-play-btn"]')).toBeNull();
+			expect(find('.playerControls')).toBeNull();
+			tryOn(rerender, 'showNextAirDate', false);
+			expect(nextCard()).toBeNull();
+			tryOn(rerender, 'showNextAirDate', true);
+			expect(nextCard()).not.toBeNull();
+			cleanup();
+			draw({showNextAirDate: true, nextUpBehavior: 'minimal'}, 'setting-showNextAirDate', 'player');
+			expect(nextCard().closest('.minimal')).not.toBeNull();
+			cleanup();
+			draw({showNextAirDate: true, nextUpBehavior: 'disabled'}, 'setting-nextUpBehavior', 'player');
+			expect(nextCard()).toBeNull();
+		});
+
+		test('Replace Skip Outro swaps the credits\' skip prompt for the next episode card', () => {
+			const {rerender} = draw({outroAction: 'ask', replaceSkipOutroWithNextUp: false, nextUpCountdownStyle: 'both'}, 'setting-replaceSkipOutroWithNextUp', 'player');
+			expect(within(skipPrompt()).getByText('Skip Outro')).toBeTruthy();
+			// Past a minute the number leaves the ring for the timer line.
+			expect(countdownOf(skipPrompt())).toEqual({ring: true, number: null, timer: 'Ends in 1:20'});
+			expect(nextCard()).toBeNull();
+			tryOn(rerender, 'replaceSkipOutroWithNextUp', true);
+			expect(skipPrompt()).toBeNull();
+			expect(within(nextCard()).getByText('Up Next')).toBeTruthy();
+			expect(find('[data-spotlight-id="next-up-play-btn"]')).not.toBeNull();
+			// The credits come before the countdown starts.
+			expect(countdownOf(nextCard())).toEqual({ring: false, number: null, timer: null});
+			cleanup();
+			// With Next Up disabled the credits keep their prompt, and an outro skipped by itself has none.
+			draw({outroAction: 'ask', replaceSkipOutroWithNextUp: true, nextUpBehavior: 'disabled'}, 'setting-replaceSkipOutroWithNextUp', 'player');
+			expect(within(skipPrompt()).getByText('Skip Outro')).toBeTruthy();
+			expect(nextCard()).toBeNull();
+			cleanup();
+			draw({outroAction: 'auto', replaceSkipOutroWithNextUp: false}, 'setting-replaceSkipOutroWithNextUp', 'player');
+			expect(skipPrompt()).toBeNull();
+			expect(nextCard()).toBeNull();
+		});
+	});
+
+	test('Pause While Scrubbing pauses the scrub while trick play is on', () => {
+		const playPause = () => Array.from(document.querySelectorAll('.transportButtons .focusTooltip')).map((tip) => tip.textContent)
+			.find((label) => label === 'Play' || label === 'Pause');
+		const {rerender} = draw({trickPlayMode: 'single', trickPlayPauseWhileScrubbing: true}, 'setting-trickPlayPauseWhileScrubbing', 'player');
+		const tryScrub = (value) => rerender(
+			<SettingsLivePreview scene='player' row={describeRow('setting-trickPlayPauseWhileScrubbing', mockSettings)} trying={{key: 'trickPlayPauseWhileScrubbing', value, index: 0}} onPickScene={() => {}} onLeaveChips={() => {}} />
+		);
+		expect(find('.seekIndicator').style.backgroundColor).toBe('rgb(255, 255, 255)');
+		expect(playPause()).toBe('Play');
+		tryScrub(false);
+		expect(playPause()).toBe('Pause');
+		tryScrub(true);
+		expect(playPause()).toBe('Play');
+		cleanup();
+		// Without thumbnails the player doesn't hold the scrub.
+		draw({trickPlayMode: 'disabled', trickPlayPauseWhileScrubbing: true}, 'setting-trickPlayMode', 'player');
+		expect(playPause()).toBe('Pause');
+	});
+
 	test('the Calendar chip only shows while the server offers the calendar', () => {
 		const chips = () => Array.from(find('.chips').children).map((chip) => chip.textContent);
 		const {unmount} = draw({}, 'setting-clockDisplay', 'home');
