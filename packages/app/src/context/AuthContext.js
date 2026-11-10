@@ -568,7 +568,7 @@ export const AuthProvider = ({children}) => {
 				// eslint-disable-next-line no-await-in-loop
 				await multiServerManager.removeServer(entry.serverId, entry.userId);
 			}
-			await multiServerManager.removeServer(activeServerInfo.serverId, activeServerInfo.userId);
+			await multiServerManager.removeServer(activeServerInfo.serverId, activeServerInfo.userId, {keepServer: true});
 		}
 		// Silo's refresh token stays good until the login is ended on the server too.
 		await endSiloLoginIfLast(leaving);
@@ -590,11 +590,11 @@ export const AuthProvider = ({children}) => {
 		setServerUrl(null);
 		setServerName(null);
 		setAccessToken(null);
-		setServers([]);
-		setUniqueServers([]);
+		// Signed-out servers stay saved, so the sign-in list still shows them.
+		await loadServers();
 		setActiveServerInfo(null);
 		setIsAuthenticated(false);
-	}, [activeServerInfo, switchUser, endSiloLoginIfLast]);
+	}, [activeServerInfo, switchUser, endSiloLoginIfLast, loadServers]);
 
 	/**
 	 * Full logout - remove all servers and users
@@ -604,10 +604,10 @@ export const AuthProvider = ({children}) => {
 		// Clear all caches first
 		clearAllCaches();
 
-		// Remove all servers
+		// Remove all servers, including ones kept after their last user signed out
 		const allServers = await multiServerManager.getAllServersArray();
-		for (const server of allServers) {
-			await multiServerManager.removeServer(server.serverId, server.userId);
+		for (const server of await multiServerManager.getUniqueServers()) {
+			await multiServerManager.removeServer(server.serverId);
 		}
 		const siloLogins = allServers.filter((server, i) => server.serverType === 'silo' &&
 			allServers.findIndex((other) => other.accessToken === server.accessToken) === i);
@@ -733,7 +733,8 @@ export const AuthProvider = ({children}) => {
 	const serverCount = useMemo(() => uniqueServers.length, [uniqueServers]);
 	const totalUserCount = useMemo(() => servers.length, [servers]);
 	const hasMultipleUsers = useMemo(() => servers.length > 1, [servers]);
-	const hasMultipleServers = useMemo(() => uniqueServers.length > 1, [uniqueServers]);
+	// A signed-out server has nobody to fetch as, so it doesn't count.
+	const hasMultipleServers = useMemo(() => uniqueServers.filter((entry) => entry.userCount > 0).length > 1, [uniqueServers]);
 
 	const contextValue = useMemo(() => ({
 		// Auth state
