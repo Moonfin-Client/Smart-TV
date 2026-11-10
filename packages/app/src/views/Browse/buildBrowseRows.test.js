@@ -208,6 +208,12 @@ describe('sameRowList', () => {
 		expect(sameRowList([{...row('a'), title: 'X'}], [{...row('a'), title: 'Y'}])).toBe(false);
 	});
 
+	test('sees a reorder that keeps the first and last item', () => {
+		const before = row('a', [item('1'), item('2'), item('3'), item('4')]);
+		const after = row('a', [item('1'), item('3'), item('2'), item('4')]);
+		expect(sameRowList([before], [after])).toBe(false);
+	});
+
 	test('detects changes in watching now subtitle or item details', () => {
 		const watchingRow1 = {
 			id: 'mdblist_watching_now',

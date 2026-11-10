@@ -346,10 +346,7 @@ export const sameRowList = (prev, next) => {
 		if (next[i].isWatchingNowRow && nextItems.some((item, index) => !sameWatchingNowItem(item, prevItems[index]))) {
 			return false;
 		}
-		if (nextItems[0]?.Id !== prevItems[0]?.Id ||
-			nextItems[nextItems.length - 1]?.Id !== prevItems[prevItems.length - 1]?.Id) {
-			return false;
-		}
+		if (nextItems.some((item, index) => item?.Id !== prevItems[index]?.Id)) return false;
 	}
 	return true;
 };
