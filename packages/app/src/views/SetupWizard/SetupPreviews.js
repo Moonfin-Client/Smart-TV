@@ -448,13 +448,46 @@ const FocusRing = ({t}) => (
 	/>
 );
 
+// The name a genre card prints across its artwork, or a studio card in place of a logo, sized
+// to the card the way Home sizes it. A genre's artwork is dimmed under it, and with no artwork the
+// name sits faded on the empty card as Home's placeholder has it.
+const CardLabel = ({text, width, dim}) => {
+	const size = Math.min(24, Math.max(7, width * 14 / 200));
+	return (
+		<>
+			{dim && <div style={{...ABS_FILL, backgroundColor: 'rgba(0, 0, 0, 0.45)'}} />}
+			<div
+				style={{
+					...ABS_FILL,
+					display: 'flex',
+					alignItems: 'center',
+					justifyContent: 'center',
+					padding: 6,
+					textAlign: 'center',
+					wordBreak: 'break-word',
+					fontSize: size,
+					fontWeight: 700,
+					letterSpacing: size * 0.18,
+					color: dim ? 'rgba(255, 255, 255, 0.9)' : 'rgba(255, 255, 255, 0.5)'
+				}}
+			>
+				{text.toUpperCase()}
+			</div>
+		</>
+	);
+};
+
+const CONTAIN = {objectFit: 'contain'};
+
 const RowCard = ({item, height, aspect, imageUrl, progress, focused = false, t}) => {
 	const width = height * aspect;
+	const url = item.cardUrl || imageUrl || item.posterUrl;
 	return (
 		<div style={{width, flexShrink: 0, marginRight: 12}}>
 			<div style={{position: 'relative', width, height}}>
 				<div style={{...ABS_FILL, borderRadius: t.cardRadius, overflow: 'hidden'}}>
-					<Artwork url={imageUrl || item.posterUrl} t={t} />
+					<Artwork url={url} imgStyle={item.contain ? CONTAIN : null} t={t} />
+					{item.label && <CardLabel text={item.label} width={width} dim={item.type === 'Genre' && Boolean(url)} />}
 					{progress != null && (
 						<div style={{position: 'absolute', left: 6, right: 6, bottom: 6, height: 6, borderRadius: 3, overflow: 'hidden', display: 'flex'}}>
 							<div style={{width: `${Math.round(progress * 100)}%`, backgroundColor: t.accent}} />
@@ -486,6 +519,7 @@ const FocusedRowCard = ({item, posterHeight, t}) => {
 			<div style={{position: 'relative', width, height: posterHeight}}>
 				<div style={{position: 'absolute', top: 0, left: 0, width, height: posterHeight, borderRadius: t.cardRadius, overflow: 'hidden'}}>
 					<Artwork url={item.backdropUrl || item.posterUrl} t={t} />
+					{item.label && <CardLabel text={item.label} width={width} dim={item.type === 'Genre' && Boolean(item.backdropUrl || item.posterUrl)} />}
 				</div>
 				<FocusRing t={t} />
 			</div>
@@ -515,9 +549,10 @@ const FocusedRowCard = ({item, posterHeight, t}) => {
 const SQUARE_ITEM_TYPES = ['MusicAlbum', 'Audio'];
 
 // A focused modern card only grows when it has something to show underneath, as on Home, where a
-// film, show or episode always does since it falls back to saying it has no description.
+// film, show or episode always does since it falls back to saying it has no description. A genre
+// always grows too.
 const growsOnFocus = (item) => Boolean(item.year || item.genres.length || item.runtimeMinutes || item.communityRating) ||
-	['Movie', 'Series', 'Episode'].indexOf(item.type) >= 0;
+	['Movie', 'Series', 'Episode', 'Genre'].indexOf(item.type) >= 0;
 
 // The sample rows cycle the wizard's items through eight cards. A row of Home's own ([real])
 // draws the cards it has, square where Home draws them square: every card of a [square] Classic
@@ -561,8 +596,8 @@ const HomeRow = ({title, items, t, modern, thumbs = false, offset = 0, withFocus
 // Card Size as a scale of Default, the size the rows are drawn at otherwise.
 const POSTER_SIZE_SCALE = {small: 0.8, default: 1, large: 1.2, xlarge: 1.4, grandparents: 2};
 
-// [rows] are Home's own rows, each {id, title, items, square, thumbs}, drawn in place of the
-// sample ones with the first of them leading.
+// [rows] are Home's own rows, each {id, title, items, square, thumbs, wide}, drawn in place of the
+// sample ones with the first of them leading. A [wide] row is drawn Classic in either style.
 const HomeRowsColumn = ({items, rows, t, modern, focusFirst = false, rowGapOverride}) => {
 	const {settings} = useSettings();
 	const sizeScale = POSTER_SIZE_SCALE[settings.homeRowsPosterSize] || 1;
@@ -605,9 +640,9 @@ const HomeRowsColumn = ({items, rows, t, modern, focusFirst = false, rowGapOverr
 						title={row.title}
 						items={row.items}
 						square={row.square}
-						thumbs={!modern && row.thumbs}
+						thumbs={(!modern || row.wide) && row.thumbs}
 						t={t}
-						modern={modern}
+						modern={modern && !row.wide}
 						withFocus={focusFirst && index === 0}
 						posterHeight={posterHeight}
 						thumbHeight={thumbHeight}
@@ -2251,7 +2286,8 @@ export const SettingsHomePreview = ({railOpen = false, hasLiveTv = false, over =
 	const focusFirst = modern || Boolean(rows);
 	const render = useCallback((items) => (
 		<>
-			<BackdropLayer targetUrl={backdrop === 'off' || !fed ? '' : (rows && rows[0].items[0].backdropUrl) || (items[0] ? items[0].backdropUrl : '')} blurAmount={blur} placement={backdrop} />
+			{/* Home's own first card with no backdrop leaves Home without one, rather than borrowing a sample's. */}
+			<BackdropLayer targetUrl={backdrop === 'off' || !fed ? '' : (rows ? rows[0].items[0].backdropUrl : items[0] && items[0].backdropUrl) || ''} blurAmount={blur} placement={backdrop} />
 			<div style={{position: 'relative', height: '100%'}}>
 				{position === 'left'
 					? <LeftNavbarPreview items={items} rows={rows} t={t} userName={user?.Name} modern={modern} open={railOpen} focusFirst={focusFirst} hasLiveTv={hasLiveTv} />

@@ -48,11 +48,14 @@ export const LIBRARY_KEYS = [
 	'libraryCardTitles', 'hideBackdropsInLibraries', 'useDetailedSubHeadings'
 ];
 
-// The Row Options settings for the audio, Collections and Favorites rows, which draw Home with the
-// D-pad on the first row they change.
+// The Row Options settings for the audio, Collections, Favorites, Genres, Playlists and Studios
+// rows, which draw Home with the D-pad on the first row they change.
 export const AUDIO_ROW_OPTION_KEYS = ['displayAudioRows', 'audioRowsSortBy', 'audioRowsSortOrder'];
 export const COLLECTIONS_ROW_OPTION_KEYS = ['displayCollectionsRows', 'collectionsRowSortBy', 'collectionsRowSortOrder', 'collectionsRowShowEpisodes'];
 export const FAVORITES_ROW_OPTION_KEYS = ['displayFavoritesRows', 'favoritesRowSortBy', 'favoritesRowSortOrder'];
+export const GENRES_ROW_OPTION_KEYS = ['displayGenresRows', 'genresRowSortBy', 'genresRowSortOrder', 'genresRowItemFilter'];
+export const PLAYLISTS_ROW_OPTION_KEYS = ['displayPlaylistsRows', 'playlistsRowSortBy', 'playlistsRowSortOrder', 'playlistsRowShowEpisodes'];
+export const STUDIOS_ROW_OPTION_KEYS = ['displayStudiosRows', 'studiosRowSortBy', 'studiosRowSortOrder'];
 
 // The screens and sections whose every tile keeps the stage on one look, with the scene it's
 // drawn on. A tile there that doesn't change the look still keeps it up and says it isn't shown.
@@ -86,7 +89,10 @@ export const SCENE_BY_KEY = {
 	homeBackdropStyle: 'home',
 	...sceneFor(MEDIA_BAR_KEYS, 'home'),
 	...sceneFor(FOCUSED_CARD_KEYS, 'home'),
-	...sceneFor([...AUDIO_ROW_OPTION_KEYS, ...COLLECTIONS_ROW_OPTION_KEYS, ...FAVORITES_ROW_OPTION_KEYS], 'home'),
+	...sceneFor([
+		...AUDIO_ROW_OPTION_KEYS, ...COLLECTIONS_ROW_OPTION_KEYS, ...FAVORITES_ROW_OPTION_KEYS,
+		...GENRES_ROW_OPTION_KEYS, ...PLAYLISTS_ROW_OPTION_KEYS, ...STUDIOS_ROW_OPTION_KEYS
+	], 'home'),
 	detailScreenStyle: 'details',
 	personalRatingStyle: 'details',
 	detailsBackdropEnabled: 'details',

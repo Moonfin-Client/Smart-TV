@@ -200,7 +200,7 @@ const SettingsLivePreview = ({scene, row, trying, onPickScene, onLeaveChips, has
 	const t = usePreviewPalette();
 	const {pluginInfo} = useSeerr();
 	const {settings} = useSettings();
-	const {hasMultipleServers} = useAuth();
+	const {hasMultipleServers, serverUrl, serverType} = useAuth();
 	// The music and book styles draw the first music or book library, and everything else the first
 	// video library, or else the music one, or else the book one.
 	const video = firstLibrary(memoryCache.libraries, ['movies', 'tvshows']);
@@ -218,7 +218,7 @@ const SettingsLivePreview = ({scene, row, trying, onPickScene, onLeaveChips, has
 	// The audio and Collections Row Options draw Home's own rows, loaded with the value being tried.
 	const withTried = useMemo(() => (overrides ? {...settings, ...overrides} : settings), [settings, overrides]);
 	const rowOptions = useRowOptionsHome(scene === 'home' ? focusKey : null, withTried);
-	const blocked = row && row.key ? rowOptionsBlockedReason(row.key, withTried, hasMultipleServers) : null;
+	const blocked = row && row.key ? rowOptionsBlockedReason(row.key, withTried, hasMultipleServers, serverUrl, serverType) : null;
 	const tryingHere = !!(trying && row && trying.key === row.key);
 	const live = tryingHere ? trying.index : (row ? row.saved : -1);
 	const frameRef = useRef(null);

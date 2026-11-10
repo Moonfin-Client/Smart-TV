@@ -844,3 +844,141 @@ describe('the Favorites Row Options', () => {
 		expect(mockAuth.api.getItems).not.toHaveBeenCalled();
 	});
 });
+
+describe('the Genres, Playlists and Studios Row Options', () => {
+	// Each test talks to a server of its own, so nothing one loads is drawn in the next.
+	let server = 0;
+	const drama = {Id: 'g1', Name: 'Drama'};
+	const comedy = {Id: 'g2', Name: 'Comedy'};
+	const heat = {Id: 'm1', Name: 'Heat', Type: 'Movie', Genres: ['Drama'], backdropUrl: 'heat-backdrop'};
+	const mix = {Id: 'p1', Name: 'Road Trip Mix', Type: 'Playlist'};
+	const a24 = {Id: 's1', Name: 'A24', Type: 'Studio'};
+	const rowsOn = (extra = {}) => ({
+		displayGenresRows: true,
+		displayPlaylistsRows: true,
+		displayStudiosRows: true,
+		homeRowsStyle: 'v1',
+		mergeContinueWatchingNextUp: false,
+		homeRows: [
+			{id: 'genres', name: 'Genres', enabled: true, order: 0},
+			{id: 'studios', name: 'Studios', enabled: true, order: 1},
+			{id: 'playlists', name: 'Playlists', enabled: true, order: 2},
+			{id: 'resume', name: 'Continue Watching', enabled: true, order: 3}
+		],
+		...extra
+	});
+	const notice = () => find('.notice');
+	const tryValue = (rerender, rowId, key, value) => {
+		const row = describeRow(rowId, mockSettings);
+		rerender(<SettingsLivePreview scene='home' row={row} trying={{key, value, index: 1}} onPickScene={() => {}} onLeaveChips={() => {}} />);
+	};
+
+	beforeEach(() => {
+		server += 1;
+		mockAuth = {...mockAuth, serverUrl: `http://rows${server}`, api: {
+			getGenres: jest.fn(async (libraryId, types, sortBy, sortOrder) => ({Items: sortOrder === 'Descending' ? [drama, comedy] : [comedy, drama]})),
+			getItems: jest.fn(async () => ({Items: [heat]})),
+			getPlaylists: jest.fn(async () => ({Items: [mix]})),
+			getPlaylistItems: jest.fn(async () => ({Items: [{Id: 'e1', Name: 'Pilot', Type: 'Episode'}]})),
+			getStudios: jest.fn(async () => ({Items: [a24]}))
+		}};
+		memoryCache.rowData = [{id: 'resume', title: 'Continue Watching', items: [{Id: 'r1', Name: 'Resumed Film', Type: 'Movie'}], type: 'landscape'}];
+	});
+
+	afterEach(() => {
+		memoryCache.rowData = null;
+	});
+
+	test('with the Genres row off in Rows, the notice names the Genres and Studios group', () => {
+		draw(rowsOn({homeRows: [{id: 'genres', name: 'Genres', enabled: false, order: 0}]}), 'setting-genresRowSortBy', 'home');
+		expect(notice().textContent).toBe('The Genres row is turned off. To show it, go to Rows, open Genres and Studios under Disabled, and turn it on.');
+		expect(screen.getByText('Turn on a row in Rows, under Disabled')).toBeTruthy();
+		expect(mockAuth.api.getGenres).not.toHaveBeenCalled();
+	});
+
+	test('with a Display switch off too, the notice and the inspector ask for that switch first', () => {
+		const {unmount} = draw(rowsOn({displayPlaylistsRows: false, homeRows: []}), 'setting-displayPlaylistsRows', 'home');
+		expect(notice().textContent).toBe('To see the Playlists row on Home, first turn on Display Playlist Rows. Then go to Rows, open Playlists under Disabled, and turn it on.');
+		expect(screen.getByText('Turn on Display Playlist Rows, then turn on a row in Rows')).toBeTruthy();
+		unmount();
+		draw(rowsOn({displayStudiosRows: false, homeRows: []}), 'setting-displayStudiosRows', 'home');
+		expect(notice().textContent).toBe('To see the Studios row on Home, first turn on Display Studio Row. Then go to Rows, open Genres and Studios under Disabled, and turn it on.');
+	});
+
+	test('Kids Mode says it keeps the rows off Home', () => {
+		draw(rowsOn({kidsModeEnabled: true}), 'setting-studiosRowSortBy', 'home');
+		expect(notice().textContent).toBe("Kids Mode keeps these rows off Home, so these settings don't change it.");
+		expect(mockAuth.api.getStudios).not.toHaveBeenCalled();
+	});
+
+	test('a genre card prints its name across one of its titles, and the backdrop comes from that title', async () => {
+		draw(rowsOn(), 'setting-genresRowSortBy', 'home');
+		await screen.findByText('DRAMA');
+		expect(screen.getByText('COMEDY')).toBeTruthy();
+		expect(find('.homeBackdrop').dataset.url).toBe('heat-backdrop');
+		expect(mockAuth.api.getGenres).toHaveBeenCalledWith(undefined, 'Movie,Series', expect.stringMatching(/^SortName/), 'Ascending');
+	});
+
+	test('the Sort Order and Genres Row Items being tried load the Genres row that way', async () => {
+		const {rerender} = draw(rowsOn({genresRowSortBy: 'DateCreated'}), 'setting-genresRowSortOrder', 'home');
+		await screen.findByText('COMEDY');
+		tryValue(rerender, 'setting-genresRowSortOrder', 'genresRowSortOrder', 'Descending');
+		await waitFor(() => expect(screen.getAllByText('Drama').length).toBe(2));
+		tryValue(rerender, 'setting-genresRowItemFilter', 'genresRowItemFilter', 'Series');
+		await waitFor(() => expect(mockAuth.api.getGenres).toHaveBeenCalledWith(undefined, 'Series', expect.anything(), expect.anything()));
+	});
+
+	test('a studio with no logo draws its name on a wide card, Classic even on Modern rows, as on Home', async () => {
+		draw(rowsOn({homeRowsStyle: 'v2'}), 'setting-studiosRowSortBy', 'home');
+		await screen.findByText('Studios');
+		const ring = Array.from(document.querySelectorAll('.frame div')).find((node) => node.style.border.indexOf('3px solid') === 0);
+		expect(parseFloat(ring.parentNode.style.width) / parseFloat(ring.parentNode.style.height)).toBeCloseTo(16 / 9);
+		// The name across the card, and its title under it.
+		expect(within(ring.parentNode.parentNode).getAllByText('A24').length).toBe(2);
+	});
+
+	test('Show Individual Episodes being tried opens each playlist into what it holds, as on Home', async () => {
+		const {rerender} = draw(rowsOn({playlistsRowSortBy: 'PlaylistOrder'}), 'setting-playlistsRowShowEpisodes', 'home');
+		await waitFor(() => expect(screen.getAllByText('Road Trip Mix').length).toBe(2));
+		tryValue(rerender, 'setting-playlistsRowShowEpisodes', 'playlistsRowShowEpisodes', true);
+		await waitFor(() => expect(screen.getAllByText('Pilot').length).toBe(2));
+		expect(mockAuth.api.getPlaylistItems).toHaveBeenCalledWith('p1', 20);
+		expect(find('.caption')).toBeNull();
+	});
+
+	test('with nothing to show, a notice says Home leaves the row out', async () => {
+		mockAuth.api.getGenres.mockImplementation(async () => ({Items: []}));
+		mockAuth.api.getStudios.mockImplementation(async () => ({Items: []}));
+		mockAuth.api.getPlaylists.mockImplementation(async () => ({Items: []}));
+		const cases = [['genresRowSortBy', 'genres'], ['studiosRowSortBy', 'studios'], ['playlistsRowSortBy', 'playlists']];
+		for (const [key, what] of cases) {
+			const {unmount} = draw(rowsOn(), `setting-${key}`, 'home');
+			await waitFor(() => expect(notice().textContent).toBe(`There are no ${what} to show, so Home leaves this row out.`));
+			unmount();
+		}
+	});
+
+	test("single genres added in Rows count as on Home, so there's no notice to turn the row on", () => {
+		const picked = {id: `pluginDynamic:genres:${mockAuth.serverUrl}:genre:g1`, name: 'Drama', source: 'genres', itemId: 'g1', serverUrl: mockAuth.serverUrl, enabled: true, order: 0};
+		draw(rowsOn({homeRows: [{id: 'genres', name: 'Genres', enabled: false, order: 1}, picked]}), 'setting-genresRowSortBy', 'home');
+		expect(notice()).toBeNull();
+		expect(find('.caption').textContent).toBe('The Genres row is off, so this only changes the single genres added in Rows.');
+	});
+
+	test('a single genre added on another server is left off Home, so the notice still says to turn the row on', () => {
+		const picked = {id: 'pluginDynamic:genres:http://elsewhere:genre:g1', name: 'Drama', source: 'genres', itemId: 'g1', serverUrl: 'http://elsewhere', enabled: true, order: 0};
+		draw(rowsOn({homeRows: [{id: 'genres', name: 'Genres', enabled: false, order: 1}, picked]}), 'setting-genresRowSortBy', 'home');
+		expect(notice().textContent).toBe('The Genres row is turned off. To show it, go to Rows, open Genres and Studios under Disabled, and turn it on.');
+		expect(screen.getByText('Turn on a row in Rows, under Disabled')).toBeTruthy();
+	});
+
+	test("a Genres row that fails to load isn't taken for an empty one", async () => {
+		mockAuth.api.getGenres.mockImplementation(async () => {
+			throw new Error('server error');
+		});
+		draw(rowsOn(), 'setting-genresRowSortBy', 'home');
+		await waitFor(() => expect(mockAuth.api.getGenres).toHaveBeenCalledTimes(1));
+		await act(() => new Promise((resolve) => setTimeout(resolve, 0)));
+		expect(notice()).toBeNull();
+	});
+});

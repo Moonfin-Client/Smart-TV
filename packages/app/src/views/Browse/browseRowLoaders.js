@@ -37,6 +37,7 @@ export const buildLoaderContext = ({api, serverUrl, settings, homeRowsConfig, el
 	const genresSortBy = apiSortBy(settings.genresRowSortBy || 'SortName');
 	const playlistsSortBy = apiSortBy(settings.playlistsRowSortBy || 'SortName');
 	const audioRowsSortBy = apiSortBy(settings.audioRowsSortBy || 'SortName');
+	const studiosSortBy = apiSortBy(settings.studiosRowSortBy || 'SortName');
 
 	return {
 		api,
@@ -56,6 +57,8 @@ export const buildLoaderContext = ({api, serverUrl, settings, homeRowsConfig, el
 		playlistsSortOrder: resolveSortOrder(playlistsSortBy, settings.playlistsRowSortOrder),
 		audioRowsSortBy,
 		audioRowsSortOrder: resolveSortOrder(audioRowsSortBy, settings.audioRowsSortOrder),
+		studiosSortBy,
+		studiosSortOrder: resolveSortOrder(studiosSortBy, settings.studiosRowSortOrder),
 		audioArtistsEnabled: settings.displayAudioRows && rowEnabled('audioartists'),
 		audioAlbumsEnabled: settings.displayAudioRows && rowEnabled('audioalbums'),
 		audioPlaylistsEnabled: settings.displayAudioRows && rowEnabled('audioplaylists'),
@@ -255,18 +258,25 @@ export const withStudioLogos = (studios, logoList, serverUrl, token) => {
 	});
 };
 
+// The Studios row's studios, with Moonbase's logos while the plugin is on. Null when the server
+// couldn't be asked. Shared with the Settings preview.
+export const readStudios = async (api, {sortBy, sortOrder, useMoonfinPlugin}, serverUrl) => {
+	const logos = useMoonfinPlugin && api.getStudioLogos ? api.getStudioLogos().catch(() => null) : null;
+	const result = await api.getStudios(20, sortBy, sortOrder).catch(() => null);
+	if (!result) return null;
+	return withStudioLogos(result.Items || [], await logos, serverUrl, getApiKey());
+};
+
 const loadStudios = async (ctx) => {
-	const {api, appendRows, studiosEnabled, settings, serverUrl} = ctx;
+	const {api, appendRows, studiosEnabled, studiosSortBy, studiosSortOrder, settings, serverUrl} = ctx;
 	if (!studiosEnabled) return;
-	const sortBy = apiSortBy(settings.studiosRowSortBy || 'SortName');
 	try {
-		const logos = settings.useMoonfinPlugin && api.getStudioLogos ? api.getStudioLogos().catch(() => null) : null;
-		const result = await api.getStudios(20, sortBy, resolveSortOrder(sortBy, settings.studiosRowSortOrder)).catch(() => null);
-		if (result?.Items?.length > 0) {
+		const studios = await readStudios(api, {sortBy: studiosSortBy, sortOrder: studiosSortOrder, useMoonfinPlugin: settings.useMoonfinPlugin}, serverUrl);
+		if (studios?.length > 0) {
 			appendRows([{
 				id: 'studios',
 				title: $L('Studios'),
-				items: withStudioLogos(result.Items, await logos, serverUrl, getApiKey()),
+				items: studios,
 				type: 'landscape'
 			}]);
 		}
@@ -304,102 +314,111 @@ const loadFavorites = async (ctx) => {
 	}
 };
 
+// The Genres row's genres, each with one of its titles to borrow artwork from. [rowSortBy] is
+// the Genres Row Sorting setting, since a name or random order is put right here. Null when the
+// server couldn't be asked. Shared with the Settings preview.
+export const readGenres = async (api, {includeTypes, sortBy, sortOrder, rowSortBy}) => {
+	const genresResult = await api.getGenres(undefined, includeTypes, sortBy, sortOrder).catch(() => null);
+	if (!genresResult) return null;
+	if (!(genresResult.Items?.length > 0)) return [];
+	let enrichedItems = genresResult.Items;
+	const genresSortByLower = (rowSortBy || 'SortName').toLowerCase();
+	if (genresSortByLower === 'sortname' || genresSortByLower === 'name') {
+		enrichedItems = [...enrichedItems].sort((a, b) => (a.Name || '').localeCompare(b.Name || ''));
+	} else if (genresSortByLower === 'random') {
+		enrichedItems = [...enrichedItems].sort(() => Math.random() - 0.5);
+	}
+
+	try {
+		const genreNames = enrichedItems.map((genre) => genre.Name).filter(Boolean);
+		// One query, filtered to the genres we actually have. Sorting at
+		// random turns into ORDER BY RANDOM() on the server, a full scan of
+		// the item table that no index can help, which is far too expensive
+		// to run on every home load. Any stable sort avoids it.
+		const repResult = await api.getItems({
+			IncludeItemTypes: includeTypes,
+			Recursive: true,
+			Fields: 'PrimaryImageAspectRatio,Genres,ImageTags,BackdropImageTags',
+			Genres: genreNames.join('|'),
+			Limit: Math.min(Math.max(genreNames.length * 8, 50), 300),
+			SortBy: 'SortName'
+		});
+		const repItems = repResult?.Items || [];
+
+		enrichedItems = enrichedItems.map(genre => {
+			const genreLower = genre.Name.toLowerCase();
+			const matchingItems = repItems.filter(item =>
+				getItemGenreNames(item).includes(genreLower)
+			);
+			const matchingWithBackdrop = matchingItems.filter(item =>
+				item.BackdropImageTags?.length > 0 || item.ImageTags?.Thumb
+			);
+			const pool = matchingWithBackdrop.length > 0 ? matchingWithBackdrop : matchingItems;
+			const rep = pool.length > 0 ? pool[stableIndex(genre.Name, pool.length)] : null;
+
+			if (rep) {
+				return {
+					...genre,
+					Type: 'Genre',
+					_representative: rep
+				};
+			}
+			return {
+				...genre,
+				Type: 'Genre'
+			};
+		});
+
+		// Fallback resolution for any genres that missed the bulk query
+		const missingGenres = enrichedItems.filter(g => !g._representative);
+		if (missingGenres.length > 0) {
+			const fallbackResults = await Promise.all(
+				missingGenres.map(async (genre) => {
+					try {
+						const res = await api.getItems({
+							IncludeItemTypes: includeTypes,
+							Recursive: true,
+							Fields: 'PrimaryImageAspectRatio,Genres,ImageTags,BackdropImageTags',
+							Genres: genre.Name,
+							Limit: 1,
+							SortBy: 'SortName'
+						});
+						return { genreId: genre.Id, rep: res?.Items?.[0] || null };
+					} catch (err) {
+						return { genreId: genre.Id, rep: null };
+					}
+				})
+			);
+
+			enrichedItems = enrichedItems.map(genre => {
+				if (genre._representative) return genre;
+				const found = fallbackResults.find(r => r.genreId === genre.Id);
+				if (found && found.rep) {
+					return {
+						...genre,
+						Type: 'Genre',
+						_representative: found.rep
+					};
+				}
+				return genre;
+			});
+		}
+	} catch (e) {
+		console.warn('[Browse] Failed to enrich genres:', e);
+	}
+	return enrichedItems;
+};
+
 const loadGenres = async (ctx) => {
 	const {api, appendRows, genresIncludeTypes, genresSortBy, genresSortOrder, settings} = ctx;
 	if (!settings.displayGenresRows) return;
 	try {
-		const genresResult = await api.getGenres(undefined, genresIncludeTypes, genresSortBy, genresSortOrder).catch(() => null);
-		if (genresResult?.Items?.length > 0) {
-			let enrichedItems = genresResult.Items;
-			const genresSortByLower = (settings.genresRowSortBy || 'SortName').toLowerCase();
-			if (genresSortByLower === 'sortname' || genresSortByLower === 'name') {
-				enrichedItems = [...enrichedItems].sort((a, b) => (a.Name || '').localeCompare(b.Name || ''));
-			} else if (genresSortByLower === 'random') {
-				enrichedItems = [...enrichedItems].sort(() => Math.random() - 0.5);
-			}
-
-			try {
-				const genreNames = enrichedItems.map((genre) => genre.Name).filter(Boolean);
-				// One query, filtered to the genres we actually have. Sorting at
-				// random turns into ORDER BY RANDOM() on the server, a full scan of
-				// the item table that no index can help, which is far too expensive
-				// to run on every home load. Any stable sort avoids it.
-				const repResult = await api.getItems({
-					IncludeItemTypes: genresIncludeTypes,
-					Recursive: true,
-					Fields: 'PrimaryImageAspectRatio,Genres,ImageTags,BackdropImageTags',
-					Genres: genreNames.join('|'),
-					Limit: Math.min(Math.max(genreNames.length * 8, 50), 300),
-					SortBy: 'SortName'
-				});
-				const repItems = repResult?.Items || [];
-
-				enrichedItems = enrichedItems.map(genre => {
-					const genreLower = genre.Name.toLowerCase();
-					const matchingItems = repItems.filter(item =>
-						getItemGenreNames(item).includes(genreLower)
-					);
-					const matchingWithBackdrop = matchingItems.filter(item =>
-						item.BackdropImageTags?.length > 0 || item.ImageTags?.Thumb
-					);
-					const pool = matchingWithBackdrop.length > 0 ? matchingWithBackdrop : matchingItems;
-					const rep = pool.length > 0 ? pool[stableIndex(genre.Name, pool.length)] : null;
-
-					if (rep) {
-						return {
-							...genre,
-							Type: 'Genre',
-							_representative: rep
-						};
-					}
-					return {
-						...genre,
-						Type: 'Genre'
-					};
-				});
-
-				// Fallback resolution for any genres that missed the bulk query
-				const missingGenres = enrichedItems.filter(g => !g._representative);
-				if (missingGenres.length > 0) {
-					const fallbackResults = await Promise.all(
-						missingGenres.map(async (genre) => {
-							try {
-								const res = await api.getItems({
-									IncludeItemTypes: genresIncludeTypes,
-									Recursive: true,
-									Fields: 'PrimaryImageAspectRatio,Genres,ImageTags,BackdropImageTags',
-									Genres: genre.Name,
-									Limit: 1,
-									SortBy: 'SortName'
-								});
-								return { genreId: genre.Id, rep: res?.Items?.[0] || null };
-							} catch (err) {
-								return { genreId: genre.Id, rep: null };
-							}
-						})
-					);
-
-					enrichedItems = enrichedItems.map(genre => {
-						if (genre._representative) return genre;
-						const found = fallbackResults.find(r => r.genreId === genre.Id);
-						if (found && found.rep) {
-							return {
-								...genre,
-								Type: 'Genre',
-								_representative: found.rep
-							};
-						}
-						return genre;
-					});
-				}
-			} catch (e) {
-				console.warn('[Browse] Failed to enrich genres:', e);
-			}
-
+		const genres = await readGenres(api, {includeTypes: genresIncludeTypes, sortBy: genresSortBy, sortOrder: genresSortOrder, rowSortBy: settings.genresRowSortBy});
+		if (genres?.length > 0) {
 			appendRows([{
 				id: 'genres',
 				title: $L('Genres'),
-				items: enrichedItems,
+				items: genres,
 				type: 'portrait',
 				isGenreRow: true
 			}]);
@@ -409,14 +428,27 @@ const loadGenres = async (ctx) => {
 	}
 };
 
+// The Playlists row's cards: the playlists, or what they hold with Show Individual Episodes on.
+// Null when the server couldn't be asked. Shared with the Settings preview.
+export const readPlaylists = async (api, {sortBy, sortOrder, showEpisodes, playlistOrder}) => {
+	const result = await api.getPlaylists(sortBy, sortOrder).catch(() => null);
+	if (!result) return null;
+	const playlists = result.Items || [];
+	return showEpisodes && playlists.length > 0
+		? expandPlaylistsToItems(api, playlists, 20, playlistOrder, sortBy, sortOrder)
+		: playlists;
+};
+
 const loadPlaylistsAndMusic = async (ctx) => {
 	const {api, appendRows, audioAlbumsEnabled, audioArtistsEnabled, audioPlaylistsEnabled, audioRowsSortBy, audioRowsSortOrder, onNowEnabled, playlistsSortBy, playlistsSortOrder, recordingsEnabled, resumeAudioEnabled, settings} = ctx;
 	const readArtists = (limit) => readMusicArtists(api, audioRowsSortBy, audioRowsSortOrder, limit);
 	const readAlbums = (limit) => readMusicAlbums(api, audioRowsSortBy, audioRowsSortOrder, limit);
 	const readResumeAudio = (limit) => api.getResumeAudioItems(limit);
 	try {
-		const [playlistsResult, audioArtistsResult, audioAlbumsResult, audioPlaylistsResult, resumeAudioResult, recordingsResult, onNowResult] = await Promise.all([
-			settings.displayPlaylistsRows ? api.getPlaylists(playlistsSortBy, playlistsSortOrder).catch(() => null) : Promise.resolve(null),
+		const [playlistItems, audioArtistsResult, audioAlbumsResult, audioPlaylistsResult, resumeAudioResult, recordingsResult, onNowResult] = await Promise.all([
+			settings.displayPlaylistsRows
+				? readPlaylists(api, {sortBy: playlistsSortBy, sortOrder: playlistsSortOrder, showEpisodes: settings.playlistsRowShowEpisodes, playlistOrder: isPlaylistOrder(settings.playlistsRowSortBy)})
+				: Promise.resolve(null),
 			audioArtistsEnabled ? readArtists(20).catch(() => null) : Promise.resolve(null),
 			audioAlbumsEnabled ? readAlbums(20).catch(() => null) : Promise.resolve(null),
 			audioPlaylistsEnabled ? api.getPlaylists(audioRowsSortBy, audioRowsSortOrder).catch(() => null) : Promise.resolve(null),
@@ -426,10 +458,7 @@ const loadPlaylistsAndMusic = async (ctx) => {
 		]);
 
 		const rows = [];
-		if (playlistsResult?.Items?.length > 0) {
-			const playlistItems = settings.playlistsRowShowEpisodes
-				? await expandPlaylistsToItems(api, playlistsResult.Items, 20, isPlaylistOrder(settings.playlistsRowSortBy), playlistsSortBy, playlistsSortOrder)
-				: playlistsResult.Items;
+		if (playlistItems?.length > 0) {
 			rows.push({
 				id: 'playlists',
 				title: $L('Playlists'),
