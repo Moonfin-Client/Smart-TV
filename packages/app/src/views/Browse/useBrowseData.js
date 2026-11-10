@@ -402,12 +402,16 @@ const useBrowseData = ({
 				settings.displayCollectionsRows ||
 				settings.displayGenresRows ||
 				settings.displayPlaylistsRows ||
+				settings.displayStudiosRows ||
 				hasEnabledRecommendationRow ||
 				hasEnabledMediaSectionRow;
 
-			// The recent rows come out per library or merged by type, and a cache of
-			// one shape must not answer for the other.
-			const rowConfigKey = settings.mergeRecentRowsByType ? 'merged-recent' : 'per-library';
+			// The recent rows come out per library or merged by type, and Recently Released
+			// holds series, seasons or episodes, so rows stored for one of those must not
+			// answer for another. Series keeps the key rows were stored under before.
+			const releasedType = settings.recentlyReleasedSeriesType;
+			const rowConfigKey = (settings.mergeRecentRowsByType ? 'merged-recent' : 'per-library') +
+				(releasedType && releasedType !== 'series' ? `:${releasedType}` : '');
 
 			if (hasDynamicRowConfig || unifiedMode) {
 				memoryCache.rowConfigKey = rowConfigKey;
@@ -709,21 +713,27 @@ const useBrowseData = ({
 		settings.displayCollectionsRows,
 		settings.displayGenresRows,
 		settings.displayPlaylistsRows,
+		settings.displayAudioRows,
+		settings.displayStudiosRows,
+		settings.displayRewatchRow,
 		settings.favoritesRowSortBy,
 		settings.collectionsRowSortBy,
 		settings.genresRowSortBy,
 		settings.genresRowItemFilter,
 		settings.playlistsRowSortBy,
 		settings.audioRowsSortBy,
+		settings.studiosRowSortBy,
 		settings.favoritesRowSortOrder,
 		settings.collectionsRowSortOrder,
 		settings.genresRowSortOrder,
 		settings.playlistsRowSortOrder,
 		settings.audioRowsSortOrder,
+		settings.studiosRowSortOrder,
 		settings.collectionsRowShowEpisodes,
 		settings.playlistsRowShowEpisodes,
 		settings.uiLanguage,
 		settings.mergeRecentRowsByType,
+		settings.recentlyReleasedSeriesType,
 		settings.mergeContinueWatchingNextUp,
 		settings.kidsModeEnabled,
 		settings.nextUpMaxDays,
