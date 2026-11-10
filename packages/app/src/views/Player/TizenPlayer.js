@@ -2870,21 +2870,16 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 				seriesId
 			});
 			if (currentItemId !== latestItemIdRef.current) return;
-			const episodePeople = Array.isArray(item?.People) ? item.People : [];
+			// A failed lookup also comes back empty, so only a found cast stops the next open from asking again.
 			if (parentActors.length > 0) {
 				setCastMembers(mergeEpisodePeople({
-					episodePeople,
+					episodePeople: Array.isArray(item?.People) ? item.People : [],
 					parentActors
 				}));
-			} else if (episodePeople.length > 0) {
-				setCastMembers(mergeEpisodePeople({
-					episodePeople,
-					parentActors: []
-				}));
+				resolvedCastItemIdRef.current = currentItemId;
 			}
-			resolvedCastItemIdRef.current = currentItemId;
 		} catch (err) {
-			// Do not cache error so subsequent opens can retry
+			// Not cached, so the next open tries again
 		} finally {
 			if (currentItemId === latestItemIdRef.current) {
 				setIsLoadingCastMembers(false);
