@@ -22,6 +22,9 @@ import {isPreroll, nextInQueue, shouldAutoAdvance} from '../../utils/cinemaMode'
 import {driftMs, needsSeek, correctionOptions, partyHoldBackMs, DRIFT_CHECK_MS, GROUP_SEEK_SETTLE_TIMEOUT_MS, PARTY_LANDING_READ_MS,
 	PARTY_SEEK_TOLERANCE_MS} from '../../utils/syncDrift';
 import {createLoadBudget, CONVERGED_MS} from '../../utils/syncLoadBudget';
+import {loadStartLeadMs, nextStartLeadMs, saveStartLeadMs, startDelayMs as groupStartDelayMs, START_STALL_MS, START_RESYNC_MIN_LEAD_MS,
+	START_RESYNC_RESUME_MS} from '../../utils/syncStartLead';
+import {syncLog} from '../../utils/syncLog';
 import {createReadyGate} from '../../utils/syncReady';
 import {createSkipGovernor, chooseCorrection, afterResume} from '../../utils/syncCorrection';
 import {getImageUrl, getLogoUrl} from '../../utils/helpers';
@@ -141,14 +144,30 @@ const avplayGetDuration = () => {
 	const ms = streamGetDuration();
 	return ms > 0 ? ms + streamTimeline.offsetMs : ms;
 };
+// How long this set takes from play() to moving (utils/syncStartLead.js), null until it knows. It's the set's own, so
+// as on webOS it carries over from one title to the next and across launches.
+let learnedStartLeadMs = loadStartLeadMs();
+// A Watch Party start being timed: when play() was called and from where (title ms). It sits beside the one AVPlay so
+// every seek can end it: AVPlay holds the old position until a seek lands, about 1.3 s on, and the jump would read
+// as the start moving.
+let startTiming = null;
 // A seek into the open stream, as a resume makes.
-const seekStream = (titleMs) => streamSeek(streamMs(titleMs));
+const seekStream = (titleMs) => {
+	startTiming = null;
+	return streamSeek(streamMs(titleMs));
+};
 const avplaySeek = (titleMs) => {
 	// Resolves once Silo's new stream is open there, so a caller that waits on the seek (a group seek) settles on it.
 	if (streamTimeline.seeksThroughServer && streamTimeline.seekThroughServer) {
+		startTiming = null;
 		return streamTimeline.seekThroughServer(Math.floor(titleMs * 10000));
 	}
 	return seekStream(titleMs);
+};
+// Stopped rather than stalled: paused, or prepared and held for the group's first start.
+const avplayStandsStill = () => {
+	const state = avplayGetState();
+	return state === 'PAUSED' || state === 'READY';
 };
 
 const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialSubtitleIndex, initialStartPositionTicks, initialQuality, forceTranscode, onEnded, onBack, onGuide, onRecordings, onPlayNext, onSelectPerson, audioPlaylist, videoQueue, liveTvChannels, onPausedChange, background, onBackground, slideshow}) => {
@@ -199,6 +218,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 	useEffect(() => {
 		skipGovernorRef.current.reset();
 		loadBudgetRef.current.reset();
+		startTiming = null;
 		// Held for the group only when the server will send the Unpause: after
 		// a join, or while the group is paused or waiting. An item the group is
 		// already playing is waited on by nobody, so it plays from where the
@@ -209,6 +229,8 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 		}
 	}, [item?.Id, isInGroup]);
 	useEffect(() => cancelSyncWait, [cancelSyncWait]);
+	const startResyncTimerRef = useRef(null);
+	useEffect(() => () => clearTimeout(startResyncTimerRef.current), []);
 	useEffect(() => clearGroupSeekPending, [clearGroupSeekPending]);
 
 	const [isLoading, setIsLoading] = useState(true);
@@ -537,6 +559,28 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 		// whole player, which is what makes that panel drag. The first tick after it closes catches up.
 		if (!episodesOpenRef.current) setCurrentTime(time);
 		positionRef.current = ticks;
+
+		const timing = startTiming;
+		if (timing) {
+			const nowMs = Date.now();
+			const took = groupStartDelayMs({...timing, positionMs: ms, atMs: nowMs});
+			if (took != null) {
+				startTiming = null;
+				const firstLead = learnedStartLeadMs == null;
+				learnedStartLeadMs = nextStartLeadMs(learnedStartLeadMs, took);
+				saveStartLeadMs(learnedStartLeadMs);
+				syncLog('[Player] SyncPlay start moved', took, 'ms after play(); next start leads by', learnedStartLeadMs, 'ms');
+				// A guest the room doesn't let pause sends nothing here and is in step from the next start on.
+				if (firstLead && learnedStartLeadMs >= START_RESYNC_MIN_LEAD_MS && syncPlayService.isRoomDriven()) {
+					syncLog('[Player] Watch Party resyncing the start with the lead just learned');
+					syncPlayService.sendPauseRequest();
+					clearTimeout(startResyncTimerRef.current);
+					startResyncTimerRef.current = setTimeout(() => syncPlayService.sendPlayRequest(), START_RESYNC_RESUME_MS);
+				}
+			} else if (nowMs - timing.calledAtMs > START_STALL_MS) {
+				startTiming = null;
+			}
+		}
 
 		// A corrective skip is judged on every reading rather than only at the
 		// drift check, so it is seen landing without waiting for the next one.
@@ -3305,6 +3349,11 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 					if (runTimeRef.current > 0) target = Math.min(runTimeRef.current, target);
 					landGroupSeek(target, false, catchUp);
 				}
+				// In a Watch Party, a plain start from standing still is timed for the next start's lead. One behind a seek
+				// also waits on its load.
+				startTiming = syncPlayService.isRoomDriven() && avplayStandsStill() && !groupSeekPendingRef.current
+					? {calledAtMs: Date.now(), fromMs: avplayGetCurrentTime()}
+					: null;
 				avplayPlay();
 				setIsPaused(false);
 				// The set takes a moment to actually move, and a drift read
@@ -3345,7 +3394,11 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 		lastCommand,
 		isReady: () => avplayReadyRef.current,
 		execute: executeSyncPlayCommand,
-		onStop: () => handleBackRef.current?.()
+		onStop: () => handleBackRef.current?.(),
+		// In a Watch Party, a start from standing still runs early by the time this set takes to get moving, so it plays
+		// in step with the room. The room's timeline still counts from the command's time.
+		leadMs: (command) => (syncPlayService.isRoomDriven() && command.Command === 'Unpause' && avplayStandsStill() &&
+			!groupSeekPendingRef.current ? learnedStartLeadMs || 0 : 0)
 	});
 
 	// Leaving the group while still held for it would leave the set sitting

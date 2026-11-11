@@ -40,6 +40,11 @@
 	overflow: hidden;
 }
 
+// SyncPlay's own dialog is wider, so a group row has room for its avatars, state and Join.
+.syncDialog {
+	width: 720px;
+}
+
 .header {
 	display: flex;
 	align-items: center;
@@ -186,8 +191,7 @@
 .groupCard {
 	display: flex;
 	align-items: center;
-	justify-content: space-between;
-	padding: 16px 20px;
+	padding: 14px 16px;
 	background: rgba(var(--theme-on-surface-rgb, 255, 255, 255), 0.06);
 	border: 2px solid rgba(var(--theme-on-surface-rgb, 255, 255, 255), 0.08);
 	border-radius: 12px;
@@ -215,6 +219,8 @@
 .groupInfo {
 	display: flex;
 	flex-direction: column;
+	flex: 1 1 auto;
+	min-width: 0;
 }
 
 .groupName {
@@ -225,12 +231,178 @@
 .groupMeta {
 	font-size: 18px;
 	color: var(--theme-text-muted, rgba(255, 255, 255, 0.5));
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
 }
 
 .joinLabel {
-	font-size: 20px;
+	flex: none;
+	padding: 6px 16px;
+	border: 1px solid rgba(var(--theme-accent-rgb, 0, 164, 220), 0.5);
+	border-radius: 12px;
+	background: rgba(var(--theme-accent-rgb, 0, 164, 220), 0.1);
+	font-size: 18px;
 	color: var(--theme-accent, rgba(0, 164, 220, 0.9));
-	font-weight: 500;
+	font-weight: 600;
+}
+
+.lobby {
+	display: flex;
+	flex-direction: column;
+}
+
+.card {
+	padding: 20px;
+	background: rgba(var(--theme-on-surface-rgb, 255, 255, 255), 0.04);
+	border: 1px solid rgba(var(--theme-on-surface-rgb, 255, 255, 255), 0.08);
+	border-radius: 16px;
+
+	.createSection {
+		margin-bottom: 0;
+	}
+
+	> .nowPlaying:last-child {
+		padding-bottom: 0;
+		border-bottom: none;
+	}
+
+	> .nowPlaying + .queueControls {
+		margin-top: 16px;
+	}
+}
+
+.cardTitle {
+	font-size: 22px;
+	font-weight: 600;
+	color: var(--theme-text-primary, #fff);
+}
+
+.cardHint {
+	margin: 4px 0 16px;
+	font-size: 18px;
+	color: var(--theme-text-muted, rgba(255, 255, 255, 0.6));
+}
+
+.emptyGroups {
+	padding: 4px 4px 8px;
+	font-size: 18px;
+	color: var(--theme-text-muted, rgba(255, 255, 255, 0.6));
+}
+
+.emptyTitle {
+	margin-bottom: 4px;
+	font-size: 20px;
+	color: var(--theme-text-primary, #fff);
+}
+
+.note {
+	padding: 0 8px;
+	font-size: 16px;
+	color: var(--theme-text-muted, rgba(255, 255, 255, 0.6));
+}
+
+.statePill {
+	flex: none;
+	padding: 5px 12px;
+	border: 1px solid;
+	border-radius: 999px;
+	font-size: 16px;
+	font-weight: 600;
+	white-space: nowrap;
+
+	&::before {
+		content: '';
+		display: inline-block;
+		width: 8px;
+		height: 8px;
+		margin-right: 7px;
+		border-radius: 50%;
+		background: currentColor;
+		vertical-align: middle;
+	}
+}
+
+.pillIdle {
+	color: #bdbdbd;
+	background: rgba(158, 158, 158, 0.14);
+	border-color: rgba(158, 158, 158, 0.45);
+}
+
+.pillWaiting {
+	color: #ffb74d;
+	background: rgba(255, 152, 0, 0.14);
+	border-color: rgba(255, 152, 0, 0.45);
+}
+
+.pillPaused {
+	color: #b0bec5;
+	background: rgba(96, 125, 139, 0.14);
+	border-color: rgba(96, 125, 139, 0.45);
+}
+
+.pillPlaying {
+	color: #81c784;
+	background: rgba(76, 175, 80, 0.14);
+	border-color: rgba(76, 175, 80, 0.45);
+}
+
+.avatar {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	flex: none;
+	width: 36px;
+	height: 36px;
+	border-radius: 50%;
+	overflow: hidden;
+	color: #fff;
+	font-size: 16px;
+	font-weight: 700;
+
+	img {
+		width: 100%;
+		height: 100%;
+		object-fit: cover;
+	}
+}
+
+.avatarStack {
+	display: flex;
+	flex: none;
+}
+
+// Overlapping avatars on a group row, each ringed in the row's color.
+.stacked {
+	width: 32px;
+	height: 32px;
+	border: 2px solid rgba(var(--theme-surface-rgb, 30, 30, 40), 1);
+
+	& + & {
+		margin-left: -10px;
+	}
+}
+
+.chips {
+	display: flex;
+	flex-wrap: wrap;
+	padding-top: 16px;
+}
+
+.chip {
+	display: inline-flex;
+	align-items: center;
+	padding: 4px 14px 4px 4px;
+	background: rgba(var(--theme-on-surface-rgb, 255, 255, 255), 0.05);
+	border: 1px solid rgba(var(--theme-on-surface-rgb, 255, 255, 255), 0.12);
+	border-radius: 999px;
+	font-size: 18px;
+	color: var(--theme-text-primary, #fff);
+}
+
+.chipNote {
+	font-size: 16px;
+	color: var(--theme-text-muted, rgba(255, 255, 255, 0.6));
 }
 
 .groupView {
@@ -263,16 +435,6 @@
 .stateIdle {
 	background: rgba(var(--theme-on-surface-rgb, 255, 255, 255), 0.1);
 	color: var(--theme-text-secondary, rgba(255, 255, 255, 0.6));
-}
-
-.stateWaiting {
-	background: var(--theme-status-pending-20, rgba(255, 165, 0, 0.2));
-	color: var(--theme-status-pending, #ffa500);
-}
-
-.statePaused {
-	background: var(--theme-status-pending-20, rgba(255, 200, 0, 0.2));
-	color: var(--theme-status-pending, #ffc800);
 }
 
 .statePlaying {
@@ -396,5 +558,9 @@
 .groupInfo     { .flex-col-gap(4px); }
 .groupView     { .flex-col-gap(20px); }
 .groupHeader   { .flex-row-gap(12px); }
+.lobby         { .flex-col-gap(16px); }
+.groupCard     { .flex-row-gap(12px); }
+.chips         { .flex-wrap-gap(10px); }
+.chip          { .flex-row-gap(8px); }
 .queueControls { .flex-row-gap(10px); }
 .membersList   { .flex-col-gap(8px); }

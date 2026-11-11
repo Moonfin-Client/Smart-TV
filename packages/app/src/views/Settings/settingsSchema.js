@@ -221,7 +221,9 @@ const whenCertificateChoice = (ctx) => ctx.isWebOS || ctx.isVega || ctx.isXbox;
 // Samsung sets decode AC3 and E-AC3 themselves, so these two toggles only do anything on webOS
 const whenWebOSPassthrough = (ctx) => whenPassthrough(ctx) && ctx.isWebOS;
 const whenWatchParties = (ctx) => ctx.settings.syncplayEnabled !== false;
-const whenSyncCorrection = (ctx) => whenWatchParties(ctx) && ctx.settings.syncPlayAdvancedCorrectionEnabled !== false;
+// The drift correction rows are for SyncPlay groups and Moonbase's rooms. Silo's own rooms correct drift themselves.
+const whenDriftCorrection = (ctx) => whenWatchParties(ctx) && ctx.serverType !== 'silo';
+const whenSyncCorrection = (ctx) => whenDriftCorrection(ctx) && ctx.settings.syncPlayAdvancedCorrectionEnabled !== false;
 // Chat, alerts and the choice of what Start makes come with Moonbase's parties.
 const whenMoonbaseParties = (ctx) => whenWatchParties(ctx) && ctx.watchParties?.moonbase === true;
 // TrueHD only reaches a receiver while something may bitstream, in auto and manual mode alike
@@ -1116,11 +1118,11 @@ export const SETTINGS_SCHEMA = [
 					{kind: KIND.TOGGLE, key: 'watchPartyChatOverlay', label: () => $L('Show chat over the video'), desc: () => $L('New messages show for a few seconds'), icon: 'subtitles', when: whenMoonbaseParties},
 					{kind: KIND.TOGGLE, key: 'watchPartyAlerts', label: () => $L('Party alerts'), desc: () => $L('Show a banner when someone on this server starts one'), icon: 'notifications_active', when: whenMoonbaseParties},
 					{kind: KIND.TOGGLE, key: 'syncplayAutoOpen', label: () => $L('Open SyncPlay'), desc: () => $L('Automatically open SyncPlay dialog when starting playback'), icon: 'group_work', when: (ctx) => whenWatchParties(ctx) && ctx.serverType === 'jellyfin'},
-					{kind: KIND.TOGGLE, key: 'syncPlayAdvancedCorrectionEnabled', label: () => $L('Sync correction'), desc: () => $L('Keep this device in step with the room'), icon: 'tune', when: whenWatchParties},
+					{kind: KIND.TOGGLE, key: 'syncPlayAdvancedCorrectionEnabled', label: () => $L('Sync correction'), desc: () => $L('Keep this device in step with the room'), icon: 'tune', when: whenDriftCorrection},
 					{kind: KIND.TOGGLE, key: 'syncPlayEnableSyncCorrection', label: () => $L('Correct drift'), desc: () => $L('Automatically adjust playback to stay in sync'), icon: 'sync', when: whenSyncCorrection},
 					{kind: KIND.TOGGLE, key: 'syncPlayUseSkipToSync', label: () => $L('Skip to Sync'), desc: () => $L('Use seeking to sync'), icon: 'skip_next', when: whenSyncCorrection},
 					{kind: KIND.SLIDER, key: 'syncPlayMinDelaySkipToSync', label: () => $L('Minimum Skip Delay'), min: 0, max: 15000, step: 250, format: milliseconds, icon: 'timer', when: (ctx) => whenSyncCorrection(ctx) && ctx.settings.syncPlayUseSkipToSync},
-					{kind: KIND.SLIDER, key: 'syncPlayExtraTimeOffset', label: () => $L('Extra offset'), min: -2000, max: 2000, step: 100, format: milliseconds, icon: 'schedule', when: whenWatchParties}
+					{kind: KIND.SLIDER, key: 'syncPlayExtraTimeOffset', label: () => $L('Extra offset'), min: -2000, max: 2000, step: 100, format: milliseconds, icon: 'schedule', when: whenDriftCorrection}
 				]
 			}
 		]

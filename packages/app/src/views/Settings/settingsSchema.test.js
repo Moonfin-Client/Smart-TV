@@ -229,6 +229,15 @@ describe('settings schema', () => {
 		expect(defaultSettings).toMatchObject({syncplayEnabled: true, watchPartyService: 'moonbase', watchPartyChatOverlay: true, watchPartyAlerts: false});
 	});
 
+	test('the drift correction rows hide on Silo, whose rooms correct drift themselves', () => {
+		const drift = ['syncPlayAdvancedCorrectionEnabled', 'syncPlayEnableSyncCorrection', 'syncPlayUseSkipToSync', 'syncPlayMinDelaySkipToSync', 'syncPlayExtraTimeOffset'];
+		const shown = (serverType) => drift.filter((key) => allRows().find(({row}) => row.key === key).row
+			.when({...ctx, serverType, settings: {...defaultSettings, syncPlayUseSkipToSync: true}}));
+		expect(shown('jellyfin')).toEqual(drift);
+		expect(shown('emby')).toEqual(drift);
+		expect(shown('silo')).toEqual([]);
+	});
+
 	test("Secondary Subtitles is off by default and follows the default language, with its own language only while it's on", () => {
 		const subtitles = allScreens().find(({sub}) => sub.id === 'subtitles').sub.rows;
 		const keys = subtitles.map((row) => row.key);

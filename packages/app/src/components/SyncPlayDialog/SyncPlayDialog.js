@@ -4,10 +4,13 @@ import Spottable from '@enact/spotlight/Spottable';
 import Spotlight from '@enact/spotlight';
 import SpotlightContainerDecorator from '@enact/spotlight/SpotlightContainerDecorator';
 import {useSyncPlay} from '../../context/SyncPlayContext';
+import {useAuth} from '../../context/AuthContext';
 import {isBackKey} from '../../utils/keys';
+import {initialOf} from '../../utils/profileCarousel';
 import {isTvKeyboardVisible} from '../TVKeyboard/keyboardBus';
 import SpottableInput from '../SpottableInput/SpottableInput';
 import useHoldDialogFocus from '../../hooks/useHoldDialogFocus';
+import {loadParticipantUsers, participantAvatar} from './participantAvatars';
 
 import css from './SyncPlayDialog.module.less';
 
@@ -31,6 +34,27 @@ const REPEAT_LABELS = {
 
 const REPEAT_CYCLE = ['RepeatNone', 'RepeatOne', 'RepeatAll'];
 
+const stateLabel = (state) => ({Idle: $L('Idle'), Waiting: $L('Waiting'), Paused: $L('Paused'), Playing: $L('Playing')}[state] || state || $L('Idle'));
+
+const StatePill = ({state}) => (
+	<span className={`${css.statePill} ${css['pill' + state] || css.pillIdle}`}>{stateLabel(state)}</span>
+);
+
+const memberCount = (count) => (count === 1 ? $L('1 member') : $L('{count} members').replace('{count}', String(count)));
+
+// A participant's picture, or their initial on their own color, drawn like the Watch Party dialog's members.
+const ParticipantAvatar = memo(({name, avatarFor, className}) => {
+	const {url, color} = avatarFor(name);
+	const [failed, setFailed] = useState(false);
+	const handleError = useCallback(() => setFailed(true), []);
+	const shown = url && !failed;
+	return (
+		<span className={`${css.avatar} ${className || ''}`} style={shown ? null : {backgroundColor: color}}>
+			{shown ? <img src={url} alt="" onError={handleError} /> : (initialOf(name) || '?')}
+		</span>
+	);
+});
+
 const SyncPlayDialog = ({open, onClose, playingItemId, onWatch}) => {
 	const {
 		group,
@@ -45,12 +69,24 @@ const SyncPlayDialog = ({open, onClose, playingItemId, onWatch}) => {
 		setRepeatMode,
 		setShuffleMode
 	} = useSyncPlay();
+	const {serverUrl, user} = useAuth();
 
 	const [groupName, setGroupName] = useState('');
 	const [isCreating, setIsCreating] = useState(false);
 	const [isJoining, setIsJoining] = useState(null);
 	const [isLeaving, setIsLeaving] = useState(false);
 	const refreshIntervalRef = useRef(null);
+	const [users, setUsers] = useState(null);
+
+	useEffect(() => {
+		if (!open) return undefined;
+		let live = true;
+		loadParticipantUsers(serverUrl).then((next) => live && setUsers(next));
+		return () => {
+			live = false;
+		};
+	}, [open, serverUrl]);
+	const avatarFor = useCallback((name) => participantAvatar(users, serverUrl, name), [users, serverUrl]);
 
 	const focusDefault = useCallback(() => {
 		if (isInGroup) {
@@ -148,7 +184,7 @@ const SyncPlayDialog = ({open, onClose, playingItemId, onWatch}) => {
 	return (
 		<div className={css.overlay} onClick={onClose}>
 			<DialogContainer
-				className={css.dialog}
+				className={`${css.dialog} ${css.syncDialog}`}
 				spotlightId="syncplay-dialog"
 				onClick={(e) => e.stopPropagation()} // eslint-disable-line react/jsx-no-bind
 			>
@@ -175,6 +211,8 @@ const SyncPlayDialog = ({open, onClose, playingItemId, onWatch}) => {
 							onWatch={handleWatch}
 							onToggleRepeat={handleToggleRepeat}
 							onToggleShuffle={handleToggleShuffle}
+							avatarFor={avatarFor}
+							selfName={user?.Name}
 						/>
 					) : (
 						<LobbyView
@@ -186,6 +224,7 @@ const SyncPlayDialog = ({open, onClose, playingItemId, onWatch}) => {
 							onInputKeyDown={handleInputKeyDown}
 							onCreate={handleCreate}
 							onJoin={handleJoin}
+							avatarFor={avatarFor}
 						/>
 					)}
 				</div>
@@ -194,133 +233,154 @@ const SyncPlayDialog = ({open, onClose, playingItemId, onWatch}) => {
 	);
 };
 
-const LobbyView = memo(({groups, groupName, isCreating, isJoining, onInputChange, onInputKeyDown, onCreate, onJoin}) => {
+const LobbyView = memo(({groups, groupName, isCreating, isJoining, onInputChange, onInputKeyDown, onCreate, onJoin, avatarFor}) => {
 	return (
-		<>
-			<div className={css.createSection}>
-				<SpottableInput
-					className={css.input}
-					type="text"
-					value={groupName}
-					onChange={onInputChange}
-					onKeyDown={onInputKeyDown}
-					placeholder={$L('Group name')}
-					maxLength={64}
-					spotlightId="syncplay-input"
-				/>
-				<SpottableButton
-					className={`${css.btn} ${css.createBtn}`}
-					onClick={onCreate}
-					disabled={!groupName.trim() || isCreating}
-					spotlightId="syncplay-create-btn"
-				>
-					{isCreating ? $L('Creating...') : $L('Create')}
-				</SpottableButton>
+		<div className={css.lobby}>
+			<div className={css.card}>
+				<div className={css.cardTitle}>{$L('Create a new group')}</div>
+				<div className={css.cardHint}>{$L('Watch together with everyone who joins')}</div>
+				<div className={css.createSection}>
+					<SpottableInput
+						className={css.input}
+						type="text"
+						value={groupName}
+						onChange={onInputChange}
+						onKeyDown={onInputKeyDown}
+						placeholder={$L('Group name')}
+						maxLength={64}
+						spotlightId="syncplay-input"
+					/>
+					<SpottableButton
+						className={`${css.btn} ${css.createBtn}`}
+						onClick={onCreate}
+						disabled={!groupName.trim() || isCreating}
+						spotlightId="syncplay-create-btn"
+					>
+						{isCreating ? $L('Creating...') : $L('Create')}
+					</SpottableButton>
+				</div>
 			</div>
 
-			<div className={css.divider}>
-				<span>{$L('or join an existing group')}</span>
-			</div>
-
-			<GroupsContainer className={css.groupsList} spotlightId="syncplay-groups">
+			<GroupsContainer className={`${css.card} ${css.groupsList}`} spotlightId="syncplay-groups">
+				<h4 className={css.sectionTitle}>
+					{groups.length === 0 ? $L('Available groups') : $L('Available groups · {count}').replace('{count}', String(groups.length))}
+				</h4>
 				{groups.length === 0 ? (
-					<div className={css.emptyState}>{$L('No active groups found')}</div>
+					<div className={css.emptyGroups}>
+						<div className={css.emptyTitle}>{$L('No groups available')}</div>
+						<div>{$L('Groups other people create on this server will show up here.')}</div>
+					</div>
 				) : (
-					groups.map((g) => (
-						<SpottableButton
-							key={g.GroupId}
-							className={`${css.groupCard} ${isJoining === g.GroupId ? css.joining : ''}`}
-							onClick={() => onJoin(g.GroupId)} // eslint-disable-line react/jsx-no-bind
-							disabled={isJoining === g.GroupId}
-						>
-							<div className={css.groupInfo}>
-								<span className={css.groupName}>{g.GroupName || $L('Unnamed Group')}</span>
-								<span className={css.groupMeta}>
-									{`${g.Participants?.length || 0} ${(g.Participants?.length || 0) === 1 ? $L('member') : $L('members')}`}
-									{' \u00B7 '}
-									{g.State || $L('Idle')}
+					groups.map((g) => {
+						const names = g.Participants || [];
+						return (
+							<SpottableButton
+								key={g.GroupId}
+								className={`${css.groupCard} ${isJoining === g.GroupId ? css.joining : ''}`}
+								onClick={() => onJoin(g.GroupId)} // eslint-disable-line react/jsx-no-bind
+								disabled={isJoining === g.GroupId}
+							>
+								{names.length > 0 && (
+									<span className={css.avatarStack}>
+										{names.slice(0, 3).map((name, i) => (
+											<ParticipantAvatar key={`${i}:${name}`} name={name} avatarFor={avatarFor} className={css.stacked} />
+										))}
+									</span>
+								)}
+								<span className={css.groupInfo}>
+									<span className={css.groupName}>{g.GroupName || $L('Unnamed Group')}</span>
+									<span className={css.groupMeta}>{names.length > 0 ? names.join(', ') : memberCount(0)}</span>
 								</span>
-							</div>
-							<span className={css.joinLabel}>{$L('Join')}</span>
-						</SpottableButton>
-					))
+								<StatePill state={g.State} />
+								<span className={css.joinLabel}>{$L('Join')}</span>
+							</SpottableButton>
+						);
+					})
 				)}
 			</GroupsContainer>
-		</>
+
+			<div className={css.note}>{$L('Joining a group may replace your current playback queue.')}</div>
+		</div>
 	);
 });
 
-const GroupView = memo(({group, isLeaving, onLeave, playQueue, playQueueItem, playingItemId, onWatch, onToggleRepeat, onToggleShuffle}) => {
+const GroupView = memo(({group, isLeaving, onLeave, playQueue, playQueueItem, playingItemId, onWatch, onToggleRepeat, onToggleShuffle, avatarFor, selfName}) => {
 	if (!group) return null;
 	const participants = group.Participants || [];
-	const stateLabel = group.State || $L('Idle');
+	const self = String(selfName || '').trim().toLowerCase();
 	const repeatMode = playQueue?.RepeatMode || 'RepeatNone';
 	const shuffleMode = playQueue?.ShuffleMode || 'Sorted';
 	const queueLength = playQueue?.Playlist?.length || 0;
 	const queueIndex = playQueue?.PlayingItemIndex ?? -1;
+	const count = memberCount(participants.length);
 
 	return (
 		<div className={css.groupView}>
-			<div className={css.groupHeader}>
-				<h3 className={css.groupTitle}>{group.GroupName || $L('Group')}</h3>
-				<span className={`${css.stateBadge} ${css['state' + stateLabel]}`}>
-					{stateLabel}
-				</span>
-			</div>
-
-			{playQueueItem && (
-				<div className={css.nowPlaying}>
-					<h4 className={css.sectionTitle}>{$L('Now Playing')}</h4>
-					<div className={css.nowPlayingInfo}>
-						<span className={css.nowPlayingTitle}>{playQueueItem.Name || $L('Unknown')}</span>
-						{queueLength > 1 && (
-							<span className={css.nowPlayingMeta}>
-								{queueIndex + 1} of {queueLength}
-							</span>
-						)}
+			<div className={css.card}>
+				<div className={css.groupHeader}>
+					<div className={css.groupInfo}>
+						<h3 className={css.groupTitle}>{group.GroupName || $L('Group')}</h3>
+						<span className={css.groupMeta}>{queueLength === 0 ? `${count} · ${$L('nothing queued yet')}` : count}</span>
 					</div>
-					{playQueueItem.Id !== playingItemId && (
-						<SpottableButton
-							className={`${css.btn} ${css.createBtn} ${css.watchBtn}`}
-							onClick={onWatch}
-							spotlightId="syncplay-watch-btn"
-						>
-							{$L('Watch now')}
-						</SpottableButton>
-					)}
+					<StatePill state={group.State} />
 				</div>
-			)}
-
-			{queueLength > 0 && (
-				<div className={css.queueControls}>
-					<SpottableButton
-						className={`${css.controlBtn} ${shuffleMode === 'Shuffle' ? css.controlActive : ''}`}
-						onClick={onToggleShuffle}
-						spotlightId="syncplay-shuffle-btn"
-					>
-						{$L('Shuffle')}: {shuffleMode === 'Shuffle' ? $L('On') : $L('Off')}
-					</SpottableButton>
-					<SpottableButton
-						className={`${css.controlBtn} ${repeatMode !== 'RepeatNone' ? css.controlActive : ''}`}
-						onClick={onToggleRepeat}
-						spotlightId="syncplay-repeat-btn"
-					>
-						{$L('Repeat')}: {REPEAT_LABELS[repeatMode] || $L('Off')}
-					</SpottableButton>
-				</div>
-			)}
-
-			<div>
-				<h4 className={css.sectionTitle}>{$L('Members ({count})').replace('{count}', String(participants.length))}</h4>
-				<ul className={css.membersList}>
+				<div className={css.chips}>
 					{participants.map((name, i) => (
-						<li key={i} className={css.member}>{name}</li>
+						<span key={`${i}:${name}`} className={css.chip}>
+							<ParticipantAvatar name={name} avatarFor={avatarFor} />
+							<span>{name}</span>
+							{self && String(name).trim().toLowerCase() === self && <span className={css.chipNote}>{$L('You')}</span>}
+						</span>
 					))}
-					{participants.length === 0 && (
-						<li className={css.member}>{$L('Waiting for members...')}</li>
-					)}
-				</ul>
+					{participants.length === 0 && <span className={css.chip}>{$L('Waiting for members...')}</span>}
+				</div>
 			</div>
+
+			{(playQueueItem || queueLength > 0) && (
+				<div className={css.card}>
+					{playQueueItem && (
+						<div className={css.nowPlaying}>
+							<h4 className={css.sectionTitle}>{$L('Now Playing')}</h4>
+							<div className={css.nowPlayingInfo}>
+								<span className={css.nowPlayingTitle}>{playQueueItem.Name || $L('Unknown')}</span>
+								{queueLength > 1 && (
+									<span className={css.nowPlayingMeta}>
+										{queueIndex + 1} of {queueLength}
+									</span>
+								)}
+							</div>
+							{playQueueItem.Id !== playingItemId && (
+								<SpottableButton
+									className={`${css.btn} ${css.createBtn} ${css.watchBtn}`}
+									onClick={onWatch}
+									spotlightId="syncplay-watch-btn"
+								>
+									{$L('Watch now')}
+								</SpottableButton>
+							)}
+						</div>
+					)}
+
+					{queueLength > 0 && (
+						<div className={css.queueControls}>
+							<SpottableButton
+								className={`${css.controlBtn} ${shuffleMode === 'Shuffle' ? css.controlActive : ''}`}
+								onClick={onToggleShuffle}
+								spotlightId="syncplay-shuffle-btn"
+							>
+								{$L('Shuffle')}: {shuffleMode === 'Shuffle' ? $L('On') : $L('Off')}
+							</SpottableButton>
+							<SpottableButton
+								className={`${css.controlBtn} ${repeatMode !== 'RepeatNone' ? css.controlActive : ''}`}
+								onClick={onToggleRepeat}
+								spotlightId="syncplay-repeat-btn"
+							>
+								{$L('Repeat')}: {REPEAT_LABELS[repeatMode] || $L('Off')}
+							</SpottableButton>
+						</div>
+					)}
+				</div>
+			)}
 
 			<div className={css.controls}>
 				<SpottableButton

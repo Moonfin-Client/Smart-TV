@@ -371,8 +371,9 @@ export const createWatchPartyApi = ({call, baseUrl}) => {
 			withToken(token, {method: 'DELETE'})),
 		close: (roomId) => call(`${rooms}/${roomId}`, {method: 'DELETE'}),
 		// What each connected member has watched of these titles: unseen, in progress (with a position) or watched.
+		// The host's start buttons wait on it, so it gives up after five seconds.
 		memberState: (roomId, token, contentIds) => call(`${rooms}/${roomId}/member-state`,
-			withToken(token, {method: 'POST', body: {content_ids: contentIds}})),
+			withToken(token, {method: 'POST', body: {content_ids: contentIds}, timeoutMs: 5000})),
 		// Single use, at most 30 seconds. It rides in the offered protocols, never the URL.
 		socketTicket: async (roomId, token) => {
 			const answer = await call(`${rooms}/${roomId}/ws-ticket`, withToken(token, {method: 'POST'}));

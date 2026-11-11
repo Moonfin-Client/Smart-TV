@@ -541,6 +541,9 @@ export const api = {
 
 	getPublicUsers: () => request('/Users/Public'),
 
+	// Everyone the signed-in user can see on the server, hidden logins included.
+	getUsers: () => request('/Users'),
+
 	authenticateByName: (username, password) => request('/Users/AuthenticateByName', {
 		method: 'POST',
 		body: {Username: username, Pw: password}
