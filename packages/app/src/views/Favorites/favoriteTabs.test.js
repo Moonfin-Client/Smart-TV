@@ -1,6 +1,6 @@
 import {
-	FAVORITE_TABS, FAVORITE_TAB_TYPES, WATCHLIST_TAB, bucketByTab, cardMetrics, clampTabIndex, favoriteCardImage, swapRequestCard, tabKeyForType,
-	visibleTabs, watchlistCards, withRequestDetail, withWatchlistBackdrops
+	FAVORITE_TABS, FAVORITE_TAB_TYPES, WATCHLIST_TAB, bucketByTab, cardMetrics, clampTabIndex, currentCard, favoriteCardImage, swapRequestCard,
+	tabKeyForType, visibleTabs, watchlistCards, withRequestDetail
 } from './favoriteTabs';
 
 describe('FAVORITE_TABS', () => {
@@ -174,20 +174,6 @@ describe('the watchlist tab', () => {
 	});
 });
 
-describe('withWatchlistBackdrops', () => {
-	test('gives a request card the backdrop found for it and leaves the other cards alone', () => {
-		const library = {Id: 'lib-1', Type: 'Movie'};
-		const request = {Id: 'seerr-tv-2', _seerr: true, _externalBackdropUrl: null};
-		const hasOne = {Id: 'seerr-movie-3', _seerr: true, _externalBackdropUrl: 'own.jpg'};
-		const backdrops = new Map([['seerr-tv-2', 'fallen-bg.jpg'], ['seerr-movie-3', 'other.jpg']]);
-		const cards = withWatchlistBackdrops([library, request, hasOne], backdrops);
-
-		expect(cards[0]).toBe(library);
-		expect(cards[1]).toEqual({...request, _externalBackdropUrl: 'fallen-bg.jpg'});
-		expect(cards[2]).toBe(hasOne);
-	});
-});
-
 describe('watchlist request cards', () => {
 	const card = {Id: 'seerr-movie-11', Name: 'Film', Overview: '', ProductionYear: 2026, _externalBackdropUrl: null, _seerr: true, _seerrMediaType: 'movie'};
 
@@ -212,5 +198,19 @@ describe('watchlist request cards', () => {
 		expect(swapRequestCard(row, filled, false)).toEqual([{Id: 'lib1'}, filled, {Id: 'seerr-tv-5'}]);
 		expect(swapRequestCard(row, filled, true)).toEqual([{Id: 'lib1'}, {Id: 'seerr-tv-5'}]);
 		expect(swapRequestCard(undefined, filled, false)).toEqual([]);
+	});
+});
+
+describe('the focused card', () => {
+	it('follows the list, so a card filled in while focused shows its backdrop', () => {
+		const focused = {Id: 'seerr-movie-11', _externalBackdropUrl: null};
+		const filled = {...focused, _externalBackdropUrl: 'http://img/b.jpg'};
+		expect(currentCard(focused, [{Id: 'lib1'}, filled])).toBe(filled);
+	});
+
+	it('goes when its card leaves the list, and tells servers apart', () => {
+		expect(currentCard({Id: 'a'}, [{Id: 'b'}])).toBeNull();
+		expect(currentCard({Id: 'a', _serverUrl: 'http://one'}, [{Id: 'a', _serverUrl: 'http://two'}])).toBeNull();
+		expect(currentCard(null, [{Id: 'a'}])).toBeNull();
 	});
 });

@@ -5,7 +5,6 @@
 // shape. Artwork comes as a finished url, since these images live on TMDB.
 
 import seerrApi from '../services/seerrApi';
-import {seerrCardId} from './seerrTarget';
 
 const TICKS_PER_MINUTE = 600000000;
 
@@ -60,7 +59,7 @@ export const buildSeerrDetailItem = (details, mediaType) => {
 	const runtime = isTv ? details.episodeRunTime?.[0] : details.runtime;
 
 	return {
-		Id: seerrCardId(mediaType, details.id),
+		Id: `seerr-${mediaType}-${details.id}`,
 		Name: details.title || details.name || '',
 		Type: isTv ? 'Series' : 'Movie',
 		Overview: details.overview || '',

@@ -8,12 +8,11 @@ import {getMovie, getTv, getWatchlist} from '../../services/seerrApi';
 import mapBounded from '../../utils/mapBounded';
 import {withoutBlockedOrUnrated} from '../../utils/parentalFilter';
 import {normalizeMediaItem} from '../../utils/seerrHomeRows';
-import {hydrateWatchlistItems, watchlistBackdrops} from '../../utils/seerrHydration';
-import {seerrCardId} from '../../utils/seerrTarget';
+import {hydrateWatchlistItems} from '../../utils/seerrHydration';
 
 import {
 	ALL_FAVORITE_TABS, FAVORITE_TABS, FAVORITE_TAB_FIELDS, FAVORITE_TAB_PAGE_SIZE, FAVORITE_TAB_TYPES, WATCHLIST_TAB, bucketByTab,
-	swapRequestCard, visibleTabs, watchlistCards, withRequestDetail, withWatchlistBackdrops
+	swapRequestCard, visibleTabs, watchlistCards, withRequestDetail
 } from './favoriteTabs';
 
 const emptyBuckets = () => {
@@ -197,16 +196,6 @@ const useFavoriteTabs = ({api, sortBy, sortOrder, unifiedMode, enabled = true, s
 			setItemsByKey((prev) => ({...prev, [WATCHLIST_TAB.key]: cards}));
 			setCountsByKey((prev) => ({...prev, [WATCHLIST_TAB.key]: cards.length + unreadRequests(first)}));
 			fillRequestCards(cards.filter((card) => card._seerr), state);
-			// The backdrops come once the row is up, since each takes a details request of its own. Silo's
-			// watchlist is a single page, so the pages after this one need none.
-			const shown = new Set(cards.map((card) => card.Id));
-			const kept = (first?.results || []).filter((item) => shown.has(seerrCardId(item.mediaType, item.id)));
-			const backdrops = await watchlistBackdrops(kept).catch((err) => {
-				console.error('Failed to read the watchlist backdrops:', err);
-				return new Map();
-			});
-			if (cancelled || backdrops.size === 0) return;
-			setItemsByKey((prev) => ({...prev, [WATCHLIST_TAB.key]: withWatchlistBackdrops(prev[WATCHLIST_TAB.key], backdrops)}));
 		};
 		run().catch((err) => console.error('Failed to load the watchlist:', err));
 		return () => {

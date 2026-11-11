@@ -199,7 +199,7 @@ const useDetailPage = (props, {onNavigateUp, onNavigateDown, bleedRight}) => {
 			>
 				<div className={css.cardArt}>
 					<div className={css.cardClip}>
-						<CardImage key={imageUrl} url={imageUrl} placeholder={placeholder} />
+						<CardImage key={imageUrl} url={imageUrl} placeholder={placeholder ?? entry.Name} />
 						{entry.UserData?.IsFavorite && (
 							<div className={css.cardFavorite}><FavoriteHeartIcon /></div>
 						)}

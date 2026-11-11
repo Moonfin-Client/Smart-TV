@@ -8,14 +8,11 @@
 
 export const IDLE = {mediaId: null, mediaType: null};
 
-// A Seerr title's card id, which anything that fills a card in later looks it up by.
-export const seerrCardId = (mediaType, id) => `seerr-${mediaType}-${id}`;
-
 // How a Seerr title reaches the detail screen when the library has nothing to open for it.
 // External rows key some titles by IMDb id alone, so the stub can carry that instead of a
 // TMDB id, along with the title for a search fallback.
 export const seerrDetailStub = ({mediaId, mediaType, imdbId, title}) => ({
-	Id: seerrCardId(mediaType, mediaId ?? imdbId),
+	Id: `seerr-${mediaType}-${mediaId ?? imdbId}`,
 	Type: mediaType === 'tv' ? 'Series' : 'Movie',
 	_seerrMediaId: mediaId ?? null,
 	_seerrMediaType: mediaType,

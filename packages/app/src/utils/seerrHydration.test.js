@@ -1,4 +1,4 @@
-import {hydrateRecentlyAddedItems, watchlistBackdrops} from './seerrHydration';
+import {hydrateRecentlyAddedItems} from './seerrHydration';
 import {normalizeMediaItem} from './seerrHomeRows';
 import seerrApi from '../services/seerrApi';
 
@@ -31,28 +31,5 @@ describe('hydrateRecentlyAddedItems', () => {
 		const [item] = await hydrateRecentlyAddedItems([{id: 7, tmdbId: 603, mediaType: 'movie', status: 5}]);
 		expect(item).toMatchObject({id: 603, mediaType: 'movie'});
 		expect(item.title).toBeUndefined();
-	});
-});
-
-describe('watchlistBackdrops', () => {
-	test("reads the backdrop only for titles that have a poster and no backdrop, as Silo's watchlist sends them", async () => {
-		seerrApi.getMovie.mockReset().mockResolvedValue({backdropPath: '/mongoose-bg.jpg'});
-		seerrApi.getTv.mockReset().mockResolvedValue({backdropPath: null});
-		const items = [
-			{id: 1, mediaType: 'movie', posterPath: '/mongoose.jpg'},
-			{id: 2, mediaType: 'tv', posterPath: '/fallen.jpg'},
-			{id: 3, mediaType: 'movie', posterPath: '/heat.jpg', backdropPath: '/heat-bg.jpg'},
-			{id: 4, mediaType: 'movie'}
-		];
-		const backdrops = await watchlistBackdrops(items);
-
-		expect([...backdrops]).toEqual([['seerr-movie-1', 'img/mongoose-bg.jpg']]);
-		expect(seerrApi.getMovie).toHaveBeenCalledTimes(1);
-		expect(seerrApi.getTv).toHaveBeenCalledWith(2);
-	});
-
-	test('leaves out a title whose details fail', async () => {
-		seerrApi.getMovie.mockReset().mockRejectedValue(new Error('500'));
-		expect((await watchlistBackdrops([{id: 1, mediaType: 'movie', posterPath: '/a.jpg'}])).size).toBe(0);
 	});
 });
