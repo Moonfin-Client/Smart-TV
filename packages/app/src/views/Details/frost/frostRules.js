@@ -6,7 +6,9 @@ import {formatFileSize} from '../../../utils/formatFileSize';
 import {formatDuration} from '../../../utils/helpers';
 import {rem, rootScale} from '../../../utils/rootScale';
 import {buildMediaFacts} from '../../../utils/seerrMediaFacts';
-import {MEDIA_STATUS} from '../../../utils/seerrStatus';
+import {
+	DOWNLOAD_STATE, MEDIA_STATUS, downloadSizesLabel, downloadStateLabel, formatDownloadTimeLeft
+} from '../../../utils/seerrStatus';
 import {parseServerDate} from '../../../utils/serverDate';
 import {uiLocale} from '../../../utils/uiLocale';
 import {videoLines} from '../nouveau/nouveauFooterFields';
@@ -191,6 +193,7 @@ export const frostStatusColors = (theme) => ({
 	available: toCssColor(theme.semantic.statusAvailable),
 	requested: toCssColor(theme.semantic.statusRequested),
 	pending: toCssColor(theme.semantic.statusPending),
+	error: toCssColor(theme.semantic.statusError),
 	none: `rgba(${toRgbTriplet(theme.colors.onBackground)}, 0.55)`
 });
 
@@ -202,6 +205,25 @@ export const frostSeerrStatus = (status, colors) => {
 		case MEDIA_STATUS.PROCESSING: return {label: $L('Requested'), color: colors.requested};
 		case MEDIA_STATUS.PENDING: return {label: $L('Pending'), color: colors.pending};
 		default: return {label: $L('Not Requested'), color: colors.none};
+	}
+};
+
+// The status line while a title downloads: what it's doing, how far along, the time left and
+// the sizes. A stuck download takes the pending or error color, and a paused or queued one goes gray.
+export const frostDownloadStatus = (download, colors) => {
+	if (download.state === DOWNLOAD_STATE.WAITING_FOR_IMPORT) {
+		return {label: $L('Downloaded, waiting for import'), color: colors.requested};
+	}
+	const stateLabel = downloadStateLabel(download);
+	const eta = !stateLabel && download.timeLeftSeconds > 0 ? formatDownloadTimeLeft(download.timeLeftSeconds) : null;
+	const label = [stateLabel || $L('Downloading'), `${Math.round(download.fraction * 100)}%`, eta, downloadSizesLabel(download)]
+		.filter(Boolean).join(' · ');
+	switch (download.state) {
+		case DOWNLOAD_STATE.STALLED: return {label, color: colors.pending};
+		case DOWNLOAD_STATE.FAILED: return {label, color: colors.error};
+		case DOWNLOAD_STATE.PAUSED:
+		case DOWNLOAD_STATE.QUEUED: return {label, color: colors.none};
+		default: return {label, color: colors.requested};
 	}
 };
 

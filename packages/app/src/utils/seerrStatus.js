@@ -93,10 +93,62 @@ export const getIssueStatusInfo = (issue) => {
 		: {label: $L('Resolved'), color: 'available'};
 };
 
+// Where a download stands, from the Radarr/Sonarr queue status Seerr passes
+// along. When several downloads make up one request the summary shows the one
+// that ranks last here. Stalled and failed outrank everything, and downloading
+// outranks paused and queued, since one active download means the request is
+// moving. A blocked import waits for import too, since the download client
+// reports it as completed.
+export const DOWNLOAD_STATE = {
+	WAITING_FOR_IMPORT: 'waitingForImport',
+	PAUSED: 'paused',
+	QUEUED: 'queued',
+	DOWNLOADING: 'downloading',
+	STALLED: 'stalled',
+	FAILED: 'failed'
+};
+
+const STATE_RANK = [
+	DOWNLOAD_STATE.WAITING_FOR_IMPORT,
+	DOWNLOAD_STATE.PAUSED,
+	DOWNLOAD_STATE.QUEUED,
+	DOWNLOAD_STATE.DOWNLOADING,
+	DOWNLOAD_STATE.STALLED,
+	DOWNLOAD_STATE.FAILED
+];
+
+// Older Sonarr capitalizes the status. "warning" is usually a torrent with no
+// seeders, and an unreachable download client isn't moving either.
+const stateOf = (status, done) => {
+	const value = typeof status === 'string' ? status.toLowerCase() : '';
+	if (value === 'failed') return DOWNLOAD_STATE.FAILED;
+	if (done) return DOWNLOAD_STATE.WAITING_FOR_IMPORT;
+	switch (value) {
+		case 'completed': return DOWNLOAD_STATE.WAITING_FOR_IMPORT;
+		case 'warning':
+		case 'downloadclientunavailable': return DOWNLOAD_STATE.STALLED;
+		case 'paused': return DOWNLOAD_STATE.PAUSED;
+		case 'queued': return DOWNLOAD_STATE.QUEUED;
+		default: return DOWNLOAD_STATE.DOWNLOADING;
+	}
+};
+
+// Seconds in a .NET TimeSpan as Radarr and Sonarr serialize it: "hh:mm:ss",
+// with a "d." day prefix past a day and an optional fraction of a second.
+// Null when it is missing or unreadable.
+export const parseTimeLeft = (value) => {
+	if (typeof value !== 'string') return null;
+	const match = /^(?:(\d+)\.)?(\d+):(\d{2}):(\d{2})(?:\.\d+)?$/.exec(value.trim());
+	if (!match) return null;
+	const [, days, hours, minutes, seconds] = match;
+	return (Number(days || 0) * 24 + Number(hours)) * 3600 + Number(minutes) * 60 + Number(seconds);
+};
+
 // Aggregates the Radarr/Sonarr queue entries Seerr reports in downloadStatus.
 // Sums bytes so a large episode weighs more than a small one. Returns null
 // when nothing is downloading, which falls back to the status chip alone. The
-// byte counts ride along so the bar can say how much is left.
+// byte counts ride along so the bar can say how much is left, and the state
+// and time left say why it isn't moving or when it will be done.
 //
 // Sonarr lists a season pack once per episode, each with the whole pack's size
 // and the same downloadId, so each download counts once. An entry with no
@@ -105,20 +157,51 @@ export const getDownloadSummary = (items) => {
 	if (!Array.isArray(items) || items.length === 0) return null;
 	let total = 0;
 	let left = 0;
+	let state = null;
+	let timeLeft = null;
+	let timeLeftKnown = true;
 	const seen = new Set();
 	for (const item of items) {
-		const size = item && item.size;
-		if (typeof size !== 'number' || size <= 0) continue;
-		if (!item.downloadId || seen.has(item.downloadId)) continue;
+		if (!item || !item.downloadId || seen.has(item.downloadId)) continue;
 		seen.add(item.downloadId);
+		// A magnet with no peers never learns its size, so a sizeless download
+		// still counts for its state. It just adds no bytes.
+		const size = typeof item.size === 'number' && item.size > 0 ? item.size : 0;
+		// No sizeLeft says nothing about how far along it is, so it counts as
+		// not started rather than finished.
+		const hasSizeLeft = typeof item.sizeLeft === 'number';
+		const itemLeft = size > 0 ? Math.min(Math.max(hasSizeLeft ? item.sizeLeft : size, 0), size) : 0;
 		total += size;
-		const sizeLeft = typeof item.sizeLeft === 'number' ? item.sizeLeft : 0;
-		left += Math.min(Math.max(sizeLeft, 0), size);
+		left += itemLeft;
+
+		const itemState = stateOf(item.status, size > 0 && hasSizeLeft && itemLeft <= 0);
+		if (state === null || STATE_RANK.indexOf(itemState) > STATE_RANK.indexOf(state)) state = itemState;
+		if (itemState === DOWNLOAD_STATE.WAITING_FOR_IMPORT) continue;
+		// A paused or queued sibling has no end in sight, so the request has
+		// none either, however soon the active one finishes.
+		const eta = itemState === DOWNLOAD_STATE.DOWNLOADING ? parseTimeLeft(item.timeLeft) : null;
+		if (eta === null) {
+			timeLeftKnown = false;
+		} else if (timeLeft === null || eta > timeLeft) {
+			timeLeft = eta;
+		}
 	}
-	if (total <= 0) return null;
+	if (state === null) return null;
+	let fraction = total > 0 ? Math.min(Math.max((total - left) / total, 0), 1) : 0;
+	if (state === DOWNLOAD_STATE.WAITING_FOR_IMPORT) {
+		// The client can call a download completed before its byte count
+		// settles, and the label says it's done, so the bar does too.
+		fraction = 1;
+	} else if (fraction > 0.99) {
+		// A sizeless download adds no bytes, so the sized ones alone can add up
+		// to 100% while it is still going. Hold the bar short of full.
+		fraction = 0.99;
+	}
 	return {
-		fraction: Math.min(Math.max((total - left) / total, 0), 1),
-		isImporting: left <= 0,
+		fraction,
+		state,
+		// One download with no estimate leaves the whole request's time left unknown.
+		timeLeftSeconds: state === DOWNLOAD_STATE.DOWNLOADING && timeLeftKnown ? timeLeft : null,
 		totalBytes: total,
 		downloadedBytes: total - left
 	};
@@ -140,16 +223,60 @@ export const formatBytes = (bytes) => {
 // 330.9 MB / 12.4 GB.
 const sameUnitAs = (bytes, reference) => (reference < GB ? formatBytes(bytes) : `${(bytes / GB).toFixed(1)} GB`);
 
+// "1.6 GB / 4.4 GB", or null when the server reports no usable sizes.
+export const downloadSizesLabel = (summary) => (summary.totalBytes > 0
+	? `${sameUnitAs(summary.downloadedBytes, summary.totalBytes)} / ${formatBytes(summary.totalBytes)}`
+	: null);
+
+// The word for a download that isn't simply progressing, or null for one
+// that is.
+export const downloadStateLabel = (summary) => {
+	switch (summary.state) {
+		case DOWNLOAD_STATE.STALLED: return $L('Stalled');
+		case DOWNLOAD_STATE.FAILED: return $L('Download failed');
+		case DOWNLOAD_STATE.PAUSED: return $L('Paused');
+		case DOWNLOAD_STATE.QUEUED: return $L('Queued');
+		default: return null;
+	}
+};
+
+// "12m left", "2h left" or "1h 5m left", rounded up so the last minute reads
+// "1m left" rather than "0m left". A download days out reads in hours.
+export const formatDownloadTimeLeft = (seconds) => {
+	const mins = Math.ceil(seconds / 60);
+	const hours = Math.floor(mins / 60);
+	const rest = mins % 60;
+	let time = `${rest}m`;
+	if (hours > 0) time = rest === 0 ? `${hours}h` : `${hours}h ${rest}m`;
+	return $L('{time} left').replace('{time}', time);
+};
+
 // The two halves of the download bar's label. A tile has no room for the verb,
 // so compact drops it and keeps the sizes, which ellipsize while the percentage
-// stays put. Without usable sizes the verb stands in for them.
+// stays put. Without usable sizes the verb stands in for them. A download
+// that isn't moving says why instead, which matters more than the sizes, so a
+// tile keeps the word and drops them. The time left only shows on the full
+// bar, after the percentage, and takes the verb's place.
 export const downloadLabelParts = (summary, compact = false) => {
-	if (summary.isImporting) return {leading: $L('Importing'), percent: null};
-	const percent = `${Math.round(summary.fraction * 100)}%`;
-	if (!(summary.totalBytes > 0)) {
+	if (summary.state === DOWNLOAD_STATE.WAITING_FOR_IMPORT) {
+		// "Downloaded, wai…" on a tile loses the point, so it says the first word.
+		return {leading: compact ? $L('Downloaded') : $L('Downloaded, waiting for import'), percent: null};
+	}
+	let percent = `${Math.round(summary.fraction * 100)}%`;
+	const sizes = downloadSizesLabel(summary);
+	const stateLabel = downloadStateLabel(summary);
+	if (stateLabel) {
+		return {leading: compact || !sizes ? stateLabel : `${stateLabel} · ${sizes}`, percent};
+	}
+	if (!compact && summary.timeLeftSeconds > 0) {
+		// The time left already says it's downloading, so the verb makes room
+		// for it rather than squeezing the sizes.
+		percent = `${percent} · ${formatDownloadTimeLeft(summary.timeLeftSeconds)}`;
+		return {leading: sizes || $L('Downloading'), percent};
+	}
+	if (!sizes) {
 		return {leading: compact ? null : $L('Downloading'), percent};
 	}
-	const sizes = `${sameUnitAs(summary.downloadedBytes, summary.totalBytes)} / ${formatBytes(summary.totalBytes)}`;
 	return {leading: compact ? sizes : `${$L('Downloading')} · ${sizes}`, percent};
 };
 

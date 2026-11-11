@@ -21,7 +21,6 @@ import {cleanOverview} from '../../../utils/overviewText';
 import {rootScale} from '../../../utils/rootScale';
 import {scrimStyle} from '../../../utils/scrimImage';
 import {serverBlurredUrl} from '../../../utils/serverBlur';
-import {downloadLabelParts} from '../../../utils/seerrStatus';
 import {ModalContainer} from '../../../utils/spotlightContainers';
 import {CORE_ICON_PATHS} from '../../Settings/settingsCoreIcons';
 import {castPhotoUrl, hidesMediaDescription} from '../detailsMedia';
@@ -36,7 +35,7 @@ import {Icon} from '../useDetailPage';
 import {ACTIONS, NAVBAR, drawsStage, resumeLine, stageTrackChoices} from '../stage/stageRules';
 import {
 	FROST_BUTTON_CAP, FROST_COLUMNS, frostCredits, frostInfo, frostNeighbour, frostScrims, frostSeason, frostSeerrGroups,
-	frostSeerrStatus, frostSegments, frostStageStyle, frostStatusColors, frostTabs
+	frostDownloadStatus, frostSeerrStatus, frostSegments, frostStageStyle, frostStatusColors, frostTabs
 } from './frostRules';
 
 import css from './FrostDetailContent.module.less';
@@ -348,13 +347,9 @@ const FrostScreen = (props) => {
 		}
 		if (!seerr.isActive) return null;
 		const download = seerr.hdDownload;
-		const status = frostSeerrStatus(seerr.hdStatus, statusColors);
-		const color = download ? statusColors.requested : status.color;
-		let label = status.label;
-		if (download) {
-			const {leading, percent} = downloadLabelParts(download, true);
-			label = download.isImporting ? leading : [$L('Downloading'), percent, leading].filter(Boolean).join(' · ');
-		}
+		const {label, color} = download
+			? frostDownloadStatus(download, statusColors)
+			: frostSeerrStatus(seerr.hdStatus, statusColors);
 		return (
 			<div className={css.status}>
 				<span className={css.statusDot} style={{backgroundColor: color}} />

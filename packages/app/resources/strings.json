@@ -1638,7 +1638,6 @@
 	"Image deleted successfully": "Image deleted successfully",
 	"Image download failed: {err}": "Image download failed: {err}",
 	"Image size": "Image size",
-	"Importing": "Importing",
 	"In Production": "In Production",
 	"In Progress": "In Progress",
 	"In-App Screensaver": "In-App Screensaver",
@@ -3057,5 +3056,9 @@
 	"Play Videos in Slideshow": "Play Videos in Slideshow",
 	"Play the videos in a folder in full. When off, the slideshow skips them.": "Play the videos in a folder in full. When off, the slideshow skips them.",
 	"Video Sound in Slideshow": "Video Sound in Slideshow",
-	"When off, slideshow videos start muted": "When off, slideshow videos start muted"
+	"When off, slideshow videos start muted": "When off, slideshow videos start muted",
+	"Stalled": "Stalled",
+	"Queued": "Queued",
+	"Downloaded": "Downloaded",
+	"Downloaded, waiting for import": "Downloaded, waiting for import"
 }
