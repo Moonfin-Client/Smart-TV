@@ -392,6 +392,53 @@ export const getMoonfinMessages = async (serverUrl, token) => {
 	}
 };
 
+// Radarr or Sonarr's own queue for one title, read through Moonbase. Only a 200 says
+// anything about the title. Every other answer means the plugin can't see the arr
+// (no admin Seerr session, no arr set up, the arr down), so it comes back as null
+// rather than as an empty queue. Silo's requests have no arr behind them.
+export const getArrQueue = async (service, id) => {
+	if (!jellyfinServerUrl || !jellyfinAccessToken || !id) return null;
+	if (await siloSeerrReady()) return null;
+	const isMovie = service === 'radarr';
+	const path = `/Moonfin/Seerr/${isMovie ? 'Radarr' : 'Sonarr'}/Queue?${isMovie ? 'tmdbId' : 'tvdbId'}=${encodeURIComponent(id)}`;
+	const result = await moonbaseFetch(jellyfinServerUrl, jellyfinAccessToken, path, {
+		method: 'GET',
+		headers: {'Accept': 'application/json'},
+		timeout: 15000
+	});
+	if (!result.success || result.status !== 200 || !result.body) return null;
+	try {
+		const parsed = JSON.parse(result.body);
+		return parsed && typeof parsed === 'object' && Array.isArray(parsed.items) ? parsed : null;
+	} catch (e) {
+		return null;
+	}
+};
+
+// Takes a stuck download out of the arr's queue and blocklists the release, so the
+// arr searches for another one. Admin only. A 404 means it already left the queue,
+// which is what was wanted, so it counts as done.
+export const removeArrQueueItem = async (service, queueId) => {
+	if (!jellyfinServerUrl || !jellyfinAccessToken) {
+		throw new Error('Moonfin not configured');
+	}
+	const path = `/Moonfin/Seerr/${service === 'radarr' ? 'Radarr' : 'Sonarr'}/Queue/${encodeURIComponent(queueId)}`;
+	const result = await moonbaseFetch(jellyfinServerUrl, jellyfinAccessToken, path, {
+		method: 'DELETE',
+		headers: {'Accept': 'application/json'},
+		timeout: 30000
+	});
+	if (!result.success) throw new Error(result.error || 'Network error');
+	if (result.status === 404 || (result.status >= 200 && result.status < 300)) return true;
+	let message = `Moonfin queue removal failed: ${result.status}`;
+	try {
+		message = errorDetail(JSON.parse(result.body)) || message;
+	} catch (e) { void e; }
+	const error = new Error(message);
+	error.status = result.status;
+	throw error;
+};
+
 export const getMoonfinConfig = async (serverUrl, token) => {
 	const sUrl = serverUrl || jellyfinServerUrl;
 	const sToken = token || jellyfinAccessToken;
@@ -1309,6 +1356,8 @@ export default {
 	moonfinLogout,
 	moonfinValidate,
 	moonfinPing,
+	getArrQueue,
+	removeArrQueueItem,
 	getMoonfinConfig,
 	getMoonfinSettings,
 	getMoonfinThemes,

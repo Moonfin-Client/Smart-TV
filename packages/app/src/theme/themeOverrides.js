@@ -64,6 +64,7 @@ import modernCardCss from '../components/MediaCard/ModernMediaCard.module.less';
 import seerrBannerCss from '../components/seerr/SeerrStatusBanner.module.less';
 import seerrDotCss from '../components/seerr/SeerrStatusDot.module.less';
 import seerrDownloadCss from '../components/SeerrDownloadProgress/SeerrDownloadProgress.module.less';
+import seerrRequestsCss from '../views/SeerrRequests/SeerrRequests.module.less';
 import seerrRequestCss from '../components/seerr/SeerrRequestDialog.module.less';
 import mediaRowCss from '../components/MediaRow/MediaRow.module.less';
 import modernRowCss from '../components/MediaRow/ModernMediaRow.module.less';
@@ -643,6 +644,7 @@ export const buildThemeOverrideCss = (theme, options = {}) => {
 	rule(`.${fr.metaRating}, .${fr.techChip}`, `border-color: ${ink(0.55)}; color: ${ink(0.85)};`);
 	rule(`.${fr.statusUpcoming}`, `background: ${accent};`);
 	rule(`.${fr.status}`, `color: ${ink(0.8)};`);
+	rule(`.${fr.statusReason}`, `color: ${ink(0.6)};`);
 	rule(`.${fr.textBody}, .${fr.posterTitle}`, `color: ${ink(0.9)};`);
 	rule(`.${fr.credits}, .${fr.readMoreText}`, `color: ${ink(0.92)};`);
 	rule(`.${fr.infoValue}`, `color: ${ink(0.94)};`);
@@ -768,6 +770,7 @@ export const buildThemeOverrideCss = (theme, options = {}) => {
 	rule(`.${seerrDownloadCss.fill}`, `background: ${rangeProgress};`);
 	rule(`.${seerrDownloadCss.stalled} .${seerrDownloadCss.fill}`, `background: ${statusPending};`);
 	rule(`.${seerrDownloadCss.failed} .${seerrDownloadCss.fill}`, `background: ${statusError};`);
+	rule(`.${seerrDownloadCss.reason}, .${seerrDownloadCss.notFound}, .${seerrRequestsCss.tileReason}`, `color: ${os(0.6)};`);
 	rule(`.${seerrRequestCss.match}:focus`, `box-shadow: inset 0 0 0 ${rem(2)} ${accent};`);
 	rule(`.${seerrRequestCss.matchSelected}`, `background: ${accentA(0.18)};`);
 	rule(`.${seerrRequestCss.matchCheck}`, `color: ${accent};`);

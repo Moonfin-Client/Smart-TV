@@ -7,21 +7,24 @@ import $L from '@enact/i18n/$L';
 
 import seerrApi from '../../services/seerrApi';
 import {getMediaDownloadSummary, isMediaInFlight} from '../../utils/seerrStatus';
+import {hdDownloadFor, hdNotFoundYet, readArrQueue} from '../../utils/seerrArrQueue';
 import {streamingRegion} from '../../utils/seerrStreaming';
+import useArrQueue from './useArrQueue';
 
 const DOWNLOAD_POLL_MS = 15000;
 const WAITING_POLL_MS = 30000;
 
 // How often the open page refetches the title, or null once nothing is on its way. A download
 // moves every few seconds, while a request waiting on approval or on the library scan changes
-// far less often.
-export const statusPollInterval = (media) => {
-	if (getMediaDownloadSummary(media, false) || getMediaDownloadSummary(media, true)) return DOWNLOAD_POLL_MS;
+// far less often. `hdDownload` is the HD bar as drawn, which the arr's own queue can show when
+// Seerr's copy of it is empty.
+export const statusPollInterval = (media, hdDownload = getMediaDownloadSummary(media, false)) => {
+	if (hdDownload || getMediaDownloadSummary(media, true)) return DOWNLOAD_POLL_MS;
 	if (isMediaInFlight(media, false) || isMediaInFlight(media, true)) return WAITING_POLL_MS;
 	return null;
 };
 
-const useSeerrDetailsData = ({mediaId, mediaType, contextUser}) => {
+const useSeerrDetailsData = ({mediaId, mediaType, contextUser, arrQueueAvailable = false}) => {
 	const [details, setDetails] = useState(null);
 	const [loading, setLoading] = useState(true);
 	const [error, setError] = useState(null);
@@ -150,17 +153,29 @@ const useSeerrDetailsData = ({mediaId, mediaType, contextUser}) => {
 	const hdStatus = useMemo(() => shownDetails?.mediaInfo?.status ?? null, [shownDetails]);
 	const status4k = useMemo(() => shownDetails?.mediaInfo?.status4k ?? null, [shownDetails]);
 
+	// What Radarr or Sonarr says about the HD track, when the plugin can see it. 4K stays with
+	// Seerr's picture, since the plugin only reads the default servers.
+	const {response: queueResponse, invalidate: invalidateArrQueue} = useArrQueue({enabled: arrQueueAvailable, mediaType, details: shownDetails});
+	const hdQueue = useMemo(() => readArrQueue(queueResponse), [queueResponse]);
+
 	const hdDownload = useMemo(() =>
-		getMediaDownloadSummary(shownDetails?.mediaInfo, false),
-	[shownDetails]
+		hdDownloadFor(shownDetails?.mediaInfo, hdQueue),
+	[shownDetails, hdQueue]
 	);
+
+	const notFoundYet = useMemo(() =>
+		!hdDownload && hdNotFoundYet(shownDetails?.mediaInfo, hdQueue),
+	[shownDetails, hdQueue, hdDownload]
+	);
+
+	const removableRelease = hdDownload ? hdQueue?.removable || null : null;
 
 	const download4k = useMemo(() =>
 		getMediaDownloadSummary(shownDetails?.mediaInfo, true),
 	[shownDetails]
 	);
 
-	const pollInterval = useMemo(() => statusPollInterval(shownDetails?.mediaInfo), [shownDetails]);
+	const pollInterval = useMemo(() => statusPollInterval(shownDetails?.mediaInfo, hdDownload), [shownDetails, hdDownload]);
 
 	// Keeps the refresh running from the request until the title lands, so the progress and
 	// the Play button show up without leaving the page. Only the details payload is swapped
@@ -201,7 +216,10 @@ const useSeerrDetailsData = ({mediaId, mediaType, contextUser}) => {
 		hdStatus,
 		status4k,
 		hdDownload,
-		download4k
+		download4k,
+		notFoundYet,
+		removableRelease,
+		invalidateArrQueue
 	};
 };
 

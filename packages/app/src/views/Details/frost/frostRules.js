@@ -214,6 +214,9 @@ export const frostDownloadStatus = (download, colors) => {
 	if (download.state === DOWNLOAD_STATE.WAITING_FOR_IMPORT) {
 		return {label: $L('Downloaded, waiting for import'), color: colors.requested};
 	}
+	if (download.state === DOWNLOAD_STATE.IMPORT_BLOCKED) {
+		return {label: $L('Import blocked'), color: colors.pending};
+	}
 	const stateLabel = downloadStateLabel(download);
 	const eta = !stateLabel && download.timeLeftSeconds > 0 ? formatDownloadTimeLeft(download.timeLeftSeconds) : null;
 	const label = [stateLabel || $L('Downloading'), `${Math.round(download.fraction * 100)}%`, eta, downloadSizesLabel(download)]
