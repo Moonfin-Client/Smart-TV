@@ -13,10 +13,22 @@ const assTicks = (value) => {
 	return m ? ticks(m[1], m[2], m[3], m[4]) : null;
 };
 
+// Override blocks come off, and so does whatever a \p tag draws, which is a shape's coordinates
+// rather than words. The split puts each block at an odd index.
+const assLineText = (text) => {
+	let drawing = false;
+	return text.split(/(\{[^}]*\})/).map((part, i) => {
+		if (i % 2 === 0) return drawing ? '' : part;
+		const modes = part.match(/\\p\d+/g);
+		if (modes) drawing = parseInt(modes[modes.length - 1].slice(2), 10) > 0;
+		return '';
+	}).join('').replace(/\\[Nn]/g, '\n').replace(/\\h/g, ' ').trim();
+};
+
 // ASS keeps its lines as Dialogue entries, with the text last so it can hold commas of its own.
 const parseAss = (text) => text.split(/\r?\n/).filter((line) => line.startsWith('Dialogue:')).map((line) => {
 	const fields = line.substring('Dialogue:'.length).split(',');
-	const body = fields.slice(9).join(',').replace(/\{[^}]*\}/g, '').replace(/\\[Nn]/g, '\n').trim();
+	const body = assLineText(fields.slice(9).join(','));
 	return {StartPositionTicks: assTicks(fields[1] || ''), EndPositionTicks: assTicks(fields[2] || ''), Text: body};
 }).filter((event) => event.Text && event.StartPositionTicks != null && event.EndPositionTicks != null);
 

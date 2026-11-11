@@ -1,4 +1,4 @@
-import {getLatestPerLibraryFromAllServers} from './connectionPool';
+import {getApiForItem, getLatestPerLibraryFromAllServers} from './connectionPool';
 import {createApiForServer} from './jellyfinApi';
 import * as multiServerManager from './multiServerManager';
 
@@ -21,5 +21,22 @@ describe('the latest rows across servers', () => {
 		}));
 		const results = await getLatestPerLibraryFromAllServers();
 		expect(results.map((result) => result.lib.Id)).toEqual(['a-shows', 'a-movies', 'z-music', 'z-anime']);
+	});
+});
+
+describe('the api for a title from another server', () => {
+	const item = (serverType) => ({Id: 'm1', _serverUrl: 'http://emby', _serverAccessToken: 't', _serverUserId: 'u', _serverType: serverType});
+
+	test('talks to that server as its own kind, and as Jellyfin when the title never said', () => {
+		getApiForItem(item('emby'));
+		getApiForItem(item(undefined));
+		expect(createApiForServer.mock.calls.slice(-2)).toEqual([
+			['http://emby', 't', 'u', 'emby'],
+			['http://emby', 't', 'u', 'jellyfin']
+		]);
+	});
+
+	test("leaves a title from the signed-in server to the app's own api", () => {
+		expect(getApiForItem({Id: 'm1'})).toBeNull();
 	});
 });

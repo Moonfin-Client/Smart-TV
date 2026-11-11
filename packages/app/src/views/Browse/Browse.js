@@ -80,6 +80,7 @@ const Browse = ({
 	onSelectSeerrNetwork,
 	onOpenSeerrShortcut,
 	onOpenCalendarMonth,
+	onSelectStudio,
 	isVisible = true,
 	onFocusItemThemeMusic,
 	onBlurItemThemeMusic,
@@ -655,13 +656,26 @@ const Browse = ({
 		}
 	}, [onSelectItem, onSelectLibrary, onOpenRecordings, onPlayRecording, onBlurItemThemeMusic, onLeaveThemeMusic, rememberFocus, mediaPreview]);
 
-	const handleCalendarSeeAll = useCallback(() => {
+	// The last card of an Upcoming row opens the calendar, a library's Latest row its library and a
+	// picked collection's row the collection.
+	const handleSeeAll = useCallback((rowId) => {
+		const row = filteredRowsRef.current.find((entry) => entry.id === rowId) || {};
 		mediaPreview.stop('select');
 		onBlurItemThemeMusic?.();
 		onLeaveThemeMusic?.();
 		rememberFocus();
-		onOpenCalendarMonth?.(new Date());
-	}, [onOpenCalendarMonth, onBlurItemThemeMusic, onLeaveThemeMusic, rememberFocus, mediaPreview]);
+		if (row.collection) onSelectItem?.(row.collection);
+		else if (row.isLatestRow && row.library) onSelectLibrary?.(row.library);
+		else if (CALENDAR_ROW_IDS.indexOf(rowId) >= 0) onOpenCalendarMonth?.(new Date());
+	}, [onOpenCalendarMonth, onSelectItem, onSelectLibrary, onBlurItemThemeMusic, onLeaveThemeMusic, rememberFocus, mediaPreview]);
+
+	const handleSelectStudioItem = useCallback((item) => {
+		mediaPreview.stop('select');
+		onBlurItemThemeMusic?.();
+		onLeaveThemeMusic?.();
+		rememberFocus();
+		onSelectStudio?.(item.Name);
+	}, [onSelectStudio, onBlurItemThemeMusic, onLeaveThemeMusic, rememberFocus, mediaPreview]);
 
 	const handleSelectGenreItem = useCallback((item) => {
 		mediaPreview.stop('select');
@@ -718,15 +732,16 @@ const Browse = ({
 	// handler that cant navigate. These always call the current one.
 	const latestSelectRef = useRef(null);
 	useLayoutEffect(() => {
-		latestSelectRef.current = {item: handleSelectItem, genre: handleSelectGenreItem, seerr: handleSelectSeerrItem, external: handleSelectExternalItem, calendar: handleCalendarSeeAll};
-	}, [handleSelectItem, handleSelectGenreItem, handleSelectSeerrItem, handleSelectExternalItem, handleCalendarSeeAll]);
+		latestSelectRef.current = {item: handleSelectItem, genre: handleSelectGenreItem, seerr: handleSelectSeerrItem, external: handleSelectExternalItem, studio: handleSelectStudioItem, seeAll: handleSeeAll};
+	}, [handleSelectItem, handleSelectGenreItem, handleSelectSeerrItem, handleSelectExternalItem, handleSelectStudioItem, handleSeeAll]);
 	const rowSelect = useMemo(() => ({
 		item: (picked, autoPlay) => latestSelectRef.current.item(picked, autoPlay),
 		cwPlay: (picked) => latestSelectRef.current.item(picked, true),
 		genre: (picked) => latestSelectRef.current.genre(picked),
 		seerr: (picked) => latestSelectRef.current.seerr(picked),
 		external: (picked) => latestSelectRef.current.external(picked),
-		calendar: () => latestSelectRef.current.calendar()
+		studio: (picked) => latestSelectRef.current.studio(picked),
+		seeAll: (rowId) => latestSelectRef.current.seeAll(rowId)
 	}), []);
 	const calendarSeeAll = settings.calendarRowSeeAll !== false && pluginInfo?.calendarAvailable === true && Boolean(onOpenCalendarMonth);
 
@@ -1054,6 +1069,8 @@ const Browse = ({
 						if (row.isSeerrRow || row.isOnlineRecoRow) selectHandler = rowSelect.seerr;
 						else if (row.isExternalRow) selectHandler = rowSelect.external;
 						else if (row.isGenreRow) selectHandler = rowSelect.genre;
+						else if (row.id === 'studios') selectHandler = rowSelect.studio;
+						const seeAllTarget = row.collection || (row.isLatestRow && row.library);
 						const rowMenuOptions = isCwOrNextUp
 							? continueWatchingMenuOptions
 							: undefined;
@@ -1084,8 +1101,11 @@ const Browse = ({
 								ratingsSurface='homeRows'
 								hideOverview={settings.hideHomeMediaDescription === true}
 								posterLabels={!row.isSeerrRow && !row.isOnlineRecoRow && !row.isGenreRow}
+								hideWatchProgress={settings.hideHomeWatchProgress === true}
+								hideUnwatchedCount={settings.hideHomeUnwatchedCount === true}
 								onLoadMore={row.hasMore ? loadMoreRow : undefined}
-								onCalendarSeeAll={calendarSeeAll && CALENDAR_ROW_IDS.indexOf(row.id) >= 0 ? rowSelect.calendar : undefined}
+								onCalendarSeeAll={seeAllTarget || (calendarSeeAll && CALENDAR_ROW_IDS.indexOf(row.id) >= 0) ? rowSelect.seeAll : undefined}
+								seeAllIcon={seeAllTarget ? 'grid_view_rounded' : undefined}
 							/>
 						);
 					})}

@@ -1,4 +1,7 @@
 jest.mock('@enact/i18n/$L', () => ({__esModule: true, default: (str) => str}));
+jest.mock('../services/subtitleFonts', () => ({
+	subtitleFontFamily: (family, bold) => (family ? `'${family}'${bold ? ' bold' : ''}` : undefined)
+}));
 
 import {
 	resolveSubtitleStyleSettings,
@@ -31,7 +34,9 @@ const settings = {
 	subtitleShadowBlurHdr: 0.5,
 	subtitleOpacityHdr: 80,
 	subtitlePositionHdr: 'lower',
-	subtitlePositionAbsoluteHdr: 70
+	subtitlePositionAbsoluteHdr: 70,
+	subtitleBold: false,
+	subtitleBoldHdr: true
 };
 
 describe('resolveSubtitleStyleSettings', () => {
@@ -125,5 +130,45 @@ describe('getSubtitleTextStyle colors', () => {
 
 	it('draws Transparent as nothing at all', () => {
 		expect(getSubtitleTextStyle({...settings, subtitleBackgroundColor: '#00000000', subtitleBackground: 100}).backgroundColor).toBe('rgba(0, 0, 0, 0)');
+	});
+});
+
+describe('getSubtitleTextStyle outline, drop shadow, bold and font', () => {
+	const outline = '-2px -2px 0.1em #000000, 2px -2px 0.1em #000000, -2px 2px 0.1em #000000, 2px 2px 0.1em #000000, 0 0 0.1em #000000';
+
+	it('draws the outline as before and leaves the weight and font to the stylesheet by default', () => {
+		const style = getSubtitleTextStyle({...settings, subtitleStrokeWidth: 100, subtitleFont: ''});
+		expect(style.textShadow).toBe(outline);
+		expect(style.fontWeight).toBeUndefined();
+		expect(style.fontFamily).toBeUndefined();
+	});
+
+	it('widens the outline ring with the stroke width', () => {
+		expect(getSubtitleTextStyle({...settings, subtitleStrokeWidth: 200}).textShadow).toBe(outline.replace(/2px/g, '4px'));
+	});
+
+	it('paints the drop shadow last so it sits under the outline', () => {
+		const style = getSubtitleTextStyle({
+			...settings,
+			subtitleDropShadow: true,
+			subtitleDropShadowIntensity: 50,
+			subtitleDropShadowOffset: 3,
+			subtitleDropShadowBlur: 1
+		});
+		expect(style.textShadow).toBe(`${outline}, 0.06em 0.06em 0.02em rgba(0, 0, 0, 0.5)`);
+	});
+
+	it('leaves the drop shadow off while its switch is off', () => {
+		expect(getSubtitleTextStyle({...settings, subtitleDropShadowOffset: 8}).textShadow).toBe(outline);
+	});
+
+	it('draws bold and asks for the bold face of the picked font, in the HDR style when HDR is on screen', () => {
+		const sdr = getSubtitleTextStyle({...settings, subtitleFont: 'Lato'});
+		expect(sdr.fontWeight).toBeUndefined();
+		expect(sdr.fontFamily).toBe("'Lato'");
+
+		const hdr = getSubtitleTextStyle(resolveSubtitleStyleSettings({...settings, subtitleHdrSeparate: true, subtitleFont: 'Lato'}, true));
+		expect(hdr.fontWeight).toBe(700);
+		expect(hdr.fontFamily).toBe("'Lato' bold");
 	});
 });

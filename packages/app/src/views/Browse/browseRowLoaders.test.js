@@ -1,4 +1,4 @@
-import {buildLoaderContext, loadDeferredSections, loadSinceYouWatched, withStudioLogos} from './browseRowLoaders';
+import {buildLoaderContext, loadDeferredSections, loadGenres, loadSinceYouWatched, withStudioLogos} from './browseRowLoaders';
 import {makePickedRow} from '../../utils/pickedRows';
 import {loadSinceYouWatchedRows} from '../../services/homeRecommendations';
 
@@ -36,6 +36,15 @@ describe('picked rows far down Home', () => {
 		await loadDeferredSections(ctx, ctx.deferredPluginSections, done);
 		expect(ctx.appendRows.mock.calls.map(([rows]) => rows.map((row) => row.title))).toEqual([['Genre 7'], ['Genre 8']]);
 		expect(done.mock.calls.map(([id]) => id)).toEqual(ctx.deferredPluginSections.map((row) => row.id));
+	});
+
+	test('carry the collection a picked collection row opens from its See All card', async () => {
+		const collection = makePickedRow({source: 'collections', serverUrl: SERVER, itemId: 'c1', name: 'Heists'}, true, 0);
+		const ctx = contextFor([collection, genreRow(0)]);
+		await loadDeferredSections(ctx, [collection, genreRow(0)], () => {});
+		const rows = ctx.appendRows.mock.calls.map(([[row]]) => row);
+		expect(rows.find((row) => row.id === collection.id).collection).toEqual({Id: 'c1', Name: 'Heists', Type: 'BoxSet'});
+		expect(rows.find((row) => row.id === genreRow(0).id).collection).toBeUndefined();
 	});
 });
 
@@ -85,5 +94,28 @@ describe('withStudioLogos', () => {
 	test('hands the studios back untouched when the plugin has no list', () => {
 		const studios = [{Id: 'a', Name: 'HBO'}];
 		expect(withStudioLogos(studios, null, SERVER, 'tok')).toBe(studios);
+	});
+});
+
+describe('loadGenres', () => {
+	const genres = ['Action', 'War', 'Drama'].map((Name) => ({Id: Name, Name}));
+	const loadWith = async (genresRowSortOrder) => {
+		const ctx = buildLoaderContext({
+			api: {getGenres: jest.fn(async () => ({Items: genres})), getItems: jest.fn(async () => ({Items: []}))},
+			serverUrl: SERVER,
+			settings: {displayGenresRows: true, genresRowSortBy: 'SortName', genresRowSortOrder},
+			homeRowsConfig: [{id: 'genres', enabled: true}],
+			eligibleLibraries: [],
+			appendRows: jest.fn()
+		});
+		await loadGenres(ctx);
+		expect(ctx.api.getGenres).toHaveBeenCalledWith(undefined, 'Movie,Series', 'SortName', genresRowSortOrder === 'Descending' ? 'Descending' : 'Ascending');
+		return ctx.appendRows.mock.calls[0][0][0].items.map((genre) => genre.Name);
+	};
+
+	test('keeps a name sort in the chosen order', async () => {
+		expect(await loadWith('Descending')).toEqual(['War', 'Drama', 'Action']);
+		expect(await loadWith('Ascending')).toEqual(['Action', 'Drama', 'War']);
+		expect(await loadWith('auto')).toEqual(['Action', 'Drama', 'War']);
 	});
 });

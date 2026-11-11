@@ -399,6 +399,8 @@ export const createSiloSeerr = ({call, baseUrl = '', random = Math.random}) => {
 		backdropPath: d.backdrop_path,
 		overview: d.overview,
 		status: d.status,
+		// The US age rating, which only Silo's detail carries.
+		contentRating: d.content_rating,
 		voteAverage: d.vote_average,
 		voteCount: d.vote_count,
 		genres: list(d.genres).filter((g) => typeof g === 'string').map((g) => ({id: stableId(g), name: g})),
@@ -533,7 +535,8 @@ export const createSiloSeerr = ({call, baseUrl = '', random = Math.random}) => {
 	const watchlist = async (at) => {
 		if (at > 1) return EMPTY_PAGE;
 		const body = await get('/watchlist/titles', {limit: 100});
-		const results = list(body.items).filter(Boolean).map((t) => discoverItem({...t, availability: 'missing'}));
+		const results = list(body.items).filter(Boolean)
+			.map((t) => ({...discoverItem({...t, availability: 'missing'}), contentRating: t.content_rating}));
 		return {page: 1, totalPages: 1, totalResults: results.length, results};
 	};
 

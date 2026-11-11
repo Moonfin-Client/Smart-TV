@@ -9,13 +9,20 @@
 
 import {getServerUrl, getAuthHeader, getApiKey, getTokenParam, getServerType} from './jellyfinApi';
 import {legacyAuthHeader} from '../utils/serverRoutes';
-import {platformFetch} from './secureFetch';
+import {corsFreeFetch, platformFetch} from './secureFetch';
 import {fetchWithTimeout} from '../utils/fetchTimeout';
+import {findPlexMoonbase, plexMoonbaseBase} from './plexMoonbase';
 
 // A stable per-user id for the global settings blob (settings are not per game).
 export const SETTINGS_ID = 'moonfin-global';
 
-const base = () => (getServerUrl() || '').replace(/\/+$/, '');
+// Plex can't run plugins, so its games come from Moonbase for Plex beside it, which takes the Plex token the same ways.
+// Its JSON calls go the way every Plex request does, through the shell on Fire TV. The ROM, saves, settings and player
+// page keep the page's own requests, which the companion lets any origin make.
+const base = () => {
+	const server = (getServerUrl() || '').replace(/\/+$/, '');
+	return getServerType() === 'plex' ? plexMoonbaseBase(server) : server;
+};
 const authHeaders = () => {
 	const h = getAuthHeader();
 	return {Authorization: h, ...legacyAuthHeader(getServerType(), h)};
@@ -25,7 +32,7 @@ const enc = encodeURIComponent;
 const jsonRequest = async (path, {method = 'GET', body, timeout = 20000} = {}) => {
 	const headers = {...authHeaders(), Accept: 'application/json'};
 	if (body !== undefined) headers['Content-Type'] = 'application/json';
-	const res = await platformFetch(`${base()}/Moonfin/Games/${path}`, {
+	const res = await (getServerType() === 'plex' ? corsFreeFetch : platformFetch)(`${base()}/Moonfin/Games/${path}`, {
 		method,
 		headers,
 		body: body === undefined ? undefined : JSON.stringify(body)
@@ -40,8 +47,13 @@ const jsonRequest = async (path, {method = 'GET', body, timeout = 20000} = {}) =
 	return text ? JSON.parse(text) : null;
 };
 
-// Moonbase for Silo has no games, and Silo answers an unknown path with its web app.
-export const getLibraries = () => (getServerType() === 'silo' ? Promise.resolve([]) : jsonRequest('Libraries'));
+// Moonbase for Silo has no games, and Silo answers an unknown path with its web app. On Plex the companion is found first,
+// so every address built after this uses it.
+export const getLibraries = async () => {
+	if (getServerType() === 'silo') return [];
+	if (getServerType() === 'plex' && !(await findPlexMoonbase(getServerUrl(), getApiKey()))) return [];
+	return jsonRequest('Libraries');
+};
 export const getSystems = (libraryId) => jsonRequest(`${enc(libraryId)}/Systems`);
 export const getGames = (libraryId, system) =>
 	jsonRequest(`${enc(libraryId)}/Games${system ? `?system=${enc(system)}` : ''}`);

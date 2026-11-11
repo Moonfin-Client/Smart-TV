@@ -21,6 +21,15 @@ export const defaultSettings = {
 	subtitleShadowOpacity: 100,
 	subtitleShadowBlur: 0.1,
 	subtitlePositionAbsolute: 90,
+	subtitleBold: false,
+	// The outline as a percent of its usual width, and a drop shadow whose offset and blur count
+	// in steps of 2% of the text size. The font is one of the downloadable ones, or empty for the app's own.
+	subtitleStrokeWidth: 100,
+	subtitleDropShadow: false,
+	subtitleDropShadowIntensity: 80,
+	subtitleDropShadowOffset: 2,
+	subtitleDropShadowBlur: 2,
+	subtitleFont: '',
 	// White is far brighter in HDR than in SDR, so the HDR text color starts grey.
 	subtitleHdrSeparate: false,
 	subtitleSizeHdr: 'medium',
@@ -33,6 +42,7 @@ export const defaultSettings = {
 	subtitleShadowOpacityHdr: 100,
 	subtitleShadowBlurHdr: 0.1,
 	subtitlePositionAbsoluteHdr: 90,
+	subtitleBoldHdr: false,
 	seekStep: 10,
 	fallbackAudioLanguage: '',
 	preferDefaultAudioTrack: false,
@@ -250,6 +260,9 @@ export const defaultSettings = {
 	screensaverEnabled: true,
 	screensaverTimeout: 90,
 	screensaverDimmingLevel: 50,
+	screensaverDuringAudio: false,
+	// Minutes, or 0 for never.
+	sleepAfterIdle: 0,
 	screensaverClockMode: 'staticCorner',
 	screensaverMode: 'library',
 	screensaverBackdrop: 'library',
@@ -272,6 +285,9 @@ export const defaultSettings = {
 	useDetailedSubHeadings: true,
 	showMediaDetailsOnLibraryPage: true,
 	libraryCardTitles: true,
+	photoSlideshowInterval: 5,
+	photoSlideshowVideos: true,
+	photoSlideshowVideoSound: true,
 	// Null until someone picks a size, so library grids follow the home card size.
 	libraryPosterSize: null,
 	playlistPosterSize: null,
@@ -282,6 +298,7 @@ export const defaultSettings = {
 	libraryStyle: 'classic',
 	bookLibraryStyle: 'bookstore',
 	showBookDiscoverTab: true,
+	bookFoldersAsSeries: false,
 	musicLibraryStyle: 'immersive',
 	hideBackdropsInLibraries: false,
 	useSeriesThumbnails: false,
@@ -306,6 +323,8 @@ export const defaultSettings = {
 	hideDetailsMediaDescription: false,
 	detailUseSeriesThumbnails: false,
 	hideHomeMediaDescription: false,
+	hideHomeWatchProgress: false,
+	hideHomeUnwatchedCount: false,
 	homeRowOverlay: true,
 	excludedGenres: [],
 	autoAdvance: true,
@@ -315,6 +334,9 @@ export const defaultSettings = {
 	nextUpTimeout: 7,
 	stillWatchingBehavior: 'medium',
 	skipForwardLength: 30000,
+	controlsHideDelay: 5000,
+	// Percent the player controls dim while HDR plays.
+	hdrControlsDimming: 0,
 	unpauseRewind: 0,
 	showDescriptionOnPause: false,
 	// Chosen so the overlay looks unchanged for anyone who never opens the setting.

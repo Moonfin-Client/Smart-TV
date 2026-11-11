@@ -4,7 +4,7 @@ import $L from '@enact/i18n/$L';
 import Spotlight from '@enact/spotlight';
 import SpotlightContainerDecorator from '@enact/spotlight/SpotlightContainerDecorator';
 
-import {arrange, seerrOnlyRow, countSplit, applyButtonLimit, DETAIL_ORDER_KEY, DETAIL_HIDDEN_KEY} from '../../utils/buttonLayout';
+import {arrange, seerrOnlyRow, splitSlots, countSplit, applyButtonLimit, DETAIL_ORDER_KEY, DETAIL_HIDDEN_KEY} from '../../utils/buttonLayout';
 import {KEYS} from '../../utils/keys';
 import {DETAIL_ICON_PATHS} from './detailIcons';
 import {ActionButton, detailActionCatalogue} from './detailActions';
@@ -49,7 +49,7 @@ const ModernActionButtons = (props) => {
 	// Only what the row itself needs. Everything the buttons are built from is read straight off
 	// props by the catalogue.
 	const {
-		settings, seerrOnly, isBook, isReadableBook, isPlaylist, playlistTracks, isPerson,
+		actionsHeld, settings, seerrOnly, isBook, isReadableBook, isPlaylist, playlistTracks, isPerson,
 		hasPlaybackPosition, resumeTimeText, hasTech,
 		handlePlay, handleResume, handleOpenExtras,
 		onFocusRow, downTarget, maxVisibleButtons, overflowAsMenu, menuBackRef,
@@ -165,9 +165,9 @@ const ModernActionButtons = (props) => {
 	const offeredButtons = rowButtons.filter((btn) => btn.when);
 	// Kids Mode sets the saved arrangement aside rather than filtering it, since its own short row
 	// is the point and a reorder would otherwise put a hidden button back.
-	const customizable = isKidsMode(settings)
+	const customizable = splitSlots(isKidsMode(settings)
 		? kidsModeButtons(offeredButtons, true)
-		: arrange(offeredButtons, {order: settings[DETAIL_ORDER_KEY], hidden: settings[DETAIL_HIDDEN_KEY]});
+		: arrange(offeredButtons, {order: settings[DETAIL_ORDER_KEY], hidden: settings[DETAIL_HIDDEN_KEY]}));
 
 	// Resume and Restart both lead the row when there is somewhere to resume from, so the
 	// leading slots are counted rather than assumed to be one. A person has nothing to play.
@@ -200,8 +200,9 @@ const ModernActionButtons = (props) => {
 	return (
 		<>
 			<RowContainer
-				className={frosted ? css.actionsFrosted : stacked ? css.actionsStacked : centered ? `${css.actionsCentered} ${startAligned ? css.actionsStart : ''}` : `${css.actions} ${hasTech ? css.actionsTight : ''}`}
+				className={`${frosted ? css.actionsFrosted : stacked ? css.actionsStacked : centered ? `${css.actionsCentered} ${startAligned ? css.actionsStart : ''}` : `${css.actions} ${hasTech ? css.actionsTight : ''}`} ${actionsHeld ? css.actionsHeld : ''}`}
 				spotlightId="details-action-buttons"
+				spotlightDisabled={actionsHeld}
 				onFocus={handleRowFocus}
 				onKeyDown={stacked ? handleStackedKeyDown : handleKeyDown}
 			>

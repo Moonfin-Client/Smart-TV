@@ -1,5 +1,5 @@
 import {
-	OVERVIEW, ROOT_SCREEN, authorShelves, authorStats, backTarget, bookNavFor, booksByAuthor, navEntries, navKeyFor,
+	OVERVIEW, ROOT_SCREEN, authorShelves, authorStats, backTarget, bookNavFor, booksByAuthor, featuredBook, navEntries, navKeyFor,
 	readingOrder, seriesProgress, sortBookGenres, splitFavorites, titleMeta
 } from './bookScreens';
 
@@ -38,20 +38,29 @@ describe('the nav', () => {
 
 	test('Bookstore lists the formats with counts, then what has anything in it, then Discover', () => {
 		const entries = navEntries({style: 'bookstore', library, data: data(), showDiscover: true});
-		expect(entries.map((entry) => entry.key)).toEqual(['scope-all', 'scope-books', 'scope-audiobooks', 'scope-comics', 'authors', 'favorites', 'discover']);
+		expect(entries.map((entry) => entry.key)).toEqual(['scope-all', 'scope-books', 'scope-audiobooks', 'scope-comics', 'authors', 'favorites', 'folders', 'discover']);
 		expect(entries[1]).toMatchObject({screen: {id: 'titles', scope: 'books'}, count: 1, section: 'titles'});
 		expect(entries[5]).toMatchObject({section: 'browse', count: 2});
 	});
 
 	test('a library of one format gets one Titles entry, and Discover follows its setting', () => {
 		const entries = navEntries({style: 'bookstore', library, data: data({counts: {all: 2, books: 2, audiobooks: 0, comics: 0}}), showDiscover: false});
-		expect(entries.map((entry) => entry.key)).toEqual(['scope-all', 'authors', 'favorites']);
+		expect(entries.map((entry) => entry.key)).toEqual(['scope-all', 'authors', 'favorites', 'folders']);
 	});
 
 	test('Classic and Reading Room lead with Overview and list Titles once', () => {
 		const entries = navEntries({style: 'classic', library, data: data({series: [{}]}), showDiscover: true});
-		expect(entries.map((entry) => entry.key)).toEqual([OVERVIEW, 'titles', 'series', 'authors', 'favorites', 'discover']);
+		expect(entries.map((entry) => entry.key)).toEqual([OVERVIEW, 'titles', 'series', 'authors', 'favorites', 'folders', 'discover']);
 		expect(entries[0].screen).toBeNull();
+	});
+
+	test('Folders is always there and opens the library itself in folder view', () => {
+		const empty = data({authorCount: 0, favoriteCount: 0});
+		for (const style of ['bookstore', 'classic', 'readingRoom']) {
+			const folders = navEntries({style, library, data: empty, showDiscover: false}).find((entry) => entry.key === 'folders');
+			expect(folders).toMatchObject({grid: {folder: library}});
+			expect(folders.count).toBeUndefined();
+		}
 	});
 
 	test('the current entry follows the screen', () => {
@@ -89,6 +98,14 @@ describe('series', () => {
 	test('a series read to the end is Finished', () => {
 		const progress = seriesProgress([epub('a', {UserData: {Played: true}})]);
 		expect(progress).toMatchObject({next: null, finished: true, label: 'Finished'});
+	});
+
+	test('a series page features the book being read, else the first unfinished one, else the first', () => {
+		const read = {UserData: {Played: true}};
+		expect(featuredBook([epub('a', read), epub('b'), epub('c', {UserData: {PlayedPercentage: 40}})]).Id).toBe('c');
+		expect(featuredBook([epub('a', read), epub('b'), epub('c')]).Id).toBe('b');
+		expect(featuredBook([epub('a', read), epub('b', read)]).Id).toBe('a');
+		expect(featuredBook([])).toBeNull();
 	});
 });
 

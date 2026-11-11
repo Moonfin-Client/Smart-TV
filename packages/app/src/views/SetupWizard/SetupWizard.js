@@ -17,7 +17,7 @@ import {MaterialIcon} from '../../components/icons/materialIcons';
 import {isBuiltInThemeId, resolveThemeById} from '../../theme/themeRegistry';
 import {toCssColor} from '../../theme/themeSpec';
 import LoadingSpinner from '../../components/LoadingSpinner';
-import {remainingSteps, markComplete, deferThisLaunch} from '../../utils/setupWizardGate';
+import {remainingSteps, markComplete, deferThisLaunch, hasReadSignInSettings} from '../../utils/setupWizardGate';
 import {ModalContainer} from '../../utils/spotlightContainers';
 import {keepFocusInView, pointerHover} from '../../utils/focusScroll';
 import {getAudioLanguageOptions, getSubtitleLanguageOptions, getSubtitleModeOptions, getLabel, subtitleModeHint} from '../Settings/settingsOptions';
@@ -349,7 +349,7 @@ const OptionPicker = ({title, options, current, descriptionOf, onPick, onClose, 
 
 const SetupWizard = ({onDone, backHandlerRef}) => {
 	const {api, serverUrl, accessToken, serverType, user} = useAuth();
-	const {settings, initialSyncSettled, updateSettings, activeThemeId, availableThemes, selectThemeById} = useSettings();
+	const {settings, updateSettings, activeThemeId, availableThemes, selectThemeById} = useSettings();
 	const t = usePreviewPalette();
 
 	const [steps, setSteps] = useState([]);
@@ -364,8 +364,6 @@ const SetupWizard = ({onDone, backHandlerRef}) => {
 	const [moonbaseOpen, setMoonbaseOpen] = useState(false);
 	const [moonbaseInstalled, setMoonbaseInstalled] = useState(false);
 
-	const syncSettledRef = useRef(initialSyncSettled);
-	syncSettledRef.current = initialSyncSettled;
 	const settingsRef = useRef(settings);
 	settingsRef.current = settings;
 	const skipFocusedRef = useRef(false);
@@ -469,7 +467,7 @@ const SetupWizard = ({onDone, backHandlerRef}) => {
 			const deadline = Date.now() + 3000;
 			let settled = false;
 			while (Date.now() < deadline) {
-				if (syncSettledRef.current) {
+				if (hasReadSignInSettings(serverUrl, user?.Id)) {
 					settled = true;
 					break;
 				}

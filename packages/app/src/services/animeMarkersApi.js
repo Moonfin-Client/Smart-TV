@@ -1,4 +1,6 @@
-import {getAuthHeader, getServerType, getServerUrl} from './jellyfinApi';
+import {getApiKey, getAuthHeader, getServerType, getServerUrl} from './jellyfinApi';
+import {moonbaseEndpoint} from './moonbaseEndpoint';
+import {isPlexServer} from '../utils/plexUrls';
 import {mediaServerQueue} from '../utils/requestQueue';
 import {getFromStorage, saveToStorage} from './storage';
 
@@ -73,11 +75,17 @@ const isNegativelyCached = (key) => {
 
 export const areAnimeMarkersEnabled = (settings) => !!settings?.useMoonfinPlugin;
 
-const request = async (url, signal) => {
-	const options = {headers: {'Authorization': getAuthHeader()}};
+// The plugin answers at the server, or on Plex at Moonbase for Plex beside it. A Plex server without one answers as a
+// 404 would.
+const request = async (baseUrl, path, signal) => {
+	const endpoint = isPlexServer(baseUrl)
+		? await moonbaseEndpoint(baseUrl, getApiKey())
+		: {base: baseUrl, headers: {'Authorization': getAuthHeader()}};
+	if (!endpoint) return {ok: false, status: 404};
+	const options = {headers: endpoint.headers};
 	if (signal) options.signal = signal;
 
-	return mediaServerQueue.run(() => fetch(url, options));
+	return mediaServerQueue.run(() => (endpoint.fetch || fetch)(`${endpoint.base}${path}`, options));
 };
 
 // Markers for every episode of one series, key is the episode id.
@@ -111,8 +119,7 @@ export const fetchSeriesMarkers = async (seriesId, options = {}) => {
 				if (featureOff()) return null;
 			}
 
-			const url = `${baseUrl}/Moonfin/AnimeMarkers/Series?seriesId=${encodeURIComponent(seriesId)}`;
-			const response = await request(url, options.signal);
+			const response = await request(baseUrl, `/Moonfin/AnimeMarkers/Series?seriesId=${encodeURIComponent(seriesId)}`, options.signal);
 
 			if (!response.ok) {
 				negativeCache[key] = Date.now();
@@ -210,8 +217,7 @@ const flushItemBatch = async () => {
 	try {
 		if (stopping || ids.length === 0) return;
 
-		const url = `${baseUrl}/Moonfin/AnimeMarkers/Items?ids=${encodeURIComponent(ids.join(','))}`;
-		const response = await request(url);
+		const response = await request(baseUrl, `/Moonfin/AnimeMarkers/Items?ids=${encodeURIComponent(ids.join(','))}`);
 		if (!response.ok) throw new Error(`HTTP ${response.status}`);
 
 		const body = await response.json();

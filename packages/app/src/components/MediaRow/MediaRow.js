@@ -45,6 +45,7 @@ const MediaRow = ({
 	onSeeAll,
 	seeAllLabel,
 	onCalendarSeeAll,
+	seeAllIcon,
 	spotlightId: rowSpotlightId,
 	menuOptions,
 	loading,
@@ -52,6 +53,8 @@ const MediaRow = ({
 	deferImages = false,
 	homeText = false,
 	posterLabels = false,
+	hideWatchProgress = false,
+	hideUnwatchedCount = false,
 	onLoadMore
 }) => {
 	const {settings} = useSettings();
@@ -134,6 +137,8 @@ const MediaRow = ({
 		Spotlight.focus(`media-${keyPrefix}-${items[0].Id}`);
 	}, [items, keyPrefix]);
 
+	const handleCalendarSeeAll = useCallback(() => onCalendarSeeAll(rowId), [onCalendarSeeAll, rowId]);
+
 	const rowClassName = [
 		css.row,
 		className || '',
@@ -209,6 +214,8 @@ const MediaRow = ({
 									menuOptions={menuOptions}
 									homeText={homeText}
 									posterLabels={posterLabels}
+									hideWatchProgress={hideWatchProgress}
+									hideUnwatchedCount={hideUnwatchedCount}
 								/>
 							);
 						})}
@@ -216,8 +223,9 @@ const MediaRow = ({
 							<CalendarSeeAllCard
 								{...classicCardSize(classicShape(cardType, rowImageType), settings.homeRowsPosterSize)}
 								spotlightId={`media-${keyPrefix}-calendar-see-all`}
-								onClick={onCalendarSeeAll}
+								onClick={handleCalendarSeeAll}
 								onSpotlightRight={handleWrapRight}
+								icon={seeAllIcon}
 							/>
 						)}
 				</div>
@@ -244,6 +252,7 @@ const areRowPropsEqual = (prev, next) => {
 	if (prev.spotlightId !== next.spotlightId) return false;
 	if (prev.loading !== next.loading || prev.titleWidth !== next.titleWidth) return false;
 	if (prev.deferImages !== next.deferImages || prev.posterLabels !== next.posterLabels) return false;
+	if (prev.hideWatchProgress !== next.hideWatchProgress || prev.hideUnwatchedCount !== next.hideUnwatchedCount) return false;
 	// Compare presence, not identity: an inline arrow from a caller would defeat
 	// the whole comparator.
 	if (!prev.onSeeAll !== !next.onSeeAll) return false;

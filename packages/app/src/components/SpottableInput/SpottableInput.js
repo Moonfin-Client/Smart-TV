@@ -215,6 +215,9 @@ const SpottableInput = forwardRef(({
 					{...inputProps}
 					type={revealed ? 'text' : inputProps.type}
 					readOnly={kbActive || inputProps.readOnly}
+					// The placeholder reads as typed with the caret drawn in front of it, so it gives way
+					// while the field is being edited
+					placeholder={showCaret ? '' : inputProps.placeholder}
 					className={css.innerInput}
 					onFocus={handleFocus}
 					onBlur={handleBlur}

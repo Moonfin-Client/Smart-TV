@@ -1,6 +1,6 @@
 jest.mock('../platform', () => ({getPlatform: () => 'vega'}));
 
-import {KEYS, isBackKey, isMenuKey} from './keys';
+import {KEYS, isBackKey, isMenuKey, remoteShortcut} from './keys';
 
 describe('keys on Vega', () => {
 	test('back is the escape code the WebView hands the page', () => {
@@ -20,5 +20,10 @@ describe('keys on Vega', () => {
 		expect(KEYS.REWIND).toBe(227);
 		expect(KEYS.FAST_FORWARD).toBe(228);
 		expect(KEYS.PLAY).toBeUndefined();
+	});
+
+	test('the Tizen shortcut codes mean nothing here', () => {
+		expect(remoteShortcut({keyCode: 458})).toBeNull();
+		expect(remoteShortcut({keyCode: 10221})).toBeNull();
 	});
 });

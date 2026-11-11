@@ -23,19 +23,20 @@ import {setTmdbThumbsAvailable} from '../utils/tmdbThumb';
 import {configureIncompleteRecordings} from '../services/incompleteRecordings';
 import serverLogger from '../services/serverLogger';
 import * as remoteControl from '../services/remoteControl';
-import {isBackKey, KEYS} from '../utils/keys';
+import {isBackKey, KEYS, remoteShortcut} from '../utils/keys';
 import {drawsStage} from '../views/Details/stage/stageRules';
 import {QUICK_LOOK_ID} from '../views/Details/quickLook/quickLookRules';
 import {applyPerfTier} from '../utils/perfTier';
 import {setSmoothScrolling} from '../utils/focusScroll';
 import {isLiveTvChannel, isLiveTvLibrary} from '../utils/liveTvLibrary';
 import {OLED_TUNING} from '../utils/oledMode';
-import {isTizen} from '../platform';
+import {isTizen, isVega, isXbox} from '../platform';
 import {initVideo, cleanupVideoElement, setupVisibilityHandler, setupPlatformLifecycle} from '../services/video';
 import {activateApp, exitApp} from '../utils/appLifecycle';
 import {SettingsProvider} from '../context/SettingsContext';
 import {seedLanguagePreferences} from '../utils/languagePrefSeed';
 import {shouldRun as shouldRunSetupWizard, beginRerun as beginSetupWizardRerun} from '../utils/setupWizardGate';
+import {syncNotificationPrefs} from '../services/notificationPrefs';
 import {getActiveServer} from '../services/multiServerManager';
 import {SeerrProvider, useSeerr} from '../context/SeerrContext';
 import {AchievementsProvider, useAchievements} from '../context/AchievementsContext';
@@ -66,6 +67,7 @@ import {extendServerShuffle} from '../services/serverShuffle';
 import {rememberSignInPin, signInPinRemembered, signInPinStillUnlocked} from '../services/serverPinApi';
 import {MaterialIcon} from '../components/icons/materialIcons';
 import PhotoViewer from '../components/PhotoViewer';
+import {isSlideshowVideo, stepIndex, viewerItems} from '../components/PhotoViewer/usePhotoSlideshow';
 import ComicViewer from '../components/ComicViewer';
 import EpubReader from '../components/EpubReader';
 import PdfReader from '../components/PdfReader';
@@ -77,6 +79,7 @@ import SpottableInput from '../components/SpottableInput/SpottableInput';
 import TVKeyboard from '../components/TVKeyboard/TVKeyboard';
 import {isTvKeyboardVisible, closeTvKeyboard, subscribeTvKeyboardVisibility} from '../components/TVKeyboard/keyboardBus';
 import useInactivityTimer from '../hooks/useInactivityTimer';
+import useSleepAfterIdle from '../hooks/useSleepAfterIdle';
 import useSignInPin from '../hooks/useSignInPin';
 import {useThemeMusic} from '../hooks/useThemeMusic';
 import {useAccessSchedule} from '../hooks/useAccessSchedule';
@@ -190,6 +193,18 @@ const PANELS = {
 	CALENDAR: 23,
 	CALENDAR_MONTH: 24
 };
+
+// A library with no id, which only names the server a genre or studio from another one is browsed on.
+const serverOnlyLibrary = (name, source) => ({
+	Id: null,
+	Name: name,
+	_serverUrl: source._serverUrl,
+	_serverType: source._serverType,
+	_serverAccessToken: source._serverAccessToken,
+	_serverUserId: source._serverUserId,
+	_serverName: source._serverName,
+	_serverId: source._serverId
+});
 
 const AppContent = (props) => {
 	const {isAuthenticated, isLoading, serverUrl, serverName, api, user, hasMultipleServers, accessToken, connectionState, revalidateSession, leaveSession, serverType} = useAuth();
@@ -367,6 +382,20 @@ const AppContent = (props) => {
 	const prevUserIdRef = useRef(null);
 	const [photoViewerItem, setPhotoViewerItem] = useState(null);
 	const [photoViewerItems, setPhotoViewerItems] = useState([]);
+	// Set by the photo's Slideshow button. While a slideshow video plays the viewer is hidden, but stays
+	// open under the player so the slideshow carries on from it.
+	const [slideshowRunning, setSlideshowRunning] = useState(false);
+	const [slideshowVideo, setSlideshowVideo] = useState(false);
+	const slideshowIndexRef = useRef(0);
+	// Hands the library the item to come back to, since a video takes the library off screen.
+	const photoReturnRef = useRef(null);
+	// How much of the folder the library has fetched, out of how many items it holds, for paging the viewer on.
+	const [photoPaging, setPhotoPaging] = useState({loaded: 0, total: 0});
+	const photoPagingRef = useRef({loaded: 0, total: 0});
+	const photoMoreRef = useRef(false);
+	const photoMoreTimerRef = useRef(null);
+	// The folder's exact number of photos and videos once the library has counted them, or 0 until then.
+	const [photoCount, setPhotoCount] = useState(0);
 	const [reading, setReading] = useState(null);
 	const BookReader = reading ? BOOK_READERS[reading.reader.kind] : null;
 	const [unreadableBook, setUnreadableBook] = useState(null);
@@ -381,11 +410,15 @@ const AppContent = (props) => {
 	const isPinChecking = pinPending && !isPinGateActive && pinChecked !== pinSession;
 	const [pinKeyboardOpen, setPinKeyboardOpen] = useState(false);
 	const screensaverTimeout = Number(settings.screensaverTimeout || 90);
+	const mediaPlaying = Boolean(playingItem) && !isPlayerPaused && (panelIndex === PANELS.PLAYER || backgroundMusic);
+	// Music and audiobooks keep the screensaver away while they play, on Now Playing or behind the
+	// other screens, unless the viewer lets it start over them.
+	const audioPlaying = mediaPlaying && isAudioItem(playingItem);
 	const screensaverEnabled = Boolean(
 		settings.screensaverEnabled &&
 		isAuthenticated &&
 		panelIndex !== PANELS.LOGIN &&
-		(panelIndex !== PANELS.PLAYER || isPlayerPaused) &&
+		(audioPlaying ? settings.screensaverDuringAudio === true : (panelIndex !== PANELS.PLAYER || isPlayerPaused)) &&
 		// Emulator input bypasses Spotlight (paused during gameplay), so inactivity never resets.
 		panelIndex !== PANELS.GAME_PLAYER &&
 		// A media bar trailer plays without any key presses to reset the timer.
@@ -399,6 +432,13 @@ const AppContent = (props) => {
 		!reading
 	);
 	const {isInactive: showScreensaver, dismiss: dismissScreensaver, wake: wakeScreensaver} = useInactivityTimer(screensaverTimeout, screensaverEnabled);
+	// A paused player holds the screen on too, so it counts as idle. Games and slideshows go on without key presses.
+	// Xbox and Vega have no TV sleep timer to hand the screen to.
+	useSleepAfterIdle(
+		isXbox() || isVega() ? 0 : Number(settings.sleepAfterIdle) || 0,
+		!mediaPlaying && !slideshowRunning && panelIndex !== PANELS.GAME_PLAYER,
+		showScreensaver
+	);
 
 	useEffect(() => {
 		window.dispatchEvent(new CustomEvent('moonfin:screensaver', {detail: {active: showScreensaver}}));
@@ -523,11 +563,17 @@ const AppContent = (props) => {
 
 	useEffect(() => {
 		if (isAuthenticated && serverUrl && accessToken) {
-			syncOnLogin(serverUrl, accessToken).catch((err) => {
+			syncOnLogin(serverUrl, accessToken, user?.Id).catch((err) => {
 				console.warn('[App] Initial settings sync failed:', err.message);
 			});
+			// Plex keeps no Seerr notification choices.
+			if (serverType !== 'plex') {
+				syncNotificationPrefs(serverUrl, accessToken, user?.Id).catch((err) => {
+					console.warn('[Seerr] Notification choices not synced:', err?.message);
+				});
+			}
 		}
-	}, [isAuthenticated, serverUrl, accessToken, syncOnLogin]);
+	}, [isAuthenticated, serverUrl, accessToken, user?.Id, serverType, syncOnLogin]);
 
 	// The setup wizard asks its questions once per server and user, so this
 	// only flips the flag for a pair that has never finished it. A server that
@@ -1206,15 +1252,100 @@ const AppContent = (props) => {
 		handleSelectItem({Id: deepLink.id, Type: deepLink.type === 'episode' ? 'Episode' : 'Movie'}, settings.continueWatchingDefaultAction === 'play');
 	}, [deepLink, isAuthenticated, settingsLoaded, user, pinPending, timesUp, handleSelectItem, settings.continueWatchingDefaultAction]);
 
-	const handleViewPhoto = useCallback((item, siblings) => {
+	const handleViewPhoto = useCallback((item, siblings, source) => {
+		photoReturnRef.current = source?.noteReturn || null;
+		photoPagingRef.current = {loaded: source?.loaded || 0, total: source?.total || 0};
+		photoMoreRef.current = false;
+		setPhotoPaging(photoPagingRef.current);
+		setPhotoCount(0);
 		setPhotoViewerItem(item);
 		setPhotoViewerItems(siblings || []);
 	}, []);
 
-	const handleClosePhotoViewer = useCallback(() => {
+	// The viewer asks for the next page of the folder as it nears the end of what it has. The page's library loads it
+	// and reports back, and if that library was rebuilt after a video and is still behind what the viewer
+	// already holds, the request is repeated until it reaches past it.
+	const dispatchMorePhotos = useCallback(() => {
+		const {loaded, total} = photoPagingRef.current;
+		if (loaded >= total) return;
+		clearTimeout(photoMoreTimerRef.current);
+		photoMoreRef.current = true;
+		photoMoreTimerRef.current = setTimeout(() => { photoMoreRef.current = false; }, 10000);
+		window.dispatchEvent(new CustomEvent('moonfin:libraryLoadMore'));
+	}, []);
+
+	const requestMorePhotos = useCallback(() => {
+		if (!photoMoreRef.current) dispatchMorePhotos();
+	}, [dispatchMorePhotos]);
+
+	useEffect(() => {
+		if (!photoViewerItem) return undefined;
+		const onLibraryItems = (ev) => {
+			const {items, loaded, total} = ev.detail;
+			const before = photoPagingRef.current.loaded;
+			photoPagingRef.current = {loaded: Math.max(before, loaded), total};
+			setPhotoPaging(photoPagingRef.current);
+			setPhotoViewerItems((prev) => {
+				const known = new Set(prev.map((entry) => entry.Id));
+				const added = items.filter((entry) => !known.has(entry.Id));
+				return added.length ? prev.concat(added) : prev;
+			});
+			if (!photoMoreRef.current) return;
+			if (loaded > before || loaded >= total) {
+				photoMoreRef.current = false;
+				clearTimeout(photoMoreTimerRef.current);
+			} else {
+				dispatchMorePhotos();
+			}
+		};
+		window.addEventListener('moonfin:libraryItems', onLibraryItems);
+		const onPhotoCount = (ev) => setPhotoCount(ev.detail);
+		window.addEventListener('moonfin:libraryPhotoCount', onPhotoCount);
+		return () => {
+			window.removeEventListener('moonfin:libraryItems', onLibraryItems);
+			window.removeEventListener('moonfin:libraryPhotoCount', onPhotoCount);
+			photoMoreRef.current = false;
+			clearTimeout(photoMoreTimerRef.current);
+		};
+	}, [photoViewerItem, dispatchMorePhotos]);
+
+	// How many more photos and videos the folder holds than the viewer has: the library's exact count when it has
+	// one, otherwise the items it hasn't fetched yet, which may turn out to include a few that aren't photos.
+	const photoMoreCount = useMemo(() => {
+		if (photoPaging.loaded >= photoPaging.total) return 0;
+		if (!photoCount) return photoPaging.total - photoPaging.loaded;
+		return Math.max(1, photoCount - viewerItems(photoViewerItems, photoViewerItem).length);
+	}, [photoPaging, photoCount, photoViewerItems, photoViewerItem]);
+
+	const handleClosePhotoViewer = useCallback((lastShown) => {
+		photoReturnRef.current = null;
+		photoPagingRef.current = {loaded: 0, total: 0};
+		setPhotoPaging(photoPagingRef.current);
+		setPhotoCount(0);
+		setSlideshowRunning(false);
+		setSlideshowVideo(false);
 		setPhotoViewerItem(null);
 		setPhotoViewerItems([]);
+		if (lastShown?.Id) {
+			setTimeout(() => window.dispatchEvent(new CustomEvent('moonfin:focusLibraryItem', {detail: lastShown.Id})), 50);
+		}
 	}, []);
+
+	// Leaving the app or the TV going to standby ends the slideshow, which also lets the screen sleep again.
+	useEffect(() => {
+		if (!slideshowRunning) return undefined;
+		const onVisibility = () => {
+			if (document.hidden) setSlideshowRunning(false);
+		};
+		document.addEventListener('visibilitychange', onVisibility);
+		return () => document.removeEventListener('visibilitychange', onVisibility);
+	}, [slideshowRunning]);
+
+	// A player left by any route other than the slideshow's own callbacks (a relaunch, a blocked item, the
+	// guide) must not leave the viewer hidden. The handoff to the player sets both together, so it isn't caught here.
+	useEffect(() => {
+		if (slideshowVideo && panelIndex !== PANELS.PLAYER) handleClosePhotoViewer();
+	}, [slideshowVideo, panelIndex, handleClosePhotoViewer]);
 
 	const handleCloseReader = useCallback(() => {
 		setReading(null);
@@ -1269,11 +1400,12 @@ const AppContent = (props) => {
 		navigateTo(PANELS.LIBRARY);
 	}, [api, navigateTo, settings.liveTvSkipGuide]);
 
-	const handleSelectStudio = useCallback((studioName) => {
+	// A studio on a title from another server in unified mode is browsed on that server, as a genre is.
+	const handleSelectStudio = useCallback((studioName, sourceItem) => {
 		if (!studioName) return;
 		setStudioFilter(studioName);
 		setGenreFilter(null);
-		setSelectedLibrary(null);
+		setSelectedLibrary(sourceItem?._serverUrl ? serverOnlyLibrary(studioName, sourceItem) : null);
 		navigateTo(PANELS.LIBRARY);
 	}, [navigateTo]);
 
@@ -1438,6 +1570,66 @@ const AppContent = (props) => {
 	}, [handleBack, panelHistory, selectedItem, playingItem, panelIndex, watchPartyRoom, openWatchParty, isSyncPlayInGroup, openSyncPlay]);
 	playerEndRef.current = handlePlayerEnd;
 
+	const handleSlideshowPlayVideo = useCallback(async (video, index) => {
+		slideshowIndexRef.current = index;
+		if (photoReturnRef.current) photoReturnRef.current(video.Id);
+		if (backgroundMusic) await remoteControl.releasePlayer();
+		setSlideshowVideo(true);
+		setPlayingItem(video);
+		setPlaybackOptions(null);
+		setIsResume(false);
+		navigateTo(PANELS.PLAYER);
+	}, [navigateTo, backgroundMusic]);
+
+	// In a SyncPlay group or a Watch Party the player waits on the group and reports to it, so a slideshow there
+	// passes over its videos.
+	const slideshowVideos = settings.photoSlideshowVideos !== false && !isSyncPlayInGroup && !watchPartyRoom;
+
+	// Moves a slideshow video on, to a video swapped in the player where it is (the panel history stays as
+	// it was) or to a photo, which takes the player off screen and shows the viewer on it again. Once the
+	// slideshow has stopped, a step or an end goes back to the viewer, where a video shows as its still.
+	const moveSlideshow = useCallback((dir, auto) => {
+		const list = viewerItems(photoViewerItems, photoViewerItem);
+		const index = auto && !slideshowRunning
+			? slideshowIndexRef.current
+			: stepIndex(list, slideshowIndexRef.current, dir, {skipVideos: auto && !slideshowVideos});
+		const target = list[index];
+		slideshowIndexRef.current = index;
+		if (slideshowRunning && isSlideshowVideo(target, slideshowVideos)) {
+			if (photoReturnRef.current) photoReturnRef.current(target.Id);
+			setPlayingItem(target);
+			setPlaybackOptions(null);
+			setIsResume(false);
+			return;
+		}
+		if (target) setPhotoViewerItem(target);
+		setSlideshowVideo(false);
+		handlePlayerEnd();
+	}, [slideshowVideos, photoViewerItems, photoViewerItem, slideshowRunning, handlePlayerEnd]);
+
+	const handleSlideshowExit = useCallback(() => {
+		handleClosePhotoViewer();
+		handlePlayerEnd();
+	}, [handleClosePhotoViewer, handlePlayerEnd]);
+
+	// The player calls these some time after it was rendered, so they read the latest through a ref.
+	const slideshowApiRef = useRef(null);
+	slideshowApiRef.current = {
+		step: (dir) => moveSlideshow(dir, false),
+		ended: () => moveSlideshow(1, true),
+		exit: handleSlideshowExit
+	};
+	const slideshowCallbacks = useMemo(() => ({
+		onStep: (dir) => slideshowApiRef.current.step(dir),
+		onEnded: () => slideshowApiRef.current.ended(),
+		onExit: () => slideshowApiRef.current.exit()
+	}), []);
+	const slideshowSound = settings.photoSlideshowVideoSound !== false;
+	const playerSlideshow = useMemo(
+		() => (slideshowVideo ? {...slideshowCallbacks, muted: slideshowRunning && !slideshowSound} : undefined),
+		[slideshowVideo, slideshowRunning, slideshowSound, slideshowCallbacks]
+	);
+
 	const handlePlayerBackground = useCallback(() => {
 		setMusicInBackground(true);
 		handleBack();
@@ -1451,18 +1643,28 @@ const AppContent = (props) => {
 	}, [panelIndex]);
 
 	// The guide button on the live TV OSD always lands on the guide, not wherever
-	// playback was launched from. When the player was opened from the guide its
-	// history entry is dropped so back doesn't bounce through the guide twice.
-	const handlePlayerGuide = useCallback(() => {
+	// playback was launched from, and the remote's Recordings button on Recordings.
+	// When the player was opened from that screen its history entry is dropped so
+	// back doesn't bounce through it twice.
+	const leavePlayerFor = useCallback((panel) => {
 		setIsPlayerPaused(false);
 		setPlayingItem(null);
 		setPlaybackOptions(null);
 		setIsResume(false);
-		setPanelHistory(prev => (prev[prev.length - 1] === PANELS.LIVETV ? prev.slice(0, -1) : prev));
-		showPanel(PANELS.LIVETV);
+		setPanelHistory(prev => (prev[prev.length - 1] === panel ? prev.slice(0, -1) : prev));
+		showPanel(panel);
 	}, [showPanel]);
+	const handlePlayerGuide = useCallback(() => leavePlayerFor(PANELS.LIVETV), [leavePlayerFor]);
+	const handlePlayerRecordings = useCallback(() => leavePlayerFor(PANELS.RECORDINGS), [leavePlayerFor]);
 
+	// Discover's Search lands on the Requests tab once a search has request results.
+	const [searchPrefersRequests, setSearchPrefersRequests] = useState(false);
 	const handleOpenSearch = useCallback(() => {
+		setSearchPrefersRequests(false);
+		navigateTo(PANELS.SEARCH);
+	}, [navigateTo]);
+	const handleOpenRequestSearch = useCallback(() => {
+		setSearchPrefersRequests(true);
 		navigateTo(PANELS.SEARCH);
 	}, [navigateTo]);
 
@@ -1556,16 +1758,7 @@ const AppContent = (props) => {
 		if (library) {
 			setSelectedLibrary(library);
 		} else if (genre._serverUrl) {
-			setSelectedLibrary({
-				Id: null,
-				Name: genre.name,
-				_serverUrl: genre._serverUrl,
-				_serverType: genre._serverType,
-				_serverAccessToken: genre._serverAccessToken,
-				_serverUserId: genre._serverUserId,
-				_serverName: genre._serverName,
-				_serverId: genre._serverId
-			});
+			setSelectedLibrary(serverOnlyLibrary(genre.name, genre));
 		} else {
 			setSelectedLibrary(null);
 		}
@@ -1599,6 +1792,40 @@ const AppContent = (props) => {
 	const handleOpenRecordings = useCallback(() => {
 		navigateTo(PANELS.RECORDINGS);
 	}, [navigateTo]);
+
+	// Home's Guide and Recordings buttons open Live TV once the server shows it has channels, as
+	// long as focus is still on Home rather than in something opened over it. Nothing focused
+	// counts as Home.
+	const panelIndexRef = useRef(panelIndex);
+	panelIndexRef.current = panelIndex;
+	const homeHasRemote = useCallback(() => {
+		const layer = quickLookLayerRef.current;
+		const active = document.activeElement;
+		return panelIndexRef.current === PANELS.BROWSE && Boolean(layer) &&
+			(!active || active === document.body || underDrawer(layer, active));
+	}, []);
+	const liveTvShortcutBusyRef = useRef(false);
+	const kidsMode = isKidsMode(settings);
+	useEffect(() => {
+		if (panelIndex !== PANELS.BROWSE || kidsMode) return undefined;
+		const handleKeyDown = async (e) => {
+			const shortcut = remoteShortcut(e);
+			if ((shortcut !== 'guide' && shortcut !== 'recordings') || isTvKeyboardVisible() || !homeHasRemote()) return;
+			e.preventDefault();
+			e.stopPropagation();
+			if (liveTvShortcutBusyRef.current) return;
+			liveTvShortcutBusyRef.current = true;
+			try {
+				const channels = await api.getLiveTvChannels(0, 1);
+				if (channels?.Items?.length && homeHasRemote()) (shortcut === 'guide' ? handleOpenLiveTv : handleOpenRecordings)();
+			} catch {
+				// A server without Live TV, or one that turns the request down, has no shortcut.
+			}
+			liveTvShortcutBusyRef.current = false;
+		};
+		window.addEventListener('keydown', handleKeyDown, true);
+		return () => window.removeEventListener('keydown', handleKeyDown, true);
+	}, [panelIndex, kidsMode, api, homeHasRemote, handleOpenLiveTv, handleOpenRecordings]);
 
 	const handlePlayRecording = useCallback((recording) => {
 		setPlayingItem(recording);
@@ -1705,6 +1932,7 @@ const AppContent = (props) => {
 		goToSearch: (search) => {
 			clearForRemote();
 			setRemoteSearch(search);
+			setSearchPrefersRequests(false);
 			// The player has already returned to its previous panel. Do not
 			// put the now-closed player into Search's back history.
 			navigateTo(PANELS.SEARCH, panelIndex !== PANELS.PLAYER && panelIndex !== PANELS.SEARCH);
@@ -2125,7 +2353,7 @@ const AppContent = (props) => {
 						</Panel>
 						<Panel>
 							{panelIndex === PANELS.SEARCH && (
-								<Search remoteSearch={remoteSearch} musicBar={backgroundMusic} onSelectItem={handleSelectItem} onSelectSeerrItem={handleSelectSeerrItem} onSelectPerson={handleSelectPerson} onSelectGame={handleSelectGame} onPlayChannel={handlePlayChannel} />
+								<Search remoteSearch={remoteSearch} musicBar={backgroundMusic} preferRequests={searchPrefersRequests} onSelectItem={handleSelectItem} onSelectSeerrItem={handleSelectSeerrItem} onSelectPerson={handleSelectPerson} onSelectGame={handleSelectGame} onPlayChannel={handlePlayChannel} />
 							)}
 						</Panel>
 						<Panel>
@@ -2165,7 +2393,7 @@ const AppContent = (props) => {
 									onSelectStudio={handleSelectSeerrStudio}
 									onSelectNetwork={handleSelectSeerrNetwork}
 									onOpenRequests={handleOpenSeerrRequests}
-									onOpenSearch={handleOpenSearch}
+									onOpenSearch={handleOpenRequestSearch}
 									onOpenShortcut={handleOpenSeerrShortcut}
 								/>
 							)}
@@ -2330,9 +2558,11 @@ const AppContent = (props) => {
 							liveTvChannels={playbackOptions?.liveTvChannels}
 							background={backgroundMusic}
 							onBackground={handlePlayerBackground}
-							onEnded={handlePlayerEnd}
-							onBack={handlePlayerEnd}
+							onEnded={slideshowVideo ? slideshowCallbacks.onEnded : handlePlayerEnd}
+							onBack={slideshowVideo ? slideshowCallbacks.onExit : handlePlayerEnd}
+							slideshow={playerSlideshow}
 							onGuide={handlePlayerGuide}
+							onRecordings={handlePlayerRecordings}
 							onPlayNext={handlePlayNext}
 							onSelectPerson={handleSelectPersonFromPlayer}
 							onPausedChange={setIsPlayerPaused}
@@ -2355,6 +2585,7 @@ const AppContent = (props) => {
 							onSelectSeerrNetwork={handleSelectSeerrNetwork}
 							onOpenSeerrShortcut={handleOpenSeerrShortcut}
 							onOpenCalendarMonth={handleOpenCalendarMonth}
+							onSelectStudio={handleSelectStudio}
 							isVisible={panelIndex === PANELS.BROWSE && !showSettingsPanel && !pickingHousehold}
 							backHandlerRef={backHandlerRef}
 							onFocusItemThemeMusic={backgroundMusic ? undefined : themeMusic.playThemeMusicDelayed}
@@ -2454,11 +2685,17 @@ const AppContent = (props) => {
 				onClose={handleCloseServerMessages}
 				backHandlerRef={serverMessagesBackRef}
 			/>
-			{photoViewerItem && (
+			{photoViewerItem && !slideshowVideo && (
 				<PhotoViewer
 					item={photoViewerItem}
 					items={photoViewerItems}
 					serverUrl={serverUrl}
+					running={slideshowRunning}
+					videos={slideshowVideos}
+					moreCount={photoMoreCount}
+					onNeedMore={requestMorePhotos}
+					onSlideshowChange={setSlideshowRunning}
+					onPlayVideo={handleSlideshowPlayVideo}
 					onClose={handleClosePhotoViewer}
 				/>
 			)}

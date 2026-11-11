@@ -28,6 +28,7 @@ import {clearImageCache} from '../../services/imageProxy';
 import {clearProxiedImageCache} from '../../hooks/useProxiedImage';
 import {detectCustomSource, validateCustomRow, buildManualCustomSource, sourceKeyForRow} from '../../utils/externalHomeRows';
 import {fetchCustomRow} from '../../services/externalRowsApi';
+import {forgetPlexMoonbase} from '../../services/plexMoonbase';
 import {checkForUpdatesDetailed} from '../../services/versionChecker';
 import QrLinkView from './QrLinkView';
 import {formatPlaybackTimeSlot} from '../../utils/playbackTimeLabels';
@@ -43,6 +44,7 @@ import useThemeStore from './useThemeStore';
 import useHomeRowsEditor from './useHomeRowsEditor';
 import useButtonLayoutEditor from './useButtonLayoutEditor';
 import useLibraryVisibility from './useLibraryVisibility';
+import useNotificationPrefs from './useNotificationPrefs';
 import useMediaBarSources from './useMediaBarSources';
 import useScreensaverSources from './useScreensaverSources';
 import useCalendarLibraries from './useCalendarLibraries';
@@ -77,6 +79,7 @@ import LibraryOrderView from './LibraryOrderView';
 import SeerrAccountPanel from './SeerrAccountPanel';
 import RommAccountPanel from './RommAccountPanel';
 import MoonbasePanel from './MoonbasePanel';
+import MoonbaseAddressRow from './MoonbaseAddressRow';
 import {LOG_RENDER_STEP} from './useDiagnosticsLog';
 import {DETAIL_SECTIONS_HIDDEN_KEY, toggleHiddenSection} from '../../utils/detailSectionLayout';
 import {isWatchTogetherOpen, openWatchParties, useWatchPartyBackend} from '../../hooks/useWatchPartyRooms';
@@ -394,8 +397,20 @@ const Settings = ({ onBack, onLibrariesChanged, onRunSetupWizard, onSelectItem, 
 	);
 
 	const refreshPlugin = useCallback(() => {
+		// A Moonbase for Plex that didn't answer isn't asked again for a while, and this is the viewer asking now.
+		forgetPlexMoonbase(serverUrl);
 		if (serverUrl && accessToken) seerr.refreshPluginInfo(serverUrl, accessToken);
 	}, [seerr, serverUrl, accessToken]);
+
+	// With Moonbase on, a new address for Moonbase for Plex sets it all up again there, sync and Seerr too.
+	const moonbaseAddressSaved = useCallback(() => {
+		if (!settings.useMoonfinPlugin || !serverUrl || !accessToken) {
+			refreshPlugin();
+			return;
+		}
+		forgetPlexMoonbase(serverUrl);
+		seerr.configureWithMoonfin(serverUrl, accessToken).catch((e) => console.warn('[Settings] Moonbase for Plex not found:', e.message));
+	}, [settings.useMoonfinPlugin, serverUrl, accessToken, seerr, refreshPlugin]);
 
 	// The Tizen profile keeps what it detected, so the next playback only offers TrueHD once
 	// that's thrown away
@@ -769,7 +784,8 @@ const Settings = ({ onBack, onLibrariesChanged, onRunSetupWizard, onSelectItem, 
 		seerrPassword, onSeerrPasswordChange, seerrAuthSubmitting, seerrAuthMessage, seerrAuthError,
 		handleMoonfinToggle, handleSeerrAuthTypeChange, handleSeerrLogin,
 		handleSeerrPasswordKeyDown, handleSeerrLogout
-	} = useSeerrAccount({seerr, seerrLabel, settings, updateSetting, serverUrl, accessToken});
+	} = useSeerrAccount({seerr, seerrLabel, settings, updateSetting, serverUrl, accessToken, serverType});
+	const {notificationPrefs, toggleNotificationPref} = useNotificationPrefs({serverUrl, accessToken, userId: user?.Id});
 
 	const {
 		activeProfile, profileSyncBusy, profileSyncMessage, pickProfile, loadProfile, saveProfile, resetProfile
@@ -812,7 +828,7 @@ const Settings = ({ onBack, onLibrariesChanged, onRunSetupWizard, onSelectItem, 
 	} = useButtonLayoutEditor({settings, updateSettings, pushView, hasLiveTv});
 
 	const {
-		allLibraries, hiddenLibraries, libraryLoading, librarySaving,
+		allLibraries, hiddenLibraries, libraryLoading, librarySaving, librarySaveFailures,
 		openLibraries, toggleLibraryVisibility, saveLibraryVisibility
 	} = useLibraryVisibility({api, settings, hasMultipleServers, pushView, popView, onLibrariesChanged});
 
@@ -1097,7 +1113,9 @@ const Settings = ({ onBack, onLibrariesChanged, onRunSetupWizard, onSelectItem, 
 		signInPin,
 		calendarLibraries,
 		watchParties,
+		notificationPrefs,
 		actions: {
+			toggleNotificationPref,
 			openWatchParties,
 			openThemes,
 			openThemeStore,
@@ -1152,7 +1170,8 @@ const Settings = ({ onBack, onLibrariesChanged, onRunSetupWizard, onSelectItem, 
 		signInPin, toggleSignInPin, changeSignInPin, removeSignInPin, openKidsMode, openLibraries, openLibraryOrder, openParentalControls, openSubtitleDownloadLanguages, openTranscodeAudioCodecs, openQrLink, openRatingSources, openRowImageTypes, openExcludedGenres, openMediaBarLibraries,
 		openMediaBarCollections, openMediaBarExternalLists, openScreensaverLibraries, openScreensaverCollections, openScreensaverGenres, openCalendarLibraries,
 		openImdbLists, openSeasonalRow, openExternalTmdbLists, openExternalCalendars,
-		openExternalCustomRows, openSeerrHomeRows, openScreen, onRunSetupWizard, canProbeDevice, afterHours.press, watchParties
+		openExternalCustomRows, openSeerrHomeRows, openScreen, onRunSetupWizard, canProbeDevice, afterHours.press, watchParties,
+		notificationPrefs, toggleNotificationPref
 	]);
 
 	// The live preview's inspector names rows with the same context the list draws them with.
@@ -1265,6 +1284,7 @@ const Settings = ({ onBack, onLibrariesChanged, onRunSetupWizard, onSelectItem, 
 	// Kept out of settingsCtx because the search index has no use for them and they are
 	// rebuilt every render, which would defeat the memo above.
 	const customRenderers = {
+		moonbaseAddress: () => <MoonbaseAddressRow serverId={activeServerInfo?.serverId} serverUrl={serverUrl} onSaved={moonbaseAddressSaved} />,
 		moonbasePlugin: () => (
 			<MoonbasePanel
 				enabled={settings.useMoonfinPlugin}
@@ -1285,6 +1305,7 @@ const Settings = ({ onBack, onLibrariesChanged, onRunSetupWizard, onSelectItem, 
 		seerrPanel: () => (
 			<SeerrAccountPanel
 				pluginEnabled={settings.useMoonfinPlugin}
+				plex={serverType === 'plex'}
 				seerr={seerr}
 				seerrLabel={seerrLabel}
 				authType={seerrAuthType}
@@ -1664,6 +1685,7 @@ const Settings = ({ onBack, onLibrariesChanged, onRunSetupWizard, onSelectItem, 
 					showServerName={settings.unifiedLibraryMode && hasMultipleServers}
 					loading={libraryLoading}
 					saving={librarySaving}
+					saveFailures={librarySaveFailures}
 					onToggleLibrary={toggleLibraryVisibility}
 					onCancel={popView}
 					onSave={saveLibraryVisibility}

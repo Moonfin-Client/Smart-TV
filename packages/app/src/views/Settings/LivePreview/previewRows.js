@@ -1,6 +1,6 @@
 import {KIND, SETTINGS_SCHEMA, resolve, spotlightIdOf} from '../settingsSchema';
 import {ratingKey} from '../../../utils/ratingSources';
-import {SUBTITLE_STYLE_KEYS, hdrKeyFor} from '../../../utils/subtitleConstants';
+import {SUBTITLE_SHARED_STYLE_KEYS, SUBTITLE_STYLE_KEYS, hdrKeyFor} from '../../../utils/subtitleConstants';
 
 // The ratings rows a surface keeps for itself, the links to its source list and reset among
 // them. Episode ratings are left out since the previews draw a film.
@@ -29,16 +29,16 @@ export const TRICKPLAY_KEYS = ['trickPlayMode', 'trickPlayPreviewScale', 'trickP
 // The subtitle appearance settings, drawn on the player's subtitle line. The HDR ones draw it in
 // the HDR style.
 export const SUBTITLE_HDR_KEYS = ['subtitleHdrSeparate', ...SUBTITLE_STYLE_KEYS.map(hdrKeyFor)];
-export const SUBTITLE_LOOK_KEYS = [...SUBTITLE_STYLE_KEYS, ...SUBTITLE_HDR_KEYS];
+export const SUBTITLE_LOOK_KEYS = [...SUBTITLE_STYLE_KEYS, ...SUBTITLE_SHARED_STYLE_KEYS, ...SUBTITLE_HDR_KEYS];
 export const SCREENSAVER_KEYS = [
 	'screensaverEnabled', 'screensaverDimmingLevel', 'screensaverBackdrop', 'screensaverComponent', 'screensaverMovement',
 	'screensaverSize', 'screensaverPosition'
 ];
-// The Calendar screen's settings and its Libraries link. The Radarr release types are shared with the
-// Upcoming Movies row, week start only changes the month grid and the select action only acts on a press,
-// so those are left out.
+// The Calendar screen's settings and its Libraries link. Week start draws the month grid. The Radarr
+// release types are shared with the Upcoming Movies row and the select action only acts on a press, so
+// those are left out.
 export const CALENDAR_KEYS = [
-	'calendarStyle', 'calendarScope', 'calendarShowEpisodes', 'calendarShowMovies', 'calendarLibraries',
+	'calendarStyle', 'calendarWeekStart', 'calendarScope', 'calendarShowEpisodes', 'calendarShowMovies', 'calendarLibraries',
 	'calendarIncludeUnmonitored', 'calendarShowSpecials', 'calendarShowBadges', 'calendarColorBy', 'calendarImageType',
 	'calendarSpoilerSafe', 'calendarRequestButton'
 ];
@@ -70,7 +70,8 @@ const ROW_OPTION_KEYS = [
 export const HOME_LOOK_KEYS = [
 	'homeRows', 'rowImageTypes', 'homeRowsImageType', 'seasonalRow', 'mergeContinueWatchingNextUp', 'mergeRecentRowsByType',
 	'displayRewatchRow', 'watchedIndicatorBehavior', 'useSeriesThumbnails', 'cardFocusZoom', 'classicHomeRowsPadding',
-	'modernHomeRowsPadding', 'homeRowOverlay', 'showPosterLabels', 'modernCardsOnMyMediaRow'
+	'modernHomeRowsPadding', 'homeRowOverlay', 'showPosterLabels', 'modernCardsOnMyMediaRow',
+	'hideHomeWatchProgress', 'hideHomeUnwatchedCount'
 ];
 
 // The screens and sections whose every tile keeps the stage on one look, with the scene it's
@@ -100,6 +101,7 @@ export const SCENE_BY_KEY = {
 	navbarOpacity: 'home',
 	focusBorderColor: 'home',
 	oledMode: 'home',
+	uiScale: 'home',
 	backdropBlurHome: 'home',
 	homeRowsStyle: 'home',
 	homeRowsPosterSize: 'home',

@@ -10,6 +10,14 @@ const isPlayed = (ep) => Boolean(ep.UserData?.Played);
 const resumeTicks = (ep) => ep.UserData?.PlaybackPositionTicks || 0;
 const isInProgress = (ep) => !isPlayed(ep) && resumeTicks(ep) > 0;
 
+// A Next Up marked played is stale until the series asks the server again, so the run goes on from
+// the first unwatched episode after it.
+export const freshNextUp = (episodes, nextUp) => {
+	if (!nextUp || !isPlayed(nextUp)) return nextUp || null;
+	const at = episodes.findIndex((ep) => ep.Id === nextUp.Id);
+	return at < 0 ? null : episodes.slice(at + 1).find((ep) => !isPlayed(ep)) || null;
+};
+
 // A fully watched or fully untouched run starts from the first episode. Anything
 // else continues: Next Up when the server offers it, else the episode part way
 // through, else the first unwatched one. First unwatched alone isnt enough,
@@ -23,7 +31,7 @@ export const pickEpisodePlayTarget = (episodes, nextUp = null) => {
 	if (allWatched || allUnwatched) {
 		return list.find((ep) => ep.ParentIndexNumber === 1 && ep.IndexNumber === 1) || list[0];
 	}
-	return nextUp || list.find(isInProgress) || list.find((ep) => !isPlayed(ep)) || list[0];
+	return freshNextUp(list, nextUp) || list.find(isInProgress) || list.find((ep) => !isPlayed(ep)) || list[0];
 };
 
 // Resume only when the target itself was left part way through, so an unwatched

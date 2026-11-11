@@ -335,10 +335,24 @@ describe('SYNCABLE_KEYS', () => {
 		expect(SYNCABLE_KEYS).toContain('seasonalDensity');
 	});
 
+	test('includes the Home poster toggles', () => {
+		expect(SYNCABLE_KEYS).toContain('hideHomeWatchProgress');
+		expect(SYNCABLE_KEYS).toContain('hideHomeUnwatchedCount');
+	});
+
 	test('includes the media preview switches', () => {
 		expect(SYNCABLE_KEYS).toContain('episodePreviewEnabled');
 		expect(SYNCABLE_KEYS).toContain('mediaPreviewMode');
 		expect(SYNCABLE_KEYS).toContain('previewAudioEnabled');
+	});
+
+	test('syncs the player and screensaver settings under their own names', () => {
+		const keys = ['controlsHideDelay', 'hdrControlsDimming', 'sleepAfterIdle', 'screensaverDuringAudio'];
+		const profile = localToProfile(defaultSettings, keys);
+
+		expect(profile).toEqual({controlsHideDelay: 5000, hdrControlsDimming: 0, sleepAfterIdle: 0, screensaverDuringAudio: false});
+		expect(profileToLocal({controlsHideDelay: 3000, hdrControlsDimming: 40, sleepAfterIdle: 60, screensaverDuringAudio: true}))
+			.toEqual({controlsHideDelay: 3000, hdrControlsDimming: 40, sleepAfterIdle: 60, screensaverDuringAudio: true});
 	});
 
 	test('syncs every calendar setting under its own name', () => {
@@ -532,6 +546,41 @@ describe('the book library style', () => {
 
 	test('keeps the style it has when the profile names one this app has no way to draw', () => {
 		expect(profileToLocal({bookLibraryStyle: 'immersive'})).toEqual({});
+	});
+});
+
+describe('the subtitle outline, shadow, bold and font settings', () => {
+	const SERVER_KEYS = {
+		subtitleBold: 'subtitlesTextWeight',
+		subtitleBoldHdr: 'subtitlesHdrTextWeight',
+		subtitleStrokeWidth: 'subtitlesStrokeWidth',
+		subtitleDropShadow: 'subtitlesShadow',
+		subtitleDropShadowIntensity: 'subtitlesShadowIntensity',
+		subtitleDropShadowOffset: 'subtitlesShadowOffset',
+		subtitleDropShadowBlur: 'subtitlesShadowBlur',
+		subtitleFont: 'subtitlesFont'
+	};
+
+	test('sync under their profile names, with their defaults', () => {
+		const local = Object.keys(SERVER_KEYS);
+		expect(Object.keys(localToProfile(defaultSettings, local)).sort()).toEqual(Object.values(SERVER_KEYS).sort());
+		expect(localToProfile(defaultSettings, local)).toEqual({
+			subtitlesTextWeight: 400, subtitlesHdrTextWeight: 400, subtitlesStrokeWidth: 100, subtitlesShadow: false,
+			subtitlesShadowIntensity: 80, subtitlesShadowOffset: 2, subtitlesShadowBlur: 2, subtitlesFont: ''
+		});
+	});
+
+	test('bold goes out as a weight and reads anything from 600 up as bold', () => {
+		expect(localToProfile({...defaultSettings, subtitleBold: true}, ['subtitleBold'])).toEqual({subtitlesTextWeight: 700});
+		expect(profileToLocal({subtitlesTextWeight: 600, subtitlesHdrTextWeight: 500})).toEqual({subtitleBold: true, subtitleBoldHdr: false});
+	});
+
+	test("takes a font from the list and keeps its own for one that isn't on it", () => {
+		['', 'Atkinson Hyperlegible', 'Source Sans 3', 'Ubuntu'].forEach((family) => {
+			expect(profileToLocal({subtitlesFont: family})).toEqual({subtitleFont: family});
+		});
+		expect(profileToLocal({subtitlesFont: 'Comic Neue'})).toEqual({});
+		expect(profileToLocal({subtitlesFont: 'atkinson hyperlegible'})).toEqual({});
 	});
 });
 

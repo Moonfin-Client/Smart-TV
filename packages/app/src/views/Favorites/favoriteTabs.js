@@ -61,6 +61,25 @@ const tmdbIdOf = (item) => {
 	return id == null ? null : String(id);
 };
 
+// A request card filled in from its title's detail, keeping what the watchlist gave. [detailCard] is the
+// detail drawn as a card (normalizeMediaItem). Silo's detail carries the US age rating, and only a movie's
+// runtime is the title's length.
+export const withRequestDetail = (card, details, detailCard) => {
+	const out = {...card};
+	['_externalBackdropUrl', 'Overview', 'ProductionYear', 'CommunityRating'].forEach((key) => {
+		if (!out[key] && detailCard[key]) out[key] = detailCard[key];
+	});
+	if (!out.OfficialRating && details.contentRating) out.OfficialRating = details.contentRating;
+	if (card._seerrMediaType === 'movie' && details.runtime > 0) out.RunTimeTicks = details.runtime * 600000000;
+	return out;
+};
+
+// The watchlist with a request card swapped for its filled in self, or taken out when its rating is
+// blocked. The list is the one on screen, so a page that landed meanwhile stays.
+export const swapRequestCard = (cards, filled, blocked) => (cards || [])
+	.filter((card) => !(blocked && card.Id === filled.Id))
+	.map((card) => (card.Id === filled.Id ? filled : card));
+
 /**
  * The watchlist tab's cards: the library titles first, then the request cards for titles the library
  * doesn't already show. `requestCards` are home row Seerr cards (normalizeMediaItem).

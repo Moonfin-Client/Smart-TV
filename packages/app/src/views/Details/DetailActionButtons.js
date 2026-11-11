@@ -2,7 +2,7 @@ import {Fragment, useState, useCallback, useEffect} from 'react';
 import {isKidsMode, kidsModeButtons} from '../../utils/kidsMode';
 import $L from '@enact/i18n/$L';
 
-import {arrange, seerrOnlyRow, countSplit, applyButtonLimit, DETAIL_ORDER_KEY, DETAIL_HIDDEN_KEY} from '../../utils/buttonLayout';
+import {arrange, seerrOnlyRow, splitSlots, countSplit, applyButtonLimit, DETAIL_ORDER_KEY, DETAIL_HIDDEN_KEY} from '../../utils/buttonLayout';
 import {isBackKey} from '../../utils/keys';
 import {DETAIL_ICON_PATHS} from './detailIcons';
 import {iconViewBox} from '../../components/icons/iconViewBox';
@@ -11,6 +11,7 @@ import SpotlightContainerDecorator from '@enact/spotlight/SpotlightContainerDeco
 import Spotlight from '@enact/spotlight';
 import {SpottableDiv, HorizontalContainer} from './detailsSpottables';
 import {handleButtonRowKeyDown, handleScrollerFocus} from './detailsFocus';
+import {offersGoToSeries} from './detailActions';
 
 import css from './Details.module.less';
 
@@ -29,7 +30,9 @@ const BtnIcon = ({path, stateClass}) => (
 // The row under the header. Play and Resume always lead it, and everything after them is in
 // whatever order the viewer arranged in settings, with anything they hid left out.
 const DetailActionButtons = ({
+	actionsHeld,
 	item,
+	bookSeriesItem,
 	settings,
 	seerr,
 	seerrOnly,
@@ -213,12 +216,12 @@ const DetailActionButtons = ({
 				<span className={css.btnLabel}>{personalRatingLabel(personalRatingStyle, item.UserData)}</span>
 			</SpottableDiv>
 		)},
-		{id: 'goToSeries', when: (isEpisode || isSeason) && item.SeriesId, render: () => (
+		{id: 'goToSeries', when: offersGoToSeries({item, isEpisode, isSeason, isBook, bookSeriesItem}), render: () => (
 			<SpottableDiv className={css.btnWrapper} onClick={onGoToSeries}>
 				<div className={css.btnAction}>
 					<BtnIcon path={DETAIL_ICON_PATHS.series}/>
 				</div>
-				<span className={css.btnLabel}>{$L('Series')}</span>
+				<span className={css.btnLabel}>{$L('Go to Series')}</span>
 			</SpottableDiv>
 		)},
 		{id: 'playlist', when: true, render: () => (
@@ -260,14 +263,26 @@ const DetailActionButtons = ({
 				<span className={css.btnLabel}>{$L('Report Issue')}</span>
 			</SpottableDiv>
 		)},
-		{id: 'seerrManage', when: seerr.showsManage, render: () => (
-			<SpottableDiv className={css.btnWrapper} onClick={seerr.handleManageRequestsClick}>
-				<div className={css.btnAction}>
-					<BtnIcon path={DETAIL_ICON_PATHS.manageRequests}/>
-				</div>
-				<span className={css.btnLabel}>{$L('Manage Requests')}</span>
-			</SpottableDiv>
-		)},
+		// Get a different release rides in Manage Requests' slot, so the synced arrangement needs
+		// no new id and both show side by side when both apply.
+		{id: 'seerrManage', when: seerr.showsManageSlot, parts: [
+			{id: 'seerrManage', when: seerr.showsManage, render: () => (
+				<SpottableDiv className={css.btnWrapper} onClick={seerr.handleManageRequestsClick}>
+					<div className={css.btnAction}>
+						<BtnIcon path={DETAIL_ICON_PATHS.manageRequests}/>
+					</div>
+					<span className={css.btnLabel}>{$L('Manage Requests')}</span>
+				</SpottableDiv>
+			)},
+			{id: 'seerrSwapRelease', when: seerr.showsSwapRelease, render: () => (
+				<SpottableDiv className={css.btnWrapper} onClick={seerr.handleSwapReleaseClick}>
+					<div className={css.btnAction}>
+						<BtnIcon path={DETAIL_ICON_PATHS.swapRelease}/>
+					</div>
+					<span className={css.btnLabel}>{$L('Get a different release')}</span>
+				</SpottableDiv>
+			)}
+		]},
 		{id: 'keepAsComplete', when: Boolean(onKeepAsComplete), render: () => (
 			<SpottableDiv className={css.btnWrapper} onClick={onKeepAsComplete}>
 				<div className={css.btnAction}>
@@ -289,9 +304,9 @@ const DetailActionButtons = ({
 	const offeredButtons = rowButtons.filter((btn) => btn.when);
 	// Kids Mode sets the saved arrangement aside rather than filtering it, since its own short row
 	// is the point and a reorder would otherwise put a hidden button back.
-	const customizable = isKidsMode(settings)
+	const customizable = splitSlots(isKidsMode(settings)
 		? kidsModeButtons(offeredButtons, true)
-		: arrange(offeredButtons, {order: settings[DETAIL_ORDER_KEY], hidden: settings[DETAIL_HIDDEN_KEY]});
+		: arrange(offeredButtons, {order: settings[DETAIL_ORDER_KEY], hidden: settings[DETAIL_HIDDEN_KEY]}));
 
 	// Resume and Restart both lead the row when there is somewhere to resume from, so the
 	// leading slots are counted rather than assumed to be one.
@@ -320,10 +335,11 @@ const DetailActionButtons = ({
 	return (
 		<>
 			<HorizontalContainer
-				className={`${css.actionButtons} ${isHorizontalScroll ? css.actionButtonsScroll : ''}`}
+				className={`${css.actionButtons} ${isHorizontalScroll ? css.actionButtonsScroll : ''} ${actionsHeld ? css.actionsHeld : ''}`}
 				onKeyDown={handleButtonRowKeyDown}
 				onFocus={handleRowFocus}
 				spotlightId="details-action-buttons"
+				spotlightDisabled={actionsHeld}
 			>
 				{showsResume && (
 					<SpottableDiv className={css.btnWrapper} {...resumeLongPress} spotlightId="details-primary-btn">

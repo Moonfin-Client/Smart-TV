@@ -1,7 +1,7 @@
-jest.mock('./jellyfinApi', () => ({getAuthHeader: () => 'auth', getServerType: jest.fn(() => 'jellyfin'), getServerUrl: () => 'http://a'}));
+jest.mock('./jellyfinApi', () => ({getApiKey: () => 'key', getAuthHeader: () => 'auth', getServerType: jest.fn(() => 'jellyfin'), getServerUrl: () => 'http://a'}));
 jest.mock('../utils/requestQueue', () => ({mediaServerQueue: {run: (task) => task()}}));
 jest.mock('../utils/fetchTimeout', () => ({fetchWithTimeout: (url, options) => global.fetch(url, options)}));
-jest.mock('../utils/plexUrls', () => ({plexMoonbaseUrl: () => 'http://a:32500'}));
+jest.mock('./plexMoonbase', () => ({findPlexMoonbase: jest.fn(async () => 'http://a:32500'), plexMoonbaseBase: () => 'http://a:32500'}));
 
 const MINUTE = 60 * 1000;
 
@@ -189,8 +189,21 @@ test('Plex is asked through the companion next to it', async () => {
 	require('./jellyfinApi').getServerType.mockReturnValue('plex');
 	api.watchPosterBadges('a', jest.fn());
 	await wait(60);
+	expect(require('./plexMoonbase').findPlexMoonbase).toHaveBeenCalledWith('http://a', 'key');
 	expect(request.mock.calls[0][0]).toBe('http://a:32500/Moonfin/PosterBadges/Items?ids=a&profile=tv');
 	expect(api.posterLabelsBase()).toBe('http://a:32500');
+});
+
+test('a Plex server without the companion is never asked, and stops asking for a while', async () => {
+	const {api, request} = start();
+	require('./jellyfinApi').getServerType.mockReturnValue('plex');
+	require('./plexMoonbase').findPlexMoonbase.mockResolvedValueOnce(null);
+	api.watchPosterBadges('a', jest.fn());
+	await wait(60);
+	api.watchPosterBadges('b', jest.fn());
+	await wait(60);
+	expect(request).not.toHaveBeenCalled();
+	expect(require('./plexMoonbase').findPlexMoonbase).toHaveBeenCalledTimes(1);
 });
 
 test('an answer for the account that signed out is dropped', async () => {

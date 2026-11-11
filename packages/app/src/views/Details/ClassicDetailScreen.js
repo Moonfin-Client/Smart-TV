@@ -15,7 +15,7 @@ import SeerrStatusBanner, {hasSeerrDot, seerrBadgeStyle} from '../../components/
 import {SeerrChips, SeerrFacts, SeerrStreaming, SeerrCollectionBanner} from '../../components/seerr/SeerrSections';
 import {SpottableDiv, RowContainer, ShortRowContainer} from './detailsSpottables';
 import ExpandableOverview from './ExpandableOverview';
-import {handleSectionKeyDown, handleScrollerFocus} from './detailsFocus';
+import {handleSectionKeyDown, handleScrollerFocus, scrollToRowStart} from './detailsFocus';
 import {PosterBadges, WatchedCheckIcon, FavoriteHeartIcon} from './DetailBadges';
 import DetailMetadata from './DetailMetadata';
 import NextUpCard from './NextUpCard';
@@ -41,6 +41,7 @@ const CHAPTER_THUMB = {maxWidth: 400, quality: 90};
 // state this screen has no other use for.
 const ClassicDetailScreen = ({
 	item,
+	bookSeriesItem,
 	serverUrl,
 	serverToken,
 	settings,
@@ -185,6 +186,8 @@ const ClassicDetailScreen = ({
 
 	const {parts: additionalParts, others: otherExtras} = splitAdditionalParts(extras);
 
+	const itemName = bookSeriesItem ? bookSeriesItem.Name : item.Name;
+
 	return (
 		<>
 			<div className={css.detailsHeader}>
@@ -203,11 +206,11 @@ const ClassicDetailScreen = ({
 							<img
 								src={logoUrl}
 								className={css.logoImage}
-								alt={item.Name}
+								alt={itemName}
 								onError={onLogoError}
 							/>
 						) : (
-							<h1 className={css.title}>{item.Name}</h1>
+							<h1 className={css.title}>{itemName}</h1>
 						)}
 					</div>
 
@@ -323,7 +326,7 @@ const ClassicDetailScreen = ({
 							{item.ParentIndexNumber !== undefined ? $L('Season {number} Episodes').replace('{number}', item.ParentIndexNumber) : $L('Episodes')}
 						</h3>
 					</div>
-					<div className={css.sectionScroll} onFocus={handleScrollerFocus} {...episodeMenuHold}>
+					<div className={css.sectionScroll} onFocus={handleScrollerFocus} ref={scrollToRowStart} {...episodeMenuHold}>
 						{episodes.map(ep => {
 							// The episode carries the series artwork on most records, and the
 							// screen's own item stands in for the ones that don't.
@@ -341,6 +344,7 @@ const ClassicDetailScreen = ({
 									key={ep.Id}
 									className={`${css.episodeCard} ${isCurrentEp ? css.episodeCurrent : ''}`}
 									data-episode-id={ep.Id}
+									data-row-start={isCurrentEp ? 'true' : undefined}
 									onClick={onEpisodeSelect}
 								>
 									<div className={css.episodeThumb}>
@@ -402,6 +406,17 @@ const ClassicDetailScreen = ({
 					onSelectItem={onSelectItem}
 					className={css.inlineRow}
 					menuOptions={collectionMenu}
+					posterLabels
+				/>
+			)}
+
+			{bookSeriesItem && (
+				<MediaRow
+					title={$L('Books')}
+					items={bookSeriesItem.Members}
+					serverUrl={serverUrl}
+					onSelectItem={onSelectItem}
+					className={css.inlineRow}
 				/>
 			)}
 
@@ -489,6 +504,7 @@ const ClassicDetailScreen = ({
 								item={colItem}
 								serverUrl={serverUrl}
 								onSelect={onSelectItem}
+								posterLabels
 							/>
 						))}
 					</div>
@@ -507,6 +523,7 @@ const ClassicDetailScreen = ({
 								item={simItem}
 								serverUrl={serverUrl}
 								onSelect={onSelectItem}
+								posterLabels
 							/>
 						))}
 					</div>

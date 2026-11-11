@@ -42,6 +42,10 @@ export const ActionButton = ({path, label, detail, onClick, active, group, prima
 	);
 };
 
+// An episode or season goes to its show, and a book to the series it's in unless this is that series' page.
+export const offersGoToSeries = ({item, isEpisode, isSeason, isBook, bookSeriesItem}) =>
+	Boolean(((isEpisode || isSeason) && item.SeriesId) || (isBook && !bookSeriesItem && String(item.SeriesName || '').trim()));
+
 // Every action a detail screen can offer, in one place because the screens draw the same set
 // differently. Modern and Spotlight lay them out in a single capped row, Nouveau keeps three
 // beside the primary and folds the rest away. A button added here reaches all of them at once.
@@ -51,7 +55,7 @@ export const ActionButton = ({path, label, detail, onClick, active, group, prima
 export const detailActionCatalogue = (props) => {
 	const {
 		item, seerr, effectiveServerUrl,
-		isSeries, isSeason, isBoxSet, isEpisode, isBook, isPerson, isPlaylist, playlistTracks,
+		isSeries, isSeason, isBoxSet, isBook, isPerson, isPlaylist, playlistTracks,
 		hasTrailer, played, isFavorite, inSyncPlayGroup, onWatchWithGroup,
 		supportsMediaSourceSelection, hasMultipleVersions, hasMultipleAudio,
 		handleShuffle, handleTrailer, handleToggleWatched, handleToggleFavorite, handleGoToSeries,
@@ -113,14 +117,19 @@ export const detailActionCatalogue = (props) => {
 		{id: 'favorite', when: offersFavorite(isPerson, effectiveServerUrl), render: () => <ActionButton path={DETAIL_ICON_PATHS.favorite} label={isFavorite ? $L('Favorited') : $L('Favorite')} active={isFavorite} onClick={handleToggleFavorite} spotlightId="details-favorite-btn" />},
 		{id: 'personDisplay', when: isPerson && Boolean(handleOpenPersonDisplayModal), render: () => <ActionButton path={DETAIL_ICON_PATHS.tune} label={$L('Display')} onClick={handleOpenPersonDisplayModal} />},
 		{id: 'personalRating', when: showsPersonalRating, render: () => <ActionButton path={personalRatingIconPath(personalRatingStyle, item.UserData)} label={personalRatingLabel(personalRatingStyle, item.UserData)} onClick={handleOpenRatingDialog} spotlightId="details-rating-btn" />},
-		{id: 'goToSeries', when: (isEpisode || isSeason) && item.SeriesId, render: () => <ActionButton path={DETAIL_ICON_PATHS.series} label={$L('Series')} onClick={handleGoToSeries} />},
+		{id: 'goToSeries', when: offersGoToSeries(props), render: () => <ActionButton path={DETAIL_ICON_PATHS.series} label={$L('Go to Series')} onClick={handleGoToSeries} />},
 		{id: 'playlist', when: !isPerson, render: () => <ActionButton path={DETAIL_ICON_PATHS.playlist} label={$L('Add to Playlist')} onClick={handleOpenPlaylistModal} />},
 		{id: 'collection', when: Boolean(handleOpenCollectionModal), render: () => <ActionButton path={DETAIL_ICON_PATHS.collection} label={$L('Add to Collection')} onClick={handleOpenCollectionModal} />},
 		{id: 'deleteFiles', when: item.CanDelete, render: () => <ActionButton path={DETAIL_ICON_PATHS.delete} label={$L('Delete')} onClick={handleOpenDeleteDialog} />},
 		{id: 'artwork', when: canChangeArtwork, render: () => <ActionButton path={DETAIL_ICON_PATHS.artwork} label={$L('Change Artwork')} onClick={handleOpenArtworkModal} spotlightId="details-artwork-btn" />},
 		{id: 'seerrWatchlist', when: seerr.showsWatchlist, render: () => <ActionButton path={seerr.onWatchlist ? DETAIL_ICON_PATHS.watchlistOn : DETAIL_ICON_PATHS.watchlist} label={seerr.onWatchlist ? $L('On Watchlist') : $L('Add to Watchlist')} active={seerr.onWatchlist} onClick={seerr.toggleWatchlist} />},
 		{id: 'seerrReportIssue', when: seerr.showsReportIssue, render: () => <ActionButton path={DETAIL_ICON_PATHS.reportIssue} label={$L('Report Issue')} onClick={seerr.handleReportIssueClick} />},
-		{id: 'seerrManage', when: seerr.showsManage, render: () => <ActionButton path={DETAIL_ICON_PATHS.manageRequests} label={$L('Manage Requests')} onClick={seerr.handleManageRequestsClick} />},
+		// Get a different release rides in Manage Requests' slot, so the synced arrangement needs
+		// no new id and both show side by side when both apply.
+		{id: 'seerrManage', when: seerr.showsManageSlot, parts: [
+			{id: 'seerrManage', when: seerr.showsManage, render: () => <ActionButton path={DETAIL_ICON_PATHS.manageRequests} label={$L('Manage Requests')} onClick={seerr.handleManageRequestsClick} />},
+			{id: 'seerrSwapRelease', when: seerr.showsSwapRelease, render: () => <ActionButton path={DETAIL_ICON_PATHS.swapRelease} label={$L('Get a different release')} onClick={seerr.handleSwapReleaseClick} />}
+		]},
 		{id: 'keepAsComplete', when: Boolean(handleKeepAsComplete), render: () => <ActionButton path={DETAIL_ICON_PATHS.keepAsComplete} label={$L('Keep as Complete')} onClick={handleKeepAsComplete} />},
 		{id: 'admin', when: Boolean(handleOpenIdentifyModal), render: () => <ActionButton path={DETAIL_ICON_PATHS.admin} label={$L('Admin Controls')} onClick={handleOpenIdentifyModal} />}
 	];

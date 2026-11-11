@@ -171,6 +171,7 @@ export const getActiveServer = async () => {
 		userId: activeUserId,
 		username: user.username,
 		accessToken: user.accessToken,
+		plexToken: user.plexToken || null,
 		siloAccountId: user.siloAccountId || null,
 		machineId: server.machineId || null,
 		candidateAddresses: server.candidateAddresses || null,

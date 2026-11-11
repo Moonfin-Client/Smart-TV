@@ -1,8 +1,8 @@
 import {useCallback, useEffect, useSyncExternalStore} from 'react';
-import {getAuthHeader, getServerType, getServerUrl} from './jellyfinApi';
+import {getApiKey, getAuthHeader, getServerType, getServerUrl} from './jellyfinApi';
 import {mediaServerQueue} from '../utils/requestQueue';
 import {fetchWithTimeout} from '../utils/fetchTimeout';
-import {plexMoonbaseUrl} from '../utils/plexUrls';
+import {findPlexMoonbase, plexMoonbaseBase} from './plexMoonbase';
 
 // The labels the admin's Moonbase rules put on the server's own posters, such as 4K or VFQ. Asked for
 // in batches and kept for the session, keyed by the id the card sent.
@@ -45,7 +45,7 @@ const servesLabels = () => {
 };
 
 // Where Moonbase answers: the server itself, or on Plex the companion next to it.
-export const posterLabelsBase = () => (getServerType() === 'plex' ? plexMoonbaseUrl(getServerUrl()) : getServerUrl());
+export const posterLabelsBase = () => (getServerType() === 'plex' ? plexMoonbaseBase(getServerUrl()) : getServerUrl());
 
 const isUnavailable = () => {
 	if (!unavailableAt) return false;
@@ -62,11 +62,16 @@ const setAvailable = (value) => {
 
 const notify = (ids) => ids.forEach((id) => watchers.get(id)?.forEach((listener) => listener()));
 
-const request = (query) => mediaServerQueue.run(() => fetchWithTimeout(
-	`${posterLabelsBase()}/Moonfin/PosterBadges/Items?${query}profile=tv`,
-	{headers: {Authorization: getAuthHeader()}},
-	TIMEOUT_MS
-));
+// On Plex the companion is looked up first, so a Moonbase address set in Settings Sync is used, and a server without
+// one reads as a 404.
+const request = async (query) => {
+	if (getServerType() === 'plex' && !(await findPlexMoonbase(getServerUrl(), getApiKey()))) return {ok: false, status: 404};
+	return mediaServerQueue.run(() => fetchWithTimeout(
+		`${posterLabelsBase()}/Moonfin/PosterBadges/Items?${query}profile=tv`,
+		{headers: {Authorization: getAuthHeader()}},
+		TIMEOUT_MS
+	));
+};
 
 const text = (value, fallback = '') => (typeof value === 'string' ? value : fallback);
 

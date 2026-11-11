@@ -9,7 +9,8 @@ import {
 	epoch, list, plexAdditionalParts, plexItems, plexItemsResult, plexItemToJellyfin, plexKeyOf, plexPartItem, plexPartOf,
 	plexPersonToJellyfin, plexSectionToView, plexSourceOf, plexVersion
 } from './plexMapper';
-import {PREFIXED_ID, plexImageUrl, plexMoonbaseUrl, plexQuery, trimSlash, withPlexToken} from '../utils/plexUrls';
+import {PREFIXED_ID, plexImageUrl, plexQuery, trimSlash, withPlexToken} from '../utils/plexUrls';
+import {findPlexMoonbase} from './plexMoonbase';
 
 export const plexIdentity = ({appName, appVersion, deviceName, deviceId}) => ({
 	'X-Plex-Product': appName,
@@ -1163,7 +1164,7 @@ export const createPlexApi = ({getBaseUrl, getToken, getUserId, getDeviceInfo, g
 
 		// Moonbase for Plex answers with Plex's own metadata, and a person as a cast tag, so both take the usual mapping.
 		smartSearch: async (query, limit = 20) => {
-			const base = plexMoonbaseUrl(getBaseUrl());
+			const base = await findPlexMoonbase(getBaseUrl(), getToken());
 			if (!base) throw notFound('Moonbase for Plex');
 			const result = await send(`${base}/Moonfin/SmartSearch`, {query: {query, limit}});
 			const items = list(result.Items).filter((m) => m && typeof m === 'object');
@@ -1178,6 +1179,14 @@ export const createPlexApi = ({getBaseUrl, getToken, getUserId, getDeviceInfo, g
 			: `/library/metadata/${seriesId}/allLeaves`)).Metadata)),
 
 		getSimilar: async (itemId, limit = 15) => plexItemsResult(plexItems((await container(`/library/metadata/${itemId}/similar`, paging(0, limit))).Metadata)),
+
+		// Moonbase for Plex ranks the library itself, and answers with Plex's own metadata.
+		getMoonfinSimilar: async (itemId, limit = 20) => {
+			const base = await findPlexMoonbase(getBaseUrl(), getToken());
+			if (!base) throw notFound('Moonbase for Plex');
+			const result = await send(`${base}/Moonfin/Items/${encodeURIComponent(itemId)}/Similar`, {query: {limit}});
+			return plexItemsResult(plexItems(result.Items));
+		},
 
 		getGenres: (libraryId, includeItemTypes = 'Movie,Series', sortBy = 'SortName', sortOrder = 'Ascending') =>
 			libraryTags('genre', PLEX_GENRE_PREFIX, 'Genre', {parentId: libraryId, includeItemTypes, sortBy, sortOrder}),

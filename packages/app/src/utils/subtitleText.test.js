@@ -17,3 +17,8 @@ test('reads ASS dialogue with commas in the text and drops the styling', () => {
 	const ass = '[Script Info]\nTitle: x\n\n[Events]\nFormat: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\nDialogue: 0,0:00:01.50,0:00:02.00,Default,,0,0,0,,{\\i1}Well, hi\\Nthere\n';
 	expect(parseSubtitleText(ass)).toEqual([{StartPositionTicks: 15000000, EndPositionTicks: 20000000, Text: 'Well, hi\nthere'}]);
 });
+
+test('leaves out what a \\p tag draws and reads a hard space as a space', () => {
+	const ass = '[Script Info]\n\n[Events]\nDialogue: 0,0:00:01.00,0:00:02.00,Sign,,0,0,0,,{\\p1}m 0 0 l 10 0 10 10{\\p0}Open\\hlate{\\p2}m 5 5 b 1 1 2 2 3 3\nDialogue: 0,0:00:03.00,0:00:04.00,Sign,,0,0,0,,{\\p1}m 0 0 l 10 0\n';
+	expect(parseSubtitleText(ass)).toEqual([{StartPositionTicks: 10000000, EndPositionTicks: 20000000, Text: 'Open late'}]);
+});

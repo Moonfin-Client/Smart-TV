@@ -2,7 +2,7 @@
 // English source string, so handing the string straight back is faithful enough here.
 jest.mock('@enact/i18n/$L', () => ({__esModule: true, default: (str) => str}));
 
-import {splitCastAndCrew, hidesMediaDescription} from './detailsMedia';
+import {getMediaBadges, splitCastAndCrew, hidesMediaDescription} from './detailsMedia';
 
 const person = (Id, Name, Type, Role) => ({Id, Name, Type, Role});
 
@@ -123,5 +123,19 @@ describe('splitCastAndCrew', () => {
 		expect(crew).toHaveLength(2);
 		expect(crew[0].Role).toBe('Episode Director');
 		expect(crew[1].Role).toBe('Episode Writer');
+	});
+});
+
+describe('getMediaBadges', () => {
+	const withVideo = (video) => ({MediaSources: [{MediaStreams: [{Type: 'Video', ...video}]}]});
+
+	test('a Dolby Vision file gets its profile badge and its fallback layer', () => {
+		const badges = getMediaBadges(withVideo({VideoRangeType: 'DOVIWithHDR10Plus', DvProfile: 8}));
+
+		expect(badges).toEqual([{type: 'badgeDv', label: 'DV P8'}, {type: 'badgeHdr', label: 'HDR10+'}]);
+	});
+
+	test('a file without a range field gets no range badge', () => {
+		expect(getMediaBadges(withVideo({Codec: 'hevc'}))).toEqual([{type: 'badgeCodec', label: 'HEVC'}]);
 	});
 });

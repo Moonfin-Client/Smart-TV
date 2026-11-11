@@ -240,21 +240,23 @@ const choiceMatches = (choice, current) => {
 };
 
 // What the host's room knows of where its members are in the staged title, read when the title or who's in the
-// room changes.
+// room changes. `looking` holds while the latest read is out, so the start buttons don't offer an old spot or swap
+// under the host's press.
 const useResumePoint = (room, playing) => {
-	const [point, setPoint] = useState(null);
+	const [answer, setAnswer] = useState(null);
 	const contentId = !playing && room.isHost ? room.selectedContentId : null;
 	const who = room.members.filter((m) => m.connected).map((m) => m.profileId).join(',');
+	const key = contentId ? `${contentId}|${who}` : null;
 	useEffect(() => {
-		setPoint(null);
-		if (!contentId) return undefined;
+		if (!key) return undefined;
 		let live = true;
-		watchParty.resumePoint().then((next) => live && setPoint(next));
+		watchParty.resumePoint().then((point) => live && setAnswer({key, point}));
 		return () => {
 			live = false;
 		};
-	}, [contentId, who]);
-	return point;
+	}, [key]);
+	const answered = Boolean(key) && answer?.key === key;
+	return {resume: answered ? answer.point : null, looking: Boolean(key) && !answered};
 };
 
 // Whose spot the resume is, and who it takes past the start.
@@ -281,7 +283,7 @@ const RoomView = memo(({party, item, playingItemId}) => {
 	}, [choices, at]);
 
 	// Where the room could pick the staged title up, asked again as members come and go.
-	const resume = useResumePoint(room, playing);
+	const {resume, looking} = useResumePoint(room, playing);
 	const startFromTop = useCallback(() => watchParty.startPlayback(0), []);
 	const startResumed = useCallback(() => watchParty.startPlayback(resume?.seconds || 0), [resume]);
 
@@ -296,7 +298,8 @@ const RoomView = memo(({party, item, playingItemId}) => {
 			primary = {label: $L('Resume at {time}').replace('{time}', formatPlaybackDuration(resume.seconds)), onClick: startResumed};
 			secondary = {label: $L('Start from the beginning'), onClick: startFromTop};
 		} else {
-			primary = {label: $L('Start for everyone'), onClick: startFromTop};
+			// Shown but not pressable while the lookup is out, so focus still lands on it.
+			primary = {label: $L('Start for everyone'), onClick: startFromTop, waiting: looking};
 		}
 	}
 
@@ -321,7 +324,7 @@ const RoomView = memo(({party, item, playingItemId}) => {
 					<SpottableButton
 						className={`${css.btn} ${css.createBtn} ${css.watchBtn}`}
 						onClick={primary.onClick}
-						disabled={busy}
+						disabled={busy || primary.waiting}
 						spotlightId="watchparty-primary-btn"
 					>
 						{primary.label}

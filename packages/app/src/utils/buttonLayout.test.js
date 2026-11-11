@@ -1,4 +1,4 @@
-import {ordered, arrange, hiddenSet, withUnknownIds, seerrOnlyRow, countSplit, applyButtonLimit, DETAIL_BUTTONS, OSD_BUTTONS} from './buttonLayout';
+import {ordered, arrange, hiddenSet, withUnknownIds, seerrOnlyRow, splitSlots, countSplit, applyButtonLimit, DETAIL_BUTTONS, OSD_BUTTONS} from './buttonLayout';
 
 const ids = (list) => list.map((item) => item.id);
 const declare = (...list) => list.map((id) => ({id}));
@@ -143,6 +143,22 @@ describe('seerrOnlyRow', () => {
 	it('keeps the trailer, which Seerr hands over with the rest', () => {
 		const row = declare('seerrRequest', 'trailer', 'watched', 'playlist');
 		expect(ids(seerrOnlyRow(row))).toEqual(['seerrRequest', 'trailer']);
+	});
+});
+
+describe('splitSlots', () => {
+	it('lays out a shared slot as its own buttons, in place, and only the ones it offers', () => {
+		const slot = {id: 'seerrManage', parts: [{id: 'seerrManage', when: true}, {id: 'seerrSwapRelease', when: true}]};
+		const arranged = arrange([...declare('trailer'), slot, ...declare('admin')], {order: ['seerrManage', 'trailer', 'admin']});
+		expect(ids(splitSlots(arranged))).toEqual(['seerrManage', 'seerrSwapRelease', 'trailer', 'admin']);
+
+		const swapOnly = {id: 'seerrManage', parts: [{id: 'seerrManage', when: false}, {id: 'seerrSwapRelease', when: true}]};
+		expect(ids(splitSlots([swapOnly, ...declare('admin')]))).toEqual(['seerrSwapRelease', 'admin']);
+	});
+
+	it('hides both when the viewer hides the slot', () => {
+		const slot = {id: 'seerrManage', parts: [{id: 'seerrManage', when: true}, {id: 'seerrSwapRelease', when: true}]};
+		expect(ids(splitSlots(arrange([slot, ...declare('admin')], {hidden: ['seerrManage']})))).toEqual(['admin']);
 	});
 });
 

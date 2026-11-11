@@ -312,7 +312,8 @@ export const loadGenres = async (ctx) => {
 			let enrichedItems = genresResult.Items;
 			const genresSortByLower = (settings.genresRowSortBy || 'SortName').toLowerCase();
 			if (genresSortByLower === 'sortname' || genresSortByLower === 'name') {
-				enrichedItems = [...enrichedItems].sort((a, b) => (a.Name || '').localeCompare(b.Name || ''));
+				const direction = genresSortOrder === 'Descending' ? -1 : 1;
+				enrichedItems = [...enrichedItems].sort((a, b) => direction * (a.Name || '').localeCompare(b.Name || ''));
 			} else if (genresSortByLower === 'random') {
 				enrichedItems = [...enrichedItems].sort(() => Math.random() - 0.5);
 			}
@@ -565,7 +566,9 @@ const fetchPluginSectionRow = async (ctx, row) => {
 			title: row.name,
 			items: first.Items,
 			type: 'portrait',
-			isPluginRow: true
+			isPluginRow: true,
+			// What the row's See All card opens.
+			collection: row.source === 'collections' ? tagged([{Id: row.itemId, Name: row.name, Type: 'BoxSet'}])[0] : undefined
 		}, first, PICKED_ROW_LIMIT, readHead);
 	} catch (_error) {
 		return null;

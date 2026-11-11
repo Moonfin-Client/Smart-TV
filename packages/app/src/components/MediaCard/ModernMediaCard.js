@@ -114,7 +114,9 @@ const ModernMediaCard = ({
 	ratingsSurface,
 	hideOverview = false,
 	coreLook = false,
-	posterLabels = false
+	posterLabels = false,
+	hideWatchProgress = false,
+	hideUnwatchedCount = false
 }) => {
 	const {settings} = useSettings();
 	const focusTimeoutRef = useRef(null);
@@ -180,10 +182,10 @@ const ModernMediaCard = ({
 		onPreviewBlur();
 	}, [onMenuMouseLeave, onPreviewBlur]);
 
-	const progress = item?.UserData?.PlayedPercentage || 0;
+	const progress = hideWatchProgress ? 0 : item?.UserData?.PlayedPercentage || 0;
 	const watchedBehavior = settings.watchedIndicatorBehavior || 'always';
 	const showIndicators = watchedBehavior === 'always' || watchedBehavior === 'hideCount' || (watchedBehavior === 'episodesOnly' && item?.Type === 'Episode');
-	const unplayedCount = item?.UserData?.UnplayedItemCount;
+	const unplayedCount = hideUnwatchedCount ? 0 : item?.UserData?.UnplayedItemCount;
 	const showUnplayedCount = showIndicators && watchedBehavior !== 'hideCount' && !item?.UserData?.Played && unplayedCount > 0;
 	const seerrStyle = seerrBadgeStyle(settings);
 	const bannerStatus = seerrStyle === 'banner' ? seerrTitleStatus(item) : null;
@@ -395,7 +397,7 @@ const ModernMediaCard = ({
 
 				{showIndicators && showsWatchedCheck(item) && (
 					<div className={css.watchedBadge}>
-						<svg viewBox="0 0 24 24"><path fill="white" d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>
+						<svg viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>
 					</div>
 				)}
 

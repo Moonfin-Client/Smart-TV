@@ -17,7 +17,7 @@ import {useSeerr} from '../../context/SeerrContext';
 import {useSettings} from '../../context/SettingsContext';
 import SeerrStatusChip from '../../components/SeerrStatusChip';
 import SeerrMediaTypeBadge from '../../components/seerr/SeerrMediaTypeBadge';
-import SeerrDownloadProgress from '../../components/SeerrDownloadProgress';
+import SeerrDownloadProgress, {SeerrNotFoundYet} from '../../components/SeerrDownloadProgress';
 import SeerrIssueThread from '../../components/SeerrIssueThread';
 import LoopMarquee from '../../components/LoopMarquee';
 import {
@@ -25,10 +25,10 @@ import {
 	ISSUE_STATUS,
 	getRequestStatusInfo,
 	getIssueStatusInfo,
-	getIssueTypeLabel,
-	getRequestDownloadSummary,
-	isRequestDownloading
+	getIssueTypeLabel
 } from '../../utils/seerrStatus';
+import {requestDownloadFor, requestIsWatched, requestNotFoundYet, requestQueueView} from '../../utils/seerrArrQueue';
+import useRequestArrQueues, {requestQueueKey} from './useRequestArrQueues';
 import {uiLocale} from '../../utils/uiLocale';
 import {KEYS} from '../../utils/keys';
 import {getServerType} from '../../services/jellyfinApi';
@@ -170,7 +170,7 @@ const TileActionIcon = ({className, path, label, onClick}) => (
 	</SpottableDiv>
 );
 
-const RequestItem = memo(function RequestItem({request, index, canManage, myUserId, splitRequester, onSelect, onAction, ...rest}) {
+const RequestItem = memo(function RequestItem({request, queueResponse, index, canManage, myUserId, splitRequester, onSelect, onAction, ...rest}) {
 	const media = request.media;
 	// w342 like the other Seerr screens. w185 is too soft once the grid enlarges it.
 	const posterUrl = media?.posterPath
@@ -179,7 +179,10 @@ const RequestItem = memo(function RequestItem({request, index, canManage, myUser
 	const statusInfo = getRequestStatusInfo(request);
 	const isPending = request.status === REQUEST_STATUS.PENDING;
 	const isFailed = request.status === REQUEST_STATUS.FAILED;
-	const downloadSummary = getRequestDownloadSummary(request);
+	// What the arr's own queue says, when the plugin could see it. Otherwise Seerr's picture.
+	const queueView = useMemo(() => requestQueueView(request, queueResponse), [request, queueResponse]);
+	const downloadSummary = requestDownloadFor(request, queueView);
+	const notFoundYet = !downloadSummary && requestNotFoundYet(request, queueView);
 	const isOwn = request.requestedBy?.id != null && request.requestedBy.id === myUserId;
 	const requester = requesterName(request);
 	const isMovie = request.type === 'movie' || media?.mediaType === 'movie';
@@ -258,11 +261,15 @@ const RequestItem = memo(function RequestItem({request, index, canManage, myUser
 			<div className={css.tileCaption}>
 				<LoopMarquee className={css.tileTitle} text={media?.title || media?.name || $L('Unknown')} active={focused} />
 				<div className={css.tileStatus}>
-					{downloadSummary
-						? <SeerrDownloadProgress summary={downloadSummary} compact />
-						: <SeerrStatusChip label={statusInfo.label} color={statusInfo.color} />}
+					{downloadSummary && <SeerrDownloadProgress summary={downloadSummary} compact showReason={false} />}
+					{!downloadSummary && notFoundYet && <SeerrNotFoundYet compact />}
+					{!downloadSummary && !notFoundYet && <SeerrStatusChip label={statusInfo.label} color={statusInfo.color} />}
 				</div>
-				{splitRequester ? (
+				{/* The caption has a fixed height, so the arr's reason takes the requester's
+				    lines rather than adding one: one line, or two when requesters are split. */}
+				{downloadSummary?.reason ? (
+					<div className={`${css.tileReason} ${splitRequester ? css.tileReasonTwoLines : ''}`}>{downloadSummary.reason}</div>
+				) : splitRequester ? (
 					<>
 						<div className={css.tileBy}>{$L('Requested by')}</div>
 						<div className={css.tileRequester}>{requester}</div>
@@ -344,7 +351,7 @@ const IssueItem = memo(function IssueItem({issue, index, canManage, myUserId, on
 });
 
 const SeerrRequests = ({onSelectItem, onClose, initialTab = 'requests', backHandlerRef, ...rest}) => {
-	const {isAuthenticated, user: contextUser} = useSeerr();
+	const {isAuthenticated, user: contextUser, pluginInfo} = useSeerr();
 	const {settings} = useSettings();
 	const rootFontSize = useRootFontSize(settings.uiScale);
 	const [tab, setTab] = useState(initialTab);
@@ -367,6 +374,25 @@ const SeerrRequests = ({onSelectItem, onClose, initialTab = 'requests', backHand
 	const [activeIssue, setActiveIssue] = useState(null);
 	const loadingMoreRef = useRef(false);
 	const focusFirstRequestRef = useRef(false);
+
+	// Bumped by each full load, which asks the arr about every title again.
+	const [queueLoad, setQueueLoad] = useState(0);
+	// Older plugins don't say, and then the cards read Seerr's copy of the queue alone.
+	const {answers: queueAnswers, refresh: refreshQueues} = useRequestArrQueues({
+		enabled: pluginInfo?.arrQueueAvailable === true && tab === 'requests',
+		requests,
+		loadToken: queueLoad
+	});
+
+	// The titles whose card shows a bar, or Not found yet, which the next queue read may turn into a
+	// bar. Only those are worth asking about on every poll tick, so a long list of titles the arr
+	// doesn't have doesn't fire a call each.
+	const watched = useMemo(() => requests.filter((request) =>
+		requestIsWatched(request, queueAnswers[requestQueueKey(request)])
+	), [requests, queueAnswers]);
+	const watchesAny = watched.length > 0;
+	const watchedKeysRef = useRef([]);
+	watchedKeysRef.current = watched.map(requestQueueKey).filter(Boolean);
 
 	const canManage = seerrApi.canManageRequests(permissions);
 	const canManageIssuesPerm = seerrApi.canManageIssues(permissions);
@@ -418,6 +444,7 @@ const SeerrRequests = ({onSelectItem, onClose, initialTab = 'requests', backHand
 			const {results, raw} = await loadPage(activeTab, filter, 0);
 			if (activeTab === 'requests') {
 				setRequests(results);
+				setQueueLoad((n) => n + 1);
 			} else {
 				setIssues(results);
 			}
@@ -472,6 +499,7 @@ const SeerrRequests = ({onSelectItem, onClose, initialTab = 'requests', backHand
 	// fields. Unchanged rows keep reference equality so the memoized
 	// RequestItems skip re-rendering, and failures never surface the error UI.
 	const refreshDownloads = useCallback(() => {
+		refreshQueues(watchedKeysRef.current);
 		const sameJson = (a, b) => JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
 		seerrApi.getRequests(requestFilter, PAGE_SIZE, 0).then((data) => {
 			const byId = {};
@@ -505,15 +533,16 @@ const SeerrRequests = ({onSelectItem, onClose, initialTab = 'requests', backHand
 				return changed ? next : prev;
 			});
 		}).catch(() => {});
-	}, [requestFilter]);
+	}, [requestFilter, refreshQueues]);
 
-	// Poll while something on the requests tab is downloading so the progress
-	// bars advance without a manual refresh.
+	// Poll while something on the requests tab is downloading or waiting for the arr to find a
+	// release, so the progress bars advance without a manual refresh. The arr's queue can be
+	// downloading while Seerr's copy of it is empty, so its bars count too.
 	useEffect(() => {
-		if (tab !== 'requests' || loading || !requests.some(isRequestDownloading)) return;
+		if (tab !== 'requests' || loading || !watchesAny) return;
 		const id = setInterval(refreshDownloads, 30000);
 		return () => clearInterval(id);
-	}, [tab, loading, requests, refreshDownloads]);
+	}, [tab, loading, refreshDownloads, watchesAny]);
 
 	// Back closes the thread overlay before the panel pops.
 	useEffect(() => {
@@ -630,6 +659,7 @@ const SeerrRequests = ({onSelectItem, onClose, initialTab = 'requests', backHand
 					{...itemProps}
 					key={item.id}
 					request={item}
+					queueResponse={queueAnswers[requestQueueKey(item)]}
 					index={index}
 					canManage={canManage}
 					myUserId={myUserId}
@@ -651,7 +681,7 @@ const SeerrRequests = ({onSelectItem, onClose, initialTab = 'requests', backHand
 				onToggleStatus={handleToggleIssueStatus}
 			/>
 		);
-	}, [items, tab, hasMore, loadMore, canManage, canManageIssuesPerm, myUserId, splitRequester,
+	}, [items, queueAnswers, tab, hasMore, loadMore, canManage, canManageIssuesPerm, myUserId, splitRequester,
 		handleSelect, handleRequestAction, handleOpenIssue, handleToggleIssueStatus]);
 
 	const renderContent = () => {

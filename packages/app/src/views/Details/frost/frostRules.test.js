@@ -1,8 +1,8 @@
 import {resolveThemeById} from '../../../theme/themeRegistry';
-import {MEDIA_STATUS} from '../../../utils/seerrStatus';
+import {DOWNLOAD_STATE, MEDIA_STATUS} from '../../../utils/seerrStatus';
 import {ACTIONS, NAVBAR} from '../stage/stageRules';
 import {
-	frostCredits, frostInfo, frostNeighbour, frostScrims, frostSeason, frostSeerrGroups, frostSeerrStatus, frostSegments,
+	frostCredits, frostDownloadStatus, frostInfo, frostNeighbour, frostScrims, frostSeason, frostSeerrGroups, frostSeerrStatus, frostSegments,
 	frostStageFit, frostStatusColors, frostTabs
 } from './frostRules';
 
@@ -185,9 +185,26 @@ describe('where a title stands in Seerr', () => {
 		expect(frostSeerrStatus(undefined, colors)).toEqual({label: 'Not Requested', color: colors.none});
 	});
 
+	test('a download says what it is doing, and a stuck one takes the pending or error color', () => {
+		const colors = frostStatusColors(resolveThemeById('moonfin'));
+		const GB = 1024 * 1024 * 1024;
+		const download = {fraction: 0.45, state: DOWNLOAD_STATE.DOWNLOADING, timeLeftSeconds: 3900, totalBytes: 2 * GB, downloadedBytes: 0.9 * GB};
+
+		expect(frostDownloadStatus(download, colors)).toEqual({label: 'Downloading · 45% · 1h 5m left · 0.9 GB / 2.0 GB', color: colors.requested});
+		expect(frostDownloadStatus({...download, state: DOWNLOAD_STATE.STALLED, timeLeftSeconds: null}, colors))
+			.toEqual({label: 'Stalled · 45% · 0.9 GB / 2.0 GB', color: colors.pending});
+		expect(frostDownloadStatus({...download, state: DOWNLOAD_STATE.FAILED}, colors).color).toBe(colors.error);
+		expect(frostDownloadStatus({...download, state: DOWNLOAD_STATE.PAUSED}, colors)).toEqual({label: 'Paused · 45% · 0.9 GB / 2.0 GB', color: colors.none});
+		expect(frostDownloadStatus({...download, state: DOWNLOAD_STATE.QUEUED}, colors).color).toBe(colors.none);
+		expect(frostDownloadStatus({fraction: 1, state: DOWNLOAD_STATE.WAITING_FOR_IMPORT}, colors))
+			.toEqual({label: 'Downloaded, waiting for import', color: colors.requested});
+		expect(frostDownloadStatus({fraction: 1, state: DOWNLOAD_STATE.IMPORT_BLOCKED, totalBytes: 2 * GB, downloadedBytes: 2 * GB}, colors))
+			.toEqual({label: 'Import blocked', color: colors.pending});
+	});
+
 	test('takes its colors from the theme, with not requested in its faded text color', () => {
 		expect(frostStatusColors(resolveThemeById('8bit_hero'))).toEqual({
-			available: 'rgb(56, 183, 100)', requested: 'rgb(93, 39, 93)', pending: 'rgb(255, 205, 117)', none: 'rgba(244, 244, 244, 0.55)'
+			available: 'rgb(56, 183, 100)', requested: 'rgb(93, 39, 93)', pending: 'rgb(255, 205, 117)', error: 'rgb(177, 62, 83)', none: 'rgba(244, 244, 244, 0.55)'
 		});
 	});
 });

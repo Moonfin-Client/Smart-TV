@@ -45,7 +45,8 @@ const makeResponse = ({status, body, headers}) => {
 		status,
 		statusText: '',
 		headers: {
-			get: (name) => (headers ? headers[String(name).toLowerCase()] : undefined) || null
+			get: (name) => (headers ? headers[String(name).toLowerCase()] : undefined) || null,
+			forEach: (fn) => Object.keys(headers || {}).forEach((name) => fn(headers[name], name))
 		},
 		text: () => Promise.resolve(text),
 		json: () => Promise.resolve(text ? JSON.parse(text) : null)

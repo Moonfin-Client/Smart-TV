@@ -18,6 +18,15 @@ describe('buildThemeOverrideCss', () => {
 		expect(css).not.toContain('var(--theme');
 	});
 
+	it('colors the Seerr download bar, amber when stalled and red when failed', () => {
+		const theme = resolveThemeById('moonfin');
+		const lines = buildThemeOverrideCss(theme).split('\n');
+		const fill = (selector) => lines.filter((line) => line.includes(`] ${selector} {`)).join('\n');
+		expect(fill('.fill')).toContain(`background: ${toCssColor(theme.colors.rangeProgress)};`);
+		expect(fill('.stalled .fill')).toContain(`background: ${toCssColor(theme.semantic.statusPending)};`);
+		expect(fill('.failed .fill')).toContain(`background: ${toCssColor(theme.semantic.statusError)};`);
+	});
+
 	it('emits the nav color cycle per slot for themes that have one', () => {
 		const css = buildThemeOverrideCss(resolveThemeById('neon_pulse'));
 		expect(css).toContain("[data-nav-slot='1'] { color: rgb(255, 46, 146); }");
@@ -65,6 +74,20 @@ describe('buildThemeOverrideCss', () => {
 		expect(moonfin).not.toContain('font-family');
 	});
 
+	it('draws row subtitles near full strength on every theme, and Neon card subtitles bold with a halo the lower tiers drop', () => {
+		for (const id of ['moonfin', 'neon_pulse', '8bit_hero']) {
+			const lines = buildThemeOverrideCss(resolveThemeById(id)).split('\n');
+			expect(lines.find((line) => line.includes('] .subtitle, '))).toMatch(/color: rgba\([^)]*, 0\.95\);/);
+		}
+		const neon = buildThemeOverrideCss(resolveThemeById('neon_pulse')).split('\n');
+		expect(neon.find((line) => line.includes('] .episodeInfo, ') && line.includes('font-weight: 600;')))
+			.toContain('text-shadow: 0 0 4px #000000, 0 0 6px rgba(0, 0, 0, 0.87);');
+		const dropped = neon.find((line) => line.includes('.perf-low .episodeInfo'));
+		expect(dropped).toContain('.perf-mid .secondaryTitle');
+		expect(dropped).toContain('{ text-shadow: none; }');
+		expect(buildThemeOverrideCss(resolveThemeById('moonfin'))).not.toContain('.perf-low .episodeInfo');
+	});
+
 	it('fills the media bar card from its own overlay setting', () => {
 		const theme = resolveThemeById('moonfin');
 		// Three quarters of the chosen opacity.
@@ -91,6 +114,20 @@ describe('buildThemeOverrideCss', () => {
 		expect(css).toContain(`${prefix} .chip:focus, ${prefix} .letter:focus, ${prefix} .toolButton:focus { box-shadow: inset 0 0 0 2px rgb(255, 0, 0); }`);
 		const themeColor = resolveFocusBorderColor(theme, '');
 		expect(buildThemeOverrideCss(theme, {focusBorderColor: ''})).toContain(`${prefix} .ring { border-color: ${themeColor}; }`);
+	});
+
+	it('draws the watched badge in the theme on the screens that load on demand', () => {
+		const theme = resolveThemeById('moonfin');
+		const names = ['badgeScreenOne', 'badgeScreenTwo'];
+		names.forEach((name) => registerThemeSheet(name, {watchedBadge: `${name}Watched`}));
+		const prefix = "html[data-theme-id='moonfin'][data-theme-id]";
+		const watched = toCssColor(theme.colors.badgeWatched);
+		const onBadge = toCssColor(theme.colors.onBadge);
+		const lines = buildThemeOverrideCss(theme).split('\n');
+		for (const name of names) {
+			expect(lines).toContain(`${prefix} .${name}Watched { background: ${watched}; border-color: ${onBadge}; }`);
+			expect(lines).toContain(`${prefix} .${name}Watched svg { fill: ${onBadge}; stroke: ${onBadge}; }`);
+		}
 	});
 
 	it('rings the screens that load on demand once they hand their stylesheets over', async () => {
@@ -167,6 +204,17 @@ describe('ink on a focused row', () => {
 			const fallback = contrastRatio(theme.colors.buttonFocused, inkOn(theme.colors.buttonFocused) === '0, 0, 0' ? '#FF000000' : '#FFFFFFFF');
 			expect(Math.max(declared, fallback)).toBeGreaterThanOrEqual(MIN_BUTTON_CONTRAST);
 		}
+	});
+
+	// A Play filled with a light accent reads as focused beside the circle that is, so Stage's,
+	// Premiere's and Quick Look's Play is left looking like the circles until it has focus.
+	it('fills Play with the accent only once it has focus', () => {
+		const lines = buildThemeOverrideCss(resolveThemeById('neon_pulse')).split('\n');
+		const ruleFor = (selector) => lines.find((line) => line.includes(`] ${selector} {`) || line.includes(`] ${selector}, `)) || '';
+		['actionsStacked', 'actionsCentered'].forEach((row) => {
+			expect(ruleFor(`.${row} > .actionBtn:first-child`)).toBe('');
+			expect(ruleFor(`.${row} > .actionBtn:first-child:focus`)).toContain('background-color: rgb(0, 229, 255)');
+		});
 	});
 
 	it('draws Frost in the theme rather than white on glass', () => {

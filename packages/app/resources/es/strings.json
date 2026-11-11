@@ -1580,5 +1580,16 @@
     "Finished": "Finalizado",
     "Fireworks": "Fuegos artificiales",
     "Folder View": "Vista de carpeta",
-    "Folders First": "Primero las carpetas"
+    "Folders First": "Primero las carpetas",
+    "Again!": "¡Otra vez!",
+    "Ask whoever runs the server to install the Moonbase plugin. On Jellyfin, SyncPlay still works without it.": "Pídele al administrador del servidor que instale el complemento Moonbase. En Jellyfin, SyncPlay sigue funcionando sin él.",
+    "Back in the party": "De vuelta a la fiesta",
+    "Brb": "Brb",
+    "Buffering": "Almacenamiento en búfer",
+    "Catching up": "Poniéndonos al día",
+    "Chat": "Charlar",
+    "Correct drift": "Rumbo correcto",
+    "End for everyone": "Fin para todos",
+    "Enter the PIN for {name}'s party": "Introduce el PIN de la fiesta de {name}",
+    "Enter the room PIN": "Ingrese el PIN de la sala"
 }

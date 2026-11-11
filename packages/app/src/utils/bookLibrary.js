@@ -157,11 +157,10 @@ const seriesEntry = (id, name, members, folder) => {
 	return entry;
 };
 
-// The series in a book library. A folder holding two or more comics is one, unless it's one of
-// the library's roots, the only folders whose parent isn't another of its folders. Ebooks are
-// filed by author and audiobooks split into chapter files, so neither groups by folder. Books
-// sharing a series name are a series too, unless every one of them already sits in a series folder.
-export const bookSeriesEntries = (titles, folders) => {
+// The series in a book library. Books sharing a series name are one, unless every one of them already
+// sits in a series folder. With bookFoldersAsSeries on, a folder holding two or more books is one too,
+// unless it's one of the library's roots, the only folders whose parent isn't another of its folders.
+export const bookSeriesEntries = (titles, folders, bookFoldersAsSeries) => {
 	const folderIds = new Set(folders.map((folder) => folder.Id));
 	const seriesFolders = new Map(folders.filter((folder) => folderIds.has(folder.ParentId)).map((folder) => [folder.Id, folder]));
 	const byFolder = new Map();
@@ -171,7 +170,7 @@ export const bookSeriesEntries = (titles, folders) => {
 		groups.get(key).push(title);
 	};
 	titles.forEach((title) => {
-		if (isComicItem(title) && seriesFolders.has(title.ParentId)) add(byFolder, title.ParentId, title);
+		if (bookFoldersAsSeries && seriesFolders.has(title.ParentId)) add(byFolder, title.ParentId, title);
 		const name = String(title.SeriesName || '').trim();
 		if (name) add(byName, name, title);
 	});
@@ -187,6 +186,12 @@ export const bookSeriesEntries = (titles, folders) => {
 		}
 	});
 	return entries.sort(compareNames);
+};
+
+// The series a book's Go to series opens, built from every title carrying its name however few they are.
+export const bookSeriesNamed = (name, titles) => {
+	const members = titles.filter((title) => String(title.SeriesName || '').trim() === name);
+	return members.length ? seriesEntry(`bookSeries:${name}`, name, members, null) : null;
 };
 
 // Authors an ebook only names as people, leaving out the ones `known` already holds.

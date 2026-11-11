@@ -18,7 +18,7 @@ import {handleAudioFocusKey, exitAudioPanel, nextAudioFocusRow, focusAudioRow, f
 import {detectPlatformVersion, getH264FallbackProfile} from '../../services/deviceProfile';
 import {initPgsRenderer, initPgsInBandRenderer, disposePgsRenderer} from '../../utils/pgsRenderer';
 import {createInBandTextSource} from '../../utils/mkvTextSource';
-import {supportsAssRenderer, initAssCanvasRenderer, disposeAssRenderer, setAssTime, clearAssCanvas} from '../../utils/assRenderer';
+import {supportsAssRenderer, initAssCanvasRenderer, disposeAssRenderer, setAssTime, clearAssCanvas, setAssFontScale, assTimelineEvents} from '../../utils/assRenderer';
 import {waitForAssReady} from '../../utils/assRendererReady';
 import {
 	initPlayerPlatform,
@@ -37,12 +37,13 @@ import {
 	getHostAudioOutput,
 	chooseHostReader
 } from '../../services/video';
-import {KEYS, isBackKey, isMediaKey} from '../../utils/keys';
+import {KEYS, isBackKey, isMediaKey, remoteShortcut} from '../../utils/keys';
+import {trackShortcutAction} from './trackShortcut';
 import {isTvKeyboardVisible} from '../../components/TVKeyboard/keyboardBus';
 import {useSettings} from '../../context/SettingsContext';
 import {useSyncPlay} from '../../context/SyncPlayContext';
 import * as syncPlayService from '../../services/syncPlay';
-import {resolveSubtitleStyleSettings} from '../../utils/subtitleConstants';
+import {getAssFontScale, resolveSubtitleStyleSettings} from '../../utils/subtitleConstants';
 import SubtitleTextOverlay from './SubtitleTextOverlay';
 import useSecondarySubtitle from './useSecondarySubtitle';
 import useSubtitleFetch from './useSubtitleFetch';
@@ -96,7 +97,7 @@ import {createReadyGate} from '../../utils/syncReady';
 import {createSkipGovernor, chooseCorrection, afterResume, STALL_DEBOUNCE_MS} from '../../utils/syncCorrection';
 import {syncLog} from '../../utils/syncLog';
 import {
-	NextEpisodeContainer, CONTROLS_HIDE_DELAY,
+	NextEpisodeContainer, SLIDESHOW_ERROR_DELAY,
 	withTimeout, SEGMENT_FETCH_TIMEOUT, ASS_READY_WAIT, ASS_FETCH_INDICATOR_LIMIT
 } from './PlayerConstants';
 import {
@@ -163,7 +164,7 @@ const ROOM_SEEK_SETTLE_TIMEOUT_MS = 12000;
 // another load of seconds.
 const ROOM_READY_TOLERANCE_MS = 900;
 
-const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialSubtitleIndex, initialStartPositionTicks, initialQuality, forceTranscode, onEnded, onBack, onGuide, onPlayNext, onSelectPerson, audioPlaylist, videoQueue, liveTvChannels, onPausedChange, background, onBackground}) => {
+const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialSubtitleIndex, initialStartPositionTicks, initialQuality, forceTranscode, onEnded, onBack, onGuide, onRecordings, onPlayNext, onSelectPerson, audioPlaylist, videoQueue, liveTvChannels, onPausedChange, background, onBackground, slideshow}) => {
 	const {settings, updateSetting} = useSettings();
 	const {isInGroup, lastCommand} = useSyncPlay();
 	const syncPlayCommandRef = useRef(false);
@@ -232,6 +233,10 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 	const [isDownloadingRemoteSubtitle, setIsDownloadingRemoteSubtitle] = useState(false);
 	const [remoteSubtitleError, setRemoteSubtitleError] = useState(null);
 	const [mediaSegments, setMediaSegments] = useState(null);
+	const slideshowMuted = slideshow?.muted === true;
+	// The source effect reads it from here, so a change in it only sets the volume and doesn't reload the video.
+	const slideshowMutedRef = useRef(slideshowMuted);
+	slideshowMutedRef.current = slideshowMuted;
 	const [nextEpisode, setNextEpisode] = useState(null);
 	const nextAirDate = useNextAirDate({item, nextEpisode, settings});
 	// Up once an episode with nothing after it in the library has ended, over its last frame.
@@ -436,6 +441,10 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 	// Bumped by every renderer start and teardown, so a start that finishes after a
 	// newer one, or after the player moved on, throws its renderer away.
 	const assInitGenRef = useRef(0);
+	const assFontScale = getAssFontScale(subtitleStyleSettings);
+	useEffect(() => {
+		setAssFontScale(assRendererRef.current, assFontScale);
+	}, [assFontScale]);
 	// index of a subtitle the server is currently burning into the stream
 	const burnInSubtitleRef = useRef(null);
 
@@ -591,6 +600,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 		recordable: liveRecording.available, recordMark: liveRecording.mark
 	});
 	const prepareRecording = liveRecording.prepare;
+	const showPlayerToast = liveRecording.showToast;
 
 	useEffect(() => {
 		const people = Array.isArray(item?.People) ? item.People : [];
@@ -1355,7 +1365,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 				// Audio mode: always show controls, skip video-only features
 				if (shouldUseAudioMode) {
 					setControlsVisible(true);
-				} else if (!isLiveTV) {
+				} else if (!isLiveTV && !slideshow) {
 					withTimeout(playback.getMediaSegments(item.Id), SEGMENT_FETCH_TIMEOUT).then((segments) => {
 						if (!cancelled) setMediaSegments(segments);
 					}).catch((segmentErr) => {
@@ -1778,7 +1788,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 		// autoplay must be re-set because hls.js path overrides it to false
 		video.autoplay = true;
 
-		video.muted = false;
+		video.muted = slideshowMutedRef.current;
 		video.defaultMuted = false;
 		video.volume = 1;
 		video.removeAttribute('muted');
@@ -2042,6 +2052,10 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 		};
 	}, [mediaUrl, isLoading, mimeType, playMethod, error, settings.videoStartDelay, isLiveTV, sourceRevision]);
 
+	useEffect(() => {
+		if (videoRef.current) videoRef.current.muted = slideshowMuted;
+	}, [slideshowMuted]);
+
 	const showControls = useCallback((isModalOpen = activeModal) => {
 		if (!controlsVisibleRef.current && !isAudioMode && !isLiveTV) setFocusRow('progress');
 		setControlsVisible(true);
@@ -2054,9 +2068,9 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 				// goes through showControls and re-arms the timer.
 				if (isPausedRef.current) return;
 				setControlsVisible(false);
-			}, CONTROLS_HIDE_DELAY);
+			}, settings.controlsHideDelay);
 		}
-	}, [activeModal, isAudioMode, isLiveTV]);
+	}, [activeModal, isAudioMode, isLiveTV, settings.controlsHideDelay]);
 
 	const hideControls = useCallback(() => {
 		setControlsVisible(false);
@@ -2103,7 +2117,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 	});
 	const {active: cinemaSkipActive, update: updateCinemaSkip} = cinemaSkip;
 
-	const {carouselOpenRef, openCarousel, stepChannel, markChannelPlaying, refreshRecordings, carouselProps} = useChannelCarousel({
+	const {carouselOpenRef, openCarousel, stepChannel, markChannelPlaying, refreshRecordings, markChannelFavorite, carouselProps} = useChannelCarousel({
 		item, isLiveTV, liveTvChannels, sortBy: settings.liveTvChannelSortBy,
 		error, controlsVisible, showControls, hideControls, setFocusRow,
 		onSwitchChannel: onPlayNextWithCleanup
@@ -2364,6 +2378,15 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 		// the next up countdown can load the next one during the stop, leave its player alone
 		if (prevItemIdRef.current !== item.Id) return;
 
+		// A slideshow video has no next episode or prompts, it hands over to the slideshow.
+		if (slideshow) {
+			isCleaningUpRef.current = true;
+			destroyHlsPlayer();
+			await cleanupVideoElement(videoRef.current);
+			slideshow.onEnded?.();
+			return;
+		}
+
 		if (repeatMode === 'one') {
 			restartCurrent();
 			return;
@@ -2390,7 +2413,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 		} else {
 			onEnded?.();
 		}
-	}, [onEnded, onPlayNext, nextEpisode, nextAirDate, hideControls, audioPlaylist, repeatMode, restartCurrent, getNextStep, settings.autoPlay, item, liveRecovery, shouldHoldForStillWatching]);
+	}, [onEnded, onPlayNext, nextEpisode, nextAirDate, hideControls, audioPlaylist, repeatMode, restartCurrent, getNextStep, settings.autoPlay, item, liveRecovery, shouldHoldForStillWatching, slideshow]);
 
 	// The episode has ended, so closing the card leaves the player.
 	const closeAirDateCard = useCallback(async () => {
@@ -2650,9 +2673,35 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 		(onGuide || onBack)?.();
 	}, [teardownPlayback, onGuide, onBack]);
 
+	const handleOpenRecordings = useCallback(async () => {
+		await teardownPlayback();
+		onRecordings?.();
+	}, [teardownPlayback, onRecordings]);
+
 	useEffect(() => {
 		handleBackRef.current = handleBack;
 	}, [handleBack]);
+
+	// Previous or next item of a slideshow, which stops this video and hands over to the slideshow.
+	// One step at a time: a press while the stop is still going out would stop the same video twice.
+	const slideshowSteppingRef = useRef(false);
+	useEffect(() => {
+		slideshowSteppingRef.current = false;
+	}, [item]);
+	const stepSlideshow = useCallback(async (dir) => {
+		await teardownPlayback();
+		slideshow?.onStep?.(dir);
+	}, [teardownPlayback, slideshow]);
+
+	// A slideshow video that can't play moves on after a moment, so the slideshow never stalls on it.
+	useEffect(() => {
+		if (!slideshow || !error) return undefined;
+		const timer = setTimeout(async () => {
+			await teardownPlayback();
+			slideshow.onEnded?.();
+		}, SLIDESHOW_ERROR_DELAY);
+		return () => clearTimeout(timer);
+	}, [slideshow, error, teardownPlayback]);
 
 	// Play during a held scrub is what commits it, landing on the scrubbed spot and playing on
 	// from there.
@@ -2826,7 +2875,8 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 		// The controls stay up under a dialog, so closing it gives focus back to the button that opened it.
 		clearTimeout(controlsTimeoutRef.current);
 		setActiveModal(modal);
-		window.requestAnimationFrame(() => {
+		// A remote key opens a dialog from a window listener, and React may not have drawn it by the next frame.
+		const focusModal = (triesLeft) => {
 			const modalId = `${modal}-modal`;
 			const focusResult = Spotlight.focus(modalId);
 
@@ -2837,9 +2887,12 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 					Spotlight.focus(selectedItem);
 				} else if (firstItem) {
 					Spotlight.focus(firstItem);
+				} else if (triesLeft > 0) {
+					window.requestAnimationFrame(() => focusModal(triesLeft - 1));
 				}
 			}
-		});
+		};
+		window.requestAnimationFrame(() => focusModal(10));
 	}, []);
 
 	const closeModal = useCallback(() => {
@@ -3284,13 +3337,18 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 		if (!item?.Id) return;
 		const newState = !isFavorite;
 		setIsFavorite(newState);
+		if (isLiveTV) markChannelFavorite(item.Id, newState);
 		try {
 			await (getApiForItem(item) || jellyfinApi).setFavorite(item.Id, newState);
 		} catch (err) {
 			console.error('[Player] Failed to toggle favorite:', err);
 			setIsFavorite(!newState);
+			if (isLiveTV) {
+				markChannelFavorite(item.Id, !newState);
+				showPlayerToast($L('Failed to update favorite channel'));
+			}
 		}
-	}, [item, isFavorite]);
+	}, [item, isFavorite, isLiveTV, markChannelFavorite, showPlayerToast]);
 
 	const handleToggleZoom = useCallback(() => {
 		setZoomMode((prev) => {
@@ -3693,6 +3751,22 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 				if (isBackKey(e) || key === 'GoBack') closeAirDateCard();
 				return;
 			}
+			// Stop, and in Live TV the Guide and Recordings buttons, leave the player even with the
+			// channel carousel up.
+			if (e.keyCode === KEYS.STOP) {
+				e.preventDefault();
+				e.stopPropagation();
+				handleBack();
+				return;
+			}
+			const shortcut = remoteShortcut(e);
+			if (isLiveTV && (shortcut === 'guide' || (shortcut === 'recordings' && onRecordings))) {
+				e.preventDefault();
+				e.stopPropagation();
+				if (shortcut === 'guide') handleOpenGuide();
+				else handleOpenRecordings();
+				return;
+			}
 			// The channel carousel takes every key while it's up.
 			if (carouselOpenRef.current) return;
 			// The pointer timing out isn't the viewer asking for the controls. It's left alone rather than
@@ -3737,12 +3811,6 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 				e.stopPropagation();
 				if (!isLiveTV || liveWindow) handleRewind();
 				showControls();
-				return;
-			}
-			if (e.keyCode === KEYS.STOP) {
-				e.preventDefault();
-				e.stopPropagation();
-				handleBack();
 				return;
 			}
 			if (e.keyCode === KEYS.CHANNEL_UP || e.keyCode === KEYS.CHANNEL_DOWN) {
@@ -3790,8 +3858,43 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 			// The rest of the remote belongs to a failed channel's Retry.
 			if (error && isLiveTV) return;
 
+			// Subtitles, Audio and Record open what their OSD buttons open, and a second press closes it.
+			const trackAction = isAudioMode ? null : trackShortcutAction(shortcut, {
+				activeModal,
+				hasSubtitles: subtitleStreams.length > 0 || Boolean(item?.Id),
+				audioTrackCount: audioStreams.length,
+				recordable: isLiveTV && liveRecording.available
+			});
+			if (trackAction) {
+				e.preventDefault();
+				e.stopPropagation();
+				if (trackAction === 'close') closeModal();
+				else if (trackAction === 'open') handleButtonAction(shortcut);
+				return;
+			}
+
 			// Left/Right when controls hidden -> show controls and focus on seekbar
 			if (!controlsVisible && !activeModal) {
+				// A slideshow video keeps the arrows for moving between items and leaves the transport
+				// to OK, which brings the controls up on the progress bar.
+				if (slideshow) {
+					if (key === 'ArrowLeft' || e.keyCode === 37 || key === 'ArrowRight' || e.keyCode === 39) {
+						e.preventDefault();
+						e.stopPropagation();
+						if (!slideshowSteppingRef.current) {
+							slideshowSteppingRef.current = true;
+							stepSlideshow(key === 'ArrowLeft' || e.keyCode === 37 ? -1 : 1);
+						}
+						return;
+					}
+					if (key === 'Enter' || e.keyCode === 13) {
+						e.preventDefault();
+						e.stopPropagation();
+						showControls();
+						setFocusRow('progress');
+						return;
+					}
+				}
 				if ((key === 'Enter' || e.keyCode === 13) && (isSkipPromptFocused() || showSkipCredits || showNextEpisode)) {
 					return;
 				}
@@ -3908,6 +4011,8 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 		window.requestAnimationFrame(() => {
 			// The skip prompt keeps the remote when the controls come up around it.
 			if (isSkipPromptFocused()) return;
+			// A remote key can open a dialog and bring the controls up in the same press.
+			if (document.activeElement && document.activeElement.closest('[data-modal]')) return;
 			// The music player moves its own focus and stays up between tracks, so this
 			// only picks up focus that went missing, like a lyrics toggle a track took away.
 			if (isAudioMode) {
@@ -4080,7 +4185,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 				chapters={chapters}
 				currentTime={currentTime}
 				subtitleOffset={subtitleOffset}
-				subtitleTrackEvents={subtitleTrackEvents}
+				subtitleTrackEvents={subtitleTrackEvents || (activeModal === 'subtitleOffset' ? assTimelineEvents(assRendererRef.current) : null)}
 				handleControlButtonClick={handleControlButtonClick}
 				handleProgressClick={handleProgressClick}
 				handleProgressKeyDown={handleProgressKeyDown}

@@ -1,5 +1,5 @@
 import $L from '@enact/i18n/$L';
-import {SCOPE_ALL, availableScopes, isAudiobookItem, isComicItem, isEbookItem, isMixedLibrary, scopeLabel} from '../../utils/bookLibrary';
+import {SCOPE_ALL, availableScopes, isAudiobookItem, isComicItem, isEbookItem, isMixedLibrary, playedPercent, scopeLabel} from '../../utils/bookLibrary';
 import {countLabel} from '../MusicBrowse/musicScreens';
 
 export const OVERVIEW = 'overview';
@@ -48,8 +48,11 @@ const browseCount = (data, id) => {
 // The nav's entries, each with the key the current one is told apart by. Bookstore lists Titles
 // as its formats, with counts. The other two lead with Overview and list Titles once.
 export const navEntries = ({style, library, data, showDiscover}) => {
+	// Folders opens the library's root in folder view rather than a screen of its own.
+	const folders = {key: 'folders', screen: null, grid: {folder: library}, label: $L('Folders'), icon: 'folder_outlined'};
 	const browse = BROWSE_DESTINATIONS.filter((entry) => browseCount(data, entry.id) > 0)
-		.map((entry) => ({key: entry.id, screen: {id: entry.id}, label: entry.label(), icon: entry.icon, count: browseCount(data, entry.id)}));
+		.map((entry) => ({key: entry.id, screen: {id: entry.id}, label: entry.label(), icon: entry.icon, count: browseCount(data, entry.id)}))
+		.concat(folders);
 	const discover = showDiscover ? [{key: DISCOVER, screen: {id: DISCOVER}, label: DISCOVER_ENTRY.label(), icon: DISCOVER_ENTRY.icon}] : [];
 	if (bookNavFor(style) === 'rail') {
 		const scopes = isMixedLibrary(library, data.counts) ? availableScopes(data.counts) : [SCOPE_ALL];
@@ -125,6 +128,11 @@ export const seriesProgress = (books) => {
 		label: $L('Book {number} of {count}').replace('{number}', number).replace('{count}', books.length)
 	};
 };
+
+// The book a series page shows and acts on: the one being read, else the first one not finished,
+// else the first.
+export const featuredBook = (books) => books.find((book) => playedPercent(book) > 0 && !isFinished(book)) ||
+	books.find((book) => !isFinished(book)) || books[0] || null;
 
 const nameKey = (name) => String(name || '').trim().toLowerCase();
 

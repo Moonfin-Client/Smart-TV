@@ -3,8 +3,11 @@ jest.mock('./jellyfinApi', () => ({
 	getServerUrl: () => 'http://server',
 	api: {getItem: jest.fn()}
 }));
+const mockCompanionFetch = jest.fn();
 jest.mock('./moonbaseEndpoint', () => ({
-	moonbaseEndpoint: async (base) => ({base, headers: {Authorization: 'token'}}),
+	moonbaseEndpoint: async (base) => (base === 'http://plex:32400'
+		? {base: 'http://plex:32500', headers: {'X-Plex-Token': 'plex-token'}, fetch: mockCompanionFetch}
+		: {base, headers: {Authorization: 'token'}}),
 	moonbaseAssetUrl: (base, path) => `${base}${path}`
 }));
 jest.mock('../utils/requestQueue', () => ({
@@ -13,7 +16,6 @@ jest.mock('../utils/requestQueue', () => ({
 
 import {fetchRatings, fetchWatchingNow, isMdblistEnabled, ratingSettingsFor, __resetWatchingNowCache} from './mdblistApi';
 import {api} from './jellyfinApi';
-import {registerPlexServer} from '../utils/plexUrls';
 
 const respondWith = (ratings) => {
 	global.fetch = jest.fn(() => Promise.resolve({
@@ -159,11 +161,12 @@ describe('fetchWatchingNow', () => {
 		expect(global.fetch).toHaveBeenCalledTimes(2);
 	});
 
-	test('asks Moonbase for Plex next to a Plex server', async () => {
-		registerPlexServer('http://plex:32400', 'plex-token');
-		global.fetch = jest.fn(() => Promise.resolve({ok: true, json: () => Promise.resolve({items: []})}));
+	test('asks Moonbase for Plex next to a Plex server, the way the companion is reached', async () => {
+		global.fetch = jest.fn();
+		mockCompanionFetch.mockResolvedValueOnce({ok: true, json: () => Promise.resolve({items: []})});
 
 		await fetchWatchingNow('http://plex:32400');
-		expect(global.fetch.mock.calls[0][0]).toBe('http://plex:32500/Moonfin/MdbList/WatchingNow?profile=tv');
+		expect(mockCompanionFetch.mock.calls[0][0]).toBe('http://plex:32500/Moonfin/MdbList/WatchingNow?profile=tv');
+		expect(global.fetch).not.toHaveBeenCalled();
 	});
 });

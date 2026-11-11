@@ -54,8 +54,11 @@ const ModernMediaRow = ({
 	hideOverview = false,
 	coreLook = false,
 	posterLabels = false,
+	hideWatchProgress = false,
+	hideUnwatchedCount = false,
 	leadingInset = 0,
-	onCalendarSeeAll
+	onCalendarSeeAll,
+	seeAllIcon
 }) => {
 	const {settings} = useSettings();
 	const scrollerRef = useRef(null);
@@ -214,6 +217,8 @@ const ModernMediaRow = ({
 		Spotlight.focus(`media-${keyPrefix}-${items[0].Id}`);
 	}, [items, keyPrefix]);
 
+	const handleCalendarSeeAll = useCallback(() => onCalendarSeeAll(rowId), [onCalendarSeeAll, rowId]);
+
 	const rowClassName = [
 		css.row,
 		className || '',
@@ -301,6 +306,8 @@ const ModernMediaRow = ({
 								hideOverview={hideOverview}
 								coreLook={coreLook}
 								posterLabels={posterLabels}
+								hideWatchProgress={hideWatchProgress}
+								hideUnwatchedCount={hideUnwatchedCount}
 							/>
 						);
 					})}
@@ -308,9 +315,10 @@ const ModernMediaRow = ({
 						<CalendarSeeAllCard
 							{...seeAllSize(settings.homeRowsPosterSize)}
 							spotlightId={`media-${keyPrefix}-calendar-see-all`}
-							onClick={onCalendarSeeAll}
+							onClick={handleCalendarSeeAll}
 							onFocus={handleSeeAllFocus}
 							onSpotlightRight={handleWrapRight}
+							icon={seeAllIcon}
 						/>
 					)}
 				</div>
@@ -335,6 +343,7 @@ const areRowPropsEqual = (prev, next) => {
 	if (prev.loading !== next.loading || prev.titleWidth !== next.titleWidth || prev.cardType !== next.cardType) return false;
 	if (prev.deferImages !== next.deferImages || prev.ratingsSurface !== next.ratingsSurface || prev.hideOverview !== next.hideOverview) return false;
 	if (prev.coreLook !== next.coreLook || prev.leadingInset !== next.leadingInset || prev.posterLabels !== next.posterLabels) return false;
+	if (prev.hideWatchProgress !== next.hideWatchProgress || prev.hideUnwatchedCount !== next.hideUnwatchedCount) return false;
 	if (!prev.onCalendarSeeAll !== !next.onCalendarSeeAll) return false;
 	if (prev.items === next.items) return true;
 	if (prev.items?.length !== next.items?.length) return false;

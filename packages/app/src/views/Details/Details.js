@@ -13,6 +13,7 @@ import {startServerShuffle} from '../../services/serverShuffle';
 import useWatchParty from '../../hooks/useWatchParty';
 import {useWatchPartyBackend} from '../../hooks/useWatchPartyRooms';
 import * as jellyfinApi from '../../services/jellyfinApi';
+import {getApiForItem} from '../../services/connectionPool';
 import {searchesForTrailer} from '../../services/youtubeTrailer';
 import {canKeepAsComplete, keepAsComplete, useIncompleteRecording} from '../../services/incompleteRecordings';
 import {saveAudioPref, saveSubtitlePref} from '../../services/subtitlePrefs';
@@ -38,7 +39,7 @@ import {detailsSubtitlePosition} from '../Player/initialSubtitle';
 import useLongPress from '../../utils/longPress';
 import {formatPlaybackEndsAt} from '../../utils/playbackTimeLabels';
 import {formatFileSize} from '../../utils/formatFileSize';
-import {pickEpisodePlayTarget, shouldResumeTarget} from '../../utils/episodePlayTarget';
+import {freshNextUp, pickEpisodePlayTarget, shouldResumeTarget} from '../../utils/episodePlayTarget';
 import {collectionQueue, collectionPlayTarget} from '../../utils/collectionPlayback';
 
 import {isSeerrOnlyItem, libraryIdOf, personRouteFor} from '../../utils/seerrTarget';
@@ -62,6 +63,9 @@ import ReviewDialog from './ReviewDialog';
 import PersonalRatingDialog from '../../components/PersonalRatingDialog';
 import {clampRating, clearedRatingPatch, isRatableItemType, normalizeRatingStyle, numericRatingPatch, thumbRatingPatch} from '../../utils/personalRating';
 import {personCalendarDate, personDateLines, splitFilmography} from '../../utils/personCredits';
+import {featuredBook, readingOrder} from '../BookBrowse/bookScreens';
+import {loadBookSeries} from '../BookBrowse/useBookLibrary';
+import {useUserDataList} from '../../hooks/useUserDataSync';
 import {mergeCollectionWithMissing, mergeMissingByReleaseOrder} from './seerrMissingCollectionItems';
 import ClassicDetailScreen from './ClassicDetailScreen';
 import SpotlightDetailContent from './spotlight/SpotlightDetailContent';
@@ -91,12 +95,15 @@ const DETAIL_CONTENT = {
 };
 // The missing titles already ride in the list a collection's page is handed.
 const NO_ITEMS = [];
+// Longest the action row waits for the loads that add its buttons. A slower Seerr answer adds its
+// buttons when it lands.
+const ACTIONS_WAIT_MS = 250;
 
 // `quickLook` draws the title in Quick Look's drawer over the screen underneath, which keeps its own
 // backdrop and theme music. onOpenFullPage(item, replace) opens a full page from it, in its place
 // when `replace` is set and over it otherwise, and onClose closes it.
 const Details = ({
-	itemId: itemIdProp, initialItem, onPlay, onSelectItem, onSelectPerson, onSelectStudio, onItemDeleted, autoPlay, onAutoPlayed,
+	itemId: openedId, initialItem: openedItem, onPlay, onSelectItem, onSelectPerson, onSelectStudio, onItemDeleted, autoPlay, onAutoPlayed,
 	seerrNav, backHandlerRef, quickLook = false, onOpenFullPage, onClose, onOpenWatchParty
 }) => {
 	const {api, serverUrl, user} = useAuth();
@@ -116,12 +123,17 @@ const Details = ({
 	const {isInGroup: isSyncPlayInGroup} = useSyncPlay();
 	const {room: watchPartyRoom} = useWatchParty();
 
-	const effectiveApi = useMemo(() => {
-		if (initialItem?._serverUrl && initialItem._serverAccessToken) {
-			return jellyfinApi.createApiForServer(initialItem._serverUrl, initialItem._serverAccessToken, initialItem._serverUserId);
-		}
-		return api;
-	}, [initialItem, api]);
+	// A book series has no server item of its own, so its page shows and acts on its featured book. Its
+	// books go in reading order, with the newest known read state laid over them, so the featured book
+	// follows what's been read since the library loaded.
+	const isBookSeries = openedItem?.Type === 'BookSeries';
+	const seriesMembers = useMemo(() => (isBookSeries ? readingOrder(openedItem.Members || []) : NO_ITEMS), [isBookSeries, openedItem]);
+	const seriesBooks = useUserDataList(seriesMembers);
+	const bookSeriesItem = useMemo(() => (isBookSeries ? {...openedItem, Members: seriesBooks} : null), [isBookSeries, openedItem, seriesBooks]);
+	const initialItem = isBookSeries ? featuredBook(seriesBooks) : openedItem;
+	const itemIdProp = isBookSeries ? initialItem?.Id : openedId;
+
+	const effectiveApi = useMemo(() => getApiForItem(initialItem) || api, [initialItem, api]);
 
 	const effectiveServerUrl = useMemo(() => {
 		return initialItem?._serverUrl || serverUrl;
@@ -220,7 +232,7 @@ const Details = ({
 	// and a season for its first unwatched episode.
 	const watchPartyEpisodeFor = useCallback(async (target) => {
 		if (target.Type !== 'Series' && target.Type !== 'Season') return target;
-		if (target.Type === 'Series' && nextUp[0]) return nextUp[0];
+		if (target.Type === 'Series' && nextUp[0] && !nextUp[0].UserData?.Played) return nextUp[0];
 		let list;
 		try {
 			list = target.Type === 'Series'
@@ -230,7 +242,7 @@ const Details = ({
 			return null;
 		}
 		const playable = list.filter((e) => e.LocationType !== 'Virtual');
-		return playable.find((e) => !e.UserData?.Played) || playable[0] || null;
+		return freshNextUp(playable, nextUp[0]) || playable.find((e) => !e.UserData?.Played) || playable[0] || null;
 	}, [api, nextUp, episodes]);
 
 	const handlePickForWatchParty = useCallback(async () => {
@@ -273,6 +285,13 @@ const Details = ({
 		showToast(seerrActionError);
 		clearSeerrActionError();
 	}, [seerrActionError, clearSeerrActionError, showToast]);
+
+	const {notice: seerrNotice, clearNotice: clearSeerrNotice} = seerr;
+	useEffect(() => {
+		if (!seerrNotice) return;
+		showToast(seerrNotice);
+		clearSeerrNotice();
+	}, [seerrNotice, clearSeerrNotice, showToast]);
 
 	// The expanded overview box collapses on BACK through the same chain the
 	// screen's overlays use.
@@ -368,15 +387,33 @@ const Details = ({
 	// builds a new item object, which would otherwise yank focus back to Play.
 	const isPersonItem = item?.Type === 'Person';
 	const loadedItemId = item?.Id;
+
+	// The action row is held back, laid out but hidden and out of focus, until the full record and the
+	// loads that add or relabel its buttons are in, so it shows with every button at once. Once shown
+	// it stays for that title.
+	const [actionsSettledFor, setActionsSettledFor] = useState(null);
+	const actionsSettled = Boolean(loadedItemId) && actionsSettledFor === loadedItemId;
+	const recordShown = Boolean(loadedItemId) && !isLoading && (seerrOnly || !isSeed);
+	const actionInputsIn = (seerrOnly || playListsLoaded) && !seerr.loading;
+	useEffect(() => {
+		if (!recordShown) return undefined;
+		if (actionInputsIn) {
+			setActionsSettledFor(loadedItemId);
+			return undefined;
+		}
+		const timer = setTimeout(() => setActionsSettledFor(loadedItemId), ACTIONS_WAIT_MS);
+		return () => clearTimeout(timer);
+	}, [recordShown, actionInputsIn, loadedItemId]);
+
 	const autoFocusedRef = useRef(null);
 	useEffect(() => {
-		if (isLoading || !loadedItemId) return undefined;
+		if (!actionsSettled) return undefined;
 		const timer = setTimeout(() => {
 			Spotlight.focus(seerrOnly || isPersonItem ? 'details-action-buttons' : 'details-primary-btn');
 			autoFocusedRef.current = Spotlight.getCurrent();
 		}, 150);
 		return () => clearTimeout(timer);
-	}, [isLoading, loadedItemId, seerrOnly, isPersonItem]);
+	}, [actionsSettled, loadedItemId, seerrOnly, isPersonItem]);
 
 	// The row a title is opened from doesn't carry everything the buttons are built from, so
 	// a Resume can appear once the full record lands and take the primary spot from under
@@ -389,7 +426,8 @@ const Details = ({
 		autoFocusedRef.current = Spotlight.getCurrent();
 	}, [isSeed, seerrOnly, isPersonItem]);
 
-	const handleOpenFullPage = useCallback(() => onOpenFullPage?.(initialItem, true), [onOpenFullPage, initialItem]);
+	const handleOpenFullPage = useCallback(() => onOpenFullPage?.(openedItem, true), [onOpenFullPage, openedItem]);
+	const handleSelectStudio = useCallback((name) => onSelectStudio?.(name, item), [onSelectStudio, item]);
 	const handleOpenSeason = useCallback((season) => onOpenFullPage?.(season), [onOpenFullPage]);
 
 	// Quick Look draws what Stage does, and anything else swaps its drawer for the full page.
@@ -665,11 +703,17 @@ const Details = ({
 		applyRating(clearedRatingPatch(), () => effectiveApi.clearRating(item.Id))
 	), [applyRating, effectiveApi, item]);
 
-	const handleGoToSeries = useCallback(() => {
+	const handleGoToSeries = useCallback(async () => {
+		if (item?.Type === 'Book') {
+			const series = await loadBookSeries(effectiveApi, item);
+			if (series) onSelectItem?.(tagWithServerInfo({...series, Members: tagWithServerInfo(series.Members)}));
+			return;
+		}
 		if (item?.SeriesId) {
 			const seriesItem = {Id: item.SeriesId, Type: 'Series'};
 			if (item._serverUrl) {
 				seriesItem._serverUrl = item._serverUrl;
+				seriesItem._serverType = item._serverType;
 				seriesItem._serverAccessToken = item._serverAccessToken;
 				seriesItem._serverUserId = item._serverUserId;
 				seriesItem._serverName = item._serverName;
@@ -677,7 +721,7 @@ const Details = ({
 			}
 			onSelectItem?.(seriesItem);
 		}
-	}, [item, onSelectItem]);
+	}, [item, onSelectItem, effectiveApi, tagWithServerInfo]);
 
 	const handleSelectTranscodeQuality = useCallback((e) => {
 		const bitrate = parseInt(e.currentTarget.dataset.bitrate, 10);
@@ -1298,10 +1342,12 @@ const Details = ({
 		return page(
 			<>
 				<DetailContent
+					actionsHeld={!actionsSettled}
 					inSyncPlayGroup={isSyncPlayInGroup || canPickForWatchParty}
 					onWatchWithGroup={canPickForWatchParty ? handlePickForWatchParty : handlePlay}
 					key={item.Id}
 					item={item}
+					bookSeriesItem={bookSeriesItem}
 					settings={settings}
 					showsSection={showsSection}
 					seerr={seerr}
@@ -1391,7 +1437,7 @@ const Details = ({
 					playlistMenu={playlistMenu}
 					onSelectItem={openOrPlay}
 					onSelectPerson={openPerson}
-					onSelectStudio={onSelectStudio}
+					onSelectStudio={handleSelectStudio}
 					similarSource={similarSource}
 					similarLoaded={shownSimilarLoaded}
 					reviews={reviews.reviews}
@@ -1525,7 +1571,9 @@ const Details = ({
 
 	const actionButtons = (
 		<DetailActionButtons
+			actionsHeld={!actionsSettled}
 			item={item}
+			bookSeriesItem={bookSeriesItem}
 			settings={settings}
 			seerr={seerr}
 			seerrOnly={seerrOnly}
@@ -1597,6 +1645,7 @@ const Details = ({
 		<DetailScrollPage backdrop={backdrop} scrollerRef={pageScrollerRef} onScrollTo={handlePageScrollTo} sidebarDocked={sidebarDocked} footer={overlays}>
 			<ClassicDetailScreen
 				item={item}
+				bookSeriesItem={bookSeriesItem}
 				collectionMenu={collectionMenu}
 				serverUrl={effectiveServerUrl}
 				serverToken={initialItem?._serverAccessToken || jellyfinApi.getApiKey()}

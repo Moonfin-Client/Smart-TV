@@ -1,13 +1,17 @@
 const normalizeToken = (value) => String(value || '').toUpperCase().replace(/[^A-Z0-9]+/g, '');
 
+const rangeToken = (videoStream) => {
+	const raw = [videoStream.VideoRangeType, videoStream.ExtendedVideoType, videoStream.VideoRange]
+		.find((value) => typeof value === 'string' && value.trim() !== '') || '';
+	return normalizeToken(raw.replace(/\+/g, 'PLUS'));
+};
+
 // The HDR format a stream carries, from whichever range field the server filled in. Emby types it
 // in ExtendedVideoType and writes VideoRange as prose, HDR 10 rather than HDR10, so the value is
 // squashed first, with + spelled out so HDR 10+ doesn't read as HDR10.
 export const videoRangeLabel = (videoStream) => {
 	if (!videoStream) return 'SDR';
-	const raw = [videoStream.VideoRangeType, videoStream.ExtendedVideoType, videoStream.VideoRange]
-		.find((value) => typeof value === 'string' && value.trim() !== '') || '';
-	const range = normalizeToken(raw.replace(/\+/g, 'PLUS'));
+	const range = rangeToken(videoStream);
 
 	if (range.indexOf('DOVI') !== -1 || range.indexOf('DOLBYVISION') !== -1) return 'Dolby Vision';
 	// Ahead of HDR10, which its own name would match first.
@@ -47,6 +51,45 @@ export const baseLayerLabel = (videoStream) => {
 	const match = normalizeToken(videoRangeTypeOf(videoStream)).match(/^DOVIWITH(?:EL)?(.*)$/);
 	if (!match) return null;
 	return videoRangeLabel({VideoRangeType: match[1] || 'HDR10'});
+};
+
+// The digits after DoviProfile in Emby's sub type, such as 81.
+const embyDolbyVisionSubType = (videoStream) => (/doviprofile(\d+)/i.exec(videoStream.ExtendedVideoSubType || '') || [])[1] || '';
+
+// Jellyfin, Silo and Plex give the profile in DvProfile. Emby's sub type starts with it, except for
+// profile 10 (DoviProfile10x).
+export const dolbyVisionProfile = (videoStream) => {
+	if (videoStream.DvProfile > 0) return Number(videoStream.DvProfile);
+	const digits = embyDolbyVisionSubType(videoStream);
+	if (!digits) return null;
+	return digits[0] === '1' ? 10 : Number(digits[0]) || null;
+};
+
+// The layer under the Dolby Vision, from the name after DOVIWith in the range type or from Emby's
+// sub type. Null for an SDR layer or none at all.
+const dolbyVisionFallback = (range, videoStream) => {
+	const named = /^DOVIWITH(?:EL)?(.*)$/.exec(range);
+	if (named) {
+		if (!named[1]) return 'HDR10';
+		const label = videoRangeLabel({VideoRangeType: named[1]});
+		return label === 'SDR' ? null : label;
+	}
+	const subType = embyDolbyVisionSubType(videoStream);
+	if (subType === '61' || subType === '81' || subType[0] === '7') return 'HDR10';
+	return subType === '84' ? 'HLG' : null;
+};
+
+// The details screen's range badges: Dolby Vision with its profile when the server gives one (DV P8),
+// then the layer a display without Dolby Vision falls back to. Dolby Vision the server calls invalid
+// reads as the VideoRange the picture has, and a stream with no range field has no badge.
+export const videoRangeBadges = (videoStream) => {
+	const range = videoStream ? rangeToken(videoStream) : '';
+	if (!range) return [];
+	if (range === 'DOVIINVALID') return [videoStream.VideoRange === 'HDR' ? 'HDR' : 'SDR'];
+	if (range.indexOf('DOVI') === -1 && range.indexOf('DOLBYVISION') === -1) return [videoRangeLabel(videoStream)];
+	const profile = dolbyVisionProfile(videoStream);
+	const fallback = dolbyVisionFallback(range, videoStream);
+	return [profile ? `DV P${profile}` : 'DV'].concat(fallback ? [fallback] : []);
 };
 
 export const findVideoStream = (mediaSource) =>
