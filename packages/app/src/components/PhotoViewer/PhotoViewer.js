@@ -10,9 +10,8 @@ import css from './PhotoViewer.module.less';
 
 const PREFETCH_AHEAD = 25;
 
-const PhotoViewer = ({item, items, serverUrl, running, moreCount = 0, onNeedMore, onClose, onSlideshowChange, onPlayVideo}) => {
+const PhotoViewer = ({item, items, serverUrl, running, videos = true, moreCount = 0, onNeedMore, onClose, onSlideshowChange, onPlayVideo}) => {
 	const {settings} = useSettings();
-	const videosOn = settings.photoSlideshowVideos !== false;
 	const intervalMs = Math.min(30, Math.max(3, Number(settings.photoSlideshowInterval) || 5)) * 1000;
 
 	const photoItems = useMemo(() => viewerItems(items, item), [items, item]);
@@ -28,8 +27,6 @@ const PhotoViewer = ({item, items, serverUrl, running, moreCount = 0, onNeedMore
 	// a fast browse carries each fade on from wherever it had got to rather than cutting it short.
 	const [layers, setLayers] = useState([]);
 	const lastShownRef = useRef(null);
-	// Whether the photo on screen was stepped onto, as opposed to the viewer opening on it.
-	const steppedRef = useRef(false);
 	const infoTimerRef = useRef(null);
 	const pointerAtRef = useRef(0);
 
@@ -47,12 +44,10 @@ const PhotoViewer = ({item, items, serverUrl, running, moreCount = 0, onNeedMore
 	const imageFailed = status === 'failed';
 	if (imageLoaded) lastShownRef.current = currentId;
 
-	// A video plays in the player, so the viewer only counts a photo's time (or a still's, with videos off).
-	// A video the slideshow reaches, or browsing steps onto, goes straight to the player without its still
-	// being drawn. One the viewer comes back to after it has played keeps its still.
-	const autoPlays = Boolean(currentPhoto) && currentPhoto.Type === 'Video' && (running ? videosOn : steppedRef.current);
-	const playsVideo = Boolean(running) && autoPlays;
-	const showButton = Boolean(running) || canStartSlideshow(photoItems, currentIndex, videosOn);
+	// A video the slideshow reaches plays in the player, so its still isn't drawn on the way, and the viewer
+	// only counts a photo's time (or a still's, with videos off). Browsing shows a video's still.
+	const playsVideo = Boolean(running) && videos && currentPhoto?.Type === 'Video';
+	const showButton = Boolean(running) || canStartSlideshow(photoItems, currentIndex, videos);
 
 	const photoUrl = currentPhoto
 		? getImageUrl(
@@ -128,15 +123,16 @@ const PhotoViewer = ({item, items, serverUrl, running, moreCount = 0, onNeedMore
 		};
 	}, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-	// Whether the photo on screen was stepped onto, as opposed to the viewer opening on it.
-	// An auto advance and the left and right keys leave the controls as they are, so a running slideshow doesn't flash the info on every photo.
 	const currentIndexRef = useRef(currentIndex);
 	currentIndexRef.current = currentIndex;
 	const hasMore = moreCount > 0;
 	// A step forward from the last photo loaded while the folder has more waits for them, instead of wrapping to the start.
 	const pendingStepRef = useRef(null);
+	// Browsing brings the info up on each photo, while a running slideshow leaves the controls as they are
+	// so the info doesn't flash up on every photo.
 	const step = useCallback((dir, auto) => {
 		if (photoItems.length <= 1 && !hasMore) return;
+		if (!running && auto !== true) resetInfoTimer();
 		if (dir > 0 && hasMore && currentIndexRef.current === photoItems.length - 1) {
 			if (!pendingStepRef.current) {
 				pendingStepRef.current = {auto: auto === true, length: photoItems.length};
@@ -145,9 +141,8 @@ const PhotoViewer = ({item, items, serverUrl, running, moreCount = 0, onNeedMore
 			return;
 		}
 		if (photoItems.length <= 1) return;
-		steppedRef.current = true;
-		setCurrentIndex(prev => stepIndex(photoItems, prev, dir, {skipVideos: auto === true && !videosOn}));
-	}, [photoItems, videosOn, hasMore, onNeedMore]);
+		setCurrentIndex(prev => stepIndex(photoItems, prev, dir, {skipVideos: auto === true && !videos}));
+	}, [photoItems, videos, hasMore, onNeedMore, running, resetInfoTimer]);
 
 	const goNext = useCallback(() => step(1), [step]);
 	const goPrev = useCallback(() => step(-1), [step]);
@@ -182,8 +177,8 @@ const PhotoViewer = ({item, items, serverUrl, running, moreCount = 0, onNeedMore
 	});
 
 	useEffect(() => {
-		if (autoPlays && onPlayVideo) onPlayVideo(currentPhoto, currentIndex);
-	}, [autoPlays, currentPhoto && currentPhoto.Id]); // eslint-disable-line react-hooks/exhaustive-deps
+		if (playsVideo && onPlayVideo) onPlayVideo(currentPhoto, currentIndex);
+	}, [playsVideo, currentPhoto && currentPhoto.Id]); // eslint-disable-line react-hooks/exhaustive-deps
 
 	// A running slideshow on a photo keeps the TV from dimming or starting its own screensaver. The player does the same for a video.
 	const keepAwake = Boolean(running) && !playsVideo;
@@ -209,12 +204,7 @@ const PhotoViewer = ({item, items, serverUrl, running, moreCount = 0, onNeedMore
 			if (key === KEYS.BACK || key === KEYS.ESCAPE || key === KEYS.BACKSPACE) {
 				e.preventDefault();
 				e.stopPropagation();
-				// Back closes the controls first, and the viewer once they're gone.
-				if (showInfo) {
-					toggleControls();
-				} else {
-					onClose?.(currentPhoto);
-				}
+				onClose?.(currentPhoto);
 			} else if (key === 39) {
 				e.preventDefault();
 				e.stopPropagation();
@@ -287,7 +277,7 @@ const PhotoViewer = ({item, items, serverUrl, running, moreCount = 0, onNeedMore
 	return (
 		<div className={css.viewer} onMouseMove={handlePointerMove}>
 			<div className={css.imageContainer}>
-				{(autoPlays ? [] : (currentLayer && !layers.some(layer => layer.id === currentId) ? layers.concat(currentLayer) : layers)).map(layer => (
+				{(playsVideo ? [] : (currentLayer && !layers.some(layer => layer.id === currentId) ? layers.concat(currentLayer) : layers)).map(layer => (
 					<img
 						key={layer.id}
 						src={layer.url}
@@ -298,7 +288,7 @@ const PhotoViewer = ({item, items, serverUrl, running, moreCount = 0, onNeedMore
 						onError={handleImageError}
 					/>
 				))}
-				{!settled && !autoPlays && (
+				{!settled && !playsVideo && (
 					<div className={css.loading}>
 						<div className={css.spinner} />
 					</div>
@@ -311,7 +301,7 @@ const PhotoViewer = ({item, items, serverUrl, running, moreCount = 0, onNeedMore
 				)}
 			</div>
 
-			<div className={css.infoOverlay + (showInfo && !autoPlays ? ' ' + css.infoVisible : '')}>
+			<div className={css.infoOverlay + (showInfo && !playsVideo ? ' ' + css.infoVisible : '')}>
 				<div className={css.topBar}>
 					{photoItems.length > 1 && (
 						<div className={css.counter}>

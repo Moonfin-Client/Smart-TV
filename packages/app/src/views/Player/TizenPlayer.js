@@ -2348,16 +2348,24 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 		if (!slideshowMuted) return undefined;
 		let released = false;
 		let muted = false;
+		const unmute = () => {
+			if (!muted) return;
+			muted = false;
+			setSystemMuted(false);
+		};
 		getVolumeState().then((state) => {
 			if (released || !state || state.muted) return null;
 			return setSystemMuted(true).then((ok) => {
 				muted = ok;
-				if (released && ok) setSystemMuted(false);
+				if (released) unmute();
 			});
 		}).catch(() => {});
+		// Quitting the app runs none of the player's cleanup, so the TV is unmuted on the way out too.
+		window.addEventListener('pagehide', unmute);
 		return () => {
 			released = true;
-			if (muted) setSystemMuted(false);
+			window.removeEventListener('pagehide', unmute);
+			unmute();
 		};
 	}, [slideshowMuted]);
 

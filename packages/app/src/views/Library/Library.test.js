@@ -39,7 +39,11 @@ jest.mock('../../utils/helpers', () => ({getImageUrl: () => null, getPrimaryImag
 jest.mock('../MusicBrowse', () => () => null);
 jest.mock('../BookBrowse', () => () => null);
 jest.mock('../../components/BackdropLayer', () => () => null);
-jest.mock('../../components/TileGrid', () => () => null);
+let mockGrid = {};
+jest.mock('../../components/TileGrid', () => (props) => {
+	mockGrid = props;
+	return null;
+});
 jest.mock('../../components/MediaRow', () => () => null);
 jest.mock('../../components/DetailsTabBar', () => () => null);
 jest.mock('../../components/RatingsRow', () => () => null);
@@ -171,4 +175,59 @@ test('the settings preview holds its first card, takes no focus and leaves the s
 	} finally {
 		mockSettings.settings = saved;
 	}
+});
+
+describe('a photo slideshow', () => {
+	const photos = [
+		{Id: 'p1', Name: 'Beach day', Type: 'Photo'},
+		{Id: 'p2', Name: 'Snow', Type: 'Photo'},
+		{Id: 'v1', Name: 'Beach clip', Type: 'Video'}
+	];
+	const openPhoto = (index) => act(() => {
+		mockGrid.onClick({currentTarget: {dataset: {index: String(index)}}});
+	});
+
+	test('that played a video brings the library back on the search it was started from', async () => {
+		mockApi.getItems.mockResolvedValue({Items: photos, TotalRecordCount: 3});
+		const onViewPhoto = jest.fn();
+		const {unmount} = render(<Library library={movies} backHandlerRef={{current: null}} onHome={jest.fn()} onViewPhoto={onViewPhoto} />);
+		await settle();
+		fireEvent.change(screen.getByPlaceholderText('Search this library...'), {target: {value: 'beach'}});
+		openPhoto(0);
+		const [, siblings, source] = onViewPhoto.mock.calls[0];
+		expect(siblings.map((item) => item.Id)).toEqual(['p1', 'v1']);
+
+		source.noteReturn('v1');
+		unmount();
+		const handed = [];
+		const onItems = (ev) => handed.push(ev.detail.items.map((item) => item.Id));
+		window.addEventListener('moonfin:libraryItems', onItems);
+		render(<Library library={movies} backHandlerRef={{current: null}} onHome={jest.fn()} onViewPhoto={onViewPhoto} />);
+		await settle();
+		await pastLanding();
+		window.removeEventListener('moonfin:libraryItems', onItems);
+
+		expect(screen.getByPlaceholderText('Search this library...').value).toBe('beach');
+		expect(handed[handed.length - 1]).toEqual(['p1', 'v1']);
+	});
+
+	test('closing on a photo the library has yet to fetch pages it in and lands on it', async () => {
+		const firstPage = Array.from({length: 150}, (_, i) => ({Id: `p${i}`, Name: `Photo ${i}`, Type: 'Photo'}));
+		mockApi.getItems.mockImplementation(async (params) => (params.StartIndex === 150
+			? {Items: [{Id: 'p150', Name: 'Photo 150', Type: 'Photo'}], TotalRecordCount: 151}
+			: {Items: firstPage, TotalRecordCount: 151}));
+		renderLibrary();
+		await settle();
+		await pastLanding();
+		const scrollTo = jest.fn();
+		mockGrid.cbScrollTo(scrollTo);
+
+		act(() => {
+			window.dispatchEvent(new CustomEvent('moonfin:focusLibraryItem', {detail: 'p150'}));
+		});
+		await settle();
+
+		expect(mockApi.getItems).toHaveBeenLastCalledWith(expect.objectContaining({StartIndex: 150}));
+		expect(scrollTo).toHaveBeenCalledWith({index: 150, focus: true});
+	});
 });

@@ -1549,18 +1549,21 @@ const AppContent = (props) => {
 		navigateTo(PANELS.PLAYER);
 	}, [navigateTo, backgroundMusic]);
 
+	// In a SyncPlay group or a Watch Party the player waits on the group and reports to it, so a slideshow there
+	// passes over its videos.
+	const slideshowVideos = settings.photoSlideshowVideos !== false && !isSyncPlayInGroup && !watchPartyRoom;
+
 	// Moves a slideshow video on, to a video swapped in the player where it is (the panel history stays as
-	// it was) or to a photo, which takes the player off screen and shows the viewer on it again. Browsing
-	// plays the videos it steps onto the same way, and one that ends there stays on its own still.
+	// it was) or to a photo, which takes the player off screen and shows the viewer on it again. Once the
+	// slideshow has stopped, a step or an end goes back to the viewer, where a video shows as its still.
 	const moveSlideshow = useCallback((dir, auto) => {
-		const videos = settings.photoSlideshowVideos !== false;
 		const list = viewerItems(photoViewerItems, photoViewerItem);
 		const index = auto && !slideshowRunning
 			? slideshowIndexRef.current
-			: stepIndex(list, slideshowIndexRef.current, dir, {skipVideos: auto && !videos});
+			: stepIndex(list, slideshowIndexRef.current, dir, {skipVideos: auto && !slideshowVideos});
 		const target = list[index];
 		slideshowIndexRef.current = index;
-		if (target && target.Type === 'Video' && (slideshowRunning ? isSlideshowVideo(target, videos) : !auto)) {
+		if (slideshowRunning && isSlideshowVideo(target, slideshowVideos)) {
 			if (photoReturnRef.current) photoReturnRef.current(target.Id);
 			setPlayingItem(target);
 			setPlaybackOptions(null);
@@ -1570,7 +1573,7 @@ const AppContent = (props) => {
 		if (target) setPhotoViewerItem(target);
 		setSlideshowVideo(false);
 		handlePlayerEnd();
-	}, [settings.photoSlideshowVideos, photoViewerItems, photoViewerItem, slideshowRunning, handlePlayerEnd]);
+	}, [slideshowVideos, photoViewerItems, photoViewerItem, slideshowRunning, handlePlayerEnd]);
 
 	const handleSlideshowExit = useCallback(() => {
 		handleClosePhotoViewer();
@@ -2618,6 +2621,7 @@ const AppContent = (props) => {
 					items={photoViewerItems}
 					serverUrl={serverUrl}
 					running={slideshowRunning}
+					videos={slideshowVideos}
 					moreCount={photoMoreCount}
 					onNeedMore={requestMorePhotos}
 					onSlideshowChange={setSlideshowRunning}
