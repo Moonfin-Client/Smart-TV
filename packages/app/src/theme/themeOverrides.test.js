@@ -95,7 +95,7 @@ describe('buildThemeOverrideCss', () => {
 
 	it('draws the watched badge in the theme on the screens that load on demand', () => {
 		const theme = resolveThemeById('moonfin');
-		const names = ['minimalistCards', 'library', 'favorites', 'genreBrowse', 'episodeBrowser'];
+		const names = ['badgeScreenOne', 'badgeScreenTwo'];
 		names.forEach((name) => registerThemeSheet(name, {watchedBadge: `${name}Watched`}));
 		const prefix = "html[data-theme-id='moonfin'][data-theme-id]";
 		const watched = toCssColor(theme.colors.badgeWatched);

@@ -799,9 +799,7 @@ export const buildThemeOverrideCss = (theme, options = {}) => {
 	rule(`.${ratingsCss.ratingValueCompact}`, `color: ${onBackground};`);
 
 	// Watched badges on the screens that load on demand
-	['minimalistCards', 'library', 'favorites', 'genreBrowse', 'episodeBrowser'].forEach((name) => {
-		const sheet = lazySheets[name];
-		if (!sheet) return;
+	Object.values(lazySheets).filter((sheet) => sheet.watchedBadge).forEach((sheet) => {
 		rule(`.${sheet.watchedBadge}`, `background: ${badgeWatched}; border-color: ${onBadge};`);
 		rule(`.${sheet.watchedBadge} svg`, `fill: ${onBadge}; stroke: ${onBadge};`);
 	});
