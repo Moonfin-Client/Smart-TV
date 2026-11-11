@@ -1,9 +1,12 @@
 import {act, renderHook} from '@testing-library/react';
 
+import Spotlight from '@enact/spotlight';
+
 import seerrApi from '../../services/seerrApi';
 import useSeerrReleaseSwap from './useSeerrReleaseSwap';
 
 jest.mock('@enact/i18n/$L', () => ({__esModule: true, default: (str) => str}));
+jest.mock('@enact/spotlight', () => ({__esModule: true, default: {focus: jest.fn()}}));
 jest.mock('../../services/seerrApi', () => ({
 	__esModule: true,
 	default: {
@@ -37,6 +40,15 @@ test('confirming removes the release the dialog named, says so and reloads the t
 	expect(setNotice).toHaveBeenCalledWith('Removed. Radarr is searching for another release.');
 	expect(setDetails).toHaveBeenCalledWith({id: 10378});
 	expect(result.current.showSwapPopup).toBe(false);
+});
+
+test('confirming hands focus back to the action row, since the button hides while it runs', async () => {
+	jest.spyOn(window, 'requestAnimationFrame').mockImplementation((fn) => fn());
+	const {result} = setup();
+	act(() => result.current.handleSwapReleaseClick());
+	await act(() => result.current.handleSwapConfirm());
+	expect(Spotlight.focus).toHaveBeenCalledWith('details-action-buttons');
+	window.requestAnimationFrame.mockRestore();
 });
 
 test('a removal tells the queue to drop answers already on their way', async () => {

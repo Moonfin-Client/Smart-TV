@@ -10,7 +10,8 @@ import {
 	REQUEST_STATUS,
 	getDownloadSummary,
 	getMediaDownloadSummary,
-	getRequestDownloadSummary
+	getRequestDownloadSummary,
+	lower
 } from './seerrStatus';
 
 // Which arr to ask, and by what id, or null when the plugin can't answer for it. Only the
@@ -26,8 +27,6 @@ export const arrQueueTarget = (mediaType, media, is4k = false) => {
 	}
 	return null;
 };
-
-const lower = (value) => (typeof value === 'string' ? value.toLowerCase() : '');
 
 const trimmed = (text) => (typeof text === 'string' ? text.trim() : '');
 
@@ -69,10 +68,10 @@ const forSeasons = (items, seasons) => {
 };
 
 // The plugin passes the arr's field names through, which spell sizeleft and timeleft in
-// lower case. Part 1's summary reads Seerr's spelling.
+// lower case, while the download summary reads Seerr's spelling.
 const asSeerrEntry = (item) => ({...item, sizeLeft: item.sizeleft, timeLeft: item.timeleft});
 
-// The arr has the title, is watching for it, has no file and nothing queued, so it is
+// The arr has the title, is watching for it, has no file and nothing queued, so it's
 // searching and coming up empty. Radarr alone says whether the film is out yet and
 // whether it has a file, and an unreleased film is waiting, not missing, so only a
 // definite answer for both counts.
@@ -117,8 +116,8 @@ export const wantsArrQueue = (media) => Boolean(media) && inDownloadStage(media.
 
 // The HD bar's summary. A 200 from the plugin replaces Seerr's copy of the queue,
 // which Seerr only keeps for servers with Enable Scan on, and adds the arr's
-// reason. Part 1's gate still holds: a bar only while Seerr says the title is on
-// its way. Without a 200 it is Part 1's summary.
+// reason. A bar still only shows while Seerr says the title is on its way, and without a
+// 200 it's Seerr's own summary.
 export const hdDownloadFor = (media, view) => {
 	if (!view) return getMediaDownloadSummary(media, false);
 	if (!wantsArrQueue(media) || !view.summary) return null;
@@ -150,7 +149,13 @@ export const requestDownloadFor = (req, view) => {
 
 export const requestNotFoundYet = (req, view) => Boolean(view?.notFoundYet) && req?.media?.status === MEDIA_STATUS.PROCESSING;
 
+// A card the requests screen keeps polling: one with a bar, or Not found yet, which the next
+// queue read may turn into a bar.
+export const requestIsWatched = (req, response) => {
+	const view = requestQueueView(req, response);
+	return Boolean(requestDownloadFor(req, view) || requestNotFoundYet(req, view));
+};
+
 const SERVICE_NAMES = {radarr: 'Radarr', sonarr: 'Sonarr'};
 
-// The arr's name as the messages say it, from the response's `service`.
 export const arrServiceName = (service) => SERVICE_NAMES[service] || service || '';

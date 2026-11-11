@@ -4,6 +4,7 @@ import useSeerrOverlay from './useSeerrOverlay';
 import useSeerrDetailsData from './useSeerrDetailsData';
 
 jest.mock('@enact/i18n/$L', () => ({__esModule: true, default: (text) => text}));
+jest.mock('@enact/spotlight', () => ({__esModule: true, default: {focus: jest.fn()}}));
 jest.mock('../../context/SeerrContext', () => ({
 	useSeerr: () => ({isEnabled: true, isAuthenticated: true, user: null, displayName: 'Seerr'})
 }));

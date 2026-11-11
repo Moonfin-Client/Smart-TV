@@ -145,6 +145,10 @@ export const withUnknownIds = (catalogue, saved, stored) => {
 export const seerrOnlyRow = (buttons) =>
 	buttons.filter((item) => item.id.startsWith('seerr') || item.id === 'trailer');
 
+// A slot the viewer arranges as one can show more than one button, and each counts toward the
+// row's limit and its overflow menu on its own.
+export const splitSlots = (buttons) => buttons.flatMap((btn) => (btn.parts ? btn.parts.filter((part) => part.when) : [btn]));
+
 // How a capped row splits into the buttons that stay inline and the ones that fold behind an
 // ellipsis. `totalButtons` counts the whole row, the leading play slot included, because that
 // slot takes a place in the row like any other button.

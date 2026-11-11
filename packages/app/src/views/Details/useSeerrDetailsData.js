@@ -168,7 +168,6 @@ const useSeerrDetailsData = ({mediaId, mediaType, contextUser, arrQueueAvailable
 	[shownDetails, hdQueue, hdDownload]
 	);
 
-	// The stuck release an admin can swap for another, or null.
 	const removableRelease = hdDownload ? hdQueue?.removable || null : null;
 
 	const download4k = useMemo(() =>

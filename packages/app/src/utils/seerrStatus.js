@@ -120,7 +120,7 @@ const STATE_RANK = [
 	DOWNLOAD_STATE.FAILED
 ];
 
-const lower = (value) => (typeof value === 'string' ? value.toLowerCase() : '');
+export const lower = (value) => (typeof value === 'string' ? value.toLowerCase() : '');
 
 // What the arr's tracking says once it has an opinion past downloading. Only the
 // arr's own queue carries it, so an entry from Seerr has none and goes by status.
@@ -138,7 +138,7 @@ const TRACKED_STATE = {
 const stateOf = (item, done) => {
 	const trackedState = lower(item.trackedDownloadState);
 	// Radarr and Sonarr leave a release holding an executable here, with a
-	// warning, until someone steps in, so it is as stuck as a blocked one.
+	// warning, until someone steps in, so it's as stuck as a blocked one.
 	const flagged = ['warning', 'error'].includes(lower(item.trackedDownloadStatus));
 	if (flagged && (trackedState === 'importpending' || trackedState === 'importing')) {
 		return DOWNLOAD_STATE.IMPORT_BLOCKED;
@@ -179,7 +179,7 @@ export const parseTimeLeft = (value) => {
 // and the same downloadId, so each download counts once. An entry with no
 // downloadId is a release Sonarr or Radarr is holding back and not downloading,
 // and one the arr's tracking ignores is no longer its business. The entry that
-// decides the state rides along, since it is the one an admin would swap out.
+// decides the state rides along, since it's the one an admin would swap out.
 // `reasonOf(item, state)` gives an entry's reason, when its source has one. Of
 // two entries stuck the same way, the one that says why decides.
 export const getDownloadSummary = (items, reasonOf = null) => {

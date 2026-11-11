@@ -27,7 +27,7 @@ import {
 	getIssueStatusInfo,
 	getIssueTypeLabel
 } from '../../utils/seerrStatus';
-import {requestDownloadFor, requestNotFoundYet, requestQueueView} from '../../utils/seerrArrQueue';
+import {requestDownloadFor, requestIsWatched, requestNotFoundYet, requestQueueView} from '../../utils/seerrArrQueue';
 import useRequestArrQueues, {requestQueueKey} from './useRequestArrQueues';
 import {uiLocale} from '../../utils/uiLocale';
 import {KEYS} from '../../utils/keys';
@@ -384,14 +384,15 @@ const SeerrRequests = ({onSelectItem, onClose, initialTab = 'requests', backHand
 		loadToken: queueLoad
 	});
 
-	// The titles whose card shows a bar right now. Only those are worth asking about on every
-	// poll tick, so a long list of titles the arr can't find doesn't fire a call each.
-	const withBars = useMemo(() => requests.filter((request) =>
-		requestDownloadFor(request, requestQueueView(request, queueAnswers[requestQueueKey(request)]))
+	// The titles whose card shows a bar, or Not found yet, which the next queue read may turn into a
+	// bar. Only those are worth asking about on every poll tick, so a long list of titles the arr
+	// doesn't have doesn't fire a call each.
+	const watched = useMemo(() => requests.filter((request) =>
+		requestIsWatched(request, queueAnswers[requestQueueKey(request)])
 	), [requests, queueAnswers]);
-	const showsAnyBar = withBars.length > 0;
-	const barKeysRef = useRef([]);
-	barKeysRef.current = withBars.map(requestQueueKey).filter(Boolean);
+	const watchesAny = watched.length > 0;
+	const watchedKeysRef = useRef([]);
+	watchedKeysRef.current = watched.map(requestQueueKey).filter(Boolean);
 
 	const canManage = seerrApi.canManageRequests(permissions);
 	const canManageIssuesPerm = seerrApi.canManageIssues(permissions);
@@ -498,7 +499,7 @@ const SeerrRequests = ({onSelectItem, onClose, initialTab = 'requests', backHand
 	// fields. Unchanged rows keep reference equality so the memoized
 	// RequestItems skip re-rendering, and failures never surface the error UI.
 	const refreshDownloads = useCallback(() => {
-		refreshQueues(barKeysRef.current);
+		refreshQueues(watchedKeysRef.current);
 		const sameJson = (a, b) => JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
 		seerrApi.getRequests(requestFilter, PAGE_SIZE, 0).then((data) => {
 			const byId = {};
@@ -534,14 +535,14 @@ const SeerrRequests = ({onSelectItem, onClose, initialTab = 'requests', backHand
 		}).catch(() => {});
 	}, [requestFilter, refreshQueues]);
 
-	// Poll while something on the requests tab is downloading so the progress
-	// bars advance without a manual refresh. The arr's queue can be downloading
-	// while Seerr's copy of it is empty, so its bars count too.
+	// Poll while something on the requests tab is downloading or waiting for the arr to find a
+	// release, so the progress bars advance without a manual refresh. The arr's queue can be
+	// downloading while Seerr's copy of it is empty, so its bars count too.
 	useEffect(() => {
-		if (tab !== 'requests' || loading || !showsAnyBar) return;
+		if (tab !== 'requests' || loading || !watchesAny) return;
 		const id = setInterval(refreshDownloads, 30000);
 		return () => clearInterval(id);
-	}, [tab, loading, refreshDownloads, showsAnyBar]);
+	}, [tab, loading, refreshDownloads, watchesAny]);
 
 	// Back closes the thread overlay before the panel pops.
 	useEffect(() => {

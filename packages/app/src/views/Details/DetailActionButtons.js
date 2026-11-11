@@ -2,7 +2,7 @@ import {Fragment, useState, useCallback, useEffect} from 'react';
 import {isKidsMode, kidsModeButtons} from '../../utils/kidsMode';
 import $L from '@enact/i18n/$L';
 
-import {arrange, seerrOnlyRow, countSplit, applyButtonLimit, DETAIL_ORDER_KEY, DETAIL_HIDDEN_KEY} from '../../utils/buttonLayout';
+import {arrange, seerrOnlyRow, splitSlots, countSplit, applyButtonLimit, DETAIL_ORDER_KEY, DETAIL_HIDDEN_KEY} from '../../utils/buttonLayout';
 import {isBackKey} from '../../utils/keys';
 import {DETAIL_ICON_PATHS} from './detailIcons';
 import {iconViewBox} from '../../components/icons/iconViewBox';
@@ -265,26 +265,24 @@ const DetailActionButtons = ({
 		)},
 		// Get a different release rides in Manage Requests' slot, so the synced arrangement needs
 		// no new id and both show side by side when both apply.
-		{id: 'seerrManage', when: seerr.showsManageSlot, render: () => (
-			<>
-				{seerr.showsManage && (
-					<SpottableDiv className={css.btnWrapper} onClick={seerr.handleManageRequestsClick}>
-						<div className={css.btnAction}>
-							<BtnIcon path={DETAIL_ICON_PATHS.manageRequests}/>
-						</div>
-						<span className={css.btnLabel}>{$L('Manage Requests')}</span>
-					</SpottableDiv>
-				)}
-				{seerr.showsSwapRelease && (
-					<SpottableDiv className={css.btnWrapper} onClick={seerr.handleSwapReleaseClick}>
-						<div className={css.btnAction}>
-							<BtnIcon path={DETAIL_ICON_PATHS.swapRelease}/>
-						</div>
-						<span className={css.btnLabel}>{$L('Get a different release')}</span>
-					</SpottableDiv>
-				)}
-			</>
-		)},
+		{id: 'seerrManage', when: seerr.showsManageSlot, parts: [
+			{id: 'seerrManage', when: seerr.showsManage, render: () => (
+				<SpottableDiv className={css.btnWrapper} onClick={seerr.handleManageRequestsClick}>
+					<div className={css.btnAction}>
+						<BtnIcon path={DETAIL_ICON_PATHS.manageRequests}/>
+					</div>
+					<span className={css.btnLabel}>{$L('Manage Requests')}</span>
+				</SpottableDiv>
+			)},
+			{id: 'seerrSwapRelease', when: seerr.showsSwapRelease, render: () => (
+				<SpottableDiv className={css.btnWrapper} onClick={seerr.handleSwapReleaseClick}>
+					<div className={css.btnAction}>
+						<BtnIcon path={DETAIL_ICON_PATHS.swapRelease}/>
+					</div>
+					<span className={css.btnLabel}>{$L('Get a different release')}</span>
+				</SpottableDiv>
+			)}
+		]},
 		{id: 'keepAsComplete', when: Boolean(onKeepAsComplete), render: () => (
 			<SpottableDiv className={css.btnWrapper} onClick={onKeepAsComplete}>
 				<div className={css.btnAction}>
@@ -306,9 +304,9 @@ const DetailActionButtons = ({
 	const offeredButtons = rowButtons.filter((btn) => btn.when);
 	// Kids Mode sets the saved arrangement aside rather than filtering it, since its own short row
 	// is the point and a reorder would otherwise put a hidden button back.
-	const customizable = isKidsMode(settings)
+	const customizable = splitSlots(isKidsMode(settings)
 		? kidsModeButtons(offeredButtons, true)
-		: arrange(offeredButtons, {order: settings[DETAIL_ORDER_KEY], hidden: settings[DETAIL_HIDDEN_KEY]});
+		: arrange(offeredButtons, {order: settings[DETAIL_ORDER_KEY], hidden: settings[DETAIL_HIDDEN_KEY]}));
 
 	// Resume and Restart both lead the row when there is somewhere to resume from, so the
 	// leading slots are counted rather than assumed to be one.

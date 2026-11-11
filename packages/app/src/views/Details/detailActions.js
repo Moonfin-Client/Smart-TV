@@ -126,12 +126,10 @@ export const detailActionCatalogue = (props) => {
 		{id: 'seerrReportIssue', when: seerr.showsReportIssue, render: () => <ActionButton path={DETAIL_ICON_PATHS.reportIssue} label={$L('Report Issue')} onClick={seerr.handleReportIssueClick} />},
 		// Get a different release rides in Manage Requests' slot, so the synced arrangement needs
 		// no new id and both show side by side when both apply.
-		{id: 'seerrManage', when: seerr.showsManageSlot, render: () => (
-			<>
-				{seerr.showsManage && <ActionButton path={DETAIL_ICON_PATHS.manageRequests} label={$L('Manage Requests')} onClick={seerr.handleManageRequestsClick} />}
-				{seerr.showsSwapRelease && <ActionButton path={DETAIL_ICON_PATHS.swapRelease} label={$L('Get a different release')} onClick={seerr.handleSwapReleaseClick} />}
-			</>
-		)},
+		{id: 'seerrManage', when: seerr.showsManageSlot, parts: [
+			{id: 'seerrManage', when: seerr.showsManage, render: () => <ActionButton path={DETAIL_ICON_PATHS.manageRequests} label={$L('Manage Requests')} onClick={seerr.handleManageRequestsClick} />},
+			{id: 'seerrSwapRelease', when: seerr.showsSwapRelease, render: () => <ActionButton path={DETAIL_ICON_PATHS.swapRelease} label={$L('Get a different release')} onClick={seerr.handleSwapReleaseClick} />}
+		]},
 		{id: 'keepAsComplete', when: Boolean(handleKeepAsComplete), render: () => <ActionButton path={DETAIL_ICON_PATHS.keepAsComplete} label={$L('Keep as Complete')} onClick={handleKeepAsComplete} />},
 		{id: 'admin', when: Boolean(handleOpenIdentifyModal), render: () => <ActionButton path={DETAIL_ICON_PATHS.admin} label={$L('Admin Controls')} onClick={handleOpenIdentifyModal} />}
 	];

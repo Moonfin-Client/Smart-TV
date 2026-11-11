@@ -5,7 +5,6 @@ import {arrServiceName} from '../../utils/seerrArrQueue';
 
 import css from './SeerrRequestDialog.module.less';
 
-// Confirms Get a different release, naming the arr and the release it will drop.
 export const SwapReleasePopup = ({open, release, onConfirm, onClose}) => {
 	const label = $L('Get a different release');
 	const message = $L("{service} will remove {release} from the download client, block it so it isn't grabbed again, and search for another release.")

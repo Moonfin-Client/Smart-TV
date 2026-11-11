@@ -205,7 +205,7 @@ describe('the arr\'s own queue through Moonbase', () => {
 		expect(result.current.removableRelease).toBe(null);
 	});
 
-	test('keeps Part 1 when the plugin answers anything but a 200', async () => {
+	test('keeps Seerr\'s picture when the plugin answers anything but a 200', async () => {
 		mediaInfo = {status: MEDIA_STATUS.PROCESSING, tmdbId: 299534, requests: approved, downloadStatus: [{downloadId: 'dl', size: 100, sizeLeft: 40}]};
 		const {result} = await open(true);
 		expect(result.current.hdDownload.fraction).toBe(0.6);

@@ -3,7 +3,7 @@ import {DOWNLOAD_STATE} from './seerrStatus';
 
 jest.mock('@enact/i18n/$L', () => (s) => s);
 
-// A stalled magnet as the local Radarr reports it through Plugin #381.
+// A stalled magnet as Radarr reports it through the plugin.
 const radarrStalled = {
 	id: 1113619046,
 	title: 'Big.Buck.Bunny.2008.1080p.WEB-DL.x264-MOONFINc',
@@ -188,12 +188,12 @@ describe('isNotFoundYet', () => {
 
 describe('what the screens show', () => {
 	const {MEDIA_STATUS, REQUEST_STATUS} = jest.requireActual('./seerrStatus');
-	const {hdDownloadFor, hdNotFoundYet, requestDownloadFor, requestNotFoundYet, requestQueueView, requestWantsArrQueue} = jest.requireActual('./seerrArrQueue');
+	const {hdDownloadFor, hdNotFoundYet, requestDownloadFor, requestIsWatched, requestNotFoundYet, requestQueueView, requestWantsArrQueue} = jest.requireActual('./seerrArrQueue');
 	const seerrQueue = [{downloadId: 'S', size: 100, sizeLeft: 50, status: 'downloading'}];
 	const processing = {status: MEDIA_STATUS.PROCESSING, tmdbId: 10378, downloadStatus: seerrQueue,
 		requests: [{is4k: false, status: REQUEST_STATUS.APPROVED}]};
 
-	test('without a 200 the HD bar is Part 1\'s, from Seerr\'s copy of the queue', () => {
+	test('without a 200 the HD bar comes from Seerr\'s copy of the queue', () => {
 		expect(hdDownloadFor(processing, null).fraction).toBeCloseTo(0.5);
 	});
 
@@ -204,7 +204,7 @@ describe('what the screens show', () => {
 		expect(bar.reason).toBe('qBittorrent cannot resolve magnet link with DHT disabled');
 	});
 
-	test('a 200 for a title the arr doesn\'t have keeps Part 1\'s bar', () => {
+	test('a 200 for a title the arr doesn\'t have keeps Seerr\'s bar', () => {
 		expect(hdDownloadFor(processing, readArrQueue(radarr({inArr: false}))).fraction).toBeCloseTo(0.5);
 	});
 
@@ -230,7 +230,7 @@ describe('what the screens show', () => {
 		expect(requestWantsArrQueue({...req, media: {...processing, status: MEDIA_STATUS.AVAILABLE}})).toBe(false);
 	});
 
-	test('a request card reads its own seasons, and keeps Part 1 without an answer', () => {
+	test('a request card reads its own seasons, and keeps Seerr\'s bar without an answer', () => {
 		const req = {status: REQUEST_STATUS.APPROVED, is4k: false, seasons: [{seasonNumber: 2}], media: {...processing, tvdbId: 1}};
 		const response = {service: 'sonarr', inArr: true, monitored: true, canRemove: false,
 			items: [{id: 1, seasonNumber: 1, downloadId: 'A', status: 'warning', errorMessage: 'one'}]};
@@ -245,5 +245,13 @@ describe('what the screens show', () => {
 		const view = requestQueueView(req, radarr());
 		expect(requestDownloadFor(req, view)).toBeNull();
 		expect(requestNotFoundYet(req, view)).toBe(true);
+	});
+
+	test('the requests screen keeps polling a card with a bar or Not found yet, and no other', () => {
+		const req = {status: REQUEST_STATUS.APPROVED, is4k: false, seasons: [], media: processing};
+		expect(requestIsWatched(req, radarr())).toBe(true);
+		expect(requestIsWatched(req, radarr({items: [radarrStalled]}))).toBe(true);
+		expect(requestIsWatched(req, radarr({hasFile: true}))).toBe(false);
+		expect(requestIsWatched({...req, media: {...processing, downloadStatus: []}}, null)).toBe(false);
 	});
 });

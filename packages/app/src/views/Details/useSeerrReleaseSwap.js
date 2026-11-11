@@ -4,6 +4,7 @@
 
 import {useCallback, useEffect, useRef, useState} from 'react';
 import $L from '@enact/i18n/$L';
+import Spotlight from '@enact/spotlight';
 
 import seerrApi from '../../services/seerrApi';
 import {arrServiceName} from '../../utils/seerrArrQueue';
@@ -33,8 +34,9 @@ const useSeerrReleaseSwap = ({release, mediaId, mediaType, setDetails, setError,
 		if (!target || swapping) return;
 		const title = `${mediaType}:${mediaId}`;
 		setSwapping(true);
+		// The button hides while the removal runs, so focus goes back to the row instead of the navbar.
+		window.requestAnimationFrame(() => Spotlight.focus('details-action-buttons'));
 		try {
-			// A 404 means it already left the queue, which the call counts as done.
 			await seerrApi.removeArrQueueItem(target.service, target.id);
 		} catch (err) {
 			setSwapping(false);
