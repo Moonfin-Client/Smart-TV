@@ -54,6 +54,7 @@ describe('Silo home sections', () => {
 
 		const [[[landed]]] = ctx.appendRows.mock.calls;
 		expect(landed.title).toBe('Hidden gems');
+		expect(getServerHomeSectionItems).toHaveBeenCalledWith('type:hidden_gems', 40);
 		expect(landed.items).toHaveLength(40);
 		expect(landed.hasMore).toBe(true);
 		expect((await landed.readHead(55)).Items).toHaveLength(50);

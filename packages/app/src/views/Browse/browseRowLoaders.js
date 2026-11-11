@@ -568,7 +568,8 @@ const fetchPluginSectionRow = async (ctx, row) => {
 			type: 'portrait',
 			isPluginRow: true
 		}, first, PICKED_ROW_LIMIT, readHead);
-	} catch (_error) {
+	} catch (e) {
+		console.warn(`[Browse] Failed to load the ${row.source} row ${row.itemId}:`, e);
 		return null;
 	}
 };
