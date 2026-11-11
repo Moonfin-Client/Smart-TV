@@ -1,4 +1,5 @@
 import $L from '@enact/i18n/$L';
+import {SUBTITLE_FONTS} from '../../services/subtitleFonts';
 
 import {PLAYBACK_TIME_DISPLAYS, PLAYBACK_TIME_SLOTS} from '../../utils/playbackTimeLabels';
 
@@ -114,6 +115,17 @@ export const getSubtitlePositionOptions = () => [
 	{ value: 'middle', label: $L('Middle'), offset: 30 },
 	{ value: 'higher', label: $L('Higher'), offset: 40 },
 	{ value: 'absolute', label: $L('Absolute'), offset: 0 }
+];
+
+export const getSubtitleStrokeWidthOptions = () => [
+	{ value: 100, label: $L('Default') },
+	{ value: 150, label: $L('Medium') },
+	{ value: 200, label: $L('Large') }
+];
+
+export const getSubtitleFontOptions = () => [
+	{ value: '', label: $L('Default') },
+	...SUBTITLE_FONTS.map(({family}) => ({ value: family, label: family }))
 ];
 
 export {getSubtitleColorOptions, getSubtitleShadowColorOptions, getSubtitleBackgroundColorOptions} from '../../utils/subtitleConstants';

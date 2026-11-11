@@ -3076,5 +3076,13 @@
 	"Interlaced": "Interlaced",
 	"The server is relaying the channel without converting it.": "The server is relaying the channel without converting it.",
 	"Passthrough ({codec})": "Passthrough ({codec})",
-	"Decoded ({channels})": "Decoded ({channels})"
+	"Decoded ({channels})": "Decoded ({channels})",
+	"Text Stroke Width": "Text Stroke Width",
+	"Bold Text": "Bold Text",
+	"Fonts are downloaded from Google Fonts the first time you pick them": "Fonts are downloaded from Google Fonts the first time you pick them",
+	"Couldn't download {font}": "Couldn't download {font}",
+	"Text Shadow": "Text Shadow",
+	"Shadow Intensity": "Shadow Intensity",
+	"Shadow Offset": "Shadow Offset",
+	"Shadow Blur": "Shadow Blur"
 }

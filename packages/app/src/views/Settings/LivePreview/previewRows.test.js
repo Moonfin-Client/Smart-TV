@@ -195,8 +195,9 @@ describe('settings live preview rows', () => {
 	});
 
 	test('every subtitle appearance tile keeps the player on the subtitle look', () => {
-		expect(SUBTITLE_LOOK_KEYS).toHaveLength(21);
-		expect(SUBTITLE_HDR_KEYS).toEqual(expect.arrayContaining(['subtitleHdrSeparate', 'subtitleColorHdr', 'subtitlePositionAbsoluteHdr']));
+		expect(SUBTITLE_LOOK_KEYS).toHaveLength(29);
+		expect(SUBTITLE_HDR_KEYS).toEqual(expect.arrayContaining(['subtitleHdrSeparate', 'subtitleColorHdr', 'subtitlePositionAbsoluteHdr', 'subtitleBoldHdr']));
+		expect(SUBTITLE_HDR_KEYS).not.toContain('subtitleFont');
 		SUBTITLE_LOOK_KEYS.forEach((key) => {
 			expect(describeRow(`setting-${key}`, defaultSettings)).toMatchObject({scene: 'player', stage: 'subtitles'});
 		});

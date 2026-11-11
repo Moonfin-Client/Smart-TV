@@ -5,6 +5,7 @@ import {mediaPreviewMode, mediaPreviewSettings} from '../../utils/mediaPreviewMo
 import {homeBackdropStyle, homeBackdropSettings} from '../../utils/homeBackdropStyle';
 import {ratingKey} from '../../utils/ratingSources';
 import {withWatchingNowRow} from '../../utils/homeLayout';
+import {retrySubtitleFont, subtitleFontFailed} from '../../services/subtitleFonts';
 
 import {
 	getAccentColorOptions,
@@ -80,12 +81,14 @@ import {
 	getStillWatchingBehaviorOptions,
 	getSubtitleBackgroundColorOptions,
 	getSubtitleColorOptions,
+	getSubtitleFontOptions,
 	getSubtitleLanguageOptions,
 	getSubtitleModeOptions,
 	subtitleModeHint,
 	getSubtitlePositionOptions,
 	getSubtitleShadowColorOptions,
 	getSubtitleSizeOptions,
+	getSubtitleStrokeWidthOptions,
 	getTranscodeAudioCodecOptions,
 	getUiLanguageOptions,
 	getUiScaleOptions,
@@ -194,6 +197,7 @@ const whenRewatch = hasHomeRow((row) => row.id === 'rewatch');
 const whenRewatchEnabled = (ctx) => whenRewatch(ctx) && ctx.settings.displayRewatchRow !== false;
 const whenPlugin = (ctx) => ctx.settings.useMoonfinPlugin;
 const whenHdrSubtitles = (ctx) => ctx.settings.subtitleHdrSeparate;
+const whenSubtitleDropShadow = (ctx) => ctx.settings.subtitleDropShadow;
 const whenSeerr = (ctx) => ctx.seerr.isEnabled;
 const whenCalendar = (ctx) => ctx.seerr.pluginInfo?.calendarAvailable === true;
 const whenScreensaver = (ctx) => ctx.settings.screensaverEnabled;
@@ -1024,11 +1028,33 @@ export const SETTINGS_SCHEMA = [
 					{kind: KIND.OPTION, key: 'subtitleShadowColor', label: () => $L('Shadow Color'), options: getSubtitleShadowColorOptions, fallback: () => $L('Black'), icon: 'border_color', colorTile: (ctx) => ctx.settings.subtitleShadowColor, swatchOf: ownColor},
 					{kind: KIND.SLIDER, key: 'subtitleShadowOpacity', label: () => $L('Shadow Opacity'), min: 0, max: 100, step: 5, format: percent, icon: 'opacity', plainIcon: true},
 					{kind: KIND.SLIDER, key: 'subtitleShadowBlur', label: () => $L('Shadow Size (Blur)'), min: 0, max: 1, step: 0.1, format: (v) => (v || 0.1).toFixed(1), icon: 'blur_on', plainIcon: true},
+					{kind: KIND.OPTION, key: 'subtitleStrokeWidth', label: () => $L('Text Stroke Width'), options: getSubtitleStrokeWidthOptions, fallback: () => $L('Default'), icon: 'line_weight', plainIcon: true},
 					{kind: KIND.OPTION, key: 'subtitleBackgroundColor', label: () => $L('Background Color'), options: getSubtitleBackgroundColorOptions, fallback: () => $L('Black'), icon: 'format_color_fill', colorTile: (ctx) => ctx.settings.subtitleBackgroundColor, swatchOf: ownColor},
 					{kind: KIND.SLIDER, key: 'subtitleBackground', label: () => $L('Background Opacity'), min: 0, max: 100, step: 5, format: percent, icon: 'opacity', plainIcon: true},
+					{kind: KIND.TOGGLE, key: 'subtitleBold', label: () => $L('Bold Text'), icon: 'format_bold'},
 					{kind: KIND.OPTION, key: 'subtitleSize', label: () => $L('Subtitle Size'), options: getSubtitleSizeOptions, fallback: () => $L('Medium'), icon: 'format_size', plainIcon: true},
 					{kind: KIND.OPTION, key: 'subtitlePosition', label: () => $L('Subtitle Position'), options: getSubtitlePositionOptions, fallback: () => $L('Bottom'), icon: 'vertical_align_bottom', plainIcon: true},
 					{kind: KIND.SLIDER, key: 'subtitlePositionAbsolute', label: () => $L('Absolute Position'), min: 0, max: 100, step: 5, format: percent, icon: 'vertical_align_bottom', when: (ctx) => ctx.settings.subtitlePosition === 'absolute', plainIcon: true},
+					{
+						kind: KIND.OPTION,
+						key: 'subtitleFont',
+						label: () => $L('Font'),
+						desc: (ctx) => (subtitleFontFailed(ctx.settings.subtitleFont)
+							? $L("Couldn't download {font}").replace('{font}', ctx.settings.subtitleFont)
+							: $L('Fonts are downloaded from Google Fonts the first time you pick them')),
+						options: getSubtitleFontOptions,
+						fallback: () => $L('Default'),
+						onSelect: (ctx, family) => {
+							retrySubtitleFont(family);
+							ctx.actions.setSetting('subtitleFont', family);
+						},
+						icon: 'text_fields',
+						plainIcon: true
+					},
+					{kind: KIND.TOGGLE, key: 'subtitleDropShadow', label: () => $L('Text Shadow'), icon: 'flip_to_back'},
+					{kind: KIND.SLIDER, key: 'subtitleDropShadowIntensity', label: () => $L('Shadow Intensity'), min: 10, max: 100, step: 10, format: percent, icon: 'opacity', when: whenSubtitleDropShadow, plainIcon: true},
+					{kind: KIND.SLIDER, key: 'subtitleDropShadowOffset', label: () => $L('Shadow Offset'), min: 0, max: 8, step: 1, icon: 'south_east', when: whenSubtitleDropShadow, plainIcon: true},
+					{kind: KIND.SLIDER, key: 'subtitleDropShadowBlur', label: () => $L('Shadow Blur'), min: 0, max: 8, step: 1, icon: 'blur_on', when: whenSubtitleDropShadow, plainIcon: true},
 					{kind: KIND.SECTION, id: 'hdr', label: () => $L('HDR')},
 					{
 						kind: KIND.TOGGLE,
@@ -1044,6 +1070,7 @@ export const SETTINGS_SCHEMA = [
 					{kind: KIND.SLIDER, key: 'subtitleShadowBlurHdr', label: () => $L('Shadow Size (Blur)'), min: 0, max: 1, step: 0.1, format: (v) => (v || 0.1).toFixed(1), icon: 'blur_on', when: whenHdrSubtitles, plainIcon: true},
 					{kind: KIND.OPTION, key: 'subtitleBackgroundColorHdr', label: () => $L('Background Color'), options: getSubtitleBackgroundColorOptions, fallback: () => $L('Black'), icon: 'format_color_fill', when: whenHdrSubtitles, colorTile: (ctx) => ctx.settings.subtitleBackgroundColorHdr, swatchOf: ownColor},
 					{kind: KIND.SLIDER, key: 'subtitleBackgroundHdr', label: () => $L('Background Opacity'), min: 0, max: 100, step: 5, format: percent, icon: 'opacity', when: whenHdrSubtitles, plainIcon: true},
+					{kind: KIND.TOGGLE, key: 'subtitleBoldHdr', label: () => $L('Bold Text'), icon: 'format_bold', when: whenHdrSubtitles},
 					{kind: KIND.OPTION, key: 'subtitleSizeHdr', label: () => $L('Subtitle Size'), options: getSubtitleSizeOptions, fallback: () => $L('Medium'), icon: 'format_size', when: whenHdrSubtitles, plainIcon: true},
 					{kind: KIND.OPTION, key: 'subtitlePositionHdr', label: () => $L('Subtitle Position'), options: getSubtitlePositionOptions, fallback: () => $L('Bottom'), icon: 'vertical_align_bottom', when: whenHdrSubtitles, plainIcon: true},
 					{kind: KIND.SLIDER, key: 'subtitlePositionAbsoluteHdr', label: () => $L('Absolute Position'), min: 0, max: 100, step: 5, format: percent, icon: 'vertical_align_bottom', when: (ctx) => whenHdrSubtitles(ctx) && ctx.settings.subtitlePositionHdr === 'absolute', plainIcon: true}

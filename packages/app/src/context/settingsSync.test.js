@@ -544,6 +544,41 @@ describe('the book library style', () => {
 	});
 });
 
+describe('the subtitle outline, shadow, bold and font settings', () => {
+	const SERVER_KEYS = {
+		subtitleBold: 'subtitlesTextWeight',
+		subtitleBoldHdr: 'subtitlesHdrTextWeight',
+		subtitleStrokeWidth: 'subtitlesStrokeWidth',
+		subtitleDropShadow: 'subtitlesShadow',
+		subtitleDropShadowIntensity: 'subtitlesShadowIntensity',
+		subtitleDropShadowOffset: 'subtitlesShadowOffset',
+		subtitleDropShadowBlur: 'subtitlesShadowBlur',
+		subtitleFont: 'subtitlesFont'
+	};
+
+	test('sync under their profile names, with their defaults', () => {
+		const local = Object.keys(SERVER_KEYS);
+		expect(Object.keys(localToProfile(defaultSettings, local)).sort()).toEqual(Object.values(SERVER_KEYS).sort());
+		expect(localToProfile(defaultSettings, local)).toEqual({
+			subtitlesTextWeight: 400, subtitlesHdrTextWeight: 400, subtitlesStrokeWidth: 100, subtitlesShadow: false,
+			subtitlesShadowIntensity: 80, subtitlesShadowOffset: 2, subtitlesShadowBlur: 2, subtitlesFont: ''
+		});
+	});
+
+	test('bold goes out as a weight and reads anything from 600 up as bold', () => {
+		expect(localToProfile({...defaultSettings, subtitleBold: true}, ['subtitleBold'])).toEqual({subtitlesTextWeight: 700});
+		expect(profileToLocal({subtitlesTextWeight: 600, subtitlesHdrTextWeight: 500})).toEqual({subtitleBold: true, subtitleBoldHdr: false});
+	});
+
+	test("takes a font from the list and keeps its own for one that isn't on it", () => {
+		['', 'Atkinson Hyperlegible', 'Source Sans 3', 'Ubuntu'].forEach((family) => {
+			expect(profileToLocal({subtitlesFont: family})).toEqual({subtitleFont: family});
+		});
+		expect(profileToLocal({subtitlesFont: 'Comic Neue'})).toEqual({});
+		expect(profileToLocal({subtitlesFont: 'atkinson hyperlegible'})).toEqual({});
+	});
+});
+
 describe('the Seerr badge style', () => {
 	test('defaults to badge and syncs under its own name', () => {
 		expect(defaultSettings.seerrBadgeStyle).toBe('badge');

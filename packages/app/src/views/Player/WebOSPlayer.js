@@ -18,7 +18,7 @@ import {handleAudioFocusKey, exitAudioPanel, nextAudioFocusRow, focusAudioRow, f
 import {detectPlatformVersion, getH264FallbackProfile} from '../../services/deviceProfile';
 import {initPgsRenderer, initPgsInBandRenderer, disposePgsRenderer} from '../../utils/pgsRenderer';
 import {createInBandTextSource} from '../../utils/mkvTextSource';
-import {supportsAssRenderer, initAssCanvasRenderer, disposeAssRenderer, setAssTime, clearAssCanvas} from '../../utils/assRenderer';
+import {supportsAssRenderer, initAssCanvasRenderer, disposeAssRenderer, setAssTime, clearAssCanvas, setAssFontScale, assTimelineEvents} from '../../utils/assRenderer';
 import {waitForAssReady} from '../../utils/assRendererReady';
 import {
 	initPlayerPlatform,
@@ -42,7 +42,7 @@ import {isTvKeyboardVisible} from '../../components/TVKeyboard/keyboardBus';
 import {useSettings} from '../../context/SettingsContext';
 import {useSyncPlay} from '../../context/SyncPlayContext';
 import * as syncPlayService from '../../services/syncPlay';
-import {resolveSubtitleStyleSettings} from '../../utils/subtitleConstants';
+import {getAssFontScale, resolveSubtitleStyleSettings} from '../../utils/subtitleConstants';
 import SubtitleTextOverlay from './SubtitleTextOverlay';
 import useSecondarySubtitle from './useSecondarySubtitle';
 import useSubtitleFetch from './useSubtitleFetch';
@@ -440,6 +440,10 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 	// Bumped by every renderer start and teardown, so a start that finishes after a
 	// newer one, or after the player moved on, throws its renderer away.
 	const assInitGenRef = useRef(0);
+	const assFontScale = getAssFontScale(subtitleStyleSettings);
+	useEffect(() => {
+		setAssFontScale(assRendererRef.current, assFontScale);
+	}, [assFontScale]);
 	// index of a subtitle the server is currently burning into the stream
 	const burnInSubtitleRef = useRef(null);
 
@@ -4138,7 +4142,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 				chapters={chapters}
 				currentTime={currentTime}
 				subtitleOffset={subtitleOffset}
-				subtitleTrackEvents={subtitleTrackEvents}
+				subtitleTrackEvents={subtitleTrackEvents || (activeModal === 'subtitleOffset' ? assTimelineEvents(assRendererRef.current) : null)}
 				handleControlButtonClick={handleControlButtonClick}
 				handleProgressClick={handleProgressClick}
 				handleProgressKeyDown={handleProgressKeyDown}

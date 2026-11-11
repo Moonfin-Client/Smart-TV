@@ -13,6 +13,7 @@ import {sharePending} from '../utils/sharePending';
 import {pickedRowsFromLegacySections} from '../utils/pickedRows';
 import {LEGACY_MEDIA_BAR_SOURCES, MEDIA_BAR_SOURCES, NEW_RELEASE_DAYS} from '../utils/mediaBarNewRelease';
 import {DATE_FORMATS} from '../utils/dateFormat';
+import {SUBTITLE_FONTS} from '../services/subtitleFonts';
 import {
 	IMAGES as LOADING_IMAGES,
 	POSITIONS as LOADING_POSITIONS,
@@ -76,6 +77,14 @@ const SERVER_TO_LOCAL = {
 	mediaSegmentCountdown: 'nextUpCountdownStyle',
 	defaultAudioLanguage: 'audioLanguage',
 	defaultSubtitleLanguage: 'subtitleLanguage',
+	subtitlesTextWeight: 'subtitleBold',
+	subtitlesHdrTextWeight: 'subtitleBoldHdr',
+	subtitlesStrokeWidth: 'subtitleStrokeWidth',
+	subtitlesShadow: 'subtitleDropShadow',
+	subtitlesShadowIntensity: 'subtitleDropShadowIntensity',
+	subtitlesShadowOffset: 'subtitleDropShadowOffset',
+	subtitlesShadowBlur: 'subtitleDropShadowBlur',
+	subtitlesFont: 'subtitleFont',
 	unpauseRewindDuration: 'unpauseRewind',
 	confirmExit: 'exitConfirmation',
 	DetailMetadataOrderTv: 'detailMetadataOrderTv',
@@ -161,6 +170,8 @@ const surfaceRatingSources = {
 	toServer: ratingSourcesToServer,
 	fromServer: (v) => (Array.isArray(v) && v.length === 0 ? undefined : normalizeRatingSources(v))
 };
+
+const subtitleWeight = {toServer: v => (v ? 700 : 400), fromServer: v => v >= 600};
 
 const VALUE_CONVERSIONS = {
 	watchPartyService: oneOf(['moonbase', 'syncplay']),
@@ -253,6 +264,10 @@ const VALUE_CONVERSIONS = {
 		toServer: v => (v === '' ? 'auto' : v),
 		fromServer: v => (v === 'auto' ? '' : v)
 	},
+	// The synced settings store a weight, and anything from 600 up is bold.
+	subtitleBold: subtitleWeight,
+	subtitleBoldHdr: subtitleWeight,
+	subtitleFont: oneOf(['', ...SUBTITLE_FONTS.map((font) => font.family)]),
 	// This app predates the foreign mode and calls the flagged one default.
 	subtitleMode: {
 		toServer: v => (v === 'default' ? 'flagged' : v),
@@ -348,6 +363,8 @@ export const SYNCABLE_KEYS = [
 	'videoStartDelay', 'cinemaModeEnabled', 'cinemaModeEpisodesEnabled', 'cinemaModeSkipEnabled',
 	'audioLanguage', 'fallbackAudioLanguage', 'preferDefaultAudioTrack', 'preferAudioDescription',
 	'subtitleLanguage', 'fallbackSubtitleLanguage', 'preferSdhSubtitles', 'preferTextSubtitles', 'preferExternalSubtitles', 'subtitleMode',
+	'subtitleBold', 'subtitleBoldHdr', 'subtitleStrokeWidth', 'subtitleDropShadow', 'subtitleDropShadowIntensity',
+	'subtitleDropShadowOffset', 'subtitleDropShadowBlur', 'subtitleFont',
 	'assDirectPlay',
 	'resumeSubtractDuration', 'unpauseRewind', 'skipBackLength', 'skipForwardLength', 'showChapterMarkers',
 	'controlsHideDelay', 'hdrControlsDimming',

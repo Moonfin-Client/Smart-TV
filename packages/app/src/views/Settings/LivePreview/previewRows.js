@@ -1,6 +1,6 @@
 import {KIND, SETTINGS_SCHEMA, resolve, spotlightIdOf} from '../settingsSchema';
 import {ratingKey} from '../../../utils/ratingSources';
-import {SUBTITLE_STYLE_KEYS, hdrKeyFor} from '../../../utils/subtitleConstants';
+import {SUBTITLE_SHARED_STYLE_KEYS, SUBTITLE_STYLE_KEYS, hdrKeyFor} from '../../../utils/subtitleConstants';
 
 // The ratings rows a surface keeps for itself, the links to its source list and reset among
 // them. Episode ratings are left out since the previews draw a film.
@@ -29,7 +29,7 @@ export const TRICKPLAY_KEYS = ['trickPlayMode', 'trickPlayPreviewScale', 'trickP
 // The subtitle appearance settings, drawn on the player's subtitle line. The HDR ones draw it in
 // the HDR style.
 export const SUBTITLE_HDR_KEYS = ['subtitleHdrSeparate', ...SUBTITLE_STYLE_KEYS.map(hdrKeyFor)];
-export const SUBTITLE_LOOK_KEYS = [...SUBTITLE_STYLE_KEYS, ...SUBTITLE_HDR_KEYS];
+export const SUBTITLE_LOOK_KEYS = [...SUBTITLE_STYLE_KEYS, ...SUBTITLE_SHARED_STYLE_KEYS, ...SUBTITLE_HDR_KEYS];
 export const SCREENSAVER_KEYS = [
 	'screensaverEnabled', 'screensaverDimmingLevel', 'screensaverBackdrop', 'screensaverComponent', 'screensaverMovement',
 	'screensaverSize', 'screensaverPosition'

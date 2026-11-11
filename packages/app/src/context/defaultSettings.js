@@ -21,6 +21,15 @@ export const defaultSettings = {
 	subtitleShadowOpacity: 100,
 	subtitleShadowBlur: 0.1,
 	subtitlePositionAbsolute: 90,
+	subtitleBold: false,
+	// The outline as a percent of its usual width, and a drop shadow whose offset and blur count
+	// in steps of 2% of the text size. The font is one of the downloadable ones, or empty for the app's own.
+	subtitleStrokeWidth: 100,
+	subtitleDropShadow: false,
+	subtitleDropShadowIntensity: 80,
+	subtitleDropShadowOffset: 2,
+	subtitleDropShadowBlur: 2,
+	subtitleFont: '',
 	// White is far brighter in HDR than in SDR, so the HDR text color starts grey.
 	subtitleHdrSeparate: false,
 	subtitleSizeHdr: 'medium',
@@ -33,6 +42,7 @@ export const defaultSettings = {
 	subtitleShadowOpacityHdr: 100,
 	subtitleShadowBlurHdr: 0.1,
 	subtitlePositionAbsoluteHdr: 90,
+	subtitleBoldHdr: false,
 	seekStep: 10,
 	fallbackAudioLanguage: '',
 	preferDefaultAudioTrack: false,

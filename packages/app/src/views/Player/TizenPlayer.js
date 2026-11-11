@@ -26,8 +26,8 @@ import {createSkipGovernor, chooseCorrection, afterResume} from '../../utils/syn
 import {getImageUrl, getLogoUrl} from '../../utils/helpers';
 import {transcodesAudioCodec} from '../../utils/deviceProfileTuning';
 import {initPgsCanvasRenderer, disposePgsRenderer, clearPgsCanvas} from '../../utils/pgsRenderer';
-import {supportsAssRenderer, initAssCanvasRenderer, disposeAssRenderer, setAssTime} from '../../utils/assRenderer';
-import {resolveSubtitleStyleSettings} from '../../utils/subtitleConstants';
+import {supportsAssRenderer, initAssCanvasRenderer, disposeAssRenderer, setAssTime, setAssFontScale, assTimelineEvents} from '../../utils/assRenderer';
+import {getAssFontScale, resolveSubtitleStyleSettings} from '../../utils/subtitleConstants';
 import SubtitleTextOverlay from './SubtitleTextOverlay';
 import useSecondarySubtitle from './useSecondarySubtitle';
 import useSubtitleFetch from './useSubtitleFetch';
@@ -441,6 +441,10 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 		() => resolveSubtitleStyleSettings(settings, isHdrContent),
 		[settings, isHdrContent]
 	);
+	const assFontScale = getAssFontScale(subtitleStyleSettings);
+	useEffect(() => {
+		setAssFontScale(assRendererRef.current, assFontScale);
+	}, [assFontScale]);
 
 	const resolvedCastItemIdRef = useRef(null);
 	const latestItemIdRef = useRef(null);
@@ -3874,7 +3878,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 				chapters={chapters}
 				currentTime={currentTime}
 				subtitleOffset={subtitleOffset}
-				subtitleTrackEvents={subtitleTrackEvents}
+				subtitleTrackEvents={subtitleTrackEvents || (activeModal === 'subtitleOffset' ? assTimelineEvents(assRendererRef.current) : null)}
 				handleControlButtonClick={handleControlButtonClick}
 				handleProgressClick={handleProgressClick}
 				handleProgressKeyDown={handleProgressKeyDown}
