@@ -36,6 +36,7 @@ import {activateApp, exitApp} from '../utils/appLifecycle';
 import {SettingsProvider} from '../context/SettingsContext';
 import {seedLanguagePreferences} from '../utils/languagePrefSeed';
 import {shouldRun as shouldRunSetupWizard, beginRerun as beginSetupWizardRerun} from '../utils/setupWizardGate';
+import {syncNotificationPrefs} from '../services/notificationPrefs';
 import {getActiveServer} from '../services/multiServerManager';
 import {SeerrProvider, useSeerr} from '../context/SeerrContext';
 import {AchievementsProvider, useAchievements} from '../context/AchievementsContext';
@@ -564,8 +565,14 @@ const AppContent = (props) => {
 			syncOnLogin(serverUrl, accessToken, user?.Id).catch((err) => {
 				console.warn('[App] Initial settings sync failed:', err.message);
 			});
+			// Plex keeps no Seerr notification choices.
+			if (serverType !== 'plex') {
+				syncNotificationPrefs(serverUrl, accessToken, user?.Id).catch((err) => {
+					console.warn('[Seerr] Notification choices not synced:', err?.message);
+				});
+			}
 		}
-	}, [isAuthenticated, serverUrl, accessToken, user?.Id, syncOnLogin]);
+	}, [isAuthenticated, serverUrl, accessToken, user?.Id, serverType, syncOnLogin]);
 
 	// The setup wizard asks its questions once per server and user, so this
 	// only flips the flag for a pair that has never finished it. A server that
@@ -1649,7 +1656,14 @@ const AppContent = (props) => {
 	const handlePlayerGuide = useCallback(() => leavePlayerFor(PANELS.LIVETV), [leavePlayerFor]);
 	const handlePlayerRecordings = useCallback(() => leavePlayerFor(PANELS.RECORDINGS), [leavePlayerFor]);
 
+	// Discover's Search lands on the Requests tab once a search has request results.
+	const [searchPrefersRequests, setSearchPrefersRequests] = useState(false);
 	const handleOpenSearch = useCallback(() => {
+		setSearchPrefersRequests(false);
+		navigateTo(PANELS.SEARCH);
+	}, [navigateTo]);
+	const handleOpenRequestSearch = useCallback(() => {
+		setSearchPrefersRequests(true);
 		navigateTo(PANELS.SEARCH);
 	}, [navigateTo]);
 
@@ -1917,6 +1931,7 @@ const AppContent = (props) => {
 		goToSearch: (search) => {
 			clearForRemote();
 			setRemoteSearch(search);
+			setSearchPrefersRequests(false);
 			// The player has already returned to its previous panel. Do not
 			// put the now-closed player into Search's back history.
 			navigateTo(PANELS.SEARCH, panelIndex !== PANELS.PLAYER && panelIndex !== PANELS.SEARCH);
@@ -2337,7 +2352,7 @@ const AppContent = (props) => {
 						</Panel>
 						<Panel>
 							{panelIndex === PANELS.SEARCH && (
-								<Search remoteSearch={remoteSearch} musicBar={backgroundMusic} onSelectItem={handleSelectItem} onSelectSeerrItem={handleSelectSeerrItem} onSelectPerson={handleSelectPerson} onSelectGame={handleSelectGame} onPlayChannel={handlePlayChannel} />
+								<Search remoteSearch={remoteSearch} musicBar={backgroundMusic} preferRequests={searchPrefersRequests} onSelectItem={handleSelectItem} onSelectSeerrItem={handleSelectSeerrItem} onSelectPerson={handleSelectPerson} onSelectGame={handleSelectGame} onPlayChannel={handlePlayChannel} />
 							)}
 						</Panel>
 						<Panel>
@@ -2377,7 +2392,7 @@ const AppContent = (props) => {
 									onSelectStudio={handleSelectSeerrStudio}
 									onSelectNetwork={handleSelectSeerrNetwork}
 									onOpenRequests={handleOpenSeerrRequests}
-									onOpenSearch={handleOpenSearch}
+									onOpenSearch={handleOpenRequestSearch}
 									onOpenShortcut={handleOpenSeerrShortcut}
 								/>
 							)}

@@ -43,6 +43,7 @@ import useThemeStore from './useThemeStore';
 import useHomeRowsEditor from './useHomeRowsEditor';
 import useButtonLayoutEditor from './useButtonLayoutEditor';
 import useLibraryVisibility from './useLibraryVisibility';
+import useNotificationPrefs from './useNotificationPrefs';
 import useMediaBarSources from './useMediaBarSources';
 import useScreensaverSources from './useScreensaverSources';
 import useCalendarLibraries from './useCalendarLibraries';
@@ -770,6 +771,7 @@ const Settings = ({ onBack, onLibrariesChanged, onRunSetupWizard, onSelectItem, 
 		handleMoonfinToggle, handleSeerrAuthTypeChange, handleSeerrLogin,
 		handleSeerrPasswordKeyDown, handleSeerrLogout
 	} = useSeerrAccount({seerr, seerrLabel, settings, updateSetting, serverUrl, accessToken});
+	const {notificationPrefs, toggleNotificationPref} = useNotificationPrefs({serverUrl, accessToken, userId: user?.Id});
 
 	const {
 		activeProfile, profileSyncBusy, profileSyncMessage, pickProfile, loadProfile, saveProfile, resetProfile
@@ -1097,7 +1099,9 @@ const Settings = ({ onBack, onLibrariesChanged, onRunSetupWizard, onSelectItem, 
 		signInPin,
 		calendarLibraries,
 		watchParties,
+		notificationPrefs,
 		actions: {
+			toggleNotificationPref,
 			openWatchParties,
 			openThemes,
 			openThemeStore,
@@ -1152,7 +1156,8 @@ const Settings = ({ onBack, onLibrariesChanged, onRunSetupWizard, onSelectItem, 
 		signInPin, toggleSignInPin, changeSignInPin, removeSignInPin, openKidsMode, openLibraries, openLibraryOrder, openParentalControls, openSubtitleDownloadLanguages, openTranscodeAudioCodecs, openQrLink, openRatingSources, openRowImageTypes, openExcludedGenres, openMediaBarLibraries,
 		openMediaBarCollections, openMediaBarExternalLists, openScreensaverLibraries, openScreensaverCollections, openScreensaverGenres, openCalendarLibraries,
 		openImdbLists, openSeasonalRow, openExternalTmdbLists, openExternalCalendars,
-		openExternalCustomRows, openSeerrHomeRows, openScreen, onRunSetupWizard, canProbeDevice, afterHours.press, watchParties
+		openExternalCustomRows, openSeerrHomeRows, openScreen, onRunSetupWizard, canProbeDevice, afterHours.press, watchParties,
+		notificationPrefs, toggleNotificationPref
 	]);
 
 	// The live preview's inspector names rows with the same context the list draws them with.

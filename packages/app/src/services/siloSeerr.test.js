@@ -77,6 +77,16 @@ describe('Silo requests in Seerr\'s shapes', () => {
 		expect(created).toMatchObject({id: 1, status: 1, type: 'tv'});
 	});
 
+	test('the watchlist and a title\'s detail carry the US age rating', async () => {
+		const {seerr} = setup({
+			'GET /api/v2/watchlist/titles': {items: [title({content_rating: 'PG-13'}), title({tmdb_id: 12, content_rating: ''})]},
+			'GET /api/v2/requests/detail/movie/11': {tmdb_id: 11, title: 'Film', runtime: 118, content_rating: 'R', backdrop_path: '/b.jpg'}
+		});
+		const page = await seerr.request('/discover/watchlist?page=1');
+		expect(page.results.map((r) => [r.id, r.contentRating])).toEqual([[11, 'PG-13'], [12, '']]);
+		expect(await seerr.request('/movie/11')).toMatchObject({contentRating: 'R', runtime: 118, backdropPath: '/b.jpg'});
+	});
+
 	test('the watchlist adds and removes by type and TMDB id', async () => {
 		const {seerr, calls} = setup({'PUT /api/v2/watchlist/titles/movie/11': null, 'DELETE /api/v2/watchlist/titles/series/5': null});
 		await seerr.request('/watchlist', {method: 'POST', body: {tmdbId: 11, mediaType: 'movie'}});

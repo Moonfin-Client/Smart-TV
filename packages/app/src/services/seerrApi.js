@@ -571,6 +571,40 @@ export const saveMoonfinProfile = async (profileName, profile, serverUrl, token)
 	return true;
 };
 
+// The Seerr notification choices Moonbase keeps for this user. It filters the in-app notices by them, and phone
+// pushes too. Null when the server has no Moonbase to ask.
+export const getMoonfinNotificationPrefs = async (serverUrl, token) => {
+	const result = await moonbaseFetch(serverUrl, token, '/Moonfin/Notifications/Prefs', {
+		method: 'GET',
+		headers: {'Accept': 'application/json'},
+		timeout: 15000
+	});
+	if (!result.success) throw new Error(result.error || 'Network error');
+	if (result.status === 404) return null;
+	if (result.status >= 400) {
+		const error = new Error(`Moonfin notification prefs fetch failed: ${result.status}`);
+		error.status = result.status;
+		throw error;
+	}
+	return JSON.parse(result.body);
+};
+
+export const saveMoonfinNotificationPrefs = async (prefs, serverUrl, token) => {
+	const result = await moonbaseFetch(serverUrl, token, '/Moonfin/Notifications/Prefs', {
+		method: 'POST',
+		headers: {'Content-Type': 'application/json', 'Accept': 'application/json'},
+		body: JSON.stringify(prefs),
+		timeout: 15000
+	});
+	if (!result.success) throw new Error(result.error || 'Network error');
+	if (result.status >= 400) {
+		const error = new Error(`Moonfin notification prefs save failed: ${result.status}`);
+		error.status = result.status;
+		throw error;
+	}
+	return true;
+};
+
 export const subscribeMoonfinSettingsStream = (serverUrl, token, onEvent, onError) => {
 	const sUrl = (serverUrl || jellyfinServerUrl || '').replace(/\/+$/, '');
 	const sToken = token || jellyfinAccessToken;
@@ -861,6 +895,23 @@ export const getSonarrServerDetails = async (serverId) => {
 	return request(`/service/sonarr/${serverId}`);
 };
 
+// Sonarr's matches for a series TMDB has no TVDB id for, as Seerr's own request modal lists them. A
+// match without a TVDB id is no use for the request, so it's left out. Null when there's no Sonarr to
+// ask: a Seerr with none set up answers 404, and Silo adds series itself. Any other failure is thrown,
+// since Sonarr is there and would drop a request sent without the match.
+export const lookupSonarrSeries = async (tmdbId) => {
+	if (await siloSeerrReady()) return null;
+	let found;
+	try {
+		found = await request(`/service/sonarr/lookup/${tmdbId}`);
+	} catch (err) {
+		if (err.status === 404) return null;
+		throw err;
+	}
+	return (Array.isArray(found) ? found : [])
+		.filter((e) => e && typeof e.tvdbId === 'number' && e.tvdbId > 0 && typeof e.title === 'string');
+};
+
 // Full Radarr/Sonarr connection settings (hostname, port, apiKey, useSsl,
 // baseUrl) used to fetch upcoming calendars directly from the arr servers.
 // These are Seerr admin settings, so they require an admin Seerr session.
@@ -1127,6 +1178,8 @@ export const requestTv = async (tmdbId, options = {}) => {
 	if (options.serverId != null) body.serverId = options.serverId;
 	if (options.profileId != null) body.profileId = options.profileId;
 	if (options.rootFolder != null) body.rootFolder = options.rootFolder;
+	// Only set when TMDB has no TVDB id for the series and the viewer picked Sonarr's match.
+	if (options.tvdbId != null) body.tvdbId = options.tvdbId;
 
 	return request('/request', {
 		method: 'POST',
@@ -1268,6 +1321,7 @@ export default {
 	getRadarrServerDetails,
 	getSonarrServers,
 	getSonarrServerDetails,
+	lookupSonarrSeries,
 	getSiloCalendar,
 	getArrCalendar,
 	getRadarrSettings,

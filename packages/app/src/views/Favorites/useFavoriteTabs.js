@@ -3,12 +3,17 @@
 import {useCallback, useEffect, useRef, useState} from 'react';
 
 import * as connectionPool from '../../services/connectionPool';
-import {withoutBlockedItems} from '../../services/parentalControls';
-import {getWatchlist} from '../../services/seerrApi';
+import {getActiveParentalFilter, withoutBlockedItems} from '../../services/parentalControls';
+import {getMovie, getTv, getWatchlist} from '../../services/seerrApi';
+import mapBounded from '../../utils/mapBounded';
+import {withoutBlockedOrUnrated} from '../../utils/parentalFilter';
 import {normalizeMediaItem} from '../../utils/seerrHomeRows';
 import {hydrateWatchlistItems} from '../../utils/seerrHydration';
 
-import {ALL_FAVORITE_TABS, FAVORITE_TABS, FAVORITE_TAB_FIELDS, FAVORITE_TAB_PAGE_SIZE, FAVORITE_TAB_TYPES, WATCHLIST_TAB, bucketByTab, visibleTabs, watchlistCards} from './favoriteTabs';
+import {
+	ALL_FAVORITE_TABS, FAVORITE_TABS, FAVORITE_TAB_FIELDS, FAVORITE_TAB_PAGE_SIZE, FAVORITE_TAB_TYPES, WATCHLIST_TAB, bucketByTab,
+	swapRequestCard, visibleTabs, watchlistCards, withRequestDetail
+} from './favoriteTabs';
 
 const emptyBuckets = () => {
 	const buckets = {};
@@ -46,6 +51,16 @@ const readSiloWatchlist = async (api) => {
 // Request cards past those read so far, so the tab's count says how many there are to page through.
 const unreadRequests = (body) => Math.max(0, (body?.totalResults || 0) - (body?.results?.length || 0));
 
+// Silo's watchlist lists each title's age rating, so its cards go through the parental filter right away,
+// and one with no rating stays out while any rating is blocked.
+const requestCardsOf = (items) => withoutBlockedOrUnrated(items.map((item) => (
+	item.contentRating ? {...normalizeMediaItem(item), OfficialRating: item.contentRating} : normalizeMediaItem(item)
+)), getActiveParentalFilter());
+
+// Each detail read waits out its own request, so no more than this many hold the server's connections at
+// once and the rest stay free for the screen.
+const DETAIL_READS = 3;
+
 /**
  * `serverType` and `requestsReady` (signed in to Seerr, or to Silo's own requests) decide what the
  * watchlist tab can show.
@@ -66,6 +81,19 @@ const useFavoriteTabs = ({api, sortBy, sortOrder, unifiedMode, enabled = true, s
 	countsRef.current = countsByKey;
 	// The requests watchlist pages by page number, and the last one read.
 	const watchlistRef = useRef({page: 0, totalPages: 0, loading: false});
+
+	// The watchlist's titles carry no backdrop or runtime, so each request card reads its title's detail
+	// once the row is up, and is swapped in as soon as its own arrives. A reload replaces [state], which
+	// drops the reads still waiting, and a failed read leaves the card as it was.
+	const fillRequestCards = useCallback((cards, state) => mapBounded(cards, DETAIL_READS, async (card) => {
+		if (watchlistRef.current !== state) return;
+		const {mediaId, mediaType} = card._seerrRaw || {};
+		const details = await (mediaType === 'tv' ? getTv(mediaId) : getMovie(mediaId)).catch(() => null);
+		if (!details || watchlistRef.current !== state) return;
+		const filled = withRequestDetail(card, details, normalizeMediaItem({...details, mediaType}));
+		const blocked = withoutBlockedItems([filled]).length === 0;
+		setItemsByKey((prev) => ({...prev, [WATCHLIST_TAB.key]: swapRequestCard(prev[WATCHLIST_TAB.key], filled, blocked)}));
+	}), []);
 
 	useEffect(() => {
 		if (!enabled || !api) return undefined;
@@ -160,16 +188,22 @@ const useFavoriteTabs = ({api, sortBy, sortOrder, unifiedMode, enabled = true, s
 					return null;
 				}) : null
 			]);
-			const requestCards = (await hydrateWatchlistItems(first?.results || [])).map(normalizeMediaItem);
+			const requestCards = requestCardsOf(await hydrateWatchlistItems(first?.results || []));
 			if (cancelled) return;
-			watchlistRef.current = {page: first?.page || 0, totalPages: first?.totalPages || 0, loading: false};
+			const state = {page: first?.page || 0, totalPages: first?.totalPages || 0, loading: false};
+			watchlistRef.current = state;
 			const cards = watchlistCards(withoutBlockedItems(library), requestCards);
 			setItemsByKey((prev) => ({...prev, [WATCHLIST_TAB.key]: cards}));
 			setCountsByKey((prev) => ({...prev, [WATCHLIST_TAB.key]: cards.length + unreadRequests(first)}));
+			fillRequestCards(cards.filter((card) => card._seerr), state);
 		};
-		run();
-		return () => { cancelled = true; };
-	}, [api, serverType, requestsReady, unifiedMode, enabled]);
+		run().catch((err) => console.error('Failed to load the watchlist:', err));
+		return () => {
+			cancelled = true;
+			// Drops the detail reads this load still has waiting.
+			watchlistRef.current = {page: 0, totalPages: 0, loading: false};
+		};
+	}, [api, serverType, requestsReady, unifiedMode, enabled, fillRequestCards]);
 
 	const loadMoreWatchlist = useCallback(async () => {
 		const state = watchlistRef.current;
@@ -177,7 +211,7 @@ const useFavoriteTabs = ({api, sortBy, sortOrder, unifiedMode, enabled = true, s
 		state.loading = true;
 		try {
 			const body = await getWatchlist(state.page + 1);
-			const cards = (await hydrateWatchlistItems(body?.results || [])).map(normalizeMediaItem);
+			const cards = requestCardsOf(await hydrateWatchlistItems(body?.results || []));
 			if (watchlistRef.current !== state) return;
 			state.page = body?.page || state.page + 1;
 			if (cards.length === 0) {
@@ -185,12 +219,13 @@ const useFavoriteTabs = ({api, sortBy, sortOrder, unifiedMode, enabled = true, s
 				return;
 			}
 			setItemsByKey((prev) => ({...prev, [WATCHLIST_TAB.key]: watchlistCards(prev[WATCHLIST_TAB.key], cards)}));
+			fillRequestCards(cards, state);
 		} catch (err) {
 			console.error('Failed to load more of the watchlist:', err);
 		} finally {
 			state.loading = false;
 		}
-	}, [requestsReady]);
+	}, [requestsReady, fillRequestCards]);
 
 	// The next page of one tab, asked for as its grid runs out. Multi server mode
 	// already has everything in hand.

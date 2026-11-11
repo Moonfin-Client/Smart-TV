@@ -45,8 +45,9 @@ const allRows = () => allScreens().flatMap(({category, sub}) =>
 
 describe('settings schema', () => {
 	test('every stored key exists in the default settings', () => {
+		// A row that reads its own value keeps it somewhere else.
 		const unknown = allRows()
-			.filter(({row}) => KEYED.includes(row.kind))
+			.filter(({row}) => KEYED.includes(row.kind) && !row.isOn)
 			.map(({row}) => row.key)
 			.filter((key) => !(key in defaultSettings));
 		expect(unknown).toEqual([]);
@@ -410,5 +411,24 @@ describe('the ratings sections', () => {
 			.map((row) => row.when(withSettings({featuredBarStyle})));
 		for (const style of ['moonfin', 'makd', 'gallery', 'banner']) expect(shown(style)).toEqual([true, true]);
 		for (const style of ['bookshelf', 'aya', 'off']) expect(shown(style)).toEqual([false, false]);
+	});
+});
+
+describe('the Seerr notification choices', () => {
+	test('show with Seerr, and New Requests only to someone who manages requests', () => {
+		const keys = ['notifyOnNewRequests', 'notifyOnLibraryAdded', 'notifyOnIssues', 'notifyOnNewMedia'];
+		const rows = allRows().map(({row}) => row).filter((row) => keys.includes(row.key));
+		const shown = (seerr) => rows.filter((row) => row.when({...ctx, seerr})).map((row) => row.key);
+		const api = {canManageRequests: (permissions) => (permissions & 16) !== 0};
+		expect(shown({isEnabled: true, api, user: {permissions: 32}})).toEqual(keys.slice(1));
+		expect(shown({isEnabled: true, api, user: {permissions: 16}})).toEqual(keys);
+		expect(shown({isEnabled: false, api, user: {permissions: 16}})).toEqual([]);
+		// The values are the user's own, kept apart from the settings.
+		const toggleNotificationPref = jest.fn();
+		const withPrefs = {...ctx, notificationPrefs: {notifyOnIssues: false}, actions: {toggleNotificationPref}};
+		const issues = rows.find((row) => row.key === 'notifyOnIssues');
+		expect(issues.isOn(withPrefs)).toBe(false);
+		issues.onToggle(withPrefs);
+		expect(toggleNotificationPref).toHaveBeenCalledWith('notifyOnIssues');
 	});
 });

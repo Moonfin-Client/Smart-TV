@@ -64,6 +64,7 @@ import modernCardCss from '../components/MediaCard/ModernMediaCard.module.less';
 import seerrBannerCss from '../components/seerr/SeerrStatusBanner.module.less';
 import seerrDotCss from '../components/seerr/SeerrStatusDot.module.less';
 import seerrDownloadCss from '../components/SeerrDownloadProgress/SeerrDownloadProgress.module.less';
+import seerrRequestCss from '../components/seerr/SeerrRequestDialog.module.less';
 import mediaRowCss from '../components/MediaRow/MediaRow.module.less';
 import modernRowCss from '../components/MediaRow/ModernMediaRow.module.less';
 import ratingsCss from '../components/RatingsRow/RatingsRow.module.less';
@@ -767,6 +768,9 @@ export const buildThemeOverrideCss = (theme, options = {}) => {
 	rule(`.${seerrDownloadCss.fill}`, `background: ${rangeProgress};`);
 	rule(`.${seerrDownloadCss.stalled} .${seerrDownloadCss.fill}`, `background: ${statusPending};`);
 	rule(`.${seerrDownloadCss.failed} .${seerrDownloadCss.fill}`, `background: ${statusError};`);
+	rule(`.${seerrRequestCss.match}:focus`, `box-shadow: inset 0 0 0 ${rem(2)} ${accent};`);
+	rule(`.${seerrRequestCss.matchSelected}`, `background: ${accentA(0.18)};`);
+	rule(`.${seerrRequestCss.matchCheck}`, `color: ${accent};`);
 
 	// The Seerr banner across a poster, with dark ink on a fill as light as Pending's yellow.
 	const bannerInk = (hex) => (relativeLuminance(hex) > 0.45 ? '#000000' : onBadge);

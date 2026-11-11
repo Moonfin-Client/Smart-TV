@@ -199,6 +199,13 @@ const whenPlugin = (ctx) => ctx.settings.useMoonfinPlugin;
 const whenHdrSubtitles = (ctx) => ctx.settings.subtitleHdrSeparate;
 const whenSubtitleDropShadow = (ctx) => ctx.settings.subtitleDropShadow;
 const whenSeerr = (ctx) => ctx.seerr.isEnabled;
+const whenSeerrManager = (ctx) => whenSeerr(ctx) && Boolean(ctx.seerr.api?.canManageRequests(ctx.seerr.user?.permissions));
+// A Seerr notification choice, kept per user on the server rather than in the settings.
+const notificationRow = (key, label, desc, icon, when = whenSeerr) => ({
+	kind: KIND.TOGGLE, key, label, desc, icon, when,
+	isOn: (ctx) => ctx.notificationPrefs[key],
+	onToggle: (ctx) => ctx.actions.toggleNotificationPref(key)
+});
 const whenCalendar = (ctx) => ctx.seerr.pluginInfo?.calendarAvailable === true;
 const whenScreensaver = (ctx) => ctx.settings.screensaverEnabled;
 const whenMediaPreview = (ctx) => mediaPreviewMode(ctx.settings) !== 'off';
@@ -1202,6 +1209,11 @@ export const SETTINGS_SCHEMA = [
 						icon: 'label_outline',
 						when: (ctx) => whenSeerr(ctx) && ctx.settings.showSeerrAvailabilityBadges !== false
 					},
+					{kind: KIND.SECTION, id: 'seerrNotifications', label: () => $L('Notifications'), when: whenSeerr},
+					notificationRow('notifyOnNewRequests', () => $L('New Request Notifications'), () => $L('Alert me when someone submits a request'), 'playlist_add', whenSeerrManager),
+					notificationRow('notifyOnLibraryAdded', () => $L('Request Updates'), () => $L('Approved, declined, and added to your library'), 'library_add'),
+					notificationRow('notifyOnIssues', () => $L('Issue Updates'), () => $L('New issues, replies, and resolutions'), 'report_problem_outlined'),
+					notificationRow('notifyOnNewMedia', () => $L('New Media Added'), () => $L('Anything new added to the server library'), 'new_releases_outlined'),
 					{kind: KIND.INFO, id: 'seerrVariant', label: () => $L('Detected Variant'), value: (ctx) => $L('{seerrLabel} (Seerr v3+)').replace('{seerrLabel}', ctx.seerrLabel), when: (ctx) => ctx.isSeerr, icon: 'info_outline'}
 				]
 			},
