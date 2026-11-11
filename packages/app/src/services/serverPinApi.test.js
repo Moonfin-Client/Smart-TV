@@ -5,6 +5,12 @@ import {
 import {platformFetch} from './secureFetch';
 
 jest.mock('./secureFetch', () => ({platformFetch: jest.fn()}));
+const mockCompanion = {fetch: jest.fn(), present: true};
+jest.mock('./moonbaseEndpoint', () => ({
+	moonbaseEndpoint: async (base, token, type) => (type === 'plex' && mockCompanion.present
+		? {base: 'http://plex:32500', headers: {'X-Plex-Token': token}, fetch: mockCompanion.fetch}
+		: null)
+}));
 const mockSilo = {profileHasPin: jest.fn(), verifyProfilePin: jest.fn(), setProfilePin: jest.fn()};
 jest.mock('./jellyfinApi', () => ({
 	getAuthHeaderFor: (type, token) => `MediaBrowser Token="${token}"`,
@@ -35,6 +41,31 @@ describe('getServerPinStatus', () => {
 		await expect(getServerPinStatus(account)).resolves.toBeNull();
 		platformFetch.mockRejectedValueOnce(new Error('offline'));
 		await expect(getServerPinStatus(account)).resolves.toBeNull();
+	});
+});
+
+describe('on Plex', () => {
+	const plexAccount = {serverUrl: 'http://plex:32400', accessToken: 'pms', serverType: 'plex'};
+
+	beforeEach(() => {
+		mockCompanion.fetch.mockReset();
+		mockCompanion.present = true;
+	});
+
+	it('asks Moonbase for Plex beside the server, signed with the PMS token', async () => {
+		mockCompanion.fetch.mockResolvedValueOnce(reply(200, {valid: true}));
+		await expect(verifyServerPin(plexAccount, '1234')).resolves.toEqual({result: PIN_VALID});
+		const [url, options] = mockCompanion.fetch.mock.calls[0];
+		expect(url).toBe('http://plex:32500/Moonfin/Pin/Verify');
+		expect(options.headers).toEqual({'X-Plex-Token': 'pms', 'Content-Type': 'application/json'});
+		expect(platformFetch).not.toHaveBeenCalled();
+	});
+
+	it("can't say without the companion, so the PIN on the device decides", async () => {
+		mockCompanion.present = false;
+		await expect(getServerPinStatus(plexAccount)).resolves.toBeNull();
+		await expect(verifyServerPin(plexAccount, '1234')).resolves.toEqual({result: PIN_UNAVAILABLE});
+		expect(mockCompanion.fetch).not.toHaveBeenCalled();
 	});
 });
 

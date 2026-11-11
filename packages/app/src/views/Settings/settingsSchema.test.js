@@ -11,7 +11,7 @@ import {buildSettingsIndex, matchSettings, resultSpotlightId} from './settingsSe
 // a key that does not exist writes junk into settings, and a repeated spotlight id makes
 // a deep linked search result focus the wrong row.
 
-const CUSTOM_RENDERERS = ['moonbasePlugin', 'seerrPanel', 'rommPanel', 'aboutHeader', 'aboutDataActions', 'subtitlePreview', 'imageCacheActions', 'checkForUpdates', 'playbackTimePreview', 'screensaverPreview', 'loadingAnimationPreview', 'trickplayPreview'];
+const CUSTOM_RENDERERS = ['moonbaseAddress', 'moonbasePlugin', 'seerrPanel', 'rommPanel', 'aboutHeader', 'aboutDataActions', 'subtitlePreview', 'imageCacheActions', 'checkForUpdates', 'playbackTimePreview', 'screensaverPreview', 'loadingAnimationPreview', 'trickplayPreview'];
 const KEYED = [KIND.TOGGLE, KIND.OPTION, KIND.SLIDER];
 
 // Enough of a context that every label, value and condition can be called.
@@ -115,11 +115,14 @@ describe('settings schema', () => {
 	describe('Moonbase plugin screen', () => {
 		const pluginScreen = () => allScreens().find(({category, sub}) => category.id === 'account' && sub.id === 'settingsSync').sub;
 
-		test('Settings Sync is the Moonbase block and nothing else', () => {
+		test('Settings Sync is the Moonbase block, under the Moonbase Address on Plex only', () => {
 			const rows = pluginScreen().rows;
 
-			expect(rows).toHaveLength(1);
-			expect(rows[0]).toMatchObject({kind: KIND.CUSTOM, render: 'moonbasePlugin'});
+			expect(rows).toHaveLength(2);
+			expect(rows[0]).toMatchObject({kind: KIND.CUSTOM, render: 'moonbaseAddress'});
+			expect(rows[0].when(ctx)).toBe(false);
+			expect(rows[0].when({...ctx, serverType: 'plex'})).toBe(true);
+			expect(rows[1]).toMatchObject({kind: KIND.CUSTOM, render: 'moonbasePlugin'});
 		});
 
 		test('has no other row for the plugin switch, its status or the profile picker', () => {

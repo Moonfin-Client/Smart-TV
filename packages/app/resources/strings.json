@@ -1146,7 +1146,6 @@
 	"This device to server": "This device to server",
 	"This isn't available": "This isn't available",
 	"This Emby server needs the Moonfin plugin, with client log upload turned on.": "This Emby server needs the Moonfin plugin, with client log upload turned on.",
-	"Plex servers don't take client logs.": "Plex servers don't take client logs.",
 	"This only changes rows for a single collection added in Rows. The Collections row looks the same.": "This only changes rows for a single collection added in Rows. The Collections row looks the same.",
 	"This party is full.": "This party is full.",
 	"This showing started 1 minute ago, so the recording will miss the start.": "This showing started 1 minute ago, so the recording will miss the start.",
@@ -2858,7 +2857,6 @@
 	"Works with Jellyfin, Emby and Silo. A Plex address opens the Plex sign-in.": "Works with Jellyfin, Emby and Silo. A Plex address opens the Plex sign-in.",
 	"This Silo server needs a newer version of Moonfin. Update Moonfin to use it.": "This Silo server needs a newer version of Moonfin. Update Moonfin to use it.",
 	"This Silo server is too old for this version of Moonfin. Update Silo to use it.": "This Silo server is too old for this version of Moonfin. Update Silo to use it.",
-	"Silo servers don't take client logs.": "Silo servers don't take client logs.",
 	"This account's password has to be changed in Silo's web app before signing in here.": "This account's password has to be changed in Silo's web app before signing in here.",
 	"The password changed. Sign in with the new one.": "The password changed. Sign in with the new one.",
 	"This account's password has to be changed before signing in. Choose a new one of at least {count} characters.": "This account's password has to be changed before signing in. Choose a new one of at least {count} characters.",
@@ -3104,5 +3102,9 @@
 	"Issue Updates": "Issue Updates",
 	"New issues, replies, and resolutions": "New issues, replies, and resolutions",
 	"New Media Added": "New Media Added",
-	"Anything new added to the server library": "Anything new added to the server library"
+	"Anything new added to the server library": "Anything new added to the server library",
+	"Moonbase Address": "Moonbase Address",
+	"Plex Account": "Plex Account",
+	"Use the Plex account you signed in with": "Use the Plex account you signed in with",
+	"This server needs Moonbase, with client log upload turned on.": "This server needs Moonbase, with client log upload turned on."
 }

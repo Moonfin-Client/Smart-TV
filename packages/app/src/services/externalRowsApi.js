@@ -1,4 +1,5 @@
-import {api, getAuthHeader, getServerType, getServerUrl, getUserId} from './jellyfinApi';
+import {api, getApiKey, getAuthHeader, getServerType, getServerUrl, getUserId} from './jellyfinApi';
+import {moonbaseEndpoint} from './moonbaseEndpoint';
 import {fetchWithTimeout} from '../utils/fetchTimeout';
 import {mediaServerQueue} from '../utils/requestQueue';
 
@@ -16,6 +17,20 @@ const CACHE_TTL_MS = 30 * 60 * 1000;
 // own row, not the last one's.
 const cacheScope = () => `${getServerUrl() || ''}|${getUserId() || ''}`;
 const cacheKeyFor = (source, type, params, language) => `${cacheScope()}|${source}:${type}:${JSON.stringify(params || {})}:${(language || '').toLowerCase()}`;
+
+// A GET to the Moonfin plugin, which on Plex is Moonbase for Plex beside the server. The server and token are read
+// before anything waits, so a request still queued when the account changes answers for the account it was made for.
+// Null when a Plex server has no companion.
+const moonbaseGet = async (path, {signal, timeoutMs = 10000} = {}) => {
+	const server = getServerUrl();
+	const endpoint = getServerType() === 'plex'
+		? await moonbaseEndpoint(server, getApiKey())
+		: {base: server, headers: {'Authorization': getAuthHeader()}};
+	if (!endpoint) return null;
+	const options = {headers: endpoint.headers};
+	if (signal) options.signal = signal;
+	return mediaServerQueue.run(() => (endpoint.fetch || fetchWithTimeout)(`${endpoint.base}${path}`, options, timeoutMs));
+};
 
 const normalizeItem = (raw) => {
 	const providerIds = raw.providerIds || raw.ProviderIds || {};
@@ -62,26 +77,20 @@ export const fetchCustomRow = async ({source, type, params = {}}, options = {}) 
 		}
 	}
 
-	const baseUrl = getServerUrl();
-	if (!baseUrl) return [];
+	if (!getServerUrl()) return [];
 
 	try {
 		// refresh=true makes the plugin bypass and overwrite its cached entry, so
 		// the refreshed list is what every other device sees too.
-		const url = `${baseUrl}/Moonfin/CustomRows/Items`
+		const path = '/Moonfin/CustomRows/Items'
 			+ `?source=${encodeURIComponent(source)}`
 			+ `&type=${encodeURIComponent(type)}`
 			+ `&params=${encodeURIComponent(JSON.stringify(params))}`
 			+ (language ? `&language=${encodeURIComponent(language)}` : '')
 			+ (options.forceRefresh ? '&refresh=true' : '');
 
-		const fetchOptions = {headers: {'Authorization': getAuthHeader()}};
-		if (options.signal) fetchOptions.signal = options.signal;
-
-		const response = await mediaServerQueue.run(
-			() => fetchWithTimeout(url, fetchOptions, options.timeoutMs || 10000)
-		);
-		if (!response.ok) return cache[key]?.items || [];
+		const response = await moonbaseGet(path, {signal: options.signal, timeoutMs: options.timeoutMs});
+		if (!response?.ok) return cache[key]?.items || [];
 
 		const data = await response.json();
 		const success = data.success ?? data.Success;
@@ -100,21 +109,18 @@ export const fetchCustomRow = async ({source, type, params = {}}, options = {}) 
 // What TMDB holds for a title the server doesn't have, through Moonbase. Null when the plugin
 // has nothing for it, which it says with a 404. An IMDb id is only used without a TMDB id.
 export const fetchTmdbDetails = async ({type, tmdbId, imdbId}) => {
-	const baseUrl = getServerUrl();
 	let id = null;
 	if (tmdbId) id = `tmdbId=${encodeURIComponent(tmdbId)}`;
 	else if (imdbId) id = `imdbId=${encodeURIComponent(imdbId)}`;
-	if (!baseUrl || !id) return null;
+	if (!getServerUrl() || !id) return null;
 
 	const key = `${cacheScope()}|details:${type}:${id}`;
 	const cached = cache[key];
 	if (cached && (Date.now() - cached.fetchedAt) < CACHE_TTL_MS) return cached.details;
-	const headers = {'Authorization': getAuthHeader()};
 
 	try {
-		const url = `${baseUrl}/Moonfin/Tmdb/Details?type=${type === 'tv' ? 'tv' : 'movie'}&${id}`;
-		const response = await mediaServerQueue.run(() => fetchWithTimeout(url, {headers}, 10000));
-		if (!response.ok && response.status !== 404) return null;
+		const response = await moonbaseGet(`/Moonfin/Tmdb/Details?type=${type === 'tv' ? 'tv' : 'movie'}&${id}`);
+		if (!response || (!response.ok && response.status !== 404)) return null;
 		const details = response.ok ? await response.json() : null;
 		cache[key] = {details, fetchedAt: Date.now()};
 		return details;
@@ -153,19 +159,12 @@ export const fetchSeasonalRow = async ({country, allYear = false} = {}) => {
 		return cached.payload;
 	}
 
-	const baseUrl = getServerUrl();
-	if (!baseUrl) return null;
-	// Read alongside the key, so a request still queued when the account changes answers for
-	// the account the key belongs to.
-	const headers = {'Authorization': getAuthHeader()};
+	if (!getServerUrl()) return null;
 
 	try {
 		const query = [country && `country=${encodeURIComponent(country)}`, allYear && 'allYear=true'].filter(Boolean).join('&');
-		const url = `${baseUrl}/Moonfin/Seasonal/Row` + (query ? `?${query}` : '');
-		const response = await mediaServerQueue.run(
-			() => fetchWithTimeout(url, {headers}, 10000)
-		);
-		if (!response.ok) return cache[key]?.payload || null;
+		const response = await moonbaseGet('/Moonfin/Seasonal/Row' + (query ? `?${query}` : ''));
+		if (!response?.ok) return cache[key]?.payload || null;
 
 		const data = await response.json();
 		const payload = {

@@ -3,6 +3,8 @@ import * as seerrApi from '../services/seerrApi';
 import {getFromStorage, saveToStorage, removeFromStorage} from '../services/storage';
 import {useSettings} from './SettingsContext';
 import {useAuth} from './AuthContext';
+import {getActiveServer, getAllServersArray} from '../services/multiServerManager';
+import {isPlexServer, registerPlexServer} from '../utils/plexUrls';
 
 const SeerrContext = createContext(null);
 
@@ -10,6 +12,27 @@ const normalizeMoonfinAuthType = (authType) => (authType === 'local' ? 'local' :
 
 const STREAM_RECONNECT_MIN_MS = 5000;
 const STREAM_RECONNECT_MAX_MS = 60000;
+
+// Seerr's Plex sign in takes the plex.tv token of the account signed in to the app.
+const plexAccountToken = async () => (await getActiveServer().catch(() => null))?.plexToken || null;
+
+// Set once Moonbase for Plex says it can't sign Plex accounts in to Seerr. Kept in memory only, so an upgrade or a
+// restart tries again.
+let plexSignInRefused = false;
+
+// Signs a Plex viewer in to Seerr with their own Plex account, the way Jellyfin's Quick Connect does, and answers
+// the status after. Null when that couldn't happen.
+const signInWithPlex = async () => {
+	const authToken = plexSignInRefused ? null : await plexAccountToken();
+	if (!authToken) return null;
+	try {
+		await seerrApi.moonfinLogin('', '', 'plex', authToken);
+		return await seerrApi.getMoonfinStatus();
+	} catch (e) {
+		if (e.code === 'plex_unsupported') plexSignInRefused = true;
+		return null;
+	}
+};
 
 export const SeerrProvider = ({children}) => {
 	const {settings, syncFromServer} = useSettings();
@@ -116,6 +139,9 @@ export const SeerrProvider = ({children}) => {
 					}
 				}
 				if (config?.moonfin) {
+					// The api registers a Plex server once its session is back, and this can run first.
+					const saved = (await getAllServersArray().catch(() => [])).find((entry) => entry.accessToken === config.jellyfinAccessToken);
+					if (saved?.serverType === 'plex') registerPlexServer(config.jellyfinServerUrl, config.jellyfinAccessToken);
 					const initialAuthType = normalizeMoonfinAuthType(config.moonfinAuthType);
 					setMoonfinAuthTypeState(initialAuthType);
 					seerrApi.setMoonfinConfig(config.jellyfinServerUrl, config.jellyfinAccessToken);
@@ -182,16 +208,29 @@ export const SeerrProvider = ({children}) => {
 		seerrApi.setMoonfinConfig(jellyfinServer, token);
 		configuredTokenRef.current = token;
 		seerrApi.setMoonfinMode(true);
+		// The last server's answers and stream aren't this one's.
+		stopSettingsStream();
+		setPluginInfo(null);
 
 		const existingConfig = await getFromStorage('seerr');
 		const savedAuthType = normalizeMoonfinAuthType(existingConfig?.moonfinAuthType);
 		setMoonfinAuthTypeState(savedAuthType);
 
-		const [status, pingResult, configResult] = await Promise.all([
-			seerrApi.getMoonfinStatus(),
+		const onPlex = isPlexServer(jellyfinServer);
+		const [firstStatus, pingResult, configResult] = await Promise.all([
+			// An older Moonbase for Plex has no Seerr routes, which is the same as Seerr being off.
+			seerrApi.getMoonfinStatus().catch((e) => {
+				if (onPlex) return null;
+				throw e;
+			}),
 			seerrApi.moonfinPing(jellyfinServer, token).catch(() => null),
 			seerrApi.getMoonfinConfig(jellyfinServer, token).catch(() => null)
 		]);
+		// A Plex server without Moonbase for Plex is one without the plugin.
+		if (onPlex && !pingResult) throw new Error('No Moonbase for Plex on this server');
+		const status = onPlex && firstStatus?.enabled && !firstStatus.authenticated
+			? (await signInWithPlex()) || firstStatus
+			: firstStatus;
 
 		if (pingResult) {
 			setPluginInfo(pingResult);
@@ -250,7 +289,7 @@ export const SeerrProvider = ({children}) => {
 
 			return {authenticated: false, url: status?.url};
 		}
-	}, [syncFromServer, startSettingsStream]);
+	}, [syncFromServer, startSettingsStream, stopSettingsStream]);
 
 	// The Seerr identity is decided by the Jellyfin token we hand the plugin, so a
 	// user switch has to re-push the now-active token. Without this the previous
@@ -261,19 +300,13 @@ export const SeerrProvider = ({children}) => {
 		// Stored config settles this on its own, so waiting for it to load keeps the two
 		// from configuring the same token at once.
 		if (isLoading) return;
-		// Seerr goes through the plugin, and a Plex server has none.
-		if (authServerType === 'plex') {
-			configuredTokenRef.current = null;
-			stopSettingsStream();
-			return;
-		}
 		if (!pluginEnabled && !(isEnabled && isMoonfin)) return;
 		if (!authAccessToken || !authServerUrl) return;
 		if (authAccessToken === configuredTokenRef.current) return;
 		configureWithMoonfin(authServerUrl, authAccessToken).catch(e =>
 			console.log('[Seerr] Configure against the plugin failed:', e.message)
 		);
-	}, [authAccessToken, authServerUrl, authServerType, isLoading, pluginEnabled, isEnabled, isMoonfin, configureWithMoonfin, stopSettingsStream]);
+	}, [authAccessToken, authServerUrl, isLoading, pluginEnabled, isEnabled, isMoonfin, configureWithMoonfin]);
 
 	// Silo's requests answer for a profile, which a start up from the stored config can ask for before the
 	// signed in profile is back. The status is asked again once it is, and whenever the profile changes,
@@ -297,7 +330,8 @@ export const SeerrProvider = ({children}) => {
 
 	const loginWithMoonfin = useCallback(async (username, password, authType = 'jellyfin') => {
 		const normalizedAuthType = normalizeMoonfinAuthType(authType);
-		await seerrApi.moonfinLogin(username, password, normalizedAuthType);
+		if (authType === 'plex') await seerrApi.moonfinLogin(username, password, 'plex', await plexAccountToken());
+		else await seerrApi.moonfinLogin(username, password, normalizedAuthType);
 		const status = await seerrApi.getMoonfinStatus();
 		if (status?.authenticated) {
 			const userData = {
@@ -379,7 +413,8 @@ export const SeerrProvider = ({children}) => {
 
 	return (
 		<SeerrContext.Provider value={{
-			isEnabled: isEnabled && authServerType !== 'plex',
+			// Most Plex servers have no Moonbase for Plex, and Seerr only comes through one that answered.
+			isEnabled: isEnabled && (authServerType !== 'plex' || Boolean(pluginInfo)),
 			isAuthenticated,
 			isLoading,
 			user,
@@ -387,8 +422,7 @@ export const SeerrProvider = ({children}) => {
 			isMoonfin,
 			variant,
 			displayName,
-			// A Plex server has no plugin, and the last one's answer would light up its features there.
-			pluginInfo: authServerType === 'plex' ? null : pluginInfo,
+			pluginInfo,
 			moonfinAuthType,
 			api: seerrApi,
 			configureWithMoonfin,

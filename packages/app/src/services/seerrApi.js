@@ -3,7 +3,7 @@ import {fetchWithTimeout} from '../utils/fetchTimeout';
 import {mediaServerQueue} from '../utils/requestQueue';
 import {normalizeWatchlistBody} from './seerrApi.watchlistShape';
 import {sharePending} from '../utils/sharePending';
-import {isPlexUrl} from '../utils/plexUrls';
+import {isPlexUrl, plexServerOf} from '../utils/plexUrls';
 import {isSiloLogin, moonbaseEndpoint} from './moonbaseEndpoint';
 import {createApiForServer, getUserId} from './jellyfinApi';
 import {createSiloSeerr} from './siloSeerr';
@@ -48,13 +48,9 @@ const siloSeerrReady = async () => {
 	return siloSeerrNow();
 };
 
-const fetchRequest = async (params) => {
-	const {url, method = 'GET', headers = {}, body, timeout = 15000} = params;
-	// Plex never has the plugin, so its requests are answered here instead of going out.
-	if (isPlexUrl(url)) return {success: true, status: 404, headers: {}, body: ''};
-
+const sendRequest = async ({url, method = 'GET', headers = {}, body, timeout = 15000, fetch: send}) => {
 	try {
-		const response = await mediaServerQueue.run(() => fetchWithTimeout(url, {
+		const response = await mediaServerQueue.run(() => (send || fetchWithTimeout)(url, {
 			method,
 			headers,
 			body: body || undefined
@@ -81,12 +77,23 @@ const fetchRequest = async (params) => {
 	}
 };
 
+// Plex can't run plugins, so a plugin route on a Plex server goes to Moonbase for Plex beside it, and a server
+// without one answers as one without the plugin. The companion's address is sent as it is, since it can sit under
+// the Plex server's own address behind a proxy.
+const fetchRequest = async (params) => {
+	const plex = plexServerOf(params.url);
+	if (!plex) return sendRequest(params);
+	const endpoint = await moonbaseEndpoint(plex.base, plex.token, 'plex');
+	if (!endpoint) return {success: true, status: 404, headers: {}, body: ''};
+	return sendRequest({...params, url: `${endpoint.base}${params.url.slice(plex.base.length)}`, headers: {...params.headers, ...endpoint.headers}, fetch: endpoint.fetch});
+};
+
 // A request to one of Moonbase's own routes, signed the way this server wants. A server without Moonbase answers as one
 // without the plugin.
 const moonbaseFetch = async (sUrl, sToken, path, params) => {
 	const endpoint = await moonbaseEndpoint(sUrl, sToken);
 	if (!endpoint) return {success: true, status: 404, headers: {}, body: ''};
-	return fetchRequest({...params, url: `${endpoint.base}${path}`, headers: {...params.headers, ...endpoint.headers}});
+	return sendRequest({...params, url: `${endpoint.base}${path}`, headers: {...params.headers, ...endpoint.headers}, fetch: endpoint.fetch});
 };
 
 // What a server said went wrong, capped. The message ends up in the diagnostic
@@ -181,13 +188,17 @@ const moonfinAuthRequest = async (url, method, headers, body, timeout = 15000) =
 	if (!result.success) throw new Error(result.error || 'Network error');
 	if (result.status >= 400) {
 		let errorMessage = `Moonfin request failed: ${result.status}`;
+		let errorCode = null;
 		if (result.body) {
 			try {
-				errorMessage = errorDetail(JSON.parse(result.body)) || errorMessage;
+				const parsed = JSON.parse(result.body);
+				errorMessage = errorDetail(parsed) || errorMessage;
+				errorCode = parsed?.errorCode || null;
 			} catch (e) { void e; }
 		}
 		const error = new Error(errorMessage);
 		error.status = result.status;
+		if (errorCode) error.code = errorCode;
 		throw error;
 	}
 
@@ -227,7 +238,8 @@ export const getMoonfinStatus = async () => {
 	}
 };
 
-export const moonfinLogin = async (username, password, authType = 'jellyfin') => {
+// A Plex account signs in with its plex.tv token (authToken), through Moonbase for Plex.
+export const moonfinLogin = async (username, password, authType = 'jellyfin', authToken = null) => {
 	if (!jellyfinServerUrl || !jellyfinAccessToken) {
 		throw new Error('Moonfin not configured');
 	}
@@ -238,7 +250,7 @@ export const moonfinLogin = async (username, password, authType = 'jellyfin') =>
 		const status = await silo.status();
 		return {success: status.authenticated, ...status};
 	}
-	const normalizedAuthType = authType === 'local' ? 'local' : 'jellyfin';
+	const normalizedAuthType = authType === 'local' || authType === 'plex' ? authType : 'jellyfin';
 
 	return moonfinAuthRequest(
 `${jellyfinServerUrl}/Moonfin/Seerr/Login`,
@@ -248,7 +260,7 @@ export const moonfinLogin = async (username, password, authType = 'jellyfin') =>
 	'Accept': 'application/json',
 	'Authorization': `MediaBrowser Token="${jellyfinAccessToken}"`
 },
-JSON.stringify({username, password, authType: normalizedAuthType}),
+JSON.stringify(normalizedAuthType === 'plex' ? {authType: 'plex', authToken} : {username, password, authType: normalizedAuthType}),
 30000
 	);
 };
@@ -611,7 +623,6 @@ export const subscribeMoonfinSettingsStream = (serverUrl, token, onEvent, onErro
 	if (!sUrl || !sToken) {
 		throw new Error('Server URL and token required');
 	}
-	if (isPlexUrl(sUrl)) throw new Error('Plex servers have no settings stream');
 	// Silo can't stream a plugin's answer, so settings arrive at sign-in and on a manual sync.
 	if (isSiloLogin(sUrl, sToken)) throw new Error('Silo servers have no settings stream');
 
@@ -636,13 +647,13 @@ export const subscribeMoonfinSettingsStream = (serverUrl, token, onEvent, onErro
 		}
 	};
 
-	const connectWithEventSource = () => {
+	const connectWithEventSource = (base) => {
 		const EventSourceCtor = typeof globalThis !== 'undefined' ? globalThis.EventSource : undefined;
 		if (typeof EventSourceCtor === 'undefined') {
 			return false;
 		}
 
-		const streamUrl = `${sUrl}/Moonfin/Settings/Stream?ApiKey=${encodeURIComponent(sToken)}`;
+		const streamUrl = `${base}/Moonfin/Settings/Stream?${isPlexUrl(sUrl) ? 'X-Plex-Token' : 'ApiKey'}=${encodeURIComponent(sToken)}`;
 		try {
 			eventSource = new EventSourceCtor(streamUrl);
 		} catch (error) {
@@ -672,11 +683,15 @@ export const subscribeMoonfinSettingsStream = (serverUrl, token, onEvent, onErro
 
 	const run = async () => {
 		try {
-			const response = await fetch(`${sUrl}/Moonfin/Settings/Stream`, {
+			// On Plex this is Moonbase for Plex. The shell only hands a body over once it's whole, so the stream takes the
+			// page's own fetch, which the companion lets any origin use.
+			const endpoint = await moonbaseEndpoint(sUrl, sToken);
+			if (!endpoint) throw new Error('No Moonbase on this server');
+			const response = await fetch(`${endpoint.base}/Moonfin/Settings/Stream`, {
 				method: 'GET',
 				headers: {
 					'Accept': 'text/event-stream',
-					'Authorization': `MediaBrowser Token="${sToken}"`
+					...endpoint.headers
 				},
 				signal: controller?.signal
 			});
@@ -688,7 +703,7 @@ export const subscribeMoonfinSettingsStream = (serverUrl, token, onEvent, onErro
 			}
 
 			if (!response.body || typeof response.body.getReader !== 'function') {
-				if (connectWithEventSource()) {
+				if (connectWithEventSource(endpoint.base)) {
 					return;
 				}
 				throw new Error('Moonfin settings stream is not supported on this device');

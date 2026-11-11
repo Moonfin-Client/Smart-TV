@@ -3,7 +3,6 @@ import {moonbaseAssetUrl, moonbaseEndpoint} from './moonbaseEndpoint';
 import {mediaServerQueue} from '../utils/requestQueue';
 import {RATING_SETTING_KEYS, ratingKey} from '../utils/ratingSources';
 import {fetchWithTimeout} from '../utils/fetchTimeout';
-import {isPlexServer, plexMoonbaseUrl} from '../utils/plexUrls';
 
 const cache = {};
 const CACHE_TTL_MS = 30 * 60 * 1000;
@@ -219,7 +218,7 @@ export const fetchRatings = async (serverUrl, item, options = {}) => {
 		}
 		// Share the media server concurrency cap so arrowing across a row doesn't
 		// spawn a burst of uncapped requests competing with image loads.
-		const response = await mediaServerQueue.run(() => fetch(url, fetchOptions));
+		const response = await mediaServerQueue.run(() => (endpoint.fetch || fetch)(url, fetchOptions));
 
 		if (!response.ok) {
 			negativeCache[cacheKey] = Date.now();
@@ -297,7 +296,7 @@ export const fetchEpisodeRatings = async (serverUrl, item, options = {}) => {
 		const url = `${endpoint.base}/Moonfin/Tmdb/EpisodeRating?tmdbId=${encodeURIComponent(seriesTmdbId)}&season=${encodeURIComponent(season)}&episode=${encodeURIComponent(episode)}`;
 		const fetchOptions = {headers: endpoint.headers};
 		if (options.signal) fetchOptions.signal = options.signal;
-		const response = await mediaServerQueue.run(() => fetch(url, fetchOptions));
+		const response = await mediaServerQueue.run(() => (endpoint.fetch || fetch)(url, fetchOptions));
 		if (!response.ok) {
 			negativeCache[cacheKey] = Date.now();
 			return [];
@@ -368,7 +367,7 @@ export const fetchTmdbSeasonRatings = async (serverUrl, tmdbId, season, options 
 			headers: endpoint.headers
 		};
 		if (options.signal) fetchOptions.signal = options.signal;
-		const response = await fetch(url, fetchOptions);
+		const response = await (endpoint.fetch || fetch)(url, fetchOptions);
 		if (!response.ok) return null;
 		const data = await response.json();
 		if (data?.success) {
@@ -391,8 +390,7 @@ export const __resetWatchingNowCache = () => {
 };
 
 export const fetchWatchingNow = async (serverUrl, options = {}) => {
-	const server = serverUrl || getServerUrl();
-	const baseUrl = isPlexServer(server) ? plexMoonbaseUrl(server) : server;
+	const baseUrl = serverUrl || getServerUrl();
 	if (!baseUrl) return null;
 	const cacheKey = `${baseUrl}|watching_now`;
 	if (!options.forceRefresh) {
@@ -410,7 +408,7 @@ export const fetchWatchingNow = async (serverUrl, options = {}) => {
 		};
 		if (options.signal) fetchOptions.signal = options.signal;
 		const response = await mediaServerQueue.run(
-			() => fetchWithTimeout(url, fetchOptions, options.timeoutMs || 10000)
+			() => (endpoint.fetch || fetchWithTimeout)(url, fetchOptions, options.timeoutMs || 10000)
 		);
 		if (!response.ok) return watchingNowCache[cacheKey]?.data || null;
 		const data = await response.json();

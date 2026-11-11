@@ -11,8 +11,11 @@ jest.mock('./jellyfinApi', () => ({
 	},
 	getServerUrl: () => 'http://server',
 	getUserId: () => 'user',
-	getAuthHeader: () => 'MediaBrowser Token="test-token"'
+	getAuthHeader: () => 'MediaBrowser Token="test-token"',
+	getApiKey: () => 'test-token'
 }));
+const mockMoonbase = {endpoint: null};
+jest.mock('./moonbaseEndpoint', () => ({moonbaseEndpoint: async () => mockMoonbase.endpoint}));
 
 const mockJsonResponse = (data, status = 200) => ({
 	ok: status >= 200 && status < 300,
@@ -24,6 +27,8 @@ describe('externalRowsApi', () => {
 	beforeEach(() => {
 		__resetExternalRowCache();
 		fetchWithTimeout.mockReset();
+		mockSilo.type = 'jellyfin';
+		mockMoonbase.endpoint = null;
 	});
 
 	describe('fetchCustomRow', () => {
@@ -63,6 +68,25 @@ describe('externalRowsApi', () => {
 			expect(calledUrl).toContain('source=mdblist');
 			expect(calledUrl).toContain('type=list_url');
 			expect(calledUrl).not.toContain('&language=');
+		});
+
+		it('asks Moonbase for Plex beside a Plex server, the way the companion is reached', async () => {
+			const companionFetch = jest.fn().mockResolvedValue(mockJsonResponse({success: true, items: serverItems}));
+			mockSilo.type = 'plex';
+			mockMoonbase.endpoint = {base: 'http://plex:32500', headers: {'X-Plex-Token': 'test-token'}, fetch: companionFetch};
+
+			expect(await fetchCustomRow(requestArgs)).toHaveLength(1);
+			expect(companionFetch.mock.calls[0][0]).toMatch(/^http:\/\/plex:32500\/Moonfin\/CustomRows\/Items\?source=mdblist/);
+			expect(companionFetch.mock.calls[0][1].headers).toEqual({'X-Plex-Token': 'test-token'});
+			expect(fetchWithTimeout).not.toHaveBeenCalled();
+		});
+
+		it('has no row from a Plex server without Moonbase for Plex', async () => {
+			mockSilo.type = 'plex';
+			mockMoonbase.endpoint = null;
+
+			expect(await fetchCustomRow(requestArgs)).toEqual([]);
+			expect(fetchWithTimeout).not.toHaveBeenCalled();
 		});
 
 		it('appends language query parameter when options.language is provided', async () => {

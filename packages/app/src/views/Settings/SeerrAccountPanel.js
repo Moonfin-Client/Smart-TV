@@ -12,6 +12,7 @@ import css from './Settings.module.less';
 // shows the connection once signed in, and the sign in form the rest of the time.
 const SeerrAccountPanel = ({
 	pluginEnabled,
+	plex,
 	seerr,
 	seerrLabel,
 	authType,
@@ -29,6 +30,11 @@ const SeerrAccountPanel = ({
 }) => {
 	const seerrDisabledByServer = seerr.pluginInfo?.seerrEnabled === false;
 	const signedIn = seerr.isEnabled && seerr.isAuthenticated && seerr.isMoonfin;
+	// On Plex the first choice signs in with the Plex account signed in to the app, so it asks for nothing.
+	const plexAccount = plex && authType !== 'local';
+	let methodLabel = $L('Jellyfin Account');
+	if (authType === 'local') methodLabel = $L('Local Account');
+	else if (plex) methodLabel = $L('Plex Account');
 
 	return (
 		<>
@@ -45,7 +51,7 @@ const SeerrAccountPanel = ({
 			{pluginEnabled && !seerrDisabledByServer && signedIn && (
 				<>
 					<InfoRow id='seerrConnStatus' label={$L('Status')} value={$L('Connected via Moonfin')} />
-					<InfoRow id='seerrAuthType' label={$L('Sign-In Method')} value={authType === 'local' ? $L('Local Account') : $L('Jellyfin Account')} />
+					<InfoRow id='seerrAuthType' label={$L('Sign-In Method')} value={methodLabel} />
 					{seerr.serverUrl && <InfoRow id='seerrUrl' label={$L('{seerrLabel} URL').replace('{seerrLabel}', seerrLabel)} value={seerr.serverUrl} />}
 					{seerr.user && <InfoRow id='seerrUser' label={$L('User')} value={seerr.user.displayName || $L('Moonfin User')} />}
 					<div className={css.actionBarInline}>
@@ -71,8 +77,8 @@ const SeerrAccountPanel = ({
 						spotlightId='seerr-auth-jellyfin'
 					>
 						<div className={css.listItemBody}>
-							<div className={css.listItemHeading}>{$L('Jellyfin Account')}</div>
-							<div className={css.listItemCaption}>{$L('Use your Jellyfin username and password')}</div>
+							<div className={css.listItemHeading}>{plex ? $L('Plex Account') : $L('Jellyfin Account')}</div>
+							<div className={css.listItemCaption}>{plex ? $L('Use the Plex account you signed in with') : $L('Use your Jellyfin username and password')}</div>
 						</div>
 						<div className={css.listItemTrailing}>{renderCheck(authType === 'jellyfin')}</div>
 					</SpottableDiv>
@@ -88,41 +94,45 @@ const SeerrAccountPanel = ({
 						<div className={css.listItemTrailing}>{renderCheck(authType === 'local')}</div>
 					</SpottableDiv>
 
-					<div className={css.inputGroup}>
-						<label>{$L('Username / Email')}</label>
-						<SpottableInput
-							className={css.input}
-							type='text'
-							purpose={authType === 'local' ? 'email' : 'username'}
-							value={username}
-							onChange={(e) => onUsernameChange(e.target.value)}
-							placeholder={authType === 'local' ? $L('Local username or email') : $L('Jellyfin username')}
-							autoComplete='username'
-							disabled={submitting}
-							spotlightId='seerr-username-input'
-						/>
-					</div>
+					{!plexAccount && (
+						<>
+							<div className={css.inputGroup}>
+								<label>{$L('Username / Email')}</label>
+								<SpottableInput
+									className={css.input}
+									type='text'
+									purpose={authType === 'local' ? 'email' : 'username'}
+									value={username}
+									onChange={(e) => onUsernameChange(e.target.value)}
+									placeholder={authType === 'local' ? $L('Local username or email') : $L('Jellyfin username')}
+									autoComplete='username'
+									disabled={submitting}
+									spotlightId='seerr-username-input'
+								/>
+							</div>
 
-					<div className={css.inputGroup}>
-						<label>{$L('Password')}</label>
-						<SpottableInput
-							className={css.input}
-							type='password'
-							purpose='password'
-							value={password}
-							onChange={(e) => onPasswordChange(e.target.value)}
-							onKeyDown={onPasswordKeyDown}
-							autoComplete='current-password'
-							disabled={submitting}
-							spotlightId='seerr-password-input'
-						/>
-					</div>
+							<div className={css.inputGroup}>
+								<label>{$L('Password')}</label>
+								<SpottableInput
+									className={css.input}
+									type='password'
+									purpose='password'
+									value={password}
+									onChange={(e) => onPasswordChange(e.target.value)}
+									onKeyDown={onPasswordKeyDown}
+									autoComplete='current-password'
+									disabled={submitting}
+									spotlightId='seerr-password-input'
+								/>
+							</div>
+						</>
+					)}
 
 					<div className={css.actionBarInline}>
 						<SpottableButton
 							className={css.actionButton}
 							onClick={onLogin}
-							disabled={submitting || !username.trim()}
+							disabled={submitting || (!plexAccount && !username.trim())}
 							spotlightId='seerr-signin'
 						>
 							{submitting ? $L('Signing In...') : $L('Sign In')}

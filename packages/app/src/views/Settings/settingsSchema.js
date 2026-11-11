@@ -348,6 +348,8 @@ export const SETTINGS_SCHEMA = [
 				menu: false,
 				label: () => $L('Settings Sync'),
 				rows: [
+					// Plex can't run plugins, so Moonbase for Plex is a companion service with an address of its own.
+					{kind: KIND.CUSTOM, id: 'moonbaseAddress', render: 'moonbaseAddress', when: (ctx) => ctx.serverType === 'plex'},
 					// The status card, the profile picker and the sync actions draw as one block.
 					// It keeps the plugin switch's key, so a search for the switch lands on the
 					// card that flips it.
