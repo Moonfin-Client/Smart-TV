@@ -174,9 +174,9 @@ describe('the watchlist tab', () => {
 describe('withWatchlistBackdrops', () => {
 	test('gives a request card the backdrop found for it and leaves the other cards alone', () => {
 		const library = {Id: 'lib-1', Type: 'Movie'};
-		const request = {Id: 'seerr-tv-2', _seerr: true, _seerrMediaType: 'tv', _seerrRaw: {mediaId: 2}, _externalBackdropUrl: null};
-		const hasOne = {Id: 'seerr-movie-3', _seerr: true, _seerrMediaType: 'movie', _seerrRaw: {mediaId: 3}, _externalBackdropUrl: 'own.jpg'};
-		const backdrops = new Map([['tv:2', 'fallen-bg.jpg'], ['movie:3', 'other.jpg']]);
+		const request = {Id: 'seerr-tv-2', _seerr: true, _externalBackdropUrl: null};
+		const hasOne = {Id: 'seerr-movie-3', _seerr: true, _externalBackdropUrl: 'own.jpg'};
+		const backdrops = new Map([['seerr-tv-2', 'fallen-bg.jpg'], ['seerr-movie-3', 'other.jpg']]);
 		const cards = withWatchlistBackdrops([library, request, hasOne], backdrops);
 
 		expect(cards[0]).toBe(library);

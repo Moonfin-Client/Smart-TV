@@ -79,7 +79,7 @@ export const watchlistCards = (libraryItems, requestCards) => {
 
 // The request cards with the backdrops `watchlistBackdrops` found for them; the rest stay as they are.
 export const withWatchlistBackdrops = (cards, backdrops) => (cards || []).map((card) => {
-	const url = card._seerr && !card._externalBackdropUrl && backdrops.get(`${card._seerrMediaType}:${card._seerrRaw?.mediaId}`);
+	const url = !card._externalBackdropUrl && backdrops.get(card.Id);
 	return url ? {...card, _externalBackdropUrl: url} : card;
 });
 

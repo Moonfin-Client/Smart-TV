@@ -1,4 +1,5 @@
 import seerrApi from '../services/seerrApi';
+import {seerrCardId} from './seerrTarget';
 
 const HYDRATION_BATCH_SIZE = 6;
 
@@ -13,6 +14,9 @@ const detailsLookup = () => {
 		return cache.get(key);
 	};
 };
+
+// A watchlist entry the details can be read for: a movie or series with its TMDB id.
+const isTitle = (item) => Boolean(item?.id) && (item.mediaType === 'movie' || item.mediaType === 'tv');
 
 const inBatches = async (items, hydrateOne) => {
 	const hydrated = [];
@@ -67,10 +71,9 @@ export const hydrateWatchlistItems = async (items = []) => {
 	const lookup = detailsLookup();
 
 	return inBatches(items, async (item) => {
-		const type = item?.mediaType;
-		if (!item?.id || item.posterPath || (type !== 'movie' && type !== 'tv')) return item;
+		if (!isTitle(item) || item.posterPath) return item;
 
-		const details = await lookup(type, item.id);
+		const details = await lookup(item.mediaType, item.id);
 		if (!details) return item;
 
 		return {
@@ -90,15 +93,14 @@ export const hydrateWatchlistItems = async (items = []) => {
 };
 
 // Silo's watchlist comes with each title's poster but no backdrop, so a card that has a poster and no
-// backdrop gets the backdrop from the title's details. Keyed by type and TMDB id, as w1280 picture URLs.
+// backdrop gets the backdrop from the title's details. Keyed by card id, as w1280 picture URLs.
 export const watchlistBackdrops = async (items = []) => {
 	const backdrops = new Map();
 	if (!Array.isArray(items)) return backdrops;
 	const lookup = detailsLookup();
-	const missing = items.filter((item) => item?.id && item.posterPath && !item.backdropPath && (item.mediaType === 'movie' || item.mediaType === 'tv'));
-	await inBatches(missing, async (item) => {
+	await inBatches(items.filter((item) => isTitle(item) && item.posterPath && !item.backdropPath), async (item) => {
 		const details = await lookup(item.mediaType, item.id);
-		if (details?.backdropPath) backdrops.set(`${item.mediaType}:${item.id}`, seerrApi.getImageUrl(details.backdropPath, 'w1280'));
+		if (details?.backdropPath) backdrops.set(seerrCardId(item.mediaType, item.id), seerrApi.getImageUrl(details.backdropPath, 'w1280'));
 	});
 	return backdrops;
 };

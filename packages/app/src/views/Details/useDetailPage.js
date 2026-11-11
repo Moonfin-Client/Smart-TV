@@ -44,6 +44,15 @@ export const Icon = ({path, className}) => (
 	</svg>
 );
 
+// A card's picture, or its placeholder when it has none or the picture fails to load.
+const CardImage = ({url, placeholder}) => {
+	const [failed, setFailed] = useState(false);
+	const handleError = useCallback(() => setFailed(true), []);
+	return url && !failed
+		? <img className={css.cardImage} src={url} alt="" onError={handleError} />
+		: <div className={css.cardPlaceholder}>{placeholder}</div>;
+};
+
 const findIn = (list, key) => list.find((candidate) => String(candidate.cardKey || candidate.Id) === key);
 
 export const scrollPage = (scroller, top) => {
@@ -190,9 +199,7 @@ const useDetailPage = (props, {onNavigateUp, onNavigateDown, bleedRight}) => {
 			>
 				<div className={css.cardArt}>
 					<div className={css.cardClip}>
-						{imageUrl
-							? <img className={css.cardImage} src={imageUrl} alt="" />
-							: <div className={css.cardPlaceholder}>{placeholder}</div>}
+						<CardImage key={imageUrl} url={imageUrl} placeholder={placeholder} />
 						{entry.UserData?.IsFavorite && (
 							<div className={css.cardFavorite}><FavoriteHeartIcon /></div>
 						)}

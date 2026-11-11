@@ -46,7 +46,7 @@ describe('watchlistBackdrops', () => {
 		];
 		const backdrops = await watchlistBackdrops(items);
 
-		expect([...backdrops]).toEqual([['movie:1', 'img/mongoose-bg.jpg']]);
+		expect([...backdrops]).toEqual([['seerr-movie-1', 'img/mongoose-bg.jpg']]);
 		expect(seerrApi.getMovie).toHaveBeenCalledTimes(1);
 		expect(seerrApi.getTv).toHaveBeenCalledWith(2);
 	});

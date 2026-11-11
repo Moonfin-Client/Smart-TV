@@ -3,7 +3,7 @@ import seerrApi from '../services/seerrApi';
 import {getServerType} from '../services/jellyfinApi';
 import {seerrGenreBackdrop} from './seerrGenreArt';
 import hydrateRequestMediaItems, {hydrateRecentlyAddedItems, hydrateWatchlistItems} from './seerrHydration';
-import {libraryIdOf} from './seerrTarget';
+import {libraryIdOf, seerrCardId} from './seerrTarget';
 
 const HOME_ROW_LIMIT = 20;
 
@@ -100,7 +100,7 @@ export const normalizeMediaItem = (item) => {
 	const poster = item.poster_path || item.posterPath;
 	const backdrop = item.backdrop_path || item.backdropPath;
 	return {
-		Id: `seerr-${mediaType}-${item.id}`,
+		Id: seerrCardId(mediaType, item.id),
 		Name: item.title || item.name,
 		Type: mediaType === 'movie' ? 'Movie' : 'Series',
 		ProductionYear: yearOf(item),
