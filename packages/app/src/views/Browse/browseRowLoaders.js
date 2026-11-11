@@ -507,8 +507,8 @@ const pickedRowSource = async (ctx, row) => {
 // A picked row's first `limit` cards, as a list result.
 const loadPickedRowItems = async (ctx, api, row, limit) => {
 	const {settings} = ctx;
-	// Silo sends a section's whole row at once, in its own order.
-	if (row.source === 'server') return (await api.getServerHomeSectionItems(row.itemId, PICKED_ROW_LIMIT))?.Items || [];
+	// Silo sends a section's whole row at once, in its own order, and counts it.
+	if (row.source === 'server') return (await api.getServerHomeSectionItems(row.itemId, limit)) || {Items: []};
 	if (row.source === 'collections') {
 		return {Items: await loadCollectionRowItems(api, row.itemId, {
 			limit,

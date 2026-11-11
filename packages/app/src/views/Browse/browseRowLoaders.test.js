@@ -1,9 +1,10 @@
 import {buildLoaderContext, loadDeferredSections, loadGenres, loadSinceYouWatched, withStudioLogos} from './browseRowLoaders';
 import {makePickedRow} from '../../utils/pickedRows';
 import {loadSinceYouWatchedRows} from '../../services/homeRecommendations';
+import {getServerType} from '../../services/jellyfinApi';
 
 jest.mock('@enact/i18n/$L', () => ({__esModule: true, default: (str) => str}));
-jest.mock('../../services/jellyfinApi', () => ({HOME_ROW_ITEM_FIELDS: 'Fields', createApiForServer: jest.fn(), getServerType: () => 'jellyfin', getTokenParam: () => 'ApiKey', getApiKey: () => 'tok'}));
+jest.mock('../../services/jellyfinApi', () => ({HOME_ROW_ITEM_FIELDS: 'Fields', createApiForServer: jest.fn(), getServerType: jest.fn(() => 'jellyfin'), getTokenParam: () => 'ApiKey', getApiKey: () => 'tok'}));
 jest.mock('../../services/multiServerManager', () => ({getAllServersArray: async () => []}));
 jest.mock('../../services/homeRecommendations', () => ({loadSinceYouWatchedRows: jest.fn(), loadRewatchItems: jest.fn()}));
 
@@ -36,6 +37,27 @@ describe('picked rows far down Home', () => {
 		await loadDeferredSections(ctx, ctx.deferredPluginSections, done);
 		expect(ctx.appendRows.mock.calls.map(([rows]) => rows.map((row) => row.title))).toEqual([['Genre 7'], ['Genre 8']]);
 		expect(done.mock.calls.map(([id]) => id)).toEqual(ctx.deferredPluginSections.map((row) => row.id));
+	});
+});
+
+describe('Silo home sections', () => {
+	afterEach(() => getServerType.mockReturnValue('jellyfin'));
+
+	test('land as rows, and page past the first read', async () => {
+		getServerType.mockReturnValue('silo');
+		const cards = Array.from({length: 50}, (_, i) => ({Id: `card-${i}`}));
+		const getServerHomeSectionItems = jest.fn(async (id, limit) => ({Items: cards.slice(0, limit), TotalRecordCount: cards.length}));
+		const row = makePickedRow({source: 'server', serverUrl: '', itemId: 'type:hidden_gems', name: 'Hidden gems'}, true, 0);
+		const ctx = contextFor([row], {api: {getServerHomeSectionItems}});
+		expect(ctx.enabledPluginSections).toEqual([row]);
+		await loadDeferredSections(ctx, ctx.enabledPluginSections, jest.fn());
+
+		const [[[landed]]] = ctx.appendRows.mock.calls;
+		expect(landed.title).toBe('Hidden gems');
+		expect(landed.items).toHaveLength(40);
+		expect(landed.hasMore).toBe(true);
+		expect((await landed.readHead(55)).Items).toHaveLength(50);
+		expect(getServerHomeSectionItems).toHaveBeenLastCalledWith('type:hidden_gems', 55);
 	});
 });
 
