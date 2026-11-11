@@ -49,9 +49,10 @@ const useLiveRecording = ({api, program, controlsVisible, onChanged}) => {
 		return () => clearInterval(interval);
 	}, [programId, controlsVisible, refresh]);
 
-	const showToast = (message) => setToast({message, key: Date.now()});
+	const showToast = useCallback((message) => setToast({message, key: Date.now()}), []);
 	const clearToast = () => setToast(null);
-	if (!airing) return {available: false, toast, clearToast, prepare};
+	// The player's other notes, such as a single audio track, show in the same toast.
+	if (!airing) return {available: false, toast, showToast, clearToast, prepare};
 
 	const current = fetched?.program?.Id === program.Id ? fetched.program : program;
 	const timers = fetched?.program?.Id === program.Id ? fetched.timers : [];
@@ -90,6 +91,7 @@ const useLiveRecording = ({api, program, controlsVisible, onChanged}) => {
 			: timer && (timer.Status === 'InProgress' ? 'record' : 'scheduled'),
 		nextSeriesRecording,
 		toast,
+		showToast,
 		clearToast,
 		prepare,
 		// The Record workflow with the prompt host the dialog passes in. Back on the prompt records

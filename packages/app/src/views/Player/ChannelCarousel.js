@@ -10,7 +10,7 @@ import {fittingItems} from '../../utils/measureText';
 import {getImageUrl} from '../../utils/helpers';
 import {rem, rootScale} from '../../utils/rootScale';
 import {
-	CAROUSEL_CARD_HEIGHT, CAROUSEL_DESCRIPTION_MS_PER_PIXEL, TV_CANVAS_SCALE, carouselLayoutFor, carouselNeighborhood, categoryTags,
+	CAROUSEL_CARD_HEIGHT, TV_CANVAS_SCALE, carouselLayoutFor, carouselNeighborhood, categoryTags,
 	channelComparator, channelIndexFor, episodeTitleOf, filterLabel, genreFor, guideLeftEdge, programAiringAt,
 	progressAt, recordingMark
 } from '../../utils/liveTvGuide';
@@ -176,7 +176,6 @@ const CarouselHeader = ({channel, program, clockDisplay}) => {
 					text={program.Overview}
 					lines={2}
 					lineHeight={OVERVIEW_LINE_HEIGHT}
-					msPerPixel={CAROUSEL_DESCRIPTION_MS_PER_PIXEL}
 					pauseMs={1600}
 				/>
 			)}

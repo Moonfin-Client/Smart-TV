@@ -222,7 +222,16 @@ const useChannelCarousel = ({item, isLiveTV, liveTvChannels, sortBy, error, cont
 	// A recording made from the player marks its card without waiting on the hourly refresh.
 	const refreshRecordings = useCallback(() => prewarmRef.current?.refresh(), []);
 
-	return {carouselOpenRef: openRef, openCarousel, stepChannel, markChannelPlaying, refreshRecordings, carouselProps};
+	// The player's heart flips the channel in the lineup and in the warm guide data, so the carousel
+	// and a zap back to the channel show it without a reload.
+	const markChannelFavorite = useCallback((channelId, isFavorite) => {
+		setLineup((channels) => channels.map((channel) => (channel.Id === channelId
+			? {...channel, UserData: {...(channel.UserData || {}), IsFavorite: isFavorite}}
+			: channel)));
+		prewarmRef.current?.store.setChannelFavorite(channelId, isFavorite);
+	}, []);
+
+	return {carouselOpenRef: openRef, openCarousel, stepChannel, markChannelPlaying, refreshRecordings, markChannelFavorite, carouselProps};
 };
 
 export default useChannelCarousel;

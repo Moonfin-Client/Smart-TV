@@ -23,7 +23,7 @@ import {setTmdbThumbsAvailable} from '../utils/tmdbThumb';
 import {configureIncompleteRecordings} from '../services/incompleteRecordings';
 import serverLogger from '../services/serverLogger';
 import * as remoteControl from '../services/remoteControl';
-import {isBackKey, KEYS} from '../utils/keys';
+import {isBackKey, KEYS, remoteShortcut} from '../utils/keys';
 import {drawsStage} from '../views/Details/stage/stageRules';
 import {QUICK_LOOK_ID} from '../views/Details/quickLook/quickLookRules';
 import {applyPerfTier} from '../utils/perfTier';
@@ -1622,16 +1622,19 @@ const AppContent = (props) => {
 	}, [panelIndex]);
 
 	// The guide button on the live TV OSD always lands on the guide, not wherever
-	// playback was launched from. When the player was opened from the guide its
-	// history entry is dropped so back doesn't bounce through the guide twice.
-	const handlePlayerGuide = useCallback(() => {
+	// playback was launched from, and the remote's Recordings button on Recordings.
+	// When the player was opened from that screen its history entry is dropped so
+	// back doesn't bounce through it twice.
+	const leavePlayerFor = useCallback((panel) => {
 		setIsPlayerPaused(false);
 		setPlayingItem(null);
 		setPlaybackOptions(null);
 		setIsResume(false);
-		setPanelHistory(prev => (prev[prev.length - 1] === PANELS.LIVETV ? prev.slice(0, -1) : prev));
-		showPanel(PANELS.LIVETV);
+		setPanelHistory(prev => (prev[prev.length - 1] === panel ? prev.slice(0, -1) : prev));
+		showPanel(panel);
 	}, [showPanel]);
+	const handlePlayerGuide = useCallback(() => leavePlayerFor(PANELS.LIVETV), [leavePlayerFor]);
+	const handlePlayerRecordings = useCallback(() => leavePlayerFor(PANELS.RECORDINGS), [leavePlayerFor]);
 
 	const handleOpenSearch = useCallback(() => {
 		navigateTo(PANELS.SEARCH);
@@ -1770,6 +1773,40 @@ const AppContent = (props) => {
 	const handleOpenRecordings = useCallback(() => {
 		navigateTo(PANELS.RECORDINGS);
 	}, [navigateTo]);
+
+	// Home's Guide and Recordings buttons open Live TV once the server shows it has channels, as
+	// long as focus is still on Home rather than in something opened over it. Nothing focused
+	// counts as Home.
+	const panelIndexRef = useRef(panelIndex);
+	panelIndexRef.current = panelIndex;
+	const homeHasRemote = useCallback(() => {
+		const layer = quickLookLayerRef.current;
+		const active = document.activeElement;
+		return panelIndexRef.current === PANELS.BROWSE && Boolean(layer) &&
+			(!active || active === document.body || underDrawer(layer, active));
+	}, []);
+	const liveTvShortcutBusyRef = useRef(false);
+	const kidsMode = isKidsMode(settings);
+	useEffect(() => {
+		if (panelIndex !== PANELS.BROWSE || kidsMode) return undefined;
+		const handleKeyDown = async (e) => {
+			const shortcut = remoteShortcut(e);
+			if ((shortcut !== 'guide' && shortcut !== 'recordings') || isTvKeyboardVisible() || !homeHasRemote()) return;
+			e.preventDefault();
+			e.stopPropagation();
+			if (liveTvShortcutBusyRef.current) return;
+			liveTvShortcutBusyRef.current = true;
+			try {
+				const channels = await api.getLiveTvChannels(0, 1);
+				if (channels?.Items?.length && homeHasRemote()) (shortcut === 'guide' ? handleOpenLiveTv : handleOpenRecordings)();
+			} catch {
+				// A server without Live TV, or one that turns the request down, has no shortcut.
+			}
+			liveTvShortcutBusyRef.current = false;
+		};
+		window.addEventListener('keydown', handleKeyDown, true);
+		return () => window.removeEventListener('keydown', handleKeyDown, true);
+	}, [panelIndex, kidsMode, api, homeHasRemote, handleOpenLiveTv, handleOpenRecordings]);
 
 	const handlePlayRecording = useCallback((recording) => {
 		setPlayingItem(recording);
@@ -2505,6 +2542,7 @@ const AppContent = (props) => {
 							onBack={slideshowVideo ? slideshowCallbacks.onExit : handlePlayerEnd}
 							slideshow={playerSlideshow}
 							onGuide={handlePlayerGuide}
+							onRecordings={handlePlayerRecordings}
 							onPlayNext={handlePlayNext}
 							onSelectPerson={handleSelectPersonFromPlayer}
 							onPausedChange={setIsPlayerPaused}
