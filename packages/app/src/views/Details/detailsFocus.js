@@ -9,8 +9,9 @@ import {KEYS} from '../../utils/keys';
 import css from './Details.module.less';
 
 // Where focus lands coming into a row: the card the row marks as its start, like the episode on
-// screen in its season's row, and otherwise the first.
-const rowEntry = (row) => row.querySelector('.spottable-default') || row.querySelector('.spottable');
+// screen in its season's row, and otherwise the first. A row can be a single card itself.
+const rowEntry = (row) => (row.classList.contains('spottable') ? row
+	: row.querySelector('.spottable-default') || row.querySelector('.spottable'));
 
 export const handleSectionKeyDown = (ev) => {
 	const currentSpottable = ev.target.closest('.spottable');
@@ -125,11 +126,13 @@ export const handleSeasonButtonKeyDown = (ev) => {
 	}
 };
 
-// Scrolls a plain horizontal scroller so the card sits where its first card does at rest.
-export const scrollCardToStart = (scroller, card) => {
-	if (!scroller || !card) return;
-	const padding = parseFloat(window.getComputedStyle(scroller).paddingLeft) || 0;
-	scroller.scrollLeft += card.getBoundingClientRect().left - scroller.getBoundingClientRect().left - padding;
+// Scrolls a horizontal scroller so the card sits `offset` in from its left edge, by default where
+// the first card sits at rest. Returns whether there was a card to move to.
+export const scrollCardToStart = (scroller, card, offset) => {
+	if (!scroller || !card) return false;
+	const inset = offset != null ? offset : (parseFloat(window.getComputedStyle(scroller).paddingLeft) || 0);
+	scroller.scrollLeft += card.getBoundingClientRect().left - scroller.getBoundingClientRect().left - inset;
+	return true;
 };
 
 // Keeps a focused card inside a plain horizontal scroller, which doesn't scroll itself.

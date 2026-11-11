@@ -92,12 +92,16 @@ const ClassicDetailScreen = ({
 	const episodeMenuHold = useItemMenuHold(episodeAt);
 
 	// The season's row opens on the episode on screen, which is also where focus lands coming into
-	// it, rather than on the season's first.
+	// it, rather than on the season's first. Once per episode, so a refresh of the list doesn't pull
+	// the row back from where the viewer took it.
 	const episodesScrollRef = useRef(null);
+	const episodesPlacedForRef = useRef(null);
 	useLayoutEffect(() => {
 		const scroller = episodesScrollRef.current;
-		if (!scroller || scroller.contains(document.activeElement)) return;
-		scrollCardToStart(scroller, scroller.querySelector(`.${css.episodeCurrent}`));
+		if (!scroller || episodesPlacedForRef.current === item.Id || scroller.contains(document.activeElement)) return;
+		if (scrollCardToStart(scroller, scroller.querySelector(`.${css.episodeCurrent}`))) {
+			episodesPlacedForRef.current = item.Id;
+		}
 	}, [episodes, item.Id]);
 
 	useEffect(() => {
