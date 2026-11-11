@@ -14,6 +14,7 @@ import useItemMenuHold from '../../hooks/useItemMenuHold';
 import useImageReveal, {pendingArtStyle} from '../../hooks/useImageReveal';
 import {isUnownedSeerrTitle, seerrThumbUrl, seerrWideArtUrl, useTmdbThumbsAvailable} from '../../utils/tmdbThumb';
 import {useMediaPreviewSlot} from './MediaPreviewContext';
+import {episodeArtwork, requestedArtwork} from './cardArtwork';
 
 import css from './MediaCard.module.less';
 
@@ -27,86 +28,6 @@ export const classicCardSize = (shape, posterSize) => {
 	const multiplier = POSTER_SIZE_MULTIPLIERS[posterSize] || 1;
 	const [width, height] = BASE_SIZES[shape];
 	return {width: Math.round(width * multiplier), height: Math.round(height * multiplier)};
-};
-
-// The wide artwork a row asked for, or null when the item carries none of it. Handing
-// back the url rather than a yes or no is what keeps the card shape and the picture it
-// ends up holding from ever disagreeing.
-const requestedArtwork = (item, imageType, serverUrl) => {
-	if (imageType === 'backdrop') {
-		if (item.BackdropImageTags?.length > 0) {
-			return getImageUrl(serverUrl, item.Id, 'Backdrop', {maxWidth: 400, quality: 80});
-		}
-		if (item.ParentBackdropItemId) {
-			return getImageUrl(serverUrl, item.ParentBackdropItemId, 'Backdrop', {maxWidth: 400, quality: 80});
-		}
-		if (item.ImageTags?.Thumb) {
-			return getImageUrl(serverUrl, item.Id, 'Thumb', {maxWidth: 400, quality: 80});
-		}
-		// A title matched from an outside list keeps the list's backdrop when the library has no wide art for it.
-		if (item._resolvedFromExternal && item._externalBackdropUrl) {
-			return toAbsoluteImageUrl(item._externalBackdropUrl, serverUrl);
-		}
-	}
-	if (imageType === 'thumb') {
-		if (item.ImageTags?.Thumb) {
-			return getImageUrl(serverUrl, item.Id, 'Thumb', {maxWidth: 400, quality: 80});
-		}
-		if (item.ParentThumbItemId) {
-			return getImageUrl(serverUrl, item.ParentThumbItemId, 'Thumb', {tag: item.ParentThumbImageTag, maxWidth: 400, quality: 80});
-		}
-		if (item.BackdropImageTags?.length > 0) {
-			return getImageUrl(serverUrl, item.Id, 'Backdrop', {maxWidth: 400, quality: 80});
-		}
-	}
-	if (imageType === 'banner') {
-		if (item.ImageTags?.Banner) {
-			return getImageUrl(serverUrl, item.Id, 'Banner', {maxWidth: 1200, quality: 80});
-		}
-		if (item.ImageTags?.Thumb) {
-			return getImageUrl(serverUrl, item.Id, 'Thumb', {maxWidth: 1200, quality: 80});
-		}
-		if (item.BackdropImageTags?.length > 0) {
-			return getImageUrl(serverUrl, item.Id, 'Backdrop', {maxWidth: 1200, quality: 80});
-		}
-	}
-	if (imageType === 'logo') {
-		if (item.ImageTags?.Logo) {
-			return getImageUrl(serverUrl, item.Id, 'Logo', {maxWidth: 400, quality: 80});
-		}
-		if (item.ParentLogoItemId) {
-			return getImageUrl(serverUrl, item.ParentLogoItemId, 'Logo', {maxWidth: 400, quality: 80});
-		}
-	}
-	return null;
-};
-
-// The artwork an episode can show, each one carrying whether it is wide so the
-// card can take its shape from the picture it ended up with. An episode still is
-// its Primary image, episodes carry no Thumb tag of their own.
-const episodeArtwork = (item, serverUrl, imageType, useSeriesArt) => {
-	const wide = (url) => (url ? {url, wide: true} : null);
-	const seriesWide = (item.ParentThumbItemId
-		&& wide(getImageUrl(serverUrl, item.ParentThumbItemId, 'Thumb', {tag: item.ParentThumbImageTag, maxWidth: 400, quality: 80})))
-		|| (item.ParentBackdropItemId
-			&& wide(getImageUrl(serverUrl, item.ParentBackdropItemId, 'Backdrop', {maxWidth: 400, quality: 80})))
-		|| null;
-	const seriesPoster = item.SeriesId && item.SeriesPrimaryImageTag
-		? {url: getImageUrl(serverUrl, item.SeriesId, 'Primary', {maxHeight: 300, quality: 80}), wide: false}
-		: null;
-	// Silo sends a Continue Watching episode's still as its backdrop, with the season poster as its poster.
-	const still = wide(item.ImageTags?.Primary
-		? getImageUrl(serverUrl, item.Id, 'Primary', {maxWidth: 400, quality: 80})
-		: item.BackdropImageTags?.length > 0
-			? getImageUrl(serverUrl, item.Id, 'Backdrop', {tag: item.BackdropImageTags[0], maxWidth: 400, quality: 80})
-			: null);
-
-	if (!useSeriesArt) return still || seriesWide || seriesPoster;
-	// A poster row wants the series poster, anything wider wants the series thumb.
-	const preferred = imageType === 'poster'
-		? (seriesPoster || seriesWide)
-		: (seriesWide || seriesPoster);
-	return preferred || still;
 };
 
 const MediaCard = ({item, serverUrl, cardType = 'portrait', rowImageType = 'poster', onSelect, onFocusItem, showServerBadge = false, eagerLoad = false, deferImage = false, seerrSeasonStatus, spotlightId, onSpotlightLeft, onSpotlightRight, menuOptions, size, current = false, homeText = false, overlay = null, showInfo = true, posterLabels = false}) => {

@@ -261,12 +261,12 @@ const Details = ({
 	const isLoading = seerrOnly ? seerr.loading : libraryLoading;
 
 	const {cast: detailCast, crew: detailCrew} = useMemo(() => {
-		const split = splitCastAndCrew(seerrOnly ? item?.People || [] : cast);
+		const split = splitCastAndCrew(seerrOnly ? item?.People || [] : cast, 20, item?.Type === 'Episode');
 		return {
 			cast: showsSection('cast') ? split.cast : [],
 			crew: showsSection('crew') ? split.crew : []
 		};
-	}, [seerrOnly, item?.People, cast, showsSection]);
+	}, [seerrOnly, item?.People, item?.Type, cast, showsSection]);
 
 	// The Seerr popups have to answer BACK before the screen's own overlays do, and the ref is
 	// how they reach the handler useDetailsModals owns.

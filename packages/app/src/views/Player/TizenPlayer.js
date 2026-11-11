@@ -44,6 +44,7 @@ import {getApiForItem} from '../../services/connectionPool';
 import PlayerControls from './PlayerControls';
 import {usePlayerButtons} from './playerOsd';
 import {canBrowseEpisodes} from '../../utils/episodeBrowser';
+import {mergeEpisodePeople, resolveParentCast} from '../../utils/episodeCast';
 import useLiveProgram from './useLiveProgram';
 import {isAtLive, liveWindowFor, nextLiveWindow} from './liveWindow';
 import useLiveRecording from './useLiveRecording';
@@ -440,9 +441,13 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 		[settings, isHdrContent]
 	);
 
+	const resolvedCastItemIdRef = useRef(null);
+	const latestItemIdRef = useRef(null);
+	latestItemIdRef.current = item?.Id;
+
 	const hasCastMembers = useMemo(() => {
 		if (castMembers.length > 0) return true;
-		return item?.Type === 'Episode' && Boolean(item?.SeriesId);
+		return item?.Type === 'Episode' && Boolean(item?.SeriesId || item?.SeasonId || item?.ParentId);
 	}, [castMembers.length, item]);
 
 	// handleBack is defined further down, so the timer reaches it through a ref
@@ -499,7 +504,12 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 
 	useEffect(() => {
 		const people = Array.isArray(item?.People) ? item.People : [];
-		setCastMembers(people);
+		setCastMembers(item?.Type === 'Episode'
+			? mergeEpisodePeople({episodePeople: people, parentActors: []})
+			: people);
+		resolvedCastItemIdRef.current = null;
+		setIsLoadingCastMembers(false);
+		setActiveModal((prev) => (prev === 'cast' ? null : prev));
 	}, [item]);
 
 
@@ -1742,7 +1752,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 				console.log('[Player] playMethod:', result.playMethod, 'mimeType:', result.mimeType, 'container:', result.mediaSource?.Container, 'transcodingContainer:', result.mediaSource?.TranscodingContainer);
 
 				const wantsNativeAudio = pendingAudioIndex != null && result.playMethod !== playback.PlayMethod.Transcode;
-				const wantsNativeSub = pendingSubAction?.type === 'native' && !!pendingSubAction.stream;
+				let wantsNativeSub = pendingSubAction?.type === 'native' && !!pendingSubAction.stream;
 				pendingTracksRef.current = {
 					audioIndex: wantsNativeAudio ? pendingAudioIndex : null,
 					audioApplied: !wantsNativeAudio,
@@ -1755,14 +1765,67 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 				};
 				activeNativeSubRef.current = null;
 
-				await openAndPrepare({
-					url: result.url,
-					playMethod: result.playMethod,
-					mediaSource: result.mediaSource,
-					resumeTicks: startPosition,
-					hasNativePendingSub: wantsNativeSub,
-					shouldAbort: () => !stillCurrent()
-				});
+				try {
+					await openAndPrepare({
+						url: result.url,
+						playMethod: result.playMethod,
+						mediaSource: result.mediaSource,
+						resumeTicks: startPosition,
+						hasNativePendingSub: wantsNativeSub,
+						shouldAbort: () => !stillCurrent()
+					});
+				} catch (prepareErr) {
+					// AVPlay refusing a stream at prepare rejects here without reaching
+					// onerror, so handleError's fallback never sees it.
+					if (!stillCurrent() || isLiveTV || isPreroll(item) ||
+							result.playMethod === playback.PlayMethod.Transcode) {
+						throw prepareErr;
+					}
+					serverLogger.playback('Playback: direct stream rejected at prepare, falling back to transcode', {
+						itemId: item?.Id,
+						playMethod: result.playMethod,
+						container: result.mediaSource?.Container,
+						error: prepareErr?.message || String(prepareErr)
+					});
+					setHasTriedTranscode(true);
+					cleanupAVPlay();
+					avplayReadyRef.current = false;
+
+					const chosenAudioIndex = pendingAudioIndex != null ? pendingAudioIndex : result.selectedAudioStreamIndex;
+					const chosenSubIndex = pendingSubAction?.stream?.index;
+					const transcodeResult = await playback.getPlaybackInfo(item.Id, {
+						...playbackInfoOptions,
+						mediaSourceId: playbackInfoOptions.mediaSourceId || result.mediaSourceId,
+						audioStreamIndex: chosenAudioIndex != null ? chosenAudioIndex : undefined,
+						subtitleStreamIndex: chosenSubIndex != null ? chosenSubIndex : playbackInfoOptions.subtitleStreamIndex,
+						directRefused: true,
+						enableTranscoding: true,
+						forceDirectPlay: false
+					});
+					if (!stillCurrent()) return;
+					if (!transcodeResult?.url) throw prepareErr;
+					result = transcodeResult;
+					applyPlaybackResult(result);
+
+					// the transcode carries only the chosen audio track and no embedded
+					// subtitle tracks, so the subtitle is drawn client side or burnt in
+					if (pendingSubAction?.stream) {
+						const sub = (result.subtitleStreams || []).find((s) => s.index === pendingSubAction.stream.index) || pendingSubAction.stream;
+						pendingSubAction = decideSubtitleAction(sub);
+						if (sub.isBurnIn) burnInSubtitleRef.current = sub.index;
+					}
+					wantsNativeSub = false;
+					pendingTracksRef.current = null;
+
+					await openAndPrepare({
+						url: result.url,
+						playMethod: result.playMethod,
+						mediaSource: result.mediaSource,
+						resumeTicks: startPosition,
+						hasNativePendingSub: false,
+						shouldAbort: () => !stillCurrent()
+					});
+				}
 				if (!stillCurrent()) return;
 				liveRecoveryRef.current?.tuned();
 
@@ -2151,8 +2214,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 				const result = await playback.getPlaybackInfo(item.Id, {
 					startPositionTicks: positionRef.current,
 					maxBitrate: selectedQuality || settings.maxBitrate,
-					enableDirectPlay: false,
-					enableDirectStream: false,
+					directRefused: true,
 					enableTranscoding: true,
 					mediaSourceId: mediaSourceId,
 					item: item,
@@ -2842,21 +2904,40 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 
 	const handleOpenCast = useCallback(async () => {
 		openModal('cast');
-		if (castMembers.length > 0 || !(item?.Type === 'Episode' && item?.SeriesId)) return;
+		if (item?.Type !== 'Episode') return;
+		const seasonId = item?.SeasonId || item?.ParentId;
+		const seriesId = item?.SeriesId;
+		if (!seasonId && !seriesId) return;
+		if (resolvedCastItemIdRef.current === item?.Id) return;
 
+		const currentItemId = item?.Id;
 		setIsLoadingCastMembers(true);
 		try {
-			const apiClient = item._serverUrl
+			const apiClient = getApiForItem(item) || (item._serverUrl
 				? createApiForServer(item._serverUrl, item._serverAccessToken, item._serverUserId)
-				: jellyfinApi;
-			const seriesItem = await apiClient.getItem(item.SeriesId);
-			setCastMembers(Array.isArray(seriesItem?.People) ? seriesItem.People : []);
+				: jellyfinApi);
+			const parentActors = await resolveParentCast({
+				apiClient,
+				seasonId,
+				seriesId
+			});
+			if (currentItemId !== latestItemIdRef.current) return;
+			// A failed lookup also comes back empty, so only a found cast stops the next open from asking again.
+			if (parentActors.length > 0) {
+				setCastMembers(mergeEpisodePeople({
+					episodePeople: Array.isArray(item?.People) ? item.People : [],
+					parentActors
+				}));
+				resolvedCastItemIdRef.current = currentItemId;
+			}
 		} catch (err) {
-			setCastMembers([]);
+			// Not cached, so the next open tries again
 		} finally {
-			setIsLoadingCastMembers(false);
+			if (currentItemId === latestItemIdRef.current) {
+				setIsLoadingCastMembers(false);
+			}
 		}
-	}, [openModal, castMembers.length, item]);
+	}, [openModal, item]);
 
 	const handleSelectCastMember = useCallback((person) => {
 		if (!person?.Id || !onSelectPerson) return;

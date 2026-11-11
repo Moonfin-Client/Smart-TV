@@ -6,14 +6,15 @@ import css from './Details.module.less';
 // the viewer left on.
 const DetailMetadata = ({item, showsCrew = true, showsStudios = true}) => {
 	const genres = item.Genres || [];
+	const isEpisode = item.Type === 'Episode';
 	const directors = showsCrew ? item.People?.filter(p => p.Type === 'Director') || [] : [];
 	const writers = showsCrew ? item.People?.filter(p => p.Type === 'Writer') || [] : [];
 	const studios = showsStudios ? item.Studios || [] : [];
 
 	const metaItems = [];
 	if (genres.length > 0) metaItems.push({label: $L('Genres'), value: genres.slice(0, 3).join(', ')});
-	if (directors.length > 0) metaItems.push({label: $L('Director'), value: directors.map(d => d.Name).join(', ')});
-	if (writers.length > 0) metaItems.push({label: $L('WRITERS'), value: writers.map(w => w.Name).join(', ')});
+	if (directors.length > 0) metaItems.push({label: isEpisode ? $L('Episode Director') : $L('Director'), value: directors.map(d => d.Name).join(', ')});
+	if (writers.length > 0) metaItems.push({label: isEpisode ? $L('Episode Writer') : $L('WRITERS'), value: writers.map(w => w.Name).join(', ')});
 	if (studios.length > 0) metaItems.push({label: $L('Studio'), value: studios.map(s => s.Name).join(', ')});
 	if (metaItems.length === 0) return null;
 

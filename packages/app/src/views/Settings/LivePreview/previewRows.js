@@ -8,7 +8,10 @@ const ratingRows = (surface) => ['mdblistEnabled', 'ratingSources', 'showRatingL
 	.map((name) => ratingKey(surface, name));
 
 // Settings whose home preview is the media bar rather than the navbar and rows.
-export const MEDIA_BAR_KEYS = ['featuredBarStyle', 'mediaBarOverlayColor', 'mediaBarOverlayOpacity', 'mediaBarNewReleaseBanner', 'mediaBarNewReleaseDays', ...ratingRows('mediaBar')];
+export const MEDIA_BAR_KEYS = [
+	'featuredBarStyle', 'featuredItemCount', 'mediaBarRowPeek', 'mediaBarOverlayColor', 'mediaBarOverlayOpacity', 'mediaBarNewReleaseBanner',
+	'mediaBarNewReleaseDays', ...ratingRows('mediaBar')
+];
 
 // The home rows' own ratings, which the modern rows draw under the focused card.
 export const FOCUSED_CARD_KEYS = ratingRows('homeRows');
@@ -22,7 +25,7 @@ export const NAV_BUTTON_KEYS = [
 // The settings that change how the loading animation, the scrub thumbnails and the
 // screensaver look, each drawn on the stage rather than in a preview of its own.
 export const LOADING_KEYS = ['loadingAnimationImage', 'loadingAnimationSize', 'loadingAnimationPosition', 'loadingAnimationSpeed', 'showLoadingAnimationText'];
-export const TRICKPLAY_KEYS = ['trickPlayMode', 'trickPlayPreviewScale', 'trickPlayVerticalPosition', 'trickPlayFollowScrub'];
+export const TRICKPLAY_KEYS = ['trickPlayMode', 'trickPlayPreviewScale', 'trickPlayVerticalPosition', 'trickPlayFollowScrub', 'trickPlayPauseWhileScrubbing'];
 // The subtitle appearance settings, drawn on the player's subtitle line. The HDR ones draw it in
 // the HDR style.
 export const SUBTITLE_HDR_KEYS = ['subtitleHdrSeparate', ...SUBTITLE_STYLE_KEYS.map(hdrKeyFor)];
@@ -39,13 +42,35 @@ export const CALENDAR_KEYS = [
 	'calendarIncludeUnmonitored', 'calendarShowSpecials', 'calendarShowBadges', 'calendarColorBy', 'calendarImageType',
 	'calendarSpoilerSafe', 'calendarRequestButton'
 ];
-// The seasonal effect's settings, which draw the effect over home. The focus follower is left out,
-// since nothing in the preview holds focus for it to follow.
-export const SEASONAL_KEYS = ['seasonalTheme', 'seasonalDensity'];
+// The seasonal effect's settings, which draw the effect over home with the follower on the card
+// the preview holds in focus.
+export const SEASONAL_KEYS = ['seasonalTheme', 'seasonalDensity', 'seasonalFollower'];
 // The library settings. The music and book styles draw their own libraries and the rest the video library.
 export const LIBRARY_KEYS = [
 	'libraryStyle', 'musicLibraryStyle', 'bookLibraryStyle', 'groupItemsIntoCollections', 'showMediaDetailsOnLibraryPage',
 	'libraryCardTitles', 'hideBackdropsInLibraries', 'useDetailedSubHeadings'
+];
+
+// The Row Options settings for the rows they sort, which draw Home with the D-pad on the first
+// row they change.
+export const AUDIO_ROW_OPTION_KEYS = ['displayAudioRows', 'audioRowsSortBy', 'audioRowsSortOrder'];
+export const COLLECTIONS_ROW_OPTION_KEYS = ['displayCollectionsRows', 'collectionsRowSortBy', 'collectionsRowSortOrder', 'collectionsRowShowEpisodes'];
+export const FAVORITES_ROW_OPTION_KEYS = ['displayFavoritesRows', 'favoritesRowSortBy', 'favoritesRowSortOrder'];
+export const GENRES_ROW_OPTION_KEYS = ['displayGenresRows', 'genresRowSortBy', 'genresRowSortOrder', 'genresRowItemFilter'];
+export const PLAYLISTS_ROW_OPTION_KEYS = ['displayPlaylistsRows', 'playlistsRowSortBy', 'playlistsRowSortOrder', 'playlistsRowShowEpisodes'];
+export const STUDIOS_ROW_OPTION_KEYS = ['displayStudiosRows', 'studiosRowSortBy', 'studiosRowSortOrder'];
+const ROW_OPTION_KEYS = [
+	...AUDIO_ROW_OPTION_KEYS, ...COLLECTIONS_ROW_OPTION_KEYS, ...FAVORITES_ROW_OPTION_KEYS, ...GENRES_ROW_OPTION_KEYS,
+	...PLAYLISTS_ROW_OPTION_KEYS, ...STUDIOS_ROW_OPTION_KEYS
+];
+
+// The settings that change which of Home's rows show or how their cards look, drawn on Home's
+// own rows since the sample ones can't show them. The links stand in for the Rows, image type
+// and Seasonal Row screens.
+export const HOME_LOOK_KEYS = [
+	'homeRows', 'rowImageTypes', 'homeRowsImageType', 'seasonalRow', 'mergeContinueWatchingNextUp', 'mergeRecentRowsByType',
+	'displayRewatchRow', 'watchedIndicatorBehavior', 'useSeriesThumbnails', 'cardFocusZoom', 'classicHomeRowsPadding',
+	'modernHomeRowsPadding', 'homeRowOverlay', 'showPosterLabels', 'modernCardsOnMyMediaRow'
 ];
 
 // The screens and sections whose every tile keeps the stage on one look, with the scene it's
@@ -73,6 +98,9 @@ export const SCENE_BY_KEY = {
 	...sceneFor(NAV_BUTTON_KEYS, 'home'),
 	navbarColor: 'home',
 	navbarOpacity: 'home',
+	focusBorderColor: 'home',
+	oledMode: 'home',
+	backdropBlurHome: 'home',
 	homeRowsStyle: 'home',
 	homeRowsPosterSize: 'home',
 	fullScreenRows: 'home',
@@ -80,6 +108,7 @@ export const SCENE_BY_KEY = {
 	homeBackdropStyle: 'home',
 	...sceneFor(MEDIA_BAR_KEYS, 'home'),
 	...sceneFor(FOCUSED_CARD_KEYS, 'home'),
+	...sceneFor([...ROW_OPTION_KEYS, ...HOME_LOOK_KEYS], 'home'),
 	detailScreenStyle: 'details',
 	personalRatingStyle: 'details',
 	detailsBackdropEnabled: 'details',
@@ -95,14 +124,18 @@ export const SCENE_BY_KEY = {
 	showDescriptionOnPause: 'player',
 	showChapterMarkers: 'player',
 	osdButtons: 'player',
+	skipBackLength: 'player',
+	skipForwardLength: 'player',
 	...sceneFor([
 		'progressBarTime', 'playbackTimeAboveLeft', 'playbackTimeAboveCenter', 'playbackTimeAboveRight',
 		'playbackTimeBelowLeft', 'playbackTimeBelowCenter', 'playbackTimeBelowRight'
 	], 'player'),
 	subtitleMode: 'player',
 	subtitleLanguage: 'player',
-	introAction: 'player',
-	nextUpBehavior: 'player',
+	...sceneFor([
+		'introAction', 'outroAction', 'nextUpBehavior', 'nextUpCountdownStyle', 'nextUpTimeout', 'replaceSkipOutroWithNextUp', 'showNextAirDate',
+		'dateFormat'
+	], 'player'),
 	...sceneFor([...LOADING_KEYS, 'loadingAnimation', ...TRICKPLAY_KEYS], 'player'),
 	...sceneFor([...SUBTITLE_LOOK_KEYS, 'subtitleCustomization'], 'player'),
 	...sceneFor([...SCREENSAVER_KEYS, 'screensaver'], 'home'),
@@ -113,6 +146,13 @@ export const SCENE_BY_KEY = {
 };
 
 let rowsBySpotlightId = null;
+
+// The screens built outside the schema report their rows as the link that opens them.
+const SCREEN_LINKS = [
+	[/^homerows?-/, 'setting-homeRows'],
+	[/^row-image-types?-/, 'setting-rowImageTypes'],
+	[/^seasonal-|^setting-seasonalRow(Enabled|AllYear)$/, 'setting-seasonalRow']
+];
 
 // Each row keeps the labels on its way: the category, every screen opened to reach it the
 // way the search breadcrumb names them, and the section it sits under.
@@ -180,25 +220,31 @@ const pathText = (parts, title, ctx) => {
 export const describeRow = (spotlightId, settings, schema = null) => {
 	if (!spotlightId) return null;
 	if (!rowsBySpotlightId) rowsBySpotlightId = indexRows();
-	const row = rowsBySpotlightId[spotlightId];
+	const link = rowsBySpotlightId[spotlightId] ? null : SCREEN_LINKS.find(([pattern]) => pattern.test(spotlightId));
+	const row = rowsBySpotlightId[link ? link[1] : spotlightId];
 	if (!row) return null;
 	const ctx = {...schema, settings};
+	// A row on the image type screen is named for the Home row it sets, under the screen's own name.
+	const rowId = (/^row-image-type-(.+)$/.exec(spotlightId) || [])[1] || null;
+	const homeRow = rowId && (settings.homeRows || []).find((entry) => entry.id === rowId);
 	const resolved = row.kind === KIND.OPTION ? safeResolve(row.options, ctx, []) : [];
 	const options = Array.isArray(resolved) ? resolved : [];
 	// A link the preview draws stands in for the settings its screen edits.
 	const key = row.key || (SCENE_BY_KEY[row.id] ? row.id : null);
-	const title = safeResolve(row.label, ctx, '');
+	const title = homeRow ? homeRow.name : safeResolve(row.label, ctx, '');
 	// A picker that reads more than one setting marks the choice it shows in the list.
 	const current = row.value ? safeResolve(row.value, ctx, settings[row.key]) : settings[row.key];
+	const path = homeRow ? [...row.path, row.label] : row.path;
 	return {
 		key,
 		title,
 		description: row.kind === 'category' ? safeResolve(row.desc, ctx, '') : '',
-		path: row.path ? pathText(row.path, title, ctx) : '',
+		path: path ? pathText(path, title, ctx) : '',
 		scene: key ? SCENE_BY_KEY[key] || null : null,
 		stage: row.stage || null,
 		options,
-		saved: options.findIndex((option) => option.value === current)
+		saved: options.findIndex((option) => option.value === current),
+		rowId: homeRow ? rowId : null
 	};
 };
 

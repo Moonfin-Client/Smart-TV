@@ -3,7 +3,6 @@ import {isMdblistEnabled} from '../../services/mdblistApi';
 import Spottable from '@enact/spotlight/Spottable';
 import $L from '@enact/i18n/$L';
 import RatingsRow from '../RatingsRow';
-import {getImageUrl, toAbsoluteImageUrl} from '../../utils/helpers';
 import {useSettings} from '../../context/SettingsContext';
 import {getPlatform} from '../../platform';
 import {getPerfTier} from '../../utils/perfTier';
@@ -21,6 +20,7 @@ import {isUnownedSeerrTitle, seerrThumbUrl, seerrWideArtUrl, useTmdbThumbsAvaila
 import useItemMenuHold from '../../hooks/useItemMenuHold';
 import useImageReveal, {markDecoded, pendingArtStyle} from '../../hooks/useImageReveal';
 import {useMediaPreviewSlot} from './MediaPreviewContext';
+import {modernCardImageUrl} from './cardArtwork';
 
 import css from './ModernMediaCard.module.less';
 
@@ -94,143 +94,6 @@ const loadArt = (url, onReady, onFail) => {
 	art.src = url;
 };
 
-// The art a card shows, at rest or focused.
-const cardImageUrl = (item, focused, {itemServerUrl, isStaticMyMedia, seerrWide, useSeriesThumbnails}) => {
-	if (!item) return null;
-
-	if (seerrWide) return toAbsoluteImageUrl(seerrWide, itemServerUrl);
-
-	const providerIds = item.ProviderIds || {};
-	const externalPoster = item._externalPosterUrl ||
-		providerIds.SeerrPoster ||
-		providerIds.SonarrPoster ||
-		providerIds.RadarrPoster ||
-		providerIds.LidarrPoster ||
-		providerIds.ReadarrPoster;
-
-	// A title the server owns shows the library's own art, with the outside poster as the
-	// last resort further down.
-	if ((item._external || externalPoster) && !item._resolvedFromExternal) {
-		if (focused && item._externalBackdropUrl) {
-			return toAbsoluteImageUrl(item._externalBackdropUrl, itemServerUrl);
-		}
-		if (externalPoster) {
-			return toAbsoluteImageUrl(externalPoster, itemServerUrl);
-		}
-	}
-
-	if (item.Type === 'Episode') {
-		// An episode at rest wears its series poster. The image tag only names the
-		// exact version when the server sent one, so a missing tag still asks the
-		// series itself rather than letting a cropped episode still stand in.
-		const seriesPosterId = (item.SeriesPrimaryImageTag && item.SeriesId) || item.ParentPrimaryImageItemId || item.SeriesId;
-		const seriesPoster = seriesPosterId
-			? getImageUrl(itemServerUrl, seriesPosterId, 'Primary', {maxHeight: 360, quality: 80})
-			: null;
-		const seriesThumb = item.ParentThumbItemId
-			? getImageUrl(itemServerUrl, item.ParentThumbItemId, 'Thumb', {tag: item.ParentThumbImageTag, maxWidth: 600, quality: 80})
-			: null;
-		const episodeThumb = item.ImageTags?.Primary
-			? getImageUrl(itemServerUrl, item.Id, 'Primary', {maxWidth: 600, quality: 80})
-			: item.ImageTags?.Thumb
-				? getImageUrl(itemServerUrl, item.Id, 'Thumb', {maxWidth: 600, quality: 80})
-				: item.BackdropImageTags?.length > 0
-					? getImageUrl(itemServerUrl, item.Id, 'Backdrop', {maxWidth: 600, quality: 80})
-					: item.ParentBackdropItemId
-						? getImageUrl(itemServerUrl, item.ParentBackdropItemId, 'Backdrop', {maxWidth: 600, quality: 80})
-						: null;
-
-		if (focused) {
-			return (useSeriesThumbnails ? (seriesThumb || episodeThumb) : (episodeThumb || seriesThumb)) || seriesPoster;
-		} else {
-			return seriesPoster || episodeThumb || seriesThumb;
-		}
-	}
-
-	if (item.Type === 'Genre' && item._representative) {
-		const rep = item._representative;
-		const repServerUrl = itemServerUrl;
-		if (focused) {
-			if (rep.ImageTags?.Thumb) {
-				return getImageUrl(repServerUrl, rep.Id, 'Thumb', {maxWidth: 600, quality: 80});
-			}
-			if (rep.BackdropImageTags?.length > 0) {
-				return getImageUrl(repServerUrl, rep.Id, 'Backdrop', {maxWidth: 600, quality: 80});
-			}
-		}
-		if (rep.ImageTags?.Primary) {
-			return getImageUrl(repServerUrl, rep.Id, 'Primary', {maxHeight: 360, quality: 80});
-		}
-	}
-
-	if (item.Type === 'Movie' || item.Type === 'Series' || item.Type === 'BoxSet') {
-		if (focused) {
-			if (item.ImageTags?.Thumb) {
-				return getImageUrl(itemServerUrl, item.Id, 'Thumb', {tag: item.ImageTags.Thumb, maxWidth: 600, quality: 80});
-			}
-			if (item.ParentThumbItemId) {
-				return getImageUrl(itemServerUrl, item.ParentThumbItemId, 'Thumb', {tag: item.ParentThumbImageTag, maxWidth: 600, quality: 80});
-			}
-			if (item.BackdropImageTags?.length > 0) {
-				return getImageUrl(itemServerUrl, item.Id, 'Backdrop', {tag: item.BackdropImageTags[0], maxWidth: 600, quality: 80});
-			}
-			if (item._externalBackdropUrl) {
-				return toAbsoluteImageUrl(item._externalBackdropUrl, itemServerUrl);
-			}
-		}
-		if (item.ImageTags?.Primary) {
-			return getImageUrl(itemServerUrl, item.Id, 'Primary', {tag: item.ImageTags.Primary, maxHeight: 360, quality: 80});
-		}
-	}
-
-	if (item.Type === 'CollectionFolder' || item.isLibraryTile) {
-		if (isStaticMyMedia || focused) {
-			if (item.ImageTags?.Thumb) {
-				return getImageUrl(itemServerUrl, item.Id, 'Thumb', {maxWidth: 600, quality: 80});
-			}
-			if (item.BackdropImageTags?.length > 0) {
-				return getImageUrl(itemServerUrl, item.Id, 'Backdrop', {maxWidth: 600, quality: 80});
-			}
-		}
-
-		if (!isStaticMyMedia && item.ImageTags?.Primary) {
-			return getImageUrl(itemServerUrl, item.Id, 'Primary', {maxHeight: 360, quality: 80});
-		}
-		if (item.ImageTags?.Thumb) {
-			return getImageUrl(itemServerUrl, item.Id, 'Thumb', {maxWidth: 600, quality: 80});
-		}
-		if (item.ImageTags?.Primary) {
-			return getImageUrl(itemServerUrl, item.Id, 'Primary', {maxWidth: 600, quality: 80});
-		}
-	}
-
-	if (item.Type === 'Audio' && item.AlbumId && item.AlbumPrimaryImageTag) {
-		return getImageUrl(itemServerUrl, item.AlbumId, 'Primary', {maxHeight: 360, quality: 80});
-	}
-
-	if (focused) {
-		if (item.ImageTags?.Thumb) {
-			return getImageUrl(itemServerUrl, item.Id, 'Thumb', {maxWidth: 600, quality: 80});
-		}
-		if (item.ParentThumbItemId) {
-			return getImageUrl(itemServerUrl, item.ParentThumbItemId, 'Thumb', {tag: item.ParentThumbImageTag, maxWidth: 600, quality: 80});
-		}
-		if (item.BackdropImageTags?.length > 0) {
-			return getImageUrl(itemServerUrl, item.Id, 'Backdrop', {maxWidth: 600, quality: 80});
-		}
-	}
-
-	if (item.ImageTags?.Primary) {
-		return getImageUrl(itemServerUrl, item.Id, 'Primary', {maxHeight: 360, quality: 80});
-	}
-
-	if (externalPoster) {
-		return toAbsoluteImageUrl(externalPoster, itemServerUrl);
-	}
-
-	return null;
-};
-
 const ModernMediaCard = ({
 	item,
 	serverUrl,
@@ -279,9 +142,9 @@ const ModernMediaCard = ({
 	const seerrWide = wantsSeerrWide ? seerrWideArtUrl(item, failedThumb) : null;
 
 	const useSeriesThumbnails = settings.useSeriesThumbnails;
-	const restingUrl = useMemo(() => cardImageUrl(item, false, {itemServerUrl, isStaticMyMedia, useSeriesThumbnails}),
+	const restingUrl = useMemo(() => modernCardImageUrl(item, false, {itemServerUrl, isStaticMyMedia, useSeriesThumbnails}),
 		[item, itemServerUrl, isStaticMyMedia, useSeriesThumbnails]);
-	const focusUrl = useMemo(() => cardImageUrl(item, true, {itemServerUrl, isStaticMyMedia, seerrWide, useSeriesThumbnails}),
+	const focusUrl = useMemo(() => modernCardImageUrl(item, true, {itemServerUrl, isStaticMyMedia, seerrWide, useSeriesThumbnails}),
 		[item, itemServerUrl, isStaticMyMedia, seerrWide, useSeriesThumbnails]);
 
 	const {

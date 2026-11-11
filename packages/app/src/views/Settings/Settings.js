@@ -1214,6 +1214,11 @@ const Settings = ({ onBack, onLibrariesChanged, onRunSetupWizard, onSelectItem, 
 		if (onPreviewTry && currentView.view !== 'options') onPreviewTry(null);
 	}, [onPreviewTry, currentView]);
 
+	// The Rows screen saves its arrangement on the way out, so until then the preview tries it.
+	useEffect(() => {
+		if (onPreviewTry && currentView.view === 'homeRows') onPreviewTry('homeRows', tempHomeRows, -1);
+	}, [onPreviewTry, currentView, tempHomeRows]);
+
 	const openSubcategory = useCallback((sub) => {
 		// An entry that is a screen in its own right rather than a list of settings rows opens
 		// that screen, instead of a page holding nothing but a link to it.

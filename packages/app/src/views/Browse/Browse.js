@@ -11,7 +11,6 @@ import {useSettings} from '../../context/SettingsContext';
 import {useSeerr} from '../../context/SeerrContext';
 import {ClassicMediaRow, ModernMediaRow} from '../../components/MediaRow';
 import MediaPreviewContext from '../../components/MediaCard/MediaPreviewContext';
-import {modernRowSpacing} from '../../components/MediaCard/modernCardLayout';
 import SeerrTileRow from '../../components/SeerrTileRow';
 import LibraryButtonRow from '../../components/LibraryButtonRow';
 import WatchingNowRow from '../../components/WatchingNowRow';
@@ -43,7 +42,7 @@ import {markHomeReady} from '../../utils/homeReady';
 import {homeBackdropStyle} from '../../utils/homeBackdropStyle';
 import {rem} from '../../utils/rootScale';
 import {glideScroll, isGliding, smoothScrollingOn, stopScrollAnimation} from '../../utils/focusScroll';
-import {rowImageType, rowPeekHeight} from './rowPeek';
+import {homeRowSpacing, rowImageType, rowPeekHeight} from './rowPeek';
 
 import css from './Browse.module.less';
 
@@ -189,13 +188,7 @@ const Browse = ({
 	const useModernRows = settings.homeRowsStyle !== 'v1';
 	const RowComponent = useModernRows ? ModernMediaRow : ClassicMediaRow;
 	const showTopInfoArea = !useModernRows && settings.homeRowOverlay !== false;
-	// The other clients size these sliders in their own units, so the stored value
-	// lands here as the space below each row. Classic rows count from the slider's
-	// lowest step, so they sit a little closer at every setting. Full screen rows pace
-	// themselves.
-	const rowSpacing = settings.fullScreenRows ? null : useModernRows
-		? modernRowSpacing(settings)
-		: Math.max(0, (settings.classicHomeRowsPadding ?? 30) - 10);
+	const rowSpacing = homeRowSpacing(settings);
 
 	const {
 		isLoading, browseMode, allRowData, featuredItems: loadedFeaturedItems, pendingSections, emptySections,

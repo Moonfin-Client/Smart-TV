@@ -4,6 +4,7 @@ import $L from '@enact/i18n/$L';
 import {useAuth} from '../../context/AuthContext';
 import {useSettings} from '../../context/SettingsContext';
 import {getUserImageUrl} from '../../services/jellyfinApi';
+import {sameSiloHousehold} from '../../services/multiServerManager';
 import {ModalContainer} from '../../utils/spotlightContainers';
 import {CoreAlertDialog, useDialogLayer, portal} from '../CoreDialog';
 import ProfileCarousel, {PillButton, PillRow} from '../ProfileCarousel';
@@ -128,6 +129,10 @@ const AccountModal = ({
 		(s) => activeServerInfo?.serverId === s.serverId && activeServerInfo?.userId === s.userId
 	);
 	const activeEntry = activeIndex >= 0 ? sortedServers[activeIndex] : null;
+	// Sign Out already takes a Silo profile's whole household, so Sign Out All Users is only offered for more than that.
+	const othersBesideSignOut = activeEntry
+		? sortedServers.some((s) => s !== activeEntry && !sameSiloHousehold(s, activeEntry))
+		: hasMultipleUsers;
 
 	const items = useMemo(() => sortedServers.map((server, index) => {
 		const isActive = index === activeIndex;
@@ -190,7 +195,7 @@ const AccountModal = ({
 							<PillButton onClick={handleLogout} data-spotlight-id="account-logout">
 								{$L('Sign Out')}
 							</PillButton>
-							{hasMultipleUsers && (
+							{othersBesideSignOut && (
 								<PillButton danger onClick={handleLogoutAll} data-spotlight-id="account-logout-all">
 									{$L('Sign Out All Users')}
 								</PillButton>

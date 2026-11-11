@@ -114,4 +114,14 @@ describe('splitCastAndCrew', () => {
 	test('nothing at all is handled without throwing', () => {
 		expect(splitCastAndCrew()).toEqual({cast: [], crew: []});
 	});
+
+	test('labels episode directors and writers with Episode prefix when isEpisode is true', () => {
+		const {crew} = splitCastAndCrew([
+			person('1', 'Ada', 'Director', ''),
+			person('2', 'Bo', 'Writer', 'Writer')
+		], 20, true);
+		expect(crew).toHaveLength(2);
+		expect(crew[0].Role).toBe('Episode Director');
+		expect(crew[1].Role).toBe('Episode Writer');
+	});
 });
