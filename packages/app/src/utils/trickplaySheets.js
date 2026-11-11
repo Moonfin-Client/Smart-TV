@@ -30,14 +30,24 @@ export const planSeekSheetIndexes = ({info, positionMs, durationMs, stepMs, forw
 	const lastMs = durationMs - 1;
 	const step = Math.max(1, stepMs || 0);
 	const indexes = [];
-	const add = (offsetMs) => {
-		const target = Math.min(lastMs, Math.max(0, positionMs + offsetMs));
+	const sheetAt = (ms) => {
 		// A runtime a little past the last thumbnail still wants the last sheet.
-		const tile = trickplayTile(info, Math.min(target, (info.ThumbnailCount - 1) * info.Interval));
-		if (tile && indexes.indexOf(tile.imageIndex) < 0) indexes.push(tile.imageIndex);
+		const tile = trickplayTile(info, Math.min(lastMs, Math.max(0, ms), (info.ThumbnailCount - 1) * info.Interval));
+		return tile ? tile.imageIndex : -1;
 	};
+	const addSheet = (index) => {
+		if (index >= 0 && indexes.indexOf(index) < 0) indexes.push(index);
+	};
+	const add = (offsetMs) => addSheet(sheetAt(positionMs + offsetMs));
 	add(0);
 	for (let i = 1; i <= STEPS_AHEAD; i++) add(i * (forward ? step : -step));
 	for (let i = 1; i <= STEPS_BEHIND; i++) add(i * (forward ? -step : step));
+	// A held key crosses a whole sheet faster than the steps look ahead, so the next sheet is asked
+	// for as soon as the scrub enters one.
+	const current = sheetAt(positionMs);
+	if (info.TileWidth * info.TileHeight > 1 && current >= 0) {
+		const next = current + (forward ? 1 : -1);
+		if (next <= sheetAt(lastMs)) addSheet(next);
+	}
 	return indexes;
 };

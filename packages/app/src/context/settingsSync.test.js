@@ -341,6 +341,15 @@ describe('SYNCABLE_KEYS', () => {
 		expect(SYNCABLE_KEYS).toContain('previewAudioEnabled');
 	});
 
+	test('syncs the player and screensaver settings under their own names', () => {
+		const keys = ['controlsHideDelay', 'hdrControlsDimming', 'sleepAfterIdle', 'screensaverDuringAudio'];
+		const profile = localToProfile(defaultSettings, keys);
+
+		expect(profile).toEqual({controlsHideDelay: 5000, hdrControlsDimming: 0, sleepAfterIdle: 0, screensaverDuringAudio: false});
+		expect(profileToLocal({controlsHideDelay: 3000, hdrControlsDimming: 40, sleepAfterIdle: 60, screensaverDuringAudio: true}))
+			.toEqual({controlsHideDelay: 3000, hdrControlsDimming: 40, sleepAfterIdle: 60, screensaverDuringAudio: true});
+	});
+
 	test('syncs every calendar setting under its own name', () => {
 		const calendarKeys = [
 			'showCalendarButton', 'calendarStyle', 'calendarWeekStart', 'calendarScope', 'calendarShowEpisodes',

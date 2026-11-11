@@ -548,7 +548,7 @@ export const getPlaybackInfo = async (itemId, options = {}) => {
 	// it fits the stream to the link itself, and a capability ceiling below a file's bitrate rules out a remux
 	// (a Dolby Vision strip to HDR10 among them) for a tone-mapped transcode.
 	const userMaxBitrate = options.maxBitrate > 0 ? options.maxBitrate : null;
-	const maxBitrate = userMaxBitrate || (serverType === 'silo' ? null : await autoMaxBitrate(capabilities, creds, !currentSession, api));
+	const autoBitrate = !userMaxBitrate && serverType !== 'silo';
 
 	const requestedStartTime = isLiveTV ? 0 : (options.startPositionTicks || 0);
 	const hasExplicitSubtitle = options.subtitleStreamIndex != null;
@@ -578,6 +578,12 @@ export const getPlaybackInfo = async (itemId, options = {}) => {
 	const plexBurnsSubtitle = serverType === 'plex' && !options.forceDirectPlay && !!requestedSubStream && requestedSubStream.Codec !== 'none' &&
 		!plexReadsFromFile(requestedSubStream, sourceContainer, storedSettings.enablePgsRendering === false);
 	const enableDirectPlay = allowDirectPlay && options.enableDirectPlay !== false && !plexBurnsSubtitle;
+	// Auto starts on the link's last measurement, so direct play never waits on a test. Only a start that has to
+	// transcode, or a live one that can't be asked for again, measures first. The rest measure once the server
+	// answers with a transcode, further down.
+	const maxBitrate = userMaxBitrate || (autoBitrate
+		? options.linkCappedBitrate || await autoMaxBitrate(capabilities, creds, !currentSession && (isLiveTV || !enableDirectPlay), api)
+		: null);
 	// When the user hasn't explicitly picked a subtitle, omit the index entirely so
 	// the server applies their preferred-subtitle-language / SubtitleMode default.
 	const sentSubtitleStreamIndex = hasExplicitSubtitle ? subtitleStreamIndex : undefined;
@@ -896,6 +902,12 @@ export const getPlaybackInfo = async (itemId, options = {}) => {
 		mediaSource = playbackInfo.MediaSources[0];
 		playMethod = PlayMethod.Transcode;
 		console.log('[playback] After forcing transcode - TranscodingUrl:', mediaSource.TranscodingUrl ? 'present' : 'none');
+	}
+
+	// An opened live stream is left as it is, since asking again would open a second one.
+	if (autoBitrate && !options.linkCappedBitrate && playMethod === PlayMethod.Transcode && !mediaSource.LiveStreamId) {
+		const measured = await autoMaxBitrate(capabilities, creds, !currentSession, api);
+		if (measured !== maxBitrate) return getPlaybackInfo(itemId, {...options, linkCappedBitrate: measured});
 	}
 
 	const itemAudio = options.item?.MediaType === 'Audio' || options.item?.Type === 'Audio';

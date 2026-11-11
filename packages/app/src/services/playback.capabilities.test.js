@@ -61,14 +61,57 @@ describe('the automatic bitrate', () => {
 		expect(askedFor()).toBe(40000000);
 	});
 
-	test('stays under what the link carries where the platform asks for that', async () => {
+	test('stays under what the link carries where the platform asks for that, without a test before direct play', async () => {
 		getDeviceCapabilities.mockResolvedValue({fitsBitrateToLink: true});
 		linkBitrate.mockResolvedValue(5000000);
 
 		await playback.getPlaybackInfo(movie.Id, {item: movie});
 
-		expect(linkBitrate).toHaveBeenCalledWith({serverUrl: 'http://server', serverType: 'jellyfin', authHeader: 'MediaBrowser Token="key"'}, true);
+		expect(linkBitrate).toHaveBeenCalledTimes(1);
+		expect(linkBitrate).toHaveBeenCalledWith({serverUrl: 'http://server', serverType: 'jellyfin', authHeader: 'MediaBrowser Token="key"'}, false);
 		expect(askedFor()).toBe(5000000);
+	});
+
+	describe('once the server answers with a transcode', () => {
+		const transcode = {
+			PlaySessionId: 'session',
+			MediaSources: [{
+				Id: 'source', SupportsDirectPlay: false, SupportsDirectStream: false, Container: 'mkv', MediaStreams: [],
+				TranscodingUrl: '/videos/movie-1/master.m3u8?MediaSourceId=source'
+			}]
+		};
+		const asked = () => api.getPlaybackInfo.mock.calls.map((call) => call[1].MaxStreamingBitrate);
+
+		beforeEach(() => {
+			getDeviceCapabilities.mockResolvedValue({fitsBitrateToLink: true});
+			api.getPlaybackInfo.mockResolvedValue(transcode);
+		});
+
+		test('measures the link and asks again under what it carries', async () => {
+			linkBitrate.mockResolvedValueOnce(null).mockResolvedValueOnce(5000000);
+
+			await playback.getPlaybackInfo(movie.Id, {item: movie});
+
+			expect(linkBitrate.mock.calls.map((call) => call[1])).toEqual([false, true]);
+			expect(asked()).toEqual([40000000, 5000000]);
+		});
+
+		test('asks only once when the measurement leaves the ceiling where it was', async () => {
+			linkBitrate.mockResolvedValue(5000000);
+
+			await playback.getPlaybackInfo(movie.Id, {item: movie});
+
+			expect(asked()).toEqual([5000000]);
+		});
+
+		test('a start with direct play turned off measures before it asks', async () => {
+			linkBitrate.mockResolvedValue(5000000);
+
+			await playback.getPlaybackInfo(movie.Id, {item: movie, enableDirectPlay: false});
+
+			expect(linkBitrate.mock.calls[0][1]).toBe(true);
+			expect(asked()).toEqual([5000000]);
+		});
 	});
 
 	test('is never raised over the device ceiling by a fast link, nor lost to a failed measurement', async () => {
@@ -106,7 +149,7 @@ describe('the automatic bitrate', () => {
 
 		await playback.getPlaybackInfo(other.Id, {item: other});
 
-		expect(linkBitrate).toHaveBeenCalledWith({serverUrl: 'http://other', serverType: 'emby', authHeader: 'emby token'}, true);
+		expect(linkBitrate).toHaveBeenCalledWith({serverUrl: 'http://other', serverType: 'emby', authHeader: 'emby token'}, false);
 	});
 });
 

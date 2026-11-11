@@ -67,7 +67,7 @@ import useSkipFailedTrack from './audio/useSkipFailedTrack';
 import {handleAudioFocusKey, exitAudioPanel, nextAudioFocusRow, focusAudioRow, forgetDockFocus} from './audio/audioFocus';
 import useSegmentPopups, {isSkipPromptFocused} from './useSegmentPopups';
 import useChannelKeys from './useChannelKeys';
-import {NextEpisodeContainer, CONTROLS_HIDE_DELAY, SLIDESHOW_ERROR_DELAY, withTimeout, SEGMENT_FETCH_TIMEOUT, ASS_FETCH_INDICATOR_LIMIT} from './PlayerConstants';
+import {NextEpisodeContainer, SLIDESHOW_ERROR_DELAY, withTimeout, SEGMENT_FETCH_TIMEOUT, ASS_FETCH_INDICATOR_LIMIT} from './PlayerConstants';
 import {waitForAssReady} from '../../utils/assRendererReady';
 import NextUpOverlay from './NextUpOverlay';
 import useNextAirDate from './useNextAirDate';
@@ -1999,9 +1999,9 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 				// goes through showControls and re-arms the timer.
 				if (isPausedRef.current) return;
 				setControlsVisible(false);
-			}, CONTROLS_HIDE_DELAY);
+			}, settings.controlsHideDelay);
 		}
-	}, [activeModal, isAudioMode, isLiveTV]);
+	}, [activeModal, isAudioMode, isLiveTV, settings.controlsHideDelay]);
 
 	const hideControls = useCallback(() => {
 		setControlsVisible(false);

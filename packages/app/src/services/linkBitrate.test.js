@@ -1,5 +1,14 @@
 import {linkBitrate} from './linkBitrate';
 
+// One store for every copy of the module, so a fresh copy reads like the next launch.
+const mockStore = {};
+jest.mock('./storage', () => ({
+	getFromStorage: async (key) => mockStore[key],
+	saveToStorage: async (key, value) => {
+		mockStore[key] = JSON.parse(JSON.stringify(value));
+	}
+}));
+
 describe('the link bitrate', () => {
 	let clock;
 	let server;
@@ -104,6 +113,20 @@ describe('the link bitrate', () => {
 		jest.spyOn(Date, 'now').mockReturnValue(Date.now() + 60 * 60 * 1000);
 
 		await expect(linkBitrate(server, false)).resolves.toBe(5040000);
+		expect(global.fetch).toHaveBeenCalledTimes(1);
+	});
+
+	test('is kept for each server across launches, and given without a test when there is no leave to measure', async () => {
+		jest.spyOn(Date, 'now').mockReturnValue(1000000);
+		global.fetch.mockResolvedValueOnce(slow());
+		await linkBitrate(server);
+
+		let nextLaunch;
+		jest.isolateModules(() => {
+			nextLaunch = require('./linkBitrate').linkBitrate;
+		});
+		await expect(nextLaunch(server, false)).resolves.toBe(5040000);
+		await expect(nextLaunch({...server, serverUrl: 'http://elsewhere:8096'}, false)).resolves.toBeNull();
 		expect(global.fetch).toHaveBeenCalledTimes(1);
 	});
 

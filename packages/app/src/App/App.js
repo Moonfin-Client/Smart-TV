@@ -78,6 +78,7 @@ import SpottableInput from '../components/SpottableInput/SpottableInput';
 import TVKeyboard from '../components/TVKeyboard/TVKeyboard';
 import {isTvKeyboardVisible, closeTvKeyboard, subscribeTvKeyboardVisibility} from '../components/TVKeyboard/keyboardBus';
 import useInactivityTimer from '../hooks/useInactivityTimer';
+import useSleepAfterIdle from '../hooks/useSleepAfterIdle';
 import useSignInPin from '../hooks/useSignInPin';
 import {useThemeMusic} from '../hooks/useThemeMusic';
 import {useAccessSchedule} from '../hooks/useAccessSchedule';
@@ -396,11 +397,15 @@ const AppContent = (props) => {
 	const isPinChecking = pinPending && !isPinGateActive && pinChecked !== pinSession;
 	const [pinKeyboardOpen, setPinKeyboardOpen] = useState(false);
 	const screensaverTimeout = Number(settings.screensaverTimeout || 90);
+	const mediaPlaying = Boolean(playingItem) && !isPlayerPaused && (panelIndex === PANELS.PLAYER || backgroundMusic);
+	// Music and audiobooks keep the screensaver away while they play, on Now Playing or behind the
+	// other screens, unless the viewer lets it start over them.
+	const audioPlaying = mediaPlaying && isAudioItem(playingItem);
 	const screensaverEnabled = Boolean(
 		settings.screensaverEnabled &&
 		isAuthenticated &&
 		panelIndex !== PANELS.LOGIN &&
-		(panelIndex !== PANELS.PLAYER || isPlayerPaused) &&
+		(audioPlaying ? settings.screensaverDuringAudio === true : (panelIndex !== PANELS.PLAYER || isPlayerPaused)) &&
 		// Emulator input bypasses Spotlight (paused during gameplay), so inactivity never resets.
 		panelIndex !== PANELS.GAME_PLAYER &&
 		// A media bar trailer plays without any key presses to reset the timer.
@@ -414,6 +419,12 @@ const AppContent = (props) => {
 		!reading
 	);
 	const {isInactive: showScreensaver, dismiss: dismissScreensaver, wake: wakeScreensaver} = useInactivityTimer(screensaverTimeout, screensaverEnabled);
+	// A paused player holds the screen on too, so it counts as idle. Games and slideshows go on without key presses.
+	useSleepAfterIdle(
+		Number(settings.sleepAfterIdle) || 0,
+		!mediaPlaying && !slideshowRunning && panelIndex !== PANELS.GAME_PLAYER,
+		showScreensaver
+	);
 
 	useEffect(() => {
 		window.dispatchEvent(new CustomEvent('moonfin:screensaver', {detail: {active: showScreensaver}}));

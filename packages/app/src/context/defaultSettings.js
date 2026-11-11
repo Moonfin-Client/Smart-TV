@@ -250,6 +250,9 @@ export const defaultSettings = {
 	screensaverEnabled: true,
 	screensaverTimeout: 90,
 	screensaverDimmingLevel: 50,
+	screensaverDuringAudio: false,
+	// Minutes, or 0 for never.
+	sleepAfterIdle: 0,
 	screensaverClockMode: 'staticCorner',
 	screensaverMode: 'library',
 	screensaverBackdrop: 'library',
@@ -319,6 +322,9 @@ export const defaultSettings = {
 	nextUpTimeout: 7,
 	stillWatchingBehavior: 'medium',
 	skipForwardLength: 30000,
+	controlsHideDelay: 5000,
+	// Percent the player controls dim while HDR plays.
+	hdrControlsDimming: 0,
 	unpauseRewind: 0,
 	showDescriptionOnPause: false,
 	// Chosen so the overlay looks unchanged for anyone who never opens the setting.

@@ -127,13 +127,23 @@ const fileSize = (bytes) => {
 
 const fileName = (source) => (source.Path ? source.Path.split(/[\\/]/).pop() : null) || source.Name || null;
 
-// PCM from the Xbox console player means it decoded the track, and a bitstream format means it
-// went on to the receiver.
-const audioOutputName = (output) => {
+// PCM from the Xbox console player means it decoded the track into the channels it names, and a
+// bitstream format means the codec went on to the receiver as it is.
+const audioOutputName = (output, codecName, channels) => {
 	const format = output?.format || '';
-	if (/^pcm\b/i.test(format)) return $L('Decoded on this device');
-	if (/^(truehd|dts|e-?ac-?3|ac-?3|dolby)/i.test(format)) return $L('Passthrough over HDMI');
+	const formatChannels = number((/(\d+) ch\b/i.exec(format) || [])[1]);
+	if (/^pcm\b/i.test(format)) {
+		const layout = channelLayout(formatChannels || channels);
+		return layout ? fill($L('Decoded ({channels})'), {channels: layout}) : null;
+	}
+	if (codecName && /^(truehd|dts|e-?ac-?3|ac-?3|dolby)/i.test(format)) return fill($L('Passthrough ({codec})'), {codec: codecName});
 	return null;
+};
+
+// The server's IsInterlaced flag, left out where it says nothing.
+const scanName = (stream) => {
+	if (stream.IsInterlaced === true) return $L('Interlaced');
+	return stream.IsInterlaced === false ? $L('Progressive') : null;
 };
 
 const pickAudio = (streams, index) => {
@@ -312,6 +322,7 @@ export const buildPlaybackInfo = ({
 
 	let note = null;
 	if (method === 'DirectPlay') note = $L('Playing the original file as is.');
+	else if (method === 'DirectStream' && isLiveTV) note = $L('The server is relaying the channel without converting it.');
 	else if (method === 'DirectStream') note = $L('The server is repackaging the file without converting it.');
 	else if (transcoding && videoConverted && audioConverted) note = $L('The server is converting the video and audio so this device can play it.');
 	else if (transcoding && videoConverted) note = $L('The server is converting the video so this device can play it.');
@@ -369,7 +380,9 @@ export const buildPlaybackInfo = ({
 		const fps = fpsValue(videoStream);
 		videoRows = [
 			{label: $L('Resolution'), value: resolution},
-			{label: $L('Frame Rate'), value: fps && `${fps} fps`},
+			// The TV players report no rate of their own, so it's always the server's.
+			{label: $L('Frame Rate'), value: fps && fill($L('{rate} fps ({source})'), {rate: fps, source: $L('server')})},
+			{label: $L('Scan'), value: scanName(videoStream)},
 			{
 				label: $L('Format'),
 				value: videoOut && !sameCodec(videoOut, lower(videoStream.Codec))
@@ -383,6 +396,7 @@ export const buildPlaybackInfo = ({
 	let audioRows = [];
 	if (audioStream) {
 		const name = trackName(audioStream);
+		const playedCodec = audioOut || audioStream.Codec;
 		audioRows = [
 			{label: $L('Track'), value: name && audioStream.IsDefault ? `${name}, ${$L('Default')}` : name},
 			{
@@ -395,7 +409,14 @@ export const buildPlaybackInfo = ({
 				label: $L('Channels'),
 				value: deliveredChannels ? convertedFrom(audioChannelsName(deliveredChannels), channelLayout(sourceChannels)) : audioChannelsName(sourceChannels)
 			},
-			{label: $L('Output'), value: audioOutputName(hostAudioOutput)}
+			{
+				label: $L('Output'),
+				value: audioOutputName(
+					hostAudioOutput,
+					audioCodecName(playedCodec, audioOut ? null : audioStream.Profile),
+					deliveredChannels || sourceChannels
+				)
+			}
 		];
 	}
 

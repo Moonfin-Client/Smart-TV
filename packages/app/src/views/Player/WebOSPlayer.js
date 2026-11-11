@@ -96,7 +96,7 @@ import {createReadyGate} from '../../utils/syncReady';
 import {createSkipGovernor, chooseCorrection, afterResume, STALL_DEBOUNCE_MS} from '../../utils/syncCorrection';
 import {syncLog} from '../../utils/syncLog';
 import {
-	NextEpisodeContainer, CONTROLS_HIDE_DELAY, SLIDESHOW_ERROR_DELAY,
+	NextEpisodeContainer, SLIDESHOW_ERROR_DELAY,
 	withTimeout, SEGMENT_FETCH_TIMEOUT, ASS_READY_WAIT, ASS_FETCH_INDICATOR_LIMIT
 } from './PlayerConstants';
 import {
@@ -2062,9 +2062,9 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 				// goes through showControls and re-arms the timer.
 				if (isPausedRef.current) return;
 				setControlsVisible(false);
-			}, CONTROLS_HIDE_DELAY);
+			}, settings.controlsHideDelay);
 		}
-	}, [activeModal, isAudioMode, isLiveTV]);
+	}, [activeModal, isAudioMode, isLiveTV, settings.controlsHideDelay]);
 
 	const hideControls = useCallback(() => {
 		setControlsVisible(false);

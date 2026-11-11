@@ -215,6 +215,11 @@ export const getScreensaverDimmingOptions = () => [
 	{ value: 100, label: $L('100%') }
 ];
 
+export const getSleepAfterIdleOptions = () => [
+	{ value: 0, label: $L('Off') },
+	...[15, 30, 60, 120].map((minutes) => ({ value: minutes, label: $L('{minutes} min').replace('{minutes}', minutes) }))
+];
+
 export const getWatchPartyServiceOptions = () => [
 	{ value: 'moonbase', label: $L('Watch Party') },
 	{ value: 'syncplay', label: $L('SyncPlay') }
@@ -526,6 +531,12 @@ export const getSkipLengthOptions = () => [
 	{ value: 30000, label: $L('30 seconds') },
 	{ value: 45000, label: $L('45 seconds') },
 	{ value: 60000, label: $L('60 seconds') }
+];
+
+export const getControlsHideDelayOptions = () => [
+	{ value: 1000, label: $L('1 second') },
+	{ value: 3000, label: $L('3 seconds') },
+	{ value: 5000, label: $L('5 seconds') }
 ];
 
 export const getMaxResolutionOptions = () => [
