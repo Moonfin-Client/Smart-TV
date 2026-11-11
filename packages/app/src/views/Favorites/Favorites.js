@@ -98,7 +98,7 @@ const Favorites = ({onSelectItem, onSelectPerson, onSelectSeerrItem, onHome, bac
 	const isHome = viewStyle === 'home';
 
 	const [tabIndex, setTabIndex] = useState(0);
-	const [focusedItem, setFocusedItem] = useState(null);
+	const [focusedCard, setFocusedItem] = useState(null);
 
 	const {getScrollTo: getGridScrollTo, quickReturn} = useQuickReturnGrid('favorites-grid');
 
@@ -360,10 +360,12 @@ const Favorites = ({onSelectItem, onSelectPerson, onSelectSeerrItem, onHome, bac
 		setFocusedItem(null);
 	}, [activeTab]);
 
-	// A card filled in after it took focus, like a watchlist request card's backdrop, shows at once.
-	useEffect(() => {
-		setFocusedItem((current) => (current && displayItems.find((item) => item.Id === current.Id && item._serverUrl === current._serverUrl)) || current);
-	}, [displayItems]);
+	// The focused card as the list has it now, so one filled in after it took focus (a watchlist request
+	// card's backdrop) shows at once, and one that leaves the list takes the backdrop and HUD with it.
+	const focusedItem = useMemo(
+		() => (focusedCard && displayItems.find((item) => item.Id === focusedCard.Id && item._serverUrl === focusedCard._serverUrl)) || null,
+		[focusedCard, displayItems]
+	);
 
 	const {posterHeight, itemSize: gridItemSize} = cardMetrics(cardType, imageSize);
 	const isRound = cardType === 'circle';

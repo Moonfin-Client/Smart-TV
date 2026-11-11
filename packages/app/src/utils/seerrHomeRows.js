@@ -124,7 +124,7 @@ export const normalizeRequestItem = (request) => {
 	const poster = media.posterPath || media.poster_path;
 	const backdrop = media.backdropPath || media.backdrop_path;
 	return {
-		Id: `seerr-${mediaType}-${media.tmdbId}`,
+		Id: seerrCardId(mediaType, media.tmdbId),
 		Name: media.title || media.name || $L('Unknown'),
 		Type: mediaType === 'movie' ? 'Movie' : 'Series',
 		ProductionYear: yearOf(media),

@@ -7,6 +7,7 @@ import {withoutBlockedItems} from '../../services/parentalControls';
 import {getWatchlist} from '../../services/seerrApi';
 import {normalizeMediaItem} from '../../utils/seerrHomeRows';
 import {hydrateWatchlistItems, watchlistBackdrops} from '../../utils/seerrHydration';
+import {seerrCardId} from '../../utils/seerrTarget';
 
 import {ALL_FAVORITE_TABS, FAVORITE_TABS, FAVORITE_TAB_FIELDS, FAVORITE_TAB_PAGE_SIZE, FAVORITE_TAB_TYPES, WATCHLIST_TAB, bucketByTab, visibleTabs, watchlistCards, withWatchlistBackdrops} from './favoriteTabs';
 
@@ -168,7 +169,9 @@ const useFavoriteTabs = ({api, sortBy, sortOrder, unifiedMode, enabled = true, s
 			setCountsByKey((prev) => ({...prev, [WATCHLIST_TAB.key]: cards.length + unreadRequests(first)}));
 			// The backdrops come once the row is up, since each takes a details request of its own. Silo's
 			// watchlist is a single page, so the pages after this one need none.
-			const backdrops = await watchlistBackdrops(first?.results || []).catch((err) => {
+			const shown = new Set(cards.map((card) => card.Id));
+			const kept = (first?.results || []).filter((item) => shown.has(seerrCardId(item.mediaType, item.id)));
+			const backdrops = await watchlistBackdrops(kept).catch((err) => {
 				console.error('Failed to read the watchlist backdrops:', err);
 				return new Map();
 			});
