@@ -7,10 +7,22 @@ const isTvCollectionType = (collectionType) => {
 	return normalized === 'tvshows' || normalized === 'shows';
 };
 
-export const latestMediaFetchLimitForCollection = (collectionType, defaultLimit = 16, maxLimit = 64) => {
-	if (!isTvCollectionType(collectionType)) return defaultLimit;
-	const expanded = defaultLimit * 2;
+// Hiding watched titles reads four times the row, so the row still fills.
+export const latestMediaFetchLimitForCollection = (collectionType, defaultLimit = 16, maxLimit = 64, hideWatched = false) => {
+	if (!hideWatched && !isTvCollectionType(collectionType)) return defaultLimit;
+	const expanded = defaultLimit * (hideWatched ? 4 : 2);
 	return expanded > maxLimit ? maxLimit : expanded;
+};
+
+// A show counts as watched once none of its episodes are left, unless it has no episodes at all.
+export const isWatchedForRecentRow = (item) => {
+	const userData = item?.UserData;
+	if (!userData) return false;
+	if (userData.Played === true) return true;
+	const unplayed = Number(userData.UnplayedItemCount);
+	const children = item.ChildCount == null ? null : Number(item.ChildCount);
+	return (item.Type === 'Series' || item.Type === 'Season') && userData.UnplayedItemCount != null &&
+		unplayed <= 0 && (children == null || children > 0);
 };
 
 export const seriesCardForLatestTvItem = (item) => {
@@ -64,12 +76,13 @@ export const collapseLatestTvItems = (items) => {
 	return collapsed;
 };
 
-export const normalizeLatestMediaItems = (items, {collectionType, limit = 16} = {}) => {
+export const normalizeLatestMediaItems = (items, {collectionType, limit = 16, hideWatched = false} = {}) => {
 	if (!Array.isArray(items)) return [];
+	const source = hideWatched ? items.filter((item) => !isWatchedForRecentRow(item)) : items;
 	const shouldCollapse = isTvCollectionType(collectionType) ||
-		(!collectionType && items.some((i) => i.Type === 'Episode' || i.Type === 'Season'));
+		(!collectionType && source.some((i) => i.Type === 'Episode' || i.Type === 'Season'));
 
-	const normalized = shouldCollapse ? collapseLatestTvItems(items) : items;
+	const normalized = shouldCollapse ? collapseLatestTvItems(source) : source;
 
 	if (limit && normalized.length > limit) {
 		return normalized.slice(0, limit);

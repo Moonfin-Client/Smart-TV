@@ -1,6 +1,7 @@
 import mapBounded from '../../utils/mapBounded';
 import {shuffleArray} from '../Details/detailsMedia';
 import {recentEpisodes} from '../../utils/mediaBarNewRelease';
+import {isWatchedForRecentRow} from '../../utils/latestMediaRowNormalizer';
 
 const SOURCE_CONCURRENCY = 6;
 
@@ -30,7 +31,7 @@ const INCLUDE_TYPES = {movies: 'Movie', tv: 'Series'};
 
 // A null parentId reads every library. New Seasons & Episodes asks for the episodes, since a
 // series' own date is its first season's.
-export const readDatedSource = async (api, sourceType, parentId, {contentType, days}) => {
+export const readDatedSource = async (api, sourceType, parentId, {contentType, days, hideWatched = false}) => {
 	const includeTypes = INCLUDE_TYPES[contentType] || 'Movie,Series';
 	if (sourceType === 'newReleases') {
 		// Movies only, so nothing here. The bar falls back to random titles.
@@ -40,8 +41,9 @@ export const readDatedSource = async (api, sourceType, parentId, {contentType, d
 		if (seriesIds.length === 0) return [];
 		return (await api.getItems({Ids: seriesIds.join(','), Fields: FIELDS, EnableTotalRecordCount: false}))?.Items || [];
 	}
+	const unwatched = (items) => (hideWatched ? items.filter((item) => !isWatchedForRecentRow(item)) : items);
 	if (sourceType === 'recentlyReleased') {
-		return (await api.getItems({
+		return unwatched((await api.getItems({
 			ParentId: parentId,
 			IncludeItemTypes: includeTypes,
 			Recursive: true,
@@ -51,8 +53,8 @@ export const readDatedSource = async (api, sourceType, parentId, {contentType, d
 			Limit: POOL_SIZE,
 			Fields: FIELDS,
 			EnableTotalRecordCount: false
-		}))?.Items || [];
+		}))?.Items || []);
 	}
 	const latest = await api.getLatestItems({ParentId: parentId, IncludeItemTypes: includeTypes, Limit: POOL_SIZE, Fields: FIELDS});
-	return Array.isArray(latest) ? latest : [];
+	return Array.isArray(latest) ? unwatched(latest) : [];
 };

@@ -1,4 +1,4 @@
-import {buildLoaderContext, loadDeferredSections, loadGenres, loadSinceYouWatched, withStudioLogos} from './browseRowLoaders';
+import {buildLoaderContext, loadDeferredSections, loadGenres, loadLatestAndRecentlyReleased, loadSinceYouWatched, withStudioLogos} from './browseRowLoaders';
 import {makePickedRow} from '../../utils/pickedRows';
 import {loadSinceYouWatchedRows} from '../../services/homeRecommendations';
 import {getServerType} from '../../services/jellyfinApi';
@@ -140,5 +140,30 @@ describe('loadGenres', () => {
 		expect(await loadWith('Descending')).toEqual(['War', 'Drama', 'Action']);
 		expect(await loadWith('Ascending')).toEqual(['Action', 'Drama', 'War']);
 		expect(await loadWith('auto')).toEqual(['Action', 'Drama', 'War']);
+	});
+});
+
+describe('Recently Added with watched titles hidden', () => {
+	const lib = {Id: 'films', Name: 'Films', CollectionType: 'movies'};
+	const movies = Array.from({length: 200}, (_, i) => ({Id: `m${i}`, Type: 'Movie', UserData: {Played: i < 150}}));
+	const load = async (settingsFor) => {
+		const getLatest = jest.fn(async (id, limit) => movies.slice(0, limit));
+		const getRecentlyReleased = jest.fn(async () => ({Items: []}));
+		const appendRows = jest.fn();
+		await loadLatestAndRecentlyReleased({api: {getLatest, getRecentlyReleased}, appendRows, eligibleLibraries: [lib], settings: settingsFor});
+		return {getLatest, getRecentlyReleased, rows: appendRows.mock.calls[0]?.[0] || []};
+	};
+
+	test('a full read that leaves the row short is read again further', async () => {
+		const {getLatest, getRecentlyReleased, rows} = await load({hideWatchedInRecentRows: true});
+		expect(getLatest.mock.calls.map(([, limit]) => limit)).toEqual([64, 500]);
+		expect(getRecentlyReleased).toHaveBeenCalledWith('films', 16, 'Movie,Series', true);
+		expect(rows[0].items.map((item) => item.Id)).toEqual(Array.from({length: 16}, (_, i) => `m${150 + i}`));
+	});
+
+	test('with nothing hidden the library is read once, as before', async () => {
+		const {getLatest, rows} = await load({});
+		expect(getLatest.mock.calls.map(([, limit]) => limit)).toEqual([16]);
+		expect(rows[0].items[0].Id).toBe('m0');
 	});
 });

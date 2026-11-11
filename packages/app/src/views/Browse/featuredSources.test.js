@@ -53,6 +53,16 @@ describe('readDatedSource', () => {
 		expect(getItems.mock.calls[0][0].MaxPremiereDate).toBeTruthy();
 	});
 
+	test('both pools leave watched titles out while Hide Watched is on', async () => {
+		const watched = {Id: 'seen', Type: 'Movie', UserData: {Played: true}};
+		const fresh = {Id: 'new', Type: 'Movie', UserData: {Played: false}};
+		const getItems = jest.fn(async () => ({Items: [watched, fresh]}));
+		const getLatestItems = jest.fn(async () => [watched, fresh]);
+		const options = {contentType: 'movies', days: 30, hideWatched: true};
+		expect(await readDatedSource({getItems}, 'recentlyReleased', null, options)).toEqual([fresh]);
+		expect(await readDatedSource({getLatestItems}, 'recentlyAdded', null, options)).toEqual([fresh]);
+	});
+
 	test('Recently Added reads the Latest list, which comes back as a bare array', async () => {
 		const getLatestItems = jest.fn(async () => [{Id: 'new'}]);
 		expect(await readDatedSource({getLatestItems}, 'recentlyAdded', null, {contentType: 'tv', days: 30})).toEqual([{Id: 'new'}]);

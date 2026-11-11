@@ -16,7 +16,7 @@ import {collapseLatestTvItems} from '../../utils/latestMediaRowNormalizer';
 import {isPickedRow, isPickedRowShown, isSameServer} from '../../utils/pickedRows';
 import mapBounded from '../../utils/mapBounded';
 import {studioLogoIndex} from '../Details/studioLogos';
-import {pageableRow, readFoldedHead} from './rowPaging';
+import {FULL_ROW_READ, pageableRow, readFoldedHead} from './rowPaging';
 
 // How many sections from the top load with Home. A picked row below them waits until Home comes
 // near it, so a Home with hundreds of collections doesn't fetch them all up front.
@@ -94,15 +94,29 @@ const expandPlaylistsToItems = async (api, playlists, limit, usePlaylistOrder, s
 
 // A library's Recently Added, read `limit` cards long. The server's list has no start index, so a
 // longer row is asked for again, and a show's new episodes fold into one card for the series.
-const readLatestHead = (api, lib) => (limit) => readFoldedHead(
+const readLatestHead = (api, lib, hideWatched) => (limit) => readFoldedHead(
 	(size) => api.getLatest(lib.Id, size),
-	(latest) => normalizeLatestMediaItems(latest, {collectionType: lib.CollectionType, limit: 0}),
+	(latest) => normalizeLatestMediaItems(latest, {collectionType: lib.CollectionType, limit: 0, hideWatched}),
 	limit,
-	latestMediaFetchLimitForCollection(lib.CollectionType, limit, Infinity)
+	latestMediaFetchLimitForCollection(lib.CollectionType, limit, Infinity, hideWatched),
+	hideWatched ? FULL_ROW_READ : undefined
 );
+
+// The first read of a library's Recently Added. With watched titles hidden a full read can still
+// leave the row short, so it's read once more as far as FULL_ROW_READ.
+const readLatest = async (api, lib, hideWatched) => {
+	const limit = latestMediaFetchLimitForCollection(lib.CollectionType, 16, undefined, hideWatched);
+	const latest = await api.getLatest(lib.Id, limit);
+	if (!hideWatched || !Array.isArray(latest) || latest.length < limit ||
+		normalizeLatestMediaItems(latest, {collectionType: lib.CollectionType, hideWatched}).length >= 16) {
+		return latest;
+	}
+	return api.getLatest(lib.Id, FULL_ROW_READ).catch(() => latest);
+};
 
 export const loadLatestAndRecentlyReleased = async (ctx) => {
 	const {api, appendRows, eligibleLibraries, settings} = ctx;
+	const hideWatched = settings.hideWatchedInRecentRows === true;
 	try {
 		let includeItemTypes = 'Movie,Series';
 		switch (settings.recentlyReleasedSeriesType) {
@@ -119,14 +133,14 @@ export const loadLatestAndRecentlyReleased = async (ctx) => {
 		const [latestResults, recentlyReleasedResults] = await Promise.all([
 			Promise.all(
 				eligibleLibraries.map(lib =>
-					api.getLatest(lib.Id, latestMediaFetchLimitForCollection(lib.CollectionType, 16))
+					readLatest(api, lib, hideWatched)
 						.then(latest => ({lib, latest}))
 						.catch(() => null)
 				)
 			),
 			Promise.all(
 				eligibleLibraries.map(lib =>
-					api.getRecentlyReleased(lib.Id, 16, includeItemTypes)
+					api.getRecentlyReleased(lib.Id, 16, includeItemTypes, settings.hideWatchedInRecentRows)
 						.then(latest => ({lib, latest}))
 						.catch(() => null)
 				)
@@ -139,7 +153,7 @@ export const loadLatestAndRecentlyReleased = async (ctx) => {
 				.filter((r) => r && r.latest?.length > 0)
 				.map((r) => ({
 					lib: r.lib,
-					items: normalizeLatestMediaItems(r.latest, {collectionType: r.lib?.CollectionType, limit: 16})
+					items: normalizeLatestMediaItems(r.latest, {collectionType: r.lib?.CollectionType, limit: 16, hideWatched})
 				}));
 			for (const merged of mergeRecentRows(latestEntries, 'DateCreated')) {
 				rows.push({
@@ -167,7 +181,7 @@ export const loadLatestAndRecentlyReleased = async (ctx) => {
 		}
 		for (const result of latestResults) {
 			if (result && result.latest?.length > 0) {
-				const items = normalizeLatestMediaItems(result.latest, {collectionType: result.lib?.CollectionType, limit: 16});
+				const items = normalizeLatestMediaItems(result.latest, {collectionType: result.lib?.CollectionType, limit: 16, hideWatched});
 				if (items.length > 0) {
 					const libraryTitle = result.lib.Name;
 					const rowId = `latest-${result.lib.Id}`;
@@ -178,7 +192,7 @@ export const loadLatestAndRecentlyReleased = async (ctx) => {
 						library: result.lib,
 						type: result.lib.CollectionType?.toLowerCase() === 'music' ? 'square' : 'portrait',
 						isLatestRow: true
-					}, {Items: items, hasMore: true}, 16, readLatestHead(api, result.lib)));
+					}, {Items: items, hasMore: true}, 16, readLatestHead(api, result.lib, hideWatched)));
 				}
 			}
 		}
@@ -194,7 +208,7 @@ export const loadLatestAndRecentlyReleased = async (ctx) => {
 					library: lib,
 					type: lib.CollectionType?.toLowerCase() === 'music' ? 'square' : 'portrait',
 					isRecentlyReleasedRow: true
-				}, result.latest, 16, (limit) => api.getRecentlyReleased(lib.Id, limit, includeItemTypes)));
+				}, result.latest, 16, (limit) => api.getRecentlyReleased(lib.Id, limit, includeItemTypes, settings.hideWatchedInRecentRows)));
 			}
 		}
 		appendRows(rows);

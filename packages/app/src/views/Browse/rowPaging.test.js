@@ -95,3 +95,13 @@ describe('row paging', () => {
 		expect(readRaw.mock.calls.map(([size]) => size)).toEqual([32, 64, 128]);
 	});
 });
+
+describe('a folded read with a higher ceiling', () => {
+	test('keeps doubling past the usual ceiling until the row fills', async () => {
+		const raw = Array.from({length: 1000}, (_, i) => ({Id: `i${i}`, keep: i >= 300}));
+		const readRaw = jest.fn(async (size) => raw.slice(0, size));
+		const head = await readFoldedHead(readRaw, (items) => items.filter((item) => item.keep), 16, 64, 500);
+		expect(readRaw.mock.calls.map(([size]) => size)).toEqual([64, 128, 256, 500]);
+		expect(head.Items).toHaveLength(16);
+	});
+});

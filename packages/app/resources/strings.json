@@ -3108,5 +3108,8 @@
 	"Switch IMDb rows on in Home Sections.": "Switch IMDb rows on in Home Sections.",
 	"Switch TMDB rows on in Home Sections.": "Switch TMDB rows on in Home Sections.",
 	"Radarr": "Radarr",
-	"Sonarr": "Sonarr"
+	"Sonarr": "Sonarr",
+	"RECENTLY ADDED AND RELEASED": "RECENTLY ADDED AND RELEASED",
+	"Hide Watched": "Hide Watched",
+	"Hide watched content from Recently Added and Recently Released home rows.": "Hide watched content from Recently Added and Recently Released home rows."
 }

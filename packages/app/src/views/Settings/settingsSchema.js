@@ -5,6 +5,7 @@ import {mediaPreviewMode, mediaPreviewSettings} from '../../utils/mediaPreviewMo
 import {homeBackdropStyle, homeBackdropSettings} from '../../utils/homeBackdropStyle';
 import {ratingKey} from '../../utils/ratingSources';
 import {retrySubtitleFont, subtitleFontFailed} from '../../services/subtitleFonts';
+import {toggleHideWatched} from '../../utils/hideWatchedRecentRows';
 
 import {
 	getAccentColorOptions,
@@ -565,7 +566,8 @@ export const SETTINGS_SCHEMA = [
 					{kind: KIND.TOGGLE, key: 'mergeContinueWatchingNextUp', label: () => $L('Merge Continue Watching and Next Up'), desc: () => $L('Combine both rows into a single home section'), icon: 'merge_type'},
 					{kind: KIND.OPTION, key: 'continueWatchingDefaultAction', label: () => $L('Default Action'), options: getContinueWatchingDefaultActionOptions, fallback: () => $L('Go to Details'), desc: () => $L('What selecting a Continue Watching or Next Up item does'), icon: 'play_circle_outline', padded: true},
 					{kind: KIND.OPTION, key: 'nextUpMaxDays', label: () => $L('Max days in Next Up'), options: getNextUpMaxDaysOptions, fallback: () => $L('365 days'), desc: () => $L('How long a show stays in Next Up after you last watched it'), icon: 'event_busy', padded: true},
-					{kind: KIND.SECTION, id: 'recentlyAdded', label: () => $L('RECENTLY ADDED')},
+					{kind: KIND.SECTION, id: 'recentlyAdded', label: () => $L('RECENTLY ADDED AND RELEASED')},
+					{kind: KIND.TOGGLE, key: 'hideWatchedInRecentRows', label: () => $L('Hide Watched'), desc: () => $L('Hide watched content from Recently Added and Recently Released home rows.'), icon: 'visibility_off_outlined', keywords: () => ['watched', 'played', 'recent', 'recently added', 'recently released'], isOn: (ctx) => ctx.settings.hideWatchedInRecentRows === true, onToggle: (ctx) => toggleHideWatched(ctx.settings, ctx.actions.setSetting)},
 					{kind: KIND.TOGGLE, key: 'mergeRecentRowsByType', label: () => $L('Merge Recent Rows by Type'), desc: () => $L('Combine separate libraries of the same type for Recently Added and Recently Released home rows.'), icon: 'library_books'},
 					{kind: KIND.OPTION, key: 'recentlyReleasedSeriesType', label: () => $L('Recently Released Series Sort By'), desc: () => $L('Sort Recently Released Series home rows by series, latest season, or latest episode air date'), options: getRecentlyReleasedSeriesTypeOptions, fallback: () => $L('Series'), icon: 'ondemand_video'},
 					{kind: KIND.SECTION, id: 'audio', label: () => $L('AUDIO')},

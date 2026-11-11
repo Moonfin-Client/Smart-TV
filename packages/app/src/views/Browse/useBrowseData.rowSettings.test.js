@@ -131,7 +131,7 @@ describe('Home loads again when a row setting changes', () => {
 	test('a new Recently Released Series Sort By loads the rows for it', async () => {
 		await changed({recentlyReleasedSeriesType: 'series'}, {recentlyReleasedSeriesType: 'episode'}, [],
 			() => expect(api.getRecentlyReleased).toHaveBeenCalled());
-		await waitFor(() => expect(api.getRecentlyReleased).toHaveBeenCalledWith('movies', 16, 'Movie,Episode'));
+		await waitFor(() => expect(api.getRecentlyReleased).toHaveBeenCalledWith('movies', 16, 'Movie,Episode', undefined));
 	});
 
 	test('a load a newer one took over leaves the newer rows in place', async () => {
@@ -172,6 +172,6 @@ describe('Home loads again when a row setting changes', () => {
 			timestamp: Date.now() - 60000
 		}));
 		renderHook((p) => useBrowseData(p), {initialProps: props({recentlyReleasedSeriesType: 'season'})});
-		await waitFor(() => expect(api.getRecentlyReleased).toHaveBeenCalledWith('movies', 16, 'Movie,Season'));
+		await waitFor(() => expect(api.getRecentlyReleased).toHaveBeenCalledWith('movies', 16, 'Movie,Season', undefined));
 	});
 });

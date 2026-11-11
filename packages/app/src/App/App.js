@@ -35,6 +35,7 @@ import {initVideo, cleanupVideoElement, setupVisibilityHandler, setupPlatformLif
 import {activateApp, exitApp} from '../utils/appLifecycle';
 import {SettingsProvider} from '../context/SettingsContext';
 import {seedLanguagePreferences} from '../utils/languagePrefSeed';
+import {seedHideWatched} from '../utils/hideWatchedRecentRows';
 import {shouldRun as shouldRunSetupWizard, beginRerun as beginSetupWizardRerun} from '../utils/setupWizardGate';
 import {syncNotificationPrefs} from '../services/notificationPrefs';
 import {getActiveServer} from '../services/multiServerManager';
@@ -599,7 +600,10 @@ const AppContent = (props) => {
 
 	useEffect(() => {
 		if (!isAuthenticated || !user?.Configuration) return;
-		const seeded = seedLanguagePreferences(settings, user.Configuration, settings.uiLanguage, window.navigator?.language);
+		const seeded = {
+			...seedLanguagePreferences(settings, user.Configuration, settings.uiLanguage, window.navigator?.language),
+			...seedHideWatched(settings, user.Configuration)
+		};
 		if (Object.keys(seeded).length > 0) updateSettings(seeded);
 	}, [isAuthenticated, user, settings, updateSettings]);
 

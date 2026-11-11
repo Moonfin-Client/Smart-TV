@@ -1,4 +1,5 @@
 import {
+	isWatchedForRecentRow,
 	latestMediaFetchLimitForCollection,
 	seriesCardForLatestTvItem,
 	collapseLatestTvItems,
@@ -178,5 +179,31 @@ describe('latestMediaRowNormalizer', () => {
 			const result = normalizeLatestMediaItems(items, {collectionType: 'movies', limit: 2});
 			expect(result).toHaveLength(2);
 		});
+	});
+});
+
+describe('hiding watched titles in the recent rows', () => {
+	test('a played title, or a show with nothing left to watch, counts as watched', () => {
+		expect(isWatchedForRecentRow({Type: 'Movie', UserData: {Played: true}})).toBe(true);
+		expect(isWatchedForRecentRow({Type: 'Series', ChildCount: 3, UserData: {UnplayedItemCount: 0}})).toBe(true);
+		expect(isWatchedForRecentRow({Type: 'Season', UserData: {UnplayedItemCount: 0}})).toBe(true);
+		expect(isWatchedForRecentRow({Type: 'Series', ChildCount: 0, UserData: {UnplayedItemCount: 0}})).toBe(false);
+		expect(isWatchedForRecentRow({Type: 'Series', UserData: {UnplayedItemCount: 2}})).toBe(false);
+		expect(isWatchedForRecentRow({Type: 'Movie'})).toBe(false);
+	});
+
+	test('watched titles leave before shows fold into their series', () => {
+		const items = [
+			{Id: 'e1', Type: 'Episode', SeriesId: 's1', SeriesName: 'One', UserData: {Played: true}},
+			{Id: 'e2', Type: 'Episode', SeriesId: 's2', SeriesName: 'Two'}
+		];
+		expect(normalizeLatestMediaItems(items, {collectionType: 'tvshows', hideWatched: true}).map((i) => i.Id)).toEqual(['s2']);
+		expect(normalizeLatestMediaItems(items, {collectionType: 'tvshows'}).map((i) => i.Id)).toEqual(['s1', 's2']);
+	});
+
+	test('reads four times the row for any library, up to the cap', () => {
+		expect(latestMediaFetchLimitForCollection('movies', 16, 64, true)).toBe(64);
+		expect(latestMediaFetchLimitForCollection('tvshows', 10, 64, true)).toBe(40);
+		expect(latestMediaFetchLimitForCollection('tvshows', 20, 64, true)).toBe(64);
 	});
 });

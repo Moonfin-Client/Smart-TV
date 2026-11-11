@@ -1070,8 +1070,9 @@ export const createPlexApi = ({getBaseUrl, getToken, getUserId, getDeviceInfo, g
 
 		getLatestItems: ({ParentId, Limit} = {}) => api.getLatestMedia(ParentId, Limit),
 
-		getRecentlyReleased: (libraryId, limit = 20, includeItemTypes = 'Movie,Series') =>
-			getItems({ParentId: libraryId, IncludeItemTypes: includeItemTypes, SortBy: 'PremiereDate', SortOrder: 'Descending', Limit: limit}),
+		getRecentlyReleased: (libraryId, limit = 20, includeItemTypes = 'Movie,Series', hideWatched = null) =>
+			getItems({ParentId: libraryId, IncludeItemTypes: includeItemTypes, SortBy: 'PremiereDate', SortOrder: 'Descending', Limit: limit,
+				...(hideWatched === true ? {Filters: 'IsUnplayed'} : null)}),
 
 		getCollections: async (limit = 50, sortBy = 'SortName', sortOrder = 'Ascending', {editableOnly = false} = {}) => {
 			const result = await getItems({IncludeItemTypes: 'BoxSet', SortBy: sortBy, SortOrder: sortOrder, Limit: limit});

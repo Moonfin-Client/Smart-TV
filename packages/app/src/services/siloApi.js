@@ -436,6 +436,8 @@ export const createSiloApi = ({getBaseUrl, getToken, getUserId, getDeviceInfo, p
 						body: {value: after[key]}
 					});
 					written[key] = after[key];
+					// The newest rows keep the old Hide Watched answer for a minute otherwise.
+					if (key === SILO_SETTING_KEYS.hideWatchedItems) items.forget();
 				}
 			} finally {
 				lastSettings = {profileId: getUserId(), values: written};

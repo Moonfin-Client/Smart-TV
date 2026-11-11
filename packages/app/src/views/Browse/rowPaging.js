@@ -63,20 +63,22 @@ export const withRowPage = (rows, rowId, readHead, items, hasMore) => rows.map((
 
 // How far a folded read goes before giving up on finding another card.
 const MAX_RAW_READ = ROW_MAX_ITEMS * 2;
+// How far a recent row that hides watched titles reads.
+export const FULL_ROW_READ = 500;
 
 // Reads a head `limit` cards long from a list whose items fold together, like a show's episodes
 // into one series card. Folding can leave a read short of `limit`, so the raw read doubles
-// until it has the cards, the list runs out, or it reaches MAX_RAW_READ.
-export const readFoldedHead = async (readRaw, fold, limit, rawLimit = limit) => {
-	let size = Math.min(rawLimit, MAX_RAW_READ);
+// until it has the cards, the list runs out, or it reaches `maxRaw`.
+export const readFoldedHead = async (readRaw, fold, limit, rawLimit = limit, maxRaw = MAX_RAW_READ) => {
+	let size = Math.min(rawLimit, maxRaw);
 	for (;;) {
 		const raw = (await readRaw(size)) || [];
 		const items = fold(raw);
 		const full = raw.length >= size;
-		if (items.length >= limit || !full || size >= MAX_RAW_READ) {
+		if (items.length >= limit || !full || size >= maxRaw) {
 			return {Items: items.slice(0, limit), hasMore: items.length > limit || full};
 		}
-		size = Math.min(size * 2, MAX_RAW_READ);
+		size = Math.min(size * 2, maxRaw);
 	}
 };
 

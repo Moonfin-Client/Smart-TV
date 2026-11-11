@@ -61,7 +61,8 @@ export const SILO_SETTING_KEYS = {
 	subtitleLanguage: 'playback.subtitle_language',
 	subtitleMode: 'playback.subtitle_mode',
 	showForcedSubtitles: 'playback.show_forced_subtitles',
-	autoPlayNext: 'playback.auto_play_next'
+	autoPlayNext: 'playback.auto_play_next',
+	hideWatchedItems: 'home.hide_watched_items'
 };
 
 // Silo library ids are positive integers; the app's are strings.
@@ -110,7 +111,8 @@ export const siloSettingsToConfiguration = (values = {}) => {
 		SubtitleMode: siloSubtitleModeToJellyfin(values[K.subtitleMode], showForced),
 		PlayDefaultAudioTrack: true,
 		RememberAudioSelections: true,
-		RememberSubtitleSelections: true
+		RememberSubtitleSelections: true,
+		HidePlayedInLatest: values[K.hideWatchedItems] === true
 	};
 };
 
@@ -126,7 +128,8 @@ export const configurationToSiloSettings = (config = {}, current = {}) => {
 		[K.subtitleLanguage]: text(config.SubtitleLanguagePreference),
 		[K.subtitleMode]: subtitles.mode,
 		[K.showForcedSubtitles]: subtitles.showForced,
-		[K.autoPlayNext]: config.EnableNextEpisodeAutoPlay !== false
+		[K.autoPlayNext]: config.EnableNextEpisodeAutoPlay !== false,
+		[K.hideWatchedItems]: config.HidePlayedInLatest === true
 	};
 };
 

@@ -68,7 +68,7 @@ const ROW_OPTION_KEYS = [
 // own rows since the sample ones can't show them. The links stand in for the Rows, image type
 // and Seasonal Row screens.
 export const HOME_LOOK_KEYS = [
-	'homeRows', 'rowImageTypes', 'homeRowsImageType', 'seasonalRow', 'mergeContinueWatchingNextUp', 'mergeRecentRowsByType',
+	'homeRows', 'rowImageTypes', 'homeRowsImageType', 'seasonalRow', 'mergeContinueWatchingNextUp', 'mergeRecentRowsByType', 'hideWatchedInRecentRows',
 	'displayRewatchRow', 'watchedIndicatorBehavior', 'useSeriesThumbnails', 'cardFocusZoom', 'classicHomeRowsPadding',
 	'modernHomeRowsPadding', 'homeRowOverlay', 'showPosterLabels', 'modernCardsOnMyMediaRow',
 	'hideHomeWatchProgress', 'hideHomeUnwatchedCount'
