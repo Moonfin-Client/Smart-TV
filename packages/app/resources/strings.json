@@ -3063,8 +3063,6 @@
 	"Let the screensaver start while audio plays, so cover art doesn't sit on screen for hours.": "Let the screensaver start while audio plays, so cover art doesn't sit on screen for hours.",
 	"Let TV Sleep After": "Let TV Sleep After",
 	"Close Moonfin after this long without a button press so your TV's own screensaver and sleep timer can take over. Anything paused is stopped first, so it keeps its resume point.": "Close Moonfin after this long without a button press so your TV's own screensaver and sleep timer can take over. Anything paused is stopped first, so it keeps its resume point.",
-	"{rate} fps ({source})": "{rate} fps ({source})",
-	"server": "server",
 	"Scan": "Scan",
 	"Progressive": "Progressive",
 	"Interlaced": "Interlaced",

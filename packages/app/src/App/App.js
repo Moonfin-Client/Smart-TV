@@ -30,7 +30,7 @@ import {applyPerfTier} from '../utils/perfTier';
 import {setSmoothScrolling} from '../utils/focusScroll';
 import {isLiveTvChannel, isLiveTvLibrary} from '../utils/liveTvLibrary';
 import {OLED_TUNING} from '../utils/oledMode';
-import {isTizen} from '../platform';
+import {isTizen, isVega, isXbox} from '../platform';
 import {initVideo, cleanupVideoElement, setupVisibilityHandler, setupPlatformLifecycle} from '../services/video';
 import {activateApp, exitApp} from '../utils/appLifecycle';
 import {SettingsProvider} from '../context/SettingsContext';
@@ -433,8 +433,9 @@ const AppContent = (props) => {
 	);
 	const {isInactive: showScreensaver, dismiss: dismissScreensaver, wake: wakeScreensaver} = useInactivityTimer(screensaverTimeout, screensaverEnabled);
 	// A paused player holds the screen on too, so it counts as idle. Games and slideshows go on without key presses.
+	// Xbox and Vega have no TV sleep timer to hand the screen to.
 	useSleepAfterIdle(
-		Number(settings.sleepAfterIdle) || 0,
+		isXbox() || isVega() ? 0 : Number(settings.sleepAfterIdle) || 0,
 		!mediaPlaying && !slideshowRunning && panelIndex !== PANELS.GAME_PLAYER,
 		showScreensaver
 	);

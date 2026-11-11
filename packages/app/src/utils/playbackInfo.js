@@ -378,8 +378,7 @@ export const buildPlaybackInfo = ({
 		const fps = fpsValue(videoStream);
 		videoRows = [
 			{label: $L('Resolution'), value: resolution},
-			// The TV players report no rate of their own, so it's always the server's.
-			{label: $L('Frame Rate'), value: fps && fill($L('{rate} fps ({source})'), {rate: fps, source: $L('server')})},
+			{label: $L('Frame Rate'), value: fps && fill($L('{fps} fps'), {fps})},
 			{label: $L('Scan'), value: scanName(videoStream)},
 			{
 				label: $L('Format'),
