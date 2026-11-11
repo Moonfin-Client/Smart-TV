@@ -19,7 +19,8 @@ import {isSiloLogin, moonbaseEndpoint} from './moonbaseEndpoint';
 import {siloNewUuid} from './siloPlayback';
 import {openSiloSocket} from './siloSocket';
 import {platformFetch} from './secureFetch';
-import {plexMoonbaseUrl, trimSlash} from '../utils/plexUrls';
+import {trimSlash} from '../utils/plexUrls';
+import {plexMoonbaseBase} from './plexMoonbase';
 
 export const SILO_ROOM_PROTOCOL = 'silo.room.v2';
 const TICKS_PER_SECOND = 10000000;
@@ -371,8 +372,9 @@ export const createWatchPartyApi = ({call, baseUrl}) => {
 			withToken(token, {method: 'DELETE'})),
 		close: (roomId) => call(`${rooms}/${roomId}`, {method: 'DELETE'}),
 		// What each connected member has watched of these titles: unseen, in progress (with a position) or watched.
+		// The host's start buttons wait on it, so it gives up after five seconds.
 		memberState: (roomId, token, contentIds) => call(`${rooms}/${roomId}/member-state`,
-			withToken(token, {method: 'POST', body: {content_ids: contentIds}})),
+			withToken(token, {method: 'POST', body: {content_ids: contentIds}, timeoutMs: 5000})),
 		// Single use, at most 30 seconds. It rides in the offered protocols, never the URL.
 		socketTicket: async (roomId, token) => {
 			const answer = await call(`${rooms}/${roomId}/ws-ticket`, withToken(token, {method: 'POST'}));
@@ -1519,13 +1521,13 @@ const siloNow = () => {
 	};
 };
 
-const moonbaseBase = () => (getServerType() === 'plex' ? plexMoonbaseUrl(getServerUrl()) : getServerUrl());
+const moonbaseBase = () => (getServerType() === 'plex' ? plexMoonbaseBase(getServerUrl()) : getServerUrl());
 
 // A request under Moonbase's watch party routes, through the app's own fetch so old webOS sets reach https servers.
 const moonbaseCall = async (path, {method = 'GET', body, headers, timeoutMs = CALL_TIMEOUT_MS} = {}) => {
-	const endpoint = await moonbaseEndpoint(moonbaseBase(), getApiKey());
+	const endpoint = await moonbaseEndpoint(getServerUrl(), getApiKey());
 	if (!endpoint) throw Object.assign(new Error('No Moonbase on this server'), {status: 404});
-	const response = await platformFetch(`${endpoint.base}/Moonfin/WatchParty${path}`, {
+	const response = await (endpoint.fetch || platformFetch)(`${endpoint.base}/Moonfin/WatchParty${path}`, {
 		method,
 		headers: {...endpoint.headers, Accept: 'application/json', ...(body ? {'Content-Type': 'application/json'} : null), ...headers},
 		body: body ? JSON.stringify(body) : undefined

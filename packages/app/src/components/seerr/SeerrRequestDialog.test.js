@@ -1,4 +1,5 @@
-import {fireEvent, render, screen} from '@testing-library/react';
+import {act, fireEvent, render, screen} from '@testing-library/react';
+import Spotlight from '@enact/spotlight';
 
 import SeerrRequestDialog from './SeerrRequestDialog';
 import {CancelRequestPopup} from './CancelRequestPopup';
@@ -32,10 +33,12 @@ jest.mock('react-dom', () => ({createPortal: (node) => node}));
 jest.mock('@enact/i18n/$L', () => ({__esModule: true, default: (text) => text}));
 jest.mock('../../services/seerrApi', () => ({
 	__esModule: true,
-	default: {getSonarrServerDetails: jest.fn(), getRadarrServerDetails: jest.fn()}
+	default: {getSonarrServerDetails: jest.fn(), getRadarrServerDetails: jest.fn(), lookupSonarrSeries: jest.fn()}
 }));
 
 const series = {
+	id: 99,
+	externalIds: {tvdbId: 81189},
 	seasons: [{seasonNumber: 1}, {seasonNumber: 2}, {seasonNumber: 3}],
 	numberOfSeasons: 3,
 	mediaInfo: {status: 4, status4k: 1, seasons: [{seasonNumber: 1, status: 5, status4k: 1}]}
@@ -136,6 +139,74 @@ describe('SeerrRequestDialog', () => {
 		expect(await screen.findByText('Sonarr')).toBeTruthy();
 		fireEvent.click(screen.getByText('Submit Request'));
 		expect(onSubmit).toHaveBeenCalledWith({is4k: false, seasons: null, serverId: 4, profileId: 7, rootFolder: '/tv'});
+	});
+});
+
+describe('SeerrRequestDialog for a series with no TVDB id', () => {
+	const unmatched = {...series, externalIds: {}};
+	const matches = Array.from({length: 7}, (_, i) => ({tvdbId: 100 + i, title: `Braunschlag ${i}`, year: 2012, overview: 'An Austrian village.'}));
+	const settle = () => act(() => Promise.resolve());
+
+	test('asks which of Sonarr\'s first six series it is and sends the pick as tvdbId', async () => {
+		seerrApi.lookupSonarrSeries.mockResolvedValue(matches);
+		const onSubmit = setup({details: unmatched});
+		expect(seerrApi.lookupSonarrSeries).toHaveBeenCalledWith(99);
+		expect(screen.queryByText('Submit Request')).toBeNull();
+		expect(await screen.findByText("We couldn't match this series automatically. Pick the right one below.")).toBeTruthy();
+		expect(screen.getAllByText(/^Braunschlag/)).toHaveLength(6);
+		expect(Spotlight.focus).toHaveBeenLastCalledWith('seerr-match-100');
+		// Next waits for a pick.
+		fireEvent.click(screen.getByText('Next'));
+		expect(screen.queryByText('Submit Request')).toBeNull();
+		fireEvent.click(screen.getByText('Braunschlag 2'));
+		expect(Spotlight.focus).toHaveBeenLastCalledWith('seerr-match-next');
+		fireEvent.click(screen.getByText('Next'));
+		// The sheet names the pick, and Back steps out to the picker with it still picked.
+		expect(screen.getByText('Braunschlag 2')).toBeTruthy();
+		fireEvent.click(screen.getByText('Back'));
+		expect(Spotlight.focus).toHaveBeenLastCalledWith('seerr-match-102');
+		fireEvent.click(screen.getByText('Next'));
+		fireEvent.click(screen.getByText('Submit Request'));
+		expect(onSubmit).toHaveBeenCalledWith({is4k: false, seasons: null, serverId: null, profileId: null, rootFolder: null, tvdbId: 102});
+	});
+
+	test('a series Seerr already holds a TVDB id for goes straight to the request', () => {
+		setup({details: {...unmatched, mediaInfo: {...series.mediaInfo, tvdbId: 5}}});
+		expect(seerrApi.lookupSonarrSeries).not.toHaveBeenCalled();
+		expect(screen.getByText('Submit Request')).toBeTruthy();
+	});
+
+	test('with no Sonarr to ask the request goes out as it would without the step', async () => {
+		seerrApi.lookupSonarrSeries.mockResolvedValue(null);
+		const onSubmit = setup({details: unmatched});
+		fireEvent.click(await screen.findByText('Submit Request'));
+		expect(onSubmit).toHaveBeenCalledWith({is4k: false, seasons: null, serverId: null, profileId: null, rootFolder: null});
+	});
+
+	test('no match leaves only Close', async () => {
+		seerrApi.lookupSonarrSeries.mockResolvedValue([]);
+		setup({details: unmatched});
+		expect(await screen.findByText("We couldn't find a match for this series, so it can't be requested.")).toBeTruthy();
+		expect(screen.getByText('Close')).toBeTruthy();
+		expect(screen.queryByText('Next')).toBeNull();
+		expect(Spotlight.focus).toHaveBeenLastCalledWith('seerr-match-next');
+	});
+
+	test('a failed lookup stays on the step with a Retry that asks again', async () => {
+		seerrApi.lookupSonarrSeries.mockRejectedValueOnce(new Error('Moonfin proxy error: 500')).mockResolvedValueOnce(matches.slice(0, 1));
+		jest.spyOn(console, 'warn').mockImplementation(() => {});
+		setup({details: unmatched});
+		expect(await screen.findByText(/Sonarr couldn't find a match for this series, or couldn't be reached/)).toBeTruthy();
+		expect(screen.queryByText('Submit Request')).toBeNull();
+		fireEvent.click(screen.getByText('Retry'));
+		await settle();
+		expect(seerrApi.lookupSonarrSeries).toHaveBeenCalledTimes(2);
+		expect(screen.getByText('Braunschlag 0')).toBeTruthy();
+	});
+
+	test('a movie never asks', () => {
+		setup({details: {...unmatched, mediaInfo: {status: 1}}, isTv: false});
+		expect(seerrApi.lookupSonarrSeries).not.toHaveBeenCalled();
 	});
 });
 

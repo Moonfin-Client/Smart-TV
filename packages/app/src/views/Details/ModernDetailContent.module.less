@@ -312,6 +312,11 @@
 	}
 }
 
+// Held back while the loads that add its buttons land, still laid out so nothing moves when it shows.
+.actionsHeld {
+	visibility: hidden;
+}
+
 .actionBtn {
 	display: inline-flex;
 	align-items: center;
@@ -473,8 +478,6 @@
 }
 
 .actionsStacked > .actionBtn:first-child {
-	background-color: #00a4dc;
-	border: 5px solid transparent;
 	margin: 0 0 24px;
 	width: 100%;
 }
@@ -558,8 +561,6 @@
 
 // A labeled first button sized to its label, up to Core's widest, rather than spanning the row.
 .actionsCentered > .actionBtn:first-child {
-	background-color: #00a4dc;
-	border-color: transparent;
 	height: 90px;
 	justify-content: flex-start;
 	max-width: 467px;

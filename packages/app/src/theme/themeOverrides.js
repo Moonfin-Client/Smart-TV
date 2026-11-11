@@ -65,6 +65,7 @@ import seerrBannerCss from '../components/seerr/SeerrStatusBanner.module.less';
 import seerrDotCss from '../components/seerr/SeerrStatusDot.module.less';
 import seerrDownloadCss from '../components/SeerrDownloadProgress/SeerrDownloadProgress.module.less';
 import seerrRequestsCss from '../views/SeerrRequests/SeerrRequests.module.less';
+import seerrRequestCss from '../components/seerr/SeerrRequestDialog.module.less';
 import mediaRowCss from '../components/MediaRow/MediaRow.module.less';
 import modernRowCss from '../components/MediaRow/ModernMediaRow.module.less';
 import ratingsCss from '../components/RatingsRow/RatingsRow.module.less';
@@ -611,7 +612,6 @@ export const buildThemeOverrideCss = (theme, options = {}) => {
 	rule(`.${quickLookCss.season}:focus, .${quickLookCss.open}:focus`, `border-color: ${focusColor};`);
 	rule(`.${quickLookCss.progressFill}, .${quickLookCss.seasonFill}`, `background: ${accent};`);
 	['actionsStacked', 'actionsCentered'].forEach((row) => {
-		rule(`.${modernDetailCss[row]} > .${modernDetailCss.actionBtn}:first-child`, `background-color: ${accent}; color: ${onAccent};`);
 		rule(`.${modernDetailCss[row]} > .${modernDetailCss.actionBtn}:first-child:focus`, `background-color: ${buttonFocused}; border-color: ${focusColor}; color: ${onButtonFocused};`);
 		rule(`.${modernDetailCss[row]} > .${modernDetailCss.actionActive}`, `background-color: ${accentA(0.18)}; color: ${accent};`);
 		rule(`.${modernDetailCss[row]} > .${modernDetailCss.actionActive}[data-spotlight-id='details-favorite-btn']`, 'background-color: rgba(255, 71, 87, 0.18); color: #e50914;');
@@ -771,6 +771,9 @@ export const buildThemeOverrideCss = (theme, options = {}) => {
 	rule(`.${seerrDownloadCss.stalled} .${seerrDownloadCss.fill}`, `background: ${statusPending};`);
 	rule(`.${seerrDownloadCss.failed} .${seerrDownloadCss.fill}`, `background: ${statusError};`);
 	rule(`.${seerrDownloadCss.reason}, .${seerrDownloadCss.notFound}, .${seerrRequestsCss.tileReason}`, `color: ${os(0.6)};`);
+	rule(`.${seerrRequestCss.match}:focus`, `box-shadow: inset 0 0 0 ${rem(2)} ${accent};`);
+	rule(`.${seerrRequestCss.matchSelected}`, `background: ${accentA(0.18)};`);
+	rule(`.${seerrRequestCss.matchCheck}`, `color: ${accent};`);
 
 	// The Seerr banner across a poster, with dark ink on a fill as light as Pending's yellow.
 	const bannerInk = (hex) => (relativeLuminance(hex) > 0.45 ? '#000000' : onBadge);
@@ -784,6 +787,13 @@ export const buildThemeOverrideCss = (theme, options = {}) => {
 	rule(`.${mediaCardCss.seriesName}`, `color: ${onSurface};`);
 	rule(`.${mediaCardCss.episodeInfo}, .${modernCardCss.secondaryTitle}`, `color: ${theme.id === 'neon_pulse' ? onSurface : os(0.6)};`);
 	rule(`.${mediaCardCss.homeText} .${mediaCardCss.episodeInfo}`, `color: ${theme.id === 'neon_pulse' ? onSurface : os(0.65)};`);
+	if (theme.id === 'neon_pulse') {
+		// Neon's condensed body face needs the weight and a dark halo to read over bright art.
+		rule(`.${mediaCardCss.episodeInfo}, .${modernCardCss.secondaryTitle}`, 'font-weight: 600; text-shadow: 0 0 4px #000000, 0 0 6px rgba(0, 0, 0, 0.87);');
+		// Every card draws one, so the lower tiers drop it the way they drop the card glow.
+		rules.push(`${[mediaCardCss.episodeInfo, modernCardCss.secondaryTitle]
+			.map((name) => `${prefix}.perf-low .${name}, ${prefix}.perf-mid .${name}`).join(', ')} { text-shadow: none; }`);
+	}
 	rule(`.${modernCardCss.placeholderIcon}`, `color: ${os(0.45)};`);
 	rule(`.${modernCardCss.overview}`, `color: ${theme.id === 'neon_pulse' ? onSurface : os(0.7)};`);
 	rule(`.${modernCardCss.platformWebos} .${modernCardCss.image}`, `border-radius: ${bumpRadius(b.cardRadius, 2)};`);
@@ -791,7 +801,7 @@ export const buildThemeOverrideCss = (theme, options = {}) => {
 
 	// Row shells
 	rule(`.${mediaRowCss.title}, .${modernRowCss.title}`, `color: ${onSurface}; text-shadow: ${textGlow};`);
-	rule(`.${mediaRowCss.subtitle}, .${modernRowCss.subtitle}`, `color: ${os(0.5)};`);
+	rule(`.${mediaRowCss.subtitle}, .${modernRowCss.subtitle}`, `color: ${os(0.95)};`);
 	rule(`.${watchingNowRowCss.subtitle}`, `color: ${os(0.95)};`);
 	rule(`.${watchingNowRowCss.globeIcon}`, `color: ${onSurface};`);
 	rule(`.${mediaRowCss.seeAll}`, `background: ${os(0.08)}; color: ${os(0.7)};`);

@@ -566,7 +566,9 @@ const fetchPluginSectionRow = async (ctx, row) => {
 			title: row.name,
 			items: first.Items,
 			type: 'portrait',
-			isPluginRow: true
+			isPluginRow: true,
+			// What the row's See All card opens.
+			collection: row.source === 'collections' ? tagged([{Id: row.itemId, Name: row.name, Type: 'BoxSet'}])[0] : undefined
 		}, first, PICKED_ROW_LIMIT, readHead);
 	} catch (_error) {
 		return null;

@@ -37,6 +37,15 @@ describe('picked rows far down Home', () => {
 		expect(ctx.appendRows.mock.calls.map(([rows]) => rows.map((row) => row.title))).toEqual([['Genre 7'], ['Genre 8']]);
 		expect(done.mock.calls.map(([id]) => id)).toEqual(ctx.deferredPluginSections.map((row) => row.id));
 	});
+
+	test('carry the collection a picked collection row opens from its See All card', async () => {
+		const collection = makePickedRow({source: 'collections', serverUrl: SERVER, itemId: 'c1', name: 'Heists'}, true, 0);
+		const ctx = contextFor([collection, genreRow(0)]);
+		await loadDeferredSections(ctx, [collection, genreRow(0)], () => {});
+		const rows = ctx.appendRows.mock.calls.map(([[row]]) => row);
+		expect(rows.find((row) => row.id === collection.id).collection).toEqual({Id: 'c1', Name: 'Heists', Type: 'BoxSet'});
+		expect(rows.find((row) => row.id === genreRow(0).id).collection).toBeUndefined();
+	});
 });
 
 describe('loadSinceYouWatched', () => {

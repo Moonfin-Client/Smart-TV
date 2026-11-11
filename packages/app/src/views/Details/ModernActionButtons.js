@@ -49,7 +49,7 @@ const ModernActionButtons = (props) => {
 	// Only what the row itself needs. Everything the buttons are built from is read straight off
 	// props by the catalogue.
 	const {
-		settings, seerrOnly, isBook, isReadableBook, isPlaylist, playlistTracks, isPerson,
+		actionsHeld, settings, seerrOnly, isBook, isReadableBook, isPlaylist, playlistTracks, isPerson,
 		hasPlaybackPosition, resumeTimeText, hasTech,
 		handlePlay, handleResume, handleOpenExtras,
 		onFocusRow, downTarget, maxVisibleButtons, overflowAsMenu, menuBackRef,
@@ -200,8 +200,9 @@ const ModernActionButtons = (props) => {
 	return (
 		<>
 			<RowContainer
-				className={frosted ? css.actionsFrosted : stacked ? css.actionsStacked : centered ? `${css.actionsCentered} ${startAligned ? css.actionsStart : ''}` : `${css.actions} ${hasTech ? css.actionsTight : ''}`}
+				className={`${frosted ? css.actionsFrosted : stacked ? css.actionsStacked : centered ? `${css.actionsCentered} ${startAligned ? css.actionsStart : ''}` : `${css.actions} ${hasTech ? css.actionsTight : ''}`} ${actionsHeld ? css.actionsHeld : ''}`}
 				spotlightId="details-action-buttons"
+				spotlightDisabled={actionsHeld}
 				onFocus={handleRowFocus}
 				onKeyDown={stacked ? handleStackedKeyDown : handleKeyDown}
 			>

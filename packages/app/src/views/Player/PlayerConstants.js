@@ -27,8 +27,6 @@ export const getQualityPresets = () => (_qualityPresets ??= [
 	{label: $L('360p (1 Mbps)'), value: 1000000, minRes: 640}
 ]);
 
-export const CONTROLS_HIDE_DELAY = 5000;
-
 // How long a slideshow video that failed to play stays up before the slideshow moves on.
 export const SLIDESHOW_ERROR_DELAY = 2500;
 

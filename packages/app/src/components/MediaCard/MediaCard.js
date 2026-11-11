@@ -30,7 +30,7 @@ export const classicCardSize = (shape, posterSize) => {
 	return {width: Math.round(width * multiplier), height: Math.round(height * multiplier)};
 };
 
-const MediaCard = ({item, serverUrl, cardType = 'portrait', rowImageType = 'poster', onSelect, onFocusItem, showServerBadge = false, eagerLoad = false, deferImage = false, seerrSeasonStatus, spotlightId, onSpotlightLeft, onSpotlightRight, menuOptions, size, current = false, homeText = false, overlay = null, showInfo = true, posterLabels = false}) => {
+const MediaCard = ({item, serverUrl, cardType = 'portrait', rowImageType = 'poster', onSelect, onFocusItem, showServerBadge = false, eagerLoad = false, deferImage = false, seerrSeasonStatus, spotlightId, onSpotlightLeft, onSpotlightRight, menuOptions, size, current = false, homeText = false, overlay = null, showInfo = true, posterLabels = false, hideWatchProgress = false, hideUnwatchedCount = false}) => {
 	const {settings} = useSettings();
 	const focusTimeoutRef = useRef(null);
 
@@ -183,10 +183,10 @@ const MediaCard = ({item, serverUrl, cardType = 'portrait', rowImageType = 'post
 		onPreviewBlur();
 	}, [onMenuMouseLeave, onPreviewBlur]);
 
-	const progress = item.UserData?.PlayedPercentage || 0;
+	const progress = hideWatchProgress ? 0 : item.UserData?.PlayedPercentage || 0;
 	const watchedBehavior = settings.watchedIndicatorBehavior || 'always';
 	const showIndicators = watchedBehavior === 'always' || watchedBehavior === 'hideCount' || (watchedBehavior === 'episodesOnly' && item.Type === 'Episode');
-	const unplayedCount = item.UserData?.UnplayedItemCount;
+	const unplayedCount = hideUnwatchedCount ? 0 : item.UserData?.UnplayedItemCount;
 	const showUnplayedCount = showIndicators && watchedBehavior !== 'hideCount' && !item.UserData?.Played && unplayedCount > 0;
 
 	const seerrStyle = seerrBadgeStyle(settings);

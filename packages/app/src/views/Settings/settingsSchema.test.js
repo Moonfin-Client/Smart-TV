@@ -11,7 +11,7 @@ import {buildSettingsIndex, matchSettings, resultSpotlightId} from './settingsSe
 // a key that does not exist writes junk into settings, and a repeated spotlight id makes
 // a deep linked search result focus the wrong row.
 
-const CUSTOM_RENDERERS = ['moonbasePlugin', 'seerrPanel', 'rommPanel', 'aboutHeader', 'aboutDataActions', 'subtitlePreview', 'imageCacheActions', 'checkForUpdates', 'playbackTimePreview', 'screensaverPreview', 'loadingAnimationPreview', 'trickplayPreview'];
+const CUSTOM_RENDERERS = ['moonbaseAddress', 'moonbasePlugin', 'seerrPanel', 'rommPanel', 'aboutHeader', 'aboutDataActions', 'subtitlePreview', 'imageCacheActions', 'checkForUpdates', 'playbackTimePreview', 'screensaverPreview', 'loadingAnimationPreview', 'trickplayPreview'];
 const KEYED = [KIND.TOGGLE, KIND.OPTION, KIND.SLIDER];
 
 // Enough of a context that every label, value and condition can be called.
@@ -45,8 +45,9 @@ const allRows = () => allScreens().flatMap(({category, sub}) =>
 
 describe('settings schema', () => {
 	test('every stored key exists in the default settings', () => {
+		// A row that reads its own value keeps it somewhere else.
 		const unknown = allRows()
-			.filter(({row}) => KEYED.includes(row.kind))
+			.filter(({row}) => KEYED.includes(row.kind) && !row.isOn)
 			.map(({row}) => row.key)
 			.filter((key) => !(key in defaultSettings));
 		expect(unknown).toEqual([]);
@@ -114,11 +115,14 @@ describe('settings schema', () => {
 	describe('Moonbase plugin screen', () => {
 		const pluginScreen = () => allScreens().find(({category, sub}) => category.id === 'account' && sub.id === 'settingsSync').sub;
 
-		test('Settings Sync is the Moonbase block and nothing else', () => {
+		test('Settings Sync is the Moonbase block, under the Moonbase Address on Plex only', () => {
 			const rows = pluginScreen().rows;
 
-			expect(rows).toHaveLength(1);
-			expect(rows[0]).toMatchObject({kind: KIND.CUSTOM, render: 'moonbasePlugin'});
+			expect(rows).toHaveLength(2);
+			expect(rows[0]).toMatchObject({kind: KIND.CUSTOM, render: 'moonbaseAddress'});
+			expect(rows[0].when(ctx)).toBe(false);
+			expect(rows[0].when({...ctx, serverType: 'plex'})).toBe(true);
+			expect(rows[1]).toMatchObject({kind: KIND.CUSTOM, render: 'moonbasePlugin'});
 		});
 
 		test('has no other row for the plugin switch, its status or the profile picker', () => {
@@ -227,6 +231,15 @@ describe('settings schema', () => {
 		expect(on('watchPartiesNeedMoonbase', {watchParties: {needsMoonbase: true}})).toBe(true);
 		expect(on('openWatchParties', {}, {syncplayEnabled: false})).toBe(false);
 		expect(defaultSettings).toMatchObject({syncplayEnabled: true, watchPartyService: 'moonbase', watchPartyChatOverlay: true, watchPartyAlerts: false});
+	});
+
+	test('the drift correction rows hide on Silo, whose rooms correct drift themselves', () => {
+		const drift = ['syncPlayAdvancedCorrectionEnabled', 'syncPlayEnableSyncCorrection', 'syncPlayUseSkipToSync', 'syncPlayMinDelaySkipToSync', 'syncPlayExtraTimeOffset'];
+		const shown = (serverType) => drift.filter((key) => allRows().find(({row}) => row.key === key).row
+			.when({...ctx, serverType, settings: {...defaultSettings, syncPlayUseSkipToSync: true}}));
+		expect(shown('jellyfin')).toEqual(drift);
+		expect(shown('emby')).toEqual(drift);
+		expect(shown('silo')).toEqual([]);
 	});
 
 	test("Secondary Subtitles is off by default and follows the default language, with its own language only while it's on", () => {
@@ -401,5 +414,24 @@ describe('the ratings sections', () => {
 			.map((row) => row.when(withSettings({featuredBarStyle})));
 		for (const style of ['moonfin', 'makd', 'gallery', 'banner']) expect(shown(style)).toEqual([true, true]);
 		for (const style of ['bookshelf', 'aya', 'off']) expect(shown(style)).toEqual([false, false]);
+	});
+});
+
+describe('the Seerr notification choices', () => {
+	test('show with Seerr, and New Requests only to someone who manages requests', () => {
+		const keys = ['notifyOnNewRequests', 'notifyOnLibraryAdded', 'notifyOnIssues', 'notifyOnNewMedia'];
+		const rows = allRows().map(({row}) => row).filter((row) => keys.includes(row.key));
+		const shown = (seerr) => rows.filter((row) => row.when({...ctx, seerr})).map((row) => row.key);
+		const api = {canManageRequests: (permissions) => (permissions & 16) !== 0};
+		expect(shown({isEnabled: true, api, user: {permissions: 32}})).toEqual(keys.slice(1));
+		expect(shown({isEnabled: true, api, user: {permissions: 16}})).toEqual(keys);
+		expect(shown({isEnabled: false, api, user: {permissions: 16}})).toEqual([]);
+		// The values are the user's own, kept apart from the settings.
+		const toggleNotificationPref = jest.fn();
+		const withPrefs = {...ctx, notificationPrefs: {notifyOnIssues: false}, actions: {toggleNotificationPref}};
+		const issues = rows.find((row) => row.key === 'notifyOnIssues');
+		expect(issues.isOn(withPrefs)).toBe(false);
+		issues.onToggle(withPrefs);
+		expect(toggleNotificationPref).toHaveBeenCalledWith('notifyOnIssues');
 	});
 });

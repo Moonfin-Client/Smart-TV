@@ -605,6 +605,7 @@ const NouveauDetailContent = (props) => {
 						onNavigateDown={handleNavigateDown}
 						renderItem={renderEpisode}
 						itemMenu
+						startIndex={item.Type === 'Episode' ? seasonEpisodes.findIndex((episode) => episode.Id === item.Id) : 0}
 					/>
 				</>
 			);
@@ -703,6 +704,8 @@ const NouveauDetailContent = (props) => {
 				height={collectionHeight}
 				selectKey={entry.Id}
 				onSelect={onCollectionCard}
+				item={entry}
+				serverUrl={effectiveServerUrl}
 			/>
 		);
 	}
@@ -768,6 +771,8 @@ const NouveauDetailContent = (props) => {
 				height={posterHeight}
 				selectKey={entry.cardKey || entry.Id}
 				onSelect={onPosterCard}
+				item={entry}
+				serverUrl={effectiveServerUrl}
 			/>
 		);
 	}

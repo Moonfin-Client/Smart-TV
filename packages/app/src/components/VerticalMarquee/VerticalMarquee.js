@@ -1,5 +1,5 @@
 import {useEffect, useRef} from 'react';
-import {rem, rootScale} from '../../utils/rootScale';
+import {rem} from '../../utils/rootScale';
 
 import css from './VerticalMarquee.module.less';
 
@@ -10,10 +10,25 @@ const setOffset = (node, offset, duration) => {
 	node.style.transform = `translateY(${-offset}px)`;
 };
 
-// Text longer than its lines scrolls up through the rest and starts over. The pause comes first,
-// the scroll runs at a steady pace per pixel, the text holds at the end for as long as the visible
-// lines took to pass, then it snaps back. The line height and the pace are in design pixels.
-const VerticalMarquee = ({text, lines, lineHeight, msPerPixel, pauseMs, className}) => {
+// About the pace subtitle guidelines allow, slow enough to read from across the room.
+const READING_CHARS_PER_SECOND = 17;
+
+// One pixel up brings in a whole line of words, so the pace and the holds come from reading time
+// rather than distance. The first hold lasts as long as the visible lines take to read and the end
+// hold as long as one of them, and pauseMs is the shortest either can be.
+export const readingPace = ({chars, textHeight, viewportHeight, lines, pauseMs}) => {
+	const msPerChar = 1000 / READING_CHARS_PER_SECOND;
+	const visibleMs = chars * viewportHeight / textHeight * msPerChar;
+	return {
+		holdMs: Math.max(pauseMs, Math.round(visibleMs)),
+		scrollMs: Math.round(chars * (textHeight - viewportHeight) / textHeight * msPerChar),
+		endHoldMs: Math.max(pauseMs, Math.round(visibleMs / lines))
+	};
+};
+
+// Text longer than its lines scrolls up through the rest at reading pace, holds on the last lines,
+// then snaps back and starts over. The line height is in design pixels.
+const VerticalMarquee = ({text, lines, lineHeight, pauseMs, className}) => {
 	const viewportRef = useRef(null);
 	const contentRef = useRef(null);
 	const height = lines * lineHeight;
@@ -27,20 +42,26 @@ const VerticalMarquee = ({text, lines, lineHeight, msPerPixel, pauseMs, classNam
 		const maxOffset = textHeight - viewport.clientHeight;
 		if (maxOffset <= 0.5) return undefined;
 
-		const pace = msPerPixel / rootScale();
+		const {holdMs, scrollMs, endHoldMs} = readingPace({
+			chars: content.textContent.length,
+			textHeight,
+			viewportHeight: viewport.clientHeight,
+			lines,
+			pauseMs
+		});
 		let timer = null;
 		const cycle = () => {
 			timer = setTimeout(() => {
-				setOffset(content, maxOffset, maxOffset * pace);
+				setOffset(content, maxOffset, scrollMs);
 				timer = setTimeout(() => {
 					setOffset(content, 0, 0);
 					cycle();
-				}, textHeight * pace);
-			}, pauseMs);
+				}, scrollMs + endHoldMs);
+			}, holdMs);
 		};
 		cycle();
 		return () => clearTimeout(timer);
-	}, [text, height, msPerPixel, pauseMs]);
+	}, [text, height, lines, pauseMs]);
 
 	return (
 		<div ref={viewportRef} className={`${css.viewport} ${className || ''}`} style={{maxHeight: rem(height)}}>

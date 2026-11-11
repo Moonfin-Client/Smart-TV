@@ -428,7 +428,7 @@ class CardBuilder {
 			subtitle: countLabel(episodes.length, $L('1 episode'), $L('{count} episodes')),
 			imageUrl: firstPosterImageUrl(serverUrl, episodes) || fallbackImageUrl,
 			icon: CARD_ICONS.episodes,
-			sections: [{...mediaSection($L('Episodes'), episodes, 'landscape'), posterLabels: true}]
+			sections: [mediaSection($L('Episodes'), episodes, 'landscape')]
 		};
 	}
 
@@ -483,8 +483,7 @@ class CardBuilder {
 				id: `season-${season}`,
 				collapsible: true,
 				expanded: isCurrent(season, seasonEpisodes),
-				currentId: item?.Id,
-				posterLabels: true
+				currentId: item?.Id
 			}))
 		};
 	}

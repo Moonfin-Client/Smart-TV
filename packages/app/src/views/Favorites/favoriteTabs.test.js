@@ -1,4 +1,7 @@
-import {FAVORITE_TABS, FAVORITE_TAB_TYPES, WATCHLIST_TAB, bucketByTab, cardMetrics, clampTabIndex, favoriteCardImage, tabKeyForType, visibleTabs, watchlistCards} from './favoriteTabs';
+import {
+	FAVORITE_TABS, FAVORITE_TAB_TYPES, WATCHLIST_TAB, bucketByTab, cardMetrics, clampTabIndex, favoriteCardImage, swapRequestCard, tabKeyForType,
+	visibleTabs, watchlistCards, withRequestDetail
+} from './favoriteTabs';
 
 describe('FAVORITE_TABS', () => {
 	it('lists every type once, in order', () => {
@@ -168,5 +171,32 @@ describe('the watchlist tab', () => {
 
 	it('draws a request card from its own poster', () => {
 		expect(favoriteCardImage(card(22), 'portrait').url).toBe('https://image.tmdb.org/p/22.jpg');
+	});
+});
+
+describe('watchlist request cards', () => {
+	const card = {Id: 'seerr-movie-11', Name: 'Film', Overview: '', ProductionYear: 2026, _externalBackdropUrl: null, _seerr: true, _seerrMediaType: 'movie'};
+
+	it('take the detail\'s backdrop, runtime, age rating and score, keeping what the watchlist gave', () => {
+		const filled = withRequestDetail(card, {runtime: 118, contentRating: 'R'}, {
+			_externalBackdropUrl: 'http://img/b.jpg', Overview: 'A story.', ProductionYear: 1999, CommunityRating: 7.4
+		});
+		expect(filled).toMatchObject({
+			_externalBackdropUrl: 'http://img/b.jpg', Overview: 'A story.', ProductionYear: 2026, CommunityRating: 7.4,
+			OfficialRating: 'R', RunTimeTicks: 118 * 600000000
+		});
+		expect(withRequestDetail({...card, OfficialRating: 'PG-13'}, {contentRating: 'R'}, {}).OfficialRating).toBe('PG-13');
+	});
+
+	it('leave a series without a runtime', () => {
+		expect(withRequestDetail({...card, _seerrMediaType: 'tv'}, {runtime: 45}, {}).RunTimeTicks).toBeUndefined();
+	});
+
+	it('swap into the row as it is now, or come out when the rating is blocked', () => {
+		const row = [{Id: 'lib1'}, card, {Id: 'seerr-tv-5'}];
+		const filled = {...card, OfficialRating: 'R'};
+		expect(swapRequestCard(row, filled, false)).toEqual([{Id: 'lib1'}, filled, {Id: 'seerr-tv-5'}]);
+		expect(swapRequestCard(row, filled, true)).toEqual([{Id: 'lib1'}, {Id: 'seerr-tv-5'}]);
+		expect(swapRequestCard(undefined, filled, false)).toEqual([]);
 	});
 });

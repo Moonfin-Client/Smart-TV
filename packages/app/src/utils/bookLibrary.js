@@ -188,6 +188,12 @@ export const bookSeriesEntries = (titles, folders, bookFoldersAsSeries) => {
 	return entries.sort(compareNames);
 };
 
+// The series a book's Go to series opens, built from every title carrying its name however few they are.
+export const bookSeriesNamed = (name, titles) => {
+	const members = titles.filter((title) => String(title.SeriesName || '').trim() === name);
+	return members.length ? seriesEntry(`bookSeries:${name}`, name, members, null) : null;
+};
+
 // Authors an ebook only names as people, leaving out the ones `known` already holds.
 export const peopleAuthors = (titles, known) => {
 	const seen = new Set(known);

@@ -1,5 +1,7 @@
 jest.mock('./storage', () => ({getFromStorage: jest.fn(), saveToStorage: jest.fn()}));
-jest.mock('./jellyfinApi', () => ({getAuthHeader: () => 'auth', getServerType: () => 'jellyfin', getServerUrl: () => 'http://a'}));
+jest.mock('./jellyfinApi', () => ({getApiKey: () => 'key', getAuthHeader: () => 'auth', getServerType: () => 'jellyfin', getServerUrl: () => 'http://a'}));
+const mockMoonbase = {endpoint: null};
+jest.mock('./moonbaseEndpoint', () => ({moonbaseEndpoint: async () => mockMoonbase.endpoint}));
 jest.mock('../utils/requestQueue', () => ({mediaServerQueue: {run: (task) => task()}}));
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -23,6 +25,25 @@ const flush = async () => {
 
 beforeEach(() => jest.useFakeTimers());
 afterEach(() => jest.useRealTimers());
+
+test('a Plex server is asked through Moonbase for Plex, the way its other requests go', async () => {
+	const plex = launch(null);
+	require('../utils/plexUrls').registerPlexServer('http://a', 'key');
+	const companionFetch = jest.fn(() => Promise.resolve({ok: true, json: () => Promise.resolve(answer)}));
+	mockMoonbase.endpoint = {base: 'http://a:32500', headers: {'X-Plex-Token': 'key'}, fetch: companionFetch};
+	await plex.api.fetchSeriesMarkers('s1');
+	expect(companionFetch.mock.calls[0][0]).toBe('http://a:32500/Moonfin/AnimeMarkers/Series?seriesId=s1');
+	expect(companionFetch.mock.calls[0][1].headers).toEqual({'X-Plex-Token': 'key'});
+	expect(plex.request).not.toHaveBeenCalled();
+});
+
+test('a Plex server without Moonbase for Plex has no markers to give', async () => {
+	const none = launch(null);
+	require('../utils/plexUrls').registerPlexServer('http://a', 'key');
+	mockMoonbase.endpoint = null;
+	expect(await none.api.fetchSeriesMarkers('s1')).toBeNull();
+	expect(none.request).not.toHaveBeenCalled();
+});
 
 test('a series asked for on one launch is answered from storage on the next', async () => {
 	const first = launch(null);

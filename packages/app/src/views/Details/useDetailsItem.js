@@ -80,6 +80,8 @@ const useDetailsItem = ({itemId, initialItem, effectiveApi, effectiveServerUrl, 
 	// Read when the scan lands, so a sort picked while it was still running holds.
 	const collectionSortRef = useRef(DEFAULT_SORT);
 	seerrEnabledRef.current = seerrEnabled;
+	// Counts Next Up requests, so an older answer that lands late can't replace a newer one.
+	const nextUpRequestRef = useRef(0);
 
 	const [item, setItem] = useState(() => seedToShow(initialItem, itemId));
 	// Whether what is on screen is still the row it was opened from rather than the record
@@ -166,6 +168,7 @@ const useDetailsItem = ({itemId, initialItem, effectiveApi, effectiveServerUrl, 
 		setExtras([]);
 		setCast([]);
 		setNextUp([]);
+		nextUpRequestRef.current += 1;
 		setCollectionItems([]);
 		setMissingCollectionItems([]);
 		collectionIndexRef.current = [];
@@ -293,13 +296,14 @@ const useDetailsItem = ({itemId, initialItem, effectiveApi, effectiveServerUrl, 
 					// since the viewer walks the selector and would otherwise wait at every step.
 					const style = settingsRef.current?.detailScreenStyle;
 					const wantsEpisodes = ['v4', 'v5', 'v6', 'v7', 'v9'].indexOf(style) >= 0;
+					const nextUpRequest = ++nextUpRequestRef.current;
 					const [seasonsData, nextUpData, episodesData] = await Promise.all([
 						effectiveApi.getSeasons(itemId).catch(() => null),
 						effectiveApi.getNextUp(1, itemId).catch(() => null),
 						wantsEpisodes ? effectiveApi.getEpisodes(itemId).catch(() => null) : null
 					]);
 					if (seasonsData) setSeasons(tagWithServerInfo(withoutBlockedItems(seasonsData.Items || [], fallbackRating)));
-					if (nextUpData?.Items?.length > 0) setNextUp(tagWithServerInfo(nextUpData.Items));
+					if (nextUpData?.Items?.length > 0 && nextUpRequest === nextUpRequestRef.current) setNextUp(tagWithServerInfo(nextUpData.Items));
 					if (episodesData) setSeriesEpisodes(tagWithServerInfo(withoutBlockedItems(episodesData.Items || [], fallbackRating)));
 				}
 
@@ -683,6 +687,17 @@ const useDetailsItem = ({itemId, initialItem, effectiveApi, effectiveServerUrl, 
 		playlistItems: userDataSync.applyAll(playlistItems)
 	}), [item, seasons, episodes, seriesEpisodes, similar, extras, nextUp, nextEpisode, collectionItems, // eslint-disable-line react-hooks/exhaustive-deps
 		parentCollections, albumTracks, artistAlbums, playlistItems, userDataVersion]);
+
+	// Only the server knows which episode comes next once a watched state moves, so a series asks
+	// again. A failed request keeps the Next Up already shown.
+	const itemType = item?.Type;
+	useEffect(() => {
+		if (!userDataVersion || skip || itemType !== 'Series') return;
+		const request = ++nextUpRequestRef.current;
+		effectiveApi.getNextUp(1, itemId).then((data) => {
+			if (request === nextUpRequestRef.current) setNextUp(tagWithServerInfo(data?.Items || []));
+		}, () => {});
+	}, [userDataVersion]); // eslint-disable-line react-hooks/exhaustive-deps
 
 	return {
 		...synced,

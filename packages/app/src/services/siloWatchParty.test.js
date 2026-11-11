@@ -229,7 +229,7 @@ describe('Silo Watch Party room', () => {
 		const resume = await party.resumePoint();
 		expect(resume).toMatchObject({seconds: 1500, profileId: 'p2'});
 		expect(calls.find((c) => c.path.endsWith('/member-state'))).toMatchObject({
-			method: 'POST', body: {content_ids: ['ep1']}, headers: {'X-Room-Token': 'rt'}
+			method: 'POST', body: {content_ids: ['ep1']}, headers: {'X-Room-Token': 'rt'}, timeoutMs: 5000
 		});
 
 		expect(await party.startPlayback(resume.seconds)).toBe(true);

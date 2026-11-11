@@ -6,7 +6,6 @@ import $L from '@enact/i18n/$L';
 
 import VerticalMarquee from '../VerticalMarquee';
 import {formatClockTime, formatDayLabel, formatShowingTime} from '../../utils/clock';
-import {DESCRIPTION_MS_PER_PIXEL} from '../../utils/liveTvGuide';
 import {
 	RECORD_CHOICE, descriptionsDiffer, laterShowingWhen, recordPromptChannel
 } from '../../utils/recordAiring';
@@ -66,7 +65,6 @@ const ShowingCard = ({label, when, progress, progressLabel, description, status}
 				text={description}
 				lines={DESCRIPTION_LINES}
 				lineHeight={DESCRIPTION_LINE_HEIGHT}
-				msPerPixel={DESCRIPTION_MS_PER_PIXEL}
 				pauseMs={1600}
 			/>
 		)}

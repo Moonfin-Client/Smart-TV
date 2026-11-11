@@ -187,16 +187,20 @@ describe('settings live preview rows', () => {
 	});
 
 	test('the settings the preview can\'t draw leave it alone', () => {
-		// The month grid isn't drawn, a second subtitle line needs a track picked in the player, the
-		// chat needs a watch party, and the UI scale reaches the preview once it's saved.
-		['calendarWeekStart', 'secondarySubtitlesEnabled', 'watchPartyChatOverlay', 'uiScale'].forEach((key) => {
+		// A second subtitle line needs a track picked in the player, and the chat needs a watch party.
+		['secondarySubtitlesEnabled', 'watchPartyChatOverlay'].forEach((key) => {
 			expect(describeRow(`setting-${key}`, defaultSettings)).toMatchObject({key, scene: null, stage: null});
 		});
 	});
 
+	test('UI Scaling shows on home', () => {
+		expect(describeRow('setting-uiScale', defaultSettings)).toMatchObject({key: 'uiScale', scene: 'home', stage: null});
+	});
+
 	test('every subtitle appearance tile keeps the player on the subtitle look', () => {
-		expect(SUBTITLE_LOOK_KEYS).toHaveLength(21);
-		expect(SUBTITLE_HDR_KEYS).toEqual(expect.arrayContaining(['subtitleHdrSeparate', 'subtitleColorHdr', 'subtitlePositionAbsoluteHdr']));
+		expect(SUBTITLE_LOOK_KEYS).toHaveLength(29);
+		expect(SUBTITLE_HDR_KEYS).toEqual(expect.arrayContaining(['subtitleHdrSeparate', 'subtitleColorHdr', 'subtitlePositionAbsoluteHdr', 'subtitleBoldHdr']));
+		expect(SUBTITLE_HDR_KEYS).not.toContain('subtitleFont');
 		SUBTITLE_LOOK_KEYS.forEach((key) => {
 			expect(describeRow(`setting-${key}`, defaultSettings)).toMatchObject({scene: 'player', stage: 'subtitles'});
 		});
@@ -238,8 +242,7 @@ describe('settings live preview rows', () => {
 	});
 
 	test('every Calendar screen tile the calendar draws shows it, and the others leave the preview alone', () => {
-		const releaseTypes = ['radarrCalendarShowCinema', 'radarrCalendarShowDigital', 'radarrCalendarShowPhysical',
-			'calendarWeekStart', 'calendarSelectAction'];
+		const releaseTypes = ['radarrCalendarShowCinema', 'radarrCalendarShowDigital', 'radarrCalendarShowPhysical', 'calendarSelectAction'];
 		const calendar = SETTINGS_SCHEMA.flatMap((category) => category.subcategories).find((sub) => sub.id === 'calendar');
 		const tiles = calendar.rows.filter((row) => row.kind !== KIND.SECTION).map((row) => row.key || row.id);
 		expect(tiles.filter((key) => releaseTypes.indexOf(key) < 0).sort()).toEqual([...CALENDAR_KEYS].sort());

@@ -451,7 +451,7 @@ const ModernDetailContent = (props) => {
 	const renderGrid = (items, cardType, onSelect = onSelectItem, menuOptions) => (
 		<RowContainer className={css.grid}>
 			{items.map((it) => (
-				<MediaCard key={it.Id} item={it} serverUrl={effectiveServerUrl} cardType={cardType} onSelect={onSelect} menuOptions={menuOptions} />
+				<MediaCard key={it.Id} item={it} serverUrl={effectiveServerUrl} cardType={cardType} onSelect={onSelect} menuOptions={menuOptions} posterLabels />
 			))}
 		</RowContainer>
 	);

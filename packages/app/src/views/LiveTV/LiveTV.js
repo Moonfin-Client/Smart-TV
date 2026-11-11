@@ -7,7 +7,7 @@ import {useAuth} from '../../context/AuthContext';
 import {useSettings} from '../../context/SettingsContext';
 import LoadingSpinner from '../../components/LoadingSpinner';
 import {formatClockTime, formatDayLabel} from '../../utils/clock';
-import {KEYS, pageDirection} from '../../utils/keys';
+import {KEYS, pageDirection, remoteShortcut} from '../../utils/keys';
 import {animateScrollTop, pointerHover, stopScrollAnimation} from '../../utils/focusScroll';
 import {rem, rootScale} from '../../utils/rootScale';
 import {getImageUrl} from '../../utils/helpers';
@@ -911,11 +911,15 @@ const LiveTV = ({onPlayChannel, onRecordings, backHandlerRef}) => {
 
 	const resetToEntryState = useCallback(async () => {
 		resettingRef.current = true;
-		// Cleared before the reload so neither the re-anchor after it nor the focus restore once the
-		// grid is back puts focus on the program that was left.
+		// Cleared first, so nothing the move sets off puts focus back on the program that was left.
 		selectionRef.current = null;
+		pendingMoveRef.current = null;
+		// Not goToNow, whose full reload tears the grid down. This keeps the rows up and only
+		// refetches programs when the window was paged away.
 		try {
-			await goToNow();
+			await store.setWindowStart(guideLeftEdge(Date.now()), {livePosition: true});
+		} catch {
+			// The rows keep the programs they had.
 		} finally {
 			resettingRef.current = false;
 		}
@@ -926,13 +930,18 @@ const LiveTV = ({onPlayChannel, onRecordings, backHandlerRef}) => {
 		emitter.emit();
 		lastFocusedRowRef.current = null;
 		focusChannelRow(index, {animate: false});
-	}, [emitter, focusChannelRow, goToNow]); // eslint-disable-line react-hooks/exhaustive-deps
+	}, [emitter, focusChannelRow, store]); // eslint-disable-line react-hooks/exhaustive-deps
 
-	// A back press first re-homes a guide that has drifted from where it opened, and only leaves
-	// once it's already there.
+	// A back press in the grid first re-homes a guide that has drifted from where it opened. Once
+	// it's there, or that channel is filtered out, back moves up to the filters, and it only leaves
+	// from above the grid.
 	const consumeBackIfExploring = useCallback(() => {
 		if (resettingRef.current) return true;
-		if (!isExploringAwayFromEntry() || homeRowIndex() < 0) return false;
+		if (focusRef.current.area !== 'grid') return false;
+		if (!isExploringAwayFromEntry() || homeRowIndex() < 0) {
+			focusWhenMounted(chipSpotlightId(0));
+			return true;
+		}
 		resetToEntryState();
 		return true;
 	}, [resetToEntryState]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -978,6 +987,12 @@ const LiveTV = ({onPlayChannel, onRecordings, backHandlerRef}) => {
 	useEffect(() => {
 		const handleKeyDown = (e) => {
 			if (dialogRef.current) return;
+			if (remoteShortcut(e) === 'recordings') {
+				e.preventDefault();
+				e.stopPropagation();
+				onRecordings?.();
+				return;
+			}
 			const keyCode = e.keyCode;
 			if (keyCode >= KEYS.NUM_0 && keyCode <= KEYS.NUM_9) {
 				e.preventDefault();
@@ -989,7 +1004,7 @@ const LiveTV = ({onPlayChannel, onRecordings, backHandlerRef}) => {
 			window.removeEventListener('keydown', handleKeyDown, true);
 			clearTimeout(channelNumberTimeoutRef.current);
 		};
-	}, [handleChannelNumber]);
+	}, [handleChannelNumber, onRecordings]);
 
 	// ------------------------------------------------------------------------------------------
 	// Reacting to the store
@@ -1099,7 +1114,8 @@ const LiveTV = ({onPlayChannel, onRecordings, backHandlerRef}) => {
 		if (code === KEYS.LEFT) focusWindowBar(index - 1);
 		else if (code === KEYS.RIGHT) focusWindowBar(index + 1);
 		else if (code === KEYS.UP) focusWhenMounted(chipSpotlightId(0));
-		else focusChannelRow(0);
+		// Down lands on the channel focused last, or the first row once that one is filtered out.
+		else focusChannelRow(Math.max(0, channelsRef.current.findIndex((channel) => channel.Id === focusRef.current.channelId)));
 	}, [focusChannelRow, focusWindowBar]);
 
 	const handleEarlier = useCallback(() => shiftGuideWindow(-store.guideWindow, {focusGrid: false, allowPast: true}), [shiftGuideWindow, store]);

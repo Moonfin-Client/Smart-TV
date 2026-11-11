@@ -23,19 +23,20 @@ import {setTmdbThumbsAvailable} from '../utils/tmdbThumb';
 import {configureIncompleteRecordings} from '../services/incompleteRecordings';
 import serverLogger from '../services/serverLogger';
 import * as remoteControl from '../services/remoteControl';
-import {isBackKey, KEYS} from '../utils/keys';
+import {isBackKey, KEYS, remoteShortcut} from '../utils/keys';
 import {drawsStage} from '../views/Details/stage/stageRules';
 import {QUICK_LOOK_ID} from '../views/Details/quickLook/quickLookRules';
 import {applyPerfTier} from '../utils/perfTier';
 import {setSmoothScrolling} from '../utils/focusScroll';
 import {isLiveTvChannel, isLiveTvLibrary} from '../utils/liveTvLibrary';
 import {OLED_TUNING} from '../utils/oledMode';
-import {isTizen} from '../platform';
+import {isTizen, isVega, isXbox} from '../platform';
 import {initVideo, cleanupVideoElement, setupVisibilityHandler, setupPlatformLifecycle} from '../services/video';
 import {activateApp, exitApp} from '../utils/appLifecycle';
 import {SettingsProvider} from '../context/SettingsContext';
 import {seedLanguagePreferences} from '../utils/languagePrefSeed';
 import {shouldRun as shouldRunSetupWizard, beginRerun as beginSetupWizardRerun} from '../utils/setupWizardGate';
+import {syncNotificationPrefs} from '../services/notificationPrefs';
 import {getActiveServer} from '../services/multiServerManager';
 import {SeerrProvider, useSeerr} from '../context/SeerrContext';
 import {AchievementsProvider, useAchievements} from '../context/AchievementsContext';
@@ -78,6 +79,7 @@ import SpottableInput from '../components/SpottableInput/SpottableInput';
 import TVKeyboard from '../components/TVKeyboard/TVKeyboard';
 import {isTvKeyboardVisible, closeTvKeyboard, subscribeTvKeyboardVisibility} from '../components/TVKeyboard/keyboardBus';
 import useInactivityTimer from '../hooks/useInactivityTimer';
+import useSleepAfterIdle from '../hooks/useSleepAfterIdle';
 import useSignInPin from '../hooks/useSignInPin';
 import {useThemeMusic} from '../hooks/useThemeMusic';
 import {useAccessSchedule} from '../hooks/useAccessSchedule';
@@ -191,6 +193,18 @@ const PANELS = {
 	CALENDAR: 23,
 	CALENDAR_MONTH: 24
 };
+
+// A library with no id, which only names the server a genre or studio from another one is browsed on.
+const serverOnlyLibrary = (name, source) => ({
+	Id: null,
+	Name: name,
+	_serverUrl: source._serverUrl,
+	_serverType: source._serverType,
+	_serverAccessToken: source._serverAccessToken,
+	_serverUserId: source._serverUserId,
+	_serverName: source._serverName,
+	_serverId: source._serverId
+});
 
 const AppContent = (props) => {
 	const {isAuthenticated, isLoading, serverUrl, serverName, api, user, hasMultipleServers, accessToken, connectionState, revalidateSession, leaveSession, serverType} = useAuth();
@@ -396,11 +410,15 @@ const AppContent = (props) => {
 	const isPinChecking = pinPending && !isPinGateActive && pinChecked !== pinSession;
 	const [pinKeyboardOpen, setPinKeyboardOpen] = useState(false);
 	const screensaverTimeout = Number(settings.screensaverTimeout || 90);
+	const mediaPlaying = Boolean(playingItem) && !isPlayerPaused && (panelIndex === PANELS.PLAYER || backgroundMusic);
+	// Music and audiobooks keep the screensaver away while they play, on Now Playing or behind the
+	// other screens, unless the viewer lets it start over them.
+	const audioPlaying = mediaPlaying && isAudioItem(playingItem);
 	const screensaverEnabled = Boolean(
 		settings.screensaverEnabled &&
 		isAuthenticated &&
 		panelIndex !== PANELS.LOGIN &&
-		(panelIndex !== PANELS.PLAYER || isPlayerPaused) &&
+		(audioPlaying ? settings.screensaverDuringAudio === true : (panelIndex !== PANELS.PLAYER || isPlayerPaused)) &&
 		// Emulator input bypasses Spotlight (paused during gameplay), so inactivity never resets.
 		panelIndex !== PANELS.GAME_PLAYER &&
 		// A media bar trailer plays without any key presses to reset the timer.
@@ -414,6 +432,13 @@ const AppContent = (props) => {
 		!reading
 	);
 	const {isInactive: showScreensaver, dismiss: dismissScreensaver, wake: wakeScreensaver} = useInactivityTimer(screensaverTimeout, screensaverEnabled);
+	// A paused player holds the screen on too, so it counts as idle. Games and slideshows go on without key presses.
+	// Xbox and Vega have no TV sleep timer to hand the screen to.
+	useSleepAfterIdle(
+		isXbox() || isVega() ? 0 : Number(settings.sleepAfterIdle) || 0,
+		!mediaPlaying && !slideshowRunning && panelIndex !== PANELS.GAME_PLAYER,
+		showScreensaver
+	);
 
 	useEffect(() => {
 		window.dispatchEvent(new CustomEvent('moonfin:screensaver', {detail: {active: showScreensaver}}));
@@ -538,11 +563,17 @@ const AppContent = (props) => {
 
 	useEffect(() => {
 		if (isAuthenticated && serverUrl && accessToken) {
-			syncOnLogin(serverUrl, accessToken).catch((err) => {
+			syncOnLogin(serverUrl, accessToken, user?.Id).catch((err) => {
 				console.warn('[App] Initial settings sync failed:', err.message);
 			});
+			// Plex keeps no Seerr notification choices.
+			if (serverType !== 'plex') {
+				syncNotificationPrefs(serverUrl, accessToken, user?.Id).catch((err) => {
+					console.warn('[Seerr] Notification choices not synced:', err?.message);
+				});
+			}
 		}
-	}, [isAuthenticated, serverUrl, accessToken, syncOnLogin]);
+	}, [isAuthenticated, serverUrl, accessToken, user?.Id, serverType, syncOnLogin]);
 
 	// The setup wizard asks its questions once per server and user, so this
 	// only flips the flag for a pair that has never finished it. A server that
@@ -1369,11 +1400,12 @@ const AppContent = (props) => {
 		navigateTo(PANELS.LIBRARY);
 	}, [api, navigateTo, settings.liveTvSkipGuide]);
 
-	const handleSelectStudio = useCallback((studioName) => {
+	// A studio on a title from another server in unified mode is browsed on that server, as a genre is.
+	const handleSelectStudio = useCallback((studioName, sourceItem) => {
 		if (!studioName) return;
 		setStudioFilter(studioName);
 		setGenreFilter(null);
-		setSelectedLibrary(null);
+		setSelectedLibrary(sourceItem?._serverUrl ? serverOnlyLibrary(studioName, sourceItem) : null);
 		navigateTo(PANELS.LIBRARY);
 	}, [navigateTo]);
 
@@ -1611,18 +1643,28 @@ const AppContent = (props) => {
 	}, [panelIndex]);
 
 	// The guide button on the live TV OSD always lands on the guide, not wherever
-	// playback was launched from. When the player was opened from the guide its
-	// history entry is dropped so back doesn't bounce through the guide twice.
-	const handlePlayerGuide = useCallback(() => {
+	// playback was launched from, and the remote's Recordings button on Recordings.
+	// When the player was opened from that screen its history entry is dropped so
+	// back doesn't bounce through it twice.
+	const leavePlayerFor = useCallback((panel) => {
 		setIsPlayerPaused(false);
 		setPlayingItem(null);
 		setPlaybackOptions(null);
 		setIsResume(false);
-		setPanelHistory(prev => (prev[prev.length - 1] === PANELS.LIVETV ? prev.slice(0, -1) : prev));
-		showPanel(PANELS.LIVETV);
+		setPanelHistory(prev => (prev[prev.length - 1] === panel ? prev.slice(0, -1) : prev));
+		showPanel(panel);
 	}, [showPanel]);
+	const handlePlayerGuide = useCallback(() => leavePlayerFor(PANELS.LIVETV), [leavePlayerFor]);
+	const handlePlayerRecordings = useCallback(() => leavePlayerFor(PANELS.RECORDINGS), [leavePlayerFor]);
 
+	// Discover's Search lands on the Requests tab once a search has request results.
+	const [searchPrefersRequests, setSearchPrefersRequests] = useState(false);
 	const handleOpenSearch = useCallback(() => {
+		setSearchPrefersRequests(false);
+		navigateTo(PANELS.SEARCH);
+	}, [navigateTo]);
+	const handleOpenRequestSearch = useCallback(() => {
+		setSearchPrefersRequests(true);
 		navigateTo(PANELS.SEARCH);
 	}, [navigateTo]);
 
@@ -1716,16 +1758,7 @@ const AppContent = (props) => {
 		if (library) {
 			setSelectedLibrary(library);
 		} else if (genre._serverUrl) {
-			setSelectedLibrary({
-				Id: null,
-				Name: genre.name,
-				_serverUrl: genre._serverUrl,
-				_serverType: genre._serverType,
-				_serverAccessToken: genre._serverAccessToken,
-				_serverUserId: genre._serverUserId,
-				_serverName: genre._serverName,
-				_serverId: genre._serverId
-			});
+			setSelectedLibrary(serverOnlyLibrary(genre.name, genre));
 		} else {
 			setSelectedLibrary(null);
 		}
@@ -1759,6 +1792,40 @@ const AppContent = (props) => {
 	const handleOpenRecordings = useCallback(() => {
 		navigateTo(PANELS.RECORDINGS);
 	}, [navigateTo]);
+
+	// Home's Guide and Recordings buttons open Live TV once the server shows it has channels, as
+	// long as focus is still on Home rather than in something opened over it. Nothing focused
+	// counts as Home.
+	const panelIndexRef = useRef(panelIndex);
+	panelIndexRef.current = panelIndex;
+	const homeHasRemote = useCallback(() => {
+		const layer = quickLookLayerRef.current;
+		const active = document.activeElement;
+		return panelIndexRef.current === PANELS.BROWSE && Boolean(layer) &&
+			(!active || active === document.body || underDrawer(layer, active));
+	}, []);
+	const liveTvShortcutBusyRef = useRef(false);
+	const kidsMode = isKidsMode(settings);
+	useEffect(() => {
+		if (panelIndex !== PANELS.BROWSE || kidsMode) return undefined;
+		const handleKeyDown = async (e) => {
+			const shortcut = remoteShortcut(e);
+			if ((shortcut !== 'guide' && shortcut !== 'recordings') || isTvKeyboardVisible() || !homeHasRemote()) return;
+			e.preventDefault();
+			e.stopPropagation();
+			if (liveTvShortcutBusyRef.current) return;
+			liveTvShortcutBusyRef.current = true;
+			try {
+				const channels = await api.getLiveTvChannels(0, 1);
+				if (channels?.Items?.length && homeHasRemote()) (shortcut === 'guide' ? handleOpenLiveTv : handleOpenRecordings)();
+			} catch {
+				// A server without Live TV, or one that turns the request down, has no shortcut.
+			}
+			liveTvShortcutBusyRef.current = false;
+		};
+		window.addEventListener('keydown', handleKeyDown, true);
+		return () => window.removeEventListener('keydown', handleKeyDown, true);
+	}, [panelIndex, kidsMode, api, homeHasRemote, handleOpenLiveTv, handleOpenRecordings]);
 
 	const handlePlayRecording = useCallback((recording) => {
 		setPlayingItem(recording);
@@ -1865,6 +1932,7 @@ const AppContent = (props) => {
 		goToSearch: (search) => {
 			clearForRemote();
 			setRemoteSearch(search);
+			setSearchPrefersRequests(false);
 			// The player has already returned to its previous panel. Do not
 			// put the now-closed player into Search's back history.
 			navigateTo(PANELS.SEARCH, panelIndex !== PANELS.PLAYER && panelIndex !== PANELS.SEARCH);
@@ -2285,7 +2353,7 @@ const AppContent = (props) => {
 						</Panel>
 						<Panel>
 							{panelIndex === PANELS.SEARCH && (
-								<Search remoteSearch={remoteSearch} musicBar={backgroundMusic} onSelectItem={handleSelectItem} onSelectSeerrItem={handleSelectSeerrItem} onSelectPerson={handleSelectPerson} onSelectGame={handleSelectGame} onPlayChannel={handlePlayChannel} />
+								<Search remoteSearch={remoteSearch} musicBar={backgroundMusic} preferRequests={searchPrefersRequests} onSelectItem={handleSelectItem} onSelectSeerrItem={handleSelectSeerrItem} onSelectPerson={handleSelectPerson} onSelectGame={handleSelectGame} onPlayChannel={handlePlayChannel} />
 							)}
 						</Panel>
 						<Panel>
@@ -2325,7 +2393,7 @@ const AppContent = (props) => {
 									onSelectStudio={handleSelectSeerrStudio}
 									onSelectNetwork={handleSelectSeerrNetwork}
 									onOpenRequests={handleOpenSeerrRequests}
-									onOpenSearch={handleOpenSearch}
+									onOpenSearch={handleOpenRequestSearch}
 									onOpenShortcut={handleOpenSeerrShortcut}
 								/>
 							)}
@@ -2494,6 +2562,7 @@ const AppContent = (props) => {
 							onBack={slideshowVideo ? slideshowCallbacks.onExit : handlePlayerEnd}
 							slideshow={playerSlideshow}
 							onGuide={handlePlayerGuide}
+							onRecordings={handlePlayerRecordings}
 							onPlayNext={handlePlayNext}
 							onSelectPerson={handleSelectPersonFromPlayer}
 							onPausedChange={setIsPlayerPaused}
@@ -2516,6 +2585,7 @@ const AppContent = (props) => {
 							onSelectSeerrNetwork={handleSelectSeerrNetwork}
 							onOpenSeerrShortcut={handleOpenSeerrShortcut}
 							onOpenCalendarMonth={handleOpenCalendarMonth}
+							onSelectStudio={handleSelectStudio}
 							isVisible={panelIndex === PANELS.BROWSE && !showSettingsPanel && !pickingHousehold}
 							backHandlerRef={backHandlerRef}
 							onFocusItemThemeMusic={backgroundMusic ? undefined : themeMusic.playThemeMusicDelayed}

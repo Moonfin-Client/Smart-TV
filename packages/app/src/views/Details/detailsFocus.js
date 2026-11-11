@@ -8,6 +8,9 @@ import {KEYS} from '../../utils/keys';
 
 import css from './Details.module.less';
 
+// A row can start past its first card, as an episode's own season does on that episode.
+const rowEntry = (row) => row.querySelector('[data-row-start]') || row.querySelector('.spottable');
+
 export const handleSectionKeyDown = (ev) => {
 	const currentSpottable = ev.target.closest('.spottable');
 	if (!currentSpottable) return;
@@ -42,7 +45,7 @@ export const handleSectionKeyDown = (ev) => {
 			Spotlight.focus('details-action-buttons');
 		} else {
 			const prevRow = allRows[currentIndex - 1];
-			const prevSpottable = prevRow.querySelector('.spottable');
+			const prevSpottable = rowEntry(prevRow);
 			if (prevSpottable) {
 				ev.preventDefault();
 				ev.stopPropagation();
@@ -61,7 +64,7 @@ export const handleSectionKeyDown = (ev) => {
 
 		if (currentIndex >= 0 && currentIndex < allRows.length - 1) {
 			const nextRow = allRows[currentIndex + 1];
-			const nextSpottable = nextRow.querySelector('.spottable');
+			const nextSpottable = rowEntry(nextRow);
 			if (nextSpottable) {
 				ev.preventDefault();
 				ev.stopPropagation();
@@ -99,8 +102,9 @@ export const handleButtonRowKeyDown = (ev) => {
 	const sectionsContainer = document.querySelector(`.${css.sectionsContainer}`) || document.querySelector(`.${css.seasonEpisodesList}`);
 	if (sectionsContainer) {
 		const firstSpottable = sectionsContainer.querySelector('.spottable');
+		const firstRow = firstSpottable && firstSpottable.closest(`.${css.section}`);
 		if (firstSpottable) {
-			Spotlight.focus(firstSpottable);
+			Spotlight.focus(firstRow ? rowEntry(firstRow) : firstSpottable);
 		}
 	}
 };
@@ -117,6 +121,12 @@ export const handleSeasonButtonKeyDown = (ev) => {
 			Spotlight.focus(firstSpottable);
 		}
 	}
+};
+
+// A ref for a plain horizontal scroller whose row starts past its first card, so it opens there.
+export const scrollToRowStart = (scroller) => {
+	const card = scroller && scroller.querySelector('[data-row-start]');
+	if (card) scroller.scrollLeft += card.getBoundingClientRect().left - scroller.getBoundingClientRect().left - 50;
 };
 
 // Keeps a focused card inside a plain horizontal scroller, which doesn't scroll itself.

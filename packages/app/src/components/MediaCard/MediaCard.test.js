@@ -390,3 +390,21 @@ describe('MediaCard with its own overlay', () => {
 		expect(document.querySelector('img').getAttribute('src')).toBe(BACKDROP);
 	});
 });
+
+describe('MediaCard with the Home poster toggles', () => {
+	const started = {Id: 's1', Name: 'Started', Type: 'Series', ImageTags: {Primary: 'p'}, UserData: {PlayedPercentage: 40, UnplayedItemCount: 3}};
+	const marks = () => ({
+		progress: document.querySelector('[class~="progressBar"]') !== null,
+		count: document.querySelector('[class~="unplayedCount"]') !== null
+	});
+
+	it('takes off only the mark each toggle names', () => {
+		mockSettings = {};
+		const {rerender} = render(<MediaCard item={started} serverUrl="http://server" />);
+		expect(marks()).toEqual({progress: true, count: true});
+		rerender(<MediaCard item={started} serverUrl="http://server" hideWatchProgress />);
+		expect(marks()).toEqual({progress: false, count: true});
+		rerender(<MediaCard item={started} serverUrl="http://server" hideUnwatchedCount />);
+		expect(marks()).toEqual({progress: true, count: false});
+	});
+});

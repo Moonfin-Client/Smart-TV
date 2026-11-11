@@ -1,4 +1,5 @@
 import $L from '@enact/i18n/$L';
+import {SUBTITLE_FONTS} from '../../services/subtitleFonts';
 
 import {PLAYBACK_TIME_DISPLAYS, PLAYBACK_TIME_SLOTS} from '../../utils/playbackTimeLabels';
 
@@ -116,6 +117,17 @@ export const getSubtitlePositionOptions = () => [
 	{ value: 'absolute', label: $L('Absolute'), offset: 0 }
 ];
 
+export const getSubtitleStrokeWidthOptions = () => [
+	{ value: 100, label: $L('Default') },
+	{ value: 150, label: $L('Medium') },
+	{ value: 200, label: $L('Large') }
+];
+
+export const getSubtitleFontOptions = () => [
+	{ value: '', label: $L('Default') },
+	...SUBTITLE_FONTS.map(({family}) => ({ value: family, label: family }))
+];
+
 export {getSubtitleColorOptions, getSubtitleShadowColorOptions, getSubtitleBackgroundColorOptions} from '../../utils/subtitleConstants';
 
 export const getSeekStepOptions = () => [
@@ -213,6 +225,11 @@ export const getScreensaverDimmingOptions = () => [
 	{ value: 50, label: $L('50%') },
 	{ value: 75, label: $L('75%') },
 	{ value: 100, label: $L('100%') }
+];
+
+export const getSleepAfterIdleOptions = () => [
+	{ value: 0, label: $L('Off') },
+	...[15, 30, 60, 120].map((minutes) => ({ value: minutes, label: $L('{minutes} min').replace('{minutes}', minutes) }))
 ];
 
 export const getWatchPartyServiceOptions = () => [
@@ -526,6 +543,12 @@ export const getSkipLengthOptions = () => [
 	{ value: 30000, label: $L('30 seconds') },
 	{ value: 45000, label: $L('45 seconds') },
 	{ value: 60000, label: $L('60 seconds') }
+];
+
+export const getControlsHideDelayOptions = () => [
+	{ value: 1000, label: $L('1 second') },
+	{ value: 3000, label: $L('3 seconds') },
+	{ value: 5000, label: $L('5 seconds') }
 ];
 
 export const getMaxResolutionOptions = () => [

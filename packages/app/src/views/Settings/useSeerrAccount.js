@@ -3,7 +3,7 @@ import $L from '@enact/i18n/$L';
 
 // Turning the Moonfin plugin on is what connects Seerr, so the plugin toggle and the sign in
 // form share this state. The password is dropped whenever either one is switched off.
-const useSeerrAccount = ({seerr, seerrLabel, settings, updateSetting, serverUrl, accessToken}) => {
+const useSeerrAccount = ({seerr, seerrLabel, settings, updateSetting, serverUrl, accessToken, serverType}) => {
 	const [moonfinStatus, setMoonfinStatus] = useState('');
 	const [moonfinConnecting, setMoonfinConnecting] = useState(false);
 	const [seerrAuthType, setSeerrAuthType] = useState('jellyfin');
@@ -81,8 +81,9 @@ const useSeerrAccount = ({seerr, seerrLabel, settings, updateSetting, serverUrl,
 	}, [seerr]);
 
 	const handleSeerrLogin = useCallback(async () => {
+		const plexAccount = serverType === 'plex' && seerrAuthType !== 'local';
 		const username = seerrUsername.trim();
-		if (!username) {
+		if (!username && !plexAccount) {
 			setSeerrAuthMessage('');
 			setSeerrAuthError($L('Enter username/email.'));
 			return;
@@ -93,7 +94,7 @@ const useSeerrAccount = ({seerr, seerrLabel, settings, updateSetting, serverUrl,
 		setSeerrAuthError('');
 
 		try {
-			await seerr.loginWithMoonfin(username, seerrPassword, seerrAuthType);
+			await seerr.loginWithMoonfin(username, seerrPassword, plexAccount ? 'plex' : seerrAuthType);
 			setSeerrPassword('');
 			setSeerrAuthMessage($L('Signed in to {seerrLabel}.').replace('{seerrLabel}', seerrLabel));
 			setMoonfinStatus($L('Connected via Moonfin!'));
@@ -105,7 +106,7 @@ const useSeerrAccount = ({seerr, seerrLabel, settings, updateSetting, serverUrl,
 		} finally {
 			setSeerrAuthSubmitting(false);
 		}
-	}, [seerr, seerrUsername, seerrPassword, seerrAuthType, seerrLabel]);
+	}, [seerr, seerrUsername, seerrPassword, seerrAuthType, seerrLabel, serverType]);
 
 	const handleSeerrPasswordKeyDown = useCallback((e) => {
 		const code = e.keyCode || e.which;

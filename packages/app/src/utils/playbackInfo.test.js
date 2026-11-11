@@ -540,6 +540,22 @@ describe('buildPlaybackInfo', () => {
 		expect(rows.some((row) => row.indexOf('Why') !== -1 || row.indexOf('Transcode Reasons') !== -1)).toBe(false);
 	});
 
+	it('says a live channel is relayed rather than repackaged', () => {
+		const source = {MediaStreams: [{Type: 'Video', Index: 0, Codec: 'mpeg2video', Width: 1920, Height: 1080}], Container: 'ts'};
+		const rows = flatten(buildPlaybackInfo({session: session(source), playMethod: 'DirectStream', isLiveTV: true}));
+		expect(rows).toContain('  (The server is relaying the channel without converting it.)');
+	});
+
+	it("reads the scan type off the server's interlaced flag, and says nothing without one", () => {
+		const scan = (extra) => flatten(buildPlaybackInfo({
+			session: session({MediaStreams: [{Type: 'Video', Index: 0, Codec: 'h264', Width: 1920, Height: 1080, ...extra}]}),
+			playMethod: 'DirectPlay'
+		})).find((row) => row.indexOf('Scan:') !== -1);
+		expect(scan({IsInterlaced: true})).toBe('  Scan: Interlaced');
+		expect(scan({IsInterlaced: false})).toBe('  Scan: Progressive');
+		expect(scan({})).toBeUndefined();
+	});
+
 	it('shows the channel and program for live TV and no file section', () => {
 		const source = {MediaStreams: [{Type: 'Video', Index: 0, Codec: 'mpeg2video', Width: 1280, Height: 720, RealFrameRate: 59.94}], Container: 'ts'};
 		const sections = buildPlaybackInfo({
@@ -566,8 +582,9 @@ describe('buildPlaybackInfo', () => {
 			session: session(movieSource()), playMethod: 'DirectPlay', selectedAudioIndex: 1,
 			hostAudioOutput: {decoder: null, format}, droppedFrames: 12
 		}));
-		expect(rows('TrueHD 8 ch 48000 Hz')).toContain('  Output: Passthrough over HDMI');
-		expect(rows('PCM 8 ch 48000 Hz')).toContain('  Output: Decoded on this device');
+		expect(rows('TrueHD 8 ch 48000 Hz')).toContain('  Output: Passthrough (Dolby TrueHD with Atmos)');
+		expect(rows('PCM 8 ch 48000 Hz')).toContain('  Output: Decoded (7.1)');
+		expect(rows('PCM 48000 Hz')).toContain('  Output: Decoded (7.1)');
 		expect(rows('{00000000-0000-0000-0000-000000000000} 48000 Hz').some((row) => row.indexOf('Output') !== -1)).toBe(false);
 		expect(rows('PCM 8 ch 48000 Hz')).toContain('  Dropped Frames: 12');
 	});
