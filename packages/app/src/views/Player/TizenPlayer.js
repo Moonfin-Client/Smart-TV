@@ -3642,7 +3642,6 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 				e.stopPropagation();
 				if (trackAction === 'close') closeModal();
 				else if (trackAction === 'open') handleButtonAction(shortcut);
-				else if (trackAction === 'noTracks') showPlayerToast($L('No other audio tracks'));
 				return;
 			}
 

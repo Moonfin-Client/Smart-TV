@@ -41,6 +41,7 @@ const TIZEN_KEYS = {
 	MTS: 10195,
 	GUIDE: 458,
 	RECORD: 416,
+	CHANNEL_LIST: 10073,
 };
 
 // The channel buttons reach the page as Page Up and Page Down, and the Magic Remote's pointer
@@ -111,12 +112,13 @@ export const isMediaKey = (e) => [KEYS.PLAY, KEYS.PAUSE, KEYS.PLAY_PAUSE, KEYS.S
 export const isMenuKey = (e) => KEYS.MENU !== undefined && (e.keyCode || e.which) === KEYS.MENU;
 
 // The remote's own Guide, Recordings, Subtitles, Audio and Record buttons. Only Tizen documents
-// codes for these. No platform documents one for Recordings, so it goes by the standard key names
-// an engine may give a DVR button.
+// codes for these. Samsung remotes have no Recordings button, so Channel List opens Recordings
+// there, and elsewhere it goes by the standard key names an engine may give a DVR button.
 export const remoteShortcut = (e) => {
 	if (e.key === 'DVR' || e.key === 'TVContentsMenu') return 'recordings';
 	const code = e.keyCode || e.which;
 	if (!code) return null;
+	if (code === KEYS.CHANNEL_LIST) return 'recordings';
 	if (code === KEYS.GUIDE) return 'guide';
 	if (code === KEYS.CAPTION) return 'subtitle';
 	if (code === KEYS.MTS) return 'audio';
@@ -176,11 +178,12 @@ export const ESSENTIAL_KEY_NAMES = [
 	'Search',
 	'ChannelUp',
 	'ChannelDown',
-	// The player and the guide answer these, and Home takes Guide to the guide.
+	// The player and the guide answer these, and Home takes Guide to the guide and Channel List to Recordings.
 	'Caption',
 	'MTS',
 	'Guide',
-	'MediaRecord'
+	'MediaRecord',
+	'ChannelList'
 ];
 
 export const registerKeys = (keyNames = ESSENTIAL_KEY_NAMES) => {

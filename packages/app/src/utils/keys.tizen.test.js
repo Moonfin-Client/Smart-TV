@@ -8,6 +8,7 @@ describe('remote shortcuts on Tizen', () => {
 		expect(remoteShortcut({keyCode: 10221})).toBe('subtitle');
 		expect(remoteShortcut({keyCode: 10195})).toBe('audio');
 		expect(remoteShortcut({keyCode: 416})).toBe('record');
+		expect(remoteShortcut({keyCode: 10073})).toBe('recordings');
 		expect(remoteShortcut({keyCode: 13})).toBeNull();
 		expect(remoteShortcut({keyCode: 0})).toBeNull();
 	});
@@ -18,6 +19,6 @@ describe('remote shortcuts on Tizen', () => {
 	});
 
 	test('the buttons are registered, or the TV keeps them', () => {
-		['Caption', 'MTS', 'Guide', 'MediaRecord'].forEach((name) => expect(ESSENTIAL_KEY_NAMES).toContain(name));
+		['Caption', 'MTS', 'Guide', 'MediaRecord', 'ChannelList'].forEach((name) => expect(ESSENTIAL_KEY_NAMES).toContain(name));
 	});
 });

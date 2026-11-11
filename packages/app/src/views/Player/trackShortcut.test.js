@@ -20,9 +20,9 @@ describe('trackShortcutAction', () => {
 		expect(trackShortcutAction('record', {...idle, activeModal: 'quality'})).toBe('ignore');
 	});
 
-	test('a single audio track says so, and an unrecordable program ignores Record', () => {
-		expect(trackShortcutAction('audio', {...idle, audioTrackCount: 1})).toBe('noTracks');
-		expect(trackShortcutAction('audio', {...idle, audioTrackCount: 0})).toBe('noTracks');
+	test('a single audio track still opens its picker, and an unrecordable program ignores Record', () => {
+		expect(trackShortcutAction('audio', {...idle, audioTrackCount: 1})).toBe('open');
+		expect(trackShortcutAction('audio', {...idle, audioTrackCount: 0})).toBe('ignore');
 		expect(trackShortcutAction('record', {...idle, recordable: false})).toBe('ignore');
 		expect(trackShortcutAction('subtitle', {...idle, hasSubtitles: false})).toBe('ignore');
 	});
