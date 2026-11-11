@@ -1,5 +1,6 @@
 import {api, getApiKey, getAuthHeader, getServerType, getServerUrl, getUserId} from './jellyfinApi';
 import {moonbaseEndpoint} from './moonbaseEndpoint';
+import {plexItems} from './plexMapper';
 import {fetchWithTimeout} from '../utils/fetchTimeout';
 import {mediaServerQueue} from '../utils/requestQueue';
 
@@ -167,9 +168,11 @@ export const fetchSeasonalRow = async ({country, allYear = false} = {}) => {
 		if (!response?.ok) return cache[key]?.payload || null;
 
 		const data = await response.json();
+		const items = Array.isArray(data.items) ? data.items : [];
 		const payload = {
 			holiday: data.holiday ?? null,
-			items: Array.isArray(data.items) ? data.items : [],
+			// Moonbase for Plex answers with Plex's own metadata.
+			items: getServerType() === 'plex' ? plexItems(items) : items,
 			suggestions: Array.isArray(data.suggestions) ? data.suggestions.map(normalizeItem) : []
 		};
 		cache[key] = {payload, fetchedAt: Date.now()};

@@ -175,6 +175,20 @@ describe('externalRowsApi', () => {
 			const [calledUrl] = fetchWithTimeout.mock.calls[0];
 			expect(calledUrl).toContain('country=CA');
 		});
+
+		it('maps the movies from Moonbase for Plex like any Plex item', async () => {
+			mockSilo.type = 'plex';
+			mockMoonbase.endpoint = {base: 'http://plex:32500', headers: {}};
+			fetchWithTimeout.mockResolvedValue(mockJsonResponse({
+				holiday: 'christmas',
+				items: [{ratingKey: '11', type: 'movie', title: 'Klaus', year: 2019}],
+				suggestions: []
+			}));
+
+			const result = await fetchSeasonalRow({country: 'US'});
+			expect(fetchWithTimeout.mock.calls[0][0]).toBe('http://plex:32500/Moonfin/Seasonal/Row?country=US');
+			expect(result.items).toEqual([expect.objectContaining({Id: '11', Name: 'Klaus', Type: 'Movie', ProductionYear: 2019})]);
+		});
 	});
 
 	describe('fetchTmdbDetails', () => {
