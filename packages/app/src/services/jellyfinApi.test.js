@@ -276,3 +276,24 @@ describe('Silo apis for other servers', () => {
 		expect(createApiForServer('http://silo2:8090', 'T1', 'p2', 'silo')).not.toBe(before);
 	});
 });
+
+describe('a refused request', () => {
+	test('carries the reply body of a 4xx, squeezed and capped at 500 characters', async () => {
+		platformFetch.mockImplementation(() => Promise.resolve({
+			ok: false, status: 400, text: () => Promise.resolve('{"title":\n  "One or more validation errors occurred."}')
+		}));
+		await expect(api.updateUserConfiguration({MyMediaExcludes: ['x']})).rejects.toMatchObject({
+			message: 'API Error: 400', status: 400, body: '{"title": "One or more validation errors occurred."}'
+		});
+		platformFetch.mockImplementation(() => Promise.resolve({ok: false, status: 400, text: () => Promise.resolve('x'.repeat(600))}));
+		const error = await createApiForServer('http://other', 'token', 'user-2').updateUserConfiguration({}).catch((e) => e);
+		expect(error.body).toBe('x'.repeat(500) + '...');
+	});
+
+	test('leaves a server error without a body', async () => {
+		platformFetch.mockImplementation(() => Promise.resolve({ok: false, status: 500, text: () => Promise.resolve('boom')}));
+		const error = await api.updateUserConfiguration({}).catch((e) => e);
+		expect(error.status).toBe(500);
+		expect(error.body).toBeUndefined();
+	});
+});

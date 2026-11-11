@@ -34,11 +34,11 @@ export const SCREENSAVER_KEYS = [
 	'screensaverEnabled', 'screensaverDimmingLevel', 'screensaverBackdrop', 'screensaverComponent', 'screensaverMovement',
 	'screensaverSize', 'screensaverPosition'
 ];
-// The Calendar screen's settings and its Libraries link. The Radarr release types are shared with the
-// Upcoming Movies row, week start only changes the month grid and the select action only acts on a press,
-// so those are left out.
+// The Calendar screen's settings and its Libraries link. Week start draws the month grid. The Radarr
+// release types are shared with the Upcoming Movies row and the select action only acts on a press, so
+// those are left out.
 export const CALENDAR_KEYS = [
-	'calendarStyle', 'calendarScope', 'calendarShowEpisodes', 'calendarShowMovies', 'calendarLibraries',
+	'calendarStyle', 'calendarWeekStart', 'calendarScope', 'calendarShowEpisodes', 'calendarShowMovies', 'calendarLibraries',
 	'calendarIncludeUnmonitored', 'calendarShowSpecials', 'calendarShowBadges', 'calendarColorBy', 'calendarImageType',
 	'calendarSpoilerSafe', 'calendarRequestButton'
 ];
@@ -101,6 +101,7 @@ export const SCENE_BY_KEY = {
 	navbarOpacity: 'home',
 	focusBorderColor: 'home',
 	oledMode: 'home',
+	uiScale: 'home',
 	backdropBlurHome: 'home',
 	homeRowsStyle: 'home',
 	homeRowsPosterSize: 'home',

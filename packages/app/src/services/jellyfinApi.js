@@ -230,6 +230,19 @@ const toQuery = (params) => Object.entries(params)
 	.map(([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(value)}`)
 	.join('&');
 
+// A 4xx reply says what the server couldn't read, so its body rides along on the error for the logs.
+const withReplyBody = async (error, response) => {
+	if (response.status >= 400 && response.status < 500) {
+		try {
+			const text = String(await response.text()).replace(/\s+/g, ' ').trim();
+			if (text) error.body = text.length > 500 ? text.slice(0, 500) + '...' : text;
+		} catch {
+			// A reply that can't be read leaves the status to speak for itself
+		}
+	}
+	return error;
+};
+
 const request = async (endpoint, options = {}) => {
 	const url = `${currentServer}${trimQuerySeparator(endpoint)}`;
 	const parentId = parentIdOf(endpoint);
@@ -266,7 +279,7 @@ const request = async (endpoint, options = {}) => {
 		const error = new Error('API Error: ' + response.status);
 		error.status = response.status;
 		error.connectionType = classifyError(error);
-		throw error;
+		throw await withReplyBody(error, response);
 	}
 
 	if (response.status === 204) {
@@ -1209,7 +1222,7 @@ export const createApiForServer = (serverUrl, token, userId, serverTypeOverride 
 			const error = new Error('API Error: ' + response.status);
 			error.status = response.status;
 			error.connectionType = classifyError(error);
-			throw error;
+			throw await withReplyBody(error, response);
 		}
 
 		if (response.status === 204) {

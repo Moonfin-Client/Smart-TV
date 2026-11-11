@@ -812,7 +812,7 @@ const Settings = ({ onBack, onLibrariesChanged, onRunSetupWizard, onSelectItem, 
 	} = useButtonLayoutEditor({settings, updateSettings, pushView, hasLiveTv});
 
 	const {
-		allLibraries, hiddenLibraries, libraryLoading, librarySaving,
+		allLibraries, hiddenLibraries, libraryLoading, librarySaving, librarySaveFailures,
 		openLibraries, toggleLibraryVisibility, saveLibraryVisibility
 	} = useLibraryVisibility({api, settings, hasMultipleServers, pushView, popView, onLibrariesChanged});
 
@@ -1664,6 +1664,7 @@ const Settings = ({ onBack, onLibrariesChanged, onRunSetupWizard, onSelectItem, 
 					showServerName={settings.unifiedLibraryMode && hasMultipleServers}
 					loading={libraryLoading}
 					saving={librarySaving}
+					saveFailures={librarySaveFailures}
 					onToggleLibrary={toggleLibraryVisibility}
 					onCancel={popView}
 					onSave={saveLibraryVisibility}

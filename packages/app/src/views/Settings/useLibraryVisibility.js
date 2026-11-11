@@ -2,6 +2,24 @@ import {useCallback, useState} from 'react';
 
 import connectionPool from '../../services/connectionPool';
 import {resetLibraryScope} from '../../services/libraryScope';
+import serverLogger from '../../services/serverLogger';
+
+// Jellyfin's 400 doesn't say which field it couldn't read, so the library ids that were sent go
+// into the diagnostics log along with its reply.
+const logRefusedSave = (err, config) => {
+	if (!(err?.status >= 400 && err.status < 500)) return;
+	serverLogger.error(serverLogger.LOG_CATEGORIES.NETWORK, `User configuration rejected with ${err.status}.${err.body ? ' ' + err.body : ''}`, {
+		OrderedViews: config.OrderedViews,
+		MyMediaExcludes: config.MyMediaExcludes,
+		LatestItemsExcludes: config.LatestItemsExcludes,
+		GroupedFolders: config.GroupedFolders
+	});
+};
+
+const saveLogged = (saving, config) => saving.catch((err) => {
+	logRefusedSave(err, config);
+	throw err;
+});
 
 // Which libraries the viewer has hidden. This lives on the Jellyfin user configuration
 // rather than in app settings, and in unified mode it has to be written to every server.
@@ -11,6 +29,7 @@ const useLibraryVisibility = ({api, settings, hasMultipleServers, pushView, popV
 	const [libraryLoading, setLibraryLoading] = useState(false);
 	const [librarySaving, setLibrarySaving] = useState(false);
 	const [serverConfigs, setServerConfigs] = useState([]);
+	const [saveFailures, setSaveFailures] = useState(0);
 
 	const openLibraries = useCallback(async () => {
 		pushView({ view: 'libraries', returnFocusTo: 'setting-hideLibraries' });
@@ -61,13 +80,13 @@ const useLibraryVisibility = ({api, settings, hasMultipleServers, pushView, popV
 				const savePromises = serverConfigs.map((cfg) => {
 					const excludes = serverExcludes[cfg.serverUrl] || [];
 					const updatedConfig = { ...cfg.configuration, MyMediaExcludes: excludes };
-					return connectionPool.updateUserConfigOnServer(cfg.serverUrl, cfg.accessToken, cfg.userId, updatedConfig, cfg.serverType);
+					return saveLogged(connectionPool.updateUserConfigOnServer(cfg.serverUrl, cfg.accessToken, cfg.userId, updatedConfig, cfg.serverType), updatedConfig);
 				});
 				await Promise.all(savePromises);
 			} else {
 				const userData = await api.getUserConfiguration();
 				const updatedConfig = { ...userData.Configuration, MyMediaExcludes: hiddenLibraries };
-				await api.updateUserConfiguration(updatedConfig);
+				await saveLogged(api.updateUserConfiguration(updatedConfig), updatedConfig);
 			}
 			popView();
 			setAllLibraries([]);
@@ -82,6 +101,7 @@ const useLibraryVisibility = ({api, settings, hasMultipleServers, pushView, popV
 			window.dispatchEvent(new window.CustomEvent('moonfin:browseRefresh', {detail: {featured: true, libraries: true}}));
 		} catch (err) {
 			console.error('Failed to save library visibility:', err);
+			setSaveFailures((count) => count + 1);
 		} finally {
 			setLibrarySaving(false);
 		}
@@ -101,6 +121,7 @@ const useLibraryVisibility = ({api, settings, hasMultipleServers, pushView, popV
 		hiddenLibraries,
 		libraryLoading,
 		librarySaving,
+		librarySaveFailures: saveFailures,
 		openLibraries,
 		toggleLibraryVisibility,
 		saveLibraryVisibility

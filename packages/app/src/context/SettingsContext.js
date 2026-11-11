@@ -3,7 +3,7 @@ import {getFromStorage, saveToStorage} from '../services/storage';
 import {getMoonfinSettings, getMoonfinThemes, saveMoonfinProfile, moonfinPing} from '../services/seerrApi';
 import {isValidHexColor, parseThemeSpec} from '../theme/themeSpec';
 import {normalizeOverlayColorKey} from '../theme/overlayColors';
-import {noteAnsweredSettings, SETUP_QUESTION_KEYS} from '../utils/setupWizardGate';
+import {beginSignInRead, finishSignInRead, noteAnsweredSettings, SETUP_QUESTION_KEYS} from '../utils/setupWizardGate';
 import {getAvailableThemeList, getAvailableThemes, isBuiltInThemeId, registerStoreTheme, removeStoreTheme, replaceCustomThemes, resolveThemeById} from '../theme/themeRegistry';
 import {applyOledMode} from '../utils/oledMode';
 import {normalizeRatingSources, ratingSourcesToServer} from '../utils/ratingSources';
@@ -680,10 +680,6 @@ export const migrateKeyboardStyle = (stored) => {
 export function SettingsProvider({children}) {
 	const [settings, setSettings] = useState(defaultSettings);
 	const [loaded, setLoaded] = useState(false);
-	// True once the login sync has finished, whichever way it went. The setup
-	// wizard waits on this so the answers it collects dont get overwritten by a
-	// profile that lands a moment later.
-	const [initialSyncSettled, setInitialSyncSettled] = useState(false);
 	const [themeCatalogVersion, setThemeCatalogVersion] = useState(0);
 	const serverCredsRef = useRef(null);
 	// Set once a sync has replaced the custom themes with a fresh set from the
@@ -1222,8 +1218,11 @@ export function SettingsProvider({children}) {
 	// so it isn't probed again, and a network failure is left unmarked to retry on
 	// the next login. After that first pass the pull only runs while the user keeps
 	// the plugin enabled.
-	const syncOnLogin = useCallback(async (serverUrl, token) => {
+	const syncOnLogin = useCallback(async (serverUrl, token, userId) => {
 		if (!serverUrl || !token) return;
+		// The setup wizard waits for this user's read to finish, so the answers it collects
+		// don't get overwritten by a profile that lands a moment later.
+		beginSignInRead(serverUrl, userId);
 		// Known before any of the network work below, so a change made while that
 		// runs still has somewhere to go. Marks left over from another server were
 		// for that server's profile and would only hold this one's values back.
@@ -1255,7 +1254,7 @@ export function SettingsProvider({children}) {
 			if (pendingPush && !pushTimer) {
 				pushTimer = setTimeout(flushProfilePush, PUSH_DEBOUNCE_MS);
 			}
-			setInitialSyncSettled(true);
+			finishSignInRead(serverUrl, userId);
 		}
 	}, [syncFromServer, updateSetting]);
 
@@ -1263,7 +1262,6 @@ export function SettingsProvider({children}) {
 		<SettingsContext.Provider value={{
 			settings,
 			loaded,
-			initialSyncSettled,
 			availableThemes,
 			activeThemeId,
 			activeTheme,

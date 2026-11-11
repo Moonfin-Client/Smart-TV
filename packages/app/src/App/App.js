@@ -561,11 +561,11 @@ const AppContent = (props) => {
 
 	useEffect(() => {
 		if (isAuthenticated && serverUrl && accessToken) {
-			syncOnLogin(serverUrl, accessToken).catch((err) => {
+			syncOnLogin(serverUrl, accessToken, user?.Id).catch((err) => {
 				console.warn('[App] Initial settings sync failed:', err.message);
 			});
 		}
-	}, [isAuthenticated, serverUrl, accessToken, syncOnLogin]);
+	}, [isAuthenticated, serverUrl, accessToken, user?.Id, syncOnLogin]);
 
 	// The setup wizard asks its questions once per server and user, so this
 	// only flips the flag for a pair that has never finished it. A server that

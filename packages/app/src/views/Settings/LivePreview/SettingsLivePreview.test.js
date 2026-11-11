@@ -695,13 +695,53 @@ describe('SettingsLivePreview', () => {
 			expect(await screen.findByText('Starts in')).toBeTruthy();
 			expect(screen.queryByText('Upcoming')).toBeNull();
 			cleanup();
-			// Its other settings wait until they're saved, or My shows would empty the list here.
+			// The scope being tried filters it too, and the user follows nothing here.
 			draw({}, 'setting-calendarScope', 'calendar', {trying: {key: 'calendarScope', value: 'myShows', index: 1}});
+			expect(await screen.findByText('Nothing coming up')).toBeTruthy();
+			cleanup();
+			// Its other settings wait until they're saved.
+			draw({}, 'setting-calendarShowEpisodes', 'calendar', {trying: {key: 'calendarShowEpisodes', value: false, index: 1}});
 			await waitFor(() => expect(screen.getAllByText('Night Shift').length).toBeGreaterThan(0));
 			expect(focus).not.toHaveBeenCalled();
 		} finally {
 			focus.mockRestore();
 		}
+	});
+
+	test('Week Start draws the month grid starting on the day being tried, and nothing in it takes focus', async () => {
+		mockSeerr = {...mockSeerr, pluginInfo: {calendarAvailable: true}};
+		// The mocks reset between tests, and only the first test to draw the calendar keeps its load.
+		require('../../../services/calendarApi').loadCalendar.mockImplementation(() => Promise.resolve({entries: [mockEpisode()], problem: null}));
+		const focus = jest.spyOn(Spotlight, 'focus');
+		const firstWeekday = () => find('.weekdays').firstChild.textContent;
+		try {
+			draw({calendarWeekStart: 'sunday'}, 'setting-calendarWeekStart', 'calendar');
+			await waitFor(() => expect(find('.weekdays')).not.toBeNull());
+			expect(firstWeekday()).toBe('Sun');
+			expect(screen.getByText('Shows on the Calendar preview')).toBeTruthy();
+			expect(find('.page').getAttribute('data-spotlight-container-disabled')).toBe('true');
+			cleanup();
+			draw({calendarWeekStart: 'sunday'}, 'setting-calendarWeekStart', 'calendar', {trying: {key: 'calendarWeekStart', value: 'monday', index: 2}});
+			await waitFor(() => expect(find('.weekdays')).not.toBeNull());
+			expect(firstWeekday()).toBe('Mon');
+			expect(focus).not.toHaveBeenCalled();
+		} finally {
+			focus.mockRestore();
+		}
+	});
+
+	test('UI Scaling draws Home at the scale being tried', () => {
+		const screenInner = () => find('.screenInner');
+		draw({uiScale: 1}, 'setting-uiScale', 'home', {trying: {key: 'uiScale', value: 1.2, index: 8}});
+		expect(screen.getByText('Shows on the Home preview')).toBeTruthy();
+		expect(screenInner().style.width).toBe('800px');
+		// Saved, it's drawn at that scale while the row has focus, and at the screen's own size elsewhere.
+		cleanup();
+		draw({uiScale: 0.8}, 'setting-uiScale', 'home');
+		expect(screenInner().style.width).toBe('1200px');
+		cleanup();
+		draw({uiScale: 0.8}, 'setting-oledMode', 'home');
+		expect(screenInner().style.width).toBe('960px');
 	});
 
 	test('the Library chip only shows with a video, music or book library, and comes after Calendar', () => {

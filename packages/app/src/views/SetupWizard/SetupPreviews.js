@@ -183,12 +183,13 @@ const useFitScale = (designW, designH) => {
 	return [ref, scale];
 };
 
-const PreviewScreen = ({children}) => {
+// [zoom] lays the screen out that much bigger, the way a UI scale does, so less of it fits.
+const PreviewScreen = ({zoom = 1, children}) => {
 	const t = usePreviewPalette();
 	const [ref, scale] = useFitScale(DESIGN_W, 0);
 	return (
 		<div ref={ref} className={css.screenOuter}>
-			<div className={css.screenInner} style={{width: DESIGN_W, height: DESIGN_H, transform: `scale(${scale})`, backgroundColor: t.background}}>
+			<div className={css.screenInner} style={{width: DESIGN_W / zoom, height: DESIGN_H / zoom, transform: `scale(${scale * zoom})`, backgroundColor: t.background}}>
 				{children}
 			</div>
 		</div>
@@ -214,10 +215,10 @@ const FallbackFrame = ({aspect = 16 / 10, children}) => {
 };
 
 // [ownRows] draws the screen even before the sample items arrive, since it brings rows of its own.
-const LivePreview = ({render, fallback, fallbackAspect, ownRows = false}) => {
+const LivePreview = ({render, fallback, fallbackAspect, ownRows = false, zoom}) => {
 	const items = usePreviewItems();
 	if (items.length === 0 && !ownRows) return <FallbackFrame aspect={fallbackAspect}>{fallback}</FallbackFrame>;
-	return <PreviewScreen>{render(items)}</PreviewScreen>;
+	return <PreviewScreen zoom={zoom}>{render(items)}</PreviewScreen>;
 };
 
 const ABS_FILL = {position: 'absolute', top: 0, left: 0, right: 0, bottom: 0};
@@ -2355,8 +2356,9 @@ export const DetailStylePreview = ({variant}) => {
 // it at the window's size, the way the seasonal effect sits over the real Home. [rows] draws
 // Home's own rows instead of the samples, with the D-pad on the first card of the first one in
 // either style, and the backdrop from that card when it has one. [focusCard] holds the first card in
-// focus in Classic rows too, so Focus Border Color has a ring to show on.
-export const SettingsHomePreview = ({railOpen = false, hasLiveTv = false, over = null, rows = null, focusCard = false}) => {
+// focus in Classic rows too, so Focus Border Color has a ring to show on. [atUiScale] draws it at the
+// UI scale being looked at.
+export const SettingsHomePreview = ({railOpen = false, hasLiveTv = false, over = null, rows = null, focusCard = false, atUiScale = false}) => {
 	const t = usePreviewPalette();
 	const {user} = useAuth();
 	const {settings} = useSettings();
@@ -2379,7 +2381,7 @@ export const SettingsHomePreview = ({railOpen = false, hasLiveTv = false, over =
 			{over && <WindowLayer>{over}</WindowLayer>}
 		</>
 	), [position, modern, railOpen, t, user?.Name, hasLiveTv, over, backdrop, blur, fed, rows, focusFirst]);
-	return <LivePreview render={render} fallback={<FallbackNavbar position={position} t={t} />} ownRows={Boolean(rows)} />;
+	return <LivePreview render={render} fallback={<FallbackNavbar position={position} t={t} />} ownRows={Boolean(rows)} zoom={atUiScale ? settings.uiScale || 1 : 1} />;
 };
 
 // A layer laid out at the window's size and scaled onto the design screen, the way the player's

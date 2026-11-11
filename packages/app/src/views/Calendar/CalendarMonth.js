@@ -95,14 +95,17 @@ const Cell = memo(({day, inMonth, selected, today, entries, look, now, onPick, o
 // when the grid comes back from the same opener, so a new See all still starts at its own day.
 let returnTo = null;
 
-/** The full calendar behind both styles: a month grid with the picked day's entries beside it. */
-const CalendarMonth = ({initialDay, onSelectItem, onSelectSeerrItem}) => {
+/**
+ * The full calendar behind both styles: a month grid with the picked day's entries beside it.
+ * [settingsPreview] draws it in the settings preview, keeping out of Spotlight and the grid's saved place.
+ */
+const CalendarMonth = ({initialDay, onSelectItem, onSelectSeerrItem, settingsPreview = false}) => {
 	const {settings} = useSettings();
 	const c = useCalendar();
 	const look = useCalendarLook();
 	const actions = useCalendarActions({onSelectItem, onSelectSeerrItem});
-	const [place] = useState(() => (returnTo && returnTo.from === initialDay ? returnTo : null));
-	returnTo = null;
+	const [place] = useState(() => (!settingsPreview && returnTo && returnTo.from === initialDay ? returnTo : null));
+	if (!settingsPreview) returnTo = null;
 	const [selected, setSelected] = useState(() => place?.selected || startOfDay(initialDay || c.today));
 	const [month, setMonth] = useState(() => new Date(selected.getFullYear(), selected.getMonth(), 1));
 	const weekStart = useMemo(() => weekStartOf(settings.calendarWeekStart), [settings.calendarWeekStart]);
@@ -135,13 +138,13 @@ const CalendarMonth = ({initialDay, onSelectItem, onSelectSeerrItem}) => {
 	const ready = !c.loading && !c.problem;
 	const restoreFocusRef = useRef(place?.focusId || null);
 	useEffect(() => {
-		if (!ready || !wantFocusRef.current) return;
+		if (settingsPreview || !ready || !wantFocusRef.current) return;
 		wantFocusRef.current = false;
 		const restore = restoreFocusRef.current;
 		restoreFocusRef.current = null;
 		if (restore && Spotlight.focus(restore)) return;
 		Spotlight.focus(cellId(selected));
-	}, [ready, month, selected]);
+	}, [ready, month, selected, settingsPreview]);
 
 	const shiftMonth = useCallback((by) => {
 		const next = new Date(month.getFullYear(), month.getMonth() + by, 1);
@@ -172,7 +175,7 @@ const CalendarMonth = ({initialDay, onSelectItem, onSelectSeerrItem}) => {
 	const selectedRef = useRef(selected);
 	selectedRef.current = selected;
 	useEffect(() => () => {
-		returnTo = leaveRef.current ? {...leaveRef.current, selected: selectedRef.current, from: initialDay} : null;
+		if (!settingsPreview) returnTo = leaveRef.current ? {...leaveRef.current, selected: selectedRef.current, from: initialDay} : null;
 	}, []); // eslint-disable-line react-hooks/exhaustive-deps
 	const handleSelect = useCallback((e) => {
 		leaveRef.current = {focusId: focusedSpotlightId()};
@@ -185,7 +188,7 @@ const CalendarMonth = ({initialDay, onSelectItem, onSelectSeerrItem}) => {
 	const sidebar = settings.navbarPosition === 'left';
 
 	return (
-		<PageContainer className={`${css.page} ${sidebar ? css.pageSidebar : ''}`} spotlightId="calendar-month-view" style={{background: look.bg(1)}}>
+		<PageContainer className={`${css.page} ${sidebar ? css.pageSidebar : ''}`} spotlightId={settingsPreview ? undefined : 'calendar-month-view'} spotlightDisabled={settingsPreview} style={{background: look.bg(1)}}>
 			<div className={css.month}>
 				<div className={css.monthMain}>
 					<div className={css.headerRow}>
@@ -197,7 +200,7 @@ const CalendarMonth = ({initialDay, onSelectItem, onSelectSeerrItem}) => {
 					<div className={css.weekdays}>
 						{days.slice(0, 7).map((d) => <div key={d.getDay()} className={css.weekday}>{d.toLocaleDateString(locale, {weekday: 'short'})}</div>)}
 					</div>
-					<CalendarState c={c} empty={false}>
+					<CalendarState c={c} empty={false} settingsPreview={settingsPreview}>
 						<div className={css.grid}>
 							{rows.map((week) => (
 								<div key={isoDay(week[0])} className={css.gridRow}>
