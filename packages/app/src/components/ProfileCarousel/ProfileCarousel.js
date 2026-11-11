@@ -37,6 +37,7 @@ const Avatar = ({item}) => {
 const ProfileCarousel = ({items, initialIndex = 0, spotlightId, onActivate, onRemove}) => {
 	const [index, setIndex] = useState(initialIndex);
 	const [reach, setReach] = useState(2);
+	const [settled, setSettled] = useState(false);
 	const stageRef = useRef(null);
 	const selected = clampIndex(index, items.length);
 	const current = items[selected];
@@ -68,7 +69,9 @@ const ProfileCarousel = ({items, initialIndex = 0, spotlightId, onActivate, onRe
 		onRemove?.(current);
 	}, [onRemove, current]);
 
-	// As many faces either side as the width fits
+	// As many faces either side as the width fits. Measuring styles the faces at the
+	// default reach, so the slides stay off until the next frame or the faces the wider
+	// reach shows would fade in on every open.
 	const hasItems = Boolean(current);
 	useLayoutEffect(() => {
 		const measure = () => {
@@ -76,8 +79,12 @@ const ProfileCarousel = ({items, initialIndex = 0, spotlightId, onActivate, onRe
 			if (stage) setReach(reachFor(unitsWide(stage.clientWidth, stage.firstChild?.offsetWidth)));
 		};
 		measure();
+		const frame = window.requestAnimationFrame(() => setSettled(true));
 		window.addEventListener('resize', measure);
-		return () => window.removeEventListener('resize', measure);
+		return () => {
+			window.cancelAnimationFrame(frame);
+			window.removeEventListener('resize', measure);
+		};
 	}, [hasItems]);
 
 	if (!current) return null;
@@ -91,7 +98,7 @@ const ProfileCarousel = ({items, initialIndex = 0, spotlightId, onActivate, onRe
 			onSpotlightLeft={handleLeft}
 			onSpotlightRight={handleRight}
 		>
-			<div className={css.stage} ref={stageRef}>
+			<div className={`${css.stage} ${settled ? '' : css.still}`} ref={stageRef}>
 				{items.map((item, i) => {
 					const slot = slotOf(i, selected, reach);
 					const hidden = Math.abs(slot) > reach;

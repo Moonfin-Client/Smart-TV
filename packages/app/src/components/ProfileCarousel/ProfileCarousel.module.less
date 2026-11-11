@@ -44,6 +44,11 @@
 	-webkit-transition: -webkit-transform 220ms ease-out, opacity 220ms ease-out;
 	transition: transform 220ms ease-out, opacity 220ms ease-out;
 	.noMotion();
+
+	.still & {
+		-webkit-transition: none;
+		transition: none;
+	}
 }
 
 .slot0 {
