@@ -38,7 +38,12 @@ const useSeerrReleaseSwap = ({release, mediaId, mediaType, setDetails, setError,
 			await seerrApi.removeArrQueueItem(target.service, target.id);
 		} catch (err) {
 			setSwapping(false);
-			setError($L("Couldn't remove the download"));
+			if (currentTitle.current === title) setError($L("Couldn't remove the download"));
+			return;
+		}
+		// The viewer moved on, so the message and the reload would land on another title.
+		if (currentTitle.current !== title) {
+			setSwapping(false);
 			return;
 		}
 		// A queue answer already on its way may still list the removed download.

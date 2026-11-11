@@ -20,11 +20,27 @@ export const requestQueueKey = (req) => {
 
 const sameJson = (a, b) => JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
 
+const NO_ANSWERS = {};
+
 const useRequestArrQueues = ({enabled, requests, loadToken}) => {
-	const [answers, setAnswers] = useState({});
+	const [answers, setAnswers] = useState(NO_ANSWERS);
 	// Titles already asked about, so load more only asks for the new ones.
 	const asked = useRef(new Set());
 	const lastLoad = useRef(null);
+	// Each call is numbered, and each title keeps the number of the answer it shows, so a load
+	// and a poll asking about the same title at once can't let the older answer win.
+	const lastCall = useRef(0);
+	const shown = useRef({});
+	// Bumped when the plugin stops offering the queue, so answers on their way are dropped.
+	const era = useRef(0);
+
+	useEffect(() => {
+		if (enabled) return;
+		era.current += 1;
+		asked.current = new Set();
+		shown.current = {};
+		setAnswers(NO_ANSWERS);
+	}, [enabled]);
 
 	const keys = useMemo(() => {
 		if (!enabled) return '';
@@ -34,18 +50,29 @@ const useRequestArrQueues = ({enabled, requests, loadToken}) => {
 
 	const fetchKeys = useCallback(async (list) => {
 		if (!list.length) return;
+		const startedIn = era.current;
+		const calls = list.map(() => {
+			lastCall.current += 1;
+			return lastCall.current;
+		});
 		list.forEach((key) => asked.current.add(key));
 		const results = await Promise.all(list.map((key) => {
 			const [service, id] = key.split(':');
 			return seerrApi.getArrQueue(service, id).catch(() => null);
 		}));
+		if (era.current !== startedIn) return;
+		const fresh = list.filter((key, i) => calls[i] > (shown.current[key] || 0));
+		if (!fresh.length) return;
+		list.forEach((key, i) => {
+			if (fresh.includes(key)) shown.current[key] = calls[i];
+		});
 		// Merged rather than rebuilt, so a slow answer for some titles can't drop the answers
 		// another call already brought in for others.
 		setAnswers((prev) => {
 			let changed = false;
 			const next = {...prev};
 			list.forEach((key, i) => {
-				if (sameJson(prev[key], results[i])) return;
+				if (!fresh.includes(key) || sameJson(prev[key], results[i])) return;
 				next[key] = results[i];
 				changed = true;
 			});
@@ -66,7 +93,7 @@ const useRequestArrQueues = ({enabled, requests, loadToken}) => {
 		fetchKeys((only || []).filter((key) => current.has(key)));
 	}, [keys, fetchKeys]);
 
-	return {answers, refresh};
+	return {answers: enabled ? answers : NO_ANSWERS, refresh};
 };
 
 export default useRequestArrQueues;

@@ -106,3 +106,48 @@ test('a reload that lands after the viewer moved to another title is dropped', a
 	});
 	expect(setDetails).not.toHaveBeenCalled();
 });
+
+test('a removal that finishes after the viewer moved on leaves the new title alone', async () => {
+	let finish;
+	seerrApi.removeArrQueueItem.mockReturnValue(new Promise((resolve) => {
+		finish = resolve;
+	}));
+	const onRemoved = jest.fn();
+	const {result, rerender, setNotice, setError} = setup({onRemoved});
+	act(() => result.current.handleSwapReleaseClick());
+	let done;
+	act(() => {
+		done = result.current.handleSwapConfirm();
+	});
+	rerender({onRemoved, mediaId: 45745, release: null});
+	await act(async () => {
+		finish(true);
+		await done;
+	});
+	expect(setNotice).not.toHaveBeenCalled();
+	expect(setError).not.toHaveBeenCalled();
+	expect(onRemoved).not.toHaveBeenCalled();
+	expect(result.current.showsSwapRelease).toBe(false);
+	rerender({onRemoved, mediaId: 45745, release: stuck});
+	expect(result.current.showsSwapRelease).toBe(true);
+});
+
+test('a failed removal that finishes after the viewer moved on shows no error there', async () => {
+	let fail;
+	seerrApi.removeArrQueueItem.mockReturnValue(new Promise((resolve, reject) => {
+		fail = reject;
+	}));
+	const {result, rerender, setError} = setup();
+	act(() => result.current.handleSwapReleaseClick());
+	let done;
+	act(() => {
+		done = result.current.handleSwapConfirm();
+	});
+	rerender({mediaId: 45745, release: stuck});
+	await act(async () => {
+		fail(new Error('Admin only'));
+		await done;
+	});
+	expect(setError).not.toHaveBeenCalled();
+	expect(result.current.showsSwapRelease).toBe(true);
+});

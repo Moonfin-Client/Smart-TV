@@ -65,3 +65,41 @@ test('asks nothing when the plugin does not offer it', async () => {
 	await flush();
 	expect(seerrApi.getArrQueue).not.toHaveBeenCalled();
 });
+
+test('an older answer for a title never replaces a newer one', async () => {
+	const calls = [];
+	seerrApi.getArrQueue.mockImplementation(() => new Promise((resolve) => calls.push(resolve)));
+	const {result} = renderHook(() => useRequestArrQueues({enabled: true, requests: [movie(1)], loadToken: 1}));
+	act(() => {
+		result.current.refresh(['radarr:1']);
+	});
+	expect(calls).toHaveLength(2);
+	await act(async () => {
+		calls[1]({service: 'radarr', inArr: true, items: [{id: 5}]});
+	});
+	await act(async () => {
+		calls[0]({service: 'radarr', inArr: true, items: []});
+	});
+	expect(result.current.answers['radarr:1'].items).toEqual([{id: 5}]);
+});
+
+test('answers stop counting once the plugin no longer offers the queue, including ones still on their way', async () => {
+	let finish;
+	const {result, rerender} = renderHook((props) => useRequestArrQueues({requests: [movie(1), movie(2)], loadToken: 1, ...props}), {
+		initialProps: {enabled: true}
+	});
+	await flush();
+	expect(Object.keys(result.current.answers)).toHaveLength(2);
+	seerrApi.getArrQueue.mockImplementation(() => new Promise((resolve) => {
+		finish = resolve;
+	}));
+	act(() => {
+		result.current.refresh(['radarr:1']);
+	});
+	rerender({enabled: false});
+	expect(result.current.answers).toEqual({});
+	await act(async () => {
+		finish({service: 'radarr', inArr: true, items: []});
+	});
+	expect(result.current.answers).toEqual({});
+});
