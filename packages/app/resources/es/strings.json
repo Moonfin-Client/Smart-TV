@@ -1587,5 +1587,15 @@
     "Correct drift": "Rumbo correcto",
     "End for everyone": "Fin para todos",
     "Enter the PIN for {name}'s party": "Introduce el PIN de la fiesta de {name}",
-    "Enter the room PIN": "Ingrese el PIN de la sala"
+    "Enter the room PIN": "Ingrese el PIN de la sala",
+    "Everyone can control playback": "Todos pueden controlar la reproducción",
+    "Everyone can control playback now": "Todos pueden controlar la reproducción ahora",
+    "Everyone controls": "Todos controlan",
+    "Extra offset": "Compensación adicional",
+    "Fire": "Fuego",
+    "Haha": "Haha",
+    "Home leaves these rows out while Multi-Server Libraries is on, so these settings don't change it.": "La página de inicio omite estas filas mientras la opción Bibliotecas multiservidor está activada, por lo que esta configuración no la modifica.",
+    "Host": "Anfitrión",
+    "Fireflies": "Luciérnagas",
+    "Font": "Fuente"
 }
