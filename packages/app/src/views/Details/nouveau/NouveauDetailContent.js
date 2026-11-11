@@ -703,6 +703,8 @@ const NouveauDetailContent = (props) => {
 				height={collectionHeight}
 				selectKey={entry.Id}
 				onSelect={onCollectionCard}
+				item={entry}
+				serverUrl={effectiveServerUrl}
 			/>
 		);
 	}
@@ -768,6 +770,8 @@ const NouveauDetailContent = (props) => {
 				height={posterHeight}
 				selectKey={entry.cardKey || entry.Id}
 				onSelect={onPosterCard}
+				item={entry}
+				serverUrl={effectiveServerUrl}
 			/>
 		);
 	}

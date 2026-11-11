@@ -74,6 +74,20 @@ describe('buildThemeOverrideCss', () => {
 		expect(moonfin).not.toContain('font-family');
 	});
 
+	it('draws row subtitles near full strength on every theme, and Neon card subtitles bold with a halo the lower tiers drop', () => {
+		for (const id of ['moonfin', 'neon_pulse', '8bit_hero']) {
+			const lines = buildThemeOverrideCss(resolveThemeById(id)).split('\n');
+			expect(lines.find((line) => line.includes('] .subtitle, '))).toMatch(/color: rgba\([^)]*, 0\.95\);/);
+		}
+		const neon = buildThemeOverrideCss(resolveThemeById('neon_pulse')).split('\n');
+		expect(neon.find((line) => line.includes('] .episodeInfo, ') && line.includes('font-weight: 600;')))
+			.toContain('text-shadow: 0 0 4px #000000, 0 0 6px rgba(0, 0, 0, 0.87);');
+		const dropped = neon.find((line) => line.includes('.perf-low .episodeInfo'));
+		expect(dropped).toContain('.perf-mid .secondaryTitle');
+		expect(dropped).toContain('{ text-shadow: none; }');
+		expect(buildThemeOverrideCss(resolveThemeById('moonfin'))).not.toContain('.perf-low .episodeInfo');
+	});
+
 	it('fills the media bar card from its own overlay setting', () => {
 		const theme = resolveThemeById('moonfin');
 		// Three quarters of the chosen opacity.

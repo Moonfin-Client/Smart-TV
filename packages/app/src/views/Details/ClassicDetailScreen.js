@@ -405,6 +405,7 @@ const ClassicDetailScreen = ({
 					onSelectItem={onSelectItem}
 					className={css.inlineRow}
 					menuOptions={collectionMenu}
+					posterLabels
 				/>
 			)}
 
@@ -502,6 +503,7 @@ const ClassicDetailScreen = ({
 								item={colItem}
 								serverUrl={serverUrl}
 								onSelect={onSelectItem}
+								posterLabels
 							/>
 						))}
 					</div>
@@ -520,6 +522,7 @@ const ClassicDetailScreen = ({
 								item={simItem}
 								serverUrl={serverUrl}
 								onSelect={onSelectItem}
+								posterLabels
 							/>
 						))}
 					</div>

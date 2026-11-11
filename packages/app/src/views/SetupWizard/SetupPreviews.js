@@ -470,10 +470,10 @@ const CardIndicators = ({item, progress, t}) => {
 	const {settings} = useSettings();
 	const behavior = settings.watchedIndicatorBehavior || 'always';
 	if (!(behavior === 'always' || behavior === 'hideCount' || (behavior === 'episodesOnly' && item.type === 'Episode'))) return null;
-	const count = behavior !== 'hideCount' && !item.played && item.unplayedCount > 0;
+	const count = behavior !== 'hideCount' && !settings.hideHomeUnwatchedCount && !item.played && item.unplayedCount > 0;
 	return (
 		<>
-			{progress > 0 && (
+			{progress > 0 && !settings.hideHomeWatchProgress && (
 				<div style={{position: 'absolute', left: 6, right: 6, bottom: 6, height: 6, borderRadius: 3, overflow: 'hidden', display: 'flex'}}>
 					<div style={{width: `${Math.round(progress * 100)}%`, backgroundColor: t.accent}} />
 					<div style={{flex: '1 1 auto', backgroundColor: t.scrimA(0.54)}} />

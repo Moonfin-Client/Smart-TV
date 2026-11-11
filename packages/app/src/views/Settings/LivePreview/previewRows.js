@@ -70,7 +70,8 @@ const ROW_OPTION_KEYS = [
 export const HOME_LOOK_KEYS = [
 	'homeRows', 'rowImageTypes', 'homeRowsImageType', 'seasonalRow', 'mergeContinueWatchingNextUp', 'mergeRecentRowsByType',
 	'displayRewatchRow', 'watchedIndicatorBehavior', 'useSeriesThumbnails', 'cardFocusZoom', 'classicHomeRowsPadding',
-	'modernHomeRowsPadding', 'homeRowOverlay', 'showPosterLabels', 'modernCardsOnMyMediaRow'
+	'modernHomeRowsPadding', 'homeRowOverlay', 'showPosterLabels', 'modernCardsOnMyMediaRow',
+	'hideHomeWatchProgress', 'hideHomeUnwatchedCount'
 ];
 
 // The screens and sections whose every tile keeps the stage on one look, with the scene it's

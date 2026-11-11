@@ -335,6 +335,11 @@ describe('SYNCABLE_KEYS', () => {
 		expect(SYNCABLE_KEYS).toContain('seasonalDensity');
 	});
 
+	test('includes the Home poster toggles', () => {
+		expect(SYNCABLE_KEYS).toContain('hideHomeWatchProgress');
+		expect(SYNCABLE_KEYS).toContain('hideHomeUnwatchedCount');
+	});
+
 	test('includes the media preview switches', () => {
 		expect(SYNCABLE_KEYS).toContain('episodePreviewEnabled');
 		expect(SYNCABLE_KEYS).toContain('mediaPreviewMode');

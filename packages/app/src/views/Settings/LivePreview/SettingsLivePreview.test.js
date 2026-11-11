@@ -1098,6 +1098,20 @@ describe('Home\'s own rows', () => {
 		});
 	});
 
+	test('Hide Watch Progress and Hide Unwatched Count start at the first row wearing them and take off only their own mark', () => {
+		const shown = () => ({
+			progress: Boolean(cardOf('Heat').querySelector('div[style*="width: 40%"]')),
+			count: within(cardOf('Fargo')).queryByText('3') !== null
+		});
+		draw(home({hideHomeWatchProgress: true}), 'setting-hideHomeWatchProgress', 'home');
+		expect(rowTitles()).toEqual(['Continue Watching', 'Next Up']);
+		expect(shown()).toEqual({progress: false, count: true});
+		cleanup();
+		draw(home({hideHomeUnwatchedCount: true}), 'setting-hideHomeUnwatchedCount', 'home');
+		expect(rowTitles()).toEqual(['Continue Watching', 'Next Up']);
+		expect(shown()).toEqual({progress: true, count: false});
+	});
+
 	test('Display Series Thumbnails starts at the first row with an episode and swaps its still for the series art, in either style', () => {
 		draw(home(), 'setting-useSeriesThumbnails', 'home');
 		expect(rowTitles()).toEqual(['Next Up']);

@@ -2565,6 +2565,7 @@ const AppContent = (props) => {
 							onSelectSeerrNetwork={handleSelectSeerrNetwork}
 							onOpenSeerrShortcut={handleOpenSeerrShortcut}
 							onOpenCalendarMonth={handleOpenCalendarMonth}
+							onSelectStudio={handleSelectStudio}
 							isVisible={panelIndex === PANELS.BROWSE && !showSettingsPanel && !pickingHousehold}
 							backHandlerRef={backHandlerRef}
 							onFocusItemThemeMusic={backgroundMusic ? undefined : themeMusic.playThemeMusicDelayed}

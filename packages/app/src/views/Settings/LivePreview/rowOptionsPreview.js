@@ -253,6 +253,8 @@ const rowShowing = (key, focusRowId) => {
 		};
 	}
 	if (key === 'watchedIndicatorBehavior') return (row) => row.items.some(hasIndicator);
+	if (key === 'hideHomeWatchProgress') return (row) => row.items.some((item) => item.UserData?.PlayedPercentage > 0);
+	if (key === 'hideHomeUnwatchedCount') return (row) => row.items.some((item) => item.UserData?.UnplayedItemCount > 0);
 	if (key === 'useSeriesThumbnails') return (row) => row.items.some((item) => item.Type === 'Episode');
 	if (key === 'modernCardsOnMyMediaRow') return (row) => row.id === 'library-tiles';
 	return null;

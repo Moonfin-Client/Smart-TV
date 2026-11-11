@@ -16,6 +16,7 @@ import LoadingSpinner from '../../components/LoadingSpinner';
 import ProxiedImage from '../../components/ProxiedImage';
 import DetailsTabBar from '../../components/DetailsTabBar';
 import GameCard from '../../components/GameCard';
+import PosterLabels from '../../components/PosterLabels';
 import {KEYS} from '../../utils/keys';
 import {getImageUrl} from '../../utils/helpers';
 import {showsWatchedCheck} from '../../utils/playedState';
@@ -643,6 +644,11 @@ const Search = ({onSelectItem, onSelectSeerrItem, onSelectPerson, onSelectGame, 
 							<svg viewBox="0 0 24 24"><path fill="white" d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>
 						</div>
 					)}
+					<PosterLabels
+						item={item}
+						serverUrl={itemServerUrl}
+						topRight={showsWatchedCheck(item) || (unifiedMode && item._serverName) ? 40 : 8}
+					/>
 				</div>
 				<div className={css.cardTitle}>{item.Name}</div>
 				<div className={css.cardSubtitle}>{jellyfinSubtitle(item)}</div>

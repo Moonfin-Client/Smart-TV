@@ -781,6 +781,13 @@ export const buildThemeOverrideCss = (theme, options = {}) => {
 	rule(`.${mediaCardCss.seriesName}`, `color: ${onSurface};`);
 	rule(`.${mediaCardCss.episodeInfo}, .${modernCardCss.secondaryTitle}`, `color: ${theme.id === 'neon_pulse' ? onSurface : os(0.6)};`);
 	rule(`.${mediaCardCss.homeText} .${mediaCardCss.episodeInfo}`, `color: ${theme.id === 'neon_pulse' ? onSurface : os(0.65)};`);
+	if (theme.id === 'neon_pulse') {
+		// Neon's condensed body face needs the weight and a dark halo to read over bright art.
+		rule(`.${mediaCardCss.episodeInfo}, .${modernCardCss.secondaryTitle}`, 'font-weight: 600; text-shadow: 0 0 4px #000000, 0 0 6px rgba(0, 0, 0, 0.87);');
+		// Every card draws one, so the lower tiers drop it the way they drop the card glow.
+		rules.push(`${[mediaCardCss.episodeInfo, modernCardCss.secondaryTitle]
+			.map((name) => `${prefix}.perf-low .${name}, ${prefix}.perf-mid .${name}`).join(', ')} { text-shadow: none; }`);
+	}
 	rule(`.${modernCardCss.placeholderIcon}`, `color: ${os(0.45)};`);
 	rule(`.${modernCardCss.overview}`, `color: ${theme.id === 'neon_pulse' ? onSurface : os(0.7)};`);
 	rule(`.${modernCardCss.platformWebos} .${modernCardCss.image}`, `border-radius: ${bumpRadius(b.cardRadius, 2)};`);
@@ -788,7 +795,7 @@ export const buildThemeOverrideCss = (theme, options = {}) => {
 
 	// Row shells
 	rule(`.${mediaRowCss.title}, .${modernRowCss.title}`, `color: ${onSurface}; text-shadow: ${textGlow};`);
-	rule(`.${mediaRowCss.subtitle}, .${modernRowCss.subtitle}`, `color: ${os(0.5)};`);
+	rule(`.${mediaRowCss.subtitle}, .${modernRowCss.subtitle}`, `color: ${os(0.95)};`);
 	rule(`.${watchingNowRowCss.subtitle}`, `color: ${os(0.95)};`);
 	rule(`.${watchingNowRowCss.globeIcon}`, `color: ${onSurface};`);
 	rule(`.${mediaRowCss.seeAll}`, `background: ${os(0.08)}; color: ${os(0.7)};`);

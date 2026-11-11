@@ -524,6 +524,8 @@ export const SETTINGS_SCHEMA = [
 						onSelect: (ctx, style) => ctx.actions.setSettings(homeBackdropSettings(style))
 					},
 					{kind: KIND.TOGGLE, key: 'hideHomeMediaDescription', label: () => $L('Hide Media Description'), desc: () => $L('Hide the movie or episode descriptive text.'), icon: 'description_outlined'},
+					{kind: KIND.TOGGLE, key: 'hideHomeWatchProgress', label: () => $L('Hide Watch Progress'), desc: () => $L("Hide the progress bar on posters you've started watching."), icon: 'linear_scale', keywords: () => ['resume', 'played']},
+					{kind: KIND.TOGGLE, key: 'hideHomeUnwatchedCount', label: () => $L('Hide Unwatched Count'), desc: () => $L('Hide the badge showing how many episodes are left to watch.'), icon: 'filter_2', keywords: () => ['unplayed']},
 					...ratingsRows('homeRows'),
 					{kind: KIND.SECTION, id: 'externalSources', label: () => $L('External Sources'), when: whenPlugin},
 					{kind: KIND.NAV, id: 'imdbLists', label: () => $L('IMDb Lists'), desc: () => $L('Configure IMDb Top 250, Popular, and other charts.'), icon: 'movie_outlined', keywords: () => [$L('IMDb Row Sorting'), $L('Sort Order')], action: (ctx) => ctx.actions.openImdbLists(), when: whenPlugin},

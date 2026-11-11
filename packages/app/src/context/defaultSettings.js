@@ -323,6 +323,8 @@ export const defaultSettings = {
 	hideDetailsMediaDescription: false,
 	detailUseSeriesThumbnails: false,
 	hideHomeMediaDescription: false,
+	hideHomeWatchProgress: false,
+	hideHomeUnwatchedCount: false,
 	homeRowOverlay: true,
 	excludedGenres: [],
 	autoAdvance: true,
