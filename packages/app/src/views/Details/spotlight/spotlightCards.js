@@ -120,7 +120,7 @@ class CardBuilder {
 				reviews: () => this.reviewsCard()
 			};
 		}
-		if (bookSeriesItem?.ChildCount > 2) {
+		if (bookSeriesItem?.ChildCount > 0) {
 			return {
 				books: () => this.booksCard(),
 			};

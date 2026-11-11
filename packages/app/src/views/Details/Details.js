@@ -122,7 +122,7 @@ const Details = ({
 		bookSeriesItem = initialItem;
 		const books = readingOrder(bookSeriesItem.Members || []);
 		const progress = seriesProgress(books);
-		initialItem = books.find(book => book === progress.next);
+		initialItem = books.find(book => book === progress.next) ?? books[0];
 		itemIdProp = initialItem.Id;
 	}
 

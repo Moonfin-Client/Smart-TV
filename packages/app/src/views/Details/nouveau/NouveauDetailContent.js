@@ -282,6 +282,12 @@ const NouveauDetailContent = (props) => {
 		if (extra) handleExtraSelect?.(extra);
 	}, [extras, handleExtraSelect]);
 
+	const onBookCard = useCallback((ev) => {
+		const id = ev.currentTarget.dataset.selectKey;
+		const book = bookSeriesItem.Members.find((candidate) => String(candidate.Id) === id);
+		if (book) onSelectItem?.(book);
+	}, [bookSeriesItem, onSelectItem]);
+
 	// Chapters and extras are both a widescreen still with a caption, so they share a card and
 	// differ only in what they are captioned with.
 	const railWidth = mediaRailCardWidth(viewportWidth);
@@ -488,11 +494,11 @@ const NouveauDetailContent = (props) => {
 					title={$L('Books')}
 					items={bookSeriesItem.Members}
 					gap={RAIL_GAP}
-					spotlightId={`nouveau-rail-${id}-similar`}
+					spotlightId={`nouveau-rail-${id}-books`}
 					navbarPosition={settings.navbarPosition}
 					onNavigateUp={handleNavigateUp}
 					onNavigateDown={handleNavigateDown}
-					renderItem={renderPosterCard}
+					renderItem={renderBookCard}
 				/>
 			)
 		}
@@ -812,6 +818,20 @@ const NouveauDetailContent = (props) => {
 				artworkHeight={railArtwork}
 				selectKey={extra.Id}
 				onSelect={onExtraCard}
+			/>
+		);
+	}
+
+	function renderBookCard (book) {
+		return (
+			<NouveauRailCard
+				imageUrl={nouveauCardImageUrl(effectiveServerUrl, book, {fallbackUrl: backdropUrl})}
+				title={book.Name}
+				placeholderLabel={book.Name}
+				width={posterWidth}
+				artworkHeight={posterHeight}
+				selectKey={book.Id}
+				onSelect={onBookCard}
 			/>
 		);
 	}
