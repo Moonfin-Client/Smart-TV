@@ -10,6 +10,7 @@ import {normalizeRatingSources, ratingSourcesToServer} from '../utils/ratingSour
 import {SEASONAL_DENSITIES, normalizeSeasonalTheme} from '../utils/seasonalEffects';
 import {normalizeSeasonalHiddenHolidays, normalizeSeasonalRowCountry} from '../utils/seasonalRow';
 import {sharePending} from '../utils/sharePending';
+import {isPlexServer} from '../utils/plexUrls';
 import {pickedRowsFromLegacySections} from '../utils/pickedRows';
 import {LEGACY_MEDIA_BAR_SOURCES, MEDIA_BAR_SOURCES, NEW_RELEASE_DAYS} from '../utils/mediaBarNewRelease';
 import {DATE_FORMATS} from '../utils/dateFormat';
@@ -642,18 +643,21 @@ const normalizeServerKey = (serverUrl) => (serverUrl || '')
 	.replace(/^https?:\/\//i, '')
 	.replace(/\/+$/, '')
 	.toLowerCase();
+// Older marks are a plain true. A Plex server got one before Moonbase for Plex existed, when it could only ever
+// come back as having no plugin, so a Plex server with one counts as new and is looked at once more.
+const PLUGIN_SYNC_MARK = 2;
 export const isServerSyncInitialized = async (serverUrl) => {
 	const key = normalizeServerKey(serverUrl);
 	if (!key) return false;
-	const map = await getFromStorage(PLUGIN_SYNC_INIT_KEY);
-	return Boolean(map && map[key]);
+	const mark = (await getFromStorage(PLUGIN_SYNC_INIT_KEY))?.[key];
+	return isPlexServer(serverUrl) ? mark === PLUGIN_SYNC_MARK : Boolean(mark);
 };
-const markServerSyncInitialized = async (serverUrl) => {
+export const markServerSyncInitialized = async (serverUrl) => {
 	const key = normalizeServerKey(serverUrl);
 	if (!key) return;
 	const map = (await getFromStorage(PLUGIN_SYNC_INIT_KEY)) || {};
-	if (map[key]) return;
-	map[key] = true;
+	if (map[key] === PLUGIN_SYNC_MARK) return;
+	map[key] = PLUGIN_SYNC_MARK;
 	await saveToStorage(PLUGIN_SYNC_INIT_KEY, map);
 };
 // App boots before the async settings store loads, and on webOS that store is
