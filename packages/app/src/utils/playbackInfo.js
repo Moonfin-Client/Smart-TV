@@ -4,6 +4,7 @@ import {languageName} from './languageNames';
 import {
 	audioChannelsName, audioCodecName, channelLayout, formatBitrate, getHdrType, getVideoCodec, present, videoCodecName
 } from './mediaStreamFacts';
+import {dolbyVisionProfile} from './videoRange';
 
 // The playback information rows, read from what Jellyfin and Emby both put in the media source
 // and its transcoding url.
@@ -80,9 +81,6 @@ const fpsValue = (stream) => {
 	const fps = Number(stream.RealFrameRate || stream.AverageFrameRate);
 	return fps > 0 ? String(Number(fps.toFixed(3))) : null;
 };
-
-// Emby names the profile in ExtendedVideoSubType, as in DoviProfile81.
-export const dolbyVisionProfile = (stream) => stream.DvProfile || (/doviprofile(\d)/i.exec(stream.ExtendedVideoSubType || '') || [])[1];
 
 const hdrName = (stream, showsDolbyVision) => {
 	const label = getHdrType(stream, showsDolbyVision);

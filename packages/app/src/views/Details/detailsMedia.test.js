@@ -135,10 +135,12 @@ describe('getMediaBadges dynamic range', () => {
 		expect(labels({VideoRangeType: 'DOVIWithHDR10Plus', DvProfile: 8})).toEqual(['DV P8', 'HDR10+']);
 		expect(labels({VideoRangeType: 'DOVIWithHDR10', DvProfile: 8})).toEqual(['DV P8', 'HDR10']);
 		expect(labels({VideoRangeType: 'DOVI', DvProfile: 5})).toEqual(['DV P5']);
+		expect(labels({VideoRangeType: 'DOVIWithEL', DvProfile: 7})).toEqual(['DV P7', 'HDR10']);
 	});
 
 	test("reads Emby's profile from ExtendedVideoSubType and says DV alone without one", () => {
-		expect(labels({VideoRangeType: 'DOVIWithHDR10', ExtendedVideoSubType: 'DoviProfile81'})).toEqual(['DV P8', 'HDR10']);
+		expect(labels({ExtendedVideoType: 'DolbyVision', ExtendedVideoSubType: 'DoviProfile81', VideoRange: 'HDR'})).toEqual(['DV P8', 'HDR10']);
+		expect(labels({ExtendedVideoType: 'DolbyVision', ExtendedVideoSubType: 'DoviProfile100'})).toEqual(['DV P10']);
 		expect(labels({VideoRangeType: 'DOVI'})).toEqual(['DV']);
 	});
 
@@ -147,6 +149,8 @@ describe('getMediaBadges dynamic range', () => {
 		expect(labels({VideoRangeType: 'DOVIWithHLG', DvProfile: 8})).toEqual(['DV P8', 'HLG']);
 		expect(labels({VideoRangeType: 'HLG'})).toEqual(['HLG']);
 		expect(labels({VideoRangeType: 'SDR'})).toEqual([]);
-		expect(labels({VideoRangeType: 'DOVIInvalid', DvProfile: 7})).toEqual(['HDR']);
+		expect(labels({VideoRangeType: 'DOVIInvalid', VideoRange: 'HDR'})).toEqual(['HDR']);
+		expect(labels({VideoRangeType: 'DOVIInvalid', VideoRange: 'SDR'})).toEqual([]);
+		expect(labels({VideoRangeType: 'Unknown', VideoRange: 'SDR'})).toEqual([]);
 	});
 });

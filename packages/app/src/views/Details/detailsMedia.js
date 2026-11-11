@@ -4,7 +4,7 @@
 import $L from '@enact/i18n/$L';
 
 import {getImageUrl} from '../../utils/helpers';
-import {dolbyVisionProfile} from '../../utils/playbackInfo';
+import {baseLayerLabel, dolbyVisionProfile, videoRangeLabel, videoRangeTypeOf} from '../../utils/videoRange';
 
 // Caps that match the mobile clients, so a title forced down on one device looks the
 // same on the others. The server transcodes to fit whichever is chosen.
@@ -105,6 +105,9 @@ export const shuffleArray = (arr) => {
 	return out;
 };
 
+// The range badge texts, written out so the string extraction finds them.
+const HDR_BADGES = {HDR: () => $L('HDR'), HDR10: () => $L('HDR10'), 'HDR10+': () => $L('HDR10+'), HLG: () => $L('HLG')};
+
 export const getMediaBadges = (item, versionIndex = 0) => {
 	const badges = [];
 	const mediaSource = item.MediaSources?.[versionIndex] || item.MediaSources?.[0];
@@ -118,21 +121,17 @@ export const getMediaBadges = (item, versionIndex = 0) => {
 		else if (video.Width >= 1260) badges.push({type: 'badgeHd', label: $L('720p')});
 
 		// Dolby Vision with its profile when the server gives one (DV P8), then the layer a set
-		// without Dolby Vision falls back to. An SDR fallback gets no badge of its own.
-		const rangeType = video.VideoRangeType;
-		const dolbyVision = Boolean(rangeType?.startsWith('DOVI')) && rangeType !== 'DOVIInvalid';
-		if (dolbyVision) {
+		// without Dolby Vision falls back to. An SDR fallback gets no badge of its own, and Dolby
+		// Vision the server calls invalid reads as whatever VideoRange says the picture is.
+		const range = videoRangeTypeOf(video) === 'DOVIInvalid'
+			? (video.VideoRange === 'HDR' ? 'HDR' : 'SDR')
+			: videoRangeLabel(video);
+		const hdrLabel = range === 'Dolby Vision' ? baseLayerLabel(video) : range;
+		if (range === 'Dolby Vision') {
 			const profile = dolbyVisionProfile(video);
-			badges.push({type: 'badgeDv', label: profile ? `${$L('DV')} P${profile}` : $L('DV')});
+			badges.push({type: 'badgeDv', label: profile ? $L('DV P{profile}').replace('{profile}', profile) : $L('DV')});
 		}
-		if (rangeType && rangeType !== 'SDR') {
-			if (rangeType.includes('HDR10Plus')) badges.push({type: 'badgeHdr', label: $L('HDR10+')});
-			else if (rangeType.includes('HDR10')) badges.push({type: 'badgeHdr', label: $L('HDR10')});
-			else if (rangeType.includes('HLG')) badges.push({type: 'badgeHdr', label: $L('HLG')});
-			else if (!dolbyVision) badges.push({type: 'badgeHdr', label: $L('HDR')});
-		} else if (video.VideoRange === 'HDR') {
-			badges.push({type: 'badgeHdr', label: $L('HDR')});
-		}
+		if (HDR_BADGES[hdrLabel]) badges.push({type: 'badgeHdr', label: HDR_BADGES[hdrLabel]()});
 
 		const videoCodec = video.Codec?.toUpperCase();
 		if (videoCodec) {

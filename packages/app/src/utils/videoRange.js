@@ -49,6 +49,15 @@ export const baseLayerLabel = (videoStream) => {
 	return videoRangeLabel({VideoRangeType: match[1] || 'HDR10'});
 };
 
+// The Dolby Vision profile, from DvProfile (Jellyfin, Silo, Plex) or Emby's ExtendedVideoSubType, where
+// DoviProfile81 is profile 8 and DoviProfile10x is profile 10.
+export const dolbyVisionProfile = (stream) => {
+	if (stream?.DvProfile) return stream.DvProfile;
+	const digits = (/doviprofile(\d+)/i.exec(stream?.ExtendedVideoSubType || '') || [])[1];
+	if (!digits) return null;
+	return digits.startsWith('1') ? 10 : Number(digits[0]);
+};
+
 export const findVideoStream = (mediaSource) =>
 	(mediaSource?.MediaStreams || []).find((s) => s.Type === 'Video') || null;
 
