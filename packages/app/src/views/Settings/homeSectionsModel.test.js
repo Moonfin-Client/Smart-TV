@@ -24,7 +24,6 @@ describe('isHomeRowVisibleByGates', () => {
 	test('applies the settings that gate a whole group of rows', () => {
 		expect(isHomeRowVisibleByGates({id: 'collections'}, settings({displayCollectionsRows: false}))).toBe(false);
 		expect(isHomeRowVisibleByGates({id: 'favoriteMovies'}, settings({displayFavoritesRows: false}))).toBe(false);
-		expect(isHomeRowVisibleByGates({id: 'imdb-top250-movies'}, settings({imdbTop250MoviesEnabled: false}))).toBe(false);
 	});
 
 	test('hides the plugin rows when the plugin is off', () => {
@@ -38,7 +37,17 @@ describe('isHomeRowVisibleByGates', () => {
 
 	test('shows the plugin rows when it is on', () => {
 		expect(isHomeRowVisibleByGates({id: 'seerr_trending'}, settings())).toBe(true);
-		expect(isHomeRowVisibleByGates({id: 'radarr_calendar'}, settings())).toBe(true);
+		expect(isHomeRowVisibleByGates({id: 'radarr_calendar'}, settings(), true, undefined, {calendarAvailable: true})).toBe(true);
+	});
+
+	test('offers an external row only while the server can fill it, whatever its old switch says', () => {
+		const ping = {tmdbAvailable: true, mdblistAvailable: false, calendarAvailable: false};
+		const old = settings({imdbTop250MoviesEnabled: false});
+		expect(isHomeRowVisibleByGates({id: 'imdb-top250-movies'}, old, true, undefined, ping)).toBe(true);
+		expect(isHomeRowVisibleByGates({id: 'imdb-top250-movies'}, old, true, undefined, null)).toBe(false);
+		expect(isHomeRowVisibleByGates({id: 'tmdb_popular_movies'}, settings(), true, undefined, ping)).toBe(true);
+		expect(isHomeRowVisibleByGates({id: 'mdblist_watching_now'}, settings(), true, undefined, ping)).toBe(false);
+		expect(isHomeRowVisibleByGates({id: 'radarr_calendar'}, settings(), true, undefined, ping)).toBe(false);
 	});
 
 	test('leaves anything with no gate of its own alone', () => {

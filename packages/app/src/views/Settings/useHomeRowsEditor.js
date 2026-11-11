@@ -77,9 +77,8 @@ const toggleRowIn = (list, id) => {
 };
 
 // The home screen row order, edited against a scratch copy and written back once the screen
-// closes, and only if it ended up different. The IMDb rows are stored twice, as a row and as
-// their own setting, so both are updated.
-const useHomeRowsEditor = ({api, serverUrl, servers, settings, updateSetting, updateSettings, pushView}) => {
+// closes, and only if it ended up different.
+const useHomeRowsEditor = ({api, serverUrl, servers, settings, updateSetting, updateSettings, pushView, pluginInfo = null}) => {
 	const [tempHomeRows, setTempHomeRows] = useState([]);
 	const [loading, setLoading] = useState(false);
 	// Turns false once the server answers with no Live TV channels, which hides the Live TV rows.
@@ -148,16 +147,20 @@ const useHomeRowsEditor = ({api, serverUrl, servers, settings, updateSetting, up
 		if (editedListKey(rows) === openedRef.current) return;
 		openedRef.current = editedListKey(rows);
 		const updates = {homeRows: rows};
-		const imdbMap = {
+		// Older app versions still show or hide these rows by their own switches, so each switch
+		// keeps following its row.
+		const switchMap = {
 			'imdb-top250-movies': 'imdbTop250MoviesEnabled',
 			'imdb-top250-tv': 'imdbTop250TvShowsEnabled',
 			'imdb-popular-movies': 'imdbMostPopularMoviesEnabled',
 			'imdb-popular-tv': 'imdbMostPopularTvShowsEnabled',
 			'imdb-lowest-rated': 'imdbLowestRatedMoviesEnabled',
-			'imdb-top-english': 'imdbTopEnglishMoviesEnabled'
+			'imdb-top-english': 'imdbTopEnglishMoviesEnabled',
+			seasonal: 'seasonalRowEnabled',
+			mdblist_watching_now: 'mdblistWatchingNowEnabled'
 		};
 		rows.forEach((row) => {
-			const settingKey = imdbMap[row.id];
+			const settingKey = switchMap[row.id];
 			if (settingKey) {
 				updates[settingKey] = row.enabled;
 			}
@@ -180,7 +183,7 @@ const useHomeRowsEditor = ({api, serverUrl, servers, settings, updateSetting, up
 	// are hiding, so the row passes the next one the viewer sees in the Enabled list.
 	const moveHomeRow = useCallback((rowId, direction) => {
 		setTempHomeRows((prev) => {
-			const visibleRows = prev.filter((row) => row.enabled && isHomeRowVisibleByGates(row, settings, serverHasLiveTv, serverUrl));
+			const visibleRows = prev.filter((row) => row.enabled && isHomeRowVisibleByGates(row, settings, serverHasLiveTv, serverUrl, pluginInfo));
 			const visibleIndex = visibleRows.findIndex((row) => row.id === rowId);
 			const neighbourIndex = visibleIndex + direction;
 			if (visibleIndex < 0 || neighbourIndex < 0 || neighbourIndex >= visibleRows.length) return prev;
@@ -190,13 +193,12 @@ const useHomeRowsEditor = ({api, serverUrl, servers, settings, updateSetting, up
 			if (index < 0 || targetIndex < 0) return prev;
 			return swapOrder(prev, index, targetIndex);
 		});
-	}, [settings, serverHasLiveTv, serverUrl]);
+	}, [settings, serverHasLiveTv, serverUrl, pluginInfo]);
 
 	return {
 		tempHomeRows,
 		loading,
 		serverHasLiveTv,
-		toggleHomeRowEnabled,
 		toggleSeerrHomeRow,
 		toggleSeerrSlider,
 		openHomeRows,

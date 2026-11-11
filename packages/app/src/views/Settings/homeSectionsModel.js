@@ -3,17 +3,19 @@
 
 import $L from '@enact/i18n/$L';
 
-import {FAVORITE_ROW_IDS, isPluginSourcedRow, isRowEnabledBySetting} from '../../utils/homeRowGates';
+import {FAVORITE_ROW_IDS, isExternalRowAvailable, isPluginSourcedRow, isRowEnabledBySetting} from '../../utils/homeRowGates';
 import {getServerType} from '../../services/jellyfinApi';
 import {isPickedRow, isPickedRowShown, isSameServer, isSectionTypeRow, isSeerrSliderRow} from '../../utils/pickedRows';
 import {isSliderRowLive} from '../../utils/seerrSliders';
 
 const LIVE_TV_ROW_IDS = ['livetv', 'onnow', 'activerecordings'];
 
-export const isHomeRowVisibleByGates = (row, settings, serverHasLiveTv = true, serverUrl) => {
+export const isHomeRowVisibleByGates = (row, settings, serverHasLiveTv = true, serverUrl, pluginInfo = null) => {
 	if (isPickedRow(row)) return isPickedRowShown(row, settings, serverUrl, getServerType());
 	if (isSeerrSliderRow(row)) return Boolean(settings.useMoonfinPlugin) && isSameServer(row.serverUrl, serverUrl) && isSliderRowLive(row);
 	if (!serverHasLiveTv && LIVE_TV_ROW_IDS.includes(row.id)) return false;
+	const external = isExternalRowAvailable(row.id, {settings, pluginInfo, serverType: getServerType()});
+	if (external !== null) return external;
 	if (isPluginSourcedRow(row.id)) return Boolean(settings.useMoonfinPlugin) && isRowEnabledBySetting(row.id, settings);
 	return isRowEnabledBySetting(row.id, settings);
 };

@@ -4,7 +4,6 @@ import {isTrickplayOn} from '../../utils/trickplayLayout';
 import {mediaPreviewMode, mediaPreviewSettings} from '../../utils/mediaPreviewMode';
 import {homeBackdropStyle, homeBackdropSettings} from '../../utils/homeBackdropStyle';
 import {ratingKey} from '../../utils/ratingSources';
-import {withWatchingNowRow} from '../../utils/homeLayout';
 import {retrySubtitleFont, subtitleFontFailed} from '../../services/subtitleFonts';
 
 import {
@@ -537,25 +536,10 @@ export const SETTINGS_SCHEMA = [
 					{kind: KIND.TOGGLE, key: 'hideHomeUnwatchedCount', label: () => $L('Hide Unwatched Count'), desc: () => $L('Hide the badge showing how many episodes are left to watch.'), icon: 'filter_2', keywords: () => ['unplayed']},
 					...ratingsRows('homeRows'),
 					{kind: KIND.SECTION, id: 'externalSources', label: () => $L('External Sources'), when: whenPlugin},
-					{kind: KIND.NAV, id: 'imdbLists', label: () => $L('IMDb Lists'), desc: () => $L('Configure IMDb Top 250, Popular, and other charts.'), icon: 'movie_outlined', keywords: () => [$L('IMDb Row Sorting'), $L('Sort Order')], action: (ctx) => ctx.actions.openImdbLists(), when: whenPlugin},
-					{
-						kind: KIND.TOGGLE,
-						key: 'mdblistWatchingNowEnabled',
-						label: () => $L('Watching on MDBList'),
-						desc: () => $L('Show what MDBList users are currently watching'),
-						icon: 'public',
-						when: whenPlugin,
-						onToggle: (ctx) => {
-							const enabled = !ctx.settings.mdblistWatchingNowEnabled;
-							ctx.actions.setSettings({
-								mdblistWatchingNowEnabled: enabled,
-								homeRows: withWatchingNowRow(ctx.settings.homeRows, enabled)
-							});
-						}
-					},
-					{kind: KIND.NAV, id: 'externalTmdbLists', label: () => $L('TMDB Lists'), desc: () => $L('Configure Popular, Top Rated, and Trending TMDB lists.'), icon: 'trending_up', keywords: () => [$L('TMDB Row Sorting'), $L('Sort Order')], action: (ctx) => ctx.actions.openExternalTmdbLists(), when: whenPlugin},
+					{kind: KIND.NAV, id: 'imdbLists', label: () => $L('IMDb Lists'), desc: () => $L('Sort the IMDb chart rows.'), icon: 'movie_outlined', keywords: () => [$L('IMDb Row Sorting'), $L('Sort Order')], action: (ctx) => ctx.actions.openImdbLists(), when: whenPlugin},
+					{kind: KIND.NAV, id: 'externalTmdbLists', label: () => $L('TMDB Lists'), desc: () => $L('Sort the TMDB chart rows.'), icon: 'trending_up', keywords: () => [$L('TMDB Row Sorting'), $L('Sort Order')], action: (ctx) => ctx.actions.openExternalTmdbLists(), when: whenPlugin},
 					{kind: KIND.NAV, id: 'seasonalRow', label: () => $L('Seasonal Row'), desc: () => $L('Show a row of holiday movies from your library, with Seerr suggestions when available.'), icon: 'celebration_outlined', keywords: () => ['holiday', 'christmas', 'halloween', 'seasonal', 'all year'], action: (ctx) => ctx.actions.openSeasonalRow(), when: whenPlugin},
-					{kind: KIND.NAV, id: 'externalCalendars', label: () => $L('Upcoming Calendars'), desc: () => $L('Toggle Upcoming Calendars from Radarr/Sonarr.'), icon: 'calendar_month', action: (ctx) => ctx.actions.openExternalCalendars(), when: (ctx) => whenPlugin(ctx) && whenSeerr(ctx)},
+					{kind: KIND.NAV, id: 'externalCalendars', label: () => $L('Upcoming Calendars'), desc: () => $L('Choose what the Radarr and Sonarr rows show.'), icon: 'calendar_month', action: (ctx) => ctx.actions.openExternalCalendars(), when: (ctx) => whenPlugin(ctx) && whenSeerr(ctx)},
 					{kind: KIND.NAV, id: 'seerrHomeRows', label: (ctx) => `${ctx.seerrLabel} ${$L('Rows')}`, desc: () => $L('Configure Seerr Discovery Rows.'), icon: 'list', keywords: () => [$L('Seerr Row Sorting'), $L('Sort Order')], action: (ctx) => ctx.actions.openSeerrHomeRows(), when: (ctx) => whenPlugin(ctx) && whenSeerr(ctx)},
 					{
 						kind: KIND.NAV,

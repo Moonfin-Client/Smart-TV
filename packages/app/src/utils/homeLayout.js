@@ -178,41 +178,6 @@ export const mergeHomeRows = (rows, enabledById = {}) => {
 	return merged;
 };
 
-// The seasonal row with its toggle applied. Switching it on puts it right after Continue
-// Watching and Next Up, where a holiday row gets noticed. Switching it off keeps its place.
-export const withSeasonalRow = (rows, enabled) => {
-	const sorted = [...(rows || [])].sort((left, right) => left.order - right.order);
-	const index = sorted.findIndex((row) => row.id === 'seasonal');
-	const current = index >= 0 ? sorted.splice(index, 1)[0] : DEFAULT_HOME_ROWS.find((row) => row.id === 'seasonal');
-	let insertAt = index >= 0 ? index : sorted.length;
-	if (enabled && !current.enabled) {
-		let anchor = -1;
-		sorted.forEach((row, i) => {
-			if (row.id === 'resume' || row.id === 'nextup') anchor = i;
-		});
-		insertAt = anchor + 1;
-	}
-	sorted.splice(insertAt, 0, {...current, enabled});
-	return sorted.map((row, order) => ({...row, order}));
-};
-
-// The Watching on MDBList row with its toggle applied. Switching it on moves it right after the
-// last row that's on, and switching it off keeps its place.
-export const withWatchingNowRow = (rows, enabled) => {
-	const sorted = [...(rows || [])].sort((left, right) => left.order - right.order);
-	const index = sorted.findIndex((row) => row.id === 'mdblist_watching_now');
-	const current = index >= 0 ? sorted.splice(index, 1)[0] : DEFAULT_HOME_ROWS.find((row) => row.id === 'mdblist_watching_now');
-	let insertAt = index >= 0 ? index : sorted.length;
-	if (enabled) {
-		insertAt = 0;
-		sorted.forEach((row, i) => {
-			if (row.enabled) insertAt = i + 1;
-		});
-	}
-	sorted.splice(insertAt, 0, {...current, enabled});
-	return sorted.map((row, order) => ({...row, order}));
-};
-
 // Sections this client has no row for, meaning plugin rows and any type belonging to a
 // client with rows this one lacks. They get handed back verbatim so that writing a
 // layout from the TV never destroys them. Null means we haven't read the server's

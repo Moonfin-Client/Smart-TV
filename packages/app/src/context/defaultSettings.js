@@ -222,6 +222,7 @@ export const defaultSettings = {
 	sinceYouWatchedIncludeWatched: false,
 	// Pulled from the server plugin, never pushed back. Empty until synced.
 	tmdbApiKey: '',
+	mdblistApiKey: '',
 	rewatchIncludeMovies: true,
 	rewatchIncludeShows: true,
 	rewatchIncludeCollections: true,

@@ -23,23 +23,24 @@ export const isRowEnabledBySetting = (rowId, settings) => {
 	if (rowId === 'playlists') return settings.displayPlaylistsRows;
 	if (rowId === 'studios') return settings.displayStudiosRows;
 	if (rowId === 'rewatch') return settings.displayRewatchRow !== false;
-	if (rowId === 'imdb-top250-movies') return settings.imdbTop250MoviesEnabled;
-	if (rowId === 'imdb-top250-tv') return settings.imdbTop250TvShowsEnabled;
-	if (rowId === 'imdb-popular-movies') return settings.imdbMostPopularMoviesEnabled;
-	if (rowId === 'imdb-popular-tv') return settings.imdbMostPopularTvShowsEnabled;
-	if (rowId === 'imdb-lowest-rated') return settings.imdbLowestRatedMoviesEnabled;
-	if (rowId === 'imdb-top-english') return settings.imdbTopEnglishMoviesEnabled;
-	if (rowId === 'seasonal') return settings.seasonalRowEnabled === true;
-	if (rowId === 'mdblist_watching_now') return settings.mdblistWatchingNowEnabled === true;
 	return true;
 };
 
-// Rows whose contents come through the Moonfin plugin. The home screen never builds these
-// while the plugin is off, so only the editor has to ask.
-export const isPluginSourcedRow = (rowId) =>
-	rowId.startsWith('seerr_') ||
-	rowId.startsWith('tmdb_') ||
-	rowId === 'radarr_calendar' ||
-	rowId === 'sonarr_calendar' ||
-	rowId === 'seasonal' ||
-	rowId === 'mdblist_watching_now';
+const hasText = (value) => typeof value === 'string' && value.trim() !== '';
+
+// The external rows (IMDb, TMDB, MDBList Watching Now, seasonal and the calendars) have no switch
+// of their own. The row editor offers one, and Home draws it when it's on, only while the server
+// can fill it. Null for every other row. Silo makes its own seasonal row, plugin or not.
+export const isExternalRowAvailable = (rowId, {settings, pluginInfo, serverType}) => {
+	const plugin = Boolean(settings.useMoonfinPlugin) && Boolean(pluginInfo);
+	if (rowId.startsWith('imdb-')) return plugin;
+	if (rowId.startsWith('tmdb_')) return plugin && (pluginInfo.tmdbAvailable === true || hasText(settings.tmdbApiKey));
+	if (rowId === 'mdblist_watching_now') return plugin && (pluginInfo.mdblistAvailable === true || hasText(settings.mdblistApiKey));
+	if (rowId === 'seasonal') return plugin || serverType === 'silo';
+	if (rowId === 'radarr_calendar' || rowId === 'sonarr_calendar') return plugin && pluginInfo.calendarAvailable === true;
+	return null;
+};
+
+// The Seerr rows come through the Moonfin plugin. The home screen never builds them while the
+// plugin is off, so only the editor has to ask. The external rows answer to isExternalRowAvailable.
+export const isPluginSourcedRow = (rowId) => rowId.startsWith('seerr_');

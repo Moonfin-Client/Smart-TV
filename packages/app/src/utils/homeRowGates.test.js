@@ -1,4 +1,4 @@
-import {FAVORITE_ROW_IDS, isPluginSourcedRow, isRowEnabledBySetting} from './homeRowGates';
+import {FAVORITE_ROW_IDS, isExternalRowAvailable, isPluginSourcedRow, isRowEnabledBySetting} from './homeRowGates';
 
 const settings = (over = {}) => ({
 	displayFavoritesRows: true,
@@ -28,18 +28,20 @@ describe('isRowEnabledBySetting', () => {
 		expect(isRowEnabledBySetting('playlists', settings({displayPlaylistsRows: false}))).toBe(false);
 	});
 
-	test('each IMDb list answers to its own setting', () => {
-		const pairs = [
-			['imdb-top250-movies', 'imdbTop250MoviesEnabled'],
-			['imdb-top250-tv', 'imdbTop250TvShowsEnabled'],
-			['imdb-popular-movies', 'imdbMostPopularMoviesEnabled'],
-			['imdb-popular-tv', 'imdbMostPopularTvShowsEnabled'],
-			['imdb-lowest-rated', 'imdbLowestRatedMoviesEnabled'],
-			['imdb-top-english', 'imdbTopEnglishMoviesEnabled']
-		];
-		pairs.forEach(([rowId, settingKey]) => {
-			expect(isRowEnabledBySetting(rowId, settings())).toBe(true);
-			expect(isRowEnabledBySetting(rowId, settings({[settingKey]: false}))).toBe(false);
+	test('the external rows no longer answer to the old switches', () => {
+		const off = settings({
+			imdbTop250MoviesEnabled: false,
+			imdbTop250TvShowsEnabled: false,
+			imdbMostPopularMoviesEnabled: false,
+			imdbMostPopularTvShowsEnabled: false,
+			imdbLowestRatedMoviesEnabled: false,
+			imdbTopEnglishMoviesEnabled: false,
+			seasonalRowEnabled: false,
+			mdblistWatchingNowEnabled: false
+		});
+		['imdb-top250-movies', 'imdb-top250-tv', 'imdb-popular-movies', 'imdb-popular-tv', 'imdb-lowest-rated',
+			'imdb-top-english', 'seasonal', 'mdblist_watching_now'].forEach((rowId) => {
+			expect(isRowEnabledBySetting(rowId, off)).toBe(true);
 		});
 	});
 
@@ -51,15 +53,14 @@ describe('isRowEnabledBySetting', () => {
 });
 
 describe('isPluginSourcedRow', () => {
-	test('matches the rows whose contents come through the plugin', () => {
+	test('matches the Seerr rows', () => {
 		expect(isPluginSourcedRow('seerr_trending')).toBe(true);
-		expect(isPluginSourcedRow('tmdb_popular')).toBe(true);
-		expect(isPluginSourcedRow('radarr_calendar')).toBe(true);
-		expect(isPluginSourcedRow('sonarr_calendar')).toBe(true);
 	});
 
-	test('leaves the IMDb rows alone, which are named similarly but are not plugin rows', () => {
-		expect(isPluginSourcedRow('imdb-top250-movies')).toBe(false);
+	test('leaves the external rows to isExternalRowAvailable', () => {
+		['tmdb_popular_movies', 'radarr_calendar', 'seasonal', 'mdblist_watching_now', 'imdb-top250-movies'].forEach((rowId) => {
+			expect(isPluginSourcedRow(rowId)).toBe(false);
+		});
 		expect(isPluginSourcedRow('collections')).toBe(false);
 		expect(isPluginSourcedRow('resume')).toBe(false);
 	});
@@ -67,32 +68,50 @@ describe('isPluginSourcedRow', () => {
 	// The two groups have to stay disjoint, otherwise which one is asked first starts to
 	// matter and the two callers would answer differently.
 	test('no row answers to both a setting and the plugin', () => {
-		const gated = [...FAVORITE_ROW_IDS, 'collections', 'genres', 'playlists',
-			'imdb-top250-movies', 'imdb-top250-tv', 'imdb-popular-movies',
-			'imdb-popular-tv', 'imdb-lowest-rated', 'imdb-top-english'];
+		const gated = [...FAVORITE_ROW_IDS, 'collections', 'genres', 'playlists'];
 
 		expect(gated.filter(isPluginSourcedRow)).toEqual([]);
 	});
 });
 
-describe('the seasonal row', () => {
-	test('answers to its own toggle and is off until it is switched on', () => {
-		expect(isRowEnabledBySetting('seasonal', settings())).toBe(false);
-		expect(isRowEnabledBySetting('seasonal', settings({seasonalRowEnabled: true}))).toBe(true);
+describe('isExternalRowAvailable', () => {
+	const ping = (over = {}) => ({tmdbAvailable: false, mdblistAvailable: false, calendarAvailable: false, ...over});
+	const avail = (rowId, {useMoonfinPlugin = true, pluginInfo = ping(), serverType = 'jellyfin', ...keys} = {}) =>
+		isExternalRowAvailable(rowId, {settings: {useMoonfinPlugin, ...keys}, pluginInfo, serverType});
+
+	test('the IMDb rows need only the plugin', () => {
+		expect(avail('imdb-top250-movies')).toBe(true);
+		expect(avail('imdb-top250-movies', {pluginInfo: null})).toBe(false);
+		expect(avail('imdb-top250-movies', {useMoonfinPlugin: false})).toBe(false);
 	});
 
-	test('comes through the plugin too, so the editor hides it while the plugin is off', () => {
-		expect(isPluginSourcedRow('seasonal')).toBe(true);
-	});
-});
-
-describe('the watching now row', () => {
-	test('answers to its own toggle and is off until it is switched on', () => {
-		expect(isRowEnabledBySetting('mdblist_watching_now', settings())).toBe(false);
-		expect(isRowEnabledBySetting('mdblist_watching_now', settings({mdblistWatchingNowEnabled: true}))).toBe(true);
+	test("the TMDB rows need a TMDB key, the admin's or the viewer's own", () => {
+		expect(avail('tmdb_popular_movies')).toBe(false);
+		expect(avail('tmdb_popular_movies', {pluginInfo: ping({tmdbAvailable: true})})).toBe(true);
+		expect(avail('tmdb_popular_movies', {tmdbApiKey: 'abc'})).toBe(true);
+		expect(avail('tmdb_popular_movies', {tmdbApiKey: '  '})).toBe(false);
+		expect(avail('tmdb_popular_movies', {pluginInfo: null, tmdbApiKey: 'abc'})).toBe(false);
 	});
 
-	test('comes through the plugin too, so the editor hides it while the plugin is off', () => {
-		expect(isPluginSourcedRow('mdblist_watching_now')).toBe(true);
+	test("Watching Now needs an MDBList key, the admin's or the viewer's own", () => {
+		expect(avail('mdblist_watching_now')).toBe(false);
+		expect(avail('mdblist_watching_now', {pluginInfo: ping({mdblistAvailable: true})})).toBe(true);
+		expect(avail('mdblist_watching_now', {mdblistApiKey: 'abc'})).toBe(true);
+	});
+
+	test('the seasonal row needs the plugin, except on Silo, which makes its own', () => {
+		expect(avail('seasonal')).toBe(true);
+		expect(avail('seasonal', {pluginInfo: null})).toBe(false);
+		expect(avail('seasonal', {pluginInfo: null, serverType: 'silo'})).toBe(true);
+	});
+
+	test('the calendars need the plugin to offer them', () => {
+		expect(avail('radarr_calendar')).toBe(false);
+		expect(avail('sonarr_calendar', {pluginInfo: ping({calendarAvailable: true})})).toBe(true);
+	});
+
+	test("every other row isn't an external one", () => {
+		expect(avail('resume')).toBeNull();
+		expect(avail('seerr_trending')).toBeNull();
 	});
 });

@@ -117,7 +117,7 @@ const Browse = ({
 		sortBy: settings.seerrRowsSortBy,
 		sortOrder: settings.seerrRowsSortOrder
 	});
-	const {rows: externalRows, pending: externalPending} = useExternalRows({settings, homeRows: homeRowsConfig, kidsMode});
+	const {rows: externalRows, pending: externalPending} = useExternalRows({settings, homeRows: homeRowsConfig, kidsMode, pluginInfo, serverType});
 	const pendingRows = useMemo(() => [...seerrPending, ...externalPending], [seerrPending, externalPending]);
 	const unifiedMode = settings.unifiedLibraryMode && hasMultipleServers;
 	const isLegacy = typeof document !== 'undefined' && (' ' + document.documentElement.className + ' ').indexOf(' legacy ') >= 0;
@@ -262,21 +262,11 @@ const Browse = ({
 		displayAudioRows: settings.displayAudioRows,
 		displayStudiosRows: settings.displayStudiosRows,
 		displayRewatchRow: settings.displayRewatchRow,
-		imdbTop250MoviesEnabled: settings.imdbTop250MoviesEnabled,
-		imdbTop250TvShowsEnabled: settings.imdbTop250TvShowsEnabled,
-		imdbMostPopularMoviesEnabled: settings.imdbMostPopularMoviesEnabled,
-		imdbMostPopularTvShowsEnabled: settings.imdbMostPopularTvShowsEnabled,
-		imdbLowestRatedMoviesEnabled: settings.imdbLowestRatedMoviesEnabled,
-		imdbTopEnglishMoviesEnabled: settings.imdbTopEnglishMoviesEnabled,
-		seasonalRowEnabled: settings.seasonalRowEnabled,
 		parentalFilter,
 		kidsModeEnabled: settings.kidsModeEnabled
 	}), [settings.kidsModeEnabled, parentalFilter, mergeContinueWatchingNextUp, settings.hiddenContinueWatchingItems, settings.hiddenNextUpSeries,
 		settings.displayFavoritesRows, settings.displayCollectionsRows, settings.displayGenresRows, settings.displayPlaylistsRows,
-		settings.displayAudioRows, settings.displayStudiosRows, settings.displayRewatchRow,
-		settings.imdbTop250MoviesEnabled, settings.imdbTop250TvShowsEnabled, settings.imdbMostPopularMoviesEnabled,
-		settings.imdbMostPopularTvShowsEnabled, settings.imdbLowestRatedMoviesEnabled, settings.imdbTopEnglishMoviesEnabled,
-		settings.seasonalRowEnabled]);
+		settings.displayAudioRows, settings.displayStudiosRows, settings.displayRewatchRow]);
 
 	const builtRows = useMemo(() => {
 		const result = buildBrowseRows({

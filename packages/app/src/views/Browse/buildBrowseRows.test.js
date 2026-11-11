@@ -51,8 +51,8 @@ describe('row selection', () => {
 
 		expect(gated('collections', {displayCollectionsRows: false})).toEqual([]);
 		expect(gated('favoriteMovies', {displayFavoritesRows: false})).toEqual([]);
-		expect(gated('imdb-top250-movies', {imdbTop250MoviesEnabled: false})).toEqual([]);
-		expect(gated('imdb-top250-movies', {}).map((r) => r.id)).toEqual(['imdb-top250-movies']);
+		// The external rows have no switch. The loader already leaves out what the server can't fill.
+		expect(gated('imdb-top250-movies', {imdbTop250MoviesEnabled: false}).map((r) => r.id)).toEqual(['imdb-top250-movies']);
 	});
 
 	test('plugin rows answer to the plugin list rather than the row list', () => {

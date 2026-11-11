@@ -428,10 +428,14 @@ export const profileToLocal = (serverProfile) => {
 	// Continue Watching syncs on its own server key, while this app keeps it with the other rows.
 	const continueWatching = rowImageTypeFromServer(serverProfile.homeImageTypeContinueWatching);
 	if (continueWatching) local.homeRowImageTypes = {...local.homeRowImageTypes, resume: continueWatching};
-	// The TMDB key is read only. We pull it so online rows can call TMDB, but it
-	// stays out of SYNCABLE_KEYS so the client never pushes it back.
+	// The TMDB and MDBList keys are read only. We pull them so online rows can call TMDB and the
+	// row editor knows which rows the plugin can fill, but they stay out of SYNCABLE_KEYS so the
+	// client never pushes them back.
 	if (serverProfile.tmdbApiKey !== undefined && serverProfile.tmdbApiKey !== null) {
 		local.tmdbApiKey = serverProfile.tmdbApiKey;
+	}
+	if (serverProfile.mdblistApiKey !== undefined && serverProfile.mdblistApiKey !== null) {
+		local.mdblistApiKey = serverProfile.mdblistApiKey;
 	}
 	return local;
 };
@@ -508,6 +512,8 @@ export const resolveFromEnvelope = (envelope, adminDefaults, profile) => {
 	else delete resolved.homeRowImageTypes;
 	const tmdbLayer = firstWith('tmdbApiKey');
 	if (tmdbLayer) resolved.tmdbApiKey = tmdbLayer.tmdbApiKey;
+	const mdblistLayer = firstWith('mdblistApiKey');
+	if (mdblistLayer) resolved.mdblistApiKey = mdblistLayer.mdblistApiKey;
 
 	// Same precedence as everything else, except the layout moves as one unit. The first
 	// profile that has any layout supplies all of it, so admin defaults only reach a user
@@ -1142,7 +1148,8 @@ export function SettingsProvider({children}) {
 
 			const resolved = resolveFromEnvelope(serverData, adminDefaults, settingsRef.current.syncProfile);
 
-			const hasServerValues = resolved.tmdbApiKey !== undefined || SYNCABLE_KEYS.some(key => resolved[key] !== undefined);
+			const hasServerValues = resolved.tmdbApiKey !== undefined || resolved.mdblistApiKey !== undefined ||
+				SYNCABLE_KEYS.some(key => resolved[key] !== undefined);
 			if (!hasServerValues) return pluginAnswered ? 'empty' : 'unavailable';
 			// A value the profile carries was chosen somewhere, on this device or
 			// another, so the setup wizard has nothing left to ask about it.
@@ -1164,6 +1171,7 @@ export function SettingsProvider({children}) {
 						: incoming;
 				}
 				const tmdbApiKey = resolved.tmdbApiKey !== undefined ? resolved.tmdbApiKey : prev.tmdbApiKey;
+				const mdblistApiKey = resolved.mdblistApiKey !== undefined ? resolved.mdblistApiKey : prev.mdblistApiKey;
 				const homeRowsStyle = normalizeHomeRowsStyle(nextValues.homeRowsStyle);
 				const detailScreenStyle = normalizeDetailScreenStyle(nextValues.detailScreenStyle);
 
@@ -1179,6 +1187,7 @@ export function SettingsProvider({children}) {
 				// Unchanged values kept their previous reference, so comparing identity is
 				// enough here.
 				const changed = tmdbApiKey !== prev.tmdbApiKey ||
+					mdblistApiKey !== prev.mdblistApiKey ||
 					homeRowsStyle !== prev.homeRowsStyle ||
 					detailScreenStyle !== prev.detailScreenStyle ||
 					customThemeId !== prev.customThemeId ||
@@ -1190,6 +1199,7 @@ export function SettingsProvider({children}) {
 						...prev,
 						...nextValues,
 						tmdbApiKey,
+						mdblistApiKey,
 						homeRowsStyle,
 						detailScreenStyle,
 						customThemeId,

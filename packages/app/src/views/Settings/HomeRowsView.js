@@ -58,6 +58,7 @@ const HomeRowsView = ({
 	tempHomeRows,
 	loading,
 	serverHasLiveTv,
+	pluginInfo,
 	onToggleHomeRow,
 	onMoveHomeRow,
 	onReset,
@@ -66,7 +67,7 @@ const HomeRowsView = ({
 	useCommitOnLeave(onLeave);
 	const [openGroups, setOpenGroups] = useState(() => new Set());
 	const [renderLimit, setRenderLimit] = useState(ROW_RENDER_STEP);
-	const visibleRows = tempHomeRows.filter((row) => isHomeRowVisibleByGates(row, settings, serverHasLiveTv, serverUrl));
+	const visibleRows = tempHomeRows.filter((row) => isHomeRowVisibleByGates(row, settings, serverHasLiveTv, serverUrl, pluginInfo));
 	const enabledRows = visibleRows.filter((row) => row.enabled);
 	const enabledIds = enabledRows.map(rowSpotlightId);
 	const disabled = visibleRows.filter((row) => !row.enabled);

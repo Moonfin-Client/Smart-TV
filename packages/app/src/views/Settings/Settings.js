@@ -818,9 +818,9 @@ const Settings = ({ onBack, onLibrariesChanged, onRunSetupWizard, onSelectItem, 
 
 	const {
 		tempHomeRows, loading: homeRowsLoading, serverHasLiveTv,
-		toggleHomeRowEnabled, toggleSeerrHomeRow, toggleSeerrSlider, openHomeRows, commitHomeRows, resetHomeRows,
+		toggleSeerrHomeRow, toggleSeerrSlider, openHomeRows, commitHomeRows, resetHomeRows,
 		toggleHomeRow, moveHomeRow
-	} = useHomeRowsEditor({api, serverUrl, servers, settings, updateSetting, updateSettings, pushView});
+	} = useHomeRowsEditor({api, serverUrl, servers, settings, updateSetting, updateSettings, pushView, pluginInfo: seerr.pluginInfo});
 
 	const {
 		tempButtons, buttonLayoutKind, openDetailButtons, openOsdButtons, openDetailMetadata,
@@ -1517,6 +1517,7 @@ const Settings = ({ onBack, onLibrariesChanged, onRunSetupWizard, onSelectItem, 
 					tempHomeRows={tempHomeRows}
 					loading={homeRowsLoading}
 					serverHasLiveTv={serverHasLiveTv}
+					pluginInfo={seerr.pluginInfo}
 					onToggleHomeRow={toggleHomeRow}
 					onMoveHomeRow={moveHomeRow}
 					onReset={resetHomeRows}
@@ -1563,7 +1564,6 @@ const Settings = ({ onBack, onLibrariesChanged, onRunSetupWizard, onSelectItem, 
 			{viewName === 'imdbLists' && (
 				<ImdbListsView
 					settings={settings}
-					onUpdateSettings={updateSettings}
 					onOpenOptions={openOptionsDialog}
 				/>
 			)}
@@ -1572,8 +1572,6 @@ const Settings = ({ onBack, onLibrariesChanged, onRunSetupWizard, onSelectItem, 
 			)}
 			{viewName === 'externalTmdbLists' && (
 				<ExternalTmdbListsView
-					enabledMap={homeRowEnabledMap}
-					onToggleRow={toggleHomeRowEnabled}
 					settings={settings}
 					onOpenOptions={openOptionsDialog}
 				/>
@@ -1583,7 +1581,6 @@ const Settings = ({ onBack, onLibrariesChanged, onRunSetupWizard, onSelectItem, 
 					enabledMap={homeRowEnabledMap}
 					calendarAvailable={seerr.pluginInfo?.calendarAvailable === true}
 					settings={settings}
-					onToggleRow={toggleHomeRowEnabled}
 					onToggleSetting={toggleSetting}
 				/>
 			)}
