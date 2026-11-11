@@ -4,6 +4,7 @@
 import $L from '@enact/i18n/$L';
 
 import {getImageUrl} from '../../utils/helpers';
+import {dolbyVisionProfile} from '../../utils/playbackInfo';
 
 // Caps that match the mobile clients, so a title forced down on one device looks the
 // same on the others. The server transcodes to fit whichever is chosen.
@@ -116,14 +117,19 @@ export const getMediaBadges = (item, versionIndex = 0) => {
 		else if (video.Width >= 1900) badges.push({type: 'badgeHd', label: $L('1080p')});
 		else if (video.Width >= 1260) badges.push({type: 'badgeHd', label: $L('720p')});
 
+		// Dolby Vision with its profile when the server gives one (DV P8), then the layer a set
+		// without Dolby Vision falls back to. An SDR fallback gets no badge of its own.
 		const rangeType = video.VideoRangeType;
-		if (rangeType === 'DOVIWithHDR10' || rangeType === 'DOVI' || rangeType === 'DOVIWithHDR10Plus') {
-			badges.push({type: 'badgeDv', label: $L('DV')});
+		const dolbyVision = Boolean(rangeType?.startsWith('DOVI')) && rangeType !== 'DOVIInvalid';
+		if (dolbyVision) {
+			const profile = dolbyVisionProfile(video);
+			badges.push({type: 'badgeDv', label: profile ? `${$L('DV')} P${profile}` : $L('DV')});
 		}
 		if (rangeType && rangeType !== 'SDR') {
 			if (rangeType.includes('HDR10Plus')) badges.push({type: 'badgeHdr', label: $L('HDR10+')});
-			else if (rangeType.includes('HDR10') || rangeType === 'DOVIWithHDR10') badges.push({type: 'badgeHdr', label: $L('HDR10')});
-			else if (rangeType !== 'DOVI') badges.push({type: 'badgeHdr', label: $L('HDR')});
+			else if (rangeType.includes('HDR10')) badges.push({type: 'badgeHdr', label: $L('HDR10')});
+			else if (rangeType.includes('HLG')) badges.push({type: 'badgeHdr', label: $L('HLG')});
+			else if (!dolbyVision) badges.push({type: 'badgeHdr', label: $L('HDR')});
 		} else if (video.VideoRange === 'HDR') {
 			badges.push({type: 'badgeHdr', label: $L('HDR')});
 		}

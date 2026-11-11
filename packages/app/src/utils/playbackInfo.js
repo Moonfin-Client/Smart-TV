@@ -82,7 +82,7 @@ const fpsValue = (stream) => {
 };
 
 // Emby names the profile in ExtendedVideoSubType, as in DoviProfile81.
-const dolbyVisionProfile = (stream) => stream.DvProfile || (/doviprofile(\d)/i.exec(stream.ExtendedVideoSubType || '') || [])[1];
+export const dolbyVisionProfile = (stream) => stream.DvProfile || (/doviprofile(\d)/i.exec(stream.ExtendedVideoSubType || '') || [])[1];
 
 const hdrName = (stream, showsDolbyVision) => {
 	const label = getHdrType(stream, showsDolbyVision);

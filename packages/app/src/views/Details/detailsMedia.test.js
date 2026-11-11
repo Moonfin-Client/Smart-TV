@@ -2,7 +2,7 @@
 // English source string, so handing the string straight back is faithful enough here.
 jest.mock('@enact/i18n/$L', () => ({__esModule: true, default: (str) => str}));
 
-import {splitCastAndCrew, hidesMediaDescription} from './detailsMedia';
+import {getMediaBadges, splitCastAndCrew, hidesMediaDescription} from './detailsMedia';
 
 const person = (Id, Name, Type, Role) => ({Id, Name, Type, Role});
 
@@ -123,5 +123,30 @@ describe('splitCastAndCrew', () => {
 		expect(crew).toHaveLength(2);
 		expect(crew[0].Role).toBe('Episode Director');
 		expect(crew[1].Role).toBe('Episode Writer');
+	});
+});
+
+describe('getMediaBadges dynamic range', () => {
+	const labels = (video) => getMediaBadges({MediaSources: [{MediaStreams: [{Type: 'Video', Width: 3840, ...video}]}]})
+		.filter((badge) => badge.type === 'badgeDv' || badge.type === 'badgeHdr')
+		.map((badge) => badge.label);
+
+	test('names the Dolby Vision profile when the server gives one, then the fallback layer', () => {
+		expect(labels({VideoRangeType: 'DOVIWithHDR10Plus', DvProfile: 8})).toEqual(['DV P8', 'HDR10+']);
+		expect(labels({VideoRangeType: 'DOVIWithHDR10', DvProfile: 8})).toEqual(['DV P8', 'HDR10']);
+		expect(labels({VideoRangeType: 'DOVI', DvProfile: 5})).toEqual(['DV P5']);
+	});
+
+	test("reads Emby's profile from ExtendedVideoSubType and says DV alone without one", () => {
+		expect(labels({VideoRangeType: 'DOVIWithHDR10', ExtendedVideoSubType: 'DoviProfile81'})).toEqual(['DV P8', 'HDR10']);
+		expect(labels({VideoRangeType: 'DOVI'})).toEqual(['DV']);
+	});
+
+	test('gives an SDR fallback no badge, and calls HLG by name', () => {
+		expect(labels({VideoRangeType: 'DOVIWithSDR', DvProfile: 8})).toEqual(['DV P8']);
+		expect(labels({VideoRangeType: 'DOVIWithHLG', DvProfile: 8})).toEqual(['DV P8', 'HLG']);
+		expect(labels({VideoRangeType: 'HLG'})).toEqual(['HLG']);
+		expect(labels({VideoRangeType: 'SDR'})).toEqual([]);
+		expect(labels({VideoRangeType: 'DOVIInvalid', DvProfile: 7})).toEqual(['HDR']);
 	});
 });
