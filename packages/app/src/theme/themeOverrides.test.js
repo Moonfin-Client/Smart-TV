@@ -18,6 +18,15 @@ describe('buildThemeOverrideCss', () => {
 		expect(css).not.toContain('var(--theme');
 	});
 
+	it('colors the Seerr download bar, amber when stalled and red when failed', () => {
+		const theme = resolveThemeById('moonfin');
+		const lines = buildThemeOverrideCss(theme).split('\n');
+		const fill = (selector) => lines.filter((line) => line.includes(`] ${selector} {`)).join('\n');
+		expect(fill('.fill')).toContain(`background: ${toCssColor(theme.colors.rangeProgress)};`);
+		expect(fill('.stalled .fill')).toContain(`background: ${toCssColor(theme.semantic.statusPending)};`);
+		expect(fill('.failed .fill')).toContain(`background: ${toCssColor(theme.semantic.statusError)};`);
+	});
+
 	it('emits the nav color cycle per slot for themes that have one', () => {
 		const css = buildThemeOverrideCss(resolveThemeById('neon_pulse'));
 		expect(css).toContain("[data-nav-slot='1'] { color: rgb(255, 46, 146); }");

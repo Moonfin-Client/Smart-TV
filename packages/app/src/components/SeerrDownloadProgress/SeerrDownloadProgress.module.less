@@ -57,4 +57,17 @@
 	}
 }
 
+// The theme's colors reach these through themeOverrides on a TV.
+.stalled .fill {
+	background: var(--theme-status-pending, #eab308);
+}
+
+.failed .fill {
+	background: var(--theme-status-error, #ef4444);
+}
+
+.dimmed .fill {
+	opacity: 0.4;
+}
+
 .container { .flex-col-gap(6px); }
