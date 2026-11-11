@@ -192,6 +192,17 @@ describe('ink on a focused row', () => {
 		}
 	});
 
+	// A Play filled with a light accent reads as focused beside the circle that is, so Stage's,
+	// Premiere's and Quick Look's Play is left looking like the circles until it has focus.
+	it('fills Play with the accent only once it has focus', () => {
+		const lines = buildThemeOverrideCss(resolveThemeById('neon_pulse')).split('\n');
+		const ruleFor = (selector) => lines.find((line) => line.includes(`] ${selector} {`) || line.includes(`] ${selector}, `)) || '';
+		['actionsStacked', 'actionsCentered'].forEach((row) => {
+			expect(ruleFor(`.${row} > .actionBtn:first-child`)).toBe('');
+			expect(ruleFor(`.${row} > .actionBtn:first-child:focus`)).toContain('background-color: rgb(0, 229, 255)');
+		});
+	});
+
 	it('draws Frost in the theme rather than white on glass', () => {
 		const lines = buildThemeOverrideCss(resolveThemeById('neon_pulse')).split('\n');
 		const ruleFor = (selector) => lines.find((line) => line.includes(`] ${selector} {`) || line.includes(`] ${selector}, `)) || '';

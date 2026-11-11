@@ -432,7 +432,8 @@
 }
 
 // Stage stacks the row under its poster, at Core's Stage sizes. The first button spans the column,
-// filled with the accent and labeled, and the rest wrap under it as circles. A focused circle keeps
+// labeled, and the rest wrap under it as circles. It looks like the circles until it has focus, or
+// a light accent would read as focused next to the button that is. A focused circle keeps
 // its size and shows its label underneath, since the column has no room for it to open up.
 // Premiere centers the same circles in one row beside a labeled first button, and keeps the room
 // under the row for the labels so it doesn't shift as focus moves.
@@ -484,7 +485,7 @@
 
 .actionsStacked > .actionBtn:first-child:focus {
 	background-color: #fff;
-	border: 5px solid var(--theme-focus-border-color, #00a4dc);
+	border-color: var(--theme-focus-border-color, #00a4dc);
 	color: #00a4dc;
 }
 
