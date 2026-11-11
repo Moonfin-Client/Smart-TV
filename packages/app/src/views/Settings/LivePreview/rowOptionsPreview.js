@@ -10,6 +10,7 @@ import $L from '@enact/i18n/$L';
 import {useAuth} from '../../../context/AuthContext';
 import useParentalFilter from '../../../hooks/useParentalFilter';
 import {episodeArtwork, modernCardImageUrl, requestedArtwork} from '../../../components/MediaCard/cardArtwork';
+import {isStaticLibraryCard} from '../../../components/MediaCard/modernCardLayout';
 import {FAVORITE_ROW_IDS} from '../../../utils/homeRowGates';
 import {isKidsMode, kidsModeRows, mergesContinueWatchingNextUp} from '../../../utils/kidsMode';
 import {isPickedRow, isPickedRowShown} from '../../../utils/pickedRows';
@@ -243,7 +244,7 @@ const useHomeRowData = () => useSyncExternalStore(subscribeRowData, () => memory
 const hasIndicator = (item) => item.UserData?.PlayedPercentage > 0 || showsWatchedCheck(item) || item.UserData?.UnplayedItemCount > 0;
 
 // The first of Home's rows that shows what [key] changes: the row being given an image type,
-// a row with watched indicators, or one with episodes. Null for a setting any row shows.
+// a row with watched indicators, one with episodes, or My Media. Null for a setting any row shows.
 const rowShowing = (key, focusRowId) => {
 	if (focusRowId) {
 		return (row) => {
@@ -253,17 +254,18 @@ const rowShowing = (key, focusRowId) => {
 	}
 	if (key === 'watchedIndicatorBehavior') return (row) => row.items.some(hasIndicator);
 	if (key === 'useSeriesThumbnails') return (row) => row.items.some((item) => item.Type === 'Episode');
+	if (key === 'modernCardsOnMyMediaRow') return (row) => row.id === 'library-tiles';
 	return null;
 };
 
 // An item with the artwork its card on Home picks: the modern card's at rest and focused, or the
 // classic card's for the row's image type. A wide classic card without that art falls back to
 // a thumb or backdrop, and a genre card draws on one of its own items.
-const previewItem = (item, {modern, imageType, shape, serverUrl, useSeriesThumbnails}) => {
+const previewItem = (item, {modern, imageType, shape, serverUrl, useSeriesThumbnails, isStaticMyMedia}) => {
 	const adapted = adaptItem(item);
 	const itemServerUrl = item._serverUrl || serverUrl;
 	if (modern) {
-		const look = {itemServerUrl, isStaticMyMedia: false, useSeriesThumbnails};
+		const look = {itemServerUrl, isStaticMyMedia, useSeriesThumbnails};
 		return {...adapted, cardUrl: modernCardImageUrl(item, false, look), focusUrl: modernCardImageUrl(item, true, look)};
 	}
 	const art = (item.Type === 'Genre' && item._representative) || item;
@@ -279,8 +281,13 @@ const previewItem = (item, {modern, imageType, shape, serverUrl, useSeriesThumbn
 const previewRow = (row, settings, serverUrl) => {
 	const imageType = rowImageType(row, settings);
 	const shape = classicShape(row.type, imageType);
-	const look = {modern: settings.homeRowsStyle !== 'v1', imageType, shape, serverUrl, useSeriesThumbnails: settings.useSeriesThumbnails};
-	return {id: row.id, title: row.title, items: row.items.slice(0, 8).map((item) => previewItem(item, look)), shape};
+	const modern = settings.homeRowsStyle !== 'v1';
+	const staticCards = modern && isStaticLibraryCard(row.id === 'library-tiles', settings);
+	// Home leaves the poster labels off its Seerr, recommendation and genre rows.
+	const labels = !row.isSeerrRow && !row.isOnlineRecoRow && !row.isGenreRow;
+	const look = {modern, imageType, shape, serverUrl, useSeriesThumbnails: settings.useSeriesThumbnails, isStaticMyMedia: staticCards};
+	const items = row.items.slice(0, 8).map((item) => ({...previewItem(item, look), labelItem: labels ? item : null}));
+	return {id: row.id, title: row.title, items, shape, staticCards};
 };
 
 // Wait this long after a sort changes before asking for it, so scrubbing through the choices

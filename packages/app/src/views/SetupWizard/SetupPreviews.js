@@ -18,16 +18,19 @@ import BackdropLayer from '../../components/BackdropLayer';
 import LoadingAnimationLayer from '../../components/LoadingAnimation';
 import RatingsRow from '../../components/RatingsRow';
 import MediaBarNewReleaseLabel from '../../components/MediaBarNewReleaseLabel';
+import PosterLabels from '../../components/PosterLabels';
 import {iconViewBox} from '../../components/icons/iconViewBox';
 import {getRtFallbackIcon} from '../../components/icons/rtIcons';
 import {buildDisplayRatings, isMdblistEnabled} from '../../services/mdblistApi';
 import {resolveFocusBorderColor, toCssColor, toRgbTriplet, radiusToCss} from '../../theme/themeSpec';
 import {resolveOverlayColor} from '../../theme/overlayColors';
+import {resolveThemeById} from '../../theme/themeRegistry';
 import {arrange, countSplit, applyButtonLimit, DETAIL_BUTTONS, DETAIL_ORDER_KEY, DETAIL_HIDDEN_KEY} from '../../utils/buttonLayout';
 import {formatClockTime} from '../../utils/clock';
 import {DETAIL_METADATA, DETAIL_METADATA_ORDER_KEY, DETAIL_METADATA_HIDDEN_KEY} from '../../utils/detailMetadataLayout';
 import {formatFileSize} from '../../utils/formatFileSize';
 import {homeBackdropStyle} from '../../utils/homeBackdropStyle';
+import {applyOledMode} from '../../utils/oledMode';
 import {normalizeRatingStyle} from '../../utils/personalRating';
 import {rootScale} from '../../utils/rootScale';
 import {memoryCache} from '../Browse/browseCache';
@@ -97,15 +100,17 @@ const grownRadius = (radius, extra) => {
 
 // One palette object per render, read the way the real screens read the theme.
 export const usePreviewPalette = () => {
-	const {settings, activeTheme} = useSettings();
+	const {settings, activeTheme, activeThemeId} = useSettings();
 	return useMemo(() => {
-		const colors = activeTheme.colors;
+		// The saved OLED Mode is already on the active theme, so the mode being looked at starts over from the theme itself.
+		const theme = applyOledMode(resolveThemeById(activeThemeId), settings.oledMode);
+		const colors = theme.colors;
 		const overlayHex = resolveOverlayColor(settings.mediaBarOverlayColor) || '#6B7280';
 		const overlayOpacity = Math.min(100, Math.max(0, Number(settings.mediaBarOverlayOpacity != null ? settings.mediaBarOverlayOpacity : 50))) / 100;
 		const navbarHex = resolveOverlayColor(settings.navbarColor) || '#6B7280';
 		const navbarOpacity = Math.min(100, Math.max(0, Number(settings.navbarOpacity != null ? settings.navbarOpacity : 50))) / 100;
 		const navbarOverlay = withAlpha(navbarHex, navbarOpacity);
-		const navCycle = activeTheme.navColorCycle || [];
+		const navCycle = theme.navColorCycle || [];
 		return {
 			background: toCssColor(colors.background),
 			surface: toCssColor(colors.surface),
@@ -121,15 +126,16 @@ export const usePreviewPalette = () => {
 			// The rail wears the navbar color on every theme, and only the top bar clears it for
 			// a theme asking for a transparent nav surface, the same as the real ones.
 			navbarRail: navbarOverlay,
-			navbarSurface: activeTheme.transparentNavbarSurface ? 'transparent' : navbarOverlay,
+			navbarSurface: theme.transparentNavbarSurface ? 'transparent' : navbarOverlay,
 			navColorForSlot: (slot) => (navCycle.length > 0 ? toCssColor(navCycle[slot % navCycle.length]) : null),
-			cardRadius: radiusToCss(activeTheme.borders.cardRadius),
-			cardRadiusRing: grownRadius(activeTheme.borders.cardRadius, 3.5),
-			chipBorder: `${activeTheme.borders.chipBorder.width}px solid ${toCssColor(activeTheme.borders.chipBorder.color)}`,
-			cardBorder: `${activeTheme.borders.cardBorder.width}px solid ${toCssColor(activeTheme.borders.cardBorder.color)}`,
-			focusBorderColor: resolveFocusBorderColor(activeTheme, settings.focusBorderColor)
+			cardRadius: radiusToCss(theme.borders.cardRadius),
+			cardRadiusRing: grownRadius(theme.borders.cardRadius, 3.5),
+			chipBorder: `${theme.borders.chipBorder.width}px solid ${toCssColor(theme.borders.chipBorder.color)}`,
+			cardBorder: `${theme.borders.cardBorder.width}px solid ${toCssColor(theme.borders.cardBorder.color)}`,
+			focusBorderColor: resolveFocusBorderColor(theme, settings.focusBorderColor)
 		};
-	}, [activeTheme, settings.focusBorderColor, settings.mediaBarOverlayColor, settings.mediaBarOverlayOpacity, settings.navbarColor, settings.navbarOpacity]);
+		// The active theme changes with the theme catalog, which the lookup by id reads.
+	}, [activeTheme, activeThemeId, settings.oledMode, settings.focusBorderColor, settings.mediaBarOverlayColor, settings.mediaBarOverlayOpacity, settings.navbarColor, settings.navbarOpacity]); // eslint-disable-line react-hooks/exhaustive-deps
 };
 
 const usePreviewItems = () => {
@@ -351,7 +357,10 @@ const MetadataWrap = ({item, t, parts = metaParts(item)}) => {
 	);
 };
 
-const Dots = ({count, active, inactive, inactiveAlpha, gap = 4, pillActive = false, height, t}) => {
+// One mark per item Item Count gives the bar, up to [max].
+const Dots = ({max = Infinity, active, inactive, inactiveAlpha, gap = 4, pillActive = false, height, t}) => {
+	const {settings} = useSettings();
+	const count = Math.min(settings.featuredItemCount || 10, max);
 	const dots = [];
 	for (let i = 0; i < count; i++) {
 		const w = i === 0 ? active : inactive;
@@ -484,6 +493,13 @@ const CardIndicators = ({item, progress, t}) => {
 	);
 };
 
+// The poster labels on a card from Home's own rows, scaled the way the rows scale the ratings.
+const CardLabels = ({item}) => (item.labelItem ? (
+	<div style={{...ABS_FILL, zoom: 0.5 * ROW_SCALE / rootScale()}}>
+		<PosterLabels item={item.labelItem} />
+	</div>
+) : null);
+
 // A [classic] card grows on focus while Focus Expansion Animation is on, as Home's does.
 const RowCard = ({item, height, aspect, imageUrl, progress, focused = false, classic = false, t}) => {
 	const {settings} = useSettings();
@@ -491,10 +507,11 @@ const RowCard = ({item, height, aspect, imageUrl, progress, focused = false, cla
 	const grown = classic && focused && settings.cardFocusZoom;
 	return (
 		<div style={{width, flexShrink: 0, marginRight: 12, transform: grown ? 'scale(1.05)' : null}}>
-			<div style={{position: 'relative', width, height}}>
+			<div style={{position: 'relative', width, height}} data-held-focus={focused || undefined}>
 				<div style={{...ABS_FILL, borderRadius: t.cardRadius, overflow: 'hidden'}}>
 					<Artwork url={imageUrl || item.posterUrl} t={t} />
 					<CardIndicators item={item} progress={progress} t={t} />
+					<CardLabels item={item} />
 				</div>
 				{focused && <FocusRing t={t} />}
 			</div>
@@ -517,10 +534,11 @@ const FocusedRowCard = ({item, posterHeight, t}) => {
 	const width = posterHeight * 16 / 9;
 	return (
 		<div style={{width, flexShrink: 0, marginRight: 12}}>
-			<div style={{position: 'relative', width, height: posterHeight}}>
+			<div style={{position: 'relative', width, height: posterHeight}} data-held-focus>
 				<div style={{position: 'absolute', top: 0, left: 0, width, height: posterHeight, borderRadius: t.cardRadius, overflow: 'hidden'}}>
 					<Artwork url={item.focusUrl || item.backdropUrl || item.posterUrl} t={t} />
 					<CardIndicators item={item} progress={(item.playedPercentage || 0) / 100} t={t} />
+					<CardLabels item={item} />
 				</div>
 				<FocusRing t={t} />
 			</div>
@@ -550,9 +568,10 @@ const FocusedRowCard = ({item, posterHeight, t}) => {
 const SQUARE_ITEM_TYPES = ['MusicAlbum', 'Audio'];
 
 // A focused modern card only grows when it has something to show underneath, as on Home, where a
-// film, show or episode always does since it falls back to saying it has no description.
+// film, show or episode always does since it falls back to saying it has no description, and a
+// library always does.
 const growsOnFocus = (item) => Boolean(item.year || item.genres.length || item.runtimeMinutes || item.communityRating) ||
-	['Movie', 'Series', 'Episode'].indexOf(item.type) >= 0;
+	['Movie', 'Series', 'Episode', 'CollectionFolder'].indexOf(item.type) >= 0;
 
 // Each Classic card shape's width over its height, from MediaCard's sizes.
 const SHAPE_ASPECT = {portrait: 2 / 3, landscape: 16 / 9, square: 1, banner: 1168 / 216};
@@ -561,16 +580,17 @@ const isWideShape = (shape) => shape === 'landscape' || shape === 'banner';
 
 // The sample rows cycle the wizard's items through eight cards. A row of Home's own ([real])
 // draws the cards it has with the art Home's cards pick. A Classic row draws every card in its
-// [shape], and a Modern one draws posters, with an album square the way Home does.
-const HomeRow = ({title, items, t, modern, shape = 'portrait', offset = 0, withFocus = false, posterHeight, thumbHeight, real = false}) => {
+// [shape], and a Modern one draws posters, with an album square the way Home does. A Modern row
+// of [staticCards] holds every card at the wide size a poster grows to, as Home's My Media does.
+const HomeRow = ({title, items, t, modern, shape = 'portrait', offset = 0, withFocus = false, posterHeight, thumbHeight, real = false, staticCards = false}) => {
 	const cards = [];
 	const count = real ? Math.min(8, items.length) : 8;
 	for (let i = 0; i < count; i++) {
 		const item = real ? items[i] : itemAt(items, i + offset);
-		const cardShape = modern ? (SQUARE_ITEM_TYPES.indexOf(item.type) >= 0 ? 'square' : 'portrait') : shape;
-		const wide = isWideShape(cardShape);
+		const cardShape = modern ? (staticCards && 'landscape') || (SQUARE_ITEM_TYPES.indexOf(item.type) >= 0 ? 'square' : 'portrait') : shape;
+		const wide = !modern && isWideShape(cardShape);
 		const focused = withFocus && i === 0;
-		if (focused && modern && cardShape !== 'square' && growsOnFocus(item)) {
+		if (focused && modern && cardShape === 'portrait' && growsOnFocus(item)) {
 			cards.push(<FocusedRowCard key={i} item={item} posterHeight={posterHeight} t={t} />);
 		} else {
 			cards.push(
@@ -652,6 +672,7 @@ const HomeRowsColumn = ({items, rows, t, modern, focusFirst = false}) => {
 						title={row.title}
 						items={row.items}
 						shape={row.shape}
+						staticCards={row.staticCards}
 						t={t}
 						modern={modern}
 						withFocus={focusFirst && index === 0}
@@ -710,7 +731,7 @@ const MoonfinBar = ({items, t, rowPeek = 0}) => {
 			</div>
 			<div style={{position: 'absolute', left: 0, right: 0, bottom: 8 + rowPeek, display: 'flex', justifyContent: 'center'}}>
 				<div style={{padding: '6px 12px', backgroundColor: t.scrimA(0.55), borderRadius: 12}}>
-					<Dots count={5} active={10} inactive={8} inactiveAlpha={0.5} t={t} />
+					<Dots active={10} inactive={8} inactiveAlpha={0.5} t={t} />
 				</div>
 			</div>
 			<div style={{position: 'absolute', left: 0, top: (DESIGN_H - rowPeek) / 2, transform: 'translateY(-50%)'}}>
@@ -749,7 +770,7 @@ const MakdBar = ({items, t, rowPeek = 0}) => {
 				)}
 			</div>
 			<div style={{position: 'absolute', right: 20, bottom: 24 + rowPeek}}>
-				<Dots count={5} active={9} inactive={7} inactiveAlpha={0.45} gap={5} t={t} />
+				<Dots active={9} inactive={7} inactiveAlpha={0.45} gap={5} t={t} />
 			</div>
 		</div>
 	);
@@ -994,7 +1015,7 @@ const BannerBar = ({items, t}) => {
 						<PreviewRatings item={item} surface='mediaBar' compact />
 					</div>
 					<div style={{position: 'absolute', top: 12, right: 16}}>
-						<Dots count={5} active={16} inactive={6} inactiveAlpha={0.4} gap={2} pillActive t={t} />
+						<Dots max={7} active={16} inactive={6} inactiveAlpha={0.4} gap={2} pillActive t={t} />
 					</div>
 				</div>
 			</div>
@@ -1027,7 +1048,7 @@ const AyaBar = ({items, t, rowPeek = 0}) => {
 						<MediaBarNewReleaseLabel release={item.newRelease} small />
 					</div>
 					<div style={{position: 'absolute', top: 22, right: 24}}>
-						<Dots count={5} active={16} inactive={10} inactiveAlpha={0.30} gap={2.5} pillActive height={2} t={t} />
+						<Dots active={16} inactive={10} inactiveAlpha={0.30} gap={2.5} pillActive height={2} t={t} />
 					</div>
 				</div>
 			</div>
@@ -2243,6 +2264,7 @@ const PeekRow = ({row, items, t, modern, top}) => {
 				title={row.title}
 				items={row.items || items}
 				shape={row.shape}
+				staticCards={row.staticCards}
 				t={t}
 				modern={modern}
 				posterHeight={posterHeight}
@@ -2408,7 +2430,9 @@ const PlayerLoading = () => (
 // intro prompt at the start and Next Up at the end. [moment] picks one of those, or paused,
 // which draws the paused description in place of the controls the way the player does, or
 // watching, the picture and subtitles with the controls away. Loading is the screen before
-// the stream starts, and seek holds a scrub with its thumbnails over the bar. [hdr] draws the
+// the stream starts, and seek holds a scrub with its thumbnails over the bar. Countdown is the
+// intro with its skip prompt up whatever the intro action, outro is the start of the credits,
+// and airDate is the end of an episode the library has nothing after. [hdr] draws the
 // subtitles in their HDR style.
 export const PlayerPreview = ({moment = 'middle', hdr = false}) => {
 	if (moment === 'loading') return <PlayerLoading />;
@@ -2432,15 +2456,32 @@ const PlayerControlsPreview = ({moment, hdr}) => {
 	const item = items[0];
 	const next = items[1] || item;
 	const paused = moment === 'paused';
+	// A scrub holds playback the way the player's does, only while there are thumbnails to look at.
+	const scrubPaused = moment === 'seek' && settings.trickPlayPauseWhileScrubbing !== false && settings.trickPlayMode !== 'disabled';
 	const describing = paused && !!settings.showDescriptionOnPause;
 	const subtitles = !describing && settings.subtitleMode !== 'none';
-	const controls = !describing && moment !== 'watching';
 	const intro = settings.introAction || 'ask';
+	const outro = settings.outroAction || 'ask';
 	const nextUp = settings.nextUpBehavior || 'extended';
+	const timeout = settings.nextUpTimeout ?? 7;
+	const outroCard = settings.replaceSkipOutroWithNextUp === true && nextUp !== 'disabled';
+	let skip = null;
+	if (moment === 'countdown' || (moment === 'intro' && intro === 'ask')) skip = 'intro';
+	else if (moment === 'outro' && outro === 'ask' && !outroCard) skip = 'outro';
+	// With autoplay the card counts down from the timeout, and at Instant the next episode starts
+	// without one. The credits' card comes up before that countdown starts.
+	let card = null;
+	if (moment === 'end' && nextUp !== 'disabled' && !(settings.autoPlay && timeout <= 0)) card = {countdown: settings.autoPlay ? timeout : null};
+	else if (moment === 'outro' && outroCard && outro === 'ask') card = {countdown: null};
+	else if (moment === 'airDate' && nextUp !== 'disabled' && settings.showNextAirDate !== false) card = {airDate: true};
+	// The next episode card only comes up with the controls away, and an episode that's ended has none.
+	const controls = !describing && moment !== 'watching' && moment !== 'airDate' && !card;
 	let progress = 0.42;
-	if (moment === 'intro') {
-		progress = intro === 'auto' ? 0.15 : 0.07;
-	} else if (moment === 'end') {
+	if (moment === 'intro' || moment === 'countdown') {
+		progress = moment === 'intro' && intro === 'auto' ? 0.15 : 0.07;
+	} else if (moment === 'outro') {
+		progress = 0.97;
+	} else if (moment === 'end' || moment === 'airDate') {
 		progress = 0.99;
 	} else if (moment === 'seek') {
 		progress = 0.3;
@@ -2483,32 +2524,11 @@ const PlayerControlsPreview = ({moment, hdr}) => {
 				<div style={{position: 'absolute', top: 0, left: 0, width: screenWidth, height: DESIGN_H / ratio, transform: `scale(${ratio})`, transformOrigin: 'top left'}}>
 					<Suspense fallback={null}>
 						<PlayerControlsLayer
-							item={item} hdr={hdr} subtitles={subtitles} controls={controls} paused={paused}
-							progress={progress} focus={focus} measureBar={moment === 'seek' ? measureBar : null}
+							item={item} next={next} hdr={hdr} subtitles={subtitles} controls={controls} paused={paused || scrubPaused}
+							progress={progress} focus={focus} measureBar={moment === 'seek' ? measureBar : null} skip={skip} card={card}
 						/>
 					</Suspense>
 				</div>
-				{moment === 'intro' && intro === 'ask' && (
-					<div style={{position: 'absolute', right: 36, bottom: 126, padding: '10px 20px', borderRadius: 999, backgroundColor: '#FFFFFF', color: '#000000', fontSize: 15, fontWeight: 700}}>
-						{$L('Skip Intro')}
-					</div>
-				)}
-				{moment === 'end' && nextUp === 'extended' && (
-					<div style={{position: 'absolute', right: 32, top: 28, width: 270, borderRadius: 12, overflow: 'hidden', backgroundColor: 'rgba(0, 0, 0, 0.85)'}}>
-						<div style={{position: 'relative', height: 140}}>
-							<Artwork url={next && next.backdropUrl} t={t} />
-						</div>
-						<div style={{padding: 12}}>
-							<div style={{fontSize: 11, fontWeight: 700, textTransform: 'uppercase', color: t.accent}}>{$L('Up Next')}</div>
-							<div style={{...SHADOWED, marginTop: 4, fontSize: 16, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis'}}>{next ? next.title : ''}</div>
-						</div>
-					</div>
-				)}
-				{moment === 'end' && nextUp === 'minimal' && (
-					<div style={{...SHADOWED, position: 'absolute', right: 32, top: 28, padding: '9px 16px', borderRadius: 999, backgroundColor: 'rgba(0, 0, 0, 0.8)', fontSize: 14, fontWeight: 600}}>
-						{`${$L('Up Next')}: ${next ? next.title : ''}`}
-					</div>
-				)}
 				{!coverScrub && scrub}
 			</div>
 		</PreviewScreen>

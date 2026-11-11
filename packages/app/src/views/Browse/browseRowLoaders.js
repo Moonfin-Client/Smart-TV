@@ -312,7 +312,8 @@ export const loadGenres = async (ctx) => {
 			let enrichedItems = genresResult.Items;
 			const genresSortByLower = (settings.genresRowSortBy || 'SortName').toLowerCase();
 			if (genresSortByLower === 'sortname' || genresSortByLower === 'name') {
-				enrichedItems = [...enrichedItems].sort((a, b) => (a.Name || '').localeCompare(b.Name || ''));
+				const direction = genresSortOrder === 'Descending' ? -1 : 1;
+				enrichedItems = [...enrichedItems].sort((a, b) => direction * (a.Name || '').localeCompare(b.Name || ''));
 			} else if (genresSortByLower === 'random') {
 				enrichedItems = [...enrichedItems].sort(() => Math.random() - 0.5);
 			}
