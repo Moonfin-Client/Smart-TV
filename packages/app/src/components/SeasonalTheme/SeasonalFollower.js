@@ -1,4 +1,4 @@
-import {useEffect, useState} from 'react';
+import {useEffect, useRef, useState} from 'react';
 
 import {rootScale} from '../../utils/rootScale';
 import {FOLLOWERS, HIDDEN, placeFollower} from './followerPlacement';
@@ -36,7 +36,25 @@ const readFocus = () => {
 	return focus;
 };
 
-const useFollowers = (styles) => {
+// The card the settings preview holds in focus, in the px of the follower's [layer], since the
+// preview draws Home scaled down.
+const readHeldFocus = (layer) => {
+	const target = layer && document.querySelector('[data-held-focus]');
+	const box = layer && layer.getBoundingClientRect();
+	if (!target || !box.width) return null;
+	const k = layer.offsetWidth / box.width;
+	const rect = target.getBoundingClientRect();
+	return {
+		landing: 'card',
+		rect: {left: (rect.left - box.left) * k, top: (rect.top - box.top) * k, width: rect.width * k, height: rect.height * k},
+		target,
+		screenWidth: layer.offsetWidth,
+		screenHeight: layer.offsetHeight,
+		scale: rootScale()
+	};
+};
+
+const useFollowers = (styles, layerRef) => {
 	const [places, setPlaces] = useState(() => styles.map(() => HIDDEN));
 
 	useEffect(() => {
@@ -47,7 +65,7 @@ const useFollowers = (styles) => {
 		const seen = [];
 		const measure = () => {
 			timer = null;
-			const focus = readFocus();
+			const focus = layerRef ? readHeldFocus(layerRef.current) : readFocus();
 			const watch = focus ? [focus.target, focus.nav].filter(Boolean) : NONE;
 			if (watcher && (watch[0] !== watched[0] || watch[1] !== watched[1])) {
 				watcher.disconnect();
@@ -92,7 +110,7 @@ const useFollowers = (styles) => {
 			window.removeEventListener('scroll', schedule, true);
 			window.removeEventListener('resize', schedule);
 		};
-	}, [styles]);
+	}, [styles, layerRef]);
 
 	return places;
 };
@@ -152,13 +170,15 @@ const Follower = ({kind, place}) => {
 
 // Something on Home that follows focus for some effects, like Halloween's planchette. It moves
 // only when focus rests somewhere new, on a transform transition, and its flickers and swings
-// are keyframes, so it costs no script per frame.
-const SeasonalFollower = ({effect}) => {
+// are keyframes, so it costs no script per frame. In the settings [preview] it follows the card
+// the preview holds in focus.
+const SeasonalFollower = ({effect, preview = false}) => {
 	const styles = FOLLOWERS[effect] || NONE;
-	const places = useFollowers(styles);
+	const layerRef = useRef(null);
+	const places = useFollowers(styles, preview ? layerRef : null);
 	if (!styles.length) return null;
 	return (
-		<div className={css.layer} aria-hidden="true">
+		<div ref={layerRef} className={css.layer} aria-hidden="true">
 			{styles.map((kind, i) => <Follower key={kind} kind={kind} place={places[i] || HIDDEN} />)}
 		</div>
 	);

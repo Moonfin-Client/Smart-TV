@@ -9,8 +9,8 @@ const ratingRows = (surface) => ['mdblistEnabled', 'ratingSources', 'showRatingL
 
 // Settings whose home preview is the media bar rather than the navbar and rows.
 export const MEDIA_BAR_KEYS = [
-	'featuredBarStyle', 'mediaBarRowPeek', 'mediaBarOverlayColor', 'mediaBarOverlayOpacity', 'mediaBarNewReleaseBanner', 'mediaBarNewReleaseDays',
-	...ratingRows('mediaBar')
+	'featuredBarStyle', 'featuredItemCount', 'mediaBarRowPeek', 'mediaBarOverlayColor', 'mediaBarOverlayOpacity', 'mediaBarNewReleaseBanner',
+	'mediaBarNewReleaseDays', ...ratingRows('mediaBar')
 ];
 
 // The home rows' own ratings, which the modern rows draw under the focused card.
@@ -42,9 +42,9 @@ export const CALENDAR_KEYS = [
 	'calendarIncludeUnmonitored', 'calendarShowSpecials', 'calendarShowBadges', 'calendarColorBy', 'calendarImageType',
 	'calendarSpoilerSafe', 'calendarRequestButton'
 ];
-// The seasonal effect's settings, which draw the effect over home. The focus follower is left out,
-// since nothing in the preview holds focus for it to follow.
-export const SEASONAL_KEYS = ['seasonalTheme', 'seasonalDensity'];
+// The seasonal effect's settings, which draw the effect over home with the follower on the card
+// the preview holds in focus.
+export const SEASONAL_KEYS = ['seasonalTheme', 'seasonalDensity', 'seasonalFollower'];
 // The library settings. The music and book styles draw their own libraries and the rest the video library.
 export const LIBRARY_KEYS = [
 	'libraryStyle', 'musicLibraryStyle', 'bookLibraryStyle', 'groupItemsIntoCollections', 'showMediaDetailsOnLibraryPage',
@@ -70,7 +70,7 @@ const ROW_OPTION_KEYS = [
 export const HOME_LOOK_KEYS = [
 	'homeRows', 'rowImageTypes', 'homeRowsImageType', 'seasonalRow', 'mergeContinueWatchingNextUp', 'mergeRecentRowsByType',
 	'displayRewatchRow', 'watchedIndicatorBehavior', 'useSeriesThumbnails', 'cardFocusZoom', 'classicHomeRowsPadding',
-	'modernHomeRowsPadding', 'homeRowOverlay'
+	'modernHomeRowsPadding', 'homeRowOverlay', 'showPosterLabels', 'modernCardsOnMyMediaRow'
 ];
 
 // The screens and sections whose every tile keeps the stage on one look, with the scene it's
@@ -99,6 +99,8 @@ export const SCENE_BY_KEY = {
 	navbarColor: 'home',
 	navbarOpacity: 'home',
 	focusBorderColor: 'home',
+	oledMode: 'home',
+	backdropBlurHome: 'home',
 	homeRowsStyle: 'home',
 	homeRowsPosterSize: 'home',
 	fullScreenRows: 'home',
@@ -122,13 +124,18 @@ export const SCENE_BY_KEY = {
 	showDescriptionOnPause: 'player',
 	showChapterMarkers: 'player',
 	osdButtons: 'player',
+	skipBackLength: 'player',
+	skipForwardLength: 'player',
 	...sceneFor([
 		'progressBarTime', 'playbackTimeAboveLeft', 'playbackTimeAboveCenter', 'playbackTimeAboveRight',
 		'playbackTimeBelowLeft', 'playbackTimeBelowCenter', 'playbackTimeBelowRight'
 	], 'player'),
 	subtitleMode: 'player',
 	subtitleLanguage: 'player',
-	...sceneFor(['introAction', 'nextUpBehavior', 'nextUpCountdownStyle', 'nextUpTimeout', 'replaceSkipOutroWithNextUp', 'showNextAirDate'], 'player'),
+	...sceneFor([
+		'introAction', 'outroAction', 'nextUpBehavior', 'nextUpCountdownStyle', 'nextUpTimeout', 'replaceSkipOutroWithNextUp', 'showNextAirDate',
+		'dateFormat'
+	], 'player'),
 	...sceneFor([...LOADING_KEYS, 'loadingAnimation', ...TRICKPLAY_KEYS], 'player'),
 	...sceneFor([...SUBTITLE_LOOK_KEYS, 'subtitleCustomization'], 'player'),
 	...sceneFor([...SCREENSAVER_KEYS, 'screensaver'], 'home'),

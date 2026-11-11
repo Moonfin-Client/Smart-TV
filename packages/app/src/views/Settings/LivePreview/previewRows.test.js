@@ -165,9 +165,33 @@ describe('settings live preview rows', () => {
 	test('the player buttons link and the chapter marks show the player', () => {
 		expect(describeRow('setting-osdButtons', defaultSettings)).toMatchObject({key: 'osdButtons', scene: 'player', stage: null});
 		expect(describeRow('setting-showChapterMarkers', defaultSettings)).toMatchObject({scene: 'player', stage: null});
-		// The player draws its seek buttons without their lengths.
-		expect(describeRow('setting-skipBackLength', defaultSettings).scene).toBeNull();
-		expect(describeRow('setting-skipForwardLength', defaultSettings).scene).toBeNull();
+	});
+
+	test('the skip lengths, the outro action and the date format show the player', () => {
+		['skipBackLength', 'skipForwardLength', 'outroAction', 'dateFormat'].forEach((key) => {
+			const row = describeRow(`setting-${key}`, defaultSettings);
+			expect(row).toMatchObject({key, scene: 'player', stage: null});
+			expect(sceneOfRow(row)).toBe('player');
+		});
+		expect(describeRow('setting-skipBackLength', {...defaultSettings, skipBackLength: 5000}).saved).toBe(2);
+		expect(describeRow('setting-outroAction', {...defaultSettings, outroAction: 'none'}).saved).toBe(2);
+	});
+
+	test('OLED Mode, the browsing blur, poster labels and My Media\'s cards show on home, and Item Count on the media bar', () => {
+		['oledMode', 'backdropBlurHome', 'showPosterLabels', 'modernCardsOnMyMediaRow', 'featuredItemCount'].forEach((key) => {
+			expect(describeRow(`setting-${key}`, defaultSettings)).toMatchObject({key, scene: 'home', stage: null});
+		});
+		// The labels and My Media are drawn on Home's own rows, since the sample ones have neither.
+		expect(HOME_LOOK_KEYS).toEqual(expect.arrayContaining(['showPosterLabels', 'modernCardsOnMyMediaRow']));
+		expect(MEDIA_BAR_KEYS).toContain('featuredItemCount');
+	});
+
+	test('the settings the preview can\'t draw leave it alone', () => {
+		// The month grid isn't drawn, a second subtitle line needs a track picked in the player, the
+		// chat needs a watch party, and the UI scale reaches the preview once it's saved.
+		['calendarWeekStart', 'secondarySubtitlesEnabled', 'watchPartyChatOverlay', 'uiScale'].forEach((key) => {
+			expect(describeRow(`setting-${key}`, defaultSettings)).toMatchObject({key, scene: null, stage: null});
+		});
 	});
 
 	test('every subtitle appearance tile keeps the player on the subtitle look', () => {
@@ -194,12 +218,11 @@ describe('settings live preview rows', () => {
 		expect(describeRow('setting-screensaver', defaultSettings)).toMatchObject({key: 'screensaver', scene: 'home', stage: 'screensaver'});
 	});
 
-	test('the seasonal effect and density show on home, and the focus follower leaves the preview alone', () => {
-		expect(SEASONAL_KEYS).toEqual(['seasonalTheme', 'seasonalDensity']);
+	test('the seasonal effect, its density and the focus follower show on home', () => {
+		expect(SEASONAL_KEYS).toEqual(['seasonalTheme', 'seasonalDensity', 'seasonalFollower']);
 		SEASONAL_KEYS.forEach((key) => {
 			expect(describeRow(`setting-${key}`, defaultSettings)).toMatchObject({key, scene: 'home', stage: null});
 		});
-		expect(describeRow('setting-seasonalFollower', defaultSettings)).toMatchObject({scene: null, stage: null});
 	});
 
 	test('the video, music and book library settings all show the library', () => {
