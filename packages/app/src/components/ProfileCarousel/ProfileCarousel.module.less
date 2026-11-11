@@ -56,23 +56,26 @@
 	opacity: 0.55;
 }
 
-.slotM2,
-.slotP2 {
-	opacity: 0.3;
-}
-
-.slotM3,
-.slotP3 {
-	opacity: 0;
-	pointer-events: none;
+// Every step past the first is small and faint, and the ones past the reach wait unseen
+.far(@i) when (@i >= 2) {
+	.slotM@{i},
+	.slotP@{i} {
+		opacity: 0.3;
+	}
+	.slotM@{i} { .shift(-(314 + (@i - 2) * 112); 0.429); }
+	.slotP@{i} { .shift((314 + (@i - 2) * 112); 0.429); }
+	.far(@i - 1);
 }
 
 .slotM1 { .shift(-188; 0.595); }
 .slotP1 { .shift(188; 0.595); }
-.slotM2 { .shift(-314; 0.429); }
-.slotP2 { .shift(314; 0.429); }
-.slotM3 { .shift(-420; 0.3); }
-.slotP3 { .shift(420; 0.3); }
+// MAX_REACH in utils/profileCarousel.js, plus the step the hidden ones wait on
+.far(6);
+
+.hidden {
+	opacity: 0;
+	pointer-events: none;
+}
 
 .avatar {
 	width: 100%;

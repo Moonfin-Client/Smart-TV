@@ -96,6 +96,30 @@ describe('ProfileCarousel', () => {
 		expect(document.querySelector('[data-index="0"] .initials').textContent).toBe('A');
 	});
 
+	it('shows two either side before the strip is measured and hides the rest', () => {
+		render(<ProfileCarousel items={items} />);
+		const kids = document.querySelector('[data-index="3"]');
+		expect(kids.className).toContain('slotP3');
+		expect(kids.className).toContain('hidden');
+		expect(document.querySelector('[data-index="2"]').className).not.toContain('hidden');
+	});
+
+	it('shows a third step either side when the strip is as wide as a TV screen', () => {
+		// 1034 units across, with the face 168 units wide
+		const width = jest.spyOn(window.HTMLElement.prototype, 'clientWidth', 'get').mockReturnValue(1034);
+		const face = jest.spyOn(window.HTMLElement.prototype, 'offsetWidth', 'get').mockReturnValue(168);
+		try {
+			render(<ProfileCarousel items={[...items, {...items[1], key: 'u4', id: 'u4', name: 'Pat'}]} />);
+			expect(document.querySelector('[data-index="3"]').className).not.toContain('hidden');
+			const pat = document.querySelector('[data-index="4"]');
+			expect(pat.className).toContain('slotP4');
+			expect(pat.className).toContain('hidden');
+		} finally {
+			width.mockRestore();
+			face.mockRestore();
+		}
+	});
+
 	it('keeps the selection on the list when it shrinks', () => {
 		const {rerender} = render(<ProfileCarousel items={items} initialIndex={3} />);
 		rerender(<ProfileCarousel items={items.slice(0, 2)} initialIndex={3} />);

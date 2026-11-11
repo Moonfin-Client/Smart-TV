@@ -1,22 +1,18 @@
-import {useCallback, useState} from 'react';
+import {useCallback, useLayoutEffect, useRef, useState} from 'react';
 import Spottable from '@enact/spotlight/Spottable';
 import {MaterialIcon} from '../icons/materialIcons';
-import {clampIndex, initialOf, initialsColor, slotOf} from '../../utils/profileCarousel';
+import {MAX_REACH, clampIndex, initialOf, initialsColor, reachFor, slotOf, unitsWide} from '../../utils/profileCarousel';
 
 import css from './ProfileCarousel.module.less';
 
 const SpottableDiv = Spottable('div');
 const SpottableButton = Spottable('button');
 
-const SLOT_CLASSES = {
-	'-3': css.slotM3,
-	'-2': css.slotM2,
-	'-1': css.slotM1,
-	0: css.slot0,
-	1: css.slotP1,
-	2: css.slotP2,
-	3: css.slotP3
-};
+const SLOT_CLASSES = {0: css.slot0};
+for (let i = 1; i <= MAX_REACH + 1; i++) {
+	SLOT_CLASSES[-i] = css[`slotM${i}`];
+	SLOT_CLASSES[i] = css[`slotP${i}`];
+}
 
 const Avatar = ({item}) => {
 	const [failed, setFailed] = useState(false);
@@ -40,6 +36,8 @@ const Avatar = ({item}) => {
 // The whole strip is one focus stop: Left and Right move along it and OK opens the one in the middle.
 const ProfileCarousel = ({items, initialIndex = 0, spotlightId, onActivate, onRemove}) => {
 	const [index, setIndex] = useState(initialIndex);
+	const [reach, setReach] = useState(2);
+	const stageRef = useRef(null);
 	const selected = clampIndex(index, items.length);
 	const current = items[selected];
 
@@ -70,6 +68,18 @@ const ProfileCarousel = ({items, initialIndex = 0, spotlightId, onActivate, onRe
 		onRemove?.(current);
 	}, [onRemove, current]);
 
+	// As many faces either side as the width fits
+	const hasItems = Boolean(current);
+	useLayoutEffect(() => {
+		const measure = () => {
+			const stage = stageRef.current;
+			if (stage) setReach(reachFor(unitsWide(stage.clientWidth, stage.firstChild?.offsetWidth)));
+		};
+		measure();
+		window.addEventListener('resize', measure);
+		return () => window.removeEventListener('resize', measure);
+	}, [hasItems]);
+
 	if (!current) return null;
 
 	return (
@@ -81,11 +91,12 @@ const ProfileCarousel = ({items, initialIndex = 0, spotlightId, onActivate, onRe
 			onSpotlightLeft={handleLeft}
 			onSpotlightRight={handleRight}
 		>
-			<div className={css.stage}>
+			<div className={css.stage} ref={stageRef}>
 				{items.map((item, i) => {
-					const slot = slotOf(i, selected);
+					const slot = slotOf(i, selected, reach);
+					const hidden = Math.abs(slot) > reach;
 					return (
-						<div key={item.key} data-index={i} className={`${css.item} ${SLOT_CLASSES[slot]}`}>
+						<div key={item.key} data-index={i} className={`${css.item} ${SLOT_CLASSES[slot]} ${hidden ? css.hidden : ''}`}>
 							<div className={css.avatar}>
 								<Avatar item={item} />
 							</div>
