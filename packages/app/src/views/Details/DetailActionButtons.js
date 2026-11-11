@@ -179,12 +179,13 @@ const DetailActionButtons = ({
 				<span className={css.btnLabel}>{$L('Trailer')}</span>
 			</SpottableDiv>
 		)},
-		// Offered while in a SyncPlay group, and lit in the accent so it reads
-		// as the group's, next to a Play that stays as it is.
+		// Offered while in a SyncPlay group or a Watch Party, next to a Play that
+		// stays as it is. Drawn like the buttons beside it, since the accent here
+		// marks a watched item.
 		{id: 'watchWithGroup', when: inSyncPlayGroup && !isBook, render: () => (
 			<SpottableDiv className={css.btnWrapper} onClick={onWatchWithGroup} spotlightId="details-watch-with-group-btn">
 				<div className={css.btnAction}>
-					<BtnIcon path={DETAIL_ICON_PATHS.group} stateClass={css.watched}/>
+					<BtnIcon path={DETAIL_ICON_PATHS.group}/>
 				</div>
 				<span className={css.btnLabel}>{$L('Watch with group')}</span>
 			</SpottableDiv>
