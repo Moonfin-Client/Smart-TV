@@ -2382,9 +2382,6 @@
 	"Settings": "Settings",
 	"Settings synced to profile": "Settings synced to profile",
 	"Shader": "Shader",
-	"Shadow Color": "Shadow Color",
-	"Shadow Opacity": "Shadow Opacity",
-	"Shadow Size (Blur)": "Shadow Size (Blur)",
 	"Show": "Show",
 	"Show All Languages": "Show All Languages",
 	"Show Cinema Releases": "Show Cinema Releases",
@@ -3104,5 +3101,8 @@
 	"Moonbase Address": "Moonbase Address",
 	"Plex Account": "Plex Account",
 	"Use the Plex account you signed in with": "Use the Plex account you signed in with",
-	"This server needs Moonbase, with client log upload turned on.": "This server needs Moonbase, with client log upload turned on."
+	"This server needs Moonbase, with client log upload turned on.": "This server needs Moonbase, with client log upload turned on.",
+	"Text Stroke Color": "Text Stroke Color",
+	"Text Stroke Opacity": "Text Stroke Opacity",
+	"Text Stroke Blur": "Text Stroke Blur"
 }
