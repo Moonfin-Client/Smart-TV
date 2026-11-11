@@ -141,6 +141,7 @@ describe('getMediaBadges dynamic range', () => {
 	test("reads Emby's profile from ExtendedVideoSubType and says DV alone without one", () => {
 		expect(labels({ExtendedVideoType: 'DolbyVision', ExtendedVideoSubType: 'DoviProfile81', VideoRange: 'HDR'})).toEqual(['DV P8', 'HDR10']);
 		expect(labels({ExtendedVideoType: 'DolbyVision', ExtendedVideoSubType: 'DoviProfile100'})).toEqual(['DV P10']);
+		expect(labels({ExtendedVideoType: 'DolbyVision', ExtendedVideoSubType: 'DoviProfile10'})).toEqual(['DV P1']);
 		expect(labels({VideoRangeType: 'DOVI'})).toEqual(['DV']);
 	});
 
