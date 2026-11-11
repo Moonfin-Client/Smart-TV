@@ -6,9 +6,9 @@ import * as connectionPool from '../../services/connectionPool';
 import {withoutBlockedItems} from '../../services/parentalControls';
 import {getWatchlist} from '../../services/seerrApi';
 import {normalizeMediaItem} from '../../utils/seerrHomeRows';
-import {hydrateWatchlistItems} from '../../utils/seerrHydration';
+import {hydrateWatchlistItems, watchlistBackdrops} from '../../utils/seerrHydration';
 
-import {ALL_FAVORITE_TABS, FAVORITE_TABS, FAVORITE_TAB_FIELDS, FAVORITE_TAB_PAGE_SIZE, FAVORITE_TAB_TYPES, WATCHLIST_TAB, bucketByTab, visibleTabs, watchlistCards} from './favoriteTabs';
+import {ALL_FAVORITE_TABS, FAVORITE_TABS, FAVORITE_TAB_FIELDS, FAVORITE_TAB_PAGE_SIZE, FAVORITE_TAB_TYPES, WATCHLIST_TAB, bucketByTab, visibleTabs, watchlistCards, withWatchlistBackdrops} from './favoriteTabs';
 
 const emptyBuckets = () => {
 	const buckets = {};
@@ -166,6 +166,11 @@ const useFavoriteTabs = ({api, sortBy, sortOrder, unifiedMode, enabled = true, s
 			const cards = watchlistCards(withoutBlockedItems(library), requestCards);
 			setItemsByKey((prev) => ({...prev, [WATCHLIST_TAB.key]: cards}));
 			setCountsByKey((prev) => ({...prev, [WATCHLIST_TAB.key]: cards.length + unreadRequests(first)}));
+			// The backdrops come once the row is up, since each takes a details request of its own. Silo's
+			// watchlist is a single page, so the pages after this one need none.
+			const backdrops = await watchlistBackdrops(first?.results || []);
+			if (cancelled || backdrops.size === 0) return;
+			setItemsByKey((prev) => ({...prev, [WATCHLIST_TAB.key]: withWatchlistBackdrops(prev[WATCHLIST_TAB.key], backdrops)}));
 		};
 		run();
 		return () => { cancelled = true; };

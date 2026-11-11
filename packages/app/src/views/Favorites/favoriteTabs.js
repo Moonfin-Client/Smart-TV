@@ -77,6 +77,12 @@ export const watchlistCards = (libraryItems, requestCards) => {
 	return [...(libraryItems || []), ...requests];
 };
 
+// The request cards with the backdrops `watchlistBackdrops` found for them; the rest stay as they are.
+export const withWatchlistBackdrops = (cards, backdrops) => (cards || []).map((card) => {
+	const url = card._seerr && !card._externalBackdropUrl && backdrops.get(`${card._seerrMediaType}:${card._seerrRaw?.mediaId}`);
+	return url ? {...card, _externalBackdropUrl: url} : card;
+});
+
 // The selected tab disappears when its last favorite is removed, so the index
 // settles onto whatever is still there.
 export const clampTabIndex = (index, tabs) => {

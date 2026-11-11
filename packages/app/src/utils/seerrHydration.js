@@ -89,6 +89,20 @@ export const hydrateWatchlistItems = async (items = []) => {
 	});
 };
 
+// Silo's watchlist comes with each title's poster but no backdrop, so a card that has a poster and no
+// backdrop gets the backdrop from the title's details. Keyed by type and TMDB id, as w1280 picture URLs.
+export const watchlistBackdrops = async (items = []) => {
+	const backdrops = new Map();
+	if (!Array.isArray(items)) return backdrops;
+	const lookup = detailsLookup();
+	const missing = items.filter((item) => item?.id && item.posterPath && !item.backdropPath && (item.mediaType === 'movie' || item.mediaType === 'tv'));
+	await inBatches(missing, async (item) => {
+		const details = await lookup(item.mediaType, item.id);
+		if (details?.backdropPath) backdrops.set(`${item.mediaType}:${item.id}`, seerrApi.getImageUrl(details.backdropPath, 'w1280'));
+	});
+	return backdrops;
+};
+
 // Seerr's recently added list is its own media records, which carry the TMDB id but no title or
 // artwork, so each becomes a card filled in from the title's details.
 export const hydrateRecentlyAddedItems = async (records = []) => {

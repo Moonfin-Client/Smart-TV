@@ -1,4 +1,4 @@
-import {FAVORITE_TABS, FAVORITE_TAB_TYPES, WATCHLIST_TAB, bucketByTab, cardMetrics, clampTabIndex, favoriteCardImage, tabKeyForType, visibleTabs, watchlistCards} from './favoriteTabs';
+import {FAVORITE_TABS, FAVORITE_TAB_TYPES, WATCHLIST_TAB, bucketByTab, cardMetrics, clampTabIndex, favoriteCardImage, tabKeyForType, visibleTabs, watchlistCards, withWatchlistBackdrops} from './favoriteTabs';
 
 describe('FAVORITE_TABS', () => {
 	it('lists every type once, in order', () => {
@@ -168,5 +168,19 @@ describe('the watchlist tab', () => {
 
 	it('draws a request card from its own poster', () => {
 		expect(favoriteCardImage(card(22), 'portrait').url).toBe('https://image.tmdb.org/p/22.jpg');
+	});
+});
+
+describe('withWatchlistBackdrops', () => {
+	test('gives a request card the backdrop found for it and leaves the other cards alone', () => {
+		const library = {Id: 'lib-1', Type: 'Movie'};
+		const request = {Id: 'seerr-tv-2', _seerr: true, _seerrMediaType: 'tv', _seerrRaw: {mediaId: 2}, _externalBackdropUrl: null};
+		const hasOne = {Id: 'seerr-movie-3', _seerr: true, _seerrMediaType: 'movie', _seerrRaw: {mediaId: 3}, _externalBackdropUrl: 'own.jpg'};
+		const backdrops = new Map([['tv:2', 'fallen-bg.jpg'], ['movie:3', 'other.jpg']]);
+		const cards = withWatchlistBackdrops([library, request, hasOne], backdrops);
+
+		expect(cards[0]).toBe(library);
+		expect(cards[1]).toEqual({...request, _externalBackdropUrl: 'fallen-bg.jpg'});
+		expect(cards[2]).toBe(hasOne);
 	});
 });
