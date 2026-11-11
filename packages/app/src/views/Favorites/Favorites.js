@@ -28,7 +28,7 @@ import {PanelContainer} from '../../utils/spotlightContainers';
 
 import FocusedItemHud from './FocusedItemHud';
 import useFavoriteTabs from './useFavoriteTabs';
-import {cardMetrics, clampTabIndex, favoriteCardImage} from './favoriteTabs';
+import {cardMetrics, clampTabIndex, currentCard, favoriteCardImage} from './favoriteTabs';
 import {registerThemeSheet} from '../../theme/themeOverrides';
 
 import css from './Favorites.module.less';
@@ -101,7 +101,7 @@ const Favorites = ({onSelectItem, onSelectPerson, onSelectSeerrItem, onHome, bac
 	const isHome = viewStyle === 'home';
 
 	const [tabIndex, setTabIndex] = useState(0);
-	const [focusedItem, setFocusedItem] = useState(null);
+	const [focusedCard, setFocusedCard] = useState(null);
 
 	const {getScrollTo: getGridScrollTo, quickReturn} = useQuickReturnGrid('favorites-grid');
 
@@ -285,7 +285,7 @@ const Favorites = ({onSelectItem, onSelectPerson, onSelectSeerrItem, onHome, bac
 	const handleItemFocus = useCallback((ev) => {
 		const itemIndex = ev.currentTarget?.dataset?.index;
 		if (itemIndex === undefined) return;
-		setFocusedItem(itemsRef.current[parseInt(itemIndex, 10)] || null);
+		setFocusedCard(itemsRef.current[parseInt(itemIndex, 10)] || null);
 	}, []);
 
 	const handleScrollStop = useCallback(() => {
@@ -360,8 +360,10 @@ const Favorites = ({onSelectItem, onSelectPerson, onSelectSeerrItem, onHome, bac
 
 	useEffect(() => {
 		gridScrollToRef.current?.({index: 0, animate: false});
-		setFocusedItem(null);
+		setFocusedCard(null);
 	}, [activeTab]);
+
+	const focusedItem = useMemo(() => currentCard(focusedCard, displayItems), [focusedCard, displayItems]);
 
 	const {posterHeight, itemSize: gridItemSize} = cardMetrics(cardType, imageSize);
 	const isRound = cardType === 'circle';

@@ -80,6 +80,11 @@ export const swapRequestCard = (cards, filled, blocked) => (cards || [])
 	.filter((card) => !(blocked && card.Id === filled.Id))
 	.map((card) => (card.Id === filled.Id ? filled : card));
 
+// The focused card as the list has it now, so one filled in after it took focus (a watchlist request
+// card's backdrop) shows at once, and one that leaves the list takes the backdrop and HUD with it.
+export const currentCard = (card, items) =>
+	(card && (items || []).find((item) => item.Id === card.Id && item._serverUrl === card._serverUrl)) || null;
+
 /**
  * The watchlist tab's cards: the library titles first, then the request cards for titles the library
  * doesn't already show. `requestCards` are home row Seerr cards (normalizeMediaItem).

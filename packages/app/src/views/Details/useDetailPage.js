@@ -7,6 +7,7 @@ import {iconViewBox} from '../../components/icons/iconViewBox';
 import {SeerrSeasonDot} from '../../components/seerr/SeerrStatusBadge';
 import SeerrStatusBanner, {hasSeerrDot, seerrBadgeStyle, seerrTitleStatus} from '../../components/seerr/SeerrStatusBanner';
 import {SeerrChips, SeerrFacts, SeerrStreaming} from '../../components/seerr/SeerrSections';
+import seerrApi from '../../services/seerrApi';
 import {rem, rootScale} from '../../utils/rootScale';
 import {FavoriteHeartIcon, WatchedCheckIcon} from './DetailBadges';
 import {castPhotoUrl} from './detailsMedia';
@@ -42,6 +43,15 @@ export const Icon = ({path, className}) => (
 		<path d={path} />
 	</svg>
 );
+
+// A card's picture, or its placeholder when it has none or the picture fails to load.
+const CardImage = ({url, placeholder}) => {
+	const [failed, setFailed] = useState(false);
+	const handleError = useCallback(() => setFailed(true), []);
+	return url && !failed
+		? <img className={css.cardImage} src={url} alt="" onError={handleError} />
+		: <div className={css.cardPlaceholder}>{placeholder}</div>;
+};
 
 const findIn = (list, key) => list.find((candidate) => String(candidate.cardKey || candidate.Id) === key);
 
@@ -189,9 +199,7 @@ const useDetailPage = (props, {onNavigateUp, onNavigateDown, bleedRight}) => {
 			>
 				<div className={css.cardArt}>
 					<div className={css.cardClip}>
-						{imageUrl
-							? <img className={css.cardImage} src={imageUrl} alt="" />
-							: <div className={css.cardPlaceholder}>{placeholder}</div>}
+						<CardImage key={imageUrl} url={imageUrl} placeholder={placeholder ?? entry.Name} />
 						{entry.UserData?.IsFavorite && (
 							<div className={css.cardFavorite}><FavoriteHeartIcon /></div>
 						)}
@@ -247,11 +255,11 @@ const useDetailPage = (props, {onNavigateUp, onNavigateDown, bleedRight}) => {
 		wide: true
 	});
 
-	// Core draws a season Seerr knows of as its name on a plain card, with no artwork.
+	// A season Seerr knows of: its TMDB poster, or its name on a plain card when it has none.
 	const renderSeerrSeason = (season) => {
 		const status = seerrStyle ? seerr.seasonMarkers?.get(season.seasonNumber) : null;
 		return renderCard(season, handleSeasonCard, {
-			imageUrl: null,
+			imageUrl: season.posterPath ? seerrApi.getImageUrl(season.posterPath, 'w342') : null,
 			placeholder: season.Name,
 			subtitle: season.episodeCount ? String(season.episodeCount) : null,
 			children: seerrStyle === 'banner'

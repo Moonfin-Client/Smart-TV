@@ -1,6 +1,6 @@
 import {
-	FAVORITE_TABS, FAVORITE_TAB_TYPES, WATCHLIST_TAB, bucketByTab, cardMetrics, clampTabIndex, favoriteCardImage, swapRequestCard, tabKeyForType,
-	visibleTabs, watchlistCards, withRequestDetail
+	FAVORITE_TABS, FAVORITE_TAB_TYPES, WATCHLIST_TAB, bucketByTab, cardMetrics, clampTabIndex, currentCard, favoriteCardImage, swapRequestCard,
+	tabKeyForType, visibleTabs, watchlistCards, withRequestDetail
 } from './favoriteTabs';
 
 describe('FAVORITE_TABS', () => {
@@ -198,5 +198,19 @@ describe('watchlist request cards', () => {
 		expect(swapRequestCard(row, filled, false)).toEqual([{Id: 'lib1'}, filled, {Id: 'seerr-tv-5'}]);
 		expect(swapRequestCard(row, filled, true)).toEqual([{Id: 'lib1'}, {Id: 'seerr-tv-5'}]);
 		expect(swapRequestCard(undefined, filled, false)).toEqual([]);
+	});
+});
+
+describe('the focused card', () => {
+	it('follows the list, so a card filled in while focused shows its backdrop', () => {
+		const focused = {Id: 'seerr-movie-11', _externalBackdropUrl: null};
+		const filled = {...focused, _externalBackdropUrl: 'http://img/b.jpg'};
+		expect(currentCard(focused, [{Id: 'lib1'}, filled])).toBe(filled);
+	});
+
+	it('goes when its card leaves the list, and tells servers apart', () => {
+		expect(currentCard({Id: 'a'}, [{Id: 'b'}])).toBeNull();
+		expect(currentCard({Id: 'a', _serverUrl: 'http://one'}, [{Id: 'a', _serverUrl: 'http://two'}])).toBeNull();
+		expect(currentCard(null, [{Id: 'a'}])).toBeNull();
 	});
 });
