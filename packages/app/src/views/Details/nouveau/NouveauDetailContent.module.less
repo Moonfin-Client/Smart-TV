@@ -107,7 +107,8 @@
 
 // The page scrolls as a plain element rather than through a component, so the element measured for
 // pinning a rail is the same one that scrolls. It has to be the positioned ancestor too, or
-// offsetTop would be counted against something further up the tree.
+// offsetTop would be counted against something further up the tree. The remote moves it, so it
+// shows no scroll bar.
 .scroller {
 	bottom: 0;
 	left: 0;
@@ -116,6 +117,12 @@
 	position: absolute;
 	right: 0;
 	top: 0;
+	scrollbar-width: none;
+	-ms-overflow-style: none;
+
+	&::-webkit-scrollbar {
+		display: none;
+	}
 }
 
 .content {
