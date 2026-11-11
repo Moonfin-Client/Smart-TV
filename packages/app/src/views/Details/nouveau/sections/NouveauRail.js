@@ -1,4 +1,4 @@
-import {useCallback, useEffect, useRef, useState} from 'react';
+import {useCallback, useEffect, useLayoutEffect, useRef, useState} from 'react';
 import Spotlight from '@enact/spotlight';
 
 import {RowContainer} from '../../detailsSpottables';
@@ -31,9 +31,13 @@ const NEAR_END_CARDS = 8;
 // Cards that grow on focus need room on every side, since the track clips whatever spills out of
 // it. `clearance` is the room above and below, and `bleed` widens the track into the page margin
 // on both sides without moving the cards. `bleedRight` sets the right side on its own.
+//
+// A rail given `startIndex` opens on that card instead of the first: it's scrolled to whenever the
+// cards change, and focus coming into the rail lands on it until the viewer leaves the rail from
+// somewhere else. An episode's own season starts on that episode.
 const NouveauRail = ({
 	title, items = [], spotlightId, renderItem, gap = 32, clearance = FOCUS_CLEARANCE, bleed = 0, bleedRight = bleed,
-	navbarPosition, onNavigateUp, onNavigateDown, onNearEnd, onLeftEdge, itemMenu
+	navbarPosition, onNavigateUp, onNavigateDown, onNearEnd, onLeftEdge, itemMenu, startIndex
 }) => {
 	const trackRef = useRef(null);
 	const rectRef = useRef(null);
@@ -53,11 +57,30 @@ const NouveauRail = ({
 	// mounted, so a long one is only built in full for somebody who walks through it. The usual ways
 	// of deferring offscreen work landed long after the browsers these sets ship with, so without
 	// this every card on the page fetches and decodes its artwork at once.
-	const [visibleCount, setVisibleCount] = useState(() => initialCardCount(items.length));
+	const [visibleCount, setVisibleCount] = useState(() => initialCardCount(items.length, startIndex));
 
 	useEffect(() => {
-		setVisibleCount(initialCardCount(items.length));
-	}, [items.length]);
+		setVisibleCount(initialCardCount(items.length, startIndex));
+	}, [items.length, startIndex]);
+
+	// Spotlight enters a container on the card it last left, and failing that on its default
+	// element, which is set here rather than by a class so the cards needn't know about it.
+	useEffect(() => {
+		if (startIndex == null || !spotlightId) return;
+		Spotlight.set(spotlightId, {
+			defaultElement: startIndex > 0 ? `[data-card-index="${startIndex}"] .spottable` : '.spottable-default'
+		});
+	}, [spotlightId, startIndex]);
+
+	// Lines the start card up where the first one sits. Left alone while focus is in the rail, so
+	// a refresh of the cards doesn't pull the row out from under the card being looked at.
+	useLayoutEffect(() => {
+		const track = trackRef.current;
+		if (startIndex == null || !track || track.contains(document.activeElement)) return;
+		const cell = track.querySelector(`[data-card-index="${startIndex}"]`);
+		if (!cell) return;
+		track.scrollLeft += cell.getBoundingClientRect().left - track.getBoundingClientRect().left - bleed;
+	}, [items, startIndex, bleed, visibleCount]);
 
 	// Measured once and kept, since reading it per focus would force a layout on every card.
 	useEffect(() => {

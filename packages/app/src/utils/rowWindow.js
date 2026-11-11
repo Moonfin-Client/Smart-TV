@@ -15,8 +15,9 @@ export const ROW_WINDOW_RADIUS = 1;
 export const shouldMountRow = (rowIndex, activeRowIndex) =>
 	Math.abs(rowIndex - activeRowIndex) <= ROW_WINDOW_RADIUS;
 
-export const initialCardCount = (itemCount) =>
-	Math.min(Math.max(itemCount || 0, 0), INITIAL_CARD_WINDOW);
+// A row that opens partway along mounts as far as its first card and a batch past it.
+export const initialCardCount = (itemCount, startIndex = 0) =>
+	Math.min(Math.max(itemCount || 0, 0), Math.max(INITIAL_CARD_WINDOW, (startIndex || 0) + 1 + CARD_WINDOW_STEP));
 
 export const expandedCardCount = (currentCount, focusedIndex, itemCount) => {
 	const total = Math.max(itemCount || 0, 0);

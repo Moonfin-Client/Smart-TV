@@ -16,6 +16,12 @@ describe('row windowing', () => {
 		expect(expandedCardCount(18, 17, 24)).toBe(24);
 	});
 
+	it('mounts past the card a row opens on', () => {
+		expect(initialCardCount(24, 1)).toBe(10);
+		expect(initialCardCount(24, 9)).toBe(18);
+		expect(initialCardCount(12, 9)).toBe(12);
+	});
+
 	it('never grows past what there is', () => {
 		expect(expandedCardCount(10, 9, 12)).toBe(12);
 		expect(initialCardCount(0)).toBe(0);

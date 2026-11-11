@@ -8,6 +8,10 @@ import {KEYS} from '../../utils/keys';
 
 import css from './Details.module.less';
 
+// Where focus lands coming into a row: the card the row marks as its start, like the episode on
+// screen in its season's row, and otherwise the first.
+const rowEntry = (row) => row.querySelector('.spottable-default') || row.querySelector('.spottable');
+
 export const handleSectionKeyDown = (ev) => {
 	const currentSpottable = ev.target.closest('.spottable');
 	if (!currentSpottable) return;
@@ -42,7 +46,7 @@ export const handleSectionKeyDown = (ev) => {
 			Spotlight.focus('details-action-buttons');
 		} else {
 			const prevRow = allRows[currentIndex - 1];
-			const prevSpottable = prevRow.querySelector('.spottable');
+			const prevSpottable = rowEntry(prevRow);
 			if (prevSpottable) {
 				ev.preventDefault();
 				ev.stopPropagation();
@@ -61,7 +65,7 @@ export const handleSectionKeyDown = (ev) => {
 
 		if (currentIndex >= 0 && currentIndex < allRows.length - 1) {
 			const nextRow = allRows[currentIndex + 1];
-			const nextSpottable = nextRow.querySelector('.spottable');
+			const nextSpottable = rowEntry(nextRow);
 			if (nextSpottable) {
 				ev.preventDefault();
 				ev.stopPropagation();
@@ -99,8 +103,10 @@ export const handleButtonRowKeyDown = (ev) => {
 	const sectionsContainer = document.querySelector(`.${css.sectionsContainer}`) || document.querySelector(`.${css.seasonEpisodesList}`);
 	if (sectionsContainer) {
 		const firstSpottable = sectionsContainer.querySelector('.spottable');
-		if (firstSpottable) {
-			Spotlight.focus(firstSpottable);
+		const firstRow = firstSpottable && Array.from(sectionsContainer.children).find((row) => row.contains(firstSpottable));
+		const target = firstRow ? rowEntry(firstRow) : firstSpottable;
+		if (target) {
+			Spotlight.focus(target);
 		}
 	}
 };
@@ -117,6 +123,13 @@ export const handleSeasonButtonKeyDown = (ev) => {
 			Spotlight.focus(firstSpottable);
 		}
 	}
+};
+
+// Scrolls a plain horizontal scroller so the card sits where its first card does at rest.
+export const scrollCardToStart = (scroller, card) => {
+	if (!scroller || !card) return;
+	const padding = parseFloat(window.getComputedStyle(scroller).paddingLeft) || 0;
+	scroller.scrollLeft += card.getBoundingClientRect().left - scroller.getBoundingClientRect().left - padding;
 };
 
 // Keeps a focused card inside a plain horizontal scroller, which doesn't scroll itself.

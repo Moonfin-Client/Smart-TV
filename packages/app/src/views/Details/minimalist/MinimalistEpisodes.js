@@ -54,6 +54,8 @@ const MinimalistEpisodes = ({
 	const activeSeason = effectiveSeason(numbers, pickedSeason, arrivedIn);
 	// Held steady across renders, or the select handler below would be rebuilt every time.
 	const seasonEpisodes = useMemo(() => groups.get(activeSeason) || [], [groups, activeSeason]);
+	// An episode's own season opens the rail on it, and any other season at its start.
+	const startIndex = Math.max(0, seasonEpisodes.findIndex((episode) => episode.Id === item.Id));
 
 	// One season is no choice at all, so the strip only earns its space when there is somewhere else
 	// to go, and the rail takes over as the way in.
@@ -119,6 +121,7 @@ const MinimalistEpisodes = ({
 				onLeftEdge={onLeftEdge}
 				bleedRight={bleedRight}
 				renderItem={renderEpisode}
+				startIndex={startIndex}
 				itemMenu
 			/>
 		</RowContainer>

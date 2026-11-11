@@ -1,4 +1,4 @@
-import {Fragment, useCallback, useState, useEffect, useMemo} from 'react';
+import {Fragment, useCallback, useState, useEffect, useLayoutEffect, useMemo, useRef} from 'react';
 import $L from '@enact/i18n/$L';
 
 import MediaRow from '../../components/MediaRow';
@@ -15,7 +15,7 @@ import SeerrStatusBanner, {hasSeerrDot, seerrBadgeStyle} from '../../components/
 import {SeerrChips, SeerrFacts, SeerrStreaming, SeerrCollectionBanner} from '../../components/seerr/SeerrSections';
 import {SpottableDiv, RowContainer, ShortRowContainer} from './detailsSpottables';
 import ExpandableOverview from './ExpandableOverview';
-import {handleSectionKeyDown, handleScrollerFocus} from './detailsFocus';
+import {handleSectionKeyDown, handleScrollerFocus, scrollCardToStart} from './detailsFocus';
 import {PosterBadges, WatchedCheckIcon, FavoriteHeartIcon} from './DetailBadges';
 import DetailMetadata from './DetailMetadata';
 import NextUpCard from './NextUpCard';
@@ -90,6 +90,15 @@ const ClassicDetailScreen = ({
 
 	const episodeAt = useCallback((target) => itemWithIdAt(episodes, 'data-episode-id', target), [episodes]);
 	const episodeMenuHold = useItemMenuHold(episodeAt);
+
+	// The season's row opens on the episode on screen, which is also where focus lands coming into
+	// it, rather than on the season's first.
+	const episodesScrollRef = useRef(null);
+	useLayoutEffect(() => {
+		const scroller = episodesScrollRef.current;
+		if (!scroller || scroller.contains(document.activeElement)) return;
+		scrollCardToStart(scroller, scroller.querySelector(`.${css.episodeCurrent}`));
+	}, [episodes, item.Id]);
 
 	useEffect(() => {
 		let cancelled = false;
@@ -323,7 +332,7 @@ const ClassicDetailScreen = ({
 							{item.ParentIndexNumber !== undefined ? $L('Season {number} Episodes').replace('{number}', item.ParentIndexNumber) : $L('Episodes')}
 						</h3>
 					</div>
-					<div className={css.sectionScroll} onFocus={handleScrollerFocus} {...episodeMenuHold}>
+					<div className={css.sectionScroll} ref={episodesScrollRef} onFocus={handleScrollerFocus} {...episodeMenuHold}>
 						{episodes.map(ep => {
 							// The episode carries the series artwork on most records, and the
 							// screen's own item stands in for the ones that don't.
@@ -339,7 +348,7 @@ const ClassicDetailScreen = ({
 							return (
 								<SpottableDiv
 									key={ep.Id}
-									className={`${css.episodeCard} ${isCurrentEp ? css.episodeCurrent : ''}`}
+									className={`${css.episodeCard} ${isCurrentEp ? `${css.episodeCurrent} spottable-default` : ''}`}
 									data-episode-id={ep.Id}
 									onClick={onEpisodeSelect}
 								>
