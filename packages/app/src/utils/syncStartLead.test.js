@@ -15,15 +15,9 @@ describe('startDelayMs', () => {
 
 describe('nextStartLeadMs', () => {
 	test('the first start sets the lead, later ones average into it, and it is capped', () => {
-		expect(nextStartLeadMs(null, 430)).toBe(430);
+		expect(nextStartLeadMs(0, 430)).toBe(430);
 		expect(nextStartLeadMs(430, 370)).toBe(400);
-		expect(nextStartLeadMs(null, 9000)).toBe(MAX_START_LEAD_MS);
-	});
-
-	test('a measured zero lead is averaged, not replaced', () => {
-		expect(nextStartLeadMs(null, 0)).toBe(0);
-		expect(nextStartLeadMs(0, 400)).toBe(200);
-		expect(nextStartLeadMs(400, 0)).toBe(200);
+		expect(nextStartLeadMs(0, 9000)).toBe(MAX_START_LEAD_MS);
 	});
 });
 
@@ -31,16 +25,9 @@ describe('the stored lead', () => {
 	beforeEach(() => localStorage.clear());
 
 	test('survives a launch, and starts at none without one', () => {
-		expect(loadStartLeadMs()).toBeNull();
+		expect(loadStartLeadMs()).toBe(0);
 		saveStartLeadMs(430);
 		expect(loadStartLeadMs()).toBe(430);
-	});
-
-	test('a stored zero lead is a lead, and junk is none', () => {
-		saveStartLeadMs(0);
-		expect(loadStartLeadMs()).toBe(0);
-		localStorage.setItem('moonfin_sync_start_lead_ms', 'junk');
-		expect(loadStartLeadMs()).toBeNull();
 	});
 });
 

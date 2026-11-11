@@ -68,7 +68,7 @@ import {createServerSeek} from './serverSeek';
 import {copyBufferSeconds} from './copyBuffer';
 import {copyReaches} from './copySeek';
 import {bufferedAheadSeconds, createStarveWatch, CUSHION_MAX_MS, CUSHION_SECONDS} from '../../utils/syncStarve';
-import {loadStartLeadMs, nextStartLeadMs, saveStartLeadMs, startDelayMs as groupStartDelayMs, startGapMs, START_STALL_MS, START_RESYNC_MIN_LEAD_MS, START_RESYNC_RESUME_MS} from '../../utils/syncStartLead';
+import {loadStartLeadMs, nextStartLeadMs, saveStartLeadMs, startDelayMs as groupStartDelayMs, startGapMs, START_STALL_MS} from '../../utils/syncStartLead';
 import useSiloStreamRenewal from './useSiloStreamRenewal';
 import useStreamReconnect from './useStreamReconnect';
 import useMediaSession from './useMediaSession';
@@ -144,11 +144,16 @@ const getWebOSFullscreenRect = () => {
 const GROUP_SEEK_DEBOUNCE_MS = 600;
 // How long this set takes from play() to moving (utils/syncStartLead.js). It's the set's own, so it carries over
 // from one title to the next and across launches, and the first start of a title, the one everyone watches
-// together, begins early too. Null until it has one.
+// together, begins early too.
 let learnedStartLeadMs = loadStartLeadMs();
 // How long a seek inside the stream this set already has takes to play, learned the same way: a Watch Party catch-up
 // there aims that far ahead, or every one lands short by it and the room corrects again ten seconds later.
-let learnedLocalSeekMs = null;
+let learnedLocalSeekMs = 0;
+// With no lead yet, the start it's learned on runs late by it. A set that may pause the room pauses and resumes it
+// once, this long after, so the room starts over with the lead.
+const START_RESYNC_RESUME_MS = 1500;
+// A lead smaller than this isn't worth stopping everyone for.
+const START_RESYNC_MIN_LEAD_MS = 250;
 // A seek that hasn't played by then isn't going to, and stops holding the next one back.
 const SEEK_FLIGHT_TIMEOUT_MS = 15000;
 // A Watch Party room waits up to 10 s for its members before it starts anyway, so a room's seek waits a little past
@@ -1598,8 +1603,6 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 
 	// Moves the stream to a title position, or has Silo reopen it there when the stream can't seek.
 	const seekVideo = useCallback((seconds) => {
-		// The jump would read as a start moving, so a seek ends any start being timed.
-		startTimingRef.current = null;
 		if (seeksThroughServerRef.current && !copySeeksTo(Math.floor(seconds * 10000000))) {
 			seekThroughServer(Math.floor(seconds * 10000000));
 			return;
@@ -2230,7 +2233,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 				const took = groupStartDelayMs({...timing, positionMs: ticks / 10000, atMs: nowMs});
 				if (took != null) {
 					startTimingRef.current = null;
-					const firstLead = learnedStartLeadMs == null;
+					const firstLead = learnedStartLeadMs === 0;
 					learnedStartLeadMs = nextStartLeadMs(learnedStartLeadMs, took);
 					saveStartLeadMs(learnedStartLeadMs);
 					syncLog('[Player] SyncPlay start moved', took, 'ms after play(); next start leads by', learnedStartLeadMs, 'ms');
@@ -3509,10 +3512,10 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 					// Ahead is where the stream hasn't arrived yet: a seek there only stalls it again.
 					syncLog('[Player] Watch Party catch-up held: the stream is not keeping up');
 					startTarget = null;
-				} else if (startTarget != null && syncPlayService.isRoomDriven() && copySeeksTo(startTarget + (learnedLocalSeekMs || 0) * 10000)) {
+				} else if (startTarget != null && syncPlayService.isRoomDriven() && copySeeksTo(startTarget + learnedLocalSeekMs * 10000)) {
 					// Already in the copy's playlist: no load to wait on, only the seek's own time to aim past.
-					startTarget += (learnedLocalSeekMs || 0) * 10000;
-					syncLog('[Player] Watch Party catch-up within the stream, no reload, aimed', learnedLocalSeekMs || 0, 'ms ahead');
+					startTarget += learnedLocalSeekMs * 10000;
+					syncLog('[Player] Watch Party catch-up within the stream, no reload, aimed', learnedLocalSeekMs, 'ms ahead');
 				} else if (startTarget != null && syncPlayService.isRoomDriven()) {
 					const budget = loadBudgetRef.current;
 					if (seekInFlightRef.current) {
@@ -3590,7 +3593,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 		// timeline still counts from the command's time.
 		leadMs: (command) => {
 			if (!syncPlayService.isRoomDriven() || command.Command !== 'Unpause' || !videoRef.current?.paused || groupSeekPendingRef.current) return 0;
-			return (learnedStartLeadMs || 0) + (startGapMs(positionRef.current, command.PositionTicks) || 0);
+			return learnedStartLeadMs + (startGapMs(positionRef.current, command.PositionTicks) || 0);
 		}
 	});
 

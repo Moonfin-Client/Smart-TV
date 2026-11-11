@@ -23,21 +23,12 @@ export const startDelayMs = ({calledAtMs, fromMs, positionMs, atMs}) => {
 	return Math.max(0, atMs - played - calledAtMs);
 };
 
-/**
- * The lead after a measured start: the first measurement as it is (`leadMs` null, none yet), then an even average with
- * what came before. A measured lead of zero is a measurement like any other.
- */
+/** The lead after a measured start: the first measurement as it is, then an even average with what came before. */
 export const nextStartLeadMs = (leadMs, measuredMs) => {
 	const measured = Math.min(measuredMs, MAX_START_LEAD_MS);
-	if (leadMs == null) return measured;
+	if (leadMs === 0) return measured;
 	return Math.round((leadMs + measured) / 2);
 };
-
-// With no lead yet, the start it's learned on runs late by it. A set that may pause the room pauses and resumes it
-// once, this long after, so the room starts over with the lead.
-export const START_RESYNC_RESUME_MS = 1500;
-// A lead smaller than this isn't worth stopping everyone for.
-export const START_RESYNC_MIN_LEAD_MS = 250;
 
 // A set paused near where a group start begins, as one is after a seek that landed on the keyframe before its target,
 // takes up the difference in when it starts rather than in another seek: behind, it starts that much earlier; ahead,
@@ -54,14 +45,12 @@ export const startGapMs = (positionTicks, targetTicks) => {
 // The lead is the set's own, so it is kept across launches: the first start after one leads too.
 const STORAGE_KEY = 'moonfin_sync_start_lead_ms';
 
-// Null when this set has none yet.
 export const loadStartLeadMs = () => {
 	try {
-		const stored = localStorage.getItem(STORAGE_KEY);
-		const ms = Number(stored);
-		return stored != null && stored !== '' && ms >= 0 ? Math.min(ms, MAX_START_LEAD_MS) : null;
+		const stored = Number(localStorage.getItem(STORAGE_KEY));
+		return stored > 0 ? Math.min(stored, MAX_START_LEAD_MS) : 0;
 	} catch (e) {
-		return null;
+		return 0;
 	}
 };
 
