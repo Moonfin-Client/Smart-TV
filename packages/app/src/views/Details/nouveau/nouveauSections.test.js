@@ -19,6 +19,11 @@ describe('nouveauSectionOrder', () => {
 		expect(nouveauSectionOrder({type: 'Video'})).not.toContain('chapters');
 	});
 
+	it('lists a book series\' books and leaves out the details of the book it features', () => {
+		expect(nouveauSectionOrder({type: 'Book', isBookSeries: true})).toEqual(['books']);
+		expect(nouveauSectionOrder({type: 'Book'})).toEqual(['details']);
+	});
+
 	it('gives a box set its collection and nothing it has no people or extras for', () => {
 		const sections = nouveauSectionOrder({type: 'BoxSet'});
 		expect(sections).toContain('collection');

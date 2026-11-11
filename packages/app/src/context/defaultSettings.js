@@ -285,6 +285,7 @@ export const defaultSettings = {
 	libraryStyle: 'classic',
 	bookLibraryStyle: 'bookstore',
 	showBookDiscoverTab: true,
+	bookFoldersAsSeries: false,
 	musicLibraryStyle: 'immersive',
 	hideBackdropsInLibraries: false,
 	useSeriesThumbnails: false,

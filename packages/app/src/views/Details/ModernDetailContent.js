@@ -83,7 +83,7 @@ const hasSpottableBelow = (container, active) => {
 
 const ModernDetailContent = (props) => {
 	const {
-		item, effectiveServerUrl, effectiveApi, serverToken, settings, showsSection,
+		item, effectiveServerUrl, effectiveApi, serverToken, settings, showsSection, bookSeriesItem,
 		isEpisode, isSeries, isSeason, isPerson, isBoxSet, isAlbum, isMusicArtist, isPlaylist,
 		backdropUrl, posterUrl, logoUrl, onLogoError,
 		tagline,
@@ -357,6 +357,7 @@ const ModernDetailContent = (props) => {
 		if ((isAlbum && albumTracks.length) || isPlaylist) list.push({id: 'tracks', label: $L('Tracks')});
 		if (isMusicArtist && artistAlbums.length) list.push({id: 'albums', label: $L('Albums')});
 		if (isBoxSet && collectionItems.length) list.push({id: 'items', label: $L('Items')});
+		if (bookSeriesItem) list.push({id: 'books', label: $L('Books')});
 		if (cast.length) list.push({id: 'cast', label: $L('Cast')});
 		if (crew.length) list.push({id: 'crew', label: $L('Crew')});
 		if (studios?.length) list.push({id: 'studios', label: $L('Studios')});
@@ -365,13 +366,13 @@ const ModernDetailContent = (props) => {
 		if (chapters?.length) list.push({id: 'chapters', label: $L('Chapters')});
 		if (additionalParts.length) list.push({id: 'additionalParts', label: $L('Additional Parts')});
 		if (otherExtras.length) list.push({id: 'extras', label: $L('Extras')});
-		if (showsDetails) list.push({id: 'details', label: $L('Details')});
+		if (showsDetails && !bookSeriesItem) list.push({id: 'details', label: $L('Details')});
 		if (collectionSections.length) list.push({id: 'collection', label: collectionTabLabel});
 		if (similar.length) list.push({id: 'similar', label: $L('More Like This')});
 		if (reviews.length) list.push({id: 'reviews', label: $L('Reviews')});
 		if (seerr.hasTabContent) list.push({id: 'seerr', label: seerr.displayName});
 		return list;
-	}, [isSeries, seasons.length, listsEpisodes, episodes.length, isPerson, personMovies.length, personSeries.length, isAlbum, isPlaylist, albumTracks.length, isMusicArtist, artistAlbums.length, isBoxSet, showsSection, collectionItems.length, collectionSections.length, collectionTabLabel, cast.length, crew.length, studios, chapters, additionalParts.length, otherExtras.length, showsDetails, similar.length, reviews.length, seerr.hasTabContent, seerr.displayName]);
+	}, [isSeries, seasons.length, listsEpisodes, episodes.length, isPerson, personMovies.length, personSeries.length, isAlbum, isPlaylist, albumTracks.length, isMusicArtist, artistAlbums.length, isBoxSet, showsSection, collectionItems.length, collectionSections.length, collectionTabLabel, cast.length, crew.length, studios, chapters, additionalParts.length, otherExtras.length, showsDetails, similar.length, reviews.length, seerr.hasTabContent, seerr.displayName, bookSeriesItem]);
 
 	const [activeTab, setActiveTab] = useState(null);
 	// Expanded Tabs on keeps the first tab open and lets focus follow selection.
@@ -714,6 +715,8 @@ const ModernDetailContent = (props) => {
 						))}
 					</div>
 				);
+			case 'books':
+				return renderGrid(bookSeriesItem.Members, 'portrait');
 			case 'similar':
 				return renderGrid(similar, 'portrait');
 			case 'reviews':
@@ -783,7 +786,7 @@ const ModernDetailContent = (props) => {
 		if (logoUrl && !isPerson) {
 			return <img className={css.logo} src={logoUrl} alt={item.Name} onError={onLogoError} />;
 		}
-		return <h1 className={css.title}>{item.Name}</h1>;
+		return <h1 className={css.title}>{bookSeriesItem ? bookSeriesItem.Name : item.Name}</h1>;
 	};
 
 	// The title, the facts about it and its ratings. With a Next Up card on

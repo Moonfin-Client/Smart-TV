@@ -67,7 +67,7 @@ const itemsOf = (result) => result?.Items || [];
 // Everything the book library styles share, read at once: what's being read, every title for the
 // counts and series, the folders the series group by, and the authors, genres, favorites and
 // collections. A failed read leaves its part empty.
-const useBookLibrary = ({api, library}) => {
+const useBookLibrary = ({api, library, bookFoldersAsSeries}) => {
 	const [state, setState] = useState(EMPTY);
 
 	useEffect(() => {
@@ -99,7 +99,7 @@ const useBookLibrary = ({api, library}) => {
 				titles,
 				folders: itemsOf(folderResult),
 				counts: bookCounts(titles),
-				series: bookSeriesEntries(titles, itemsOf(folderResult)),
+				series: bookSeriesEntries(titles, itemsOf(folderResult), bookFoldersAsSeries),
 				authors: [...artists, ...extraAuthors],
 				authorCount: (artistResult?.TotalRecordCount || artists.length) + extraAuthors.length,
 				authorTitles: authorTitleCounts(titles),
@@ -112,7 +112,7 @@ const useBookLibrary = ({api, library}) => {
 			});
 		});
 		return () => { cancelled = true; };
-	}, [api, library]);
+	}, [api, library, bookFoldersAsSeries]);
 
 	return state;
 };
