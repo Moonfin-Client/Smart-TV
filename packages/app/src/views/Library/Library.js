@@ -41,8 +41,11 @@ import useItemMenuHold, {cardIndexOf} from '../../hooks/useItemMenuHold';
 import {FOCUS_SCALE, POSTER_HEIGHTS, POSTER_SIZE_OPTIONS, createGridKeyDown, createRowsLeftKeyDown, createToolbarKeyDown, focusOverhang, horizontalCellPad, libraryPosterSize, matchesStartLetter, stopPropagation} from '../../utils/gridChrome';
 import {ARROW_DOWN_ICON, ARROW_UP_ICON, CLEAR_FILTERS_ICON, EXPAND_LESS_ICON, EXPAND_MORE_ICON, GROUP_ICON, HOME_ICON, Icon, Letters, LibraryDock, LibraryTitle, ModernBar, ModernLetters, SEARCH_ICON, SETTINGS_ICON, SHUFFLE_ICON, SORT_ICON} from './LibraryHeaders';
 import LibrarySkeleton from './LibrarySkeleton';
+import {registerThemeSheet} from '../../theme/themeOverrides';
 
 import css from './Library.module.less';
+
+registerThemeSheet('library', css);
 
 const SpottableDiv = Spottable('div');
 const SpottableButton = Spottable('button');

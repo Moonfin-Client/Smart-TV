@@ -93,6 +93,20 @@ describe('buildThemeOverrideCss', () => {
 		expect(buildThemeOverrideCss(theme, {focusBorderColor: ''})).toContain(`${prefix} .ring { border-color: ${themeColor}; }`);
 	});
 
+	it('draws the watched badge in the theme on the screens that load on demand', () => {
+		const theme = resolveThemeById('moonfin');
+		const names = ['minimalistCards', 'library', 'favorites', 'genreBrowse', 'episodeBrowser'];
+		names.forEach((name) => registerThemeSheet(name, {watchedBadge: `${name}Watched`}));
+		const prefix = "html[data-theme-id='moonfin'][data-theme-id]";
+		const watched = toCssColor(theme.colors.badgeWatched);
+		const onBadge = toCssColor(theme.colors.onBadge);
+		const lines = buildThemeOverrideCss(theme).split('\n');
+		for (const name of names) {
+			expect(lines).toContain(`${prefix} .${name}Watched { background: ${watched}; border-color: ${onBadge}; }`);
+			expect(lines).toContain(`${prefix} .${name}Watched svg { fill: ${onBadge}; stroke: ${onBadge}; }`);
+		}
+	});
+
 	it('rings the screens that load on demand once they hand their stylesheets over', async () => {
 		const theme = resolveThemeById('moonfin');
 		applyThemeOverrides(theme, {focusBorderColor: '#ff0000'});

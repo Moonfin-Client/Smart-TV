@@ -43,7 +43,6 @@ import nouveauCardsCss from '../views/Details/nouveau/cards/NouveauCards.module.
 import nouveauFooterCss from '../views/Details/nouveau/footer/NouveauDetailsFooter.module.less';
 import nouveauSectionsCss from '../views/Details/nouveau/sections/NouveauSections.module.less';
 import stageCss from '../views/Details/stage/StageDetailContent.module.less';
-import minimalistCardsCss from '../views/Details/minimalist/MinimalistCards.module.less';
 import quickLookCss from '../views/Details/quickLook/QuickLookDetailContent.module.less';
 import frostCss from '../views/Details/frost/FrostDetailContent.module.less';
 import trackListCss from '../components/DetailTrackList/DetailTrackList.module.less';
@@ -388,6 +387,8 @@ export const buildThemeOverrideCss = (theme, options = {}) => {
 	// Search input
 	rule(`.${searchCss.searchInputWrapper}`, `background: ${inputBackground}; border-color: ${inputBorder};`);
 	rule(`.${searchCss.searchInputFocused}`, `background: ${inputFocused}; border-color: ${focusColor}; box-shadow: ${glowOr('none')};`);
+	rule(`.${searchCss.watchedBadge}`, `background: ${badgeWatched}; border-color: ${onBadge};`);
+	rule(`.${searchCss.watchedBadge} svg`, `fill: ${onBadge}; stroke: ${onBadge};`);
 
 	// Detail screens, classic layout
 	rule(`.${detailsCss.posterBadgeWatched}, .${detailsCss.watchedIndicator}`, `background: ${badgeWatched}; border-color: ${onBadge};`);
@@ -606,9 +607,6 @@ export const buildThemeOverrideCss = (theme, options = {}) => {
 	rule(`.${stageCss.metaRating}`, `background: ${accentA(0.15)};`);
 	rule(`.${stageCss.cardWatched}, .${stageCss.posterWatched}`, `background: ${badgeWatched}; border-color: ${onBadge};`);
 	rule(`.${stageCss.cardWatched} svg, .${stageCss.posterWatched} svg, .${stageCss.cardFavorite} svg, .${stageCss.posterFavorite} svg`, `fill: ${onBadge}; stroke: ${onBadge};`);
-	// The episode rail on the detail screens
-	rule(`.${minimalistCardsCss.watchedBadge}`, `background: ${badgeWatched}; border-color: ${onBadge};`);
-	rule(`.${minimalistCardsCss.watchedBadge} svg`, `fill: ${onBadge}; stroke: ${onBadge};`);
 	rule(`.${quickLookCss.season}:focus, .${quickLookCss.open}:focus`, `border-color: ${focusColor};`);
 	rule(`.${quickLookCss.progressFill}, .${quickLookCss.seasonFill}`, `background: ${accent};`);
 	['actionsStacked', 'actionsCentered'].forEach((row) => {
@@ -799,6 +797,14 @@ export const buildThemeOverrideCss = (theme, options = {}) => {
 	rule(`.${ratingsCss.ratingItemPlain}`, `background: transparent;`);
 	rule(`.${ratingsCss.ratingValue}, .${ratingsCss.ratingName}, .${ratingsCss.ratingNameCompact}`, `color: ${onSurface};`);
 	rule(`.${ratingsCss.ratingValueCompact}`, `color: ${onBackground};`);
+
+	// Watched badges on the screens that load on demand
+	['minimalistCards', 'library', 'favorites', 'genreBrowse', 'episodeBrowser'].forEach((name) => {
+		const sheet = lazySheets[name];
+		if (!sheet) return;
+		rule(`.${sheet.watchedBadge}`, `background: ${badgeWatched}; border-color: ${onBadge};`);
+		rule(`.${sheet.watchedBadge} svg`, `fill: ${onBadge}; stroke: ${onBadge};`);
+	});
 
 	// Focus rings on the screens that load on demand
 	const {player, playerOverlays, episodeBrowser, genreBrowse, seerrDiscover, seerrBrowse, seerrPosterCard, calendar} = lazySheets;
