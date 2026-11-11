@@ -114,7 +114,7 @@ const SeasonalTheme = ({theme, density, follower = true, settingsPreview = false
 				{particles.flyers.map(flyer => <Flyer key={flyer.key} flyer={flyer} />)}
 				{particles.bursts.map(burst => <Burst key={burst.key} burst={burst} />)}
 			</div>
-			{follower && <SeasonalFollower key={effect} effect={effect} />}
+			{follower && <SeasonalFollower key={effect} effect={effect} preview={settingsPreview} />}
 		</>
 	);
 };

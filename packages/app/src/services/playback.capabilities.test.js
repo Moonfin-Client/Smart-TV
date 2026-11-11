@@ -172,6 +172,22 @@ describe('frames that never reach the screen', () => {
 	});
 });
 
+describe('a long pause', () => {
+	test('isnt read as a stall the moment playback resumes, and a real stall after it still is', () => {
+		let now = 1000000;
+		jest.spyOn(Date, 'now').mockImplementation(() => now);
+		const monitor = playback.getHealthMonitor();
+		monitor.reset();
+		monitor.setPaused(true);
+		now += 3 * 60 * 1000;
+		monitor.setPaused(false);
+		expect(monitor.checkHealth()).toBe(true);
+
+		now += 31000;
+		expect(monitor.checkHealth()).toBe(false);
+	});
+});
+
 describe('the transcoding profile that only offers AV1', () => {
 	const profile = {TranscodingProfiles: [
 		{Container: 'ts', Type: 'Video', VideoCodec: 'hevc,h264'},

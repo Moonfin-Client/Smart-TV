@@ -203,18 +203,24 @@ export const loadLatestAndRecentlyReleased = async (ctx) => {
 	}
 };
 
+// Shared with the Settings preview, so it reads these rows the way Home does.
+export const readCollections = (api, sortBy, sortOrder, limit) => scopedGetItems(api, {
+	IncludeItemTypes: 'BoxSet',
+	Recursive: true,
+	SortBy: sortBy,
+	SortOrder: sortOrder,
+	Limit: limit,
+	Fields: `${HOME_ROW_ITEM_FIELDS},DateCreated,PremiereDate,CommunityRating,CriticRating,RunTimeTicks`
+});
+export const readMusicArtists = (api, sortBy, sortOrder, limit) => scopedGetItems(api, {IncludeItemTypes: 'MusicArtist', Limit: limit, SortBy: sortBy, SortOrder: sortOrder, Fields: HOME_ROW_ITEM_FIELDS}, {via: (params) => api.getAlbumArtists(params)});
+export const readMusicAlbums = (api, sortBy, sortOrder, limit) => scopedGetItems(api, {IncludeItemTypes: 'MusicAlbum', Recursive: true, SortBy: sortBy, SortOrder: sortOrder, Limit: limit, Fields: HOME_ROW_ITEM_FIELDS});
+export const audioPlaylistsOf = (result) => (result?.Items || []).filter((item) => item.MediaType === 'Audio');
+
 const loadCollections = async (ctx) => {
 	const {api, appendRows, collectionsSortBy, collectionsSortOrder, settings} = ctx;
 	if (!settings.displayCollectionsRows) return;
 	try {
-		const readHead = (limit) => scopedGetItems(api, {
-			IncludeItemTypes: 'BoxSet',
-			Recursive: true,
-			SortBy: collectionsSortBy,
-			SortOrder: collectionsSortOrder,
-			Limit: limit,
-			Fields: `${HOME_ROW_ITEM_FIELDS},DateCreated,PremiereDate,CommunityRating,CriticRating,RunTimeTicks`
-		});
+		const readHead = (limit) => readCollections(api, collectionsSortBy, collectionsSortOrder, limit);
 		const collectionsResult = await readHead(20).catch(() => null);
 		if (collectionsResult?.Items?.length > 0) {
 			appendRows([pageableRow({
@@ -240,7 +246,7 @@ export const withStudioLogos = (studios, logoList, serverUrl, token) => {
 	});
 };
 
-const loadStudios = async (ctx) => {
+export const loadStudios = async (ctx) => {
 	const {api, appendRows, studiosEnabled, settings, serverUrl} = ctx;
 	if (!studiosEnabled) return;
 	const sortBy = apiSortBy(settings.studiosRowSortBy || 'SortName');
@@ -260,7 +266,7 @@ const loadStudios = async (ctx) => {
 	}
 };
 
-const loadFavorites = async (ctx) => {
+export const loadFavorites = async (ctx) => {
 	const {api, appendRows, favoriteSortBy, favoriteSortOrder, settings} = ctx;
 	if (!settings.displayFavoritesRows) return;
 	try {
@@ -297,7 +303,7 @@ const loadFavorites = async (ctx) => {
 	}
 };
 
-const loadGenres = async (ctx) => {
+export const loadGenres = async (ctx) => {
 	const {api, appendRows, genresIncludeTypes, genresSortBy, genresSortOrder, settings} = ctx;
 	if (!settings.displayGenresRows) return;
 	try {
@@ -402,10 +408,10 @@ const loadGenres = async (ctx) => {
 	}
 };
 
-const loadPlaylistsAndMusic = async (ctx) => {
+export const loadPlaylistsAndMusic = async (ctx) => {
 	const {api, appendRows, audioAlbumsEnabled, audioArtistsEnabled, audioPlaylistsEnabled, audioRowsSortBy, audioRowsSortOrder, onNowEnabled, playlistsSortBy, playlistsSortOrder, recordingsEnabled, resumeAudioEnabled, settings} = ctx;
-	const readArtists = (limit) => scopedGetItems(api, {IncludeItemTypes: 'MusicArtist', Limit: limit, SortBy: audioRowsSortBy, SortOrder: audioRowsSortOrder, Fields: HOME_ROW_ITEM_FIELDS}, {via: (params) => api.getAlbumArtists(params)});
-	const readAlbums = (limit) => scopedGetItems(api, {IncludeItemTypes: 'MusicAlbum', Recursive: true, SortBy: audioRowsSortBy, SortOrder: audioRowsSortOrder, Limit: limit, Fields: HOME_ROW_ITEM_FIELDS});
+	const readArtists = (limit) => readMusicArtists(api, audioRowsSortBy, audioRowsSortOrder, limit);
+	const readAlbums = (limit) => readMusicAlbums(api, audioRowsSortBy, audioRowsSortOrder, limit);
 	const readResumeAudio = (limit) => api.getResumeAudioItems(limit);
 	try {
 		const [playlistsResult, audioArtistsResult, audioAlbumsResult, audioPlaylistsResult, resumeAudioResult, recordingsResult, onNowResult] = await Promise.all([
@@ -446,16 +452,14 @@ const loadPlaylistsAndMusic = async (ctx) => {
 				type: 'square'
 			}, audioAlbumsResult, 20, readAlbums));
 		}
-		if (audioPlaylistsResult?.Items?.length > 0) {
-			const audioPlaylists = audioPlaylistsResult.Items.filter(item => item.MediaType === 'Audio');
-			if (audioPlaylists.length > 0) {
-				rows.push({
-					id: 'audioplaylists',
-					title: $L('Music Playlists'),
-					items: audioPlaylists,
-					type: 'square'
-				});
-			}
+		const audioPlaylists = audioPlaylistsOf(audioPlaylistsResult);
+		if (audioPlaylists.length > 0) {
+			rows.push({
+				id: 'audioplaylists',
+				title: $L('Music Playlists'),
+				items: audioPlaylists,
+				type: 'square'
+			});
 		}
 		if (resumeAudioResult?.Items?.length > 0) {
 			rows.push(pageableRow({

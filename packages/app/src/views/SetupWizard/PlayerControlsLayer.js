@@ -1,10 +1,13 @@
-// The player's subtitle line and on-screen controls for the settings preview, drawn with the
-// player's own code and stylesheet. It's loaded the first time the player scene shows, so the
+// The player's subtitle line, on-screen controls and prompts for the settings preview, drawn with
+// the player's own code and stylesheet. It's loaded the first time the player scene shows, so the
 // player's styles don't load with the app.
 
 import {useLayoutEffect, useRef, useState} from 'react';
+import SpotlightContainerDecorator from '@enact/spotlight/SpotlightContainerDecorator';
 import {useSettings} from '../../context/SettingsContext';
+import NextUpOverlay from '../Player/NextUpOverlay';
 import {usePlayerButtons, useOsdLogo} from '../Player/playerOsd';
+import SkipSegmentOverlay from '../Player/SkipSegmentOverlay';
 import SubtitleTextOverlay from '../Player/SubtitleTextOverlay';
 import {getZoomModeOptions} from '../Settings/settingsOptions';
 import {chapterMarkerPositions} from '../../utils/chapterMarkers';
@@ -30,6 +33,18 @@ const SAMPLE_DURATION = 2640;
 const SAMPLE_CHAPTERS = [0, 0.18, 0.47, 0.81].map((share) => ({startPositionTicks: Math.round(share * SAMPLE_DURATION) * 10000000}));
 const SAMPLE_AUDIO = [{index: 1}, {index: 2}];
 const SAMPLE_SUBTITLES = [{index: 3}];
+// The skip prompt a quarter of the way into a minute of intro, or ten seconds into ninety of credits.
+const SAMPLE_SEGMENTS = {intro: {remainingSeconds: 45, progress: 0.75}, outro: {remainingSeconds: 80, progress: 80 / 90}};
+
+// The player's prompts are drawn as they are, with the remote kept off them.
+const PromptContainer = SpotlightContainerDecorator({}, 'div');
+const ignore = () => {};
+
+const daysFromNow = (days) => {
+	const date = new Date();
+	date.setDate(date.getDate() + days);
+	return date;
+};
 
 // What the player's stylesheet gives the focused control, since nothing in the preview takes focus.
 const FOCUSED_BUTTON = {backgroundColor: 'rgba(255, 255, 255, 0.22)', borderColor: '#FFFFFF'};
@@ -110,7 +125,7 @@ const PlayerOsd = ({item, paused, subtitles, progress, focus, measureBar, contro
 					)}
 				</div>
 			</div>
-			<div className={playerCss.controlsBottom}>
+			<div className={playerCss.controlsBottom} data-player-controls-bottom>
 				<div className={playerCss.progressContainer}>
 					{timeRow(above, playerCss.timeInfoTop, playerCss.timeEnd)}
 					<div ref={measureBar} className={playerCss.progressBar}>
@@ -131,8 +146,12 @@ const PlayerOsd = ({item, paused, subtitles, progress, focus, measureBar, contro
 	);
 };
 
-const PlayerControlsLayer = ({item, hdr, subtitles, controls, paused, progress, focus, measureBar}) => {
+// [skip] is the segment whose skip prompt is up. [card] is the next episode card, holding its
+// countdown, or saying when the episode after [next] airs.
+const PlayerControlsLayer = ({item, next, hdr, subtitles, controls, paused, progress, focus, measureBar, skip, card}) => {
 	const {settings} = useSettings();
+	const countdownStyle = settings.nextUpCountdownStyle ?? 'both';
+	const nextTitle = next ? next.title : '';
 	const controlsRef = useRef(null);
 	const [floor, setFloor] = useState(0);
 	// Any setting being tried can move the bar or its time row, so it's measured again with each one.
@@ -158,6 +177,25 @@ const PlayerControlsLayer = ({item, hdr, subtitles, controls, paused, progress, 
 				<PlayerOsd
 					item={item} paused={paused} subtitles={subtitles} progress={progress} focus={focus} measureBar={measureBar} controlsRef={controlsRef}
 				/>
+			)}
+			{(skip || card) && (
+				<PromptContainer spotlightDisabled>
+					{skip && (
+						<SkipSegmentOverlay
+							type={skip} {...SAMPLE_SEGMENTS[skip]} countdownStyle={countdownStyle} onSkip={ignore}
+							spotlightId='preview-skip-segment-btn' controlsVisible={controls}
+						/>
+					)}
+					{card && (
+						<NextUpOverlay
+							episode={card.airDate ? null : {Name: nextTitle, ParentIndexNumber: 1, IndexNumber: 2}}
+							airDate={card.airDate ? {seasonNumber: 1, episodeNumber: 2, date: daysFromNow(3), title: nextTitle} : null}
+							imageUrl={card.airDate || !next ? null : next.backdropUrl}
+							countdown={card.countdown} timeout={settings.nextUpTimeout ?? 7} countdownStyle={countdownStyle}
+							minimal={settings.nextUpBehavior === 'minimal'} onPlay={ignore} onDismiss={ignore}
+						/>
+					)}
+				</PromptContainer>
 			)}
 		</>
 	);

@@ -14,10 +14,21 @@ export const CACHE_TTL_LIBRARIES = 30 * 60 * 1000;
 export const VOLATILE_REFRESH_COOLDOWN_MS = 60 * 1000;
 const CACHE_SAVE_DEBOUNCE_MS = 3000;
 
+let homeRows = null;
+const rowDataListeners = new Set();
+
 // Read and written across mounts on purpose, so leaving Browse and coming back doesn't
 // refetch everything.
 export const memoryCache = {
-	rowData: null,
+	// Every loader writes Home's rows here, and the Settings preview listens so it can redraw as
+	// Home reloads behind Settings.
+	get rowData () {
+		return homeRows;
+	},
+	set rowData (next) {
+		homeRows = next;
+		rowDataListeners.forEach((listener) => listener());
+	},
 	libraries: null,
 	featuredItems: null,
 	timestamp: null,
@@ -39,6 +50,11 @@ export const memoryCache = {
 	// again, so an empty section doesn't flash its title on every load. A refresh keeps them.
 	emptySections: new Set(),
 	emptySectionsSeeded: false
+};
+
+export const subscribeRowData = (listener) => {
+	rowDataListeners.add(listener);
+	return () => rowDataListeners.delete(listener);
 };
 
 // A refresh keeps the media bar unless the caller asks for it, or an account change clears everything.
@@ -179,8 +195,9 @@ export const cancelPendingCacheSave = () => {
 export const saveBrowseCache = (rowData, libraries, featuredItems, {serverUrl, userId}) => {
 	const signature = cacheSignature(rowData);
 	if (signature === lastSignature) return;
-	// Read now, since a draw that lands before the write runs would otherwise save its key with these items.
+	// Read now, since a draw or a load that lands before the write runs would otherwise save its key with these items.
 	const featuredConfigKey = memoryCache.featuredConfigKey;
+	const rowConfigKey = memoryCache.rowConfigKey;
 
 	cancelPendingCacheSave();
 	saveTimer = setTimeout(async () => {
@@ -195,7 +212,7 @@ export const saveBrowseCache = (rowData, libraries, featuredItems, {serverUrl, u
 				timestamp: Date.now(),
 				serverUrl,
 				userId,
-				rowConfigKey: memoryCache.rowConfigKey,
+				rowConfigKey,
 				recentAt: memoryCache.recentAt,
 				featuredConfigKey
 			});
