@@ -672,6 +672,42 @@
 	.watched-badge();
 }
 
+// Bounded to the artwork, so the badge sits on the poster's bottom edge and not on the text below it.
+.videoBadgeFrame {
+	position: absolute;
+	top: 0;
+	right: 0;
+	left: 0;
+	z-index: 5;
+	pointer-events: none;
+}
+
+.videoBadge {
+	position: absolute;
+	right: 10px;
+	bottom: 10px;
+	display: flex;
+	align-items: center;
+	height: 28px;
+	padding: 0 6px;
+	border-radius: 14px;
+	background: rgba(0, 0, 0, 0.72);
+	color: #ffffff;
+	font-size: 17px;
+	font-weight: 700;
+	line-height: 28px;
+
+	svg {
+		width: 18px;
+		height: 18px;
+		fill: #ffffff;
+	}
+
+	span {
+		padding: 0 3px 0 2px;
+	}
+}
+
 .posterPlaceholder {
 	box-sizing: border-box;
 	width: 100%;

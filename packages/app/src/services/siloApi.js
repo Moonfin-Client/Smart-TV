@@ -3,7 +3,8 @@
 
 import {
 	SILO_API_MAJOR, closeSiloSession, isClientUpgradeRequired, loadSiloSessions, needsRefresh, openSiloSession, profileProof,
-	needsStreamRefresh, refreshSiloSession, setProfileProof, siloError, siloHeaders, siloRequest, siloSessionFor, tokensFrom
+	needsStreamRefresh, refreshSiloSession, rememberProfilePin, rememberedProfileUnlocked, remembersProfilePin, setProfileProof,
+	siloError, siloHeaders, siloRequest, siloSessionFor, tokensFrom
 } from './siloSession';
 import {createSiloAdminItems} from './siloAdminItems';
 import {createSiloRemoteSubtitles} from './siloRemoteSubtitles';
@@ -22,6 +23,10 @@ import {
 } from './siloMapper';
 
 const SYSTEM_INFO_PATH = '/api/v2/system/info';
+
+// The profile last reported locked to the app, until its PIN is proved again. Shared by every api instance, since the
+// PIN gate proves it through one of its own.
+let lockedReported = null;
 
 const trimSlash = (url) => String(url || '').replace(/\/+$/, '');
 const unsupported = (what) => Promise.reject(Object.assign(new Error(`${what} isn't supported on Silo`), {status: 501}));
@@ -64,15 +69,33 @@ export const createSiloApi = ({getBaseUrl, getToken, getUserId, getDeviceInfo, p
 	const session = () => siloSessionFor(base(), getToken());
 
 	// Every request names the profile acting, except the account-wide ones (`profile: false`).
+	// A remembered PIN's proof that Silo stops taking (the PIN changed or was reset) is dropped, and the app is told,
+	// so the PIN gate comes back instead of every request failing.
 	const call = async (path, options = {}) => {
 		await loadSiloSessions();
-		return siloRequest(base(), path, {
-			session: options.public ? null : session(),
-			profileId: getUserId(),
-			deviceInfo: getDeviceInfo(),
-			platform,
-			...options
-		});
+		const current = options.public ? null : session();
+		const named = options.profileId === undefined ? getUserId() : options.profileId;
+		const profileId = named && options.profile !== false ? String(named) : null;
+		try {
+			const answer = await siloRequest(base(), path, {
+				session: current,
+				profileId: getUserId(),
+				deviceInfo: getDeviceInfo(),
+				platform,
+				...options
+			});
+			// A request that works as the profile means it's unlocked again, so a later locking is reported too.
+			if (profileId && lockedReported === profileId) lockedReported = null;
+			return answer;
+		} catch (err) {
+			// Once per locking, so the requests still in flight don't keep sending the app back to the gate.
+			if (err?.code === 'profile_verification_required' && profileId && lockedReported !== profileId) {
+				lockedReported = profileId;
+				if (profileProof(current, profileId)) setProfileProof(current, profileId, null);
+				if (typeof window !== 'undefined') window.dispatchEvent(new CustomEvent('moonfin:siloProfileLocked'));
+			}
+			throw err;
+		}
 	};
 
 	// Artwork is recorded under this server, where getImageUrl finds it.
@@ -194,6 +217,7 @@ export const createSiloApi = ({getBaseUrl, getToken, getUserId, getDeviceInfo, p
 			method: 'POST', body: {pin}, profile: false, refresh: false
 		});
 		if (answer?.valid !== true || !answer.profile_token) return false;
+		lockedReported = null;
 		setProfileProof(session(), String(profileId), {
 			token: answer.profile_token, expiresAt: answer.expires_at ? Date.parse(answer.expires_at) : 0
 		});
@@ -438,6 +462,21 @@ export const createSiloApi = ({getBaseUrl, getToken, getUserId, getDeviceInfo, p
 		},
 
 		verifyProfilePin: proveProfilePin,
+
+		// Whether the profile's PIN is remembered on this device, choosing it, and whether a remembered PIN unlocks the
+		// profile now without asking.
+		remembersProfilePin: async (profileId) => {
+			await loadSiloSessions();
+			return remembersProfilePin(session(), String(profileId));
+		},
+		rememberProfilePin: async (profileId, remember) => {
+			await loadSiloSessions();
+			rememberProfilePin(session(), String(profileId), remember);
+		},
+		rememberedProfileUnlocked: async (profileId) => {
+			await loadSiloSessions();
+			return rememberedProfileUnlocked(session(), String(profileId));
+		},
 
 		// Sets (or with null removes) a profile's PIN, as the acting profile; Silo lets the primary profile or an admin do
 		// it. A new PIN retires the proof that unlocked the profile, so it's proved again with the new one.

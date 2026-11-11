@@ -15,6 +15,7 @@ import TileGrid from '../../components/TileGrid';
 import IncompleteBadge from '../../components/IncompleteBadge';
 import PosterLabels from '../../components/PosterLabels';
 import {getImageUrl, getPrimaryImageId, formatDuration} from '../../utils/helpers';
+import {showsVideoBadge, videoBadgeDuration} from '../../utils/videoCardBadge';
 import useQuickReturnGrid from '../../hooks/useQuickReturnGrid';
 import {useSettings} from '../../context/SettingsContext';
 import {isMdblistEnabled} from '../../services/mdblistApi';
@@ -1346,6 +1347,14 @@ const Library = ({library, genreFilter, studioFilter, onSelectItem, onViewPhoto,
 				{item.UserData?.Played && (
 					<div className={css.watchedBadge}>
 						<svg viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z" /></svg>
+					</div>
+				)}
+				{showsVideoBadge(item) && (
+					<div className={css.videoBadgeFrame} style={{height: posterHeight}}>
+						<div className={css.videoBadge}>
+							<svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z" /></svg>
+							{videoBadgeDuration(item) && <span>{videoBadgeDuration(item)}</span>}
+						</div>
 					</div>
 				)}
 				<PosterLabels
