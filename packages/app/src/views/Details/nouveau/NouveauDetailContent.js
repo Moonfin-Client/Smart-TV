@@ -153,7 +153,6 @@ const NouveauDetailContent = (props) => {
 	const sections = useMemo(() => {
 		if (isPerson) return [...personRails.map((rail) => rail.id), SECTION_DETAILS];
 
-		const isBookSeries = bookSeriesItem !== null;
 		const seerrState = seerr || {};
 		return nouveauSectionOrder({
 			type: item.Type,
@@ -179,7 +178,7 @@ const NouveauDetailContent = (props) => {
 			seerrResolved: seerrState.loading !== true,
 			seerrSimilarCount: (seerrState.similarCards || []).length,
 			seerrRecommendationCount: (seerrState.recommendationCards || []).length,
-			isBookSeries: isBookSeries
+			isBookSeries: Boolean(bookSeriesItem)
 		});
 	}, [
 		item.Type, chapters, item.ProviderIds, isPerson, personRails, additionalParts.length, otherExtras.length, cast.length,
@@ -500,7 +499,7 @@ const NouveauDetailContent = (props) => {
 					onNavigateDown={handleNavigateDown}
 					renderItem={renderBookCard}
 				/>
-			)
+			);
 		}
 
 		if (id === SECTION_DETAILS) {

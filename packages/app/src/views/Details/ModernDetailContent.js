@@ -357,7 +357,7 @@ const ModernDetailContent = (props) => {
 		if ((isAlbum && albumTracks.length) || isPlaylist) list.push({id: 'tracks', label: $L('Tracks')});
 		if (isMusicArtist && artistAlbums.length) list.push({id: 'albums', label: $L('Albums')});
 		if (isBoxSet && collectionItems.length) list.push({id: 'items', label: $L('Items')});
-		if (bookSeriesItem !== null) list.push({id: 'books', label: $L('Books')});
+		if (bookSeriesItem) list.push({id: 'books', label: $L('Books')});
 		if (cast.length) list.push({id: 'cast', label: $L('Cast')});
 		if (crew.length) list.push({id: 'crew', label: $L('Crew')});
 		if (studios?.length) list.push({id: 'studios', label: $L('Studios')});
@@ -366,7 +366,7 @@ const ModernDetailContent = (props) => {
 		if (chapters?.length) list.push({id: 'chapters', label: $L('Chapters')});
 		if (additionalParts.length) list.push({id: 'additionalParts', label: $L('Additional Parts')});
 		if (otherExtras.length) list.push({id: 'extras', label: $L('Extras')});
-		if (showsDetails && bookSeriesItem === null) list.push({id: 'details', label: $L('Details')});
+		if (showsDetails && !bookSeriesItem) list.push({id: 'details', label: $L('Details')});
 		if (collectionSections.length) list.push({id: 'collection', label: collectionTabLabel});
 		if (similar.length) list.push({id: 'similar', label: $L('More Like This')});
 		if (reviews.length) list.push({id: 'reviews', label: $L('Reviews')});
@@ -786,10 +786,7 @@ const ModernDetailContent = (props) => {
 		if (logoUrl && !isPerson) {
 			return <img className={css.logo} src={logoUrl} alt={item.Name} onError={onLogoError} />;
 		}
-		if (bookSeriesItem !== null) {
-			return <h1 className={css.title}>{bookSeriesItem.Name}</h1>;
-		}
-		return <h1 className={css.title}>{item.Name}</h1>;
+		return <h1 className={css.title}>{bookSeriesItem ? bookSeriesItem.Name : item.Name}</h1>;
 	};
 
 	// The title, the facts about it and its ratings. With a Next Up card on

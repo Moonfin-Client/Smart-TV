@@ -1,5 +1,5 @@
 import {
-	OVERVIEW, ROOT_SCREEN, authorShelves, authorStats, backTarget, bookNavFor, booksByAuthor, navEntries, navKeyFor,
+	OVERVIEW, ROOT_SCREEN, authorShelves, authorStats, backTarget, bookNavFor, booksByAuthor, featuredBook, navEntries, navKeyFor,
 	readingOrder, seriesProgress, sortBookGenres, splitFavorites, titleMeta
 } from './bookScreens';
 
@@ -89,6 +89,14 @@ describe('series', () => {
 	test('a series read to the end is Finished', () => {
 		const progress = seriesProgress([epub('a', {UserData: {Played: true}})]);
 		expect(progress).toMatchObject({next: null, finished: true, label: 'Finished'});
+	});
+
+	test('a series page features the book being read, else the first unfinished one, else the first', () => {
+		const read = {UserData: {Played: true}};
+		expect(featuredBook([epub('a', read), epub('b'), epub('c', {UserData: {PlayedPercentage: 40}})]).Id).toBe('c');
+		expect(featuredBook([epub('a', read), epub('b'), epub('c')]).Id).toBe('b');
+		expect(featuredBook([epub('a', read), epub('b', read)]).Id).toBe('a');
+		expect(featuredBook([])).toBeNull();
 	});
 });
 

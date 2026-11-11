@@ -34,7 +34,7 @@ export const CARD_ICONS = {
 	crew: DETAIL_ICON_PATHS.movieCreationOutlined,
 	seerrDetails: MATERIAL_ICON_PATHS.info,
 	fileDetails: MATERIAL_ICON_PATHS.info,
-	books: MATERIAL_ICON_PATHS.menu_book,
+	books: MATERIAL_ICON_PATHS.menu_book
 };
 
 // A runtime for a card subtitle or the hero's metadata row: "1h 32m", "2h", or "48m". The
@@ -122,7 +122,7 @@ class CardBuilder {
 		}
 		if (bookSeriesItem?.ChildCount > 0) {
 			return {
-				books: () => this.booksCard(),
+				books: () => this.booksCard()
 			};
 		}
 		switch (item?.Type) {

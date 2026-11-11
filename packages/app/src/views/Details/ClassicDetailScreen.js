@@ -186,9 +186,7 @@ const ClassicDetailScreen = ({
 
 	const {parts: additionalParts, others: otherExtras} = splitAdditionalParts(extras);
 
-	const itemName = bookSeriesItem !== null
-			? bookSeriesItem.Name
-			: item.Name;
+	const itemName = bookSeriesItem ? bookSeriesItem.Name : item.Name;
 
 	return (
 		<>
@@ -410,7 +408,7 @@ const ClassicDetailScreen = ({
 				/>
 			)}
 
-			{bookSeriesItem != null && (
+			{bookSeriesItem && (
 				<MediaRow
 					title={$L('Books')}
 					items={bookSeriesItem.Members}

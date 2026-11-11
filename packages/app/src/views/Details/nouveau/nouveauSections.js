@@ -75,12 +75,12 @@ export const nouveauSectionOrder = (state = {}) => {
 	if (shouldIncludeCollection(type)) sections.push(SECTION_COLLECTION);
 	if (shouldIncludeChapters(chapterCount)) sections.push(SECTION_CHAPTERS);
 	if (partCount > 0) sections.push(SECTION_PARTS);
-	if (isBookSeries === true) sections.push(SECTION_BOOKS);
+	if (isBookSeries) sections.push(SECTION_BOOKS);
 	if (shouldIncludeExtras(extraCount)) sections.push(SECTION_EXTRAS);
 	if (parentCollectionCount > 0 && !shouldIncludeCollection(type)) sections.push(SECTION_PARENT_COLLECTIONS);
 	if (shouldIncludeDiscovery(state)) sections.push(SECTION_DISCOVERY);
 	if (reviewCount > 0) sections.push(SECTION_REVIEWS);
 	if (shouldIncludePeople({actorCount, directorCount})) sections.push(SECTION_PEOPLE);
-	if (isBookSeries === false) sections.push(SECTION_DETAILS);
+	if (!isBookSeries) sections.push(SECTION_DETAILS);
 	return sections;
 };

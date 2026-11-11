@@ -79,10 +79,7 @@ const NouveauHero = (props) => {
 		(!isPerson || showsSection('biography'));
 
 	const renderBranding = () => {
-		const itemName = bookSeriesItem !== null
-				? bookSeriesItem.Name
-				: item.Name;
-
+		const itemName = bookSeriesItem ? bookSeriesItem.Name : item.Name;
 		if (!logoUrl) return <h1 className={css.title}>{itemName}</h1>;
 
 		// A season's logo belongs to its series, so the season's own name goes beside it.

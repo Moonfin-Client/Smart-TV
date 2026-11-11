@@ -311,10 +311,7 @@ const SpotlightDetailContent = (props) => {
 	};
 
 	const heroTitle = () => {
-		const itemName = bookSeriesItem !== null
-				? bookSeriesItem?.Name
-				: item.Name;
-
+		const itemName = bookSeriesItem ? bookSeriesItem.Name : item.Name;
 		if (isEpisode) {
 			return (
 				<>

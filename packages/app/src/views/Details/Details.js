@@ -62,7 +62,8 @@ import ReviewDialog from './ReviewDialog';
 import PersonalRatingDialog from '../../components/PersonalRatingDialog';
 import {clampRating, clearedRatingPatch, isRatableItemType, normalizeRatingStyle, numericRatingPatch, thumbRatingPatch} from '../../utils/personalRating';
 import {personCalendarDate, personDateLines, splitFilmography} from '../../utils/personCredits';
-import {readingOrder, seriesProgress} from '../BookBrowse/bookScreens';
+import {featuredBook, readingOrder} from '../BookBrowse/bookScreens';
+import {useUserDataList} from '../../hooks/useUserDataSync';
 import {mergeCollectionWithMissing, mergeMissingByReleaseOrder} from './seerrMissingCollectionItems';
 import ClassicDetailScreen from './ClassicDetailScreen';
 import SpotlightDetailContent from './spotlight/SpotlightDetailContent';
@@ -97,7 +98,7 @@ const NO_ITEMS = [];
 // backdrop and theme music. onOpenFullPage(item, replace) opens a full page from it, in its place
 // when `replace` is set and over it otherwise, and onClose closes it.
 const Details = ({
-	itemId: itemIdProp, initialItem, onPlay, onSelectItem, onSelectPerson, onSelectStudio, onItemDeleted, autoPlay, onAutoPlayed,
+	itemId: openedId, initialItem: openedItem, onPlay, onSelectItem, onSelectPerson, onSelectStudio, onItemDeleted, autoPlay, onAutoPlayed,
 	seerrNav, backHandlerRef, quickLook = false, onOpenFullPage, onClose, onOpenWatchParty
 }) => {
 	const {api, serverUrl, user} = useAuth();
@@ -117,14 +118,15 @@ const Details = ({
 	const {isInGroup: isSyncPlayInGroup} = useSyncPlay();
 	const {room: watchPartyRoom} = useWatchParty();
 
-	let bookSeriesItem = null;
-	if (initialItem?.Type === "BookSeries") {
-		bookSeriesItem = initialItem;
-		const books = readingOrder(bookSeriesItem.Members || []);
-		const progress = seriesProgress(books);
-		initialItem = books.find(book => book === progress.next) ?? books[0];
-		itemIdProp = initialItem.Id;
-	}
+	// A book series has no server item of its own, so its page shows and acts on its featured book. Its
+	// books go in reading order, with the newest known read state laid over them, so the featured book
+	// follows what's been read since the library loaded.
+	const isBookSeries = openedItem?.Type === 'BookSeries';
+	const seriesMembers = useMemo(() => (isBookSeries ? readingOrder(openedItem.Members || []) : NO_ITEMS), [isBookSeries, openedItem]);
+	const seriesBooks = useUserDataList(seriesMembers);
+	const bookSeriesItem = useMemo(() => (isBookSeries ? {...openedItem, Members: seriesBooks} : null), [isBookSeries, openedItem, seriesBooks]);
+	const initialItem = isBookSeries ? featuredBook(seriesBooks) : openedItem;
+	const itemIdProp = isBookSeries ? initialItem?.Id : openedId;
 
 	const effectiveApi = useMemo(() => {
 		if (initialItem?._serverUrl && initialItem._serverAccessToken) {
@@ -399,7 +401,7 @@ const Details = ({
 		autoFocusedRef.current = Spotlight.getCurrent();
 	}, [isSeed, seerrOnly, isPersonItem]);
 
-	const handleOpenFullPage = useCallback(() => onOpenFullPage?.(initialItem, true), [onOpenFullPage, initialItem]);
+	const handleOpenFullPage = useCallback(() => onOpenFullPage?.(openedItem, true), [onOpenFullPage, openedItem]);
 	const handleOpenSeason = useCallback((season) => onOpenFullPage?.(season), [onOpenFullPage]);
 
 	// Quick Look draws what Stage does, and anything else swaps its drawer for the full page.

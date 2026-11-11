@@ -157,10 +157,9 @@ const seriesEntry = (id, name, members, folder) => {
 	return entry;
 };
 
-// The series in a book library. A folder holding two or more comics is one, unless it's one of
-// the library's roots, the only folders whose parent isn't another of its folders. Ebooks are
-// filed by author and audiobooks split into chapter files, so neither groups by folder. Books
-// sharing a series name are a series too, unless every one of them already sits in a series folder.
+// The series in a book library. Books sharing a series name are one, unless every one of them already
+// sits in a series folder. With bookFoldersAsSeries on, a folder holding two or more books is one too,
+// unless it's one of the library's roots, the only folders whose parent isn't another of its folders.
 export const bookSeriesEntries = (titles, folders, bookFoldersAsSeries) => {
 	const folderIds = new Set(folders.map((folder) => folder.Id));
 	const seriesFolders = new Map(folders.filter((folder) => folderIds.has(folder.ParentId)).map((folder) => [folder.Id, folder]));
