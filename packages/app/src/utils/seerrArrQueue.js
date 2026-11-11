@@ -87,10 +87,13 @@ export const isNotFoundYet = (response, items = response?.items) => {
 
 // Everything the screens need from one 200. `seasons` narrows a Sonarr answer to a season
 // request's seasons. The summary replaces the one built from Seerr's copy of the queue.
+// Null, which keeps Seerr's picture, when the arr doesn't have the title.
 // The reason and the release an admin can swap both come from the item that decides the
 // bar's state, the worst one.
 export const readArrQueue = (response, {seasons} = {}) => {
-	if (!response || !Array.isArray(response.items)) return null;
+	// A title the default arr doesn't have may sit with another one, which Seerr's copy of
+	// the queue can still show, so only a title the arr has replaces it.
+	if (!response || response.inArr !== true || !Array.isArray(response.items)) return null;
 	const items = forSeasons(response.items, seasons);
 	const summary = getDownloadSummary(items.map(asSeerrEntry), reasonFor);
 	const deciding = summary?.decidingItem || null;

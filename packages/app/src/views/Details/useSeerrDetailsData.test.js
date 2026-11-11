@@ -222,6 +222,28 @@ describe('the arr\'s own queue through Moonbase', () => {
 		expect(seerrApi.getArrQueue.mock.calls.length).toBe(asked + 1);
 	});
 
+	test('an answer that set off before a removal is thrown away', async () => {
+		mediaInfo = {status: MEDIA_STATUS.PROCESSING, tmdbId: 299534, requests: approved};
+		let late;
+		seerrApi.getArrQueue.mockReturnValueOnce(new Promise((resolve) => {
+			late = resolve;
+		}));
+		const {result} = await open(true);
+		act(() => result.current.invalidateArrQueue());
+		await act(async () => {
+			late(queue([stalled]));
+		});
+		expect(result.current.hdDownload).toBe(null);
+		expect(result.current.removableRelease).toBe(null);
+	});
+
+	test('a title the default arr doesn\'t have keeps Seerr\'s bar', async () => {
+		mediaInfo = {status: MEDIA_STATUS.PROCESSING, tmdbId: 299534, requests: approved, downloadStatus: [{downloadId: 'dl', size: 100, sizeLeft: 40}]};
+		seerrApi.getArrQueue.mockResolvedValue(queue([], {inArr: false}));
+		const {result} = await open(true);
+		expect(result.current.hdDownload.fraction).toBe(0.6);
+	});
+
 	test('an available title costs no call', async () => {
 		mediaInfo = {status: MEDIA_STATUS.AVAILABLE, tmdbId: 299534, requests: approved};
 		await open(true);

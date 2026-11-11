@@ -30,7 +30,7 @@ export const SeerrDownloadBars = memo(({seerr}) => {
 		<div className={css.downloads}>
 			{seerr.notFoundYet && (
 				<div className={css.downloadRow}>
-					<SeerrNotFoundYet />
+					<SeerrNotFoundYet prefix={seerr.download4k ? 'HD' : null} />
 				</div>
 			)}
 			{seerr.hdDownload && (

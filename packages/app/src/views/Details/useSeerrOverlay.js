@@ -134,7 +134,8 @@ const useSeerrOverlay = ({item, seerrOnly, showsSection, api}) => {
 		mediaType: target.mediaType,
 		setDetails: data.setDetails,
 		setError: setActionError,
-		setNotice
+		setNotice,
+		onRemoved: data.invalidateArrQueue
 	});
 
 	const {closeTopPopup: closeRequestPopup} = requests;

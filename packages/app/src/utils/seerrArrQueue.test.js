@@ -149,6 +149,18 @@ describe('readArrQueue', () => {
 		expect(readArrQueue(radarr()).summary).toBeNull();
 	});
 
+	test('a title the default arr doesn\'t have reads as nothing, so Seerr\'s bar stays', () => {
+		expect(readArrQueue(radarr({inArr: false, items: [radarrStalled]}))).toBeNull();
+	});
+
+	test('a stuck item with no id offers nothing to remove', () => {
+		const {id, ...noId} = radarrStalled;
+		void id;
+		const view = readArrQueue(radarr({items: [noId], canRemove: true}));
+		expect(view.summary.state).toBe(DOWNLOAD_STATE.STALLED);
+		expect(view.removable).toBeNull();
+	});
+
 	test('anything but a queue answer reads as nothing', () => {
 		expect(readArrQueue(null)).toBeNull();
 		expect(readArrQueue({service: 'radarr'})).toBeNull();
@@ -190,6 +202,10 @@ describe('what the screens show', () => {
 		const bar = hdDownloadFor({...processing, downloadStatus: []}, view);
 		expect(bar.state).toBe(DOWNLOAD_STATE.STALLED);
 		expect(bar.reason).toBe('qBittorrent cannot resolve magnet link with DHT disabled');
+	});
+
+	test('a 200 for a title the arr doesn\'t have keeps Part 1\'s bar', () => {
+		expect(hdDownloadFor(processing, readArrQueue(radarr({inArr: false}))).fraction).toBeCloseTo(0.5);
 	});
 
 	test('a 200 with an empty queue means no bar, and an available title has none either', () => {

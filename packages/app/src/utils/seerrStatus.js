@@ -134,8 +134,7 @@ const TRACKED_STATE = {
 };
 
 // Older Sonarr capitalizes the status. "warning" is usually a torrent with no
-// seeders, and an unreachable download client isn't moving either. A delayed
-// release is waiting its turn.
+// seeders, and an unreachable download client isn't moving either.
 const stateOf = (item, done) => {
 	const trackedState = lower(item.trackedDownloadState);
 	// Radarr and Sonarr leave a release holding an executable here, with a
@@ -154,8 +153,7 @@ const stateOf = (item, done) => {
 		case 'warning':
 		case 'downloadclientunavailable': return DOWNLOAD_STATE.STALLED;
 		case 'paused': return DOWNLOAD_STATE.PAUSED;
-		case 'queued':
-		case 'delay': return DOWNLOAD_STATE.QUEUED;
+		case 'queued': return DOWNLOAD_STATE.QUEUED;
 		default: return DOWNLOAD_STATE.DOWNLOADING;
 	}
 };

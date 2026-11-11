@@ -8,7 +8,7 @@ import $L from '@enact/i18n/$L';
 import seerrApi from '../../services/seerrApi';
 import {arrServiceName} from '../../utils/seerrArrQueue';
 
-const useSeerrReleaseSwap = ({release, mediaId, mediaType, setDetails, setError, setNotice}) => {
+const useSeerrReleaseSwap = ({release, mediaId, mediaType, setDetails, setError, setNotice, onRemoved}) => {
 	// The release the open dialog names, so confirming removes what the viewer read even when a
 	// poll lands in between. Null while the dialog is closed.
 	const [popupRelease, setPopupRelease] = useState(null);
@@ -41,6 +41,8 @@ const useSeerrReleaseSwap = ({release, mediaId, mediaType, setDetails, setError,
 			setError($L("Couldn't remove the download"));
 			return;
 		}
+		// A queue answer already on its way may still list the removed download.
+		if (onRemoved) onRemoved();
 		setNotice($L('Removed. {service} is searching for another release.').replace('{service}', () => arrServiceName(target.service)));
 		// The fresh details ask the queue again, which takes the bar away. A failed reload only
 		// leaves the bar until the next poll.
@@ -51,7 +53,7 @@ const useSeerrReleaseSwap = ({release, mediaId, mediaType, setDetails, setError,
 			void err;
 		}
 		setSwapping(false);
-	}, [popupRelease, swapping, mediaId, mediaType, setDetails, setError, setNotice]);
+	}, [popupRelease, swapping, mediaId, mediaType, setDetails, setError, setNotice, onRemoved]);
 
 	return {
 		// Hidden while a removal is on its way, so it can't be asked for twice.

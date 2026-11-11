@@ -155,7 +155,7 @@ const useSeerrDetailsData = ({mediaId, mediaType, contextUser, arrQueueAvailable
 
 	// What Radarr or Sonarr says about the HD track, when the plugin can see it. 4K stays with
 	// Seerr's picture, since the plugin only reads the default servers.
-	const queueResponse = useArrQueue({enabled: arrQueueAvailable, mediaType, details: shownDetails});
+	const {response: queueResponse, invalidate: invalidateArrQueue} = useArrQueue({enabled: arrQueueAvailable, mediaType, details: shownDetails});
 	const hdQueue = useMemo(() => readArrQueue(queueResponse), [queueResponse]);
 
 	const hdDownload = useMemo(() =>
@@ -219,7 +219,8 @@ const useSeerrDetailsData = ({mediaId, mediaType, contextUser, arrQueueAvailable
 		hdDownload,
 		download4k,
 		notFoundYet,
-		removableRelease
+		removableRelease,
+		invalidateArrQueue
 	};
 };
 

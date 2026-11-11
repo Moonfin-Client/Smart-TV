@@ -47,12 +47,13 @@ const SEARCH_OFF = 'M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 1
 
 // Where the bar would be when the arr has the title, is looking and has found
 // nothing to download. No bar, since nothing is downloading.
-export const SeerrNotFoundYet = memo(({compact = false}) => (
+// `prefix` names the track when a 4K bar shows beside it, the way the bars do.
+export const SeerrNotFoundYet = memo(({compact = false, prefix = null}) => (
 	<div className={[css.notFound, compact && css.compact].filter(Boolean).join(' ')}>
 		<svg className={css.notFoundIcon} viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
 			<path d={SEARCH_OFF} />
 		</svg>
-		<span className={css.notFoundLabel}>{$L('Not found yet')}</span>
+		<span className={css.notFoundLabel}>{prefix ? `${prefix} · ${$L('Not found yet')}` : $L('Not found yet')}</span>
 	</div>
 ));
 

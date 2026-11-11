@@ -39,6 +39,14 @@ test('confirming removes the release the dialog named, says so and reloads the t
 	expect(result.current.showSwapPopup).toBe(false);
 });
 
+test('a removal tells the queue to drop answers already on their way', async () => {
+	const onRemoved = jest.fn();
+	const {result} = setup({onRemoved});
+	act(() => result.current.handleSwapReleaseClick());
+	await act(() => result.current.handleSwapConfirm());
+	expect(onRemoved).toHaveBeenCalledTimes(1);
+});
+
 test('a failed removal says so and reloads nothing', async () => {
 	seerrApi.removeArrQueueItem.mockRejectedValue(Object.assign(new Error('Admin only'), {status: 403}));
 	const {result, setError, setNotice, setDetails} = setup();

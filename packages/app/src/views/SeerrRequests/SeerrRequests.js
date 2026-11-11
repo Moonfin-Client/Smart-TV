@@ -25,8 +25,7 @@ import {
 	ISSUE_STATUS,
 	getRequestStatusInfo,
 	getIssueStatusInfo,
-	getIssueTypeLabel,
-	isRequestDownloading
+	getIssueTypeLabel
 } from '../../utils/seerrStatus';
 import {requestDownloadFor, requestNotFoundYet, requestQueueView} from '../../utils/seerrArrQueue';
 import useRequestArrQueues, {requestQueueKey} from './useRequestArrQueues';
@@ -376,11 +375,23 @@ const SeerrRequests = ({onSelectItem, onClose, initialTab = 'requests', backHand
 	const loadingMoreRef = useRef(false);
 	const focusFirstRequestRef = useRef(false);
 
+	// Bumped by each full load, which asks the arr about every title again.
+	const [queueLoad, setQueueLoad] = useState(0);
 	// Older plugins don't say, and then the cards read Seerr's copy of the queue alone.
-	const {answers: queueAnswers, refresh: refreshQueues, asksAny: asksArrQueue} = useRequestArrQueues({
+	const {answers: queueAnswers, refresh: refreshQueues} = useRequestArrQueues({
 		enabled: pluginInfo?.arrQueueAvailable === true && tab === 'requests',
-		requests
+		requests,
+		loadToken: queueLoad
 	});
+
+	// The titles whose card shows a bar right now. Only those are worth asking about on every
+	// poll tick, so a long list of titles the arr can't find doesn't fire a call each.
+	const withBars = useMemo(() => requests.filter((request) =>
+		requestDownloadFor(request, requestQueueView(request, queueAnswers[requestQueueKey(request)]))
+	), [requests, queueAnswers]);
+	const showsAnyBar = withBars.length > 0;
+	const barKeysRef = useRef([]);
+	barKeysRef.current = withBars.map(requestQueueKey).filter(Boolean);
 
 	const canManage = seerrApi.canManageRequests(permissions);
 	const canManageIssuesPerm = seerrApi.canManageIssues(permissions);
@@ -432,6 +443,7 @@ const SeerrRequests = ({onSelectItem, onClose, initialTab = 'requests', backHand
 			const {results, raw} = await loadPage(activeTab, filter, 0);
 			if (activeTab === 'requests') {
 				setRequests(results);
+				setQueueLoad((n) => n + 1);
 			} else {
 				setIssues(results);
 			}
@@ -486,7 +498,7 @@ const SeerrRequests = ({onSelectItem, onClose, initialTab = 'requests', backHand
 	// fields. Unchanged rows keep reference equality so the memoized
 	// RequestItems skip re-rendering, and failures never surface the error UI.
 	const refreshDownloads = useCallback(() => {
-		refreshQueues();
+		refreshQueues(barKeysRef.current);
 		const sameJson = (a, b) => JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
 		seerrApi.getRequests(requestFilter, PAGE_SIZE, 0).then((data) => {
 			const byId = {};
@@ -524,12 +536,12 @@ const SeerrRequests = ({onSelectItem, onClose, initialTab = 'requests', backHand
 
 	// Poll while something on the requests tab is downloading so the progress
 	// bars advance without a manual refresh. The arr's queue can be downloading
-	// while Seerr's copy of it is empty, so a title it is asked about counts too.
+	// while Seerr's copy of it is empty, so its bars count too.
 	useEffect(() => {
-		if (tab !== 'requests' || loading || !(asksArrQueue || requests.some(isRequestDownloading))) return;
+		if (tab !== 'requests' || loading || !showsAnyBar) return;
 		const id = setInterval(refreshDownloads, 30000);
 		return () => clearInterval(id);
-	}, [tab, loading, requests, refreshDownloads, asksArrQueue]);
+	}, [tab, loading, refreshDownloads, showsAnyBar]);
 
 	// Back closes the thread overlay before the panel pops.
 	useEffect(() => {

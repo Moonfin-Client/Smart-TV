@@ -159,7 +159,6 @@ describe('download state', () => {
 		expect(stateOf(tracked('failedPending', 'downloading'))).toBe(DOWNLOAD_STATE.FAILED);
 		expect(stateOf(tracked('failed', 'downloading'))).toBe(DOWNLOAD_STATE.FAILED);
 		expect(stateOf({downloadId: 'a', size: GB, sizeLeft: GB, status: 'warning', trackedDownloadState: 'downloading'})).toBe(DOWNLOAD_STATE.STALLED);
-		expect(stateOf({downloadId: 'a', size: GB, sizeLeft: GB, status: 'delay'})).toBe(DOWNLOAD_STATE.QUEUED);
 	});
 
 	test('a blocked import ranks between stalled and failed, and an ignored one is skipped', () => {
