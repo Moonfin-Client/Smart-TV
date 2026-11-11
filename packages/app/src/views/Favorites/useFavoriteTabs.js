@@ -168,7 +168,10 @@ const useFavoriteTabs = ({api, sortBy, sortOrder, unifiedMode, enabled = true, s
 			setCountsByKey((prev) => ({...prev, [WATCHLIST_TAB.key]: cards.length + unreadRequests(first)}));
 			// The backdrops come once the row is up, since each takes a details request of its own. Silo's
 			// watchlist is a single page, so the pages after this one need none.
-			const backdrops = await watchlistBackdrops(first?.results || []);
+			const backdrops = await watchlistBackdrops(first?.results || []).catch((err) => {
+				console.error('Failed to read the watchlist backdrops:', err);
+				return new Map();
+			});
 			if (cancelled || backdrops.size === 0) return;
 			setItemsByKey((prev) => ({...prev, [WATCHLIST_TAB.key]: withWatchlistBackdrops(prev[WATCHLIST_TAB.key], backdrops)}));
 		};

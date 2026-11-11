@@ -362,7 +362,7 @@ const Favorites = ({onSelectItem, onSelectPerson, onSelectSeerrItem, onHome, bac
 
 	// A card filled in after it took focus, like a watchlist request card's backdrop, shows at once.
 	useEffect(() => {
-		setFocusedItem((current) => (current && displayItems.find((item) => item.Id === current.Id)) || current);
+		setFocusedItem((current) => (current && displayItems.find((item) => item.Id === current.Id && item._serverUrl === current._serverUrl)) || current);
 	}, [displayItems]);
 
 	const {posterHeight, itemSize: gridItemSize} = cardMetrics(cardType, imageSize);
