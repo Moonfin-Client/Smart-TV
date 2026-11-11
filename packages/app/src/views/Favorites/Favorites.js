@@ -29,8 +29,11 @@ import {PanelContainer} from '../../utils/spotlightContainers';
 import FocusedItemHud from './FocusedItemHud';
 import useFavoriteTabs from './useFavoriteTabs';
 import {cardMetrics, clampTabIndex, favoriteCardImage} from './favoriteTabs';
+import {registerThemeSheet} from '../../theme/themeOverrides';
 
 import css from './Favorites.module.less';
+
+registerThemeSheet('favorites', css);
 
 const SpottableDiv = Spottable('div');
 const SpottableButton = Spottable('button');
@@ -429,7 +432,7 @@ const Favorites = ({onSelectItem, onSelectPerson, onSelectSeerrItem, onHome, bac
 					<IncompleteBadge itemId={item.Id} belowFavorite={unifiedMode && Boolean(item._serverName)} />
 					{showsWatchedCheck(item) && (
 						<div className={css.watchedBadge}>
-							<svg viewBox="0 0 24 24"><path fill="white" d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>
+							<svg viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>
 						</div>
 					)}
 					<PosterLabels

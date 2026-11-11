@@ -391,6 +391,8 @@ export const buildThemeOverrideCss = (theme, options = {}) => {
 	// Search input
 	rule(`.${searchCss.searchInputWrapper}`, `background: ${inputBackground}; border-color: ${inputBorder};`);
 	rule(`.${searchCss.searchInputFocused}`, `background: ${inputFocused}; border-color: ${focusColor}; box-shadow: ${glowOr('none')};`);
+	rule(`.${searchCss.watchedBadge}`, `background: ${badgeWatched}; border-color: ${onBadge};`);
+	rule(`.${searchCss.watchedBadge} svg`, `fill: ${onBadge}; stroke: ${onBadge};`);
 
 	// Detail screens, classic layout
 	rule(`.${detailsCss.posterBadgeWatched}, .${detailsCss.watchedIndicator}`, `background: ${badgeWatched}; border-color: ${onBadge};`);
@@ -813,6 +815,12 @@ export const buildThemeOverrideCss = (theme, options = {}) => {
 	rule(`.${ratingsCss.ratingItemPlain}`, `background: transparent;`);
 	rule(`.${ratingsCss.ratingValue}, .${ratingsCss.ratingName}, .${ratingsCss.ratingNameCompact}`, `color: ${onSurface};`);
 	rule(`.${ratingsCss.ratingValueCompact}`, `color: ${onBackground};`);
+
+	// Watched badges on the screens that load on demand
+	Object.values(lazySheets).filter((sheet) => sheet.watchedBadge).forEach((sheet) => {
+		rule(`.${sheet.watchedBadge}`, `background: ${badgeWatched}; border-color: ${onBadge};`);
+		rule(`.${sheet.watchedBadge} svg`, `fill: ${onBadge}; stroke: ${onBadge};`);
+	});
 
 	// Focus rings on the screens that load on demand
 	const {player, playerOverlays, episodeBrowser, genreBrowse, seerrDiscover, seerrBrowse, seerrPosterCard, calendar} = lazySheets;
