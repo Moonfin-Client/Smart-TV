@@ -13,6 +13,7 @@ import {startServerShuffle} from '../../services/serverShuffle';
 import useWatchParty from '../../hooks/useWatchParty';
 import {useWatchPartyBackend} from '../../hooks/useWatchPartyRooms';
 import * as jellyfinApi from '../../services/jellyfinApi';
+import {getApiForItem} from '../../services/connectionPool';
 import {searchesForTrailer} from '../../services/youtubeTrailer';
 import {canKeepAsComplete, keepAsComplete, useIncompleteRecording} from '../../services/incompleteRecordings';
 import {saveAudioPref, saveSubtitlePref} from '../../services/subtitlePrefs';
@@ -132,12 +133,7 @@ const Details = ({
 	const initialItem = isBookSeries ? featuredBook(seriesBooks) : openedItem;
 	const itemIdProp = isBookSeries ? initialItem?.Id : openedId;
 
-	const effectiveApi = useMemo(() => {
-		if (initialItem?._serverUrl && initialItem._serverAccessToken) {
-			return jellyfinApi.createApiForServer(initialItem._serverUrl, initialItem._serverAccessToken, initialItem._serverUserId);
-		}
-		return api;
-	}, [initialItem, api]);
+	const effectiveApi = useMemo(() => getApiForItem(initialItem) || api, [initialItem, api]);
 
 	const effectiveServerUrl = useMemo(() => {
 		return initialItem?._serverUrl || serverUrl;
@@ -710,6 +706,7 @@ const Details = ({
 			const seriesItem = {Id: item.SeriesId, Type: 'Series'};
 			if (item._serverUrl) {
 				seriesItem._serverUrl = item._serverUrl;
+				seriesItem._serverType = item._serverType;
 				seriesItem._serverAccessToken = item._serverAccessToken;
 				seriesItem._serverUserId = item._serverUserId;
 				seriesItem._serverName = item._serverName;

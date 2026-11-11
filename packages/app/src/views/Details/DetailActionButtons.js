@@ -221,7 +221,7 @@ const DetailActionButtons = ({
 				<div className={css.btnAction}>
 					<BtnIcon path={DETAIL_ICON_PATHS.series}/>
 				</div>
-				<span className={css.btnLabel}>{$L('Series')}</span>
+				<span className={css.btnLabel}>{$L('Go to Series')}</span>
 			</SpottableDiv>
 		)},
 		{id: 'playlist', when: true, render: () => (

@@ -117,7 +117,7 @@ export const detailActionCatalogue = (props) => {
 		{id: 'favorite', when: offersFavorite(isPerson, effectiveServerUrl), render: () => <ActionButton path={DETAIL_ICON_PATHS.favorite} label={isFavorite ? $L('Favorited') : $L('Favorite')} active={isFavorite} onClick={handleToggleFavorite} spotlightId="details-favorite-btn" />},
 		{id: 'personDisplay', when: isPerson && Boolean(handleOpenPersonDisplayModal), render: () => <ActionButton path={DETAIL_ICON_PATHS.tune} label={$L('Display')} onClick={handleOpenPersonDisplayModal} />},
 		{id: 'personalRating', when: showsPersonalRating, render: () => <ActionButton path={personalRatingIconPath(personalRatingStyle, item.UserData)} label={personalRatingLabel(personalRatingStyle, item.UserData)} onClick={handleOpenRatingDialog} spotlightId="details-rating-btn" />},
-		{id: 'goToSeries', when: offersGoToSeries(props), render: () => <ActionButton path={DETAIL_ICON_PATHS.series} label={$L('Series')} onClick={handleGoToSeries} />},
+		{id: 'goToSeries', when: offersGoToSeries(props), render: () => <ActionButton path={DETAIL_ICON_PATHS.series} label={$L('Go to Series')} onClick={handleGoToSeries} />},
 		{id: 'playlist', when: !isPerson, render: () => <ActionButton path={DETAIL_ICON_PATHS.playlist} label={$L('Add to Playlist')} onClick={handleOpenPlaylistModal} />},
 		{id: 'collection', when: Boolean(handleOpenCollectionModal), render: () => <ActionButton path={DETAIL_ICON_PATHS.collection} label={$L('Add to Collection')} onClick={handleOpenCollectionModal} />},
 		{id: 'deleteFiles', when: item.CanDelete, render: () => <ActionButton path={DETAIL_ICON_PATHS.delete} label={$L('Delete')} onClick={handleOpenDeleteDialog} />},
