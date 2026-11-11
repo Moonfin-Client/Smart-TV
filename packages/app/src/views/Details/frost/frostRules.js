@@ -209,7 +209,7 @@ export const frostSeerrStatus = (status, colors) => {
 };
 
 // The status line while a title downloads: what it's doing, how far along, the time left and
-// the sizes. A stuck download takes the pending or error colour, and a paused or queued one goes grey.
+// the sizes. A stuck download takes the pending or error color, and a paused or queued one goes gray.
 export const frostDownloadStatus = (download, colors) => {
 	if (download.state === DOWNLOAD_STATE.WAITING_FOR_IMPORT) {
 		return {label: $L('Downloaded, waiting for import'), color: colors.requested};

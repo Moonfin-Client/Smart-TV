@@ -8,7 +8,7 @@ import css from './SeerrDownloadProgress.module.less';
 // focus order is unaffected. summary comes from getDownloadSummary or
 // getMediaDownloadSummary in utils/seerrStatus. compact is for a poster tile,
 // where the verb has no room and the sizes give way before the percentage does.
-// A stalled or failed bar takes a status colour, so a stuck download stands out
+// A stalled or failed bar takes a status color, so a stuck download stands out
 // from a slow one, and a paused or queued one dims while it waits.
 const STATE_CLASS = {
 	[DOWNLOAD_STATE.STALLED]: css.stalled,

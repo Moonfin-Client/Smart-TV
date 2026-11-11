@@ -185,7 +185,7 @@ describe('where a title stands in Seerr', () => {
 		expect(frostSeerrStatus(undefined, colors)).toEqual({label: 'Not Requested', color: colors.none});
 	});
 
-	test('a download says what it is doing, and a stuck one takes the pending or error colour', () => {
+	test('a download says what it is doing, and a stuck one takes the pending or error color', () => {
 		const colors = frostStatusColors(resolveThemeById('moonfin'));
 		const GB = 1024 * 1024 * 1024;
 		const download = {fraction: 0.45, state: DOWNLOAD_STATE.DOWNLOADING, timeLeftSeconds: 3900, totalBytes: 2 * GB, downloadedBytes: 0.9 * GB};

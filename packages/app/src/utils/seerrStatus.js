@@ -117,7 +117,7 @@ const STATE_RANK = [
 	DOWNLOAD_STATE.FAILED
 ];
 
-// Older Sonarr capitalises the status. "warning" is usually a torrent with no
+// Older Sonarr capitalizes the status. "warning" is usually a torrent with no
 // seeders, and an unreachable download client isn't moving either.
 const stateOf = (status, done) => {
 	const value = typeof status === 'string' ? status.toLowerCase() : '';
@@ -133,7 +133,7 @@ const stateOf = (status, done) => {
 	}
 };
 
-// Seconds in a .NET TimeSpan as Radarr and Sonarr serialise it: "hh:mm:ss",
+// Seconds in a .NET TimeSpan as Radarr and Sonarr serialize it: "hh:mm:ss",
 // with a "d." day prefix past a day and an optional fraction of a second.
 // Null when it is missing or unreadable.
 export const parseTimeLeft = (value) => {
@@ -200,8 +200,7 @@ export const getDownloadSummary = (items) => {
 	return {
 		fraction,
 		state,
-		isWaitingForImport: state === DOWNLOAD_STATE.WAITING_FOR_IMPORT,
-		// One download with no estimate leaves the whole request's unknown.
+		// One download with no estimate leaves the whole request's time left unknown.
 		timeLeftSeconds: state === DOWNLOAD_STATE.DOWNLOADING && timeLeftKnown ? timeLeft : null,
 		totalBytes: total,
 		downloadedBytes: total - left

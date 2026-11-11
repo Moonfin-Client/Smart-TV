@@ -18,7 +18,7 @@ describe('buildThemeOverrideCss', () => {
 		expect(css).not.toContain('var(--theme');
 	});
 
-	it('colours the Seerr download bar, amber when stalled and red when failed', () => {
+	it('colors the Seerr download bar, amber when stalled and red when failed', () => {
 		const theme = resolveThemeById('moonfin');
 		const lines = buildThemeOverrideCss(theme).split('\n');
 		const fill = (selector) => lines.filter((line) => line.includes(`] ${selector} {`)).join('\n');

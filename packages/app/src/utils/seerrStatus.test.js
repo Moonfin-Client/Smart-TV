@@ -68,7 +68,6 @@ describe('getDownloadSummary', () => {
 		expect(summary.downloadedBytes).toBe(2 * GB);
 		expect(summary.fraction).toBeCloseTo(0.4);
 		expect(summary.state).toBe(DOWNLOAD_STATE.DOWNLOADING);
-		expect(summary.isWaitingForImport).toBe(false);
 	});
 
 	test('entries without a download id are left out, and none at all is nothing', () => {
@@ -91,7 +90,7 @@ describe('getDownloadSummary', () => {
 describe('download state', () => {
 	const stateOf = (...items) => getDownloadSummary(items).state;
 
-	test('a warning reads as stalled, and older Sonarr capitalises it', () => {
+	test('a warning reads as stalled, and older Sonarr capitalizes it', () => {
 		expect(stateOf({downloadId: 'a', size: GB, sizeLeft: GB, status: 'warning'})).toBe(DOWNLOAD_STATE.STALLED);
 		expect(stateOf({downloadId: 'a', size: GB, sizeLeft: GB, status: 'Warning'})).toBe(DOWNLOAD_STATE.STALLED);
 	});
@@ -106,7 +105,6 @@ describe('download state', () => {
 		const summary = getDownloadSummary([{downloadId: 'a', size: GB, sizeLeft: 0, status: 'downloading'}]);
 
 		expect(summary.state).toBe(DOWNLOAD_STATE.WAITING_FOR_IMPORT);
-		expect(summary.isWaitingForImport).toBe(true);
 		expect(summary.fraction).toBe(1);
 	});
 
@@ -117,7 +115,7 @@ describe('download state', () => {
 		expect(summary.fraction).toBe(1);
 	});
 
-	test('a download with no bytes left reported is not finished', () => {
+	test("a download with no bytes left reported isn't finished", () => {
 		const summary = getDownloadSummary([{downloadId: 'a', size: GB}]);
 
 		expect(summary.state).toBe(DOWNLOAD_STATE.DOWNLOADING);
@@ -152,7 +150,7 @@ describe('download state', () => {
 		expect(stateOf(paused, downloading)).toBe(DOWNLOAD_STATE.DOWNLOADING);
 	});
 
-	test('one finished episode does not hide the one still downloading', () => {
+	test("one finished episode doesn't hide the one still downloading", () => {
 		const done = {downloadId: 'a', size: GB, sizeLeft: 0, status: 'completed'};
 		const going = {downloadId: 'b', size: GB, sizeLeft: GB / 2, status: 'downloading'};
 
@@ -181,7 +179,7 @@ describe('download time left', () => {
 		expect(getDownloadSummary([going('a', '00:10:00'), going('b', '00:05:00', 'paused')]).timeLeftSeconds).toBeNull();
 	});
 
-	test('a finished sibling does not count against it', () => {
+	test("a finished sibling doesn't count against it", () => {
 		const done = {downloadId: 'z', size: GB, sizeLeft: 0, status: 'completed', timeLeft: '00:00:00'};
 		expect(getDownloadSummary([done, going('a', '00:10:00')]).timeLeftSeconds).toBe(600);
 	});
