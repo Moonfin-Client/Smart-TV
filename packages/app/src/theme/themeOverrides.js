@@ -643,6 +643,7 @@ export const buildThemeOverrideCss = (theme, options = {}) => {
 	rule(`.${fr.metaRating}, .${fr.techChip}`, `border-color: ${ink(0.55)}; color: ${ink(0.85)};`);
 	rule(`.${fr.statusUpcoming}`, `background: ${accent};`);
 	rule(`.${fr.status}`, `color: ${ink(0.8)};`);
+	rule(`.${fr.statusReason}`, `color: ${ink(0.6)};`);
 	rule(`.${fr.textBody}, .${fr.posterTitle}`, `color: ${ink(0.9)};`);
 	rule(`.${fr.credits}, .${fr.readMoreText}`, `color: ${ink(0.92)};`);
 	rule(`.${fr.infoValue}`, `color: ${ink(0.94)};`);

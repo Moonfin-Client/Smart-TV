@@ -280,6 +280,22 @@
 	.ellipsis();
 }
 
+// The arr's own words for why the download is stuck, under the status line. Up to three lines,
+// with max-height standing in for the clamp on engines without it.
+.statusReason {
+	color: rgba(235, 235, 245, 0.6);
+	display: -webkit-box;
+	font-size: 21px;
+	line-height: 1.25;
+	margin-top: 6px;
+	max-height: 3.75em;
+	overflow: hidden;
+	overflow-wrap: break-word;
+	word-wrap: break-word;
+	-webkit-box-orient: vertical;
+	-webkit-line-clamp: 3;
+}
+
 // The ratings strip, with hairlines over and under it. Ratings that never came leave it empty, and
 // then it isn't drawn at all.
 .strip {

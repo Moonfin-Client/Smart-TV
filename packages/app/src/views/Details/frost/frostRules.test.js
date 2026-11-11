@@ -198,6 +198,8 @@ describe('where a title stands in Seerr', () => {
 		expect(frostDownloadStatus({...download, state: DOWNLOAD_STATE.QUEUED}, colors).color).toBe(colors.none);
 		expect(frostDownloadStatus({fraction: 1, state: DOWNLOAD_STATE.WAITING_FOR_IMPORT}, colors))
 			.toEqual({label: 'Downloaded, waiting for import', color: colors.requested});
+		expect(frostDownloadStatus({fraction: 1, state: DOWNLOAD_STATE.IMPORT_BLOCKED, totalBytes: 2 * GB, downloadedBytes: 2 * GB}, colors))
+			.toEqual({label: 'Import blocked', color: colors.pending});
 	});
 
 	test('takes its colors from the theme, with not requested in its faded text color', () => {

@@ -169,3 +169,9 @@
 .cancelMessage {
 	color: rgba(255, 255, 255, 0.7);
 }
+
+// Release names have no spaces, so they break anywhere rather than run out of the dialog.
+.releaseMessage {
+	word-wrap: break-word;
+	overflow-wrap: break-word;
+}

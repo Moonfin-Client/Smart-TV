@@ -150,6 +150,35 @@ describe('download state', () => {
 		expect(stateOf(paused, downloading)).toBe(DOWNLOAD_STATE.DOWNLOADING);
 	});
 
+	test('the arr\'s tracked state wins over the download client\'s status', () => {
+		const tracked = (trackedDownloadState, status = 'completed') => ({downloadId: 'a', size: GB, sizeLeft: 0, status, trackedDownloadState});
+		expect(stateOf(tracked('importBlocked'))).toBe(DOWNLOAD_STATE.IMPORT_BLOCKED);
+		expect(stateOf(tracked('importPending'))).toBe(DOWNLOAD_STATE.WAITING_FOR_IMPORT);
+		expect(stateOf(tracked('importing'))).toBe(DOWNLOAD_STATE.WAITING_FOR_IMPORT);
+		expect(stateOf(tracked('imported'))).toBe(DOWNLOAD_STATE.WAITING_FOR_IMPORT);
+		expect(stateOf(tracked('failedPending', 'downloading'))).toBe(DOWNLOAD_STATE.FAILED);
+		expect(stateOf(tracked('failed', 'downloading'))).toBe(DOWNLOAD_STATE.FAILED);
+		expect(stateOf({downloadId: 'a', size: GB, sizeLeft: GB, status: 'warning', trackedDownloadState: 'downloading'})).toBe(DOWNLOAD_STATE.STALLED);
+		expect(stateOf({downloadId: 'a', size: GB, sizeLeft: GB, status: 'delay'})).toBe(DOWNLOAD_STATE.QUEUED);
+	});
+
+	test('a blocked import ranks between stalled and failed, and an ignored one is skipped', () => {
+		const stalled = {downloadId: 'a', size: GB, sizeLeft: GB, status: 'warning'};
+		const blocked = {downloadId: 'b', size: GB, sizeLeft: 0, status: 'completed', trackedDownloadState: 'importBlocked'};
+		const failed = {downloadId: 'c', size: GB, sizeLeft: GB, status: 'failed'};
+		const ignored = {downloadId: 'd', size: GB, sizeLeft: GB, status: 'failed', trackedDownloadState: 'ignored'};
+		expect(stateOf(stalled, blocked)).toBe(DOWNLOAD_STATE.IMPORT_BLOCKED);
+		expect(stateOf(blocked, failed)).toBe(DOWNLOAD_STATE.FAILED);
+		expect(stateOf(stalled, ignored)).toBe(DOWNLOAD_STATE.STALLED);
+		expect(getDownloadSummary([ignored])).toBeNull();
+	});
+
+	test('the summary keeps the item that decided its state', () => {
+		const going = {downloadId: 'a', size: GB, sizeLeft: GB / 2, status: 'downloading'};
+		const stalled = {downloadId: 'b', size: GB, sizeLeft: GB, status: 'warning'};
+		expect(getDownloadSummary([going, stalled]).decidingItem).toBe(stalled);
+	});
+
 	test("one finished episode doesn't hide the one still downloading", () => {
 		const done = {downloadId: 'a', size: GB, sizeLeft: 0, status: 'completed'};
 		const going = {downloadId: 'b', size: GB, sizeLeft: GB / 2, status: 'downloading'};
@@ -220,6 +249,12 @@ describe('formatBytes', () => {
 });
 
 describe('downloadLabelParts', () => {
+	test('a blocked import says so alone, on a tile and on the full bar', () => {
+		const blocked = {fraction: 1, state: DOWNLOAD_STATE.IMPORT_BLOCKED, totalBytes: 5000, downloadedBytes: 5000};
+		expect(downloadLabelParts(blocked)).toEqual({leading: 'Import blocked', percent: null});
+		expect(downloadLabelParts(blocked, true)).toEqual({leading: 'Import blocked', percent: null});
+	});
+
 	const summary = {fraction: 0.09, state: DOWNLOAD_STATE.DOWNLOADING, totalBytes: 15 * GB, downloadedBytes: 1.4 * GB};
 
 	test('wide: the verb, both sizes and the percentage', () => {

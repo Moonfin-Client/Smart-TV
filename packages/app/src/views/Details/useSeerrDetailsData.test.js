@@ -18,7 +18,8 @@ jest.mock('../../services/seerrApi', () => ({
 		getMovieRecommendations: jest.fn(),
 		getMovieSimilar: jest.fn(),
 		getTvRecommendations: jest.fn(),
-		getTvSimilar: jest.fn()
+		getTvSimilar: jest.fn(),
+		getArrQueue: jest.fn()
 	}
 }));
 
@@ -33,8 +34,8 @@ const elapse = (ms) => act(async () => {
 	await jest.advanceTimersByTimeAsync(ms);
 });
 
-const open = async () => {
-	const view = renderHook(() => useSeerrDetailsData({mediaId: 299534, mediaType: 'movie', contextUser: null}));
+const open = async (arrQueueAvailable = false) => {
+	const view = renderHook(() => useSeerrDetailsData({mediaId: 299534, mediaType: 'movie', contextUser: null, arrQueueAvailable}));
 	await elapse(0);
 	return view;
 };
@@ -55,6 +56,7 @@ beforeEach(() => {
 	seerrApi.getPublicSettings.mockResolvedValue({});
 	seerrApi.getMovieRecommendations.mockResolvedValue({results: []});
 	seerrApi.getMovieSimilar.mockResolvedValue({results: []});
+	seerrApi.getArrQueue.mockResolvedValue(null);
 });
 
 afterEach(() => jest.useRealTimers());
@@ -170,5 +172,59 @@ describe('moving to another title', () => {
 		await act(async () => finish({id: 603, title: 'The Matrix', mediaInfo}));
 		await elapse(0);
 		expect(seen[seen.length - 1]).toEqual({id: 603, loading: false, recommendations: 1});
+	});
+});
+
+describe('the arr\'s own queue through Moonbase', () => {
+	const approved = [{is4k: false, status: 2}];
+	const stalled = {id: 9, title: 'Rel', downloadId: 'D', status: 'warning', errorMessage: 'no connections', size: 0, sizeleft: 0};
+	const queue = (items, extra = {}) => ({service: 'radarr', inArr: true, monitored: true, canRemove: true, hasFile: false, isAvailable: true, items, ...extra});
+
+	test('is never asked when the plugin does not offer it', async () => {
+		mediaInfo = {status: MEDIA_STATUS.PROCESSING, tmdbId: 299534, requests: approved};
+		await open(false);
+		expect(seerrApi.getArrQueue).not.toHaveBeenCalled();
+	});
+
+	test('draws a stuck bar with its reason even when Seerr reports no queue, and offers the swap', async () => {
+		mediaInfo = {status: MEDIA_STATUS.PROCESSING, tmdbId: 299534, requests: approved};
+		seerrApi.getArrQueue.mockResolvedValue(queue([stalled]));
+		const {result} = await open(true);
+		expect(seerrApi.getArrQueue).toHaveBeenCalledWith('radarr', '299534');
+		expect(result.current.hdDownload).toMatchObject({state: 'stalled', reason: 'no connections'});
+		expect(result.current.removableRelease).toEqual({service: 'radarr', id: 9, release: 'Rel'});
+		expect(result.current.notFoundYet).toBe(false);
+	});
+
+	test('says Not found yet for a released film with nothing queued', async () => {
+		mediaInfo = {status: MEDIA_STATUS.PROCESSING, tmdbId: 299534, requests: approved};
+		seerrApi.getArrQueue.mockResolvedValue(queue([]));
+		const {result} = await open(true);
+		expect(result.current.hdDownload).toBe(null);
+		expect(result.current.notFoundYet).toBe(true);
+		expect(result.current.removableRelease).toBe(null);
+	});
+
+	test('keeps Part 1 when the plugin answers anything but a 200', async () => {
+		mediaInfo = {status: MEDIA_STATUS.PROCESSING, tmdbId: 299534, requests: approved, downloadStatus: [{downloadId: 'dl', size: 100, sizeLeft: 40}]};
+		const {result} = await open(true);
+		expect(result.current.hdDownload.fraction).toBe(0.6);
+		expect(result.current.notFoundYet).toBe(false);
+	});
+
+	test('asks again on every refresh, on the download beat', async () => {
+		mediaInfo = {status: MEDIA_STATUS.PROCESSING, tmdbId: 299534, requests: approved};
+		seerrApi.getArrQueue.mockResolvedValue(queue([stalled]));
+		await open(true);
+		const asked = seerrApi.getArrQueue.mock.calls.length;
+		await elapse(15000);
+		expect(refreshes()).toBe(1);
+		expect(seerrApi.getArrQueue.mock.calls.length).toBe(asked + 1);
+	});
+
+	test('an available title costs no call', async () => {
+		mediaInfo = {status: MEDIA_STATUS.AVAILABLE, tmdbId: 299534, requests: approved};
+		await open(true);
+		expect(seerrApi.getArrQueue).not.toHaveBeenCalled();
 	});
 });

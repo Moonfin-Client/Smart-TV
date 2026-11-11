@@ -260,13 +260,27 @@ const DetailActionButtons = ({
 				<span className={css.btnLabel}>{$L('Report Issue')}</span>
 			</SpottableDiv>
 		)},
-		{id: 'seerrManage', when: seerr.showsManage, render: () => (
-			<SpottableDiv className={css.btnWrapper} onClick={seerr.handleManageRequestsClick}>
-				<div className={css.btnAction}>
-					<BtnIcon path={DETAIL_ICON_PATHS.manageRequests}/>
-				</div>
-				<span className={css.btnLabel}>{$L('Manage Requests')}</span>
-			</SpottableDiv>
+		// Get a different release rides in Manage Requests' slot, so the synced arrangement needs
+		// no new id and both show side by side when both apply.
+		{id: 'seerrManage', when: seerr.showsManageSlot, render: () => (
+			<>
+				{seerr.showsManage && (
+					<SpottableDiv className={css.btnWrapper} onClick={seerr.handleManageRequestsClick}>
+						<div className={css.btnAction}>
+							<BtnIcon path={DETAIL_ICON_PATHS.manageRequests}/>
+						</div>
+						<span className={css.btnLabel}>{$L('Manage Requests')}</span>
+					</SpottableDiv>
+				)}
+				{seerr.showsSwapRelease && (
+					<SpottableDiv className={css.btnWrapper} onClick={seerr.handleSwapReleaseClick}>
+						<div className={css.btnAction}>
+							<BtnIcon path={DETAIL_ICON_PATHS.swapRelease}/>
+						</div>
+						<span className={css.btnLabel}>{$L('Get a different release')}</span>
+					</SpottableDiv>
+				)}
+			</>
 		)},
 		{id: 'keepAsComplete', when: Boolean(onKeepAsComplete), render: () => (
 			<SpottableDiv className={css.btnWrapper} onClick={onKeepAsComplete}>

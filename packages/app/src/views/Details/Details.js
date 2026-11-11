@@ -286,6 +286,13 @@ const Details = ({
 		clearSeerrActionError();
 	}, [seerrActionError, clearSeerrActionError, showToast]);
 
+	const {notice: seerrNotice, clearNotice: clearSeerrNotice} = seerr;
+	useEffect(() => {
+		if (!seerrNotice) return;
+		showToast(seerrNotice);
+		clearSeerrNotice();
+	}, [seerrNotice, clearSeerrNotice, showToast]);
+
 	// The expanded overview box collapses on BACK through the same chain the
 	// screen's overlays use.
 	const overviewBackRef = useRef(null);

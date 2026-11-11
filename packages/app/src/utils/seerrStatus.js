@@ -97,14 +97,16 @@ export const getIssueStatusInfo = (issue) => {
 // along. When several downloads make up one request the summary shows the one
 // that ranks last here. Stalled and failed outrank everything, and downloading
 // outranks paused and queued, since one active download means the request is
-// moving. A blocked import waits for import too, since the download client
-// reports it as completed.
+// moving. Seerr can't tell a blocked import from one still waiting, since the
+// download client reports both as completed. The arr's own queue, read through
+// Moonbase, can, and a blocked import needs a hand much like a stalled download.
 export const DOWNLOAD_STATE = {
 	WAITING_FOR_IMPORT: 'waitingForImport',
 	PAUSED: 'paused',
 	QUEUED: 'queued',
 	DOWNLOADING: 'downloading',
 	STALLED: 'stalled',
+	IMPORT_BLOCKED: 'importBlocked',
 	FAILED: 'failed'
 };
 
@@ -114,13 +116,37 @@ const STATE_RANK = [
 	DOWNLOAD_STATE.QUEUED,
 	DOWNLOAD_STATE.DOWNLOADING,
 	DOWNLOAD_STATE.STALLED,
+	DOWNLOAD_STATE.IMPORT_BLOCKED,
 	DOWNLOAD_STATE.FAILED
 ];
 
+const lower = (value) => (typeof value === 'string' ? value.toLowerCase() : '');
+
+// What the arr's tracking says once it has an opinion past downloading. Only the
+// arr's own queue carries it, so an entry from Seerr has none and goes by status.
+const TRACKED_STATE = {
+	importblocked: DOWNLOAD_STATE.IMPORT_BLOCKED,
+	importpending: DOWNLOAD_STATE.WAITING_FOR_IMPORT,
+	importing: DOWNLOAD_STATE.WAITING_FOR_IMPORT,
+	imported: DOWNLOAD_STATE.WAITING_FOR_IMPORT,
+	failedpending: DOWNLOAD_STATE.FAILED,
+	failed: DOWNLOAD_STATE.FAILED
+};
+
 // Older Sonarr capitalizes the status. "warning" is usually a torrent with no
-// seeders, and an unreachable download client isn't moving either.
-const stateOf = (status, done) => {
-	const value = typeof status === 'string' ? status.toLowerCase() : '';
+// seeders, and an unreachable download client isn't moving either. A delayed
+// release is waiting its turn.
+const stateOf = (item, done) => {
+	const trackedState = lower(item.trackedDownloadState);
+	// Radarr and Sonarr leave a release holding an executable here, with a
+	// warning, until someone steps in, so it is as stuck as a blocked one.
+	const flagged = ['warning', 'error'].includes(lower(item.trackedDownloadStatus));
+	if (flagged && (trackedState === 'importpending' || trackedState === 'importing')) {
+		return DOWNLOAD_STATE.IMPORT_BLOCKED;
+	}
+	const tracked = TRACKED_STATE[trackedState];
+	if (tracked) return tracked;
+	const value = lower(item.status);
 	if (value === 'failed') return DOWNLOAD_STATE.FAILED;
 	if (done) return DOWNLOAD_STATE.WAITING_FOR_IMPORT;
 	switch (value) {
@@ -128,7 +154,8 @@ const stateOf = (status, done) => {
 		case 'warning':
 		case 'downloadclientunavailable': return DOWNLOAD_STATE.STALLED;
 		case 'paused': return DOWNLOAD_STATE.PAUSED;
-		case 'queued': return DOWNLOAD_STATE.QUEUED;
+		case 'queued':
+		case 'delay': return DOWNLOAD_STATE.QUEUED;
 		default: return DOWNLOAD_STATE.DOWNLOADING;
 	}
 };
@@ -152,17 +179,23 @@ export const parseTimeLeft = (value) => {
 //
 // Sonarr lists a season pack once per episode, each with the whole pack's size
 // and the same downloadId, so each download counts once. An entry with no
-// downloadId is a release Sonarr or Radarr is holding back and not downloading.
-export const getDownloadSummary = (items) => {
+// downloadId is a release Sonarr or Radarr is holding back and not downloading,
+// and one the arr's tracking ignores is no longer its business. The entry that
+// decides the state rides along, since it is the one an admin would swap out.
+// `reasonOf(item, state)` gives an entry's reason, when its source has one. Of
+// two entries stuck the same way, the one that says why decides.
+export const getDownloadSummary = (items, reasonOf = null) => {
 	if (!Array.isArray(items) || items.length === 0) return null;
 	let total = 0;
 	let left = 0;
 	let state = null;
+	let decidingItem = null;
 	let timeLeft = null;
 	let timeLeftKnown = true;
 	const seen = new Set();
 	for (const item of items) {
 		if (!item || !item.downloadId || seen.has(item.downloadId)) continue;
+		if (lower(item.trackedDownloadState) === 'ignored') continue;
 		seen.add(item.downloadId);
 		// A magnet with no peers never learns its size, so a sizeless download
 		// still counts for its state. It just adds no bytes.
@@ -174,8 +207,13 @@ export const getDownloadSummary = (items) => {
 		total += size;
 		left += itemLeft;
 
-		const itemState = stateOf(item.status, size > 0 && hasSizeLeft && itemLeft <= 0);
-		if (state === null || STATE_RANK.indexOf(itemState) > STATE_RANK.indexOf(state)) state = itemState;
+		const itemState = stateOf(item, size > 0 && hasSizeLeft && itemLeft <= 0);
+		if (state === null || STATE_RANK.indexOf(itemState) > STATE_RANK.indexOf(state)) {
+			state = itemState;
+			decidingItem = item;
+		} else if (reasonOf && itemState === state && !reasonOf(decidingItem, state) && reasonOf(item, itemState)) {
+			decidingItem = item;
+		}
 		if (itemState === DOWNLOAD_STATE.WAITING_FOR_IMPORT) continue;
 		// A paused or queued sibling has no end in sight, so the request has
 		// none either, however soon the active one finishes.
@@ -188,9 +226,10 @@ export const getDownloadSummary = (items) => {
 	}
 	if (state === null) return null;
 	let fraction = total > 0 ? Math.min(Math.max((total - left) / total, 0), 1) : 0;
-	if (state === DOWNLOAD_STATE.WAITING_FOR_IMPORT) {
+	if (state === DOWNLOAD_STATE.WAITING_FOR_IMPORT || state === DOWNLOAD_STATE.IMPORT_BLOCKED) {
 		// The client can call a download completed before its byte count
-		// settles, and the label says it's done, so the bar does too.
+		// settles, and the label says it's done, so the bar does too. A blocked
+		// import has finished downloading as well.
 		fraction = 1;
 	} else if (fraction > 0.99) {
 		// A sizeless download adds no bytes, so the sized ones alone can add up
@@ -203,7 +242,9 @@ export const getDownloadSummary = (items) => {
 		// One download with no estimate leaves the whole request's time left unknown.
 		timeLeftSeconds: state === DOWNLOAD_STATE.DOWNLOADING && timeLeftKnown ? timeLeft : null,
 		totalBytes: total,
-		downloadedBytes: total - left
+		downloadedBytes: total - left,
+		decidingItem,
+		reason: reasonOf ? reasonOf(decidingItem, state) || null : null
 	};
 };
 
@@ -233,6 +274,7 @@ export const downloadSizesLabel = (summary) => (summary.totalBytes > 0
 export const downloadStateLabel = (summary) => {
 	switch (summary.state) {
 		case DOWNLOAD_STATE.STALLED: return $L('Stalled');
+		case DOWNLOAD_STATE.IMPORT_BLOCKED: return $L('Import blocked');
 		case DOWNLOAD_STATE.FAILED: return $L('Download failed');
 		case DOWNLOAD_STATE.PAUSED: return $L('Paused');
 		case DOWNLOAD_STATE.QUEUED: return $L('Queued');
@@ -261,6 +303,11 @@ export const downloadLabelParts = (summary, compact = false) => {
 	if (summary.state === DOWNLOAD_STATE.WAITING_FOR_IMPORT) {
 		// "Downloaded, wai…" on a tile loses the point, so it says the first word.
 		return {leading: compact ? $L('Downloaded') : $L('Downloaded, waiting for import'), percent: null};
+	}
+	if (summary.state === DOWNLOAD_STATE.IMPORT_BLOCKED) {
+		// It always finished downloading, so the percentage and sizes say nothing and
+		// would cut the words on a tile.
+		return {leading: $L('Import blocked'), percent: null};
 	}
 	let percent = `${Math.round(summary.fraction * 100)}%`;
 	const sizes = downloadSizesLabel(summary);

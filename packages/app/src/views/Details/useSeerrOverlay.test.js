@@ -53,3 +53,32 @@ describe('useSeerrOverlay on a season or episode', () => {
 		expect(result.current.isActive).toBe(false);
 	});
 });
+
+describe('Get a different release', () => {
+	const release = {service: 'sonarr', id: 7, release: 'Lupin.S03'};
+	beforeEach(() => {
+		useSeerrDetailsData.mockImplementation(({mediaId}) => ({
+			details: mediaId ? seriesDetails : null,
+			similar: [],
+			recommendations: [],
+			loading: false,
+			removableRelease: release
+		}));
+	});
+
+	test('is offered on the series\' own page, in the Manage Requests slot', async () => {
+		const series = {Id: 's1', Type: 'Series', Name: 'Lupin', ProviderIds: {Tmdb: '96677'}};
+		const {result} = renderHook(() => useSeerrOverlay({item: series, seerrOnly: false, showsSection: () => true, api: {}}));
+		await waitFor(() => expect(result.current.isActive).toBe(true));
+		expect(result.current.showsSwapRelease).toBe(true);
+		expect(result.current.showsManageSlot).toBe(true);
+	});
+
+	test('is not offered on a season or episode page, which shows the whole series\' bar', async () => {
+		const api = {getItem: jest.fn().mockResolvedValue({Name: 'Lupin', ProviderIds: {Tmdb: '96677'}})};
+		const {result} = renderHook(() => useSeerrOverlay({item: episode, seerrOnly: false, showsSection: () => true, api}));
+		await waitFor(() => expect(result.current.isActive).toBe(true));
+		expect(result.current.showsSwapRelease).toBe(false);
+		expect(result.current.showsManageSlot).toBe(false);
+	});
+});

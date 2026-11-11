@@ -347,15 +347,23 @@ const FrostScreen = (props) => {
 		}
 		if (!seerr.isActive) return null;
 		const download = seerr.hdDownload;
-		const {label, color} = download
+		let {label, color} = download
 			? frostDownloadStatus(download, statusColors)
 			: frostSeerrStatus(seerr.hdStatus, statusColors);
+		// The arr is looking and finding nothing, so the line says that rather than Requested.
+		if (!download && seerr.notFoundYet) {
+			label = $L('Not found yet');
+			color = statusColors.none;
+		}
 		return (
-			<div className={css.status}>
-				<span className={css.statusDot} style={{backgroundColor: color}} />
-				{download && bar(download.fraction * 100, css.statusTrack, color)}
-				<span className={css.statusLabel}>{label}</span>
-			</div>
+			<>
+				<div className={css.status}>
+					<span className={css.statusDot} style={{backgroundColor: color}} />
+					{download && bar(download.fraction * 100, css.statusTrack, color)}
+					<span className={css.statusLabel}>{label}</span>
+				</div>
+				{download?.reason && <div className={css.statusReason}>{download.reason}</div>}
+			</>
 		);
 	};
 

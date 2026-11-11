@@ -3062,5 +3062,11 @@
 	"Stalled": "Stalled",
 	"Queued": "Queued",
 	"Downloaded": "Downloaded",
-	"Downloaded, waiting for import": "Downloaded, waiting for import"
+	"Downloaded, waiting for import": "Downloaded, waiting for import",
+	"Import blocked": "Import blocked",
+	"Not found yet": "Not found yet",
+	"Get a different release": "Get a different release",
+	"{service} will remove {release} from the download client, block it so it isn't grabbed again, and search for another release.": "{service} will remove {release} from the download client, block it so it isn't grabbed again, and search for another release.",
+	"Removed. {service} is searching for another release.": "Removed. {service} is searching for another release.",
+	"Couldn't remove the download": "Couldn't remove the download"
 }

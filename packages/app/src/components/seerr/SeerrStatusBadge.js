@@ -1,6 +1,6 @@
 import {memo} from 'react';
 
-import SeerrDownloadProgress from '../SeerrDownloadProgress';
+import SeerrDownloadProgress, {SeerrNotFoundYet} from '../SeerrDownloadProgress';
 import {MEDIA_STATUS} from '../../utils/seerrStatus';
 
 import css from './SeerrStatusBadge.module.less';
@@ -22,11 +22,17 @@ export const SeerrStatusBadge = memo(({seerr, className}) => {
 });
 
 // The bars only exist while something is genuinely downloading, so the whole block disappears
-// once it lands rather than sitting there at 100%.
+// once it lands rather than sitting there at 100%. When the arr is searching and finding
+// nothing, a line says so where the HD bar would be.
 export const SeerrDownloadBars = memo(({seerr}) => {
-	if (!seerr.isActive || (!seerr.hdDownload && !seerr.download4k)) return null;
+	if (!seerr.isActive || (!seerr.hdDownload && !seerr.download4k && !seerr.notFoundYet)) return null;
 	return (
 		<div className={css.downloads}>
+			{seerr.notFoundYet && (
+				<div className={css.downloadRow}>
+					<SeerrNotFoundYet />
+				</div>
+			)}
 			{seerr.hdDownload && (
 				<div className={css.downloadRow}>
 					<SeerrDownloadProgress summary={seerr.hdDownload} prefix={seerr.download4k ? 'HD' : null} />
