@@ -1,4 +1,4 @@
-import {baseLayerLabel, isHdrVideoStream, findVideoStream, isHdrOutput, videoRangeLabel, videoRangeTypeOf} from './videoRange';
+import {baseLayerLabel, isHdrVideoStream, findVideoStream, isHdrOutput, videoRangeBadges, videoRangeLabel, videoRangeTypeOf} from './videoRange';
 
 describe('isHdrVideoStream', () => {
 	it.each(['HDR10', 'HDR10Plus', 'HLG', 'DOVI'])('treats %s as HDR', (rangeType) => {
@@ -161,5 +161,44 @@ describe('baseLayerLabel', () => {
 		expect(baseLayerLabel(embyDolbyVision('DoviProfile50'))).toBeNull();
 		expect(baseLayerLabel({VideoRangeType: 'HDR10'})).toBeNull();
 		expect(baseLayerLabel(null)).toBeNull();
+	});
+});
+
+describe('videoRangeBadges', () => {
+	it('names the Dolby Vision profile, then the layer it falls back to', () => {
+		expect(videoRangeBadges({VideoRangeType: 'DOVIWithHDR10Plus', DvProfile: 8})).toEqual(['DV P8', 'HDR10+']);
+		expect(videoRangeBadges({VideoRangeType: 'DOVIWithHDR10', DvProfile: 8})).toEqual(['DV P8', 'HDR10']);
+		expect(videoRangeBadges({VideoRangeType: 'DOVI', DvProfile: 5})).toEqual(['DV P5']);
+		expect(videoRangeBadges({VideoRangeType: 'DOVIWithHLG', DvProfile: 8})).toEqual(['DV P8', 'HLG']);
+	});
+
+	it("reads Emby's profile from ExtendedVideoSubType", () => {
+		expect(videoRangeBadges({ExtendedVideoType: 'DolbyVision', ExtendedVideoSubType: 'DoviProfile81'})).toEqual(['DV P8', 'HDR10']);
+		expect(videoRangeBadges({ExtendedVideoType: 'DolbyVision', ExtendedVideoSubType: 'DoviProfile84'})).toEqual(['DV P8', 'HLG']);
+		expect(videoRangeBadges({ExtendedVideoType: 'DolbyVision', ExtendedVideoSubType: 'DoviProfile100'})).toEqual(['DV P10']);
+	});
+
+	it('keeps the HDR10 under a profile 7 enhancement layer', () => {
+		expect(videoRangeBadges({VideoRangeType: 'DOVIWithEL', DvProfile: 7})).toEqual(['DV P7', 'HDR10']);
+	});
+
+	it('says DV alone without a profile, and nothing for an SDR fallback', () => {
+		expect(videoRangeBadges({VideoRangeType: 'DOVI'})).toEqual(['DV']);
+		expect(videoRangeBadges({VideoRangeType: 'DOVIWithSDR', DvProfile: 8})).toEqual(['DV P8']);
+	});
+
+	it('reads Dolby Vision the server calls invalid as its VideoRange', () => {
+		expect(videoRangeBadges({VideoRangeType: 'DOVIInvalid', VideoRange: 'HDR'})).toEqual(['HDR']);
+		expect(videoRangeBadges({VideoRangeType: 'DOVIInvalid', VideoRange: 'SDR'})).toEqual(['SDR']);
+	});
+
+	it('has no badge for a stream with no range field', () => {
+		expect(videoRangeBadges({})).toEqual([]);
+		expect(videoRangeBadges(null)).toEqual([]);
+	});
+
+	it('is the plain range label without Dolby Vision', () => {
+		expect(videoRangeBadges({VideoRangeType: 'HDR10Plus'})).toEqual(['HDR10+']);
+		expect(videoRangeBadges({VideoRangeType: 'SDR'})).toEqual(['SDR']);
 	});
 });

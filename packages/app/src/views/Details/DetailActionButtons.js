@@ -11,6 +11,7 @@ import SpotlightContainerDecorator from '@enact/spotlight/SpotlightContainerDeco
 import Spotlight from '@enact/spotlight';
 import {SpottableDiv, HorizontalContainer} from './detailsSpottables';
 import {handleButtonRowKeyDown, handleScrollerFocus} from './detailsFocus';
+import {offersGoToSeries} from './detailActions';
 
 import css from './Details.module.less';
 
@@ -29,7 +30,9 @@ const BtnIcon = ({path, stateClass}) => (
 // The row under the header. Play and Resume always lead it, and everything after them is in
 // whatever order the viewer arranged in settings, with anything they hid left out.
 const DetailActionButtons = ({
+	actionsHeld,
 	item,
+	bookSeriesItem,
 	settings,
 	seerr,
 	seerrOnly,
@@ -213,7 +216,7 @@ const DetailActionButtons = ({
 				<span className={css.btnLabel}>{personalRatingLabel(personalRatingStyle, item.UserData)}</span>
 			</SpottableDiv>
 		)},
-		{id: 'goToSeries', when: (isEpisode || isSeason) && item.SeriesId, render: () => (
+		{id: 'goToSeries', when: offersGoToSeries({item, isEpisode, isSeason, isBook, bookSeriesItem}), render: () => (
 			<SpottableDiv className={css.btnWrapper} onClick={onGoToSeries}>
 				<div className={css.btnAction}>
 					<BtnIcon path={DETAIL_ICON_PATHS.series}/>
@@ -320,10 +323,11 @@ const DetailActionButtons = ({
 	return (
 		<>
 			<HorizontalContainer
-				className={`${css.actionButtons} ${isHorizontalScroll ? css.actionButtonsScroll : ''}`}
+				className={`${css.actionButtons} ${isHorizontalScroll ? css.actionButtonsScroll : ''} ${actionsHeld ? css.actionsHeld : ''}`}
 				onKeyDown={handleButtonRowKeyDown}
 				onFocus={handleRowFocus}
 				spotlightId="details-action-buttons"
+				spotlightDisabled={actionsHeld}
 			>
 				{showsResume && (
 					<SpottableDiv className={css.btnWrapper} {...resumeLongPress} spotlightId="details-primary-btn">

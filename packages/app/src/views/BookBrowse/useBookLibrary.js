@@ -1,6 +1,6 @@
 import {useEffect, useState} from 'react';
 
-import {authorTitleCounts, bookCounts, bookSeriesEntries, combinedTypes, peopleAuthors} from '../../utils/bookLibrary';
+import {authorTitleCounts, bookCounts, bookSeriesEntries, bookSeriesNamed, combinedTypes, peopleAuthors} from '../../utils/bookLibrary';
 
 const ROW_LIMIT = 15;
 
@@ -28,6 +28,20 @@ export const loadBookRow = (api, params) => loadBookItems(api, {
 	ImageTypeLimit: 1,
 	...params
 }).then((result) => result?.Items || [], () => []);
+
+// The series a book belongs to, from every title in its library carrying the same series name. A
+// library that can't be found leaves the search to every book the user can see.
+export const loadBookSeries = async (api, book) => {
+	const name = String(book.SeriesName || '').trim();
+	if (!name) return null;
+	const ancestors = await api.getAncestors(book.Id).catch(() => null);
+	const library = (ancestors || []).find((ancestor) => ancestor.Type === 'CollectionFolder');
+	const result = await loadBookItems(api, {
+		ParentId: library?.Id, IncludeItemTypes: combinedTypes(library), Recursive: true, SortBy: 'SortName', SortOrder: 'Ascending',
+		Fields: BOOK_FIELDS, EnableTotalRecordCount: false
+	}).catch(() => null);
+	return bookSeriesNamed(name, result?.Items || []);
+};
 
 // Only the collections holding something this library shows are kept, each with the first few
 // of those as `Covers`. Only `limit` of them are checked, so the count is a floor while more are left.

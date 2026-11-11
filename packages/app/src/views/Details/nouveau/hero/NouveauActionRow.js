@@ -28,7 +28,7 @@ const MenuContainer = SpotlightContainerDecorator({
 // and a long row of buttons would push the first of those off the screen.
 const NouveauActionRow = (props) => {
 	const {
-		settings, seerrOnly, isPerson, isBook, isReadableBook,
+		actionsHeld, settings, seerrOnly, isPerson, isBook, isReadableBook,
 		hasPlaybackPosition, resumeTimeText,
 		handlePlay, handleResume, onOpenPersonDisplay,
 		menuBackRef, onNavigateUp, onNavigateDown, onFocusRow
@@ -156,8 +156,9 @@ const NouveauActionRow = (props) => {
 	return (
 		<>
 			<RowContainer
-				className={`${css.actions} ${leading ? css.actionsWithPrimary : ''}`}
+				className={`${css.actions} ${leading ? css.actionsWithPrimary : ''} ${actionsHeld ? modernCss.actionsHeld : ''}`}
 				spotlightId="details-action-buttons"
+				spotlightDisabled={actionsHeld}
 				onFocus={handleRowFocus}
 				onKeyDown={handleKeyDown}
 			>

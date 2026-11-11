@@ -29,7 +29,7 @@ jest.mock('@enact/spotlight/SpotlightContainerDecorator', () => (config, type) =
 jest.mock('@enact/sandstone/VirtualList', () => ({VirtualGridList: () => null}));
 jest.mock('../../context/AuthContext', () => ({useAuth: () => mockAuth}));
 jest.mock('../../context/SettingsContext', () => ({useSettings: () => mockSettings}));
-jest.mock('../../services/jellyfinApi', () => ({createApiForServer: () => null}));
+jest.mock('../../services/jellyfinApi', () => ({createApiForServer: () => mockApi}));
 jest.mock('../../services/mdblistApi', () => ({isMdblistEnabled: () => false}));
 jest.mock('../../services/parentalControls', () => ({withoutBlockedItems: (items) => items}));
 jest.mock('../../services/storage', () => ({getFromStorage: jest.fn(), saveToStorage: jest.fn()}));
@@ -175,6 +175,48 @@ test('the settings preview holds its first card, takes no focus and leaves the s
 	} finally {
 		mockSettings.settings = saved;
 	}
+});
+
+test('a scroll page for a list that has since been reloaded leaves the new list\'s paging alone', async () => {
+	const pageOf = (prefix) => Array.from({length: 150}, (_, i) => ({Id: `${prefix}${i}`, Name: `${prefix} ${i}`, Type: 'Movie'}));
+	let staleScrollPage;
+	mockApi.getItems.mockImplementation((params) => {
+		if (params.StartIndex > 0 && !staleScrollPage) {
+			return new Promise((resolve) => {
+				staleScrollPage = () => resolve({Items: pageOf('old-more'), TotalRecordCount: 400});
+			});
+		}
+		return Promise.resolve({Items: pageOf(params.SortBy === 'SortName' ? 'old' : 'new'), TotalRecordCount: 400});
+	});
+	renderLibrary();
+	await settle();
+	act(() => {
+		window.dispatchEvent(new CustomEvent('moonfin:libraryLoadMore'));
+	});
+
+	fireEvent.click(document.querySelector('[data-spotlight-id="library-sort-btn"]'));
+	fireEvent.click(document.querySelector('[data-spotlight-id="filter-section-sort"]'));
+	fireEvent.click(screen.getByText('Date Added'));
+	await settle();
+	await act(async () => staleScrollPage());
+	await settle();
+	act(() => {
+		window.dispatchEvent(new CustomEvent('moonfin:libraryLoadMore'));
+	});
+	await settle();
+
+	expect(mockApi.getItems).toHaveBeenLastCalledWith(expect.objectContaining({StartIndex: 150, SortBy: 'DateCreated,SortName'}));
+});
+
+test('a studio from another server is browsed for its movies and shows', async () => {
+	const otherServer = {Id: null, Name: 'A24', _serverUrl: 'http://other', _serverAccessToken: 'token', _serverUserId: 'user'};
+	render(<Library library={otherServer} studioFilter="A24" backHandlerRef={{current: null}} onHome={jest.fn()} />);
+	await settle();
+
+	const [params] = mockApi.getItems.mock.calls[0];
+	expect(params).toMatchObject({Studios: 'A24', IncludeItemTypes: 'Movie,Series', Recursive: true});
+	expect(params.ParentId).toBeUndefined();
+	expect(params.ExcludeItemTypes).toBeUndefined();
 });
 
 describe('a photo slideshow', () => {

@@ -42,6 +42,25 @@ describe('Next Up', () => {
 	});
 });
 
+describe('items', () => {
+	test('Emby is asked to group into collections by the name it reads', async () => {
+		setServerType('emby');
+		await api.getItems({CollapseBoxSetItems: true, ParentId: 'lib'});
+		expect(urlOf(platformFetch.mock.calls[0])).toContain('GroupItemsIntoCollections=true');
+		expect(urlOf(platformFetch.mock.calls[0])).not.toContain('CollapseBoxSetItems');
+
+		await createApiForServer('http://other', 'token', 'user-2', 'emby').getItems({CollapseBoxSetItems: false});
+		expect(urlOf(platformFetch.mock.calls[1])).toContain('GroupItemsIntoCollections=false');
+	});
+
+	test('Jellyfin keeps its own name', async () => {
+		setServerType('jellyfin');
+		await api.getItems({CollapseBoxSetItems: true});
+		expect(urlOf(platformFetch.mock.calls[0])).toContain('CollapseBoxSetItems=true');
+		expect(urlOf(platformFetch.mock.calls[0])).not.toContain('GroupItemsIntoCollections');
+	});
+});
+
 describe('search', () => {
 	test('items and people are separate requests, and people get their own timeout', async () => {
 		setServerType('jellyfin');

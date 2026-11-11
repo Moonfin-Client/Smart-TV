@@ -193,6 +193,18 @@ const PANELS = {
 	CALENDAR_MONTH: 24
 };
 
+// A library with no id, which only names the server a genre or studio from another one is browsed on.
+const serverOnlyLibrary = (name, source) => ({
+	Id: null,
+	Name: name,
+	_serverUrl: source._serverUrl,
+	_serverType: source._serverType,
+	_serverAccessToken: source._serverAccessToken,
+	_serverUserId: source._serverUserId,
+	_serverName: source._serverName,
+	_serverId: source._serverId
+});
+
 const AppContent = (props) => {
 	const {isAuthenticated, isLoading, serverUrl, serverName, api, user, hasMultipleServers, accessToken, connectionState, revalidateSession, leaveSession, serverType} = useAuth();
 	const {settings, activeTheme, syncOnLogin, updateSettings, loaded: settingsLoaded} = useSettings();
@@ -1380,11 +1392,12 @@ const AppContent = (props) => {
 		navigateTo(PANELS.LIBRARY);
 	}, [api, navigateTo, settings.liveTvSkipGuide]);
 
-	const handleSelectStudio = useCallback((studioName) => {
+	// A studio on a title from another server in unified mode is browsed on that server, as a genre is.
+	const handleSelectStudio = useCallback((studioName, sourceItem) => {
 		if (!studioName) return;
 		setStudioFilter(studioName);
 		setGenreFilter(null);
-		setSelectedLibrary(null);
+		setSelectedLibrary(sourceItem?._serverUrl ? serverOnlyLibrary(studioName, sourceItem) : null);
 		navigateTo(PANELS.LIBRARY);
 	}, [navigateTo]);
 
@@ -1730,16 +1743,7 @@ const AppContent = (props) => {
 		if (library) {
 			setSelectedLibrary(library);
 		} else if (genre._serverUrl) {
-			setSelectedLibrary({
-				Id: null,
-				Name: genre.name,
-				_serverUrl: genre._serverUrl,
-				_serverType: genre._serverType,
-				_serverAccessToken: genre._serverAccessToken,
-				_serverUserId: genre._serverUserId,
-				_serverName: genre._serverName,
-				_serverId: genre._serverId
-			});
+			setSelectedLibrary(serverOnlyLibrary(genre.name, genre));
 		} else {
 			setSelectedLibrary(null);
 		}

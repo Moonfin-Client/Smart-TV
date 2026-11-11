@@ -48,6 +48,18 @@ describe('pickEpisodePlayTarget', () => {
 		expect(pickEpisodePlayTarget(episodes).Id).toBe('s1e3');
 	});
 
+	test('goes on from the first unwatched episode after a next up marked played', () => {
+		const episodes = [ep(1, 1), ep(1, 2, {Played: true}), ep(1, 3, {Played: true}), ep(1, 4), ep(1, 5)];
+		const staleNextUp = ep(1, 2, {Played: true});
+		expect(pickEpisodePlayTarget(episodes, staleNextUp).Id).toBe('s1e4');
+	});
+
+	test('falls back as before when nothing unwatched follows a played next up', () => {
+		const episodes = [ep(1, 1), ep(1, 2, {PlaybackPositionTicks: 500}), ep(1, 3, {Played: true})];
+		expect(pickEpisodePlayTarget(episodes, ep(1, 3, {Played: true})).Id).toBe('s1e2');
+		expect(pickEpisodePlayTarget(episodes, ep(9, 9, {Played: true})).Id).toBe('s1e2');
+	});
+
 	test('hands back next up when the list is empty', () => {
 		const nextUp = ep(1, 1);
 		expect(pickEpisodePlayTarget([], nextUp)).toBe(nextUp);

@@ -270,7 +270,7 @@ const Library = ({library, genreFilter, studioFilter, onSelectItem, onViewPhoto,
 
 	const effectiveApi = useMemo(() => {
 		if (library?._serverUrl && library?._serverAccessToken) {
-			return createApiForServer(library._serverUrl, library._serverAccessToken, library._serverUserId);
+			return createApiForServer(library._serverUrl, library._serverAccessToken, library._serverUserId, library._serverType);
 		}
 		return api;
 	}, [library, api]);
@@ -460,7 +460,8 @@ const Library = ({library, genreFilter, studioFilter, onSelectItem, onViewPhoto,
 
 	const getItemTypeForLibrary = useCallback(() => {
 		const groupCollections = Boolean(settings.groupItemsIntoCollections);
-		if (!library) return groupCollections ? 'Movie,Series,BoxSet' : 'Movie,Series';
+		// A library with no id only names the server a genre or studio from another one is browsed on.
+		if (!library?.Id) return groupCollections ? 'Movie,Series,BoxSet' : 'Movie,Series';
 		const collectionType = library.CollectionType?.toLowerCase();
 
 		switch (collectionType) {
@@ -498,7 +499,7 @@ const Library = ({library, genreFilter, studioFilter, onSelectItem, onViewPhoto,
 		if (isGenreMode) {
 			return groupCollections ? 'Playlist,Episode,Season,Folder' : 'BoxSet,Playlist,Episode,Season,Folder';
 		}
-		if (!library) return '';
+		if (!library?.Id) return '';
 		const collectionType = library.CollectionType?.toLowerCase();
 
 		if ((collectionType === 'movies' || collectionType === 'tvshows') && !groupCollections) {
@@ -678,14 +679,17 @@ const Library = ({library, genreFilter, studioFilter, onSelectItem, onViewPhoto,
 					newItems = newItems.filter(item => !excludedList.includes(item.Type));
 				}
 
-				apiFetchIndexRef.current = append ? apiFetchIndexRef.current + (result.Items?.length || 0) : (result.Items?.length || 0);
 				if (generation !== fetchGenerationRef.current) return;
+				apiFetchIndexRef.current = append ? apiFetchIndexRef.current + (result.Items?.length || 0) : (result.Items?.length || 0);
 				showPage(newItems);
 				setTotalCount(result.TotalRecordCount || 0);
 			}
 		} catch (err) { console.error('[Library] loadItems error:', err); } finally {
-			setIsLoading(false);
-			loadingMoreRef.current = false;
+			// A page for a list that has since been reloaded leaves the new list's state alone.
+			if (generation === fetchGenerationRef.current) {
+				setIsLoading(false);
+				loadingMoreRef.current = false;
+			}
 		}
 	}, [isPlaylistLibrary, effectiveApi, library, genreFilter, studioFilter, sortKey, sortAscending, effectiveOrder, favoritesOnly, filters, openedGenre, parentId, isFolderView, currentFolderId, currentFolderCollectionType, isMusicLibrary, musicContentType, bookGridView, getItemTypeForLibrary, getExcludeItemTypes, settings.groupItemsIntoCollections, isGenreMode]);
 

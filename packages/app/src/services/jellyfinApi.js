@@ -176,6 +176,13 @@ const homeNextUpQuery = (seriesId, maxDays, type) => {
 	return `&NextUpDateCutoff=${encodeURIComponent(cutoff.toISOString())}`;
 };
 
+// Emby reads its own name for keeping a collection's titles under it.
+const itemsQueryFor = (params, type) => {
+	if (type !== 'emby' || !('CollapseBoxSetItems' in params)) return params;
+	const {CollapseBoxSetItems, ...rest} = params;
+	return {...rest, GroupItemsIntoCollections: CollapseBoxSetItems};
+};
+
 // Folds the two filter responses into one shape. Genres arrive as plain names
 // from the older endpoint and as objects from the newer one, and languages
 // carry a display name beside the code the query takes.
@@ -567,7 +574,7 @@ export const api = {
 
 	getAllLibraries: () => request(`${userRoutes.views()}IncludeHidden=true`),
 
-	getItems: (params = {}) => request(`${userRoutes.items()}${toQuery(params)}`),
+	getItems: (params = {}) => request(`${userRoutes.items()}${toQuery(itemsQueryFor(params, serverType))}`),
 
 	getLatestItems: (params = {}) => request(`${userRoutes.latest()}${toQuery(params)}`),
 
@@ -1243,7 +1250,7 @@ export const createApiForServer = (serverUrl, token, userId, serverTypeOverride 
 		getItems: (params = {}) => {
 			// Manually build query string to match main api.getItems behavior
 			const queryParts = [];
-			for (const [key, value] of Object.entries(params)) {
+			for (const [key, value] of Object.entries(itemsQueryFor(params, serverTypeOverride))) {
 				if (value !== undefined && value !== null && value !== '') {
 					queryParts.push(`${encodeURIComponent(key)}=${encodeURIComponent(value)}`);
 				}

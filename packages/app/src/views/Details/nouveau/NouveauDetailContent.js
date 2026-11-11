@@ -605,6 +605,7 @@ const NouveauDetailContent = (props) => {
 						onNavigateDown={handleNavigateDown}
 						renderItem={renderEpisode}
 						itemMenu
+						startIndex={item.Type === 'Episode' ? seasonEpisodes.findIndex((episode) => episode.Id === item.Id) : 0}
 					/>
 				</>
 			);

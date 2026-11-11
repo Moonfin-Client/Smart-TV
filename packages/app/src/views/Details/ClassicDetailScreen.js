@@ -15,7 +15,7 @@ import SeerrStatusBanner, {hasSeerrDot, seerrBadgeStyle} from '../../components/
 import {SeerrChips, SeerrFacts, SeerrStreaming, SeerrCollectionBanner} from '../../components/seerr/SeerrSections';
 import {SpottableDiv, RowContainer, ShortRowContainer} from './detailsSpottables';
 import ExpandableOverview from './ExpandableOverview';
-import {handleSectionKeyDown, handleScrollerFocus} from './detailsFocus';
+import {handleSectionKeyDown, handleScrollerFocus, scrollToRowStart} from './detailsFocus';
 import {PosterBadges, WatchedCheckIcon, FavoriteHeartIcon} from './DetailBadges';
 import DetailMetadata from './DetailMetadata';
 import NextUpCard from './NextUpCard';
@@ -326,7 +326,7 @@ const ClassicDetailScreen = ({
 							{item.ParentIndexNumber !== undefined ? $L('Season {number} Episodes').replace('{number}', item.ParentIndexNumber) : $L('Episodes')}
 						</h3>
 					</div>
-					<div className={css.sectionScroll} onFocus={handleScrollerFocus} {...episodeMenuHold}>
+					<div className={css.sectionScroll} onFocus={handleScrollerFocus} ref={scrollToRowStart} {...episodeMenuHold}>
 						{episodes.map(ep => {
 							// The episode carries the series artwork on most records, and the
 							// screen's own item stands in for the ones that don't.
@@ -344,6 +344,7 @@ const ClassicDetailScreen = ({
 									key={ep.Id}
 									className={`${css.episodeCard} ${isCurrentEp ? css.episodeCurrent : ''}`}
 									data-episode-id={ep.Id}
+									data-row-start={isCurrentEp ? 'true' : undefined}
 									onClick={onEpisodeSelect}
 								>
 									<div className={css.episodeThumb}>

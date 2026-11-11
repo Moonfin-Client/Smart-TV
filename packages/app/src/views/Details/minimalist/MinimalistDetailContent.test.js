@@ -28,7 +28,9 @@ jest.mock('@enact/spotlight/Spottable', () => {
 });
 jest.mock('@enact/spotlight/SpotlightContainerDecorator', () => {
 	const React = require('react');
-	return (config, tag) => ({spotlightId, ...props}) => React.createElement(tag, {...props, 'data-spotlight-id': spotlightId});
+	return (config, tag) => ({spotlightId, spotlightDisabled, ...props}) => React.createElement(tag, {
+		...props, 'data-spotlight-id': spotlightId, 'data-spotlight-container-disabled': spotlightDisabled
+	});
 });
 jest.mock('@enact/sandstone/Scroller', () => {
 	const React = require('react');
@@ -141,5 +143,20 @@ describe('the backdrop', () => {
 		open({backdropUrl: 'backdrop.jpg', settings: {...defaultSettings, detailsBackdropEnabled: false}});
 		expect(document.querySelector('img[src="backdrop.jpg"]')).toBeNull();
 		expect(document.querySelector('.scrim')).not.toBeNull();
+	});
+});
+
+describe('the action row', () => {
+	it("stays laid out but hidden and out of focus while it's held back, then shows", () => {
+		open({actionsHeld: true});
+		let row = document.querySelector('[data-spotlight-id="details-action-buttons"]');
+		expect(row.classList.contains('actionsHeld')).toBe(true);
+		expect(row.getAttribute('data-spotlight-container-disabled')).toBe('true');
+		cleanup();
+
+		open({actionsHeld: false});
+		row = document.querySelector('[data-spotlight-id="details-action-buttons"]');
+		expect(row.classList.contains('actionsHeld')).toBe(false);
+		expect(row.getAttribute('data-spotlight-container-disabled')).toBe('false');
 	});
 });

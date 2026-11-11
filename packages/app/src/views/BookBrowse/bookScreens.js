@@ -48,8 +48,11 @@ const browseCount = (data, id) => {
 // The nav's entries, each with the key the current one is told apart by. Bookstore lists Titles
 // as its formats, with counts. The other two lead with Overview and list Titles once.
 export const navEntries = ({style, library, data, showDiscover}) => {
+	// Folders opens the library's root in folder view rather than a screen of its own.
+	const folders = {key: 'folders', screen: null, grid: {folder: library}, label: $L('Folders'), icon: 'folder_outlined'};
 	const browse = BROWSE_DESTINATIONS.filter((entry) => browseCount(data, entry.id) > 0)
-		.map((entry) => ({key: entry.id, screen: {id: entry.id}, label: entry.label(), icon: entry.icon, count: browseCount(data, entry.id)}));
+		.map((entry) => ({key: entry.id, screen: {id: entry.id}, label: entry.label(), icon: entry.icon, count: browseCount(data, entry.id)}))
+		.concat(folders);
 	const discover = showDiscover ? [{key: DISCOVER, screen: {id: DISCOVER}, label: DISCOVER_ENTRY.label(), icon: DISCOVER_ENTRY.icon}] : [];
 	if (bookNavFor(style) === 'rail') {
 		const scopes = isMixedLibrary(library, data.counts) ? availableScopes(data.counts) : [SCOPE_ALL];
