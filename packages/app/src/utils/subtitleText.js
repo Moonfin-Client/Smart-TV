@@ -32,6 +32,15 @@ const parseAss = (text) => text.split(/\r?\n/).filter((line) => line.startsWith(
 	return {StartPositionTicks: assTicks(fields[1] || ''), EndPositionTicks: assTicks(fields[2] || ''), Text: body};
 }).filter((event) => event.Text && event.StartPositionTicks != null && event.EndPositionTicks != null);
 
+// AVPlay ends every cue with a carriage return and a NUL and breaks lines with <br>. The stray
+// returns turn into blank lines between cues the TV runs together, so only the words are kept (#669).
+export const avplaySubtitleText = (text) => String(text || '')
+	.replace(/\u0000/g, '')
+	.split(/\r\n|\r|\n|<br\s*\/?>/i)
+	.map((line) => line.trim())
+	.filter(Boolean)
+	.join('\n');
+
 export const parseSubtitleText = (text) => {
 	if (/^\s*\[Script Info\]/m.test(String(text || ''))) return parseAss(String(text));
 	const events = [];

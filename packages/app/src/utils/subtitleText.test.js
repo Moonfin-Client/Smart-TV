@@ -1,4 +1,13 @@
-import {parseSubtitleText} from './subtitleText';
+import {avplaySubtitleText, parseSubtitleText} from './subtitleText';
+
+test('keeps only the words of the cues AVPlay hands over', () => {
+	expect(avplaySubtitleText('One line\r\u0000')).toBe('One line');
+	expect(avplaySubtitleText('Line one<br>Line two\r\u0000')).toBe('Line one\nLine two');
+	expect(avplaySubtitleText('First cue\r\u0000<br>Second cue\r\u0000')).toBe('First cue\nSecond cue');
+	expect(avplaySubtitleText('First cue\r\n\r\n\nSecond cue')).toBe('First cue\nSecond cue');
+	expect(avplaySubtitleText('\r\u0000')).toBe('');
+	expect(avplaySubtitleText(null)).toBe('');
+});
 
 test('reads SRT blocks with their numbers, tags and line breaks', () => {
 	const srt = '\uFEFF1\r\n00:00:01,500 --> 00:00:03,000\r\n<i>Hello</i>\r\nthere\r\n\r\n2\r\n01:02:03,040 --> 01:02:04,000\r\nBye\r\n';

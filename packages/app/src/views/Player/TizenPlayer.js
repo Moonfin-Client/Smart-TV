@@ -29,6 +29,7 @@ import {transcodesAudioCodec} from '../../utils/deviceProfileTuning';
 import {initPgsCanvasRenderer, disposePgsRenderer, clearPgsCanvas} from '../../utils/pgsRenderer';
 import {supportsAssRenderer, initAssCanvasRenderer, disposeAssRenderer, setAssTime, setAssFontScale, assTimelineEvents} from '../../utils/assRenderer';
 import {getAssFontScale, resolveSubtitleStyleSettings} from '../../utils/subtitleConstants';
+import {avplaySubtitleText} from '../../utils/subtitleText';
 import SubtitleTextOverlay from './SubtitleTextOverlay';
 import useSecondarySubtitle from './useSecondarySubtitle';
 import useSubtitleFetch from './useSubtitleFetch';
@@ -424,7 +425,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 	const handleSubtitleChange = useCallback((dur, text, type) => {
 		if (useNativeSubtitleRef.current && type !== 1 && type !== '1') {
 			if (subtitleTimeoutRef.current) clearTimeout(subtitleTimeoutRef.current);
-			setCurrentSubtitleText(text || null);
+			setCurrentSubtitleText(avplaySubtitleText(text) || null);
 			if (text && dur > 0) {
 				subtitleTimeoutRef.current = setTimeout(() => {
 					setCurrentSubtitleText(null);
