@@ -171,6 +171,7 @@ const PlayerControlsLayer = ({item, next, hdr, subtitles, controls, paused, prog
 					css={playerCss}
 					settings={lifted}
 					primaryText={SUBTITLE_LINES[settings.subtitleLanguage] || 'Wait, did you hear that?'}
+					primaryLanguage={SUBTITLE_LINES[settings.subtitleLanguage] ? settings.subtitleLanguage : 'eng'}
 				/>
 			)}
 			{controls && (

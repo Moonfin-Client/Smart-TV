@@ -4076,6 +4076,8 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 					primaryText={currentSubtitleText}
 					secondaryText={secondary.text}
 					secondaryLoaded={secondary.loaded}
+					primaryLanguage={subtitleStreams.find((s) => s.index === selectedSubtitleIndex)?.language}
+					secondaryLanguage={subtitleStreams.find((s) => s.index === secondary.index)?.language}
 				/>
 			)}
 
