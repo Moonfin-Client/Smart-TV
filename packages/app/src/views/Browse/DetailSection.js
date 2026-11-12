@@ -82,7 +82,7 @@ const DetailSection = forwardRef(({
 		focusItemTimeoutRef.current = setTimeout(() => {
 			setFocusedItem(item);
 			onFocusedItemChange?.(item);
-			if (item._seerr || item._external || item._resolvedFromExternal) {
+			if (item._seerr || item._external || item._resolvedFromExternal || item.isGame) {
 				return;
 			}
 			const needsBackdrop = !item.BackdropImageTags?.length && !item.ParentBackdropImageTags?.length;

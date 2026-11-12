@@ -2590,6 +2590,7 @@ const AppContent = (props) => {
 							onOpenSeerrShortcut={handleOpenSeerrShortcut}
 							onOpenCalendarMonth={handleOpenCalendarMonth}
 							onSelectStudio={handleSelectStudio}
+							onSelectGame={handleSelectGame}
 							isVisible={panelIndex === PANELS.BROWSE && !showSettingsPanel && !pickingHousehold}
 							backHandlerRef={backHandlerRef}
 							onFocusItemThemeMusic={backgroundMusic ? undefined : themeMusic.playThemeMusicDelayed}

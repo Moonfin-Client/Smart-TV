@@ -17,6 +17,9 @@ import {isPickedRow, isPickedRowShown, isSameServer} from '../../utils/pickedRow
 import mapBounded from '../../utils/mapBounded';
 import {studioLogoIndex} from '../Details/studioLogos';
 import {FULL_ROW_READ, pageableRow, readFoldedHead} from './rowPaging';
+import * as gamesApi from '../../services/gamesApi';
+import {isGameLibrary, refreshGameLibraries, resolveGameLibraryId} from '../../utils/gameLibrary';
+import {gameHeadline} from '../../utils/gameArt';
 
 // How many sections from the top load with Home. A picked row below them waits until Home comes
 // near it, so a Home with hundreds of collections doesn't fetch them all up front.
@@ -114,10 +117,51 @@ const readLatest = async (api, lib, hideWatched) => {
 	return api.getLatest(lib.Id, FULL_ROW_READ).catch(() => latest);
 };
 
+// A game library's row comes from Moonbase, since the server itself can't see the games. A server
+// without the route leaves the row out.
+const readGameRow = async (lib, released) => {
+	const libraryId = resolveGameLibraryId(lib);
+	const games = await gamesApi.getRecentGames(libraryId, released).catch(() => []);
+	if (!Array.isArray(games) || games.length === 0) return null;
+	const library = {...lib, Id: libraryId};
+	return {
+		gameRow: {
+			id: `${released ? 'recently-released' : 'latest'}-${lib.Id}`,
+			title: released
+				? $L('Recently Released {libraryName}').replace('{libraryName}', lib.Name)
+				: $L('Recently Added {libraryName}').replace('{libraryName}', lib.Name),
+			items: games.map((game) => {
+				const name = gameHeadline(game.title, game.fileName);
+				return {
+					...game,
+					title: name,
+					Id: game.id,
+					// What Classic's info area reads for the focused card.
+					Name: name,
+					ProductionYear: game.year,
+					Overview: game.overview,
+					// The info line's text slot, so it reads "1985 • NES".
+					Genres: game.system ? [game.system] : [],
+					isGame: true,
+					_library: library,
+					_aspect: game.boxart?.width > 0 && game.boxart?.height > 0 ? game.boxart.width / game.boxart.height : null
+				};
+			}),
+			library: lib,
+			type: 'game',
+			isGameRow: true,
+			isLatestRow: !released,
+			isRecentlyReleasedRow: released
+		}
+	};
+};
+
 export const loadLatestAndRecentlyReleased = async (ctx) => {
 	const {api, appendRows, eligibleLibraries, settings} = ctx;
 	const hideWatched = settings.hideWatchedInRecentRows === true;
 	try {
+		await refreshGameLibraries();
+		const isGames = (lib) => isGameLibrary(lib.Id, lib.CollectionType, lib.Name);
 		let includeItemTypes = 'Movie,Series';
 		switch (settings.recentlyReleasedSeriesType) {
 			case 'season': {
@@ -132,22 +176,24 @@ export const loadLatestAndRecentlyReleased = async (ctx) => {
 
 		const [latestResults, recentlyReleasedResults] = await Promise.all([
 			Promise.all(
-				eligibleLibraries.map(lib =>
+				eligibleLibraries.map(lib => (isGames(lib) ? readGameRow(lib, false) :
 					readLatest(api, lib, hideWatched)
 						.then(latest => ({lib, latest}))
-						.catch(() => null)
+						.catch(() => null))
 				)
 			),
 			Promise.all(
-				eligibleLibraries.map(lib =>
+				eligibleLibraries.map(lib => (isGames(lib) ? readGameRow(lib, true) :
 					api.getRecentlyReleased(lib.Id, 16, includeItemTypes, settings.hideWatchedInRecentRows)
 						.then(latest => ({lib, latest}))
-						.catch(() => null)
+						.catch(() => null))
 				)
 			)
 		]);
 
 		const rows = [];
+		// Game rows hold games, not media, so they never merge with a library's.
+		const gameRows = (results) => results.filter((r) => r?.gameRow).map((r) => r.gameRow);
 		if (settings.mergeRecentRowsByType) {
 			const latestEntries = latestResults
 				.filter((r) => r && r.latest?.length > 0)
@@ -176,11 +222,13 @@ export const loadLatestAndRecentlyReleased = async (ctx) => {
 					isRecentlyReleasedRow: true
 				});
 			}
-			appendRows(rows);
+			appendRows([...rows, ...gameRows(latestResults), ...gameRows(recentlyReleasedResults)]);
 			return;
 		}
 		for (const result of latestResults) {
-			if (result && result.latest?.length > 0) {
+			if (result?.gameRow) {
+				rows.push(result.gameRow);
+			} else if (result && result.latest?.length > 0) {
 				const items = normalizeLatestMediaItems(result.latest, {collectionType: result.lib?.CollectionType, limit: 16, hideWatched});
 				if (items.length > 0) {
 					const libraryTitle = result.lib.Name;
@@ -197,7 +245,9 @@ export const loadLatestAndRecentlyReleased = async (ctx) => {
 			}
 		}
 		for (const result of recentlyReleasedResults) {
-			if (result && result.latest?.Items?.length > 0) {
+			if (result?.gameRow) {
+				rows.push(result.gameRow);
+			} else if (result && result.latest?.Items?.length > 0) {
 				const libraryTitle = result.lib.Name;
 				const rowId = `recently-released-${result.lib.Id}`;
 				const lib = result.lib;

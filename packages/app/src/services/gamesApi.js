@@ -57,6 +57,10 @@ export const getLibraries = async () => {
 export const getSystems = (libraryId) => jsonRequest(`${enc(libraryId)}/Systems`);
 export const getGames = (libraryId, system) =>
 	jsonRequest(`${enc(libraryId)}/Games${system ? `?system=${enc(system)}` : ''}`);
+// A library's newest games, by date added or, when released is true, by release year. A server
+// without the route answers with an error.
+export const getRecentGames = (libraryId, released = false, limit = 16) =>
+	jsonRequest(`${enc(libraryId)}/Recent?sort=${released ? 'released' : 'added'}&limit=${limit}`);
 export const getGame = (libraryId, gameId) =>
 	jsonRequest(`${enc(libraryId)}/Games/${enc(gameId)}`);
 // Pins the current user's core for an arcade game and returns the game as it now plays.

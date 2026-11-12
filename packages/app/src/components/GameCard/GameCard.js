@@ -21,7 +21,7 @@ export const GameBoxArt = ({url, contain, lazy, onError = hideBrokenArt}) => {
 
 // A box-art card for one game (cover image via artUrl, seeded-color fallback). With the art's
 // aspect it takes the art's shape, and cards of different shapes in a row share a bottom edge.
-const GameCard = ({game, artUrl, aspect, width = 200, spotlightId, onSelect}) => {
+const GameCard = ({game, artUrl, aspect, width = 200, spotlightId, onSelect, ...rest}) => {
 	const [failed, setFailed] = useState(!artUrl);
 	const title = gameDisplayTitle(game.title, game.fileName);
 	const cell = boxArtCell(aspect);
@@ -31,6 +31,7 @@ const GameCard = ({game, artUrl, aspect, width = 200, spotlightId, onSelect}) =>
 
 	return (
 		<SpottableDiv
+			{...rest}
 			className={css.card}
 			spotlightId={spotlightId}
 			style={{width: width * cell.width}}

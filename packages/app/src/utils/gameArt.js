@@ -8,16 +8,26 @@ export const thumbName = (fileName) => {
 	return dot > 0 ? fileName.slice(0, dot) : fileName;
 };
 
-// A safe display title: strip the replacement char and control bytes some ROM folder names
-// carry, falling back to the filename without extension when nothing legible remains.
+// A name copied through a Mac or Samba share stores the characters Windows refuses as private use
+// code points from U+F020, a trailing dot as U+F029.
+const MAC_SMB_CHARACTERS = ['"', '*', ':', '<', '>', '?', '\\', '|', ' ', '.'];
+
+// A safe display title. A name copied through a Mac or Samba share gets its characters back, the
+// replacement char and control bytes some ROM folder names carry are dropped, and the file name
+// without its extension stands in when nothing legible is left.
 export const gameDisplayTitle = (title, fileName) => {
-	// eslint-disable-next-line no-control-regex
-	const cleaned = (title || '').replace(/�/g, '').replace(/[\x00-\x1F\x7F]/g, '').trim();
+	const cleaned = (title || '')
+		.replace(/[\uF020-\uF029]/g, (c) => MAC_SMB_CHARACTERS[c.charCodeAt(0) - 0xF020])
+		.replace(/�/g, '')
+		// eslint-disable-next-line no-control-regex
+		.replace(/[\x00-\x1F\x7F]/g, '')
+		.trim();
 	return cleaned || thumbName(fileName);
 };
 
 // The title without trailing No-Intro tags such as "(USA)" or "(Rev 1)", for the details screen,
-// which shows the region on its own. Lists keep the tags so two releases stay apart.
+// which shows the region on its own, and for Home's game rows. Lists keep the tags so two releases
+// stay apart.
 export const gameHeadline = (title, fileName) => {
 	const display = gameDisplayTitle(title, fileName);
 	return display.replace(/(\s*[([][^()[\]]*[)\]])+$/, '').trim() || display;

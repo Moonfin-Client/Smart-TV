@@ -1,4 +1,4 @@
-import {PORTRAIT_HEIGHT, boxArtCell, boxArtNeedsFill, medianAspect} from './gameArt';
+import {PORTRAIT_HEIGHT, boxArtCell, boxArtNeedsFill, medianAspect, gameDisplayTitle, gameHeadline} from './gameArt';
 
 describe('boxArtCell', () => {
 	test('art with no size is the portrait card', () => {
@@ -43,5 +43,16 @@ describe('medianAspect', () => {
 
 	test('no sizes, no shape', () => {
 		expect(medianAspect(new Map())).toBeNull();
+	});
+});
+
+describe('game titles', () => {
+	test('a name copied through a Mac or Samba share reads as typed', () => {
+		expect(gameDisplayTitle('Super Mario Bros\uF029', 'Super Mario Bros. (World).nes')).toBe('Super Mario Bros.');
+		expect(gameDisplayTitle('Zelda\uF022 A Link', 'z.sfc')).toBe('Zelda: A Link');
+	});
+
+	test('the headline drops trailing No-Intro tags', () => {
+		expect(gameHeadline('Sonic The Hedgehog 2 (World) (Rev B)', 's.md')).toBe('Sonic The Hedgehog 2');
 	});
 });

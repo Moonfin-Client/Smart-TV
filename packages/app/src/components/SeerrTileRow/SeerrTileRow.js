@@ -1,10 +1,15 @@
-import {useCallback, useRef, useEffect, memo} from 'react';
+import {useCallback, useRef, useEffect, useState, memo} from 'react';
 import Spottable from '@enact/spotlight/Spottable';
 import SpotlightContainerDecorator from '@enact/spotlight/SpotlightContainerDecorator';
 import Spotlight from '@enact/spotlight';
 import {glideToCard} from '../../utils/focusScroll';
 import {KEYS} from '../../utils/keys';
 import {useSettings} from '../../context/SettingsContext';
+import {classicCardSize} from '../MediaCard/MediaCard';
+import {modernCardMetrics} from '../MediaCard/modernCardLayout';
+import GameCard from '../GameCard';
+import {gameThumbUrl} from '../../services/gamesApi';
+import {PORTRAIT_HEIGHT} from '../../utils/gameArt';
 
 import css from './SeerrTileRow.module.less';
 
@@ -16,7 +21,7 @@ const SpottableDiv = Spottable('div');
 
 const FOCUS_SETTLE_MS = 50;
 
-const TileCard = memo(function TileCard({item, cardType, spotlightId, onSelect, onFocusItem, onSpotlightLeft, onSpotlightRight}) {
+const TileCard = memo(function TileCard({item, cardType, gameWidth, spotlightId, onSelect, onFocusItem, onFocusGame, onSpotlightLeft, onSpotlightRight}) {
 	const focusTimeoutRef = useRef(null);
 	const handleClick = useCallback(() => onSelect?.(item), [item, onSelect]);
 
@@ -32,6 +37,27 @@ const TileCard = memo(function TileCard({item, cardType, spotlightId, onSelect, 
 		if (focusTimeoutRef.current) clearTimeout(focusTimeoutRef.current);
 		focusTimeoutRef.current = setTimeout(() => onFocusItem?.(item), FOCUS_SETTLE_MS);
 	}, [item, onFocusItem]);
+	const handleGameFocus = useCallback(() => {
+		handleFocus();
+		onFocusGame?.(item);
+	}, [handleFocus, onFocusGame, item]);
+
+	// A game library's recent games, each card shaped like its box art.
+	if (cardType === 'game') {
+		return (
+			<GameCard
+				game={item}
+				artUrl={gameThumbUrl(item._library?.Id, item.id)}
+				aspect={item._aspect}
+				width={gameWidth}
+				spotlightId={spotlightId}
+				onSelect={onSelect}
+				onFocus={handleGameFocus}
+				onSpotlightLeft={onSpotlightLeft}
+				onSpotlightRight={onSpotlightRight}
+			/>
+		);
+	}
 
 	const isLogo = cardType === 'logo';
 	const image = isLogo ? item._externalLogoUrl : item._externalTileUrl;
@@ -75,6 +101,17 @@ const SeerrTileRow = ({
 	const rowElementRef = useRef(null);
 
 	const keyPrefix = rowId || title || rowIndex || '';
+	// Game art fills the height a poster card has in the picked row style.
+	const posterHeight = settings.homeRowsStyle !== 'v1'
+		? modernCardMetrics({posterSize: settings.homeRowsPosterSize}).imageHeight
+		: classicCardSize('portrait', settings.homeRowsPosterSize).height;
+	const gameWidth = posterHeight / PORTRAIT_HEIGHT;
+	// Modern has no info area, so a game row shows the focused game's description under its cards.
+	const showGameDescription = cardType === 'game' && settings.homeRowsStyle !== 'v1';
+	const [focusedGame, setFocusedGame] = useState(null);
+	const handleRowBlur = useCallback((e) => {
+		if (!e.currentTarget.contains(e.relatedTarget)) setFocusedGame(null);
+	}, []);
 
 	useEffect(() => {
 		const el = rowElementRef.current;
@@ -143,6 +180,7 @@ const SeerrTileRow = ({
 			spotlightId={`row-${rowIndex}`}
 			data-row-index={rowIndex}
 			onKeyDown={handleKeyDown}
+			onBlur={showGameDescription ? handleRowBlur : undefined}
 		>
 			<h2 className={css.title}>{title}</h2>
 			<div className={css.scroller} ref={scrollerRef} onFocus={handleFocus}>
@@ -152,6 +190,8 @@ const SeerrTileRow = ({
 							key={`${keyPrefix}-${item.Id}`}
 							item={item}
 							cardType={cardType}
+							gameWidth={gameWidth}
+							onFocusGame={showGameDescription ? setFocusedGame : undefined}
 							spotlightId={`media-${keyPrefix}-${item.Id}`}
 							onSelect={handleSelect}
 							onFocusItem={onFocusItem}
@@ -161,6 +201,7 @@ const SeerrTileRow = ({
 					))}
 				</div>
 			</div>
+			{showGameDescription && <p className={css.gameDescription}>{focusedGame?.Overview || ''}</p>}
 		</RowContainer>
 	);
 };

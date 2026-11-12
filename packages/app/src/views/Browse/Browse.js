@@ -22,6 +22,7 @@ import {channelForProgram, isLiveTvProgram} from '../../utils/liveTvLibrary';
 import {focusedCardIndex, cardToRestore, focusedRowIndex, rowToRestore} from '../../utils/rowFocusMemory';
 import {radiusToCss, shadowToCss, toCssColor} from '../../theme/themeSpec';
 import DetailSection from './DetailSection';
+import * as gamesApi from '../../services/gamesApi';
 import FeaturedBanner from './FeaturedBanner';
 import MakdBanner from './MakdBanner';
 import GalleryBanner from './GalleryBanner';
@@ -81,6 +82,7 @@ const Browse = ({
 	onOpenSeerrShortcut,
 	onOpenCalendarMonth,
 	onSelectStudio,
+	onSelectGame,
 	isVisible = true,
 	onFocusItemThemeMusic,
 	onBlurItemThemeMusic,
@@ -604,6 +606,11 @@ const Browse = ({
 		if (focusedItemForBackdrop._externalBackdropUrl) {
 			return focusedItemForBackdrop._externalBackdropUrl;
 		}
+		// A game shows its in-game screenshot, the way its details screen does. The address carries
+		// the sign-in token, so it's built here rather than kept on the cached row.
+		if (focusedItemForBackdrop.isGame) {
+			return gamesApi.gameThumbUrl(focusedItemForBackdrop._library?.Id, focusedItemForBackdrop.id, 'snap') || '';
+		}
 
 		let targetItem = focusedItemForBackdrop;
 		if (focusedItemForBackdrop.Type === 'Genre' && focusedItemForBackdrop._representative) {
@@ -641,10 +648,12 @@ const Browse = ({
 			onPlayRecording?.(item);
 		} else if (isLiveTvProgram(item)) {
 			onSelectItem?.(channelForProgram(item));
+		} else if (item.isGame) {
+			onSelectGame?.(item._library, item);
 		} else {
 			onSelectItem?.(item, autoPlay);
 		}
-	}, [onSelectItem, onSelectLibrary, onOpenRecordings, onPlayRecording, onBlurItemThemeMusic, onLeaveThemeMusic, rememberFocus, mediaPreview]);
+	}, [onSelectItem, onSelectLibrary, onSelectGame, onOpenRecordings, onPlayRecording, onBlurItemThemeMusic, onLeaveThemeMusic, rememberFocus, mediaPreview]);
 
 	// The last card of an Upcoming row opens the calendar, a library's Latest row its library and a
 	// picked collection's row the collection.
@@ -1003,6 +1012,24 @@ const Browse = ({
 									items={row.items}
 									cardType={row.type}
 									onSelectItem={rowSelect.seerr}
+									onFocus={handleRowFocus}
+									onFocusItem={handleFocusItem}
+									rowIndex={index}
+									onNavigateUp={handleNavigateUp}
+									onNavigateDown={handleNavigateDown}
+									registerRowRef={registerRowRef}
+								/>
+							);
+						}
+						if (row.isGameRow) {
+							return (
+								<SeerrTileRow
+									key={row.id}
+									rowId={row.id}
+									title={row.title}
+									items={row.items}
+									cardType="game"
+									onSelectItem={rowSelect.item}
 									onFocus={handleRowFocus}
 									onFocusItem={handleFocusItem}
 									rowIndex={index}
