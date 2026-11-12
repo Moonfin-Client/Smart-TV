@@ -270,6 +270,57 @@ describe('Silo Watch Party room', () => {
 		expect(party.state()).toMatchObject({room: null, endedReason: 'closed'});
 	});
 
+	test('an ended room is dropped from Moonbase, once it is gone from Silo', async () => {
+		// Its own server, so Moonbase isn't remembered as missing from another test.
+		silo.baseUrl = 'http://silo-moonbase:8090';
+		const plugins = {items: [{id: 3, plugin_id: 'moonfin.moonbase'}]};
+		let closeStatus = 503;
+		let ticketStatus = null;
+		const dropped = () => calls.filter((c) => c.method === 'DELETE' && c.path.endsWith('/Moonfin/WatchParty/r1')).length;
+		silo.siloCall.mockImplementation(async (path, options = {}) => {
+			calls.push({path, ...options});
+			if (path === '/api/v2/settings/plugins') return plugins;
+			if (options.method === 'DELETE' && path === '/api/v2/watch-together/rooms/r1' && closeStatus) {
+				throw Object.assign(new Error('nope'), {status: closeStatus});
+			}
+			if (path === '/api/v2/watch-together/rooms') return {room: roomJson(), room_access_token: 'rt'};
+			if (path.endsWith('/ws-ticket')) {
+				if (ticketStatus) throw Object.assign(new Error('nope'), {status: ticketStatus});
+				return {ticket: 'tk', protocol: 'silo.room.v2'};
+			}
+			return null;
+		});
+		const ended = async (how) => {
+			await openRoom();
+			await how();
+			await flush();
+			return dropped();
+		};
+
+		// A close that failed leaves a room that may still be running.
+		expect(await ended(() => party.end())).toBe(0);
+		expect(await ended(() => frame({type: 'room_closed'}))).toBe(1);
+		expect(await ended(() => frame({type: 'error', code: 'not_found'}))).toBe(2);
+		closeStatus = 409;
+		expect(await ended(() => party.end())).toBe(3);
+		closeStatus = null;
+		expect(await ended(() => party.end())).toBe(4);
+
+		// A ticket refused because the room ended drops it.
+		ticketStatus = 409;
+		expect(await party.create()).toBe(true);
+		await flush();
+		expect(party.state()).toMatchObject({room: null, endedReason: 'closed'});
+		expect(dropped()).toBe(5);
+
+		// A refused proof ends this member's stay, but not the room.
+		ticketStatus = 403;
+		expect(await party.create()).toBe(true);
+		await flush();
+		expect(party.state()).toMatchObject({room: null, endedReason: 'closed'});
+		expect(dropped()).toBe(5);
+	});
+
 	test('a guest without transport control sends no requests', async () => {
 		await openRoom();
 		frame({type: 'snapshot', room: roomJson({phase: 'playing', playback_state: 'playing', selected_content_id: 'ep1',
