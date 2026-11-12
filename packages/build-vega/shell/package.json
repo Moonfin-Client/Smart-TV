@@ -44,9 +44,10 @@
 		"react": "19.2.0",
 		"react-native": "0.83.0",
 		"lodash": "4.18.1",
-		"toml": "4.3.0",
+		"toml": "5.0.1",
 		"minimatch@3": "3.1.5",
-		"minimatch@9": "9.0.9",
+		"minimatch@9": "11.0.1",
+		"minimatch@10": "11.0.1",
 		"ajv@8": "8.20.0",
 		"launch-editor": "2.14.2"
 	}
