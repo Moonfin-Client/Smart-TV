@@ -407,6 +407,22 @@ const AppContent = (props) => {
 	const pinSession = isAuthenticated && userId ? `${userId}:${pinCheckCount}` : null;
 	const pinPending = Boolean(pinSession) && pinPassed !== pinSession;
 	const isPinGateActive = pinPending && isSignInPinEnabled(signInPin) && pinRememberRead === pinSession;
+	const signInPinRef = useRef(signInPin);
+	signInPinRef.current = signInPin;
+	// A PIN set on another device while the app was away is only known to the server. One found there is kept,
+	// so the gate still asks for it if the server can't be reached when the gate checks again. An answer that
+	// arrives after the profile changed, or after another check started, belongs to neither and is dropped.
+	const pinSessionRef = useRef(pinSession);
+	pinSessionRef.current = pinSession;
+	const pinAddedElsewhereRef = useRef(null);
+	pinAddedElsewhereRef.current = async () => {
+		const session = pinSession;
+		const before = latestSignInPin();
+		const next = await refreshSignInPin(before, pinAccount);
+		if (pinSessionRef.current !== session || !isSignInPinEnabled(next)) return false;
+		if (next !== before) saveSignInPin(next);
+		return true;
+	};
 	// Until the server has said whether the account has a PIN, nothing behind the gate shows.
 	const isPinChecking = pinPending && !isPinGateActive && pinChecked !== pinSession;
 	const [pinKeyboardOpen, setPinKeyboardOpen] = useState(false);
@@ -849,10 +865,21 @@ const AppContent = (props) => {
 			// The app is held in the background until it activates, so a throw on the way
 			// there must not be allowed to skip it.
 			try {
-				releaseVideoElements();
-				// The player closes the way Back closes it, so the viewer lands where they were.
-				playerEndRef.current?.();
-				setPinCheckCount((count) => count + 1);
+				// Coming back leaves the app as it was, the player included. A profile behind a PIN is asked for it
+				// again, which takes the whole app down to the gate, so its player closes the way Back closes it.
+				// The player is left to let go of its video itself, since one released first reads as at the start
+				// and the stop it reports would wipe the resume position.
+				const askForPin = () => {
+					playerEndRef.current?.();
+					setPinCheckCount((count) => count + 1);
+				};
+				if (isSignInPinEnabled(signInPinRef.current)) {
+					askForPin();
+				} else {
+					pinAddedElsewhereRef.current?.().then((added) => {
+						if (added) askForPin();
+					});
+				}
 				recheckAccessRef.current?.();
 			} finally {
 				activateApp();
