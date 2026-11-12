@@ -285,13 +285,19 @@ const nextRevision = () => {
 	return next;
 };
 
+// The desktop app's x64 MSIX goes in the same Store product with the plain app version,
+// and the Store refuses two packages of one name and version, so the Store build moves
+// the third part up by 1000.
+const storeVersion = (version) => version.replace(/\.(\d+)$/, (_, patch) => `.${Number(patch) + 1000}`);
+
 // The package is built from a copy of the manifest written fresh each build and never
 // committed, which carries the version the build is given, a probe build's other name
 // and a Store build's identity. Writing it every time keeps MSBuild from reusing the
 // manifest of the build before.
 const writeBuildManifest = (version) => {
 	let manifest = fs.readFileSync(MANIFEST_PATH, 'utf8');
-	manifest = manifest.replace(/(<Identity[^>]*?Version=")[^"]*(")/, `$1${version}.${countsVersionUp() ? nextRevision() : 0}$2`);
+	const packageVersion = flag('--store') ? storeVersion(version) : version;
+	manifest = manifest.replace(/(<Identity[^>]*?Version=")[^"]*(")/, `$1${packageVersion}.${countsVersionUp() ? nextRevision() : 0}$2`);
 	if (flag('--store')) {
 		manifest = manifest
 			.replace(/(<Identity[^>]*?Name=")[^"]*(")/, `$1${STORE_IDENTITY.name}$2`)
