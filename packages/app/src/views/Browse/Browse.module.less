@@ -1494,8 +1494,12 @@
 	padding-top: 0;
 }
 
+/* Rows start under the info overlay, or under the navbar's clip edge without it, so nothing
+   covers their top. The navbar's scroll padding would make the browser scroll the rows on
+   every move along a row. */
 .topbarOffset .contentRows.rowsMode {
 	padding-top: 130px;
+	scroll-padding-top: 0;
 }
 
 /* Without the info overlay there is nothing covering the top of the screen, so
@@ -1504,7 +1508,6 @@
 .topbarOffset .contentRows.rowsMode.rowsClipTop {
 	margin-top: 130px;
 	padding-top: 0;
-	scroll-padding-top: 0;
 }
 
 .empty {
