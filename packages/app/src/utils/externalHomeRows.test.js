@@ -8,7 +8,7 @@ jest.mock('./uiLocale', () => ({uiLocale: () => 'en-US'}));
 import {fetchCustomRow, constructSourceUrl} from '../services/externalRowsApi';
 import seerrApi from '../services/seerrApi';
 import {fetchWithTimeout} from './fetchTimeout';
-import {buildSeasonalRow, fetchCalendarRows, fetchExternalPresetRow, formatWatchingNowSubtitle, normalizeWatchingNowItem, sortExternalItems, validateCustomRow} from './externalHomeRows';
+import {buildSeasonalRow, detectCustomSource, fetchCalendarRows, fetchExternalPresetRow, formatWatchingNowSubtitle, normalizeWatchingNowItem, sortExternalItems, validateCustomRow} from './externalHomeRows';
 
 const listUrl = 'https://mdblist.com/lists/user/list';
 const row = {source: 'mdblist', type: 'user_list', params: {username: 'user', listname: 'list'}};
@@ -317,5 +317,21 @@ describe('WatchingNow helpers', () => {
 		expect(normalized.Type).toBe('Series');
 		expect(normalized._seerrMediaType).toBe('tv');
 		expect(normalized.Rank).toBe(2);
+	});
+});
+
+describe('detectCustomSource', () => {
+	it('keeps just the movies or shows of an official list', () => {
+		expect(detectCustomSource('https://mdblist.com/lists/official/movies/most-watched-week')).toEqual(
+			{source: 'mdblist', type: 'list_url', params: {username: 'official', listname: 'most-watched-week', mediatype: 'movie'}});
+		expect(detectCustomSource('https://mdblist.com/lists/official/shows/most-watched-week/?sort=rank')).toEqual(
+			{source: 'mdblist', type: 'list_url', params: {username: 'official', listname: 'most-watched-week', mediatype: 'show'}});
+	});
+
+	it('reads other MDBList lists as a user and list name', () => {
+		expect(detectCustomSource('https://mdblist.com/lists/official/most-watched-week').params)
+			.toEqual({username: 'official', listname: 'most-watched-week'});
+		expect(detectCustomSource('https://mdblist.com/lists/someone/movies').params)
+			.toEqual({username: 'someone', listname: 'movies'});
 	});
 });

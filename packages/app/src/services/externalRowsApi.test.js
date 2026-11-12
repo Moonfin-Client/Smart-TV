@@ -229,6 +229,8 @@ describe('externalRowsApi', () => {
 				.toBe('https://letterboxd.com/alice/');
 			expect(constructSourceUrl('mdblist', 'list_url', {username: 'bob', listname: 'favs'}))
 				.toBe('https://mdblist.com/lists/bob/favs');
+			expect(constructSourceUrl('mdblist', 'list_url', {username: 'official', listname: 'most-watched-week', mediatype: 'movie'}))
+				.toBe('https://mdblist.com/lists/official/movies/most-watched-week');
 			expect(constructSourceUrl('unknown', 'type', {}))
 				.toBe('');
 		});

@@ -27,7 +27,7 @@ import {canTranscodeAudioCodecAway} from '../../utils/deviceProfileTuning';
 import {clearImageCache} from '../../services/imageProxy';
 import {clearProxiedImageCache} from '../../hooks/useProxiedImage';
 import {detectCustomSource, validateCustomRow, buildManualCustomSource, sourceKeyForRow} from '../../utils/externalHomeRows';
-import {fetchCustomRow} from '../../services/externalRowsApi';
+import {fetchCustomRow, constructSourceUrl} from '../../services/externalRowsApi';
 import {forgetPlexMoonbase} from '../../services/plexMoonbase';
 import {checkForUpdatesDetailed} from '../../services/versionChecker';
 import QrLinkView from './QrLinkView';
@@ -1032,14 +1032,20 @@ const Settings = ({ onBack, onLibrariesChanged, onRunSetupWizard, onSelectItem, 
 		customRowName, customRowSortBy, customRowSortOrder, customRowShowUserRatings,
 		editingCustomRowId, settings.customHomeRows, settings.uiLanguage, updateSetting, resetCustomRowForm]);
 
-	// Loads a stored row into the manual form so its ids and sorting can change
+	// Loads a stored row into the form so its ids and sorting can change
 	// without removing and re-adding it.
 	const editCustomRow = useCallback((id) => {
 		const row = (settings.customHomeRows || []).find((r) => r.id === id);
 		if (!row) return;
-		setCustomRowMode('manual');
-		setCustomRowSourceKey(sourceKeyForRow(row));
 		const params = row.params || {};
+		// The manual form has no place for an official list's movies or shows choice, so that row opens as its URL.
+		if (params.mediatype) {
+			setCustomRowMode('url');
+			setCustomRowUrl(constructSourceUrl(row.source, row.type, params));
+		} else {
+			setCustomRowMode('manual');
+		}
+		setCustomRowSourceKey(sourceKeyForRow(row));
 		setCustomRowParamA(params.id || params.username || params.user || '');
 		setCustomRowParamB(params.listname || '');
 		setCustomRowName(row.name || '');

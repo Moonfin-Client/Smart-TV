@@ -194,8 +194,10 @@ export const constructSourceUrl = (source, type, params = {}) => {
 			return `https://www.imdb.com/chart/${type || ''}`;
 		case 'letterboxd':
 			return `https://letterboxd.com/${params.user || ''}/`;
-		case 'mdblist':
-			return `https://mdblist.com/lists/${params.username || ''}/${params.listname || ''}`;
+		case 'mdblist': {
+			const mediaPath = {movie: 'movies/', show: 'shows/'}[params.mediatype] || '';
+			return `https://mdblist.com/lists/${params.username || ''}/${mediaPath}${params.listname || ''}`;
+		}
 		default:
 			return '';
 	}

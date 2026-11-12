@@ -306,6 +306,13 @@ export const detectCustomSource = (url) => {
 	m = raw.match(/themoviedb\.org\/collection\/(\d+)/i);
 	if (m) return {source: 'tmdb', type: 'movie_collection', params: {id: m[1]}};
 
+	// An official list's movies or shows page keeps just that type.
+	m = raw.match(/mdblist\.com\/lists\/official\/(movies|shows)\/([^/?#]+)/i);
+	if (m) {
+		const mediatype = m[1].toLowerCase() === 'movies' ? 'movie' : 'show';
+		return {source: 'mdblist', type: 'list_url', params: {username: 'official', listname: m[2], mediatype}};
+	}
+
 	m = raw.match(/mdblist\.com\/lists\/([^/]+)\/([^/?#]+)/i);
 	if (m) return {source: 'mdblist', type: 'list_url', params: {username: m[1], listname: m[2]}};
 
