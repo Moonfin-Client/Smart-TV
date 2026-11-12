@@ -39,6 +39,16 @@ export const modernRowSpacing = (settings) => {
 	return offset < 20 ? Math.round((offset + 40) * 34 / 60) : Math.max(34, offset);
 };
 
+// The space below each home row. The other clients size the padding sliders in their own units,
+// so the stored value is turned into it here. Classic rows count from the slider's lowest step,
+// so they sit a little closer at every setting. Full screen rows pace themselves.
+export const homeRowSpacing = (settings) => {
+	if (settings.fullScreenRows) return null;
+	return settings.homeRowsStyle !== 'v1'
+		? modernRowSpacing(settings)
+		: Math.max(0, (settings.classicHomeRowsPadding ?? 30) - 10);
+};
+
 export const getEpisodeLabels = (item) => {
 	if (!item) return null;
 	if (item.Type === 'Episode') {

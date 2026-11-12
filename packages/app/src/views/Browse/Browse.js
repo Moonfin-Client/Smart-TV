@@ -43,7 +43,8 @@ import {markHomeReady} from '../../utils/homeReady';
 import {homeBackdropStyle} from '../../utils/homeBackdropStyle';
 import {rem} from '../../utils/rootScale';
 import {glideScroll, isGliding, smoothScrollingOn, stopScrollAnimation} from '../../utils/focusScroll';
-import {homeRowSpacing, rowImageType, rowPeekHeight} from './rowPeek';
+import {homeRowSpacing} from '../../components/MediaCard/modernCardLayout';
+import {rowImageType, rowPeekHeight} from './rowPeek';
 
 import css from './Browse.module.less';
 

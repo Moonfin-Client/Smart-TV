@@ -273,7 +273,7 @@ const ModernMediaRow = ({
 			{subtitle && <div className={css.subtitle}>{subtitle}</div>}
 			{/* Core starts the cards a little in from the title, 20 points against its 16. */}
 			<div className={css.scroller} ref={scrollerRef} onFocus={handleFocus} style={coreLook ? {paddingLeft: `${leadingInset + 6}px`} : undefined}>
-				<div className={css.items} style={coreLook ? undefined : {minHeight: `${captionFloor}px`}}>
+				<div className={css.items} style={{minHeight: `${captionFloor}px`}}>
 					{items.map((item, index) => {
 						const spotlightId = `media-${keyPrefix}-${item.Id}`;
 						// Wide art loads ahead for the cards a step or two along from focus, and in a row

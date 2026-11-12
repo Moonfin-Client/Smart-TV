@@ -9,7 +9,7 @@ import {useSettings} from '../../context/SettingsContext';
 import {useAuth} from '../../context/AuthContext';
 import {ModernMediaRow} from '../../components/MediaRow';
 import BackdropLayer from '../../components/BackdropLayer';
-import {modernCardMetrics, posterSizeScale} from '../../components/MediaCard/modernCardLayout';
+import {homeRowSpacing, modernCardMetrics, posterSizeScale} from '../../components/MediaCard/modernCardLayout';
 import seerrApi from '../../services/seerrApi';
 import {seerrGenreBackdrop} from '../../utils/seerrGenreArt';
 import LoadingSpinner from '../../components/LoadingSpinner';
@@ -25,6 +25,8 @@ import {isSupportedSlider, loadDiscoverSliders, loadSliderPage} from '../../util
 import {isScrolledAway} from '../../utils/quickReturn';
 import {focusedCardIndex, cardToRestore, focusedRowIndex} from '../../utils/rowFocusMemory';
 import {scrimStyle} from '../../utils/scrimImage';
+import rowCss from '../../components/MediaRow/MediaRow.module.less';
+import modernRowCss from '../../components/MediaRow/ModernMediaRow.module.less';
 
 import css from './SeerrDiscover.module.less';
 
@@ -273,7 +275,9 @@ const DiscoverRow = memo(function DiscoverRow({
 	onNavigateUp,
 	onNavigateDown,
 	onLoadMore,
-	onRowFocus
+	onRowFocus,
+	rowClassName,
+	spacing
 }) {
 	const scrollerRef = useRef(null);
 
@@ -349,7 +353,7 @@ const DiscoverRow = memo(function DiscoverRow({
 	const scrollerHeight = tiles ? sizes.tileHeight + 17 : sizes.rowHeight;
 
 	return (
-		<div data-row-index={rowIndex}>
+		<div data-row-index={rowIndex} className={rowClassName} style={{marginBottom: `${spacing}px`}}>
 			<h2 className={css.rowTitle} style={{paddingLeft: `${inset}px`}}>{config.title}</h2>
 			<div className={tiles ? css.tileScroller : css.rowScroller} ref={scrollerRef} style={{paddingLeft: `${inset + 6}px`, height: `${scrollerHeight}px`}}>
 				<RowContainer
@@ -850,6 +854,16 @@ const SeerrDiscover = ({onSelectItem, onSelectGenre, onSelectNetwork, onSelectSt
 		);
 	}
 
+	// Rows are spaced the way Home spaces its own, by Row Padding or Expanded Rows. Tile rows keep
+	// Classic padding in Modern, as Core does. An expanded row keeps the margin Home's row
+	// stylesheets give it.
+	const expanded = settings.fullScreenRows === true;
+	const rowSpacing = homeRowSpacing(settings);
+	const discoverSpacing = expanded ? (useModernRows ? 26 : 30) : homeRowSpacing({...settings, homeRowsStyle: 'v1'});
+	const discoverRowClass = expanded
+		? (useModernRows ? modernRowCss.fullScreenRows : `${rowCss.fullScreenRows} ${rowCss.withOverlay}`)
+		: undefined;
+
 	const renderRow = (config, index) => (useModernRows && config.type === 'media' ? (
 		<ModernMediaRow
 			key={config.id}
@@ -867,6 +881,7 @@ const SeerrDiscover = ({onSelectItem, onSelectGenre, onSelectNetwork, onSelectSt
 			onLoadMore={handleLoadMore}
 			coreLook
 			leadingInset={layout.inset}
+			rowSpacing={rowSpacing}
 		/>
 	) : (
 		<DiscoverRow
@@ -888,6 +903,8 @@ const SeerrDiscover = ({onSelectItem, onSelectGenre, onSelectNetwork, onSelectSt
 			onNavigateDown={handleNavigateDown}
 			onLoadMore={handleLoadMore}
 			onRowFocus={handleRowFocus}
+			rowClassName={discoverRowClass}
+			spacing={discoverSpacing}
 		/>
 	));
 

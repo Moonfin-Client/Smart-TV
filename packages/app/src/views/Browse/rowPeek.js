@@ -1,5 +1,5 @@
 import {classicCardSize} from '../../components/MediaCard/MediaCard';
-import {modernCardMetrics, modernRowSpacing} from '../../components/MediaCard/modernCardLayout';
+import {modernCardMetrics} from '../../components/MediaCard/modernCardLayout';
 
 // From a row's top to the top of its cards, the title line plus the space under it, as
 // MediaRow.module.less and ModernMediaRow.module.less lay them out.
@@ -37,12 +37,3 @@ export const rowPeekHeight = (settings, row) => {
 	return CLASSIC_CARDS_TOP + height / 2;
 };
 
-// The space below each home row. The other clients size the padding sliders in their own units,
-// so the stored value is turned into it here. Classic rows count from the slider's lowest step,
-// so they sit a little closer at every setting. Full screen rows pace themselves.
-export const homeRowSpacing = (settings) => {
-	if (settings.fullScreenRows) return null;
-	return settings.homeRowsStyle !== 'v1'
-		? modernRowSpacing(settings)
-		: Math.max(0, (settings.classicHomeRowsPadding ?? 30) - 10);
-};
