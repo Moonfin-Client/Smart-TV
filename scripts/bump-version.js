@@ -31,6 +31,8 @@ const doTizen = platform === 'tizen' || platform === 'all';
 const doVega = platform === 'vega' || platform === 'all';
 const doXbox = platform === 'xbox' || platform === 'all';
 
+const bumpedPackages = [];
+
 /**
  * Update "version" in a JSON file, preserving its indentation style.
  */
@@ -44,6 +46,7 @@ const updateJsonVersion = (rel) => {
 	const indent = raw.match(/^{\s*\n(\s+)/)?.[1] || '\t';
 	fs.writeFileSync(file, JSON.stringify(json, null, indent) + '\n');
 	console.log(`  ${rel}: ${old} → ${newVersion}`);
+	if (path.basename(rel) === 'package.json') bumpedPackages.push(path.dirname(rel));
 };
 
 // ── Shared files (always updated) ──
@@ -152,6 +155,17 @@ if (doVega) {
 	for (const rel of vegaJsonFiles) {
 		updateJsonVersion(rel);
 	}
+
+	const tomlPath = path.join(ROOT, 'packages/build-vega/shell/manifest.toml');
+	if (fs.existsSync(tomlPath)) {
+		const toml = fs.readFileSync(tomlPath, 'utf8');
+		const versionLine = /^(version = ")([^"]*)(")/m;
+		const old = (toml.match(versionLine) || [])[2];
+		if (old) {
+			fs.writeFileSync(tomlPath, toml.replace(versionLine, `$1${newVersion}$3`));
+			console.log(`  build-vega/shell/manifest.toml: ${old} → ${newVersion}`);
+		}
+	}
 }
 
 // ── Xbox ──
@@ -173,7 +187,7 @@ if (doXbox) {
 	}
 }
 
-// ── package-lock.json (root version) ──
+// ── package-lock.json (root and bumped workspace versions) ──
 const lockPath = path.join(ROOT, 'package-lock.json');
 if (fs.existsSync(lockPath)) {
 	const lock = JSON.parse(fs.readFileSync(lockPath, 'utf8'));
@@ -181,6 +195,9 @@ if (fs.existsSync(lockPath)) {
 	lock.version = newVersion;
 	if (lock.packages?.['']) {
 		lock.packages[''].version = newVersion;
+	}
+	for (const dir of bumpedPackages) {
+		if (dir !== '.' && lock.packages?.[dir]) lock.packages[dir].version = newVersion;
 	}
 	fs.writeFileSync(lockPath, JSON.stringify(lock, null, '\t') + '\n');
 	console.log(`  package-lock.json: ${old} → ${newVersion}`);
