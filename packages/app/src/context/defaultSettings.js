@@ -383,7 +383,6 @@ export const defaultSettings = {
 	dtsPassthrough: true,
 	dtshdPassthrough: true,
 	truehdPassthrough: true,
-	forceTruehdPassthrough: false,
 	showSeerrButton: true,
 	seerrShowMissingCollectionItems: true,
 	showSeerrAvailabilityBadges: true,

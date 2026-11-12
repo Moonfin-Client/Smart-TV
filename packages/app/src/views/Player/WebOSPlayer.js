@@ -35,7 +35,8 @@ import {
 	showHostSubtitle,
 	notePlaybackError,
 	getHostAudioOutput,
-	chooseHostReader
+	chooseHostReader,
+	isAudioStreamPlayable
 } from '../../services/video';
 import {KEYS, isBackKey, isMediaKey, remoteShortcut} from '../../utils/keys';
 import {trackShortcutAction} from './trackShortcut';
@@ -45,6 +46,7 @@ import {useSyncPlay} from '../../context/SyncPlayContext';
 import * as syncPlayService from '../../services/syncPlay';
 import {getAssFontScale, resolveSubtitleStyleSettings} from '../../utils/subtitleConstants';
 import SubtitleTextOverlay from './SubtitleTextOverlay';
+import {matchAudioTrack} from './webosTrackUtils';
 import useSecondarySubtitle from './useSecondarySubtitle';
 import useSubtitleFetch from './useSubtitleFetch';
 import useCinemaSkip from './useCinemaSkip';
@@ -138,6 +140,8 @@ const getWebOSFullscreenRect = () => {
 		height: Math.max(screenHeight, physicalHeight)
 	};
 };
+
+const playsNatively = (stream) => isAudioStreamPlayable({Codec: stream.codec}, playback.getCurrentSession()?.capabilities || {});
 
 // A burst of arrow presses on the seek bar becomes one group seek, since every
 // request puts the whole group through a round of buffering.
@@ -528,34 +532,9 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 		});
 	}, [decodedAspectRatio, videoDisplayAspectRatio, zoomMode, isAudioMode]);
 
-	// Match a Jellyfin audio stream to a browser audioTracks entry by language,
-	// falling back to array-position if language matching is ambiguous or unavailable.
-	const matchAudioTrack = (nativeTracks, jellyfinStreams, targetIndex) => {
-		const selectedStream = jellyfinStreams.find(s => s.index === targetIndex);
-		if (selectedStream) {
-			const lang = (selectedStream.language || '').toLowerCase();
-			if (lang && lang !== 'unknown' && lang !== 'und') {
-				const langMatches = [];
-				for (let i = 0; i < nativeTracks.length; i++) {
-					const trackLang = (nativeTracks[i].language || '').toLowerCase();
-					if (trackLang === lang || trackLang.startsWith(lang) || lang.startsWith(trackLang)) {
-						langMatches.push(i);
-					}
-				}
-				if (langMatches.length === 1) return langMatches[0];
-				if (langMatches.length > 1) {
-					const sameLanguageStreams = jellyfinStreams.filter(s => (s.language || '').toLowerCase() === lang);
-					const posInSameLanguage = sameLanguageStreams.findIndex(s => s.index === targetIndex);
-					if (posInSameLanguage >= 0 && posInSameLanguage < langMatches.length) {
-						return langMatches[posInSameLanguage];
-					}
-				}
-			}
-		}
-		const trackPosition = jellyfinStreams.findIndex(s => s.index === targetIndex);
-		if (trackPosition >= 0 && trackPosition < nativeTracks.length) return trackPosition;
-		return -1;
-	};
+	// The audio switch through the server is defined further down, and the first timeupdate
+	// reaches it through a ref when the TV's track list can't be matched.
+	const reloadWithAudioRef = useRef(null);
 
 	// handleBack is defined further down, so the timer reaches it through a ref
 	// rather than forcing the whole player to be reordered.
@@ -1261,7 +1240,6 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 					videoStream: describeVideoStream(findVideoStream(result.mediaSource)),
 					videoSupport,
 					forceDirectPlay: Boolean(playbackInfoOptions.forceDirectPlay),
-					forceTruehdPassthrough: Boolean(settings.forceTruehdPassthrough),
 					audioOutputStatus: audioCaps?.audioOutputStatus,
 					defaultAudioStreamIndex: result.defaultAudioStreamIndex,
 					selectedAudioStreamIndex: result.selectedAudioStreamIndex,
@@ -1462,7 +1440,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 			}
 		};
 	// eslint-disable-next-line react-hooks/exhaustive-deps
-	}, [item, resume, onPlayNext, selectedQuality, settings.maxBitrate, settings.preferTranscode, settings.forceDirectPlay, settings.forceTruehdPassthrough, forceTranscode, settings.subtitleMode, settings.introAction, settings.outroAction, initialAudioIndex, initialSubtitleIndex, tuneRevision, loadTextTrack, startInBandText, disposeTextSource]);
+	}, [item, resume, onPlayNext, selectedQuality, settings.maxBitrate, settings.preferTranscode, settings.forceDirectPlay, forceTranscode, settings.subtitleMode, settings.introAction, settings.outroAction, initialAudioIndex, initialSubtitleIndex, tuneRevision, loadTextTrack, startInBandText, disposeTextSource]);
 
 	// Another client can queue more while this plays, and what it puts behind this plays next.
 	useEffect(() => {
@@ -1970,7 +1948,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 				const pending = pendingAudioRef.current;
 				if (pending) {
 					if (video.audioTracks?.length > 1) {
-						const matchIndex = matchAudioTrack(video.audioTracks, pending.audioStreams, pending.streamIndex);
+						const matchIndex = matchAudioTrack(video.audioTracks, pending.audioStreams, pending.streamIndex, playsNatively);
 						if (matchIndex >= 0) {
 							const playingIndex = Array.prototype.findIndex.call(video.audioTracks, (track) => track.enabled);
 							const switched = playingIndex !== matchIndex;
@@ -1983,8 +1961,19 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 								jellyfinIndex: pending.streamIndex,
 								matchIndex,
 								playingIndex,
-								switched
+								switched,
+								nativeTracks: video.audioTracks.length
 							});
+						} else if (!pending.afterReload) {
+							// Left alone, the TV plays a track of its own choosing, so the server sends one
+							// with only the chosen track in it. A reload that comes back as direct play
+							// again doesn't try a second time.
+							serverLogger.playback('Audio: TV track list does not match, asking the server', {
+								jellyfinIndex: pending.streamIndex,
+								nativeTracks: video.audioTracks.length,
+								audioStreams: pending.audioStreams.length
+							});
+							reloadWithAudioRef.current?.(pending.streamIndex);
 						}
 						pendingAudioRef.current = null;
 					} else if (!video.audioTracks || video.audioTracks.length > 0) {
@@ -3132,6 +3121,48 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 		}
 	}, [remoteSubtitleResults, item, subtitleStreams, mediaSourceId, selectedAudioIndex, selectedSubtitleIndex, selectedQuality, settings.maxBitrate, applySubtitleSelection]);
 
+	// Direct play hands the TV the whole file, so the server sends the stream again with only this
+	// audio track in it.
+	const reloadWithAudio = useCallback(async (index) => {
+		try {
+			const currentPositionTicks = videoRef.current
+				? Math.floor((videoRef.current.currentTime + streamOffsetRef.current) * 10000000)
+				: positionRef.current || 0;
+
+			const result = await playback.changeAudioStream(index, currentPositionTicks);
+			if (result) {
+				positionRef.current = currentPositionTicks;
+
+				// Preserve playback position when reloading for audio switch
+				if (currentPositionTicks > 0) {
+					pendingResumeTicksRef.current = currentPositionTicks;
+				}
+
+				let newUrl = result.url;
+				if (result.playMethod === playback.PlayMethod.DirectPlay) {
+					const separator = newUrl.includes('?') ? '&' : '?';
+					newUrl = `${newUrl}${separator}_audioSwitch=${Date.now()}`;
+					// Try native audio track switch after reload as safety net
+					pendingAudioRef.current = {
+						streamIndex: index,
+						audioStreams: result.audioStreams || audioStreams,
+						afterReload: true
+					};
+				}
+				setMediaUrl(newUrl);
+				setSourceRevision((revision) => revision + 1);
+				if (result.playMethod) setPlayMethod(result.playMethod);
+				setIsHdrContent(isHdrOutput(result.mediaSource, result.playMethod === playback.PlayMethod.Transcode));
+				setMimeType(result.mimeType || 'video/mp4');
+				if (result.audioStreams) setAudioStreams(result.audioStreams);
+				if (result.subtitleStreams) setSubtitleStreams(result.subtitleStreams);
+			}
+		} catch (err) {
+			console.error('[Player] Failed to change audio:', err);
+		}
+	}, [audioStreams]);
+	reloadWithAudioRef.current = reloadWithAudio;
+
 	const applyAudioSelection = useCallback(async (index, shouldClose = true) => {
 		setSelectedAudioIndex(index);
 		// Saved here rather than after the switch, because switching leaves by several
@@ -3148,7 +3179,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 			if (playMethod !== playback.PlayMethod.Transcode && videoRef.current?.audioTracks?.length > 1
 				&& !transcodesAudioCodec(settings, target?.codec)) {
 				const audioTrackList = videoRef.current.audioTracks;
-				const matchIndex = matchAudioTrack(audioTrackList, audioStreams, index);
+				const matchIndex = matchAudioTrack(audioTrackList, audioStreams, index, playsNatively);
 
 				if (matchIndex >= 0) {
 					for (let i = 0; i < audioTrackList.length; i++) {
@@ -3159,43 +3190,11 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 					return;
 				}
 			}
-
-			const currentPositionTicks = videoRef.current
-				? Math.floor((videoRef.current.currentTime + streamOffsetRef.current) * 10000000)
-				: positionRef.current || 0;
-
-			const result = await playback.changeAudioStream(index, currentPositionTicks);
-			if (result) {
-				positionRef.current = currentPositionTicks;
-
-				// Preserve playback position when reloading for audio switch
-				if (currentPositionTicks > 0) {
-					pendingResumeTicksRef.current = currentPositionTicks;
-				}
-
-
-				let newUrl = result.url;
-				if (result.playMethod === playback.PlayMethod.DirectPlay) {
-					const separator = newUrl.includes('?') ? '&' : '?';
-					newUrl = `${newUrl}${separator}_audioSwitch=${Date.now()}`;
-					// Try native audio track switch after reload as safety net
-					pendingAudioRef.current = {
-						streamIndex: index,
-						audioStreams: result.audioStreams || audioStreams
-					};
-				}
-				setMediaUrl(newUrl);
-				setSourceRevision((revision) => revision + 1);
-				if (result.playMethod) setPlayMethod(result.playMethod);
-				setIsHdrContent(isHdrOutput(result.mediaSource, result.playMethod === playback.PlayMethod.Transcode));
-				setMimeType(result.mimeType || 'video/mp4');
-				if (result.audioStreams) setAudioStreams(result.audioStreams);
-				if (result.subtitleStreams) setSubtitleStreams(result.subtitleStreams);
-			}
 		} catch (err) {
 			console.error('[Player] Failed to change audio:', err);
 		}
-	}, [item, playMethod, closeModal, audioStreams, settings]);
+		await reloadWithAudio(index);
+	}, [item, playMethod, closeModal, audioStreams, settings, reloadWithAudio]);
 
 	// Track selection - using data attributes to avoid arrow functions in JSX
 	const handleSelectAudio = useCallback((e) => {
