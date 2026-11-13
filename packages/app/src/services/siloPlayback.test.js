@@ -63,6 +63,31 @@ describe('device profile', () => {
 		expect(tizen.hls.features).toEqual([]);
 	});
 
+	test('a channel cap for one codec stays on that codec, a cap for every codec is the setting', () => {
+		// Tizen's profile: PCM only in stereo everywhere, AAC in stereo only in TS on sets before Tizen 6.
+		const profile = {
+			DirectPlayProfiles: [{Type: 'Video', Container: 'mkv,mp4,ts', VideoCodec: 'hevc', AudioCodec: 'aac,ac3,eac3,pcm_s16le'}],
+			TranscodingProfiles: [{Type: 'Video', Container: 'ts', Protocol: 'hls', VideoCodec: 'hevc', AudioCodec: 'ac3'}],
+			CodecProfiles: [
+				{Type: 'VideoAudio', Container: 'ts,mpegts', Codec: 'aac', Conditions: [{Condition: 'LessThanEqual', Property: 'AudioChannels', Value: '2'}]},
+				{Type: 'VideoAudio', Codec: 'pcm_s16le', Conditions: [{Condition: 'LessThanEqual', Property: 'AudioChannels', Value: '2'}]}
+			]
+		};
+		const {deliveries} = siloCapabilitiesFromDeviceProfile(profile);
+		for (const name of ['original_http', 'progressive']) {
+			expect(deliveries[name].max_channels).toBeUndefined();
+			expect(deliveries[name].max_channels_by_codec).toEqual({pcm_s16le: 2});
+		}
+		expect(deliveries.hls.max_channels).toBeUndefined();
+		expect(deliveries.hls.max_channels_by_codec).toEqual({aac: 2, pcm_s16le: 2});
+
+		const capped = siloCapabilitiesFromDeviceProfile({
+			...profile,
+			CodecProfiles: [...profile.CodecProfiles, {Type: 'VideoAudio', Conditions: [{Condition: 'LessThanEqual', Property: 'AudioChannels', Value: '2'}]}]
+		}).deliveries;
+		for (const name of ['original_http', 'progressive', 'hls']) expect(capped[name].max_channels).toBe(2);
+	});
+
 	test('a TV reports its own HDR as what it shows, a stick or console leaves it unknown', () => {
 		const capabilities = hevcOnly('SDR|HDR10|HLG|DOVI|DOVIWithHDR10');
 		const hdr = capabilities.clientCapabilities.hdr_details;

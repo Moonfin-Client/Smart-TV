@@ -143,11 +143,35 @@ const maxResolution = (codecProfiles) => {
 	return '4320p';
 };
 
-const maxChannels = (codecProfiles) => {
-	const channels = limits(codecProfiles, 'VideoAudio', 'AudioChannels');
-	if (!channels.length) return null;
-	const lowest = Math.min(...channels);
-	return lowest < 6 ? lowest : null;
+// The channel caps for audio in video. A cap for every codec (the Max Audio Channels setting) is max_channels, one for
+// some codecs (Tizen plays PCM only in stereo) is max_channels_by_codec, so it doesn't send every codec down to stereo.
+// A cap for some containers counts only on HLS whose segments come in one of them: the original file and the remux
+// mix containers, and Jellyfin leaves the cap off their other containers too.
+const channelLimits = (codecProfiles, hlsContainers) => {
+	const all = [];
+	const byCodec = {};
+	const hlsByCodec = {};
+	const cap = (caps, codec, limit) => {
+		caps[codec] = caps[codec] ? Math.min(caps[codec], limit) : limit;
+	};
+	codecProfiles.forEach((p) => {
+		if (p.Type !== 'VideoAudio' || profiles(p.ApplyConditions).length) return;
+		const scope = csv(p.Container);
+		if (scope.length && !scope.some((c) => hlsContainers.includes(c))) return;
+		profiles(p.Conditions).forEach((c) => {
+			if (c.Property !== 'AudioChannels' || c.Condition !== 'LessThanEqual') return;
+			const limit = parseInt(c.Value, 10);
+			if (!(limit > 0)) return;
+			const codecs = csv(p.Codec);
+			if (!codecs.length && !scope.length) all.push(limit);
+			codecs.forEach((codec) => {
+				if (!scope.length) cap(byCodec, codec, limit);
+				cap(hlsByCodec, codec, limit);
+			});
+		});
+	});
+	const lowest = all.length ? Math.min(...all) : null;
+	return {max: lowest != null && lowest < 6 ? lowest : null, byCodec, hlsByCodec};
 };
 
 const HLS_VIDEO_CODECS = ['h264', 'hevc'];
@@ -168,9 +192,9 @@ export const siloCapabilitiesFromDeviceProfile = (deviceProfile = {}, traits = T
 	const hdr = hdrDetails(codecProfiles, videoCodecs);
 	const anyHdr = hdr.hdr10 || hdr.hlg || hdr.hdr10_plus || hdr.dolby_vision_profiles.length > 0;
 	const resolution = maxResolution(codecProfiles);
-	const channels = maxChannels(codecProfiles);
+	const channels = channelLimits(codecProfiles, union(hlsProfiles.map((p) => csv(p.Container))));
 
-	const delivery = ({supported, containers: kinds, video, audio, subtitles, claims = [], features = [], failureReason}) => ({
+	const delivery = ({supported, containers: kinds, video, audio, subtitles, channelsByCodec = channels.byCodec, claims = [], features = [], failureReason}) => ({
 		enabled: true,
 		supported_on_device: supported,
 		...(supported ? null : {failure_reason: failureReason}),
@@ -178,7 +202,8 @@ export const siloCapabilitiesFromDeviceProfile = (deviceProfile = {}, traits = T
 		video_codecs: video,
 		audio_decode_codecs: audio,
 		audio_passthrough_codecs: [],
-		...(channels != null ? {max_channels: channels} : null),
+		...(channels.max != null ? {max_channels: channels.max} : null),
+		...(Object.keys(channelsByCodec).length ? {max_channels_by_codec: channelsByCodec} : null),
 		subtitles,
 		features,
 		auth_header_refresh: false,
@@ -235,6 +260,7 @@ export const siloCapabilitiesFromDeviceProfile = (deviceProfile = {}, traits = T
 				video: hlsVideo,
 				audio: hlsAudio.length ? hlsAudio : ['aac'],
 				subtitles: sidecarSubtitles,
+				channelsByCodec: channels.hlsByCodec,
 				features: traits.playsHlsNatively ? ['native_hls_playback_v1'] : []
 			})
 		},
