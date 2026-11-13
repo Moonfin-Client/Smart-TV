@@ -74,6 +74,8 @@ import itemMenuCss from '../components/ItemContextMenu/ItemContextMenu.module.le
 import skeletonCss from '../components/Skeleton/Skeleton.module.less';
 import playlistSortFilterCss from '../components/PlaylistSortFilterBar/PlaylistSortFilterBar.module.less';
 import playbackInfoCss from '../views/Player/PlaybackInfoModal.module.less';
+import accountCss from '../components/AccountModal/AccountModal.module.less';
+import carouselCss from '../components/ProfileCarousel/ProfileCarousel.module.less';
 
 const STYLE_ELEMENT_ID = 'moonfin-theme-overrides';
 
@@ -856,6 +858,30 @@ export const buildThemeOverrideCss = (theme, options = {}) => {
 		rule(`.${calendar.button}:focus, .${calendar.tab}:focus`, `background: ${onSurface} !important; border-color: ${focusColor}; color: ${inkOn(c.onSurface) === '0, 0, 0' ? 'rgba(0, 0, 0, 0.87)' : '#fff'};`);
 	}
 
+
+	// Switch User, drawn in the theme's accent like Core and Roku. The scrim, the initials
+	// colours and the red Sign Out All Users stay fixed there too. Login's user picker shares the
+	// carousel but isn't themed, so these stay inside the switcher.
+	const sw = (names) => names.map((name) => `.${accountCss.layer} .${name}`).join(', ');
+	// The scrim is dark whatever the theme, so a dark onSurface gives way to white there.
+	const swRgb = inkOn(c.onSurface) === '0, 0, 0' ? onSurfaceRgb : '255, 255, 255';
+	const sws = (a) => `rgba(${swRgb}, ${a})`;
+	// Same check as the focused buttons: white on the Moonfin cyan can't be read.
+	const badgeInk = contrastRatio(c.accent, c.onAccent) >= MIN_BUTTON_CONTRAST
+		? onAccent
+		: `rgba(${inkOn(c.accent)}, 0.92)`;
+	rule(sw([accountCss.screen, carouselCss.name]), `color: ${sws(1)};`);
+	rule(sw([accountCss.signedInAs, carouselCss.line]), `color: ${sws(0.65)};`);
+	rule(sw([carouselCss.avatar]), `background: ${sws(0.1)};`);
+	rule(sw([carouselCss.personIcon]), `color: ${sws(0.6)};`);
+	rule(sw([`${carouselCss.slot0} .${carouselCss.avatar}`]), `box-shadow: 0 0 0 ${rem(4)} rgba(0, 0, 0, 0.45), 0 0 0 ${rem(8)} ${sws(0.25)};`);
+	rule(sw([`${carouselCss.carousel}:focus .${carouselCss.slot0} .${carouselCss.avatar}`]), `box-shadow: 0 0 0 ${rem(4)} rgba(0, 0, 0, 0.45), 0 0 0 ${rem(8)} ${accent};`);
+	rule(sw([carouselCss.badgeActive]), `background-color: ${accent}; color: ${badgeInk};`);
+	rule(sw([carouselCss.lineAccent]), `color: ${accent};`);
+	rule(sw([carouselCss.dot]), `background: ${sws(0.3)};`);
+	rule(sw([carouselCss.dotOn]), `background: ${accent};`);
+	rule(sw([`${carouselCss.pill}:not(.${carouselCss.pillDanger})`]), `border-color: ${sws(0.2)}; background: ${sws(0.06)}; color: ${sws(0.85)};`);
+	rule(sw([`${carouselCss.pill}:not(.${carouselCss.pillDanger}):focus`]), `border-color: ${accent}; color: ${accent};`);
 	// Pixel themes square off every fixed radius.
 	if (theme.isPixel) {
 		rule([
