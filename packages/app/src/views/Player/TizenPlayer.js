@@ -295,6 +295,8 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 		isBuffering: () => isBufferingRef.current || !avplayReadyRef.current // eslint-disable-line no-use-before-define
 	}), [syncPlaySample]);
 	const runTimeRef = useRef(0);
+	// The runtime the playback info gave, which prepare doesn't overwrite (a second or less counts as unknown)
+	const titleRunTimeRef = useRef(0);
 	const healthMonitorRef = useRef(null);
 	const unregisterAppStateRef = useRef(null);
 	const controlsTimeoutRef = useRef(null);
@@ -915,8 +917,10 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 		// some firmware resets display state during prepare
 		applyDisplayWindow();
 
+		// A Silo copy's playlist only lists what Silo has produced so far, so AVPlay's duration is that, not the title's:
+		// the scrub bar would end there and a skip would stop short. The title's runtime stands, and its seeks go to Silo.
 		const durationMs = avplayGetDuration();
-		if (durationMs > 0) {
+		if (durationMs > 0 && !(streamTimeline.seeksThroughServer && titleRunTimeRef.current > 10000000)) {
 			setDuration(durationMs / 1000);
 			runTimeRef.current = Math.floor(durationMs * 10000);
 		}
@@ -1013,6 +1017,13 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 		if (result.playMethod) setPlayMethod(result.playMethod);
 		setIsHdrContent(isHdrOutput(result.mediaSource, result.playMethod === playback.PlayMethod.Transcode));
 		if (result.playSessionId) playSessionRef.current = result.playSessionId;
+		// A replan can be another version, or know a runtime the first plan didn't, so it sets the title's length as
+		// loadMedia does before the new stream prepares.
+		if (result.runTimeTicks !== undefined) {
+			runTimeRef.current = result.runTimeTicks || 0;
+			titleRunTimeRef.current = runTimeRef.current;
+			setDuration((result.runTimeTicks || 0) / 10000000);
+		}
 		if (!await startAVPlayback(result.url, positionTicks, {playMethod: result.playMethod, mediaSource: result.mediaSource, shouldAbort})) return null;
 		playback.reportStart(positionRef.current);
 		playback.startProgressReporting(
@@ -1482,6 +1493,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 					setVideoAspectRatio(getVideoDisplayAspectRatio(r.mediaSource));
 					playSessionRef.current = r.playSessionId;
 					runTimeRef.current = r.runTimeTicks || 0;
+					titleRunTimeRef.current = runTimeRef.current;
 					setDuration((r.runTimeTicks || 0) / 10000000);
 					setAudioStreams(r.audioStreams || []);
 					setSubtitleStreams(r.subtitleStreams || []);
@@ -2396,7 +2408,13 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 	// A live stream has no duration, so its rewind window bounds a seek instead.
 	const seekBoundsMs = useCallback(() => {
 		const live = liveWindowRef.current;
-		return live ? [live.start * 1000, live.edge * 1000] : [0, avplayGetDuration()];
+		if (live) return [live.start * 1000, live.edge * 1000];
+		// A Silo copy's AVPlay duration ends where its playlist does (see prepare), so its runtime bounds a seek, a
+		// second short of the end, which Silo has no stream to open at.
+		if (streamTimeline.seeksThroughServer && titleRunTimeRef.current > 10000000) {
+			return [0, titleRunTimeRef.current / 10000 - 1000];
+		}
+		return [0, avplayGetDuration()];
 	}, []);
 
 	// AVPlay keeps reporting the old spot until a seek lands, so skip prompts are held until it has.
