@@ -26,6 +26,8 @@ const SpottableInput = forwardRef(({
 	const [inputFocused, setInputFocused] = useState(false);
 	const [kbActive, setKbActive] = useState(false);
 	const kbActiveRef = useRef(false);
+	// Set while the TV's own keyboard has the field, so leaving can say it's gone
+	const systemActiveRef = useRef(false);
 	const [revealed, setRevealed] = useState(false);
 	const [cursorPos, setCursorPos] = useState(0);
 	const {settings} = useSettings();
@@ -43,6 +45,8 @@ const SpottableInput = forwardRef(({
 		return () => {
 			p.resume();
 			if (kbActiveRef.current) closeTvKeyboard();
+			// A field that goes away never blurs, so screens would keep the keyboard's room
+			if (systemActiveRef.current) publishTvKeyboardVisibility(false, null);
 		};
 	}, []);
 
@@ -50,6 +54,7 @@ const SpottableInput = forwardRef(({
 		if (!disabled && inputRef.current) {
 			pauseRef.current.pause();
 			inputRef.current.focus();
+			systemActiveRef.current = true;
 			// The TV's own keyboard pops over the screen the same way ours does,
 			// so screens watching for a keyboard hear about this path too
 			publishTvKeyboardVisibility(true, inputRef.current.parentElement);
@@ -160,6 +165,7 @@ const SpottableInput = forwardRef(({
 	const handleBlur = useCallback(() => {
 		setInputFocused(false);
 		pauseRef.current.resume();
+		systemActiveRef.current = false;
 		if (!kbActiveRef.current) publishTvKeyboardVisibility(false, null);
 	}, []);
 
