@@ -75,10 +75,15 @@ describe('device profile', () => {
 		};
 		const ceilings = ['codec_channel_ceilings_v1'];
 		const {deliveries} = siloCapabilitiesFromDeviceProfile(profile, undefined, ceilings);
-		// The original file can be TS, the remux and HLS can't.
-		expect(deliveries.original_http.max_channels_by_codec).toEqual({aac: 2, pcm_s16le: 2});
-		for (const name of ['progressive', 'hls']) expect(deliveries[name].max_channels_by_codec).toEqual({pcm_s16le: 2});
+		// The original file can be TS, and so can Silo's HLS encodes; the remux can't.
+		for (const name of ['original_http', 'hls']) expect(deliveries[name].max_channels_by_codec).toEqual({aac: 2, pcm_s16le: 2});
+		expect(deliveries.progressive.max_channels_by_codec).toEqual({pcm_s16le: 2});
 		for (const name of ['original_http', 'progressive', 'hls']) expect(deliveries[name].max_channels).toBeUndefined();
+		// The file being played narrows the original's caps to its own container.
+		const mkv = siloCapabilitiesFromDeviceProfile(profile, undefined, ceilings, 'mkv').deliveries;
+		expect(mkv.original_http.max_channels_by_codec).toEqual({pcm_s16le: 2});
+		const ts = siloCapabilitiesFromDeviceProfile(profile, undefined, ceilings, 'mpegts').deliveries;
+		expect(ts.original_http.max_channels_by_codec).toEqual({aac: 2, pcm_s16le: 2});
 
 		const capped = siloCapabilitiesFromDeviceProfile({
 			...profile,
@@ -86,10 +91,11 @@ describe('device profile', () => {
 		}, undefined, ceilings).deliveries;
 		for (const name of ['original_http', 'progressive', 'hls']) expect(capped[name].max_channels).toBe(2);
 
-		// A server without per-codec caps gets the lowest one for every codec, as before.
-		const older = siloCapabilitiesFromDeviceProfile(profile).deliveries;
-		expect(older.progressive.max_channels).toBe(2);
-		expect(older.progressive.max_channels_by_codec).toBeUndefined();
+		// A server without per-codec caps isn't offered the capped codec, so the others still play as they are.
+		const older = siloCapabilitiesFromDeviceProfile(profile, undefined, [], 'mkv').deliveries;
+		expect(older.original_http).toMatchObject({audio_decode_codecs: ['aac', 'ac3', 'eac3']});
+		expect(older.original_http.max_channels).toBeUndefined();
+		expect(older.original_http.max_channels_by_codec).toBeUndefined();
 	});
 
 	test('a TV reports its own HDR as what it shows, a stick or console leaves it unknown', () => {
@@ -203,7 +209,9 @@ describe('sessions', () => {
 			return calls.find((c) => c.path === '/api/v2/playback/start').body.client_playback_context.deliveries.original_http;
 		};
 		expect(await original(['codec_channel_ceilings_v1'])).toMatchObject({max_channels_by_codec: {pcm_s16le: 2}});
-		expect((await original([])).max_channels).toBe(2);
+		const older = await original([]);
+		expect(older.max_channels).toBeUndefined();
+		expect(older.audio_decode_codecs).toEqual(['eac3']);
 	});
 
 	test('asked again while it plays, the session is replanned, and a failed original asks for something else', async () => {
