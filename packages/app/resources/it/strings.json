@@ -3216,5 +3216,6 @@
     "This server needs Moonbase, with client log upload turned on.": "Questo server richiede Moonbase, con il caricamento dei log del client attivato.",
     "Text Stroke Color": "Colore del tratto del testo",
     "Text Stroke Opacity": "Opacità Contorno Testo",
-    "Text Stroke Blur": "Sfocatura Contorno Testo"
+    "Text Stroke Blur": "Sfocatura Contorno Testo",
+    "Choose what the Radarr and Sonarr rows show.": "Scegli cosa mostrano le righe di Radarr e Sonarr."
 }
