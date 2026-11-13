@@ -73,19 +73,23 @@ describe('device profile', () => {
 				{Type: 'VideoAudio', Codec: 'pcm_s16le', Conditions: [{Condition: 'LessThanEqual', Property: 'AudioChannels', Value: '2'}]}
 			]
 		};
-		const {deliveries} = siloCapabilitiesFromDeviceProfile(profile);
-		for (const name of ['original_http', 'progressive']) {
-			expect(deliveries[name].max_channels).toBeUndefined();
-			expect(deliveries[name].max_channels_by_codec).toEqual({pcm_s16le: 2});
-		}
-		expect(deliveries.hls.max_channels).toBeUndefined();
-		expect(deliveries.hls.max_channels_by_codec).toEqual({aac: 2, pcm_s16le: 2});
+		const ceilings = ['codec_channel_ceilings_v1'];
+		const {deliveries} = siloCapabilitiesFromDeviceProfile(profile, undefined, ceilings);
+		// The original file can be TS, the remux and HLS can't.
+		expect(deliveries.original_http.max_channels_by_codec).toEqual({aac: 2, pcm_s16le: 2});
+		for (const name of ['progressive', 'hls']) expect(deliveries[name].max_channels_by_codec).toEqual({pcm_s16le: 2});
+		for (const name of ['original_http', 'progressive', 'hls']) expect(deliveries[name].max_channels).toBeUndefined();
 
 		const capped = siloCapabilitiesFromDeviceProfile({
 			...profile,
 			CodecProfiles: [...profile.CodecProfiles, {Type: 'VideoAudio', Conditions: [{Condition: 'LessThanEqual', Property: 'AudioChannels', Value: '2'}]}]
-		}).deliveries;
+		}, undefined, ceilings).deliveries;
 		for (const name of ['original_http', 'progressive', 'hls']) expect(capped[name].max_channels).toBe(2);
+
+		// A server without per-codec caps gets the lowest one for every codec, as before.
+		const older = siloCapabilitiesFromDeviceProfile(profile).deliveries;
+		expect(older.progressive.max_channels).toBe(2);
+		expect(older.progressive.max_channels_by_codec).toBeUndefined();
 	});
 
 	test('a TV reports its own HDR as what it shows, a stick or console leaves it unknown', () => {
@@ -186,6 +190,20 @@ describe('sessions', () => {
 		expect(calls[1].body).toMatchObject({
 			file_id: '5', profile_id: 'p1', installation_id: 'inst', start_position: 300, audio_track_index: 1, subtitle_track_index: 0, protocol_version: 3
 		});
+	});
+
+	test("a start sends per-codec channel caps only to a server that takes them", async () => {
+		const DeviceProfile = {
+			DirectPlayProfiles: [{Type: 'Video', Container: 'mkv', VideoCodec: 'h264', AudioCodec: 'eac3,pcm_s16le'}],
+			CodecProfiles: [{Type: 'VideoAudio', Codec: 'pcm_s16le', Conditions: [{Condition: 'LessThanEqual', Property: 'AudioChannels', Value: '2'}]}]
+		};
+		const original = async (features) => {
+			const {playback, calls} = setup({'GET /api/v2/playback/capabilities': {...capabilities, features}, 'POST /api/v2/playback/start': plan('original_http', 'k1')});
+			await playback.getPlaybackInfo('movie-1', {DeviceProfile});
+			return calls.find((c) => c.path === '/api/v2/playback/start').body.client_playback_context.deliveries.original_http;
+		};
+		expect(await original(['codec_channel_ceilings_v1'])).toMatchObject({max_channels_by_codec: {pcm_s16le: 2}});
+		expect((await original([])).max_channels).toBe(2);
 	});
 
 	test('asked again while it plays, the session is replanned, and a failed original asks for something else', async () => {

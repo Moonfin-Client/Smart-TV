@@ -143,40 +143,44 @@ const maxResolution = (codecProfiles) => {
 	return '4320p';
 };
 
-// The channel caps for audio in video. A cap for every codec (the Max Audio Channels setting) is max_channels, one for
-// some codecs (Tizen plays PCM only in stereo) is max_channels_by_codec, so it doesn't send every codec down to stereo.
-// A cap for some containers counts only on HLS whose segments come in one of them: the original file and the remux
-// mix containers, and Jellyfin leaves the cap off their other containers too.
-const channelLimits = (codecProfiles, hlsContainers) => {
+const containerKey = (container) => ({mpegts: 'ts', matroska: 'mkv'}[container] || container);
+
+// The channel caps for audio in video on a delivery of these containers. A cap for every codec (the Max Audio Channels
+// setting) is max_channels, one for some codecs (Tizen plays PCM only in stereo) is max_channels_by_codec, so it
+// doesn't send every codec down to stereo. A cap for some containers counts on a delivery that has one of them. A
+// server without per-codec caps takes the lowest of them all, as before it had them.
+const channelLimits = (codecProfiles, containers, byCodecSupported) => {
+	const kinds = containers.map(containerKey);
 	const all = [];
 	const byCodec = {};
-	const hlsByCodec = {};
-	const cap = (caps, codec, limit) => {
-		caps[codec] = caps[codec] ? Math.min(caps[codec], limit) : limit;
-	};
 	codecProfiles.forEach((p) => {
 		if (p.Type !== 'VideoAudio' || profiles(p.ApplyConditions).length) return;
-		const scope = csv(p.Container);
-		if (scope.length && !scope.some((c) => hlsContainers.includes(c))) return;
+		const scope = csv(p.Container).map(containerKey);
+		if (scope.length && !scope.some((c) => kinds.includes(c))) return;
 		profiles(p.Conditions).forEach((c) => {
 			if (c.Property !== 'AudioChannels' || c.Condition !== 'LessThanEqual') return;
 			const limit = parseInt(c.Value, 10);
-			if (!(limit > 0)) return;
+			if (!(limit > 0 && limit <= 64)) return;
 			const codecs = csv(p.Codec);
-			if (!codecs.length && !scope.length) all.push(limit);
+			if (!codecs.length || !byCodecSupported) {
+				all.push(limit);
+				return;
+			}
 			codecs.forEach((codec) => {
-				if (!scope.length) cap(byCodec, codec, limit);
-				cap(hlsByCodec, codec, limit);
+				byCodec[codec] = byCodec[codec] ? Math.min(byCodec[codec], limit) : limit;
 			});
 		});
 	});
 	const lowest = all.length ? Math.min(...all) : null;
-	return {max: lowest != null && lowest < 6 ? lowest : null, byCodec, hlsByCodec};
+	return {
+		...(lowest != null && lowest < 6 ? {max_channels: lowest} : null),
+		...(Object.keys(byCodec).length ? {max_channels_by_codec: byCodec} : null)
+	};
 };
 
 const HLS_VIDEO_CODECS = ['h264', 'hevc'];
 
-export const siloCapabilitiesFromDeviceProfile = (deviceProfile = {}, traits = TRAITS) => {
+export const siloCapabilitiesFromDeviceProfile = (deviceProfile = {}, traits = TRAITS, serverFeatures = []) => {
 	const directPlay = profiles(deviceProfile.DirectPlayProfiles);
 	const codecProfiles = profiles(deviceProfile.CodecProfiles);
 	const transcoding = profiles(deviceProfile.TranscodingProfiles);
@@ -192,9 +196,9 @@ export const siloCapabilitiesFromDeviceProfile = (deviceProfile = {}, traits = T
 	const hdr = hdrDetails(codecProfiles, videoCodecs);
 	const anyHdr = hdr.hdr10 || hdr.hlg || hdr.hdr10_plus || hdr.dolby_vision_profiles.length > 0;
 	const resolution = maxResolution(codecProfiles);
-	const channels = channelLimits(codecProfiles, union(hlsProfiles.map((p) => csv(p.Container))));
+	const byCodecSupported = serverFeatures.includes('codec_channel_ceilings_v1');
 
-	const delivery = ({supported, containers: kinds, video, audio, subtitles, channelsByCodec = channels.byCodec, claims = [], features = [], failureReason}) => ({
+	const delivery = ({supported, containers: kinds, video, audio, subtitles, claims = [], features = [], failureReason}) => ({
 		enabled: true,
 		supported_on_device: supported,
 		...(supported ? null : {failure_reason: failureReason}),
@@ -202,8 +206,7 @@ export const siloCapabilitiesFromDeviceProfile = (deviceProfile = {}, traits = T
 		video_codecs: video,
 		audio_decode_codecs: audio,
 		audio_passthrough_codecs: [],
-		...(channels.max != null ? {max_channels: channels.max} : null),
-		...(Object.keys(channelsByCodec).length ? {max_channels_by_codec: channelsByCodec} : null),
+		...channelLimits(codecProfiles, kinds, byCodecSupported),
 		subtitles,
 		features,
 		auth_header_refresh: false,
@@ -260,7 +263,6 @@ export const siloCapabilitiesFromDeviceProfile = (deviceProfile = {}, traits = T
 				video: hlsVideo,
 				audio: hlsAudio.length ? hlsAudio : ['aac'],
 				subtitles: sidecarSubtitles,
-				channelsByCodec: channels.hlsByCodec,
 				features: traits.playsHlsNatively ? ['native_hls_playback_v1'] : []
 			})
 		},
@@ -610,37 +612,39 @@ export const createSiloPlayback = ({call, getBaseUrl, getUserId, getAccessToken,
 		const profileId = getUserId();
 		if (!profileId) throw new Error('Silo playback needs the profile it plays as');
 		const file = await fileOf(itemId, body.MediaSourceId, item);
-		const caps = siloCapabilitiesFromDeviceProfile(body.DeviceProfile || {}, siloTraitsFor(platform));
-		const context = siloPlaybackContext({platform, appVersion: getDeviceInfo().appVersion, capabilities: caps});
 		let server = await playable();
 		const audioTrack = file.source && body.AudioStreamIndex != null && body.AudioStreamIndex >= 0
 			? siloTrackForStreamIndex(file.source, body.AudioStreamIndex) : null;
 		const subtitle = siloSubtitleCombinedIndex(file.source, body.SubtitleStreamIndex);
-		const startBody = (installationId) => ({
-			protocol_version: 3,
-			client_features: caps.clientFeatures,
-			file_id: file.fileId,
-			profile_id: profileId,
-			playback_attempt_id: siloNewUuid(),
-			installation_id: installationId,
-			quality_preference: 'auto',
-			// Styled ASS is drawn here, but a sidecar's fonts can't be fetched, so a simpler rendering is fine.
-			subtitle_fidelity_preference: 'compatible',
-			metered: false,
-			client_capabilities: caps.clientCapabilities,
-			client_playback_context: context,
-			start_position: startSeconds(body.StartTimeTicks),
-			...(audioTrack && audioTrack.kind === 'audio' ? {audio_track_index: audioTrack.ordinal} : null),
-			...(subtitle != null ? {subtitle_track_index: subtitle} : null),
-			...(kbps(body.MaxStreamingBitrate) ? {bandwidth_cap_kbps: kbps(body.MaxStreamingBitrate)} : null),
-			// A version the viewer picked plays as that version.
-			...(file.explicit && server.features.includes('fixed_media_file_v1') ? {allow_alternate_versions: false} : null)
-		});
+		const startBody = ({installationId, features}) => {
+			const caps = siloCapabilitiesFromDeviceProfile(body.DeviceProfile || {}, siloTraitsFor(platform), features);
+			const context = siloPlaybackContext({platform, appVersion: getDeviceInfo().appVersion, capabilities: caps});
+			return {
+				protocol_version: 3,
+				client_features: caps.clientFeatures,
+				file_id: file.fileId,
+				profile_id: profileId,
+				playback_attempt_id: siloNewUuid(),
+				installation_id: installationId,
+				quality_preference: 'auto',
+				// Styled ASS is drawn here, but a sidecar's fonts can't be fetched, so a simpler rendering is fine.
+				subtitle_fidelity_preference: 'compatible',
+				metered: false,
+				client_capabilities: caps.clientCapabilities,
+				client_playback_context: context,
+				start_position: startSeconds(body.StartTimeTicks),
+				...(audioTrack && audioTrack.kind === 'audio' ? {audio_track_index: audioTrack.ordinal} : null),
+				...(subtitle != null ? {subtitle_track_index: subtitle} : null),
+				...(kbps(body.MaxStreamingBitrate) ? {bandwidth_cap_kbps: kbps(body.MaxStreamingBitrate)} : null),
+				// A version the viewer picked plays as that version.
+				...(file.explicit && features.includes('fixed_media_file_v1') ? {allow_alternate_versions: false} : null)
+			};
+		};
 		const send = (startRequest) => sendWithRetries(
 			() => call('/api/v2/playback/start', {method: 'POST', body: startRequest, timeoutMs: START_TIMEOUT_MS}),
 			START_RETRY_BUDGET_MS, retryableStart, wait
 		);
-		let sent = startBody(server.installationId);
+		let sent = startBody(server);
 		let decision;
 		try {
 			decision = await send(sent);
@@ -651,7 +655,7 @@ export const createSiloPlayback = ({call, getBaseUrl, getUserId, getAccessToken,
 			if (!installationChanged(err)) throw err;
 			// The server was reset or replaced since its capabilities were read: start again under the new one.
 			server = await playable(true);
-			sent = startBody(server.installationId);
+			sent = startBody(server);
 			decision = await send(sent);
 		}
 		const plan = decision?.playback_plan;
