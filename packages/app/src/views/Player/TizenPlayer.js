@@ -1017,6 +1017,13 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 		if (result.playMethod) setPlayMethod(result.playMethod);
 		setIsHdrContent(isHdrOutput(result.mediaSource, result.playMethod === playback.PlayMethod.Transcode));
 		if (result.playSessionId) playSessionRef.current = result.playSessionId;
+		// A replan can be another version, or know a runtime the first plan didn't, so it sets the title's length as
+		// loadMedia does before the new stream prepares.
+		if (result.runTimeTicks !== undefined) {
+			runTimeRef.current = result.runTimeTicks || 0;
+			titleRunTimeRef.current = runTimeRef.current;
+			setDuration((result.runTimeTicks || 0) / 10000000);
+		}
 		if (!await startAVPlayback(result.url, positionTicks, {playMethod: result.playMethod, mediaSource: result.mediaSource, shouldAbort})) return null;
 		playback.reportStart(positionRef.current);
 		playback.startProgressReporting(
