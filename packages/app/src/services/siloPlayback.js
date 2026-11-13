@@ -143,16 +143,47 @@ const maxResolution = (codecProfiles) => {
 	return '4320p';
 };
 
-const maxChannels = (codecProfiles) => {
-	const channels = limits(codecProfiles, 'VideoAudio', 'AudioChannels');
-	if (!channels.length) return null;
-	const lowest = Math.min(...channels);
-	return lowest < 6 ? lowest : null;
+const containerKey = (container) => ({mpegts: 'ts', m2ts: 'ts', mts: 'ts', matroska: 'mkv'}[container] || container);
+
+// The channel caps for audio in video on a delivery that can come in these containers. A cap for every codec (the Max
+// Audio Channels setting) is max_channels, one for some codecs (Tizen plays PCM only in stereo) is
+// max_channels_by_codec, so it doesn't send every codec down to stereo. A cap for some containers counts where the
+// delivery can be one of them. A server without per-codec caps ignores them, so a codec capped below 5.1 is left out
+// of what the delivery plays instead, and Silo converts only that codec.
+const channelLimits = (codecProfiles, containers, byCodecSupported) => {
+	const kinds = containers.map(containerKey);
+	const all = [];
+	const byCodec = {};
+	codecProfiles.forEach((p) => {
+		if (p.Type !== 'VideoAudio' || profiles(p.ApplyConditions).length) return;
+		const scope = csv(p.Container).map(containerKey);
+		if (scope.length && !scope.some((c) => kinds.includes(c))) return;
+		profiles(p.Conditions).forEach((c) => {
+			if (c.Property !== 'AudioChannels' || c.Condition !== 'LessThanEqual') return;
+			const limit = parseInt(c.Value, 10);
+			if (!(limit > 0 && limit <= 64)) return;
+			const codecs = csv(p.Codec);
+			if (!codecs.length) all.push(limit);
+			codecs.forEach((codec) => {
+				byCodec[codec] = byCodec[codec] ? Math.min(byCodec[codec], limit) : limit;
+			});
+		});
+	});
+	const lowest = all.length ? Math.min(...all) : null;
+	const capped = Object.keys(byCodec).length > 0;
+	return {
+		limits: {
+			...(lowest != null && lowest < 6 ? {max_channels: lowest} : null),
+			...(capped && byCodecSupported ? {max_channels_by_codec: byCodec} : null)
+		},
+		unplayable: capped && !byCodecSupported ? Object.keys(byCodec).filter((codec) => byCodec[codec] < 6) : []
+	};
 };
 
 const HLS_VIDEO_CODECS = ['h264', 'hevc'];
 
-export const siloCapabilitiesFromDeviceProfile = (deviceProfile = {}, traits = TRAITS) => {
+// The source container, when known, narrows the original file's container-scoped caps to the file being played.
+export const siloCapabilitiesFromDeviceProfile = (deviceProfile = {}, traits = TRAITS, serverFeatures = [], sourceContainer = null) => {
 	const directPlay = profiles(deviceProfile.DirectPlayProfiles);
 	const codecProfiles = profiles(deviceProfile.CodecProfiles);
 	const transcoding = profiles(deviceProfile.TranscodingProfiles);
@@ -168,23 +199,28 @@ export const siloCapabilitiesFromDeviceProfile = (deviceProfile = {}, traits = T
 	const hdr = hdrDetails(codecProfiles, videoCodecs);
 	const anyHdr = hdr.hdr10 || hdr.hlg || hdr.hdr10_plus || hdr.dolby_vision_profiles.length > 0;
 	const resolution = maxResolution(codecProfiles);
-	const channels = maxChannels(codecProfiles);
+	const byCodecSupported = Array.isArray(serverFeatures) && serverFeatures.includes('codec_channel_ceilings_v1');
 
-	const delivery = ({supported, containers: kinds, video, audio, subtitles, claims = [], features = [], failureReason}) => ({
-		enabled: true,
-		supported_on_device: supported,
-		...(supported ? null : {failure_reason: failureReason}),
-		containers: kinds,
-		video_codecs: video,
-		audio_decode_codecs: audio,
-		audio_passthrough_codecs: [],
-		...(channels != null ? {max_channels: channels} : null),
-		subtitles,
-		features,
-		auth_header_refresh: false,
-		validated_claims: claims,
-		transformations: []
-	});
+	const delivery = ({supported, containers: kinds, scope = kinds, video, audio, subtitles, claims = [], features = [], failureReason}) => {
+		const channels = channelLimits(codecProfiles, scope, byCodecSupported);
+		// An empty list would read as every codec.
+		const playable = audio.filter((codec) => !channels.unplayable.includes(codec));
+		return {
+			enabled: true,
+			supported_on_device: supported,
+			...(supported ? null : {failure_reason: failureReason}),
+			containers: kinds,
+			video_codecs: video,
+			audio_decode_codecs: playable.length ? playable : audio,
+			audio_passthrough_codecs: [],
+			...channels.limits,
+			subtitles,
+			features,
+			auth_header_refresh: false,
+			validated_claims: claims,
+			transformations: []
+		};
+	};
 	const sidecarSubtitles = {
 		embedded_text: false, sidecar_text: true, ass_styling: traits.drawsAssStyling, embedded_bitmap: false, sidecar_bitmap: false, font_attachments: false
 	};
@@ -212,6 +248,7 @@ export const siloCapabilitiesFromDeviceProfile = (deviceProfile = {}, traits = T
 			original_http: delivery({
 				supported: true,
 				containers,
+				...(csv(sourceContainer).length ? {scope: csv(sourceContainer)} : null),
 				video: videoCodecs,
 				audio: audioCodecs,
 				subtitles: originalSubtitles,
@@ -232,6 +269,8 @@ export const siloCapabilitiesFromDeviceProfile = (deviceProfile = {}, traits = T
 				supported: traits.playsHls && hlsVideo.length > 0,
 				failureReason: 'player_has_no_hls',
 				containers: ['hls'],
+				// Silo packages HLS as fMP4, and an encode to H.264 as TS.
+				scope: ['ts', 'mp4'],
 				video: hlsVideo,
 				audio: hlsAudio.length ? hlsAudio : ['aac'],
 				subtitles: sidecarSubtitles,
@@ -584,37 +623,39 @@ export const createSiloPlayback = ({call, getBaseUrl, getUserId, getAccessToken,
 		const profileId = getUserId();
 		if (!profileId) throw new Error('Silo playback needs the profile it plays as');
 		const file = await fileOf(itemId, body.MediaSourceId, item);
-		const caps = siloCapabilitiesFromDeviceProfile(body.DeviceProfile || {}, siloTraitsFor(platform));
-		const context = siloPlaybackContext({platform, appVersion: getDeviceInfo().appVersion, capabilities: caps});
 		let server = await playable();
 		const audioTrack = file.source && body.AudioStreamIndex != null && body.AudioStreamIndex >= 0
 			? siloTrackForStreamIndex(file.source, body.AudioStreamIndex) : null;
 		const subtitle = siloSubtitleCombinedIndex(file.source, body.SubtitleStreamIndex);
-		const startBody = (installationId) => ({
-			protocol_version: 3,
-			client_features: caps.clientFeatures,
-			file_id: file.fileId,
-			profile_id: profileId,
-			playback_attempt_id: siloNewUuid(),
-			installation_id: installationId,
-			quality_preference: 'auto',
-			// Styled ASS is drawn here, but a sidecar's fonts can't be fetched, so a simpler rendering is fine.
-			subtitle_fidelity_preference: 'compatible',
-			metered: false,
-			client_capabilities: caps.clientCapabilities,
-			client_playback_context: context,
-			start_position: startSeconds(body.StartTimeTicks),
-			...(audioTrack && audioTrack.kind === 'audio' ? {audio_track_index: audioTrack.ordinal} : null),
-			...(subtitle != null ? {subtitle_track_index: subtitle} : null),
-			...(kbps(body.MaxStreamingBitrate) ? {bandwidth_cap_kbps: kbps(body.MaxStreamingBitrate)} : null),
-			// A version the viewer picked plays as that version.
-			...(file.explicit && server.features.includes('fixed_media_file_v1') ? {allow_alternate_versions: false} : null)
-		});
+		const startBody = ({installationId, features}) => {
+			const caps = siloCapabilitiesFromDeviceProfile(body.DeviceProfile || {}, siloTraitsFor(platform), features, file.source?.Container);
+			const context = siloPlaybackContext({platform, appVersion: getDeviceInfo().appVersion, capabilities: caps});
+			return {
+				protocol_version: 3,
+				client_features: caps.clientFeatures,
+				file_id: file.fileId,
+				profile_id: profileId,
+				playback_attempt_id: siloNewUuid(),
+				installation_id: installationId,
+				quality_preference: 'auto',
+				// Styled ASS is drawn here, but a sidecar's fonts can't be fetched, so a simpler rendering is fine.
+				subtitle_fidelity_preference: 'compatible',
+				metered: false,
+				client_capabilities: caps.clientCapabilities,
+				client_playback_context: context,
+				start_position: startSeconds(body.StartTimeTicks),
+				...(audioTrack && audioTrack.kind === 'audio' ? {audio_track_index: audioTrack.ordinal} : null),
+				...(subtitle != null ? {subtitle_track_index: subtitle} : null),
+				...(kbps(body.MaxStreamingBitrate) ? {bandwidth_cap_kbps: kbps(body.MaxStreamingBitrate)} : null),
+				// A version the viewer picked plays as that version.
+				...(file.explicit && features.includes('fixed_media_file_v1') ? {allow_alternate_versions: false} : null)
+			};
+		};
 		const send = (startRequest) => sendWithRetries(
 			() => call('/api/v2/playback/start', {method: 'POST', body: startRequest, timeoutMs: START_TIMEOUT_MS}),
 			START_RETRY_BUDGET_MS, retryableStart, wait
 		);
-		let sent = startBody(server.installationId);
+		let sent = startBody(server);
 		let decision;
 		try {
 			decision = await send(sent);
@@ -625,7 +666,7 @@ export const createSiloPlayback = ({call, getBaseUrl, getUserId, getAccessToken,
 			if (!installationChanged(err)) throw err;
 			// The server was reset or replaced since its capabilities were read: start again under the new one.
 			server = await playable(true);
-			sent = startBody(server.installationId);
+			sent = startBody(server);
 			decision = await send(sent);
 		}
 		const plan = decision?.playback_plan;
