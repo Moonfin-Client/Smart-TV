@@ -18,7 +18,7 @@ const NavUserButton = ({onClick}) => {
 	);
 
 	return (
-		<SpottableButton className={`${css.navBtn} ${css.navBtnIcon}`} onClick={onClick}>
+		<SpottableButton className={`${css.navBtn} ${css.navBtnIcon} ${css.userBtn}`} onClick={onClick}>
 			{avatarUrl ? (
 				<img
 					className={css.userAvatarImg}

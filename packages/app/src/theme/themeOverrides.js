@@ -205,6 +205,8 @@ export const buildThemeOverrideCss = (theme, options = {}) => {
 	}
 	rule(`.${sidebarCss.sidebarItem}:hover, .${sidebarCss.libraryItem}:hover, .${navBarCss.navBtn}:hover`, `color: ${onSurface}; background: ${os(0.14)};`);
 	rule(`.${sidebarCss.sidebarItem}:focus, .${sidebarCss.libraryItem}:focus, .${navBarCss.navBtn}:focus`, `color: ${onSurfaceInk}; background: ${onSurface}; border-color: transparent; box-shadow: ${glowOr('none')};`);
+	rule(`.${navBarCss.userBtn}:hover, .${navBarCss.userBtn}:focus`, 'background: transparent; box-shadow: none;');
+	rule(`.${navBarCss.userBtn}::after`, `box-shadow: 0 0 0 4px ${focusColor};`);
 	rule(`.${sidebarCss.active}`, `color: ${onSurface}; background: ${accentA(0.24)};`);
 	rule(`.${navBarCss.active}`, `color: ${onSurface}; background: ${accentA(0.28)};`);
 	rule(`.${navBarCss.navPill}`, `border: ${b.navBorder ? `${b.navBorder.width}px solid ${toCssColor(b.navBorder.color)}` : 'none'};`);
