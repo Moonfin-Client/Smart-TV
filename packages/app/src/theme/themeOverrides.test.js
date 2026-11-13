@@ -116,6 +116,19 @@ describe('buildThemeOverrideCss', () => {
 		expect(buildThemeOverrideCss(theme, {focusBorderColor: ''})).toContain(`${prefix} .ring { border-color: ${themeColor}; }`);
 	});
 
+	it('draws Switch User in the theme accent, inside the switcher only, and keeps Sign Out All Users red', () => {
+		const theme = resolveThemeById('moonfin');
+		const accent = toCssColor(theme.colors.accent);
+		const prefix = "html[data-theme-id='moonfin'][data-theme-id]";
+		const lines = buildThemeOverrideCss(theme).split('\n');
+		expect(lines).toContain(`${prefix} .layer .dotOn { background: ${accent}; }`);
+		expect(lines).toContain(`${prefix} .layer .lineAccent { color: ${accent}; }`);
+		expect(lines).toContain(`${prefix} .layer .badgeActive { background-color: ${accent}; color: ${toCssColor(theme.colors.onAccent)}; }`);
+		expect(lines.some((line) => line.includes(' .layer .pill:not(.pillDanger):focus {') && line.includes(`border-color: ${accent};`))).toBe(true);
+		// Login's user picker shares the carousel and stays unthemed
+		expect(lines.some((line) => ['dotOn', 'lineAccent', 'badgeActive'].some((name) => line.startsWith(`${prefix} .${name} `)))).toBe(false);
+	});
+
 	it('draws the watched badge in the theme on the screens that load on demand', () => {
 		const theme = resolveThemeById('moonfin');
 		const names = ['badgeScreenOne', 'badgeScreenTwo'];

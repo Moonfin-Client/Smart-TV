@@ -74,6 +74,8 @@ import itemMenuCss from '../components/ItemContextMenu/ItemContextMenu.module.le
 import skeletonCss from '../components/Skeleton/Skeleton.module.less';
 import playlistSortFilterCss from '../components/PlaylistSortFilterBar/PlaylistSortFilterBar.module.less';
 import playbackInfoCss from '../views/Player/PlaybackInfoModal.module.less';
+import accountCss from '../components/AccountModal/AccountModal.module.less';
+import carouselCss from '../components/ProfileCarousel/ProfileCarousel.module.less';
 
 const STYLE_ELEMENT_ID = 'moonfin-theme-overrides';
 
@@ -856,6 +858,23 @@ export const buildThemeOverrideCss = (theme, options = {}) => {
 		rule(`.${calendar.button}:focus, .${calendar.tab}:focus`, `background: ${onSurface} !important; border-color: ${focusColor}; color: ${inkOn(c.onSurface) === '0, 0, 0' ? 'rgba(0, 0, 0, 0.87)' : '#fff'};`);
 	}
 
+
+	// Switch User, drawn in the theme's accent like Core and Roku. The scrim, the initials
+	// colours and the red Sign Out All Users stay fixed there too. Login's user picker shares the
+	// carousel but isn't themed, so these stay inside the switcher.
+	const sw = (names) => names.map((name) => `.${accountCss.layer} .${name}`).join(', ');
+	rule(sw([accountCss.screen, carouselCss.name]), `color: ${onSurface};`);
+	rule(sw([accountCss.signedInAs, carouselCss.line]), `color: ${os(0.65)};`);
+	rule(sw([carouselCss.avatar]), `background: ${os(0.1)};`);
+	rule(sw([carouselCss.personIcon]), `color: ${os(0.6)};`);
+	rule(sw([`${carouselCss.slot0} .${carouselCss.avatar}`]), `box-shadow: 0 0 0 ${rem(4)} rgba(0, 0, 0, 0.45), 0 0 0 ${rem(8)} ${os(0.25)};`);
+	rule(sw([`${carouselCss.carousel}:focus .${carouselCss.slot0} .${carouselCss.avatar}`]), `box-shadow: 0 0 0 ${rem(4)} rgba(0, 0, 0, 0.45), 0 0 0 ${rem(8)} ${accent};`);
+	rule(sw([carouselCss.badgeActive]), `background-color: ${accent}; color: ${onAccent};`);
+	rule(sw([carouselCss.lineAccent]), `color: ${accent};`);
+	rule(sw([carouselCss.dot]), `background: ${os(0.3)};`);
+	rule(sw([carouselCss.dotOn]), `background: ${accent};`);
+	rule(sw([`${carouselCss.pill}:not(.${carouselCss.pillDanger})`]), `border-color: ${os(0.2)}; background: ${os(0.06)}; color: ${os(0.85)};`);
+	rule(sw([`${carouselCss.pill}:not(.${carouselCss.pillDanger}):focus`]), `border-color: ${accent}; color: ${accent};`);
 	// Pixel themes square off every fixed radius.
 	if (theme.isPixel) {
 		rule([
