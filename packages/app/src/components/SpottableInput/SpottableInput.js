@@ -71,12 +71,15 @@ const SpottableInput = forwardRef(({
 	useEffect(() => {
 		const onKeyboardState = (e) => {
 			if (e.detail?.visibility) return;
-			if (kbActiveRef.current || document.activeElement !== inputRef.current) return;
+			if (!systemActiveRef.current || document.activeElement !== inputRef.current) return;
 			deactivateInput();
+			// Same as closing our keyboard: the remote picks up from this field
+			const id = spotlightId || dataSpotlightId;
+			if (id) Spotlight.focus(`[data-spotlight-id="${id}"]`);
 		};
 		document.addEventListener('keyboardStateChange', onKeyboardState);
 		return () => document.removeEventListener('keyboardStateChange', onKeyboardState);
-	}, [deactivateInput]);
+	}, [deactivateInput, spotlightId, dataSpotlightId]);
 
 	// The TV's own keyboard is where its voice input lives, so a screen can
 	// hand the field to it whatever keyboard the user prefers.

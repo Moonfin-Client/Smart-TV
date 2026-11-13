@@ -35,6 +35,7 @@ const input = () => document.querySelector('input');
 
 describe('SpottableInput', () => {
 	beforeEach(() => {
+		mockKeyboardStyle = 'native';
 		mockOpened = null;
 		mockPublished = [];
 	});
