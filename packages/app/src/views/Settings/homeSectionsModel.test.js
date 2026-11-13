@@ -3,7 +3,7 @@
 jest.mock('@enact/i18n/$L', () => ({__esModule: true, default: (str) => str}));
 
 import {isPickedRowShown, makePickedRow} from '../../utils/pickedRows';
-import {homeRowGroup, isHomeRowVisibleByGates, mergeFoundRows, pickedRowLabel} from './homeSectionsModel';
+import {editorRowName, homeRowGroup, homeRowSource, isHomeRowVisibleByGates, mergeFoundRows, pickedRowLabel} from './homeSectionsModel';
 
 const settings = (over = {}) => ({
 	displayFavoritesRows: true,
@@ -135,8 +135,24 @@ describe('homeRowGroup', () => {
 		expect(homeRowGroup({id: 'seerr_trending'})).toBe('seerr');
 		expect(homeRowGroup({id: 'seerr_shortcuts'})).toBe('seerr');
 		expect(homeRowGroup({id: 'radarr_calendar'})).toBe('seerr');
-		expect(homeRowGroup({id: 'tmdb_popular_tv'})).toBe('external');
-		expect(homeRowGroup({id: 'imdb-top250-movies'})).toBe('external');
+		expect(homeRowGroup({id: 'tmdb_popular_tv'})).toBe('tmdb');
+		expect(homeRowGroup({id: 'tmdb_korean_dramas'})).toBe('tmdb');
+		expect(homeRowGroup({id: 'tmdb_netflix'})).toBe('streaming');
+		expect(homeRowGroup({id: 'imdb-top250-movies'})).toBe('imdb');
+		expect(homeRowGroup({id: 'mdblist_watching_now'})).toBe('mdblist');
+		expect(homeRowGroup({id: 'mdblist_anticipated_shows'})).toBe('mdblist');
+		expect(homeRowGroup({id: 'justwatch_top_movies'})).toBe('justwatch');
+	});
+
+	test('names an outside list by where it comes from, and drops that from its name', () => {
+		expect(homeRowSource({id: 'tmdb_netflix'})).toBe('TMDB Lists');
+		expect(homeRowSource({id: 'imdb-top250-movies'})).toBe('IMDb List');
+		expect(homeRowSource({id: 'mdblist_watching_now'})).toBe('MDBList');
+		expect(homeRowSource({id: 'justwatch_top_shows'})).toBe('JustWatch');
+		expect(homeRowSource({id: 'resume'})).toBeUndefined();
+		expect(editorRowName('TMDB Popular Movies')).toBe('Popular Movies');
+		expect(editorRowName('IMDb Top 250 Movies')).toBe('Top 250 Movies');
+		expect(editorRowName('Popular Anime')).toBe('Popular Anime');
 	});
 });
 

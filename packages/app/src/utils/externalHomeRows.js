@@ -4,6 +4,8 @@ import {fetchCustomRow, constructSourceUrl} from '../services/externalRowsApi';
 import {airsText, daysBetween} from './calendarEntries';
 import {fetchWithTimeout} from './fetchTimeout';
 import {seasonalTitle} from './seasonalTitles';
+import {CHART_ROWS} from './homeLayout';
+import {resolveDeviceCountry} from './deviceCountry';
 
 const HOME_ROW_LIMIT = 20;
 const VALIDATE_TIMEOUT_MS = 45000;
@@ -39,7 +41,8 @@ export const IMDB_PRESETS = [
 // separately and carry their own descriptors.
 export const getExternalHomeRowConfigs = () => ([
 	...TMDB_PRESETS.map((p) => ({...p, source: 'tmdb_chart', section: 'tmdb'})),
-	...IMDB_PRESETS.map((p) => ({...p, source: 'imdb', section: 'imdb'}))
+	...IMDB_PRESETS.map((p) => ({...p, source: 'imdb', section: 'imdb'})),
+	...CHART_ROWS.map((row) => ({...row, title: $L(row.title), section: 'chart'}))
 ]);
 
 const findPreset = (id) => getExternalHomeRowConfigs().find((c) => c.id === id) || null;
@@ -56,6 +59,7 @@ const getSourceName = (source, rowId) => {
 	if (src.includes('letterboxd')) return 'Letterboxd';
 	if (src.includes('trakt')) return 'Trakt';
 	if (src.includes('mdblist')) return 'MDBList';
+	if (src.includes('justwatch')) return 'JustWatch';
 	if (src.includes('radarr')) return 'Radarr';
 	if (src.includes('sonarr')) return 'Sonarr';
 	if (src.includes('seerr')) return 'Seerr';
@@ -242,7 +246,9 @@ const chartItemType = (path) => {
 export const fetchExternalPresetRow = async (rowId, options = {}) => {
 	const cfg = findPreset(rowId);
 	if (!cfg) return [];
-	const items = await fetchCustomRow({source: cfg.source, type: cfg.type, params: {}}, options);
+	const region = cfg.regional ? await resolveDeviceCountry() : null;
+	const params = {...cfg.params, ...(region ? {region} : {})};
+	const items = await fetchCustomRow({source: cfg.source, type: cfg.type, params}, options);
 	const type = chartItemType(cfg.type);
 	const limit = options.limit || HOME_ROW_LIMIT;
 	const pool = options.sortBy && options.sortBy !== 'none' ? items : items.slice(0, limit);

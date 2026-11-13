@@ -99,6 +99,22 @@ describe('isExternalRowAvailable', () => {
 		expect(avail('mdblist_watching_now', {mdblistApiKey: 'abc'})).toBe(true);
 	});
 
+	test('the MDBList chart rows follow the Watching Now rule', () => {
+		expect(avail('mdblist_most_watched_week_movies')).toBe(false);
+		expect(avail('mdblist_most_watched_week_movies', {pluginInfo: ping({mdblistAvailable: true})})).toBe(true);
+		expect(avail('mdblist_anticipated_shows', {mdblistApiKey: 'abc'})).toBe(true);
+	});
+
+	test('the JustWatch and TMDB discover rows also need a Moonbase that serves them', () => {
+		const keys = {tmdbAvailable: true, mdblistAvailable: true};
+		expect(avail('justwatch_top_movies', {pluginInfo: ping(keys)})).toBe(false);
+		expect(avail('tmdb_netflix', {pluginInfo: ping(keys)})).toBe(false);
+		expect(avail('tmdb_trending_all_daily', {pluginInfo: ping(keys)})).toBe(true);
+		expect(avail('justwatch_top_movies', {pluginInfo: ping({...keys, discoverChartsSupported: true})})).toBe(true);
+		expect(avail('tmdb_hidden_gems', {pluginInfo: ping({...keys, discoverChartsSupported: true})})).toBe(true);
+		expect(avail('justwatch_top_shows', {pluginInfo: ping({tmdbAvailable: true, discoverChartsSupported: true})})).toBe(false);
+	});
+
 	test('the seasonal row needs the plugin, except on Silo, which makes its own', () => {
 		expect(avail('seasonal')).toBe(true);
 		expect(avail('seasonal', {pluginInfo: null})).toBe(false);

@@ -2,6 +2,8 @@
 // from whether the row is enabled in the row list. The home screen and the settings editor
 // both have to agree on that, or the editor offers to reorder a row that never appears.
 
+import {CHART_ROWS} from './homeLayout';
+
 export const FAVORITE_ROW_IDS = [
 	'favoriteMovies',
 	'favoriteSeries',
@@ -28,14 +30,20 @@ export const isRowEnabledBySetting = (rowId, settings) => {
 
 const hasText = (value) => typeof value === 'string' && value.trim() !== '';
 
-// The external rows (IMDb, TMDB, MDBList Watching Now, seasonal and the calendars) have no switch
+// Only a Moonbase that says discoverChartsSupported serves these sources.
+const needsDiscoverCharts = (rowId) => CHART_ROWS.some((row) => row.id === rowId && (row.source === 'justwatch' || row.source === 'tmdb_discover'));
+
+// The external rows (IMDb, TMDB, MDBList, JustWatch, seasonal and the calendars) have no switch
 // of their own. The row editor offers one, and Home draws it when it's on, only while the server
 // can fill it. Null for every other row. Silo makes its own seasonal row, plugin or not.
 export const isExternalRowAvailable = (rowId, {settings, pluginInfo, serverType}) => {
 	const plugin = Boolean(settings.useMoonfinPlugin) && Boolean(pluginInfo);
+	if (needsDiscoverCharts(rowId) && pluginInfo?.discoverChartsSupported !== true) return false;
 	if (rowId.startsWith('imdb-')) return plugin;
 	if (rowId.startsWith('tmdb_')) return plugin && (pluginInfo.tmdbAvailable === true || hasText(settings.tmdbApiKey));
-	if (rowId === 'mdblist_watching_now') return plugin && (pluginInfo.mdblistAvailable === true || hasText(settings.mdblistApiKey));
+	if (rowId.startsWith('mdblist_') || rowId.startsWith('justwatch_')) {
+		return plugin && (pluginInfo.mdblistAvailable === true || hasText(settings.mdblistApiKey));
+	}
 	if (rowId === 'seasonal') return plugin || serverType === 'silo';
 	if (rowId === 'radarr_calendar' || rowId === 'sonarr_calendar') return plugin && pluginInfo.calendarAvailable === true;
 	return null;

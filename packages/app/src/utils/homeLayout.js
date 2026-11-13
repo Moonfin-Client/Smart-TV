@@ -17,6 +17,37 @@
 
 import {PICK_SOURCES, isPickedRow, isSeerrSliderRow, isServerSectionRow, makePickedRow, makeSeerrSliderRow} from './pickedRows';
 
+const official = (id, title, listname, mediatype) => (
+	{id, title, source: 'mdblist', type: 'list', params: {username: 'official', listname, mediatype}}
+);
+const service = (id, name, type) => ({id, title: `Popular on ${name}`, source: 'tmdb_discover', type, regional: true});
+
+// The outside chart rows Moonbase's custom rows endpoint fills. A regional chart also sends the
+// viewer's country.
+export const CHART_ROWS = [
+	official('mdblist_most_watched_week_movies', 'Most Watched Movies This Week', 'most-watched-week', 'movie'),
+	official('mdblist_most_watched_week_shows', 'Most Watched Shows This Week', 'most-watched-week', 'show'),
+	official('mdblist_most_watched_year_movies', 'Most Watched Movies This Year', 'most-watched', 'movie'),
+	official('mdblist_most_watched_year_shows', 'Most Watched Shows This Year', 'most-watched', 'show'),
+	official('mdblist_anticipated_movies', 'Most Anticipated Movies', 'anticipated', 'movie'),
+	official('mdblist_anticipated_shows', 'Most Anticipated Shows', 'anticipated', 'show'),
+	official('mdblist_streaming_charts_movies', 'Streaming Chart Movies', 'streaming-charts', 'movie'),
+	official('mdblist_streaming_charts_shows', 'Streaming Chart Shows', 'streaming-charts', 'show'),
+	{id: 'justwatch_top_movies', title: 'Top Streaming Movies Today', source: 'justwatch', type: 'movie', regional: true},
+	{id: 'justwatch_top_shows', title: 'Top Streaming Shows Today', source: 'justwatch', type: 'show', regional: true},
+	{id: 'tmdb_trending_all_daily', title: 'Trending All (Daily)', source: 'tmdb_chart', type: 'trending/all/day'},
+	{id: 'tmdb_korean_dramas', title: 'Korean Dramas', source: 'tmdb_discover', type: 'korean_dramas'},
+	{id: 'tmdb_anime', title: 'Popular Anime', source: 'tmdb_discover', type: 'anime'},
+	{id: 'tmdb_new_digital_movies', title: 'New Digital Releases', source: 'tmdb_discover', type: 'new_digital_movies', regional: true},
+	{id: 'tmdb_hidden_gems', title: 'Hidden Gems', source: 'tmdb_discover', type: 'hidden_gems'},
+	service('tmdb_netflix', 'Netflix', 'provider_netflix'),
+	service('tmdb_prime_video', 'Prime Video', 'provider_prime_video'),
+	service('tmdb_disney_plus', 'Disney+', 'provider_disney_plus'),
+	service('tmdb_hbo_max', 'HBO Max', 'provider_hbo_max'),
+	service('tmdb_apple_tv', 'Apple TV', 'provider_apple_tv'),
+	service('tmdb_paramount_plus', 'Paramount+', 'provider_paramount_plus')
+];
+
 export const DEFAULT_HOME_ROWS = [
 	{id: 'resume', name: 'Continue Watching', enabled: true, order: 0},
 	{id: 'nextup', name: 'Next Up', enabled: true, order: 1},
@@ -86,7 +117,8 @@ export const DEFAULT_HOME_ROWS = [
 	{id: 'studios', name: 'Studios', enabled: false, order: 63},
 	{id: 'seasonal', name: 'Seasonal Row', enabled: false, order: 64},
 	{id: 'onnow', name: 'On Now', enabled: false, order: 65},
-	{id: 'mdblist_watching_now', name: 'Watching on MDBList', enabled: false, order: 66}
+	{id: 'mdblist_watching_now', name: 'Watching on MDBList', enabled: false, order: 66},
+	...CHART_ROWS.map((row, index) => ({id: row.id, name: row.title, enabled: false, order: 67 + index}))
 ];
 
 export const TV_TO_SERVER_ROW = {

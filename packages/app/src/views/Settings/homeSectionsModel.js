@@ -4,6 +4,7 @@
 import $L from '@enact/i18n/$L';
 
 import {FAVORITE_ROW_IDS, isExternalRowAvailable, isPluginSourcedRow, isRowEnabledBySetting} from '../../utils/homeRowGates';
+import {CHART_ROWS} from '../../utils/homeLayout';
 import {getServerType} from '../../services/jellyfinApi';
 import {isPickedRow, isPickedRowShown, isSameServer, isSectionTypeRow, isSeerrSliderRow} from '../../utils/pickedRows';
 import {isSliderRowLive} from '../../utils/seerrSliders';
@@ -21,7 +22,9 @@ export const isHomeRowVisibleByGates = (row, settings, serverHasLiveTv = true, s
 };
 
 // The editor lists the disabled rows under one heading per kind, in this order
-export const HOME_ROW_GROUPS = ['general', 'collections', 'favorites', 'genres', 'playlists', 'seerr', 'external'];
+export const HOME_ROW_GROUPS = ['general', 'collections', 'favorites', 'genres', 'playlists', 'seerr', 'imdb', 'tmdb', 'streaming', 'mdblist', 'justwatch'];
+
+const STREAMING_ROW_IDS = CHART_ROWS.filter((row) => row.type.startsWith('provider_')).map((row) => row.id);
 
 export const homeRowGroup = (row) => {
 	if (row.source === 'collections' || row.id === 'collections') return 'collections';
@@ -29,9 +32,24 @@ export const homeRowGroup = (row) => {
 	if (FAVORITE_ROW_IDS.includes(row.id)) return 'favorites';
 	if (row.source === 'playlists' || row.id === 'playlists') return 'playlists';
 	if (row.source === 'seerr' || row.id.startsWith('seerr_') || row.id === 'radarr_calendar' || row.id === 'sonarr_calendar') return 'seerr';
-	if (row.id.startsWith('tmdb_') || row.id.startsWith('imdb-') || row.id === 'mdblist_watching_now') return 'external';
+	// The outside lists go by where they come from, with the streaming service charts on their own
+	if (row.id.startsWith('imdb-')) return 'imdb';
+	if (STREAMING_ROW_IDS.includes(row.id)) return 'streaming';
+	if (row.id.startsWith('tmdb_')) return 'tmdb';
+	if (row.id.startsWith('mdblist_')) return 'mdblist';
+	if (row.id.startsWith('justwatch_')) return 'justwatch';
 	return 'general';
 };
+
+// Where an outside list comes from, shown under its name in the editor
+export const homeRowSource = (row) => {
+	const group = homeRowGroup(row);
+	if (group === 'mdblist') return row.id === 'mdblist_watching_now' ? 'MDBList' : 'MDBList Lists';
+	return {imdb: 'IMDb List', tmdb: 'TMDB Lists', streaming: 'TMDB Lists', justwatch: 'JustWatch'}[group];
+};
+
+// The editor leaves an outside list's source to its group and subtitle
+export const editorRowName = (name) => name.replace(/^(IMDb|TMDB|TMDb) /, '');
 
 // A row's id without the item on the end names the list and server it was picked from
 const listOf = (row) => row.id.slice(0, row.id.length - row.itemId.length).toLowerCase();

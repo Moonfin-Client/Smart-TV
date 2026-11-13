@@ -5,7 +5,7 @@ import Spotlight from '@enact/spotlight';
 
 import LoadingSpinner from '../../components/LoadingSpinner';
 import {isPickedRow, isSeerrSliderRow} from '../../utils/pickedRows';
-import {HOME_ROW_GROUPS, homeRowGroup, isHomeRowVisibleByGates, pickedRowLabel} from './homeSectionsModel';
+import {HOME_ROW_GROUPS, editorRowName, homeRowGroup, homeRowSource, isHomeRowVisibleByGates, pickedRowLabel} from './homeSectionsModel';
 import {ReorderRow, SectionTitle, useCommitOnLeave} from './settingsRows';
 import {SettingsGlyph} from './settingsIcons';
 import {SpottableDiv} from './settingsSpottables';
@@ -21,7 +21,11 @@ const groupLabel = (group) => {
 		case 'genres': return $L('Genres and Studios');
 		case 'playlists': return $L('Playlists');
 		case 'seerr': return $L('Seerr');
-		case 'external': return $L('External Lists');
+		case 'imdb': return 'IMDb';
+		case 'tmdb': return 'TMDB';
+		case 'streaming': return $L('Streaming Services');
+		case 'mdblist': return 'MDBList';
+		case 'justwatch': return 'JustWatch';
 		default: return $L('General');
 	}
 };
@@ -31,7 +35,7 @@ const ROW_RENDER_STEP = 60;
 
 const groupSpotlightId = (group) => `homerows-group-${group}`;
 const rowSpotlightId = (item) => `homerow-${item.id}`;
-const rowTitle = (item) => (isPickedRow(item) || isSeerrSliderRow(item) ? item.name : $L(item.name));
+const rowTitle = (item) => (isPickedRow(item) || isSeerrSliderRow(item) ? item.name : editorRowName($L(item.name)));
 
 const GroupRow = ({group, count, open, onToggle}) => (
 	<SpottableDiv className={`${css.listItem} ${css.listItemClean}`} onClick={onToggle} spotlightId={groupSpotlightId(group)}>
@@ -97,7 +101,9 @@ const HomeRowsView = ({
 
 	const rowSubtitle = (item) => {
 		if (isSeerrSliderRow(item)) return $L('Seerr Discovery Rows');
-		return isPickedRow(item) ? pickedRowLabel(item, serverUrl, servers) : undefined;
+		if (isPickedRow(item)) return pickedRowLabel(item, serverUrl, servers);
+		const source = homeRowSource(item);
+		return source ? $L(source) : undefined;
 	};
 
 	// The row slides out of the list it was in, so the focus goes to the one taking its place

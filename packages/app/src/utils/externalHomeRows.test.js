@@ -4,10 +4,12 @@ jest.mock('../services/externalRowsApi', () => ({
 }));
 jest.mock('./fetchTimeout', () => ({fetchWithTimeout: jest.fn()}));
 jest.mock('./uiLocale', () => ({uiLocale: () => 'en-US'}));
+jest.mock('./deviceCountry', () => ({resolveDeviceCountry: jest.fn()}));
 
 import {fetchCustomRow, constructSourceUrl} from '../services/externalRowsApi';
 import seerrApi from '../services/seerrApi';
 import {fetchWithTimeout} from './fetchTimeout';
+import {resolveDeviceCountry} from './deviceCountry';
 import {buildSeasonalRow, detectCustomSource, fetchCalendarRows, fetchExternalPresetRow, formatWatchingNowSubtitle, normalizeWatchingNowItem, sortExternalItems, validateCustomRow} from './externalHomeRows';
 
 const listUrl = 'https://mdblist.com/lists/user/list';
@@ -73,6 +75,22 @@ describe('fetchExternalPresetRow', () => {
 		expect(fetchCustomRow).toHaveBeenCalledWith(
 			{source: 'tmdb_chart', type: 'movie/popular', params: {}},
 			{language: 'fr-FR'}
+		);
+	});
+
+	it("sends a chart row's params, with the country only for a regional chart", async () => {
+		fetchCustomRow.mockResolvedValue([]);
+		resolveDeviceCountry.mockResolvedValue('GB');
+
+		await fetchExternalPresetRow('mdblist_anticipated_shows');
+		expect(fetchCustomRow).toHaveBeenLastCalledWith(
+			{source: 'mdblist', type: 'list', params: {username: 'official', listname: 'anticipated', mediatype: 'show'}},
+			{}
+		);
+		await fetchExternalPresetRow('tmdb_netflix');
+		expect(fetchCustomRow).toHaveBeenLastCalledWith(
+			{source: 'tmdb_discover', type: 'provider_netflix', params: {region: 'GB'}},
+			{}
 		);
 	});
 });
