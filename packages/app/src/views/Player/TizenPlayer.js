@@ -295,7 +295,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 		isBuffering: () => isBufferingRef.current || !avplayReadyRef.current // eslint-disable-line no-use-before-define
 	}), [syncPlaySample]);
 	const runTimeRef = useRef(0);
-	// The runtime the playback info gave, which prepare doesn't overwrite
+	// The runtime the playback info gave, which prepare doesn't overwrite (a second or less counts as unknown)
 	const titleRunTimeRef = useRef(0);
 	const healthMonitorRef = useRef(null);
 	const unregisterAppStateRef = useRef(null);
@@ -920,7 +920,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 		// A Silo copy's playlist only lists what Silo has produced so far, so AVPlay's duration is that, not the title's:
 		// the scrub bar would end there and a skip would stop short. The title's runtime stands, and its seeks go to Silo.
 		const durationMs = avplayGetDuration();
-		if (durationMs > 0 && !(streamTimeline.seeksThroughServer && titleRunTimeRef.current > 0)) {
+		if (durationMs > 0 && !(streamTimeline.seeksThroughServer && titleRunTimeRef.current > 10000000)) {
 			setDuration(durationMs / 1000);
 			runTimeRef.current = Math.floor(durationMs * 10000);
 		}
@@ -2404,8 +2404,8 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 		if (live) return [live.start * 1000, live.edge * 1000];
 		// A Silo copy's AVPlay duration ends where its playlist does (see prepare), so its runtime bounds a seek, a
 		// second short of the end, which Silo has no stream to open at.
-		if (streamTimeline.seeksThroughServer && titleRunTimeRef.current > 0) {
-			return [0, Math.max(0, titleRunTimeRef.current / 10000 - 1000)];
+		if (streamTimeline.seeksThroughServer && titleRunTimeRef.current > 10000000) {
+			return [0, titleRunTimeRef.current / 10000 - 1000];
 		}
 		return [0, avplayGetDuration()];
 	}, []);
