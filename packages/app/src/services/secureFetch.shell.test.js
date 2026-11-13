@@ -62,6 +62,15 @@ describe('a certificate the shell refuses', () => {
 		expect(bridge.allowInsecureHost).not.toHaveBeenCalled();
 	});
 
+	test('is never extended to the Plex or Emby account services', async () => {
+		fetchWithTimeout.mockRejectedValue(refused());
+
+		await expect(platformFetch('https://clients.plex.tv/api/v2/resources')).rejects.toThrow('Failed to fetch');
+		await expect(platformFetch('https://connect.emby.media/service/user/authenticate')).rejects.toThrow('Failed to fetch');
+
+		expect(bridge.allowInsecureHost).not.toHaveBeenCalled();
+	});
+
 	test('is left alone where there is no shell', async () => {
 		loadShellBridge.mockResolvedValue(null);
 		fetchWithTimeout.mockRejectedValue(refused());

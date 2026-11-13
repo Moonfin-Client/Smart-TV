@@ -171,7 +171,7 @@ export const defaultSettings = {
 	featuredItemCount: 10,
 	featuredBarStyle: 'moonfin',
 	mediaBarRowPeek: false,
-	featuredTrailerPreview: true,
+	featuredTrailerPreview: false,
 	featuredTrailerMuted: false,
 	trailerVolume: 100,
 	mediaBarTrailerCaptions: false,

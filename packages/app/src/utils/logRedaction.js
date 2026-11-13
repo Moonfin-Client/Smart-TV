@@ -14,7 +14,9 @@ const LABELLED_HOST = /\b(host(?:name)?|address|ip|server|url|uri|domain|origin)
 // Only the value goes. That auth was present still reads, which is worth keeping. The
 // quoted tail is part of the value because this app sends its token as
 // Token="...", and stopping at the opening quote would leave the secret sitting there.
-const CREDENTIAL = /\b(api[_-]?key|access[_-]?token|auth[_-]?token|authorization|token)(\s*[:=]\s*"?)((?:(?:Bearer|Basic|MediaBrowser)\s+)?[^\s&"',;<>{}[\]]*(?:"[^"]*")?)/gi;
+const CREDENTIAL = /\b(api[_-]?key|access[_-]?token|auth[_-]?token|refresh[_-]?token|authorization|token|pass(?:word|wd)?|(?:client[_-]?)?secret|sig(?:nature)?)(\s*[:=]\s*"?)((?:(?:Bearer|Basic|MediaBrowser)\s+)?[^\s&"',;<>{}[\]]*(?:"[^"]*")?)/gi;
+
+const EMAIL = /[\w.%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/g;
 
 const IPV4 = /\b(?:\d{1,3}\.){3}\d{1,3}\b/g;
 
@@ -45,9 +47,11 @@ export const redact = (text) => {
 		result = result.replace(URL_HOST, (match, scheme) => scheme + REDACTED);
 	}
 
-	if (has('key') || has('token') || has('auth')) {
+	if (has('key') || has('token') || has('auth') || has('pass') || has('secret') || has('sig')) {
 		result = result.replace(CREDENTIAL, (match, name, separator) => name + separator + REDACTED);
 	}
+
+	if (result.indexOf('@') !== -1) result = result.replace(EMAIL, REDACTED);
 
 	if (result.indexOf('.') !== -1) result = result.replace(IPV4, REDACTED);
 	if (result.indexOf(':') !== -1) result = result.replace(IPV6, (match, lead) => lead + REDACTED);

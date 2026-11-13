@@ -65,6 +65,10 @@ const readSettings = async () => {
 	return lastSettings;
 };
 
+// Plex and Emby account calls carry a password or token, so the setting never reaches them.
+const ACCOUNT_SERVICE = /[/.](plex\.tv|emby\.media)(:\d+)?$/;
+const allowInsecureFor = (url, settings) => !!settings.allowInsecureCerts && !ACCOUNT_SERVICE.test(originOf(url));
+
 // The WebView on Fire TV and on Xbox refuses a certificate it cant verify and the
 // page only sees a network error. With the setting on, the shell is told to
 // accept the host and the request is tried once more.
@@ -76,7 +80,7 @@ const allowHostInShell = async (url) => {
 	const bridge = await loadShellBridge();
 	if (!bridge) return false;
 	const settings = await readSettings();
-	if (!settings.allowInsecureCerts) return false;
+	if (!allowInsecureFor(url, settings)) return false;
 	bridge.allowInsecureHost(host);
 	shellAllowedHosts.add(host);
 	return true;
@@ -167,7 +171,7 @@ export const platformFetch = async (url, options = {}, timeoutMs) => {
 	// proxy (avoids a guaranteed-to-fail fetch + its timeout on every request).
 	if (canProxy && proxyHosts.has(origin)) {
 		const settings = await readSettings();
-		return proxyRequest(url, options, timeoutMs, settings.allowInsecureCerts);
+		return proxyRequest(url, options, timeoutMs, allowInsecureFor(url, settings));
 	}
 
 	try {
@@ -189,7 +193,7 @@ export const platformFetch = async (url, options = {}, timeoutMs) => {
 		// rejection, that error carries connectionType === INSECURE_CERT so the
 		// UI shows the cert-specific guidance instead of a generic "can't reach".
 		const settings = await readSettings();
-		const res = await proxyRequest(url, options, timeoutMs, settings.allowInsecureCerts);
+		const res = await proxyRequest(url, options, timeoutMs, allowInsecureFor(url, settings));
 		proxyHosts.add(origin);
 		return res;
 	}

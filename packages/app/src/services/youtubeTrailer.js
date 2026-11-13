@@ -2,6 +2,7 @@ import {isTizen, isVega, isWebOS, isXbox} from '../platform';
 import {originFreeFetch} from './secureFetch';
 import serverLogger from './serverLogger';
 import {readTrailerManifest} from './video';
+import {sha256} from '../utils/sha256';
 
 const INNERTUBE_URL = 'https://www.youtube.com/youtubei/v1/player';
 const RESOLVE_TIMEOUT_MS = 8000;
@@ -766,8 +767,9 @@ export function extractYouTubeIdFromUrl (url) {
 
 export function fetchSponsorSegments (videoId) {
 	return new Promise(function (resolve) {
-		let url = 'https://sponsor.ajay.app/api/skipSegments?videoID=' + videoId +
-			'&categories=["sponsor","selfpromo","intro","outro","interaction","music_offtopic"]';
+		// Only a short prefix of the ID's hash is sent, so SponsorBlock can't tell which trailer is playing.
+		let url = 'https://sponsor.ajay.app/api/skipSegments/' + sha256(videoId).slice(0, 4) +
+			'?categories=["sponsor","selfpromo","intro","outro","interaction","music_offtopic"]';
 		fetch(url)
 			.then(function (resp) {
 				if (!resp.ok) { resolve([]); return; }
@@ -775,10 +777,14 @@ export function fetchSponsorSegments (videoId) {
 			})
 			.then(function (data) {
 				if (!Array.isArray(data)) { resolve([]); return; }
-				let segments = [];
+				let found = [];
 				for (let i = 0; i < data.length; i++) {
-					if (data[i].segment && data[i].segment.length === 2) {
-						segments.push({start: data[i].segment[0], end: data[i].segment[1]});
+					if (data[i] && data[i].videoID === videoId && Array.isArray(data[i].segments)) found = data[i].segments;
+				}
+				let segments = [];
+				for (let i = 0; i < found.length; i++) {
+					if (found[i].segment && found[i].segment.length === 2) {
+						segments.push({start: found[i].segment[0], end: found[i].segment[1]});
 					}
 				}
 				resolve(segments);
