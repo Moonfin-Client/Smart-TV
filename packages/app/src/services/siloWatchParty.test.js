@@ -321,6 +321,40 @@ describe('Silo Watch Party room', () => {
 		expect(dropped()).toBe(5);
 	});
 
+	test('a close that answers after another room was joined drops only the closed room', async () => {
+		silo.baseUrl = 'http://silo-moonbase-late:8090';
+		const plugins = {items: [{id: 3, plugin_id: 'moonfin.moonbase'}]};
+		let nextRoom = 'r1';
+		let answerClose;
+		silo.siloCall.mockImplementation(async (path, options = {}) => {
+			calls.push({path, ...options});
+			if (path === '/api/v2/settings/plugins') return plugins;
+			if (options.method === 'DELETE' && path === '/api/v2/watch-together/rooms/r1') {
+				return new Promise((resolve) => {
+					answerClose = resolve;
+				});
+			}
+			if (path === '/api/v2/watch-together/rooms') return {room: roomJson({room_id: nextRoom}), room_access_token: 'rt'};
+			if (path.endsWith('/ws-ticket')) return {ticket: 'tk', protocol: 'silo.room.v2'};
+			return null;
+		});
+		const dropped = (id) => calls.filter((c) => c.method === 'DELETE' && c.path.endsWith(`/Moonfin/WatchParty/${id}`)).length;
+
+		await openRoom();
+		const ending = party.end();
+		await flush();
+		party.leave();
+		nextRoom = 'r2';
+		await openRoom();
+		answerClose(null);
+		await ending;
+		await flush();
+
+		expect(dropped('r1')).toBe(1);
+		expect(dropped('r2')).toBe(0);
+		expect(party.state().room).toMatchObject({roomId: 'r2'});
+	});
+
 	test('a guest without transport control sends no requests', async () => {
 		await openRoom();
 		frame({type: 'snapshot', room: roomJson({phase: 'playing', playback_state: 'playing', selected_content_id: 'ep1',

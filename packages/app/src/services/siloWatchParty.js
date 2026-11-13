@@ -1124,9 +1124,10 @@ export const createWatchParty = ({silo, moonbase = () => null, sync = syncPlay, 
 
 	// Silo: drops what Moonbase keeps for the room once it ends, so it stops counting toward the account's rooms for the
 	// day. Moonbase lets only the host, or the account that stored it when nobody set subtitles, do that.
-	const dropStoredRoom = () => {
-		if (kind === 'moonbase' || !api?.moonbase || !room) return;
-		api.moonbase(room.roomId, {method: 'DELETE'}).catch((err) => {
+	// end() passes the room it closed, since another may have been joined by the time Silo answers.
+	const dropStoredRoom = (roomApi = api, roomId = room?.roomId, roomKind = kind) => {
+		if (roomKind === 'moonbase' || !roomApi?.moonbase || !roomId) return;
+		roomApi.moonbase(roomId, {method: 'DELETE'}).catch((err) => {
 			// Not ours to end, or an older Moonbase: it expires in a day.
 			console.info('[WatchParty] Ending the stored room failed', err?.status || err?.message || '');
 		});
@@ -1308,15 +1309,16 @@ export const createWatchParty = ({silo, moonbase = () => null, sync = syncPlay, 
 
 	const end = async () => {
 		if (!room || !api) return;
+		const closing = [api, room.roomId, kind];
 		try {
 			await api.close(room.roomId);
-			dropStoredRoom();
+			dropStoredRoom(...closing);
 		} catch (err) {
 			console.warn('[WatchParty] Closing the room failed', err);
 			// Silo says the room is unknown (404) or already ended (409).
-			if (err?.status === 404 || err?.status === 409) dropStoredRoom();
+			if (err?.status === 404 || err?.status === 409) dropStoredRoom(...closing);
 		}
-		leaveRoom(null);
+		if (room?.roomId === closing[1]) leaveRoom(null);
 	};
 
 	// What syncPlay.js hands the room while it follows it.
