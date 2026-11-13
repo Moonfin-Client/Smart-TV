@@ -10,6 +10,7 @@ import {getPlatform} from '../../platform';
 import {MODERN_CAPTION_ROOM, modernCardMetrics} from '../MediaCard/modernCardLayout';
 import PlaceholderRow from './PlaceholderRow';
 import CalendarSeeAllCard from './CalendarSeeAllCard';
+import CarouselPanel from './CarouselPanel';
 import {nearRowEnd} from '../../views/Browse/rowPaging';
 
 import css from './ModernMediaRow.module.less';
@@ -58,7 +59,8 @@ const ModernMediaRow = ({
 	hideUnwatchedCount = false,
 	leadingInset = 0,
 	onCalendarSeeAll,
-	seeAllIcon
+	seeAllIcon,
+	carousel = false
 }) => {
 	const {settings} = useSettings();
 	const scrollerRef = useRef(null);
@@ -165,6 +167,8 @@ const ModernMediaRow = ({
 				const rest = openMs ?
 					glideScroll(scroller, 'x', cardStart, start, {duration: openMs, ease: expandEase}) :
 					glideScroll(scroller, 'x', cardStart, layout.paddingLeft + cardStart - shownAt);
+				// Carousel cards leave their details to the panel, so there's no width to hand them.
+				if (carousel) return;
 				const cardLeft = layout.paddingLeft + cardStart - rest;
 				setDetails({
 					spotlightId: card.getAttribute('data-spotlight-id'),
@@ -172,7 +176,7 @@ const ModernMediaRow = ({
 				});
 			});
 		}
-	}, [onFocus, rowIndex, onLoadMore, itemCount, rowId, settings.modernCardTransitionSpeed]);
+	}, [onFocus, rowIndex, onLoadMore, itemCount, rowId, settings.modernCardTransitionSpeed, carousel]);
 
 	const handleBlur = useCallback((e) => {
 		const nextTarget = e.relatedTarget;
@@ -226,6 +230,7 @@ const ModernMediaRow = ({
 		platform === 'tizen' ? css.platformTizen : '',
 		settings.fullScreenRows === true ? css.fullScreenRows : '',
 		coreLook ? css.coreLook : '',
+		carousel ? css.carousel : '',
 		typeof document !== 'undefined' && document.documentElement.classList.contains('legacy') ? css.platformLegacy : ''
 	].filter(Boolean).join(' ');
 	const rowStyle = typeof rowSpacing === 'number' ? {marginBottom: rowSpacing + 'px'} : undefined;
@@ -246,7 +251,9 @@ const ModernMediaRow = ({
 				cardWidth={cardWidth}
 				imageHeight={imageHeight}
 				isModern
-			/>
+			>
+				{carousel && <CarouselPanel />}
+			</PlaceholderRow>
 		);
 	}
 
@@ -257,7 +264,8 @@ const ModernMediaRow = ({
 	// The row is entered on its last focused card, or its first.
 	const landingIndex = Math.max(0, items.findIndex((item) => item.Id === lastFocusedIdRef.current));
 	// Every row keeps room for three caption lines, so the next row never sits on a card's text.
-	const captionFloor = modernCardMetrics({posterSize: settings.homeRowsPosterSize}).imageHeight + MODERN_CAPTION_ROOM;
+	// Carousel cards have no captions, so the panel sits right under them.
+	const captionFloor = carousel ? 0 : modernCardMetrics({posterSize: settings.homeRowsPosterSize}).imageHeight + MODERN_CAPTION_ROOM;
 
 	return (
 		<RowContainer
@@ -308,6 +316,7 @@ const ModernMediaRow = ({
 								posterLabels={posterLabels}
 								hideWatchProgress={hideWatchProgress}
 								hideUnwatchedCount={hideUnwatchedCount}
+								carousel={carousel}
 							/>
 						);
 					})}
@@ -323,6 +332,7 @@ const ModernMediaRow = ({
 					)}
 				</div>
 			</div>
+			{carousel && <CarouselPanel item={items[focusedIndex >= 0 ? focusedIndex : landingIndex]} serverUrl={serverUrl} hideOverview={hideOverview} rowFocused={focusedIndex >= 0} deferImage={deferImages} />}
 		</RowContainer>
 	);
 };
@@ -344,7 +354,7 @@ const areRowPropsEqual = (prev, next) => {
 	if (prev.deferImages !== next.deferImages || prev.ratingsSurface !== next.ratingsSurface || prev.hideOverview !== next.hideOverview) return false;
 	if (prev.coreLook !== next.coreLook || prev.leadingInset !== next.leadingInset || prev.posterLabels !== next.posterLabels) return false;
 	if (prev.hideWatchProgress !== next.hideWatchProgress || prev.hideUnwatchedCount !== next.hideUnwatchedCount) return false;
-	if (!prev.onCalendarSeeAll !== !next.onCalendarSeeAll) return false;
+	if (!prev.onCalendarSeeAll !== !next.onCalendarSeeAll || prev.carousel !== next.carousel) return false;
 	if (prev.items === next.items) return true;
 	if (prev.items?.length !== next.items?.length) return false;
 	for (let i = 0; i < prev.items.length; i++) {

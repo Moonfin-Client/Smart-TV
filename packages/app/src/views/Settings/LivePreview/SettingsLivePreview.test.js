@@ -174,9 +174,9 @@ describe('SettingsLivePreview', () => {
 		expect(rings()).toBe(0);
 	});
 
-	test('Focus Border Color rings the first card in its color, in either row style', () => {
+	test('Focus Border Color rings the first card in its color, in every row style', () => {
 		const rings = () => Array.from(document.querySelectorAll('.frame div')).filter((node) => node.style.border.indexOf('3px solid') === 0);
-		for (const homeRowsStyle of ['v2', 'v1']) {
+		for (const homeRowsStyle of ['v2', 'v1', 'carousel']) {
 			const {unmount} = draw({homeRowsStyle, focusBorderColor: '#FF0000'}, 'setting-focusBorderColor', 'home');
 			expect(rings().map((ring) => ring.style.borderColor)).toEqual(['rgb(255, 0, 0)']);
 			unmount();
@@ -204,6 +204,38 @@ describe('SettingsLivePreview', () => {
 			draw({homeRowsStyle, hideHomeMediaDescription: true}, 'setting-hideHomeMediaDescription', 'home');
 			expect(descriptions()).toBe(0);
 			cleanup();
+		}
+	});
+
+	test('Carousel rows leave the cards bare and show each row\'s first title in a panel under them', () => {
+		const shown = (text) => screen.queryAllByText(text).length;
+		draw({homeRowsStyle: 'v2'}, 'setting-homeRowsStyle', 'home');
+		// Eight cards a row cycle the four sample films, across three rows.
+		expect(shown('Film 0')).toBe(6);
+		cleanup();
+		draw({homeRowsStyle: 'carousel'}, 'setting-homeRowsStyle', 'home');
+		// Only the first row's panel names Film 0, the next two lead with Film 3 and Film 2.
+		expect(shown('Film 0')).toBe(1);
+		expect(shown('Film 3')).toBe(1);
+		expect(shown('A story.')).toBe(3);
+		cleanup();
+		draw({homeRowsStyle: 'carousel', hideHomeMediaDescription: true}, 'setting-hideHomeMediaDescription', 'home');
+		expect(shown('A story.')).toBe(0);
+	});
+
+	test('a Carousel panel shows media pills for a film or an episode, and none for a show', () => {
+		const pills = () => screen.queryAllByText('HDR10').length;
+		const saved = mockItems[0].type;
+		try {
+			// Only the first row's panel shows Film 0.
+			for (const [type, count] of [['Movie', 1], ['Episode', 1], ['Series', 0]]) {
+				mockItems[0].type = type;
+				draw({homeRowsStyle: 'carousel'}, 'setting-homeRowsStyle', 'home');
+				expect(pills()).toBe(count);
+				cleanup();
+			}
+		} finally {
+			mockItems[0].type = saved;
 		}
 	});
 

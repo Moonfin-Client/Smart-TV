@@ -7,6 +7,7 @@
 import {getImageUrl, getBackdropId, getPrimaryImageId, getLogoUrl} from '../../utils/helpers';
 import * as jellyfinApi from '../../services/jellyfinApi';
 import {showsWatchedCheck} from '../../utils/playedState';
+import {getEpisodeLabels} from '../../components/MediaCard/modernCardLayout';
 
 let items = [];
 let loading = false;
@@ -37,6 +38,9 @@ export const adaptItem = (item) => {
 	const posterId = getPrimaryImageId(item);
 	return {
 		title: item.Name || '',
+		// A Carousel panel leads an episode with its series, its number and name under it.
+		seriesName: item.Type === 'Episode' ? item.SeriesName || null : null,
+		episodeLine: item.Type === 'Episode' ? getEpisodeLabels(item)?.full || null : null,
 		type: item.Type || null,
 		year: item.ProductionYear || null,
 		officialRating: item.OfficialRating || null,

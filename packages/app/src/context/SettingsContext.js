@@ -108,10 +108,10 @@ export const sameSyncedValue = (left, right) => {
 	return keys.every((key) => sameSyncedValue(left[key], right[key]));
 };
 
-const normalizeHomeRowsStyle = (value) => {
+export const normalizeHomeRowsStyle = (value) => {
 	if (value === 'classic') return 'v1';
 	if (value === 'modern') return 'v2';
-	return value === 'v1' || value === 'v2' ? value : 'v2';
+	return value === 'v1' || value === 'v2' || value === 'carousel' ? value : 'v2';
 };
 
 // Core and the plugin's admin page store the detail style by name. Builds of this app before
@@ -721,7 +721,7 @@ export function SettingsProvider({children}) {
 					migrated = true;
 				}
 				if (!hasExplicitHomeRowsStyle) {
-					stored.homeRowsStyle = 'v2';
+					stored.homeRowsStyle = defaultSettings.homeRowsStyle;
 					migrated = true;
 				} else {
 					const normalizedStyle = normalizeHomeRowsStyle(stored.homeRowsStyle);

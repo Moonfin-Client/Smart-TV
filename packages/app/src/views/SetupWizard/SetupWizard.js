@@ -63,7 +63,7 @@ const stagePreview = (step, value, mediaBarMode) => {
 	switch (step) {
 		case 'navbar': return <NavbarPreview position={value} />;
 		case 'mediaBar': return <MediaBarPreview mode={value} />;
-		case 'homeRows': return <HomeRowsPreview modern={value === 'v2'} />;
+		case 'homeRows': return <HomeRowsPreview modern={value !== 'v1'} carousel={value === 'carousel'} />;
 		case 'detailStyle': return <DetailStylePreview variant={value} />;
 		default: return <MediaBarPreview mode={mediaBarMode} />;
 	}

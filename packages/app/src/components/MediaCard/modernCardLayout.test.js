@@ -1,4 +1,5 @@
-import {isStaticLibraryCard, modernCardMetrics, modernRowSpacing, getCardDisplayTitle, getEpisodeLabels} from './modernCardLayout';
+import {isCarouselRow, isStaticLibraryCard, modernCardMetrics, modernRowSpacing, getCardDisplayTitle, getEpisodeLabels} from './modernCardLayout';
+import {defaultSettings} from '../../context/defaultSettings';
 
 const metrics = (over = {}) => modernCardMetrics({
 	posterSize: 'default',
@@ -22,6 +23,30 @@ describe('isStaticLibraryCard', () => {
 	test('a set that has never seen the setting holds the row static', () => {
 		expect(isStaticLibraryCard(true, {})).toBe(true);
 		expect(isStaticLibraryCard(true, undefined)).toBe(true);
+	});
+});
+
+describe('isCarouselRow', () => {
+	const carousel = {homeRowsStyle: 'carousel'};
+
+	test('is the default Row Type on the TV', () => {
+		expect(defaultSettings.homeRowsStyle).toBe('carousel');
+		expect(isCarouselRow({id: 'latest-movies', type: 'portrait'}, defaultSettings)).toBe(true);
+	});
+
+	test('gives title and genre rows their panel only under Carousel', () => {
+		const nextUp = {id: 'nextup', type: 'landscape'};
+		expect(isCarouselRow(nextUp, carousel)).toBe(true);
+		expect(isCarouselRow({id: 'genres-movies', type: 'portrait', isGenreRow: true}, carousel)).toBe(true);
+		expect(isCarouselRow(nextUp, {homeRowsStyle: 'v2'})).toBe(false);
+		expect(isCarouselRow(nextUp, {homeRowsStyle: 'v1'})).toBe(false);
+	});
+
+	test('keeps music, My Media, Live TV and studio rows plain', () => {
+		expect(isCarouselRow({id: 'audioalbums', type: 'square'}, carousel)).toBe(false);
+		expect(isCarouselRow({id: 'library-tiles', type: 'landscape', isLibraryRow: true}, carousel)).toBe(false);
+		expect(isCarouselRow({id: 'livetv', type: 'landscape', isLiveTvRow: true}, carousel)).toBe(false);
+		expect(isCarouselRow({id: 'studios', type: 'landscape'}, carousel)).toBe(false);
 	});
 });
 

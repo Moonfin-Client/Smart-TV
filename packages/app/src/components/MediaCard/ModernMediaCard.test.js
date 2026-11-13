@@ -227,6 +227,20 @@ describe('ModernMediaCard description', () => {
 	});
 });
 
+it('leaves every title, year and episode number to the Carousel panel', () => {
+	const episode = {Id: 'ep', Name: 'Run Boy Run', Type: 'Episode', SeriesName: 'The Umbrella Academy', ParentIndexNumber: 1, IndexNumber: 2, ProductionYear: 2019, Overview: 'A story.'};
+	const {rerender} = render(<ModernMediaCard item={episode} serverUrl="http://server" isFocused carousel />);
+	passArtWait();
+	expect(document.body.textContent).toBe('');
+	// A card with no art at all stays an empty frame rather than printing the name.
+	rerender(<ModernMediaCard item={{...episode, Id: 'bare', Name: 'Bare'}} serverUrl="http://server" carousel />);
+	expect(document.querySelector('[class~="placeholder"]')).not.toBeNull();
+	expect(document.body.textContent).toBe('');
+	// A genre card is nothing but its name, so it keeps it.
+	rerender(<ModernMediaCard item={{Id: 'genre', Name: 'Drama', Type: 'Genre'}} serverUrl="http://server" carousel />);
+	expect(document.body.textContent).toBe('Drama');
+});
+
 it('keeps a calendar card\'s release line ahead of its year on focus', () => {
 	const item = {Id: 'calendar', Name: 'Film', Type: 'Movie', ProductionYear: 2026, _calendarDate: '2026-11-08T00:00:00.000Z', Subtitle: 'Digital · In 3 days (Nov 8)'};
 	render(<ModernMediaCard item={item} serverUrl="http://server" isFocused />);

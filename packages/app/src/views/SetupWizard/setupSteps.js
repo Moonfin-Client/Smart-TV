@@ -33,7 +33,8 @@ export const STEP_INFO = {
 		crumbs: () => [$L('Settings'), $L('Appearance'), $L('Home Screen')],
 		options: () => [
 			{value: 'v1', label: $L('Classic'), desc: $L('Compact. More rows on screen at once.')},
-			{value: 'v2', label: $L('Modern'), desc: $L('Larger cards with titles underneath.')}
+			{value: 'v2', label: $L('Modern'), desc: $L('Larger cards with titles underneath.')},
+			{value: 'carousel', label: $L('Carousel'), desc: $L("Larger cards over a panel with the focused title's details.")}
 		]
 	},
 	detailStyle: {

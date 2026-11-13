@@ -34,7 +34,7 @@ import {applyOledMode} from '../../utils/oledMode';
 import {normalizeRatingStyle} from '../../utils/personalRating';
 import {rootScale} from '../../utils/rootScale';
 import {memoryCache} from '../Browse/browseCache';
-import {homeRowSpacing} from '../../components/MediaCard/modernCardLayout';
+import {CAROUSEL_PANEL_SCRIM, homeRowSpacing} from '../../components/MediaCard/modernCardLayout';
 import {rowPeekHeight} from '../Browse/rowPeek';
 import {genreGlowRgb} from '../Browse/galleryGlow';
 import {DETAIL_ICON_PATHS} from '../Details/detailIcons';
@@ -311,6 +311,9 @@ const SAMPLE_RATINGS = buildDisplayRatings(SAMPLE_SCORES, '').map((rating) => ({
 // The viewer's own score on the sample, which a liked thumb also reads from.
 const SAMPLE_USER_DATA = {Rating: 8};
 
+// The media pills Home's Carousel panel shows for the details previews' sample film.
+const SAMPLE_PILLS = ['4K', 'HDR10', 'HEVC', 'EAC3', '5.1'];
+
 // The real ratings row on the sample scores. [surface] picks whose ratings settings it follows,
 // and [zoom] is the share of the TV's size the surrounding preview is drawn at, since the row
 // sizes itself for the full screen. [className] dresses the zoomed box, which is how Frost's strip
@@ -502,8 +505,9 @@ const CardLabels = ({item}) => (item.labelItem ? (
 	</div>
 ) : null);
 
-// A [classic] card grows on focus while Focus Expansion Animation is on, as Home's does.
-const RowCard = ({item, height, aspect, imageUrl, progress, focused = false, classic = false, t}) => {
+// A [classic] card grows on focus while Focus Expansion Animation is on, as Home's does. A
+// [carousel] card leaves its title and year to the panel under the row.
+const RowCard = ({item, height, aspect, imageUrl, progress, focused = false, classic = false, carousel = false, t}) => {
 	const {settings} = useSettings();
 	const width = height * aspect;
 	const grown = classic && focused && settings.cardFocusZoom;
@@ -517,21 +521,26 @@ const RowCard = ({item, height, aspect, imageUrl, progress, focused = false, cla
 				</div>
 				{focused && <FocusRing t={t} />}
 			</div>
-			<div style={{marginTop: 6, fontSize: 13, fontWeight: 700, color: t.onSurface, textShadow: TEXT_SHADOW, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis'}}>
-				{item.title}
-			</div>
-			{item.year && (
-				<div style={{marginTop: 2, fontSize: 12, color: t.onSurfaceA(0.6), textShadow: TEXT_SHADOW}}>
-					{item.year}
-				</div>
+			{!carousel && (
+				<>
+					<div style={{marginTop: 6, fontSize: 13, fontWeight: 700, color: t.onSurface, textShadow: TEXT_SHADOW, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis'}}>
+						{item.title}
+					</div>
+					{item.year && (
+						<div style={{marginTop: 2, fontSize: 12, color: t.onSurfaceA(0.6), textShadow: TEXT_SHADOW}}>
+							{item.year}
+						</div>
+					)}
+				</>
 			)}
 		</div>
 	);
 };
 
 // The focused modern card holds the state the style is about: the thumb
-// morphed to 16 by 9, the focus ring, and the text block it grows underneath.
-const FocusedRowCard = ({item, posterHeight, t}) => {
+// morphed to 16 by 9, the focus ring, and the text block it grows underneath, which a
+// [carousel] card leaves to the panel under the row.
+const FocusedRowCard = ({item, posterHeight, carousel = false, t}) => {
 	const {settings} = useSettings();
 	const width = posterHeight * 16 / 9;
 	return (
@@ -544,23 +553,81 @@ const FocusedRowCard = ({item, posterHeight, t}) => {
 				</div>
 				<FocusRing t={t} />
 			</div>
-			<div style={{marginTop: 6, fontSize: 13, fontWeight: 700, color: t.onSurface, textShadow: TEXT_SHADOW, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis'}}>
-				{item.title}
-			</div>
-			{item.year && (
-				<div style={{marginTop: 2, fontSize: 12, color: t.onSurfaceA(0.6), textShadow: TEXT_SHADOW}}>
-					{item.year}
-				</div>
-			)}
-			<div style={{position: 'relative', width, height: 76, marginTop: 4}}>
-				<div style={{position: 'absolute', left: 0, top: 0, width: width * 2.4}}>
-					<PreviewRatings item={item} surface='homeRows' compact singleLineWidth={width * 2.4} zoom={0.5 * ROW_SCALE} />
-					{item.overview && !settings.hideHomeMediaDescription && (
-						<div style={{marginTop: 4, fontSize: 12, lineHeight: 1.4, color: t.onSurfaceA(0.7), textShadow: TEXT_SHADOW, ...clampLines(3)}}>
-							{item.overview}
+			{!carousel && (
+				<>
+					<div style={{marginTop: 6, fontSize: 13, fontWeight: 700, color: t.onSurface, textShadow: TEXT_SHADOW, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis'}}>
+						{item.title}
+					</div>
+					{item.year && (
+						<div style={{marginTop: 2, fontSize: 12, color: t.onSurfaceA(0.6), textShadow: TEXT_SHADOW}}>
+							{item.year}
 						</div>
 					)}
+					<div style={{position: 'relative', width, height: 76, marginTop: 4}}>
+						<div style={{position: 'absolute', left: 0, top: 0, width: width * 2.4}}>
+							<PreviewRatings item={item} surface='homeRows' compact singleLineWidth={width * 2.4} zoom={0.5 * ROW_SCALE} />
+							{item.overview && !settings.hideHomeMediaDescription && (
+								<div style={{marginTop: 4, fontSize: 12, lineHeight: 1.4, color: t.onSurfaceA(0.7), textShadow: TEXT_SHADOW, ...clampLines(3)}}>
+									{item.overview}
+								</div>
+							)}
+						</div>
+					</div>
+				</>
+			)}
+		</div>
+	);
+};
+
+// The panel a Carousel row draws under its cards for its focused title. The preview's cards are
+// drawn larger than Home's, so the panel is kept short enough to show whole under the navbar.
+const CarouselPanelPreview = ({item, t}) => {
+	const {settings} = useSettings();
+	const backdrop = item.backdropUrl;
+	return (
+		<div
+			style={{
+				position: 'relative',
+				height: 170,
+				margin: '4px 20px 35px 16px',
+				borderRadius: 14,
+				overflow: 'hidden',
+				boxSizing: 'border-box',
+				backgroundColor: backdrop ? '#101218' : 'rgba(255, 255, 255, 0.06)',
+				border: `1px solid rgba(255, 255, 255, ${backdrop ? 0.08 : 0.12})`
+			}}
+		>
+			{backdrop && (
+				<>
+					<img src={backdrop} alt='' style={{position: 'absolute', top: 0, right: 0, width: '70%', height: '100%', objectFit: 'cover', objectPosition: '50% 62%'}} />
+					<div style={{...ABS_FILL, ...scrimStyle(CAROUSEL_PANEL_SCRIM)}} />
+				</>
+			)}
+			<div style={{position: 'absolute', top: 0, bottom: 0, left: 36, width: '54%', display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'flex-start', lineHeight: 1.3, color: t.onSurface}}>
+				<div style={{fontSize: 22, fontWeight: 700, lineHeight: 1.05, ...clampLines(2)}}>{item.seriesName || item.title}</div>
+				{item.episodeLine && <div style={{marginTop: 4, maxWidth: '100%', fontSize: 12, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis'}}>{item.episodeLine}</div>}
+				<div style={{marginTop: 5}}>
+					{/* A show's runtime is an episode's, which Home's panel leaves off. */}
+					<MetadataWrap item={item.type === 'Series' ? {...item, runtimeMinutes: null} : item} t={t} />
 				</div>
+				<div style={{alignSelf: 'stretch'}}>
+					<PreviewRatings item={item} surface='homeRows' compact singleLineWidth={1} />
+				</div>
+				{/* Home fetches these for a film or an episode, so the sample film's stand in. */}
+				{(item.type === 'Movie' || item.type === 'Episode') && (
+					<div style={{marginTop: 5, display: 'flex'}}>
+						{SAMPLE_PILLS.map((pill) => (
+							<span key={pill} style={{marginRight: 4, padding: '1px 4px', border: '1px solid rgba(255, 255, 255, 0.35)', borderRadius: 3, backgroundColor: 'rgba(255, 255, 255, 0.08)', fontSize: 8, fontWeight: 700, letterSpacing: '0.04em', whiteSpace: 'nowrap'}}>
+								{pill}
+							</span>
+						))}
+					</div>
+				)}
+				{item.overview && !settings.hideHomeMediaDescription && (
+					<div style={{marginTop: 4, maxWidth: '85%', fontSize: 11, lineHeight: 1.4, color: t.onSurfaceA(0.8), ...clampLines(3)}}>
+						{item.overview}
+					</div>
+				)}
 			</div>
 		</div>
 	);
@@ -584,7 +651,8 @@ const isWideShape = (shape) => shape === 'landscape' || shape === 'banner';
 // draws the cards it has with the art Home's cards pick. A Classic row draws every card in its
 // [shape], and a Modern one draws posters, with an album square the way Home does. A Modern row
 // of [staticCards] holds every card at the wide size a poster grows to, as Home's My Media does.
-const HomeRow = ({title, items, t, modern, shape = 'portrait', offset = 0, withFocus = false, posterHeight, thumbHeight, real = false, staticCards = false}) => {
+// A [carousel] row draws its first card's panel under the cards.
+const HomeRow = ({title, items, t, modern, shape = 'portrait', offset = 0, withFocus = false, posterHeight, thumbHeight, real = false, staticCards = false, carousel = false}) => {
 	const cards = [];
 	const count = real ? Math.min(8, items.length) : 8;
 	for (let i = 0; i < count; i++) {
@@ -593,7 +661,7 @@ const HomeRow = ({title, items, t, modern, shape = 'portrait', offset = 0, withF
 		const wide = !modern && isWideShape(cardShape);
 		const focused = withFocus && i === 0;
 		if (focused && modern && cardShape === 'portrait' && growsOnFocus(item)) {
-			cards.push(<FocusedRowCard key={i} item={item} posterHeight={posterHeight} t={t} />);
+			cards.push(<FocusedRowCard key={i} item={item} posterHeight={posterHeight} carousel={carousel} t={t} />);
 		} else {
 			cards.push(
 				<RowCard
@@ -605,6 +673,7 @@ const HomeRow = ({title, items, t, modern, shape = 'portrait', offset = 0, withF
 					progress={real ? item.playedPercentage / 100 : (wide && i < 2 ? [0.35, 0.7][i] : 0)}
 					focused={focused}
 					classic={!modern}
+					carousel={carousel}
 					t={t}
 				/>
 			);
@@ -618,6 +687,7 @@ const HomeRow = ({title, items, t, modern, shape = 'portrait', offset = 0, withF
 			<div style={{padding: '5px 20px 5px 16px', display: 'flex', alignItems: 'flex-start', overflow: 'hidden'}}>
 				{cards}
 			</div>
+			{carousel && <CarouselPanelPreview item={real ? items[0] : itemAt(items, offset)} t={t} />}
 		</div>
 	);
 };
@@ -632,9 +702,11 @@ const rowCardHeights = (settings, modern) => {
 };
 
 // [rows] are Home's own rows, each {id, title, items, shape}, drawn in place of the sample ones
-// with the first of them leading.
-const HomeRowsColumn = ({items, rows, t, modern, focusFirst = false}) => {
+// with the first of them leading. Modern sample rows are Carousel rows when [carousel] is set, or
+// when it's left out and Row Type is Carousel.
+const HomeRowsColumn = ({items, rows, t, modern, focusFirst = false, carousel: carouselStyle}) => {
 	const {settings} = useSettings();
+	const carousel = modern && (carouselStyle ?? settings.homeRowsStyle === 'carousel');
 	const {posterHeight, thumbHeight} = rowCardHeights(settings, modern);
 	// The space Home leaves below each row, at the design screen's half size. Expanded Rows gives
 	// each row a screen of its own, so the next one starts below the frame.
@@ -675,6 +747,7 @@ const HomeRowsColumn = ({items, rows, t, modern, focusFirst = false}) => {
 						items={row.items}
 						shape={row.shape}
 						staticCards={row.staticCards}
+						carousel={row.carousel}
 						t={t}
 						modern={modern}
 						withFocus={focusFirst && index === 0}
@@ -684,20 +757,20 @@ const HomeRowsColumn = ({items, rows, t, modern, focusFirst = false}) => {
 				</Fragment>
 			)) : (
 				<>
-					<HomeRow title={$L('Continue Watching')} items={items} t={t} modern={modern} shape='landscape' withFocus={focusFirst} posterHeight={posterHeight} thumbHeight={thumbHeight} />
+					<HomeRow title={$L('Continue Watching')} items={items} t={t} modern={modern} shape='landscape' withFocus={focusFirst} posterHeight={posterHeight} thumbHeight={thumbHeight} carousel={carousel} />
 					<div style={{height: rowGap}} />
-					<HomeRow title={$L('Recently Added')} items={items} t={t} modern={modern} offset={3} posterHeight={posterHeight} thumbHeight={thumbHeight} />
+					<HomeRow title={$L('Recently Added')} items={items} t={t} modern={modern} offset={3} posterHeight={posterHeight} thumbHeight={thumbHeight} carousel={carousel} />
 					<div style={{height: rowGap}} />
-					<HomeRow title={$L('Next Up')} items={items} t={t} modern={modern} shape='landscape' offset={6} posterHeight={posterHeight} thumbHeight={thumbHeight} />
+					<HomeRow title={$L('Next Up')} items={items} t={t} modern={modern} shape='landscape' offset={6} posterHeight={posterHeight} thumbHeight={thumbHeight} carousel={carousel} />
 				</>
 			)}
 		</div>
 	);
 };
 
-const HomeRowsScreen = ({items, t, modern, focusFirst = false}) => (
+const HomeRowsScreen = ({items, t, modern, focusFirst = false, carousel}) => (
 	<div style={{width: '100%', height: '100%', overflow: 'hidden'}}>
-		<HomeRowsColumn items={items} t={t} modern={modern} focusFirst={focusFirst} />
+		<HomeRowsColumn items={items} t={t} modern={modern} focusFirst={focusFirst} carousel={carousel} />
 	</div>
 );
 
@@ -1136,9 +1209,12 @@ const TopNavbarPreview = ({items, rows, t, userName, modern, focusFirst, hasLive
 	const buttons = useNavButtons(false, hasLiveTv);
 	const expanded = !!settings.navbarAlwaysExpanded;
 	const clock = settings.showClock === false ? null : formatClockTime(new Date(), settings.clockDisplay);
+	// Home pins a focused row just under the bar, which is what leaves a Carousel row room for its
+	// whole panel, so Carousel rows come up into the band's empty lower part to sit under the pill.
+	const carousel = rows ? rows[0].carousel : settings.homeRowsStyle === 'carousel';
 	return (
 		<div style={{width: '100%', height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden'}}>
-			<div style={{height: 95, flexShrink: 0, padding: '27px 24px', position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center'}}>
+			<div style={{height: 95, flexShrink: 0, marginBottom: carousel ? -75 : 0, padding: '27px 24px', position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center'}}>
 				<div style={{position: 'absolute', left: 24, top: '50%', transform: 'translateY(-50%)'}}>
 					<NavAvatar name={userName} size={32} />
 				</div>
@@ -2322,11 +2398,11 @@ export const NavbarPreview = ({position}) => {
 	return <LivePreview render={render} fallback={<FallbackNavbar position={position} t={t} />} />;
 };
 
-export const HomeRowsPreview = ({modern}) => {
+export const HomeRowsPreview = ({modern, carousel = false}) => {
 	const t = usePreviewPalette();
 	// Modern's whole point is the focused card, so its preview holds the first
 	// card in that state with the text block it grows underneath.
-	const render = useCallback((items) => <HomeRowsScreen items={items} t={t} modern={modern} focusFirst={modern} />, [modern, t]);
+	const render = useCallback((items) => <HomeRowsScreen items={items} t={t} modern={modern} focusFirst={modern} carousel={carousel} />, [modern, carousel, t]);
 	return <LivePreview render={render} fallback={<FallbackHomeRows modern={modern} t={t} />} />;
 };
 

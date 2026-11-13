@@ -267,7 +267,8 @@ export const getImageTypeOptions = () => [
 
 export const getHomeRowsStyleOptions = () => [
 	{ value: 'v2', label: $L('Modern') },
-	{ value: 'v1', label: $L('Classic') }
+	{ value: 'v1', label: $L('Classic') },
+	{ value: 'carousel', label: $L('Carousel') }
 ];
 
 export const getHomeBackdropStyleOptions = () => [

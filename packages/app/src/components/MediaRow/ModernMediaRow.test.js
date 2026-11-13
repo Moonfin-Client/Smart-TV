@@ -23,12 +23,16 @@ jest.mock('@enact/spotlight/SpotlightContainerDecorator', () => (config, type) =
 jest.mock('../../context/SettingsContext', () => ({useSettings: () => ({settings: {}})}));
 jest.mock('../../platform', () => ({getPlatform: () => 'webos'}));
 jest.mock('../Skeleton', () => ({SkeletonHomeRow: () => null, SkeletonRowTitle: () => null}));
-// Like the real card, each one leaves an element beside it in the lane.
+// Like the real card, each one leaves an element beside it in the lane and reports its focus.
 jest.mock('../MediaCard/ModernMediaCard', () => {
 	const React = require('react');
-	return ({item, spotlightId, hideOverview, warmFocusArt}) => React.createElement(React.Fragment, null,
-		React.createElement('div', {className: 'spottable', tabIndex: -1, 'data-spotlight-id': spotlightId, 'data-hide-overview': String(hideOverview), 'data-warm': String(warmFocusArt)}, item.Name),
+	return ({item, spotlightId, hideOverview, warmFocusArt, onFocused, carousel}) => React.createElement(React.Fragment, null,
+		React.createElement('div', {className: 'spottable', tabIndex: -1, 'data-spotlight-id': spotlightId, 'data-hide-overview': String(hideOverview), 'data-warm': String(warmFocusArt), 'data-carousel': String(carousel), onFocus: () => onFocused(item.Id)}, item.Name),
 		React.createElement('div'));
+});
+jest.mock('./CarouselPanel', () => {
+	const React = require('react');
+	return ({item, rowFocused}) => React.createElement('div', {'data-panel': item ? item.Id : 'empty', 'data-focused': String(rowFocused)});
 });
 
 jest.mock('./CalendarSeeAllCard', () => {
@@ -92,6 +96,34 @@ describe('ModernMediaRow', () => {
 		draw({onFocus});
 		focusCard(0);
 		expect(onFocus).toHaveBeenCalledWith(2);
+	});
+
+	it('draws the Carousel panel only when asked to, with its cards told to leave their captions to it', () => {
+		const {rerender} = draw();
+		expect(find('[data-panel]')).toBeNull();
+		expect(find('[data-carousel="true"]')).toBeNull();
+		rerender(<ModernMediaRow rowId="trending" title="Trending" items={items} rowIndex={2} carousel />);
+		expect(find('[data-panel]')).not.toBeNull();
+		expect(document.querySelectorAll('[data-carousel="true"]')).toHaveLength(6);
+	});
+
+	it('shows the first title until focus comes in, then the focused one, and keeps it when focus leaves', () => {
+		draw({carousel: true});
+		const panel = () => find('[data-panel]').getAttribute('data-panel');
+		const focused = () => find('[data-panel]').getAttribute('data-focused');
+		expect(panel()).toBe('item0');
+		expect(focused()).toBe('false');
+		focusCard(3);
+		expect(panel()).toBe('item3');
+		expect(focused()).toBe('true');
+		fireEvent.blur(find('[data-row-index="2"]'), {relatedTarget: null});
+		expect(panel()).toBe('item3');
+		expect(focused()).toBe('false');
+	});
+
+	it('stands an empty panel in while a Carousel row loads', () => {
+		draw({loading: true, carousel: true});
+		expect(find('[data-panel]').getAttribute('data-panel')).toBe('empty');
 	});
 
 	it('hands its cards the choice to hide the description, which shows unless asked', () => {

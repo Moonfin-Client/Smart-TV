@@ -14,7 +14,7 @@ jest.mock('../services/seerrApi', () => ({saveMoonfinProfile: jest.fn(() => Prom
 import {saveMoonfinProfile} from '../services/seerrApi';
 import {
 	SYNCABLE_KEYS, SYNC_PROFILES, __pushQueue, activeSyncProfile, defaultSettings, flushSettingsPush,
-	localToProfile, migrateKeyboardStyle, profileToLocal, resolveFromEnvelope, sameSyncedValue
+	localToProfile, migrateKeyboardStyle, normalizeHomeRowsStyle, profileToLocal, resolveFromEnvelope, sameSyncedValue
 } from './SettingsContext';
 import {__resetHomeLayoutPassthrough, homeRowsFromProfile} from '../utils/homeLayout';
 
@@ -467,6 +467,20 @@ describe('the library style', () => {
 
 	test('keeps the style it has when the profile names one this app has no way to draw', () => {
 		expect(profileToLocal({libraryStyle: 'grid'})).toEqual({});
+	});
+});
+
+describe('the home row type', () => {
+	test('syncs Carousel as the plain string the other clients store', () => {
+		expect(profileToLocal({homeRowsStyle: 'carousel'})).toEqual({homeRowsStyle: 'carousel'});
+		expect(localToProfile({...defaultSettings, homeRowsStyle: 'carousel'}, ['homeRowsStyle'])).toEqual({homeRowsStyle: 'carousel'});
+	});
+
+	test('keeps each row type it can draw, and reads the old names and anything else as Modern', () => {
+		['v1', 'v2', 'carousel'].forEach((style) => expect(normalizeHomeRowsStyle(style)).toBe(style));
+		expect(normalizeHomeRowsStyle('classic')).toBe('v1');
+		expect(normalizeHomeRowsStyle('modern')).toBe('v2');
+		expect(normalizeHomeRowsStyle('v3')).toBe('v2');
 	});
 });
 

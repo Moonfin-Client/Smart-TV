@@ -10,7 +10,7 @@ import $L from '@enact/i18n/$L';
 import {useAuth} from '../../../context/AuthContext';
 import useParentalFilter from '../../../hooks/useParentalFilter';
 import {episodeArtwork, modernCardImageUrl, requestedArtwork} from '../../../components/MediaCard/cardArtwork';
-import {isStaticLibraryCard} from '../../../components/MediaCard/modernCardLayout';
+import {isCarouselRow, isStaticLibraryCard} from '../../../components/MediaCard/modernCardLayout';
 import {FAVORITE_ROW_IDS} from '../../../utils/homeRowGates';
 import {isKidsMode, kidsModeRows, mergesContinueWatchingNextUp} from '../../../utils/kidsMode';
 import {isPickedRow, isPickedRowShown} from '../../../utils/pickedRows';
@@ -289,7 +289,7 @@ const previewRow = (row, settings, serverUrl) => {
 	const labels = !row.isSeerrRow && !row.isOnlineRecoRow && !row.isGenreRow;
 	const look = {modern, imageType, shape, serverUrl, useSeriesThumbnails: settings.useSeriesThumbnails, isStaticMyMedia: staticCards};
 	const items = row.items.slice(0, 8).map((item) => ({...previewItem(item, look), labelItem: labels ? item : null}));
-	return {id: row.id, title: row.title, items, shape, staticCards};
+	return {id: row.id, title: row.title, items, shape, staticCards, carousel: isCarouselRow(row, settings)};
 };
 
 // Wait this long after a sort changes before asking for it, so scrubbing through the choices

@@ -316,7 +316,7 @@ export const defaultSettings = {
 	homeRowsImageType: 'poster',
 	// Per row overrides keyed by row id. An absent id uses the global type above.
 	homeRowImageTypes: {},
-	homeRowsStyle: 'v2',
+	homeRowsStyle: 'carousel',
 	modernCardsOnMyMediaRow: false,
 	modernCardTransitionSpeed: 'off',
 	detailScreenStyle: 'v9',

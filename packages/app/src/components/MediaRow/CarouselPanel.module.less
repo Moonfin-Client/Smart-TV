@@ -1,0 +1,193 @@
+.panel {
+	position: relative;
+	height: 556px;
+	margin: 18px 0 70px;
+	border-radius: 28px;
+	overflow: hidden;
+	box-shadow: 0 24px 60px rgba(0, 0, 0, 0.45);
+	// Its own layer, so a new title only repaints the panel and focus moving along the cards
+	// above never repaints it.
+	transform: translateZ(0);
+
+	:global(.perf-low) &,
+	:global(.perf-mid) & {
+		box-shadow: none;
+	}
+}
+
+// Each title is drawn on a layer of its own, so the one leaving can fade out as the next fades in.
+.layer {
+	position: absolute;
+	top: 0;
+	left: 0;
+	right: 0;
+	bottom: 0;
+	border-radius: 28px;
+	overflow: hidden;
+	background: #101218;
+	border: 1px solid rgba(255, 255, 255, 0.08);
+	box-sizing: border-box;
+}
+
+.empty {
+	background: rgba(255, 255, 255, 0.06);
+	border-color: rgba(255, 255, 255, 0.12);
+}
+
+.fadeIn {
+	animation-name: panelFadeIn;
+	animation-fill-mode: both;
+}
+
+.fadeOut {
+	animation-name: panelFadeOut;
+	animation-fill-mode: both;
+}
+
+@keyframes panelFadeIn {
+	from { opacity: 0; }
+	to { opacity: 1; }
+}
+
+@keyframes panelFadeOut {
+	from { opacity: 1; }
+	to { opacity: 0; }
+}
+
+.backdrop {
+	position: absolute;
+	top: 0;
+	right: 0;
+	width: 70%;
+	height: 100%;
+	object-fit: cover;
+	object-position: 50% 62%;
+	display: block;
+}
+
+// CarouselPanel.js bakes these layers into an image and sets it inline, so CAROUSEL_PANEL_SCRIM in
+// modernCardLayout.js has to match. The gradients here only paint if that fails.
+.scrim {
+	position: absolute;
+	top: 0;
+	left: 0;
+	right: 0;
+	bottom: 0;
+	background:
+		linear-gradient(0deg, rgba(16, 18, 24, 0.7) 0%, rgba(16, 18, 24, 0) 35%),
+		linear-gradient(90deg, #101218 0%, #101218 34%, rgba(16, 18, 24, 0.9) 46%, rgba(16, 18, 24, 0.5) 60%, rgba(16, 18, 24, 0) 78%);
+}
+
+.content {
+	position: absolute;
+	top: 0;
+	bottom: 0;
+	left: 72px;
+	width: 54%;
+	display: -webkit-flex;
+	display: flex;
+	-webkit-flex-direction: column;
+	flex-direction: column;
+	-webkit-justify-content: center;
+	justify-content: center;
+	-webkit-align-items: flex-start;
+	align-items: flex-start;
+	color: #ffffff;
+}
+
+.title {
+	margin: 0;
+	max-width: 100%;
+	font-size: 66px;
+	line-height: 1.05;
+	font-weight: 700;
+	letter-spacing: -0.02em;
+	display: -webkit-box;
+	-webkit-box-orient: vertical;
+	-webkit-line-clamp: 2;
+	overflow: hidden;
+}
+
+.episode {
+	margin-top: 10px;
+	max-width: 100%;
+	font-size: 26px;
+	font-weight: 600;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.info {
+	margin-top: 16px;
+	display: -webkit-flex;
+	display: flex;
+	-webkit-align-items: center;
+	align-items: center;
+	max-width: 100%;
+	font-size: 21px;
+	font-weight: 500;
+	color: rgba(255, 255, 255, 0.84);
+	white-space: nowrap;
+	overflow: hidden;
+}
+
+.episode + .info {
+	margin-top: 14px;
+}
+
+.dot {
+	margin: 0 12px;
+	color: rgba(255, 255, 255, 0.45);
+}
+
+.chip {
+	font-size: 17px;
+	font-weight: 600;
+	padding: 3px 10px;
+	border: 1px solid rgba(255, 255, 255, 0.35);
+	border-radius: 6px;
+	background: rgba(255, 255, 255, 0.08);
+}
+
+// The whole column wide, since the ratings scale down to whatever width they're given.
+.ratings {
+	margin-top: 8px;
+	-webkit-align-self: stretch;
+	align-self: stretch;
+}
+
+.pills {
+	margin-top: 14px;
+	display: -webkit-flex;
+	display: flex;
+	-webkit-align-items: center;
+	align-items: center;
+
+	> span + span {
+		margin-left: 8px;
+	}
+}
+
+.pill {
+	padding: 4px 9px;
+	border: 1px solid rgba(255, 255, 255, 0.35);
+	border-radius: 6px;
+	background: rgba(255, 255, 255, 0.08);
+	font-size: 16px;
+	font-weight: 700;
+	letter-spacing: 0.04em;
+	white-space: nowrap;
+}
+
+.overview {
+	margin: 20px 0 0;
+	max-width: 820px;
+	font-size: 20px;
+	line-height: 1.5;
+	color: rgba(255, 255, 255, 0.8);
+	display: -webkit-box;
+	-webkit-box-orient: vertical;
+	-webkit-line-clamp: 3;
+	overflow: hidden;
+}
