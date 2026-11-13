@@ -295,6 +295,8 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 		isBuffering: () => isBufferingRef.current || !avplayReadyRef.current // eslint-disable-line no-use-before-define
 	}), [syncPlaySample]);
 	const runTimeRef = useRef(0);
+	// The runtime the playback info gave, which prepare doesn't overwrite
+	const titleRunTimeRef = useRef(0);
 	const healthMonitorRef = useRef(null);
 	const unregisterAppStateRef = useRef(null);
 	const controlsTimeoutRef = useRef(null);
@@ -916,10 +918,9 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 		applyDisplayWindow();
 
 		// A Silo copy's playlist only lists what Silo has produced so far, so AVPlay's duration is that, not the title's:
-		// the scrub bar would end there and a skip would stop short. The title's runtime stands, and a seek past the
-		// playlist goes to Silo.
+		// the scrub bar would end there and a skip would stop short. The title's runtime stands, and its seeks go to Silo.
 		const durationMs = avplayGetDuration();
-		if (durationMs > 0 && !(streamTimeline.seeksThroughServer && runTimeRef.current > 0)) {
+		if (durationMs > 0 && !(streamTimeline.seeksThroughServer && titleRunTimeRef.current > 0)) {
 			setDuration(durationMs / 1000);
 			runTimeRef.current = Math.floor(durationMs * 10000);
 		}
@@ -1485,6 +1486,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 					setVideoAspectRatio(getVideoDisplayAspectRatio(r.mediaSource));
 					playSessionRef.current = r.playSessionId;
 					runTimeRef.current = r.runTimeTicks || 0;
+					titleRunTimeRef.current = runTimeRef.current;
 					setDuration((r.runTimeTicks || 0) / 10000000);
 					setAudioStreams(r.audioStreams || []);
 					setSubtitleStreams(r.subtitleStreams || []);
@@ -2400,8 +2402,11 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 	const seekBoundsMs = useCallback(() => {
 		const live = liveWindowRef.current;
 		if (live) return [live.start * 1000, live.edge * 1000];
-		// A Silo copy's AVPlay duration ends where its playlist does (see prepare), so its runtime bounds a seek.
-		if (streamTimeline.seeksThroughServer && runTimeRef.current > 0) return [0, runTimeRef.current / 10000];
+		// A Silo copy's AVPlay duration ends where its playlist does (see prepare), so its runtime bounds a seek, a
+		// second short of the end, which Silo has no stream to open at.
+		if (streamTimeline.seeksThroughServer && titleRunTimeRef.current > 0) {
+			return [0, Math.max(0, titleRunTimeRef.current / 10000 - 1000)];
+		}
 		return [0, avplayGetDuration()];
 	}, []);
 
