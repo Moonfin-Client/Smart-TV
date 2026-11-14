@@ -3311,7 +3311,7 @@
     "Kids Mode keeps these rows off Home, so these settings don't change it.": "Lastentilassa nämä rivit eivät näy aloitussivulla, joten nämä asetukset eivät vaikuta siihen.",
     "Kids Mode keeps this off Home": "Lastentila pitää tämän pois päältä Etusivulla",
     "Multi-Server Libraries keeps this off Home": "Multi-Server Libraries osio pitää tämän poissa etusivulta",
-    "Music Artists, Music Albums and Music Playlists are all turned off. To show one, go to Rows, open {group} under {disabled}, and turn it on.": "Musiikkitaiteilijat, musiikkialbumit ja soittolistat on kaikki poistettu käytöstä. Jos haluat näyttää jonkin näistä, siirry kohtaan Rivit, avaa {group} kohdasta {pois käytöstä} ja ota se käyttöön.",
+    "Music Artists, Music Albums and Music Playlists are all turned off. To show one, go to Rows, open {group} under {disabled}, and turn it on.": "Musiikkitaiteilijat, musiikkialbumit ja soittolistat on kaikki poistettu käytöstä. Jos haluat näyttää jonkin näistä, siirry kohtaan Rivit, avaa {group} kohdasta {disabled} ja ota se käyttöön.",
     "The Collections row is off, so this only changes the single collections added in Rows.": "Kokoelmat rivi on pois käytöstä, joten tämä muuttaa vain niitä yksittäisiä kokoelmia, jotka on lisätty Rivit kohtaan.",
     "The Collections row is turned off. To show it, go to Rows, open {group} under {disabled}, and turn it on.": "Kokoelmat rivi on poistettu käytöstä. Jos haluat tuoda sen näkyviin, siirry kohtaan Rivit, avaa {group} kohdassa {disabled} ja ota se käyttöön.",
     "There are no collections to show, so Home leaves this row out.": "Näytettäviä kokoelmia ei ole, joten Home jättää tämän rivin pois.",
