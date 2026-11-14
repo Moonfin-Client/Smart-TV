@@ -2017,6 +2017,11 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 		}
 	}, []);
 
+	// A new item's load, or a pause that outlived the delay, leaves controls up with no hide timer.
+	useEffect(() => {
+		if (!isLoading && !isPaused && !isAudioMode && controlsVisibleRef.current) showControls();
+	}, [isLoading, isPaused]); // eslint-disable-line react-hooks/exhaustive-deps
+
 	// No track indexes travel along. The session only records an index the
 	// viewer asked for, so a subtitle the player picked on its own reads as
 	// minus one there, and handing that to the next episode would switch its

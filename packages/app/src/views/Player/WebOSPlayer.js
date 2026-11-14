@@ -2068,6 +2068,11 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 		}
 	}, []);
 
+	// A new item's load, or a pause that outlived the delay, leaves controls up with no hide timer.
+	useEffect(() => {
+		if (!isLoading && !isPaused && !isAudioMode && controlsVisibleRef.current) showControls();
+	}, [isLoading, isPaused]); // eslint-disable-line react-hooks/exhaustive-deps
+
 	// Handle playback health issues - if the health monitor detects stalled
 	// playback (no progress for extended period), fall back to transcoding.
 	const handleUnhealthy = useCallback(async () => {
