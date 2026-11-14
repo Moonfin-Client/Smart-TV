@@ -864,7 +864,9 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 		const handleAppHidden = () => {
 			console.log('[Player] App hidden - pausing and saving progress');
 			if (videoRef.current) {
-				wasPlaying = !videoRef.current.paused;
+				// App.js pauses every video when the app hides and can get there first, so this goes by the
+				// player's own state, which that pause hasn't reached yet.
+				wasPlaying = !isPausedRef.current;
 				if (wasPlaying) {
 					videoRef.current.pause();
 				}
