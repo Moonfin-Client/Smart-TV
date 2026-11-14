@@ -829,7 +829,7 @@ export const buildThemeOverrideCss = (theme, options = {}) => {
 	if (player) {
 		rule(ring(player, ['liveBtn', 'chapterItem'], [':hover', ':focus']), `border-color: ${focusColor};`);
 		rule(`.${player.trackItem}:focus`, `background: ${accentA(0.3)};`);
-		// The seek bar in the theme's range colors, like core's osdSeekBarTheme; the focused thumb stays white
+		// The seek bar in the theme's range colors, like core's osdSeekBarTheme; the focused thumb turns white and grows (platform sheets)
 		rule(`.${player.progressBar}`, `background: ${rangeTrack};`);
 		rule(`.${player.progressFill}`, `background: ${rangeProgress};`);
 		rule(`.${player.seekIndicator}`, `background: ${rangeThumb};`);
