@@ -134,7 +134,7 @@ describe('buildThemeOverrideCss', () => {
 		const theme = resolveThemeById('moonfin');
 		applyThemeOverrides(theme, {focusBorderColor: '#ff0000'});
 		expect(document.getElementById('moonfin-theme-overrides').textContent).not.toContain('chapterItem');
-		registerThemeSheet('player', {liveBtn: 'liveBtn', chapterItem: 'chapterItem', trackItem: 'trackItem'});
+		registerThemeSheet('player', {liveBtn: 'liveBtn', chapterItem: 'chapterItem', trackItem: 'trackItem', progressBar: 'progressBar', progressFill: 'progressFill', seekIndicator: 'seekIndicator', liveProgressFill: 'liveProgressFill'});
 		registerThemeSheet('playerOverlays', {offsetBtn: 'offsetBtn', actionBtn: 'actionBtn', settingItem: 'settingItem', sliderItem: 'sliderItem'});
 		await Promise.resolve();
 		const lines = document.getElementById('moonfin-theme-overrides').textContent.split('\n');
@@ -142,6 +142,11 @@ describe('buildThemeOverrideCss', () => {
 		expect(lines).toContain(`${prefix} .liveBtn:hover, ${prefix} .liveBtn:focus, ${prefix} .chapterItem:hover, ${prefix} .chapterItem:focus { border-color: rgb(255, 0, 0); }`);
 		expect(lines).toContain(`${prefix} .sliderItem:focus-within { border-color: rgb(255, 0, 0); }`);
 		expect(lines).toContain(`${prefix} .trackItem:focus { background: rgba(0, 164, 220, 0.3); }`);
+		expect(lines).toContain(`${prefix} .progressBar { background: rgb(64, 64, 64); }`);
+		expect(lines).toContain(`${prefix} .progressFill { background: rgb(0, 164, 220); }`);
+		expect(lines).toContain(`${prefix} .seekIndicator { background: rgb(0, 164, 220); }`);
+		expect(lines).toContain(`${prefix} .progressBar:focus .seekIndicator { background: #ffffff; }`);
+		expect(lines).toContain(`${prefix} .liveProgressFill { background: rgb(0, 164, 220); }`);
 	});
 });
 
