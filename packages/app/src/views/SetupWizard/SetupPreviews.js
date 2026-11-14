@@ -1072,7 +1072,7 @@ const BannerBar = ({items, t}) => {
 	if (item.officialRating) parts.push(item.officialRating);
 	return (
 		<div style={{width: '100%', height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden'}}>
-			<div style={{padding: '0 16px 8px 16px', flexShrink: 0}}>
+			<div style={{padding: '0 24px 8px 24px', flexShrink: 0}}>
 				<div style={{position: 'relative', height: 320, borderRadius: 14, overflow: 'hidden'}}>
 					<Artwork url={item.backdropUrl} t={t} />
 					<div style={{...ABS_FILL, background: 'linear-gradient(to right, rgba(0, 0, 0, 0.902), rgba(0, 0, 0, 0))'}} />
@@ -1087,7 +1087,7 @@ const BannerBar = ({items, t}) => {
 						<div style={{marginTop: 6, fontSize: 12, fontWeight: 600, color: t.onSurfaceA(0.75)}}>
 							{parts.join('  ·  ')}
 						</div>
-						<PreviewRatings item={item} surface='mediaBar' compact />
+						<PreviewRatings item={item} surface='mediaBar' compact labels={false} badges={false} />
 					</div>
 					<div style={{position: 'absolute', top: 12, right: 16}}>
 						<Dots max={7} active={16} inactive={6} inactiveAlpha={0.4} gap={2} pillActive t={t} />

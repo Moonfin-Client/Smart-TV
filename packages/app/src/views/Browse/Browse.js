@@ -831,14 +831,16 @@ const Browse = ({
 		? rowPeekHeight(settings, filteredRows[0])
 		: 0;
 
-	// Rows mode leaves the scroller wherever the last row pinned it, and the peek shows its top.
+	const bannerOverRows = browseMode === 'featured' && settings.featuredBarStyle === 'banner';
+
+	// Rows mode leaves the scroller wherever the last row pinned it, and the peek and the Banner bar show its top.
 	useLayoutEffect(() => {
 		const container = contentRowsRef.current;
-		if (!rowPeek || !container) return;
+		if (!(rowPeek || bannerOverRows) || !container) return;
 		// A row glide still under way would write its offset back over this on its next frame.
 		stopScrollAnimation(container);
 		container.scrollTop = 0;
-	}, [rowPeek]);
+	}, [rowPeek, bannerOverRows]);
 
 	const navOffsetClass = settings.navbarPosition === 'left' ? css.sidebarOffset : css.topbarOffset;
 	const rowsClipClass = showTopInfoArea ? '' : css.rowsClipTop;

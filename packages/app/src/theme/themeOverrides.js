@@ -716,7 +716,7 @@ export const buildThemeOverrideCss = (theme, options = {}) => {
 	rule(`.${browseCss.galleryCreditLabel}`, `color: ${accent};`);
 	rule(`.${browseCss.galleryShimmer} span`, `background: ${os(0.1)};`);
 	rule(`.${skeletonCss.box}`, `background-color: ${theme.isGlass ? 'rgba(255, 255, 255, 0.16)' : os(0.14)};`);
-	rule(`.${browseCss.bannerCard}:focus`, `border-color: ${focusColor}; box-shadow: ${glowOr(`0 0 18px ${accentA(0.4)}`)};`);
+	rule(`.${browseCss.bannerCard}:focus`, `border-color: ${focusColor}; box-shadow: ${glowOr(`0 0 30px ${accentA(0.4)}`)};`);
 	rule(`.${browseCss.bannerGradient}`, `background: linear-gradient(to right, ${scrim(0.9)}, ${scrim(0)});`);
 	rule(`.${browseCss.bannerMeta}`, `color: ${os(0.75)};`);
 	rule(`.${browseCss.bannerDot}`, `background: ${os(0.4)};`);
