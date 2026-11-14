@@ -36,7 +36,7 @@ jest.mock('../../services/jellyfinApi', () => ({
 	getTokenParam: () => 'ApiKey'
 }));
 jest.mock('../../services/mdblistApi', () => ({isMdblistEnabled: () => false}));
-jest.mock('../../platform', () => ({getPlatform: () => 'webos', isWebOS: () => false, isLegacyTizen: () => false}));
+jest.mock('../../platform', () => ({getPlatform: () => 'webos', isWebOS: () => false, isLegacyWebOS: () => false, isLegacyTizen: () => false}));
 jest.mock('../../utils/perfTier', () => ({getPerfTier: () => 'high'}));
 jest.mock('../RatingsRow', () => () => null);
 jest.mock('../icons/SeerrIcon', () => () => null);

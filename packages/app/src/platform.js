@@ -37,6 +37,13 @@ export const getPlatform = () => {
 	return 'unknown';
 };
 
+// webOS 5 is the first to run Chrome 68.
+export const isLegacyWebOS = () => {
+	if (!isWebOS() || typeof navigator === 'undefined') return false;
+	const match = (navigator.userAgent || '').match(/Chrome\/(\d+)/);
+	return !match || parseInt(match[1], 10) < 68;
+};
+
 export const isLegacyTizen = () => {
 	if (!isTizen() || typeof navigator === 'undefined') return false;
 	const match = (navigator.userAgent || '').match(/Tizen\s([0-9]+(?:\.[0-9]+)?)/i);

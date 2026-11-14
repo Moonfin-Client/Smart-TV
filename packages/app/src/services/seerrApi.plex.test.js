@@ -3,7 +3,7 @@ import {registerPlexServer} from '../utils/plexUrls';
 import {getMoonfinStatus, moonfinLogin, moonfinPing, setMoonfinConfig} from './seerrApi';
 
 jest.mock('../utils/fetchTimeout', () => ({fetchWithTimeout: jest.fn()}));
-jest.mock('../platform', () => ({isWebOS: () => false, isLegacyTizen: () => false}));
+jest.mock('../platform', () => ({isLegacyWebOS: () => false, isLegacyTizen: () => false}));
 jest.mock('./jellyfinApi', () => ({createApiForServer: jest.fn(), getUserId: () => null}));
 jest.mock('./siloSession', () => ({loadSiloSessions: async () => {}}));
 

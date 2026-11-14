@@ -1,4 +1,4 @@
-import {isWebOS, isLegacyTizen} from '../platform';
+import {isLegacyWebOS, isLegacyTizen} from '../platform';
 import {fetchWithTimeout} from '../utils/fetchTimeout';
 import {mediaServerQueue} from '../utils/requestQueue';
 import {normalizeWatchlistBody} from './seerrApi.watchlistShape';
@@ -13,9 +13,22 @@ let moonfinMode = false;
 let jellyfinServerUrl = null;
 let jellyfinAccessToken = null;
 
-// webOS 4 and legacy Tizen builds (<=3.0) can fail HTTPS validation for image.tmdb.org,
-// so use HTTP on those devices.
-const shouldUseHttp = isWebOS() || isLegacyTizen();
+// TVs before webOS 5, and Tizen 3 and older, may not trust the Let's Encrypt root behind some
+// image.tmdb.org servers, so they start on HTTP and switch once a picture loads over HTTPS.
+let tmdbProto = isLegacyWebOS() || isLegacyTizen() ? 'http' : 'https';
+let tmdbHttpsTried = false;
+
+const tmdbUrl = (url) => {
+	if (tmdbProto === 'http' && !tmdbHttpsTried && typeof window !== 'undefined' && window.Image) {
+		tmdbHttpsTried = true;
+		const probe = new window.Image();
+		probe.onload = () => {
+			tmdbProto = 'https';
+		};
+		probe.src = url.replace(/^http:/, 'https:');
+	}
+	return url;
+};
 
 export const setMoonfinConfig = (serverUrl, token) => {
 	jellyfinServerUrl = serverUrl?.replace(/\/+$/, '');
@@ -1315,23 +1328,23 @@ export const getMediaStatus = async (mediaType, tmdbId) => {
 
 export const getImageUrl = (path, size = 'w500') => {
 	if (!path) return null;
-	const proto = shouldUseHttp ? 'http' : 'https';
+	const proto = tmdbProto;
 	const normalizedPath = String(path).trim();
 
 	// Already a full TMDB URL - fix the protocol
 	if (normalizedPath.startsWith('http://image.tmdb.org') || normalizedPath.startsWith('https://image.tmdb.org')) {
-		return normalizedPath.replace(/^https?/, proto);
+		return tmdbUrl(normalizedPath.replace(/^https?/, proto));
 	}
 
 	// Another site's picture, like the IMDb charts' own posters, is used as it is.
 	if (/^https?:\/\//i.test(normalizedPath)) return normalizedPath;
 
 	if (normalizedPath.startsWith('/t/p/')) {
-		return `${proto}://image.tmdb.org${normalizedPath}`;
+		return tmdbUrl(`${proto}://image.tmdb.org${normalizedPath}`);
 	}
 
 	const filePath = normalizedPath.startsWith('/') ? normalizedPath : `/${normalizedPath}`;
-	return `${proto}://image.tmdb.org/t/p/${size}${filePath}`;
+	return tmdbUrl(`${proto}://image.tmdb.org/t/p/${size}${filePath}`);
 };
 
 export const proxyImage = async (imageUrl) => {
