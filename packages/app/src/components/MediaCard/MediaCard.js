@@ -30,7 +30,7 @@ export const classicCardSize = (shape, posterSize) => {
 	return {width: Math.round(width * multiplier), height: Math.round(height * multiplier)};
 };
 
-const MediaCard = ({item, serverUrl, cardType = 'portrait', rowImageType = 'poster', onSelect, onFocusItem, showServerBadge = false, eagerLoad = false, deferImage = false, seerrSeasonStatus, spotlightId, onSpotlightLeft, onSpotlightRight, menuOptions, size, current = false, homeText = false, overlay = null, showInfo = true, posterLabels = false, hideWatchProgress = false, hideUnwatchedCount = false}) => {
+const MediaCard = ({item, serverUrl, cardType = 'portrait', rowImageType = 'poster', onSelect, onFocusItem, showServerBadge = false, eagerLoad = false, deferImage = false, seerrSeasonStatus, spotlightId, onSpotlightLeft, onSpotlightRight, menuOptions, size, current = false, homeText = false, overlay = null, showInfo = true, posterLabels = false, hideWatchProgress = false, hideUnwatchedCount = false, seerrMarkLeft = false}) => {
 	const {settings} = useSettings();
 	const focusTimeoutRef = useRef(null);
 
@@ -305,7 +305,7 @@ const MediaCard = ({item, serverUrl, cardType = 'portrait', rowImageType = 'post
 						)}
 
 						{item._seerr && item._seerrMissing ? (
-							<div className={`${css.seerrBadge} ${css.seerrMissing}`}>
+							<div className={`${css.seerrBadge} ${css.seerrMissing} ${seerrMarkLeft ? css.seerrLeft : ''}`}>
 								<SeerrIcon />
 							</div>
 						) : seerrStyle === 'badge' && item._seerr && [2, 3, 4, 5].includes(item.mediaInfo?.status) ? (

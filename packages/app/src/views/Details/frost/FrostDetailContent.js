@@ -22,6 +22,7 @@ import {rootScale} from '../../../utils/rootScale';
 import {scrimStyle} from '../../../utils/scrimImage';
 import {serverBlurredUrl} from '../../../utils/serverBlur';
 import {ModalContainer} from '../../../utils/spotlightContainers';
+import {nearRowEnd} from '../../Browse/rowPaging';
 import {CORE_ICON_PATHS} from '../../Settings/settingsCoreIcons';
 import {castPhotoUrl, hidesMediaDescription} from '../detailsMedia';
 import {DETAIL_ICON_PATHS} from '../detailIcons';
@@ -32,7 +33,9 @@ import ModernDetailContent from '../ModernDetailContent';
 import {groupEpisodesBySeason, seasonLabel} from '../nouveau/nouveauSeasons';
 import {spotlightItemImageUrl} from '../spotlight/spotlightImages';
 import {Icon} from '../useDetailPage';
-import {ACTIONS, NAVBAR, drawsStage, resumeLine, stageTrackChoices} from '../stage/stageRules';
+import {
+	ACTIONS, NAVBAR, collectionGroups, collectionLabel, drawsStage, resumeLine, stageTrackChoices
+} from '../stage/stageRules';
 import {
 	FROST_BUTTON_CAP, FROST_COLUMNS, frostCredits, frostInfo, frostNeighbour, frostScrims, frostSeason, frostSeerrGroups,
 	frostDownloadStatus, frostSeerrStatus, frostSegments, frostStageStyle, frostStatusColors, frostTabs
@@ -45,8 +48,10 @@ import css from './FrostDetailContent.module.less';
 // only in Seerr gets Request in place of play, its seasons each with where they stand, and Seerr's
 // related titles.
 
+// A collection's tab is named for what it holds, so only its icon is here.
 const TABS = {
 	overview: {label: () => $L('Overview'), icon: 'smart_display_outlined'},
+	items: {icon: 'collections_bookmark_outlined'},
 	episodes: {label: () => $L('Episodes'), icon: 'format_list_bulleted'},
 	seasons: {label: () => $L('Seasons'), icon: 'layers_outlined'},
 	cast: {label: () => $L('Cast & Crew'), icon: 'people_outline'},
@@ -108,6 +113,7 @@ const FrostScreen = (props) => {
 	const {
 		item, settings, showsSection, seerr, seerrOnly, effectiveServerUrl, backdropUrl, techBadges = NONE, techSize,
 		episodes = NONE, seriesEpisodes = NONE, similar = NONE, extras = NONE, cast = NONE, nextUp = NONE, mediaSource,
+		collectionItems = NONE, loadMoreCollectionTitles,
 		onSelectItem, onSelectPerson, onSelectSeerrCard, handleOpenAudioModal, handleOpenSubtitleModal,
 		handleOpenVersionModal, spotlightBackRef
 	} = props;
@@ -151,12 +157,16 @@ const FrostScreen = (props) => {
 		[seerrOnly, seerr.details]
 	);
 
+	// A collection's titles in one grid, its movies first.
+	const titleGroups = useMemo(() => collectionGroups(item, collectionItems), [item, collectionItems]);
+	const collectionPosters = useMemo(() => titleGroups.flatMap((group) => group.items), [titleGroups]);
+
 	// A title only in Seerr splits its related titles into Seerr's two lists, and a library title gets
 	// those and the rest of what Seerr knows under a tab of their own.
 	const seerrSegments = frostSegments(pieces, {about: !seerrOnly});
 	const tabs = frostTabs(item, {
-		seerrOnly, showsSection, seasons: seerrSeasons.length, cast: cast.length, extras: extras.length,
-		related: seerrOnly ? seerrSegments.length : similar.length, seerr: seerrSegments.length
+		seerrOnly, showsSection, items: collectionPosters.length, seasons: seerrSeasons.length, cast: cast.length,
+		extras: extras.length, related: seerrOnly ? seerrSegments.length : similar.length, seerr: seerrSegments.length
 	});
 	const shownTab = tabs.indexOf(tab) >= 0 ? tab : 'overview';
 	const segments = shownTab === 'seerr' || (seerrOnly && shownTab === 'related') ? seerrSegments : [];
@@ -164,11 +174,12 @@ const FrostScreen = (props) => {
 
 	const {recommendationCards, similarCards} = seerr;
 	const posters = useMemo(() => {
+		if (shownTab === 'items') return collectionPosters;
 		if (shownTab === 'related' && !seerrOnly) return similar;
 		if (shownSegment === 'recommendations') return recommendationCards || NONE;
 		if (shownSegment === 'similar') return similarCards || NONE;
 		return NONE;
-	}, [shownTab, seerrOnly, similar, shownSegment, recommendationCards, similarCards]);
+	}, [shownTab, collectionPosters, seerrOnly, similar, shownSegment, recommendationCards, similarCards]);
 
 	let pills = [];
 	let shownPill = 0;
@@ -186,7 +197,7 @@ const FrostScreen = (props) => {
 
 	ctxRef.current = {
 		tab: shownTab, tabs, navbarTop, hasText: Boolean(overview), tracks: tracks.length, pills: pills.length, shownPill, start,
-		counts: {episodes: seasonEpisodes.length, seasons: seerrSeasons.length, cast: cast.length, extras: extras.length, related: posters.length, seerr: posters.length}
+		counts: {items: posters.length, episodes: seasonEpisodes.length, seasons: seerrSeasons.length, cast: cast.length, extras: extras.length, related: posters.length, seerr: posters.length}
 	};
 
 	// Focus lands first and its list is put back where it was, so the browser's own jump to it never
@@ -239,7 +250,10 @@ const FrostScreen = (props) => {
 		const key = ev.target.dataset?.frostKey || '';
 		if (key.indexOf('tab:') === 0) setTab(key.slice(4));
 		else if (key && key.indexOf(':pill:') < 0) memoryRef.current[key.split(':')[0]] = key;
-	}, []);
+		// A collection loads a page at a time, so nearing the end of its grid asks for the next one.
+		const [name, index] = key.split(':');
+		if (name === 'items' && nearRowEnd(Number(index), ctxRef.current.counts.items, FROST_COLUMNS.items * 2)) loadMoreCollectionTitles?.();
+	}, [loadMoreCollectionTitles]);
 
 	// The bar of tabs shrinks to fit across the stage when a title has more tabs, or longer names,
 	// than it has room for.
@@ -607,6 +621,7 @@ const FrostScreen = (props) => {
 
 	const content = {
 		overview: renderOverview,
+		items: renderPosters,
 		episodes: renderEpisodes,
 		seasons: renderSeasons,
 		cast: renderCast,
@@ -616,7 +631,11 @@ const FrostScreen = (props) => {
 		details: () => renderGroups(frostInfo(item, {showsSection, mediaSource, seerr: seerrOnly ? seerr : null}), 'details:0')
 	}[shownTab]();
 
-	const tabLabel = (name) => (name === 'seerr' ? seerr.displayName : TABS[name].label());
+	const tabLabel = (name) => {
+		if (name === 'seerr') return seerr.displayName;
+		if (name === 'items') return collectionLabel(titleGroups);
+		return TABS[name].label();
+	};
 	const tabIcon = (name) => (name === 'seerr'
 		? <SeerrIcon className={css.tabIcon} />
 		: <CoreIcon name={TABS[name].icon} className={css.tabIcon} />);
@@ -691,8 +710,8 @@ const FrostScreen = (props) => {
 	);
 };
 
-// Everything that isn't a film, a show or a video goes to Modern, decided before any of Frost's own
-// hooks run.
+// Everything that isn't a film, a show, a video or a collection goes to Modern, decided before any of
+// Frost's own hooks run.
 const FrostDetailContent = (props) => (
 	drawsStage(props.item.Type) ? <FrostScreen {...props} /> : <ModernDetailContent {...props} />
 );

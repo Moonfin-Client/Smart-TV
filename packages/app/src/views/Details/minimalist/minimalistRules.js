@@ -7,7 +7,7 @@ import {getExtraCategoryLabel, groupExtrasByCategory} from '../extraCategories';
 
 // The item types Minimalist draws. Everything else falls through to Spotlight, which already knows
 // how to draw a person, an album or a playlist.
-const MINIMALIST_TYPES = ['Movie', 'Series', 'Season', 'Episode', 'Video', 'MusicVideo'];
+const MINIMALIST_TYPES = ['Movie', 'Series', 'Season', 'Episode', 'Video', 'MusicVideo', 'BoxSet'];
 
 export const drawsMinimalist = (type) => MINIMALIST_TYPES.indexOf(type) >= 0;
 
@@ -30,6 +30,16 @@ export const minimalistExtrasCard = (extras) => ({
 	icon: DETAIL_ICON_PATHS.videoLibraryOutlined,
 	sections: groupExtrasByCategory(extras).map(({key, items}) => ({
 		kind: 'media', title: getExtraCategoryLabel(key), count: items.length, items, aspect: 'landscape'
+	}))
+});
+
+// What a collection's own button opens, one poster grid per kind of title it holds.
+export const minimalistCollectionCard = (item, groups) => ({
+	id: 'collection',
+	title: item.Name,
+	icon: DETAIL_ICON_PATHS.collectionsBookmarkOutlined,
+	sections: groups.map((group) => ({
+		kind: 'media', title: group.title, count: group.items.length, items: group.items, aspect: 'portrait'
 	}))
 });
 

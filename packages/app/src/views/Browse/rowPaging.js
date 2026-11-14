@@ -6,10 +6,10 @@
 
 export const ROW_PAGE_SIZE = 15;
 export const ROW_MAX_ITEMS = 100;
-// How many cards from a row's end focus asks for the next page.
+// How many cards from a row's end focus asks for the next page, unless the row says otherwise.
 const ROW_PAGE_AHEAD = 5;
 
-export const nearRowEnd = (index, length) => index >= 0 && index >= length - ROW_PAGE_AHEAD;
+export const nearRowEnd = (index, length, ahead = ROW_PAGE_AHEAD) => index >= 0 && index >= length - ahead;
 
 // Whether a list read `limit` long may have more behind it. A count the server gave is trusted,
 // and without one a full read is taken to mean there's more.

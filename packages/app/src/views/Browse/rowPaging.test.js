@@ -46,6 +46,14 @@ describe('row paging', () => {
 		expect(nearRowEnd(-1, 3)).toBe(false);
 	});
 
+	// A collection's rows ask from eight titles out, and Frost's seven-wide grid from two rows out.
+	it('asks from further out when the row says so', () => {
+		expect(nearRowEnd(41, 50, 8)).toBe(false);
+		expect(nearRowEnd(42, 50, 8)).toBe(true);
+		expect(nearRowEnd(35, 50, 14)).toBe(false);
+		expect(nearRowEnd(36, 50, 14)).toBe(true);
+	});
+
 	it('adds a page only to the row it was read for', () => {
 		const readHead = jest.fn();
 		const rows = [{id: 'latest-1', items: cards(0, 2), readHead, hasMore: true}, {id: 'latest-1', items: cards(0, 2), readHead: jest.fn(), hasMore: true}];

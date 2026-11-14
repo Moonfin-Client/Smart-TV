@@ -30,6 +30,7 @@ import {AnimeEpisodePills, AnimeItemPills} from '../../components/AnimeMarkerPil
 import IncompleteBadge, {IncompleteDetailLine} from '../../components/IncompleteBadge';
 import PosterLabels from '../../components/PosterLabels';
 import {scrimStyle} from '../../utils/scrimImage';
+import {rootScale} from '../../utils/rootScale';
 import PlaylistSortFilterBar, {EmptyPlaylistFilterState, EmptyPlaylistState} from '../../components/PlaylistSortFilterBar';
 import {
 	sortAndFilterPlaylistTracks,
@@ -59,6 +60,10 @@ const SCRIM = [
 	{at: [0.72, 0.28], rgb: '0, 0, 0', stops: [[0.42, 0], [1, 0.45]]}
 ];
 const PERSON_SCRIM = [{to: 'top', rgb: '11, 13, 16', stops: [[0, 1], [0.5, 0.6], [1, 0.45]]}];
+
+// How near the foot of a collection's page the next page of its titles is asked for, in 1920 wide
+// pixels.
+const NEAR_END_PX = 714;
 
 const Icon = ({path}) => (
 	<svg className={css.icon} viewBox={iconViewBox(path)} fill="currentColor" aria-hidden="true">
@@ -92,7 +97,8 @@ const ModernDetailContent = (props) => {
 		mediaSource, supportsMediaSourceSelection, selectedAudioIndex, selectedSubtitleIndex,
 		handleChapterSelect, handleExtraSelect, playTrack, playlistMenu,
 		onSelectItem, onSelectPerson, onSelectStudio,
-		seerr, seerrNav, onSelectSeerrCard, spotlightBackRef, collectionMenu, loadMoreCollectionItems, collectionOrder,
+		seerr, seerrNav, onSelectSeerrCard, spotlightBackRef, collectionMenu, loadMoreCollectionItems, loadMoreCollectionTitles,
+		collectionOrder,
 		handlePlay, handleShuffle, onWatchWithGroup
 	} = props;
 
@@ -268,7 +274,13 @@ const ModernDetailContent = (props) => {
 	const scrollTopRef = useRef(0);
 	const handleScroll = useCallback((ev) => {
 		scrollTopRef.current = ev.scrollTop;
-	}, []);
+		// A collection loads a page at a time, so scrolling near the foot of the page asks for the next
+		// one. The event carries the offset but not the sizes, so those are measured.
+		const content = contentRef.current;
+		if (isBoxSet && content && ev.scrollTop > content.scrollHeight - (content.parentElement?.clientHeight || 0) - NEAR_END_PX * rootScale()) {
+			loadMoreCollectionTitles?.();
+		}
+	}, [isBoxSet, loadMoreCollectionTitles]);
 	// Up from the top row scrolls back to the top first so the hero comes back
 	// into view, and only hands focus to the navbar once it is already there. A
 	// left docked sidebar swallows the press instead, since it is reached with

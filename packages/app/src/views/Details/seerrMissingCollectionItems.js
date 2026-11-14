@@ -1,5 +1,6 @@
 import seerrApi from '../../services/seerrApi';
 import {MEDIA_STATUS} from '../../utils/seerrStatus';
+import {isKidsMode} from '../../utils/kidsMode';
 
 export const providerId = (item, name) => {
 	const ids = item?.ProviderIds;
@@ -165,3 +166,11 @@ export const mergeMissingByReleaseOrder = (library = [], missing = []) => {
 	});
 	return merged;
 };
+
+// A collection's own titles with the ones only Seerr has slotted in, when the viewer shows those.
+// Kids Mode keeps to the library, since Seerr's titles have had no rating check.
+export const collectionTitles = (library, missing, settings) => (
+	settings.seerrShowMissingCollectionItems !== false && !isKidsMode(settings)
+		? mergeMissingByReleaseOrder(library, missing)
+		: library
+);

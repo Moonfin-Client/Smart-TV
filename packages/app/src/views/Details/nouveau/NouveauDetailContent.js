@@ -82,7 +82,8 @@ const NouveauDetailContent = (props) => {
 		episodes = [], seriesEpisodes = [], nextUp = [], seasons = [],
 		collectionItems = [], collectionSections = [], playlistItems = [], effectiveApi,
 		mediaSource, selectedAudioIndex, selectedSubtitleIndex, bookSeriesItem,
-		spotlightBackRef, overviewBackRef, seerrNav, onSelectStudio, loadMoreCollectionItems, collectionMenu, collectionOrder
+		spotlightBackRef, overviewBackRef, seerrNav, onSelectStudio, loadMoreCollectionItems, loadMoreCollectionTitles, collectionMenu,
+		collectionOrder
 	} = props;
 
 	const {isEnabled: seerrEnabled} = useSeerr();
@@ -552,8 +553,9 @@ const NouveauDetailContent = (props) => {
 						navbarPosition={settings.navbarPosition}
 						onNavigateUp={handleNavigateUp}
 						onNavigateDown={handleNavigateDown}
+						onNearEnd={loadMoreCollectionTitles}
 						renderItem={renderCollectionCard}
-						itemMenu={collectionMenu}
+						itemMenu={collectionMenu || true}
 					/>
 					{playlistItems.length > 0 && (
 						<>
@@ -572,7 +574,7 @@ const NouveauDetailContent = (props) => {
 								onNavigateDown={handleNavigateDown}
 								onNearEnd={loadMoreCollectionItems}
 								renderItem={renderPlaylistCard}
-								itemMenu={collectionMenu}
+								itemMenu={collectionMenu || true}
 							/>
 						</>
 					)}

@@ -1,6 +1,6 @@
 import {
-	ACTIONS, NAVBAR, alignDelta, drawsStage, resumeLine, revealDelta, stageNeighbour, stagePoster, stageScrimAlpha,
-	stageSubtitle, stageTrackChoices
+	ACTIONS, NAVBAR, alignDelta, collectionGroups, collectionLabel, drawsStage, resumeLine, revealDelta, stageNeighbour,
+	stagePoster, stageScrimAlpha, stageSubtitle, stageTrackChoices
 } from './stageRules';
 
 const SERVER = 'https://tv.example';
@@ -8,9 +8,9 @@ const SERVER = 'https://tv.example';
 const TICKS_PER_MINUTE = 600000000;
 
 describe('what Stage draws', () => {
-	test('takes the video types and leaves the rest to Modern', () => {
-		['Movie', 'Series', 'Season', 'Episode', 'Video', 'MusicVideo'].forEach((type) => expect(drawsStage(type)).toBe(true));
-		['Person', 'BoxSet', 'MusicAlbum', 'Playlist', 'Book', undefined].forEach((type) => expect(drawsStage(type)).toBe(false));
+	test('takes the video types and collections and leaves the rest to Modern', () => {
+		['Movie', 'Series', 'Season', 'Episode', 'Video', 'MusicVideo', 'BoxSet'].forEach((type) => expect(drawsStage(type)).toBe(true));
+		['Person', 'MusicAlbum', 'Playlist', 'Book', undefined].forEach((type) => expect(drawsStage(type)).toBe(false));
 	});
 
 	test('keeps the backdrop darkened even with the slider at the bottom', () => {
@@ -23,6 +23,37 @@ describe('what Stage draws', () => {
 		expect(stageSubtitle({Type: 'Episode', ParentIndexNumber: 2, IndexNumber: 5, Name: 'Pilot'})).toBe('S2:E5 · Pilot');
 		expect(stageSubtitle({Type: 'Season', Name: 'Season 2'})).toBe('Season 2');
 		expect(stageSubtitle({Type: 'Movie', Name: 'Film'})).toBe('');
+	});
+});
+
+describe('a collection\'s own titles', () => {
+	const boxSet = {Id: 'b', Type: 'BoxSet'};
+	const film = (Id) => ({Id, Type: 'Movie'});
+	const show = (Id) => ({Id, Type: 'Series'});
+
+	test('split into movies, shows and the rest, each in the order they came', () => {
+		const items = [film('m1'), show('s1'), {Id: 'v1', Type: 'Video'}, film('m2'), {Id: 'b2', Type: 'BoxSet'}];
+		expect(collectionGroups(boxSet, items)).toEqual([
+			{id: 'movies', title: 'Movies', items: [items[0], items[3]]},
+			{id: 'series', title: 'Series', items: [items[1]]},
+			{id: 'other', title: 'Other', items: [items[2], items[4]]}
+		]);
+	});
+
+	test('leave out a kind the collection has none of', () => {
+		expect(collectionGroups(boxSet, [show('s1')]).map((group) => group.id)).toEqual(['series']);
+		expect(collectionGroups(boxSet, [])).toEqual([]);
+		expect(collectionGroups(boxSet)).toEqual([]);
+	});
+
+	test('are only a collection\'s', () => {
+		expect(collectionGroups({Type: 'Movie'}, [film('m1')])).toEqual([]);
+	});
+
+	test('go by their one kind, or Items when there are more', () => {
+		expect(collectionLabel(collectionGroups(boxSet, [film('m1'), film('m2')]))).toBe('Movies');
+		expect(collectionLabel(collectionGroups(boxSet, [show('s1')]))).toBe('Series');
+		expect(collectionLabel(collectionGroups(boxSet, [film('m1'), show('s1')]))).toBe('Items');
 	});
 });
 

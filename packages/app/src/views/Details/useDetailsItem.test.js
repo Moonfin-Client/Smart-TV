@@ -115,3 +115,90 @@ describe('a series Next Up', () => {
 		expect(result.current.nextUp[0].Id).toBe('e3');
 	});
 });
+
+describe('a collection', () => {
+	const BOX_SET = {Id: 'box', Type: 'BoxSet', Name: 'Star Wars Collection'};
+	const film = (i) => ({Id: `m${i}`, Type: 'Movie', Name: `Film ${i}`, People: [{Id: `d${i}`, Name: `Director ${i}`, Type: 'Director'}]});
+
+	// Answers a page of the collection by StartIndex and Limit, the whole of it when unpaged, and a
+	// playlist page by its ids.
+	const collectionApi = (total) => {
+		const all = Array.from({length: total}, (_, i) => film(i));
+		return {
+			getItemForDetail: jest.fn(() => Promise.resolve(BOX_SET)),
+			getEpisodes: jest.fn(() => Promise.resolve(page([]))),
+			removeFromCollection: jest.fn(() => Promise.resolve()),
+			getItems: jest.fn((query) => {
+				if (query.Ids) return Promise.resolve(page(all.filter((entry) => query.Ids.split(',').includes(entry.Id))));
+				const start = query.StartIndex || 0;
+				return Promise.resolve({Items: all.slice(start, query.Limit ? start + query.Limit : total), TotalRecordCount: total});
+			})
+		};
+	};
+
+	const pageReads = (api) => api.getItems.mock.calls.map(([query]) => query).filter((query) => query.Limit === 50);
+
+	const renderCollection = (api) => renderHook(() => useDetailsItem({
+		itemId: 'box',
+		initialItem: null,
+		effectiveApi: api,
+		effectiveServerUrl: 'https://server',
+		settings: SETTINGS,
+		recommendationsSupported: false,
+		seerrEnabled: false,
+		tagWithServerInfo: identity,
+		skip: false
+	}));
+
+	test('loads its titles 50 at a time, and Play still has the whole collection', async () => {
+		const api = collectionApi(120);
+		const {result} = renderCollection(api);
+		await settle();
+
+		expect(pageReads(api).map((query) => query.StartIndex)).toEqual([0]);
+		expect(result.current.collectionItems).toHaveLength(50);
+		expect(result.current.collectionMembers).toHaveLength(120);
+
+		act(() => result.current.loadMoreCollectionTitles());
+		// A second ask while the page is out is the same ask.
+		act(() => result.current.loadMoreCollectionTitles());
+		await settle();
+		expect(result.current.collectionItems).toHaveLength(100);
+
+		act(() => result.current.loadMoreCollectionTitles());
+		await settle();
+		expect(result.current.collectionItems).toHaveLength(120);
+		expect(result.current.collectionItems[119].Id).toBe('m119');
+
+		act(() => result.current.loadMoreCollectionTitles());
+		await settle();
+		expect(pageReads(api).map((query) => query.StartIndex)).toEqual([0, 50, 100]);
+	});
+
+	test('takes its people from the titles loaded so far', async () => {
+		const api = collectionApi(60);
+		const {result} = renderCollection(api);
+		await settle();
+		expect(result.current.cast).toHaveLength(50);
+		expect(result.current.cast[0].Name).toBe('Director 0');
+
+		act(() => result.current.loadMoreCollectionTitles());
+		await settle();
+		expect(result.current.cast).toHaveLength(60);
+		expect(result.current.cast[59].Name).toBe('Director 59');
+	});
+
+	test('reads the next page one sooner once a loaded title leaves the collection', async () => {
+		const api = collectionApi(120);
+		const {result} = renderCollection(api);
+		await settle();
+
+		await act(() => result.current.removeFromCollection(result.current.collectionItems[3]));
+		expect(result.current.collectionItems).toHaveLength(49);
+		expect(result.current.collectionMembers).toHaveLength(119);
+
+		act(() => result.current.loadMoreCollectionTitles());
+		await settle();
+		expect(pageReads(api).map((query) => query.StartIndex)).toEqual([0, 49]);
+	});
+});

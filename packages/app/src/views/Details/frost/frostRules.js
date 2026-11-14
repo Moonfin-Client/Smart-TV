@@ -21,17 +21,18 @@ const SHOW_TYPES = ['Series', 'Season', 'Episode'];
 export const FROST_BUTTON_CAP = 6;
 
 // The tabs along the bar, in order. Each one shows only when it has something in it, and the counts
-// are already down to nothing for a section the viewer hid. A show leads with its episodes and a
-// film with its cast. Episodes waits on its section only on an episode's page, where it's the rest
-// of the show. A title only in Seerr has its seasons in place of episodes, its related titles from
-// Seerr and no Seerr tab, since the whole page is Seerr's.
-export const frostTabs = (item, {seerrOnly, showsSection, seasons = 0, cast = 0, extras = 0, related = 0, seerr = 0}) => {
+// are already down to nothing for a section the viewer hid. A collection leads with its titles, a
+// show with its episodes and a film with its cast. Episodes waits on its section only on an
+// episode's page, where it's the rest of the show. A title only in Seerr has its seasons in place of
+// episodes, its related titles from Seerr and no Seerr tab, since the whole page is Seerr's.
+export const frostTabs = (item, {seerrOnly, showsSection, items = 0, seasons = 0, cast = 0, extras = 0, related = 0, seerr = 0}) => {
 	const show = SHOW_TYPES.indexOf(item.Type) >= 0;
 	if (seerrOnly) {
 		return ['overview', show ? seasons > 0 && 'seasons' : cast > 0 && 'cast', related > 0 && 'related', 'details'].filter(Boolean);
 	}
 	return [
 		'overview',
+		items > 0 && 'items',
 		show ? (item.Type !== 'Episode' || showsSection('moreEpisodes')) && 'episodes' : cast > 0 && 'cast',
 		extras > 0 && 'extras',
 		related > 0 && 'related',
@@ -59,7 +60,7 @@ export const frostSeason = (numbers, picked, ownSeason, nextUpSeason) => {
 };
 
 // How many tiles each tab sets across a row. Overview and Details aren't grids.
-export const FROST_COLUMNS = {episodes: 1, seasons: 1, cast: 5, extras: 3, related: 7, seerr: 7};
+export const FROST_COLUMNS = {items: 7, episodes: 1, seasons: 1, cast: 5, extras: 3, related: 7, seerr: 7};
 
 // Where an arrow press takes focus from a stop, by its key. A key is `tab:<tab>` in the tab bar and
 // `<tab>:<index>` in a tab's content, with `overview:text`, `overview:track:<n>`, `<tab>:about`,

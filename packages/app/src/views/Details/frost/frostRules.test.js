@@ -19,6 +19,12 @@ describe('the tabs along the bar', () => {
 			.toEqual(['overview', 'episodes', 'details']));
 	});
 
+	test('give a collection its titles first, then the parts it has and the details', () => {
+		expect(frostTabs({Type: 'BoxSet'}, {showsSection: everything, items: 5, extras: 1}))
+			.toEqual(['overview', 'items', 'extras', 'details']);
+		expect(frostTabs({Type: 'BoxSet'}, {showsSection: everything})).toEqual(['overview', 'details']);
+	});
+
 	test('leave out a part with nothing in it', () => {
 		expect(frostTabs({Type: 'Movie'}, {showsSection: everything})).toEqual(['overview', 'details']);
 	});
@@ -109,6 +115,9 @@ describe('where a press goes', () => {
 		expect(frostNeighbour('cast:10', 'down', ctx)).toBe(ACTIONS);
 		expect(frostNeighbour('related:6', 'right', {...ctx, count: 14})).toBe(null);
 		expect(frostNeighbour('related:6', 'down', {...ctx, count: 14})).toBe('related:13');
+		expect(frostNeighbour('items:6', 'right', {...ctx, count: 9})).toBe(null);
+		expect(frostNeighbour('items:1', 'down', {...ctx, count: 9})).toBe('items:8');
+		expect(frostNeighbour('items:8', 'down', {...ctx, count: 9})).toBe(ACTIONS);
 	});
 
 	test('leaves a grid\'s left and top edges for the navigation beside them, or holds', () => {

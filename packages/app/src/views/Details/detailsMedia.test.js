@@ -2,7 +2,7 @@
 // English source string, so handing the string straight back is faithful enough here.
 jest.mock('@enact/i18n/$L', () => ({__esModule: true, default: (str) => str}));
 
-import {getMediaBadges, splitCastAndCrew, hidesMediaDescription} from './detailsMedia';
+import {boxSetPeople, getMediaBadges, splitCastAndCrew, hidesMediaDescription} from './detailsMedia';
 
 const person = (Id, Name, Type, Role) => ({Id, Name, Type, Role});
 
@@ -123,6 +123,37 @@ describe('splitCastAndCrew', () => {
 		expect(crew).toHaveLength(2);
 		expect(crew[0].Role).toBe('Episode Director');
 		expect(crew[1].Role).toBe('Episode Writer');
+	});
+});
+
+describe('boxSetPeople', () => {
+	const title = (...People) => ({Type: 'Movie', People});
+	const names = (people) => people.map((p) => `${p.Type}:${p.Name}`);
+
+	test('takes the directors, then the writers, then the actors, each in collection order and once per name', () => {
+		const people = boxSetPeople([
+			title(person('l', 'Lucas', 'Director'), person('l', 'Lucas', 'Writer'), person('h', 'Hamill', 'Actor', 'Luke')),
+			title(person('k', 'Kershner', 'Director'), person('b', 'Brackett', 'Writer'), person('h2', 'Hamill', 'Actor', 'Luke again')),
+			title(person('l', 'Lucas', 'Director'), person('f', 'Ford', 'GuestStar', 'Han'))
+		]);
+		expect(names(people)).toEqual([
+			'Director:Lucas', 'Director:Kershner', 'Writer:Lucas', 'Writer:Brackett', 'Actor:Hamill', 'GuestStar:Ford'
+		]);
+		expect(people.find((p) => p.Name === 'Hamill').Role).toBe('Luke');
+	});
+
+	test('feeds the cast and crew split, which keeps an actor who also directed anywhere in the collection with the crew', () => {
+		const {cast, crew} = splitCastAndCrew(boxSetPeople([
+			title(person('j', 'Johnson', 'Actor', 'Cameo')),
+			title(person('j', 'Johnson', 'Director'), person('c', 'Christie', 'Actor', 'Phasma'))
+		]));
+		expect(cast.map((p) => p.Name)).toEqual(['Christie']);
+		expect(crew.map((p) => p.Name)).toEqual(['Johnson']);
+	});
+
+	test('adds nobody for a title without people, like one only Seerr has', () => {
+		expect(boxSetPeople([{Type: 'Movie', _seerrMissing: true}, title()])).toEqual([]);
+		expect(boxSetPeople()).toEqual([]);
 	});
 });
 

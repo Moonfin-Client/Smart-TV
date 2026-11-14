@@ -96,6 +96,18 @@ export const splitCastAndCrew = (people = [], limit = 20, isEpisode = false) => 
 	return {cast, crew};
 };
 
+// A collection has no people of its own, so it takes its titles', in collection order and once per
+// name: the directors, the writers, then the actors and guest stars. Spotlight's own people card
+// gathers them its own way.
+export const boxSetPeople = (titles = []) => {
+	const people = titles.flatMap((title) => title.People || []);
+	const firstOf = (types) => {
+		const seen = new Set();
+		return people.filter((person) => person?.Name != null && types.includes(person.Type) && !seen.has(person.Name) && seen.add(person.Name));
+	};
+	return [...firstOf(['Director']), ...firstOf(['Writer']), ...firstOf(['Actor', 'GuestStar'])];
+};
+
 export const shuffleArray = (arr) => {
 	const out = [...arr];
 	for (let i = out.length - 1; i > 0; i--) {

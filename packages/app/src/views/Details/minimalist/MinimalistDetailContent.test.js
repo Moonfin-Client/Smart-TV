@@ -135,6 +135,54 @@ describe('the Extras button', () => {
 	});
 });
 
+describe('a collection', () => {
+	const boxSet = {Id: 'b1', Type: 'BoxSet', Name: 'Alien Collection', UserData: {}};
+	const alien = {Id: 'm1', Type: 'Movie', Name: 'Alien'};
+	const aliens = {Id: 'm2', Type: 'Movie', Name: 'Aliens'};
+	const show = {Id: 's1', Type: 'Series', Name: 'Alien: Earth'};
+	const collectionButton = () => document.querySelector('[data-spotlight-id="details-collection-items-btn"]');
+
+	// Kids Mode drops the other sheet buttons, but these are the reason to open a collection at all.
+	[false, true].forEach((kidsModeEnabled) => {
+		it(`keeps its movies behind a button named for them (Kids Mode ${kidsModeEnabled})`, () => {
+			open({item: boxSet, extras: [], collectionItems: [alien, aliens], settings: {...defaultSettings, kidsModeEnabled}});
+			expect(collectionButton().textContent).toContain('Movies');
+			expect(screen.queryByText('Aliens')).toBeNull();
+
+			fireEvent.click(collectionButton());
+
+			expect(screen.getByText('Alien')).toBeTruthy();
+			expect(screen.getByText('Aliens')).toBeTruthy();
+		});
+	});
+
+	it('names the button Items for more than one kind, gives each kind a section and opens the title picked', () => {
+		const {onSelectItem, spotlightBackRef} = open({item: boxSet, extras: [], collectionItems: [alien, show], onSelectItem: jest.fn()});
+		expect(collectionButton().textContent).toContain('Items');
+
+		fireEvent.click(collectionButton());
+		expect(screen.getByText('Movies')).toBeTruthy();
+		expect(screen.getByText('Series')).toBeTruthy();
+
+		act(() => {
+			spotlightBackRef.current();
+		});
+		expect(screen.queryByText('Alien: Earth')).toBeNull();
+		act(() => jest.advanceTimersByTime(50));
+		expect(Spotlight.focus).toHaveBeenLastCalledWith('details-collection-items-btn');
+
+		fireEvent.click(collectionButton());
+		fireEvent.click(screen.getByText('Alien: Earth'));
+		expect(onSelectItem).toHaveBeenCalledWith(show);
+		expect(screen.queryByText('Alien: Earth')).toBeNull();
+	});
+
+	it('is not offered on a movie', () => {
+		open({collectionItems: [alien]});
+		expect(collectionButton()).toBeNull();
+	});
+});
+
 describe('the backdrop', () => {
 	it('draws the backdrop until Details Screen Backdrop turns it off, and keeps the scrim', () => {
 		open({backdropUrl: 'backdrop.jpg'});

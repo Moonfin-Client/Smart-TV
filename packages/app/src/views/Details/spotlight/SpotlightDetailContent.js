@@ -57,7 +57,7 @@ const SpotlightDetailContent = (props) => {
 		effectiveApi, serverToken, seasons = [], similar = [], similarSource, reviews = [], onSelectReview, extras = [], cast = [], crew = [],
 		nextUp = [], collectionItems = [], missingCollectionItems = [], parentCollections = [],
 		albumTracks = [], artistAlbums = [], playlistItems = [], personMovies = [], personSeries = [],
-		filmography, loadMoreCollectionItems, collectionMenu, collectionOrder,
+		filmography, loadMoreCollectionItems, loadMoreCollectionTitles, collectionMenu, collectionOrder,
 		mediaSource, hasMultipleVersions, selectedAudioIndex, selectedSubtitleIndex,
 		onSelectItem, onSelectPerson, onSelectStudio, onSelectSeerrCard,
 		handleChapterSelect, handleExtraSelect, playTrack, playlistMenu, bookSeriesItem,
@@ -193,7 +193,6 @@ const SpotlightDetailContent = (props) => {
 		playlistMenu,
 		reorderTrack: onReorderPlaylistItem,
 		removeTrack: onRemovePlaylistItem,
-		loadMoreCollectionItems,
 		collectionMenu,
 		effectiveApi,
 		settings,
@@ -202,7 +201,7 @@ const SpotlightDetailContent = (props) => {
 	}), [
 		onSelectItem, onSelectSeerrCard, onSelectPerson, onSelectStudio, onSelectReview, handleChapterSelect,
 		handleExtraSelect, playTrack, playlistMenu, onReorderPlaylistItem, onRemovePlaylistItem,
-		loadMoreCollectionItems, collectionMenu,
+		collectionMenu,
 		effectiveApi, settings, selectedAudioIndex, selectedSubtitleIndex
 	]);
 
@@ -455,9 +454,8 @@ const SpotlightDetailContent = (props) => {
 				serverUrl={effectiveServerUrl}
 				actions={cardActions}
 				seerr={{details: seerr.details, mediaType: seerr.mediaType, collection: seerr.collection, streaming: seerr.streamingProviders, nav: seerrNav}}
-				// Paging appends to the playlist list, which is the one that arrives a page at a
-				// time. The Movies and Shows grid is fetched whole, so it has nothing to ask for.
-				onNearEnd={openCardId === 'playlist_order' ? cardActions.loadMoreCollectionItems : null}
+				// The playlist and the Movies and Shows grid each arrive a page at a time.
+				onNearEnd={{playlist_order: loadMoreCollectionItems, boxset_items: loadMoreCollectionTitles}[openCardId] || null}
 			/>
 			{collectionSort.sortOpen && (
 				<NouveauSortDialog

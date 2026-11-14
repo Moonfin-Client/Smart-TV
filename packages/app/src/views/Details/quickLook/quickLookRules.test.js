@@ -19,6 +19,15 @@ describe('where a press leaves a row of the Quick Look drawer for', () => {
 		expect(quickLookNeighbour(stops, ACTIONS, 'up')).toBe(null);
 	});
 
+	test('runs a collection\'s rows in order between the buttons and Open full page', () => {
+		const rows = ['stage-collection-items-movies', 'stage-collection-items-series', 'quick-look-open'];
+		expect(quickLookNeighbour(rows, ACTIONS, 'down')).toBe('stage-collection-items-movies');
+		expect(quickLookNeighbour(rows, 'stage-collection-items-movies', 'down')).toBe('stage-collection-items-series');
+		expect(quickLookNeighbour(rows, 'stage-collection-items-series', 'down')).toBe('quick-look-open');
+		expect(quickLookNeighbour(rows, 'quick-look-open', 'up')).toBe('stage-collection-items-series');
+		expect(quickLookNeighbour(rows, 'stage-collection-items-movies', 'up')).toBe(ACTIONS);
+	});
+
 	test('goes straight to Open full page when nothing else takes focus', () => {
 		expect(quickLookNeighbour(['quick-look-open'], ACTIONS, 'down')).toBe('quick-look-open');
 	});
