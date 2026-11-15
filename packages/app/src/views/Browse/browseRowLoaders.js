@@ -15,8 +15,6 @@ import {apiSortBy, getGenresIncludeTypes, isPlaylistOrder, resolveSortOrder} fro
 import {collapseLatestTvItems} from '../../utils/latestMediaRowNormalizer';
 import {isPickedRow, isPickedRowShown, isSameServer} from '../../utils/pickedRows';
 import mapBounded from '../../utils/mapBounded';
-import {sortNamedItems} from '../../utils/studioGenreSorting';
-import {getGenreSortOptions} from '../Settings/settingsOptions';
 import {studioLogoIndex} from '../Details/studioLogos';
 import {FULL_ROW_READ, pageableRow, readFoldedHead} from './rowPaging';
 import * as gamesApi from '../../services/gamesApi';
@@ -39,8 +37,7 @@ export const buildLoaderContext = ({api, serverUrl, settings, homeRowsConfig, el
 	// itself.
 	const favoriteSortBy = apiSortBy(settings.favoritesRowSortBy || 'SortName');
 	const collectionsSortBy = apiSortBy(settings.collectionsRowSortBy || 'SortName');
-	// A sort the Genres setting doesn't offer reads as Name, as its setting shows.
-	const genresSortBy = getGenreSortOptions().find((o) => o.value.toLowerCase() === (settings.genresRowSortBy || '').toLowerCase())?.value || 'SortName';
+	const genresSortBy = apiSortBy(settings.genresRowSortBy || 'SortName');
 	const playlistsSortBy = apiSortBy(settings.playlistsRowSortBy || 'SortName');
 	const audioRowsSortBy = apiSortBy(settings.audioRowsSortBy || 'SortName');
 
@@ -370,30 +367,19 @@ export const loadFavorites = async (ctx) => {
 	}
 };
 
-// Only Jellyfin sends counts with its genres, so on the other servers each genre is counted by
-// a query of its own.
-const withTitleCounts = async (api, genres, includeTypes) => {
-	const counted = genres.map((genre) => ({...genre}));
-	const uncounted = counted.filter((g) => g.MovieCount == null && g.SeriesCount == null && g.ChildCount == null);
-	await mapBounded(uncounted, 4, async (genre) => {
-		const result = await api.getItems({IncludeItemTypes: includeTypes, Recursive: true, Genres: genre.Name, Limit: 1}).catch(() => null);
-		genre.ChildCount = result?.TotalRecordCount || 0;
-	});
-	return counted;
-};
-
 export const loadGenres = async (ctx) => {
 	const {api, appendRows, genresIncludeTypes, genresSortBy, genresSortOrder, settings} = ctx;
 	if (!settings.displayGenresRows) return;
 	try {
-		const byCount = genresSortBy === 'ItemCount';
-		const genresResult = await api.getGenres(undefined, genresIncludeTypes, byCount ? 'SortName' : genresSortBy, genresSortOrder).catch(() => null);
+		const genresResult = await api.getGenres(undefined, genresIncludeTypes, genresSortBy, genresSortOrder).catch(() => null);
 		if (genresResult?.Items?.length > 0) {
 			let enrichedItems = genresResult.Items;
-			if (byCount) {
-				enrichedItems = sortNamedItems(await withTitleCounts(api, enrichedItems, genresIncludeTypes), 'ItemCount', genresSortOrder, genresIncludeTypes);
-			} else if (genresSortBy === 'SortName' || genresSortBy === 'Random') {
-				enrichedItems = sortNamedItems(enrichedItems, genresSortBy, genresSortOrder);
+			const genresSortByLower = (settings.genresRowSortBy || 'SortName').toLowerCase();
+			if (genresSortByLower === 'sortname' || genresSortByLower === 'name') {
+				const direction = genresSortOrder === 'Descending' ? -1 : 1;
+				enrichedItems = [...enrichedItems].sort((a, b) => direction * (a.Name || '').localeCompare(b.Name || ''));
+			} else if (genresSortByLower === 'random') {
+				enrichedItems = [...enrichedItems].sort(() => Math.random() - 0.5);
 			}
 
 			try {
@@ -601,8 +587,7 @@ const loadPickedRowItems = async (ctx, api, row, limit) => {
 			GenreIds: row.itemId,
 			IncludeItemTypes: ctx.genresIncludeTypes,
 			ExcludeItemTypes: 'Episode',
-			// A genre's titles have no count of their own, so Item Count lists them by name.
-			SortBy: ctx.genresSortBy === 'ItemCount' ? 'SortName' : ctx.genresSortBy,
+			SortBy: ctx.genresSortBy,
 			SortOrder: ctx.genresSortOrder,
 			Recursive: true,
 			Limit: limit,
