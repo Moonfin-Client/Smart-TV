@@ -29,7 +29,6 @@ import {
 	setDisplayWindow,
 	getSharedVideoElement,
 	setupVisibilityHandler,
-	setupPlatformLifecycle,
 	leavesPlayerInBackground,
 	resumesAfterFirstFrame,
 	showHostSubtitle,
@@ -847,14 +846,16 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 		onPausedChange?.(isPaused);
 	}, [isPaused, onPausedChange]);
 
-	// Handle webOS app visibility and relaunch events to properly pause/cleanup video
+	// Handle webOS app visibility events to properly pause/cleanup video
 	useEffect(() => {
 		let wasPlaying = false;
 
 		const handleAppHidden = () => {
 			console.log('[Player] App hidden - pausing and saving progress');
 			if (videoRef.current) {
-				wasPlaying = !videoRef.current.paused;
+				// App.js pauses every video when the app hides and can get there first, so this goes by the
+				// player's own state, which that pause hasn't reached yet.
+				wasPlaying = !isPausedRef.current;
 				if (wasPlaying) {
 					videoRef.current.pause();
 				}
@@ -898,22 +899,12 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 			}
 		};
 
-		const handleRelaunch = (params) => {
-			console.log('[Player] App relaunched with params:', params);
-			destroyHlsPlayer();
-			if (videoRef.current) {
-				cleanupVideoElement(videoRef.current);
-			}
-		};
-
 		const removeVisibilityHandler = setupVisibilityHandler(handleAppHidden, handleAppVisible);
-		const removeLifecycleHandler = setupPlatformLifecycle(handleRelaunch);
 		window.addEventListener('pagehide', handleAppExit);
 		window.addEventListener('beforeunload', handleAppExit);
 
 		return () => {
 			removeVisibilityHandler();
-			removeLifecycleHandler();
 			window.removeEventListener('pagehide', handleAppExit);
 			window.removeEventListener('beforeunload', handleAppExit);
 		};

@@ -214,10 +214,13 @@ const BannerBar = memo(({
 
 					{meta && <div className={css.bannerMeta}>{meta}</div>}
 
+					{/* The banner always shows its ratings plain, whatever the rating name and badge settings say. */}
 					<RatingsRow
 						item={currentFeatured}
 						serverUrl={serverUrl}
 						compact
+						labels={false}
+						badges={false}
 						surface='mediaBar'
 						pluginEnabled={isMdblistEnabled(settings, 'mediaBar')}
 					/>

@@ -368,7 +368,7 @@ export const getGenresRowItemFilterOptions = () => [
 
 export const getRecommendationSystemSourceOptions = () => [
 	{ value: 'local', label: $L('Moonfin Recommends') },
-	{ value: 'server', label: $L('Jellyfin Recommends') },
+	{ value: 'server', label: $L('Server Recommends') },
 	{ value: 'online', label: $L('TMDb Similarity') },
 	{ value: 'hybrid', label: $L('Hybrid') }
 ];

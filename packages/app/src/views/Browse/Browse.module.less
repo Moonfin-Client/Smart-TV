@@ -892,8 +892,7 @@
 .bannerBanner {
 	position: relative;
 	width: 100%;
-	height: 464px;
-	overflow: hidden;
+	height: 556px;
 	z-index: 10;
 	flex-shrink: 0;
 	transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.4s ease, height 0.4s ease;
@@ -901,21 +900,21 @@
 
 .bannerCard {
 	position: absolute;
-	top: 20px;
-	bottom: 20px;
-	left: 60px;
-	right: 60px;
-	border-radius: 16px;
+	top: 0;
+	bottom: 13px;
+	left: 40px;
+	right: 40px;
+	border-radius: 27px;
 	overflow: hidden;
 	cursor: pointer;
 	outline: none;
-	border: 2.5px solid transparent;
+	border: 4px solid transparent;
 	transition: border-color 0.18s ease, box-shadow 0.18s ease;
 }
 
 .bannerCard:focus {
 	border-color: var(--theme-focus-border-color, #00a4dc);
-	box-shadow: var(--theme-focus-glow, 0 0 18px rgba(var(--theme-accent-rgb, 0, 164, 220), 0.4));
+	box-shadow: var(--theme-focus-glow, 0 0 30px rgba(var(--theme-accent-rgb, 0, 164, 220), 0.4));
 }
 
 .bannerBackdrop {
@@ -968,9 +967,10 @@
 
 .bannerContent {
 	position: absolute;
-	left: 44px;
-	right: 44px;
-	bottom: 28px;
+	left: 33px;
+	right: 33px;
+	// The ratings row or meta line keeps 4 or 5px under itself, so the text ends 27px up.
+	bottom: 23px;
 	display: -webkit-flex;
 	display: flex;
 	-webkit-flex-direction: column;
@@ -981,20 +981,20 @@
 }
 
 .bannerLogo {
-	max-width: 340px;
-	max-height: 90px;
-	margin-bottom: 10px;
+	width: 400px;
+	height: 93px;
 
 	img {
-		max-width: 100%;
-		max-height: 90px;
+		width: 100%;
+		height: 100%;
 		object-fit: contain;
+		object-position: left center;
 	}
 }
 
 .bannerTitle {
-	margin: 0 0 8px 0;
-	font-size: 38px;
+	margin: 0;
+	font-size: 46px;
 	font-weight: 800;
 	line-height: 1.05;
 	color: var(--theme-text-primary, #fff);
@@ -1006,7 +1006,9 @@
 }
 
 .bannerMeta {
-	margin-bottom: 8px;
+	// The compact ratings row under it adds its own 8px.
+	margin: 10px 0 5px;
+	white-space: pre;
 	font-size: 20px;
 	font-weight: 600;
 	color: var(--theme-text-secondary, rgba(255, 255, 255, 0.75));
@@ -1015,8 +1017,8 @@
 
 .bannerDots {
 	position: absolute;
-	top: 18px;
-	right: 26px;
+	top: 20px;
+	right: 30px;
 	display: -webkit-flex;
 	display: flex;
 	-webkit-align-items: center;
@@ -1024,20 +1026,20 @@
 	z-index: 3;
 
 	> * + * {
-		margin-left: 6px;
+		margin-left: 7px;
 	}
 }
 
 .bannerDot {
-	width: 8px;
-	height: 8px;
-	border-radius: 4px;
+	width: 10px;
+	height: 10px;
+	border-radius: 5px;
 	background: rgba(var(--theme-on-surface-rgb, 255, 255, 255), 0.4);
 	transition: width 0.25s ease, background 0.25s ease;
 }
 
 .bannerDotActive {
-	width: 22px;
+	width: 27px;
 	background: var(--theme-text-primary, #fff);
 }
 
@@ -1463,9 +1465,13 @@
 	top: 130px;
 }
 
-/* The banner card starts below the navbar. The bar keeps its height, so the rows stay where they are. */
-.topbarOffset .bannerCard {
-	top: 130px;
+/* The banner card runs up under the floating navbar, so the rows start right below the bar. */
+.bannerBanner ~ .contentRows {
+	padding-top: 0;
+
+	> :first-child {
+		margin-top: 0;
+	}
 }
 
 /* The sidebar rail sits over the left edge, so the info card moves out from
@@ -1475,7 +1481,7 @@
 	right: 104px;
 }
 
-/* Makd and Banner move over as far as the rows do, so their text lines up with them. The Gallery
+/* Makd moves over as far as the rows do, so its text lines up with them. The Gallery
    cards run edge to edge, so they start past the 78px rail with their usual margin instead. */
 .sidebarOffset .makdContent {
 	left: 50px;
@@ -1486,7 +1492,7 @@
 }
 
 .sidebarOffset .bannerCard {
-	left: 110px;
+	left: 134px;
 }
 
 /* Rows mode - position rows below detail section */
