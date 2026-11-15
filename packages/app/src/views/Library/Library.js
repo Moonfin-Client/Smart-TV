@@ -611,7 +611,7 @@ const Library = ({library, genreFilter, studioFilter, onSelectItem, onViewPhoto,
 
 				const collectionType = library?.CollectionType?.toLowerCase();
 				const groupCollections = Boolean(settings.groupItemsIntoCollections);
-				if (isGenreMode || collectionType === 'movies' || collectionType === 'tvshows') {
+				if (isGenreMode || isStudioMode || collectionType === 'movies' || collectionType === 'tvshows') {
 					params.CollapseBoxSetItems = groupCollections;
 				}
 
@@ -694,7 +694,7 @@ const Library = ({library, genreFilter, studioFilter, onSelectItem, onViewPhoto,
 				loadingMoreRef.current = false;
 			}
 		}
-	}, [isPlaylistLibrary, effectiveApi, library, genreFilter, studioFilter, sortKey, sortAscending, effectiveOrder, favoritesOnly, filters, openedGenre, parentId, isFolderView, currentFolderId, currentFolderCollectionType, isMusicLibrary, musicContentType, bookGridView, getItemTypeForLibrary, getExcludeItemTypes, settings.groupItemsIntoCollections, isGenreMode]);
+	}, [isPlaylistLibrary, effectiveApi, library, genreFilter, studioFilter, sortKey, sortAscending, effectiveOrder, favoritesOnly, filters, openedGenre, parentId, isFolderView, currentFolderId, currentFolderCollectionType, isMusicLibrary, musicContentType, bookGridView, getItemTypeForLibrary, getExcludeItemTypes, settings.groupItemsIntoCollections, isGenreMode, isStudioMode]);
 
 	loadItemsRef.current = loadItems;
 
