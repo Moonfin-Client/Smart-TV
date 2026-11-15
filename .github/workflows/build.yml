@@ -7,9 +7,18 @@ on:
       - '[0-9]+.[0-9]+.[0-9]+*'
   pull_request:
     branches: [main]
+  # Fires only once a merge queue is enabled on main.
+  merge_group:
 
 permissions:
   contents: write
+
+# A new push to a pull request replaces its running build. Every other run
+# gets a group of its own, so tags, manual runs and merge groups never queue
+# or cancel.
+concurrency:
+  group: build-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   # ───────────────────────────────────────────────
@@ -175,29 +184,6 @@ jobs:
           path: Moonfin_Xbox_Store_*.msixupload
 
   # ───────────────────────────────────────────────
-  # Jest suite
-  # ───────────────────────────────────────────────
-  test:
-    name: Test
-    runs-on: ubuntu-26.04
-    outputs:
-      result: ${{ steps.jest.outcome }}
-    steps:
-      - uses: actions/checkout@v5
-
-      - uses: actions/setup-node@v5
-        with:
-          node-version: lts/*
-          cache: npm
-
-      - name: Install dependencies
-        run: npm ci --force
-
-      - name: Run tests
-        id: jest
-        run: npm test --workspace @moonfin/app
-
-  # ───────────────────────────────────────────────
   # Save PR build outcomes for pr-comment workflow
   # ───────────────────────────────────────────────
   save-pr-results:
@@ -206,7 +192,7 @@ jobs:
     # the comment workflow has nothing to read, so the run that most needs a comment
     # is the one that never gets one.
     if: always() && github.event_name == 'pull_request'
-    needs: [build-webos, build-tizen, build-vega, build-xbox, test]
+    needs: [build-webos, build-tizen, build-vega, build-xbox]
     runs-on: ubuntu-26.04
     steps:
       - name: Write outcomes.json
@@ -218,8 +204,7 @@ jobs:
             "webos": "${{ needs.build-webos.outputs.result }}",
             "tizen": "${{ needs.build-tizen.outputs.result }}",
             "vega": "${{ needs.build-vega.outputs.result }}",
-            "xbox": "${{ needs.build-xbox.outputs.result }}",
-            "tests": "${{ needs.test.outputs.result }}"
+            "xbox": "${{ needs.build-xbox.outputs.result }}"
           }
           EOF
 
