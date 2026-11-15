@@ -192,6 +192,20 @@ describe('settings schema', () => {
 		expect(toggle.when(ctx)).toBeFalsy();
 	});
 
+	test('Xbox Dolby Vision is offered only with the console player, on a console and TV that report it', () => {
+		const toggle = allRows().find(({row}) => row.key === 'xboxDolbyVision').row;
+		const xbox = {...ctx, isWebOS: false, isXbox: true, consoleDolbyVision: true};
+		expect(defaultSettings.xboxDolbyVision).toBe(true);
+		expect(toggle.when(xbox)).toBe(true);
+		expect(toggle.when({...xbox, consoleDolbyVision: false})).toBe(false);
+		expect(toggle.when({...xbox, settings: {...defaultSettings, xboxNativePlayer: false}})).toBe(false);
+		expect(toggle.when({...ctx, consoleDolbyVision: true})).toBeFalsy();
+
+		const toggleXboxDolbyVision = jest.fn();
+		toggle.onToggle({...xbox, actions: {toggleXboxDolbyVision}});
+		expect(toggleXboxDolbyVision).toHaveBeenCalledTimes(1);
+	});
+
 	test('Show Libraries Individually is offered only while libraries show in the navigation bar', () => {
 		const toggle = allRows().find(({row}) => row.key === 'showLibrariesIndividually').row;
 		expect(defaultSettings.showLibrariesIndividually).toBe(false);

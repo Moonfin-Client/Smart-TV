@@ -577,6 +577,21 @@ describe('buildPlaybackInfo', () => {
 		expect(hdr(dv, {dolbyVision: false})).toBe('  HDR: HDR10 (converted from Dolby Vision Profile 8)');
 	});
 
+	it('on the Xbox console player names the HDR the host put the display in', () => {
+		const p8 = {Type: 'Video', Index: 0, Codec: 'hevc', VideoRangeType: 'DOVIWithHDR10', DvProfile: 8};
+		const p5 = {Type: 'Video', Index: 0, Codec: 'hevc', VideoRangeType: 'DOVI', DvProfile: 5};
+		const hdr = (stream, hostDisplay) => flatten(buildPlaybackInfo({
+			session: session({MediaStreams: [stream]}, {nativePlayer: true, dolbyVision: true}), playMethod: 'DirectPlay', hostDisplay
+		})).find((row) => row.indexOf('HDR:') !== -1);
+		expect(hdr(p5, {ok: true, hdr: 'dolbyvision'})).toBe('  HDR: Dolby Vision Profile 5');
+		expect(hdr(p8, {ok: true, hdr: 'dolbyvision'})).toBe('  HDR: Dolby Vision Profile 8');
+		// The display turned Dolby Vision down, or the host only switched it to HDR10
+		expect(hdr(p8, {ok: false, hdr: 'dolbyvision'})).toBe('  HDR: HDR10 (converted from Dolby Vision Profile 8)');
+		expect(hdr(p8, {ok: true, hdr: 'hdr10'})).toBe('  HDR: HDR10 (converted from Dolby Vision Profile 8)');
+		expect(hdr(p8, null)).toBe('  HDR: HDR10 (converted from Dolby Vision Profile 8)');
+		expect(hdr(hevcHdr10, {ok: true, hdr: 'hdr10'})).toBe('  HDR: HDR10');
+	});
+
 	it('says how the Xbox console player sent the sound, and the dropped frames when there is a count', () => {
 		const rows = (format) => flatten(buildPlaybackInfo({
 			session: session(movieSource()), playMethod: 'DirectPlay', selectedAudioIndex: 1,

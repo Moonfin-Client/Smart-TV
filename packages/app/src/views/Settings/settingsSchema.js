@@ -934,6 +934,7 @@ export const SETTINGS_SCHEMA = [
 					{kind: KIND.TOGGLE, key: 'preferTranscode', label: () => $L('Prefer Transcoding'), desc: () => $L('Request transcoded streams when available'), icon: 'transform'},
 					{kind: KIND.TOGGLE, key: 'forceDirectPlay', label: () => $L('Force Direct Play'), desc: () => $L('Skip codec checks and always attempt DirectPlay (debug)'), icon: 'play_arrow'},
 					{kind: KIND.TOGGLE, key: 'xboxNativePlayer', label: () => $L('Console Video Player'), desc: () => $L("Play video through the console's own player for HEVC, 4K and HDR. Turn off to use the built-in web player. Takes effect on the next playback"), icon: 'play_circle', when: (ctx) => ctx.isXbox},
+					{kind: KIND.TOGGLE, key: 'xboxDolbyVision', label: () => $L('Dolby Vision'), desc: () => $L('Sends Dolby Vision to a TV that supports it. Turn off to play Dolby Vision as HDR10.'), icon: 'hdr_on', when: (ctx) => ctx.isXbox && ctx.settings.xboxNativePlayer !== false && !!ctx.consoleDolbyVision, onToggle: (ctx) => ctx.actions.toggleXboxDolbyVision()},
 					{kind: KIND.SLIDER, key: 'videoStartDelay', label: () => $L('Video Start Delay'), min: 0, max: 5, step: 0.5, format: (v) => (v === 0 ? $L('Off') : `${Number(v).toFixed(1)}s`), icon: 'schedule'}
 				]
 			},

@@ -270,6 +270,7 @@ export const buildPlaybackInfo = ({
 	liveProgram,
 	isTizen,
 	hostAudioOutput,
+	hostDisplay,
 	droppedFrames,
 	transcodingInfo
 }) => {
@@ -364,7 +365,12 @@ export const buildPlaybackInfo = ({
 	if (videoStream) {
 		const {Width: width, Height: height} = videoStream;
 		const sourceHdr = hdrName(videoStream, true);
-		const shownHdr = hdrName(videoStream, videoConverted || capabilities.dolbyVision !== false);
+		// The Xbox console player shows Dolby Vision only once the host has the display in that mode,
+		// and otherwise the base picture under it
+		const showsDolbyVision = capabilities.nativePlayer
+			? hostDisplay?.ok === true && hostDisplay.hdr === 'dolbyvision'
+			: capabilities.dolbyVision !== false;
+		const shownHdr = hdrName(videoStream, videoConverted || showsDolbyVision);
 		const outWidth = info?.Width;
 		const outHeight = info?.Height;
 		let resolution = null;

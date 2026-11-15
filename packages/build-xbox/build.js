@@ -230,7 +230,10 @@ const writeProbe = (dir, {assets = '', clips = true} = {}) => {
 	const chosen = chosenClips();
 	const missing = chosen.filter((name) => !fs.existsSync(path.join(mediaSource, name)));
 	if (missing.length) throw new Error(`--clips names clips that are not in probe/media: ${missing.join(', ')}. Make them with node probe/make-clips.js`);
-	const names = clips && fs.existsSync(mediaSource) ? fs.readdirSync(mediaSource).filter((name) => !chosen.length || chosen.includes(name)).sort() : [];
+	// Dolby Vision clips are sample media put there by hand for local tests, so they never go to testers
+	const names = clips && fs.existsSync(mediaSource)
+		? fs.readdirSync(mediaSource).filter((name) => (!chosen.length || chosen.includes(name)) && !(flag('--tester') && /^dv-/.test(name))).sort()
+		: [];
 	const bundled = names.filter((name) => MEDIA_FILE.test(name));
 	// An HLS stream is a folder of its playlist and segments
 	const streams = names.filter((name) => fs.existsSync(path.join(mediaSource, name, 'index.m3u8')));

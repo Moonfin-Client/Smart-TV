@@ -58,6 +58,7 @@
     <Compile Include="Bridge.cs" />
     <Compile Include="CorsRelay.cs" />
     <Compile Include="DisplayModes.cs" />
+    <Compile Include="DolbyVisionEffect.cs" />
     <Compile Include="HostLog.cs" />
     <Compile Include="MainPage.xaml.cs">
       <DependentUpon>MainPage.xaml</DependentUpon>
@@ -105,8 +106,9 @@
     <PackageReference Include="Microsoft.Web.WebView2">
       <Version>1.0.3179.45</Version>
     </PackageReference>
-    <PackageReference Include="FFmpegInteropX.UWP">
-      <Version>2.1.0.81200</Version>
+    <!-- FFmpegInteropX with the patch in packages/build-xbox/ffmpeginteropx, which brings FFmpegInteropX.UWP.FFmpeg 8.1.2 -->
+    <PackageReference Include="Moonfin.FFmpegInteropX.UWP.Lib">
+      <Version>2.1.0.2</Version>
     </PackageReference>
   </ItemGroup>
   <PropertyGroup Condition=" '$(VisualStudioVersion)' == '' or '$(VisualStudioVersion)' &lt; '14.0' ">

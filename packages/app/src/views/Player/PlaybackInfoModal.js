@@ -2,7 +2,7 @@ import {memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState
 import $L from '@enact/i18n/$L';
 
 import * as playback from '../../services/playback';
-import {getHostAudioOutput} from '../../services/video';
+import {getHostAudioOutput, getHostDisplay} from '../../services/video';
 import {animateScrollTop} from '../../utils/focusScroll';
 import {getPerfTier} from '../../utils/perfTier';
 import {buildPlaybackInfo} from '../../utils/playbackInfo';
@@ -55,6 +55,7 @@ const PlaybackInfoModal = ({
 		return buildPlaybackInfo({
 			session, playMethod, selectedAudioIndex, selectedSubtitleIndex, maxBitrate, transcodeForced,
 			isLiveTV, item, liveProgram, isTizen, hostAudioOutput, transcodingInfo,
+			hostDisplay: getHostDisplay(),
 			droppedFrames: quality ? quality.droppedVideoFrames : null
 		});
 	}, [playMethod, selectedAudioIndex, selectedSubtitleIndex, maxBitrate, transcodeForced, isLiveTV, item, liveProgram, isTizen, hostAudioOutput, transcodingInfo, videoRef]);
