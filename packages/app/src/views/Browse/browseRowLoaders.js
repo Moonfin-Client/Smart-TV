@@ -16,6 +16,7 @@ import {collapseLatestTvItems} from '../../utils/latestMediaRowNormalizer';
 import {isPickedRow, isPickedRowShown, isSameServer} from '../../utils/pickedRows';
 import mapBounded from '../../utils/mapBounded';
 import {sortNamedItems} from '../../utils/studioGenreSorting';
+import {getStudioGenreSortOptions} from '../Settings/settingsOptions';
 import {studioLogoIndex} from '../Details/studioLogos';
 import {FULL_ROW_READ, pageableRow, readFoldedHead} from './rowPaging';
 import * as gamesApi from '../../services/gamesApi';
@@ -38,7 +39,8 @@ export const buildLoaderContext = ({api, serverUrl, settings, homeRowsConfig, el
 	// itself.
 	const favoriteSortBy = apiSortBy(settings.favoritesRowSortBy || 'SortName');
 	const collectionsSortBy = apiSortBy(settings.collectionsRowSortBy || 'SortName');
-	const genresSortBy = apiSortBy(settings.genresRowSortBy || 'SortName');
+	// A sort the Genres row no longer offers reads as Name, as its setting shows.
+	const genresSortBy = getStudioGenreSortOptions().find((o) => o.value.toLowerCase() === (settings.genresRowSortBy || '').toLowerCase())?.value || 'SortName';
 	const playlistsSortBy = apiSortBy(settings.playlistsRowSortBy || 'SortName');
 	const audioRowsSortBy = apiSortBy(settings.audioRowsSortBy || 'SortName');
 
@@ -384,15 +386,14 @@ export const loadGenres = async (ctx) => {
 	const {api, appendRows, genresIncludeTypes, genresSortBy, genresSortOrder, settings} = ctx;
 	if (!settings.displayGenresRows) return;
 	try {
-		const genresSortByLower = (settings.genresRowSortBy || 'SortName').toLowerCase();
-		const byCount = genresSortByLower === 'itemcount';
+		const byCount = genresSortBy === 'ItemCount';
 		const genresResult = await api.getGenres(undefined, genresIncludeTypes, byCount ? 'SortName' : genresSortBy, genresSortOrder).catch(() => null);
 		if (genresResult?.Items?.length > 0) {
 			let enrichedItems = genresResult.Items;
 			if (byCount) {
 				enrichedItems = sortNamedItems(await withTitleCounts(api, enrichedItems, genresIncludeTypes), 'ItemCount', genresSortOrder, genresIncludeTypes);
-			} else if (['sortname', 'name', 'random'].includes(genresSortByLower)) {
-				enrichedItems = sortNamedItems(enrichedItems, genresSortByLower, genresSortOrder);
+			} else if (genresSortBy !== 'DateCreated') {
+				enrichedItems = sortNamedItems(enrichedItems, genresSortBy, genresSortOrder);
 			}
 
 			try {
