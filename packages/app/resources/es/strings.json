@@ -1961,5 +1961,7 @@
     "Movie details": "Detalles de la película",
     "Multi-Server Libraries keeps this off Home": "Las bibliotecas multiservidor mantienen esto fuera de la página de inicio",
     "Music Artists, Music Albums and Music Playlists are all turned off. To show one, go to Rows, open {group} under {disabled}, and turn it on.": "Los artistas, álbumes y listas de reproducción están desactivados. Para mostrar alguno, ve a Filas, abre {group} en {disabled} y actívalo.",
-    "Music Library Style": "Estilo de Biblioteca Musical"
+    "Music Library Style": "Estilo de Biblioteca Musical",
+    "New messages show for a few seconds": "Los nuevos mensajes se muestran durante unos segundos",
+    "New season": "Nueva temporada"
 }
