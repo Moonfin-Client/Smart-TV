@@ -14,8 +14,8 @@
  * 2. Otherwise the whole suite.
  *
  * A line counts when Istanbul has a statement starting on it, the same lines
- * Jest's own line coverage counts. A changed file no test imports has no
- * coverage at all and is reported as not loaded.
+ * Jest's own line coverage counts. Enact's Jest config collects coverage from
+ * every source file, so a file no test imports shows with no lines run.
  *
  * It is advisory: it exits 0 whatever it finds, and non-zero only when no
  * test run left coverage to read, so a crash doesn't pass for a result. The
@@ -150,27 +150,20 @@ const summarize = (result, ranges, hits, ownHits) => {
 	for (const [file, rs] of Object.entries(ranges)) {
 		const changed = [...new Set(rs.flatMap(([first, last]) => Array.from({length: last - first + 1}, (_, i) => first + i)))]
 			.sort((a, b) => a - b);
-		if (!hits[file]) {
-			files.push({file, loaded: false, changed: changed.length, run: 0, own_run: 0, lines: 0, not_run: [], more_ranges: 0});
-			continue;
-		}
-		const executable = changed.filter(n => n in hits[file]);
+		const executable = changed.filter(n => n in (hits[file] || {}));
 		if (!executable.length) continue;
 		const run = executable.filter(n => hits[file][n] > 0).length;
 		const own = executable.filter(n => ownHits?.[file]?.[n] > 0).length;
 		const gaps = gapsByFile[file] = notRunRanges(executable, hits[file], rs);
-		files.push({file, loaded: true, changed: changed.length, run, own_run: own, lines: executable.length,
-			not_run: gaps.slice(0, MAX_RANGES), more_ranges: Math.max(0, gaps.length - MAX_RANGES)});
+		files.push({file, run, own_run: own, lines: executable.length, not_run: gaps.slice(0, MAX_RANGES)});
 		result.lines_run += run;
 		result.lines += executable.length;
 		if (ownHits) result.own_run += own;
 	}
-	// Biggest part of the change first. A file no test loaded counts its
-	// changed lines, as it has no measurable ones.
-	files.sort((a, b) => ((b.loaded ? b.lines : b.changed) - (a.loaded ? a.lines : a.changed)) || a.file.localeCompare(b.file));
+	// Biggest part of the change first.
+	files.sort((a, b) => (b.lines - a.lines) || a.file.localeCompare(b.file));
 	result.files = files.slice(0, MAX_FILES);
 	result.more_files = Math.max(0, files.length - MAX_FILES);
-	result.unloaded = files.filter(f => !f.loaded).length;
 	return gapsByFile;
 };
 
@@ -230,9 +223,9 @@ const main = () => {
 	const own = tests.length && tests.length <= MAX_OWN_TEST_FILES ? tests : [];
 
 	const result = {status: 'ok', pr_number: args.prNumber || null, partial: null,
-		test_files: tests.length, own_tests: own.length ? 'ran' : tests.length ? 'too_many' : 'none',
-		tests_passed: 0, tests_failed: 0, suite_ran: false, suite_failing: [],
-		lines_run: 0, own_run: null, lines: 0, files: [], more_files: 0, unloaded: 0};
+		own_tests: own.length ? 'ran' : tests.length ? 'too_many' : 'none',
+		tests_passed: 0, tests_failed: 0, suite_ran: false,
+		lines_run: 0, own_run: null, lines: 0, files: [], more_files: 0};
 
 	if (!Object.keys(ranges).length) {
 		result.status = 'no_code';
@@ -248,13 +241,18 @@ const main = () => {
 		const stage = runJest(own, tmp, 'own');
 		ownHits = stage.hits;
 		Object.assign(result, {tests_passed: stage.passed, tests_failed: stage.failed});
-		if (ownHits) hits = ownHits;
-		summarize(result, ranges, hits, ownHits);
+		if (ownHits) {
+			hits = ownHits;
+			summarize(result, ranges, hits, ownHits);
+		} else {
+			// The own tests left no coverage, so there's no own count to show.
+			result.own_tests = 'lost';
+		}
 	}
 
 	// Any test can only add to what the branch's own tests ran, so when they
 	// ran every changed line there's nothing to add.
-	if (!ownHits || result.lines_run < result.lines || result.unloaded) {
+	if (!ownHits || result.lines_run < result.lines) {
 		if (ownHits) {
 			result.partial = 'stopped';
 			write(result);
@@ -273,7 +271,7 @@ const main = () => {
 		}
 	}
 
-	const gapsByFile = summarize(result, ranges, hits, own.length ? ownHits || {} : null);
+	const gapsByFile = summarize(result, ranges, hits, ownHits);
 	if (args.annotate) result.annotated = annotate(gapsByFile, args.annotate);
 	write(result);
 
@@ -281,12 +279,8 @@ const main = () => {
 	console.log(`Tests run ${result.lines_run} of ${result.lines} measurable changed lines${ownNote}` +
 		(result.suite_ran ? '' : ' (own tests ran them all, suite not needed)'));
 	for (const f of result.files) {
-		if (f.loaded) {
-			const gaps = f.not_run.map(([a, b]) => (a === b ? `${a}` : `${a}-${b}`)).join(', ');
-			console.log(`  ${f.file} ${f.run} of ${f.lines}${gaps ? `, not run: ${gaps}` : ''}`);
-		} else {
-			console.log(`  ${f.file} not loaded by any test (${f.changed} changed lines)`);
-		}
+		const gaps = f.not_run.map(([a, b]) => (a === b ? `${a}` : `${a}-${b}`)).join(', ');
+		console.log(`  ${f.file} ${f.run} of ${f.lines}${gaps ? `, not run: ${gaps}` : ''}`);
 	}
 };
 

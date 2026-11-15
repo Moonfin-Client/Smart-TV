@@ -261,8 +261,10 @@ jobs:
               } else if (lintClean) {
                 testLines.push('**Lint** ✅ clean');
               } else {
+                // Skipped means the install failed before lint could run.
                 const what = [
-                  lint.eslint !== 'success' && 'enact lint found problems, marked in Files changed',
+                  lint.eslint === 'failure' && 'enact lint found problems, marked in Files changed',
+                  lint.eslint !== 'success' && lint.eslint !== 'failure' && 'enact lint did not run, see the Checks run',
                   lint.css !== 'success' && 'the CSS check found rules the oldest TVs drop, see the Checks run',
                 ].filter(Boolean);
                 testLines.push(`**Lint** ❌ ${what.join(', and ')}`);
@@ -287,9 +289,7 @@ jobs:
               const total = clamp(coverage.lines);
               const run = Math.min(clamp(coverage.lines_run), total);
               const ownRun = Math.min(clamp(coverage.own_run), run);
-              const unloaded = clamp(coverage.unloaded);
               const files = asList(coverage.files).filter(f => f && typeof f === 'object').slice(0, 15);
-              const notLoaded = plural(unloaded, 'changed file', 'changed files');
               // 'stopped' is the result from before the full suite ran, left
               // when the run timed out. 'lost' means the full suite wrote no
               // coverage.
@@ -303,16 +303,13 @@ jobs:
               const grade = (r, n) => r >= n * 0.75 ? '🟢' : r < n * 0.25 ? '🔴' : '🟡';
               let line;
               if (total === 0) {
-                line = unloaded > 0
-                  ? `**Coverage** 🔴 no test loads ${notLoaded}`
-                  : '**Coverage** 🧪 no measurable changed lines';
+                line = '**Coverage** 🧪 no measurable changed lines';
               } else {
                 const mark = partial ? '⚠️' : total >= 5 ? grade(run, total) : '🧪';
                 const lines = plural(total, 'measurable changed line', 'measurable changed lines');
                 line = run === total
                   ? `**Coverage** ${mark} tests run all ${lines}`
                   : `**Coverage** ${mark} tests run ${run} of ${lines} (${Math.floor((100 * run) / total)}%)`;
-                if (unloaded > 0) line += `, and no test loads ${notLoaded}`;
                 // Only when it adds something: most pull requests' own tests
                 // run what the whole suite runs.
                 if (coverage.own_tests === 'ran' && ownRun !== run) {
@@ -332,7 +329,7 @@ jobs:
               // The biggest files, visible rather than folded away. The exact
               // lines are marked in Files changed, so the comment doesn't list
               // line numbers.
-              const gapsLeft = files.some(f => f.loaded === false || clamp(f.run) < clamp(f.lines));
+              const gapsLeft = files.some(f => clamp(f.run) < clamp(f.lines));
               if (gapsLeft) {
                 // The last two parts of the path, so it stays short but two
                 // files with the same name in different folders differ.
@@ -344,9 +341,6 @@ jobs:
                 const shown = files.slice(0, 5);
                 const fileRows = shown.map(f => {
                   const name = `\`${escapeText(shortName(f.file))}\``;
-                  if (f.loaded === false) {
-                    return `| 🔴 | ${name} | not loaded, ${plural(clamp(f.changed), 'changed line', 'changed lines')} |`;
-                  }
                   const n = clamp(f.lines);
                   const r = Math.min(clamp(f.run), n);
                   return `| ${grade(r, n)} | ${name} | ${bar(r, n)} ${r} of ${n} |`;
@@ -354,9 +348,8 @@ jobs:
                 // The files not shown, as one row with what's left of the totals.
                 const rest = files.length - shown.length + clamp(coverage.more_files);
                 if (rest > 0) {
-                  const shownLoaded = shown.filter(f => f.loaded !== false);
-                  const restLines = Math.max(0, total - shownLoaded.reduce((n, f) => n + clamp(f.lines), 0));
-                  const restRun = Math.min(restLines, Math.max(0, run - shownLoaded.reduce((n, f) => n + clamp(f.run), 0)));
+                  const restLines = Math.max(0, total - shown.reduce((n, f) => n + clamp(f.lines), 0));
+                  const restRun = Math.min(restLines, Math.max(0, run - shown.reduce((n, f) => n + clamp(f.run), 0)));
                   const sum = restLines > 0 ? `${bar(restRun, restLines)} ${restRun} of ${restLines}` : '';
                   fileRows.push(`| ${restLines > 0 ? grade(restRun, restLines) : ''} | and ${plural(rest, 'more file', 'more files')} | ${sum} |`);
                 }

@@ -39,7 +39,9 @@ jobs:
         env:
           BASE: origin/${{ github.base_ref }}
         run: |
-          if git diff --name-only --diff-filter=AM "$BASE...HEAD" -- packages/app/src | grep -qE '\.jsx?$'; then
+          # --no-renames, so a moved and edited file counts, as it does in the script.
+          if git diff --name-only --no-renames --diff-filter=AM "$BASE...HEAD" -- packages/app/src \
+            | grep -E '\.jsx?$' | grep -vE '(\.test|\.spec|-specs)\.jsx?$|/__tests__/' > /dev/null; then
             echo "code=true" >> "$GITHUB_OUTPUT"
           fi
 
