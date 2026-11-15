@@ -16,7 +16,7 @@ import {onShellMessage, postToShell} from './bridge';
 import {noteHevcRefusal} from './deviceProfile';
 import {getState} from './hostPlayer';
 import {pressOnFocused, raiseHostBack} from './keys';
-import {closeNativeVideo, getNativeVideoElement, isNativePlayerEnabled, isNativeVideoElement, isPassthroughEnabled, placeNativeVideo} from './nativeVideo';
+import {closeNativeVideo, getNativeDisplay, getNativeVideoElement, isNativePlayerEnabled, isNativeVideoElement, isPassthroughEnabled, placeNativeVideo} from './nativeVideo';
 
 export {giveControllerToGame} from './keys';
 
@@ -149,13 +149,16 @@ const VIDEO_CONTAINERS = ['mp4', 'm4v', 'mov', 'mkv', 'matroska'];
 const NATIVE_VIDEO_CONTAINERS = [...VIDEO_CONTAINERS, 'webm', 'ts', 'mpegts'];
 const AUDIO_CONTAINERS = ['mp3', 'aac', 'm4a', 'm4b', 'flac', 'wav', 'ogg', 'oga', 'opus'];
 
-// Dolby Vision plays as its HDR10 base layer where there is one, profile 5 has none
+// Dolby Vision plays as its HDR10 base layer where there is one. The rest needs the console's
+// Dolby Vision processor.
 const HDR10_BASED_DOVI = ['DOVIWITHHDR10', 'DOVIWITHHDR10PLUS', 'DOVIWITHEL', 'DOVIWITHELHDR10PLUS', 'DOVIINVALID'];
+const DOLBY_VISION_ONLY = ['DOVI', 'DOVIWITHHLG', 'DOVIWITHSDR'];
 
 const rangeOk = (videoStream, capabilities) => {
 	const rangeType = (videoRangeTypeOf(videoStream) || '').toUpperCase();
 	if (!rangeType || rangeType === 'SDR') return true;
 	if (HDR10_BASED_DOVI.includes(rangeType)) return !!capabilities.hdr10;
+	if (DOLBY_VISION_ONLY.includes(rangeType)) return !!capabilities.dolbyVision;
 	if (rangeType.includes('DOVI') || rangeType.includes('DOLBY') || rangeType === 'DV') return false;
 	if (rangeType.includes('HLG')) return !!capabilities.hlg;
 	if (rangeType.includes('HDR')) return !!capabilities.hdr10;
@@ -207,11 +210,15 @@ export const keepScreenOn = async (enable) => postToShell('KEEP_DISPLAY_ACTIVE',
 
 export const getAudioOutputInfo = async () => null;
 
-// The sound a receiver decodes itself. FFmpeg decodes it to PCM, and the system's reader
-// hands it to the console as it is in the file, which passes it on.
+export const getHostDisplay = () => (isNativePlayerEnabled() ? getNativeDisplay() : null);
+
+// The sound a receiver decodes itself. With passthrough on, the host hands it to the console
+// as it is in the file, which passes it on.
 const BITSTREAM_CODECS = ['truehd', 'dts', 'eac3', 'ac3'];
 // What the console shows as HDR10, Dolby Vision over an HDR10 base included
 const HDR10_RANGE = /^(HDR10|DOVIWith)/i;
+// The profile the host opens each Dolby Vision range type with
+const DOLBY_VISION_PROFILES = {DOVI: 5, DOVIWITHEL: 7, DOVIWITHELHDR10PLUS: 7, DOVIWITHHDR10: 8, DOVIWITHHDR10PLUS: 8, DOVIWITHHLG: 8, DOVIWITHSDR: 8};
 
 const playingAudio = (session) => {
 	const streams = (session?.mediaSource?.MediaStreams || []).filter((stream) => stream.Type === 'Audio');
@@ -220,13 +227,20 @@ const playingAudio = (session) => {
 
 // With passthrough on, a film played as it is whose sound a receiver decodes opens with
 // the system's reader, and the host falls back to FFmpeg when that reader cant play it.
-// A track switched to later stays with whichever opened the file.
+// A track switched to later stays with whichever opened the file. Only FFmpeg tags a
+// Dolby Vision stream for the console's processor, so a film played as it is in Dolby
+// Vision always opens with FFmpeg, which then passes the sound on itself.
 export const chooseHostReader = (video, session) => {
 	if (!isNativeVideoElement(video)) return;
 	const picture = (session?.mediaSource?.MediaStreams || []).find((stream) => stream.Type === 'Video');
-	const wanted = isPassthroughEnabled() && session?.playMethod === 'DirectPlay' && !!picture &&
-		BITSTREAM_CODECS.includes((playingAudio(session)?.Codec || '').toLowerCase());
-	video.useSystemReaderNative(wanted, wanted && HDR10_RANGE.test(videoRangeTypeOf(picture)));
+	const range = videoRangeTypeOf(picture);
+	const directPlay = session?.playMethod === 'DirectPlay' && !!picture;
+	const dolbyVision = directPlay && session.capabilities?.dolbyVision ? DOLBY_VISION_PROFILES[range.toUpperCase()] : null;
+	const passthrough = isPassthroughEnabled() && directPlay && BITSTREAM_CODECS.includes((playingAudio(session)?.Codec || '').toLowerCase());
+	const wanted = passthrough && !dolbyVision;
+	video.useSystemReaderNative(wanted, wanted && HDR10_RANGE.test(range));
+	video.useDolbyVisionNative(dolbyVision);
+	video.usePassthroughNative(passthrough);
 };
 
 // Windows names the formats it has no short name for by a GUID

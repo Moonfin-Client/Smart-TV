@@ -1,5 +1,5 @@
 import {getSharedVideoElement as webOSVideoElement} from '../../../platform-webos/src/video';
-import {chooseHostReader, cleanupVideoElement, getHostAudioOutput, getSharedVideoElement, notePlaybackError, rendersSubtitleInHost, resumesAfterFirstFrame, setDisplayWindow, showHostSubtitle, waitForDecoderRelease} from '../../../platform-xbox/src/video';
+import {chooseHostReader, cleanupVideoElement, getHostAudioOutput, getHostDisplay, getSharedVideoElement, notePlaybackError, rendersSubtitleInHost, resumesAfterFirstFrame, setDisplayWindow, showHostSubtitle, waitForDecoderRelease} from '../../../platform-xbox/src/video';
 import {isNativePlayerEnabled} from '../../../platform-xbox/src/nativeVideo';
 
 const SETTINGS_KEY = 'moonfin_settings';
@@ -112,17 +112,96 @@ describe('the video element backed by the console player', () => {
 		};
 
 		expect(openWith(film('truehd'))).not.toHaveProperty('reader');
+		expect(openWith(film('truehd'))).not.toHaveProperty('passthrough');
 
 		window.localStorage.setItem(SETTINGS_KEY, JSON.stringify({xboxPassthrough: true}));
-		expect(openWith(film('truehd'))).toMatchObject({reader: 'system', fallback: true, hdr10: true});
-		expect(openWith(film('DTS'))).toMatchObject({reader: 'system'});
-		expect(openWith(film('eac3', {audioStreamIndex: 2}))).not.toHaveProperty('reader');
-		expect(openWith(film('ac3', {playMethod: 'Transcode'}))).not.toHaveProperty('reader');
+		// FFmpeg is told to pass the sound on too, for when the system reader turns the file away
+		expect(openWith(film('truehd'))).toMatchObject({reader: 'system', fallback: true, hdr10: true, passthrough: true});
+		// Dolby Vision being on changes nothing for a film without it
+		expect(openWith(film('truehd', {capabilities: {dolbyVision: true}}))).toMatchObject({reader: 'system', hdr10: true, passthrough: true});
+		expect(openWith(film('DTS'))).toMatchObject({reader: 'system', passthrough: true});
+		const aac = openWith(film('eac3', {audioStreamIndex: 2}));
+		expect(aac).not.toHaveProperty('reader');
+		expect(aac).not.toHaveProperty('passthrough');
+		const transcode = openWith(film('ac3', {playMethod: 'Transcode'}));
+		expect(transcode).not.toHaveProperty('reader');
+		expect(transcode).not.toHaveProperty('passthrough');
 
 		// The next stream nobody chose for goes back to FFmpeg
 		chooseHostReader(video, film('ac3'));
 		openStream(video);
-		expect(openStream(video).payload).not.toHaveProperty('reader');
+		const next = openStream(video).payload;
+		expect(next).not.toHaveProperty('reader');
+		expect(next).not.toHaveProperty('passthrough');
+	});
+
+	test('opens a Dolby Vision film played as it is with its profile, with FFmpeg passing the sound on when passthrough is on', () => {
+		const film = (range, extra = {}) => ({
+			playMethod: 'DirectPlay',
+			audioStreamIndex: 1,
+			capabilities: {dolbyVision: true},
+			mediaSource: {MediaStreams: [{Type: 'Video', Codec: 'hevc', VideoRangeType: range}, {Type: 'Audio', Codec: 'truehd', Index: 1}]},
+			...extra
+		});
+		const video = getSharedVideoElement();
+		const openWith = (session) => {
+			chooseHostReader(video, session);
+			return openStream(video).payload;
+		};
+
+		const profile5 = openWith(film('DOVI'));
+		expect(profile5).toMatchObject({dolbyVision: 5});
+		expect(profile5).not.toHaveProperty('passthrough');
+		expect(openWith(film('DOVIWithHDR10'))).toMatchObject({dolbyVision: 8});
+		expect(openWith(film('DOVIWithHDR10Plus'))).toMatchObject({dolbyVision: 8});
+		expect(openWith(film('DOVIWithEL'))).toMatchObject({dolbyVision: 7});
+		expect(openWith(film('DOVIWithELHDR10Plus'))).toMatchObject({dolbyVision: 7});
+		expect(openWith(film('DOVIWithHLG'))).toMatchObject({dolbyVision: 8});
+		expect(openWith(film('DOVIWithSDR'))).toMatchObject({dolbyVision: 8});
+		expect(openWith(film('DOVIInvalid'))).not.toHaveProperty('dolbyVision');
+		expect(openWith(film('HDR10'))).not.toHaveProperty('dolbyVision');
+		expect(openWith(film('DOVI', {playMethod: 'Transcode'}))).not.toHaveProperty('dolbyVision');
+		expect(openWith(film('DOVIWithHDR10', {playMethod: 'Transcode'}))).not.toHaveProperty('dolbyVision');
+		expect(openWith(film('DOVIWithHDR10', {playMethod: 'DirectStream'}))).not.toHaveProperty('dolbyVision');
+		expect(openWith(film('DOVIWithHDR10', {capabilities: {dolbyVision: false}}))).not.toHaveProperty('dolbyVision');
+
+		window.localStorage.setItem(SETTINGS_KEY, JSON.stringify({xboxPassthrough: true}));
+		const passedThrough = openWith(film('DOVIWithHDR10'));
+		expect(passedThrough).toMatchObject({dolbyVision: 8, passthrough: true});
+		expect(passedThrough).not.toHaveProperty('reader');
+		expect(openWith(film('DOVIWithHDR10', {capabilities: {dolbyVision: false}}))).toMatchObject({reader: 'system', hdr10: true});
+
+		// The next stream nobody chose for opens without it
+		chooseHostReader(video, film('DOVI'));
+		openStream(video);
+		expect(openStream(video).payload).not.toHaveProperty('dolbyVision');
+	});
+
+	test('keeps the mode the host put the display in until the stream closes', async () => {
+		const video = getSharedVideoElement();
+		const {session} = openStream(video).payload;
+		expect(getHostDisplay()).toBeNull();
+
+		playerEvent(session, 'display', {ok: true, mode: '3840x2160 at 60 Hz, 30 bits per pixel', hdr: 'dolbyvision'});
+		expect(getHostDisplay()).toMatchObject({ok: true, hdr: 'dolbyvision'});
+		playerEvent(session + 100, 'display', {ok: true, hdr: 'hdr10'});
+		expect(getHostDisplay()).toMatchObject({hdr: 'dolbyvision'});
+		// A profile 8 film the display turned down plays on, in HDR10
+		playerEvent(session, 'display', {ok: true, hdr: 'hdr10'});
+		expect(getHostDisplay()).toMatchObject({ok: true, hdr: 'hdr10'});
+
+		const next = openStream(video).payload.session;
+		expect(getHostDisplay()).toBeNull();
+		playerEvent(next, 'display', {ok: true, hdr: 'dolbyvision'});
+		window.localStorage.setItem(SETTINGS_KEY, JSON.stringify({xboxNativePlayer: false}));
+		expect(getHostDisplay()).toBeNull();
+		window.localStorage.removeItem(SETTINGS_KEY);
+		expect(getHostDisplay()).toMatchObject({hdr: 'dolbyvision'});
+
+		const done = cleanupVideoElement(video);
+		expect(getHostDisplay()).toBeNull();
+		reply(lastOf('PLAYER_CLOSE').id, {ok: true});
+		await done;
 	});
 
 	test('opens the stream through the host with the resume point taken off the address', () => {

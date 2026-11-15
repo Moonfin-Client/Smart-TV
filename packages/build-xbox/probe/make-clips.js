@@ -11,6 +11,11 @@
 //   node make-clips.js [--force] [--only <text>]
 //
 // Needs ffmpeg on the PATH, or its path in FFMPEG.
+//
+// ffmpeg cant make Dolby Vision, so real Dolby Vision clips are put in probe/media by
+// hand under the names in DOLBY_VISION. They are packaged as they are, never encoded
+// again, and probe.js reads the profile from the name. They stay on the machine that
+// builds, so never commit them or send them to testers.
 const {spawnSync} = require('child_process');
 const fs = require('fs');
 const path = require('path');
@@ -153,6 +158,8 @@ const CLIPS = [
 	{name: 't-hls-aac71', codec: 'h264', size: '720p', fps: 30, audio: 'aac71', container: 'hls', segments: 'fmp4', channels: '7.1'}
 ];
 
+const DOLBY_VISION = ['dv-p5.mp4', 'dv-p5.mkv', 'dv-p8.mp4', 'dv-p7.mkv'];
+
 // A stream is a folder of its playlist and segments
 const outputOf = (clip) => (clip.container === 'hls' ? path.join(MEDIA_DIR, clip.name, 'index.m3u8') : path.join(MEDIA_DIR, clip.name));
 
@@ -219,6 +226,9 @@ for (const clip of wanted) {
 	made += 1;
 	console.log(`${Math.round(sizeOf(target) / 1024)} KB`);
 }
+
+const dolbyVision = DOLBY_VISION.filter((name) => fs.existsSync(path.join(MEDIA_DIR, name)));
+console.log(`\n Dolby Vision clips put here by hand: ${dolbyVision.join(', ') || `none, the Dolby Vision test needs one of ${DOLBY_VISION.join(', ')}`}`);
 
 const total = fs.readdirSync(MEDIA_DIR).reduce((sum, name) => sum + sizeOf(path.join(MEDIA_DIR, name)), 0);
 console.log(`\n ${made} made, ${kept} already there, ${failed.length} failed. ${fs.readdirSync(MEDIA_DIR).length} clips, ${(total / 1048576).toFixed(1)} MB in ${MEDIA_DIR}`);
