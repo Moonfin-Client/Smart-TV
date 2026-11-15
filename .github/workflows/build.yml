@@ -27,8 +27,6 @@ jobs:
   build-webos:
     name: Build webOS
     runs-on: ubuntu-26.04
-    outputs:
-      result: ${{ steps.build.outcome }}
     steps:
       - uses: actions/checkout@v5
 
@@ -58,8 +56,6 @@ jobs:
   build-tizen:
     name: Build Tizen
     runs-on: ubuntu-26.04
-    outputs:
-      result: ${{ steps.build.outcome }}
     steps:
       - uses: actions/checkout@v5
 
@@ -88,8 +84,6 @@ jobs:
     name: Build Vega
     # Deadsnakes doesn't build Python 3.8 for the amd64v3 packages the 26.04 runners install from.
     runs-on: ubuntu-24.04
-    outputs:
-      result: ${{ steps.build.outcome }}
     steps:
       - uses: actions/checkout@v5
 
@@ -137,8 +131,6 @@ jobs:
   build-xbox:
     name: Build Xbox
     runs-on: windows-latest
-    outputs:
-      result: ${{ steps.build.outcome }}
     steps:
       - uses: actions/checkout@v5
 
@@ -195,16 +187,18 @@ jobs:
     needs: [build-webos, build-tizen, build-vega, build-xbox]
     runs-on: ubuntu-26.04
     steps:
+      # The job's result, not its build step's, so a check after the build that
+      # fails (the Vega shell's) doesn't show as a passing platform.
       - name: Write outcomes.json
         run: |
           cat > outcomes.json <<EOF
           {
             "pr_number": ${{ github.event.pull_request.number }},
             "sha": "${{ github.event.pull_request.head.sha }}",
-            "webos": "${{ needs.build-webos.outputs.result }}",
-            "tizen": "${{ needs.build-tizen.outputs.result }}",
-            "vega": "${{ needs.build-vega.outputs.result }}",
-            "xbox": "${{ needs.build-xbox.outputs.result }}"
+            "webos": "${{ needs.build-webos.result }}",
+            "tizen": "${{ needs.build-tizen.result }}",
+            "vega": "${{ needs.build-vega.result }}",
+            "xbox": "${{ needs.build-xbox.result }}"
           }
           EOF
 

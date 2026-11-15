@@ -6,7 +6,8 @@ on:
   pull_request_target:
     types: [opened, edited]
   issue_comment:
-    types: [created, edited]
+    # deleted too, so removing the only screenshot puts the label back.
+    types: [created, edited, deleted]
 
 permissions:
   issues: write
