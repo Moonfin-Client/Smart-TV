@@ -38,21 +38,37 @@ export const sortNamedItems = (items, sortBy, sortOrder, includeTypes) => {
 	});
 };
 
-// A studio list can run to thousands, so the row reads at most two pages of it in name order:
-// the end of the list for Z to A, a page from anywhere for Random, and the first page for the
-// rest. fetchPage(startIndex, limit, sortBy, sortOrder) reads one page.
-export const readStudioRow = async (fetchPage, {limit, sortBy, sortOrder, serverSorts}) => {
+// Ranking by count or date needs the whole list, and counts change slowly while Home reloads on
+// every return, so the list is kept for a day per server and user.
+const STUDIO_LIST_TTL = 24 * 60 * 60 * 1000;
+let studioList = null;
+
+const readAllStudios = async (fetchPage, cacheKey) => {
+	if (studioList?.key === cacheKey && Date.now() - studioList.at < STUDIO_LIST_TTL) return studioList.page;
+	const page = await fetchPage(0, null, 'SortName', 'Ascending');
+	studioList = {key: cacheKey, at: Date.now(), page};
+	return page;
+};
+
+// Name and Random read at most two pages in name order: the end of the list for Z to A and a page
+// from anywhere for Random. fetchPage(startIndex, limit, sortBy, sortOrder) reads one page, or
+// the whole list when limit is null.
+export const readStudioRow = async (fetchPage, {limit, sortBy, sortOrder, serverSorts, cacheKey}) => {
 	const key = (sortBy || '').toLowerCase();
 	if (serverSorts && key !== 'itemcount') return fetchPage(0, limit, sortBy, sortOrder);
+	if (key === 'datecreated' || key === 'itemcount') {
+		const all = await readAllStudios(fetchPage, cacheKey);
+		return {...all, Items: sortNamedItems(all?.Items || [], key, sortOrder).slice(0, limit)};
+	}
 	const isName = NAME_SORTS.includes(key);
 	const descending = sortOrder === 'Descending';
 	// A sort the row no longer offers keeps the name order it always got.
-	if (!(isName && descending) && !['datecreated', 'itemcount', 'random'].includes(key)) {
+	if (!(isName && descending) && key !== 'random') {
 		return fetchPage(0, limit, 'SortName', 'Ascending');
 	}
 	let page = await fetchPage(0, STUDIO_PAGE_SIZE, 'SortName', 'Ascending');
 	const lastStart = (page?.TotalRecordCount || 0) - STUDIO_PAGE_SIZE;
-	if (lastStart > 0 && (isName || key === 'random')) {
+	if (lastStart > 0) {
 		const start = isName ? lastStart : Math.floor(Math.random() * (lastStart + 1));
 		page = await fetchPage(start, STUDIO_PAGE_SIZE, 'SortName', 'Ascending');
 	}

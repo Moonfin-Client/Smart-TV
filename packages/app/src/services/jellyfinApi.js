@@ -631,8 +631,8 @@ export const api = {
 	// Jellyfin's /Studios ignores SortBy and SortOrder and always lists by name. Emby sorts.
 	// Before Jellyfin 12 a studio's counts only come back with IncludeItemTypes.
 	getStudios: (limit = 20, sortBy = 'SortName', sortOrder = 'Ascending') => readStudioRow(
-		(startIndex, count, by, order) => request(`/Studios?UserId=${currentUser}&Recursive=true&SortBy=${encodeURIComponent(by)}&SortOrder=${encodeURIComponent(order)}&StartIndex=${startIndex}&Limit=${count}&IncludeItemTypes=Movie,Series&Fields=ItemCounts,PrimaryImageAspectRatio,DateCreated`),
-		{limit, sortBy, sortOrder, serverSorts: serverType === 'emby'}
+		(startIndex, count, by, order) => request(`/Studios?UserId=${currentUser}&Recursive=true&SortBy=${encodeURIComponent(by)}&SortOrder=${encodeURIComponent(order)}&StartIndex=${startIndex}${count ? `&Limit=${count}` : ''}&IncludeItemTypes=Movie,Series&Fields=ItemCounts,PrimaryImageAspectRatio,DateCreated`),
+		{limit, sortBy, sortOrder, serverSorts: serverType === 'emby', cacheKey: `${currentServer}|${currentUser}`}
 	),
 
 	getResumeItems: (limit = 12) =>
