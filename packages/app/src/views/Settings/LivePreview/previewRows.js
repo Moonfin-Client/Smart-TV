@@ -48,7 +48,7 @@ export const SEASONAL_KEYS = ['seasonalTheme', 'seasonalDensity', 'seasonalFollo
 // The library settings. The music and book styles draw their own libraries and the rest the video library.
 export const LIBRARY_KEYS = [
 	'libraryStyle', 'musicLibraryStyle', 'bookLibraryStyle', 'groupItemsIntoCollections', 'showMediaDetailsOnLibraryPage',
-	'libraryCardTitles', 'hideBackdropsInLibraries', 'useDetailedSubHeadings'
+	'libraryCardTitles', 'hideBackdropsInLibraries', 'useDetailedSubHeadings', 'hideLibraryWatchProgress', 'hideLibraryUnwatchedCount'
 ];
 
 // The Row Options settings for the rows they sort, which draw Home with the D-pad on the first

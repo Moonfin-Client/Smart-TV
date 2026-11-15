@@ -1930,6 +1930,8 @@ const Library = ({library, genreFilter, studioFilter, onSelectItem, onViewPhoto,
 									onNavigateUp={handleGroupNavigateUp}
 									onNavigateDown={handleGroupNavigateDown}
 									posterLabels
+									hideWatchProgress={settings.hideLibraryWatchProgress === true}
+									hideUnwatchedCount={settings.hideLibraryUnwatchedCount === true}
 								/>
 							))}
 						</div>

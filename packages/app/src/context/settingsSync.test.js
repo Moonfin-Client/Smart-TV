@@ -335,9 +335,11 @@ describe('SYNCABLE_KEYS', () => {
 		expect(SYNCABLE_KEYS).toContain('seasonalDensity');
 	});
 
-	test('includes the Home poster toggles', () => {
+	test('includes the Home and Library poster toggles', () => {
 		expect(SYNCABLE_KEYS).toContain('hideHomeWatchProgress');
 		expect(SYNCABLE_KEYS).toContain('hideHomeUnwatchedCount');
+		expect(SYNCABLE_KEYS).toContain('hideLibraryWatchProgress');
+		expect(SYNCABLE_KEYS).toContain('hideLibraryUnwatchedCount');
 	});
 
 	test('includes the media preview switches', () => {
