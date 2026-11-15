@@ -1946,5 +1946,20 @@
     "Large artwork led by a big title logo.": "Gran obra de arte encabezada por un gran logotipo de título.",
     "Large artwork with the title, details and overview laid over it.": "Obra de arte grande con el título, los detalles y la descripción general sobre ella.",
     "Last seen {time}": "Visto por última vez {time}",
-    "Last watched {title}": "Visto por última vez {title}"
+    "Last watched {title}": "Visto por última vez {title}",
+    "May fall back to PCM, DD+, or AC3. Requires eARC + receiver. Not for TV speakers.": "Puede recurrir a PCM, DD+ o AC3. Requiere receptor eARC+. No apto para altavoces de TV.",
+    "Modern Cards Transition Speed": "Velocidad de transición de las tarjetas modernas",
+    "Moonbase": "Moonbase",
+    "Moonbase couldn't be installed. {error}": "No se pudo instalar Moonbase. {error}",
+    "Moonbase is free and runs on your server. With it, Moonfin gets:": "Moonbase es gratuito y se ejecuta en tu servidor. Con él, Moonfin obtiene:",
+    "Moonbase is installed. It turns on when the server restarts, which stops anything playing right now.": "Moonbase está instalado. Se activa cuando se reinicia el servidor, lo que detiene cualquier reproducción en este momento.",
+    "Moonbase plugin sync and customization profiles": "Perfiles de sincronización y personalización del plugin Moonbase",
+    "More episodes": "Mas episodios",
+    "Most Albums": "La mayoría de los álbumes",
+    "Most Played": "Más reproducido",
+    "Most Titles": "La mayoría de los títulos",
+    "Movie details": "Detalles de la película",
+    "Multi-Server Libraries keeps this off Home": "Las bibliotecas multiservidor mantienen esto fuera de la página de inicio",
+    "Music Artists, Music Albums and Music Playlists are all turned off. To show one, go to Rows, open {group} under {disabled}, and turn it on.": "Los artistas, álbumes y listas de reproducción están desactivados. Para mostrar alguno, ve a Filas, abre {group} en {disabled} y actívalo.",
+    "Music Library Style": "Estilo de Biblioteca Musical"
 }
