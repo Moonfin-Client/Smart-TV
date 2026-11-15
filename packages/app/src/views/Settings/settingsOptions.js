@@ -346,13 +346,6 @@ export const getHomeRowSortOptions = () => [
 	{ value: 'CommunityRating', label: $L('Community Rating') }
 ];
 
-// The Genres setting also orders the titles in picked genre rows, so it keeps every sort and adds
-// Item Count for the list of genres.
-export const getGenreSortOptions = () => [
-	...getHomeRowSortOptions(),
-	{ value: 'ItemCount', label: $L('Item Count') }
-];
-
 // Playlist and collection rows can also follow the curated arrangement
 export const getPlaylistCollectionSortOptions = () => [
 	{ value: 'PlaylistOrder', label: $L('Playlist Order') },
@@ -363,6 +356,13 @@ export const getGenresRowItemFilterOptions = () => [
 	{ value: 'all', label: $L('Movies & TV Shows') },
 	{ value: 'Movie', label: $L('Movies') },
 	{ value: 'Series', label: $L('TV Shows') }
+];
+
+// The Genres setting also orders the titles in picked genre rows, so it keeps every sort and adds
+// Item Count for the list of genres.
+export const getGenreSortOptions = () => [
+	...getHomeRowSortOptions(),
+	{ value: 'ItemCount', label: $L('Item Count') }
 ];
 
 export const getRecommendationSystemSourceOptions = () => [
