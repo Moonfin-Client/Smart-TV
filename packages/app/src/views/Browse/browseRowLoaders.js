@@ -16,7 +16,7 @@ import {collapseLatestTvItems} from '../../utils/latestMediaRowNormalizer';
 import {isPickedRow, isPickedRowShown, isSameServer} from '../../utils/pickedRows';
 import mapBounded from '../../utils/mapBounded';
 import {sortNamedItems} from '../../utils/studioGenreSorting';
-import {getStudioGenreSortOptions} from '../Settings/settingsOptions';
+import {getGenreSortOptions} from '../Settings/settingsOptions';
 import {studioLogoIndex} from '../Details/studioLogos';
 import {FULL_ROW_READ, pageableRow, readFoldedHead} from './rowPaging';
 import * as gamesApi from '../../services/gamesApi';
@@ -39,8 +39,8 @@ export const buildLoaderContext = ({api, serverUrl, settings, homeRowsConfig, el
 	// itself.
 	const favoriteSortBy = apiSortBy(settings.favoritesRowSortBy || 'SortName');
 	const collectionsSortBy = apiSortBy(settings.collectionsRowSortBy || 'SortName');
-	// A sort the Genres row no longer offers reads as Name, as its setting shows.
-	const genresSortBy = getStudioGenreSortOptions().find((o) => o.value.toLowerCase() === (settings.genresRowSortBy || '').toLowerCase())?.value || 'SortName';
+	// A sort the Genres setting doesn't offer reads as Name, as its setting shows.
+	const genresSortBy = getGenreSortOptions().find((o) => o.value.toLowerCase() === (settings.genresRowSortBy || '').toLowerCase())?.value || 'SortName';
 	const playlistsSortBy = apiSortBy(settings.playlistsRowSortBy || 'SortName');
 	const audioRowsSortBy = apiSortBy(settings.audioRowsSortBy || 'SortName');
 
@@ -392,7 +392,7 @@ export const loadGenres = async (ctx) => {
 			let enrichedItems = genresResult.Items;
 			if (byCount) {
 				enrichedItems = sortNamedItems(await withTitleCounts(api, enrichedItems, genresIncludeTypes), 'ItemCount', genresSortOrder, genresIncludeTypes);
-			} else if (genresSortBy !== 'DateCreated') {
+			} else if (genresSortBy === 'SortName' || genresSortBy === 'Random') {
 				enrichedItems = sortNamedItems(enrichedItems, genresSortBy, genresSortOrder);
 			}
 
@@ -601,7 +601,8 @@ const loadPickedRowItems = async (ctx, api, row, limit) => {
 			GenreIds: row.itemId,
 			IncludeItemTypes: ctx.genresIncludeTypes,
 			ExcludeItemTypes: 'Episode',
-			SortBy: ctx.genresSortBy,
+			// A genre's titles have no count of their own, so Item Count lists them by name.
+			SortBy: ctx.genresSortBy === 'ItemCount' ? 'SortName' : ctx.genresSortBy,
 			SortOrder: ctx.genresSortOrder,
 			Recursive: true,
 			Limit: limit,

@@ -23,7 +23,7 @@ import {
 	getFeaturedBarStyleOptions,
 	getFeaturedItemCountOptions,
 	getGenresRowItemFilterOptions,
-	getHomeRowSortOptions, getPlaylistCollectionSortOptions, getStudioGenreSortOptions,
+	getHomeRowSortOptions, getPlaylistCollectionSortOptions, getStudioSortOptions, getGenreSortOptions,
 	getHomeBackdropStyleOptions,
 	getHomeRowsStyleOptions,
 	getBookLibraryStyleOptions,
@@ -585,7 +585,7 @@ export const SETTINGS_SCHEMA = [
 					{kind: KIND.OPTION, key: 'favoritesRowSortOrder', label: () => $L('Sort Order'), desc: () => $L('Sort Favorites rows in ascending or descending order.'), options: getSortOrderOptions, fallback: () => $L('Auto'), icon: 'swap_vert', when: (ctx) => ctx.settings.displayFavoritesRows},
 					{kind: KIND.SECTION, id: 'genres', label: () => $L('GENRES')},
 					{kind: KIND.TOGGLE, key: 'displayGenresRows', label: () => $L('Display Genres Rows'), desc: () => $L('Show Genres rows in Home Sections.'), icon: 'theater_comedy'},
-					{kind: KIND.OPTION, key: 'genresRowSortBy', label: () => $L('Genres Row Sorting'), desc: () => $L('Sort Genres rows by name, date added, item count or at random.'), options: getStudioGenreSortOptions, fallback: () => $L('Name'), icon: 'sort', when: (ctx) => ctx.settings.displayGenresRows},
+					{kind: KIND.OPTION, key: 'genresRowSortBy', label: () => $L('Genres Row Sorting'), desc: () => $L('Sort Genres rows by date added, release date, alphabetically, and more.'), options: getGenreSortOptions, fallback: () => $L('Name'), icon: 'sort', when: (ctx) => ctx.settings.displayGenresRows},
 					{kind: KIND.OPTION, key: 'genresRowSortOrder', label: () => $L('Sort Order'), desc: () => $L('Sort Genres rows in ascending or descending order.'), options: getSortOrderOptions, fallback: () => $L('Auto'), icon: 'swap_vert', when: (ctx) => ctx.settings.displayGenresRows},
 					{kind: KIND.OPTION, key: 'genresRowItemFilter', label: () => $L('Genres Row Items'), desc: () => $L('Show Movies, Series, or both in Genres rows.'), options: getGenresRowItemFilterOptions, fallback: () => $L('Movies & TV Shows'), icon: 'filter_list', when: (ctx) => ctx.settings.displayGenresRows},
 					{kind: KIND.SECTION, id: 'playlists', label: () => $L('PLAYLISTS')},
@@ -606,7 +606,7 @@ export const SETTINGS_SCHEMA = [
 					{kind: KIND.TOGGLE, key: 'sinceYouWatchedIncludeWatched', label: () => $L('Include Previously Watched'), desc: () => $L('Include watched items in recommendations'), icon: 'history', when: (ctx) => whenSinceYouWatched(ctx) && ctx.settings.sinceYouWatchedSource !== 'online'},
 					{kind: KIND.SECTION, id: 'studios', label: () => $L('STUDIOS')},
 					{kind: KIND.TOGGLE, key: 'displayStudiosRows', label: () => $L('Display Studio Row'), desc: () => $L('Show Studio row in Home Sections.'), icon: 'business'},
-					{kind: KIND.OPTION, key: 'studiosRowSortBy', label: () => $L('Studio Row Sorting'), desc: () => $L('Studio row by name, recently added, and more.'), options: getStudioGenreSortOptions, fallback: () => $L('Name'), icon: 'sort_by_alpha', when: (ctx) => ctx.settings.displayStudiosRows},
+					{kind: KIND.OPTION, key: 'studiosRowSortBy', label: () => $L('Studio Row Sorting'), desc: () => $L('Studio row by name, recently added, and more.'), options: getStudioSortOptions, fallback: () => $L('Name'), icon: 'sort_by_alpha', when: (ctx) => ctx.settings.displayStudiosRows},
 					{kind: KIND.OPTION, key: 'studiosRowSortOrder', label: () => $L('Sort Order'), desc: () => $L('Choose Ascending or Descending sort order.'), options: getSortOrderOptions, fallback: () => $L('Auto'), icon: 'swap_vert', when: (ctx) => ctx.settings.displayStudiosRows}
 				]
 			},

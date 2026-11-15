@@ -346,12 +346,19 @@ export const getHomeRowSortOptions = () => [
 	{ value: 'CommunityRating', label: $L('Community Rating') }
 ];
 
-// Studios and genres carry no runtime, ratings or release date, so only these change their order.
-export const getStudioGenreSortOptions = () => [
+// Studios carry no runtime, ratings or release date, so only these change their order.
+export const getStudioSortOptions = () => [
 	{ value: 'SortName', label: $L('Name') },
 	{ value: 'DateCreated', label: $L('Date Added') },
 	{ value: 'ItemCount', label: $L('Item Count') },
 	{ value: 'Random', label: $L('Random') }
+];
+
+// The Genres setting also orders the titles in picked genre rows, so it keeps every sort and adds
+// Item Count for the list of genres.
+export const getGenreSortOptions = () => [
+	...getHomeRowSortOptions(),
+	{ value: 'ItemCount', label: $L('Item Count') }
 ];
 
 // Playlist and collection rows can also follow the curated arrangement
