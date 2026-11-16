@@ -10,6 +10,7 @@
 import {SILO_TRACKS_KEY, siloAddedSubtitleStream, siloNextStreamIndex, siloStreamIndexForTrack, siloTrackForStreamIndex} from './siloMediaSources';
 import {TICKS_PER_SECOND} from './siloMapper';
 import {resolveSiloUrl} from '../utils/siloUrls';
+import {isClientUpgradeRequired} from './siloSession';
 
 const START_RETRY_BUDGET_MS = 60000;
 const REPLAN_RETRY_BUDGET_MS = 30000;
@@ -535,7 +536,8 @@ export const SILO_PLAYBACK_UNAVAILABLE = "Playback isn't available on this Silo 
 export const SILO_PLAYBACK_UPGRADE_REQUIRED = 'This Silo server needs a newer version of Moonfin to play.';
 export const SILO_PLAYBACK_ENDED_ON_SERVER = 'Playback was ended on the Silo server.';
 
-const endedOnServer = (itemId) => Object.assign(new Error(SILO_PLAYBACK_ENDED_ON_SERVER), {siloRefused: true, reason: 'playback_session_ended', itemId});
+// What a request for a session an admin ended rejects with, naming the item.
+export const siloEndedOnServer = (itemId) => Object.assign(new Error(SILO_PLAYBACK_ENDED_ON_SERVER), {siloRefused: true, reason: 'playback_session_ended', itemId});
 const upgradeRequired = () => Object.assign(new Error(SILO_PLAYBACK_UPGRADE_REQUIRED), {siloRefused: true, reason: 'client_upgrade_required'});
 
 /**
@@ -665,7 +667,7 @@ export const createSiloPlayback = ({call, getBaseUrl, getUserId, getAccessToken,
 		try {
 			decision = await send(sent);
 		} catch (err) {
-			if (err.status === 426 || (err.status === 410 && err.code === 'client_upgrade_required')) throw upgradeRequired();
+			if (isClientUpgradeRequired(err)) throw upgradeRequired();
 			if (!installationChanged(err)) throw err;
 			// The server was reset or replaced since its capabilities were read: start again under the new one.
 			server = await playable(true);
@@ -775,10 +777,10 @@ export const createSiloPlayback = ({call, getBaseUrl, getUserId, getAccessToken,
 		} catch (err) {
 			if (endedByAdmin(err)) {
 				session.ended = true;
-				throw endedOnServer(session.itemId);
+				throw siloEndedOnServer(session.itemId);
 			}
 			if (sessionGone(err) || installationChanged(err)) session.ended = true;
-			if (err.status === 410 && err.code === 'client_upgrade_required') throw upgradeRequired();
+			if (isClientUpgradeRequired(err)) throw upgradeRequired();
 			throw err;
 		}
 		const next = decision?.playback_plan;
@@ -797,7 +799,7 @@ export const createSiloPlayback = ({call, getBaseUrl, getUserId, getAccessToken,
 	const ends = (err, session) => {
 		if (endedByAdmin(err)) {
 			session.ended = true;
-			throw endedOnServer(session.itemId);
+			throw siloEndedOnServer(session.itemId);
 		}
 		if (sessionGone(err) || installationChanged(err)) {
 			session.ended = true;

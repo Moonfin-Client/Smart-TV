@@ -132,6 +132,30 @@ describe('an admin ending a Silo session', () => {
 		expect(heard).toEqual(['movie-1']);
 	});
 
+	test('a stop that failed doesn\'t fail the start after it', async () => {
+		await playback.getPlaybackInfo('movie-1');
+		api.reportPlaybackStopped.mockRejectedValueOnce(Object.assign(new Error('Conflict'), {status: 409, code: 'installation_changed'}));
+		playback.reportStop(600000000);
+		api.getPlaybackInfo.mockClear();
+		await playback.getPlaybackInfo('movie-1');
+		expect(api.getPlaybackInfo).toHaveBeenCalledTimes(1);
+	});
+
+	test('an end heard after the player closed holds nothing', async () => {
+		await playback.getPlaybackInfo('movie-1');
+		let answerStop;
+		api.reportPlaybackStopped.mockReturnValueOnce(new Promise((resolve) => {
+			answerStop = () => resolve({endedOnServer: true});
+		}));
+		const stop = playback.reportStop(600000000);
+		playback.releaseEndedOnServer();
+		answerStop();
+		await stop;
+		api.getPlaybackInfo.mockClear();
+		await playback.getPlaybackInfo('movie-1');
+		expect(api.getPlaybackInfo).toHaveBeenCalledTimes(1);
+	});
+
 	test('a hold lasts a minute at most, so a close that never finishes holds nothing for good', async () => {
 		const now = jest.spyOn(Date, 'now');
 		try {

@@ -16,7 +16,7 @@ import {withPlexToken} from '../utils/plexUrls';
 import {parseSubtitleText} from '../utils/subtitleText';
 import {corsFreeFetch} from './secureFetch';
 import {isTizen} from '../platform';
-import {SILO_PLAYBACK_ENDED_ON_SERVER} from './siloPlayback';
+import {siloEndedOnServer} from './siloPlayback';
 
 export const PlayMethod = {
 	DirectPlay: 'DirectPlay',
@@ -74,14 +74,14 @@ let healthMonitor = null;
 // starts it again in a new session. Held per item, so a close that never finishes holds nothing else back.
 const ENDED_HOLD_MS = 60000;
 const endedOnServer = new Map();
+// Bumped when the player closes, so a stop or replan sent before then that hears the end afterwards holds nothing.
+let endedHoldGeneration = 0;
 const endedListeners = new Set();
 // A stop on its way can find the admin's end before anything else does, so a start of the same item waits for it.
 const stopsOnTheirWay = new Map();
 const STOP_WAIT_MS = 5000;
 
 export const isEndedOnServer = (err) => err?.siloRefused === true && err.reason === 'playback_session_ended';
-
-const endedOnServerRefusal = (itemId) => Object.assign(new Error(SILO_PLAYBACK_ENDED_ON_SERVER), {siloRefused: true, reason: 'playback_session_ended', itemId});
 
 const heldEndedOnServer = (itemId) => {
 	const at = endedOnServer.get(itemId);
@@ -92,6 +92,25 @@ const heldEndedOnServer = (itemId) => {
 
 const tellEndedOnServer = (itemId) => endedListeners.forEach((listener) => listener(itemId));
 
+const holdEndedOnServer = (itemId, generation) => {
+	if (generation !== endedHoldGeneration) return false;
+	endedOnServer.set(itemId, Date.now());
+	return true;
+};
+
+// Waits for a stop of the item on its way, at most a few seconds; how it went is the stop's own business.
+const stopOnItsWay = (itemId) => {
+	const stopping = stopsOnTheirWay.get(itemId);
+	if (!stopping) return null;
+	let timer;
+	return Promise.race([
+		stopping.catch(() => null),
+		new Promise((resolve) => {
+			timer = setTimeout(resolve, STOP_WAIT_MS);
+		})
+	]).finally(() => clearTimeout(timer));
+};
+
 // `listener(itemId)` hears each time the end of an item's session reaches the app (the player acts on the first).
 // Returns the unsubscribe.
 export const onEndedOnServer = (listener) => {
@@ -100,7 +119,10 @@ export const onEndedOnServer = (listener) => {
 };
 
 // The player closed: what it held can be played again.
-export const releaseEndedOnServer = () => endedOnServer.clear();
+export const releaseEndedOnServer = () => {
+	endedHoldGeneration++;
+	endedOnServer.clear();
+};
 
 const apiForSession = (session) => (session.serverCredentials
 	? jellyfinApi.createApiForServer(
@@ -1037,11 +1059,11 @@ const siloPlaybackResult = async ({
 	itemId, options, api, creds, deviceProfile, maxBitrate, capabilities, storedSettings, allowDirectPlay, allowDirectStream,
 	startPositionTicks, subtitleStreamIndex, requestedSubtitleStreamIndex
 }) => {
-	const stopping = stopsOnTheirWay.get(itemId);
-	if (stopping) await Promise.race([stopping, new Promise((resolve) => setTimeout(resolve, STOP_WAIT_MS))]);
+	const generation = endedHoldGeneration;
+	await stopOnItsWay(itemId);
 	if (heldEndedOnServer(itemId)) {
 		tellEndedOnServer(itemId);
-		throw endedOnServerRefusal(itemId);
+		throw siloEndedOnServer(itemId);
 	}
 	let playbackInfo;
 	try {
@@ -1056,10 +1078,7 @@ const siloPlaybackResult = async ({
 			EnableDirectPlay: allowDirectPlay && options.enableDirectPlay !== false
 		}, options.item);
 	} catch (err) {
-		if (isEndedOnServer(err)) {
-			endedOnServer.set(itemId, Date.now());
-			tellEndedOnServer(itemId);
-		}
+		if (isEndedOnServer(err) && holdEndedOnServer(itemId, generation)) tellEndedOnServer(itemId);
 		throw err;
 	}
 	const mediaSource = playbackInfo.MediaSources[0];
@@ -1540,6 +1559,7 @@ export const reportStart = async (positionTicks = 0) => {
 export const reportProgress = async (positionTicks, options = {}) => {
 	if (!currentSession) return;
 	const reporting = currentSession.playSessionId;
+	const generation = endedHoldGeneration;
 
 	try {
 		const api = apiForSession(currentSession);
@@ -1567,7 +1587,7 @@ export const reportProgress = async (positionTicks, options = {}) => {
 		// Only the session still playing closes the player: a report the viewer retired (a stop, another item,
 		// backgrounding) closes nothing. A replan keeps Silo's session id, so a report sent before one still counts.
 		if (!isEndedOnServer(e) || currentSession?.playSessionId !== reporting || backgroundStopFired) return; // eslint-disable-line no-use-before-define
-		endedOnServer.set(e.itemId, Date.now());
+		if (!holdEndedOnServer(e.itemId, generation)) return;
 		stopProgressReporting(); // eslint-disable-line no-use-before-define
 		tellEndedOnServer(e.itemId);
 	}
@@ -1678,20 +1698,22 @@ export const reportStop = async (positionTicks) => {
 
 	// A beacon already sent this exact stop.
 	if (stopKey(session, positionTicks) !== session.lastStopBeaconKey) {
-		const stopping = apiForSession(session).reportPlaybackStopped({
-			ItemId: session.itemId,
-			PlaySessionId: session.playSessionId,
-			MediaSourceId: session.mediaSourceId,
-			PositionTicks: positionTicks
-		});
-		stopsOnTheirWay.set(session.itemId, stopping);
+		const generation = endedHoldGeneration;
+		let stopping = null;
 		try {
+			stopping = apiForSession(session).reportPlaybackStopped({
+				ItemId: session.itemId,
+				PlaySessionId: session.playSessionId,
+				MediaSourceId: session.mediaSourceId,
+				PositionTicks: positionTicks
+			});
+			stopsOnTheirWay.set(session.itemId, stopping);
 			// Silo found an admin had already ended it: a fallback or reload starting the item again is turned away.
-			if ((await stopping)?.endedOnServer) endedOnServer.set(session.itemId, Date.now());
+			if ((await stopping)?.endedOnServer) holdEndedOnServer(session.itemId, generation);
 		} catch (e) {
 			console.warn('[playback] Failed to report stop:', e.message);
 		} finally {
-			if (stopsOnTheirWay.get(session.itemId) === stopping) stopsOnTheirWay.delete(session.itemId);
+			if (stopping && stopsOnTheirWay.get(session.itemId) === stopping) stopsOnTheirWay.delete(session.itemId);
 		}
 	}
 

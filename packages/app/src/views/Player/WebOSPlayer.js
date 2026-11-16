@@ -168,7 +168,7 @@ const ROOM_SEEK_SETTLE_TIMEOUT_MS = 12000;
 // another load of seconds.
 const ROOM_READY_TOLERANCE_MS = 900;
 
-const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialSubtitleIndex, initialStartPositionTicks, initialQuality, forceTranscode, onEnded, onBack, onEndedOnServer, onGuide, onRecordings, onPlayNext, onSelectPerson, audioPlaylist, videoQueue, liveTvChannels, onPausedChange, background, onBackground, slideshow}) => {
+const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialSubtitleIndex, initialStartPositionTicks, initialQuality, forceTranscode, onEnded, onBack, onEndedOnServer, askedItemId, onGuide, onRecordings, onPlayNext, onSelectPerson, audioPlaylist, videoQueue, liveTvChannels, onPausedChange, background, onBackground, slideshow}) => {
 	const {settings, updateSetting} = useSettings();
 	const {isInGroup, lastCommand} = useSyncPlay();
 	const syncPlayCommandRef = useRef(false);
@@ -539,7 +539,8 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 	// handleBack is defined further down, so the timer reaches it through a ref
 	// rather than forcing the whole player to be reordered.
 	const handleBackRef = useRef(null);
-	const endedOnServerRef = useRef(null);
+	// Set once Back or an ended session closes the player, so only one of them leaves it.
+	const closingRef = useRef(false);
 	const {sleepMinutes, remainingSeconds: sleepRemainingSeconds, startSleepTimer} = useSleepTimer({
 		onExpire: () => handleBackRef.current?.(),
 		ticking: activeModal === 'sleep'
@@ -1043,6 +1044,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 				forceHlsJsRef.current = false;
 				prevItemIdRef.current = item.Id;
 			}
+			closingRef.current = false;
 			setIsLoading(true);
 			// A video taking over from music opens on its own screen, not the music player's.
 			setIsAudioMode((wasAudio) => wasAudio && (item?.MediaType === 'Audio' || item?.Type === 'Audio'));
@@ -1361,10 +1363,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 				console.log(`[Player] Loaded ${displayTitle} via ${result.playMethod}${isLiveTV ? ' [Live TV]' : ''}`);
 			} catch (err) {
 				// Silo's admin ended this title's session: the player closes with its own message, not an error.
-				if (playback.isEndedOnServer(err)) {
-					endedOnServerRef.current?.(item.Id);
-					return;
-				}
+				if (playback.isEndedOnServer(err)) return;
 				console.error('[Player] Failed to load media:', err);
 				// A pre-roll that cant even load gets skipped, not surfaced.
 				const skipTo = isPreroll(item) ? nextInQueue(videoQueueRef.current, item) : null;
@@ -2667,22 +2666,29 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 	}, [cancelNextEpisodeCountdown]);
 
 	const handleBack = useCallback(async () => {
+		closingRef.current = true;
 		await teardownPlayback();
 		onBack?.();
 	}, [teardownPlayback, onBack]);
 
 	// An admin ended the Silo session: playback stops at once and the player closes, saying why. A reconnect under way
 	// gives up first, so it can't try again.
-	const endedOnServer = useEndedOnServer({
+	useEndedOnServer({
 		itemId: item?.Id,
+		askedItemId,
 		stop: () => {
 			reconnect.end();
 			return teardownPlayback();
 		},
-		close: onBack,
+		// A Back pressed while it stopped closes the player already.
+		close: () => {
+			if (closingRef.current) return false;
+			closingRef.current = true;
+			onBack?.();
+			return true;
+		},
 		onEndedOnServer
 	});
-	endedOnServerRef.current = endedOnServer;
 
 	useSkipFailedTrack({error, background, item, hasNextTrack, handleNextTrack, handleBack});
 
@@ -3016,6 +3022,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 				try {
 					await reloadWithSubtitleIndex(-1);
 				} catch (err) {
+					if (playback.isEndedOnServer(err)) return;
 					console.error('[Player] Subtitle reload failed:', err);
 				}
 			}
@@ -3028,6 +3035,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 				try {
 					await reloadWithSubtitleIndex(index);
 				} catch (err) {
+					if (playback.isEndedOnServer(err)) return;
 					console.error('[Player] Subtitle reload failed:', err);
 				}
 			}
@@ -3040,6 +3048,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 						await reloadWithSubtitleIndex(index);
 						burnInSubtitleRef.current = index;
 					} catch (err) {
+						if (playback.isEndedOnServer(err)) return;
 						console.error('[Player] Burn in subtitle reload failed:', err);
 					}
 				}
@@ -3187,7 +3196,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 				if (result.subtitleStreams) setSubtitleStreams(result.subtitleStreams);
 			}
 		} catch (err) {
-			console.error('[Player] Failed to change audio:', err);
+			if (!playback.isEndedOnServer(err)) console.error('[Player] Failed to change audio:', err);
 		}
 	}, [audioStreams]);
 	reloadWithAudioRef.current = reloadWithAudio;
@@ -3220,7 +3229,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 				}
 			}
 		} catch (err) {
-			console.error('[Player] Failed to change audio:', err);
+			if (!playback.isEndedOnServer(err)) console.error('[Player] Failed to change audio:', err);
 		}
 		await reloadWithAudio(index);
 	}, [item, playMethod, closeModal, audioStreams, settings, reloadWithAudio]);

@@ -1,5 +1,5 @@
 import {getPlatform} from '../../platform';
-import {lazy, Suspense, useEffect, useMemo, useRef, useState} from 'react';
+import {lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState} from 'react';
 import $L from '@enact/i18n/$L';
 
 import {isBlocked, isBlockedNow} from '../../services/blockedContentGate';
@@ -24,6 +24,10 @@ const Player = ({item, videoQueue, audioPlaylist, ...rest}) => {
 	// The resume point, tracks and queue change along with the item, so the item on screen keeps
 	// its own props while the next one is checked rather than reloading with the next one's.
 	const shownRef = useRef(null);
+	// The item asked for, which can be ahead of the one on screen while it's checked.
+	const askedRef = useRef(item);
+	askedRef.current = item;
+	const askedItemId = useCallback(() => askedRef.current?.Id, []);
 
 	useEffect(() => {
 		if (!item) return undefined;
@@ -48,7 +52,7 @@ const Player = ({item, videoQueue, audioPlaylist, ...rest}) => {
 	const strainedAudioPlaylist = useMemo(() => strain(audioPlaylist), [audioPlaylist]);
 
 	if (item && item === clearedItem) {
-		shownRef.current = {...rest, item, videoQueue: strainedVideoQueue, audioPlaylist: strainedAudioPlaylist};
+		shownRef.current = {...rest, item, videoQueue: strainedVideoQueue, audioPlaylist: strainedAudioPlaylist, askedItemId};
 	}
 
 	const waiting = (
