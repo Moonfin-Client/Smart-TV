@@ -63,6 +63,41 @@ describe('device profile', () => {
 		expect(tizen.hls.features).toEqual([]);
 	});
 
+	test('a channel cap for one codec stays on that codec, a cap for every codec is the setting', () => {
+		// Tizen's profile: PCM only in stereo everywhere, AAC in stereo only in TS on sets before Tizen 6.
+		const profile = {
+			DirectPlayProfiles: [{Type: 'Video', Container: 'mkv,mp4,ts', VideoCodec: 'hevc', AudioCodec: 'aac,ac3,eac3,pcm_s16le'}],
+			TranscodingProfiles: [{Type: 'Video', Container: 'ts', Protocol: 'hls', VideoCodec: 'hevc', AudioCodec: 'ac3'}],
+			CodecProfiles: [
+				{Type: 'VideoAudio', Container: 'ts,mpegts', Codec: 'aac', Conditions: [{Condition: 'LessThanEqual', Property: 'AudioChannels', Value: '2'}]},
+				{Type: 'VideoAudio', Codec: 'pcm_s16le', Conditions: [{Condition: 'LessThanEqual', Property: 'AudioChannels', Value: '2'}]}
+			]
+		};
+		const ceilings = ['codec_channel_ceilings_v1'];
+		const {deliveries} = siloCapabilitiesFromDeviceProfile(profile, undefined, ceilings);
+		// The original file can be TS, and so can Silo's HLS encodes; the remux can't.
+		for (const name of ['original_http', 'hls']) expect(deliveries[name].max_channels_by_codec).toEqual({aac: 2, pcm_s16le: 2});
+		expect(deliveries.progressive.max_channels_by_codec).toEqual({pcm_s16le: 2});
+		for (const name of ['original_http', 'progressive', 'hls']) expect(deliveries[name].max_channels).toBeUndefined();
+		// The file being played narrows the original's caps to its own container.
+		const mkv = siloCapabilitiesFromDeviceProfile(profile, undefined, ceilings, 'mkv').deliveries;
+		expect(mkv.original_http.max_channels_by_codec).toEqual({pcm_s16le: 2});
+		const ts = siloCapabilitiesFromDeviceProfile(profile, undefined, ceilings, 'mpegts').deliveries;
+		expect(ts.original_http.max_channels_by_codec).toEqual({aac: 2, pcm_s16le: 2});
+
+		const capped = siloCapabilitiesFromDeviceProfile({
+			...profile,
+			CodecProfiles: [...profile.CodecProfiles, {Type: 'VideoAudio', Conditions: [{Condition: 'LessThanEqual', Property: 'AudioChannels', Value: '2'}]}]
+		}, undefined, ceilings).deliveries;
+		for (const name of ['original_http', 'progressive', 'hls']) expect(capped[name].max_channels).toBe(2);
+
+		// A server without per-codec caps isn't offered the capped codec, so the others still play as they are.
+		const older = siloCapabilitiesFromDeviceProfile(profile, undefined, [], 'mkv').deliveries;
+		expect(older.original_http).toMatchObject({audio_decode_codecs: ['aac', 'ac3', 'eac3']});
+		expect(older.original_http.max_channels).toBeUndefined();
+		expect(older.original_http.max_channels_by_codec).toBeUndefined();
+	});
+
 	test('a TV reports its own HDR as what it shows, a stick or console leaves it unknown', () => {
 		const capabilities = hevcOnly('SDR|HDR10|HLG|DOVI|DOVIWithHDR10');
 		const hdr = capabilities.clientCapabilities.hdr_details;
@@ -161,6 +196,22 @@ describe('sessions', () => {
 		expect(calls[1].body).toMatchObject({
 			file_id: '5', profile_id: 'p1', installation_id: 'inst', start_position: 300, audio_track_index: 1, subtitle_track_index: 0, protocol_version: 3
 		});
+	});
+
+	test("a start sends per-codec channel caps only to a server that takes them", async () => {
+		const DeviceProfile = {
+			DirectPlayProfiles: [{Type: 'Video', Container: 'mkv', VideoCodec: 'h264', AudioCodec: 'eac3,pcm_s16le'}],
+			CodecProfiles: [{Type: 'VideoAudio', Codec: 'pcm_s16le', Conditions: [{Condition: 'LessThanEqual', Property: 'AudioChannels', Value: '2'}]}]
+		};
+		const original = async (features) => {
+			const {playback, calls} = setup({'GET /api/v2/playback/capabilities': {...capabilities, features}, 'POST /api/v2/playback/start': plan('original_http', 'k1')});
+			await playback.getPlaybackInfo('movie-1', {DeviceProfile});
+			return calls.find((c) => c.path === '/api/v2/playback/start').body.client_playback_context.deliveries.original_http;
+		};
+		expect(await original(['codec_channel_ceilings_v1'])).toMatchObject({max_channels_by_codec: {pcm_s16le: 2}});
+		const older = await original([]);
+		expect(older.max_channels).toBeUndefined();
+		expect(older.audio_decode_codecs).toEqual(['eac3']);
 	});
 
 	test('asked again while it plays, the session is replanned, and a failed original asks for something else', async () => {
