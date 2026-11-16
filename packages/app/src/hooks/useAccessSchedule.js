@@ -11,8 +11,10 @@ const RETRY_MS = 15 * 1000;
  * is when nearly every request starts failing. The schedule is read from the user's policy and
  * checked at each moment it could change, and again before blocking, so an administrator's
  * extension is noticed. Jellyfin checks the schedule on its own clock, which can be in another
- * time zone, so for a user with a schedule the server is asked and its answer decides. A user
- * without one is read every 15 minutes. Administrators are exempt, as they are on the server.
+ * time zone. With a Moonfin plugin that answers it, the plugin works the schedule out on the
+ * server's clock and says how long until it closes or opens, and that alone decides and times the
+ * checks. Without one, for a user with a schedule the server is asked and its answer decides. A
+ * user without one is read every 15 minutes. Administrators are exempt, as they are on the server.
  *
  * @param {object} options
  * @param {string} [options.userId] the signed-in user, or none
@@ -20,15 +22,17 @@ const RETRY_MS = 15 * 1000;
  * @param {() => Promise<object>} options.fetchUser reads the user, with their Policy
  * @param {() => Promise<boolean|null>} [options.serverRefuses] whether the server is turning the
  *   user away right now, or null when it can't tell, which leaves it to this device's clock
+ * @param {() => Promise<object|null>} [options.fetchAccessWindow] the plugin's access window, as
+ *   {@link readWindow} gives it, or null when the server can't say; rejects when it couldn't be read
  * @param {() => Date} options.getNow the current time
  * @param {() => void} [options.onBlocked] called once each time the time runs out
  * @returns {{blocked: boolean, nextAccess: Date|null, recheck: () => void}}
  */
-export const useAccessSchedule = ({userId, enabled, fetchUser, serverRefuses, getNow, onBlocked}) => {
+export const useAccessSchedule = ({userId, enabled, fetchUser, serverRefuses, fetchAccessWindow, getNow, onBlocked}) => {
 	const [state, setState] = useState({blocked: false, nextAccess: null});
 	const checkRef = useRef(null);
-	const latest = useRef({fetchUser, serverRefuses, getNow, onBlocked});
-	latest.current = {fetchUser, serverRefuses, getNow, onBlocked};
+	const latest = useRef({fetchUser, serverRefuses, fetchAccessWindow, getNow, onBlocked});
+	latest.current = {fetchUser, serverRefuses, fetchAccessWindow, getNow, onBlocked};
 
 	useEffect(() => {
 		setState((prev) => (prev.blocked || prev.nextAccess ? {blocked: false, nextAccess: null} : prev));
@@ -40,6 +44,8 @@ export const useAccessSchedule = ({userId, enabled, fetchUser, serverRefuses, ge
 		let schedules = [];
 		let exempt = false;
 		let blocked = false;
+		// Set when the server says it can't answer the access window, so this user's checks stop asking.
+		let windowUnsupported = false;
 		// Checks can overlap, so each is numbered and none replaces the answer of one started after it.
 		let started = 0;
 		let applied = 0;
@@ -60,9 +66,44 @@ export const useAccessSchedule = ({userId, enabled, fetchUser, serverRefuses, ge
 			if (blocked && !wasBlocked) latest.current.onBlocked?.();
 		};
 
+		// The plugin's answer alone decides and times the next check.
+		const applyWindow = (answer) => {
+			const now = latest.current.getNow();
+			const wasBlocked = blocked;
+			blocked = !answer.allowed;
+			// Named on this device's clock, as the moment it comes on it.
+			const nextAccess = blocked && answer.untilOpenMs !== null ? new Date(now.getTime() + answer.untilOpenMs) : null;
+			if (blocked || wasBlocked) setState({blocked, nextAccess});
+			if (blocked && !wasBlocked) latest.current.onBlocked?.();
+			// Allowed with nothing to close is a user with no schedule, or one open all week.
+			let wait = !blocked && answer.untilCloseMs === null ? IDLE_WAIT_MS : MAX_WAIT_MS;
+			const remaining = blocked ? answer.untilOpenMs : answer.untilCloseMs;
+			if (remaining !== null) wait = Math.min(wait, remaining);
+			schedule(Math.max(wait, 1000));
+		};
+
 		async function check () {
 			clearTimeout(timer);
 			const look = ++started;
+			const loadWindow = latest.current.fetchAccessWindow;
+			if (loadWindow && !windowUnsupported) {
+				let answer;
+				try {
+					answer = await loadWindow();
+				} catch (e) {
+					// Keep the last answer and ask again soon.
+					if (!cancelled && look >= applied) schedule(RETRY_MS);
+					return;
+				}
+				if (cancelled || look < applied) return;
+				if (answer) {
+					applied = look;
+					applyWindow(answer);
+					return;
+				}
+				// A plugin that can't answer it won't start to during this session.
+				windowUnsupported = true;
+			}
 			let user;
 			try {
 				user = await latest.current.fetchUser();

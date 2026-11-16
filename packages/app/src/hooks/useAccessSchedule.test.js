@@ -252,4 +252,100 @@ describe('useAccessSchedule', () => {
 
 		expect(result.current.blocked).toBe(false);
 	});
+
+	describe('with the plugin access window', () => {
+		const windowOf = (allowed, untilCloseMs = null, untilOpenMs = null) => ({allowed, untilCloseMs, untilOpenMs});
+
+		test('blocks on its answer alone and names the opening from now', async () => {
+			clock = at(21);
+			const serverRefuses = jest.fn(async () => false);
+			const fetchAccessWindow = jest.fn(async () => windowOf(false, null, 11 * 3600 * 1000));
+			const {result, onBlocked, fetchUser} = mount({fetchAccessWindow, serverRefuses});
+			await flush();
+
+			expect(result.current.blocked).toBe(true);
+			expect(result.current.nextAccess).toEqual(new Date(2026, 9, 20, 8));
+			expect(onBlocked).toHaveBeenCalledTimes(1);
+			expect(fetchUser).not.toHaveBeenCalled();
+			expect(serverRefuses).not.toHaveBeenCalled();
+		});
+
+		test('checks again when it closes, not a minute later', async () => {
+			let answer = windowOf(true, 30 * 1000);
+			const fetchAccessWindow = jest.fn(async () => answer);
+			const {result, onBlocked} = mount({fetchAccessWindow});
+			await flush();
+			expect(result.current.blocked).toBe(false);
+
+			answer = windowOf(false);
+			await flush(29 * 1000);
+			expect(fetchAccessWindow).toHaveBeenCalledTimes(1);
+			await flush(1000);
+
+			expect(fetchAccessWindow).toHaveBeenCalledTimes(2);
+			expect(result.current.blocked).toBe(true);
+			expect(result.current.nextAccess).toBeNull();
+			expect(onBlocked).toHaveBeenCalledTimes(1);
+		});
+
+		test('lets the user back in when it opens', async () => {
+			let answer = windowOf(false, null, 30 * 1000);
+			const fetchAccessWindow = jest.fn(async () => answer);
+			const {result} = mount({fetchAccessWindow});
+			await flush();
+			expect(result.current.blocked).toBe(true);
+
+			answer = windowOf(true, 12 * 3600 * 1000);
+			await flush(30 * 1000);
+
+			expect(result.current.blocked).toBe(false);
+			expect(result.current.nextAccess).toBeNull();
+		});
+
+		test('checks every 15 minutes when nothing will close', async () => {
+			const fetchAccessWindow = jest.fn(async () => windowOf(true));
+			mount({fetchAccessWindow});
+			await flush();
+			await flush(14 * 60 * 1000);
+			expect(fetchAccessWindow).toHaveBeenCalledTimes(1);
+			await flush(60 * 1000);
+
+			expect(fetchAccessWindow).toHaveBeenCalledTimes(2);
+		});
+
+		test('keeps the last answer when it can\'t be read, and retries', async () => {
+			let fail = false;
+			const fetchAccessWindow = jest.fn(async () => {
+				if (fail) throw new Error('offline');
+				return windowOf(false, null, 3600 * 1000);
+			});
+			clock = at(21);
+			const {result, onBlocked} = mount({fetchAccessWindow});
+			await flush();
+			fail = true;
+			await flush(60 * 1000);
+
+			expect(fetchAccessWindow).toHaveBeenCalledTimes(2);
+			expect(result.current.blocked).toBe(true);
+			await flush(15 * 1000);
+			expect(fetchAccessWindow).toHaveBeenCalledTimes(3);
+			expect(onBlocked).toHaveBeenCalledTimes(1);
+		});
+
+		test('falls back to the schedule and the server when it can\'t say, and stops asking', async () => {
+			clock = at(21);
+			const serverRefuses = jest.fn(async () => true);
+			const fetchAccessWindow = jest.fn(async () => null);
+			const {result, fetchUser} = mount({fetchAccessWindow, serverRefuses});
+			await flush();
+
+			expect(result.current.blocked).toBe(true);
+			expect(fetchUser).toHaveBeenCalledTimes(1);
+			expect(serverRefuses).toHaveBeenCalledTimes(1);
+
+			await flush(60 * 1000);
+			expect(fetchAccessWindow).toHaveBeenCalledTimes(1);
+			expect(fetchUser).toHaveBeenCalledTimes(2);
+		});
+	});
 });

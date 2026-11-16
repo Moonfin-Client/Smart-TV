@@ -84,6 +84,7 @@ import useSleepAfterIdle from '../hooks/useSleepAfterIdle';
 import useSignInPin from '../hooks/useSignInPin';
 import {useThemeMusic} from '../hooks/useThemeMusic';
 import {useAccessSchedule} from '../hooks/useAccessSchedule';
+import {readWindow} from '../utils/accessSchedule';
 import {shiftedNow} from '../utils/clock';
 import TimesUp from '../components/TimesUp/TimesUp';
 import {buildThemeCssVars, resolveFocusBorderColor, toRgbTriplet} from '../theme/themeSpec';
@@ -789,6 +790,12 @@ const AppContent = (props) => {
 		fetchUser: () => api.getUserConfiguration(),
 		// The user's own record honors the schedule, so a 403 there is the server turning them away.
 		serverRefuses: () => api.getCurrentUser().then(() => false, (err) => (err?.status === 403 ? true : null)),
+		// Without the plugin, or with one from before the endpoint (404), or one that can't read the
+		// schedule on this server (501), the schedule is judged here instead.
+		fetchAccessWindow: () => api.getAccessWindow().then(readWindow, (err) => {
+			if (err?.status === 404 || err?.status === 501) return null;
+			throw err;
+		}),
 		getNow: () => shiftedNow(settings.timeOffsetHours),
 		onBlocked: () => {
 			releaseVideoElements();
