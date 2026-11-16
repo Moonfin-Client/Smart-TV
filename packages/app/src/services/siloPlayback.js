@@ -510,6 +510,8 @@ const refusal = (decision) => {
 const retryableStart = (err) => !err.status ? !err.cancelled : (err.status === 408 || err.status === 429 || err.status >= 500);
 const sessionGone = (err) => err.status === 404 || err.status === 410;
 const installationChanged = (err) => err.status === 409 && err.code === 'installation_changed';
+// An admin ended the session from Silo's dashboard. Silo's other 410, client_upgrade_required, is a retired API.
+const endedByAdmin = (err) => err.status === 410 && err.code === 'playback_session_ended';
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -532,6 +534,9 @@ export const sendWithRetries = async (send, budgetMs, retryable, wait = sleep) =
 export const SILO_PLAYBACK_UNAVAILABLE = "Playback isn't available on this Silo server.";
 export const SILO_PLAYBACK_UPGRADE_REQUIRED = 'This Silo server needs a newer version of Moonfin to play.';
 export const SILO_PLAYBACK_ENDED_ON_SERVER = 'Playback was ended on the Silo server.';
+
+const endedOnServer = (itemId) => Object.assign(new Error(SILO_PLAYBACK_ENDED_ON_SERVER), {siloRefused: true, reason: 'playback_session_ended', itemId});
+const upgradeRequired = () => Object.assign(new Error(SILO_PLAYBACK_UPGRADE_REQUIRED), {siloRefused: true, reason: 'client_upgrade_required'});
 
 /**
  * `call(path, options)` sends as the signed-in profile; `getItem(itemId, fileId)` reads a title with its files.
@@ -660,9 +665,7 @@ export const createSiloPlayback = ({call, getBaseUrl, getUserId, getAccessToken,
 		try {
 			decision = await send(sent);
 		} catch (err) {
-			if (err.status === 426 || (err.status === 410 && err.code === 'client_upgrade_required')) {
-				throw Object.assign(new Error(SILO_PLAYBACK_UPGRADE_REQUIRED), {siloRefused: true, reason: 'client_upgrade_required'});
-			}
+			if (err.status === 426 || (err.status === 410 && err.code === 'client_upgrade_required')) throw upgradeRequired();
 			if (!installationChanged(err)) throw err;
 			// The server was reset or replaced since its capabilities were read: start again under the new one.
 			server = await playable(true);
@@ -770,11 +773,12 @@ export const createSiloPlayback = ({call, getBaseUrl, getUserId, getAccessToken,
 				wait
 			);
 		} catch (err) {
-			if (err.status === 410) {
+			if (endedByAdmin(err)) {
 				session.ended = true;
-				throw Object.assign(new Error(SILO_PLAYBACK_ENDED_ON_SERVER), {siloRefused: true, reason: 'playback_session_ended'});
+				throw endedOnServer(session.itemId);
 			}
 			if (sessionGone(err) || installationChanged(err)) session.ended = true;
+			if (err.status === 410 && err.code === 'client_upgrade_required') throw upgradeRequired();
 			throw err;
 		}
 		const next = decision?.playback_plan;
@@ -788,7 +792,13 @@ export const createSiloPlayback = ({call, getBaseUrl, getUserId, getAccessToken,
 
 	const liveSessionOf = (itemId) => Object.keys(sessions).map((id) => sessions[id]).find((s) => s.itemId === itemId && !s.ended && !s.stopping);
 
+	// A sample Silo refuses because an admin ended the session is the player's to act on; one for a session that
+	// expired or that Silo no longer knows ends it quietly, and the next request starts a new one.
 	const ends = (err, session) => {
+		if (endedByAdmin(err)) {
+			session.ended = true;
+			throw endedOnServer(session.itemId);
+		}
 		if (sessionGone(err) || installationChanged(err)) {
 			session.ended = true;
 			return true;
@@ -803,13 +813,24 @@ export const createSiloPlayback = ({call, getBaseUrl, getUserId, getAccessToken,
 			stop_id: session.stopId,
 			...(sample ? {sequence: ++session.sequence, position: Math.max(positionTicks || 0, 0) / TICKS_PER_SECOND, is_paused: false} : null)
 		};
+		const path = `/api/v2/playback/${encodeURIComponent(session.sessionId)}`;
 		try {
-			await sendWithRetries(
-				() => call(`/api/v2/playback/${encodeURIComponent(session.sessionId)}`, {method: 'DELETE', body: sent}),
+			const answer = await sendWithRetries(
+				() => call(path, {method: 'DELETE', body: sent}),
 				STOP_RETRY_BUDGET_MS, retryableStart, wait
 			);
+			// Another stop got there first. Only an admin's makes a sample answer 410 playback_session_ended (an expiry
+			// or Silo's own abort answers 404), and a caller about to start the title again must not undo it.
+			if (typeof answer?.stop_id === 'string' && answer.stop_id !== session.stopId) {
+				const probe = await call(`${path}/progress`, {method: 'POST', body: {
+					installation_id: session.installationId, sequence: session.sequence + 1, position: sent.position || 0, is_paused: false
+				}}).then(() => null, (err) => err);
+				if (probe && endedByAdmin(probe)) return {endedOnServer: true};
+			}
+			return null;
 		} catch (err) {
 			if (!sessionGone(err)) throw err;
+			return null;
 		} finally {
 			session.ended = true;
 			delete sessions[session.sessionId];

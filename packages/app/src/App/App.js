@@ -218,6 +218,10 @@ const AppContent = (props) => {
 
 	const [remoteMessage, setRemoteMessage] = useState(null);
 	const clearRemoteMessage = useCallback(() => setRemoteMessage(null), []);
+	// The player closed because an admin ended its Silo session; the screen it returns to says why.
+	const showEndedOnServer = useCallback(() => {
+		setRemoteMessage({key: Date.now(), title: $L('Playback was ended on the Silo server.')});
+	}, []);
 	const unifiedMode = settings.unifiedLibraryMode && hasMultipleServers;
 
 	// Blocked ratings belong to whoever is signed in on this server.
@@ -2591,6 +2595,7 @@ const AppContent = (props) => {
 							onBackground={handlePlayerBackground}
 							onEnded={slideshowVideo ? slideshowCallbacks.onEnded : handlePlayerEnd}
 							onBack={slideshowVideo ? slideshowCallbacks.onExit : handlePlayerEnd}
+							onEndedOnServer={showEndedOnServer}
 							slideshow={playerSlideshow}
 							onGuide={handlePlayerGuide}
 							onRecordings={handlePlayerRecordings}

@@ -54,6 +54,7 @@ import useLiveRecording from './useLiveRecording';
 import useHeldSeekStep from './useHeldSeekStep';
 import {createServerSeek} from './serverSeek';
 import useSiloStreamRenewal from './useSiloStreamRenewal';
+import useEndedOnServer from './useEndedOnServer';
 import useStreamReconnect from './useStreamReconnect';
 import {hasTrickplayPreview} from '../../components/TrickplayPreview';
 import {isTrickplayOn} from '../../utils/trickplayLayout';
@@ -152,7 +153,7 @@ const avplaySeek = (titleMs) => {
 	return seekStream(titleMs);
 };
 
-const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialSubtitleIndex, initialStartPositionTicks, initialQuality, forceTranscode, onEnded, onBack, onGuide, onRecordings, onPlayNext, onSelectPerson, audioPlaylist, videoQueue, liveTvChannels, onPausedChange, background, onBackground, slideshow}) => {
+const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialSubtitleIndex, initialStartPositionTicks, initialQuality, forceTranscode, onEnded, onBack, onEndedOnServer, onGuide, onRecordings, onPlayNext, onSelectPerson, audioPlaylist, videoQueue, liveTvChannels, onPausedChange, background, onBackground, slideshow}) => {
 	const {settings, updateSetting} = useSettings();
 	const {isInGroup, lastCommand} = useSyncPlay();
 	const syncPlayCommandRef = useRef(false);
@@ -462,6 +463,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 	// handleBack is defined further down, so the timer reaches it through a ref
 	// rather than forcing the whole player to be reordered.
 	const handleBackRef = useRef(null);
+	const endedOnServerRef = useRef(null);
 	const {sleepMinutes, remainingSeconds: sleepRemainingSeconds, startSleepTimer} = useSleepTimer({
 		onExpire: () => handleBackRef.current?.(),
 		ticking: activeModal === 'sleep'
@@ -1040,7 +1042,8 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 			try {
 				await restartFromResult(await playback.reanchorAt(ticks), ticks);
 			} catch (err) {
-				console.error('[Player] Seek through the server failed:', err);
+				// An admin ending the session closes the player; that's no failed seek.
+				if (!playback.isEndedOnServer(err)) console.error('[Player] Seek through the server failed:', err);
 			}
 		});
 		return () => { streamTimeline.seekThroughServer = null; };
@@ -1541,6 +1544,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 						applyPlaybackResult(result);
 						audioNegotiated = true;
 					} catch (err) {
+						if (playback.isEndedOnServer(err)) throw err;
 						console.error('[Player] Audio track negotiation failed:', err);
 					}
 				}
@@ -1712,6 +1716,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 						applyPlaybackResult(result);
 						burnInSubtitleRef.current = burnInPendingSub.index;
 					} catch (err) {
+						if (playback.isEndedOnServer(err)) throw err;
 						console.error('[Player] Burn in subtitle negotiation failed:', err);
 					}
 				}
@@ -1874,6 +1879,11 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 
 				console.log(`[Player] Loaded ${displayTitle} via ${result.playMethod} (AVPlay native)${isLiveTV ? ' [Live TV]' : ''}`);
 			} catch (err) {
+				// Silo's admin ended this title's session: the player closes with its own message, not an error.
+				if (playback.isEndedOnServer(err)) {
+					endedOnServerRef.current?.(item.Id);
+					return;
+				}
 				console.error('[Player] Failed to load media:', err);
 				// A pre-roll that cant even load gets skipped, not surfaced.
 				const skipTo = isPreroll(item) ? nextInQueue(videoQueueRef.current, item) : null;
@@ -2272,6 +2282,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 					return;
 				}
 			} catch (fallbackErr) {
+				if (playback.isEndedOnServer(fallbackErr)) return;
 				console.error('[Player] Transcode fallback failed:', fallbackErr);
 			}
 		}
@@ -2315,6 +2326,8 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 			}
 			return restarted;
 		} catch (err) {
+			// An admin ending the session closes the player, so nothing else is tried.
+			if (playback.isEndedOnServer(err)) return null;
 			console.error('[Player] Stream reload failed:', err);
 			return superseded() ? null : false;
 		}
@@ -2341,6 +2354,19 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 		await teardownPlayback();
 		onBack?.();
 	}, [teardownPlayback, onBack]);
+
+	// An admin ended the Silo session: playback stops at once and the player closes, saying why. A reconnect under way
+	// gives up first, so it can't try again.
+	const endedOnServer = useEndedOnServer({
+		itemId: item?.Id,
+		stop: () => {
+			reconnectRef.current?.end();
+			return teardownPlayback();
+		},
+		close: onBack,
+		onEndedOnServer
+	});
+	endedOnServerRef.current = endedOnServer;
 
 	useSkipFailedTrack({error, background, item, hasNextTrack, handleNextTrack, handleBack});
 

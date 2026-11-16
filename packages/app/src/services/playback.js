@@ -16,6 +16,7 @@ import {withPlexToken} from '../utils/plexUrls';
 import {parseSubtitleText} from '../utils/subtitleText';
 import {corsFreeFetch} from './secureFetch';
 import {isTizen} from '../platform';
+import {SILO_PLAYBACK_ENDED_ON_SERVER} from './siloPlayback';
 
 export const PlayMethod = {
 	DirectPlay: 'DirectPlay',
@@ -67,6 +68,39 @@ const isAudioOnlyRemuxTranscode = (mediaSource) => {
 let currentSession = null;
 let progressInterval = null;
 let healthMonitor = null;
+
+// An admin ending a Silo session from the dashboard closes the player (Moonfin-Core #2333, Roku #409). From then until
+// the player that played the item closes, or a minute passes, the item is held: no reopen, fallback, retry or Next
+// starts it again in a new session. Held per item, so a close that never finishes holds nothing else back.
+const ENDED_HOLD_MS = 60000;
+const endedOnServer = new Map();
+const endedListeners = new Set();
+// A stop on its way can find the admin's end before anything else does, so a start of the same item waits for it.
+const stopsOnTheirWay = new Map();
+const STOP_WAIT_MS = 5000;
+
+export const isEndedOnServer = (err) => err?.siloRefused === true && err.reason === 'playback_session_ended';
+
+const endedOnServerRefusal = (itemId) => Object.assign(new Error(SILO_PLAYBACK_ENDED_ON_SERVER), {siloRefused: true, reason: 'playback_session_ended', itemId});
+
+const heldEndedOnServer = (itemId) => {
+	const at = endedOnServer.get(itemId);
+	if (at != null && Date.now() - at < ENDED_HOLD_MS) return true;
+	endedOnServer.delete(itemId);
+	return false;
+};
+
+const tellEndedOnServer = (itemId) => endedListeners.forEach((listener) => listener(itemId));
+
+// `listener(itemId)` hears each time the end of an item's session reaches the app (the player acts on the first).
+// Returns the unsubscribe.
+export const onEndedOnServer = (listener) => {
+	endedListeners.add(listener);
+	return () => endedListeners.delete(listener);
+};
+
+// The player closed: what it held can be played again.
+export const releaseEndedOnServer = () => endedOnServer.clear();
 
 const apiForSession = (session) => (session.serverCredentials
 	? jellyfinApi.createApiForServer(
@@ -1003,16 +1037,31 @@ const siloPlaybackResult = async ({
 	itemId, options, api, creds, deviceProfile, maxBitrate, capabilities, storedSettings, allowDirectPlay, allowDirectStream,
 	startPositionTicks, subtitleStreamIndex, requestedSubtitleStreamIndex
 }) => {
-	const playbackInfo = await api.getPlaybackInfo(itemId, {
-		DeviceProfile: deviceProfile,
-		StartTimeTicks: startPositionTicks,
-		AudioStreamIndex: options.audioStreamIndex,
-		SubtitleStreamIndex: subtitleStreamIndex,
-		MaxStreamingBitrate: maxBitrate,
-		MediaSourceId: options.mediaSourceId,
-		// Asked again with direct play off, the original file failed here, and Silo is told so.
-		EnableDirectPlay: allowDirectPlay && options.enableDirectPlay !== false
-	}, options.item);
+	const stopping = stopsOnTheirWay.get(itemId);
+	if (stopping) await Promise.race([stopping, new Promise((resolve) => setTimeout(resolve, STOP_WAIT_MS))]);
+	if (heldEndedOnServer(itemId)) {
+		tellEndedOnServer(itemId);
+		throw endedOnServerRefusal(itemId);
+	}
+	let playbackInfo;
+	try {
+		playbackInfo = await api.getPlaybackInfo(itemId, {
+			DeviceProfile: deviceProfile,
+			StartTimeTicks: startPositionTicks,
+			AudioStreamIndex: options.audioStreamIndex,
+			SubtitleStreamIndex: subtitleStreamIndex,
+			MaxStreamingBitrate: maxBitrate,
+			MediaSourceId: options.mediaSourceId,
+			// Asked again with direct play off, the original file failed here, and Silo is told so.
+			EnableDirectPlay: allowDirectPlay && options.enableDirectPlay !== false
+		}, options.item);
+	} catch (err) {
+		if (isEndedOnServer(err)) {
+			endedOnServer.set(itemId, Date.now());
+			tellEndedOnServer(itemId);
+		}
+		throw err;
+	}
 	const mediaSource = playbackInfo.MediaSources[0];
 	let playMethod = PlayMethod.Transcode;
 	if (mediaSource.SupportsDirectPlay) playMethod = PlayMethod.DirectPlay;
@@ -1490,6 +1539,7 @@ export const reportStart = async (positionTicks = 0) => {
 
 export const reportProgress = async (positionTicks, options = {}) => {
 	if (!currentSession) return;
+	const reporting = currentSession.playSessionId;
 
 	try {
 		const api = apiForSession(currentSession);
@@ -1513,7 +1563,14 @@ export const reportProgress = async (positionTicks, options = {}) => {
 
 		shareStopWithShell(positionTicks);
 		await api.reportPlaybackProgress(info);
-	} catch (e) { void e; }
+	} catch (e) {
+		// Only the session still playing closes the player: a report the viewer retired (a stop, another item,
+		// backgrounding) closes nothing. A replan keeps Silo's session id, so a report sent before one still counts.
+		if (!isEndedOnServer(e) || currentSession?.playSessionId !== reporting || backgroundStopFired) return; // eslint-disable-line no-use-before-define
+		endedOnServer.set(e.itemId, Date.now());
+		stopProgressReporting(); // eslint-disable-line no-use-before-define
+		tellEndedOnServer(e.itemId);
+	}
 };
 
 const sendStopRequest = ({endpoint, json}) => {
@@ -1621,15 +1678,20 @@ export const reportStop = async (positionTicks) => {
 
 	// A beacon already sent this exact stop.
 	if (stopKey(session, positionTicks) !== session.lastStopBeaconKey) {
+		const stopping = apiForSession(session).reportPlaybackStopped({
+			ItemId: session.itemId,
+			PlaySessionId: session.playSessionId,
+			MediaSourceId: session.mediaSourceId,
+			PositionTicks: positionTicks
+		});
+		stopsOnTheirWay.set(session.itemId, stopping);
 		try {
-			await apiForSession(session).reportPlaybackStopped({
-				ItemId: session.itemId,
-				PlaySessionId: session.playSessionId,
-				MediaSourceId: session.mediaSourceId,
-				PositionTicks: positionTicks
-			});
+			// Silo found an admin had already ended it: a fallback or reload starting the item again is turned away.
+			if ((await stopping)?.endedOnServer) endedOnServer.set(session.itemId, Date.now());
 		} catch (e) {
 			console.warn('[playback] Failed to report stop:', e.message);
+		} finally {
+			if (stopsOnTheirWay.get(session.itemId) === stopping) stopsOnTheirWay.delete(session.itemId);
 		}
 	}
 

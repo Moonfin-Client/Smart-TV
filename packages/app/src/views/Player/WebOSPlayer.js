@@ -71,6 +71,7 @@ import {copyReaches} from './copySeek';
 import {bufferedAheadSeconds, createStarveWatch, CUSHION_MAX_MS, CUSHION_SECONDS} from '../../utils/syncStarve';
 import {loadStartLeadMs, nextStartLeadMs, saveStartLeadMs, startDelayMs as groupStartDelayMs, startGapMs, START_STALL_MS} from '../../utils/syncStartLead';
 import useSiloStreamRenewal from './useSiloStreamRenewal';
+import useEndedOnServer from './useEndedOnServer';
 import useStreamReconnect from './useStreamReconnect';
 import useMediaSession from './useMediaSession';
 import {hasTrickplayPreview} from '../../components/TrickplayPreview';
@@ -167,7 +168,7 @@ const ROOM_SEEK_SETTLE_TIMEOUT_MS = 12000;
 // another load of seconds.
 const ROOM_READY_TOLERANCE_MS = 900;
 
-const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialSubtitleIndex, initialStartPositionTicks, initialQuality, forceTranscode, onEnded, onBack, onGuide, onRecordings, onPlayNext, onSelectPerson, audioPlaylist, videoQueue, liveTvChannels, onPausedChange, background, onBackground, slideshow}) => {
+const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialSubtitleIndex, initialStartPositionTicks, initialQuality, forceTranscode, onEnded, onBack, onEndedOnServer, onGuide, onRecordings, onPlayNext, onSelectPerson, audioPlaylist, videoQueue, liveTvChannels, onPausedChange, background, onBackground, slideshow}) => {
 	const {settings, updateSetting} = useSettings();
 	const {isInGroup, lastCommand} = useSyncPlay();
 	const syncPlayCommandRef = useRef(false);
@@ -538,6 +539,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 	// handleBack is defined further down, so the timer reaches it through a ref
 	// rather than forcing the whole player to be reordered.
 	const handleBackRef = useRef(null);
+	const endedOnServerRef = useRef(null);
 	const {sleepMinutes, remainingSeconds: sleepRemainingSeconds, startSleepTimer} = useSleepTimer({
 		onExpire: () => handleBackRef.current?.(),
 		ticking: activeModal === 'sleep'
@@ -1142,6 +1144,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 						result = await playback.getPlaybackInfo(item.Id, playbackInfoOptions);
 						audioNegotiated = true;
 					} catch (err) {
+						if (playback.isEndedOnServer(err)) throw err;
 						console.error('[Player] Audio track negotiation failed:', err);
 					}
 				}
@@ -1160,6 +1163,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 							});
 							bakedIn = true;
 						} catch (err) {
+							if (playback.isEndedOnServer(err)) throw err;
 							console.error('[Player] Burn in subtitle negotiation failed:', err);
 						}
 					}
@@ -1356,6 +1360,11 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 
 				console.log(`[Player] Loaded ${displayTitle} via ${result.playMethod}${isLiveTV ? ' [Live TV]' : ''}`);
 			} catch (err) {
+				// Silo's admin ended this title's session: the player closes with its own message, not an error.
+				if (playback.isEndedOnServer(err)) {
+					endedOnServerRef.current?.(item.Id);
+					return;
+				}
 				console.error('[Player] Failed to load media:', err);
 				// A pre-roll that cant even load gets skipped, not surfaced.
 				const skipTo = isPreroll(item) ? nextInQueue(videoQueueRef.current, item) : null;
@@ -1545,7 +1554,8 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 		try {
 			await reopenSiloAt(ticks);
 		} catch (err) {
-			console.error('[Player] Seek through the server failed:', err);
+			// An admin ending the session closes the player; that's no failed seek.
+			if (!playback.isEndedOnServer(err)) console.error('[Player] Seek through the server failed:', err);
 		}
 	}), [reopenSiloAt]);
 
@@ -2576,6 +2586,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 					return;
 				}
 			} catch (fallbackErr) {
+				if (playback.isEndedOnServer(fallbackErr)) return;
 				console.error('[Player] Transcode fallback failed:', fallbackErr);
 				errorMessage = $L('Transcoding failed. The server may not support this format.');
 			}
@@ -2615,6 +2626,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 					return;
 				}
 			} catch (fallbackErr) {
+				if (playback.isEndedOnServer(fallbackErr)) return;
 				console.error('[Player] H.264 fallback failed:', fallbackErr);
 				errorMessage = isTier2 ? $L('H.264 transcoding fallback failed.') : $L('Transcoding failed after retry. Try restarting the app.');
 			}
@@ -2658,6 +2670,19 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 		await teardownPlayback();
 		onBack?.();
 	}, [teardownPlayback, onBack]);
+
+	// An admin ended the Silo session: playback stops at once and the player closes, saying why. A reconnect under way
+	// gives up first, so it can't try again.
+	const endedOnServer = useEndedOnServer({
+		itemId: item?.Id,
+		stop: () => {
+			reconnect.end();
+			return teardownPlayback();
+		},
+		close: onBack,
+		onEndedOnServer
+	});
+	endedOnServerRef.current = endedOnServer;
 
 	useSkipFailedTrack({error, background, item, hasNextTrack, handleNextTrack, handleBack});
 
