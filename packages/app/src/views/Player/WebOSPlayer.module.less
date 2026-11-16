@@ -99,6 +99,11 @@
 	word-wrap: break-word;
 }
 
+/* The lang attribute alone doesn't get kanji their Japanese forms on every set (#652) */
+.subtitleText:lang(ja) {
+	font-family: 'NotoSansJP', 'Roboto', 'Sandstone', sans-serif;
+}
+
 /* Player Controls Overlay */
 .playerControls {
 	position: fixed;
