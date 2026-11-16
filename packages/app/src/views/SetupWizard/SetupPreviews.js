@@ -2598,7 +2598,7 @@ const PlayerControlsPreview = ({moment, hdr}) => {
 						<div style={{position: 'absolute', left: 48, top: 110, width: 460}}>
 							<div style={{...SHADOWED, fontSize: 13, fontWeight: 700, textTransform: 'uppercase'}}>{$L('Paused')}</div>
 							<div style={{...SHADOWED, marginTop: 8, fontSize: 32, fontWeight: 700, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis'}}>{item ? item.title : ''}</div>
-							<div style={{...SHADOWED, marginTop: 8, fontSize: 15, lineHeight: 1.4, ...clampLines(4)}}>{item ? item.overview : ''}</div>
+							<div style={{...SHADOWED, marginTop: 8, fontSize: 15, fontWeight: 500, lineHeight: 1.4, ...clampLines(8)}}>{item ? item.overview : ''}</div>
 						</div>
 					</div>
 				)}

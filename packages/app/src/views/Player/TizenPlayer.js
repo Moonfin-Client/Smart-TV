@@ -1993,6 +1993,8 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 	// ==============================
 	// Controls Auto-hide
 	// ==============================
+	const showsPauseDescription = settings.showDescriptionOnPause && Boolean(item?.Overview) && !isAudioMode;
+
 	const showControls = useCallback((isModalOpen = activeModal) => {
 		if (!controlsVisibleRef.current && !isAudioMode && !isLiveTV) setFocusRow('progress');
 		setControlsVisible(true);
@@ -2002,13 +2004,14 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 		// Don't auto-hide controls in audio mode
 		if (!isAudioMode && !isModalOpen) {
 			controlsTimeoutRef.current = setTimeout(() => {
-				// Paused playback keeps its controls, like the other clients. Resuming
-				// goes through showControls and re-arms the timer.
-				if (isPausedRef.current) return;
+				// Paused playback keeps its controls unless the paused description is
+				// waiting for them to go. Resuming goes through showControls and re-arms
+				// the timer.
+				if (isPausedRef.current && !showsPauseDescription) return;
 				setControlsVisible(false);
 			}, settings.controlsHideDelay);
 		}
-	}, [activeModal, isAudioMode, isLiveTV, settings.controlsHideDelay]);
+	}, [activeModal, isAudioMode, isLiveTV, settings.controlsHideDelay, showsPauseDescription]);
 
 	const hideControls = useCallback(() => {
 		setControlsVisible(false);
@@ -2016,6 +2019,11 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 			clearTimeout(controlsTimeoutRef.current);
 		}
 	}, []);
+
+	// A pause with a description to show puts the controls away so it comes up at once.
+	useEffect(() => {
+		if (isPaused && showsPauseDescription && !scrubHoldRef.current.active) hideControls();
+	}, [hideControls, isPaused, showsPauseDescription]);
 
 	// No track indexes travel along. The session only records an index the
 	// viewer asked for, so a subtitle the player picked on its own reads as
@@ -3829,9 +3837,13 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 
 			{(reconnecting || reconnectingLabel || showBuffering) && <LoadingAnimationLayer label={reconnecting || reconnectingLabel || $L('Loading Stream...')} />}
 
-			{isPaused && settings.showDescriptionOnPause && item?.Overview && !isAudioMode && !activeModal && !controlsVisible && (
+			{isPaused && showsPauseDescription && !activeModal && !controlsVisible && (
 				<div className={css.pauseDescriptionOverlay}>
-					<div className={css.pauseDescriptionText}>{item.Overview}</div>
+					<div className={css.pauseDescription}>
+						<div className={css.pauseDescriptionLabel}>{$L('Paused')}</div>
+						<div className={css.pauseDescriptionTitle}>{item.SeriesName || item.Name}</div>
+						<div className={css.pauseDescriptionText}>{item.Overview}</div>
+					</div>
 				</div>
 			)}
 

@@ -2036,6 +2036,8 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 		if (videoRef.current) videoRef.current.muted = slideshowMuted;
 	}, [slideshowMuted]);
 
+	const showsPauseDescription = settings.showDescriptionOnPause && Boolean(item?.Overview) && !isAudioMode;
+
 	const showControls = useCallback((isModalOpen = activeModal) => {
 		if (!controlsVisibleRef.current && !isAudioMode && !isLiveTV) setFocusRow('progress');
 		setControlsVisible(true);
@@ -2044,13 +2046,14 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 		}
 		if (!isAudioMode && !isModalOpen) {
 			controlsTimeoutRef.current = setTimeout(() => {
-				// Paused playback keeps its controls, like the other clients. Resuming
-				// goes through showControls and re-arms the timer.
-				if (isPausedRef.current) return;
+				// Paused playback keeps its controls unless the paused description is
+				// waiting for them to go. Resuming goes through showControls and re-arms
+				// the timer.
+				if (isPausedRef.current && !showsPauseDescription) return;
 				setControlsVisible(false);
 			}, settings.controlsHideDelay);
 		}
-	}, [activeModal, isAudioMode, isLiveTV, settings.controlsHideDelay]);
+	}, [activeModal, isAudioMode, isLiveTV, settings.controlsHideDelay, showsPauseDescription]);
 
 	const hideControls = useCallback(() => {
 		setControlsVisible(false);
@@ -2058,6 +2061,11 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 			clearTimeout(controlsTimeoutRef.current);
 		}
 	}, []);
+
+	// A pause with a description to show puts the controls away so it comes up at once.
+	useEffect(() => {
+		if (isPaused && showsPauseDescription && !scrubHoldRef.current.active) hideControls();
+	}, [hideControls, isPaused, showsPauseDescription]);
 
 	// Handle playback health issues - if the health monitor detects stalled
 	// playback (no progress for extended period), fall back to transcoding.
@@ -4074,9 +4082,13 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 
 			{!isLoading && (reconnecting || reconnectingLabel || showBuffering) && <LoadingAnimationLayer label={reconnecting || reconnectingLabel || $L('Loading Stream...')} />}
 
-			{!isLoading && !error && isPaused && settings.showDescriptionOnPause && item?.Overview && !isAudioMode && !activeModal && !controlsVisible && (
+			{!isLoading && !error && isPaused && showsPauseDescription && !activeModal && !controlsVisible && (
 				<div className={css.pauseDescriptionOverlay}>
-					<div className={css.pauseDescriptionText}>{item.Overview}</div>
+					<div className={css.pauseDescription}>
+						<div className={css.pauseDescriptionLabel}>{$L('Paused')}</div>
+						<div className={css.pauseDescriptionTitle}>{item.SeriesName || item.Name}</div>
+						<div className={css.pauseDescriptionText}>{item.Overview}</div>
+					</div>
 				</div>
 			)}
 
