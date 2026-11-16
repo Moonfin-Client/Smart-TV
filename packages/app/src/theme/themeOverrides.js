@@ -832,6 +832,7 @@ export const buildThemeOverrideCss = (theme, options = {}) => {
 		// The seek bar in the theme's range colors, like core's osdSeekBarTheme; the focused thumb turns white and grows (platform sheets)
 		rule(`.${player.progressBar}`, `background: ${rangeTrack};`);
 		rule(`.${player.progressFill}`, `background: ${rangeProgress};`);
+		rule(`.${player.progressBuffered}`, `background: rgba(${toRgbTriplet(c.rangeTrack)}, 0.8);`);
 		rule(`.${player.seekIndicator}`, `background: ${rangeThumb};`);
 		rule(`.${player.progressBar}:focus .${player.seekIndicator}`, `background: #ffffff;`);
 		rule(`.${player.liveProgressFill}`, `background: ${accent};`);
