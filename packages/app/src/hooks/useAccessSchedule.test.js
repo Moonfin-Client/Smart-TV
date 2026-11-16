@@ -408,6 +408,41 @@ describe('useAccessSchedule', () => {
 			expect(result.current.blocked).toBe(false);
 		});
 
+		test('names the opening from the answer, not from a queued request', async () => {
+			clock = at(7, 58);
+			const fetchAccessWindow = jest.fn(() => new Promise((resolve) => setTimeout(() => {
+				// Forty seconds in the queue; the server works it out at 07:58:40
+				clock = at(7, 58, 40);
+				resolve(windowOf(false, null, 80 * 1000));
+			}, 40 * 1000)));
+			const {result} = mount({fetchAccessWindow});
+			await flush(40 * 1000);
+
+			expect(result.current.nextAccess).toEqual(at(8));
+		});
+
+		test('keeps the last answer when the window can\'t be read and the server gives none', async () => {
+			// Noon: open by the schedule on this TV's clock
+			let fail = false;
+			const serverRefuses = jest.fn(async () => null);
+			const fetchAccessWindow = jest.fn(async () => {
+				if (fail) throw new Error('500');
+				return windowOf(false, null, 3600 * 1000);
+			});
+			const {result} = mount({fetchAccessWindow, serverRefuses});
+			await flush();
+			expect(result.current.blocked).toBe(true);
+
+			fail = true;
+			await flush(60 * 1000);
+
+			expect(fetchAccessWindow).toHaveBeenCalledTimes(2);
+			expect(serverRefuses).toHaveBeenCalledTimes(1);
+			expect(result.current.blocked).toBe(true);
+			await flush(15 * 1000);
+			expect(fetchAccessWindow).toHaveBeenCalledTimes(3);
+		});
+
 		test('falls back to the schedule and the server when it can\'t say, and stops asking', async () => {
 			clock = at(21);
 			const serverRefuses = jest.fn(async () => true);

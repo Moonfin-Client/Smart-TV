@@ -66,7 +66,10 @@ export const useAccessSchedule = ({userId, enabled, fetchUser, serverRefuses, fe
 			if (blocked && !wasBlocked) latest.current.onBlocked?.();
 		};
 
-		// The plugin's answer alone decides and times the next check; its durations count from asked.
+		// The plugin's answer alone decides and times the next check. It was worked out somewhere
+		// between asked and now: the next check counts from asked, so it can only come early, and the
+		// opening counts from now, which is nearest when it was worked out (a request can wait in the
+		// media server queue before it is sent).
 		const applyWindow = (answer, asked) => {
 			const now = latest.current.getNow();
 			const wasBlocked = blocked;
@@ -75,7 +78,7 @@ export const useAccessSchedule = ({userId, enabled, fetchUser, serverRefuses, fe
 			// schedule opens on a minute, and a clock a moment behind the server's would otherwise
 			// name the minute before.
 			const nextAccess = blocked && answer.untilOpenMs !== null
-				? new Date(Math.round((asked.getTime() + answer.untilOpenMs) / 60000) * 60000)
+				? new Date(Math.round((now.getTime() + answer.untilOpenMs) / 60000) * 60000)
 				: null;
 			if (blocked || wasBlocked) setState({blocked, nextAccess});
 			if (blocked && !wasBlocked) latest.current.onBlocked?.();
@@ -89,6 +92,7 @@ export const useAccessSchedule = ({userId, enabled, fetchUser, serverRefuses, fe
 		async function check () {
 			clearTimeout(timer);
 			const look = ++started;
+			let windowFailed = false;
 			const loadWindow = latest.current.fetchAccessWindow;
 			if (loadWindow && !windowUnsupported) {
 				// The plugin works its durations out between now and its answer, so they count from
@@ -112,6 +116,7 @@ export const useAccessSchedule = ({userId, enabled, fetchUser, serverRefuses, fe
 				// time, and the schedule and the server decide this check, so a failing endpoint
 				// can't leave the user let in on a server that turns them away.
 				if (!failed && look === started) windowUnsupported = true;
+				windowFailed = failed;
 			}
 			let user;
 			try {
@@ -129,6 +134,12 @@ export const useAccessSchedule = ({userId, enabled, fetchUser, serverRefuses, fe
 			if (!isExempt && fresh.length > 0 && ask) {
 				refused = await ask().catch(() => null);
 				if (cancelled || look < applied) return;
+			}
+			// With a plugin that judges the schedule, this TV's clock never decides: when its window
+			// couldn't be read and the server gave no answer either, the last answer stays.
+			if (windowFailed && !isExempt && fresh.length > 0 && refused === null) {
+				schedule(RETRY_MS);
+				return;
 			}
 			applied = look;
 			exempt = isExempt;
