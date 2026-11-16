@@ -150,26 +150,62 @@ export const withoutCopies = (item) => {
 	return plain;
 };
 
+const copyKey = (copy) => `${copy._serverId ?? ''}|${copy.Id}`;
+
+// An item already on the card is left out: the same server and id again is another saved account's view of it.
 const join = (holder, item, keys, holders, onJoin) => {
-	copiesOf(item).forEach((copy) => holder[COPIES_KEY].push(withoutCopies(copy)));
+	const known = new Set(copiesOf(holder).map(copyKey));
+	copiesOf(item).forEach((copy) => {
+		if (known.has(copyKey(copy))) return;
+		known.add(copyKey(copy));
+		holder[COPIES_KEY].push(withoutCopies(copy));
+	});
 	if (onJoin) onJoin(holder);
 	keys.forEach((key) => {
 		if (!holders.has(key)) holders.set(key, holder);
 	});
 };
 
+// When each card of a fold became one, so the first one shown keeps a title two cards turn out to share. It lives with
+// the fold's `holders`, so pages folded together share it and an unrelated fold starts afresh.
+const foldOrders = new WeakMap();
+const orderOf = (holders) => {
+	if (!foldOrders.has(holders)) foldOrders.set(holders, {next: 0, cards: new WeakMap()});
+	return foldOrders.get(holders);
+};
+
 // Folds each item that shares a match key with an earlier one into it, as one of its copies. `holders` carries the
 // titles already shown from one call to the next, so a later page folds into an earlier page's card. With
 // `preferred`, another server's copy of a title the preferred server holds waits to join that server's card instead of
-// becoming the card. `onJoin` hears of each card that took on a copy, so one already drawn can be drawn again.
+// becoming the card. `onJoin` hears of each card that took on a copy, so one already drawn can be drawn again, and of
+// a card folded away into it, when an item shows two cards to be one title, so that one can be taken down.
 export const foldCopies = (items, holders = new Map(), preferred = null, onJoin = null) => {
-	const kept = [];
+	let kept = [];
+	const order = orderOf(holders);
 	(items || []).forEach((item) => {
 		if (!item) return;
 		const keys = titleMatchKeys(item);
-		let holder = null;
-		for (let i = 0; i < keys.length && !holder; i++) holder = holders.get(keys[i]) || null;
-		if (holder) {
+		const matched = [];
+		keys.forEach((key) => {
+			const found = holders.get(key);
+			if (found && !matched.includes(found)) matched.push(found);
+		});
+		if (matched.length) {
+			// The preferred server's card keeps the title, as it would have had it come first, and otherwise the card
+			// shown first, so the list doesn't jump.
+			const isPreferred = (card) => (preferred && card._serverId === preferred.serverId ? 0 : 1);
+			matched.sort((x, y) => isPreferred(x) - isPreferred(y) || order.cards.get(x) - order.cards.get(y));
+			const [holder, ...absorbed] = matched;
+			// One item can carry a tmdb id one card was matched on and an imdb id another was: they are one title.
+			absorbed.forEach((card) => {
+				join(holder, card, [], holders, null);
+				// Every key the card answered to, including ones a copy it dropped brought along, now leads here.
+				holders.forEach((owner, key) => {
+					if (owner === card) holders.set(key, holder);
+				});
+				kept = kept.filter((entry) => entry !== card);
+				if (onJoin) onJoin(holder, card);
+			});
 			join(holder, item, keys, holders, onJoin);
 			return;
 		}
@@ -179,6 +215,7 @@ export const foldCopies = (items, holders = new Map(), preferred = null, onJoin 
 		// Made up front so a card copied later, as the watched state is laid over it, still shares the list later
 		// copies are added to.
 		if (!Array.isArray(item[COPIES_KEY])) item[COPIES_KEY] = [];
+		if (!order.cards.has(item)) order.cards.set(item, order.next++);
 		keys.forEach((key) => holders.set(key, item));
 		if (preferred) preferred.take(keys).forEach((copy) => join(item, copy, titleMatchKeys(copy), holders, onJoin));
 	});

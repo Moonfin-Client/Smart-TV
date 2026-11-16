@@ -61,6 +61,7 @@ import backdropCss from '../components/BackdropLayer/BackdropLayer.module.less';
 import browseCss from '../views/Browse/Browse.module.less';
 import mediaCardCss from '../components/MediaCard/MediaCard.module.less';
 import modernCardCss from '../components/MediaCard/ModernMediaCard.module.less';
+import mergedBadgeCss from '../components/MergedServerBadge/MergedServerBadge.module.less';
 import seerrBannerCss from '../components/seerr/SeerrStatusBanner.module.less';
 import seerrDotCss from '../components/seerr/SeerrStatusDot.module.less';
 import seerrDownloadCss from '../components/SeerrDownloadProgress/SeerrDownloadProgress.module.less';
@@ -771,6 +772,7 @@ export const buildThemeOverrideCss = (theme, options = {}) => {
 	rule(`.${mediaCardCss.seerr3}`, `border-color: ${statusRequested};`);
 	rule(`.${mediaCardCss.seerr2}`, `background: ${onSurface}; border-color: ${statusPending};`);
 	rule(`.${modernCardCss.focusRing}`, `border-color: ${focusColor};`);
+	rule(`.${mergedBadgeCss.badge}`, `background: ${scrim(0.75)}; border-color: ${onSurface}; color: ${onSurface};`);
 	rule(`.${seerrDotCss.dot}`, `background: ${onBadge}; border-color: ${onBadge};`);
 	rule(`.${seerrDotCss.available}`, `border-color: ${statusAvailable}; color: ${statusAvailable};`);
 	rule(`.${seerrDotCss.partial}`, `background: ${statusAvailable}; border-color: ${statusAvailable}; color: ${onBadge};`);

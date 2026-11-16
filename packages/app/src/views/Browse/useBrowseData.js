@@ -11,7 +11,7 @@ import * as seerrApi from '../../services/seerrApi';
 import browseReducer, {browseInitialState, mergeRowsById, replaceRecentRows} from './browseReducer';
 import {BROWSE_ROW_LOADERS, buildLoaderContext, loadDeferredSections, loadLatestAndRecentlyReleased, loadSinceYouWatched} from './browseRowLoaders';
 import {headLengthFor, moreAfter, nextHeadLength, pageableRow, withRowPage} from './rowPaging';
-import {genericCollectionLabel, mergeRecentRows} from '../../utils/mergeRecentRows';
+import {addSeriesProviderIds, genericCollectionLabel, mergeRecentRows} from '../../utils/mergeRecentRows';
 import {mergeLibrariesByType} from '../../utils/mergedCopies';
 import {normalizeLatestMediaItems} from '../../utils/latestMediaRowNormalizer';
 import {EXCLUDED_COLLECTION_TYPES, filterItemsByExcludedGenres, matchesContentType} from './browseFilters';
@@ -723,6 +723,10 @@ const useBrowseData = ({
 							}));
 						// With merged libraries a title several servers hold shows once, carrying the rest as copies.
 						const foldCopies = unifiedMode && settings.mergeLibrariesByType === true;
+						if (foldCopies) {
+							await addSeriesProviderIds(entries, (item) => connectionPool.getApiForItem(item) || api);
+							if (cancelled) return;
+						}
 						for (const merged of mergeRecentRows(entries, 'DateCreated', {foldCopies})) {
 							newRows.push({
 								id: `latest-merged-${merged.collectionType}`,

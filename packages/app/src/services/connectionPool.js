@@ -22,6 +22,48 @@ const serverTags = (server) => ({
 	_serverType: server.serverType || 'jellyfin'
 });
 
+const timeOf = (value) => {
+	const time = value ? new Date(value).getTime() : NaN;
+	return Number.isNaN(time) ? 0 : time;
+};
+
+// The account each server is read with, the way Moonfin-Core picks it: the signed-in one on its own server, elsewhere
+// the first saved account with a token, or for Silo the most recently used profile that needs no PIN. A server with
+// none of those is left out. One account per server keeps a title several servers hold to one copy per server, and
+// marking it watched from here never reaches another saved account.
+export const oneAccountPerServer = (servers, active) => {
+	const activeServerId = active?.serverId || active?.id;
+	const byServer = new Map();
+	(servers || []).forEach((server) => {
+		if (!byServer.has(server.serverId)) byServer.set(server.serverId, []);
+		byServer.get(server.serverId).push(server);
+	});
+	const chosen = [];
+	byServer.forEach((accounts, serverId) => {
+		const usable = accounts.filter((entry) => entry.accessToken);
+		let picked = serverId === activeServerId ? usable.find((entry) => entry.userId === active?.userId) : null;
+		if (!picked) {
+			picked = (accounts[0]?.serverType === 'silo')
+				? usable.filter((entry) => !entry.siloHasPin).sort((a, b) => timeOf(b.lastConnected) - timeOf(a.lastConnected))[0]
+				: usable[0];
+		}
+		if (picked) chosen.push(picked);
+	});
+	return chosen;
+};
+
+/**
+ * The accounts every multi-server read goes through, one per server.
+ * @returns {Promise<Array>} One saved account per server
+ */
+export const getLoggedInServers = async () => {
+	const [servers, active] = await Promise.all([
+		multiServerManager.getAllServersArray(),
+		multiServerManager.getActiveServer()
+	]);
+	return oneAccountPerServer(servers, active);
+};
+
 /**
  * Execute a request to all servers and aggregate results
  * @param {Function} apiFn - Function that takes (api, serverInfo) and returns a promise
@@ -29,7 +71,7 @@ const serverTags = (server) => ({
  * @returns {Promise<Array>} Aggregated results from all servers
  */
 export const executeAll = async (apiFn, options = {}) => {
-	const servers = await multiServerManager.getAllServersArray();
+	const servers = await getLoggedInServers();
 
 	if (servers.length === 0) {
 		console.warn('[ConnectionPool] No servers configured');
@@ -183,14 +225,14 @@ export const getLibrariesFromAllServers = async () => {
  * @returns {Promise<{sources: Array<{api: Object, libraryId: string, server: Object}>, complete: boolean}>}
  */
 export const getMergedLibrarySources = async (collectionType) => {
-	const [servers, active] = await Promise.all([
-		multiServerManager.getAllServersArray(),
+	const [accounts, active] = await Promise.all([
+		getLoggedInServers(),
 		multiServerManager.getActiveServer()
 	]);
 	const activeId = active?.serverId || active?.id;
 	const ordered = [
-		...servers.filter((server) => server.serverId === activeId),
-		...servers.filter((server) => server.serverId !== activeId)
+		...accounts.filter((server) => server.serverId === activeId),
+		...accounts.filter((server) => server.serverId !== activeId)
 	];
 	let complete = true;
 	const perServer = await Promise.all(ordered.map(async (server) => {
@@ -244,7 +286,7 @@ export const getLatestItemsFromAllServers = async (libraryId = null) => {
  * @returns {Promise<Array>} Array of {lib, latest} objects
  */
 export const getLatestPerLibraryFromAllServers = async (excludedLibraryIds = [], excludedCollectionTypes = []) => {
-	const servers = await multiServerManager.getAllServersArray();
+	const servers = await getLoggedInServers();
 
 	if (servers.length === 0) {
 		return [];
@@ -324,7 +366,7 @@ export const getLatestPerLibraryFromAllServers = async (excludedLibraryIds = [],
 export const getRandomItemsFromAllServers = async (contentType = 'both', limit = 10, libraryIds = []) => {
 	// Calculate per-server limit to get roughly equal distribution
 	// Fetch a bit more from each to account for potential duplicates
-	const servers = await multiServerManager.getAllServersArray();
+	const servers = await getLoggedInServers();
 	const serverCount = servers.length;
 	const perServerLimit = Math.ceil((limit * 1.5) / Math.max(serverCount, 1));
 
@@ -361,7 +403,7 @@ export const getRandomItemsFromAllServers = async (contentType = 'both', limit =
 // servers hold is one result carrying the others as copies, as merged libraries show it.
 const searchEveryServer = async (query, limit, search, cut = true, fold = false) => {
 	// Calculate per-server limit for distribution
-	const servers = await multiServerManager.getAllServersArray();
+	const servers = await getLoggedInServers();
 	const serverCount = servers.length;
 	const perServerLimit = Math.ceil((limit * 1.5) / Math.max(serverCount, 1));
 
@@ -512,7 +554,7 @@ export const getGenresFromAllServers = async (parentId = null) => {
  * @returns {Promise<Object>} {Items: Array, TotalRecordCount: number}
  */
 export const getGenreItemsFromAllServers = async (params) => {
-	const servers = await multiServerManager.getAllServersArray();
+	const servers = await getLoggedInServers();
 
 	if (servers.length === 0) {
 		return { Items: [], TotalRecordCount: 0 };

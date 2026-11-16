@@ -1070,6 +1070,10 @@ const AppContent = (props) => {
 		open?.resolve(copy);
 	}, []);
 	const handleCopyPickClosed = useCallback(() => handleCopyPicked(null), [handleCopyPicked]);
+	// A pick made for one session never opens anything once it ended or another account signed in.
+	useEffect(() => () => {
+		if (copyPickRef.current) handleCopyPicked(null);
+	}, [isAuthenticated, user?.Id, serverUrl, handleCopyPicked]);
 
 	useEffect(() => {
 		const handleKeyDown = (e) => {

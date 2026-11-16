@@ -51,6 +51,11 @@ import css from './Library.module.less';
 
 registerThemeSheet('library', css);
 
+// How many titles each request reads while listing the titles the preferred server holds.
+const PREFERRED_PAGE_SIZE = 1000;
+// A stop for a server that ignores StartIndex and sends the same page every time.
+const PREFERRED_MAX_PAGES = 100;
+
 const SpottableDiv = Spottable('div');
 const SpottableButton = Spottable('button');
 const ToolbarContainer = SpotlightContainerDecorator({enterTo: 'last-focused', restrict: 'self-first'}, 'div');
@@ -286,6 +291,8 @@ const Library = ({library, genreFilter, studioFilter, onSelectItem, onViewPhoto,
 	const mergedReadersRef = useRef([]);
 	// The card shown for each title match key, which later copies fold into.
 	const copyHoldersRef = useRef(new Map());
+	// The card focus moves to when the card it was on is folded into it, known by server and id.
+	const refocusCardRef = useRef(null);
 	// Holds other servers' copies back for the signed-in server's own card. Null while a filter is on, since that
 	// server's copy could be filtered out.
 	const preferredRef = useRef(null);
@@ -567,7 +574,29 @@ const Library = ({library, genreFilter, studioFilter, onSelectItem, onViewPhoto,
 		const key = [serverId, ...own.map((source) => source.libraryId), JSON.stringify(query)].join('|');
 		if (preferredTitlesRef.current?.key === key) return new PreferredCopies(serverId, preferredTitlesRef.current.titles);
 		try {
-			const responses = await Promise.all(own.map((source) => source.api.getItems({...query, ParentId: source.libraryId})));
+			// Paged, since some servers cap a request without a limit to a small first page. Paging walks the server's
+			// own count: a page that comes back short because the client filtered some of it out is still a full page.
+			const readAll = async (source) => {
+				const pages = [];
+				for (let page = 0; page < PREFERRED_MAX_PAGES; page++) {
+					const start = page * PREFERRED_PAGE_SIZE;
+					// eslint-disable-next-line no-await-in-loop
+					const response = await source.api.getItems({
+						...query,
+						ParentId: source.libraryId,
+						StartIndex: start,
+						Limit: PREFERRED_PAGE_SIZE,
+						EnableTotalRecordCount: true
+					});
+					pages.push(response);
+					const count = response?.Items?.length || 0;
+					const total = response?.TotalRecordCount;
+					const done = typeof total === 'number' ? start + PREFERRED_PAGE_SIZE >= total : count < PREFERRED_PAGE_SIZE;
+					if (!count || done) break;
+				}
+				return pages;
+			};
+			const responses = (await Promise.all(own.map(readAll))).flat();
 			const titles = titleKeysOf(responses);
 			preferredTitlesRef.current = {key, titles};
 			return new PreferredCopies(serverId, titles);
@@ -578,8 +607,10 @@ const Library = ({library, genreFilter, studioFilter, onSelectItem, onViewPhoto,
 	}, []);
 
 	// The next page of a merged library, read from every server and merged in the sort's order.
-	const fetchMergedPage = useCallback(async (startIndex, params) => {
+	const fetchMergedPage = useCallback(async (startIndex, params, generation) => {
 		const sources = await ensureMergedSources();
+		// A newer load started while the sources were looked up, and the paging state is now its own.
+		if (generation !== fetchGenerationRef.current) return {Items: [], TotalRecordCount: 0};
 		if (startIndex === 0) {
 			mergedReadersRef.current = createMergedReaders(sources);
 			copyHoldersRef.current = new Map();
@@ -634,19 +665,50 @@ const Library = ({library, genreFilter, studioFilter, onSelectItem, onViewPhoto,
 				// A card already on screen that takes on a copy is replaced with a new object, so it draws again with its
 				// server count. It's known by server and id, since the holders keep the first object.
 				const grown = new Set();
-				const noteGrown = (holder) => grown.add(`${holder._serverId || ''}|${holder.Id}`);
+				// A card folded into another, once a copy showed the two to be one title, comes off the screen.
+				const absorbed = new Set();
+				// The card focus is on, when it's in the grid, so focus can follow it if it's folded away.
+				const focusedIndex = Number(Spotlight.getCurrent()?.dataset?.index);
+				const focusedCard = Number.isInteger(focusedIndex) ? itemsRef.current[focusedIndex] : null;
+				const focusedKey = focusedCard ? `${focusedCard._serverId || ''}|${focusedCard.Id}` : null;
+				const noteGrown = (holder, card) => {
+					const holderKey = `${holder._serverId || ''}|${holder.Id}`;
+					grown.add(holderKey);
+					if (!card) return;
+					absorbed.add(card);
+					// Focus follows the card it's on, or the one it already moved to, through every fold to the card left.
+					const cardKey = `${card._serverId || ''}|${card.Id}`;
+					if (focusedKey && (cardKey === focusedKey || cardKey === refocusCardRef.current)) refocusCardRef.current = holderKey;
+				};
+				const thisPage = new Set(fresh);
 				let shown = foldCopies(fresh, copyHoldersRef.current, preferredRef.current, noteGrown);
 				// A copy waiting for a card that never came, such as one hidden from this user, gets its own card once the
 				// list runs out.
 				if (preferredRef.current && mergedReadersDrained(mergedReadersRef.current)) {
-					shown = shown.concat(foldCopies(preferredRef.current.takeAllWaiting(), copyHoldersRef.current, null, noteGrown));
+					const waiting = preferredRef.current.takeAllWaiting();
+					waiting.forEach((item) => thisPage.add(item));
+					shown = shown.concat(foldCopies(waiting, copyHoldersRef.current, null, noteGrown));
+				}
+				// A card from an earlier page that was folded away comes off the screen, and counts as dropped the way a
+				// copy that joined a card does.
+				let takenDown = 0;
+				if (absorbed.size) {
+					shown = shown.filter((item) => !absorbed.has(item));
+					absorbed.forEach((card) => {
+						if (!thisPage.has(card)) takenDown++;
+					});
 				}
 				shownNothing = shown.length === 0 && fetched.length > 0;
-				setBlockedCount(prev => (append ? prev : 0) + fetched.length - shown.length);
+				setBlockedCount(prev => (append ? prev : 0) + fetched.length - shown.length + takenDown);
 				setAllItems(prev => {
 					if (!append) return shown;
-					const kept = grown.size
-						? prev.map((item) => (grown.has(`${item._serverId || ''}|${item.Id}`) ? {...item} : item))
+					// The holders keep the first object, while the list may hold a copy drawn since, so a card is known by
+					// server and id.
+					const absorbedKeys = new Set(Array.from(absorbed, (card) => `${card._serverId || ''}|${card.Id}`));
+					const kept = (grown.size || absorbedKeys.size)
+						? prev
+							.filter((item) => !absorbedKeys.has(`${item._serverId || ''}|${item.Id}`))
+							.map((item) => (grown.has(`${item._serverId || ''}|${item.Id}`) ? {...item} : item))
 						: prev;
 					return [...kept, ...shown];
 				});
@@ -793,7 +855,7 @@ const Library = ({library, genreFilter, studioFilter, onSelectItem, onViewPhoto,
 						Fields: 'PrimaryImageAspectRatio,ItemCounts'
 					});
 				} else if (isMerged) {
-					result = await fetchMergedPage(startIndex, params);
+					result = await fetchMergedPage(startIndex, params, generation);
 				} else {
 					result = await effectiveApi.getItems(params);
 				}
@@ -1105,6 +1167,17 @@ const Library = ({library, genreFilter, studioFilter, onSelectItem, onViewPhoto,
 			focusWantedRef.current = null;
 		}
 	}, [scrollGridTo, totalCount]);
+	// Focus on a card that was folded into another follows it to that card.
+	useEffect(() => {
+		const key = refocusCardRef.current;
+		if (!key) return;
+		refocusCardRef.current = null;
+		const index = items.findIndex((entry) => `${entry._serverId || ''}|${entry.Id}` === key);
+		if (index >= 0) {
+			scrollGridTo({index, focus: true});
+			setFocusedItem(items[index]);
+		}
+	}, [items, scrollGridTo]);
 	useEffect(() => {
 		const onFocusItem = (ev) => {
 			focusWantedRef.current = ev.detail;

@@ -1,6 +1,6 @@
 jest.mock('@enact/i18n/$L', () => ({__esModule: true, default: (str) => str}));
 
-import {genericCollectionLabel, mergeRecentRows} from './mergeRecentRows';
+import {addSeriesProviderIds, genericCollectionLabel, mergeRecentRows} from './mergeRecentRows';
 
 const lib = (id, type) => ({Id: id, CollectionType: type});
 
@@ -65,5 +65,40 @@ describe('genericCollectionLabel', () => {
 		expect(genericCollectionLabel('tvshows')).toBe('TV Shows');
 		expect(genericCollectionLabel('podcasts')).toBe('Podcasts');
 		expect(genericCollectionLabel('')).toBe('Media');
+	});
+});
+
+describe('addSeriesProviderIds', () => {
+	const show = (id, serverId) => ({Id: id, Type: 'Series', Name: 'Severance', _serverId: serverId, DateCreated: '2026-01-01'});
+
+	test('reads each show\'s provider ids from its server, so two servers\' cards of one show fold', async () => {
+		const ids = {a: {s1: {Tvdb: '371980'}}, b: {s9: {Tvdb: '371980'}}};
+		const apiFor = (item) => ({
+			getItems: async ({Ids}) => ({Items: Ids.split(',').map((id) => ({Id: id, ProviderIds: ids[item._serverId][id]}))})
+		});
+		const entries = [
+			{lib: {CollectionType: 'tvshows'}, items: [show('s1', 'a')]},
+			{lib: {CollectionType: 'tvshows'}, items: [show('s9', 'b')]}
+		];
+		await addSeriesProviderIds(entries, apiFor);
+		const [row] = mergeRecentRows(entries, 'DateCreated', {foldCopies: true});
+		expect(row.items).toHaveLength(1);
+		expect(row.items[0]._mergedCopies.map((copy) => copy._serverId)).toEqual(['b']);
+	});
+
+	test('leaves the cards alone when a server doesn\'t answer', async () => {
+		const warn = jest.spyOn(console, 'warn').mockImplementation(() => {});
+		const entries = [{lib: {CollectionType: 'tvshows'}, items: [show('s1', 'a')]}];
+		await addSeriesProviderIds(entries, () => ({getItems: () => Promise.reject(new Error('down'))}));
+		expect(entries[0].items[0].ProviderIds).toBeUndefined();
+		warn.mockRestore();
+	});
+
+	test('doesn\'t wait on a server that takes too long', async () => {
+		const warn = jest.spyOn(console, 'warn').mockImplementation(() => {});
+		const entries = [{lib: {CollectionType: 'tvshows'}, items: [show('s1', 'a')]}];
+		await addSeriesProviderIds(entries, () => ({getItems: () => new Promise(() => {})}), 10);
+		expect(entries[0].items[0].ProviderIds).toBeUndefined();
+		warn.mockRestore();
 	});
 });

@@ -7,6 +7,8 @@ import $L from '@enact/i18n/$L';
 import {foldCopies} from './mergedCopies';
 
 const MERGED_ROW_LIMIT = 16;
+// How long Home waits on a server for its shows' provider ids before showing the rows without them.
+const SERIES_IDS_WAIT_MS = 2000;
 
 export const genericCollectionLabel = (collectionType) => {
 	switch (collectionType) {
@@ -70,4 +72,44 @@ export const mergeRecentRows = (entries, dateField, {foldCopies: fold = false} =
 		});
 	});
 	return rows;
+};
+
+// A show added an episode or a season at a time comes back as that episode or season, and its card is made from it
+// without the show's own provider ids, which say which show it is. This reads them from each show's server, so two
+// servers' cards of one show can fold. A server that doesn't answer, or not within `waitMs`, leaves its cards as they
+// were, so a slow server can't hold back the rows.
+export const addSeriesProviderIds = async (entries, apiFor, waitMs = SERIES_IDS_WAIT_MS) => {
+	const byServer = new Map();
+	(entries || []).forEach(({items}) => (items || []).forEach((item) => {
+		if (item?.Type !== 'Series' || !item.Id || Object.keys(item.ProviderIds || {}).length) return;
+		const server = item._serverId || '';
+		if (!byServer.has(server)) byServer.set(server, {api: apiFor(item), cards: []});
+		byServer.get(server).cards.push(item);
+	}));
+	await Promise.all(Array.from(byServer.values()).map(async ({api, cards}) => {
+		if (!api) return;
+		const ids = Array.from(new Set(cards.map((card) => card.Id)));
+		try {
+			let timer = null;
+			const tooSlow = new Promise((resolve, reject) => {
+				timer = setTimeout(() => reject(new Error(`no answer within ${waitMs}ms`)), waitMs);
+			});
+			let result;
+			try {
+				result = await Promise.race([
+					api.getItems({Ids: ids.join(','), Fields: 'ProviderIds', Limit: ids.length, EnableTotalRecordCount: false}),
+					tooSlow
+				]);
+			} finally {
+				clearTimeout(timer);
+			}
+			const found = new Map((result?.Items || []).map((series) => [series.Id, series.ProviderIds]));
+			cards.forEach((card) => {
+				if (found.get(card.Id)) card.ProviderIds = found.get(card.Id);
+			});
+		} catch (err) {
+			console.warn('[mergeRecentRows] Could not read the shows\' provider ids:', err);
+		}
+	}));
+	return entries;
 };
