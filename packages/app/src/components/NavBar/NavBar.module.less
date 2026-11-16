@@ -157,6 +157,34 @@
 	text-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
 }
 
+// Focus draws a ring in the theme's focus color around the avatar, as Core and
+// Roku do, instead of the white pill the other nav buttons fill with.
+.userBtn {
+	&:hover,
+	&:focus {
+		background: transparent;
+	}
+
+	&::after {
+		content: '';
+		position: absolute;
+		top: 50%;
+		left: 50%;
+		width: 64px;
+		height: 64px;
+		margin: -32px 0 0 -32px;
+		border-radius: 50%;
+		box-shadow: 0 0 0 4px var(--theme-focus-border-color, #00a4dc);
+		opacity: 0;
+		pointer-events: none;
+	}
+
+	&:hover::after,
+	&:focus::after {
+		opacity: 1;
+	}
+}
+
 .userAvatarImg {
 	width: 64px;
 	height: 64px;
