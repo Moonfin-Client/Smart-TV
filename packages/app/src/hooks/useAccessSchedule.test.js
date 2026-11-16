@@ -270,6 +270,16 @@ describe('useAccessSchedule', () => {
 			expect(serverRefuses).not.toHaveBeenCalled();
 		});
 
+		test('names the opening to the nearest minute', async () => {
+			clock = new Date(2026, 9, 19, 21, 0, 0, 750);
+			// A clock a moment behind the server's lands just short of 08:00
+			const fetchAccessWindow = jest.fn(async () => windowOf(false, null, 11 * 3600 * 1000 - 1000));
+			const {result} = mount({fetchAccessWindow});
+			await flush();
+
+			expect(result.current.nextAccess).toEqual(new Date(2026, 9, 20, 8));
+		});
+
 		test('checks again when it closes, not a minute later', async () => {
 			let answer = windowOf(true, 30 * 1000);
 			const fetchAccessWindow = jest.fn(async () => answer);

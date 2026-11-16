@@ -71,8 +71,12 @@ export const useAccessSchedule = ({userId, enabled, fetchUser, serverRefuses, fe
 			const now = latest.current.getNow();
 			const wasBlocked = blocked;
 			blocked = !answer.allowed;
-			// Named on this device's clock, as the moment it comes on it.
-			const nextAccess = blocked && answer.untilOpenMs !== null ? new Date(now.getTime() + answer.untilOpenMs) : null;
+			// Named on this device's clock, as the moment it comes on it, to the nearest minute: a
+			// schedule opens on a minute, and a clock a moment behind the server's would otherwise
+			// name the minute before.
+			const nextAccess = blocked && answer.untilOpenMs !== null
+				? new Date(Math.round((now.getTime() + answer.untilOpenMs) / 60000) * 60000)
+				: null;
 			if (blocked || wasBlocked) setState({blocked, nextAccess});
 			if (blocked && !wasBlocked) latest.current.onBlocked?.();
 			// Allowed with nothing to close is a user with no schedule, or one open all week.
