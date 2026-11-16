@@ -1048,7 +1048,8 @@ export const createWatchParty = ({silo, moonbase = () => null, sync = syncPlay, 
 		} catch (err) {
 			if (generation !== socketGeneration) return;
 			// Refused for good: the room is gone or this proof no longer admits us.
-			if ([403, 404, 409].includes(err?.status)) leaveRoom('closed');
+			// 404 and 409 mean the room is gone. A 403 refuses this proof while the room may still run for the others.
+			if ([403, 404, 409].includes(err?.status)) leaveRoom('closed', {keepStored: err.status === 403});
 			else scheduleReconnect(generation);
 			return;
 		}
@@ -1113,15 +1114,28 @@ export const createWatchParty = ({silo, moonbase = () => null, sync = syncPlay, 
 		try {
 			const profiles = (await client.siloCall('/api/v2/profiles', {profile: false}))?.items || [];
 			const mine = profiles.find((p) => String(p.id) === String(client.userId()));
-			if (!text(mine?.avatar_url)) return;
+			// A room that ended meanwhile would be stored again.
+			if (!text(mine?.avatar_url) || room?.roomId !== id) return;
 			await api.moonbase(`${id}/Avatar`, {method: 'PUT', body: {url: mine.avatar_url}});
 		} catch {
 			// No Moonbase, or an older one: members see initials.
 		}
 	};
 
-	leaveRoom = (reason) => {
+	// Silo: drops what Moonbase keeps for the room once it ends, so it stops counting toward the account's rooms for the
+	// day. Moonbase lets only the host, or the account that stored it when nobody set subtitles, do that.
+	// end() passes the room it closed, since another may have been joined by the time Silo answers.
+	const dropStoredRoom = (roomApi = api, roomId = room?.roomId, roomKind = kind) => {
+		if (roomKind === 'moonbase' || !roomApi?.moonbase || !roomId) return;
+		roomApi.moonbase(roomId, {method: 'DELETE'}).catch((err) => {
+			// Not ours to end, or an older Moonbase: it expires in a day.
+			console.info('[WatchParty] Ending the stored room failed', err?.status || err?.message || '');
+		});
+	};
+
+	leaveRoom = (reason, {keepStored = false} = {}) => {
 		if (!room && !socket) return;
+		if (reason === 'closed' && !keepStored) dropStoredRoom();
 		socketGeneration++;
 		clearTimeout(reconnectTimer);
 		reconnectTimer = null;
@@ -1295,12 +1309,16 @@ export const createWatchParty = ({silo, moonbase = () => null, sync = syncPlay, 
 
 	const end = async () => {
 		if (!room || !api) return;
+		const closing = [api, room.roomId, kind];
 		try {
 			await api.close(room.roomId);
+			dropStoredRoom(...closing);
 		} catch (err) {
 			console.warn('[WatchParty] Closing the room failed', err);
+			// Silo says the room is unknown (404) or already ended (409).
+			if (err?.status === 404 || err?.status === 409) dropStoredRoom(...closing);
 		}
-		leaveRoom(null);
+		if (room?.roomId === closing[1]) leaveRoom(null);
 	};
 
 	// What syncPlay.js hands the room while it follows it.
