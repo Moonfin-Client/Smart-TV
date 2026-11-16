@@ -2,6 +2,7 @@ import {memo, useState, useCallback} from 'react';
 import Spottable from '@enact/spotlight/Spottable';
 
 import {PORTRAIT_HEIGHT, boxArtCell, boxArtNeedsFill, gameDisplayTitle, gameFallbackColor, hideBrokenArt} from '../../utils/gameArt';
+import {rem} from '../../utils/rootScale';
 
 import css from './GameCard.module.less';
 
@@ -34,10 +35,10 @@ const GameCard = ({game, artUrl, aspect, width = 200, spotlightId, onSelect, ...
 			{...rest}
 			className={css.card}
 			spotlightId={spotlightId}
-			style={{width: width * cell.width}}
+			style={{width: rem(width * cell.width)}}
 			onClick={handleSelect}
 		>
-			<div className={css.poster} style={{height: width * cell.height, marginTop: width * (PORTRAIT_HEIGHT - cell.height)}}>
+			<div className={css.poster} style={{height: rem(width * cell.height), marginTop: rem(width * (PORTRAIT_HEIGHT - cell.height))}}>
 				{failed || !artUrl ? (
 					<div className={css.fallback} style={{background: gameFallbackColor(game.id)}}>
 						<svg className={css.glyph} viewBox="0 0 24 24" aria-hidden="true">
