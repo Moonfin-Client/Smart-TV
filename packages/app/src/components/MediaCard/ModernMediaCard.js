@@ -7,6 +7,7 @@ import {useSettings} from '../../context/SettingsContext';
 import {getPlatform} from '../../platform';
 import {getPerfTier} from '../../utils/perfTier';
 import {cubicBezier} from '../../utils/focusScroll';
+import {rem} from '../../utils/rootScale';
 import {isStaticLibraryCard, modernCardMetrics, getEpisodeLabels, getCardDisplayTitle} from './modernCardLayout';
 import SeerrIcon from '../icons/SeerrIcon';
 import SeerrStatusBanner, {seerrBadgeStyle, seerrTitleStatus} from '../seerr/SeerrStatusBanner';
@@ -288,7 +289,7 @@ const ModernMediaCard = ({
 	}, [imageUrl, seerrThumb]);
 
 	const extendedSectionWidth = Math.max(detailsWidth || 0, expandedWidth);
-	const artStyle = coreLook ? {...CORE_ART, height: `${imageHeight}px`} : {height: `${imageHeight}px`};
+	const artStyle = coreLook ? {...CORE_ART, height: rem(imageHeight)} : {height: rem(imageHeight)};
 
 	const cardClassName = [
 		css.card,
@@ -311,10 +312,10 @@ const ModernMediaCard = ({
 			onMouseEnter={onPreviewFocus}
 			onMouseLeave={handleMouseLeave}
 			style={{
-				width: `${expanded ? expandedWidth : cardWidth}px`,
+				width: rem(expanded ? expandedWidth : cardWidth),
 				transition: openMs ? `width ${openMs}ms ${EXPAND_CURVE}` : 'none',
-				'--modern-card-image-height': `${imageHeight}px`,
-				'--modern-card-expanded-width': `${expandedWidth}px`
+				'--modern-card-image-height': rem(imageHeight),
+				'--modern-card-expanded-width': rem(expandedWidth)
 			}}
 			spotlightId={spotlightId}
 			onSpotlightLeft={onSpotlightLeft}
@@ -344,7 +345,7 @@ const ModernMediaCard = ({
 								height={imageHeight}
 								style={{
 									...artStyle,
-									width: `${cardWidth}px`,
+									width: rem(cardWidth),
 									opacity: expanded && artShown ? 0 : 1,
 									transition: `opacity ${openMs}ms ${EXPAND_CURVE}`
 								}}
@@ -427,7 +428,7 @@ const ModernMediaCard = ({
 				)}
 			</div>
 			{coreLook && (
-				<div className={css.focusRing} style={{height: `${imageHeight + 16}px`}} />
+				<div className={css.focusRing} style={{height: rem(imageHeight + 16)}} />
 			)}
 
 			{!carousel && <div className={css.title}>{displayTitle}</div>}
@@ -447,7 +448,7 @@ const ModernMediaCard = ({
 			) : null}
 
 			{expanded && !carousel && (
-				<div className={css.extendedSection} style={{width: `${extendedSectionWidth}px`}}>
+				<div className={css.extendedSection} style={{width: rem(extendedSectionWidth)}}>
 					<RatingsRow
 						item={item}
 						serverUrl={itemServerUrl}

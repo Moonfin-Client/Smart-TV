@@ -8,6 +8,7 @@ import {sameCardUserData} from '../../utils/playedState';
 import {useSettings} from '../../context/SettingsContext';
 import {getPlatform} from '../../platform';
 import {MODERN_CAPTION_ROOM, modernCardMetrics} from '../MediaCard/modernCardLayout';
+import {rem, rootScale, stylePx} from '../../utils/rootScale';
 import PlaceholderRow from './PlaceholderRow';
 import CalendarSeeAllCard from './CalendarSeeAllCard';
 import CarouselPanel from './CarouselPanel';
@@ -88,7 +89,7 @@ const ModernMediaRow = ({
 		};
 		window.addEventListener('resize', invalidate);
 		return () => window.removeEventListener('resize', invalidate);
-	}, [settings.navbarPosition]);
+	}, [settings.navbarPosition, settings.uiScale]);
 
 	useEffect(() => {
 		if (!focusedItemId) return;
@@ -147,7 +148,8 @@ const ModernMediaRow = ({
 					scrollerLayoutRef.current = {
 						width: scroller.clientWidth,
 						paddingLeft: parseFloat(style.paddingLeft) || 0,
-						paddingRight: parseFloat(style.paddingRight) || 0
+						paddingRight: parseFloat(style.paddingRight) || 0,
+						scale: rootScale()
 					};
 				}
 				const layout = scrollerLayoutRef.current;
@@ -158,7 +160,7 @@ const ModernMediaRow = ({
 				// card that just lost focus is still shrinking back.
 				let cardStart = 0;
 				for (let i = 0; i < cards.length && cards[i] !== card; i++) {
-					cardStart += parseFloat(cards[i].style.width) + layout.gap;
+					cardStart += stylePx(cards[i].style.width, layout.scale) + layout.gap;
 				}
 				// With the cards animating, the lane slides on the same timing and curve, so the card opening, the
 				// one closing and the rest of the row all move as one. Cards that open instantly would jump the new one
@@ -172,7 +174,8 @@ const ModernMediaRow = ({
 				const cardLeft = layout.paddingLeft + cardStart - rest;
 				setDetails({
 					spotlightId: card.getAttribute('data-spotlight-id'),
-					width: layout.width - layout.paddingRight - cardLeft
+					// The card sizes itself in design pixels.
+					width: (layout.width - layout.paddingRight - cardLeft) / layout.scale
 				});
 			});
 		}
@@ -233,7 +236,7 @@ const ModernMediaRow = ({
 		carousel ? css.carousel : '',
 		typeof document !== 'undefined' && document.documentElement.classList.contains('legacy') ? css.platformLegacy : ''
 	].filter(Boolean).join(' ');
-	const rowStyle = typeof rowSpacing === 'number' ? {marginBottom: rowSpacing + 'px'} : undefined;
+	const rowStyle = typeof rowSpacing === 'number' ? {marginBottom: rem(rowSpacing)} : undefined;
 
 	if (loading) {
 		const {cardWidth, imageHeight} = modernCardMetrics({
@@ -281,7 +284,7 @@ const ModernMediaRow = ({
 			{subtitle && <div className={css.subtitle}>{subtitle}</div>}
 			{/* Core starts the cards a little in from the title, 20 points against its 16. */}
 			<div className={css.scroller} ref={scrollerRef} onFocus={handleFocus} style={coreLook ? {paddingLeft: `${leadingInset + 6}px`} : undefined}>
-				<div className={css.items} style={{minHeight: `${captionFloor}px`}}>
+				<div className={css.items} style={{minHeight: rem(captionFloor)}}>
 					{items.map((item, index) => {
 						const spotlightId = `media-${keyPrefix}-${item.Id}`;
 						// Wide art loads ahead for the cards a step or two along from focus, and in a row

@@ -56,9 +56,10 @@ describe('SkeletonHomeRow', () => {
 		render(<SkeletonHomeRow cardWidth={240} imageHeight={360} count={3} />);
 
 		expect(all('.homeCard')).toHaveLength(3);
-		expect(find('.homeCard .box').style.height).toBe('360px');
+		expect(find('.homeCard').style.width).toBe('10rem');
+		expect(find('.homeCard .box').style.height).toBe('15rem');
 		expect(find('.homeCard .box').style.borderRadius).toBe('8px');
-		expect(find('.classicTitleBar').style.width).toBe('180px');
+		expect(find('.classicTitleBar').style.width).toBe('7.5rem');
 		expect(find('.modernSubtitleBar')).toBeNull();
 	});
 
@@ -67,8 +68,8 @@ describe('SkeletonHomeRow', () => {
 
 		expect(all('.homeCard')).toHaveLength(8);
 		expect(find('.homeCard .box').style.borderRadius).toBe('12px');
-		expect(find('.modernTitleBar').style.width).toBe('180px');
-		expect(find('.modernSubtitleBar').style.width).toBe('120px');
+		expect(find('.modernTitleBar').style.width).toBe('7.5rem');
+		expect(find('.modernSubtitleBar').style.width).toBe('5rem');
 	});
 });
 

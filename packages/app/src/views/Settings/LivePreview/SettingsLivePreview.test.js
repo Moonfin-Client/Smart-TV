@@ -71,8 +71,11 @@ jest.mock('../../../services/posterBadgesApi', () => ({
 }));
 let mockParentalFilter = require('../../../utils/parentalFilter').parentalFilterFromRatings([]);
 jest.mock('../../../hooks/useParentalFilter', () => () => ({parentalFilter: mockParentalFilter}));
-// Home's card pulls in the context menu and its Sandstone screens, and the preview only reads its size.
-jest.mock('../../../components/MediaCard/MediaCard', () => ({classicCardSize: () => ({width: 0, height: 0})}));
+// Home's card pulls in the context menu and its Sandstone screens, and the preview only reads its size,
+// so this hands back the Default sizes.
+jest.mock('../../../components/MediaCard/MediaCard', () => ({
+	classicCardSize: (shape) => ({portrait: {width: 240, height: 360}, landscape: {width: 384, height: 216}, square: {width: 240, height: 240}, banner: {width: 1168, height: 216}}[shape])
+}));
 jest.mock('../../../components/LoadingSpinner', () => () => null);
 // The real layer fades its picture in once it loads, so here it only says what it was handed.
 jest.mock('../../../components/BackdropLayer', () => {
@@ -1324,7 +1327,7 @@ describe('Home\'s own rows', () => {
 		};
 		draw(home({mediaBarRowPeek: true, featuredBarStyle: 'moonfin'}), 'setting-mediaBarRowPeek', 'home');
 		// The title band and half of a Classic poster, up from the bottom of the 540 tall screen.
-		expect(peekTop()).toBe(`${540 - (24 + 19 + 5 + 60)}px`);
+		expect(peekTop()).toBe(`${540 - (24 + 19 + 5 + 90)}px`);
 		cleanup();
 		draw(home({mediaBarRowPeek: true, featuredBarStyle: 'banner'}), 'setting-mediaBarRowPeek', 'home');
 		expect(peekTop()).toBeNull();

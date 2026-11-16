@@ -12,3 +12,6 @@ export const rootScale = () => {
 	const size = parseFloat(window.getComputedStyle(document.documentElement).fontSize);
 	return size > 0 ? size / BASE_FONT_PX : 1;
 };
+
+// A length from an inline style in screen pixels, whether it was set in px or through rem().
+export const stylePx = (length, scale = rootScale()) => (parseFloat(length) || 0) * (/rem$/.test(length) ? BASE_FONT_PX * scale : 1);

@@ -34,7 +34,8 @@ import {applyOledMode} from '../../utils/oledMode';
 import {normalizeRatingStyle} from '../../utils/personalRating';
 import {rootScale} from '../../utils/rootScale';
 import {memoryCache} from '../Browse/browseCache';
-import {CAROUSEL_PANEL_SCRIM, homeRowSpacing} from '../../components/MediaCard/modernCardLayout';
+import {classicCardSize} from '../../components/MediaCard/MediaCard';
+import {CAROUSEL_PANEL_SCRIM, homeRowSpacing, modernCardMetrics} from '../../components/MediaCard/modernCardLayout';
 import {rowPeekHeight} from '../Browse/rowPeek';
 import {genreGlowRgb} from '../Browse/galleryGlow';
 import {DETAIL_ICON_PATHS} from '../Details/detailIcons';
@@ -692,13 +693,14 @@ const HomeRow = ({title, items, t, modern, shape = 'portrait', offset = 0, withF
 	);
 };
 
-// Card Size as a scale of Default, the size the rows are drawn at otherwise.
-const POSTER_SIZE_SCALE = {small: 0.8, default: 1, large: 1.2, xlarge: 1.4, grandparents: 2};
-
-// The poster and thumb heights the rows' cards draw at, in the card size being looked at.
+// The poster and thumb heights Home's own cards draw at in the card size being looked at, halved
+// for this half size screen.
 const rowCardHeights = (settings, modern) => {
-	const sizeScale = POSTER_SIZE_SCALE[settings.homeRowsPosterSize] || 1;
-	return {posterHeight: (modern ? 240 : 150) * ROW_SCALE * sizeScale, thumbHeight: 110 * ROW_SCALE * sizeScale};
+	const posterSize = settings.homeRowsPosterSize;
+	return {
+		posterHeight: (modern ? modernCardMetrics({posterSize}).imageHeight : classicCardSize('portrait', posterSize).height) / 2,
+		thumbHeight: classicCardSize('landscape', posterSize).height / 2
+	};
 };
 
 // [rows] are Home's own rows, each {id, title, items, shape}, drawn in place of the sample ones

@@ -12,6 +12,7 @@ import {sameCardUserData} from '../../utils/playedState';
 import {useSettings} from '../../context/SettingsContext';
 import {nearRowEnd} from '../../views/Browse/rowPaging';
 import {classicShape} from '../../views/Browse/rowPeek';
+import {rem} from '../../utils/rootScale';
 
 import css from './MediaRow.module.less';
 
@@ -148,7 +149,7 @@ const MediaRow = ({
 	].filter(Boolean).join(' ');
 	// The padding slider owns the space below each row. Custom properties do not
 	// survive the build for the older sets, so it arrives as an inline style.
-	const rowStyle = typeof rowSpacing === 'number' ? {marginBottom: rowSpacing + 'px'} : undefined;
+	const rowStyle = typeof rowSpacing === 'number' ? {marginBottom: rem(rowSpacing)} : undefined;
 
 	if (loading) {
 		const cardSize = classicCardSize(cardType === 'square' ? 'square' : 'portrait', settings.homeRowsPosterSize);

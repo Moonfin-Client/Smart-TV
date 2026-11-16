@@ -1,6 +1,7 @@
 import $L from '@enact/i18n/$L';
 import Spottable from '@enact/spotlight/Spottable';
 import {CORE_ICON_PATHS} from '../../views/Settings/settingsCoreIcons';
+import {rem} from '../../utils/rootScale';
 
 import css from './CalendarSeeAllCard.module.less';
 
@@ -10,7 +11,7 @@ const SpottableDiv = Spottable('div');
 const CalendarSeeAllCard = ({width, height, spotlightId, onClick, onFocus, onSpotlightRight, icon = 'calendar_month'}) => (
 	<SpottableDiv
 		className={css.card}
-		style={{width: `${width}px`, height: `${height}px`}}
+		style={{width: rem(width), height: rem(height)}}
 		spotlightId={spotlightId}
 		onClick={onClick}
 		onFocus={onFocus}

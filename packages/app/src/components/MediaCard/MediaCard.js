@@ -13,6 +13,7 @@ import LoopMarquee from '../LoopMarquee';
 import useItemMenuHold from '../../hooks/useItemMenuHold';
 import useImageReveal, {pendingArtStyle} from '../../hooks/useImageReveal';
 import {isUnownedSeerrTitle, seerrThumbUrl, seerrWideArtUrl, useTmdbThumbsAvailable} from '../../utils/tmdbThumb';
+import {rem} from '../../utils/rootScale';
 import {useMediaPreviewSlot} from './MediaPreviewContext';
 import {episodeArtwork, requestedArtwork} from './cardArtwork';
 
@@ -241,8 +242,10 @@ const MediaCard = ({item, serverUrl, cardType = 'portrait', rowImageType = 'post
 	// focused thumbnail alike, and the seerr genre cards use the same scale.
 	const genreLabelSize = Math.min(24, Math.max(14, cardWidth * (14 / 200)));
 	const sized = size || sizeMultiplier !== 1;
-	const sizeStyle = sized ? {width: cardWidth + 'px'} : undefined;
-	const imgSizeStyle = sized ? {height: cardHeight + 'px'} : undefined;
+	// A screen that hands over a size lays its cards out itself, so only the setting's sizes follow the UI scale.
+	const length = size ? (n) => n + 'px' : rem;
+	const sizeStyle = sized ? {width: length(cardWidth)} : undefined;
+	const imgSizeStyle = sized ? {height: length(cardHeight)} : undefined;
 	// Logos and studio art have to sit inside the card whole. Everything else takes
 	// the cover the stylesheet already applies, so it stays out of the inline style.
 	const fitStyle = imageType === 'logo' || item.Type === 'Studio' || item.Type === 'Network'
