@@ -66,8 +66,8 @@ export const useAccessSchedule = ({userId, enabled, fetchUser, serverRefuses, fe
 			if (blocked && !wasBlocked) latest.current.onBlocked?.();
 		};
 
-		// The plugin's answer alone decides and times the next check.
-		const applyWindow = (answer) => {
+		// The plugin's answer alone decides and times the next check; its durations count from asked.
+		const applyWindow = (answer, asked) => {
 			const now = latest.current.getNow();
 			const wasBlocked = blocked;
 			blocked = !answer.allowed;
@@ -75,14 +75,14 @@ export const useAccessSchedule = ({userId, enabled, fetchUser, serverRefuses, fe
 			// schedule opens on a minute, and a clock a moment behind the server's would otherwise
 			// name the minute before.
 			const nextAccess = blocked && answer.untilOpenMs !== null
-				? new Date(Math.round((now.getTime() + answer.untilOpenMs) / 60000) * 60000)
+				? new Date(Math.round((asked.getTime() + answer.untilOpenMs) / 60000) * 60000)
 				: null;
 			if (blocked || wasBlocked) setState({blocked, nextAccess});
 			if (blocked && !wasBlocked) latest.current.onBlocked?.();
 			// Allowed with nothing to close is a user with no schedule, or one open all week.
 			let wait = !blocked && answer.untilCloseMs === null ? IDLE_WAIT_MS : MAX_WAIT_MS;
 			const remaining = blocked ? answer.untilOpenMs : answer.untilCloseMs;
-			if (remaining !== null) wait = Math.min(wait, remaining);
+			if (remaining !== null) wait = Math.min(wait, remaining - (now.getTime() - asked.getTime()));
 			schedule(Math.max(wait, 1000));
 		};
 
@@ -91,22 +91,27 @@ export const useAccessSchedule = ({userId, enabled, fetchUser, serverRefuses, fe
 			const look = ++started;
 			const loadWindow = latest.current.fetchAccessWindow;
 			if (loadWindow && !windowUnsupported) {
+				// The plugin works its durations out between now and its answer, so they count from
+				// here: a slow answer can't push the next check past the change it names.
+				const asked = latest.current.getNow();
 				let answer;
+				let failed = false;
 				try {
 					answer = await loadWindow();
 				} catch (e) {
-					// Keep the last answer and ask again soon.
-					if (!cancelled && look >= applied) schedule(RETRY_MS);
-					return;
+					failed = true;
 				}
 				if (cancelled || look < applied) return;
 				if (answer) {
 					applied = look;
-					applyWindow(answer);
+					applyWindow(answer, asked);
 					return;
 				}
-				// A plugin that can't answer it won't start to during this session.
-				windowUnsupported = true;
+				// A plugin that can't answer it won't start to during this session; only the newest
+				// check says so. A window that couldn't be read leaves the plugin asked again next
+				// time, and the schedule and the server decide this check, so a failing endpoint
+				// can't leave the user let in on a server that turns them away.
+				if (!failed && look === started) windowUnsupported = true;
 			}
 			let user;
 			try {
