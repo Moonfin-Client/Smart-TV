@@ -1,0 +1,275 @@
+// Merged libraries: every server's movie libraries behind one Movies library and their show libraries behind one TV
+// Shows library, with a title several servers hold shown once. The card keeps the other servers' copies, so opening it
+// can ask which one, and marking it watched or a favorite reaches each of them.
+
+import $L from '@enact/i18n/$L';
+
+import {foldForSearch} from './accentFolding';
+import {parseServerDate} from './serverDate';
+
+const MERGED_LIBRARY_PREFIX = 'merged-';
+const MERGED_TYPES = ['movies', 'tvshows'];
+
+// Where a card keeps the other servers' copies of its title.
+export const COPIES_KEY = '_mergedCopies';
+
+// Whether merging is switched on and has more than one server to merge.
+export const mergesLibraries = (settings, hasMultipleServers) => Boolean(
+	settings?.unifiedLibraryMode && settings?.mergeLibrariesByType && hasMultipleServers
+);
+
+// The library that stands for every server's libraries of `collectionType`.
+export const mergedLibraryId = (collectionType) => `${MERGED_LIBRARY_PREFIX}${collectionType}`;
+
+// The collection type `libraryId` merges, or null for a server's own library.
+export const mergedLibraryType = (libraryId) => (
+	typeof libraryId === 'string' && libraryId.startsWith(MERGED_LIBRARY_PREFIX)
+		? libraryId.slice(MERGED_LIBRARY_PREFIX.length)
+		: null
+);
+
+export const isMergedLibrary = (library) => Boolean(library && mergedLibraryType(library.Id));
+
+export const mergedLibraryName = (collectionType) => (collectionType === 'movies' ? $L('Movies') : $L('TV Shows'));
+
+const collectionTypeOf = (library) => (library?.CollectionType || '').toLowerCase();
+
+// Puts every server's movie libraries behind one library and their show libraries behind another, for each type at
+// least two servers hold. The merged library takes the first one's place, server and artwork.
+export const mergeLibrariesByType = (libraries, nameOf = mergedLibraryName) => {
+	let merged = [...(libraries || [])];
+	MERGED_TYPES.forEach((type) => {
+		const members = merged.filter((library) => collectionTypeOf(library) === type);
+		const servers = new Set(members.map((library) => library._serverId));
+		if (servers.size < 2) return;
+		const first = members[0];
+		const others = new Set(members.slice(1));
+		merged[merged.indexOf(first)] = {
+			...first,
+			Id: mergedLibraryId(type),
+			Name: nameOf(type),
+			CollectionType: type,
+			// The merged library has no artwork of its own, so its tile borrows the first library's.
+			_imageItemId: first.Id,
+			_mergedType: type
+		};
+		merged = merged.filter((library) => !others.has(library));
+	});
+	return merged;
+};
+
+const positiveNumber = (value) => {
+	if (!/^\d+$/.test(value)) return null;
+	const number = parseInt(value, 10);
+	return number > 0 ? number : null;
+};
+
+// The ids that say two servers hold the same title. Placeholder ids some metadata leaves behind don't count, so a
+// title without a real one never folds.
+export const titleMatchKeys = (item) => {
+	const keys = [];
+	const providerIds = item?.ProviderIds;
+	if (!providerIds || typeof providerIds !== 'object') return keys;
+	Object.keys(providerIds).forEach((provider) => {
+		const name = provider.toLowerCase();
+		const id = String(providerIds[provider] ?? '').trim().toLowerCase();
+		let number = null;
+		if (name === 'tmdb' || name === 'tvdb') number = positiveNumber(id);
+		else if (name === 'imdb' && id.startsWith('tt')) number = positiveNumber(id.slice(2));
+		const key = `${item.Type}:${name}:${id}`;
+		if (number != null && !keys.includes(key)) keys.push(key);
+	});
+	return keys;
+};
+
+// Every copy of `item`, itself first.
+export const copiesOf = (item) => {
+	if (!item) return [];
+	const copies = Array.isArray(item[COPIES_KEY]) ? item[COPIES_KEY] : [];
+	return [item, ...copies];
+};
+
+// How many different servers hold `item`.
+export const serverCountOf = (item) => new Set(copiesOf(item).map((copy) => copy._serverId)).size;
+
+// Whether opening `item` has a server to pick.
+export const hasMergedCopies = (item) => copiesOf(item).length > 1;
+
+// The server whose copy a merged card should be, and the other servers' copies of its titles waiting for that card to
+// come up.
+export class PreferredCopies {
+	constructor (serverId, titles) {
+		this.serverId = serverId;
+		// The match keys of every title the preferred server holds.
+		this.titles = titles instanceof Set ? titles : new Set(titles || []);
+		this.waiting = new Map();
+	}
+
+	// Holds `item` back when the preferred server has its title, so the card shows that server's copy and sits where
+	// that server sorts it.
+	wait (item, keys) {
+		if (item._serverId === this.serverId || !keys.some((key) => this.titles.has(key))) return false;
+		keys.forEach((key) => {
+			if (!this.waiting.has(key)) this.waiting.set(key, []);
+			this.waiting.get(key).push(item);
+		});
+		return true;
+	}
+
+	take (keys) {
+		const taken = new Set();
+		keys.forEach((key) => {
+			(this.waiting.get(key) || []).forEach((item) => taken.add(item));
+			this.waiting.delete(key);
+		});
+		taken.forEach((item) => {
+			titleMatchKeys(item).forEach((key) => {
+				const list = this.waiting.get(key);
+				if (!list) return;
+				const rest = list.filter((entry) => entry !== item);
+				if (rest.length) this.waiting.set(key, rest);
+				else this.waiting.delete(key);
+			});
+		});
+		return taken;
+	}
+
+	// Every copy still waiting, once the list has run out without the preferred server's copy turning up.
+	takeAllWaiting () {
+		const all = new Set();
+		this.waiting.forEach((items) => items.forEach((item) => all.add(item)));
+		this.waiting.clear();
+		return Array.from(all);
+	}
+}
+
+// The item alone, without the other servers' copies, for once one copy has been picked.
+export const withoutCopies = (item) => {
+	const plain = {...item};
+	delete plain[COPIES_KEY];
+	return plain;
+};
+
+const join = (holder, item, keys, holders, onJoin) => {
+	copiesOf(item).forEach((copy) => holder[COPIES_KEY].push(withoutCopies(copy)));
+	if (onJoin) onJoin(holder);
+	keys.forEach((key) => {
+		if (!holders.has(key)) holders.set(key, holder);
+	});
+};
+
+// Folds each item that shares a match key with an earlier one into it, as one of its copies. `holders` carries the
+// titles already shown from one call to the next, so a later page folds into an earlier page's card. With
+// `preferred`, another server's copy of a title the preferred server holds waits to join that server's card instead of
+// becoming the card. `onJoin` hears of each card that took on a copy, so one already drawn can be drawn again.
+export const foldCopies = (items, holders = new Map(), preferred = null, onJoin = null) => {
+	const kept = [];
+	(items || []).forEach((item) => {
+		if (!item) return;
+		const keys = titleMatchKeys(item);
+		let holder = null;
+		for (let i = 0; i < keys.length && !holder; i++) holder = holders.get(keys[i]) || null;
+		if (holder) {
+			join(holder, item, keys, holders, onJoin);
+			return;
+		}
+		if (preferred && preferred.wait(item, keys)) return;
+		kept.push(item);
+		if (!keys.length) return;
+		// Made up front so a card copied later, as the watched state is laid over it, still shares the list later
+		// copies are added to.
+		if (!Array.isArray(item[COPIES_KEY])) item[COPIES_KEY] = [];
+		keys.forEach((key) => holders.set(key, item));
+		if (preferred) preferred.take(keys).forEach((copy) => join(item, copy, titleMatchKeys(copy), holders, onJoin));
+	});
+	return kept;
+};
+
+const dateValue = (value) => {
+	const date = parseServerDate(value);
+	const time = date ? date.getTime() : NaN;
+	return Number.isNaN(time) ? null : time;
+};
+
+const numberValue = (value) => (typeof value === 'number' && !Number.isNaN(value) ? value : null);
+
+const sortValue = (item, field) => {
+	switch (field) {
+		// Folded so "Été" sorts with the E's, as each server lists it.
+		case 'SortName': return foldForSearch(item.SortName || item.Name || '');
+		case 'Name': return foldForSearch(item.Name || '');
+		case 'DateCreated': return dateValue(item.DateCreated);
+		// Servers sort on this name but send the date as DateLastMediaAdded.
+		case 'DateLastContentAdded': return dateValue(item.DateLastMediaAdded);
+		case 'PremiereDate': return dateValue(item.PremiereDate);
+		case 'ProductionYear': return numberValue(item.ProductionYear);
+		case 'OfficialRating': return item.OfficialRating || null;
+		case 'Runtime': return numberValue(item.RunTimeTicks);
+		case 'CriticRating': return numberValue(item.CriticRating);
+		case 'CommunityRating': return numberValue(item.CommunityRating);
+		case 'DatePlayed': return dateValue(item.UserData?.LastPlayedDate);
+		case 'PlayCount': return numberValue(item.UserData?.PlayCount);
+		default: return null;
+	}
+};
+
+// A missing value sorts first, the way the servers order a null.
+const compareNullable = (a, b) => {
+	if (a == null) return b == null ? 0 : -1;
+	if (b == null) return 1;
+	if (a === b) return 0;
+	return a < b ? -1 : 1;
+};
+
+// Orders items the way a server does for `sortBy`, its comma separated sort fields, so pages from several servers can
+// be merged into one list. Null for a random order, which has nothing to merge on.
+export const mergedSortComparator = (sortBy, descending) => {
+	const fields = String(sortBy || 'SortName').split(',').map((field) => field.trim()).filter(Boolean);
+	if (fields.includes('Random')) return null;
+	return (a, b) => {
+		for (let i = 0; i < fields.length; i++) {
+			const order = compareNullable(sortValue(a, fields[i]), sortValue(b, fields[i]));
+			if (order !== 0) return descending ? -order : order;
+		}
+		return 0;
+	};
+};
+
+// The text a merged card answers to in a library search: its sort name, and each copy's title, which another server
+// can hold in another language, and the original title they share.
+export const mergedSearchText = (item) => {
+	const parts = [item.SortName || item.Name || ''];
+	copiesOf(item).forEach((copy) => {
+		if (copy.Name) parts.push(copy.Name);
+		if (copy.OriginalTitle) parts.push(copy.OriginalTitle);
+	});
+	return parts.join('\n');
+};
+
+// The union of the filter values every server's library holds.
+export const mergeFacetValues = (values) => {
+	const present = (values || []).filter(Boolean);
+	const union = (pick) => {
+		const seen = new Set();
+		present.forEach((value) => (pick(value) || []).forEach((entry) => seen.add(entry)));
+		return Array.from(seen).sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
+	};
+	// Languages come as {value, name} pairs on some clients and plain strings on others.
+	const unionNamed = (pick) => {
+		const byValue = new Map();
+		present.forEach((value) => (pick(value) || []).forEach((entry) => {
+			const key = entry && typeof entry === 'object' ? entry.value ?? entry.Value ?? entry.name : entry;
+			if (!byValue.has(key)) byValue.set(key, entry);
+		}));
+		const nameOf = (entry) => String(entry && typeof entry === 'object' ? entry.name ?? entry.Name ?? entry.value : entry);
+		return Array.from(byValue.values()).sort((a, b) => nameOf(a).localeCompare(nameOf(b)));
+	};
+	return {
+		genres: union((value) => value.genres),
+		officialRatings: union((value) => value.officialRatings),
+		tags: union((value) => value.tags),
+		years: union((value) => value.years),
+		audioLanguages: unionNamed((value) => value.audioLanguages),
+		subtitleLanguages: unionNamed((value) => value.subtitleLanguages)
+	};
+};

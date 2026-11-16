@@ -11,6 +11,8 @@ import {withoutBlockedItems} from '../../services/parentalControls';
 import {useSettings} from '../../context/SettingsContext';
 import {useSeerr} from '../../context/SeerrContext';
 import * as connectionPool from '../../services/connectionPool';
+import MergedServerBadge from '../../components/MergedServerBadge';
+import {hasMergedCopies, mergesLibraries} from '../../utils/mergedCopies';
 import * as gamesApi from '../../services/gamesApi';
 import LoadingSpinner from '../../components/LoadingSpinner';
 import ProxiedImage from '../../components/ProxiedImage';
@@ -123,6 +125,8 @@ const Search = ({onSelectItem, onSelectSeerrItem, onSelectPerson, onSelectGame, 
 	const {api, serverUrl, serverType, hasMultipleServers} = useAuth();
 	const {settings} = useSettings();
 	const unifiedMode = settings.unifiedLibraryMode && hasMultipleServers;
+	// With merged libraries a title several servers hold is one result.
+	const foldsCopies = mergesLibraries(settings, hasMultipleServers);
 	const {isEnabled: seerrEnabled, api: seerrApi, displayName: seerrName, pluginInfo} = useSeerr();
 	const smartSearchOn = !!settings.useMoonfinPlugin && pluginInfo?.smartSearchEnabled === true;
 
@@ -227,7 +231,7 @@ const Search = ({onSelectItem, onSelectSeerrItem, onSelectPerson, onSelectGame, 
 			).then(withoutBlockedItems).catch(() => []);
 			const [libraryResult, channels] = await Promise.all([
 				unifiedMode
-					? connectionPool.searchAllServers(q, GLOBAL_FETCH_LIMIT).then((serverItems) => ({Items: serverItems}))
+					? connectionPool.searchAllServers(q, GLOBAL_FETCH_LIMIT, {foldCopies: foldsCopies}).then((serverItems) => ({Items: serverItems}))
 					: searchLibrary(api, q, GLOBAL_FETCH_LIMIT, serverType),
 				hasLiveTvRef.current && !isStudioQuery
 					? api.getLiveTvChannels(0, 500).then((r) => r?.Items || []).catch(() => [])
@@ -307,7 +311,7 @@ const Search = ({onSelectItem, onSelectSeerrItem, onSelectPerson, onSelectGame, 
 			setGameResults([]);
 			setIsLoading(false);
 		}
-	}, [api, serverType, seerrEnabled, seerrApi, unifiedMode, focusAllTab, rememberSearch, settings, preferRequests]);
+	}, [api, serverType, seerrEnabled, seerrApi, unifiedMode, foldsCopies, focusAllTab, rememberSearch, settings, preferRequests]);
 
 	// A single word is a title or a name, which the normal search handles, so only
 	// queries of two words or more go to Moonbase.
@@ -647,7 +651,9 @@ const Search = ({onSelectItem, onSelectSeerrItem, onSelectPerson, onSelectGame, 
 				spotlightId={spotlightId}
 			>
 				<div className={`${css.cardImg} ${img} ${circle ? css.imgCircle : ''}`}>
-					{unifiedMode && item._serverName && <div className={css.serverBadge}>{item._serverName}</div>}
+					{/* A result several servers hold shows how many instead of one's name. */}
+					{unifiedMode && item._serverName && !hasMergedCopies(item) && <div className={css.serverBadge}>{item._serverName}</div>}
+					<MergedServerBadge item={item} />
 					{imageUrl
 						? <img className={css.cardImage} src={imageUrl} alt={item.Name} loading="lazy" />
 						: <div className={css.cardPlaceholder}>{circle ? '👤' : '🎬'}</div>}
@@ -659,7 +665,7 @@ const Search = ({onSelectItem, onSelectSeerrItem, onSelectPerson, onSelectGame, 
 					<PosterLabels
 						item={item}
 						serverUrl={itemServerUrl}
-						topRight={showsWatchedCheck(item) || (unifiedMode && item._serverName) ? 40 : 8}
+						topRight={showsWatchedCheck(item) || (unifiedMode && item._serverName && !hasMergedCopies(item)) ? 40 : 8}
 					/>
 				</div>
 				<div className={css.cardTitle}>{item.Name}</div>

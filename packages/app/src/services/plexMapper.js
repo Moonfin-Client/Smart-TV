@@ -280,6 +280,8 @@ export const plexItemToJellyfin = (m) => {
 		IsFolder: FOLDER_TYPES.includes(type)
 	};
 	if (m.titleSort != null) item.SortName = m.titleSort;
+	// A track's originalTitle is its artist, read below.
+	if (!isTrack && typeof m.originalTitle === 'string' && m.originalTitle) item.OriginalTitle = m.originalTitle;
 	if (type === 'movie' || type === 'episode' || type === 'clip') item.MediaType = 'Video';
 	if (type === 'clip' && EXTRA_TYPES[m.subtype]) item.ExtraType = EXTRA_TYPES[m.subtype];
 	if (isTrack) item.MediaType = 'Audio';

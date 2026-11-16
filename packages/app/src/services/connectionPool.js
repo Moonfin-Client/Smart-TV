@@ -8,8 +8,19 @@ import * as multiServerManager from './multiServerManager';
 import {createApiForServer} from './jellyfinApi';
 import {withoutBlockedItems} from './parentalControls';
 import {deduplicateMediaItems} from '../utils/mediaDedup';
+import {foldCopies} from '../utils/mergedCopies';
 import {latestMediaFetchLimitForCollection} from '../utils/latestMediaRowNormalizer';
 import {searchLibrary} from '../utils/searchGroups';
+
+// The server an item came from, carried on it so it can be reached again.
+const serverTags = (server) => ({
+	_serverId: server.serverId,
+	_serverName: server.name,
+	_serverUrl: server.url,
+	_serverUserId: server.userId,
+	_serverAccessToken: server.accessToken,
+	_serverType: server.serverType || 'jellyfin'
+});
 
 /**
  * Execute a request to all servers and aggregate results
@@ -42,25 +53,9 @@ export const executeAll = async (apiFn, options = {}) => {
 
 			// Tag results with server info
 			if (Array.isArray(data)) {
-				return data.map(item => ({
-					...item,
-					_serverId: server.serverId,
-					_serverName: server.name,
-					_serverUrl: server.url,
-					_serverUserId: server.userId,
-					_serverAccessToken: server.accessToken,
-					_serverType: server.serverType || 'jellyfin'
-				}));
+				return data.map(item => ({...item, ...serverTags(server)}));
 			} else if (data && typeof data === 'object') {
-				return [{
-					...data,
-					_serverId: server.serverId,
-					_serverName: server.name,
-					_serverUrl: server.url,
-					_serverUserId: server.userId,
-					_serverAccessToken: server.accessToken,
-					_serverType: server.serverType || 'jellyfin'
-				}];
+				return [{...data, ...serverTags(server)}];
 			}
 			return [];
 		} catch (err) {
@@ -85,6 +80,9 @@ export const executeAll = async (apiFn, options = {}) => {
 	// Deduplicate if requested, by provider identity or a plain field
 	if (dedupe === 'provider') {
 		processedResults = deduplicateMediaItems(processedResults);
+	} else if (dedupe === 'fold') {
+		// Merged libraries keep the other servers' copies on the card instead of dropping them.
+		processedResults = foldCopies(processedResults);
 	} else if (dedupe) {
 		const seen = new Set();
 		processedResults = processedResults.filter(item => {
@@ -176,6 +174,39 @@ export const getLibrariesFromAllServers = async () => {
 	});
 
 	return groupLibrariesByServer(libraries);
+};
+
+/**
+ * The server libraries a merged library of `collectionType` reads, the active server's first so a tie in the sort
+ * shows that copy. A server that doesn't answer is left out, and `complete` says whether every one answered.
+ * @param {string} collectionType - 'movies' or 'tvshows'
+ * @returns {Promise<{sources: Array<{api: Object, libraryId: string, server: Object}>, complete: boolean}>}
+ */
+export const getMergedLibrarySources = async (collectionType) => {
+	const [servers, active] = await Promise.all([
+		multiServerManager.getAllServersArray(),
+		multiServerManager.getActiveServer()
+	]);
+	const activeId = active?.serverId || active?.id;
+	const ordered = [
+		...servers.filter((server) => server.serverId === activeId),
+		...servers.filter((server) => server.serverId !== activeId)
+	];
+	let complete = true;
+	const perServer = await Promise.all(ordered.map(async (server) => {
+		try {
+			const api = createApiForServer(server.url, server.accessToken, server.userId, server.serverType || 'jellyfin');
+			const result = await api.getLibraries();
+			return (result?.Items || [])
+				.filter((library) => (library.CollectionType || '').toLowerCase() === collectionType)
+				.map((library) => ({api, libraryId: library.Id, server: serverTags(server)}));
+		} catch (err) {
+			console.warn(`[ConnectionPool] Merged library lookup failed on ${server.name}:`, err);
+			complete = false;
+			return [];
+		}
+	}));
+	return {sources: perServer.flat(), complete};
 };
 
 /**
@@ -326,8 +357,9 @@ export const getRandomItemsFromAllServers = async (contentType = 'both', limit =
 	);
 };
 
-// Runs one search on every server and ranks the answers by how well they match the query.
-const searchEveryServer = async (query, limit, search, cut = true) => {
+// Runs one search on every server and ranks the answers by how well they match the query. With `fold`, a title several
+// servers hold is one result carrying the others as copies, as merged libraries show it.
+const searchEveryServer = async (query, limit, search, cut = true, fold = false) => {
 	// Calculate per-server limit for distribution
 	const servers = await multiServerManager.getAllServersArray();
 	const serverCount = servers.length;
@@ -351,7 +383,7 @@ const searchEveryServer = async (query, limit, search, cut = true) => {
 
 				return aName.localeCompare(bName);
 			},
-			dedupe: 'provider',
+			dedupe: fold ? 'fold' : 'provider',
 			limit: cut ? limit : null
 		}
 	);
@@ -364,9 +396,9 @@ const searchEveryServer = async (query, limit, search, cut = true) => {
  * @param {number} limit - Results to ask for, shared between the servers
  * @returns {Promise<Array>} Search results from all servers
  */
-export const searchAllServers = (query, limit = 20) =>
+export const searchAllServers = (query, limit = 20, {foldCopies: fold = false} = {}) =>
 	searchEveryServer(query, limit, (api, perServerLimit, server) =>
-		searchLibrary(api, query, perServerLimit, server.serverType || 'jellyfin'), false);
+		searchLibrary(api, query, perServerLimit, server.serverType || 'jellyfin'), false, fold);
 
 /**
  * Search people across all servers
@@ -579,6 +611,7 @@ const connectionPool = {
 	getNextUpFromAllServers,
 	getLibrariesFromAllServers,
 	getAllLibrariesFromAllServers,
+	getMergedLibrarySources,
 	getUserConfigFromAllServers,
 	updateUserConfigOnServer,
 	getLatestItemsFromAllServers,

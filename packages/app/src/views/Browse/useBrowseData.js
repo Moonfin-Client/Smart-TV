@@ -12,6 +12,7 @@ import browseReducer, {browseInitialState, mergeRowsById, replaceRecentRows} fro
 import {BROWSE_ROW_LOADERS, buildLoaderContext, loadDeferredSections, loadLatestAndRecentlyReleased, loadSinceYouWatched} from './browseRowLoaders';
 import {headLengthFor, moreAfter, nextHeadLength, pageableRow, withRowPage} from './rowPaging';
 import {genericCollectionLabel, mergeRecentRows} from '../../utils/mergeRecentRows';
+import {mergeLibrariesByType} from '../../utils/mergedCopies';
 import {normalizeLatestMediaItems} from '../../utils/latestMediaRowNormalizer';
 import {EXCLUDED_COLLECTION_TYPES, filterItemsByExcludedGenres, matchesContentType} from './browseFilters';
 import {featuredConfigKey} from './featuredConfig';
@@ -523,7 +524,8 @@ const useBrowseData = ({
 			const releasedType = settings.recentlyReleasedSeriesType;
 			const rowConfigKey = (settings.mergeRecentRowsByType ? 'merged-recent' : 'per-library') +
 				(releasedType && releasedType !== 'series' ? `:${releasedType}` : '') +
-				(settings.hideWatchedInRecentRows === true ? ':hide-watched' : '');
+				(settings.hideWatchedInRecentRows === true ? ':hide-watched' : '') +
+				(unifiedMode && settings.mergeLibrariesByType === true ? ':merged-libraries' : '');
 
 			if (hasDynamicRowConfig || unifiedMode) {
 				memoryCache.rowConfigKey = rowConfigKey;
@@ -642,7 +644,9 @@ const useBrowseData = ({
 
 				if (libs.length > 0) {
 					// Kids Mode sends the guide back home, so leaving its tile here would be a dead end.
-					const libraryItems = librariesForNav(libs, false, {hideLiveTv: isKidsMode(settings)}).map(lib => ({
+					// Merged libraries put every server's movie and show libraries behind one tile each.
+					const tileLibs = unifiedMode && settings.mergeLibrariesByType ? mergeLibrariesByType(libs) : libs;
+					const libraryItems = librariesForNav(tileLibs, false, {hideLiveTv: isKidsMode(settings)}).map(lib => ({
 						...lib,
 						Type: 'CollectionFolder',
 						isLibraryTile: true
@@ -717,7 +721,9 @@ const useBrowseData = ({
 								lib: r.lib,
 								items: normalizeLatestMediaItems(r.latest, {collectionType: r.lib?.CollectionType, limit: 16, hideWatched: settings.hideWatchedInRecentRows === true})
 							}));
-						for (const merged of mergeRecentRows(entries, 'DateCreated')) {
+						// With merged libraries a title several servers hold shows once, carrying the rest as copies.
+						const foldCopies = unifiedMode && settings.mergeLibrariesByType === true;
+						for (const merged of mergeRecentRows(entries, 'DateCreated', {foldCopies})) {
 							newRows.push({
 								id: `latest-merged-${merged.collectionType}`,
 								title: $L('Recently Added {libraryName}').replace('{libraryName}', genericCollectionLabel(merged.collectionType)),
@@ -840,6 +846,7 @@ const useBrowseData = ({
 		settings.playlistsRowShowEpisodes,
 		settings.uiLanguage,
 		settings.mergeRecentRowsByType,
+		settings.mergeLibrariesByType,
 		settings.hideWatchedInRecentRows,
 		settings.recentlyReleasedSeriesType,
 		settings.mergeContinueWatchingNextUp,

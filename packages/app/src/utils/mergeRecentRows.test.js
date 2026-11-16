@@ -23,6 +23,18 @@ describe('mergeRecentRows', () => {
 		expect(rows[0].items.map((i) => i.Id)).toEqual(['1', '2']);
 	});
 
+	it('with merged libraries, keeps two servers\' copies of a title as one card led by the newest', () => {
+		const rows = mergeRecentRows([
+			{lib: lib('a', 'movies'), items: [{Id: '1', Type: 'Movie', _serverId: 'a', ProviderIds: {Tmdb: '603'}, DateCreated: '2026-01-02'}]},
+			{lib: lib('b', 'movies'), items: [
+				{Id: '1', Type: 'Movie', _serverId: 'b', ProviderIds: {Tmdb: '603'}, DateCreated: '2026-01-05'},
+				{Id: '7', Type: 'Movie', _serverId: 'b', ProviderIds: {Tmdb: '42'}, DateCreated: '2026-01-01'}
+			]}
+		], 'DateCreated', {foldCopies: true});
+		expect(rows[0].items.map((i) => `${i._serverId}:${i.Id}`)).toEqual(['b:1', 'b:7']);
+		expect(rows[0].items[0]._mergedCopies.map((i) => i._serverId)).toEqual(['a']);
+	});
+
 	it('sorts undated items to the back', () => {
 		const rows = mergeRecentRows([
 			{lib: lib('a', 'movies'), items: [{Id: '1'}, {Id: '2', PremiereDate: '2026-01-01'}]}

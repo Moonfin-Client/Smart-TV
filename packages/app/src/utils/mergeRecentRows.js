@@ -4,6 +4,8 @@
 
 import $L from '@enact/i18n/$L';
 
+import {foldCopies} from './mergedCopies';
+
 const MERGED_ROW_LIMIT = 16;
 
 export const genericCollectionLabel = (collectionType) => {
@@ -26,8 +28,10 @@ export const genericCollectionLabel = (collectionType) => {
 };
 
 // Takes [{lib, items}] and folds them into one group per collection type,
-// ordered by the given date field with undated items last.
-export const mergeRecentRows = (entries, dateField) => {
+// ordered by the given date field with undated items last. With foldCopies, as
+// merged libraries show it, two servers' copies of a title are one card that
+// carries the other copies, the newest one leading.
+export const mergeRecentRows = (entries, dateField, {foldCopies: fold = false} = {}) => {
 	const byType = new Map();
 	for (let i = 0; i < entries.length; i++) {
 		const collectionType = (entries[i].lib?.CollectionType || '').toLowerCase();
@@ -39,8 +43,10 @@ export const mergeRecentRows = (entries, dateField) => {
 		const items = entries[i].items || [];
 		for (let j = 0; j < items.length; j++) {
 			const item = items[j];
-			if (!item?.Id || group.seen[item.Id]) continue;
-			group.seen[item.Id] = true;
+			// Two servers can use the same id, so a folding row knows an item by its server too.
+			const key = fold ? `${item?._serverId || ''}|${item?.Id}` : item?.Id;
+			if (!item?.Id || group.seen[key]) continue;
+			group.seen[key] = true;
 			group.items.push(item);
 		}
 	}
@@ -56,10 +62,11 @@ export const mergeRecentRows = (entries, dateField) => {
 			if (!db) return -1;
 			return da < db ? 1 : -1;
 		});
+		const items = fold ? foldCopies(group.items) : group.items;
 		rows.push({
 			collectionType,
 			cardType: collectionType === 'music' ? 'square' : 'portrait',
-			items: group.items.slice(0, MERGED_ROW_LIMIT)
+			items: items.slice(0, MERGED_ROW_LIMIT)
 		});
 	});
 	return rows;

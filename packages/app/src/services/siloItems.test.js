@@ -92,6 +92,16 @@ describe('item mapping', () => {
 	});
 });
 
+describe('provider ids from content ids', () => {
+	test("a list entry's provider id comes from its id, so merged libraries can fold it", () => {
+		const ids = (type, id) => siloItemToBaseItem({type, content_id: id, title: 'Listed'}, {images: memoryImages()})?.ProviderIds;
+		expect(ids('movie', 'movie-imdb-tt0295701')).toEqual({Imdb: 'tt0295701'});
+		expect(ids('series', 'series-tmdb-1399')).toEqual({Tmdb: '1399'});
+		// A season is keyed on its series, so the id isn't its own.
+		expect(ids('season', 'season-imdb-tt1641384-1')).toEqual({});
+	});
+});
+
 describe('queries', () => {
 	test('types Silo has are kept, and a query only for others asks for nothing', () => {
 		expect(siloTypesForQuery('Movie,Series,BoxSet')).toEqual(['movie', 'series']);

@@ -42,6 +42,10 @@ import {FOCUS_SCALE, POSTER_HEIGHTS, POSTER_SIZE_OPTIONS, createGridKeyDown, cre
 import {ARROW_DOWN_ICON, ARROW_UP_ICON, CLEAR_FILTERS_ICON, EXPAND_LESS_ICON, EXPAND_MORE_ICON, GROUP_ICON, HOME_ICON, Icon, Letters, LibraryDock, LibraryTitle, ModernBar, ModernLetters, SEARCH_ICON, SETTINGS_ICON, SHUFFLE_ICON, SORT_ICON} from './LibraryHeaders';
 import LibrarySkeleton from './LibrarySkeleton';
 import {registerThemeSheet} from '../../theme/themeOverrides';
+import * as connectionPool from '../../services/connectionPool';
+import MergedServerBadge from '../../components/MergedServerBadge';
+import {PreferredCopies, foldCopies, mergeFacetValues, mergedLibraryType, mergedSearchText, mergedSortComparator} from '../../utils/mergedCopies';
+import {createMergedReaders, mergedReadersDrained, takeMergedPage, titleKeysOf} from '../../utils/mergedBrowse';
 
 import css from './Library.module.less';
 
@@ -73,6 +77,9 @@ const FOLDER_DETAIL_TYPES = ['Series', 'BoxSet', 'Playlist', 'MusicAlbum', 'Musi
 // The plain folders a folder view lists ahead of everything else. The server counts a series as a
 // folder too, so sorting on IsFolder would put every show ahead of every movie.
 const DIRECTORY_TYPES = 'Folder,CollectionFolder,UserView,PhotoAlbum';
+
+// A merged library orders the servers' pages by the dates the sort reads and searches the original titles.
+const MERGED_FIELDS = ',DateCreated,DateLastMediaAdded,PremiereDate,OriginalTitle';
 
 // The inset the stylesheet keeps either side of the grid, both sides added up.
 const GRID_INSET = 174;
@@ -270,6 +277,20 @@ const Library = ({library, genreFilter, studioFilter, onSelectItem, onViewPhoto,
 	const {api, serverUrl, serverType} = useAuth();
 	const {settings, updateSetting} = useSettings();
 	const libraryServerType = library?._serverType || serverType;
+	// A merged library reads every server's libraries of its type as one.
+	const mergedType = library?._mergedType || mergedLibraryType(library?.Id);
+	const isMerged = Boolean(mergedType);
+	const [mergedSources, setMergedSources] = useState(null);
+	// The server libraries the merged one spans, asked again on the next load while a server hasn't answered.
+	const mergedLookupRef = useRef({libraryId: null, sources: null, complete: false});
+	const mergedReadersRef = useRef([]);
+	// The card shown for each title match key, which later copies fold into.
+	const copyHoldersRef = useRef(new Map());
+	// Holds other servers' copies back for the signed-in server's own card. Null while a filter is on, since that
+	// server's copy could be filtered out.
+	const preferredRef = useRef(null);
+	const preferredTitlesRef = useRef(null);
+	const renderedKeysRef = useRef(new Set());
 
 	const effectiveApi = useMemo(() => {
 		if (library?._serverUrl && library?._serverAccessToken) {
@@ -354,7 +375,7 @@ const Library = ({library, genreFilter, studioFilter, onSelectItem, onViewPhoto,
 	const isFilterMode = isGenreMode || isStudioMode;
 	// Folder view belongs to the plain browse of a library. Home videos and untyped libraries start
 	// in it and everything else starts flat, until it's switched for that library.
-	const canFolderView = library != null && !isFilterMode && !musicGridView && !bookGridView;
+	const canFolderView = library != null && !isFilterMode && !musicGridView && !bookGridView && !isMerged;
 	const isFolderView = (canFolderView && (folderView === 'on' || (folderView !== 'off' && (isMixedContentLibrary || isHomeVideosLibrary)))) ||
 		Boolean(bookGridView?.folders);
 	const [folderStack, setFolderStack] = useState(() => (!settingsPreview && returnTo?.libraryId === libraryId && returnTo.folderStack) || []);
@@ -396,7 +417,7 @@ const Library = ({library, genreFilter, studioFilter, onSelectItem, onViewPhoto,
 		books: isBookLibrary,
 		folders: isFolderView,
 		movieOrSeries: isMovieLibrary || isSeriesLibrary,
-		myRating: Boolean(settings.useMoonfinPlugin) && libraryServerType !== 'plex'
+		myRating: Boolean(settings.useMoonfinPlugin) && libraryServerType !== 'plex' && !isMerged
 	});
 	// Folders come first until something else is picked, and a saved sort this library doesn't
 	// offer goes back to that, or to the name sort everywhere else.
@@ -421,11 +442,12 @@ const Library = ({library, genreFilter, studioFilter, onSelectItem, onViewPhoto,
 		if (!query) return syncedItems;
 		const folded = foldedNamesRef.current;
 		if (folded.source !== allItems) {
-			folded.names = allItems.map((item) => foldForSearch(item.SortName || item.Name || ''));
+			// A merged card also answers to each copy's title and the original title they share.
+			folded.names = allItems.map((item) => foldForSearch(isMerged ? mergedSearchText(item) : (item.SortName || item.Name || '')));
 			folded.source = allItems;
 		}
 		return syncedItems.filter((item, index) => folded.names[index].indexOf(query) !== -1);
-	}, [allItems, syncedItems, searchQuery]);
+	}, [allItems, syncedItems, searchQuery, isMerged]);
 
 	const [playlistCategories, setPlaylistCategories] = useState({});
 	const playlistResolveRef = useRef({});
@@ -513,6 +535,73 @@ const Library = ({library, genreFilter, studioFilter, onSelectItem, onViewPhoto,
 		return '';
 	}, [library, isGenreMode, isMixedContentLibrary, settings.groupItemsIntoCollections]);
 
+	// The server libraries a merged library spans. A lookup some server missed is made again on the next load.
+	const ensureMergedSources = useCallback(async () => {
+		const lookup = mergedLookupRef.current;
+		if (lookup.libraryId === library?.Id && lookup.complete && lookup.sources) return lookup.sources;
+		const {sources, complete} = await connectionPool.getMergedLibrarySources(mergedType);
+		if (!sources.length) {
+			if (lookup.libraryId === library?.Id && lookup.sources) return lookup.sources;
+			throw new Error(`No server answered for ${library?.Id}`);
+		}
+		mergedLookupRef.current = {libraryId: library?.Id, sources, complete};
+		setMergedSources(sources);
+		return sources;
+	}, [library, mergedType]);
+
+	// Every title the first server of a merged library holds, which is the signed-in one whenever it has this library,
+	// read with the pages' own query so a movie folded into a collection there isn't waited on.
+	const readPreferredCopies = useCallback(async (sources, params) => {
+		const serverId = sources[0].server._serverId;
+		const own = sources.filter((source) => source.server._serverId === serverId);
+		if (own.length === sources.length) return null;
+		const query = {
+			Recursive: true,
+			Fields: 'ProviderIds',
+			EnableTotalRecordCount: false,
+			ImageTypeLimit: 0,
+			...(params.IncludeItemTypes ? {IncludeItemTypes: params.IncludeItemTypes} : {}),
+			...(params.ExcludeItemTypes ? {ExcludeItemTypes: params.ExcludeItemTypes} : {}),
+			...(params.CollapseBoxSetItems != null ? {CollapseBoxSetItems: params.CollapseBoxSetItems} : {})
+		};
+		const key = [serverId, ...own.map((source) => source.libraryId), JSON.stringify(query)].join('|');
+		if (preferredTitlesRef.current?.key === key) return new PreferredCopies(serverId, preferredTitlesRef.current.titles);
+		try {
+			const responses = await Promise.all(own.map((source) => source.api.getItems({...query, ParentId: source.libraryId})));
+			const titles = titleKeysOf(responses);
+			preferredTitlesRef.current = {key, titles};
+			return new PreferredCopies(serverId, titles);
+		} catch {
+			// Without the list, the first copy shown keeps the card.
+			return null;
+		}
+	}, []);
+
+	// The next page of a merged library, read from every server and merged in the sort's order.
+	const fetchMergedPage = useCallback(async (startIndex, params) => {
+		const sources = await ensureMergedSources();
+		if (startIndex === 0) {
+			mergedReadersRef.current = createMergedReaders(sources);
+			copyHoldersRef.current = new Map();
+			renderedKeysRef.current = new Set();
+			preferredRef.current = null;
+		}
+		// Held here, since a reload swaps in new readers while this one waits.
+		const readers = mergedReadersRef.current;
+		const preferred = startIndex === 0 && !hasActiveFilters(filtersRef.current) ? readPreferredCopies(sources, params) : null;
+		const shared = {...params, Fields: params.Fields + MERGED_FIELDS};
+		delete shared.ParentId;
+		const compare = mergedSortComparator(params.SortBy, params.SortOrder === 'Descending');
+		const result = await takeMergedPage(readers, params.Limit || 150, compare, (source, start, limit) => (
+			source.api.getItems({...shared, ParentId: source.libraryId, StartIndex: start, Limit: limit})
+		));
+		if (preferred) {
+			const copies = await preferred;
+			if (readers === mergedReadersRef.current) preferredRef.current = copies;
+		}
+		return result;
+	}, [ensureMergedSources, readPreferredCopies]);
+
 	const loadItems = useCallback(async (startIndex = 0, append = false) => {
 		if (!library && !genreFilter && !studioFilter) return;
 
@@ -529,8 +618,40 @@ const Library = ({library, genreFilter, studioFilter, onSelectItem, onViewPhoto,
 
 		// Paging runs on what the server sent, while the list and count leave out what the ratings
 		// filter dropped.
+		let shownNothing = false;
 		const showPage = (fetched) => {
 			const allowed = withoutBlockedItems(fetched);
+			if (isMerged) {
+				// Two servers can use the same id, so an item is known by its server too. A copy joins the card already
+				// shown for its title, so the count shrinks with it like any other dropped row.
+				const rendered = renderedKeysRef.current;
+				const fresh = allowed.filter((item) => {
+					const key = `${item._serverId || ''}|${item.Id}`;
+					if (rendered.has(key)) return false;
+					rendered.add(key);
+					return true;
+				});
+				// A card already on screen that takes on a copy is replaced with a new object, so it draws again with its
+				// server count. It's known by server and id, since the holders keep the first object.
+				const grown = new Set();
+				const noteGrown = (holder) => grown.add(`${holder._serverId || ''}|${holder.Id}`);
+				let shown = foldCopies(fresh, copyHoldersRef.current, preferredRef.current, noteGrown);
+				// A copy waiting for a card that never came, such as one hidden from this user, gets its own card once the
+				// list runs out.
+				if (preferredRef.current && mergedReadersDrained(mergedReadersRef.current)) {
+					shown = shown.concat(foldCopies(preferredRef.current.takeAllWaiting(), copyHoldersRef.current, null, noteGrown));
+				}
+				shownNothing = shown.length === 0 && fetched.length > 0;
+				setBlockedCount(prev => (append ? prev : 0) + fetched.length - shown.length);
+				setAllItems(prev => {
+					if (!append) return shown;
+					const kept = grown.size
+						? prev.map((item) => (grown.has(`${item._serverId || ''}|${item.Id}`) ? {...item} : item))
+						: prev;
+					return [...kept, ...shown];
+				});
+				return;
+			}
 			setBlockedCount(prev => (append ? prev : 0) + fetched.length - allowed.length);
 			setAllItems(prev => {
 				if (!append) return allowed;
@@ -671,6 +792,8 @@ const Library = ({library, genreFilter, studioFilter, onSelectItem, onViewPhoto,
 						EnableTotalRecordCount: true,
 						Fields: 'PrimaryImageAspectRatio,ItemCounts'
 					});
+				} else if (isMerged) {
+					result = await fetchMergedPage(startIndex, params);
 				} else {
 					result = await effectiveApi.getItems(params);
 				}
@@ -692,9 +815,18 @@ const Library = ({library, genreFilter, studioFilter, onSelectItem, onViewPhoto,
 			if (generation === fetchGenerationRef.current) {
 				setIsLoading(false);
 				loadingMoreRef.current = false;
+				// A merged page that only held copies of titles already shown, or ones waiting for their own server's
+				// card, leaves nothing to scroll to, so the next page is read straight away.
+				if (shownNothing) {
+					setTimeout(() => {
+						if (generation === fetchGenerationRef.current && !loadingMoreRef.current) {
+							loadItemsRef.current?.(apiFetchIndexRef.current, true);
+						}
+					}, 0);
+				}
 			}
 		}
-	}, [isPlaylistLibrary, effectiveApi, library, genreFilter, studioFilter, sortKey, sortAscending, effectiveOrder, favoritesOnly, filters, openedGenre, parentId, isFolderView, currentFolderId, currentFolderCollectionType, isMusicLibrary, musicContentType, bookGridView, getItemTypeForLibrary, getExcludeItemTypes, settings.groupItemsIntoCollections, isGenreMode, isStudioMode]);
+	}, [fetchMergedPage, isMerged, isPlaylistLibrary, effectiveApi, library, genreFilter, studioFilter, sortKey, sortAscending, effectiveOrder, favoritesOnly, filters, openedGenre, parentId, isFolderView, currentFolderId, currentFolderCollectionType, isMusicLibrary, musicContentType, bookGridView, getItemTypeForLibrary, getExcludeItemTypes, settings.groupItemsIntoCollections, isGenreMode, isStudioMode]);
 
 	loadItemsRef.current = loadItems;
 
@@ -766,6 +898,13 @@ const Library = ({library, genreFilter, studioFilter, onSelectItem, onViewPhoto,
 		scrollToGroupRow(rowIndex + 1);
 	}, [scrollToGroupRow]);
 
+	// Another library starts without the last one's servers.
+	useEffect(() => {
+		setMergedSources(null);
+		mergedLookupRef.current = {libraryId: null, sources: null, complete: false};
+		preferredTitlesRef.current = null;
+	}, [library?.Id]);
+
 	useEffect(() => {
 		if (isBrowseHome) {
 			setIsLoading(false);
@@ -788,6 +927,19 @@ const Library = ({library, genreFilter, studioFilter, onSelectItem, onViewPhoto,
 	useEffect(() => {
 		let cancelled = false;
 		setFacetValues(null);
+		if (isMerged) {
+			// The values every server's library holds, once the first load has found the servers.
+			if (!mergedSources || isBrowseHome) return undefined;
+			const types = getItemTypeForLibrary();
+			Promise.all(mergedSources.map((source) => (
+				source.api.getQueryFilters ? source.api.getQueryFilters(source.libraryId, types).catch(() => null) : null
+			))).then((values) => {
+				if (!cancelled) setFacetValues(mergeFacetValues(values));
+			});
+			return () => {
+				cancelled = true;
+			};
+		}
 		if (!effectiveApi?.getQueryFilters || isBrowseHome) return undefined;
 		effectiveApi.getQueryFilters(parentId, getItemTypeForLibrary())
 			.then(values => {
@@ -797,7 +949,7 @@ const Library = ({library, genreFilter, studioFilter, onSelectItem, onViewPhoto,
 		return () => {
 			cancelled = true;
 		};
-	}, [effectiveApi, parentId, isBrowseHome, getItemTypeForLibrary]);
+	}, [effectiveApi, parentId, isBrowseHome, getItemTypeForLibrary, isMerged, mergedSources]);
 
 	// The libraries a genre browse can be narrowed to, which are the ones genres are browsed in.
 	useEffect(() => {
@@ -1405,7 +1557,9 @@ const Library = ({library, genreFilter, studioFilter, onSelectItem, onViewPhoto,
 				imgApiType = wide;
 			}
 		}
-		const imageUrl = imageId ? getImageUrl(effectiveServerUrl, imageId, imgApiType, isBanner ? {maxWidth: bannerWidth, quality: 70} : {maxHeight: 300, quality: 70}) : null;
+		// A merged library shows each item from its own server.
+		const itemServerUrl = item._serverUrl || effectiveServerUrl;
+		const imageUrl = imageId ? getImageUrl(itemServerUrl, imageId, imgApiType, isBanner ? {maxWidth: bannerWidth, quality: 70} : {maxHeight: 300, quality: 70}) : null;
 
 		return (
 			<div className={css.itemCardInner}>
@@ -1449,9 +1603,10 @@ const Library = ({library, genreFilter, studioFilter, onSelectItem, onViewPhoto,
 						</div>
 					</div>
 				)}
+				<MergedServerBadge item={item} style={{top: posterHeight - 38, bottom: 'auto'}} />
 				<PosterLabels
 					item={item}
-					serverUrl={effectiveServerUrl}
+					serverUrl={itemServerUrl}
 					top={item.UserData?.IsFavorite ? 40 : 8}
 					topRight={item.UserData?.Played ? 40 : 8}
 					height={posterHeight}
@@ -1679,8 +1834,11 @@ const Library = ({library, genreFilter, studioFilter, onSelectItem, onViewPhoto,
 	// Emby's items query has no 4K flag and its series status holds only
 	// continuing and ended, so those options stay out of the panel there.
 	// Plex can't filter on series status, likes, subtitles, trailers, extras, theme media, 3D or disc source.
-	const onPlex = libraryServerType === 'plex';
-	const supported = (options) => options.filter(o => (!o.jellyfinOnly || libraryServerType !== 'emby') && !(onPlex && o.plexless));
+	// A merged library only offers a filter every server can apply, since one that ignored it would fill the list with
+	// what it was meant to leave out.
+	const filterServerTypes = isMerged && mergedSources ? mergedSources.map((source) => source.server._serverType || 'jellyfin') : [libraryServerType];
+	const onPlex = filterServerTypes.includes('plex');
+	const supported = (options) => options.filter(o => (!o.jellyfinOnly || !filterServerTypes.includes('emby')) && !(onPlex && o.plexless));
 	const musicTitle = musicGridView ? MUSIC_TITLES[musicContentType]?.() : null;
 	const displayName = genreFilter || studioFilter || musicTitle || library?.Name || '';
 	const titleProps = {isFolderView, folderStack, rootName: library?.Name, displayName, shownCount, onBreadcrumb: handleFolderBreadcrumb};
@@ -1700,8 +1858,8 @@ const Library = ({library, genreFilter, studioFilter, onSelectItem, onViewPhoto,
 
 	const backdropUrl = useMemo(() => {
 		if (!backdropsEnabled || !backdropId) return '';
-		return getImageUrl(effectiveServerUrl, backdropId, 'Backdrop', {maxWidth: 1920, quality: 80, tag: backdropTag});
-	}, [backdropsEnabled, backdropId, backdropTag, effectiveServerUrl]);
+		return getImageUrl(focusedItem?._serverUrl || effectiveServerUrl, backdropId, 'Backdrop', {maxWidth: 1920, quality: 80, tag: backdropTag});
+	}, [backdropsEnabled, backdropId, backdropTag, effectiveServerUrl, focusedItem?._serverUrl]);
 
 	if (!library && !genreFilter && !studioFilter) {
 		return (
@@ -1845,7 +2003,7 @@ const Library = ({library, genreFilter, studioFilter, onSelectItem, onViewPhoto,
 										</span>
 									))}
 								</div>
-								<RatingsRow item={focusedItem} serverUrl={effectiveServerUrl} pluginEnabled={isMdblistEnabled(settings)} />
+								<RatingsRow item={focusedItem} serverUrl={focusedItem?._serverUrl || effectiveServerUrl} pluginEnabled={isMdblistEnabled(settings)} />
 							</>
 						)}
 					</div>

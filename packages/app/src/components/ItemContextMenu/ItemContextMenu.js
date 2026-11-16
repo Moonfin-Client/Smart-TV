@@ -7,6 +7,7 @@ import SpotlightContainerDecorator from '@enact/spotlight/SpotlightContainerDeco
 import {useAuth} from '../../context/AuthContext';
 import {useSettings} from '../../context/SettingsContext';
 import {getApiForItem} from '../../services/connectionPool';
+import {copiesOf} from '../../utils/mergedCopies';
 import {api as activeApi, getServerType} from '../../services/jellyfinApi';
 import {parseHiddenMap} from '../../views/Browse/browseFilters';
 import {
@@ -133,6 +134,22 @@ export const ItemMenuProvider = ({children, onPlay, onOpenItem, backRef}) => {
 	}, []);
 
 	const showToast = useCallback((message) => setToast({message, key: Date.now()}), []);
+
+	// Marks a title watched or a favorite on every server that holds it, for a merged library's card, and names the
+	// servers that refused. A title only one server holds fails quietly, the way it always has.
+	const changeEveryCopy = useCallback(async (item, change) => {
+		const copies = copiesOf(item);
+		// Every server at once, so a slow one doesn't hold up the rest.
+		const results = await Promise.all(copies.map((copy) => (
+			Promise.resolve()
+				.then(() => change(getApiForItem(copy) || activeApi, copy))
+				.then(() => null, () => copy._serverName || $L('Server'))
+		)));
+		const refused = results.filter(Boolean);
+		if (copies.length > 1 && refused.length > 0) {
+			showToast($L('Not changed on {servers}').replace('{servers}', refused.join(', ')));
+		}
+	}, [showToast]);
 	const clearToast = useCallback(() => setToast(null), []);
 
 	const closeDialog = useCallback(() => {
@@ -258,7 +275,7 @@ export const ItemMenuProvider = ({children, onPlay, onOpenItem, backRef}) => {
 				onOpenItem(item);
 				break;
 			case 'watched':
-				await api.setWatched(item.Id, !userData.Played).catch(() => {});
+				await changeEveryCopy(item, (copyApi, copy) => copyApi.setWatched(copy.Id, !userData.Played));
 				break;
 			case 'hideContinueWatching':
 				updateSetting('hiddenContinueWatchingItems', hiddenMapWith(settings.hiddenContinueWatchingItems, item.SeriesId || item.Id));
@@ -272,7 +289,7 @@ export const ItemMenuProvider = ({children, onPlay, onOpenItem, backRef}) => {
 				await hideFromNextUp(api, item, item._serverType || getServerType());
 				break;
 			case 'favorite':
-				await api.setFavorite(item.Id, !userData.IsFavorite).catch(() => {});
+				await changeEveryCopy(item, (copyApi, copy) => copyApi.setFavorite(copy.Id, !userData.IsFavorite));
 				break;
 			case 'addToCollection':
 				setDialog({kind: 'collection', item, api});
@@ -326,7 +343,7 @@ export const ItemMenuProvider = ({children, onPlay, onOpenItem, backRef}) => {
 			default:
 				break;
 		}
-	}, [onPlay, onOpenItem, settings.hiddenContinueWatchingItems, settings.hiddenNextUpSeries, updateSetting, updateSettings, serverUrl, user?.Id, showToast]);
+	}, [onPlay, onOpenItem, settings.hiddenContinueWatchingItems, settings.hiddenNextUpSeries, updateSetting, updateSettings, serverUrl, user?.Id, showToast, changeEveryCopy]);
 
 	const handleSelect = useCallback((ev) => {
 		const id = ev.currentTarget.dataset.action;

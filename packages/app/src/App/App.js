@@ -94,6 +94,8 @@ import Browse from '../views/Browse';
 import {isGameLibrary, refreshGameLibraries, resolveGameLibraryId} from '../utils/gameLibrary';
 import {afterHomeReady} from '../utils/homeReady';
 import {setMusicPlaying} from '../utils/sharedVideoOwner';
+import {hasMergedCopies, mergeLibrariesByType, mergesLibraries} from '../utils/mergedCopies';
+import MergedCopyPicker from '../components/MergedCopyPicker';
 
 const Details = lazy(() => import('../views/Details'));
 const Library = lazy(() => import('../views/Library'));
@@ -223,6 +225,7 @@ const AppContent = (props) => {
 		setRemoteMessage({key: Date.now(), title: $L('Playback was ended on the Silo server.')});
 	}, []);
 	const unifiedMode = settings.unifiedLibraryMode && hasMultipleServers;
+	const mergeLibraries = mergesLibraries(settings, hasMultipleServers);
 
 	// Blocked ratings belong to whoever is signed in on this server.
 	useEffect(() => {
@@ -647,7 +650,9 @@ const AppContent = (props) => {
 				let libs;
 				if (unifiedMode) {
 					libs = await connectionPool.getLibrariesFromAllServers();
-					libs = libs.map(lib => ({
+					if (mergeLibraries) libs = mergeLibrariesByType(libs);
+					// A merged library stands for every server, so it keeps its plain name.
+					libs = libs.map(lib => (lib._mergedType ? lib : {
 						...lib,
 						Name: `${lib.Name} (${lib._serverName})`
 					}));
@@ -665,7 +670,7 @@ const AppContent = (props) => {
 		} else {
 			setLibraries([]);
 		}
-	}, [isAuthenticated, api, user, unifiedMode]);
+	}, [isAuthenticated, api, user, unifiedMode, mergeLibraries]);
 
 	useEffect(() => {
 		fetchLibraries();
@@ -1045,6 +1050,27 @@ const AppContent = (props) => {
 		setQuickLook((open) => (open ? {...open, autoPlay: false} : open));
 	}, []);
 
+	// A card several servers hold, from a merged library, first asks which server's copy to open.
+	const [copyPick, setCopyPick] = useState(null);
+	const copyPickRef = useRef(null);
+	copyPickRef.current = copyPick;
+	const pickMergedCopy = useCallback((item) => {
+		if (!hasMergedCopies(item)) return Promise.resolve(item);
+		// A second press while one is open replaces it.
+		copyPickRef.current?.resolve(null);
+		return new Promise((resolve) => {
+			copyPickRef.current = {item, resolve};
+			setCopyPick(copyPickRef.current);
+		});
+	}, []);
+	const handleCopyPicked = useCallback((copy) => {
+		const open = copyPickRef.current;
+		copyPickRef.current = null;
+		setCopyPick(null);
+		open?.resolve(copy);
+	}, []);
+	const handleCopyPickClosed = useCallback(() => handleCopyPicked(null), [handleCopyPicked]);
+
 	useEffect(() => {
 		const handleKeyDown = (e) => {
 			// An arrow press means the user is done pointing. Spotlight flips
@@ -1109,6 +1135,11 @@ const AppContent = (props) => {
 					closeWatchParty();
 					return;
 				}
+				// Same for the server picker: back closes it and leaves the page behind it where it was.
+				if (copyPickRef.current) {
+					handleCopyPickClosed();
+					return;
+				}
 
 				if (updateInfo) {
 					dismissUpdate();
@@ -1166,7 +1197,7 @@ const AppContent = (props) => {
 
 		window.addEventListener('keydown', handleKeyDown, true);
 		return () => window.removeEventListener('keydown', handleKeyDown, true);
-	}, [panelIndex, handleBack, performAppCleanup, settings.exitConfirmation, showAccountModal, showServerMessages, showExitDialog, showSettingsPanel, showShuffleOverlay, photoViewerItem, reading, unreadableBook, isPinGateActive, isPinChecking, timesUp, setupWizardActive, updateInfo, dismissUpdate, syncPlayDialogOpen, closeSyncPlay, quickLookShown, closeQuickLook, watchPartyOpen, closeWatchParty]);
+	}, [panelIndex, handleBack, performAppCleanup, settings.exitConfirmation, showAccountModal, showServerMessages, showExitDialog, showSettingsPanel, showShuffleOverlay, photoViewerItem, reading, unreadableBook, isPinGateActive, isPinChecking, timesUp, setupWizardActive, updateInfo, dismissUpdate, syncPlayDialogOpen, closeSyncPlay, quickLookShown, closeQuickLook, watchPartyOpen, closeWatchParty, handleCopyPickClosed]);
 
 	// The account stays saved, so it can be chosen again from the picker once its hours are back.
 	const handleTimesUpSwitchUser = useCallback(() => {
@@ -1229,7 +1260,7 @@ const AppContent = (props) => {
 		openFullPage(item);
 	}, [openFullPage]);
 
-	const handleSelectItem = useCallback((item, autoPlay = false) => {
+	const openSelectedItem = useCallback((item, autoPlay = false) => {
 		setDetailsAutoPlay(Boolean(autoPlay) && item?.Type !== 'Audio' && !isLiveTvChannel(item));
 		// A channel has no details worth landing on, so it tunes straight away.
 		if (isLiveTvChannel(item)) {
@@ -1264,6 +1295,16 @@ const AppContent = (props) => {
 		}
 		openFullPage(item);
 	}, [navigateTo, panelIndex, handlePlayChannel, openFullPage, settings]);
+
+	const handleSelectItem = useCallback((item, autoPlay = false) => {
+		if (!hasMergedCopies(item)) {
+			openSelectedItem(item, autoPlay);
+			return;
+		}
+		pickMergedCopy(item).then((copy) => {
+			if (copy) openSelectedItem(copy, autoPlay);
+		});
+	}, [openSelectedItem, pickMergedCopy]);
 
 	// A song or a channel plays as soon as it's picked, so only the rest wait for their screen to start them.
 	const handlePlayFromMenu = useCallback((item) => {
@@ -1464,7 +1505,7 @@ const AppContent = (props) => {
 		navigateTo(PANELS.GAME_PLAYER);
 	}, [navigateTo, backgroundMusic]);
 
-	const handlePlay = useCallback(async (item, resume, options) => {
+	const playItem = useCallback(async (item, resume, options) => {
 		if (isBookItem(item)) {
 			openBook(item);
 			return;
@@ -1483,6 +1524,11 @@ const AppContent = (props) => {
 		setIsResume(!!resume);
 		navigateTo(PANELS.PLAYER);
 	}, [navigateTo, isSyncPlayInGroup, openSyncPlay, serverType, settings.syncplayAutoOpen, settings.syncplayEnabled, syncPlaySetNewQueue, backgroundMusic, openBook, watchPartyRoom]);
+
+	const handlePlay = useCallback(async (item, resume, options) => {
+		const copy = await pickMergedCopy(item);
+		if (copy) await playItem(copy, resume, options);
+	}, [pickMergedCopy, playItem]);
 
 	const playSyncPlayItem = useCallback((item, options = null) => {
 		if (panelIndex === PANELS.PLAYER && playingItem?.Id === item.Id) return;
@@ -2660,6 +2706,13 @@ const AppContent = (props) => {
 					)}
 				</div>
 			</ItemMenuProvider>
+			{copyPick && (
+				<MergedCopyPicker
+					item={copyPick.item}
+					onPick={handleCopyPicked}
+					onClose={handleCopyPickClosed}
+				/>
+			)}
 			<AccountModal
 				open={showAccountModal}
 				onClose={handleCloseAccountModal}

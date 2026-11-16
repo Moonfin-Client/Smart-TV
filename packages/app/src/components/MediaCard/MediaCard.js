@@ -16,6 +16,8 @@ import {isUnownedSeerrTitle, seerrThumbUrl, seerrWideArtUrl, useTmdbThumbsAvaila
 import {rem} from '../../utils/rootScale';
 import {useMediaPreviewSlot} from './MediaPreviewContext';
 import {episodeArtwork, requestedArtwork} from './cardArtwork';
+import MergedServerBadge from '../MergedServerBadge';
+import {hasMergedCopies} from '../../utils/mergedCopies';
 
 import css from './MediaCard.module.less';
 
@@ -78,6 +80,8 @@ const MediaCard = ({item, serverUrl, cardType = 'portrait', rowImageType = 'post
 
 	const imageUrl = useMemo(() => {
 		if (item._studioLogoUrl) return item._studioLogoUrl;
+		// A merged library has no artwork of its own and borrows its first library's.
+		const artId = item._imageItemId || item.Id;
 		// Ahead of the external poster, which would otherwise keep the card a poster.
 		if (seerrWide) return seerrWide;
 
@@ -104,24 +108,24 @@ const MediaCard = ({item, serverUrl, cardType = 'portrait', rowImageType = 'post
 
 		if (isLandscape) {
 			if (item.ImageTags?.Thumb) {
-				return getImageUrl(itemServerUrl, item.Id, 'Thumb', {maxWidth: 400, quality: 80});
+				return getImageUrl(itemServerUrl, artId, 'Thumb', {maxWidth: 400, quality: 80});
 			}
 			if (item.ParentThumbItemId) {
 				return getImageUrl(itemServerUrl, item.ParentThumbItemId, 'Thumb', {tag: item.ParentThumbImageTag, maxWidth: 400, quality: 80});
 			}
 			if (item.BackdropImageTags?.length > 0) {
-				return getImageUrl(itemServerUrl, item.Id, 'Backdrop', {maxWidth: 400, quality: 80});
+				return getImageUrl(itemServerUrl, artId, 'Backdrop', {maxWidth: 400, quality: 80});
 			}
 			if (item.ParentBackdropItemId) {
 				return getImageUrl(itemServerUrl, item.ParentBackdropItemId, 'Backdrop', {maxWidth: 400, quality: 80});
 			}
 			if (item.ImageTags?.Primary) {
-				return getImageUrl(itemServerUrl, item.Id, 'Primary', {maxHeight: 300, quality: 80});
+				return getImageUrl(itemServerUrl, artId, 'Primary', {maxHeight: 300, quality: 80});
 			}
 		}
 
 		if (item.ImageTags?.Primary) {
-			return getImageUrl(itemServerUrl, item.Id, 'Primary', {maxHeight: 300, quality: 80});
+			return getImageUrl(itemServerUrl, artId, 'Primary', {maxHeight: 300, quality: 80});
 		}
 
 		if (item.Type === 'Audio' && item.AlbumId && item.AlbumPrimaryImageTag) {
@@ -303,9 +307,11 @@ const MediaCard = ({item, serverUrl, cardType = 'portrait', rowImageType = 'post
 							</div>
 						)}
 
-						{(showServerBadge || item._external) && item._serverName && (
+						{(showServerBadge || item._external) && item._serverName && !hasMergedCopies(item) && !item?._mergedType && (
 							<div className={css.serverBadge}>{item._serverName}</div>
 						)}
+						{/* A title several servers hold says how many instead of naming one. */}
+						<MergedServerBadge item={item} />
 
 						{item._seerr && item._seerrMissing ? (
 							<div className={`${css.seerrBadge} ${css.seerrMissing} ${seerrMarkLeft ? css.seerrLeft : ''}`}>
@@ -341,7 +347,7 @@ const MediaCard = ({item, serverUrl, cardType = 'portrait', rowImageType = 'post
 								item={item}
 								serverUrl={itemServerUrl}
 								top={item.UserData?.IsFavorite ? 40 : 8}
-								topRight={(showIndicators && showsWatchedCheck(item)) || ((showServerBadge || item._external) && item._serverName) ? 40 : 8}
+								topRight={(showIndicators && showsWatchedCheck(item)) || ((showServerBadge || item._external) && item._serverName && !hasMergedCopies(item) && !item?._mergedType) ? 40 : 8}
 								bottom={showIndicators && progress > 0 ? 26 : 8}
 							/>
 						)}

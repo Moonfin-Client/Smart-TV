@@ -22,6 +22,8 @@ import useItemMenuHold from '../../hooks/useItemMenuHold';
 import useImageReveal, {markDecoded, pendingArtStyle} from '../../hooks/useImageReveal';
 import {useMediaPreviewSlot} from './MediaPreviewContext';
 import {modernCardImageUrl} from './cardArtwork';
+import MergedServerBadge from '../MergedServerBadge';
+import {hasMergedCopies} from '../../utils/mergedCopies';
 
 import css from './ModernMediaCard.module.less';
 
@@ -383,9 +385,10 @@ const ModernMediaCard = ({
 					</div>
 				)}
 
-				{(showServerBadge || item?._external) && item?._serverName && (
+				{(showServerBadge || item?._external) && item?._serverName && !hasMergedCopies(item) && !item?._mergedType && (
 					<div className={css.serverBadge}>{item._serverName}</div>
 				)}
+				<MergedServerBadge item={item} />
 
 				{item?._seerr && item?._seerrMissing ? (
 					<div className={`${css.seerrBadge} ${css.seerrMissing}`}>
@@ -422,7 +425,7 @@ const ModernMediaCard = ({
 						item={item}
 						serverUrl={itemServerUrl}
 						top={item.UserData?.IsFavorite ? 40 : 8}
-						topRight={(showIndicators && showsWatchedCheck(item)) || ((showServerBadge || item._external) && item._serverName) ? 40 : 8}
+						topRight={(showIndicators && showsWatchedCheck(item)) || ((showServerBadge || item._external) && item._serverName && !hasMergedCopies(item) && !item?._mergedType) ? 40 : 8}
 						bottom={showIndicators && progress > 0 ? 26 : 8}
 					/>
 				)}

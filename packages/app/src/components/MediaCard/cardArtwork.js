@@ -173,23 +173,25 @@ export const modernCardImageUrl = (item, focused, {itemServerUrl, isStaticMyMedi
 	}
 
 	if (item.Type === 'CollectionFolder' || item.isLibraryTile) {
+		// A merged library has no artwork of its own and borrows its first library's.
+		const libraryImageId = item._imageItemId || item.Id;
 		if (isStaticMyMedia || focused) {
 			if (item.ImageTags?.Thumb) {
-				return getImageUrl(itemServerUrl, item.Id, 'Thumb', {maxWidth: 600, quality: 80});
+				return getImageUrl(itemServerUrl, libraryImageId, 'Thumb', {maxWidth: 600, quality: 80});
 			}
 			if (item.BackdropImageTags?.length > 0) {
-				return getImageUrl(itemServerUrl, item.Id, 'Backdrop', {maxWidth: 600, quality: 80});
+				return getImageUrl(itemServerUrl, libraryImageId, 'Backdrop', {maxWidth: 600, quality: 80});
 			}
 		}
 
 		if (!isStaticMyMedia && item.ImageTags?.Primary) {
-			return getImageUrl(itemServerUrl, item.Id, 'Primary', {maxHeight: 360, quality: 80});
+			return getImageUrl(itemServerUrl, libraryImageId, 'Primary', {maxHeight: 360, quality: 80});
 		}
 		if (item.ImageTags?.Thumb) {
-			return getImageUrl(itemServerUrl, item.Id, 'Thumb', {maxWidth: 600, quality: 80});
+			return getImageUrl(itemServerUrl, libraryImageId, 'Thumb', {maxWidth: 600, quality: 80});
 		}
 		if (item.ImageTags?.Primary) {
-			return getImageUrl(itemServerUrl, item.Id, 'Primary', {maxWidth: 600, quality: 80});
+			return getImageUrl(itemServerUrl, libraryImageId, 'Primary', {maxWidth: 600, quality: 80});
 		}
 	}
 
