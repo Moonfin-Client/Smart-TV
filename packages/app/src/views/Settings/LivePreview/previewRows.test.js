@@ -232,7 +232,7 @@ describe('settings live preview rows', () => {
 	test('the video, music and book library settings all show the library', () => {
 		expect(LIBRARY_KEYS).toEqual([
 			'libraryStyle', 'musicLibraryStyle', 'bookLibraryStyle', 'groupItemsIntoCollections', 'showMediaDetailsOnLibraryPage',
-			'libraryCardTitles', 'hideBackdropsInLibraries', 'useDetailedSubHeadings'
+			'libraryCardTitles', 'hideBackdropsInLibraries', 'useDetailedSubHeadings', 'hideLibraryWatchProgress', 'hideLibraryUnwatchedCount'
 		]);
 		LIBRARY_KEYS.forEach((key) => {
 			const row = describeRow(`setting-${key}`, defaultSettings);

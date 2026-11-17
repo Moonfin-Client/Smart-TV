@@ -305,6 +305,8 @@ export const defaultSettings = {
 	bookFoldersAsSeries: false,
 	musicLibraryStyle: 'immersive',
 	hideBackdropsInLibraries: false,
+	hideLibraryWatchProgress: false,
+	hideLibraryUnwatchedCount: false,
 	useSeriesThumbnails: false,
 	// The server keys, as the other clients store them, so they sync as they are.
 	episodePreviewEnabled: false,
