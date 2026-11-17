@@ -842,6 +842,10 @@ export const buildThemeOverrideCss = (theme, options = {}) => {
 		rule(`.${player.seekIndicator}`, `background: ${rangeThumb};`);
 		rule(`.${player.progressBar}:focus .${player.seekIndicator}`, `background: #ffffff;`);
 		rule(`.${player.liveProgressFill}`, `background: ${accent};`);
+		// The Japanese face only covers kana and kanji, so the theme's face follows it for the rest of the line
+		if (theme.fontFamily) {
+			rule(`.${player.subtitleText}:lang(ja)`, `font-family: 'NotoSansJP', '${theme.id === 'neon_pulse' ? 'NeonPulseBody' : theme.fontFamily}', sans-serif;`);
+		}
 	}
 	if (playerOverlays) {
 		rule(ring(playerOverlays, ['offsetBtn', 'actionBtn', 'settingItem'], [':hover', ':focus']), `border-color: ${focusColor};`);

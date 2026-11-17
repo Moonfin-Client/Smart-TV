@@ -64,6 +64,16 @@
 	font-display: swap;
 }
 
+// Japanese subtitles are set in this, since the TV's own fallback draws kanji in their Chinese
+// forms (#652). The range keeps it to kana and kanji, and it's only fetched once a line needs it.
+@font-face {
+	font-family: 'NotoSansJP';
+	src: url('../../resources/fonts/NotoSansJP-Regular.woff2') format('woff2');
+	font-weight: 400;
+	font-display: swap;
+	unicode-range: U+3000-30FF, U+4E00-9FFF, U+FF00-FFEF;
+}
+
 // The serif the Reading Room book library sets its headings in.
 @font-face {
 	font-family: 'Literata';

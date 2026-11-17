@@ -154,7 +154,7 @@ describe('buildThemeOverrideCss', () => {
 		}
 	});
 
-	const playerSheet = {liveBtn: 'liveBtn', chapterItem: 'chapterItem', trackItem: 'trackItem', progressBar: 'progressBar', progressFill: 'progressFill', progressBuffered: 'progressBuffered', seekIndicator: 'seekIndicator', liveProgressFill: 'liveProgressFill'};
+	const playerSheet = {liveBtn: 'liveBtn', chapterItem: 'chapterItem', trackItem: 'trackItem', progressBar: 'progressBar', progressFill: 'progressFill', progressBuffered: 'progressBuffered', seekIndicator: 'seekIndicator', liveProgressFill: 'liveProgressFill', subtitleText: 'subtitleText'};
 
 	it('rings the screens that load on demand once they hand their stylesheets over', async () => {
 		const theme = resolveThemeById('moonfin');
@@ -189,6 +189,14 @@ describe('buildThemeOverrideCss', () => {
 		expect(lines).toContain(`${prefix} .seekIndicator { background: ${toCssColor(rangeThumb)}; }`);
 		expect(lines).toContain(`${prefix} .progressBar:focus .seekIndicator { background: #ffffff; }`);
 		expect(lines).toContain(`${prefix} .liveProgressFill { background: ${toCssColor(accent)}; }`);
+	});
+
+	it("keeps the theme's face for the Latin text in a Japanese subtitle line", () => {
+		registerThemeSheet('player', playerSheet);
+		const japanese = (id) => buildThemeOverrideCss(resolveThemeById(id)).split('\n').filter((line) => line.includes(':lang(ja)'));
+		expect(japanese('neon_pulse')).toEqual([`html[data-theme-id='neon_pulse'][data-theme-id] .subtitleText:lang(ja) { font-family: 'NotoSansJP', 'NeonPulseBody', sans-serif; }`]);
+		expect(japanese('8bit_hero')).toEqual([`html[data-theme-id='8bit_hero'][data-theme-id] .subtitleText:lang(ja) { font-family: 'NotoSansJP', 'EightBitHero', sans-serif; }`]);
+		expect(japanese('moonfin')).toEqual([]);
 	});
 });
 
