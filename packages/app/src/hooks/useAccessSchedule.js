@@ -5,6 +5,19 @@ const MAX_WAIT_MS = 60 * 1000;
 const IDLE_WAIT_MS = 15 * 60 * 1000;
 const BLOCKED_RECHECK_MS = 60 * 1000;
 const RETRY_MS = 15 * 1000;
+// The transport's timeout ends once headers arrive, so a body that stalls after them would hold a
+// check, and the next one it schedules, for good. The window read gives up after this instead: long
+// enough for a wait in the media server queue, which the transport's timeout doesn't count, and no
+// longer than the usual time between checks.
+const WINDOW_TIMEOUT_MS = 60 * 1000;
+
+const withDeadline = (promise, ms) => {
+	let timer;
+	const deadline = new Promise((resolve, reject) => {
+		timer = setTimeout(() => reject(new Error('Access window read timed out')), ms);
+	});
+	return Promise.race([promise, deadline]).finally(() => clearTimeout(timer));
+};
 
 /**
  * Tells whether the signed-in user is outside the hours Jellyfin lets them use the server, which
@@ -101,7 +114,7 @@ export const useAccessSchedule = ({userId, enabled, fetchUser, serverRefuses, fe
 				let answer;
 				let failed = false;
 				try {
-					answer = await loadWindow();
+					answer = await withDeadline(loadWindow(), WINDOW_TIMEOUT_MS);
 				} catch (e) {
 					failed = true;
 				}

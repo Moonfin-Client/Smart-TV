@@ -443,6 +443,22 @@ describe('useAccessSchedule', () => {
 			expect(fetchAccessWindow).toHaveBeenCalledTimes(3);
 		});
 
+		test('gives up on a window read that stalls, and judges by the schedule and the server', async () => {
+			clock = at(21);
+			const serverRefuses = jest.fn(async () => true);
+			const fetchAccessWindow = jest.fn(() => new Promise(() => {}));
+			const {result} = mount({fetchAccessWindow, serverRefuses});
+			await flush(59 * 1000);
+			expect(result.current.blocked).toBe(false);
+			await flush(1000);
+			await flush();
+
+			expect(result.current.blocked).toBe(true);
+			expect(serverRefuses).toHaveBeenCalledTimes(1);
+			await flush(60 * 1000);
+			expect(fetchAccessWindow).toHaveBeenCalledTimes(2);
+		});
+
 		test('falls back to the schedule and the server when it can\'t say, and stops asking', async () => {
 			clock = at(21);
 			const serverRefuses = jest.fn(async () => true);
