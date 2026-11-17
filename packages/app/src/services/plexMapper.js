@@ -299,6 +299,8 @@ export const plexItemToJellyfin = (m) => {
 	if (typeof m.audienceRating === 'number') item.CommunityRating = m.audienceRating;
 	else if (rating != null && !fromTomatoes) item.CommunityRating = rating;
 	if (rating != null && fromTomatoes) item.CriticRating = Math.round(rating * 10);
+	// Plex sorts Critic Rating on `rating` whatever its source, so a merged list orders by it too, on the same 0 to 100 scale.
+	if (rating != null) item._criticSort = Math.round(rating * 10);
 	if (m.contentRating != null) item.OfficialRating = m.contentRating;
 	item.Genres = tags(m.Genre);
 	if (m.studio != null) item.Studios = [{Name: m.studio}];

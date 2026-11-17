@@ -25,9 +25,9 @@ describe('mergeRecentRows', () => {
 
 	it('with merged libraries, keeps two servers\' copies of a title as one card led by the newest', () => {
 		const rows = mergeRecentRows([
-			{lib: lib('a', 'movies'), items: [{Id: '1', Type: 'Movie', _serverId: 'a', ProviderIds: {Tmdb: '603'}, DateCreated: '2026-01-02'}]},
+			{lib: lib('a', 'movies'), items: [{Id: '1', Type: 'Movie', _serverId: 'a', ProviderIds: {Tmdb: '5003'}, DateCreated: '2026-01-02'}]},
 			{lib: lib('b', 'movies'), items: [
-				{Id: '1', Type: 'Movie', _serverId: 'b', ProviderIds: {Tmdb: '603'}, DateCreated: '2026-01-05'},
+				{Id: '1', Type: 'Movie', _serverId: 'b', ProviderIds: {Tmdb: '5003'}, DateCreated: '2026-01-05'},
 				{Id: '7', Type: 'Movie', _serverId: 'b', ProviderIds: {Tmdb: '42'}, DateCreated: '2026-01-01'}
 			]}
 		], 'DateCreated', {foldCopies: true});
@@ -69,7 +69,7 @@ describe('genericCollectionLabel', () => {
 });
 
 describe('addSeriesProviderIds', () => {
-	const show = (id, serverId) => ({Id: id, Type: 'Series', Name: 'Severance', _serverId: serverId, DateCreated: '2026-01-01'});
+	const show = (id, serverId) => ({Id: id, Type: 'Series', Name: 'Show One', _serverId: serverId, DateCreated: '2026-01-01'});
 
 	test('reads each show\'s provider ids from its server, so two servers\' cards of one show fold', async () => {
 		const ids = {a: {s1: {Tvdb: '371980'}}, b: {s9: {Tvdb: '371980'}}};

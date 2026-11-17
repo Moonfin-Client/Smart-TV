@@ -80,7 +80,7 @@ describe('takeMergedPage', () => {
 
 describe('titleKeysOf', () => {
 	it('collects every title\'s match keys', () => {
-		const keys = titleKeysOf([{Items: [{Type: 'Movie', ProviderIds: {Tmdb: '603'}}]}, {Items: [{Type: 'Movie', ProviderIds: {}}]}]);
-		expect(Array.from(keys)).toEqual(['Movie:tmdb:603']);
+		const keys = titleKeysOf([{Items: [{Type: 'Movie', ProviderIds: {Tmdb: '5003'}}]}, {Items: [{Type: 'Movie', ProviderIds: {}}]}]);
+		expect(Array.from(keys)).toEqual(['Movie:tmdb:5003']);
 	});
 });

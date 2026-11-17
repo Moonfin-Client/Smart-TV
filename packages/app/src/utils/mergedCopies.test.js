@@ -57,9 +57,9 @@ describe('mergeLibrariesByType', () => {
 
 describe('titleMatchKeys', () => {
 	it('keeps real tmdb, tvdb and imdb ids and drops placeholders', () => {
-		expect(titleMatchKeys(movie('1', 'a', {Tmdb: '603', Imdb: 'tt0133093', Tvdb: '0', Other: '5'}))).toEqual([
-			'Movie:tmdb:603',
-			'Movie:imdb:tt0133093'
+		expect(titleMatchKeys(movie('1', 'a', {Tmdb: '5003', Imdb: 'tt0000101', Tvdb: '0', Other: '5'}))).toEqual([
+			'Movie:tmdb:5003',
+			'Movie:imdb:tt0000101'
 		]);
 		expect(titleMatchKeys(movie('1', 'a', {Imdb: 'tt0000000', Tmdb: 'abc'}))).toEqual([]);
 		expect(titleMatchKeys({Id: '1'})).toEqual([]);
@@ -68,9 +68,9 @@ describe('titleMatchKeys', () => {
 
 describe('foldCopies', () => {
 	it('folds another server\'s copy into the first card', () => {
-		const a = movie('1', 'a', {Tmdb: '603'});
-		const b = movie('9', 'b', {Imdb: 'tt1', Tmdb: '603'});
-		const c = movie('2', 'b', {Tmdb: '604'});
+		const a = movie('1', 'a', {Tmdb: '5003'});
+		const b = movie('9', 'b', {Imdb: 'tt1', Tmdb: '5003'});
+		const c = movie('2', 'b', {Tmdb: '5004'});
 		const kept = foldCopies([a, b, c]);
 		expect(kept.map((i) => i.Id)).toEqual(['1', '2']);
 		expect(copiesOf(kept[0]).map((i) => `${i._serverId}:${i.Id}`)).toEqual(['a:1', 'b:9']);
@@ -80,25 +80,25 @@ describe('foldCopies', () => {
 
 	it('folds a later page into an earlier page\'s card', () => {
 		const holders = new Map();
-		const first = foldCopies([movie('1', 'a', {Tmdb: '603'})], holders);
-		const second = foldCopies([movie('9', 'b', {Tmdb: '603'}), movie('3', 'b', {Tmdb: '1'})], holders);
+		const first = foldCopies([movie('1', 'a', {Tmdb: '5003'})], holders);
+		const second = foldCopies([movie('9', 'b', {Tmdb: '5003'}), movie('3', 'b', {Tmdb: '1'})], holders);
 		expect(second.map((i) => i.Id)).toEqual(['3']);
 		expect(serverCountOf(first[0])).toBe(2);
 	});
 
 	it('says which card took on a copy, and a picked copy leaves the others behind', () => {
 		const holders = new Map();
-		const [card] = foldCopies([movie('1', 'a', {Tmdb: '603'})], holders);
+		const [card] = foldCopies([movie('1', 'a', {Tmdb: '5003'})], holders);
 		const grown = [];
-		foldCopies([movie('9', 'b', {Tmdb: '603'})], holders, null, (holder) => grown.push(holder));
+		foldCopies([movie('9', 'b', {Tmdb: '5003'})], holders, null, (holder) => grown.push(holder));
 		expect(grown).toEqual([card]);
 		expect(hasMergedCopies(withoutCopies(card))).toBe(false);
 	});
 
 	it('makes one card of two that a later copy shows to be one title', () => {
-		const a = movie('1', 'a', {Tmdb: '603'});
-		const b = movie('2', 'b', {Imdb: 'tt0133093'});
-		const c = movie('3', 'c', {Tmdb: '603', Imdb: 'tt0133093'});
+		const a = movie('1', 'a', {Tmdb: '5003'});
+		const b = movie('2', 'b', {Imdb: 'tt0000101'});
+		const c = movie('3', 'c', {Tmdb: '5003', Imdb: 'tt0000101'});
 		const kept = foldCopies([a, b, c]);
 		expect(kept).toEqual([a]);
 		expect(copiesOf(a).map((i) => i._serverId)).toEqual(['a', 'b', 'c']);
@@ -106,22 +106,22 @@ describe('foldCopies', () => {
 
 	it('takes down an earlier page\'s card that a later copy folds away', () => {
 		const holders = new Map();
-		const [a, b] = foldCopies([movie('1', 'a', {Tmdb: '603'}), movie('2', 'b', {Imdb: 'tt0133093'})], holders);
+		const [a, b] = foldCopies([movie('1', 'a', {Tmdb: '5003'}), movie('2', 'b', {Imdb: 'tt0000101'})], holders);
 		const absorbed = [];
-		foldCopies([movie('3', 'c', {Imdb: 'tt0133093', Tmdb: '603'})], holders, null, (holder, card) => card && absorbed.push(card));
+		foldCopies([movie('3', 'c', {Imdb: 'tt0000101', Tmdb: '5003'})], holders, null, (holder, card) => card && absorbed.push(card));
 		expect(absorbed).toEqual([b]);
 		expect(serverCountOf(a)).toBe(3);
 		// The folded card's keys now lead to the card that kept the title.
-		foldCopies([movie('4', 'd', {Imdb: 'tt0133093'})], holders);
+		foldCopies([movie('4', 'd', {Imdb: 'tt0000101'})], holders);
 		expect(serverCountOf(a)).toBe(4);
 	});
 
 	it('sends a key only a dropped repeat brought along to the card that kept the title', () => {
 		const holders = new Map();
-		const [a, b] = foldCopies([movie('1', 'a', {Tmdb: '603'}), movie('2', 'b', {Imdb: 'tt0133093'})], holders);
+		const [a, b] = foldCopies([movie('1', 'a', {Tmdb: '5003'}), movie('2', 'b', {Imdb: 'tt0000101'})], holders);
 		// The same item seen by a second account, now also carrying a tvdb id.
-		foldCopies([movie('2', 'b', {Imdb: 'tt0133093', Tvdb: '77'})], holders);
-		foldCopies([movie('3', 'c', {Tmdb: '603', Imdb: 'tt0133093'})], holders);
+		foldCopies([movie('2', 'b', {Imdb: 'tt0000101', Tvdb: '77'})], holders);
+		foldCopies([movie('3', 'c', {Tmdb: '5003', Imdb: 'tt0000101'})], holders);
 		foldCopies([movie('4', 'd', {Tvdb: '77'})], holders);
 		expect(copiesOf(a).map((i) => i.Id)).toEqual(['1', '2', '3', '4']);
 		expect(b).toBeDefined();
@@ -129,23 +129,23 @@ describe('foldCopies', () => {
 
 	it('lets the preferred server\'s card keep a title two cards turn out to share', () => {
 		const preferred = new PreferredCopies('p', new Set());
-		const q = movie('1', 'q', {Tmdb: '603'});
-		const p = movie('2', 'p', {Imdb: 'tt0133093'});
-		const kept = foldCopies([q, p, movie('3', 'r', {Tmdb: '603', Imdb: 'tt0133093'})], new Map(), preferred);
+		const q = movie('1', 'q', {Tmdb: '5003'});
+		const p = movie('2', 'p', {Imdb: 'tt0000101'});
+		const kept = foldCopies([q, p, movie('3', 'r', {Tmdb: '5003', Imdb: 'tt0000101'})], new Map(), preferred);
 		expect(kept).toEqual([p]);
 		expect(copiesOf(p).map((i) => i._serverId)).toEqual(['p', 'q', 'r']);
 	});
 
 	it('orders cards by the fold they were shown in', () => {
-		const a = movie('1', 'a', {Tmdb: '603'});
-		const b = movie('2', 'b', {Imdb: 'tt0133093'});
+		const a = movie('1', 'a', {Tmdb: '5003'});
+		const b = movie('2', 'b', {Imdb: 'tt0000101'});
 		foldCopies([a, b]);
-		const kept = foldCopies([b, a, movie('3', 'c', {Tmdb: '603', Imdb: 'tt0133093'})]);
+		const kept = foldCopies([b, a, movie('3', 'c', {Tmdb: '5003', Imdb: 'tt0000101'})]);
 		expect(kept).toEqual([b]);
 	});
 
 	it('keeps one copy of an item two saved accounts on one server both see', () => {
-		const kept = foldCopies([movie('1', 'a', {Tmdb: '603'}), movie('1', 'a', {Tmdb: '603'}), movie('7', 'a', {Tmdb: '603'})]);
+		const kept = foldCopies([movie('1', 'a', {Tmdb: '5003'}), movie('1', 'a', {Tmdb: '5003'}), movie('7', 'a', {Tmdb: '5003'})]);
 		expect(copiesOf(kept[0]).map((i) => i.Id)).toEqual(['1', '7']);
 	});
 
@@ -154,11 +154,11 @@ describe('foldCopies', () => {
 	});
 
 	it('holds another server\'s copy back for the preferred server\'s card', () => {
-		const preferred = new PreferredCopies('a', new Set(['Movie:tmdb:603']));
+		const preferred = new PreferredCopies('a', new Set(['Movie:tmdb:5003']));
 		const holders = new Map();
-		const other = movie('9', 'b', {Tmdb: '603'});
+		const other = movie('9', 'b', {Tmdb: '5003'});
 		expect(foldCopies([other], holders, preferred)).toEqual([]);
-		const own = movie('1', 'a', {Tmdb: '603'});
+		const own = movie('1', 'a', {Tmdb: '5003'});
 		const kept = foldCopies([own], holders, preferred);
 		expect(kept).toEqual([own]);
 		expect(copiesOf(own).map((i) => i._serverId)).toEqual(['a', 'b']);
@@ -166,8 +166,8 @@ describe('foldCopies', () => {
 	});
 
 	it('hands back a copy whose preferred card never came', () => {
-		const preferred = new PreferredCopies('a', new Set(['Movie:tmdb:603']));
-		const other = movie('9', 'b', {Tmdb: '603'});
+		const preferred = new PreferredCopies('a', new Set(['Movie:tmdb:5003']));
+		const other = movie('9', 'b', {Tmdb: '5003'});
 		foldCopies([other], new Map(), preferred);
 		expect(preferred.takeAllWaiting()).toEqual([other]);
 	});
@@ -176,8 +176,8 @@ describe('foldCopies', () => {
 describe('mergedSortComparator', () => {
 	it('orders by folded sort name', () => {
 		const compare = mergedSortComparator('SortName', false);
-		const items = [{Name: 'Zorro'}, {Name: 'Été'}, {SortName: 'alpha'}];
-		expect(items.sort(compare).map((i) => i.SortName || i.Name)).toEqual(['alpha', 'Été', 'Zorro']);
+		const items = [{Name: 'Zeta'}, {Name: 'Été'}, {SortName: 'alpha'}];
+		expect(items.sort(compare).map((i) => i.SortName || i.Name)).toEqual(['alpha', 'Été', 'Zeta']);
 	});
 
 	it('orders dates descending with a tie broken by name', () => {
@@ -190,6 +190,12 @@ describe('mergedSortComparator', () => {
 		expect(items.sort(compare).map((i) => i.Name)).toEqual(['b', 'a', 'c']);
 	});
 
+	it('orders a Plex critic rating from another source on the value Plex sorts by', () => {
+		const compare = mergedSortComparator('CriticRating,SortName', true);
+		const items = [{Name: 'jellyfin', CriticRating: 70}, {Name: 'plex', _criticSort: 82}];
+		expect(items.sort(compare).map((i) => i.Name)).toEqual(['plex', 'jellyfin']);
+	});
+
 	it('has nothing to merge on for a random order', () => {
 		expect(mergedSortComparator('Random', false)).toBeNull();
 	});
@@ -198,12 +204,12 @@ describe('mergedSortComparator', () => {
 describe('mergedSearchText', () => {
 	it('answers to every copy\'s title and original title', () => {
 		const card = foldCopies([
-			movie('1', 'a', {Tmdb: '1'}, {Name: 'Amélie'}),
-			movie('2', 'b', {Tmdb: '1'}, {Name: 'Die fabelhafte Welt der Amélie', OriginalTitle: "Le Fabuleux Destin d'Amélie Poulain"})
+			movie('1', 'a', {Tmdb: '1'}, {Name: 'Écrit'}),
+			movie('2', 'b', {Tmdb: '1'}, {Name: 'Ein Titel', OriginalTitle: "Le Titre d'Été"})
 		])[0];
 		const text = mergedSearchText(card);
-		expect(text).toContain('fabelhafte');
-		expect(text).toContain('Fabuleux');
+		expect(text).toContain('Ein Titel');
+		expect(text).toContain('Titre d');
 	});
 });
 
@@ -222,17 +228,17 @@ describe('mergeFacetValues', () => {
 
 describe('joinIndexedCopies', () => {
 	it('gives a card the copy another server sorts far away, and folds that copy in when paging reaches it', () => {
-		const howl = movie('1', 'a', {Tmdb: '4935'}, {Name: "Howl's Moving Castle"});
-		const chateau = movie('9', 'b', {Tmdb: '4935', Imdb: 'tt0347149'}, {Name: 'Le Château ambulant'});
-		const index = indexCopies([howl, chateau, movie('5', 'b', {Tmdb: '1'})]);
+		const english = movie('1', 'a', {Tmdb: '5001'}, {Name: "Title One"});
+		const french = movie('9', 'b', {Tmdb: '5001', Imdb: 'tt0000102'}, {Name: 'Titre Un'});
+		const index = indexCopies([english, french, movie('5', 'b', {Tmdb: '1'})]);
 		const holders = new Map();
 		const shown = new Set();
-		const [card] = foldCopies([howl], holders);
+		const [card] = foldCopies([english], holders);
 		shown.add('a|1');
 		expect(joinIndexedCopies(card, index, holders, (copy) => shown.has(`${copy._serverId}|${copy.Id}`))).toBe(true);
-		expect(copiesOf(card).map((i) => i.Name)).toEqual(["Howl's Moving Castle", 'Le Château ambulant']);
+		expect(copiesOf(card).map((i) => i.Name)).toEqual(["Title One", 'Titre Un']);
 		// Paging reaches the copy: it joins the card instead of becoming one, and isn't added twice.
-		expect(foldCopies([movie('9', 'b', {Tmdb: '4935', Imdb: 'tt0347149'})], holders)).toEqual([]);
+		expect(foldCopies([movie('9', 'b', {Tmdb: '5001', Imdb: 'tt0000102'})], holders)).toEqual([]);
 		expect(serverCountOf(card)).toBe(2);
 		expect(copiesOf(card)).toHaveLength(2);
 	});
@@ -248,31 +254,31 @@ describe('joinIndexedCopies', () => {
 
 	it('swaps the light copy the index gave for the full one paging brings', () => {
 		const holders = new Map();
-		const [card] = foldCopies([movie('1', 'a', {Tmdb: '4935'})], holders);
-		const light = movie('9', 'b', {Tmdb: '4935'});
+		const [card] = foldCopies([movie('1', 'a', {Tmdb: '5001'})], holders);
+		const light = movie('9', 'b', {Tmdb: '5001'});
 		joinIndexedCopies(card, indexCopies([light]), holders, () => false);
-		foldCopies([movie('9', 'b', {Tmdb: '4935'}, {UserData: {Played: true}, ImageTags: {Primary: 'p'}})], holders);
+		foldCopies([movie('9', 'b', {Tmdb: '5001'}, {UserData: {Played: true}, ImageTags: {Primary: 'p'}})], holders);
 		expect(copiesOf(card)).toHaveLength(2);
 		expect(copiesOf(card)[1]).toMatchObject({Id: '9', UserData: {Played: true}, ImageTags: {Primary: 'p'}});
 	});
 
 	it('keeps the full copy when a card holding a light one of it is folded in', () => {
 		const holders = new Map();
-		const [a, c] = foldCopies([movie('1', 'a', {Tmdb: '603'}), movie('3', 'c', {Imdb: 'tt603'})], holders);
+		const [a, c] = foldCopies([movie('1', 'a', {Tmdb: '5003'}), movie('3', 'c', {Imdb: 'tt5003'})], holders);
 		// Paging folds the full copy of B into A.
-		foldCopies([movie('2', 'b', {Tmdb: '603'}, {UserData: {Played: true}})], holders);
+		foldCopies([movie('2', 'b', {Tmdb: '5003'}, {UserData: {Played: true}})], holders);
 		// The index gives C a light copy of the same B.
-		joinIndexedCopies(c, indexCopies([movie('2', 'b', {Imdb: 'tt603'})]), holders, () => false);
+		joinIndexedCopies(c, indexCopies([movie('2', 'b', {Imdb: 'tt5003'})]), holders, () => false);
 		// An item that holds both ids folds C into A.
-		foldCopies([movie('4', 'd', {Tmdb: '603', Imdb: 'tt603'})], holders);
+		foldCopies([movie('4', 'd', {Tmdb: '5003', Imdb: 'tt5003'})], holders);
 		const b = copiesOf(a).find((copy) => copy._serverId === 'b');
 		expect(b).toMatchObject({UserData: {Played: true}});
 		expect(b._lightCopy).toBeUndefined();
 	});
 
 	it('leaves alone a copy paging already showed', () => {
-		const a = movie('1', 'a', {Tmdb: '603'});
-		const b = movie('2', 'b', {Tmdb: '603'});
+		const a = movie('1', 'a', {Tmdb: '5003'});
+		const b = movie('2', 'b', {Tmdb: '5003'});
 		const card = foldCopies([a])[0];
 		expect(joinIndexedCopies(card, indexCopies([a, b]), new Map(), () => true)).toBe(false);
 		expect(hasMergedCopies(card)).toBe(false);

@@ -230,8 +230,8 @@ export const foldCopies = (items, holders = new Map(), preferred = null, onJoin 
 };
 
 // Every server's titles by match key, from a light read of each whole library, so a card can know its copies before
-// paging reaches them. Two servers can name a title differently, and so sort it far apart, as "Howl's Moving Castle"
-// on one and "Le Château ambulant" on the other.
+// paging reaches them. Two servers can name a title differently, and so sort it far apart, as "Title One"
+// on one and "Titre Un" on the other.
 export const indexCopies = (items) => {
 	const index = new Map();
 	(items || []).forEach((item) => {
@@ -289,7 +289,7 @@ const sortValue = (item, field) => {
 		case 'ProductionYear': return numberValue(item.ProductionYear);
 		case 'OfficialRating': return item.OfficialRating || null;
 		case 'Runtime': return numberValue(item.RunTimeTicks);
-		case 'CriticRating': return numberValue(item.CriticRating);
+		case 'CriticRating': return numberValue(item.CriticRating) ?? numberValue(item._criticSort);
 		case 'CommunityRating': return numberValue(item.CommunityRating);
 		case 'DatePlayed': return dateValue(item.UserData?.LastPlayedDate);
 		case 'PlayCount': return numberValue(item.UserData?.PlayCount);

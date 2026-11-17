@@ -44,6 +44,7 @@ import LibrarySkeleton from './LibrarySkeleton';
 import {registerThemeSheet} from '../../theme/themeOverrides';
 import * as connectionPool from '../../services/connectionPool';
 import MergedServerBadge from '../../components/MergedServerBadge';
+import {readSharedTitles} from '../../services/mergedTitleReads';
 import {PreferredCopies, foldCopies, indexCopies, joinIndexedCopies, mergeFacetValues, mergedLibraryType, mergedSearchText, mergedSortComparator, titleMatchKeys} from '../../utils/mergedCopies';
 import {createMergedReaders, mergedReadersDrained, takeMergedPage, titleKeysOf} from '../../utils/mergedBrowse';
 
@@ -52,16 +53,9 @@ import css from './Library.module.less';
 registerThemeSheet('library', css);
 
 // How many titles each request reads while listing the titles the preferred server holds.
-const PREFERRED_PAGE_SIZE = 1000;
-// A stop for a server that ignores StartIndex and sends the same page every time.
-const PREFERRED_MAX_PAGES = 100;
 // How long the first page of a merged library waits on the signed-in server's titles before showing without them, so
 // a slow read never holds the grid back. The copies still find their cards, only which server's copy leads may differ.
 const PREFERRED_WAIT_MS = 1500;
-// How long a library's titles, read with ids only, are kept for the next time it opens, as after leaving a title's
-// details. The read is shared by the card choice and the title index, so each server library is read once.
-const TITLE_READ_TTL_MS = 5 * 60 * 1000;
-const titleReads = new Map();
 
 const SpottableDiv = Spottable('div');
 const SpottableButton = Spottable('button');
@@ -448,6 +442,8 @@ const Library = ({library, genreFilter, studioFilter, onSelectItem, onViewPhoto,
 	const playlistGrouped = isPlaylistLibrary && playlistGroupingOn && !isFolderView;
 	const groupedActive = (canGroup && groupBy !== 'none') || playlistGrouped;
 
+	// The kinds of server the grid reads from: each one a merged library spans once they're known, else its own.
+	const sourceServerTypes = isMerged && mergedSources ? mergedSources.map((source) => source.server._serverType || 'jellyfin') : [libraryServerType];
 	const sortKeys = librarySortKeys({
 		songs: isSongs,
 		music: isMusicLibrary,
@@ -455,7 +451,8 @@ const Library = ({library, genreFilter, studioFilter, onSelectItem, onViewPhoto,
 		books: isBookLibrary,
 		folders: isFolderView,
 		movieOrSeries: isMovieLibrary || isSeriesLibrary,
-		myRating: Boolean(settings.useMoonfinPlugin) && libraryServerType !== 'plex' && !isMerged
+		myRating: Boolean(settings.useMoonfinPlugin) && libraryServerType !== 'plex' && !isMerged,
+		plex: sourceServerTypes.includes('plex')
 	});
 	// Folders come first until something else is picked, and a saved sort this library doesn't
 	// offer goes back to that, or to the name sort everywhere else.
@@ -587,56 +584,6 @@ const Library = ({library, genreFilter, studioFilter, onSelectItem, onViewPhoto,
 		return sources;
 	}, [library, mergedType]);
 
-	// Every title a merged library's server libraries hold, with only their ids, read with the pages' own query so a
-	// movie folded into a collection there isn't counted. Paged, since some servers cap a request without a limit to a
-	// small first page. Each page starts where the last one's items ended, so a server that sends fewer than were asked
-	// for skips nothing, and paging runs to the server's own count, so a page the client filtered down doesn't end it.
-	const readTitles = useCallback(async (source, params) => {
-		const query = {
-			Recursive: true,
-			Fields: 'ProviderIds',
-			EnableTotalRecordCount: true,
-			EnableUserData: false,
-			ImageTypeLimit: 0,
-			...(params.IncludeItemTypes ? {IncludeItemTypes: params.IncludeItemTypes} : {}),
-			...(params.ExcludeItemTypes ? {ExcludeItemTypes: params.ExcludeItemTypes} : {}),
-			...(params.CollapseBoxSetItems != null ? {CollapseBoxSetItems: params.CollapseBoxSetItems} : {})
-		};
-		const titles = [];
-		let start = 0;
-		for (let page = 0; page < PREFERRED_MAX_PAGES; page++) {
-			// eslint-disable-next-line no-await-in-loop
-			const response = await source.api.getItems({...query, ParentId: source.libraryId, StartIndex: start, Limit: PREFERRED_PAGE_SIZE});
-			const got = (response?.Items || []).filter(Boolean);
-			got.forEach((raw) => {
-				// Each title carries its server, since one index holds several servers' titles.
-				if (raw.Id) titles.push({...raw, ...source.server});
-			});
-			const total = response?.TotalRecordCount;
-			start += got.length;
-			const done = typeof total === 'number' ? start >= total : got.length < PREFERRED_PAGE_SIZE;
-			if (!got.length || done) break;
-		}
-		return titles;
-	}, []);
-
-	// The titles of one server library, read once and shared by whatever asks while the read is fresh.
-	const readSharedTitles = useCallback((source, params) => {
-		const key = [
-			source.server._serverId, source.libraryId,
-			params.IncludeItemTypes || '', params.ExcludeItemTypes || '', String(params.CollapseBoxSetItems)
-		].join('|');
-		const kept = titleReads.get(key);
-		if (kept && Date.now() - kept.at < TITLE_READ_TTL_MS) return kept.read;
-		const read = readTitles(source, params);
-		titleReads.set(key, {at: Date.now(), read});
-		// A read that failed is tried again by the next one to ask.
-		read.catch(() => {
-			if (titleReads.get(key)?.read === read) titleReads.delete(key);
-		});
-		return read;
-	}, [readTitles]);
-
 	const titleQueryKey = (sources, params) => [
 		...sources.map((source) => `${source.server._serverId}:${source.libraryId}`),
 		params.IncludeItemTypes || '', params.ExcludeItemTypes || '', String(params.CollapseBoxSetItems)
@@ -654,7 +601,7 @@ const Library = ({library, genreFilter, studioFilter, onSelectItem, onViewPhoto,
 			// Without the list, the first copy shown keeps the card.
 			return null;
 		}
-	}, [readSharedTitles]);
+	}, []);
 
 	// Every server's titles by match key. A server that doesn't answer is left out of it, and its copies come up as
 	// paging reaches them, the way they did without the index.
@@ -665,7 +612,7 @@ const Library = ({library, genreFilter, studioFilter, onSelectItem, onViewPhoto,
 		const index = indexCopies(read.filter(Boolean).flat());
 		if (read.every(Boolean)) titleIndexRef.current = {key, index};
 		return index;
-	}, [readSharedTitles]);
+	}, []);
 
 	// The next page of a merged library, read from every server and merged in the sort's order.
 	const fetchMergedPage = useCallback(async (startIndex, params, generation) => {
@@ -2008,7 +1955,7 @@ const Library = ({library, genreFilter, studioFilter, onSelectItem, onViewPhoto,
 	// Plex can't filter on series status, likes, subtitles, trailers, extras, theme media, 3D or disc source.
 	// A merged library only offers a filter every server can apply, since one that ignored it would fill the list with
 	// what it was meant to leave out.
-	const filterServerTypes = isMerged && mergedSources ? mergedSources.map((source) => source.server._serverType || 'jellyfin') : [libraryServerType];
+	const filterServerTypes = sourceServerTypes;
 	const onPlex = filterServerTypes.includes('plex');
 	const supported = (options) => options.filter(o => (!o.jellyfinOnly || !filterServerTypes.includes('emby')) && !(onPlex && o.plexless));
 	const musicTitle = musicGridView ? MUSIC_TITLES[musicContentType]?.() : null;

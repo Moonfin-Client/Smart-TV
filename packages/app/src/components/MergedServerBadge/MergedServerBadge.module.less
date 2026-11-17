@@ -24,6 +24,20 @@
 	pointer-events: none;
 }
 
+// Clear of a card's progress bar.
+.aboveProgress {
+	bottom: 26px;
+}
+
+// Stacked above a card's anime pill, which is 24px high.
+[data-card-overlay='anime'] ~ .badge {
+	bottom: 38px;
+}
+
+[data-card-overlay='anime'] ~ .badge.aboveProgress {
+	bottom: 56px;
+}
+
 .icon {
 	width: 18px;
 	height: 18px;

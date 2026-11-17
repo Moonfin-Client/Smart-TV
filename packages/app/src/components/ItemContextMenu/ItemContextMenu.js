@@ -7,7 +7,8 @@ import SpotlightContainerDecorator from '@enact/spotlight/SpotlightContainerDeco
 import {useAuth} from '../../context/AuthContext';
 import {useSettings} from '../../context/SettingsContext';
 import {getApiForItem} from '../../services/connectionPool';
-import {copiesOf} from '../../utils/mergedCopies';
+import {findEveryCopy} from '../../services/mergedTitleReads';
+import {copiesOf, mergesLibraries} from '../../utils/mergedCopies';
 import {api as activeApi, getServerType} from '../../services/jellyfinApi';
 import {parseHiddenMap} from '../../views/Browse/browseFilters';
 import {
@@ -85,7 +86,7 @@ const canManageCollectionsOf = (item, user, serverUrl) => {
 // A card asks for it through useItemMenu. `backRef` is how the app's back key reaches whatever
 // is open here before it reaches the screen underneath.
 export const ItemMenuProvider = ({children, onPlay, onOpenItem, backRef}) => {
-	const {user, serverUrl} = useAuth();
+	const {user, serverUrl, hasMultipleServers} = useAuth();
 	const {settings, updateSetting, updateSettings} = useSettings();
 	const [menu, setMenu] = useState(null);
 	const [dialog, setDialog] = useState(null);
@@ -137,8 +138,11 @@ export const ItemMenuProvider = ({children, onPlay, onOpenItem, backRef}) => {
 
 	// Marks a title watched or a favorite on every server that holds it, for a merged library's card, and names the
 	// servers that refused. A title only one server holds fails quietly, the way it always has.
+	const mergeLibraries = mergesLibraries(settings, hasMultipleServers);
 	const changeEveryCopy = useCallback(async (item, change) => {
-		const copies = copiesOf(item);
+		// A card's own list can leave copies out, as a Home row holding only each server's most recent titles.
+		// It waits for the servers to answer, so a slow one's copy isn't left unchanged.
+		const copies = copiesOf(mergeLibraries ? await findEveryCopy(item, null) : item);
 		// Every server at once, so a slow one doesn't hold up the rest.
 		const results = await Promise.all(copies.map((copy) => (
 			Promise.resolve()
@@ -149,7 +153,7 @@ export const ItemMenuProvider = ({children, onPlay, onOpenItem, backRef}) => {
 		if (copies.length > 1 && refused.length > 0) {
 			showToast($L('Not changed on {servers}').replace('{servers}', refused.join(', ')));
 		}
-	}, [showToast]);
+	}, [showToast, mergeLibraries]);
 	const clearToast = useCallback(() => setToast(null), []);
 
 	const closeDialog = useCallback(() => {

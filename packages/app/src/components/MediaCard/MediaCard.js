@@ -312,8 +312,6 @@ const MediaCard = ({item, serverUrl, cardType = 'portrait', rowImageType = 'post
 						{corner.showsServerName && (
 							<div className={corner.nameClass}>{item._serverName}</div>
 						)}
-						{/* A title several servers hold says how many instead of naming one. */}
-						<MergedServerBadge item={item} />
 
 						{item._seerr && item._seerrMissing ? (
 							<div className={`${css.seerrBadge} ${css.seerrMissing} ${seerrMarkLeft ? css.seerrLeft : ''}${seerrMarkLeft ? '' : corner.belowNameClass}`}>
@@ -344,6 +342,8 @@ const MediaCard = ({item, serverUrl, cardType = 'portrait', rowImageType = 'post
 
 						<IncompleteBadge itemId={item.Id} belowFavorite={item.UserData?.IsFavorite} belowBanner={Boolean(bannerStatus)} />
 						<AnimeCardPill item={item} serverUrl={itemServerUrl} hasProgressBar={showIndicators && progress > 0} />
+						{/* A title several servers hold says how many instead of naming one. */}
+						<MergedServerBadge item={item} aboveProgress={showIndicators && progress > 0} />
 						{posterLabels && (
 							<PosterLabels
 								item={item}

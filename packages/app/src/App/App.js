@@ -95,6 +95,7 @@ import {isGameLibrary, refreshGameLibraries, resolveGameLibraryId} from '../util
 import {afterHomeReady} from '../utils/homeReady';
 import {setMusicPlaying} from '../utils/sharedVideoOwner';
 import {hasMergedCopies, mergeLibrariesByType, mergesLibraries} from '../utils/mergedCopies';
+import {clearMergedTitleReads, findEveryCopy} from '../services/mergedTitleReads';
 import MergedCopyPicker from '../components/MergedCopyPicker';
 
 const Details = lazy(() => import('../views/Details'));
@@ -1102,6 +1103,13 @@ const AppContent = (props) => {
 	useEffect(() => () => {
 		if (copyPickRef.current) handleCopyPicked(null);
 	}, [isAuthenticated, user?.Id, serverUrl, handleCopyPicked]);
+	// Titles read with one account's token never serve another, and a card still looking for its copies when the session
+	// changes never opens in the new one.
+	const selectionSessionRef = useRef(0);
+	useEffect(() => () => {
+		selectionSessionRef.current += 1;
+		clearMergedTitleReads();
+	}, [isAuthenticated, user?.Id, serverUrl, accessToken]);
 
 	useEffect(() => {
 		const handleKeyDown = (e) => {
@@ -1329,14 +1337,26 @@ const AppContent = (props) => {
 	}, [navigateTo, panelIndex, handlePlayChannel, openFullPage, settings]);
 
 	const handleSelectItem = useCallback((item, autoPlay = false) => {
-		if (!hasMergedCopies(item)) {
-			openSelectedItem(item, autoPlay);
+		const open = (card) => {
+			if (!hasMergedCopies(card)) {
+				openSelectedItem(item, autoPlay);
+				return;
+			}
+			pickMergedCopy(card).then((copy) => {
+				if (copy) openSelectedItem(copy, autoPlay);
+			});
+		};
+		// A card's own list can leave copies out, as a Home row holding only each server's most recent titles, so the
+		// picker asks the servers. A title no other server holds opens as it always did.
+		if (!mergeLibraries) {
+			open(item);
 			return;
 		}
-		pickMergedCopy(item).then((copy) => {
-			if (copy) openSelectedItem(copy, autoPlay);
+		const session = selectionSessionRef.current;
+		findEveryCopy(item).then((card) => {
+			if (session === selectionSessionRef.current) open(card);
 		});
-	}, [openSelectedItem, pickMergedCopy]);
+	}, [openSelectedItem, pickMergedCopy, mergeLibraries]);
 
 	// A song or a channel plays as soon as it's picked, so only the rest wait for their screen to start them.
 	const handlePlayFromMenu = useCallback((item) => {
