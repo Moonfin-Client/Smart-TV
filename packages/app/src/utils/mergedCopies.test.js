@@ -246,6 +246,30 @@ describe('joinIndexedCopies', () => {
 		expect(copiesOf(card).map((i) => i._serverId)).toEqual(['a', 'b', 'c']);
 	});
 
+	it('swaps the light copy the index gave for the full one paging brings', () => {
+		const holders = new Map();
+		const [card] = foldCopies([movie('1', 'a', {Tmdb: '4935'})], holders);
+		const light = movie('9', 'b', {Tmdb: '4935'});
+		joinIndexedCopies(card, indexCopies([light]), holders, () => false);
+		foldCopies([movie('9', 'b', {Tmdb: '4935'}, {UserData: {Played: true}, ImageTags: {Primary: 'p'}})], holders);
+		expect(copiesOf(card)).toHaveLength(2);
+		expect(copiesOf(card)[1]).toMatchObject({Id: '9', UserData: {Played: true}, ImageTags: {Primary: 'p'}});
+	});
+
+	it('keeps the full copy when a card holding a light one of it is folded in', () => {
+		const holders = new Map();
+		const [a, c] = foldCopies([movie('1', 'a', {Tmdb: '603'}), movie('3', 'c', {Imdb: 'tt603'})], holders);
+		// Paging folds the full copy of B into A.
+		foldCopies([movie('2', 'b', {Tmdb: '603'}, {UserData: {Played: true}})], holders);
+		// The index gives C a light copy of the same B.
+		joinIndexedCopies(c, indexCopies([movie('2', 'b', {Imdb: 'tt603'})]), holders, () => false);
+		// An item that holds both ids folds C into A.
+		foldCopies([movie('4', 'd', {Tmdb: '603', Imdb: 'tt603'})], holders);
+		const b = copiesOf(a).find((copy) => copy._serverId === 'b');
+		expect(b).toMatchObject({UserData: {Played: true}});
+		expect(b._lightCopy).toBeUndefined();
+	});
+
 	it('leaves alone a copy paging already showed', () => {
 		const a = movie('1', 'a', {Tmdb: '603'});
 		const b = movie('2', 'b', {Tmdb: '603'});

@@ -152,13 +152,20 @@ export const withoutCopies = (item) => {
 
 const copyKey = (copy) => `${copy._serverId ?? ''}|${copy.Id}`;
 
-// An item already on the card is left out: the same server and id again is another saved account's view of it.
+// Marks a copy the title index gave a card, which holds ids only.
+const LIGHT_KEY = '_lightCopy';
+
+// A copy already on the card is never added twice. The index gives a card a light copy, ids only, before paging reaches
+// it, so the full one paging brings later takes its place, while a light one never takes the place of a full one. The
+// card itself always stays.
 const join = (holder, item, keys, holders, onJoin) => {
-	const known = new Set(copiesOf(holder).map(copyKey));
+	const holderKey = copyKey(holder);
 	copiesOf(item).forEach((copy) => {
-		if (known.has(copyKey(copy))) return;
-		known.add(copyKey(copy));
-		holder[COPIES_KEY].push(withoutCopies(copy));
+		const key = copyKey(copy);
+		if (key === holderKey) return;
+		const at = holder[COPIES_KEY].findIndex((known) => copyKey(known) === key);
+		if (at < 0) holder[COPIES_KEY].push(withoutCopies(copy));
+		else if (holder[COPIES_KEY][at][LIGHT_KEY] && !copy[LIGHT_KEY]) holder[COPIES_KEY][at] = withoutCopies(copy);
 	});
 	if (onJoin) onJoin(holder);
 	keys.forEach((key) => {
@@ -244,7 +251,8 @@ export const joinIndexedCopies = (card, index, holders, shown) => {
 	if (!card || !index || !index.size) return false;
 	if (!Array.isArray(card[COPIES_KEY])) card[COPIES_KEY] = [];
 	const before = card[COPIES_KEY].length;
-	const pending = [...titleMatchKeys(card)];
+	// Every copy's ids, not just the card's: a copy already on the card can carry one that leads to further copies.
+	const pending = copiesOf(card).flatMap(titleMatchKeys);
 	const visited = new Set();
 	while (pending.length) {
 		const key = pending.shift();
@@ -255,7 +263,7 @@ export const joinIndexedCopies = (card, index, holders, shown) => {
 			// A copy can carry an id the card lacks, which leads to further copies, whether or not it's on the card.
 			copyKeys.forEach((next) => pending.push(next));
 			if (shown(copy) || copiesOf(card).some((known) => copyKey(known) === copyKey(copy))) return;
-			join(card, copy, copyKeys, holders, null);
+			join(card, {...copy, [LIGHT_KEY]: true}, copyKeys, holders, null);
 		});
 	}
 	return card[COPIES_KEY].length > before;

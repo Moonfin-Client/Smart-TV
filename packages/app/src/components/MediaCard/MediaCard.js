@@ -15,9 +15,9 @@ import useImageReveal, {pendingArtStyle} from '../../hooks/useImageReveal';
 import {isUnownedSeerrTitle, seerrThumbUrl, seerrWideArtUrl, useTmdbThumbsAvailable} from '../../utils/tmdbThumb';
 import {rem} from '../../utils/rootScale';
 import {useMediaPreviewSlot} from './MediaPreviewContext';
+import {serverNameCorner} from './serverNameCorner';
 import {episodeArtwork, requestedArtwork} from './cardArtwork';
 import MergedServerBadge from '../MergedServerBadge';
-import {hasMergedCopies} from '../../utils/mergedCopies';
 
 import css from './MediaCard.module.less';
 
@@ -197,6 +197,8 @@ const MediaCard = ({item, serverUrl, cardType = 'portrait', rowImageType = 'post
 	const seerrStyle = seerrBadgeStyle(settings);
 	const bannerStatus = seerrStyle !== 'banner' ? null
 		: seerrTitleStatus(item) ?? (hasSeerrDot(seerrSeasonStatus) ? seerrSeasonStatus : null);
+	// What the top right corner holds when the server's name takes it. The Seerr banner along the top pushes it down.
+	const corner = serverNameCorner({css, item, showServerBadge, showIndicators, showUnplayedCount, bannerOffset: bannerStatus ? 20 : 0});
 
 	const displayTitle = useMemo(() => {
 		if (item.Type === 'Episode' || item.Type === 'Season') {
@@ -307,31 +309,31 @@ const MediaCard = ({item, serverUrl, cardType = 'portrait', rowImageType = 'post
 							</div>
 						)}
 
-						{(showServerBadge || item._external) && item._serverName && !hasMergedCopies(item) && !item?._mergedType && (
-							<div className={css.serverBadge}>{item._serverName}</div>
+						{corner.showsServerName && (
+							<div className={corner.nameClass}>{item._serverName}</div>
 						)}
 						{/* A title several servers hold says how many instead of naming one. */}
 						<MergedServerBadge item={item} />
 
 						{item._seerr && item._seerrMissing ? (
-							<div className={`${css.seerrBadge} ${css.seerrMissing} ${seerrMarkLeft ? css.seerrLeft : ''}`}>
+							<div className={`${css.seerrBadge} ${css.seerrMissing} ${seerrMarkLeft ? css.seerrLeft : ''}${seerrMarkLeft ? '' : corner.belowNameClass}`}>
 								<SeerrIcon />
 							</div>
 						) : seerrStyle === 'badge' && item._seerr && [2, 3, 4, 5].includes(item.mediaInfo?.status) ? (
-							<div className={`${css.seerrBadge} ${css[`seerr${item.mediaInfo.status}`]}`} />
+							<div className={`${css.seerrBadge} ${css[`seerr${item.mediaInfo.status}`]}${corner.belowNameClass}`} />
 						) : null}
 
 						<SeerrSeasonDot status={seerrStyle === 'badge' ? seerrSeasonStatus : null} />
 						{bannerStatus && <SeerrStatusBanner status={bannerStatus} className={css.seerrBanner} />}
 
 						{showIndicators && showsWatchedCheck(item) && (
-							<div className={css.watchedBadge}>
+							<div className={`${css.watchedBadge}${corner.belowNameClass}`}>
 								<svg viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>
 							</div>
 						)}
 
 						{showUnplayedCount && (
-							<div className={css.unplayedCount}>{unplayedCount}</div>
+							<div className={`${css.unplayedCount}${corner.belowNameClass}`}>{unplayedCount}</div>
 						)}
 
 						{item.UserData?.IsFavorite && (
@@ -347,7 +349,7 @@ const MediaCard = ({item, serverUrl, cardType = 'portrait', rowImageType = 'post
 								item={item}
 								serverUrl={itemServerUrl}
 								top={item.UserData?.IsFavorite ? 40 : 8}
-								topRight={(showIndicators && showsWatchedCheck(item)) || ((showServerBadge || item._external) && item._serverName && !hasMergedCopies(item) && !item?._mergedType) ? 40 : 8}
+								topRight={corner.labelsTopRight}
 								bottom={showIndicators && progress > 0 ? 26 : 8}
 							/>
 						)}
