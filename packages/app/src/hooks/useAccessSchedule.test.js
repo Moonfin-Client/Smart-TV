@@ -338,6 +338,30 @@ describe('useAccessSchedule', () => {
 			expect(fetchAccessWindow).toHaveBeenCalledTimes(2);
 		});
 
+		test('offline, ends an allowed window at the close it reported', async () => {
+			let offline = false;
+			const fetchAccessWindow = jest.fn(async () => {
+				if (offline) throw new Error('offline');
+				return windowOf(true, 90 * 1000);
+			});
+			const fetchUser = jest.fn(async () => {
+				if (offline) throw new Error('offline');
+				return user;
+			});
+			const {result, onBlocked} = mount({fetchAccessWindow, fetchUser});
+			await flush();
+			offline = true;
+			clock = at(12, 1);
+			await flush(60 * 1000);
+			expect(result.current.blocked).toBe(false);
+
+			clock = at(12, 1, 30);
+			await flush(15 * 1000);
+			expect(result.current.blocked).toBe(true);
+			expect(result.current.nextAccess).toBeNull();
+			expect(onBlocked).toHaveBeenCalledTimes(1);
+		});
+
 		test('gives up on a window read that stalls', async () => {
 			clock = at(21);
 			const fetchAccessWindow = jest.fn(() => new Promise(() => {}));

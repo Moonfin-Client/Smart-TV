@@ -48,6 +48,8 @@ export const useAccessSchedule = ({userId, enabled, fetchUser, serverRefuses, fe
 		let blocked = false;
 		// Set when the server says it can't answer the access window, so this user's checks stop asking.
 		let windowUnsupported = false;
+		// When the allowed window the plugin last reported closes, in ms on this TV's clock.
+		let windowCloses = null;
 		// Checks can overlap, so each is numbered and none replaces the answer of one started after it.
 		let started = 0;
 		let applied = 0;
@@ -71,6 +73,7 @@ export const useAccessSchedule = ({userId, enabled, fetchUser, serverRefuses, fe
 		// The plugin's answer alone decides and times the next check.
 		const applyWindow = (answer) => {
 			const now = latest.current.getNow();
+			windowCloses = answer.allowed && answer.untilCloseMs !== null ? now.getTime() + answer.untilCloseMs : null;
 			const wasBlocked = blocked;
 			blocked = !answer.allowed;
 			// Named on this device's clock, as the moment it comes on it, to the nearest minute: a
@@ -117,8 +120,16 @@ export const useAccessSchedule = ({userId, enabled, fetchUser, serverRefuses, fe
 			try {
 				user = await latest.current.fetchUser();
 			} catch (e) {
-				// Keep the last schedule, but a window that is already closed stays closed.
-				if (!cancelled && look >= applied) schedule(RETRY_MS);
+				// Keep the last schedule, but a window that is already closed stays closed. Offline, where
+				// the server can't stop a download, an allowed window ends at the close the plugin reported.
+				if (cancelled || look < applied) return;
+				if (!blocked && windowCloses !== null && latest.current.getNow().getTime() >= windowCloses) {
+					windowCloses = null;
+					blocked = true;
+					setState({blocked: true, nextAccess: null});
+					latest.current.onBlocked?.();
+				}
+				schedule(RETRY_MS);
 				return;
 			}
 			if (cancelled || look < applied) return;
@@ -133,6 +144,7 @@ export const useAccessSchedule = ({userId, enabled, fetchUser, serverRefuses, fe
 			applied = look;
 			exempt = isExempt;
 			schedules = fresh;
+			windowCloses = null;
 			const now = latest.current.getNow();
 			apply(now, refused);
 			if (exempt) return;
