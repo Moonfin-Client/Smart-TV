@@ -55,9 +55,16 @@ const DOT_CLASS = {
 };
 
 // The marker on one season card. Both detail styles draw their season cards differently but
-// want the same dot, so the shape and the states it can be in live here.
+// want the same dot, so the shape and the states it can be in live here. An available one
+// carries the watched badge's check, in the theme's Available colour.
 export const SeerrSeasonDot = memo(({status}) => {
 	const variant = DOT_CLASS[status];
 	if (!variant) return null;
-	return <div className={`${css.seasonDot} ${css[variant]}`} />;
+	return (
+		<div className={`${css.seasonDot} ${css[variant]}`}>
+			{status === MEDIA_STATUS.AVAILABLE && (
+				<svg viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z" /></svg>
+			)}
+		</div>
+	);
 });
