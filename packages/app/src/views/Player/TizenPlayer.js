@@ -54,6 +54,7 @@ import useLiveRecording from './useLiveRecording';
 import useHeldSeekStep from './useHeldSeekStep';
 import {createServerSeek} from './serverSeek';
 import useSiloStreamRenewal from './useSiloStreamRenewal';
+import useEndedOnServer from './useEndedOnServer';
 import useStreamReconnect from './useStreamReconnect';
 import {hasTrickplayPreview} from '../../components/TrickplayPreview';
 import {isTrickplayOn} from '../../utils/trickplayLayout';
@@ -152,7 +153,7 @@ const avplaySeek = (titleMs) => {
 	return seekStream(titleMs);
 };
 
-const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialSubtitleIndex, initialStartPositionTicks, initialQuality, forceTranscode, onEnded, onBack, onGuide, onRecordings, onPlayNext, onSelectPerson, audioPlaylist, videoQueue, liveTvChannels, onPausedChange, background, onBackground, slideshow}) => {
+const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialSubtitleIndex, initialStartPositionTicks, initialQuality, forceTranscode, onEnded, onBack, onEndedOnServer, askedItemId, onGuide, onRecordings, onPlayNext, onSelectPerson, audioPlaylist, videoQueue, liveTvChannels, onPausedChange, background, onBackground, slideshow}) => {
 	const {settings, updateSetting} = useSettings();
 	const {isInGroup, lastCommand} = useSyncPlay();
 	const syncPlayCommandRef = useRef(false);
@@ -462,6 +463,8 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 	// handleBack is defined further down, so the timer reaches it through a ref
 	// rather than forcing the whole player to be reordered.
 	const handleBackRef = useRef(null);
+	// Set once Back or an ended session closes the player, so only one of them leaves it.
+	const closingRef = useRef(false);
 	const {sleepMinutes, remainingSeconds: sleepRemainingSeconds, startSleepTimer} = useSleepTimer({
 		onExpire: () => handleBackRef.current?.(),
 		ticking: activeModal === 'sleep'
@@ -1040,7 +1043,8 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 			try {
 				await restartFromResult(await playback.reanchorAt(ticks), ticks);
 			} catch (err) {
-				console.error('[Player] Seek through the server failed:', err);
+				// An admin ending the session closes the player, so it isn't a failed seek.
+				if (!playback.isEndedOnServer(err)) console.error('[Player] Seek through the server failed:', err);
 			}
 		});
 		return () => { streamTimeline.seekThroughServer = null; };
@@ -1438,6 +1442,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 		const loadMedia = async () => {
 			const generation = ++loadGenerationRef.current;
 			const stillCurrent = () => generation === loadGenerationRef.current;
+			closingRef.current = false;
 			setIsLoading(true);
 			// A video taking over from music opens on its own screen, not the music player's.
 			setIsAudioMode((wasAudio) => wasAudio && (item?.MediaType === 'Audio' || item?.Type === 'Audio'));
@@ -1541,6 +1546,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 						applyPlaybackResult(result);
 						audioNegotiated = true;
 					} catch (err) {
+						if (playback.isEndedOnServer(err)) throw err;
 						console.error('[Player] Audio track negotiation failed:', err);
 					}
 				}
@@ -1712,6 +1718,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 						applyPlaybackResult(result);
 						burnInSubtitleRef.current = burnInPendingSub.index;
 					} catch (err) {
+						if (playback.isEndedOnServer(err)) throw err;
 						console.error('[Player] Burn in subtitle negotiation failed:', err);
 					}
 				}
@@ -1874,6 +1881,8 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 
 				console.log(`[Player] Loaded ${displayTitle} via ${result.playMethod} (AVPlay native)${isLiveTV ? ' [Live TV]' : ''}`);
 			} catch (err) {
+				// Silo's admin ended this title's session: the player closes with its own message, not an error.
+				if (playback.isEndedOnServer(err)) return;
 				console.error('[Player] Failed to load media:', err);
 				// A pre-roll that cant even load gets skipped, not surfaced.
 				const skipTo = isPreroll(item) ? nextInQueue(videoQueueRef.current, item) : null;
@@ -2272,6 +2281,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 					return;
 				}
 			} catch (fallbackErr) {
+				if (playback.isEndedOnServer(fallbackErr)) return;
 				console.error('[Player] Transcode fallback failed:', fallbackErr);
 			}
 		}
@@ -2315,6 +2325,8 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 			}
 			return restarted;
 		} catch (err) {
+			// An admin ending the session closes the player, so nothing else is tried.
+			if (playback.isEndedOnServer(err)) return null;
 			console.error('[Player] Stream reload failed:', err);
 			return superseded() ? null : false;
 		}
@@ -2329,18 +2341,40 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 	// Control Actions (AVPlay-based)
 	// ==============================
 	const teardownPlayback = useCallback(async () => {
-		loadGenerationRef.current++;
+		const generation = ++loadGenerationRef.current;
 		cancelNextEpisodeCountdown();
 		stopTimeUpdatePolling();
 		await playback.reportStop(positionRef.current);
+		// A load started while the stop was out already cleared the old pipeline and set up its own.
+		if (generation !== loadGenerationRef.current) return;
 		cleanupAVPlay();
 		avplayReadyRef.current = false;
 	}, [cancelNextEpisodeCountdown, stopTimeUpdatePolling]);
 
 	const handleBack = useCallback(async () => {
+		closingRef.current = true;
 		await teardownPlayback();
 		onBack?.();
 	}, [teardownPlayback, onBack]);
+
+	// An admin ended the Silo session: playback stops at once and the player closes, saying why. A reconnect under way
+	// gives up first, so it can't try again.
+	useEndedOnServer({
+		itemId: item?.Id,
+		askedItemId,
+		stop: () => {
+			reconnectRef.current?.end();
+			return teardownPlayback();
+		},
+		// A Back pressed while it stopped closes the player already.
+		close: () => {
+			if (closingRef.current) return false;
+			closingRef.current = true;
+			onBack?.();
+			return true;
+		},
+		onEndedOnServer
+	});
 
 	useSkipFailedTrack({error, background, item, hasNextTrack, handleNextTrack, handleBack});
 
@@ -2684,7 +2718,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 				await restartFromResult(result, currentPositionTicks);
 			}
 		} catch (err) {
-			console.error('[Player] Failed to change audio:', err);
+			if (!playback.isEndedOnServer(err)) console.error('[Player] Failed to change audio:', err);
 		}
 	}, [item, playMethod, closeModal, restartFromResult, audioStreams, settings]);
 
@@ -2721,6 +2755,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 				try {
 					await reloadWithSubtitleIndex(-1);
 				} catch (err) {
+					if (playback.isEndedOnServer(err)) return;
 					console.error('[Player] Subtitle reload failed:', err);
 				}
 			}
@@ -2735,6 +2770,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 				try {
 					await reloadWithSubtitleIndex(index);
 				} catch (err) {
+					if (playback.isEndedOnServer(err)) return;
 					console.error('[Player] Subtitle reload failed:', err);
 				}
 			}
@@ -2774,6 +2810,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 						await reloadWithSubtitleIndex(index);
 						burnInSubtitleRef.current = index;
 					} catch (err) {
+						if (playback.isEndedOnServer(err)) return;
 						console.error('[Player] Burn in subtitle reload failed:', err);
 					}
 				}
@@ -3182,6 +3219,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 
 		setIsDownloadingRemoteSubtitle(true);
 		setRemoteSubtitleError(null);
+		const endedGeneration = playback.endedOnServerGeneration();
 		try {
 			await jellyfinApi.downloadRemoteSubtitle(item.Id, remoteSubtitleResults[index].id);
 
@@ -3218,6 +3256,10 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 			setSubtitleStreams(refreshedSubtitleStreams);
 			await applySubtitleSelection(appeared.Index, refreshedSubtitleStreams, true);
 		} catch (err) {
+			if (playback.isEndedOnServer(err)) {
+				playback.heardEndedOnServer(err, endedGeneration);
+				return;
+			}
 			setRemoteSubtitleError(remoteSubtitleDownloadError(err));
 		} finally {
 			setIsDownloadingRemoteSubtitle(false);

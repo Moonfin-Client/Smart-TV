@@ -16,6 +16,7 @@ import {withPlexToken} from '../utils/plexUrls';
 import {parseSubtitleText} from '../utils/subtitleText';
 import {corsFreeFetch} from './secureFetch';
 import {isTizen} from '../platform';
+import {siloEndedOnServer} from './siloPlayback';
 
 export const PlayMethod = {
 	DirectPlay: 'DirectPlay',
@@ -67,6 +68,70 @@ const isAudioOnlyRemuxTranscode = (mediaSource) => {
 let currentSession = null;
 let progressInterval = null;
 let healthMonitor = null;
+
+// An admin ending a Silo session from the dashboard closes the player. From then until the player that played the
+// item closes, or a minute passes, the item is held: no reopen, fallback, retry or Next starts it again in a new
+// session. Held per item, so a close that never finishes holds nothing else back.
+const ENDED_HOLD_MS = 60000;
+const endedOnServer = new Map();
+// Bumped when the player closes, so a stop or replan sent before then that hears the end afterwards holds nothing.
+let endedHoldGeneration = 0;
+const endedListeners = new Set();
+// A stop on its way can find the admin's end before anything else does, so a start of the same item waits for it.
+const stopsOnTheirWay = new Map();
+const STOP_WAIT_MS = 5000;
+
+export const isEndedOnServer = (err) => err?.siloRefused === true && err.reason === 'playback_session_ended';
+
+const heldEndedOnServer = (itemId) => {
+	const at = endedOnServer.get(itemId);
+	if (at != null && Date.now() - at < ENDED_HOLD_MS) return true;
+	endedOnServer.delete(itemId);
+	return false;
+};
+
+const tellEndedOnServer = (itemId) => endedListeners.forEach((listener) => listener(itemId));
+
+const holdEndedOnServer = (itemId, generation) => {
+	if (generation !== endedHoldGeneration) return false;
+	endedOnServer.set(itemId, Date.now());
+	return true;
+};
+
+// Waits a few seconds at most for a stop of the item that's on its way. How that stop went is its own business.
+const stopOnItsWay = (itemId) => {
+	const stopping = stopsOnTheirWay.get(itemId);
+	if (!stopping) return null;
+	let timer;
+	return Promise.race([
+		stopping.catch(() => null),
+		new Promise((resolve) => {
+			timer = setTimeout(resolve, STOP_WAIT_MS);
+		})
+	]).finally(() => clearTimeout(timer));
+};
+
+// A refusal heard outside this service (a track list asked again for a downloaded subtitle) holds the item and tells
+// the player, like one heard here. `generation` is `endedOnServerGeneration()` from when the request went out, so a
+// reply that comes back after its player closed holds nothing.
+export const endedOnServerGeneration = () => endedHoldGeneration;
+
+export const heardEndedOnServer = (err, generation = endedHoldGeneration) => {
+	if (isEndedOnServer(err) && holdEndedOnServer(err.itemId, generation)) tellEndedOnServer(err.itemId);
+};
+
+// `listener(itemId)` hears each time the end of an item's session reaches the app (the player acts on the first).
+// Returns the unsubscribe.
+export const onEndedOnServer = (listener) => {
+	endedListeners.add(listener);
+	return () => endedListeners.delete(listener);
+};
+
+// The player closed: what it held can be played again.
+export const releaseEndedOnServer = () => {
+	endedHoldGeneration++;
+	endedOnServer.clear();
+};
 
 const apiForSession = (session) => (session.serverCredentials
 	? jellyfinApi.createApiForServer(
@@ -1003,17 +1068,42 @@ const siloPlaybackResult = async ({
 	itemId, options, api, creds, deviceProfile, maxBitrate, capabilities, storedSettings, allowDirectPlay, allowDirectStream,
 	startPositionTicks, subtitleStreamIndex, requestedSubtitleStreamIndex
 }) => {
-	const playbackInfo = await api.getPlaybackInfo(itemId, {
-		DeviceProfile: deviceProfile,
-		StartTimeTicks: startPositionTicks,
-		AudioStreamIndex: options.audioStreamIndex,
-		SubtitleStreamIndex: subtitleStreamIndex,
-		MaxStreamingBitrate: maxBitrate,
-		MediaSourceId: options.mediaSourceId,
-		// Asked again with direct play off, the original file failed here, and Silo is told so.
-		EnableDirectPlay: allowDirectPlay && options.enableDirectPlay !== false
-	}, options.item);
+	const generation = endedHoldGeneration;
+	await stopOnItsWay(itemId);
+	if (heldEndedOnServer(itemId)) {
+		tellEndedOnServer(itemId);
+		throw siloEndedOnServer(itemId);
+	}
+	let playbackInfo;
+	try {
+		playbackInfo = await api.getPlaybackInfo(itemId, {
+			DeviceProfile: deviceProfile,
+			StartTimeTicks: startPositionTicks,
+			AudioStreamIndex: options.audioStreamIndex,
+			SubtitleStreamIndex: subtitleStreamIndex,
+			MaxStreamingBitrate: maxBitrate,
+			MediaSourceId: options.mediaSourceId,
+			// Asked again with direct play off, the original file failed here, and Silo is told so.
+			EnableDirectPlay: allowDirectPlay && options.enableDirectPlay !== false
+		}, options.item);
+	} catch (err) {
+		heardEndedOnServer(err, generation);
+		throw err;
+	}
 	const mediaSource = playbackInfo.MediaSources[0];
+	// A stop that outlasted the wait above found the admin's end while this plan was on its way: the new session
+	// is stopped again and the item stays turned away.
+	if (heldEndedOnServer(itemId)) {
+		if (currentSession?.playSessionId === playbackInfo.PlaySessionId) discardCurrentSession(); // eslint-disable-line no-use-before-define
+		api.reportPlaybackStopped({
+			ItemId: itemId,
+			PlaySessionId: playbackInfo.PlaySessionId,
+			MediaSourceId: mediaSource?.Id,
+			PositionTicks: 0
+		}).catch((e) => console.warn('[playback] Failed to stop the turned-away session:', e.message));
+		tellEndedOnServer(itemId);
+		throw siloEndedOnServer(itemId);
+	}
 	let playMethod = PlayMethod.Transcode;
 	if (mediaSource.SupportsDirectPlay) playMethod = PlayMethod.DirectPlay;
 	else if (mediaSource.SupportsDirectStream) playMethod = PlayMethod.DirectStream;
@@ -1490,6 +1580,8 @@ export const reportStart = async (positionTicks = 0) => {
 
 export const reportProgress = async (positionTicks, options = {}) => {
 	if (!currentSession) return;
+	const reporting = currentSession.playSessionId;
+	const generation = endedHoldGeneration;
 
 	try {
 		const api = apiForSession(currentSession);
@@ -1513,7 +1605,15 @@ export const reportProgress = async (positionTicks, options = {}) => {
 
 		shareStopWithShell(positionTicks);
 		await api.reportPlaybackProgress(info);
-	} catch (e) { void e; }
+	} catch (e) {
+		// Only the session still playing closes the player: a report the viewer retired (a stop, another item)
+		// closes nothing. A replan keeps Silo's session id, so a report sent before one still counts. Backgrounding
+		// sends Silo no stop, so its session still plays.
+		if (!isEndedOnServer(e) || currentSession?.playSessionId !== reporting) return;
+		if (!holdEndedOnServer(e.itemId, generation)) return;
+		stopProgressReporting(); // eslint-disable-line no-use-before-define
+		tellEndedOnServer(e.itemId);
+	}
 };
 
 const sendStopRequest = ({endpoint, json}) => {
@@ -1621,15 +1721,24 @@ export const reportStop = async (positionTicks) => {
 
 	// A beacon already sent this exact stop.
 	if (stopKey(session, positionTicks) !== session.lastStopBeaconKey) {
+		const generation = endedHoldGeneration;
+		let stopping = null;
 		try {
-			await apiForSession(session).reportPlaybackStopped({
+			stopping = apiForSession(session).reportPlaybackStopped({
 				ItemId: session.itemId,
 				PlaySessionId: session.playSessionId,
 				MediaSourceId: session.mediaSourceId,
 				PositionTicks: positionTicks
 			});
+			stopsOnTheirWay.set(session.itemId, stopping);
+			// Silo found an admin had already ended it: a fallback or reload starting the item again is turned away.
+			// A start that gave up waiting for this stop already plays the item again, so its player is told.
+			if ((await stopping)?.endedOnServer && holdEndedOnServer(session.itemId, generation) &&
+				currentSession?.itemId === session.itemId) tellEndedOnServer(session.itemId);
 		} catch (e) {
 			console.warn('[playback] Failed to report stop:', e.message);
+		} finally {
+			if (stopping && stopsOnTheirWay.get(session.itemId) === stopping) stopsOnTheirWay.delete(session.itemId);
 		}
 	}
 

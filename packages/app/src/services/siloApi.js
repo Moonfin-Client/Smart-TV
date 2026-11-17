@@ -299,11 +299,12 @@ export const createSiloApi = ({getBaseUrl, getToken, getUserId, getDeviceInfo, p
 		reportPlaybackStart: playback.reportPlaybackStart,
 		reportPlaybackProgress: playback.reportPlaybackProgress,
 		reportPlaybackStopped: async (info) => {
-			await playback.reportPlaybackStopped(info);
+			const answer = await playback.reportPlaybackStopped(info);
 			// What was watched moves Continue Watching and Next Up along, and the item's new resume point and watched
 			// state are read back for the cards showing it.
 			items.forget();
 			noteSiloPlaybackEnded(base(), info?.ItemId);
+			return answer;
 		},
 		stopActiveEncodings: playback.stopActiveEncodings,
 		closeLiveStream: playback.closeLiveStream,
