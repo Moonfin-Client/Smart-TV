@@ -437,7 +437,11 @@ export const createSiloSeerr = ({call, library = null, baseUrl = '', random = Ma
 			biography: p?.Overview,
 			birthday: dateOnly(p?.PremiereDate),
 			deathday: dateOnly(p?.EndDate),
-			placeOfBirth: places.length ? places[0] : null
+			placeOfBirth: places.length ? places[0] : null,
+			// The library's portrait, for a cast entry Seerr has no photo for. It's a Silo URL, not a TMDB path.
+			libraryImageUrl: !details.profilePath && p?.ImageTags?.Primary
+				? siloImageUrl(baseUrl, p.Id, 'Primary', {tag: p.ImageTags.Primary})
+				: null
 		};
 	};
 

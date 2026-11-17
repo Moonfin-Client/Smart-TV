@@ -138,7 +138,7 @@ describe('Silo requests in Seerr\'s shapes', () => {
 			const {credits} = await seerr.request('/movie/11');
 			const id = credits.cast[0].id;
 			expect(await seerr.request(`/person/${id}`)).toEqual({
-				id, name: 'Jane Doe', profilePath: '/j.jpg', biography: 'Bio', birthday: '1980-02-03', deathday: null, placeOfBirth: 'Leeds'
+				id, name: 'Jane Doe', profilePath: '/j.jpg', biography: 'Bio', birthday: '1980-02-03', deathday: null, placeOfBirth: 'Leeds', libraryImageUrl: null
 			});
 			const titles = await seerr.request(`/person/${id}/combined_credits`);
 			expect(titles.cast).toMatchObject([
@@ -149,6 +149,19 @@ describe('Silo requests in Seerr\'s shapes', () => {
 			expect(prepareCredits(titles.cast).map((c) => c.id).sort((a, b) => a - b)).toEqual([5, 11]);
 			expect(lib.searchPeople).toHaveBeenCalledTimes(1);
 			expect(lib.getItems).toHaveBeenCalledWith(expect.objectContaining({PersonIds: '9'}));
+		});
+
+		test('a library person Seerr has no photo for shows the library\'s portrait', async () => {
+			const call = jest.fn(async () => ({tmdb_id: 11, title: 'Film', cast: [{name: 'Jane Doe'}]}));
+			const tag = registerSiloImage('http://silo/', '9', 'Primary', '/img/p9');
+			const lib = {
+				searchPeople: jest.fn(async () => ({Items: [{Id: '9', Name: 'Jane Doe'}]})),
+				getPerson: jest.fn(async () => ({Id: '9', ImageTags: {Primary: tag}})),
+				getItems: jest.fn()
+			};
+			const seerr = createSiloSeerr({call, library: () => lib, baseUrl: 'http://silo/'});
+			const {credits} = await seerr.request('/movie/11');
+			expect(await seerr.request(`/person/${credits.cast[0].id}`)).toMatchObject({profilePath: undefined, libraryImageUrl: 'http://silo/img/p9'});
 		});
 
 		test('someone the library doesn\'t have shows their name and photo, with no titles', async () => {
