@@ -132,15 +132,19 @@ describe('buildThemeOverrideCss', () => {
 	});
 
 	it('draws the shared dialogs in the theme and keeps their destructive buttons red', () => {
-		const theme = resolveThemeById('moonfin');
-		const accent = toCssColor(theme.colors.accent);
-		const prefix = "html[data-theme-id='moonfin'][data-theme-id]";
-		const lines = buildThemeOverrideCss(theme).split('\n');
-		expect(lines).toContain(`${prefix} .rowIconSelected { color: ${accent}; }`);
-		expect(lines).toContain(`${prefix} .alertAction:not(.alertActionDestructive) { color: ${accent}; }`);
-		// A colour on every action would outrank the module's red for the destructive ones
-		expect(lines.some((line) => line.includes(`${prefix} .alertAction {`) || line.includes(`${prefix} .alertAction:focus {`))).toBe(false);
-		expect(lines.some((line) => line.startsWith(`${prefix} .alert {`) && line.includes(`background: rgb(${toRgbTriplet(theme.colors.surface)});`))).toBe(true);
+		// Moonfin's accent and surface match the baked fallbacks, so 8-Bit Hero shows the theme is followed
+		for (const id of ['moonfin', '8bit_hero']) {
+			const theme = resolveThemeById(id);
+			const accent = toCssColor(theme.colors.accent);
+			const prefix = `html[data-theme-id='${id}'][data-theme-id]`;
+			const lines = buildThemeOverrideCss(theme).split('\n');
+			expect(lines).toContain(`${prefix} .rowIconSelected { color: ${accent}; }`);
+			expect(lines).toContain(`${prefix} .alertAction:not(.alertActionDestructive) { color: ${accent}; }`);
+			// A colour on every action would outrank the module's red for the destructive ones
+			expect(lines.some((line) => line.includes(`${prefix} .alertAction {`) || line.includes(`${prefix} .alertAction:focus {`))).toBe(false);
+			expect(lines.some((line) => line.startsWith(`${prefix} .alert {`) && line.includes(`background: rgb(${toRgbTriplet(theme.colors.surface)});`))).toBe(true);
+			expect(lines).toContain(`${prefix} .alert .cancelMessage { color: rgba(${toRgbTriplet(theme.colors.onSurface)}, 0.7); }`);
+		}
 	});
 
 	it('keeps Switch User text light on its dark scrim when the theme\'s onSurface is dark', () => {

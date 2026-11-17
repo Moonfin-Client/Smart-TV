@@ -907,6 +907,8 @@ export const buildThemeOverrideCss = (theme, options = {}) => {
 	rule(`.${cd.alert}`, `background: rgb(${surfaceRgb}); ${dialogShape}`);
 	rule(`.${cd.panel}, .${cd.title}, .${cd.alert}, .${cd.alertTitle}, .${cd.alertContent}`, `color: ${onSurface};`);
 	rule(`.${cd.subtitle}`, `color: ${os(0.54)};`);
+	// The Seerr cancel and swap confirms set their message in white, which a light surface would hide
+	rule(`.${cd.alert} .${seerrRequestCss.cancelMessage}`, `color: ${os(0.7)};`);
 	rule(`.${cd.divider}`, `background: ${os(0.08)};`);
 	rule(`.${cd.row}:focus`, `background: ${accentA(0.2)};`);
 	rule(`.${cd.rowLabel}`, `color: ${os(0.8)};`);
