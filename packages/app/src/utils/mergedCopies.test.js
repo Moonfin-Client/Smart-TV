@@ -5,6 +5,8 @@ import {
 	copiesOf,
 	foldCopies,
 	hasMergedCopies,
+	indexCopies,
+	joinIndexedCopies,
 	mergeFacetValues,
 	mergeLibrariesByType,
 	mergedLibraryId,
@@ -215,5 +217,40 @@ describe('mergeFacetValues', () => {
 		expect(merged.genres).toEqual(['Action', 'Comedy', 'Drama']);
 		expect(merged.years).toEqual([1999, 2001]);
 		expect(merged.audioLanguages.map((l) => l.value)).toEqual(['eng', 'fre']);
+	});
+});
+
+describe('joinIndexedCopies', () => {
+	it('gives a card the copy another server sorts far away, and folds that copy in when paging reaches it', () => {
+		const howl = movie('1', 'a', {Tmdb: '4935'}, {Name: "Howl's Moving Castle"});
+		const chateau = movie('9', 'b', {Tmdb: '4935', Imdb: 'tt0347149'}, {Name: 'Le Château ambulant'});
+		const index = indexCopies([howl, chateau, movie('5', 'b', {Tmdb: '1'})]);
+		const holders = new Map();
+		const shown = new Set();
+		const [card] = foldCopies([howl], holders);
+		shown.add('a|1');
+		expect(joinIndexedCopies(card, index, holders, (copy) => shown.has(`${copy._serverId}|${copy.Id}`))).toBe(true);
+		expect(copiesOf(card).map((i) => i.Name)).toEqual(["Howl's Moving Castle", 'Le Château ambulant']);
+		// Paging reaches the copy: it joins the card instead of becoming one, and isn't added twice.
+		expect(foldCopies([movie('9', 'b', {Tmdb: '4935', Imdb: 'tt0347149'})], holders)).toEqual([]);
+		expect(serverCountOf(card)).toBe(2);
+		expect(copiesOf(card)).toHaveLength(2);
+	});
+
+	it('follows the ids of a copy already on the card to the copies they lead to', () => {
+		const holders = new Map();
+		const [card] = foldCopies([movie('1', 'a', {Tmdb: '1'}), movie('2', 'b', {Tmdb: '1', Imdb: 'tt2'})], holders);
+		const c = movie('3', 'c', {Imdb: 'tt2'});
+		const shown = new Set(['a|1', 'b|2']);
+		joinIndexedCopies(card, indexCopies([c, movie('2', 'b', {Tmdb: '1', Imdb: 'tt2'})]), holders, (copy) => shown.has(`${copy._serverId}|${copy.Id}`));
+		expect(copiesOf(card).map((i) => i._serverId)).toEqual(['a', 'b', 'c']);
+	});
+
+	it('leaves alone a copy paging already showed', () => {
+		const a = movie('1', 'a', {Tmdb: '603'});
+		const b = movie('2', 'b', {Tmdb: '603'});
+		const card = foldCopies([a])[0];
+		expect(joinIndexedCopies(card, indexCopies([a, b]), new Map(), () => true)).toBe(false);
+		expect(hasMergedCopies(card)).toBe(false);
 	});
 });

@@ -44,7 +44,7 @@ import LibrarySkeleton from './LibrarySkeleton';
 import {registerThemeSheet} from '../../theme/themeOverrides';
 import * as connectionPool from '../../services/connectionPool';
 import MergedServerBadge from '../../components/MergedServerBadge';
-import {PreferredCopies, foldCopies, mergeFacetValues, mergedLibraryType, mergedSearchText, mergedSortComparator} from '../../utils/mergedCopies';
+import {PreferredCopies, foldCopies, indexCopies, joinIndexedCopies, mergeFacetValues, mergedLibraryType, mergedSearchText, mergedSortComparator, titleMatchKeys} from '../../utils/mergedCopies';
 import {createMergedReaders, mergedReadersDrained, takeMergedPage, titleKeysOf} from '../../utils/mergedBrowse';
 
 import css from './Library.module.less';
@@ -297,6 +297,12 @@ const Library = ({library, genreFilter, studioFilter, onSelectItem, onViewPhoto,
 	// server's copy could be filtered out.
 	const preferredRef = useRef(null);
 	const preferredTitlesRef = useRef(null);
+	// Every server's titles by match key, read in the background as a merged library opens, so a card learns of a copy
+	// paging hasn't reached, and the read it came from, for reopening the same library.
+	const copyIndexRef = useRef(null);
+	const titleIndexRef = useRef(null);
+	// Gives the cards already up the copies the index holds for them, once it's in.
+	const joinIndexedCopiesRef = useRef(null);
 	const renderedKeysRef = useRef(new Set());
 
 	const effectiveApi = useMemo(() => {
@@ -330,6 +336,25 @@ const Library = ({library, genreFilter, studioFilter, onSelectItem, onViewPhoto,
 	const isSquareDefault = isMusicLibrary || isPlaylistLibrary;
 
 	const [allItems, setAllItems] = useState([]);
+	const allItemsRef = useRef(allItems);
+	allItemsRef.current = allItems;
+	joinIndexedCopiesRef.current = (index) => {
+		const holders = copyHoldersRef.current;
+		const keyOf = (card) => `${card._serverId || ''}|${card.Id}`;
+		const isShown = (copy) => renderedKeysRef.current.has(keyOf(copy));
+		// Worked out once, outside the state update, since joining changes the cards it's handed. A card on screen can
+		// be a copy of the object the fold holds, drawn again when it took on a copy, so the copies go to the fold's own
+		// object, which every key of the title leads to.
+		const grown = new Set();
+		allItemsRef.current.forEach((card) => {
+			const keys = titleMatchKeys(card);
+			const holder = keys.map((key) => holders.get(key)).find(Boolean) || card;
+			if (joinIndexedCopies(holder, index, holders, isShown)) grown.add(keyOf(holder));
+		});
+		// A card that took on a copy is a new object, so it draws again with its server count. It's known by server and
+		// id, as paging knows it.
+		if (grown.size) setAllItems((prev) => prev.map((card) => (grown.has(keyOf(card)) ? {...card} : card)));
+	};
 	const [isLoading, setIsLoading] = useState(true);
 	const [totalCount, setTotalCount] = useState(0);
 	// What the ratings filter dropped from the fetched pages, so the count shown leaves it out.
@@ -556,59 +581,80 @@ const Library = ({library, genreFilter, studioFilter, onSelectItem, onViewPhoto,
 		return sources;
 	}, [library, mergedType]);
 
-	// Every title the first server of a merged library holds, which is the signed-in one whenever it has this library,
-	// read with the pages' own query so a movie folded into a collection there isn't waited on.
-	const readPreferredCopies = useCallback(async (sources, params) => {
-		const serverId = sources[0].server._serverId;
-		const own = sources.filter((source) => source.server._serverId === serverId);
-		if (own.length === sources.length) return null;
+	// Every title a merged library's server libraries hold, with only their ids, read with the pages' own query so a
+	// movie folded into a collection there isn't counted. Paged, since some servers cap a request without a limit to a
+	// small first page. Each page starts where the last one's items ended, so a server that sends fewer than were asked
+	// for skips nothing, and paging runs to the server's own count, so a page the client filtered down doesn't end it.
+	const readTitles = useCallback(async (source, params) => {
 		const query = {
 			Recursive: true,
 			Fields: 'ProviderIds',
-			EnableTotalRecordCount: false,
+			EnableTotalRecordCount: true,
+			EnableUserData: false,
 			ImageTypeLimit: 0,
 			...(params.IncludeItemTypes ? {IncludeItemTypes: params.IncludeItemTypes} : {}),
 			...(params.ExcludeItemTypes ? {ExcludeItemTypes: params.ExcludeItemTypes} : {}),
 			...(params.CollapseBoxSetItems != null ? {CollapseBoxSetItems: params.CollapseBoxSetItems} : {})
 		};
-		const key = [serverId, ...own.map((source) => source.libraryId), JSON.stringify(query)].join('|');
+		const titles = [];
+		let start = 0;
+		for (let page = 0; page < PREFERRED_MAX_PAGES; page++) {
+			// eslint-disable-next-line no-await-in-loop
+			const response = await source.api.getItems({...query, ParentId: source.libraryId, StartIndex: start, Limit: PREFERRED_PAGE_SIZE});
+			const got = (response?.Items || []).filter(Boolean);
+			got.forEach((raw) => {
+				// Each title carries its server, since one index holds several servers' titles.
+				if (raw.Id) titles.push({...raw, ...source.server});
+			});
+			const total = response?.TotalRecordCount;
+			start += got.length;
+			const done = typeof total === 'number' ? start >= total : got.length < PREFERRED_PAGE_SIZE;
+			if (!got.length || done) break;
+		}
+		return titles;
+	}, []);
+
+	const titleQueryKey = (sources, params) => [
+		...sources.map((source) => `${source.server._serverId}:${source.libraryId}`),
+		params.IncludeItemTypes || '', params.ExcludeItemTypes || '', String(params.CollapseBoxSetItems)
+	].join('|');
+
+	// Every title the first server of a merged library holds, which is the signed-in one whenever it has this library.
+	const readPreferredCopies = useCallback(async (sources, params) => {
+		const serverId = sources[0].server._serverId;
+		const own = sources.filter((source) => source.server._serverId === serverId);
+		if (own.length === sources.length) return null;
+		const key = titleQueryKey(own, params);
 		if (preferredTitlesRef.current?.key === key) return new PreferredCopies(serverId, preferredTitlesRef.current.titles);
 		try {
-			// Paged, since some servers cap a request without a limit to a small first page. Paging walks the server's
-			// own count: a page that comes back short because the client filtered some of it out is still a full page.
-			const readAll = async (source) => {
-				const pages = [];
-				for (let page = 0; page < PREFERRED_MAX_PAGES; page++) {
-					const start = page * PREFERRED_PAGE_SIZE;
-					// eslint-disable-next-line no-await-in-loop
-					const response = await source.api.getItems({
-						...query,
-						ParentId: source.libraryId,
-						StartIndex: start,
-						Limit: PREFERRED_PAGE_SIZE,
-						EnableTotalRecordCount: true
-					});
-					pages.push(response);
-					const count = response?.Items?.length || 0;
-					const total = response?.TotalRecordCount;
-					const done = typeof total === 'number' ? start + PREFERRED_PAGE_SIZE >= total : count < PREFERRED_PAGE_SIZE;
-					if (!count || done) break;
-				}
-				return pages;
-			};
-			const responses = (await Promise.all(own.map(readAll))).flat();
-			const titles = titleKeysOf(responses);
+			const titles = titleKeysOf([{Items: (await Promise.all(own.map((source) => readTitles(source, params)))).flat()}]);
 			preferredTitlesRef.current = {key, titles};
 			return new PreferredCopies(serverId, titles);
 		} catch {
 			// Without the list, the first copy shown keeps the card.
 			return null;
 		}
-	}, []);
+	}, [readTitles]);
+
+	// Every server's titles by match key. A server that doesn't answer is left out of it, and its copies come up as
+	// paging reaches them, the way they did without the index.
+	const readTitleIndex = useCallback(async (sources, params) => {
+		const key = titleQueryKey(sources, params);
+		if (titleIndexRef.current?.key === key) return titleIndexRef.current.index;
+		const read = await Promise.all(sources.map((source) => readTitles(source, params).catch(() => null)));
+		const index = indexCopies(read.filter(Boolean).flat());
+		if (read.every(Boolean)) titleIndexRef.current = {key, index};
+		return index;
+	}, [readTitles]);
 
 	// The next page of a merged library, read from every server and merged in the sort's order.
 	const fetchMergedPage = useCallback(async (startIndex, params, generation) => {
-		const sources = await ensureMergedSources();
+		// A later page keeps reading the servers the first one did. A server that answers again only joins on the next
+		// load, since the readers already paging can't take it on partway.
+		const current = mergedLookupRef.current;
+		const sources = startIndex > 0 && current.libraryId === library?.Id && current.sources
+			? current.sources
+			: await ensureMergedSources();
 		// A newer load started while the sources were looked up, and the paging state is now its own.
 		if (generation !== fetchGenerationRef.current) return {Items: [], TotalRecordCount: 0};
 		if (startIndex === 0) {
@@ -616,9 +662,20 @@ const Library = ({library, genreFilter, studioFilter, onSelectItem, onViewPhoto,
 			copyHoldersRef.current = new Map();
 			renderedKeysRef.current = new Set();
 			preferredRef.current = null;
+			copyIndexRef.current = null;
 		}
 		// Held here, since a reload swaps in new readers while this one waits.
 		const readers = mergedReadersRef.current;
+		if (startIndex === 0) {
+			// In the background, so the first page shows as soon as it's read. The cards already up learn of their
+			// copies once it's in.
+			readTitleIndex(sources, params).then((index) => {
+				// Another load, of this library or another one, took over while the index was read.
+				if (readers !== mergedReadersRef.current || generation !== fetchGenerationRef.current) return;
+				copyIndexRef.current = index;
+				joinIndexedCopiesRef.current?.(index);
+			}, () => {});
+		}
 		const preferred = startIndex === 0 && !hasActiveFilters(filtersRef.current) ? readPreferredCopies(sources, params) : null;
 		const shared = {...params, Fields: params.Fields + MERGED_FIELDS};
 		delete shared.ParentId;
@@ -631,7 +688,7 @@ const Library = ({library, genreFilter, studioFilter, onSelectItem, onViewPhoto,
 			if (readers === mergedReadersRef.current) preferredRef.current = copies;
 		}
 		return result;
-	}, [ensureMergedSources, readPreferredCopies]);
+	}, [ensureMergedSources, readPreferredCopies, readTitleIndex, library]);
 
 	const loadItems = useCallback(async (startIndex = 0, append = false) => {
 		if (!library && !genreFilter && !studioFilter) return;
@@ -693,10 +750,18 @@ const Library = ({library, genreFilter, studioFilter, onSelectItem, onViewPhoto,
 				// copy that joined a card does.
 				let takenDown = 0;
 				if (absorbed.size) {
+					// The grid keeps focus by position, so a card taken down ahead of the focused one would slide focus
+					// onto the next title. Focus goes back to its own card, by key, once the list has changed.
+					if (focusedKey && !refocusCardRef.current) refocusCardRef.current = focusedKey;
 					shown = shown.filter((item) => !absorbed.has(item));
 					absorbed.forEach((card) => {
 						if (!thisPage.has(card)) takenDown++;
 					});
+				}
+				// The index, once in, gives each new card the copies paging hasn't reached.
+				if (copyIndexRef.current) {
+					const isShown = (copy) => renderedKeysRef.current.has(`${copy._serverId || ''}|${copy.Id}`);
+					shown.forEach((card) => joinIndexedCopies(card, copyIndexRef.current, copyHoldersRef.current, isShown));
 				}
 				shownNothing = shown.length === 0 && fetched.length > 0;
 				setBlockedCount(prev => (append ? prev : 0) + fetched.length - shown.length + takenDown);
@@ -1167,7 +1232,7 @@ const Library = ({library, genreFilter, studioFilter, onSelectItem, onViewPhoto,
 			focusWantedRef.current = null;
 		}
 	}, [scrollGridTo, totalCount]);
-	// Focus on a card that was folded into another follows it to that card.
+	// Focus stays on its title when cards ahead of it are taken down, and follows a card folded into another to that one.
 	useEffect(() => {
 		const key = refocusCardRef.current;
 		if (!key) return;

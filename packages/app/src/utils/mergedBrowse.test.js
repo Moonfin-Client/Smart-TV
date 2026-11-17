@@ -35,12 +35,26 @@ describe('takeMergedPage', () => {
 	it('carries on without a server that fails, and fails only when every one does', async () => {
 		const failing = (src, start, limit) => (src.server._serverId === 'b' ? Promise.reject(new Error('down')) : fetchPage(src, start, limit));
 		const readers = createMergedReaders([source('a', ['a', 'b']), source('b', ['c'])]);
-		const page = await takeMergedPage(readers, 5, mergedSortComparator('SortName', false), failing);
+		const page = await takeMergedPage(readers, 5, mergedSortComparator('SortName', false), failing, []);
 		expect(page.Items.map((i) => i.Name)).toEqual(['a', 'b']);
 		expect(page.TotalRecordCount).toBe(2);
 
 		const allDown = createMergedReaders([source('a', ['a'])]);
-		await expect(takeMergedPage(allDown, 5, null, () => Promise.reject(new Error('down')))).rejects.toThrow('down');
+		await expect(takeMergedPage(allDown, 5, null, () => Promise.reject(new Error('down')), [])).rejects.toThrow('down');
+	});
+
+	it('tries a server again before leaving it out, so one that was slow to wake still shows', async () => {
+		let misses = 1;
+		const waking = (src, start, limit) => {
+			if (src.server._serverId === 'b' && misses > 0) {
+				misses--;
+				return Promise.reject(new Error('waking up'));
+			}
+			return fetchPage(src, start, limit);
+		};
+		const readers = createMergedReaders([source('a', ['a', 'b']), source('b', ['c'])]);
+		const page = await takeMergedPage(readers, 5, mergedSortComparator('SortName', false), waking, [0]);
+		expect(page.Items.map((i) => i.Name)).toEqual(['a', 'b', 'c']);
 	});
 	it('keeps reading a server that caps its pages below what was asked', async () => {
 		// Two at a time, whatever the limit.

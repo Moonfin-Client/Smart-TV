@@ -222,6 +222,45 @@ export const foldCopies = (items, holders = new Map(), preferred = null, onJoin 
 	return kept;
 };
 
+// Every server's titles by match key, from a light read of each whole library, so a card can know its copies before
+// paging reaches them. Two servers can name a title differently, and so sort it far apart, as "Howl's Moving Castle"
+// on one and "Le Château ambulant" on the other.
+export const indexCopies = (items) => {
+	const index = new Map();
+	(items || []).forEach((item) => {
+		if (!item) return;
+		titleMatchKeys(item).forEach((key) => {
+			if (!index.has(key)) index.set(key, []);
+			index.get(key).push(item);
+		});
+	});
+	return index;
+};
+
+// Adds to `card` every copy of its title in `index` that paging hasn't shown yet. `shown(copy)` says whether one
+// already came up, as a card or as a copy, which the fold takes care of. The keys of each copy added now lead to the
+// card, so the copy itself folds into it when paging reaches it.
+export const joinIndexedCopies = (card, index, holders, shown) => {
+	if (!card || !index || !index.size) return false;
+	if (!Array.isArray(card[COPIES_KEY])) card[COPIES_KEY] = [];
+	const before = card[COPIES_KEY].length;
+	const pending = [...titleMatchKeys(card)];
+	const visited = new Set();
+	while (pending.length) {
+		const key = pending.shift();
+		if (visited.has(key)) continue;
+		visited.add(key);
+		(index.get(key) || []).forEach((copy) => {
+			const copyKeys = titleMatchKeys(copy);
+			// A copy can carry an id the card lacks, which leads to further copies, whether or not it's on the card.
+			copyKeys.forEach((next) => pending.push(next));
+			if (shown(copy) || copiesOf(card).some((known) => copyKey(known) === copyKey(copy))) return;
+			join(card, copy, copyKeys, holders, null);
+		});
+	}
+	return card[COPIES_KEY].length > before;
+};
+
 const dateValue = (value) => {
 	const date = parseServerDate(value);
 	const time = date ? date.getTime() : NaN;

@@ -123,6 +123,9 @@ const CalendarMonth = lazy(() => import('../views/Calendar/CalendarMonth'));
 import '../styles/perf-overrides.less';
 import css from './App.module.less';
 
+// How long to wait before each new read of the libraries while a server hasn't answered.
+const LIBRARY_RETRY_DELAYS_MS = [3000, 8000, 20000, 45000];
+
 const partyRoom = (state) => state.room;
 
 const MAX_HISTORY_LENGTH = 10;
@@ -644,12 +647,34 @@ const AppContent = (props) => {
 		return subscribeTvKeyboardVisibility(({visible}) => setPinKeyboardOpen(visible));
 	}, [isPinGateActive]);
 
-	const fetchLibraries = useCallback(async () => {
+	// A server that hasn't answered when the libraries are read, such as one still waking up as the app starts, is read
+	// again a little later. Its libraries, and the merged libraries it belongs in, would otherwise stay missing until
+	// something else reloaded them.
+	const librariesRetryRef = useRef({timer: null, attempt: 0, read: null, answered: null});
+	const fetchLibraries = useCallback(async (options) => {
+		const retrying = options?.retrying === true;
+		const retry = librariesRetryRef.current;
+		clearTimeout(retry.timer);
+		retry.timer = null;
+		if (!retrying) retry.attempt = 0;
 		if (isAuthenticated && api && user) {
 			try {
 				let libs;
 				if (unifiedMode) {
-					libs = await connectionPool.getLibrariesFromAllServers();
+					const {libraries: read, complete} = await connectionPool.readLibrariesFromAllServers();
+					libs = read;
+					if (!complete && retry.attempt < LIBRARY_RETRY_DELAYS_MS.length) {
+						retry.timer = setTimeout(() => retry.read?.({retrying: true}), LIBRARY_RETRY_DELAYS_MS[retry.attempt]);
+						retry.attempt++;
+					}
+					// Home read its libraries alongside these, so it reads them again once a server that was missing has
+					// answered, even while another is still out.
+					const answered = new Set(read.map((library) => library._serverId));
+					const cameBack = retrying && Array.from(answered).some((serverId) => !retry.answered?.has(serverId));
+					retry.answered = answered;
+					if (cameBack) {
+						window.dispatchEvent(new window.CustomEvent('moonfin:browseRefresh', {detail: {libraries: true}}));
+					}
 					if (mergeLibraries) libs = mergeLibrariesByType(libs);
 					// A merged library stands for every server, so it keeps its plain name.
 					libs = libs.map(lib => (lib._mergedType ? lib : {
@@ -672,8 +697,11 @@ const AppContent = (props) => {
 		}
 	}, [isAuthenticated, api, user, unifiedMode, mergeLibraries]);
 
+	librariesRetryRef.current.read = fetchLibraries;
 	useEffect(() => {
 		fetchLibraries();
+		const retry = librariesRetryRef.current;
+		return () => clearTimeout(retry.timer);
 	}, [fetchLibraries]);
 
 	useEffect(() => {

@@ -13,9 +13,28 @@ export const createMergedReaders = (sources) => (sources || []).map((source) => 
 	failed: false
 }));
 
-const readMore = async (reader, fetchPage, limit) => {
+// How long to wait before each new try of a page a server didn't answer, such as one still waking up. Without them one
+// failed request would leave the server out of the list for as long as it stays open.
+export const READ_RETRY_DELAYS_MS = [1000, 3000];
+
+const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+const fetchWithRetries = async (fetchPage, reader, limit, delays) => {
+	for (let attempt = 0; ; attempt++) {
+		try {
+			// eslint-disable-next-line no-await-in-loop
+			return await fetchPage(reader.source, reader.offset, limit);
+		} catch (err) {
+			if (attempt >= delays.length) throw err;
+			// eslint-disable-next-line no-await-in-loop
+			await wait(delays[attempt]);
+		}
+	}
+};
+
+const readMore = async (reader, fetchPage, limit, delays) => {
 	try {
-		const result = await fetchPage(reader.source, reader.offset, limit);
+		const result = await fetchWithRetries(fetchPage, reader, limit, delays);
 		const raws = (result?.Items || []).filter(Boolean);
 		raws.forEach((raw) => {
 			// Each item carries its server, since one list holds several servers' items.
@@ -40,13 +59,13 @@ export const mergedReadersDrained = (readers) => (readers || []).every((reader) 
 
 // The next `limit` items in `compare`'s order. Every server reads ahead at least a page, so an item only goes out once
 // each server's next one is known. A server running low reads a whole page rather than topping up a few items at a
-// time. A random order has nothing to compare and takes turns instead. Throws only when
-// every server failed.
-export const takeMergedPage = async (readers, limit, compare, fetchPage) => {
+// time. A random order has nothing to compare and takes turns instead. A server that fails is tried again after each of
+// `retryDelays` before it's left out. Throws only when every server failed.
+export const takeMergedPage = async (readers, limit, compare, fetchPage, retryDelays = READ_RETRY_DELAYS_MS) => {
 	let failure = null;
 	await Promise.all(readers
 		.filter((reader) => !reader.done && reader.buffer.length < limit)
-		.map((reader) => readMore(reader, fetchPage, limit).catch((err) => {
+		.map((reader) => readMore(reader, fetchPage, limit, retryDelays).catch((err) => {
 			failure = err;
 		})));
 	if (failure && readers.every((reader) => reader.failed)) throw failure;

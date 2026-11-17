@@ -7,6 +7,7 @@
 import * as multiServerManager from './multiServerManager';
 import {createApiForServer} from './jellyfinApi';
 import {withoutBlockedItems} from './parentalControls';
+import {profileProof, siloSessionOfAccount} from './siloSession';
 import {deduplicateMediaItems} from '../utils/mediaDedup';
 import {foldCopies} from '../utils/mergedCopies';
 import {latestMediaFetchLimitForCollection} from '../utils/latestMediaRowNormalizer';
@@ -27,8 +28,13 @@ const timeOf = (value) => {
 	return Number.isNaN(time) ? 0 : time;
 };
 
+// Whether a Silo profile would ask for its PIN now: it has one, and no proof of it that's still good is kept.
+const siloNeedsPin = (account) => account.siloHasPin === true &&
+	!profileProof(siloSessionOfAccount(account.url, account.siloAccountId), account.userId);
+
 // The account each server is read with, the way Moonfin-Core picks it: the signed-in one on its own server, elsewhere
-// the first saved account with a token, or for Silo the most recently used profile that needs no PIN. A server with
+// the first saved account with a token, or for Silo the most recently used profile that can act without asking for
+// its PIN. A server with
 // none of those is left out. One account per server keeps a title several servers hold to one copy per server, and
 // marking it watched from here never reaches another saved account.
 export const oneAccountPerServer = (servers, active) => {
@@ -44,7 +50,7 @@ export const oneAccountPerServer = (servers, active) => {
 		let picked = serverId === activeServerId ? usable.find((entry) => entry.userId === active?.userId) : null;
 		if (!picked) {
 			picked = (accounts[0]?.serverType === 'silo')
-				? usable.filter((entry) => !entry.siloHasPin).sort((a, b) => timeOf(b.lastConnected) - timeOf(a.lastConnected))[0]
+				? usable.filter((entry) => !siloNeedsPin(entry)).sort((a, b) => timeOf(b.lastConnected) - timeOf(a.lastConnected))[0]
 				: usable[0];
 		}
 		if (picked) chosen.push(picked);
@@ -209,14 +215,30 @@ const groupLibrariesByServer = (libraries) => libraries
  * Get libraries from all servers
  * @returns {Promise<Array>} All libraries tagged with server info
  */
-export const getLibrariesFromAllServers = async () => {
-	const libraries = await executeAll(async (api) => {
-		const result = await api.getLibraries();
-		return result.Items || [];
-	});
 
-	return groupLibrariesByServer(libraries);
+/**
+ * Every server's libraries, and whether every server answered, so a caller can try again for a server that was slow
+ * to come up and would otherwise stay missing, and with it the libraries merged across it, until the next reload.
+ * @returns {Promise<{libraries: Array, complete: boolean}>}
+ */
+export const readLibrariesFromAllServers = async () => {
+	const servers = await getLoggedInServers();
+	let complete = true;
+	const perServer = await Promise.all(servers.map(async (server) => {
+		try {
+			const api = createApiForServer(server.url, server.accessToken, server.userId, server.serverType || 'jellyfin');
+			const result = await api.getLibraries();
+			return (result?.Items || []).map((library) => ({...library, ...serverTags(server)}));
+		} catch (err) {
+			console.warn(`[ConnectionPool] Libraries lookup failed on ${server.name}:`, err);
+			complete = false;
+			return [];
+		}
+	}));
+	return {libraries: groupLibrariesByServer(withoutBlockedItems(perServer.flat())), complete};
 };
+
+export const getLibrariesFromAllServers = async () => (await readLibrariesFromAllServers()).libraries;
 
 /**
  * The server libraries a merged library of `collectionType` reads, the active server's first so a tie in the sort
@@ -652,6 +674,7 @@ const connectionPool = {
 	getResumeItemsFromAllServers,
 	getNextUpFromAllServers,
 	getLibrariesFromAllServers,
+	readLibrariesFromAllServers,
 	getAllLibrariesFromAllServers,
 	getMergedLibrarySources,
 	getUserConfigFromAllServers,

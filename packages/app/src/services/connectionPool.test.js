@@ -1,10 +1,12 @@
-import {getApiForItem, getLatestPerLibraryFromAllServers, oneAccountPerServer} from './connectionPool';
+import {getApiForItem, getLatestPerLibraryFromAllServers, oneAccountPerServer, readLibrariesFromAllServers} from './connectionPool';
 import {createApiForServer} from './jellyfinApi';
 import * as multiServerManager from './multiServerManager';
+import {profileProof} from './siloSession';
 
 jest.mock('./multiServerManager', () => ({getAllServersArray: jest.fn(), getActiveServer: jest.fn(async () => null)}));
 jest.mock('./jellyfinApi', () => ({createApiForServer: jest.fn()}));
 jest.mock('./parentalControls', () => ({withoutBlockedItems: (items) => items}));
+jest.mock('./siloSession', () => ({siloSessionOfAccount: jest.fn(() => ({})), profileProof: jest.fn(() => null)}));
 
 const server = (name, url) => ({serverId: name, name, url, userId: 'u', accessToken: 't', serverType: 'jellyfin'});
 
@@ -54,5 +56,29 @@ describe('one account per server', () => {
 		const servers = [silo('old', '2026-01-01'), silo('locked', '2026-12-01', true), silo('recent', '2026-06-01')];
 		expect(oneAccountPerServer(servers, null).map((s) => s.userId)).toEqual(['recent']);
 		expect(oneAccountPerServer([silo('locked', '2026-12-01', true)], null)).toEqual([]);
+	});
+
+	test('counts a PIN profile whose PIN proof is still good as one that needs no PIN', () => {
+		profileProof.mockImplementation((session, profileId) => (profileId === 'locked' ? 'proof' : null));
+		const silo = (userId, lastConnected, siloHasPin = false) => account('s', userId, {serverType: 'silo', lastConnected, siloHasPin});
+		expect(oneAccountPerServer([silo('open', '2026-01-01'), silo('locked', '2026-12-01', true)], null).map((s) => s.userId)).toEqual(['locked']);
+		profileProof.mockImplementation(() => null);
+	});
+});
+
+describe('reading every server\'s libraries', () => {
+	test('says when a server didn\'t answer, so the read can be tried again', async () => {
+		multiServerManager.getAllServersArray.mockResolvedValue([server('Alpha', 'http://a'), server('Beta', 'http://b')]);
+		createApiForServer.mockImplementation((url) => ({
+			getLibraries: async () => {
+				if (url === 'http://b') throw new Error('waking up');
+				return {Items: [{Id: 'a-movies', Name: 'Films', CollectionType: 'movies'}]};
+			}
+		}));
+		const warn = jest.spyOn(console, 'warn').mockImplementation(() => {});
+		const {libraries, complete} = await readLibrariesFromAllServers();
+		warn.mockRestore();
+		expect(complete).toBe(false);
+		expect(libraries.map((library) => `${library._serverName}:${library.Id}`)).toEqual(['Alpha:a-movies']);
 	});
 });
