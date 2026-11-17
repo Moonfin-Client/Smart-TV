@@ -59,6 +59,8 @@ export const useAccessSchedule = ({userId, enabled, fetchUser, serverRefuses, fe
 		let blocked = false;
 		// Set when the server says it can't answer the access window, so this user's checks stop asking.
 		let windowUnsupported = false;
+		// When the allowed window the plugin last reported closes, in ms on this TV's clock.
+		let windowCloses = null;
 		// Checks can overlap, so each is numbered and none replaces the answer of one started after it.
 		let started = 0;
 		let applied = 0;
@@ -85,6 +87,8 @@ export const useAccessSchedule = ({userId, enabled, fetchUser, serverRefuses, fe
 		// media server queue before it is sent).
 		const applyWindow = (answer, asked) => {
 			const now = latest.current.getNow();
+			// Counted from the answer, so a check with no answer can't end it early.
+			windowCloses = answer.allowed && answer.untilCloseMs !== null ? now.getTime() + answer.untilCloseMs : null;
 			const wasBlocked = blocked;
 			blocked = !answer.allowed;
 			// Named on this device's clock, as the moment it comes on it, to the nearest minute: a
@@ -99,6 +103,26 @@ export const useAccessSchedule = ({userId, enabled, fetchUser, serverRefuses, fe
 			let wait = !blocked && answer.untilCloseMs === null ? IDLE_WAIT_MS : MAX_WAIT_MS;
 			const remaining = blocked ? answer.untilOpenMs : answer.untilCloseMs;
 			if (remaining !== null) wait = Math.min(wait, remaining - (now.getTime() - asked.getTime()));
+			schedule(Math.max(wait, 1000));
+		};
+
+		// A check with no answer from the server keeps the last decision and tries again, but an
+		// allowed decision ends at the close the plugin reported for it, with no opening to name.
+		const keepLastAnswer = () => {
+			let wait = RETRY_MS;
+			if (windowCloses !== null) {
+				const left = windowCloses - latest.current.getNow().getTime();
+				if (left <= 0) {
+					windowCloses = null;
+					if (!blocked) {
+						blocked = true;
+						setState({blocked: true, nextAccess: null});
+						latest.current.onBlocked?.();
+					}
+				} else {
+					wait = Math.min(wait, left);
+				}
+			}
 			schedule(Math.max(wait, 1000));
 		};
 
@@ -136,7 +160,7 @@ export const useAccessSchedule = ({userId, enabled, fetchUser, serverRefuses, fe
 				user = await latest.current.fetchUser();
 			} catch (e) {
 				// Keep the last schedule, but a window that is already closed stays closed.
-				if (!cancelled && look >= applied) schedule(RETRY_MS);
+				if (!cancelled && look >= applied) keepLastAnswer();
 				return;
 			}
 			if (cancelled || look < applied) return;
@@ -151,10 +175,11 @@ export const useAccessSchedule = ({userId, enabled, fetchUser, serverRefuses, fe
 			// With a plugin that judges the schedule, this TV's clock never decides: when its window
 			// couldn't be read and the server gave no answer either, the last answer stays.
 			if (windowFailed && !isExempt && fresh.length > 0 && refused === null) {
-				schedule(RETRY_MS);
+				keepLastAnswer();
 				return;
 			}
 			applied = look;
+			windowCloses = null;
 			exempt = isExempt;
 			schedules = fresh;
 			const now = latest.current.getNow();

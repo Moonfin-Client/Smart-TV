@@ -459,6 +459,28 @@ describe('useAccessSchedule', () => {
 			expect(fetchAccessWindow).toHaveBeenCalledTimes(2);
 		});
 
+		test('ends an allowed window at its reported close when checks get no answer', async () => {
+			// Noon: open by the schedule on this TV's clock
+			let fail = false;
+			const serverRefuses = jest.fn(async () => null);
+			const fetchAccessWindow = jest.fn(async () => {
+				if (fail) throw new Error('500');
+				return windowOf(true, 90 * 1000);
+			});
+			const {result, onBlocked} = mount({fetchAccessWindow, serverRefuses});
+			await flush();
+			fail = true;
+			clock = at(12, 1, 29);
+			await flush(89 * 1000);
+			expect(result.current.blocked).toBe(false);
+
+			clock = at(12, 1, 30);
+			await flush(1000);
+			expect(result.current.blocked).toBe(true);
+			expect(result.current.nextAccess).toBeNull();
+			expect(onBlocked).toHaveBeenCalledTimes(1);
+		});
+
 		test('falls back to the schedule and the server when it can\'t say, and stops asking', async () => {
 			clock = at(21);
 			const serverRefuses = jest.fn(async () => true);
