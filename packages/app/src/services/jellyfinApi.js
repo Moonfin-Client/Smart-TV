@@ -628,8 +628,6 @@ export const api = {
 	getCollections: (limit = 50, sortBy = 'SortName', sortOrder = 'Ascending') =>
 		request(`${userRoutes.items()}IncludeItemTypes=BoxSet&Recursive=true&SortBy=${encodeURIComponent(sortBy)}&SortOrder=${encodeURIComponent(sortOrder)}&Limit=${limit}&Fields=PrimaryImageAspectRatio,ProductionYear,OfficialRating`),
 
-	// Jellyfin's /Studios ignores SortBy and SortOrder and always lists by name, so the row reads
-	// name pages and orders them itself.
 	getStudios: (limit = 20, sortBy = 'SortName', sortOrder = 'Ascending') => readStudioRow(
 		(startIndex, count) => request(`/Studios?UserId=${currentUser}&Recursive=true&SortBy=SortName&SortOrder=Ascending&StartIndex=${startIndex}&Limit=${count}&Fields=ItemCounts,PrimaryImageAspectRatio`),
 		{limit, sortBy, sortOrder}

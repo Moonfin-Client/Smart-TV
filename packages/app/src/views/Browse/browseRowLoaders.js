@@ -16,6 +16,7 @@ import {collapseLatestTvItems} from '../../utils/latestMediaRowNormalizer';
 import {isPickedRow, isPickedRowShown, isSameServer} from '../../utils/pickedRows';
 import mapBounded from '../../utils/mapBounded';
 import {studioLogoIndex} from '../Details/studioLogos';
+import {studioRowSortBy} from '../../utils/studioRowSort';
 import {FULL_ROW_READ, pageableRow, readFoldedHead} from './rowPaging';
 import * as gamesApi from '../../services/gamesApi';
 import {isGameLibrary, refreshGameLibraries, resolveGameLibraryId} from '../../utils/gameLibrary';
@@ -313,7 +314,7 @@ export const withStudioLogos = (studios, logoList, serverUrl, token) => {
 export const loadStudios = async (ctx) => {
 	const {api, appendRows, studiosEnabled, settings, serverUrl} = ctx;
 	if (!studiosEnabled) return;
-	const sortBy = apiSortBy(settings.studiosRowSortBy || 'SortName');
+	const sortBy = studioRowSortBy(settings.studiosRowSortBy);
 	try {
 		const logos = settings.useMoonfinPlugin && api.getStudioLogos ? api.getStudioLogos().catch(() => null) : null;
 		const result = await api.getStudios(20, sortBy, resolveSortOrder(sortBy, settings.studiosRowSortOrder)).catch(() => null);

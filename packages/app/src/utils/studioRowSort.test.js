@@ -45,11 +45,4 @@ describe('reading the studio row', () => {
 		await read(server, 'SortName', 'Descending');
 		expect(server.calls).toHaveLength(1);
 	});
-
-	it('keeps name order for a sort the row no longer offers', async () => {
-		const server = nameOnlyServer(1000);
-		const row = await read(server, 'DateCreated', 'Descending');
-		expect(server.calls).toEqual([{startIndex: 0, limit: 20}]);
-		expect(row.Items[0].Name).toBe('Studio 0000');
-	});
 });

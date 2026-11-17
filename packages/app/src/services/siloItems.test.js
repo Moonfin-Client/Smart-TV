@@ -152,6 +152,19 @@ describe('items', () => {
 		expect(views.Items.map((v) => `${v.Id}:${v.CollectionType}`)).toEqual(['2:tvshows', '1:movies']);
 	});
 
+	test('the Studios row reads every studio by name, either way, or shuffled for Random', async () => {
+		const studios = Array.from({length: 30}, (_, i) => `Studio ${String(i).padStart(2, '0')}`);
+		const {items} = setup({'/api/v2/catalog/filters': {studios}});
+		const names = async (sortBy, sortOrder) => (await items.getStudios(20, sortBy, sortOrder)).Items.map((s) => s.Name);
+		expect(await names('SortName', 'Ascending')).toEqual(studios.slice(0, 20));
+		expect(await names('SortName', 'Descending')).toEqual(studios.slice(10).reverse());
+		const random = await names('Random', 'Ascending');
+		expect(random).toHaveLength(20);
+		expect(new Set(random).size).toBe(20);
+		expect(random.every((name) => studios.includes(name))).toBe(true);
+		expect(random).not.toEqual(studios.slice(0, 20));
+	});
+
 	test('a library grid asks the catalog with its library, type, sort and filters', async () => {
 		const {items, calls} = setup({'/api/v2/catalog': {items: [{content_id: 'movie-1', type: 'movie', title: 'A'}], page: {has_more: false}}});
 		const result = await items.getItems({

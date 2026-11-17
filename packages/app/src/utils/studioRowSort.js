@@ -1,8 +1,11 @@
 // Jellyfin's /Studios takes no SortBy or SortOrder and always lists by name, so the Studios row
 // picks its order from name pages: the first page for A to Z, the last for Z to A, and a page
-// from a random point for Random. Any other order would need every studio, so it stays A to Z.
+// from a random point for Random. Any other sort would need every studio, so it reads as Name,
+// the way the setting shows it.
 
 export const STUDIO_PAGE_SIZE = 200;
+
+export const studioRowSortBy = (stored) => (stored === 'Random' ? 'Random' : 'SortName');
 
 const shuffled = (items) => {
 	const copy = [...items];
@@ -15,9 +18,8 @@ const shuffled = (items) => {
 
 // fetchPage(startIndex, limit) reads one page of studios in name order.
 export const readStudioRow = async (fetchPage, {limit, sortBy, sortOrder}) => {
-	const key = (sortBy || '').toLowerCase();
-	const random = key === 'random';
-	const descending = (key === 'sortname' || key === 'name') && sortOrder === 'Descending';
+	const random = sortBy === 'Random';
+	const descending = !random && sortOrder === 'Descending';
 	const first = await fetchPage(0, random ? STUDIO_PAGE_SIZE : limit);
 	if (!random && !descending) return first;
 	const total = first?.TotalRecordCount || 0;
