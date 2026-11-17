@@ -5,19 +5,6 @@ const MAX_WAIT_MS = 60 * 1000;
 const IDLE_WAIT_MS = 15 * 60 * 1000;
 const BLOCKED_RECHECK_MS = 60 * 1000;
 const RETRY_MS = 15 * 1000;
-// The transport's timeout ends once headers arrive, so a body that stalls after them would hold a
-// check, and the next one it schedules, for good. The window read gives up after this instead: long
-// enough for a wait in the media server queue, which the transport's timeout doesn't count, and no
-// longer than the usual time between checks.
-const WINDOW_TIMEOUT_MS = 60 * 1000;
-
-const withDeadline = (promise, ms) => {
-	let timer;
-	const deadline = new Promise((resolve, reject) => {
-		timer = setTimeout(() => reject(new Error('Access window read timed out')), ms);
-	});
-	return Promise.race([promise, deadline]).finally(() => clearTimeout(timer));
-};
 
 /**
  * Tells whether the signed-in user is outside the hours Jellyfin lets them use the server, which
@@ -59,8 +46,6 @@ export const useAccessSchedule = ({userId, enabled, fetchUser, serverRefuses, fe
 		let blocked = false;
 		// Set when the server says it can't answer the access window, so this user's checks stop asking.
 		let windowUnsupported = false;
-		// When the allowed window the plugin last reported closes, in ms on this TV's clock.
-		let windowCloses = null;
 		// Checks can overlap, so each is numbered and none replaces the answer of one started after it.
 		let started = 0;
 		let applied = 0;
@@ -81,14 +66,9 @@ export const useAccessSchedule = ({userId, enabled, fetchUser, serverRefuses, fe
 			if (blocked && !wasBlocked) latest.current.onBlocked?.();
 		};
 
-		// The plugin's answer alone decides and times the next check. It was worked out somewhere
-		// between asked and now: the next check counts from asked, so it can only come early, and the
-		// opening counts from now, which is nearest when it was worked out (a request can wait in the
-		// media server queue before it is sent).
-		const applyWindow = (answer, asked) => {
+		// The plugin's answer alone decides and times the next check.
+		const applyWindow = (answer) => {
 			const now = latest.current.getNow();
-			// Counted from the answer, so a check with no answer can't end it early.
-			windowCloses = answer.allowed && answer.untilCloseMs !== null ? now.getTime() + answer.untilCloseMs : null;
 			const wasBlocked = blocked;
 			blocked = !answer.allowed;
 			// Named on this device's clock, as the moment it comes on it, to the nearest minute: a
@@ -102,65 +82,38 @@ export const useAccessSchedule = ({userId, enabled, fetchUser, serverRefuses, fe
 			// Allowed with nothing to close is a user with no schedule, or one open all week.
 			let wait = !blocked && answer.untilCloseMs === null ? IDLE_WAIT_MS : MAX_WAIT_MS;
 			const remaining = blocked ? answer.untilOpenMs : answer.untilCloseMs;
-			if (remaining !== null) wait = Math.min(wait, remaining - (now.getTime() - asked.getTime()));
-			schedule(Math.max(wait, 1000));
-		};
-
-		// A check with no answer from the server keeps the last decision and tries again, but an
-		// allowed decision ends at the close the plugin reported for it, with no opening to name.
-		const keepLastAnswer = () => {
-			let wait = RETRY_MS;
-			if (windowCloses !== null) {
-				const left = windowCloses - latest.current.getNow().getTime();
-				if (left <= 0) {
-					windowCloses = null;
-					if (!blocked) {
-						blocked = true;
-						setState({blocked: true, nextAccess: null});
-						latest.current.onBlocked?.();
-					}
-				} else {
-					wait = Math.min(wait, left);
-				}
-			}
+			if (remaining !== null) wait = Math.min(wait, remaining);
 			schedule(Math.max(wait, 1000));
 		};
 
 		async function check () {
 			clearTimeout(timer);
 			const look = ++started;
-			let windowFailed = false;
 			const loadWindow = latest.current.fetchAccessWindow;
 			if (loadWindow && !windowUnsupported) {
-				// The plugin works its durations out between now and its answer, so they count from
-				// here: a slow answer can't push the next check past the change it names.
-				const asked = latest.current.getNow();
 				let answer;
-				let failed = false;
 				try {
-					answer = await withDeadline(loadWindow(), WINDOW_TIMEOUT_MS);
+					answer = await loadWindow();
 				} catch (e) {
-					failed = true;
+					// Keep the last answer and ask again soon.
+					if (!cancelled && look >= applied) schedule(RETRY_MS);
+					return;
 				}
 				if (cancelled || look < applied) return;
 				if (answer) {
 					applied = look;
-					applyWindow(answer, asked);
+					applyWindow(answer);
 					return;
 				}
-				// A plugin that can't answer it won't start to during this session; only the newest
-				// check says so. A window that couldn't be read leaves the plugin asked again next
-				// time, and the schedule and the server decide this check, so a failing endpoint
-				// can't leave the user let in on a server that turns them away.
-				if (!failed && look === started) windowUnsupported = true;
-				windowFailed = failed;
+				// A plugin that can't answer it won't start to during this session.
+				windowUnsupported = true;
 			}
 			let user;
 			try {
 				user = await latest.current.fetchUser();
 			} catch (e) {
 				// Keep the last schedule, but a window that is already closed stays closed.
-				if (!cancelled && look >= applied) keepLastAnswer();
+				if (!cancelled && look >= applied) schedule(RETRY_MS);
 				return;
 			}
 			if (cancelled || look < applied) return;
@@ -172,16 +125,7 @@ export const useAccessSchedule = ({userId, enabled, fetchUser, serverRefuses, fe
 				refused = await ask().catch(() => null);
 				if (cancelled || look < applied) return;
 			}
-			// With a plugin that judges the schedule, this TV's clock never decides: when its window
-			// couldn't be read and the server gave no answer either, the last answer stays.
-			if (windowFailed && !isExempt && fresh.length > 0 && refused === null) {
-				keepLastAnswer();
-				return;
-			}
 			applied = look;
-			// An allowed answer from /Users/Me says nothing of when the window closes, so the close the
-			// plugin reported still holds for checks with no answer.
-			if (refused === true) windowCloses = null;
 			exempt = isExempt;
 			schedules = fresh;
 			const now = latest.current.getNow();
@@ -190,8 +134,6 @@ export const useAccessSchedule = ({userId, enabled, fetchUser, serverRefuses, fe
 			const boundary = nextBoundary(schedules, now);
 			let wait = blocked ? BLOCKED_RECHECK_MS : (schedules.length > 0 ? MAX_WAIT_MS : IDLE_WAIT_MS);
 			if (boundary && !blocked) wait = Math.min(wait, boundary.getTime() - now.getTime());
-			// A close the plugin reported is a moment the answer can change too.
-			if (windowCloses !== null && !blocked) wait = Math.min(wait, windowCloses - now.getTime());
 			schedule(Math.max(wait, 1000));
 		}
 
