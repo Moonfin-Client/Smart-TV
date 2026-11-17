@@ -133,9 +133,9 @@ const isoDay = (d) => d.toISOString().slice(0, 10);
 
 /**
  * `call(path, options)` is a Silo request as the signed-in profile (siloApi's `siloCall`), throwing Silo's errors with
- * `status`. `baseUrl` makes Silo's relative artwork links whole. `random` is for tests.
+ * `status`. `library()` answers the library's Jellyfin-shaped Silo api, for the people a cast member is matched to.
+ * `baseUrl` makes Silo's relative artwork links whole. `random` is for tests.
  */
-// `library` answers the library's Jellyfin-shaped Silo api, for the people a cast member is matched to.
 export const createSiloSeerr = ({call, library = null, baseUrl = '', random = Math.random}) => {
 	// Silo request id by the integer the screens were given.
 	const requestIds = {};
@@ -427,7 +427,7 @@ export const createSiloSeerr = ({call, library = null, baseUrl = '', random = Ma
 		if (!libraryId) return details;
 		let p;
 		try {
-			p = await library().getItem(libraryId);
+			p = await library().getPerson(libraryId);
 		} catch {
 			return details;
 		}

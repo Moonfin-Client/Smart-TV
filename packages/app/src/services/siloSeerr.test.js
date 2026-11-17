@@ -123,7 +123,7 @@ describe('Silo requests in Seerr\'s shapes', () => {
 		test('the library person by that name gives the biography and their films and series as request credits', async () => {
 			const lib = {
 				searchPeople: jest.fn(async () => ({Items: [{Id: '8', Name: 'Jane Doe Jr'}, {Id: '9', Name: 'jane doe'}]})),
-				getItem: jest.fn(async () => ({Overview: 'Bio', PremiereDate: '1980-02-03T00:00:00.0000000Z', ProductionLocations: ['Leeds']})),
+				getPerson: jest.fn(async () => ({Overview: 'Bio', PremiereDate: '1980-02-03T00:00:00.0000000Z', ProductionLocations: ['Leeds']})),
 				getItems: jest.fn(async () => ({Items: [
 					{Id: 'm1', Name: 'Film', Type: 'Movie', PremiereDate: '2001-01-01T00:00:00Z', ProviderIds: {Tmdb: '11'}},
 					{Id: 's1', Name: 'Show', Type: 'Series', ProviderIds: {Tmdb: '5'}},
@@ -146,14 +146,14 @@ describe('Silo requests in Seerr\'s shapes', () => {
 		});
 
 		test('someone the library doesn\'t have shows their name and photo, with no titles', async () => {
-			const lib = {searchPeople: jest.fn(async () => ({Items: [{Id: '8', Name: 'Jane Doe Jr'}]})), getItem: jest.fn(), getItems: jest.fn()};
+			const lib = {searchPeople: jest.fn(async () => ({Items: [{Id: '8', Name: 'Jane Doe Jr'}]})), getPerson: jest.fn(), getItems: jest.fn()};
 			const seerr = withLibrary(lib);
 			const {credits} = await seerr.request('/movie/11');
 			const id = credits.cast[0].id;
 			expect(await seerr.request(`/person/${id}`)).toEqual({id, name: 'Jane Doe', profilePath: '/j.jpg'});
 			expect(await seerr.request(`/person/${id}/combined_credits`)).toEqual({cast: [], crew: []});
 			expect(await seerr.request(`/person/${stableId('Nobody')}`)).toEqual({id: stableId('Nobody'), name: '', profilePath: undefined});
-			expect(lib.getItem).not.toHaveBeenCalled();
+			expect(lib.getPerson).not.toHaveBeenCalled();
 		});
 	});
 });
