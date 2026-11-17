@@ -214,6 +214,12 @@ describe('settings schema', () => {
 		expect(toggle.when({...ctx, settings: {...defaultSettings, showLibrariesInToolbar: false}})).toBe(false);
 	});
 
+	test('Studio Row Sorting picks Name for a saved sort it no longer offers', () => {
+		const picker = allRows().find(({row}) => row.key === 'studiosRowSortBy').row;
+		expect(picker.value({...ctx, settings: {...defaultSettings, studiosRowSortBy: 'DateCreated'}})).toBe('SortName');
+		expect(picker.value({...ctx, settings: {...defaultSettings, studiosRowSortBy: 'Random'}})).toBe('Random');
+	});
+
 	test('Card image only shows while the saved calendar style is Countdown, the one style that draws it', () => {
 		const picker = allRows().find(({row}) => row.key === 'calendarImageType').row;
 		expect(defaultSettings.calendarStyle).toBe('agenda');

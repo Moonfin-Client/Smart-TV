@@ -34,10 +34,14 @@ describe('reading the studio row', () => {
 
 	it('reads a page from anywhere in the list for Random', async () => {
 		const server = nameOnlyServer(1000);
+		const random = jest.spyOn(Math, 'random').mockReturnValue(0.5);
 		const row = await read(server, 'Random');
-		expect(server.calls).toHaveLength(2);
-		expect(server.calls[1].startIndex).toBeLessThanOrEqual(1000 - STUDIO_PAGE_SIZE);
-		expect(row.Items).toHaveLength(20);
+		random.mockRestore();
+		expect(server.calls).toEqual([{startIndex: 0, limit: STUDIO_PAGE_SIZE}, {startIndex: 400, limit: STUDIO_PAGE_SIZE}]);
+		const names = row.Items.map((item) => item.Name);
+		expect(names).toHaveLength(20);
+		expect(names.every((name) => name >= 'Studio 0400' && name < 'Studio 0600')).toBe(true);
+		expect(names).not.toEqual([...names].sort());
 	});
 
 	it('reads a short list once', async () => {
