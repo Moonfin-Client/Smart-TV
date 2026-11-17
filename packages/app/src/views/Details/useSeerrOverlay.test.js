@@ -118,6 +118,13 @@ describe('Seerr Similar row', () => {
 		expect(seerr.pieces.recommendations).toBe(true);
 	});
 
+	test('fills up to 20 from past the titles it leaves out', async () => {
+		const similar = Array.from({length: 30}, (_, n) => film(n + 1, `Film ${n + 1}`));
+		withLists(similar.slice(0, 5), similar);
+		const seerr = await openTitle();
+		expect(titles(seerr.similarCards)).toEqual(similar.slice(5, 25).map(item => item.title));
+	});
+
 	test('keeps everything with Recommendations switched off', async () => {
 		const list = [film(1, 'Troy'), film(2, 'Immortals')];
 		withLists(list, list);

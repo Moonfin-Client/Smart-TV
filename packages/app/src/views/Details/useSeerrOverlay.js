@@ -29,10 +29,10 @@ const SERIES_PART_HIDES = {
 	hasTabContent: false
 };
 
-// A Seerr card's media type and TMDB id; empty for a card with no id, which matches nothing.
+// A Seerr card's media type and TMDB id; null for a card with no id, which matches nothing.
 const seerrTitleKey = card => {
 	const {mediaId, mediaType} = card._seerrRaw || {};
-	return mediaId == null ? '' : `${mediaType}:${mediaId}`;
+	return mediaId == null ? null : `${mediaType}:${mediaId}`;
 };
 
 // `showsSection` is the viewer's detail sections setting. A piece switched off reads as one
@@ -169,8 +169,11 @@ const useSeerrOverlay = ({item, seerrOnly, showsSection, api}) => {
 	// switched off it keeps everything.
 	const similarCards = useMemo(() => {
 		if (!showsSimilar) return [];
-		const shown = new Set(recommendationCards.map(seerrTitleKey).filter(Boolean));
-		return data.similar.map(normalizeMediaItem).filter(card => !shown.has(seerrTitleKey(card)));
+		const shown = new Set(recommendationCards.map(seerrTitleKey));
+		return data.similar.map(normalizeMediaItem).filter(card => {
+			const key = seerrTitleKey(card);
+			return key == null || !shown.has(key);
+		}).slice(0, 20);
 	}, [data.similar, showsSimilar, recommendationCards]);
 
 	const streamingProviders = useMemo(
