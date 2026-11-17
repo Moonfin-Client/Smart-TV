@@ -2341,10 +2341,12 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 	// Control Actions (AVPlay-based)
 	// ==============================
 	const teardownPlayback = useCallback(async () => {
-		loadGenerationRef.current++;
+		const generation = ++loadGenerationRef.current;
 		cancelNextEpisodeCountdown();
 		stopTimeUpdatePolling();
 		await playback.reportStop(positionRef.current);
+		// A load started while the stop was out already cleared the old pipeline and set up its own.
+		if (generation !== loadGenerationRef.current) return;
 		cleanupAVPlay();
 		avplayReadyRef.current = false;
 	}, [cancelNextEpisodeCountdown, stopTimeUpdatePolling]);
@@ -3217,6 +3219,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 
 		setIsDownloadingRemoteSubtitle(true);
 		setRemoteSubtitleError(null);
+		const endedGeneration = playback.endedOnServerGeneration();
 		try {
 			await jellyfinApi.downloadRemoteSubtitle(item.Id, remoteSubtitleResults[index].id);
 
@@ -3254,7 +3257,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 			await applySubtitleSelection(appeared.Index, refreshedSubtitleStreams, true);
 		} catch (err) {
 			if (playback.isEndedOnServer(err)) {
-				playback.heardEndedOnServer(err);
+				playback.heardEndedOnServer(err, endedGeneration);
 				return;
 			}
 			setRemoteSubtitleError(remoteSubtitleDownloadError(err));

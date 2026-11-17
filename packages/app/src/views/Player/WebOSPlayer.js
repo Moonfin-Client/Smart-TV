@@ -3119,6 +3119,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 
 		setIsDownloadingRemoteSubtitle(true);
 		setRemoteSubtitleError(null);
+		const endedGeneration = playback.endedOnServerGeneration();
 		try {
 			await jellyfinApi.downloadRemoteSubtitle(item.Id, remoteSubtitleResults[index].id);
 
@@ -3154,7 +3155,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 			await applySubtitleSelection(appeared.Index, refreshedSubtitleStreams, true);
 		} catch (err) {
 			if (playback.isEndedOnServer(err)) {
-				playback.heardEndedOnServer(err);
+				playback.heardEndedOnServer(err, endedGeneration);
 				return;
 			}
 			setRemoteSubtitleError(remoteSubtitleDownloadError(err));

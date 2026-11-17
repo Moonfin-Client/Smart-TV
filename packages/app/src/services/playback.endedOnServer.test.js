@@ -132,6 +132,37 @@ describe('an admin ending a Silo session', () => {
 		expect(heard).toEqual(['movie-1']);
 	});
 
+	test('a start already on its way when the stop finds the admin\'s end is stopped again and turned away', async () => {
+		await playback.getPlaybackInfo('movie-1');
+		let answerStart;
+		api.getPlaybackInfo.mockReturnValueOnce(new Promise((resolve) => {
+			answerStart = () => resolve(plays('s2'));
+		}));
+		// Like a start that gave up waiting for a slow stop.
+		const start = playback.getPlaybackInfo('movie-1').catch((err) => err);
+		await new Promise((resolve) => setTimeout(resolve, 0));
+		expect(api.getPlaybackInfo).toHaveBeenCalledTimes(2);
+		api.reportPlaybackStopped.mockResolvedValueOnce({endedOnServer: true});
+		await playback.reportStop(600000000);
+		expect(heard).toEqual([]);
+		answerStart();
+		expect(await start).toMatchObject({reason: 'playback_session_ended'});
+		expect(heard).toEqual(['movie-1']);
+		expect(api.reportPlaybackStopped).toHaveBeenLastCalledWith(expect.objectContaining({PlaySessionId: 's2'}));
+		expect(playback.getCurrentSession()).toBeNull();
+	});
+
+	test('a refusal heard outside the service after its player closed holds nothing', async () => {
+		await playback.getPlaybackInfo('movie-1');
+		const generation = playback.endedOnServerGeneration();
+		playback.releaseEndedOnServer();
+		playback.heardEndedOnServer(ended('movie-1'), generation);
+		expect(heard).toEqual([]);
+		api.getPlaybackInfo.mockClear();
+		await playback.getPlaybackInfo('movie-1');
+		expect(api.getPlaybackInfo).toHaveBeenCalledTimes(1);
+	});
+
 	test('a stop that failed doesn\'t fail the start after it', async () => {
 		await playback.getPlaybackInfo('movie-1');
 		api.reportPlaybackStopped.mockRejectedValueOnce(Object.assign(new Error('Conflict'), {status: 409, code: 'installation_changed'}));

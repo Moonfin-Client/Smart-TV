@@ -112,9 +112,12 @@ const stopOnItsWay = (itemId) => {
 };
 
 // A refusal heard outside this service (a track list asked again for a downloaded subtitle) holds the item and tells
-// the player, like one heard here.
-export const heardEndedOnServer = (err) => {
-	if (isEndedOnServer(err) && holdEndedOnServer(err.itemId, endedHoldGeneration)) tellEndedOnServer(err.itemId);
+// the player, like one heard here. `generation` is `endedOnServerGeneration()` from when the request went out, so a
+// reply that comes back after its player closed holds nothing.
+export const endedOnServerGeneration = () => endedHoldGeneration;
+
+export const heardEndedOnServer = (err, generation = endedHoldGeneration) => {
+	if (isEndedOnServer(err) && holdEndedOnServer(err.itemId, generation)) tellEndedOnServer(err.itemId);
 };
 
 // `listener(itemId)` hears each time the end of an item's session reaches the app (the player acts on the first).
@@ -1088,6 +1091,19 @@ const siloPlaybackResult = async ({
 		throw err;
 	}
 	const mediaSource = playbackInfo.MediaSources[0];
+	// A stop that outlasted the wait above found the admin's end while this plan was on its way: the new session
+	// is stopped again and the item stays turned away.
+	if (heldEndedOnServer(itemId)) {
+		if (currentSession?.playSessionId === playbackInfo.PlaySessionId) discardCurrentSession(); // eslint-disable-line no-use-before-define
+		api.reportPlaybackStopped({
+			ItemId: itemId,
+			PlaySessionId: playbackInfo.PlaySessionId,
+			MediaSourceId: mediaSource?.Id,
+			PositionTicks: 0
+		}).catch((e) => console.warn('[playback] Failed to stop the turned-away session:', e.message));
+		tellEndedOnServer(itemId);
+		throw siloEndedOnServer(itemId);
+	}
 	let playMethod = PlayMethod.Transcode;
 	if (mediaSource.SupportsDirectPlay) playMethod = PlayMethod.DirectPlay;
 	else if (mediaSource.SupportsDirectStream) playMethod = PlayMethod.DirectStream;
