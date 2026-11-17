@@ -25,4 +25,10 @@ describe('serverNameCorner', () => {
 		const corner = serverNameCorner({css, item: merged, showServerBadge: true, showIndicators: true, showUnplayedCount: true});
 		expect(corner).toMatchObject({showsServerName: false, belowNameClass: '', labelsTopRight: 8, movedTop: undefined});
 	});
+
+	it('still names the server when every copy is on it, as a film in two of its libraries', () => {
+		const twoLibraries = {...show, _serverId: 'a', _mergedCopies: [{Id: '2', _serverId: 'a'}]};
+		const corner = serverNameCorner({css, item: twoLibraries, showServerBadge: true, showIndicators: true, showUnplayedCount: true});
+		expect(corner.showsServerName).toBe(true);
+	});
 });

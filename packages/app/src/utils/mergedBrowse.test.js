@@ -43,6 +43,16 @@ describe('takeMergedPage', () => {
 		await expect(takeMergedPage(allDown, 5, null, () => Promise.reject(new Error('down')), [])).rejects.toThrow('down');
 	});
 
+	it('still hands out titles already read when every server fails on the next read', async () => {
+		let down = false;
+		const flaky = (src, start, limit) => (down ? Promise.reject(new Error('down')) : fetchPage(src, start, limit));
+		const readers = createMergedReaders([source('a', ['a', 'b', 'c', 'd']), source('b', ['e', 'f', 'g', 'h'])]);
+		await takeMergedPage(readers, 2, mergedSortComparator('SortName', false), flaky, []);
+		down = true;
+		const page = await takeMergedPage(readers, 2, mergedSortComparator('SortName', false), flaky, []);
+		expect(page.Items.length).toBeGreaterThan(0);
+	});
+
 	it('tries a server again before leaving it out, so one that was slow to wake still shows', async () => {
 		let misses = 1;
 		const waking = (src, start, limit) => {

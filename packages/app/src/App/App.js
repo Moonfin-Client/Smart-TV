@@ -650,7 +650,7 @@ const AppContent = (props) => {
 	// A server that hasn't answered when the libraries are read, such as one still waking up as the app starts, is read
 	// again a little later. Its libraries, and the merged libraries it belongs in, would otherwise stay missing until
 	// something else reloaded them.
-	const librariesRetryRef = useRef({timer: null, attempt: 0, read: null, answered: null});
+	const librariesRetryRef = useRef({timer: null, attempt: 0, read: null, shape: null});
 	const fetchLibraries = useCallback(async (options) => {
 		const retrying = options?.retrying === true;
 		const retry = librariesRetryRef.current;
@@ -667,12 +667,12 @@ const AppContent = (props) => {
 						retry.timer = setTimeout(() => retry.read?.({retrying: true}), LIBRARY_RETRY_DELAYS_MS[retry.attempt]);
 						retry.attempt++;
 					}
-					// Home read its libraries alongside these, so it reads them again once a server that was missing has
-					// answered, even while another is still out.
-					const answered = new Set(read.map((library) => library._serverId));
-					const cameBack = retrying && Array.from(answered).some((serverId) => !retry.answered?.has(serverId));
-					retry.answered = answered;
-					if (cameBack) {
+					// Home read its libraries alongside these, so it reads them again whenever a retry changes which libraries
+					// there are or their order, as a server coming back or one dropping out.
+					const shape = read.map((library) => `${library._serverId}|${library.Id}`).join(',');
+					const changed = retrying && shape !== retry.shape;
+					retry.shape = shape;
+					if (changed) {
 						window.dispatchEvent(new window.CustomEvent('moonfin:browseRefresh', {detail: {libraries: true}}));
 					}
 					if (mergeLibraries) libs = mergeLibrariesByType(libs);

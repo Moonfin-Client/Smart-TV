@@ -2,7 +2,7 @@
 // and modern cards so the two can't drift apart. The watched check, the unplayed count and the Seerr marker move below
 // the name, and the plugin's poster labels below those.
 
-import {hasMergedCopies} from '../../utils/mergedCopies';
+import {serverCountOf} from '../../utils/mergedCopies';
 import {showsWatchedCheck} from '../../utils/playedState';
 
 // Where the moved badges start: under a server's name, or under a source's smaller name, as Radarr's.
@@ -12,8 +12,9 @@ const BELOW_SOURCE_NAME = 34;
 const BELOW_MOVED_BADGE = 32;
 
 export const serverNameCorner = ({css, item, showServerBadge, showIndicators, showUnplayedCount, bannerOffset = 0}) => {
-	// A title several servers hold shows how many instead, and a merged library's tile names no server.
-	const showsServerName = Boolean((showServerBadge || item?._external) && item?._serverName && !hasMergedCopies(item) && !item?._mergedType);
+	// A title several servers hold shows how many instead, and a merged library's tile names no server. Copies all on one
+	// server, as a film in its 4K and HD libraries, still name it, since there's no count to show.
+	const showsServerName = Boolean((showServerBadge || item?._external) && item?._serverName && serverCountOf(item) < 2 && !item?._mergedType);
 	const isSource = Boolean(item?._external);
 	const showsWatched = Boolean(showIndicators && showsWatchedCheck(item));
 	const below = isSource ? BELOW_SOURCE_NAME : BELOW_SERVER_NAME;

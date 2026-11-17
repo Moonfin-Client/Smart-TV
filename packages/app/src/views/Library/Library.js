@@ -55,6 +55,13 @@ registerThemeSheet('library', css);
 const PREFERRED_PAGE_SIZE = 1000;
 // A stop for a server that ignores StartIndex and sends the same page every time.
 const PREFERRED_MAX_PAGES = 100;
+// How long the first page of a merged library waits on the signed-in server's titles before showing without them, so
+// a slow read never holds the grid back. The copies still find their cards, only which server's copy leads may differ.
+const PREFERRED_WAIT_MS = 1500;
+// How long a library's titles, read with ids only, are kept for the next time it opens, as after leaving a title's
+// details. The read is shared by the card choice and the title index, so each server library is read once.
+const TITLE_READ_TTL_MS = 5 * 60 * 1000;
+const titleReads = new Map();
 
 const SpottableDiv = Spottable('div');
 const SpottableButton = Spottable('button');
@@ -296,7 +303,6 @@ const Library = ({library, genreFilter, studioFilter, onSelectItem, onViewPhoto,
 	// Holds other servers' copies back for the signed-in server's own card. Null while a filter is on, since that
 	// server's copy could be filtered out.
 	const preferredRef = useRef(null);
-	const preferredTitlesRef = useRef(null);
 	// Every server's titles by match key, read in the background as a merged library opens, so a card learns of a copy
 	// paging hasn't reached, and the read it came from, for reopening the same library.
 	const copyIndexRef = useRef(null);
@@ -614,6 +620,23 @@ const Library = ({library, genreFilter, studioFilter, onSelectItem, onViewPhoto,
 		return titles;
 	}, []);
 
+	// The titles of one server library, read once and shared by whatever asks while the read is fresh.
+	const readSharedTitles = useCallback((source, params) => {
+		const key = [
+			source.server._serverId, source.libraryId,
+			params.IncludeItemTypes || '', params.ExcludeItemTypes || '', String(params.CollapseBoxSetItems)
+		].join('|');
+		const kept = titleReads.get(key);
+		if (kept && Date.now() - kept.at < TITLE_READ_TTL_MS) return kept.read;
+		const read = readTitles(source, params);
+		titleReads.set(key, {at: Date.now(), read});
+		// A read that failed is tried again by the next one to ask.
+		read.catch(() => {
+			if (titleReads.get(key)?.read === read) titleReads.delete(key);
+		});
+		return read;
+	}, [readTitles]);
+
 	const titleQueryKey = (sources, params) => [
 		...sources.map((source) => `${source.server._serverId}:${source.libraryId}`),
 		params.IncludeItemTypes || '', params.ExcludeItemTypes || '', String(params.CollapseBoxSetItems)
@@ -624,28 +647,25 @@ const Library = ({library, genreFilter, studioFilter, onSelectItem, onViewPhoto,
 		const serverId = sources[0].server._serverId;
 		const own = sources.filter((source) => source.server._serverId === serverId);
 		if (own.length === sources.length) return null;
-		const key = titleQueryKey(own, params);
-		if (preferredTitlesRef.current?.key === key) return new PreferredCopies(serverId, preferredTitlesRef.current.titles);
 		try {
-			const titles = titleKeysOf([{Items: (await Promise.all(own.map((source) => readTitles(source, params)))).flat()}]);
-			preferredTitlesRef.current = {key, titles};
+			const titles = titleKeysOf([{Items: (await Promise.all(own.map((source) => readSharedTitles(source, params)))).flat()}]);
 			return new PreferredCopies(serverId, titles);
 		} catch {
 			// Without the list, the first copy shown keeps the card.
 			return null;
 		}
-	}, [readTitles]);
+	}, [readSharedTitles]);
 
 	// Every server's titles by match key. A server that doesn't answer is left out of it, and its copies come up as
 	// paging reaches them, the way they did without the index.
 	const readTitleIndex = useCallback(async (sources, params) => {
 		const key = titleQueryKey(sources, params);
 		if (titleIndexRef.current?.key === key) return titleIndexRef.current.index;
-		const read = await Promise.all(sources.map((source) => readTitles(source, params).catch(() => null)));
+		const read = await Promise.all(sources.map((source) => readSharedTitles(source, params).catch(() => null)));
 		const index = indexCopies(read.filter(Boolean).flat());
 		if (read.every(Boolean)) titleIndexRef.current = {key, index};
 		return index;
-	}, [readTitles]);
+	}, [readSharedTitles]);
 
 	// The next page of a merged library, read from every server and merged in the sort's order.
 	const fetchMergedPage = useCallback(async (startIndex, params, generation) => {
@@ -684,8 +704,23 @@ const Library = ({library, genreFilter, studioFilter, onSelectItem, onViewPhoto,
 			source.api.getItems({...shared, ParentId: source.libraryId, StartIndex: start, Limit: limit})
 		));
 		if (preferred) {
-			const copies = await preferred;
-			if (readers === mergedReadersRef.current) preferredRef.current = copies;
+			// Given a moment, not waited on: a slow read lets the first page show, and its copies still fold together.
+			const isCurrent = () => readers === mergedReadersRef.current && generation === fetchGenerationRef.current;
+			const TOO_SLOW = {};
+			let timer = null;
+			const late = new Promise((resolve) => {
+				timer = setTimeout(() => resolve(TOO_SLOW), PREFERRED_WAIT_MS);
+			});
+			const copies = await Promise.race([preferred, late]);
+			clearTimeout(timer);
+			if (copies !== TOO_SLOW) {
+				if (isCurrent()) preferredRef.current = copies;
+			} else {
+				// The pages after it hold copies back for the signed-in server's card once its titles are in.
+				preferred.then((arrived) => {
+					if (isCurrent()) preferredRef.current = arrived;
+				}, () => {});
+			}
 		}
 		return result;
 	}, [ensureMergedSources, readPreferredCopies, readTitleIndex, library]);
@@ -1029,7 +1064,6 @@ const Library = ({library, genreFilter, studioFilter, onSelectItem, onViewPhoto,
 	useEffect(() => {
 		setMergedSources(null);
 		mergedLookupRef.current = {libraryId: null, sources: null, complete: false};
-		preferredTitlesRef.current = null;
 	}, [library?.Id]);
 
 	useEffect(() => {

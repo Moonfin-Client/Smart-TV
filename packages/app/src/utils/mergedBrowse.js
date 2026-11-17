@@ -60,7 +60,7 @@ export const mergedReadersDrained = (readers) => (readers || []).every((reader) 
 // The next `limit` items in `compare`'s order. Every server reads ahead at least a page, so an item only goes out once
 // each server's next one is known. A server running low reads a whole page rather than topping up a few items at a
 // time. A random order has nothing to compare and takes turns instead. A server that fails is tried again after each of
-// `retryDelays` before it's left out. Throws only when every server failed.
+// `retryDelays` before it's left out. Throws only when every server failed and none has titles left to give.
 export const takeMergedPage = async (readers, limit, compare, fetchPage, retryDelays = READ_RETRY_DELAYS_MS) => {
 	let failure = null;
 	await Promise.all(readers
@@ -68,7 +68,8 @@ export const takeMergedPage = async (readers, limit, compare, fetchPage, retryDe
 		.map((reader) => readMore(reader, fetchPage, limit, retryDelays).catch((err) => {
 			failure = err;
 		})));
-	if (failure && readers.every((reader) => reader.failed)) throw failure;
+	// Only when nothing is left to give: titles a server already sent still go out though every server failed just now.
+	if (failure && readers.every((reader) => reader.failed && reader.buffer.length === 0)) throw failure;
 
 	const page = [];
 	let turn = 0;
