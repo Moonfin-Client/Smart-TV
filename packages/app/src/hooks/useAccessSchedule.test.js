@@ -481,6 +481,34 @@ describe('useAccessSchedule', () => {
 			expect(onBlocked).toHaveBeenCalledTimes(1);
 		});
 
+		test('keeps the reported close through a fallback check the server allowed', async () => {
+			// Noon: open by the schedule on this TV's clock
+			let windowFails = false;
+			let userFails = false;
+			const serverRefuses = jest.fn(async () => false);
+			const fetchAccessWindow = jest.fn(async () => {
+				if (windowFails) throw new Error('500');
+				return windowOf(true, 90 * 1000);
+			});
+			const fetchUser = jest.fn(async () => {
+				if (userFails) throw new Error('offline');
+				return user;
+			});
+			const {result} = mount({fetchAccessWindow, fetchUser, serverRefuses});
+			await flush();
+			windowFails = true;
+			clock = at(12, 1);
+			await flush(60 * 1000);
+			expect(serverRefuses).toHaveBeenCalledTimes(1);
+			expect(result.current.blocked).toBe(false);
+
+			// Then offline
+			userFails = true;
+			clock = at(12, 1, 30);
+			await flush(30 * 1000);
+			expect(result.current.blocked).toBe(true);
+		});
+
 		test('falls back to the schedule and the server when it can\'t say, and stops asking', async () => {
 			clock = at(21);
 			const serverRefuses = jest.fn(async () => true);

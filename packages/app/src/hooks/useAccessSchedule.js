@@ -179,7 +179,9 @@ export const useAccessSchedule = ({userId, enabled, fetchUser, serverRefuses, fe
 				return;
 			}
 			applied = look;
-			windowCloses = null;
+			// An allowed answer from /Users/Me says nothing of when the window closes, so the close the
+			// plugin reported still holds for checks with no answer.
+			if (refused === true) windowCloses = null;
 			exempt = isExempt;
 			schedules = fresh;
 			const now = latest.current.getNow();
@@ -188,6 +190,8 @@ export const useAccessSchedule = ({userId, enabled, fetchUser, serverRefuses, fe
 			const boundary = nextBoundary(schedules, now);
 			let wait = blocked ? BLOCKED_RECHECK_MS : (schedules.length > 0 ? MAX_WAIT_MS : IDLE_WAIT_MS);
 			if (boundary && !blocked) wait = Math.min(wait, boundary.getTime() - now.getTime());
+			// A close the plugin reported is a moment the answer can change too.
+			if (windowCloses !== null && !blocked) wait = Math.min(wait, windowCloses - now.getTime());
 			schedule(Math.max(wait, 1000));
 		}
 
