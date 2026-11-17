@@ -111,6 +111,12 @@ const stopOnItsWay = (itemId) => {
 	]).finally(() => clearTimeout(timer));
 };
 
+// A refusal heard outside this service (a track list asked again for a downloaded subtitle) holds the item and tells
+// the player, like one heard here.
+export const heardEndedOnServer = (err) => {
+	if (isEndedOnServer(err) && holdEndedOnServer(err.itemId, endedHoldGeneration)) tellEndedOnServer(err.itemId);
+};
+
 // `listener(itemId)` hears each time the end of an item's session reaches the app (the player acts on the first).
 // Returns the unsubscribe.
 export const onEndedOnServer = (listener) => {
@@ -1584,9 +1590,10 @@ export const reportProgress = async (positionTicks, options = {}) => {
 		shareStopWithShell(positionTicks);
 		await api.reportPlaybackProgress(info);
 	} catch (e) {
-		// Only the session still playing closes the player: a report the viewer retired (a stop, another item,
-		// backgrounding) closes nothing. A replan keeps Silo's session id, so a report sent before one still counts.
-		if (!isEndedOnServer(e) || currentSession?.playSessionId !== reporting || backgroundStopFired) return; // eslint-disable-line no-use-before-define
+		// Only the session still playing closes the player: a report the viewer retired (a stop, another item)
+		// closes nothing. A replan keeps Silo's session id, so a report sent before one still counts. Backgrounding
+		// sends Silo no stop, so its session still plays.
+		if (!isEndedOnServer(e) || currentSession?.playSessionId !== reporting) return;
 		if (!holdEndedOnServer(e.itemId, generation)) return;
 		stopProgressReporting(); // eslint-disable-line no-use-before-define
 		tellEndedOnServer(e.itemId);
@@ -1709,7 +1716,9 @@ export const reportStop = async (positionTicks) => {
 			});
 			stopsOnTheirWay.set(session.itemId, stopping);
 			// Silo found an admin had already ended it: a fallback or reload starting the item again is turned away.
-			if ((await stopping)?.endedOnServer) holdEndedOnServer(session.itemId, generation);
+			// A start that gave up waiting for this stop already plays the item again, so its player is told.
+			if ((await stopping)?.endedOnServer && holdEndedOnServer(session.itemId, generation) &&
+				currentSession?.itemId === session.itemId) tellEndedOnServer(session.itemId);
 		} catch (e) {
 			console.warn('[playback] Failed to report stop:', e.message);
 		} finally {

@@ -36,9 +36,12 @@ const useEndedOnServer = ({itemId, askedItemId, stop, close, onEndedOnServer}) =
 	}, []); // eslint-disable-line react-hooks/exhaustive-deps
 
 	useEffect(() => playback.onEndedOnServer(endedOnServer), [endedOnServer]);
-	useEffect(() => () => {
-		mountedRef.current = false;
-		playback.releaseEndedOnServer();
+	useEffect(() => {
+		mountedRef.current = true;
+		return () => {
+			mountedRef.current = false;
+			playback.releaseEndedOnServer();
+		};
 	}, []);
 };
 

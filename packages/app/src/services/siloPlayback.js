@@ -831,6 +831,7 @@ export const createSiloPlayback = ({call, getBaseUrl, getUserId, getAccessToken,
 			}
 			return null;
 		} catch (err) {
+			if (endedByAdmin(err)) return {endedOnServer: true};
 			if (!sessionGone(err)) throw err;
 			return null;
 		} finally {
