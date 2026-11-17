@@ -5,7 +5,7 @@ import {DEFAULT_SECONDARY_OFFSET, secondaryTextStyle} from './secondarySubtitle'
 
 // A subtitle font from the settings is set inline, which outranks the stylesheet's Japanese
 // face, so a Japanese line names that face ahead of it here. It only covers kana and kanji.
-const languageStyle = (style, lang) =>
+export const languageStyle = (style, lang) =>
 	lang === 'ja' && style.fontFamily ? {...style, fontFamily: `'NotoSansJP', ${style.fontFamily}`} : style;
 
 // The second track stacks right above the first in one column, so the two never overlap

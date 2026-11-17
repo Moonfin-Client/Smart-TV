@@ -1,5 +1,5 @@
 Noto Sans JP: Copyright 2014-2021 Adobe (http://www.adobe.com/), with Reserved Font Name 'Source'.
-The NotoSansJP woff2 files here are subsets of Noto Sans JP 2.004, cut to the kana, punctuation and kanji of JIS X 0208.
+The NotoSansJP-Regular.woff2 here is a subset of Noto Sans JP 2.004, cut to the kana, punctuation and kanji of JIS X 0208.
 
 SIL OPEN FONT LICENSE Version 1.1 - 26 February 2007
 -----------------------------------------------------------
