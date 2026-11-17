@@ -1,4 +1,6 @@
 import {SILO_ROW_PREFIX, createSiloSeerr, stableId} from './siloSeerr';
+import {registerSiloImage} from '../utils/siloUrls';
+import {prepareCredits} from '../utils/personCredits';
 
 const title = (over = {}) => ({
 	media_type: 'movie', tmdb_id: 11, title: 'Film', poster_path: '/p.jpg', release_date: '2026-01-02',
@@ -130,6 +132,8 @@ describe('Silo requests in Seerr\'s shapes', () => {
 					{Id: 'x1', Name: 'TVDB only', Type: 'Series', ProviderIds: {Tvdb: '7'}}
 				]}))
 			};
+			registerSiloImage('http://silo/', 'm1', 'Primary', '/img/m1');
+			registerSiloImage('http://silo/', 's1', 'Primary', '/img/s1');
 			const seerr = withLibrary(lib);
 			const {credits} = await seerr.request('/movie/11');
 			const id = credits.cast[0].id;
@@ -138,9 +142,11 @@ describe('Silo requests in Seerr\'s shapes', () => {
 			});
 			const titles = await seerr.request(`/person/${id}/combined_credits`);
 			expect(titles.cast).toMatchObject([
-				{id: 11, mediaType: 'movie', title: 'Film', releaseDate: '2001-01-01', mediaInfo: {status: 5, jellyfinMediaId: 'm1'}},
-				{id: 5, mediaType: 'tv', name: 'Show', mediaInfo: {status: 5, jellyfinMediaId: 's1'}}
+				{id: 11, mediaType: 'movie', title: 'Film', releaseDate: '2001-01-01', posterPath: 'http://silo/img/m1', mediaInfo: {status: 5, jellyfinMediaId: 'm1'}},
+				{id: 5, mediaType: 'tv', name: 'Show', posterPath: 'http://silo/img/s1', mediaInfo: {status: 5, jellyfinMediaId: 's1'}}
 			]);
+			// The person screen keeps only titles with a poster
+			expect(prepareCredits(titles.cast).map((c) => c.id).sort((a, b) => a - b)).toEqual([5, 11]);
 			expect(lib.searchPeople).toHaveBeenCalledTimes(1);
 			expect(lib.getItems).toHaveBeenCalledWith(expect.objectContaining({PersonIds: '9'}));
 		});
