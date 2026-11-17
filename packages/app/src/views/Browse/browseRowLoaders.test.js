@@ -46,6 +46,12 @@ describe('picked rows far down Home', () => {
 		expect(done.mock.calls.map(([id]) => id)).toEqual(ctx.deferredPluginSections.map((row) => row.id));
 	});
 
+	test('list the titles of a genre A to Z when the genres rank by count on auto', async () => {
+		const ctx = contextFor([genreRow(0)], {settings: {...settings, genresRowSortBy: 'ItemCount'}});
+		await loadDeferredSections(ctx, [genreRow(0)], () => {});
+		expect(ctx.api.getItems).toHaveBeenCalledWith(expect.objectContaining({SortBy: 'SortName', SortOrder: 'Ascending'}));
+	});
+
 	test('carry the collection a picked collection row opens from its See All card', async () => {
 		const collection = makePickedRow({source: 'collections', serverUrl: SERVER, itemId: 'c1', name: 'Heists'}, true, 0);
 		const ctx = contextFor([collection, genreRow(0)]);
@@ -147,6 +153,21 @@ describe('loadGenres', () => {
 		expect(await loadWith('Descending')).toEqual(['War', 'Drama', 'Action']);
 		expect(await loadWith('Ascending')).toEqual(['Action', 'Drama', 'War']);
 		expect(await loadWith('auto')).toEqual(['Action', 'Drama', 'War']);
+	});
+
+	test('leaves the row out when no genre could be counted', async () => {
+		const warn = jest.spyOn(console, 'warn').mockImplementation(() => {});
+		const ctx = buildLoaderContext({
+			api: {getGenres: jest.fn(async () => ({Items: genres})), getItems: jest.fn(async () => { throw new Error('offline'); })},
+			serverUrl: SERVER,
+			settings: {displayGenresRows: true, genresRowSortBy: 'ItemCount'},
+			homeRowsConfig: [{id: 'genres', enabled: true}],
+			eligibleLibraries: [],
+			appendRows: jest.fn()
+		});
+		await loadGenres(ctx);
+		expect(ctx.appendRows).not.toHaveBeenCalled();
+		warn.mockRestore();
 	});
 });
 

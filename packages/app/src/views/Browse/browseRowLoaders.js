@@ -375,10 +375,14 @@ export const loadFavorites = async (ctx) => {
 const withTitleCounts = async (api, genres, includeTypes) => {
 	const counted = genres.map((genre) => ({...genre}));
 	const uncounted = counted.filter((g) => g.MovieCount == null && g.SeriesCount == null && g.ChildCount == null);
+	let answered = 0;
 	await mapBounded(uncounted, 4, async (genre) => {
 		const result = await api.getItems({IncludeItemTypes: includeTypes, Recursive: true, Genres: genre.Name, Limit: 1}).catch(() => null);
+		if (result) answered++;
 		genre.ChildCount = result?.TotalRecordCount || 0;
 	});
+	// Every count failing is an outage, not a server of empty genres.
+	if (uncounted.length > 0 && answered === 0) throw new Error('No genre could be counted');
 	return counted;
 };
 
@@ -597,13 +601,14 @@ const loadPickedRowItems = async (ctx, api, row, limit) => {
 		})};
 	}
 	if (row.source === 'genres') {
+		// A genre's titles have no count of their own, so Item Count lists them by name.
+		const byName = ctx.genresSortBy === 'ItemCount';
 		const result = await api.getItems({
 			GenreIds: row.itemId,
 			IncludeItemTypes: ctx.genresIncludeTypes,
 			ExcludeItemTypes: 'Episode',
-			// A genre's titles have no count of their own, so Item Count lists them by name.
-			SortBy: ctx.genresSortBy === 'ItemCount' ? 'SortName' : ctx.genresSortBy,
-			SortOrder: ctx.genresSortOrder,
+			SortBy: byName ? 'SortName' : ctx.genresSortBy,
+			SortOrder: byName ? resolveSortOrder('SortName', settings.genresRowSortOrder) : ctx.genresSortOrder,
 			Recursive: true,
 			Limit: limit,
 			Fields: HOME_ROW_ITEM_FIELDS
