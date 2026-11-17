@@ -1,6 +1,6 @@
 import {applyThemeOverrides, buildThemeOverrideCss, registerThemeSheet} from './themeOverrides';
 import {resolveThemeById} from './themeRegistry';
-import {contrastRatio, inkOn, resolveFocusBorderColor, toCssColor, MIN_BUTTON_CONTRAST} from './themeSpec';
+import {contrastRatio, inkOn, resolveFocusBorderColor, toCssColor, MIN_BUTTON_CONTRAST, toRgbTriplet} from './themeSpec';
 
 describe('buildThemeOverrideCss', () => {
 	it('scopes every rule to the active theme id', () => {
@@ -129,6 +129,17 @@ describe('buildThemeOverrideCss', () => {
 		expect(lines.some((line) => line.includes(' .layer .pill:not(.pillDanger):focus {') && line.includes(`border-color: ${accent};`))).toBe(true);
 		// Login's user picker shares the carousel and stays unthemed
 		expect(lines.some((line) => ['dotOn', 'lineAccent', 'badgeActive'].some((name) => line.startsWith(`${prefix} .${name} `)))).toBe(false);
+	});
+
+	it('draws the shared dialogs in the theme and keeps their destructive buttons red', () => {
+		const theme = resolveThemeById('moonfin');
+		const accent = toCssColor(theme.colors.accent);
+		const prefix = "html[data-theme-id='moonfin'][data-theme-id]";
+		const lines = buildThemeOverrideCss(theme).split('\n');
+		expect(lines).toContain(`${prefix} .rowIconSelected { color: ${accent}; }`);
+		expect(lines).toContain(`${prefix} .alertAction:not(.alertActionDestructive) { color: ${accent}; }`);
+		expect(lines.some((line) => line.startsWith(`${prefix} .alertActionDestructive`))).toBe(false);
+		expect(lines.some((line) => line.startsWith(`${prefix} .alert {`) && line.includes(`background: rgb(${toRgbTriplet(theme.colors.surface)});`))).toBe(true);
 	});
 
 	it('keeps Switch User text light on its dark scrim when the theme\'s onSurface is dark', () => {

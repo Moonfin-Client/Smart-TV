@@ -76,6 +76,7 @@ import playlistSortFilterCss from '../components/PlaylistSortFilterBar/PlaylistS
 import playbackInfoCss from '../views/Player/PlaybackInfoModal.module.less';
 import accountCss from '../components/AccountModal/AccountModal.module.less';
 import carouselCss from '../components/ProfileCarousel/ProfileCarousel.module.less';
+import coreDialogCss from '../components/CoreDialog/CoreDialog.module.less';
 
 const STYLE_ELEMENT_ID = 'moonfin-theme-overrides';
 
@@ -898,6 +899,25 @@ export const buildThemeOverrideCss = (theme, options = {}) => {
 	rule(sw([carouselCss.dotOn]), `background: ${accent};`);
 	rule(sw([`${carouselCss.pill}:not(.${carouselCss.pillDanger})`]), `border-color: ${sws(0.2)}; background: ${sws(0.06)}; color: ${sws(0.85)};`);
 	rule(sw([`${carouselCss.pill}:not(.${carouselCss.pillDanger}):focus`]), `border-color: ${accent}; color: ${accent};`);
+	// Shared list dialogs and confirms (Remove User, Seerr, server messages), in Core's dialog
+	// theme like the Settings pickers. The scrim and the red destructive buttons stay fixed.
+	const cd = coreDialogCss;
+	rule(`.${cd.panel}`, `background: ${surfaceA(0.9)}; border-color: ${os(0.12)}; ${dialogShape}`);
+	rule(`.${cd.alert}`, `background: rgb(${surfaceRgb}); ${dialogShape}`);
+	rule(`.${cd.panel}, .${cd.title}, .${cd.alert}, .${cd.alertTitle}, .${cd.alertContent}`, `color: ${onSurface};`);
+	rule(`.${cd.subtitle}`, `color: ${os(0.54)};`);
+	rule(`.${cd.divider}`, `background: ${os(0.08)};`);
+	rule(`.${cd.row}:focus`, `background: ${accentA(0.2)};`);
+	rule(`.${cd.rowLabel}`, `color: ${os(0.8)};`);
+	rule(`.${cd.row}:focus .${cd.rowLabel}`, `color: ${os(0.95)};`);
+	rule(`.${cd.rowDimmed} .${cd.rowLabel}, .${cd.rowDimmed}:focus .${cd.rowLabel}`, `color: ${os(0.5)};`);
+	rule(`.${cd.rowIcon}`, `color: ${os(0.38)};`);
+	rule(`.${cd.rowIconSelected}`, `color: ${accent};`);
+	rule(`.${cd.alertAction}:not(.${cd.alertActionDestructive})`, `color: ${accent};`);
+	rule(`.${cd.alertAction}:not(.${cd.alertActionDestructive}):focus`, `background: ${accentA(0.1)};`);
+	if (theme.isPixel) {
+		rule(`.${cd.alertAction}`, 'border-radius: 0;');
+	}
 	// Pixel themes square off every fixed radius.
 	if (theme.isPixel) {
 		rule([
