@@ -125,6 +125,7 @@ export const buildThemeOverrideCss = (theme, options = {}) => {
 	const inputBorder = toCssColor(c.inputBorder);
 	const rangeTrack = toCssColor(c.rangeTrack);
 	const rangeProgress = toCssColor(c.rangeProgress);
+	const rangeThumb = toCssColor(c.rangeThumb);
 	const badgeUnplayed = toCssColor(c.badgeUnplayed);
 	const badgeWatched = toCssColor(c.badgeWatched);
 	const onBadge = toCssColor(c.onBadge);
@@ -337,7 +338,7 @@ export const buildThemeOverrideCss = (theme, options = {}) => {
 	rule(`.${settingsCss.toggleOn} .${settingsCss.toggleThumb}`, `background: ${onAccent};`);
 	rule(`.${settingsCss.sliderInactive}`, `background: ${rangeTrack};`);
 	rule(`.${settingsCss.sliderActive}`, `background: ${rangeProgress};`);
-	rule(`.${settingsCss.sliderThumb}`, `background: ${toCssColor(c.rangeThumb)};`);
+	rule(`.${settingsCss.sliderThumb}`, `background: ${rangeThumb};`);
 	rule(`.${settingsCss.sliderTick}`, `background: ${os(0.38)};`);
 	rule(`.${settingsCss.divider}`, `background: ${os(0.12)};`);
 	rule(`.${settingsCss.aboutVersion}`, `color: ${onSurface};`);
@@ -834,6 +835,13 @@ export const buildThemeOverrideCss = (theme, options = {}) => {
 	if (player) {
 		rule(ring(player, ['liveBtn', 'chapterItem'], [':hover', ':focus']), `border-color: ${focusColor};`);
 		rule(`.${player.trackItem}:focus`, `background: ${accentA(0.3)};`);
+		// The seek bar in the theme's range colors, like core's osdSeekBarTheme; the focused thumb turns white and grows (platform sheets)
+		rule(`.${player.progressBar}`, `background: ${rangeTrack};`);
+		rule(`.${player.progressFill}`, `background: ${rangeProgress};`);
+		rule(`.${player.progressBuffered}`, `background: rgba(${toRgbTriplet(c.rangeTrack)}, 0.8);`);
+		rule(`.${player.seekIndicator}`, `background: ${rangeThumb};`);
+		rule(`.${player.progressBar}:focus .${player.seekIndicator}`, `background: #ffffff;`);
+		rule(`.${player.liveProgressFill}`, `background: ${accent};`);
 	}
 	if (playerOverlays) {
 		rule(ring(playerOverlays, ['offsetBtn', 'actionBtn', 'settingItem'], [':hover', ':focus']), `border-color: ${focusColor};`);
