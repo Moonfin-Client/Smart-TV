@@ -900,7 +900,8 @@ export const buildThemeOverrideCss = (theme, options = {}) => {
 	rule(sw([`${carouselCss.pill}:not(.${carouselCss.pillDanger})`]), `border-color: ${sws(0.2)}; background: ${sws(0.06)}; color: ${sws(0.85)};`);
 	rule(sw([`${carouselCss.pill}:not(.${carouselCss.pillDanger}):focus`]), `border-color: ${accent}; color: ${accent};`);
 	// Shared list dialogs and confirms (Remove User, Seerr, server messages), in Core's dialog
-	// theme like the Settings pickers. The scrim and the red destructive buttons stay fixed.
+	// colours, with the Settings pickers' shape and titles. Rows keep their own accent tint on
+	// focus. The scrim and the red destructive buttons stay fixed.
 	const cd = coreDialogCss;
 	rule(`.${cd.panel}`, `background: ${surfaceA(0.9)}; border-color: ${os(0.12)}; ${dialogShape}`);
 	rule(`.${cd.alert}`, `background: rgb(${surfaceRgb}); ${dialogShape}`);
@@ -915,8 +916,11 @@ export const buildThemeOverrideCss = (theme, options = {}) => {
 	rule(`.${cd.rowIconSelected}`, `color: ${accent};`);
 	rule(`.${cd.alertAction}:not(.${cd.alertActionDestructive})`, `color: ${accent};`);
 	rule(`.${cd.alertAction}:not(.${cd.alertActionDestructive}):focus`, `background: ${accentA(0.1)};`);
-	if (theme.isPixel) {
-		rule(`.${cd.alertAction}`, 'border-radius: 0;');
+	if (theme.textGlow.length) {
+		rule(`.${cd.title}, .${cd.alertTitle}`, `color: ${accent}; text-shadow: ${textGlow}; letter-spacing: 0.4px;`);
+	}
+	if (theme.fontFamily) {
+		rule(`.${cd.title}, .${cd.alertTitle}`, `font-family: '${theme.fontFamily}', sans-serif;`);
 	}
 	// Pixel themes square off every fixed radius.
 	if (theme.isPixel) {
@@ -925,7 +929,7 @@ export const buildThemeOverrideCss = (theme, options = {}) => {
 			`.${navBarCss.navPill}`, `.${navBarCss.navBtn}`,
 			`.${settingsCss.listItem}`, `.${settingsCss.listItemIcon}`, `.${settingsCss.valueBubble}`, `.${settingsCss.dialog}`, `.${panelCss.panel}`, `.${settingsCss.pageAlone}`,
 			`.${settingsCss.themeCard}`, `.${settingsCss.themeCardStripe}`, `.${settingsCss.input}`,
-			`.${settingsCss.actionButton}`, `.${settingsCss.settingsButtonPrimary}`, `.${settingsCss.playbackTimePreview}`, `.${searchCss.searchInputWrapper}`,
+			`.${settingsCss.actionButton}`, `.${settingsCss.settingsButtonPrimary}`, `.${settingsCss.playbackTimePreview}`, `.${searchCss.searchInputWrapper}`, `.${coreDialogCss.alertAction}`,
 			`.${settingsCss.syncCard}`, `.${settingsCss.syncTransferCard}`, `.${settingsCss.syncChip}`,
 			`.${detailsCss.poster}`, `.${detailsCss.btnAction}`, `.${detailsCss.nextUpCard}`,
 			`.${detailsCss.episodeCard}`, `.${detailsCss.chapterCard}`, `.${detailsCss.extraCard}`,

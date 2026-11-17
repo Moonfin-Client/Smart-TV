@@ -138,7 +138,8 @@ describe('buildThemeOverrideCss', () => {
 		const lines = buildThemeOverrideCss(theme).split('\n');
 		expect(lines).toContain(`${prefix} .rowIconSelected { color: ${accent}; }`);
 		expect(lines).toContain(`${prefix} .alertAction:not(.alertActionDestructive) { color: ${accent}; }`);
-		expect(lines.some((line) => line.startsWith(`${prefix} .alertActionDestructive`))).toBe(false);
+		// A colour on every action would outrank the module's red for the destructive ones
+		expect(lines.some((line) => line.includes(`${prefix} .alertAction {`) || line.includes(`${prefix} .alertAction:focus {`))).toBe(false);
 		expect(lines.some((line) => line.startsWith(`${prefix} .alert {`) && line.includes(`background: rgb(${toRgbTriplet(theme.colors.surface)});`))).toBe(true);
 	});
 
