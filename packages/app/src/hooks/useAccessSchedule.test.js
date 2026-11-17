@@ -323,23 +323,29 @@ describe('useAccessSchedule', () => {
 			expect(fetchAccessWindow).toHaveBeenCalledTimes(2);
 		});
 
-		test('keeps the last answer when it can\'t be read, and retries', async () => {
-			let fail = false;
-			const fetchAccessWindow = jest.fn(async () => {
-				if (fail) throw new Error('offline');
-				return windowOf(false, null, 3600 * 1000);
-			});
+		test('falls back to the schedule and the server when it can\'t be read, and asks again', async () => {
 			clock = at(21);
-			const {result, onBlocked} = mount({fetchAccessWindow});
+			const serverRefuses = jest.fn(async () => true);
+			const fetchAccessWindow = jest.fn(async () => {
+				throw new Error('500');
+			});
+			const {result, fetchUser} = mount({fetchAccessWindow, serverRefuses});
 			await flush();
-			fail = true;
+
+			expect(result.current.blocked).toBe(true);
+			expect(fetchUser).toHaveBeenCalledTimes(1);
+			await flush(60 * 1000);
+			expect(fetchAccessWindow).toHaveBeenCalledTimes(2);
+		});
+
+		test('gives up on a window read that stalls', async () => {
+			clock = at(21);
+			const fetchAccessWindow = jest.fn(() => new Promise(() => {}));
+			const {result, fetchUser} = mount({fetchAccessWindow});
 			await flush(60 * 1000);
 
-			expect(fetchAccessWindow).toHaveBeenCalledTimes(2);
+			expect(fetchUser).toHaveBeenCalledTimes(1);
 			expect(result.current.blocked).toBe(true);
-			await flush(15 * 1000);
-			expect(fetchAccessWindow).toHaveBeenCalledTimes(3);
-			expect(onBlocked).toHaveBeenCalledTimes(1);
 		});
 
 		test('falls back to the schedule and the server when it can\'t say, and stops asking', async () => {

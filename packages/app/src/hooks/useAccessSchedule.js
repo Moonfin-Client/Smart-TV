@@ -5,6 +5,8 @@ const MAX_WAIT_MS = 60 * 1000;
 const IDLE_WAIT_MS = 15 * 60 * 1000;
 const BLOCKED_RECHECK_MS = 60 * 1000;
 const RETRY_MS = 15 * 1000;
+// A window read that stalls (the transport's timeout ends once headers arrive) gives up after this.
+const WINDOW_TIMEOUT_MS = 60 * 1000;
 
 /**
  * Tells whether the signed-in user is outside the hours Jellyfin lets them use the server, which
@@ -92,12 +94,15 @@ export const useAccessSchedule = ({userId, enabled, fetchUser, serverRefuses, fe
 			const loadWindow = latest.current.fetchAccessWindow;
 			if (loadWindow && !windowUnsupported) {
 				let answer;
+				let failed = false;
 				try {
-					answer = await loadWindow();
+					answer = await Promise.race([
+						loadWindow(),
+						new Promise((resolve, reject) => setTimeout(reject, WINDOW_TIMEOUT_MS))
+					]);
 				} catch (e) {
-					// Keep the last answer and ask again soon.
-					if (!cancelled && look >= applied) schedule(RETRY_MS);
-					return;
+					// This check falls back to the schedule and the server; the plugin is asked again next time.
+					failed = true;
 				}
 				if (cancelled || look < applied) return;
 				if (answer) {
@@ -106,7 +111,7 @@ export const useAccessSchedule = ({userId, enabled, fetchUser, serverRefuses, fe
 					return;
 				}
 				// A plugin that can't answer it won't start to during this session.
-				windowUnsupported = true;
+				if (!failed) windowUnsupported = true;
 			}
 			let user;
 			try {
