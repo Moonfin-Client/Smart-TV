@@ -83,3 +83,52 @@ describe('Get a different release', () => {
 		expect(result.current.showsManageSlot).toBe(false);
 	});
 });
+
+describe('Seerr Similar row', () => {
+	const movie = {Id: 'm1', Type: 'Movie', Name: 'Gladiator', ProviderIds: {Tmdb: '98'}};
+	const film = (id, title) => ({id, mediaType: 'movie', title});
+	const show = (id, name) => ({id, mediaType: 'tv', name});
+	const withLists = (recommendations, similar) => useSeerrDetailsData.mockImplementation(({mediaId}) => ({
+		details: mediaId ? {title: 'Gladiator'} : null,
+		recommendations,
+		similar,
+		loading: false
+	}));
+	const openTitle = async (showsSection = () => true) => {
+		const {result} = renderHook(() => useSeerrOverlay({item: movie, seerrOnly: false, showsSection, api: {}}));
+		await waitFor(() => expect(result.current.isActive).toBe(true));
+		return result.current;
+	};
+	const titles = cards => cards.map(card => card.Name);
+
+	test('leaves out the titles Recommendations shows', async () => {
+		withLists([film(1, 'Troy'), film(2, 'Immortals')], [film(2, 'Immortals'), film(3, 'Spartacus')]);
+		const seerr = await openTitle();
+		expect(titles(seerr.recommendationCards)).toEqual(['Troy', 'Immortals']);
+		expect(titles(seerr.similarCards)).toEqual(['Spartacus']);
+		expect(seerr.pieces.similar).toBe(true);
+	});
+
+	test('is not drawn when it only repeats Recommendations', async () => {
+		const list = [film(1, 'Troy'), film(2, 'Immortals')];
+		withLists(list, list);
+		const seerr = await openTitle();
+		expect(seerr.similarCards).toEqual([]);
+		expect(seerr.pieces.similar).toBe(false);
+		expect(seerr.pieces.recommendations).toBe(true);
+	});
+
+	test('keeps everything with Recommendations switched off', async () => {
+		const list = [film(1, 'Troy'), film(2, 'Immortals')];
+		withLists(list, list);
+		const seerr = await openTitle(section => section !== 'seerrRecommendations');
+		expect(seerr.recommendationCards).toEqual([]);
+		expect(titles(seerr.similarCards)).toEqual(['Troy', 'Immortals']);
+	});
+
+	test('keeps a film and a series with the same id apart, and titles without an id', async () => {
+		withLists([film(1, 'Troy'), {mediaType: 'movie', title: 'No id'}], [show(1, 'Troy (series)'), {mediaType: 'movie', title: 'Also no id'}]);
+		const seerr = await openTitle();
+		expect(titles(seerr.similarCards)).toEqual(['Troy (series)', 'Also no id']);
+	});
+});
