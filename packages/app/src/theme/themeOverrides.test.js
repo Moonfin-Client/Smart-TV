@@ -130,11 +130,13 @@ describe('buildThemeOverrideCss', () => {
 		}
 	});
 
+	const playerSheet = {liveBtn: 'liveBtn', chapterItem: 'chapterItem', trackItem: 'trackItem', progressBar: 'progressBar', progressFill: 'progressFill', progressBuffered: 'progressBuffered', seekIndicator: 'seekIndicator', liveProgressFill: 'liveProgressFill'};
+
 	it('rings the screens that load on demand once they hand their stylesheets over', async () => {
 		const theme = resolveThemeById('moonfin');
 		applyThemeOverrides(theme, {focusBorderColor: '#ff0000'});
 		expect(document.getElementById('moonfin-theme-overrides').textContent).not.toContain('chapterItem');
-		registerThemeSheet('player', {liveBtn: 'liveBtn', chapterItem: 'chapterItem', trackItem: 'trackItem', progressBar: 'progressBar', progressFill: 'progressFill', progressBuffered: 'progressBuffered', seekIndicator: 'seekIndicator', liveProgressFill: 'liveProgressFill'});
+		registerThemeSheet('player', playerSheet);
 		registerThemeSheet('playerOverlays', {offsetBtn: 'offsetBtn', actionBtn: 'actionBtn', settingItem: 'settingItem', sliderItem: 'sliderItem'});
 		await Promise.resolve();
 		const lines = document.getElementById('moonfin-theme-overrides').textContent.split('\n');
@@ -148,6 +150,21 @@ describe('buildThemeOverrideCss', () => {
 		expect(lines).toContain(`${prefix} .seekIndicator { background: rgb(0, 164, 220); }`);
 		expect(lines).toContain(`${prefix} .progressBar:focus .seekIndicator { background: #ffffff; }`);
 		expect(lines).toContain(`${prefix} .liveProgressFill { background: rgb(0, 164, 220); }`);
+	});
+
+	it('draws each part of the seek bar from its own theme color', () => {
+		const theme = resolveThemeById('8bit_hero');
+		const {accent, rangeTrack, rangeProgress, rangeThumb} = theme.colors;
+		expect(new Set([accent, rangeTrack, rangeProgress, rangeThumb]).size).toBe(4);
+		registerThemeSheet('player', playerSheet);
+		const lines = buildThemeOverrideCss(theme).split('\n');
+		const prefix = "html[data-theme-id='8bit_hero'][data-theme-id]";
+		expect(lines).toContain(`${prefix} .progressBar { background: ${toCssColor(rangeTrack)}; }`);
+		expect(lines).toContain(`${prefix} .progressFill { background: ${toCssColor(rangeProgress)}; }`);
+		expect(lines).toContain(`${prefix} .progressBuffered { background: rgba(51, 60, 87, 0.8); }`);
+		expect(lines).toContain(`${prefix} .seekIndicator { background: ${toCssColor(rangeThumb)}; }`);
+		expect(lines).toContain(`${prefix} .progressBar:focus .seekIndicator { background: #ffffff; }`);
+		expect(lines).toContain(`${prefix} .liveProgressFill { background: ${toCssColor(accent)}; }`);
 	});
 });
 
