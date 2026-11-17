@@ -217,6 +217,20 @@ test('a studio from another server is browsed for its movies and shows', async (
 	expect(params).toMatchObject({Studios: 'A24', IncludeItemTypes: 'Movie,Series', Recursive: true});
 	expect(params.ParentId).toBeUndefined();
 	expect(params.ExcludeItemTypes).toBeUndefined();
+	expect(params.CollapseBoxSetItems).toBe(false);
+});
+
+test('a studio groups its movies into collections when that setting is on', async () => {
+	mockSettings.settings.groupItemsIntoCollections = true;
+	try {
+		render(<Library library={null} studioFilter="Toho" backHandlerRef={{current: null}} onHome={jest.fn()} />);
+		await settle();
+
+		const [params] = mockApi.getItems.mock.calls[0];
+		expect(params).toMatchObject({Studios: 'Toho', IncludeItemTypes: 'Movie,Series,BoxSet', CollapseBoxSetItems: true});
+	} finally {
+		delete mockSettings.settings.groupItemsIntoCollections;
+	}
 });
 
 describe('a photo slideshow', () => {
