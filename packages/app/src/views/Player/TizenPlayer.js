@@ -1043,7 +1043,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 			try {
 				await restartFromResult(await playback.reanchorAt(ticks), ticks);
 			} catch (err) {
-				// An admin ending the session closes the player; that's no failed seek.
+				// An admin ending the session closes the player, so it isn't a failed seek.
 				if (!playback.isEndedOnServer(err)) console.error('[Player] Seek through the server failed:', err);
 			}
 		});

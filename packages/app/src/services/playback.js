@@ -69,9 +69,9 @@ let currentSession = null;
 let progressInterval = null;
 let healthMonitor = null;
 
-// An admin ending a Silo session from the dashboard closes the player (Moonfin-Core #2333, Roku #409). From then until
-// the player that played the item closes, or a minute passes, the item is held: no reopen, fallback, retry or Next
-// starts it again in a new session. Held per item, so a close that never finishes holds nothing else back.
+// An admin ending a Silo session from the dashboard closes the player. From then until the player that played the
+// item closes, or a minute passes, the item is held: no reopen, fallback, retry or Next starts it again in a new
+// session. Held per item, so a close that never finishes holds nothing else back.
 const ENDED_HOLD_MS = 60000;
 const endedOnServer = new Map();
 // Bumped when the player closes, so a stop or replan sent before then that hears the end afterwards holds nothing.
@@ -98,7 +98,7 @@ const holdEndedOnServer = (itemId, generation) => {
 	return true;
 };
 
-// Waits for a stop of the item on its way, at most a few seconds; how it went is the stop's own business.
+// Waits a few seconds at most for a stop of the item that's on its way. How that stop went is its own business.
 const stopOnItsWay = (itemId) => {
 	const stopping = stopsOnTheirWay.get(itemId);
 	if (!stopping) return null;
@@ -1087,7 +1087,7 @@ const siloPlaybackResult = async ({
 			EnableDirectPlay: allowDirectPlay && options.enableDirectPlay !== false
 		}, options.item);
 	} catch (err) {
-		if (isEndedOnServer(err) && holdEndedOnServer(itemId, generation)) tellEndedOnServer(itemId);
+		heardEndedOnServer(err, generation);
 		throw err;
 	}
 	const mediaSource = playbackInfo.MediaSources[0];

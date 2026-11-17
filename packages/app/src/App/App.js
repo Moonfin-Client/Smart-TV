@@ -218,7 +218,7 @@ const AppContent = (props) => {
 
 	const [remoteMessage, setRemoteMessage] = useState(null);
 	const clearRemoteMessage = useCallback(() => setRemoteMessage(null), []);
-	// The player closed because an admin ended its Silo session; the screen it returns to says why.
+	// The player closed because an admin ended its Silo session, so the screen it returns to says why.
 	const showEndedOnServer = useCallback(() => {
 		setRemoteMessage({key: Date.now(), title: $L('Playback was ended on the Silo server.')});
 	}, []);

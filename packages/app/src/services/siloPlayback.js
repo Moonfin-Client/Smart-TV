@@ -794,8 +794,8 @@ export const createSiloPlayback = ({call, getBaseUrl, getUserId, getAccessToken,
 
 	const liveSessionOf = (itemId) => Object.keys(sessions).map((id) => sessions[id]).find((s) => s.itemId === itemId && !s.ended && !s.stopping);
 
-	// A sample Silo refuses because an admin ended the session is the player's to act on; one for a session that
-	// expired or that Silo no longer knows ends it quietly, and the next request starts a new one.
+	// A sample Silo refuses because an admin ended the session is the player's to act on. One for a session that
+	// expired, or that Silo no longer knows, ends it quietly and the next request starts a new one.
 	const ends = (err, session) => {
 		if (endedByAdmin(err)) {
 			session.ended = true;
