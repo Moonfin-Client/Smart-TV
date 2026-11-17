@@ -346,6 +346,12 @@ export const getHomeRowSortOptions = () => [
 	{ value: 'CommunityRating', label: $L('Community Rating') }
 ];
 
+// Jellyfin lists studios by name only, so these are the orders the Studios row can give.
+export const getStudioSortOptions = () => [
+	{ value: 'SortName', label: $L('Name') },
+	{ value: 'Random', label: $L('Random') }
+];
+
 // Playlist and collection rows can also follow the curated arrangement
 export const getPlaylistCollectionSortOptions = () => [
 	{ value: 'PlaylistOrder', label: $L('Playlist Order') },

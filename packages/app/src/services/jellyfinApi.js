@@ -13,6 +13,7 @@ import {createSiloApi, withEverySiloMethod} from './siloApi';
 import {onSiloTokensRotated, siloServerKey, siloSessionFor, siloSessionOfAccount} from './siloSession';
 import {isPlexServer, registerPlexServer} from '../utils/plexUrls';
 import {registerSiloServer} from '../utils/siloUrls';
+import {readStudioRow} from '../utils/studioRowSort';
 const APP_VERSION = packageJson.version;
 
 const PLATFORM_IDENTITY = {
@@ -627,8 +628,10 @@ export const api = {
 	getCollections: (limit = 50, sortBy = 'SortName', sortOrder = 'Ascending') =>
 		request(`${userRoutes.items()}IncludeItemTypes=BoxSet&Recursive=true&SortBy=${encodeURIComponent(sortBy)}&SortOrder=${encodeURIComponent(sortOrder)}&Limit=${limit}&Fields=PrimaryImageAspectRatio,ProductionYear,OfficialRating`),
 
-	getStudios: (limit = 20, sortBy = 'SortName', sortOrder = 'Ascending') =>
-		request(`/Studios?UserId=${currentUser}&Recursive=true&SortBy=${encodeURIComponent(sortBy)}&SortOrder=${encodeURIComponent(sortOrder)}&Limit=${limit}&Fields=ItemCounts,PrimaryImageAspectRatio`),
+	getStudios: (limit = 20, sortBy = 'SortName', sortOrder = 'Ascending') => readStudioRow(
+		(startIndex, count) => request(`/Studios?UserId=${currentUser}&Recursive=true&SortBy=SortName&SortOrder=Ascending&StartIndex=${startIndex}&Limit=${count}&Fields=ItemCounts,PrimaryImageAspectRatio`),
+		{limit, sortBy, sortOrder}
+	),
 
 	getResumeItems: (limit = 12) =>
 		request(`${userRoutes.resume()}Limit=${limit}&MediaTypes=Video&Fields=${encodeURIComponent(HOME_ROW_ITEM_FIELDS)}`),

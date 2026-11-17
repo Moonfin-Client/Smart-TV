@@ -1149,6 +1149,7 @@ export const createSiloItems = ({call, images, getConfiguration, mediaSources, g
 		getStudios: async (limit, sortBy, sortOrder) => {
 			const json = await filterValues(null, null, {skip_technical: true});
 			const names = [].concat(json?.networks || [], json?.studios || []).filter((n) => typeof n === 'string' && n.trim()).map((n) => n.trim());
+			if (sortBy === 'Random') return slice(shuffle(namedList(names, true).Items), 0, limit);
 			return namedList(names, true, String(sortOrder || '').toLowerCase() === 'descending', 0, limit);
 		},
 
