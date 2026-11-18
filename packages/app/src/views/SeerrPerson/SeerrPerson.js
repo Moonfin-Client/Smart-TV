@@ -71,7 +71,7 @@ const SeerrPerson = ({personId, personName, onClose, onSelectItem, onBack}) => {
 	}, [backdropCandidates]);
 
 	const handleSelectMedia = useCallback((item) => {
-		if (item?._seerrRaw) onSelectItem?.(item._seerrRaw);
+		if (item?._seerrRaw) onSelectItem?.({...item._seerrRaw, libraryId: item._seerrLibraryId});
 	}, [onSelectItem]);
 
 	const appearances = useMemo(() => prepareCredits(rawCast, {isCrew: false}).map(normalizeMediaItem), [rawCast]);
