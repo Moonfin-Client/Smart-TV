@@ -1,7 +1,7 @@
 import {memo} from 'react';
 
 import SeerrDownloadProgress, {SeerrNotFoundYet} from '../SeerrDownloadProgress';
-import {MEDIA_STATUS} from '../../utils/seerrStatus';
+import SeerrStatusDot from './SeerrStatusDot';
 
 import css from './SeerrStatusBadge.module.less';
 
@@ -47,17 +47,4 @@ export const SeerrDownloadBars = memo(({seerr}) => {
 	);
 });
 
-const DOT_CLASS = {
-	[MEDIA_STATUS.PENDING]: 'dotPending',
-	[MEDIA_STATUS.PROCESSING]: 'dotProcessing',
-	[MEDIA_STATUS.PARTIALLY_AVAILABLE]: 'dotPartial',
-	[MEDIA_STATUS.AVAILABLE]: 'dotAvailable'
-};
-
-// The marker on one season card. Both detail styles draw their season cards differently but
-// want the same dot, so the shape and the states it can be in live here.
-export const SeerrSeasonDot = memo(({status}) => {
-	const variant = DOT_CLASS[status];
-	if (!variant) return null;
-	return <div className={`${css.seasonDot} ${css[variant]}`} />;
-});
+export const SeerrSeasonDot = ({status}) => <SeerrStatusDot status={status} left />;

@@ -766,10 +766,6 @@ export const buildThemeOverrideCss = (theme, options = {}) => {
 		rule(`.${cardCss.card}:focus .${cardCss.seerrBanner}`, 'border-width: 4px 4px 0;');
 	}
 
-	rule(`.${mediaCardCss.seerr5}`, `background: ${onSurface}; border-color: ${statusAvailable};`);
-	rule(`.${mediaCardCss.seerr4}`, `background: ${statusAvailable};`);
-	rule(`.${mediaCardCss.seerr3}`, `border-color: ${statusRequested};`);
-	rule(`.${mediaCardCss.seerr2}`, `background: ${onSurface}; border-color: ${statusPending};`);
 	rule(`.${modernCardCss.focusRing}`, `border-color: ${focusColor};`);
 	rule(`.${seerrDotCss.dot}`, `background: ${onBadge}; border-color: ${onBadge};`);
 	rule(`.${seerrDotCss.available}`, `border-color: ${statusAvailable}; color: ${statusAvailable};`);
