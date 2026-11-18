@@ -10,7 +10,7 @@ const ratingRows = (surface) => ['mdblistEnabled', 'ratingSources', 'showRatingL
 // Settings whose home preview is the media bar rather than the navbar and rows.
 export const MEDIA_BAR_KEYS = [
 	'featuredBarStyle', 'featuredItemCount', 'mediaBarRowPeek', 'mediaBarOverlayColor', 'mediaBarOverlayOpacity', 'mediaBarNewReleaseBanner',
-	'mediaBarNewReleaseDays', ...ratingRows('mediaBar')
+	'mediaBarNewReleaseDays', 'mediaBarNewReleaseKinds', 'mediaBarNewMovieDays', 'mediaBarNewMovieDetail', ...ratingRows('mediaBar')
 ];
 
 // The home rows' own ratings, which the modern rows draw under the focused card.

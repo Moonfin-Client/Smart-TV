@@ -181,6 +181,11 @@ export const defaultSettings = {
 	mediaBarSourceType: 'random',
 	mediaBarNewReleaseBanner: true,
 	mediaBarNewReleaseDays: 30,
+	// Which labels the banner puts on, comma separated. The banner switch still turns them all off, since older
+	// apps only read that.
+	mediaBarNewReleaseKinds: 'newSeries,newSeason,newEpisodes,newMovie',
+	mediaBarNewMovieDays: 120,
+	mediaBarNewMovieDetail: true,
 	mediaBarLibraryIds: [],
 	mediaBarCollectionIds: [],
 	mediaBarExternalLists: [],

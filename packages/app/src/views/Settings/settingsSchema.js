@@ -7,6 +7,7 @@ import {studioRowSortBy} from '../../utils/studioRowSort';
 import {ratingKey} from '../../utils/ratingSources';
 import {retrySubtitleFont, subtitleFontFailed} from '../../services/subtitleFonts';
 import {toggleHideWatched} from '../../utils/hideWatchedRecentRows';
+import {newReleaseKindsOf} from '../../utils/mediaBarNewRelease';
 import {smoothScrollingFor} from '../../utils/perfTier';
 import {getKeyboardStyleOptions} from '../../components/TVKeyboard/keyboardStyles';
 
@@ -47,6 +48,8 @@ import {
 	getNavPositionOptions,
 	getWatchPartyServiceOptions,
 	getNewReleaseDaysOptions,
+	getNewMovieDaysOptions,
+	getNewReleaseKindOptions,
 	getNextUpBehaviorOptions,
 	getNextUpCountdownStyleOptions,
 	getContinueWatchingDefaultActionOptions,
@@ -647,9 +650,7 @@ export const SETTINGS_SCHEMA = [
 					{kind: KIND.OPTION, key: 'mediaBarOverlayColor', label: () => $L('Overlay Color'), options: getOverlayColorOptions, fallback: () => $L('Gray'), icon: 'palette'},
 					{kind: KIND.SLIDER, key: 'mediaBarOverlayOpacity', label: () => $L('Overlay Opacity'), min: 0, max: 100, step: 5, format: percent, icon: 'opacity'},
 					{kind: KIND.SECTION, id: 'mediaSources', label: () => $L('Media Sources')},
-					{kind: KIND.OPTION, key: 'mediaBarSourceType', label: () => $L('Source'), options: getMediaBarSourceOptions, fallback: () => $L('Random'), icon: 'source', padded: true},
-					{kind: KIND.TOGGLE, key: 'mediaBarNewReleaseBanner', label: () => $L('New Release Banner'), desc: () => $L('Flag series with a new season or new episodes that aired recently.'), icon: 'label'},
-					{kind: KIND.OPTION, key: 'mediaBarNewReleaseDays', label: () => $L('New Release Window'), desc: () => $L('How long after an episode airs it still counts as new.'), options: getNewReleaseDaysOptions, fallback: () => $L('30 days'), icon: 'calendar_today_outlined', padded: true},
+					{kind: KIND.OPTION, key: 'mediaBarSourceType', label: () => $L('Source'), options: getMediaBarSourceOptions, fallback: () => $L('Random'), icon: 'source', keywords: () => ['random', 'recently added', 'recently released', 'newest', 'new seasons', 'new episodes', 'new movies'], padded: true},
 					{
 						kind: KIND.NAV,
 						id: 'sourceLibraries',
@@ -695,6 +696,21 @@ export const SETTINGS_SCHEMA = [
 						chevron: false,
 						action: (ctx) => ctx.actions.openExcludedGenres()
 					},
+					{kind: KIND.SECTION, id: 'mediaBarNewReleases', label: () => $L('New Releases')},
+					{kind: KIND.TOGGLE, key: 'mediaBarNewReleaseBanner', label: () => $L('New Release Banner'), desc: () => $L('Flag new series, seasons, episodes and movies.'), icon: 'new_releases_outlined', keywords: () => ['new season', 'new episode', 'new movie', 'badge']},
+					{
+						kind: KIND.NAV,
+						id: 'mediaBarNewReleaseKinds',
+						label: () => $L('Labels'),
+						bubble: (ctx) => pickedLabels(newReleaseKindsOf(ctx.settings.mediaBarNewReleaseKinds), getNewReleaseKindOptions(), $L('None selected')),
+						icon: 'label_outline',
+						keywords: () => ['new movie', 'new season', 'new episode', 'new series'],
+						when: (ctx) => ctx.settings.mediaBarNewReleaseBanner !== false,
+						action: (ctx) => ctx.actions.openNewReleaseKinds()
+					},
+					{kind: KIND.OPTION, key: 'mediaBarNewReleaseDays', label: () => $L('New Episode Window'), desc: () => $L('How long after an episode airs it still counts as new.'), options: getNewReleaseDaysOptions, fallback: () => $L('30 days'), icon: 'date_range', padded: true},
+					{kind: KIND.OPTION, key: 'mediaBarNewMovieDays', label: () => $L('New Movie Window'), desc: () => $L('How long a movie stays new after it comes out. Theatrical movies often reach servers a while after their release, so give it longer than for episodes.'), options: getNewMovieDaysOptions, fallback: () => $L('120 days'), icon: 'event_outlined', keywords: () => ['new movie'], padded: true},
+					{kind: KIND.TOGGLE, key: 'mediaBarNewMovieDetail', label: () => $L('Show Tagline'), desc: () => $L("Under New Movie, show the movie's tagline. With none, the label stays on its own."), icon: 'format_quote', keywords: () => ['tagline', 'slogan', 'new movie']},
 					{kind: KIND.SECTION, id: 'mediaBarBehavior', label: () => $L('Behavior')},
 					{kind: KIND.TOGGLE, key: 'autoAdvance', label: () => $L('Auto Advance'), desc: () => $L('Automatically advance to next slide'), icon: 'skip_next'},
 					{kind: KIND.SLIDER, key: 'autoAdvanceInterval', label: () => $L('Auto Advance Interval'), min: 2, max: 20, step: 1, format: seconds, icon: 'timer', when: (ctx) => ctx.settings.autoAdvance},

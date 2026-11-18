@@ -2,6 +2,7 @@ import $L from '@enact/i18n/$L';
 import {SUBTITLE_FONTS} from '../../services/subtitleFonts';
 
 import {PLAYBACK_TIME_DISPLAYS, PLAYBACK_TIME_SLOTS} from '../../utils/playbackTimeLabels';
+import {NEW_EPISODES, NEW_MOVIE, NEW_SEASON, NEW_SERIES} from '../../utils/mediaBarNewRelease';
 
 // Every list is a function so $L runs when the settings screen opens rather than when
 // this module is imported, which is before i18n has loaded its bundle.
@@ -27,7 +28,7 @@ export const getMediaBarSourceOptions = () => [
 	{ value: 'random', label: $L('Random') },
 	{ value: 'recentlyAdded', label: $L('Recently Added') },
 	{ value: 'recentlyReleased', label: $L('Recently Released') },
-	{ value: 'newReleases', label: $L('New Seasons & Episodes') }
+	{ value: 'newReleases', label: $L('New Releases') }
 ];
 
 export const getDateFormatOptions = () => [
@@ -42,6 +43,22 @@ export const getNewReleaseDaysOptions = () => [
 	{ value: 30, label: $L('30 days') },
 	{ value: 60, label: $L('60 days') },
 	{ value: 90, label: $L('90 days') }
+];
+
+export const getNewMovieDaysOptions = () => [
+	{ value: 30, label: $L('30 days') },
+	{ value: 60, label: $L('60 days') },
+	{ value: 90, label: $L('90 days') },
+	{ value: 120, label: $L('120 days') },
+	{ value: 180, label: $L('180 days') },
+	{ value: 365, label: $L('365 days') }
+];
+
+export const getNewReleaseKindOptions = () => [
+	{ value: NEW_SERIES, label: $L('New Series') },
+	{ value: NEW_SEASON, label: $L('New Season') },
+	{ value: NEW_EPISODES, label: $L('New Episodes') },
+	{ value: NEW_MOVIE, label: $L('New Movie') }
 ];
 
 export const getFeaturedBarStyleOptions = () => [

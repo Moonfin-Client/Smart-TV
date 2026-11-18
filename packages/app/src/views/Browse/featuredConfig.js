@@ -9,6 +9,8 @@ export const featuredConfigKey = (settings = {}, unifiedMode) => JSON.stringify(
 	settings.featuredContentType ?? null,
 	settings.featuredItemCount ?? null,
 	settings.mediaBarNewReleaseDays ?? null,
+	settings.mediaBarNewMovieDays ?? null,
+	settings.recentlyReleasedSeriesType ?? null,
 	settings.hideWatchedInRecentRows === true,
 	settings.mediaBarLibraryIds || [],
 	settings.mediaBarCollectionIds || [],

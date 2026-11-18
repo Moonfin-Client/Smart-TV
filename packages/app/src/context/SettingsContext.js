@@ -12,7 +12,7 @@ import {normalizeSeasonalHiddenHolidays, normalizeSeasonalRowCountry} from '../u
 import {sharePending} from '../utils/sharePending';
 import {isPlexServer} from '../utils/plexUrls';
 import {pickedRowsFromLegacySections} from '../utils/pickedRows';
-import {LEGACY_MEDIA_BAR_SOURCES, MEDIA_BAR_SOURCES, NEW_RELEASE_DAYS} from '../utils/mediaBarNewRelease';
+import {LEGACY_MEDIA_BAR_SOURCES, MEDIA_BAR_SOURCES, NEW_MOVIE_DAYS, NEW_RELEASE_DAYS} from '../utils/mediaBarNewRelease';
 import {DATE_FORMATS} from '../utils/dateFormat';
 import {SUBTITLE_FONTS} from '../services/subtitleFonts';
 import {
@@ -220,6 +220,7 @@ const VALUE_CONVERSIONS = {
 		fromServer: v => (MEDIA_BAR_SOURCES.includes(v) ? v : LEGACY_MEDIA_BAR_SOURCES.includes(v) ? 'random' : undefined)
 	},
 	mediaBarNewReleaseDays: oneOf(NEW_RELEASE_DAYS),
+	mediaBarNewMovieDays: oneOf(NEW_MOVIE_DAYS),
 	liveTvChannelSortBy: {
 		fromServer: v => (['number', 'name', 'favoritesFirst'].includes(v) ? v : undefined)
 	},
@@ -346,7 +347,7 @@ export const SYNCABLE_KEYS = [
 	'replaceSkipOutroWithNextUp',
 	'showHomeBackdrop', 'homeBackdropStyle', 'detailsBackdropEnabled', 'backdropBlurHome', 'backdropBlurDetail',
 	'mediaBarSourceType', 'mediaBarLibraryIds', 'mediaBarCollectionIds', 'mediaBarExternalLists',
-	'mediaBarNewReleaseBanner', 'mediaBarNewReleaseDays',
+	'mediaBarNewReleaseBanner', 'mediaBarNewReleaseDays', 'mediaBarNewReleaseKinds', 'mediaBarNewMovieDays', 'mediaBarNewMovieDetail',
 	'mediaBarOverlayColor', 'mediaBarOverlayOpacity',
 	'homeRows', 'homeRowsStyle', 'modernCardsOnMyMediaRow', 'detailScreenStyle', 'detailExpandedTabs', 'fullScreenRows', 'homeRowsPosterSize', 'useSeriesThumbnails',
 	'episodePreviewEnabled', 'mediaPreviewMode', 'previewAudioEnabled', 'previewVolume',

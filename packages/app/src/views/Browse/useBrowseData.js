@@ -200,7 +200,14 @@ const useBrowseData = ({
 
 			// Merged libraries keep the random draw, since the dated sources read one server.
 			if (items.length === 0 && datedSource && !unifiedMode) {
-				const options = {contentType: s.featuredContentType, days: s.mediaBarNewReleaseDays, hideWatched: s.hideWatchedInRecentRows === true};
+				const options = {
+					contentType: s.featuredContentType,
+					days: s.mediaBarNewReleaseDays,
+					movieDays: s.mediaBarNewMovieDays,
+					seriesType: s.recentlyReleasedSeriesType,
+					count,
+					hideWatched: s.hideWatchedInRecentRows === true
+				};
 				const readSource = async (parentId) => ({Items: await readDatedSource(api, sourceType, parentId, options)});
 				items = pickFrom(await readFeaturedSources(hasSourceFilter ? sourceIds : [null], readSource, isUsable, count));
 			}
