@@ -8,7 +8,7 @@ import {useSettings} from '../../context/SettingsContext';
 import * as jellyfinApi from '../../services/jellyfinApi';
 import * as embyConnect from '../../services/embyConnect';
 import * as plexTv from '../../services/plexTv';
-import {probeSilo} from '../../services/siloApi';
+import {probeSiloOrNull} from '../../services/siloApi';
 import * as multiServerManager from '../../services/multiServerManager';
 import {discoverLocalServers} from '../../services/serverDiscovery';
 import {generateCandidates, normalizeServerBaseUrl, quickConnectApprovalUrl} from '../../utils/serverUrl';
@@ -481,7 +481,7 @@ const Login = ({
 
 			try {
 				// Silo's own API is asked first: its web app answers Jellyfin's probe with a page.
-				const siloInfo = await probeSilo(candidate);
+				const siloInfo = await probeSiloOrNull(candidate);
 				if (siloInfo) {
 					jellyfinApi.setServerType('silo');
 					return {

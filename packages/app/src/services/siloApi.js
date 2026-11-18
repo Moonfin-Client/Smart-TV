@@ -17,6 +17,7 @@ import {createSiloTrackChoices} from './siloTrackChoices';
 import {siloItemMediaSources} from './siloMediaSources';
 import * as userDataSync from './userDataSync';
 import {registerSiloImage, registerSiloServer, siloImageTagFor} from '../utils/siloUrls';
+import {TIMEOUT} from '../utils/connectionErrors';
 import {
 	SILO_SETTING_KEYS, configurationToSiloSettings, isSiloSystemInfo, siloProfileToUser, siloPublicInfo,
 	siloSettingsToConfiguration
@@ -62,6 +63,19 @@ export const probeSilo = async (baseUrl) => {
 		tryRead(base, '/api/v2/system/setup')
 	]);
 	return siloPublicInfo({systemInfo, identity, branding, setup});
+};
+
+/**
+ * `probeSilo` for an address that may be another kind of server. A request that failed without timing out, like one an
+ * Emby server's CORS headers refused, means it isn't Silo, so the address can still be asked the Jellyfin way.
+ */
+export const probeSiloOrNull = async (baseUrl) => {
+	try {
+		return await probeSilo(baseUrl);
+	} catch (err) {
+		if (err.siloApiUnsupported || err.connectionType === TIMEOUT) throw err;
+		return null;
+	}
 };
 
 export const createSiloApi = ({getBaseUrl, getToken, getUserId, getDeviceInfo, platform}) => {
