@@ -2251,8 +2251,9 @@ const AppContent = (props) => {
 							</SpottableButton>
 						</div>
 					</div>
+					{/* Inside the gate so the keyboard draws above the gate's backdrop, not under it. */}
+					<TVKeyboard />
 				</div>
-				<TVKeyboard />
 			</div>
 		);
 	}

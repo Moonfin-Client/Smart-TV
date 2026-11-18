@@ -195,6 +195,18 @@
 // The keyboard opens over the bottom of the screen, so the card moves up out of its way.
 .pinGateKeyboard {
 	align-items: flex-start;
+
+	// Above the keyboard's dimmed backdrop, so the field being typed into stays lit.
+	.pinCard {
+		position: relative;
+		z-index: 10000;
+	}
+
+	// The keyboard's own Done key submits, so the buttons step aside until it closes.
+	.pinRemember,
+	.pinActions {
+		display: none;
+	}
 }
 
 .pinCard {
