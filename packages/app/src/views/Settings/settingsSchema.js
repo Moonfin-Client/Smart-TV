@@ -7,6 +7,9 @@ import {studioRowSortBy} from '../../utils/studioRowSort';
 import {ratingKey} from '../../utils/ratingSources';
 import {retrySubtitleFont, subtitleFontFailed} from '../../services/subtitleFonts';
 import {toggleHideWatched} from '../../utils/hideWatchedRecentRows';
+import {newReleaseKindsOf} from '../../utils/mediaBarNewRelease';
+import {smoothScrollingFor} from '../../utils/perfTier';
+import {getKeyboardStyleOptions} from '../../components/TVKeyboard/keyboardStyles';
 
 // Merging changes which libraries exist, so every screen listing them reloads them.
 const toggleMergeLibraries = (settings, setSetting) => {
@@ -34,7 +37,6 @@ import {
 	getHomeBackdropStyleOptions,
 	getHomeRowsStyleOptions,
 	getBookLibraryStyleOptions,
-	getKeyboardStyleOptions,
 	getLibraryStyleOptions,
 	getDateFormatOptions,
 	getMediaBarSourceOptions,
@@ -52,6 +54,8 @@ import {
 	getNavPositionOptions,
 	getWatchPartyServiceOptions,
 	getNewReleaseDaysOptions,
+	getNewMovieDaysOptions,
+	getNewReleaseKindOptions,
 	getNextUpBehaviorOptions,
 	getNextUpCountdownStyleOptions,
 	getContinueWatchingDefaultActionOptions,
@@ -305,6 +309,16 @@ export const SETTINGS_SCHEMA = [
 						icon: 'gpp_maybe',
 						when: whenCertificateChoice
 					},
+					{kind: KIND.SECTION, id: 'developerMode', label: () => $L('Developer Mode'), when: (ctx) => ctx.isWebOS},
+					{
+						kind: KIND.TOGGLE,
+						key: 'keepDevModeAlive',
+						label: () => $L('Keep Developer Mode Active'),
+						desc: () => $L('Renew the TV\'s Developer Mode session each time Moonfin opens, so webOS doesn\'t uninstall the app when the session runs out'),
+						icon: 'code',
+						keywords: () => ['developer', 'dev mode', 'session', 'extend', 'renew', 'expire'],
+						when: (ctx) => ctx.isWebOS
+					},
 					{kind: KIND.SECTION, id: 'sync', label: () => ''},
 					{kind: KIND.NAV, id: 'settingsSync', label: () => $L('Settings Sync'), desc: () => $L('Moonbase plugin sync and customization profiles'), icon: 'sync', action: (ctx) => ctx.actions.openScreen('account', 'settingsSync', 'setting-settingsSync')}
 				]
@@ -409,7 +423,15 @@ export const SETTINGS_SCHEMA = [
 					{kind: KIND.TOGGLE, key: 'exitConfirmation', label: () => $L('Confirm Exit'), desc: () => $L('Show confirmation before exiting'), icon: 'exit_to_app'},
 					{kind: KIND.SECTION, id: 'performance', label: () => $L('Performance')},
 					{kind: KIND.OPTION, key: 'performanceMode', label: () => $L('Performance'), options: getPerformanceModeOptions, fallback: () => $L('Auto'), icon: 'speed_outlined'},
-					{kind: KIND.TOGGLE, key: 'smoothScrolling', label: () => $L('Smooth Scrolling'), desc: () => $L('Glide between rows and cards instead of jumping. Can stutter on slower TVs.'), icon: 'swipe'}
+					{
+						kind: KIND.TOGGLE,
+						key: 'smoothScrollingChoice',
+						label: () => $L('Smooth Scrolling'),
+						desc: () => $L('Glide between rows and cards instead of jumping. On by default only on TVs fast enough for it.'),
+						icon: 'swipe',
+						isOn: (ctx) => smoothScrollingFor(ctx.settings.smoothScrollingChoice),
+						onToggle: (ctx) => ctx.actions.setSetting('smoothScrollingChoice', !smoothScrollingFor(ctx.settings.smoothScrollingChoice))
+					}
 				]
 			}
 		]
@@ -634,9 +656,7 @@ export const SETTINGS_SCHEMA = [
 					{kind: KIND.OPTION, key: 'mediaBarOverlayColor', label: () => $L('Overlay Color'), options: getOverlayColorOptions, fallback: () => $L('Gray'), icon: 'palette'},
 					{kind: KIND.SLIDER, key: 'mediaBarOverlayOpacity', label: () => $L('Overlay Opacity'), min: 0, max: 100, step: 5, format: percent, icon: 'opacity'},
 					{kind: KIND.SECTION, id: 'mediaSources', label: () => $L('Media Sources')},
-					{kind: KIND.OPTION, key: 'mediaBarSourceType', label: () => $L('Source'), options: getMediaBarSourceOptions, fallback: () => $L('Random'), icon: 'source', padded: true},
-					{kind: KIND.TOGGLE, key: 'mediaBarNewReleaseBanner', label: () => $L('New Release Banner'), desc: () => $L('Flag series with a new season or new episodes that aired recently.'), icon: 'label'},
-					{kind: KIND.OPTION, key: 'mediaBarNewReleaseDays', label: () => $L('New Release Window'), desc: () => $L('How long after an episode airs it still counts as new.'), options: getNewReleaseDaysOptions, fallback: () => $L('30 days'), icon: 'calendar_today_outlined', padded: true},
+					{kind: KIND.OPTION, key: 'mediaBarSourceType', label: () => $L('Source'), options: getMediaBarSourceOptions, fallback: () => $L('Random'), icon: 'source', keywords: () => ['random', 'recently added', 'recently released', 'newest', 'new seasons', 'new episodes', 'new movies'], padded: true},
 					{
 						kind: KIND.NAV,
 						id: 'sourceLibraries',
@@ -682,6 +702,21 @@ export const SETTINGS_SCHEMA = [
 						chevron: false,
 						action: (ctx) => ctx.actions.openExcludedGenres()
 					},
+					{kind: KIND.SECTION, id: 'mediaBarNewReleases', label: () => $L('New Releases')},
+					{kind: KIND.TOGGLE, key: 'mediaBarNewReleaseBanner', label: () => $L('New Release Banner'), desc: () => $L('Flag new series, seasons, episodes and movies.'), icon: 'new_releases_outlined', keywords: () => ['new season', 'new episode', 'new movie', 'badge']},
+					{
+						kind: KIND.NAV,
+						id: 'mediaBarNewReleaseKinds',
+						label: () => $L('Labels'),
+						bubble: (ctx) => pickedLabels(newReleaseKindsOf(ctx.settings.mediaBarNewReleaseKinds), getNewReleaseKindOptions(), $L('None selected')),
+						icon: 'label_outline',
+						keywords: () => ['new movie', 'new season', 'new episode', 'new series'],
+						when: (ctx) => ctx.settings.mediaBarNewReleaseBanner !== false,
+						action: (ctx) => ctx.actions.openNewReleaseKinds()
+					},
+					{kind: KIND.OPTION, key: 'mediaBarNewReleaseDays', label: () => $L('New Episode Window'), desc: () => $L('How long after an episode airs it still counts as new.'), options: getNewReleaseDaysOptions, fallback: () => $L('30 days'), icon: 'date_range', padded: true},
+					{kind: KIND.OPTION, key: 'mediaBarNewMovieDays', label: () => $L('New Movie Window'), desc: () => $L('How long a movie stays new after it comes out. Theatrical movies often reach servers a while after their release, so give it longer than for episodes.'), options: getNewMovieDaysOptions, fallback: () => $L('120 days'), icon: 'event_outlined', keywords: () => ['new movie'], padded: true},
+					{kind: KIND.TOGGLE, key: 'mediaBarNewMovieDetail', label: () => $L('Show Tagline'), desc: () => $L("Under New Movie, show the movie's tagline. With none, the label stays on its own."), icon: 'format_quote', keywords: () => ['tagline', 'slogan', 'new movie']},
 					{kind: KIND.SECTION, id: 'mediaBarBehavior', label: () => $L('Behavior')},
 					{kind: KIND.TOGGLE, key: 'autoAdvance', label: () => $L('Auto Advance'), desc: () => $L('Automatically advance to next slide'), icon: 'skip_next'},
 					{kind: KIND.SLIDER, key: 'autoAdvanceInterval', label: () => $L('Auto Advance Interval'), min: 2, max: 20, step: 1, format: seconds, icon: 'timer', when: (ctx) => ctx.settings.autoAdvance},
@@ -962,8 +997,8 @@ export const SETTINGS_SCHEMA = [
 					{kind: KIND.TOGGLE, key: 'preferAudioDescription', label: () => $L('Prefer Audio Description Tracks'), desc: () => $L('Prefer audio description tracks over normal tracks.'), icon: 'hearing'},
 					{kind: KIND.SECTION, id: 'audioOutput', label: () => $L('Audio Output')},
 					{kind: KIND.TEXT, id: 'xboxAudioOutput', text: () => $L("Unless Passthrough is on, Moonfin decodes all sound on the console and sends it on as PCM, so TrueHD, DTS-HD and Atmos do not reach a receiver as they are. What the receiver shows follows the console's own audio settings."), when: (ctx) => ctx.isXbox && !xboxPassesThrough(ctx)},
-					{kind: KIND.TOGGLE, key: 'xboxPassthrough', label: () => $L('Passthrough (Experimental)'), desc: () => $L("Send TrueHD, DTS and Dolby Digital tracks to your receiver as they are. Needs Allow passthrough on in the console's audio settings. Takes effect on the next playback"), icon: 'surround_sound', when: whenXboxPassthrough},
-					{kind: KIND.OPTION, key: 'audioPassthroughMode', label: () => $L('Passthrough'), desc: () => $L('How compressed surround sound reaches your TV or receiver.'), options: getPassthroughModeOptions, fallback: () => $L('Auto'), icon: 'surround_sound', when: (ctx) => !inBrowserElement(ctx)},
+					{kind: KIND.TOGGLE, key: 'xboxPassthrough', label: () => $L('Passthrough (Experimental)'), desc: () => $L("Send TrueHD, DTS and Dolby Digital tracks to your receiver as they are. Needs Allow passthrough on in the console's audio settings. Takes effect on the next playback"), icon: 'surround_sound', when: whenXboxPassthrough, keywords: () => ['silent', 'silence', 'no sound']},
+					{kind: KIND.OPTION, key: 'audioPassthroughMode', label: () => $L('Passthrough'), desc: () => $L('How compressed surround sound reaches your TV or receiver.'), options: getPassthroughModeOptions, fallback: () => $L('Auto'), icon: 'surround_sound', when: (ctx) => !inBrowserElement(ctx), keywords: () => ['silent', 'silence', 'no sound']},
 					{kind: KIND.TOGGLE, key: 'downmixToStereo', label: () => $L('Downmix to Stereo'), desc: () => $L('Mix all decoded audio down to two channels.'), icon: 'speaker'},
 					{kind: KIND.TOGGLE, key: 'stereoUpmixEnabled', label: () => $L('Stereo to Surround Upmix'), desc: () => $L('Upmix stereo audio to 5.1 surround via server transcoding'), icon: 'equalizer', when: (ctx) => !ctx.settings.downmixToStereo},
 					{kind: KIND.SECTION, id: 'passthroughSettings', label: () => $L('Passthrough Settings'), when: whenPassthrough},

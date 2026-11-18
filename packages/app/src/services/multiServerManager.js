@@ -5,11 +5,14 @@
  */
 
 import {getFromStorage, saveToStorage, removeFromStorage} from './storage';
+import {platformFetch} from './secureFetch';
+import {detectServerType} from '../utils/connectionErrors';
 
 // Storage keys
 const SERVERS_KEY = 'jellyfin_servers';
 const ACTIVE_SERVER_KEY = 'jellyfin_active_server';
 const ACTIVE_USER_KEY = 'jellyfin_active_user';
+const SWITCHABLE_TYPES = ['jellyfin', 'emby'];
 
 /**
  * Get all configured servers (normalized structure)
@@ -31,6 +34,27 @@ export const sameSiloHousehold = (entry, self, token = self?.accessToken) => Boo
 	entry.serverId === self.serverId &&
 	((Boolean(self.siloAccountId) && entry.siloAccountId === self.siloAccountId) ||
 		(Boolean(token) && entry.accessToken === token));
+
+// The type a saved Jellyfin or Emby server reports now, which differs from the stored one when another server took
+// over its address or it was saved wrong. Waits two seconds at most and otherwise keeps the stored type, though an
+// answer that comes later is still saved for next time.
+export const checkServerType = (serverId, url, storedType) => {
+	if (!SWITCHABLE_TYPES.includes(storedType) || !url) return Promise.resolve(storedType);
+	const check = platformFetch(`${url}/System/Info/Public`, {}, 10000)
+		.then((response) => (response.ok ? response.json() : null))
+		.then(async (info) => {
+			const detected = info && detectServerType(info.ProductName, info.Version);
+			if (!SWITCHABLE_TYPES.includes(detected) || detected === storedType) return storedType;
+			const servers = await getAllServers();
+			if (servers[serverId]) {
+				servers[serverId].serverType = detected;
+				await saveToStorage(SERVERS_KEY, servers);
+			}
+			return detected;
+		})
+		.catch(() => storedType);
+	return Promise.race([check, new Promise((resolve) => setTimeout(() => resolve(storedType), 2000))]);
+};
 
 /**
  * Get all servers as array (for compatibility and rendering)
@@ -258,7 +282,7 @@ export const setActiveServer = async (serverId, userId) => {
  * @param {string} [serverVersion] - Version reported by the server
  * @returns {Promise<Object>} Created server/user object
  */
-export const addServer = async (serverUrl, serverName, userId, username, accessToken, primaryImageTag, serverType = 'jellyfin', serverVersion = null) => {
+export const addServer = async (serverUrl, serverName, userId, username, accessToken, primaryImageTag, serverType = null, serverVersion = null) => {
 	const servers = await getAllServers();
 
 	// Check if server already exists by URL
@@ -286,8 +310,12 @@ export const addServer = async (serverUrl, serverName, userId, username, accessT
 		};
 		console.log('[MULTI-SERVER] Added new server:', serverName);
 	} else {
-		// Backfill type on a pre-existing entry that predates serverType
-		servers[serverId].serverType = servers[serverId].serverType || serverType || 'jellyfin';
+		// Signing in again found out what the server is now, which can be Emby where Jellyfin was saved or the
+		// other way round. An entry that predates serverType is filled in.
+		const stored = servers[serverId].serverType;
+		servers[serverId].serverType = SWITCHABLE_TYPES.includes(stored) && SWITCHABLE_TYPES.includes(serverType)
+			? serverType
+			: stored || serverType || 'jellyfin';
 		if (serverVersion) servers[serverId].version = serverVersion;
 		console.log('[MULTI-SERVER] Server already exists, adding user');
 	}

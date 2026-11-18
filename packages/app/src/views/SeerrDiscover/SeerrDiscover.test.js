@@ -262,20 +262,20 @@ describe('SeerrDiscover in the Modern style', () => {
 });
 
 describe('discoverSizes', () => {
-	test('posters follow the poster size like Home\'s, and tiles keep 180 by 90 points at Medium', () => {
+	test('posters are Home\'s size, and tiles keep 180 by 90 points at Medium', () => {
 		expect(discoverSizes('default', true)).toEqual({
-			posterWidth: 134, posterHeight: 200, posterGap: 28, rowTop: 34, rowHeight: 349,
+			posterWidth: 240, posterHeight: 360, posterGap: 34, rowTop: 53, rowHeight: 528,
 			tileWidth: 300, tileHeight: 150, logoInset: 27
 		});
-		expect(discoverSizes('small', true)).toMatchObject({posterWidth: 107, posterHeight: 160, tileWidth: 240, tileHeight: 120});
-		expect(discoverSizes('large', true)).toMatchObject({posterWidth: 160, posterHeight: 240, tileWidth: 360, tileHeight: 180});
-		expect(discoverSizes('xlarge', true)).toMatchObject({posterWidth: 187, posterHeight: 280, tileWidth: 420, tileHeight: 210});
+		expect(discoverSizes('small', true)).toMatchObject({posterWidth: 192, posterHeight: 288, tileWidth: 240, tileHeight: 120});
+		expect(discoverSizes('large', true)).toMatchObject({posterWidth: 288, posterHeight: 432, tileWidth: 360, tileHeight: 180});
+		expect(discoverSizes('xlarge', true)).toMatchObject({posterWidth: 336, posterHeight: 504, tileWidth: 420, tileHeight: 210});
 		expect(discoverSizes('grandparents', true)).toEqual(discoverSizes('xlarge', true));
 	});
 
 	test('focus expansion off drops the growth room and its share of the gap', () => {
-		expect(discoverSizes('xlarge', false)).toMatchObject({posterGap: 20, rowTop: 10, rowHeight: 405});
-		expect(discoverSizes('xlarge', true)).toMatchObject({posterGap: 31, rowTop: 44, rowHeight: 439});
+		expect(discoverSizes('xlarge', false)).toMatchObject({posterGap: 20, rowTop: 10, rowHeight: 629});
+		expect(discoverSizes('xlarge', true)).toMatchObject({posterGap: 40, rowTop: 70, rowHeight: 689});
 	});
 });
 

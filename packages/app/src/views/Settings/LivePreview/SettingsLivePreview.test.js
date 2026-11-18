@@ -254,18 +254,18 @@ describe('SettingsLivePreview', () => {
 		}
 	});
 
-	test('Item Count gives the bar a page mark for each item being tried, and the Banner bar seven at most', () => {
+	test('Item Count gives the bar a page mark for each item being tried, the Banner bar seven at most and MakD five', () => {
 		// Each bar spaces its marks its own way, which tells them apart from the rest of the bar.
 		const marks = (gap) => Array.from(document.querySelectorAll('.frame div'))
 			.filter((node) => node.style.marginLeft === gap && node.style.marginRight === gap).length;
-		for (const [featuredBarStyle, gap, banner] of [['moonfin', '4px', false], ['makd', '5px', false], ['aya', '2.5px', false], ['banner', '2px', true]]) {
+		for (const [featuredBarStyle, gap, most] of [['moonfin', '4px', Infinity], ['makd', '2.5px', 5], ['aya', '2.5px', Infinity], ['banner', '2px', 7]]) {
 			const {rerender} = draw({featuredBarStyle, featuredItemCount: 10}, 'setting-featuredItemCount', 'home');
 			expect(screen.getByText('Shows on the Home preview')).toBeTruthy();
-			expect(marks(gap)).toBe(banner ? 7 : 10);
+			expect(marks(gap)).toBe(Math.min(10, most));
 			const row = describeRow('setting-featuredItemCount', mockSettings);
 			for (const value of [5, 20]) {
 				rerender(<SettingsLivePreview scene='home' row={row} trying={{key: 'featuredItemCount', value, index: 0}} onPickScene={() => {}} onLeaveChips={() => {}} />);
-				expect(marks(gap)).toBe(banner ? Math.min(value, 7) : value);
+				expect(marks(gap)).toBe(Math.min(value, most));
 			}
 			cleanup();
 		}

@@ -314,15 +314,21 @@ describe('MediaCard text in classic home rows', () => {
 });
 
 describe('MediaCard Seerr status', () => {
-	const dot = () => document.querySelector('[class~="seerrBadge"]');
+	const dot = () => document.querySelector('[class~="dot"]');
 	const banner = () => document.querySelector('[class~="banner"]');
 	const art = () => document.querySelector('[data-card-art]');
 	const drawPoster = (item, props) => render(<MediaCard item={item} serverUrl="http://server" rowImageType="poster" {...props} />);
 
 	it('keeps the corner dot in badge mode', () => {
 		drawPoster(seerrMovie({mediaInfo: {status: 4}}));
-		expect(dot().className).toContain('seerr4');
+		expect(dot().className).toContain('partial');
 		expect(banner()).toBeNull();
+	});
+
+	it('draws a check in the dot of a title that is available', () => {
+		drawPoster(seerrMovie({mediaInfo: {status: 5}}));
+		expect(dot().className).toContain('available');
+		expect(dot().querySelector('path').getAttribute('d')).toMatch(/^M9 16\.17/);
 	});
 
 	it('shows no dot for a title Seerr has no status for', () => {

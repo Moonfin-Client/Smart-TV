@@ -2212,5 +2212,20 @@
     "SINCE YOU WATCHED": "DESDE QUE LO VISTE",
     "Skipping & Autoplay": "Omisión y Reproducción Automática",
     "Skipping & Queue": "Omitir y Cola",
-    "Slow down a little, then try again.": "Baja un poco el ritmo y vuelve a intentarlo."
+    "Slow down a little, then try again.": "Baja un poco el ritmo y vuelve a intentarlo.",
+    "Recently Added {libraryName}": "Añadido Recientemente en {libraryName}",
+    "Show the Live TV button in the navigation bar when the server has a Live TV library": "Muestra el botón de TV en Directo en la barra de navegación cuando el servidor tiene una biblioteca de TV en directo",
+    "White is much brighter in HDR than in SDR, so a dimmer style here avoids the glare": "El blanco es mucho más brillante en HDR que en SDR, por lo que un estilo más tenue aquí evita el deslumbramiento",
+    "The same address you'd open in a browser, including the port.": "La misma dirección que abrirías en un navegador, incluyendo el puerto.",
+    "Focus Follower": "Seguidor de Enfoque",
+    "A holiday piece, like Halloween's planchette, follows what you select on Home": "Una pieza navideña, como la planchette de Halloween, sigue lo que selecciones en Inicio",
+    "Show each library as its own button in the navigation bar instead of in the Libraries menu": "Mostrar cada biblioteca como un botón independiente en la barra de navegación en lugar de en el menú Bibliotecas",
+    "Arrows turn. The cable never stops.": "Las flechas giran. El cable nunca se detiene.",
+    "Left and Right slide the scrubber.": "Mueve el deslizador hacia la izquierda y hacia la derecha.",
+    "Spoiler safe": "A prueba de spoilers",
+    "Spring Petals": "Pétalos de Primavera",
+    "Start a chat with a friend": "Iniciar un chat con un amigo",
+    "Start a watch party": "Organizar una fiesta para ver el partido",
+    "Start fresh": "Empieza de cero",
+    "Start one or join one in progress": "Inicia uno o únete a uno que ya esté en marcha"
 }

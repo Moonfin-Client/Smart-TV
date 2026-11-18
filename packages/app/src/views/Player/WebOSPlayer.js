@@ -2108,9 +2108,10 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 		// round again on the episode it already started, and reporting a stop
 		// for it would end the session that is still playing.
 		if (episode.Id === item.Id) return;
-		await playback.reportStop(positionRef.current);
+		if (options?.finished) await playback.reportFinished(item, runTimeRef.current, positionRef.current);
+		else await playback.reportStop(positionRef.current);
 		onPlayNext(episode, options);
-	}, [onPlayNext, item.Id]);
+	}, [onPlayNext, item]);
 
 	const cinemaSkip = useCinemaSkip({
 		item, videoQueue, duration, controlsVisible, activeModal,
@@ -2154,7 +2155,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 			liveRecovery?.setPaused(true);
 		},
 		// Called long after the definition below, so reading it now would be too early.
-		onStopPlayback: () => handleBack(), // eslint-disable-line no-use-before-define
+		onStopPlayback: (options) => handleBack(options.finished), // eslint-disable-line no-use-before-define
 		currentIsPreroll: isPreroll(item)
 	});
 
@@ -2653,21 +2654,23 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 		};
 	}, [handleLoadedMetadata, handlePlay, handlePause, handleTimeUpdate, handleWaiting, handlePlaying, handleSeeked, handleEnded, handleError]);
 
-	const teardownPlayback = useCallback(async () => {
+	const teardownPlayback = useCallback(async (finished = false) => {
 		cancelNextEpisodeCountdown();
 		const currentPos = videoRef.current
 			? Math.floor((videoRef.current.currentTime + streamOffsetRef.current) * 10000000)
 			: positionRef.current;
-		await playback.reportStop(currentPos);
+		if (finished) await playback.reportFinished(item, runTimeRef.current, currentPos);
+		else await playback.reportStop(currentPos);
 
 		isCleaningUpRef.current = true;
 		destroyHlsPlayer();
 		await cleanupVideoElement(videoRef.current);
-	}, [cancelNextEpisodeCountdown]);
+	}, [cancelNextEpisodeCountdown, item]);
 
-	const handleBack = useCallback(async () => {
+	// Only Still Watching's Stop passes [finished], and anything else handed in, like a click event, is left out.
+	const handleBack = useCallback(async (finished) => {
 		closingRef.current = true;
-		await teardownPlayback();
+		await teardownPlayback(finished === true);
 		onBack?.();
 	}, [teardownPlayback, onBack]);
 

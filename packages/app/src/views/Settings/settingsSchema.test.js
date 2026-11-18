@@ -183,6 +183,16 @@ describe('settings schema', () => {
 		expect(note.when({...xbox, settings: {...defaultSettings, xboxPassthrough: true, xboxNativePlayer: false}})).toBe(true);
 	});
 
+	test('a search for silent, silence or no sound finds Passthrough', () => {
+		const searchFor = (query, context) => matchSettings(buildSettingsIndex(SETTINGS_SCHEMA, context, {resolve, spotlightIdOf}), query)
+			.map((entry) => entry.spotlightId);
+		const xbox = {...ctx, isWebOS: false, isXbox: true};
+		for (const query of ['silent', 'silence', 'no sound']) {
+			expect(searchFor(query, ctx)).toContain('setting-audioPassthroughMode');
+			expect(searchFor(query, xbox)).toContain('setting-xboxPassthrough');
+		}
+	});
+
 	test('Xbox passthrough is offered only with the console player', () => {
 		const toggle = allRows().find(({row}) => row.key === 'xboxPassthrough').row;
 		const xbox = {...ctx, isWebOS: false, isXbox: true};

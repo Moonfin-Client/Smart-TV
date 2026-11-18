@@ -4,6 +4,7 @@ const fs = require('fs');
 const path = require('path');
 const {LINT_DIRS, runLintGate} = require('../../scripts/lint-gate');
 const {copyReaderAssets} = require('../../scripts/reader-assets');
+const {applyOta} = require('../../scripts/ota');
 
 const APP_DIR = path.resolve(__dirname, '..', 'app');
 const ROOT_DIR = path.resolve(__dirname, '..', '..');
@@ -219,6 +220,8 @@ try {
 			fs.copyFileSync(path.join(webosMeta, file), path.join(DIST_DIR, file));
 		}
 	}
+
+	applyOta({dist: DIST_DIR, platform: 'webos', version: appPkg.version, extraRoots: [[path.join(__dirname, 'service'), 'service/']]});
 
 	// Remove previous Moonfin_webOS_*.ipk files before packaging
 	for (const f of fs.readdirSync(ROOT_DIR).filter(f => /^Moonfin_webOS_.*\.ipk$/.test(f))) {

@@ -16,7 +16,7 @@ import LibraryButtonRow from '../../components/LibraryButtonRow';
 import WatchingNowRow from '../../components/WatchingNowRow';
 import {SkeletonShimmer, skeletonTitleWidths} from '../../components/Skeleton';
 import {getImageUrl, getBackdropId} from '../../utils/helpers';
-import {loadNewReleases} from '../../utils/mediaBarNewRelease';
+import {loadNewReleases, newReleaseKindsOf} from '../../utils/mediaBarNewRelease';
 import {createApiForServer} from '../../services/jellyfinApi';
 import {channelForProgram, isLiveTvProgram} from '../../utils/liveTvLibrary';
 import {focusedCardIndex, cardToRestore, focusedRowIndex, rowToRestore} from '../../utils/rowFocusMemory';
@@ -234,20 +234,24 @@ const Browse = ({
 	// first slide.
 	const [newReleases, setNewReleases] = useState(null);
 	const newReleaseBanner = settings.mediaBarNewReleaseBanner;
-	const newReleaseDays = settings.mediaBarNewReleaseDays;
+	const {
+		mediaBarNewReleaseDays: newReleaseDays, mediaBarNewReleaseKinds: newReleaseKinds,
+		mediaBarNewMovieDays: newMovieDays, mediaBarNewMovieDetail: newMovieTagline
+	} = settings;
 	useEffect(() => {
 		if (!newReleaseBanner || !showFeaturedBar || featuredItems.length === 0) return undefined;
 		let cancelled = false;
 		const apiFor = (item) => (item._serverUrl && item._serverAccessToken
 			? createApiForServer(item._serverUrl, item._serverAccessToken, item._serverUserId)
 			: api);
-		loadNewReleases(featuredItems, newReleaseDays, apiFor).then((releases) => {
+		const options = {days: newReleaseDays, movieDays: newMovieDays, kinds: newReleaseKindsOf(newReleaseKinds), tagline: newMovieTagline !== false};
+		loadNewReleases(featuredItems, options, apiFor).then((releases) => {
 			if (!cancelled) setNewReleases(releases);
 		});
 		return () => {
 			cancelled = true;
 		};
-	}, [api, featuredItems, newReleaseBanner, newReleaseDays, showFeaturedBar]);
+	}, [api, featuredItems, newReleaseBanner, newReleaseDays, newMovieDays, newMovieTagline, newReleaseKinds, showFeaturedBar]);
 	const shownReleases = newReleaseBanner ? newReleases : null;
 
 	const mergeContinueWatchingNextUp = mergesContinueWatchingNextUp(settings);
@@ -728,6 +732,8 @@ const Browse = ({
 		}
 	}, [handleSelectSeerrItem, handleSelectItem]);
 
+	const handlePlayFeaturedItem = useCallback((item) => handleSelectItem(item, true), [handleSelectItem]);
+
 	// The rows ignore a changed callback, so one drawn while Home sat hidden behind Details kept a
 	// handler that cant navigate. These always call the current one.
 	const latestSelectRef = useRef(null);
@@ -934,6 +940,7 @@ const Browse = ({
 							settingsLoaded={settingsLoaded}
 							getItemServerUrl={getItemServerUrl}
 							onSelectItem={handleSelectExternalItem}
+							onPlayItem={handlePlayFeaturedItem}
 							onNavigateDown={handleNavigateDownFromFeatured}
 							onFeaturedFocus={handleFeaturedFocusCallback}
 						/>

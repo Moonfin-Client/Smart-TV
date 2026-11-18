@@ -7,7 +7,7 @@ import {
 	initTizenAPI, registerAppStateObserver, keepScreenOn, getTizenVersion,
 	avplayOpen, avplayPrepare, avplayPlay, avplayPause,
 	avplaySeek as streamSeek, avplaySeekIdle as streamSeekIdle, avplaySetPostSeekHook, avplayGetCurrentTime as streamGetCurrentTime,
-	avplayGetDuration as streamGetDuration, avplayGetLiveRange, avplayGetState,
+	avplayGetDuration as streamGetDuration, avplayGetLiveRange, avplayGetBandwidth, avplayGetState,
 	avplaySetListener, avplaySelectTrack, avplaySetSilentSubtitle,
 	avplayGetTracks, avplayGetCurrentTracks, avplaySetDisplayMethod, avplaySetStreamingProperty, setDisplayWindow, cleanupAVPlay,
 	avplaySetBufferingParams, avplaySuspend, avplayRestore, waitForHlsManifest
@@ -40,7 +40,7 @@ import {applyResumeRewind, skipBackSeconds, skipForwardSeconds, zoomInternalFrom
 import {getZoomModeOptions} from '../Settings/settingsOptions';
 import {saveAudioPref, saveSubtitlePref} from '../../services/subtitlePrefs';
 import {getVolumeState, setMuted as setSystemMuted} from '../../services/systemVolume';
-import {resolveSeriesAudio} from './initialAudio';
+import {asServerAudioStream, directPlayAudio, resolveSeriesAudio} from './initialAudio';
 import {resolveInitialSubtitle} from './initialSubtitle';
 import {api as jellyfinApi, createApiForServer, getServerType, getServerUrl} from '../../services/jellyfinApi';
 import {getApiForItem} from '../../services/connectionPool';
@@ -143,8 +143,12 @@ const avplayGetDuration = () => {
 	const ms = streamGetDuration();
 	return ms > 0 ? ms + streamTimeline.offsetMs : ms;
 };
+let lastSeekAt = 0;
 // A seek into the open stream, as a resume makes.
-const seekStream = (titleMs) => streamSeek(streamMs(titleMs));
+const seekStream = (titleMs) => {
+	lastSeekAt = Date.now();
+	return streamSeek(streamMs(titleMs));
+};
 const avplaySeek = (titleMs) => {
 	// Resolves once Silo's new stream is open there, so a caller that waits on the seek (a group seek) settles on it.
 	if (streamTimeline.seeksThroughServer && streamTimeline.seekThroughServer) {
@@ -779,7 +783,8 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 		streamTimeline.offsetMs = (mediaSource?.SiloTimelineOffsetTicks || 0) / 10000;
 		streamTimeline.seeksThroughServer = mediaSource?.SiloSeeksThroughServer === true;
 		applyDisplayWindow();
-		avplaySetBufferingParams({bitrate: mediaSource?.Bitrate});
+		const buffering = avplaySetBufferingParams({bitrate: mediaSource?.Bitrate});
+		serverLogger.playback('Playback: opening the stream', {playMethod: method, hls: isHls, buffering});
 
 		// Samsung AVPlay rejects some Jellyfin transcode endpoints with the
 		// default system User-Agent. USER_AGENT first, USERAGENT fallback for older firmwares.
@@ -844,13 +849,25 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 			});
 		};
 
+		let bufferingSince = 0;
+		let bufferingAtMs = 0;
+
 		avplaySetListener({
 			onbufferingstart: () => {
+				bufferingSince = Date.now();
+				bufferingAtMs = avplayGetCurrentTime();
 				reconnectRef.current?.interrupted();
 				setIsBuffering(true);
 				liveRecoveryRef.current?.update({buffering: true});
 			},
 			onbufferingcomplete: () => {
+				if (bufferingSince) {
+					const context = {positionMs: bufferingAtMs, waitedMs: Date.now() - bufferingSince, bandwidth: avplayGetBandwidth()};
+					if (!playIssued) serverLogger.playback('Playback: first buffer filled', context);
+					else if (bufferingSince - lastSeekAt < 3000) serverLogger.playback('Playback: buffered after a seek', context);
+					else serverLogger.warn(serverLogger.LOG_CATEGORIES.PLAYBACK, 'Playback: stalled to buffer', context);
+					bufferingSince = 0;
+				}
 				setIsBuffering(false);
 				liveRecoveryRef.current?.update({buffering: false});
 				latchResolve();
@@ -1525,7 +1542,12 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 				const preferredAudio = rememberedAudio || selectPreferredAudioStream(result.audioStreams, settings);
 				const serverAudio = result.audioStreams?.find(s => s.index === result.defaultAudioStreamIndex);
 				const fileDefaultAudio = result.audioStreams?.find(s => s.isDefault);
-				const autoAudio = preferredAudio || serverAudio || fileDefaultAudio;
+				const autoPick = preferredAudio || serverAudio || fileDefaultAudio;
+				// A codec the user has the server convert is renegotiated below instead.
+				const autoAudio = result.playMethod === playback.PlayMethod.DirectPlay && !transcodesAudioCodec(settings, autoPick?.codec)
+					? await directPlayAudio(autoPick, result.audioStreams, result.selectedAudioStreamIndex,
+						(stream) => playback.canPlayAudioStreamNatively(asServerAudioStream(stream)))
+					: autoPick;
 
 				// A remux or transcode carries only the track the server built it around, so
 				// switching on the player cant reach any other one. Direct play gets the
@@ -2063,13 +2085,14 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 		if (episode.Id === item.Id) return;
 		stopTimeUpdatePolling();
 		const generation = loadGenerationRef.current;
-		await playback.reportStop(positionRef.current);
+		if (options?.finished) await playback.reportFinished(item, runTimeRef.current, positionRef.current);
+		else await playback.reportStop(positionRef.current);
 		// the ended event can load the next one during the stop, leave its player alone
 		if (generation !== loadGenerationRef.current) return;
 		cleanupAVPlay();
 		avplayReadyRef.current = false;
 		onPlayNext(episode, options);
-	}, [onPlayNext, stopTimeUpdatePolling, item.Id]);
+	}, [onPlayNext, stopTimeUpdatePolling, item]);
 
 	const cinemaSkip = useCinemaSkip({
 		item, videoQueue, duration, controlsVisible, activeModal,
@@ -2147,7 +2170,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 		onPlayNext: onPlayNextWithCleanup,
 		onPausePlayback: () => { avplayPause(); setIsPaused(true); },
 		// Called long after the definition below, so reading it now would be too early.
-		onStopPlayback: () => handleBack(), // eslint-disable-line no-use-before-define
+		onStopPlayback: (options) => handleBack(options.finished), // eslint-disable-line no-use-before-define
 		currentIsPreroll: isPreroll(item)
 	});
 
@@ -2340,20 +2363,22 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 	// ==============================
 	// Control Actions (AVPlay-based)
 	// ==============================
-	const teardownPlayback = useCallback(async () => {
+	const teardownPlayback = useCallback(async (finished = false) => {
 		const generation = ++loadGenerationRef.current;
 		cancelNextEpisodeCountdown();
 		stopTimeUpdatePolling();
-		await playback.reportStop(positionRef.current);
+		if (finished) await playback.reportFinished(item, runTimeRef.current, positionRef.current);
+		else await playback.reportStop(positionRef.current);
 		// A load started while the stop was out already cleared the old pipeline and set up its own.
 		if (generation !== loadGenerationRef.current) return;
 		cleanupAVPlay();
 		avplayReadyRef.current = false;
-	}, [cancelNextEpisodeCountdown, stopTimeUpdatePolling]);
+	}, [cancelNextEpisodeCountdown, stopTimeUpdatePolling, item]);
 
-	const handleBack = useCallback(async () => {
+	// Only Still Watching's Stop passes [finished], and anything else handed in, like a click event, is left out.
+	const handleBack = useCallback(async (finished) => {
 		closingRef.current = true;
-		await teardownPlayback();
+		await teardownPlayback(finished === true);
 		onBack?.();
 	}, [teardownPlayback, onBack]);
 
@@ -2682,9 +2707,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 				// track the set cant decode freezes the picture, so reload and let the
 				// server transcode instead
 				const target = (audioStreams || []).find((s) => s.index === index);
-				const playableNatively = !transcodesAudioCodec(settings, target?.codec) && await playback.canPlayAudioStreamNatively(target
-					? {Codec: target.codec, Profile: target.profile, Title: target.title, DisplayTitle: target.displayTitle, ChannelLayout: target.channelLayout, Channels: target.channels}
-					: null);
+				const playableNatively = !transcodesAudioCodec(settings, target?.codec) && await playback.canPlayAudioStreamNatively(asServerAudioStream(target));
 				if (!playableNatively) {
 					serverLogger.playback('Audio: track needs the server, reloading instead of switching natively', {
 						jellyfinIndex: index,

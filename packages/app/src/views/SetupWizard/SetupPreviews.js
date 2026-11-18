@@ -5,7 +5,7 @@
 // real screen's proportions. The artwork comes from the viewer's own library,
 // with drawn stand ins until it arrives.
 
-import {Fragment, lazy, Suspense, useState, useEffect, useMemo, useRef, useCallback} from 'react';
+import {Fragment, createContext, lazy, Suspense, useContext, useState, useEffect, useMemo, useRef, useCallback} from 'react';
 import $L from '@enact/i18n/$L';
 import SpotlightContainerDecorator from '@enact/spotlight/SpotlightContainerDecorator';
 
@@ -20,13 +20,15 @@ import RatingsRow from '../../components/RatingsRow';
 import MediaBarNewReleaseLabel from '../../components/MediaBarNewReleaseLabel';
 import PosterLabels from '../../components/PosterLabels';
 import {iconViewBox} from '../../components/icons/iconViewBox';
+import {MaterialIcon} from '../../components/icons/materialIcons';
 import {getRtFallbackIcon} from '../../components/icons/rtIcons';
 import {buildDisplayRatings, isMdblistEnabled} from '../../services/mdblistApi';
 import {resolveFocusBorderColor, toCssColor, toRgbTriplet, radiusToCss} from '../../theme/themeSpec';
-import {resolveOverlayColor} from '../../theme/overlayColors';
+import {makdTint, resolveOverlayColor} from '../../theme/overlayColors';
 import {resolveThemeById} from '../../theme/themeRegistry';
 import {arrange, countSplit, applyButtonLimit, DETAIL_BUTTONS, DETAIL_ORDER_KEY, DETAIL_HIDDEN_KEY} from '../../utils/buttonLayout';
 import {formatClockTime} from '../../utils/clock';
+import {formatPlaybackEndsAt} from '../../utils/playbackTimeLabels';
 import {DETAIL_METADATA, DETAIL_METADATA_ORDER_KEY, DETAIL_METADATA_HIDDEN_KEY} from '../../utils/detailMetadataLayout';
 import {formatFileSize} from '../../utils/formatFileSize';
 import {homeBackdropStyle} from '../../utils/homeBackdropStyle';
@@ -36,7 +38,7 @@ import {rootScale} from '../../utils/rootScale';
 import {memoryCache} from '../Browse/browseCache';
 import {classicCardSize} from '../../components/MediaCard/MediaCard';
 import {CAROUSEL_PANEL_SCRIM, homeRowSpacing, modernCardMetrics} from '../../components/MediaCard/modernCardLayout';
-import {rowPeekHeight} from '../Browse/rowPeek';
+import {classicShape, rowImageType, rowPeekHeight} from '../Browse/rowPeek';
 import {genreGlowRgb} from '../Browse/galleryGlow';
 import {DETAIL_ICON_PATHS} from '../Details/detailIcons';
 import {getMediaBadges} from '../Details/detailsMedia';
@@ -125,6 +127,7 @@ export const usePreviewPalette = () => {
 			backgroundA: (a) => withAlpha(colors.background, a),
 			surfaceA: (a) => withAlpha(colors.surface, a),
 			overlayA: (a) => withAlpha(overlayHex, a * overlayOpacity),
+			makdA: (a) => withAlpha(makdTint(overlayHex), a * overlayOpacity),
 			// The rail wears the navbar color on every theme, and only the top bar clears it for
 			// a theme asking for a transparent nav surface, the same as the real ones.
 			navbarRail: navbarOverlay,
@@ -185,6 +188,9 @@ const useFitScale = (designW, designH) => {
 	return [ref, scale];
 };
 
+// How wide a screen lays its content out, which a UI scale narrows.
+const ScreenWidth = createContext(DESIGN_W);
+
 // [zoom] lays the screen out that much bigger, the way a UI scale does, so less of it fits.
 const PreviewScreen = ({zoom = 1, children}) => {
 	const t = usePreviewPalette();
@@ -192,7 +198,7 @@ const PreviewScreen = ({zoom = 1, children}) => {
 	return (
 		<div ref={ref} className={css.screenOuter}>
 			<div className={css.screenInner} style={{width: DESIGN_W / zoom, height: DESIGN_H / zoom, transform: `scale(${scale * zoom})`, backgroundColor: t.background}}>
-				{children}
+				<ScreenWidth.Provider value={DESIGN_W / zoom}>{children}</ScreenWidth.Provider>
 			</div>
 		</div>
 	);
@@ -364,7 +370,7 @@ const MetadataWrap = ({item, t, parts = metaParts(item)}) => {
 };
 
 // One mark per item Item Count gives the bar, up to [max].
-const Dots = ({max = Infinity, active, inactive, inactiveAlpha, gap = 4, pillActive = false, height, t}) => {
+const Dots = ({max = Infinity, active, inactive, inactiveAlpha, gap = 4, pillActive = false, height, activeScale, t}) => {
 	const {settings} = useSettings();
 	const count = Math.min(settings.featuredItemCount || 10, max);
 	const dots = [];
@@ -380,7 +386,8 @@ const Dots = ({max = Infinity, active, inactive, inactiveAlpha, gap = 4, pillAct
 					marginLeft: gap,
 					marginRight: gap,
 					borderRadius: pillActive ? 3 : '50%',
-					backgroundColor: i === 0 ? t.onSurface : t.onSurfaceA(inactiveAlpha)
+					backgroundColor: i === 0 ? t.onSurface : t.onSurfaceA(inactiveAlpha),
+					transform: i === 0 && activeScale ? `scale(${activeScale})` : undefined
 				}}
 			/>
 		);
@@ -544,6 +551,8 @@ const RowCard = ({item, height, aspect, imageUrl, progress, focused = false, cla
 const FocusedRowCard = ({item, posterHeight, carousel = false, t}) => {
 	const {settings} = useSettings();
 	const width = posterHeight * 16 / 9;
+	// The ratings and overview run to the end of the row, as on Home.
+	const detailsWidth = useContext(ScreenWidth) - ROW_LEFT_INSET - 20;
 	return (
 		<div style={{width, flexShrink: 0, marginRight: 12}}>
 			<div style={{position: 'relative', width, height: posterHeight}} data-held-focus>
@@ -565,8 +574,8 @@ const FocusedRowCard = ({item, posterHeight, carousel = false, t}) => {
 						</div>
 					)}
 					<div style={{position: 'relative', width, height: 76, marginTop: 4}}>
-						<div style={{position: 'absolute', left: 0, top: 0, width: width * 2.4}}>
-							<PreviewRatings item={item} surface='homeRows' compact singleLineWidth={width * 2.4} zoom={0.5 * ROW_SCALE} />
+						<div style={{position: 'absolute', left: 0, top: 0, width: detailsWidth}}>
+							<PreviewRatings item={item} surface='homeRows' compact singleLineWidth={detailsWidth} zoom={0.5 * ROW_SCALE} />
 							{item.overview && !settings.hideHomeMediaDescription && (
 								<div style={{marginTop: 4, fontSize: 12, lineHeight: 1.4, color: t.onSurfaceA(0.7), textShadow: TEXT_SHADOW, ...clampLines(3)}}>
 									{item.overview}
@@ -712,7 +721,10 @@ const HomeRowsColumn = ({items, rows, t, modern, focusFirst = false, carousel: c
 	const {posterHeight, thumbHeight} = rowCardHeights(settings, modern);
 	// The space Home leaves below each row, at the design screen's half size. Expanded Rows gives
 	// each row a screen of its own, so the next one starts below the frame.
-	const spacing = homeRowSpacing({...settings, homeRowsStyle: modern ? 'v2' : 'v1'});
+	const rowSettings = {...settings, homeRowsStyle: modern ? 'v2' : 'v1'};
+	const spacing = homeRowSpacing(rowSettings);
+	// A sample row takes the shape Home gives the row it stands for.
+	const sampleShape = (row, cardType) => classicShape(cardType, rowImageType(row, rowSettings));
 	const rowGap = spacing === null ? DESIGN_H : spacing / 2;
 	const first = rows ? rows[0].items[0] : items[0];
 	return (
@@ -759,11 +771,11 @@ const HomeRowsColumn = ({items, rows, t, modern, focusFirst = false, carousel: c
 				</Fragment>
 			)) : (
 				<>
-					<HomeRow title={$L('Continue Watching')} items={items} t={t} modern={modern} shape='landscape' withFocus={focusFirst} posterHeight={posterHeight} thumbHeight={thumbHeight} carousel={carousel} />
+					<HomeRow title={$L('Continue Watching')} items={items} t={t} modern={modern} shape={sampleShape({id: 'resume'}, 'landscape')} withFocus={focusFirst} posterHeight={posterHeight} thumbHeight={thumbHeight} carousel={carousel} />
 					<div style={{height: rowGap}} />
-					<HomeRow title={$L('Recently Added')} items={items} t={t} modern={modern} offset={3} posterHeight={posterHeight} thumbHeight={thumbHeight} carousel={carousel} />
+					<HomeRow title={$L('Recently Added')} items={items} t={t} modern={modern} shape={sampleShape({isLatestRow: true}, 'portrait')} offset={3} posterHeight={posterHeight} thumbHeight={thumbHeight} carousel={carousel} />
 					<div style={{height: rowGap}} />
-					<HomeRow title={$L('Next Up')} items={items} t={t} modern={modern} shape='landscape' offset={6} posterHeight={posterHeight} thumbHeight={thumbHeight} carousel={carousel} />
+					<HomeRow title={$L('Next Up')} items={items} t={t} modern={modern} shape={sampleShape({id: 'nextup'}, 'landscape')} offset={6} posterHeight={posterHeight} thumbHeight={thumbHeight} carousel={carousel} />
 				</>
 			)}
 		</div>
@@ -821,33 +833,75 @@ const MoonfinBar = ({items, t, rowPeek = 0}) => {
 	);
 };
 
+// makd's v6 Classic on the half size screen, so every measure is the TV's halved.
+const MAKD_FADE = 'linear-gradient(to top, transparent 2%, rgba(0, 0, 0, 0.5) 6%, #000 8%)';
+const MakdSep = () => (
+	<svg width={5} height={5} viewBox='0 0 24 24' style={{flexShrink: 0, margin: '0 5px'}} aria-hidden='true'>
+		<circle cx='12' cy='12' r='8' fill='rgba(255, 255, 255, 0.55)' />
+	</svg>
+);
+const makdCircle = {width: 25, height: 25, borderRadius: '50%', border: '1px solid rgba(255, 255, 255, 0.35)', backgroundColor: 'rgba(0, 0, 0, 0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', boxSizing: 'border-box'};
+
 const MakdBar = ({items, t, rowPeek = 0}) => {
+	const {settings} = useSettings();
 	const item = items[0];
-	const contentWidth = Math.min(560, Math.max(280, DESIGN_W * 0.42));
+	const contentBottom = rowPeek + 17.5;
+	const info = [];
+	if (item.communityRating) {
+		info.push(
+			<span key='stars' style={{display: 'flex', alignItems: 'center'}}>
+				<MaterialIcon name='star' style={{width: 14, height: 14, marginRight: 1.75, color: '#f2b01e'}} />
+				{item.communityRating.toFixed(1)}
+			</span>
+		);
+	}
+	if (item.year) info.push(<span key='year'>{item.year}</span>);
+	if (item.officialRating) {
+		info.push(<span key='age' style={{borderRadius: 2.5, backgroundColor: 'rgba(255, 255, 255, 0.8)', color: '#000', fontWeight: 600, padding: '0 5px'}}>{item.officialRating}</span>);
+	}
+	const endsAt = item.type !== 'Series' && item.runtimeMinutes
+		? formatPlaybackEndsAt(item.runtimeMinutes * 60, settings.clockDisplay, settings.timeOffsetHours)
+		: '';
+	if (endsAt) info.push(<span key='ends'>{endsAt}</span>);
+	const separated = (nodes) => nodes.reduce((all, node, i) => (i > 0 ? [...all, <MakdSep key={`s${i}`} />, node] : [node]), []);
+	const font = {fontFamily: "'Archivo Narrow', 'Roboto', sans-serif", fontSize: 10, color: '#fff', display: 'flex', alignItems: 'center', flexWrap: 'wrap'};
 	return (
 		<div style={{position: 'relative', width: '100%', height: '100%'}}>
-			<Artwork url={item.backdropUrl} t={t} />
-			<div style={{...ABS_FILL, backgroundColor: 'rgba(0, 0, 0, 0.64)'}} />
-			<div style={{position: 'absolute', left: 50, top: DESIGN_H * 0.22}}>
-				<LogoOrTitle
-					item={item}
-					width={Math.min(640, Math.max(220, DESIGN_W * 0.45))}
-					height={Math.min(300, Math.max(90, DESIGN_H * 0.35))}
-					fallbackStyle={{fontSize: 30, fontWeight: 800, lineHeight: 1.05, color: t.onSurface, textShadow: TEXT_SHADOW}}
-				/>
-				<MediaBarNewReleaseLabel release={item.newRelease} small />
+			<div style={{...ABS_FILL, WebkitMaskImage: MAKD_FADE, maskImage: MAKD_FADE}}>
+				<Artwork url={item.backdropUrl} position='center 20%' t={t} />
+				<div style={{...ABS_FILL, backgroundColor: t.makdA(0.4)}} />
+				<div style={{...ABS_FILL, background: `linear-gradient(130deg, ${t.makdA(1.3)} 10%, ${t.makdA(0.7)} 30%, ${t.makdA(0)} 100%)`}} />
 			</div>
-			<div style={{position: 'absolute', left: 50, bottom: 20 + rowPeek, width: contentWidth}}>
-				<MetadataWrap item={item} t={t} />
-				<PreviewRatings item={item} surface='mediaBar' compact />
+			<div style={{position: 'absolute', left: DESIGN_W * 0.04, bottom: contentBottom, width: DESIGN_W * 0.46, display: 'flex', flexDirection: 'column', alignItems: 'flex-start'}}>
+				<div style={{marginBottom: 4}}>
+					<LogoOrTitle
+						item={item}
+						width={DESIGN_W * 0.46}
+						height={DESIGN_H * 0.22}
+						fallbackStyle={{fontSize: 40, fontWeight: 400, lineHeight: 1.1, color: '#fff'}}
+					/>
+				</div>
+				<MediaBarNewReleaseLabel release={item.newRelease} small />
+				{info.length > 0 && <div style={{...font, fontWeight: 500, marginTop: 9}}>{separated(info)}</div>}
+				{item.genres.length > 0 && (
+					<div style={{...font, marginTop: 9}}>{separated(item.genres.slice(0, 3).map((genre) => <span key={genre}>{genre}</span>))}</div>
+				)}
 				{item.overview && (
-					<div style={{marginTop: 10, fontSize: 14, lineHeight: 1.38, color: t.onSurfaceA(0.88), ...clampLines(3)}}>
+					<div style={{marginTop: 9, fontFamily: "'NotoSans', 'Roboto', sans-serif", fontSize: 10, lineHeight: 1.35, color: '#fff', ...clampLines(3)}}>
 						{item.overview}
 					</div>
 				)}
+				<div style={{display: 'flex', alignItems: 'center', marginTop: 13}}>
+					<div style={makdCircle}><MIcon name='info' size={11} color='#fff' /></div>
+					<div style={{display: 'flex', alignItems: 'center', height: 25, marginLeft: 7.5, padding: '0 6.3px', borderRadius: 4, backgroundColor: '#fff', color: '#000', fontFamily: "'Archivo Narrow', 'Roboto', sans-serif", fontSize: 9, fontWeight: 700}}>
+						<MIcon name='play_arrow' size={11} color='#000' style={{marginRight: 3}} />
+						{$L('Play')}
+					</div>
+					<div style={{...makdCircle, marginLeft: 7.5}}><MIcon name='favorite' size={11} color='#fff' /></div>
+				</div>
 			</div>
-			<div style={{position: 'absolute', right: 20, bottom: 24 + rowPeek}}>
-				<Dots active={9} inactive={7} inactiveAlpha={0.45} gap={5} t={t} />
+			<div style={{position: 'absolute', right: DESIGN_W * 0.03, bottom: contentBottom}}>
+				<Dots max={5} active={5} inactive={5} inactiveAlpha={0.6} gap={2.5} activeScale={1.7} t={t} />
 			</div>
 		</div>
 	);
@@ -1673,10 +1727,13 @@ const FallbackMediaBar = ({mode, t}) => {
 	}
 	if (mode === 'makd') {
 		return (
-			<div style={{width: '100%', height: '100%', ...fallBackdrop(t), display: 'flex', alignItems: 'center', justifyContent: 'center'}}>
-				<div style={{width: '56%', height: '62%', padding: 6, backgroundColor: t.onSurfaceA(0.1), borderRadius: 6, border: `1px solid ${t.onSurfaceA(0.16)}`, display: 'flex', flexDirection: 'column', justifyContent: 'flex-end'}}>
-					<FallBar width={34} height={4} color={strong} />
-					<FallBar width={20} height={4} color={weak} style={{marginTop: 3}} />
+			<div style={{width: '100%', height: '100%', ...fallBackdrop(t), display: 'flex', flexDirection: 'column', justifyContent: 'flex-end', padding: '0 0 35% 4%', boxSizing: 'border-box'}}>
+				<FallBar width={34} height={6} color={strong} />
+				<FallBar width={24} height={3} color={weak} style={{marginTop: 4}} />
+				<div style={{display: 'flex', marginTop: 4}}>
+					<FallBar width={6} height={6} color={weak} style={{borderRadius: '50%'}} />
+					<FallBar width={14} height={6} color={strong} style={{marginLeft: 3}} />
+					<FallBar width={6} height={6} color={weak} style={{borderRadius: '50%', marginLeft: 3}} />
 				</div>
 			</div>
 		);

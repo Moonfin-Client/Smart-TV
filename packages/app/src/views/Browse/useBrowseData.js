@@ -9,7 +9,7 @@ import {isSiloServer} from '../../utils/siloUrls';
 import * as connectionPool from '../../services/connectionPool';
 import * as seerrApi from '../../services/seerrApi';
 import browseReducer, {browseInitialState, mergeRowsById, replaceRecentRows} from './browseReducer';
-import {BROWSE_ROW_LOADERS, buildLoaderContext, loadDeferredSections, loadLatestAndRecentlyReleased, loadSinceYouWatched} from './browseRowLoaders';
+import {BROWSE_ROW_LOADERS, buildLoaderContext, loadDeferredSections, loadLatestAndRecentlyReleased, loadSinceYouWatched, onNowRow} from './browseRowLoaders';
 import {headLengthFor, moreAfter, nextHeadLength, pageableRow, withRowPage} from './rowPaging';
 import {addSeriesProviderIds, genericCollectionLabel, mergeRecentRows} from '../../utils/mergeRecentRows';
 import {mergeLibrariesByType} from '../../utils/mergedCopies';
@@ -17,7 +17,7 @@ import {normalizeLatestMediaItems} from '../../utils/latestMediaRowNormalizer';
 import {EXCLUDED_COLLECTION_TYPES, filterItemsByExcludedGenres, matchesContentType} from './browseFilters';
 import {featuredConfigKey} from './featuredConfig';
 import {withExternalSlides} from './featuredExternal';
-import {readDatedSource, readFeaturedSources} from './featuredSources';
+import {readDatedSource, readFeaturedSources, withBarFields} from './featuredSources';
 import {DATED_SOURCES} from '../../utils/mediaBarNewRelease';
 import {shuffleArray} from '../Details/detailsMedia';
 import {withoutBlockedItems} from '../../services/parentalControls';
@@ -83,6 +83,7 @@ const useBrowseData = ({
 
 	const lastVolatileRefreshRef = useRef(0);
 	const loadFetchedVolatileRef = useRef(0);
+	const onNowRequestRef = useRef(0);
 	const refreshRecentRowsRef = useRef(null);
 	// Counts the loads, so a refresh of the recent rows that a reload overtook is dropped.
 	const loadGenerationRef = useRef(0);
@@ -188,7 +189,7 @@ const useBrowseData = ({
 				// The plugin answers from the synced picks, so it has to read the profile this TV syncs with.
 				const mediaBarResult = await seerrApi.getMoonfinMediaBar(serverUrl, accessToken, activeSyncProfile(s.syncProfile));
 				if (mediaBarResult?.Items?.length) {
-					items = mediaBarResult.Items;
+					items = await withBarFields(mediaBarResult.Items, api.getItems);
 				}
 			}
 
@@ -200,7 +201,14 @@ const useBrowseData = ({
 
 			// Merged libraries keep the random draw, since the dated sources read one server.
 			if (items.length === 0 && datedSource && !unifiedMode) {
-				const options = {contentType: s.featuredContentType, days: s.mediaBarNewReleaseDays, hideWatched: s.hideWatchedInRecentRows === true};
+				const options = {
+					contentType: s.featuredContentType,
+					days: s.mediaBarNewReleaseDays,
+					movieDays: s.mediaBarNewMovieDays,
+					seriesType: s.recentlyReleasedSeriesType,
+					count,
+					hideWatched: s.hideWatchedInRecentRows === true
+				};
 				const readSource = async (parentId) => ({Items: await readDatedSource(api, sourceType, parentId, options)});
 				items = pickFrom(await readFeaturedSources(hasSourceFilter ? sourceIds : [null], readSource, isUsable, count));
 			}
@@ -259,6 +267,12 @@ const useBrowseData = ({
 		}
 		if (!force && Date.now() - lastVolatileRefreshRef.current < VOLATILE_REFRESH_COOLDOWN_MS) return;
 		lastVolatileRefreshRef.current = Date.now();
+		// Time away moves On Now along too. A failed read leaves the row as it was, and only the newest read
+		// lands, since an older one answering last would bring back programs that have ended.
+		const onNowRequest = ++onNowRequestRef.current;
+		const onNowRead = homeRowsConfig.some((row) => row.enabled && row.id === 'onnow')
+			? api.getLiveTvAiringPrograms(20).catch(() => null)
+			: null;
 		try {
 			let resumeItems, nextUp;
 			let resumeLimit = 0;
@@ -303,6 +317,8 @@ const useBrowseData = ({
 			}
 
 			dispatch({type: 'REFRESH_VOLATILE', volatileRows});
+			const onNow = await onNowRead;
+			if (onNow && onNowRequest === onNowRequestRef.current) dispatch({type: 'REFRESH_ON_NOW', row: onNowRow(onNow)});
 			if (memoryCache.rowData) {
 				const filtered = memoryCache.rowData.filter(r => r.id !== 'resume' && r.id !== 'nextup');
 				memoryCache.rowData = [...volatileRows, ...filtered];
@@ -314,7 +330,7 @@ const useBrowseData = ({
 		} catch (e) {
 			console.warn('[Browse] Background refresh failed:', e);
 		}
-	}, [unifiedMode, cacheOwner, settings.nextUpMaxDays, readResume, readNextUp]);
+	}, [api, homeRowsConfig, unifiedMode, cacheOwner, settings.nextUpMaxDays, readResume, readNextUp]);
 
 	// Signing in as someone else has to throw the rows away. Leaving the home screen and
 	// coming back must not, and it used to, because an effect runs when it first mounts

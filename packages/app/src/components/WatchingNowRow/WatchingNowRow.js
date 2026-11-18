@@ -5,7 +5,7 @@ import $L from '@enact/i18n/$L';
 import MediaCard from '../MediaCard';
 import {KEYS} from '../../utils/keys';
 import {useSettings} from '../../context/SettingsContext';
-import {CORE_ICON_PATHS} from '../../views/Settings/settingsCoreIcons';
+import {HOME_CORE_ICON_PATHS} from '../icons/homeIconPaths';
 
 import rowCss from '../MediaRow/MediaRow.module.less';
 import css from './WatchingNowRow.module.less';
@@ -149,7 +149,7 @@ const WatchingNowRow = ({
 			style={rowStyle}
 		>
 			<div className={css.header}>
-				<svg className={css.globeIcon} viewBox="0 0 24 24"><path d={CORE_ICON_PATHS.public} /></svg>
+				<svg className={css.globeIcon} viewBox="0 0 24 24"><path d={HOME_CORE_ICON_PATHS.public} /></svg>
 				<h2 className={`${rowCss.title} ${css.title}`}>{title}</h2>
 			</div>
 			{subtitle && (

@@ -1,4 +1,4 @@
-import {isRecentlyAiredEpisode, loadNewReleases, newReleaseOf, seasonToCheck, NEW_EPISODES, NEW_SEASON, NEW_SERIES} from './mediaBarNewRelease';
+import {isRecentlyAiredEpisode, loadNewReleases, newMovieOf, newReleaseKindsOf, newReleaseOf, seasonToCheck, NEW_EPISODES, NEW_MOVIE, NEW_SEASON, NEW_SERIES} from './mediaBarNewRelease';
 
 const now = new Date(Date.UTC(2026, 10, 2, 12));
 const day = new Date(Date.UTC(2026, 9, 28));
@@ -94,8 +94,47 @@ describe('loadNewReleases', () => {
 			{Id: 'film', Type: 'Movie'},
 			{Id: 'outside', Type: 'Series', _external: true}
 		];
-		const releases = await loadNewReleases(items, 30, () => ({getItems}));
+		const releases = await loadNewReleases(items, {days: 30, movieDays: 120, kinds: [NEW_SERIES, NEW_SEASON, NEW_EPISODES], tagline: true}, () => ({getItems}));
 		expect(releases).toEqual({show: {kind: NEW_EPISODES, season: 1, episode: 2}});
 		expect(getItems.mock.calls.map(([q]) => q.ParentId).sort()).toEqual(['broken', 'show']);
+	});
+});
+
+describe('new movies', () => {
+	const movie = (id, daysAgo, extra = {}) => ({Id: id, Type: 'Movie', PremiereDate: new Date(Date.now() - daysAgo * 86400000).toISOString(), ...extra});
+
+	test('a movie is new from its release for the window, never before it comes out', () => {
+		const at = new Date();
+		expect(newMovieOf(movie('m', 10, {Taglines: ['  ', 'Be afraid.']}), at, 120)).toEqual({kind: NEW_MOVIE, tagline: 'Be afraid.'});
+		expect(newMovieOf(movie('m', 200), at, 120)).toBeNull();
+		expect(newMovieOf(movie('m', -5), at, 120)).toBeNull();
+		expect(newMovieOf({Id: 's', Type: 'Series', PremiereDate: at.toISOString()}, at, 120)).toBeNull();
+	});
+
+	test('reads the taglines a slide came without, and leaves them out when Show Tagline is off', async () => {
+		const getItems = jest.fn(async () => ({Items: [{Id: 'bare', Taglines: ['In space no one can hear you scream.']}]}));
+		const items = [movie('bare', 5), movie('kept', 5, {Taglines: ['Already here.']}), movie('old', 300)];
+		const kinds = [NEW_MOVIE];
+		expect(await loadNewReleases(items, {days: 30, movieDays: 120, kinds, tagline: true}, () => ({getItems}))).toEqual({
+			bare: {kind: NEW_MOVIE, tagline: 'In space no one can hear you scream.'},
+			kept: {kind: NEW_MOVIE, tagline: 'Already here.'}
+		});
+		expect(getItems).toHaveBeenCalledTimes(1);
+		expect(getItems.mock.calls[0][0].Ids).toBe('bare');
+
+		getItems.mockClear();
+		expect(await loadNewReleases(items, {days: 30, movieDays: 120, kinds, tagline: false}, () => ({getItems}))).toEqual({
+			bare: {kind: NEW_MOVIE, tagline: null},
+			kept: {kind: NEW_MOVIE, tagline: null}
+		});
+		expect(getItems).not.toHaveBeenCalled();
+	});
+
+	test('a label left out of Labels goes without, and a series is not asked about when none of its labels are picked', async () => {
+		const getItems = jest.fn();
+		const items = [movie('film', 5), {Id: 'show', Type: 'Series'}];
+		expect(await loadNewReleases(items, {days: 30, movieDays: 120, kinds: [], tagline: true}, () => ({getItems}))).toEqual({});
+		expect(getItems).not.toHaveBeenCalled();
+		expect(newReleaseKindsOf(' newSeries, newMovie ,')).toEqual(['newSeries', 'newMovie']);
 	});
 });

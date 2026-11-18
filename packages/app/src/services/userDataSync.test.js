@@ -146,12 +146,30 @@ describe('the socket feed', () => {
 		expect(userDataSync.apply(episode()).UserData.Played).toBe(false);
 	});
 
+	test('a whole record without a percentage clears the old progress, a partial one leaves it', () => {
+		const started = {...episode(), UserData: {Played: false, PlaybackPositionTicks: 40, PlayedPercentage: 40}};
+		const socket = fakeSocket();
+		userDataSync.bindTo(socket.listen, 'user-1');
+		socket.send({UserId: 'user-1', UserDataList: [{ItemId: 'ep1', Played: false, PlaybackPositionTicks: 0}]});
+		expect(userDataSync.apply(started).UserData.PlayedPercentage).toBeNull();
+
+		socket.send({UserId: 'user-1', UserDataList: [{ItemId: 'ep2', IsFavorite: true}]});
+		expect(userDataSync.apply({...started, Id: 'ep2'}).UserData.PlayedPercentage).toBe(40);
+	});
+
 	test('binding again drops the previous binding', () => {
 		const first = fakeSocket();
 		userDataSync.bindTo(first.listen, 'user-1');
 		userDataSync.bindTo(fakeSocket().listen, 'user-1');
 		expect(first.stopped).toBe(true);
 	});
+});
+
+test('items read from the server replace a stale record of them', () => {
+	userDataSync.publish('ep1', {Played: false, PlaybackPositionTicks: 40, PlayedPercentage: 40});
+	userDataSync.recordFromServer([episode()]);
+	const fresh = episode();
+	expect(userDataSync.apply(fresh)).toBe(fresh);
 });
 
 test('reset drops everything so the next account starts clean', () => {

@@ -58,6 +58,12 @@ export const normalizeOverlayColorKey = (name) => {
 
 export const resolveOverlayColor = (name) => OVERLAY_COLORS[normalizeOverlayColorKey(name)];
 
+// MakD's shade and wash are makd's charcoal with 30% of the overlay color mixed in, so a bright pick
+// like Neon Magenta tints the art without flooding it behind white text.
+export const makdTint = (hex) => '#' + [1, 3, 5]
+	.map((i) => Math.round(0x1d + (parseInt(hex.slice(i, i + 2), 16) - 0x1d) * 0.3).toString(16).padStart(2, '0'))
+	.join('');
+
 // Core draws each choice with a brighter swatch than the color it paints with, so it reads as a
 // color at that size
 const PICKER_SWATCHES = {

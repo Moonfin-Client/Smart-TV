@@ -8,7 +8,7 @@ import {useSettings} from '../../context/SettingsContext';
 import * as jellyfinApi from '../../services/jellyfinApi';
 import * as embyConnect from '../../services/embyConnect';
 import * as plexTv from '../../services/plexTv';
-import {probeSilo} from '../../services/siloApi';
+import {probeSiloOrNull} from '../../services/siloApi';
 import * as multiServerManager from '../../services/multiServerManager';
 import {discoverLocalServers} from '../../services/serverDiscovery';
 import {generateCandidates, normalizeServerBaseUrl, quickConnectApprovalUrl} from '../../utils/serverUrl';
@@ -362,9 +362,14 @@ const Login = ({
 		if (!quickConnect) focusLater(credentialFocusTarget(user));
 	}, [stopQuickConnect, startPlexSignIn]);
 
-	const openServer = useCallback(async (target, {forceSignIn = false, signInAs = null} = {}) => {
+	const openServer = useCallback(async (saved, {forceSignIn = false, signInAs = null} = {}) => {
+		// A server only just probed already says what it is, a saved one is asked again.
+		const serverType = saved.serverId
+			? await multiServerManager.checkServerType(saved.serverId, saved.url, saved.serverType || 'jellyfin')
+			: saved.serverType || 'jellyfin';
+		const target = {...saved, serverType};
 		jellyfinApi.setServer(target.url);
-		jellyfinApi.setServerType(target.serverType || 'jellyfin');
+		jellyfinApi.setServerType(target.serverType);
 
 		setServer(target);
 		setError(null);
@@ -481,7 +486,7 @@ const Login = ({
 
 			try {
 				// Silo's own API is asked first: its web app answers Jellyfin's probe with a page.
-				const siloInfo = await probeSilo(candidate);
+				const siloInfo = await probeSiloOrNull(candidate);
 				if (siloInfo) {
 					jellyfinApi.setServerType('silo');
 					return {

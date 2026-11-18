@@ -17,14 +17,14 @@ const SCREENS = {
 };
 
 const SECTIONS = {
-	'account.account': ['signIn', 'family', 'servers', 'sync'],
+	'account.account': ['signIn', 'family', 'servers', 'developerMode', 'sync'],
 	'account.pinCode': ['pinGeneral', 'pinManage'],
 	'general.general': ['language', 'clock', 'input', 'behavior', 'performance'],
 	'appearance.appearance': ['navigation', 'layout', 'theme', 'display', 'extras'],
 	'appearance.navigationBar': ['navAppearance', 'navButtons'],
 	'appearance.homeScreen': ['contents', 'looks', 'homeRowsRatings', 'externalSources'],
 	'appearance.rowOptions': ['continueWatchingAndNextUp', 'recentlyAdded', 'audio', 'collections', 'favorites', 'genres', 'playlists', 'rewatch', 'sinceYouWatched', 'studios'],
-	'appearance.mediaBar': ['mediaBarGeneral', 'mediaSources', 'mediaBarBehavior', 'trailers', 'mediaBarRatings'],
+	'appearance.mediaBar': ['mediaBarGeneral', 'mediaSources', 'mediaBarNewReleases', 'mediaBarBehavior', 'trailers', 'mediaBarRatings'],
 	'appearance.libraries': ['librariesGeneral', 'libraryView', 'librariesPhotos'],
 	'appearance.detailsPage': ['detailsDisplay', 'mediaDetailsAndSpoilers', 'recommendations', 'ratings', 'themeMusic'],
 	'playback.player': ['mediaPlayerBehavior', 'trickPlay'],

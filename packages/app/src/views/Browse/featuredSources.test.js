@@ -1,4 +1,4 @@
-import {readDatedSource, readFeaturedSources} from './featuredSources';
+import {readDatedSource, readFeaturedSources, withBarFields} from './featuredSources';
 
 jest.mock('@enact/i18n/$L', () => ({__esModule: true, default: (str) => str}));
 
@@ -40,10 +40,30 @@ describe('readDatedSource', () => {
 		expect(getItems.mock.calls[0][0]).toMatchObject({ParentId: 'shows', IncludeItemTypes: 'Episode', SortBy: 'PremiereDate', SortOrder: 'Descending'});
 	});
 
-	test('New Seasons & Episodes has nothing for movies only, so the bar falls back', async () => {
-		const getItems = jest.fn();
-		expect(await readDatedSource({getItems}, 'newReleases', null, {contentType: 'movies', days: 30})).toEqual([]);
-		expect(getItems).not.toHaveBeenCalled();
+	test('New Releases for movies only reads the movies in their window, and drops one a server sends from outside it', async () => {
+		const fresh = {Id: 'fresh', Type: 'Movie', PremiereDate: new Date(Date.now() - 10 * 86400000).toISOString()};
+		const old = {Id: 'old', Type: 'Movie', PremiereDate: new Date(Date.now() - 400 * 86400000).toISOString()};
+		const getItems = jest.fn(async () => ({Items: [fresh, old]}));
+		expect(await readDatedSource({getItems}, 'newReleases', null, {contentType: 'movies', days: 30, movieDays: 120})).toEqual([fresh]);
+		expect(getItems).toHaveBeenCalledTimes(1);
+		expect(getItems.mock.calls[0][0]).toMatchObject({IncludeItemTypes: 'Movie', SortBy: 'PremiereDate'});
+		expect(getItems.mock.calls[0][0].MinPremiereDate).toBeTruthy();
+	});
+
+	test('Recently Released in Episode mode reads the episodes and shows their series, with movies as before', async () => {
+		const getItems = jest.fn(async ({IncludeItemTypes, Ids}) => {
+			if (Ids) return {Items: Ids.split(',').map((Id) => ({Id, Type: 'Series'}))};
+			if (IncludeItemTypes === 'Episode') return {Items: [{Id: 'e1', SeriesId: 'a'}, {Id: 'e2', SeriesId: 'b'}, {Id: 'e3', SeriesId: 'a'}]};
+			return {Items: [{Id: 'm1', Type: 'Movie'}]};
+		});
+		const items = await readDatedSource({getItems}, 'recentlyReleased', null, {contentType: 'both', seriesType: 'episode', count: 10});
+		expect(items.map((item) => item.Id)).toEqual(['a', 'b', 'm1']);
+	});
+
+	test('Recently Released in Season mode keeps the series of a collection, which lists no seasons', async () => {
+		const getItems = jest.fn(async ({IncludeItemTypes}) => ({Items: IncludeItemTypes === 'Series' ? [{Id: 's1', Type: 'Series'}] : []}));
+		const items = await readDatedSource({getItems}, 'recentlyReleased', 'boxset', {contentType: 'tv', seriesType: 'season', count: 10});
+		expect(items.map((item) => item.Id)).toEqual(['s1']);
 	});
 
 	test('Recently Released sorts by air date up to today', async () => {
@@ -67,5 +87,20 @@ describe('readDatedSource', () => {
 		const getLatestItems = jest.fn(async () => [{Id: 'new'}]);
 		expect(await readDatedSource({getLatestItems}, 'recentlyAdded', null, {contentType: 'tv', days: 30})).toEqual([{Id: 'new'}]);
 		expect(getLatestItems.mock.calls[0][0]).toMatchObject({IncludeItemTypes: 'Series'});
+	});
+});
+
+describe('withBarFields', () => {
+	test('fills ids and season counts onto the plugin cards in one call', async () => {
+		const fetchItems = jest.fn(() => Promise.resolve({Items: [{Id: 'a', ProviderIds: {Tmdb: '1'}, ChildCount: 3}]}));
+		const items = await withBarFields([{Id: 'a', Name: 'A'}, {Id: 'b', ProviderIds: {Tmdb: '2'}}], fetchItems);
+		expect(fetchItems).toHaveBeenCalledTimes(1);
+		expect(fetchItems.mock.calls[0][0].Ids).toBe('a,b');
+		expect(items).toEqual([{Id: 'a', Name: 'A', ProviderIds: {Tmdb: '1'}, ChildCount: 3}, {Id: 'b', ProviderIds: {Tmdb: '2'}, ChildCount: undefined}]);
+	});
+
+	test('keeps the cards when the call fails', async () => {
+		const items = await withBarFields([{Id: 'a'}], () => Promise.reject(new Error('500')));
+		expect(items[0].Id).toBe('a');
 	});
 });

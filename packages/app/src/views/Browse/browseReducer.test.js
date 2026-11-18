@@ -90,6 +90,21 @@ describe('browseReducer', () => {
 		expect(next.allRowData.map((r) => r.id)).toEqual(['resume', 'other']);
 	});
 
+	test('On Now refreshes where it is, comes back once something airs and goes when nothing does', () => {
+		const state = {...browseInitialState, allRowData: [row('resume'), row('onnow', [{Id: 'old'}]), row('other')]};
+
+		const refreshed = browseReducer(state, {type: 'REFRESH_ON_NOW', row: row('onnow', [{Id: 'new'}])});
+		expect(refreshed.allRowData.map((r) => r.id)).toEqual(['resume', 'onnow', 'other']);
+		expect(refreshed.allRowData[1].items[0].Id).toBe('new');
+
+		const emptied = browseReducer(refreshed, {type: 'REFRESH_ON_NOW', row: null});
+		expect(emptied.allRowData.map((r) => r.id)).toEqual(['resume', 'other']);
+		expect(browseReducer(emptied, {type: 'REFRESH_ON_NOW', row: null})).toBe(emptied);
+
+		const back = browseReducer(emptied, {type: 'REFRESH_ON_NOW', row: row('onnow', [{Id: 'new'}])});
+		expect(back.allRowData.map((r) => r.id)).toEqual(['resume', 'other', 'onnow']);
+	});
+
 	test('setting a value it already holds returns the same state', () => {
 		const state = {...browseInitialState, isLoading: true, browseMode: 'featured'};
 

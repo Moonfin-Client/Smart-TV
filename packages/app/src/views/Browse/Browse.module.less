@@ -321,13 +321,39 @@
 	}
 }
 
+/* MakD: makd's Jellyfin Media Bar, v6 Classic. Sizes are the original's on a 1920 wide TV
+   page, where its rem is 20px. */
 @keyframes makdKenBurns {
 	from {
 		transform: scale(1);
 	}
 	to {
-		transform: scale(1.08);
+		transform: scale(1.1);
 	}
+}
+
+@keyframes makdSlideIn {
+	from {
+		opacity: 0;
+	}
+	to {
+		opacity: 1;
+	}
+}
+
+@keyframes makdSettle {
+	from {
+		opacity: 0.7;
+	}
+	to {
+		opacity: 1;
+	}
+}
+
+// Fades the bar into the page over the last 8% of the screen.
+.makd-bottom-fade() {
+	-webkit-mask-image: linear-gradient(to top, transparent 2%, rgba(0, 0, 0, 0.5) 6%, #000 8%);
+	mask-image: linear-gradient(to top, transparent 2%, rgba(0, 0, 0, 0.5) 6%, #000 8%);
 }
 
 .makdBanner {
@@ -346,8 +372,9 @@
 	left: 0;
 	right: 0;
 	bottom: 0;
-	cursor: pointer;
-	outline: none;
+	color: #fff;
+	font-size: 20px;
+	line-height: 1.35;
 }
 
 .makdBackdrop {
@@ -357,44 +384,366 @@
 	right: 0;
 	bottom: 0;
 	overflow: hidden;
-	z-index: 0;
+	z-index: 1;
+	transition: opacity 0.25s ease;
+	.makd-bottom-fade();
+}
+
+.makdLayer {
+	position: absolute;
+	top: 0;
+	left: 0;
+	width: 100%;
+	height: 100%;
+	overflow: hidden;
+	animation: makdSlideIn 0.5s ease-in-out;
 
 	img {
 		width: 100%;
 		height: 100%;
 		object-fit: cover;
+		object-position: center 20%;
 		transform-origin: center center;
-		animation: makdKenBurns 12s ease-in-out infinite alternate;
+		animation: makdSettle 1.2s cubic-bezier(0.4, 0, 0.2, 1), makdKenBurns 12s ease-out forwards;
 
 		:global(.perf-low) &,
 		:global(.perf-mid) & {
-			animation: none;
+			animation: makdSettle 1.2s cubic-bezier(0.4, 0, 0.2, 1);
 		}
 	}
 }
 
-.makdGradient {
+.makdShade,
+.makdWash {
 	position: absolute;
 	top: 0;
 	left: 0;
 	right: 0;
 	bottom: 0;
-	background: rgba(0, 0, 0, 0.64);
-	z-index: 1;
+	z-index: 2;
+	pointer-events: none;
+	transition: opacity 0.25s ease;
+	.makd-bottom-fade();
 }
 
-/* While a trailer plays only the video stays: the backdrop, the wash, the
-   whole text block and the dots all step aside. */
-.makdBackdrop,
-.makdGradient,
-.makdContent,
+.makdShade {
+	background: rgba(0, 0, 0, 0.2);
+}
+
+.makdWash {
+	background: linear-gradient(130deg, rgba(29, 29, 29, 0.65) 10%, rgba(29, 29, 29, 0.35) 30%, rgba(29, 29, 29, 0) 100%);
+}
+
+// The content sits the dots' reserve of 1.75rem above the bar's bottom, which a peeking row
+// moves up to its own top edge. The padding, pulled back by the margins, keeps the buttons'
+// focus ring inside the clip.
+.makdContent {
+	position: absolute;
+	z-index: 3;
+	left: 4vw;
+	bottom: 35px;
+	width: 46%;
+	max-width: 920px;
+	max-height: 60vh;
+	box-sizing: content-box;
+	padding: 0 6px 6px;
+	margin: 0 0 -6px -6px;
+	overflow: hidden;
+	transition: opacity 0.25s ease;
+	display: -webkit-flex;
+	display: flex;
+	-webkit-flex-direction: column;
+	flex-direction: column;
+	-webkit-align-items: flex-start;
+	align-items: flex-start;
+}
+
+.makdSlide {
+	display: -webkit-flex;
+	display: flex;
+	-webkit-flex-direction: column;
+	flex-direction: column;
+	-webkit-align-items: flex-start;
+	align-items: flex-start;
+	width: 100%;
+	min-height: 0;
+	-webkit-flex: 0 1 auto;
+	flex: 0 1 auto;
+	animation: makdSlideIn 0.5s ease-in-out;
+}
+
+.makdLogo {
+	display: -webkit-flex;
+	display: flex;
+	-webkit-align-items: flex-end;
+	align-items: flex-end;
+	width: 100%;
+	height: 22vh;
+	min-height: 0;
+	-webkit-flex: 0 1 auto;
+	flex: 0 1 auto;
+	margin-bottom: 8px;
+
+	img {
+		max-width: 100%;
+		max-height: 100%;
+		object-fit: contain;
+		object-position: left bottom;
+		animation: makdSettle 1.2s cubic-bezier(0.4, 0, 0.2, 1);
+	}
+}
+
+.makdTitle {
+	margin: 0;
+	font-family: 'NotoSans', 'Roboto', sans-serif;
+	font-size: 80px;
+	font-weight: 400;
+	line-height: 1.1;
+	color: #fff;
+	display: -webkit-box;
+	-webkit-line-clamp: 2;
+	-webkit-box-orient: vertical;
+	overflow: hidden;
+}
+
+.makdInfoRow,
+.makdGenres {
+	display: -webkit-flex;
+	display: flex;
+	-webkit-align-items: center;
+	align-items: center;
+	-webkit-flex-wrap: wrap;
+	flex-wrap: wrap;
+	font-family: 'Archivo Narrow', 'Roboto', sans-serif;
+	font-size: 20px;
+	color: #fff;
+}
+
+.makdInfoRow {
+	font-weight: 500;
+}
+
+.makdField {
+	display: -webkit-flex;
+	display: flex;
+	-webkit-align-items: center;
+	align-items: center;
+	white-space: nowrap;
+}
+
+.makdSep {
+	width: 10px;
+	height: 10px;
+	-webkit-flex-shrink: 0;
+	flex-shrink: 0;
+	color: rgba(255, 255, 255, 0.55);
+}
+
+.makdStar {
+	width: 28px;
+	height: 28px;
+	margin-right: 3.5px;
+	color: #f2b01e;
+	-webkit-flex-shrink: 0;
+	flex-shrink: 0;
+}
+
+.makdTomato {
+	width: 18px;
+	height: 18px;
+	margin-right: 5px;
+	object-fit: contain;
+}
+
+.makdAge {
+	border-radius: 5px;
+	background: rgba(255, 255, 255, 0.8);
+	color: #000;
+	font-weight: 600;
+	padding: 0 10px;
+	white-space: nowrap;
+}
+
+// The plugin's ratings row, set inline at the info line's size without its badges and names.
+.makdPluginRatings {
+	display: -webkit-flex;
+	display: flex;
+	zoom: 0.83;
+	margin: -8px 0 -4px;
+}
+
+.makdPlot {
+	width: 100%;
+	margin: 0;
+	font-family: 'NotoSans', 'Roboto', sans-serif;
+	font-size: 20px;
+	line-height: 1.35;
+	color: #fff;
+	display: -webkit-box;
+	-webkit-line-clamp: 3;
+	-webkit-box-orient: vertical;
+	overflow: hidden;
+}
+
+.makdButtons {
+	display: -webkit-flex;
+	display: flex;
+	-webkit-align-items: center;
+	align-items: center;
+	-webkit-flex: 0 0 auto;
+	flex: 0 0 auto;
+}
+
+.makdPlay,
+.makdCircle {
+	display: -webkit-flex;
+	display: flex;
+	-webkit-align-items: center;
+	align-items: center;
+	-webkit-justify-content: center;
+	justify-content: center;
+	height: 50px;
+	box-sizing: border-box;
+	outline: none;
+	cursor: pointer;
+	-webkit-flex-shrink: 0;
+	flex-shrink: 0;
+
+	svg {
+		width: 22px;
+		height: 22px;
+		-webkit-flex-shrink: 0;
+		flex-shrink: 0;
+	}
+
+	&:focus {
+		outline: 3px solid #fff;
+		outline-offset: 3px;
+	}
+}
+
+.makdPlay {
+	padding: 0 12.6px;
+	border: 0;
+	border-radius: 8px;
+	background: #fff;
+	color: #000;
+	font-family: 'Archivo Narrow', 'Roboto', sans-serif;
+	font-size: 18px;
+	font-weight: 700;
+	line-height: 1;
+	white-space: nowrap;
+	transition: background-color 0.2s ease;
+
+	svg {
+		margin-right: 6px;
+	}
+
+	&:hover {
+		background: rgba(255, 255, 255, 0.85);
+	}
+}
+
+.makdCircle {
+	width: 50px;
+	padding: 0;
+	border-radius: 50%;
+	border: 1px solid rgba(255, 255, 255, 0.35);
+	background: rgba(0, 0, 0, 0.45);
+	color: #fff;
+	transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+
+	&:hover {
+		background: rgba(0, 0, 0, 0.7);
+		border-color: rgba(255, 255, 255, 0.7);
+	}
+}
+
+.makdFavorited {
+	color: #ff4d4d;
+	border-color: rgba(255, 77, 77, 0.6);
+}
+
 .makdDots {
+	position: absolute;
+	z-index: 5;
+	right: 3%;
+	bottom: 35px;
+	display: -webkit-flex;
+	display: flex;
+	-webkit-align-items: center;
+	align-items: center;
 	transition: opacity 0.25s ease;
 }
 
+.makdDot {
+	width: 10px;
+	height: 10px;
+	margin: 0 5px;
+	border-radius: 50%;
+	background: rgba(206, 206, 206, 0.6);
+	transition: transform 0.5s cubic-bezier(0.4, 0, 0.2, 1), background-color 0.5s ease-in-out;
+}
+
+.makdDotActive {
+	background: #fff;
+	transform: scale(1.7);
+}
+
+// Shown while the bar has focus or the pointer, never reached by the D-pad.
+.makdArrow {
+	position: absolute;
+	z-index: 7;
+	top: 50vh;
+	width: 70px;
+	height: 70px;
+	margin-top: -35px;
+	box-sizing: border-box;
+	display: -webkit-flex;
+	display: flex;
+	-webkit-align-items: center;
+	align-items: center;
+	-webkit-justify-content: center;
+	justify-content: center;
+	border-radius: 50%;
+	border: 1px solid rgba(255, 255, 255, 0.28);
+	background: rgba(10, 12, 18, 0.42);
+	color: #fff;
+	cursor: pointer;
+	opacity: 0;
+	visibility: hidden;
+	transition: opacity 0.25s ease, visibility 0.25s ease, background-color 0.2s ease, border-color 0.2s ease;
+
+	svg {
+		width: 40px;
+		height: 40px;
+	}
+
+	&:hover {
+		background: rgba(10, 12, 18, 0.72);
+		border-color: rgba(255, 255, 255, 0.6);
+	}
+}
+
+.makdArrowLeft {
+	right: calc(~"4vw + 85px");
+}
+
+.makdArrowRight {
+	right: 4vw;
+}
+
+.makdFocused .makdArrow,
+.makdInner:hover .makdArrow {
+	opacity: 1;
+	visibility: visible;
+}
+
+// A trailer gets the whole bar, and the buttons keep focus while it plays.
 .makdTrailerActive {
 	.makdBackdrop,
-	.makdGradient,
+	.makdShade,
+	.makdWash,
 	.makdContent,
 	.makdDots {
 		opacity: 0;
@@ -403,132 +752,11 @@
 	.makdContent {
 		pointer-events: none;
 	}
-}
 
-.makdContent {
-	position: absolute;
-	top: 0;
-	bottom: 0;
-	left: 0;
-	transform: none;
-	width: 42%;
-	min-width: 280px;
-	max-width: 560px;
-	padding: 50px 48px 44px 60px;
-	display: -webkit-flex;
-	display: flex;
-	-webkit-flex-direction: column;
-	flex-direction: column;
-	z-index: 2;
-	border-radius: 16px;
-	background: none;
-	backdrop-filter: none;
-	box-sizing: border-box;
-}
-
-.makdLogo {
-	position: absolute;
-	top: 43%;
-	left: 60px;
-	right: 48px;
-	transform: translateY(-50%);
-	max-width: 360px;
-
-	img {
-		max-width: 100%;
-		max-height: 140px;
-		object-fit: contain;
+	.makdArrow {
+		opacity: 0;
+		visibility: hidden;
 	}
-}
-
-.makdTextBlock {
-	display: -webkit-flex;
-	display: flex;
-	-webkit-flex-direction: column;
-	flex-direction: column;
-}
-
-.makdTextWithLogo {
-	margin-top: auto;
-	// Plain vh rather than clamp(110px, 15vh, 200px). The bounds never bind at
-	// either screen type, 162px at fhd and 324px at uhd, so this is equivalent.
-	margin-bottom: 15vh;
-}
-
-.makdTextNoLogo {
-	margin-top: auto;
-	// Same as .makdTextWithLogo, the clamp bounds never bind.
-	margin-bottom: 12vh;
-}
-
-.makdTitle {
-	margin: 0;
-	font-size: 56px;
-	font-weight: 700;
-	line-height: 1.1;
-	color: var(--theme-text-primary, #fff);
-	text-shadow: 2px 2px 12px rgba(0, 0, 0, 0.9);
-	white-space: nowrap;
-	overflow: hidden;
-	text-overflow: ellipsis;
-}
-
-.makdMeta {
-	display: -webkit-flex;
-	display: flex;
-	-webkit-align-items: center;
-	align-items: center;
-	-webkit-flex-wrap: wrap;
-	flex-wrap: wrap;
-
-	> * + * {
-		margin-left: 15px;
-	}
-}
-
-.makdOverview {
-	margin: 0;
-	font-size: 22px;
-	line-height: 1.45;
-	color: var(--theme-text-primary, rgba(255, 255, 255, 0.95));
-	text-shadow: 1px 1px 6px rgba(0, 0, 0, 0.85);
-	display: -webkit-box;
-	-webkit-line-clamp: 4;
-	-webkit-box-orient: vertical;
-	overflow: hidden;
-}
-
-.makdDots {
-	position: absolute;
-	right: 20px;
-	bottom: 24px;
-	display: -webkit-flex;
-	display: flex;
-	-webkit-align-items: center;
-	align-items: center;
-	background: rgba(var(--theme-scrim-rgb, 0, 0, 0), 0.55);
-	padding: 10px 14px;
-	border-radius: 20px;
-	z-index: 3;
-
-	> * + * {
-		margin-left: 8px;
-	}
-}
-
-.makdDot {
-	width: 7px;
-	height: 7px;
-	border-radius: 50%;
-	background: var(--theme-text-muted, rgba(255, 255, 255, 0.35));
-	transition: transform 0.2s ease, background 0.2s ease;
-}
-
-.makdDotActive {
-	width: 9px;
-	height: 9px;
-	background: var(--theme-focus-border-color, #ffffff);
-	transform: scale(1.05);
 }
 
 .galleryBanner {
@@ -1484,7 +1712,7 @@
 /* Makd moves over as far as the rows do, so its text lines up with them. The Gallery
    cards run edge to edge, so they start past the 78px rail with their usual margin instead. */
 .sidebarOffset .makdContent {
-	left: 50px;
+	left: calc(~"4vw + 78px");
 }
 
 .sidebarOffset .galleryRow {
@@ -1514,6 +1742,17 @@
 .topbarOffset .contentRows.rowsMode.rowsClipTop {
 	margin-top: 130px;
 	padding-top: 0;
+}
+
+/* A focused row pins past the first row's top margin, so with the sidebar that room sits on the
+   clip edge instead. The title then stays in the same spot with or without focus, clear of the
+   top of the screen. */
+.sidebarOffset .contentRows.rowsMode.rowsClipTop {
+	margin-top: 42px;
+
+	> :first-child {
+		margin-top: 0;
+	}
 }
 
 .empty {
@@ -1568,7 +1807,12 @@
 	}
 }
 
-.makdTextBlock { .flex-col-gap(14px); }
+// The buttons sit a gap plus 0.4rem under the text.
+.makdContent { .flex-col-gap(26px); }
+.makdSlide { .flex-col-gap(18px); }
+.makdInfoRow { .flex-wrap-gap(6px; 10px); }
+.makdGenres { .flex-wrap-gap(6px; 5px); }
+.makdButtons { .flex-row-gap(15px); }
 
 /* Aya media bar. A rounded hero frame at 65 percent of the screen with the
    page backdrop breathing around it, matching the other clients. */
@@ -1771,7 +2015,8 @@
 	// The trailer has the whole screen too, since the rows step aside while it plays.
 	.featuredBackdrop,
 	.makdBackdrop,
-	.makdGradient,
+	.makdShade,
+	.makdWash,
 	.trailerContainer,
 	.galleryGlow {
 		bottom: auto;
@@ -1797,11 +2042,6 @@
 	&.sidebarOffset .featuredContentDropped {
 		left: 104px;
 		right: 104px;
-	}
-
-	.makdTextWithLogo,
-	.makdTextNoLogo {
-		margin-bottom: 40px;
 	}
 
 	// Laid out at full height and scaled down from the top, so the shelf still meets the ledge.

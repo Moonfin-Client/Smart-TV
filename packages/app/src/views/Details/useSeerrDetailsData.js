@@ -136,7 +136,8 @@ const useSeerrDetailsData = ({mediaId, mediaType, contextUser, arrQueueAvailable
 				]);
 				if (cancelled) return;
 				setRecommendations(recsData.slice(0, 20));
-				setSimilar(similarData.slice(0, 20));
+				// Cut to 20 in useSeerrOverlay, once Recommendations' titles are left out
+				setSimilar(similarData);
 			} catch (err) {
 				if (cancelled) return;
 				console.error('Failed to load details:', err);

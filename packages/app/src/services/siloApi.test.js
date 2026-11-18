@@ -1,5 +1,5 @@
 import {corsFreeFetch} from './secureFetch';
-import {createSiloApi, probeSilo} from './siloApi';
+import {createSiloApi, probeSilo, probeSiloOrNull} from './siloApi';
 import {openSiloSession, profileProof, resetSiloSessions, setProfileProof, tokensFrom} from './siloSession';
 
 jest.mock('./secureFetch', () => ({corsFreeFetch: jest.fn()}));
@@ -71,6 +71,19 @@ describe('probe', () => {
 	test('a retired namespace means the server is newer', async () => {
 		answer({'/api/v2/system/info': () => reply(410, {type: 'x/client_upgrade_required', title: 'Gone', status: 410})});
 		await expect(probeSilo(SERVER)).rejects.toMatchObject({siloApiUnsupported: true, serverIsNewer: true});
+	});
+
+	test('a request the server refuses outright, as Emby\'s CORS headers do, is not Silo when adding a server', async () => {
+		answer({'/api/v2/system/info': () => Promise.reject(new TypeError('Failed to fetch'))});
+		await expect(probeSiloOrNull(SERVER)).resolves.toBe(null);
+		await expect(probeSilo(SERVER)).rejects.toMatchObject({connectionType: 'network'});
+	});
+
+	test('adding a server still stops on a timeout or a Silo API this build cant speak', async () => {
+		answer({'/api/v2/system/info': () => Promise.reject(Object.assign(new Error('aborted'), {name: 'AbortError'}))});
+		await expect(probeSiloOrNull(SERVER)).rejects.toMatchObject({connectionType: 'timeout'});
+		answer({'/api/v2/system/info': {server_version: 'x', api_major: 3}});
+		await expect(probeSiloOrNull(SERVER)).rejects.toMatchObject({siloApiUnsupported: true});
 	});
 });
 

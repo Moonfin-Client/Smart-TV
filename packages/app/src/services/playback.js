@@ -1745,6 +1745,13 @@ export const reportStop = async (positionTicks) => {
 	await closeLiveStreamOnce(session);
 };
 
+// Moving on from Next Up in the credits counts the item as watched, even where the credits start under the
+// server's own threshold: the stop goes in at its end, then it's marked played.
+export const reportFinished = async (item, runTimeTicks, fallbackTicks) => {
+	await reportStop(runTimeTicks > 0 ? runTimeTicks : fallbackTicks);
+	getApiForItem(item).setWatched(item.Id, true).catch(() => {});
+};
+
 export const startProgressReporting = (getPositionTicks, intervalMs = 10000, getPlayState) => {
 	stopProgressReporting();
 

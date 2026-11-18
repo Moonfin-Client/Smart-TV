@@ -22,7 +22,7 @@ import {
 	toCssColorWithAlpha,
 	toRgbTriplet
 } from './themeSpec';
-import {resolveOverlayColor} from './overlayColors';
+import {makdTint, resolveOverlayColor} from './overlayColors';
 
 import appCss from '../App/App.module.less';
 import sidebarCss from '../components/Sidebar/Sidebar.module.less';
@@ -77,6 +77,7 @@ import playlistSortFilterCss from '../components/PlaylistSortFilterBar/PlaylistS
 import playbackInfoCss from '../views/Player/PlaybackInfoModal.module.less';
 import accountCss from '../components/AccountModal/AccountModal.module.less';
 import carouselCss from '../components/ProfileCarousel/ProfileCarousel.module.less';
+import coreDialogCss from '../components/CoreDialog/CoreDialog.module.less';
 
 const STYLE_ELEMENT_ID = 'moonfin-theme-overrides';
 
@@ -694,27 +695,28 @@ export const buildThemeOverrideCss = (theme, options = {}) => {
 	rule(`.${browseCss.ayaIndicatorActive}`, `background: ${onSurface};`);
 	rule(`.${backdropCss.globalBackdropOverlay}`, `background: ${toCssColor(c.scrim)};`);
 	rule(`.${browseCss.detailPlaceholder} p, .${browseCss.empty}`, `color: ${os(0.7)};`);
+	const overlayHex = resolveOverlayColor(options.mediaBarOverlayColor);
+	const overlayOpacity = (options.mediaBarOverlayOpacity ?? 50) / 100;
 	// The card takes the media bar's own overlay color at three quarters of its
 	// opacity, outlined with the theme's card border.
-	const mediaBarFill = toCssColorWithAlpha(
-		resolveOverlayColor(options.mediaBarOverlayColor),
-		((options.mediaBarOverlayOpacity ?? 50) / 100) * 0.75
-	);
+	const mediaBarFill = toCssColorWithAlpha(overlayHex, overlayOpacity * 0.75);
+	// MakD's shade and 130 degree wash, which the default 50% puts at makd's .2, .65 and .35.
+	const makdHex = makdTint(overlayHex);
+	const makdA = (k) => toCssColorWithAlpha(makdHex, overlayOpacity * k);
+	rule(`.${browseCss.makdShade}`, `background: ${makdA(0.4)};`);
+	rule(`.${browseCss.makdWash}`, `background: linear-gradient(130deg, ${makdA(1.3)} 10%, ${makdA(0.7)} 30%, ${makdA(0)} 100%);`);
 	rule(`.${browseCss.featuredInfoBox}`, `background-color: ${mediaBarFill}; background-image: none; border: ${b.cardBorder.width}px solid ${toCssColor(b.cardBorder.color)}; border-radius: 16px;`);
 	rule(`.${browseCss.trailerActive} .${browseCss.featuredInfoBox}`, `background-color: transparent; background-image: none;`);
-	rule(`.${browseCss.featuredTitle}, .${browseCss.makdTitle}, .${browseCss.galleryVerticalTitle}, .${browseCss.galleryActiveTitle}, .${browseCss.galleryCreditValue}, .${browseCss.bannerTitle}`, `color: ${onBackground};`);
+	rule(`.${browseCss.featuredTitle}, .${browseCss.galleryVerticalTitle}, .${browseCss.galleryActiveTitle}, .${browseCss.galleryCreditValue}, .${browseCss.bannerTitle}`, `color: ${onBackground};`);
 	rule(`.${browseCss.metaItem}`, `color: ${os(0.9)};`);
 	rule(`.${browseCss.metaItem}:not(:last-child)::after`, `color: ${os(0.5)};`);
 	rule(`.${browseCss.metaBadge}`, `border-color: ${os(0.4)};`);
 	rule(`.${browseCss.featuredOverview}, .${browseCss.galleryOverview}`, `color: ${os(0.9)};`);
 	rule(`.${browseCss.carouselNav}`, `color: ${onBackground};`);
 	rule(`.${browseCss.carouselNav}:focus`, `background: ${scrim(0.85)};`);
-	rule(`.${browseCss.featuredIndicators}, .${browseCss.makdDots}`, `background: ${scrim(0.55)};`);
+	rule(`.${browseCss.featuredIndicators}`, `background: ${scrim(0.55)};`);
 	rule(`.${browseCss.indicatorDot}`, `background: ${os(0.5)};`);
 	rule(`.${browseCss.indicatorDot}.${browseCss.active}`, `background: ${onSurface};`);
-	rule(`.${browseCss.makdOverview}`, `color: ${os(0.95)};`);
-	rule(`.${browseCss.makdDot}`, `background: ${os(0.35)};`);
-	rule(`.${browseCss.makdDotActive}`, `background: ${focusColor};`);
 	rule(`.${browseCss.galleryIndex}`, `color: ${os(0.85)};`);
 	rule(`.${browseCss.galleryActiveRight}`, `background: ${scrim(0.55)}; border-color: ${os(0.12)};`);
 	rule(`.${browseCss.galleryPill}`, `color: ${onBackground}; background: ${scrim(0.35)};`);
@@ -767,10 +769,6 @@ export const buildThemeOverrideCss = (theme, options = {}) => {
 		rule(`.${cardCss.card}:focus .${cardCss.seerrBanner}`, 'border-width: 4px 4px 0;');
 	}
 
-	rule(`.${mediaCardCss.seerr5}`, `background: ${onSurface}; border-color: ${statusAvailable};`);
-	rule(`.${mediaCardCss.seerr4}`, `background: ${statusAvailable};`);
-	rule(`.${mediaCardCss.seerr3}`, `border-color: ${statusRequested};`);
-	rule(`.${mediaCardCss.seerr2}`, `background: ${onSurface}; border-color: ${statusPending};`);
 	rule(`.${modernCardCss.focusRing}`, `border-color: ${focusColor};`);
 	rule(`.${mergedBadgeCss.badge}`, `background: ${scrim(0.75)}; border-color: ${onSurface}; color: ${onSurface};`);
 	rule(`.${seerrDotCss.dot}`, `background: ${onBadge}; border-color: ${onBadge};`);
@@ -900,6 +898,31 @@ export const buildThemeOverrideCss = (theme, options = {}) => {
 	rule(sw([carouselCss.dotOn]), `background: ${accent};`);
 	rule(sw([`${carouselCss.pill}:not(.${carouselCss.pillDanger})`]), `border-color: ${sws(0.2)}; background: ${sws(0.06)}; color: ${sws(0.85)};`);
 	rule(sw([`${carouselCss.pill}:not(.${carouselCss.pillDanger}):focus`]), `border-color: ${accent}; color: ${accent};`);
+	// Shared list dialogs and confirms (Remove User, Seerr, server messages), in Core's dialog
+	// colours, with the Settings pickers' shape and titles. Rows keep their own accent tint on
+	// focus. The scrim and the red destructive buttons stay fixed.
+	const cd = coreDialogCss;
+	rule(`.${cd.panel}`, `background: ${surfaceA(0.9)}; border-color: ${os(0.12)}; ${dialogShape}`);
+	rule(`.${cd.alert}`, `background: rgb(${surfaceRgb}); ${dialogShape}`);
+	rule(`.${cd.panel}, .${cd.title}, .${cd.alert}, .${cd.alertTitle}, .${cd.alertContent}`, `color: ${onSurface};`);
+	rule(`.${cd.subtitle}`, `color: ${os(0.54)};`);
+	// The Seerr cancel and swap confirms set their message in white, which a light surface would hide
+	rule(`.${cd.alert} .${seerrRequestCss.cancelMessage}`, `color: ${os(0.7)};`);
+	rule(`.${cd.divider}`, `background: ${os(0.08)};`);
+	rule(`.${cd.row}:focus`, `background: ${accentA(0.2)};`);
+	rule(`.${cd.rowLabel}`, `color: ${os(0.8)};`);
+	rule(`.${cd.row}:focus .${cd.rowLabel}`, `color: ${os(0.95)};`);
+	rule(`.${cd.rowDimmed} .${cd.rowLabel}, .${cd.rowDimmed}:focus .${cd.rowLabel}`, `color: ${os(0.5)};`);
+	rule(`.${cd.rowIcon}`, `color: ${os(0.38)};`);
+	rule(`.${cd.rowIconSelected}`, `color: ${accent};`);
+	rule(`.${cd.alertAction}:not(.${cd.alertActionDestructive})`, `color: ${accent};`);
+	rule(`.${cd.alertAction}:not(.${cd.alertActionDestructive}):focus`, `background: ${accentA(0.1)};`);
+	if (theme.textGlow.length) {
+		rule(`.${cd.title}, .${cd.alertTitle}`, `color: ${accent}; text-shadow: ${textGlow}; letter-spacing: 0.4px;`);
+	}
+	if (theme.fontFamily) {
+		rule(`.${cd.title}, .${cd.alertTitle}`, `font-family: '${theme.fontFamily}', sans-serif;`);
+	}
 	// Pixel themes square off every fixed radius.
 	if (theme.isPixel) {
 		rule([
@@ -907,7 +930,7 @@ export const buildThemeOverrideCss = (theme, options = {}) => {
 			`.${navBarCss.navPill}`, `.${navBarCss.navBtn}`,
 			`.${settingsCss.listItem}`, `.${settingsCss.listItemIcon}`, `.${settingsCss.valueBubble}`, `.${settingsCss.dialog}`, `.${panelCss.panel}`, `.${settingsCss.pageAlone}`,
 			`.${settingsCss.themeCard}`, `.${settingsCss.themeCardStripe}`, `.${settingsCss.input}`,
-			`.${settingsCss.actionButton}`, `.${settingsCss.settingsButtonPrimary}`, `.${settingsCss.playbackTimePreview}`, `.${searchCss.searchInputWrapper}`,
+			`.${settingsCss.actionButton}`, `.${settingsCss.settingsButtonPrimary}`, `.${settingsCss.playbackTimePreview}`, `.${searchCss.searchInputWrapper}`, `.${coreDialogCss.alertAction}`,
 			`.${settingsCss.syncCard}`, `.${settingsCss.syncTransferCard}`, `.${settingsCss.syncChip}`,
 			`.${detailsCss.poster}`, `.${detailsCss.btnAction}`, `.${detailsCss.nextUpCard}`,
 			`.${detailsCss.episodeCard}`, `.${detailsCss.chapterCard}`, `.${detailsCss.extraCard}`,
@@ -916,7 +939,7 @@ export const buildThemeOverrideCss = (theme, options = {}) => {
 			`.${modernDetailCss.actionBtn}`, `.${modernDetailCss.upNextCard}`,
 			`.${tabBarCss.tabBar}`, `.${tabBarCss.tab}`, `.${overviewCss.spottable}`,
 			`.${browseCss.featuredInfoBox}`, `.${browseCss.bannerCard}`, `.${browseCss.galleryActiveRight}`,
-			`.${browseCss.galleryPill}`, `.${browseCss.makdDots}`, `.${browseCss.featuredIndicators}`
+			`.${browseCss.galleryPill}`, `.${browseCss.featuredIndicators}`
 		].join(', '), 'border-radius: 0;');
 	}
 

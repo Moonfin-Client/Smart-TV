@@ -1,5 +1,5 @@
-// Core's 20 point dot on its TV canvas, with the icon at six tenths of it and the dash a
-// little wider.
+// Core's 20 point dot on its TV canvas. The icon is sized off the ring's inside, about six tenths
+// of the dot with the dash a little wider, so it scales when a screen resizes the dot.
 .dot {
 	position: absolute;
 	top: 10px;
@@ -18,9 +18,19 @@
 	pointer-events: none;
 }
 
+// A season card keeps the top right for its watched check.
+.left {
+	top: 8px;
+	right: auto;
+	left: 8px;
+	z-index: 5;
+	width: 28px;
+	height: 28px;
+}
+
 .icon {
-	width: 20px;
-	height: 20px;
+	width: 72%;
+	height: 72%;
 }
 
 .available {
@@ -34,8 +44,8 @@
 	color: #ffffff;
 
 	.icon {
-		width: 22px;
-		height: 22px;
+		width: 78%;
+		height: 78%;
 	}
 }
 

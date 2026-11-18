@@ -84,6 +84,19 @@ export default function browseReducer (state, action) {
 			}
 			return {...state, allRowData: next};
 		}
+		// A null row means nothing is airing, so the row goes until something is.
+		case 'REFRESH_ON_NOW': {
+			const index = state.allRowData.findIndex((row) => row.id === 'onnow');
+			if (!action.row) {
+				return index < 0 ? state : {...state, allRowData: state.allRowData.filter((row) => row.id !== 'onnow')};
+			}
+			if (index < 0) return {...state, allRowData: [...state.allRowData, action.row]};
+			const updated = mergeRowPreservingRefs(state.allRowData[index], action.row);
+			if (updated === state.allRowData[index]) return state;
+			const allRowData = state.allRowData.slice();
+			allRowData[index] = updated;
+			return {...state, allRowData};
+		}
 		case 'EXTEND_ROW': {
 			const index = state.allRowData.findIndex((row) => row.id === action.id);
 			if (index < 0 || state.allRowData[index].readHead !== action.readHead) return state;

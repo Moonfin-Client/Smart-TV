@@ -138,6 +138,15 @@ describe('the open Seerr details page', () => {
 		expect((await open()).result.current.streamingRegion).toBe('US');
 	});
 
+	test('keeps every Similar title from its pages, for useSeerrOverlay to cut after leaving out repeats', async () => {
+		const page = (n) => ({results: Array.from({length: 10}, (_, i) => ({id: n * 100 + i, mediaType: 'movie'}))});
+		seerrApi.getMovieSimilar.mockImplementation(async (id, n) => page(n));
+		seerrApi.getMovieRecommendations.mockImplementation(async (id, n) => page(n));
+		const {result} = await open();
+		expect(result.current.similar.map((t) => t.id)).toEqual([1, 2, 3].flatMap((n) => page(n).results.map((t) => t.id)));
+		expect(result.current.recommendations).toHaveLength(20);
+	});
+
 	test('a refresh that lands after the page closes starts nothing', async () => {
 		mediaInfo = {status: MEDIA_STATUS.PROCESSING};
 		const {unmount} = await open();

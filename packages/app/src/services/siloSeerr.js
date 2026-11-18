@@ -2,12 +2,14 @@
 // from Moonfin-Core's SiloSeerrHttpClient.
 //
 // The screens speak Seerr's API, so each Seerr path is answered here with Silo's reply rewritten into the JSON Seerr
-// would have sent. What Silo has no counterpart for (issues, people, collections, quotas, Radarr and Sonarr choices)
+// would have sent. What Silo has no counterpart for (issues, collections, quotas, Radarr and Sonarr choices)
 // answers empty, and those parts of the screens show their empty state. The Discover rows an admin adds on Silo come
 // through as search sliders whose query names the row.
 //
 // Seerr's ids are integers. Silo's request ids are 64-bit numbers sent as text, and its genres and cast have names but
 // no ids, so the ids handed to the screens are looked up in tables that map them back.
+
+import {siloImageUrl} from '../utils/siloUrls';
 
 const MEDIA_UNKNOWN = 1;
 const MEDIA_PENDING = 2;
@@ -131,9 +133,10 @@ const isoDay = (d) => d.toISOString().slice(0, 10);
 
 /**
  * `call(path, options)` is a Silo request as the signed-in profile (siloApi's `siloCall`), throwing Silo's errors with
- * `status`. `baseUrl` makes Silo's relative artwork links whole. `random` is for tests.
+ * `status`. `library()` answers the library's Jellyfin-shaped Silo api, for the people a cast member is matched to.
+ * `baseUrl` makes Silo's relative artwork links whole. `random` is for tests.
  */
-export const createSiloSeerr = ({call, baseUrl = '', random = Math.random}) => {
+export const createSiloSeerr = ({call, library = null, baseUrl = '', random = Math.random}) => {
 	// Silo request id by the integer the screens were given.
 	const requestIds = {};
 	const requestKeys = {};
@@ -381,14 +384,107 @@ export const createSiloSeerr = ({call, baseUrl = '', random = Math.random}) => {
 
 	const detail = (type, tmdbId) => get(`/requests/detail/${siloType(type)}/${encodeURIComponent(tmdbId)}`);
 
+	// ---- People. Silo's request cast has no person ids, so a cast member is known by name. The person Silo's library
+	// has by that exact name gives the biography and the titles; anyone else shows with their name and photo.
+
+	const people = {};
+	const libraryPeople = {};
+
+	const personId = (name, profilePath) => {
+		const id = stableId(name);
+		people[id] = {name, profilePath: typeof profilePath === 'string' ? profilePath : people[id]?.profilePath};
+		return id;
+	};
+
+	// The library person for a cast member, or null. Only a find is remembered, so a search that was down or a person
+	// added since is asked about again.
+	const libraryIdFor = (id) => {
+		const name = people[id]?.name || '';
+		if (!name || !library) return Promise.resolve(null);
+		const key = name.toLowerCase();
+		if (!libraryPeople[key]) {
+			libraryPeople[key] = (async () => {
+				let found = null;
+				try {
+					const results = await library().searchPeople(name, 10);
+					found = list(results?.Items).find((p) => p && String(p.Name || '').toLowerCase() === key)?.Id || null;
+				} catch {
+					// Shown with the name and photo only.
+				}
+				if (!found) delete libraryPeople[key];
+				return found;
+			})();
+		}
+		return libraryPeople[key];
+	};
+
+	const dateOnly = (date) => (typeof date === 'string' && date.length >= 10 ? date.slice(0, 10) : null);
+
+	const person = async (id) => {
+		const known = people[id];
+		const details = {id, name: known?.name || '', profilePath: known?.profilePath};
+		const libraryId = await libraryIdFor(id);
+		if (!libraryId) return details;
+		let p;
+		try {
+			p = await library().getPerson(libraryId);
+		} catch {
+			return details;
+		}
+		const places = list(p?.ProductionLocations);
+		return {
+			...details,
+			biography: p?.Overview,
+			birthday: dateOnly(p?.PremiereDate),
+			deathday: dateOnly(p?.EndDate),
+			placeOfBirth: places.length ? places[0] : null,
+			// The library's portrait, for a cast entry Seerr has no photo for. It's a Silo URL, not a TMDB path.
+			libraryImageUrl: !details.profilePath && p?.ImageTags?.Primary
+				? siloImageUrl(baseUrl, p.Id, 'Primary', {tag: p.ImageTags.Primary})
+				: null
+		};
+	};
+
+	// A library title as a Seerr credit, keyed by its TMDB id so it opens the same request page. Its poster is the
+	// library's own.
+	const libraryCredit = (item) => {
+		const tmdb = intOf(item?.ProviderIds?.Tmdb);
+		if (tmdb == null || typeof item.Id !== 'string') return null;
+		const series = item.Type === 'Series';
+		const day = dateOnly(item.PremiereDate);
+		const poster = siloImageUrl(baseUrl, item.Id, 'Primary', {tag: item.ImageTags?.Primary});
+		return {
+			id: tmdb,
+			mediaType: series ? 'tv' : 'movie',
+			[series ? 'name' : 'title']: item.Name,
+			[series ? 'firstAirDate' : 'releaseDate']: day,
+			overview: item.Overview,
+			...(poster ? {posterPath: poster} : null),
+			mediaInfo: {id: tmdb, tmdbId: tmdb, status: MEDIA_AVAILABLE, jellyfinMediaId: item.Id, requests: []}
+		};
+	};
+
+	const personCredits = async (id) => {
+		const none = {cast: [], crew: []};
+		const libraryId = await libraryIdFor(id);
+		if (!libraryId) return none;
+		let body;
+		try {
+			body = await library().getItems({PersonIds: libraryId, IncludeItemTypes: 'Movie,Series', Recursive: true, Limit: 100});
+		} catch {
+			return none;
+		}
+		return {cast: list(body?.Items).map(libraryCredit).filter(Boolean), crew: []};
+	};
+
 	const credits = (d) => ({
-		cast: list(d.cast).filter(Boolean).map((c) => ({
-			id: stableId(String(c.name)), name: c.name == null ? '' : String(c.name), character: c.character,
-			profilePath: c.profile_path, order: c.order
-		})),
+		cast: list(d.cast).filter(Boolean).map((c) => {
+			const name = c.name == null ? '' : String(c.name);
+			return {id: personId(name, c.profile_path), name, character: c.character, profilePath: c.profile_path, order: c.order};
+		}),
 		crew: [
-			...(typeof d.director === 'string' && d.director ? [{id: stableId(d.director), name: d.director, job: 'Director', department: 'Directing'}] : []),
-			...list(d.creators).filter((n) => typeof n === 'string').map((name) => ({id: stableId(name), name, job: 'Creator', department: 'Writing'}))
+			...(typeof d.director === 'string' && d.director ? [{id: personId(d.director), name: d.director, job: 'Director', department: 'Directing'}] : []),
+			...list(d.creators).filter((n) => typeof n === 'string').map((name) => ({id: personId(name), name, job: 'Creator', department: 'Writing'}))
 		]
 	});
 
@@ -668,11 +764,16 @@ export const createSiloSeerr = ({call, baseUrl = '', random = Math.random}) => {
 			}
 			return discover(type, params, at);
 		}
+		if (parts[0] === 'person' && parts[1]) {
+			const id = intOf(parts[1]);
+			if (id == null) return {};
+			return parts[2] === 'combined_credits' ? personCredits(id) : person(id);
+		}
 		if (parts[0] === 'issue') return parts[1] === 'count' ? {} : EMPTY_LIST;
 		if (parts[0] === 'media') return {results: []};
 		if (parts[0] === 'languages' || parts[0] === 'service' || parts[0] === 'blacklist') return parts[0] === 'blacklist' ? EMPTY_LIST : [];
 		if (parts[0] === 'settings') return parts[1] === 'radarr' || parts[1] === 'sonarr' ? [] : {};
-		// Quotas, people, collections: Silo has no counterpart.
+		// Quotas, collections: Silo has no counterpart.
 		return {};
 	};
 

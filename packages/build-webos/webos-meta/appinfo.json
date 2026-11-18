@@ -14,15 +14,6 @@
     "iconColor": "#000000",
     "disableBackHistoryAPI": true,
     "enablePigScreenSaver": false,
-    "requiredPermissions": [
-        "time.query",
-        "activity.operation",
-        "media.operation",
-        "audio.operation",
-        "settings.read",
-        "deviceinfo.read",
-        "database"
-    ],
     "allowVideoCapture": false,
     "allowAudioCapture": false,
     "handlesRelaunch": true

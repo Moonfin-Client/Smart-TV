@@ -1,6 +1,6 @@
 import $L from '@enact/i18n/$L';
 import Spottable from '@enact/spotlight/Spottable';
-import {CORE_ICON_PATHS} from '../../views/Settings/settingsCoreIcons';
+import {HOME_CORE_ICON_PATHS} from '../icons/homeIconPaths';
 import {rem} from '../../utils/rootScale';
 
 import css from './CalendarSeeAllCard.module.less';
@@ -20,7 +20,7 @@ const CalendarSeeAllCard = ({width, height, spotlightId, onClick, onFocus, onSpo
 	>
 		<div className={css.content}>
 			<svg className={css.icon} viewBox="0 0 24 24" aria-hidden="true">
-				<path fill="currentColor" d={CORE_ICON_PATHS[icon]} />
+				<path fill="currentColor" d={HOME_CORE_ICON_PATHS[icon]} />
 			</svg>
 			<span className={css.label}>{$L('See All')}</span>
 		</div>

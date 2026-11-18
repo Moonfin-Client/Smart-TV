@@ -1,6 +1,6 @@
 import {applyThemeOverrides, buildThemeOverrideCss, registerThemeSheet} from './themeOverrides';
 import {resolveThemeById} from './themeRegistry';
-import {contrastRatio, inkOn, resolveFocusBorderColor, toCssColor, MIN_BUTTON_CONTRAST} from './themeSpec';
+import {contrastRatio, inkOn, resolveFocusBorderColor, toCssColor, MIN_BUTTON_CONTRAST, toRgbTriplet} from './themeSpec';
 
 describe('buildThemeOverrideCss', () => {
 	it('scopes every rule to the active theme id', () => {
@@ -96,6 +96,16 @@ describe('buildThemeOverrideCss', () => {
 		expect(buildThemeOverrideCss(theme)).toContain('background-color: rgba(107, 114, 128, 0.375)');
 	});
 
+	it('shades and washes the MakD bar in charcoal tinted by the overlay setting, at makd\'s strength by default', () => {
+		const theme = resolveThemeById('moonfin');
+		const black = buildThemeOverrideCss(theme, {mediaBarOverlayColor: 'black', mediaBarOverlayOpacity: 50});
+		expect(black).toMatch(/makdShade[^{]*\{ background: rgba\(20, 20, 20, 0\.2\); \}/);
+		expect(black).toContain('linear-gradient(130deg, rgba(20, 20, 20, 0.65) 10%, rgba(20, 20, 20, 0.35) 30%, rgba(20, 20, 20, 0) 100%)');
+		expect(buildThemeOverrideCss(theme, {mediaBarOverlayColor: 'black', mediaBarOverlayOpacity: 100})).toContain('linear-gradient(130deg, rgb(20, 20, 20) 10%');
+		// Neon Magenta stays a dark plum rather than flooding the art pink
+		expect(buildThemeOverrideCss(theme, {mediaBarOverlayColor: 'neonPulseMagenta', mediaBarOverlayOpacity: 50})).toMatch(/makdShade[^{]*\{ background: rgba\(97, 34, 64, 0\.2\); \}/);
+	});
+
 	it('prefers the focus border color setting over the theme focus border', () => {
 		const theme = resolveThemeById('moonfin');
 		expect(buildThemeOverrideCss(theme, {focusBorderColor: '#ff0000'})).toContain('rgb(255, 0, 0)');
@@ -129,6 +139,22 @@ describe('buildThemeOverrideCss', () => {
 		expect(lines.some((line) => line.includes(' .layer .pill:not(.pillDanger):focus {') && line.includes(`border-color: ${accent};`))).toBe(true);
 		// Login's user picker shares the carousel and stays unthemed
 		expect(lines.some((line) => ['dotOn', 'lineAccent', 'badgeActive'].some((name) => line.startsWith(`${prefix} .${name} `)))).toBe(false);
+	});
+
+	it('draws the shared dialogs in the theme and keeps their destructive buttons red', () => {
+		// Moonfin's accent and surface match the baked fallbacks, so 8-Bit Hero shows the theme is followed
+		for (const id of ['moonfin', '8bit_hero']) {
+			const theme = resolveThemeById(id);
+			const accent = toCssColor(theme.colors.accent);
+			const prefix = `html[data-theme-id='${id}'][data-theme-id]`;
+			const lines = buildThemeOverrideCss(theme).split('\n');
+			expect(lines).toContain(`${prefix} .rowIconSelected { color: ${accent}; }`);
+			expect(lines).toContain(`${prefix} .alertAction:not(.alertActionDestructive) { color: ${accent}; }`);
+			// A colour on every action would outrank the module's red for the destructive ones
+			expect(lines.some((line) => line.includes(`${prefix} .alertAction {`) || line.includes(`${prefix} .alertAction:focus {`))).toBe(false);
+			expect(lines.some((line) => line.startsWith(`${prefix} .alert {`) && line.includes(`background: rgb(${toRgbTriplet(theme.colors.surface)});`))).toBe(true);
+			expect(lines).toContain(`${prefix} .alert .cancelMessage { color: rgba(${toRgbTriplet(theme.colors.onSurface)}, 0.7); }`);
+		}
 	});
 
 	it('keeps Switch User text light on its dark scrim when the theme\'s onSurface is dark', () => {

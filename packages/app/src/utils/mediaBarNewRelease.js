@@ -4,6 +4,8 @@ import {parseServerDate} from './serverDate';
 export const NEW_SERIES = 'newSeries';
 export const NEW_SEASON = 'newSeason';
 export const NEW_EPISODES = 'newEpisodes';
+export const NEW_MOVIE = 'newMovie';
+export const NEW_RELEASE_KINDS = [NEW_SERIES, NEW_SEASON, NEW_EPISODES, NEW_MOVIE];
 
 // The sources that read a library newest first rather than at random.
 export const DATED_SOURCES = ['recentlyAdded', 'recentlyReleased', 'newReleases'];
@@ -11,6 +13,8 @@ export const MEDIA_BAR_SOURCES = ['random', ...DATED_SOURCES];
 // The library and collection sources saved before, which draw like random now.
 export const LEGACY_MEDIA_BAR_SOURCES = ['library', 'collection'];
 export const NEW_RELEASE_DAYS = [7, 14, 30, 60, 90];
+// Longer than for episodes, since a cinema release reaches servers months after it opens.
+export const NEW_MOVIE_DAYS = [30, 60, 90, 120, 180, 365];
 
 // The fewest episodes a season released at once has. A two episode premiere is still a season
 // aired week by week.
@@ -25,6 +29,19 @@ export const isRecentlyAiredEpisode = (episode, now, days) => {
 	const aired = parseServerDate(episode?.PremiereDate);
 	if (!aired) return false;
 	return aired.getTime() <= now.getTime() && aired.getTime() >= now.getTime() - days * DAY_MS;
+};
+
+// The label kinds picked in settings, from their stored comma list.
+export const newReleaseKindsOf = (stored) => String(stored ?? '').split(',').map((kind) => kind.trim()).filter(Boolean);
+
+// A movie that came out within the last `days`, with its tagline. Jellyfin only keeps taglines in its
+// metadata language, so there's never an English one standing in for a missing French one.
+export const newMovieOf = (item, now, days) => {
+	if (item?.Type !== 'Movie') return null;
+	const released = parseServerDate(item.PremiereDate);
+	if (!released || released.getTime() > now.getTime() || released.getTime() < now.getTime() - days * DAY_MS) return null;
+	const tagline = (item.Taglines || []).map((line) => String(line).trim()).find(Boolean) || null;
+	return {kind: NEW_MOVIE, tagline};
 };
 
 const seasonOf = (episode) => (Number.isFinite(episode?.ParentIndexNumber) ? episode.ParentIndexNumber : 0);
@@ -93,9 +110,36 @@ export const recentEpisodes = async (api, parentId, days, limit) => {
 	return (result?.Items || []).filter((episode) => isRecentlyAiredEpisode(episode, now, days));
 };
 
-export const loadNewReleases = async (items, days, apiFor) => {
+// A bar drawn from a source that didn't ask for taglines comes without them, so they're read in one call per server.
+const readTaglines = async (items, apiFor) => {
+	const idsByApi = new Map();
+	items.forEach((item) => {
+		const api = apiFor(item);
+		idsByApi.set(api, [...(idsByApi.get(api) || []), item.Id]);
+	});
+	const taglines = {};
+	await Promise.all([...idsByApi].map(async ([api, ids]) => {
+		const result = await api.getItems({Ids: ids.join(','), Fields: 'Taglines', EnableImages: false, EnableTotalRecordCount: false}).catch(() => null);
+		(result?.Items || []).forEach((item) => {
+			taglines[item.Id] = item.Taglines;
+		});
+	}));
+	return taglines;
+};
+
+// [kinds] are the labels picked in settings. A series is only asked about when one of its labels is wanted.
+export const loadNewReleases = async (items, {days, movieDays, kinds, tagline}, apiFor) => {
 	const releases = {};
-	const series = items.filter((item) => item?.Type === 'Series' && !item._external);
+	const now = new Date();
+	if (kinds.includes(NEW_MOVIE)) {
+		const movies = items.filter((item) => !item?._external && newMovieOf(item, now, movieDays));
+		const taglines = tagline ? await readTaglines(movies.filter((item) => item.Taglines === undefined), apiFor) : {};
+		movies.forEach((item) => {
+			releases[item.Id] = tagline ? newMovieOf({...item, Taglines: item.Taglines ?? taglines[item.Id]}, now, movieDays) : {kind: NEW_MOVIE, tagline: null};
+		});
+	}
+	const wantsSeries = kinds.some((kind) => kind !== NEW_MOVIE);
+	const series = wantsSeries ? items.filter((item) => item?.Type === 'Series' && !item._external) : [];
 	await mapBounded(series, CONCURRENCY, async (item) => {
 		try {
 			const api = apiFor(item);
@@ -105,7 +149,7 @@ export const loadNewReleases = async (items, days, apiFor) => {
 				? (await api.getItems({ParentId: seasonId, IncludeItemTypes: 'Episode', Recursive: true, Limit: 200, EnableTotalRecordCount: false}))?.Items
 				: null;
 			const release = newReleaseOf(recent, season);
-			if (release) releases[item.Id] = release;
+			if (release && kinds.includes(release.kind)) releases[item.Id] = release;
 		} catch (e) {
 			// A series that can't be asked about just goes without a label.
 		}

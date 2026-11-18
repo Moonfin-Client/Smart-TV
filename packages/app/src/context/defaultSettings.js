@@ -181,6 +181,11 @@ export const defaultSettings = {
 	mediaBarSourceType: 'random',
 	mediaBarNewReleaseBanner: true,
 	mediaBarNewReleaseDays: 30,
+	// Which labels the banner puts on, comma separated. The banner switch still turns them all off, since older
+	// apps only read that.
+	mediaBarNewReleaseKinds: 'newSeries,newSeason,newEpisodes,newMovie',
+	mediaBarNewMovieDays: 120,
+	mediaBarNewMovieDetail: true,
 	mediaBarLibraryIds: [],
 	mediaBarCollectionIds: [],
 	mediaBarExternalLists: [],
@@ -423,8 +428,9 @@ export const defaultSettings = {
 	// Calendar reminders are a phone feature.
 	calendarReminders: null,
 	performanceMode: 'auto',
-	// Kept on the TV, since the other clients have no such setting.
-	smoothScrolling: true,
+	// Kept on the TV, since the other clients have no such setting. Null follows the
+	// performance tier, see smoothScrollingFor.
+	smoothScrollingChoice: null,
 	keyboardStyle: 'docked',
 	focusBorderColor: '',
 	navbarOpacity: 50,
@@ -432,5 +438,7 @@ export const defaultSettings = {
 	// webOS TLS proxy fallback: when the WebView rejects a server's certificate
 	// (net::ERR_INSECURE_RESPONSE), allow the bundled Node service to fetch with
 	// certificate validation disabled. Off by default; local-only (not synced).
-	allowInsecureCerts: false
+	allowInsecureCerts: false,
+	// webOS only, and kept on the TV rather than synced.
+	keepDevModeAlive: true
 };

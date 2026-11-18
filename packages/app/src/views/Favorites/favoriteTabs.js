@@ -66,7 +66,7 @@ const tmdbIdOf = (item) => {
 // runtime is the title's length.
 export const withRequestDetail = (card, details, detailCard) => {
 	const out = {...card};
-	['_externalBackdropUrl', 'Overview', 'ProductionYear', 'CommunityRating'].forEach((key) => {
+	['Name', '_externalPosterUrl', '_externalBackdropUrl', 'Overview', 'ProductionYear', 'CommunityRating'].forEach((key) => {
 		if (!out[key] && detailCard[key]) out[key] = detailCard[key];
 	});
 	if (!out.OfficialRating && details.contentRating) out.OfficialRating = details.contentRating;

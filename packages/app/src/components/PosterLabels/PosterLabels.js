@@ -5,7 +5,7 @@ import {getServerUrl} from '../../services/jellyfinApi';
 import {POSTER_LABEL_CORNERS, posterBadgesPerCorner, posterLabelsBase, usePosterBadges} from '../../services/posterBadgesApi';
 import {rem} from '../../utils/rootScale';
 import {normalizeServerUrl} from '../../utils/serverUrl';
-import {CORE_ICON_PATHS} from '../../views/Settings/settingsCoreIcons';
+import {coreIconPath} from '../../utils/coreIconPaths';
 import {posterLabelCorners} from './posterLabelLook';
 
 import css from './PosterLabels.module.less';
@@ -36,7 +36,7 @@ const Label = ({look}) => {
 		<span className={css.pill} style={look.style} role={look.name ? 'img' : undefined} aria-label={look.name || undefined}>
 			{look.icon && (
 				<svg className={css.icon} style={look.iconStyle} viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-					<path d={CORE_ICON_PATHS[look.icon]} />
+					<path d={coreIconPath(look.icon)} />
 				</svg>
 			)}
 			{look.flag && <img className={css.flag} src={flagUrl(look.flag)} alt="" style={look.flagStyle} />}

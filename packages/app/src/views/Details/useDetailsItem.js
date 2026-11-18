@@ -722,6 +722,27 @@ const useDetailsItem = ({itemId, initialItem, effectiveApi, effectiveServerUrl, 
 		}
 	}, [effectiveApi, itemId, tagWithServerInfo]);
 
+	// Marking a whole series or season reaches every episode under it, which the server doesn't report one by
+	// one, so the page reads its seasons, episodes and next up again.
+	const reloadEpisodes = useCallback(async () => {
+		const type = item?.Type;
+		if (type !== 'Series' && type !== 'Season') return;
+		const keep = (data) => tagWithServerInfo(withoutBlockedItems(data.Items || [], item.OfficialRating));
+		const nextUpRequest = ++nextUpRequestRef.current;
+		const [seasonsData, episodesData, seriesData, nextUpData] = await Promise.all([
+			type === 'Series' ? effectiveApi.getSeasons(item.Id).catch(() => null) : null,
+			type === 'Season' ? effectiveApi.getEpisodes(item.SeriesId, item.Id).catch(() => null) : null,
+			type === 'Series' && seriesEpisodes.length ? effectiveApi.getEpisodes(item.Id).catch(() => null) : null,
+			type === 'Series' ? effectiveApi.getNextUp(1, item.Id).catch(() => null) : null
+		]);
+		const lists = [seasonsData, episodesData, seriesData, nextUpData].filter(Boolean);
+		userDataSync.recordFromServer(lists.flatMap((data) => data.Items || []));
+		if (seasonsData) setSeasons(keep(seasonsData));
+		if (episodesData) setEpisodes(keep(episodesData));
+		if (seriesData) setSeriesEpisodes(keep(seriesData));
+		if (nextUpData && nextUpRequest === nextUpRequestRef.current) setNextUp(tagWithServerInfo(nextUpData.Items || []));
+	}, [item, seriesEpisodes.length, effectiveApi, tagWithServerInfo]);
+
 	// Everything here was fetched once, and the watched state can move under it on this set or
 	// another one, so the screen draws from it with what's known now laid over it.
 	const userDataVersion = useUserDataVersion();
@@ -784,7 +805,8 @@ const useDetailsItem = ({itemId, initialItem, effectiveApi, effectiveServerUrl, 
 		setSelectedAudioIndex,
 		selectedSubtitleIndex,
 		setSelectedSubtitleIndex,
-		refreshItem
+		refreshItem,
+		reloadEpisodes
 	};
 };
 
