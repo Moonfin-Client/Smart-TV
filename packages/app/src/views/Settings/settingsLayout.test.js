@@ -17,7 +17,7 @@ const SCREENS = {
 };
 
 const SECTIONS = {
-	'account.account': ['signIn', 'family', 'servers', 'sync'],
+	'account.account': ['signIn', 'family', 'servers', 'developerMode', 'sync'],
 	'account.pinCode': ['pinGeneral', 'pinManage'],
 	'general.general': ['language', 'clock', 'input', 'behavior', 'performance'],
 	'appearance.appearance': ['navigation', 'layout', 'theme', 'display', 'extras'],

@@ -299,6 +299,16 @@ export const SETTINGS_SCHEMA = [
 						icon: 'gpp_maybe',
 						when: whenCertificateChoice
 					},
+					{kind: KIND.SECTION, id: 'developerMode', label: () => $L('Developer Mode'), when: (ctx) => ctx.isWebOS},
+					{
+						kind: KIND.TOGGLE,
+						key: 'keepDevModeAlive',
+						label: () => $L('Keep Developer Mode Active'),
+						desc: () => $L('Renew the TV\'s Developer Mode session each time Moonfin opens, so webOS doesn\'t uninstall the app when the session runs out'),
+						icon: 'code',
+						keywords: () => ['developer', 'dev mode', 'session', 'extend', 'renew', 'expire'],
+						when: (ctx) => ctx.isWebOS
+					},
 					{kind: KIND.SECTION, id: 'sync', label: () => ''},
 					{kind: KIND.NAV, id: 'settingsSync', label: () => $L('Settings Sync'), desc: () => $L('Moonbase plugin sync and customization profiles'), icon: 'sync', action: (ctx) => ctx.actions.openScreen('account', 'settingsSync', 'setting-settingsSync')}
 				]

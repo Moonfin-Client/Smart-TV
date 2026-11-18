@@ -32,7 +32,7 @@ import {isLiveTvChannel, isLiveTvLibrary} from '../utils/liveTvLibrary';
 import {OLED_TUNING} from '../utils/oledMode';
 import {isTizen, isVega, isXbox} from '../platform';
 import {initVideo, cleanupVideoElement, setupVisibilityHandler, setupPlatformLifecycle} from '../services/video';
-import {activateApp, exitApp} from '../utils/appLifecycle';
+import {activateApp, exitApp, renewDevMode} from '../utils/appLifecycle';
 import {SettingsProvider} from '../context/SettingsContext';
 import {seedLanguagePreferences} from '../utils/languagePrefSeed';
 import {seedHideWatched} from '../utils/hideWatchedRecentRows';
@@ -407,6 +407,13 @@ const AppContent = (props) => {
 	const {updateInfo, formattedNotes, dismiss: dismissUpdate} = useVersionCheck(
 		isAuthenticated && settings.updateNotificationsEnabled !== false ? 3000 : null
 	);
+	// Once per launch, or later if someone turns it on, before anyone has to sign in.
+	const devModeRenewedRef = useRef(false);
+	useEffect(() => {
+		if (!settingsLoaded || devModeRenewedRef.current || settings.keepDevModeAlive === false) return;
+		devModeRenewedRef.current = true;
+		renewDevMode();
+	}, [settingsLoaded, settings.keepDevModeAlive]);
 	const {userId, record: signInPin, account: pinAccount, latest: latestSignInPin, save: saveSignInPin} = useSignInPin();
 	const pinSession = isAuthenticated && userId ? `${userId}:${pinCheckCount}` : null;
 	const pinPending = Boolean(pinSession) && pinPassed !== pinSession;

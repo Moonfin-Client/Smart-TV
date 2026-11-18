@@ -430,5 +430,7 @@ export const defaultSettings = {
 	// webOS TLS proxy fallback: when the WebView rejects a server's certificate
 	// (net::ERR_INSECURE_RESPONSE), allow the bundled Node service to fetch with
 	// certificate validation disabled. Off by default; local-only (not synced).
-	allowInsecureCerts: false
+	allowInsecureCerts: false,
+	// webOS only, and kept on the TV rather than synced.
+	keepDevModeAlive: true
 };

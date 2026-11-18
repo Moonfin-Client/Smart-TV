@@ -27,6 +27,9 @@ jobs:
   build-webos:
     name: Build webOS
     runs-on: ubuntu-26.04
+    env:
+      MOONFIN_OTA_URL: https://github.com/${{ github.repository }}/releases/download
+      MOONFIN_OTA_PUBLIC_KEY: scripts/ota/public.pem
     steps:
       - uses: actions/checkout@v5
 
@@ -38,6 +41,17 @@ jobs:
       - name: Install dependencies
         run: npm ci --force
 
+      # Tagged builds sign the in-app update with a key only CI holds. Without the
+      # secret the packages still build, just without update files to attach.
+      - name: Load the update signing key
+        if: startsWith(github.ref, 'refs/tags/')
+        env:
+          KEY: ${{ secrets.MOONFIN_OTA_SIGNING_KEY }}
+        run: |
+          if [ -n "$KEY" ]; then
+            printf '%s\n' "$KEY" > "$RUNNER_TEMP/ota-signing.pem"
+            echo "MOONFIN_OTA_SIGNING_KEY=$RUNNER_TEMP/ota-signing.pem" >> "$GITHUB_ENV"
+          fi
       - name: Build webOS
         id: build
         run: npm run build:webos
@@ -48,6 +62,7 @@ jobs:
           name: webos
           path: |
             Moonfin_webOS_*.ipk
+            moonfin-ota-webos.*
             packages/build-webos/org.moonfin.webos.manifest.json
 
   # ───────────────────────────────────────────────
@@ -56,6 +71,9 @@ jobs:
   build-tizen:
     name: Build Tizen
     runs-on: ubuntu-26.04
+    env:
+      MOONFIN_OTA_URL: https://github.com/${{ github.repository }}/releases/download
+      MOONFIN_OTA_PUBLIC_KEY: scripts/ota/public.pem
     steps:
       - uses: actions/checkout@v5
 
@@ -67,6 +85,15 @@ jobs:
       - name: Install dependencies
         run: npm ci --force
 
+      - name: Load the update signing key
+        if: startsWith(github.ref, 'refs/tags/')
+        env:
+          KEY: ${{ secrets.MOONFIN_OTA_SIGNING_KEY }}
+        run: |
+          if [ -n "$KEY" ]; then
+            printf '%s\n' "$KEY" > "$RUNNER_TEMP/ota-signing.pem"
+            echo "MOONFIN_OTA_SIGNING_KEY=$RUNNER_TEMP/ota-signing.pem" >> "$GITHUB_ENV"
+          fi
       - name: Build Tizen (all variants)
         id: build
         run: npm run build:tizen:all
@@ -75,7 +102,9 @@ jobs:
         if: success()
         with:
           name: tizen
-          path: Moonfin_Tizen_*.wgt
+          path: |
+            Moonfin_Tizen_*.wgt
+            moonfin-ota-tizen.*
 
   # ───────────────────────────────────────────────
   # Vega VPKG and shell checks
@@ -231,4 +260,6 @@ jobs:
             Moonfin_Tizen_*.wgt
             Moonfin_Vega_*.vpkg
             Moonfin_Xbox_*.zip
+            moonfin-ota-*.json
+            moonfin-ota-*.bin
             packages/build-webos/org.moonfin.webos.manifest.json

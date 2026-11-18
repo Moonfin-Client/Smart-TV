@@ -12,6 +12,7 @@ build
 dist
 *.ipk
 *.wgt
+moonfin-ota-*
 *.zip
 *.vpkg
 *.msix

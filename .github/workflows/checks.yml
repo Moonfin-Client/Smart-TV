@@ -103,6 +103,9 @@ jobs:
           npx enact test --json --outputFile="$RUNNER_TEMP/jest.json" || status=1
           echo "$status" > "$RUNNER_TEMP/run-status"
 
+      - name: Test the in-app update build helper
+        run: node --test scripts/ota/index.test.js
+
       # The counts and failing test names, for the PR comment. A suite that
       # couldn't run has no tests in it, so it counts as one failure.
       - name: Summarize results

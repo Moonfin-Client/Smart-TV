@@ -455,6 +455,7 @@ const Settings = ({ onBack, onLibrariesChanged, onRunSetupWizard, onSelectItem, 
 		const result = await checkForUpdatesDetailed();
 		if (result.status === 'update') {
 			setUpdateCheckMessage($L('Version {version} is available').replace('{version}', result.latestVersion));
+			window.dispatchEvent(new CustomEvent('moonfin:show-update'));
 		} else if (result.status === 'current') {
 			setUpdateCheckMessage($L('You are on the latest version'));
 		} else {
