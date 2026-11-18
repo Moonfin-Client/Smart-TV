@@ -1940,7 +1940,7 @@ const AppContent = (props) => {
 	const playFromRemote = useCallback(async (itemIds, options) => {
 		const loaded = await Promise.all(itemIds.map((id) => api.getItem(id).catch(() => null)));
 		const items = loaded.filter(Boolean);
-		if (!items.length) return;
+		if (!items.length || !options.isCurrent()) return;
 		const item = items[Math.min(Math.max(options.startIndex, 0), items.length - 1)];
 		const queue = items.filter((entry) => isAudioItem(entry) === isAudioItem(item));
 		const playOptions = {
@@ -1955,6 +1955,7 @@ const AppContent = (props) => {
 			return;
 		}
 		await remoteControl.releasePlayer();
+		if (!options.isCurrent()) return;
 		setPlayingItem(item);
 		setPlaybackOptions(playOptions);
 		setIsResume(false);
