@@ -50,7 +50,9 @@ const publishAll = (changes, {replace = false} = {}) => {
 		const patch = changes[itemId];
 		if (!itemId || !patch || !Object.keys(patch).length) return;
 		const existing = userData.get(itemId);
-		const merged = replace ? {...patch} : {...existing, ...patch};
+		// The server leaves out a percentage it has cleared, which would keep the old progress bar. Only a whole
+		// record says that, and every server's whole record carries the position, so a partial one is left as it is.
+		const merged = replace ? {...('PlaybackPositionTicks' in patch ? {PlayedPercentage: null} : null), ...patch} : {...existing, ...patch};
 		if (existing && sameEntries(existing, merged)) return;
 		userData.set(itemId, merged);
 		changed = true;
@@ -63,6 +65,15 @@ const publishAll = (changes, {replace = false} = {}) => {
 // Records this client's own change before the server confirms it. Merges, so a patch that only
 // carries Played leaves a known play count alone.
 export const publish = (itemId, patch) => publishAll({[itemId]: patch});
+
+// Items read straight from the server, whose user data replaces whatever was known about them.
+export const recordFromServer = (items) => {
+	const changes = {};
+	(items || []).forEach((item) => {
+		if (item?.Id && item.UserData) changes[item.Id] = item.UserData;
+	});
+	publishAll(changes, {replace: true});
+};
 
 // Returns the item itself when nothing newer is known, so callers can compare by identity and
 // skip rebuilding a list that didn't move.

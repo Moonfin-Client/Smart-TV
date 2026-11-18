@@ -198,7 +198,7 @@ const Details = ({
 		collectionItems, collectionMembers, missingCollectionItems, parentCollections, similarSource, similarLoaded, playListsLoaded, loadMoreCollectionItems,
 		loadMoreCollectionTitles, removeFromCollection, albumTracks, artistAlbums,
 		playlistItems, setPlaylistItems, collectionIndexRef, collectionSort, collectionPlaylistLoading, chooseCollectionSort, moveCollectionItem,
-		episodeRatings, refreshItem,
+		episodeRatings, refreshItem, reloadEpisodes,
 		selectedVersionIndex, setSelectedVersionIndex,
 		selectedAudioIndex, setSelectedAudioIndex,
 		selectedSubtitleIndex, setSelectedSubtitleIndex
@@ -675,9 +675,10 @@ const Details = ({
 			...prev,
 			UserData: {...prev.UserData, Played: newState, PlayedPercentage: newState ? 100 : 0}
 		}));
+		reloadEpisodes();
 		window.dispatchEvent(new CustomEvent('moonfin:browseRefresh'));
 		window.requestAnimationFrame(() => Spotlight.focus('details-watched-btn'));
-	}, [effectiveApi, item, setItem]);
+	}, [effectiveApi, item, setItem, reloadEpisodes]);
 
 	// A rating shows on the screen before the server answers, and goes back to
 	// what it was if the save fails.
