@@ -4,7 +4,7 @@ import $L from '@enact/i18n/$L';
 import CoreDialog from '../CoreDialog';
 import TrackOptionRow from '../TrackOptionRow';
 import {getApiForItem} from '../../services/connectionPool';
-import {copiesOf, withoutCopies} from '../../utils/mergedCopies';
+import {copiesOf, copyKey, withoutCopies} from '../../utils/mergedCopies';
 import {formatFileSize} from '../../utils/formatFileSize';
 
 // A server that takes longer than this to describe its copy is listed without the details.
@@ -79,7 +79,7 @@ const MergedCopyPicker = ({item, onPick, onClose}) => {
 				const known = Object.prototype.hasOwnProperty.call(details, index);
 				return (
 					<TrackOptionRow
-						key={`${copy._serverId || ''}|${copy.Id}`}
+						key={copyKey(copy)}
 						label={copy._serverName || $L('Server')}
 						detail={known ? describe(copy, details[index] || null) : $L('Loading...')}
 						selected={index === 0}

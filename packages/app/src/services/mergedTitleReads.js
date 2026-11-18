@@ -4,6 +4,7 @@
 
 import connectionPool from './connectionPool';
 import {COPIES_KEY, indexCopies, joinIndexedCopies, titleMatchKeys} from '../utils/mergedCopies';
+import {isLegacyTizen, isLegacyWebOS} from '../platform';
 
 const PAGE_SIZE = 1000;
 // A stop for a server that ignores StartIndex and sends the same page every time.
@@ -15,6 +16,10 @@ const FIND_WAIT_MS = 1500;
 
 const titleReads = new Map();
 const sourceReads = new Map();
+
+// Whether this TV can read every title of every server to find a card's copies. webOS 4 and older and Tizen 3.0 and
+// older only do it for a change made to every copy.
+export const readsEveryTitle = () => !isLegacyWebOS() && !isLegacyTizen();
 
 const fresh = (kept) => kept && Date.now() - kept.at < TITLE_READ_TTL_MS;
 
@@ -125,6 +130,7 @@ export const findEveryCopy = async (item, waitMs = FIND_WAIT_MS) => {
 	const lookup = LOOKUPS[item?.Type];
 	if (!lookup || !titleMatchKeys(item).length) return item;
 	if (waitMs == null) return findAll(item, lookup).catch(() => item);
+	if (!readsEveryTitle()) return item;
 	let timer = null;
 	const late = new Promise((resolve) => {
 		timer = setTimeout(() => resolve(item), waitMs);

@@ -23,6 +23,9 @@ const serverTags = (server) => ({
 	_serverType: server.serverType || 'jellyfin'
 });
 
+// Just the server fields `serverTags` puts on an item.
+const tagsOf = (item) => Object.keys(serverTags({})).reduce((tags, key) => ({...tags, [key]: item[key]}), {});
+
 const timeOf = (value) => {
 	const time = value ? new Date(value).getTime() : NaN;
 	return Number.isNaN(time) ? 0 : time;
@@ -32,11 +35,10 @@ const timeOf = (value) => {
 const siloNeedsPin = (account) => account.siloHasPin === true &&
 	!profileProof(siloSessionOfAccount(account.url, account.siloAccountId), account.userId);
 
-// The account each server is read with, the way Moonfin-Core picks it: the signed-in one on its own server, elsewhere
-// the first saved account with a token, or for Silo the most recently used profile that can act without asking for
-// its PIN. A server with
-// none of those is left out. One account per server keeps a title several servers hold to one copy per server, and
-// marking it watched from here never reaches another saved account.
+// The account each server is read with: the signed-in one on its own server, elsewhere the first saved account with a
+// token, or for Silo the most recently used profile that can act without asking for its PIN. A server with none of
+// those is left out. One account per server keeps a title several servers hold to one copy per server, and marking it
+// watched from here never reaches another saved account.
 export const oneAccountPerServer = (servers, active) => {
 	const activeServerId = active?.serverId || active?.id;
 	const byServer = new Map();
@@ -247,30 +249,22 @@ export const getLibrariesFromAllServers = async () => (await readLibrariesFromAl
  * @returns {Promise<{sources: Array<{api: Object, libraryId: string, server: Object}>, complete: boolean}>}
  */
 export const getMergedLibrarySources = async (collectionType) => {
-	const [accounts, active] = await Promise.all([
-		getLoggedInServers(),
+	const [{libraries, complete}, active] = await Promise.all([
+		readLibrariesFromAllServers(),
 		multiServerManager.getActiveServer()
 	]);
 	const activeId = active?.serverId || active?.id;
-	const ordered = [
-		...accounts.filter((server) => server.serverId === activeId),
-		...accounts.filter((server) => server.serverId !== activeId)
-	];
-	let complete = true;
-	const perServer = await Promise.all(ordered.map(async (server) => {
-		try {
-			const api = createApiForServer(server.url, server.accessToken, server.userId, server.serverType || 'jellyfin');
-			const result = await api.getLibraries();
-			return (result?.Items || [])
-				.filter((library) => (library.CollectionType || '').toLowerCase() === collectionType)
-				.map((library) => ({api, libraryId: library.Id, server: serverTags(server)}));
-		} catch (err) {
-			console.warn(`[ConnectionPool] Merged library lookup failed on ${server.name}:`, err);
-			complete = false;
-			return [];
-		}
-	}));
-	return {sources: perServer.flat(), complete};
+	const sources = libraries
+		.filter((library) => (library.CollectionType || '').toLowerCase() === collectionType)
+		.map((library) => ({
+			api: createApiForServer(library._serverUrl, library._serverAccessToken, library._serverUserId, library._serverType),
+			libraryId: library.Id,
+			server: tagsOf(library)
+		}));
+	return {sources: [
+		...sources.filter((source) => source.server._serverId === activeId),
+		...sources.filter((source) => source.server._serverId !== activeId)
+	], complete};
 };
 
 /**

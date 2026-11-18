@@ -1,8 +1,6 @@
 // Paging through a merged library: every server's library is read a page at a time and the pages are merged into one
 // list in the sort's order, taking whichever server's next item comes first.
 
-import {titleMatchKeys} from './mergedCopies';
-
 // One reader per server library, holding what it has read until the merge takes it.
 export const createMergedReaders = (sources) => (sources || []).map((source) => ({
 	source,
@@ -89,15 +87,4 @@ export const takeMergedPage = async (readers, limit, compare, fetchPage, retryDe
 		return sum + reader.offset + (reader.done ? 0 : limit);
 	}, 0);
 	return {Items: page, TotalRecordCount: total};
-};
-
-// The match keys of every title in a server's answers, for the preferred server's own cards.
-export const titleKeysOf = (responses) => {
-	const keys = new Set();
-	(responses || []).forEach((response) => {
-		(response?.Items || []).forEach((raw) => {
-			if (raw) titleMatchKeys(raw).forEach((key) => keys.add(key));
-		});
-	});
-	return keys;
 };

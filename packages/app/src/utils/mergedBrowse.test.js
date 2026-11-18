@@ -1,4 +1,4 @@
-import {createMergedReaders, mergedReadersDrained, takeMergedPage, titleKeysOf} from './mergedBrowse';
+import {createMergedReaders, mergedReadersDrained, takeMergedPage} from './mergedBrowse';
 import {mergedSortComparator} from './mergedCopies';
 
 const source = (serverId, names) => ({
@@ -75,12 +75,5 @@ describe('takeMergedPage', () => {
 			(await takeMergedPage(readers, 4, null, capped)).Items.forEach((item) => names.push(item.Name));
 		}
 		expect(names).toEqual(['a', 'b', 'c', 'd', 'e']);
-	});
-});
-
-describe('titleKeysOf', () => {
-	it('collects every title\'s match keys', () => {
-		const keys = titleKeysOf([{Items: [{Type: 'Movie', ProviderIds: {Tmdb: '5003'}}]}, {Items: [{Type: 'Movie', ProviderIds: {}}]}]);
-		expect(Array.from(keys)).toEqual(['Movie:tmdb:5003']);
 	});
 });

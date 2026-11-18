@@ -1,8 +1,10 @@
 import connectionPool from './connectionPool';
 import {clearMergedTitleReads, findEveryCopy, readSharedTitles} from './mergedTitleReads';
 import {copiesOf} from '../utils/mergedCopies';
+import {isLegacyTizen} from '../platform';
 
 jest.mock('./connectionPool', () => ({__esModule: true, default: {getMergedLibrarySources: jest.fn()}}));
+jest.mock('../platform', () => ({isLegacyTizen: jest.fn(() => false), isLegacyWebOS: jest.fn(() => false)}));
 
 const source = (serverId, items) => ({
 	libraryId: `lib-${serverId}`,
@@ -57,5 +59,16 @@ describe('findEveryCopy', () => {
 		connectionPool.getMergedLibrarySources.mockResolvedValue({complete: true, sources: [complete]});
 		const found = await findEveryCopy({Id: 'h1', Type: 'Movie', _serverId: 'b', ProviderIds: {Tmdb: '5007'}}, null);
 		expect(copiesOf(found).map((copy) => copy.Id)).toEqual(['h1', 'm7']);
+	});
+
+	test('an old TV opens a card without reading every title, and still finds every copy for a change', async () => {
+		clearMergedTitleReads();
+		const other = source('b', [{Id: 'x9', Type: 'Movie', ProviderIds: {Tmdb: '5001'}}]);
+		connectionPool.getMergedLibrarySources.mockResolvedValue({complete: true, sources: [other]});
+		const card = {Id: 'm1', Type: 'Movie', _serverId: 'a', ProviderIds: {Tmdb: '5001'}};
+		isLegacyTizen.mockReturnValueOnce(true);
+		expect(await findEveryCopy(card)).toBe(card);
+		expect(other.api.getItems).not.toHaveBeenCalled();
+		expect(copiesOf(await findEveryCopy(card, null)).map((copy) => copy.Id)).toEqual(['m1', 'x9']);
 	});
 });

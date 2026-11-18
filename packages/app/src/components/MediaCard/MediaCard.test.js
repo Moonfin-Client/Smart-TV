@@ -331,6 +331,15 @@ describe('MediaCard Seerr status', () => {
 		expect(dot().querySelector('path').getAttribute('d')).toMatch(/^M9 16\.17/);
 	});
 
+	it('moves the dot below a server name and leaves it in the corner otherwise', () => {
+		const {unmount} = drawPoster(seerrMovie({mediaInfo: {status: 5}}));
+		expect(dot().style.top).toBe('');
+		unmount();
+		drawPoster(seerrMovie({mediaInfo: {status: 5}, _serverName: 'Basement'}), {showServerBadge: true});
+		expect(screen.getByText('Basement')).toBeTruthy();
+		expect(dot().style.top).not.toBe('');
+	});
+
 	it('shows no dot for a title Seerr has no status for', () => {
 		drawPoster(seerrMovie());
 		expect(dot()).toBeNull();

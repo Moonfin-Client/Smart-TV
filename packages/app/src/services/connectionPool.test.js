@@ -1,4 +1,4 @@
-import {getApiForItem, getLatestPerLibraryFromAllServers, oneAccountPerServer, readLibrariesFromAllServers} from './connectionPool';
+import {getApiForItem, getLatestPerLibraryFromAllServers, getMergedLibrarySources, oneAccountPerServer, readLibrariesFromAllServers} from './connectionPool';
 import {createApiForServer} from './jellyfinApi';
 import * as multiServerManager from './multiServerManager';
 import {profileProof} from './siloSession';
@@ -80,5 +80,20 @@ describe('reading every server\'s libraries', () => {
 		warn.mockRestore();
 		expect(complete).toBe(false);
 		expect(libraries.map((library) => `${library._serverName}:${library.Id}`)).toEqual(['Alpha:a-movies']);
+	});
+
+	test("lists a merged library's server libraries, the active server's first and tagged with only their server", async () => {
+		multiServerManager.getAllServersArray.mockResolvedValue([server('Alpha', 'http://a'), server('Beta', 'http://b')]);
+		multiServerManager.getActiveServer.mockResolvedValue({serverId: 'Beta', userId: 'u'});
+		const librariesFor = {
+			'http://a': [{Id: 'a-movies', CollectionType: 'movies'}, {Id: 'a-shows', CollectionType: 'tvshows'}],
+			'http://b': [{Id: 'b-films', CollectionType: 'Movies'}]
+		};
+		createApiForServer.mockImplementation((url) => ({url, getLibraries: async () => ({Items: librariesFor[url]})}));
+		const {sources, complete} = await getMergedLibrarySources('movies');
+		expect(complete).toBe(true);
+		expect(sources.map((source) => `${source.api.url}:${source.libraryId}`)).toEqual(['http://b:b-films', 'http://a:a-movies']);
+		expect(sources[0].server).toEqual({_serverId: 'Beta', _serverName: 'Beta', _serverUrl: 'http://b', _serverUserId: 'u', _serverAccessToken: 't', _serverType: 'jellyfin'});
+		multiServerManager.getActiveServer.mockResolvedValue(null);
 	});
 });

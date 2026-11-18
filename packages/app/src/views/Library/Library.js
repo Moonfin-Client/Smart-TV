@@ -44,15 +44,14 @@ import LibrarySkeleton from './LibrarySkeleton';
 import {registerThemeSheet} from '../../theme/themeOverrides';
 import * as connectionPool from '../../services/connectionPool';
 import MergedServerBadge from '../../components/MergedServerBadge';
-import {readSharedTitles} from '../../services/mergedTitleReads';
-import {PreferredCopies, foldCopies, indexCopies, joinIndexedCopies, mergeFacetValues, mergedLibraryType, mergedSearchText, mergedSortComparator, titleMatchKeys} from '../../utils/mergedCopies';
-import {createMergedReaders, mergedReadersDrained, takeMergedPage, titleKeysOf} from '../../utils/mergedBrowse';
+import {readSharedTitles, readsEveryTitle} from '../../services/mergedTitleReads';
+import {PreferredCopies, copyKey, foldCopies, indexCopies, joinIndexedCopies, mergeFacetValues, mergedLibraryType, mergedSearchText, mergedSortComparator, titleMatchKeys} from '../../utils/mergedCopies';
+import {createMergedReaders, mergedReadersDrained, takeMergedPage} from '../../utils/mergedBrowse';
 
 import css from './Library.module.less';
 
 registerThemeSheet('library', css);
 
-// How many titles each request reads while listing the titles the preferred server holds.
 // How long the first page of a merged library waits on the signed-in server's titles before showing without them, so
 // a slow read never holds the grid back. The copies still find their cards, only which server's copy leads may differ.
 const PREFERRED_WAIT_MS = 1500;
@@ -340,8 +339,7 @@ const Library = ({library, genreFilter, studioFilter, onSelectItem, onViewPhoto,
 	allItemsRef.current = allItems;
 	joinIndexedCopiesRef.current = (index) => {
 		const holders = copyHoldersRef.current;
-		const keyOf = (card) => `${card._serverId || ''}|${card.Id}`;
-		const isShown = (copy) => renderedKeysRef.current.has(keyOf(copy));
+		const isShown = (copy) => renderedKeysRef.current.has(copyKey(copy));
 		// Worked out once, outside the state update, since joining changes the cards it's handed. A card on screen can
 		// be a copy of the object the fold holds, drawn again when it took on a copy, so the copies go to the fold's own
 		// object, which every key of the title leads to.
@@ -349,11 +347,10 @@ const Library = ({library, genreFilter, studioFilter, onSelectItem, onViewPhoto,
 		allItemsRef.current.forEach((card) => {
 			const keys = titleMatchKeys(card);
 			const holder = keys.map((key) => holders.get(key)).find(Boolean) || card;
-			if (joinIndexedCopies(holder, index, holders, isShown)) grown.add(keyOf(holder));
+			if (joinIndexedCopies(holder, index, holders, isShown)) grown.add(copyKey(holder));
 		});
-		// A card that took on a copy is a new object, so it draws again with its server count. It's known by server and
-		// id, as paging knows it.
-		if (grown.size) setAllItems((prev) => prev.map((card) => (grown.has(keyOf(card)) ? {...card} : card)));
+		// A card that took on a copy is a new object, so it draws again with its server count.
+		if (grown.size) setAllItems((prev) => prev.map((card) => (grown.has(copyKey(card)) ? {...card} : card)));
 	};
 	const [isLoading, setIsLoading] = useState(true);
 	const [totalCount, setTotalCount] = useState(0);
@@ -595,8 +592,8 @@ const Library = ({library, genreFilter, studioFilter, onSelectItem, onViewPhoto,
 		const own = sources.filter((source) => source.server._serverId === serverId);
 		if (own.length === sources.length) return null;
 		try {
-			const titles = titleKeysOf([{Items: (await Promise.all(own.map((source) => readSharedTitles(source, params)))).flat()}]);
-			return new PreferredCopies(serverId, titles);
+			const read = await Promise.all(own.map((source) => readSharedTitles(source, params)));
+			return new PreferredCopies(serverId, new Set(read.flat().flatMap(titleMatchKeys)));
 		} catch {
 			// Without the list, the first copy shown keeps the card.
 			return null;
@@ -633,7 +630,9 @@ const Library = ({library, genreFilter, studioFilter, onSelectItem, onViewPhoto,
 		}
 		// Held here, since a reload swaps in new readers while this one waits.
 		const readers = mergedReadersRef.current;
-		if (startIndex === 0) {
+		// An old TV skips the reads of every title, and copies fold as paging reaches them.
+		const readsTitles = startIndex === 0 && readsEveryTitle();
+		if (readsTitles) {
 			// In the background, so the first page shows as soon as it's read. The cards already up learn of their
 			// copies once it's in.
 			readTitleIndex(sources, params).then((index) => {
@@ -643,7 +642,7 @@ const Library = ({library, genreFilter, studioFilter, onSelectItem, onViewPhoto,
 				joinIndexedCopiesRef.current?.(index);
 			}, () => {});
 		}
-		const preferred = startIndex === 0 && !hasActiveFilters(filtersRef.current) ? readPreferredCopies(sources, params) : null;
+		const preferred = readsTitles && !hasActiveFilters(filtersRef.current) ? readPreferredCopies(sources, params) : null;
 		const shared = {...params, Fields: params.Fields + MERGED_FIELDS};
 		delete shared.ParentId;
 		const compare = mergedSortComparator(params.SortBy, params.SortOrder === 'Descending');
@@ -692,31 +691,30 @@ const Library = ({library, genreFilter, studioFilter, onSelectItem, onViewPhoto,
 		const showPage = (fetched) => {
 			const allowed = withoutBlockedItems(fetched);
 			if (isMerged) {
-				// Two servers can use the same id, so an item is known by its server too. A copy joins the card already
-				// shown for its title, so the count shrinks with it like any other dropped row.
+				// A copy joins the card already shown for its title, so the count shrinks with it like any other dropped row.
 				const rendered = renderedKeysRef.current;
 				const fresh = allowed.filter((item) => {
-					const key = `${item._serverId || ''}|${item.Id}`;
+					const key = copyKey(item);
 					if (rendered.has(key)) return false;
 					rendered.add(key);
 					return true;
 				});
 				// A card already on screen that takes on a copy is replaced with a new object, so it draws again with its
-				// server count. It's known by server and id, since the holders keep the first object.
+				// server count.
 				const grown = new Set();
 				// A card folded into another, once a copy showed the two to be one title, comes off the screen.
 				const absorbed = new Set();
 				// The card focus is on, when it's in the grid, so focus can follow it if it's folded away.
 				const focusedIndex = Number(Spotlight.getCurrent()?.dataset?.index);
 				const focusedCard = Number.isInteger(focusedIndex) ? itemsRef.current[focusedIndex] : null;
-				const focusedKey = focusedCard ? `${focusedCard._serverId || ''}|${focusedCard.Id}` : null;
+				const focusedKey = focusedCard ? copyKey(focusedCard) : null;
 				const noteGrown = (holder, card) => {
-					const holderKey = `${holder._serverId || ''}|${holder.Id}`;
+					const holderKey = copyKey(holder);
 					grown.add(holderKey);
 					if (!card) return;
 					absorbed.add(card);
 					// Focus follows the card it's on, or the one it already moved to, through every fold to the card left.
-					const cardKey = `${card._serverId || ''}|${card.Id}`;
+					const cardKey = copyKey(card);
 					if (focusedKey && (cardKey === focusedKey || cardKey === refocusCardRef.current)) refocusCardRef.current = holderKey;
 				};
 				const thisPage = new Set(fresh);
@@ -742,7 +740,7 @@ const Library = ({library, genreFilter, studioFilter, onSelectItem, onViewPhoto,
 				}
 				// The index, once in, gives each new card the copies paging hasn't reached.
 				if (copyIndexRef.current) {
-					const isShown = (copy) => renderedKeysRef.current.has(`${copy._serverId || ''}|${copy.Id}`);
+					const isShown = (copy) => renderedKeysRef.current.has(copyKey(copy));
 					shown.forEach((card) => joinIndexedCopies(card, copyIndexRef.current, copyHoldersRef.current, isShown));
 				}
 				shownNothing = shown.length === 0 && fetched.length > 0;
@@ -751,11 +749,11 @@ const Library = ({library, genreFilter, studioFilter, onSelectItem, onViewPhoto,
 					if (!append) return shown;
 					// The holders keep the first object, while the list may hold a copy drawn since, so a card is known by
 					// server and id.
-					const absorbedKeys = new Set(Array.from(absorbed, (card) => `${card._serverId || ''}|${card.Id}`));
+					const absorbedKeys = new Set(Array.from(absorbed, copyKey));
 					const kept = (grown.size || absorbedKeys.size)
 						? prev
-							.filter((item) => !absorbedKeys.has(`${item._serverId || ''}|${item.Id}`))
-							.map((item) => (grown.has(`${item._serverId || ''}|${item.Id}`) ? {...item} : item))
+							.filter((item) => !absorbedKeys.has(copyKey(item)))
+							.map((item) => (grown.has(copyKey(item)) ? {...item} : item))
 						: prev;
 					return [...kept, ...shown];
 				});
@@ -1218,7 +1216,7 @@ const Library = ({library, genreFilter, studioFilter, onSelectItem, onViewPhoto,
 		const key = refocusCardRef.current;
 		if (!key) return;
 		refocusCardRef.current = null;
-		const index = items.findIndex((entry) => `${entry._serverId || ''}|${entry.Id}` === key);
+		const index = items.findIndex((entry) => copyKey(entry) === key);
 		if (index >= 0) {
 			scrollGridTo({index, focus: true});
 			setFocusedItem(items[index]);

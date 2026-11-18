@@ -150,7 +150,8 @@ export const withoutCopies = (item) => {
 	return plain;
 };
 
-const copyKey = (copy) => `${copy._serverId ?? ''}|${copy.Id}`;
+// Two servers can use the same id, so a copy is known by its server too.
+export const copyKey = (copy) => `${copy._serverId ?? ''}|${copy.Id}`;
 
 // Marks a copy the title index gave a card, which holds ids only.
 const LIGHT_KEY = '_lightCopy';
