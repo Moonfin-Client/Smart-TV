@@ -40,7 +40,7 @@ import {applyResumeRewind, skipBackSeconds, skipForwardSeconds, zoomInternalFrom
 import {getZoomModeOptions} from '../Settings/settingsOptions';
 import {saveAudioPref, saveSubtitlePref} from '../../services/subtitlePrefs';
 import {getVolumeState, setMuted as setSystemMuted} from '../../services/systemVolume';
-import {resolveSeriesAudio} from './initialAudio';
+import {asServerAudioStream, directPlayAudio, resolveSeriesAudio} from './initialAudio';
 import {resolveInitialSubtitle} from './initialSubtitle';
 import {api as jellyfinApi, createApiForServer, getServerType, getServerUrl} from '../../services/jellyfinApi';
 import {getApiForItem} from '../../services/connectionPool';
@@ -1525,7 +1525,12 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 				const preferredAudio = rememberedAudio || selectPreferredAudioStream(result.audioStreams, settings);
 				const serverAudio = result.audioStreams?.find(s => s.index === result.defaultAudioStreamIndex);
 				const fileDefaultAudio = result.audioStreams?.find(s => s.isDefault);
-				const autoAudio = preferredAudio || serverAudio || fileDefaultAudio;
+				const autoPick = preferredAudio || serverAudio || fileDefaultAudio;
+				// A codec the user has the server convert is renegotiated below instead.
+				const autoAudio = result.playMethod === playback.PlayMethod.DirectPlay && !transcodesAudioCodec(settings, autoPick?.codec)
+					? await directPlayAudio(autoPick, result.audioStreams, result.selectedAudioStreamIndex,
+						(stream) => playback.canPlayAudioStreamNatively(asServerAudioStream(stream)))
+					: autoPick;
 
 				// A remux or transcode carries only the track the server built it around, so
 				// switching on the player cant reach any other one. Direct play gets the
@@ -2682,9 +2687,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 				// track the set cant decode freezes the picture, so reload and let the
 				// server transcode instead
 				const target = (audioStreams || []).find((s) => s.index === index);
-				const playableNatively = !transcodesAudioCodec(settings, target?.codec) && await playback.canPlayAudioStreamNatively(target
-					? {Codec: target.codec, Profile: target.profile, Title: target.title, DisplayTitle: target.displayTitle, ChannelLayout: target.channelLayout, Channels: target.channels}
-					: null);
+				const playableNatively = !transcodesAudioCodec(settings, target?.codec) && await playback.canPlayAudioStreamNatively(asServerAudioStream(target));
 				if (!playableNatively) {
 					serverLogger.playback('Audio: track needs the server, reloading instead of switching natively', {
 						jellyfinIndex: index,
