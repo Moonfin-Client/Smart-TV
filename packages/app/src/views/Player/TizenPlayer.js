@@ -7,7 +7,7 @@ import {
 	initTizenAPI, registerAppStateObserver, keepScreenOn, getTizenVersion,
 	avplayOpen, avplayPrepare, avplayPlay, avplayPause,
 	avplaySeek as streamSeek, avplaySeekIdle as streamSeekIdle, avplaySetPostSeekHook, avplayGetCurrentTime as streamGetCurrentTime,
-	avplayGetDuration as streamGetDuration, avplayGetLiveRange, avplayGetState,
+	avplayGetDuration as streamGetDuration, avplayGetLiveRange, avplayGetBandwidth, avplayGetState,
 	avplaySetListener, avplaySelectTrack, avplaySetSilentSubtitle,
 	avplayGetTracks, avplayGetCurrentTracks, avplaySetDisplayMethod, avplaySetStreamingProperty, setDisplayWindow, cleanupAVPlay,
 	avplaySetBufferingParams, avplaySuspend, avplayRestore, waitForHlsManifest
@@ -143,8 +143,12 @@ const avplayGetDuration = () => {
 	const ms = streamGetDuration();
 	return ms > 0 ? ms + streamTimeline.offsetMs : ms;
 };
+let lastSeekAt = 0;
 // A seek into the open stream, as a resume makes.
-const seekStream = (titleMs) => streamSeek(streamMs(titleMs));
+const seekStream = (titleMs) => {
+	lastSeekAt = Date.now();
+	return streamSeek(streamMs(titleMs));
+};
 const avplaySeek = (titleMs) => {
 	// Resolves once Silo's new stream is open there, so a caller that waits on the seek (a group seek) settles on it.
 	if (streamTimeline.seeksThroughServer && streamTimeline.seekThroughServer) {
@@ -779,7 +783,8 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 		streamTimeline.offsetMs = (mediaSource?.SiloTimelineOffsetTicks || 0) / 10000;
 		streamTimeline.seeksThroughServer = mediaSource?.SiloSeeksThroughServer === true;
 		applyDisplayWindow();
-		avplaySetBufferingParams({bitrate: mediaSource?.Bitrate});
+		const buffering = avplaySetBufferingParams({bitrate: mediaSource?.Bitrate});
+		serverLogger.playback('Playback: opening the stream', {playMethod: method, hls: isHls, buffering});
 
 		// Samsung AVPlay rejects some Jellyfin transcode endpoints with the
 		// default system User-Agent. USER_AGENT first, USERAGENT fallback for older firmwares.
@@ -844,13 +849,25 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 			});
 		};
 
+		let bufferingSince = 0;
+		let bufferingAtMs = 0;
+
 		avplaySetListener({
 			onbufferingstart: () => {
+				bufferingSince = Date.now();
+				bufferingAtMs = avplayGetCurrentTime();
 				reconnectRef.current?.interrupted();
 				setIsBuffering(true);
 				liveRecoveryRef.current?.update({buffering: true});
 			},
 			onbufferingcomplete: () => {
+				if (bufferingSince) {
+					const context = {positionMs: bufferingAtMs, waitedMs: Date.now() - bufferingSince, bandwidth: avplayGetBandwidth()};
+					if (!playIssued) serverLogger.playback('Playback: first buffer filled', context);
+					else if (bufferingSince - lastSeekAt < 3000) serverLogger.playback('Playback: buffered after a seek', context);
+					else serverLogger.warn(serverLogger.LOG_CATEGORIES.PLAYBACK, 'Playback: stalled to buffer', context);
+					bufferingSince = 0;
+				}
 				setIsBuffering(false);
 				liveRecoveryRef.current?.update({buffering: false});
 				latchResolve();
