@@ -5,6 +5,7 @@ import {isLegacyTizen} from '../platform';
 
 jest.mock('./connectionPool', () => ({__esModule: true, default: {getMergedLibrarySources: jest.fn()}}));
 jest.mock('../platform', () => ({isLegacyTizen: jest.fn(() => false), isLegacyWebOS: jest.fn(() => false)}));
+jest.mock('./parentalControls', () => ({withoutBlockedItems: (items) => items.filter((item) => item.OfficialRating !== 'R')}));
 
 const source = (serverId, items) => ({
 	libraryId: `lib-${serverId}`,
@@ -24,11 +25,19 @@ describe('findEveryCopy', () => {
 		expect(copiesOf(card)).toHaveLength(1);
 	});
 
-	test('leaves a title without ids, or of another type, as it is', async () => {
+	test('leaves a title without ids, of another type, or from no named server as it is', async () => {
 		const episode = {Id: 'e1', Type: 'Episode', ProviderIds: {Tmdb: '5'}};
 		expect(await findEveryCopy(episode)).toBe(episode);
 		const bare = {Id: 'm2', Type: 'Movie'};
 		expect(await findEveryCopy(bare)).toBe(bare);
+		const unnamed = {Id: 'm3', Type: 'Movie', ProviderIds: {Tmdb: '5'}};
+		expect(await findEveryCopy(unnamed)).toBe(unnamed);
+	});
+
+	test("leaves out a title the account's ratings block", async () => {
+		clearMergedTitleReads();
+		const rated = source('a', [{Id: 'm1', Type: 'Movie', OfficialRating: 'R'}, {Id: 'm2', Type: 'Movie', OfficialRating: 'PG'}]);
+		expect((await readSharedTitles(rated, {})).map((title) => title.Id)).toEqual(['m2']);
 	});
 
 	test("never hands one account's titles to another account on the same server", async () => {

@@ -140,17 +140,15 @@ export const ItemMenuProvider = ({children, onPlay, onOpenItem, backRef}) => {
 	// servers that refused. A title only one server holds fails quietly, the way it always has.
 	const mergeLibraries = mergesLibraries(settings, hasMultipleServers);
 	const changeEveryCopy = useCallback(async (item, change) => {
-		// A card's own list can leave copies out, as a Home row holding only each server's most recent titles.
-		// It waits for the servers to answer, so a slow one's copy isn't left unchanged.
-		const copies = copiesOf(mergeLibraries ? await findEveryCopy(item, null) : item);
-		// Every server at once, so a slow one doesn't hold up the rest.
-		const results = await Promise.all(copies.map((copy) => (
-			Promise.resolve()
-				.then(() => change(getApiForItem(copy) || activeApi, copy))
-				.then(() => null, () => copy._serverName || $L('Server'))
-		)));
-		const refused = results.filter(Boolean);
-		if (copies.length > 1 && refused.length > 0) {
+		const write = (copy) => Promise.resolve()
+			.then(() => change(getApiForItem(copy) || activeApi, copy))
+			.then(() => null, () => copy._serverName || $L('Server'));
+		// The card's own copy changes right away, while its account is still signed in. The other servers' copies wait for
+		// the lookup, since a Home row only holds each server's newest titles.
+		const own = write(item);
+		const others = mergeLibraries ? copiesOf(await findEveryCopy(item, null)).slice(1) : [];
+		const refused = (await Promise.all([own, ...others.map(write)])).filter(Boolean);
+		if (others.length > 0 && refused.length > 0) {
 			showToast($L('Not changed on {servers}').replace('{servers}', refused.join(', ')));
 		}
 	}, [showToast, mergeLibraries]);

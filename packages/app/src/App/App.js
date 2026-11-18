@@ -1114,13 +1114,16 @@ const AppContent = (props) => {
 	useEffect(() => () => {
 		if (copyPickRef.current) handleCopyPicked(null);
 	}, [isAuthenticated, user?.Id, serverUrl, handleCopyPicked]);
-	// Titles read with one account's token never serve another, and a card still looking for its copies when the session
-	// changes never opens in the new one.
-	const selectionSessionRef = useRef(0);
+	// Only the latest selection opens. A card still looking for its copies is dropped by a newer pick, a move to another
+	// screen or a new session, and titles read with one account's token never serve another.
+	const selectionRef = useRef(0);
 	useEffect(() => () => {
-		selectionSessionRef.current += 1;
+		selectionRef.current += 1;
 		clearMergedTitleReads();
 	}, [isAuthenticated, user?.Id, serverUrl, accessToken]);
+	useEffect(() => {
+		selectionRef.current += 1;
+	}, [panelIndex, quickLookShown]);
 
 	useEffect(() => {
 		const handleKeyDown = (e) => {
@@ -1363,9 +1366,9 @@ const AppContent = (props) => {
 			open(item);
 			return;
 		}
-		const session = selectionSessionRef.current;
+		const ticket = ++selectionRef.current;
 		findEveryCopy(item).then((card) => {
-			if (session === selectionSessionRef.current) open(card);
+			if (ticket === selectionRef.current) open(card);
 		});
 	}, [openSelectedItem, pickMergedCopy, mergeLibraries]);
 

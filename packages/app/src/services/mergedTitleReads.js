@@ -3,6 +3,7 @@
 // Home's Recently Added rows, reads them to find the copies its own row left out.
 
 import connectionPool from './connectionPool';
+import {withoutBlockedItems} from './parentalControls';
 import {COPIES_KEY, indexCopies, joinIndexedCopies, titleMatchKeys} from '../utils/mergedCopies';
 import {isLegacyTizen, isLegacyWebOS} from '../platform';
 
@@ -65,7 +66,8 @@ const readTitles = async (source, params) => {
 		// eslint-disable-next-line no-await-in-loop
 		const response = await source.api.getItems({...query, ParentId: source.libraryId, StartIndex: start, Limit: PAGE_SIZE});
 		const got = (response?.Items || []).filter(Boolean);
-		got.forEach((raw) => {
+		// A title the account's ratings block stays out, as it does from paging, so it never turns up as a copy.
+		withoutBlockedItems(got).forEach((raw) => {
 			// Each title carries its server, since one index holds several servers' titles.
 			if (raw.Id) titles.push({...raw, ...source.server});
 		});
@@ -128,7 +130,8 @@ const findAll = async (item, lookup) => {
 // while the read goes on for the next time. A null `waitMs` waits for the read, as a change made to every copy must.
 export const findEveryCopy = async (item, waitMs = FIND_WAIT_MS) => {
 	const lookup = LOOKUPS[item?.Type];
-	if (!lookup || !titleMatchKeys(item).length) return item;
+	// A card that doesn't name its server can't be told apart from that server's own copy, so it opens as it always did.
+	if (!lookup || !item._serverId || !titleMatchKeys(item).length) return item;
 	if (waitMs == null) return findAll(item, lookup).catch(() => item);
 	if (!readsEveryTitle()) return item;
 	let timer = null;
