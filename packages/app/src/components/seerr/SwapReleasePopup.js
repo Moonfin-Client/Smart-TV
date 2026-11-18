@@ -17,7 +17,6 @@ export const SwapReleasePopup = ({open, release, onConfirm, onClose}) => {
 			onClose={onClose}
 			title={label}
 			spotlightId="seerr-swap-release"
-			className={css.cancelAlert}
 			actions={[
 				{label: $L('Cancel'), onClick: onClose, spotlightId: 'seerr-swap-release-cancel'},
 				{label, onClick: onConfirm, spotlightId: 'seerr-swap-release-confirm', destructive: true}

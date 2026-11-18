@@ -19,7 +19,6 @@ export const CancelRequestPopup = ({open, requests, title, onConfirm, onClose}) 
 			onClose={onClose}
 			title={label}
 			spotlightId="seerr-cancel-request"
-			className={css.cancelAlert}
 			actions={[
 				{label: $L('Keep'), onClick: onClose, spotlightId: 'seerr-cancel-request-keep'},
 				{label, onClick: onConfirm, spotlightId: 'seerr-cancel-request-confirm', destructive: true}
