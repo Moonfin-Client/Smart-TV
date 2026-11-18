@@ -39,6 +39,12 @@ export const seriesCardForLatestTvItem = (item) => {
 	if (seriesPrimaryImageTag) {
 		imageTags.Primary = seriesPrimaryImageTag;
 	}
+	// The show's logo comes as the parent logo, so it only fits when the parent is the series.
+	if (item.ParentLogoImageTag && item.ParentLogoItemId === seriesId) {
+		imageTags.Logo = item.ParentLogoImageTag;
+	} else {
+		delete imageTags.Logo;
+	}
 
 	const normalized = {
 		...item,

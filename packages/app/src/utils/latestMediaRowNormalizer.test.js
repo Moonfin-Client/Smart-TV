@@ -103,6 +103,23 @@ describe('latestMediaRowNormalizer', () => {
 		});
 	});
 
+	describe('series logo', () => {
+		const episode = (overrides) => ({
+			Id: 'ep-1', Type: 'Episode', Name: 'Pilot', SeriesId: 'series-1', SeriesName: 'Firefly',
+			ImageTags: {Primary: 'ep-primary', Logo: 'ep-logo'}, ...overrides
+		});
+
+		test('takes the parent logo when the parent is the series', () => {
+			const card = seriesCardForLatestTvItem(episode({ParentLogoItemId: 'series-1', ParentLogoImageTag: 'show-logo'}));
+			expect(card.ImageTags.Logo).toBe('show-logo');
+		});
+
+		test('drops the logo when the parent logo belongs to something else or is missing', () => {
+			expect(seriesCardForLatestTvItem(episode({ParentLogoItemId: 'season-1', ParentLogoImageTag: 'season-logo'})).ImageTags.Logo).toBeUndefined();
+			expect(seriesCardForLatestTvItem(episode({})).ImageTags.Logo).toBeUndefined();
+		});
+	});
+
 	describe('season state', () => {
 		test('leaves the season watched state and runtime behind', () => {
 			const result = seriesCardForLatestTvItem({
