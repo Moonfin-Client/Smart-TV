@@ -1,4 +1,6 @@
 import {SILO_ROW_PREFIX, createSiloSeerr, stableId} from './siloSeerr';
+import {registerSiloImage} from '../utils/siloUrls';
+import {prepareCredits} from '../utils/personCredits';
 
 const title = (over = {}) => ({
 	media_type: 'movie', tmdb_id: 11, title: 'Film', poster_path: '/p.jpg', release_date: '2026-01-02',
@@ -112,5 +114,65 @@ describe('Silo requests in Seerr\'s shapes', () => {
 		const episodes = await seerr.calendar('tv', '2026-11-01', '2026-11-30');
 		expect(episodes[0]).toMatchObject({series: {tvdbId: 7, tmdbId: 5, title: 'Show'}, title: 'Pilot', seasonNumber: 1, episodeNumber: 1});
 		expect(episodes[0].airDateUtc).toBe(new Date(2026, 10, 4).toISOString());
+	});
+
+	describe('a cast member', () => {
+		const withLibrary = (lib) => {
+			const call = jest.fn(async () => ({tmdb_id: 11, title: 'Film', cast: [{name: 'Jane Doe', profile_path: '/j.jpg'}], director: 'Ann Lee'}));
+			return createSiloSeerr({call, library: () => lib, baseUrl: 'http://silo/'});
+		};
+
+		test('the library person by that name gives the biography and their films and series as request credits', async () => {
+			const lib = {
+				searchPeople: jest.fn(async () => ({Items: [{Id: '8', Name: 'Jane Doe Jr'}, {Id: '9', Name: 'jane doe'}]})),
+				getPerson: jest.fn(async () => ({Overview: 'Bio', PremiereDate: '1980-02-03T00:00:00.0000000Z', ProductionLocations: ['Leeds']})),
+				getItems: jest.fn(async () => ({Items: [
+					{Id: 'm1', Name: 'Film', Type: 'Movie', PremiereDate: '2001-01-01T00:00:00Z', ProviderIds: {Tmdb: '11'}},
+					{Id: 's1', Name: 'Show', Type: 'Series', ProviderIds: {Tmdb: '5'}},
+					{Id: 'x1', Name: 'TVDB only', Type: 'Series', ProviderIds: {Tvdb: '7'}}
+				]}))
+			};
+			registerSiloImage('http://silo/', 'm1', 'Primary', '/img/m1');
+			registerSiloImage('http://silo/', 's1', 'Primary', '/img/s1');
+			const seerr = withLibrary(lib);
+			const {credits} = await seerr.request('/movie/11');
+			const id = credits.cast[0].id;
+			expect(await seerr.request(`/person/${id}`)).toEqual({
+				id, name: 'Jane Doe', profilePath: '/j.jpg', biography: 'Bio', birthday: '1980-02-03', deathday: null, placeOfBirth: 'Leeds', libraryImageUrl: null
+			});
+			const titles = await seerr.request(`/person/${id}/combined_credits`);
+			expect(titles.cast).toMatchObject([
+				{id: 11, mediaType: 'movie', title: 'Film', releaseDate: '2001-01-01', posterPath: 'http://silo/img/m1', mediaInfo: {status: 5, jellyfinMediaId: 'm1'}},
+				{id: 5, mediaType: 'tv', name: 'Show', posterPath: 'http://silo/img/s1', mediaInfo: {status: 5, jellyfinMediaId: 's1'}}
+			]);
+			// The person screen keeps only titles with a poster
+			expect(prepareCredits(titles.cast).map((c) => c.id).sort((a, b) => a - b)).toEqual([5, 11]);
+			expect(lib.searchPeople).toHaveBeenCalledTimes(1);
+			expect(lib.getItems).toHaveBeenCalledWith(expect.objectContaining({PersonIds: '9'}));
+		});
+
+		test('a library person Seerr has no photo for shows the library\'s portrait', async () => {
+			const call = jest.fn(async () => ({tmdb_id: 11, title: 'Film', cast: [{name: 'Jane Doe'}]}));
+			const tag = registerSiloImage('http://silo/', '9', 'Primary', '/img/p9');
+			const lib = {
+				searchPeople: jest.fn(async () => ({Items: [{Id: '9', Name: 'Jane Doe'}]})),
+				getPerson: jest.fn(async () => ({Id: '9', ImageTags: {Primary: tag}})),
+				getItems: jest.fn()
+			};
+			const seerr = createSiloSeerr({call, library: () => lib, baseUrl: 'http://silo/'});
+			const {credits} = await seerr.request('/movie/11');
+			expect(await seerr.request(`/person/${credits.cast[0].id}`)).toMatchObject({profilePath: undefined, libraryImageUrl: 'http://silo/img/p9'});
+		});
+
+		test('someone the library doesn\'t have shows their name and photo, with no titles', async () => {
+			const lib = {searchPeople: jest.fn(async () => ({Items: [{Id: '8', Name: 'Jane Doe Jr'}]})), getPerson: jest.fn(), getItems: jest.fn()};
+			const seerr = withLibrary(lib);
+			const {credits} = await seerr.request('/movie/11');
+			const id = credits.cast[0].id;
+			expect(await seerr.request(`/person/${id}`)).toEqual({id, name: 'Jane Doe', profilePath: '/j.jpg'});
+			expect(await seerr.request(`/person/${id}/combined_credits`)).toEqual({cast: [], crew: []});
+			expect(await seerr.request(`/person/${stableId('Nobody')}`)).toEqual({id: stableId('Nobody'), name: '', profilePath: undefined});
+			expect(lib.getPerson).not.toHaveBeenCalled();
+		});
 	});
 });

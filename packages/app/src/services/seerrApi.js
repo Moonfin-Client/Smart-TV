@@ -49,7 +49,7 @@ const siloSeerrNow = () => {
 	if (siloSeerr?.server !== jellyfinServerUrl) {
 		// Silo's request routes name the acting profile, read at call time since it can switch.
 		const silo = () => createApiForServer(jellyfinServerUrl, jellyfinAccessToken, getUserId(), 'silo');
-		siloSeerr = {server: jellyfinServerUrl, ...createSiloSeerr({call: (path, options) => silo().siloCall(path, options), baseUrl: jellyfinServerUrl})};
+		siloSeerr = {server: jellyfinServerUrl, ...createSiloSeerr({call: (path, options) => silo().siloCall(path, options), library: silo, baseUrl: jellyfinServerUrl})};
 	}
 	return siloSeerr;
 };
