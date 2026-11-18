@@ -1516,6 +1516,17 @@
 	padding-top: 0;
 }
 
+/* A focused row pins past the first row's top margin, so with the sidebar that room sits on the
+   clip edge instead. The title then stays in the same spot with or without focus, clear of the
+   top of the screen. */
+.sidebarOffset .contentRows.rowsMode.rowsClipTop {
+	margin-top: 42px;
+
+	> :first-child {
+		margin-top: 0;
+	}
+}
+
 .empty {
 	display: -webkit-flex;
 	display: flex;
