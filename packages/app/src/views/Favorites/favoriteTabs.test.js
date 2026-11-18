@@ -188,6 +188,14 @@ describe('watchlist request cards', () => {
 		expect(withRequestDetail({...card, OfficialRating: 'PG-13'}, {contentRating: 'R'}, {}).OfficialRating).toBe('PG-13');
 	});
 
+	it('take the detail\'s name and poster, since Seerr\'s watchlist gives neither', () => {
+		const detailCard = {Name: 'Cloverfield', _externalPosterUrl: 'http://img/p.jpg'};
+		expect(withRequestDetail({...card, Name: undefined}, {}, detailCard))
+			.toMatchObject({Name: 'Cloverfield', _externalPosterUrl: 'http://img/p.jpg'});
+		expect(withRequestDetail({...card, _externalPosterUrl: 'http://img/own.jpg'}, {}, detailCard))
+			.toMatchObject({Name: 'Film', _externalPosterUrl: 'http://img/own.jpg'});
+	});
+
 	it('leave a series without a runtime', () => {
 		expect(withRequestDetail({...card, _seerrMediaType: 'tv'}, {runtime: 45}, {}).RunTimeTicks).toBeUndefined();
 	});
