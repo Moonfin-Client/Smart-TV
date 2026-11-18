@@ -5,7 +5,7 @@
 // real screen's proportions. The artwork comes from the viewer's own library,
 // with drawn stand ins until it arrives.
 
-import {Fragment, lazy, Suspense, useState, useEffect, useMemo, useRef, useCallback} from 'react';
+import {Fragment, createContext, lazy, Suspense, useContext, useState, useEffect, useMemo, useRef, useCallback} from 'react';
 import $L from '@enact/i18n/$L';
 import SpotlightContainerDecorator from '@enact/spotlight/SpotlightContainerDecorator';
 
@@ -38,7 +38,7 @@ import {rootScale} from '../../utils/rootScale';
 import {memoryCache} from '../Browse/browseCache';
 import {classicCardSize} from '../../components/MediaCard/MediaCard';
 import {CAROUSEL_PANEL_SCRIM, homeRowSpacing, modernCardMetrics} from '../../components/MediaCard/modernCardLayout';
-import {rowPeekHeight} from '../Browse/rowPeek';
+import {classicShape, rowImageType, rowPeekHeight} from '../Browse/rowPeek';
 import {genreGlowRgb} from '../Browse/galleryGlow';
 import {DETAIL_ICON_PATHS} from '../Details/detailIcons';
 import {getMediaBadges} from '../Details/detailsMedia';
@@ -188,6 +188,9 @@ const useFitScale = (designW, designH) => {
 	return [ref, scale];
 };
 
+// How wide a screen lays its content out, which a UI scale narrows.
+const ScreenWidth = createContext(DESIGN_W);
+
 // [zoom] lays the screen out that much bigger, the way a UI scale does, so less of it fits.
 const PreviewScreen = ({zoom = 1, children}) => {
 	const t = usePreviewPalette();
@@ -195,7 +198,7 @@ const PreviewScreen = ({zoom = 1, children}) => {
 	return (
 		<div ref={ref} className={css.screenOuter}>
 			<div className={css.screenInner} style={{width: DESIGN_W / zoom, height: DESIGN_H / zoom, transform: `scale(${scale * zoom})`, backgroundColor: t.background}}>
-				{children}
+				<ScreenWidth.Provider value={DESIGN_W / zoom}>{children}</ScreenWidth.Provider>
 			</div>
 		</div>
 	);
@@ -548,6 +551,8 @@ const RowCard = ({item, height, aspect, imageUrl, progress, focused = false, cla
 const FocusedRowCard = ({item, posterHeight, carousel = false, t}) => {
 	const {settings} = useSettings();
 	const width = posterHeight * 16 / 9;
+	// The ratings and overview run to the end of the row, as on Home.
+	const detailsWidth = useContext(ScreenWidth) - ROW_LEFT_INSET - 20;
 	return (
 		<div style={{width, flexShrink: 0, marginRight: 12}}>
 			<div style={{position: 'relative', width, height: posterHeight}} data-held-focus>
@@ -569,8 +574,8 @@ const FocusedRowCard = ({item, posterHeight, carousel = false, t}) => {
 						</div>
 					)}
 					<div style={{position: 'relative', width, height: 76, marginTop: 4}}>
-						<div style={{position: 'absolute', left: 0, top: 0, width: width * 2.4}}>
-							<PreviewRatings item={item} surface='homeRows' compact singleLineWidth={width * 2.4} zoom={0.5 * ROW_SCALE} />
+						<div style={{position: 'absolute', left: 0, top: 0, width: detailsWidth}}>
+							<PreviewRatings item={item} surface='homeRows' compact singleLineWidth={detailsWidth} zoom={0.5 * ROW_SCALE} />
 							{item.overview && !settings.hideHomeMediaDescription && (
 								<div style={{marginTop: 4, fontSize: 12, lineHeight: 1.4, color: t.onSurfaceA(0.7), textShadow: TEXT_SHADOW, ...clampLines(3)}}>
 									{item.overview}
@@ -716,7 +721,10 @@ const HomeRowsColumn = ({items, rows, t, modern, focusFirst = false, carousel: c
 	const {posterHeight, thumbHeight} = rowCardHeights(settings, modern);
 	// The space Home leaves below each row, at the design screen's half size. Expanded Rows gives
 	// each row a screen of its own, so the next one starts below the frame.
-	const spacing = homeRowSpacing({...settings, homeRowsStyle: modern ? 'v2' : 'v1'});
+	const rowSettings = {...settings, homeRowsStyle: modern ? 'v2' : 'v1'};
+	const spacing = homeRowSpacing(rowSettings);
+	// A sample row takes the shape Home gives the row it stands for.
+	const sampleShape = (row, cardType) => classicShape(cardType, rowImageType(row, rowSettings));
 	const rowGap = spacing === null ? DESIGN_H : spacing / 2;
 	const first = rows ? rows[0].items[0] : items[0];
 	return (
@@ -763,11 +771,11 @@ const HomeRowsColumn = ({items, rows, t, modern, focusFirst = false, carousel: c
 				</Fragment>
 			)) : (
 				<>
-					<HomeRow title={$L('Continue Watching')} items={items} t={t} modern={modern} shape='landscape' withFocus={focusFirst} posterHeight={posterHeight} thumbHeight={thumbHeight} carousel={carousel} />
+					<HomeRow title={$L('Continue Watching')} items={items} t={t} modern={modern} shape={sampleShape({id: 'resume'}, 'landscape')} withFocus={focusFirst} posterHeight={posterHeight} thumbHeight={thumbHeight} carousel={carousel} />
 					<div style={{height: rowGap}} />
-					<HomeRow title={$L('Recently Added')} items={items} t={t} modern={modern} offset={3} posterHeight={posterHeight} thumbHeight={thumbHeight} carousel={carousel} />
+					<HomeRow title={$L('Recently Added')} items={items} t={t} modern={modern} shape={sampleShape({isLatestRow: true}, 'portrait')} offset={3} posterHeight={posterHeight} thumbHeight={thumbHeight} carousel={carousel} />
 					<div style={{height: rowGap}} />
-					<HomeRow title={$L('Next Up')} items={items} t={t} modern={modern} shape='landscape' offset={6} posterHeight={posterHeight} thumbHeight={thumbHeight} carousel={carousel} />
+					<HomeRow title={$L('Next Up')} items={items} t={t} modern={modern} shape={sampleShape({id: 'nextup'}, 'landscape')} offset={6} posterHeight={posterHeight} thumbHeight={thumbHeight} carousel={carousel} />
 				</>
 			)}
 		</div>
