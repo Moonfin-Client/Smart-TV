@@ -12,8 +12,7 @@ export const isStaticLibraryCard = (isLibraryRow, settings) =>
 
 export const posterSizeScale = (posterSize) => POSTER_SIZE_MULTIPLIERS[posterSize] || 1;
 
-// Core's Medium poster on TV, 120 points tall on its 1150 wide canvas, drawn at 1920.
-const BASE_IMAGE_HEIGHT = 120 * 1920 / 1150;
+const BASE_IMAGE_HEIGHT = 360;
 
 // Worked out together because a tile held static sits at the width a card grows
 // to on focus, which is what lines the row up with the ones around it.

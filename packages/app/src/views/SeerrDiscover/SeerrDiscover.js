@@ -72,10 +72,10 @@ const getRowConfigs = () => {
 const TOP_NAV_LAYOUT = {pillsTop: 139, rowsTop: 212, inset: 134, infoLeft: 107};
 const SIDEBAR_LAYOUT = {pillsTop: 47, rowsTop: 120, inset: 147, infoLeft: 160};
 
-// Core's poster and tile sizes on its 1150 point TV canvas, drawn at 1920. Posters in both styles
-// follow the poster size the way Home's do, and tiles keep their 180 by 90 points at Medium and
-// grow with it. A Classic row leaves room for a focused poster's growth and ring above it and
-// 65 points for its title and year under it, as Core does.
+// Posters in both styles are Home's own size. Tiles keep Core's 180 by 90 points at Medium on its
+// 1150 point TV canvas, drawn at 1920, and grow with the poster size. A Classic row leaves room for
+// a focused poster's growth and ring above it and 65 points for its title and year under it, as
+// Core does.
 const DP = 1920 / 1150;
 export const discoverSizes = (posterSize, zoom) => {
 	const {imageHeight, cardWidth} = modernCardMetrics({posterSize});
