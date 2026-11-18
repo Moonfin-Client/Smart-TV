@@ -22,7 +22,7 @@ import {
 	toCssColorWithAlpha,
 	toRgbTriplet
 } from './themeSpec';
-import {resolveOverlayColor} from './overlayColors';
+import {makdTint, resolveOverlayColor} from './overlayColors';
 
 import appCss from '../App/App.module.less';
 import sidebarCss from '../components/Sidebar/Sidebar.module.less';
@@ -694,27 +694,28 @@ export const buildThemeOverrideCss = (theme, options = {}) => {
 	rule(`.${browseCss.ayaIndicatorActive}`, `background: ${onSurface};`);
 	rule(`.${backdropCss.globalBackdropOverlay}`, `background: ${toCssColor(c.scrim)};`);
 	rule(`.${browseCss.detailPlaceholder} p, .${browseCss.empty}`, `color: ${os(0.7)};`);
+	const overlayHex = resolveOverlayColor(options.mediaBarOverlayColor);
+	const overlayOpacity = (options.mediaBarOverlayOpacity ?? 50) / 100;
 	// The card takes the media bar's own overlay color at three quarters of its
 	// opacity, outlined with the theme's card border.
-	const mediaBarFill = toCssColorWithAlpha(
-		resolveOverlayColor(options.mediaBarOverlayColor),
-		((options.mediaBarOverlayOpacity ?? 50) / 100) * 0.75
-	);
+	const mediaBarFill = toCssColorWithAlpha(overlayHex, overlayOpacity * 0.75);
+	// MakD's shade and 130 degree wash, which the default 50% puts at makd's .2, .65 and .35.
+	const makdHex = makdTint(overlayHex);
+	const makdA = (k) => toCssColorWithAlpha(makdHex, overlayOpacity * k);
+	rule(`.${browseCss.makdShade}`, `background: ${makdA(0.4)};`);
+	rule(`.${browseCss.makdWash}`, `background: linear-gradient(130deg, ${makdA(1.3)} 10%, ${makdA(0.7)} 30%, ${makdA(0)} 100%);`);
 	rule(`.${browseCss.featuredInfoBox}`, `background-color: ${mediaBarFill}; background-image: none; border: ${b.cardBorder.width}px solid ${toCssColor(b.cardBorder.color)}; border-radius: 16px;`);
 	rule(`.${browseCss.trailerActive} .${browseCss.featuredInfoBox}`, `background-color: transparent; background-image: none;`);
-	rule(`.${browseCss.featuredTitle}, .${browseCss.makdTitle}, .${browseCss.galleryVerticalTitle}, .${browseCss.galleryActiveTitle}, .${browseCss.galleryCreditValue}, .${browseCss.bannerTitle}`, `color: ${onBackground};`);
+	rule(`.${browseCss.featuredTitle}, .${browseCss.galleryVerticalTitle}, .${browseCss.galleryActiveTitle}, .${browseCss.galleryCreditValue}, .${browseCss.bannerTitle}`, `color: ${onBackground};`);
 	rule(`.${browseCss.metaItem}`, `color: ${os(0.9)};`);
 	rule(`.${browseCss.metaItem}:not(:last-child)::after`, `color: ${os(0.5)};`);
 	rule(`.${browseCss.metaBadge}`, `border-color: ${os(0.4)};`);
 	rule(`.${browseCss.featuredOverview}, .${browseCss.galleryOverview}`, `color: ${os(0.9)};`);
 	rule(`.${browseCss.carouselNav}`, `color: ${onBackground};`);
 	rule(`.${browseCss.carouselNav}:focus`, `background: ${scrim(0.85)};`);
-	rule(`.${browseCss.featuredIndicators}, .${browseCss.makdDots}`, `background: ${scrim(0.55)};`);
+	rule(`.${browseCss.featuredIndicators}`, `background: ${scrim(0.55)};`);
 	rule(`.${browseCss.indicatorDot}`, `background: ${os(0.5)};`);
 	rule(`.${browseCss.indicatorDot}.${browseCss.active}`, `background: ${onSurface};`);
-	rule(`.${browseCss.makdOverview}`, `color: ${os(0.95)};`);
-	rule(`.${browseCss.makdDot}`, `background: ${os(0.35)};`);
-	rule(`.${browseCss.makdDotActive}`, `background: ${focusColor};`);
 	rule(`.${browseCss.galleryIndex}`, `color: ${os(0.85)};`);
 	rule(`.${browseCss.galleryActiveRight}`, `background: ${scrim(0.55)}; border-color: ${os(0.12)};`);
 	rule(`.${browseCss.galleryPill}`, `color: ${onBackground}; background: ${scrim(0.35)};`);
@@ -936,7 +937,7 @@ export const buildThemeOverrideCss = (theme, options = {}) => {
 			`.${modernDetailCss.actionBtn}`, `.${modernDetailCss.upNextCard}`,
 			`.${tabBarCss.tabBar}`, `.${tabBarCss.tab}`, `.${overviewCss.spottable}`,
 			`.${browseCss.featuredInfoBox}`, `.${browseCss.bannerCard}`, `.${browseCss.galleryActiveRight}`,
-			`.${browseCss.galleryPill}`, `.${browseCss.makdDots}`, `.${browseCss.featuredIndicators}`
+			`.${browseCss.galleryPill}`, `.${browseCss.featuredIndicators}`
 		].join(', '), 'border-radius: 0;');
 	}
 

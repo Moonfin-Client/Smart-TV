@@ -96,6 +96,16 @@ describe('buildThemeOverrideCss', () => {
 		expect(buildThemeOverrideCss(theme)).toContain('background-color: rgba(107, 114, 128, 0.375)');
 	});
 
+	it('shades and washes the MakD bar in charcoal tinted by the overlay setting, at makd\'s strength by default', () => {
+		const theme = resolveThemeById('moonfin');
+		const black = buildThemeOverrideCss(theme, {mediaBarOverlayColor: 'black', mediaBarOverlayOpacity: 50});
+		expect(black).toMatch(/makdShade[^{]*\{ background: rgba\(20, 20, 20, 0\.2\); \}/);
+		expect(black).toContain('linear-gradient(130deg, rgba(20, 20, 20, 0.65) 10%, rgba(20, 20, 20, 0.35) 30%, rgba(20, 20, 20, 0) 100%)');
+		expect(buildThemeOverrideCss(theme, {mediaBarOverlayColor: 'black', mediaBarOverlayOpacity: 100})).toContain('linear-gradient(130deg, rgb(20, 20, 20) 10%');
+		// Neon Magenta stays a dark plum rather than flooding the art pink
+		expect(buildThemeOverrideCss(theme, {mediaBarOverlayColor: 'neonPulseMagenta', mediaBarOverlayOpacity: 50})).toMatch(/makdShade[^{]*\{ background: rgba\(97, 34, 64, 0\.2\); \}/);
+	});
+
 	it('prefers the focus border color setting over the theme focus border', () => {
 		const theme = resolveThemeById('moonfin');
 		expect(buildThemeOverrideCss(theme, {focusBorderColor: '#ff0000'})).toContain('rgb(255, 0, 0)');

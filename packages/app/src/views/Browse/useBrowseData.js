@@ -16,7 +16,7 @@ import {normalizeLatestMediaItems} from '../../utils/latestMediaRowNormalizer';
 import {EXCLUDED_COLLECTION_TYPES, filterItemsByExcludedGenres, matchesContentType} from './browseFilters';
 import {featuredConfigKey} from './featuredConfig';
 import {withExternalSlides} from './featuredExternal';
-import {readDatedSource, readFeaturedSources} from './featuredSources';
+import {readDatedSource, readFeaturedSources, withBarFields} from './featuredSources';
 import {DATED_SOURCES} from '../../utils/mediaBarNewRelease';
 import {shuffleArray} from '../Details/detailsMedia';
 import {withoutBlockedItems} from '../../services/parentalControls';
@@ -187,7 +187,7 @@ const useBrowseData = ({
 				// The plugin answers from the synced picks, so it has to read the profile this TV syncs with.
 				const mediaBarResult = await seerrApi.getMoonfinMediaBar(serverUrl, accessToken, activeSyncProfile(s.syncProfile));
 				if (mediaBarResult?.Items?.length) {
-					items = mediaBarResult.Items;
+					items = await withBarFields(mediaBarResult.Items, api.getItems);
 				}
 			}
 

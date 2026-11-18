@@ -25,8 +25,16 @@ export const readFeaturedSources = async (sourceIds, fetchSource, isUsable, coun
 	return items;
 };
 
+// The plugin's media bar cards leave out the ids the ratings look up and the season count, so one
+// call fills them in. A field the plugin already sends wins, and a failed call keeps the cards as they are.
+export const withBarFields = async (items, fetchItems) => {
+	const res = await fetchItems({Ids: items.map((item) => item.Id).join(','), Fields: 'ProviderIds,ChildCount', EnableImages: false}).catch(() => null);
+	const byId = new Map((res?.Items || []).map((item) => [item.Id, item]));
+	return items.map((item) => ({ProviderIds: byId.get(item.Id)?.ProviderIds, ChildCount: byId.get(item.Id)?.ChildCount, ...item}));
+};
+
 const POOL_SIZE = 40;
-const FIELDS = 'PrimaryImageAspectRatio,Overview,Genres,ProviderIds,RemoteTrailers,OfficialRating';
+const FIELDS = 'PrimaryImageAspectRatio,Overview,Genres,ProviderIds,RemoteTrailers,OfficialRating,ChildCount';
 const INCLUDE_TYPES = {movies: 'Movie', tv: 'Series'};
 
 // A null parentId reads every library. New Seasons & Episodes asks for the episodes, since a

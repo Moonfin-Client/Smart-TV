@@ -728,6 +728,8 @@ const Browse = ({
 		}
 	}, [handleSelectSeerrItem, handleSelectItem]);
 
+	const handlePlayFeaturedItem = useCallback((item) => handleSelectItem(item, true), [handleSelectItem]);
+
 	// The rows ignore a changed callback, so one drawn while Home sat hidden behind Details kept a
 	// handler that cant navigate. These always call the current one.
 	const latestSelectRef = useRef(null);
@@ -934,6 +936,7 @@ const Browse = ({
 							settingsLoaded={settingsLoaded}
 							getItemServerUrl={getItemServerUrl}
 							onSelectItem={handleSelectExternalItem}
+							onPlayItem={handlePlayFeaturedItem}
 							onNavigateDown={handleNavigateDownFromFeatured}
 							onFeaturedFocus={handleFeaturedFocusCallback}
 						/>

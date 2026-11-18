@@ -1,4 +1,4 @@
-import {readDatedSource, readFeaturedSources} from './featuredSources';
+import {readDatedSource, readFeaturedSources, withBarFields} from './featuredSources';
 
 jest.mock('@enact/i18n/$L', () => ({__esModule: true, default: (str) => str}));
 
@@ -67,5 +67,20 @@ describe('readDatedSource', () => {
 		const getLatestItems = jest.fn(async () => [{Id: 'new'}]);
 		expect(await readDatedSource({getLatestItems}, 'recentlyAdded', null, {contentType: 'tv', days: 30})).toEqual([{Id: 'new'}]);
 		expect(getLatestItems.mock.calls[0][0]).toMatchObject({IncludeItemTypes: 'Series'});
+	});
+});
+
+describe('withBarFields', () => {
+	test('fills ids and season counts onto the plugin cards in one call', async () => {
+		const fetchItems = jest.fn(() => Promise.resolve({Items: [{Id: 'a', ProviderIds: {Tmdb: '1'}, ChildCount: 3}]}));
+		const items = await withBarFields([{Id: 'a', Name: 'A'}, {Id: 'b', ProviderIds: {Tmdb: '2'}}], fetchItems);
+		expect(fetchItems).toHaveBeenCalledTimes(1);
+		expect(fetchItems.mock.calls[0][0].Ids).toBe('a,b');
+		expect(items).toEqual([{Id: 'a', Name: 'A', ProviderIds: {Tmdb: '1'}, ChildCount: 3}, {Id: 'b', ProviderIds: {Tmdb: '2'}, ChildCount: undefined}]);
+	});
+
+	test('keeps the cards when the call fails', async () => {
+		const items = await withBarFields([{Id: 'a'}], () => Promise.reject(new Error('500')));
+		expect(items[0].Id).toBe('a');
 	});
 });
