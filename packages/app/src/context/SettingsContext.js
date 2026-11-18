@@ -881,6 +881,14 @@ export function SettingsProvider({children}) {
 						migrated = true;
 					}
 				}
+				if ('smoothScrolling' in stored) {
+					// Smooth Scrolling started out on for every TV, and the whole settings
+					// object is saved, so a stored true almost always came from that default.
+					// It restarts from the TV's own default, and only a deliberate off carries over.
+					if (stored.smoothScrolling === false) stored.smoothScrollingChoice = false;
+					delete stored.smoothScrolling;
+					migrated = true;
+				}
 				if ('liveTvDirect' in stored) {
 					// This key spent time synced to the other clients' live tv direct play
 					// toggle, a playback setting, so a stored true usually arrived from

@@ -1,4 +1,7 @@
+import {loadCoreIconPaths} from '../../utils/coreIconPaths';
 import {canDrawPosterLabel, posterLabelColors, posterLabelCorners, posterLabelFlag, posterLabelLook} from './posterLabelLook';
+
+beforeAll(() => loadCoreIconPaths());
 
 const badge = (extra = {}) => ({label: '4K', color: '#2563EB', textColor: '', style: 'solid', opacity: 100, size: 'medium', corner: 'topLeft', shape: 'rounded', icon: '', ...extra});
 

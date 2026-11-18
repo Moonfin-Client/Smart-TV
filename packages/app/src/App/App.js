@@ -26,7 +26,7 @@ import * as remoteControl from '../services/remoteControl';
 import {isBackKey, KEYS, remoteShortcut} from '../utils/keys';
 import {drawsStage} from '../views/Details/stage/stageRules';
 import {QUICK_LOOK_ID} from '../views/Details/quickLook/quickLookRules';
-import {applyPerfTier} from '../utils/perfTier';
+import {applyPerfTier, smoothScrollingFor} from '../utils/perfTier';
 import {setSmoothScrolling} from '../utils/focusScroll';
 import {isLiveTvChannel, isLiveTvLibrary} from '../utils/liveTvLibrary';
 import {OLED_TUNING} from '../utils/oledMode';
@@ -41,7 +41,7 @@ import {syncNotificationPrefs} from '../services/notificationPrefs';
 import {getActiveServer} from '../services/multiServerManager';
 import {SeerrProvider, useSeerr} from '../context/SeerrContext';
 import {AchievementsProvider, useAchievements} from '../context/AchievementsContext';
-import {achievementIconPath} from '../views/Settings/achievements/achievementIcons';
+import {HOME_MATERIAL_ICON_PATHS} from '../components/icons/homeIconPaths';
 import {threadIsPhoto} from '../utils/achievementsModel';
 import {ServerMessagesProvider, useServerMessages} from '../context/ServerMessagesContext';
 import {SyncPlayProvider, useSyncPlay} from '../context/SyncPlayContext';
@@ -69,12 +69,8 @@ import {rememberSignInPin, signInPinRemembered, signInPinStillUnlocked} from '..
 import {MaterialIcon} from '../components/icons/materialIcons';
 import PhotoViewer from '../components/PhotoViewer';
 import {isSlideshowVideo, stepIndex, viewerItems} from '../components/PhotoViewer/usePhotoSlideshow';
-import ComicViewer from '../components/ComicViewer';
-import EpubReader from '../components/EpubReader';
-import PdfReader from '../components/PdfReader';
 import AdminMessageDialog from '../components/AdminMessageDialog';
 import {bookReader, isBookItem, supportsNewerBookFormats} from '../utils/books';
-import SettingsPanel from '../components/SettingsPanel';
 import ShuffleOverlay from '../components/ShuffleOverlay';
 import SpottableInput from '../components/SpottableInput/SpottableInput';
 import TVKeyboard from '../components/TVKeyboard/TVKeyboard';
@@ -117,6 +113,10 @@ const GamePlayer = lazy(() => import('../views/GamePlayer'));
 const SetupWizard = lazy(() => import('../views/SetupWizard'));
 const Calendar = lazy(() => import('../views/Calendar'));
 const CalendarMonth = lazy(() => import('../views/Calendar/CalendarMonth'));
+const SettingsPanel = lazy(() => import('../components/SettingsPanel'));
+const ComicViewer = lazy(() => import('../components/ComicViewer'));
+const EpubReader = lazy(() => import('../components/EpubReader'));
+const PdfReader = lazy(() => import('../components/PdfReader'));
 
 import '../styles/perf-overrides.less';
 import css from './App.module.less';
@@ -256,24 +256,27 @@ const AppContent = (props) => {
 		clearUnlocks();
 		if (unlocks.muteDuringPlayback && panelIndex === PANELS.PLAYER) return;
 		const {badges} = unlocks;
-		if (unlocks.grouped && badges.length > 1) {
-			const top = badges.reduce((best, badge) => (badge.score > best.score ? badge : best));
-			const names = badges.slice(0, 3).map((badge) => badge.title).join(', ');
-			const more = badges.length - 3;
-			setBadgeToasts((queue) => [...queue, {
-				key: unlocks.key,
-				title: $L('{count} achievements unlocked').replace('{count}', String(badges.length)),
-				body: more > 0 ? `${names} ${$L('+{count} more').replace('{count}', String(more))}` : names,
-				icon: achievementIconPath(top.icon)
-			}]);
-			return;
-		}
-		setBadgeToasts((queue) => [...queue, ...badges.map((badge, index) => ({
-			key: `${unlocks.key}-${index}`,
-			title: $L('Achievement unlocked'),
-			body: badge.title,
-			icon: achievementIconPath(badge.icon)
-		}))]);
+		// The badge icons live with Settings, so they only load once something unlocks.
+		import('../views/Settings/achievements/achievementIcons').then(({achievementIconPath}) => {
+			if (unlocks.grouped && badges.length > 1) {
+				const top = badges.reduce((best, badge) => (badge.score > best.score ? badge : best));
+				const names = badges.slice(0, 3).map((badge) => badge.title).join(', ');
+				const more = badges.length - 3;
+				setBadgeToasts((queue) => [...queue, {
+					key: unlocks.key,
+					title: $L('{count} achievements unlocked').replace('{count}', String(badges.length)),
+					body: more > 0 ? `${names} ${$L('+{count} more').replace('{count}', String(more))}` : names,
+					icon: achievementIconPath(top.icon)
+				}]);
+				return;
+			}
+			setBadgeToasts((queue) => [...queue, ...badges.map((badge, index) => ({
+				key: `${unlocks.key}-${index}`,
+				title: $L('Achievement unlocked'),
+				body: badge.title,
+				icon: achievementIconPath(badge.icon)
+			}))]);
+		}).catch(() => {});
 	}, [unlocks, clearUnlocks, panelIndex]);
 
 	// A banner for a chat that got a message from someone else, one at a time. Held back over
@@ -287,7 +290,7 @@ const AppContent = (props) => {
 		key: `${incomingThread.conversationId}-${incomingThread.lastAt ? incomingThread.lastAt.getTime() : incomingThread.unreadCount}`,
 		title: $L('New message from {name}').replace('{name}', incomingThread.name),
 		body: threadIsPhoto(incomingThread) ? $L('Photo') : incomingThread.lastMessage,
-		icon: achievementIconPath('forum')
+		icon: HOME_MATERIAL_ICON_PATHS.forum
 	} : null;
 	const [selectedItem, setSelectedItem] = useState(null);
 	const [selectedLibrary, setSelectedLibrary] = useState(null);
@@ -710,8 +713,8 @@ const AppContent = (props) => {
 	}, [settings.performanceMode]);
 
 	useEffect(() => {
-		setSmoothScrolling(settings.smoothScrolling);
-	}, [settings.smoothScrolling]);
+		setSmoothScrolling(smoothScrollingFor(settings.smoothScrollingChoice));
+	}, [settings.smoothScrollingChoice, settings.performanceMode]);
 
 	// The surfaces are crushed on the theme itself, so all this has to do is tell
 	// the stylesheet which artwork boost to draw with.
@@ -2744,13 +2747,15 @@ const AppContent = (props) => {
 				/>
 			)}
 			{BookReader && (
-				<BookReader
-					item={reading.item}
-					archive={reading.reader.archive}
-					serverUrl={serverUrl}
-					accessToken={accessToken}
-					onClose={handleCloseReader}
-				/>
+				<Suspense fallback={null}>
+					<BookReader
+						item={reading.item}
+						archive={reading.reader.archive}
+						serverUrl={serverUrl}
+						accessToken={accessToken}
+						onClose={handleCloseReader}
+					/>
+				</Suspense>
 			)}
 			<AdminMessageDialog
 				open={!!unreadableBook}
@@ -2794,14 +2799,16 @@ const AppContent = (props) => {
 				</div>
 			)}
 			{showSettingsPanel && (
-				<SettingsPanel
-					initialView={settingsInitialView}
-					onClose={handleCloseSettingsPanel}
-					onLibrariesChanged={fetchLibraries}
-					onRunSetupWizard={handleRunSetupWizard}
-					onSelectItem={handleSelectItemFromSettings}
-					hasLiveTv={hasLiveTv}
-				/>
+				<Suspense fallback={null}>
+					<SettingsPanel
+						initialView={settingsInitialView}
+						onClose={handleCloseSettingsPanel}
+						onLibrariesChanged={fetchLibraries}
+						onRunSetupWizard={handleRunSetupWizard}
+						onSelectItem={handleSelectItemFromSettings}
+						hasLiveTv={hasLiveTv}
+					/>
+				</Suspense>
 			)}
 			<TVKeyboard />
 		</div>

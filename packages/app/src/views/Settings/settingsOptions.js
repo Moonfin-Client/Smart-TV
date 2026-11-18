@@ -296,13 +296,6 @@ export const getBookLibraryStyleOptions = () => [
 	{ value: 'bookstore', label: $L('Bookstore') }
 ];
 
-export const getKeyboardStyleOptions = () => [
-	{ value: 'native', label: $L('Native') },
-	{ value: 'classic', label: $L('Classic') },
-	{ value: 'glass', label: $L('Glass') },
-	{ value: 'docked', label: $L('Docked') }
-];
-
 export const getMusicLibraryStyleOptions = () => [
 	{ value: 'classic', label: $L('Classic') },
 	{ value: 'quickAccess', label: $L('Quick Access') },

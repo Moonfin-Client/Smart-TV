@@ -6,7 +6,7 @@ import {glideToCard} from '../../utils/focusScroll';
 import {KEYS} from '../../utils/keys';
 import {isGameLibrary} from '../../utils/gameLibrary';
 import {useSettings} from '../../context/SettingsContext';
-import {MATERIAL_ICON_PATHS} from '../../views/Settings/materialIconMap';
+import {HOME_MATERIAL_ICON_PATHS} from '../icons/homeIconPaths';
 import useItemMenuHold from '../../hooks/useItemMenuHold';
 
 import css from './LibraryButtonRow.module.less';
@@ -37,10 +37,10 @@ const ICON_BY_COLLECTION_TYPE = {
 const iconPathFor = (library) => {
 	const collectionType = (library.CollectionType || '').toLowerCase();
 	if (isGameLibrary(library.Id, library.CollectionType, library.Name)) {
-		return MATERIAL_ICON_PATHS.extension;
+		return HOME_MATERIAL_ICON_PATHS.extension;
 	}
 	const name = ICON_BY_COLLECTION_TYPE[collectionType];
-	return MATERIAL_ICON_PATHS[name] || MATERIAL_ICON_PATHS.folder;
+	return HOME_MATERIAL_ICON_PATHS[name] || HOME_MATERIAL_ICON_PATHS.folder;
 };
 
 const LibraryButton = memo(function LibraryButton({item, spotlightId, onSelect, onFocusItem, onSpotlightLeft, onSpotlightRight}) {

@@ -7,6 +7,8 @@ import {studioRowSortBy} from '../../utils/studioRowSort';
 import {ratingKey} from '../../utils/ratingSources';
 import {retrySubtitleFont, subtitleFontFailed} from '../../services/subtitleFonts';
 import {toggleHideWatched} from '../../utils/hideWatchedRecentRows';
+import {smoothScrollingFor} from '../../utils/perfTier';
+import {getKeyboardStyleOptions} from '../../components/TVKeyboard/keyboardStyles';
 
 import {
 	getAccentColorOptions,
@@ -28,7 +30,6 @@ import {
 	getHomeBackdropStyleOptions,
 	getHomeRowsStyleOptions,
 	getBookLibraryStyleOptions,
-	getKeyboardStyleOptions,
 	getLibraryStyleOptions,
 	getDateFormatOptions,
 	getMediaBarSourceOptions,
@@ -413,7 +414,15 @@ export const SETTINGS_SCHEMA = [
 					{kind: KIND.TOGGLE, key: 'exitConfirmation', label: () => $L('Confirm Exit'), desc: () => $L('Show confirmation before exiting'), icon: 'exit_to_app'},
 					{kind: KIND.SECTION, id: 'performance', label: () => $L('Performance')},
 					{kind: KIND.OPTION, key: 'performanceMode', label: () => $L('Performance'), options: getPerformanceModeOptions, fallback: () => $L('Auto'), icon: 'speed_outlined'},
-					{kind: KIND.TOGGLE, key: 'smoothScrolling', label: () => $L('Smooth Scrolling'), desc: () => $L('Glide between rows and cards instead of jumping. Can stutter on slower TVs.'), icon: 'swipe'}
+					{
+						kind: KIND.TOGGLE,
+						key: 'smoothScrollingChoice',
+						label: () => $L('Smooth Scrolling'),
+						desc: () => $L('Glide between rows and cards instead of jumping. On by default only on TVs fast enough for it.'),
+						icon: 'swipe',
+						isOn: (ctx) => smoothScrollingFor(ctx.settings.smoothScrollingChoice),
+						onToggle: (ctx) => ctx.actions.setSetting('smoothScrollingChoice', !smoothScrollingFor(ctx.settings.smoothScrollingChoice))
+					}
 				]
 			}
 		]

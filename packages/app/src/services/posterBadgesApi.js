@@ -3,6 +3,7 @@ import {getApiKey, getAuthHeader, getServerType, getServerUrl} from './jellyfinA
 import {mediaServerQueue} from '../utils/requestQueue';
 import {fetchWithTimeout} from '../utils/fetchTimeout';
 import {findPlexMoonbase, plexMoonbaseBase} from './plexMoonbase';
+import {loadCoreIconPaths} from '../utils/coreIconPaths';
 
 // The labels the admin's Moonbase rules put on the server's own posters, such as 4K or VFQ. Asked for
 // in batches and kept for the session, keyed by the id the card sent.
@@ -153,6 +154,8 @@ async function flush () {
 		if (!response.ok) throw new Error(`HTTP ${response.status}`);
 
 		const body = await response.json();
+		// Labels draw their icons straight away, so the icon map is in before any label is.
+		await loadCoreIconPaths().catch(() => null);
 		if (asked !== generation) return;
 		noteAnswer(body);
 		const items = body?.items || {};

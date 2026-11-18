@@ -6,7 +6,7 @@ import {useSettings} from '../../context/SettingsContext';
 import {isXbox} from '../../platform';
 import {toCssColor, toCssColorWithAlpha, toRgbTriplet, inkOn, radiusToCss, shadowToCss} from '../../theme/themeSpec';
 import {getPerfTier} from '../../utils/perfTier';
-import {getKeyboardStyleOptions} from '../../views/Settings/settingsOptions';
+import {getKeyboardStyleOptions} from './keyboardStyles';
 import {
 	NUMERIC_LAYOUT,
 	NUMBER_PAD_LAYOUT,

@@ -421,8 +421,9 @@ export const defaultSettings = {
 	// Calendar reminders are a phone feature.
 	calendarReminders: null,
 	performanceMode: 'auto',
-	// Kept on the TV, since the other clients have no such setting.
-	smoothScrolling: true,
+	// Kept on the TV, since the other clients have no such setting. Null follows the
+	// performance tier, see smoothScrollingFor.
+	smoothScrollingChoice: null,
 	keyboardStyle: 'docked',
 	focusBorderColor: '',
 	navbarOpacity: 50,
