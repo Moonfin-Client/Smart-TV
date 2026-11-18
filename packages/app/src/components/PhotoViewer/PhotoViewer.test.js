@@ -61,3 +61,31 @@ test('Back closes the viewer straight away, with the info still up', () => {
 
 	expect(onClose).toHaveBeenCalledWith(photo);
 });
+
+test('OK on a video plays it, and a play button shows over its still', () => {
+	const {container, onPlayVideo} = open();
+	press(39);
+
+	expect(container.querySelector('[aria-label="Play"]')).toBeTruthy();
+	press(13);
+	expect(onPlayVideo).toHaveBeenCalledWith(video, 1, true);
+});
+
+test('OK on a video stops a slideshow that passes over videos and plays it', () => {
+	const onSlideshowChange = jest.fn();
+	const {onPlayVideo} = open({running: true, videos: false, onSlideshowChange});
+	press(39);
+	press(13);
+
+	expect(onSlideshowChange).toHaveBeenCalledWith(false);
+	expect(onPlayVideo).toHaveBeenCalledWith(video, 1, true);
+});
+
+test('without a player to hand to, a video stays a still with no play button', () => {
+	const {container} = open({onPlayVideo: undefined});
+	press(39);
+
+	expect(container.querySelector('[aria-label="Play"]')).toBeNull();
+	expect(() => press(13)).not.toThrow();
+	expect(container.textContent).not.toContain('OK Play');
+});

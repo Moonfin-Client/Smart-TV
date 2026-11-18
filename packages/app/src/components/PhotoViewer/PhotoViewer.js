@@ -1,5 +1,6 @@
 import {useState, useEffect, useCallback, useRef, useMemo} from 'react';
 import $L from '@enact/i18n/$L';
+import {MaterialIcon} from '../icons/materialIcons';
 import {useSettings} from '../../context/SettingsContext';
 import {initVideo, keepScreenOn} from '../../services/video';
 import {getImageUrl} from '../../utils/helpers';
@@ -48,6 +49,8 @@ const PhotoViewer = ({item, items, serverUrl, running, videos = true, moreCount 
 	// only counts a photo's time (or a still's, with videos off). Browsing shows a video's still.
 	const playsVideo = Boolean(running) && videos && currentPhoto?.Type === 'Video';
 	const showButton = Boolean(running) || canStartSlideshow(photoItems, currentIndex, videos);
+	// The host leaves onPlayVideo out in a SyncPlay group or a Watch Party, where the player would wait on the group.
+	const canPlay = currentPhoto?.Type === 'Video' && Boolean(onPlayVideo) && !playsVideo;
 
 	const photoUrl = currentPhoto
 		? getImageUrl(
@@ -198,6 +201,12 @@ const PhotoViewer = ({item, items, serverUrl, running, videos = true, moreCount 
 		if (onSlideshowChange) onSlideshowChange(!running);
 	}, [running, onSlideshowChange]);
 
+	// Picked by hand, so it plays like any other video rather than as part of the slideshow.
+	const playVideo = useCallback(() => {
+		if (running && onSlideshowChange) onSlideshowChange(false);
+		onPlayVideo(currentPhoto, currentIndex, true);
+	}, [running, onSlideshowChange, onPlayVideo, currentPhoto, currentIndex]);
+
 	useEffect(() => {
 		const handleKeyDown = (e) => {
 			const key = e.keyCode;
@@ -217,7 +226,9 @@ const PhotoViewer = ({item, items, serverUrl, running, videos = true, moreCount 
 				e.preventDefault();
 				e.stopPropagation();
 				if (e.repeat) return;
-				if (!showButton) {
+				if (canPlay) {
+					playVideo();
+				} else if (!showButton) {
 					setShowInfo(prev => !prev);
 				} else if (showInfo) {
 					toggleSlideshow();
@@ -234,7 +245,7 @@ const PhotoViewer = ({item, items, serverUrl, running, videos = true, moreCount 
 
 		window.addEventListener('keydown', handleKeyDown, true);
 		return () => window.removeEventListener('keydown', handleKeyDown, true);
-	}, [onClose, currentPhoto, goNext, goPrev, showButton, showInfo, toggleSlideshow, resetInfoTimer, toggleControls]);
+	}, [onClose, currentPhoto, goNext, goPrev, canPlay, playVideo, showButton, showInfo, toggleSlideshow, resetInfoTimer, toggleControls]);
 
 	// A photo from the cache loads before the browser has drawn it hidden, and would then show without a fade.
 	// Reading the layout settles its style first.
@@ -253,6 +264,11 @@ const PhotoViewer = ({item, items, serverUrl, running, videos = true, moreCount 
 		e.stopPropagation();
 		toggleSlideshow();
 	}, [toggleSlideshow]);
+
+	const handleVideoClick = useCallback((e) => {
+		e.stopPropagation();
+		playVideo();
+	}, [playVideo]);
 
 	// Pointing brings the button up, since the Magic Remote has no OK to ask for it.
 	const handlePointerMove = useCallback(() => {
@@ -293,6 +309,11 @@ const PhotoViewer = ({item, items, serverUrl, running, videos = true, moreCount 
 						<div className={css.spinner} />
 					</div>
 				)}
+				{canPlay && (
+					<div className={css.videoPlay} role="button" aria-label={$L('Play')} onClick={handleVideoClick}>
+						<MaterialIcon name="playCircleFill" className={css.videoPlayIcon} />
+					</div>
+				)}
 				{imageFailed && (
 					<div className={css.broken}>
 						<div className={css.brokenIcon} />
@@ -320,7 +341,7 @@ const PhotoViewer = ({item, items, serverUrl, running, videos = true, moreCount 
 						</div>
 					)}
 					{photoItems.length > 1 && (
-					<div className={css.navHint}>{$L('◀ ▶ Navigate')} &nbsp; {showButton ? $L('OK Slideshow') : $L('OK Toggle info')} &nbsp; {$L('Back Close')}</div>
+					<div className={css.navHint}>{$L('◀ ▶ Navigate')} &nbsp; {canPlay ? $L('OK Play') : showButton ? $L('OK Slideshow') : $L('OK Toggle info')} &nbsp; {$L('Back Close')}</div>
 					)}
 				</div>
 			</div>

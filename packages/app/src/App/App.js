@@ -394,6 +394,7 @@ const AppContent = (props) => {
 	// open under the player so the slideshow carries on from it.
 	const [slideshowRunning, setSlideshowRunning] = useState(false);
 	const [slideshowVideo, setSlideshowVideo] = useState(false);
+	const [videoByHand, setVideoByHand] = useState(false);
 	const slideshowIndexRef = useRef(0);
 	// Hands the library the item to come back to, since a video takes the library off screen.
 	const photoReturnRef = useRef(null);
@@ -1369,6 +1370,7 @@ const AppContent = (props) => {
 		setPhotoCount(0);
 		setSlideshowRunning(false);
 		setSlideshowVideo(false);
+		setVideoByHand(false);
 		setPhotoViewerItem(null);
 		setPhotoViewerItems([]);
 		if (lastShown?.Id) {
@@ -1615,10 +1617,11 @@ const AppContent = (props) => {
 	}, [handleBack, panelHistory, selectedItem, playingItem, panelIndex, watchPartyRoom, openWatchParty, isSyncPlayInGroup, openSyncPlay]);
 	playerEndRef.current = handlePlayerEnd;
 
-	const handleSlideshowPlayVideo = useCallback(async (video, index) => {
+	const handleSlideshowPlayVideo = useCallback(async (video, index, byHand = false) => {
 		slideshowIndexRef.current = index;
 		if (photoReturnRef.current) photoReturnRef.current(video.Id);
 		if (backgroundMusic) await remoteControl.releasePlayer();
+		setVideoByHand(byHand);
 		setSlideshowVideo(true);
 		setPlayingItem(video);
 		setPlaybackOptions(null);
@@ -1657,6 +1660,15 @@ const AppContent = (props) => {
 		handlePlayerEnd();
 	}, [handleClosePhotoViewer, handlePlayerEnd]);
 
+	// A video picked by hand plays like any other, and its end or Back comes back to the viewer on it.
+	const returnToViewer = useCallback(() => {
+		const target = viewerItems(photoViewerItems, photoViewerItem)[slideshowIndexRef.current];
+		if (target) setPhotoViewerItem(target);
+		setVideoByHand(false);
+		setSlideshowVideo(false);
+		handlePlayerEnd();
+	}, [photoViewerItems, photoViewerItem, handlePlayerEnd]);
+
 	// The player calls these some time after it was rendered, so they read the latest through a ref.
 	const slideshowApiRef = useRef(null);
 	slideshowApiRef.current = {
@@ -1670,10 +1682,13 @@ const AppContent = (props) => {
 		onExit: () => slideshowApiRef.current.exit()
 	}), []);
 	const slideshowSound = settings.photoSlideshowVideoSound !== false;
+	// A slideshow's own video hands its end and Back to the slideshow. Anything else ends as usual.
+	const slideshowOwnsPlayer = slideshowVideo && !videoByHand;
 	const playerSlideshow = useMemo(
-		() => (slideshowVideo ? {...slideshowCallbacks, muted: slideshowRunning && !slideshowSound} : undefined),
-		[slideshowVideo, slideshowRunning, slideshowSound, slideshowCallbacks]
+		() => (slideshowOwnsPlayer ? {...slideshowCallbacks, muted: slideshowRunning && !slideshowSound} : undefined),
+		[slideshowOwnsPlayer, slideshowRunning, slideshowSound, slideshowCallbacks]
 	);
+	const playerDone = videoByHand ? returnToViewer : handlePlayerEnd;
 
 	const handlePlayerBackground = useCallback(() => {
 		setMusicInBackground(true);
@@ -2604,8 +2619,8 @@ const AppContent = (props) => {
 							liveTvChannels={playbackOptions?.liveTvChannels}
 							background={backgroundMusic}
 							onBackground={handlePlayerBackground}
-							onEnded={slideshowVideo ? slideshowCallbacks.onEnded : handlePlayerEnd}
-							onBack={slideshowVideo ? slideshowCallbacks.onExit : handlePlayerEnd}
+							onEnded={slideshowOwnsPlayer ? slideshowCallbacks.onEnded : playerDone}
+							onBack={slideshowOwnsPlayer ? slideshowCallbacks.onExit : playerDone}
 							onEndedOnServer={showEndedOnServer}
 							slideshow={playerSlideshow}
 							onGuide={handlePlayerGuide}
@@ -2743,7 +2758,7 @@ const AppContent = (props) => {
 					moreCount={photoMoreCount}
 					onNeedMore={requestMorePhotos}
 					onSlideshowChange={setSlideshowRunning}
-					onPlayVideo={handleSlideshowPlayVideo}
+					onPlayVideo={isSyncPlayInGroup || watchPartyRoom ? undefined : handleSlideshowPlayVideo}
 					onClose={handleClosePhotoViewer}
 				/>
 			)}
