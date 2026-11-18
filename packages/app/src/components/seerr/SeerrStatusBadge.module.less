@@ -21,48 +21,6 @@
 	max-width: 420px;
 }
 
-// What Seerr has for one season, in the corner opposite the watched check. Like Core's dot,
-// it's filled in the theme's badge ink with the ring in the status colour.
-.seasonDot {
-	position: absolute;
-	top: 8px;
-	left: 8px;
-	width: 22px;
-	height: 22px;
-	border-radius: 50%;
-	z-index: 5;
-	box-shadow: 0 1.5px 4px rgba(0, 0, 0, 0.6);
-	background: var(--theme-on-badge, #fff);
-	display: flex;
-	align-items: center;
-	justify-content: center;
-
-	// The watched badge's check at about the same share of its circle, as some details
-	// styles size the dot up
-	svg {
-		width: 60%;
-		height: 60%;
-		fill: currentColor;
-	}
-}
-
-.dotAvailable {
-	border: 3px solid var(--theme-status-available, #22c55e);
-	color: var(--theme-status-available, #22c55e);
-}
-
-.dotPartial {
-	background: var(--theme-status-available, #22c55e);
-}
-
-.dotProcessing {
-	border: 3px solid var(--theme-status-requested, #9333ea);
-}
-
-.dotPending {
-	border: 3px solid var(--theme-status-pending, #eab308);
-}
-
 // Spaced off the buttons above, or the bar reads as an underline to them.
 .downloads {
 	display: flex;

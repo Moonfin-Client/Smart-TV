@@ -63,7 +63,6 @@ import mediaCardCss from '../components/MediaCard/MediaCard.module.less';
 import modernCardCss from '../components/MediaCard/ModernMediaCard.module.less';
 import seerrBannerCss from '../components/seerr/SeerrStatusBanner.module.less';
 import seerrDotCss from '../components/seerr/SeerrStatusDot.module.less';
-import seerrBadgeCss from '../components/seerr/SeerrStatusBadge.module.less';
 import seerrDownloadCss from '../components/SeerrDownloadProgress/SeerrDownloadProgress.module.less';
 import seerrRequestsCss from '../views/SeerrRequests/SeerrRequests.module.less';
 import seerrRequestCss from '../components/seerr/SeerrRequestDialog.module.less';
@@ -767,21 +766,12 @@ export const buildThemeOverrideCss = (theme, options = {}) => {
 		rule(`.${cardCss.card}:focus .${cardCss.seerrBanner}`, 'border-width: 4px 4px 0;');
 	}
 
-	rule(`.${mediaCardCss.seerr5}`, `background: ${onSurface}; border-color: ${statusAvailable};`);
-	rule(`.${mediaCardCss.seerr4}`, `background: ${statusAvailable};`);
-	rule(`.${mediaCardCss.seerr3}`, `border-color: ${statusRequested};`);
-	rule(`.${mediaCardCss.seerr2}`, `background: ${onSurface}; border-color: ${statusPending};`);
 	rule(`.${modernCardCss.focusRing}`, `border-color: ${focusColor};`);
 	rule(`.${seerrDotCss.dot}`, `background: ${onBadge}; border-color: ${onBadge};`);
 	rule(`.${seerrDotCss.available}`, `border-color: ${statusAvailable}; color: ${statusAvailable};`);
 	rule(`.${seerrDotCss.partial}`, `background: ${statusAvailable}; border-color: ${statusAvailable}; color: ${onBadge};`);
 	rule(`.${seerrDotCss.processing}`, `border-color: ${statusRequested}; color: ${statusRequested};`);
 	rule(`.${seerrDotCss.pending}`, `border-color: ${statusPending}; color: ${statusPending};`);
-	rule(`.${seerrBadgeCss.seasonDot}`, `background: ${onBadge};`);
-	rule(`.${seerrBadgeCss.dotAvailable}`, `border-color: ${statusAvailable}; color: ${statusAvailable};`);
-	rule(`.${seerrBadgeCss.dotPartial}`, `background: ${statusAvailable};`);
-	rule(`.${seerrBadgeCss.dotProcessing}`, `border-color: ${statusRequested};`);
-	rule(`.${seerrBadgeCss.dotPending}`, `border-color: ${statusPending};`);
 	rule(`.${seerrDownloadCss.fill}`, `background: ${rangeProgress};`);
 	rule(`.${seerrDownloadCss.stalled} .${seerrDownloadCss.fill}`, `background: ${statusPending};`);
 	rule(`.${seerrDownloadCss.failed} .${seerrDownloadCss.fill}`, `background: ${statusError};`);

@@ -3,6 +3,7 @@ import Spottable from '@enact/spotlight/Spottable';
 import {getImageUrl, toAbsoluteImageUrl} from '../../utils/helpers';
 import {useSettings} from '../../context/SettingsContext';
 import {SeerrSeasonDot} from '../seerr/SeerrStatusBadge';
+import SeerrStatusDot from '../seerr/SeerrStatusDot';
 import SeerrStatusBanner, {hasSeerrDot, seerrBadgeStyle, seerrTitleStatus} from '../seerr/SeerrStatusBanner';
 import {showsWatchedCheck} from '../../utils/playedState';
 import SeerrIcon from '../icons/SeerrIcon';
@@ -311,8 +312,8 @@ const MediaCard = ({item, serverUrl, cardType = 'portrait', rowImageType = 'post
 							<div className={`${css.seerrBadge} ${css.seerrMissing} ${seerrMarkLeft ? css.seerrLeft : ''}`}>
 								<SeerrIcon />
 							</div>
-						) : seerrStyle === 'badge' && item._seerr && [2, 3, 4, 5].includes(item.mediaInfo?.status) ? (
-							<div className={`${css.seerrBadge} ${css[`seerr${item.mediaInfo.status}`]}`} />
+						) : seerrStyle === 'badge' && item._seerr ? (
+							<SeerrStatusDot status={item.mediaInfo?.status} />
 						) : null}
 
 						<SeerrSeasonDot status={seerrStyle === 'badge' ? seerrSeasonStatus : null} />
