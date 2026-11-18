@@ -213,7 +213,7 @@ const GuideHeroHost = ({store, emitter, focusRef, serverUrl, clockDisplay, versi
 		const episodeTitle = preview ? episodeTitleOf(preview) : '';
 		const episodeSuffix = episodeTitle && episodeTitle !== preview?.Name ? ` - ${episodeTitle}` : '';
 		const label = preview ? seasonEpisodeLabel(preview) : null;
-		const badgeLabel = preview ? (preview.IsPremiere ? $L('Premiere') : preview.IsRepeat ? $L('Repeat') : null) : null;
+		const badgeLabel = preview ? (preview.IsPremiere ? $L('Premiere') : preview.IsNew ? $L('New') : preview.IsRepeat ? $L('Repeat') : null) : null;
 		return {
 			title: channel?.Name || preview?.Name || $L('Guide Timeline'),
 			programTitle: channel ? preview?.Name || null : null,
