@@ -2085,13 +2085,14 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 		if (episode.Id === item.Id) return;
 		stopTimeUpdatePolling();
 		const generation = loadGenerationRef.current;
-		await playback.reportStop(positionRef.current);
+		if (options?.finished) await playback.reportFinished(item, runTimeRef.current, positionRef.current);
+		else await playback.reportStop(positionRef.current);
 		// the ended event can load the next one during the stop, leave its player alone
 		if (generation !== loadGenerationRef.current) return;
 		cleanupAVPlay();
 		avplayReadyRef.current = false;
 		onPlayNext(episode, options);
-	}, [onPlayNext, stopTimeUpdatePolling, item.Id]);
+	}, [onPlayNext, stopTimeUpdatePolling, item]);
 
 	const cinemaSkip = useCinemaSkip({
 		item, videoQueue, duration, controlsVisible, activeModal,
@@ -2169,7 +2170,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 		onPlayNext: onPlayNextWithCleanup,
 		onPausePlayback: () => { avplayPause(); setIsPaused(true); },
 		// Called long after the definition below, so reading it now would be too early.
-		onStopPlayback: () => handleBack(), // eslint-disable-line no-use-before-define
+		onStopPlayback: (options) => handleBack(options.finished), // eslint-disable-line no-use-before-define
 		currentIsPreroll: isPreroll(item)
 	});
 
@@ -2362,20 +2363,22 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 	// ==============================
 	// Control Actions (AVPlay-based)
 	// ==============================
-	const teardownPlayback = useCallback(async () => {
+	const teardownPlayback = useCallback(async (finished = false) => {
 		const generation = ++loadGenerationRef.current;
 		cancelNextEpisodeCountdown();
 		stopTimeUpdatePolling();
-		await playback.reportStop(positionRef.current);
+		if (finished) await playback.reportFinished(item, runTimeRef.current, positionRef.current);
+		else await playback.reportStop(positionRef.current);
 		// A load started while the stop was out already cleared the old pipeline and set up its own.
 		if (generation !== loadGenerationRef.current) return;
 		cleanupAVPlay();
 		avplayReadyRef.current = false;
-	}, [cancelNextEpisodeCountdown, stopTimeUpdatePolling]);
+	}, [cancelNextEpisodeCountdown, stopTimeUpdatePolling, item]);
 
-	const handleBack = useCallback(async () => {
+	// Only Still Watching's Stop passes [finished], and anything else handed in, like a click event, is left out.
+	const handleBack = useCallback(async (finished) => {
 		closingRef.current = true;
-		await teardownPlayback();
+		await teardownPlayback(finished === true);
 		onBack?.();
 	}, [teardownPlayback, onBack]);
 
