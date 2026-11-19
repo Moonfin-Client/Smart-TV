@@ -3409,5 +3409,7 @@
     "Sends Dolby Vision to a TV that supports it. Turn off to play Dolby Vision as HDR10.": "Lähettää Dolby Vision sisältöä televisioon, joka tukee sitä. Kytke pois päältä, jos haluat toistaa Dolby Vision sisältöä HDR10-muodossa.",
     "Sort the Studio row by name or at random.": "Lajittele Studio-rivi nimen mukaan tai satunnaisesti.",
     "1 Season": "1 kausi",
-    "Glide between rows and cards instead of jumping. On by default only on TVs fast enough for it.": "Liukua rivien ja korttien välillä hyppimisen sijaan. Oletusasetuksena käytössä vain televisioissa, jotka ovat riittävän nopeita tämän toiminnon suorittamiseen."
+    "Glide between rows and cards instead of jumping. On by default only on TVs fast enough for it.": "Liukua rivien ja korttien välillä hyppimisen sijaan. Oletusasetuksena käytössä vain televisioissa, jotka ovat riittävän nopeita tämän toiminnon suorittamiseen.",
+    "Unavailable": "Ei saatavilla",
+    "Not changed on {servers}": "Ei muutettu {servers}"
 }
