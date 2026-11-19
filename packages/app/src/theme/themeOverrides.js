@@ -613,13 +613,14 @@ export const buildThemeOverrideCss = (theme, options = {}) => {
 
 	// Library grid, its toolbar and the sort and filter panel.
 	const lib = libraryCss;
-	rule(`.${lib.itemCard}:focus .${lib.poster}, .${lib.itemCard}.${lib.focused} .${lib.poster}, .${lib.dockRow}:focus, .${lib.barPill}:focus`, `border-color: ${focusColor};`);
+	rule(`.${lib.itemCard}:focus .${lib.poster}, .${lib.itemCard}.${lib.focused} .${lib.poster}, .${lib.dockRow}:focus, .${lib.barPill}:focus, .${lib.toolbarBtn}:focus, .${lib.barButton}:focus, .${lib.searchField}:focus, .${lib.searchField}[data-focused]`, `border-color: ${focusColor};`);
 	rule(`.${lib.breadcrumbItem}:focus, .${lib.sectionHeader}:focus, .${lib.sortOption}:focus, .${lib.sortOptionActive} .${lib.radioCircle}`, `border-color: ${accent};`);
 	rule(`.${lib.letterButton}:focus`, `border-color: ${accent}; color: ${accent};`);
 	rule(`.${lib.sortArrow}`, `fill: ${accent};`);
 	rule(`.${lib.sectionSummary}, .${lib.clearGroup}`, `color: ${accent};`);
 	rule(`.${lib.radioFill}`, `background: ${accent};`);
 	rule(`.${lib.sortOptionActive} .${lib.checkboxSquare}`, `border-color: ${accent}; background: ${accent};`);
+	rule(`.${lib.checkIcon}`, `fill: ${onAccent};`);
 
 	// Detail screens, stage layout
 	rule(`.${stageCss.chip}:focus, .${stageCss.name}:focus`, `border-color: ${focusColor};`);

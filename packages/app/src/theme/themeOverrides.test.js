@@ -126,6 +126,18 @@ describe('buildThemeOverrideCss', () => {
 		expect(buildThemeOverrideCss(theme, {focusBorderColor: ''})).toContain(`${prefix} .ring { border-color: ${themeColor}; }`);
 	});
 
+	it('rings the library cards in the focus border color and draws its controls in the accent', () => {
+		const theme = resolveThemeById('8bit_hero');
+		const accent = toCssColor(theme.colors.accent);
+		const prefix = "html[data-theme-id='8bit_hero'][data-theme-id]";
+		const lines = buildThemeOverrideCss(theme, {focusBorderColor: '#ff0000'}).split('\n');
+		expect(lines.some((line) => line.includes(`${prefix} .itemCard:focus .poster`) && line.includes(`${prefix} .itemCard.focused .poster`) && line.endsWith('{ border-color: rgb(255, 0, 0); }'))).toBe(true);
+		expect(lines).toContain(`${prefix} .letterButton:focus { border-color: ${accent}; color: ${accent}; }`);
+		expect(lines).toContain(`${prefix} .radioFill { background: ${accent}; }`);
+		expect(lines.some((line) => line.includes(`${prefix} .searchField[data-focused]`) && line.endsWith('{ border-color: rgb(255, 0, 0); }'))).toBe(true);
+		expect(lines).toContain(`${prefix} .checkIcon { fill: ${toCssColor(theme.colors.onAccent)}; }`);
+	});
+
 	it('draws Switch User in the theme accent, inside the switcher only, and keeps Sign Out All Users red', () => {
 		const theme = resolveThemeById('moonfin');
 		const accent = toCssColor(theme.colors.accent);
