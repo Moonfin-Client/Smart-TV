@@ -50,6 +50,8 @@ export const useAccessSchedule = ({userId, enabled, fetchUser, serverRefuses, fe
 		let windowUnsupported = false;
 		// When the allowed window the plugin last reported closes, in ms on this TV's clock.
 		let windowCloses = null;
+		// When the window the plugin last reported as closed opens again, in ms on this TV's clock.
+		let windowOpens = null;
 		// Checks can overlap, so each is numbered and none replaces the answer of one started after it.
 		let started = 0;
 		let applied = 0;
@@ -74,6 +76,7 @@ export const useAccessSchedule = ({userId, enabled, fetchUser, serverRefuses, fe
 		const applyWindow = (answer) => {
 			const now = latest.current.getNow();
 			windowCloses = answer.allowed && answer.untilCloseMs !== null ? now.getTime() + answer.untilCloseMs : null;
+			windowOpens = !answer.allowed && answer.untilOpenMs !== null ? now.getTime() + answer.untilOpenMs : null;
 			const wasBlocked = blocked;
 			blocked = !answer.allowed;
 			// Named on this device's clock, as the moment it comes on it, to the nearest minute: a
@@ -121,13 +124,19 @@ export const useAccessSchedule = ({userId, enabled, fetchUser, serverRefuses, fe
 				user = await latest.current.fetchUser();
 			} catch (e) {
 				// Keep the last schedule, but a window that is already closed stays closed. Offline, where
-				// the server can't stop a download, an allowed window ends at the close the plugin reported.
+				// the server can't stop a download, an allowed window ends at the close the plugin reported,
+				// and a block at the opening it reported.
 				if (cancelled || look < applied) return;
-				if (!blocked && windowCloses !== null && latest.current.getNow().getTime() >= windowCloses) {
+				const nowMs = latest.current.getNow().getTime();
+				if (!blocked && windowCloses !== null && nowMs >= windowCloses) {
 					windowCloses = null;
 					blocked = true;
 					setState({blocked: true, nextAccess: null});
 					latest.current.onBlocked?.();
+				} else if (blocked && windowOpens !== null && nowMs >= windowOpens) {
+					windowOpens = null;
+					blocked = false;
+					setState({blocked: false, nextAccess: null});
 				}
 				schedule(RETRY_MS);
 				return;
@@ -145,6 +154,7 @@ export const useAccessSchedule = ({userId, enabled, fetchUser, serverRefuses, fe
 			exempt = isExempt;
 			schedules = fresh;
 			windowCloses = null;
+			windowOpens = null;
 			const now = latest.current.getNow();
 			apply(now, refused);
 			if (exempt) return;
