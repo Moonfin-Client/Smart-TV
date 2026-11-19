@@ -465,7 +465,7 @@ export const searchAllServers = (query, limit = 20, {foldCopies: fold = false} =
  * @returns {Promise<Array>} People from all servers
  */
 export const searchPeopleAllServers = (query, limit = 24) =>
-	searchEveryServer(query, limit, (api, perServerLimit) => api.searchPeople(query, perServerLimit, {viewerScope: true}));
+	searchEveryServer(query, limit, (api, perServerLimit) => api.searchPeople(query, perServerLimit));
 
 const DEFAULT_FAVORITE_TYPES = 'Movie,Series,Episode,Person';
 const DEFAULT_FAVORITE_FIELDS = 'PrimaryImageAspectRatio,ProductionYear,ParentIndexNumber,IndexNumber,SeriesName,ProviderIds,UserData';

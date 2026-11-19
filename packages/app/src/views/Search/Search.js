@@ -227,7 +227,7 @@ const Search = ({onSelectItem, onSelectSeerrItem, onSelectPerson, onSelectGame, 
 			// A people search that fails leaves the other results alone.
 			const peoplePromise = (unifiedMode
 				? connectionPool.searchPeopleAllServers(q, PEOPLE_FETCH_LIMIT)
-				: api.searchPeople(q, PEOPLE_FETCH_LIMIT, {viewerScope: true}).then((r) => r?.Items || [])
+				: api.searchPeople(q, PEOPLE_FETCH_LIMIT).then((r) => r?.Items || [])
 			).then(withoutBlockedItems).catch(() => []);
 			const [libraryResult, channels] = await Promise.all([
 				unifiedMode
