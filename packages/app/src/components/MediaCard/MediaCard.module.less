@@ -261,13 +261,13 @@
 	position: absolute;
 	top: 8px;
 	right: 8px;
-	padding: 4px 8px;
+	padding: 4px 10px;
 	background: var(--theme-surface, rgba(0, 0, 0, 0.75));
 	border-radius: 4px;
-	font-size: 12px;
+	font-size: 18px;
 	color: var(--theme-text-primary, #ffffff);
 	font-weight: 500;
-	max-width: 120px;
+	max-width: 180px;
 	overflow: hidden;
 	text-overflow: ellipsis;
 	white-space: nowrap;
@@ -418,3 +418,7 @@
 :global(.vega) .imageContainer.previewHost {
 	border-radius: 0;
 }
+
+// The badges that move below the server's name, as serverNameCorner.js places them. The Seerr banner starts the corner
+// at 28px instead of 8px.
+.server-name-corner(28px);

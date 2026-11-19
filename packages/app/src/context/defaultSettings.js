@@ -190,6 +190,8 @@ export const defaultSettings = {
 	mediaBarCollectionIds: [],
 	mediaBarExternalLists: [],
 	unifiedLibraryMode: false,
+	// Every server's movie libraries as one Movies library and their show libraries as one TV Shows library.
+	mergeLibrariesByType: false,
 	useMoonfinPlugin: false,
 	// The plugin profile this device syncs with. Empty follows the TV profile. It's a choice
 	// about this device rather than the account, so it never syncs.

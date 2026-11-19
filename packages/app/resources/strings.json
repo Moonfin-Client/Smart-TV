@@ -3116,5 +3116,11 @@
 	"Carousel": "Carousel",
 	"Larger cards over a panel with the focused title's details.": "Larger cards over a panel with the focused title's details.",
 	"Dolby Vision": "Dolby Vision",
-	"Sends Dolby Vision to a TV that supports it. Turn off to play Dolby Vision as HDR10.": "Sends Dolby Vision to a TV that supports it. Turn off to play Dolby Vision as HDR10."
+	"Sends Dolby Vision to a TV that supports it. Turn off to play Dolby Vision as HDR10.": "Sends Dolby Vision to a TV that supports it. Turn off to play Dolby Vision as HDR10.",
+	"Merge Libraries by Type": "Merge Libraries by Type",
+	"Show every server's movie libraries as one Movies library and their show libraries as one TV Shows library, with a title several servers hold listed once": "Show every server's movie libraries as one Movies library and their show libraries as one TV Shows library, with a title several servers hold listed once",
+	"Unavailable": "Unavailable",
+	"{percent}% watched": "{percent}% watched",
+	"On {count} servers": "On {count} servers",
+	"Not changed on {servers}": "Not changed on {servers}"
 }

@@ -165,7 +165,11 @@ const stripItemForCache = (item) => ({
 	_serverUserId: item._serverUserId,
 	_serverId: item._serverId,
 	isLibraryTile: item.isLibraryTile,
-	isRecordingsShortcut: item.isRecordingsShortcut
+	isRecordingsShortcut: item.isRecordingsShortcut,
+	// A merged library's tile and a card several servers hold, from merged libraries.
+	_imageItemId: item._imageItemId,
+	_mergedType: item._mergedType,
+	_mergedCopies: Array.isArray(item._mergedCopies) ? item._mergedCopies.map(stripItemForCache) : undefined
 });
 
 // Enough of the rows to tell whether a write is worth making. Resume and Next Up also fold in

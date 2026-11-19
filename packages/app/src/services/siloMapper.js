@@ -462,8 +462,20 @@ const runTimeTicks = (item) => {
 	return typeof item.runtime === 'number' && item.runtime > 0 ? secondsToTicks(item.runtime * 60) : null;
 };
 
-const providerIds = (item) => {
+const KEYED_PROVIDER_ID = /^(?:movie|series)-(imdb|tmdb|tvdb)-(.+)$/;
+const KEYED_PROVIDER_NAMES = {imdb: 'Imdb', tmdb: 'Tmdb', tvdb: 'Tvdb'};
+
+// The provider id a movie or series id is keyed on, such as Imdb and tt0000103 from movie-imdb-tt0000103, or null.
+// List entries carry no provider ids of their own, so this is all a card has for merged libraries to fold on.
+export const siloKeyedProviderId = (id) => {
+	const match = typeof id === 'string' ? KEYED_PROVIDER_ID.exec(id) : null;
+	return match ? {name: KEYED_PROVIDER_NAMES[match[1]], value: match[2]} : null;
+};
+
+const providerIds = (item, id) => {
 	const ids = {};
+	const keyed = siloKeyedProviderId(id);
+	if (keyed) ids[keyed.name] = keyed.value;
 	if (text(item.imdb_id)) ids.Imdb = text(item.imdb_id);
 	if (siloIdOf(item.tmdb_id)) ids.Tmdb = siloIdOf(item.tmdb_id);
 	if (siloIdOf(item.tvdb_id)) ids.Tvdb = siloIdOf(item.tvdb_id);
@@ -769,7 +781,7 @@ export const siloItemToBaseItem = (item, {images, type, series, mediaSources} = 
 		Genres: genres,
 		GenreItems: genres.map((g) => ({Name: g, Id: siloGenreId(g)})),
 		Studios: studioNames(item).map((s) => ({Name: s, Id: siloStudioId(s)})),
-		ProviderIds: providerIds(item),
+		ProviderIds: providerIds(item, id),
 		...imageFields(id, itemType.siloType, item, images),
 		...seriesFields(id, itemType.siloType, item, images, series),
 		UserData: userData(itemType, item),
@@ -791,7 +803,12 @@ export const siloItemToBaseItem = (item, {images, type, series, mediaSources} = 
 	if (communityRating(item) != null) dto.CommunityRating = communityRating(item);
 	if (criticRating(item.ratings) != null) dto.CriticRating = criticRating(item.ratings);
 	if (runTimeTicks(item) != null) dto.RunTimeTicks = runTimeTicks(item);
-	if (dateAdded(item.versions)) dto.DateCreated = dateAdded(item.versions);
+	// What Silo sorts Date Added on is the title's added_at, which catalog pages carry without the files.
+	const added = siloTimestamp(item.added_at) || dateAdded(item.versions);
+	if (added) dto.DateCreated = added;
+	// And a show's Date Episode Added on latest_episode_added.
+	const episodeAdded = siloTimestamp(item.latest_episode_added) || siloTimestamp(item.sort_metrics?.latest_episode_added);
+	if (episodeAdded) dto.DateLastMediaAdded = episodeAdded;
 	if (!itemType.isFolder && mediaSources) {
 		const sources = mediaSources(item, id);
 		if (sources && sources.length) {

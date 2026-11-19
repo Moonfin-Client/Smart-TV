@@ -360,7 +360,13 @@ export const createPlexApi = ({getBaseUrl, getToken, getUserId, getDeviceInfo, g
 		// cast, artist or genre. Those carry a reason and are left out, so only titles that match the query stay.
 		if (!parent && searchTerm) {
 			// Without the flag, a collection comes back as a tag and not the item.
-			const hubs = await container('/hubs/search', {query: searchTerm, includeCollections: 1, limit});
+			// Plex leaves the TMDB, IMDb and TVDB ids out of a list unless asked, and merged libraries fold on them.
+			const hubs = await container('/hubs/search', {
+				query: searchTerm,
+				includeCollections: 1,
+				limit,
+				...(splitList(q.Fields).includes('ProviderIds') ? {includeGuids: 1} : {})
+			});
 			const matches = [];
 			list(hubs.Hub).forEach((hub) => list(hub?.Metadata).forEach((m) => {
 				if (m && m.reason == null) matches.push(m);
@@ -1061,7 +1067,8 @@ export const createPlexApi = ({getBaseUrl, getToken, getUserId, getDeviceInfo, g
 		getLatest: async (libraryId, limit = 20) => {
 			const sectionKey = plexKeyOf(libraryId, PLEX_SECTION_PREFIX);
 			if (!sectionKey) return [];
-			return plexItems((await container(`/library/sections/${sectionKey}/recentlyAdded`, paging(0, limit))).Metadata);
+			// The provider ids let a merged home row show a title several servers hold once.
+			return plexItems((await container(`/library/sections/${sectionKey}/recentlyAdded`, {...paging(0, limit), includeGuids: 1})).Metadata);
 		},
 
 		getLatestMedia: async (libraryId = null, limit = 16) => (libraryId
@@ -1160,7 +1167,7 @@ export const createPlexApi = ({getBaseUrl, getToken, getUserId, getDeviceInfo, g
 			return null;
 		},
 
-		search: (query, limit = 240) => getItems({SearchTerm: query, Limit: limit}),
+		search: (query, limit = 240) => getItems({SearchTerm: query, Limit: limit, Fields: 'ProviderIds'}),
 		searchPeople: (query, limit = 24) => getPersons(query, limit),
 
 		// Moonbase for Plex answers with Plex's own metadata, and a person as a cast tag, so both take the usual mapping.

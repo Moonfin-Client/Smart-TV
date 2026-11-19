@@ -52,6 +52,15 @@
 	margin-bottom: 30px;
 }
 
+// The server count badge is 30px high, and sits above the anime pill when both show.
+[data-card-overlay='servers'] ~ .frame .bottomLeft {
+	margin-bottom: 36px;
+}
+
+[data-card-overlay='anime'] ~ [data-card-overlay='servers'] ~ .frame .bottomLeft {
+	margin-bottom: 66px;
+}
+
 .pill {
 	display: flex;
 	align-items: center;

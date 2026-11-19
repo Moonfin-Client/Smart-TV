@@ -7,15 +7,17 @@ import {getImageUrl, toAbsoluteImageUrl} from '../../utils/helpers';
 // back the url rather than a yes or no is what keeps the card shape and the picture it
 // ends up holding from ever disagreeing.
 export const requestedArtwork = (item, imageType, serverUrl) => {
+	// A merged library has no artwork of its own and borrows another library's.
+	const artId = item._imageItemId || item.Id;
 	if (imageType === 'backdrop') {
 		if (item.BackdropImageTags?.length > 0) {
-			return getImageUrl(serverUrl, item.Id, 'Backdrop', {maxWidth: 400, quality: 80});
+			return getImageUrl(serverUrl, artId, 'Backdrop', {maxWidth: 400, quality: 80});
 		}
 		if (item.ParentBackdropItemId) {
 			return getImageUrl(serverUrl, item.ParentBackdropItemId, 'Backdrop', {maxWidth: 400, quality: 80});
 		}
 		if (item.ImageTags?.Thumb) {
-			return getImageUrl(serverUrl, item.Id, 'Thumb', {maxWidth: 400, quality: 80});
+			return getImageUrl(serverUrl, artId, 'Thumb', {maxWidth: 400, quality: 80});
 		}
 		// A title matched from an outside list keeps the list's backdrop when the library has no wide art for it.
 		if (item._resolvedFromExternal && item._externalBackdropUrl) {
@@ -24,29 +26,29 @@ export const requestedArtwork = (item, imageType, serverUrl) => {
 	}
 	if (imageType === 'thumb') {
 		if (item.ImageTags?.Thumb) {
-			return getImageUrl(serverUrl, item.Id, 'Thumb', {maxWidth: 400, quality: 80});
+			return getImageUrl(serverUrl, artId, 'Thumb', {maxWidth: 400, quality: 80});
 		}
 		if (item.ParentThumbItemId) {
 			return getImageUrl(serverUrl, item.ParentThumbItemId, 'Thumb', {tag: item.ParentThumbImageTag, maxWidth: 400, quality: 80});
 		}
 		if (item.BackdropImageTags?.length > 0) {
-			return getImageUrl(serverUrl, item.Id, 'Backdrop', {maxWidth: 400, quality: 80});
+			return getImageUrl(serverUrl, artId, 'Backdrop', {maxWidth: 400, quality: 80});
 		}
 	}
 	if (imageType === 'banner') {
 		if (item.ImageTags?.Banner) {
-			return getImageUrl(serverUrl, item.Id, 'Banner', {maxWidth: 1200, quality: 80});
+			return getImageUrl(serverUrl, artId, 'Banner', {maxWidth: 1200, quality: 80});
 		}
 		if (item.ImageTags?.Thumb) {
-			return getImageUrl(serverUrl, item.Id, 'Thumb', {maxWidth: 1200, quality: 80});
+			return getImageUrl(serverUrl, artId, 'Thumb', {maxWidth: 1200, quality: 80});
 		}
 		if (item.BackdropImageTags?.length > 0) {
-			return getImageUrl(serverUrl, item.Id, 'Backdrop', {maxWidth: 1200, quality: 80});
+			return getImageUrl(serverUrl, artId, 'Backdrop', {maxWidth: 1200, quality: 80});
 		}
 	}
 	if (imageType === 'logo') {
 		if (item.ImageTags?.Logo) {
-			return getImageUrl(serverUrl, item.Id, 'Logo', {maxWidth: 400, quality: 80});
+			return getImageUrl(serverUrl, artId, 'Logo', {maxWidth: 400, quality: 80});
 		}
 		if (item.ParentLogoItemId) {
 			return getImageUrl(serverUrl, item.ParentLogoItemId, 'Logo', {maxWidth: 400, quality: 80});
@@ -173,23 +175,25 @@ export const modernCardImageUrl = (item, focused, {itemServerUrl, isStaticMyMedi
 	}
 
 	if (item.Type === 'CollectionFolder' || item.isLibraryTile) {
+		// A merged library has no artwork of its own and borrows its first library's.
+		const libraryImageId = item._imageItemId || item.Id;
 		if (isStaticMyMedia || focused) {
 			if (item.ImageTags?.Thumb) {
-				return getImageUrl(itemServerUrl, item.Id, 'Thumb', {maxWidth: 600, quality: 80});
+				return getImageUrl(itemServerUrl, libraryImageId, 'Thumb', {maxWidth: 600, quality: 80});
 			}
 			if (item.BackdropImageTags?.length > 0) {
-				return getImageUrl(itemServerUrl, item.Id, 'Backdrop', {maxWidth: 600, quality: 80});
+				return getImageUrl(itemServerUrl, libraryImageId, 'Backdrop', {maxWidth: 600, quality: 80});
 			}
 		}
 
 		if (!isStaticMyMedia && item.ImageTags?.Primary) {
-			return getImageUrl(itemServerUrl, item.Id, 'Primary', {maxHeight: 360, quality: 80});
+			return getImageUrl(itemServerUrl, libraryImageId, 'Primary', {maxHeight: 360, quality: 80});
 		}
 		if (item.ImageTags?.Thumb) {
-			return getImageUrl(itemServerUrl, item.Id, 'Thumb', {maxWidth: 600, quality: 80});
+			return getImageUrl(itemServerUrl, libraryImageId, 'Thumb', {maxWidth: 600, quality: 80});
 		}
 		if (item.ImageTags?.Primary) {
-			return getImageUrl(itemServerUrl, item.Id, 'Primary', {maxWidth: 600, quality: 80});
+			return getImageUrl(itemServerUrl, libraryImageId, 'Primary', {maxWidth: 600, quality: 80});
 		}
 	}
 

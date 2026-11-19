@@ -22,6 +22,8 @@ import useItemMenuHold from '../../hooks/useItemMenuHold';
 import useImageReveal, {markDecoded, pendingArtStyle} from '../../hooks/useImageReveal';
 import {useMediaPreviewSlot} from './MediaPreviewContext';
 import {modernCardImageUrl} from './cardArtwork';
+import {serverNameCorner} from './serverNameCorner';
+import MergedServerBadge from '../MergedServerBadge';
 
 import css from './ModernMediaCard.module.less';
 
@@ -191,6 +193,8 @@ const ModernMediaCard = ({
 	const showUnplayedCount = showIndicators && watchedBehavior !== 'hideCount' && !item?.UserData?.Played && unplayedCount > 0;
 	const seerrStyle = seerrBadgeStyle(settings);
 	const bannerStatus = seerrStyle === 'banner' ? seerrTitleStatus(item) : null;
+	// What the top right corner holds when the server's name takes it. The Seerr banner along the top pushes it down.
+	const corner = serverNameCorner({css, item, showServerBadge, showIndicators, showUnplayedCount, bannerOffset: bannerStatus ? 35 : 0});
 
 	const displayTitle = useMemo(() => getCardDisplayTitle(item), [item]);
 
@@ -383,16 +387,16 @@ const ModernMediaCard = ({
 					</div>
 				)}
 
-				{(showServerBadge || item?._external) && item?._serverName && (
-					<div className={css.serverBadge}>{item._serverName}</div>
+				{corner.showsServerName && (
+					<div className={corner.nameClass}>{item._serverName}</div>
 				)}
 
 				{item?._seerr && item?._seerrMissing ? (
-					<div className={`${css.seerrBadge} ${css.seerrMissing}`}>
+					<div className={`${css.seerrBadge} ${css.seerrMissing}${corner.belowNameClass}`}>
 						<SeerrIcon />
 					</div>
 				) : seerrStyle === 'badge' && item?._seerr ? (
-					<SeerrStatusDot status={item?.mediaInfo?.status} />
+					<SeerrStatusDot status={item?.mediaInfo?.status} style={corner.movedTop ? {top: rem(corner.movedTop)} : undefined} />
 				) : null}
 				{bannerStatus && <SeerrStatusBanner status={bannerStatus} className={coreLook ? css.seerrBannerFlush : css.seerrBanner} />}
 				{coreLook && isUnownedSeerrTitle(item) && (
@@ -400,13 +404,13 @@ const ModernMediaCard = ({
 				)}
 
 				{showIndicators && showsWatchedCheck(item) && (
-					<div className={css.watchedBadge}>
+					<div className={`${css.watchedBadge}${corner.belowNameClass}`}>
 						<svg viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>
 					</div>
 				)}
 
 				{showUnplayedCount && (
-					<div className={css.unplayedCount}>{unplayedCount}</div>
+					<div className={`${css.unplayedCount}${corner.belowNameClass}`}>{unplayedCount}</div>
 				)}
 
 				{item?.UserData?.IsFavorite && (
@@ -417,12 +421,14 @@ const ModernMediaCard = ({
 
 				<IncompleteBadge itemId={item.Id} belowFavorite={item.UserData?.IsFavorite} belowBanner={Boolean(bannerStatus)} />
 				<AnimeCardPill item={item} serverUrl={itemServerUrl} hasProgressBar={showIndicators && progress > 0} />
+				{/* A title several servers hold says how many instead of naming one. */}
+				<MergedServerBadge item={item} aboveProgress={showIndicators && progress > 0} />
 				{posterLabels && (
 					<PosterLabels
 						item={item}
 						serverUrl={itemServerUrl}
 						top={item.UserData?.IsFavorite ? 40 : 8}
-						topRight={(showIndicators && showsWatchedCheck(item)) || ((showServerBadge || item._external) && item._serverName) ? 40 : 8}
+						topRight={corner.labelsTopRight}
 						bottom={showIndicators && progress > 0 ? 26 : 8}
 					/>
 				)}

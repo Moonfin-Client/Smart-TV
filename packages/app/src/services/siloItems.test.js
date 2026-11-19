@@ -42,6 +42,13 @@ describe('item mapping', () => {
 		]);
 	});
 
+	test('a catalog entry dates itself with the added_at Silo sorts on, and a show with its newest episode', () => {
+		const movie = siloItemToBaseItem({content_id: 'movie-tmdb-2', type: 'movie', title: 'A', added_at: '2026-10-08T00:25:21.592Z'}, {images: memoryImages()});
+		expect(movie.DateCreated).toMatch(/^2026-10-08T00:25:21/);
+		const show = siloItemToBaseItem({content_id: 'series-tmdb-3', type: 'series', title: 'B', latest_episode_added: '2026-11-01T10:00:00Z'}, {images: memoryImages()});
+		expect(show.DateLastMediaAdded).toMatch(/^2026-11-01T10:00:00/);
+	});
+
 	test("an episode's series poster and backdrop go to the series, and come back as its parent artwork", () => {
 		const images = memoryImages();
 		const episode = siloItemToBaseItem({
@@ -89,6 +96,16 @@ describe('item mapping', () => {
 	test('a podcast or an item without an id is dropped', () => {
 		expect(siloItemToBaseItem({content_id: 'x', type: 'podcast'}, {images: memoryImages()})).toBe(null);
 		expect(siloItemToBaseItem({type: 'movie'}, {images: memoryImages()})).toBe(null);
+	});
+});
+
+describe('provider ids from content ids', () => {
+	test("a list entry's provider id comes from its id, so merged libraries can fold it", () => {
+		const ids = (type, id) => siloItemToBaseItem({type, content_id: id, title: 'Listed'}, {images: memoryImages()})?.ProviderIds;
+		expect(ids('movie', 'movie-imdb-tt0000103')).toEqual({Imdb: 'tt0000103'});
+		expect(ids('series', 'series-tmdb-5002')).toEqual({Tmdb: '5002'});
+		// A season is keyed on its series, so the id isn't its own.
+		expect(ids('season', 'season-imdb-tt0000104-1')).toEqual({});
 	});
 });
 

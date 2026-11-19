@@ -16,7 +16,9 @@ import useImageReveal, {pendingArtStyle} from '../../hooks/useImageReveal';
 import {isUnownedSeerrTitle, seerrThumbUrl, seerrWideArtUrl, useTmdbThumbsAvailable} from '../../utils/tmdbThumb';
 import {rem} from '../../utils/rootScale';
 import {useMediaPreviewSlot} from './MediaPreviewContext';
+import {serverNameCorner} from './serverNameCorner';
 import {episodeArtwork, requestedArtwork} from './cardArtwork';
+import MergedServerBadge from '../MergedServerBadge';
 
 import css from './MediaCard.module.less';
 
@@ -79,6 +81,8 @@ const MediaCard = ({item, serverUrl, cardType = 'portrait', rowImageType = 'post
 
 	const imageUrl = useMemo(() => {
 		if (item._studioLogoUrl) return item._studioLogoUrl;
+		// A merged library has no artwork of its own and borrows its first library's.
+		const artId = item._imageItemId || item.Id;
 		// Ahead of the external poster, which would otherwise keep the card a poster.
 		if (seerrWide) return seerrWide;
 
@@ -105,24 +109,24 @@ const MediaCard = ({item, serverUrl, cardType = 'portrait', rowImageType = 'post
 
 		if (isLandscape) {
 			if (item.ImageTags?.Thumb) {
-				return getImageUrl(itemServerUrl, item.Id, 'Thumb', {maxWidth: 400, quality: 80});
+				return getImageUrl(itemServerUrl, artId, 'Thumb', {maxWidth: 400, quality: 80});
 			}
 			if (item.ParentThumbItemId) {
 				return getImageUrl(itemServerUrl, item.ParentThumbItemId, 'Thumb', {tag: item.ParentThumbImageTag, maxWidth: 400, quality: 80});
 			}
 			if (item.BackdropImageTags?.length > 0) {
-				return getImageUrl(itemServerUrl, item.Id, 'Backdrop', {maxWidth: 400, quality: 80});
+				return getImageUrl(itemServerUrl, artId, 'Backdrop', {maxWidth: 400, quality: 80});
 			}
 			if (item.ParentBackdropItemId) {
 				return getImageUrl(itemServerUrl, item.ParentBackdropItemId, 'Backdrop', {maxWidth: 400, quality: 80});
 			}
 			if (item.ImageTags?.Primary) {
-				return getImageUrl(itemServerUrl, item.Id, 'Primary', {maxHeight: 300, quality: 80});
+				return getImageUrl(itemServerUrl, artId, 'Primary', {maxHeight: 300, quality: 80});
 			}
 		}
 
 		if (item.ImageTags?.Primary) {
-			return getImageUrl(itemServerUrl, item.Id, 'Primary', {maxHeight: 300, quality: 80});
+			return getImageUrl(itemServerUrl, artId, 'Primary', {maxHeight: 300, quality: 80});
 		}
 
 		if (item.Type === 'Audio' && item.AlbumId && item.AlbumPrimaryImageTag) {
@@ -194,6 +198,8 @@ const MediaCard = ({item, serverUrl, cardType = 'portrait', rowImageType = 'post
 	const seerrStyle = seerrBadgeStyle(settings);
 	const bannerStatus = seerrStyle !== 'banner' ? null
 		: seerrTitleStatus(item) ?? (hasSeerrDot(seerrSeasonStatus) ? seerrSeasonStatus : null);
+	// What the top right corner holds when the server's name takes it. The Seerr banner along the top pushes it down.
+	const corner = serverNameCorner({css, item, showServerBadge, showIndicators, showUnplayedCount, bannerOffset: bannerStatus ? 20 : 0});
 
 	const displayTitle = useMemo(() => {
 		if (item.Type === 'Episode' || item.Type === 'Season') {
@@ -304,29 +310,29 @@ const MediaCard = ({item, serverUrl, cardType = 'portrait', rowImageType = 'post
 							</div>
 						)}
 
-						{(showServerBadge || item._external) && item._serverName && (
-							<div className={css.serverBadge}>{item._serverName}</div>
+						{corner.showsServerName && (
+							<div className={corner.nameClass}>{item._serverName}</div>
 						)}
 
 						{item._seerr && item._seerrMissing ? (
-							<div className={`${css.seerrBadge} ${css.seerrMissing} ${seerrMarkLeft ? css.seerrLeft : ''}`}>
+							<div className={`${css.seerrBadge} ${css.seerrMissing} ${seerrMarkLeft ? css.seerrLeft : ''}${seerrMarkLeft ? '' : corner.belowNameClass}`}>
 								<SeerrIcon />
 							</div>
 						) : seerrStyle === 'badge' && item._seerr ? (
-							<SeerrStatusDot status={item.mediaInfo?.status} />
+							<SeerrStatusDot status={item.mediaInfo?.status} style={corner.movedTop ? {top: rem(corner.movedTop)} : undefined} />
 						) : null}
 
 						<SeerrSeasonDot status={seerrStyle === 'badge' ? seerrSeasonStatus : null} />
 						{bannerStatus && <SeerrStatusBanner status={bannerStatus} className={css.seerrBanner} />}
 
 						{showIndicators && showsWatchedCheck(item) && (
-							<div className={css.watchedBadge}>
+							<div className={`${css.watchedBadge}${corner.belowNameClass}`}>
 								<svg viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>
 							</div>
 						)}
 
 						{showUnplayedCount && (
-							<div className={css.unplayedCount}>{unplayedCount}</div>
+							<div className={`${css.unplayedCount}${corner.belowNameClass}`}>{unplayedCount}</div>
 						)}
 
 						{item.UserData?.IsFavorite && (
@@ -337,12 +343,14 @@ const MediaCard = ({item, serverUrl, cardType = 'portrait', rowImageType = 'post
 
 						<IncompleteBadge itemId={item.Id} belowFavorite={item.UserData?.IsFavorite} belowBanner={Boolean(bannerStatus)} />
 						<AnimeCardPill item={item} serverUrl={itemServerUrl} hasProgressBar={showIndicators && progress > 0} />
+						{/* A title several servers hold says how many instead of naming one. */}
+						<MergedServerBadge item={item} aboveProgress={showIndicators && progress > 0} />
 						{posterLabels && (
 							<PosterLabels
 								item={item}
 								serverUrl={itemServerUrl}
 								top={item.UserData?.IsFavorite ? 40 : 8}
-								topRight={(showIndicators && showsWatchedCheck(item)) || ((showServerBadge || item._external) && item._serverName) ? 40 : 8}
+								topRight={corner.labelsTopRight}
 								bottom={showIndicators && progress > 0 ? 26 : 8}
 							/>
 						)}
