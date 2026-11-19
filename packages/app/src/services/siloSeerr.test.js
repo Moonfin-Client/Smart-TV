@@ -57,20 +57,19 @@ describe('Silo requests in Seerr\'s shapes', () => {
 	});
 
 	test('search keeps what Silo\'s web app offers to request', async () => {
-		const {seerr, calls} = setup({
+		const {seerr} = setup({
 			'GET /api/v2/requests/search': {results: [
 				title({tmdb_id: 12, availability: 'available', library_content_id: 'movie-tmdb-12'}),
 				title({media_type: 'series', tmdb_id: 14, availability: 'partial', library_content_id: 'series-tmdb-14'}),
-				title({tmdb_id: 15, availability: null, library_content_id: 'movie-tmdb-15'})
+				title({tmdb_id: 15, availability: null, library_content_id: 'movie-tmdb-15'}),
+				title({media_type: 'series', tmdb_id: 16, availability: 'partial', library_content_id: 'series-tmdb-16',
+					request: {request_id: '3', state: 'available'}})
 			]}
 		});
 		const results = (await seerr.request('/search?query=the&page=1')).results;
-		// A partly available series stays for its missing seasons.
-		expect(results.map((r) => r.id)).toEqual([14]);
-		expect(results[0].mediaInfo.status).toBe(4);
-		const asked = calls.length;
-		expect((await seerr.request('/search?query=t&page=1')).results).toEqual([]);
-		expect(calls).toHaveLength(asked);
+		// A partly available series stays for its missing seasons, also after an earlier request was fulfilled.
+		expect(results.map((r) => r.id)).toEqual([14, 16]);
+		expect(results.map((r) => r.mediaInfo.status)).toEqual([4, 4]);
 	});
 
 	test('a viewer\'s requests come from their own list, and an id past 2^53 maps back exactly', async () => {

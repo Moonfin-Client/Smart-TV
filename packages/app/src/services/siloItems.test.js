@@ -157,7 +157,7 @@ describe('items', () => {
 			const answer = answers[path];
 			return typeof answer === 'function' ? answer(options) : answer;
 		});
-		const items = createSiloItems({call, images: memoryImages(), getConfiguration: async () => ({OrderedViews: ['2'], MyMediaExcludes: []})});
+		const items = createSiloItems({call, images: memoryImages(), getUserId: () => 'p1', getConfiguration: async () => ({OrderedViews: ['2'], MyMediaExcludes: []})});
 		return {items, calls};
 	};
 
@@ -229,6 +229,23 @@ describe('items', () => {
 		expect(await search('video')).toEqual(['video', 'video', 'video_with_episodes']);
 		expect(await search(null)).toEqual(['video', 'video', 'video_with_episodes']);
 		expect(await search('audiobook')).toEqual(['video', 'video', 'video_with_episodes']);
+	});
+
+	test('another profile reads its own search scope', async () => {
+		let user = 'a';
+		const calls = [];
+		const scopes = {a: 'all', b: 'video'};
+		const call = jest.fn(async (path, options = {}) => {
+			calls.push({path, query: options.query || {}});
+			if (path === '/api/v2/catalog/search/capabilities') return {state: 'available', allowed: true, video_with_episodes_scope: true};
+			if (path === '/api/v2/settings/values/effective') return {items: [{key: 'search.media_scope', value: scopes[user]}]};
+			return {items: [], page: {has_more: false}};
+		});
+		const items = createSiloItems({call, images: memoryImages(), getUserId: () => user, getConfiguration: async () => ({})});
+		await items.search('justice');
+		user = 'b';
+		await items.search('justice');
+		expect(calls.filter((c) => c.path === '/api/v2/catalog').map((c) => c.query.type)).toEqual(['video_with_episodes', 'video']);
 	});
 
 	test('Continue Watching comes from the home layout, without the next-up cards', async () => {

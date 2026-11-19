@@ -180,6 +180,7 @@ export const createSiloItems = ({call, images, getConfiguration, mediaSources, g
 		layouts.forget();
 		sectionCards.forget();
 		hideWatched = null;
+		searchScope = null;
 	};
 
 	// Where each item was last listed, so a detail page knows its library, and the names of series seen, for the
@@ -879,12 +880,14 @@ export const createSiloItems = ({call, images, getConfiguration, mediaSources, g
 		return hideWatched.value;
 	};
 
-	// Silo's per-profile search.media_scope (video, all or audiobook), read once a minute. Unreadable counts as
-	// Silo's default, video.
+	// Silo's per-profile search.media_scope (video, all or audiobook), read once a minute and again for another
+	// profile, since a profile switch keeps this api. Unreadable counts as Silo's default, video.
 	const searchMediaScope = () => {
-		if (!searchScope || Date.now() - searchScope.at > 60 * 1000) {
+		const profile = getUserId();
+		if (!searchScope || searchScope.profile !== profile || Date.now() - searchScope.at > 60 * 1000) {
 			searchScope = {
 				at: Date.now(),
+				profile,
 				value: call('/api/v2/settings/values/effective', {query: {keys: 'search.media_scope'}})
 					.then((answer) => itemsOf(answer).find((setting) => setting.key === 'search.media_scope')?.value, () => null)
 					.then((value) => (['all', 'video', 'audiobook'].includes(value) ? value : 'video'))

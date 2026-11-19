@@ -77,7 +77,8 @@ const mediaStatusOf = (availability, state) => {
 		case 'pending': return MEDIA_PENDING;
 		case 'approved': case 'processing': return MEDIA_PROCESSING;
 		case 'partially_available': return MEDIA_PARTIAL;
-		case 'available': return MEDIA_AVAILABLE;
+		// A partly available title stays partial once an earlier request of it was fulfilled.
+		case 'available': return availability === 'partial' ? MEDIA_PARTIAL : MEDIA_AVAILABLE;
 		default: return availability === 'partial' ? MEDIA_PARTIAL : MEDIA_UNKNOWN;
 	}
 };
@@ -328,14 +329,12 @@ export const createSiloSeerr = ({call, library = null, baseUrl = '', random = Ma
 	};
 
 	// Titles fully in the library are left out, as Silo's web app does: search lists them under the library's own
-	// results. A partly available series stays, so its missing seasons can be requested. Like the web app, nothing is
-	// asked for a single character.
+	// results. A partly available series stays, so its missing seasons can be requested.
 	const search = async (query, at) => {
 		if (query.startsWith(SILO_ROW_PREFIX)) {
 			const key = query.slice(SILO_ROW_PREFIX.length);
 			return row(key, `/requests/discover/rows/${encodeURIComponent(key)}`, at, true);
 		}
-		if (query.trim().length < 2) return page({results: []});
 		const body = await get('/requests/search', {q: query, media_type: 'all', page: at});
 		return page({...body, results: list(body.results).filter((r) => r &&
 			(r.availability == null ? r.library_content_id == null : r.availability !== 'available'))});
