@@ -1907,5 +1907,6 @@
     "Series finished": "완주한 시리즈",
     "Uses Sonarr and TMDB to show upcoming release dates": "Sonarr와 TMDB를 사용해 예정된 공개일을 표시합니다",
     "Top-Right": "오른쪽 위",
-    "Dolby Vision": "Dolby Vision"
+    "Dolby Vision": "Dolby Vision",
+    "Unavailable": "사용할 수 없음"
 }
