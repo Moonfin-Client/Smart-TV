@@ -43,7 +43,7 @@ describe('Silo requests in Seerr\'s shapes', () => {
 
 	test('search leaves out titles already in the library, and a row slider reads its Silo row', async () => {
 		const {seerr, calls} = setup({
-			'GET /api/v2/requests/search': {results: [title(), title({tmdb_id: 12, library_content_id: 'movie-tmdb-12'})]},
+			'GET /api/v2/requests/search': {results: [title(), title({tmdb_id: 12, availability: 'available', library_content_id: 'movie-tmdb-12'})]},
 			'GET /api/v2/requests/discover/rows/my_row': {results: [title({tmdb_id: 13})]},
 			'GET /api/v2/requests/discover': {row_order: [
 				{key: 'trending_movies', type: 'tmdb_chart', title: 'Trending'},
@@ -54,6 +54,24 @@ describe('Silo requests in Seerr\'s shapes', () => {
 		expect(await seerr.request('/settings/discover')).toEqual([{id: stableId('my_row'), type: 17, enabled: true, title: 'Mine', data: `${SILO_ROW_PREFIX}my_row`}]);
 		expect((await seerr.request(`/search?query=${encodeURIComponent(`${SILO_ROW_PREFIX}my_row`)}&page=1`)).results.map((r) => r.id)).toEqual([13]);
 		expect(calls.some((c) => c.path === '/api/v2/requests/discover/rows/my_row')).toBe(true);
+	});
+
+	test('search keeps what Silo\'s web app offers to request', async () => {
+		const {seerr} = setup({
+			'GET /api/v2/requests/search': {results: [
+				title({tmdb_id: 12, availability: 'available', library_content_id: 'movie-tmdb-12'}),
+				title({media_type: 'series', tmdb_id: 14, availability: 'partial', library_content_id: 'series-tmdb-14'}),
+				title({tmdb_id: 15, availability: null, library_content_id: 'movie-tmdb-15'}),
+				title({media_type: 'series', tmdb_id: 16, availability: 'partial', library_content_id: 'series-tmdb-16',
+					request: {request_id: '3', state: 'available'}}),
+				title({tmdb_id: 17, availability: 'missing', library_content_id: 'movie-tmdb-17', request: {request_id: '4', state: 'available'}})
+			]}
+		});
+		const results = (await seerr.request('/search?query=the&page=1')).results;
+		// A partly available series stays for its missing seasons, also after an earlier request was fulfilled.
+		expect(results.map((r) => r.id)).toEqual([14, 16, 17]);
+		// A title whose files are gone can be requested again.
+		expect(results.map((r) => r.mediaInfo.status)).toEqual([4, 4, 1]);
 	});
 
 	test('a viewer\'s requests come from their own list, and an id past 2^53 maps back exactly', async () => {
