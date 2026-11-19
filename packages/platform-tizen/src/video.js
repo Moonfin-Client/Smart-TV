@@ -84,7 +84,8 @@ const getDefaultCapabilities = () => {
 		dts: false,
 		dtshd: false,
 		hlsAc3: true,
-		opus: true
+		// Match the device profile: Opus is not documented on Tizen 2.4.
+		opus: tizenVersion >= 3
 	};
 };
 
@@ -207,6 +208,7 @@ export const getPlayMethod = (mediaSource, capabilities, _options, passthroughOp
 	if (capabilities.hevc) supportedVideoCodecs.push('hevc', 'h265', 'hev1', 'hvc1');
 	if (capabilities.av1) supportedVideoCodecs.push('av1');
 	if (capabilities.vp9) supportedVideoCodecs.push('vp9');
+	if (capabilities.vp8) supportedVideoCodecs.push('vp8');
 	if (capabilities.dolbyVision) supportedVideoCodecs.push('dvhe', 'dvh1');
 
 	const supportedAudioCodecs = getSupportedAudioCodecs(capabilities, container, passthroughOptions);
@@ -304,7 +306,8 @@ export const getPlayMethod = (mediaSource, capabilities, _options, passthroughOp
 		serverSupportsDirectPlay: mediaSource.SupportsDirectPlay
 	});
 
-	const codecContainerOk = hevcContainerOk && vp9ContainerOk && av1ContainerOk;
+	const vp8ContainerOk = videoCodec !== 'vp8' || container === 'webm';
+	const codecContainerOk = hevcContainerOk && vp9ContainerOk && av1ContainerOk && vp8ContainerOk;
 
 	if (needsAudioRemux) {
 		// Default audio is unplayableso request a force remux
