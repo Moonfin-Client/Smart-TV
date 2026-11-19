@@ -3,7 +3,7 @@
 // Home's Recently Added rows, reads them to find the copies its own row left out.
 
 import connectionPool from './connectionPool';
-import {withoutBlockedItems} from './parentalControls';
+import {getBlockedRatings, withoutBlockedItems} from './parentalControls';
 import {COPIES_KEY, indexCopies, joinIndexedCopies, titleMatchKeys} from '../utils/mergedCopies';
 import {isLegacyTizen, isLegacyWebOS} from '../platform';
 
@@ -33,9 +33,11 @@ const keep = (cache, key, read) => {
 	return read;
 };
 
-// Each title read carries the account that read it, whose token opens it later, so a read only serves that account.
+// Each title read carries the account that read it, whose token opens it later, and leaves out the titles that
+// account's ratings block, so a read only serves that account with those ratings.
 const sourcePrefix = (source) => [
-	source.server._serverId, source.server._serverUserId || '', source.server._serverAccessToken || '', source.libraryId, ''
+	source.server._serverId, source.server._serverUserId || '', source.server._serverAccessToken || '',
+	getBlockedRatings().join(','), source.libraryId, ''
 ].join('|');
 
 // Forgets every read, for when the session ends or another account signs in, so nothing read with an account's token

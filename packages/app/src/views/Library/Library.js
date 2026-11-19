@@ -297,9 +297,8 @@ const Library = ({library, genreFilter, studioFilter, onSelectItem, onViewPhoto,
 	// server's copy could be filtered out.
 	const preferredRef = useRef(null);
 	// Every server's titles by match key, read in the background as a merged library opens, so a card learns of a copy
-	// paging hasn't reached, and the read it came from, for reopening the same library.
+	// paging hasn't reached.
 	const copyIndexRef = useRef(null);
-	const titleIndexRef = useRef(null);
 	// Gives the cards already up the copies the index holds for them, once it's in.
 	const joinIndexedCopiesRef = useRef(null);
 	const renderedKeysRef = useRef(new Set());
@@ -581,11 +580,6 @@ const Library = ({library, genreFilter, studioFilter, onSelectItem, onViewPhoto,
 		return sources;
 	}, [library, mergedType]);
 
-	const titleQueryKey = (sources, params) => [
-		...sources.map((source) => `${source.server._serverId}:${source.libraryId}`),
-		params.IncludeItemTypes || '', params.ExcludeItemTypes || '', String(params.CollapseBoxSetItems)
-	].join('|');
-
 	// Every title the first server of a merged library holds, which is the signed-in one whenever it has this library.
 	const readPreferredCopies = useCallback(async (sources, params) => {
 		const serverId = sources[0].server._serverId;
@@ -603,12 +597,8 @@ const Library = ({library, genreFilter, studioFilter, onSelectItem, onViewPhoto,
 	// Every server's titles by match key. A server that doesn't answer is left out of it, and its copies come up as
 	// paging reaches them, the way they did without the index.
 	const readTitleIndex = useCallback(async (sources, params) => {
-		const key = titleQueryKey(sources, params);
-		if (titleIndexRef.current?.key === key) return titleIndexRef.current.index;
 		const read = await Promise.all(sources.map((source) => readSharedTitles(source, params).catch(() => null)));
-		const index = indexCopies(read.filter(Boolean).flat());
-		if (read.every(Boolean)) titleIndexRef.current = {key, index};
-		return index;
+		return indexCopies(read.filter(Boolean).flat());
 	}, []);
 
 	// The next page of a merged library, read from every server and merged in the sort's order.

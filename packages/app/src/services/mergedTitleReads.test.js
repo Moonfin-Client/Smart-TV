@@ -5,7 +5,11 @@ import {isLegacyTizen} from '../platform';
 
 jest.mock('./connectionPool', () => ({__esModule: true, default: {getMergedLibrarySources: jest.fn()}}));
 jest.mock('../platform', () => ({isLegacyTizen: jest.fn(() => false), isLegacyWebOS: jest.fn(() => false)}));
-jest.mock('./parentalControls', () => ({withoutBlockedItems: (items) => items.filter((item) => item.OfficialRating !== 'R')}));
+let mockBlockedRatings = [];
+jest.mock('./parentalControls', () => ({
+	getBlockedRatings: () => mockBlockedRatings,
+	withoutBlockedItems: (items) => items.filter((item) => !mockBlockedRatings.includes(item.OfficialRating))
+}));
 
 const source = (serverId, items) => ({
 	libraryId: `lib-${serverId}`,
@@ -14,6 +18,10 @@ const source = (serverId, items) => ({
 });
 
 describe('findEveryCopy', () => {
+	afterEach(() => {
+		mockBlockedRatings = [];
+	});
+
 	test("finds another server's copy a Home row left out, under another name", async () => {
 		connectionPool.getMergedLibrarySources.mockResolvedValue({complete: true, sources: [
 			source('a', [{Id: 'm1', Type: 'Movie', Name: "Title One", ProviderIds: {Tmdb: '5001'}}]),
@@ -34,10 +42,13 @@ describe('findEveryCopy', () => {
 		expect(await findEveryCopy(unnamed)).toBe(unnamed);
 	});
 
-	test("leaves out a title the account's ratings block", async () => {
+	test("leaves out a title the account's ratings block, and reads again once they change", async () => {
 		clearMergedTitleReads();
 		const rated = source('a', [{Id: 'm1', Type: 'Movie', OfficialRating: 'R'}, {Id: 'm2', Type: 'Movie', OfficialRating: 'PG'}]);
+		expect((await readSharedTitles(rated, {})).map((title) => title.Id)).toEqual(['m1', 'm2']);
+		mockBlockedRatings = ['R'];
 		expect((await readSharedTitles(rated, {})).map((title) => title.Id)).toEqual(['m2']);
+		expect(rated.api.getItems).toHaveBeenCalledTimes(2);
 	});
 
 	test("never hands one account's titles to another account on the same server", async () => {
