@@ -46,6 +46,7 @@ import stageCss from '../views/Details/stage/StageDetailContent.module.less';
 import quickLookCss from '../views/Details/quickLook/QuickLookDetailContent.module.less';
 import frostCss from '../views/Details/frost/FrostDetailContent.module.less';
 import trackListCss from '../components/DetailTrackList/DetailTrackList.module.less';
+import libraryCss from '../views/Library/Library.module.less';
 import musicCss from '../views/MusicBrowse/MusicLibrary.module.less';
 import musicScreensCss from '../views/MusicBrowse/MusicScreens.module.less';
 import musicFilterCss from '../views/MusicBrowse/MusicFilterPanel.module.less';
@@ -609,6 +610,16 @@ export const buildThemeOverrideCss = (theme, options = {}) => {
 	rule(`.${tabBarCss.tab}:focus`, `border-color: ${focusColor};`);
 	rule(`.${overviewCss.spottable}:focus`, `border-color: ${focusColor};`);
 	rule(`.${overviewCss.readMoreBtn}`, `color: ${accent};`);
+
+	// Library grid, its toolbar and the sort and filter panel.
+	const lib = libraryCss;
+	rule(`.${lib.itemCard}:focus .${lib.poster}, .${lib.itemCard}.${lib.focused} .${lib.poster}, .${lib.dockRow}:focus, .${lib.barPill}:focus`, `border-color: ${focusColor};`);
+	rule(`.${lib.breadcrumbItem}:focus, .${lib.sectionHeader}:focus, .${lib.sortOption}:focus, .${lib.sortOptionActive} .${lib.radioCircle}`, `border-color: ${accent};`);
+	rule(`.${lib.letterButton}:focus`, `border-color: ${accent}; color: ${accent};`);
+	rule(`.${lib.sortArrow}`, `fill: ${accent};`);
+	rule(`.${lib.sectionSummary}, .${lib.clearGroup}`, `color: ${accent};`);
+	rule(`.${lib.radioFill}`, `background: ${accent};`);
+	rule(`.${lib.sortOptionActive} .${lib.checkboxSquare}`, `border-color: ${accent}; background: ${accent};`);
 
 	// Detail screens, stage layout
 	rule(`.${stageCss.chip}:focus, .${stageCss.name}:focus`, `border-color: ${focusColor};`);
