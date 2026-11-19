@@ -210,6 +210,27 @@ describe('items', () => {
 		expect(calls.map((c) => c.path)).toEqual(['/api/v2/catalog/search/capabilities']);
 	});
 
+	test("the search screen follows the profile's search scope, and other people lookups keep episode credits", async () => {
+		const search = async (scope) => {
+			const {items, calls} = setup({
+				'/api/v2/catalog/search/capabilities': {state: 'available', allowed: true, video_with_episodes_scope: true, people_media_scope: true},
+				'/api/v2/settings/values/effective': {items: scope ? [{key: 'search.media_scope', value: scope}] : []},
+				'/api/v2/catalog': {items: [], page: {has_more: false}},
+				'/api/v2/catalog/people': {items: []}
+			});
+			await items.search('justice');
+			await items.searchPeople('vin', 24, {viewerScope: true});
+			await items.searchPeople('vin', 10);
+			const people = calls.filter((c) => c.path === '/api/v2/catalog/people').map((c) => c.query.media_scope);
+			return [calls.find((c) => c.path === '/api/v2/catalog').query.type, ...people];
+		};
+		// Silo's web app searches films and series unless the profile picked All.
+		expect(await search('all')).toEqual(['video_with_episodes', 'video_with_episodes', 'video_with_episodes']);
+		expect(await search('video')).toEqual(['video', 'video', 'video_with_episodes']);
+		expect(await search(null)).toEqual(['video', 'video', 'video_with_episodes']);
+		expect(await search('audiobook')).toEqual(['video', 'video', 'video_with_episodes']);
+	});
+
 	test('Continue Watching comes from the home layout, without the next-up cards', async () => {
 		const {items} = setup({
 			'/api/v2/home/layout': {sections: [{id: 'cw', section_type: 'continue_watching'}]},
