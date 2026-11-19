@@ -2263,5 +2263,7 @@
     "Three-lane runner": "Üç şeritli koşu oyunu",
     "Cable Crawl": "Kablo Yılanı",
     "Carousel": "Atlıkarınca",
-    "Dolby Vision": "Dolby Vision"
+    "Dolby Vision": "Dolby Vision",
+    "Unavailable": "Kullanılamıyor",
+    "Not changed on {servers}": "{servers} üzerinde değiştirilmedi"
 }
