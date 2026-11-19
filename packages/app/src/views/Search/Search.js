@@ -276,9 +276,7 @@ const Search = ({onSelectItem, onSelectSeerrItem, onSelectPerson, onSelectGame, 
 			// Seerr and Games load after the library results so the rows appear first.
 			// Gated at the fetch rather than at the render, since the tab list and every tab index
 			// are worked out from whether there are any results.
-			// Silo's web app asks nothing for a single character.
-			const tooShortForSilo = serverType === 'silo' && q.trim().length < 2;
-			if (seerrEnabled && seerrApi && !isStudioQuery && !isKidsMode(settings) && !tooShortForSilo) {
+			if (seerrEnabled && seerrApi && !isStudioQuery && !isKidsMode(settings)) {
 				seerrApi.search(q).then((res) => {
 					if (requestId !== requestIdRef.current) return;
 					const filtered = (res.results || []).filter((r) => r.mediaType !== 'person').slice(0, SEERR_CAP);
