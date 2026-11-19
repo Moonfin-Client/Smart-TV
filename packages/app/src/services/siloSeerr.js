@@ -77,8 +77,11 @@ const mediaStatusOf = (availability, state) => {
 		case 'pending': return MEDIA_PENDING;
 		case 'approved': case 'processing': return MEDIA_PROCESSING;
 		case 'partially_available': return MEDIA_PARTIAL;
-		// A partly available title stays partial once an earlier request of it was fulfilled.
-		case 'available': return availability === 'partial' ? MEDIA_PARTIAL : MEDIA_AVAILABLE;
+		// A fulfilled request counts only while the title is still there: a partly available one stays partial, and
+		// one whose files are gone (missing) can be requested again.
+		case 'available':
+			if (availability === 'partial') return MEDIA_PARTIAL;
+			return availability === 'missing' ? MEDIA_UNKNOWN : MEDIA_AVAILABLE;
 		default: return availability === 'partial' ? MEDIA_PARTIAL : MEDIA_UNKNOWN;
 	}
 };
