@@ -2276,5 +2276,7 @@
     "Slide under the sign. Its pole is a wall on the other side.": "从标牌下滑过。它的立柱在另一侧相当于一堵墙。",
     "Bats a case as it comes in, so that one slides faster.": "在光盘盒落下时拍击它，使其下滑得更快。",
     "A title from your library. The overhang gets trimmed off.": "你媒体库中的一部作品。超出边缘的部分会被削掉。",
-    "Three perfect drops in a row grow it a lot wider.": "连续三次完美落位可使其大幅变宽。"
+    "Three perfect drops in a row grow it a lot wider.": "连续三次完美落位可使其大幅变宽。",
+    "Unavailable": "不可用",
+    "Not changed on {servers}": "在 {servers} 上未更改"
 }
