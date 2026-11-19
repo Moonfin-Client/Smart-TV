@@ -405,7 +405,7 @@
     "Home Sections": "Secciones del inicio",
     "Home Videos": "Vídeos caseros",
     "Huge": "Enorme",
-    "IMDb Lists": "Lista IMDb",
+    "IMDb Lists": "Listas de IMDb",
     "IMDb Lowest Rated Movies": "Películas con la calificación más baja de IMDb",
     "IMDb Most Popular Movies": "Películas más populares de IMDb",
     "IMDb Most Popular TV Shows": "Series de TV más populares de IMDb",
@@ -2231,5 +2231,15 @@
     "1 Season": "1 Temporada",
     "Glide between rows and cards instead of jumping. On by default only on TVs fast enough for it.": "Deslízate entre filas y tarjetas en lugar de saltar. Activado por defecto solo en televisores lo suficientemente rápidos.",
     "Starting anyway in {seconds} s": "Comenzando de todos modos en {seconds} s",
-    "Starting together": "Comenzando juntos"
+    "Starting together": "Comenzando juntos",
+    "Hold the video until styled subtitles are ready so the first lines show": "Espere a que los subtítulos con estilo estén listos antes de iniciar el vídeo para que se muestren las primeras líneas",
+    "Home Screen Backdrop": "Fondo Pantalla de Inicio",
+    "Full Screen": "Pantalla Completa",
+    "Corner": "Esquina",
+    "Hours": "Horas",
+    "Hours watched": "Horas de Visualización",
+    "How far each press moves while scrubbing the progress bar": "Cuánto avanza o retrocede cada pulsación al desplazarse por la barra de progreso",
+    "Hungarian": "Húngaro",
+    "Hybrid": "Híbrido",
+    "IMDb List": "Lista de IMDb"
 }
