@@ -3411,5 +3411,9 @@
     "1 Season": "1 kausi",
     "Glide between rows and cards instead of jumping. On by default only on TVs fast enough for it.": "Liukua rivien ja korttien välillä hyppimisen sijaan. Oletusasetuksena käytössä vain televisioissa, jotka ovat riittävän nopeita tämän toiminnon suorittamiseen.",
     "Unavailable": "Ei saatavilla",
-    "Not changed on {servers}": "Ei muutettu {servers}"
+    "Not changed on {servers}": "Ei muutettu {servers}",
+    "Merge Libraries by Type": "Yhdistä kirjastot tyypin mukaan",
+    "Show every server's movie libraries as one Movies library and their show libraries as one TV Shows library, with a title several servers hold listed once": "Näytä jokaisen palvelimen elokuvakirjastot yhtenä elokuvakirjastona ja niiden sarjakirjastot yhtenä TV-sarjakirjastona siten, että usealla palvelimella oleva teos näkyy luettelossa vain kerran",
+    "{percent}% watched": "{percent}% katsottu",
+    "On {count} servers": "{count} palvelimella"
 }
