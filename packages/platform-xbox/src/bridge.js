@@ -80,9 +80,10 @@ let hearingAnswers = false;
 
 // The host makes the request, since the WebView holds an answer back from the page
 // when the server doesnt let other sites read it. Resolves with the status, the body
-// and the headers, where a status of 0 means nothing answered. The host side is
-// HttpRelay.cs.
-export const requestThroughShell = (url, {method = 'GET', headers = {}, body = null} = {}, timeoutMs = 15000) => new Promise((resolve) => {
+// and the headers, where a status of 0 means nothing answered, and failure says why
+// when the host knows: "certificate" or "timeout". quiet keeps a failure out of the
+// host's log, for the requests of a subnet walk. The host side is HttpRelay.cs.
+export const requestThroughShell = (url, {method = 'GET', headers = {}, body = null, quiet = false} = {}, timeoutMs = 15000) => new Promise((resolve) => {
 	if (!hearingAnswers) {
 		hearingAnswers = true;
 		onShellMessage('HTTP_RESPONSE', (answer) => waitingRequests.get(answer?.id)?.(answer));
@@ -95,9 +96,11 @@ export const requestThroughShell = (url, {method = 'GET', headers = {}, body = n
 		resolve(answer);
 	};
 	// The host gives up at the same time, so a little longer here lets its answer arrive.
-	timer = setTimeout(() => finish({status: 0, body: ''}), timeoutMs + 1000);
+	timer = setTimeout(() => finish({status: 0, body: '', failure: 'timeout'}), timeoutMs + 1000);
 	waitingRequests.set(id, finish);
-	if (!postToShell('HTTP_REQUEST', {id, url, method, headers, body, timeoutMs})) finish({status: 0, body: ''});
+	const request = {id, url, method, headers, body, timeoutMs};
+	if (quiet) request.quiet = true;
+	if (!postToShell('HTTP_REQUEST', request)) finish({status: 0, body: ''});
 });
 
 // A host that has the console's own player says so at boot.

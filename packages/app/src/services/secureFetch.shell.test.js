@@ -120,7 +120,7 @@ describe('a request a Plex server only answers app.plex.tv for', () => {
 		getFromStorage.mockResolvedValue({allowInsecureCerts: true});
 		const bridge = {
 			allowInsecureHost: jest.fn(),
-			requestThroughShell: jest.fn().mockResolvedValueOnce({status: 0, body: ''}).mockResolvedValueOnce({status: 200, body: '{}'})
+			requestThroughShell: jest.fn().mockResolvedValueOnce({status: 0, body: '', failure: 'certificate'}).mockResolvedValueOnce({status: 200, body: '{}'})
 		};
 		loadShellBridge.mockResolvedValue(bridge);
 
@@ -129,6 +129,37 @@ describe('a request a Plex server only answers app.plex.tv for', () => {
 		expect(response.status).toBe(200);
 		expect(bridge.allowInsecureHost).toHaveBeenCalledWith('silo-self-signed:8443');
 		expect(bridge.requestThroughShell).toHaveBeenCalledTimes(2);
+	});
+
+	test('is not asked again when the shell gives no certificate as the reason, as on Fire TV', async () => {
+		isVega.mockReturnValue(true);
+		getFromStorage.mockResolvedValue({allowInsecureCerts: true});
+		const bridge = {allowInsecureHost: jest.fn(), requestThroughShell: jest.fn().mockResolvedValue({status: 0, body: ''})};
+		loadShellBridge.mockResolvedValue(bridge);
+
+		await expect(corsFreeFetch('https://plex-self-signed:32400/identity')).rejects.toMatchObject({connectionType: 'network'});
+		expect(bridge.requestThroughShell).toHaveBeenCalledTimes(1);
+		expect(bridge.allowInsecureHost).not.toHaveBeenCalled();
+	});
+
+	test('a certificate the setting leaves refused fails as one', async () => {
+		isXbox.mockReturnValue(true);
+		getFromStorage.mockResolvedValue({allowInsecureCerts: false});
+		const bridge = {allowInsecureHost: jest.fn(), requestThroughShell: jest.fn().mockResolvedValue({status: 0, body: '', failure: 'certificate'})};
+		loadShellBridge.mockResolvedValue(bridge);
+
+		await expect(corsFreeFetch('https://silo-strict:8443/api/v2/system/info')).rejects.toMatchObject({connectionType: 'insecure_cert'});
+		expect(bridge.requestThroughShell).toHaveBeenCalledTimes(1);
+	});
+
+	test('a request the host gave up on fails as a timeout, and is not asked again', async () => {
+		isXbox.mockReturnValue(true);
+		getFromStorage.mockResolvedValue({allowInsecureCerts: true});
+		const bridge = {allowInsecureHost: jest.fn(), requestThroughShell: jest.fn().mockResolvedValue({status: 0, body: '', failure: 'timeout'})};
+		loadShellBridge.mockResolvedValue(bridge);
+
+		await expect(corsFreeFetch('https://silo-slow:8443/api/v2/system/info')).rejects.toMatchObject({connectionType: 'timeout'});
+		expect(bridge.requestThroughShell).toHaveBeenCalledTimes(1);
 	});
 
 	test('fails as a network error when nothing answers the shell', async () => {

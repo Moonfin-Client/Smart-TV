@@ -166,7 +166,7 @@ const requestJson = (url, live) => new Promise((resolve) => {
 // On Fire TV and Xbox the shell asks instead, since the page there can't read a Plex or Silo server's answer.
 const inShell = () => isVega() || isXbox();
 const requestJsonInShell = async (url) => {
-	const answer = await (await loadShellBridge()).requestThroughShell(url, {headers: {Accept: 'application/json'}}, REQUEST_TIMEOUT);
+	const answer = await (await loadShellBridge()).requestThroughShell(url, {headers: {Accept: 'application/json'}, quiet: true}, REQUEST_TIMEOUT);
 	return answer.status ? jsonAnswer(answer.status, answer.body, url) : SILENT;
 };
 

@@ -4,6 +4,7 @@ using System.Runtime.InteropServices.WindowsRuntime;
 using System.Threading;
 using System.Threading.Tasks;
 using Windows.Data.Json;
+using Windows.Networking.Sockets;
 using Windows.Security.Cryptography.Certificates;
 using Windows.Storage.Streams;
 using Windows.Web.Http;
@@ -20,8 +21,9 @@ namespace Moonfin.Xbox
     // the same, and the page side is corsFreeFetch in packages/app/src/services/secureFetch.js
     // with requestThroughShell in packages/platform-xbox/src/bridge.js.
     //
-    // Page to host: HTTP_REQUEST  {id, url, method, headers, body, timeoutMs}
-    // Host to page: HTTP_RESPONSE {id, status, body, headers}, a status of 0 when nothing answered
+    // Page to host: HTTP_REQUEST  {id, url, method, headers, body, timeoutMs, quiet}
+    // Host to page: HTTP_RESPONSE {id, status, body, headers, failure}, a status of 0 when nothing answered,
+    //              with failure "certificate" or "timeout" when that is why. A request with quiet set isnt logged.
     internal sealed class HttpRelay
     {
         private const int MaxHeaders = 32;
@@ -65,10 +67,14 @@ namespace Moonfin.Xbox
                 return;
             }
 
-            try
+            // Discovery walks a whole subnet, where nearly every request is meant to fail.
+            IJsonValue quietValue = Bridge.Named(payload, "quiet");
+            bool quiet = quietValue != null && quietValue.ValueType == JsonValueType.Boolean && quietValue.GetBoolean();
+
+            using (var request = new HttpRequestMessage(new HttpMethod(Bridge.NamedString(payload, "method") ?? "GET"), uri))
+            using (var cancel = new CancellationTokenSource(WaitOf(payload)))
             {
-                using (var request = new HttpRequestMessage(new HttpMethod(Bridge.NamedString(payload, "method") ?? "GET"), uri))
-                using (var cancel = new CancellationTokenSource(WaitOf(payload)))
+                try
                 {
                     string contentType = null;
                     // The others that describe the body go on the body, where Windows takes them.
@@ -116,17 +122,22 @@ namespace Moonfin.Xbox
                         Answer(id, (int)answer.StatusCode, text, HeadersOf(answer));
                     }
                 }
-            }
-            catch (Exception ex)
-            {
-                HostLog.Write("http", uri.Host + " failed: " + ex.Message);
-                Answer(id, 0, "", null);
+                catch (Exception ex)
+                {
+                    // Why it failed, for the page: a certificate it may let through, or a server too slow.
+                    string failure = null;
+                    if (request.TransportInformation != null && request.TransportInformation.ServerCertificateErrorSeverity != SocketSslErrorSeverity.None) failure = "certificate";
+                    else if (cancel.IsCancellationRequested) failure = "timeout";
+                    if (!quiet) HostLog.Write("http", uri.Host + " failed" + (failure != null ? " (" + failure + ")" : "") + ": " + ex.Message);
+                    Answer(id, 0, "", null, failure);
+                }
             }
         }
 
-        private void Answer(double id, int status, string body, JsonObject headers)
+        private void Answer(double id, int status, string body, JsonObject headers, string failure = null)
         {
             var answer = new JsonObject();
+            if (failure != null) answer.SetNamedValue("failure", JsonValue.CreateStringValue(failure));
             answer.SetNamedValue("id", JsonValue.CreateNumberValue(id));
             answer.SetNamedValue("status", JsonValue.CreateNumberValue(status));
             answer.SetNamedValue("body", JsonValue.CreateStringValue(body));
@@ -186,6 +197,10 @@ namespace Moonfin.Xbox
                 filter.IgnorableServerCertificateErrors.Add(ChainValidationResult.Expired);
                 filter.IgnorableServerCertificateErrors.Add(ChainValidationResult.InvalidName);
                 filter.IgnorableServerCertificateErrors.Add(ChainValidationResult.IncompleteChain);
+                // The WebView takes every certificate of a server the user accepted, so these too.
+                filter.IgnorableServerCertificateErrors.Add(ChainValidationResult.RevocationFailure);
+                filter.IgnorableServerCertificateErrors.Add(ChainValidationResult.RevocationInformationMissing);
+                filter.IgnorableServerCertificateErrors.Add(ChainValidationResult.WrongUsage);
             }
             return new HttpClient(filter);
         }

@@ -18,7 +18,7 @@
  */
 
 import {abortError, fetchWithTimeout} from '../utils/fetchTimeout';
-import {classifyError, INSECURE_CERT, DNS_OR_NETWORK} from '../utils/connectionErrors';
+import {classifyError, INSECURE_CERT, DNS_OR_NETWORK, TIMEOUT} from '../utils/connectionErrors';
 import {traceRequest} from '../utils/networkLogSink';
 import {isVega, isWebOS, isXbox} from '../platform';
 import {getFromStorage} from './storage';
@@ -214,11 +214,12 @@ export const corsFreeFetch = async (url, options = {}, timeoutMs) => {
 	if (options.signal?.aborted) throw abortError();
 	return traceRequest(`${options.method || 'GET'} (shell)`, url, async () => {
 		let answer = await bridge.requestThroughShell(url, options, timeoutMs);
-		// A certificate the shell refused, once the user's setting lets it through, as platformFetch does.
-		if (!answer.status && await allowHostInShell(url)) answer = await bridge.requestThroughShell(url, options, timeoutMs);
+		// A certificate the shell refused, once the user's setting lets it through, as platformFetch does. Only the
+		// Xbox host says that is why, and only its requests take the setting.
+		if (!answer.status && answer.failure === 'certificate' && await allowHostInShell(url)) answer = await bridge.requestThroughShell(url, options, timeoutMs);
 		if (answer.status) return makeResponse(answer);
-		const err = new Error('Shell request failed');
-		err.connectionType = DNS_OR_NETWORK;
+		const err = new Error(answer.failure === 'timeout' ? 'Shell request timed out' : 'Shell request failed');
+		err.connectionType = answer.failure === 'timeout' ? TIMEOUT : answer.failure === 'certificate' ? INSECURE_CERT : DNS_OR_NETWORK;
 		throw err;
 	});
 };

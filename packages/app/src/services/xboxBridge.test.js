@@ -73,12 +73,19 @@ describe('the Xbox bridge', () => {
 		await expect(asked).resolves.toEqual({id: message.payload.id, status: 200, body: '{}', headers: {'content-type': 'application/json'}});
 	});
 
+	test('a quiet request says so, and only then', () => {
+		requestThroughShell('http://192.168.1.20:8090/api/v2/system/info', {quiet: true}, 3000);
+		requestThroughShell('http://silo:8090/api/v2/account/me');
+		expect(sent(0).payload.quiet).toBe(true);
+		expect('quiet' in sent(1).payload).toBe(false);
+	});
+
 	test('a request nothing answers resolves with status 0', async () => {
 		jest.useFakeTimers();
 		try {
 			const unanswered = requestThroughShell('http://silo:8090/a', {}, 2000);
 			jest.advanceTimersByTime(3000);
-			await expect(unanswered).resolves.toEqual({status: 0, body: ''});
+			await expect(unanswered).resolves.toEqual({status: 0, body: '', failure: 'timeout'});
 		} finally {
 			jest.useRealTimers();
 		}
