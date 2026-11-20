@@ -269,7 +269,10 @@ export const getPlayMethod = (mediaSource, capabilities, _options, passthroughOp
 	const videoRangeType = videoRangeTypeOf(videoStream);
 	if (videoRangeType) {
 		const rangeType = videoRangeType.toUpperCase();
-		if (rangeType.includes('DOVIWITHEL')) {
+		if (rangeType === 'DOVIINVALID') {
+			// the profile only offers DOVIInvalid with HDR10, so this has to agree with it
+			hdrOk = capabilities.hdr10;
+		} else if (rangeType.includes('DOVIWITHEL')) {
 			// profile 7 carries an enhancement layer that freezes the picture on a
 			// panel without Dolby Vision, so it goes through the server's remux
 			hdrOk = capabilities.dolbyVision;
