@@ -204,10 +204,10 @@ export const originFreeFetch = (url, options = {}, timeoutMs) => {
 	return canProxy ? proxyRequest(url, options, timeoutMs, false) : fetch(url, options);
 };
 
-// A Plex server only lets app.plex.tv read its answers across origins, and Silo answers no
-// CORS at all, while the page on Fire TV sits at file://, so the shell makes those requests
-// there. The shell can't stop a request it has sent, so a caller that has given up only keeps
-// it from being sent; one already sent is waited for, so it keeps its place in the request queue.
+// A Plex server only lets app.plex.tv read its answers across origins, Silo sends no CORS
+// headers, and the page on Fire TV sits at file://, so the shell makes those requests
+// there. The shell can't stop a request it has sent, so a caller that gives up only stops one
+// that hasn't gone out yet. One already sent is waited for and keeps its place in the queue.
 export const corsFreeFetch = async (url, options = {}, timeoutMs) => {
 	const bridge = isVega() ? await loadShellBridge() : null;
 	if (!bridge?.requestThroughShell) return platformFetch(url, options, timeoutMs);

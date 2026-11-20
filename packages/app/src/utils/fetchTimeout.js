@@ -18,7 +18,6 @@ const send = (url, options, timeoutMs) => {
 		]);
 	}
 
-	// The caller's own signal still cancels the request; the timer's controller takes its place on the fetch.
 	const caller = options.signal;
 	if (caller?.aborted) return Promise.reject(abortError());
 	const controller = new AbortController();
