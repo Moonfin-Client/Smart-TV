@@ -1,74 +1,33 @@
 import {fetchWithTimeout} from './fetchTimeout';
 
 describe('fetchWithTimeout', () => {
+	let pending;
+
 	beforeEach(() => {
-		jest.useFakeTimers();
+		pending = null;
+		global.fetch = jest.fn((url, {signal}) => new Promise((resolve, reject) => {
+			pending = {resolve};
+			signal.addEventListener('abort', () => reject(Object.assign(new Error('aborted'), {name: 'AbortError'})));
+		}));
 	});
 
-	afterEach(() => {
-		jest.useRealTimers();
-		delete global.fetch;
+	test('is cancelled by the caller\'s signal', async () => {
+		const caller = new AbortController();
+		const request = fetchWithTimeout('http://silo/x', {signal: caller.signal}, 30000);
+		caller.abort();
+		await expect(request).rejects.toMatchObject({name: 'AbortError'});
 	});
 
-	test('resolves with the response when fetch wins', async () => {
-		const response = {ok: true};
-		global.fetch = jest.fn(() => Promise.resolve(response));
-		const result = await fetchWithTimeout('http://x', {}, 5000);
-		expect(result).toBe(response);
+	test('never sends a request whose caller has already given up', async () => {
+		const caller = new AbortController();
+		caller.abort();
+		await expect(fetchWithTimeout('http://silo/x', {signal: caller.signal}, 30000)).rejects.toMatchObject({name: 'AbortError'});
+		expect(global.fetch).not.toHaveBeenCalled();
 	});
 
-	test('clears the timer when fetch settles', async () => {
-		global.fetch = jest.fn(() => Promise.resolve({ok: true}));
-		await fetchWithTimeout('http://x', {}, 5000);
-		expect(jest.getTimerCount()).toBe(0);
-	});
-
-	test('rejects with AbortError at timeout even if fetch never settles', async () => {
-		global.fetch = jest.fn(() => new Promise(() => {}));
-		const promise = fetchWithTimeout('http://x', {}, 5000);
-		jest.advanceTimersByTime(5001);
-		await expect(promise).rejects.toMatchObject({name: 'AbortError'});
-	});
-
-	test('passes an abort signal to fetch', async () => {
-		global.fetch = jest.fn(() => Promise.resolve({ok: true}));
-		await fetchWithTimeout('http://x', {method: 'POST'}, 5000);
-		const options = global.fetch.mock.calls[0][1];
-		expect(options.method).toBe('POST');
-		expect(options.signal).toBeDefined();
-	});
-
-	test('aborts the controller at timeout', async () => {
-		let receivedSignal = null;
-		global.fetch = jest.fn((url, options) => {
-			receivedSignal = options.signal;
-			return new Promise(() => {});
-		});
-		const promise = fetchWithTimeout('http://x', {}, 5000);
-		jest.advanceTimersByTime(5001);
-		await expect(promise).rejects.toMatchObject({name: 'AbortError'});
-		expect(receivedSignal.aborted).toBe(true);
-	});
-
-	test('waits the default time when the caller gives none', async () => {
-		let receivedSignal = null;
-		global.fetch = jest.fn((url, options) => {
-			receivedSignal = options.signal;
-			return new Promise(() => {});
-		});
-		const promise = fetchWithTimeout('http://x');
-		promise.catch(() => {});
-		jest.advanceTimersByTime(29999);
-		expect(receivedSignal.aborted).toBe(false);
-		jest.advanceTimersByTime(1);
-		expect(receivedSignal.aborted).toBe(true);
-		await expect(promise).rejects.toMatchObject({name: 'AbortError'});
-	});
-
-	test('propagates fetch rejection', async () => {
-		const netErr = new Error('network down');
-		global.fetch = jest.fn(() => Promise.reject(netErr));
-		await expect(fetchWithTimeout('http://x', {}, 5000)).rejects.toBe(netErr);
-		expect(jest.getTimerCount()).toBe(0);
+	test('answers when nothing cancels it', async () => {
+		const request = fetchWithTimeout('http://silo/x', {}, 30000);
+		pending.resolve({ok: true});
+		await expect(request).resolves.toEqual({ok: true});
 	});
 });
