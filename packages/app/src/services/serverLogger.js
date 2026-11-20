@@ -75,7 +75,7 @@ const loadDeviceInfo = async () => {
 	return deviceInfoCache;
 };
 
-const platformName = {tizen: 'Tizen', vega: 'Fire TV', xbox: 'Xbox'}[getPlatform()] || 'webOS';
+const platformName = {tizen: 'Tizen', vega: 'Fire TV', xbox: 'Xbox', titan: 'Titan OS', web: 'Web'}[getPlatform()] || 'webOS';
 const logEndpointName = `moonfin-${getPlatform()}-log`;
 
 const formatLogAsText = (entry) => {

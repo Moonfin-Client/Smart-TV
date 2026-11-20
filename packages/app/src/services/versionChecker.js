@@ -8,7 +8,7 @@
 import $L from '@enact/i18n/$L';
 
 import {getFromStorage, saveToStorage} from './storage';
-import {isTizen, isVega, isWebOS, isXbox} from '../platform';
+import {isHosted, isTizen, isVega, isWebOS, isXbox} from '../platform';
 import packageJson from '../../package.json';
 const APP_VERSION = packageJson.version;
 
@@ -230,6 +230,8 @@ export const downloadOtaUpdate = (manifest, onProgress) => window.__moonfinOta.d
  * @returns {Promise<Object|null>} Update info if available, null otherwise
  */
 export const checkForUpdates = async (forceCheck = false, {includeDismissed = false} = {}) => {
+	// The hosted page is always the version that was last deployed.
+	if (isHosted()) return null;
 	if (!forceCheck) {
 		const shouldCheck = await shouldCheckForUpdate();
 		if (!shouldCheck) {

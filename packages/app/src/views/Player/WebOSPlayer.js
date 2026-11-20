@@ -8,7 +8,7 @@ import {getImageUrl, getLogoUrl} from '../../utils/helpers';
 import {transcodesAudioCodec} from '../../utils/deviceProfileTuning';
 import {api as jellyfinApi, createApiForServer, getServerType, getServerUrl} from '../../services/jellyfinApi';
 import {getApiForItem} from '../../services/connectionPool';
-import {isVega} from '../../platform';
+import {isTitan, isVega} from '../../platform';
 import {isPlexUrl} from '../../utils/plexUrls';
 import AudioMode from './audio/AudioMode';
 import useAudioTransport from './audio/useAudioTransport';
@@ -1137,8 +1137,10 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 				// A track in a codec the user has the server convert can't be switched to
 				// locally either, and the server only reads the track along with its source.
 				// The Fire TV WebView has no audioTracks, so there the server has to pick it too.
+				// Most browsers don't have it either.
 				if (initialAudioIndex == null && autoAudio && !isLiveTV
-					&& (result.playMethod !== playback.PlayMethod.DirectPlay || transcodesAudioCodec(settings, autoAudio.codec) || isVega())
+					&& (result.playMethod !== playback.PlayMethod.DirectPlay || transcodesAudioCodec(settings, autoAudio.codec) || isVega()
+						|| playback.getCurrentSession()?.capabilities?.audioTracks === false)
 					&& autoAudio.index !== result.selectedAudioStreamIndex) {
 					try {
 						playbackInfoOptions.audioStreamIndex = autoAudio.index;
@@ -1808,6 +1810,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 			// newest segments and can't seek it at all, so a start or resume lands half a minute late. hls.js honours a start.
 			const siloGrowingHls = isHls && !!streamSource?.SiloDelivery && seeksThroughServerRef.current;
 			const useHlsJs = isHls && (!nativeHlsOk || siloGrowingHls) && Hls.isSupported();
+			const lowMemoryHls = isVega() || isTitan();
 			console.log('[Player] Source type:', { isHls, mimeType, autoplay: video.autoplay, platformVersion: platformVersionRef.current, nativeHlsOk, siloGrowingHls, useHlsJs, forceHlsJs: forceHlsJsRef.current });
 
 			while (video.firstChild) video.removeChild(video.firstChild);
@@ -1821,9 +1824,9 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 				const hls = new Hls({
 					enableWorker: false,
 					lowLatencyMode: false,
-					maxBufferLength: isVega() ? 10 : (copyBuffer ? copyBuffer.ahead : 30),
+					maxBufferLength: lowMemoryHls ? 10 : (copyBuffer ? copyBuffer.ahead : 30),
 					maxMaxBufferLength: copyBuffer ? copyBuffer.ahead : 60,
-					backBufferLength: isVega() ? 10 : (copyBuffer ? copyBuffer.behind : Infinity),
+					backBufferLength: lowMemoryHls ? 10 : (copyBuffer ? copyBuffer.behind : Infinity),
 					...(siloGrowingHls ? {startPosition: resumeTicks > 0 ? streamResumeSec() : 0} : null),
 					startFragPrefetch: true,
 					maxBufferHole: 0.5,

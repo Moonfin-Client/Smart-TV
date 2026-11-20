@@ -1,0 +1,9 @@
+{
+	"name": "@moonfin/build-web",
+	"version": "3.1.1",
+	"private": true,
+	"scripts": {
+		"build": "node build.js",
+		"build:titan": "node build.js --titan"
+	}
+}

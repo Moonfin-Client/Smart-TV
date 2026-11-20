@@ -13,7 +13,7 @@ import * as multiServerManager from '../../services/multiServerManager';
 import {discoverLocalServers} from '../../services/serverDiscovery';
 import {generateCandidates, normalizeServerBaseUrl, quickConnectApprovalUrl} from '../../utils/serverUrl';
 import {drawQrCode} from '../../utils/qrCanvas';
-import {classifyError, detectServerType, getConnectionMessage, getSignInMessage, isSignInForbidden, isVersionSupported, supportsQuickConnectWebLink, INVALID_ADDRESS, SERVER_NOT_JELLYFIN, VERSION_UNSUPPORTED, INSECURE_CERT, MIN_SERVER_VERSION} from '../../utils/connectionErrors';
+import {classifyError, detectServerType, getConnectionMessage, getSignInMessage, isSignInForbidden, isVersionSupported, supportsQuickConnectWebLink, INVALID_ADDRESS, SERVER_NOT_JELLYFIN, VERSION_UNSUPPORTED, INSECURE_CERT, MIXED_CONTENT, MIN_SERVER_VERSION} from '../../utils/connectionErrors';
 import {KEYS} from '../../utils/keys';
 import {isSelectKey} from '../../utils/longPress';
 import SpottableInput from '../../components/SpottableInput/SpottableInput';
@@ -63,7 +63,7 @@ const plexAccountToken = (accounts, serverId) => accounts
 const plexErrorMessage = (err) => (err?.status === 401 ? getSignInMessage(err) : getConnectionMessage(classifyError(err)));
 
 // These say more than the general advice to check the address, so the add dialog keeps their own line.
-const SPECIFIC_FAILURES = [INVALID_ADDRESS, SERVER_NOT_JELLYFIN, VERSION_UNSUPPORTED];
+const SPECIFIC_FAILURES = [INVALID_ADDRESS, SERVER_NOT_JELLYFIN, VERSION_UNSUPPORTED, MIXED_CONTENT];
 
 const FOUND_TILES = {emby: css.tileEmby, silo: css.tileSilo};
 
@@ -541,10 +541,9 @@ const Login = ({
 					};
 				}
 				const errType = classifyError(err);
-				// A cert rejection (from the https candidate / proxy probe) is the
-				// most actionable diagnosis, don't let a weaker network failure
-				// from a later http candidate mask it.
-				if (lastErrorType !== INSECURE_CERT) {
+				// A rejected certificate, or an http address the hosted page can't reach,
+				// says more than a network failure from another candidate, so keep it.
+				if (lastErrorType !== INSECURE_CERT && lastErrorType !== MIXED_CONTENT) {
 					lastErrorType = errType || lastErrorType;
 				}
 			}

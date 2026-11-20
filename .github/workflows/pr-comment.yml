@@ -203,12 +203,14 @@ jobs:
               list.artifacts.forEach(a => artifacts.set(a.name, a));
             }
 
+            // A branch older than the web job never ran it, which isn't a failed build.
             const rows = [
               { platform: 'webOS', job: 'webos', artifact: 'webos', files: 'Moonfin_webOS_*.ipk' },
               { platform: 'Tizen', job: 'tizen', artifact: 'tizen', files: 'Moonfin_Tizen_*.wgt (Regular, Oblong, Legacy)' },
               { platform: 'Vega',  job: 'vega',  artifact: 'vega',  files: 'Moonfin_Vega_*.vpkg' },
               { platform: 'Xbox',  job: 'xbox',  artifact: 'xbox',  files: 'Moonfin_Xbox_*.zip' },
-            ];
+              { platform: 'Web TV and Titan OS', job: 'web', artifact: 'web-tv', files: 'dist/tv and dist/titan', optional: true },
+            ].filter(row => !row.optional || !buildRunId || outcomes?.[row.job] !== undefined || artifacts.has(row.artifact));
 
             // Without outcomes.json, an artifact still proves its build passed,
             // but a missing one proves nothing.

@@ -10,6 +10,7 @@ export const VERSION_UNSUPPORTED = 'version_unsupported';
 export const AUTH_FAILED = 'auth_failed';
 export const SERVER_ERROR = 'server_error';
 export const INSECURE_CERT = 'insecure_cert';
+export const MIXED_CONTENT = 'mixed_content';
 
 export const MIN_SERVER_VERSION = '10.9.0';
 
@@ -23,7 +24,8 @@ const MESSAGES = {
 	[VERSION_UNSUPPORTED]: () => $L('Server version is not supported. Minimum: {version}').replace('{version}', MIN_SERVER_VERSION) + '.',
 	[AUTH_FAILED]: () => $L('Invalid username or password.'),
 	[SERVER_ERROR]: () => $L('Server error. Please try again later.'),
-	[INSECURE_CERT]: () => $L('Your TV rejected this server\'s security certificate. Check the TV\'s date & time, update webOS, or use a server whose certificate your TV trusts. Public servers using Let\'s Encrypt may not work on older TVs.')
+	[INSECURE_CERT]: () => $L('Your TV rejected this server\'s security certificate. Check the TV\'s date & time, update webOS, or use a server whose certificate your TV trusts. Public servers using Let\'s Encrypt may not work on older TVs.'),
+	[MIXED_CONTENT]: () => $L('This page is loaded over https, so the browser won\'t let it reach an http:// server. Use your server\'s https:// address, or install the Moonfin app for your TV.')
 };
 
 const LOGIN_MESSAGES = {

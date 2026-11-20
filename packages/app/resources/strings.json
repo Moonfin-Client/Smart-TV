@@ -2776,6 +2776,7 @@
 	"You will need to sign in again to use this account.": "You will need to sign in again to use this account.",
 	"You're set. Here's what else is in here.": "You're set. Here's what else is in here.",
 	"Your TV rejected this server's security certificate. Check the TV's date & time, update webOS, or use a server whose certificate your TV trusts. Public servers using Let's Encrypt may not work on older TVs.": "Your TV rejected this server's security certificate. Check the TV's date & time, update webOS, or use a server whose certificate your TV trusts. Public servers using Let's Encrypt may not work on older TVs.",
+	"This page is loaded over https, so the browser won't let it reach an http:// server. Use your server's https:// address, or install the Moonfin app for your TV.": "This page is loaded over https, so the browser won't let it reach an http:// server. Use your server's https:// address, or install the Moonfin app for your TV.",
 	"Your Watchlist": "Your Watchlist",
 	"Zoom": "Zoom",
 	"Zoom to Fill": "Zoom to Fill",

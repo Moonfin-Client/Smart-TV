@@ -1,5 +1,5 @@
 jest.mock('@enact/i18n/$L', () => (text) => text);
-jest.mock('../platform', () => ({isWebOS: () => false, isVega: jest.fn(() => false)}));
+jest.mock('../platform', () => ({isHosted: () => false, isWebOS: () => false, isVega: jest.fn(() => false)}));
 jest.mock('../utils/fetchTimeout', () => ({...jest.requireActual('../utils/fetchTimeout'), fetchWithTimeout: jest.fn()}));
 jest.mock('../utils/networkLogSink', () => ({traceRequest: (url, options, send) => send()}));
 jest.mock('./storage', () => ({getFromStorage: jest.fn()}));

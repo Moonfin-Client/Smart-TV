@@ -20,7 +20,9 @@ const PLATFORM_IDENTITY = {
 	tizen: {appName: 'Moonfin for Tizen', deviceName: 'Samsung Smart TV', tag: 'tizen'},
 	vega: {appName: 'Moonfin for Fire TV', deviceName: 'Fire TV', tag: 'vega'},
 	webos: {appName: 'Moonfin for webOS', deviceName: 'LG Smart TV', tag: 'webos'},
-	xbox: {appName: 'Moonfin for Xbox', deviceName: 'Xbox', tag: 'xbox'}
+	xbox: {appName: 'Moonfin for Xbox', deviceName: 'Xbox', tag: 'xbox'},
+	titan: {appName: 'Moonfin for Titan OS', deviceName: 'Titan OS TV', tag: 'titan'},
+	web: {appName: 'Moonfin TV for Web', deviceName: 'Web Browser', tag: 'web'}
 };
 const {appName: APP_NAME, deviceName: DEVICE_NAME, tag: platformTag} = PLATFORM_IDENTITY[getPlatform()] || PLATFORM_IDENTITY.webos;
 

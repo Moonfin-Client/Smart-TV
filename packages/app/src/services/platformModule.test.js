@@ -3,12 +3,14 @@ jest.mock('@moonfin/platform-tizen/storage', () => ({name: 'tizen'}));
 jest.mock('@moonfin/platform-webos/storage', () => ({name: 'webos'}));
 jest.mock('@moonfin/platform-vega/storage', () => ({name: 'vega'}));
 jest.mock('@moonfin/platform-xbox/storage', () => ({name: 'xbox'}));
+jest.mock('@moonfin/platform-titan/storage', () => ({name: 'titan'}));
+jest.mock('@moonfin/platform-web/storage', () => ({name: 'web'}));
 
 import {getPlatform} from '../platform';
 import {resolvePlatformModule} from './platformModule';
 
 describe('resolvePlatformModule', () => {
-	test.each(['tizen', 'webos', 'vega', 'xbox'])('loads the %s module', async (platform) => {
+	test.each(['tizen', 'webos', 'vega', 'xbox', 'titan', 'web'])('loads the %s module', async (platform) => {
 		getPlatform.mockReturnValue(platform);
 		expect((await resolvePlatformModule('storage')).name).toBe(platform);
 	});

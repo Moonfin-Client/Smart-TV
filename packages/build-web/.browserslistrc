@@ -1,0 +1,6 @@
+# The oldest set in Titan's store, a 2020 Philips on Saphi, runs Chrome 84.
+# Computers get the browsers they have had for the last few years.
+chrome >= 84
+edge >= 84
+firefox >= 91
+safari >= 14

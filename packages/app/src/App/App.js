@@ -23,14 +23,15 @@ import {setTmdbThumbsAvailable} from '../utils/tmdbThumb';
 import {configureIncompleteRecordings} from '../services/incompleteRecordings';
 import serverLogger from '../services/serverLogger';
 import * as remoteControl from '../services/remoteControl';
-import {isBackKey, KEYS, remoteShortcut} from '../utils/keys';
+import {isBackKey, KEYS, remoteShortcut, setBackKeyCode} from '../utils/keys';
+import {resolvePlatformModule} from '../services/platformModule';
 import {drawsStage} from '../views/Details/stage/stageRules';
 import {QUICK_LOOK_ID} from '../views/Details/quickLook/quickLookRules';
 import {applyPerfTier, smoothScrollingFor} from '../utils/perfTier';
 import {setSmoothScrolling} from '../utils/focusScroll';
 import {isLiveTvChannel, isLiveTvLibrary} from '../utils/liveTvLibrary';
 import {OLED_TUNING} from '../utils/oledMode';
-import {isTizen, isVega, isXbox} from '../platform';
+import {getPlatform, isTizen, isVega, isXbox} from '../platform';
 import {initVideo, cleanupVideoElement, setupVisibilityHandler, setupPlatformLifecycle} from '../services/video';
 import {activateApp, exitApp, renewDevMode} from '../utils/appLifecycle';
 import {SettingsProvider} from '../context/SettingsContext';
@@ -425,6 +426,10 @@ const AppContent = (props) => {
 		devModeRenewedRef.current = true;
 		renewDevMode();
 	}, [settingsLoaded, settings.keepDevModeAlive]);
+	useEffect(() => {
+		if (getPlatform() !== 'titan') return;
+		resolvePlatformModule('deviceInfo').then((info) => info.getBackKeyCode()).then(setBackKeyCode).catch(() => {});
+	}, []);
 	const {userId, record: signInPin, account: pinAccount, latest: latestSignInPin, save: saveSignInPin} = useSignInPin();
 	const pinSession = isAuthenticated && userId ? `${userId}:${pinCheckCount}` : null;
 	const pinPending = Boolean(pinSession) && pinPassed !== pinSession;
@@ -1228,6 +1233,9 @@ const AppContent = (props) => {
 					if (backHandlerRef.current?.()) return;
 					// Another client pressing back never closes the app on the viewer.
 					if (e.fromRemote) return;
+					// A browser tab can't close itself, and cleaning up for a close that never
+					// happens leaves the page half torn down.
+					if (getPlatform() === 'web') return;
 					if (settings.exitConfirmation === false) {
 						performAppCleanup();
 						exitApp();

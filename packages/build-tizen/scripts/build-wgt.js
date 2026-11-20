@@ -395,6 +395,8 @@ async function main() {
 		'@moonfin/platform-tizen': path.resolve(ROOT, '..', 'platform-tizen', 'src'),
 		'@moonfin/platform-vega': path.resolve(ROOT, '..', 'platform-vega', 'src'),
 		'@moonfin/platform-xbox': path.resolve(ROOT, '..', 'platform-xbox', 'src'),
+		'@moonfin/platform-titan': path.resolve(ROOT, '..', 'platform-titan', 'src'),
+		'@moonfin/platform-web': path.resolve(ROOT, '..', 'platform-web', 'src'),
 		'@moonfin/app': path.resolve(ROOT, '..', 'app')
 	});
 	const appPkg = JSON.parse(fs.readFileSync(path.join(APP_DIR, 'package.json'), 'utf8'));

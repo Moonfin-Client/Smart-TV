@@ -83,11 +83,38 @@ const XBOX_KEYS = {
 	FAST_FORWARD: 228,
 };
 
-const PLATFORM_KEYS = {tizen: TIZEN_KEYS, webos: WEBOS_KEYS, vega: VEGA_KEYS, xbox: XBOX_KEYS};
+// Titan OS sends Back as 461 on JVC and as Backspace on Philips, which every
+// platform takes as Back already.
+const TITAN_KEYS = {
+	BACK: 461,
+	PLAY: 415,
+	PAUSE: 19,
+	PLAY_PAUSE: 179,
+	STOP: 413,
+	REWIND: 412,
+	FAST_FORWARD: 417,
+	RED: 403,
+	GREEN: 404,
+	YELLOW: 405,
+	BLUE: 406,
+	CHANNEL_UP: 33,
+	CHANNEL_DOWN: 34,
+};
+
+// A computer's keyboard media keys, with Escape as Back.
+const WEB_KEYS = {
+	BACK: 27,
+	PLAY_PAUSE: 179,
+	STOP: 178,
+};
+
+const PLATFORM_KEYS = {tizen: TIZEN_KEYS, webos: WEBOS_KEYS, vega: VEGA_KEYS, xbox: XBOX_KEYS, titan: TITAN_KEYS, web: WEB_KEYS};
+
+const PLATFORM = getPlatform();
 
 export const KEYS = {
 	...STANDARD_KEYS,
-	...(PLATFORM_KEYS[getPlatform()] || WEBOS_KEYS),
+	...(PLATFORM_KEYS[PLATFORM] || WEBOS_KEYS),
 };
 
 // Fast forward and rewind, and the track and page keys a remote may carry, page a list. 1 is a
@@ -104,6 +131,16 @@ export const isBackKey = (e) => {
 	const code = e.keyCode || e.which;
 	return code === KEYS.BACK || code === 27 || code === 8;
 };
+
+// Titan's SDK knows the remote's Back for the brand it runs on, Sharp's among them.
+export const setBackKeyCode = (code) => {
+	if (Number.isInteger(code) && code > 0) KEYS.BACK = code;
+};
+
+// Back while text is being typed, where 8 is otherwise a delete. A Philips remote on
+// Titan OS sends Back as Backspace, so there it closes and the keyboard's own key deletes.
+export const isTypingBack = (code) => code === 461 || code === 10009 || code === 27 ||
+	(PLATFORM === 'titan' && (code === 8 || code === KEYS.BACK));
 
 // The transport keys, which music playing behind the other screens still answers.
 export const isMediaKey = (e) => [KEYS.PLAY, KEYS.PAUSE, KEYS.PLAY_PAUSE, KEYS.STOP, KEYS.FAST_FORWARD, KEYS.REWIND].includes(e.keyCode || e.which);

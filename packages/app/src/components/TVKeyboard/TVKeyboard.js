@@ -4,6 +4,7 @@ import {Pause} from '@enact/spotlight/Pause';
 
 import {useSettings} from '../../context/SettingsContext';
 import {isXbox} from '../../platform';
+import {isTypingBack} from '../../utils/keys';
 import {toCssColor, toCssColorWithAlpha, toRgbTriplet, inkOn, radiusToCss, shadowToCss} from '../../theme/themeSpec';
 import {getPerfTier} from '../../utils/perfTier';
 import {getKeyboardStyleOptions} from './keyboardStyles';
@@ -843,7 +844,7 @@ class TVKeyboardHost extends Component {
 		e.stopPropagation();
 		const code = e.keyCode || e.which;
 		const {popup} = this.state;
-		const isBack = code === 461 || code === 10009 || code === 27;
+		const isBack = isTypingBack(code);
 
 		if (code === 13) {
 			if (this.enterHeld) {
@@ -896,7 +897,7 @@ class TVKeyboardHost extends Component {
 			return;
 		}
 
-		if (code === 8) {
+		if (code === 8 && !isBack) {
 			this.act('BACKSPACE');
 			return;
 		}

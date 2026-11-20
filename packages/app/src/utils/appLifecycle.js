@@ -79,5 +79,10 @@ export const exitApp = () => {
 		loadShellBridge().then((bridge) => bridge.exitApp());
 		return;
 	}
+	// Titan OS and Saphi give an app this to leave with.
+	if (typeof window.SmartTvA_API?.exit === 'function') {
+		window.SmartTvA_API.exit();
+		return;
+	}
 	window.close();
 };

@@ -5,6 +5,7 @@ import {Pause} from '@enact/spotlight/Pause';
 
 import {useSettings} from '../../context/SettingsContext';
 import {openTvKeyboard, closeTvKeyboard, publishTvKeyboardVisibility} from '../TVKeyboard/keyboardBus';
+import {isTypingBack} from '../../utils/keys';
 import css from './SpottableInput.module.less';
 
 const SpottableDiv = Spottable('div');
@@ -184,7 +185,7 @@ const SpottableInput = forwardRef(({
 			return;
 		}
 
-		if (isInputActive && (code === 461 || code === 10009 || code === 27)) {
+		if (isInputActive && isTypingBack(code)) {
 			e.preventDefault();
 			e.stopPropagation();
 			deactivateInput();

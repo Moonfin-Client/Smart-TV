@@ -126,6 +126,7 @@ npm install
 npm run build:tizen:all   # Samsung: Regular, Oblong, and Legacy
 npm run build:webos       # LG
 npm run build:xbox        # Xbox, on Windows with the Visual Studio Build Tools
+npm run build:web-tv      # The hosted edition for moonfin.io/tv/, see packages/build-web
 ```
 
 A current Node.js LTS release (20 or newer) with npm is the only prerequisite.

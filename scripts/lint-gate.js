@@ -13,7 +13,9 @@ const LINT_DIRS = [
 	path.join(PACKAGES_DIR, 'platform-tizen'),
 	path.join(PACKAGES_DIR, 'platform-webos'),
 	path.join(PACKAGES_DIR, 'platform-vega'),
-	path.join(PACKAGES_DIR, 'platform-xbox')
+	path.join(PACKAGES_DIR, 'platform-xbox'),
+	path.join(PACKAGES_DIR, 'platform-titan'),
+	path.join(PACKAGES_DIR, 'platform-web')
 ];
 
 // enact lint reports style problems as warnings and still exits zero, so the

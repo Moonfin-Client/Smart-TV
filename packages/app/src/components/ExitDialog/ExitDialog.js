@@ -5,7 +5,7 @@ import SpotlightContainerDecorator from '@enact/spotlight/SpotlightContainerDeco
 import $L from '@enact/i18n/$L';
 import {isBackKey, KEYS} from '../../utils/keys';
 import {exitApp} from '../../utils/appLifecycle';
-import {isVega} from '../../platform';
+import {isTitan, isVega} from '../../platform';
 import useReturnFocus from '../../hooks/useReturnFocus';
 
 import css from './ExitDialog.module.less';
@@ -42,7 +42,8 @@ const ExitDialog = ({open, onCancel, onExit}) => {
 				// Amazon's review presses Back until the launcher shows and
 				// fails an app that keeps closing and reopening this dialog, so
 				// on Fire TV a second Back is the exit.
-				if (isVega()) handleExit();
+				// Titan's guidelines also say pressing Back over and over should exit.
+				if (isVega() || isTitan()) handleExit();
 				else onCancel?.();
 				return;
 			}

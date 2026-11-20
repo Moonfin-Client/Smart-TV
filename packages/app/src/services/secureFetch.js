@@ -18,9 +18,9 @@
  */
 
 import {abortError, fetchWithTimeout} from '../utils/fetchTimeout';
-import {classifyError, INSECURE_CERT, DNS_OR_NETWORK} from '../utils/connectionErrors';
+import {classifyError, INSECURE_CERT, DNS_OR_NETWORK, MIXED_CONTENT} from '../utils/connectionErrors';
 import {traceRequest} from '../utils/networkLogSink';
-import {isVega, isWebOS} from '../platform';
+import {isHosted, isVega, isWebOS} from '../platform';
 import {getFromStorage} from './storage';
 import {loadShellBridge} from './shellBridge';
 
@@ -180,6 +180,12 @@ export const platformFetch = async (url, options = {}, timeoutMs) => {
 		// Only a genuine network-class failure (TypeError) is a cert-rejection
 		// candidate. Timeouts/aborts are rethrown unchanged.
 		if (classifyError(err) !== DNS_OR_NETWORK) {
+			throw err;
+		}
+		// The browser refuses an http:// request from the https page and reports it the
+		// same way as a server that's down.
+		if (isHosted() && /^http:/i.test(url) && window.location.protocol === 'https:') {
+			err.connectionType = MIXED_CONTENT;
 			throw err;
 		}
 		if (isHttps(url) && await allowHostInShell(url)) {

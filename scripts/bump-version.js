@@ -53,6 +53,9 @@ const updateJsonVersion = (rel) => {
 const sharedJsonFiles = [
 	'package.json',
 	'packages/app/package.json',
+	'packages/platform-web/package.json',
+	'packages/platform-titan/package.json',
+	'packages/build-web/package.json',
 ];
 
 // ── Platform-specific files ──

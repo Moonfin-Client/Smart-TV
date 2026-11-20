@@ -1,12 +1,17 @@
 jest.mock('../platform', () => ({getPlatform: () => 'xbox'}));
 
-import {KEYS, isBackKey, isMenuKey} from './keys';
+import {KEYS, isBackKey, isMenuKey, isTypingBack} from './keys';
 
 describe('keys on Xbox', () => {
 	test('back is the escape code the B button is turned into', () => {
 		expect(KEYS.BACK).toBe(27);
 		expect(isBackKey({keyCode: 27})).toBe(true);
 		expect(isBackKey({keyCode: 461})).toBe(false);
+	});
+
+	test("the X button deletes while typing, it isn't Back", () => {
+		expect(isTypingBack(8)).toBe(false);
+		expect(isTypingBack(27)).toBe(true);
 	});
 
 	test('the menu button is the context menu code', () => {

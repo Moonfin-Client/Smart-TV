@@ -79,6 +79,8 @@ const ENACT_ALIAS = JSON.stringify({
 	'@moonfin/platform-tizen': path.resolve(__dirname, '..', 'platform-tizen', 'src'),
 	'@moonfin/platform-vega': path.resolve(__dirname, '..', 'platform-vega', 'src'),
 	'@moonfin/platform-xbox': path.resolve(__dirname, '..', 'platform-xbox', 'src'),
+	'@moonfin/platform-titan': path.resolve(__dirname, '..', 'platform-titan', 'src'),
+	'@moonfin/platform-web': path.resolve(__dirname, '..', 'platform-web', 'src'),
 	'@moonfin/app': path.resolve(__dirname, '..', 'app')
 });
 

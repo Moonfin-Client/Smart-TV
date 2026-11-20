@@ -205,6 +205,35 @@ jobs:
           path: Moonfin_Xbox_Store_*.msixupload
 
   # ───────────────────────────────────────────────
+  # Hosted TV edition for moonfin.io/tv and Titan OS
+  # ───────────────────────────────────────────────
+  build-web:
+    name: Build Web TV
+    runs-on: ubuntu-26.04
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: lts/*
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci --force
+
+      - name: Build the hosted and Titan OS editions
+        id: build
+        run: |
+          npm run build:web-tv
+          npm run build:titan -- --skip-lint
+
+      - uses: actions/upload-artifact@v6
+        if: success()
+        with:
+          name: web-tv
+          path: packages/build-web/dist/
+
+  # ───────────────────────────────────────────────
   # Save PR build outcomes for pr-comment workflow
   # ───────────────────────────────────────────────
   save-pr-results:
@@ -213,7 +242,7 @@ jobs:
     # the comment workflow has nothing to read, so the run that most needs a comment
     # is the one that never gets one.
     if: always() && github.event_name == 'pull_request'
-    needs: [build-webos, build-tizen, build-vega, build-xbox]
+    needs: [build-webos, build-tizen, build-vega, build-xbox, build-web]
     runs-on: ubuntu-26.04
     steps:
       # The job's result, not its build step's, so a check after the build that
@@ -227,7 +256,8 @@ jobs:
             "webos": "${{ needs.build-webos.result }}",
             "tizen": "${{ needs.build-tizen.result }}",
             "vega": "${{ needs.build-vega.result }}",
-            "xbox": "${{ needs.build-xbox.result }}"
+            "xbox": "${{ needs.build-xbox.result }}",
+            "web": "${{ needs.build-web.result }}"
           }
           EOF
 

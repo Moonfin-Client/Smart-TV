@@ -48,7 +48,7 @@ export const clearCapabilitiesCache = () => {
 	impl?.clearCapabilitiesCache?.();
 };
 
-const VERSION_DETECTOR = {tizen: 'detectTizenVersion', webos: 'detectWebOSVersion', vega: 'detectVegaVersion', xbox: 'detectXboxVersion'};
+const VERSION_DETECTOR = {tizen: 'detectTizenVersion', webos: 'detectWebOSVersion', vega: 'detectVegaVersion', xbox: 'detectXboxVersion', titan: 'detectTitanVersion'};
 
 export const detectPlatformVersion = async (...args) => {
 	await loadImpl();
