@@ -102,25 +102,23 @@ if ($sdks.Count -eq 0) {
     Say "  .NET SDK $(($sdks[-1] -split ' ')[0])"
 }
 
-# The package build needs Visual Studio's UWP tools, which bring the XAML build targets. build.js
-# always uses the newest install that has MSBuild, so that is the one checked.
+# The package build needs Visual Studio's UWP tools, which bring the XAML build targets.
+# build.js uses the newest install that has them, so any install with them will do.
 $vswhere = Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio\Installer\vswhere.exe'
 $uwpReady = $false
 if (Test-Path $vswhere) {
-    $vs = @(& $vswhere -latest -products * -requires Microsoft.Component.MSBuild -format json | ConvertFrom-Json) | Select-Object -First 1
-    if ($vs) {
+    foreach ($vs in @(& $vswhere -products * -requires Microsoft.Component.MSBuild -sort -format json | ConvertFrom-Json)) {
         $targets = Get-ChildItem (Join-Path $vs.installationPath 'MSBuild\Microsoft\WindowsXaml') -Recurse -Filter 'Microsoft.Windows.UI.Xaml.CSharp.targets' -ErrorAction SilentlyContinue
-        $uwpReady = [bool]$targets
-        $state = if ($uwpReady) { 'UWP tools present' } else { 'no UWP tools' }
-        Say "  VS     $($vs.displayName) $($vs.installationVersion) at $($vs.installationPath): $state"
+        $state = if ($targets) { 'UWP tools present' } else { 'no UWP tools' }
+        if ($targets) { $uwpReady = $true }
+        Say "  VS     $($vs.displayName) $($vs.installationVersion): $state"
     }
 }
 if (-not $uwpReady -and -not ($SkipBuild -and -not $Desktop)) {
     $missing += @'
-No Visual Studio with the UWP tools (stages 1 and 3). In the Visual Studio Installer, Modify the
-         install named above (build.js always uses the newest one) and add the workload "WinUI application development" with its optional component
-         "Universal Windows Platform tools" (older installers call it the "Universal Windows Platform
-         development" workload), plus the Windows 11 SDK 10.0.26100. CI builds with VS 2022 and these.
+No Visual Studio with the UWP tools (stages 1 and 3). Install the VS 2022 Build Tools with the UWP
+         build workload, as CI uses (admin PowerShell):
+           winget install --id Microsoft.VisualStudio.2022.BuildTools -e --override "--passive --wait --add Microsoft.VisualStudio.Workload.UniversalBuildTools --add Microsoft.VisualStudio.Component.Windows11SDK.26100 --includeRecommended"
          Or run with -SkipBuild to do stage 2 only.
 '@
 }
