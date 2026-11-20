@@ -131,21 +131,28 @@ describe('a request a Plex server only answers app.plex.tv for', () => {
 		expect(bridge.requestThroughShell).toHaveBeenCalledTimes(2);
 	});
 
-	test('asks again for a request refused after another one already let the host through', async () => {
+	test('asks again for a request refused after another one sent with it already let the host through', async () => {
 		isXbox.mockReturnValue(true);
 		getFromStorage.mockResolvedValue({allowInsecureCerts: true});
 		const refused = {status: 0, body: '', failure: 'certificate'};
+		let refuseSecond;
 		const bridge = {
 			allowInsecureHost: jest.fn(),
-			requestThroughShell: jest.fn().mockResolvedValueOnce(refused).mockResolvedValueOnce({status: 200, body: '{}'})
-				.mockResolvedValueOnce(refused).mockResolvedValueOnce({status: 200, body: '{}'})
+			requestThroughShell: jest.fn()
+				.mockResolvedValueOnce(refused)
+				.mockReturnValueOnce(new Promise((resolve) => {
+					refuseSecond = () => resolve(refused);
+				}))
+				.mockResolvedValue({status: 200, body: '{}'})
 		};
 		loadShellBridge.mockResolvedValue(bridge);
 
-		await corsFreeFetch('https://silo-saved-login:8443/api/v2/users/me');
-		const response = await corsFreeFetch('https://silo-saved-login:8443/api/v2/system/info');
+		const first = corsFreeFetch('https://silo-saved-login:8443/api/v2/users/me');
+		const second = corsFreeFetch('https://silo-saved-login:8443/api/v2/system/info');
+		expect((await first).status).toBe(200);
+		refuseSecond();
 
-		expect(response.status).toBe(200);
+		expect((await second).status).toBe(200);
 		expect(bridge.allowInsecureHost).toHaveBeenCalledTimes(1);
 		expect(bridge.requestThroughShell).toHaveBeenCalledTimes(4);
 	});

@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Runtime.InteropServices.WindowsRuntime;
 using System.Threading;
 using System.Threading.Tasks;
@@ -29,7 +30,7 @@ namespace Moonfin.Xbox
         private const int MaxHeaders = 32;
         private const int MaxRedirects = 10;
         private const uint MaxResponseBytes = 24 * 1024 * 1024;
-        private const uint ReadPieceBytes = 64 * 1024;
+        private const int ReadPieceBytes = 64 * 1024;
         private static readonly TimeSpan ShortestWait = TimeSpan.FromSeconds(1);
         // A Plex tuner is given five minutes to start (TUNE_TIMEOUT_MS in plexApi.js).
         private static readonly TimeSpan LongestWait = TimeSpan.FromMinutes(5);
@@ -74,7 +75,7 @@ namespace Moonfin.Xbox
             IJsonValue quietValue = Bridge.Named(payload, "quiet");
             bool quiet = quietValue != null && quietValue.ValueType == JsonValueType.Boolean && quietValue.GetBoolean();
 
-            string method = Bridge.NamedString(payload, "method") ?? "GET";
+            string method = (Bridge.NamedString(payload, "method") ?? "GET").ToUpperInvariant();
             string body = Bridge.NamedString(payload, "body");
             string contentType = null;
             var requestHeaders = new List<KeyValuePair<string, string>>();
@@ -96,19 +97,25 @@ namespace Moonfin.Xbox
             }
 
             HttpRequestMessage request = null;
+            // Which step of a redirect chain is being asked, and whether with the client that checks certificates.
+            int redirects = 0;
+            bool strict = true;
             using (var cancel = new CancellationTokenSource(WaitOf(payload)))
             {
                 try
                 {
                     // Redirects are followed here rather than by Windows, so that each server is
-                    // checked against the user's certificate choice, and so that the token stays on
-                    // a redirect within the server and is left off one to another, as in a browser.
-                    bool keepAuthorization = true;
-                    for (int redirects = 0; ; redirects++)
+                    // checked against the user's certificate choice, and so that the page's headers,
+                    // tokens among them, stay on a redirect within the server and are left off one
+                    // to another.
+                    bool sameServer = true;
+                    for (; ; redirects++)
                     {
                         request?.Dispose();
-                        request = NewRequest(method, uri, requestHeaders, keepAuthorization, body, contentType, contentHeaders);
-                        HttpClient chosen = isInsecureHost(uri.Authority) ? LenientClient() : Client();
+                        request = null;
+                        request = NewRequest(method, uri, requestHeaders, sameServer, body, contentType, contentHeaders);
+                        strict = !isInsecureHost(uri.Authority);
+                        HttpClient chosen = strict ? Client() : LenientClient();
                         // Only the headers first, so an answer too large to take is turned away before it is read.
                         using (HttpResponseMessage answer = await chosen.SendRequestAsync(request, HttpCompletionOption.ResponseHeadersRead).AsTask(cancel.Token))
                         {
@@ -128,29 +135,42 @@ namespace Moonfin.Xbox
                                     method = "GET";
                                     body = null;
                                 }
-                                if (!SameOrigin(uri, next)) keepAuthorization = false;
+                                if (!SameServer(uri, next))
+                                {
+                                    // A body (a login, a refresh token) never goes on to another server, nor anything from https to http.
+                                    if (body != null || (uri.Scheme == "https" && next.Scheme == "http"))
+                                    {
+                                        if (!quiet) HostLog.Write("http", uri.Host + " redirected to another server, not followed");
+                                        Answer(id, 0, "", null);
+                                        return;
+                                    }
+                                    sameServer = false;
+                                }
                                 uri = next;
                                 continue;
                             }
 
-                            byte[] bytes = await ReadBody(answer.Content, cancel.Token);
+                            MemoryStream bytes = await ReadBody(answer.Content, cancel.Token);
                             if (bytes == null)
                             {
-                                HostLog.Write("http", uri.Host + " answered with more than the relay takes");
+                                if (!quiet) HostLog.Write("http", uri.Host + " answered with more than the relay takes");
                                 Answer(id, 0, "", null);
                                 return;
                             }
-                            Answer(id, (int)answer.StatusCode, DecodeText(bytes), HeadersOf(answer));
+                            using (bytes) Answer(id, (int)answer.StatusCode, DecodeText(bytes.GetBuffer(), (int)bytes.Length), HeadersOf(answer));
                             return;
                         }
                     }
                 }
                 catch (Exception ex)
                 {
-                    // Why it failed, for the page: a certificate it may let through, or a server too slow.
+                    // Why it failed, for the page: a server too slow, or a certificate it may let through
+                    // and ask again. Only the first server's, checked by the strict client: the request
+                    // has reached no server yet then, and the page only knows that one. A server let
+                    // through shows its certificate problem on every request, whatever else went wrong.
                     string failure = null;
-                    if (request?.TransportInformation != null && request.TransportInformation.ServerCertificateErrorSeverity != SocketSslErrorSeverity.None) failure = "certificate";
-                    else if (cancel.IsCancellationRequested) failure = "timeout";
+                    if (cancel.IsCancellationRequested) failure = "timeout";
+                    else if (redirects == 0 && strict && request?.TransportInformation != null && request.TransportInformation.ServerCertificateErrorSeverity != SocketSslErrorSeverity.None) failure = "certificate";
                     if (!quiet) HostLog.Write("http", uri.Host + " failed" + (failure != null ? " (" + failure + ")" : "") + ": " + ex.Message);
                     Answer(id, 0, "", null, failure);
                 }
@@ -161,12 +181,15 @@ namespace Moonfin.Xbox
             }
         }
 
-        private static HttpRequestMessage NewRequest(string method, Uri uri, List<KeyValuePair<string, string>> headers, bool withAuthorization, string body, string contentType, List<KeyValuePair<string, string>> contentHeaders)
+        // Another server gets only the headers a browser would send it without asking first.
+        private static readonly HashSet<string> HarmlessHeaders = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "Accept", "Accept-Language" };
+
+        private static HttpRequestMessage NewRequest(string method, Uri uri, List<KeyValuePair<string, string>> headers, bool allHeaders, string body, string contentType, List<KeyValuePair<string, string>> contentHeaders)
         {
             var request = new HttpRequestMessage(new HttpMethod(method), uri);
             foreach (KeyValuePair<string, string> header in headers)
             {
-                if (!withAuthorization && string.Equals(header.Key, "Authorization", StringComparison.OrdinalIgnoreCase)) continue;
+                if (!allHeaders && !HarmlessHeaders.Contains(header.Key)) continue;
                 request.Headers.TryAppendWithoutValidation(header.Key, header.Value);
             }
             if (body != null)
@@ -193,27 +216,33 @@ namespace Moonfin.Xbox
             return next;
         }
 
-        private static bool SameOrigin(Uri a, Uri b)
+        // The same host, at the same scheme and port or moved from http to https.
+        private static bool SameServer(Uri from, Uri to)
         {
-            return a.Scheme == b.Scheme && a.Port == b.Port && string.Equals(a.Host, b.Host, StringComparison.OrdinalIgnoreCase);
+            if (!string.Equals(from.Host, to.Host, StringComparison.OrdinalIgnoreCase)) return false;
+            return (from.Scheme == to.Scheme && from.Port == to.Port) || (from.Scheme == "http" && to.Scheme == "https");
         }
 
         // The body a piece at a time, so one with no length given stops at the limit rather
         // than being read whole first. Null when it is larger than that.
-        private static async Task<byte[]> ReadBody(IHttpContent content, CancellationToken cancel)
+        private static async Task<MemoryStream> ReadBody(IHttpContent content, CancellationToken cancel)
         {
             ulong? announced = content.Headers.ContentLength;
             if (announced.HasValue && announced.Value > MaxResponseBytes) return null;
-            using (IInputStream stream = await content.ReadAsInputStreamAsync().AsTask(cancel))
-            using (var bytes = new System.IO.MemoryStream())
+            var bytes = new MemoryStream(announced.HasValue ? (int)announced.Value : 0);
+            using (Stream stream = (await content.ReadAsInputStreamAsync().AsTask(cancel)).AsStreamForRead())
             {
-                var piece = new Windows.Storage.Streams.Buffer(ReadPieceBytes);
+                var piece = new byte[ReadPieceBytes];
                 while (true)
                 {
-                    IBuffer read = await stream.ReadAsync(piece, piece.Capacity, InputStreamOptions.Partial).AsTask(cancel);
-                    if (read.Length == 0) return bytes.ToArray();
-                    if ((ulong)bytes.Length + read.Length > MaxResponseBytes) return null;
-                    read.AsStream().CopyTo(bytes);
+                    int read = await stream.ReadAsync(piece, 0, piece.Length, cancel);
+                    if (read == 0) return bytes;
+                    if ((ulong)bytes.Length + (ulong)read > MaxResponseBytes)
+                    {
+                        bytes.Dispose();
+                        return null;
+                    }
+                    bytes.Write(piece, 0, read);
                 }
             }
         }
@@ -232,10 +261,10 @@ namespace Moonfin.Xbox
         // As a browser reads a body as text: UTF-8 without its byte order mark, and a byte
         // that isnt UTF-8 (a subtitle file saved as Latin-1) as a replacement character
         // rather than a failed request.
-        private static string DecodeText(byte[] bytes)
+        private static string DecodeText(byte[] bytes, int length)
         {
-            int start = bytes.Length >= 3 && bytes[0] == 0xEF && bytes[1] == 0xBB && bytes[2] == 0xBF ? 3 : 0;
-            return System.Text.Encoding.UTF8.GetString(bytes, start, bytes.Length - start);
+            int start = length >= 3 && bytes[0] == 0xEF && bytes[1] == 0xBB && bytes[2] == 0xBF ? 3 : 0;
+            return System.Text.Encoding.UTF8.GetString(bytes, start, length - start);
         }
 
         // Named in lower case, as the page looks them up.
