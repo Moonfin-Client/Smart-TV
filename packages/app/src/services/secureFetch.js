@@ -213,7 +213,9 @@ export const corsFreeFetch = async (url, options = {}, timeoutMs) => {
 	if (!bridge?.requestThroughShell) return platformFetch(url, options, timeoutMs);
 	if (options.signal?.aborted) throw abortError();
 	return traceRequest(`${options.method || 'GET'} (shell)`, url, async () => {
-		const answer = await bridge.requestThroughShell(url, options, timeoutMs);
+		let answer = await bridge.requestThroughShell(url, options, timeoutMs);
+		// A certificate the shell refused, once the user's setting lets it through, as platformFetch does.
+		if (!answer.status && await allowHostInShell(url)) answer = await bridge.requestThroughShell(url, options, timeoutMs);
 		if (answer.status) return makeResponse(answer);
 		const err = new Error('Shell request failed');
 		err.connectionType = DNS_OR_NETWORK;

@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Runtime.InteropServices.WindowsRuntime;
 using System.Threading;
 using System.Threading.Tasks;
 using Windows.Data.Json;
@@ -70,6 +71,8 @@ namespace Moonfin.Xbox
                 using (var cancel = new CancellationTokenSource(WaitOf(payload)))
                 {
                     string contentType = null;
+                    // The others that describe the body go on the body, where Windows takes them.
+                    var contentHeaders = new List<KeyValuePair<string, string>>();
                     IJsonValue headers = Bridge.Named(payload, "headers");
                     if (headers != null && headers.ValueType == JsonValueType.Object)
                     {
@@ -78,8 +81,10 @@ namespace Moonfin.Xbox
                         {
                             if (count++ >= MaxHeaders) break;
                             if (header.Value.ValueType != JsonValueType.String) continue;
-                            if (string.Equals(header.Key, "Content-Type", StringComparison.OrdinalIgnoreCase)) contentType = header.Value.GetString();
-                            else request.Headers.TryAppendWithoutValidation(header.Key, header.Value.GetString());
+                            string value = header.Value.GetString();
+                            if (string.Equals(header.Key, "Content-Type", StringComparison.OrdinalIgnoreCase)) contentType = value;
+                            else if (header.Key.StartsWith("Content-", StringComparison.OrdinalIgnoreCase)) contentHeaders.Add(new KeyValuePair<string, string>(header.Key, value));
+                            else request.Headers.TryAppendWithoutValidation(header.Key, value);
                         }
                     }
                     string body = Bridge.NamedString(payload, "body");
@@ -88,24 +93,26 @@ namespace Moonfin.Xbox
                         // The body goes as UTF-8 whatever charset the page named, and says so.
                         string mediaType = (contentType ?? "text/plain").Split(';')[0].Trim();
                         request.Content = new HttpStringContent(body, UnicodeEncoding.Utf8, mediaType.Length > 0 ? mediaType : "text/plain");
+                        foreach (KeyValuePair<string, string> header in contentHeaders)
+                        {
+                            // Its length is the content's own.
+                            if (!string.Equals(header.Key, "Content-Length", StringComparison.OrdinalIgnoreCase)) request.Content.Headers.TryAppendWithoutValidation(header.Key, header.Value);
+                        }
                     }
 
                     HttpClient chosen = isInsecureHost(uri.Authority) ? LenientClient() : Client();
-                    using (HttpResponseMessage answer = await chosen.SendRequestAsync(request).AsTask(cancel.Token))
+                    // Only the headers first, so an answer too large to take is turned away before it is read.
+                    using (HttpResponseMessage answer = await chosen.SendRequestAsync(request, HttpCompletionOption.ResponseHeadersRead).AsTask(cancel.Token))
                     {
-                        IBuffer buffer = await answer.Content.ReadAsBufferAsync().AsTask(cancel.Token);
-                        if (buffer.Length > MaxResponseBytes)
+                        ulong? announced = answer.Content.Headers.ContentLength;
+                        IBuffer buffer = announced.HasValue && announced.Value > MaxResponseBytes ? null : await answer.Content.ReadAsBufferAsync().AsTask(cancel.Token);
+                        if (buffer == null || buffer.Length > MaxResponseBytes)
                         {
                             HostLog.Write("http", uri.Host + " answered with more than the relay takes");
                             Answer(id, 0, "", null);
                             return;
                         }
-                        string text;
-                        using (DataReader reader = DataReader.FromBuffer(buffer))
-                        {
-                            reader.UnicodeEncoding = UnicodeEncoding.Utf8;
-                            text = reader.ReadString(buffer.Length);
-                        }
+                        string text = DecodeText(buffer.ToArray());
                         Answer(id, (int)answer.StatusCode, text, HeadersOf(answer));
                     }
                 }
@@ -125,6 +132,15 @@ namespace Moonfin.Xbox
             answer.SetNamedValue("body", JsonValue.CreateStringValue(body));
             answer.SetNamedValue("headers", headers ?? new JsonObject());
             sendToPage("HTTP_RESPONSE", answer);
+        }
+
+        // As a browser reads a body as text: UTF-8 without its byte order mark, and a byte
+        // that isnt UTF-8 (a subtitle file saved as Latin-1) as a replacement character
+        // rather than a failed request.
+        private static string DecodeText(byte[] bytes)
+        {
+            int start = bytes.Length >= 3 && bytes[0] == 0xEF && bytes[1] == 0xBB && bytes[2] == 0xBF ? 3 : 0;
+            return System.Text.Encoding.UTF8.GetString(bytes, start, bytes.Length - start);
         }
 
         // Named in lower case, as the page looks them up.

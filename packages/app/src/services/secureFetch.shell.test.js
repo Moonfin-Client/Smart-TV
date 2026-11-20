@@ -115,6 +115,22 @@ describe('a request a Plex server only answers app.plex.tv for', () => {
 		expect(fetchWithTimeout).not.toHaveBeenCalled();
 	});
 
+	test('lets the host through a certificate it refused once the setting allows it, and asks again', async () => {
+		isXbox.mockReturnValue(true);
+		getFromStorage.mockResolvedValue({allowInsecureCerts: true});
+		const bridge = {
+			allowInsecureHost: jest.fn(),
+			requestThroughShell: jest.fn().mockResolvedValueOnce({status: 0, body: ''}).mockResolvedValueOnce({status: 200, body: '{}'})
+		};
+		loadShellBridge.mockResolvedValue(bridge);
+
+		const response = await corsFreeFetch('https://silo-self-signed:8443/api/v2/system/info');
+
+		expect(response.status).toBe(200);
+		expect(bridge.allowInsecureHost).toHaveBeenCalledWith('silo-self-signed:8443');
+		expect(bridge.requestThroughShell).toHaveBeenCalledTimes(2);
+	});
+
 	test('fails as a network error when nothing answers the shell', async () => {
 		isVega.mockReturnValue(true);
 		loadShellBridge.mockResolvedValue({requestThroughShell: jest.fn().mockResolvedValue({status: 0, body: ''})});

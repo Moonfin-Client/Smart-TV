@@ -73,7 +73,9 @@ export const exitApp = () => postToShell('EXIT_APP');
 export const allowInsecureHost = (authority) => postToShell('ALLOW_INSECURE_HOST', {host: authority});
 
 const waitingRequests = new Map();
-let nextRequestId = 0;
+// Starts somewhere new on every load, so an answer the host sends for the page before a
+// reload can't be taken for one of this page's own.
+let nextRequestId = Math.floor(Math.random() * 1e9);
 let hearingAnswers = false;
 
 // The host makes the request, since the WebView holds an answer back from the page
