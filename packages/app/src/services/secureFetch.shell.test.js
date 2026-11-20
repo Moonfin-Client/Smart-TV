@@ -1,12 +1,12 @@
 jest.mock('@enact/i18n/$L', () => (text) => text);
-jest.mock('../platform', () => ({isWebOS: () => false, isVega: jest.fn(() => false)}));
+jest.mock('../platform', () => ({isWebOS: () => false, isVega: jest.fn(() => false), isXbox: jest.fn(() => false)}));
 jest.mock('../utils/fetchTimeout', () => ({...jest.requireActual('../utils/fetchTimeout'), fetchWithTimeout: jest.fn()}));
 jest.mock('../utils/networkLogSink', () => ({traceRequest: (url, options, send) => send()}));
 jest.mock('./storage', () => ({getFromStorage: jest.fn()}));
 jest.mock('./shellBridge', () => ({loadShellBridge: jest.fn()}));
 
 import {fetchWithTimeout} from '../utils/fetchTimeout';
-import {isVega} from '../platform';
+import {isVega, isXbox} from '../platform';
 import {corsFreeFetch, platformFetch} from './secureFetch';
 import {loadShellBridge} from './shellBridge';
 import {getFromStorage} from './storage';
@@ -83,7 +83,10 @@ describe('a certificate the shell refuses', () => {
 
 describe('a request a Plex server only answers app.plex.tv for', () => {
 	beforeEach(() => fetchWithTimeout.mockReset());
-	afterEach(() => isVega.mockReturnValue(false));
+	afterEach(() => {
+		isVega.mockReturnValue(false);
+		isXbox.mockReturnValue(false);
+	});
 
 	test('is made by the shell on Fire TV', async () => {
 		isVega.mockReturnValue(true);
@@ -94,6 +97,21 @@ describe('a request a Plex server only answers app.plex.tv for', () => {
 
 		expect(await response.json()).toEqual({MediaContainer: {}});
 		expect(bridge.requestThroughShell).toHaveBeenCalledWith('http://plex:32400/identity', {headers: {Accept: 'application/json'}}, 4000);
+		expect(fetchWithTimeout).not.toHaveBeenCalled();
+	});
+
+	test('is made by the host on Xbox, where Silo would hold its answers back too', async () => {
+		isXbox.mockReturnValue(true);
+		const bridge = {requestThroughShell: jest.fn().mockResolvedValue({status: 201, body: '{"ok":true}', headers: {'content-type': 'application/json'}})};
+		loadShellBridge.mockResolvedValue(bridge);
+		const options = {method: 'POST', headers: {'Content-Type': 'application/json'}, body: '{"username":"a"}'};
+
+		const response = await corsFreeFetch('http://silo:8090/api/v2/auth/login', options, 15000);
+
+		expect(response.status).toBe(201);
+		expect(response.headers.get('Content-Type')).toBe('application/json');
+		expect(await response.json()).toEqual({ok: true});
+		expect(bridge.requestThroughShell).toHaveBeenCalledWith('http://silo:8090/api/v2/auth/login', options, 15000);
 		expect(fetchWithTimeout).not.toHaveBeenCalled();
 	});
 

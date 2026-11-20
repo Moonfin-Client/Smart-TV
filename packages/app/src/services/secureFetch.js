@@ -20,7 +20,7 @@
 import {abortError, fetchWithTimeout} from '../utils/fetchTimeout';
 import {classifyError, INSECURE_CERT, DNS_OR_NETWORK} from '../utils/connectionErrors';
 import {traceRequest} from '../utils/networkLogSink';
-import {isVega, isWebOS} from '../platform';
+import {isVega, isWebOS, isXbox} from '../platform';
 import {getFromStorage} from './storage';
 import {loadShellBridge} from './shellBridge';
 
@@ -205,11 +205,11 @@ export const originFreeFetch = (url, options = {}, timeoutMs) => {
 };
 
 // A Plex server only lets app.plex.tv read its answers across origins, Silo sends no CORS
-// headers, and the page on Fire TV sits at file://, so the shell makes those requests
-// there. The shell can't stop a request it has sent, so a caller that gives up only stops one
+// headers, and the page on Fire TV sits at file:// and on Xbox at http://moonfin.internal,
+// so the shell makes those requests there. The shell can't stop a request it has sent, so a caller that gives up only stops one
 // that hasn't gone out yet. One already sent is waited for and keeps its place in the queue.
 export const corsFreeFetch = async (url, options = {}, timeoutMs) => {
-	const bridge = isVega() ? await loadShellBridge() : null;
+	const bridge = isVega() || isXbox() ? await loadShellBridge() : null;
 	if (!bridge?.requestThroughShell) return platformFetch(url, options, timeoutMs);
 	if (options.signal?.aborted) throw abortError();
 	return traceRequest(`${options.method || 'GET'} (shell)`, url, async () => {
