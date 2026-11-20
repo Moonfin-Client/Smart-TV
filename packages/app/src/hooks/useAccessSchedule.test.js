@@ -338,64 +338,6 @@ describe('useAccessSchedule', () => {
 			expect(fetchAccessWindow).toHaveBeenCalledTimes(2);
 		});
 
-		test('offline, ends an allowed window at the close it reported', async () => {
-			let offline = false;
-			const fetchAccessWindow = jest.fn(async () => {
-				if (offline) throw new Error('offline');
-				return windowOf(true, 90 * 1000);
-			});
-			const fetchUser = jest.fn(async () => {
-				if (offline) throw new Error('offline');
-				return user;
-			});
-			const {result, onBlocked} = mount({fetchAccessWindow, fetchUser});
-			await flush();
-			offline = true;
-			clock = at(12, 1);
-			await flush(60 * 1000);
-			expect(result.current.blocked).toBe(false);
-
-			clock = at(12, 1, 30);
-			await flush(15 * 1000);
-			expect(result.current.blocked).toBe(true);
-			expect(result.current.nextAccess).toBeNull();
-			expect(onBlocked).toHaveBeenCalledTimes(1);
-		});
-
-		test('offline, ends a block from the window at the opening it reported', async () => {
-			clock = at(21);
-			let offline = false;
-			const fetchAccessWindow = jest.fn(async () => {
-				if (offline) throw new Error('offline');
-				return windowOf(false, null, 90 * 1000);
-			});
-			const fetchUser = jest.fn(async () => {
-				if (offline) throw new Error('offline');
-				return user;
-			});
-			const {result} = mount({fetchAccessWindow, fetchUser});
-			await flush();
-			expect(result.current.blocked).toBe(true);
-			offline = true;
-			clock = at(21, 1);
-			await flush(60 * 1000);
-			expect(result.current.blocked).toBe(true);
-
-			clock = at(21, 1, 30);
-			await flush(15 * 1000);
-			expect(result.current.blocked).toBe(false);
-		});
-
-		test('gives up on a window read that stalls', async () => {
-			clock = at(21);
-			const fetchAccessWindow = jest.fn(() => new Promise(() => {}));
-			const {result, fetchUser} = mount({fetchAccessWindow});
-			await flush(60 * 1000);
-
-			expect(fetchUser).toHaveBeenCalledTimes(1);
-			expect(result.current.blocked).toBe(true);
-		});
-
 		test('falls back to the schedule and the server when it can\'t say, and stops asking', async () => {
 			clock = at(21);
 			const serverRefuses = jest.fn(async () => true);

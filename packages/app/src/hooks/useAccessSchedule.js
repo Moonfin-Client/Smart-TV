@@ -5,8 +5,6 @@ const MAX_WAIT_MS = 60 * 1000;
 const IDLE_WAIT_MS = 15 * 60 * 1000;
 const BLOCKED_RECHECK_MS = 60 * 1000;
 const RETRY_MS = 15 * 1000;
-// A window read that stalls (the transport's timeout ends once headers arrive) gives up after this.
-const WINDOW_TIMEOUT_MS = 60 * 1000;
 
 /**
  * Tells whether the signed-in user is outside the hours Jellyfin lets them use the server, which
@@ -48,10 +46,6 @@ export const useAccessSchedule = ({userId, enabled, fetchUser, serverRefuses, fe
 		let blocked = false;
 		// Set when the server says it can't answer the access window, so this user's checks stop asking.
 		let windowUnsupported = false;
-		// When the allowed window the plugin last reported closes, in ms on this TV's clock.
-		let windowCloses = null;
-		// When the window the plugin last reported as closed opens again, in ms on this TV's clock.
-		let windowOpens = null;
 		// Checks can overlap, so each is numbered and none replaces the answer of one started after it.
 		let started = 0;
 		let applied = 0;
@@ -75,8 +69,6 @@ export const useAccessSchedule = ({userId, enabled, fetchUser, serverRefuses, fe
 		// The plugin's answer alone decides and times the next check.
 		const applyWindow = (answer) => {
 			const now = latest.current.getNow();
-			windowCloses = answer.allowed && answer.untilCloseMs !== null ? now.getTime() + answer.untilCloseMs : null;
-			windowOpens = !answer.allowed && answer.untilOpenMs !== null ? now.getTime() + answer.untilOpenMs : null;
 			const wasBlocked = blocked;
 			blocked = !answer.allowed;
 			// Named on this device's clock, as the moment it comes on it, to the nearest minute: a
@@ -102,10 +94,7 @@ export const useAccessSchedule = ({userId, enabled, fetchUser, serverRefuses, fe
 				let answer;
 				let failed = false;
 				try {
-					answer = await Promise.race([
-						loadWindow(),
-						new Promise((resolve, reject) => setTimeout(reject, WINDOW_TIMEOUT_MS))
-					]);
+					answer = await loadWindow();
 				} catch (e) {
 					// This check falls back to the schedule and the server; the plugin is asked again next time.
 					failed = true;
@@ -123,22 +112,8 @@ export const useAccessSchedule = ({userId, enabled, fetchUser, serverRefuses, fe
 			try {
 				user = await latest.current.fetchUser();
 			} catch (e) {
-				// Keep the last schedule, but a window that is already closed stays closed. Offline, where
-				// the server can't stop a download, an allowed window ends at the close the plugin reported,
-				// and a block at the opening it reported.
-				if (cancelled || look < applied) return;
-				const nowMs = latest.current.getNow().getTime();
-				if (!blocked && windowCloses !== null && nowMs >= windowCloses) {
-					windowCloses = null;
-					blocked = true;
-					setState({blocked: true, nextAccess: null});
-					latest.current.onBlocked?.();
-				} else if (blocked && windowOpens !== null && nowMs >= windowOpens) {
-					windowOpens = null;
-					blocked = false;
-					setState({blocked: false, nextAccess: null});
-				}
-				schedule(RETRY_MS);
+				// Keep the last schedule, but a window that is already closed stays closed.
+				if (!cancelled && look >= applied) schedule(RETRY_MS);
 				return;
 			}
 			if (cancelled || look < applied) return;
@@ -153,8 +128,6 @@ export const useAccessSchedule = ({userId, enabled, fetchUser, serverRefuses, fe
 			applied = look;
 			exempt = isExempt;
 			schedules = fresh;
-			windowCloses = null;
-			windowOpens = null;
 			const now = latest.current.getNow();
 			apply(now, refused);
 			if (exempt) return;
