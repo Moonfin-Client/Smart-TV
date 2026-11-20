@@ -17,7 +17,7 @@
  * rejection we surface `INSECURE_CERT` so the UI can show actionable guidance.
  */
 
-import {fetchWithTimeout} from '../utils/fetchTimeout';
+import {abortError, fetchWithTimeout} from '../utils/fetchTimeout';
 import {classifyError, INSECURE_CERT, DNS_OR_NETWORK} from '../utils/connectionErrors';
 import {traceRequest} from '../utils/networkLogSink';
 import {isVega, isWebOS} from '../platform';
@@ -204,11 +204,14 @@ export const originFreeFetch = (url, options = {}, timeoutMs) => {
 	return canProxy ? proxyRequest(url, options, timeoutMs, false) : fetch(url, options);
 };
 
-// A Plex server only lets app.plex.tv read its answers across origins, and the page on
-// Fire TV sits at file://, so the shell makes those requests there.
+// A Plex server only lets app.plex.tv read its answers across origins, Silo sends no CORS
+// headers, and the page on Fire TV sits at file://, so the shell makes those requests
+// there. The shell can't stop a request it has sent, so a caller that gives up only stops one
+// that hasn't gone out yet. One already sent is waited for and keeps its place in the queue.
 export const corsFreeFetch = async (url, options = {}, timeoutMs) => {
 	const bridge = isVega() ? await loadShellBridge() : null;
 	if (!bridge?.requestThroughShell) return platformFetch(url, options, timeoutMs);
+	if (options.signal?.aborted) throw abortError();
 	return traceRequest(`${options.method || 'GET'} (shell)`, url, async () => {
 		const answer = await bridge.requestThroughShell(url, options, timeoutMs);
 		if (answer.status) return makeResponse(answer);

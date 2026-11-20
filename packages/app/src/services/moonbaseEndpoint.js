@@ -3,8 +3,9 @@
 //
 // Jellyfin and Emby serve Moonbase at the server root and take the MediaBrowser token. Silo serves it as a plugin
 // (siloMoonbase.js) and takes Silo's own headers: the bearer token and the profile with its PIN proof. Plex uses the
-// Moonbase for Plex companion (plexMoonbase.js), which takes the PMS token, never the plex.tv account token. Its
-// endpoint carries the fetch to reach it with, since on Fire TV that goes through the shell like every Plex request.
+// Moonbase for Plex companion (plexMoonbase.js), which takes the PMS token, never the plex.tv account token. Both
+// endpoints carry the fetch to reach them with, since on Fire TV those go through the shell like every other Silo and
+// Plex request.
 
 import {createApiForServer, getServerUrl, getUserId} from './jellyfinApi';
 import {loadSiloSessions, siloServerKey, siloSessionFor} from './siloSession';
@@ -36,7 +37,7 @@ export const moonbaseEndpoint = async (serverUrl, token, serverType) => {
 	const base = await findSiloMoonbase(serverUrl, () => silo.getInstalledPlugins());
 	if (!base) return null;
 	const headers = await silo.requestHeaders();
-	return headers ? {base, headers} : null;
+	return headers ? {base, headers, fetch: corsFreeFetch} : null;
 };
 
 // A Moonbase address loaded by URL (an icon or a picture), so it carries its credential in the query on Silo, whose

@@ -45,7 +45,7 @@ describe('the Moonbase endpoint', () => {
 	test('is Moonbase\'s plugin path with Silo\'s headers on Silo, found once', async () => {
 		const {moonbaseEndpoint, moonbaseAssetUrl} = load();
 		mockSilo.getInstalledPlugins.mockResolvedValue({items: [{id: '3', plugin_id: 'other'}, {id: '6', plugin_id: 'moonfin.moonbase'}]});
-		const expected = {base: 'http://silo:8090/api/v2/plugin-content/plugins/6', headers: {Authorization: 'Bearer silo-token', 'X-Profile-Id': 'p1'}};
+		const expected = {base: 'http://silo:8090/api/v2/plugin-content/plugins/6', headers: {Authorization: 'Bearer silo-token', 'X-Profile-Id': 'p1'}, fetch: 'shell fetch'};
 		expect(await moonbaseEndpoint('http://silo:8090', 'silo-token')).toEqual(expected);
 		expect(await moonbaseEndpoint('http://silo:8090', 'silo-token')).toEqual(expected);
 		expect(mockSilo.getInstalledPlugins).toHaveBeenCalledTimes(1);
