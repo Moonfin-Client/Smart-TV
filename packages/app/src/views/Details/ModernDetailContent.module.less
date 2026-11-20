@@ -454,6 +454,12 @@
 	border-width: 4px;
 }
 
+// The row's 38px radius leaves an 86px square with flat sides; the circles need half their width.
+.actionsStacked > .actionBtn:not(:first-child),
+.actionsCentered > .actionBtn:not(:first-child) {
+	border-radius: 50%;
+}
+
 .actionsStacked > .actionBtn ~ .actionBtn ~ .actionBtn ~ .actionBtn ~ .actionBtn {
 	margin-right: 0;
 }
