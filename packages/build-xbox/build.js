@@ -341,11 +341,26 @@ const manifestPublisher = () => {
 	return match[1];
 };
 
+// Whether a Visual Studio install has the UWP tools, which bring the XAML build targets the
+// project imports.
+const hasUwpTools = (installationPath) => {
+	const xaml = path.join(installationPath, 'MSBuild', 'Microsoft', 'WindowsXaml');
+	return fs.existsSync(xaml) && fs.readdirSync(xaml).some((version) => fs.existsSync(path.join(xaml, version, 'Microsoft.Windows.UI.Xaml.CSharp.targets')));
+};
+
+// The newest Visual Studio with the UWP tools. A newer one without them can sit beside an older
+// one that has them (Visual Studio 2026 next to the 2022 Build Tools CI uses), so the newest
+// install alone isnt enough. With none that has them, the newest is used and says what is missing.
 const findMSBuild = () => {
 	const vswhere = path.join(process.env['ProgramFiles(x86)'] || '', 'Microsoft Visual Studio', 'Installer', 'vswhere.exe');
 	if (process.platform !== 'win32' || !fs.existsSync(vswhere)) return null;
-	const found = execFileSync(vswhere, ['-latest', '-products', '*', '-requires', 'Microsoft.Component.MSBuild', '-find', 'MSBuild\\**\\Bin\\MSBuild.exe'], {encoding: 'utf8'});
-	return found.split(/\r?\n/).map((line) => line.trim()).filter(Boolean)[0] || null;
+	const installs = JSON.parse(execFileSync(vswhere, ['-products', '*', '-requires', 'Microsoft.Component.MSBuild', '-sort', '-format', 'json'], {encoding: 'utf8'}) || '[]');
+	const withMSBuild = installs
+		.map((install) => ({install, msbuild: path.join(install.installationPath, 'MSBuild', 'Current', 'Bin', 'MSBuild.exe')}))
+		.filter(({msbuild}) => fs.existsSync(msbuild));
+	const chosen = withMSBuild.find(({install}) => hasUwpTools(install.installationPath)) || withMSBuild[0];
+	if (chosen) console.log(` Using ${chosen.install.displayName || 'Visual Studio'} ${chosen.install.installationVersion || ''} at ${chosen.install.installationPath}`);
+	return chosen ? chosen.msbuild : null;
 };
 
 // A code signing certificate of the manifest's publisher, made in memory and written
