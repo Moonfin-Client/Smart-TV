@@ -3410,5 +3410,9 @@
     "1 Season": "1 temporada",
     "Glide between rows and cards instead of jumping. On by default only on TVs fast enough for it.": "Llisca entre files i targetes en lloc de saltar. Per defecte, només està activat als televisors prou ràpids.",
     "Unavailable": "No disponible",
-    "Not changed on {servers}": "No s'ha canviat a {servers}"
+    "Not changed on {servers}": "No s'ha canviat a {servers}",
+    "Merge Libraries by Type": "Fusiona les biblioteques per tipus",
+    "Show every server's movie libraries as one Movies library and their show libraries as one TV Shows library, with a title several servers hold listed once": "Mostra les biblioteques de pel·lícules de tots els servidors com una sola biblioteca de pel·lícules i les de sèries com una sola biblioteca de sèries. Un títol que tinguin diversos servidors només apareix una vegada",
+    "{percent}% watched": "{percent}% vist",
+    "On {count} servers": "A {count} servidors"
 }
