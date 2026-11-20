@@ -206,17 +206,14 @@ export const originFreeFetch = (url, options = {}, timeoutMs) => {
 
 // A Plex server only lets app.plex.tv read its answers across origins, and Silo answers no
 // CORS at all, while the page on Fire TV sits at file://, so the shell makes those requests
-// there. The shell can't stop a request it has sent, so an aborted caller stops waiting for it.
+// there. The shell can't stop a request it has sent, so a caller that has given up only keeps
+// it from being sent; one already sent is waited for, so it keeps its place in the request queue.
 export const corsFreeFetch = async (url, options = {}, timeoutMs) => {
 	const bridge = isVega() ? await loadShellBridge() : null;
 	if (!bridge?.requestThroughShell) return platformFetch(url, options, timeoutMs);
-	const {signal} = options;
-	if (signal?.aborted) throw abortError();
+	if (options.signal?.aborted) throw abortError();
 	return traceRequest(`${options.method || 'GET'} (shell)`, url, async () => {
-		const request = bridge.requestThroughShell(url, options, timeoutMs);
-		const answer = await (signal ? Promise.race([request, new Promise((_, reject) => {
-			signal.addEventListener('abort', () => reject(abortError()), {once: true});
-		})]) : request);
+		const answer = await bridge.requestThroughShell(url, options, timeoutMs);
 		if (answer.status) return makeResponse(answer);
 		const err = new Error('Shell request failed');
 		err.connectionType = DNS_OR_NETWORK;
