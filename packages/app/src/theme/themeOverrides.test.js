@@ -126,6 +126,22 @@ describe('buildThemeOverrideCss', () => {
 		expect(buildThemeOverrideCss(theme, {focusBorderColor: ''})).toContain(`${prefix} .ring { border-color: ${themeColor}; }`);
 	});
 
+	it('outlines the trickplay tile in the focus border color, and draws the settings preview\'s seek bar like the player\'s', () => {
+		const theme = resolveThemeById('8bit_hero');
+		const c = theme.colors;
+		registerThemeSheet('trickplay', {tile: 'tpTile', tileActive: 'tpTileActive'});
+		registerThemeSheet('trickplaySettings', {tile: 'tsTile', tileActive: 'tsTileActive', frame: 'tsFrame', bar: 'tsBar', barFill: 'tsBarFill', barThumb: 'tsBarThumb', hint: 'tsHint'});
+		const prefix = "html[data-theme-id='8bit_hero'][data-theme-id]";
+		const lines = buildThemeOverrideCss(theme, {focusBorderColor: '#ff0000'}).split('\n');
+		const accentGlow = `0 0 16px rgba(${toCssColor(c.accent).match(/\d+/g).slice(0, 3).join(', ')}, 0.5)`;
+		expect(lines).toContain(`${prefix} .tpTileActive { border-color: rgb(255, 0, 0); box-shadow: ${accentGlow}; }`);
+		expect(lines).toContain(`${prefix} .tsTileActive { border-color: rgb(255, 0, 0); box-shadow: ${accentGlow}; }`);
+		expect(lines).toContain(`${prefix} .tsFrame:focus { box-shadow: 0 0 0 3px rgb(255, 0, 0); }`);
+		expect(lines).toContain(`${prefix} .tsBar { background: ${toCssColor(c.rangeTrack)}; }`);
+		expect(lines).toContain(`${prefix} .tsBarFill { background: ${toCssColor(c.rangeProgress)}; }`);
+		expect(lines).toContain(`${prefix} .tsBarThumb { background: ${toCssColor(c.rangeThumb)}; }`);
+	});
+
 	it('draws Switch User in the theme accent, inside the switcher only, and keeps Sign Out All Users red', () => {
 		const theme = resolveThemeById('moonfin');
 		const accent = toCssColor(theme.colors.accent);

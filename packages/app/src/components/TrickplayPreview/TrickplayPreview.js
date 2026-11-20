@@ -3,8 +3,11 @@ import * as jellyfinApi from '../../services/jellyfinApi';
 import {plexTrickplayFrameUrl} from '../../utils/plexUrls';
 import {planSeekSheetIndexes, trickplayTile} from '../../utils/trickplaySheets';
 import {VERTICAL_TRAVEL_TOP_MARGIN, planTrickplayPreview} from '../../utils/trickplayLayout';
+import {registerThemeSheet} from '../../theme/themeOverrides';
 
 import css from './TrickplayPreview.module.less';
+
+registerThemeSheet('trickplay', css);
 
 export const getTrickplayManifest = async (itemId, mediaSourceId) => {
     const serverType = jellyfinApi.getServerType();

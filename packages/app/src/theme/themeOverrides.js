@@ -830,7 +830,7 @@ export const buildThemeOverrideCss = (theme, options = {}) => {
 	});
 
 	// Focus rings on the screens that load on demand
-	const {player, playerOverlays, episodeBrowser, genreBrowse, seerrDiscover, seerrBrowse, seerrPosterCard, calendar} = lazySheets;
+	const {player, playerOverlays, episodeBrowser, genreBrowse, seerrDiscover, seerrBrowse, seerrPosterCard, calendar, trickplay, trickplaySettings} = lazySheets;
 	const ring = (sheet, names, states) => names.flatMap((name) => states.map((state) => `.${sheet[name]}${state}`)).join(', ');
 	if (player) {
 		rule(ring(player, ['liveBtn', 'chapterItem'], [':hover', ':focus']), `border-color: ${focusColor};`);
@@ -846,6 +846,18 @@ export const buildThemeOverrideCss = (theme, options = {}) => {
 		if (theme.fontFamily) {
 			rule(`.${player.subtitleText}:lang(ja)`, `font-family: 'NotoSansJP', '${theme.id === 'neon_pulse' ? 'NeonPulseBody' : theme.fontFamily}', sans-serif;`);
 		}
+	}
+	// The trickplay strip while seeking, and its stand-in on the settings screen with the player's seek bar
+	[trickplay, trickplaySettings].filter(Boolean).forEach((sheet) => {
+		rule(`.${sheet.tile}`, `border-color: ${os(0.2)};`);
+		rule(`.${sheet.tileActive}`, `border-color: ${focusColor}; box-shadow: 0 0 16px ${accentA(0.5)};`);
+	});
+	if (trickplaySettings) {
+		rule(`.${trickplaySettings.frame}:focus`, `box-shadow: 0 0 0 3px ${focusColor};`);
+		rule(`.${trickplaySettings.bar}`, `background: ${rangeTrack};`);
+		rule(`.${trickplaySettings.barFill}`, `background: ${rangeProgress};`);
+		rule(`.${trickplaySettings.barThumb}`, `background: ${rangeThumb};`);
+		rule(`.${trickplaySettings.hint}`, `color: ${os(0.6)};`);
 	}
 	if (playerOverlays) {
 		rule(ring(playerOverlays, ['offsetBtn', 'actionBtn', 'settingItem'], [':hover', ':focus']), `border-color: ${focusColor};`);

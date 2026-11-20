@@ -4,9 +4,12 @@ import Spottable from '@enact/spotlight/Spottable';
 
 import {useSettings} from '../../context/SettingsContext';
 import {VERTICAL_TRAVEL_TOP_MARGIN, planTrickplayPreview, trackXForPosition} from '../../utils/trickplayLayout';
+import {registerThemeSheet} from '../../theme/themeOverrides';
 import {coverSize} from './TrickplayPreview';
 
 import css from './TrickplaySettingsPreview.module.less';
+
+registerThemeSheet('trickplaySettings', css);
 
 const SpottableDiv = Spottable('div');
 
