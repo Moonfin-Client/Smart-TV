@@ -87,13 +87,48 @@ $branch = (git -C $Repo rev-parse --abbrev-ref HEAD) 2>$null
 Say "  repo   $Repo ($branch)"
 git -C $Repo merge-base --is-ancestor 0c19079a HEAD 2>$null
 if ($LASTEXITCODE -ne 0) { Say '  The checkout does not have commit 0c19079a (the review fixes). Pull the branch first.' 'Yellow' }
-foreach ($tool in 'node', 'npm', 'dotnet') {
-    if (-not (Get-Command $tool -ErrorAction SilentlyContinue)) { Say "  $tool is not on PATH." 'Red'; exit 1 }
+$missing = @()
+foreach ($tool in 'node', 'npm') {
+    if (-not (Get-Command $tool -ErrorAction SilentlyContinue)) { $missing += "$tool is not on PATH." }
 }
-Say "  node   $(node --version)"
-Say "  dotnet $(dotnet --version)"
+if (Get-Command node -ErrorAction SilentlyContinue) { Say "  node   $(node --version)" }
+
+# dotnet on PATH can be only the runtime launcher; stage 2 needs an SDK.
+$sdks = @()
+if (Get-Command dotnet -ErrorAction SilentlyContinue) { $sdks = @(cmd /c "dotnet --list-sdks 2>nul") | Where-Object { $_ -match '^\d' } }
+if ($sdks.Count -eq 0) {
+    $missing += 'No .NET SDK (stage 2). Install one:  winget install Microsoft.DotNet.SDK.8   then open a new PowerShell.'
+} else {
+    Say "  .NET SDK $(($sdks[-1] -split ' ')[0])"
+}
+
+# The package build needs Visual Studio's UWP tools, which bring the XAML build targets. build.js
+# always uses the newest install that has MSBuild, so that is the one checked.
 $vswhere = Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio\Installer\vswhere.exe'
-if (-not (Test-Path $vswhere)) { Say '  No Visual Studio Build Tools (vswhere.exe). Stages 1 and 3 need them, with the UWP workload.' 'Yellow' }
+$uwpReady = $false
+if (Test-Path $vswhere) {
+    $vs = @(& $vswhere -latest -products * -requires Microsoft.Component.MSBuild -format json | ConvertFrom-Json) | Select-Object -First 1
+    if ($vs) {
+        $targets = Get-ChildItem (Join-Path $vs.installationPath 'MSBuild\Microsoft\WindowsXaml') -Recurse -Filter 'Microsoft.Windows.UI.Xaml.CSharp.targets' -ErrorAction SilentlyContinue
+        $uwpReady = [bool]$targets
+        $state = if ($uwpReady) { 'UWP tools present' } else { 'no UWP tools' }
+        Say "  VS     $($vs.displayName) $($vs.installationVersion) at $($vs.installationPath): $state"
+    }
+}
+if (-not $uwpReady -and -not ($SkipBuild -and -not $Desktop)) {
+    $missing += @'
+No Visual Studio with the UWP tools (stages 1 and 3). In the Visual Studio Installer, Modify the
+         install named above (build.js always uses the newest one) and add the workload "WinUI application development" with its optional component
+         "Universal Windows Platform tools" (older installers call it the "Universal Windows Platform
+         development" workload), plus the Windows 11 SDK 10.0.26100. CI builds with VS 2022 and these.
+         Or run with -SkipBuild to do stage 2 only.
+'@
+}
+if ($missing.Count -gt 0) {
+    Say ''
+    foreach ($m in $missing) { Say "  MISSING  $m" 'Red' }
+    exit 1
+}
 
 function Build-Package($label, $extraArgs) {
     if (-not (Test-Path (Join-Path $Repo 'node_modules'))) {
@@ -104,8 +139,9 @@ function Build-Package($label, $extraArgs) {
     Say "  node build.js --debug $extraArgs   (log: $log)"
     cmd /c "cd /d `"$Repo\packages\build-xbox`" && node build.js --debug $extraArgs 2>&1" | Tee-Object -FilePath $log | Out-Null
     $code = $LASTEXITCODE
-    $errors = Select-String -Path $log -Pattern 'error CS\d+|error MSB\d+|error APPX\d+|Build failed' | Select-Object -First 15
+    $errors = @(Select-String -Path $log -Pattern 'error CS\d+|error MSB\d+|error APPX\d+|Build failed' | Select-Object -First 15)
     foreach ($e in $errors) { Say "    $($e.Line.Trim())" 'Red' }
+    if ($code -ne 0 -and $errors.Count -eq 0) { Get-Content $log -Tail 20 | ForEach-Object { Say "    $_" 'Red' } }
     return ($code -eq 0)
 }
 
@@ -464,8 +500,10 @@ $relayLog = Join-Path $LogDir 'relay.log'
 Say "  dotnet build (log: $relayLog)"
 cmd /c "dotnet build `"$proj`" -c Release -nologo -v q 2>&1" | Out-File $relayLog
 if ($LASTEXITCODE -ne 0) {
-    Select-String -Path $relayLog -Pattern 'error' | Select-Object -First 15 | ForEach-Object { Say "    $($_.Line.Trim())" 'Red' }
-    Done 'relay' $false '(the test program did not compile; see the errors above)'
+    $errors = @(Select-String -Path $relayLog -Pattern ': error ' | Select-Object -First 15)
+    if ($errors.Count -gt 0) { $errors | ForEach-Object { Say "    $($_.Line.Trim())" 'Red' } }
+    else { Get-Content $relayLog -Tail 20 | ForEach-Object { Say "    $_" 'Red' } }
+    Done 'relay' $false '(the test program did not build; see above)'
 } else {
     dotnet run --project $proj -c Release --no-build -- $Server
     Done 'relay' ($LASTEXITCODE -eq 0)
