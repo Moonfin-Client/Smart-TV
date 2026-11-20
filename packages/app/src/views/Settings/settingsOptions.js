@@ -374,6 +374,13 @@ export const getGenresRowItemFilterOptions = () => [
 	{ value: 'Series', label: $L('TV Shows') }
 ];
 
+// The Genres setting also orders the titles in picked genre rows, so it keeps every sort and adds
+// Item Count for the list of genres.
+export const getGenreSortOptions = () => [
+	...getHomeRowSortOptions(),
+	{ value: 'ItemCount', label: $L('Item Count') }
+];
+
 export const getRecommendationSystemSourceOptions = () => [
 	{ value: 'local', label: $L('Moonfin Recommends') },
 	{ value: 'server', label: $L('Server Recommends') },
