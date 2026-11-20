@@ -74,8 +74,10 @@ const allowInsecureFor = (url, settings) => !!settings.allowInsecureCerts && !AC
 // accept the host and the request is tried once more.
 const shellAllowedHosts = new Set();
 
+const httpsHostOf = (url) => (/^https:\/\/([^/?#]+)/i.exec(url || '') || [])[1];
+
 const allowHostInShell = async (url) => {
-	const host = (/^https:\/\/([^/?#]+)/i.exec(url || '') || [])[1];
+	const host = httpsHostOf(url);
 	if (!host || shellAllowedHosts.has(host)) return false;
 	const bridge = await loadShellBridge();
 	if (!bridge) return false;
@@ -215,8 +217,9 @@ export const corsFreeFetch = async (url, options = {}, timeoutMs) => {
 	return traceRequest(`${options.method || 'GET'} (shell)`, url, async () => {
 		let answer = await bridge.requestThroughShell(url, options, timeoutMs);
 		// A certificate the shell refused, once the user's setting lets it through, as platformFetch does. Only the
-		// Xbox host says that is why, and only its requests take the setting.
-		if (!answer.status && answer.failure === 'certificate' && await allowHostInShell(url)) answer = await bridge.requestThroughShell(url, options, timeoutMs);
+		// Xbox host says that is why, and only its requests take the setting. Requests sent together each get their retry,
+		// also those that fail after another one already brought the host to the shell.
+		if (!answer.status && answer.failure === 'certificate' && (shellAllowedHosts.has(httpsHostOf(url)) || await allowHostInShell(url))) answer = await bridge.requestThroughShell(url, options, timeoutMs);
 		if (answer.status) return makeResponse(answer);
 		const err = new Error(answer.failure === 'timeout' ? 'Shell request timed out' : 'Shell request failed');
 		err.connectionType = answer.failure === 'timeout' ? TIMEOUT : answer.failure === 'certificate' ? INSECURE_CERT : DNS_OR_NETWORK;

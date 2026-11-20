@@ -27,9 +27,12 @@ namespace Moonfin.Xbox
     internal sealed class HttpRelay
     {
         private const int MaxHeaders = 32;
+        private const int MaxRedirects = 10;
         private const uint MaxResponseBytes = 24 * 1024 * 1024;
+        private const uint ReadPieceBytes = 64 * 1024;
         private static readonly TimeSpan ShortestWait = TimeSpan.FromSeconds(1);
-        private static readonly TimeSpan LongestWait = TimeSpan.FromMinutes(2);
+        // A Plex tuner is given five minutes to start (TUNE_TIMEOUT_MS in plexApi.js).
+        private static readonly TimeSpan LongestWait = TimeSpan.FromMinutes(5);
 
         private readonly Action<string, IJsonValue> sendToPage;
         private readonly Func<string, bool> isInsecureHost;
@@ -71,65 +74,146 @@ namespace Moonfin.Xbox
             IJsonValue quietValue = Bridge.Named(payload, "quiet");
             bool quiet = quietValue != null && quietValue.ValueType == JsonValueType.Boolean && quietValue.GetBoolean();
 
-            using (var request = new HttpRequestMessage(new HttpMethod(Bridge.NamedString(payload, "method") ?? "GET"), uri))
+            string method = Bridge.NamedString(payload, "method") ?? "GET";
+            string body = Bridge.NamedString(payload, "body");
+            string contentType = null;
+            var requestHeaders = new List<KeyValuePair<string, string>>();
+            // The others that describe the body go on the body, where Windows takes them.
+            var contentHeaders = new List<KeyValuePair<string, string>>();
+            IJsonValue headers = Bridge.Named(payload, "headers");
+            if (headers != null && headers.ValueType == JsonValueType.Object)
+            {
+                int count = 0;
+                foreach (KeyValuePair<string, IJsonValue> header in headers.GetObject())
+                {
+                    if (count++ >= MaxHeaders) break;
+                    if (header.Value.ValueType != JsonValueType.String) continue;
+                    string value = header.Value.GetString();
+                    if (string.Equals(header.Key, "Content-Type", StringComparison.OrdinalIgnoreCase)) contentType = value;
+                    else if (header.Key.StartsWith("Content-", StringComparison.OrdinalIgnoreCase)) contentHeaders.Add(new KeyValuePair<string, string>(header.Key, value));
+                    else requestHeaders.Add(new KeyValuePair<string, string>(header.Key, value));
+                }
+            }
+
+            HttpRequestMessage request = null;
             using (var cancel = new CancellationTokenSource(WaitOf(payload)))
             {
                 try
                 {
-                    string contentType = null;
-                    // The others that describe the body go on the body, where Windows takes them.
-                    var contentHeaders = new List<KeyValuePair<string, string>>();
-                    IJsonValue headers = Bridge.Named(payload, "headers");
-                    if (headers != null && headers.ValueType == JsonValueType.Object)
+                    // Redirects are followed here rather than by Windows, so that each server is
+                    // checked against the user's certificate choice, and so that the token stays on
+                    // a redirect within the server and is left off one to another, as in a browser.
+                    bool keepAuthorization = true;
+                    for (int redirects = 0; ; redirects++)
                     {
-                        int count = 0;
-                        foreach (KeyValuePair<string, IJsonValue> header in headers.GetObject())
+                        request?.Dispose();
+                        request = NewRequest(method, uri, requestHeaders, keepAuthorization, body, contentType, contentHeaders);
+                        HttpClient chosen = isInsecureHost(uri.Authority) ? LenientClient() : Client();
+                        // Only the headers first, so an answer too large to take is turned away before it is read.
+                        using (HttpResponseMessage answer = await chosen.SendRequestAsync(request, HttpCompletionOption.ResponseHeadersRead).AsTask(cancel.Token))
                         {
-                            if (count++ >= MaxHeaders) break;
-                            if (header.Value.ValueType != JsonValueType.String) continue;
-                            string value = header.Value.GetString();
-                            if (string.Equals(header.Key, "Content-Type", StringComparison.OrdinalIgnoreCase)) contentType = value;
-                            else if (header.Key.StartsWith("Content-", StringComparison.OrdinalIgnoreCase)) contentHeaders.Add(new KeyValuePair<string, string>(header.Key, value));
-                            else request.Headers.TryAppendWithoutValidation(header.Key, value);
-                        }
-                    }
-                    string body = Bridge.NamedString(payload, "body");
-                    if (body != null)
-                    {
-                        // The body goes as UTF-8 whatever charset the page named, and says so.
-                        string mediaType = (contentType ?? "text/plain").Split(';')[0].Trim();
-                        request.Content = new HttpStringContent(body, UnicodeEncoding.Utf8, mediaType.Length > 0 ? mediaType : "text/plain");
-                        foreach (KeyValuePair<string, string> header in contentHeaders)
-                        {
-                            // Its length is the content's own.
-                            if (!string.Equals(header.Key, "Content-Length", StringComparison.OrdinalIgnoreCase)) request.Content.Headers.TryAppendWithoutValidation(header.Key, header.Value);
-                        }
-                    }
+                            Uri next = RedirectOf(answer, uri);
+                            if (next != null)
+                            {
+                                if (redirects >= MaxRedirects)
+                                {
+                                    if (!quiet) HostLog.Write("http", uri.Host + " redirected too many times");
+                                    Answer(id, 0, "", null);
+                                    return;
+                                }
+                                int status = (int)answer.StatusCode;
+                                // A browser asks the next place with GET, and without the body, after a 303, and after a 301 or 302 to a POST.
+                                if ((status == 303 && method != "HEAD") || ((status == 301 || status == 302) && method == "POST"))
+                                {
+                                    method = "GET";
+                                    body = null;
+                                }
+                                if (!SameOrigin(uri, next)) keepAuthorization = false;
+                                uri = next;
+                                continue;
+                            }
 
-                    HttpClient chosen = isInsecureHost(uri.Authority) ? LenientClient() : Client();
-                    // Only the headers first, so an answer too large to take is turned away before it is read.
-                    using (HttpResponseMessage answer = await chosen.SendRequestAsync(request, HttpCompletionOption.ResponseHeadersRead).AsTask(cancel.Token))
-                    {
-                        ulong? announced = answer.Content.Headers.ContentLength;
-                        IBuffer buffer = announced.HasValue && announced.Value > MaxResponseBytes ? null : await answer.Content.ReadAsBufferAsync().AsTask(cancel.Token);
-                        if (buffer == null || buffer.Length > MaxResponseBytes)
-                        {
-                            HostLog.Write("http", uri.Host + " answered with more than the relay takes");
-                            Answer(id, 0, "", null);
+                            byte[] bytes = await ReadBody(answer.Content, cancel.Token);
+                            if (bytes == null)
+                            {
+                                HostLog.Write("http", uri.Host + " answered with more than the relay takes");
+                                Answer(id, 0, "", null);
+                                return;
+                            }
+                            Answer(id, (int)answer.StatusCode, DecodeText(bytes), HeadersOf(answer));
                             return;
                         }
-                        string text = DecodeText(buffer.ToArray());
-                        Answer(id, (int)answer.StatusCode, text, HeadersOf(answer));
                     }
                 }
                 catch (Exception ex)
                 {
                     // Why it failed, for the page: a certificate it may let through, or a server too slow.
                     string failure = null;
-                    if (request.TransportInformation != null && request.TransportInformation.ServerCertificateErrorSeverity != SocketSslErrorSeverity.None) failure = "certificate";
+                    if (request?.TransportInformation != null && request.TransportInformation.ServerCertificateErrorSeverity != SocketSslErrorSeverity.None) failure = "certificate";
                     else if (cancel.IsCancellationRequested) failure = "timeout";
                     if (!quiet) HostLog.Write("http", uri.Host + " failed" + (failure != null ? " (" + failure + ")" : "") + ": " + ex.Message);
                     Answer(id, 0, "", null, failure);
+                }
+                finally
+                {
+                    request?.Dispose();
+                }
+            }
+        }
+
+        private static HttpRequestMessage NewRequest(string method, Uri uri, List<KeyValuePair<string, string>> headers, bool withAuthorization, string body, string contentType, List<KeyValuePair<string, string>> contentHeaders)
+        {
+            var request = new HttpRequestMessage(new HttpMethod(method), uri);
+            foreach (KeyValuePair<string, string> header in headers)
+            {
+                if (!withAuthorization && string.Equals(header.Key, "Authorization", StringComparison.OrdinalIgnoreCase)) continue;
+                request.Headers.TryAppendWithoutValidation(header.Key, header.Value);
+            }
+            if (body != null)
+            {
+                // The body goes as UTF-8 whatever charset the page named, and says so.
+                string mediaType = (contentType ?? "text/plain").Split(';')[0].Trim();
+                request.Content = new HttpStringContent(body, UnicodeEncoding.Utf8, mediaType.Length > 0 ? mediaType : "text/plain");
+                foreach (KeyValuePair<string, string> header in contentHeaders)
+                {
+                    // Its length is the content's own.
+                    if (!string.Equals(header.Key, "Content-Length", StringComparison.OrdinalIgnoreCase)) request.Content.Headers.TryAppendWithoutValidation(header.Key, header.Value);
+                }
+            }
+            return request;
+        }
+
+        // Where a redirect points, or null when the answer isnt one to follow.
+        private static Uri RedirectOf(HttpResponseMessage answer, Uri from)
+        {
+            int status = (int)answer.StatusCode;
+            if (status != 301 && status != 302 && status != 303 && status != 307 && status != 308) return null;
+            if (!answer.Headers.TryGetValue("Location", out string location) || string.IsNullOrEmpty(location)) return null;
+            if (!Uri.TryCreate(from, location, out Uri next) || (next.Scheme != "http" && next.Scheme != "https")) return null;
+            return next;
+        }
+
+        private static bool SameOrigin(Uri a, Uri b)
+        {
+            return a.Scheme == b.Scheme && a.Port == b.Port && string.Equals(a.Host, b.Host, StringComparison.OrdinalIgnoreCase);
+        }
+
+        // The body a piece at a time, so one with no length given stops at the limit rather
+        // than being read whole first. Null when it is larger than that.
+        private static async Task<byte[]> ReadBody(IHttpContent content, CancellationToken cancel)
+        {
+            ulong? announced = content.Headers.ContentLength;
+            if (announced.HasValue && announced.Value > MaxResponseBytes) return null;
+            using (IInputStream stream = await content.ReadAsInputStreamAsync().AsTask(cancel))
+            using (var bytes = new System.IO.MemoryStream())
+            {
+                var piece = new Windows.Storage.Streams.Buffer(ReadPieceBytes);
+                while (true)
+                {
+                    IBuffer read = await stream.ReadAsync(piece, piece.Capacity, InputStreamOptions.Partial).AsTask(cancel);
+                    if (read.Length == 0) return bytes.ToArray();
+                    if ((ulong)bytes.Length + read.Length > MaxResponseBytes) return null;
+                    read.AsStream().CopyTo(bytes);
                 }
             }
         }
@@ -188,6 +272,8 @@ namespace Moonfin.Xbox
             var filter = new HttpBaseProtocolFilter();
             // A server that asks for a password gets its 401 back to the page, never a system dialog.
             filter.AllowUI = false;
+            // Relay follows them itself.
+            filter.AllowAutoRedirect = false;
             filter.CookieUsageBehavior = HttpCookieUsageBehavior.NoCookies;
             filter.CacheControl.ReadBehavior = HttpCacheReadBehavior.NoCache;
             filter.CacheControl.WriteBehavior = HttpCacheWriteBehavior.NoCache;
