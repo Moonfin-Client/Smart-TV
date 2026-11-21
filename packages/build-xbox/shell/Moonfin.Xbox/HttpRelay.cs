@@ -220,11 +220,13 @@ namespace Moonfin.Xbox
             return next;
         }
 
-        // The same host, at the same scheme and port, or moved from http to https on their default ports.
+        // The same host, at the same scheme and port, or moved from http on any port to https on
+        // 443 or the same port, as isSameOriginRedirect in Moonfin-Core. Another port on the host
+        // could be another service.
         private static bool SameServer(Uri from, Uri to)
         {
             if (!string.Equals(from.Host, to.Host, StringComparison.OrdinalIgnoreCase)) return false;
-            return (from.Scheme == to.Scheme && from.Port == to.Port) || (from.Scheme == "http" && to.Scheme == "https" && from.IsDefaultPort && to.IsDefaultPort);
+            return (from.Scheme == to.Scheme && from.Port == to.Port) || (from.Scheme == "http" && to.Scheme == "https" && (to.Port == 443 || to.Port == from.Port));
         }
 
         // The body a piece at a time, so one with no length given stops at the limit rather

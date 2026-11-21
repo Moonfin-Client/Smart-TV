@@ -158,6 +158,23 @@ describe('a request a Plex server only answers app.plex.tv for', () => {
 		expect(bridge.requestThroughShell.mock.calls[3][0]).toBe('https://silo-saved-login:8443/api/v2/system/info');
 	});
 
+	test('is not asked again when the caller gave up meanwhile', async () => {
+		isXbox.mockReturnValue(true);
+		getFromStorage.mockResolvedValue({allowInsecureCerts: true});
+		const controller = new AbortController();
+		const bridge = {
+			allowInsecureHost: jest.fn(),
+			requestThroughShell: jest.fn().mockImplementation(async () => {
+				controller.abort();
+				return {status: 0, body: '', failure: 'certificate'};
+			})
+		};
+		loadShellBridge.mockResolvedValue(bridge);
+
+		await expect(corsFreeFetch('https://silo-cancelled:8443/api/v2/auth/login', {method: 'POST', body: '{}', signal: controller.signal})).rejects.toMatchObject({name: 'AbortError'});
+		expect(bridge.requestThroughShell).toHaveBeenCalledTimes(1);
+	});
+
 	test('is not asked again when the refused certificate came after a redirect', async () => {
 		isXbox.mockReturnValue(true);
 		getFromStorage.mockResolvedValue({allowInsecureCerts: true});

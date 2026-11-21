@@ -220,7 +220,10 @@ export const corsFreeFetch = async (url, options = {}, timeoutMs) => {
 		// Xbox host says that is why, and only its requests take the setting. Requests sent together each get their retry,
 		// also those that fail after another one already brought the host to the shell.
 		// Not after a redirect, which a server already acted on and the setting can't reach.
-		if (!answer.status && answer.failure === 'certificate' && !answer.redirected && (shellAllowedHosts.has(httpsHostOf(url)) || await allowHostInShell(url))) answer = await bridge.requestThroughShell(url, options, timeoutMs);
+		if (!answer.status && answer.failure === 'certificate' && !answer.redirected && (shellAllowedHosts.has(httpsHostOf(url)) || await allowHostInShell(url))) {
+			if (options.signal?.aborted) throw abortError();
+			answer = await bridge.requestThroughShell(url, options, timeoutMs);
+		}
 		if (answer.status) return makeResponse(answer);
 		const err = new Error(answer.failure === 'timeout' ? 'Shell request timed out' : 'Shell request failed');
 		err.connectionType = answer.failure === 'timeout' ? TIMEOUT : answer.failure === 'certificate' ? INSECURE_CERT : DNS_OR_NETWORK;
