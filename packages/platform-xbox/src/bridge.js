@@ -81,8 +81,9 @@ let hearingAnswers = false;
 // The host makes the request, since the WebView holds an answer back from the page
 // when the server doesnt let other sites read it. Resolves with the status, the body
 // and the headers, where a status of 0 means nothing answered, and failure says why
-// when the host knows: "certificate" or "timeout". quiet keeps a failure out of the
-// host's log, for the requests of a subnet walk. The host side is HttpRelay.cs.
+// when the host knows: "certificate" (a handshake refused) or "timeout". redirected is
+// set when a server had already answered with a redirect. quiet keeps a failure out of
+// the host's log, for the requests of a subnet walk. The host side is HttpRelay.cs.
 export const requestThroughShell = (url, {method = 'GET', headers = {}, body = null, quiet = false} = {}, timeoutMs = 15000) => new Promise((resolve) => {
 	if (!hearingAnswers) {
 		hearingAnswers = true;

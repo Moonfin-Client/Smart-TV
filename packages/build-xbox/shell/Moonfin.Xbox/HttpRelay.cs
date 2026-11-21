@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
-using System.Runtime.InteropServices.WindowsRuntime;
 using System.Threading;
 using System.Threading.Tasks;
 using Windows.Data.Json;
@@ -23,8 +22,10 @@ namespace Moonfin.Xbox
     // with requestThroughShell in packages/platform-xbox/src/bridge.js.
     //
     // Page to host: HTTP_REQUEST  {id, url, method, headers, body, timeoutMs, quiet}
-    // Host to page: HTTP_RESPONSE {id, status, body, headers, failure}, a status of 0 when nothing answered,
-    //              with failure "certificate" or "timeout" when that is why. A request with quiet set isnt logged.
+    // Host to page: HTTP_RESPONSE {id, status, body, headers, failure, redirected}, a status of 0 when nothing
+    //              answered, with failure "certificate" (a handshake refused) or "timeout" when that is why, and
+    //              redirected set when a server had already answered the request with a redirect, so it isnt
+    //              to be sent again. A request with quiet set isnt logged.
     internal sealed class HttpRelay
     {
         private const int MaxHeaders = 32;
@@ -97,9 +98,10 @@ namespace Moonfin.Xbox
             }
 
             HttpRequestMessage request = null;
-            // Which step of a redirect chain is being asked, and whether with the client that checks certificates.
+            // Which step of a redirect chain is being asked, with which client, and whether its server answered.
             int redirects = 0;
             bool strict = true;
+            bool answered = false;
             using (var cancel = new CancellationTokenSource(WaitOf(payload)))
             {
                 try
@@ -112,13 +114,16 @@ namespace Moonfin.Xbox
                     for (; ; redirects++)
                     {
                         request?.Dispose();
+                        // So that a NewRequest that throws leaves the catch no disposed request to read.
                         request = null;
                         request = NewRequest(method, uri, requestHeaders, sameServer, body, contentType, contentHeaders);
                         strict = !isInsecureHost(uri.Authority);
                         HttpClient chosen = strict ? Client() : LenientClient();
+                        answered = false;
                         // Only the headers first, so an answer too large to take is turned away before it is read.
                         using (HttpResponseMessage answer = await chosen.SendRequestAsync(request, HttpCompletionOption.ResponseHeadersRead).AsTask(cancel.Token))
                         {
+                            answered = true;
                             Uri next = RedirectOf(answer, uri);
                             if (next != null)
                             {
@@ -150,7 +155,7 @@ namespace Moonfin.Xbox
                                 continue;
                             }
 
-                            MemoryStream bytes = await ReadBody(answer.Content, cancel.Token);
+                            MemoryStream bytes = method == "HEAD" ? new MemoryStream() : await ReadBody(answer.Content, cancel.Token);
                             if (bytes == null)
                             {
                                 if (!quiet) HostLog.Write("http", uri.Host + " answered with more than the relay takes");
@@ -164,15 +169,14 @@ namespace Moonfin.Xbox
                 }
                 catch (Exception ex)
                 {
-                    // Why it failed, for the page: a server too slow, or a certificate it may let through
-                    // and ask again. Only the first server's, checked by the strict client: the request
-                    // has reached no server yet then, and the page only knows that one. A server let
-                    // through shows its certificate problem on every request, whatever else went wrong.
+                    // Why it failed, for the page: a server too slow, or a handshake refused for its
+                    // certificate. Only one the server never answered: a server let through shows its
+                    // ignored certificate problem on every request, whatever else went wrong after.
                     string failure = null;
                     if (cancel.IsCancellationRequested) failure = "timeout";
-                    else if (redirects == 0 && strict && request?.TransportInformation != null && request.TransportInformation.ServerCertificateErrorSeverity != SocketSslErrorSeverity.None) failure = "certificate";
+                    else if (!answered && request?.TransportInformation != null && CertificateRefused(request.TransportInformation.ServerCertificateErrorSeverity, strict)) failure = "certificate";
                     if (!quiet) HostLog.Write("http", uri.Host + " failed" + (failure != null ? " (" + failure + ")" : "") + ": " + ex.Message);
-                    Answer(id, 0, "", null, failure);
+                    Answer(id, 0, "", null, failure, redirects > 0);
                 }
                 finally
                 {
@@ -182,7 +186,7 @@ namespace Moonfin.Xbox
         }
 
         // Another server gets only the headers a browser would send it without asking first.
-        private static readonly HashSet<string> HarmlessHeaders = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "Accept", "Accept-Language" };
+        private static readonly HashSet<string> HarmlessHeaders = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "Accept", "Accept-Language", "Range" };
 
         private static HttpRequestMessage NewRequest(string method, Uri uri, List<KeyValuePair<string, string>> headers, bool allHeaders, string body, string contentType, List<KeyValuePair<string, string>> contentHeaders)
         {
@@ -216,11 +220,11 @@ namespace Moonfin.Xbox
             return next;
         }
 
-        // The same host, at the same scheme and port or moved from http to https.
+        // The same host, at the same scheme and port, or moved from http to https on their default ports.
         private static bool SameServer(Uri from, Uri to)
         {
             if (!string.Equals(from.Host, to.Host, StringComparison.OrdinalIgnoreCase)) return false;
-            return (from.Scheme == to.Scheme && from.Port == to.Port) || (from.Scheme == "http" && to.Scheme == "https");
+            return (from.Scheme == to.Scheme && from.Port == to.Port) || (from.Scheme == "http" && to.Scheme == "https" && from.IsDefaultPort && to.IsDefaultPort);
         }
 
         // The body a piece at a time, so one with no length given stops at the limit rather
@@ -229,7 +233,8 @@ namespace Moonfin.Xbox
         {
             ulong? announced = content.Headers.ContentLength;
             if (announced.HasValue && announced.Value > MaxResponseBytes) return null;
-            var bytes = new MemoryStream(announced.HasValue ? (int)announced.Value : 0);
+            // Room for what it says it holds, up to a megabyte until more arrives.
+            var bytes = new MemoryStream(announced.HasValue ? (int)Math.Min(announced.Value, 1024 * 1024) : 0);
             using (Stream stream = (await content.ReadAsInputStreamAsync().AsTask(cancel)).AsStreamForRead())
             {
                 var piece = new byte[ReadPieceBytes];
@@ -247,10 +252,17 @@ namespace Moonfin.Xbox
             }
         }
 
-        private void Answer(double id, int status, string body, JsonObject headers, string failure = null)
+        // The lenient client lets the problems it ignores through, so only a fatal one stopped it.
+        private static bool CertificateRefused(SocketSslErrorSeverity severity, bool strict)
+        {
+            return strict ? severity != SocketSslErrorSeverity.None : severity == SocketSslErrorSeverity.Fatal;
+        }
+
+        private void Answer(double id, int status, string body, JsonObject headers, string failure = null, bool redirected = false)
         {
             var answer = new JsonObject();
             if (failure != null) answer.SetNamedValue("failure", JsonValue.CreateStringValue(failure));
+            if (redirected) answer.SetNamedValue("redirected", JsonValue.CreateBooleanValue(true));
             answer.SetNamedValue("id", JsonValue.CreateNumberValue(id));
             answer.SetNamedValue("status", JsonValue.CreateNumberValue(status));
             answer.SetNamedValue("body", JsonValue.CreateStringValue(body));

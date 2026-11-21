@@ -155,6 +155,18 @@ describe('a request a Plex server only answers app.plex.tv for', () => {
 		expect((await second).status).toBe(200);
 		expect(bridge.allowInsecureHost).toHaveBeenCalledTimes(1);
 		expect(bridge.requestThroughShell).toHaveBeenCalledTimes(4);
+		expect(bridge.requestThroughShell.mock.calls[3][0]).toBe('https://silo-saved-login:8443/api/v2/system/info');
+	});
+
+	test('is not asked again when the refused certificate came after a redirect', async () => {
+		isXbox.mockReturnValue(true);
+		getFromStorage.mockResolvedValue({allowInsecureCerts: true});
+		const bridge = {allowInsecureHost: jest.fn(), requestThroughShell: jest.fn().mockResolvedValue({status: 0, body: '', failure: 'certificate', redirected: true})};
+		loadShellBridge.mockResolvedValue(bridge);
+
+		await expect(corsFreeFetch('https://silo-moved:8443/api/v2/auth/login', {method: 'POST', body: '{}'})).rejects.toMatchObject({connectionType: 'insecure_cert'});
+		expect(bridge.requestThroughShell).toHaveBeenCalledTimes(1);
+		expect(bridge.allowInsecureHost).not.toHaveBeenCalled();
 	});
 
 	test('is not asked again when the shell gives no certificate as the reason, as on Fire TV', async () => {
