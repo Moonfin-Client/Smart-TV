@@ -60,6 +60,7 @@
     <Compile Include="DisplayModes.cs" />
     <Compile Include="DolbyVisionEffect.cs" />
     <Compile Include="HostLog.cs" />
+    <Compile Include="HttpRelay.cs" />
     <Compile Include="MainPage.xaml.cs">
       <DependentUpon>MainPage.xaml</DependentUpon>
     </Compile>

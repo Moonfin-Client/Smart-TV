@@ -72,5 +72,37 @@ export const exitApp = () => postToShell('EXIT_APP');
 // it to go ahead for a server.
 export const allowInsecureHost = (authority) => postToShell('ALLOW_INSECURE_HOST', {host: authority});
 
+const waitingRequests = new Map();
+// Starts somewhere new on every load, so an answer the host sends for the page before a
+// reload can't be taken for one of this page's own.
+let nextRequestId = Math.floor(Math.random() * 1e9);
+let hearingAnswers = false;
+
+// The host makes the request, since the WebView holds an answer back from the page
+// when the server doesnt let other sites read it. Resolves with the status, the body
+// and the headers, where a status of 0 means nothing answered, and failure says why
+// when the host knows: "certificate" (a handshake refused) or "timeout". redirected is
+// set when a server had already answered with a redirect. quiet keeps a failure out of
+// the host's log, for the requests of a subnet walk. The host side is HttpRelay.cs.
+export const requestThroughShell = (url, {method = 'GET', headers = {}, body = null, quiet = false} = {}, timeoutMs = 15000) => new Promise((resolve) => {
+	if (!hearingAnswers) {
+		hearingAnswers = true;
+		onShellMessage('HTTP_RESPONSE', (answer) => waitingRequests.get(answer?.id)?.(answer));
+	}
+	const id = ++nextRequestId;
+	let timer = null;
+	const finish = (answer) => {
+		clearTimeout(timer);
+		waitingRequests.delete(id);
+		resolve(answer);
+	};
+	// The host gives up at the same time, so a little longer here lets its answer arrive.
+	timer = setTimeout(() => finish({status: 0, body: '', failure: 'timeout'}), timeoutMs + 1000);
+	waitingRequests.set(id, finish);
+	const request = {id, url, method, headers, body, timeoutMs};
+	if (quiet) request.quiet = true;
+	if (!postToShell('HTTP_REQUEST', request)) finish({status: 0, body: ''});
+});
+
 // A host that has the console's own player says so at boot.
 export const nativePlayerAvailable = () => !!bootData()?.nativePlayer;
