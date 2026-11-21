@@ -144,11 +144,29 @@ describe('buildThemeOverrideCss', () => {
 		expect(lines).toContain(`${prefix} .skValue { stroke: ${accent}; }`);
 		expect(lines).toContain(`${prefix} .nuCard { ${panel} }`);
 		expect(lines).toContain(`${prefix} .nuPlay { background: ${accent}; color: ${onAccent}; }`);
+		expect(lines).toContain(`${prefix} .nuPlay:focus { border-color: rgb(255, 0, 0); }`);
 		expect(lines).toContain(`${prefix} .nuValue { stroke: ${onAccent}; }`);
 		expect(lines).toContain(`${prefix} .nuDismiss:focus { background: rgba(${toRgbTriplet(c.accent)}, 0.24); border-color: rgb(255, 0, 0); }`);
 		expect(lines).toContain(`${prefix} .swCard { ${panel} }`);
 		expect(lines).toContain(`${prefix} .swContinue { background: ${accent}; color: ${onAccent}; }`);
+		expect(lines).toContain(`${prefix} .swContinue:focus { border-color: rgb(255, 0, 0); }`);
 		expect(lines).toContain(`${prefix} .swStop:focus { border-color: rgb(255, 0, 0); color: ${toCssColor(c.onSurface)}; }`);
+	});
+
+	it('keeps the focus border on Play Next and Continue visible when the focus color is the accent', () => {
+		const theme = resolveThemeById('moonfin');
+		const c = theme.colors;
+		registerThemeSheet('nextUp', {card: 'nuCard', playBtn: 'nuPlay'});
+		registerThemeSheet('stillWatching', {card: 'swCard', continueBtn: 'swContinue'});
+		const prefix = "html[data-theme-id='moonfin'][data-theme-id]";
+		expect(toRgbTriplet(theme.borders.focusBorder.color)).toBe(toRgbTriplet(c.accent));
+		const ink = contrastRatio(c.accent, c.onAccent) >= MIN_BUTTON_CONTRAST ? toCssColor(c.onAccent) : `rgba(${inkOn(c.accent)}, 0.92)`;
+		const lines = buildThemeOverrideCss(theme).split('\n');
+		expect(lines).toContain(`${prefix} .nuPlay:focus { border-color: ${ink}; }`);
+		expect(lines).toContain(`${prefix} .swContinue:focus { border-color: ${ink}; }`);
+		// Any other focus color the viewer picks is kept.
+		const picked = buildThemeOverrideCss(theme, {focusBorderColor: '#ff0000'}).split('\n');
+		expect(picked).toContain(`${prefix} .nuPlay:focus { border-color: rgb(255, 0, 0); }`);
 	});
 
 	it('draws Switch User in the theme accent, inside the switcher only, and keeps Sign Out All Users red', () => {

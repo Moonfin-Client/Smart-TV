@@ -13,6 +13,7 @@ import {
 	contrastRatio,
 	DEFAULT_ERROR_COLOR,
 	inkOn,
+	isValidHexColor,
 	MIN_BUTTON_CONTRAST,
 	radiusToCss,
 	relativeLuminance,
@@ -879,6 +880,13 @@ export const buildThemeOverrideCss = (theme, options = {}) => {
 		rule(names.map((name) => `.${name}`).join(', '), `color: ${onSurface}; background: ${surfaceA(0.88)};`);
 		rules.push(`${names.flatMap((name) => ['perf-low', 'perf-mid', 'vega'].map((tier) => `${prefix}.${tier} .${name}`)).join(', ')} { background: ${surfaceA(0.97)}; }`);
 	};
+	// Play Next and Continue are filled with the accent, and Moonfin's own focus border is that
+	// same accent, so their focus border falls back to the button's ink when it is the accent.
+	const focusHex = isValidHexColor(options.focusBorderColor) ? options.focusBorderColor : b.focusBorder.color;
+	const onAccentInk = contrastRatio(c.accent, c.onAccent) >= MIN_BUTTON_CONTRAST
+		? onAccent
+		: `rgba(${inkOn(c.accent)}, 0.92)`;
+	const accentFocusColor = toRgbTriplet(focusHex) === toRgbTriplet(c.accent) ? onAccentInk : focusColor;
 	if (skipSegment) {
 		promptPanel([skipSegment.button]);
 		rule(`.${skipSegment.button}:focus`, `border-color: ${focusColor};`);
@@ -893,6 +901,7 @@ export const buildThemeOverrideCss = (theme, options = {}) => {
 		rule(`.${nextUp.pill}`, `background: ${accentA(0.22)}; border-color: ${accentA(0.4)};`);
 		rule(`.${nextUp.timer}`, `color: ${os(0.7)};`);
 		rule(`.${nextUp.playBtn}`, `background: ${accent}; color: ${onAccent};`);
+		rule(`.${nextUp.playBtn}:focus`, `border-color: ${accentFocusColor};`);
 		// The countdown ring sits inside the play button, so it's drawn in the button's ink.
 		rule(`.${nextUp.ringTrack}`, `stroke: rgba(${toRgbTriplet(c.onAccent)}, 0.24);`);
 		rule(`.${nextUp.ringValue}`, `stroke: ${onAccent};`);
@@ -905,6 +914,7 @@ export const buildThemeOverrideCss = (theme, options = {}) => {
 		rule(`.${stillWatching.icon} svg`, `color: ${accent};`);
 		rule(`.${stillWatching.body}`, `color: ${os(0.62)};`);
 		rule(`.${stillWatching.continueBtn}`, `background: ${accent}; color: ${onAccent};`);
+		rule(`.${stillWatching.continueBtn}:focus`, `border-color: ${accentFocusColor};`);
 		rule(`.${stillWatching.stopBtn}`, `color: ${os(0.6)};`);
 		rule(`.${stillWatching.stopBtn}:focus`, `border-color: ${focusColor}; color: ${onSurface};`);
 	}
