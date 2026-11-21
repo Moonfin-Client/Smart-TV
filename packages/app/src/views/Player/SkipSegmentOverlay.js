@@ -3,8 +3,11 @@ import $L from '@enact/i18n/$L';
 import Spotlight from '@enact/spotlight';
 import {SpottableButton} from './PlayerConstants';
 import {CountdownRing, SkipGlyph, formatRemaining, useOverlayFocus} from './overlayParts';
+import {registerThemeSheet} from '../../theme/themeOverrides';
 
 import css from './SkipSegmentOverlay.module.less';
+
+registerThemeSheet('skipSegment', css);
 
 const RING_SIZE = 52;
 const RING_STROKE = 4;

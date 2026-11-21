@@ -126,6 +126,31 @@ describe('buildThemeOverrideCss', () => {
 		expect(buildThemeOverrideCss(theme, {focusBorderColor: ''})).toContain(`${prefix} .ring { border-color: ${themeColor}; }`);
 	});
 
+	it('draws the player\'s skip, Next Up and Still Watching prompts in the theme, with focus in the focus border color', () => {
+		const theme = resolveThemeById('8bit_hero');
+		const c = theme.colors;
+		registerThemeSheet('skipSegment', {button: 'skBtn', icon: 'skIcon', ringIcon: 'skRingIcon', timer: 'skTimer', ringTrack: 'skTrack', ringValue: 'skValue'});
+		registerThemeSheet('nextUp', {card: 'nuCard', eyebrow: 'nuEyebrow', airs: 'nuAirs', pill: 'nuPill', timer: 'nuTimer', playBtn: 'nuPlay', ringTrack: 'nuTrack', ringValue: 'nuValue', dismissBtn: 'nuDismiss'});
+		registerThemeSheet('stillWatching', {card: 'swCard', icon: 'swIcon', body: 'swBody', continueBtn: 'swContinue', stopBtn: 'swStop'});
+		const prefix = "html[data-theme-id='8bit_hero'][data-theme-id]";
+		const lines = buildThemeOverrideCss(theme, {focusBorderColor: '#ff0000'}).split('\n');
+		const accent = toCssColor(c.accent);
+		const onAccent = toCssColor(c.onAccent);
+		const panel = `color: ${toCssColor(c.onSurface)}; background: rgba(${toRgbTriplet(c.surface)}, 0.88);`;
+		expect(lines).toContain(`${prefix} .skBtn { ${panel} }`);
+		expect(lines).toContain(`${prefix}.perf-low .skBtn, ${prefix}.perf-mid .skBtn, ${prefix}.vega .skBtn { background: rgba(${toRgbTriplet(c.surface)}, 0.97); }`);
+		expect(lines).toContain(`${prefix} .skBtn:focus { border-color: rgb(255, 0, 0); }`);
+		expect(lines).toContain(`${prefix} .skIcon, ${prefix} .skRingIcon { color: ${accent}; }`);
+		expect(lines).toContain(`${prefix} .skValue { stroke: ${accent}; }`);
+		expect(lines).toContain(`${prefix} .nuCard { ${panel} }`);
+		expect(lines).toContain(`${prefix} .nuPlay { background: ${accent}; color: ${onAccent}; }`);
+		expect(lines).toContain(`${prefix} .nuValue { stroke: ${onAccent}; }`);
+		expect(lines).toContain(`${prefix} .nuDismiss:focus { background: rgba(${toRgbTriplet(c.accent)}, 0.24); border-color: rgb(255, 0, 0); }`);
+		expect(lines).toContain(`${prefix} .swCard { ${panel} }`);
+		expect(lines).toContain(`${prefix} .swContinue { background: ${accent}; color: ${onAccent}; }`);
+		expect(lines).toContain(`${prefix} .swStop:focus { border-color: rgb(255, 0, 0); color: ${toCssColor(c.onSurface)}; }`);
+	});
+
 	it('draws Switch User in the theme accent, inside the switcher only, and keeps Sign Out All Users red', () => {
 		const theme = resolveThemeById('moonfin');
 		const accent = toCssColor(theme.colors.accent);

@@ -2,8 +2,11 @@ import $L from '@enact/i18n/$L';
 import SpotlightContainerDecorator from '@enact/spotlight/SpotlightContainerDecorator';
 import {SpottableButton} from './PlayerConstants';
 import {useOverlayFocus} from './overlayParts';
+import {registerThemeSheet} from '../../theme/themeOverrides';
 
 import css from './StillWatchingDialog.module.less';
+
+registerThemeSheet('stillWatching', css);
 
 const DialogContainer = SpotlightContainerDecorator({
 	enterTo: 'default-element',

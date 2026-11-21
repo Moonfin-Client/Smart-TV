@@ -4,8 +4,11 @@ import {CountdownRing, PlayGlyph, formatRemaining, useOverlayFocus} from './over
 import AnimeMarkerPills, {useEpisodeMarker, hasAnimeMarkerPills} from '../../components/AnimeMarkerPills';
 import {airsText} from '../../utils/calendarEntries';
 import {useSettings} from '../../context/SettingsContext';
+import {registerThemeSheet} from '../../theme/themeOverrides';
 
 import css from './NextUpOverlay.module.less';
+
+registerThemeSheet('nextUp', css);
 
 const RING_SIZE = 32;
 const RING_STROKE = 4;

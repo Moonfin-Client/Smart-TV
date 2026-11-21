@@ -830,7 +830,7 @@ export const buildThemeOverrideCss = (theme, options = {}) => {
 	});
 
 	// Focus rings on the screens that load on demand
-	const {player, playerOverlays, episodeBrowser, genreBrowse, seerrDiscover, seerrBrowse, seerrPosterCard, calendar} = lazySheets;
+	const {player, playerOverlays, episodeBrowser, genreBrowse, seerrDiscover, seerrBrowse, seerrPosterCard, calendar, skipSegment, nextUp, stillWatching} = lazySheets;
 	const ring = (sheet, names, states) => names.flatMap((name) => states.map((state) => `.${sheet[name]}${state}`)).join(', ');
 	if (player) {
 		rule(ring(player, ['liveBtn', 'chapterItem'], [':hover', ':focus']), `border-color: ${focusColor};`);
@@ -872,6 +872,41 @@ export const buildThemeOverrideCss = (theme, options = {}) => {
 	if (calendar) {
 		rule(`.${calendar.row}:focus::after, .${calendar.card}:focus::after, .${calendar.cell}:focus::after`, `border-color: ${focusColor};`);
 		rule(`.${calendar.button}:focus, .${calendar.tab}:focus`, `background: ${onSurface} !important; border-color: ${focusColor}; color: ${inkOn(c.onSurface) === '0, 0, 0' ? 'rgba(0, 0, 0, 0.87)' : '#fff'};`);
+	}
+	// The player's prompts: skip a segment, Next Up and Still Watching. Their panels go nearly
+	// opaque where blur is stripped, and those rules have to be restated or this panel color wins.
+	const promptPanel = (names) => {
+		rule(names.map((name) => `.${name}`).join(', '), `color: ${onSurface}; background: ${surfaceA(0.88)};`);
+		rules.push(`${names.flatMap((name) => ['perf-low', 'perf-mid', 'vega'].map((tier) => `${prefix}.${tier} .${name}`)).join(', ')} { background: ${surfaceA(0.97)}; }`);
+	};
+	if (skipSegment) {
+		promptPanel([skipSegment.button]);
+		rule(`.${skipSegment.button}:focus`, `border-color: ${focusColor};`);
+		rule(`.${skipSegment.icon}, .${skipSegment.ringIcon}`, `color: ${accent};`);
+		rule(`.${skipSegment.timer}`, `color: ${os(0.5)};`);
+		rule(`.${skipSegment.ringTrack}`, `stroke: ${os(0.16)};`);
+		rule(`.${skipSegment.ringValue}`, `stroke: ${accent};`);
+	}
+	if (nextUp) {
+		promptPanel([nextUp.card]);
+		rule(`.${nextUp.eyebrow}, .${nextUp.airs}`, `color: ${os(0.85)};`);
+		rule(`.${nextUp.pill}`, `background: ${accentA(0.22)}; border-color: ${accentA(0.4)};`);
+		rule(`.${nextUp.timer}`, `color: ${os(0.7)};`);
+		rule(`.${nextUp.playBtn}`, `background: ${accent}; color: ${onAccent};`);
+		// The countdown ring sits inside the play button, so it's drawn in the button's ink.
+		rule(`.${nextUp.ringTrack}`, `stroke: rgba(${toRgbTriplet(c.onAccent)}, 0.24);`);
+		rule(`.${nextUp.ringValue}`, `stroke: ${onAccent};`);
+		rule(`.${nextUp.dismissBtn}`, `border-color: ${os(0.18)}; background: ${os(0.08)}; color: ${onSurface};`);
+		rule(`.${nextUp.dismissBtn}:focus`, `background: ${accentA(0.24)}; border-color: ${focusColor};`);
+	}
+	if (stillWatching) {
+		promptPanel([stillWatching.card]);
+		rule(`.${stillWatching.icon}`, `background: ${accentA(0.16)}; border-color: ${accentA(0.4)};`);
+		rule(`.${stillWatching.icon} svg`, `color: ${accent};`);
+		rule(`.${stillWatching.body}`, `color: ${os(0.62)};`);
+		rule(`.${stillWatching.continueBtn}`, `background: ${accent}; color: ${onAccent};`);
+		rule(`.${stillWatching.stopBtn}`, `color: ${os(0.6)};`);
+		rule(`.${stillWatching.stopBtn}:focus`, `border-color: ${focusColor}; color: ${onSurface};`);
 	}
 
 
