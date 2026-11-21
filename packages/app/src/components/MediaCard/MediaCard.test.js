@@ -435,8 +435,11 @@ describe('MediaCard episode in a Poster row', () => {
 		expect(src('portrait')).toContain('/Items/s1/Images/Primary');
 	});
 
-	test('it asks for the series poster even when the server sent no tag for it', () => {
-		expect(src('portrait', {homeText: true}, {...episode, SeriesPrimaryImageTag: undefined})).toContain('/Items/s1/Images/Primary');
+	test('without a series poster it takes the season poster the server named, else the still', () => {
+		const noSeriesPoster = {...episode, SeriesPrimaryImageTag: undefined};
+		expect(src('portrait', {homeText: true}, {...noSeriesPoster, ParentPrimaryImageItemId: 'season1', ParentPrimaryImageTag: 'tag'})).toContain('/Items/season1/Images/Primary');
+		cleanup();
+		expect(src('portrait', {homeText: true}, noSeriesPoster)).toContain('/Items/e1/Images/Primary');
 	});
 
 	test('a wide card and a poster card outside Home keep the episode still', () => {
