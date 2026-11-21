@@ -1,4 +1,4 @@
-import {act, fireEvent, render, screen} from '@testing-library/react';
+import {act, cleanup, fireEvent, render, screen} from '@testing-library/react';
 
 import MediaCard from './MediaCard';
 import MediaPreviewContext from './MediaPreviewContext';
@@ -426,16 +426,22 @@ describe('MediaCard with the Home poster toggles', () => {
 
 describe('MediaCard episode in a Poster row', () => {
 	const episode = {Id: 'e1', Type: 'Episode', Name: 'Pilot', SeriesId: 's1', SeriesPrimaryImageTag: 'tag', ImageTags: {Primary: 'still'}};
-	const src = (cardType) => {
-		render(<MediaCard item={episode} serverUrl="http://server" cardType={cardType} rowImageType="poster" />);
+	const src = (cardType, props = {homeText: true}, item = episode) => {
+		render(<MediaCard item={item} serverUrl="http://server" cardType={cardType} rowImageType="poster" {...props} />);
 		return document.querySelector('img').getAttribute('src');
 	};
 
-	test('a poster card shows the series poster', () => {
+	test('a Home poster card shows the series poster', () => {
 		expect(src('portrait')).toContain('/Items/s1/Images/Primary');
 	});
 
-	test('a wide card keeps the episode still', () => {
+	test('it asks for the series poster even when the server sent no tag for it', () => {
+		expect(src('portrait', {homeText: true}, {...episode, SeriesPrimaryImageTag: undefined})).toContain('/Items/s1/Images/Primary');
+	});
+
+	test('a wide card and a poster card outside Home keep the episode still', () => {
 		expect(src('landscape')).toContain('/Items/e1/Images/Primary');
+		cleanup();
+		expect(src('portrait', {})).toContain('/Items/e1/Images/Primary');
 	});
 });

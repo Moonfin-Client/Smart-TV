@@ -38,7 +38,7 @@ import {rootScale} from '../../utils/rootScale';
 import {memoryCache} from '../Browse/browseCache';
 import {classicCardSize} from '../../components/MediaCard/MediaCard';
 import {CAROUSEL_PANEL_SCRIM, homeRowSpacing, modernCardMetrics} from '../../components/MediaCard/modernCardLayout';
-import {classicShape, rowImageType, rowPeekHeight} from '../Browse/rowPeek';
+import {classicShape, rowCardType, rowImageType, rowPeekHeight} from '../Browse/rowPeek';
 import {genreGlowRgb} from '../Browse/galleryGlow';
 import {DETAIL_ICON_PATHS} from '../Details/detailIcons';
 import {getMediaBadges} from '../Details/detailsMedia';
@@ -724,7 +724,7 @@ const HomeRowsColumn = ({items, rows, t, modern, focusFirst = false, carousel: c
 	const rowSettings = {...settings, homeRowsStyle: modern ? 'v2' : 'v1'};
 	const spacing = homeRowSpacing(rowSettings);
 	// A sample row takes the shape Home gives the row it stands for.
-	const sampleShape = (row, cardType) => classicShape(cardType, rowImageType(row, rowSettings));
+	const sampleShape = (row, cardType) => classicShape(rowCardType({...row, type: cardType}, rowSettings), rowImageType(row, rowSettings));
 	const rowGap = spacing === null ? DESIGN_H : spacing / 2;
 	const first = rows ? rows[0].items[0] : items[0];
 	return (

@@ -67,8 +67,12 @@ export const episodeArtwork = (item, serverUrl, imageType, useSeriesArt) => {
 		|| (item.ParentBackdropItemId
 			&& wide(getImageUrl(serverUrl, item.ParentBackdropItemId, 'Backdrop', {maxWidth: 400, quality: 80})))
 		|| null;
-	const seriesPoster = item.SeriesId && item.SeriesPrimaryImageTag
-		? {url: getImageUrl(serverUrl, item.SeriesId, 'Primary', {maxHeight: 300, quality: 80}), wide: false}
+	// A poster row asks for the series poster even without its tag, as the modern cards do,
+	// since Silo only sends the tag once it has stored the poster.
+	const seriesPosterId = item.SeriesPrimaryImageTag ? item.SeriesId
+		: imageType === 'poster' && (item.ParentPrimaryImageItemId || item.SeriesId);
+	const seriesPoster = seriesPosterId
+		? {url: getImageUrl(serverUrl, seriesPosterId, 'Primary', {maxHeight: 300, quality: 80}), wide: false}
 		: null;
 	// Silo sends a Continue Watching episode's still as its backdrop, with the season poster as its poster.
 	const still = wide(item.ImageTags?.Primary

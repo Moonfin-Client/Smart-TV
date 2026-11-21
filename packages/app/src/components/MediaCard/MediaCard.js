@@ -66,11 +66,11 @@ const MediaCard = ({item, serverUrl, cardType = 'portrait', rowImageType = 'post
 	const isBanner = imageType === 'banner' && cardType !== 'square' && cardType !== 'circle';
 	// An episode is the one item the series switch speaks for, so its picture is
 	// picked here instead of taking whatever wide art the row asked for. A banner
-	// row is left alone because that artwork is the row's own shape. A poster row
-	// has no episode poster to show, so it takes the series poster, as Core does.
+	// row is left alone because that artwork is the row's own shape. A Home poster
+	// row has no episode poster to show, so it takes the series poster, as Core does.
 	const episodeArt = (item.Type === 'Episode' && !isBanner)
 		? episodeArtwork(item, itemServerUrl, imageType,
-			settings.useSeriesThumbnails || (imageType === 'poster' && cardType === 'portrait'))
+			settings.useSeriesThumbnails || (homeText && imageType === 'poster' && cardType === 'portrait'))
 		: null;
 	// The url rather than the object, so the memo below still holds between renders.
 	const episodeArtUrl = episodeArt?.url || null;
