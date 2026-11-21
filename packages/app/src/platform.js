@@ -28,12 +28,20 @@ export const isXbox = () => {
 	return typeof window.__MOONFIN_XBOX__ !== 'undefined';
 };
 
+// Hisense VIDAA. Builds for it set REACT_APP_PLATFORM; the user agent says VIDAA otherwise.
+export const isVidaa = () => {
+	if (process.env.REACT_APP_PLATFORM === 'vidaa') return true;
+	if (typeof navigator === 'undefined') return false;
+	return /vidaa/i.test(navigator.userAgent || '');
+};
+
 export const getPlatform = () => {
 	if (process.env.REACT_APP_PLATFORM) return process.env.REACT_APP_PLATFORM;
 	if (isWebOS()) return 'webos';
 	if (isTizen()) return 'tizen';
 	if (isVega()) return 'vega';
 	if (isXbox()) return 'xbox';
+	if (isVidaa()) return 'vidaa';
 	return 'unknown';
 };
 

@@ -8,7 +8,7 @@ import {getImageUrl, getLogoUrl} from '../../utils/helpers';
 import {transcodesAudioCodec} from '../../utils/deviceProfileTuning';
 import {api as jellyfinApi, createApiForServer, getServerType, getServerUrl} from '../../services/jellyfinApi';
 import {getApiForItem} from '../../services/connectionPool';
-import {isVega} from '../../platform';
+import {isVega, isVidaa} from '../../platform';
 import {isPlexUrl} from '../../utils/plexUrls';
 import AudioMode from './audio/AudioMode';
 import useAudioTransport from './audio/useAudioTransport';
@@ -1802,7 +1802,8 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 			// remux runs the device out of memory. hls.js can't read a Plex stream there
 			// though, since Plex only lets app.plex.tv read its answers.
 			// shortcut: a high bitrate Plex remux can still run the stick out of memory, give hls.js a shell loader if it does.
-			const nativeHlsOk = !forceHlsJsRef.current && !(isVega() && !isLiveTV && !isPlexUrl(mediaUrl))
+			// VIDAA: 4K HEVC was measured through MSE, so HLS always goes through hls.js there.
+			const nativeHlsOk = !forceHlsJsRef.current && !isVidaa() && !(isVega() && !isLiveTV && !isPlexUrl(mediaUrl))
 				&& !!(video.canPlayType('application/x-mpegURL').replace(/no/, ''));
 			// Silo's copy remux is a playlist that grows as it's copied. webOS's own player takes it for live, opens near its
 			// newest segments and can't seek it at all, so a start or resume lands half a minute late. hls.js honours a start.

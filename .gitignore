@@ -38,3 +38,4 @@ packages/build-xbox/probe/media
 .DS_Store
 .vscode
 *.log
+packages/build-vidaa/out/

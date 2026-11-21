@@ -1,0 +1,13 @@
+{
+  "name": "jellyfind",
+  "version": "1.0.0",
+  "description": "starts the local server for the Jellyfin (Moonfin) app",
+  "main": "index.js",
+  "type": "commonjs",
+  "selfStart": true,
+  "permission": {
+    "required": {},
+    "provided": {}
+  },
+  "author": ""
+}
