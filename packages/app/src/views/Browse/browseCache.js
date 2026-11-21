@@ -134,6 +134,8 @@ const stripItemForCache = (item) => ({
 	mediaInfo: item.mediaInfo,
 	SeriesName: item.SeriesName,
 	SeriesId: item.SeriesId,
+	// A poster row shows an episode's series poster.
+	SeriesPrimaryImageTag: item.SeriesPrimaryImageTag,
 	ParentIndexNumber: item.ParentIndexNumber,
 	IndexNumber: item.IndexNumber,
 	ParentThumbItemId: item.ParentThumbItemId,

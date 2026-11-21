@@ -5,7 +5,7 @@ jest.mock('../../components/MediaCard/MediaCard', () => ({
 
 import {defaultSettings} from '../../context/defaultSettings';
 
-import {rowImageType, rowPeekHeight} from './rowPeek';
+import {rowCardType, rowImageType, rowPeekHeight} from './rowPeek';
 
 const continueRow = {id: 'continue-nextup', type: 'landscape'};
 const latestRow = {id: 'latest-movies', isLatestRow: true, type: 'portrait'};
@@ -44,5 +44,27 @@ describe('rowImageType', () => {
 
 	test('modern rows ignore the overrides', () => {
 		expect(rowImageType(continueRow, {...classic, homeRowsStyle: 'v2', homeRowImageTypes: {resume: 'thumb'}})).toBe('poster');
+	});
+});
+
+describe('rowCardType', () => {
+	const classic = {...defaultSettings, homeRowsStyle: 'v1', homeRowsImageType: 'poster'};
+
+	test('a Poster set on Continue Watching or Next Up turns their cards into posters', () => {
+		expect(rowCardType({id: 'resume', type: 'landscape'}, {...classic, homeRowImageTypes: {resume: 'poster'}})).toBe('portrait');
+		expect(rowCardType({id: 'nextup', type: 'landscape'}, {...classic, homeRowImageTypes: {nextup: 'poster'}})).toBe('portrait');
+		expect(rowCardType(continueRow, {...classic, homeRowImageTypes: {nextup: 'poster'}})).toBe('portrait');
+		expect(peek({homeRowsStyle: 'v1', homeRowImageTypes: {resume: 'poster'}})).toBe(249);
+	});
+
+	test('the rows stay wide under the default image type, another override or modern rows', () => {
+		expect(rowCardType(continueRow, classic)).toBe('landscape');
+		expect(rowCardType(continueRow, {...classic, homeRowImageTypes: {resume: 'thumb', nextup: 'poster'}})).toBe('landscape');
+		expect(rowCardType(continueRow, {...classic, homeRowsStyle: 'v2', homeRowImageTypes: {resume: 'poster'}})).toBe('landscape');
+	});
+
+	test('other rows keep their own type', () => {
+		expect(rowCardType({id: 'favoriteEpisodes', type: 'landscape'}, {...classic, homeRowImageTypes: {favoriteEpisodes: 'poster'}})).toBe('landscape');
+		expect(rowCardType(latestRow, classic)).toBe('portrait');
 	});
 });

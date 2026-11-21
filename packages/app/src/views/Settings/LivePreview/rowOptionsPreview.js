@@ -21,7 +21,7 @@ import {
 	readMusicAlbums, readMusicArtists
 } from '../../Browse/browseRowLoaders';
 import {buildBrowseRows} from '../../Browse/buildBrowseRows';
-import {classicShape, imageTypeRowId, rowImageType} from '../../Browse/rowPeek';
+import {classicShape, imageTypeRowId, rowCardType, rowImageType} from '../../Browse/rowPeek';
 import {adaptItem} from '../../SetupWizard/setupPreviewData';
 import {
 	AUDIO_ROW_OPTION_KEYS, COLLECTIONS_ROW_OPTION_KEYS, FAVORITES_ROW_OPTION_KEYS, GENRES_ROW_OPTION_KEYS, HOME_LOOK_KEYS,
@@ -271,7 +271,9 @@ const previewItem = (item, {modern, imageType, shape, serverUrl, useSeriesThumbn
 		return {...adapted, cardUrl: modernCardImageUrl(item, false, look), focusUrl: modernCardImageUrl(item, true, look)};
 	}
 	const art = (item.Type === 'Genre' && item._representative) || item;
-	const episode = item.Type === 'Episode' && shape !== 'banner' ? episodeArtwork(item, itemServerUrl, imageType, useSeriesThumbnails) : null;
+	// A poster row takes the series poster for an episode, as Home's cards do.
+	const seriesArt = useSeriesThumbnails || (imageType === 'poster' && shape === 'portrait');
+	const episode = item.Type === 'Episode' && shape !== 'banner' ? episodeArtwork(item, itemServerUrl, imageType, seriesArt) : null;
 	const wide = shape === 'landscape' ? requestedArtwork(art, 'thumb', itemServerUrl) || adapted.backdropUrl : null;
 	return {
 		...adapted,
@@ -282,7 +284,7 @@ const previewItem = (item, {modern, imageType, shape, serverUrl, useSeriesThumbn
 
 const previewRow = (row, settings, serverUrl) => {
 	const imageType = rowImageType(row, settings);
-	const shape = classicShape(row.type, imageType);
+	const shape = classicShape(rowCardType(row, settings), imageType);
 	const modern = settings.homeRowsStyle !== 'v1';
 	const staticCards = modern && isStaticLibraryCard(row.id === 'library-tiles', settings);
 	// Home leaves the poster labels off its Seerr, recommendation and genre rows.

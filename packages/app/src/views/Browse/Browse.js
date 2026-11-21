@@ -44,7 +44,7 @@ import {homeBackdropStyle} from '../../utils/homeBackdropStyle';
 import {rem} from '../../utils/rootScale';
 import {glideScroll, isGliding, smoothScrollingOn, stopScrollAnimation} from '../../utils/focusScroll';
 import {homeRowSpacing, isCarouselRow} from '../../components/MediaCard/modernCardLayout';
-import {rowImageType, rowPeekHeight} from './rowPeek';
+import {rowCardType, rowImageType, rowPeekHeight} from './rowPeek';
 
 import css from './Browse.module.less';
 
@@ -991,7 +991,7 @@ const Browse = ({
 									loading
 									title={row.title}
 									subtitle={row.subtitle}
-									cardType={row.type}
+									cardType={rowCardType(row, settings)}
 									rowSpacing={rowSpacing}
 									carousel={isCarouselRow(row, settings)}
 								/>
@@ -1112,7 +1112,7 @@ const Browse = ({
 								title={row.title}
 								items={row.items}
 								serverUrl={serverUrl}
-								cardType={row.type}
+								cardType={rowCardType(row, settings)}
 								rowImageType={rowImageType(row, settings)}
 								onSelectItem={selectHandler}
 								onFocus={handleRowFocus}

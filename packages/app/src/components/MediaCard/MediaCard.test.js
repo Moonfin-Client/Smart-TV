@@ -423,3 +423,19 @@ describe('MediaCard with the Home poster toggles', () => {
 		expect(marks()).toEqual({progress: true, count: false});
 	});
 });
+
+describe('MediaCard episode in a Poster row', () => {
+	const episode = {Id: 'e1', Type: 'Episode', Name: 'Pilot', SeriesId: 's1', SeriesPrimaryImageTag: 'tag', ImageTags: {Primary: 'still'}};
+	const src = (cardType) => {
+		render(<MediaCard item={episode} serverUrl="http://server" cardType={cardType} rowImageType="poster" />);
+		return document.querySelector('img').getAttribute('src');
+	};
+
+	test('a poster card shows the series poster', () => {
+		expect(src('portrait')).toContain('/Items/s1/Images/Primary');
+	});
+
+	test('a wide card keeps the episode still', () => {
+		expect(src('landscape')).toContain('/Items/e1/Images/Primary');
+	});
+});

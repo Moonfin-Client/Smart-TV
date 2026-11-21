@@ -69,6 +69,15 @@ describe('saveBrowseCache', () => {
 		expect(saved.featuredConfigKey).toBe('key');
 	});
 
+	test('keeps the series poster tag a poster row shows for an episode', () => {
+		memoryCache.rowData = [{id: 'resume', items: [{Id: 'e1', Type: 'Episode', SeriesId: 's1', SeriesPrimaryImageTag: 'tag'}]}];
+		saveBrowseCache(memoryCache.rowData, memoryCache.libraries, memoryCache.featuredItems, {serverUrl: 'http://server', userId: 'user'});
+		jest.runAllTimers();
+
+		const saved = mockSaveToStorage.mock.calls[0][1];
+		expect(saved.rowData[0].items[0].SeriesPrimaryImageTag).toBe('tag');
+	});
+
 	// A write after only Continue Watching and Next Up were read again mustn't make the recent rows look new.
 	test('saves when the recent rows were read, not the time of the write', () => {
 		memoryCache.recentAt = 1;
