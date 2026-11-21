@@ -1,4 +1,4 @@
-import {isAllowed, nextAccessStart, nextBoundary, readSchedules} from './accessSchedule';
+import {isAllowed, nextAccessStart, nextBoundary, readSchedules, readWindow} from './accessSchedule';
 
 const entry = (dayOfWeek, startHour, endHour) => ({dayOfWeek, startHour, endHour});
 
@@ -145,5 +145,25 @@ describe('readSchedules', () => {
 	test('leaves out what is not an entry', () => {
 		expect(readSchedules({AccessSchedules: [null, 5, 'x', {DayOfWeek: 'Monday', StartHour: 1, EndHour: 2}]}))
 			.toEqual([{dayOfWeek: 'Monday', startHour: 1, endHour: 2}]);
+	});
+});
+
+describe('readWindow', () => {
+	test('reads the plugin answer in milliseconds', () => {
+		expect(readWindow({allowed: true, secondsUntilClose: 3601}))
+			.toEqual({allowed: true, untilCloseMs: 3601000, untilOpenMs: null});
+		expect(readWindow({allowed: false, secondsUntilOpen: 59.2}))
+			.toEqual({allowed: false, untilCloseMs: null, untilOpenMs: 60000});
+	});
+
+	test('leaves out an unusable duration', () => {
+		expect(readWindow({allowed: false, secondsUntilOpen: -5}).untilOpenMs).toBeNull();
+		expect(readWindow({allowed: false, secondsUntilOpen: 'soon'}).untilOpenMs).toBeNull();
+	});
+
+	test('is null without allowed', () => {
+		expect(readWindow({secondsUntilOpen: 60})).toBeNull();
+		expect(readWindow(null)).toBeNull();
+		expect(readWindow('Not Found')).toBeNull();
 	});
 });

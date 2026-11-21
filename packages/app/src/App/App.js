@@ -80,6 +80,7 @@ import useSleepAfterIdle from '../hooks/useSleepAfterIdle';
 import useSignInPin from '../hooks/useSignInPin';
 import {useThemeMusic} from '../hooks/useThemeMusic';
 import {useAccessSchedule} from '../hooks/useAccessSchedule';
+import {readWindow} from '../utils/accessSchedule';
 import {shiftedNow} from '../utils/clock';
 import TimesUp from '../components/TimesUp/TimesUp';
 import {buildThemeCssVars, resolveFocusBorderColor, toRgbTriplet} from '../theme/themeSpec';
@@ -838,6 +839,17 @@ const AppContent = (props) => {
 		fetchUser: () => api.getUserConfiguration(),
 		// The user's own record honors the schedule, so a 403 there is the server turning them away.
 		serverRefuses: () => api.getCurrentUser().then(() => false, (err) => (err?.status === 403 ? true : null)),
+		// Without the plugin, or with one from before the endpoint (404), or one that can't read the
+		// schedule on this server (501), the schedule is judged here instead.
+		// A 200 that isn't a window (a proxy's HTML page, say) is a failed read, asked again next time.
+		fetchAccessWindow: () => api.getAccessWindow().then((json) => {
+			const answer = readWindow(json);
+			if (!answer) throw new Error('Moonfin/AccessWindow gave no window');
+			return answer;
+		}, (err) => {
+			if (err?.status === 404 || err?.status === 501) return null;
+			throw err;
+		}),
 		getNow: () => shiftedNow(settings.timeOffsetHours),
 		onBlocked: () => {
 			releaseVideoElements();
