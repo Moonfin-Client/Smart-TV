@@ -397,6 +397,13 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 		seekPending: () => Boolean(groupSeekPendingRef.current || videoRef.current?.seeking)
 	}), [syncPlaySample]);
 	const runTimeRef = useRef(0);
+	// A replan can be another version, or know a runtime the first plan didn't, so a reopened stream takes the title's
+	// length from its plan as the first load does.
+	const takeRunTime = useCallback((result) => {
+		if (result?.runTimeTicks === undefined) return;
+		runTimeRef.current = result.runTimeTicks || 0;
+		setDuration(runTimeRef.current / 10000000);
+	}, []);
 	const healthMonitorRef = useRef(null);
 	const unregisterAppStateRef = useRef(null);
 	const controlsTimeoutRef = useRef(null);
@@ -1541,13 +1548,14 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 		const result = await playback.reanchorAt(ticks);
 		if (!result?.url) throw new Error('Silo gave no stream to reopen');
 		pendingResumeTicksRef.current = ticks;
+		takeRunTime(result);
 		setMediaUrl(result.url);
 		// Silo can hand back the address the element already has; the source is set again all the same.
 		setSourceRevision((revision) => revision + 1);
 		if (result.playMethod) setPlayMethod(result.playMethod);
 		setIsHdrContent(isHdrOutput(result.mediaSource, result.playMethod === playback.PlayMethod.Transcode));
 		setMimeType(result.mimeType || 'video/mp4');
-	}, []);
+	}, [takeRunTime]);
 
 	const seekThroughServer = useMemo(() => createServerSeek(async (ticks) => {
 		try {
@@ -2576,6 +2584,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 
 				if (result.url) {
 					console.log('[Player] Switching to transcode on same element...');
+					takeRunTime(result);
 					setMediaUrl(result.url);
 					setPlayMethod(result.playMethod);
 					setIsHdrContent(isHdrOutput(result.mediaSource, result.playMethod === playback.PlayMethod.Transcode));
@@ -2618,6 +2627,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 				if (result.url) {
 					if (isTier2) forceHlsJsRef.current = true;
 					console.log('[Player] H.264 fallback URL:', result.url.substring(0, 200));
+					takeRunTime(result);
 					setMediaUrl(result.url);
 					setPlayMethod(result.playMethod);
 					setIsHdrContent(isHdrOutput(result.mediaSource, result.playMethod === playback.PlayMethod.Transcode));
@@ -2638,7 +2648,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 		} finally {
 			isHandlingErrorRef.current = false;
 		}
-	}, [hasTriedTranscode, playMethod, mimeType, mediaUrl, item, selectedQuality, settings.maxBitrate, settings.stereoUpmixEnabled, mediaSourceId, isPaused, isLiveTV, videoQueue, onPlayNext, liveRecovery, canReconnect, reconnect]);
+	}, [hasTriedTranscode, playMethod, mimeType, mediaUrl, item, selectedQuality, settings.maxBitrate, settings.stereoUpmixEnabled, mediaSourceId, isPaused, isLiveTV, videoQueue, onPlayNext, liveRecovery, canReconnect, reconnect, takeRunTime]);
 
 	useEffect(() => {
 		handlersRef.current = {
@@ -2991,6 +3001,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 			if (currentPositionTicks > 0) {
 				pendingResumeTicksRef.current = currentPositionTicks;
 			}
+			takeRunTime(result);
 			setMediaUrl(result.url);
 			// Silo can hand back the address already playing; the source is set again all the same, or the resume
 			// pending above would hold the position still.
@@ -2999,7 +3010,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 			setIsHdrContent(isHdrOutput(result.mediaSource, result.playMethod === playback.PlayMethod.Transcode));
 			setMimeType(result.mimeType || 'video/mp4');
 		}
-	}, []);
+	}, [takeRunTime]);
 
 	const applySubtitleSelection = useCallback(async (index, streamList = subtitleStreams, shouldClose = true) => {
 		playback.updateCurrentSession({subtitleStreamIndex: index});
@@ -3195,6 +3206,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 						afterReload: true
 					};
 				}
+				takeRunTime(result);
 				setMediaUrl(newUrl);
 				setSourceRevision((revision) => revision + 1);
 				if (result.playMethod) setPlayMethod(result.playMethod);
@@ -3206,7 +3218,7 @@ const Player = ({item, resume, initialMediaSourceId, initialAudioIndex, initialS
 		} catch (err) {
 			if (!playback.isEndedOnServer(err)) console.error('[Player] Failed to change audio:', err);
 		}
-	}, [audioStreams]);
+	}, [audioStreams, takeRunTime]);
 	reloadWithAudioRef.current = reloadWithAudio;
 
 	const applyAudioSelection = useCallback(async (index, shouldClose = true) => {
