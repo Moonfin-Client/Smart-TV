@@ -172,8 +172,7 @@ const logoHeightPxFor = (aspectRatio, viewportWidth, viewportHeight) => {
 
 export const useOsdLogo = (logoUrl) => {
 	const [logoLoadFailed, setLogoLoadFailed] = useState(false);
-	const [croppedLogoUrl, setCroppedLogoUrl] = useState(null);
-	const [logoAspectRatio, setLogoAspectRatio] = useState(null);
+	const [croppedLogo, setCroppedLogo] = useState(null);
 
 	// A tag that resolved but whose image 404s (stale cache, server hiccup) should
 	// still fall back to text instead of leaving a broken image in the corner.
@@ -182,19 +181,18 @@ export const useOsdLogo = (logoUrl) => {
 	// once the autocrop pass resolves, which keeps every logo reading the same size.
 	useEffect(() => {
 		setLogoLoadFailed(false);
-		setCroppedLogoUrl(null);
-		setLogoAspectRatio(null);
+		setCroppedLogo(null);
 		if (!logoUrl) return undefined;
 		let cancelled = false;
 		autocropLogoUrl(logoUrl).then((result) => {
-			if (cancelled) return;
-			setCroppedLogoUrl(result?.url || null);
-			setLogoAspectRatio(result?.aspectRatio || null);
+			if (!cancelled) setCroppedLogo(result);
 		});
 		return () => { cancelled = true; };
 	}, [logoUrl]);
 
-	const displayLogoUrl = croppedLogoUrl || logoUrl;
+	const displayLogoUrl = croppedLogo?.url || logoUrl;
+	const logoStyle = croppedLogo?.style;
+	const logoAspectRatio = croppedLogo?.aspectRatio || null;
 
 	// A wordmark-style logo (wide aspect ratio) renders far too big at the height a
 	// squarish one is comfortable at, since nothing before this scaled height down
@@ -214,5 +212,5 @@ export const useOsdLogo = (logoUrl) => {
 		setLogoLoadFailed(true);
 	}, []);
 
-	return {displayLogoUrl, logoLoadFailed, logoHeightPx, handleLogoError};
+	return {displayLogoUrl, logoStyle, logoLoadFailed, logoHeightPx, handleLogoError};
 };

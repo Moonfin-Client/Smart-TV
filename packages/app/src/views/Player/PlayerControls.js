@@ -114,7 +114,7 @@ const PlayerControls = ({
 }) => {
 	const { settings } = useSettings();
 	const isTizenPlatform = getPlatform() === 'tizen';
-	const {displayLogoUrl, logoLoadFailed, logoHeightPx, handleLogoError} = useOsdLogo(logoUrl);
+	const {displayLogoUrl, logoStyle, logoLoadFailed, logoHeightPx, handleLogoError} = useOsdLogo(logoUrl);
 
 	// The list only stands in for itself once the work is done and there is
 	// nothing to report instead.
@@ -230,7 +230,7 @@ const PlayerControls = ({
 								<>
 									<img
 										className={css.mediaLogo}
-										style={{height: `${logoHeightPx}px`}}
+										style={{...logoStyle, height: `${logoHeightPx}px`}}
 										src={displayLogoUrl}
 										alt={title}
 										onError={handleLogoError}
@@ -617,6 +617,7 @@ const PlayerControls = ({
 				<EpisodeBrowser
 					item={item}
 					logoUrl={logoLoadFailed ? null : displayLogoUrl}
+					logoStyle={logoStyle}
 					onLogoError={handleLogoError}
 					onSelect={handleSelectEpisode}
 					onClose={closeModal}

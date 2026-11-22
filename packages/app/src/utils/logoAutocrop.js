@@ -7,13 +7,11 @@
 const ALPHA_THRESHOLD = 16;
 const CROP_PADDING_RATIO = 0.06;
 
-// The bounds only say where to cut, and the cut lands in the same place whether they were read
-// off the full image or a small copy of it. Reading the full one means pulling every pixel back
-// out of the canvas, which is the slow part and happens just as playback is starting.
+// The bounds are read off a copy the server scales down, since only the shape of the ink matters and this
+// runs just as playback is starting.
 const SCAN_WIDTH = 240;
 
-// Every entry holds a whole logo as a data url, and a set left on the screensaver walks the
-// library. Without a ceiling each logo it passes would sit in memory until the app closes.
+// A set left on the screensaver walks the library, so only the last few logos are kept.
 const CACHE_LIMIT = 16;
 
 const cache = new Map();
@@ -26,14 +24,17 @@ const remember = (key, value) => {
 
 // The crossOrigin request is what keeps getImageData from throwing on a canvas
 // tainted by the artwork.
-const loadImage = (src) =>
+const loadImage = (src, crossOrigin) =>
 	new Promise((resolve, reject) => {
 		const img = document.createElement('img');
-		img.crossOrigin = 'anonymous';
+		if (crossOrigin) img.crossOrigin = 'anonymous';
 		img.onload = () => resolve(img);
 		img.onerror = reject;
 		img.src = src;
 	});
+
+// Jellyfin and Emby scale an image to the maxWidth asked for. Any other url is scanned as it is.
+const scanUrlFor = (url) => url.replace(/([?&]maxWidth=)\d+/, `$1${SCAN_WIDTH}`);
 
 export const findOpaqueBounds = (data, width, height) => {
 	let minX = width, minY = height, maxX = -1, maxY = -1;
@@ -51,72 +52,73 @@ export const findOpaqueBounds = (data, width, height) => {
 	return maxX >= minX && maxY >= minY ? {minX, minY, maxX, maxY} : null;
 };
 
-// Reads the ink bounds off a scaled down copy and maps them back onto the source. One scan pixel
-// covers several real ones, so each edge widens to cover the whole pixel that produced it, which
-// keeps a faint outer stroke from being cut off.
-const opaqueBoundsOf = (img, width, height) => {
-	const scale = Math.min(1, SCAN_WIDTH / width);
-	const scanWidth = Math.max(1, Math.round(width * scale));
-	const scanHeight = Math.max(1, Math.round(height * scale));
-
+const opaqueBoundsOf = (img) => {
+	const scale = Math.min(1, SCAN_WIDTH / img.naturalWidth);
+	const width = Math.max(1, Math.round(img.naturalWidth * scale));
+	const height = Math.max(1, Math.round(img.naturalHeight * scale));
 	const canvas = document.createElement('canvas');
-	canvas.width = scanWidth;
-	canvas.height = scanHeight;
+	canvas.width = width;
+	canvas.height = height;
 	const ctx = canvas.getContext('2d');
 	if (!ctx) return null;
-	ctx.drawImage(img, 0, 0, scanWidth, scanHeight);
+	ctx.drawImage(img, 0, 0, width, height);
+	const bounds = findOpaqueBounds(ctx.getImageData(0, 0, width, height).data, width, height);
+	return bounds && {bounds, width, height};
+};
 
-	const {data} = ctx.getImageData(0, 0, scanWidth, scanHeight);
-	const bounds = findOpaqueBounds(data, scanWidth, scanHeight);
-	if (!bounds) return null;
+// A transparent stand-in with the trimmed logo's own size, so whatever sizes the img sizes it as it would
+// the trimmed image.
+const sizerUrl = (width, height) => `data:image/svg+xml,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}"/>`)}`;
 
+/**
+ * The trimmed logo for ink `bounds` found on a `width` by `height` scan of a logo whose full size is
+ * `fullWidth` by `fullHeight`: the url to show, the trimmed aspect ratio and a style for the img. The img
+ * shows a transparent stand-in the trimmed size and draws the logo as its background, scaled and shifted
+ * so the margin falls outside the box.
+ */
+export const trimmedLogo = (logoUrl, bounds, width, height, fullWidth, fullHeight) => {
+	// Each edge widens to cover the whole scan pixel that produced it, so a faint outer stroke isn't cut off.
+	// The left edge stays flush with the ink, so the logo lines up with the plain-text title below it. Top
+	// and bottom get a little room.
+	const left = bounds.minX / width;
+	const across = (bounds.maxX + 1) / width - left;
+	const inkTop = bounds.minY / height;
+	const inkHeight = (bounds.maxY + 1) / height - inkTop;
+	const pad = inkHeight * CROP_PADDING_RATIO;
+	const top = inkTop - pad;
+	const down = inkHeight + pad * 2;
+
+	const trimmedWidth = Math.max(1, Math.round(across * fullWidth));
+	const trimmedHeight = Math.max(1, Math.round(down * fullHeight));
+	// A background percentage lines up that fraction of the image with the same fraction of the box.
+	const at = (offset, size) => (size === 1 ? 0 : (offset / (1 - size)) * 100);
 	return {
-		minX: Math.max(0, Math.floor(bounds.minX / scale)),
-		minY: Math.max(0, Math.floor(bounds.minY / scale)),
-		maxX: Math.min(width - 1, Math.ceil((bounds.maxX + 1) / scale)),
-		maxY: Math.min(height - 1, Math.ceil((bounds.maxY + 1) / scale))
+		url: sizerUrl(trimmedWidth, trimmedHeight),
+		aspectRatio: trimmedWidth / trimmedHeight,
+		style: {
+			backgroundImage: `url("${logoUrl}")`,
+			backgroundRepeat: 'no-repeat',
+			backgroundSize: `${100 / across}% ${100 / down}%`,
+			backgroundPosition: `${at(left, across)}% ${at(top, down)}%`
+		}
 	};
 };
 
-// Falls back to the untouched url (and a null aspectRatio) whenever the crop
-// can't be computed - no image, a server that doesn't allow the cross origin
-// read, or a fully transparent bitmap.
+// Falls back to the untouched url (and a null aspectRatio) whenever the trim can't be worked out: no image,
+// a server that doesn't allow the cross origin read, or a fully transparent bitmap.
 export const autocropLogoUrl = (logoUrl) => {
 	if (!logoUrl) return Promise.resolve(null);
 	if (cache.has(logoUrl)) return cache.get(logoUrl);
 
 	const promise = (async () => {
 		try {
-			const img = await loadImage(logoUrl);
-			const {naturalWidth: width, naturalHeight: height} = img;
-			if (!width || !height) return {url: logoUrl, aspectRatio: null};
-
-			const bounds = opaqueBoundsOf(img, width, height);
-			if (!bounds) return {url: logoUrl, aspectRatio: null};
-
-			const trimmedWidth = bounds.maxX - bounds.minX + 1;
-			const trimmedHeight = bounds.maxY - bounds.minY + 1;
-			const padY = Math.round(trimmedHeight * CROP_PADDING_RATIO);
-
-			// The left edge stays flush with the ink (no horizontal pad) so the
-			// logo lines up with the plain-text title below it, which starts at
-			// the same x position - padding both sides would offset the logo's
-			// visible content to the right of that text.
-			const outCanvas = document.createElement('canvas');
-			outCanvas.width = trimmedWidth;
-			outCanvas.height = trimmedHeight + padY * 2;
-			const outCtx = outCanvas.getContext('2d');
-			if (!outCtx) return {url: logoUrl, aspectRatio: null};
-			outCtx.drawImage(
-				img,
-				bounds.minX, bounds.minY, trimmedWidth, trimmedHeight,
-				0, padY, trimmedWidth, trimmedHeight
-			);
-
-			return {
-				url: outCanvas.toDataURL('image/png'),
-				aspectRatio: outCanvas.width / outCanvas.height
-			};
+			const scanUrl = scanUrlFor(logoUrl);
+			const [scan, full] = await Promise.all([loadImage(scanUrl, true), scanUrl === logoUrl ? null : loadImage(logoUrl, false)]);
+			const {naturalWidth: fullWidth, naturalHeight: fullHeight} = full || scan;
+			if (!scan.naturalWidth || !scan.naturalHeight || !fullWidth || !fullHeight) return {url: logoUrl, aspectRatio: null};
+			const found = opaqueBoundsOf(scan);
+			if (!found) return {url: logoUrl, aspectRatio: null};
+			return trimmedLogo(logoUrl, found.bounds, found.width, found.height, fullWidth, fullHeight);
 		} catch {
 			return {url: logoUrl, aspectRatio: null};
 		}

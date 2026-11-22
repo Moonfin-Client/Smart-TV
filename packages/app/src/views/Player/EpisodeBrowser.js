@@ -98,7 +98,7 @@ const EpisodeRow = memo(({episode, serverUrl, isCurrent, hideOverview, onSelect}
  *
  * Choosing an episode hands it to `onSelect`, which switches playback to it in place.
  */
-const EpisodeBrowser = memo(({item, logoUrl, onLogoError, onSelect, onClose}) => {
+const EpisodeBrowser = memo(({item, logoUrl, logoStyle, onLogoError, onSelect, onClose}) => {
 	const {settings} = useSettings();
 	const {seasons, selectedSeasonId, selectSeason, episodes, failed} = useSeriesEpisodes({item, enabled: true});
 	const listRef = useRef(null);
@@ -164,7 +164,7 @@ const EpisodeBrowser = memo(({item, logoUrl, onLogoError, onSelect, onClose}) =>
 			<ModalContainer className={`${dialogCss.panel} ${css.panel}`} onClick={stopPropagation} data-modal="episodes" spotlightId="episodes-modal">
 				<h2 className={dialogCss.title}>
 					{logoUrl ? (
-						<img className={css.logo} src={logoUrl} alt={item.SeriesName || ''} onError={onLogoError} />
+						<img className={css.logo} style={logoStyle} src={logoUrl} alt={item.SeriesName || ''} onError={onLogoError} />
 					) : (item.SeriesName || $L('Episodes'))}
 				</h2>
 				<div className={dialogCss.divider} />

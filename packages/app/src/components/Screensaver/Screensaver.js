@@ -144,7 +144,7 @@ const Screensaver = ({
 	const [currentItem, setCurrentItem] = useState(null);
 	const [backdropVisible, setBackdropVisible] = useState(false);
 	const [batchReady, setBatchReady] = useState(false);
-	const [croppedLogoUrl, setCroppedLogoUrl] = useState(null);
+	const [croppedLogo, setCroppedLogo] = useState(null);
 	const backdropTimerRef = useRef(null);
 	const backdropBatchRef = useRef([]);
 	const backdropUsedRef = useRef(0);
@@ -154,11 +154,11 @@ const Screensaver = ({
 	// Same padding-trim pass as the video player, so a logo with a lot of
 	// transparent margin baked in doesn't read smaller than a tightly cropped one.
 	useEffect(() => {
-		setCroppedLogoUrl(null);
+		setCroppedLogo(null);
 		if (!currentItemLogoUrl) return undefined;
 		let cancelled = false;
 		autocropLogoUrl(currentItemLogoUrl).then((result) => {
-			if (!cancelled) setCroppedLogoUrl(result?.url || null);
+			if (!cancelled) setCroppedLogo(result);
 		});
 		return () => { cancelled = true; };
 	}, [currentItemLogoUrl]);
@@ -301,7 +301,7 @@ const Screensaver = ({
 
 	const backdropId = currentItem ? getBackdropId(currentItem) : null;
 	const backdropUrl = backdropId ? getImageUrl(serverUrl, backdropId, 'Backdrop', {maxWidth: 1920, quality: 80}) : null;
-	const displayLogoUrl = croppedLogoUrl || currentItemLogoUrl;
+	const displayLogoUrl = croppedLogo?.url || currentItemLogoUrl;
 
 	const renderComponent = () => {
 		if (component === 'moonfinLogo') {
@@ -345,6 +345,7 @@ const Screensaver = ({
 							{currentItemLogoUrl ? (
 								<img
 									src={displayLogoUrl}
+									style={croppedLogo?.style}
 									alt={currentItem.Name || ''}
 									className={css.backdropLogo}
 								/>
