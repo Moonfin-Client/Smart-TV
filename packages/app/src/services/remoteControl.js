@@ -132,9 +132,13 @@ const navigate = (keyCode) => {
 };
 
 const handlePlaystate = async (data) => {
+	if (typeof data?.Command !== 'string') return;
+	const commandName = data.Command.toLowerCase();
+	// A Stop also calls off a remote play that's still loading, before any player is up.
+	if (commandName === 'stop') navigationGeneration++;
 	const target = player();
-	if (!target || typeof data?.Command !== 'string') return;
-	switch (data.Command.toLowerCase()) {
+	if (!target) return;
+	switch (commandName) {
 		case 'pause':
 			target.pause();
 			break;
@@ -291,9 +295,10 @@ const handlePlay = (data) => {
 		app().queueItems(itemIds, command === 'playnext');
 		return;
 	}
-	navigationGeneration++;
+	const generation = ++navigationGeneration;
 	remoteSearch?.close();
 	app().playItems(itemIds, {
+		isCurrent: () => generation === navigationGeneration,
 		startIndex: toInt(data.StartIndex) || 0,
 		startPositionTicks: toInt(data.StartPositionTicks),
 		audioStreamIndex: toInt(data.AudioStreamIndex),

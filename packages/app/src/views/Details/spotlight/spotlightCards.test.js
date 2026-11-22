@@ -122,6 +122,28 @@ describe('spotlightCardsFor', () => {
 		expect(titles(card)).toEqual(['Specials', 'Season 1']);
 	});
 
+	it('puts an episode of the whole run with no season number under the specials', () => {
+		const card = spotlightCardsFor(state({
+			item: {Id: 'ep-s1-1', Type: 'Episode', ParentIndexNumber: 1},
+			seriesEpisodes: [
+				child('ep-s1-1', 'Episode', {Name: 'S1E1', ParentIndexNumber: 1, IndexNumber: 1}),
+				child('ep-spec-1', 'Episode', {Name: 'Special 1', IndexNumber: 1})
+			]
+		}))[0];
+		expect(titles(card)).toEqual(['Specials', 'Season 1']);
+	});
+
+	it('orders episodes that share a number by title, ignoring case', () => {
+		const card = spotlightCardsFor(state({
+			item: {Id: 'b', Type: 'Episode', ParentIndexNumber: 1},
+			seriesEpisodes: [
+				child('b', 'Episode', {Name: 'Beta', ParentIndexNumber: 1, IndexNumber: 1}),
+				child('a', 'Episode', {Name: 'alpha', ParentIndexNumber: 1, IndexNumber: 1})
+			]
+		}))[0];
+		expect(card.sections[0].items.map((i) => i.Id)).toEqual(['a', 'b']);
+	});
+
 	it('gives a music album a track list with its total runtime', () => {
 		const cards = spotlightCardsFor(state({
 			item: {Id: 'item-1', Type: 'MusicAlbum'},

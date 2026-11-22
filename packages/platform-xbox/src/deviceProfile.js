@@ -20,19 +20,25 @@
 // files is taken at its word and offered H.264 from then on.
 //
 // With the console's own player none of the WebView's answers matter: HEVC goes by
-// the host's word alone, HDR10 by the display's, every common sound format is decoded
-// by the player itself, and WebM and MPEG-TS files are read as they are.
+// the host's word alone, HDR10 by the display's, Dolby Vision by the display's and the
+// console's together, every common sound format is decoded by the player itself, and
+// WebM and MPEG-TS files are read as they are.
 import {isBurnInSubtitleCodec} from '@moonfin/app/src/utils/subtitleCodecs';
 import {bootData} from './bridge';
 import {modelName} from './deviceInfo';
-import {isNativePlayerEnabled} from './nativeVideo';
+import {isDolbyVisionEnabled, isNativePlayerEnabled} from './nativeVideo';
 
 const HEVC_REFUSALS_KEY = 'moonfin:xboxHevcRefusals';
 const HEVC_REFUSAL_LIMIT = 2;
 
-// Dolby Vision over an HDR10 base layer plays as HDR10, the player decodes the base and
-// leaves the Dolby Vision data alone. Profile 5 has no such base and stays a transcode.
+// Without the console's Dolby Vision processor, Dolby Vision over an HDR10 base layer plays
+// as HDR10, since the player decodes the base and leaves the Dolby Vision data alone.
+// Transcodes always keep this list, since only a file the host opens itself gets tagged for
+// the processor.
 const HDR10_RANGE_TYPES = 'SDR|HDR10|HDR10Plus|DOVIWithHDR10|DOVIWithHDR10Plus|DOVIWithEL|DOVIWithELHDR10Plus|DOVIInvalid';
+// Profile 5 has no base layer to fall back on, and the HLG and SDR bases of profiles 8.4 and
+// 8.2 arent offered on their own, so these only play through the processor.
+const DOLBY_VISION_ONLY_RANGE_TYPES = 'DOVI|DOVIWithHLG|DOVIWithSDR';
 
 let cachedCapabilities = null;
 let cachedForNativePlayer = null;
@@ -76,6 +82,9 @@ export const getDeviceCapabilities = async () => {
 
 	const protection = bootData()?.protection || {};
 	const display = bootData()?.display || {};
+	const hdr = Array.isArray(display.hdr) ? display.hdr : [];
+	const dolbyVisionEffect = bootData()?.dolbyVision?.effect;
+	const consoleDolbyVision = hdr.includes('dolbyvision') && Array.isArray(dolbyVisionEffect) && dolbyVisionEffect.length > 0;
 	const version = detectXboxVersion();
 	const hevc = nativePlayer
 		? protection.hevc === true
@@ -91,10 +100,12 @@ export const getDeviceCapabilities = async () => {
 		uhd: hevc && protection.uhd === true,
 		uhd8K: false,
 
-		hdr10: nativePlayer && Array.isArray(display.hdr) && display.hdr.includes('hdr10'),
+		hdr10: nativePlayer && hdr.includes('hdr10'),
 		hdr10Plus: false,
 		hlg: false,
-		dolbyVision: false,
+		// Whatever the setting says, so Settings knows to offer it
+		consoleDolbyVision,
+		dolbyVision: consoleDolbyVision && isDolbyVisionEnabled(),
 
 		hevc,
 		av1: false,
@@ -194,6 +205,7 @@ const buildTranscodingProfiles = (caps) => [
 
 export const getJellyfinDeviceProfile = async () => {
 	const caps = await getDeviceCapabilities();
+	const hevcRanges = caps.hdr10 ? HDR10_RANGE_TYPES : 'SDR';
 
 	const codecProfiles = [
 		{
@@ -205,12 +217,22 @@ export const getJellyfinDeviceProfile = async () => {
 				{Condition: 'LessThanEqual', Property: 'VideoLevel', Value: '42', IsRequired: false}
 			]
 		},
+		// The server applies video codec profiles last to first, so this one decides a transcode,
+		// which may only copy Dolby Vision that has an HDR10 base
+		...(caps.dolbyVision ? [{
+			Type: 'Video',
+			Container: 'hls',
+			Codec: 'hevc',
+			Conditions: [
+				{Condition: 'EqualsAny', Property: 'VideoRangeType', Value: hevcRanges, IsRequired: false}
+			]
+		}] : []),
 		{
 			Type: 'Video',
 			Codec: 'hevc',
 			Conditions: [
 				{Condition: 'EqualsAny', Property: 'VideoProfile', Value: 'main|main 10', IsRequired: false},
-				{Condition: 'EqualsAny', Property: 'VideoRangeType', Value: caps.hdr10 ? HDR10_RANGE_TYPES : 'SDR', IsRequired: false},
+				{Condition: 'EqualsAny', Property: 'VideoRangeType', Value: caps.dolbyVision ? `${hevcRanges}|${DOLBY_VISION_ONLY_RANGE_TYPES}` : hevcRanges, IsRequired: false},
 				{Condition: 'LessThanEqual', Property: 'VideoLevel', Value: '153', IsRequired: false},
 				// A 1080p file is often marked with a 4K level, so the size is held by itself
 				...(caps.uhd ? [] : [{Condition: 'LessThanEqual', Property: 'Width', Value: '1920', IsRequired: false}])

@@ -5,11 +5,13 @@ import {DETAIL_ICON_PATHS} from '../../views/Details/detailIcons';
 // The long press menu on a card: what can be done to that one item without opening it. Which
 // entries show depends on the item's type and on what the signed in user may do.
 
-const MEDIA_TYPES = ['Movie', 'Episode', 'Series', 'Season', 'Audio', 'MusicAlbum', 'BoxSet'];
+export const MEDIA_TYPES = ['Movie', 'Episode', 'Series', 'Season', 'Audio', 'MusicAlbum', 'BoxSet'];
 
 // The types the server can look up by name, where Identify has anything to search. Episodes and
 // seasons qualify because Identify goes to their series.
 const IDENTIFIABLE_TYPES = ['Movie', 'Series', 'Season', 'Episode', 'BoxSet', 'Person', 'MusicAlbum', 'MusicArtist', 'Book', 'Trailer', 'MusicVideo'];
+
+const SILO_ADMIN_TYPES = ['Movie', 'Series', 'Season', 'Episode'];
 
 const ARTWORK_FOLDER_TYPES = ['Folder', 'CollectionFolder', 'UserView', 'Genre', 'MusicGenre', 'Studio', 'Network'];
 
@@ -44,9 +46,13 @@ const hasProgress = (item) => {
 export const itemMenuActions = (item, {
 	isAdmin = false,
 	isJellyfin = true,
+	// Silo's admin item routes: refresh, Identify (movies and shows) and artwork for the catalog's titles.
+	isSilo = false,
 	canManageCollections = false,
 	inCollection = false,
 	playlist = null,
+	playlistMemberships = [],
+	collectionMemberships = [],
 	isContinueWatchingOrNextUp = false,
 	playImmediately = false
 } = {}) => {
@@ -88,9 +94,7 @@ export const itemMenuActions = (item, {
 		});
 		if (canManageCollections) {
 			actions.push({id: 'addToCollection', icon: DETAIL_ICON_PATHS.collection, label: $L('Add to Collection')});
-			// Only for the collection whose page the menu was opened from. An item can belong to
-			// several, and pulling it out of one the viewer isn't looking at would be a surprise.
-			if (inCollection) {
+			if (inCollection || collectionMemberships.length > 0) {
 				actions.push({id: 'removeFromCollection', icon: MENU_ICON_PATHS.playlistRemove, label: $L('Remove from Collection')});
 			}
 		}
@@ -103,7 +107,11 @@ export const itemMenuActions = (item, {
 			if (canMove && !playlist.first) actions.push({id: 'moveUp', icon: MENU_ICON_PATHS.arrowUpward, label: $L('Move Up')});
 			if (canMove && !playlist.last) actions.push({id: 'moveDown', icon: MENU_ICON_PATHS.arrowDownward, label: $L('Move Down')});
 		}
-		if (isJellyfin && isAdmin) {
+		// The playlists the item is in, unless this row already offers to take it out of its own.
+		if ((!playlist?.canManage || playlist.canRemove === false) && playlistMemberships.length > 0) {
+			actions.push({id: 'removeFromPlaylistPicker', icon: MENU_ICON_PATHS.playlistRemove, label: $L('Remove from Playlist')});
+		}
+		if ((isJellyfin || (isSilo && SILO_ADMIN_TYPES.includes(type))) && isAdmin) {
 			actions.push({id: 'refreshMetadata', icon: MENU_ICON_PATHS.refresh, label: $L('Refresh Metadata')});
 			if (IDENTIFIABLE_TYPES.indexOf(type) !== -1) {
 				actions.push({id: 'identify', icon: MENU_ICON_PATHS.search, label: $L('Identify')});
@@ -112,7 +120,7 @@ export const itemMenuActions = (item, {
 	}
 
 	const artworkType = MEDIA_TYPES.indexOf(type) !== -1 || ARTWORK_FOLDER_TYPES.indexOf(type) !== -1;
-	if (artworkType && isJellyfin && isAdmin) {
+	if (((artworkType && isJellyfin) || (isSilo && SILO_ADMIN_TYPES.includes(type))) && isAdmin) {
 		actions.push({id: 'changeArtwork', icon: DETAIL_ICON_PATHS.artwork, label: $L('Change Artwork')});
 	}
 
@@ -123,10 +131,17 @@ export const itemMenuActions = (item, {
 	return actions;
 };
 
-// Emby and Plex take an item off resume and keep its progress. Jellyfin can only clear the play state, and
+// Emby, Plex and Silo take an item off resume and keep its progress. Jellyfin can only clear the play state, and
 // the audiobook Continue row ignores Emby's flag, so audio is always cleared.
 export const hideFromResume = (api, item, serverType) => {
 	const audio = item.Type === 'Audio' || item.Type === 'AudioBook' || item.MediaType === 'Audio';
+	// Silo hides a title as of its last progress, which it finds on the item.
+	if (serverType === 'silo') return api.hideFromResume(item.Id, item).catch(() => {});
 	if ((serverType === 'emby' || serverType === 'plex') && !audio) return api.hideFromResume(item.Id).catch(() => {});
 	return api.setWatched(item.Id, false).catch(() => {});
 };
+
+// Silo keeps its own Next Up dismissals. Elsewhere hiding from Next Up is the same as from resume.
+export const hideFromNextUp = (api, item, serverType) => (serverType === 'silo'
+	? api.hideFromNextUp(item).catch(() => {})
+	: hideFromResume(api, item, serverType));

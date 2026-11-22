@@ -41,6 +41,9 @@ namespace Moonfin.Xbox
     //   PLAYER_SELECT_SUBTITLE {session, index}
     //   PLAYER_SET_RECT      {session, x, y, width, height}
     //   PLAYER_GET_STATE     (answered with where the player is)
+    //   SOCKET_OPEN          {id, url, protocols}, a WebSocket the host opens (SocketRelay)
+    //   SOCKET_SEND          {id, data}
+    //   SOCKET_CLOSE         {id, code, reason}
     //
     // Host to page:
     //   APP_STATE    {state: "active" | "background"}
@@ -48,6 +51,9 @@ namespace Moonfin.Xbox
     //   KEY          {key}
     //   PLAYER_EVENT {session, event, ...} for opened, playing, paused, waiting, timeupdate,
     //                seeked, ended, audioTracks, natural, display, error and closed
+    //   SOCKET_OPENED  {id, protocol}
+    //   SOCKET_MESSAGE {id, data}
+    //   SOCKET_CLOSED  {id, code, reason}, also for a socket that failed to open (1006)
     //   REPLY        the answer to a message that carried an id
     internal static class Bridge
     {

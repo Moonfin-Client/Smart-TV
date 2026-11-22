@@ -24,9 +24,11 @@ export const CurrentArtworkCard = ({serverUrl, itemId, category, tag, index, siz
 				alt=""
 			/>
 			<div className={css.cardBadge}>{$L('Current')}</div>
-			<SpottableButton className={css.cardActionBtn} onClick={handleDelete}>
-				<svg viewBox="0 0 24 24" width="20" height="20"><path fill="currentColor" d={TRASH_PATH} /></svg>
-			</SpottableButton>
+			{onRequestDelete && (
+				<SpottableButton className={css.cardActionBtn} onClick={handleDelete}>
+					<svg viewBox="0 0 24 24" width="20" height="20"><path fill="currentColor" d={TRASH_PATH} /></svg>
+				</SpottableButton>
+			)}
 		</SpottableDiv>
 	);
 };

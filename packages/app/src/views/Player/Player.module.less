@@ -240,6 +240,8 @@
 	cursor: pointer;
 	transition: all 0.2s ease;
 	margin: 5px 10px 15px 10px;
+	// A button is only as wide as its text, so without this the label and value run together.
+	width: calc(100% - 20px);
 }
 
 .settingItem:hover,

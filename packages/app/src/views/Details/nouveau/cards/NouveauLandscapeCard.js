@@ -1,5 +1,6 @@
 import $L from '@enact/i18n/$L';
 
+import PosterLabels from '../../../../components/PosterLabels';
 import {SpottableDiv} from '../../detailsSpottables';
 
 import css from './NouveauCards.module.less';
@@ -9,7 +10,7 @@ import css from './NouveauCards.module.less';
 // handler on each side serves the whole rail.
 const NouveauLandscapeCard = ({
 	imageUrl, title, overview, width, imageHeight, isNextUp = false, progress = 0,
-	selectKey, onArtworkSelect, onDetailsSelect
+	selectKey, onArtworkSelect, onDetailsSelect, episode, serverUrl
 }) => {
 	const shown = progress > 0 && progress < 1;
 
@@ -30,6 +31,7 @@ const NouveauLandscapeCard = ({
 						<div className={css.progressFill} style={{width: `${Math.round(progress * 100)}%`}} />
 					</div>
 				)}
+				<PosterLabels item={episode} serverUrl={serverUrl} scale={0.8} top={isNextUp ? 36 : 8} />
 			</SpottableDiv>
 			<SpottableDiv
 				className={css.landscapeDetails}

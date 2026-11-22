@@ -6,7 +6,7 @@ jest.mock('@enact/i18n/$L', () => ({__esModule: true, default: (str) => str}));
 // The real settings context and the rest of settingsRows both need the framework's own React.
 jest.mock('../../context/SettingsContext', () => ({DEFAULT_HOME_ROWS: require('../../utils/homeLayout').DEFAULT_HOME_ROWS}));
 jest.mock('./settingsRows', () => ({editedListKey: (list) => list.map((item) => `${item.id}:${item.enabled ? 1 : 0}`).join(',')}));
-jest.mock('../../services/jellyfinApi', () => ({createApiForServer: jest.fn()}));
+jest.mock('../../services/jellyfinApi', () => ({createApiForServer: jest.fn(), getServerType: () => 'jellyfin'}));
 
 import {createApiForServer} from '../../services/jellyfinApi';
 import {DEFAULT_HOME_ROWS} from '../../utils/homeLayout';

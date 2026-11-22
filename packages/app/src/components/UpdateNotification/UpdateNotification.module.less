@@ -1,147 +1,126 @@
-.overlay {
-	position: fixed;
-	top: 0;
-	left: 0;
-	right: 0;
-	bottom: 0;
+@import '../../styles/mixins.less';
+
+@on-surface-rgb: var(--theme-on-surface-rgb, 255, 255, 255);
+
+.option {
+	display: -webkit-box;
+	display: -webkit-flex;
 	display: flex;
+	-webkit-box-align: center;
+	-webkit-align-items: center;
 	align-items: center;
-	justify-content: center;
-	z-index: 9999;
+	padding: (12 * @dp) (24 * @dp);
+	cursor: pointer;
+	outline: none;
+
+	&:focus {
+		background: rgba(255, 255, 255, 0.12);
+	}
 }
 
-.modal {
-	width: 1400px !important;
-	min-width: 1200px !important;
-	max-width: 85vw;
-	max-height: 80vh;
-	background: var(--theme-background, #0a0a0a) !important;
-	border: 3px solid rgba(var(--theme-on-surface-rgb, 255, 255, 255), 0.15);
-	border-radius: 24px;
-	box-shadow: 0 16px 64px rgba(var(--theme-scrim-rgb, 0, 0, 0), 0.95);
-	padding: 48px;
+.optionIcon {
+	-webkit-flex-shrink: 0;
+	flex-shrink: 0;
+	width: (22 * @dp);
+	height: (22 * @dp);
+	margin-right: (16 * @dp);
+	color: rgba(255, 255, 255, 0.7);
+}
+
+.optionLabel {
+	font-size: (15 * @dp);
+	color: #fff;
+}
+
+// The notes read at length, so they get the width of the other long text dialogs.
+.notesPanel {
+	max-width: (720 * @dp);
+}
+
+.notesBody {
+	display: -webkit-box;
+	display: -webkit-flex;
 	display: flex;
+	-webkit-box-orient: vertical;
+	-webkit-flex-direction: column;
 	flex-direction: column;
-	overflow: hidden;
 }
 
-.title {
-	margin-bottom: 24px;
-	color: var(--theme-accent, #00a4dc);
-	flex-shrink: 0;
-	text-align: center;
+.notesText {
+	-webkit-box-flex: 0;
+	-webkit-flex: 0 1 auto;
+	flex: 0 1 auto;
+	min-height: 0;
+	overflow-y: auto;
+	padding: (8 * @dp) (24 * @dp) (16 * @dp);
+	outline: none;
+	scrollbar-width: none;
+
+	&::-webkit-scrollbar {
+		display: none;
+	}
 }
 
-.versionInfo {
-	margin-bottom: 24px;
-	flex-shrink: 0;
-	text-align: center;
-}
-
-.newVersion {
-	display: block;
-	font-size: 32px;
-	font-weight: 600;
-	margin-bottom: 8px;
-}
-
-.currentVersion {
-	display: block;
-	font-size: 22px;
-	color: var(--theme-text-primary, #ffffff);
-	opacity: 0.7;
-}
-
-.notesScroller {
-	flex: 1;
-	min-height: 300px;
-	max-height: 500px;
-	margin-bottom: 32px;
-	overflow: hidden;
-}
-
+// Sized and colored to match the message and review text.
 .notes {
-	padding: 28px;
-	background: rgba(var(--theme-on-surface-rgb, 255, 255, 255), 0.06);
-	border-radius: 16px;
-	text-align: left;
-	line-height: 1.7;
-	font-size: 22px;
-	color: var(--theme-text-primary, #ffffff);
+	font-size: (13 * @dp);
+	line-height: 1.35;
+	color: rgba(@on-surface-rgb, 0.75);
 
-	h1, h2, h3 {
-		margin: 16px 0 12px 0;
-		color: var(--theme-accent, #00a4dc);
+	> * {
+		margin: 0;
 	}
 
 	h1 {
-		font-size: 28px;
+		font-size: (17 * @dp);
+		font-weight: 700;
+		color: rgb(@on-surface-rgb);
 	}
 
 	h2 {
-		font-size: 26px;
+		font-size: (15 * @dp);
+		font-weight: 700;
+		color: rgb(@on-surface-rgb);
 	}
 
-	h3 {
-		font-size: 24px;
+	h3,
+	h4,
+	h5,
+	h6 {
+		font-size: (14 * @dp);
+		font-weight: 600;
+		color: rgb(@on-surface-rgb);
 	}
 
 	strong {
 		font-weight: 700;
-		color: var(--theme-text-primary, #ffffff);
+		color: rgb(@on-surface-rgb);
 	}
 
-	em {
-		font-style: italic;
-	}
-
-	p {
-		margin: 0 0 12px 0;
-	}
-
-	ul, ol {
-		margin: 0 0 12px 0;
-		padding: 0;
-	}
-
-	li {
-		margin-left: 24px;
-		list-style: disc;
-		margin-bottom: 8px;
-	}
-
-	ol li {
-		list-style: decimal;
+	ul,
+	ol {
+		padding-left: (24 * @dp);
 	}
 
 	code {
-		padding: 0 6px;
-		border-radius: 4px;
-		background: rgba(var(--theme-on-surface-rgb, 255, 255, 255), 0.12);
 		font-family: monospace;
-		font-size: 20px;
+		font-size: (12 * @dp);
 	}
 
-	// A fenced block keeps its own line breaks, and a long line wraps rather
-	// than pushing the panel wider.
+	// A fenced block keeps its own line breaks, and a long line wraps rather than pushing the
+	// dialog wider.
 	pre {
-		margin: 0 0 12px 0;
-		padding: 16px;
-		border-radius: 8px;
-		background: rgba(0, 0, 0, 0.35);
+		padding: (8 * @dp);
+		border-radius: (6 * @dp);
+		background: rgba(@on-surface-rgb, 0.07);
 		font-family: monospace;
-		font-size: 20px;
+		font-size: (12 * @dp);
 		white-space: pre-wrap;
-		word-break: break-word;
+		word-wrap: break-word;
 	}
 }
 
-.buttons {
-	display: flex;
-	justify-content: center;
-	flex-shrink: 0;
-
-	> * + * {
-		margin-left: 20px;
-	}
+// The spacing helper sits last so a child's own margin further up can't win.
+.notes {
+	.flex-col-gap((6 * @dp));
 }

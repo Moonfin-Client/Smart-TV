@@ -15,6 +15,7 @@ const fill = () => {
 	memoryCache.rowConfigKey = 'per-library';
 	memoryCache.featuredItems = [{Id: 'item1'}];
 	memoryCache.featuredConfigKey = 'key';
+	memoryCache.recentAt = 1;
 };
 
 describe('clearMemoryCache', () => {
@@ -27,6 +28,7 @@ describe('clearMemoryCache', () => {
 		expect(memoryCache.libraries).toBeNull();
 		expect(memoryCache.timestamp).toBeNull();
 		expect(memoryCache.rowConfigKey).toBeNull();
+		expect(memoryCache.recentAt).toBeNull();
 	});
 
 	// Playback ending, marking watched and returning home don't change what the bar may hold.
@@ -65,6 +67,28 @@ describe('saveBrowseCache', () => {
 		const saved = mockSaveToStorage.mock.calls[0][1];
 		expect(saved.featuredItems).toEqual([{Id: 'item1'}]);
 		expect(saved.featuredConfigKey).toBe('key');
+	});
+
+	// A write after only Continue Watching and Next Up were read again mustn't make the recent rows look new.
+	test('saves when the recent rows were read, not the time of the write', () => {
+		memoryCache.recentAt = 1;
+		mockSaveToStorage.mockClear();
+		saveBrowseCache([{id: 'nextup', items: []}], memoryCache.libraries, memoryCache.featuredItems, {serverUrl: 'http://server', userId: 'user'});
+		jest.runAllTimers();
+
+		const saved = mockSaveToStorage.mock.calls[0][1];
+		expect(saved.recentAt).toBe(1);
+	});
+
+	test('saves the row key the rows were built for', () => {
+		const rows = [{id: 'released', items: [{Id: 'series1'}]}];
+		saveBrowseCache(rows, memoryCache.libraries, memoryCache.featuredItems, {serverUrl: 'http://server', userId: 'user'});
+		memoryCache.rowConfigKey = 'per-library:season';
+		jest.runAllTimers();
+
+		const saved = mockSaveToStorage.mock.calls[mockSaveToStorage.mock.calls.length - 1][1];
+		expect(saved.rowData[0].id).toBe('released');
+		expect(saved.rowConfigKey).toBe('per-library');
 	});
 });
 

@@ -28,6 +28,10 @@ describe('isSecondaryEligible', () => {
 	it("leaves out text the server can't extract", () => {
 		expect(isSecondaryEligible(stream(1, {isEmbeddedNative: true}))).toBe(false);
 	});
+
+	it('leaves out a track read out of the playing file', () => {
+		expect(isSecondaryEligible(stream(1, {inBandText: {streamUrl: 'u', ordinal: 0}}))).toBe(false);
+	});
 });
 
 describe('secondaryCandidates', () => {

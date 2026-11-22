@@ -1,6 +1,7 @@
 import {act, fireEvent, render} from '@testing-library/react';
 import Spotlight from '@enact/spotlight';
 
+import {setSmoothScrolling} from '../../utils/focusScroll';
 import TileGrid from './TileGrid';
 
 // The CLI ships a second copy of React, so the components' JSX goes through the copy under test.
@@ -41,7 +42,10 @@ beforeEach(() => {
 	Spotlight.focus.mockClear();
 });
 
-afterEach(() => jest.restoreAllMocks());
+afterEach(() => {
+	jest.restoreAllMocks();
+	setSmoothScrolling(true);
+});
 
 const setup = (props = {}) => {
 	const onFocusIndex = jest.fn();
@@ -103,6 +107,17 @@ describe('TileGrid', () => {
 		expect(document.querySelectorAll('[style*="translateY"]').length).toBeLessThanOrEqual(1 + 4);
 	});
 
+	test('moves the rows without sliding when Smooth Scrolling is off', () => {
+		setSmoothScrolling(false);
+		const {grid, press, track} = setup();
+		fireEvent.focus(grid);
+		press('down');
+		press('down');
+		press('down');
+		expect(track().style.transform).toBe('translateY(-600px)');
+		expect(track().style.transition).toBe('none');
+	});
+
 	test('lets the page scroll it back to the start and focus it', () => {
 		let scrollTo;
 		const {grid, press} = setup({
@@ -118,6 +133,22 @@ describe('TileGrid', () => {
 		expect(grid.getAttribute('data-index')).toBe('0');
 		expect(grid.getAttribute('data-scrolled')).toBe('false');
 		expect(Spotlight.focus).toHaveBeenCalledWith('grid');
+	});
+
+	test('lets the page jump it to a tile far down a long list, scrolling to it', () => {
+		let scrollTo;
+		const {grid, focusedTile, track} = setup({
+			dataSize: 5000,
+			cbScrollTo: (fn) => {
+				scrollTo = fn;
+			}
+		});
+		fireEvent.focus(grid);
+		act(() => scrollTo({index: 3000, focus: true}));
+		expect(grid.getAttribute('data-index')).toBe('3000');
+		expect(grid.getAttribute('data-scrolled')).toBe('true');
+		expect(focusedTile().textContent).toBe('3000');
+		expect(track().style.transform).not.toBe('translateY(0px)');
 	});
 
 	test('focuses the tile under a pointer without scrolling', () => {
@@ -146,6 +177,16 @@ describe('TileGrid', () => {
 		fireEvent.focus(grid);
 		press('down');
 		rerender(<TileGrid dataSize={500} itemSize={ITEM_SIZE} renderTile={renderTile} spotlightId="grid" resetKey="b" />);
+		expect(grid.getAttribute('data-index')).toBe('0');
+	});
+
+	test('starts a new shorter list from its first tile too', () => {
+		const {grid, press, rerender} = setup({resetKey: 'a'});
+		fireEvent.focus(grid);
+		press('down');
+		press('down');
+		press('down');
+		rerender(<TileGrid dataSize={7} itemSize={ITEM_SIZE} renderTile={renderTile} spotlightId="grid" resetKey="b" />);
 		expect(grid.getAttribute('data-index')).toBe('0');
 	});
 });

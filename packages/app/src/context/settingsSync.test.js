@@ -14,7 +14,7 @@ jest.mock('../services/seerrApi', () => ({saveMoonfinProfile: jest.fn(() => Prom
 import {saveMoonfinProfile} from '../services/seerrApi';
 import {
 	SYNCABLE_KEYS, SYNC_PROFILES, __pushQueue, activeSyncProfile, defaultSettings, flushSettingsPush,
-	localToProfile, migrateKeyboardStyle, profileToLocal, resolveFromEnvelope, sameSyncedValue
+	localToProfile, migrateKeyboardStyle, normalizeHomeRowsStyle, profileToLocal, resolveFromEnvelope, sameSyncedValue
 } from './SettingsContext';
 import {__resetHomeLayoutPassthrough, homeRowsFromProfile} from '../utils/homeLayout';
 
@@ -31,6 +31,14 @@ describe('profileToLocal', () => {
 		expect(local.hiddenDetailButtonsTv).toEqual(['shuffle']);
 		expect(local.osdButtonOrderTv).toEqual(['subtitles']);
 		expect(local.hiddenOsdButtonsTv).toEqual(['audio']);
+	});
+
+	test('syncs the Watch Parties settings, and keeps a service it doesn\'t know out', () => {
+		expect(profileToLocal({syncPlayEnabled: false, watchPartyService: 'syncplay', watchPartyChatOverlay: false, watchPartyAlerts: true}))
+			.toEqual({syncplayEnabled: false, watchPartyService: 'syncplay', watchPartyChatOverlay: false, watchPartyAlerts: true});
+		expect(profileToLocal({watchPartyService: 'discord'})).toEqual({});
+		expect(localToProfile({watchPartyService: 'moonbase', watchPartyAlerts: false}, ['watchPartyService', 'watchPartyAlerts']))
+			.toMatchObject({watchPartyService: 'moonbase', watchPartyAlerts: false});
 	});
 
 	test('takes detailButtonsMaxVisible under its own name', () => {
@@ -72,6 +80,23 @@ describe('profileToLocal', () => {
 		expect(profileToLocal({posterSize: 'grandparents'}).homeRowsPosterSize).toBe('grandparents');
 		expect(profileToLocal({posterSize: 'xlarge'}).homeRowsPosterSize).toBe('xlarge');
 		expect(profileToLocal({posterSize: 'huge'}).homeRowsPosterSize).toBeUndefined();
+	});
+
+	test("takes the other clients' media bar sources and new release settings", () => {
+		expect(profileToLocal({mediaBarSourceType: 'newReleases'}).mediaBarSourceType).toBe('newReleases');
+		expect(profileToLocal({mediaBarSourceType: 'recentlyAdded'}).mediaBarSourceType).toBe('recentlyAdded');
+		expect(profileToLocal({mediaBarSourceType: 'random'}).mediaBarSourceType).toBe('random');
+		expect(profileToLocal({mediaBarSourceType: 'library'}).mediaBarSourceType).toBe('random');
+		expect(profileToLocal({mediaBarSourceType: 'collection'}).mediaBarSourceType).toBe('random');
+		expect(profileToLocal({mediaBarSourceType: 'trending'}).mediaBarSourceType).toBeUndefined();
+		expect(profileToLocal({mediaBarNewReleaseBanner: false, mediaBarNewReleaseDays: 14})).toEqual({mediaBarNewReleaseBanner: false, mediaBarNewReleaseDays: 14});
+		expect(profileToLocal({mediaBarNewReleaseDays: 45}).mediaBarNewReleaseDays).toBeUndefined();
+	});
+
+	test("takes the other clients' date format", () => {
+		expect(profileToLocal({dateFormat: 'dayMonth'}).dateFormat).toBe('dayMonth');
+		expect(profileToLocal({dateFormat: 'monthDay'}).dateFormat).toBe('monthDay');
+		expect(profileToLocal({dateFormat: 'yearFirst'}).dateFormat).toBeUndefined();
 	});
 
 	test('ignores a screensaver mode this app has no way to draw', () => {
@@ -200,7 +225,7 @@ describe('localToProfile', () => {
 		const profile = localToProfile(defaultSettings);
 
 		expect(profile.classicHomeRowsPadding).toBe(30);
-		expect(profile.modernHomeRowsPadding).toBe(420);
+		expect(profile.modernHomeRowsPadding).toBe(360);
 	});
 
 	test('sends the card size under the names the other clients use', () => {
@@ -310,10 +335,105 @@ describe('SYNCABLE_KEYS', () => {
 		expect(SYNCABLE_KEYS).toContain('seasonalDensity');
 	});
 
+	test('includes the Home and Library poster toggles', () => {
+		expect(SYNCABLE_KEYS).toContain('hideHomeWatchProgress');
+		expect(SYNCABLE_KEYS).toContain('hideHomeUnwatchedCount');
+		expect(SYNCABLE_KEYS).toContain('hideLibraryWatchProgress');
+		expect(SYNCABLE_KEYS).toContain('hideLibraryUnwatchedCount');
+	});
+
 	test('includes the media preview switches', () => {
 		expect(SYNCABLE_KEYS).toContain('episodePreviewEnabled');
 		expect(SYNCABLE_KEYS).toContain('mediaPreviewMode');
 		expect(SYNCABLE_KEYS).toContain('previewAudioEnabled');
+	});
+
+	test('syncs the player and screensaver settings under their own names', () => {
+		const keys = ['controlsHideDelay', 'hdrControlsDimming', 'sleepAfterIdle', 'screensaverDuringAudio'];
+		const profile = localToProfile(defaultSettings, keys);
+
+		expect(profile).toEqual({controlsHideDelay: 5000, hdrControlsDimming: 0, sleepAfterIdle: 0, screensaverDuringAudio: false});
+		expect(profileToLocal({controlsHideDelay: 3000, hdrControlsDimming: 40, sleepAfterIdle: 60, screensaverDuringAudio: true}))
+			.toEqual({controlsHideDelay: 3000, hdrControlsDimming: 40, sleepAfterIdle: 60, screensaverDuringAudio: true});
+	});
+
+	test('syncs every calendar setting under its own name', () => {
+		const calendarKeys = [
+			'showCalendarButton', 'calendarStyle', 'calendarWeekStart', 'calendarScope', 'calendarShowEpisodes',
+			'calendarShowMovies', 'calendarLibraryIds', 'calendarIncludeUnmonitored', 'calendarShowSpecials',
+			'calendarShowBadges', 'calendarColorBy', 'calendarImageType', 'calendarSpoilerSafe', 'calendarSelectAction',
+			'calendarRequestButton', 'calendarReminders', 'calendarRowSeeAll', 'showNextAirDate'
+		];
+		const profile = localToProfile({...defaultSettings, calendarReminders: true}, calendarKeys);
+
+		expect(Object.keys(profile).sort()).toEqual([...calendarKeys].sort());
+		expect(profile.calendarLibraryIds).toEqual([]);
+		expect(profileToLocal({calendarStyle: 'countdown', calendarLibraryIds: ['a']})).toEqual({calendarStyle: 'countdown', calendarLibraryIds: ['a']});
+	});
+});
+
+describe('the home rows and media bar ratings settings', () => {
+	const SERVER_KEYS = {
+		homeRowsMdblistEnabled: 'homeRowsMdblistEnabled',
+		homeRowsMdblistRatingSources: 'homeRowsMdblistRatingSources',
+		homeRowsTmdbEpisodeRatingsEnabled: 'homeRowsTmdbEpisodeRatingsEnabled',
+		homeRowsShowRatingLabels: 'homeRowsMdblistShowRatingNames',
+		homeRowsShowRatingBadges: 'homeRowsMdblistShowRatingBadges',
+		mediaBarMdblistEnabled: 'mediaBarMdblistEnabled',
+		mediaBarMdblistRatingSources: 'mediaBarMdblistRatingSources',
+		mediaBarShowRatingLabels: 'mediaBarMdblistShowRatingNames',
+		mediaBarShowRatingBadges: 'mediaBarMdblistShowRatingBadges'
+	};
+
+	test('default like the plain ones, except home rows start with labels off and only details start without badges', () => {
+		const own = {homeRowsShowRatingLabels: false, homeRowsShowRatingBadges: true, mediaBarShowRatingBadges: true};
+		for (const local of Object.keys(SERVER_KEYS)) {
+			const plain = local.replace(/^(homeRows|mediaBar)(.)/, (all, surface, first) => first.toLowerCase());
+			const expected = local in own ? own[local] : defaultSettings[plain];
+			expect({local, value: defaultSettings[local]}).toEqual({local, value: expected});
+		}
+	});
+
+	test('travel under the shared server names', () => {
+		const local = {
+			homeRowsMdblistEnabled: false,
+			homeRowsMdblistRatingSources: ['imdb', 'myanimelist'],
+			homeRowsTmdbEpisodeRatingsEnabled: false,
+			homeRowsShowRatingLabels: true,
+			homeRowsShowRatingBadges: false,
+			mediaBarMdblistEnabled: false,
+			mediaBarMdblistRatingSources: ['metacriticuser', 'stars'],
+			mediaBarShowRatingLabels: false,
+			mediaBarShowRatingBadges: false
+		};
+		const profile = localToProfile({...defaultSettings, ...local}, Object.keys(SERVER_KEYS));
+
+		expect(profile).toEqual({
+			homeRowsMdblistEnabled: false,
+			homeRowsMdblistRatingSources: ['imdb', 'myAnimeList'],
+			homeRowsTmdbEpisodeRatingsEnabled: false,
+			homeRowsMdblistShowRatingNames: true,
+			homeRowsMdblistShowRatingBadges: false,
+			mediaBarMdblistEnabled: false,
+			mediaBarMdblistRatingSources: ['metacriticUser', 'stars'],
+			mediaBarMdblistShowRatingNames: false,
+			mediaBarMdblistShowRatingBadges: false
+		});
+		expect(profileToLocal(profile)).toEqual(local);
+	});
+
+	test('an empty source list from the server keeps the one this device has', () => {
+		expect(profileToLocal({homeRowsMdblistRatingSources: [], mediaBarMdblistRatingSources: []})).toEqual({});
+
+		const resolved = resolveFromEnvelope({tv: {}, global: {}}, {homeRowsMdblistRatingSources: [], mediaBarMdblistRatingSources: ['imdb']});
+		expect(resolved).not.toHaveProperty('homeRowsMdblistRatingSources');
+		expect(resolved.mediaBarMdblistRatingSources).toEqual(['imdb']);
+	});
+
+	test('leave the plain ratings settings alone', () => {
+		const local = profileToLocal({homeRowsMdblistShowRatingNames: true, mediaBarMdblistRatingSources: ['imdb']});
+
+		expect(local).toEqual({homeRowsShowRatingLabels: true, mediaBarMdblistRatingSources: ['imdb']});
 	});
 });
 
@@ -352,6 +472,65 @@ describe('the library style', () => {
 	});
 });
 
+describe('the home row type', () => {
+	test('syncs Carousel as the plain string the other clients store', () => {
+		expect(profileToLocal({homeRowsStyle: 'carousel'})).toEqual({homeRowsStyle: 'carousel'});
+		expect(localToProfile({...defaultSettings, homeRowsStyle: 'carousel'}, ['homeRowsStyle'])).toEqual({homeRowsStyle: 'carousel'});
+	});
+
+	test('keeps each row type it can draw, and reads the old names and anything else as Modern', () => {
+		['v1', 'v2', 'carousel'].forEach((style) => expect(normalizeHomeRowsStyle(style)).toBe(style));
+		expect(normalizeHomeRowsStyle('classic')).toBe('v1');
+		expect(normalizeHomeRowsStyle('modern')).toBe('v2');
+		expect(normalizeHomeRowsStyle('v3')).toBe('v2');
+	});
+});
+
+describe('the detail screen style', () => {
+	test('sends each style under the name Core stores it by', () => {
+		const names = {v1: 'classic', v2: 'modern', v3: 'spotlight', v4: 'nouveau', v5: 'minimalist', v6: 'stage', v7: 'premiere', v8: 'quickLook', v9: 'frost'};
+		Object.keys(names).forEach((style) => {
+			expect(localToProfile({...defaultSettings, detailScreenStyle: style}, ['detailScreenStyle'])).toEqual({detailScreenStyle: names[style]});
+			expect(profileToLocal({detailScreenStyle: names[style]})).toEqual({detailScreenStyle: style});
+		});
+	});
+
+	test('still reads the values older builds of this app pushed', () => {
+		expect(profileToLocal({detailScreenStyle: 'v4'})).toEqual({detailScreenStyle: 'v4'});
+	});
+
+	test('keeps the style it has when the profile names one this app has no way to draw', () => {
+		expect(profileToLocal({detailScreenStyle: 'carousel'})).toEqual({});
+	});
+});
+
+describe('the library grid settings', () => {
+	test('poster sizes sync under their own names, one for libraries and one for playlists', () => {
+		['small', 'medium', 'large', 'extraLarge'].forEach((size) => {
+			expect(profileToLocal({libraryPosterSize: size, playlistPosterSize: size})).toEqual({libraryPosterSize: size, playlistPosterSize: size});
+			expect(localToProfile({...defaultSettings, libraryPosterSize: size}, ['libraryPosterSize'])).toEqual({libraryPosterSize: size});
+		});
+	});
+
+	test('an unpicked poster size stays off the profile', () => {
+		expect(defaultSettings.libraryPosterSize).toBeNull();
+		expect(localToProfile(defaultSettings, ['libraryPosterSize', 'playlistPosterSize'])).toEqual({});
+		expect(profileToLocal({libraryPosterSize: 'grandparents'})).toEqual({});
+	});
+
+	test('titles under posters is on until turned off and syncs as it is', () => {
+		expect(defaultSettings.libraryCardTitles).toBe(true);
+		expect(profileToLocal({libraryCardTitles: false})).toEqual({libraryCardTitles: false});
+		expect(localToProfile({...defaultSettings, libraryCardTitles: false}, ['libraryCardTitles'])).toEqual({libraryCardTitles: false});
+	});
+
+	test('neither folder view nor the alphabet syncs', () => {
+		expect(SYNCABLE_KEYS).not.toContain('folderViewMode');
+		expect(SYNCABLE_KEYS).not.toContain('showAlphabeticalFilters');
+		expect(profileToLocal({enableFolderView: true})).toEqual({});
+	});
+});
+
 describe('the music library style', () => {
 	test('defaults to immersive', () => {
 		expect(defaultSettings.musicLibraryStyle).toBe('immersive');
@@ -383,6 +562,56 @@ describe('the book library style', () => {
 
 	test('keeps the style it has when the profile names one this app has no way to draw', () => {
 		expect(profileToLocal({bookLibraryStyle: 'immersive'})).toEqual({});
+	});
+});
+
+describe('the subtitle outline, shadow, bold and font settings', () => {
+	const SERVER_KEYS = {
+		subtitleBold: 'subtitlesTextWeight',
+		subtitleBoldHdr: 'subtitlesHdrTextWeight',
+		subtitleStrokeWidth: 'subtitlesStrokeWidth',
+		subtitleDropShadow: 'subtitlesShadow',
+		subtitleDropShadowIntensity: 'subtitlesShadowIntensity',
+		subtitleDropShadowOffset: 'subtitlesShadowOffset',
+		subtitleDropShadowBlur: 'subtitlesShadowBlur',
+		subtitleFont: 'subtitlesFont'
+	};
+
+	test('sync under their profile names, with their defaults', () => {
+		const local = Object.keys(SERVER_KEYS);
+		expect(Object.keys(localToProfile(defaultSettings, local)).sort()).toEqual(Object.values(SERVER_KEYS).sort());
+		expect(localToProfile(defaultSettings, local)).toEqual({
+			subtitlesTextWeight: 400, subtitlesHdrTextWeight: 400, subtitlesStrokeWidth: 100, subtitlesShadow: false,
+			subtitlesShadowIntensity: 80, subtitlesShadowOffset: 2, subtitlesShadowBlur: 2, subtitlesFont: ''
+		});
+	});
+
+	test('bold goes out as a weight and reads anything from 600 up as bold', () => {
+		expect(localToProfile({...defaultSettings, subtitleBold: true}, ['subtitleBold'])).toEqual({subtitlesTextWeight: 700});
+		expect(profileToLocal({subtitlesTextWeight: 600, subtitlesHdrTextWeight: 500})).toEqual({subtitleBold: true, subtitleBoldHdr: false});
+	});
+
+	test("takes a font from the list and keeps its own for one that isn't on it", () => {
+		['', 'Atkinson Hyperlegible', 'Source Sans 3', 'Ubuntu'].forEach((family) => {
+			expect(profileToLocal({subtitlesFont: family})).toEqual({subtitleFont: family});
+		});
+		expect(profileToLocal({subtitlesFont: 'Comic Neue'})).toEqual({});
+		expect(profileToLocal({subtitlesFont: 'atkinson hyperlegible'})).toEqual({});
+	});
+});
+
+describe('the Seerr badge style', () => {
+	test('defaults to badge and syncs under its own name', () => {
+		expect(defaultSettings.seerrBadgeStyle).toBe('badge');
+		expect(SYNCABLE_KEYS).toContain('seerrBadgeStyle');
+		['badge', 'banner'].forEach((style) => {
+			expect(profileToLocal({seerrBadgeStyle: style})).toEqual({seerrBadgeStyle: style});
+			expect(localToProfile({...defaultSettings, seerrBadgeStyle: style}, ['seerrBadgeStyle'])).toEqual({seerrBadgeStyle: style});
+		});
+	});
+
+	test('keeps the style it has when the profile names one it can\'t draw', () => {
+		expect(profileToLocal({seerrBadgeStyle: 'ribbon'})).toEqual({});
 	});
 });
 
@@ -461,7 +690,7 @@ describe('localToProfile for the seasonal effect', () => {
 
 describe('the seasonal row settings', () => {
 	test('are syncable', () => {
-		for (const key of ['seasonalRowEnabled', 'seasonalRowCountry', 'seasonalRowHiddenHolidays']) {
+		for (const key of ['seasonalRowEnabled', 'seasonalRowCountry', 'seasonalRowHiddenHolidays', 'seasonalRowAllYear']) {
 			expect(SYNCABLE_KEYS).toContain(key);
 		}
 	});
@@ -638,6 +867,51 @@ describe('the per row image types', () => {
 		expect(resolved.homeRowImageTypes).toEqual({genres: 'thumb', resume: 'banner'});
 		expect(resolveFromEnvelope({}, {homeRowImageTypes: 'genres:thumb'}).homeRowImageTypes).toEqual({genres: 'thumb'});
 		expect(resolveFromEnvelope({}, {})).not.toHaveProperty('homeRowImageTypes');
+	});
+});
+
+describe('the focus border color', () => {
+	test('goes out under the name the other clients use', () => {
+		expect(localToProfile({focusBorderColor: '#8B0000'}, ['focusBorderColor']).focusColor).toBe('darkRed');
+		expect(localToProfile({focusBorderColor: '#ffcd75'}, ['focusBorderColor']).focusColor).toBe('eightBitGold');
+		expect(localToProfile({focusBorderColor: ''}, ['focusBorderColor']).focusColor).toBe('');
+	});
+
+	test('comes back as the color a name stands for, and keeps what it has for one it doesn\'t know', () => {
+		expect(profileToLocal({focusColor: 'darkRed'}).focusBorderColor).toBe('#8b0000');
+		expect(profileToLocal({focusColor: 'moonfincyan'}).focusBorderColor).toBe('#00a4dc');
+		expect(profileToLocal({focusColor: '#ff2e92'}).focusBorderColor).toBe('#ff2e92');
+		expect(profileToLocal({focusColor: ''}).focusBorderColor).toBe('');
+		expect(profileToLocal({focusColor: 'constructor'})).not.toHaveProperty('focusBorderColor');
+	});
+});
+
+describe('the calendar row hide downloaded toggles', () => {
+	test('are on by default and sync under their own names both ways', () => {
+		const keys = ['radarrCalendarHideDownloaded', 'sonarrCalendarHideDownloaded'];
+		for (const key of keys) {
+			expect(defaultSettings[key]).toBe(true);
+			expect(SYNCABLE_KEYS).toContain(key);
+			expect(profileToLocal({[key]: false})[key]).toBe(false);
+		}
+		expect(localToProfile({radarrCalendarHideDownloaded: false, sonarrCalendarHideDownloaded: true}, keys))
+			.toEqual({radarrCalendarHideDownloaded: false, sonarrCalendarHideDownloaded: true});
+	});
+});
+
+describe('the poster labels toggle', () => {
+	test('is on by default and syncs both ways', () => {
+		expect(defaultSettings.showPosterLabels).toBe(true);
+		expect(profileToLocal({showPosterLabels: false}).showPosterLabels).toBe(false);
+		expect(localToProfile({showPosterLabels: false}, ['showPosterLabels'])).toEqual({showPosterLabels: false});
+	});
+});
+
+describe('the focus expansion toggle', () => {
+	test('syncs under Core\'s name both ways', () => {
+		expect(profileToLocal({cardFocusExpansion: false}).cardFocusZoom).toBe(false);
+		expect(profileToLocal({cardFocusExpansion: true}).cardFocusZoom).toBe(true);
+		expect(localToProfile({cardFocusZoom: false}, ['cardFocusZoom'])).toEqual({cardFocusExpansion: false});
 	});
 });
 

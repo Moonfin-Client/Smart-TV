@@ -144,6 +144,27 @@
 		img.src = src;
 	});
 
+	// Dolby Vision clips are put in probe/media by hand, see make-clips.js, or named with
+	// --media, and the number in the name is the profile.
+	const DOLBY_VISION_CLIP = /^dv-p(\d)\./;
+	const dolbyVisionClips = config.media
+		.filter((clip) => DOLBY_VISION_CLIP.test(clip.label))
+		.map((clip) => ({...clip, profile: Number(clip.label.match(DOLBY_VISION_CLIP)[1])}));
+
+	const dolbyVision = section('Dolby Vision');
+	const bootDisplay = (boot && boot.display) || null;
+	const effect = boot && boot.dolbyVision ? boot.dolbyVision.effect || [] : null;
+	report(dolbyVision, 'effect profiles', effect ? effect.join(', ') || 'none, the console has no Dolby Vision effect' : 'not reported by the host', effect && effect.length ? 'ok' : 'fail');
+	if (bootDisplay) {
+		const hasMode = (bootDisplay.hdr || []).includes('dolbyvision');
+		const modes = (bootDisplay.modes || []).filter((mode) => mode.dolbyVision).map((mode) => `${mode.width}x${mode.height} at ${mode.refreshRate} Hz ${mode.bitsPerPixel} bits`);
+		report(dolbyVision, 'display hdr has dolbyvision', `${hasMode} (hdr ${(bootDisplay.hdr || []).join(', ') || 'none'})`, hasMode ? 'ok' : 'fail');
+		report(dolbyVision, 'modes flagged dolbyVision', modes.join(', ') || 'none', modes.length ? 'ok' : 'fail');
+	} else {
+		report(dolbyVision, 'display', 'no HDMI display reported', 'fail');
+	}
+	report(dolbyVision, 'clips in this build', dolbyVisionClips.map((clip) => clip.label).join(', ') || 'none, see probe/make-clips.js');
+
 	const env = section('Environment');
 	report(env, 'platform', platform);
 	report(env, 'opened from', handoff ? `Moonfin ${handoff.app}` : 'its own package');
@@ -440,8 +461,8 @@
 		return said;
 	};
 
-	// The clips a person has to judge belong to the two tests further down.
-	const unattended = config.media.filter((clip) => !clip.interactive);
+	// The clips a person has to judge belong to the tests further down.
+	const unattended = config.media.filter((clip) => !clip.interactive && !DOLBY_VISION_CLIP.test(clip.label));
 	const clipNamed = (name) => config.media.find((clip) => clip.label === name) || null;
 
 	const playAll = async () => {
@@ -468,10 +489,11 @@
 	let nativeSession = 0;
 
 	// Plays a clip in the console player for playFor ms, or to its end without it, and
-	// resolves with what it did and the player's state while it played.
-	const playNative = async (clip, {hls = false, reader, playFor, onTime} = {}) => {
+	// resolves with what it did and the player's state while it played. open is added to
+	// what PLAYER_OPEN is sent, and rect is where the picture goes, the video box by default.
+	const playNative = async (clip, {hls = false, reader, open, rect, playFor, onTime} = {}) => {
 		const session = ++nativeSession;
-		const seen = {playing: false, ended: false, error: null};
+		const seen = {playing: false, ended: false, error: null, display: null};
 		const listener = (e) => {
 			const message = e.detail;
 			if (!message || message.type !== 'PLAYER_EVENT' || !message.payload || message.payload.session !== session) return;
@@ -479,14 +501,15 @@
 			if (event === 'playing') seen.playing = true;
 			if (event === 'ended') seen.ended = true;
 			if (event === 'error') seen.error = message.payload.message;
+			if (event === 'display') seen.display = message.payload;
 			if (event === 'timeupdate' && onTime) onTime(position);
 		};
 		window.addEventListener(PAGE_EVENT, listener);
 		let state = null;
 		try {
-			await askShell('PLAYER_OPEN', {session, url: new URL(clip.url, location.href).href, hls, reader, startSeconds: 0, autoplay: true, volume: 1, muted: false}, CLIP_START_MS);
-			const rect = video.getBoundingClientRect();
-			toShell('PLAYER_SET_RECT', {session, x: rect.left, y: rect.top, width: rect.width, height: rect.height});
+			await askShell('PLAYER_OPEN', {session, url: new URL(clip.url, location.href).href, hls, reader, startSeconds: 0, autoplay: true, volume: 1, muted: false, ...open}, CLIP_START_MS);
+			const {left, top, width, height} = rect || video.getBoundingClientRect();
+			toShell('PLAYER_SET_RECT', {session, x: left, y: top, width, height});
 			const started = Date.now();
 			while (!seen.playing && !seen.error && Date.now() - started < CLIP_START_MS) await wait(250);
 			if (seen.playing) await wait(playFor || 1500);
@@ -819,11 +842,64 @@
 		}
 	};
 
+	// Whether the console sends Dolby Vision to the TV, which only the TV can say. Each
+	// clip plays full screen through every route in turn, under a label naming both, while
+	// the tester reads the TV's info banner and the colors. A profile 5 clip has no HDR10
+	// picture to fall back on, so it comes out green and purple when the console's Dolby
+	// Vision effect did not run.
+	const DOLBY_VISION_ROUTES = [
+		{label: '(a) FFmpeg with the Dolby Vision tags', open: (profile) => ({dolbyVision: profile})},
+		{label: "(b) Windows' reader in Dolby Vision mode", open: (profile) => ({reader: 'system', fallback: false, dolbyVision: profile})},
+		{label: '(c) FFmpeg in Dolby Vision mode without the tags, the control', open: (profile) => ({dolbyVision: profile, dolbyVisionTags: false})},
+		{label: '(d) the HDR10 path, switched after opening', open: () => ({})}
+	];
+	const DOLBY_VISION_PLAY_MS = 15000;
+	const stageEl = document.getElementById('stage');
+
+	const dolbyVisionTest = async () => {
+		const dv = section('Dolby Vision test (console player)');
+		if (!dolbyVisionClips.length) {
+			report(dv, 'skipped', 'no Dolby Vision clips in this build, see probe/make-clips.js');
+			return;
+		}
+		const display = await askShell('DISPLAY_GET_MODES', undefined, 5000).catch(() => null);
+		if (!display || !(display.hdr || []).includes('dolbyvision')) {
+			report(dv, 'skipped', 'the console reports no Dolby Vision mode on this display');
+			return;
+		}
+		document.documentElement.classList.add('stage');
+		try {
+			for (const clip of dolbyVisionClips) {
+				for (const route of DOLBY_VISION_ROUTES) {
+					const name = `${clip.label} ${route.label}`;
+					stageEl.textContent = `${clip.label}, profile ${clip.profile}\n${route.label}`;
+					report(dv, name, 'playing', 'wait');
+					const {seen, state} = await playNative(clip, {open: route.open(clip.profile), rect: {left: 0, top: 0, width: innerWidth, height: innerHeight}, playFor: DOLBY_VISION_PLAY_MS});
+					const restored = await askShell('DISPLAY_RESTORE', undefined, 15000).catch((e) => ({ok: false, reason: e.message}));
+					const shown = seen.display ? `${seen.display.hdr} ${seen.display.ok ? seen.display.mode : `refused, ${seen.display.reason}`}` : 'no switch reported';
+					const said = [
+						seen.error ? `FAIL ${seen.error}` : !seen.playing ? 'FAIL never started playing' : `played ${state.width}x${state.height} to t=${(state.position || 0).toFixed(1)}`,
+						`display ${shown}`,
+						`decoder ${(state && state.videoDecoder) || 'not reported'}`,
+						`dolbyVisionProfile ${(state && state.dolbyVisionProfile) || 'none'}`,
+						restored.ok ? '' : `restore FAIL ${restored.reason || 'the console did not go back'}`
+					].filter(Boolean).join(', ');
+					report(dv, name, said, seen.error || !seen.playing ? 'fail' : 'ok');
+					// The TV takes a few seconds to settle after a mode change
+					await wait(3000);
+				}
+			}
+		} finally {
+			document.documentElement.classList.remove('stage');
+		}
+	};
+
 	const runAll = run('Run', playAll);
 	button('Run all tests and send the report', runAll);
 	button('HDR test', run('HDR test', hdrTest));
 	button('Surround sound test', run('Surround sound test', surroundTest));
 	if (nativePlayer) button('Passthrough test', run('Passthrough test', passthroughTest));
+	if (nativePlayer) button('Dolby Vision test', run('Dolby Vision test', dolbyVisionTest));
 	button(handoff ? 'Back to Moonfin' : 'Exit', leave);
 
 	// For a debugger or a script to start the run without a controller.

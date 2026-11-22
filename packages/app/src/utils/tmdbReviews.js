@@ -69,4 +69,6 @@ export const reviewDateLabel = (iso) => {
 	return date.toLocaleDateString(uiLocale(), {year: 'numeric', month: 'short', day: 'numeric'});
 };
 
+export const reviewMeta = (review) => [reviewRatingLabel(review.rating), reviewDateLabel(review.createdAt)].filter(Boolean).join(' · ');
+
 export const reviewInitial = (author) => (author || '?').trim().charAt(0).toUpperCase() || '?';

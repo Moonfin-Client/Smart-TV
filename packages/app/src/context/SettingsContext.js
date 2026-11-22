@@ -1,16 +1,20 @@
 import {createContext, useContext, useState, useEffect, useCallback, useMemo, useRef} from 'react';
 import {getFromStorage, saveToStorage} from '../services/storage';
 import {getMoonfinSettings, getMoonfinThemes, saveMoonfinProfile, moonfinPing} from '../services/seerrApi';
-import {parseThemeSpec} from '../theme/themeSpec';
+import {isValidHexColor, parseThemeSpec} from '../theme/themeSpec';
 import {normalizeOverlayColorKey} from '../theme/overlayColors';
-import {noteAnsweredSettings, SETUP_QUESTION_KEYS} from '../utils/setupWizardGate';
+import {beginSignInRead, finishSignInRead, noteAnsweredSettings, SETUP_QUESTION_KEYS} from '../utils/setupWizardGate';
 import {getAvailableThemeList, getAvailableThemes, isBuiltInThemeId, registerStoreTheme, removeStoreTheme, replaceCustomThemes, resolveThemeById} from '../theme/themeRegistry';
 import {applyOledMode} from '../utils/oledMode';
 import {normalizeRatingSources, ratingSourcesToServer} from '../utils/ratingSources';
 import {SEASONAL_DENSITIES, normalizeSeasonalTheme} from '../utils/seasonalEffects';
 import {normalizeSeasonalHiddenHolidays, normalizeSeasonalRowCountry} from '../utils/seasonalRow';
 import {sharePending} from '../utils/sharePending';
+import {isPlexServer} from '../utils/plexUrls';
 import {pickedRowsFromLegacySections} from '../utils/pickedRows';
+import {LEGACY_MEDIA_BAR_SOURCES, MEDIA_BAR_SOURCES, NEW_MOVIE_DAYS, NEW_RELEASE_DAYS} from '../utils/mediaBarNewRelease';
+import {DATE_FORMATS} from '../utils/dateFormat';
+import {SUBTITLE_FONTS} from '../services/subtitleFonts';
 import {
 	IMAGES as LOADING_IMAGES,
 	POSITIONS as LOADING_POSITIONS,
@@ -55,21 +59,33 @@ const SERVER_TO_LOCAL = {
 	homeBackdropEnabled: 'showHomeBackdrop',
 	use24HourClock: 'clockDisplay',
 	focusColor: 'focusBorderColor',
+	cardFocusExpansion: 'cardFocusZoom',
 	watchedIndicator: 'watchedIndicatorBehavior',
 	posterSize: 'homeRowsPosterSize',
 	homeImageUseSeriesImage: 'useSeriesThumbnails',
 	mdblistShowRatingNames: 'showRatingLabels',
 	mdblistShowRatingBadges: 'showRatingBadges',
+	homeRowsMdblistShowRatingNames: 'homeRowsShowRatingLabels',
+	homeRowsMdblistShowRatingBadges: 'homeRowsShowRatingBadges',
+	mediaBarMdblistShowRatingNames: 'mediaBarShowRatingLabels',
+	mediaBarMdblistShowRatingBadges: 'mediaBarShowRatingBadges',
 	languageOverride: 'uiLanguage',
 	syncPlayEnabled: 'syncplayEnabled',
 	syncPlayAutoOpen: 'syncplayAutoOpen',
 	clockBehavior: 'showClock',
-	enableFolderView: 'folderViewMode',
 	homeRowInfoOverlay: 'homeRowOverlay',
 	autoplayNextEpisode: 'autoPlay',
 	mediaSegmentCountdown: 'nextUpCountdownStyle',
 	defaultAudioLanguage: 'audioLanguage',
 	defaultSubtitleLanguage: 'subtitleLanguage',
+	subtitlesTextWeight: 'subtitleBold',
+	subtitlesHdrTextWeight: 'subtitleBoldHdr',
+	subtitlesStrokeWidth: 'subtitleStrokeWidth',
+	subtitlesShadow: 'subtitleDropShadow',
+	subtitlesShadowIntensity: 'subtitleDropShadowIntensity',
+	subtitlesShadowOffset: 'subtitleDropShadowOffset',
+	subtitlesShadowBlur: 'subtitleDropShadowBlur',
+	subtitlesFont: 'subtitleFont',
 	unpauseRewindDuration: 'unpauseRewind',
 	confirmExit: 'exitConfirmation',
 	DetailMetadataOrderTv: 'detailMetadataOrderTv',
@@ -92,20 +108,19 @@ export const sameSyncedValue = (left, right) => {
 	return keys.every((key) => sameSyncedValue(left[key], right[key]));
 };
 
-const normalizeHomeRowsStyle = (value) => {
+export const normalizeHomeRowsStyle = (value) => {
 	if (value === 'classic') return 'v1';
 	if (value === 'modern') return 'v2';
-	return value === 'v1' || value === 'v2' ? value : 'v2';
+	return value === 'v1' || value === 'v2' || value === 'carousel' ? value : 'v2';
 };
 
-const normalizeDetailScreenStyle = (value) => {
-	if (value === 'classic') return 'v1';
-	if (value === 'modern') return 'v2';
-	if (value === 'spotlight') return 'v3';
-	if (value === 'nouveau') return 'v4';
-	if (value === 'minimalist') return 'v5';
-	return ['v1', 'v2', 'v3', 'v4', 'v5'].indexOf(value) >= 0 ? value : 'v2';
-};
+// Core and the plugin's admin page store the detail style by name. Builds of this app before
+// Stage pushed their own v1 to v5 unconverted, so those still read back.
+const DETAIL_STYLE_NAMES = {v1: 'classic', v2: 'modern', v3: 'spotlight', v4: 'nouveau', v5: 'minimalist', v6: 'stage', v7: 'premiere', v8: 'quickLook', v9: 'frost'};
+const detailStyleFromServer = (value) => (Object.prototype.hasOwnProperty.call(DETAIL_STYLE_NAMES, value)
+	? value
+	: Object.keys(DETAIL_STYLE_NAMES).find((key) => DETAIL_STYLE_NAMES[key] === value));
+const normalizeDetailScreenStyle = (value) => detailStyleFromServer(value) || defaultSettings.detailScreenStyle;
 
 const normalizeGuid = (id) => {
 	if (!id || typeof id !== 'string') return id;
@@ -137,8 +152,30 @@ const oneOf = (values) => ({fromServer: v => (values.includes(v) ? v : undefined
 const POSTER_SIZES_TO_SERVER = {default: 'medium', xlarge: 'extraLarge'};
 const POSTER_SIZES_FROM_SERVER = {medium: 'default', extraLarge: 'xlarge'};
 const posterSizeFromServer = oneOf(['small', 'default', 'large', 'xlarge', 'grandparents']).fromServer;
+// Synced as is, unlike the home card sizes, and with no Grandparents size.
+const LIBRARY_POSTER_SIZES = ['small', 'medium', 'large', 'extraLarge'];
+
+// The other clients sync the focus color by name and this app keeps the hex it stands for.
+// Theme Default has no name there, so it goes out empty, which they leave alone.
+const FOCUS_COLORS = {
+	white: '#ffffff', black: '#000000', gray: '#808080', darkBlue: '#003366', purple: '#6a0dad',
+	teal: '#008080', navy: '#000080', charcoal: '#36454f', brown: '#8b4513', darkRed: '#8b0000',
+	darkGreen: '#006400', slate: '#708090', indigo: '#4b0082', moonfinCyan: '#00a4dc',
+	neonPulseMagenta: '#ff2e92', eightBitGold: '#ffcd75'
+};
+const FOCUS_COLOR_NAMES = Object.keys(FOCUS_COLORS);
+
+// The plugin's admin defaults store an unset list as an empty one, which would hide every
+// rating, so an empty list from the server leaves the one we have.
+const surfaceRatingSources = {
+	toServer: ratingSourcesToServer,
+	fromServer: (v) => (Array.isArray(v) && v.length === 0 ? undefined : normalizeRatingSources(v))
+};
+
+const subtitleWeight = {toServer: v => (v ? 700 : 400), fromServer: v => v >= 600};
 
 const VALUE_CONVERSIONS = {
+	watchPartyService: oneOf(['moonbase', 'syncplay']),
 	homeRowsPosterSize: {
 		toServer: v => POSTER_SIZES_TO_SERVER[v] || v,
 		fromServer: v => posterSizeFromServer(POSTER_SIZES_FROM_SERVER[v] || v)
@@ -146,6 +183,15 @@ const VALUE_CONVERSIONS = {
 	clockDisplay: {
 		toServer: v => v === '24-hour',
 		fromServer: v => v ? '24-hour' : '12-hour'
+	},
+	dateFormat: oneOf(DATE_FORMATS),
+	focusBorderColor: {
+		toServer: v => (v ? FOCUS_COLOR_NAMES.find((name) => FOCUS_COLORS[name] === v.toLowerCase()) : ''),
+		fromServer: (v) => {
+			if (v === '' || isValidHexColor(v)) return v;
+			const name = FOCUS_COLOR_NAMES.find((key) => key.toLowerCase() === String(v).toLowerCase());
+			return name && FOCUS_COLORS[name];
+		}
 	},
 	featuredTrailerMuted: {
 		toServer: v => !v,
@@ -171,8 +217,10 @@ const VALUE_CONVERSIONS = {
 		fromServer: v => CONTENT_TYPE_FROM_SERVER[v]
 	},
 	mediaBarSourceType: {
-		fromServer: v => (v === 'library' || v === 'collection' ? v : undefined)
+		fromServer: v => (MEDIA_BAR_SOURCES.includes(v) ? v : LEGACY_MEDIA_BAR_SOURCES.includes(v) ? 'random' : undefined)
 	},
+	mediaBarNewReleaseDays: oneOf(NEW_RELEASE_DAYS),
+	mediaBarNewMovieDays: oneOf(NEW_MOVIE_DAYS),
 	liveTvChannelSortBy: {
 		fromServer: v => (['number', 'name', 'favoritesFirst'].includes(v) ? v : undefined)
 	},
@@ -185,9 +233,12 @@ const VALUE_CONVERSIONS = {
 	},
 	seasonalDensity: oneOf(SEASONAL_DENSITIES),
 	libraryStyle: oneOf(['classic', 'modern', 'docked']),
+	libraryPosterSize: oneOf(LIBRARY_POSTER_SIZES),
+	playlistPosterSize: oneOf(LIBRARY_POSTER_SIZES),
 	bookLibraryStyle: oneOf(['classic', 'readingRoom', 'bookstore']),
 	musicLibraryStyle: oneOf(['classic', 'quickAccess', 'immersive']),
 	keyboardStyle: oneOf(['native', 'classic', 'glass', 'docked']),
+	seerrBadgeStyle: oneOf(['badge', 'banner']),
 	seasonalRowCountry: {fromServer: normalizeSeasonalRowCountry},
 	seasonalRowHiddenHolidays: {fromServer: normalizeSeasonalHiddenHolidays},
 	screensaverContentType: {
@@ -205,12 +256,6 @@ const VALUE_CONVERSIONS = {
 	screensaverMode: {
 		fromServer: v => (v === 'off' ? undefined : v)
 	},
-	// Three states here against a boolean elsewhere. "Per Library" has no equivalent, so it
-	// declines to push and leaves whatever the server holds.
-	folderViewMode: {
-		toServer: v => (v === 'local' ? undefined : v === 'on'),
-		fromServer: v => (v ? 'on' : 'off')
-	},
 	nextUpTimeout: {
 		toServer: secondsToMs,
 		fromServer: msToSeconds
@@ -221,6 +266,10 @@ const VALUE_CONVERSIONS = {
 		toServer: v => (v === '' ? 'auto' : v),
 		fromServer: v => (v === 'auto' ? '' : v)
 	},
+	// The synced settings store a weight, and anything from 600 up is bold.
+	subtitleBold: subtitleWeight,
+	subtitleBoldHdr: subtitleWeight,
+	subtitleFont: oneOf(['', ...SUBTITLE_FONTS.map((font) => font.family)]),
 	// This app predates the foreign mode and calls the flagged one default.
 	subtitleMode: {
 		toServer: v => (v === 'default' ? 'flagged' : v),
@@ -242,9 +291,16 @@ const VALUE_CONVERSIONS = {
 		toServer: ratingSourcesToServer,
 		fromServer: normalizeRatingSources
 	},
+	homeRowsMdblistRatingSources: surfaceRatingSources,
+	mediaBarMdblistRatingSources: surfaceRatingSources,
 	homeRowImageTypes: {
 		toServer: homeRowImageTypesToServer,
 		fromServer: homeRowImageTypesFromServer
+	},
+	// A style this app can't draw comes back undefined, which keeps the one already picked.
+	detailScreenStyle: {
+		toServer: (v) => DETAIL_STYLE_NAMES[v],
+		fromServer: detailStyleFromServer
 	}
 	// homeRows is missing on purpose. The home layout is two server fields that have to
 	// move together, so it gets resolved whole rather than a key at a time.
@@ -252,31 +308,36 @@ const VALUE_CONVERSIONS = {
 
 export const SYNCABLE_KEYS = [
 	'showShuffleButton', 'shuffleContentType', 'showGenresButton',
-	'showFavoritesButton', 'showLiveTvButton', 'showLibrariesInToolbar',
+	'showFavoritesButton', 'showLiveTvButton', 'showLibrariesInToolbar', 'showLibrariesIndividually',
 	'mergeContinueWatchingNextUp',
 	'continueWatchingDefaultAction',
 	'nextUpMaxDays',
 	'hiddenContinueWatchingItems', 'hiddenNextUpSeries',
 	'mdblistEnabled', 'mdblistRatingSources', 'tmdbEpisodeRatingsEnabled',
+	'mdblistWatchingNowEnabled',
 	'imdbTop250MoviesEnabled', 'imdbTop250TvShowsEnabled', 'imdbMostPopularMoviesEnabled',
 	'imdbMostPopularTvShowsEnabled', 'imdbLowestRatedMoviesEnabled', 'imdbTopEnglishMoviesEnabled',
+	'imdbRowsSortBy', 'imdbRowsSortOrder', 'tmdbRowsSortBy', 'tmdbRowsSortOrder', 'seerrRowsSortBy', 'seerrRowsSortOrder',
 	'sinceYouWatchedSource', 'sinceYouWatchedSourceItem', 'sinceYouWatchedSourceType', 'sinceYouWatchedIncludeWatched',
 	'rewatchIncludeMovies', 'rewatchIncludeShows', 'rewatchIncludeCollections', 'rewatchSortBy',
 	'navbarPosition', 'featuredBarStyle', 'mediaBarRowPeek', 'featuredContentType', 'featuredItemCount',
-	'featuredTrailerPreview', 'featuredTrailerMuted', 'trailerVolume', 'mediaBarTrailerCaptions', 'unifiedLibraryMode', 'seasonalTheme', 'seasonalDensity',
-	'seasonalRowEnabled', 'seasonalRowCountry', 'seasonalRowHiddenHolidays',
+	'featuredTrailerPreview', 'featuredTrailerMuted', 'trailerVolume', 'mediaBarTrailerCaptions', 'unifiedLibraryMode', 'mergeLibrariesByType', 'seasonalTheme', 'seasonalDensity', 'seasonalFollower',
+	'seasonalRowEnabled', 'seasonalRowCountry', 'seasonalRowHiddenHolidays', 'seasonalRowAllYear',
 	'visualTheme', 'customThemeId',
 	'showRatingLabels',
 	'showRatingBadges',
+	'homeRowsMdblistEnabled', 'homeRowsMdblistRatingSources', 'homeRowsTmdbEpisodeRatingsEnabled',
+	'homeRowsShowRatingLabels', 'homeRowsShowRatingBadges',
+	'mediaBarMdblistEnabled', 'mediaBarMdblistRatingSources', 'mediaBarShowRatingLabels', 'mediaBarShowRatingBadges',
 	'themeMusicEnabled', 'themeMusicVolume', 'themeMusicOnHomeRows',
-	'homeRowsImageType', 'homeRowImageTypes', 'showClock', 'clockDisplay',
-	'homeRowOverlay', 'folderViewMode',
+	'homeRowsImageType', 'homeRowImageTypes', 'showClock', 'clockDisplay', 'dateFormat',
+	'homeRowOverlay',
 	'excludedGenres',
 	'autoAdvance', 'autoAdvanceInterval',
 	'displayFavoritesRows', 'displayCollectionsRows', 'displayGenresRows', 'displayPlaylistsRows',
 	'displayAudioRows', 'displayRewatchRow', 'playlistsRowShowEpisodes',
 	'favoritesRowSortBy', 'collectionsRowSortBy', 'genresRowSortBy', 'genresRowItemFilter', 'collectionsRowShowEpisodes',
-	'stillWatchingBehavior', 'watchedIndicatorBehavior',
+	'stillWatchingBehavior', 'watchedIndicatorBehavior', 'showPosterLabels',
 	// Core stores these as enums and syncs them by name, which is the same string this
 	// client stores, so they need no conversion on the way to the server.
 	'playbackTimeAboveLeft', 'playbackTimeAboveCenter', 'playbackTimeAboveRight',
@@ -286,23 +347,30 @@ export const SYNCABLE_KEYS = [
 	'replaceSkipOutroWithNextUp',
 	'showHomeBackdrop', 'homeBackdropStyle', 'detailsBackdropEnabled', 'backdropBlurHome', 'backdropBlurDetail',
 	'mediaBarSourceType', 'mediaBarLibraryIds', 'mediaBarCollectionIds', 'mediaBarExternalLists',
+	'mediaBarNewReleaseBanner', 'mediaBarNewReleaseDays', 'mediaBarNewReleaseKinds', 'mediaBarNewMovieDays', 'mediaBarNewMovieDetail',
 	'mediaBarOverlayColor', 'mediaBarOverlayOpacity',
 	'homeRows', 'homeRowsStyle', 'modernCardsOnMyMediaRow', 'detailScreenStyle', 'detailExpandedTabs', 'fullScreenRows', 'homeRowsPosterSize', 'useSeriesThumbnails',
 	'episodePreviewEnabled', 'mediaPreviewMode', 'previewAudioEnabled', 'previewVolume',
 	'hideDetailsMediaDescription', 'detailUseSeriesThumbnails', 'hideHomeMediaDescription',
+	'hideHomeWatchProgress', 'hideHomeUnwatchedCount',
 	'personPageSortOption', 'personPageGroupItems',
-	'personalRatingStyle', 'recentlyReleasedSeriesType', 'mergeRecentRowsByType', 'playlistsGroupByType', 'groupItemsIntoCollections',
-	'useDetailedSubHeadings', 'showMediaDetailsOnLibraryPage', 'hideBackdropsInLibraries', 'libraryStyle', 'bookLibraryStyle', 'musicLibraryStyle',
+	'personalRatingStyle', 'recentlyReleasedSeriesType', 'mergeRecentRowsByType', 'hideWatchedInRecentRows', 'playlistsGroupByType', 'groupItemsIntoCollections',
+	'useDetailedSubHeadings', 'showMediaDetailsOnLibraryPage', 'libraryCardTitles', 'hideBackdropsInLibraries', 'hideLibraryWatchProgress', 'hideLibraryUnwatchedCount', 'libraryStyle', 'bookLibraryStyle', 'showBookDiscoverTab', 'bookFoldersAsSeries', 'musicLibraryStyle',
+	'libraryPosterSize', 'playlistPosterSize',
 	'keyboardStyle',
 	'syncplayEnabled', 'syncplayAutoOpen',
 	'showSyncPlayButton',
+	'watchPartyService', 'watchPartyChatOverlay', 'watchPartyAlerts',
 	'syncPlayAdvancedCorrectionEnabled', 'syncPlayEnableSyncCorrection',
 	'syncPlayUseSkipToSync', 'syncPlayMinDelaySkipToSync', 'syncPlayExtraTimeOffset',
 	'videoStartDelay', 'cinemaModeEnabled', 'cinemaModeEpisodesEnabled', 'cinemaModeSkipEnabled',
 	'audioLanguage', 'fallbackAudioLanguage', 'preferDefaultAudioTrack', 'preferAudioDescription',
 	'subtitleLanguage', 'fallbackSubtitleLanguage', 'preferSdhSubtitles', 'preferTextSubtitles', 'preferExternalSubtitles', 'subtitleMode',
+	'subtitleBold', 'subtitleBoldHdr', 'subtitleStrokeWidth', 'subtitleDropShadow', 'subtitleDropShadowIntensity',
+	'subtitleDropShadowOffset', 'subtitleDropShadowBlur', 'subtitleFont',
 	'assDirectPlay',
 	'resumeSubtractDuration', 'unpauseRewind', 'skipBackLength', 'skipForwardLength', 'showChapterMarkers',
+	'controlsHideDelay', 'hdrControlsDimming',
 	'maxVideoResolution', 'playerZoomMode', 'mediaSegmentAutoHide',
 	'exitConfirmation',
 	'diagnosticLoggingEnabled',
@@ -311,12 +379,18 @@ export const SYNCABLE_KEYS = [
 	'mergeRadarrSonarrCalendars',
 	'radarrCalendarShowCinema', 'radarrCalendarShowDigital', 'radarrCalendarShowPhysical',
 	'radarrCalendarShowDate', 'sonarrCalendarShowDate', 'sonarrCalendarShowEpisodeInfo',
-	'showSeerrButton', 'seerrShowMissingCollectionItems', 'showSeerrAvailabilityBadges',
+	'radarrCalendarHideDownloaded', 'sonarrCalendarHideDownloaded',
+	'showSeerrButton', 'seerrShowMissingCollectionItems', 'showSeerrAvailabilityBadges', 'seerrBadgeStyle',
+	'showCalendarButton', 'calendarStyle', 'calendarWeekStart', 'calendarScope', 'calendarShowEpisodes', 'calendarShowMovies',
+	'calendarLibraryIds', 'calendarIncludeUnmonitored', 'calendarShowSpecials', 'calendarShowBadges', 'calendarColorBy',
+	'calendarImageType', 'calendarSpoilerSafe', 'calendarSelectAction', 'calendarRequestButton', 'calendarRowSeeAll',
+	'showNextAirDate',
 	'showServerMessagesButton',
 	'screensaverMode', 'screensaverClockMode',
 	'screensaverBackdrop', 'screensaverComponent', 'screensaverMovement',
 	'screensaverPosition', 'screensaverSize', 'screensaverContentType',
 	'screensaverLibraryIds', 'screensaverCollectionIds', 'screensaverExcludedGenres',
+	'screensaverDuringAudio', 'sleepAfterIdle',
 	'loadingAnimationImage', 'loadingAnimationSize', 'loadingAnimationPosition', 'loadingAnimationSpeed',
 	'showLoadingAnimationText',
 	'navbarAlwaysExpanded', 'oledMode', 'themeMusicLoop',
@@ -326,11 +400,13 @@ export const SYNCABLE_KEYS = [
 	'classicHomeRowsPadding', 'modernHomeRowsPadding',
 	'detailShowTechnicalDetails',
 	'recommendationSystemSource', 'recommendationsApplyParentalRatingCap',
+	'calendarReminders',
 	'detailButtonsMaxVisible',
 	'detailButtonOrderTv', 'hiddenDetailButtonsTv', 'osdButtonOrderTv', 'hiddenOsdButtonsTv',
 	'detailMetadataOrderTv', 'hiddenDetailMetadataTv',
 	'hiddenDetailSectionsTv',
 	'focusBorderColor',
+	'cardFocusZoom',
 	'navbarOpacity',
 	'navbarColor',
 ];
@@ -353,10 +429,14 @@ export const profileToLocal = (serverProfile) => {
 	// Continue Watching syncs on its own server key, while this app keeps it with the other rows.
 	const continueWatching = rowImageTypeFromServer(serverProfile.homeImageTypeContinueWatching);
 	if (continueWatching) local.homeRowImageTypes = {...local.homeRowImageTypes, resume: continueWatching};
-	// The TMDB key is read only. We pull it so online rows can call TMDB, but it
-	// stays out of SYNCABLE_KEYS so the client never pushes it back.
+	// The TMDB and MDBList keys are read only. We pull them so online rows can call TMDB and the
+	// row editor knows which rows the plugin can fill, but they stay out of SYNCABLE_KEYS so the
+	// client never pushes them back.
 	if (serverProfile.tmdbApiKey !== undefined && serverProfile.tmdbApiKey !== null) {
 		local.tmdbApiKey = serverProfile.tmdbApiKey;
+	}
+	if (serverProfile.mdblistApiKey !== undefined && serverProfile.mdblistApiKey !== null) {
+		local.mdblistApiKey = serverProfile.mdblistApiKey;
 	}
 	return local;
 };
@@ -433,12 +513,17 @@ export const resolveFromEnvelope = (envelope, adminDefaults, profile) => {
 	else delete resolved.homeRowImageTypes;
 	const tmdbLayer = firstWith('tmdbApiKey');
 	if (tmdbLayer) resolved.tmdbApiKey = tmdbLayer.tmdbApiKey;
+	const mdblistLayer = firstWith('mdblistApiKey');
+	if (mdblistLayer) resolved.mdblistApiKey = mdblistLayer.mdblistApiKey;
 
 	// Same precedence as everything else, except the layout moves as one unit. The first
 	// profile that has any layout supplies all of it, so admin defaults only reach a user
-	// with no layout of their own. A layout from a client that predates the seasonal row
-	// lacks it, so its own toggle decides how it comes back.
-	const enabledById = {seasonal: resolved.seasonalRowEnabled === true};
+	// with no layout of their own. A layout from a client that predates the seasonal or
+	// watching now row lacks it, so its own toggle decides how it comes back.
+	const enabledById = {
+		seasonal: resolved.seasonalRowEnabled === true,
+		mdblist_watching_now: resolved.mdblistWatchingNowEnabled === true
+	};
 	let homeRows;
 	for (const source of sources) {
 		homeRows = homeRowsFromProfile(source, enabledById);
@@ -565,18 +650,21 @@ const normalizeServerKey = (serverUrl) => (serverUrl || '')
 	.replace(/^https?:\/\//i, '')
 	.replace(/\/+$/, '')
 	.toLowerCase();
+// Older marks are a plain true. A Plex server got one before Moonbase for Plex existed, when it could only ever
+// come back as having no plugin, so a Plex server with one counts as new and is looked at once more.
+const PLUGIN_SYNC_MARK = 2;
 export const isServerSyncInitialized = async (serverUrl) => {
 	const key = normalizeServerKey(serverUrl);
 	if (!key) return false;
-	const map = await getFromStorage(PLUGIN_SYNC_INIT_KEY);
-	return Boolean(map && map[key]);
+	const mark = (await getFromStorage(PLUGIN_SYNC_INIT_KEY))?.[key];
+	return isPlexServer(serverUrl) ? mark === PLUGIN_SYNC_MARK : Boolean(mark);
 };
-const markServerSyncInitialized = async (serverUrl) => {
+export const markServerSyncInitialized = async (serverUrl) => {
 	const key = normalizeServerKey(serverUrl);
 	if (!key) return;
 	const map = (await getFromStorage(PLUGIN_SYNC_INIT_KEY)) || {};
-	if (map[key]) return;
-	map[key] = true;
+	if (map[key] === PLUGIN_SYNC_MARK) return;
+	map[key] = PLUGIN_SYNC_MARK;
 	await saveToStorage(PLUGIN_SYNC_INIT_KEY, map);
 };
 // App boots before the async settings store loads, and on webOS that store is
@@ -603,10 +691,6 @@ export const migrateKeyboardStyle = (stored) => {
 export function SettingsProvider({children}) {
 	const [settings, setSettings] = useState(defaultSettings);
 	const [loaded, setLoaded] = useState(false);
-	// True once the login sync has finished, whichever way it went. The setup
-	// wizard waits on this so the answers it collects dont get overwritten by a
-	// profile that lands a moment later.
-	const [initialSyncSettled, setInitialSyncSettled] = useState(false);
 	const [themeCatalogVersion, setThemeCatalogVersion] = useState(0);
 	const serverCredsRef = useRef(null);
 	// Set once a sync has replaced the custom themes with a fresh set from the
@@ -629,13 +713,16 @@ export function SettingsProvider({children}) {
 				));
 				let migrated = false;
 				const hasExplicitHomeRowsStyle = Object.prototype.hasOwnProperty.call(stored, 'homeRowsStyle');
-				const mergedHomeRows = mergeHomeRows(stored.homeRows, {seasonal: stored.seasonalRowEnabled === true});
+				const mergedHomeRows = mergeHomeRows(stored.homeRows, {
+					seasonal: stored.seasonalRowEnabled === true,
+					mdblist_watching_now: stored.mdblistWatchingNowEnabled === true
+				});
 				if (mergedHomeRows !== stored.homeRows) {
 					stored.homeRows = mergedHomeRows;
 					migrated = true;
 				}
 				if (!hasExplicitHomeRowsStyle) {
-					stored.homeRowsStyle = 'v2';
+					stored.homeRowsStyle = defaultSettings.homeRowsStyle;
 					migrated = true;
 				} else {
 					const normalizedStyle = normalizeHomeRowsStyle(stored.homeRowsStyle);
@@ -668,6 +755,10 @@ export function SettingsProvider({children}) {
 				if (stored.trickPlayEnabled === false && stored.trickPlayMode === undefined) {
 					// Was a switch before it became a choice of how the preview shows.
 					stored.trickPlayMode = 'disabled';
+					migrated = true;
+				}
+				if (LEGACY_MEDIA_BAR_SOURCES.includes(stored.mediaBarSourceType)) {
+					stored.mediaBarSourceType = 'random';
 					migrated = true;
 				}
 				const navbarColorKey = normalizeOverlayColorKey(stored.navbarColor);
@@ -790,6 +881,14 @@ export function SettingsProvider({children}) {
 						stored.audioPassthroughMode = 'manual';
 						migrated = true;
 					}
+				}
+				if ('smoothScrolling' in stored) {
+					// Smooth Scrolling started out on for every TV, and the whole settings
+					// object is saved, so a stored true almost always came from that default.
+					// It restarts from the TV's own default, and only a deliberate off carries over.
+					if (stored.smoothScrolling === false) stored.smoothScrollingChoice = false;
+					delete stored.smoothScrolling;
+					migrated = true;
 				}
 				if ('liveTvDirect' in stored) {
 					// This key spent time synced to the other clients' live tv direct play
@@ -1058,7 +1157,8 @@ export function SettingsProvider({children}) {
 
 			const resolved = resolveFromEnvelope(serverData, adminDefaults, settingsRef.current.syncProfile);
 
-			const hasServerValues = resolved.tmdbApiKey !== undefined || SYNCABLE_KEYS.some(key => resolved[key] !== undefined);
+			const hasServerValues = resolved.tmdbApiKey !== undefined || resolved.mdblistApiKey !== undefined ||
+				SYNCABLE_KEYS.some(key => resolved[key] !== undefined);
 			if (!hasServerValues) return pluginAnswered ? 'empty' : 'unavailable';
 			// A value the profile carries was chosen somewhere, on this device or
 			// another, so the setup wizard has nothing left to ask about it.
@@ -1080,6 +1180,7 @@ export function SettingsProvider({children}) {
 						: incoming;
 				}
 				const tmdbApiKey = resolved.tmdbApiKey !== undefined ? resolved.tmdbApiKey : prev.tmdbApiKey;
+				const mdblistApiKey = resolved.mdblistApiKey !== undefined ? resolved.mdblistApiKey : prev.mdblistApiKey;
 				const homeRowsStyle = normalizeHomeRowsStyle(nextValues.homeRowsStyle);
 				const detailScreenStyle = normalizeDetailScreenStyle(nextValues.detailScreenStyle);
 
@@ -1095,6 +1196,7 @@ export function SettingsProvider({children}) {
 				// Unchanged values kept their previous reference, so comparing identity is
 				// enough here.
 				const changed = tmdbApiKey !== prev.tmdbApiKey ||
+					mdblistApiKey !== prev.mdblistApiKey ||
 					homeRowsStyle !== prev.homeRowsStyle ||
 					detailScreenStyle !== prev.detailScreenStyle ||
 					customThemeId !== prev.customThemeId ||
@@ -1106,6 +1208,7 @@ export function SettingsProvider({children}) {
 						...prev,
 						...nextValues,
 						tmdbApiKey,
+						mdblistApiKey,
 						homeRowsStyle,
 						detailScreenStyle,
 						customThemeId,
@@ -1138,8 +1241,11 @@ export function SettingsProvider({children}) {
 	// so it isn't probed again, and a network failure is left unmarked to retry on
 	// the next login. After that first pass the pull only runs while the user keeps
 	// the plugin enabled.
-	const syncOnLogin = useCallback(async (serverUrl, token) => {
+	const syncOnLogin = useCallback(async (serverUrl, token, userId) => {
 		if (!serverUrl || !token) return;
+		// The setup wizard waits for this user's read to finish, so the answers it collects
+		// don't get overwritten by a profile that lands a moment later.
+		beginSignInRead(serverUrl, userId);
 		// Known before any of the network work below, so a change made while that
 		// runs still has somewhere to go. Marks left over from another server were
 		// for that server's profile and would only hold this one's values back.
@@ -1171,7 +1277,7 @@ export function SettingsProvider({children}) {
 			if (pendingPush && !pushTimer) {
 				pushTimer = setTimeout(flushProfilePush, PUSH_DEBOUNCE_MS);
 			}
-			setInitialSyncSettled(true);
+			finishSignInRead(serverUrl, userId);
 		}
 	}, [syncFromServer, updateSetting]);
 
@@ -1179,7 +1285,6 @@ export function SettingsProvider({children}) {
 		<SettingsContext.Provider value={{
 			settings,
 			loaded,
-			initialSyncSettled,
 			availableThemes,
 			activeThemeId,
 			activeTheme,
@@ -1198,6 +1303,18 @@ export function SettingsProvider({children}) {
 			{children}
 		</SettingsContext.Provider>
 	);
+}
+
+// Draws everything under it as if the overridden settings were saved, so the settings
+// live preview can show the option a picker is trying without writing it.
+export function SettingsOverride({overrides, children}) {
+	const context = useContext(SettingsContext);
+	const value = useMemo(() => (
+		overrides && Object.keys(overrides).length > 0
+			? {...context, settings: {...context.settings, ...overrides}}
+			: context
+	), [context, overrides]);
+	return <SettingsContext.Provider value={value}>{children}</SettingsContext.Provider>;
 }
 
 export function useSettings() {

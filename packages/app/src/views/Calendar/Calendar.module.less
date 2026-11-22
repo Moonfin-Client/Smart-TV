@@ -1,0 +1,845 @@
+@import '../../styles/mixins.less';
+
+// Sizes are from a 1150 wide design drawn at 1920, times @dp. Theme colors come in
+// inline, since the build inlines var() fallbacks.
+
+@text: #fff;
+@text-80: rgba(255, 255, 255, 0.8);
+@text-75: rgba(255, 255, 255, 0.75);
+@text-70: rgba(255, 255, 255, 0.7);
+@text-65: rgba(255, 255, 255, 0.65);
+@text-55: rgba(255, 255, 255, 0.55);
+@surface: rgba(255, 255, 255, 0.06);
+@focus: #fff;
+@on-focus: rgba(0, 0, 0, 0.87);
+// Moonfin's focus border. Other themes recolor it from themeOverrides.js.
+@focus-ring: #00a4dc;
+
+// Focus draws a border laid over the item, so nothing moves when it lands.
+.focus-ring() {
+	position: relative;
+
+	&:focus::after {
+		content: '';
+		position: absolute;
+		top: 0;
+		right: 0;
+		bottom: 0;
+		left: 0;
+		border: (2 * @dp) solid @focus-ring;
+		border-radius: inherit;
+		pointer-events: none;
+	}
+}
+
+// Buttons and tabs keep a transparent 1 px border, so focus can fill them white with a focus colored edge.
+.solid-focus() {
+	border: (1 * @dp) solid transparent;
+	background-clip: padding-box;
+	outline: none;
+
+	&:focus {
+		background: @focus !important;
+		background-clip: border-box !important;
+		border-color: @focus-ring;
+		color: @on-focus;
+	}
+}
+
+.page {
+	position: fixed;
+	top: 0;
+	left: 0;
+	right: 0;
+	bottom: 0;
+	box-sizing: border-box;
+	// Clears the top bar.
+	padding: (95 * @dp) (48 * @dp) (24 * @dp);
+	background: #0f182a;
+	color: @text;
+	overflow: hidden;
+	// Material 3's body text style.
+	line-height: 1.43;
+	letter-spacing: 0.25 * @dp;
+}
+
+// Clears the collapsed left rail instead.
+.pageSidebar {
+	padding: (28 * @dp) (48 * @dp) (24 * @dp) (104 * @dp);
+}
+
+.icon {
+	width: 24px;
+	height: 24px;
+}
+
+// --- Buttons, tags and art ---
+
+.button {
+	display: inline-flex;
+	align-items: center;
+	flex-shrink: 0;
+	box-sizing: border-box;
+	padding: (11 * @dp) (20 * @dp);
+	border-radius: 24 * @dp;
+	background: rgba(255, 255, 255, 0.12);
+	color: @text;
+	font-family: inherit;
+	font-size: 15 * @dp;
+	font-weight: 600;
+	line-height: inherit;
+	letter-spacing: inherit;
+	white-space: nowrap;
+	.solid-focus();
+}
+
+.primary {
+	color: #fff;
+}
+
+.compact {
+	padding: (8 * @dp) (14 * @dp);
+	font-size: 13 * @dp;
+
+	.buttonIcon {
+		width: 18 * @dp;
+		height: 18 * @dp;
+	}
+}
+
+.iconOnly {
+	padding: (8 * @dp) (22 * @dp) (8 * @dp) (14 * @dp);
+}
+
+.disabled {
+	opacity: 0.35;
+}
+
+.buttonIcon {
+	width: 20 * @dp;
+	height: 20 * @dp;
+	flex-shrink: 0;
+}
+
+.buttonLabel {
+	margin-left: 8 * @dp;
+}
+
+.tag {
+	display: inline-block;
+	padding: (2 * @dp) (7 * @dp);
+	border-radius: 6 * @dp;
+	font-size: 11 * @dp;
+	font-weight: 700;
+	letter-spacing: 0.2 * @dp;
+	white-space: nowrap;
+}
+
+.tags {
+	display: flex;
+	flex-wrap: wrap;
+	.flex-wrap-gap(4 * @dp; 6 * @dp);
+}
+
+.art {
+	position: relative;
+	overflow: hidden;
+	border-radius: 8 * @dp;
+	background: @surface;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+}
+
+.artImage {
+	position: absolute;
+	top: 0;
+	left: 0;
+	width: 100%;
+	height: 100%;
+	object-fit: cover;
+}
+
+.artFallback {
+	width: 24 * @dp;
+	height: 24 * @dp;
+	color: rgba(255, 255, 255, 0.3);
+}
+
+// --- Header ---
+
+.headerRow {
+	display: flex;
+	align-items: center;
+	flex-shrink: 0;
+
+	> .title {
+		flex: 1;
+		min-width: 0;
+	}
+}
+
+.title {
+	flex-shrink: 0;
+	font-size: 30 * @dp;
+	font-weight: 700;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+// Countdown's own title row is a size down.
+.titleSmall {
+	font-size: 28 * @dp;
+}
+
+.tabs {
+	display: flex;
+	align-items: center;
+	flex-shrink: 0;
+	margin-top: 10 * @dp;
+}
+
+.tab {
+	padding: (8 * @dp) (16 * @dp);
+	border-radius: 18 * @dp;
+	background: rgba(255, 255, 255, 0.1);
+	color: rgba(255, 255, 255, 0.85);
+	font-size: 14 * @dp;
+	font-weight: 600;
+	white-space: nowrap;
+	.solid-focus();
+}
+
+.tabSelected {
+	color: #fff;
+}
+
+// --- States ---
+
+.message {
+	flex: 1;
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	justify-content: center;
+	padding: 32 * @dp;
+	text-align: center;
+}
+
+.messageIcon {
+	width: 48 * @dp;
+	height: 48 * @dp;
+	color: rgba(255, 255, 255, 0.4);
+}
+
+.messageText {
+	margin: (16 * @dp) 0 (20 * @dp);
+	max-width: 500 * @dp;
+	font-size: 16 * @dp;
+	color: @text-80;
+}
+
+// --- Agenda ---
+
+.agenda {
+	display: flex;
+	height: 100%;
+}
+
+// The list and the preview split the width in two equal halves.
+.agendaList {
+	flex: 1;
+	min-width: 0;
+	display: flex;
+	flex-direction: column;
+	margin-right: 32 * @dp;
+}
+
+.listScroller {
+	flex: 1;
+	min-height: 0;
+	margin-top: 12 * @dp;
+	padding: 0 (8 * @dp) (24 * @dp) 0;
+	overflow-y: auto;
+	scroll-padding: (40 * @dp) 0;
+
+	&::-webkit-scrollbar {
+		display: none;
+	}
+}
+
+.dayHeader {
+	display: flex;
+	align-items: center;
+	padding: (20 * @dp) 0 (8 * @dp);
+}
+
+.dayHeaderFirst {
+	padding-top: 4 * @dp;
+}
+
+.dayName {
+	font-size: 16 * @dp;
+	font-weight: 700;
+}
+
+.dayDate {
+	margin-left: 8 * @dp;
+	font-size: 14 * @dp;
+	color: @text-55;
+}
+
+.row {
+	display: flex;
+	align-items: center;
+	padding: 6 * @dp;
+	border-radius: 10 * @dp;
+	outline: none;
+	.focus-ring();
+}
+
+.rowTime {
+	flex-shrink: 0;
+	width: 72 * @dp;
+	font-size: 13 * @dp;
+	font-weight: 600;
+	color: @text-70;
+}
+
+.rowBar {
+	flex-shrink: 0;
+	width: 3 * @dp;
+	height: 72 * @dp;
+	margin-right: 10 * @dp;
+	border-radius: 2 * @dp;
+}
+
+.rowThumb {
+	flex-shrink: 0;
+	width: 128 * @dp;
+	height: 72 * @dp;
+}
+
+.rowText {
+	flex: 1;
+	min-width: 0;
+	margin-left: 12 * @dp;
+
+	.tags {
+		margin-top: 4 * @dp;
+	}
+}
+
+.rowTitle,
+.rowSubtitle {
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.rowTitle {
+	font-size: 15 * @dp;
+	font-weight: 600;
+}
+
+.rowSubtitle {
+	font-size: 13 * @dp;
+	color: @text-65;
+}
+
+// The month grid's side panel is narrower than the list.
+.rowCompact {
+	.rowTime {
+		width: 56 * @dp;
+	}
+
+	.rowBar {
+		height: 49.5 * @dp;
+	}
+
+	.rowThumb {
+		width: 88 * @dp;
+		height: 49.5 * @dp;
+	}
+}
+
+.previewPane {
+	flex: 1;
+	min-width: 0;
+}
+
+.preview {
+	position: relative;
+	height: 100%;
+	overflow: hidden;
+	border-radius: 16 * @dp;
+	background: @surface;
+}
+
+.previewArt {
+	position: absolute;
+	top: 0;
+	left: 0;
+	right: 0;
+	bottom: 0;
+	border-radius: 0;
+}
+
+.previewScrim {
+	position: absolute;
+	top: 0;
+	left: 0;
+	right: 0;
+	bottom: 0;
+}
+
+.previewInfo {
+	position: absolute;
+	left: 0;
+	right: 0;
+	bottom: 0;
+	padding: 28 * @dp;
+
+	.tags {
+		margin-top: 8 * @dp;
+	}
+}
+
+.kicker {
+	font-size: 13 * @dp;
+	font-weight: 700;
+	letter-spacing: 0.8 * @dp;
+	text-transform: uppercase;
+}
+
+.previewTitle {
+	margin-top: 6 * @dp;
+	font-size: 32 * @dp;
+	font-weight: 700;
+	display: -webkit-box;
+	-webkit-line-clamp: 2;
+	-webkit-box-orient: vertical;
+	overflow: hidden;
+}
+
+.previewSubtitle {
+	margin-top: 4 * @dp;
+	font-size: 16 * @dp;
+	color: @text-80;
+}
+
+.overview {
+	margin-top: 12 * @dp;
+	font-size: 15 * @dp;
+	line-height: 1.35;
+	color: @text-75;
+	display: -webkit-box;
+	-webkit-line-clamp: 3;
+	-webkit-box-orient: vertical;
+	overflow: hidden;
+}
+
+.buttons {
+	display: flex;
+	flex-wrap: wrap;
+	.flex-wrap-gap(12 * @dp);
+	// After the gap mixin, which resets the whole margin.
+	margin-top: 20 * @dp;
+}
+
+// --- Countdown ---
+
+.countdownPage {
+	display: flex;
+	flex-direction: column;
+	height: 100%;
+}
+
+.countdownScroller {
+	// One list over the whole screen with the chrome insets as its padding, so it scrolls edge to edge
+	// and its rows run on to the right edge.
+	position: absolute;
+	top: 0;
+	right: 0;
+	bottom: 0;
+	left: 0;
+	display: block;
+	height: auto;
+	overflow-y: auto;
+	padding: (95 * @dp) (48 * @dp) (32 * @dp);
+
+	&::-webkit-scrollbar {
+		display: none;
+	}
+}
+
+.pageSidebar .countdownScroller {
+	padding-top: 28 * @dp;
+	padding-left: 104 * @dp;
+}
+
+.hero {
+	position: relative;
+	height: 420 * @dp;
+	overflow: hidden;
+	border-radius: 18 * @dp;
+}
+
+// The art is sized by its width alone, so the 16:9 backdrop sits centered with bands above and below.
+.heroArt {
+	position: absolute;
+	top: 50%;
+	right: 0;
+	width: 68%;
+	height: 0;
+	padding-bottom: (68% * 9 / 16);
+	transform: translateY(-50%);
+	border-radius: 0;
+}
+
+.heroScrim {
+	position: absolute;
+	top: 0;
+	left: 0;
+	right: 0;
+	bottom: 0;
+}
+
+.heroInfo {
+	position: absolute;
+	top: 0;
+	bottom: 0;
+	left: 32 * @dp;
+	width: 560 * @dp;
+	display: flex;
+	flex-direction: column;
+	justify-content: center;
+	padding: (24 * @dp) 0;
+}
+
+.heroTitle {
+	margin-top: 6 * @dp;
+	font-size: 40 * @dp;
+	font-weight: 800;
+	line-height: 1.1;
+	display: -webkit-box;
+	-webkit-line-clamp: 2;
+	-webkit-box-orient: vertical;
+	overflow: hidden;
+}
+
+.heroSubtitle {
+	margin-top: 6 * @dp;
+	font-size: 18 * @dp;
+	color: @text-80;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.heroInfo .overview {
+	margin-top: 14 * @dp;
+}
+
+.heroInfo .buttons {
+	margin-top: 18 * @dp;
+}
+
+.countdown {
+	margin-top: 16 * @dp;
+}
+
+.countLabel {
+	font-size: 12 * @dp;
+	font-weight: 600;
+	color: rgba(255, 255, 255, 0.6);
+}
+
+.countCells {
+	display: flex;
+	margin-top: 6 * @dp;
+	.flex-row-gap(8 * @dp);
+}
+
+.countCell {
+	min-width: 64 * @dp;
+	box-sizing: border-box;
+	padding: (8 * @dp) (12 * @dp);
+	border-radius: 10 * @dp;
+	background: rgba(255, 255, 255, 0.1);
+	text-align: center;
+}
+
+.countValue {
+	font-size: 26 * @dp;
+	font-weight: 700;
+	font-variant-numeric: tabular-nums;
+}
+
+.countUnit {
+	font-size: 12 * @dp;
+	color: rgba(255, 255, 255, 0.6);
+}
+
+.cardRow {
+	margin-top: 24 * @dp;
+}
+
+.cardRowTitle {
+	font-size: 20 * @dp;
+	font-weight: 700;
+}
+
+.cardScroller {
+	display: flex;
+	margin-top: 10 * @dp;
+	margin-right: -48 * @dp;
+	overflow-x: auto;
+
+	&::-webkit-scrollbar {
+		display: none;
+	}
+
+	// The list still ends at the content edge, after the last card's own 14.
+	&::after {
+		content: '';
+		flex-shrink: 0;
+		width: (48 - 14) * @dp;
+	}
+}
+
+.card {
+	flex-shrink: 0;
+	margin-right: 14 * @dp;
+	border-radius: 10 * @dp;
+	outline: none;
+	.focus-ring();
+}
+
+// Each card is the art plus 52 for its two lines of text, so the focus ring covers them too.
+.cardPoster {
+	width: 150 * @dp;
+	height: (225 + 52) * @dp;
+
+	.cardArt {
+		height: 225 * @dp;
+	}
+}
+
+.cardThumb {
+	width: 280 * @dp;
+	height: (157.5 + 52) * @dp;
+
+	.cardArt {
+		height: 157.5 * @dp;
+	}
+}
+
+.cardArt {
+	border-radius: 10 * @dp;
+}
+
+.cardTitle,
+.cardLine {
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.cardTitle {
+	margin-top: 6 * @dp;
+	font-size: 14 * @dp;
+	font-weight: 600;
+}
+
+.cardLine {
+	font-size: 12 * @dp;
+	opacity: 0.9;
+}
+
+// --- Month grid ---
+
+.month {
+	display: flex;
+	height: 100%;
+}
+
+.monthMain {
+	flex: 1;
+	min-width: 0;
+	display: flex;
+	flex-direction: column;
+	margin-right: 24 * @dp;
+}
+
+.weekdays {
+	display: flex;
+	flex-shrink: 0;
+	margin: (12 * @dp) 0 (6 * @dp);
+}
+
+.weekday {
+	flex: 1;
+	text-align: center;
+	font-size: 12 * @dp;
+	font-weight: 600;
+	color: @text-55;
+}
+
+.grid {
+	flex: 1;
+	min-height: 0;
+	display: flex;
+	flex-direction: column;
+}
+
+.gridRow {
+	flex: 1;
+	min-height: 0;
+	display: flex;
+}
+
+.cell {
+	flex: 1;
+	min-width: 0;
+	box-sizing: border-box;
+	display: flex;
+	flex-direction: column;
+	margin: 3 * @dp;
+	padding: (6 * @dp) (8 * @dp);
+	border-radius: 10 * @dp;
+	background: rgba(255, 255, 255, 0.05);
+	overflow: hidden;
+	outline: none;
+	.focus-ring();
+}
+
+// Only today has a border, and focus is drawn over it.
+.cellToday {
+	border: (1.5 * @dp) solid transparent;
+
+	&:focus::after {
+		top: -1.5 * @dp;
+		right: -1.5 * @dp;
+		bottom: -1.5 * @dp;
+		left: -1.5 * @dp;
+	}
+}
+
+.cellOut {
+	background: rgba(255, 255, 255, 0.02);
+
+	.cellNumber {
+		color: rgba(255, 255, 255, 0.3);
+	}
+
+	.cellTitle {
+		color: rgba(255, 255, 255, 0.35);
+	}
+}
+
+.cellHead {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	flex-shrink: 0;
+}
+
+.cellNumber {
+	font-size: 15 * @dp;
+	font-weight: 700;
+	color: rgba(255, 255, 255, 0.95);
+}
+
+.cellEntries {
+	flex: 1;
+	min-height: 0;
+	margin-top: 4 * @dp;
+	overflow: hidden;
+}
+
+.cellEntry {
+	display: flex;
+	align-items: center;
+	margin-bottom: 3 * @dp;
+}
+
+.cellBar {
+	flex-shrink: 0;
+	width: 3 * @dp;
+	height: 14 * @dp;
+	margin-right: 5 * @dp;
+	border-radius: 2 * @dp;
+}
+
+.cellTitle {
+	min-width: 0;
+	font-size: 12 * @dp;
+	color: rgba(255, 255, 255, 0.85);
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.cellMore {
+	font-size: 11 * @dp;
+	color: @text-55;
+}
+
+.dayPanel {
+	flex-shrink: 0;
+	width: 400 * @dp;
+	display: flex;
+	flex-direction: column;
+}
+
+.dayPanelName {
+	font-size: 20 * @dp;
+	font-weight: 700;
+}
+
+.dayPanelDate {
+	margin-top: 2 * @dp;
+	font-size: 14 * @dp;
+	color: @text-55;
+}
+
+.dayPanelEmpty {
+	flex: 1;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	color: rgba(255, 255, 255, 0.6);
+	font-size: 14 * @dp;
+}
+
+.dayPanelList {
+	flex: 1;
+	min-height: 0;
+	margin-top: 12 * @dp;
+	overflow-y: auto;
+	scroll-padding: (20 * @dp) 0;
+
+	&::-webkit-scrollbar {
+		display: none;
+	}
+}
+
+// Spacing that has to land after every rule above.
+.tabs > .button {
+	margin-left: auto;
+}
+
+// The month's arrows sit 6 apart and 10 before Today.
+.headerRow > .button ~ .button {
+	margin-left: 6 * @dp;
+}
+
+.headerRow > .button ~ .button ~ .button {
+	margin-left: 10 * @dp;
+}
+
+.tabs {
+	.flex-row-gap(8 * @dp);
+}

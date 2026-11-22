@@ -4,9 +4,10 @@
 //
 // Layers are listed top first, like background-image. Each is {to: 'right' | 'top' | 'bottom', rgb,
 // stops} or {at: [x, y], rgb, stops}, an ellipse centered at that fraction of the box and sized to
-// its farthest corner the way CSS sizes one by default. Stops are [offset, alpha], or [offset, alpha,
-// rgb] where a stop changes color. Canvas blends stops unpremultiplied where CSS premultiplies, so a
-// layer should keep one color or stay close to it.
+// its farthest corner the way CSS sizes one by default. Given a `radius` too, it's a circle reaching
+// that many times the box's shorter side out from its center. Stops are [offset, alpha], or [offset,
+// alpha, rgb] where a stop changes color. Canvas blends stops unpremultiplied where CSS premultiplies,
+// so a layer should keep one color or stay close to it.
 
 const W = 240;
 const H = 135;
@@ -50,8 +51,8 @@ const paint = (ctx, layer, scale) => {
 	if (layer.at) {
 		const cx = layer.at[0] * W;
 		const cy = layer.at[1] * H;
-		const rx = Math.max(cx, W - cx) * Math.SQRT2;
-		const squash = (Math.max(cy, H - cy) * Math.SQRT2) / rx;
+		const rx = layer.radius ? layer.radius * Math.min(W, H) : Math.max(cx, W - cx) * Math.SQRT2;
+		const squash = layer.radius ? 1 : (Math.max(cy, H - cy) * Math.SQRT2) / rx;
 		ctx.translate(cx, cy);
 		ctx.scale(1, squash);
 		gradient = ctx.createRadialGradient(0, 0, 0, 0, 0, rx);

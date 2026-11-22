@@ -2,7 +2,7 @@ import {featuredConfigKey} from './featuredConfig';
 
 const base = {
 	useMoonfinPlugin: false,
-	mediaBarSourceType: 'library',
+	mediaBarSourceType: 'random',
 	featuredContentType: 'Movie,Series',
 	featuredItemCount: 20,
 	mediaBarLibraryIds: ['lib1'],
@@ -22,9 +22,9 @@ describe('featuredConfigKey', () => {
 		expect(featuredConfigKey(unset)).toBe(featuredConfigKey(empty));
 	});
 
-	test('an unset source type reads as the library default', () => {
+	test('an unset source type reads as the random default', () => {
 		expect(featuredConfigKey({...base, mediaBarSourceType: undefined}))
-			.toBe(featuredConfigKey({...base, mediaBarSourceType: 'library'}));
+			.toBe(featuredConfigKey({...base, mediaBarSourceType: 'random'}));
 	});
 
 	test('unified mode changes the key', () => {
@@ -34,7 +34,9 @@ describe('featuredConfigKey', () => {
 	// Each of these changes what the bar holds.
 	test.each([
 		['useMoonfinPlugin', {useMoonfinPlugin: true}],
-		['mediaBarSourceType', {mediaBarSourceType: 'collection'}],
+		['mediaBarSourceType', {mediaBarSourceType: 'recentlyAdded'}],
+		['mediaBarSourceType', {mediaBarSourceType: 'newReleases'}],
+		['mediaBarNewReleaseDays', {mediaBarNewReleaseDays: 7}],
 		['featuredContentType', {featuredContentType: 'Movie'}],
 		['featuredItemCount', {featuredItemCount: 40}],
 		['mediaBarLibraryIds', {mediaBarLibraryIds: ['lib2']}],

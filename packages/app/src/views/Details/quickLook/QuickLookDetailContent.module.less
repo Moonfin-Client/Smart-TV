@@ -1,0 +1,385 @@
+// Sizes are Moonfin Core's Quick Look measurements, which are laid out for a 1150 point wide TV
+// screen, times 1.67 for this app's 1920 wide one.
+
+@focus: var(--theme-focus-border-color, #00a4dc);
+@pad: 43.4px;
+@ease: cubic-bezier(0.215, 0.61, 0.355, 1);
+
+// Over the screen underneath, its navigation bar included, and under the dialogs the drawer opens.
+.frame {
+	bottom: 0;
+	left: 0;
+	position: fixed;
+	right: 0;
+	top: 0;
+	z-index: 1500;
+}
+
+.dim {
+	animation: dimIn 0.26s ease-out;
+	background: rgba(0, 0, 0, 0.62);
+	bottom: 0;
+	left: 0;
+	position: absolute;
+	right: 0;
+	top: 0;
+
+	:global(.perf-low) &,
+	:global(.perf-mid) & {
+		animation: none;
+	}
+}
+
+// Half the screen down the right, within Core's bounds.
+.drawer {
+	animation: slideIn 0.26s @ease;
+	border-left: 2px solid rgba(255, 255, 255, 0.1);
+	bottom: 0;
+	box-sizing: border-box;
+	color: #fff;
+	max-width: 1035px;
+	min-width: 701px;
+	overflow: hidden;
+	position: absolute;
+	right: 0;
+	top: 0;
+	width: 50%;
+
+	:global(.perf-low) &,
+	:global(.perf-mid) & {
+		animation: none;
+	}
+}
+
+@keyframes dimIn {
+	from {
+		opacity: 0;
+	}
+}
+
+@keyframes slideIn {
+	from {
+		transform: translateX(100%);
+	}
+}
+
+.content {
+	display: flex;
+	flex-direction: column;
+	height: 100%;
+}
+
+// Everything above Open full page scrolls.
+.scroller {
+	flex: 1 1 auto;
+	min-height: 0;
+	overflow-x: hidden;
+	overflow-y: auto;
+	padding-bottom: 26.7px;
+	-ms-overflow-style: none;
+	scrollbar-width: none;
+}
+
+.scroller::-webkit-scrollbar {
+	display: none;
+}
+
+.header {
+	position: relative;
+}
+
+// The backdrop across the top third, faded into the drawer, with the title running up over its foot.
+.backdrop {
+	height: 32vh;
+	left: 0;
+	position: absolute;
+	right: 0;
+	top: 0;
+}
+
+.backdropImage {
+	height: 100%;
+	object-fit: cover;
+	object-position: 50% 30%;
+	width: 100%;
+}
+
+.fade {
+	background-repeat: no-repeat;
+	background-size: 100% 100%;
+	bottom: 0;
+	left: 0;
+	position: absolute;
+	right: 0;
+	top: 0;
+}
+
+.info {
+	padding: ~'calc(32vh - 56.8px)' @pad 0;
+	position: relative;
+}
+
+// With the backdrop off the title starts lower down, clear of the hint.
+.infoBare {
+	padding-top: 106.9px;
+}
+
+.closeHint {
+	background: rgba(0, 0, 0, 0.5);
+	border-radius: 999px;
+	color: rgba(255, 255, 255, 0.85);
+	font-size: 20px;
+	padding: 10px 20px;
+	position: absolute;
+	right: 23.4px;
+	top: 23.4px;
+}
+
+.title {
+	display: -webkit-box;
+	font-size: 45px;
+	font-weight: 700;
+	line-height: 1.15;
+	margin: 0;
+	overflow: hidden;
+	-webkit-box-orient: vertical;
+	-webkit-line-clamp: 2;
+}
+
+.subtitle {
+	color: rgba(255, 255, 255, 0.85);
+	font-size: 26.7px;
+	font-weight: 600;
+	margin-top: 6.7px;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.meta {
+	margin-top: 10px;
+}
+
+.rest {
+	padding: 0 @pad;
+}
+
+.ratings {
+	margin-top: 16.7px;
+}
+
+.ratings:empty {
+	display: none;
+}
+
+.actions {
+	margin-top: 26.7px;
+}
+
+.downloads {
+	margin-top: 20px;
+}
+
+.downloads:empty {
+	display: none;
+}
+
+.progress {
+	align-items: center;
+	color: rgba(255, 255, 255, 0.75);
+	display: flex;
+	font-size: 20px;
+	margin-top: 20px;
+}
+
+.progressTrack {
+	background: rgba(255, 255, 255, 0.15);
+	border-radius: 3.3px;
+	flex: 0 0 250px;
+	height: 6.7px;
+	margin-right: 16.7px;
+	overflow: hidden;
+}
+
+.progressFill {
+	background: #00a4dc;
+	height: 100%;
+}
+
+.progressLabel {
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.overview {
+	color: rgba(255, 255, 255, 0.82);
+	display: -webkit-box;
+	font-size: 23.4px;
+	line-height: 1.5;
+	margin: 20px 0 0;
+	overflow: hidden;
+	-webkit-box-orient: vertical;
+	-webkit-line-clamp: 3;
+}
+
+.section {
+	margin-top: 23.4px;
+}
+
+// Three cards share the row, and past that the row scrolls.
+.seasons {
+	display: flex;
+	overflow-x: auto;
+	overflow-y: hidden;
+	-ms-overflow-style: none;
+	scrollbar-width: none;
+}
+
+.seasons::-webkit-scrollbar {
+	display: none;
+}
+
+.season {
+	background: rgba(255, 255, 255, 0.06);
+	border: 2px solid rgba(255, 255, 255, 0.2);
+	border-radius: 16.7px;
+	box-sizing: border-box;
+	display: flex;
+	flex: 0 0 auto;
+	flex-direction: column;
+	height: 73.5px;
+	justify-content: center;
+	outline: none;
+	padding: 0 20px;
+}
+
+.season + .season {
+	margin-left: 13.4px;
+}
+
+.season:focus {
+	background: #f2f2f2;
+	border-color: @focus;
+	color: #212121;
+}
+
+.seasonHead {
+	align-items: center;
+	display: flex;
+	font-size: 20px;
+}
+
+.seasonName {
+	flex: 1 1 auto;
+	font-weight: 600;
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.seasonCount {
+	color: rgba(255, 255, 255, 0.7);
+	flex: none;
+	margin-left: 10px;
+}
+
+.season:focus .seasonCount {
+	color: rgba(33, 33, 33, 0.7);
+}
+
+.seasonTrack {
+	background: rgba(255, 255, 255, 0.15);
+	border-radius: 3.3px;
+	height: 5px;
+	margin-top: 8.4px;
+	overflow: hidden;
+}
+
+.season:focus .seasonTrack {
+	background: rgba(33, 33, 33, 0.15);
+}
+
+.seasonFill {
+	background: #00a4dc;
+	height: 100%;
+}
+
+// Seerr's marker sits in the card's top line here rather than on its corner.
+.dotSlot {
+	flex: none;
+	height: 23.4px;
+	margin-left: 10px;
+	position: relative;
+	width: 23.4px;
+}
+
+.dotSlot > div {
+	box-shadow: none;
+	height: 100%;
+	left: 0;
+	top: 0;
+	width: 100%;
+}
+
+.facts {
+	display: flex;
+}
+
+.fact {
+	border-left: 2px solid rgba(255, 255, 255, 0.14);
+	flex: 1 1 0;
+	min-width: 0;
+	padding: 0 16.7px;
+}
+
+.factLabel {
+	color: rgba(255, 255, 255, 0.6);
+	font-size: 16.7px;
+	letter-spacing: 1.67px;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	text-transform: uppercase;
+	white-space: nowrap;
+}
+
+.factValue {
+	font-size: 21.7px;
+	font-weight: 600;
+	margin-top: 5px;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.foot {
+	flex: none;
+	padding: 13.4px @pad 36.7px;
+}
+
+.open {
+	align-items: center;
+	border: 2px solid rgba(255, 255, 255, 0.25);
+	border-radius: 38.4px;
+	box-sizing: border-box;
+	display: flex;
+	font-size: 23.4px;
+	font-weight: 600;
+	height: 76.8px;
+	justify-content: center;
+	outline: none;
+}
+
+.open:focus {
+	background: #f2f2f2;
+	border-color: @focus;
+	color: #212121;
+}
+
+.openIcon {
+	height: 30px;
+	margin-left: 10px;
+	width: 30px;
+}

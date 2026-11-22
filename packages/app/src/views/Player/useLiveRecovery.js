@@ -47,20 +47,22 @@ export const reopenLiveChannel = async (channel, {disableDirectPlay, forceTransc
  * @param {boolean} options.isLiveTV
  * @param {string} options.itemId - moving to another channel abandons whatever is under way
  * @param {Function} options.reResolve - see createLiveRecovery
+ * @param {Function} [options.reload] - see createLiveRecovery
  * @param {Function} options.release - see createLiveRecovery
  * @param {Function} options.onLost - see createLiveRecovery
  * @param {Function} options.isDirectPlay - see createLiveRecovery
  * @returns {{recovery: Object|null, reconnecting: string|null}} the recovery, null off live TV,
  *   and the reconnecting label while an attempt is under way
  */
-const useLiveRecovery = ({isLiveTV, itemId, reResolve, release, onLost, isDirectPlay}) => {
+const useLiveRecovery = ({isLiveTV, itemId, reResolve, reload, release, onLost, isDirectPlay}) => {
 	const [status, setStatus] = useState(null);
 	const handlers = useRef(null);
-	handlers.current = {reResolve, release, onLost, isDirectPlay};
+	handlers.current = {reResolve, reload, release, onLost, isDirectPlay};
 	const recoveryRef = useRef(null);
 	if (!recoveryRef.current) {
 		recoveryRef.current = createLiveRecovery({
 			reResolve: (route) => handlers.current.reResolve(route),
+			reload: reload ? () => handlers.current.reload() : null,
 			release: () => handlers.current.release(),
 			onLost: () => handlers.current.onLost(),
 			isDirectPlay: () => handlers.current.isDirectPlay(),

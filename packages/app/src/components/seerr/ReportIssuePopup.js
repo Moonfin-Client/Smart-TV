@@ -1,63 +1,61 @@
-import {memo, useCallback, useEffect, useMemo, useState} from 'react';
-import Popup from '@enact/sandstone/Popup';
-import Button from '@enact/sandstone/Button';
+import {memo, useCallback, useMemo, useState} from 'react';
 import $L from '@enact/i18n/$L';
 
+import CoreDialog, {CoreDialogRow} from '../CoreDialog';
 import SpottableInput from '../SpottableInput/SpottableInput';
 import {ISSUE_TYPE, getIssueTypeLabel} from '../../utils/seerrStatus';
-import {LastFocusedContainer, SpottableDiv} from './seerrFocus';
+import {seasonNumbersOf} from '../../utils/seerrRequestRules';
+import {SeerrButtonRow, SeerrDialogButton, SeerrDivider, SeerrFocusRow, SeerrSelectorRow} from './SeerrDialogControls';
+import {MaterialIcon} from '../icons/materialIcons';
 
-import css from './SeerrPopups.module.less';
+import css from './ReportIssuePopup.module.less';
 
 // Reports a problem with a title back to Seerr, optionally against one season or episode.
 
 const ISSUE_TYPES = [ISSUE_TYPE.VIDEO, ISSUE_TYPE.AUDIO, ISSUE_TYPE.SUBTITLES, ISSUE_TYPE.OTHER];
 
-export const ReportIssuePopup = memo(({open, title, isTv, seasons, onSubmit, onClose}) => {
+const seasonLabel = (season) => (season > 0 ? $L('Season {number}').replace('{number}', season) : $L('All Seasons'));
+const episodeLabel = (episode) => (episode > 0 ? $L('Episode {number}').replace('{number}', episode) : $L('All Episodes'));
+
+// Mounted only while open, so each report starts from a clean form. Opened from a season or an
+// episode, it starts on that one.
+const ReportIssueForm = ({isTv, seasons, numberOfSeasons, initialSeason, initialEpisode, onSubmit, onClose}) => {
+	const seasonNumbers = useMemo(() => seasonNumbersOf(seasons, numberOfSeasons || 0), [seasons, numberOfSeasons]);
+	// The season each picker row stands for, with 0 for all seasons first.
+	const seasonValues = useMemo(() => [0, ...seasonNumbers], [seasonNumbers]);
+
 	const [issueType, setIssueType] = useState(ISSUE_TYPE.VIDEO);
-	const [season, setSeason] = useState(0);
-	const [episode, setEpisode] = useState(0);
+	const startsOnSeason = isTv && initialSeason > 0;
+	const [season, setSeason] = useState(() => {
+		if (startsOnSeason) return initialSeason;
+		return isTv && seasonNumbers.length === 1 ? seasonNumbers[0] : 0;
+	});
+	const [episode, setEpisode] = useState(() => (startsOnSeason && initialEpisode > 0 ? initialEpisode : 0));
 	const [message, setMessage] = useState('');
 	const [submitting, setSubmitting] = useState(false);
-
-	const seasonNumbers = useMemo(() =>
-		(seasons || []).filter(s => s.seasonNumber > 0).map(s => s.seasonNumber),
-	[seasons]);
+	const [picker, setPicker] = useState(null);
 
 	const episodeCount = useMemo(() => {
 		if (season <= 0) return 0;
-		const match = (seasons || []).find(s => s.seasonNumber === season);
-		return match?.episodeCount || 0;
+		return (seasons || []).find(s => s.seasonNumber === season)?.episodeCount || 0;
 	}, [seasons, season]);
 
-	useEffect(() => {
-		if (open) {
-			setIssueType(ISSUE_TYPE.VIDEO);
-			setSeason(isTv && seasonNumbers.length === 1 ? seasonNumbers[0] : 0);
-			setEpisode(0);
-			setMessage('');
-			setSubmitting(false);
-		}
-	}, [open, isTv, seasonNumbers]);
-
-	const handleTypeClick = useCallback((e) => {
-		const value = parseInt(e.currentTarget.dataset.type, 10);
-		if (!isNaN(value)) setIssueType(value);
-	}, []);
-
-	const handleSeasonClick = useCallback((e) => {
-		const value = parseInt(e.currentTarget.dataset.season, 10);
-		if (isNaN(value)) return;
-		setSeason(value);
-		setEpisode(0);
-	}, []);
-
-	const handleEpisodeClick = useCallback((e) => {
-		const value = parseInt(e.currentTarget.dataset.episode, 10);
-		if (!isNaN(value)) setEpisode(value);
-	}, []);
-
+	const handleTypeClick = useCallback((e) => setIssueType(Number(e.currentTarget.dataset.type)), []);
 	const handleMessageChange = useCallback((e) => setMessage(e.target.value), []);
+	const openSeasonPicker = useCallback(() => setPicker('season'), []);
+	const openEpisodePicker = useCallback(() => setPicker('episode'), []);
+	const closePicker = useCallback(() => setPicker(null), []);
+
+	const handlePick = useCallback((e) => {
+		const index = Number(e.currentTarget.dataset.index);
+		if (picker === 'season') {
+			setSeason(seasonValues[index]);
+			setEpisode(0);
+		} else {
+			setEpisode(index);
+		}
+		setPicker(null);
+	}, [picker, seasonValues]);
 
 	const handleSubmit = useCallback(async () => {
 		const text = message.trim();
@@ -75,101 +73,101 @@ export const ReportIssuePopup = memo(({open, title, isTv, seasons, onSubmit, onC
 		}
 	}, [message, submitting, issueType, isTv, season, episode, onSubmit]);
 
-	const canSubmit = message.trim().length > 0 && !submitting;
+	const canSend = message.trim().length > 0 && !submitting;
+
+	let pickerLabels = [];
+	let pickerSelected = 0;
+	if (picker === 'season') {
+		pickerLabels = seasonValues.map(seasonLabel);
+		pickerSelected = Math.max(0, seasonValues.indexOf(season));
+	} else if (picker === 'episode') {
+		pickerLabels = Array.from({length: episodeCount + 1}, (_, i) => episodeLabel(i));
+		pickerSelected = Math.min(episode, episodeCount);
+	}
 
 	return (
-		<Popup open={open} onClose={onClose} position="center" className={css.reportPopup}>
-			<div className={`${css.popupSurface} ${css.reportPopupContent}`}>
-				<h2 className={css.seasonPopupTitle}>{$L('Report Issue')}</h2>
-				<p className={css.seasonPopupSubtitle}>{title}</p>
-
-				<LastFocusedContainer spotlightId="report-issue-form">
-					<div className={css.reportChipRow}>
-						{ISSUE_TYPES.map((type) => (
-							<SpottableDiv
-								key={type}
-								className={`${css.reportChip} ${issueType === type ? css.reportChipSelected : ''}`}
-								data-type={type}
-								onClick={handleTypeClick}
-							>
-								{getIssueTypeLabel(type)}
-							</SpottableDiv>
-						))}
-					</div>
+		<>
+			<CoreDialog
+				open
+				onClose={onClose}
+				title={$L('Report Issue')}
+				spotlightId="report-issue"
+				bodyClassName={css.body}
+			>
+				<div className={css.form}>
+					{ISSUE_TYPES.map((type) => {
+						const selected = issueType === type;
+						return (
+							<SeerrFocusRow key={type} data-type={type} onClick={handleTypeClick}>
+								<MaterialIcon
+									name={selected ? 'radioChecked' : 'radioUnchecked'}
+									className={`${css.radio} ${selected ? css.radioOn : ''}`}
+								/>
+								<span className={css.typeLabel}>{getIssueTypeLabel(type)}</span>
+							</SeerrFocusRow>
+						);
+					})}
 
 					{isTv && seasonNumbers.length > 0 && (
 						<>
-							<p className={css.reportLabel}>{$L('Season')}</p>
-							<div className={css.reportChipRow}>
-								<SpottableDiv
-									className={`${css.reportChip} ${season === 0 ? css.reportChipSelected : ''}`}
-									data-season={0}
-									onClick={handleSeasonClick}
-								>
-									{$L('All')}
-								</SpottableDiv>
-								{seasonNumbers.map((num) => (
-									<SpottableDiv
-										key={num}
-										className={`${css.reportChip} ${season === num ? css.reportChipSelected : ''}`}
-										data-season={num}
-										onClick={handleSeasonClick}
-									>
-										{`S${num}`}
-									</SpottableDiv>
-								))}
-							</div>
+							<SeerrDivider />
+							<SeerrSelectorRow
+								className={css.seasonRow}
+								label={$L('Season')}
+								value={seasonLabel(season)}
+								onClick={openSeasonPicker}
+							/>
+							{season > 0 && (
+								<SeerrSelectorRow
+									className={css.episodeRow}
+									label={$L('Episode')}
+									value={episodeLabel(episode)}
+									onClick={openEpisodePicker}
+								/>
+							)}
 						</>
 					)}
 
-					{isTv && season > 0 && episodeCount > 0 && (
-						<>
-							<p className={css.reportLabel}>{$L('Episode')}</p>
-							<div className={css.reportChipRow}>
-								<SpottableDiv
-									className={`${css.reportChip} ${episode === 0 ? css.reportChipSelected : ''}`}
-									data-episode={0}
-									onClick={handleEpisodeClick}
-								>
-									{$L('All')}
-								</SpottableDiv>
-								{Array.from({length: episodeCount}, (_, i) => i + 1).map((num) => (
-									<SpottableDiv
-										key={num}
-										className={`${css.reportChip} ${episode === num ? css.reportChipSelected : ''}`}
-										data-episode={num}
-										onClick={handleEpisodeClick}
-									>
-										{`E${num}`}
-									</SpottableDiv>
-								))}
-							</div>
-						</>
-					)}
-
+					<div className={css.messageLabel}>{$L("What's wrong?")}</div>
 					<SpottableInput
-						className={css.reportInput}
+						className={css.messageField}
 						spotlightId="report-issue-message"
-						placeholder={$L('Describe the issue...')}
+						placeholder={$L("What's wrong?")}
 						value={message}
 						onChange={handleMessageChange}
-						disabled={submitting}
 					/>
 
-					<div className={css.seasonPopupButtons}>
-						<Button
-							className={`${css.seasonConfirmButton} ${!canSubmit ? css.seasonButtonDisabled : ''}`}
-							onClick={handleSubmit}
-							disabled={!canSubmit}
-						>
-							{$L('Submit')}
-						</Button>
-						<Button className={css.seasonCancelButton} onClick={onClose}>
-							{$L('Cancel')}
-						</Button>
-					</div>
-				</LastFocusedContainer>
-			</div>
-		</Popup>
+					<SeerrButtonRow className={css.actions}>
+						<SeerrDialogButton label={$L('Cancel')} onClick={submitting ? null : onClose} />
+						<SeerrDialogButton
+							label={$L('Submit Report')}
+							primary
+							busy={submitting}
+							onClick={canSend ? handleSubmit : null}
+						/>
+					</SeerrButtonRow>
+				</div>
+			</CoreDialog>
+
+			<CoreDialog
+				open={picker !== null}
+				onClose={closePicker}
+				title={picker === 'season' ? $L('Season') : $L('Episode')}
+				showCancel
+				spotlightId="report-issue-picker"
+			>
+				{pickerLabels.map((label, index) => (
+					<CoreDialogRow
+						key={label}
+						label={label}
+						selected={index === pickerSelected}
+						data-index={index}
+						onClick={handlePick}
+					/>
+				))}
+			</CoreDialog>
+		</>
 	);
-});
+};
+
+export const ReportIssuePopup = memo(({open, ...rest}) => (open ? <ReportIssueForm {...rest} /> : null));

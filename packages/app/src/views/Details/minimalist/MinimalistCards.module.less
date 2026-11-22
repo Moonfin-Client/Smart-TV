@@ -69,3 +69,38 @@
 	-webkit-box-orient: vertical;
 	-webkit-line-clamp: 2;
 }
+
+// The card at Stage's size, Core's numbers times 1.67.
+.large .artwork,
+.large.card:focus .artwork:after,
+.large.current .artwork:after {
+	border-radius: 23px;
+}
+
+.large.card:focus .artwork:after,
+.large.current .artwork:after {
+	border-width: 5px;
+}
+
+.large .number {
+	border-radius: 23px;
+	bottom: 13px;
+	font-size: 28px;
+	left: 13px;
+	padding: 2px 18px;
+}
+
+.large .watchedBadge {
+	.watched-badge(37px, 22px);
+	right: 13px;
+	top: 13px;
+}
+
+.large .title {
+	font-size: 25px;
+	margin-top: 13px;
+}
+
+.wide .title {
+	font-size: 30px;
+}

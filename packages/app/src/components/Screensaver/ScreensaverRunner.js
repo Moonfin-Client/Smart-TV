@@ -47,11 +47,11 @@ const drawArm = (ctx, shoulderX, shoulderY, phase, scale) => {
 	stroke(ctx, elbowX, elbowY, elbowX + (foreArmLen * Math.sin(foreArmAngle)), elbowY + (foreArmLen * Math.cos(foreArmAngle)));
 };
 
-const drawRunner = (ctx, size, progress, facingLeft) => {
+// It doesn't clear the canvas, since After Hours paints the runner into a game frame.
+export const drawRunner = (ctx, size, progress, facingLeft) => {
 	const scale = size / 100;
 	const strokeWidth = Math.max(3, Math.min(9.5, 6.5 * scale));
 
-	ctx.clearRect(0, 0, size, size);
 	ctx.save();
 	if (facingLeft) {
 		ctx.translate(size, 0);
@@ -106,6 +106,7 @@ const ScreensaverRunner = ({size, speedMultiplier = 1, facingRef}) => {
 		const animate = () => {
 			if (!running) return;
 			const progress = ((Date.now() - started) % period) / period;
+			ctx.clearRect(0, 0, size, size);
 			drawRunner(ctx, size, progress, facingRef ? facingRef.current : false);
 			handle = window.requestAnimationFrame ? window.requestAnimationFrame(animate) : setTimeout(animate, FRAME_DELAY);
 		};

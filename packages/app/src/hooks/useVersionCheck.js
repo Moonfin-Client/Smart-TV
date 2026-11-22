@@ -33,6 +33,21 @@ const useVersionCheck = (delay = 3000) => {
 		return () => clearTimeout(timer);
 	}, [delay]);
 
+	// Settings' Check for Updates opens the panel even for a version closed before, which is how
+	// someone who stayed on an older version gets back to the update.
+	useEffect(() => {
+		const show = async () => {
+			try {
+				const info = await checkForUpdates(true, {includeDismissed: true});
+				if (info) setUpdateInfo(info);
+			} catch (e) {
+				console.warn('[VERSION] Check failed:', e);
+			}
+		};
+		window.addEventListener('moonfin:show-update', show);
+		return () => window.removeEventListener('moonfin:show-update', show);
+	}, []);
+
 	const dismiss = useCallback(async () => {
 		if (updateInfo?.latestVersion) {
 			await dismissVersion(updateInfo.latestVersion);

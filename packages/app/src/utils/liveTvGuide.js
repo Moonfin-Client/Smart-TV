@@ -11,11 +11,6 @@ const MINUTE = 60000;
 // on the same painted size in this app's 1920 wide design space.
 export const TV_CANVAS_SCALE = 1.45;
 
-// How fast a long program description scrolls, 55 ms per canvas point.
-export const DESCRIPTION_MS_PER_PIXEL = 55 / TV_CANVAS_SCALE;
-// The quick channel changer's description scrolls half as fast.
-export const CAROUSEL_DESCRIPTION_MS_PER_PIXEL = 110 / TV_CANVAS_SCALE;
-
 // ---------------------------------------------------------------------------
 // Channels
 // ---------------------------------------------------------------------------
@@ -94,11 +89,11 @@ export const seasonEpisodeLabel = (program) => {
 };
 
 // The episode title and its (S1:E5) numbering, each on its own when the listing carries only one
-// of them. Empty when there's nothing to show.
+// of them. A title that only repeats the program name is left out. Empty when there's nothing to show.
 export const episodeLine = (program) => {
 	const title = episodeTitleOf(program).trim();
 	const label = seasonEpisodeLabel(program);
-	return [title, label ? `(${label})` : ''].filter(Boolean).join(' ');
+	return [title !== (program?.Name || '').trim() && title, label ? `(${label})` : ''].filter(Boolean).join(' ');
 };
 
 export const hasTimer = (program) => program?.TimerId != null;

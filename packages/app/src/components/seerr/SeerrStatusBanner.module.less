@@ -1,0 +1,51 @@
+// Badges along a poster's top sit at 28px under the banner, its height plus their usual gap.
+.banner {
+	position: absolute;
+	top: 0;
+	left: 0;
+	right: 0;
+	z-index: 5;
+	height: 20px;
+	overflow: hidden;
+	color: #ffffff;
+	font-size: 10px;
+	font-weight: 700;
+	letter-spacing: 1px;
+	line-height: 20px;
+	pointer-events: none;
+}
+
+.label {
+	position: absolute;
+	top: 0;
+	left: 50%;
+	padding: 0 6px;
+	white-space: nowrap;
+	transform: translateX(-50%);
+}
+
+// For the detail styles drawn half again as big, Frost and Stage.
+.large {
+	height: 30px;
+	font-size: 15px;
+	letter-spacing: 1.5px;
+	line-height: 30px;
+
+	.label {
+		padding: 0 9px;
+	}
+}
+
+.available {
+	background: var(--theme-status-available, #22c55e);
+}
+
+.processing {
+	background: var(--theme-status-requested, #9333ea);
+}
+
+// Too light a yellow for white text.
+.pending {
+	background: var(--theme-status-pending, #eab308);
+	color: #000000;
+}

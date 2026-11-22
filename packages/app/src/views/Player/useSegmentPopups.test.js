@@ -398,3 +398,51 @@ describe('the next up card', () => {
 		expect(result.current.nextEpisodeCountdown).toBeNull();
 	});
 });
+
+describe('moving on from Next Up in the credits', () => {
+	const SECOND = 10000000;
+
+	beforeEach(() => jest.useFakeTimers());
+	afterEach(() => jest.useRealTimers());
+
+	// The credits start at 80 seconds of 100, under the server's own threshold for counting it watched.
+	const setupCredits = (settings = {}) => {
+		const onPlayNext = jest.fn();
+		const onStopPlayback = jest.fn();
+		const {result} = renderHook(() => useSegmentPopups({
+			mediaSegments: {creditsStart: 80 * SECOND, list: [{type: 'outro', start: 80 * SECOND, end: 100 * SECOND}]},
+			nextEpisode: {Id: 'next'},
+			settings: {autoPlay: true, nextUpBehavior: 'extended', nextUpTimeout: 10, stillWatchingBehavior: 'short_', replaceSkipOutroWithNextUp: true, outroAction: 'ask', ...settings},
+			runTimeRef: {current: 100 * SECOND},
+			activeModal: null,
+			controlsVisible: false,
+			hideControls: () => {},
+			showControls: () => {},
+			onPlayNext,
+			onPausePlayback: () => {},
+			onStopPlayback
+		}));
+		return {result, onPlayNext, onStopPlayback};
+	};
+
+	test('Play Next marks the episode finished', async () => {
+		const {result, onPlayNext} = setupCredits();
+		act(() => result.current.checkSegments(81 * SECOND));
+		expect(result.current.showSkipCredits).toBe(true);
+		await act(() => result.current.handlePlayNextNow());
+		expect(onPlayNext).toHaveBeenCalledWith({Id: 'next'}, {finished: true});
+	});
+
+	test('the automatic move on marks it finished too', () => {
+		const {result, onPlayNext} = setupCredits({outroAction: 'auto'});
+		act(() => result.current.checkSegments(81 * SECOND));
+		act(() => jest.runOnlyPendingTimers());
+		expect(onPlayNext).toHaveBeenCalledWith({Id: 'next'}, {finished: true});
+	});
+
+	test('Stop on Still Watching marks it finished', () => {
+		const {result, onStopPlayback} = setupCredits();
+		act(() => result.current.handleStillWatchingStop());
+		expect(onStopPlayback).toHaveBeenCalledWith({finished: true});
+	});
+});

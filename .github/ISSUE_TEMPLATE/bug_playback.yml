@@ -148,13 +148,15 @@ body:
       description: |
         Diagnostic logging is off by default and is kept in memory only, so turn it on before you reproduce the problem. There's no log file on the TV to go looking for.
 
-        1. Settings > About > Debugging, turn on "Diagnostic Logging"
+        1. Settings > About > About > Diagnostics & Logging, turn on "Diagnostic Logging"
         2. Reproduce the problem, and don't close the app afterwards, closing it clears the buffer
-        3. Settings > About > Debugging > View Logs, press "Send Report"
+        3. Settings > About > About > Diagnostics & Logging > View Logs, press "Send Report"
 
         "Send Report" uploads to your own Jellyfin server, not to us. Fetch it from that server under Administration > Logs. It's the newest file whose name starts with "upload_Moonfin for Tizen_", "upload_Moonfin for webOS_", "upload_Moonfin for Fire TV_" or "upload_Moonfin for Xbox_". Attach that file here.
 
         If you have no access to that server, photograph the View Logs screen instead and say so here.
+
+        Full instructions are on the [Collecting Logs](https://github.com/Moonfin-Client/Smart-TV/wiki/Collecting-Logs) wiki page.
       render: shell
     validations:
       required: true

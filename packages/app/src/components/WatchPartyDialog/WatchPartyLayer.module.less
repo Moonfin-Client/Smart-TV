@@ -1,0 +1,632 @@
+@import '../../styles/mixins.less';
+
+// Old engines have no gap, inset or grid, so spacing goes through the mixins.
+
+@accent: #00a4dc;
+
+.icon {
+	width: 26px;
+	height: 26px;
+	fill: none;
+	stroke: currentColor;
+	stroke-width: 1.8;
+	stroke-linecap: round;
+	stroke-linejoin: round;
+	flex: none;
+}
+
+.avatar {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 44px;
+	height: 44px;
+	border-radius: 50%;
+	overflow: hidden;
+	color: #fff;
+	font-weight: 700;
+	font-size: 18px;
+	flex: none;
+	background: #3a3a3a;
+
+	img {
+		width: 100%;
+		height: 100%;
+		object-fit: cover;
+	}
+}
+
+.dot {
+	display: inline-block;
+	width: 11px;
+	height: 11px;
+	border-radius: 50%;
+	flex: none;
+}
+
+// The layer over the video
+
+.layer {
+	position: fixed;
+	top: 0;
+	left: 0;
+	right: 0;
+	bottom: 0;
+	z-index: 1500;
+	pointer-events: none;
+	color: #fff;
+}
+
+.toast {
+	position: absolute;
+	top: 44px;
+	left: 50%;
+	display: flex;
+	align-items: center;
+	padding: 10px 28px 10px 10px;
+	border-radius: 999px;
+	background: rgba(16, 16, 16, 0.9);
+	font-size: 24px;
+	white-space: nowrap;
+	transform: translateX(-50%);
+	animation: partyToast 4s ease forwards;
+}
+
+.toastAvatar {
+	width: 44px;
+	height: 44px;
+	font-size: 18px;
+}
+
+.toastIcon {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 44px;
+	height: 44px;
+	border-radius: 50%;
+	background: #3a2e10;
+	color: #f5b942;
+	flex: none;
+}
+
+@keyframes partyToast {
+	0% { opacity: 0; transform: translateX(-50%) translateY(-12px); }
+	8% { opacity: 1; transform: translateX(-50%) translateY(0); }
+	90% { opacity: 1; transform: translateX(-50%) translateY(0); }
+	100% { opacity: 0; transform: translateX(-50%) translateY(0); }
+}
+
+.chat {
+	position: absolute;
+	left: 60px;
+	// Clear of the player's seek bar and buttons when they're up.
+	bottom: 220px;
+	display: flex;
+	flex-direction: column;
+	align-items: flex-start;
+}
+
+.chatAboveBar {
+	bottom: 300px;
+}
+
+.bubble {
+	display: flex;
+	align-items: flex-start;
+	max-width: 760px;
+	padding: 12px 22px 12px 12px;
+	border-radius: 18px;
+	background: rgba(16, 16, 16, 0.84);
+	font-size: 24px;
+	line-height: 1.35;
+}
+
+.bubbleFading {
+	animation: chatFade 6s linear forwards;
+}
+
+@keyframes chatFade {
+	0% { opacity: 0; }
+	5% { opacity: 1; }
+	80% { opacity: 1; }
+	100% { opacity: 0; }
+}
+
+.bubbleAvatar {
+	width: 44px;
+	height: 44px;
+	font-size: 18px;
+}
+
+.bubbleName {
+	display: block;
+	font-size: 18px;
+	font-weight: 500;
+	color: #9fd0ff;
+	margin-bottom: 2px;
+}
+
+.reactions {
+	position: absolute;
+	right: 100px;
+	bottom: 300px;
+	width: 200px;
+	height: 420px;
+}
+
+.float {
+	position: absolute;
+	bottom: 0;
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	animation: floatUp 3s ease-out forwards;
+}
+
+.floatGlyph {
+	width: 76px;
+	height: 76px;
+}
+
+.floatName {
+	margin-top: 4px;
+	padding: 2px 10px;
+	border-radius: 8px;
+	background: rgba(16, 16, 16, 0.8);
+	font-size: 18px;
+	font-weight: 500;
+}
+
+@keyframes floatUp {
+	0% { opacity: 0; transform: translateY(0) scale(0.6); }
+	15% { opacity: 1; transform: translateY(-40px) scale(1); }
+	100% { opacity: 0; transform: translateY(-340px) scale(1); }
+}
+
+.center {
+	position: absolute;
+	top: 0;
+	left: 0;
+	right: 0;
+	bottom: 0;
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	justify-content: center;
+}
+
+.dim {
+	background: rgba(0, 0, 0, 0.6);
+}
+
+.countdown {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 156px;
+	height: 156px;
+	border-radius: 50%;
+	border: 6px solid @accent;
+	font-size: 84px;
+	font-weight: 700;
+}
+
+.countdownLine {
+	margin-top: 14px;
+	font-size: 24px;
+	color: #e6e6e6;
+}
+
+.waitCard {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	padding: 36px 56px;
+	border-radius: 24px;
+	background: rgba(0, 0, 0, 0.85);
+	text-align: center;
+}
+
+.waitFaces {
+	display: flex;
+
+	> * + * {
+		margin-left: -10px;
+	}
+}
+
+.faceReady {
+	border: 3px solid #3ecf8e;
+}
+
+.facePending {
+	border: 3px dashed #f5b942;
+}
+
+.waitLine {
+	margin-top: 16px;
+	font-size: 26px;
+	font-weight: 500;
+}
+
+.waitSub {
+	margin-top: 6px;
+	font-size: 20px;
+	color: #a8a8a8;
+}
+
+// The people strip, at the top right while the bar is up
+
+.people {
+	position: absolute;
+	top: 44px;
+	right: 60px;
+	display: flex;
+	align-items: center;
+	padding: 8px 20px 8px 10px;
+	border-radius: 999px;
+	background: rgba(16, 16, 16, 0.8);
+}
+
+.peopleFace {
+	position: relative;
+	display: inline-flex;
+}
+
+.statusDot {
+	position: absolute;
+	right: -4px;
+	bottom: -4px;
+	width: 18px;
+	height: 18px;
+	border-radius: 50%;
+	border: 4px solid #101010;
+}
+
+.peopleCount {
+	font-size: 22px;
+}
+
+// The chat bar
+
+.barLayer {
+	position: fixed;
+	top: 0;
+	left: 0;
+	right: 0;
+	bottom: 0;
+	z-index: 2000;
+}
+
+.bar {
+	position: absolute;
+	left: 60px;
+	right: 60px;
+	bottom: 54px;
+	padding: 24px 30px;
+	border-radius: 28px;
+	background: rgba(16, 16, 16, 0.92);
+	color: #fff;
+}
+
+.barHead {
+	display: flex;
+	justify-content: space-between;
+	margin-bottom: 18px;
+	font-size: 20px;
+	color: #a8a8a8;
+}
+
+.barRow {
+	display: flex;
+	align-items: center;
+	flex-wrap: nowrap;
+}
+
+.reactionKey {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 84px;
+	height: 84px;
+	border: 3px solid transparent;
+	border-radius: 20px;
+	background: #2a2a2a;
+	cursor: pointer;
+	outline: none;
+	flex: none;
+
+	&:focus {
+		background: #fff;
+		border-color: #fff;
+	}
+}
+
+.reactionGlyph {
+	width: 50px;
+	height: 50px;
+}
+
+.barDivider {
+	width: 2px;
+	height: 56px;
+	margin: 0 8px;
+	background: #333;
+	flex: none;
+}
+
+.reply {
+	height: 68px;
+	padding: 0 26px;
+	border: 3px solid transparent;
+	border-radius: 999px;
+	background: #2a2a2a;
+	color: #fff;
+	font-family: inherit;
+	font-size: 23px;
+	font-weight: 500;
+	white-space: nowrap;
+	cursor: pointer;
+	outline: none;
+	flex: none;
+
+	&:focus {
+		background: #fff;
+		color: #101010;
+	}
+}
+
+.typeInput {
+	width: 220px;
+	height: 68px;
+	padding: 0 24px;
+	border: 3px solid transparent;
+	border-radius: 999px;
+	background: #2a2a2a;
+	color: #fff;
+	font-size: 23px;
+	flex: none;
+
+	&:focus, &[data-focused] {
+		border-color: #fff;
+	}
+}
+
+// The party panel
+
+.panelLayer {
+	position: fixed;
+	top: 0;
+	left: 0;
+	right: 0;
+	bottom: 0;
+	z-index: 2000;
+	background: rgba(0, 0, 0, 0.4);
+}
+
+.panel {
+	position: absolute;
+	top: 0;
+	right: 0;
+	bottom: 0;
+	width: 660px;
+	padding: 48px 40px;
+	overflow-y: auto;
+	background: #1a1a1a;
+	color: #fff;
+	display: flex;
+	flex-direction: column;
+}
+
+.panelTitle {
+	font-size: 32px;
+	font-weight: 500;
+}
+
+.panelSub {
+	margin: 6px 0 18px;
+	font-size: 21px;
+	color: #a8a8a8;
+}
+
+// People and the host's controls
+
+.partyPeople {
+	display: flex;
+	flex-direction: column;
+}
+
+.section {
+	margin: 18px 0 8px;
+	font-size: 20px;
+	font-weight: 500;
+	color: #33b7e4;
+}
+
+.member {
+	display: flex;
+	align-items: center;
+	width: 100%;
+	min-height: 70px;
+	padding: 8px 16px;
+	border: 3px solid transparent;
+	border-radius: 14px;
+	background: none;
+	color: inherit;
+	font-family: inherit;
+	text-align: left;
+	cursor: pointer;
+	outline: none;
+
+	&:focus {
+		border-color: #fff;
+		background: rgba(255, 255, 255, 0.08);
+	}
+}
+
+.memberAway {
+	opacity: 0.6;
+}
+
+.memberOpen {
+	padding-bottom: 12px;
+	border-radius: 14px;
+	background: #262626;
+}
+
+.hostRing {
+	border: 3px solid #f5b942;
+}
+
+.memberText {
+	display: flex;
+	flex-direction: column;
+	min-width: 0;
+}
+
+.memberName {
+	font-size: 23px;
+	font-weight: 500;
+}
+
+.memberStatus {
+	display: flex;
+	align-items: center;
+	margin-top: 2px;
+	font-size: 18px;
+	color: #a8a8a8;
+}
+
+.memberActions {
+	display: flex;
+	padding: 0 16px 0 78px;
+}
+
+.action {
+	height: 58px;
+	padding: 0 24px;
+	border: 3px solid transparent;
+	border-radius: 12px;
+	background: #333;
+	color: #fff;
+	font-family: inherit;
+	font-size: 21px;
+	font-weight: 500;
+	cursor: pointer;
+	outline: none;
+
+	&:focus {
+		background: #fff;
+		color: #101010;
+	}
+
+	&:disabled,
+	&[aria-disabled='true'] {
+		opacity: 0.5;
+	}
+}
+
+.danger {
+	color: #ff8a8a;
+}
+
+.setting {
+	display: flex;
+	align-items: center;
+	width: 100%;
+	height: 70px;
+	padding: 0 18px;
+	border: 3px solid transparent;
+	border-radius: 14px;
+	background: #222;
+	color: #fff;
+	font-family: inherit;
+	font-size: 22px;
+	font-weight: 500;
+	text-align: left;
+	cursor: pointer;
+	outline: none;
+
+	&:focus {
+		border-color: #fff;
+	}
+}
+
+.grow {
+	flex: 1;
+}
+
+.settingValue {
+	font-size: 21px;
+	color: #a8a8a8;
+}
+
+.settingHint {
+	margin-top: 6px;
+	font-size: 18px;
+	color: #ffd6d6;
+}
+
+.switch {
+	position: relative;
+	width: 62px;
+	height: 36px;
+	border-radius: 18px;
+	background: #3d3d3d;
+	flex: none;
+
+	&::after {
+		content: '';
+		position: absolute;
+		top: 5px;
+		left: 5px;
+		width: 26px;
+		height: 26px;
+		border-radius: 50%;
+		background: #b8b8b8;
+	}
+}
+
+.switchOn {
+	background: @accent;
+
+	&::after {
+		left: 31px;
+		background: #fff;
+	}
+}
+
+.pinInput {
+	height: 70px;
+	padding: 0 18px;
+	border: 3px solid transparent;
+	border-radius: 14px;
+	background: #222;
+	color: #fff;
+	font-size: 22px;
+
+	&:focus, &[data-focused] {
+		border-color: #fff;
+	}
+}
+
+.partyActions {
+	display: flex;
+	margin-top: 24px;
+
+	> * {
+		flex: 1;
+	}
+}
+
+.toast          { .flex-row-gap(14px); }
+.chat           { .flex-col-gap(12px); }
+.bubble         { .flex-row-gap(14px); }
+.people         { .flex-row-gap(12px); }
+.barRow         { .flex-row-gap(14px); }
+.member         { .flex-row-gap(18px); }
+.memberStatus   { .flex-row-gap(8px); }
+.memberActions  { .flex-row-gap(12px); }
+.setting        { .flex-row-gap(18px); }
+.partyActions   { .flex-row-gap(12px); }

@@ -1,4 +1,4 @@
-import {describeVideoStream, describeVideoSupport, readVideoSupport} from './videoDiagnostics';
+import {describeStreamUrl, describeVideoStream, describeVideoSupport, readVideoSupport} from './videoDiagnostics';
 import {getDeviceCapabilities} from '../../services/deviceProfile';
 
 jest.mock('../../services/deviceProfile', () => ({getDeviceCapabilities: jest.fn()}));
@@ -80,5 +80,31 @@ describe('readVideoSupport', () => {
 	it('gives null when the set fails to answer', async () => {
 		getDeviceCapabilities.mockRejectedValue(new Error('avinfo unavailable'));
 		await expect(readVideoSupport()).resolves.toBeNull();
+	});
+});
+
+describe('describeStreamUrl', () => {
+	it('keeps what the server was asked to send and leaves the token out', () => {
+		const url = 'http://jf:8096/videos/abc/master.m3u8?DeviceId=d&MediaSourceId=abc&VideoCodec=h264&AudioCodec=aac' +
+			'&TranscodingMaxAudioChannels=6&SegmentContainer=ts&h264-level=42&h264-profile=high&h264-audiochannels=6&ApiKey=secret&TranscodeReasons=VideoCodecNotSupported%2CAudioCodecNotSupported';
+		expect(describeStreamUrl(url)).toEqual({
+			file: 'master.m3u8',
+			VideoCodec: 'h264',
+			AudioCodec: 'aac',
+			TranscodingMaxAudioChannels: '6',
+			SegmentContainer: 'ts',
+			'h264-level': '42',
+			'h264-profile': 'high',
+			'h264-audiochannels': '6',
+			TranscodeReasons: 'VideoCodecNotSupported,AudioCodecNotSupported'
+		});
+	});
+
+	it('keeps a value it cant decode as it was', () => {
+		expect(describeStreamUrl('http://jf/videos/abc/stream.mkv?VideoCodec=h%2').VideoCodec).toBe('h%2');
+	});
+
+	it('gives null without a URL', () => {
+		expect(describeStreamUrl(null)).toBeNull();
 	});
 });

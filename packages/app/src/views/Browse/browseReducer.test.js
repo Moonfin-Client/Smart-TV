@@ -1,4 +1,4 @@
-import browseReducer, {browseInitialState, mergeRowsById} from './browseReducer';
+import browseReducer, {browseInitialState, mergeRowsById, replaceRecentRows} from './browseReducer';
 
 const row = (id, items = []) => ({id, items});
 
@@ -21,6 +21,29 @@ describe('mergeRowsById', () => {
 		const merged = mergeRowsById([untouched, row('b')], [row('b', [1])]);
 
 		expect(merged[0]).toBe(untouched);
+	});
+});
+
+describe('replaceRecentRows', () => {
+	const rows = [
+		{id: 'resume'},
+		{id: 'latest-a', isLatestRow: true},
+		{id: 'released-a', isRecentlyReleasedRow: true},
+		{id: 'latest-b', isLatestRow: true},
+		{id: 'genres'}
+	];
+
+	test('puts the new rows where the old ones were', () => {
+		expect(replaceRecentRows(rows, [{id: 'latest-a', fresh: true}]).map((r) => r.id)).toEqual(['resume', 'latest-a', 'genres']);
+	});
+
+	// A library whose Recently Added emptied has no row coming back to merge over the old one.
+	test('drops a row the server no longer fills', () => {
+		expect(replaceRecentRows(rows, []).map((r) => r.id)).toEqual(['resume', 'genres']);
+	});
+
+	test('adds them at the end when there were none', () => {
+		expect(replaceRecentRows([{id: 'resume'}], [{id: 'latest-a'}]).map((r) => r.id)).toEqual(['resume', 'latest-a']);
 	});
 });
 
@@ -65,6 +88,21 @@ describe('browseReducer', () => {
 		expect(next).not.toBe(state);
 		expect(next.allRowData[0].items[0].Id).toBe('2');
 		expect(next.allRowData.map((r) => r.id)).toEqual(['resume', 'other']);
+	});
+
+	test('On Now refreshes where it is, comes back once something airs and goes when nothing does', () => {
+		const state = {...browseInitialState, allRowData: [row('resume'), row('onnow', [{Id: 'old'}]), row('other')]};
+
+		const refreshed = browseReducer(state, {type: 'REFRESH_ON_NOW', row: row('onnow', [{Id: 'new'}])});
+		expect(refreshed.allRowData.map((r) => r.id)).toEqual(['resume', 'onnow', 'other']);
+		expect(refreshed.allRowData[1].items[0].Id).toBe('new');
+
+		const emptied = browseReducer(refreshed, {type: 'REFRESH_ON_NOW', row: null});
+		expect(emptied.allRowData.map((r) => r.id)).toEqual(['resume', 'other']);
+		expect(browseReducer(emptied, {type: 'REFRESH_ON_NOW', row: null})).toBe(emptied);
+
+		const back = browseReducer(emptied, {type: 'REFRESH_ON_NOW', row: row('onnow', [{Id: 'new'}])});
+		expect(back.allRowData.map((r) => r.id)).toEqual(['resume', 'other', 'onnow']);
 	});
 
 	test('setting a value it already holds returns the same state', () => {

@@ -1,312 +1,79 @@
 @import '../../styles/mixins.less';
 
-@accent: var(--accent-color, #00a4dc);
+.layer {
+	position: fixed;
+	top: 0;
+	left: 0;
+	right: 0;
+	bottom: 0;
+	z-index: 2000;
+	display: -webkit-box;
+	display: -webkit-flex;
+	display: flex;
+	background: rgba(5, 7, 14, 0.9);
+}
 
-.modal {
-	padding: 28px 32px;
-	min-width: 520px;
-	max-width: 800px;
-	max-height: 80vh;
-	overflow-y: auto;
-	background: var(--theme-surface, #1a1a1a);
-	border-radius: 16px;
+.screen {
+	-webkit-box-flex: 1;
+	-webkit-flex: 1 1 auto;
+	flex: 1 1 auto;
+	display: -webkit-box;
+	display: -webkit-flex;
+	display: flex;
+	-webkit-box-orient: vertical;
+	-webkit-flex-direction: column;
+	flex-direction: column;
+	box-sizing: border-box;
+	padding: (38 * @dp) (58 * @dp);
+	color: #fff;
+	font-family: 'Roboto', 'Sandstone', sans-serif;
+	line-height: 1.17;
 }
 
 .header {
+	display: -webkit-box;
+	display: -webkit-flex;
 	display: flex;
-	align-items: center;
+	-webkit-box-align: baseline;
+	-webkit-align-items: baseline;
+	align-items: baseline;
+	-webkit-box-pack: justify;
+	-webkit-justify-content: space-between;
 	justify-content: space-between;
-	margin-bottom: 24px;
 }
 
 .title {
-	font-size: 28px;
-	font-weight: 600;
-	color: var(--theme-text-primary, #fff);
 	margin: 0;
+	font-size: (24 * @dp);
+	font-weight: 700;
 }
 
-.closeBtn {
-	width: 44px;
-	height: 44px;
-	display: flex;
-	align-items: center;
-	justify-content: center;
-	background: rgba(var(--theme-on-surface-rgb, 255, 255, 255), 0.1);
-	border: none;
-	border-radius: 50%;
-	color: var(--theme-text-secondary, rgba(255, 255, 255, 0.7));
-	cursor: pointer;
-	transition: all 0.2s;
-	padding: 0;
-
-	svg {
-		width: 22px;
-		height: 22px;
-	}
-
-	&:focus {
-		outline: none;
-		background: @accent;
-		color: var(--theme-on-accent, #fff);
-		transform: scale(1.1);
-	}
+.signedInAs {
+	margin-left: (24 * @dp);
+	font-size: (15 * @dp);
+	color: rgba(255, 255, 255, 0.65);
 }
 
-.userGrid {
+.main {
+	-webkit-box-flex: 1;
+	-webkit-flex: 1 1 auto;
+	flex: 1 1 auto;
+	display: -webkit-box;
+	display: -webkit-flex;
 	display: flex;
-	flex-wrap: nowrap;
-	overflow-x: auto;
-	padding: 20px 10px;
-	margin-bottom: 24px;
-
-	// justify-content: center would clip this, because on a scroll container
-	// half the overflow lands before scrollLeft zero where nothing reaches it.
-	// Auto margins on empty edge items centre a short row and collapse once it
-	// outgrows the modal.
-	&::before,
-	&::after {
-		content: '';
-		margin: auto;
-	}
-}
-
-.userCard {
-	display: flex;
+	-webkit-box-orient: vertical;
+	-webkit-flex-direction: column;
 	flex-direction: column;
-	align-items: center;
-	min-width: 120px;
-	max-width: 140px;
-	cursor: pointer;
-	position: relative;
-	transition: transform 0.2s;
-
-	&:focus {
-		outline: none;
-		transform: scale(1.08);
-
-		.userAvatar,
-		.userAvatarPlaceholder {
-			border-color: @accent;
-		}
-	}
-
-	&.activeCard {
-		.userAvatar,
-		.userAvatarPlaceholder {
-			border-color: @accent;
-		}
-	}
-}
-
-.userAvatar {
-	width: 130px;
-	height: 130px;
-	border-radius: 50%;
-	object-fit: cover;
-	border: 3px solid rgba(var(--theme-on-surface-rgb, 255, 255, 255), 0.15);
-	transition: border-color 0.2s;
-}
-
-.userAvatarPlaceholder {
-	width: 130px;
-	height: 130px;
-	border-radius: 50%;
-	background: var(--theme-surface-variant, #2a2a2a);
-	display: flex;
-	align-items: center;
+	-webkit-box-pack: center;
+	-webkit-justify-content: center;
 	justify-content: center;
-	border: 3px solid rgba(var(--theme-on-surface-rgb, 255, 255, 255), 0.15);
-	transition: border-color 0.2s;
-}
-
-.placeholderIcon {
-	width: 70px;
-	height: 70px;
-	opacity: 0.5;
-}
-
-.userName {
-	margin-top: 12px;
-	font-size: 20px;
-	font-weight: 500;
-	color: var(--theme-text-primary, rgba(255, 255, 255, 0.85));
-	text-align: center;
-	white-space: nowrap;
-	overflow: hidden;
-	text-overflow: ellipsis;
-	max-width: 140px;
-}
-
-.userServerName {
-	font-size: 14px;
-	color: var(--theme-text-muted, rgba(255, 255, 255, 0.45));
-	text-align: center;
-	margin-top: 2px;
-	white-space: nowrap;
-	overflow: hidden;
-	text-overflow: ellipsis;
-	max-width: 140px;
-}
-
-.activeIndicator {
-	font-size: 12px;
-	color: @accent;
-	font-weight: 600;
-	margin-top: 4px;
-	text-transform: uppercase;
-	letter-spacing: 0.5px;
-}
-
-.removeBtn {
-	position: absolute;
-	top: -4px;
-	right: -4px;
-	width: 28px;
-	height: 28px;
-	border-radius: 50%;
-	background: rgba(var(--theme-scrim-rgb, 0, 0, 0), 0.7);
-	border: 2px solid rgba(var(--theme-on-surface-rgb, 255, 255, 255), 0.2);
-	color: var(--theme-text-secondary, rgba(255, 255, 255, 0.6));
-	font-size: 18px;
-	line-height: 1;
-	display: flex;
-	align-items: center;
-	justify-content: center;
-	cursor: pointer;
-	opacity: 0;
-	transition: opacity 0.2s, background 0.2s, transform 0.2s;
-	padding: 0;
-
-	.userCard:focus & {
-		opacity: 1;
-	}
-}
-
-.addUserCard {
-	display: flex;
-	flex-direction: column;
-	align-items: center;
-	min-width: 120px;
-	max-width: 140px;
-	cursor: pointer;
-	transition: transform 0.2s;
-
-	&:focus {
-		outline: none;
-		transform: scale(1.08);
-
-		.addUserCircle {
-			border-color: @accent;
-			background: rgba(var(--theme-accent-rgb, 0, 164, 220), 0.15);
-			color: @accent;
-		}
-	}
-}
-
-.addUserCircle {
-	width: 130px;
-	height: 130px;
-	border-radius: 50%;
-	background: rgba(var(--theme-on-surface-rgb, 255, 255, 255), 0.06);
-	border: 3px dashed rgba(var(--theme-on-surface-rgb, 255, 255, 255), 0.25);
-	display: flex;
-	align-items: center;
-	justify-content: center;
-	color: var(--theme-text-muted, rgba(255, 255, 255, 0.5));
-	transition: border-color 0.2s, background 0.2s, color 0.2s;
-}
-
-.addUserIcon {
-	width: 48px;
-	height: 48px;
-}
-
-.actions {
-	display: flex;
-	flex-direction: column;
-
-	> * + * {
-		margin-top: 8px;
-	}
-}
-
-.actionRow {
-	display: flex;
-
-	> * {
-		flex: 1;
-	}
-}
-
-.actionBtn {
-	padding: 14px 20px;
-	font-size: 17px;
-	font-weight: 500;
-	background: rgba(255, 255, 255, 0.08);
-	border: 2px solid rgba(255, 255, 255, 0.12);
-	border-radius: 8px;
-	color: #fff;
-	cursor: pointer;
-	text-align: center;
-	transition: background 0.2s, border-color 0.2s, transform 0.2s;
-
-	&:focus {
-		outline: none;
-		background: @accent;
-		border-color: @accent;
-		transform: scale(1.03);
-		box-shadow: 0 0 0 3px rgba(0, 164, 220, 0.4);
-	}
-}
-
-.dangerBtn {
-	&:focus {
-		background: #c62828 !important;
-		border-color: #c62828 !important;
-		box-shadow: 0 0 0 3px rgba(198, 40, 40, 0.4) !important;
-	}
-}
-
-.divider {
-	height: 1px;
-	background: #333;
-	margin: 4px 0;
-}
-
-/* Confirm remove modal */
-/* Confirm remove modal */
-.confirmModal {
-	padding: 24px;
-	min-width: 460px;
-	max-width: 560px;
-	background: #1a1a1a;
-	border-radius: 12px;
+	padding: (24 * @dp) 0;
 }
 
 .confirmText {
-	font-size: 16px;
-	color: #ccc;
-	margin-bottom: 12px;
-}
+	margin: 0;
 
-.confirmWarning {
-	font-size: 14px;
-	color: #ff9800;
-	background: rgba(255, 152, 0, 0.1);
-	padding: 10px 14px;
-	border-radius: 6px;
-	margin-bottom: 20px;
-}
-
-.confirmButtons {
-	display: flex;
-	justify-content: flex-end;
-
-	> * + * {
-		margin-left: 12px;
+	& + & {
+		margin-top: (8 * @dp);
 	}
 }
-
-.userGrid  { .flex-row-gap(40px); }
-.actionRow { .flex-row-gap(10px); }

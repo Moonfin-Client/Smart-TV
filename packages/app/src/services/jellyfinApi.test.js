@@ -42,6 +42,25 @@ describe('Next Up', () => {
 	});
 });
 
+describe('items', () => {
+	test('Emby is asked to group into collections by the name it reads', async () => {
+		setServerType('emby');
+		await api.getItems({CollapseBoxSetItems: true, ParentId: 'lib'});
+		expect(urlOf(platformFetch.mock.calls[0])).toContain('GroupItemsIntoCollections=true');
+		expect(urlOf(platformFetch.mock.calls[0])).not.toContain('CollapseBoxSetItems');
+
+		await createApiForServer('http://other', 'token', 'user-2', 'emby').getItems({CollapseBoxSetItems: false});
+		expect(urlOf(platformFetch.mock.calls[1])).toContain('GroupItemsIntoCollections=false');
+	});
+
+	test('Jellyfin keeps its own name', async () => {
+		setServerType('jellyfin');
+		await api.getItems({CollapseBoxSetItems: true});
+		expect(urlOf(platformFetch.mock.calls[0])).toContain('CollapseBoxSetItems=true');
+		expect(urlOf(platformFetch.mock.calls[0])).not.toContain('GroupItemsIntoCollections');
+	});
+});
+
 describe('search', () => {
 	test('items and people are separate requests, and people get their own timeout', async () => {
 		setServerType('jellyfin');
@@ -52,6 +71,19 @@ describe('search', () => {
 		expect(urlOf(items)).not.toContain('/Persons');
 		expect(urlOf(people)).toContain('/Persons?searchTerm=alien&Limit=24');
 		expect(people[2]).toBe(10000);
+	});
+
+	test('only Jellyfin asks for audiobooks, and a refill asks for its own types', async () => {
+		setServerType('jellyfin');
+		await api.search('alien', 240);
+		await api.search('alien', 24, 'Movie');
+		setServerType('emby');
+		await api.search('alien', 240);
+		const [jellyfin, refill, emby] = platformFetch.mock.calls.map(urlOf);
+		expect(jellyfin).toContain('IncludeItemTypes=Book,AudioBook,Movie,');
+		expect(refill).toContain('Limit=24&Recursive=true&IncludeItemTypes=Movie&');
+		expect(emby).toContain('IncludeItemTypes=Book,Movie,');
+		setServerType('jellyfin');
 	});
 });
 
@@ -230,5 +262,38 @@ describe('creating a playlist', () => {
 		setServerType('jellyfin');
 		await createApiForServer('http://other', 'tok', 'u2', 'emby').createPlaylist('Mix', ['a']);
 		expect(sentBody()).toEqual({Name: 'Mix', Ids: 'a', UserId: 'u2'});
+	});
+});
+
+describe('Silo apis for other servers', () => {
+	test('stay the same across a token rotation, so the playback sessions they started are still theirs', () => {
+		const {openSiloSession} = require('./siloSession');
+		const session = openSiloSession('http://silo2:8090', 'acct-1', {accessToken: 'T0', refreshToken: 'R0', expiresAt: Date.now() + 3600000, lifetimeMs: 3600000});
+		const before = createApiForServer('http://silo2:8090', 'T0', 'p1', 'silo');
+		session.aliases = ['T0', ...session.aliases];
+		session.tokens = {...session.tokens, accessToken: 'T1'};
+		expect(createApiForServer('http://silo2:8090', 'T1', 'p1', 'silo')).toBe(before);
+		expect(createApiForServer('http://silo2:8090', 'T1', 'p2', 'silo')).not.toBe(before);
+	});
+});
+
+describe('a refused request', () => {
+	test('carries the reply body of a 4xx, squeezed and capped at 500 characters', async () => {
+		platformFetch.mockImplementation(() => Promise.resolve({
+			ok: false, status: 400, text: () => Promise.resolve('{"title":\n  "One or more validation errors occurred."}')
+		}));
+		await expect(api.updateUserConfiguration({MyMediaExcludes: ['x']})).rejects.toMatchObject({
+			message: 'API Error: 400', status: 400, body: '{"title": "One or more validation errors occurred."}'
+		});
+		platformFetch.mockImplementation(() => Promise.resolve({ok: false, status: 400, text: () => Promise.resolve('x'.repeat(600))}));
+		const error = await createApiForServer('http://other', 'token', 'user-2').updateUserConfiguration({}).catch((e) => e);
+		expect(error.body).toBe('x'.repeat(500) + '...');
+	});
+
+	test('leaves a server error without a body', async () => {
+		platformFetch.mockImplementation(() => Promise.resolve({ok: false, status: 500, text: () => Promise.resolve('boom')}));
+		const error = await api.updateUserConfiguration({}).catch((e) => e);
+		expect(error.status).toBe(500);
+		expect(error.body).toBeUndefined();
 	});
 });

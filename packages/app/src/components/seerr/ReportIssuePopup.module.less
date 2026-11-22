@@ -1,0 +1,80 @@
+@import '../../styles/mixins.less';
+
+@accent-rgb: var(--theme-accent-rgb, 0, 164, 220);
+@on-surface-rgb: var(--theme-on-surface-rgb, 255, 255, 255);
+
+.body {
+	line-height: 1.43;
+	letter-spacing: (0.25 * @dp);
+}
+
+.form {
+	padding: (8 * @dp) (24 * @dp) (20 * @dp);
+}
+
+.radio {
+	-webkit-flex-shrink: 0;
+	flex-shrink: 0;
+	width: (20 * @dp);
+	height: (20 * @dp);
+	margin-right: (12 * @dp);
+	color: rgba(255, 255, 255, 0.38);
+}
+
+.radioOn {
+	color: rgb(@accent-rgb);
+}
+
+.typeLabel {
+	-webkit-box-flex: 1;
+	-webkit-flex: 1 1 0;
+	flex: 1 1 0;
+	min-width: 0;
+}
+
+.seasonRow {
+	margin-top: (4 * @dp);
+}
+
+.episodeRow {
+	margin-top: (12 * @dp);
+}
+
+.messageLabel {
+	margin-top: (16 * @dp);
+	font-size: (13 * @dp);
+	color: rgba(255, 255, 255, 0.7);
+}
+
+// The border thickens on focus and pushes the text in with it.
+.messageField {
+	margin-top: (8 * @dp);
+	padding: (16 * @dp);
+	border: (1 * @dp) solid rgba(142, 200, 240, 0.33);
+	border-radius: (12 * @dp);
+	background: var(--theme-input-background, #2a2a2a);
+	font-size: (14 * @dp);
+	color: rgb(@on-surface-rgb);
+	cursor: text;
+	outline: none;
+	-webkit-transition: border-color 200ms, border-width 200ms;
+	transition: border-color 200ms, border-width 200ms;
+
+	&:focus,
+	&[data-focused] {
+		border-width: (2.5 * @dp);
+		border-color: rgb(@accent-rgb);
+	}
+
+	input::-webkit-input-placeholder {
+		color: rgba(@on-surface-rgb, 0.54);
+	}
+
+	input::placeholder {
+		color: rgba(@on-surface-rgb, 0.54);
+	}
+}
+
+.actions {
+	margin-top: (20 * @dp);
+}

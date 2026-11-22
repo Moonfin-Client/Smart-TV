@@ -1,7 +1,7 @@
 import {renderHook, act} from '@testing-library/react';
 
 import * as jellyfinApi from '../services/jellyfinApi';
-import {useThemeMusic} from './useThemeMusic';
+import {fadeInStartStep, useThemeMusic} from './useThemeMusic';
 
 const mockSettings = {themeMusicEnabled: true, themeMusicVolume: 30, themeMusicLoop: true};
 jest.mock('../context/SettingsContext', () => ({
@@ -215,5 +215,68 @@ describe('useThemeMusic held by a card preview', () => {
 
 		expect(FakeAudio.last).toBeNull();
 		expect(result.current.isPlaying()).toBe(false);
+	});
+});
+
+describe('fadeInStartStep', () => {
+	const start = (current, target) => fadeInStartStep(current, target, 40);
+
+	test('a fresh track fades in from silence', () => {
+		expect(start(0, 0.4)).toBe(0);
+	});
+
+	test('a reversed fade-out carries on from its volume', () => {
+		expect(start(0.1, 0.4)).toBe(10);
+		expect(start(0.2, 0.4)).toBe(20);
+	});
+
+	test('a track at or above the target still takes the last step', () => {
+		expect(start(0.4, 0.4)).toBe(39);
+		expect(start(1, 0.4)).toBe(39);
+	});
+
+	test('a target of zero starts at 0', () => {
+		expect(start(0.25, 0)).toBe(0);
+	});
+});
+
+describe("useThemeMusic asked for the track that's fading out", () => {
+	beforeEach(() => {
+		jest.useFakeTimers();
+		jellyfinApi.api.getThemeSongs.mockResolvedValue({Items: [{Id: 'song1'}]});
+		window.Audio = FakeAudio;
+		setHidden(false);
+	});
+
+	afterEach(() => {
+		jest.useRealTimers();
+	});
+
+	test('fades back in from where it is and keeps playing, as when a Home card opens its details', async () => {
+		const {result} = renderHook(() => useThemeMusic());
+		await startPlaying(result);
+		// The fade starts once play() has answered.
+		await act(() => Promise.resolve());
+		act(() => jest.advanceTimersByTime(1500));
+		const audio = FakeAudio.last;
+		expect(audio.volume).toBeCloseTo(0.3);
+
+		act(() => result.current.stopThemeMusic());
+		act(() => jest.advanceTimersByTime(750));
+		const halfway = audio.volume;
+		expect(halfway).toBeGreaterThan(0);
+		expect(halfway).toBeLessThan(0.3);
+
+		await act(async () => {
+			await result.current.playThemeMusic('item1');
+		});
+		act(() => jest.advanceTimersByTime(50));
+		expect(audio.volume).toBeGreaterThan(halfway);
+
+		act(() => jest.advanceTimersByTime(1500));
+		expect(FakeAudio.last).toBe(audio);
+		expect(audio.paused).toBe(false);
+		expect(audio.volume).toBeCloseTo(0.3);
+		expect(jellyfinApi.api.getThemeSongs).toHaveBeenCalledTimes(1);
 	});
 });

@@ -27,7 +27,7 @@ export const DETAIL_BUTTONS = [
 	{id: 'audio', label: 'Audio'},
 	{id: 'subtitles', label: 'Subtitle'},
 	{id: 'trailer', label: 'Trailer'},
-	{id: 'watchWithGroup', label: 'Watch with group'},
+	{id: 'watchWithGroup', label: 'Watch with group', subtitle: "Only shows while you're in a SyncPlay group"},
 	{id: 'watched', label: 'Mark Watched'},
 	{id: 'favorite', label: 'Favorite'},
 	{id: 'personalRating', label: 'Rate'},
@@ -39,6 +39,7 @@ export const DETAIL_BUTTONS = [
 	{id: 'seerrWatchlist', label: 'Watchlist'},
 	{id: 'seerrReportIssue', label: 'Report Issue'},
 	{id: 'seerrManage', label: 'Manage Requests'},
+	{id: 'keepAsComplete', label: 'Keep as Complete'},
 	{id: 'admin', label: 'Admin Controls'}
 ];
 
@@ -46,6 +47,7 @@ export const DETAIL_BUTTONS = [
 // Playback speed is absent because these TVs hand the rate to their own media pipeline,
 // which drops the audio rather than stretching it, so anything but 1x plays silent.
 export const OSD_BUTTONS = [
+	{id: 'favorite', label: 'Favorite'},
 	{id: 'chapters', label: 'Chapters'},
 	{id: 'episodes', label: 'Episodes'},
 	{id: 'subtitles', label: 'Subtitles'},
@@ -142,6 +144,10 @@ export const withUnknownIds = (catalogue, saved, stored) => {
 // the ones that ask Seerr for the title, and the trailer, which Seerr supplies along with them.
 export const seerrOnlyRow = (buttons) =>
 	buttons.filter((item) => item.id.startsWith('seerr') || item.id === 'trailer');
+
+// A slot the viewer arranges as one can show more than one button, and each counts toward the
+// row's limit and its overflow menu on its own.
+export const splitSlots = (buttons) => buttons.flatMap((btn) => (btn.parts ? btn.parts.filter((part) => part.when) : [btn]));
 
 // How a capped row splits into the buttons that stay inline and the ones that fold behind an
 // ellipsis. `totalButtons` counts the whole row, the leading play slot included, because that

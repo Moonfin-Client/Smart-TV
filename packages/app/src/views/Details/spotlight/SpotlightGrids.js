@@ -25,7 +25,7 @@ const Icon = ({path}) => (
 );
 
 const MediaGrid = ({items, serverUrl, aspect, seasonStatus, currentId, onSelect, firstSpotlightId, menuOptions}) => (
-	<RowContainer className={css.grid}>
+	<RowContainer className={`${css.grid} ${css.startGrid}`}>
 		{items.map((item, index) => (
 			<MediaCard
 				key={`${item.Id}-${index}`}
@@ -37,6 +37,8 @@ const MediaGrid = ({items, serverUrl, aspect, seasonStatus, currentId, onSelect,
 				onSelect={onSelect}
 				spotlightId={index === 0 ? firstSpotlightId : undefined}
 				menuOptions={menuOptions}
+				posterLabels
+				seerrMarkLeft
 			/>
 		))}
 	</RowContainer>

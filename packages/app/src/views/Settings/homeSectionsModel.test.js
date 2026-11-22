@@ -2,8 +2,8 @@
 // English source string, so handing the string straight back is faithful enough here.
 jest.mock('@enact/i18n/$L', () => ({__esModule: true, default: (str) => str}));
 
-import {makePickedRow} from '../../utils/pickedRows';
-import {homeRowGroup, isHomeRowVisibleByGates, mergeFoundRows, pickedRowLabel} from './homeSectionsModel';
+import {isPickedRowShown, makePickedRow} from '../../utils/pickedRows';
+import {editorRowName, homeRowGroup, homeRowSource, isHomeRowVisibleByGates, mergeFoundRows, pickedRowLabel} from './homeSectionsModel';
 
 const settings = (over = {}) => ({
 	displayFavoritesRows: true,
@@ -24,7 +24,6 @@ describe('isHomeRowVisibleByGates', () => {
 	test('applies the settings that gate a whole group of rows', () => {
 		expect(isHomeRowVisibleByGates({id: 'collections'}, settings({displayCollectionsRows: false}))).toBe(false);
 		expect(isHomeRowVisibleByGates({id: 'favoriteMovies'}, settings({displayFavoritesRows: false}))).toBe(false);
-		expect(isHomeRowVisibleByGates({id: 'imdb-top250-movies'}, settings({imdbTop250MoviesEnabled: false}))).toBe(false);
 	});
 
 	test('hides the plugin rows when the plugin is off', () => {
@@ -38,7 +37,17 @@ describe('isHomeRowVisibleByGates', () => {
 
 	test('shows the plugin rows when it is on', () => {
 		expect(isHomeRowVisibleByGates({id: 'seerr_trending'}, settings())).toBe(true);
-		expect(isHomeRowVisibleByGates({id: 'radarr_calendar'}, settings())).toBe(true);
+		expect(isHomeRowVisibleByGates({id: 'radarr_calendar'}, settings(), true, undefined, {calendarAvailable: true})).toBe(true);
+	});
+
+	test('offers an external row only while the server can fill it, whatever its old switch says', () => {
+		const ping = {tmdbAvailable: true, mdblistAvailable: false, calendarAvailable: false};
+		const old = settings({imdbTop250MoviesEnabled: false});
+		expect(isHomeRowVisibleByGates({id: 'imdb-top250-movies'}, old, true, undefined, ping)).toBe(true);
+		expect(isHomeRowVisibleByGates({id: 'imdb-top250-movies'}, old, true, undefined, null)).toBe(false);
+		expect(isHomeRowVisibleByGates({id: 'tmdb_popular_movies'}, settings(), true, undefined, ping)).toBe(true);
+		expect(isHomeRowVisibleByGates({id: 'mdblist_watching_now'}, settings(), true, undefined, ping)).toBe(false);
+		expect(isHomeRowVisibleByGates({id: 'radarr_calendar'}, settings(), true, undefined, ping)).toBe(false);
 	});
 
 	test('leaves anything with no gate of its own alone', () => {
@@ -126,7 +135,43 @@ describe('homeRowGroup', () => {
 		expect(homeRowGroup({id: 'seerr_trending'})).toBe('seerr');
 		expect(homeRowGroup({id: 'seerr_shortcuts'})).toBe('seerr');
 		expect(homeRowGroup({id: 'radarr_calendar'})).toBe('seerr');
-		expect(homeRowGroup({id: 'tmdb_popular_tv'})).toBe('external');
-		expect(homeRowGroup({id: 'imdb-top250-movies'})).toBe('external');
+		expect(homeRowGroup({id: 'tmdb_popular_tv'})).toBe('tmdb');
+		expect(homeRowGroup({id: 'tmdb_korean_dramas'})).toBe('tmdb');
+		expect(homeRowGroup({id: 'tmdb_netflix'})).toBe('streaming');
+		expect(homeRowGroup({id: 'imdb-top250-movies'})).toBe('imdb');
+		expect(homeRowGroup({id: 'mdblist_watching_now'})).toBe('mdblist');
+		expect(homeRowGroup({id: 'mdblist_anticipated_shows'})).toBe('mdblist');
+		expect(homeRowGroup({id: 'justwatch_top_movies'})).toBe('justwatch');
+	});
+
+	test('names an outside list by where it comes from, and drops that from its name', () => {
+		expect(homeRowSource({id: 'tmdb_netflix'})).toBe('TMDB Lists');
+		expect(homeRowSource({id: 'imdb-top250-movies'})).toBe('IMDb List');
+		expect(homeRowSource({id: 'mdblist_watching_now'})).toBe('MDBList');
+		expect(homeRowSource({id: 'justwatch_top_shows'})).toBe('JustWatch');
+		expect(homeRowSource({id: 'resume'})).toBeUndefined();
+		expect(editorRowName('TMDB Popular Movies')).toBe('Popular Movies');
+		expect(editorRowName('IMDb Top 250 Movies')).toBe('Top 250 Movies');
+		expect(editorRowName('Popular Anime')).toBe('Popular Anime');
+	});
+});
+
+describe('Silo home section rows', () => {
+	const silo = (itemId, name = '') => makePickedRow({source: 'server', serverUrl: 'http://silo', itemId, name}, false, 0);
+
+	test('a section Silo no longer has is dropped, a section-type row stays, and new sections come back off', () => {
+		const rows = [silo('1', 'Old'), silo('2', 'Gone'), silo('type:seasonal_themed', 'Seasonal picks')];
+		const merged = mergeFoundRows(rows, [silo('1', 'Renamed'), silo('5', 'Hidden gems')]);
+		expect(merged.rows.map((row) => [row.itemId, row.name])).toEqual([['1', 'Renamed'], ['type:seasonal_themed', 'Seasonal picks']]);
+		expect(merged.added.map((row) => row.itemId)).toEqual(['5']);
+	});
+
+	test('show only on Silo, on their own server or any server when Moonbase named none', () => {
+		const ownServer = silo('1');
+		const anyServer = makePickedRow({source: 'server', serverUrl: '', itemId: 'type:hidden_gems', name: ''}, true, 0);
+		expect(isPickedRowShown(ownServer, settings(), 'http://silo/', 'silo')).toBe(true);
+		expect(isPickedRowShown(anyServer, settings(), 'http://other', 'silo')).toBe(true);
+		expect(isPickedRowShown(ownServer, settings(), 'http://other', 'silo')).toBe(false);
+		expect(isPickedRowShown(anyServer, settings(), 'http://jf', 'jellyfin')).toBe(false);
 	});
 });

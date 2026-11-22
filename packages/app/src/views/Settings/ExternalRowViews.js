@@ -2,13 +2,13 @@
 import $L from '@enact/i18n/$L';
 
 import SpottableInput from '../../components/SpottableInput/SpottableInput';
-import {TMDB_PRESETS} from '../../utils/externalHomeRows';
-import {withSeasonalRow} from '../../utils/homeLayout';
+import {getServerType} from '../../services/jellyfinApi';
 import {SEASONAL_COUNTRY_OPTIONS, SEASONAL_HOLIDAYS} from '../../utils/seasonalRow';
 import {seasonalCountryLabel, seasonalTitle} from '../../utils/seasonalTitles';
-import {renderCheck, renderSettingsIcon, renderToggle} from './settingsIcons';
+import {renderCheck, renderToggle} from './settingsIcons';
 import {SpottableDiv} from './settingsSpottables';
 import {SectionTitle, ToggleRow} from './settingsRows';
+import {ExternalRowSortRows} from './HomeRowToggleViews';
 import SettingsView from './SettingsView';
 
 import css from './Settings.module.less';
@@ -16,28 +16,26 @@ import css from './Settings.module.less';
 // Home rows that come from somewhere other than the Jellyfin library: TMDB charts, the
 // Radarr and Sonarr calendars, and lists the viewer pastes a URL for.
 
-export const ExternalTmdbListsView = ({enabledMap, onToggleRow}) => (
+export const ExternalTmdbListsView = ({settings, onOpenOptions}) => (
 	<SettingsView spotlightId='external-tmdb-lists-view' title={$L('TMDB Lists')} clean>
 		<div className={css.viewDescription}>
-			{$L('Choose which TMDB chart rows appear on the home screen.')}
+			{$L('Switch TMDB rows on in Home Sections.')}
 		</div>
-		{TMDB_PRESETS.map((cfg) => (
-			<SpottableDiv
-				key={cfg.id}
-				className={css.listItem}
-				onClick={() => onToggleRow(cfg.id)}
-				spotlightId={`tmdbrow-${cfg.id}`}
-			>
-				<div className={css.listItemBody}>
-					<div className={css.listItemHeading}>{cfg.title}</div>
-				</div>
-				<div className={css.listItemTrailing}>{renderToggle(enabledMap.get(cfg.id) === true)}</div>
-			</SpottableDiv>
-		))}
+		<ExternalRowSortRows
+			settings={settings}
+			sortByKey='tmdbRowsSortBy'
+			sortOrderKey='tmdbRowsSortOrder'
+			title={$L('TMDB Row Sorting')}
+			desc={$L('Sort TMDB rows by name, release date, rating, and more.')}
+			orderDesc={$L('Sort TMDB rows in ascending or descending order.')}
+			onOpenOptions={onOpenOptions}
+		/>
 	</SettingsView>
 );
 
-export const ExternalCalendarsView = ({enabledMap, settings, onToggleRow, onToggleSetting}) => {
+// The Radarr and Sonarr rows themselves are switched on in Home Sections, and their options
+// show whether they're on or not.
+export const ExternalCalendarsView = ({enabledMap, settings, calendarAvailable, onToggleSetting}) => {
 	const radarrOn = enabledMap.get('radarr_calendar') === true;
 	const sonarrOn = enabledMap.get('sonarr_calendar') === true;
 	const toggleRow = (settingKey, title, desc, icon) => (
@@ -56,44 +54,29 @@ export const ExternalCalendarsView = ({enabledMap, settings, onToggleRow, onTogg
 			<div className={css.viewDescription}>
 				{$L('Show upcoming releases from Radarr and Sonarr. Requires the servers to be configured in Seerr.')}
 			</div>
-			<SpottableDiv className={css.listItem} onClick={() => onToggleRow('radarr_calendar')} spotlightId='calendar-radarr'>
-				{renderSettingsIcon('movie')}
-				<div className={css.listItemBody}>
-					<div className={css.listItemHeading}>{$L('Radarr Upcoming')}</div>
-					<div className={css.listItemCaption}>{$L('Upcoming movie releases')}</div>
-				</div>
-				<div className={css.listItemTrailing}>{renderToggle(radarrOn)}</div>
-			</SpottableDiv>
-			{radarrOn && toggleRow('radarrCalendarShowCinema', $L('Show Cinema Releases'), '', 'movie')}
-			{radarrOn && toggleRow('radarrCalendarShowDigital', $L('Show Digital Releases'), '', 'movie')}
-			{radarrOn && toggleRow('radarrCalendarShowPhysical', $L('Show Physical Releases'), '', 'movie')}
-			{radarrOn && toggleRow('radarrCalendarShowDate', $L('Show Release Date'), '', 'movie')}
-			<SpottableDiv className={css.listItem} onClick={() => onToggleRow('sonarr_calendar')} spotlightId='calendar-sonarr'>
-				{renderSettingsIcon('tv')}
-				<div className={css.listItemBody}>
-					<div className={css.listItemHeading}>{$L('Sonarr Upcoming')}</div>
-					<div className={css.listItemCaption}>{$L('Upcoming episode releases')}</div>
-				</div>
-				<div className={css.listItemTrailing}>{renderToggle(sonarrOn)}</div>
-			</SpottableDiv>
-			{sonarrOn && toggleRow('sonarrCalendarShowEpisodeInfo', $L('Show Episode Information'), '', 'tv')}
-			{sonarrOn && toggleRow('sonarrCalendarShowDate', $L('Show Release Date'), '', 'tv')}
+			<SectionTitle>{$L('Radarr')}</SectionTitle>
+			{toggleRow('radarrCalendarShowCinema', $L('Show Cinema Releases'), '', 'movie')}
+			{toggleRow('radarrCalendarShowDigital', $L('Show Digital Releases'), '', 'movie')}
+			{toggleRow('radarrCalendarShowPhysical', $L('Show Physical Releases'), '', 'movie')}
+			{toggleRow('radarrCalendarShowDate', $L('Show Release Date'), '', 'movie')}
+			{toggleRow('radarrCalendarHideDownloaded', $L('Hide Movies Already on the Server'), '', 'movie')}
+			<SectionTitle>{$L('Sonarr')}</SectionTitle>
+			{toggleRow('sonarrCalendarShowEpisodeInfo', $L('Show Episode Information'), '', 'tv')}
+			{toggleRow('sonarrCalendarShowDate', $L('Show Release Date'), '', 'tv')}
+			{toggleRow('sonarrCalendarHideDownloaded', $L('Hide Episodes Already on the Server'), '', 'tv')}
 			{radarrOn && sonarrOn &&
 				toggleRow('mergeRadarrSonarrCalendars', $L('Merge Into One Row'), $L('Combine Radarr and Sonarr into a single upcoming row'), 'list')}
+			{calendarAvailable &&
+				toggleRow('calendarRowSeeAll', $L('See All card'), $L('End the upcoming rows with a card that opens the calendar'), 'calendar_view_month')}
 		</SettingsView>
 	);
 };
 
-// The seasonal row is stored twice, as its own synced toggle and as a home row, so switching it
-// writes both. Holidays are stored as the hidden ones, so a ticked box is a holiday not in the list.
+// Holidays are stored as the hidden ones, so a ticked box is a holiday not in the list.
 export const SeasonalRowView = ({settings, onUpdateSettings}) => {
-	const enabled = settings.seasonalRowEnabled === true;
+	const allYear = settings.seasonalRowAllYear === true;
 	const country = settings.seasonalRowCountry || 'auto';
 	const hidden = Array.isArray(settings.seasonalRowHiddenHolidays) ? settings.seasonalRowHiddenHolidays : [];
-	const toggleRow = () => onUpdateSettings({
-		seasonalRowEnabled: !enabled,
-		homeRows: withSeasonalRow(settings.homeRows, !enabled)
-	});
 	const toggleHoliday = (id) => onUpdateSettings({
 		seasonalRowHiddenHolidays: hidden.includes(id) ? hidden.filter((h) => h !== id) : [...hidden, id]
 	});
@@ -103,7 +86,16 @@ export const SeasonalRowView = ({settings, onUpdateSettings}) => {
 			<div className={css.viewDescription}>
 				{$L('Show a row of holiday movies from your library, with Seerr suggestions when available.')}
 			</div>
-			<ToggleRow settingKey='seasonalRowEnabled' title={$L('Seasonal Row')} icon='star_shine' checked={enabled} onToggle={toggleRow} />
+			{getServerType() !== 'silo' && (
+				<ToggleRow
+					settingKey='seasonalRowAllYear'
+					title={$L('Show All Year')}
+					desc={$L('Show a holiday row outside the holiday dates too, a different ticked holiday each day.')}
+					icon='event_repeat'
+					checked={allYear}
+					onToggle={() => onUpdateSettings({seasonalRowAllYear: !allYear})}
+				/>
+			)}
 			<SectionTitle>{$L('Country')}</SectionTitle>
 			{SEASONAL_COUNTRY_OPTIONS.map((code) => (
 				<SpottableDiv

@@ -42,6 +42,7 @@ namespace Moonfin.Xbox
             data.SetNamedValue("os", ReadOs());
             data.SetNamedValue("device", ReadDevice());
             data.SetNamedValue("display", ReadDisplay());
+            data.SetNamedValue("dolbyVision", ReadDolbyVision());
             data.SetNamedValue("protection", await ReadProtectionAsync());
             data.SetNamedValue("webview", ReadWebView(webViewVersion));
             data.SetNamedValue("package", ReadPackage());
@@ -175,7 +176,7 @@ namespace Moonfin.Xbox
                 foreach (HdmiDisplayMode mode in supported)
                 {
                     double refreshRate = Math.Round(mode.RefreshRate, 3);
-                    string key = mode.ResolutionWidthInRawPixels + "x" + mode.ResolutionHeightInRawPixels + "@" + refreshRate + "/" + mode.BitsPerPixel + (mode.IsSmpte2084Supported ? "h" : "s");
+                    string key = mode.ResolutionWidthInRawPixels + "x" + mode.ResolutionHeightInRawPixels + "@" + refreshRate + "/" + mode.BitsPerPixel + (mode.IsSmpte2084Supported ? "h" : "s") + (mode.IsDolbyVisionLowLatencySupported ? "d" : "");
                     if (!seen.Add(key)) continue;
                     if (modes.Count >= MaxDisplayModes) break;
 
@@ -185,6 +186,7 @@ namespace Moonfin.Xbox
                     entry.SetNamedValue("refreshRate", JsonValue.CreateNumberValue(refreshRate));
                     entry.SetNamedValue("bitsPerPixel", JsonValue.CreateNumberValue(mode.BitsPerPixel));
                     entry.SetNamedValue("hdr10", JsonValue.CreateBooleanValue(mode.IsSmpte2084Supported));
+                    entry.SetNamedValue("dolbyVision", JsonValue.CreateBooleanValue(mode.IsDolbyVisionLowLatencySupported));
                     modes.Add(entry);
                 }
                 display.SetNamedValue("modes", modes);
@@ -195,6 +197,15 @@ namespace Moonfin.Xbox
                 HostLog.Write("boot", "Display could not be read: " + ex.Message);
                 return JsonValue.CreateNullValue();
             }
+        }
+
+        private static JsonObject ReadDolbyVision()
+        {
+            var effect = new JsonArray();
+            foreach (string profile in DolbyVisionEffect.Profiles) effect.Add(JsonValue.CreateStringValue(profile));
+            var dolbyVision = new JsonObject();
+            dolbyVision.SetNamedValue("effect", effect);
+            return dolbyVision;
         }
 
         // True or false where the console answered, and null where it didnt in time.

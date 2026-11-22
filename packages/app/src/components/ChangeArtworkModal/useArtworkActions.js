@@ -1,6 +1,7 @@
 import {useState, useEffect, useCallback, useRef} from 'react';
 import $L from '@enact/i18n/$L';
 
+import {getServerType} from '../../services/jellyfinApi';
 import {getSupportedImageTypes, getCurrentTags} from './artworkTypes';
 
 // Literal $L calls so the translation extractor still picks these up.
@@ -93,7 +94,7 @@ const useArtworkActions = ({open, resetKey, api, activeItem, refreshItemMetadata
 	}, [api, activeItem, refreshItemMetadata, handleActionError, onMessage]);
 
 	const clearAllArtwork = useCallback(async () => {
-		const allTypes = getSupportedImageTypes(activeItem.Type);
+		const allTypes = getSupportedImageTypes(activeItem.Type, getServerType());
 		inFlightRef.current = new Set(allTypes);
 		try {
 			for (const category of allTypes) {

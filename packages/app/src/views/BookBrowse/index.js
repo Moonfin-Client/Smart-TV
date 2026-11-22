@@ -1,14 +1,48 @@
 import {useSettings} from '../../context/SettingsContext';
-import BookstoreBooks from './BookstoreBooks';
+import {rootScale} from '../../utils/rootScale';
+import LibrarySkeleton from '../Library/LibrarySkeleton';
+import BookCategoryScreen from './BookCategoryScreen';
 import ClassicBooks from './ClassicBooks';
 import ReadingRoomBooks from './ReadingRoomBooks';
+import useBookLibrary from './useBookLibrary';
 
-// The book library in the style picked in Settings, swapped as soon as the setting changes.
-const BookBrowse = (props) => {
+import css from '../MusicBrowse/MusicScreens.module.less';
+
+const STYLES = ['bookstore', 'classic', 'readingRoom'];
+
+// The book library in the style picked in Settings, swapped as soon as the setting changes. The
+// styles share one read of the library, and `screen` names the destination open over it, which
+// `onOpenScreen` switches in place. Null is Classic's or Reading Room's overview, or Bookstore's
+// All Titles. A [settingsPreview] draws it in the settings preview, where it takes no focus and
+// keeps clear of the screen's own Spotlight ids.
+const BookBrowse = ({screen, onOpenScreen, ...props}) => {
 	const {settings} = useSettings();
-	if (settings.bookLibraryStyle === 'classic') return <ClassicBooks {...props} />;
-	if (settings.bookLibraryStyle === 'readingRoom') return <ReadingRoomBooks {...props} />;
-	return <BookstoreBooks {...props} />;
+	const style = STYLES.includes(settings.bookLibraryStyle) ? settings.bookLibraryStyle : 'bookstore';
+	const data = useBookLibrary({api: props.api, library: props.library, bookFoldersAsSeries: settings.bookFoldersAsSeries});
+
+	if (data.loading) {
+		return (
+			<div className={css.page}>
+				<LibrarySkeleton gridWidth={window.innerWidth / rootScale() - 174} cardWidth={267} posterHeight={400} padX={16} minRowGap={20} showText />
+			</div>
+		);
+	}
+
+	let overview = null;
+	if (style === 'classic') overview = <ClassicBooks {...props} data={data} onOpenScreen={onOpenScreen} bookFoldersAsSeries={settings.bookFoldersAsSeries} />;
+	else if (style === 'readingRoom') overview = <ReadingRoomBooks {...props} data={data} onOpenScreen={onOpenScreen} />;
+
+	return (
+		<BookCategoryScreen
+			{...props}
+			style={style}
+			screen={screen}
+			data={data}
+			showDiscover={settings.showBookDiscoverTab !== false}
+			overview={overview}
+			onOpenScreen={onOpenScreen}
+		/>
+	);
 };
 
 export default BookBrowse;

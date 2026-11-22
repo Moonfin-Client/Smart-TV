@@ -81,6 +81,15 @@ describe('matchSeriesTrackIndex', () => {
 		expect(matchSeriesTrackIndex(later, second)).toBe(5);
 	});
 
+	test('a track only flagged as forced is remembered as forced and matched among forced tracks', () => {
+		const flagged = [{index: 1, language: 'eng', title: 'English', isForced: true}, {index: 2, language: 'eng', title: 'English'}];
+		const picked = createSeriesTrackPref(flagged, 1);
+		expect(picked).toEqual({language: 'eng', title: 'english', relativeIndex: 0, forced: true});
+		const later = [{index: 4, language: 'eng', title: 'English'}, {index: 5, language: 'eng', title: 'English', isForced: true}];
+		expect(matchSeriesTrackIndex(later, toSeriesTrackPref(picked))).toBe(5);
+		expect(matchSeriesTrackIndex(later, createSeriesTrackPref(flagged, 2))).toBe(4);
+	});
+
 	test('a full track remembered from another episode skips a forced track listed first', () => {
 		const earlier = createSeriesTrackPref([{index: 10, language: 'eng', title: 'English'}], 10);
 		const episode = [

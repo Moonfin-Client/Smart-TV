@@ -5,11 +5,14 @@
  */
 
 import {getFromStorage, saveToStorage, removeFromStorage} from './storage';
+import {platformFetch} from './secureFetch';
+import {detectServerType} from '../utils/connectionErrors';
 
 // Storage keys
 const SERVERS_KEY = 'jellyfin_servers';
 const ACTIVE_SERVER_KEY = 'jellyfin_active_server';
 const ACTIVE_USER_KEY = 'jellyfin_active_user';
+const SWITCHABLE_TYPES = ['jellyfin', 'emby'];
 
 /**
  * Get all configured servers (normalized structure)
@@ -22,6 +25,35 @@ export const getAllServers = async () => {
 		return {};
 	}
 	return serversData;
+};
+
+// Whether a saved entry is a profile of the same Silo household as `self` (itself included): on the same server, the
+// same account, or the same token (profiles saved before their account was, share it). Sign Out removes the household
+// together, and ending the login needs every profile holding its token gone.
+export const sameSiloHousehold = (entry, self, token = self?.accessToken) => Boolean(self) && self.serverType === 'silo' &&
+	entry.serverId === self.serverId &&
+	((Boolean(self.siloAccountId) && entry.siloAccountId === self.siloAccountId) ||
+		(Boolean(token) && entry.accessToken === token));
+
+// The type a saved Jellyfin or Emby server reports now, which differs from the stored one when another server took
+// over its address or it was saved wrong. Waits two seconds at most and otherwise keeps the stored type, though an
+// answer that comes later is still saved for next time.
+export const checkServerType = (serverId, url, storedType) => {
+	if (!SWITCHABLE_TYPES.includes(storedType) || !url) return Promise.resolve(storedType);
+	const check = platformFetch(`${url}/System/Info/Public`, {}, 10000)
+		.then((response) => (response.ok ? response.json() : null))
+		.then(async (info) => {
+			const detected = info && detectServerType(info.ProductName, info.Version);
+			if (!SWITCHABLE_TYPES.includes(detected) || detected === storedType) return storedType;
+			const servers = await getAllServers();
+			if (servers[serverId]) {
+				servers[serverId].serverType = detected;
+				await saveToStorage(SERVERS_KEY, servers);
+			}
+			return detected;
+		})
+		.catch(() => storedType);
+	return Promise.race([check, new Promise((resolve) => setTimeout(() => resolve(storedType), 2000))]);
 };
 
 /**
@@ -52,6 +84,8 @@ export const getAllServersArray = async () => {
 						accessToken: user.accessToken,
 						primaryImageTag: user.primaryImageTag || null,
 						plexToken: user.plexToken || null,
+						siloAccountId: user.siloAccountId || null,
+						siloHasPin: user.siloHasPin === true,
 						machineId: server.machineId || null,
 						candidateAddresses: server.candidateAddresses || null,
 						addedDate: server.addedDate,
@@ -161,6 +195,8 @@ export const getActiveServer = async () => {
 		userId: activeUserId,
 		username: user.username,
 		accessToken: user.accessToken,
+		plexToken: user.plexToken || null,
+		siloAccountId: user.siloAccountId || null,
 		machineId: server.machineId || null,
 		candidateAddresses: server.candidateAddresses || null,
 		addedDate: server.addedDate,
@@ -246,7 +282,7 @@ export const setActiveServer = async (serverId, userId) => {
  * @param {string} [serverVersion] - Version reported by the server
  * @returns {Promise<Object>} Created server/user object
  */
-export const addServer = async (serverUrl, serverName, userId, username, accessToken, primaryImageTag, serverType = 'jellyfin', serverVersion = null) => {
+export const addServer = async (serverUrl, serverName, userId, username, accessToken, primaryImageTag, serverType = null, serverVersion = null) => {
 	const servers = await getAllServers();
 
 	// Check if server already exists by URL
@@ -274,8 +310,12 @@ export const addServer = async (serverUrl, serverName, userId, username, accessT
 		};
 		console.log('[MULTI-SERVER] Added new server:', serverName);
 	} else {
-		// Backfill type on a pre-existing entry that predates serverType
-		servers[serverId].serverType = servers[serverId].serverType || serverType || 'jellyfin';
+		// Signing in again found out what the server is now, which can be Emby where Jellyfin was saved or the
+		// other way round. An entry that predates serverType is filled in.
+		const stored = servers[serverId].serverType;
+		servers[serverId].serverType = SWITCHABLE_TYPES.includes(stored) && SWITCHABLE_TYPES.includes(serverType)
+			? serverType
+			: stored || serverType || 'jellyfin';
 		if (serverVersion) servers[serverId].version = serverVersion;
 		console.log('[MULTI-SERVER] Server already exists, adding user');
 	}
@@ -318,9 +358,11 @@ export const addServer = async (serverUrl, serverName, userId, username, accessT
  * Remove a user from a server (or entire server if last user)
  * @param {string} serverId - Server ID
  * @param {string} userId - User ID to remove
+ * @param {Object} [options]
+ * @param {boolean} [options.keepServer] - Keep the server saved when its last user goes (signing out)
  * @returns {Promise<boolean>} Success status
  */
-export const removeServer = async (serverId, userId) => {
+export const removeServer = async (serverId, userId, {keepServer = false} = {}) => {
 	const servers = await getAllServers();
 
 	if (!servers[serverId]) {
@@ -331,9 +373,8 @@ export const removeServer = async (serverId, userId) => {
 	if (userId && servers[serverId].users[userId]) {
 		delete servers[serverId].users[userId];
 
-		// If no users left, remove the entire server
 		const remainingUsers = Object.keys(servers[serverId].users);
-		if (remainingUsers.length === 0) {
+		if (remainingUsers.length === 0 && !keepServer) {
 			delete servers[serverId];
 			console.log('[MULTI-SERVER] Removed server (no users left):', serverId);
 		} else {

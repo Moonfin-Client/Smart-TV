@@ -1,5 +1,6 @@
 import {useEffect, useRef, memo} from 'react';
 import {getPerfTier} from '../../utils/perfTier';
+import {whenStill} from '../../utils/focusScroll';
 import {serverBlurredUrl} from '../../utils/serverBlur';
 
 import css from './BackdropLayer.module.less';
@@ -13,13 +14,16 @@ const clampBlur = (amount) => {
 	return Math.min(amount || 0, cap);
 };
 
-const BackdropLayer = memo(({targetUrl: requestedUrl, blurAmount, overlayOpacity, inCorner}) => {
+const FADE_CLASS = {corner: css.cornerFadeDown, top: css.topFade};
+
+const BackdropLayer = memo(({targetUrl: requestedUrl, blurAmount, overlayOpacity, placement, fadeMs}) => {
 	const blurredUrl = serverBlurredUrl(requestedUrl, blurAmount);
 	const targetUrl = blurredUrl || requestedUrl;
 	const layerARef = useRef(null);
 	const layerBRef = useRef(null);
 	const activeLayerRef = useRef('a');
 	const currentUrlRef = useRef('');
+	const wantedUrlRef = useRef('');
 	const timeoutRef = useRef(null);
 
 	useEffect(() => {
@@ -29,6 +33,7 @@ const BackdropLayer = memo(({targetUrl: requestedUrl, blurAmount, overlayOpacity
 	}, []);
 
 	useEffect(() => {
+		wantedUrlRef.current = targetUrl || '';
 		if (!targetUrl) {
 			if (currentUrlRef.current) {
 				currentUrlRef.current = '';
@@ -49,6 +54,8 @@ const BackdropLayer = memo(({targetUrl: requestedUrl, blurAmount, overlayOpacity
 		timeoutRef.current = setTimeout(() => {
 			const img = new window.Image();
 			const apply = () => {
+				// A picture that took its time to come in is dropped if focus has moved on since.
+				if (wantedUrlRef.current !== targetUrl) return;
 				const isA = activeLayerRef.current === 'a';
 				const incoming = isA ? layerBRef.current : layerARef.current;
 				const outgoing = isA ? layerARef.current : layerBRef.current;
@@ -59,18 +66,24 @@ const BackdropLayer = memo(({targetUrl: requestedUrl, blurAmount, overlayOpacity
 				incoming.style.backgroundImage = `url(${targetUrl})`;
 
 				incoming.offsetHeight; // eslint-disable-line @babel/no-unused-expressions
-				incoming.style.transition = '';
+				// A screen can ask for its own fade, and the stylesheet's stands otherwise.
+				const fade = fadeMs ? `opacity ${fadeMs}ms ease` : '';
+				incoming.style.transition = fade;
+				outgoing.style.transition = fade;
 				incoming.style.opacity = '1';
 				outgoing.style.opacity = '0';
 
 				activeLayerRef.current = isA ? 'b' : 'a';
 				currentUrlRef.current = targetUrl;
 			};
-			img.onload = apply;
-			img.onerror = apply;
+			// Decoded before it goes up, so the frame that shows it doesn't stall on it, and swapped in once the
+			// rows have stopped gliding, so the fade and the scroll don't fight over the same frames.
+			const settle = () => whenStill(apply);
+			img.onload = () => (img.decode ? img.decode().then(settle, settle) : settle());
+			img.onerror = settle;
 			img.src = targetUrl;
 		}, BACKDROP_DEBOUNCE_MS);
-	}, [targetUrl]);
+	}, [targetUrl, fadeMs]);
 
 	const effectiveBlur = blurredUrl ? 0 : clampBlur(blurAmount);
 	const filter = effectiveBlur > 0 ? `blur(${effectiveBlur}px)` : 'none';
@@ -87,8 +100,8 @@ const BackdropLayer = memo(({targetUrl: requestedUrl, blurAmount, overlayOpacity
 	return (
 		<div className={css.globalBackdrop}>
 			{/* The frames stay mounted either way, so the layers keep the picture they hold */}
-			<div className={inCorner ? css.cornerFadeLeft : css.fill}>
-				<div className={inCorner ? css.cornerFadeDown : css.fill}>
+			<div className={placement === 'corner' ? css.cornerFadeLeft : css.fill}>
+				<div className={FADE_CLASS[placement] || css.fill}>
 					<div
 						ref={layerARef}
 						className={css.globalBackdropImage}

@@ -251,6 +251,49 @@ describe('the profile with the console player', () => {
 		expect((await getJellyfinDeviceProfile()).TranscodingProfiles[0]).toMatchObject({Protocol: 'hls', Container: 'ts', VideoCodec: 'h264', MaxAudioChannels: '2'});
 	});
 
+	test('plays Dolby Vision profiles 5, 8.2 and 8.4 as they are only with the console processor, a Dolby Vision mode and the setting on', async () => {
+		const HDR10_LIST = 'SDR|HDR10|HDR10Plus|DOVIWithHDR10|DOVIWithHDR10Plus|DOVIWithEL|DOVIWithELHDR10Plus|DOVIInvalid';
+		const dvBoot = (over = {}) => nativeBoot({display: {hdr: ['hdr10', 'dolbyvision'], modes: []}, dolbyVision: {effect: ['dvhe.05']}, ...over});
+		const hevcEntries = (profile) => profile.CodecProfiles.filter((entry) => entry.Codec === 'hevc');
+		const rangeOf = (entry) => entry.Conditions.find((condition) => condition.Property === 'VideoRangeType').Value;
+		const file = (range, container) => ({...video({Codec: 'hevc', VideoRangeType: range, Width: 3840}), Container: container});
+
+		const on = await capabilitiesFor(dvBoot());
+		expect(on).toMatchObject({dolbyVision: true, consoleDolbyVision: true});
+		const [hls, general] = hevcEntries(await getJellyfinDeviceProfile());
+		expect(hls).toMatchObject({Container: 'hls'});
+		expect(rangeOf(hls)).toBe(HDR10_LIST);
+		expect(general.Container).toBeUndefined();
+		expect(rangeOf(general)).toBe(`${HDR10_LIST}|DOVI|DOVIWithHLG|DOVIWithSDR`);
+		for (const container of ['mp4', 'mkv']) {
+			for (const range of ['DOVI', 'DOVIWithHDR10', 'DOVIWithEL', 'DOVIWithHLG', 'DOVIWithSDR']) {
+				expect(getPlayMethod(file(range, container), on)).toBe('DirectPlay');
+			}
+		}
+
+		// No processor, an empty effect list, no Dolby Vision mode
+		for (const bootData of [dvBoot({dolbyVision: undefined}), dvBoot({dolbyVision: {effect: []}}), dvBoot({display: {hdr: ['hdr10'], modes: []}})]) {
+			const off = await capabilitiesFor(bootData);
+			expect(off).toMatchObject({dolbyVision: false, consoleDolbyVision: false});
+			const entries = hevcEntries(await getJellyfinDeviceProfile());
+			expect(entries).toHaveLength(1);
+			expect(rangeOf(entries[0])).toBe(HDR10_LIST);
+			for (const range of ['DOVI', 'DOVIWithHLG', 'DOVIWithSDR']) expect(getPlayMethod(file(range, 'mp4'), off)).toBe('Transcode');
+			expect(getPlayMethod(file('DOVIWithHDR10', 'mp4'), off)).toBe('DirectPlay');
+			expect(getPlayMethod(file('DOVIWithEL', 'mkv'), off)).toBe('DirectPlay');
+		}
+
+		// The row in Settings still shows, so it can be turned back on
+		window.localStorage.setItem('moonfin_settings', JSON.stringify({xboxDolbyVision: false}));
+		const turnedOff = await capabilitiesFor(dvBoot());
+		expect(turnedOff).toMatchObject({dolbyVision: false, consoleDolbyVision: true, hdr10: true});
+		expect(hevcEntries(await getJellyfinDeviceProfile()).map(rangeOf)).toEqual([HDR10_LIST]);
+		expect(getPlayMethod(file('DOVI', 'mkv'), turnedOff)).toBe('Transcode');
+
+		window.localStorage.setItem('moonfin_settings', JSON.stringify({xboxNativePlayer: false}));
+		expect(await capabilitiesFor(dvBoot())).toMatchObject({dolbyVision: false});
+	});
+
 	test('turned off, the WebView answers as before', async () => {
 		window.localStorage.setItem('moonfin_settings', JSON.stringify({xboxNativePlayer: false}));
 		window.HTMLMediaElement.prototype.canPlayType.mockImplementation((type) => (/hvc1/.test(type) ? '' : canPlayType(type)));

@@ -5,10 +5,14 @@ import {activeSyncProfile, defaultSettings, localToProfile, profileToLocal} from
 import {deleteMoonfinProfile, getMoonfinResolvedProfile, saveMoonfinProfile} from '../../services/seerrApi';
 import {homeRowsFromProfile} from '../../utils/homeLayout';
 import {seedLanguagePreferences} from '../../utils/languagePrefSeed';
+import {seedHideWatched} from '../../utils/hideWatchedRecentRows';
 
 const resolvedToLocal = (resolved) => {
 	const local = profileToLocal(resolved);
-	const homeRows = homeRowsFromProfile(resolved, {seasonal: local.seasonalRowEnabled === true});
+	const homeRows = homeRowsFromProfile(resolved, {
+		seasonal: local.seasonalRowEnabled === true,
+		mdblist_watching_now: local.mdblistWatchingNowEnabled === true
+	});
 	if (homeRows !== undefined) local.homeRows = homeRows;
 	return local;
 };
@@ -38,7 +42,8 @@ const useProfileSync = ({
 		const merged = {...base, ...values};
 		return {
 			...values,
-			...seedLanguagePreferences(merged, user?.Configuration || {}, merged.uiLanguage, window.navigator?.language)
+			...seedLanguagePreferences(merged, user?.Configuration || {}, merged.uiLanguage, window.navigator?.language),
+			...seedHideWatched(merged, user?.Configuration)
 		};
 	}, [user]);
 

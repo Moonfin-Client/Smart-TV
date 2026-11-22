@@ -125,3 +125,59 @@
 	color: var(--theme-text-muted, rgba(255, 255, 255, 0.5));
 	font-size: 20px;
 }
+
+.inverted {
+	filter: invert(1);
+}
+
+.bottomStack {
+	position: absolute;
+	left: 0;
+	right: 0;
+	bottom: 0;
+
+	.bottomBar {
+		position: relative;
+	}
+}
+
+.infoVisible .bottomStack {
+	pointer-events: auto;
+}
+
+.controlsBar {
+	display: flex;
+	justify-content: flex-end;
+	padding: 16px 24px 12px;
+	background: rgba(0, 0, 0, 0.55);
+}
+
+.toggle {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 72px;
+	height: 72px;
+	margin-left: 12px;
+	box-sizing: border-box;
+	border: 4px solid transparent;
+	border-radius: 50%;
+	background: rgba(255, 255, 255, 0.14);
+	color: rgba(255, 255, 255, 0.7);
+
+	svg {
+		width: 36px;
+		height: 36px;
+		fill: currentColor;
+	}
+
+	&:focus {
+		outline: none;
+		border-color: #fff;
+	}
+}
+
+.toggleOn {
+	background: var(--theme-accent, #00a4dc);
+	color: #fff;
+}

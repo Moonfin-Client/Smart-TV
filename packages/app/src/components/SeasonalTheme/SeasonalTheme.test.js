@@ -152,6 +152,12 @@ describe('SeasonalTheme', () => {
 		}
 	});
 
+	test('leaves the follower out when Focus Follower is off, but keeps the particles', () => {
+		render(<SeasonalTheme theme="halloween" density="light" follower={false} />);
+		expect(count('.follower')).toBe(0);
+		expect(count('.particle')).toBeGreaterThan(0);
+	});
+
 	describe('following focus', () => {
 		let page;
 		let art;
@@ -234,6 +240,22 @@ describe('SeasonalTheme', () => {
 			act(() => { jest.advanceTimersByTime(SETTLE_MS); });
 			expect(art.getBoundingClientRect).not.toHaveBeenCalled();
 		});
+	});
+
+	test('steps Home\'s effect aside while the settings preview draws one, and brings it back when that goes', () => {
+		const {container: home} = render(<SeasonalTheme theme="snow" density="normal" follower={false} />);
+		expect(count('.overlay')).toBe(1);
+		const {unmount: closePreview} = render(<SeasonalTheme theme="leaves" density="light" follower={false} settingsPreview />);
+		expect(home.firstChild).toBeNull();
+		expect(count('.overlay')).toBe(1);
+		expect(count('.particle')).toBe(FALL_COUNTS.high.light);
+		// A Home effect that comes up while the preview's is still running waits its turn too.
+		const {container: late, unmount: closeLate} = render(<SeasonalTheme theme="snow" density="heavy" follower={false} />);
+		expect(late.firstChild).toBeNull();
+		closeLate();
+		closePreview();
+		expect(home.querySelector('.overlay')).not.toBeNull();
+		expect(count('.particle')).toBe(FALL_COUNTS.high.normal);
 	});
 
 	test("draws this app's old winter as snow", () => {

@@ -22,6 +22,7 @@ const DetailDialogs = ({
 		<AddToPlaylistModal
 			open={modals.showPlaylistModal}
 			itemId={item?.Id}
+			item={item}
 			api={api}
 			onClose={modals.handleClosePlaylistModal}
 			onSuccess={onToast}
@@ -30,6 +31,7 @@ const DetailDialogs = ({
 		<AddToCollectionModal
 			open={modals.showCollectionModal}
 			itemId={item?.Id}
+			item={item}
 			api={api}
 			onClose={modals.handleCloseCollectionModal}
 			onSuccess={onToast}

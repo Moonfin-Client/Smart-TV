@@ -4,6 +4,8 @@ import Spotlight from '@enact/spotlight';
 import SpotlightContainerDecorator from '@enact/spotlight/SpotlightContainerDecorator';
 import $L from '@enact/i18n/$L';
 import {isBackKey} from '../../utils/keys';
+import {useAuth} from '../../context/AuthContext';
+import {canonicalServerKey, notifyItemAddedToCollection} from '../../services/itemMembershipService';
 import SpottableInput from '../SpottableInput/SpottableInput';
 import {isTvKeyboardVisible} from '../TVKeyboard/keyboardBus';
 
@@ -21,7 +23,9 @@ const SpottableButton = Spottable('button');
 // The picker has to list every collection, not just the first page.
 const COLLECTION_FETCH_LIMIT = 500;
 
-const AddToCollectionModal = ({open, itemId, api, onClose, onSuccess}) => {
+const AddToCollectionModal = ({open, itemId, item, api, onClose, onSuccess}) => {
+	const {serverUrl, user} = useAuth();
+	const serverKey = canonicalServerKey(item || {Id: itemId}, {serverUrl, userId: user?.Id});
 	const [collections, setCollections] = useState([]);
 	const [loading, setLoading] = useState(true);
 	const [creating, setCreating] = useState(false);
@@ -33,7 +37,8 @@ const AddToCollectionModal = ({open, itemId, api, onClose, onSuccess}) => {
 		setLoading(true);
 		setCreating(false);
 		setNewName('');
-		api.getCollections(COLLECTION_FETCH_LIMIT).then(result => {
+		// Where only some collections can take items (a Silo profile's own), the list is just those.
+		(api.getEditableCollections ? api.getEditableCollections() : api.getCollections(COLLECTION_FETCH_LIMIT, 'SortName', 'Ascending', {editableOnly: true})).then(result => {
 			setCollections(result?.Items || []);
 			setLoading(false);
 		}).catch(() => {
@@ -79,12 +84,13 @@ const AddToCollectionModal = ({open, itemId, api, onClose, onSuccess}) => {
 		setAdding(true);
 		try {
 			await api.addToCollection(collectionId, [itemId]);
+			notifyItemAddedToCollection(serverKey, collectionId, [itemId]);
 			onSuccess?.($L('Added to collection'));
 			onClose?.();
 		} catch { /* no-op */ } finally {
 			setAdding(false);
 		}
-	}, [api, itemId, adding, onSuccess, onClose]);
+	}, [api, itemId, serverKey, adding, onSuccess, onClose]);
 
 	const handleCollectionClick = useCallback((ev) => {
 		const collectionId = ev.currentTarget.dataset.collectionId;
@@ -102,12 +108,13 @@ const AddToCollectionModal = ({open, itemId, api, onClose, onSuccess}) => {
 		setAdding(true);
 		try {
 			await api.createCollection(name, [itemId]);
+			notifyItemAddedToCollection(serverKey);
 			onSuccess?.($L('Created "{name}" and added item').replace('{name}', name));
 			onClose?.();
 		} catch { /* no-op */ } finally {
 			setAdding(false);
 		}
-	}, [api, itemId, newName, adding, onSuccess, onClose]);
+	}, [api, itemId, serverKey, newName, adding, onSuccess, onClose]);
 
 	const handleInputKeyDown = useCallback((ev) => {
 		if (ev.keyCode === 13) {

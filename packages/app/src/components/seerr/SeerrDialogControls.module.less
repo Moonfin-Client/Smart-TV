@@ -1,0 +1,304 @@
+@import '../../styles/mixins.less';
+
+@accent-rgb: var(--theme-accent-rgb, 0, 164, 220);
+@on-surface-rgb: var(--theme-on-surface-rgb, 255, 255, 255);
+
+.ellipsis() {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+// Focus the way these rows take it: a solid fill in the theme's text color, a hairline in its
+// focus color and every glyph and word inside going dark. The hairline is there unfocused too,
+// clear, so the content doesn't move when focus lands.
+
+.row {
+	.flex-center();
+	box-sizing: border-box;
+	padding: (12 * @dp) (8 * @dp);
+	font-size: (14 * @dp);
+	color: #fff;
+}
+
+.rowFocusable {
+	border: (1 * @dp) solid transparent;
+	border-radius: (8 * @dp);
+	cursor: pointer;
+	outline: none;
+	-webkit-transition: background-color 150ms ease-out, border-color 150ms ease-out;
+	transition: background-color 150ms ease-out, border-color 150ms ease-out;
+
+	&:focus {
+		background: rgb(@on-surface-rgb);
+		border-color: rgb(@accent-rgb);
+		box-shadow: var(--theme-focus-glow, none);
+
+		&,
+		* {
+			color: rgba(0, 0, 0, 0.87);
+		}
+	}
+}
+
+.rowTitle {
+	-webkit-box-flex: 1;
+	-webkit-flex: 1 1 0;
+	flex: 1 1 0;
+	min-width: 0;
+}
+
+.rowTitleDisabled {
+	color: rgba(255, 255, 255, 0.38);
+}
+
+.rowTrailing {
+	-webkit-flex-shrink: 0;
+	flex-shrink: 0;
+	margin-left: (12 * @dp);
+}
+
+.checkbox {
+	-webkit-flex-shrink: 0;
+	flex-shrink: 0;
+	width: (22 * @dp);
+	height: (22 * @dp);
+	margin-right: (12 * @dp);
+	color: rgba(255, 255, 255, 0.38);
+}
+
+.switch {
+	-webkit-flex-shrink: 0;
+	flex-shrink: 0;
+	width: (34 * @dp);
+	height: (34 * @dp);
+	margin-left: (12 * @dp);
+	color: rgba(255, 255, 255, 0.38);
+}
+
+.toggleOn {
+	color: rgb(@accent-rgb);
+}
+
+// Selector
+
+// Past the label the space is split evenly between a gap and the value, so a short value sits
+// partway along with its arrow right after it rather than against the edge.
+.selector {
+	.flex-center();
+	position: relative;
+	box-sizing: border-box;
+	padding: (14 * @dp) (12 * @dp);
+	border: (1 * @dp) solid rgba(142, 200, 240, 0.33);
+	border-radius: (8 * @dp);
+	font-size: (14 * @dp);
+	cursor: pointer;
+	outline: none;
+
+	&:focus {
+		box-shadow: var(--theme-focus-glow, none);
+	}
+
+	&:focus::after {
+		content: '';
+		position: absolute;
+		top: (-1 * @dp);
+		left: (-1 * @dp);
+		right: (-1 * @dp);
+		bottom: (-1 * @dp);
+		border: (2 * @dp) solid rgb(@accent-rgb);
+		border-radius: (8 * @dp);
+		pointer-events: none;
+	}
+}
+
+.selectorLabel {
+	-webkit-flex-shrink: 0;
+	flex-shrink: 0;
+	color: rgba(255, 255, 255, 0.54);
+}
+
+.selectorSpacer {
+	-webkit-box-flex: 1;
+	-webkit-flex: 1 1 0;
+	flex: 1 1 0;
+}
+
+.selectorEnd {
+	.flex-center();
+	-webkit-box-flex: 1;
+	-webkit-flex: 1 1 (32 * @dp);
+	flex: 1 1 (32 * @dp);
+	min-width: 0;
+}
+
+.selectorValue {
+	.ellipsis();
+	-webkit-flex: 0 1 auto;
+	flex: 0 1 auto;
+	min-width: 0;
+	color: #fff;
+	text-align: right;
+}
+
+.selectorArrow {
+	-webkit-flex-shrink: 0;
+	flex-shrink: 0;
+	width: (24 * @dp);
+	height: (24 * @dp);
+	margin-left: (8 * @dp);
+	color: rgba(255, 255, 255, 0.54);
+}
+
+// Buttons
+
+.button {
+	.flex-center();
+	-webkit-box-pack: center;
+	-webkit-justify-content: center;
+	justify-content: center;
+	position: relative;
+	box-sizing: border-box;
+	padding: (14 * @dp) 0;
+	border-radius: (10 * @dp);
+	background: rgba(255, 255, 255, 0.1);
+	color: #fff;
+	font-size: (15 * @dp);
+	font-weight: 600;
+	cursor: pointer;
+	outline: none;
+
+	&:focus {
+		box-shadow: var(--theme-focus-glow, none);
+	}
+
+	&:focus::after {
+		content: '';
+		position: absolute;
+		top: 0;
+		left: 0;
+		right: 0;
+		bottom: 0;
+		border: (2 * @dp) solid rgb(@accent-rgb);
+		border-radius: (10 * @dp);
+		pointer-events: none;
+	}
+}
+
+.buttonPrimary {
+	background: #ff8f00;
+}
+
+.buttonPrimaryDisabled {
+	background: rgba(255, 255, 255, 0.12);
+}
+
+.buttonDisabled {
+	color: rgba(255, 255, 255, 0.38);
+	cursor: default;
+}
+
+.buttonIcon {
+	-webkit-flex-shrink: 0;
+	flex-shrink: 0;
+	width: (18 * @dp);
+	height: (18 * @dp);
+	margin-right: (8 * @dp);
+}
+
+.buttonLabel {
+	.ellipsis();
+	min-width: 0;
+}
+
+.busyLabel {
+	margin-left: (10 * @dp);
+}
+
+.spinner {
+	-webkit-flex-shrink: 0;
+	flex-shrink: 0;
+	box-sizing: border-box;
+	width: (18 * @dp);
+	height: (18 * @dp);
+	border: (2 * @dp) solid rgba(255, 255, 255, 0.7);
+	border-top-color: transparent;
+	border-radius: 50%;
+	-webkit-animation: seerrButtonSpin 1s linear infinite;
+	animation: seerrButtonSpin 1s linear infinite;
+}
+
+@-webkit-keyframes seerrButtonSpin {
+	to {
+		-webkit-transform: rotate(360deg);
+	}
+}
+
+@keyframes seerrButtonSpin {
+	to {
+		transform: rotate(360deg);
+	}
+}
+
+// Enact puts a hidden placeholder after each focusable, so the second button is found with ~.
+.buttonRow {
+	display: -webkit-box;
+	display: -webkit-flex;
+	display: flex;
+
+	> * {
+		-webkit-box-flex: 1;
+		-webkit-flex: 1 1 0;
+		flex: 1 1 0;
+		min-width: 0;
+	}
+
+	> * ~ * {
+		margin-left: (12 * @dp);
+	}
+}
+
+// Quota
+
+.quota {
+	.flex-center();
+	padding: (10 * @dp) (12 * @dp);
+	border-radius: (8 * @dp);
+	background: rgba(@on-surface-rgb, 0.08);
+	color: rgba(@on-surface-rgb, 0.7);
+}
+
+.quotaBlocked {
+	background: rgba(239, 68, 68, 0.1);
+	color: var(--theme-status-error, #ef4444);
+}
+
+.quotaIcon {
+	-webkit-flex-shrink: 0;
+	flex-shrink: 0;
+	width: (16 * @dp);
+	height: (16 * @dp);
+	margin-right: (8 * @dp);
+}
+
+.quotaLabel {
+	-webkit-box-flex: 1;
+	-webkit-flex: 1 1 0;
+	flex: 1 1 0;
+	min-width: 0;
+	font-size: (12.5 * @dp);
+}
+
+// Dividers. Padding rather than margin, so the space never collapses into a neighbor's.
+
+.divider,
+.dividerTight {
+	box-sizing: content-box;
+	height: (1 * @dp);
+	background: rgba(255, 255, 255, 0.12);
+	background-clip: content-box;
+}
+
+.divider {
+	padding: (7.5 * @dp) 0;
+}

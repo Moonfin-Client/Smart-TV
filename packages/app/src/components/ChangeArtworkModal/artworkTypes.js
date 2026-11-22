@@ -4,7 +4,11 @@ import $L from '@enact/i18n/$L';
 
 export const RESOLUTIONS = ['All', 'High (1080p+)', 'Medium (720p)', 'Low (<720p)'];
 
-export const getSupportedImageTypes = (itemType) => {
+// Silo keeps a poster, backdrops and a logo, whatever the title.
+const SILO_IMAGE_TYPES = ['Primary', 'Backdrop', 'Logo'];
+
+export const getSupportedImageTypes = (itemType, serverType) => {
+	if (serverType === 'silo') return SILO_IMAGE_TYPES;
 	const type = itemType?.toLowerCase();
 	switch (type) {
 		case 'movie':

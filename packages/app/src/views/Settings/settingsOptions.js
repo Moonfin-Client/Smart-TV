@@ -1,6 +1,8 @@
 import $L from '@enact/i18n/$L';
+import {SUBTITLE_FONTS} from '../../services/subtitleFonts';
 
 import {PLAYBACK_TIME_DISPLAYS, PLAYBACK_TIME_SLOTS} from '../../utils/playbackTimeLabels';
+import {NEW_EPISODES, NEW_MOVIE, NEW_SEASON, NEW_SERIES} from '../../utils/mediaBarNewRelease';
 
 // Every list is a function so $L runs when the settings screen opens rather than when
 // this module is imported, which is before i18n has loaded its bundle.
@@ -20,6 +22,43 @@ export const getContentTypeOptions = () => [
 	{ value: 'both', label: $L('Movies & TV Shows') },
 	{ value: 'movies', label: $L('Movies Only') },
 	{ value: 'tv', label: $L('TV Shows Only') }
+];
+
+export const getMediaBarSourceOptions = () => [
+	{ value: 'random', label: $L('Random') },
+	{ value: 'recentlyAdded', label: $L('Recently Added') },
+	{ value: 'recentlyReleased', label: $L('Recently Released') },
+	{ value: 'newReleases', label: $L('New Releases') }
+];
+
+export const getDateFormatOptions = () => [
+	{ value: 'system', label: $L('Locale Default') },
+	{ value: 'monthDay', label: $L('Month / Day (Nov 10)') },
+	{ value: 'dayMonth', label: $L('Day / Month (10 Nov)') }
+];
+
+export const getNewReleaseDaysOptions = () => [
+	{ value: 7, label: $L('7 days') },
+	{ value: 14, label: $L('14 days') },
+	{ value: 30, label: $L('30 days') },
+	{ value: 60, label: $L('60 days') },
+	{ value: 90, label: $L('90 days') }
+];
+
+export const getNewMovieDaysOptions = () => [
+	{ value: 30, label: $L('30 days') },
+	{ value: 60, label: $L('60 days') },
+	{ value: 90, label: $L('90 days') },
+	{ value: 120, label: $L('120 days') },
+	{ value: 180, label: $L('180 days') },
+	{ value: 365, label: $L('365 days') }
+];
+
+export const getNewReleaseKindOptions = () => [
+	{ value: NEW_SERIES, label: $L('New Series') },
+	{ value: NEW_SEASON, label: $L('New Season') },
+	{ value: NEW_EPISODES, label: $L('New Episodes') },
+	{ value: NEW_MOVIE, label: $L('New Movie') }
 ];
 
 export const getFeaturedBarStyleOptions = () => [
@@ -93,6 +132,17 @@ export const getSubtitlePositionOptions = () => [
 	{ value: 'middle', label: $L('Middle'), offset: 30 },
 	{ value: 'higher', label: $L('Higher'), offset: 40 },
 	{ value: 'absolute', label: $L('Absolute'), offset: 0 }
+];
+
+export const getSubtitleStrokeWidthOptions = () => [
+	{ value: 100, label: $L('Default') },
+	{ value: 150, label: $L('Medium') },
+	{ value: 200, label: $L('Large') }
+];
+
+export const getSubtitleFontOptions = () => [
+	{ value: '', label: $L('Default') },
+	...SUBTITLE_FONTS.map(({family}) => ({ value: family, label: family }))
 ];
 
 export {getSubtitleColorOptions, getSubtitleShadowColorOptions, getSubtitleBackgroundColorOptions} from '../../utils/subtitleConstants';
@@ -194,6 +244,16 @@ export const getScreensaverDimmingOptions = () => [
 	{ value: 100, label: $L('100%') }
 ];
 
+export const getSleepAfterIdleOptions = () => [
+	{ value: 0, label: $L('Off') },
+	...[15, 30, 60, 120].map((minutes) => ({ value: minutes, label: $L('{minutes} min').replace('{minutes}', minutes) }))
+];
+
+export const getWatchPartyServiceOptions = () => [
+	{ value: 'moonbase', label: $L('Watch Party') },
+	{ value: 'syncplay', label: $L('SyncPlay') }
+];
+
 export const getNavPositionOptions = () => [
 	{ value: 'top', label: $L('Top Bar') },
 	{ value: 'left', label: $L('Left Sidebar') }
@@ -224,13 +284,15 @@ export const getImageTypeOptions = () => [
 
 export const getHomeRowsStyleOptions = () => [
 	{ value: 'v2', label: $L('Modern') },
-	{ value: 'v1', label: $L('Classic') }
+	{ value: 'v1', label: $L('Classic') },
+	{ value: 'carousel', label: $L('Carousel') }
 ];
 
 export const getHomeBackdropStyleOptions = () => [
 	{ value: 'off', label: $L('Off') },
 	{ value: 'fullScreen', label: $L('Full Screen') },
-	{ value: 'corner', label: $L('Corner') }
+	{ value: 'corner', label: $L('Corner') },
+	{ value: 'top', label: $L('Top') }
 ];
 
 export const getMediaPreviewModeOptions = () => [
@@ -249,13 +311,6 @@ export const getBookLibraryStyleOptions = () => [
 	{ value: 'classic', label: $L('Classic') },
 	{ value: 'readingRoom', label: $L('Reading Room') },
 	{ value: 'bookstore', label: $L('Bookstore') }
-];
-
-export const getKeyboardStyleOptions = () => [
-	{ value: 'native', label: $L('Native') },
-	{ value: 'classic', label: $L('Classic') },
-	{ value: 'glass', label: $L('Glass') },
-	{ value: 'docked', label: $L('Docked') }
 ];
 
 export const getMusicLibraryStyleOptions = () => [
@@ -277,6 +332,10 @@ export const getDetailScreenStyleOptions = () => [
 	{ value: 'v3', label: $L('Spotlight') },
 	{ value: 'v4', label: $L('Nouveau') },
 	{ value: 'v5', label: $L('Minimalist') },
+	{ value: 'v6', label: $L('Stage') },
+	{ value: 'v7', label: $L('Premiere') },
+	{ value: 'v8', label: $L('Quick Look') },
+	{ value: 'v9', label: $L('Frost') },
 	{ value: 'v1', label: $L('Classic') }
 ];
 
@@ -297,6 +356,12 @@ export const getHomeRowSortOptions = () => [
 	{ value: 'CommunityRating', label: $L('Community Rating') }
 ];
 
+// Jellyfin lists studios by name only, so these are the orders the Studios row can give.
+export const getStudioSortOptions = () => [
+	{ value: 'SortName', label: $L('Name') },
+	{ value: 'Random', label: $L('Random') }
+];
+
 // Playlist and collection rows can also follow the curated arrangement
 export const getPlaylistCollectionSortOptions = () => [
 	{ value: 'PlaylistOrder', label: $L('Playlist Order') },
@@ -311,7 +376,7 @@ export const getGenresRowItemFilterOptions = () => [
 
 export const getRecommendationSystemSourceOptions = () => [
 	{ value: 'local', label: $L('Moonfin Recommends') },
-	{ value: 'server', label: $L('Jellyfin Recommends') },
+	{ value: 'server', label: $L('Server Recommends') },
 	{ value: 'online', label: $L('TMDb Similarity') },
 	{ value: 'hybrid', label: $L('Hybrid') }
 ];
@@ -340,12 +405,6 @@ export const getServerSortOptions = () => [
 	{ value: 'name', label: $L('Server name') },
 	{ value: 'recent', label: $L('Recently Used') },
 	{ value: 'added', label: $L('Date Added') }
-];
-
-export const getFolderViewModeOptions = () => [
-	{ value: 'local', label: $L('Per Library') },
-	{ value: 'on', label: $L('Always on.') },
-	{ value: 'off', label: $L('Always Off') }
 ];
 
 export const getContinueWatchingDefaultActionOptions = () => [
@@ -438,10 +497,38 @@ export const getSubtitleModeOptions = () => [
 	{ value: 'none', label: $L('None') }
 ];
 
+// What each subtitle mode does, under its name in the picker
+export const subtitleModeHint = (mode) => ({
+	default: $L('Plays tracks internally flagged in the media file\'s metadata as "default" or "forced".'),
+	always: $L('Automatically loads and displays subtitles every time a video starts.'),
+	foreign: $L('Automatically turns on subtitles if the default audio track is in a foreign language.'),
+	forced: $L('Only loads subtitles explicitly tagged with the forced metadata flag.'),
+	none: $L('Completely disables automatic subtitle loading.')
+})[mode];
+
 export const getSortOrderOptions = () => [
 	{ value: 'auto', label: $L('Auto') },
 	{ value: 'Ascending', label: $L('Ascending') },
 	{ value: 'Descending', label: $L('Descending') }
+];
+
+export const getExternalRowSortByOptions = () => [
+	{ value: 'none', label: $L('Default (List Order)') },
+	{ value: 'name', label: $L('Name') },
+	{ value: 'releaseDate', label: $L('Release Date') },
+	{ value: 'rating', label: $L('Rating') },
+	{ value: 'popularity', label: $L('Popularity') },
+	{ value: 'shuffle', label: $L('Shuffle') }
+];
+
+export const getExternalRowSortOrderOptions = () => [
+	{ value: 'ascending', label: $L('Ascending') },
+	{ value: 'descending', label: $L('Descending') }
+];
+
+export const getSeerrBadgeStyleOptions = () => [
+	{ value: 'badge', label: $L('Badge') },
+	{ value: 'banner', label: $L('Banner') }
 ];
 
 export const getOledModeOptions = () => [
@@ -473,6 +560,12 @@ export const getSkipLengthOptions = () => [
 	{ value: 30000, label: $L('30 seconds') },
 	{ value: 45000, label: $L('45 seconds') },
 	{ value: 60000, label: $L('60 seconds') }
+];
+
+export const getControlsHideDelayOptions = () => [
+	{ value: 1000, label: $L('1 second') },
+	{ value: 3000, label: $L('3 seconds') },
+	{ value: 5000, label: $L('5 seconds') }
 ];
 
 export const getMaxResolutionOptions = () => [
@@ -713,7 +806,8 @@ export const getAccentColorOptions = () => [
 	{ value: '#708090', label: $L('Slate') },
 	{ value: '#4b0082', label: $L('Indigo') },
 	{ value: '#00a4dc', label: $L('Moonfin Cyan') },
-	{ value: '#ff2e92', label: $L('Neon Magenta') }
+	{ value: '#ff2e92', label: $L('Neon Magenta') },
+	{ value: '#ffcd75', label: $L('8-bit Gold') }
 ];
 
 // The color the navigation and media bar surfaces tint themselves with.
@@ -766,4 +860,35 @@ export const getRecentlyReleasedSeriesTypeOptions = () => [
 	{ value: 'series', label: $L('Series') },
 	{ value: 'season', label: $L('Season') },
 	{ value: 'episode', label: $L('Episode') }
+];
+
+export const getCalendarStyleOptions = () => [
+	{ value: 'agenda', label: $L('Agenda') },
+	{ value: 'countdown', label: $L('Countdown') }
+];
+
+export const getCalendarWeekStartOptions = () => [
+	{ value: 'locale', label: $L('Auto') },
+	{ value: 'sunday', label: $L('Sunday') },
+	{ value: 'monday', label: $L('Monday') }
+];
+
+export const getCalendarScopeOptions = () => [
+	{ value: 'everything', label: $L('Everything') },
+	{ value: 'myShows', label: $L('My shows') }
+];
+
+export const getCalendarColorByOptions = () => [
+	{ value: 'type', label: $L('Type') },
+	{ value: 'status', label: $L('Status') }
+];
+
+export const getCalendarImageTypeOptions = () => [
+	{ value: 'poster', label: $L('Poster') },
+	{ value: 'thumb', label: $L('Thumbnail') }
+];
+
+export const getCalendarSelectActionOptions = () => [
+	{ value: 'details', label: $L('Open details') },
+	{ value: 'play', label: $L('Play when in library') }
 ];

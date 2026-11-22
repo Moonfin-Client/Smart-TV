@@ -1,6 +1,6 @@
-import {buildThemeOverrideCss} from './themeOverrides';
+import {applyThemeOverrides, buildThemeOverrideCss, registerThemeSheet} from './themeOverrides';
 import {resolveThemeById} from './themeRegistry';
-import {contrastRatio, inkOn, toCssColor, MIN_BUTTON_CONTRAST} from './themeSpec';
+import {contrastRatio, inkOn, resolveFocusBorderColor, toCssColor, MIN_BUTTON_CONTRAST, toRgbTriplet} from './themeSpec';
 
 describe('buildThemeOverrideCss', () => {
 	it('scopes every rule to the active theme id', () => {
@@ -16,6 +16,15 @@ describe('buildThemeOverrideCss', () => {
 		const css = buildThemeOverrideCss(resolveThemeById('moonfin'));
 		expect(css).toContain('rgb(0, 164, 220)');
 		expect(css).not.toContain('var(--theme');
+	});
+
+	it('colors the Seerr download bar, amber when stalled and red when failed', () => {
+		const theme = resolveThemeById('moonfin');
+		const lines = buildThemeOverrideCss(theme).split('\n');
+		const fill = (selector) => lines.filter((line) => line.includes(`] ${selector} {`)).join('\n');
+		expect(fill('.fill')).toContain(`background: ${toCssColor(theme.colors.rangeProgress)};`);
+		expect(fill('.stalled .fill')).toContain(`background: ${toCssColor(theme.semantic.statusPending)};`);
+		expect(fill('.failed .fill')).toContain(`background: ${toCssColor(theme.semantic.statusError)};`);
 	});
 
 	it('emits the nav color cycle per slot for themes that have one', () => {
@@ -44,6 +53,15 @@ describe('buildThemeOverrideCss', () => {
 		}
 	});
 
+	it('writes the Seerr banner in dark ink only on a light fill', () => {
+		const lines = buildThemeOverrideCss(resolveThemeById('moonfin')).split('\n');
+		const ruleFor = (fill) => lines.find((line) => line.includes(`.banner.${fill} {`));
+		expect(ruleFor('pending')).toContain('color: #000000;');
+		['available', 'processing'].forEach((fill) => {
+			expect(ruleFor(fill)).not.toContain('#000000');
+		});
+	});
+
 	it('carries theme fonts as far as the wrapper that names its own', () => {
 		const eightbit = buildThemeOverrideCss(resolveThemeById('8bit_hero'));
 		expect(eightbit).toContain('.sandstone-theme');
@@ -56,6 +74,20 @@ describe('buildThemeOverrideCss', () => {
 		expect(moonfin).not.toContain('font-family');
 	});
 
+	it('draws row subtitles near full strength on every theme, and Neon card subtitles bold with a halo the lower tiers drop', () => {
+		for (const id of ['moonfin', 'neon_pulse', '8bit_hero']) {
+			const lines = buildThemeOverrideCss(resolveThemeById(id)).split('\n');
+			expect(lines.find((line) => line.includes('] .subtitle, '))).toMatch(/color: rgba\([^)]*, 0\.95\);/);
+		}
+		const neon = buildThemeOverrideCss(resolveThemeById('neon_pulse')).split('\n');
+		expect(neon.find((line) => line.includes('] .episodeInfo, ') && line.includes('font-weight: 600;')))
+			.toContain('text-shadow: 0 0 4px #000000, 0 0 6px rgba(0, 0, 0, 0.87);');
+		const dropped = neon.find((line) => line.includes('.perf-low .episodeInfo'));
+		expect(dropped).toContain('.perf-mid .secondaryTitle');
+		expect(dropped).toContain('{ text-shadow: none; }');
+		expect(buildThemeOverrideCss(resolveThemeById('moonfin'))).not.toContain('.perf-low .episodeInfo');
+	});
+
 	it('fills the media bar card from its own overlay setting', () => {
 		const theme = resolveThemeById('moonfin');
 		// Three quarters of the chosen opacity.
@@ -64,10 +96,142 @@ describe('buildThemeOverrideCss', () => {
 		expect(buildThemeOverrideCss(theme)).toContain('background-color: rgba(107, 114, 128, 0.375)');
 	});
 
+	it('shades and washes the MakD bar in charcoal tinted by the overlay setting, at makd\'s strength by default', () => {
+		const theme = resolveThemeById('moonfin');
+		const black = buildThemeOverrideCss(theme, {mediaBarOverlayColor: 'black', mediaBarOverlayOpacity: 50});
+		expect(black).toMatch(/makdShade[^{]*\{ background: rgba\(20, 20, 20, 0\.2\); \}/);
+		expect(black).toContain('linear-gradient(130deg, rgba(20, 20, 20, 0.65) 10%, rgba(20, 20, 20, 0.35) 30%, rgba(20, 20, 20, 0) 100%)');
+		expect(buildThemeOverrideCss(theme, {mediaBarOverlayColor: 'black', mediaBarOverlayOpacity: 100})).toContain('linear-gradient(130deg, rgb(20, 20, 20) 10%');
+		// Neon Magenta stays a dark plum rather than flooding the art pink
+		expect(buildThemeOverrideCss(theme, {mediaBarOverlayColor: 'neonPulseMagenta', mediaBarOverlayOpacity: 50})).toMatch(/makdShade[^{]*\{ background: rgba\(97, 34, 64, 0\.2\); \}/);
+	});
+
 	it('prefers the focus border color setting over the theme focus border', () => {
 		const theme = resolveThemeById('moonfin');
 		expect(buildThemeOverrideCss(theme, {focusBorderColor: '#ff0000'})).toContain('rgb(255, 0, 0)');
 		expect(buildThemeOverrideCss(theme, {focusBorderColor: 'nonsense'})).not.toContain('nonsense');
+	});
+
+	it('rings the Seerr screens in the focus border color, falling back to the theme\'s', async () => {
+		const theme = resolveThemeById('moonfin');
+		registerThemeSheet('seerrDiscover', {tileRing: 'tileRing', pill: 'pill'});
+		registerThemeSheet('seerrBrowse', {chip: 'chip', letter: 'letter', toolButton: 'toolButton'});
+		registerThemeSheet('seerrPosterCard', {ring: 'ring'});
+		const prefix = "html[data-theme-id='moonfin'][data-theme-id]";
+		const css = buildThemeOverrideCss(theme, {focusBorderColor: '#ff0000'});
+		expect(css).toContain(`${prefix} .tileRing { border-color: rgb(255, 0, 0); }`);
+		expect(css).toContain(`${prefix} .ring { border-color: rgb(255, 0, 0); }`);
+		expect(css).toContain(`${prefix} .chip:focus, ${prefix} .letter:focus, ${prefix} .toolButton:focus { box-shadow: inset 0 0 0 2px rgb(255, 0, 0); }`);
+		const themeColor = resolveFocusBorderColor(theme, '');
+		expect(buildThemeOverrideCss(theme, {focusBorderColor: ''})).toContain(`${prefix} .ring { border-color: ${themeColor}; }`);
+	});
+
+	it('draws Switch User in the theme accent, inside the switcher only, and keeps Sign Out All Users red', () => {
+		const theme = resolveThemeById('moonfin');
+		const accent = toCssColor(theme.colors.accent);
+		const prefix = "html[data-theme-id='moonfin'][data-theme-id]";
+		const lines = buildThemeOverrideCss(theme).split('\n');
+		expect(lines).toContain(`${prefix} .layer .dotOn { background: ${accent}; }`);
+		expect(lines).toContain(`${prefix} .layer .lineAccent { color: ${accent}; }`);
+		// Moonfin's white onAccent can't be read on its cyan, so the check takes dark ink
+		expect(contrastRatio(theme.colors.accent, theme.colors.onAccent)).toBeLessThan(MIN_BUTTON_CONTRAST);
+		expect(lines).toContain(`${prefix} .layer .badgeActive { background-color: ${accent}; color: rgba(0, 0, 0, 0.92); }`);
+		expect(lines.some((line) => line.includes(' .layer .pill:not(.pillDanger):focus {') && line.includes(`border-color: ${accent};`))).toBe(true);
+		// Login's user picker shares the carousel and stays unthemed
+		expect(lines.some((line) => ['dotOn', 'lineAccent', 'badgeActive'].some((name) => line.startsWith(`${prefix} .${name} `)))).toBe(false);
+	});
+
+	it('draws the shared dialogs in the theme and keeps their destructive buttons red', () => {
+		// Moonfin's accent and surface match the baked fallbacks, so 8-Bit Hero shows the theme is followed
+		for (const id of ['moonfin', '8bit_hero']) {
+			const theme = resolveThemeById(id);
+			const accent = toCssColor(theme.colors.accent);
+			const prefix = `html[data-theme-id='${id}'][data-theme-id]`;
+			const lines = buildThemeOverrideCss(theme).split('\n');
+			expect(lines).toContain(`${prefix} .rowIconSelected { color: ${accent}; }`);
+			expect(lines).toContain(`${prefix} .alertAction:not(.alertActionDestructive) { color: ${accent}; }`);
+			// A colour on every action would outrank the module's red for the destructive ones
+			expect(lines.some((line) => line.includes(`${prefix} .alertAction {`) || line.includes(`${prefix} .alertAction:focus {`))).toBe(false);
+			expect(lines.some((line) => line.startsWith(`${prefix} .alert {`) && line.includes(`background: rgb(${toRgbTriplet(theme.colors.surface)});`))).toBe(true);
+			expect(lines).toContain(`${prefix} .alert .cancelMessage { color: rgba(${toRgbTriplet(theme.colors.onSurface)}, 0.7); }`);
+		}
+	});
+
+	it('keeps Switch User text light on its dark scrim when the theme\'s onSurface is dark', () => {
+		const moonfin = resolveThemeById('moonfin');
+		const theme = {...moonfin, colors: {...moonfin.colors, onSurface: '#FF1A1C2C'}};
+		const prefix = "html[data-theme-id='moonfin'][data-theme-id]";
+		const lines = buildThemeOverrideCss(theme).split('\n');
+		expect(lines).toContain(`${prefix} .layer .screen, ${prefix} .layer .name { color: rgba(255, 255, 255, 1); }`);
+		expect(lines).toContain(`${prefix} .layer .signedInAs, ${prefix} .layer .line { color: rgba(255, 255, 255, 0.65); }`);
+	});
+
+	it('draws the watched badge in the theme on the screens that load on demand', () => {
+		const theme = resolveThemeById('moonfin');
+		const names = ['badgeScreenOne', 'badgeScreenTwo'];
+		names.forEach((name) => registerThemeSheet(name, {watchedBadge: `${name}Watched`}));
+		const prefix = "html[data-theme-id='moonfin'][data-theme-id]";
+		const watched = toCssColor(theme.colors.badgeWatched);
+		const onBadge = toCssColor(theme.colors.onBadge);
+		const lines = buildThemeOverrideCss(theme).split('\n');
+		for (const name of names) {
+			expect(lines).toContain(`${prefix} .${name}Watched { background: ${watched}; border-color: ${onBadge}; }`);
+			expect(lines).toContain(`${prefix} .${name}Watched svg { fill: ${onBadge}; stroke: ${onBadge}; }`);
+		}
+	});
+
+	const playerSheet = {liveBtn: 'liveBtn', chapterItem: 'chapterItem', trackItem: 'trackItem', progressBar: 'progressBar', progressFill: 'progressFill', progressBuffered: 'progressBuffered', seekIndicator: 'seekIndicator', liveProgressFill: 'liveProgressFill', subtitleText: 'subtitleText'};
+
+	it('rings the screens that load on demand once they hand their stylesheets over', async () => {
+		const theme = resolveThemeById('moonfin');
+		applyThemeOverrides(theme, {focusBorderColor: '#ff0000'});
+		expect(document.getElementById('moonfin-theme-overrides').textContent).not.toContain('chapterItem');
+		registerThemeSheet('player', playerSheet);
+		registerThemeSheet('playerOverlays', {offsetBtn: 'offsetBtn', actionBtn: 'actionBtn', settingItem: 'settingItem', sliderItem: 'sliderItem'});
+		await Promise.resolve();
+		const lines = document.getElementById('moonfin-theme-overrides').textContent.split('\n');
+		const prefix = "html[data-theme-id='moonfin'][data-theme-id]";
+		expect(lines).toContain(`${prefix} .liveBtn:hover, ${prefix} .liveBtn:focus, ${prefix} .chapterItem:hover, ${prefix} .chapterItem:focus { border-color: rgb(255, 0, 0); }`);
+		expect(lines).toContain(`${prefix} .sliderItem:focus-within { border-color: rgb(255, 0, 0); }`);
+		expect(lines).toContain(`${prefix} .trackItem:focus { background: rgba(0, 164, 220, 0.3); }`);
+		expect(lines).toContain(`${prefix} .progressBar { background: rgb(64, 64, 64); }`);
+		expect(lines).toContain(`${prefix} .progressFill { background: rgb(0, 164, 220); }`);
+		expect(lines).toContain(`${prefix} .progressBuffered { background: rgba(64, 64, 64, 0.8); }`);
+		expect(lines).toContain(`${prefix} .seekIndicator { background: rgb(0, 164, 220); }`);
+		expect(lines).toContain(`${prefix} .progressBar:focus .seekIndicator { background: #ffffff; }`);
+		expect(lines).toContain(`${prefix} .liveProgressFill { background: rgb(0, 164, 220); }`);
+	});
+
+	it('draws each part of the seek bar from its own theme color', () => {
+		const theme = resolveThemeById('8bit_hero');
+		const {accent, rangeTrack, rangeProgress, rangeThumb} = theme.colors;
+		expect(new Set([accent, rangeTrack, rangeProgress, rangeThumb]).size).toBe(4);
+		registerThemeSheet('player', playerSheet);
+		const lines = buildThemeOverrideCss(theme).split('\n');
+		const prefix = "html[data-theme-id='8bit_hero'][data-theme-id]";
+		expect(lines).toContain(`${prefix} .progressBar { background: ${toCssColor(rangeTrack)}; }`);
+		expect(lines).toContain(`${prefix} .progressFill { background: ${toCssColor(rangeProgress)}; }`);
+		expect(lines).toContain(`${prefix} .progressBuffered { background: rgba(51, 60, 87, 0.8); }`);
+		expect(lines).toContain(`${prefix} .seekIndicator { background: ${toCssColor(rangeThumb)}; }`);
+		expect(lines).toContain(`${prefix} .progressBar:focus .seekIndicator { background: #ffffff; }`);
+		expect(lines).toContain(`${prefix} .liveProgressFill { background: ${toCssColor(accent)}; }`);
+	});
+
+	it("keeps the theme's face for the Latin text in a Japanese subtitle line", () => {
+		registerThemeSheet('player', playerSheet);
+		const japanese = (id) => buildThemeOverrideCss(resolveThemeById(id)).split('\n').filter((line) => line.includes(':lang(ja)'));
+		expect(japanese('neon_pulse')).toEqual([`html[data-theme-id='neon_pulse'][data-theme-id] .subtitleText:lang(ja) { font-family: 'NotoSansJP', 'NeonPulseBody', sans-serif; }`]);
+		expect(japanese('8bit_hero')).toEqual([`html[data-theme-id='8bit_hero'][data-theme-id] .subtitleText:lang(ja) { font-family: 'NotoSansJP', 'EightBitHero', sans-serif; }`]);
+		expect(japanese('moonfin')).toEqual([]);
+	});
+});
+
+describe('resolveFocusBorderColor', () => {
+	it('falls back to the theme focus border for Theme Default and anything that isn\'t a hex color', () => {
+		const theme = resolveThemeById('moonfin');
+		expect(resolveFocusBorderColor(theme, '#ff0000')).toBe('rgb(255, 0, 0)');
+		expect(resolveFocusBorderColor(theme, '')).toBe('rgb(0, 164, 220)');
+		expect(resolveFocusBorderColor(theme, 'moonfinCyan')).toBe('rgb(0, 164, 220)');
 	});
 });
 
@@ -121,5 +285,26 @@ describe('ink on a focused row', () => {
 			const fallback = contrastRatio(theme.colors.buttonFocused, inkOn(theme.colors.buttonFocused) === '0, 0, 0' ? '#FF000000' : '#FFFFFFFF');
 			expect(Math.max(declared, fallback)).toBeGreaterThanOrEqual(MIN_BUTTON_CONTRAST);
 		}
+	});
+
+	// A Play filled with a light accent reads as focused beside the circle that is, so Stage's,
+	// Premiere's and Quick Look's Play is left looking like the circles until it has focus.
+	it('fills Play with the accent only once it has focus', () => {
+		const lines = buildThemeOverrideCss(resolveThemeById('neon_pulse')).split('\n');
+		const ruleFor = (selector) => lines.find((line) => line.includes(`] ${selector} {`) || line.includes(`] ${selector}, `)) || '';
+		['actionsStacked', 'actionsCentered'].forEach((row) => {
+			expect(ruleFor(`.${row} > .actionBtn:first-child`)).toBe('');
+			expect(ruleFor(`.${row} > .actionBtn:first-child:focus`)).toContain('background-color: rgb(0, 229, 255)');
+		});
+	});
+
+	it('draws Frost in the theme rather than white on glass', () => {
+		const lines = buildThemeOverrideCss(resolveThemeById('neon_pulse')).split('\n');
+		const ruleFor = (selector) => lines.find((line) => line.includes(`] ${selector} {`) || line.includes(`] ${selector}, `)) || '';
+		expect(ruleFor('.actionsFrosted > .actionBtn:first-child')).toContain('background: rgba(255, 46, 146, 0.86)');
+		expect(ruleFor('.actionsFrosted > .actionBtn:first-child:focus')).toContain('background: rgb(0, 229, 255)');
+		expect(lines.find((line) => line.includes('] .pill:focus, ') && line.includes('] .tab:focus {'))).toContain('background: rgba(0, 229, 255, 0.38)');
+		expect(ruleFor('.window')).toContain('background: rgba(30, 10, 63, 0.55)');
+		expect(lines.filter((line) => line.includes('.actionsFrosted') && /#fff\b|#000\b|#30d158/.test(line))).toEqual([]);
 	});
 });

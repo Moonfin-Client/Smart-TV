@@ -1,5 +1,5 @@
 import {useState, useMemo, useCallback, useRef, useEffect} from 'react';
-import {isMdblistEnabled, isRatingSourceAllowed} from '../../services/mdblistApi';
+import {isMdblistEnabled} from '../../services/mdblistApi';
 import $L from '@enact/i18n/$L';
 import Spottable from '@enact/spotlight/Spottable';
 import SpotlightContainerDecorator from '@enact/spotlight/SpotlightContainerDecorator';
@@ -7,11 +7,12 @@ import Spotlight from '@enact/spotlight';
 import {Scroller} from '@enact/sandstone/Scroller';
 
 import MediaCard from '../../components/MediaCard';
-import {SeerrStatusBadge, SeerrDownloadBars} from '../../components/seerr/SeerrStatusBadge';
+import {SeerrDownloadBars} from '../../components/seerr/SeerrStatusBadge';
 import {SeerrChips, SeerrFacts, SeerrStreaming, SeerrCollectionBanner} from '../../components/seerr/SeerrSections';
 import RatingsRow from '../../components/RatingsRow';
 import DetailsTabBar from '../../components/DetailsTabBar';
 import ModernActionButtons from './ModernActionButtons';
+import DetailMetaRow from './DetailMetaRow';
 import {getImageUrl, formatDuration} from '../../utils/helpers';
 import {formatPlaybackDuration} from '../../utils/playbackTimeLabels';
 import {castPhotoUrl, hidesMediaDescription} from './detailsMedia';
@@ -23,13 +24,13 @@ import {ReviewCards} from './ReviewCard';
 import {KEYS} from '../../utils/keys';
 import {DETAIL_ICON_PATHS} from './detailIcons';
 import {iconViewBox} from '../../components/icons/iconViewBox';
-import {arrange} from '../../utils/buttonLayout';
-import {DETAIL_METADATA} from '../../utils/detailMetadataLayout';
-import {fetchUpcomingEpisode, formatUpcomingEpisode} from '../../utils/upcomingEpisode';
 import {episodeCardTitle} from '../../utils/episodeCardTitle';
 import useItemMenuHold, {itemWithIdAt} from '../../hooks/useItemMenuHold';
 import {AnimeEpisodePills, AnimeItemPills} from '../../components/AnimeMarkerPills';
+import IncompleteBadge, {IncompleteDetailLine} from '../../components/IncompleteBadge';
+import PosterLabels from '../../components/PosterLabels';
 import {scrimStyle} from '../../utils/scrimImage';
+import {rootScale} from '../../utils/rootScale';
 import PlaylistSortFilterBar, {EmptyPlaylistFilterState, EmptyPlaylistState} from '../../components/PlaylistSortFilterBar';
 import {
 	sortAndFilterPlaylistTracks,
@@ -60,6 +61,10 @@ const SCRIM = [
 ];
 const PERSON_SCRIM = [{to: 'top', rgb: '11, 13, 16', stops: [[0, 1], [0.5, 0.6], [1, 0.45]]}];
 
+// How near the foot of a collection's page the next page of its titles is asked for, in 1920 wide
+// pixels.
+const NEAR_END_PX = 714;
+
 const Icon = ({path}) => (
 	<svg className={css.icon} viewBox={iconViewBox(path)} fill="currentColor" aria-hidden="true">
 		<path d={path} />
@@ -83,16 +88,17 @@ const hasSpottableBelow = (container, active) => {
 
 const ModernDetailContent = (props) => {
 	const {
-		item, effectiveServerUrl, effectiveApi, serverToken, settings, showsSection,
+		item, effectiveServerUrl, effectiveApi, serverToken, settings, showsSection, bookSeriesItem,
 		isEpisode, isSeries, isSeason, isPerson, isBoxSet, isAlbum, isMusicArtist, isPlaylist,
 		backdropUrl, posterUrl, logoUrl, onLogoError,
-		year, runtime, endsAt, officialRating, seasonCount, genres, tagline,
-		seasons, episodes, similar, reviews = [], onSelectReview, extras, cast, crew = [], nextUp, collectionItems, collectionSections = [], albumTracks, artistAlbums, playlistItems, personMovies, personSeries, birthDate, birthPlace, episodeRatings,
+		tagline,
+		seasons, episodes, similar, reviews = [], onSelectReview, extras, cast, crew = [], nextUp, collectionItems, collectionSections = [], albumTracks, artistAlbums, playlistItems, personMovies, personSeries, birthDate, birthPlace,
 		techBadges = [], techSize, overviewBackRef,
 		mediaSource, supportsMediaSourceSelection, selectedAudioIndex, selectedSubtitleIndex,
 		handleChapterSelect, handleExtraSelect, playTrack, playlistMenu,
 		onSelectItem, onSelectPerson, onSelectStudio,
-		seerr, seerrNav, onSelectSeerrCard, spotlightBackRef, collectionMenu, loadMoreCollectionItems, collectionOrder,
+		seerr, seerrNav, onSelectSeerrCard, spotlightBackRef, collectionMenu, loadMoreCollectionItems, loadMoreCollectionTitles,
+		collectionOrder,
 		handlePlay, handleShuffle, onWatchWithGroup
 	} = props;
 
@@ -266,7 +272,13 @@ const ModernDetailContent = (props) => {
 	const scrollTopRef = useRef(0);
 	const handleScroll = useCallback((ev) => {
 		scrollTopRef.current = ev.scrollTop;
-	}, []);
+		// A collection loads a page at a time, so scrolling near the foot of the page asks for the next
+		// one. The event carries the offset but not the sizes, so those are measured.
+		const content = contentRef.current;
+		if (isBoxSet && content && ev.scrollTop > content.scrollHeight - (content.parentElement?.clientHeight || 0) - NEAR_END_PX * rootScale()) {
+			loadMoreCollectionTitles?.();
+		}
+	}, [isBoxSet, loadMoreCollectionTitles]);
 	// Up from the top row scrolls back to the top first so the hero comes back
 	// into view, and only hands focus to the navbar once it is already there. A
 	// left docked sidebar swallows the press instead, since it is reached with
@@ -316,83 +328,6 @@ const ModernDetailContent = (props) => {
 		[tmdbCompanies, studios, effectiveServerUrl, serverToken]
 	);
 
-	const [upcomingEpisode, setUpcomingEpisode] = useState(null);
-
-	useEffect(() => {
-		let cancelled = false;
-		if (!isSeries && !isSeason) {
-			setUpcomingEpisode(null);
-			return undefined;
-		}
-		fetchUpcomingEpisode({item, settings, serverUrl: effectiveServerUrl, serverToken})
-			.then((res) => {
-				if (!cancelled) setUpcomingEpisode(res);
-			})
-			.catch(() => {});
-		return () => {
-			cancelled = true;
-		};
-	}, [item, isSeries, isSeason, settings, effectiveServerUrl, serverToken]);
-
-	const upcomingEpisodeText = useMemo(() => formatUpcomingEpisode(upcomingEpisode), [upcomingEpisode]);
-
-	// Metadata pieces, arranged according to the user's settings.
-	// A piece carries its kind so the status can render as a coloured pill and
-	// the runtime can lead with a clock.
-	const metaPieces = useMemo(() => {
-		const orderedItems = arrange(DETAIL_METADATA, {
-			order: settings.detailMetadataOrderTv,
-			hidden: settings.hiddenDetailMetadataTv
-		});
-
-		const pieceFor = (id) => {
-			switch (id) {
-				case 'year':
-					return year ? [{kind: 'text', text: String(year)}] : [];
-				case 'parentalRating':
-					return officialRating ? [{kind: 'text', text: officialRating}] : [];
-				case 'runtimeAndSeasons': {
-					const parts = [];
-					if (isSeries && seasonCount) {
-						parts.push({kind: 'text', text: $L('{count} Seasons').replace('{count}', seasonCount)});
-					} else if (isSeason && episodes.length) {
-						parts.push({kind: 'text', text: $L('{count} Episodes').replace('{count}', episodes.length)});
-					} else if (isEpisode && item.ParentIndexNumber != null && item.IndexNumber != null) {
-						let label = `S${item.ParentIndexNumber}:E${item.IndexNumber}`;
-						const rating = episodeRatings?.[item.IndexNumber];
-						const showEpisodeRating = settings.tmdbEpisodeRatingsEnabled && isRatingSourceAllowed(settings.mdblistRatingSources, 'tmdb');
-						if (showEpisodeRating && rating) label += ` · ${rating}`;
-						parts.push({kind: 'text', text: label});
-					} else if (isPlaylist) {
-						const count = displayedPlaylistTracks.length;
-						const totalTicks = displayedPlaylistTracks.reduce((sum, t) => sum + (t.RunTimeTicks || 0), 0);
-						parts.push({kind: 'text', text: `${count} ${count !== 1 ? $L('Items') : $L('Item')}`});
-						if (totalTicks > 0) parts.push({kind: 'runtime', text: formatDuration(totalTicks)});
-					} else if (runtime) {
-						parts.push({kind: 'runtime', text: runtime});
-						if (endsAt) parts.push({kind: 'text', text: endsAt});
-					}
-					return parts;
-				}
-				case 'status':
-					if (isSeries && item.Status === 'Continuing') return [{kind: 'status', text: $L('Continuing')}];
-					if (isSeries && item.Status === 'Ended') return [{kind: 'status', text: $L('Ended'), ended: true}];
-					return [];
-				case 'upcomingEpisodeDate':
-					if (upcomingEpisodeText) return [{kind: 'upcoming', text: upcomingEpisodeText}];
-					return [];
-				case 'genres':
-					return genres.length ? [{kind: 'text', text: genres.slice(0, 3).join(' · ')}] : [];
-				case 'seerrAvailability':
-					return seerr.statusPills?.length > 0 ? [{kind: 'seerr'}] : [];
-				default:
-					return [];
-			}
-		};
-
-		return orderedItems.flatMap((itemDef) => pieceFor(itemDef.id));
-	}, [settings.detailMetadataOrderTv, settings.hiddenDetailMetadataTv, year, officialRating, isSeries, seasonCount, isSeason, episodes.length, isEpisode, item.ParentIndexNumber, item.IndexNumber, item.Status, episodeRatings, settings.tmdbEpisodeRatingsEnabled, settings.mdblistRatingSources, runtime, endsAt, genres, upcomingEpisodeText, seerr.statusPills, isPlaylist, displayedPlaylistTracks]);
-
 	const handleCastClick = useCallback((ev) => {
 		const personId = ev.currentTarget.dataset.personId;
 		const person = cast.find((c) => c.Id === personId) || crew.find((c) => c.Id === personId);
@@ -432,6 +367,7 @@ const ModernDetailContent = (props) => {
 		if ((isAlbum && albumTracks.length) || isPlaylist) list.push({id: 'tracks', label: $L('Tracks')});
 		if (isMusicArtist && artistAlbums.length) list.push({id: 'albums', label: $L('Albums')});
 		if (isBoxSet && collectionItems.length) list.push({id: 'items', label: $L('Items')});
+		if (bookSeriesItem) list.push({id: 'books', label: $L('Books')});
 		if (cast.length) list.push({id: 'cast', label: $L('Cast')});
 		if (crew.length) list.push({id: 'crew', label: $L('Crew')});
 		if (studios?.length) list.push({id: 'studios', label: $L('Studios')});
@@ -440,13 +376,13 @@ const ModernDetailContent = (props) => {
 		if (chapters?.length) list.push({id: 'chapters', label: $L('Chapters')});
 		if (additionalParts.length) list.push({id: 'additionalParts', label: $L('Additional Parts')});
 		if (otherExtras.length) list.push({id: 'extras', label: $L('Extras')});
-		if (showsDetails) list.push({id: 'details', label: $L('Details')});
+		if (showsDetails && !bookSeriesItem) list.push({id: 'details', label: $L('Details')});
 		if (collectionSections.length) list.push({id: 'collection', label: collectionTabLabel});
 		if (similar.length) list.push({id: 'similar', label: $L('More Like This')});
 		if (reviews.length) list.push({id: 'reviews', label: $L('Reviews')});
 		if (seerr.hasTabContent) list.push({id: 'seerr', label: seerr.displayName});
 		return list;
-	}, [isSeries, seasons.length, listsEpisodes, episodes.length, isPerson, personMovies.length, personSeries.length, isAlbum, isPlaylist, albumTracks.length, isMusicArtist, artistAlbums.length, isBoxSet, showsSection, collectionItems.length, collectionSections.length, collectionTabLabel, cast.length, crew.length, studios, chapters, additionalParts.length, otherExtras.length, showsDetails, similar.length, reviews.length, seerr.hasTabContent, seerr.displayName]);
+	}, [isSeries, seasons.length, listsEpisodes, episodes.length, isPerson, personMovies.length, personSeries.length, isAlbum, isPlaylist, albumTracks.length, isMusicArtist, artistAlbums.length, isBoxSet, showsSection, collectionItems.length, collectionSections.length, collectionTabLabel, cast.length, crew.length, studios, chapters, additionalParts.length, otherExtras.length, showsDetails, similar.length, reviews.length, seerr.hasTabContent, seerr.displayName, bookSeriesItem]);
 
 	const [activeTab, setActiveTab] = useState(null);
 	// Expanded Tabs on keeps the first tab open and lets focus follow selection.
@@ -525,7 +461,7 @@ const ModernDetailContent = (props) => {
 	const renderGrid = (items, cardType, onSelect = onSelectItem, menuOptions) => (
 		<RowContainer className={css.grid}>
 			{items.map((it) => (
-				<MediaCard key={it.Id} item={it} serverUrl={effectiveServerUrl} cardType={cardType} onSelect={onSelect} menuOptions={menuOptions} />
+				<MediaCard key={it.Id} item={it} serverUrl={effectiveServerUrl} cardType={cardType} onSelect={onSelect} menuOptions={menuOptions} posterLabels />
 			))}
 		</RowContainer>
 	);
@@ -542,10 +478,14 @@ const ModernDetailContent = (props) => {
 							{thumb ? <img src={thumb} alt="" /> : <div className={css.chapterThumbPlaceholder} />}
 							{ep.UserData?.Played && <div className={css.episodeWatched}><Icon path={DETAIL_ICON_PATHS.watched} /></div>}
 							{progress > 0 && <div className={css.thumbProgress}><div style={{width: `${Math.min(progress, 100)}%`}} /></div>}
+							<PosterLabels item={ep} serverUrl={effectiveServerUrl} scale={0.8} topRight={ep.UserData?.Played ? 46 : 8} />
 						</div>
 						<div className={css.episodeBody}>
 							<span className={css.episodeName}>{episodeCardTitle(ep.Name, ep.IndexNumber)}</span>
-							{epRuntime && <span className={css.episodeMeta}>{epRuntime}</span>}
+							<div className={css.episodeMetaRow}>
+								{epRuntime && <span className={css.episodeMeta}>{epRuntime}</span>}
+								<IncompleteBadge itemId={ep.Id} inline />
+							</div>
 							<AnimeEpisodePills episode={ep} serverUrl={effectiveServerUrl} large />
 							{ep.Overview && !hidesMediaDescription(ep, settings) && <p className={css.episodeOverview}>{ep.Overview}</p>}
 						</div>
@@ -785,6 +725,8 @@ const ModernDetailContent = (props) => {
 						))}
 					</div>
 				);
+			case 'books':
+				return renderGrid(bookSeriesItem.Members, 'portrait');
 			case 'similar':
 				return renderGrid(similar, 'portrait');
 			case 'reviews':
@@ -854,7 +796,7 @@ const ModernDetailContent = (props) => {
 		if (logoUrl && !isPerson) {
 			return <img className={css.logo} src={logoUrl} alt={item.Name} onError={onLogoError} />;
 		}
-		return <h1 className={css.title}>{item.Name}</h1>;
+		return <h1 className={css.title}>{bookSeriesItem ? bookSeriesItem.Name : item.Name}</h1>;
 	};
 
 	// The title, the facts about it and its ratings. With a Next Up card on
@@ -864,36 +806,8 @@ const ModernDetailContent = (props) => {
 			{isPerson && posterUrl && <img className={css.personAvatar} src={posterUrl} alt="" />}
 			{heroTitle()}
 			{personBorn()}
-			{metaPieces.length > 0 && (
-				<div className={css.metaRow}>
-					{metaPieces.map((piece, i) => {
-						if (piece.kind === 'seerr') {
-							return <SeerrStatusBadge key={i} seerr={seerr} className={css.metaBadge} />;
-						}
-						return (
-							<span key={i} className={css.metaItem}>
-								{piece.kind === 'runtime' && (
-									<svg className={css.metaIcon} viewBox="0 -960 960 960" fill="currentColor" aria-hidden="true">
-										<path d={DETAIL_ICON_PATHS.schedule} />
-									</svg>
-								)}
-								{piece.kind === 'upcoming' && (
-									<span className={`${css.statusBadge} ${css.statusUpcoming}`}>
-										<svg className={css.metaIcon} viewBox="0 -960 960 960" fill="currentColor" aria-hidden="true">
-											<path d={DETAIL_ICON_PATHS.calendar} />
-										</svg>
-										{piece.text}
-									</span>
-								)}
-								{piece.kind === 'status' && (
-									<span className={`${css.statusBadge} ${piece.ended ? css.statusEnded : ''}`}>{piece.text}</span>
-								)}
-								{(piece.kind === 'text' || piece.kind === 'runtime') && piece.text}
-							</span>
-						);
-					})}
-				</div>
-			)}
+			<DetailMetaRow {...props} playlistTracks={displayedPlaylistTracks} />
+			<IncompleteDetailLine itemId={item.Id} clockDisplay={settings.clockDisplay} />
 			<AnimeItemPills item={item} serverUrl={effectiveServerUrl} large />
 			{hasTech && (
 				<div className={css.techRow}>
@@ -939,7 +853,7 @@ const ModernDetailContent = (props) => {
 	return (
 		<>
 			<div className={`${css.backdrop} ${isPerson ? css.backdropPerson : ''}`} style={backdropStyle}>
-				{backdropUrl && !isPerson && <img className={css.backdropImage} src={backdropUrl} alt="" />}
+				{settings.detailsBackdropEnabled !== false && backdropUrl && !isPerson && <img className={css.backdropImage} src={backdropUrl} alt="" />}
 				<div className={css.scrim} style={scrimStyle(isPerson ? PERSON_SCRIM : SCRIM, gradientScale)} />
 			</div>
 			<Scroller cbScrollTo={handleScrollTo} onScroll={handleScroll} className={css.scroller} direction="vertical" horizontalScrollbar="hidden" verticalScrollbar="hidden">

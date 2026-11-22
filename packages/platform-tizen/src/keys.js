@@ -56,6 +56,7 @@ export const TIZEN_KEYS = {
 	// Other
 	INFO: 457,
 	CAPTION: 10221,
+	MTS: 10195,
 	SEARCH: 10225,
 	EXTRA: 10253,
 	GUIDE: 458,
@@ -95,6 +96,7 @@ export const TIZEN_KEY_NAMES = [
 	'ChannelList',
 	'Info',
 	'Caption',
+	'MTS',
 	'Search',
 	'Extra',
 	'Guide',

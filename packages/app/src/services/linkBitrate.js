@@ -3,8 +3,10 @@
 //
 // A wireless link can carry far less than the device plays, and a stream asked for
 // at more than the link carries stalls from start to finish. Where a platform asks
-// for it, the automatic bitrate is held under what was measured here.
+// for it, the automatic bitrate is held under what was measured here. Each server's last answer
+// is kept across launches.
 import {legacyAuthHeader} from '../utils/serverRoutes';
+import {getFromStorage, saveToStorage} from './storage';
 
 const TEST_BYTES = 1000000;
 const LONGER_TEST_BYTES = 4000000;
@@ -17,8 +19,29 @@ const KEPT_FOR_MS = 10 * 60 * 1000;
 const HEADROOM = 0.7;
 const LOWEST_BITRATE = 1500000;
 
+const STORE_KEY = 'linkBitrates';
+
 const kept = new Map();
 const underway = new Map();
+
+let loaded = null;
+const loadKept = () => {
+	loaded = loaded || getFromStorage(STORE_KEY).then((saved) => {
+		Object.keys(saved || {}).forEach((url) => {
+			const entry = saved[url];
+			if (!kept.has(url) && entry?.bitrate > 0) kept.set(url, {bitrate: entry.bitrate, at: Number(entry.at) || 0});
+		});
+	}).catch(() => {});
+	return loaded;
+};
+
+const saveKept = () => {
+	const all = {};
+	kept.forEach((entry, url) => {
+		all[url] = entry;
+	});
+	saveToStorage(STORE_KEY, all).catch(() => {});
+};
 
 // Timed from the first data in, so the wait for the server to answer isnt counted.
 // A test cut off by the timeout still says how fast the link was until then.
@@ -70,19 +93,22 @@ const measure = async ({serverUrl, serverType, authHeader, testFileUrl}) => {
 	return result ? Math.max(LOWEST_BITRATE, Math.round(result.bitsPerSecond * HEADROOM)) : null;
 };
 
-// The bitrate to stay under for a server, or null when it couldnt be measured. A
-// test run while something plays would be sharing the link with it, so then the
-// last answer is all that is given, however old.
-export const linkBitrate = (server, canMeasure = true) => {
+// The bitrate to stay under for a server, or null when it couldn't be measured. Without
+// leave to measure, the last answer is all that's given, however old.
+export const linkBitrate = async (server, canMeasure = true) => {
 	const serverUrl = String(server.serverUrl || '').replace(/\/+$/, '');
-	if (!serverUrl) return Promise.resolve(null);
+	if (!serverUrl) return null;
+	await loadKept();
 	const last = kept.get(serverUrl);
-	if (last && (!canMeasure || Date.now() - last.at < KEPT_FOR_MS)) return Promise.resolve(last.bitrate);
-	if (!canMeasure) return Promise.resolve(null);
+	if (last && (!canMeasure || Date.now() - last.at < KEPT_FOR_MS)) return last.bitrate;
+	if (!canMeasure) return null;
 	if (!underway.has(serverUrl)) {
 		underway.set(serverUrl, measure({...server, serverUrl}).then((bitrate) => {
 			underway.delete(serverUrl);
-			if (bitrate) kept.set(serverUrl, {bitrate, at: Date.now()});
+			if (bitrate) {
+				kept.set(serverUrl, {bitrate, at: Date.now()});
+				saveKept();
+			}
 			return bitrate;
 		}));
 	}

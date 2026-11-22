@@ -51,6 +51,55 @@ const FakeTile = ({index, width, height, large = false}) => {
 	);
 };
 
+// The scrub thumbnails at [progress] along a seek bar that starts [trackLeft] into a picture
+// [frameWidth] by [frameHeight], runs [trackWidth], and has its top [floor] up from the bottom.
+// [scale] is the share of the TV's size the picture is drawn at. Full Screen covers the picture.
+export const ScrubThumbnails = ({frameWidth, frameHeight, trackLeft, trackWidth, floor, scale, progress}) => {
+	const {settings} = useSettings();
+	const mode = settings.trickPlayMode;
+	if (mode === 'disabled' || !frameWidth) return null;
+	const positionMs = progress * FAKE_DURATION_MS;
+	const stepMs = Math.max(1, (settings.seekStep || 10) * 1000);
+	const stepIndex = (ms) => Math.round(ms / stepMs);
+
+	if (mode === 'full') {
+		const cover = coverSize({width: 16, height: 9}, frameWidth, frameHeight, settings.playerZoomMode);
+		return (
+			<div className={css.frameCover}>
+				<FakeTile index={stepIndex(positionMs)} width={cover.width} height={cover.height} large />
+			</div>
+		);
+	}
+
+	const plan = planTrickplayPreview({
+		trackWidth,
+		scalePercent: settings.trickPlayPreviewScale,
+		aspect: 9 / 16,
+		maxHeightBudget: Math.max(frameHeight - floor - VERTICAL_TRAVEL_TOP_MARGIN * scale, 32),
+		positionMs,
+		durationMs: FAKE_DURATION_MS,
+		followScrub: settings.trickPlayFollowScrub,
+		verticalPositionPercent: settings.trickPlayVerticalPosition,
+		isStrip: mode === 'strip',
+		spacing: TILE_SPACING,
+		overflowMargin: SLIDER_INSET,
+		stepMs
+	});
+	return (
+		<div className={css.strip} style={{left: trackLeft + plan.leftOffset, bottom: floor + plan.verticalTravel}}>
+			{plan.slots.map((slot, i) => (
+				<div
+					key={slot.slotIndex}
+					className={`${css.tile} ${slot.slotIndex === 0 ? css.tileActive : ''} ${slot.targetMs === null ? css.tileEmpty : ''}`}
+					style={{width: plan.tileWidth, height: plan.tileHeight, marginLeft: i > 0 ? TILE_SPACING : 0}}
+				>
+					{slot.targetMs !== null && <FakeTile index={stepIndex(slot.targetMs)} width={plan.tileWidth} height={plan.tileHeight} />}
+				</div>
+			))}
+		</div>
+	);
+};
+
 // The scrub preview as the player would show it, in a small picture in settings, so a change
 // to its size, distance or style can be judged without starting playback to find out. Left and
 // right move the fake scrub.
@@ -78,7 +127,6 @@ const TrickplaySettingsPreview = () => {
 	}, []);
 
 	const stepMs = Math.max(1, (settings.seekStep || 10) * 1000);
-	const stepIndex = (ms) => Math.round(ms / stepMs);
 
 	const onKeyDown = useCallback((e) => {
 		const code = e.keyCode || e.which;
@@ -88,30 +136,14 @@ const TrickplaySettingsPreview = () => {
 		setPositionMs((current) => Math.min(FAKE_DURATION_MS, Math.max(0, current + (code === KEY_LEFT ? -stepMs : stepMs))));
 	}, [stepMs]);
 
-	const mode = settings.trickPlayMode;
-	if (mode === 'disabled') return null;
+	if (settings.trickPlayMode === 'disabled') return null;
 
 	const frameHeight = frameWidth * (9 / 16);
 	const trackWidth = Math.max(frameWidth - SLIDER_INSET * 2, 0);
 	const previewScale = Math.min(1, Math.max(0.2, trackWidth / PLAYER_WIDTH));
 	const controlsGap = TILE_SPACING * previewScale;
 	const floorReserved = PLAYER_SLIDER_HEIGHT + controlsGap + PLAYER_CONTROLS_ROW * previewScale;
-	const plan = frameWidth ? planTrickplayPreview({
-		trackWidth,
-		scalePercent: settings.trickPlayPreviewScale,
-		aspect: 9 / 16,
-		maxHeightBudget: Math.max(frameHeight - floorReserved - VERTICAL_TRAVEL_TOP_MARGIN * previewScale, 32),
-		positionMs,
-		durationMs: FAKE_DURATION_MS,
-		followScrub: settings.trickPlayFollowScrub,
-		verticalPositionPercent: settings.trickPlayVerticalPosition,
-		isStrip: mode === 'strip',
-		spacing: TILE_SPACING,
-		overflowMargin: SLIDER_INSET,
-		stepMs
-	}) : null;
 	const thumbX = trackXForPosition({positionMs, durationMs: FAKE_DURATION_MS, trackWidth});
-	const cover = mode === 'full' ? coverSize({width: 16, height: 9}, frameWidth, frameHeight, settings.playerZoomMode) : null;
 
 	return (
 		<div className={css.preview}>
@@ -119,24 +151,15 @@ const TrickplaySettingsPreview = () => {
 				<div className={css.frameBackdrop} ref={frameRef}>
 					<svg viewBox="0 -960 960 960" className={css.playIcon}><path d="M320-200v-560l440 280-440 280Z" /></svg>
 				</div>
-				{cover && (
-					<div className={css.frameCover}>
-						<FakeTile index={stepIndex(positionMs)} width={cover.width} height={cover.height} large />
-					</div>
-				)}
-				{plan && !cover && (
-					<div className={css.strip} style={{left: SLIDER_INSET + plan.leftOffset, bottom: floorReserved + plan.verticalTravel, gap: TILE_SPACING}}>
-						{plan.slots.map((slot) => (
-							<div
-								key={slot.slotIndex}
-								className={`${css.tile} ${slot.slotIndex === 0 ? css.tileActive : ''} ${slot.targetMs === null ? css.tileEmpty : ''}`}
-								style={{width: plan.tileWidth, height: plan.tileHeight}}
-							>
-								{slot.targetMs !== null && <FakeTile index={stepIndex(slot.targetMs)} width={plan.tileWidth} height={plan.tileHeight} />}
-							</div>
-						))}
-					</div>
-				)}
+				<ScrubThumbnails
+					frameWidth={frameWidth}
+					frameHeight={frameHeight}
+					trackLeft={SLIDER_INSET}
+					trackWidth={trackWidth}
+					floor={floorReserved}
+					scale={previewScale}
+					progress={positionMs / FAKE_DURATION_MS}
+				/>
 				<div className={css.bar} style={{left: SLIDER_INSET, right: SLIDER_INSET, bottom: floorReserved - PLAYER_SLIDER_HEIGHT / 2}}>
 					<div className={css.barFill} style={{width: thumbX}} />
 					<div className={css.barThumb} style={{left: thumbX}} />

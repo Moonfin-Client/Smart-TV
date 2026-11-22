@@ -51,6 +51,15 @@ describe('unavailableOrRequestedSeasons', () => {
 		const requests = [{seasons: [{seasonNumber: 5}]}];
 		expect([...unavailableOrRequestedSeasons([], requests, false)]).toEqual([5]);
 	});
+
+	it('leaves blocklisted and deleted seasons open to another request', () => {
+		const gone = [
+			{seasonNumber: 1, status: MEDIA_STATUS.PARTIALLY_AVAILABLE},
+			{seasonNumber: 2, status: MEDIA_STATUS.BLOCKLISTED},
+			{seasonNumber: 3, status: MEDIA_STATUS.DELETED}
+		];
+		expect([...unavailableOrRequestedSeasons(gone, [], false)]).toEqual([1]);
+	});
 });
 
 describe('requestOfferFor', () => {

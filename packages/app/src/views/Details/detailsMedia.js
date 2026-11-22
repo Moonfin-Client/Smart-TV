@@ -4,6 +4,7 @@
 import $L from '@enact/i18n/$L';
 
 import {getImageUrl} from '../../utils/helpers';
+import {videoRangeBadges} from '../../utils/videoRange';
 
 // Caps that match the mobile clients, so a title forced down on one device looks the
 // same on the others. The server transcodes to fit whichever is chosen.
@@ -53,7 +54,7 @@ const normalizeRoles = (role) => role
 // The people on an item, split the way the detail screens present them: actors
 // in Cast, directors and writers merged into Crew. Somebody who both directed
 // and acted belongs with the crew, so their name is kept out of the cast.
-export const splitCastAndCrew = (people = [], limit = 20) => {
+export const splitCastAndCrew = (people = [], limit = 20, isEpisode = false) => {
 	const directors = people.filter((p) => p.Type === 'Director');
 	const writers = people.filter((p) => p.Type === 'Writer');
 	const crewNames = new Set([...directors, ...writers].map((p) => p.Name));
@@ -63,10 +64,21 @@ export const splitCastAndCrew = (people = [], limit = 20) => {
 		.slice(0, limit);
 
 	const merged = new Map();
+	const directorFallback = isEpisode ? $L('Episode Director') : $L('Director');
+	const writerFallback = isEpisode ? $L('Episode Writer') : $L('Writer');
+
 	const addCrew = (person, fallbackRole) => {
 		const key = person.Id || person.Name;
 		if (!key) return;
-		const roles = normalizeRoles(person.Role?.trim() || fallbackRole);
+		let rawRole = person.Role?.trim() || fallbackRole;
+		if (isEpisode) {
+			if (person.Type === 'Director' && (!rawRole || rawRole.toLowerCase() === 'director')) {
+				rawRole = fallbackRole;
+			} else if (person.Type === 'Writer' && (!rawRole || rawRole.toLowerCase() === 'writer')) {
+				rawRole = fallbackRole;
+			}
+		}
+		const roles = normalizeRoles(rawRole);
 		const existing = merged.get(key);
 		if (existing) {
 			roles.forEach((r) => existing.roles.add(r));
@@ -74,14 +86,26 @@ export const splitCastAndCrew = (people = [], limit = 20) => {
 			merged.set(key, {person, roles: new Set(roles)});
 		}
 	};
-	directors.forEach((d) => addCrew(d, $L('Director')));
-	writers.forEach((w) => addCrew(w, $L('Writer')));
+	directors.forEach((d) => addCrew(d, directorFallback));
+	writers.forEach((w) => addCrew(w, writerFallback));
 
 	const crew = Array.from(merged.values())
 		.map(({person, roles}) => ({...person, Role: Array.from(roles).join('\n')}))
 		.slice(0, limit);
 
 	return {cast, crew};
+};
+
+// A collection has no people of its own, so it takes its titles', in collection order and once per
+// name: the directors, the writers, then the actors and guest stars. Spotlight's own people card
+// gathers them its own way.
+export const boxSetPeople = (titles = []) => {
+	const people = titles.flatMap((title) => title.People || []);
+	const firstOf = (types) => {
+		const seen = new Set();
+		return people.filter((person) => person?.Name != null && types.includes(person.Type) && !seen.has(person.Name) && seen.add(person.Name));
+	};
+	return [...firstOf(['Director']), ...firstOf(['Writer']), ...firstOf(['Actor', 'GuestStar'])];
 };
 
 export const shuffleArray = (arr) => {
@@ -105,17 +129,9 @@ export const getMediaBadges = (item, versionIndex = 0) => {
 		else if (video.Width >= 1900) badges.push({type: 'badgeHd', label: $L('1080p')});
 		else if (video.Width >= 1260) badges.push({type: 'badgeHd', label: $L('720p')});
 
-		const rangeType = video.VideoRangeType;
-		if (rangeType === 'DOVIWithHDR10' || rangeType === 'DOVI' || rangeType === 'DOVIWithHDR10Plus') {
-			badges.push({type: 'badgeDv', label: $L('DV')});
-		}
-		if (rangeType && rangeType !== 'SDR') {
-			if (rangeType.includes('HDR10Plus')) badges.push({type: 'badgeHdr', label: $L('HDR10+')});
-			else if (rangeType.includes('HDR10') || rangeType === 'DOVIWithHDR10') badges.push({type: 'badgeHdr', label: $L('HDR10')});
-			else if (rangeType !== 'DOVI') badges.push({type: 'badgeHdr', label: $L('HDR')});
-		} else if (video.VideoRange === 'HDR') {
-			badges.push({type: 'badgeHdr', label: $L('HDR')});
-		}
+		videoRangeBadges(video).forEach((label) => {
+			badges.push({type: label.indexOf('DV') === 0 ? 'badgeDv' : 'badgeHdr', label: $L(label)});
+		});
 
 		const videoCodec = video.Codec?.toUpperCase();
 		if (videoCodec) {

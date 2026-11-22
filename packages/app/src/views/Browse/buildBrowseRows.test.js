@@ -51,8 +51,8 @@ describe('row selection', () => {
 
 		expect(gated('collections', {displayCollectionsRows: false})).toEqual([]);
 		expect(gated('favoriteMovies', {displayFavoritesRows: false})).toEqual([]);
-		expect(gated('imdb-top250-movies', {imdbTop250MoviesEnabled: false})).toEqual([]);
-		expect(gated('imdb-top250-movies', {}).map((r) => r.id)).toEqual(['imdb-top250-movies']);
+		// The external rows have no switch. The loader already leaves out what the server can't fill.
+		expect(gated('imdb-top250-movies', {imdbTop250MoviesEnabled: false}).map((r) => r.id)).toEqual(['imdb-top250-movies']);
 	});
 
 	test('plugin rows answer to the plugin list rather than the row list', () => {
@@ -127,8 +127,30 @@ describe('merged continue watching', () => {
 		expect(combined.items.find((i) => i.Id === 'queued').UserData.LastPlayedDate).toBe('2026-03-01');
 	});
 
+	test('cards paged in later go after the ones already drawn, even when played more recently', () => {
+		const played = (Id, date) => item(Id, {UserData: {LastPlayedDate: date}});
+		const rows = merged({
+			allRowData: [
+				row('resume', [played('a', '2026-01-02'), played('late', '2026-01-01'), played('paged', '2026-03-01')], {pagedFrom: 2}),
+				row('nextup', [played('b', '2026-01-03'), played('new', '2026-04-01'), item('a')], {pagedFrom: 1})
+			]
+		});
+		expect(rows[0].items.map((i) => i.Id)).toEqual(['b', 'a', 'late', 'paged', 'new']);
+	});
+
 	test('nothing to continue means no row at all', () => {
 		expect(merged({allRowData: [row('resume', []), row('nextup', [])]})).toEqual([]);
+	});
+
+	test('the merged row stops at 100 cards and asks for no more', () => {
+		const many = (prefix, count) => Array.from({length: count}, (_, i) => item(`${prefix}${i}`));
+		const rows = merged({
+			allRowData: [row('resume', many('r', 70), {hasMore: true}), row('nextup', many('n', 60), {hasMore: true})]
+		});
+		expect(rows[0].items).toHaveLength(100);
+		expect(rows[0].hasMore).toBe(false);
+		const short = merged({allRowData: [row('resume', many('r', 20), {hasMore: true}), row('nextup', many('n', 10))]});
+		expect(short[0].hasMore).toBe(true);
 	});
 });
 
@@ -184,6 +206,33 @@ describe('sameRowList', () => {
 		expect(sameRowList([row('a', [item('1')])], [row('a', [item('2')])])).toBe(false);
 		expect(sameRowList([row('a', [item('1'), item('9')])], [row('a', [item('1'), item('8')])])).toBe(false);
 		expect(sameRowList([{...row('a'), title: 'X'}], [{...row('a'), title: 'Y'}])).toBe(false);
+	});
+
+	test('sees a reorder that keeps the first and last item', () => {
+		const before = row('a', [item('1'), item('2'), item('3'), item('4')]);
+		const after = row('a', [item('1'), item('3'), item('2'), item('4')]);
+		expect(sameRowList([before], [after])).toBe(false);
+	});
+
+	test('detects changes in watching now subtitle or item details', () => {
+		const watchingRow1 = {
+			id: 'mdblist_watching_now',
+			title: 'Watching on MDBList',
+			subtitle: '10 watching now',
+			isWatchingNowRow: true,
+			items: [{Id: '1', Name: 'Movie 1', Rank: 1, Watchers: 10}]
+		};
+		const watchingRow2 = {
+			...watchingRow1,
+			subtitle: '15 watching now'
+		};
+		const watchingRow3 = {
+			...watchingRow1,
+			items: [{Id: '1', Name: 'Movie 1', Rank: 1, Watchers: 15}]
+		};
+		expect(sameRowList([watchingRow1], [watchingRow1])).toBe(true);
+		expect(sameRowList([watchingRow1], [watchingRow2])).toBe(false);
+		expect(sameRowList([watchingRow1], [watchingRow3])).toBe(false);
 	});
 });
 
@@ -279,7 +328,8 @@ describe('row subtitles', () => {
 			externalRows: [
 				{id: 'imdb-top250-movies', title: 'IMDb Top 250 Movies', items: [item('1')]},
 				{id: 'tmdb_popular_movies', title: 'Popular Movies', items: [item('2')]},
-				{id: 'radarr_calendar', title: 'Radarr Upcoming', items: [item('3')]}
+				{id: 'radarr_calendar', title: 'Radarr Upcoming', items: [item('3')]},
+				{id: 'sonarr_calendar', title: 'Sonarr Upcoming', items: [item('4')]}
 			],
 			settings: settings({imdbTop250MoviesEnabled: true})
 		});
@@ -287,7 +337,16 @@ describe('row subtitles', () => {
 		const byId = Object.fromEntries(rows.map((r) => [r.id, r.subtitle]));
 		expect(byId['imdb-top250-movies']).toBe('IMDb List');
 		expect(byId['tmdb_popular_movies']).toBe('TMDB Lists');
-		expect(byId['radarr_calendar']).toBe('Radarr and Sonarr Calendars');
+		expect(byId['radarr_calendar']).toBe('Radarr Calendar');
+		expect(byId['sonarr_calendar']).toBe('Sonarr Calendar');
+	});
+
+	test('the merged calendar row names both calendars', () => {
+		const rows = build({
+			externalRows: [{id: 'radarr_calendar', title: 'Upcoming Releases', items: [item('1')], isCalendarMerged: true}]
+		});
+
+		expect(rows[0].subtitle).toBe('Radarr and Sonarr Calendars');
 	});
 
 	test('library rows stay without one', () => {
@@ -347,6 +406,17 @@ describe('loading placeholders', () => {
 		});
 
 		expect(rows.map((r) => [r.id, Boolean(r.isPlaceholder)])).toEqual([['collections', false]]);
+	});
+
+	test('a section known to come back empty holds no place while it loads', () => {
+		const rows = build({
+			homeRowsConfig: [...config, {id: 'imdb-top250-movies', enabled: true, order: 6}],
+			pendingSections: ['collections', 'sinceyouwatched1'],
+			pendingRows: [{id: 'imdb-top250-movies', title: 'IMDb Top 250 Movies'}],
+			emptySections: new Set(['sinceyouwatched1', 'imdb-top250-movies'])
+		});
+
+		expect(rows.map((r) => r.id)).toEqual(['collections']);
 	});
 
 	test('a plugin section is titled and gated by the plugin list', () => {

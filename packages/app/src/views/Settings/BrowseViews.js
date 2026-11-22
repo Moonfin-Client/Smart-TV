@@ -1,11 +1,11 @@
 /* eslint-disable react/jsx-no-bind */
-import {Fragment, useLayoutEffect, useRef} from 'react';
+import {Fragment, useLayoutEffect, useRef, useState} from 'react';
 import $L from '@enact/i18n/$L';
 
 import SpottableInput from '../../components/SpottableInput/SpottableInput';
-import {IconSearch, renderSettingsIcon, renderChevron, renderCheck} from './settingsIcons';
+import {IconSearch, renderSettingsIcon, renderChevron} from './settingsIcons';
 import {SpottableDiv, ViewContainer} from './settingsSpottables';
-import {NavRow, SectionTitle} from './settingsRows';
+import {NavRow, SectionTitle, swatchEdgeClass} from './settingsRows';
 import SettingsView, {TitleAction, followFocus} from './SettingsView';
 import {resultSpotlightId} from './settingsSearch';
 
@@ -31,7 +31,7 @@ const ResultItem = ({entry, index, onOpen, onKeyDown}) => (
 	</SpottableDiv>
 );
 
-const SearchBar = ({value, onChange, onKeyDown}) => (
+export const SearchBar = ({value, onChange, onKeyDown}) => (
 	<div className={css.searchBar}>
 		<div className={css.searchWrap}>
 			<SpottableInput
@@ -124,23 +124,23 @@ export const SubcategoryView = ({title, clean, action, ctx, children}) => (
 	</SettingsView>
 );
 
-// The dialog grows in steps of 56 units, between 280 and the width the panel leaves it
+// Core's picker is a SimpleDialog, which grows in steps of 56 units from 280 until the column
+// stops it
 const DP = 1920 / 1150;
 const DIALOG_STEP = 56 * DP;
 const DIALOG_MIN = 280 * DP;
-const DIALOG_MAX = 340 * DP;
 
 // A picker opens as a dialog over the screen it was chosen from, which stays where it was
-export const OptionsDialog = ({title, options, currentValue, onSelect}) => {
+export const OptionsDialog = ({title, options, currentValue, swatchOf, swatchEdge, subtitleOf, onSelect}) => {
 	const dialogRef = useRef(null);
 	useLayoutEffect(() => {
 		const node = dialogRef.current;
 		if (!node) return;
 		const scale = parseFloat(window.getComputedStyle(document.documentElement).fontSize) / 24 || 1;
 		node.style.width = 'auto';
-		const natural = node.scrollWidth / scale;
-		const stepped = Math.ceil(natural / DIALOG_STEP) * DIALOG_STEP;
-		node.style.width = `${Math.min(DIALOG_MAX, Math.max(DIALOG_MIN, stepped)) * scale}px`;
+		// One pixel less, since a dialog at the 280 floor can measure a hair over it and jump a step
+		const natural = (node.scrollWidth - 1) / scale;
+		node.style.width = `${Math.max(DIALOG_MIN, Math.ceil(natural / DIALOG_STEP) * DIALOG_STEP) * scale}px`;
 	}, [title, options]);
 
 	return (
@@ -148,21 +148,96 @@ export const OptionsDialog = ({title, options, currentValue, onSelect}) => {
 			<div ref={dialogRef} className={css.dialog}>
 				<div className={css.dialogTitle}>{title}</div>
 				<ViewContainer className={css.dialogList} spotlightId='options-view' onFocus={followFocus}>
-					{options.map((opt, idx) => (
-						<SpottableDiv
-							key={String(opt.value)}
-							className={css.listItem}
-							onClick={() => onSelect(opt.value)}
-							spotlightId={`opt-${idx}`}
-						>
-							<div className={css.listItemBody}>
-								<div className={css.listItemHeading}>{opt.label}</div>
-							</div>
-							<div className={css.listItemTrailing}>{renderCheck(opt.value === currentValue)}</div>
-						</SpottableDiv>
-					))}
+					{options.map((opt, idx) => {
+						const subtitle = subtitleOf && subtitleOf(opt.value);
+						const swatch = swatchOf && swatchOf(opt.value);
+						return (
+							<SpottableDiv
+								key={String(opt.value)}
+								className={`${css.dialogOption}${subtitle ? ` ${css.dialogOptionTwoLine}` : ''}`}
+								onClick={() => onSelect(opt.value)}
+								spotlightId={`opt-${idx}`}
+							>
+								<span className={`${css.dialogRadio}${opt.value === currentValue ? ` ${css.dialogRadioOn}` : ''}`} />
+								{swatch && (
+									<span
+										className={`${css.colorCircle} ${css.dialogSwatch}${swatchEdge ? ` ${swatchEdgeClass(swatch)}` : ''}`}
+										style={{background: swatch}}
+									/>
+								)}
+								<div className={css.dialogLabel}>
+									{opt.label}
+									{subtitle && <div className={css.dialogHint}>{subtitle}</div>}
+								</div>
+							</SpottableDiv>
+						);
+					})}
 				</ViewContainer>
 			</div>
+		</div>
+	);
+};
+
+const byLabel = (a, b) => {
+	const left = a.label.toLowerCase();
+	const right = b.label.toLowerCase();
+	return left < right ? -1 : (left > right ? 1 : 0);
+};
+
+// Core's checklist. The ticked rows lead, ordered once on open so a tick never moves the row
+// under focus, and picks stay in the order they were made. At [max] the unticked rows dim and
+// ignore a tick but can still take focus.
+export const ChecklistDialog = ({title, options, picked, max, sortByLabel, onSave, onCancel}) => {
+	const [rows] = useState(() => {
+		const sorted = sortByLabel ? [...options].sort(byLabel) : options;
+		return [
+			...sorted.filter(({value}) => picked.includes(value)),
+			...sorted.filter(({value}) => !picked.includes(value))
+		];
+	});
+	// Picks the list doesn't show stay in, as Core's working set keeps them, until Clear
+	const [working, setWorking] = useState(picked);
+	const capped = max != null;
+	const full = capped && working.length >= max;
+
+	const toggle = (value) => setWorking((prev) => {
+		if (prev.includes(value)) return prev.filter((entry) => entry !== value);
+		return capped && prev.length >= max ? prev : [...prev, value];
+	});
+	const selectAll = () => setWorking((prev) => [...prev, ...options.map(({value}) => value).filter((value) => !prev.includes(value))]);
+	const save = () => onSave(working);
+
+	return (
+		<div className={css.dialogBarrier}>
+			<ViewContainer className={`${css.dialog} ${css.checklist}`} spotlightId='options-view'>
+				<div className={css.checklistTitle}>{title}</div>
+				<div className={css.checklistButtons}>
+					{!capped && (
+						<SpottableDiv className={css.dialogButton} onClick={selectAll} spotlightId='chk-select-all'>{$L('Select All')}</SpottableDiv>
+					)}
+					<SpottableDiv className={css.dialogButton} onClick={() => setWorking([])} spotlightId='chk-clear'>{$L('Clear')}</SpottableDiv>
+					<SpottableDiv className={`${css.dialogButton} ${css.dialogFilledButton}`} onClick={save} spotlightId='chk-save'>{$L('Save')}</SpottableDiv>
+				</div>
+				<div className={css.checklistList} onFocus={followFocus}>
+					{rows.map(({value, label}, idx) => {
+						const ticked = working.includes(value);
+						return (
+							<SpottableDiv
+								key={String(value)}
+								className={css.checkRow}
+								onClick={() => toggle(value)}
+								spotlightId={`chk-${idx}`}
+							>
+								<span className={`${css.checkBox}${ticked ? ` ${css.checkBoxOn}` : ''}`} />
+								<div className={css.checkLabel} style={full && !ticked ? {opacity: 0.4} : undefined}>{label}</div>
+							</SpottableDiv>
+						);
+					})}
+				</div>
+				<div className={css.checklistActions}>
+					<SpottableDiv className={css.dialogButton} onClick={onCancel} spotlightId='chk-cancel'>{$L('Cancel')}</SpottableDiv>
+				</div>
+			</ViewContainer>
 		</div>
 	);
 };

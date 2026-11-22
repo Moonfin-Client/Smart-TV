@@ -1,4 +1,4 @@
-import {ordered, arrange, hiddenSet, withUnknownIds, seerrOnlyRow, countSplit, applyButtonLimit, DETAIL_BUTTONS, OSD_BUTTONS} from './buttonLayout';
+import {ordered, arrange, hiddenSet, withUnknownIds, seerrOnlyRow, splitSlots, countSplit, applyButtonLimit, DETAIL_BUTTONS, OSD_BUTTONS} from './buttonLayout';
 
 const ids = (list) => list.map((item) => item.id);
 const declare = (...list) => list.map((id) => ({id}));
@@ -100,20 +100,27 @@ describe('the button catalogues', () => {
 	it('offers the episode browser in the player buttons list, and it can be arranged and hidden', () => {
 		expect(ids(OSD_BUTTONS)).toContain('episodes');
 		// Someone who arranged the row before it existed gets it right after Chapters.
-		const saved = ['chapters', 'subtitles', 'audio', 'castAndCrew', 'quality', 'zoom', 'sleep', 'info'];
-		expect(ids(ordered(OSD_BUTTONS, saved)).slice(0, 3)).toEqual(['chapters', 'episodes', 'subtitles']);
+		const saved = ['favorite', 'chapters', 'subtitles', 'audio', 'castAndCrew', 'quality', 'zoom', 'sleep', 'info'];
+		expect(ids(ordered(OSD_BUTTONS, saved)).slice(1, 4)).toEqual(['chapters', 'episodes', 'subtitles']);
 		// Moved to the end, it stays there.
 		expect(ids(ordered(OSD_BUTTONS, [...saved, 'episodes'])).pop()).toBe('episodes');
 		expect(ids(arrange(OSD_BUTTONS, {hidden: ['episodes']}))).not.toContain('episodes');
 	});
 
 	it('keeps an unplaced button behind its neighbour even when that neighbour is missing from the row', () => {
-		const saved = ['subtitles', 'chapters', 'audio', 'castAndCrew', 'quality', 'zoom', 'sleep', 'info'];
+		const saved = ['favorite', 'subtitles', 'chapters', 'audio', 'castAndCrew', 'quality', 'zoom', 'sleep', 'info'];
 		const row = (list) => ids(arrange(list, {order: saved, catalogue: OSD_BUTTONS}));
 		const withoutChapters = OSD_BUTTONS.filter((b) => b.id !== 'chapters');
-		expect(row(OSD_BUTTONS).slice(0, 3)).toEqual(['subtitles', 'chapters', 'episodes']);
-		expect(row(withoutChapters).slice(0, 2)).toEqual(['subtitles', 'episodes']);
-		expect(row(withoutChapters.filter((b) => b.id !== 'subtitles'))[0]).toBe('episodes');
+		expect(row(OSD_BUTTONS).slice(1, 4)).toEqual(['subtitles', 'chapters', 'episodes']);
+		expect(row(withoutChapters).slice(1, 3)).toEqual(['subtitles', 'episodes']);
+		expect(row(withoutChapters.filter((b) => b.id !== 'subtitles'))[1]).toBe('episodes');
+	});
+
+	it('leads the player buttons with favorite', () => {
+		expect(ids(OSD_BUTTONS)[0]).toBe('favorite');
+		// A row arranged before favorite existed gets it at the front.
+		expect(ids(ordered(OSD_BUTTONS, ['chapters', 'subtitles', 'audio']))[0]).toBe('favorite');
+		expect(ids(arrange(OSD_BUTTONS, {hidden: ['favorite']}))).not.toContain('favorite');
 	});
 
 	it('names the cast and crew button the way Core does, since Core uses cast for Chromecast', () => {
@@ -136,6 +143,22 @@ describe('seerrOnlyRow', () => {
 	it('keeps the trailer, which Seerr hands over with the rest', () => {
 		const row = declare('seerrRequest', 'trailer', 'watched', 'playlist');
 		expect(ids(seerrOnlyRow(row))).toEqual(['seerrRequest', 'trailer']);
+	});
+});
+
+describe('splitSlots', () => {
+	it('lays out a shared slot as its own buttons, in place, and only the ones it offers', () => {
+		const slot = {id: 'seerrManage', parts: [{id: 'seerrManage', when: true}, {id: 'seerrSwapRelease', when: true}]};
+		const arranged = arrange([...declare('trailer'), slot, ...declare('admin')], {order: ['seerrManage', 'trailer', 'admin']});
+		expect(ids(splitSlots(arranged))).toEqual(['seerrManage', 'seerrSwapRelease', 'trailer', 'admin']);
+
+		const swapOnly = {id: 'seerrManage', parts: [{id: 'seerrManage', when: false}, {id: 'seerrSwapRelease', when: true}]};
+		expect(ids(splitSlots([swapOnly, ...declare('admin')]))).toEqual(['seerrSwapRelease', 'admin']);
+	});
+
+	it('hides both when the viewer hides the slot', () => {
+		const slot = {id: 'seerrManage', parts: [{id: 'seerrManage', when: true}, {id: 'seerrSwapRelease', when: true}]};
+		expect(ids(splitSlots(arrange([slot, ...declare('admin')], {hidden: ['seerrManage']})))).toEqual(['admin']);
 	});
 });
 

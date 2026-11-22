@@ -12,9 +12,7 @@ const DEFAULT_PASSTHROUGH_SETTINGS = {
 	ac3Passthrough: true,
 	eac3Passthrough: true,
 	dtsPassthrough: true,
-	dtshdPassthrough: true,
-	truehdPassthrough: true,
-	forceTruehdPassthrough: false
+	dtshdPassthrough: true
 };
 
 const resolvePassthroughSettings = (options = {}) => ({
@@ -68,7 +66,14 @@ const querySoundSettings = async () => {
 	return result?.settings || {};
 };
 
-const getAudioOutputStatus = async () => {
+// A playback request builds capabilities and then the profile, each asking for the sound path, and a set whose
+// avoutput service is missing asks four times before it gives up: over a second before playback is even asked for.
+// Both reads get the request's options object, so they share one answer keyed by it. Any other read asks the TV
+// again, since the sound output can change between playbacks and a stale receiver answer would send lossless audio
+// to the TV speakers.
+const audioOutputQueries = new WeakMap();
+
+const queryAudioOutputPath = async () => {
 	for (let attempt = 0; attempt < 4; attempt++) {
 		const [status, sound] = await Promise.all([queryAudioOutputStatus(), querySoundSettings()]);
 		const merged = {
@@ -82,18 +87,25 @@ const getAudioOutputStatus = async () => {
 	return {};
 };
 
-const applyAudioOutputPath = async (baseCaps) => {
-	const audioOutputStatus = await getAudioOutputStatus();
+const getAudioOutputStatus = (request) => {
+	if (!request || typeof request !== 'object') return queryAudioOutputPath();
+	if (!audioOutputQueries.has(request)) audioOutputQueries.set(request, queryAudioOutputPath());
+	return audioOutputQueries.get(request);
+};
+
+const applyAudioOutputPath = async (baseCaps, request) => {
+	const audioOutputStatus = await getAudioOutputStatus(request);
 	const receiverPassthrough = isLosslessPassthroughOutput(audioOutputStatus);
 
-	const dts = receiverPassthrough
+	const setDts = baseCaps.dtsBase || baseCaps.dts || emptyDtsSupport;
+	// A set without DTS can't pass it through either, which is how LG's 2025 sets are.
+	const dts = receiverPassthrough && (setDts.mkv || setDts.mp4 || setDts.ts)
 		? {mkv: true, mp4: true, ts: true, avi: false}
-		: (baseCaps.dtsBase || baseCaps.dts || emptyDtsSupport);
+		: setDts;
 
 	return {
 		...baseCaps,
 		dts,
-		truehd: receiverPassthrough,
 		dtshd: receiverPassthrough && !!(dts.mkv || dts.mp4 || dts.ts),
 		audioOutputStatus,
 		externalAudioPathActive: receiverPassthrough
@@ -109,8 +121,6 @@ const applyPassthroughSettings = (caps, options = {}) => {
 		...caps,
 		ac3: !!caps.ac3 && !!prefs.ac3Passthrough,
 		eac3: !!caps.eac3 && !!prefs.eac3Passthrough,
-		// The force toggle skips receiver detection for setups the TV misreports
-		truehd: !!prefs.forceTruehdPassthrough || (!!caps.truehd && passthroughAllowed && !!prefs.truehdPassthrough),
 		dts: dtsSupport,
 		dtshd: !!caps.dtshd && passthroughAllowed && !!prefs.dtshdPassthrough
 	};
@@ -186,6 +196,13 @@ const canPlayHevcLevel61 = () => {
 		|| video.canPlayType('video/mp4; codecs="hev1.2.4.L183"').replace(/no/, ''));
 };
 
+const canPlayDts = () => {
+	if (typeof document === 'undefined') return false;
+	const video = document.createElement('video');
+	return !!(video.canPlayType('video/mp4; codecs="dts-"').replace(/no/, '')
+		|| video.canPlayType('video/mp4; codecs="dts+"').replace(/no/, ''));
+};
+
 // DTS support varies by webOS version AND container:
 //   webOS 4/4.5: DTS in AVI + MKV (unconditionally supported)
 //   webOS 5/6/22: DTS in MKV only
@@ -197,14 +214,15 @@ const canPlayHevcLevel61 = () => {
 // supported. We treat the three cases separately:
 //   edidType present + contains 'dts' -> DTS in MKV + MP4 + TS
 //   edidType present + no 'dts'       -> DTS not supported (explicit negative)
-//   edidType absent (null/undefined)  -> unknown; fall back to MKV-only (safe default)
+//   edidType absent (null/undefined)  -> DTS in MKV only when the set's own engine says it plays DTS.
+//     LG's 2025 sets have no DTS at all and refuse the key to apps, so assuming it left them silent.
 //
 // Note on soundbars: When the TV can decode DTS, connecting a non-DTS soundbar causes
 // the TV to decode to 2.0 PCM, losing surround channels. No Luna API exposes this.
 export const getDtsContainerSupport = (webosVersion, rawEdidType = null) => {
 	if (webosVersion >= 23) {
 		if (rawEdidType == null) {
-			return { mkv: true, mp4: false, ts: false, avi: false };
+			return { mkv: canPlayDts(), mp4: false, ts: false, avi: false };
 		}
 		const edidHasDts = rawEdidType.toLowerCase().includes('dts');
 		return {
@@ -224,8 +242,8 @@ export const getDtsContainerSupport = (webosVersion, rawEdidType = null) => {
 
 export const testAc3Support = () => true;
 
-export const getDeviceCapabilities = async () => {
-	if (cachedCapabilities) return applyAudioOutputPath(cachedCapabilities);
+export const getDeviceCapabilities = async (request) => {
+	if (cachedCapabilities) return applyAudioOutputPath(cachedCapabilities, request);
 
 	let deviceInfoData = {};
 	let configData = {};
@@ -325,6 +343,8 @@ export const getDeviceCapabilities = async () => {
 		dtsBase,
 		ac3: testAc3Support(),
 		eac3: true,
+		// LG only sends TrueHD out over eARC from an HDMI input, never from an app, and its player
+		// skips the track and plays another one from the file instead (#668).
 		truehd: false,
 		dtshd: false,
 		// the TV decodes FLAC to LPCM, so it direct plays in a video container
@@ -350,7 +370,7 @@ export const getDeviceCapabilities = async () => {
 	};
 
 	console.log('[deviceProfile] Capabilities:', cachedCapabilities);
-	return applyAudioOutputPath(cachedCapabilities);
+	return applyAudioOutputPath(cachedCapabilities, request);
 };
 
 const buildVideoRangeTypes = (caps) => {
@@ -407,7 +427,6 @@ const buildMp4AudioCodecs = (caps) => {
 	if (dts.mp4 && caps.dtshd) mp4AudioCodecs.push('dts-hd', 'dtshd');
 	if (caps.opus) mp4AudioCodecs.push('opus');
 	if (caps.flac) mp4AudioCodecs.push('flac');
-	if (caps.truehd) mp4AudioCodecs.push('truehd');
 	return mp4AudioCodecs;
 
 }
@@ -430,7 +449,6 @@ const buildTsAudioCodecs = (caps) => {
 	if (dts.ts) tsAudioCodecs.push('dca', 'dts');
 	if (dts.ts && caps.dtshd) tsAudioCodecs.push('dts-hd', 'dtshd');
 	if (caps.opus) tsAudioCodecs.push('opus');
-	if (caps.truehd) tsAudioCodecs.push('truehd');
 	return tsAudioCodecs;
 }
 
@@ -458,7 +476,6 @@ const buildMkvAudioCodecs = (caps) => {
 	if (dts.mkv && caps.dtshd) mkvAudioCodecs.push('dts-hd', 'dtshd');
 	if (caps.opus) mkvAudioCodecs.push('opus');
 	if (caps.flac) mkvAudioCodecs.push('flac');
-	if (caps.truehd) mkvAudioCodecs.push('truehd');
 	return mkvAudioCodecs;
 
 }
@@ -645,14 +662,14 @@ const buildDirectPlayProfiles = (caps) => {
 };
 
 export const getJellyfinDeviceProfile = async (options = {}) => {
-	const baseCaps = await getDeviceCapabilities();
+	const baseCaps = await getDeviceCapabilities(options);
 	const caps = applyPassthroughSettings(baseCaps, options);
 
 	const videoRangeTypes = buildVideoRangeTypes(caps);
 	const directPlayProfiles = buildDirectPlayProfiles(caps);
 
 	const maxStreamingBitrate = 120_000_000;
-	const maxAudioChannels = caps.dolbyAtmos || caps.truehd || caps.dtshd ? '8' : '6';
+	const maxAudioChannels = caps.dolbyAtmos || caps.dtshd ? '8' : '6';
 
 	// fMP4 preserves DV RPU metadata; MPEG-TS strips it. Use fMP4 on webOS 5+.
 	const hlsContainer = caps.nativeHlsFmp4 ? 'mp4' : 'ts';
@@ -860,7 +877,12 @@ export const getJellyfinDeviceProfile = async (options = {}) => {
 		}
 	];
 
+	// Embed covers the SRT tracks inside the file, which the client reads itself, and External
+	// still covers sidecar files.
+	const embeddedTextProfiles = options.embedTextSubtitles ?
+		['srt', 'subrip'].map((Format) => ({Format, Method: 'Embed'})) : [];
 	const subtitleProfiles = [
+		...embeddedTextProfiles,
 		{Format: 'vtt', Method: 'External'},
 		{Format: 'srt', Method: 'External'},
 		{Format: 'ass', Method: 'External'},

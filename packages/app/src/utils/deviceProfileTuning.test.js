@@ -23,6 +23,21 @@ const capped = (width, height) => ([
 	{Condition: 'LessThanEqual', Property: 'Height', Value: String(height), IsRequired: false}
 ]);
 
+const orientedCaps = (long, short) => ([
+	{
+		Type: 'Video',
+		ApplyConditions: [{Condition: 'GreaterThanEqual', Property: 'Width', Value: String(short + 1), IsRequired: false}],
+		Conditions: capped(long, short)
+	},
+	{
+		Type: 'Video',
+		ApplyConditions: [{Condition: 'LessThanEqual', Property: 'Width', Value: String(short), IsRequired: false}],
+		Conditions: [{Condition: 'LessThanEqual', Property: 'Height', Value: String(long), IsRequired: false}]
+	}
+]);
+
+const caps = (tuned) => tuned.CodecProfiles.slice(1);
+
 const fhdPanel = {uhd: false, uhd8K: false};
 const uhdPanel = {uhd: true, uhd8K: false};
 
@@ -59,7 +74,8 @@ describe('applyProfileTuning', () => {
 	it('caps the resolution without touching the subtitles', () => {
 		const tuned = applyProfileTuning(profile(), {maxVideoResolution: 'res1080p'});
 		expect(formats(tuned)).toHaveLength(6);
-		expect(tuned.CodecProfiles[0].Conditions).toEqual(capped(1920, 1080));
+		expect(tuned.CodecProfiles[0]).toEqual(profile().CodecProfiles[0]);
+		expect(caps(tuned)).toEqual(orientedCaps(1920, 1080));
 		expect(tuned.TranscodingProfiles[0].Conditions).toEqual(capped(1920, 1080));
 	});
 
@@ -70,7 +86,7 @@ describe('applyProfileTuning', () => {
 
 	it('caps a 1080p panel when the user asked for no limit', () => {
 		const tuned = applyProfileTuning(profile(), {}, fhdPanel);
-		expect(tuned.CodecProfiles[0].Conditions).toEqual(capped(1920, 1080));
+		expect(caps(tuned)).toEqual(orientedCaps(1920, 1080));
 		expect(tuned.TranscodingProfiles[0].Conditions).toEqual(capped(1920, 1080));
 	});
 
@@ -81,7 +97,7 @@ describe('applyProfileTuning', () => {
 
 	it('lets a 4K panel through to DCI 4K', () => {
 		const tuned = applyProfileTuning(profile(), {}, uhdPanel);
-		expect(tuned.CodecProfiles[0].Conditions).toEqual(capped(4096, 2160));
+		expect(caps(tuned)).toEqual(orientedCaps(4096, 2160));
 	});
 
 	it('leaves an 8K panel uncapped', () => {
@@ -91,17 +107,25 @@ describe('applyProfileTuning', () => {
 
 	it('takes the panel when the chosen resolution is larger than it', () => {
 		const tuned = applyProfileTuning(profile(), {maxVideoResolution: 'res2160p'}, fhdPanel);
-		expect(tuned.CodecProfiles[0].Conditions).toEqual(capped(1920, 1080));
+		expect(caps(tuned)).toEqual(orientedCaps(1920, 1080));
 	});
 
 	it('takes the chosen resolution when it is smaller than the panel', () => {
 		const tuned = applyProfileTuning(profile(), {maxVideoResolution: 'res1080p'}, uhdPanel);
-		expect(tuned.CodecProfiles[0].Conditions).toEqual(capped(1920, 1080));
+		expect(caps(tuned)).toEqual(orientedCaps(1920, 1080));
 	});
 
 	it('has no panel to cap to when nothing was detected', () => {
 		const original = profile();
 		expect(applyProfileTuning(original, {})).toBe(original);
+	});
+
+	// Portrait 4K is 2160 wide by 3840 tall, so a plain height cap of 2160 would send it to a transcode.
+	it('lets a portrait source use the long side for its height', () => {
+		const [landscape, portrait] = caps(applyProfileTuning(profile(), {}, uhdPanel));
+		expect(landscape.ApplyConditions).toEqual([{Condition: 'GreaterThanEqual', Property: 'Width', Value: '2161', IsRequired: false}]);
+		expect(portrait.ApplyConditions).toEqual([{Condition: 'LessThanEqual', Property: 'Width', Value: '2160', IsRequired: false}]);
+		expect(portrait.Conditions).toEqual([{Condition: 'LessThanEqual', Property: 'Height', Value: '4096', IsRequired: false}]);
 	});
 
 	it('keeps both caps on the same transcoding profile', () => {
