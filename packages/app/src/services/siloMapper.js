@@ -654,7 +654,7 @@ const playedPercentage = (position, duration) => {
 };
 
 // Jellyfin's UserData from the places Silo keeps it: user_state on every item, user_data on series, seasons and
-// watch answers, user_rating (1 to 5 stars, so out of 10 here), and the position on a Continue Watching card. Silo only
+// watch answers, user_rating (1 to 10, as it is here), and the position on a Continue Watching card. Silo only
 // knows whether something was watched, not how often.
 const userData = (type, item) => {
 	const state = item.user_state || {};
@@ -674,7 +674,7 @@ const userData = (type, item) => {
 	if (pct != null) out.PlayedPercentage = pct;
 	if (type.isFolder && typeof data.unplayed_count === 'number') out.UnplayedItemCount = int(data.unplayed_count);
 	if (lastPlayed) out.LastPlayedDate = lastPlayed;
-	if (typeof item.user_rating === 'number' && item.user_rating > 0) out.Rating = item.user_rating * 2;
+	if (typeof item.user_rating === 'number' && item.user_rating > 0) out.Rating = item.user_rating;
 	return out;
 };
 

@@ -22,7 +22,7 @@ describe('item mapping', () => {
 			content_id: 'movie-tmdb-1', type: 'movie', title: 'The Hobbit', year: 2012, release_date: '2012-12-14',
 			genres: ['Fantasy'], studios: ['WingNut'], networks: [], content_rating: 'PG-13', rating_tmdb: 7.26,
 			runtime: 169, imdb_id: 'tt0903624', tmdb_id: 49051, poster_url: '/p.webp', backdrop_urls: ['/b0.webp', '/b1.webp'],
-			logo_url: '/l.webp', user_state: {played: false, is_favorite: true}, user_rating: 4,
+			logo_url: '/l.webp', user_state: {played: false, is_favorite: true}, user_rating: 8,
 			videos: [{site: 'YouTube', site_key: 'abc', kind: 'trailer', name: 'Trailer'}],
 			cast: [{person_id: 9, name: 'Second', character: 'B', order: 2}, {person_id: 8, name: 'First', character: 'A', order: 1}],
 			crew: [{person_id: 7, name: 'Peter', job: 'Director'}, {person_id: 6, name: 'Fran', job: 'Executive Producer'}]
@@ -252,12 +252,12 @@ describe('writes', () => {
 		expect(calls).toEqual([
 			'PUT /api/v2/favorites/movie-1',
 			'DELETE /api/v2/watched/episode-x-1-2',
-			'PUT /api/v2/ratings/movie-1 {"rating":4}',
-			'PUT /api/v2/ratings/movie-1 {"rating":1}',
+			'PUT /api/v2/ratings/movie-1 {"rating":7}',
+			'PUT /api/v2/ratings/movie-1 {"rating":2}',
 			'DELETE /api/v2/ratings/movie-1'
 		]);
 		expect(published[0]).toEqual(['movie-1', {IsFavorite: true}]);
-		expect(published[2]).toEqual(['movie-1', {Rating: 8}]);
+		expect(published[2]).toEqual(['movie-1', {Rating: 7}]);
 	});
 
 	test('a genre, studio, collection or library has no favorite on Silo', async () => {
