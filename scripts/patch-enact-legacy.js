@@ -819,6 +819,56 @@ patchFile('@enact/cli/node_modules/babel-preset-enact/index.js', [
 ]);
 
 // ─────────────────────────────────────────────────────────────────────────────
+// PATCH 20: Enact's own object spreads assign instead of defining each key
+//
+// Enact ships its packages already compiled, every file with its own copy of
+// Babel's spread and rest helpers, which on Chrome 38 send each key through
+// the core-js Symbol polyfill. Spottable, WithRef and useScroll alone spent about 0.8 s of a
+// Details page opening on webOS 3. They only spread props and plain objects
+// with no symbol keys or getters, so plain assignment gives the same result.
+// ─────────────────────────────────────────────────────────────────────────────
+console.log('\n[Patch 20] Enact packages: object spread and rest assign properties');
+
+const SPREAD_HELPER = 'function _objectSpread(e) { for (var r = 1; r < arguments.length; r++) { var t = null != arguments[r] ? arguments[r] : {}; r % 2 ? ownKeys(Object(t), !0).forEach(function (r) { _defineProperty(e, r, t[r]); }) : Object.getOwnPropertyDescriptors ? Object.defineProperties(e, Object.getOwnPropertyDescriptors(t)) : ownKeys(Object(t)).forEach(function (r) { Object.defineProperty(e, r, Object.getOwnPropertyDescriptor(t, r)); }); } return e; }';
+const PLAIN_SPREAD = 'function _objectSpread(e) { for (var r = 1; r < arguments.length; r++) { var t = arguments[r]; if (null != t) for (var k in t) if (Object.prototype.hasOwnProperty.call(t, k)) e[k] = t[k]; } return e; }';
+const REST_HELPERS = [
+	'function _objectWithoutProperties(source, excluded) { if (source == null) return {}; var target = _objectWithoutPropertiesLoose(source, excluded); var key, i; if (Object.getOwnPropertySymbols) { var sourceSymbolKeys = Object.getOwnPropertySymbols(source); for (i = 0; i < sourceSymbolKeys.length; i++) { key = sourceSymbolKeys[i]; if (excluded.indexOf(key) >= 0) continue; if (!Object.prototype.propertyIsEnumerable.call(source, key)) continue; target[key] = source[key]; } } return target; }',
+	'function _objectWithoutProperties(e, t) { if (null == e) return {}; var o, r, i = _objectWithoutPropertiesLoose(e, t); if (Object.getOwnPropertySymbols) { var n = Object.getOwnPropertySymbols(e); for (r = 0; r < n.length; r++) o = n[r], -1 === t.indexOf(o) && {}.propertyIsEnumerable.call(e, o) && (i[o] = e[o]); } return i; }'
+];
+const PLAIN_REST = 'function _objectWithoutProperties(e, t) { return _objectWithoutPropertiesLoose(e, t); }';
+
+const enactFiles = (dir) => fs.readdirSync(dir, {withFileTypes: true}).reduce((files, entry) => {
+	const full = path.join(dir, entry.name);
+	if (entry.isDirectory()) return entry.name === 'node_modules' || entry.name === 'tests' ? files : files.concat(enactFiles(full));
+	return entry.name.endsWith('.js') ? files.concat(full) : files;
+}, []);
+
+{
+	const enactDir = path.join(NODE_MODULES, '@enact');
+	let changed = 0;
+	let plain = 0;
+	for (const file of fs.existsSync(enactDir) ? enactFiles(enactDir) : []) {
+		const content = fs.readFileSync(file, 'utf8');
+		let next = content.split(SPREAD_HELPER).join(PLAIN_SPREAD);
+		for (const helper of REST_HELPERS) next = next.split(helper).join(PLAIN_REST);
+		if (next.includes(PLAIN_SPREAD) || next.includes(PLAIN_REST)) plain++;
+		if (next !== content) {
+			fs.writeFileSync(file, next, 'utf8');
+			changed++;
+		}
+	}
+	// The hot paths have to be covered, or a Babel update changed the helper text.
+	['spotlight/Spottable/Spottable.js', 'core/internal/WithRef/WithRef.js', 'sandstone/useScroll/useScroll.js'].forEach((rel) => {
+		const file = path.join(enactDir, rel);
+		if (!fs.existsSync(file) || !fs.readFileSync(file, 'utf8').includes(PLAIN_SPREAD)) {
+			recordFailure('Enact plain spread helper', `@enact/${rel}`, 'helper text not found');
+		}
+	});
+	patchCount += changed;
+	console.log(`  [OK]   ${changed} files patched, ${plain} use the plain helpers`);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Summary
 // ─────────────────────────────────────────────────────────────────────────────
 if (failCount > 0) {
