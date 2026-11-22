@@ -151,7 +151,7 @@ const titleId = (itemId, action) => {
 };
 
 // The app's ratings are out of 10; Silo's are whole numbers from 1 to 10 (shown as half stars).
-export const siloRatingFromScore = (rating) => Math.min(Math.max(Math.round(rating), 1), 10);
+export const toSiloRating = (rating) => Math.min(Math.max(Math.round(rating), 1), 10);
 
 export const createSiloItems = ({call, images, getConfiguration, mediaSources, getUserId, publishUserData}) => {
 	const pager = createSiloPager();
@@ -703,7 +703,7 @@ export const createSiloItems = ({call, images, getConfiguration, mediaSources, g
 
 	const setScore = async (itemId, score, patch) => {
 		await call(`/api/v2/ratings/${titleId(itemId, 'rating')}`, {method: 'PUT', body: {rating: score}});
-		changed(itemId, patch);
+		changed(itemId, {...patch, Rating: score});
 	};
 
 	// Only manual collections the profile made itself can be changed; a library's belong to the library.
@@ -1051,8 +1051,8 @@ export const createSiloItems = ({call, images, getConfiguration, mediaSources, g
 			throw Object.assign(new Error(`Silo saves positions only during playback, not for ${itemId}`), {status: 501});
 		},
 		// Silo has ratings and no likes: a like is 10 and a dislike 2 (one star).
-		setRating: (itemId, likes) => setScore(itemId, likes ? 10 : 2, {Likes: likes, Rating: likes ? 10 : 2}),
-		setNumericRating: (itemId, rating) => setScore(itemId, siloRatingFromScore(rating), {Rating: siloRatingFromScore(rating)}),
+		setRating: (itemId, likes) => setScore(itemId, likes ? 10 : 2, {Likes: likes}),
+		setNumericRating: (itemId, rating) => setScore(itemId, toSiloRating(rating)),
 		clearRating: async (itemId) => {
 			await call(`/api/v2/ratings/${titleId(itemId, 'rating')}`, {method: 'DELETE'});
 			changed(itemId, {Rating: null, Likes: null});

@@ -258,6 +258,25 @@ describe('writes', () => {
 		]);
 		expect(published[0]).toEqual(['movie-1', {IsFavorite: true}]);
 		expect(published[2]).toEqual(['movie-1', {Rating: 7}]);
+		expect(published[3]).toEqual(['movie-1', {Likes: false, Rating: 2}]);
+	});
+
+	test('ratings go to Silo and come back out of 10 as they are', async () => {
+		const {items, calls, published} = setup({
+			'GET /api/v2/ratings': {items: [{item_id: 'movie:heat-1995', rating: 7, rated_at: '2026-01-02T03:04:05.000Z'}]}
+		});
+		await items.setRating('movie-1', true);
+		await items.setNumericRating('movie-1', 7.5);
+		await items.setNumericRating('movie-1', 0);
+		await items.setNumericRating('movie-1', 12);
+		expect(calls).toEqual([
+			'PUT /api/v2/ratings/movie-1 {"rating":10}',
+			'PUT /api/v2/ratings/movie-1 {"rating":8}',
+			'PUT /api/v2/ratings/movie-1 {"rating":1}',
+			'PUT /api/v2/ratings/movie-1 {"rating":10}'
+		]);
+		expect(published[0]).toEqual(['movie-1', {Likes: true, Rating: 10}]);
+		expect((await items.getMyUserRatings()).Items).toEqual([{ItemId: 'movie:heat-1995', Rating: 7}]);
 	});
 
 	test('a genre, studio, collection or library has no favorite on Silo', async () => {
