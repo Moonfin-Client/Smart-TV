@@ -28,12 +28,8 @@ const otherServers = (servers, serverUrl) => {
 // switched on, and the collections of the other signed in servers while multi-server libraries is on
 const findPickableRows = async ({api, serverUrl, servers, settings, rows = []}) => {
 	const lists = [];
-	// A Silo row also has a label in the app's language, shown in the editor and never saved
 	const add = (source, url, request) => lists.push(request.then(
-		(result) => (result?.Items || []).map((item) => {
-			const row = makePickedRow({source, serverUrl: url, itemId: String(item.Id), name: item.Name}, false, 0);
-			return item.Label ? {...row, label: item.Label} : row;
-		}),
+		(result) => (result?.Items || []).map((item) => makePickedRow({source, serverUrl: url, itemId: String(item.Id), name: item.Name}, false, 0)),
 		() => []
 	));
 	if (settings.displayCollectionsRows) {
@@ -53,24 +49,19 @@ const findPickableRows = async ({api, serverUrl, servers, settings, rows = []}) 
 			.map((row) => row.itemId));
 		add('server', serverUrl, api.getServerHomeSections().then((sections) => {
 			const standIns = new Set(typed);
-			return {Items: sections.filter((section) => !standIns.delete(`type:${section.kind}`)).map((section) => ({Id: section.id, Name: section.title, Label: section.label}))};
+			return {Items: sections.filter((section) => !standIns.delete(`type:${section.kind}`)).map((section) => ({Id: section.id, Name: section.title}))};
 		}));
 	}
 	return [].concat(...await Promise.all(lists));
 };
 
-// The editor's copy of the rows, with each found Silo row's label. Labels are taken off again before
-// the rows are saved, since they follow the app's language.
-const withLabels = (rows, found) => {
-	const labels = new Map(found.filter((row) => row.label).map((row) => [row.id.toLowerCase(), row.label]));
-	return labels.size ? rows.map((row) => (labels.has(row.id.toLowerCase()) ? {...row, label: labels.get(row.id.toLowerCase())} : row)) : rows;
+// A Silo row's title in the app's language, for the editor to show. The saved row keeps Silo's title.
+// A section-type row from Moonbase's defaults shows the first section of its type.
+export const serverRowLabel = (sections, serverUrl, row) => {
+	if (row?.source !== 'server' || (row.serverUrl && !isSameServer(row.serverUrl, serverUrl))) return null;
+	const section = sections.find((entry) => entry.id === row.itemId || `type:${entry.kind}` === row.itemId);
+	return section?.label || null;
 };
-const withoutLabels = (rows) => rows.map((row) => {
-	if (!('label' in row)) return row;
-	const saved = {...row};
-	delete saved.label;
-	return saved;
-});
 
 // Swaps the order two entries hold, as new objects so the stored rows aren't changed under the
 // screen before it writes them back
@@ -101,6 +92,8 @@ const useHomeRowsEditor = ({api, serverUrl, servers, settings, updateSetting, up
 	// Turns false once the server answers with no Live TV channels, which hides the Live TV rows.
 	// A failed check keeps the last answer.
 	const [serverHasLiveTv, setServerHasLiveTv] = useState(true);
+	// Silo's own sections as last read, which name Silo rows in the app's language
+	const [serverSections, setServerSections] = useState([]);
 	const openedRef = useRef('');
 	// The rows found in the lists, and the ones among them the layout didn't hold. Those aren't
 	// saved unless they're switched on, so a server with hundreds of collections doesn't fill the
@@ -140,6 +133,10 @@ const useHomeRowsEditor = ({api, serverUrl, servers, settings, updateSetting, up
 			.then((result) => setServerHasLiveTv((result?.Items || []).length > 0))
 			.catch(() => {});
 
+		if (getServerType() === 'silo') {
+			api.getServerHomeSections().then(setServerSections, () => {});
+		}
+
 		// A failed slider read leaves the slider rows alone, rather than reading as Seerr having none
 		// and dropping them all.
 		Promise.all([
@@ -153,14 +150,14 @@ const useHomeRowsEditor = ({api, serverUrl, servers, settings, updateSetting, up
 				if (merged.changed || reconciled.changed) updateSetting('homeRows', withOrder(merged.rows));
 				openedRef.current = editedListKey(merged.rows);
 				foundRef.current = {rows: found, added: new Set(merged.added.map((row) => row.id))};
-				setTempHomeRows(withLabels(withOrder([...merged.rows, ...merged.added]), found));
+				setTempHomeRows(withOrder([...merged.rows, ...merged.added]));
 				setLoading(false);
 			});
 	}, [api, serverUrl, servers, settings, pushView, updateSetting]);
 
 	const commitHomeRows = useCallback(() => {
 		const {added} = foundRef.current;
-		const rows = withOrder(withoutLabels(tempHomeRows.filter((row) => row.enabled || !added.has(row.id))));
+		const rows = withOrder(tempHomeRows.filter((row) => row.enabled || !added.has(row.id)));
 		if (editedListKey(rows) === openedRef.current) return;
 		openedRef.current = editedListKey(rows);
 		const updates = {homeRows: rows};
@@ -212,8 +209,11 @@ const useHomeRowsEditor = ({api, serverUrl, servers, settings, updateSetting, up
 		});
 	}, [settings, serverHasLiveTv, serverUrl, pluginInfo]);
 
+	const rowLabel = useCallback((row) => serverRowLabel(serverSections, serverUrl, row), [serverSections, serverUrl]);
+
 	return {
 		tempHomeRows,
+		rowLabel,
 		loading,
 		serverHasLiveTv,
 		toggleSeerrHomeRow,

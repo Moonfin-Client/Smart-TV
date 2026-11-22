@@ -45,17 +45,21 @@ test('a Silo row shows in the app\'s language and is saved under Silo\'s title',
 	getServerType.mockReturnValue('silo');
 	try {
 		const picked = makePickedRow({source: 'server', serverUrl: SERVER, itemId: 'hg', name: 'Hidden Gems'}, true, 0);
-		const {result, updateSettings} = await openWith([...rows(['resume', true]), picked], {extra: {serverSections: [
+		const typed = makePickedRow({source: 'server', serverUrl: '', itemId: 'type:trending_on_server', name: 'Trending on Server'}, true, 0);
+		const {result, updateSettings} = await openWith([...rows(['resume', true]), picked, typed], {extra: {serverSections: [
 			{id: 'hg', title: 'Hidden Gems', label: 'Pépites cachées', kind: 'hidden_gems'},
 			{id: 'tr', title: 'Trending on Server', label: 'Tendances', kind: 'trending_on_server'}
 		]}});
+		await waitFor(() => expect(result.current.rowLabel(picked)).toBe('Pépites cachées'));
 
-		expect(result.current.tempHomeRows.filter((row) => row.source).map((row) => [row.itemId, row.label])).toEqual([['hg', 'Pépites cachées'], ['tr', 'Tendances']]);
+		// Moonbase's section-type row shows the section it stands for
+		expect(result.current.rowLabel(typed)).toBe('Tendances');
+		expect(result.current.rowLabel(collection('c1', 'Alien'))).toBeNull();
 
-		act(() => result.current.toggleHomeRow(makePickedRow({source: 'server', serverUrl: SERVER, itemId: 'tr', name: 'x'}, false, 0).id));
+		act(() => result.current.toggleHomeRow('resume'));
 		act(() => result.current.commitHomeRows());
 		const saved = updateSettings.mock.calls[0][0].homeRows.filter((row) => row.source);
-		expect(saved.map((row) => [row.itemId, row.name, 'label' in row])).toEqual([['hg', 'Hidden Gems', false], ['tr', 'Trending on Server', false]]);
+		expect(saved.map((row) => row.name)).toEqual(['Hidden Gems', 'Trending on Server']);
 	} finally {
 		getServerType.mockReturnValue('jellyfin');
 	}

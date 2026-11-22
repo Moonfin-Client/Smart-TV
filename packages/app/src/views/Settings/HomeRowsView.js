@@ -35,7 +35,7 @@ const ROW_RENDER_STEP = 60;
 
 const groupSpotlightId = (group) => `homerows-group-${group}`;
 const rowSpotlightId = (item) => `homerow-${item.id}`;
-const rowTitle = (item) => (isPickedRow(item) || isSeerrSliderRow(item) ? item.label || item.name : editorRowName($L(item.name)));
+const rowTitle = (item, rowLabel) => (isPickedRow(item) || isSeerrSliderRow(item) ? rowLabel?.(item) || item.name : editorRowName($L(item.name)));
 
 const GroupRow = ({group, count, open, onToggle}) => (
 	<SpottableDiv className={`${css.listItem} ${css.listItemClean}`} onClick={onToggle} spotlightId={groupSpotlightId(group)}>
@@ -60,6 +60,7 @@ const HomeRowsView = ({
 	serverUrl,
 	servers,
 	tempHomeRows,
+	rowLabel,
 	loading,
 	serverHasLiveTv,
 	pluginInfo,
@@ -118,7 +119,7 @@ const HomeRowsView = ({
 		<ReorderRow
 			key={item.id}
 			spotlightId={rowSpotlightId(item)}
-			title={rowTitle(item)}
+			title={rowTitle(item, rowLabel)}
 			subtitle={rowSubtitle(item)}
 			checkbox
 			enabled
@@ -149,7 +150,7 @@ const HomeRowsView = ({
 						<ReorderRow
 							key={item.id}
 							spotlightId={rowSpotlightId(item)}
-							title={rowTitle(item)}
+							title={rowTitle(item, rowLabel)}
 							subtitle={rowSubtitle(item)}
 							checkbox
 							enabled={false}

@@ -76,6 +76,22 @@ describe('Silo home sections', () => {
 		expect((await landed.readHead(55)).Items).toHaveLength(50);
 		expect(getServerHomeSectionItems).toHaveBeenLastCalledWith('type:hidden_gems', 55);
 	});
+
+	test('take their title in the app\'s language, or keep the saved name', async () => {
+		getServerType.mockReturnValue('silo');
+		const getServerHomeSectionItems = jest.fn(async () => ({Items: [{Id: 'card'}], TotalRecordCount: 1}));
+		const typed = makePickedRow({source: 'server', serverUrl: '', itemId: 'type:hidden_gems', name: 'Hidden Gems'}, true, 0);
+		const gone = makePickedRow({source: 'server', serverUrl: '', itemId: 'gone', name: 'Saved Name'}, true, 1);
+		const getServerHomeSections = jest.fn(async () => [{id: 'hg', title: 'Hidden Gems', label: 'Pépites cachées', kind: 'hidden_gems'}]);
+		const ctx = contextFor([typed, gone], {api: {getServerHomeSectionItems, getServerHomeSections}});
+		await loadDeferredSections(ctx, ctx.enabledPluginSections, jest.fn());
+		expect(ctx.appendRows.mock.calls.map(([[row]]) => row.title).sort()).toEqual(['Pépites cachées', 'Saved Name']);
+
+		getServerHomeSections.mockRejectedValue(new Error('offline'));
+		const offline = contextFor([typed], {api: {getServerHomeSectionItems, getServerHomeSections}});
+		await loadDeferredSections(offline, offline.enabledPluginSections, jest.fn());
+		expect(offline.appendRows.mock.calls[0][0][0].title).toBe('Hidden Gems');
+	});
 });
 
 describe('loadSinceYouWatched', () => {

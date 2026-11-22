@@ -837,7 +837,7 @@ const Settings = ({ onBack, onLibrariesChanged, onRunSetupWizard, onSelectItem, 
 	});
 
 	const {
-		tempHomeRows, loading: homeRowsLoading, serverHasLiveTv,
+		tempHomeRows, rowLabel: homeRowLabel, loading: homeRowsLoading, serverHasLiveTv,
 		toggleSeerrHomeRow, toggleSeerrSlider, openHomeRows, commitHomeRows, resetHomeRows,
 		toggleHomeRow, moveHomeRow
 	} = useHomeRowsEditor({api, serverUrl, servers, settings, updateSetting, updateSettings, pushView, pluginInfo: seerr.pluginInfo});
@@ -1544,6 +1544,7 @@ const Settings = ({ onBack, onLibrariesChanged, onRunSetupWizard, onSelectItem, 
 					serverUrl={serverUrl}
 					servers={servers}
 					tempHomeRows={tempHomeRows}
+					rowLabel={homeRowLabel}
 					loading={homeRowsLoading}
 					serverHasLiveTv={serverHasLiveTv}
 					pluginInfo={seerr.pluginInfo}

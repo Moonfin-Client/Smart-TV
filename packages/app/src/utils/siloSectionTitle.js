@@ -88,5 +88,6 @@ export const siloSectionTitle = ({title, titleKey, titleArgs}) => {
 	const [text, arg] = entry;
 	if (!arg) return text();
 	const value = titleArgs?.[arg];
-	return typeof value === 'string' ? text().replace(`{${arg}}`, value) : title;
+	// split/join, so a $ in the value stays as written and every copy of the placeholder is filled
+	return typeof value === 'string' ? text().split(`{${arg}}`).join(value) : title;
 };

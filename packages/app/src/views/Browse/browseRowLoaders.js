@@ -567,9 +567,9 @@ const pickedRowSource = async (ctx, row) => {
 	return {api: createApiForServer(server.url, server.accessToken, server.userId, server.serverType || 'jellyfin'), server};
 };
 
-// A Silo row's title in the app's language, from Silo's list of rows (kept for a while, so the row's
-// own read already fetched it). The name stored with the pick stays when the list can't be read or
-// no longer has the row.
+// A Silo row's title in the app's language, from Silo's list of rows (kept for a while, so it's read
+// once for the row and its cards). The name stored with the pick stays when the list can't be read
+// or no longer has the row.
 const serverRowTitle = async (api, row) => {
 	try {
 		const section = (await api.getServerHomeSections())
@@ -635,11 +635,14 @@ const fetchPluginSectionRow = async (ctx, row) => {
 			const result = await loadPickedRowItems(ctx, source.api, row, limit);
 			return {...result, Items: tagged(result.Items || [])};
 		};
-		const first = await readHead(PICKED_ROW_LIMIT);
+		const [first, title] = await Promise.all([
+			readHead(PICKED_ROW_LIMIT),
+			row.source === 'server' ? serverRowTitle(source.api, row) : row.name
+		]);
 		if (first.Items.length === 0) return null;
 		return pageableRow({
 			id: row.id,
-			title: row.source === 'server' ? await serverRowTitle(source.api, row) : row.name,
+			title,
 			items: first.Items,
 			type: 'portrait',
 			isPluginRow: true,

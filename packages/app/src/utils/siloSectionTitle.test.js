@@ -12,6 +12,7 @@ describe('siloSectionTitle', () => {
 	test('the row\'s value fills the placeholder after translation', () => {
 		expect(siloSectionTitle({title: 'Top Drama', titleKey: 'home.section.topGenre', titleArgs: {genre: 'Drama'}})).toBe('[Top Drama]');
 		expect(siloSectionTitle({title: 'x', titleKey: 'home.section.recentlyAddedIn', titleArgs: {library: 'Films'}})).toBe('[Recently Added in Films]');
+		expect(siloSectionTitle({title: 'x', titleKey: 'home.section.becauseYouWatchedTitle', titleArgs: {title: "Rock $'n' Roll"}})).toBe("[Because You Watched Rock $'n' Roll]");
 	});
 
 	test('Silo\'s title stays when there is nothing to translate by', () => {
