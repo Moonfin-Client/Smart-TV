@@ -54,6 +54,8 @@ test('a Silo row shows in the app\'s language and is saved under Silo\'s title',
 
 		// Moonbase's section-type row shows the section it stands for
 		expect(result.current.rowLabel(typed)).toBe('Tendances');
+		// also under Moonbase's stock name, which is Silo's title in sentence case
+		expect(result.current.rowLabel({...typed, name: 'Trending on server'})).toBe('Tendances');
 		expect(result.current.rowLabel(collection('c1', 'Alien'))).toBeNull();
 		// unless Moonbase's admin gave it a name of its own
 		expect(result.current.rowLabel({...typed, name: 'Trending worldwide'})).toBeNull();
