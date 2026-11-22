@@ -166,6 +166,17 @@ const handleTileKeyDown = (e) => {
 const requestedByLine = (requester) => $L('Requested by {name}').replace('{name}', requester);
 const requesterName = (request) => request.requestedBy?.displayName || $L('Unknown');
 
+// An admin can remove anyone's failed request, so the confirm says whose it is when it isn't the viewer's.
+const removeMessage = (request, myUserId) => {
+	const title = request?.media?.title || request?.media?.name || $L('Unknown');
+	const by = request?.requestedBy;
+	if (by?.id != null && myUserId != null && by.id !== myUserId) {
+		return $L('The failed request for "{title}" by {name} will be deleted. They can request it again later.')
+			.replace('{title}', () => title).replace('{name}', () => requesterName(request));
+	}
+	return $L('Your failed request for "{title}" will be deleted. You can request it again later.').replace('{title}', () => title);
+};
+
 const TileActionIcon = ({className, path, label, onClick}) => (
 	<SpottableDiv className={`${css.iconBtn} ${className}`} onClick={onClick} aria-label={label}>
 		<svg viewBox="0 0 24 24" aria-hidden="true"><path d={path} /></svg>
@@ -523,7 +534,7 @@ const SeerrRequests = ({onSelectItem, onClose, initialTab = 'requests', backHand
 				const next = prev.map((r) => {
 					const fresh = byId[r.id];
 					if (!fresh) return r;
-					const same = r.status === fresh.status &&
+					const same = r.status === fresh.status && r.canRemove === fresh.canRemove &&
 						r.media?.status === fresh.media?.status &&
 						r.media?.status4k === fresh.media?.status4k &&
 						sameJson(r.media?.downloadStatus, fresh.media?.downloadStatus) &&
@@ -533,6 +544,7 @@ const SeerrRequests = ({onSelectItem, onClose, initialTab = 'requests', backHand
 					return {
 						...r,
 						status: fresh.status,
+						canRemove: fresh.canRemove,
 						media: {
 							...r.media,
 							status: fresh.media?.status,
@@ -556,18 +568,19 @@ const SeerrRequests = ({onSelectItem, onClose, initialTab = 'requests', backHand
 		return () => clearInterval(id);
 	}, [tab, loading, refreshDownloads, watchesAny]);
 
-	// Back closes the thread overlay before the panel pops.
+	// Back closes the thread overlay, or the Remove confirm, before the panel pops.
 	useEffect(() => {
-		if (!backHandlerRef || !activeIssue) return undefined;
+		if (!backHandlerRef || (!activeIssue && !removeTarget)) return undefined;
 		const handler = () => {
-			setActiveIssue(null);
+			if (removeTarget) setRemoveTarget(null);
+			else setActiveIssue(null);
 			return true;
 		};
 		backHandlerRef.current = handler;
 		return () => {
 			if (backHandlerRef.current === handler) backHandlerRef.current = null;
 		};
-	}, [activeIssue, backHandlerRef]);
+	}, [activeIssue, removeTarget, backHandlerRef]);
 
 	const handleSelect = useCallback((request) => {
 		if (onSelectItem && request.media) {
@@ -618,15 +631,17 @@ const SeerrRequests = ({onSelectItem, onClose, initialTab = 'requests', backHand
 		const target = removeTarget;
 		setRemoveTarget(null);
 		if (!target) return;
+		const at = requestsRef.current.findIndex((r) => r.id === target.id);
 		try {
 			await seerrApi.removeFailedRequest(target.id);
 		} catch (err) {
+			// The tile's buttons change with its state, so focus goes back to the tile itself.
 			console.error('[SeerrRequests] Remove failed:', err.message);
-			const fresh = await seerrApi.getRequest(target.id).catch(() => null);
+			const fresh = err.status === 409 ? await seerrApi.getRequest(target.id).catch(() => null) : null;
 			if (fresh) patchRequest(fresh);
+			setTimeout(() => Spotlight.focus(`[data-spotlight-id="request-${Math.max(at, 0)}"]`), 150);
 			return;
 		}
-		const at = requestsRef.current.findIndex((r) => r.id === target.id);
 		const left = requestsRef.current.length - 1;
 		setRequests((prev) => prev.filter((r) => r.id !== target.id));
 		setTimeout(() => {
@@ -846,8 +861,7 @@ const SeerrRequests = ({onSelectItem, onClose, initialTab = 'requests', backHand
 					{label: $L('Remove Request'), onClick: confirmRemove, spotlightId: 'seerr-remove-request-confirm', destructive: true}
 				]}
 			>
-				{$L('Your failed request for "{title}" will be deleted. You can request it again later.')
-					.replace('{title}', () => removeTarget?.media?.title || removeTarget?.media?.name || $L('Unknown'))}
+				{removeMessage(removeTarget, myUserId)}
 			</CoreAlertDialog>
 			{activeIssue && (
 				<SeerrIssueThread

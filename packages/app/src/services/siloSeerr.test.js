@@ -76,12 +76,17 @@ describe('Silo requests in Seerr\'s shapes', () => {
 			'GET /api/v2/requests/status': {requests_enabled: true, remove_failed_supported: true},
 			'GET /api/v2/admin/requests/capabilities': refused(403),
 			'GET /api/v2/requests/mine': {items},
-			'DELETE /api/v2/requests/1': null
+			'DELETE /api/v2/requests/1': null,
+			'DELETE /api/v2/requests/3': refused(404),
+			'DELETE /api/v2/requests/2': refused(409)
 		});
 		const list = await seerr.request('/request?filter=all&take=20&skip=0');
 		expect(list.results.map((r) => r.canRemove)).toEqual([true, false, false]);
 		await seerr.request('/request/1/remove', {method: 'POST'});
 		expect(calls.pop()).toMatchObject({path: '/api/v2/requests/1', method: 'DELETE'});
+		// Already gone is what was asked for; a request that changed is refused.
+		await expect(seerr.request('/request/3/remove', {method: 'POST'})).resolves.toEqual({});
+		await expect(seerr.request('/request/2/remove', {method: 'POST'})).rejects.toMatchObject({status: 409});
 
 		// An older Silo doesn't say it has the route, so nothing offers it.
 		const old = setup({

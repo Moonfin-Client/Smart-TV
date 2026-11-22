@@ -546,10 +546,11 @@ export const createSiloSeerr = ({call, library = null, baseUrl = '', random = Ma
 	// and gets no Remove.
 	const readRemoveFailed = async () => {
 		if (removeFailed != null) return;
+		// Left unknown on a failed read, so the next list read asks again.
 		try {
 			removeFailed = (await get('/requests/status')).remove_failed_supported === true;
 		} catch {
-			removeFailed = false;
+			// asked again next time
 		}
 	};
 
@@ -752,8 +753,16 @@ export const createSiloSeerr = ({call, library = null, baseUrl = '', random = Ma
 			if (id == null) return {};
 			// Seerr deletes a request; Silo cancels it, which keeps its history.
 			if (verb === 'DELETE') return call(`/api/v2/requests/${requestId(id)}/cancel`, {method: 'POST', body: {}});
-			// Silo deletes a failed request that delivered nothing; 409 once it was retried or got a copy.
-			if (verb === 'POST' && parts[2] === 'remove') return call(`/api/v2/requests/${requestId(id)}`, {method: 'DELETE'});
+			// Silo deletes a failed request that delivered nothing; 409 once it was retried or got a copy. A 404 means
+			// it is already gone, which is what was asked for.
+			if (verb === 'POST' && parts[2] === 'remove') {
+				try {
+					return await call(`/api/v2/requests/${requestId(id)}`, {method: 'DELETE'});
+				} catch (err) {
+					if (err.status === 404) return {};
+					throw err;
+				}
+			}
 			if (['approve', 'decline', 'retry'].includes(parts[2])) {
 				return call(`/api/v2/admin/requests/${requestId(id)}/${parts[2]}`, {method: 'POST', body: {}});
 			}
