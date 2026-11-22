@@ -393,6 +393,8 @@ const SeerrRequests = ({onSelectItem, onClose, initialTab = 'requests', backHand
 	const removalsRef = useRef(0);
 	// Removals still waiting on Silo, which may already have dropped the request from its list.
 	const pendingRemovalsRef = useRef(new Set());
+	// Bumped by each full load, so a page read under an older tab or filter is dropped.
+	const loadGenRef = useRef(0);
 	const [issues, setIssues] = useState([]);
 	const [loading, setLoading] = useState(true);
 	const [error, setError] = useState(null);
@@ -466,11 +468,13 @@ const SeerrRequests = ({onSelectItem, onClose, initialTab = 'requests', backHand
 
 	const reload = useCallback(async (activeTab, filter) => {
 		if (!isAuthenticated) return;
+		const gen = ++loadGenRef.current;
 		focusFirstRequestRef.current = activeTab === 'requests';
 		setLoading(true);
 		setError(null);
 		try {
 			const {results, raw} = await loadPage(activeTab, filter, 0);
+			if (gen !== loadGenRef.current) return;
 			if (activeTab === 'requests') {
 				setRequests(results);
 				setQueueLoad((n) => n + 1);
@@ -479,10 +483,11 @@ const SeerrRequests = ({onSelectItem, onClose, initialTab = 'requests', backHand
 			}
 			setHasMore(raw.length >= PAGE_SIZE);
 		} catch (err) {
+			if (gen !== loadGenRef.current) return;
 			console.error('[SeerrRequests] Load failed:', err);
 			setError(err.message || $L('Failed to load requests'));
 		} finally {
-			setLoading(false);
+			if (gen === loadGenRef.current) setLoading(false);
 		}
 	}, [isAuthenticated, loadPage]);
 
@@ -496,6 +501,7 @@ const SeerrRequests = ({onSelectItem, onClose, initialTab = 'requests', backHand
 		const filter = tab === 'requests' ? requestFilter : issueFilter;
 		const current = tab === 'requests' ? requests : issues;
 		const removalsAtStart = removalsRef.current;
+		const gen = loadGenRef.current;
 		const settle = async () => {
 			while (pendingRemovalsRef.current.size) await Promise.all([...pendingRemovalsRef.current]);
 		};
@@ -503,14 +509,19 @@ const SeerrRequests = ({onSelectItem, onClose, initialTab = 'requests', backHand
 			let at = current.length;
 			let {results, raw} = await loadPage(tab, filter, at);
 			// Each removal that finishes meanwhile moves the server's list up by one, past the page that was asked
-			// for. Read again from where the page now starts until no removal moved it during the read.
-			for (let tries = 0; tab === 'requests' && tries < 5; tries++) {
+			// for. Read again from where the page now starts until no removal moved it during the read. If
+			// removals keep moving it, the page is dropped and the next scroll asks again.
+			for (let reads = 1; tab === 'requests'; reads++) {
 				await settle();
+				if (gen !== loadGenRef.current) return;
 				const next = Math.max(current.length - (removalsRef.current - removalsAtStart), 0);
 				if (next === at) break;
+				if (reads >= 6) return;
 				at = next;
 				({results, raw} = await loadPage(tab, filter, at));
 			}
+			// A reload for another tab or filter replaced the list meanwhile.
+			if (gen !== loadGenRef.current) return;
 			const append = (prev) => {
 				const seen = {};
 				prev.forEach((item) => {
@@ -525,6 +536,7 @@ const SeerrRequests = ({onSelectItem, onClose, initialTab = 'requests', backHand
 			}
 			setHasMore(raw.length >= PAGE_SIZE);
 		} catch (err) {
+			if (gen !== loadGenRef.current) return;
 			console.warn('[SeerrRequests] Load more failed:', err.message);
 			setHasMore(false);
 		} finally {
