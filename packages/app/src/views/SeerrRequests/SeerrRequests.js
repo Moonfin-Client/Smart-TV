@@ -391,6 +391,8 @@ const SeerrRequests = ({onSelectItem, onClose, initialTab = 'requests', backHand
 	removeTargetRef.current = removeTarget;
 	// Counts removals, so a page read that was out during one starts again from where the server's list now is.
 	const removalsRef = useRef(0);
+	// Removals still waiting on Silo, which may already have dropped the request from its list.
+	const pendingRemovalsRef = useRef(new Set());
 	const [issues, setIssues] = useState([]);
 	const [loading, setLoading] = useState(true);
 	const [error, setError] = useState(null);
@@ -494,11 +496,21 @@ const SeerrRequests = ({onSelectItem, onClose, initialTab = 'requests', backHand
 		const filter = tab === 'requests' ? requestFilter : issueFilter;
 		const current = tab === 'requests' ? requests : issues;
 		const removalsAtStart = removalsRef.current;
+		const settle = async () => {
+			while (pendingRemovalsRef.current.size) await Promise.all([...pendingRemovalsRef.current]);
+		};
 		try {
-			let {results, raw} = await loadPage(tab, filter, current.length);
-			// Each removal meanwhile moved the server's list up by one, past the page that was asked for.
-			const removedSince = removalsRef.current - removalsAtStart;
-			if (removedSince > 0) ({results, raw} = await loadPage(tab, filter, Math.max(current.length - removedSince, 0)));
+			let at = current.length;
+			let {results, raw} = await loadPage(tab, filter, at);
+			// Each removal that finishes meanwhile moves the server's list up by one, past the page that was asked
+			// for. Read again from where the page now starts until no removal moved it during the read.
+			for (let tries = 0; tab === 'requests' && tries < 5; tries++) {
+				await settle();
+				const next = Math.max(current.length - (removalsRef.current - removalsAtStart), 0);
+				if (next === at) break;
+				at = next;
+				({results, raw} = await loadPage(tab, filter, at));
+			}
 			const append = (prev) => {
 				const seen = {};
 				prev.forEach((item) => {
@@ -643,9 +655,13 @@ const SeerrRequests = ({onSelectItem, onClose, initialTab = 'requests', backHand
 		setRemoveTarget(null);
 		if (!target) return;
 		const at = requestsRef.current.findIndex((r) => r.id === target.id);
+		const removal = seerrApi.removeFailedRequest(target.id);
+		const pending = removal.catch(() => {});
+		pendingRemovalsRef.current.add(pending);
 		try {
-			await seerrApi.removeFailedRequest(target.id);
+			await removal;
 		} catch (err) {
+			pendingRemovalsRef.current.delete(pending);
 			// The tile's buttons change with its state, so focus goes back to the tile itself.
 			console.error('[SeerrRequests] Remove failed:', err.message);
 			const fresh = err.status === 409 ? await seerrApi.getRequest(target.id).catch(() => null) : null;
@@ -656,6 +672,7 @@ const SeerrRequests = ({onSelectItem, onClose, initialTab = 'requests', backHand
 			return;
 		}
 		removalsRef.current += 1;
+		pendingRemovalsRef.current.delete(pending);
 		const left = requestsRef.current.length - 1;
 		setRequests((prev) => prev.filter((r) => r.id !== target.id));
 		setTimeout(() => {
