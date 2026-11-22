@@ -8,6 +8,7 @@ import {useServerMessages} from '../../context/ServerMessagesContext';
 import {MESSAGE_COLORS, hasAction, stripMarkdown} from '../../services/serverMessages';
 import {parseMarkdown} from '../../utils/markdown';
 import {uiLocale} from '../../utils/uiLocale';
+import {localeDate} from '../../utils/dateFormat';
 import MessageMarkdown from './MessageMarkdown';
 import QrLinkDialog from './QrLinkDialog';
 import {MaterialIcon} from '../icons/materialIcons';
@@ -26,7 +27,7 @@ const withAlpha = (hex, alpha) => {
 
 const formatWhen = (iso) => {
 	const date = new Date(iso);
-	return `${date.toLocaleDateString(uiLocale(), {year: 'numeric', month: 'short', day: 'numeric'})} ${date.toLocaleTimeString(uiLocale(), {hour: 'numeric', minute: '2-digit'})}`;
+	return `${localeDate(date, {year: 'numeric', month: 'short', day: 'numeric'})} ${date.toLocaleTimeString(uiLocale(), {hour: 'numeric', minute: '2-digit'})}`;
 };
 
 // Each card opens on its own, and opening one counts as reading it. The button sits under the

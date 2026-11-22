@@ -6,7 +6,7 @@ import SpotlightContainerDecorator from '@enact/spotlight/SpotlightContainerDeco
 import LocaleInfo from 'ilib/lib/LocaleInfo';
 import {useSettings} from '../../context/SettingsContext';
 import {uiLocale} from '../../utils/uiLocale';
-import {formatFullDate, formatShortDayName} from '../../utils/dateFormat';
+import {formatFullDate, formatShortDayName, localeDate} from '../../utils/dateFormat';
 import {BADGE, entriesOn, isoDay, monthGridDays, sameDay, startOfDay} from '../../utils/calendarEntries';
 import {CalendarButton, CalendarTag, calendarDayName, focusedSpotlightId, useCalendarActions, useCalendarLook} from './calendarParts';
 import {AgendaRow, focusInstead, rowId} from './CalendarAgenda';
@@ -192,13 +192,13 @@ const CalendarMonth = ({initialDay, onSelectItem, onSelectSeerrItem, settingsPre
 			<div className={css.month}>
 				<div className={css.monthMain}>
 					<div className={css.headerRow}>
-						<div className={css.title}>{month.toLocaleDateString(locale, {month: 'long', year: 'numeric'})}</div>
+						<div className={css.title}>{localeDate(month, {month: 'long', year: 'numeric'}, locale)}</div>
 						<CalendarButton icon="chevron_left_rounded" compact disabled={!canGoBack} onClick={goBack} spotlightId="calendar-month-prev" aria-label={$L('Previous')} />
 						<CalendarButton icon="chevron_right_rounded" compact disabled={!canGoForward} onClick={goForward} spotlightId="calendar-month-next" aria-label={$L('Next')} />
 						<CalendarButton label={$L('Today')} icon="today_rounded" compact onClick={goToday} spotlightId="calendar-month-today" />
 					</div>
 					<div className={css.weekdays}>
-						{days.slice(0, 7).map((d) => <div key={d.getDay()} className={css.weekday}>{d.toLocaleDateString(locale, {weekday: 'short'})}</div>)}
+						{days.slice(0, 7).map((d) => <div key={d.getDay()} className={css.weekday}>{localeDate(d, {weekday: 'short'}, locale)}</div>)}
 					</div>
 					<CalendarState c={c} empty={false} settingsPreview={settingsPreview}>
 						<div className={css.grid}>

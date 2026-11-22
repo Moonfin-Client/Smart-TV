@@ -1,7 +1,7 @@
 import $L from '@enact/i18n/$L';
 
 import {SHOWS_EVERYTHING} from './detailSectionLayout';
-import {uiLocale} from './uiLocale';
+import {localeDate} from './dateFormat';
 import {parseServerDate} from './serverDate';
 
 // A birthday is a calendar date, not a moment. Both servers send it anchored to
@@ -38,7 +38,7 @@ const sortByOption = (list, sortOption, titleOf, dateOf) => {
 export const formatPersonDate = (value) => {
 	const date = personCalendarDate(value);
 	if (!date) return null;
-	return date.toLocaleDateString(uiLocale(), {year: 'numeric', month: 'long', day: 'numeric'});
+	return localeDate(date, {year: 'numeric', month: 'long', day: 'numeric'});
 };
 
 export const personAge = (birthValue, deathValue) => {

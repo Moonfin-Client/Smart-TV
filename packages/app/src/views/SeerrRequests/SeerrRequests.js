@@ -29,7 +29,7 @@ import {
 } from '../../utils/seerrStatus';
 import {requestDownloadFor, requestIsWatched, requestNotFoundYet, requestQueueView} from '../../utils/seerrArrQueue';
 import useRequestArrQueues, {requestQueueKey} from './useRequestArrQueues';
-import {uiLocale} from '../../utils/uiLocale';
+import {localeDate} from '../../utils/dateFormat';
 import {KEYS} from '../../utils/keys';
 import {getServerType} from '../../services/jellyfinApi';
 import {measureTextWidth} from '../../utils/measureText';
@@ -77,7 +77,7 @@ const formatRequestDate = (iso) => {
 	if (!iso) return '';
 	const parsed = new Date(iso);
 	if (isNaN(parsed.getTime())) return '';
-	return parsed.toLocaleDateString(uiLocale(), {year: 'numeric', month: 'short', day: 'numeric'});
+	return localeDate(parsed, {year: 'numeric', month: 'short', day: 'numeric'});
 };
 
 const PAGE_SIZE = 20;

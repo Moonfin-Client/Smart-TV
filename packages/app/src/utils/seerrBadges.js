@@ -6,6 +6,7 @@ import $L from '@enact/i18n/$L';
 
 import {MEDIA_STATUS, REQUEST_STATUS} from './seerrStatus';
 import {uiLocale} from './uiLocale';
+import {localeDate, localeNumber} from './dateFormat';
 
 export const getSeasonStatusLabel = (status) => {
 	switch (status) {
@@ -88,7 +89,7 @@ export const formatDate = (dateStr) => {
 	if (!dateStr) return null;
 	try {
 		const date = new Date(dateStr);
-		return date.toLocaleDateString(uiLocale(), {year: 'numeric', month: 'long', day: 'numeric'});
+		return localeDate(date, {year: 'numeric', month: 'long', day: 'numeric'});
 	} catch {
 		return null;
 	}
@@ -99,12 +100,12 @@ export const formatDate = (dateStr) => {
 export const formatCurrency = (amount) => {
 	if (!amount || amount <= 0) return null;
 	try {
-		return new Intl.NumberFormat(uiLocale(), {
+		return localeNumber(amount, {
 			style: 'currency',
 			currency: 'USD',
 			minimumFractionDigits: 2,
 			maximumFractionDigits: 2
-		}).format(amount);
+		});
 	} catch {
 		return `$${Math.round(amount).toLocaleString(uiLocale())}.00`;
 	}

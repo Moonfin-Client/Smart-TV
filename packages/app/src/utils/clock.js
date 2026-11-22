@@ -1,4 +1,4 @@
-import {uiLocale} from './uiLocale';
+import {localeDate} from './dateFormat';
 
 // Some sets report the wrong wall clock even with their timezone set correctly, so
 // every time the viewer reads goes through here and can be nudged back into line.
@@ -7,7 +7,7 @@ export const shiftedNow = (offsetHours) => new Date(Date.now() + ((offsetHours |
 
 // Short day label such as Mon, Jan 5, for headings that sit above a set of times.
 export const formatDayLabel = (date) =>
-	date.toLocaleDateString(uiLocale(), {weekday: 'short', month: 'short', day: 'numeric'});
+	localeDate(date, {weekday: 'short', month: 'short', day: 'numeric'});
 
 export const formatClockTime = (date, clockDisplay) => {
 	const hours = date.getHours();
@@ -20,4 +20,4 @@ export const formatClockTime = (date, clockDisplay) => {
 
 // Weekday and time, such as Thu 8:00 PM, in the viewer's clock format.
 export const formatShowingTime = (date, clockDisplay) =>
-	`${date.toLocaleDateString(uiLocale(), {weekday: 'short'})} ${formatClockTime(date, clockDisplay)}`;
+	`${localeDate(date, {weekday: 'short'})} ${formatClockTime(date, clockDisplay)}`;

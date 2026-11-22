@@ -1,7 +1,7 @@
 import $L from '@enact/i18n/$L';
 
 import {parseServerDate} from '../../../utils/serverDate';
-import {uiLocale} from '../../../utils/uiLocale';
+import {localeDate} from '../../../utils/dateFormat';
 import {premiereNeighbour} from '../premiere/premiereRules';
 
 // The drawer's spotlight container, which App brings focus back into.
@@ -44,7 +44,7 @@ export const quickLookFacts = (item, showsSection) => {
 		{label: $L('Writer'), value: first('Writer')},
 		{label: $L('Studio'), value: showsSection('studios') ? item.Studios?.[0]?.Name : null},
 		// A premiere date is midnight UTC, so it's read in UTC to stay on its day west of it.
-		{label: $L('Release Date'), value: released && released.toLocaleDateString(uiLocale(), {year: 'numeric', month: 'short', day: 'numeric', timeZone: 'UTC'})}
+		{label: $L('Release Date'), value: released && localeDate(released, {year: 'numeric', month: 'short', day: 'numeric', timeZone: 'UTC'})}
 	].filter((fact) => fact.value);
 };
 

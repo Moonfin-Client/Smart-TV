@@ -1,5 +1,5 @@
 import {buildQueryString} from './urlCompat';
-import {uiLocale} from './uiLocale';
+import {localeDate} from './dateFormat';
 import {parseServerDate} from './serverDate';
 import {isPlexServer, plexImageUrl} from './plexUrls';
 import {isSiloServer, siloImageUrl} from './siloUrls';
@@ -17,7 +17,7 @@ export const formatDuration = (ticks) => {
 
 export const formatDate = (dateString) => {
 	const date = parseServerDate(dateString);
-	return date ? date.toLocaleDateString(uiLocale()) : '';
+	return date ? localeDate(date) : '';
 };
 
 export const getImageUrl = (serverUrl, itemId, imageType = 'Primary', options = {}) => {

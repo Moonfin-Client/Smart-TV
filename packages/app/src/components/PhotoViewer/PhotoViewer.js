@@ -5,7 +5,7 @@ import {useSettings} from '../../context/SettingsContext';
 import {initVideo, keepScreenOn} from '../../services/video';
 import {getImageUrl} from '../../utils/helpers';
 import {KEYS} from '../../utils/keys';
-import {uiLocale} from '../../utils/uiLocale';
+import {localeDate} from '../../utils/dateFormat';
 import usePhotoSlideshow, {FADE_MS, canStartSlideshow, stepIndex, viewerItems} from './usePhotoSlideshow';
 import css from './PhotoViewer.module.less';
 
@@ -282,7 +282,7 @@ const PhotoViewer = ({item, items, serverUrl, running, videos = true, moreCount 
 	if (!currentPhoto) return null;
 
 	const photoDate = currentPhoto.PremiereDate || currentPhoto.DateCreated;
-	const formattedDate = photoDate ? new Date(photoDate).toLocaleDateString(uiLocale(), {
+	const formattedDate = photoDate ? localeDate(new Date(photoDate), {
 		year: 'numeric', month: 'long', day: 'numeric'
 	}) : null;
 

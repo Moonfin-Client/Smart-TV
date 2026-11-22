@@ -2,6 +2,7 @@ import $L from '@enact/i18n/$L';
 
 import {stripMarkdown} from '../services/serverMessages';
 import {uiLocale} from './uiLocale';
+import {localeDate} from './dateFormat';
 
 // TMDB only reviews films and shows, and the plugin finds them by the TMDB id.
 export const reviewsQuery = (item) => {
@@ -66,7 +67,7 @@ export const reviewRatingLabel = (rating) => {
 export const reviewDateLabel = (iso) => {
 	const date = iso ? new Date(iso) : null;
 	if (!date || isNaN(date.getTime())) return '';
-	return date.toLocaleDateString(uiLocale(), {year: 'numeric', month: 'short', day: 'numeric'});
+	return localeDate(date, {year: 'numeric', month: 'short', day: 'numeric'});
 };
 
 export const reviewMeta = (review) => [reviewRatingLabel(review.rating), reviewDateLabel(review.createdAt)].filter(Boolean).join(' · ');

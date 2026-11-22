@@ -10,7 +10,7 @@ import {
 	DOWNLOAD_STATE, MEDIA_STATUS, downloadSizesLabel, downloadStateLabel, formatDownloadTimeLeft
 } from '../../../utils/seerrStatus';
 import {parseServerDate} from '../../../utils/serverDate';
-import {uiLocale} from '../../../utils/uiLocale';
+import {localeDate} from '../../../utils/dateFormat';
 import {videoLines} from '../nouveau/nouveauFooterFields';
 import {ACTIONS, NAVBAR} from '../stage/stageRules';
 
@@ -279,7 +279,7 @@ export const frostInfo = (item, {showsSection, mediaSource, seerr}) => {
 	const information = group(null, [
 		[$L('Studios'), showsSection('studios') ? names(item.Studios || []) : ''],
 		// A premiere date is midnight UTC, so it's read in UTC to stay on its day west of it.
-		[$L('Release Date'), released && released.toLocaleDateString(uiLocale(), {year: 'numeric', month: 'short', day: 'numeric', timeZone: 'UTC'})],
+		[$L('Release Date'), released && localeDate(released, {year: 'numeric', month: 'short', day: 'numeric', timeZone: 'UTC'})],
 		[$L('Runtime'), item.RunTimeTicks > 0 ? formatDuration(item.RunTimeTicks) : ''],
 		[$L('Parental Rating'), item.OfficialRating],
 		[$L('Director'), crew('Director')],

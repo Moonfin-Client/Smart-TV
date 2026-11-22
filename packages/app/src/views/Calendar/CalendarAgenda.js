@@ -3,8 +3,7 @@ import $L from '@enact/i18n/$L';
 import Spotlight from '@enact/spotlight';
 import Spottable from '@enact/spotlight/Spottable';
 import {useSettings} from '../../context/SettingsContext';
-import {uiLocale} from '../../utils/uiLocale';
-import {formatShortDayName} from '../../utils/dateFormat';
+import {formatShortDayName, localeDate} from '../../utils/dateFormat';
 import {inLibrary, recentOf, sameDay, upcomingOf} from '../../utils/calendarEntries';
 import {
 	CalendarArt, CalendarButton, CalendarTag, artIcon, calendarDayName, calendarSubtitle, calendarTime, calendarWhen, centerIn, focusedSpotlightId, thumbOf, titleButton
@@ -64,7 +63,7 @@ const stayPut = (ev) => {
 	ev.stopPropagation();
 };
 
-const longDate = (day) => day.toLocaleDateString(uiLocale(), {month: 'long', day: 'numeric'});
+const longDate = (day) => localeDate(day, {month: 'long', day: 'numeric'});
 
 const DayHeader = ({day, today, dateFormat, accent, first}) => {
 	const name = calendarDayName(day, today, dateFormat);

@@ -6,7 +6,7 @@ import {
 } from '../services/incompleteRecordings';
 import {formatClockTime} from './clock';
 import {parseServerDate} from './serverDate';
-import {uiLocale} from './uiLocale';
+import {localeDate} from './dateFormat';
 
 const OPTIONS_TIMEOUT_MS = 3000;
 const DAY_MS = 86400000;
@@ -42,8 +42,8 @@ export const laterShowingWhen = (start, clockDisplay, now = new Date()) => {
 	const days = Math.round((dayStart(start) - dayStart(now)) / DAY_MS);
 	if (days <= 0) return formatClockTime(start, clockDisplay);
 	if (days === 1) return $L('Tomorrow');
-	if (days < 7) return start.toLocaleDateString(uiLocale(), {weekday: 'long'});
-	return start.toLocaleDateString(uiLocale(), {month: 'short', day: 'numeric'});
+	if (days < 7) return localeDate(start, {weekday: 'long'});
+	return localeDate(start, {month: 'short', day: 'numeric'});
 };
 
 // Two program descriptions say different things, ignoring case and spacing. A missing one proves

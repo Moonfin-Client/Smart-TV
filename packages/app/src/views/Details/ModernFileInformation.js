@@ -6,7 +6,7 @@ import SpotlightContainerDecorator from '@enact/spotlight/SpotlightContainerDeco
 import {buildDirectPlayReasonItems} from '../../utils/directPlayReasons';
 import {bookFileName, bookFormatLine, fileName, fileSizeLine, videoLines} from './nouveau/nouveauFooterFields';
 import useDetailPlaybackInfo from './useDetailPlaybackInfo';
-import {uiLocale} from '../../utils/uiLocale';
+import {localeDate} from '../../utils/dateFormat';
 import {parseServerDate} from '../../utils/serverDate';
 
 import css from './ModernFileInformation.module.less';
@@ -22,7 +22,7 @@ const COLLAPSED_TRACKS = 2;
 const addedOn = (dateCreated) => {
 	const date = parseServerDate(dateCreated);
 	if (!date) return null;
-	return date.toLocaleDateString(uiLocale(), {year: 'numeric', month: 'short', day: 'numeric'});
+	return localeDate(date, {year: 'numeric', month: 'short', day: 'numeric'});
 };
 
 // The rows are spottable though there's nothing to activate on most of them, since focus is how
