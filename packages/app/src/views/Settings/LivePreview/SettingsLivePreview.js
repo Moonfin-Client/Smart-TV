@@ -1,5 +1,5 @@
 /* eslint-disable react/jsx-no-bind */
-import {Suspense, lazy, useLayoutEffect, useMemo, useRef, useState} from 'react';
+import {Suspense, lazy, memo, useLayoutEffect, useMemo, useRef, useState} from 'react';
 import $L from '@enact/i18n/$L';
 import Spottable from '@enact/spotlight/Spottable';
 import SpotlightContainerDecorator from '@enact/spotlight/SpotlightContainerDecorator';
@@ -110,17 +110,50 @@ const SCENE_LABELS = {
 	library: () => $L('Library')
 };
 
+// The label and scene chips don't change as focus moves down the list, so they skip those renders.
+const PreviewHeader = memo(({scenes, scene, accent, onPickScene, onLeaveChips}) => (
+	<div className={css.header}>
+		<div className={css.heading}>
+			<span className={css.dot} style={{backgroundColor: accent}} />
+			<span className={css.label}>{$L('Live preview')}</span>
+		</div>
+		<ChipRow className={css.chips} spotlightId='preview-scene-chips' onBlur={resetChipRow}>
+			{scenes.map((id, index) => (
+				<Chip
+					key={id}
+					spotlightId={sceneChipId(id)}
+					data-selected={id === scene}
+					className={id === scene ? `${css.chip} ${css.chipSelected}` : css.chip}
+					onFocus={(ev) => {
+						keepInView(ev.currentTarget);
+						onPickScene(id);
+					}}
+					onClick={() => onPickScene(id)}
+					onKeyDown={(ev) => {
+						if (index !== 0 || ev.keyCode !== KEYS.LEFT) return;
+						ev.preventDefault();
+						ev.stopPropagation();
+						onLeaveChips();
+					}}
+				>
+					{SCENE_LABELS[id]()}
+				</Chip>
+			))}
+		</ChipRow>
+	</div>
+));
+
 // Read inside the override, so a picker's option shows before it's saved. [rows] are Home's own,
 // the first of them peeking under the bar while Peek Home Rows is on.
-const MediaBarScene = ({rows}) => {
+const MediaBarScene = memo(({rows}) => {
 	const {settings} = useSettings();
 	return <MediaBarPreview mode={settings.featuredBarStyle || 'moonfin'} rows={rows} />;
-};
+});
 
-const DetailsScene = () => {
+const DetailsScene = memo(() => {
 	const {settings} = useSettings();
 	return <DetailStylePreview variant={settings.detailScreenStyle || 'v9'} />;
-};
+});
 
 // The real seasonal effect as it falls over home, in the effect and density being tried, with its
 // follower on the card the preview holds in focus. Home's own effect behind Settings steps aside
@@ -216,7 +249,9 @@ const SettingsLivePreview = ({scene, row, trying, onPickScene, onLeaveChips, has
 	const books = firstLibrary(memoryCache.libraries, ['books', 'audiobooks']);
 	const focusKey = row ? row.key : null;
 	const library = (focusKey === 'musicLibraryStyle' && music) || (focusKey === 'bookLibraryStyle' && books) || video || music || books;
-	const scenes = SCENES.concat(pluginInfo?.calendarAvailable === true ? ['calendar'] : [], library ? ['library'] : []);
+	const calendarOn = pluginInfo?.calendarAvailable === true;
+	const hasLibrary = Boolean(library);
+	const scenes = useMemo(() => SCENES.concat(calendarOn ? ['calendar'] : [], hasLibrary ? ['library'] : []), [calendarOn, hasLibrary]);
 	const tried = TRIED_KEYS[scene];
 	const overrides = useMemo(() => {
 		if (!trying || (tried && tried.indexOf(trying.key) < 0)) return null;
@@ -235,35 +270,7 @@ const SettingsLivePreview = ({scene, row, trying, onPickScene, onLeaveChips, has
 
 	return (
 		<div className={css.preview}>
-			<div className={css.header}>
-				<div className={css.heading}>
-					<span className={css.dot} style={{backgroundColor: t.accent}} />
-					<span className={css.label}>{$L('Live preview')}</span>
-				</div>
-				<ChipRow className={css.chips} spotlightId='preview-scene-chips' onBlur={resetChipRow}>
-					{scenes.map((id, index) => (
-						<Chip
-							key={id}
-							spotlightId={sceneChipId(id)}
-							data-selected={id === scene}
-							className={id === scene ? `${css.chip} ${css.chipSelected}` : css.chip}
-							onFocus={(ev) => {
-								keepInView(ev.currentTarget);
-								onPickScene(id);
-							}}
-							onClick={() => onPickScene(id)}
-							onKeyDown={(ev) => {
-								if (index !== 0 || ev.keyCode !== KEYS.LEFT) return;
-								ev.preventDefault();
-								ev.stopPropagation();
-								onLeaveChips();
-							}}
-						>
-							{SCENE_LABELS[id]()}
-						</Chip>
-					))}
-				</ChipRow>
-			</div>
+			<PreviewHeader scenes={scenes} scene={scene} accent={t.accent} onPickScene={onPickScene} onLeaveChips={onLeaveChips} />
 			<div ref={frameRef} className={css.frame} style={frameWidth === null ? null : {width: frameWidth}}>
 				<SettingsOverride overrides={overrides}>
 					<SceneView scene={scene} row={row} hasLiveTv={hasLiveTv} library={library} homeRows={rowOptions ? rowOptions.rows : null} />

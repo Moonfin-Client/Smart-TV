@@ -48,7 +48,8 @@ export const adaptItem = (item) => {
 		genres: Array.isArray(item.Genres) ? item.Genres : [],
 		overview: item.Overview || null,
 		communityRating: typeof item.CommunityRating === 'number' ? item.CommunityRating : null,
-		posterUrl: posterId ? getImageUrl(serverUrl, posterId, 'Primary', {maxWidth: 400, quality: 85}) : null,
+		// The mocks never draw a poster bigger than this, and old TVs decode it far faster than a larger one.
+		posterUrl: posterId ? getImageUrl(serverUrl, posterId, 'Primary', {maxHeight: 360, quality: 80}) : null,
 		backdropUrl: backdropId ? getImageUrl(serverUrl, backdropId, 'Backdrop', {maxWidth: 1280, quality: 85}) : null,
 		logoUrl: getLogoUrl(serverUrl, item, {maxWidth: 800, quality: 90}),
 		// What a card's watched indicators read.

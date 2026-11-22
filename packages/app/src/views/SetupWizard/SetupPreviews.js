@@ -5,7 +5,7 @@
 // real screen's proportions. The artwork comes from the viewer's own library,
 // with drawn stand ins until it arrives.
 
-import {Fragment, createContext, lazy, Suspense, useContext, useState, useEffect, useMemo, useRef, useCallback} from 'react';
+import {Fragment, createContext, lazy, memo, Suspense, useContext, useState, useEffect, useMemo, useRef, useCallback} from 'react';
 import $L from '@enact/i18n/$L';
 import SpotlightContainerDecorator from '@enact/spotlight/SpotlightContainerDecorator';
 
@@ -2494,7 +2494,7 @@ export const DetailStylePreview = ({variant}) => {
 // either style, and the backdrop from that card when it has one. [focusCard] holds the first card in
 // focus in Classic rows too, so Focus Border Color has a ring to show on. [atUiScale] draws it at the
 // UI scale being looked at.
-export const SettingsHomePreview = ({railOpen = false, hasLiveTv = false, over = null, rows = null, focusCard = false, atUiScale = false}) => {
+export const SettingsHomePreview = memo(({railOpen = false, hasLiveTv = false, over = null, rows = null, focusCard = false, atUiScale = false}) => {
 	const t = usePreviewPalette();
 	const {user} = useAuth();
 	const {settings} = useSettings();
@@ -2518,7 +2518,7 @@ export const SettingsHomePreview = ({railOpen = false, hasLiveTv = false, over =
 		</>
 	), [position, modern, railOpen, t, user?.Name, hasLiveTv, over, backdrop, blur, fed, rows, focusFirst]);
 	return <LivePreview render={render} fallback={<FallbackNavbar position={position} t={t} />} ownRows={Boolean(rows)} zoom={atUiScale ? settings.uiScale || 1 : 1} />;
-};
+});
 
 // A layer laid out at the window's size and scaled onto the design screen, the way the player's
 // controls are, since the app's own screens size themselves from the window.
@@ -2572,10 +2572,10 @@ const PlayerLoading = () => (
 // intro with its skip prompt up whatever the intro action, outro is the start of the credits,
 // and airDate is the end of an episode the library has nothing after. [hdr] draws the
 // subtitles in their HDR style.
-export const PlayerPreview = ({moment = 'middle', hdr = false}) => {
+export const PlayerPreview = memo(({moment = 'middle', hdr = false}) => {
 	if (moment === 'loading') return <PlayerLoading />;
 	return <PlayerControlsPreview moment={moment} hdr={hdr} />;
-};
+});
 
 const PlayerControlsPreview = ({moment, hdr}) => {
 	const t = usePreviewPalette();
@@ -2686,7 +2686,7 @@ const KEYBOARD_LOOKS = {
 };
 
 // Search with its keyboard open, drawn the way the chosen keyboard style sits on screen.
-export const KeyboardPreview = () => {
+export const KeyboardPreview = memo(() => {
 	const t = usePreviewPalette();
 	const {settings} = useSettings();
 	const items = usePreviewItems();
@@ -2743,6 +2743,6 @@ export const KeyboardPreview = () => {
 			</div>
 		</PreviewScreen>
 	);
-};
+});
 
 export {MIcon as SetupIcon};

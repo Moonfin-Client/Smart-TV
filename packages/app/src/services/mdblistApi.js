@@ -54,15 +54,27 @@ export const getIconUrl = (baseUrl, source, rating) => {
 	return asset(info.iconFile);
 };
 
+// Copying every setting is slow on old TVs and every ratings row asks on each render, so each
+// settings object keeps one copy per surface.
+const ratingSettingsCache = new WeakMap();
+
 /**
  * The settings with a surface's own ratings settings in place of the plain ones, so the
  * rest of the ratings code reads them under the usual names.
  */
 export const ratingSettingsFor = (settings, surface) => {
 	if (!surface || !settings) return settings;
-	const own = {};
-	for (const key of RATING_SETTING_KEYS) own[key] = settings[ratingKey(surface, key)];
-	return {...settings, ...own};
+	let bySurface = ratingSettingsCache.get(settings);
+	if (!bySurface) {
+		bySurface = {};
+		ratingSettingsCache.set(settings, bySurface);
+	}
+	if (!bySurface[surface]) {
+		const own = {};
+		for (const key of RATING_SETTING_KEYS) own[key] = settings[ratingKey(surface, key)];
+		bySurface[surface] = {...settings, ...own};
+	}
+	return bySurface[surface];
 };
 
 /**

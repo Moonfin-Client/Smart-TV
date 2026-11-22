@@ -94,6 +94,12 @@ describe('ratingSettingsFor', () => {
 		});
 	});
 
+	test('keeps one copy per settings object and surface', () => {
+		expect(ratingSettingsFor(settings, 'homeRows')).toBe(ratingSettingsFor(settings, 'homeRows'));
+		expect(ratingSettingsFor(settings, 'mediaBar')).not.toBe(ratingSettingsFor(settings, 'homeRows'));
+		expect(ratingSettingsFor({...settings, homeRowsShowRatingLabels: true}, 'homeRows').showRatingLabels).toBe(true);
+	});
+
 	test('the media bar has no episode ratings of its own', () => {
 		expect(ratingSettingsFor(settings, 'mediaBar').tmdbEpisodeRatingsEnabled).toBeUndefined();
 	});

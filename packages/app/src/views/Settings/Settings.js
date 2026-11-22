@@ -1,4 +1,4 @@
-import {Fragment, Suspense, lazy, useCallback, useState, useEffect, useLayoutEffect, useMemo, useRef} from 'react';
+import {Fragment, Suspense, lazy, memo, useCallback, useState, useEffect, useLayoutEffect, useMemo, useRef} from 'react';
 import {
 	hashPin, isPinShaped, pinMatches, lockoutRemaining, registerFailedAttempt, clearedLockout, tooManyAttempts, KIDS_PIN
 } from '../../utils/pinLockout';
@@ -159,14 +159,14 @@ const Settings = ({ onBack, onLibrariesChanged, onRunSetupWizard, onSelectItem, 
 	// Category labels do not depend on anything but the locale, so they resolve without
 	// the settings context, which is not built until further down. The gate only reads the
 	// settings, which are in hand, and the search index already honours it the same way.
-	const categories = SETTINGS_SCHEMA
+	const categories = useMemo(() => SETTINGS_SCHEMA
 		.filter((category) => !category.when || category.when({settings}))
 		.map((category) => ({
 			id: category.id,
 			label: resolve(category.label),
 			description: resolve(category.description),
 			icon: category.icon
-		}));
+		})), [settings]);
 
 	const [searchQuery, setSearchQuery] = useState('');
 	const [debouncedQuery, setDebouncedQuery] = useState('');
@@ -1775,4 +1775,4 @@ const Settings = ({ onBack, onLibrariesChanged, onRunSetupWizard, onSelectItem, 
 	);
 };
 
-export default Settings;
+export default memo(Settings);
