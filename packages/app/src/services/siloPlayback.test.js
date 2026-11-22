@@ -90,6 +90,14 @@ describe('device profile', () => {
 			CodecProfiles: [...profile.CodecProfiles, {Type: 'VideoAudio', Conditions: [{Condition: 'LessThanEqual', Property: 'AudioChannels', Value: '2'}]}]
 		}, undefined, ceilings).deliveries;
 		for (const name of ['original_http', 'progressive', 'hls']) expect(capped[name].max_channels).toBe(2);
+		// Max Audio Channels 5.1 and 6.1 reach Silo too, so a 7.1 track is converted down to them.
+		for (const value of ['6', '7']) {
+			const surround = siloCapabilitiesFromDeviceProfile({
+				...profile,
+				CodecProfiles: [...profile.CodecProfiles, {Type: 'VideoAudio', Conditions: [{Condition: 'LessThanEqual', Property: 'AudioChannels', Value: value}]}]
+			}, undefined, ceilings).deliveries;
+			for (const name of ['original_http', 'progressive', 'hls']) expect(surround[name].max_channels).toBe(Number(value));
+		}
 
 		// A server without per-codec caps isn't offered the capped codec, so the others still play as they are.
 		const older = siloCapabilitiesFromDeviceProfile(profile, undefined, [], 'mkv').deliveries;
