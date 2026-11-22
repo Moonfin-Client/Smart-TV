@@ -1,4 +1,4 @@
-import {clearBrowseCache, clearMemoryCache, memoryCache, saveBrowseCache} from './browseCache';
+import {clearBrowseCache, clearMemoryCache, loadBrowseCache, memoryCache, saveBrowseCache} from './browseCache';
 
 const mockSaveToStorage = jest.fn();
 const mockRemoveFromStorage = jest.fn();
@@ -104,6 +104,13 @@ describe('saveBrowseCache', () => {
 describe('clearBrowseCache', () => {
 	test('drops the stored rows, so the next load asks the server', async () => {
 		await clearBrowseCache();
+		expect(mockRemoveFromStorage).toHaveBeenCalledWith('browse_cache_v6');
+	});
+});
+
+describe('loadBrowseCache', () => {
+	test('drops rows saved before episodes kept their poster fields, so poster rows are fetched again', async () => {
+		await loadBrowseCache('http://server', 'user');
 		expect(mockRemoveFromStorage).toHaveBeenCalledWith('browse_cache_v5');
 	});
 });
