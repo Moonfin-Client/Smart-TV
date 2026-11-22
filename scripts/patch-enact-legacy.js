@@ -869,6 +869,23 @@ const enactFiles = (dir) => fs.readdirSync(dir, {withFileTypes: true}).reduce((f
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// PATCH 21: $L remembers what it translated
+//
+// Every $L call builds an ilib IString and normalizes its key, about 1 to 3 ms
+// each on webOS 3, and a screen calls it for every label on every render.
+// A language change sets a new resource bundle, which starts a fresh cache.
+// ─────────────────────────────────────────────────────────────────────────────
+console.log('\n[Patch 21] @enact/i18n $L: cache translations per resource bundle');
+
+patchFile('@enact/i18n/$L/$L.js', [
+	{
+		find: 'function $L(str) {\n  return String(toIString(str));\n}',
+		replace: 'var translated = {bundle: null, strings: {}};\nfunction $L(str) {\n  var rb = (0, _resBundle.getResBundle)();\n  if (typeof str !== \'string\' || !rb) return String(toIString(str));\n  if (translated.bundle !== rb) translated = {bundle: rb, strings: Object.create(null)};\n  var hit = translated.strings[str];\n  if (hit === undefined) hit = translated.strings[str] = String((0, _resBundle.getIStringFromBundle)(str, rb));\n  return hit;\n}',
+		description: '$L: cached per resource bundle'
+	}
+]);
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Summary
 // ─────────────────────────────────────────────────────────────────────────────
 if (failCount > 0) {
