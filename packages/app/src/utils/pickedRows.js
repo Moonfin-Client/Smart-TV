@@ -79,3 +79,13 @@ export const pickedRowsFromLegacySections = (sections, serverUrl, firstOrder) =>
 	})
 	.filter((pick) => pick?.itemId)
 	.map((pick, index) => makePickedRow(pick, true, firstOrder + index));
+
+// The Silo section a server row shows, to name it in the app's language. A section-type row from
+// Moonbase's defaults shows the first section of its type, and counts only while it keeps that
+// section's own title: a name the admin gave it stays.
+export const findServerSection = (sections, row) => {
+	const own = sections.find((entry) => entry.id === row.itemId);
+	if (own) return own;
+	const typed = sections.find((entry) => `type:${entry.kind}` === row.itemId);
+	return typed && (!row.name || row.name === typed.title) ? typed : null;
+};

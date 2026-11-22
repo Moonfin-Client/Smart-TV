@@ -4,7 +4,7 @@ import {DEFAULT_HOME_ROWS} from '../../context/SettingsContext';
 import {createApiForServer, getServerType} from '../../services/jellyfinApi';
 import {SEERR_CONFIG_TO_SECTION} from '../../utils/seerrHomeRows';
 import {getGenresIncludeTypes} from '../../utils/homeRowSorting';
-import {isSameServer, isSectionTypeRow, makePickedRow, makeSeerrSliderRow, serverKey} from '../../utils/pickedRows';
+import {findServerSection, isSameServer, isSectionTypeRow, makePickedRow, makeSeerrSliderRow, serverKey} from '../../utils/pickedRows';
 import {loadDiscoverSliders, reconcileSliderRows} from '../../utils/seerrSliders';
 import {isHomeRowVisibleByGates, mergeFoundRows} from './homeSectionsModel';
 import {editedListKey} from './settingsRows';
@@ -56,11 +56,9 @@ const findPickableRows = async ({api, serverUrl, servers, settings, rows = []}) 
 };
 
 // A Silo row's title in the app's language, for the editor to show. The saved row keeps Silo's title.
-// A section-type row from Moonbase's defaults shows the first section of its type.
 export const serverRowLabel = (sections, serverUrl, row) => {
 	if (row?.source !== 'server' || (row.serverUrl && !isSameServer(row.serverUrl, serverUrl))) return null;
-	const section = sections.find((entry) => entry.id === row.itemId || `type:${entry.kind}` === row.itemId);
-	return section?.label || null;
+	return findServerSection(sections, row)?.label || null;
 };
 
 // Swaps the order two entries hold, as new objects so the stored rows aren't changed under the

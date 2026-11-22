@@ -82,10 +82,15 @@ describe('Silo home sections', () => {
 		const getServerHomeSectionItems = jest.fn(async () => ({Items: [{Id: 'card'}], TotalRecordCount: 1}));
 		const typed = makePickedRow({source: 'server', serverUrl: '', itemId: 'type:hidden_gems', name: 'Hidden Gems'}, true, 0);
 		const gone = makePickedRow({source: 'server', serverUrl: '', itemId: 'gone', name: 'Saved Name'}, true, 1);
-		const getServerHomeSections = jest.fn(async () => [{id: 'hg', title: 'Hidden Gems', label: 'Pépites cachées', kind: 'hidden_gems'}]);
-		const ctx = contextFor([typed, gone], {api: {getServerHomeSectionItems, getServerHomeSections}});
+		// Moonbase's admin named this one itself, so the name stays
+		const named = makePickedRow({source: 'server', serverUrl: '', itemId: 'type:trending_discover', name: 'Trending worldwide'}, true, 2);
+		const getServerHomeSections = jest.fn(async () => [
+			{id: 'hg', title: 'Hidden Gems', label: 'Pépites cachées', kind: 'hidden_gems'},
+			{id: 'tw', title: 'Trending This Week', label: 'Tendances de la semaine', kind: 'trending_discover'}
+		]);
+		const ctx = contextFor([typed, gone, named], {api: {getServerHomeSectionItems, getServerHomeSections}});
 		await loadDeferredSections(ctx, ctx.enabledPluginSections, jest.fn());
-		expect(ctx.appendRows.mock.calls.map(([[row]]) => row.title).sort()).toEqual(['Pépites cachées', 'Saved Name']);
+		expect(ctx.appendRows.mock.calls.map(([[row]]) => row.title).sort()).toEqual(['Pépites cachées', 'Saved Name', 'Trending worldwide']);
 
 		getServerHomeSections.mockRejectedValue(new Error('offline'));
 		const offline = contextFor([typed], {api: {getServerHomeSectionItems, getServerHomeSections}});

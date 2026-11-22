@@ -13,7 +13,7 @@ import {FAVORITE_ROW_CONFIGS, getItemGenreNames, stableIndex} from './browseFilt
 import {loadCollectionRowItems} from './collectionRowItems';
 import {apiSortBy, getGenresIncludeTypes, isPlaylistOrder, resolveSortOrder} from '../../utils/homeRowSorting';
 import {collapseLatestTvItems} from '../../utils/latestMediaRowNormalizer';
-import {isPickedRow, isPickedRowShown, isSameServer} from '../../utils/pickedRows';
+import {findServerSection, isPickedRow, isPickedRowShown, isSameServer} from '../../utils/pickedRows';
 import mapBounded from '../../utils/mapBounded';
 import {studioLogoIndex} from '../Details/studioLogos';
 import {studioRowSortBy} from '../../utils/studioRowSort';
@@ -572,8 +572,7 @@ const pickedRowSource = async (ctx, row) => {
 // or no longer has the row.
 const serverRowTitle = async (api, row) => {
 	try {
-		const section = (await api.getServerHomeSections())
-			.find((entry) => entry.id === row.itemId || `type:${entry.kind}` === row.itemId);
+		const section = findServerSection(await api.getServerHomeSections(), row);
 		return section?.label || row.name;
 	} catch (e) {
 		return row.name;
