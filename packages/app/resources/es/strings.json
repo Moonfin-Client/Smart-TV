@@ -1855,7 +1855,7 @@
     "Specials": "Especiales",
     "Spotlight": "Foco",
     "Stage": "Escenario",
-    "Search settings": "Configuración de búsqueda",
+    "Search settings": "Buscar",
     "Seerr Discovery Rows": "Filas de descubrimiento de Seerr",
     "Seerr Settings": "Ajustes de Seerr",
     "Series recording is scheduled, but the guide has no upcoming episodes": "El rodaje de la temporada ha sido especificado, pero la guía no tiene los siguientes episodios",
@@ -2270,5 +2270,18 @@
     "The earliest point anyone here has reached.": "El punto más temprano al que ha llegado cualquiera aquí.",
     "The featured title opened up, with the next few lined up beside it.": "Se abrió el título destacado, con los siguientes alineados a su lado.",
     "The future showing will be recorded.": "La próxima proyección será grabada.",
-    "The host removed you from the party.": "El anfitrión te eliminó de la fiesta."
+    "The host removed you from the party.": "El anfitrión te eliminó de la fiesta.",
+    "The newest 100 songs": "Las 100 canciones más nuevas",
+    "The PIN on the server couldn't be cleared. If it's still set, ask a server administrator to remove it.": "No se pudo borrar el PIN del servidor. Si aún está configurado, pídale a un administrador del servidor que lo elimine.",
+    "The poster up front, with play under it and the details beside it.": "El cartel de la parte delantera, con la obra de teatro debajo y los detalles al lado.",
+    "The server doesn't allow that.": "El servidor no lo permite.",
+    "The server is restarting. Moonbase turns on once it's back.": "El servidor se está reiniciando. Moonbase se activará una vez que vuelva a estar operativo.",
+    "The title centered over a full screen backdrop, with everything else down the page.": "El título se ubicaba en el centro sobre un fondo que ocupaba toda la pantalla, con el resto de la página en la parte inferior.",
+    "There are no collections to show, so Home leaves this row out.": "No hay colecciones para mostrar, por lo que la página de Inicio omite esta fila.",
+    "There's no music to show, so Home leaves these rows out.": "No hay música que mostrar, así que la pagina de Inicio omite estas filas.",
+    "This book can't be read here": "Este libro no se puede leer aquí",
+    "This device": "Este dispositivo",
+    "This device syncs with the profile you pick until you pick another.": "Este dispositivo se sincroniza con el perfil que elijas hasta que selecciones otro.",
+    "Run setup again": "Ejecutar la configuración otra vez",
+    "Manual (choose formats below)": "Manual (seleccione los formatos a continuación)"
 }
