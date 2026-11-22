@@ -69,6 +69,29 @@ describe('Silo requests in Seerr\'s shapes', () => {
 		expect(calls.pop().path).toBe(`/api/v2/requests/${big}/cancel`);
 	});
 
+	test('a failed request that delivered nothing can be removed, where Silo offers it', async () => {
+		const failed = (id, targets) => ({id, media_type: 'movie', tmdb_id: 5, title: 'Film', state: 'failed', outcome: 'failed', targets: targets.map((status) => ({status}))});
+		const items = [failed('1', ['failed']), failed('2', ['completed', 'failed']), {...failed('3', ['queued']), state: 'processing', outcome: 'active'}];
+		const {seerr, calls} = setup({
+			'GET /api/v2/requests/status': {requests_enabled: true, remove_failed_supported: true},
+			'GET /api/v2/admin/requests/capabilities': refused(403),
+			'GET /api/v2/requests/mine': {items},
+			'DELETE /api/v2/requests/1': null
+		});
+		const list = await seerr.request('/request?filter=all&take=20&skip=0');
+		expect(list.results.map((r) => r.canRemove)).toEqual([true, false, false]);
+		await seerr.request('/request/1/remove', {method: 'POST'});
+		expect(calls.pop()).toMatchObject({path: '/api/v2/requests/1', method: 'DELETE'});
+
+		// An older Silo doesn't say it has the route, so nothing offers it.
+		const old = setup({
+			'GET /api/v2/requests/status': {requests_enabled: true},
+			'GET /api/v2/admin/requests/capabilities': refused(403),
+			'GET /api/v2/requests/mine': {items}
+		});
+		expect((await old.seerr.request('/request?filter=all&take=20&skip=0')).results.some((r) => r.canRemove)).toBe(false);
+	});
+
 	test('a request is created with the title Silo needs, from the detail', async () => {
 		const {seerr, calls} = setup({
 			'GET /api/v2/requests/detail/series/5': {tmdb_id: 5, tvdb_id: 7, title: 'Show', year: 2020, poster_path: '/s.jpg'},

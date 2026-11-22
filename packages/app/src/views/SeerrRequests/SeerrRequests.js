@@ -20,6 +20,7 @@ import SeerrMediaTypeBadge from '../../components/seerr/SeerrMediaTypeBadge';
 import SeerrDownloadProgress, {SeerrNotFoundYet} from '../../components/SeerrDownloadProgress';
 import SeerrIssueThread from '../../components/SeerrIssueThread';
 import LoopMarquee from '../../components/LoopMarquee';
+import {CoreAlertDialog} from '../../components/CoreDialog';
 import {
 	REQUEST_STATUS,
 	ISSUE_STATUS,
@@ -134,7 +135,8 @@ const TILE_ACTION_ICONS = {
 	approve: 'M16.59 7.58L10 14.17l-3.59-3.58L5 12l5 5 8-8zM12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8z',
 	decline: 'M12 2C6.47 2 2 6.47 2 12s4.47 10 10 10 10-4.47 10-10S17.53 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm3.59-13L12 10.59 8.41 7 7 8.41 10.59 12 7 15.59 8.41 17 12 13.41 15.59 17 17 15.59 13.41 12 17 8.41z',
 	retry: 'M17.65 6.35C16.2 4.9 14.21 4 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08c-.82 2.33-3.04 4-5.65 4-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z',
-	cancel: 'M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z'
+	cancel: 'M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z',
+	remove: 'M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM8 9h8v10H8V9zm7.5-5l-1-1h-5l-1 1H5v2h14V4z'
 };
 
 // The request either side of a tile in the same row, if there is one.
@@ -211,6 +213,11 @@ const RequestItem = memo(function RequestItem({request, queueResponse, index, ca
 		onAction('cancel', request);
 	}, [request, onAction]);
 
+	const handleRemove = useCallback((e) => {
+		e.stopPropagation();
+		onAction('remove', request);
+	}, [request, onAction]);
+
 	// The title scrolls while the tile or one of its buttons has focus, so only the tile being
 	// looked at moves rather than the whole grid.
 	const [focused, setFocused] = useState(false);
@@ -252,9 +259,10 @@ const RequestItem = memo(function RequestItem({request, queueResponse, index, ca
 						<TileActionIcon className={css.cancelBtn} path={TILE_ACTION_ICONS.cancel} label={$L('Cancel')} onClick={handleCancel} />
 					</div>
 				)}
-				{isFailed && canManage && (
+				{isFailed && (canManage || request.canRemove) && (
 					<div className={css.tileActions}>
-						<TileActionIcon className={css.retryBtn} path={TILE_ACTION_ICONS.retry} label={$L('Retry')} onClick={handleRetry} />
+						{canManage && <TileActionIcon className={css.retryBtn} path={TILE_ACTION_ICONS.retry} label={$L('Retry')} onClick={handleRetry} />}
+						{request.canRemove && <TileActionIcon className={css.declineBtn} path={TILE_ACTION_ICONS.remove} label={$L('Remove Request')} onClick={handleRemove} />}
 					</div>
 				)}
 			</div>
@@ -364,6 +372,10 @@ const SeerrRequests = ({onSelectItem, onClose, initialTab = 'requests', backHand
 	const [requestFilter, setRequestFilter] = useState('all');
 	const [issueFilter, setIssueFilter] = useState('open');
 	const [requests, setRequests] = useState([]);
+	const requestsRef = useRef(requests);
+	requestsRef.current = requests;
+	// The failed Silo request waiting on its Remove confirm.
+	const [removeTarget, setRemoveTarget] = useState(null);
 	const [issues, setIssues] = useState([]);
 	const [loading, setLoading] = useState(true);
 	const [error, setError] = useState(null);
@@ -573,6 +585,10 @@ const SeerrRequests = ({onSelectItem, onClose, initialTab = 'requests', backHand
 	}, []);
 
 	const handleRequestAction = useCallback(async (action, request) => {
+		if (action === 'remove') {
+			setRemoveTarget(request);
+			return;
+		}
 		try {
 			if (action === 'approve') {
 				await seerrApi.approveRequest(request.id);
@@ -594,6 +610,30 @@ const SeerrRequests = ({onSelectItem, onClose, initialTab = 'requests', backHand
 			console.error('[SeerrRequests] Action failed:', action, err.message);
 		}
 	}, [patchRequest]);
+
+	// Deletes a failed Silo request once confirmed. Silo refuses one that was retried or got a copy meanwhile, and the
+	// tile is then read again to show where it stands. The removed tile had focus, so the one now in its place takes it.
+	const closeRemove = useCallback(() => setRemoveTarget(null), []);
+	const confirmRemove = useCallback(async () => {
+		const target = removeTarget;
+		setRemoveTarget(null);
+		if (!target) return;
+		try {
+			await seerrApi.removeFailedRequest(target.id);
+		} catch (err) {
+			console.error('[SeerrRequests] Remove failed:', err.message);
+			const fresh = await seerrApi.getRequest(target.id).catch(() => null);
+			if (fresh) patchRequest(fresh);
+			return;
+		}
+		const at = requestsRef.current.findIndex((r) => r.id === target.id);
+		const left = requestsRef.current.length - 1;
+		setRequests((prev) => prev.filter((r) => r.id !== target.id));
+		setTimeout(() => {
+			if (left > 0) Spotlight.focus(`[data-spotlight-id="request-${Math.min(Math.max(at, 0), left - 1)}"]`);
+			else Spotlight.focus('hub-filters');
+		}, 150);
+	}, [removeTarget, patchRequest]);
 
 	const handleOpenIssue = useCallback((issue) => {
 		setActiveIssue(issue);
@@ -796,6 +836,19 @@ const SeerrRequests = ({onSelectItem, onClose, initialTab = 'requests', backHand
 					{renderContent()}
 				</div>
 			</Column>
+			<CoreAlertDialog
+				open={removeTarget != null}
+				onClose={closeRemove}
+				title={$L('Remove Request')}
+				spotlightId="seerr-remove-request"
+				actions={[
+					{label: $L('Keep'), onClick: closeRemove, spotlightId: 'seerr-remove-request-keep'},
+					{label: $L('Remove Request'), onClick: confirmRemove, spotlightId: 'seerr-remove-request-confirm', destructive: true}
+				]}
+			>
+				{$L('Your failed request for "{title}" will be deleted. You can request it again later.')
+					.replace('{title}', () => removeTarget?.media?.title || removeTarget?.media?.name || $L('Unknown'))}
+			</CoreAlertDialog>
 			{activeIssue && (
 				<SeerrIssueThread
 					issue={activeIssue}
