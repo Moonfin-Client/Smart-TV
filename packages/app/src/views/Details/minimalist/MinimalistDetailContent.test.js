@@ -28,7 +28,7 @@ jest.mock('@enact/spotlight/Spottable', () => {
 });
 jest.mock('@enact/spotlight/SpotlightContainerDecorator', () => {
 	const React = require('react');
-	return (config, tag) => ({spotlightId, spotlightDisabled, ...props}) => React.createElement(tag, {
+	return (config, tag) => ({spotlightId, spotlightDisabled, spotlightRestrict, ...props}) => React.createElement(tag, { // eslint-disable-line no-unused-vars
 		...props, 'data-spotlight-id': spotlightId, 'data-spotlight-container-disabled': spotlightDisabled
 	});
 });
