@@ -126,6 +126,7 @@ const useHomeRowsEditor = ({api, serverUrl, servers, settings, updateSetting, up
 		openedRef.current = editedListKey(rows);
 		foundRef.current = {rows: [], added: new Set()};
 		setTempHomeRows(rows);
+		setServerSections([]);
 		setLoading(true);
 		pushView({ view: 'homeRows', returnFocusTo: 'setting-homeRows' });
 
@@ -133,17 +134,14 @@ const useHomeRowsEditor = ({api, serverUrl, servers, settings, updateSetting, up
 			.then((result) => setServerHasLiveTv((result?.Items || []).length > 0))
 			.catch(() => {});
 
-		if (getServerType() === 'silo') {
-			api.getServerHomeSections().then(setServerSections, () => {});
-		}
-
 		// A failed slider read leaves the slider rows alone, rather than reading as Seerr having none
 		// and dropping them all.
 		Promise.all([
 			findPickableRows({api, serverUrl, servers, settings, rows}).catch(() => []),
-			settings.useMoonfinPlugin ? loadDiscoverSliders({force: true}).catch(() => null) : null
+			settings.useMoonfinPlugin ? loadDiscoverSliders({force: true}).catch(() => null) : null,
+			getServerType() === 'silo' ? api.getServerHomeSections().catch(() => []) : []
 		])
-			.then(([found, sliders]) => {
+			.then(([found, sliders, sections]) => {
 				const reconciled = sliders ? reconcileSliderRows(rows, sliders, serverUrl) : {rows, changed: false};
 				const merged = mergeFoundRows(reconciled.rows, found);
 				// A pick or slider the server dropped or renamed is saved right away, whatever happens to the rest
@@ -151,6 +149,7 @@ const useHomeRowsEditor = ({api, serverUrl, servers, settings, updateSetting, up
 				openedRef.current = editedListKey(merged.rows);
 				foundRef.current = {rows: found, added: new Set(merged.added.map((row) => row.id))};
 				setTempHomeRows(withOrder([...merged.rows, ...merged.added]));
+				setServerSections(sections);
 				setLoading(false);
 			});
 	}, [api, serverUrl, servers, settings, pushView, updateSetting]);
