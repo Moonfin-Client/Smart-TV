@@ -79,3 +79,116 @@
 		transform: translateX(100%);
 	}
 }
+
+// The live preview layout fills the screen: the category pill across the top, the
+// settings list on the left and the preview on the right. It's held to the screen's width,
+// since the pill row would otherwise stretch it past the edge at bigger UI scales and push
+// the chips and search off screen.
+.livePanel {
+	position: relative;
+	flex: 1 1 auto;
+	min-width: 0;
+	height: 100%;
+	display: flex;
+	flex-direction: column;
+	padding: (20 * @dp) (32 * @dp) (24 * @dp);
+	box-sizing: border-box;
+	background: #101010;
+	animation: settingsScrimIn 220ms ease;
+}
+
+.closing .livePanel {
+	animation: settingsScrimOut 220ms ease forwards;
+}
+
+:global(.perf-low) .livePanel {
+	animation: none;
+}
+
+.liveTop {
+	display: flex;
+	align-items: center;
+	height: (56 * @dp);
+	flex-shrink: 0;
+}
+
+.liveTitle {
+	margin-right: (24 * @dp);
+	font-size: (24 * @dp);
+	font-weight: 600;
+	color: #FFFFFF;
+	white-space: nowrap;
+}
+
+// The auto margins center the pill while it fits and start it at the left once it doesn't, so
+// the first category shows and a focused one scrolls into view.
+.pillWrap {
+	flex: 1 1 auto;
+	min-width: 0;
+	display: flex;
+	overflow: hidden;
+}
+
+.pill {
+	margin: 0 auto;
+	display: flex;
+	flex-shrink: 0;
+	padding: (5 * @dp);
+	border-radius: (999 * @dp);
+	background: rgba(255, 255, 255, 0.08);
+}
+
+.pillItem {
+	margin-left: (2 * @dp);
+	padding: (8 * @dp) (16 * @dp);
+	border-radius: (999 * @dp);
+	font-size: (15 * @dp);
+	font-weight: 600;
+	color: rgba(255, 255, 255, 0.78);
+	white-space: nowrap;
+
+	&:first-child {
+		margin-left: 0;
+	}
+
+	&:focus {
+		background-color: #FFFFFF !important;
+		color: #000000;
+	}
+}
+
+.pillItemSelected {
+	color: #FFFFFF;
+}
+
+// The search field gives up its width well before the pill does, down to a usable floor.
+.searchSlot {
+	width: (300 * @dp);
+	min-width: (180 * @dp);
+	flex-shrink: 100;
+	margin-left: (16 * @dp);
+}
+
+.liveBody {
+	flex: 1 1 auto;
+	min-height: 0;
+	display: flex;
+	margin-top: (18 * @dp);
+}
+
+.listColumn {
+	position: relative;
+	width: (440 * @dp);
+	flex-shrink: 0;
+	border-radius: (20 * @dp);
+	overflow: hidden;
+	background: #161616;
+}
+
+.previewColumn {
+	flex: 1 1 auto;
+	min-width: 0;
+	margin-left: (24 * @dp);
+	display: flex;
+	flex-direction: column;
+}

@@ -59,7 +59,7 @@ export const initTizenAPI = async () => {
  * - Dolby Atmos: Not documented in Samsung audio specs
  * - DD+ (EAC3): Limited to 5.1 channels
  * - VP9: UHD models from 2018+, ALL models (incl FHD) from 2021+ (Tizen 6+)
- * - AV1: 2020+ (Tizen 5.5+) all tiers; WebM container for most, general containers on 8K Premium 2022+
+ * - AV1: ALL models from 2021+ (Tizen 6+), 2020 needs the model year this fallback doesnt have
  */
 const getDefaultCapabilities = () => {
 	const tizenVersion = getTizenVersion();
@@ -72,7 +72,7 @@ const getDefaultCapabilities = () => {
 		dolbyVision: false, // Detect via avinfo API at runtime, not by version
 		dolbyAtmos: false, // Not documented in Samsung audio specifications
 		hevc: true,
-		av1: tizenVersion >= 5.5,
+		av1: tizenVersion >= 6,
 		vp9: tizenVersion >= 4,
 		ac3: true,
 		eac3: true,
@@ -139,7 +139,7 @@ export const getMediaCapabilities = async () => {
 export const getSupportedAudioCodecs = (capabilities, _container, passthroughOptions = {}) => {
 	const passthrough = resolvePassthroughSettings(passthroughOptions);
 	const passthroughAllowed = passthrough.passthroughEnabled;
-	const codecs = ['aac', 'mp3', 'flac', 'vorbis', 'pcm', 'wav'];
+	const codecs = ['aac', 'mp3', 'flac', 'vorbis', 'pcm', 'wav', 'pcm_s16le'];
 	// Left alone by the passthrough settings, same as the device profile
 	if (capabilities.ac3) codecs.push('ac3');
 	if (capabilities.eac3) codecs.push('eac3');
@@ -165,6 +165,15 @@ export const isAudioStreamPlayable = (stream, capabilities, passthroughOptions =
 	if (!stream) return false;
 	const codec = (stream.Codec || '').toLowerCase();
 	if (!codec) return true;
+	// Samsung doesn't document LPCM limits, so only the 16-bit stereo at up to 48 kHz that played on an S95B
+	// skips conversion.
+	if (codec === 'pcm') {
+		// Plex reports the PCM format separately from the codec alias.
+		const profile = (stream.Profile || '').toLowerCase();
+		if (profile && profile !== 'pcm_s16le') return false;
+		if (stream.BitDepth != null && Number(stream.BitDepth) !== 16) return false;
+	}
+	if ((codec === 'pcm_s16le' || codec === 'pcm') && ((stream.Channels || 0) > 2 || (stream.SampleRate || 0) > 48000)) return false;
 	if (DTS_FAMILY_CODECS.includes(codec)) return false;
 	if ((codec === 'truehd' || codec === 'mlp') && streamHasAtmos(stream)) return false;
 	const supported = getSupportedAudioCodecs(capabilities, '', passthroughOptions);
@@ -194,7 +203,7 @@ export const getPlayMethod = (mediaSource, capabilities, _options, passthroughOp
 	const videoStream = mediaSource.MediaStreams?.find(s => s.Type === 'Video');
 
 	const videoCodec = (videoStream?.Codec || '').toLowerCase();
-	const supportedVideoCodecs = ['h264', 'avc'];
+	const supportedVideoCodecs = ['h264', 'avc', 'mpeg2video'];
 	if (capabilities.hevc) supportedVideoCodecs.push('hevc', 'h265', 'hev1', 'hvc1');
 	if (capabilities.av1) supportedVideoCodecs.push('av1');
 	if (capabilities.vp9) supportedVideoCodecs.push('vp9');
@@ -230,10 +239,13 @@ export const getPlayMethod = (mediaSource, capabilities, _options, passthroughOp
 	const videoOk = !videoCodec || supportedVideoCodecs.includes(videoCodec);
 	const audioOk = defaultPlayable;
 	const containerOk = !container || supportedContainers.includes(container);
+	// Jellyfin can report MP4's ffprobe format list as its first alias, mov.
+	// Match the MP4 codec rules already advertised in our server profile.
+	const codecContainer = container === 'mov' ? 'mp4' : container;
 
 	// Samsung docs: "HEVC: Supported only for MKV/MP4/TS containers"
 	const hevcContainerOk = videoCodec === 'hevc' || videoCodec === 'h265' || videoCodec === 'hev1' || videoCodec === 'hvc1'
-		? ['mp4', 'mkv', 'matroska', 'ts', 'mpegts', 'm4v'].includes(container)
+		? ['mp4', 'mkv', 'matroska', 'ts', 'mpegts', 'm4v'].includes(codecContainer)
 		: true;
 
 	// VP9 container support:
@@ -241,7 +253,7 @@ export const getPlayMethod = (mediaSource, capabilities, _options, passthroughOp
 	// decoder is container agnostic and Tizen's media framework demuxes
 	// MKV/MP4/WebM equally well for VP9 content.
 	const vp9ContainerOk = videoCodec === 'vp9'
-		? ['webm', 'mkv', 'matroska', 'mp4', 'm4v'].includes(container)
+		? ['webm', 'mkv', 'matroska', 'mp4', 'm4v'].includes(codecContainer)
 		: true;
 
 	// AV1 container support:
@@ -249,7 +261,7 @@ export const getPlayMethod = (mediaSource, capabilities, _options, passthroughOp
 	// 8K Premium 2022+ models additionally support TS/AVI containers.
 	const av1GeneralContainers = capabilities.uhd8K && capabilities.tizenVersion >= 6.5;
 	const av1ContainerOk = videoCodec === 'av1'
-		? (['webm', 'mkv', 'matroska', 'mp4', 'm4v'].includes(container) ||
+		? (['webm', 'mkv', 'matroska', 'mp4', 'm4v'].includes(codecContainer) ||
 			(av1GeneralContainers && ['ts', 'mpegts', 'avi'].includes(container)))
 		: true;
 
@@ -257,7 +269,10 @@ export const getPlayMethod = (mediaSource, capabilities, _options, passthroughOp
 	const videoRangeType = videoRangeTypeOf(videoStream);
 	if (videoRangeType) {
 		const rangeType = videoRangeType.toUpperCase();
-		if (rangeType.includes('DOVIWITHEL')) {
+		if (rangeType === 'DOVIINVALID') {
+			// the profile only offers DOVIInvalid with HDR10, so this has to agree with it
+			hdrOk = capabilities.hdr10;
+		} else if (rangeType.includes('DOVIWITHEL')) {
 			// profile 7 carries an enhancement layer that freezes the picture on a
 			// panel without Dolby Vision, so it goes through the server's remux
 			hdrOk = capabilities.dolbyVision;
@@ -468,20 +483,19 @@ export const avplayOpen = (url) => {
 /**
  * Set hardware buffering thresholds. Must be called in IDLE, between open and prepare.
  * Falls back through the older byte based APIs on firmware that lacks setBufferingParam.
- * Never throws so it cant abort an open sequence.
+ * Never throws so it cant abort an open sequence. Returns what was set, or null.
  */
 export const avplaySetBufferingParams = (opts = {}) => {
-	if (!isAVPlayAvailable) return false;
+	if (!isAVPlayAvailable) return null;
 	// Samsung docs set 4 seconds as the minimum accepted value
 	const initialSeconds = Math.max(4, opts.initialSeconds ?? 6);
 	const resumeSeconds = Math.max(4, opts.resumeSeconds ?? 4);
-	let applied = false;
+	let applied = null;
 
 	try {
 		webapis.avplay.setBufferingParam('PLAYER_BUFFER_FOR_PLAY', 'PLAYER_BUFFER_SIZE_IN_SECOND', initialSeconds);
 		webapis.avplay.setBufferingParam('PLAYER_BUFFER_FOR_RESUME', 'PLAYER_BUFFER_SIZE_IN_SECOND', resumeSeconds);
-		applied = true;
-		console.log(`[tizenVideo] Buffering params set: play=${initialSeconds}s resume=${resumeSeconds}s`);
+		applied = `${initialSeconds} s to play, ${resumeSeconds} s to resume`;
 	} catch (e) {
 		console.warn('[tizenVideo] setBufferingParam unavailable:', e.message);
 	}
@@ -490,12 +504,11 @@ export const avplaySetBufferingParams = (opts = {}) => {
 		const bytes = Math.max(15 * 1024 * 1024, Math.floor(((opts.bitrate || 0) / 8) * initialSeconds));
 		try {
 			webapis.avplay.setBufferSize(bytes);
-			applied = true;
-			console.log(`[tizenVideo] Buffer size set: ${bytes} bytes`);
+			applied = `${bytes} bytes`;
 		} catch (e) {
 			try {
 				webapis.avplay.setStreamingProperty('SET_BUFFER_SIZE', String(initialSeconds));
-				applied = true;
+				applied = `${initialSeconds} s`;
 			} catch (e2) {
 				console.warn('[tizenVideo] No buffering configuration supported on this firmware');
 			}
@@ -563,6 +576,8 @@ export const avplaySuspend = () => {
 	}
 };
 
+const RESTORE_TIMEOUT_MS = 10000;
+
 export const avplayRestore = (url, resumeMs = 0) => {
 	return new Promise((resolve) => {
 		if (!isAVPlayAvailable) {
@@ -572,8 +587,14 @@ export const avplayRestore = (url, resumeMs = 0) => {
 		resetSeekState();
 		const timeMs = Math.max(0, Math.floor(resumeMs));
 		if (typeof webapis.avplay.restoreAsync === 'function') {
+			// A restore that can't reach its stream calls neither callback and leaves the player idle
+			const timer = setTimeout(() => resolve(false), RESTORE_TIMEOUT_MS);
+			const settle = (ok) => {
+				clearTimeout(timer);
+				resolve(ok);
+			};
 			try {
-				webapis.avplay.restoreAsync(url, timeMs, true, () => resolve(true), () => resolve(false));
+				webapis.avplay.restoreAsync(url, timeMs, true, () => settle(true), () => settle(false));
 				return;
 			} catch (e) {
 				console.warn('[tizenVideo] restoreAsync failed, trying restore:', e.message);
@@ -973,6 +994,15 @@ export const avplayGetLiveRange = () => {
 	}
 };
 
+export const avplayGetBandwidth = () => {
+	if (!isAVPlayAvailable) return null;
+	try {
+		return webapis.avplay.getStreamingProperty('CURRENT_BANDWIDTH') || null;
+	} catch (e) {
+		return null;
+	}
+};
+
 export const avplaySetStreamingProperty = (property, value) => {
 	if (!isAVPlayAvailable) return;
 	try {
@@ -1157,6 +1187,7 @@ export default {
 	avplayGetCurrentTime,
 	avplayGetDuration,
 	avplayGetLiveRange,
+	avplayGetBandwidth,
 	avplayGetState,
 	avplaySetListener,
 	avplaySetSpeed,

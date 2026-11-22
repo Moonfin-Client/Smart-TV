@@ -3,6 +3,7 @@ import {
 	driftMs,
 	expectedPositionTicks,
 	needsSeek,
+	partyHoldBackMs,
 	seekLanded,
 	TICKS_PER_MS
 } from './syncDrift';
@@ -77,6 +78,27 @@ describe('needsSeek', () => {
 
 	test('seeks when there is no target to compare', () => {
 		expect(needsSeek(ticks(10000), null)).toBe(true);
+	});
+
+	test('takes a wider tolerance when asked', () => {
+		expect(needsSeek(ticks(24100), ticks(23800), 1000)).toBe(false);
+		expect(needsSeek(ticks(25000), ticks(23800), 1000)).toBe(true);
+	});
+});
+
+describe('partyHoldBackMs', () => {
+	test('holds back by the gap when ahead, within reason', () => {
+		expect(partyHoldBackMs(ticks(50429), ticks(49372))).toBe(1057);
+		expect(partyHoldBackMs(ticks(24100), ticks(23800))).toBe(300);
+		expect(partyHoldBackMs(ticks(23900), ticks(23800))).toBe(0);
+		expect(partyHoldBackMs(ticks(23000), ticks(23800))).toBe(0);
+		expect(partyHoldBackMs(ticks(40000), ticks(23800))).toBe(0);
+		expect(partyHoldBackMs(null, ticks(23800))).toBe(0);
+	});
+
+	test('a seek that lands past the room while it plays holds back the same way', () => {
+		expect(partyHoldBackMs(ticks(211750), ticks(207000))).toBe(4750);
+		expect(partyHoldBackMs(ticks(146112), ticks(145090))).toBe(1022);
 	});
 });
 

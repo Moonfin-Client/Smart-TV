@@ -11,7 +11,8 @@ import css from './Screensaver.module.less';
 const BOUNCE_MARGIN = 20;
 const BACKDROP_INTERVAL = 30000;
 const BACKDROP_BATCH_SIZE = 60;
-const RUNNER_BASE_SIZE = 96;
+export const RUNNER_BASE_SIZE = 96;
+export const CLOCK_FONT_SIZE = 32;
 
 const SORT_FIELDS = ['DateCreated', 'CommunityRating'];
 const SORT_ORDERS = ['Descending', 'Ascending'];
@@ -21,7 +22,7 @@ const ITEM_FIELDS = 'ImageTags,BackdropImageTags,ParentBackdropItemId,ParentBack
 
 const RATING_MAP = {0: 'G', 7: 'PG', 13: 'PG-13', 17: 'R', 18: 'NC-17'};
 
-const COMPONENT_SIZE = {
+export const COMPONENT_SIZE = {
 	moonfinLogo: {width: 320, height: 140},
 	clock: {width: 200, height: 56},
 	runner: {width: 120, height: 120}
@@ -308,7 +309,7 @@ const Screensaver = ({
 		}
 		if (component === 'clock') {
 			return (
-				<div className={css.componentClock} style={{fontSize: Math.round(32 * scale) + 'px', opacity: clockAlpha}}>
+				<div className={css.componentClock} style={{fontSize: Math.round(CLOCK_FONT_SIZE * scale) + 'px', opacity: clockAlpha}}>
 					{clockText}
 				</div>
 			);

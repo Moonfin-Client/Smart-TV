@@ -87,6 +87,7 @@ const AudioMode = ({
 			<AddToPlaylistModal
 				open={playlistOpen}
 				itemId={item?.Id}
+				item={item}
 				api={itemApi}
 				onClose={onClosePlaylist}
 				onSuccess={showToast}

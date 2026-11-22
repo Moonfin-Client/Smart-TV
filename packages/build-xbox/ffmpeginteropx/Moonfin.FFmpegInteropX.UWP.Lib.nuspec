@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<package xmlns="http://schemas.microsoft.com/packaging/2010/07/nuspec.xsd">
+  <metadata>
+    <id>Moonfin.FFmpegInteropX.UWP.Lib</id>
+    <version>$version$</version>
+    <description>FFmpegInteropX 2.1.0 for UWP x64, built with Moonfin's Dolby Vision and passthrough patch against FFmpegInteropX.UWP.FFmpeg 8.1.2.</description>
+    <authors>FFmpegInteropX, Moonfin</authors>
+    <projectUrl>https://github.com/ffmpeginteropx/FFmpegInteropX</projectUrl>
+    <requireLicenseAcceptance>false</requireLicenseAcceptance>
+    <license type="expression">Apache-2.0</license>
+    <dependencies>
+      <group targetFramework="uap10.0.17763">
+        <dependency id="FFmpegInteropX.UWP.FFmpeg" version="[8.1.2]" />
+      </group>
+    </dependencies>
+  </metadata>
+  <files>
+    <file src="$out$\FFmpegInteropX.winmd" target="lib\uap10" />
+    <file src="$out$\FFmpegInteropX.dll" target="runtimes\win-x64\native" />
+    <file src="Moonfin.FFmpegInteropX.UWP.Lib.targets" target="build\native" />
+    <file src="$source$\LICENSE" target="LICENSE" />
+  </files>
+</package>

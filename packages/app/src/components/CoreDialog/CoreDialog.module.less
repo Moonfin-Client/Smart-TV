@@ -1,0 +1,233 @@
+@import '../../styles/mixins.less';
+
+@accent-rgb: var(--theme-accent-rgb, 0, 164, 220);
+
+.scrim {
+	position: fixed;
+	top: 0;
+	left: 0;
+	right: 0;
+	bottom: 0;
+	z-index: 2000;
+	display: -webkit-box;
+	display: -webkit-flex;
+	display: flex;
+	-webkit-box-align: center;
+	-webkit-align-items: center;
+	align-items: center;
+	-webkit-box-pack: center;
+	-webkit-justify-content: center;
+	justify-content: center;
+	padding: (24 * @dp) (40 * @dp);
+	box-sizing: border-box;
+	background: rgba(0, 0, 0, 0.54);
+}
+
+.panel {
+	display: -webkit-box;
+	display: -webkit-flex;
+	display: flex;
+	-webkit-box-orient: vertical;
+	-webkit-flex-direction: column;
+	flex-direction: column;
+	box-sizing: border-box;
+	width: 100%;
+	min-width: (340 * @dp);
+	max-width: (440 * @dp);
+	max-height: 100%;
+	padding: (20 * @dp) 0;
+	border: (1 * @dp) solid rgba(142, 200, 240, 0.33);
+	border-radius: (20 * @dp);
+	background: rgba(var(--theme-surface-rgb, 26, 26, 26), 0.9);
+	color: #fff;
+	font-family: 'Roboto', 'Sandstone', sans-serif;
+	line-height: 1.17;
+	text-align: left;
+}
+
+.title {
+	-webkit-flex-shrink: 0;
+	flex-shrink: 0;
+	margin: 0;
+	padding: 0 (24 * @dp) (12 * @dp);
+	font-size: (20 * @dp);
+	font-weight: 600;
+	color: #fff;
+}
+
+.titleWithSubtitle {
+	padding-bottom: (4 * @dp);
+}
+
+.subtitle {
+	-webkit-flex-shrink: 0;
+	flex-shrink: 0;
+	margin: 0;
+	padding: 0 (24 * @dp) (12 * @dp);
+	font-size: (13 * @dp);
+	color: rgba(255, 255, 255, 0.54);
+}
+
+.divider {
+	-webkit-flex-shrink: 0;
+	flex-shrink: 0;
+	height: (1 * @dp);
+	background: rgba(255, 255, 255, 0.08);
+}
+
+.body {
+	-webkit-box-flex: 0;
+	-webkit-flex: 0 1 auto;
+	flex: 0 1 auto;
+	min-height: 0;
+	margin-top: (8 * @dp);
+	overflow-y: auto;
+	scrollbar-width: none;
+
+	&::-webkit-scrollbar {
+		display: none;
+	}
+}
+
+.cancel {
+	-webkit-flex-shrink: 0;
+	flex-shrink: 0;
+	margin-top: (4 * @dp);
+
+	.divider {
+		margin-bottom: (4 * @dp);
+	}
+}
+
+// List rows
+
+.row {
+	display: -webkit-box;
+	display: -webkit-flex;
+	display: flex;
+	-webkit-box-align: center;
+	-webkit-align-items: center;
+	align-items: center;
+	box-sizing: border-box;
+	width: 100%;
+	padding: (14 * @dp) (24 * @dp);
+	cursor: pointer;
+	outline: none;
+
+	&:focus {
+		background: rgba(@accent-rgb, 0.2);
+
+		.rowLabel {
+			color: rgba(255, 255, 255, 0.95);
+		}
+	}
+}
+
+.rowIcon {
+	-webkit-flex-shrink: 0;
+	flex-shrink: 0;
+	width: (20 * @dp);
+	height: (20 * @dp);
+	margin-right: (12 * @dp);
+	color: rgba(255, 255, 255, 0.38);
+}
+
+.rowIconSelected {
+	color: rgb(@accent-rgb);
+}
+
+.rowText {
+	-webkit-box-flex: 1;
+	-webkit-flex: 1 1 0;
+	flex: 1 1 0;
+	min-width: 0;
+}
+
+.rowLabel {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	font-size: (16 * @dp);
+	color: rgba(255, 255, 255, 0.8);
+}
+
+.rowDimmed {
+	.rowLabel,
+	&:focus .rowLabel {
+		color: rgba(255, 255, 255, 0.5);
+	}
+}
+
+// Confirms
+
+.alert {
+	box-sizing: border-box;
+	min-width: (280 * @dp);
+	max-width: (560 * @dp);
+	max-height: 100%;
+	overflow-y: auto;
+	padding: (24 * @dp);
+	border-radius: (16 * @dp);
+	background: rgb(var(--theme-surface-rgb, 26, 26, 26));
+	box-shadow:
+		0 (3 * @dp) (5 * @dp) (-1 * @dp) rgba(0, 0, 0, 0.2),
+		0 (6 * @dp) (10 * @dp) 0 rgba(0, 0, 0, 0.14),
+		0 (1 * @dp) (18 * @dp) 0 rgba(0, 0, 0, 0.12);
+	color: #fff;
+	font-family: 'Roboto', 'Sandstone', sans-serif;
+	text-align: left;
+}
+
+.alertTitle {
+	margin: 0 0 (16 * @dp);
+	font-size: (24 * @dp);
+	font-weight: 400;
+	line-height: 1.33;
+	color: #fff;
+}
+
+.alertContent {
+	font-size: (14 * @dp);
+	line-height: 1.43;
+	color: #fff;
+}
+
+.alertActions {
+	display: -webkit-box;
+	display: -webkit-flex;
+	display: flex;
+	-webkit-box-pack: end;
+	-webkit-justify-content: flex-end;
+	justify-content: flex-end;
+	margin-top: (24 * @dp);
+
+	> * + * {
+		margin-left: (8 * @dp);
+	}
+}
+
+.alertAction {
+	min-height: (40 * @dp);
+	padding: 0 (12 * @dp);
+	border: none;
+	border-radius: (20 * @dp);
+	background: transparent;
+	font-family: inherit;
+	font-size: (14 * @dp);
+	font-weight: 500;
+	color: rgb(@accent-rgb);
+	cursor: pointer;
+	outline: none;
+
+	&:focus {
+		background: rgba(@accent-rgb, 0.1);
+	}
+}
+
+.alertActionDestructive {
+	color: #e57373;
+
+	&:focus {
+		background: rgba(229, 115, 115, 0.1);
+	}
+}

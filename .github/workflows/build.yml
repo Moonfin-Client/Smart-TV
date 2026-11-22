@@ -7,9 +7,18 @@ on:
       - '[0-9]+.[0-9]+.[0-9]+*'
   pull_request:
     branches: [main]
+  # Fires only once a merge queue is enabled on main.
+  merge_group:
 
 permissions:
   contents: write
+
+# A new push to a pull request replaces its running build. Every other run
+# gets a group of its own, so tags, manual runs and merge groups never queue
+# or cancel.
+concurrency:
+  group: build-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   # ───────────────────────────────────────────────
@@ -17,13 +26,14 @@ jobs:
   # ───────────────────────────────────────────────
   build-webos:
     name: Build webOS
-    runs-on: ubuntu-latest
-    outputs:
-      result: ${{ steps.build.outcome }}
+    runs-on: ubuntu-26.04
+    env:
+      MOONFIN_OTA_URL: https://github.com/${{ github.repository }}/releases/download
+      MOONFIN_OTA_PUBLIC_KEY: scripts/ota/public.pem
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
           node-version: lts/*
           cache: npm
@@ -31,16 +41,28 @@ jobs:
       - name: Install dependencies
         run: npm ci --force
 
+      # Tagged builds sign the in-app update with a key only CI holds. Without the
+      # secret the packages still build, just without update files to attach.
+      - name: Load the update signing key
+        if: startsWith(github.ref, 'refs/tags/')
+        env:
+          KEY: ${{ secrets.MOONFIN_OTA_SIGNING_KEY }}
+        run: |
+          if [ -n "$KEY" ]; then
+            printf '%s\n' "$KEY" > "$RUNNER_TEMP/ota-signing.pem"
+            echo "MOONFIN_OTA_SIGNING_KEY=$RUNNER_TEMP/ota-signing.pem" >> "$GITHUB_ENV"
+          fi
       - name: Build webOS
         id: build
         run: npm run build:webos
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v6
         if: success()
         with:
           name: webos
           path: |
             Moonfin_webOS_*.ipk
+            moonfin-ota-webos.*
             packages/build-webos/org.moonfin.webos.manifest.json
 
   # ───────────────────────────────────────────────
@@ -48,13 +70,14 @@ jobs:
   # ───────────────────────────────────────────────
   build-tizen:
     name: Build Tizen
-    runs-on: ubuntu-latest
-    outputs:
-      result: ${{ steps.build.outcome }}
+    runs-on: ubuntu-26.04
+    env:
+      MOONFIN_OTA_URL: https://github.com/${{ github.repository }}/releases/download
+      MOONFIN_OTA_PUBLIC_KEY: scripts/ota/public.pem
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
           node-version: lts/*
           cache: npm
@@ -62,61 +85,85 @@ jobs:
       - name: Install dependencies
         run: npm ci --force
 
+      - name: Load the update signing key
+        if: startsWith(github.ref, 'refs/tags/')
+        env:
+          KEY: ${{ secrets.MOONFIN_OTA_SIGNING_KEY }}
+        run: |
+          if [ -n "$KEY" ]; then
+            printf '%s\n' "$KEY" > "$RUNNER_TEMP/ota-signing.pem"
+            echo "MOONFIN_OTA_SIGNING_KEY=$RUNNER_TEMP/ota-signing.pem" >> "$GITHUB_ENV"
+          fi
       - name: Build Tizen (all variants)
         id: build
         run: npm run build:tizen:all
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v6
         if: success()
         with:
           name: tizen
-          path: Moonfin_Tizen_*.wgt
+          path: |
+            Moonfin_Tizen_*.wgt
+            moonfin-ota-tizen.*
 
   # ───────────────────────────────────────────────
-  # Vega web bundle and shell checks
+  # Vega VPKG and shell checks
   # ───────────────────────────────────────────────
   build-vega:
     name: Build Vega
-    runs-on: ubuntu-latest
-    outputs:
-      result: ${{ steps.build.outcome }}
+    # Deadsnakes doesn't build Python 3.8 for the amd64v3 packages the 26.04 runners install from.
+    runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
           node-version: 22
           cache: npm
 
-      - name: Install dependencies
-        run: npm ci --force
+      # Amazon lists libpython3.8 as an SDK prerequisite, and this Ubuntu only gets it
+      # from deadsnakes. The virtual device is skipped since it cant run WebView apps.
+      - name: Install the Vega SDK
+        run: |
+          sudo add-apt-repository -y ppa:deadsnakes/ppa
+          sudo apt-get update
+          sudo apt-get install -y libpython3.8-dev
+          curl -fsSL https://sdk-installer.vega.labcollab.net/get_vvm.sh | NONINTERACTIVE=true SKIP_VVD_INSTALL=true bash
 
-      # The package itself needs the Vega SDK, which only Amazon's partners get in CI,
-      # so this stops once the web bundle is in the shell.
-      - name: Build Vega web bundle
+      - name: Install dependencies
+        run: |
+          npm ci --force
+          npm ci --no-audit --no-fund --prefix packages/build-vega/shell
+
+      - name: Build Vega
         id: build
-        run: node packages/build-vega/build.js --no-vpkg
+        run: |
+          source ~/vega/env
+          npm run build:vega
 
       - name: Check the shell
         working-directory: packages/build-vega/shell
         run: |
-          npm ci --no-audit --no-fund
           npm run typecheck
           npm run lint
           npm test
 
-  # ───────────────────────────────────────────────
-  # Jest suite
-  # ───────────────────────────────────────────────
-  test:
-    name: Test
-    runs-on: ubuntu-latest
-    outputs:
-      result: ${{ steps.jest.outcome }}
-    steps:
-      - uses: actions/checkout@v4
+      - uses: actions/upload-artifact@v6
+        if: success()
+        with:
+          name: vega
+          path: Moonfin_Vega_*.vpkg
 
-      - uses: actions/setup-node@v4
+  # ───────────────────────────────────────────────
+  # Xbox MSIX, zipped with the dependencies a console needs
+  # ───────────────────────────────────────────────
+  build-xbox:
+    name: Build Xbox
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
         with:
           node-version: lts/*
           cache: npm
@@ -124,9 +171,38 @@ jobs:
       - name: Install dependencies
         run: npm ci --force
 
-      - name: Run tests
-        id: jest
-        run: npm test --workspace @moonfin/app
+      - name: Build Xbox
+        id: build
+        run: npm run build:xbox
+
+      - name: Zip the package and its dependencies
+        shell: pwsh
+        run: |
+          $msix = Get-Item Moonfin_Xbox_v*.msix
+          New-Item -ItemType Directory xbox-zip/Dependencies | Out-Null
+          Copy-Item $msix xbox-zip/
+          Copy-Item packages/build-xbox/shell/Moonfin.Xbox/AppPackages/*/Dependencies/x64/*.appx xbox-zip/Dependencies/
+          if (-not (Get-ChildItem xbox-zip/Dependencies)) { throw 'MSBuild left no dependencies to zip' }
+          Compress-Archive xbox-zip/* "$($msix.BaseName).zip"
+
+      - uses: actions/upload-artifact@v6
+        if: success()
+        with:
+          name: xbox
+          path: Moonfin_Xbox_*.zip
+
+      # Partner Center re-signs what it publishes, so the throwaway certificate build.js
+      # makes for the Store publisher is all the upload needs. It runs after the zip
+      # since each build clears AppPackages.
+      - name: Build the Store upload
+        if: startsWith(github.ref, 'refs/tags/')
+        run: npm run build:xbox -- --store --no-web
+
+      - uses: actions/upload-artifact@v6
+        if: startsWith(github.ref, 'refs/tags/')
+        with:
+          name: xbox-store
+          path: Moonfin_Xbox_Store_*.msixupload
 
   # ───────────────────────────────────────────────
   # Save PR build outcomes for pr-comment workflow
@@ -137,23 +213,25 @@ jobs:
     # the comment workflow has nothing to read, so the run that most needs a comment
     # is the one that never gets one.
     if: always() && github.event_name == 'pull_request'
-    needs: [build-webos, build-tizen, build-vega, test]
-    runs-on: ubuntu-latest
+    needs: [build-webos, build-tizen, build-vega, build-xbox]
+    runs-on: ubuntu-26.04
     steps:
+      # The job's result, not its build step's, so a check after the build that
+      # fails (the Vega shell's) doesn't show as a passing platform.
       - name: Write outcomes.json
         run: |
           cat > outcomes.json <<EOF
           {
             "pr_number": ${{ github.event.pull_request.number }},
             "sha": "${{ github.event.pull_request.head.sha }}",
-            "webos": "${{ needs.build-webos.outputs.result }}",
-            "tizen": "${{ needs.build-tizen.outputs.result }}",
-            "vega": "${{ needs.build-vega.outputs.result }}",
-            "tests": "${{ needs.test.outputs.result }}"
+            "webos": "${{ needs.build-webos.result }}",
+            "tizen": "${{ needs.build-tizen.result }}",
+            "vega": "${{ needs.build-vega.result }}",
+            "xbox": "${{ needs.build-xbox.result }}"
           }
           EOF
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v6
         with:
           name: build-results
           path: outcomes.json
@@ -164,14 +242,14 @@ jobs:
   release:
     name: Create Draft Release
     if: startsWith(github.ref, 'refs/tags/')
-    needs: [build-webos, build-tizen]
-    runs-on: ubuntu-latest
+    needs: [build-webos, build-tizen, build-vega, build-xbox]
+    runs-on: ubuntu-26.04
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v7
         with:
           merge-multiple: true
 
-      - uses: softprops/action-gh-release@v2
+      - uses: softprops/action-gh-release@v3
         with:
           draft: true
           generate_release_notes: true
@@ -180,4 +258,8 @@ jobs:
           files: |
             Moonfin_webOS_*.ipk
             Moonfin_Tizen_*.wgt
+            Moonfin_Vega_*.vpkg
+            Moonfin_Xbox_*.zip
+            moonfin-ota-*.json
+            moonfin-ota-*.bin
             packages/build-webos/org.moonfin.webos.manifest.json

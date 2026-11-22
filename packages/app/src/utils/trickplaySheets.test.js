@@ -25,6 +25,17 @@ describe('planSeekSheetIndexes', () => {
 		expect(plan(sheets, 20, true)).toEqual([0]);
 	});
 
+	test('asks for the next sheet as soon as the scrub enters one', () => {
+		const sheetPlan = (seconds, forward) => planSeekSheetIndexes({
+			info: sheets, positionMs: seconds * 1000, durationMs: 1200000, stepMs: 10000, forward
+		});
+		expect(sheetPlan(205, true)).toEqual([1, 0, 2]);
+		expect(sheetPlan(395, false)).toEqual([1, 2, 0]);
+		expect(sheetPlan(1150, true)).toEqual([5]);
+		expect(sheetPlan(1300, true)).toEqual([5]);
+		expect(sheetPlan(5, false)).toEqual([0]);
+	});
+
 	test('is empty without a manifest or a runtime', () => {
 		expect(planSeekSheetIndexes({info: null, positionMs: 0, durationMs: 100000, stepMs: 10000, forward: true})).toEqual([]);
 		expect(planSeekSheetIndexes({info: frames, positionMs: 0, durationMs: 0, stepMs: 10000, forward: true})).toEqual([]);

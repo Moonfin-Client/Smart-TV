@@ -1,6 +1,6 @@
 jest.mock('@enact/i18n/$L', () => (text) => text);
 jest.mock('../platform', () => ({isWebOS: () => false, isVega: jest.fn(() => false)}));
-jest.mock('../utils/fetchTimeout', () => ({fetchWithTimeout: jest.fn()}));
+jest.mock('../utils/fetchTimeout', () => ({...jest.requireActual('../utils/fetchTimeout'), fetchWithTimeout: jest.fn()}));
 jest.mock('../utils/networkLogSink', () => ({traceRequest: (url, options, send) => send()}));
 jest.mock('./storage', () => ({getFromStorage: jest.fn()}));
 jest.mock('./shellBridge', () => ({loadShellBridge: jest.fn()}));
@@ -62,6 +62,15 @@ describe('a certificate the shell refuses', () => {
 		expect(bridge.allowInsecureHost).not.toHaveBeenCalled();
 	});
 
+	test('is never extended to the Plex or Emby account services', async () => {
+		fetchWithTimeout.mockRejectedValue(refused());
+
+		await expect(platformFetch('https://clients.plex.tv/api/v2/resources')).rejects.toThrow('Failed to fetch');
+		await expect(platformFetch('https://connect.emby.media/service/user/authenticate')).rejects.toThrow('Failed to fetch');
+
+		expect(bridge.allowInsecureHost).not.toHaveBeenCalled();
+	});
+
 	test('is left alone where there is no shell', async () => {
 		loadShellBridge.mockResolvedValue(null);
 		fetchWithTimeout.mockRejectedValue(refused());
@@ -93,6 +102,17 @@ describe('a request a Plex server only answers app.plex.tv for', () => {
 		loadShellBridge.mockResolvedValue({requestThroughShell: jest.fn().mockResolvedValue({status: 0, body: ''})});
 
 		await expect(corsFreeFetch('http://plex:32400/identity')).rejects.toMatchObject({connectionType: 'network'});
+	});
+
+	test('never hands the shell a request its caller gave up on before its turn', async () => {
+		isVega.mockReturnValue(true);
+		const requestThroughShell = jest.fn();
+		loadShellBridge.mockResolvedValue({requestThroughShell});
+		const caller = new AbortController();
+		caller.abort();
+
+		await expect(corsFreeFetch('http://silo:8090/x', {signal: caller.signal})).rejects.toMatchObject({name: 'AbortError'});
+		expect(requestThroughShell).not.toHaveBeenCalled();
 	});
 
 	test('goes straight to the server everywhere else', async () => {

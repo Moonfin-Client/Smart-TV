@@ -17,6 +17,9 @@ import {
 	markComplete,
 	deferThisLaunch,
 	beginRerun,
+	beginSignInRead,
+	finishSignInRead,
+	hasReadSignInSettings,
 	resetGateForTests
 } from './setupWizardGate';
 
@@ -96,5 +99,29 @@ describe('setupWizardGate', () => {
 		beginRerun();
 		deferThisLaunch();
 		await expect(shouldRun('s1', 'https://jf.example.com', 'u1')).resolves.toBe(false);
+	});
+
+	test('the sign in read is kept per server and user', () => {
+		beginSignInRead('https://jf.example.com/', 'u1');
+		expect(hasReadSignInSettings('https://jf.example.com', 'u1')).toBe(false);
+		finishSignInRead('https://jf.example.com/', 'u1');
+		expect(hasReadSignInSettings('http://JF.example.com', 'u1')).toBe(true);
+		// A second profile on the same server still has its settings on the way.
+		beginSignInRead('https://jf.example.com', 'u2');
+		expect(hasReadSignInSettings('https://jf.example.com', 'u2')).toBe(false);
+		expect(hasReadSignInSettings('https://jf.example.com', 'u1')).toBe(true);
+		finishSignInRead('https://jf.example.com', 'u2');
+		expect(hasReadSignInSettings('https://jf.example.com', 'u2')).toBe(true);
+		// Signing in again waits for the new read.
+		beginSignInRead('https://jf.example.com', 'u2');
+		expect(hasReadSignInSettings('https://jf.example.com', 'u2')).toBe(false);
+	});
+
+	test('a user switch keeps the answers already on the device', () => {
+		noteAnsweredSettings(['navbarPosition', 'featuredBarStyle', 'homeRowsStyle', 'detailScreenStyle']);
+		beginSignInRead('https://jf.example.com', 'u1');
+		expect(remainingSteps()).toEqual([]);
+		beginSignInRead('https://jf.example.com', 'u2');
+		expect(remainingSteps()).toEqual([]);
 	});
 });

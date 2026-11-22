@@ -11,20 +11,27 @@ import {useSettings} from '../../context/SettingsContext';
 import {useSeerr} from '../../context/SeerrContext';
 import {ClassicMediaRow, ModernMediaRow} from '../../components/MediaRow';
 import MediaPreviewContext from '../../components/MediaCard/MediaPreviewContext';
-import {modernRowSpacing} from '../../components/MediaCard/modernCardLayout';
 import SeerrTileRow from '../../components/SeerrTileRow';
 import LibraryButtonRow from '../../components/LibraryButtonRow';
+import WatchingNowRow from '../../components/WatchingNowRow';
 import {SkeletonShimmer, skeletonTitleWidths} from '../../components/Skeleton';
 import {getImageUrl, getBackdropId} from '../../utils/helpers';
+import {loadNewReleases, newReleaseKindsOf} from '../../utils/mediaBarNewRelease';
+import {createApiForServer} from '../../services/jellyfinApi';
 import {channelForProgram, isLiveTvProgram} from '../../utils/liveTvLibrary';
 import {focusedCardIndex, cardToRestore, focusedRowIndex, rowToRestore} from '../../utils/rowFocusMemory';
 import {radiusToCss, shadowToCss, toCssColor} from '../../theme/themeSpec';
 import DetailSection from './DetailSection';
+import * as gamesApi from '../../services/gamesApi';
 import FeaturedBanner from './FeaturedBanner';
 import MakdBanner from './MakdBanner';
 import GalleryBanner from './GalleryBanner';
 import AyaBanner from './AyaBanner';
 import BannerBar from './BannerBar';
+import WatchPartyRow, {WatchPartyAlert, useWatchPartyHomeRow} from '../../components/WatchPartyDialog/WatchPartyRow';
+import {watchParty} from '../../services/siloWatchParty';
+import {openWatchParties} from '../../hooks/useWatchPartyRooms';
+import {useSyncPlay} from '../../context/SyncPlayContext';
 import BookshelfBar from './BookshelfBar';
 import BackdropLayer from '../../components/BackdropLayer';
 import useBrowseData from './useBrowseData';
@@ -35,6 +42,8 @@ import {buildBrowseRows, sameRowList} from './buildBrowseRows';
 import {markHomeReady} from '../../utils/homeReady';
 import {homeBackdropStyle} from '../../utils/homeBackdropStyle';
 import {rem} from '../../utils/rootScale';
+import {glideScroll, isGliding, smoothScrollingOn, stopScrollAnimation} from '../../utils/focusScroll';
+import {homeRowSpacing, isCarouselRow} from '../../components/MediaCard/modernCardLayout';
 import {rowImageType, rowPeekHeight} from './rowPeek';
 
 import css from './Browse.module.less';
@@ -58,6 +67,9 @@ const LOADING_ROW_TITLE_WIDTHS = skeletonTitleWidths(4, 24);
 
 let lastFocusState = null;
 
+// The Radarr and Sonarr rows, or the one they merge into, which keeps the Radarr id.
+const CALENDAR_ROW_IDS = ['radarr_calendar', 'sonarr_calendar'];
+
 const Browse = ({
 	onSelectItem,
 	onSelectLibrary,
@@ -69,6 +81,9 @@ const Browse = ({
 	onSelectSeerrStudio,
 	onSelectSeerrNetwork,
 	onOpenSeerrShortcut,
+	onOpenCalendarMonth,
+	onSelectStudio,
+	onSelectGame,
 	isVisible = true,
 	onFocusItemThemeMusic,
 	onBlurItemThemeMusic,
@@ -77,7 +92,7 @@ const Browse = ({
 	backHandlerRef,
 	trailerHidesChrome
 }) => {
-	const {api, serverUrl, accessToken, hasMultipleServers, user} = useAuth();
+	const {api, serverUrl, accessToken, hasMultipleServers, user, serverType} = useAuth();
 	const {settings, activeTheme, loaded: settingsLoaded} = useSettings();
 	// The one place the saved rows are read, so filtering here covers both what gets fetched and
 	// what gets drawn.
@@ -91,8 +106,8 @@ const Browse = ({
 	const {displayCollectionsRows, displayGenresRows, displayPlaylistsRows, unifiedLibraryMode} = settings;
 	const pluginSectionsConfig = useMemo(() => {
 		const gates = {displayCollectionsRows, displayGenresRows, displayPlaylistsRows, unifiedLibraryMode};
-		return homeRowsConfig.filter((row) => isPickedRow(row) && isPickedRowShown(row, gates, serverUrl));
-	}, [homeRowsConfig, displayCollectionsRows, displayGenresRows, displayPlaylistsRows, unifiedLibraryMode, serverUrl]);
+		return homeRowsConfig.filter((row) => isPickedRow(row) && isPickedRowShown(row, gates, serverUrl, serverType));
+	}, [homeRowsConfig, displayCollectionsRows, displayGenresRows, displayPlaylistsRows, unifiedLibraryMode, serverUrl, serverType]);
 	const {isEnabled: seerrEnabled, isAuthenticated: seerrAuthenticated, user: seerrUser, pluginInfo} = useSeerr();
 	const recommendationsSupported = pluginInfo?.recommendationsSupported === true;
 	const seerrUserId = seerrUser?.seerrUserId;
@@ -101,9 +116,11 @@ const Browse = ({
 		seerrAuthenticated,
 		seerrUserId,
 		homeRows: homeRowsConfig,
-		serverUrl
+		serverUrl,
+		sortBy: settings.seerrRowsSortBy,
+		sortOrder: settings.seerrRowsSortOrder
 	});
-	const {rows: externalRows, pending: externalPending} = useExternalRows({settings, homeRows: homeRowsConfig, kidsMode});
+	const {rows: externalRows, pending: externalPending} = useExternalRows({settings, homeRows: homeRowsConfig, kidsMode, pluginInfo, serverType});
 	const pendingRows = useMemo(() => [...seerrPending, ...externalPending], [seerrPending, externalPending]);
 	const unifiedMode = settings.unifiedLibraryMode && hasMultipleServers;
 	const isLegacy = typeof document !== 'undefined' && (' ' + document.documentElement.className + ' ').indexOf(' legacy ') >= 0;
@@ -175,15 +192,11 @@ const Browse = ({
 	const useModernRows = settings.homeRowsStyle !== 'v1';
 	const RowComponent = useModernRows ? ModernMediaRow : ClassicMediaRow;
 	const showTopInfoArea = !useModernRows && settings.homeRowOverlay !== false;
-	// The other clients size these sliders in their own units, so the stored value
-	// lands here as the space below each row. Full screen rows pace themselves.
-	const rowSpacing = settings.fullScreenRows ? null : useModernRows
-		? modernRowSpacing(settings)
-		: Math.max(0, settings.classicHomeRowsPadding ?? 30);
+	const rowSpacing = homeRowSpacing(settings);
 
 	const {
-		isLoading, browseMode, allRowData, featuredItems: loadedFeaturedItems, pendingSections,
-		setBrowseMode, fetchFreshFeaturedItems, refreshVolatileData, loadSectionsNear
+		isLoading, browseMode, allRowData, featuredItems: loadedFeaturedItems, pendingSections, emptySections,
+		setBrowseMode, fetchFreshFeaturedItems, refreshVolatileData, loadSectionsNear, loadMoreRow
 	} = useBrowseData({
 		api,
 		serverUrl,
@@ -217,6 +230,30 @@ const Browse = ({
 		[loadedFeaturedItems, parentalFilter]
 	);
 
+	// Kept beside the slides rather than on them, since a new slide list sends every bar back to its
+	// first slide.
+	const [newReleases, setNewReleases] = useState(null);
+	const newReleaseBanner = settings.mediaBarNewReleaseBanner;
+	const {
+		mediaBarNewReleaseDays: newReleaseDays, mediaBarNewReleaseKinds: newReleaseKinds,
+		mediaBarNewMovieDays: newMovieDays, mediaBarNewMovieDetail: newMovieTagline
+	} = settings;
+	useEffect(() => {
+		if (!newReleaseBanner || !showFeaturedBar || featuredItems.length === 0) return undefined;
+		let cancelled = false;
+		const apiFor = (item) => (item._serverUrl && item._serverAccessToken
+			? createApiForServer(item._serverUrl, item._serverAccessToken, item._serverUserId)
+			: api);
+		const options = {days: newReleaseDays, movieDays: newMovieDays, kinds: newReleaseKindsOf(newReleaseKinds), tagline: newMovieTagline !== false};
+		loadNewReleases(featuredItems, options, apiFor).then((releases) => {
+			if (!cancelled) setNewReleases(releases);
+		});
+		return () => {
+			cancelled = true;
+		};
+	}, [api, featuredItems, newReleaseBanner, newReleaseDays, newMovieDays, newMovieTagline, newReleaseKinds, showFeaturedBar]);
+	const shownReleases = newReleaseBanner ? newReleases : null;
+
 	const mergeContinueWatchingNextUp = mergesContinueWatchingNextUp(settings);
 
 	// Only the settings the row list is built from, so a change to any other one doesn't
@@ -232,21 +269,11 @@ const Browse = ({
 		displayAudioRows: settings.displayAudioRows,
 		displayStudiosRows: settings.displayStudiosRows,
 		displayRewatchRow: settings.displayRewatchRow,
-		imdbTop250MoviesEnabled: settings.imdbTop250MoviesEnabled,
-		imdbTop250TvShowsEnabled: settings.imdbTop250TvShowsEnabled,
-		imdbMostPopularMoviesEnabled: settings.imdbMostPopularMoviesEnabled,
-		imdbMostPopularTvShowsEnabled: settings.imdbMostPopularTvShowsEnabled,
-		imdbLowestRatedMoviesEnabled: settings.imdbLowestRatedMoviesEnabled,
-		imdbTopEnglishMoviesEnabled: settings.imdbTopEnglishMoviesEnabled,
-		seasonalRowEnabled: settings.seasonalRowEnabled,
 		parentalFilter,
 		kidsModeEnabled: settings.kidsModeEnabled
 	}), [settings.kidsModeEnabled, parentalFilter, mergeContinueWatchingNextUp, settings.hiddenContinueWatchingItems, settings.hiddenNextUpSeries,
 		settings.displayFavoritesRows, settings.displayCollectionsRows, settings.displayGenresRows, settings.displayPlaylistsRows,
-		settings.displayAudioRows, settings.displayStudiosRows, settings.displayRewatchRow,
-		settings.imdbTop250MoviesEnabled, settings.imdbTop250TvShowsEnabled, settings.imdbMostPopularMoviesEnabled,
-		settings.imdbMostPopularTvShowsEnabled, settings.imdbLowestRatedMoviesEnabled, settings.imdbTopEnglishMoviesEnabled,
-		settings.seasonalRowEnabled]);
+		settings.displayAudioRows, settings.displayStudiosRows, settings.displayRewatchRow]);
 
 	const builtRows = useMemo(() => {
 		const result = buildBrowseRows({
@@ -257,16 +284,43 @@ const Browse = ({
 			pluginSectionsConfig,
 			settings: rowBuildSettings,
 			pendingSections,
-			pendingRows
+			pendingRows,
+			emptySections
 		});
 		const prev = prevFilteredRowsRef.current;
 		if (sameRowList(prev, result)) return prev;
 		prevFilteredRowsRef.current = result;
 		return result;
-	}, [allRowData, seerrRows, externalRows, homeRowsConfig, pluginSectionsConfig, rowBuildSettings, pendingSections, pendingRows]);
+	}, [allRowData, seerrRows, externalRows, homeRowsConfig, pluginSectionsConfig, rowBuildSettings, pendingSections, pendingRows, emptySections]);
 	// The rows can come back from a cache built before the watched state last moved, so what's
 	// known now is laid over them rather than fetched again.
-	const filteredRows = useUserDataRows(builtRows);
+	const dataRows = useUserDataRows(builtRows);
+	// Watch Parties lead the rows while any exist, except on Silo, which has no list of them.
+	const {joinGroup: joinSyncPlayGroup, openDialog: openSyncPlayDialog} = useSyncPlay();
+	const {row: partyRow, alert: partyAlert} = useWatchPartyHomeRow({
+		enabled: !kidsMode && serverType !== 'silo' && settings.syncplayEnabled !== false,
+		active: isVisible,
+		sessionKey: `${serverUrl}|${user?.Id}`,
+		withSyncPlay: serverType === 'jellyfin',
+		alerts: settings.watchPartyAlerts === true
+	});
+	const filteredRows = useMemo(() => (partyRow ? [partyRow, ...dataRows] : dataRows), [partyRow, dataRows]);
+	const handleJoinParty = useCallback(async (room) => {
+		if (room.kind === 'syncplay') {
+			if (await joinSyncPlayGroup(room.roomId)) openSyncPlayDialog();
+			return;
+		}
+		watchParty.joinRoom(room);
+		openWatchParties();
+	}, [joinSyncPlayGroup, openSyncPlayDialog]);
+	const handleStartParty = useCallback(() => {
+		if (serverType === 'jellyfin' && settings.watchPartyService === 'syncplay') {
+			openSyncPlayDialog();
+			return;
+		}
+		watchParty.create();
+		openWatchParties();
+	}, [serverType, settings.watchPartyService, openSyncPlayDialog]);
 	const hasFocusableRow = filteredRows.some((row) => !row.isPlaceholder);
 
 	const focusRow = useCallback((rowIndex, cardIndex, cardId) => {
@@ -297,7 +351,7 @@ const Browse = ({
 	// With the info overlay above the rows the row pins right under the overlay,
 	// leaving a tall row its room below at every UI scale. Without the overlay
 	// the scroller itself starts under the navbar, so the row pins at its top.
-	const restRowScroll = useCallback((rowIndex) => {
+	const restRowScroll = useCallback((rowIndex, start) => {
 		const container = contentRowsRef.current;
 		if (!container) return;
 		// The ref a row hands over is the spotlight container component rather
@@ -314,22 +368,25 @@ const Browse = ({
 		const {showTopInfoArea: overlay, navbarPosition} = liveRef.current;
 		const topbarOffset = overlay && navbarPosition !== 'left' ? 20 : 0;
 		const top = Math.max(0, targetRow.offsetTop - topbarOffset);
-		if (Math.abs(container.scrollTop - top) > 1) container.scrollTop = top;
+		glideScroll(container, 'y', top, start);
 	}, []);
 
 	// Focus scrolling lands wherever the engine likes, sometimes with the row's bottom past the
 	// screen, and it lands after the focus handlers, so the row is put back at its resting spot on
 	// the frames behind it. However many moves ask, each frame settles once.
-	const settleRef = useRef({row: -1, passes: 0, frame: 0});
-	const settleRow = useCallback((rowIndex, passes) => {
+	// `start` is where the rows sat before the browser's focus scroll moved them, so the glide begins from there.
+	const settleRef = useRef({row: -1, passes: 0, frame: 0, start: undefined});
+	const settleRow = useCallback((rowIndex, passes, start) => {
 		const settle = settleRef.current;
 		settle.row = rowIndex;
+		if (typeof start === 'number' && settle.start === undefined) settle.start = start;
 		settle.passes = Math.max(settle.passes, passes);
 		if (settle.frame) return;
 		const step = () => {
 			settle.frame = 0;
 			pinMainScroll();
-			restRowScroll(settle.row);
+			restRowScroll(settle.row, settle.start);
+			settle.start = undefined;
 			settle.passes -= 1;
 			if (settle.passes > 0) settle.frame = window.requestAnimationFrame(step);
 		};
@@ -353,9 +410,10 @@ const Browse = ({
 
 		// A row is only measured once it renders, so landing on one that was still
 		// standing in at a guessed height leaves it above the screen with its cards
-		// cut off. Settling once it is real puts it where it was asked to go.
-		restRowScroll(rowIndex);
-		settleRow(rowIndex, 2);
+		// cut off. Settling once it is real puts it where it was asked to go. A glide from rest leaves the move
+		// to the settle passes, so it doesn't set off before the row losing focus has shrunk.
+		if (!smoothScrollingOn() || isGliding(container, 'y')) restRowScroll(rowIndex);
+		settleRow(rowIndex, 2, container.scrollTop);
 
 		if (thenFocus) {
 			let attempts = 0;
@@ -553,6 +611,11 @@ const Browse = ({
 		if (focusedItemForBackdrop._externalBackdropUrl) {
 			return focusedItemForBackdrop._externalBackdropUrl;
 		}
+		// A game shows its in-game screenshot, the way its details screen does. The address carries
+		// the sign-in token, so it's built here rather than kept on the cached row.
+		if (focusedItemForBackdrop.isGame) {
+			return gamesApi.gameThumbUrl(focusedItemForBackdrop._library?.Id, focusedItemForBackdrop.id, 'snap') || '';
+		}
 
 		let targetItem = focusedItemForBackdrop;
 		if (focusedItemForBackdrop.Type === 'Genre' && focusedItemForBackdrop._representative) {
@@ -590,10 +653,33 @@ const Browse = ({
 			onPlayRecording?.(item);
 		} else if (isLiveTvProgram(item)) {
 			onSelectItem?.(channelForProgram(item));
+		} else if (item.isGame) {
+			onSelectGame?.(item._library, item);
 		} else {
 			onSelectItem?.(item, autoPlay);
 		}
-	}, [onSelectItem, onSelectLibrary, onOpenRecordings, onPlayRecording, onBlurItemThemeMusic, onLeaveThemeMusic, rememberFocus, mediaPreview]);
+	}, [onSelectItem, onSelectLibrary, onSelectGame, onOpenRecordings, onPlayRecording, onBlurItemThemeMusic, onLeaveThemeMusic, rememberFocus, mediaPreview]);
+
+	// The last card of an Upcoming row opens the calendar, a library's Latest row its library and a
+	// picked collection's row the collection.
+	const handleSeeAll = useCallback((rowId) => {
+		const row = filteredRowsRef.current.find((entry) => entry.id === rowId) || {};
+		mediaPreview.stop('select');
+		onBlurItemThemeMusic?.();
+		onLeaveThemeMusic?.();
+		rememberFocus();
+		if (row.collection) onSelectItem?.(row.collection);
+		else if (row.isLatestRow && row.library) onSelectLibrary?.(row.library);
+		else if (CALENDAR_ROW_IDS.indexOf(rowId) >= 0) onOpenCalendarMonth?.(new Date());
+	}, [onOpenCalendarMonth, onSelectItem, onSelectLibrary, onBlurItemThemeMusic, onLeaveThemeMusic, rememberFocus, mediaPreview]);
+
+	const handleSelectStudioItem = useCallback((item) => {
+		mediaPreview.stop('select');
+		onBlurItemThemeMusic?.();
+		onLeaveThemeMusic?.();
+		rememberFocus();
+		onSelectStudio?.(item.Name);
+	}, [onSelectStudio, onBlurItemThemeMusic, onLeaveThemeMusic, rememberFocus, mediaPreview]);
 
 	const handleSelectGenreItem = useCallback((item) => {
 		mediaPreview.stop('select');
@@ -646,19 +732,24 @@ const Browse = ({
 		}
 	}, [handleSelectSeerrItem, handleSelectItem]);
 
+	const handlePlayFeaturedItem = useCallback((item) => handleSelectItem(item, true), [handleSelectItem]);
+
 	// The rows ignore a changed callback, so one drawn while Home sat hidden behind Details kept a
 	// handler that cant navigate. These always call the current one.
 	const latestSelectRef = useRef(null);
 	useLayoutEffect(() => {
-		latestSelectRef.current = {item: handleSelectItem, genre: handleSelectGenreItem, seerr: handleSelectSeerrItem, external: handleSelectExternalItem};
-	}, [handleSelectItem, handleSelectGenreItem, handleSelectSeerrItem, handleSelectExternalItem]);
+		latestSelectRef.current = {item: handleSelectItem, genre: handleSelectGenreItem, seerr: handleSelectSeerrItem, external: handleSelectExternalItem, studio: handleSelectStudioItem, seeAll: handleSeeAll};
+	}, [handleSelectItem, handleSelectGenreItem, handleSelectSeerrItem, handleSelectExternalItem, handleSelectStudioItem, handleSeeAll]);
 	const rowSelect = useMemo(() => ({
 		item: (picked, autoPlay) => latestSelectRef.current.item(picked, autoPlay),
 		cwPlay: (picked) => latestSelectRef.current.item(picked, true),
 		genre: (picked) => latestSelectRef.current.genre(picked),
 		seerr: (picked) => latestSelectRef.current.seerr(picked),
-		external: (picked) => latestSelectRef.current.external(picked)
+		external: (picked) => latestSelectRef.current.external(picked),
+		studio: (picked) => latestSelectRef.current.studio(picked),
+		seeAll: (rowId) => latestSelectRef.current.seeAll(rowId)
 	}), []);
+	const calendarSeeAll = settings.calendarRowSeeAll !== false && pluginInfo?.calendarAvailable === true && Boolean(onOpenCalendarMonth);
 
 	const continueWatchingMenuOptions = useMemo(() => ({
 		isContinueWatchingOrNextUp: true,
@@ -714,7 +805,7 @@ const Browse = ({
 			pinMainScroll();
 			return;
 		}
-		settleRow(rowIndex, rowChanged ? 2 : 1);
+		settleRow(rowIndex, rowChanged ? 2 : 1, contentRowsRef.current?.scrollTop);
 	}, [setBrowseMode, pinMainScroll, settleRow, loadSectionsNear]);
 
 	const backdropTimerRef = useRef(null);
@@ -746,10 +837,16 @@ const Browse = ({
 		? rowPeekHeight(settings, filteredRows[0])
 		: 0;
 
-	// Rows mode leaves the scroller wherever the last row pinned it, and the peek shows its top.
+	const bannerOverRows = browseMode === 'featured' && settings.featuredBarStyle === 'banner';
+
+	// Rows mode leaves the scroller wherever the last row pinned it, and the peek and the Banner bar show its top.
 	useLayoutEffect(() => {
-		if (rowPeek && contentRowsRef.current) contentRowsRef.current.scrollTop = 0;
-	}, [rowPeek]);
+		const container = contentRowsRef.current;
+		if (!(rowPeek || bannerOverRows) || !container) return;
+		// A row glide still under way would write its offset back over this on its next frame.
+		stopScrollAnimation(container);
+		container.scrollTop = 0;
+	}, [rowPeek, bannerOverRows]);
 
 	const navOffsetClass = settings.navbarPosition === 'left' ? css.sidebarOffset : css.topbarOffset;
 	const rowsClipClass = showTopInfoArea ? '' : css.rowsClipTop;
@@ -760,7 +857,7 @@ const Browse = ({
 				<div className={`${css.mainContent} ${navOffsetClass}`}>
 					<SkeletonShimmer className={`${css.contentRows} ${rowsClipClass}`}>
 						{LOADING_ROW_TITLE_WIDTHS.map((titleWidth, index) => (
-							<RowComponent key={index} loading titleWidth={titleWidth} rowSpacing={rowSpacing} />
+							<RowComponent key={index} loading titleWidth={titleWidth} rowSpacing={rowSpacing} carousel={isCarouselRow({}, settings)} />
 						))}
 					</SkeletonShimmer>
 				</div>
@@ -770,11 +867,12 @@ const Browse = ({
 
 	return (
 		<div className={css.page}>
+			<WatchPartyAlert room={partyAlert} />
 			<div className={`${css.mainContent} ${navOffsetClass} ${rowPeek ? css.rowPeek : ''}`} ref={mainContentRef}>
 				<BackdropLayer
 					targetUrl={targetBackdropUrl}
 					blurAmount={settings.backdropBlurHome}
-					inCorner={homeBackdropStyle(settings) === 'corner'}
+					placement={homeBackdropStyle(settings)}
 				/>
 
 				{featuredItems.length > 0 && showFeaturedBar !== false && (
@@ -783,6 +881,7 @@ const Browse = ({
 							isVisible={browseMode === 'featured'}
 							browseVisible={isVisible}
 							featuredItems={featuredItems}
+							newReleases={shownReleases}
 							api={api}
 							settings={settings}
 							settingsLoaded={settingsLoaded}
@@ -798,6 +897,7 @@ const Browse = ({
 							rowPeek={rowPeek}
 							browseVisible={isVisible}
 							featuredItems={featuredItems}
+							newReleases={shownReleases}
 							api={api}
 							settings={settings}
 							settingsLoaded={settingsLoaded}
@@ -810,6 +910,7 @@ const Browse = ({
 						<BannerBar
 							isVisible={browseMode === 'featured'}
 							featuredItems={featuredItems}
+							newReleases={shownReleases}
 							settings={settings}
 							getItemServerUrl={getItemServerUrl}
 							onSelectItem={handleSelectExternalItem}
@@ -832,12 +933,14 @@ const Browse = ({
 							isVisible={browseMode === 'featured'}
 							browseVisible={isVisible}
 							featuredItems={featuredItems}
+							newReleases={shownReleases}
 							serverUrl={serverUrl}
 							api={api}
 							settings={settings}
 							settingsLoaded={settingsLoaded}
 							getItemServerUrl={getItemServerUrl}
 							onSelectItem={handleSelectExternalItem}
+							onPlayItem={handlePlayFeaturedItem}
 							onNavigateDown={handleNavigateDownFromFeatured}
 							onFeaturedFocus={handleFeaturedFocusCallback}
 						/>
@@ -847,6 +950,7 @@ const Browse = ({
 							rowPeek={rowPeek}
 							browseVisible={isVisible}
 							featuredItems={featuredItems}
+							newReleases={shownReleases}
 							serverUrl={serverUrl}
 							api={api}
 							settings={settings}
@@ -889,6 +993,7 @@ const Browse = ({
 									subtitle={row.subtitle}
 									cardType={row.type}
 									rowSpacing={rowSpacing}
+									carousel={isCarouselRow(row, settings)}
 								/>
 							);
 						}
@@ -927,6 +1032,63 @@ const Browse = ({
 								/>
 							);
 						}
+						if (row.isGameRow) {
+							return (
+								<SeerrTileRow
+									key={row.id}
+									rowId={row.id}
+									title={row.title}
+									items={row.items}
+									cardType="game"
+									onSelectItem={rowSelect.item}
+									onFocus={handleRowFocus}
+									onFocusItem={handleFocusItem}
+									rowIndex={index}
+									onNavigateUp={handleNavigateUp}
+									onNavigateDown={handleNavigateDown}
+									registerRowRef={registerRowRef}
+								/>
+							);
+						}
+						if (row.isWatchPartyRow) {
+							return (
+								<WatchPartyRow
+									key={row.id}
+									rowId={row.id}
+									title={row.title}
+									items={row.items}
+									labels={serverType === 'jellyfin'}
+									onFocus={handleRowFocus}
+									rowIndex={index}
+									onNavigateUp={handleNavigateUp}
+									onNavigateDown={handleNavigateDown}
+									rowSpacing={rowSpacing}
+									registerRowRef={registerRowRef}
+									onJoin={handleJoinParty}
+									onStart={handleStartParty}
+								/>
+							);
+						}
+						if (row.isWatchingNowRow) {
+							return (
+								<WatchingNowRow
+									key={row.id}
+									rowId={row.id}
+									title={row.title}
+									subtitle={row.subtitle}
+									items={row.items}
+									serverUrl={serverUrl}
+									onSelectItem={rowSelect.external}
+									onFocus={handleRowFocus}
+									onFocusItem={handleFocusItem}
+									rowIndex={index}
+									onNavigateUp={handleNavigateUp}
+									onNavigateDown={handleNavigateDown}
+									rowSpacing={rowSpacing}
+									registerRowRef={registerRowRef}
+								/>
+							);
+						}
 						const isCwOrNextUp = row.id === 'continue-nextup' || row.id === 'resume' || row.id === 'nextup';
 						const shouldPlayImmediately = isCwOrNextUp && settings.continueWatchingDefaultAction === 'play';
 						let selectHandler = shouldPlayImmediately
@@ -935,11 +1097,16 @@ const Browse = ({
 						if (row.isSeerrRow || row.isOnlineRecoRow) selectHandler = rowSelect.seerr;
 						else if (row.isExternalRow) selectHandler = rowSelect.external;
 						else if (row.isGenreRow) selectHandler = rowSelect.genre;
+						else if (row.id === 'studios') selectHandler = rowSelect.studio;
+						const seeAllTarget = row.collection || (row.isLatestRow && row.library);
 						const rowMenuOptions = isCwOrNextUp
 							? continueWatchingMenuOptions
 							: undefined;
+						// Studio art is a wide logo that Modern's portrait cards would crop, so the row stays
+						// classic in either style.
+						const Row = row.id === 'studios' ? ClassicMediaRow : RowComponent;
 						return (
-							<RowComponent
+							<Row
 								key={row.id}
 								rowId={row.id}
 								title={row.title}
@@ -959,6 +1126,15 @@ const Browse = ({
 								registerRowRef={registerRowRef}
 								deferImages={!NATIVE_LAZY_IMAGES && index >= imageRows}
 								menuOptions={rowMenuOptions}
+								ratingsSurface='homeRows'
+								hideOverview={settings.hideHomeMediaDescription === true}
+								posterLabels={!row.isSeerrRow && !row.isOnlineRecoRow && !row.isGenreRow}
+								hideWatchProgress={settings.hideHomeWatchProgress === true}
+								hideUnwatchedCount={settings.hideHomeUnwatchedCount === true}
+								onLoadMore={row.hasMore ? loadMoreRow : undefined}
+								onCalendarSeeAll={seeAllTarget || (calendarSeeAll && CALENDAR_ROW_IDS.indexOf(row.id) >= 0) ? rowSelect.seeAll : undefined}
+								seeAllIcon={seeAllTarget ? 'grid_view_rounded' : undefined}
+								carousel={isCarouselRow(row, settings)}
 							/>
 						);
 					})}

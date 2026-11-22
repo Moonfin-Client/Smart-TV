@@ -1,5 +1,7 @@
 import {getFromStorage, saveToStorage} from './storage';
 import {createSeriesTrackPref, toSeriesTrackPref} from '../utils/seriesTrackPrefs';
+import {languageMatches} from '../utils/audioLanguage';
+import {trackChoiceApiFor} from './seriesTrackSync';
 
 // Remembers the tracks a user picked so they don't have to be reselected on every
 // play. The per-item index restores the exact subtitle when replaying the same
@@ -62,6 +64,15 @@ const remember = (map, id, value) => {
 	}
 };
 
+// A server that keeps the series' choice itself (Silo) hears each pick, so its own apps and other TVs follow.
+const tellServer = (item, kind, streamIndex) => {
+	if (!item?.SeriesId || (kind === 'audio' && streamIndex < 0)) return;
+	const api = trackChoiceApiFor(item);
+	if (!api) return;
+	const write = kind === 'audio' ? api.setSeriesAudioChoice : api.setSeriesSubtitleChoice;
+	write(item.SeriesId, item.Id, streamIndex).catch((err) => console.warn('[subtitlePrefs] The server kept no series track choice:', err));
+};
+
 // `streams` is every subtitle track the episode offers, which is what tells the
 // pick apart from the others in its language.
 export const saveSubtitlePref = async (item, streamIndex, streams) => {
@@ -75,6 +86,7 @@ export const saveSubtitlePref = async (item, streamIndex, streams) => {
 			else delete prefs.series[item.SeriesId];
 		}
 	});
+	tellServer(item, 'subtitle', streamIndex);
 };
 
 export const saveAudioPref = async (item, streamIndex, streams) => {
@@ -88,6 +100,46 @@ export const saveAudioPref = async (item, streamIndex, streams) => {
 		if (pref) prefs.seriesAudio[item.SeriesId] = pref;
 		else delete prefs.seriesAudio[item.SeriesId];
 	});
+	tellServer(item, 'audio', streamIndex);
+};
+
+const isOff = (pref) => String(pref?.language || '').toLowerCase() === 'none';
+
+// The server's choice wins when it names another language, or turns subtitles off or on where this TV's doesn't: it
+// was made in the server's own apps or on another TV. A choice here in the same language is kept, since it also
+// knows which of several same-language tracks was picked.
+const serverChoiceDiffers = (local, server) => {
+	if (!local || (!local.language && !local.title)) return true;
+	if (isOff(local) !== isOff(server)) return true;
+	if (isOff(server)) return false;
+	if (!server.language || !local.language) return String(server.title).toLowerCase() !== String(local.title).toLowerCase();
+	return !languageMatches(local.language, server.language);
+};
+
+// Brings the series' choice kept on its server (Silo) into this TV's, for a series or one of its episodes. Answers
+// whether anything changed; a failed read changes nothing.
+export const syncSeriesTrackChoices = async (item) => {
+	const seriesId = item?.Type === 'Series' ? item.Id : item?.SeriesId;
+	const api = seriesId ? trackChoiceApiFor(item) : null;
+	if (!api) return false;
+	let choices;
+	try {
+		choices = await api.getSeriesTrackChoices(seriesId);
+	} catch (err) {
+		console.warn('[subtitlePrefs] Could not read the series track choice from the server:', err);
+		return false;
+	}
+	let changed = false;
+	await updatePrefs((prefs) => {
+		[['audio', prefs.seriesAudio], ['subtitle', prefs.series]].forEach(([kind, kept]) => {
+			const server = choices?.[kind];
+			if (server && serverChoiceDiffers(kept[seriesId], server)) {
+				kept[seriesId] = server;
+				changed = true;
+			}
+		});
+	});
+	return changed;
 };
 
 // The second track is only remembered per item, and off is remembered too so a track

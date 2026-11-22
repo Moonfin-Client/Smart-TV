@@ -1,0 +1,83 @@
+name: Coverage
+
+# Advisory: how many of the lines a pull request changes under
+# packages/app/src some test runs, and how many its own tests run. The PR
+# comment shows it. It never fails on what it finds, and no required check
+# waits for it.
+#
+# Its own workflow rather than a job in Checks, so the PR comment can show the
+# Checks and Build results as soon as they're in and add this when it's done.
+# It always starts, with no paths filter, so the comment can tell a pull
+# request with nothing to measure from one whose run hasn't finished.
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+# A new push makes the run for the last one pointless.
+concurrency:
+  group: coverage-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  coverage:
+    runs-on: ubuntu-26.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          # The script diffs against the merge base with the base branch.
+          fetch-depth: 0
+
+      # Installing is most of a run, and a pull request that changes no app
+      # source doesn't need it. The script still runs without it and reports
+      # that there was nothing to measure.
+      - name: Find changed app code
+        id: changed
+        env:
+          BASE: origin/${{ github.base_ref }}
+        run: |
+          # --no-renames, so a moved and edited file counts, as it does in the script.
+          if git diff --name-only --no-renames --diff-filter=AM "$BASE...HEAD" -- packages/app/src \
+            | grep -E '\.jsx?$' | grep -vE '(\.test|\.spec|-specs)\.jsx?$|/__tests__/' > /dev/null; then
+            echo "code=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/setup-node@v5
+        if: steps.changed.outputs.code
+        with:
+          node-version: lts/*
+          cache: npm
+
+      - name: Install dependencies
+        if: steps.changed.outputs.code
+        run: npm ci --force
+
+      # The error left here first is what the comment sees if the script
+      # crashes before writing its own result.
+      - name: Measure the changed lines the tests run
+        continue-on-error: true
+        timeout-minutes: 20
+        env:
+          BASE: origin/${{ github.base_ref }}
+          # The lines no test runs are marked as annotations at their place in
+          # Files changed, which shows the pull request's head rather than the
+          # merge this job checked out.
+          PR_HEAD: ${{ github.event.pull_request.head.sha }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/coverage-results"
+          out="$RUNNER_TEMP/coverage-results/coverage.json"
+          echo "{\"status\": \"error\", \"pr_number\": $PR_NUMBER}" > "$out"
+          node scripts/ci/changed-lines-coverage.js "$BASE" HEAD --annotate "$PR_HEAD" \
+            --pr-number "$PR_NUMBER" --out "$out"
+
+      - uses: actions/upload-artifact@v6
+        if: always()
+        with:
+          name: coverage-results
+          path: ${{ runner.temp }}/coverage-results/
+          if-no-files-found: ignore
+          retention-days: 7

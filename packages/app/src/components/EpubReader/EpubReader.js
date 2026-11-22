@@ -10,7 +10,7 @@ import {getFromStorage, saveToStorage} from '../../services/storage';
 import {getApiForItem} from '../../services/connectionPool';
 import {api as activeApi, getServerType} from '../../services/jellyfinApi';
 import {ModalContainer} from '../../utils/spotlightContainers';
-import {ContentsPanel, DisplayPanel} from './ReaderPanels';
+import {ChromeButton, ContentsPanel, DisplayPanel} from './ReaderPanels';
 import viewerCss from '../ComicViewer/ComicViewer.module.less';
 import css from './EpubReader.module.less';
 
@@ -42,14 +42,6 @@ const chapterAt = (toc, index) => {
 };
 
 const SCRUB_STEP = 0.01;
-
-const ChromeButton = ({icon, mark, label, ...rest}) => (
-	<SpottableDiv className={css.chromeButton} {...rest}>
-		{icon && <svg viewBox="0 0 24 24" aria-hidden="true"><path d={icon} /></svg>}
-		{mark && <span className={css.chromeMark}>{mark}</span>}
-		<span>{label}</span>
-	</SpottableDiv>
-);
 
 const EpubReader = ({item, serverUrl, accessToken, onClose}) => {
 	const [loading, setLoading] = useState(true);

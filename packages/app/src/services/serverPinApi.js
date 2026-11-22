@@ -4,7 +4,8 @@
 //
 // Each call answers with one of the results below, and a locked answer carries how long to wait.
 
-import {getAuthHeaderFor} from './jellyfinApi';
+import {createApiForServer, getAuthHeaderFor} from './jellyfinApi';
+import {moonbaseEndpoint} from './moonbaseEndpoint';
 import {platformFetch} from './secureFetch';
 import {legacyAuthHeader} from '../utils/serverRoutes';
 
@@ -21,11 +22,22 @@ const DEFAULT_RETRY_SECONDS = 30;
 
 const unavailable = {result: PIN_UNAVAILABLE};
 
-const request = async ({serverUrl, accessToken, serverType}, method, path, body) => {
+// Plex can't keep PINs, so they're kept by Moonbase for Plex, the companion beside it. The account doesn't have to be
+// the one signed in, since the PIN is asked for before a saved account is switched to.
+const endpointFor = async ({serverUrl, accessToken, serverType}) => {
+	if (serverType === 'plex') return moonbaseEndpoint(serverUrl, accessToken, 'plex');
 	const auth = getAuthHeaderFor(serverType, accessToken);
-	const headers = {Authorization: auth, ...legacyAuthHeader(serverType, auth)};
+	return {base: serverUrl, headers: {Authorization: auth, ...legacyAuthHeader(serverType, auth)}};
+};
+
+const request = async (account, method, path, body) => {
+	// Silo keeps its own profile PINs, and Moonbase for Silo has none of these routes.
+	if (account.serverType === 'silo') return {status: 404, data: null};
+	const endpoint = await endpointFor(account);
+	if (!endpoint) return {status: 404, data: null};
+	const headers = {...endpoint.headers};
 	if (body) headers['Content-Type'] = 'application/json';
-	const res = await platformFetch(`${serverUrl}/Moonfin/${path}`, {
+	const res = await (endpoint.fetch || platformFetch)(`${endpoint.base}/Moonfin/${path}`, {
 		method,
 		headers,
 		body: body ? JSON.stringify(body) : undefined
@@ -54,8 +66,15 @@ const writeVerdict = (response) => {
 	return unavailable;
 };
 
+// On Silo the PIN is the household profile's own (`account.userId` is the profile).
+const siloFor = (account) => (account?.serverType === 'silo'
+	? createApiForServer(account.serverUrl, account.accessToken, account.userId, 'silo')
+	: null);
+
 // Whether the server keeps a PIN for the account: true, false, or null when it couldn't say.
 export const getServerPinStatus = async (account) => {
+	const silo = siloFor(account);
+	if (silo) return silo.profileHasPin(account.userId).catch(() => null);
 	try {
 		const {status, data} = await request(account, 'GET', 'Pin');
 		return status === 200 && typeof data?.enabled === 'boolean' ? data.enabled : null;
@@ -65,6 +84,14 @@ export const getServerPinStatus = async (account) => {
 };
 
 export const verifyServerPin = async (account, pin) => {
+	const silo = siloFor(account);
+	if (silo) {
+		try {
+			return {result: await silo.verifyProfilePin(account.userId, pin) ? PIN_VALID : PIN_WRONG};
+		} catch (e) {
+			return e.status === 429 ? {result: PIN_LOCKED, wait: DEFAULT_RETRY_SECONDS * 1000} : unavailable;
+		}
+	}
 	try {
 		const response = await request(account, 'POST', 'Pin/Verify', {pin});
 		if (response.status === 200 && typeof response.data?.valid === 'boolean') {
@@ -78,8 +105,39 @@ export const verifyServerPin = async (account, pin) => {
 	}
 };
 
+// On Silo the viewer chooses whether the profile's PIN is remembered on this device: null elsewhere, where there's no
+// choice, and otherwise the last choice made (yes until it's turned down).
+export const signInPinRemembered = async (account) => {
+	const silo = siloFor(account);
+	return silo ? silo.remembersProfilePin(account.userId).catch(() => true) : null;
+};
+
+export const rememberSignInPin = async (account, remember) => {
+	const silo = siloFor(account);
+	if (silo) await silo.rememberProfilePin(account.userId, remember).catch(() => {});
+};
+
+// Whether a remembered Silo PIN still unlocks the profile, so it needn't be asked for.
+export const signInPinStillUnlocked = async (account) => {
+	const silo = siloFor(account);
+	return silo ? silo.rememberedProfileUnlocked(account.userId).catch(() => false) : false;
+};
+
+// On Silo a PIN already set is checked first (Silo itself doesn't ask for it), so a wrong one still counts as a guess.
+const siloWrite = async (silo, profileId, pin, currentPin) => {
+	try {
+		if (currentPin && !(await silo.verifyProfilePin(profileId, currentPin))) return {result: PIN_WRONG};
+		await silo.setProfilePin(profileId, pin);
+		return {result: PIN_VALID};
+	} catch (e) {
+		return e.status === 429 ? {result: PIN_LOCKED, wait: DEFAULT_RETRY_SECONDS * 1000} : unavailable;
+	}
+};
+
 // A PIN already on the server has to be named in currentPin, and a wrong one counts as a guess.
 export const setServerPin = async (account, pin, currentPin) => {
+	const silo = siloFor(account);
+	if (silo) return siloWrite(silo, account.userId, pin, currentPin);
 	try {
 		return writeVerdict(await request(account, 'PUT', 'Pin', currentPin ? {pin, currentPin} : {pin}));
 	} catch (e) {
@@ -88,6 +146,8 @@ export const setServerPin = async (account, pin, currentPin) => {
 };
 
 export const removeServerPin = async (account, currentPin) => {
+	const silo = siloFor(account);
+	if (silo) return siloWrite(silo, account.userId, null, currentPin);
 	try {
 		return writeVerdict(await request(account, 'DELETE', 'Pin', currentPin ? {currentPin} : {}));
 	} catch (e) {
@@ -97,6 +157,8 @@ export const removeServerPin = async (account, currentPin) => {
 
 // Clears any account's PIN without it, which the plugin only lets an administrator do.
 export const removeServerPinFor = async (account, userId) => {
+	const silo = siloFor(account);
+	if (silo) return siloWrite(silo, userId, null, null);
 	try {
 		const {status} = await request(account, 'DELETE', `Users/${encodeURIComponent(userId)}/Pin`);
 		return status === 200 ? {result: PIN_VALID} : unavailable;

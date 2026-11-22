@@ -254,12 +254,14 @@ export const testHevcSupport = () => {
 
 /**
  * AV1 support - Listed in Samsung per-year video spec tables from 2020 onwards.
- * 2020 (Tizen 5.5): AV1 on Premium/Standard/Basic1 UHD tiers (WebM container only)
+ * 2020 (Tizen 5.5): every tier but the FHD only 20TV_BASIC2. 2018 and 2019 sets updated to
+ * Tizen 5.5 have no AV1 decoder, so a 2020 set is told apart by its model year, and an FHD
+ * panel is left out, which also drops the few FHD Basic1 sets.
  * 2021 (Tizen 6): AV1 on ALL tiers including FHD models
- * 2022+ (Tizen 6.5+): AV1 on all tiers; 8K Premium models also support AV1 in MP4/MKV/TS
+ * 2022+ (Tizen 6.5+): AV1 on all tiers, and 8K Premium models also support AV1 in MP4/MKV/TS
  */
-export const testAv1Support = (tizenVersion = 4) => {
-	return tizenVersion >= 5.5;
+export const testAv1Support = (tizenVersion = 4, modelYear = 2018, uhd = false) => {
+	return tizenVersion >= 6 || (tizenVersion >= 5.5 && modelYear >= 2020 && uhd);
 };
 
 /**
@@ -405,7 +407,7 @@ export const getDeviceCapabilities = async () => {
 
 		// Video codec capabilities
 		hevc: testHevcSupport(),
-		av1: testAv1Support(tizenVersion),
+		av1: testAv1Support(tizenVersion, modelYear, uhd),
 		vp9: testVp9Support(tizenVersion, uhd),
 
 		...containerSupport,
@@ -451,7 +453,7 @@ export const getJellyfinDeviceProfile = async (options = {}) => {
 	// FLAC: Listed in Samsung Music format table (media-specifications.html) as a supported codec
 	// ALAC: Also listed in Music table but omitted here (niche format, m4a container shared with AAC)
 	// NOT supported: DTS (explicitly stated), TrueHD (not documented)
-	const audioCodecs = ['aac', 'mp3', 'flac','vorbis', 'pcm', 'wav'];
+	const audioCodecs = ['aac', 'mp3', 'flac','vorbis', 'pcm', 'wav', 'pcm_s16le'];
 	if (caps.ac3) audioCodecs.push('ac3');
 	if (caps.eac3) audioCodecs.push('eac3');
 	if (caps.opus) audioCodecs.push('opus');
@@ -620,16 +622,44 @@ export const getJellyfinDeviceProfile = async (options = {}) => {
 	if (caps.dolbyVision) hevcRangeTypes.push('DOVI', 'DOVIWithEL', 'DOVIWithELHDR10Plus');
 
 	const codecProfiles = [
+		// Samsung ties the H.264 level to the resolution: Level 5.1 is only specified
+		// for UHD, so a UHD panel still can't decode every 1080p Level 5.x stream.
+		// Without this limit such a file is direct played or remuxed with its video
+		// copied, and AVPlay fails. The server applies every matching profile, so this
+		// one lowers the level below for FHD sources and forces a real video transcode.
+		// 1088 covers encodes that report their uncropped coded height. The height is
+		// required because the server counts an unknown value as a match otherwise.
+		...(caps.uhd ? [{
+			Type: 'Video',
+			Codec: 'h264',
+			ApplyConditions: [
+				{
+					Condition: 'LessThanEqual',
+					Property: 'Height',
+					Value: '1088',
+					IsRequired: true
+				}
+			],
+			Conditions: [
+				{
+					Condition: 'LessThanEqual',
+					Property: 'VideoLevel',
+					Value: caps.modelYear >= 2020 ? '42' : '41',
+					IsRequired: false
+				}
+			]
+		}] : []),
 		{
 			Type: 'Video',
 			Codec: 'h264',
 			Conditions: [
-				{
+				// Tizen 6 and later show non-square pixels at the right shape.
+				...(isOldTizen ? [{
 					Condition: 'NotEquals',
 					Property: 'IsAnamorphic',
 					Value: 'true',
 					IsRequired: false
-				},
+				}] : []),
 				{
 					Condition: 'NotEquals',
 					Property: 'IsInterlaced',
@@ -705,6 +735,26 @@ export const getJellyfinDeviceProfile = async (options = {}) => {
 			Conditions: [{ Condition: 'LessThanEqual', Property: 'AudioChannels', Value: '2', IsRequired: true }]
 		});
 	}
+
+	// The same PCM16 limits isAudioStreamPlayable checks.
+	codecProfiles.push({
+		Type: 'VideoAudio',
+		Codec: 'pcm_s16le',
+		Conditions: [
+			{
+				Condition: 'LessThanEqual',
+				Property: 'AudioChannels',
+				Value: '2',
+				IsRequired: false
+			},
+			{
+				Condition: 'LessThanEqual',
+				Property: 'AudioSampleRate',
+				Value: '48000',
+				IsRequired: false
+			}
+		]
+	});
 
 	// Force any kind of DTS to be transcoded to E-AC3
 	codecProfiles.push({

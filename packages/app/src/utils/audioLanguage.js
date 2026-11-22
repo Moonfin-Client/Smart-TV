@@ -30,6 +30,18 @@ export const normalizeLanguageCode = (value) => {
 	return LANGUAGE_ALIASES[primary] || primary;
 };
 
+const TWO_LETTER = Object.keys(LANGUAGE_ALIASES).reduce((map, code) => {
+	if (code.length === 2) map[LANGUAGE_ALIASES[code]] = code;
+	return map;
+}, {});
+
+// The tag for an element's lang attribute. It's what makes the browser draw kanji in their
+// Japanese forms rather than the Chinese ones the TV falls back to otherwise (#652).
+export const languageTag = (value) => {
+	const code = normalizeLanguageCode(value);
+	return code ? TWO_LETTER[code] || code : undefined;
+};
+
 /**
  * Whether a track is in the language someone asked for. Both sides come down to
  * the same three letter code first, so a track tagged de, deu or ger all answer

@@ -4,6 +4,7 @@ import {getImageUrl} from '../../utils/helpers';
 import {hidesMediaDescription, seriesThumbUrl} from './detailsMedia';
 import {SpottableDiv, RowContainer} from './detailsSpottables';
 import {AnimeEpisodePills} from '../../components/AnimeMarkerPills';
+import PosterLabels from '../../components/PosterLabels';
 
 import css from './Details.module.less';
 
@@ -41,6 +42,7 @@ const NextUpCard = ({episode, title, serverUrl, settings, onSelectItem}) => {
 							<div className={css.episodeProgressBar} style={{width: `${Math.min(progress, 100)}%`}} />
 						</div>
 					)}
+					<PosterLabels item={episode} serverUrl={serverUrl} scale={0.8} />
 				</div>
 				<div className={css.nextUpInfo}>
 					<span className={css.nextUpTitle}>{label ? `${label} - ${episode.Name}` : episode.Name}</span>

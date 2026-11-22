@@ -7,28 +7,30 @@ import css from './MusicLibrary.module.less';
 const SpottableDiv = Spottable('div');
 
 // Songs as one-line rows: the track number or the album art, the title with `subtitleFor`'s line
-// under it when there is one, and the length at the end. `activeId` marks the song an album was
-// left on.
-const MusicTrackList = ({tracks, numbered = false, subtitleFor, artFor, activeId, firstSpotlightId, onPlay}) => {
+// under it when there is one, and the length at the end, or `metaFor`'s text in its place.
+// `ranked` puts the place in the list ahead of the art. `activeId` marks the song an album was
+// left on. With `idPrefix` every row gets the spotlight id `${idPrefix}-${index}`.
+const MusicTrackList = ({tracks, numbered = false, ranked = false, subtitleFor, artFor, metaFor, activeId, firstSpotlightId, idPrefix, className, onPlay}) => {
 	const handleClick = useCallback((e) => {
 		const track = tracks[parseInt(e.currentTarget.dataset.index, 10)];
 		if (track) onPlay(track);
 	}, [tracks, onPlay]);
 
 	return (
-		<div>
+		<div className={className}>
 			{tracks.map((track, index) => {
 				const subtitle = subtitleFor?.(track);
 				const art = artFor?.(track);
-				const length = trackRuntimeLabel(track.RunTimeTicks, true);
+				const length = metaFor ? metaFor(track) : trackRuntimeLabel(track.RunTimeTicks, true);
 				return (
 					<SpottableDiv
-						key={track.Id}
+						key={track.PlaylistItemId || track.Id}
 						className={track.Id === activeId ? `${css.track} ${css.trackActive}` : css.track}
 						data-index={index}
-						spotlightId={index === 0 ? firstSpotlightId : undefined}
+						spotlightId={idPrefix ? `${idPrefix}-${index}` : index === 0 ? firstSpotlightId : undefined}
 						onClick={handleClick}
 					>
+						{ranked && <span className={css.trackRank}>{index + 1}</span>}
 						{numbered
 							? <span className={css.trackNumber}>{track.IndexNumber ?? index + 1}</span>
 							: art

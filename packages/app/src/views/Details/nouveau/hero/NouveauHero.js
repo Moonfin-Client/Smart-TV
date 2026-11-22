@@ -2,6 +2,7 @@ import {Fragment, useEffect, useMemo, useState} from 'react';
 import $L from '@enact/i18n/$L';
 
 import RatingsRow from '../../../../components/RatingsRow';
+import {IncompleteDetailLine} from '../../../../components/IncompleteBadge';
 import {SeerrStatusBadge} from '../../../../components/seerr/SeerrStatusBadge';
 import {isMdblistEnabled} from '../../../../services/mdblistApi';
 import {formatPlaybackEndsAt} from '../../../../utils/playbackTimeLabels';
@@ -30,7 +31,7 @@ const NouveauHero = (props) => {
 	const {
 		item, settings, showsSection, seerr, genres = [], year, officialRating, runtime, seasonCount,
 		episodes = [], techBadges = [], techSize, logoUrl, onLogoError,
-		effectiveServerUrl, serverToken, overviewBackRef, isPerson
+		effectiveServerUrl, serverToken, overviewBackRef, isPerson, bookSeriesItem
 	} = props;
 
 	const isSeason = item.Type === 'Season';
@@ -78,14 +79,15 @@ const NouveauHero = (props) => {
 		(!isPerson || showsSection('biography'));
 
 	const renderBranding = () => {
-		if (!logoUrl) return <h1 className={css.title}>{item.Name}</h1>;
+		const itemName = bookSeriesItem ? bookSeriesItem.Name : item.Name;
+		if (!logoUrl) return <h1 className={css.title}>{itemName}</h1>;
 
 		// A season's logo belongs to its series, so the season's own name goes beside it.
 		if (isSeason) {
 			return (
 				<div className={css.branding}>
 					<img className={css.logoCompanion} src={logoUrl} onError={onLogoError} alt="" />
-					<span className={css.companionTitle}>{item.Name}</span>
+					<span className={css.companionTitle}>{itemName}</span>
 				</div>
 			);
 		}
@@ -125,6 +127,7 @@ const NouveauHero = (props) => {
 					))}
 				</div>
 			)}
+			<IncompleteDetailLine itemId={item.Id} clockDisplay={settings.clockDisplay} />
 			{(techBadges.length > 0 || techSize) && (
 				<div className={css.tech}>
 					{techBadges.map((badge, i) => <span key={i} className={css.techChip}>{badge.label}</span>)}

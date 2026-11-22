@@ -12,3 +12,4 @@
 *.gif binary
 *.ico binary
 *.webp binary
+*.nupkg binary

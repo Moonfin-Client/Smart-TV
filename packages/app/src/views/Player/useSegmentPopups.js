@@ -5,6 +5,9 @@ import {shouldAskStillWatching} from '../../utils/stillWatching';
 
 // Without autoplay, the next episode is offered once this little of the current one is left.
 const NEAR_END_TICKS = 300000000;
+// Moving on from Next Up leaves the episode done, so the players report its stop at the end and the
+// server marks it watched, even when the credits start before the server's own threshold.
+const FINISHED = {finished: true};
 
 // A segment shorter than this isn't offered, and one shorter than the second isn't skipped by itself.
 const MIN_PROMPT_TICKS = 30000000;
@@ -124,7 +127,7 @@ const useSegmentPopups = ({
 			onPausePlayback?.();
 			return;
 		}
-		await onPlayNext(nextEpisode);
+		await onPlayNext(nextEpisode, FINISHED);
 	}, [nextEpisode, onPlayNext, onPausePlayback, shouldHoldForStillWatching]);
 
 	// Pressing Play Next answers the question, so the run starts over.
@@ -132,19 +135,19 @@ const useSegmentPopups = ({
 		if (!nextEpisode || !onPlayNext) return;
 		cancelNextEpisodeCountdown();
 		consecutiveRef.current = 0;
-		await onPlayNext(nextEpisode);
+		await onPlayNext(nextEpisode, FINISHED);
 	}, [nextEpisode, onPlayNext, cancelNextEpisodeCountdown]);
 
 	const handleStillWatchingContinue = useCallback(async () => {
 		setAskStillWatching(false);
 		consecutiveRef.current = 0;
-		if (nextEpisode && onPlayNext) await onPlayNext(nextEpisode);
+		if (nextEpisode && onPlayNext) await onPlayNext(nextEpisode, FINISHED);
 	}, [nextEpisode, onPlayNext]);
 
 	const handleStillWatchingStop = useCallback(() => {
 		setAskStillWatching(false);
 		consecutiveRef.current = 0;
-		onStopPlayback?.();
+		onStopPlayback?.(FINISHED);
 	}, [onStopPlayback]);
 
 	// --- Skip segment ---

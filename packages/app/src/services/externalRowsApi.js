@@ -1,4 +1,6 @@
-import {getAuthHeader, getServerUrl, getUserId} from './jellyfinApi';
+import {api, getApiKey, getAuthHeader, getServerType, getServerUrl, getUserId} from './jellyfinApi';
+import {moonbaseEndpoint} from './moonbaseEndpoint';
+import {plexItems} from './plexMapper';
 import {fetchWithTimeout} from '../utils/fetchTimeout';
 import {mediaServerQueue} from '../utils/requestQueue';
 
@@ -17,6 +19,20 @@ const CACHE_TTL_MS = 30 * 60 * 1000;
 const cacheScope = () => `${getServerUrl() || ''}|${getUserId() || ''}`;
 const cacheKeyFor = (source, type, params, language) => `${cacheScope()}|${source}:${type}:${JSON.stringify(params || {})}:${(language || '').toLowerCase()}`;
 
+// A GET to the Moonfin plugin, which on Plex is Moonbase for Plex beside the server. The server and token are read
+// before anything waits, so a request still queued when the account changes answers for the account it was made for.
+// Null when a Plex server has no companion.
+const moonbaseGet = async (path, {signal, timeoutMs = 10000} = {}) => {
+	const server = getServerUrl();
+	const endpoint = getServerType() === 'plex'
+		? await moonbaseEndpoint(server, getApiKey())
+		: {base: server, headers: {'Authorization': getAuthHeader()}};
+	if (!endpoint) return null;
+	const options = {headers: endpoint.headers};
+	if (signal) options.signal = signal;
+	return mediaServerQueue.run(() => (endpoint.fetch || fetchWithTimeout)(`${endpoint.base}${path}`, options, timeoutMs));
+};
+
 const normalizeItem = (raw) => {
 	const providerIds = raw.providerIds || raw.ProviderIds || {};
 	return {
@@ -24,6 +40,7 @@ const normalizeItem = (raw) => {
 		type: raw.type ?? raw.Type ?? 'Movie',
 		productionYear: raw.productionYear ?? raw.ProductionYear ?? null,
 		rank: raw.rank ?? raw.Rank ?? null,
+		popularity: raw.popularity ?? raw.Popularity ?? null,
 		posterUrl: raw.posterUrl ?? raw.PosterUrl ?? null,
 		backdropUrl: raw.backdropUrl ?? raw.BackdropUrl ?? null,
 		userRating: raw.userRating ?? raw.UserRating ?? null,
@@ -61,26 +78,20 @@ export const fetchCustomRow = async ({source, type, params = {}}, options = {}) 
 		}
 	}
 
-	const baseUrl = getServerUrl();
-	if (!baseUrl) return [];
+	if (!getServerUrl()) return [];
 
 	try {
 		// refresh=true makes the plugin bypass and overwrite its cached entry, so
 		// the refreshed list is what every other device sees too.
-		const url = `${baseUrl}/Moonfin/CustomRows/Items`
+		const path = '/Moonfin/CustomRows/Items'
 			+ `?source=${encodeURIComponent(source)}`
 			+ `&type=${encodeURIComponent(type)}`
 			+ `&params=${encodeURIComponent(JSON.stringify(params))}`
 			+ (language ? `&language=${encodeURIComponent(language)}` : '')
 			+ (options.forceRefresh ? '&refresh=true' : '');
 
-		const fetchOptions = {headers: {'Authorization': getAuthHeader()}};
-		if (options.signal) fetchOptions.signal = options.signal;
-
-		const response = await mediaServerQueue.run(
-			() => fetchWithTimeout(url, fetchOptions, options.timeoutMs || 10000)
-		);
-		if (!response.ok) return cache[key]?.items || [];
+		const response = await moonbaseGet(path, {signal: options.signal, timeoutMs: options.timeoutMs});
+		if (!response?.ok) return cache[key]?.items || [];
 
 		const data = await response.json();
 		const success = data.success ?? data.Success;
@@ -99,21 +110,18 @@ export const fetchCustomRow = async ({source, type, params = {}}, options = {}) 
 // What TMDB holds for a title the server doesn't have, through Moonbase. Null when the plugin
 // has nothing for it, which it says with a 404. An IMDb id is only used without a TMDB id.
 export const fetchTmdbDetails = async ({type, tmdbId, imdbId}) => {
-	const baseUrl = getServerUrl();
 	let id = null;
 	if (tmdbId) id = `tmdbId=${encodeURIComponent(tmdbId)}`;
 	else if (imdbId) id = `imdbId=${encodeURIComponent(imdbId)}`;
-	if (!baseUrl || !id) return null;
+	if (!getServerUrl() || !id) return null;
 
 	const key = `${cacheScope()}|details:${type}:${id}`;
 	const cached = cache[key];
 	if (cached && (Date.now() - cached.fetchedAt) < CACHE_TTL_MS) return cached.details;
-	const headers = {'Authorization': getAuthHeader()};
 
 	try {
-		const url = `${baseUrl}/Moonfin/Tmdb/Details?type=${type === 'tv' ? 'tv' : 'movie'}&${id}`;
-		const response = await mediaServerQueue.run(() => fetchWithTimeout(url, {headers}, 10000));
-		if (!response.ok && response.status !== 404) return null;
+		const response = await moonbaseGet(`/Moonfin/Tmdb/Details?type=${type === 'tv' ? 'tv' : 'movie'}&${id}`);
+		if (!response || (!response.ok && response.status !== 404)) return null;
 		const details = response.ok ? await response.json() : null;
 		cache[key] = {details, fetchedAt: Date.now()};
 		return details;
@@ -123,32 +131,48 @@ export const fetchTmdbDetails = async ({type, tmdbId, imdbId}) => {
 	}
 };
 
+// Silo curates its own seasonal row (Seasonal Picks), picking the holiday and the titles, so Moonbase isn't asked.
+// A new order on each load, so the same picks don't always lead. As Moonfin-Core's _loadServerSeasonalRow.
+const fetchSiloSeasonalRow = async () => {
+	try {
+		const section = (await api.getServerHomeSections()).find((entry) => entry.kind === 'seasonal_themed');
+		if (!section) return null;
+		const items = [...((await api.getServerHomeSectionItems(section.id))?.Items || [])];
+		for (let i = items.length - 1; i > 0; i--) {
+			const j = Math.floor(Math.random() * (i + 1));
+			[items[i], items[j]] = [items[j], items[i]];
+		}
+		return {holiday: 'silo', title: section.title, items, suggestions: []};
+	} catch (err) {
+		console.warn('[ExternalRows] Silo seasonal section failed:', err);
+		return null;
+	}
+};
+
 // The seasonal row Moonbase built for this user. Owned movies arrive as library items and
-// suggestions in the custom row shape. A holiday of null means there is no row today.
-export const fetchSeasonalRow = async ({country} = {}) => {
-	const key = `${cacheScope()}|seasonal:${country || ''}`;
+// suggestions in the custom row shape. A holiday of null means there's no row today. allYear
+// asks for a row outside the holiday dates too.
+export const fetchSeasonalRow = async ({country, allYear = false} = {}) => {
+	if (getServerType() === 'silo') return fetchSiloSeasonalRow();
+	const key = `${cacheScope()}|seasonal:${country || ''}:${allYear}`;
 	const cached = cache[key];
 	if (cached && (Date.now() - cached.fetchedAt) < CACHE_TTL_MS) {
 		return cached.payload;
 	}
 
-	const baseUrl = getServerUrl();
-	if (!baseUrl) return null;
-	// Read alongside the key, so a request still queued when the account changes answers for
-	// the account the key belongs to.
-	const headers = {'Authorization': getAuthHeader()};
+	if (!getServerUrl()) return null;
 
 	try {
-		const url = `${baseUrl}/Moonfin/Seasonal/Row` + (country ? `?country=${encodeURIComponent(country)}` : '');
-		const response = await mediaServerQueue.run(
-			() => fetchWithTimeout(url, {headers}, 10000)
-		);
-		if (!response.ok) return cache[key]?.payload || null;
+		const query = [country && `country=${encodeURIComponent(country)}`, allYear && 'allYear=true'].filter(Boolean).join('&');
+		const response = await moonbaseGet('/Moonfin/Seasonal/Row' + (query ? `?${query}` : ''));
+		if (!response?.ok) return cache[key]?.payload || null;
 
 		const data = await response.json();
+		const items = Array.isArray(data.items) ? data.items : [];
 		const payload = {
 			holiday: data.holiday ?? null,
-			items: Array.isArray(data.items) ? data.items : [],
+			// Moonbase for Plex answers with Plex's own metadata.
+			items: getServerType() === 'plex' ? plexItems(items) : items,
 			suggestions: Array.isArray(data.suggestions) ? data.suggestions.map(normalizeItem) : []
 		};
 		cache[key] = {payload, fetchedAt: Date.now()};
@@ -170,8 +194,10 @@ export const constructSourceUrl = (source, type, params = {}) => {
 			return `https://www.imdb.com/chart/${type || ''}`;
 		case 'letterboxd':
 			return `https://letterboxd.com/${params.user || ''}/`;
-		case 'mdblist':
-			return `https://mdblist.com/lists/${params.username || ''}/${params.listname || ''}`;
+		case 'mdblist': {
+			const mediaPath = {movie: 'movies/', show: 'shows/'}[params.mediatype] || '';
+			return `https://mdblist.com/lists/${params.username || ''}/${mediaPath}${params.listname || ''}`;
+		}
 		default:
 			return '';
 	}

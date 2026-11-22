@@ -1,4 +1,4 @@
-import {isInBandSubtitleTrack, isMatroskaContainer} from './subtitleCodecs';
+import {isEmbedDeliveredText, isInBandSubtitleTrack, isMatroskaContainer} from './subtitleCodecs';
 
 const pgs = {codec: 'PGSSUB', isExternal: false, container: 'mkv', canStreamInBand: true};
 
@@ -38,5 +38,17 @@ describe('isInBandSubtitleTrack', () => {
 		expect(isInBandSubtitleTrack('subrip', pgs)).toBe(false);
 		expect(isInBandSubtitleTrack('ass', pgs)).toBe(false);
 		expect(isInBandSubtitleTrack('dvdsub', pgs)).toBe(false);
+	});
+});
+
+describe('isEmbedDeliveredText', () => {
+	it('takes an embedded text track the server leaves in the file', () => {
+		expect(isEmbedDeliveredText({Codec: 'subrip', IsExternal: false, DeliveryMethod: 'Embed'})).toBe(true);
+	});
+
+	it('leaves out sidecars, other delivery methods and bitmaps', () => {
+		expect(isEmbedDeliveredText({Codec: 'srt', IsExternal: true, DeliveryMethod: 'Embed'})).toBe(false);
+		expect(isEmbedDeliveredText({Codec: 'srt', IsExternal: false, DeliveryMethod: 'External'})).toBe(false);
+		expect(isEmbedDeliveredText({Codec: 'pgssub', IsExternal: false, DeliveryMethod: 'Embed'})).toBe(false);
 	});
 });

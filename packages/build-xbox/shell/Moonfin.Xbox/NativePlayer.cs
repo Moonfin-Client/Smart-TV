@@ -33,9 +33,14 @@ namespace Moonfin.Xbox
     // picture to the console's decoders, since the system's own reader crawls on a slow
     // link and wont take HEVC out of a Matroska file. The server's HLS transcodes go
     // through the system's adaptive source. With passthrough on, the page sends a film
-    // whose sound a receiver decodes to the system's reader after all, since FFmpeg
-    // decodes that sound to PCM and the reader hands it to the console as it is. FFmpeg
-    // takes the file when that reader cant play it.
+    // whose sound a receiver decodes to the system's reader after all, which hands that
+    // sound to the console as it is. FFmpeg takes the file when that reader cant play it,
+    // and is then told to hand the sound on as it is too.
+    //
+    // A Dolby Vision film is opened with the display already in Dolby Vision mode, and
+    // FFmpeg hands its picture to the console's decoder tagged with the profile of the
+    // console's Dolby Vision effect, which Windows then puts between the decoder and the
+    // display.
     internal sealed class NativePlayer
     {
         private static readonly TimeSpan TickInterval = TimeSpan.FromMilliseconds(250);
@@ -64,6 +69,9 @@ namespace Moonfin.Xbox
         private Uri openedUri;
         private bool fallsBack;
         private bool wantsHdr10;
+        private bool passthrough;
+        // The effect's profile the open's stream is tagged with, such as dvhe.05
+        private string dolbyVision;
 
         public NativePlayer(MediaPlayerElement element, UIElement backdrop, CoreDispatcher dispatcher, Action<string, IJsonValue> send, Func<string, bool> acceptsUntrusted)
         {
@@ -158,10 +166,45 @@ namespace Moonfin.Xbox
             // play it, and the probe, which asks for no fallback, hears that it failed.
             fallsBack = systemReader && payload.GetNamedBoolean("fallback", false);
             wantsHdr10 = systemReader && payload.GetNamedBoolean("hdr10", false);
+            passthrough = payload.GetNamedBoolean("passthrough", false);
             openedUri = uri;
+            int dolbyVisionProfile = (int)payload.GetNamedNumber("dolbyVision", 0);
+            double opening = session;
 
             try
             {
+                if (dolbyVisionProfile > 0)
+                {
+                    JsonObject answer = await DisplayModes.SetForDolbyVisionAsync();
+                    if (session != opening)
+                    {
+                        // The page closed it while the display was switching
+                        if (session < 0) await DisplayModes.RestoreAsync();
+                        MainPage.Current?.Reply(message, Ok(), null);
+                        return;
+                    }
+                    answer.SetNamedValue("hdr", JsonValue.CreateStringValue("dolbyvision"));
+                    Push("display", answer);
+                    bool inDolbyVision = answer.GetNamedBoolean("ok", false);
+                    // Profile 5 has no HDR10 picture under its Dolby Vision one, so it cant play without the mode
+                    if (!inDolbyVision && dolbyVisionProfile == 5)
+                    {
+                        Fail(4, "The display would not switch to Dolby Vision: " + Bridge.NamedString(answer, "reason"));
+                        MainPage.Current?.Reply(message, Ok(), null);
+                        return;
+                    }
+                    // The probe leaves the tags off to see what the console does without them
+                    if (inDolbyVision && !systemReader && payload.GetNamedBoolean("dolbyVisionTags", true))
+                    {
+                        dolbyVision = DolbyVisionEffect.ProfileFor(dolbyVisionProfile);
+                    }
+                }
+                else if (DisplayModes.InDolbyVision)
+                {
+                    // A film after a Dolby Vision one would otherwise play in Dolby Vision mode
+                    await DisplayModes.RestoreAsync();
+                }
+
                 if (await LoadAsync(uri, payload.GetNamedBoolean("hls", false), systemReader))
                 {
                     Show();
@@ -235,7 +278,7 @@ namespace Moonfin.Xbox
         }
 
         // The system's reader turned the file away or found no picture in it, so FFmpeg
-        // opens it after all, and decodes the sound as it does for any other file.
+        // opens it after all.
         private async void FallBackToFFmpeg(string why)
         {
             HostLog.Write("player", "The system reader could not play " + openedUri.Host + " (" + why + "), so FFmpeg opens it");
@@ -285,7 +328,7 @@ namespace Moonfin.Xbox
             return "video/mp2t";
         }
 
-        private static MediaSourceConfig FileConfig(bool untrusted)
+        private MediaSourceConfig FileConfig(bool untrusted)
         {
             var config = new MediaSourceConfig();
             config.General.ReadAheadBufferEnabled = true;
@@ -293,6 +336,15 @@ namespace Moonfin.Xbox
             config.General.ReadAheadBufferSize = ReadAheadBytes;
             config.General.FastSeek = true;
             config.Video.VideoDecoderMode = VideoDecoderMode.Automatic;
+            // In Dolby Vision mode the console's decoder takes the picture, since only it hands
+            // each frame's Dolby Vision metadata on to the effect.
+            if (DisplayModes.InDolbyVision)
+            {
+                config.Video.VideoDecoderMode = VideoDecoderMode.ForceSystemDecoder;
+                if (dolbyVision != null) config.Video.DolbyVisionRendererProfile = dolbyVision;
+            }
+            // The console passes AC-3, E-AC-3, TrueHD and DTS to a receiver when it gets them as they are
+            config.Audio.SystemDecoderSurround = passthrough;
             // Marks HDR frames as HDR whatever mode the display is in when the file opens,
             // since the display is only switched once the file has.
             config.Video.HdrSupport = HdrSupport.Enabled;
@@ -334,6 +386,8 @@ namespace Moonfin.Xbox
             wantsSubtitle = -1;
             fallsBack = false;
             wantsHdr10 = false;
+            passthrough = false;
+            dolbyVision = null;
             session = -1;
             try
             {
@@ -454,7 +508,7 @@ namespace Moonfin.Xbox
             opened = true;
             item.AudioTracksChanged += (sender, args) => OnUi(() => Push("audioTracks", Tracks()));
 
-            if ((file?.CurrentVideoStream?.HasHdrMetadata == true || wantsHdr10) && DisplayModes.DisplayHasHdr10())
+            if (!DisplayModes.InDolbyVision && (file?.CurrentVideoStream?.HasHdrMetadata == true || wantsHdr10) && DisplayModes.DisplayHasHdr10())
             {
                 JsonObject answer = await DisplayModes.SetForHdr10Async();
                 answer.SetNamedValue("hdr", JsonValue.CreateStringValue("hdr10"));
@@ -602,6 +656,7 @@ namespace Moonfin.Xbox
                 if (video != null) payload.SetNamedValue("videoDecoder", JsonValue.CreateStringValue(video.CodecName + " " + video.DecoderEngine));
                 if (audio != null) payload.SetNamedValue("audioDecoder", JsonValue.CreateStringValue(audio.CodecName + " " + audio.DecoderEngine));
             }
+            payload.SetNamedValue("dolbyVisionProfile", dolbyVision != null ? JsonValue.CreateStringValue(dolbyVision) : JsonValue.CreateNullValue());
             string format = AudioFormat();
             if (format != null) payload.SetNamedValue("audioFormat", JsonValue.CreateStringValue(format));
             return payload;

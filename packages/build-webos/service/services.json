@@ -10,6 +10,16 @@
 					"name": "fetch",
 					"description": "Fetch a URL and return status, headers and body",
 					"public": false
+				},
+				{
+					"name": "relaunch",
+					"description": "Open the app again once it has closed, after an in-app update",
+					"public": false
+				},
+				{
+					"name": "extendDevMode",
+					"description": "Renew the TV's Developer Mode session so its apps aren't uninstalled",
+					"public": false
 				}
 			]
 		}

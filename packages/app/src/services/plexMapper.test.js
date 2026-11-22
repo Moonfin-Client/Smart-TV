@@ -149,3 +149,10 @@ test('chapters keep names and pictures and never start before zero', () => {
 		{StartPositionTicks: 600000000, ImageTag: '/library/media/1/chapterImages/2'}
 	]);
 });
+
+test("maps a movie's original title but not a track's, which names its artist", () => {
+	const movie = plexItemToJellyfin({ratingKey: '1', type: 'movie', title: 'Écrit', originalTitle: "Le Titre d'Été"});
+	const track = plexItemToJellyfin({ratingKey: '2', type: 'track', title: 'Track', originalTitle: 'An Artist'});
+	expect(movie.OriginalTitle).toBe("Le Titre d'Été");
+	expect('OriginalTitle' in track).toBe(false);
+});

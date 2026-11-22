@@ -1,0 +1,571 @@
+@import '../../styles/mixins.less';
+
+// What the book screens add to the music screens' stylesheet, which they share. Theme colors come
+// from themeOverrides, and the genre stations' palette is set inline.
+
+// The header's title row, with anything that sits under it, like Discover's search and subjects.
+.header {
+	-webkit-flex-shrink: 0;
+	flex-shrink: 0;
+	padding: 18px 60px 0;
+}
+
+.headerTop {
+	display: -webkit-flex;
+	display: flex;
+	-webkit-align-items: flex-end;
+	align-items: flex-end;
+}
+
+.smallPill {
+	height: 46px;
+	padding: 0 20px;
+	font-size: 18px;
+}
+
+// The overview under Classic's strip or Reading Room's chips fills what's left of the page.
+.overview {
+	position: relative;
+	-webkit-flex: 1;
+	flex: 1;
+	min-height: 0;
+	display: -webkit-flex;
+	display: flex;
+	-webkit-flex-direction: column;
+	flex-direction: column;
+}
+
+// Book covers stand on a shelf, so a row of mixed heights lines up along the bottom.
+.bookRow {
+	display: -webkit-flex;
+	display: flex;
+	-webkit-align-items: flex-end;
+	align-items: flex-end;
+	margin-bottom: 24px;
+}
+
+.grid {
+	padding: 24px 60px 0;
+}
+
+.shelf {
+	display: -webkit-flex;
+	display: flex;
+	-webkit-align-items: flex-end;
+	align-items: flex-end;
+	overflow-x: auto;
+	overflow-y: hidden;
+	padding: 12px 60px 12px 6px;
+	scrollbar-width: none;
+
+	&::-webkit-scrollbar {
+		display: none;
+	}
+}
+
+.sectionTitle {
+	margin: 24px 0 0;
+	font-size: 28px;
+	font-weight: 800;
+	color: #fff;
+}
+
+// What's being read, over the Bookstore titles grid.
+.continueRow {
+	padding: 0 60px;
+}
+
+// The title opened under its row. The notch sits wholly above it so the two never overlap.
+.panel {
+	position: relative;
+	display: -webkit-flex;
+	display: flex;
+	margin: 6px 0 30px;
+	padding: 30px 36px;
+	border-radius: 24px;
+	background: rgba(255, 255, 255, 0.06);
+}
+
+.panelCover {
+	-webkit-flex: 0 0 auto;
+	flex: 0 0 auto;
+	margin-right: 42px;
+
+	img {
+		display: block;
+		width: 100%;
+		height: 100%;
+		object-fit: cover;
+		border-radius: 12px;
+	}
+}
+
+.panelInfo {
+	-webkit-flex: 1;
+	flex: 1;
+	min-width: 0;
+}
+
+.overviewText {
+	margin-top: 14px;
+	font-size: 21px;
+	line-height: 1.4;
+	color: rgba(255, 255, 255, 0.75);
+	display: -webkit-box;
+	-webkit-box-orient: vertical;
+	-webkit-line-clamp: 3;
+	overflow: hidden;
+}
+
+.bio {
+	-webkit-line-clamp: 2;
+}
+
+.progressLine {
+	display: -webkit-flex;
+	display: flex;
+	-webkit-align-items: center;
+	align-items: center;
+	margin-top: 18px;
+	font-size: 19px;
+	color: rgba(255, 255, 255, 0.65);
+}
+
+.track {
+	-webkit-flex: 0 0 300px;
+	flex: 0 0 300px;
+	height: 8px;
+	margin-right: 18px;
+	border-radius: 4px;
+	background: rgba(255, 255, 255, 0.18);
+	overflow: hidden;
+}
+
+.trackFill {
+	height: 100%;
+	background: #00a4dc;
+}
+
+.heart {
+	width: 55px;
+	padding: 0;
+	-webkit-justify-content: center;
+	justify-content: center;
+
+	svg {
+		margin: 0;
+	}
+}
+
+// One row per series: what it is on the left, its books on the right.
+.seriesList {
+	padding: 24px 0 0 60px;
+}
+
+.seriesRow {
+	display: -webkit-flex;
+	display: flex;
+	-webkit-align-items: center;
+	align-items: center;
+	margin-bottom: 36px;
+}
+
+.seriesInfo {
+	-webkit-flex: 0 0 330px;
+	flex: 0 0 330px;
+	width: 330px;
+	padding-right: 24px;
+	box-sizing: border-box;
+}
+
+.seriesName {
+	margin-top: 6px;
+	font-size: 34px;
+	font-weight: 800;
+	line-height: 1.15;
+	color: #fff;
+	display: -webkit-box;
+	-webkit-box-orient: vertical;
+	-webkit-line-clamp: 2;
+	overflow: hidden;
+}
+
+.rowShelf {
+	-webkit-flex: 1;
+	flex: 1;
+	min-width: 0;
+}
+
+.authorRow {
+	height: 96px;
+}
+
+.face {
+	-webkit-flex: 0 0 auto;
+	flex: 0 0 auto;
+	border-radius: 50%;
+	overflow: hidden;
+	display: -webkit-flex;
+	display: flex;
+	-webkit-align-items: center;
+	-webkit-justify-content: center;
+	align-items: center;
+	justify-content: center;
+	color: #fff;
+	font-weight: 800;
+
+	img {
+		width: 100%;
+		height: 100%;
+		object-fit: cover;
+	}
+}
+
+.spotHead {
+	display: -webkit-flex;
+	display: flex;
+	-webkit-align-items: center;
+	align-items: center;
+}
+
+.stats {
+	display: -webkit-flex;
+	display: flex;
+	margin-top: 18px;
+}
+
+.stat {
+	min-width: 132px;
+	padding: 12px 20px;
+	box-sizing: border-box;
+	border-radius: 16px;
+	background: rgba(255, 255, 255, 0.06);
+}
+
+.statValue {
+	font-size: 30px;
+	font-weight: 800;
+	color: #fff;
+}
+
+.statLabel {
+	font-size: 18px;
+	color: rgba(255, 255, 255, 0.65);
+}
+
+.spotShelves {
+	margin-top: 12px;
+}
+
+.collectionGrid {
+	display: -webkit-flex;
+	display: flex;
+	-webkit-flex-wrap: wrap;
+	flex-wrap: wrap;
+	padding: 24px 60px 0;
+}
+
+.collectionCard {
+	box-sizing: border-box;
+	padding: 24px;
+	border-radius: 24px;
+	border: 3px solid transparent;
+	background: rgba(255, 255, 255, 0.06);
+	cursor: pointer;
+
+	&:focus {
+		outline: none;
+		border-color: #fff;
+	}
+}
+
+.coverStrip {
+	display: -webkit-flex;
+	display: flex;
+	height: 210px;
+
+	> * {
+		-webkit-flex: 1;
+		flex: 1;
+		min-width: 0;
+	}
+}
+
+.stripCover {
+	border-radius: 10px;
+	overflow: hidden;
+	background: rgba(255, 255, 255, 0.08);
+
+	img {
+		display: block;
+		width: 100%;
+		height: 100%;
+		object-fit: cover;
+	}
+}
+
+.cardName {
+	margin-top: 18px;
+	font-size: 28px;
+	font-weight: 800;
+	color: #fff;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.board {
+	display: -webkit-flex;
+	display: flex;
+	-webkit-flex-wrap: wrap;
+	flex-wrap: wrap;
+	padding: 24px 60px 0;
+}
+
+.boardPanel {
+	box-sizing: border-box;
+	padding: 24px 24px 12px;
+	border-radius: 24px;
+	background: rgba(255, 255, 255, 0.06);
+}
+
+.panelHead {
+	display: -webkit-flex;
+	display: flex;
+	-webkit-align-items: center;
+	align-items: center;
+	-webkit-justify-content: space-between;
+	justify-content: space-between;
+}
+
+.panelHeading {
+	font-size: 28px;
+	font-weight: 800;
+	color: #fff;
+}
+
+.panelCount {
+	margin-left: 12px;
+	font-size: 20px;
+	font-weight: 400;
+	color: rgba(255, 255, 255, 0.65);
+}
+
+.panelItems {
+	display: -webkit-flex;
+	display: flex;
+	-webkit-align-items: flex-end;
+	align-items: flex-end;
+	padding: 12px 0;
+}
+
+.portrait {
+	-webkit-flex: 0 0 auto;
+	flex: 0 0 auto;
+	text-align: center;
+	cursor: pointer;
+	outline: none;
+
+	&:focus .face {
+		box-shadow: 0 0 0 4px #fff;
+	}
+}
+
+.portraitName {
+	margin-top: 10px;
+	font-size: 19px;
+	font-weight: 700;
+	color: #fff;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+// Discover: the search field, the subjects under it, then the featured title.
+.search {
+	display: -webkit-flex;
+	display: flex;
+	-webkit-align-items: center;
+	align-items: center;
+	margin-top: 18px;
+	height: 66px;
+	padding: 0 30px;
+	box-sizing: border-box;
+	border-radius: 33px;
+	border: 3px solid transparent;
+	background: rgba(255, 255, 255, 0.08);
+	color: #fff;
+	font-size: 24px;
+
+	> * {
+		-webkit-flex: 1;
+		flex: 1;
+	}
+
+	input::-webkit-input-placeholder {
+		color: rgba(255, 255, 255, 0.5);
+	}
+
+	&:focus {
+		outline: none;
+		border-color: #fff;
+	}
+}
+
+.subjects {
+	display: -webkit-flex;
+	display: flex;
+	-webkit-align-items: center;
+	align-items: center;
+	padding: 18px 0 6px;
+	overflow-x: auto;
+	scrollbar-width: none;
+
+	&::-webkit-scrollbar {
+		display: none;
+	}
+
+	> * {
+		-webkit-flex-shrink: 0;
+		flex-shrink: 0;
+		white-space: nowrap;
+	}
+
+	svg {
+		width: 24px;
+		height: 24px;
+		fill: currentColor;
+	}
+}
+
+.hero {
+	position: relative;
+	display: -webkit-flex;
+	display: flex;
+	-webkit-align-items: flex-end;
+	align-items: flex-end;
+	margin: 24px 60px 0;
+	padding: 36px;
+	border-radius: 24px;
+	overflow: hidden;
+	background: rgba(255, 255, 255, 0.06);
+}
+
+.heroCover {
+	-webkit-flex: 0 0 210px;
+	flex: 0 0 210px;
+	width: 210px;
+	height: 315px;
+	margin-right: 42px;
+	border-radius: 12px;
+	overflow: hidden;
+	background: rgba(255, 255, 255, 0.08);
+
+	img {
+		display: block;
+		width: 100%;
+		height: 100%;
+		object-fit: cover;
+	}
+}
+
+.discoverSection {
+	padding-left: 60px;
+}
+
+.detailOverlay {
+	position: fixed;
+	top: 0;
+	right: 0;
+	bottom: 0;
+	left: 0;
+	z-index: 20;
+	display: -webkit-flex;
+	display: flex;
+	-webkit-align-items: center;
+	-webkit-justify-content: center;
+	align-items: center;
+	justify-content: center;
+	background: rgba(0, 0, 0, 0.7);
+}
+
+.detailPanel {
+	display: -webkit-flex;
+	display: flex;
+	width: 1380px;
+	max-height: 860px;
+	padding: 48px;
+	box-sizing: border-box;
+	border-radius: 30px;
+	background: #1a1a1a;
+}
+
+.detailText {
+	-webkit-flex: 1;
+	flex: 1;
+	min-width: 0;
+	overflow-y: auto;
+	scrollbar-width: none;
+
+	&::-webkit-scrollbar {
+		display: none;
+	}
+}
+
+.detailOverview {
+	margin-top: 18px;
+	font-size: 22px;
+	line-height: 1.45;
+	color: rgba(255, 255, 255, 0.8);
+	display: -webkit-box;
+	-webkit-box-orient: vertical;
+	-webkit-line-clamp: 9;
+	overflow: hidden;
+}
+
+.tags {
+	display: -webkit-flex;
+	display: flex;
+	-webkit-flex-wrap: wrap;
+	flex-wrap: wrap;
+	margin-top: 18px;
+}
+
+.tag {
+	margin: 0 10px 10px 0;
+	padding: 6px 14px;
+	border-radius: 14px;
+	background: rgba(255, 255, 255, 0.08);
+	font-size: 17px;
+	color: rgba(255, 255, 255, 0.8);
+}
+
+.bookRow         { .flex-row-gap(30px); }
+.shelf           { .flex-row-gap(24px); }
+.stats           { .flex-row-gap(14px); }
+.coverStrip      { .flex-row-gap(10px); }
+.collectionGrid  { .flex-wrap-gap(30px; 30px); }
+.board           { .flex-wrap-gap(30px; 30px); }
+.panelItems      { .flex-row-gap(20px); }
+.subjects        { .flex-row-gap(10px); }
+
+// A fixed height, so which genres are on screen can be worked out from the scroll offset.
+.genreRow {
+	display: -webkit-flex;
+	display: flex;
+	-webkit-align-items: flex-end;
+	align-items: flex-end;
+	height: 310px;
+	margin-bottom: 30px;
+}
+
+.genrePlaceholder {
+	-webkit-flex-basis: 150px;
+	flex-basis: 150px;
+	width: 150px;
+	height: 225px;
+}
+
+.titleAfterBack {
+	margin-left: 30px;
+}

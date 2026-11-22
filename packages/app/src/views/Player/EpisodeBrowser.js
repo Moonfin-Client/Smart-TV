@@ -1,4 +1,4 @@
-import {memo, useCallback, useEffect, useRef, useState} from 'react';
+import {memo, useCallback, useEffect, useMemo, useRef, useState} from 'react';
 import $L from '@enact/i18n/$L';
 import Spotlight from '@enact/spotlight';
 
@@ -9,12 +9,17 @@ import {keepFocusInView} from '../../utils/focusScroll';
 import {watchedPercent} from '../../utils/episodeBrowser';
 import {ActiveTabContainer, ModalContainer} from '../../utils/spotlightContainers';
 import {AnimeEpisodePills} from '../../components/AnimeMarkerPills';
+import DetailsTabBar from '../../components/DetailsTabBar';
 import {hidesMediaDescription} from '../Details/detailsMedia';
 import {WatchedCheckIcon} from '../Details/DetailBadges';
-import {SpottableButton, SpottableDiv} from './PlayerConstants';
+import {SpottableDiv} from './PlayerConstants';
 import useSeriesEpisodes from './useSeriesEpisodes';
+import {registerThemeSheet} from '../../theme/themeOverrides';
 
+import dialogCss from '../../components/CoreDialog/CoreDialog.module.less';
 import css from './EpisodeBrowser.module.less';
+
+registerThemeSheet('episodeBrowser', css);
 
 const CURRENT_EPISODE_ID = 'episodes-current';
 const stopPropagation = (e) => e.stopPropagation();
@@ -82,14 +87,14 @@ const EpisodeRow = memo(({episode, serverUrl, isCurrent, hideOverview, onSelect}
 });
 
 /**
- * The Netflix style episode list over the video. The video keeps playing behind it, so this
+ * The episode list over the video. The video keeps playing behind it, so this
  * only dims the picture and takes the remote. A season tab strip runs along the top and the
  * episodes of the selected season scroll underneath, each with its still, its season and
  * episode, its title, its description and how far through it you are.
  *
  * The header is the series logo, the same picture the player shows in its corner, because the
  * name the server holds can be in another language than the logo people know the show by. The
- * name only stands in where there is no logo or it would not load.
+ * name only stands in where there's no logo or it won't load.
  *
  * Choosing an episode hands it to `onSelect`, which switches playback to it in place.
  */
@@ -125,7 +130,7 @@ const EpisodeBrowser = memo(({item, logoUrl, onLogoError, onSelect, onClose}) =>
 
 	// Once the season that is playing has loaded, the list opens scrolled to the episode that is on
 	// and the remote moves to it. The scroll happens straight away, since the row is already drawn,
-	// and does not wait on focus, which only lands a frame later and does not scroll by itself.
+	// and doesn't wait on focus, which only lands a frame later and doesn't scroll by itself.
 	useEffect(() => {
 		if (focusedOnceRef.current || !episodes || episodes.length === 0) return;
 		focusedOnceRef.current = true;
@@ -146,21 +151,7 @@ const EpisodeBrowser = memo(({item, logoUrl, onLogoError, onSelect, onClose}) =>
 		});
 	}, [episodes, item.Id]);
 
-	// The strip opens scrolled to the season that is playing, so it is on screen without having to
-	// go looking for it along the row.
-	const activeSeasonId = String(selectedSeasonId);
-	const seasonCount = seasons ? seasons.length : 0;
-	useEffect(() => {
-		if (seasonCount === 0) return;
-		const active = document.querySelector('[data-modal="episodes"] [data-active-tab="true"]');
-		const strip = active && active.parentNode;
-		if (!strip) return;
-		strip.scrollLeft = Math.max(0, active.offsetLeft - ((strip.clientWidth - active.offsetWidth) / 2));
-	}, [activeSeasonId, seasonCount]);
-
-	const handleSeason = useCallback((e) => {
-		selectSeason(e.currentTarget.dataset.seasonId);
-	}, [selectSeason]);
+	const seasonTabs = useMemo(() => (seasons || []).map((season) => ({id: String(season.Id), label: season.Name})), [seasons]);
 
 	const handleEpisode = useCallback((e) => {
 		const id = e.currentTarget.dataset.episodeId;
@@ -169,47 +160,41 @@ const EpisodeBrowser = memo(({item, logoUrl, onLogoError, onSelect, onClose}) =>
 	}, [episodes, onSelect]);
 
 	return (
-		<div className={css.overlay} onClick={onClose}>
-			<ModalContainer className={css.panel} onClick={stopPropagation} data-modal="episodes" spotlightId="episodes-modal">
-				{logoUrl ? (
-					<img className={css.logo} src={logoUrl} alt={item.SeriesName || ''} onError={onLogoError} />
-				) : (
-					<h2 className={css.seriesName}>{item.SeriesName}</h2>
-				)}
-				{seasons && seasons.length > 0 && (
-					<ActiveTabContainer className={css.tabs} onFocus={keepFocusInView} spotlightId="episodes-tabs">
-						{seasons.map((season) => {
-							const active = String(season.Id) === activeSeasonId;
-							return (
-								<SpottableButton
-									key={season.Id}
-									className={`${css.tab} ${active ? css.tabActive : ''}`}
-									data-season-id={season.Id}
-									data-active-tab={active ? 'true' : undefined}
-									onClick={handleSeason}
-								>
-									{season.Name}
-								</SpottableButton>
-							);
-						})}
-					</ActiveTabContainer>
-				)}
-				<div className={css.list} ref={listRef} onFocus={keepFocusInView}>
-					{failed && <SpottableDiv className={css.message}>{$L('Failed to load')}</SpottableDiv>}
-					{!failed && episodes === null && <SpottableDiv className={css.message}>{$L('Loading...')}</SpottableDiv>}
-					{!failed && episodes && episodes.length === 0 && <SpottableDiv className={css.message}>{$L('Nothing here yet.')}</SpottableDiv>}
-					{!failed && episodes && episodes.slice(0, drawn).map((episode) => (
-						<EpisodeRow
-							key={episode.Id}
-							episode={episode}
-							serverUrl={serverUrl}
-							isCurrent={String(episode.Id) === String(item.Id)}
-							hideOverview={hidesMediaDescription(episode, settings)}
-							onSelect={handleEpisode}
-						/>
-					))}
+		<div className={dialogCss.scrim} onClick={onClose}>
+			<ModalContainer className={`${dialogCss.panel} ${css.panel}`} onClick={stopPropagation} data-modal="episodes" spotlightId="episodes-modal">
+				<h2 className={dialogCss.title}>
+					{logoUrl ? (
+						<img className={css.logo} src={logoUrl} alt={item.SeriesName || ''} onError={onLogoError} />
+					) : (item.SeriesName || $L('Episodes'))}
+				</h2>
+				<div className={dialogCss.divider} />
+				<div className={css.content}>
+					{seasonTabs.length > 1 && (
+						<ActiveTabContainer className={css.tabs} spotlightId="episodes-tabs">
+							<DetailsTabBar
+								tabs={seasonTabs}
+								activeId={String(selectedSeasonId)}
+								onSelect={selectSeason}
+								onActivate={selectSeason}
+							/>
+						</ActiveTabContainer>
+					)}
+					<div className={css.list} ref={listRef} onFocus={keepFocusInView}>
+						{failed && <SpottableDiv className={css.message}>{$L('Failed to load')}</SpottableDiv>}
+						{!failed && episodes === null && <SpottableDiv className={css.message}>{$L('Loading...')}</SpottableDiv>}
+						{!failed && episodes && episodes.length === 0 && <SpottableDiv className={css.message}>{$L('Nothing here yet.')}</SpottableDiv>}
+						{!failed && episodes && episodes.slice(0, drawn).map((episode) => (
+							<EpisodeRow
+								key={episode.Id}
+								episode={episode}
+								serverUrl={serverUrl}
+								isCurrent={String(episode.Id) === String(item.Id)}
+								hideOverview={hidesMediaDescription(episode, settings)}
+								onSelect={handleEpisode}
+							/>
+						))}
+					</div>
 				</div>
-				<p className={css.footer}>{$L('Press BACK to close')}</p>
 			</ModalContainer>
 		</div>
 	);

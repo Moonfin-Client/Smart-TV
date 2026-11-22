@@ -51,7 +51,7 @@ const renderDescriptorRow = (row, ctx, index, deps) => {
 					colorTile={row.colorTile ? row.colorTile(ctx) : null}
 					plainIcon={row.plainIcon}
 					icon={text(row.icon)}
-					onOpen={() => pushView({view: 'options', title, options, settingKey: row.key, value, onSelect, returnFocusTo: `setting-${row.key}`})}
+					onOpen={() => pushView({view: 'options', title, options, settingKey: row.key, value, onSelect, swatchOf: row.swatchOf, swatchEdge: row.swatchEdge, subtitleOf: row.subtitleOf, returnFocusTo: `setting-${row.key}`})}
 				/>
 			);
 		}
@@ -73,6 +73,21 @@ const renderDescriptorRow = (row, ctx, index, deps) => {
 				/>
 			);
 		case KIND.NAV:
+			// A row that opens a checklist ends in what's picked, the way a picker row does
+			if (row.bubble) {
+				return (
+					<OptionRow
+						key={row.id}
+						settingKey={row.id}
+						title={text(row.label)}
+						desc={text(row.desc)}
+						caption={text(row.bubble)}
+						padded
+						icon={text(row.icon)}
+						onOpen={() => row.action(ctx)}
+					/>
+				);
+			}
 			return (
 				<NavRow
 					key={row.id}
@@ -80,6 +95,7 @@ const renderDescriptorRow = (row, ctx, index, deps) => {
 					title={text(row.label)}
 					desc={text(row.desc)}
 					icon={text(row.icon)}
+					chevron={row.chevron !== false}
 					onClick={() => row.action(ctx)}
 				/>
 			);
@@ -91,6 +107,7 @@ const renderDescriptorRow = (row, ctx, index, deps) => {
 					label={text(row.label)}
 					value={text(row.value)}
 					icon={text(row.icon)}
+					onClick={row.onSelect ? () => row.onSelect(ctx) : undefined}
 				/>
 			);
 		case KIND.CUSTOM:

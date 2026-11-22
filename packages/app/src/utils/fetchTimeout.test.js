@@ -50,10 +50,51 @@ describe('fetchWithTimeout', () => {
 		expect(receivedSignal.aborted).toBe(true);
 	});
 
+	test('waits the default time when the caller gives none', async () => {
+		let receivedSignal = null;
+		global.fetch = jest.fn((url, options) => {
+			receivedSignal = options.signal;
+			return new Promise(() => {});
+		});
+		const promise = fetchWithTimeout('http://x');
+		promise.catch(() => {});
+		jest.advanceTimersByTime(29999);
+		expect(receivedSignal.aborted).toBe(false);
+		jest.advanceTimersByTime(1);
+		expect(receivedSignal.aborted).toBe(true);
+		await expect(promise).rejects.toMatchObject({name: 'AbortError'});
+	});
+
 	test('propagates fetch rejection', async () => {
 		const netErr = new Error('network down');
 		global.fetch = jest.fn(() => Promise.reject(netErr));
 		await expect(fetchWithTimeout('http://x', {}, 5000)).rejects.toBe(netErr);
 		expect(jest.getTimerCount()).toBe(0);
+	});
+});
+
+describe('a caller that cancels', () => {
+	beforeEach(() => {
+		global.fetch = jest.fn((url, {signal}) => new Promise((resolve, reject) => {
+			signal.addEventListener('abort', () => reject(Object.assign(new Error('aborted'), {name: 'AbortError'})));
+		}));
+	});
+
+	afterEach(() => {
+		delete global.fetch;
+	});
+
+	test('stops the request with its own signal', async () => {
+		const caller = new AbortController();
+		const request = fetchWithTimeout('http://x', {signal: caller.signal}, 5000);
+		caller.abort();
+		await expect(request).rejects.toMatchObject({name: 'AbortError'});
+	});
+
+	test('never sends a request it gave up on before its turn', async () => {
+		const caller = new AbortController();
+		caller.abort();
+		await expect(fetchWithTimeout('http://x', {signal: caller.signal}, 5000)).rejects.toMatchObject({name: 'AbortError'});
+		expect(global.fetch).not.toHaveBeenCalled();
 	});
 });

@@ -55,6 +55,39 @@ describe('loading', () => {
 		expect(store.hasProgramsFor('c99')).toBe(true);
 		expect(store.hasMorePrograms).toBe(true);
 	});
+
+	test('a lazy batch waits on a request already out and asks again after it fails', async () => {
+		const api = fakeApi({channels: channelList(120)});
+		const store = createLiveTvGuideStore(api, {now: () => at(7, 10)});
+		await store.load({windowStart: at(7, 0)});
+		expect(store.programsHighWater).toBe(50);
+
+		const replies = [];
+		api.getLiveTvPrograms.mockImplementation((ids) => new Promise((resolve, reject) => {
+			replies.push({ids, resolve, reject});
+		}));
+		const favorite = store.ensureProgramsForChannels(['c60']);
+		const lazy = store.loadMorePrograms();
+		await flush();
+		expect(replies).toHaveLength(2);
+		expect(replies[1].ids).not.toContain('c60');
+
+		replies[1].resolve({Items: []});
+		replies[0].reject(new Error('offline'));
+		await expect(favorite).rejects.toThrow('offline');
+		await lazy;
+		expect(store.hasProgramsFor('c60')).toBe(false);
+		expect(store.programsHighWater).toBe(50);
+
+		const retry = store.loadMorePrograms();
+		await flush();
+		expect(replies[replies.length - 1].ids).toEqual(['c60']);
+		replies[replies.length - 1].resolve({Items: [{Id: 'p', ChannelId: 'c60', StartDate: iso(at(7, 0)), EndDate: iso(at(8, 0))}]});
+		await retry;
+		expect(store.hasProgramsFor('c60')).toBe(true);
+		expect(store.programsForChannel('c60')).toHaveLength(1);
+		expect(store.programsHighWater).toBe(100);
+	});
 });
 
 describe('category filters', () => {
@@ -147,5 +180,14 @@ describe('favorites', () => {
 		await store.load({windowStart: at(7, 0)});
 		await expect(store.toggleChannelFavorite('c1')).rejects.toThrow('nope');
 		expect(store.channelForId('c1').UserData?.IsFavorite).not.toBe(true);
+	});
+
+	test('one set elsewhere moves the channel up under favorites first, without a request', async () => {
+		const api = fakeApi({channels: channelList(3)});
+		const store = createLiveTvGuideStore(api, {sortBy: 'favoritesFirst', now: () => at(7, 10)});
+		await store.load({windowStart: at(7, 0)});
+		store.setChannelFavorite('c2', true);
+		expect(store.filteredChannels.map((c) => c.Id)).toEqual(['c2', 'c0', 'c1']);
+		expect(api.setFavorite).not.toHaveBeenCalled();
 	});
 });

@@ -11,6 +11,10 @@ export const isAssSubtitleCodec = (codec) => ASS_SUBTITLE_CODECS.includes((codec
 export const isPgsSubtitleCodec = (codec) => PGS_SUBTITLE_CODECS.includes((codec || '').toLowerCase());
 export const isBurnInSubtitleCodec = (codec) => BURN_IN_SUBTITLE_CODECS.includes((codec || '').toLowerCase());
 
+/** True for a text track the server leaves inside the file instead of extracting it. */
+export const isEmbedDeliveredText = (stream) =>
+	!stream.IsExternal && stream.DeliveryMethod === 'Embed' && isTextSubtitleCodec(stream.Codec);
+
 const MATROSKA_CONTAINERS = ['mkv', 'matroska'];
 
 /** True for a container whose subtitle tracks can be read back out of the file itself. */

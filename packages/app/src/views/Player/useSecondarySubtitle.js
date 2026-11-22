@@ -10,7 +10,7 @@ import useSubtitleFetch from './useSubtitleFetch';
  * The second subtitle track, shared by both players. A pick is remembered per item, a new
  * item starts with none and no delay, and a fresh resolve of the same item keeps both.
  */
-const useSecondarySubtitle = ({subtitleStreams, primaryIndex, preferExternal, preferredLanguage, available}) => {
+const useSecondarySubtitle = ({subtitleStreams, primaryIndex, preferExternal, preferredLanguage, available, enabled}) => {
 	const [index, setIndex] = useState(null);
 	const [events, setEvents] = useState(null);
 	const [delay, setDelayState] = useState(0);
@@ -29,8 +29,9 @@ const useSecondarySubtitle = ({subtitleStreams, primaryIndex, preferExternal, pr
 		() => secondaryCandidates(subtitleStreams, primaryIndex, {preferExternal, preferredLanguage}),
 		[subtitleStreams, primaryIndex, preferExternal, preferredLanguage]
 	);
-	// The Subtitles button asks which slot first only when there is something for the second one.
-	const offered = available && (index != null || streams.length > 0);
+	// The Subtitles button asks which slot first only while the setting is on and there's something
+	// for the second one. A track that's already showing keeps the step so it can still be turned off.
+	const offered = available && (index != null || (enabled && streams.length > 0));
 
 	const clearTrack = useCallback(() => {
 		generationRef.current++;
@@ -75,13 +76,14 @@ const useSecondarySubtitle = ({subtitleStreams, primaryIndex, preferExternal, pr
 
 	// Puts back the track remembered for this item, unless it's now the primary.
 	const restore = useCallback(async (item, streamList, primary) => {
+		if (!enabled) return;
 		const saved = await getItemSecondarySubtitlePref(item.Id);
 		if (itemIdRef.current !== item.Id) return;
 		const restored = restoreSecondaryIndex(saved, streamList);
 		const stream = restored >= 0 && restored !== primary ? streamList.find((s) => s.index === restored) : null;
 		if (stream) loadTrack(stream);
 		else clearTrack();
-	}, [clearTrack, loadTrack]);
+	}, [enabled, clearTrack, loadTrack]);
 
 	// Picking the second track's file as the primary takes it over.
 	const releaseIfPrimary = useCallback((item, streamList, primary) => {

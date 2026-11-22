@@ -1,5 +1,28 @@
 import {getDeviceCapabilities} from '../../services/deviceProfile';
 
+const STREAM_URL_KEYS = /^(container|segmentcontainer|videocodec|audiocodec|audiochannels|maxaudiochannels|transcodingmaxaudiochannels|videobitrate|maxwidth|maxheight|maxframerate|transcodereasons)$|-(level|profile|rangetype|audiochannels|videobitdepth)$/i;
+
+const decode = (value) => {
+	try {
+		return decodeURIComponent(value);
+	} catch (e) {
+		return value;
+	}
+};
+
+// What a stream URL asks the server to send, so a report of the player refusing a stream says what
+// it was given. Only the format keys are kept, never the token.
+export const describeStreamUrl = (url) => {
+	if (!url) return null;
+	const [path, query = ''] = String(url).split('?');
+	const format = {file: path.split('/').pop()};
+	query.split('&').forEach((pair) => {
+		const [key, value = ''] = pair.split('=');
+		if (STREAM_URL_KEYS.test(key)) format[key] = decode(value);
+	});
+	return format;
+};
+
 // The fields a device profile turns a stream away on. Without the range type and the bit
 // depth beside them, a report of a forced transcode leaves the reason to guesswork.
 export const describeVideoStream = (stream) => {

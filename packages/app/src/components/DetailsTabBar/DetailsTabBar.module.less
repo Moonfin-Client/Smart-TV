@@ -49,3 +49,37 @@
 	border-color: var(--theme-focus-border-color, #ffffff);
 	box-shadow: 0 0 14px 1px rgba(255, 255, 255, 0.25), 0 8px 18px rgba(0, 0, 0, 0.35);
 }
+
+// Core's season strip at Stage's size. Focus rings the whole bar and the picked pill swells to fill
+// it, since the pick follows focus there.
+.large .track {
+	padding: 8px;
+}
+
+.large .tab {
+	border: 0;
+	font-size: 21.7px;
+	height: 57px;
+	padding: 0 25px;
+}
+
+.large .tab:focus {
+	box-shadow: none;
+}
+
+.barFocused .tabActive {
+	height: 73px;
+	margin: -8px 0;
+}
+
+.barFocused::after {
+	border: 4px solid var(--theme-focus-border-color, #00a4dc);
+	border-radius: 999px;
+	bottom: 0;
+	content: '';
+	left: 0;
+	pointer-events: none;
+	position: absolute;
+	right: 0;
+	top: 0;
+}

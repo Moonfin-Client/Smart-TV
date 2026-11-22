@@ -72,3 +72,22 @@ test('nothing loads after dispose', async () => {
 	await settle();
 	expect(api.calls).toHaveLength(0);
 });
+
+test('catches up on a recording changed during its first load', async () => {
+	const channels = channelList(4);
+	const api = fakeApi(channels);
+	const prewarm = createChannelCarouselPrewarm(api);
+	const getLiveTvPrograms = api.getLiveTvPrograms;
+	api.getLiveTvPrograms = (...args) => {
+		if (api.calls.length === 0) prewarm.refresh();
+		return getLiveTvPrograms(...args);
+	};
+	prewarm.tuned(channels);
+	jest.advanceTimersByTime(1000);
+	await settle();
+
+	expect(prewarm.isWarm).toBe(true);
+	expect(api.calls).toHaveLength(2);
+	expect(api.calls[1]).toEqual(['c0', 'c1', 'c2', 'c3']);
+	prewarm.dispose();
+});

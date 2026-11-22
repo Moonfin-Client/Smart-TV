@@ -78,6 +78,8 @@ const IdentifyModal = ({open, item, api, onClose, onApplied, onSuccess}) => {
 		setError(null);
 		try {
 			const searchInfo = {
+				// Silo searches matches for a given item; Jellyfin ignores it here.
+				ItemId: item.Id,
 				Name: name.trim(),
 				ProviderIds: {},
 				...(year.trim() ? {Year: parseInt(year, 10)} : {})
@@ -98,9 +100,10 @@ const IdentifyModal = ({open, item, api, onClose, onApplied, onSuccess}) => {
 		setBusy(true);
 		setError(null);
 		try {
-			await api.applyRemoteSearchResult(item.Id, result, true);
+			// Silo gives a newly matched item a new id, and the page reopens under it.
+			const newId = await api.applyRemoteSearchResult(item.Id, result, true);
 			onSuccess?.($L('Metadata updated'));
-			onApplied?.();
+			onApplied?.(typeof newId === 'string' && newId && newId !== item.Id ? newId : null);
 			onClose?.();
 		} catch {
 			setError($L('Could not apply that match.'));

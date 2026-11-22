@@ -1,3 +1,4 @@
+import {rem} from '../../utils/rootScale';
 import {SkeletonBox, SkeletonShimmer} from './SkeletonShimmer';
 
 import css from './Skeleton.module.less';
@@ -7,10 +8,10 @@ import css from './Skeleton.module.less';
 const SkeletonHomeRow = ({className, cardWidth, imageHeight, isModern, count = 8}) => (
 	<SkeletonShimmer className={className}>
 		{Array.from({length: count}, (_, i) => (
-			<div key={i} className={css.homeCard} style={{width: cardWidth + 'px'}}>
-				<SkeletonBox width={cardWidth} height={imageHeight} radius={isModern ? 12 : 8} />
-				<SkeletonBox className={isModern ? css.modernTitleBar : css.classicTitleBar} width={cardWidth * 0.75} radius={4} />
-				{isModern && <SkeletonBox className={css.modernSubtitleBar} width={cardWidth * 0.5} radius={4} />}
+			<div key={i} className={css.homeCard} style={{width: rem(cardWidth)}}>
+				<SkeletonBox width={rem(cardWidth)} height={rem(imageHeight)} radius={isModern ? 12 : 8} />
+				<SkeletonBox className={isModern ? css.modernTitleBar : css.classicTitleBar} width={rem(cardWidth * 0.75)} radius={4} />
+				{isModern && <SkeletonBox className={css.modernSubtitleBar} width={rem(cardWidth * 0.5)} radius={4} />}
 			</div>
 		))}
 	</SkeletonShimmer>

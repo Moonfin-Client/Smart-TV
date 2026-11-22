@@ -1,0 +1,162 @@
+@import '../../styles/mixins.less';
+
+@on-surface-rgb: var(--theme-on-surface-rgb, 255, 255, 255);
+
+// Wide enough for the feature list and the QR code side by side.
+.panel {
+	max-width: (600 * @dp);
+}
+
+.content {
+	display: -webkit-box;
+	display: -webkit-flex;
+	display: flex;
+	-webkit-box-align: start;
+	-webkit-align-items: flex-start;
+	align-items: flex-start;
+	padding: (4 * @dp) (24 * @dp) (12 * @dp);
+}
+
+.features {
+	-webkit-box-flex: 1;
+	-webkit-flex: 1 1 0;
+	flex: 1 1 0;
+	min-width: 0;
+	.flex-col-gap((6 * @dp));
+}
+
+.text {
+	font-size: (14 * @dp);
+	line-height: 1.35;
+	color: rgba(255, 255, 255, 0.7);
+}
+
+.feature {
+	display: -webkit-box;
+	display: -webkit-flex;
+	display: flex;
+	-webkit-box-align: start;
+	-webkit-align-items: flex-start;
+	align-items: flex-start;
+}
+
+.featureIcon {
+	-webkit-flex-shrink: 0;
+	flex-shrink: 0;
+	width: (16 * @dp);
+	height: (16 * @dp);
+	margin: (2 * @dp) (10 * @dp) 0 0;
+	color: rgba(255, 255, 255, 0.7);
+}
+
+.linkLine {
+	margin-top: (6 * @dp);
+	color: #fff;
+}
+
+.qr {
+	-webkit-flex-shrink: 0;
+	flex-shrink: 0;
+	margin-left: (24 * @dp);
+	text-align: center;
+}
+
+.qrBox {
+	display: inline-block;
+	padding: (10 * @dp);
+	border-radius: (12 * @dp);
+	background: rgb(@on-surface-rgb);
+	line-height: 0;
+}
+
+.qrCanvas {
+	display: block;
+	width: (150 * @dp);
+	height: (150 * @dp);
+}
+
+.qrHint {
+	margin-top: (8 * @dp);
+	font-size: (12 * @dp);
+	color: rgba(255, 255, 255, 0.7);
+}
+
+.status {
+	display: -webkit-box;
+	display: -webkit-flex;
+	display: flex;
+	-webkit-box-align: center;
+	-webkit-align-items: center;
+	align-items: center;
+	padding: 0 (24 * @dp) (12 * @dp);
+}
+
+.statusText {
+	color: #fff;
+}
+
+.statusFailed {
+	color: #ff5252;
+}
+
+.spinner {
+	-webkit-flex-shrink: 0;
+	flex-shrink: 0;
+	box-sizing: border-box;
+	width: (18 * @dp);
+	height: (18 * @dp);
+	margin-right: (12 * @dp);
+	border: (2 * @dp) solid rgba(255, 255, 255, 0.25);
+	border-top-color: #fff;
+	border-radius: 50%;
+	-webkit-animation: moonbaseSpin 0.8s linear infinite;
+	animation: moonbaseSpin 0.8s linear infinite;
+}
+
+@-webkit-keyframes moonbaseSpin {
+	to {
+		-webkit-transform: rotate(360deg);
+	}
+}
+
+@keyframes moonbaseSpin {
+	to {
+		transform: rotate(360deg);
+	}
+}
+
+.divider {
+	height: (1 * @dp);
+	margin-bottom: (4 * @dp);
+	background: rgba(255, 255, 255, 0.08);
+}
+
+.action {
+	display: -webkit-box;
+	display: -webkit-flex;
+	display: flex;
+	-webkit-box-align: center;
+	-webkit-align-items: center;
+	align-items: center;
+	padding: (12 * @dp) (24 * @dp);
+	cursor: pointer;
+	outline: none;
+
+	&:focus {
+		background: rgba(255, 255, 255, 0.12);
+	}
+}
+
+.actionIcon {
+	-webkit-flex-shrink: 0;
+	flex-shrink: 0;
+	width: (22 * @dp);
+	height: (22 * @dp);
+	margin-right: (16 * @dp);
+	color: rgba(255, 255, 255, 0.7);
+}
+
+.actionLabel {
+	font-size: (15 * @dp);
+	color: #fff;
+}

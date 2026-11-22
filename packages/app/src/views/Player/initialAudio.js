@@ -21,3 +21,18 @@ export const resolveSeriesAudio = async (item, audioStreams) => {
 
 	return audioStreams.find((stream) => stream.index === matched) || null;
 };
+
+// A player track in the server's spelling, which is what the playability check reads.
+export const asServerAudioStream = (stream) => (stream
+	? {Codec: stream.codec, Profile: stream.profile, Title: stream.title, DisplayTitle: stream.displayTitle, ChannelLayout: stream.channelLayout, Channels: stream.channels}
+	: null);
+
+/**
+ * The track direct play starts on. AVPlay leaves a track the set cant decode out of its own list,
+ * so a remembered or default pick like that would show as playing while another track plays. The
+ * track the server settled on stands in for it.
+ */
+export const directPlayAudio = async (pick, audioStreams, negotiatedIndex, canPlay) => {
+	if (!pick || pick.index === negotiatedIndex || await canPlay(pick)) return pick;
+	return audioStreams?.find((stream) => stream.index === negotiatedIndex) || pick;
+};

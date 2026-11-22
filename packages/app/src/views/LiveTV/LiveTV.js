@@ -7,7 +7,7 @@ import {useAuth} from '../../context/AuthContext';
 import {useSettings} from '../../context/SettingsContext';
 import LoadingSpinner from '../../components/LoadingSpinner';
 import {formatClockTime, formatDayLabel} from '../../utils/clock';
-import {KEYS, pageDirection} from '../../utils/keys';
+import {KEYS, pageDirection, remoteShortcut} from '../../utils/keys';
 import {animateScrollTop, pointerHover, stopScrollAnimation} from '../../utils/focusScroll';
 import {rem, rootScale} from '../../utils/rootScale';
 import {getImageUrl} from '../../utils/helpers';
@@ -20,7 +20,8 @@ import {
 	recordingMark, resolveCellIndexAt, seasonEpisodeLabel, seriesChoiceFlags, seriesChoiceOf
 } from '../../utils/liveTvGuide';
 import SeriesEpisodeChoices from '../../components/SeriesEpisodeChoices';
-import {offersLaterShowing, requestLaterShowing} from '../../services/incompleteRecordings';
+import {useRecordPrompt} from '../../components/RecordPrompt';
+import {RECORD_OUTCOME, outcomeAddsFutureShowing, recordAiring, recordAiringMessage, recordPromptChannel} from '../../utils/recordAiring';
 import {ChannelCell, ProgramCell} from './GuideCells';
 import {GUIDE_ICONS, GuideIcon} from './GuideIcons';
 import GuideHero from './GuideHero';
@@ -212,7 +213,7 @@ const GuideHeroHost = ({store, emitter, focusRef, serverUrl, clockDisplay, versi
 		const episodeTitle = preview ? episodeTitleOf(preview) : '';
 		const episodeSuffix = episodeTitle && episodeTitle !== preview?.Name ? ` - ${episodeTitle}` : '';
 		const label = preview ? seasonEpisodeLabel(preview) : null;
-		const badgeLabel = preview ? (preview.IsPremiere ? $L('Premiere') : preview.IsRepeat ? $L('Repeat') : null) : null;
+		const badgeLabel = preview ? (preview.IsPremiere ? $L('Premiere') : preview.IsNew ? $L('New') : preview.IsRepeat ? $L('Repeat') : null) : null;
 		return {
 			title: channel?.Name || preview?.Name || $L('Guide Timeline'),
 			programTitle: channel ? preview?.Name || null : null,
@@ -243,6 +244,7 @@ const LiveTV = ({onPlayChannel, onRecordings, backHandlerRef}) => {
 		: GUIDE_FILTERS), [serverType]);
 	const {settings, updateSetting} = useSettings();
 	const clockDisplay = settings.clockDisplay;
+	const {prompt: openRecordPrompt, setLoading: setRecordPromptLoading, handleBack: handleRecordPromptBack, element: recordPromptElement} = useRecordPrompt(clockDisplay);
 
 	const storeRef = useRef(null);
 	if (!storeRef.current) {
@@ -790,21 +792,35 @@ const LiveTV = ({onPlayChannel, onRecordings, backHandlerRef}) => {
 		}
 	}, [restoreGridFocus, showToast]);
 
-	// The answer to the later showing prompt. A failed request still leaves the recording running.
-	const handleRecordNow = useCallback((alsoLater) => {
-		const target = dialogRef.current.program;
-		runDialogAction(async () => {
-			await store.toggleProgramRecording(target);
-			if (!alsoLater) return null;
-			try {
-				await requestLaterShowing(target.Id);
-			} catch {
-				return $L("Recording started, but couldn't request a later showing.");
+	// Record on a program with no timer yet. Back on the Record prompt leaves the program dialog open.
+	const handleRecordProgram = useCallback(async (target) => {
+		if (actionBusyRef.current) return;
+		actionBusyRef.current = true;
+		try {
+			const channel = store.channelForId(target.ChannelId);
+			const outcome = await recordAiring({
+				program: target,
+				start: new Date(programStart(target)),
+				createTimer: () => store.toggleProgramRecording(target),
+				prompt: openRecordPrompt,
+				setLoading: setRecordPromptLoading,
+				stillValid: () => dialogRef.current?.program?.Id === target.Id,
+				channel: channel ? recordPromptChannel(channel.ChannelNumber, channel.Name) : undefined
+			});
+			if (outcome === RECORD_OUTCOME.cancelled) {
+				actionBusyRef.current = false;
+				if (dialogRef.current?.program?.Id === target.Id) setTimeout(() => Spotlight.focus('livetv-record'), 0);
+				return;
 			}
-			store.refreshRecordings().catch(() => {});
-			return $L('Recording started. A later showing will be recorded too.');
-		}, $L('Program set to record'), $L('Unable to create recording'));
-	}, [runDialogAction, store]);
+			if (outcomeAddsFutureShowing(outcome)) await store.refreshRecordings().catch(() => {});
+			setDialog(null);
+			showToast(recordAiringMessage(outcome));
+			setTimeout(restoreGridFocus, 0);
+		} catch {
+			actionBusyRef.current = false;
+			showToast($L('Unable to create recording'));
+		}
+	}, [openRecordPrompt, setRecordPromptLoading, restoreGridFocus, showToast, store]);
 
 	const openSeriesChoice = useCallback((target, rule = null) => {
 		setDialog({type: 'series', program: target, rule});
@@ -895,11 +911,15 @@ const LiveTV = ({onPlayChannel, onRecordings, backHandlerRef}) => {
 
 	const resetToEntryState = useCallback(async () => {
 		resettingRef.current = true;
-		// Cleared before the reload so neither the re-anchor after it nor the focus restore once the
-		// grid is back puts focus on the program that was left.
+		// Cleared first, so nothing the move sets off puts focus back on the program that was left.
 		selectionRef.current = null;
+		pendingMoveRef.current = null;
+		// Not goToNow, whose full reload tears the grid down. This keeps the rows up and only
+		// refetches programs when the window was paged away.
 		try {
-			await goToNow();
+			await store.setWindowStart(guideLeftEdge(Date.now()), {livePosition: true});
+		} catch {
+			// The rows keep the programs they had.
 		} finally {
 			resettingRef.current = false;
 		}
@@ -910,13 +930,18 @@ const LiveTV = ({onPlayChannel, onRecordings, backHandlerRef}) => {
 		emitter.emit();
 		lastFocusedRowRef.current = null;
 		focusChannelRow(index, {animate: false});
-	}, [emitter, focusChannelRow, goToNow]); // eslint-disable-line react-hooks/exhaustive-deps
+	}, [emitter, focusChannelRow, store]); // eslint-disable-line react-hooks/exhaustive-deps
 
-	// A back press first re-homes a guide that has drifted from where it opened, and only leaves
-	// once it's already there.
+	// A back press in the grid first re-homes a guide that has drifted from where it opened. Once
+	// it's there, or that channel is filtered out, back moves up to the filters, and it only leaves
+	// from above the grid.
 	const consumeBackIfExploring = useCallback(() => {
 		if (resettingRef.current) return true;
-		if (!isExploringAwayFromEntry() || homeRowIndex() < 0) return false;
+		if (focusRef.current.area !== 'grid') return false;
+		if (!isExploringAwayFromEntry() || homeRowIndex() < 0) {
+			focusWhenMounted(chipSpotlightId(0));
+			return true;
+		}
 		resetToEntryState();
 		return true;
 	}, [resetToEntryState]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -924,6 +949,7 @@ const LiveTV = ({onPlayChannel, onRecordings, backHandlerRef}) => {
 	useEffect(() => {
 		if (!backHandlerRef) return undefined;
 		const handler = () => {
+			if (handleRecordPromptBack()) return true;
 			if (dialogRef.current) {
 				if (dialogRef.current.type === 'sort' || dialogRef.current.type === 'date') {
 					setDialog(null);
@@ -939,7 +965,7 @@ const LiveTV = ({onPlayChannel, onRecordings, backHandlerRef}) => {
 		return () => {
 			if (backHandlerRef.current === handler) backHandlerRef.current = null;
 		};
-	}, [backHandlerRef, closeDialog, consumeBackIfExploring, focusWindowBar]);
+	}, [backHandlerRef, closeDialog, consumeBackIfExploring, focusWindowBar, handleRecordPromptBack]);
 
 	// ------------------------------------------------------------------------------------------
 	// Channel numbers typed on the remote
@@ -961,6 +987,12 @@ const LiveTV = ({onPlayChannel, onRecordings, backHandlerRef}) => {
 	useEffect(() => {
 		const handleKeyDown = (e) => {
 			if (dialogRef.current) return;
+			if (remoteShortcut(e) === 'recordings') {
+				e.preventDefault();
+				e.stopPropagation();
+				onRecordings?.();
+				return;
+			}
 			const keyCode = e.keyCode;
 			if (keyCode >= KEYS.NUM_0 && keyCode <= KEYS.NUM_9) {
 				e.preventDefault();
@@ -972,7 +1004,7 @@ const LiveTV = ({onPlayChannel, onRecordings, backHandlerRef}) => {
 			window.removeEventListener('keydown', handleKeyDown, true);
 			clearTimeout(channelNumberTimeoutRef.current);
 		};
-	}, [handleChannelNumber]);
+	}, [handleChannelNumber, onRecordings]);
 
 	// ------------------------------------------------------------------------------------------
 	// Reacting to the store
@@ -1082,7 +1114,8 @@ const LiveTV = ({onPlayChannel, onRecordings, backHandlerRef}) => {
 		if (code === KEYS.LEFT) focusWindowBar(index - 1);
 		else if (code === KEYS.RIGHT) focusWindowBar(index + 1);
 		else if (code === KEYS.UP) focusWhenMounted(chipSpotlightId(0));
-		else focusChannelRow(0);
+		// Down lands on the channel focused last, or the first row once that one is filtered out.
+		else focusChannelRow(Math.max(0, channelsRef.current.findIndex((channel) => channel.Id === focusRef.current.channelId)));
 	}, [focusChannelRow, focusWindowBar]);
 
 	const handleEarlier = useCallback(() => shiftGuideWindow(-store.guideWindow, {focusGrid: false, allowPast: true}), [shiftGuideWindow, store]);
@@ -1301,17 +1334,17 @@ const LiveTV = ({onPlayChannel, onRecordings, backHandlerRef}) => {
 						<div className={css.dialogActions}>
 							{!programEnded && (
 								<SpottableButton
+									spotlightId="livetv-record"
 									className={`${css.dialogBtn} ${programHasTimer ? css.danger : ''} ${recordingNow ? 'spottable-default' : ''}`}
 									onClick={() => { // eslint-disable-line react/jsx-no-bind
-										if (!programHasTimer && offersLaterShowing(program, Date.now())) {
-											setDialog({type: 'later', program});
-											setTimeout(() => Spotlight.focus('livetv-later'), 100);
+										if (!programHasTimer) {
+											handleRecordProgram(program);
 											return;
 										}
 										runDialogAction(
 											() => store.toggleProgramRecording(program),
-											programHasTimer ? $L('Recording cancelled') : $L('Program set to record'),
-											programHasTimer ? $L('Failed to cancel recording') : $L('Unable to create recording')
+											$L('Recording cancelled'),
+											$L('Failed to cancel recording')
 										);
 									}}
 								>
@@ -1384,30 +1417,7 @@ const LiveTV = ({onPlayChannel, onRecordings, backHandlerRef}) => {
 				</div>
 			)}
 
-			{dialog?.type === 'later' && (
-				<div className={css.dialogScrim}>
-					<PopupContainer className={css.dialog} spotlightId="livetv-later">
-						<div className={css.dialogTitle}>{dialog.program.Name}</div>
-						<div className={css.dialogBody}>
-							<div className={css.dialogTime}>{$L('This program has already started. Also record a later showing?')}</div>
-						</div>
-						<div className={css.dialogActions}>
-							<SpottableButton
-								className={`${css.dialogBtn} spottable-default`}
-								onClick={() => handleRecordNow(true)} // eslint-disable-line react/jsx-no-bind
-							>
-								{$L('Also Record a Later Showing')}
-							</SpottableButton>
-							<SpottableButton
-								className={css.dialogBtn}
-								onClick={() => handleRecordNow(false)} // eslint-disable-line react/jsx-no-bind
-							>
-								{$L('Just Record Now')}
-							</SpottableButton>
-						</div>
-					</PopupContainer>
-				</div>
-			)}
+			{recordPromptElement}
 
 			{toast && <div key={toast.key} className={css.toast}>{toast.message}</div>}
 		</div>

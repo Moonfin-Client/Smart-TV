@@ -66,6 +66,8 @@ export const createLiveTvGuideStore = (api, {sortBy = 'number', now = () => Date
 
 	const programsByChannel = new Map();
 	const programsLoadedIds = new Set();
+	// Channel ids with a program request out, with the generation it belongs to and when it's done.
+	const programsPending = new Map();
 	let programsHighWater = 0;
 	// Program boundaries already handled, so one is never picked twice.
 	const processedBoundaries = new Set();
@@ -150,25 +152,45 @@ export const createLiveTvGuideStore = (api, {sortBy = 'number', now = () => Date
 	};
 
 	// Every requested channel counts as loaded, even one with no programs, so its row stops
-	// showing the placeholder.
+	// showing the placeholder. Two requests out for one channel would append its programs twice, so
+	// a channel already asked for waits on that request instead.
 	const loadProgramsBatch = async (batch) => {
-		if (!batch.length) return true;
 		const generation = programGeneration;
-		const ids = batch.map((c) => c.Id);
-		const response = await fetchGuide({ids, from: windowStart, to: windowEnd});
-		if (disposed || generation !== programGeneration) return false;
-		const parsed = parsePrograms(response);
-		for (const id of ids) {
-			const programs = parsed.get(id) || [];
-			const existing = programsByChannel.get(id);
-			if (!existing) {
-				programsByChannel.set(id, programs);
-			} else {
-				existing.push(...programs);
-				existing.sort((a, b) => programStart(a) - programStart(b));
-			}
-			programsLoadedIds.add(id);
+		const ids = [];
+		const inFlight = [];
+		for (const c of batch) {
+			if (programsLoadedIds.has(c.Id)) continue;
+			const pending = programsPending.get(c.Id);
+			if (pending && pending.generation === generation) inFlight.push(pending.done);
+			else ids.push(c.Id);
 		}
+		if (ids.length) {
+			let finish;
+			const done = new Promise((resolve) => { finish = resolve; });
+			ids.forEach((id) => programsPending.set(id, {generation, done}));
+			try {
+				const response = await fetchGuide({ids, from: windowStart, to: windowEnd});
+				if (disposed || generation !== programGeneration) return false;
+				const parsed = parsePrograms(response);
+				for (const id of ids) {
+					const programs = parsed.get(id) || [];
+					const existing = programsByChannel.get(id);
+					if (!existing) {
+						programsByChannel.set(id, programs);
+					} else {
+						existing.push(...programs);
+						existing.sort((a, b) => programStart(a) - programStart(b));
+					}
+					programsLoadedIds.add(id);
+				}
+			} finally {
+				ids.forEach((id) => {
+					if (programsPending.get(id)?.done === done) programsPending.delete(id);
+				});
+				finish();
+			}
+		}
+		await Promise.all(inFlight);
 		return true;
 	};
 
@@ -178,7 +200,8 @@ export const createLiveTvGuideStore = (api, {sortBy = 'number', now = () => Date
 		// A re-sort can move fetched channels back into the unwalked stretch, and fetching them
 		// again would append their programs twice.
 		const batch = channels.slice(programsHighWater, end).filter((c) => !programsLoadedIds.has(c.Id));
-		if (await loadProgramsBatch(batch)) programsHighWater = end;
+		// A channel whose request failed stays below the mark, so the next pass asks for it again.
+		if (await loadProgramsBatch(batch) && batch.every((c) => programsLoadedIds.has(c.Id))) programsHighWater = end;
 	};
 
 	const resetCategory = () => {
@@ -375,7 +398,8 @@ export const createLiveTvGuideStore = (api, {sortBy = 'number', now = () => Date
 		notify();
 		// Favorites can sit anywhere in the lineup, past what has loaded so far.
 		if (value === 'favorites') {
-			ensureProgramsForChannels(channels.filter((c) => c.UserData?.IsFavorite === true).map((c) => c.Id));
+			// A failed row stays unloaded, and choosing the filter again asks for it again.
+			ensureProgramsForChannels(channels.filter((c) => c.UserData?.IsFavorite === true).map((c) => c.Id)).catch(() => {});
 		}
 	};
 
@@ -449,6 +473,14 @@ export const createLiveTvGuideStore = (api, {sortBy = 'number', now = () => Date
 			applyChannelUpdate(current);
 			throw err;
 		}
+	};
+
+	// A favorite changed outside this store, from the player's heart for one, without asking the
+	// server again.
+	const setChannelFavorite = (channelId, value) => {
+		const current = channelForId(channelId);
+		if (!current || (current.UserData?.IsFavorite === true) === value) return;
+		applyChannelUpdate({...current, UserData: {...(current.UserData || {}), IsFavorite: value}});
 	};
 
 	// Refetches the loaded rows after a recording change without clearing them, so focus stays where
@@ -847,6 +879,7 @@ export const createLiveTvGuideStore = (api, {sortBy = 'number', now = () => Date
 		loadMorePrograms,
 		ensureProgramsForChannels,
 		toggleChannelFavorite,
+		setChannelFavorite,
 		toggleProgramRecording,
 		toggleSeriesRecording,
 		refreshRecordings,

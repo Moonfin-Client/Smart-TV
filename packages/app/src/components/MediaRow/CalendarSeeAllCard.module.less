@@ -1,0 +1,42 @@
+@import '../../styles/mixins.less';
+
+.card {
+	flex-shrink: 0;
+	position: relative;
+	box-sizing: border-box;
+	border: 3px solid transparent;
+	border-radius: 20px;
+	background: rgba(255, 255, 255, 0.08);
+	color: rgba(255, 255, 255, 0.6);
+	outline: none;
+
+	&:focus {
+		border-color: #fff;
+		color: #fff;
+	}
+}
+
+.content {
+	position: absolute;
+	top: 0;
+	right: 0;
+	bottom: 0;
+	left: 0;
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	justify-content: center;
+}
+
+.icon {
+	width: 32 * @dp;
+	height: 32 * @dp;
+	margin-bottom: 8 * @dp;
+}
+
+.label {
+	font-size: 13 * @dp;
+	font-weight: 700;
+	letter-spacing: 0.08em;
+	text-transform: uppercase;
+}

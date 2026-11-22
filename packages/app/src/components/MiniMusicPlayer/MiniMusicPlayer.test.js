@@ -1,7 +1,7 @@
 import {fireEvent, render, screen} from '@testing-library/react';
 import Spotlight from '@enact/spotlight';
 import {runPlayerCommand} from '../../services/remoteControl';
-import {focusFirstContentTarget} from '../../utils/navFocusTargets';
+import {focusContentFromSidebar, focusFirstContentTarget} from '../../utils/navFocusTargets';
 
 import {NavMusicPill, SidebarMusicCard} from './MiniMusicPlayer';
 
@@ -32,7 +32,7 @@ jest.mock('../../services/jellyfinApi', () => ({getServerUrl: () => 'http://serv
 jest.mock('../../views/Player/audio/audioArt', () => ({artUrlFor: () => null, IconMusicNote: () => null}));
 jest.mock('../../utils/navFocusTargets', () => ({
 	CONTENT_FOCUS_TARGETS: ['top'],
-	SIDEBAR_CONTENT_FOCUS_TARGETS: ['side'],
+	focusContentFromSidebar: jest.fn(),
 	focusFirstContentTarget: jest.fn()
 }));
 jest.mock('../LoopMarquee', () => ({text}) => <span>{text}</span>);
@@ -77,17 +77,17 @@ describe('SidebarMusicCard', () => {
 		render(<SidebarMusicCard item={item} paused={false} expanded onOpen={() => {}} />);
 		Spotlight.move.mockReturnValueOnce(true);
 		keyDown(screen.getByLabelText('Next'), 39);
-		expect(focusFirstContentTarget).not.toHaveBeenCalled();
+		expect(focusContentFromSidebar).not.toHaveBeenCalled();
 
 		Spotlight.move.mockReturnValueOnce(false);
 		keyDown(screen.getByLabelText('Stop'), 39);
-		expect(focusFirstContentTarget).toHaveBeenCalledWith(['side'], 'right');
+		expect(focusContentFromSidebar).toHaveBeenCalled();
 	});
 
 	test('left stops at the first button', () => {
 		render(<SidebarMusicCard item={item} paused={false} expanded onOpen={() => {}} />);
 		Spotlight.move.mockReturnValueOnce(false);
 		keyDown(screen.getByLabelText('Previous'), 37);
-		expect(focusFirstContentTarget).not.toHaveBeenCalled();
+		expect(focusContentFromSidebar).not.toHaveBeenCalled();
 	});
 });

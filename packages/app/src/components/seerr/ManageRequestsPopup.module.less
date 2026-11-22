@@ -1,0 +1,16 @@
+@import '../../styles/mixins.less';
+
+// No side inset, so the rows run edge to edge in the panel.
+.body {
+	line-height: 1.43;
+	letter-spacing: (0.25 * @dp);
+}
+
+.requester {
+	padding: (12 * @dp) 0 (8 * @dp);
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	font-size: (14 * @dp);
+	color: #fff;
+}

@@ -1,4 +1,4 @@
-import {groupLibraryItems} from './libraryGroupBy';
+import {LIBRARY_GROUP_OPTIONS, groupByLabel, groupLibraryItems} from './libraryGroupBy';
 import {parentalRatingSeverity, RATING_UNRATED} from './parentalRatingSeverity';
 
 describe('groupLibraryItems', () => {
@@ -62,5 +62,15 @@ describe('parentalRatingSeverity', () => {
 		expect(parentalRatingSeverity('Not Rated')).toBe(RATING_UNRATED);
 		expect(parentalRatingSeverity('WEIRD-BOARD')).toBeGreaterThan(parentalRatingSeverity('NC-17'));
 		expect(parentalRatingSeverity('WEIRD-BOARD')).toBeLessThan(RATING_UNRATED);
+	});
+});
+
+describe('the Group By choices', () => {
+	test('list in the order and under the names Core uses', () => {
+		expect(LIBRARY_GROUP_OPTIONS.map(groupByLabel)).toEqual(['None', 'Decade (Year)', 'Genres', 'Parental Rating', 'Studio']);
+	});
+
+	test('a stored choice it no longer has reads as None', () => {
+		expect(groupByLabel('year')).toBe('None');
 	});
 });

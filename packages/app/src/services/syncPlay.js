@@ -123,6 +123,7 @@ export const leaveGroup = async () => {
 	try {
 		await request('POST', 'Leave');
 		currentGroup = null;
+		stopTimeSync(); // eslint-disable-line no-use-before-define
 		emit('groupLeft', null);
 		return true;
 	} catch {
@@ -130,13 +131,42 @@ export const leaveGroup = async () => {
 	}
 };
 
-export const sendPlayRequest = () => request('POST', 'Unpause').catch(() => {});
+// Silo's Watch Party (siloWatchParty.js) drives the players through this same group: it feeds its room in as SyncPlay
+// messages, and while it does, the requests below go to the room instead of Jellyfin.
+let roomDriver = null;
+let player = null;
+export const setRoomDriver = (driver) => {
+	roomDriver = driver;
+};
+// Silo's room corrects drift and paces loads itself, while a Moonbase room only sends the group's commands, so its
+// players run as they do in a SyncPlay group.
+export const isRoomDriven = () => Boolean(roomDriver && roomDriver.correctsDrift !== false);
+// A room whose players correct their own drift (Moonbase's).
+export const isSelfCorrectingRoom = () => Boolean(roomDriver && roomDriver.correctsDrift === false);
+export const feedRoomMessage = (msg) => handleWebSocketMessage(msg); // eslint-disable-line no-use-before-define
+export const setServerTimeOffset = (ms) => {
+	serverTimeOffset = ms;
+};
 
-export const sendPauseRequest = () => request('POST', 'Pause').catch(() => {});
+// The playing player, for a room that reports its position on its own schedule. `sample()` is title time, as
+// sendReadyRequest takes it; `sessionId()` the playback session; `isBuffering()` a stall; `seekPending()` a group
+// seek still landing.
+export const attachPlayer = (next) => {
+	player = next;
+	return () => {
+		if (player === next) player = null;
+	};
+};
+export const getPlayer = () => player;
+
+export const sendPlayRequest = () => (roomDriver ? roomDriver.request('play') : request('POST', 'Unpause').catch(() => {}));
+
+export const sendPauseRequest = () => (roomDriver ? roomDriver.request('pause') : request('POST', 'Pause').catch(() => {}));
 
 export const sendStopRequest = () => request('POST', 'Stop').catch(() => {});
 
-export const sendSeekRequest = (positionTicks) => request('POST', 'Seek', {PositionTicks: positionTicks}).catch(() => {});
+export const sendSeekRequest = (positionTicks) => (roomDriver ? roomDriver.request('seek', positionTicks)
+	: request('POST', 'Seek', {PositionTicks: positionTicks}).catch(() => {}));
 
 export const serverNow = () => Date.now() + serverTimeOffset;
 
@@ -187,15 +217,21 @@ const sendHandshake = async (path, sample) => {
 };
 
 export const sendBufferingRequest = async (sample) => {
+	if (roomDriver) return roomDriver.buffering();
 	await sendHandshake('Buffering', sample);
 	bufferingReported = true;
 };
 
 // Whether the server is waiting on a Ready from this set: the group is in
 // Waiting, a Buffering report is outstanding, or the state is not known yet.
-export const isReadyOwed = () => !!currentGroup && (currentGroup.State === 'Waiting' || bufferingReported || !currentGroup.State);
+export const isReadyOwed = () => (roomDriver ? roomDriver.readyOwed() : !!currentGroup && (currentGroup.State === 'Waiting' || bufferingReported || !currentGroup.State));
+
+// A player that has just opened its playback session. A room waits only on members whose session is attached, so
+// the room hears of it now rather than on its next report.
+export const playerSessionOpened = () => roomDriver?.ready();
 
 export const sendReadyRequest = async (sample) => {
+	if (roomDriver) return roomDriver.ready();
 	if (!isReadyOwed()) {
 		syncLog('[SyncPlay] Ready not owed, group', currentGroup?.State, '- not sent');
 		return;
@@ -207,7 +243,7 @@ export const sendReadyRequest = async (sample) => {
 // The server treats Ping as a group request, so one sent outside a group tells it
 // nothing and leaves a warning in its log every ten seconds the app stays open.
 export const sendPingRequest = () => {
-	if (!currentGroup) return;
+	if (!currentGroup || roomDriver) return;
 	return request('POST', 'Ping', {Ping: lastPing}).catch(() => {});
 };
 
@@ -255,18 +291,22 @@ const measureTimeSync = async () => {
 	}
 };
 
+// The clock only matters inside a group, and a watch party feeding the players keeps its own.
+const clockWanted = () => Boolean(currentGroup) && !roomDriver && socketListeners.length > 0 && serverSocket.isConnected();
+
 const startTimeSync = async () => {
-	if (timeSyncBurstActive) return;
+	if (timeSyncBurstActive || !clockWanted()) return;
 	timeSyncBurstActive = true;
 	try {
 		for (let i = 0; i < TIME_SYNC_BURST_COUNT; i++) {
 			await measureTimeSync();
-			if (!socketListeners.length || !serverSocket.isConnected()) return;
+			if (!clockWanted()) return;
 			await new Promise(resolve => setTimeout(resolve, TIME_SYNC_BURST_SPACING_MS));
 		}
 	} finally {
 		timeSyncBurstActive = false;
 	}
+	if (!clockWanted()) return;
 	if (timeSyncInterval) clearInterval(timeSyncInterval);
 	timeSyncInterval = setInterval(measureTimeSync, TIME_SYNC_INTERVAL_MS);
 };
@@ -337,7 +377,7 @@ const onSocketClosed = () => {
 };
 
 // SyncPlay rides the session socket, and keeps its ping and the server's clock going only while
-// it's switched on.
+// it's switched on and in a group.
 export const start = () => {
 	if (socketListeners.length) return;
 	socketListeners = [
@@ -381,6 +421,7 @@ const handleGroupUpdate = (data) => {
 			// session's round trip now rather than leaving it on a default for
 			// up to ten seconds.
 			sendPingRequest();
+			startTimeSync();
 			emit('groupJoined', currentGroup);
 			break;
 
@@ -388,6 +429,7 @@ const handleGroupUpdate = (data) => {
 			currentGroup = null;
 			bufferingReported = false;
 			groupPosition = null;
+			stopTimeSync();
 			emit('groupLeft', null);
 			break;
 
@@ -430,6 +472,7 @@ const handleGroupUpdate = (data) => {
 		case 'GroupDoesNotExist':
 			currentGroup = null;
 			groupPosition = null;
+			stopTimeSync();
 			emit('groupLeft', null);
 			break;
 

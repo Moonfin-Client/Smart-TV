@@ -3,6 +3,7 @@ import Spottable from '@enact/spotlight/Spottable';
 import Spotlight from '@enact/spotlight';
 import {getImageUrl, getFeaturedBackdropUrl} from '../../utils/helpers';
 import {KEYS} from '../../utils/keys';
+import MediaBarNewReleaseLabel from '../../components/MediaBarNewReleaseLabel';
 import useTrailerPreview from './useTrailerPreview';
 import css from './Browse.module.less';
 import {carouselIntervalMs} from '../../utils/carouselTiming';
@@ -21,6 +22,7 @@ const AyaBanner = memo(({
 	isVisible,
 	browseVisible = true,
 	featuredItems,
+	newReleases,
 	api,
 	settings,
 	settingsLoaded,
@@ -216,6 +218,7 @@ const AyaBanner = memo(({
 					{logoUrl
 						? <img className={css.ayaLogo} src={logoUrl} alt={item.Name} data-item-id={item.Id} onError={handleLogoError} />
 						: <h2 className={css.ayaTitle}>{item.Name}</h2>}
+					<MediaBarNewReleaseLabel release={newReleases?.[item.Id]} />
 				</div>
 			</div>
 		);

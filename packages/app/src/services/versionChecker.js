@@ -210,12 +210,26 @@ export const checkForUpdatesDetailed = async () => {
 	}
 };
 
+// A sideloaded TV build can install a release in place when the release carries
+// an update built for this exact package. {ready} means it is already downloaded.
+const checkOtaUpdate = async (version) => {
+	const ota = typeof window !== 'undefined' && window.__moonfinOta;
+	if (!ota) return null;
+	if (ota.ready() === version) return {ready: true};
+	const manifest = await ota.check(version);
+	return manifest ? {manifest} : null;
+};
+
+export const downloadOtaUpdate = (manifest, onProgress) => window.__moonfinOta.download(manifest, onProgress);
+
 /**
  * Check for updates
  * @param {boolean} forceCheck - Skip cooldown check
+ * @param {Object} [options]
+ * @param {boolean} [options.includeDismissed] - Offer a version the user closed before
  * @returns {Promise<Object|null>} Update info if available, null otherwise
  */
-export const checkForUpdates = async (forceCheck = false) => {
+export const checkForUpdates = async (forceCheck = false, {includeDismissed = false} = {}) => {
 	if (!forceCheck) {
 		const shouldCheck = await shouldCheckForUpdate();
 		if (!shouldCheck) {
@@ -235,14 +249,15 @@ export const checkForUpdates = async (forceCheck = false) => {
 	const latestVersion = releaseInfo.tag_name.replace(/^v/, '');
 
 	if (compareVersions(currentVersion, latestVersion) < 0) {
-		const dismissed = await isVersionDismissed(latestVersion);
+		const dismissed = !includeDismissed && await isVersionDismissed(latestVersion);
 		if (!dismissed) {
 			return {
 				currentVersion,
 				latestVersion,
 				releaseNotes: releaseInfo.body,
 				releaseUrl: releaseInfo.html_url,
-				publishedAt: releaseInfo.published_at
+				publishedAt: releaseInfo.published_at,
+				ota: await checkOtaUpdate(latestVersion)
 			};
 		}
 	}

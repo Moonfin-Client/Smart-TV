@@ -1,3 +1,4 @@
+import PosterLabels from '../../../../components/PosterLabels';
 import {SpottableDiv} from '../../detailsSpottables';
 import {iconViewBox} from '../../../../components/icons/iconViewBox';
 import {DETAIL_ICON_PATHS} from '../../detailIcons';
@@ -8,7 +9,7 @@ import css from './NouveauCards.module.less';
 // rail works out the width and the height follows from it, so nothing here guesses at a size.
 const NouveauPosterCard = ({
 	imageUrl, title, subtitle, width, height, progress = 0, badgeIcon,
-	selectKey, onSelect, spotlightId
+	selectKey, onSelect, spotlightId, item, serverUrl
 }) => {
 	// Only part way through counts. A finished item would otherwise wear a full bar for good.
 	const shown = progress > 0 && progress < 1;
@@ -48,6 +49,7 @@ const NouveauPosterCard = ({
 						<div className={css.progressFill} style={{width: `${Math.round(progress * 100)}%`}} />
 					</div>
 				)}
+				<PosterLabels item={item} serverUrl={serverUrl} scale={0.8} topRight={badgeIcon ? 46 : 8} />
 			</div>
 			{(title || subtitle) && (
 				<div className={css.caption}>

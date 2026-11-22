@@ -57,6 +57,9 @@ const trackPill = (status, declined) => {
 	}
 };
 
+// The word a poster's banner shows for a media status.
+export const mediaStatusLabel = (status) => trackPill(status, false).label;
+
 const hasAnyState = (status, declined) => declined || (status != null && status > MEDIA_STATUS.UNKNOWN);
 
 // One pill per quality track rather than one combined badge. HD alone stays

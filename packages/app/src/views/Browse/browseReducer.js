@@ -3,6 +3,7 @@
 // are already on screen.
 
 import {mergeRowPreservingRefs} from '../../utils/volatileRows';
+import {extendRow} from './rowPaging';
 
 export const browseInitialState = {
 	isLoading: true,
@@ -41,6 +42,17 @@ export function mergeRowsById (existingRows, incomingRows) {
 	return [...merged, ...incoming.values()];
 }
 
+const isRecentRow = (row) => Boolean(row?.isLatestRow || row?.isRecentlyReleasedRow);
+
+// Recently Added and Recently Released read again as a set. They take the place of the ones
+// before them, and a row the server no longer fills goes, which merging by id would leave behind.
+export function replaceRecentRows (existingRows, recentRows) {
+	const at = existingRows.findIndex(isRecentRow);
+	const kept = existingRows.filter((row) => !isRecentRow(row));
+	const index = at < 0 ? kept.length : at;
+	return [...kept.slice(0, index), ...recentRows, ...kept.slice(index)];
+}
+
 export default function browseReducer (state, action) {
 	switch (action.type) {
 		case 'SET_INITIAL_DATA':
@@ -54,6 +66,8 @@ export default function browseReducer (state, action) {
 			if (action.rows.length === 0) return state;
 			return {...state, allRowData: mergeRowsById(state.allRowData, action.rows)};
 		}
+		case 'REPLACE_RECENT_ROWS':
+			return {...state, allRowData: replaceRecentRows(state.allRowData, action.rows)};
 		case 'REFRESH_VOLATILE': {
 			const prevVolatile = new Map();
 			state.allRowData.forEach((row) => {
@@ -69,6 +83,26 @@ export default function browseReducer (state, action) {
 				return state;
 			}
 			return {...state, allRowData: next};
+		}
+		// A null row means nothing is airing, so the row goes until something is.
+		case 'REFRESH_ON_NOW': {
+			const index = state.allRowData.findIndex((row) => row.id === 'onnow');
+			if (!action.row) {
+				return index < 0 ? state : {...state, allRowData: state.allRowData.filter((row) => row.id !== 'onnow')};
+			}
+			if (index < 0) return {...state, allRowData: [...state.allRowData, action.row]};
+			const updated = mergeRowPreservingRefs(state.allRowData[index], action.row);
+			if (updated === state.allRowData[index]) return state;
+			const allRowData = state.allRowData.slice();
+			allRowData[index] = updated;
+			return {...state, allRowData};
+		}
+		case 'EXTEND_ROW': {
+			const index = state.allRowData.findIndex((row) => row.id === action.id);
+			if (index < 0 || state.allRowData[index].readHead !== action.readHead) return state;
+			const allRowData = state.allRowData.slice();
+			allRowData[index] = extendRow(allRowData[index], action.items, action.hasMore);
+			return {...state, allRowData};
 		}
 		case 'SET_ROW_DATA':
 			return {...state, allRowData: dedupeById(action.rowData)};

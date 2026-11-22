@@ -71,7 +71,7 @@ const SeerrPerson = ({personId, personName, onClose, onSelectItem, onBack}) => {
 	}, [backdropCandidates]);
 
 	const handleSelectMedia = useCallback((item) => {
-		if (item?._seerrRaw) onSelectItem?.(item._seerrRaw);
+		if (item?._seerrRaw) onSelectItem?.({...item._seerrRaw, libraryId: item._seerrLibraryId});
 	}, [onSelectItem]);
 
 	const appearances = useMemo(() => prepareCredits(rawCast, {isCrew: false}).map(normalizeMediaItem), [rawCast]);
@@ -132,7 +132,7 @@ const SeerrPerson = ({personId, personName, onClose, onSelectItem, onBack}) => {
 
 	const profileUrl = details.profilePath
 		? seerrApi.getImageUrl(details.profilePath, 'h632')
-		: null;
+		: details.libraryImageUrl || null;
 	const dateLines = personDateLines(details.birthday, details.deathday);
 	const knownFor = details.knownForDepartment ? `${$L('Known for:')} ${details.knownForDepartment}` : null;
 

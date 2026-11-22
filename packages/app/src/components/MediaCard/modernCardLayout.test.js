@@ -1,8 +1,8 @@
-import {isStaticLibraryCard, modernCardMetrics, modernRowSpacing, getCardDisplayTitle, getEpisodeLabels} from './modernCardLayout';
+import {isCarouselRow, isStaticLibraryCard, modernCardMetrics, modernRowSpacing, getCardDisplayTitle, getEpisodeLabels} from './modernCardLayout';
+import {defaultSettings} from '../../context/defaultSettings';
 
 const metrics = (over = {}) => modernCardMetrics({
 	posterSize: 'default',
-	platform: 'webos',
 	isSquareItem: false,
 	isStatic: false,
 	...over
@@ -20,9 +20,33 @@ describe('isStaticLibraryCard', () => {
 		expect(isStaticLibraryCard(false, {modernCardsOnMyMediaRow: false})).toBe(false);
 	});
 
-	test('a set that has never seen the setting keeps its posters', () => {
-		expect(isStaticLibraryCard(true, {})).toBe(false);
-		expect(isStaticLibraryCard(true, undefined)).toBe(false);
+	test('a set that has never seen the setting holds the row static', () => {
+		expect(isStaticLibraryCard(true, {})).toBe(true);
+		expect(isStaticLibraryCard(true, undefined)).toBe(true);
+	});
+});
+
+describe('isCarouselRow', () => {
+	const carousel = {homeRowsStyle: 'carousel'};
+
+	test('is the default Row Type on the TV', () => {
+		expect(defaultSettings.homeRowsStyle).toBe('carousel');
+		expect(isCarouselRow({id: 'latest-movies', type: 'portrait'}, defaultSettings)).toBe(true);
+	});
+
+	test('gives title and genre rows their panel only under Carousel', () => {
+		const nextUp = {id: 'nextup', type: 'landscape'};
+		expect(isCarouselRow(nextUp, carousel)).toBe(true);
+		expect(isCarouselRow({id: 'genres-movies', type: 'portrait', isGenreRow: true}, carousel)).toBe(true);
+		expect(isCarouselRow(nextUp, {homeRowsStyle: 'v2'})).toBe(false);
+		expect(isCarouselRow(nextUp, {homeRowsStyle: 'v1'})).toBe(false);
+	});
+
+	test('keeps music, My Media, Live TV and studio rows plain', () => {
+		expect(isCarouselRow({id: 'audioalbums', type: 'square'}, carousel)).toBe(false);
+		expect(isCarouselRow({id: 'library-tiles', type: 'landscape', isLibraryRow: true}, carousel)).toBe(false);
+		expect(isCarouselRow({id: 'livetv', type: 'landscape', isLiveTvRow: true}, carousel)).toBe(false);
+		expect(isCarouselRow({id: 'studios', type: 'landscape'}, carousel)).toBe(false);
 	});
 });
 
@@ -44,24 +68,20 @@ describe('modernCardMetrics', () => {
 	});
 
 	test('a static My Media tile is as wide as a focused card, so the rows line up', () => {
-		for (const platform of ['tizen', 'webos']) {
-			const {expandedWidth, cardWidth} = metrics({platform, isStatic: true});
-			expect(cardWidth).toBe(expandedWidth);
-		}
+		const {expandedWidth, cardWidth} = metrics({isStatic: true});
+		expect(cardWidth).toBe(expandedWidth);
 	});
 
 	test('growing on focus never makes a card narrower than it sits', () => {
-		for (const platform of ['tizen', 'webos']) {
-			for (const isSquareItem of [true, false]) {
-				const {expandedWidth, cardWidth} = metrics({platform, isSquareItem});
-				expect(expandedWidth).toBeGreaterThanOrEqual(cardWidth);
-			}
+		for (const isSquareItem of [true, false]) {
+			const {expandedWidth, cardWidth} = metrics({isSquareItem});
+			expect(expandedWidth).toBeGreaterThanOrEqual(cardWidth);
 		}
 	});
 
-	test('Tizen grows wider than the web players do', () => {
-		expect(metrics({platform: 'tizen'}).expandedWidth).toBe(640);
-		expect(metrics({platform: 'webos'}).expandedWidth).toBe(594);
+	test('a focused card opens to 16:9 on every platform, as Core draws it', () => {
+		expect(metrics().expandedWidth).toBe(640);
+		expect(metrics({posterSize: 'small'}).expandedWidth).toBe(512);
 	});
 });
 
@@ -105,14 +125,14 @@ describe('Modern card labels and titles', () => {
 });
 
 describe('modernRowSpacing', () => {
-	test('turns the padding slider into the space below a row, every stop changing it', () => {
+	test('turns the padding slider into the space below a row, every stop changing it and none overlapping', () => {
 		expect(modernRowSpacing({})).toBe(0);
-		expect(modernRowSpacing({modernHomeRowsPadding: 420})).toBe(0);
-		expect(modernRowSpacing({modernHomeRowsPadding: 500})).toBe(66);
-		expect(modernRowSpacing({modernHomeRowsPadding: 560})).toBe(126);
-		expect(modernRowSpacing({modernHomeRowsPadding: 400})).toBe(-11);
-		expect(modernRowSpacing({modernHomeRowsPadding: 380})).toBe(-23);
-		expect(modernRowSpacing({modernHomeRowsPadding: 360})).toBe(-34);
+		expect(modernRowSpacing({modernHomeRowsPadding: 420})).toBe(34);
+		expect(modernRowSpacing({modernHomeRowsPadding: 500})).toBe(100);
+		expect(modernRowSpacing({modernHomeRowsPadding: 560})).toBe(160);
+		expect(modernRowSpacing({modernHomeRowsPadding: 400})).toBe(23);
+		expect(modernRowSpacing({modernHomeRowsPadding: 380})).toBe(11);
+		expect(modernRowSpacing({modernHomeRowsPadding: 360})).toBe(0);
 	});
 
 	test('leaves full screen rows to pace themselves', () => {

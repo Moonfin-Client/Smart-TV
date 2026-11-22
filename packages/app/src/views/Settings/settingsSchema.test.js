@@ -11,7 +11,7 @@ import {buildSettingsIndex, matchSettings, resultSpotlightId} from './settingsSe
 // a key that does not exist writes junk into settings, and a repeated spotlight id makes
 // a deep linked search result focus the wrong row.
 
-const CUSTOM_RENDERERS = ['moonbasePlugin', 'seerrPanel', 'rommPanel', 'aboutHeader', 'aboutDataActions', 'subtitlePreview', 'imageCacheActions', 'checkForUpdates', 'playbackTimePreview', 'screensaverPreview', 'loadingAnimationPreview', 'trickplayPreview'];
+const CUSTOM_RENDERERS = ['moonbaseAddress', 'moonbasePlugin', 'seerrPanel', 'rommPanel', 'aboutHeader', 'aboutDataActions', 'subtitlePreview', 'imageCacheActions', 'checkForUpdates', 'playbackTimePreview', 'screensaverPreview', 'loadingAnimationPreview', 'trickplayPreview'];
 const KEYED = [KIND.TOGGLE, KIND.OPTION, KIND.SLIDER];
 
 // Enough of a context that every label, value and condition can be called.
@@ -23,6 +23,8 @@ const ctx = {
 	romm: {available: true},
 	seerrLabel: 'Seerr',
 	isSeerr: true,
+	hasLiveTv: true,
+	serverType: 'jellyfin',
 	hasMultipleServers: false,
 	isWebOS: true,
 	isTizen: false,
@@ -43,8 +45,9 @@ const allRows = () => allScreens().flatMap(({category, sub}) =>
 
 describe('settings schema', () => {
 	test('every stored key exists in the default settings', () => {
+		// A row that reads its own value keeps it somewhere else.
 		const unknown = allRows()
-			.filter(({row}) => KEYED.includes(row.kind))
+			.filter(({row}) => KEYED.includes(row.kind) && !row.isOn)
 			.map(({row}) => row.key)
 			.filter((key) => !(key in defaultSettings));
 		expect(unknown).toEqual([]);
@@ -112,11 +115,14 @@ describe('settings schema', () => {
 	describe('Moonbase plugin screen', () => {
 		const pluginScreen = () => allScreens().find(({category, sub}) => category.id === 'account' && sub.id === 'settingsSync').sub;
 
-		test('Settings Sync is the Moonbase block and nothing else', () => {
+		test('Settings Sync is the Moonbase block, under the Moonbase Address on Plex only', () => {
 			const rows = pluginScreen().rows;
 
-			expect(rows).toHaveLength(1);
-			expect(rows[0]).toMatchObject({kind: KIND.CUSTOM, render: 'moonbasePlugin'});
+			expect(rows).toHaveLength(2);
+			expect(rows[0]).toMatchObject({kind: KIND.CUSTOM, render: 'moonbaseAddress'});
+			expect(rows[0].when(ctx)).toBe(false);
+			expect(rows[0].when({...ctx, serverType: 'plex'})).toBe(true);
+			expect(rows[1]).toMatchObject({kind: KIND.CUSTOM, render: 'moonbasePlugin'});
 		});
 
 		test('has no other row for the plugin switch, its status or the profile picker', () => {
@@ -177,6 +183,16 @@ describe('settings schema', () => {
 		expect(note.when({...xbox, settings: {...defaultSettings, xboxPassthrough: true, xboxNativePlayer: false}})).toBe(true);
 	});
 
+	test('a search for silent, silence or no sound finds Passthrough', () => {
+		const searchFor = (query, context) => matchSettings(buildSettingsIndex(SETTINGS_SCHEMA, context, {resolve, spotlightIdOf}), query)
+			.map((entry) => entry.spotlightId);
+		const xbox = {...ctx, isWebOS: false, isXbox: true};
+		for (const query of ['silent', 'silence', 'no sound']) {
+			expect(searchFor(query, ctx)).toContain('setting-audioPassthroughMode');
+			expect(searchFor(query, xbox)).toContain('setting-xboxPassthrough');
+		}
+	});
+
 	test('Xbox passthrough is offered only with the console player', () => {
 		const toggle = allRows().find(({row}) => row.key === 'xboxPassthrough').row;
 		const xbox = {...ctx, isWebOS: false, isXbox: true};
@@ -184,6 +200,88 @@ describe('settings schema', () => {
 		expect(toggle.when(xbox)).toBe(true);
 		expect(toggle.when({...xbox, settings: {...defaultSettings, xboxNativePlayer: false}})).toBe(false);
 		expect(toggle.when(ctx)).toBeFalsy();
+	});
+
+	test('Xbox Dolby Vision is offered only with the console player, on a console and TV that report it', () => {
+		const toggle = allRows().find(({row}) => row.key === 'xboxDolbyVision').row;
+		const xbox = {...ctx, isWebOS: false, isXbox: true, consoleDolbyVision: true};
+		expect(defaultSettings.xboxDolbyVision).toBe(true);
+		expect(toggle.when(xbox)).toBe(true);
+		expect(toggle.when({...xbox, consoleDolbyVision: false})).toBe(false);
+		expect(toggle.when({...xbox, settings: {...defaultSettings, xboxNativePlayer: false}})).toBe(false);
+		expect(toggle.when({...ctx, consoleDolbyVision: true})).toBeFalsy();
+
+		const toggleXboxDolbyVision = jest.fn();
+		toggle.onToggle({...xbox, actions: {toggleXboxDolbyVision}});
+		expect(toggleXboxDolbyVision).toHaveBeenCalledTimes(1);
+	});
+
+	test('Show Libraries Individually is offered only while libraries show in the navigation bar', () => {
+		const toggle = allRows().find(({row}) => row.key === 'showLibrariesIndividually').row;
+		expect(defaultSettings.showLibrariesIndividually).toBe(false);
+		expect(toggle.when(ctx)).toBe(true);
+		expect(toggle.when({...ctx, settings: {...defaultSettings, navbarPosition: 'left'}})).toBe(true);
+		expect(toggle.when({...ctx, settings: {...defaultSettings, showLibrariesInToolbar: false}})).toBe(false);
+	});
+
+	test('Studio Row Sorting picks Name for a saved sort it no longer offers', () => {
+		const picker = allRows().find(({row}) => row.key === 'studiosRowSortBy').row;
+		expect(picker.value({...ctx, settings: {...defaultSettings, studiosRowSortBy: 'DateCreated'}})).toBe('SortName');
+		expect(picker.value({...ctx, settings: {...defaultSettings, studiosRowSortBy: 'Random'}})).toBe('Random');
+	});
+
+	test('Card image only shows while the saved calendar style is Countdown, the one style that draws it', () => {
+		const picker = allRows().find(({row}) => row.key === 'calendarImageType').row;
+		expect(defaultSettings.calendarStyle).toBe('agenda');
+		expect(picker.when(ctx)).toBe(false);
+		expect(picker.when({...ctx, settings: {...defaultSettings, calendarStyle: 'countdown'}})).toBe(true);
+	});
+
+	test('the Live TV and Watch Parties button switches only show where the navbar could draw the button', () => {
+		const shown = (key, overrides, settings = {}) => allRows().find(({row}) => row.key === key).row
+			.when({...ctx, ...overrides, settings: {...defaultSettings, ...settings}});
+		expect(shown('showLiveTvButton', {})).toBe(true);
+		expect(shown('showLiveTvButton', {hasLiveTv: false})).toBe(false);
+		expect(shown('showSyncPlayButton', {})).toBe(true);
+		expect(shown('showSyncPlayButton', {serverType: 'emby'})).toBe(true);
+		// Moonbase hosts watch parties on Plex too.
+		expect(shown('showSyncPlayButton', {serverType: 'plex'})).toBe(true);
+		expect(shown('showSyncPlayButton', {}, {syncplayEnabled: false})).toBe(false);
+	});
+
+	test('the Watch Parties screen follows what the server can host', () => {
+		const row = (id) => allRows().find(({row: r}) => r.key === id || r.id === id).row;
+		const on = (id, overrides, settings = {}) => Boolean(row(id).when({...ctx, ...overrides, settings: {...defaultSettings, ...settings}}));
+		const moonbase = {watchParties: {moonbase: true}};
+		expect(on('watchPartyService', {...moonbase, serverType: 'jellyfin'})).toBe(true);
+		expect(on('watchPartyService', {...moonbase, serverType: 'emby'})).toBe(false);
+		expect(on('watchPartyService', {serverType: 'jellyfin'})).toBe(false);
+		expect(on('watchPartyChatOverlay', moonbase)).toBe(true);
+		expect(on('watchPartyAlerts', {})).toBe(false);
+		expect(on('watchPartiesNeedMoonbase', {watchParties: {needsMoonbase: true}})).toBe(true);
+		expect(on('openWatchParties', {}, {syncplayEnabled: false})).toBe(false);
+		expect(defaultSettings).toMatchObject({syncplayEnabled: true, watchPartyService: 'moonbase', watchPartyChatOverlay: true, watchPartyAlerts: false});
+	});
+
+	test('the drift correction rows hide on Silo, whose rooms correct drift themselves', () => {
+		const drift = ['syncPlayAdvancedCorrectionEnabled', 'syncPlayEnableSyncCorrection', 'syncPlayUseSkipToSync', 'syncPlayMinDelaySkipToSync', 'syncPlayExtraTimeOffset'];
+		const shown = (serverType) => drift.filter((key) => allRows().find(({row}) => row.key === key).row
+			.when({...ctx, serverType, settings: {...defaultSettings, syncPlayUseSkipToSync: true}}));
+		expect(shown('jellyfin')).toEqual(drift);
+		expect(shown('emby')).toEqual(drift);
+		expect(shown('silo')).toEqual([]);
+	});
+
+	test("Secondary Subtitles is off by default and follows the default language, with its own language only while it's on", () => {
+		const subtitles = allScreens().find(({sub}) => sub.id === 'subtitles').sub.rows;
+		const keys = subtitles.map((row) => row.key);
+		expect(keys.indexOf('secondarySubtitlesEnabled')).toBe(keys.indexOf('subtitleLanguage') + 1);
+		expect(defaultSettings.secondarySubtitlesEnabled).toBe(false);
+
+		const language = subtitles.find((row) => row.key === 'preferredSecondarySubtitleLanguage');
+		expect(language.when(ctx)).toBe(false);
+		expect(language.when({...ctx, settings: {...defaultSettings, secondarySubtitlesEnabled: true}})).toBe(true);
+		expect(language.when({...ctx, settings: {...defaultSettings, secondarySubtitlesEnabled: true, subtitleMode: 'none'}})).toBe(false);
 	});
 
 	// The fallback stands in for the value on the row's chip, so it's one of the chip texts
@@ -208,6 +306,14 @@ describe('settings schema', () => {
 	});
 });
 
+describe('the details screen style', () => {
+	test.each(['Stage', 'Premiere', 'Quick Look', 'Frost'])('a search for %s finds the style setting', (name) => {
+		const index = buildSettingsIndex(SETTINGS_SCHEMA, ctx, {resolve, spotlightIdOf});
+
+		expect(matchSettings(index, name).map((entry) => entry.spotlightId)).toContain('setting-detailScreenStyle');
+	});
+});
+
 describe('the home screen backdrop', () => {
 	const backdropRow = () => SETTINGS_SCHEMA
 		.find((category) => category.id === 'appearance').subcategories
@@ -215,14 +321,15 @@ describe('the home screen backdrop', () => {
 		.find((row) => row.key === 'homeBackdropStyle');
 	const withSettings = (settings) => ({...ctx, settings: {...defaultSettings, ...settings}});
 
-	test('is a three way choice in place of the switch', () => {
+	test('is a choice in place of the switch', () => {
 		const row = backdropRow();
 		expect(row.kind).toBe(KIND.OPTION);
 		expect(row.label()).toBe('Home Screen Backdrop');
 		expect(row.options(ctx).map((option) => [option.value, option.label])).toEqual([
 			['off', 'Off'],
 			['fullScreen', 'Full Screen'],
-			['corner', 'Corner']
+			['corner', 'Corner'],
+			['top', 'Top']
 		]);
 		expect(allRows().some(({row: other}) => other.key === 'showHomeBackdrop')).toBe(false);
 	});
@@ -232,16 +339,18 @@ describe('the home screen backdrop', () => {
 		expect(row.value(withSettings({showHomeBackdrop: false, homeBackdropStyle: 'corner'}))).toBe('off');
 		expect(row.value(withSettings({showHomeBackdrop: true}))).toBe('fullScreen');
 		expect(row.value(withSettings({showHomeBackdrop: true, homeBackdropStyle: 'corner'}))).toBe('corner');
+		expect(row.value(withSettings({showHomeBackdrop: true, homeBackdropStyle: 'top'}))).toBe('top');
 	});
 
 	test('a choice writes both keys in one update', () => {
 		const setSettings = jest.fn();
 		const withActions = {...ctx, actions: {setSettings}};
-		['off', 'fullScreen', 'corner'].forEach((style) => backdropRow().onSelect(withActions, style));
+		['off', 'fullScreen', 'corner', 'top'].forEach((style) => backdropRow().onSelect(withActions, style));
 		expect(setSettings.mock.calls).toEqual([
 			[{showHomeBackdrop: false, homeBackdropStyle: 'off'}],
 			[{showHomeBackdrop: true, homeBackdropStyle: 'fullScreen'}],
-			[{showHomeBackdrop: true, homeBackdropStyle: 'corner'}]
+			[{showHomeBackdrop: true, homeBackdropStyle: 'corner'}],
+			[{showHomeBackdrop: true, homeBackdropStyle: 'top'}]
 		]);
 	});
 });
@@ -299,5 +408,60 @@ describe('the media preview switches', () => {
 			expect(row.when(withSettings({episodePreviewEnabled: true, mediaPreviewMode: 'media'}))).toBe(true);
 			expect(row.when(withSettings({episodePreviewEnabled: true, mediaPreviewMode: 'trailer'}))).toBe(true);
 		});
+	});
+});
+
+describe('the ratings sections', () => {
+	const screen = (id) => SETTINGS_SCHEMA
+		.find((category) => category.id === 'appearance').subcategories
+		.find((sub) => sub.id === id);
+	const ratingsKeys = (id) => screen(id).rows.filter((row) => KEYED.includes(row.kind)).map((row) => row.key)
+		.filter((key) => /(mdblistEnabled|episodeRatingsEnabled|showRating(Labels|Badges))$/i.test(key));
+	const withSettings = (settings) => ({...ctx, settings: {...defaultSettings, ...settings}});
+
+	test('home rows and the media bar each change their own copy', () => {
+		expect(ratingsKeys('detailsPage')).toEqual(['mdblistEnabled', 'tmdbEpisodeRatingsEnabled', 'showRatingLabels', 'showRatingBadges']);
+		expect(ratingsKeys('homeScreen')).toEqual(['homeRowsMdblistEnabled', 'homeRowsTmdbEpisodeRatingsEnabled', 'homeRowsShowRatingLabels', 'homeRowsShowRatingBadges']);
+		expect(ratingsKeys('mediaBar')).toEqual(['mediaBarMdblistEnabled', 'mediaBarShowRatingLabels', 'mediaBarShowRatingBadges']);
+	});
+
+	test('the sources and reset rows open on their own surface', () => {
+		const openRatingSources = jest.fn();
+		const resetRatingsSettings = jest.fn();
+		const withActions = {...ctx, actions: {openRatingSources, resetRatingsSettings}};
+		for (const [id, prefix] of [['detailsPage', ''], ['homeScreen', 'homeRows'], ['mediaBar', 'mediaBar']]) {
+			const rows = screen(id).rows;
+			rows.find((row) => /^(r|.+R)atingSources$/.test(row.id)).action(withActions);
+			rows.find((row) => /^(r|.+R)esetRatings$/.test(row.id)).action(withActions);
+			expect(openRatingSources).toHaveBeenLastCalledWith(prefix);
+			expect(resetRatingsSettings).toHaveBeenLastCalledWith(prefix);
+		}
+	});
+
+	test('the media bar section only shows for the styles that draw ratings', () => {
+		const shown = (featuredBarStyle) => screen('mediaBar').rows
+			.filter((row) => row.id === 'mediaBarRatings' || row.key === 'mediaBarMdblistEnabled')
+			.map((row) => row.when(withSettings({featuredBarStyle})));
+		for (const style of ['moonfin', 'makd', 'gallery', 'banner']) expect(shown(style)).toEqual([true, true]);
+		for (const style of ['bookshelf', 'aya', 'off']) expect(shown(style)).toEqual([false, false]);
+	});
+});
+
+describe('the Seerr notification choices', () => {
+	test('show with Seerr, and New Requests only to someone who manages requests', () => {
+		const keys = ['notifyOnNewRequests', 'notifyOnLibraryAdded', 'notifyOnIssues', 'notifyOnNewMedia'];
+		const rows = allRows().map(({row}) => row).filter((row) => keys.includes(row.key));
+		const shown = (seerr) => rows.filter((row) => row.when({...ctx, seerr})).map((row) => row.key);
+		const api = {canManageRequests: (permissions) => (permissions & 16) !== 0};
+		expect(shown({isEnabled: true, api, user: {permissions: 32}})).toEqual(keys.slice(1));
+		expect(shown({isEnabled: true, api, user: {permissions: 16}})).toEqual(keys);
+		expect(shown({isEnabled: false, api, user: {permissions: 16}})).toEqual([]);
+		// The values are the user's own, kept apart from the settings.
+		const toggleNotificationPref = jest.fn();
+		const withPrefs = {...ctx, notificationPrefs: {notifyOnIssues: false}, actions: {toggleNotificationPref}};
+		const issues = rows.find((row) => row.key === 'notifyOnIssues');
+		expect(issues.isOn(withPrefs)).toBe(false);
+		issues.onToggle(withPrefs);
+		expect(toggleNotificationPref).toHaveBeenCalledWith('notifyOnIssues');
 	});
 });

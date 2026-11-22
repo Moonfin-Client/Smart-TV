@@ -1,4 +1,4 @@
-import {computePerfTier} from './perfTier';
+import {applyPerfTier, computePerfTier, smoothScrollingFor} from './perfTier';
 
 describe('computePerfTier', () => {
 	test('Tizen 2.4 WebKit (no Chrome token) is low', () => {
@@ -51,5 +51,25 @@ describe('computePerfTier', () => {
 		expect(computePerfTier('')).toBe('low');
 		expect(computePerfTier(undefined)).toBe('low');
 		expect(computePerfTier('Mozilla/5.0 Chrome/NaN')).toBe('low');
+	});
+});
+
+describe('smoothScrollingFor', () => {
+	afterEach(() => applyPerfTier(null));
+
+	test('glides by default only on the High tier', () => {
+		applyPerfTier('high');
+		expect(smoothScrollingFor(null)).toBe(true);
+		applyPerfTier('mid');
+		expect(smoothScrollingFor(null)).toBe(false);
+		applyPerfTier('low');
+		expect(smoothScrollingFor(null)).toBe(false);
+	});
+
+	test('a choice someone made wins over the tier', () => {
+		applyPerfTier('low');
+		expect(smoothScrollingFor(true)).toBe(true);
+		applyPerfTier('high');
+		expect(smoothScrollingFor(false)).toBe(false);
 	});
 });

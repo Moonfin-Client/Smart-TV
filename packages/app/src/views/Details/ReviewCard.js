@@ -1,17 +1,17 @@
 import {memo, useCallback, useState} from 'react';
 
-import {reviewDateLabel, reviewInitial, reviewPreview, reviewRatingLabel} from '../../utils/tmdbReviews';
+import {reviewInitial, reviewMeta, reviewPreview} from '../../utils/tmdbReviews';
 import {SpottableDiv} from './detailsSpottables';
 
 import css from './Reviews.module.less';
 
-export const ReviewAuthor = ({review, className}) => {
+const ReviewAuthor = ({review}) => {
 	const [broken, setBroken] = useState(false);
 	const handleError = useCallback(() => setBroken(true), []);
-	const meta = [reviewRatingLabel(review.rating), reviewDateLabel(review.createdAt)].filter(Boolean).join(' · ');
+	const meta = reviewMeta(review);
 
 	return (
-		<div className={`${css.author} ${className || ''}`}>
+		<div className={css.author}>
 			<div className={css.avatar}>
 				{review.avatarUrl && !broken
 					? <img src={review.avatarUrl} alt="" onError={handleError} />

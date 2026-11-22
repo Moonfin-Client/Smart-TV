@@ -1,0 +1,10 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Packs what build.ps1 built, which passes PackageVersion, FFmpegInteropXOut and FFmpegInteropXSource. Nothing here is compiled. -->
+  <PropertyGroup>
+    <TargetFramework>netstandard2.0</TargetFramework>
+    <IncludeBuildOutput>false</IncludeBuildOutput>
+    <NoBuild>true</NoBuild>
+    <NuspecFile>Moonfin.FFmpegInteropX.UWP.Lib.nuspec</NuspecFile>
+    <NuspecProperties>version=$(PackageVersion);out=$(FFmpegInteropXOut);source=$(FFmpegInteropXSource)</NuspecProperties>
+  </PropertyGroup>
+</Project>

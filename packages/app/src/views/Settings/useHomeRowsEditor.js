@@ -1,10 +1,10 @@
 import {useCallback, useRef, useState} from 'react';
 
 import {DEFAULT_HOME_ROWS} from '../../context/SettingsContext';
-import {createApiForServer} from '../../services/jellyfinApi';
+import {createApiForServer, getServerType} from '../../services/jellyfinApi';
 import {SEERR_CONFIG_TO_SECTION} from '../../utils/seerrHomeRows';
 import {getGenresIncludeTypes} from '../../utils/homeRowSorting';
-import {makePickedRow, makeSeerrSliderRow, serverKey} from '../../utils/pickedRows';
+import {isSameServer, isSectionTypeRow, makePickedRow, makeSeerrSliderRow, serverKey} from '../../utils/pickedRows';
 import {loadDiscoverSliders, reconcileSliderRows} from '../../utils/seerrSliders';
 import {isHomeRowVisibleByGates, mergeFoundRows} from './homeSectionsModel';
 import {editedListKey} from './settingsRows';
@@ -26,7 +26,7 @@ const otherServers = (servers, serverUrl) => {
 
 // Everything that can have a row of its own: the collections, genres and playlists of the lists
 // switched on, and the collections of the other signed in servers while multi-server libraries is on
-const findPickableRows = async ({api, serverUrl, servers, settings}) => {
+const findPickableRows = async ({api, serverUrl, servers, settings, rows = []}) => {
 	const lists = [];
 	const add = (source, url, request) => lists.push(request.then(
 		(result) => (result?.Items || []).map((item) => makePickedRow({source, serverUrl: url, itemId: String(item.Id), name: item.Name}, false, 0)),
@@ -43,6 +43,15 @@ const findPickableRows = async ({api, serverUrl, servers, settings}) => {
 	}
 	if (settings.displayGenresRows) add('genres', serverUrl, api.getGenres(undefined, getGenresIncludeTypes(settings.genresRowItemFilter)));
 	if (settings.displayPlaylistsRows) add('playlists', serverUrl, api.getPlaylists());
+	// Silo's own home sections. One a section-type row (from Moonbase's defaults) already stands for isn't listed again.
+	if (getServerType() === 'silo') {
+		const typed = new Set(rows.filter((row) => isSectionTypeRow(row) && (!row.serverUrl || isSameServer(row.serverUrl, serverUrl)))
+			.map((row) => row.itemId));
+		add('server', serverUrl, api.getServerHomeSections().then((sections) => {
+			const standIns = new Set(typed);
+			return {Items: sections.filter((section) => !standIns.delete(`type:${section.kind}`)).map((section) => ({Id: section.id, Name: section.title}))};
+		}));
+	}
 	return [].concat(...await Promise.all(lists));
 };
 
@@ -68,9 +77,8 @@ const toggleRowIn = (list, id) => {
 };
 
 // The home screen row order, edited against a scratch copy and written back once the screen
-// closes, and only if it ended up different. The IMDb rows are stored twice, as a row and as
-// their own setting, so both are updated.
-const useHomeRowsEditor = ({api, serverUrl, servers, settings, updateSetting, updateSettings, pushView}) => {
+// closes, and only if it ended up different.
+const useHomeRowsEditor = ({api, serverUrl, servers, settings, updateSetting, updateSettings, pushView, pluginInfo = null}) => {
 	const [tempHomeRows, setTempHomeRows] = useState([]);
 	const [loading, setLoading] = useState(false);
 	// Turns false once the server answers with no Live TV channels, which hides the Live TV rows.
@@ -118,7 +126,7 @@ const useHomeRowsEditor = ({api, serverUrl, servers, settings, updateSetting, up
 		// A failed slider read leaves the slider rows alone, rather than reading as Seerr having none
 		// and dropping them all.
 		Promise.all([
-			findPickableRows({api, serverUrl, servers, settings}).catch(() => []),
+			findPickableRows({api, serverUrl, servers, settings, rows}).catch(() => []),
 			settings.useMoonfinPlugin ? loadDiscoverSliders({force: true}).catch(() => null) : null
 		])
 			.then(([found, sliders]) => {
@@ -139,16 +147,20 @@ const useHomeRowsEditor = ({api, serverUrl, servers, settings, updateSetting, up
 		if (editedListKey(rows) === openedRef.current) return;
 		openedRef.current = editedListKey(rows);
 		const updates = {homeRows: rows};
-		const imdbMap = {
+		// Older app versions still show or hide these rows by their own switches, so each switch
+		// keeps following its row.
+		const switchMap = {
 			'imdb-top250-movies': 'imdbTop250MoviesEnabled',
 			'imdb-top250-tv': 'imdbTop250TvShowsEnabled',
 			'imdb-popular-movies': 'imdbMostPopularMoviesEnabled',
 			'imdb-popular-tv': 'imdbMostPopularTvShowsEnabled',
 			'imdb-lowest-rated': 'imdbLowestRatedMoviesEnabled',
-			'imdb-top-english': 'imdbTopEnglishMoviesEnabled'
+			'imdb-top-english': 'imdbTopEnglishMoviesEnabled',
+			seasonal: 'seasonalRowEnabled',
+			mdblist_watching_now: 'mdblistWatchingNowEnabled'
 		};
 		rows.forEach((row) => {
-			const settingKey = imdbMap[row.id];
+			const settingKey = switchMap[row.id];
 			if (settingKey) {
 				updates[settingKey] = row.enabled;
 			}
@@ -171,7 +183,7 @@ const useHomeRowsEditor = ({api, serverUrl, servers, settings, updateSetting, up
 	// are hiding, so the row passes the next one the viewer sees in the Enabled list.
 	const moveHomeRow = useCallback((rowId, direction) => {
 		setTempHomeRows((prev) => {
-			const visibleRows = prev.filter((row) => row.enabled && isHomeRowVisibleByGates(row, settings, serverHasLiveTv, serverUrl));
+			const visibleRows = prev.filter((row) => row.enabled && isHomeRowVisibleByGates(row, settings, serverHasLiveTv, serverUrl, pluginInfo));
 			const visibleIndex = visibleRows.findIndex((row) => row.id === rowId);
 			const neighbourIndex = visibleIndex + direction;
 			if (visibleIndex < 0 || neighbourIndex < 0 || neighbourIndex >= visibleRows.length) return prev;
@@ -181,13 +193,12 @@ const useHomeRowsEditor = ({api, serverUrl, servers, settings, updateSetting, up
 			if (index < 0 || targetIndex < 0) return prev;
 			return swapOrder(prev, index, targetIndex);
 		});
-	}, [settings, serverHasLiveTv, serverUrl]);
+	}, [settings, serverHasLiveTv, serverUrl, pluginInfo]);
 
 	return {
 		tempHomeRows,
 		loading,
 		serverHasLiveTv,
-		toggleHomeRowEnabled,
 		toggleSeerrHomeRow,
 		toggleSeerrSlider,
 		openHomeRows,

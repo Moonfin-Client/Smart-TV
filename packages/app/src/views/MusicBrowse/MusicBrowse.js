@@ -29,7 +29,7 @@ const IconFilter = () => (
 	<svg viewBox="0 -960 960 960" fill="currentColor" width="24" height="24"><path d="M440-160q-17 0-28.5-11.5T400-200v-240L168-736q-15-20-4.5-42t36.5-22h560q26 0 36.5 22t-4.5 42L560-440v240q0 17-11.5 28.5T520-160h-80Z" /></svg>
 );
 
-const MusicBrowse = ({library, api, serverUrl, onSelectItem, onOpenGrid, onHome, backHandlerRef}) => {
+const MusicBrowse = ({library, api, serverUrl, onSelectItem, onOpenGrid, onHome, backHandlerRef, settingsPreview}) => {
 	const {settings, updateSetting} = useSettings();
 	const initialFocusRef = useRef(false);
 
@@ -66,7 +66,7 @@ const MusicBrowse = ({library, api, serverUrl, onSelectItem, onOpenGrid, onHome,
 	// First focus once there is something to focus, then a backstop for reloads
 	// that pull the focused row out from under us.
 	useEffect(() => {
-		if (isLoading || showFilter) return;
+		if (settingsPreview || isLoading || showFilter) return;
 		if (!initialFocusRef.current) {
 			initialFocusRef.current = true;
 			focusNode(featured ? HERO : CHIPS);
@@ -75,13 +75,13 @@ const MusicBrowse = ({library, api, serverUrl, onSelectItem, onOpenGrid, onHome,
 		const active = document.activeElement;
 		if (active && active !== document.body && active.classList?.contains('spottable')) return;
 		focusNode(clampMusicNode(chain, lastNodeRef.current || CHIPS));
-	}, [isLoading, showFilter, rows, chain, featured, focusNode, lastNodeRef]);
+	}, [isLoading, showFilter, rows, chain, featured, focusNode, lastNodeRef, settingsPreview]);
 
 	return (
 		<div className={css.page}>
 			<HeaderContainer
 				className={css.header}
-				spotlightId={MUSIC_FOCUS_IDS[HEADER]}
+				spotlightId={settingsPreview ? undefined : MUSIC_FOCUS_IDS[HEADER]}
 				onKeyDown={handleHeaderKey}
 			>
 				<SpottableButton className={css.headerBtn} spotlightId={MUSIC_FOCUS_IDS.home} onClick={onHome}>
@@ -113,6 +113,7 @@ const MusicBrowse = ({library, api, serverUrl, onSelectItem, onOpenGrid, onHome,
 							onSelect={onOpenGrid}
 							onKeyDown={handleChipsKey}
 							registerNode={registerNode}
+							settingsPreview={settingsPreview}
 						/>
 
 						{rows.length === 0 ? (
@@ -127,6 +128,7 @@ const MusicBrowse = ({library, api, serverUrl, onSelectItem, onOpenGrid, onHome,
 								onSelectItem={onSelectItem}
 								rowIndex={index}
 								rowId={row.id}
+								spotlightId={settingsPreview ? `music-preview-row-${index}` : undefined}
 								onFocus={handleRowFocus}
 								onNavigateUp={handleRowNavigateUp}
 								onNavigateDown={handleRowNavigateDown}

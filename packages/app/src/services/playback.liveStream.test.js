@@ -229,6 +229,30 @@ describe('transcode preferences', () => {
 		await playback.changeAudioStream(3, 0);
 		expect(lastRequest()).toMatchObject({EnableDirectPlay: false, EnableDirectStream: true});
 	});
+
+	test('a reload after a fallback the TV refused stays off the direct routes', async () => {
+		answerMovie();
+		await playback.getPlaybackInfo(movie.Id, {item: movie});
+		await playback.getPlaybackInfo(movie.Id, {item: movie, directRefused: true});
+		expect(lastRequest()).toMatchObject({EnableDirectPlay: false, EnableDirectStream: false});
+		await playback.getPlaybackInfo(movie.Id, {item: movie, startPositionTicks: 100});
+		expect(lastRequest()).toMatchObject({EnableDirectPlay: false, EnableDirectStream: false});
+	});
+
+	test('a live channel reloaded after a refused fallback stays off the direct routes', async () => {
+		answerLive('live-a', 'live-b');
+		await playback.getPlaybackInfo(channel.Id, {item: channel, directRefused: true});
+		await playback.getPlaybackInfo(channel.Id, {item: channel});
+		expect(lastRequest()).toMatchObject({EnableDirectPlay: false, EnableDirectStream: false});
+	});
+
+	test('a stop after a refused fallback lets the next load direct play again', async () => {
+		answerMovie();
+		await playback.getPlaybackInfo(movie.Id, {item: movie, directRefused: true});
+		await playback.reportStop(0);
+		await playback.getPlaybackInfo(movie.Id, {item: movie});
+		expect(lastRequest()).toMatchObject({EnableDirectPlay: true, EnableDirectStream: true});
+	});
 });
 
 describe('the source id PlaybackInfo is pinned to', () => {

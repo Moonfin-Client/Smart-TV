@@ -5,9 +5,14 @@ import Spottable from '@enact/spotlight/Spottable';
 import MediaCard from '../MediaCard';
 import {classicCardSize} from '../MediaCard/MediaCard';
 import PlaceholderRow from './PlaceholderRow';
+import CalendarSeeAllCard from './CalendarSeeAllCard';
+import {glideToCard} from '../../utils/focusScroll';
 import {KEYS} from '../../utils/keys';
 import {sameCardUserData} from '../../utils/playedState';
 import {useSettings} from '../../context/SettingsContext';
+import {nearRowEnd} from '../../views/Browse/rowPaging';
+import {classicShape} from '../../views/Browse/rowPeek';
+import {rem} from '../../utils/rootScale';
 
 import css from './MediaRow.module.less';
 
@@ -40,15 +45,22 @@ const MediaRow = ({
 	registerRowRef,
 	onSeeAll,
 	seeAllLabel,
+	onCalendarSeeAll,
+	seeAllIcon,
 	spotlightId: rowSpotlightId,
 	menuOptions,
 	loading,
 	titleWidth,
-	deferImages = false
+	deferImages = false,
+	homeText = false,
+	posterLabels = false,
+	hideWatchProgress = false,
+	hideUnwatchedCount = false,
+	onLoadMore,
+	loadMoreAhead
 }) => {
 	const {settings} = useSettings();
 	const scrollerRef = useRef(null);
-	const scrollerRectRef = useRef(null);
 	const scrollTimeoutRef = useRef(null);
 	const rowElementRef = useRef(null);
 
@@ -60,21 +72,24 @@ const MediaRow = ({
 		return () => registerRowRef?.(rowIndex, null);
 	}, [rowIndex, registerRowRef, loading]);
 
-	useEffect(() => {
-		scrollerRectRef.current = null;
-		const invalidate = () => {
-			scrollerRectRef.current = null;
-		};
-		window.addEventListener('resize', invalidate);
-		return () => window.removeEventListener('resize', invalidate);
-	}, [settings.navbarPosition]);
 
 	const handleSelect = useCallback((item) => {
 		onSelectItem?.(item);
 	}, [onSelectItem]);
 
+	const itemCount = items?.length || 0;
+
 	const handleFocus = useCallback((e) => {
 		onFocus?.(rowIndex);
+
+		// A row that pages asks for more once focus is among its last few cards, early enough that
+		// the next page is usually in before the end is reached.
+		const focused = e.target.closest('[data-media-card]');
+		if (onLoadMore && focused && focused.parentNode) {
+			const cards = focused.parentNode.querySelectorAll('[data-media-card]');
+			const index = Array.prototype.indexOf.call(cards, focused);
+			if (nearRowEnd(index, itemCount, loadMoreAhead)) onLoadMore(rowId);
+		}
 
 		// A hovered card already sits under the cursor, so nudging the lane
 		// would only slide it away from the pointer.
@@ -86,20 +101,13 @@ const MediaRow = ({
 			if (scrollTimeoutRef.current) {
 				window.cancelAnimationFrame(scrollTimeoutRef.current);
 			}
+			// Read before the browser's own focus scroll moves the lane, so the glide starts from what was on screen.
+			const start = scroller.scrollLeft;
 			scrollTimeoutRef.current = window.requestAnimationFrame(() => {
-				const cardRect = card.getBoundingClientRect();
-				if (!scrollerRectRef.current) {
-					scrollerRectRef.current = scroller.getBoundingClientRect();
-				}
-				const scrollerRect = scrollerRectRef.current;
-				if (cardRect.left < scrollerRect.left) {
-					scroller.scrollLeft -= (scrollerRect.left - cardRect.left + 50);
-				} else if (cardRect.right > scrollerRect.right) {
-					scroller.scrollLeft += (cardRect.right - scrollerRect.right + 50);
-				}
+				glideToCard(scroller, card, start);
 			});
 		}
-	}, [onFocus, rowIndex]);
+	}, [onFocus, rowIndex, onLoadMore, loadMoreAhead, itemCount, rowId]);
 
 	const handleKeyDown = useCallback((e) => {
 		if (e.keyCode === KEYS.UP && onNavigateUp) {
@@ -121,15 +129,17 @@ const MediaRow = ({
 				Spotlight.move('left');
 			}
 		} else {
-			Spotlight.focus(`media-${keyPrefix}-${items[items.length - 1].Id}`);
+			Spotlight.focus(onCalendarSeeAll ? `media-${keyPrefix}-calendar-see-all` : `media-${keyPrefix}-${items[items.length - 1].Id}`);
 		}
-	}, [items, keyPrefix, settings.navbarPosition]);
+	}, [items, keyPrefix, settings.navbarPosition, onCalendarSeeAll]);
 
 	const handleWrapRight = useCallback((e) => {
 		e.preventDefault();
 		e.stopPropagation();
 		Spotlight.focus(`media-${keyPrefix}-${items[0].Id}`);
 	}, [items, keyPrefix]);
+
+	const handleCalendarSeeAll = useCallback(() => onCalendarSeeAll(rowId), [onCalendarSeeAll, rowId]);
 
 	const rowClassName = [
 		css.row,
@@ -139,7 +149,7 @@ const MediaRow = ({
 	].filter(Boolean).join(' ');
 	// The padding slider owns the space below each row. Custom properties do not
 	// survive the build for the older sets, so it arrives as an inline style.
-	const rowStyle = typeof rowSpacing === 'number' ? {marginBottom: rowSpacing + 'px'} : undefined;
+	const rowStyle = typeof rowSpacing === 'number' ? {marginBottom: rem(rowSpacing)} : undefined;
 
 	if (loading) {
 		const cardSize = classicCardSize(cardType === 'square' ? 'square' : 'portrait', settings.homeRowsPosterSize);
@@ -186,7 +196,7 @@ const MediaRow = ({
 						{items.map((item, index) => {
 							const spotlightId = `media-${keyPrefix}-${item.Id}`;
 							const isFirst = index === 0;
-							const isLast = index === items.length - 1;
+							const isLast = index === items.length - 1 && !onCalendarSeeAll;
 
 							return (
 								<MediaCard
@@ -204,9 +214,22 @@ const MediaRow = ({
 									onSpotlightLeft={isFirst && !onSeeAll ? handleWrapLeft : null}
 									onSpotlightRight={isLast ? handleWrapRight : null}
 									menuOptions={menuOptions}
+									homeText={homeText}
+									posterLabels={posterLabels}
+									hideWatchProgress={hideWatchProgress}
+									hideUnwatchedCount={hideUnwatchedCount}
 								/>
 							);
 						})}
+						{onCalendarSeeAll && (
+							<CalendarSeeAllCard
+								{...classicCardSize(classicShape(cardType, rowImageType), settings.homeRowsPosterSize)}
+								spotlightId={`media-${keyPrefix}-calendar-see-all`}
+								onClick={handleCalendarSeeAll}
+								onSpotlightRight={handleWrapRight}
+								icon={seeAllIcon}
+							/>
+						)}
 				</div>
 			</div>
 		</RowContainer>
@@ -215,6 +238,8 @@ const MediaRow = ({
 
 const areRowPropsEqual = (prev, next) => {
 	if (prev.rowId !== next.rowId) return false;
+	// Presence only, since a caller's inline arrow would defeat the comparator.
+	if (!prev.onLoadMore !== !next.onLoadMore) return false;
 	if (prev.title !== next.title) return false;
 	if (prev.cardType !== next.cardType) return false;
 	if (prev.rowImageType !== next.rowImageType) return false;
@@ -228,10 +253,12 @@ const areRowPropsEqual = (prev, next) => {
 	if (prev.menuOptions !== next.menuOptions) return false;
 	if (prev.spotlightId !== next.spotlightId) return false;
 	if (prev.loading !== next.loading || prev.titleWidth !== next.titleWidth) return false;
-	if (prev.deferImages !== next.deferImages) return false;
+	if (prev.deferImages !== next.deferImages || prev.posterLabels !== next.posterLabels) return false;
+	if (prev.hideWatchProgress !== next.hideWatchProgress || prev.hideUnwatchedCount !== next.hideUnwatchedCount) return false;
 	// Compare presence, not identity: an inline arrow from a caller would defeat
 	// the whole comparator.
 	if (!prev.onSeeAll !== !next.onSeeAll) return false;
+	if (!prev.onCalendarSeeAll !== !next.onCalendarSeeAll) return false;
 	if (prev.items === next.items) return true;
 	if (prev.items?.length !== next.items?.length) return false;
 	for (let i = 0; i < prev.items.length; i++) {
