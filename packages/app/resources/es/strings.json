@@ -2283,5 +2283,18 @@
     "This device": "Este dispositivo",
     "This device syncs with the profile you pick until you pick another.": "Este dispositivo se sincroniza con el perfil que elijas hasta que selecciones otro.",
     "Run setup again": "Ejecutar la configuración otra vez",
-    "Manual (choose formats below)": "Manual (seleccione los formatos a continuación)"
+    "Manual (choose formats below)": "Manual (seleccione los formatos a continuación)",
+    "Turn on a row in Rows, under {disabled}": "Activa una fila en Filas, debajo de {disabled}",
+    "Type tells episodes from movies. Status shows what's in your library, coming up or missing.": "El Tipo indica los episodios de las películas. El Estado muestra lo que hay en tu biblioteca, lo que está por venir o lo que falta.",
+    "Unable to mark as complete": "Incapaz de marcar como completo",
+    "Up and down to preview · OK to choose · Back twice to skip": "Arriba y abajo para previsualizar · OK para seleccionar · Retroceder dos veces para saltar",
+    "Upcoming": "Próximamente",
+    "Use 4 to 8 digits.": "Usar de 4 a 8 dígitos.",
+    "Use at least {count} characters": "Usar al menos {count} caracteres",
+    "Waiting for your player": "Esperando al jugador",
+    "Waiting for {count} players": "Esperando a {count} jugadores",
+    "Waiting for {name}'s player": "Esperando al jugador {name}",
+    "You're the host now": "Eres el anfitrión ahora",
+    "Your own order for each collection": "Tu propio pedido para cada colección",
+    "Your watch party": "Tu grupo para ver el partido"
 }
