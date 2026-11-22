@@ -6,9 +6,9 @@ jest.mock('@enact/i18n/$L', () => ({__esModule: true, default: (str) => str}));
 // The real settings context and the rest of settingsRows both need the framework's own React.
 jest.mock('../../context/SettingsContext', () => ({DEFAULT_HOME_ROWS: require('../../utils/homeLayout').DEFAULT_HOME_ROWS}));
 jest.mock('./settingsRows', () => ({editedListKey: (list) => list.map((item) => `${item.id}:${item.enabled ? 1 : 0}`).join(',')}));
-jest.mock('../../services/jellyfinApi', () => ({createApiForServer: jest.fn(), getServerType: () => 'jellyfin'}));
+jest.mock('../../services/jellyfinApi', () => ({createApiForServer: jest.fn(), getServerType: jest.fn(() => 'jellyfin')}));
 
-import {createApiForServer} from '../../services/jellyfinApi';
+import {createApiForServer, getServerType} from '../../services/jellyfinApi';
 import {DEFAULT_HOME_ROWS} from '../../utils/homeLayout';
 import {makePickedRow} from '../../utils/pickedRows';
 import useHomeRowsEditor from './useHomeRowsEditor';
@@ -24,7 +24,8 @@ const openWith = async (homeRows, {channels = [{Id: 'channel'}], collections = n
 	const settings = {homeRows, displayCollectionsRows: collections !== null, ...extra};
 	const api = {
 		getLiveTvChannels: jest.fn().mockResolvedValue({Items: channels}),
-		getCollections: jest.fn().mockResolvedValue(collections)
+		getCollections: jest.fn().mockResolvedValue(collections),
+		getServerHomeSections: jest.fn().mockResolvedValue(extra.serverSections || [])
 	};
 	const updateSetting = jest.fn();
 	const updateSettings = jest.fn();
@@ -38,6 +39,26 @@ test('opening lists the collections found switched off and keeps the picks as sa
 	const {result} = await openWith([...rows(['resume', true]), collection('c1', 'Alien')], {collections: items(['c1', 'Alien'], ['c2', 'Bond'])});
 
 	expect(result.current.tempHomeRows.map((row) => [row.itemId, row.enabled])).toEqual([[undefined, true], ['c1', true], ['c2', false]]);
+});
+
+test('a Silo row shows in the app\'s language and is saved under Silo\'s title', async () => {
+	getServerType.mockReturnValue('silo');
+	try {
+		const picked = makePickedRow({source: 'server', serverUrl: SERVER, itemId: 'hg', name: 'Hidden Gems'}, true, 0);
+		const {result, updateSettings} = await openWith([...rows(['resume', true]), picked], {extra: {serverSections: [
+			{id: 'hg', title: 'Hidden Gems', label: 'Pépites cachées', kind: 'hidden_gems'},
+			{id: 'tr', title: 'Trending on Server', label: 'Tendances', kind: 'trending_on_server'}
+		]}});
+
+		expect(result.current.tempHomeRows.filter((row) => row.source).map((row) => [row.itemId, row.label])).toEqual([['hg', 'Pépites cachées'], ['tr', 'Tendances']]);
+
+		act(() => result.current.toggleHomeRow(makePickedRow({source: 'server', serverUrl: SERVER, itemId: 'tr', name: 'x'}, false, 0).id));
+		act(() => result.current.commitHomeRows());
+		const saved = updateSettings.mock.calls[0][0].homeRows.filter((row) => row.source);
+		expect(saved.map((row) => [row.itemId, row.name, 'label' in row])).toEqual([['hg', 'Hidden Gems', false], ['tr', 'Trending on Server', false]]);
+	} finally {
+		getServerType.mockReturnValue('jellyfin');
+	}
 });
 
 test('a pick the server no longer has is dropped and saved right away', async () => {

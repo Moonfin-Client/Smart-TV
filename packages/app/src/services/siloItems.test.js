@@ -1,3 +1,6 @@
+// $L reaches for ilib, which a plain unit test can't load; a marked copy shows the string went through it.
+jest.mock('@enact/i18n/$L', () => ({__esModule: true, default: (str) => `[${str}]`}));
+
 import {createSiloItems} from './siloItems';
 import {siloItemToBaseItem, siloRuleGroups, siloSortFor, siloTypesForQuery} from './siloMapper';
 import {createSiloPager} from './siloPager';
@@ -208,6 +211,23 @@ describe('items', () => {
 		const result = await items.getItems({SearchTerm: 'hobbit'});
 		expect(result.Items).toEqual([]);
 		expect(calls.map((c) => c.path)).toEqual(['/api/v2/catalog/search/capabilities']);
+	});
+
+	test('Silo\'s own rows carry their title in the app\'s language beside Silo\'s', async () => {
+		const {items} = setup({
+			'/api/v2/home/layout': {sections: [
+				{id: 'cw', section_type: 'continue_watching', title: 'Continue Watching', title_key: 'home.section.continueWatching'},
+				{id: 'hg', section_type: 'hidden_gems', title: 'Hidden Gems', title_key: 'home.section.hiddenGems'},
+				{id: 'ra', section_type: 'recently_added', title: 'Recently Added in Films', title_key: 'home.section.recentlyAddedIn', title_args: {library: 'Films'}},
+				{id: 'mine', section_type: 'hidden_gems', title: 'Sunday Picks'}
+			]}
+		});
+		const sections = await items.getServerHomeSections();
+		expect(sections.map((s) => [s.id, s.title, s.label])).toEqual([
+			['hg', 'Hidden Gems', '[Hidden Gems]'],
+			['ra', 'Recently Added in Films', '[Recently Added in Films]'],
+			['mine', 'Sunday Picks', 'Sunday Picks']
+		]);
 	});
 
 	test('Continue Watching comes from the home layout, without the next-up cards', async () => {

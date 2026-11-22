@@ -142,7 +142,7 @@ const fetchSiloSeasonalRow = async () => {
 			const j = Math.floor(Math.random() * (i + 1));
 			[items[i], items[j]] = [items[j], items[i]];
 		}
-		return {holiday: 'silo', title: section.title, items, suggestions: []};
+		return {holiday: 'silo', title: section.label || section.title, items, suggestions: []};
 	} catch (err) {
 		console.warn('[ExternalRows] Silo seasonal section failed:', err);
 		return null;

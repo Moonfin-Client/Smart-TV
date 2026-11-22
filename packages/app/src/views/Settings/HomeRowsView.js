@@ -35,7 +35,7 @@ const ROW_RENDER_STEP = 60;
 
 const groupSpotlightId = (group) => `homerows-group-${group}`;
 const rowSpotlightId = (item) => `homerow-${item.id}`;
-const rowTitle = (item) => (isPickedRow(item) || isSeerrSliderRow(item) ? item.name : editorRowName($L(item.name)));
+const rowTitle = (item) => (isPickedRow(item) || isSeerrSliderRow(item) ? item.label || item.name : editorRowName($L(item.name)));
 
 const GroupRow = ({group, count, open, onToggle}) => (
 	<SpottableDiv className={`${css.listItem} ${css.listItemClean}`} onClick={onToggle} spotlightId={groupSpotlightId(group)}>

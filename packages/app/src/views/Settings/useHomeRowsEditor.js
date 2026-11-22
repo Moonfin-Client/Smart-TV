@@ -28,8 +28,12 @@ const otherServers = (servers, serverUrl) => {
 // switched on, and the collections of the other signed in servers while multi-server libraries is on
 const findPickableRows = async ({api, serverUrl, servers, settings, rows = []}) => {
 	const lists = [];
+	// A Silo row also has a label in the app's language, shown in the editor and never saved
 	const add = (source, url, request) => lists.push(request.then(
-		(result) => (result?.Items || []).map((item) => makePickedRow({source, serverUrl: url, itemId: String(item.Id), name: item.Name}, false, 0)),
+		(result) => (result?.Items || []).map((item) => {
+			const row = makePickedRow({source, serverUrl: url, itemId: String(item.Id), name: item.Name}, false, 0);
+			return item.Label ? {...row, label: item.Label} : row;
+		}),
 		() => []
 	));
 	if (settings.displayCollectionsRows) {
@@ -49,11 +53,24 @@ const findPickableRows = async ({api, serverUrl, servers, settings, rows = []}) 
 			.map((row) => row.itemId));
 		add('server', serverUrl, api.getServerHomeSections().then((sections) => {
 			const standIns = new Set(typed);
-			return {Items: sections.filter((section) => !standIns.delete(`type:${section.kind}`)).map((section) => ({Id: section.id, Name: section.title}))};
+			return {Items: sections.filter((section) => !standIns.delete(`type:${section.kind}`)).map((section) => ({Id: section.id, Name: section.title, Label: section.label}))};
 		}));
 	}
 	return [].concat(...await Promise.all(lists));
 };
+
+// The editor's copy of the rows, with each found Silo row's label. Labels are taken off again before
+// the rows are saved, since they follow the app's language.
+const withLabels = (rows, found) => {
+	const labels = new Map(found.filter((row) => row.label).map((row) => [row.id.toLowerCase(), row.label]));
+	return labels.size ? rows.map((row) => (labels.has(row.id.toLowerCase()) ? {...row, label: labels.get(row.id.toLowerCase())} : row)) : rows;
+};
+const withoutLabels = (rows) => rows.map((row) => {
+	if (!('label' in row)) return row;
+	const saved = {...row};
+	delete saved.label;
+	return saved;
+});
 
 // Swaps the order two entries hold, as new objects so the stored rows aren't changed under the
 // screen before it writes them back
@@ -136,14 +153,14 @@ const useHomeRowsEditor = ({api, serverUrl, servers, settings, updateSetting, up
 				if (merged.changed || reconciled.changed) updateSetting('homeRows', withOrder(merged.rows));
 				openedRef.current = editedListKey(merged.rows);
 				foundRef.current = {rows: found, added: new Set(merged.added.map((row) => row.id))};
-				setTempHomeRows(withOrder([...merged.rows, ...merged.added]));
+				setTempHomeRows(withLabels(withOrder([...merged.rows, ...merged.added]), found));
 				setLoading(false);
 			});
 	}, [api, serverUrl, servers, settings, pushView, updateSetting]);
 
 	const commitHomeRows = useCallback(() => {
 		const {added} = foundRef.current;
-		const rows = withOrder(tempHomeRows.filter((row) => row.enabled || !added.has(row.id)));
+		const rows = withOrder(withoutLabels(tempHomeRows.filter((row) => row.enabled || !added.has(row.id))));
 		if (editedListKey(rows) === openedRef.current) return;
 		openedRef.current = editedListKey(rows);
 		const updates = {homeRows: rows};
