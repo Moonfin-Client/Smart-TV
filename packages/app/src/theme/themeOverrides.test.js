@@ -189,7 +189,9 @@ describe('buildThemeOverrideCss', () => {
 		registerThemeSheet('player', playerSheet);
 		registerThemeSheet('playerOverlays', {offsetBtn: 'offsetBtn', actionBtn: 'actionBtn', settingItem: 'settingItem', sliderItem: 'sliderItem'});
 		await Promise.resolve();
-		const lines = document.getElementById('moonfin-theme-overrides').textContent.split('\n');
+		const lines = document.getElementById('moonfin-theme-overrides-later').textContent.split('\n');
+		// Only the new screens' rules, not the whole theme again.
+		expect(lines.some((line) => line.includes('#root'))).toBe(false);
 		const prefix = "html[data-theme-id='moonfin'][data-theme-id]";
 		expect(lines).toContain(`${prefix} .liveBtn:hover, ${prefix} .liveBtn:focus, ${prefix} .chapterItem:hover, ${prefix} .chapterItem:focus { border-color: rgb(255, 0, 0); }`);
 		expect(lines).toContain(`${prefix} .sliderItem:focus-within { border-color: rgb(255, 0, 0); }`);

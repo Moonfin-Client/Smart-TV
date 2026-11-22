@@ -80,6 +80,7 @@ import carouselCss from '../components/ProfileCarousel/ProfileCarousel.module.le
 import coreDialogCss from '../components/CoreDialog/CoreDialog.module.less';
 
 const STYLE_ELEMENT_ID = 'moonfin-theme-overrides';
+const LATER_ELEMENT_ID = 'moonfin-theme-overrides-later';
 
 // Screens that load on demand hand their stylesheets over when they load, since importing one
 // here would move it into the main stylesheet and change which of its rules win ties.
@@ -96,7 +97,8 @@ const bumpRadius = (radius, extra) => radiusToCss({
 	bottomLeft: radius.bottomLeft + extra
 });
 
-export const buildThemeOverrideCss = (theme, options = {}) => {
+// `lazyOnly` builds just the rules for the screens that load on demand.
+export const buildThemeOverrideCss = (theme, options = {}, lazyOnly = false) => {
 	const c = theme.colors;
 	const b = theme.borders;
 
@@ -172,13 +174,17 @@ export const buildThemeOverrideCss = (theme, options = {}) => {
 		: `rgba(${focusInk}, 0.92)`;
 
 	const rules = [];
+	let keep = !lazyOnly;
+	const push = (text) => {
+		if (keep) rules.push(text);
+	};
 	// Doubling the attribute keeps these rules winning ties against stylesheets
 	// injected after this one, whatever order the head ends up in.
 	const prefix = `html[data-theme-id='${theme.id}'][data-theme-id]`;
 	const rule = (selector, body) => {
-		rules.push(`${selector.split(',').map((part) => `${prefix} ${part.trim()}`).join(', ')} { ${body} }`);
+		if (keep) rules.push(`${selector.split(',').map((part) => `${prefix} ${part.trim()}`).join(', ')} { ${body} }`);
 	};
-	rules.push(`${prefix} { background: ${background}; color: ${onBackground}; }`);
+	push(`${prefix} { background: ${background}; color: ${onBackground}; }`);
 
 	// App shell
 	rule(`body, #root, .${appCss.app}, .${appCss.panelLoader}`, `background: ${background}; color: ${onBackground};`);
@@ -368,7 +374,7 @@ export const buildThemeOverrideCss = (theme, options = {}) => {
 	rule(`.${settingsCss.settingsButtonPrimary}`, `background: ${buttonNormal}; color: ${onButtonNormal};`);
 	rule(`.${settingsCss.settingsButton}:focus`, `${tileFocus} color: ${invertedStrong};`);
 	// Low tier sets skip the glow, which this sheet would otherwise put back over the stylesheet
-	rules.push(`${[settingsCss.listItem, settingsCss.syncCard, settingsCss.settingsButton]
+	push(`${[settingsCss.listItem, settingsCss.syncCard, settingsCss.settingsButton]
 		.map((name) => `${prefix}.perf-low .${name}:focus`).join(', ')} { box-shadow: none; }`);
 	// The Settings Sync cards fill and focus the way the settings rows do
 	rule(`.${settingsCss.syncCard}, .${settingsCss.syncTransferCard}`, `background: ${surface}; border-color: ${tileBorderColor};`);
@@ -749,7 +755,7 @@ export const buildThemeOverrideCss = (theme, options = {}) => {
 		// The Fire TV WebView only shows a video it can put on its own hardware plane and a
 		// rounded clip keeps it off one, so the stylesheet squares the frame, the ring and the
 		// container around them while a preview is up, which this sheet would otherwise round back
-		rules.push(`${prefix}.vega .${cardCss.previewFrame}, ${prefix}.vega .${cardCss.previewRing}, ${prefix}.vega .${cardCss.imageContainer}.${cardCss.previewHost} { border-radius: 0; }`);
+		push(`${prefix}.vega .${cardCss.previewFrame}, ${prefix}.vega .${cardCss.previewRing}, ${prefix}.vega .${cardCss.imageContainer}.${cardCss.previewHost} { border-radius: 0; }`);
 		rule(`.${cardCss.placeholder}`, `background: linear-gradient(135deg, ${accentA(0.25)} 0%, ${accentA(0.05)} 50%, transparent 100%), ${surfaceVariant};`);
 		rule(`.${cardCss.placeholderTitle}`, `color: ${onSurface};`);
 		rule(`.${cardCss.title}`, `color: ${theme.id === 'neon_pulse' ? accent : onSurface};`);
@@ -800,7 +806,7 @@ export const buildThemeOverrideCss = (theme, options = {}) => {
 		// Neon's condensed body face needs the weight and a dark halo to read over bright art.
 		rule(`.${mediaCardCss.episodeInfo}, .${modernCardCss.secondaryTitle}`, 'font-weight: 600; text-shadow: 0 0 4px #000000, 0 0 6px rgba(0, 0, 0, 0.87);');
 		// Every card draws one, so the lower tiers drop it the way they drop the card glow.
-		rules.push(`${[mediaCardCss.episodeInfo, modernCardCss.secondaryTitle]
+		push(`${[mediaCardCss.episodeInfo, modernCardCss.secondaryTitle]
 			.map((name) => `${prefix}.perf-low .${name}, ${prefix}.perf-mid .${name}`).join(', ')} { text-shadow: none; }`);
 	}
 	rule(`.${modernCardCss.placeholderIcon}`, `color: ${os(0.45)};`);
@@ -824,6 +830,7 @@ export const buildThemeOverrideCss = (theme, options = {}) => {
 	rule(`.${ratingsCss.ratingValueCompact}`, `color: ${onBackground};`);
 
 	// Watched badges on the screens that load on demand
+	keep = true;
 	Object.values(lazySheets).filter((sheet) => sheet.watchedBadge).forEach((sheet) => {
 		rule(`.${sheet.watchedBadge}`, `background: ${badgeWatched}; border-color: ${onBadge};`);
 		rule(`.${sheet.watchedBadge} svg`, `fill: ${onBadge}; stroke: ${onBadge};`);
@@ -873,6 +880,7 @@ export const buildThemeOverrideCss = (theme, options = {}) => {
 		rule(`.${calendar.row}:focus::after, .${calendar.card}:focus::after, .${calendar.cell}:focus::after`, `border-color: ${focusColor};`);
 		rule(`.${calendar.button}:focus, .${calendar.tab}:focus`, `background: ${onSurface} !important; border-color: ${focusColor}; color: ${inkOn(c.onSurface) === '0, 0, 0' ? 'rgba(0, 0, 0, 0.87)' : '#fff'};`);
 	}
+	keep = !lazyOnly;
 
 
 	// Switch User, drawn in the theme's accent like Core and Roku. The scrim, the initials
@@ -946,20 +954,29 @@ export const buildThemeOverrideCss = (theme, options = {}) => {
 	return rules.join('\n');
 };
 
+const styleElement = (id) => {
+	let element = document.getElementById(id);
+	if (!element) {
+		element = document.createElement('style');
+		element.id = id;
+	}
+	return element;
+};
+
 // Creates or refreshes the injected style element. Appending on every call also
 // moves it back to the end of the head.
 export const applyThemeOverrides = (theme, options) => {
 	lastApplied = [theme, options];
 	if (typeof document === 'undefined') return;
-	let element = document.getElementById(STYLE_ELEMENT_ID);
-	if (!element) {
-		element = document.createElement('style');
-		element.id = STYLE_ELEMENT_ID;
-	}
+	const element = styleElement(STYLE_ELEMENT_ID);
 	element.textContent = buildThemeOverrideCss(theme, options);
 	document.head.appendChild(element);
+	const later = document.getElementById(LATER_ELEMENT_ID);
+	if (later) later.textContent = '';
 };
 
+// A screen that loads on demand only adds its own rules, in a sheet of their own after the main one, since
+// rebuilding the whole theme took a third of a second on webOS 3 every time one opened.
 export const registerThemeSheet = (name, css) => {
 	lazySheets[name] = css;
 	if (!lastApplied || rebuildQueued) return;
@@ -967,6 +984,9 @@ export const registerThemeSheet = (name, css) => {
 	// A screen's modules load together, so their sheets go in with one rebuild
 	Promise.resolve().then(() => {
 		rebuildQueued = false;
-		applyThemeOverrides(...lastApplied);
+		if (typeof document === 'undefined') return;
+		const element = styleElement(LATER_ELEMENT_ID);
+		element.textContent = buildThemeOverrideCss(lastApplied[0], lastApplied[1], true);
+		document.head.appendChild(element);
 	});
 };
